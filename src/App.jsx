@@ -4800,13 +4800,6 @@ async function fetchGNFeed(query) {
       const items = parseBingXML(xml)
       if (items.length) return items
     }
-  } catch(e) { console.warn('[News] /api/news failed:', e?.message) }
-  return []
-}
-    } catch(e) { console.warn('[News]', e?.message) }
-  }
-  return []
-}
 async function fetchOGImage(articleUrl) {
   try {
     const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(articleUrl)}`
