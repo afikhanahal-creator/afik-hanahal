@@ -4804,27 +4804,6 @@ async function fetchGNFeed(query) {
   } catch(e) { console.warn("[News] /api/news failed:", e?.message) }
   return []
 }
-async function fetchGNFeed_unused(
-  const encoded = encodeURIComponent(query)
-  const rssUrl  = `https://news.google.com/rss/search?q=${encoded}&hl=he&gl=IL&ceid=IL:he`
-  const proxies = [
-    `https://api.allorigins.win/get?url=${encodeURIComponent(rssUrl)}`,
-    `https://corsproxy.io/?${encodeURIComponent(rssUrl)}`,
-    `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(rssUrl)}`,
-  ]
-  for (const proxy of proxies) {
-    try {
-      const r = await fetch(proxy, { signal: AbortSignal.timeout(7000) })
-      if (!r.ok) continue
-      const text = proxy.includes('allorigins') ? (await r.json())?.contents : await r.text()
-      if (!text) continue
-      const items = parseBingXML(text)
-      if (items.length) return items
-    } catch(e) { console.warn('[News] proxy failed:', proxy, e?.message) }
-  }
-  return []
-}
-
 async function fetchOGImage(articleUrl) {
   try {
     const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(articleUrl)}`
