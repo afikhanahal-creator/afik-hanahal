@@ -3,20 +3,42 @@
   "outputDirectory": "dist",
   "framework": "vite",
   "functions": {
-    "api/whatsapp.js": { "maxDuration": 30 },
-    "api/capi.js":     { "maxDuration": 10 }
+    "api/whatsapp.js": {
+      "maxDuration": 30
+    },
+    "api/capi.js": {
+      "maxDuration": 10
+    },
+    "api/news.js": {
+      "maxDuration": 15
+    }
   },
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/$1" },
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/$1"
+    },
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
   ],
   "headers": [
     {
       "source": "/api/(.*)",
       "headers": [
-        { "key": "Access-Control-Allow-Origin", "value": "*" },
-        { "key": "Access-Control-Allow-Methods", "value": "GET,POST,OPTIONS" },
-        { "key": "Access-Control-Allow-Headers", "value": "Content-Type,Authorization" }
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        },
+        {
+          "key": "Access-Control-Allow-Methods",
+          "value": "GET,POST,OPTIONS"
+        },
+        {
+          "key": "Access-Control-Allow-Headers",
+          "value": "Content-Type,Authorization"
+        }
       ]
     }
   ]

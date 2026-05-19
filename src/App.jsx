@@ -4794,6 +4794,17 @@ function parseBingXML(xml) {
 
 // Fetch Bing News RSS via Vite proxy (/bing → www.bing.com)
 async function fetchGNFeed(query) {
+  try {
+    const r = await fetch(`/api/news?q=${encodeURIComponent(query)}`, { signal: AbortSignal.timeout(10000) })
+    if (r.ok) {
+      const xml = await r.text()
+      const items = parseBingXML(xml)
+      if (items.length) return items
+    }
+  } catch(e) { console.warn("[News] /api/news failed:", e?.message) }
+  return []
+}
+async function fetchGNFeed_unused(
   const encoded = encodeURIComponent(query)
   const rssUrl  = `https://news.google.com/rss/search?q=${encoded}&hl=he&gl=IL&ceid=IL:he`
   const proxies = [
@@ -7566,4 +7577,5 @@ export default function App() {
     </ThemeCtx.Provider>
   )
 }
+
 
