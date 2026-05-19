@@ -4792,21 +4792,16 @@ function parseBingXML(xml) {
   } catch(e) { console.error('[News] parseBingXML:', e); return [] }
 }
 
-// Fetch Bing News RSS via Vite proxy (/bing → www.bing.com)
+// Fetch news via Vercel serverless function
 async function fetchGNFeed(query) {
   try {
-    const r = await fetch(`${API_BASE}/api/news?lang=he`, { signal: AbortSignal.timeout(8000) })
+    const r = await fetch(`/api/news?q=${encodeURIComponent(query)}`, { signal: AbortSignal.timeout(10000) })
     if (r.ok) {
-      const data = await r.json()
-      if (Array.isArray(data) && data.length) {
-        return data.map(a => ({
-          id: a.id, title: a.title, link: a.url, image: a.image || '',
-          source: a.source || '', date: a.published_at ? new Date(a.published_at) : new Date(0),
-          ogFetched: true,
-        }))
-      }
+      const xml = await r.text()
+      const items = parseBingXML(xml)
+      if (items.length) return items
     }
-  } catch(e) { console.warn('[News] Supabase fetch failed:', e?.message) }
+  } catch(e) { console.warn('[News] failed:', e?.message) }
   return []
 }
 async function fetchOGImage(articleUrl) {
