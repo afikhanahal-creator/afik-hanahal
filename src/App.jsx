@@ -4794,47 +4794,41 @@ function parseBingXML(xml) {
 
 // Fetch Bing News RSS via Vite proxy (/bing → www.bing.com)
 async function fetchGNFeed(query) {
-  const url = `/bing/news/search?q=${encodeURIComponent(query)}&format=rss&mkt=he-IL&cc=IL`
+  const encoded = encodeURIComponent(query)
+  const rssUrl  = `https://news.google.com/rss/search?q=${encoded}&hl=he&gl=IL&ceid=IL:he`
+  const proxy   = `https://api.allorigins.win/get?url=${encodeURIComponent(rssUrl)}`
   try {
-    const r = await fetch(url)
-    if (r.ok) {
-      const xml = await r.text()
-      const items = parseBingXML(xml)
-      if (items.length) return items
-    }
-  } catch(e) { console.warn('[News] Bing fetch failed:', e?.message) }
-  return []
+    const r = await fetch(proxy, { signal: AbortSignal.timeout(8000) })
+    if (!r.ok) return []
+    const d = await r.json()
+    if (!d?.contents) return []
+    return parseBingXML(d.contents)
+  } catch(e) { console.warn('[News] fetch failed:', e?.message); return [] }
 }
 
-// ── Daily-rotation skill ──────────────────────────────────────────────────────
-// Keeps SLOT_COUNT article slots in localStorage.
-// Each day: drops the slot with the oldest addedAt, fetches ONE fresh article
-// (≤24 h old, must have image) and fills the vacated slot.
-// On first load: fills all 4 slots from today's news.
-function dayIndex(ts = Date.now()) { return Math.floor(ts / (24 * 3600 * 1000)) }
-
-// Fetch actual OG image from the article page (server-side via Vite middleware)
 async function fetchOGImage(articleUrl) {
   try {
-    const r = await fetch(`/api/og?url=${encodeURIComponent(articleUrl)}`)
+    const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(articleUrl)}`
+    const r = await fetch(proxy, { signal: AbortSignal.timeout(6000) })
     if (!r.ok) return ''
     const d = await r.json()
-    return d.image || ''
+    if (!d?.contents) return ''
+    const match = d.contents.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)
+              || d.contents.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i)
+    return match?.[1] || ''
   } catch { return '' }
 }
 
-// After slot selection: enrich articles that have fallback images with real OG images
 async function enrichWithOGImages(articles) {
   const enriched = await Promise.allSettled(
     articles.map(async a => {
-      if (a.ogFetched) return a          // already enriched in a previous session
+      if (a.ogFetched) return a
       const img = await fetchOGImage(a.link)
       return { ...a, image: img || pickFallback(a.id || a.title), ogFetched: true }
     })
   )
   return enriched.map((r, i) => r.status === 'fulfilled' ? r.value : articles[i])
 }
-
 async function fetchFreshArticles() {
   const cutoff = Date.now() - FRESH_HOURS * 3600 * 1000
   const results = await Promise.allSettled(GN_QUERIES.map(q => fetchGNFeed(q)))
