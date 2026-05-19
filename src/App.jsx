@@ -4793,21 +4793,16 @@ function parseBingXML(xml) {
 }
 
 async function fetchGNFeed(query) {
-  const encoded = encodeURIComponent(query)
-  const rssUrl = `https://news.google.com/rss/search?q=${encoded}&hl=he&gl=IL&ceid=IL:he`
-  const proxies = [
-    `https://corsproxy.io/?${encodeURIComponent(rssUrl)}`,
-    `https://api.allorigins.win/get?url=${encodeURIComponent(rssUrl)}`,
-    `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(rssUrl)}`,
-  ]
-  for (const proxy of proxies) {
-    try {
-      const r = await fetch(proxy, { signal: AbortSignal.timeout(9000) })
-      if (!r.ok) continue
-      const text = proxy.includes('allorigins') ? (await r.json())?.contents : await r.text()
-      if (!text) continue
-      const items = parseBingXML(text)
+  try {
+    const r = await fetch(`/api/news?q=${encodeURIComponent(query)}`, { signal: AbortSignal.timeout(10000) })
+    if (r.ok) {
+      const xml = await r.text()
+      const items = parseBingXML(xml)
       if (items.length) return items
+    }
+  } catch(e) { console.warn('[News] /api/news failed:', e?.message) }
+  return []
+}
     } catch(e) { console.warn('[News]', e?.message) }
   }
   return []
