@@ -4823,6 +4823,7 @@ async function fetchOGImage(articleUrl) {
     return match?.[1] || ''
   } catch { return '' }
 
+}
 async function enrichWithOGImages(articles) {
   const enriched = await Promise.allSettled(
     articles.map(async a => {
