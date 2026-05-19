@@ -4867,6 +4867,7 @@ function useRotatingNews() {
 
   const run = useCallback(async (forceReset = false) => {
     setLoading(true); setError(false)
+function dayIndex(ts = Date.now()) { return Math.floor(ts / (24 * 3600 * 1000)) }
     const now   = Date.now()
     const today = dayIndex(now)
 
