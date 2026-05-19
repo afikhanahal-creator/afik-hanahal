@@ -1,4 +1,9 @@
 import { useState, useEffect, useRef, useCallback, createContext, useContext, useMemo } from 'react'
+
+
+async function fetchOGImage(articleUrl) {
+
+import { useState, useEffect, useRef, useCallback, createContext, useContext, useMemo } from 'react'
 import { MenuToggleIcon } from './MenuToggleIcon.jsx'
 import AccessibilityWidget from './AccessibilityWidget.jsx'
 import CookieConsent from './CookieConsent.jsx'
