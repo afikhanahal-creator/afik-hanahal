@@ -4792,22 +4792,26 @@ function parseBingXML(xml) {
   } catch(e) { console.error('[News] parseBingXML:', e); return [] }
 }
 
-// Fetch Bing News RSS via Vite proxy (/bing → www.bing.com)
 async function fetchGNFeed(query) {
-  try {
-    const r = await fetch(`${API_BASE}/api/news?lang=he`, { signal: AbortSignal.timeout(8000) })
-    if (r.ok) {
-      const data = await r.json()
-      if (Array.isArray(data) && data.length) {
-        return data.map(a => ({
-          id: a.id, title: a.title, link: a.url, image: a.image || '',
-          source: a.source || '', date: a.published_at ? new Date(a.published_at) : new Date(0),
-          ogFetched: true,
-        }))
-      }
-    }
-  } catch(e) { console.warn('[News] Supabase fetch failed:', e?.message) }
+  const encoded = encodeURIComponent(query)
+  const rssUrl = `https://news.google.com/rss/search?q=${encoded}&hl=he&gl=IL&ceid=IL:he`
+  const proxies = [
+    `https://corsproxy.io/?${encodeURIComponent(rssUrl)}`,
+    `https://api.allorigins.win/get?url=${encodeURIComponent(rssUrl)}`,
+    `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(rssUrl)}`,
+  ]
+  for (const proxy of proxies) {
+    try {
+      const r = await fetch(proxy, { signal: AbortSignal.timeout(9000) })
+      if (!r.ok) continue
+      const text = proxy.includes('allorigins') ? (await r.json())?.contents : await r.text()
+      if (!text) continue
+      const items = parseBingXML(text)
+      if (items.length) return items
+    } catch(e) { console.warn('[News]', e?.message) }
+  }
   return []
+}
 }
 async function fetchOGImage(articleUrl) {
   try {
