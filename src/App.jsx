@@ -4812,7 +4812,6 @@ async function fetchGNFeed(query) {
   }
   return []
 }
-}
 async function fetchOGImage(articleUrl) {
     const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(articleUrl)}`
     const r = await fetch(proxy, { signal: AbortSignal.timeout(5000) })
