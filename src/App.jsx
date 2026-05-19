@@ -4835,11 +4835,6 @@ async function enrichWithOGImages(articles) {
       return { ...a, image: img || pickFallback(a.id || a.title), ogFetched: true }
     })
   )
-  return enriched.map((r, i) => r.status === 'fulfilled' ? r.value : articles[i])
-}
-  return enriched.map((r, i) => r.status === 'fulfilled' ? r.value : articles[i])
-}
-    .flatMap(r => r.value)
     .filter(a => {
       if (!a.title || !a.link || a.link === '#') return false
       const ms = a.date instanceof Date && !isNaN(a.date) ? a.date.getTime() : Date.now()
