@@ -4822,7 +4822,6 @@ async function fetchOGImage(articleUrl) {
               || d.contents.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i)
     return match?.[1] || ''
   } catch { return '' }
-}
 
 async function enrichWithOGImages(articles) {
   const enriched = await Promise.allSettled(
