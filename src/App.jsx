@@ -4796,20 +4796,28 @@ function parseBingXML(xml) {
 async function fetchGNFeed(query) {
   const encoded = encodeURIComponent(query)
   const rssUrl  = `https://news.google.com/rss/search?q=${encoded}&hl=he&gl=IL&ceid=IL:he`
-  const proxy   = `https://api.allorigins.win/get?url=${encodeURIComponent(rssUrl)}`
-  try {
-    const r = await fetch(proxy, { signal: AbortSignal.timeout(8000) })
-    if (!r.ok) return []
-    const d = await r.json()
-    if (!d?.contents) return []
-    return parseBingXML(d.contents)
-  } catch(e) { console.warn('[News] fetch failed:', e?.message); return [] }
+  const proxies = [
+    `https://api.allorigins.win/get?url=${encodeURIComponent(rssUrl)}`,
+    `https://corsproxy.io/?${encodeURIComponent(rssUrl)}`,
+    `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(rssUrl)}`,
+  ]
+  for (const proxy of proxies) {
+    try {
+      const r = await fetch(proxy, { signal: AbortSignal.timeout(7000) })
+      if (!r.ok) continue
+      const text = proxy.includes('allorigins') ? (await r.json())?.contents : await r.text()
+      if (!text) continue
+      const items = parseBingXML(text)
+      if (items.length) return items
+    } catch(e) { console.warn('[News] proxy failed:', proxy, e?.message) }
+  }
+  return []
 }
 
 async function fetchOGImage(articleUrl) {
   try {
     const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(articleUrl)}`
-    const r = await fetch(proxy, { signal: AbortSignal.timeout(6000) })
+    const r = await fetch(proxy, { signal: AbortSignal.timeout(5000) })
     if (!r.ok) return ''
     const d = await r.json()
     if (!d?.contents) return ''
@@ -4829,12 +4837,8 @@ async function enrichWithOGImages(articles) {
   )
   return enriched.map((r, i) => r.status === 'fulfilled' ? r.value : articles[i])
 }
-async function fetchFreshArticles() {
-  const cutoff = Date.now() - FRESH_HOURS * 3600 * 1000
-  const results = await Promise.allSettled(GN_QUERIES.map(q => fetchGNFeed(q)))
-  const seen = new Set()
-  const all = results
-    .filter(r => r.status === 'fulfilled')
+  return enriched.map((r, i) => r.status === 'fulfilled' ? r.value : articles[i])
+}
     .flatMap(r => r.value)
     .filter(a => {
       if (!a.title || !a.link || a.link === '#') return false
