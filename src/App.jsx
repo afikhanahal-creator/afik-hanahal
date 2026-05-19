@@ -4813,6 +4813,7 @@ async function fetchGNFeed(query) {
   return []
 }
 async function fetchOGImage(articleUrl) {
+  try {
     const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(articleUrl)}`
     const r = await fetch(proxy, { signal: AbortSignal.timeout(5000) })
     if (!r.ok) return ''
@@ -4822,7 +4823,6 @@ async function fetchOGImage(articleUrl) {
               || d.contents.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i)
     return match?.[1] || ''
   } catch { return '' }
-
 }
 async function enrichWithOGImages(articles) {
   const enriched = await Promise.allSettled(
