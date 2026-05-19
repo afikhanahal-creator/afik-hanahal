@@ -4800,8 +4800,9 @@ async function fetchGNFeed(query) {
       const items = parseBingXML(xml)
       if (items.length) return items
     }
-async function fetchOGImage(articleUrl) {
-  try {
+  } catch(e) { console.warn('[News] /api/news failed:', e?.message) }
+  return []
+}
     const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(articleUrl)}`
     const r = await fetch(proxy, { signal: AbortSignal.timeout(5000) })
     if (!r.ok) return ''
