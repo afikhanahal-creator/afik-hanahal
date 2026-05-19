@@ -4867,7 +4867,6 @@ function useRotatingNews() {
 
   const run = useCallback(async (forceReset = false) => {
     setLoading(true); setError(false)
-function dayIndex(ts = Date.now()) { return Math.floor(ts / (24 * 3600 * 1000)) }
     const now   = Date.now()
     const today = dayIndex(now)
 
@@ -5731,15 +5730,6 @@ function TestimonialsSection() {
               </div>
             </motion.div>
           </AnimatePresence>
-        </div>
-
-        {/* Dot indicators below card */}
-        <div style={{ display:'flex', justifyContent:'center', gap:8, marginTop:20 }}>
-          {TESTIMONIALS_DATA.map((_, i) => (
-            <button key={i} onClick={() => goTo(i)}
-              style={{ width:i===active?28:9, height:9, borderRadius:5, background:i===active?C.purple:C.purple+'30', border:'none', cursor:'pointer', transition:'all .3s', padding:0 }}
-              aria-label={`עדות ${i+1}`}/>
-          ))}
         </div>
 
       </div>
