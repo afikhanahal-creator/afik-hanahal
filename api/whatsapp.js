@@ -4,7 +4,7 @@
 const WA_META_TOKEN   = process.env.WA_META_TOKEN   || 'EAAnqYHiWM8cBRY4NZCJoUxhn41ETA9XiODRsPtkbkZAeyNULZBgJJBWcgdpaL0nrJVKw0y8PGD9XOiMXyacGlYTWS0HC41GguWbdMIUQn3NZBScF7guZCD9bwZAZAa4v0nI2ht4nrmF4CY0ayni8TKSVWSkoM2ywMRC9GSTp2nHSOxSm6RZB7tnDjRvdEN75LP5EWSsUe9oaxMpuojrdctDV8bkXuuI27N9nwh3E9kviZBZBZAYVcw054i9hd7wXmQTGvL7MkfZApzQjHluRBWaY2wOR'
 const PHONE_NUMBER_ID = process.env.WA_PHONE_NUMBER_ID || '1160230953835065'
 const VERIFY_TOKEN    = process.env.WA_VERIFY_TOKEN    || 'AFIKhanahal2026'
-const ANTHROPIC_KEY   = process.env.ANTHROPIC_API_KEY  || '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'
+const ANTHROPIC_KEY   = process.env.ANTHROPIC_API_KEY  || process.env.ANTHROPIC_API_KEY
 const WA_BOT_ENABLED  = process.env.WA_BOT_ENABLED !== 'false'
 
 const SYSTEM_PROMPT = `אתה עוזר מכירות ושירות לקוחות של חברת "אפיק הנחל" — חברה יזמית מובילה לאיתור, שיווק וליווי עסקאות קרקע בישראל.

@@ -3229,7 +3229,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState('')
 
-  const CLAUDE_KEY = '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'
+  const CLAUDE_KEY = process.env.ANTHROPIC_API_KEY
 
   const rewriteWithAI = async () => {
     setAiLoading(true); setAiError('')

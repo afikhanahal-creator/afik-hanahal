@@ -780,7 +780,7 @@ function Step4({ d, upd }) {
   )
 }
 
-const CLAUDE_KEY = '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'
+const CLAUDE_KEY = process.env.ANTHROPIC_API_KEY
 
 async function callClaudeRewrite(d, _retry = 0) {
   const typeMap = { apartment:'דירה', land:'מגרש', penthouse:'פנטהאוז', villa:'וילה', office:'משרד', commercial:'נכס מסחרי', cottage:'קוטג׳', rooftop:'גג', storage:'מחסן', parking:'חנייה' }
