@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Black background -->
+  <rect width="512" height="512" fill="#000000"/>
+
+  <!-- AH Monogram -->
+  <!-- A: left leg -->
+  <line x1="88" y1="340" x2="188" y2="100" stroke="white" stroke-width="18" stroke-linecap="square"/>
+  <!-- A: right leg (goes through to merge with H) -->
+  <line x1="188" y1="100" x2="288" y2="340" stroke="white" stroke-width="18" stroke-linecap="square"/>
+  <!-- A + H shared crossbar -->
+  <line x1="120" y1="248" x2="392" y2="248" stroke="white" stroke-width="18" stroke-linecap="square"/>
+  <!-- H: left post (same as A right leg top portion — shared; draw only bottom part) -->
+  <!-- H: right post -->
+  <line x1="392" y1="100" x2="392" y2="340" stroke="white" stroke-width="18" stroke-linecap="square"/>
+
+  <!-- Text: AFIK HANACHAL -->
+  <text
+    x="256" y="390"
+    font-family="'Helvetica Neue', Helvetica, Arial, sans-serif"
+    font-size="28"
+    font-weight="300"
+    letter-spacing="10"
+    fill="white"
+    text-anchor="middle"
+    dominant-baseline="middle"
+  >AFIK HANACHAL</text>
+
+  <!-- Text: REAL ESTATE -->
+  <text
+    x="256" y="430"
+    font-family="'Helvetica Neue', Helvetica, Arial, sans-serif"
+    font-size="22"
+    font-weight="700"
+    letter-spacing="7"
+    fill="white"
+    text-anchor="middle"
+    dominant-baseline="middle"
+  >REAL ESTATE</text>
+</svg>

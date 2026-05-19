@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "skills": {
+    "hebrew-rtl-best-practices": {
+      "source": "skills-il/localization",
+      "sourceType": "github",
+      "computedHash": "55aa5e27602f704a9c97db24e183f20cbce95dcfc42721a01d45a410338cf9d4"
+    },
+    "israeli-accessibility-compliance": {
+      "source": "skills-il/localization",
+      "sourceType": "github",
+      "computedHash": "c1c2a7bab3abe6e722ab993c50b534cec558e1a6cddd005274310f197122c7f0"
+    },
+    "israeli-content-marketing": {
+      "source": "skills-il/marketing-growth",
+      "sourceType": "github",
+      "computedHash": "2181f156b511583b3a8c974ffba6204e00f4c10077d12b9c110216264b4f9097"
+    }
+  }
+}
