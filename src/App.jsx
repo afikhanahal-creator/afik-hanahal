@@ -642,6 +642,42 @@ const makeGlobal = (C, isDark) => `
     .story-grid p { font-size:16px !important; line-height:2; }
   }
 
+  /* ═══════════════════════════════════════════════════
+     MOBILE RESPONSIVE FIX
+  ════════════════════════════════════════════════════ */
+  html, body { overflow-x: hidden; max-width: 100vw; }
+  * { max-width: 100%; }
+  @media(max-width:768px) {
+    nav { padding: 0 14px !important; height: 66px !important; }
+    .nav-lang-btn { padding: 5px 10px !important; font-size: 11px !important; }
+    .hamburger-btn { width: 52px !important; height: 66px !important; }
+    #home { padding: 80px 16px 56px !important; min-height: 100svh !important; }
+    .hero-title { font-size: clamp(30px, 9vw, 46px) !important; margin-bottom: 14px !important; }
+    .about-grid { grid-template-columns: 1fr !important; gap: 28px !important; }
+    .about-grid .glass-card { padding: 24px !important; }
+    .footer-grid { grid-template-columns: 1fr !important; gap: 32px !important; }
+    footer a[href^="tel"] { font-size: 22px !important; }
+    footer button[style*="fit-content"] { width: 100% !important; }
+    #properties { padding: 36px 14px !important; }
+    .placeholder-grid { grid-template-columns: 1fr !important; }
+    .prop-detail-body { grid-template-columns: 1fr !important; }
+    .prop-detail-sidebar { position: static !important; max-height: none !important; border-right: none !important; }
+    .prop-gallery-main { height: clamp(220px, 55vw, 340px) !important; }
+    .prop-amenity-grid { grid-template-columns: repeat(2, 1fr) !important; }
+    .ceo-grid { grid-template-columns: 1fr !important; gap: 28px !important; }
+    .ceo-photo-col { position: static !important; max-width: 260px !important; margin: 0 auto !important; }
+  }
+  @media(max-width:600px) {
+    .hero-cta-group { flex-direction: column !important; align-items: stretch !important; gap: 12px !important; width: 100% !important; }
+    .primary-btn { width: 100% !important; text-align: center !important; padding: 15px 20px !important; }
+    .outline-btn { width: 100% !important; text-align: center !important; }
+    .hero-calc-btn { width: 100% !important; justify-content: center !important; }
+    .wa-float { bottom: 18px !important; right: 14px !important; width: 50px !important; height: 50px !important; }
+  }
+  @media(max-width:480px) {
+    div[style*="minmax(160px"] { grid-template-columns: repeat(2, 1fr) !important; }
+  }
+
   /* ── UI/UX Pro Max: prefers-reduced-motion ── */
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
