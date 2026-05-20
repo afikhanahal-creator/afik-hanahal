@@ -4773,6 +4773,15 @@ async function fetchFreshArticles() {
   return []
 }
 
+// Returns today's date string in Israel timezone (for daily rotation key)
+function getIsraelDateStr() {
+  return new Date().toLocaleDateString('en-US', { timeZone: 'Asia/Jerusalem' })
+}
+// Returns current hour in Israel time (0-23)
+function getIsraelHour() {
+  return parseInt(new Date().toLocaleString('en-US', { timeZone: 'Asia/Jerusalem', hour: 'numeric', hour12: false }), 10)
+}
+
 function useRotatingNews() {
   const [articles, setArticles] = useState([])
   const [loading, setLoading]   = useState(true)
@@ -4781,11 +4790,18 @@ function useRotatingNews() {
   const run = useCallback(async (forceReset = false) => {
     setLoading(true); setError(false)
 
-    const CACHE_KEY = 'afik_news_cache_v3'
+    const CACHE_KEY = 'afik_news_cache_v5'
+    const DAILY_KEY = 'afik_daily_rotation'
     const now = Date.now()
 
-    // Serve from localStorage cache if < 30 min old
-    if (!forceReset) {
+    // Check if daily 08:00 rotation is due
+    const todayStr  = getIsraelDateStr()
+    const hourNow   = getIsraelHour()
+    const lastDaily = localStorage.getItem(DAILY_KEY) || ''
+    const needsDaily = hourNow >= 8 && lastDaily !== todayStr
+
+    // Serve from cache if fresh and no rotation needed
+    if (!forceReset && !needsDaily) {
       try {
         const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null')
         if (cached?.articles?.length && (now - cached.ts) < 30 * 60 * 1000) {
@@ -4799,7 +4815,6 @@ function useRotatingNews() {
     const fresh = await fetchFreshArticles()
 
     if (!fresh.length) {
-      // Try stale cache before showing error
       try {
         const stale = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null')
         if (stale?.articles?.length) {
@@ -4810,7 +4825,24 @@ function useRotatingNews() {
       setError(true); setLoading(false); return
     }
 
-    // Deduplicate, add fallback images where missing
+    // On daily rotation: move current display articles to archive first
+    if (needsDaily) {
+      try {
+        const prev = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null')
+        if (prev?.articles?.length) {
+          const arch = JSON.parse(localStorage.getItem(ARCHIVE_STORE) || '[]')
+          const archSeen = new Set(arch.map(a => a.title?.replace(/\s+/g,'').slice(0,30)))
+          prev.articles.slice(0, SLOT_COUNT).forEach(a => {
+            const k = a.title?.replace(/\s+/g,'').slice(0,30)
+            if (k && !archSeen.has(k)) { arch.unshift({ ...a, archivedAt: now }); archSeen.add(k) }
+          })
+          localStorage.setItem(ARCHIVE_STORE, JSON.stringify(arch.slice(0, 200)))
+        }
+      } catch {}
+      localStorage.setItem(DAILY_KEY, todayStr)
+    }
+
+    // Deduplicate
     const seen = new Set()
     const deduped = fresh
       .filter(a => {
@@ -4822,7 +4854,7 @@ function useRotatingNews() {
       .map(a => ({ ...a, image: a.image || '' }))
       .slice(0, 50)
 
-    // Archive older articles (localStorage)
+    // Archive articles beyond display slot
     try {
       const arch = JSON.parse(localStorage.getItem(ARCHIVE_STORE) || '[]')
       const archSeen = new Set(arch.map(a => a.title?.replace(/\s+/g,'').slice(0,30)))

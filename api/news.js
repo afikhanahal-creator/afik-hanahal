@@ -3,12 +3,20 @@ const RENDER = process.env.RENDER_URL || 'https://afik-hanahal-server.onrender.c
 const CUTOFF_48H = 48 * 60 * 60 * 1000
 
 const RSS_SOURCES = [
-  { name: 'Walla! כלכלה',    url: 'https://rss.walla.co.il/feed/2' },
-  { name: 'Ynet כלכלה',      url: 'https://www.ynet.co.il/Integration/StoryRss2.aspx?id=3082' },
-  { name: 'Globes נדל"ן',    url: 'https://www.globes.co.il/webservice/rss/rssfeeder.asmx/FeederNode?iID=1111' },
-  { name: 'Calcalist נדל"ן', url: 'https://www.calcalist.co.il/rss/AjaxPage,7340,L-4,00.html' },
+  // מדורי נדל"ן ייעודיים
   { name: 'Bizportal נדל"ן', url: 'https://www.bizportal.co.il/rss/realEstate' },
   { name: 'TheMarker נדל"ן', url: 'https://www.themarker.com/cmlink/1.4476' },
+  { name: 'Globes נדל"ן',    url: 'https://www.globes.co.il/webservice/rss/rssfeeder.asmx/FeederNode?iID=1111' },
+  { name: 'Calcalist נדל"ן', url: 'https://www.calcalist.co.il/rss/AjaxPage,7340,L-4,00.html' },
+  { name: 'Ynet נדל"ן',      url: 'https://www.ynet.co.il/Integration/StoryRss2.aspx?id=3082' },
+  { name: 'Walla! נדל"ן',    url: 'https://rss.walla.co.il/feed/2' },
+  { name: 'Mako נדל"ן',      url: 'https://rcs.mako.co.il/rss/economy.xml' },
+  { name: 'ישראל היום',      url: 'https://www.israelhayom.co.il/rss.aspx' },
+  { name: 'N12 כלכלה',       url: 'https://www.n12.co.il/rss/homepage.xml' },
+  // אתרי נדל"ן מתמחים
+  { name: 'מרכז הנדל"ן',     url: 'https://www.m-nadlan.co.il/feed/' },
+  { name: 'נדל"ן 2.0',        url: 'https://www.nadlan20.co.il/feed/' },
+  { name: 'מגדילים',          url: 'https://magdilim.co.il/feed/' },
 ]
 
 const RE_FILTER = /נדל[""ן]|נדלן|דיר[הות]|דיור|שכיר[ות]|שוכר|משכיר|קרק[ע]|מגרש|משכנת|פינוי.?בינוי|התחדשות עירונית|מקרקעין|טאבו|קבלן|יזם.?נד|בנייה|בניין|תמ.?א|מגורים|שרון|כפר.?סבא|רעננה|נתניה|הוד.השרון|שוק הד|מחירי ד|רכישת ד/
