@@ -502,6 +502,9 @@ const makeGlobal = (C, isDark) => `
     .about-grid  { grid-template-columns:1fr !important; }
     .footer-grid { grid-template-columns:1fr !important; }
     .story-grid  { grid-template-columns:1fr !important; }
+    .story-grid p { text-align:center !important; }
+    .story-grid blockquote { text-align:center !important; border-right:none !important; padding-right:0 !important; }
+    .story-btns { justify-content:center !important; }
     .svc-bento   { grid-template-columns:1fr !important; }
     .svc-bento > * { grid-column:span 1 !important; }
     .nav-phone       { display:none !important; }
@@ -1325,7 +1328,7 @@ function StorySection({ onContact, sharonData }) {
             <blockquote style={{ borderRight:`3px solid ${C.green}`, paddingRight:20, color:C.green, fontSize:17, fontWeight:700, lineHeight:1.8, fontStyle:'normal', marginBottom:36 }}>
               "{t.storyBlockquote}"
             </blockquote>
-            <div style={{ display:'flex', gap:14, flexWrap:'wrap' }}>
+            <div className="story-btns" style={{ display:'flex', gap:14, flexWrap:'wrap' }}>
               <button onClick={() => onContact()} className="primary-btn">{t.storyContactBtn}</button>
               <a href="tel:0559811814" style={{ padding:'16px 28px', background:`${C.purple}22`, border:`1px solid ${C.purple}55`, borderRadius:14, color:C.cream, textDecoration:'none', fontSize:15, fontWeight:700, display:'flex', alignItems:'center', gap:8, cursor:'pointer', transition:'all .22s' }}
                 onMouseEnter={e => { e.currentTarget.style.background=`${C.purple}44`; e.currentTarget.style.transform='translateY(-2px)'; e.currentTarget.style.boxShadow=`0 8px 24px ${C.purple}33` }}
