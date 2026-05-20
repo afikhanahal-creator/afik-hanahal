@@ -1,5 +1,6 @@
-// Vercel serverless — fetches Israeli real-estate RSS directly (no Render cold-start dependency)
+// Vercel serverless — fetches Israeli real-estate RSS directly, enriches with og:image
 const RENDER = process.env.RENDER_URL || 'https://afik-hanahal-server.onrender.com'
+const CUTOFF_48H = 48 * 60 * 60 * 1000
 
 const RSS_SOURCES = [
   { name: 'Ynet נדל"ן',      url: 'https://www.ynet.co.il/Integration/StoryRss2.aspx?id=3082' },
@@ -45,32 +46,48 @@ function parseRSS(xml, sourceName) {
   return items
 }
 
+async function fetchOGImage(url) {
+  try {
+    const r = await fetch(url, {
+      headers: { ...HEADERS, Accept: 'text/html,application/xhtml+xml,*/*' },
+      signal: AbortSignal.timeout(5000),
+      redirect: 'follow',
+    })
+    if (!r.ok) return ''
+    const html = await r.text()
+    return (
+      html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)?.[1] ||
+      html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i)?.[1] ||
+      html.match(/<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i)?.[1] ||
+      html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image["']/i)?.[1] ||
+      ''
+    )
+  } catch { return '' }
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
   if (req.method === 'OPTIONS') return res.status(200).end()
 
-  // ── Primary: fetch RSS directly from Vercel (always available, no cold start) ──
+  // ── Primary: fetch RSS directly from Vercel ───────────────────────────────
   try {
     const results = await Promise.allSettled(
       RSS_SOURCES.map(async ({ name, url }) => {
         try {
           const r = await fetch(url, { headers: HEADERS, signal: AbortSignal.timeout(10000) })
-          if (!r.ok) { console.warn(`[news] ${name} returned ${r.status}`); return [] }
-          const xml = await r.text()
-          const parsed = parseRSS(xml, name)
-          console.log(`[news] ${name}: ${parsed.length} articles`)
+          if (!r.ok) { console.warn(`[news] ${name} ${r.status}`); return [] }
+          const parsed = parseRSS(await r.text(), name)
+          console.log(`[news] ${name}: ${parsed.length}`)
           return parsed
-        } catch (e) {
-          console.warn(`[news] ${name} failed:`, e.message)
-          return []
-        }
+        } catch (e) { console.warn(`[news] ${name}:`, e.message); return [] }
       })
     )
 
+    // Deduplicate
     const seen = new Set()
-    const articles = results
+    let articles = results
       .flatMap(r => r.status === 'fulfilled' ? r.value : [])
       .filter(a => {
         if (!a.title || !a.link) return false
@@ -79,20 +96,38 @@ export default async function handler(req, res) {
         seen.add(key); return true
       })
       .sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt))
-      .slice(0, 50)
 
-    console.log(`[news] total articles: ${articles.length}`)
+    // Filter to last 48 hours (keep at least 10 if fewer results)
+    const cutoff = Date.now() - CUTOFF_48H
+    const fresh = articles.filter(a => new Date(a.publishedAt).getTime() > cutoff)
+    articles = fresh.length >= 5 ? fresh : articles.slice(0, 20)
+
+    console.log(`[news] after 48h filter: ${articles.length} articles`)
 
     if (articles.length > 0) {
+      // Enrich with og:image for articles missing images (parallel, max 15)
+      const needImg = articles.filter(a => !a.image).slice(0, 15)
+      if (needImg.length > 0) {
+        const ogResults = await Promise.allSettled(needImg.map(a => fetchOGImage(a.url)))
+        let idx = 0
+        articles = articles.map(a => {
+          if (!a.image) {
+            const r = ogResults[idx++]
+            return { ...a, image: (r?.status === 'fulfilled' ? r.value : '') || '' }
+          }
+          return a
+        })
+      }
+
       res.setHeader('Cache-Control', 's-maxage=1800, stale-while-revalidate=3600')
       return res.status(200).json(articles)
     }
-    console.warn('[news] all RSS sources returned 0 articles, falling back to Render')
+    console.warn('[news] 0 articles from RSS, falling back to Render')
   } catch (e) {
-    console.error('[news] RSS fetch error:', e.message)
+    console.error('[news] RSS error:', e.message)
   }
 
-  // ── Fallback: Render backend (has Supabase cache) ────────────────────────
+  // ── Fallback: Render backend ───────────────────────────────────────────────
   try {
     const r = await fetch(`${RENDER}/api/news/feed`, {
       signal: AbortSignal.timeout(8000),
@@ -105,9 +140,7 @@ export default async function handler(req, res) {
         return res.status(200).json(json)
       }
     }
-  } catch (e) {
-    console.error('[news] Render fallback failed:', e.message)
-  }
+  } catch (e) { console.error('[news] Render fallback:', e.message) }
 
-  return res.status(502).json({ error: 'Could not load news from any source' })
+  return res.status(502).json({ error: 'Could not load news' })
 }

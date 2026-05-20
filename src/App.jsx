@@ -4749,18 +4749,6 @@ const ARCHIVE_STORE  = 'afik_archive_v1'
 const SLOT_COUNT     = 4
 const SERVER_URL     = import.meta.env.VITE_API_URL || 'https://afik-hanahal-server.onrender.com'
 
-const FALLBACK_IMGS = [
-  'https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800&q=75',
-  'https://images.unsplash.com/photo-1582407947304-fd86f028f716?w=800&q=75',
-  'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=800&q=75',
-  'https://images.unsplash.com/photo-1486325212027-8081e485255e?w=800&q=75',
-  'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=800&q=75',
-  'https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=800&q=75',
-]
-function pickFallback(seed = '') {
-  let h = 0; for (const c of seed) h = (h * 31 + c.charCodeAt(0)) | 0
-  return FALLBACK_IMGS[Math.abs(h) % FALLBACK_IMGS.length]
-}
 
 // ── Fetch articles from Render → Vercel proxy ─────────────────────────────
 async function fetchFreshArticles() {
@@ -4831,7 +4819,7 @@ function useRotatingNews() {
         if (seen.has(k)) return false
         seen.add(k); return true
       })
-      .map(a => ({ ...a, image: a.image || pickFallback(a.id || a.title) }))
+      .map(a => ({ ...a, image: a.image || '' }))
       .slice(0, 50)
 
     // Archive older articles (localStorage)
@@ -5311,7 +5299,7 @@ function ArchiveModal({ onClose, C, isDark }) {
     const seen = new Set(live.map(a => a.id))
     const extras = STATIC_ARCHIVE
       .filter(a => !seen.has(a.id))
-      .map(a => ({ ...a, image: a.image || pickFallback(a.id) }))
+      .map(a => ({ ...a, image: a.image || '' }))
     const merged = [...live, ...extras]
     merged.sort((a, b) => (b.archivedAt || b.date?.getTime() || 0) - (a.archivedAt || a.date?.getTime() || 0))
     return merged.slice(0, 50)
@@ -5329,35 +5317,20 @@ function ArchiveModal({ onClose, C, isDark }) {
   async function prefill() {
     setFetching(true); setProgress(0)
     try {
-      const results = await Promise.allSettled(ARCHIVE_PREFILL_QUERIES.map(q => fetchGNFeed(q)))
-      const seen = new Set()
-      const candidates = results
-        .filter(r => r.status === 'fulfilled')
-        .flatMap(r => r.value)
+      const fresh = await fetchFreshArticles()
+      let saved = []
+      try { saved = JSON.parse(localStorage.getItem(ARCHIVE_STORE) || '[]') } catch {}
+      const seenKeys = new Set(saved.map(a => a.title?.replace(/\s+/g,'').slice(0,30)))
+      const newItems = fresh
         .filter(a => {
-          if (!a.title || !a.link || a.link === '#') return false
-          const key = a.title.replace(/\s+/g, '').slice(0, 25)
-          if (seen.has(key)) return false
-          seen.add(key); return true
+          const k = a.title?.replace(/\s+/g,'').slice(0,30)
+          if (!k || seenKeys.has(k)) return false
+          seenKeys.add(k); return true
         })
-        .sort((a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0))
-        .slice(0, 20)
-
-      // Enrich one by one so we can show progress
-      const enriched = []
-      for (const a of candidates) {
-        const img = await fetchOGImage(a.link)
-        enriched.push({ ...a, image: img || pickFallback(a.id || a.title), ogFetched: true })
-        setProgress(enriched.length)
-        setItems(mergeWithStatic([...enriched]))
-      }
-
-      // Save live articles to localStorage
-      const toSave = enriched.map(a => ({
-        ...a,
-        archivedAt: a.date instanceof Date && !isNaN(a.date) ? a.date.getTime() : Date.now(),
-      }))
+        .map(a => ({ ...a, archivedAt: Date.now() }))
+      const toSave = [...newItems, ...saved].slice(0, 200)
       try { localStorage.setItem(ARCHIVE_STORE, JSON.stringify(toSave)) } catch {}
+      setProgress(newItems.length)
       setItems(mergeWithStatic(toSave))
     } catch(e) { console.error('[Archive] prefill failed:', e) }
     setFetching(false)

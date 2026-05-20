@@ -43,6 +43,25 @@ function parseRSS(xml, sourceName) {
   return items
 }
 
+const CUTOFF_48H = 48 * 60 * 60 * 1000
+
+async function fetchOGImageDev(url) {
+  try {
+    const r = await fetch(url, {
+      headers: { ...RSS_HEADERS, Accept: 'text/html,application/xhtml+xml,*/*' },
+      signal: AbortSignal.timeout(5000), redirect: 'follow',
+    })
+    if (!r.ok) return ''
+    const html = await r.text()
+    return (
+      html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)?.[1] ||
+      html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i)?.[1] ||
+      html.match(/<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i)?.[1] ||
+      ''
+    )
+  } catch { return '' }
+}
+
 function newsDevPlugin() {
   let cache = null, cacheTs = 0
   return {
@@ -64,7 +83,7 @@ function newsDevPlugin() {
             })
           )
           const seen = new Set()
-          const articles = results
+          let articles = results
             .flatMap(r => r.status === 'fulfilled' ? r.value : [])
             .filter(a => {
               if (!a.title || !a.link) return false
@@ -73,7 +92,26 @@ function newsDevPlugin() {
               seen.add(k); return true
             })
             .sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt))
-            .slice(0, 50)
+
+          // Filter to last 48 hours (keep at least 5 if not enough fresh)
+          const cutoff = Date.now() - CUTOFF_48H
+          const fresh = articles.filter(a => new Date(a.publishedAt).getTime() > cutoff)
+          articles = fresh.length >= 5 ? fresh : articles.slice(0, 20)
+
+          // Enrich with og:image for articles missing images (max 15, parallel)
+          const needImg = articles.filter(a => !a.image).slice(0, 15)
+          if (needImg.length > 0) {
+            const ogResults = await Promise.allSettled(needImg.map(a => fetchOGImageDev(a.url)))
+            let idx = 0
+            articles = articles.map(a => {
+              if (!a.image) {
+                const r = ogResults[idx++]
+                return { ...a, image: (r?.status === 'fulfilled' ? r.value : '') || '' }
+              }
+              return a
+            })
+          }
+
           cache = articles; cacheTs = Date.now()
           res.end(JSON.stringify(articles))
         } catch (e) {
