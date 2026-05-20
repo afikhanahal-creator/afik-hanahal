@@ -3367,8 +3367,36 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const [listTab, setListTab] = useState('published')
   const [listCat, setListCat] = useState('all')
   const [saved, setSaved]   = useState(false)
-  const [countersSaved, setCountersSaved] = useState(false)
-  const saveCounters = () => { setCountersSaved(true); setTimeout(() => setCountersSaved(false), 2500) }
+  const [countersSaved,  setCountersSaved]  = useState(false)
+  const [countersSaving, setCountersSaving] = useState(false)
+  const [countersError,  setCountersError]  = useState('')
+  const [countersSavedAt, setCountersSavedAt] = useState(null)
+
+  const saveCounters = async () => {
+    setCountersSaving(true)
+    setCountersError('')
+    try {
+      if (API_BASE) {
+        const r = await fetch(`${API_BASE}/api/stats`, {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+          body:    JSON.stringify({ stats, sharon }),
+        })
+        if (!r.ok) {
+          const err = await r.text().catch(() => r.status)
+          throw new Error(err)
+        }
+      }
+      setCountersSaved(true)
+      setCountersSavedAt(new Date())
+      setTimeout(() => setCountersSaved(false), 3500)
+    } catch (e) {
+      setCountersError('שגיאה בשמירה: ' + (e.message || 'בעיית תקשורת'))
+      setTimeout(() => setCountersError(''), 6000)
+    } finally {
+      setCountersSaving(false)
+    }
+  }
   const [leads, setLeads]   = useState(() => { try { return JSON.parse(localStorage.getItem(LEADS_STORE) || '[]') } catch { return [] } })
   const [crmWebhook, setCrmWebhook] = useState(() => localStorage.getItem('afik_crm_webhook') || '')
   const [webhookSaved, setWebhookSaved] = useState(false)
@@ -4086,51 +4114,92 @@ Return ONLY valid JSON (no markdown, no explanation):
 
         {tab==='counters' && (
           <>
+            {/* ── Header bar with sync status ── */}
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:24, padding:'14px 18px', background:'rgba(132,144,216,.06)', borderRadius:12, border:'1px solid rgba(132,144,216,.12)' }}>
+              <div>
+                <div style={{ fontSize:15, fontWeight:800, color:C.cream, marginBottom:3 }}>נתוני האתר — עריכה חיה</div>
+                <div style={{ fontSize:11, color:`${C.cream}44`, display:'flex', alignItems:'center', gap:6 }}>
+                  <span style={{ width:6, height:6, borderRadius:'50%', background: countersSaving ? '#F7C948' : countersSaved ? '#22C55E' : countersError ? '#E05252' : `${C.purple}88`, display:'inline-block', boxShadow: countersSaved ? '0 0 6px rgba(34,197,94,.7)' : 'none', transition:'all .3s' }}/>
+                  {countersSaving && 'שומר...'}
+                  {!countersSaving && countersSaved && `נשמר ב-${countersSavedAt?.toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'})}`}
+                  {!countersSaving && !countersSaved && !countersError && (countersSavedAt ? `עודכן לאחרונה ${countersSavedAt.toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'})}` : 'שמור כדי לסנכרן עם Supabase + Render')}
+                  {countersError && <span style={{ color:'#E05252' }}>{countersError}</span>}
+                </div>
+              </div>
+              <button onClick={saveCounters} disabled={countersSaving}
+                style={{ padding:'10px 26px', background: countersSaved ? 'rgba(34,197,94,.15)' : C.purple, border: countersSaved ? '1px solid rgba(34,197,94,.4)' : 'none', borderRadius:9, color: countersSaved ? '#22C55E' : '#fff', fontWeight:700, fontSize:13, cursor: countersSaving ? 'not-allowed' : 'pointer', fontFamily:'inherit', transition:'all .25s', display:'flex', alignItems:'center', gap:8, opacity: countersSaving ? .7 : 1, boxShadow: countersSaved ? 'none' : `0 4px 18px ${C.purple}44`, whiteSpace:'nowrap' }}>
+                {countersSaving ? '⟳ שומר...' : countersSaved ? '✓ נשמר!' : '💾 שמור שינויים'}
+              </button>
+            </div>
+
+            {/* ── Main stats ── */}
             <div style={{ marginBottom:28 }}>
-              <h3 style={{ fontSize:14, fontWeight:700, color:C.purple, marginBottom:16 }}>מונים ראשיים</h3>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
+              <div style={{ fontSize:11, fontWeight:700, color:C.purple, letterSpacing:'2px', textTransform:'uppercase', marginBottom:14, opacity:.8 }}>מונים ראשיים — מוצגים בדף הבית</div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
                 {stats.map((s, i) => (
-                  <div key={s.key} style={{ background:'rgba(255,255,255,.04)', borderRadius:10, padding:'14px 16px', border:`1px solid ${C.purple}20` }}>
-                    <div style={{ fontSize:11, color:`${C.cream}55`, marginBottom:4, fontWeight:600 }}>תווית</div>
-                    <input type="text" value={s.label}
-                      onChange={e => setStats(prev => prev.map((x,j) => j===i ? {...x,label:e.target.value} : x))}
-                      style={{ width:'100%', padding:'7px 10px', background:'rgba(255,255,255,.06)', border:`1px solid ${C.purple}22`, borderRadius:5, color:`${C.cream}BB`, fontSize:12, fontFamily:'inherit', outline:'none', textAlign:'right', marginBottom:10 }}/>
-                    <div style={{ fontSize:11, color:`${C.cream}55`, marginBottom:4, fontWeight:600 }}>ערך</div>
-                    <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-                      <input type="number" value={s.value}
-                        onChange={e => setStats(prev => prev.map((x,j) => j===i ? {...x,value:Number(e.target.value)} : x))}
-                        style={{ flex:1, padding:'9px 12px', background:'rgba(255,255,255,.06)', border:`1px solid ${C.green}33`, borderRadius:6, color:C.green, fontSize:16, fontWeight:700, fontFamily:'monospace', outline:'none', textAlign:'center' }}/>
-                      <span style={{ color:C.green, fontWeight:800, fontSize:18 }}>{s.suffix}</span>
+                  <div key={s.key} style={{ background:'rgba(255,255,255,.03)', borderRadius:12, padding:'16px 18px', border:`1px solid ${C.purple}18`, transition:'border-color .2s' }}
+                    onFocus={e => e.currentTarget.style.borderColor=`${C.purple}44`}
+                    onBlur={e => e.currentTarget.style.borderColor=`${C.purple}18`}>
+                    {/* Preview badge */}
+                    <div style={{ fontSize:22, fontWeight:900, color:C.green, fontFamily:'monospace', marginBottom:4, lineHeight:1 }}>
+                      {s.value.toLocaleString()}{s.suffix}
+                    </div>
+                    <div style={{ fontSize:11, color:`${C.cream}55`, marginBottom:12, fontWeight:500 }}>{s.label}</div>
+                    <div style={{ display:'flex', gap:8 }}>
+                      <div style={{ flex:2 }}>
+                        <div style={{ fontSize:10, color:`${C.cream}44`, marginBottom:4, fontWeight:600 }}>ערך</div>
+                        <input type="number" value={s.value}
+                          onChange={e => setStats(prev => prev.map((x,j) => j===i ? {...x,value:Number(e.target.value)} : x))}
+                          style={{ width:'100%', padding:'9px 10px', background:'rgba(255,255,255,.06)', border:`1px solid ${C.green}33`, borderRadius:7, color:C.green, fontSize:15, fontWeight:800, fontFamily:'monospace', outline:'none', textAlign:'center', boxSizing:'border-box' }}/>
+                      </div>
+                      <div style={{ flex:3 }}>
+                        <div style={{ fontSize:10, color:`${C.cream}44`, marginBottom:4, fontWeight:600 }}>תווית</div>
+                        <input type="text" value={s.label}
+                          onChange={e => setStats(prev => prev.map((x,j) => j===i ? {...x,label:e.target.value} : x))}
+                          style={{ width:'100%', padding:'9px 10px', background:'rgba(255,255,255,.06)', border:`1px solid ${C.purple}22`, borderRadius:7, color:`${C.cream}CC`, fontSize:12, fontFamily:'inherit', outline:'none', textAlign:'right', boxSizing:'border-box' }}/>
+                      </div>
                     </div>
                   </div>
                 ))}
               </div>
             </div>
-            <div>
-              <h3 style={{ fontSize:14, fontWeight:700, color:C.purple, marginBottom:16 }}>כמויות נכסים — בלעדיות בשרון</h3>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
+
+            {/* ── Sharon cities ── */}
+            <div style={{ marginBottom:20 }}>
+              <div style={{ fontSize:11, fontWeight:700, color:C.purple, letterSpacing:'2px', textTransform:'uppercase', marginBottom:14, opacity:.8 }}>בלעדיות בשרון — מוצג בסקשן הסיפור</div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
                 {sharon.map((s, i) => (
-                  <div key={s.city} style={{ background:'rgba(255,255,255,.04)', borderRadius:10, padding:'14px 16px', border:`1px solid ${C.purple}20` }}>
-                    <div style={{ fontSize:14, color:C.cream, marginBottom:10, fontWeight:800 }}>{s.city}</div>
-                    <div style={{ fontSize:11, color:`${C.cream}55`, marginBottom:4, fontWeight:600 }}>כמות</div>
-                    <input type="number" value={s.count}
-                      onChange={e => setSharon(prev => prev.map((x,j) => j===i ? {...x,count:Number(e.target.value)} : x))}
-                      style={{ width:'100%', padding:'9px 12px', background:'rgba(255,255,255,.06)', border:`1px solid ${C.green}33`, borderRadius:6, color:C.green, fontSize:18, fontWeight:800, fontFamily:'monospace', outline:'none', textAlign:'center', marginBottom:10 }}/>
-                    <div style={{ fontSize:11, color:`${C.cream}55`, marginBottom:4, fontWeight:600 }}>תווית (מופיעה באתר)</div>
-                    <input type="text" value={s.type}
-                      onChange={e => setSharon(prev => prev.map((x,j) => j===i ? {...x,type:e.target.value} : x))}
-                      style={{ width:'100%', padding:'8px 12px', background:'rgba(255,255,255,.06)', border:`1px solid ${C.purple}33`, borderRadius:6, color:`${C.cream}CC`, fontSize:13, fontFamily:'inherit', outline:'none', textAlign:'right' }}/>
+                  <div key={s.city} style={{ background:'rgba(255,255,255,.03)', borderRadius:12, padding:'16px 18px', border:`1px solid ${C.purple}18` }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:12 }}>
+                      <div style={{ width:7, height:7, borderRadius:'50%', background:C.green, opacity:.7 }}/>
+                      <span style={{ fontSize:13, color:C.cream, fontWeight:800 }}>{s.city}</span>
+                      <span style={{ marginRight:'auto', fontSize:20, fontWeight:900, color:C.green, fontFamily:'monospace' }}>{s.count}</span>
+                    </div>
+                    <div style={{ display:'flex', gap:8 }}>
+                      <div style={{ flex:1 }}>
+                        <div style={{ fontSize:10, color:`${C.cream}44`, marginBottom:4, fontWeight:600 }}>כמות</div>
+                        <input type="number" value={s.count}
+                          onChange={e => setSharon(prev => prev.map((x,j) => j===i ? {...x,count:Number(e.target.value)} : x))}
+                          style={{ width:'100%', padding:'8px 10px', background:'rgba(255,255,255,.06)', border:`1px solid ${C.green}33`, borderRadius:7, color:C.green, fontSize:15, fontWeight:800, fontFamily:'monospace', outline:'none', textAlign:'center', boxSizing:'border-box' }}/>
+                      </div>
+                      <div style={{ flex:2 }}>
+                        <div style={{ fontSize:10, color:`${C.cream}44`, marginBottom:4, fontWeight:600 }}>תווית</div>
+                        <input type="text" value={s.type}
+                          onChange={e => setSharon(prev => prev.map((x,j) => j===i ? {...x,type:e.target.value} : x))}
+                          style={{ width:'100%', padding:'8px 10px', background:'rgba(255,255,255,.06)', border:`1px solid ${C.purple}22`, borderRadius:7, color:`${C.cream}CC`, fontSize:12, fontFamily:'inherit', outline:'none', textAlign:'right', boxSizing:'border-box' }}/>
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* Save button */}
-            <div style={{ display:'flex', justifyContent:'flex-end', paddingTop:8 }}>
-              <button onClick={saveCounters}
-                style={{ padding:'12px 32px', background: countersSaved ? `${C.green}20` : C.purple, border: countersSaved ? `1px solid ${C.green}55` : 'none', borderRadius:10, color: countersSaved ? C.green : '#fff', fontWeight:700, fontSize:14, cursor:'pointer', fontFamily:'inherit', transition:'all .25s', display:'flex', alignItems:'center', gap:8, boxShadow: countersSaved ? 'none' : `0 4px 18px ${C.purple}44` }}>
-                {countersSaved ? '✓ נשמר בהצלחה!' : 'שמור שינויים'}
-              </button>
+            {/* ── Info banner ── */}
+            <div style={{ padding:'12px 16px', background:`${C.purple}08`, border:`1px solid ${C.purple}18`, borderRadius:10, display:'flex', gap:10, alignItems:'flex-start' }}>
+              <FaChartBar size={13} style={{ color:C.purple, marginTop:2, flexShrink:0 }}/>
+              <div style={{ fontSize:12, color:`${C.cream}66`, lineHeight:1.7 }}>
+                שמירה שולחת את הנתונים ל-<strong style={{ color:C.purple }}>Render + Supabase</strong> ומעדכנת את האתר מיד. שינויים בשדות נשמרים גם אוטומטית תוך 2 שניות (auto-save).
+              </div>
             </div>
           </>
         )}
@@ -6799,8 +6868,9 @@ export default function App() {
     return () => window.removeEventListener('resize', handler)
   }, [])
 
-  // ── Load stats/sharon from localStorage; properties from API (or localStorage fallback) ──
+  // ── Load stats/sharon/properties on startup ──
   useEffect(() => {
+    // 1. Fast initial state from localStorage (avoids flash of default numbers)
     try {
       const raw = localStorage.getItem('afik_data')
       if (raw) {
@@ -6811,6 +6881,18 @@ export default function App() {
     } catch {}
     loaded.current = true
 
+    // 2. Fetch latest stats from API — overwrites localStorage if newer data exists
+    if (API_BASE) {
+      fetch(`${API_BASE}/api/stats`)
+        .then(r => r.ok ? r.json() : Promise.reject())
+        .then(data => {
+          if (data.stats?.length)  setStats(data.stats)
+          if (data.sharon?.length) setSharon(data.sharon)
+        })
+        .catch(() => {})
+    }
+
+    // 3. Fetch properties
     if (API_BASE) {
       const isAdmin = sessionStorage.getItem('afik_admin_session') === '1'
       const headers = isAdmin ? { Authorization: `Bearer ${ADMIN_TOKEN}` } : {}
@@ -6821,7 +6903,6 @@ export default function App() {
             if (data.length > 0) {
               setProperties(data)
             } else if (isAdmin) {
-              // API returned empty — migrate from localStorage on first run
               try {
                 const d = JSON.parse(localStorage.getItem('afik_data') || '{}')
                 if (d.properties?.length) setProperties(d.properties)
@@ -6861,6 +6942,19 @@ export default function App() {
     }, 1500)
     return () => clearTimeout(timer)
   }, [properties])
+
+  // ── Sync stats/sharon to Supabase when admin changes them (debounced 2 s) ──
+  useEffect(() => {
+    if (!adminAuth || !API_BASE || !loaded.current) return
+    const timer = setTimeout(() => {
+      fetch(`${API_BASE}/api/stats`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+        body:    JSON.stringify({ stats, sharon }),
+      }).catch(() => {})
+    }, 2000)
+    return () => clearTimeout(timer)
+  }, [stats, sharon])
 
   // ── Re-fetch all properties (including unpublished) when admin logs in ──
   useEffect(() => {
