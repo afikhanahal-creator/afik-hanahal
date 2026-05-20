@@ -254,6 +254,8 @@ const makeGlobal = (C, isDark) => `
   @keyframes counterGlow { 0%,100%{text-shadow:${isDark ? `0 0 24px ${C.green}77,0 0 48px ${C.green}33` : 'none'}} 50%{text-shadow:${isDark ? `0 0 36px ${C.green}CC,0 0 72px ${C.green}66` : 'none'}} }
   @keyframes ambientPulse{ 0%,100%{opacity:1} 50%{opacity:.75} }
   @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+  .prop-carousel::-webkit-scrollbar { display:none }
+  .prop-carousel { scrollbar-width:none; -ms-overflow-style:none }
 
   /* ── UI/UX Pro Max: Kinetic Typography ── */
   @keyframes letterReveal {
@@ -4790,7 +4792,7 @@ function useRotatingNews() {
   const run = useCallback(async (forceReset = false) => {
     setLoading(true); setError(false)
 
-    const CACHE_KEY = 'afik_news_cache_v6'
+    const CACHE_KEY = 'afik_news_cache_v7'
     const DAILY_KEY = 'afik_daily_rotation'
     const now = Date.now()
 
@@ -6700,6 +6702,9 @@ export default function App() {
   const GLOBAL = useMemo(() => makeGlobal(C, isDark), [isDark])
   const toggleTheme = useCallback(() => setIsDark(d => !d), [])
 
+  const [isMobile,     setIsMobile]     = useState(() => window.innerWidth < 768)
+  const carouselRef = useRef(null)
+
   const [properties,   setProperties]   = useState([])
   const [filterCat,    setFilterCat]    = useState('all')
   const [filterType,   setFilterType]   = useState('')
@@ -6747,6 +6752,13 @@ export default function App() {
     const onUnload = () => trackEvent('session_end', { sid })
     window.addEventListener('beforeunload', onUnload)
     return () => window.removeEventListener('beforeunload', onUnload)
+  }, [])
+
+  // ── Mobile breakpoint listener ──
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < 768)
+    window.addEventListener('resize', handler)
+    return () => window.removeEventListener('resize', handler)
   }, [])
 
   // ── Load stats/sharon from localStorage; properties from API (or localStorage fallback) ──
@@ -7143,15 +7155,15 @@ export default function App() {
           </div>
 
           {/* Category tabs */}
-          <div style={{ display:'flex', gap:0, marginBottom:36, borderBottom:`1px solid rgba(132,144,216,.18)`, overflowX:'auto', justifyContent:'center' }}>
+          <div style={{ display:'flex', gap:0, marginBottom:36, borderBottom:`1px solid rgba(132,144,216,.18)`, overflowX:'auto', WebkitOverflowScrolling:'touch', scrollbarWidth:'none', msOverflowStyle:'none', justifyContent: isMobile ? 'flex-start' : 'center' }}>
             {[{ id:'all', label:TR[lang]?.allProperties, Icon:null }, ...(CATEGORIES_DATA[lang] || CATEGORIES_DATA.he)].map(cat => {
               const count = cat.id === 'all' ? properties.length : properties.filter(p => p.category === cat.id).length
               const active = filterCat === cat.id
               return (
                 <button key={cat.id} onClick={() => { setFilterCat(cat.id); setFilterType(''); setPropPage(0) }}
-                  style={{ padding:'14px 28px', border:'none', borderBottom:`2px solid ${active ? C.purple : 'transparent'}`, background:'transparent', color:active ? C.purple : `${C.cream}55`, fontFamily:'inherit', cursor:'pointer', fontSize:13, fontWeight:active?700:500, whiteSpace:'nowrap', transition:'all .2s', display:'flex', alignItems:'center', gap:7 }}>
-                  {cat.Icon ? <cat.Icon size={13}/> : <span style={{ fontSize:13, opacity:.6 }}>≡</span>} {cat.label}
-                  {count > 0 && <span style={{ background:active?`${C.purple}28`:'rgba(255,255,255,.07)', color:active?C.purple:`${C.cream}55`, borderRadius:10, padding:'2px 8px', fontSize:10, fontWeight:700, minWidth:20, textAlign:'center' }}>{count}</span>}
+                  style={{ padding: isMobile ? '12px 16px' : '14px 28px', border:'none', borderBottom:`2px solid ${active ? C.purple : 'transparent'}`, background:'transparent', color:active ? C.purple : `${C.cream}55`, fontFamily:'inherit', cursor:'pointer', fontSize: isMobile ? 12 : 13, fontWeight:active?700:500, whiteSpace:'nowrap', transition:'all .2s', display:'flex', alignItems:'center', gap:5, flexShrink:0 }}>
+                  {cat.Icon ? <cat.Icon size={12}/> : <span style={{ fontSize:12, opacity:.6 }}>≡</span>} {cat.label}
+                  {count > 0 && <span style={{ background:active?`${C.purple}28`:'rgba(255,255,255,.07)', color:active?C.purple:`${C.cream}55`, borderRadius:10, padding:'2px 7px', fontSize:10, fontWeight:700, minWidth:18, textAlign:'center' }}>{count}</span>}
                 </button>
               )
             })}
@@ -7225,45 +7237,74 @@ export default function App() {
             </div>
           ) : (
             <>
-              {filtered.length > 0 ? (() => {
-                const PER_PAGE = 6
-                const totalPages = Math.ceil(filtered.length / PER_PAGE)
-                const safePage = Math.min(propPage, totalPages - 1)
-                const visible = filtered.slice(safePage * PER_PAGE, safePage * PER_PAGE + PER_PAGE)
-                return (
+              {filtered.length > 0 ? (
+                isMobile ? (
+                  /* ── Mobile swipe carousel ── */
                   <>
-                    <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(320px,1fr))', gap:28, marginBottom:28 }}>
-                      {visible.map(p => <PropertyCard key={p.id} prop={p} onContact={openContact} onSelect={openProperty}/>)}
-                    </div>
-                    {totalPages > 1 && (
-                      <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:16, marginBottom:48 }}>
-                        <button
-                          onClick={() => setPropPage(p => Math.max(0, p - 1))}
-                          disabled={safePage === 0}
-                          style={{ width:44, height:44, borderRadius:'50%', border:`1.5px solid ${safePage===0 ? C.purple+'22' : C.purple+'66'}`, background:safePage===0?'transparent':`${C.purple}14`, color:safePage===0?`${C.cream}30`:C.purple, cursor:safePage===0?'default':'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s' }}
-                          onMouseEnter={e=>{ if(safePage>0){ e.currentTarget.style.background=C.purple; e.currentTarget.style.color='#fff' }}}
-                          onMouseLeave={e=>{ e.currentTarget.style.background=safePage===0?'transparent':`${C.purple}14`; e.currentTarget.style.color=safePage===0?`${C.cream}30`:C.purple }}>
-                          <FaChevronRight size={13}/>
-                        </button>
-                        <div style={{ display:'flex', gap:6 }}>
-                          {Array.from({length:totalPages},(_,i) => (
-                            <button key={i} onClick={() => setPropPage(i)}
-                              style={{ width:i===safePage?28:8, height:8, borderRadius:4, border:'none', background:i===safePage?C.purple:`${C.purple}33`, cursor:'pointer', padding:0, transition:'all .25s' }}/>
-                          ))}
+                    <div className="prop-carousel" ref={carouselRef}
+                      style={{ display:'flex', gap:16, overflowX:'auto', scrollSnapType:'x mandatory', WebkitOverflowScrolling:'touch', paddingBottom:20, paddingInlineStart:4, paddingInlineEnd:16, marginInlineStart:-4, cursor:'grab' }}
+                      onMouseDown={e => { e.currentTarget.style.cursor='grabbing' }}
+                      onMouseUp={e => { e.currentTarget.style.cursor='grab' }}
+                      onMouseLeave={e => { e.currentTarget.style.cursor='grab' }}>
+                      {filtered.map(p => (
+                        <div key={p.id} style={{ flex:'0 0 82vw', maxWidth:340, scrollSnapAlign:'start' }}>
+                          <PropertyCard prop={p} onContact={openContact} onSelect={openProperty}/>
                         </div>
-                        <button
-                          onClick={() => setPropPage(p => Math.min(totalPages - 1, p + 1))}
-                          disabled={safePage === totalPages - 1}
-                          style={{ width:44, height:44, borderRadius:'50%', border:`1.5px solid ${safePage===totalPages-1 ? C.purple+'22' : C.purple+'66'}`, background:safePage===totalPages-1?'transparent':`${C.purple}14`, color:safePage===totalPages-1?`${C.cream}30`:C.purple, cursor:safePage===totalPages-1?'default':'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s' }}
-                          onMouseEnter={e=>{ if(safePage<totalPages-1){ e.currentTarget.style.background=C.purple; e.currentTarget.style.color='#fff' }}}
-                          onMouseLeave={e=>{ e.currentTarget.style.background=safePage===totalPages-1?'transparent':`${C.purple}14`; e.currentTarget.style.color=safePage===totalPages-1?`${C.cream}30`:C.purple }}>
-                          <FaChevronLeft size={13}/>
-                        </button>
-                      </div>
-                    )}
+                      ))}
+                    </div>
+                    {/* Swipe hint dots */}
+                    <div style={{ display:'flex', justifyContent:'center', gap:6, marginTop:4, marginBottom:32 }}>
+                      {filtered.map((_,i) => (
+                        <div key={i} style={{ width:6, height:6, borderRadius:'50%', background:`${C.purple}${i===0?'CC':'33'}`, transition:'all .25s' }}/>
+                      ))}
+                    </div>
+                    <div style={{ textAlign:'center', marginBottom:8 }}>
+                      <span style={{ fontSize:11, color:`${C.cream}44`, letterSpacing:'.06em' }}>← החלק לגלישה בין הנכסים →</span>
+                    </div>
                   </>
+                ) : (
+                  /* ── Desktop paginated grid ── */
+                  (() => {
+                    const PER_PAGE = 6
+                    const totalPages = Math.ceil(filtered.length / PER_PAGE)
+                    const safePage = Math.min(propPage, totalPages - 1)
+                    const visible = filtered.slice(safePage * PER_PAGE, safePage * PER_PAGE + PER_PAGE)
+                    return (
+                      <>
+                        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(320px,1fr))', gap:28, marginBottom:28 }}>
+                          {visible.map(p => <PropertyCard key={p.id} prop={p} onContact={openContact} onSelect={openProperty}/>)}
+                        </div>
+                        {totalPages > 1 && (
+                          <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:16, marginBottom:48 }}>
+                            <button
+                              onClick={() => setPropPage(p => Math.max(0, p - 1))}
+                              disabled={safePage === 0}
+                              style={{ width:44, height:44, borderRadius:'50%', border:`1.5px solid ${safePage===0 ? C.purple+'22' : C.purple+'66'}`, background:safePage===0?'transparent':`${C.purple}14`, color:safePage===0?`${C.cream}30`:C.purple, cursor:safePage===0?'default':'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s' }}
+                              onMouseEnter={e=>{ if(safePage>0){ e.currentTarget.style.background=C.purple; e.currentTarget.style.color='#fff' }}}
+                              onMouseLeave={e=>{ e.currentTarget.style.background=safePage===0?'transparent':`${C.purple}14`; e.currentTarget.style.color=safePage===0?`${C.cream}30`:C.purple }}>
+                              <FaChevronRight size={13}/>
+                            </button>
+                            <div style={{ display:'flex', gap:6 }}>
+                              {Array.from({length:totalPages},(_,i) => (
+                                <button key={i} onClick={() => setPropPage(i)}
+                                  style={{ width:i===safePage?28:8, height:8, borderRadius:4, border:'none', background:i===safePage?C.purple:`${C.purple}33`, cursor:'pointer', padding:0, transition:'all .25s' }}/>
+                              ))}
+                            </div>
+                            <button
+                              onClick={() => setPropPage(p => Math.min(totalPages - 1, p + 1))}
+                              disabled={safePage === totalPages - 1}
+                              style={{ width:44, height:44, borderRadius:'50%', border:`1.5px solid ${safePage===totalPages-1 ? C.purple+'22' : C.purple+'66'}`, background:safePage===totalPages-1?'transparent':`${C.purple}14`, color:safePage===totalPages-1?`${C.cream}30`:C.purple, cursor:safePage===totalPages-1?'default':'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s' }}
+                              onMouseEnter={e=>{ if(safePage<totalPages-1){ e.currentTarget.style.background=C.purple; e.currentTarget.style.color='#fff' }}}
+                              onMouseLeave={e=>{ e.currentTarget.style.background=safePage===totalPages-1?'transparent':`${C.purple}14`; e.currentTarget.style.color=safePage===totalPages-1?`${C.cream}30`:C.purple }}>
+                              <FaChevronLeft size={13}/>
+                            </button>
+                          </div>
+                        )}
+                      </>
+                    )
+                  })()
                 )
-              })() : (
+              ) : (
                 <div style={{ textAlign:'center', padding:'60px 24px', color:`${C.cream}40`, fontSize:15 }}>{TR[lang]?.noProperties}</div>
               )}
             </>
