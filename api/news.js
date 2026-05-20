@@ -9,7 +9,7 @@ const RSS_SOURCES = [
   { name: 'Globes נדל"ן',    url: 'https://www.globes.co.il/webservice/rss/rssfeeder.asmx/FeederNode?iID=1111' },
   { name: 'Calcalist נדל"ן', url: 'https://www.calcalist.co.il/rss/AjaxPage,7340,L-4,00.html' },
   { name: 'Ynet נדל"ן',      url: 'https://www.ynet.co.il/Integration/StoryRss2.aspx?id=3082' },
-  { name: 'Walla! נדל"ן',    url: 'https://rss.walla.co.il/feed/2' },
+  { name: 'Walla! נדל"ן',    url: 'https://rss.walla.co.il/feed/9' },
   { name: 'Mako נדל"ן',      url: 'https://rcs.mako.co.il/rss/economy.xml' },
   { name: 'ישראל היום',      url: 'https://www.israelhayom.co.il/rss.aspx' },
   { name: 'N12 כלכלה',       url: 'https://www.n12.co.il/rss/homepage.xml' },
@@ -115,14 +115,8 @@ export default async function handler(req, res) {
       })
       .sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt))
 
-    // Soft real-estate keyword filter: use filtered if >= 3, else show all economy articles
-    const reFiltered = articles.filter(a => isRealEstate(a.title))
-    articles = reFiltered.length >= 3 ? reFiltered : articles.slice(0, 20)
-
-    // Soft 96h filter: enough fresh? use them, else keep top articles
-    const cutoff = Date.now() - 96 * 60 * 60 * 1000
-    const fresh = articles.filter(a => new Date(a.publishedAt).getTime() > cutoff)
-    articles = fresh.length >= 3 ? fresh : articles.slice(0, 20)
+    // Strict real-estate keyword filter — no fallback to non-RE content
+    articles = articles.filter(a => isRealEstate(a.title)).slice(0, 50)
 
     console.log(`[news] after 48h filter: ${articles.length} articles`)
 
