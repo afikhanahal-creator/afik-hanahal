@@ -51,17 +51,19 @@ function parseRSS(xml, sourceName, trusted = false) {
     const image = isArticleImage(rawImg) ? rawImg : ''
     const date  = pubDate ? new Date(pubDate) : new Date()
 
-    // For Google News: extract the actual article URL from the description
-    // (Google redirect URLs serve Google's page, not the article's og:image)
+    // For Google News: extract actual article URL + real source name
     let articleUrl = link
+    let displaySource = sourceName
     if (link.includes('news.google.com')) {
       const rawDesc = (c.match(/<description[^>]*>([\s\S]*?)<\/description>/) || [])[1] || ''
       const decoded = rawDesc.replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&amp;/g,'&')
       const realHref = decoded.match(/href=["']?(https?:\/\/(?!news\.google)[^"'\s>]+)/i)
       if (realHref) articleUrl = realHref[1]
+      const gnSrc = g(/<source[^>]*>([^<]+)<\/source>/)
+      if (gnSrc) displaySource = gnSrc
     }
 
-    items.push({ id: link, title, url: articleUrl, link, image, source: sourceName, trusted,
+    items.push({ id: link, title, url: articleUrl, link, image, source: displaySource, trusted,
       publishedAt: date.toISOString(), date })
   }
   return items
