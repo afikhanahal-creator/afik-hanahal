@@ -858,6 +858,19 @@ const CITY_IMG_FILTER = {
 }
 
 // ─── HOOKS ────────────────────────────────────────────────────────────────────
+// Returns touch handlers that call onClose when user swipes > threshold px in either direction
+function useSwipeClose(onClose, threshold = 80) {
+  const ref = useRef({ x0: 0, dragging: false })
+  const onTouchStart = useCallback(e => { ref.current = { x0: e.touches[0].clientX, dragging: true } }, [])
+  const onTouchEnd   = useCallback(e => {
+    if (!ref.current.dragging) return
+    ref.current.dragging = false
+    const dx = e.changedTouches[0].clientX - ref.current.x0
+    if (Math.abs(dx) > threshold) onClose()
+  }, [onClose, threshold])
+  return { onTouchStart, onTouchEnd }
+}
+
 function useIntersection(threshold = 0.2) {
   const ref = useRef(null)
   const [vis, setVis] = useState(false)
@@ -1931,9 +1944,11 @@ function ContactModal({ prop, onClose }) {
   const [sent, setSent] = useState(false)
   const set = k => e => setForm(f => ({ ...f, [k]:e.target.value }))
   const inp = { width:'100%', padding:'12px 16px', background:'rgba(255,255,255,.05)', border:`1px solid ${C.purple}33`, borderRadius:10, color:C.cream, fontSize:14, fontFamily:'inherit', outline:'none', direction: lang==='he' ? 'rtl' : 'ltr' }
+  const swipe = useSwipeClose(onClose)
   return (
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.84)', backdropFilter:'blur(12px)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}
-      onClick={e => { if (e.target===e.currentTarget) onClose() }}>
+      onClick={e => { if (e.target===e.currentTarget) onClose() }}
+      onTouchStart={swipe.onTouchStart} onTouchEnd={swipe.onTouchEnd}>
       <div style={{ background:C.card, border:`1px solid ${C.purple}33`, borderRadius:24, padding:40, maxWidth:480, width:'100%', maxHeight:'90vh', overflowY:'auto', direction: lang==='he' ? 'rtl' : 'ltr', boxShadow:`0 32px 80px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.1)` }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:24 }}>
           <h2 style={{ fontSize:22, fontWeight:800, color:C.cream }}>{prop ? lbl.contactTitle : lbl.contactHeading}</h2>
@@ -5996,6 +6011,7 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
   const [saved, setSaved] = useState(false)
   const [shared, setShared] = useState(false)
   const [lightbox, setLightbox] = useState(false)
+  const propSwipe = useSwipeClose(onClose)
 
   const handleShare = () => {
     const txt = `${prop.title} — ${[prop.location, prop.neighborhood].filter(Boolean).join(', ')}`
@@ -6069,7 +6085,8 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
 
   return (
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.88)', backdropFilter:'blur(14px)', zIndex:900, overflowY:'auto' }}
-      onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}
+      onTouchStart={propSwipe.onTouchStart} onTouchEnd={propSwipe.onTouchEnd}>
 
       <div style={{ background:'#0B0B14', maxWidth:1100, margin:'0 auto', minHeight:'100dvh', direction:'rtl', position:'relative' }}>
 

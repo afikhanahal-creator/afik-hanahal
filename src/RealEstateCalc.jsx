@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   FaTimes, FaHome, FaBalanceScale, FaHandshake,
   FaMoneyBill, FaExternalLinkAlt, FaChevronDown, FaChevronUp,
@@ -217,6 +217,37 @@ export default function RealEstateCalc({ onClose }) {
   const [years,         setYears]         = useState('25')
   const [openFaq,       setOpenFaq]       = useState(null)
 
+  // ── Swipe-to-close (mobile) ──
+  const [dragX,    setDragX]    = useState(0)
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768)
+  const touchRef   = useRef({ x0: 0, dragging: false })
+  const SWIPE_THRESHOLD = 80
+
+  useEffect(() => {
+    const h = () => setIsMobile(window.innerWidth < 768)
+    window.addEventListener('resize', h)
+    return () => window.removeEventListener('resize', h)
+  }, [])
+
+  const onTouchStart = useCallback(e => {
+    touchRef.current = { x0: e.touches[0].clientX, dragging: true }
+  }, [])
+
+  const onTouchMove = useCallback(e => {
+    if (!touchRef.current.dragging) return
+    const dx = e.touches[0].clientX - touchRef.current.x0
+    setDragX(dx)
+  }, [])
+
+  const onTouchEnd = useCallback(() => {
+    touchRef.current.dragging = false
+    if (Math.abs(dragX) > SWIPE_THRESHOLD) {
+      onClose()
+    } else {
+      setDragX(0)
+    }
+  }, [dragX, onClose])
+
   const taxNum    = Number((taxPrice || '0').replace(/,/g, ''))
   const ltvNum    = Number((ltvPrice || '0').replace(/,/g, ''))
   const incomeNum = Number((income   || '0').replace(/,/g, ''))
@@ -261,6 +292,9 @@ export default function RealEstateCalc({ onClose }) {
     <div
       className="rc-overlay"
       onClick={e => e.target === e.currentTarget && onClose()}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
       style={{
         position: 'fixed', inset: 0, zIndex: 9999,
         display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
@@ -270,6 +304,10 @@ export default function RealEstateCalc({ onClose }) {
         overflowY: 'auto', direction: 'rtl',
       }}
     >
+      {/* ── Always-visible X (mobile only, fixed position) ── */}
+      <button className="rc-float-close" onClick={onClose} aria-label="סגור">
+        <FaTimes size={17}/>
+      </button>
       <style>{`
         @keyframes rcCalcIn {
           from { opacity:0; transform:scale(0.93) translateY(24px); }
@@ -378,18 +416,45 @@ export default function RealEstateCalc({ onClose }) {
         .rc-scroll::-webkit-scrollbar-track { background: transparent; }
         .rc-scroll::-webkit-scrollbar-thumb { background: rgba(132,144,216,0.25); border-radius: 3px; }
 
+        /* Always-visible floating X — mobile only */
+        .rc-float-close { display:none; }
+        @media (max-width: 768px) {
+          .rc-float-close {
+            display:flex !important;
+            position:fixed; top:14px; left:14px; z-index:10001;
+            width:44px; height:44px; border-radius:50%;
+            background:rgba(10,4,38,0.92);
+            border:1.5px solid rgba(132,144,216,0.5);
+            color:#E8E4D8; cursor:pointer;
+            align-items:center; justify-content:center;
+            backdrop-filter:blur(14px);
+            box-shadow:0 4px 20px rgba(0,0,0,0.55);
+            transition:all .2s;
+          }
+          .rc-float-close:hover { background:rgba(132,144,216,0.3) !important; border-color:rgba(132,144,216,0.8) !important; }
+        }
+
+        .rc-swipe-hint {
+          display:none;
+          text-align:center; padding:6px 0 12px;
+          font-size:11px; color:rgba(232,228,216,0.22);
+          align-items:center; justify-content:center; gap:10px;
+          letter-spacing:.06em;
+        }
+        @media (max-width:768px) { .rc-swipe-hint { display:flex !important; } }
+
         @media (max-width: 600px) {
-          .rc-overlay      { padding: 16px 10px 24px !important; align-items: center !important; }
-          .rc-header       { padding: 16px 18px 14px !important; }
-          .rc-tabs-wrap    { padding: 8px 10px 0 !important; }
-          .rc-modal-body   { padding: 18px 16px 24px !important; }
-          .rc-grid         { grid-template-columns: 1fr !important; gap: 16px !important; }
+          .rc-overlay      { padding: 12px 8px 20px !important; align-items: flex-start !important; }
+          .rc-header       { padding: 14px 16px 12px !important; }
+          .rc-tabs-wrap    { padding: 6px 8px 0 !important; }
+          .rc-modal-body   { padding: 14px 14px 18px !important; }
+          .rc-grid         { grid-template-columns: 1fr !important; gap: 14px !important; }
           .rc-compare-grid { grid-template-columns: 1fr !important; gap: 10px !important; }
           .rc-tab-label    { font-size: 11px !important; }
-          .rc-tab          { padding: 10px 6px 12px !important; }
+          .rc-tab          { padding: 9px 5px 10px !important; }
           .rc-range        { height: 12px !important; }
           .rc-range::-webkit-slider-runnable-track { height: 12px !important; }
-          .rc-range::-webkit-slider-thumb { width: 34px !important; height: 34px !important; }
+          .rc-range::-webkit-slider-thumb { width: 32px !important; height: 32px !important; }
         }
       `}</style>
 
@@ -405,6 +470,9 @@ export default function RealEstateCalc({ onClose }) {
           background: 'linear-gradient(calc(var(--bh-rot, 4.2rad)), #8490D8 0%, rgb(4,2,24) 32%, rgb(14,8,48) 65%, transparent 100%)',
           animation: 'rcCalcIn .42s cubic-bezier(0.16,1,0.3,1) both',
           flexShrink: 0,
+          transform: `translateX(${dragX}px)`,
+          opacity: Math.max(0.4, 1 - Math.abs(dragX) / 320),
+          transition: touchRef.current?.dragging ? 'none' : 'transform .35s cubic-bezier(.34,1.56,.64,1), opacity .35s ease',
         }}
       >
       <div
@@ -435,7 +503,7 @@ export default function RealEstateCalc({ onClose }) {
         <div style={{ position: 'relative', zIndex: 2 }}>
 
           {/* ── HEADER ─────────────────────────────────────────────── */}
-          <div className="rc-header" style={{ padding:'30px 32px 24px', borderBottom:'1px solid rgba(132,144,216,0.12)', display:'flex', alignItems:'center', justifyContent:'space-between', gap:16 }}>
+          <div className="rc-header" style={{ padding:'22px 28px 18px', borderBottom:'1px solid rgba(132,144,216,0.12)', display:'flex', alignItems:'center', justifyContent:'space-between', gap:16 }}>
             <div>
               <div style={{ fontSize:13, fontWeight:700, letterSpacing:'3.5px', color:P, opacity:.8, textTransform:'uppercase', marginBottom:8 }}>
                 כלי עזר לרוכשים ומשקיעים
@@ -468,7 +536,7 @@ export default function RealEstateCalc({ onClose }) {
           </div>
 
           {/* ── CONTENT ─────────────────────────────────────────────── */}
-          <div className="rc-modal-body" style={{ padding:'32px 32px 40px' }}>
+          <div className="rc-modal-body" style={{ padding:'24px 28px 32px' }}>
 
             {/* ══ TAB: מס רכישה ═══════════════════════════════════════ */}
             {tab === 'tax' && (
@@ -870,6 +938,14 @@ export default function RealEstateCalc({ onClose }) {
             )}
 
           </div>
+
+          {/* ── Swipe hint — mobile only ── */}
+          <div className="rc-swipe-hint">
+            <span style={{ opacity:.5 }}>←</span>
+            החלק ימינה או שמאלה לסגירה
+            <span style={{ opacity:.5 }}>→</span>
+          </div>
+
         </div>
       </div>
       </div>{/* /bauhaus wrapper */}
