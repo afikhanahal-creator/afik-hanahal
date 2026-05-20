@@ -4792,7 +4792,7 @@ function useRotatingNews() {
   const run = useCallback(async (forceReset = false) => {
     setLoading(true); setError(false)
 
-    const CACHE_KEY = 'afik_news_cache_v7'
+    const CACHE_KEY = 'afik_news_cache_v8'
     const DAILY_KEY = 'afik_daily_rotation'
     const now = Date.now()
 

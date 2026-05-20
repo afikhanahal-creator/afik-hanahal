@@ -16,9 +16,15 @@ function isRealEstate(title) { return RE_FILTER.test(title) }
 function isArticleImage(url) {
   if (!url) return false
   const u = url.toLowerCase()
-  // Reject logos, placeholders, and Google News source-logo thumbnails (lh3.googleusercontent = site logo, not article image)
   return !u.includes('logo') && !u.includes('default') && !u.includes('placeholder')
-    && !u.includes('favicon') && !u.includes('generic') && !u.includes('googleusercontent.com')
+    && !u.includes('favicon') && !u.includes('generic')
+}
+
+function deduplicateImages(articles) {
+  const imgCount = {}
+  articles.forEach(a => { if (a.image) imgCount[a.image] = (imgCount[a.image] || 0) + 1 })
+  // Any image URL shared by 2+ articles is a source logo — clear it
+  return articles.map(a => ({ ...a, image: (a.image && imgCount[a.image] === 1) ? a.image : '' }))
 }
 
 const HEADERS = {
@@ -122,6 +128,9 @@ export default async function handler(req, res) {
 
     // Trusted feeds pass through; general feeds require keyword match
     articles = articles.filter(a => a.trusted || isRealEstate(a.title)).slice(0, 50)
+
+    // Clear any image URL shared by 2+ articles (= source logo, not article image)
+    articles = deduplicateImages(articles)
 
     console.log(`[news] after filter: ${articles.length} articles`)
 

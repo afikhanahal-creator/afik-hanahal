@@ -15,12 +15,18 @@ const RSS_SOURCES = [
 const RE_FILTER = /נדל|דיר[הות]|דיור|שכיר[ות]|שוכר|משכיר|קרק[ע]|מגרש|משכנת|פינוי.?בינוי|התחדשות עירונית|מקרקעין|טאבו|קבלן|יזם.?נד|בנייה|בניין|תמ.?א|מגורים|שרון|כפר.?סבא|רעננה|נתניה|הוד.השרון|שוק הד|מחירי ד|רכישת ד|real.?estate|mortgage|housing/i
 function isRealEstate(title) { return RE_FILTER.test(title) }
 
-// Skip logos, placeholders, and Google News source-logo thumbnails
+// Skip logos, placeholders, and generic thumbnails
 function isArticleImage(url) {
   if (!url) return false
   const u = url.toLowerCase()
   return !u.includes('logo') && !u.includes('default') && !u.includes('placeholder')
-    && !u.includes('favicon') && !u.includes('generic') && !u.includes('googleusercontent.com')
+    && !u.includes('favicon') && !u.includes('generic')
+}
+
+function deduplicateImages(articles) {
+  const imgCount = {}
+  articles.forEach(a => { if (a.image) imgCount[a.image] = (imgCount[a.image] || 0) + 1 })
+  return articles.map(a => ({ ...a, image: (a.image && imgCount[a.image] === 1) ? a.image : '' }))
 }
 
 const RSS_HEADERS = {
@@ -118,6 +124,9 @@ function newsDevPlugin() {
             })
             .sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt))
             .slice(0, 50)
+
+          // Clear any image URL shared by 2+ articles (= source logo)
+          articles = deduplicateImages(articles)
 
           // Enrich with og:image (max 30, direct-source URLs first — more scrapeable)
           const withoutImg = articles.filter(a => !a.image)
