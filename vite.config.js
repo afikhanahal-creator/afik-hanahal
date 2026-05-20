@@ -3,22 +3,16 @@ import react from '@vitejs/plugin-react'
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36'
 
+// trusted:true = dedicated real-estate feed, skip keyword filter
 const RSS_SOURCES = [
-  { name: 'Bizportal נדל"ן', url: 'https://www.bizportal.co.il/rss/realEstate' },
-  { name: 'TheMarker נדל"ן', url: 'https://www.themarker.com/cmlink/1.4476' },
-  { name: 'Globes נדל"ן',    url: 'https://www.globes.co.il/webservice/rss/rssfeeder.asmx/FeederNode?iID=1111' },
-  { name: 'Calcalist נדל"ן', url: 'https://www.calcalist.co.il/rss/AjaxPage,7340,L-4,00.html' },
-  { name: 'Ynet נדל"ן',      url: 'https://www.ynet.co.il/Integration/StoryRss2.aspx?id=3082' },
-  { name: 'Mako נדל"ן',      url: 'https://rcs.mako.co.il/rss/economy.xml' },
-  { name: 'ישראל היום',      url: 'https://www.israelhayom.co.il/rss.aspx' },
-  { name: 'N12 כלכלה',       url: 'https://www.n12.co.il/rss/homepage.xml' },
-  { name: 'מרכז הנדל"ן',     url: 'https://www.m-nadlan.co.il/feed/' },
-  { name: 'נדל"ן 2.0',        url: 'https://www.nadlan20.co.il/feed/' },
-  { name: 'מגדילים',          url: 'https://magdilim.co.il/feed/' },
+  { name: 'Google נדל"ן',  url: 'https://news.google.com/rss/search?q=%D7%A0%D7%93%D7%9C%D7%9F+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he', trusted: true },
+  { name: 'Google דיור',   url: 'https://news.google.com/rss/search?q=%D7%9E%D7%97%D7%99%D7%A8%D7%99+%D7%93%D7%99%D7%A8%D7%95%D7%AA+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he', trusted: true },
+  { name: 'Ynet נדל"ן',    url: 'https://www.ynet.co.il/Integration/StoryRss8315.xml' },
+  { name: 'Ynet כלכלה',    url: 'https://www.ynet.co.il/Integration/StoryRss6.xml' },
+  { name: 'Globes נדל"ן',  url: 'https://www.globes.co.il/webservice/rss/rssfeeder.asmx/FeederKeyword?iID=1385', trusted: true },
 ]
 
-// Only let through articles that are clearly real-estate related
-const RE_FILTER = /נדל[""ן]|נדלן|דיר[הות]|דיור|שכיר[ות]|שוכר|משכיר|קרק[ע]|מגרש|משכנת|פינוי.?בינוי|התחדשות עירונית|מקרקעין|טאבו|קבלן|יזם.?נד|בנייה|בניין|תמ.?א|מגורים|שרון|כפר.?סבא|רעננה|נתניה|הוד.השרון|שוק הד|מחירי ד|רכישת ד/
+const RE_FILTER = /נדל|דיר[הות]|דיור|שכיר[ות]|שוכר|משכיר|קרק[ע]|מגרש|משכנת|פינוי.?בינוי|התחדשות עירונית|מקרקעין|טאבו|קבלן|יזם.?נד|בנייה|בניין|תמ.?א|מגורים|שרון|כפר.?סבא|רעננה|נתניה|הוד.השרון|שוק הד|מחירי ד|רכישת ד|real.?estate|mortgage|housing/i
 function isRealEstate(title) { return RE_FILTER.test(title) }
 
 // Skip generic site logos / branded images
@@ -34,7 +28,7 @@ const RSS_HEADERS = {
   'Accept-Language': 'he-IL,he;q=0.9,en-US;q=0.8',
 }
 
-function parseRSS(xml, sourceName) {
+function parseRSS(xml, sourceName, trusted = false) {
   const items = []
   const itemRe = /<item[^>]*>([\s\S]*?)<\/item>/g
   let m
@@ -55,7 +49,7 @@ function parseRSS(xml, sourceName) {
     const rawImg = imgMedia || imgEnc || imgDesc || ''
     const image = isArticleImage(rawImg) ? rawImg : ''
     const date  = pubDate ? new Date(pubDate) : new Date()
-    items.push({ id: link, title, url: link, link, image, source: sourceName, publishedAt: date.toISOString(), date })
+    items.push({ id: link, title, url: link, link, image, source: sourceName, trusted, publishedAt: date.toISOString(), date })
   }
   return items
 }
@@ -91,21 +85,21 @@ function newsDevPlugin() {
         if (cache && (Date.now() - cacheTs) < 30 * 60 * 1000) { res.end(JSON.stringify(cache)); return }
         try {
           const results = await Promise.allSettled(
-            RSS_SOURCES.map(async ({ name, url }) => {
+            RSS_SOURCES.map(async ({ name, url, trusted = false }) => {
               try {
                 const r = await fetch(url, { headers: RSS_HEADERS, signal: AbortSignal.timeout(10000) })
                 if (!r.ok) return []
-                return parseRSS(await r.text(), name)
+                return parseRSS(await r.text(), name, trusted)
               } catch { return [] }
             })
           )
           const seen = new Set()
-          // Strict real-estate keyword filter — no fallback to non-RE content
+          // Trusted feeds pass through; general feeds require keyword match
           let articles = results
             .flatMap(r => r.status === 'fulfilled' ? r.value : [])
             .filter(a => {
               if (!a.title || !a.link) return false
-              if (!isRealEstate(a.title)) return false
+              if (!a.trusted && !isRealEstate(a.title)) return false
               const k = a.title.replace(/\s+/g,'').slice(0,30)
               if (seen.has(k)) return false
               seen.add(k); return true
