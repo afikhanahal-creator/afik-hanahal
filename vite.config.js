@@ -4,7 +4,8 @@ import react from '@vitejs/plugin-react'
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36'
 
 const RSS_SOURCES = [
-  { name: 'Ynet נדל"ן',      url: 'https://www.ynet.co.il/Integration/StoryRss2.aspx?id=3082' },
+  { name: 'Walla! כלכלה',    url: 'https://rss.walla.co.il/feed/2' },
+  { name: 'Ynet כלכלה',      url: 'https://www.ynet.co.il/Integration/StoryRss2.aspx?id=3082' },
   { name: 'Globes נדל"ן',    url: 'https://www.globes.co.il/webservice/rss/rssfeeder.asmx/FeederNode?iID=1111' },
   { name: 'Calcalist נדל"ן', url: 'https://www.calcalist.co.il/rss/AjaxPage,7340,L-4,00.html' },
   { name: 'Bizportal נדל"ן', url: 'https://www.bizportal.co.il/rss/realEstate' },
@@ -98,17 +99,20 @@ function newsDevPlugin() {
             .flatMap(r => r.status === 'fulfilled' ? r.value : [])
             .filter(a => {
               if (!a.title || !a.link) return false
-              if (!isRealEstate(a.title)) return false
               const k = a.title.replace(/\s+/g,'').slice(0,30)
               if (seen.has(k)) return false
               seen.add(k); return true
             })
             .sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt))
 
-          // Filter to last 48 hours (keep at least 5 if not enough fresh)
-          const cutoff = Date.now() - CUTOFF_48H
+          // Soft real-estate keyword filter: use filtered if >= 3, else show all economy articles
+          const reFiltered = articles.filter(a => isRealEstate(a.title))
+          articles = reFiltered.length >= 3 ? reFiltered : articles.slice(0, 20)
+
+          // Soft 96h filter: enough fresh articles? use them. else fall back to all
+          const cutoff = Date.now() - 96 * 60 * 60 * 1000
           const fresh = articles.filter(a => new Date(a.publishedAt).getTime() > cutoff)
-          articles = fresh.length >= 5 ? fresh : articles.slice(0, 20)
+          articles = fresh.length >= 3 ? fresh : articles.slice(0, 20)
 
           // Enrich with og:image for articles missing images (max 15, parallel)
           const needImg = articles.filter(a => !a.image).slice(0, 15)

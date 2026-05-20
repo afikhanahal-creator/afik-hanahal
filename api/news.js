@@ -3,7 +3,8 @@ const RENDER = process.env.RENDER_URL || 'https://afik-hanahal-server.onrender.c
 const CUTOFF_48H = 48 * 60 * 60 * 1000
 
 const RSS_SOURCES = [
-  { name: 'Ynet נדל"ן',      url: 'https://www.ynet.co.il/Integration/StoryRss2.aspx?id=3082' },
+  { name: 'Walla! כלכלה',    url: 'https://rss.walla.co.il/feed/2' },
+  { name: 'Ynet כלכלה',      url: 'https://www.ynet.co.il/Integration/StoryRss2.aspx?id=3082' },
   { name: 'Globes נדל"ן',    url: 'https://www.globes.co.il/webservice/rss/rssfeeder.asmx/FeederNode?iID=1111' },
   { name: 'Calcalist נדל"ן', url: 'https://www.calcalist.co.il/rss/AjaxPage,7340,L-4,00.html' },
   { name: 'Bizportal נדל"ן', url: 'https://www.bizportal.co.il/rss/realEstate' },
@@ -94,23 +95,26 @@ export default async function handler(req, res) {
       })
     )
 
-    // Deduplicate + real-estate keyword filter
+    // Deduplicate
     const seen = new Set()
     let articles = results
       .flatMap(r => r.status === 'fulfilled' ? r.value : [])
       .filter(a => {
         if (!a.title || !a.link) return false
-        if (!isRealEstate(a.title)) return false
         const key = a.title.replace(/\s+/g,'').slice(0, 30)
         if (seen.has(key)) return false
         seen.add(key); return true
       })
       .sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt))
 
-    // Filter to last 48 hours (keep at least 10 if fewer results)
-    const cutoff = Date.now() - CUTOFF_48H
+    // Soft real-estate keyword filter: use filtered if >= 3, else show all economy articles
+    const reFiltered = articles.filter(a => isRealEstate(a.title))
+    articles = reFiltered.length >= 3 ? reFiltered : articles.slice(0, 20)
+
+    // Soft 96h filter: enough fresh? use them, else keep top articles
+    const cutoff = Date.now() - 96 * 60 * 60 * 1000
     const fresh = articles.filter(a => new Date(a.publishedAt).getTime() > cutoff)
-    articles = fresh.length >= 5 ? fresh : articles.slice(0, 20)
+    articles = fresh.length >= 3 ? fresh : articles.slice(0, 20)
 
     console.log(`[news] after 48h filter: ${articles.length} articles`)
 
