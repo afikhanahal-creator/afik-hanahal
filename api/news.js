@@ -9,7 +9,6 @@ const RSS_SOURCES = [
   { name: 'Globes נדל"ן',    url: 'https://www.globes.co.il/webservice/rss/rssfeeder.asmx/FeederNode?iID=1111' },
   { name: 'Calcalist נדל"ן', url: 'https://www.calcalist.co.il/rss/AjaxPage,7340,L-4,00.html' },
   { name: 'Ynet נדל"ן',      url: 'https://www.ynet.co.il/Integration/StoryRss2.aspx?id=3082' },
-  { name: 'Walla! נדל"ן',    url: 'https://rss.walla.co.il/feed/9' },
   { name: 'Mako נדל"ן',      url: 'https://rcs.mako.co.il/rss/economy.xml' },
   { name: 'ישראל היום',      url: 'https://www.israelhayom.co.il/rss.aspx' },
   { name: 'N12 כלכלה',       url: 'https://www.n12.co.il/rss/homepage.xml' },
@@ -136,7 +135,7 @@ export default async function handler(req, res) {
         })
       }
 
-      res.setHeader('Cache-Control', 's-maxage=1800, stale-while-revalidate=3600')
+      res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=600')
       return res.status(200).json(articles)
     }
     console.warn('[news] 0 articles from RSS, falling back to Render')
