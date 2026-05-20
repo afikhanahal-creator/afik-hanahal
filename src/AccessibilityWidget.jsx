@@ -102,29 +102,27 @@ const A11Y_CSS = `
 #a11y-btn {
   position: fixed;
   bottom: 76px; right: 22px;
-  width: 42px; height: 42px;
+  width: 50px; height: 50px;
   border-radius: 50%;
-  background: transparent;
-  border: 1.5px solid color-mix(in srgb,var(--c-purple,#8490D8) 35%,transparent);
-  box-shadow: none;
+  background: var(--c-purple,#8490D8);
+  border: 2.5px solid color-mix(in srgb,var(--c-purple,#8490D8) 60%,#fff);
+  box-shadow: 0 4px 18px color-mix(in srgb,var(--c-purple,#8490D8) 50%,transparent), 0 2px 6px rgba(0,0,0,.35);
   display: flex; align-items: center; justify-content: center;
   cursor: pointer; z-index: 999993;
-  color: color-mix(in srgb,var(--c-purple,#8490D8) 65%,transparent);
-  opacity: 0.6;
-  transition: transform .25s cubic-bezier(.2,.8,.4,1), box-shadow .22s, opacity .22s, background .22s, border-color .22s, color .22s;
+  color: #fff;
+  opacity: 1;
+  transition: transform .25s cubic-bezier(.2,.8,.4,1), box-shadow .22s, background .22s, border-color .22s;
 }
 #a11y-btn:hover {
-  opacity: 1;
-  background: color-mix(in srgb,var(--c-purple,#8490D8) 14%,transparent);
-  border-color: color-mix(in srgb,var(--c-purple,#8490D8) 65%,transparent);
-  color: var(--c-purple,#8490D8);
-  transform: scale(1.07) translateY(-2px);
-  box-shadow: 0 4px 16px color-mix(in srgb,var(--c-purple,#8490D8) 22%,transparent);
+  background: color-mix(in srgb,var(--c-purple,#8490D8) 80%,#fff);
+  border-color: #fff;
+  transform: scale(1.1) translateY(-2px);
+  box-shadow: 0 6px 24px color-mix(in srgb,var(--c-purple,#8490D8) 60%,transparent), 0 3px 10px rgba(0,0,0,.4);
 }
-#a11y-btn:focus-visible { outline: 2px solid var(--c-purple,#8490D8); outline-offset: 3px; }
+#a11y-btn:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
 #a11y-btn:active { transform: scale(.92); }
 @media(max-width:768px) {
-  #a11y-btn { bottom: 70px; right: 16px; width: 40px; height: 40px; }
+  #a11y-btn { bottom: 70px; right: 16px; width: 46px; height: 46px; }
 }
 
 /* Counter-invert: keep widget readable when page is inverted */
@@ -700,7 +698,7 @@ export default function AccessibilityWidget() {
         aria-haspopup="dialog"
         aria-keyshortcuts="Alt+A"
         title="תפריט נגישות – לחץ לפתיחה (Alt+A)">
-        <A11yIcon size={22}/>
+        <A11yIcon size={26}/>
       </button>
 
       {/* ── Panel ───────────────────────────────────────────────────────── */}

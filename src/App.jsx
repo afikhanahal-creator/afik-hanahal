@@ -502,9 +502,11 @@ const makeGlobal = (C, isDark) => `
     .svc-bento > * { grid-column:span 1 !important; }
     .nav-phone       { display:none !important; }
     .nav-social-hide { display:none !important; }
-    .testi-card-wrap { flex-direction:column !important; min-height:auto !important; }
-    .testi-img-col   { width:100% !important; height:320px !important; }
-    .testi-txt-col   { padding:32px 24px !important; }
+    .testi-card-wrap { flex-direction:column !important; min-height:0 !important; }
+    .testi-txt-col   { order:1 !important; padding:12px 14px 8px !important; gap:5px !important; justify-content:flex-start !important; }
+    .testi-img-col   { order:2 !important; width:100% !important; height:clamp(180px,30vh,300px) !important; background:#06040f !important; border-top:1px solid rgba(132,144,216,.15) !important; }
+    .testi-img-col img { object-fit:contain !important; object-position:center center !important; }
+    .testi-dots { display:none !important; }
     .placeholder-grid { grid-template-columns:1fr !important; }
   }
   @media(max-width:720px) {
@@ -570,8 +572,8 @@ const makeGlobal = (C, isDark) => `
     .placeholder-grid { grid-template-columns:1fr !important; }
 
     /* Testimonial improvements on mobile */
-    .testi-txt-col { padding:24px 18px !important; }
-    .testi-img-col { height:260px !important; }
+    .testi-txt-col { padding:12px 14px 8px !important; gap:5px !important; }
+    .testi-img-col { height:clamp(180px,30vh,300px) !important; width:100% !important; aspect-ratio:unset !important; }
 
     /* Story feature cards — stack */
     .story-grid { gap:24px !important; }
@@ -673,20 +675,44 @@ const makeGlobal = (C, isDark) => `
     #properties [style*="auto-fill"][style*="320px"] { grid-template-columns: 1fr !important; }
     .placeholder-grid { grid-template-columns: 1fr !important; }
     #properties button[style*="padding:14px 28px"] { padding: 11px 14px !important; font-size: 12px !important; }
-    .footer-grid { grid-template-columns: 1fr !important; gap: 28px !important; }
-    footer [style*="maxWidth:1100"] { padding: 36px 16px 24px !important; }
-    footer a[href^="tel"] { font-size: 20px !important; }
+    .footer-grid { grid-template-columns: 1fr !important; gap: 0 !important; }
+    .testi-txt-col p[style*="fontSize:17"] { font-size: 12px !important; line-height: 1.45 !important; }
+    .testi-txt-col div[style*="fontSize:20"] { font-size: 14px !important; font-weight: 700 !important; }
+    .testi-txt-col div[style*="fontSize:13"] { font-size: 11px !important; margin-top: 1px !important; }
+    .testi-txt-col div[style*="fontSize:12"] { font-size: 10px !important; }
+    .testi-txt-col span[style*="fontSize:22"] { font-size: 13px !important; }
+    .testi-txt-col div[style*="gap:4"] { gap: 2px !important; }
+    .testi-txt-col div[style*="gap:22"] { gap: 5px !important; }
+    .testi-txt-col div[style*="gap:16"] { gap: 5px !important; }
+    .testi-txt-col div[style*="gap:12"] { gap: 6px !important; margin-top: 0 !important; }
+    #testimonials { padding: 24px 14px !important; }
+    #testimonials [style*="marginBottom:48"] { margin-bottom: 16px !important; }
+    #testimonials h2 { font-size: 20px !important; margin-bottom: 4px !important; }
+    #testimonials p[style*="maxWidth:480"] { display: none !important; }
+    .footer-col { padding: 20px 0 !important; border-bottom: 1px solid rgba(132,144,216,.12) !important; }
+    .footer-col:last-child { border-bottom: none !important; padding-bottom: 8px !important; }
+    footer [style*="maxWidth:1100"] { padding: 28px 18px 16px !important; }
+    footer a[href^="tel"] { font-size: 22px !important; }
     footer button[style*="fit-content"] { width: 100% !important; }
-    footer h3[style*="fontSize:30"] { font-size: 22px !important; }
+    footer h3[style*="fontSize:30"] { font-size: 20px !important; margin-bottom: 14px !important; }
+    .footer-nav-links { display: grid !important; grid-template-columns: repeat(2,1fr) !important; gap: 10px 8px !important; }
+    .footer-nav-links button { font-size: 14px !important; padding: 6px 0 !important; }
+    .footer-hours { display: flex !important; gap: 16px !important; flex-wrap: wrap !important; }
+    .footer-social { margin-bottom: 14px !important; }
+    .footer-bottom { flex-direction: column !important; align-items: flex-end !important; gap: 10px !important; }
+    .footer-bottom-links { justify-content: flex-end !important; }
     .prop-detail-body { grid-template-columns: 1fr !important; }
     .prop-detail-sidebar { position: static !important; max-height: none !important; border-right: none !important; border-bottom: 1px solid rgba(132,144,216,.1) !important; }
     .prop-gallery-main { height: clamp(210px, 52vw, 320px) !important; }
     .prop-amenity-grid { grid-template-columns: repeat(2, 1fr) !important; }
     .svc-bento { grid-template-columns: 1fr !important; }
     .svc-bento > * { grid-column: span 1 !important; }
-    .testi-card-wrap { flex-direction: column !important; min-height: auto !important; }
-    .testi-img-col { width: 100% !important; height: 260px !important; }
-    .testi-txt-col { padding: 24px 18px !important; }
+    .testi-card-wrap { flex-direction: column !important; min-height: 0 !important; }
+    .testi-txt-col { order: 1 !important; padding: 12px 14px 8px !important; gap: 5px !important; justify-content: flex-start !important; }
+    .testi-img-col { order: 2 !important; width: 100% !important; height: clamp(180px,30vh,300px) !important; background: #06040f !important; border-top: 1px solid rgba(132,144,216,.15) !important; }
+    .testi-img-col img { object-fit: contain !important; object-position: center center !important; }
+    .testi-txt-col > div[style*="fontSize:72"] { font-size: 26px !important; line-height: 1 !important; margin-bottom: 0 !important; }
+    .testi-dots { display: none !important; }
     .nav-panel { width: min(300px, 90vw) !important; }
     .nav-panel-item { padding: 13px 14px !important; font-size: 15px !important; }
     section { padding-left: 16px !important; padding-right: 16px !important; }
@@ -720,6 +746,10 @@ const makeGlobal = (C, isDark) => `
     nav { padding-right: max(14px, env(safe-area-inset-right)) !important; padding-left: max(14px, env(safe-area-inset-left)) !important; }
     footer { padding-bottom: max(24px, env(safe-area-inset-bottom)) !important; }
     .wa-float { right: max(14px, env(safe-area-inset-right)) !important; bottom: max(18px, env(safe-area-inset-bottom)) !important; }
+  }
+
+  @media(min-width:769px) {
+    .testi-card-wrap { min-height: 500px; }
   }
 
   /* ── UI/UX Pro Max: prefers-reduced-motion ── */
@@ -3309,7 +3339,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState('')
 
-  const CLAUDE_KEY = process.env.ANTHROPIC_API_KEY
+  const CLAUDE_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY
 
   const rewriteWithAI = async () => {
     setAiLoading(true); setAiError('')
@@ -4715,12 +4745,10 @@ const TESTIMONIALS_DATA = [
 
 // ─── NEWS SECTION ─────────────────────────────────────────────────────────────
 const ROTATION_STORE = 'afik_rotation_v5'   // daily-rotation persistent store
-const ARCHIVE_STORE  = 'afik_archive_v1'    // articles rotated out — shown in archive page
-const SLOT_COUNT     = 4                   // always show exactly 4 cards
-const FRESH_HOURS    = 48                  // new article must be ≤48 h old
-const MRSS           = 'http://search.yahoo.com/mrss/'
+const ARCHIVE_STORE  = 'afik_archive_v1'
+const SLOT_COUNT     = 4
+const SERVER_URL     = import.meta.env.VITE_API_URL || 'https://afik-hanahal-server.onrender.com'
 
-// Google News RSS does not embed images — use curated real estate stock photos as fallbacks
 const FALLBACK_IMGS = [
   'https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800&q=75',
   'https://images.unsplash.com/photo-1582407947304-fd86f028f716?w=800&q=75',
@@ -4728,126 +4756,33 @@ const FALLBACK_IMGS = [
   'https://images.unsplash.com/photo-1486325212027-8081e485255e?w=800&q=75',
   'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?w=800&q=75',
   'https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=800&q=75',
-  'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=800&q=75',
-  'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=800&q=75',
 ]
 function pickFallback(seed = '') {
   let h = 0; for (const c of seed) h = (h * 31 + c.charCodeAt(0)) | 0
   return FALLBACK_IMGS[Math.abs(h) % FALLBACK_IMGS.length]
 }
 
-// Bing News search — returns fresh articles (today!) with real article URLs
-const GN_QUERIES = [
-  'שוק הנדלן ישראל 2025',
-  'מחירי דירות ישראל',
-  'קרקעות ומגרשים ישראל',
-  'תמ"א 38 התחדשות עירונית',
-  'השקעות נדלן ישראל',
-  'בנייה חדשה אישורי בנייה ישראל',
-  'מחירי שכירות ישראל',
-  'ייזום נדלן שרון',
-]
-
-// Google News appends " - Publication Name" to every title
-function splitGNTitle(raw = '') {
-  const m = raw.match(/^([\s\S]+?)\s*[-–—]\s*([^-–—]{2,50})$/)
-  return m ? { title: m[1].trim(), source: m[2].trim() } : { title: raw.trim(), source: '' }
-}
-
-// Properly decode HTML: strip tags then decode entities via DOM
-function htmlToPlain(html) {
-  if (!html) return ''
+// ── Fetch articles from Render → Vercel proxy ─────────────────────────────
+async function fetchFreshArticles() {
+  // Primary: Vercel → Render pipeline (JSON)
   try {
-    const d = document.createElement('div')
-    d.innerHTML = html
-    return (d.textContent || '').replace(/\s+/g, ' ').trim()
-  } catch {
-    return html.replace(/<[^>]*>/g, '').replace(/&[a-z#0-9]+;/gi, ' ').replace(/\s+/g,' ').trim()
-  }
-}
-
-// Extract the real article URL embedded in a Bing News redirect link
-function extractBingRealUrl(bingLink) {
-  try { return new URL(bingLink).searchParams.get('url') || bingLink } catch { return bingLink }
-}
-
-// Parse Bing News RSS XML
-function parseBingXML(xml) {
-  try {
-    const doc = new DOMParser().parseFromString(xml, 'text/xml')
-    if (doc.querySelector('parsererror')) return []
-    const items = [...doc.querySelectorAll('item')]
-    if (!items.length) return []
-    return items.slice(0, 8).flatMap(item => {
-      try {
-        const g = tag => item.querySelector(tag)?.textContent?.trim() || ''
-        const bingLink = g('link')
-        const link = extractBingRealUrl(bingLink) || bingLink
-        const title = g('title')
-        if (!title || !link || link === '#') return []
-        return [{ id: link, title, source: '', link,
-          date: g('pubDate') ? new Date(g('pubDate')) : new Date(0), image: '' }]
-      } catch { return [] }
-    })
-  } catch(e) { console.error('[News] parseBingXML:', e); return [] }
-}
-
-// Fetch news via Vercel serverless function
-async function fetchGNFeed(query) {
-  try {
-    const r = await fetch(`/api/news?q=${encodeURIComponent(query)}`, { signal: AbortSignal.timeout(10000) })
+    const r = await fetch('/api/news', { signal: AbortSignal.timeout(20000) })
     if (r.ok) {
-      const xml = await r.text()
-      const items = parseBingXML(xml)
-      if (items.length) return items
+      const data = await r.json()
+      if (Array.isArray(data) && data.length) return data
     }
-  } catch(e) { console.warn('[News] failed:', e?.message) }
-  return []
-}
-async function fetchOGImage(articleUrl) {
-  try {
-    const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(articleUrl)}`
-    const r = await fetch(proxy, { signal: AbortSignal.timeout(5000) })
-    if (!r.ok) return ''
-    const d = await r.json()
-    if (!d?.contents) return ''
-    const match = d.contents.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)
-              || d.contents.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i)
-    return match?.[1] || ''
-  } catch { return '' }
-}
+  } catch(e) { console.warn('[News] Vercel proxy failed:', e?.message) }
 
-async function enrichWithOGImages(articles) {
-  const enriched = await Promise.allSettled(
-    articles.map(async a => {
-      if (a.ogFetched) return a
-      const img = await fetchOGImage(a.link)
-      return { ...a, image: img || pickFallback(a.id || a.title), ogFetched: true }
-    })
-  )
-    .filter(a => {
-      if (!a.title || !a.link || a.link === '#') return false
-      const ms = a.date instanceof Date && !isNaN(a.date) ? a.date.getTime() : Date.now()
-      if (ms < cutoff) return false                // reject articles older than FRESH_HOURS
-      const key = a.title.replace(/\s+/g, '').slice(0, 25)
-      if (seen.has(key)) return false
-      seen.add(key); return true
-    })
-    .sort((a, b) => (b.date?.getTime?.() || 0) - (a.date?.getTime?.() || 0))
-  // If strict filter yields nothing, relax to 7 days (Bing sometimes returns slightly older)
-  if (!all.length) {
-    const relaxed = results
-      .filter(r => r.status === 'fulfilled')
-      .flatMap(r => r.value)
-      .filter(a => {
-        if (!a.title || !a.link || a.link === '#') return false
-        const key = a.title.replace(/\s+/g, '').slice(0, 25)
-        if (seen.has(key)) return false
-        seen.add(key); return true
-      })
-    return relaxed
-  }
-  return all
+  // Fallback: direct Render (for local dev)
+  try {
+    const r = await fetch(`${SERVER_URL}/api/news/feed`, { signal: AbortSignal.timeout(20000) })
+    if (r.ok) {
+      const data = await r.json()
+      if (Array.isArray(data) && data.length) return data
+    }
+  } catch(e) { console.warn('[News] Render direct failed:', e?.message) }
+
+  return []
 }
 
 function useRotatingNews() {
@@ -4857,105 +4792,68 @@ function useRotatingNews() {
 
   const run = useCallback(async (forceReset = false) => {
     setLoading(true); setError(false)
-function dayIndex(ts = Date.now()) { return Math.floor(ts / (24 * 3600 * 1000)) }
-    const now   = Date.now()
-    const today = dayIndex(now)
 
-    // Load persisted rotation state
-    let stored = null
+    const CACHE_KEY = 'afik_news_cache_v3'
+    const now = Date.now()
+
+    // Serve from localStorage cache if < 30 min old
     if (!forceReset) {
-      try { stored = JSON.parse(localStorage.getItem(ROTATION_STORE)) } catch {}
-    }
-
-    const slots   = stored?.slots || []
-    const lastDay = stored?.lastDay ?? -1
-
-    // Same day + all images already fetched → serve from cache immediately
-    if (!forceReset && slots.length === SLOT_COUNT && lastDay === today && slots.every(a => a.ogFetched)) {
-      setArticles(slots); setLoading(false); return
-    }
-
-    // Same day but images not yet fetched → show text first, then enrich
-    if (!forceReset && slots.length === SLOT_COUNT && lastDay === today) {
-      setArticles(slots); setLoading(false)
-      const enriched = await enrichWithOGImages(slots)
-      setArticles(enriched)
-      try { localStorage.setItem(ROTATION_STORE, JSON.stringify({ slots: enriched, lastDay: today })) } catch {}
-      return
-    }
-
-    // New day (or force reset) → fetch fresh articles from Bing
-    let fresh = []
-    try { fresh = await fetchFreshArticles() } catch {}
-
-    if (!fresh.length && slots.length) {
-      // Network failed — keep current slots, try enrichment at least
-      setArticles(slots); setLoading(false)
-      if (slots.some(a => !a.ogFetched)) {
-        const enriched = await enrichWithOGImages(slots)
-        setArticles(enriched)
-        try { localStorage.setItem(ROTATION_STORE, JSON.stringify({ slots: enriched, lastDay })) } catch {}
-      }
-      return
-    }
-    if (!fresh.length) { setError(true); setLoading(false); return }
-
-    let nextSlots = [...slots]
-
-    if (nextSlots.length < SLOT_COUNT) {
-      // ── First load: fill all 4 slots ───────────────────────────────────────
-      const existing = new Set(nextSlots.map(a => a.title.replace(/\s+/g, '').slice(0, 25)))
-      for (const a of fresh) {
-        if (nextSlots.length >= SLOT_COUNT) break
-        const k = a.title.replace(/\s+/g, '').slice(0, 25)
-        if (!existing.has(k)) { nextSlots.push({ ...a, addedAt: now }); existing.add(k) }
-      }
-    } else {
-      // ── Daily rotation: replace the oldest slot with one new article ────────
-      const existingTitles = new Set(nextSlots.map(a => a.title.replace(/\s+/g, '').slice(0, 25)))
-      const candidate = fresh.find(a => !existingTitles.has(a.title.replace(/\s+/g, '').slice(0, 25)))
-      if (candidate) {
-        let oldestIdx = 0
-        for (let i = 1; i < nextSlots.length; i++) {
-          if ((nextSlots[i].addedAt ?? 0) < (nextSlots[oldestIdx].addedAt ?? 0)) oldestIdx = i
+      try {
+        const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null')
+        if (cached?.articles?.length && (now - cached.ts) < 30 * 60 * 1000) {
+          setArticles(cached.articles.slice(0, SLOT_COUNT))
+          setLoading(false)
+          return
         }
-        // Save the removed article to the archive
-        const removed = nextSlots[oldestIdx]
-        try {
-          const arch = JSON.parse(localStorage.getItem(ARCHIVE_STORE) || '[]')
-          const alreadyIn = arch.some(a => a.title?.replace(/\s+/g,'').slice(0,25) === removed.title?.replace(/\s+/g,'').slice(0,25))
-          if (!alreadyIn) {
-            arch.unshift({ ...removed, archivedAt: now })    // newest-removed first
-            localStorage.setItem(ARCHIVE_STORE, JSON.stringify(arch.slice(0, 200)))  // keep last 200
-          }
-        } catch {}
-        nextSlots[oldestIdx] = { ...candidate, addedAt: now }
-      }
+      } catch {}
     }
 
-    if (nextSlots.length < SLOT_COUNT) { setError(true); setLoading(false); return }
+    const fresh = await fetchFreshArticles()
 
-    // Show articles immediately with fallback images
-    setArticles(nextSlots)
-    setLoading(false)
+    if (!fresh.length) {
+      // Try stale cache before showing error
+      try {
+        const stale = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null')
+        if (stale?.articles?.length) {
+          setArticles(stale.articles.slice(0, SLOT_COUNT))
+          setLoading(false); return
+        }
+      } catch {}
+      setError(true); setLoading(false); return
+    }
 
-    // Enrich all slots with real OG images from the actual article pages
-    const enriched = await enrichWithOGImages(nextSlots)
-    setArticles(enriched)
+    // Deduplicate, add fallback images where missing
+    const seen = new Set()
+    const deduped = fresh
+      .filter(a => {
+        if (!a.title || !a.url) return false
+        const k = a.title.replace(/\s+/g,'').slice(0,30)
+        if (seen.has(k)) return false
+        seen.add(k); return true
+      })
+      .map(a => ({ ...a, image: a.image || pickFallback(a.id || a.title) }))
+      .slice(0, 50)
 
+    // Archive older articles (localStorage)
     try {
-      localStorage.setItem(ROTATION_STORE, JSON.stringify({ slots: enriched, lastDay: today }))
+      const arch = JSON.parse(localStorage.getItem(ARCHIVE_STORE) || '[]')
+      const archSeen = new Set(arch.map(a => a.title?.replace(/\s+/g,'').slice(0,30)))
+      deduped.slice(SLOT_COUNT).forEach(a => {
+        const k = a.title?.replace(/\s+/g,'').slice(0,30)
+        if (k && !archSeen.has(k)) { arch.unshift({ ...a, archivedAt: now }); archSeen.add(k) }
+      })
+      localStorage.setItem(ARCHIVE_STORE, JSON.stringify(arch.slice(0, 200)))
     } catch {}
+
+    try { localStorage.setItem(CACHE_KEY, JSON.stringify({ articles: deduped, ts: now })) } catch {}
+
+    setArticles(deduped.slice(0, SLOT_COUNT))
+    setLoading(false)
   }, [])
 
   useEffect(() => { run() }, [run])
 
-  return {
-    articles,
-    loading,
-    error,
-    reload: () => run(true),   // force-reset clears store and re-fetches everything
-  }
+  return { articles, loading, error, reload: () => run(true) }
 }
 
 function NewsCard({ article, C }) {
@@ -5599,7 +5497,7 @@ function TestimonialsSection() {
 
   const startTimer = useCallback(() => {
     clearInterval(timerRef.current)
-    timerRef.current = setInterval(() => { setDir(1); setActive(p => (p + 1) % n) }, 5500)
+    timerRef.current = setInterval(() => { setDir(1); setActive(p => (p + 1) % n) }, 6500)
   }, [n])
 
   useEffect(() => { startTimer(); return () => clearInterval(timerRef.current) }, [startTimer])
@@ -5649,7 +5547,7 @@ function TestimonialsSection() {
               exit={{ opacity:0, x: dir > 0 ? -60 : 60 }}
               transition={{ duration:.42, ease:[.4,0,.2,1] }}
               className="testi-card-wrap"
-              style={{ display:'flex', minHeight:500, direction:'rtl' }}
+              style={{ display:'flex', direction:'rtl', width:'100%' }}
             >
               {/* ── Text column (RTL: appears on RIGHT) ── */}
               <div className="testi-txt-col" style={{ flex:1, padding:'52px 48px 44px', display:'flex', flexDirection:'column', justifyContent:'center', gap:22, position:'relative', zIndex:1, minWidth:0 }}>
@@ -5694,11 +5592,13 @@ function TestimonialsSection() {
                     aria-label="הבא">
                     <FaChevronLeft size={16}/>
                   </button>
+                  <span className="testi-dots" style={{ display:'contents' }}>
                   {TESTIMONIALS_DATA.map((_, i) => (
                     <button key={i} onClick={() => goTo(i)}
                       style={{ width:i===active?26:8, height:8, borderRadius:4, background:i===active?C.purple:C.purple+'33', border:'none', cursor:'pointer', transition:'all .3s', padding:0 }}
                       aria-label={`עדות ${i+1}`}/>
                   ))}
+                  </span>
                 </div>
               </div>
 
@@ -7431,10 +7331,10 @@ export default function App() {
           <div className="footer-grid" style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(240px,1fr))', gap:44, marginBottom:48 }}>
 
             {/* ── Col 1: Logo + social + hours ── */}
-            <div>
-              <div style={{ marginBottom:24 }}><Logo size={88}/></div>
-              <p style={{ fontSize:15, color:'rgba(232,228,216,.7)', lineHeight:1.9, marginBottom:24 }}>{TR[lang]?.footerDesc}</p>
-              <div style={{ display:'flex', gap:11, marginBottom:22 }}>
+            <div className="footer-col">
+              <div style={{ marginBottom:16 }}><Logo size={88}/></div>
+              <p style={{ fontSize:15, color:'rgba(232,228,216,.7)', lineHeight:1.8, marginBottom:16 }}>{TR[lang]?.footerDesc}</p>
+              <div className="footer-social" style={{ display:'flex', gap:11, marginBottom:16 }}>
                 <a href="mailto:afik.hanahal@gmail.com" className="social-btn email" title="שלח מייל" aria-label="אימייל">
                   <FaEnvelope size={18}/>
                 </a>
@@ -7445,16 +7345,16 @@ export default function App() {
                   <FaInstagram size={18}/>
                 </a>
               </div>
-              <div style={{ fontSize:14, color:'rgba(232,228,216,.5)', lineHeight:1.8 }}>
-                <div style={{ marginBottom:3 }}>{TR[lang]?.sunToThurs}</div>
+              <div className="footer-hours" style={{ fontSize:13, color:'rgba(232,228,216,.45)', lineHeight:1.7 }}>
+                <div>{TR[lang]?.sunToThurs}</div>
                 <div>{TR[lang]?.friday}</div>
               </div>
             </div>
 
             {/* ── Col 2: Nav links ── */}
-            <div>
-              <h3 style={{ fontSize:17, fontWeight:700, color:'rgba(232,228,216,.85)', marginBottom:24, letterSpacing:'.02em' }}>{TR[lang]?.quickNav}</h3>
-              <div style={{ display:'flex', flexDirection:'column', gap:13 }}>
+            <div className="footer-col">
+              <h3 style={{ fontSize:17, fontWeight:700, color:'rgba(232,228,216,.85)', marginBottom:16, letterSpacing:'.02em' }}>{TR[lang]?.quickNav}</h3>
+              <div className="footer-nav-links" style={{ display:'flex', flexDirection:'column', gap:13 }}>
                 {NAV_LINKS.map(({ id }) => (
                   <button key={id} onClick={() => scrollTo(id)} style={{ background:'none', border:'none', color:'rgba(232,228,216,.6)', fontSize:15, cursor:'pointer', textAlign: lang==='en' ? 'left' : 'right', fontFamily:'inherit', padding:0, transition:'color .2s' }}
                     onMouseEnter={e => e.currentTarget.style.color=C.purple}
@@ -7466,9 +7366,9 @@ export default function App() {
             </div>
 
             {/* ── Col 3: דברו איתנו + contact ── */}
-            <div>
+            <div className="footer-col">
               <h3 style={{ fontSize:30, fontWeight:900, color:'rgba(232,228,216,.95)', marginBottom:22, lineHeight:1.1, letterSpacing:'-.02em' }}>{TR[lang]?.talkToUs}</h3>
-              <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+              <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
                 <a href="tel:0559811814" style={{ color:'#82F67F', textDecoration:'none', fontSize:27, fontWeight:800, display:'flex', alignItems:'center', gap:10, transition:'all .22s', letterSpacing:'-.5px', direction:'ltr', justifyContent: lang==='en' ? 'flex-start' : 'flex-end' }}
                   onMouseEnter={e => { e.currentTarget.style.textShadow='0 0 28px rgba(130,246,127,.7)'; e.currentTarget.style.transform='translateY(-2px)' }}
                   onMouseLeave={e => { e.currentTarget.style.textShadow=''; e.currentTarget.style.transform='' }}>
@@ -7493,9 +7393,9 @@ export default function App() {
           </div>
 
           {/* ── Bottom bar ── */}
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', borderTop:'1px solid rgba(132,144,216,.15)', paddingTop:24, flexWrap:'wrap', gap:12 }}>
-            <div style={{ display:'flex', alignItems:'center', gap:20, flexWrap:'wrap' }}>
-              <div style={{ fontSize:14, color:'rgba(232,228,216,.38)' }}>{TR[lang]?.copyright}</div>
+          <div className="footer-bottom" style={{ display:'flex', justifyContent:'space-between', alignItems:'center', borderTop:'1px solid rgba(132,144,216,.15)', paddingTop:20, flexWrap:'wrap', gap:10 }}>
+            <div className="footer-bottom-links" style={{ display:'flex', alignItems:'center', gap:16, flexWrap:'wrap' }}>
+              <div style={{ fontSize:13, color:'rgba(232,228,216,.35)' }}>{TR[lang]?.copyright}</div>
               <a href="/accessibility" style={{ fontSize:13, color:C.purple, textDecoration:'none', fontWeight:600, opacity:.75, transition:'opacity .15s' }}
                 onMouseEnter={e => e.currentTarget.style.opacity='1'}
                 onMouseLeave={e => e.currentTarget.style.opacity='.75'}>{TR[lang]?.accessibility}</a>
