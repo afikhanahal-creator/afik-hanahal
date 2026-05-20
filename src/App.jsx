@@ -515,6 +515,9 @@ const makeGlobal = (C, isDark) => `
     .testi-img-col img { object-fit:contain !important; object-position:center center !important; }
     .testi-dots { display:none !important; }
     .placeholder-grid { grid-template-columns:1fr !important; }
+    .prop-form-grid   { grid-template-columns:1fr !important; }
+    .prop-chk-grid    { grid-template-columns:repeat(2,1fr) !important; }
+    .prop-img-grid    { grid-template-columns:repeat(auto-fill,minmax(90px,1fr)) !important; }
   }
   @media(max-width:720px) {
     .placeholder-grid { grid-template-columns:repeat(2,minmax(0,1fr)) !important; }
@@ -2245,7 +2248,7 @@ function ImageUpload({ images, onChange }) {
 
       {/* Thumbnails — draggable to reorder */}
       {images.length > 0 && (
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8, marginBottom:6 }}>
+        <div className="prop-img-grid" style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:8, marginBottom:6 }}>
           {images.map((src, i) => (
             <div key={i}
               draggable
@@ -3382,6 +3385,9 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const [listTab, setListTab] = useState('published')
   const [listCat, setListCat] = useState('all')
   const [saved, setSaved]   = useState(false)
+  const [propSyncing,    setPropSyncing]    = useState(false)
+  const [propSyncError,  setPropSyncError]  = useState('')
+  const [propSyncedAt,   setPropSyncedAt]   = useState(null)
   const [countersSaved,  setCountersSaved]  = useState(false)
   const [countersSaving, setCountersSaving] = useState(false)
   const [countersError,  setCountersError]  = useState('')
@@ -3489,27 +3495,65 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     setForm(f => ({ ...EMPTY_PROP, ...f, category:cat, type:newType, images:f.images }))
   }
 
-  const save = (publish) => {
+  const syncProps = async (nextProps) => {
+    if (!API_BASE) return
+    setPropSyncing(true)
+    setPropSyncError('')
+    try {
+      const r = await fetch(`${API_BASE}/api/properties/bulk`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+        body:    JSON.stringify(nextProps),
+        signal:  AbortSignal.timeout(15000),
+      })
+      if (!r.ok) throw new Error(await r.text().catch(() => String(r.status)))
+      setPropSyncedAt(new Date())
+    } catch (e) {
+      setPropSyncError('שגיאת סנכרון: ' + (e.message || 'בעיית תקשורת'))
+      setTimeout(() => setPropSyncError(''), 8000)
+    } finally {
+      setPropSyncing(false)
+    }
+  }
+
+  const save = async (publish) => {
     if (!form.title.trim() || !form.location.trim()) { setErr('שם הנכס ועיר הם שדות חובה'); return }
     setErr('')
     const prop = { ...form, published: publish }
+    let nextProps
     if (editId !== null) {
-      setProperties(p => p.map(x => x.id===editId ? { ...prop, id:editId } : x))
+      nextProps = properties.map(x => x.id===editId ? { ...prop, id:editId } : x)
+      setProperties(nextProps)
       setEditId(null)
     } else {
-      setProperties(p => [...p, { ...prop, id:Date.now() }])
+      const newProp = { ...prop, id: Date.now() }
+      nextProps = [...properties, newProp]
+      setProperties(nextProps)
     }
     localStorage.removeItem(ADMIN_DRAFT_KEY)
     setForm(EMPTY_PROP)
     setSaved(true)
     setTimeout(() => setSaved(false), 2500)
+    await syncProps(nextProps)
   }
-
-  const publish = id => setProperties(p => p.map(x => x.id===id ? { ...x, published:true } : x))
-  const unpublish = id => setProperties(p => p.map(x => x.id===id ? { ...x, published:false } : x))
-  const setStatus = (id, status) => setProperties(p => p.map(x => x.id===id ? { ...x, status } : x))
+  const publish = id => {
+    const next = properties.map(x => x.id===id ? { ...x, published:true } : x)
+    setProperties(next); syncProps(next)
+  }
+  const unpublish = id => {
+    const next = properties.map(x => x.id===id ? { ...x, published:false } : x)
+    setProperties(next); syncProps(next)
+  }
+  const setStatus = (id, status) => {
+    const next = properties.map(x => x.id===id ? { ...x, status } : x)
+    setProperties(next); syncProps(next)
+  }
   const startEdit = p => { setForm({...EMPTY_PROP, ...p}); setEditId(p.id); setTab('props') }
-  const del = id => { if (window.confirm('למחוק נכס זה?')) setProperties(prev => prev.filter(x => x.id !== id)) }
+  const del = id => {
+    if (!window.confirm('למחוק נכס זה?')) return
+    const next = properties.filter(x => x.id !== id)
+    setProperties(next); syncProps(next)
+  }
 
   const tabBtn = (id, label, badge) => (
     <button onClick={() => setTab(id)} style={{ padding:'10px 20px', border:'none', background:tab===id?`${C.purple}30`:'transparent', color:tab===id?C.purple:`${C.cream}65`, fontFamily:'inherit', cursor:'pointer', fontWeight:700, fontSize:14, borderRadius:9, transition:'all .15s', display:'flex', alignItems:'center', gap:7, boxShadow: tab===id ? `0 2px 10px ${C.purple}22` : 'none' }}>
@@ -3815,7 +3859,7 @@ Return ONLY valid JSON (no markdown, no explanation):
               </div>
 
               {/* Base fields */}
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0 14px' }}>
+              <div className="prop-form-grid" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0 14px' }}>
                 <div style={{ gridColumn:'1/-1' }}>
                   <label style={{ fontSize:11, color:`${C.cream}70`, display:'block', marginBottom:4, fontWeight:600 }}>שם הנכס *</label>
                   <input placeholder="שם הנכס" value={form.title} onChange={set('title')} style={inp}/>
@@ -3835,7 +3879,7 @@ Return ONLY valid JSON (no markdown, no explanation):
               </div>
 
               {/* Category-specific fields */}
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0 14px' }}>
+              <div className="prop-form-grid" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0 14px' }}>
                 {form.category === 'apartments' && <>
                   <div><label style={{ fontSize:11, color:`${C.cream}70`, display:'block', marginBottom:4, fontWeight:600 }}>חדרים</label><input placeholder="3.5" value={form.rooms} onChange={set('rooms')} style={inp}/></div>
                   <div><label style={{ fontSize:11, color:`${C.cream}70`, display:'block', marginBottom:4, fontWeight:600 }}>שטח מ"ר (כולל)</label><input placeholder="120" value={form.size} onChange={set('size')} style={inp}/></div>
@@ -3920,7 +3964,7 @@ Return ONLY valid JSON (no markdown, no explanation):
               {form.category !== 'land' && (
                 <div style={{ marginBottom:14 }}>
                   <div style={{ fontSize:10, color:`${C.cream}55`, marginBottom:8, fontWeight:700, letterSpacing:'.05em', textTransform:'uppercase' }}>מה יש בנכס</div>
-                  <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(130px,1fr))', gap:8, padding:'10px 12px', background:'rgba(255,255,255,.02)', borderRadius:8, border:`1px solid ${C.purple}15` }}>
+                  <div className="prop-chk-grid" style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(130px,1fr))', gap:8, padding:'10px 12px', background:'rgba(255,255,255,.02)', borderRadius:8, border:`1px solid ${C.purple}15` }}>
                     {chk('elevator','מעלית')} {chk('accessible','גישה לנכים')}
                     {chk('tornadoAC','מזגן טורנדו')} {chk('airCon','מיזוג')}
                     {chk('balcony','מרפסת')} {chk('storage','מחסן')}
@@ -3940,7 +3984,7 @@ Return ONLY valid JSON (no markdown, no explanation):
               )}
 
               {/* Price + status */}
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0 14px' }}>
+              <div className="prop-form-grid" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0 14px' }}>
                 <div>
                   <label style={{ fontSize:11, color:`${C.cream}70`, display:'block', marginBottom:4, fontWeight:600 }}>מחיר (₪)</label>
                   <input placeholder="3500000" value={form.price} onChange={set('price')} style={inp}/>
@@ -3972,7 +4016,7 @@ Return ONLY valid JSON (no markdown, no explanation):
               </div>
 
               {/* Links row */}
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0 14px', marginBottom:0 }}>
+              <div className="prop-form-grid" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0 14px', marginBottom:0 }}>
                 <div style={{ marginBottom:14 }}>
                   <label style={{ fontSize:11, color:`${C.cream}70`, display:'block', marginBottom:4, fontWeight:600 }}>לינק לדף נחיתה</label>
                   <input placeholder="https://..." value={form.landingPageUrl||''} onChange={set('landingPageUrl')} style={inp}/>
@@ -4008,18 +4052,20 @@ Return ONLY valid JSON (no markdown, no explanation):
               {err && <div style={{ color:'#E05252', fontSize:12, marginBottom:10 }}>{err}</div>}
 
               <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
-                <button onClick={() => save(false)} style={{ padding:'12px 18px', background:'rgba(255,255,255,.07)', border:`1px solid ${C.purple}33`, borderRadius:6, color:`${C.cream}BB`, fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit', transition:'all .15s' }}
-                  onMouseEnter={e => e.currentTarget.style.borderColor=C.purple}
-                  onMouseLeave={e => e.currentTarget.style.borderColor=`${C.purple}33`}>
+                <button onClick={() => save(false)} disabled={propSyncing} style={{ padding:'12px 18px', background:'rgba(255,255,255,.07)', border:`1px solid ${C.purple}33`, borderRadius:6, color:`${C.cream}BB`, fontSize:13, fontWeight:600, cursor: propSyncing ? 'not-allowed' : 'pointer', fontFamily:'inherit', transition:'all .15s', opacity: propSyncing ? .6 : 1 }}
+                  onMouseEnter={e => { if (!propSyncing) e.currentTarget.style.borderColor=C.purple }}
+                  onMouseLeave={e => { if (!propSyncing) e.currentTarget.style.borderColor=`${C.purple}33` }}>
                   שמור כטיוטה
                 </button>
-                <button onClick={() => save(true)} style={{ flex:1, padding:'12px', background:C.purple, border:'none', borderRadius:6, color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit', transition:'background .15s' }}
-                  onMouseEnter={e => e.currentTarget.style.background='#6b77c4'}
-                  onMouseLeave={e => e.currentTarget.style.background=C.purple}>
-                  {editId ? 'עדכן ופרסם' : '✓ פרסם לאוויר'}
+                <button onClick={() => save(true)} disabled={propSyncing} style={{ flex:1, padding:'12px', background: propSyncing ? `${C.purple}88` : C.purple, border:'none', borderRadius:6, color:'#fff', fontSize:13, fontWeight:700, cursor: propSyncing ? 'not-allowed' : 'pointer', fontFamily:'inherit', transition:'background .15s' }}
+                  onMouseEnter={e => { if (!propSyncing) e.currentTarget.style.background='#6b77c4' }}
+                  onMouseLeave={e => { if (!propSyncing) e.currentTarget.style.background=C.purple }}>
+                  {propSyncing ? '⏳ שומר...' : editId ? 'עדכן ופרסם' : '✓ פרסם לאוויר'}
                 </button>
                 {editId && <button onClick={() => { setEditId(null); setForm(EMPTY_PROP); localStorage.removeItem(ADMIN_DRAFT_KEY) }} style={{ padding:'12px 18px', background:'transparent', border:`1px solid ${C.purple}33`, borderRadius:6, color:`${C.cream}AA`, cursor:'pointer', fontFamily:'inherit', fontSize:13 }}>ביטול</button>}
               </div>
+              {propSyncError && <div style={{ fontSize:11, color:'#E05252', marginTop:8, display:'flex', alignItems:'center', gap:5 }}>⚠ {propSyncError}</div>}
+              {propSyncedAt && !propSyncing && !propSyncError && <div style={{ fontSize:11, color:C.green, marginTop:8, display:'flex', alignItems:'center', gap:5 }}>✓ סונכרן בהצלחה בשעה {propSyncedAt.toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'})}</div>}
             </div>
 
             {/* Property list */}
