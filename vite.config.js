@@ -116,14 +116,18 @@ function newsDevPlugin() {
             .sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt))
             .slice(0, 50)
 
-          // Enrich with og:image for articles missing images (max 15, parallel)
-          const needImg = articles.filter(a => !a.image).slice(0, 15)
+          // Enrich with og:image (max 30, direct-source URLs first — more scrapeable)
+          const withoutImg = articles.filter(a => !a.image)
+          const needImg = [
+            ...withoutImg.filter(a => !a.link.includes('news.google.com')),
+            ...withoutImg.filter(a =>  a.link.includes('news.google.com')),
+          ].slice(0, 30)
           if (needImg.length > 0) {
             const ogResults = await Promise.allSettled(needImg.map(a => fetchOGImageDev(a.url)))
-            let idx = 0
+            const ogMap = new Map(needImg.map((a, i) => [a.id, ogResults[i]]))
             articles = articles.map(a => {
-              if (!a.image) {
-                const r = ogResults[idx++]
+              if (!a.image && ogMap.has(a.id)) {
+                const r = ogMap.get(a.id)
                 return { ...a, image: (r?.status === 'fulfilled' ? r.value : '') || '' }
               }
               return a

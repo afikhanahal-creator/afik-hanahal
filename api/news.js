@@ -124,14 +124,19 @@ export default async function handler(req, res) {
     console.log(`[news] after filter: ${articles.length} articles`)
 
     if (articles.length > 0) {
-      // Enrich with og:image for articles missing images (parallel, max 15)
-      const needImg = articles.filter(a => !a.image).slice(0, 15)
+      // Enrich with og:image for articles missing images (parallel, max 30)
+      // Prioritise non-Google-News articles (direct source URLs are more scrapeable)
+      const withoutImg = articles.filter(a => !a.image)
+      const needImg = [
+        ...withoutImg.filter(a => !a.link.includes('news.google.com')),
+        ...withoutImg.filter(a =>  a.link.includes('news.google.com')),
+      ].slice(0, 30)
       if (needImg.length > 0) {
         const ogResults = await Promise.allSettled(needImg.map(a => fetchOGImage(a.url)))
-        let idx = 0
+        const ogMap = new Map(needImg.map((a, i) => [a.id, ogResults[i]]))
         articles = articles.map(a => {
-          if (!a.image) {
-            const r = ogResults[idx++]
+          if (!a.image && ogMap.has(a.id)) {
+            const r = ogMap.get(a.id)
             const ogImg = (r?.status === 'fulfilled' ? r.value : '') || ''
             return { ...a, image: isArticleImage(ogImg) ? ogImg : '' }
           }
