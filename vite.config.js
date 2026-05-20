@@ -5,12 +5,22 @@ const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,
 
 const RSS_SOURCES = [
   { name: 'Ynet נדל"ן',      url: 'https://www.ynet.co.il/Integration/StoryRss2.aspx?id=3082' },
-  { name: 'Walla! נדל"ן',    url: 'https://rss.walla.co.il/feed/22' },
   { name: 'Globes נדל"ן',    url: 'https://www.globes.co.il/webservice/rss/rssfeeder.asmx/FeederNode?iID=1111' },
   { name: 'Calcalist נדל"ן', url: 'https://www.calcalist.co.il/rss/AjaxPage,7340,L-4,00.html' },
   { name: 'Bizportal נדל"ן', url: 'https://www.bizportal.co.il/rss/realEstate' },
-  { name: 'Mako נדל"ן',      url: 'https://rcs.mako.co.il/rss/31750a2610f26110VgnVCM1000004463daa0RCRD.xml' },
+  { name: 'TheMarker נדל"ן', url: 'https://www.themarker.com/cmlink/1.4476' },
 ]
+
+// Only let through articles that are clearly real-estate related
+const RE_FILTER = /נדל[""ן]|נדלן|דיר[הות]|דיור|שכיר[ות]|שוכר|משכיר|קרק[ע]|מגרש|משכנת|פינוי.?בינוי|התחדשות עירונית|מקרקעין|טאבו|קבלן|יזם.?נד|בנייה|בניין|תמ.?א|מגורים|שרון|כפר.?סבא|רעננה|נתניה|הוד.השרון|שוק הד|מחירי ד|רכישת ד/
+function isRealEstate(title) { return RE_FILTER.test(title) }
+
+// Skip generic site logos / branded images
+function isArticleImage(url) {
+  if (!url) return false
+  const u = url.toLowerCase()
+  return !u.includes('logo') && !u.includes('default') && !u.includes('placeholder') && !u.includes('favicon') && !u.includes('generic')
+}
 
 const RSS_HEADERS = {
   'User-Agent': UA,
@@ -36,7 +46,8 @@ function parseRSS(xml, sourceName) {
     const imgDesc  = (c.match(/<description[^>]*>[\s\S]*?<img[^>]+src=["']([^"']+)["']/) || [])[1] || ''
     if (!rawTitle || !link) continue
     const title = rawTitle.replace(/<[^>]+>/g, '')
-    const image = imgMedia || imgEnc || imgDesc || ''
+    const rawImg = imgMedia || imgEnc || imgDesc || ''
+    const image = isArticleImage(rawImg) ? rawImg : ''
     const date  = pubDate ? new Date(pubDate) : new Date()
     items.push({ id: link, title, url: link, link, image, source: sourceName, publishedAt: date.toISOString(), date })
   }
@@ -87,6 +98,7 @@ function newsDevPlugin() {
             .flatMap(r => r.status === 'fulfilled' ? r.value : [])
             .filter(a => {
               if (!a.title || !a.link) return false
+              if (!isRealEstate(a.title)) return false
               const k = a.title.replace(/\s+/g,'').slice(0,30)
               if (seen.has(k)) return false
               seen.add(k); return true
