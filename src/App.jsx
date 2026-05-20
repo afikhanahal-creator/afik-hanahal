@@ -256,6 +256,8 @@ const makeGlobal = (C, isDark) => `
   @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
   .prop-carousel::-webkit-scrollbar { display:none }
   .prop-carousel { scrollbar-width:none; -ms-overflow-style:none }
+  .svc-carousel::-webkit-scrollbar { display:none }
+  .svc-carousel { scrollbar-width:none; -ms-overflow-style:none }
 
   /* ── UI/UX Pro Max: Kinetic Typography ── */
   @keyframes letterReveal {
@@ -1673,6 +1675,12 @@ function ServicesSection({ onContact }) {
   const [ref, vis] = useIntersection(0.08)
   const cardRefs = useRef([])
   const [cardVis, setCardVis] = useState(Array(SERVICES.length).fill(false))
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768)
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 768)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
 
   useEffect(() => {
     const obs = cardRefs.current.map((el, i) => {
@@ -1727,46 +1735,73 @@ function ServicesSection({ onContact }) {
           </div>
         </div>
 
-        {/* ── Service cards — uniform grid ── */}
-        <div style={{
-          display:'grid',
-          gridTemplateColumns:'repeat(auto-fill, minmax(300px, 1fr))',
-          gap:24,
-          marginBottom:44,
-        }}>
-          {SERVICES.map((svc, i) => (
-            <div key={i} ref={el => cardRefs.current[i] = el}
-              style={{
-                animation: cardVis[i]
-                  ? `cardIn .78s cubic-bezier(.175,.885,.32,1.28) ${i*.11}s both, cardFloat ${4.5+i*.45}s ease-in-out ${i*.11+.78}s infinite`
-                  : 'none',
-                opacity: cardVis[i] ? undefined : 0,
-              }}>
-              <div className="svc-card" style={{ padding:'38px 28px', height:'100%', display:'flex', flexDirection:'column' }}>
-                {/* top accent line */}
-                <div style={{ position:'absolute', top:0, right:0, left:0, height:2, background:`linear-gradient(90deg,transparent,${svc.color}AA,transparent)`, borderRadius:'20px 20px 0 0' }}/>
-
-                {/* Icon */}
-                <div style={{
-                  width:68, height:68, borderRadius:'50%', flexShrink:0,
-                  background:`linear-gradient(135deg,${svc.color}30,${svc.color}10)`,
-                  border:`2px solid ${svc.color}55`,
-                  display:'flex', alignItems:'center', justifyContent:'center',
-                  fontSize:28, marginBottom:22,
-                  animation:`iconSpin ${5+i*.7}s ease-in-out infinite`,
-                  animationDelay:`${i*.6}s`,
-                  boxShadow:`0 0 32px ${svc.color}22`,
-                }}>
-                  <svc.Icon size={28} style={{ color:svc.color }}/>
+        {/* ── Service cards — swipe carousel on mobile, grid on desktop ── */}
+        {isMobile ? (
+          <div style={{
+            display:'flex', gap:16, overflowX:'auto',
+            scrollSnapType:'x mandatory', WebkitOverflowScrolling:'touch',
+            paddingBottom:20, paddingInlineStart:4, paddingInlineEnd:16,
+            marginBottom:44, scrollbarWidth:'none', msOverflowStyle:'none',
+          }}
+            className="svc-carousel"
+          >
+            {SERVICES.map((svc, i) => (
+              <div key={i} style={{ flex:'0 0 82vw', maxWidth:320, scrollSnapAlign:'start' }}>
+                <div className="svc-card" style={{ padding:'30px 22px', height:'100%', display:'flex', flexDirection:'column' }}>
+                  <div style={{ position:'absolute', top:0, right:0, left:0, height:2, background:`linear-gradient(90deg,transparent,${svc.color}AA,transparent)`, borderRadius:'20px 20px 0 0' }}/>
+                  <div style={{
+                    width:60, height:60, borderRadius:'50%', flexShrink:0,
+                    background:`linear-gradient(135deg,${svc.color}30,${svc.color}10)`,
+                    border:`2px solid ${svc.color}55`,
+                    display:'flex', alignItems:'center', justifyContent:'center',
+                    marginBottom:18, boxShadow:`0 0 24px ${svc.color}22`,
+                  }}>
+                    <svc.Icon size={24} style={{ color:svc.color }}/>
+                  </div>
+                  <h3 style={{ fontSize:17, fontWeight:800, color:C.cream, marginBottom:10, lineHeight:1.3 }}>{lang === 'en' && svc.en_title ? svc.en_title : svc.title}</h3>
+                  <p style={{ fontSize:13.5, color:C.cream+'AA', lineHeight:1.85, flex:1 }}>{lang === 'en' && svc.en_desc ? svc.en_desc : svc.desc}</p>
+                  <div style={{ marginTop:18, height:2, background:`linear-gradient(90deg,${svc.color}88,transparent)`, borderRadius:1 }}/>
                 </div>
-
-                <h3 style={{ fontSize:19, fontWeight:800, color:C.cream, marginBottom:12, lineHeight:1.3 }}>{lang === 'en' && svc.en_title ? svc.en_title : svc.title}</h3>
-                <p style={{ fontSize:14.5, color:C.cream+'AA', lineHeight:1.9, flex:1 }}>{lang === 'en' && svc.en_desc ? svc.en_desc : svc.desc}</p>
-                <div style={{ marginTop:20, height:2, background:`linear-gradient(90deg,${svc.color}88,transparent)`, borderRadius:1 }}/>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{
+            display:'grid',
+            gridTemplateColumns:'repeat(auto-fill, minmax(300px, 1fr))',
+            gap:24,
+            marginBottom:44,
+          }}>
+            {SERVICES.map((svc, i) => (
+              <div key={i} ref={el => cardRefs.current[i] = el}
+                style={{
+                  animation: cardVis[i]
+                    ? `cardIn .78s cubic-bezier(.175,.885,.32,1.28) ${i*.11}s both, cardFloat ${4.5+i*.45}s ease-in-out ${i*.11+.78}s infinite`
+                    : 'none',
+                  opacity: cardVis[i] ? undefined : 0,
+                }}>
+                <div className="svc-card" style={{ padding:'38px 28px', height:'100%', display:'flex', flexDirection:'column' }}>
+                  <div style={{ position:'absolute', top:0, right:0, left:0, height:2, background:`linear-gradient(90deg,transparent,${svc.color}AA,transparent)`, borderRadius:'20px 20px 0 0' }}/>
+                  <div style={{
+                    width:68, height:68, borderRadius:'50%', flexShrink:0,
+                    background:`linear-gradient(135deg,${svc.color}30,${svc.color}10)`,
+                    border:`2px solid ${svc.color}55`,
+                    display:'flex', alignItems:'center', justifyContent:'center',
+                    fontSize:28, marginBottom:22,
+                    animation:`iconSpin ${5+i*.7}s ease-in-out infinite`,
+                    animationDelay:`${i*.6}s`,
+                    boxShadow:`0 0 32px ${svc.color}22`,
+                  }}>
+                    <svc.Icon size={28} style={{ color:svc.color }}/>
+                  </div>
+                  <h3 style={{ fontSize:19, fontWeight:800, color:C.cream, marginBottom:12, lineHeight:1.3 }}>{lang === 'en' && svc.en_title ? svc.en_title : svc.title}</h3>
+                  <p style={{ fontSize:14.5, color:C.cream+'AA', lineHeight:1.9, flex:1 }}>{lang === 'en' && svc.en_desc ? svc.en_desc : svc.desc}</p>
+                  <div style={{ marginTop:20, height:2, background:`linear-gradient(90deg,${svc.color}88,transparent)`, borderRadius:1 }}/>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
       </div>
     </section>
