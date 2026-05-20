@@ -16,7 +16,9 @@ function isRealEstate(title) { return RE_FILTER.test(title) }
 function isArticleImage(url) {
   if (!url) return false
   const u = url.toLowerCase()
-  return !u.includes('logo') && !u.includes('default') && !u.includes('placeholder') && !u.includes('favicon') && !u.includes('generic')
+  // Reject logos, placeholders, and Google News source-logo thumbnails (lh3.googleusercontent = site logo, not article image)
+  return !u.includes('logo') && !u.includes('default') && !u.includes('placeholder')
+    && !u.includes('favicon') && !u.includes('generic') && !u.includes('googleusercontent.com')
 }
 
 const HEADERS = {

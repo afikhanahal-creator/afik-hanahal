@@ -15,11 +15,12 @@ const RSS_SOURCES = [
 const RE_FILTER = /נדל|דיר[הות]|דיור|שכיר[ות]|שוכר|משכיר|קרק[ע]|מגרש|משכנת|פינוי.?בינוי|התחדשות עירונית|מקרקעין|טאבו|קבלן|יזם.?נד|בנייה|בניין|תמ.?א|מגורים|שרון|כפר.?סבא|רעננה|נתניה|הוד.השרון|שוק הד|מחירי ד|רכישת ד|real.?estate|mortgage|housing/i
 function isRealEstate(title) { return RE_FILTER.test(title) }
 
-// Skip generic site logos / branded images
+// Skip logos, placeholders, and Google News source-logo thumbnails
 function isArticleImage(url) {
   if (!url) return false
   const u = url.toLowerCase()
-  return !u.includes('logo') && !u.includes('default') && !u.includes('placeholder') && !u.includes('favicon') && !u.includes('generic')
+  return !u.includes('logo') && !u.includes('default') && !u.includes('placeholder')
+    && !u.includes('favicon') && !u.includes('generic') && !u.includes('googleusercontent.com')
 }
 
 const RSS_HEADERS = {
