@@ -5,8 +5,8 @@ import CookieConsent from './CookieConsent.jsx'
 import GovMapWidget from './GovMapWidget.jsx'
 import RealEstateCalc from './RealEstateCalc.jsx'
 import { AnimatePresence, motion } from 'framer-motion'
-import PropertyWizard from './PropertyWizard.jsx'
-import { FaChevronLeft, FaChevronRight, FaEnvelope, FaFacebookF, FaInstagram, FaBed, FaRulerCombined, FaCar, FaSwimmingPool, FaBuilding, FaBoxOpen, FaTree, FaSnowflake, FaShieldAlt, FaCouch, FaTools, FaMapMarkerAlt, FaExternalLinkAlt, FaPhone, FaCompass, FaLeaf, FaCalendarAlt, FaTimes, FaWhatsapp, FaSun, FaFileAlt, FaHome, FaMoneyBill, FaSearch, FaBalanceScale, FaHandshake, FaTrophy, FaHardHat, FaLock, FaKey, FaGlobe, FaSeedling, FaBolt, FaRocket, FaStar, FaChartLine, FaEye, FaPlay, FaWheelchair, FaFire, FaCalculator, FaShareAlt, FaHeart, FaStore, FaCamera, FaWifi, FaIndustry, FaExpand, FaUser, FaUsers, FaDesktop, FaMobileAlt, FaTabletAlt, FaCommentAlt, FaRobot, FaInbox, FaExclamationTriangle, FaChartBar, FaThumbsUp, FaImage, FaPencilAlt, FaCrown, FaMousePointer, FaDollarSign, FaVideo, FaLink } from 'react-icons/fa'
+import PropertyWizard, { propertyToWizardData } from './PropertyWizard.jsx'
+import { FaChevronLeft, FaChevronRight, FaEnvelope, FaFacebookF, FaInstagram, FaBed, FaRulerCombined, FaCar, FaSwimmingPool, FaBuilding, FaBoxOpen, FaTree, FaSnowflake, FaShieldAlt, FaCouch, FaTools, FaMapMarkerAlt, FaExternalLinkAlt, FaPhone, FaCompass, FaLeaf, FaCalendarAlt, FaTimes, FaWhatsapp, FaSun, FaFileAlt, FaHome, FaMoneyBill, FaSearch, FaBalanceScale, FaHandshake, FaTrophy, FaHardHat, FaLock, FaKey, FaGlobe, FaSeedling, FaBolt, FaRocket, FaStar, FaChartLine, FaEye, FaPlay, FaWheelchair, FaFire, FaCalculator, FaShareAlt, FaHeart, FaStore, FaCamera, FaWifi, FaIndustry, FaExpand, FaUser, FaUsers, FaDesktop, FaMobileAlt, FaTabletAlt, FaCommentAlt, FaRobot, FaInbox, FaExclamationTriangle, FaChartBar, FaThumbsUp, FaImage, FaPencilAlt, FaCrown, FaMousePointer, FaDollarSign, FaVideo, FaLink, FaCheck } from 'react-icons/fa'
 
 // ─── SERVER CONFIG ────────────────────────────────────────────────────────────
 // Set VITE_API_URL in Vercel env vars to point at your Render server.
@@ -3519,7 +3519,7 @@ function useTeamToken() {
   }, [])
 }
 
-function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSharon, govmapToken, setGovmapToken, onClose, standalone = false }) {
+function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSharon, govmapToken, setGovmapToken, onClose, onEditInWizard, standalone = false }) {
   const { C, isDark } = useTheme()
   const initForm = () => {
     try { const d = JSON.parse(localStorage.getItem(ADMIN_DRAFT_KEY)); if (d) return { ...EMPTY_PROP, ...d } } catch {}
@@ -4373,6 +4373,9 @@ Return ONLY valid JSON (no markdown, no explanation):
                               {p.status==='הושכר' ? '✓ הושכר' : 'הושכר'}
                             </button>
                             <button onClick={() => startEdit(p)} style={{ padding:'6px 12px', background:`${C.purple}18`, border:`1px solid ${C.purple}44`, borderRadius:7, color:C.purple, cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:600, whiteSpace:'nowrap' }}>עריכה</button>
+                            {onEditInWizard && (
+                              <button onClick={() => { onClose?.(); onEditInWizard(p) }} style={{ padding:'6px 12px', background:'rgba(132,144,216,.14)', border:'1px solid rgba(132,144,216,.35)', borderRadius:7, color:'#B8C0EE', cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:600, whiteSpace:'nowrap' }}>ערוך באשף</button>
+                            )}
                             <button onClick={() => del(p.id)} style={{ padding:'6px 12px', background:'rgba(224,82,82,.1)', border:'1px solid rgba(224,82,82,.3)', borderRadius:7, color:'#E05252', cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:600, whiteSpace:'nowrap' }}>מחק</button>
                           </div>
                         </div>
@@ -6361,6 +6364,83 @@ function MortgageMini({ price, C }) {
   )
 }
 
+function PdfLeadGate({ pdf, prop, C }) {
+  const [open, setOpen] = useState(false)
+  const [name, setName] = useState('')
+  const [phone, setPhone] = useState('')
+  const [done, setDone] = useState(false)
+  const storageKey = `pdf_lead_${prop.id}_${pdf.name}`
+
+  useEffect(() => {
+    try { if (localStorage.getItem(storageKey)) setDone(true) } catch {}
+  }, [storageKey])
+
+  const submit = e => {
+    e.preventDefault()
+    if (!name.trim() || !phone.trim()) return
+    const lead = {
+      id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+      name, phone,
+      propTitle: prop.title || '', propLocation: prop.location || '',
+      msg: `הורדת PDF: ${pdf.name}`,
+      source: 'pdf_download',
+      ts: Date.now(),
+    }
+    try {
+      const all = JSON.parse(localStorage.getItem(LEADS_STORE) || '[]')
+      all.unshift(lead)
+      localStorage.setItem(LEADS_STORE, JSON.stringify(all.slice(0, 2000)))
+      localStorage.setItem(storageKey, '1')
+    } catch {}
+    if (API_BASE) {
+      fetch(`${API_BASE}/api/contacts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(lead),
+      }).catch(() => {})
+    }
+    try {
+      const saved = JSON.parse(localStorage.getItem(WA_KEY) || '{}')
+      const waCfg = { ...WA_DEFAULTS, ...saved }
+      if (waCfg.enabled && phone) {
+        const msg = `שלום ${name}! תודה שהתעניינת ב${prop.title || 'הנכס'}. 📄 קובץ "${pdf.name}" מוכן להורדה. אשמח לענות על כל שאלה ולתאם ביקור! 🏡`
+        const delayMs = (Number(waCfg.delayMin) || 2) * 60 * 1000
+        setTimeout(() => sendWhatsAppLead({ ...lead, msg }, waCfg), delayMs)
+      }
+    } catch {}
+    setDone(true)
+    setOpen(false)
+    window.open(pdf.url, '_blank', 'noopener')
+  }
+
+  const inp = { width:'100%', background:'rgba(255,255,255,.06)', border:'1px solid rgba(255,255,255,.14)', borderRadius:8, padding:'10px 13px', color:'#fff', fontFamily:'inherit', fontSize:14, boxSizing:'border-box', outline:'none' }
+
+  return (
+    <div style={{ background:'rgba(255,255,255,.04)', border:'1px solid rgba(255,255,255,.1)', borderRadius:12, overflow:'hidden' }}>
+      <div style={{ display:'flex', alignItems:'center', gap:12, padding:'14px 16px' }}>
+        <FaFileAlt size={18} style={{ color:C.purple, flexShrink:0 }}/>
+        <div style={{ flex:1, minWidth:0 }}>
+          <div style={{ fontSize:14, fontWeight:700, color:'#fff', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{pdf.name || 'מסמך PDF'}</div>
+          <div style={{ fontSize:12, color:'rgba(255,255,255,.45)', marginTop:2 }}>PDF · לחץ להורדה</div>
+        </div>
+        <button
+          onClick={() => { if (done) { window.open(pdf.url, '_blank', 'noopener') } else { setOpen(o => !o) } }}
+          style={{ flexShrink:0, padding:'8px 16px', background: done ? `${C.green}18` : `${C.purple}22`, border:`1px solid ${done ? C.green+'44' : C.purple+'44'}`, borderRadius:8, color: done ? C.green : C.purple, cursor:'pointer', fontSize:13, fontFamily:'inherit', fontWeight:700, display:'flex', alignItems:'center', gap:6, transition:'all .15s', whiteSpace:'nowrap' }}>
+          {done ? <><FaCheck size={11}/> הורד</> : <><FaFileAlt size={11}/> הורדה</>}
+        </button>
+      </div>
+      {open && !done && (
+        <form onSubmit={submit} style={{ borderTop:'1px solid rgba(255,255,255,.08)', padding:'16px', display:'flex', flexDirection:'column', gap:12, background:'rgba(0,0,0,.2)' }}>
+          <div style={{ fontSize:13, color:'rgba(255,255,255,.7)', marginBottom:4 }}>השאר פרטים כדי לקבל את הקובץ:</div>
+          <input required placeholder="שם מלא" value={name} onChange={e=>setName(e.target.value)} style={inp}/>
+          <input required type="tel" placeholder="טלפון" value={phone} onChange={e=>setPhone(e.target.value)} style={inp}/>
+          <button type="submit" style={{ padding:'11px', background:C.purple, border:'none', borderRadius:8, color:'#fff', fontFamily:'inherit', fontSize:14, fontWeight:700, cursor:'pointer' }}>שלח והורד</button>
+        </form>
+      )}
+    </div>
+  )
+}
+
 function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [], onSelect }) {
   const { C, isDark } = useTheme()
   const [imgIdx, setImgIdx] = useState(0)
@@ -6557,42 +6637,6 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
           </div>
         </div>
 
-        {/* Thumbnail strip */}
-        {totalMedia > 1 && (
-          <div className="prop-gallery-thumb-strip">
-            {imgs.filter(s => s).map((src, i) => (
-              <button key={`img-${i}`} onClick={() => setImgIdx(i)}
-                className="prop-thumb-btn"
-                style={{ border:`2px solid ${i === imgIdx ? C.purple : 'rgba(255,255,255,.08)'}`, opacity: i === imgIdx ? 1 : .6 }}>
-                <img src={src} alt=""
-                  style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover', display:'block' }}
-                  onError={e => { e.currentTarget.style.display='none'; const fb=e.currentTarget.nextElementSibling; if(fb) fb.style.display='flex' }}/>
-                <div className="thumb-fallback" style={{ display:'none' }}>📷</div>
-              </button>
-            ))}
-            {allVideos.map((v, vi) => {
-              const vIdx = imgs.length + vi
-              const active = imgIdx === vIdx
-              return (
-                <button key={`vid-${vi}`} onClick={() => setImgIdx(vIdx)}
-                  className="prop-thumb-btn"
-                  style={{ border:`2px solid ${active ? C.purple : 'rgba(255,255,255,.08)'}`, opacity: active ? 1 : .6 }}>
-                  {v.thumbnail
-                    ? <img src={v.thumbnail} alt=""
-                        style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover', display:'block' }}
-                        onError={e => { e.currentTarget.style.display='none'; const fb=e.currentTarget.nextElementSibling; if(fb) fb.style.display='flex' }}/>
-                    : null}
-                  <div className="thumb-fallback" style={{ display: v.thumbnail ? 'none' : 'flex', flexDirection:'column', gap:3, background:'#180816' }}>
-                    <FaPlay size={14}/><span style={{ fontSize:8, fontWeight:700, letterSpacing:'.04em' }}>וידאו</span>
-                  </div>
-                  <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(0,0,0,.28)', zIndex:1 }}>
-                    <FaPlay size={11} style={{ color:'#fff' }}/>
-                  </div>
-                </button>
-              )
-            })}
-          </div>
-        )}
 
         {/* Project logo strip */}
         {prop.logo && (
@@ -6731,6 +6775,20 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
                     <FaMapMarkerAlt size={12}/> צפה במפה
                   </a>
                 )}
+              </div>
+            )}
+
+            {/* PDFs / Plans — lead-gated download */}
+            {prop.pdfs?.length > 0 && (
+              <div>
+                <h3 style={{ fontSize:17, fontWeight:800, color:C.cream, letterSpacing:'.02em', marginBottom:14, display:'flex', alignItems:'center', gap:9 }}>
+                  <FaFileAlt size={15} style={{ color:C.purple }}/> מסמכים ותוכניות
+                </h3>
+                <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                  {prop.pdfs.map((pdf, i) => (
+                    <PdfLeadGate key={i} pdf={pdf} prop={prop} C={C}/>
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -7216,6 +7274,8 @@ export default function App() {
   const [selectedProp, setSelectedProp] = useState(null)
   const [showAdmin,    setShowAdmin]    = useState(false)
   const [showWizard,   setShowWizard]   = useState(false)
+  const [wizardEditData, setWizardEditData] = useState(null)
+  const [wizardEditId,   setWizardEditId]   = useState(null)
   const [adminAuth,    setAdminAuth]    = useState(() => sessionStorage.getItem('afik_admin_session') === '1')
   const [showPw,       setShowPw]       = useState(false)
   const [contactProp,  setContactProp]  = useState(null)
@@ -7478,6 +7538,11 @@ export default function App() {
               onClose={() => {
                 sessionStorage.removeItem('afik_admin_session')
                 window.location.href = '/'
+              }}
+              onEditInWizard={p => {
+                setWizardEditData(propertyToWizardData(p))
+                setWizardEditId(p.id)
+                setShowWizard(true)
               }}
             />
           )}
@@ -8086,11 +8151,26 @@ export default function App() {
       {showPrivacy && <PrivacyModal onClose={() => setShowPrivacy(false)}/>}
       {selectedProp && <PropertyModal prop={selectedProp} properties={properties} onClose={() => setSelectedProp(null)} onContact={p => { openContact(p) }} onSelect={setSelectedProp} govmapToken={govmapToken}/>}
       {showWizard && <PropertyWizard
-          onClose={() => setShowWizard(false)}
-          onPublish={(prop) => {
-            setProperties(prev => [...prev, prop])
+          onClose={() => { setShowWizard(false); setWizardEditData(null); setWizardEditId(null) }}
+          initialData={wizardEditData}
+          editId={wizardEditId}
+          onPublish={(prop, isDraft) => {
+            if (wizardEditId) {
+              const next = properties.map(x => x.id === wizardEditId ? prop : x)
+              setProperties(next)
+              const base = API_BASE || ''
+              fetch(`${base}/api/properties/bulk`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+                body: JSON.stringify(next),
+              }).catch(() => {})
+            } else {
+              setProperties(prev => [...prev, prop])
+            }
+            setWizardEditData(null)
+            setWizardEditId(null)
             setShowWizard(false)
-            if (prop.published !== false) {
+            if (!isDraft && prop.published !== false) {
               setTimeout(() => scrollTo('properties'), 350)
             }
           }}
@@ -8102,6 +8182,12 @@ export default function App() {
           sharon={sharon} setSharon={setSharon}
           govmapToken={govmapToken} setGovmapToken={t => { setGovmapToken(t); localStorage.setItem('govmap_token', t) }}
           onClose={() => setShowAdmin(false)}
+          onEditInWizard={p => {
+            setShowAdmin(false)
+            setWizardEditData(propertyToWizardData(p))
+            setWizardEditId(p.id)
+            setShowWizard(true)
+          }}
         />
       )}
 

@@ -143,6 +143,68 @@ const INIT = {
 
 const parsePrice = raw => raw.replace(/[^\d]/g,'').replace(/\B(?=(\d{3})+(?!\d))/g,',')
 
+// Convert an existing published property back to wizard data for editing
+export function propertyToWizardData(prop) {
+  if (!prop) return null
+  const streetParts = (prop.street || '').split(' ')
+  const houseNum = streetParts.length > 1 ? streetParts[streetParts.length - 1] : ''
+  const street   = streetParts.length > 1 ? streetParts.slice(0, -1).join(' ') : (prop.street || '')
+  const images   = (prop.images || []).map(url => ({ url, name: '', type: 'image' }))
+  const videos   = prop.videoUrl ? [{ url: prop.videoUrl, name: 'סרטון', type: 'video', thumbnail: prop.videoThumbnail || '' }] : []
+  const rawPrice = prop.price ? String(prop.price).replace(/[^\d]/g, '') : ''
+  const priceFormatted = rawPrice ? parsePrice(rawPrice) : ''
+  return {
+    txType: prop.txType || 'sale',
+    propType: prop.type || '',
+    city: prop.location || '',
+    street,
+    houseNum,
+    floor: prop.floor || '',
+    totalFloors: prop.totalFloors || '',
+    onPilotis: false,
+    neighborhood: prop.neighborhood || '',
+    area: prop.region || '',
+    district: prop.district || '',
+    rooms: prop.rooms || '',
+    bathrooms: prop.bathrooms || 1,
+    parking: prop.parkingCount || (prop.parking ? 1 : 0),
+    balconies: prop.balconies || 0,
+    size: prop.size || '',
+    sqmBuilt: prop.buildSqm || '',
+    condition: CONDITIONS.find(c => c.l === prop.condition)?.v || '',
+    directions: prop.direction || '',
+    view: prop.view || '',
+    amenities: {
+      accessible: !!prop.accessible,
+      ac: !!prop.airCon,
+      elevator: !!prop.elevator,
+      parking: !!prop.parking,
+      storage: !!prop.storage,
+      shelter: !!prop.safeRoom,
+      balcony: !!prop.balcony,
+      solar: !!prop.solarBoiler,
+      bars: !!prop.bars,
+      furnished: !!prop.furnished,
+      renovated_f: !!prop.renovated,
+    },
+    price: priceFormatted,
+    priceOnInquiry: !prop.price,
+    entryDate: prop.entryDate || '',
+    entryFlex: prop.entryDate === 'גמיש',
+    description: prop.description || '',
+    media: [...images, ...videos],
+    contactName: prop.contactName || '',
+    contactPhone: prop.contactPhone || '',
+    gush: prop.gush || '',
+    helka: prop.helka || '',
+    mapsUrl: prop.mapsUrl || '',
+    landingPageUrl: prop.landingPageUrl || '',
+    youtubeUrl: '',
+    logo: prop.logo || '',
+    pdfs: prop.pdfs || [],
+  }
+}
+
 // Wizard data → App.jsx property format
 const inferCategory = propType => {
   if (['קרקע חקלאית','מגרש','קרקע מסחרית'].includes(propType)) return 'land'
@@ -361,8 +423,9 @@ function CalendarPicker({ value, onChange, disabled }) {
 
   const select = day => {
     if (!day || disabled) return
-    const d = new Date(view.year, view.month, day)
-    onChange(d.toISOString().split('T')[0])
+    const mm = String(view.month + 1).padStart(2, '0')
+    const dd = String(day).padStart(2, '0')
+    onChange(`${view.year}-${mm}-${dd}`)
     setOpen(false)
   }
 
@@ -1435,6 +1498,17 @@ function Step6({ d, upd }) {
         <FaCamera size={14} style={{ flexShrink: 0, marginTop: 2 }} />
         <span><strong>המלצות:</strong> אור טבעי, חדרים מסודרים, מבט רחב. תמונת הכניסה / סלון כתמונה ראשית.</span>
       </div>
+
+      {/* PDF documents & project plans */}
+      <div style={{ marginTop: 24, borderTop: `1px solid ${BORDER}`, paddingTop: 20 }}>
+        <div style={{ fontSize: 15, fontWeight: 800, color: TEXT, fontFamily: FONT, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
+          <FaFileAlt size={15} style={{ color: P }} /> מסמכי PDF ותוכניות פרויקט
+        </div>
+        <div style={{ fontSize: 13, color: MUTED, fontFamily: FONT, marginBottom: 14 }}>
+          העלה קבצי מידע, תוכניות, נספחים — הלקוח יצטרך להשאיר פרטים לפני ההורדה.
+        </div>
+        <PdfUploader pdfs={d.pdfs} onUpdate={pdfs => upd('pdfs', pdfs)} adminToken={WIZ_ADMIN_TOKEN} />
+      </div>
     </div>
   )
 }
@@ -1542,9 +1616,10 @@ const STEP_COMPONENTS = [Step1, Step2, Step3, Step4, Step5, Step6, Step7]
 
 const WIZARD_DRAFT_KEY = 'afik_wizard_draft'
 
-export default function PropertyWizard({ onClose, onPublish }) {
+export default function PropertyWizard({ onClose, onPublish, initialData, editId }) {
   const [step, setStep]             = useState(1)
   const [data, setData]             = useState(() => {
+    if (initialData) return { ...INIT, ...initialData }
     try {
       const saved = localStorage.getItem(WIZARD_DRAFT_KEY)
       return saved ? { ...INIT, ...JSON.parse(saved) } : INIT
@@ -1585,11 +1660,12 @@ export default function PropertyWizard({ onClose, onPublish }) {
 
   const handlePublish = (isDraft) => {
     setShowPublishModal(false)
-    if (!isDraft) {
+    if (!isDraft && !editId) {
       try { localStorage.removeItem(WIZARD_DRAFT_KEY) } catch {}
     }
     if (onPublish) {
-      onPublish(wizardToProperty(data, isDraft), isDraft)
+      const prop = wizardToProperty(data, isDraft)
+      onPublish(editId ? { ...prop, id: editId } : prop, isDraft)
     } else {
       onClose()
     }
@@ -1628,7 +1704,7 @@ export default function PropertyWizard({ onClose, onPublish }) {
             <div style={{ padding: '14px 22px 12px', display: 'flex', alignItems: 'center',
               justifyContent: 'space-between', borderBottom: `1px solid ${BORDER}` }}>
               <div>
-                <div style={{ fontSize: 19, fontWeight: 900, color: TEXT, fontFamily: FONT }}>פרסום נכס חדש</div>
+                <div style={{ fontSize: 19, fontWeight: 900, color: TEXT, fontFamily: FONT }}>{editId ? 'עריכת נכס' : 'פרסום נכס חדש'}</div>
                 <div style={{ fontSize: 13, color: MUTED, marginTop: 2, fontFamily: FONT }}>
                   שלב {step} מתוך {STEPS.length}
                 </div>
