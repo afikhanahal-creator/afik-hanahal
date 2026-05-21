@@ -404,7 +404,7 @@ const makeGlobal = (C, isDark) => `
 
   /* ── Back to top ── */
   .back-to-top {
-    position:fixed; bottom:86px; right:22px; width:44px; height:44px;
+    position:fixed; bottom:148px; right:22px; width:44px; height:44px;
     border-radius:50%; background:rgba(132,144,216,.82); border:1.5px solid rgba(132,144,216,.35);
     color:#fff; font-size:20px; line-height:1; cursor:pointer; z-index:9991;
     display:flex; align-items:center; justify-content:center;
@@ -413,8 +413,8 @@ const makeGlobal = (C, isDark) => `
   }
   .back-to-top.visible { opacity:1; pointer-events:auto; }
   .back-to-top:hover { background:rgba(132,144,216,1); transform:translateY(-4px); }
-  @media(max-width:600px) { .back-to-top { bottom:78px; right:14px; width:40px; height:40px; font-size:17px; } }
-  @supports(padding:max(0px)) { .back-to-top { right:max(14px,env(safe-area-inset-right)) !important; bottom:max(78px,calc(70px + env(safe-area-inset-bottom))) !important; } }
+  @media(max-width:600px) { .back-to-top { bottom:136px; right:14px; width:40px; height:40px; font-size:17px; } }
+  @supports(padding:max(0px)) { .back-to-top { right:max(14px,env(safe-area-inset-right)) !important; bottom:max(148px,calc(140px + env(safe-area-inset-bottom))) !important; } }
 
   /* ── Hamburger — animated SVG toggle ── */
   .hamburger-btn {
@@ -702,8 +702,10 @@ const makeGlobal = (C, isDark) => `
   @media(max-width:768px) {
     nav { padding: 0 14px !important; height: 62px !important; }
     .hamburger-btn { width: 48px !important; height: 62px !important; }
-    nav .social-btn { display: none !important; }
+    nav .social-btn.email { display: none !important; }
+    nav .social-btn.facebook, nav .social-btn.instagram { display: inline-flex !important; width: 36px !important; height: 36px !important; min-width: 36px !important; min-height: 36px !important; font-size: 14px !important; }
     nav > div > div[style*="width:1"] { display: none !important; }
+    .nav-lang-text { display: none !important; }
     .nav-lang-btn { padding: 5px 8px !important; font-size: 10px !important; gap: 4px !important; }
     #home { padding: 72px 18px 52px !important; min-height: 100svh !important; }
     .hero-title { font-size: clamp(28px, 8.5vw, 44px) !important; line-height: 1.15 !important; margin-bottom: 14px !important; }
@@ -749,6 +751,7 @@ const makeGlobal = (C, isDark) => `
     .footer-bottom { flex-direction: column !important; align-items: center !important; gap: 10px !important; text-align: center !important; }
     .footer-bottom-links { justify-content: center !important; flex-wrap: wrap !important; }
     .footer-col { text-align: center !important; }
+    .footer-logo-wrap { display: flex !important; justify-content: center !important; }
     .footer-col .footer-social { justify-content: center !important; }
     .footer-col .footer-hours { justify-content: center !important; }
     footer a[href^="tel"] { justify-content: center !important; }
@@ -1217,7 +1220,7 @@ function LangSwitch({ compact = false }) {
           width={flagW} height={flagH} alt="IL"
           style={{ borderRadius: 3, display: 'block', flexShrink: 0 }}
         />
-        <span style={{ fontSize: txtSz, fontWeight: 700, color: textColor, fontFamily: 'Rubik, sans-serif', letterSpacing: '0.04em' }}>עב</span>
+        <span className="nav-lang-text" style={{ fontSize: txtSz, fontWeight: 700, color: textColor, fontFamily: 'Rubik, sans-serif', letterSpacing: '0.04em' }}>עב</span>
       </div>
 
       {/* Separator */}
@@ -1230,7 +1233,7 @@ function LangSwitch({ compact = false }) {
           width={flagW} height={flagH} alt="US"
           style={{ borderRadius: 3, display: 'block', flexShrink: 0 }}
         />
-        <span style={{ fontSize: txtSz, fontWeight: 700, color: textColor, fontFamily: 'Rubik, sans-serif', letterSpacing: '0.04em' }}>EN</span>
+        <span className="nav-lang-text" style={{ fontSize: txtSz, fontWeight: 700, color: textColor, fontFamily: 'Rubik, sans-serif', letterSpacing: '0.04em' }}>EN</span>
       </div>
     </div>
   )
@@ -3548,6 +3551,17 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState('')
   const [wizardOpen, setWizardOpen] = useState(false)
+  const [shareCopied, setShareCopied] = useState(false)
+
+  const copyDashLink = () => {
+    const url = `${window.location.origin}/dashboard`
+    navigator.clipboard?.writeText(url).then(() => {
+      setShareCopied(true)
+      setTimeout(() => setShareCopied(false), 2400)
+    }).catch(() => {
+      try { const el = document.createElement('textarea'); el.value = url; document.body.appendChild(el); el.select(); document.execCommand('copy'); document.body.removeChild(el); setShareCopied(true); setTimeout(() => setShareCopied(false), 2400) } catch {}
+    })
+  }
 
   const CLAUDE_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY
 
@@ -3837,6 +3851,12 @@ Return ONLY valid JSON (no markdown, no explanation):
           </nav>
           {/* Footer */}
           <div style={{ padding:'12px 10px 20px', borderTop:'1px solid rgba(132,144,216,.07)' }}>
+            <button onClick={copyDashLink}
+              style={{ width:'100%', padding:'10px 13px', border:`1px solid ${shareCopied ? 'rgba(34,197,94,.45)' : 'rgba(132,144,216,.28)'}`, borderRadius:8, background: shareCopied ? 'rgba(34,197,94,.1)' : `rgba(132,144,216,.1)`, color: shareCopied ? '#22C55E' : C.purple, cursor:'pointer', fontFamily:'inherit', fontSize:12, fontWeight:700, marginBottom:7, display:'flex', alignItems:'center', gap:8, transition:'all .2s' }}
+              onMouseEnter={e=>{ if(!shareCopied){ e.currentTarget.style.borderColor='rgba(132,144,216,.55)'; e.currentTarget.style.background='rgba(132,144,216,.18)' }}}
+              onMouseLeave={e=>{ if(!shareCopied){ e.currentTarget.style.borderColor='rgba(132,144,216,.28)'; e.currentTarget.style.background='rgba(132,144,216,.1)' }}}>
+              <FaShareAlt size={12}/> <span>{shareCopied ? '✓ קישור הועתק!' : 'שתף למערכת'}</span>
+            </button>
             <button onClick={() => window.open('/', '_blank')}
               style={{ width:'100%', padding:'10px 13px', border:'1px solid rgba(132,144,216,.14)', borderRadius:8, background:'transparent', color:'rgba(232,228,216,.38)', cursor:'pointer', fontFamily:'inherit', fontSize:12, fontWeight:600, marginBottom:7, display:'flex', alignItems:'center', gap:8, transition:'all .15s' }}
               onMouseEnter={e=>{ e.currentTarget.style.borderColor='rgba(132,144,216,.32)'; e.currentTarget.style.color='rgba(232,228,216,.72)' }}
@@ -3874,6 +3894,10 @@ Return ONLY valid JSON (no markdown, no explanation):
             </div>
             <div style={{ display:'flex', alignItems:'center', gap:6 }}>
               {saved && <span style={{ fontSize:10, color:'#22C55E', fontWeight:700, background:'rgba(34,197,94,.12)', padding:'2px 8px', borderRadius:10 }}>נשמר</span>}
+              <button onClick={copyDashLink} title="שתף קישור למערכת"
+                style={{ background: shareCopied ? 'rgba(34,197,94,.12)' : 'rgba(132,144,216,.1)', border:`1px solid ${shareCopied ? 'rgba(34,197,94,.35)' : 'rgba(132,144,216,.28)'}`, borderRadius:8, width:34, height:34, color: shareCopied ? '#22C55E' : C.purple, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s' }}>
+                <FaShareAlt size={11}/>
+              </button>
               <button onClick={onClose}
                 style={{ background:'rgba(224,82,82,.08)', border:'1px solid rgba(224,82,82,.22)', borderRadius:8, width:34, height:34, color:'rgba(224,82,82,.7)', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
                 <FaTimes size={11}/>
@@ -3889,11 +3913,20 @@ Return ONLY valid JSON (no markdown, no explanation):
               <h2 style={{ fontSize:15, fontWeight:800, color:'rgba(232,228,216,.86)', margin:0 }}>{TAB_LABELS[tab] || ''}</h2>
               {saved && <span style={{ fontSize:11, color:'#22C55E', fontWeight:700, background:'rgba(34,197,94,.1)', padding:'3px 10px', borderRadius:20, border:'1px solid rgba(34,197,94,.2)' }}>✓ נשמר</span>}
             </div>
-            <div style={{ display:'flex', alignItems:'center', gap:7, background:'rgba(132,144,216,.08)', border:'1px solid rgba(132,144,216,.16)', borderRadius:24, padding:'6px 13px 6px 9px' }}>
-              <div style={{ width:26, height:26, borderRadius:'50%', background:`${C.purple}25`, border:`1.5px solid ${C.purple}44`, display:'flex', alignItems:'center', justifyContent:'center' }}>
-                <FaLock size={10} style={{ color:C.purple }}/>
+            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+              <button onClick={copyDashLink}
+                style={{ display:'flex', alignItems:'center', gap:7, padding:'6px 13px', background: shareCopied ? 'rgba(34,197,94,.12)' : 'rgba(132,144,216,.1)', border:`1px solid ${shareCopied ? 'rgba(34,197,94,.4)' : 'rgba(132,144,216,.25)'}`, borderRadius:20, color: shareCopied ? '#22C55E' : C.purple, cursor:'pointer', fontFamily:'inherit', fontSize:12, fontWeight:700, transition:'all .2s' }}
+                onMouseEnter={e=>{ if(!shareCopied){ e.currentTarget.style.background='rgba(132,144,216,.2)'; e.currentTarget.style.borderColor='rgba(132,144,216,.5)' }}}
+                onMouseLeave={e=>{ if(!shareCopied){ e.currentTarget.style.background='rgba(132,144,216,.1)'; e.currentTarget.style.borderColor='rgba(132,144,216,.25)' }}}>
+                <FaShareAlt size={11}/>
+                <span>{shareCopied ? '✓ הועתק!' : 'שתף'}</span>
+              </button>
+              <div style={{ display:'flex', alignItems:'center', gap:7, background:'rgba(132,144,216,.08)', border:'1px solid rgba(132,144,216,.16)', borderRadius:24, padding:'6px 13px 6px 9px' }}>
+                <div style={{ width:26, height:26, borderRadius:'50%', background:`${C.purple}25`, border:`1.5px solid ${C.purple}44`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                  <FaLock size={10} style={{ color:C.purple }}/>
+                </div>
+                <span style={{ fontSize:12, color:'rgba(232,228,216,.55)', fontWeight:600 }}>מנהל ראשי</span>
               </div>
-              <span style={{ fontSize:12, color:'rgba(232,228,216,.55)', fontWeight:600 }}>מנהל ראשי</span>
             </div>
           </div>
         )}
@@ -5394,10 +5427,13 @@ function ArchiveCard({ a, C, isDark }) {
       onMouseLeave={e => { e.currentTarget.style.transform=''; e.currentTarget.style.boxShadow='' }}>
       <div style={{ aspectRatio:'16/9', overflow:'hidden', background:'rgba(132,144,216,.08)', position:'relative', flexShrink:0 }}>
         {a.image && !imgErr
-          ? <img src={a.image} alt={a.title} referrerPolicy="no-referrer"
+          ? <img src={a.image} alt={a.title} loading="lazy" decoding="async"
+              referrerPolicy="no-referrer-when-downgrade"
               onError={() => setImgErr(true)}
               style={{ width:'100%', height:'100%', objectFit:'cover', display:'block', filter:'brightness(1.18) contrast(1.06) saturate(1.14)' }}/>
-          : <div style={{ width:'100%', height:'100%', background:'linear-gradient(135deg,rgba(132,144,216,.18),rgba(130,246,127,.06))' }}/>
+          : <div style={{ width:'100%', height:'100%', display:'flex', alignItems:'center', justifyContent:'center', background:'linear-gradient(135deg,rgba(132,144,216,.18),rgba(130,246,127,.06))' }}>
+              <FaFileAlt size={24} style={{ color:'rgba(132,144,216,.22)' }}/>
+            </div>
         }
         {/* Publication date — bottom left */}
         {dateStr && (
@@ -7884,7 +7920,7 @@ export default function App() {
 
             {/* ── Col 1: Logo + social + hours ── */}
             <div className="footer-col">
-              <div style={{ marginBottom:16 }}><Logo size={88}/></div>
+              <div className="footer-logo-wrap" style={{ marginBottom:16 }}><Logo size={88}/></div>
               <p style={{ fontSize:15, color:'rgba(232,228,216,.7)', lineHeight:1.8, marginBottom:16 }}>{TR[lang]?.footerDesc}</p>
               <div className="footer-social" style={{ display:'flex', gap:11, marginBottom:16 }}>
                 <a href="mailto:afik.hanahal@gmail.com" className="social-btn email" title="שלח מייל" aria-label="אימייל">

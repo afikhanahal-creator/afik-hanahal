@@ -101,7 +101,7 @@ const A11Y_CSS = `
 /* ═══ Trigger button ════════════════════════════════════════════════════════ */
 #a11y-btn {
   position: fixed;
-  bottom: 76px; right: 22px;
+  bottom: 88px; right: 22px;
   width: 50px; height: 50px;
   border-radius: 50%;
   background: var(--c-purple,#8490D8);
@@ -122,7 +122,7 @@ const A11Y_CSS = `
 #a11y-btn:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
 #a11y-btn:active { transform: scale(.92); }
 @media(max-width:768px) {
-  #a11y-btn { bottom: 70px; right: 16px; width: 46px; height: 46px; }
+  #a11y-btn { bottom: 80px; right: 16px; width: 46px; height: 46px; }
 }
 
 /* Counter-invert: keep widget readable when page is inverted */
