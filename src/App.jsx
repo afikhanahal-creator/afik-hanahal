@@ -736,7 +736,8 @@ const makeGlobal = (C, isDark) => `
     .nav-panel { width: min(300px, 90vw) !important; }
     .nav-panel-item { padding: 13px 14px !important; font-size: 15px !important; }
     section { padding-left: 16px !important; padding-right: 16px !important; }
-    #process .glass-card[style*="padding:36px 40px"] { padding: 20px 18px !important; gap: 16px !important; }
+    #process .glass-card[style*="padding:36px 40px"] { padding: 20px 18px !important; gap: 16px !important; flex-direction: column !important; }
+    #story .story-reveal .glass-card[style*="padding:36px 40px"] { padding: 20px 16px !important; }
   }
   @media(max-width:480px) {
     .hero-title { font-size: clamp(26px, 8vw, 36px) !important; }
