@@ -3493,16 +3493,15 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     setCountersSaving(true)
     setCountersError('')
     try {
-      if (API_BASE) {
-        const r = await fetch(`${API_BASE}/api/stats`, {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
-          body:    JSON.stringify({ stats, sharon }),
-        })
-        if (!r.ok) {
-          const err = await r.text().catch(() => r.status)
-          throw new Error(err)
-        }
+      const base = API_BASE || ''
+      const r = await fetch(`${base}/api/stats`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+        body:    JSON.stringify({ stats, sharon }),
+      })
+      if (!r.ok) {
+        const err = await r.text().catch(() => r.status)
+        throw new Error(err)
       }
       setCountersSaved(true)
       setCountersSavedAt(new Date())
@@ -3603,7 +3602,12 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
         signal:  AbortSignal.timeout(15000),
       })
       if (!r.ok) throw new Error(await r.text().catch(() => String(r.status)))
-      setPropSyncedAt(new Date())
+      const body = await r.json().catch(() => ({}))
+      if (body.warning) {
+        setPropSyncError('⚠ זמני בלבד (שרת ב-RAM) — נתונים עלולים להאבד בהפעלה מחדש')
+      } else {
+        setPropSyncedAt(new Date())
+      }
     } catch (e) {
       setPropSyncError('שגיאת סנכרון: ' + (e.message || 'בעיית תקשורת'))
       setTimeout(() => setPropSyncError(''), 8000)
@@ -7241,7 +7245,13 @@ export default function App() {
       headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
     })
       .then(r => r.ok ? r.json() : Promise.reject())
-      .then(data => { if (Array.isArray(data)) { setProperties(data); propsLoaded.current = true } })
+      .then(data => {
+        // Only overwrite state if the server returned actual properties.
+        // An empty array here almost always means a cold-start memStore fallback,
+        // NOT that the user genuinely has no properties — we must not wipe Supabase.
+        if (Array.isArray(data) && data.length > 0) { setProperties(data) }
+        if (Array.isArray(data)) propsLoaded.current = true
+      })
       .catch(() => {})
   }, [adminAuth])
 
