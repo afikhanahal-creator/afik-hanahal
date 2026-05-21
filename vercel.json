@@ -29,7 +29,8 @@
     },
     "api/ai/messages.js": {
       "maxDuration": 30
-    }
+    },
+    "api/contacts.js": { "maxDuration": 15 }
   },
   "rewrites": [
     {
