@@ -7065,6 +7065,7 @@ export default function App() {
 
   const statsRef      = useRef(null)
   const loaded        = useRef(false)
+  const propsLoaded   = useRef(false)  // guard: don't bulk-sync before initial load
   const typewriterTexts = lang === 'en' ? TYPEWRITER_EN : TYPEWRITER_HE
   const typewriter = useTypewriter(typewriterTexts)
 
@@ -7108,9 +7109,10 @@ export default function App() {
     } catch {}
     loaded.current = true
 
-    // 2. Fetch latest stats from API — overwrites localStorage if newer data exists
-    if (API_BASE) {
-      fetch(`${API_BASE}/api/stats`)
+    // 2. Fetch latest stats from API — works with or without VITE_API_URL
+    {
+      const base = API_BASE || ''
+      fetch(`${base}/api/stats`)
         .then(r => r.ok ? r.json() : Promise.reject())
         .then(data => {
           if (data.stats?.length)  setStats(data.stats)
@@ -7135,12 +7137,14 @@ export default function App() {
               if (d.properties?.length) setProperties(d.properties)
             } catch {}
           }
+          propsLoaded.current = true
         })
         .catch(() => {
           try {
             const d = JSON.parse(localStorage.getItem('afik_data') || '{}')
             if (d.properties?.length) setProperties(d.properties)
           } catch {}
+          propsLoaded.current = true
         })
     }
   }, [])
@@ -7153,7 +7157,7 @@ export default function App() {
 
   // ── Sync properties to API when admin changes them (debounced 1.5 s) ────────
   useEffect(() => {
-    if (!adminAuth) return
+    if (!adminAuth || !propsLoaded.current) return  // never sync before initial load
     const base = API_BASE || ''
     const timer = setTimeout(() => {
       fetch(`${base}/api/properties/bulk`, {
@@ -7167,9 +7171,10 @@ export default function App() {
 
   // ── Sync stats/sharon to Supabase when admin changes them (debounced 2 s) ──
   useEffect(() => {
-    if (!adminAuth || !API_BASE || !loaded.current) return
+    if (!adminAuth || !loaded.current) return
+    const base = API_BASE || ''
     const timer = setTimeout(() => {
-      fetch(`${API_BASE}/api/stats`, {
+      fetch(`${base}/api/stats`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
         body:    JSON.stringify({ stats, sharon }),
@@ -7186,7 +7191,7 @@ export default function App() {
       headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
     })
       .then(r => r.ok ? r.json() : Promise.reject())
-      .then(data => { if (Array.isArray(data)) setProperties(data) })
+      .then(data => { if (Array.isArray(data)) { setProperties(data); propsLoaded.current = true } })
       .catch(() => {})
   }, [adminAuth])
 
