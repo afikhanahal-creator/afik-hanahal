@@ -4285,12 +4285,31 @@ Return ONLY valid JSON (no markdown, no explanation):
 
             {/* Property list */}
             <div>
+              {/* Header bar with live count */}
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16, padding:'12px 16px', background:'rgba(132,144,216,.06)', borderRadius:12, border:'1px solid rgba(132,144,216,.12)' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:7 }}>
+                    <span style={{ width:8, height:8, borderRadius:'50%', background:C.green, boxShadow:`0 0 8px ${C.green}`, display:'inline-block', animation:'pulse 2s infinite' }}/>
+                    <span style={{ fontSize:14, fontWeight:800, color:C.cream }}>{publishedList.length} נכסים באוויר</span>
+                  </div>
+                  {draftList.length > 0 && <span style={{ fontSize:12, color:'#F7C948', fontWeight:600 }}>· {draftList.length} טיוטות</span>}
+                </div>
+                <div style={{ fontSize:11, color:`${C.cream}44` }}>סה"כ {properties.length} נכסים</div>
+              </div>
+
               {/* Published / Drafts tabs */}
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12, flexWrap:'wrap', gap:8 }}>
-                <div style={{ display:'flex', gap:4, background:'rgba(255,255,255,.04)', borderRadius:8, padding:3 }}>
-                  {[['published',`פעילים (${publishedList.length})`],['draft',`טיוטות (${draftList.length})`]].map(([id,lbl]) => (
-                    <button key={id} onClick={() => setListTab(id)} style={{ padding:'6px 14px', border:'none', borderRadius:6, background:listTab===id?`${C.purple}28`:'transparent', color:listTab===id?C.purple:`${C.cream}60`, cursor:'pointer', fontSize:11, fontFamily:'inherit', fontWeight:700, transition:'all .15s' }}>{lbl}</button>
-                  ))}
+                <div style={{ display:'flex', gap:4, background:'rgba(255,255,255,.04)', borderRadius:10, padding:4 }}>
+                  <button onClick={() => setListTab('published')}
+                    style={{ display:'flex', alignItems:'center', gap:7, padding:'7px 16px', border:'none', borderRadius:7, background:listTab==='published'?C.green+'22':'transparent', color:listTab==='published'?C.green:`${C.cream}55`, cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:800, transition:'all .15s' }}>
+                    {listTab==='published' && <span style={{ width:6, height:6, borderRadius:'50%', background:C.green, display:'inline-block' }}/>}
+                    באוויר ({publishedList.length})
+                  </button>
+                  <button onClick={() => setListTab('draft')}
+                    style={{ display:'flex', alignItems:'center', gap:7, padding:'7px 16px', border:'none', borderRadius:7, background:listTab==='draft'?'rgba(247,201,72,.18)':'transparent', color:listTab==='draft'?'#F7C948':`${C.cream}55`, cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:800, transition:'all .15s' }}>
+                    {listTab==='draft' && <span style={{ width:6, height:6, borderRadius:'50%', background:'#F7C948', display:'inline-block' }}/>}
+                    טיוטות ({draftList.length})
+                  </button>
                 </div>
                 <div className="admin-cat-filter">
                   {[{id:'all',label:'הכל',Icon:null},...CATEGORIES].map(({id,label,Icon:CIcon}) => (
@@ -4300,40 +4319,46 @@ Return ONLY valid JSON (no markdown, no explanation):
                   ))}
                 </div>
               </div>
-              {filteredList.length === 0 && <div style={{ textAlign:'center', padding:'28px 0', color:`${C.cream}40`, fontSize:13 }}>{listTab==='draft' ? 'אין טיוטות שמורות.' : 'אין נכסים פעילים.'}</div>}
+              {filteredList.length === 0 && <div style={{ textAlign:'center', padding:'28px 0', color:`${C.cream}40`, fontSize:13 }}>{listTab==='draft' ? 'אין טיוטות שמורות.' : 'אין נכסים פעילים באוויר.'}</div>}
               <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
                 {filteredList.map(p => {
                   const cat = CATEGORIES.find(c => c.id === p.category) || CATEGORIES[1]
                   const fmtPrice = p.price ? `₪${Number(String(p.price).replace(/[^\d]/g,'')).toLocaleString('he-IL')}` : 'מחיר בפנייה'
                   const statusClr = { 'בשיווק':C.green,'זמין':C.green,'בבדיקה':'#F7C948','נמכר':'#E05252','הושכר':'#F97316' }[p.status] || C.green
                   return (
-                    <div key={p.id} style={{ display:'flex', gap:0, background:'rgba(255,255,255,.05)', borderRadius:14, border:`1.5px solid ${p.published===false ? 'rgba(247,201,72,.22)' : C.purple+'22'}`, overflow:'hidden', transition:'all .2s' }}
-                      onMouseEnter={e => { e.currentTarget.style.boxShadow=`0 6px 28px rgba(132,144,216,.2)`; e.currentTarget.style.borderColor=C.purple+'55' }}
-                      onMouseLeave={e => { e.currentTarget.style.boxShadow=''; e.currentTarget.style.borderColor=p.published===false ? 'rgba(247,201,72,.22)' : C.purple+'22' }}>
-                      {/* Thumbnail + status stripe */}
-                      <div className="admin-prop-thumb" style={{ position:'relative', flexShrink:0, width:140, height:100 }}>
+                    <div key={p.id} style={{ display:'flex', gap:0, background: p.published!==false ? 'rgba(34,197,94,.04)' : 'rgba(255,255,255,.04)', borderRadius:14, border:`1.5px solid ${p.published===false ? 'rgba(247,201,72,.25)' : C.green+'28'}`, overflow:'hidden', transition:'all .2s' }}
+                      onMouseEnter={e => { e.currentTarget.style.boxShadow=`0 6px 28px rgba(132,144,216,.18)`; e.currentTarget.style.borderColor=p.published!==false ? C.green+'55' : 'rgba(247,201,72,.5)' }}
+                      onMouseLeave={e => { e.currentTarget.style.boxShadow=''; e.currentTarget.style.borderColor=p.published===false ? 'rgba(247,201,72,.25)' : C.green+'28' }}>
+                      {/* Live indicator strip */}
+                      <div style={{ width:4, flexShrink:0, background: p.published!==false ? C.green : '#F7C948' }}/>
+                      {/* Thumbnail */}
+                      <div className="admin-prop-thumb" style={{ position:'relative', flexShrink:0, width:130, height:100 }}>
                         {p.images?.[0] ? (
                           <img src={p.images[0]} style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }} alt=""/>
                         ) : (
-                          <div style={{ width:'100%', height:'100%', background:`${C.purple}10`, display:'flex', alignItems:'center', justifyContent:'center', color:`${C.purple}55` }}><cat.Icon size={32}/></div>
+                          <div style={{ width:'100%', height:'100%', background:`${C.purple}10`, display:'flex', alignItems:'center', justifyContent:'center', color:`${C.purple}55` }}><cat.Icon size={28}/></div>
                         )}
-                        <div style={{ position:'absolute', bottom:0, left:0, right:0, background:`${statusClr}DD`, padding:'2px 0', textAlign:'center', fontSize:10, fontWeight:800, color:'#000', letterSpacing:'.04em' }}>
+                        {/* Live / Draft badge on thumbnail */}
+                        <div style={{ position:'absolute', top:6, right:6, background: p.published!==false ? `${C.green}CC` : 'rgba(247,201,72,.88)', borderRadius:5, padding:'2px 7px', fontSize:9, fontWeight:800, color:'#000', letterSpacing:'.04em', display:'flex', alignItems:'center', gap:4 }}>
+                          {p.published!==false && <span style={{ width:5, height:5, borderRadius:'50%', background:'#000', opacity:.7, display:'inline-block' }}/>}
+                          {p.published!==false ? 'LIVE' : 'טיוטה'}
+                        </div>
+                        <div style={{ position:'absolute', bottom:0, left:0, right:0, background:`${statusClr}CC`, padding:'2px 0', textAlign:'center', fontSize:9, fontWeight:800, color:'#000' }}>
                           {p.status || 'זמין'}
                         </div>
                       </div>
                       {/* Info */}
-                      <div style={{ flex:1, minWidth:0, padding:'12px 16px', display:'flex', flexDirection:'column', justifyContent:'space-between' }}>
+                      <div style={{ flex:1, minWidth:0, padding:'10px 14px', display:'flex', flexDirection:'column', justifyContent:'space-between' }}>
                         <div>
-                          <div style={{ display:'flex', alignItems:'flex-start', gap:8, marginBottom:6, flexWrap:'wrap' }}>
-                            <span style={{ fontWeight:800, fontSize:16, color:C.cream, lineHeight:1.25, flex:1 }}>{p.title}</span>
-                            <div style={{ display:'flex', gap:4, flexShrink:0 }}>
+                          <div style={{ display:'flex', alignItems:'flex-start', gap:8, marginBottom:5, flexWrap:'wrap' }}>
+                            <span style={{ fontWeight:800, fontSize:15, color:C.cream, lineHeight:1.25, flex:1 }}>{p.title}</span>
+                            <div style={{ display:'flex', gap:4, flexShrink:0, alignItems:'center' }}>
                               {p.exclusive && <span style={{ fontSize:10, background:`${C.green}18`, color:C.green, border:`1px solid ${C.green}35`, borderRadius:5, padding:'2px 8px', fontWeight:700 }}>✦ בלעדי</span>}
-                              {p.published===false && <span style={{ fontSize:10, background:'rgba(247,201,72,.18)', color:'#F7C948', border:'1px solid rgba(247,201,72,.35)', borderRadius:5, padding:'2px 8px', fontWeight:700 }}>טיוטה</span>}
                             </div>
                           </div>
-                          <div style={{ display:'flex', gap:5, flexWrap:'wrap', marginBottom:6 }}>
-                            <span style={{ background:`${C.purple}22`, color:C.purple, borderRadius:5, padding:'3px 10px', fontSize:11, fontWeight:700 }}>{cat.label}</span>
-                            {p.type && <span style={{ background:'rgba(255,255,255,.06)', color:`${C.cream}70`, borderRadius:5, padding:'3px 10px', fontSize:11 }}>{p.type}</span>}
+                          <div style={{ display:'flex', gap:5, flexWrap:'wrap', marginBottom:5 }}>
+                            <span style={{ background:`${C.purple}22`, color:C.purple, borderRadius:5, padding:'2px 8px', fontSize:10, fontWeight:700 }}>{cat.label}</span>
+                            {p.type && <span style={{ background:'rgba(255,255,255,.06)', color:`${C.cream}70`, borderRadius:5, padding:'2px 8px', fontSize:10 }}>{p.type}</span>}
                           </div>
                           <div style={{ display:'flex', gap:12, flexWrap:'wrap', fontSize:12, color:`${C.cream}75`, marginBottom:4 }}>
                             {p.location && <span style={{ display:'flex', alignItems:'center', gap:4 }}><FaMapMarkerAlt size={10} style={{ color:C.purple }}/>{p.location}{p.neighborhood ? ' · '+p.neighborhood : ''}</span>}
@@ -4343,39 +4368,30 @@ Return ONLY valid JSON (no markdown, no explanation):
                             {p.dunams && <span style={{ display:'flex', alignItems:'center', gap:4 }}><FaLeaf size={10} style={{ color:C.purple }}/>{p.dunams} דונם</span>}
                           </div>
                         </div>
-                        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:6 }}>
-                          <div style={{ display:'flex', flexDirection:'column', gap:2 }}>
-                            <span style={{ fontSize:15, fontWeight:800, color:C.cream }}>{fmtPrice}</span>
-                            {/* Status badge */}
-                            <span style={{ fontSize:11, fontWeight:700, color:{ 'זמין':C.green,'בבדיקה':'#F7C948','נמכר':'#E05252','הושכר':'#F97316' }[p.status]||C.green }}>
-                              ● {p.status || 'זמין'}
-                            </span>
-                          </div>
+                        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:6, borderTop:'1px solid rgba(255,255,255,.06)', paddingTop:8, marginTop:4 }}>
+                          <span style={{ fontSize:14, fontWeight:900, color: p.price ? C.cream : `${C.cream}66` }}>{fmtPrice}</span>
                           <div className="admin-prop-list-actions" style={{ display:'flex', gap:5, flexWrap:'wrap', alignItems:'center' }}>
                             {/* Publish toggle */}
                             {p.published===false
-                              ? <button onClick={() => publish(p.id)} style={{ padding:'6px 12px', background:`${C.green}18`, border:`1px solid ${C.green}44`, borderRadius:7, color:C.green, cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:700, whiteSpace:'nowrap' }}>פרסם</button>
+                              ? <button onClick={() => publish(p.id)} style={{ padding:'6px 12px', background:`${C.green}18`, border:`1px solid ${C.green}44`, borderRadius:7, color:C.green, cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:700, whiteSpace:'nowrap', display:'flex', alignItems:'center', gap:5 }}><span style={{ width:6, height:6, borderRadius:'50%', background:C.green, display:'inline-block' }}/>פרסם לאוויר</button>
                               : <button onClick={() => unpublish(p.id)} style={{ padding:'6px 12px', background:'rgba(247,201,72,.08)', border:'1px solid rgba(247,201,72,.3)', borderRadius:7, color:'#F7C948', cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:600, whiteSpace:'nowrap' }}>הסתר</button>
                             }
-                            {/* Status quick-set: נמכר / הושכר / החזר לשיווק */}
+                            {/* Status quick-set */}
                             {(p.status==='נמכר' || p.status==='הושכר') && (
-                              <button onClick={() => setStatus(p.id, 'בשיווק')}
-                                style={{ padding:'6px 12px', background:`${C.green}18`, border:`1px solid ${C.green}44`, borderRadius:7, color:C.green, cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:700, whiteSpace:'nowrap', transition:'all .15s' }}>
-                                החזר לשיווק
-                              </button>
+                              <button onClick={() => setStatus(p.id, 'בשיווק')} style={{ padding:'6px 12px', background:`${C.green}18`, border:`1px solid ${C.green}44`, borderRadius:7, color:C.green, cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:700, whiteSpace:'nowrap' }}>החזר לשיווק</button>
                             )}
                             <button onClick={() => setStatus(p.id, p.status==='נמכר' ? 'בשיווק' : 'נמכר')}
-                              style={{ padding:'6px 12px', background: p.status==='נמכר' ? 'rgba(224,82,82,.22)' : 'rgba(224,82,82,.08)', border:`1px solid ${p.status==='נמכר' ? '#E05252' : 'rgba(224,82,82,.3)'}`, borderRadius:7, color:'#E05252', cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:700, whiteSpace:'nowrap', transition:'all .15s' }}>
+                              style={{ padding:'6px 12px', background: p.status==='נמכר' ? 'rgba(224,82,82,.22)' : 'rgba(224,82,82,.08)', border:`1px solid ${p.status==='נמכר' ? '#E05252' : 'rgba(224,82,82,.3)'}`, borderRadius:7, color:'#E05252', cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:700, whiteSpace:'nowrap' }}>
                               {p.status==='נמכר' ? '✓ נמכר' : 'נמכר'}
                             </button>
                             <button onClick={() => setStatus(p.id, p.status==='הושכר' ? 'בשיווק' : 'הושכר')}
-                              style={{ padding:'6px 12px', background: p.status==='הושכר' ? 'rgba(249,115,22,.22)' : 'rgba(249,115,22,.08)', border:`1px solid ${p.status==='הושכר' ? '#F97316' : 'rgba(249,115,22,.3)'}`, borderRadius:7, color:'#F97316', cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:700, whiteSpace:'nowrap', transition:'all .15s' }}>
+                              style={{ padding:'6px 12px', background: p.status==='הושכר' ? 'rgba(249,115,22,.22)' : 'rgba(249,115,22,.08)', border:`1px solid ${p.status==='הושכר' ? '#F97316' : 'rgba(249,115,22,.3)'}`, borderRadius:7, color:'#F97316', cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:700, whiteSpace:'nowrap' }}>
                               {p.status==='הושכר' ? '✓ הושכר' : 'הושכר'}
                             </button>
-                            <button onClick={() => startEdit(p)} style={{ padding:'6px 12px', background:`${C.purple}18`, border:`1px solid ${C.purple}44`, borderRadius:7, color:C.purple, cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:600, whiteSpace:'nowrap' }}>עריכה</button>
                             {onEditInWizard && (
-                              <button onClick={() => { onClose?.(); onEditInWizard(p) }} style={{ padding:'6px 12px', background:'rgba(132,144,216,.14)', border:'1px solid rgba(132,144,216,.35)', borderRadius:7, color:'#B8C0EE', cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:600, whiteSpace:'nowrap' }}>ערוך באשף</button>
+                              <button onClick={() => { onClose?.(); onEditInWizard(p) }} style={{ padding:'6px 12px', background:`${C.purple}22`, border:`1px solid ${C.purple}55`, borderRadius:7, color:C.purple, cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:700, whiteSpace:'nowrap' }}>ערוך באשף</button>
                             )}
+                            <button onClick={() => startEdit(p)} style={{ padding:'6px 12px', background:'rgba(255,255,255,.06)', border:'1px solid rgba(255,255,255,.14)', borderRadius:7, color:`${C.cream}BB`, cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:600, whiteSpace:'nowrap' }}>עריכה</button>
                             <button onClick={() => del(p.id)} style={{ padding:'6px 12px', background:'rgba(224,82,82,.1)', border:'1px solid rgba(224,82,82,.3)', borderRadius:7, color:'#E05252', cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:600, whiteSpace:'nowrap' }}>מחק</button>
                           </div>
                         </div>
@@ -6441,13 +6457,27 @@ function PdfLeadGate({ pdf, prop, C }) {
   )
 }
 
+function getVideoThumbnail(url, thumbnail) {
+  if (thumbnail) return thumbnail
+  if (!url) return null
+  if (url.includes('cloudinary.com')) {
+    return url
+      .replace(/\/video\/upload\//, '/video/upload/so_0,w_800,q_auto,f_jpg/')
+      .replace(/\.(mp4|webm|mov|avi|mkv)(\?.*)?$/i, '.jpg')
+  }
+  return null
+}
+
 function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [], onSelect }) {
   const { C, isDark } = useTheme()
   const [imgIdx, setImgIdx] = useState(0)
   const [saved, setSaved] = useState(false)
   const [shared, setShared] = useState(false)
   const [lightbox, setLightbox] = useState(false)
+  const [videoPlaying, setVideoPlaying] = useState(false)
   const propSwipe = useSwipeClose(onClose)
+
+  useEffect(() => { setVideoPlaying(false) }, [imgIdx])
 
   const handleShare = () => {
     const txt = `${prop.title} — ${[prop.location, prop.neighborhood].filter(Boolean).join(', ')}`
@@ -6559,18 +6589,33 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
         <div className="prop-gallery-main">
           {isVideoFrame && currentVideo ? (
             videoType === 'cloudinary' || (currentVideo.url && !currentVideo.url.includes('youtube') && !currentVideo.url.includes('youtu.be')) ? (
-              <video
-                src={currentVideo.url}
-                style={{ width:'100%', height:'100%', objectFit:'cover' }}
-                autoPlay={!!prop.videoAutoplay}
-                muted={!!prop.videoAutoplay}
-                loop={!!prop.videoAutoplay}
-                playsInline
-                controls={!prop.videoAutoplay}
-              />
+              <>
+                <video
+                  key={currentVideo.url}
+                  src={currentVideo.url}
+                  poster={getVideoThumbnail(currentVideo.url, currentVideo.thumbnail) || undefined}
+                  style={{ width:'100%', height:'100%', objectFit:'cover', position:'relative', zIndex:1 }}
+                  autoPlay
+                  muted
+                  playsInline
+                  loop={!!prop.videoAutoplay}
+                  controls
+                  preload="metadata"
+                  onPlay={() => setVideoPlaying(true)}
+                  onPause={() => setVideoPlaying(false)}
+                />
+                {!videoPlaying && (
+                  <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', zIndex:4, pointerEvents:'none' }}>
+                    <div style={{ width:72, height:72, borderRadius:'50%', background:'rgba(0,0,0,.45)', backdropFilter:'blur(8px)', display:'flex', alignItems:'center', justifyContent:'center', border:'2.5px solid rgba(255,255,255,.55)', boxShadow:'0 8px 32px rgba(0,0,0,.4)' }}>
+                      <FaPlay size={24} style={{ color:'#fff', marginRight:'-4px' }}/>
+                    </div>
+                  </div>
+                )}
+              </>
             ) : (
               <iframe
-                src={`https://www.youtube.com/embed/${youtubeId}${prop.videoAutoplay ? '?autoplay=1&mute=1' : ''}`}
+                key={currentVideo.url}
+                src={`https://www.youtube.com/embed/${youtubeId}?autoplay=1&mute=1${prop.videoAutoplay ? '&loop=1&playlist='+youtubeId : ''}`}
                 title="video"
                 style={{ width:'100%', height:'100%', border:'none' }}
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -7025,22 +7070,15 @@ function PropertyCard({ prop, onContact, onSelect }) {
             <div style={{ position:'absolute', bottom:0, left:0, right:0, height:'55%', background:'linear-gradient(to top,rgba(0,0,0,.55),transparent)', pointerEvents:'none', zIndex:1 }}/>
             {validImages.length > 1 && (<>
               <button onClick={e => { e.stopPropagation(); setImgIdx(i => (i-1+validImages.length)%validImages.length) }}
-                style={{ position:'absolute', top:'50%', right:8, transform:'translateY(-50%)', background:'rgba(0,0,0,.55)', backdropFilter:'blur(8px)', border:'1px solid rgba(255,255,255,.18)', borderRadius:'50%', width:32, height:32, color:'#fff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'background .2s', zIndex:3 }}
+                style={{ position:'absolute', top:'50%', right:8, transform:'translateY(-50%)', background:'rgba(0,0,0,.55)', backdropFilter:'blur(8px)', border:'1px solid rgba(255,255,255,.18)', borderRadius:'50%', width:32, height:32, color:'#fff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s', zIndex:3, opacity: hovered ? 1 : 0 }}
                 onMouseEnter={e=>e.currentTarget.style.background=C.purple} onMouseLeave={e=>e.currentTarget.style.background='rgba(0,0,0,.55)'}>
                 <FaChevronRight size={10}/>
               </button>
               <button onClick={e => { e.stopPropagation(); setImgIdx(i => (i+1)%validImages.length) }}
-                style={{ position:'absolute', top:'50%', left:8, transform:'translateY(-50%)', background:'rgba(0,0,0,.55)', backdropFilter:'blur(8px)', border:'1px solid rgba(255,255,255,.18)', borderRadius:'50%', width:32, height:32, color:'#fff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'background .2s', zIndex:3 }}
+                style={{ position:'absolute', top:'50%', left:8, transform:'translateY(-50%)', background:'rgba(0,0,0,.55)', backdropFilter:'blur(8px)', border:'1px solid rgba(255,255,255,.18)', borderRadius:'50%', width:32, height:32, color:'#fff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s', zIndex:3, opacity: hovered ? 1 : 0 }}
                 onMouseEnter={e=>e.currentTarget.style.background=C.purple} onMouseLeave={e=>e.currentTarget.style.background='rgba(0,0,0,.55)'}>
                 <FaChevronLeft size={10}/>
               </button>
-              {/* dot indicators — sit above the category badge row */}
-              <div style={{ position:'absolute', bottom:36, left:'50%', transform:'translateX(-50%)', display:'flex', gap:4, zIndex:3 }}>
-                {validImages.slice(0,5).map((_,i) => (
-                  <button key={i} onClick={e=>{e.stopPropagation();setImgIdx(i)}}
-                    style={{ width:i===imgIdx?16:6, height:6, borderRadius:99, background:i===imgIdx?'rgba(255,255,255,.92)':'rgba(255,255,255,.28)', border:'none', cursor:'pointer', padding:0, transition:'all .3s', flexShrink:0 }}/>
-                ))}
-              </div>
               {/* photo count — bottom right */}
               <div style={{ position:'absolute', bottom:10, right:10, background:'rgba(0,0,0,.65)', backdropFilter:'blur(6px)', borderRadius:5, padding:'3px 8px', fontSize:10, color:'rgba(255,255,255,.88)', display:'flex', alignItems:'center', gap:4, fontWeight:600, zIndex:4 }}>
                 <FaCamera size={8}/> {validImages.length}
