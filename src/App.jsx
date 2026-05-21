@@ -987,13 +987,19 @@ const CITY_IMG_FILTER = {
 // ─── HOOKS ────────────────────────────────────────────────────────────────────
 // Returns touch handlers that call onClose when user swipes > threshold px in either direction
 function useSwipeClose(onClose, threshold = 80) {
-  const ref = useRef({ x0: 0, dragging: false })
-  const onTouchStart = useCallback(e => { ref.current = { x0: e.touches[0].clientX, dragging: true } }, [])
-  const onTouchEnd   = useCallback(e => {
+  const ref = useRef({ x0: 0, y0: 0, dragging: false })
+  const onTouchStart = useCallback(e => {
+    // Don't start swipe tracking if touch is on any interactive element or its child
+    if (e.target.closest('input, select, textarea, button, a, label, [role="slider"], [type="range"]')) return
+    ref.current = { x0: e.touches[0].clientX, y0: e.touches[0].clientY, dragging: true }
+  }, [])
+  const onTouchEnd = useCallback(e => {
     if (!ref.current.dragging) return
     ref.current.dragging = false
     const dx = e.changedTouches[0].clientX - ref.current.x0
-    if (Math.abs(dx) > threshold) onClose()
+    const dy = e.changedTouches[0].clientY - (ref.current.y0 || 0)
+    // Only close on primarily horizontal swipes
+    if (Math.abs(dx) > threshold && Math.abs(dx) > Math.abs(dy) * 1.5) onClose()
   }, [onClose, threshold])
   return { onTouchStart, onTouchEnd }
 }
@@ -2142,14 +2148,6 @@ function ContactModal({ prop, onClose }) {
                 body: JSON.stringify(lead),
               }).catch(() => {})
             }
-            try {
-              const saved = JSON.parse(localStorage.getItem(WA_KEY) || '{}')
-              const waCfg = { ...WA_DEFAULTS, ...saved }
-              if (waCfg.enabled && lead.phone) {
-                const delayMs = (Number(waCfg.delayMin) || 2) * 60 * 1000
-                setTimeout(() => sendWhatsAppLead(lead), delayMs)
-              }
-            } catch {}
             trackEvent('contact_form', { propTitle: prop?.title || '', hasEmail: !!form.email, email: form.email, phone: form.phone, name: form.name })
             setSent(true)
           }} style={{ display:'flex', flexDirection:'column', gap:16 }}>
@@ -6415,15 +6413,6 @@ function PdfLeadGate({ pdf, prop, C }) {
         body: JSON.stringify(lead),
       }).catch(() => {})
     }
-    try {
-      const saved = JSON.parse(localStorage.getItem(WA_KEY) || '{}')
-      const waCfg = { ...WA_DEFAULTS, ...saved }
-      if (waCfg.enabled && phone) {
-        const msg = `שלום ${name}! תודה שהתעניינת ב${prop.title || 'הנכס'}. 📄 קובץ "${pdf.name}" מוכן להורדה. אשמח לענות על כל שאלה ולתאם ביקור! 🏡`
-        const delayMs = (Number(waCfg.delayMin) || 2) * 60 * 1000
-        setTimeout(() => sendWhatsAppLead({ ...lead, msg }, waCfg), delayMs)
-      }
-    } catch {}
     setDone(true)
     setOpen(false)
     window.open(pdf.url, '_blank', 'noopener')
@@ -6685,12 +6674,9 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
 
         {/* Project logo strip */}
         {prop.logo && (
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'flex-end', padding:'12px 22px 4px', background:'rgba(0,0,0,.3)', borderBottom:'1px solid rgba(132,144,216,.08)', direction:'rtl' }}>
-            <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-              <span style={{ fontSize:11, color:'rgba(232,228,216,.35)', fontWeight:600, letterSpacing:'.04em' }}>פרויקט</span>
-              <img src={prop.logo} alt="לוגו פרויקט"
-                style={{ height:38, maxWidth:120, objectFit:'contain', filter:'brightness(1.1)', opacity:.9 }}/>
-            </div>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'center', padding:'18px 24px 14px', background:'rgba(0,0,0,.45)', borderBottom:'1px solid rgba(132,144,216,.12)' }}>
+            <img src={prop.logo} alt="לוגו פרויקט"
+              style={{ height:72, maxWidth:280, objectFit:'contain', filter:'brightness(1.15) drop-shadow(0 2px 8px rgba(0,0,0,.5))', opacity:1 }}/>
           </div>
         )}
 
