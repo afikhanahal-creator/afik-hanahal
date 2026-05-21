@@ -132,12 +132,13 @@ const INIT = {
   rooms: '', bathrooms: 1, parking: 0, balconies: 0,
   size: '', sqmBuilt: '', condition: '', directions: '', view: '',
   amenities: {},
-  price: '', entryDate: '', entryFlex: false,
+  price: '', priceOnInquiry: false, entryDate: '', entryFlex: false,
   description: '',
   media: [],    // { url, name, type:'image'|'video', thumbnail? }
   contactName: '', contactPhone: '',
   gush: '', helka: '', mapsUrl: '', landingPageUrl: '', youtubeUrl: '',
   logo: '',
+  pdfs: [],  // [{name, url}] — uploaded project PDFs
 }
 
 const parsePrice = raw => raw.replace(/[^\d]/g,'').replace(/\B(?=(\d{3})+(?!\d))/g,',')
@@ -187,8 +188,8 @@ export function wizardToProperty(d, isDraft) {
     condition: CONDITIONS.find(c => c.v === d.condition)?.l || '',
     direction: d.directions || '',
     view: d.view || '',
-    price: d.price ? Number(d.price.replace(/,/g,'')) : 0,
-    priceDisplay: d.price ? `₪${d.price}` : '',
+    price: d.priceOnInquiry ? 0 : (d.price ? Number(d.price.replace(/,/g,'')) : 0),
+    priceDisplay: d.priceOnInquiry ? 'מחיר בפנייה' : (d.price ? `₪${d.price}` : ''),
     entryDate: d.entryFlex ? 'גמיש' : d.entryDate,
     description: d.description || '',
     images,
@@ -746,17 +747,32 @@ function Step4({ d, upd }) {
       <h3 style={{ color: TEXT, fontSize: 20, fontWeight: 800, marginBottom: 24, marginTop: 0, fontFamily: FONT }}>
         מחיר ותאריכים
       </h3>
-      <Field label={d.txType === 'rent' ? 'שכר דירה חודשי (₪)' : 'מחיר (₪)'} req>
-        <div style={{ position: 'relative' }}>
-          <span style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)',
-            color: MUTED, fontSize: 15, pointerEvents: 'none' }}>₪</span>
-          <input value={d.price} placeholder="הכנס מחיר..."
-            onChange={e => upd('price', parsePrice(e.target.value))}
-            style={{ ...fieldStyle, paddingRight: 36 }} dir="ltr"
-            onFocus={e => e.target.style.borderColor = P}
-            onBlur={e  => e.target.style.borderColor = BORDER} />
-        </div>
-        {perSqm && (
+      <Field label={d.txType === 'rent' ? 'שכר דירה חודשי (₪)' : 'מחיר (₪)'} req={!d.priceOnInquiry}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer',
+          color: TEXT, fontSize: 14, fontFamily: FONT, marginBottom: 10 }}>
+          <input type="checkbox" checked={!!d.priceOnInquiry}
+            onChange={e => { upd('priceOnInquiry', e.target.checked); if (e.target.checked) upd('price', '') }}
+            style={{ width: 16, height: 16, accentColor: P, cursor: 'pointer' }} />
+          מחיר בפנייה (אין להציג מחיר)
+        </label>
+        {!d.priceOnInquiry && (
+          <div style={{ position: 'relative' }}>
+            <span style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)',
+              color: MUTED, fontSize: 15, pointerEvents: 'none' }}>₪</span>
+            <input value={d.price} placeholder="הכנס מחיר..."
+              onChange={e => upd('price', parsePrice(e.target.value))}
+              style={{ ...fieldStyle, paddingRight: 36 }} dir="ltr"
+              onFocus={e => e.target.style.borderColor = P}
+              onBlur={e  => e.target.style.borderColor = BORDER} />
+          </div>
+        )}
+        {d.priceOnInquiry && (
+          <div style={{ padding: '10px 14px', borderRadius: 10, background: `${P}12`,
+            border: `1px solid ${P}30`, color: `${P}CC`, fontSize: 14, fontFamily: FONT, fontWeight: 600 }}>
+            מחיר בפנייה — יוצג ללא מחיר בלוח הנכסים
+          </div>
+        )}
+        {perSqm && !d.priceOnInquiry && (
           <div style={{ marginTop: 6, fontSize: 12.5, color: MUTED, fontFamily: FONT }}>≈ ₪{perSqm} למ"ר</div>
         )}
       </Field>
@@ -926,6 +942,156 @@ function Step5({ d, upd }) {
         <FaExclamationTriangle size={14} style={{ flexShrink: 0, marginTop: 2 }} />
         <span><strong>שימו לב:</strong> אין לציין מחיר ומספר טלפון בתיאור.</span>
       </div>
+    </div>
+  )
+}
+
+// ─── PDF Uploader ────────────────────────────────────────────────────────────
+
+const UPLOAD_BASE = (import.meta.env.VITE_API_URL || 'https://afik-hanahal-server.onrender.com').replace(/\/$/, '')
+
+function PdfUploader({ pdfs, onUpdate, adminToken }) {
+  const [uploading, setUploading] = useState(false)
+  const [progress, setProgress] = useState(0)
+  const [err, setErr] = useState('')
+  const [isDragOver, setIsDragOver] = useState(false)
+  const inputRef = useRef(null)
+
+  const uploadFile = async (file) => {
+    if (!file || file.type !== 'application/pdf') {
+      setErr('יש לבחור קובץ PDF בלבד')
+      return
+    }
+    if (file.size > 25 * 1024 * 1024) {
+      setErr('קובץ גדול מדי — מקסימום 25MB')
+      return
+    }
+    setUploading(true)
+    setErr('')
+    setProgress(0)
+
+    const fd = new FormData()
+    fd.append('file', file)
+
+    return new Promise((resolve) => {
+      const xhr = new XMLHttpRequest()
+      xhr.upload.addEventListener('progress', e => {
+        if (e.lengthComputable) setProgress(Math.round(e.loaded / e.total * 100))
+      })
+      xhr.addEventListener('load', () => {
+        setUploading(false)
+        setProgress(0)
+        if (xhr.status === 200) {
+          try {
+            const data = JSON.parse(xhr.responseText)
+            if (data.url) {
+              onUpdate([...pdfs, { name: data.name || file.name, url: data.url }])
+            } else {
+              setErr(data.error || 'שגיאה בהעלאה')
+            }
+          } catch {
+            setErr('שגיאה בפענוח תגובה')
+          }
+        } else {
+          try {
+            const data = JSON.parse(xhr.responseText)
+            setErr(data.error || `שגיאה ${xhr.status}`)
+          } catch {
+            setErr(`שגיאה ${xhr.status}`)
+          }
+        }
+        resolve()
+      })
+      xhr.addEventListener('error', () => {
+        setUploading(false)
+        setErr('שגיאת רשת — בדוק חיבור אינטרנט')
+        resolve()
+      })
+      xhr.open('POST', `${UPLOAD_BASE}/api/upload/pdf`)
+      xhr.setRequestHeader('Authorization', `Bearer ${adminToken}`)
+      xhr.send(fd)
+    })
+  }
+
+  const handleFiles = async (files) => {
+    for (const file of Array.from(files)) {
+      if (pdfs.length >= 5) { setErr('מקסימום 5 קבצי PDF'); break }
+      await uploadFile(file)
+    }
+  }
+
+  const handleDrop = async (e) => {
+    e.preventDefault()
+    setIsDragOver(false)
+    await handleFiles(e.dataTransfer.files)
+  }
+
+  const removePdf = (idx) => onUpdate(pdfs.filter((_, i) => i !== idx))
+
+  return (
+    <div>
+      {/* Drop zone */}
+      {pdfs.length < 5 && (
+        <div
+          onDrop={handleDrop}
+          onDragOver={e => { e.preventDefault(); setIsDragOver(true) }}
+          onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget)) setIsDragOver(false) }}
+          onClick={() => !uploading && inputRef.current?.click()}
+          style={{
+            border: `2px dashed ${isDragOver ? P : BORDER}`,
+            borderRadius: 12, background: isDragOver ? `${P}14` : 'transparent',
+            padding: '20px 16px', display: 'flex', flexDirection: 'column',
+            alignItems: 'center', gap: 8, cursor: uploading ? 'default' : 'pointer',
+            transition: 'all .2s', marginBottom: pdfs.length ? 12 : 0,
+          }}>
+          <input ref={inputRef} type="file" accept=".pdf,application/pdf" multiple style={{ display: 'none' }}
+            onChange={e => { handleFiles(e.target.files); e.target.value = '' }} />
+          {uploading ? (
+            <>
+              <FaCircleNotch size={20} style={{ color: P, animation: 'pw-spin 1s linear infinite' }} />
+              <div style={{ fontSize: 13, color: P, fontFamily: FONT, fontWeight: 700 }}>מעלה... {progress}%</div>
+              <div style={{ width: '100%', maxWidth: 200, height: 4, background: BORDER, borderRadius: 2, overflow: 'hidden' }}>
+                <div style={{ height: '100%', background: P, width: `${progress}%`, transition: 'width .2s' }} />
+              </div>
+            </>
+          ) : (
+            <>
+              <FaFileAlt size={22} style={{ color: isDragOver ? P : MUTED }} />
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ color: isDragOver ? P : TEXT, fontWeight: 700, fontSize: 14, fontFamily: FONT }}>
+                  {isDragOver ? 'שחרר להעלאה' : 'גרור PDF לכאן'}
+                </div>
+                <div style={{ color: MUTED, fontSize: 12, fontFamily: FONT, marginTop: 3 }}>
+                  או <span style={{ color: P, fontWeight: 600 }}>לחץ לבחירה</span> · PDF בלבד · עד 25MB
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Error */}
+      {err && (
+        <div style={{ padding: '8px 12px', borderRadius: 8, background: 'rgba(224,82,82,.1)', border: '1px solid rgba(224,82,82,.3)', color: '#E05252', fontSize: 12, fontFamily: FONT, marginBottom: 8 }}>
+          {err}
+        </div>
+      )}
+
+      {/* PDF list */}
+      {pdfs.map((pdf, i) => (
+        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', background: `${P}10`, border: `1px solid ${P}30`, borderRadius: 10, marginBottom: 7 }}>
+          <FaFileAlt size={16} style={{ color: P, flexShrink: 0 }} />
+          <span style={{ flex: 1, fontSize: 13, color: TEXT, fontFamily: FONT, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pdf.name}</span>
+          <a href={pdf.url} target="_blank" rel="noopener noreferrer"
+            style={{ fontSize: 11, color: P, fontWeight: 700, fontFamily: FONT, textDecoration: 'none', padding: '3px 8px', border: `1px solid ${P}44`, borderRadius: 6 }}>
+            תצוגה
+          </a>
+          <button onClick={() => removePdf(i)}
+            style={{ background: 'rgba(224,82,82,.12)', border: '1px solid rgba(224,82,82,.35)', borderRadius: 6, color: '#E05252', cursor: 'pointer', fontSize: 11, fontFamily: FONT, padding: '3px 8px' }}>
+            הסר
+          </button>
+        </div>
+      ))}
     </div>
   )
 }

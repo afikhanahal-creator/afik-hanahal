@@ -404,15 +404,15 @@ const makeGlobal = (C, isDark) => `
 
   /* ── Back to top ── */
   .back-to-top {
-    position:fixed; bottom:148px; right:22px; width:44px; height:44px;
-    border-radius:50%; background:rgba(132,144,216,.82); border:1.5px solid rgba(132,144,216,.35);
-    color:#fff; font-size:20px; line-height:1; cursor:pointer; z-index:9991;
+    position:fixed; bottom:148px; right:22px; width:40px; height:40px;
+    border-radius:50%; background:rgba(132,144,216,.32); border:1px solid rgba(132,144,216,.28);
+    color:rgba(255,255,255,.85); font-size:17px; line-height:1; cursor:pointer; z-index:9991;
     display:flex; align-items:center; justify-content:center;
-    box-shadow:0 4px 18px rgba(132,144,216,.38); backdrop-filter:blur(10px);
+    box-shadow:0 2px 12px rgba(132,144,216,.2); backdrop-filter:blur(8px);
     transition:opacity .25s, transform .25s, background .2s; opacity:0; pointer-events:none;
   }
   .back-to-top.visible { opacity:1; pointer-events:auto; }
-  .back-to-top:hover { background:rgba(132,144,216,1); transform:translateY(-4px); }
+  .back-to-top:hover { background:rgba(132,144,216,.72); transform:translateY(-3px); }
   @media(max-width:600px) { .back-to-top { bottom:136px; right:14px; width:40px; height:40px; font-size:17px; } }
   @supports(padding:max(0px)) { .back-to-top { right:max(14px,env(safe-area-inset-right)) !important; bottom:max(148px,calc(140px + env(safe-area-inset-bottom))) !important; } }
 
@@ -864,6 +864,26 @@ const makeGlobal = (C, isDark) => `
     .admin-bottom-nav { display: flex; }
     .admin-content { padding-bottom: 72px !important; }
     .admin-tabs-bar { display: none !important; }
+  }
+
+  /* ── Leads + analytics KPI grids responsive ── */
+  .admin-leads-kpi, .admin-analytics-kpi { grid-template-columns: repeat(4,1fr); }
+  .admin-leads-layout { flex-direction: row; }
+  .admin-leads-detail { width: 260px; flex-shrink: 0; position: sticky; top: 80px; }
+  @media (max-width: 900px) {
+    .admin-leads-kpi, .admin-analytics-kpi { grid-template-columns: repeat(2,1fr) !important; }
+    .admin-leads-layout { flex-direction: column !important; }
+    .admin-leads-detail { width: 100% !important; position: static !important; }
+  }
+  @media (max-width: 480px) {
+    .admin-leads-kpi, .admin-analytics-kpi { grid-template-columns: repeat(2,1fr) !important; }
+  }
+  /* ── Category filter row ── */
+  .admin-cat-filter { display: flex; gap: 6px; overflow-x: auto; flex-wrap: nowrap; }
+  .admin-cat-filter::-webkit-scrollbar { display: none; }
+  /* ── Property list thumbnail ── */
+  @media (max-width: 640px) {
+    .admin-prop-thumb { width: 90px !important; height: 80px !important; }
   }
 
   /* ── UI/UX Pro Max: prefers-reduced-motion ── */
@@ -2036,9 +2056,12 @@ function toIntlPhone(phone) {
   return d.startsWith('972') ? d : d.startsWith('0') ? '972' + d.slice(1) : d
 }
 
+const WA_DEFAULTS = { provider:'greenapi', instanceId:'7107558519', apiUrl:'https://7107.api.greenapi.com', token:'191b9e9c4fc540f1ad25c8607389c0d689d15794f8094a0589', enabled:true, delayMin:2 }
+
 async function sendWhatsAppLead(lead, overrideSettings) {
   try {
-    const st = overrideSettings || JSON.parse(localStorage.getItem(WA_KEY) || '{}')
+    const saved = JSON.parse(localStorage.getItem(WA_KEY) || '{}')
+    const st = overrideSettings || { ...WA_DEFAULTS, ...saved }
     if (!st.enabled || !st.instanceId || !st.token || !lead.phone) return
     const phone = toIntlPhone(lead.phone)
     if (!phone) return
@@ -2120,9 +2143,10 @@ function ContactModal({ prop, onClose }) {
               }).catch(() => {})
             }
             try {
-              const waSt = JSON.parse(localStorage.getItem(WA_KEY) || '{}')
-              if (waSt.enabled && waSt.instanceId && waSt.token && lead.phone) {
-                const delayMs = (Number(waSt.delayMin) || 2) * 60 * 1000
+              const saved = JSON.parse(localStorage.getItem(WA_KEY) || '{}')
+              const waCfg = { ...WA_DEFAULTS, ...saved }
+              if (waCfg.enabled && lead.phone) {
+                const delayMs = (Number(waCfg.delayMin) || 2) * 60 * 1000
                 setTimeout(() => sendWhatsAppLead(lead), delayMs)
               }
             } catch {}
@@ -2839,7 +2863,7 @@ function PlatformSection({ tab, C, isDark }) {
       </div>
 
       {/* Live metrics placeholder */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:10 }}>
+      <div className="admin-analytics-kpi" style={{ display:'grid', gap:10 }}>
         {cfg.metrics.map((m,i) => (
           <div key={i} style={{ background:cardBg, border:`1px solid ${cfg.color}22`, borderRadius:12, padding:'14px 12px', textAlign:'center' }}>
             <div style={{ marginBottom:8, display:'flex', alignItems:'center', justifyContent:'center' }}>
@@ -3087,7 +3111,7 @@ function AnalyticsDashboard({ leads }) {
 
       {analyticsTab === 'site' && <>
       {/* ── Top KPI Row ── */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:10 }}>
+      <div className="admin-analytics-kpi" style={{ display:'grid', gap:10 }}>
         {[
           { label:'סשנים היום',   value:todaySess.length,   color:C.purple,    Icon:FaUser,       sub:'כניסות ייחודיות' },
           { label:'סשנים השבוע',  value:weekSess.length,    color:C.green,     Icon:FaChartLine,  sub:'7 ימים אחרונים' },
@@ -3106,7 +3130,7 @@ function AnalyticsDashboard({ leads }) {
       </div>
 
       {/* ── Secondary KPI Row ── */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:10 }}>
+      <div className="admin-analytics-kpi" style={{ display:'grid', gap:10 }}>
         {[
           { label:'טפסי יצירת קשר', value:contacts.length,    color:'#FF6B6B', Icon:FaEnvelope },
           { label:'קליקי WhatsApp',  value:waClicks.length,    color:'#25D366', Icon:FaWhatsapp },
@@ -3150,7 +3174,7 @@ function AnalyticsDashboard({ leads }) {
       </div>
 
       {/* ── Sources + Devices row ── */}
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+      <div className="admin-overview-bottom" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
 
         {/* Traffic Sources */}
         <div style={{ background:'rgba(255,255,255,.03)', borderRadius:14, padding:'16px 18px', border:`1px solid ${C.purple}18` }}>
@@ -4268,9 +4292,9 @@ Return ONLY valid JSON (no markdown, no explanation):
                     <button key={id} onClick={() => setListTab(id)} style={{ padding:'6px 14px', border:'none', borderRadius:6, background:listTab===id?`${C.purple}28`:'transparent', color:listTab===id?C.purple:`${C.cream}60`, cursor:'pointer', fontSize:11, fontFamily:'inherit', fontWeight:700, transition:'all .15s' }}>{lbl}</button>
                   ))}
                 </div>
-                <div style={{ display:'flex', gap:6 }}>
+                <div className="admin-cat-filter">
                   {[{id:'all',label:'הכל',Icon:null},...CATEGORIES].map(({id,label,Icon:CIcon}) => (
-                    <button key={id} onClick={() => setListCat(id)} style={{ padding:'4px 10px', border:`1px solid ${listCat===id?C.purple:'rgba(132,144,216,.2)'}`, borderRadius:6, background:listCat===id?`${C.purple}22`:'transparent', color:listCat===id?C.purple:`${C.cream}70`, cursor:'pointer', fontSize:11, fontFamily:'inherit', display:'flex', alignItems:'center', gap:4 }}>
+                    <button key={id} onClick={() => setListCat(id)} style={{ padding:'4px 10px', border:`1px solid ${listCat===id?C.purple:'rgba(132,144,216,.2)'}`, borderRadius:6, background:listCat===id?`${C.purple}22`:'transparent', color:listCat===id?C.purple:`${C.cream}70`, cursor:'pointer', fontSize:11, fontFamily:'inherit', display:'flex', alignItems:'center', gap:4, flexShrink:0, whiteSpace:'nowrap' }}>
                       {CIcon && <CIcon size={10}/>} {label}
                     </button>
                   ))}
@@ -4287,11 +4311,11 @@ Return ONLY valid JSON (no markdown, no explanation):
                       onMouseEnter={e => { e.currentTarget.style.boxShadow=`0 6px 28px rgba(132,144,216,.2)`; e.currentTarget.style.borderColor=C.purple+'55' }}
                       onMouseLeave={e => { e.currentTarget.style.boxShadow=''; e.currentTarget.style.borderColor=p.published===false ? 'rgba(247,201,72,.22)' : C.purple+'22' }}>
                       {/* Thumbnail + status stripe */}
-                      <div style={{ position:'relative', flexShrink:0 }}>
+                      <div className="admin-prop-thumb" style={{ position:'relative', flexShrink:0, width:140, height:100 }}>
                         {p.images?.[0] ? (
-                          <img src={p.images[0]} style={{ width:140, height:100, objectFit:'cover', display:'block' }} alt=""/>
+                          <img src={p.images[0]} style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }} alt=""/>
                         ) : (
-                          <div style={{ width:140, height:100, background:`${C.purple}10`, display:'flex', alignItems:'center', justifyContent:'center', color:`${C.purple}55` }}><cat.Icon size={32}/></div>
+                          <div style={{ width:'100%', height:'100%', background:`${C.purple}10`, display:'flex', alignItems:'center', justifyContent:'center', color:`${C.purple}55` }}><cat.Icon size={32}/></div>
                         )}
                         <div style={{ position:'absolute', bottom:0, left:0, right:0, background:`${statusClr}DD`, padding:'2px 0', textAlign:'center', fontSize:10, fontWeight:800, color:'#000', letterSpacing:'.04em' }}>
                           {p.status || 'זמין'}
@@ -4327,7 +4351,7 @@ Return ONLY valid JSON (no markdown, no explanation):
                               ● {p.status || 'זמין'}
                             </span>
                           </div>
-                          <div style={{ display:'flex', gap:5, flexWrap:'wrap', alignItems:'center' }}>
+                          <div className="admin-prop-list-actions" style={{ display:'flex', gap:5, flexWrap:'wrap', alignItems:'center' }}>
                             {/* Publish toggle */}
                             {p.published===false
                               ? <button onClick={() => publish(p.id)} style={{ padding:'6px 12px', background:`${C.green}18`, border:`1px solid ${C.green}44`, borderRadius:7, color:C.green, cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:700, whiteSpace:'nowrap' }}>פרסם</button>
@@ -4475,7 +4499,7 @@ Return ONLY valid JSON (no markdown, no explanation):
             <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
 
               {/* ── KPI Cards ── */}
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12 }}>
+              <div className="admin-leads-kpi" style={{ display:'grid', gap:12 }}>
                 {[
                   { label:'סה״כ לידים', value:leads.length, color:C.purple, Icon:FaUsers },
                   { label:'הגיעו היום',  value:todayCount,  color:C.green,  Icon:FaInbox },
@@ -4529,7 +4553,7 @@ Return ONLY valid JSON (no markdown, no explanation):
 
               {/* ── Leads table + detail panel ── */}
               {leads.length > 0 && (
-                <div style={{ display:'flex', gap:16, alignItems:'flex-start' }}>
+                <div className="admin-leads-layout" style={{ display:'flex', gap:16, alignItems:'flex-start' }}>
 
                   {/* Table */}
                   <div style={{ flex:1, overflowX:'auto', borderRadius:12, border:`1px solid ${C.purple}1A`, minWidth:0 }}>
@@ -4612,7 +4636,7 @@ Return ONLY valid JSON (no markdown, no explanation):
                     const l = leads.find(x => x.id === selectedLead.id) || selectedLead
                     const en = l.enrichment || {}
                     return (
-                      <div style={{ width:260, flexShrink:0, background:`${C.purple}08`, border:`1px solid ${C.purple}25`, borderRadius:12, padding:'18px 16px', direction:'rtl', alignSelf:'flex-start', position:'sticky', top:80 }}>
+                      <div className="admin-leads-detail" style={{ background:`${C.purple}08`, border:`1px solid ${C.purple}25`, borderRadius:12, padding:'18px 16px', direction:'rtl', alignSelf:'flex-start' }}>
                         {/* Header */}
                         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:14 }}>
                           <div>
@@ -6953,10 +6977,10 @@ function PropertyCard({ prop, onContact, onSelect }) {
                 <FaChevronLeft size={10}/>
               </button>
               {/* dot indicators — sit above the category badge row */}
-              <div style={{ position:'absolute', bottom:36, left:'50%', transform:'translateX(-50%)', display:'flex', gap:5, zIndex:3 }}>
+              <div style={{ position:'absolute', bottom:36, left:'50%', transform:'translateX(-50%)', display:'flex', gap:4, zIndex:3 }}>
                 {validImages.slice(0,5).map((_,i) => (
                   <button key={i} onClick={e=>{e.stopPropagation();setImgIdx(i)}}
-                    style={{ width:i===imgIdx?18:5, height:5, borderRadius:3, background:i===imgIdx?'#fff':'rgba(255,255,255,.45)', border:'none', cursor:'pointer', padding:0, transition:'all .3s', flexShrink:0 }}/>
+                    style={{ width:i===imgIdx?16:6, height:6, borderRadius:99, background:i===imgIdx?'rgba(255,255,255,.92)':'rgba(255,255,255,.28)', border:'none', cursor:'pointer', padding:0, transition:'all .3s', flexShrink:0 }}/>
                 ))}
               </div>
               {/* photo count — bottom right */}
@@ -8015,7 +8039,7 @@ export default function App() {
       {showContact && <ContactModal  prop={contactProp} onClose={() => setShowContact(false)}/>}
       {showCalc    && <RealEstateCalc onClose={() => setShowCalc(false)}/>}
       {showPrivacy && <PrivacyModal onClose={() => setShowPrivacy(false)}/>}
-      {selectedProp && <PropertyModal prop={selectedProp} properties={properties} onClose={() => setSelectedProp(null)} onContact={p => { setSelectedProp(null); openContact(p) }} onSelect={setSelectedProp} govmapToken={govmapToken}/>}
+      {selectedProp && <PropertyModal prop={selectedProp} properties={properties} onClose={() => setSelectedProp(null)} onContact={p => { openContact(p) }} onSelect={setSelectedProp} govmapToken={govmapToken}/>}
       {showWizard && <PropertyWizard
           onClose={() => setShowWizard(false)}
           onPublish={(prop) => {

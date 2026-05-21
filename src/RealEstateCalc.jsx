@@ -237,6 +237,8 @@ export default function RealEstateCalc({ onClose }) {
   }, [])
 
   const onTouchStart = useCallback(e => {
+    const tag = e.target.tagName
+    if (tag === 'INPUT' || tag === 'BUTTON' || tag === 'SELECT' || tag === 'TEXTAREA') return
     touchRef.current = { x0: e.touches[0].clientX, y0: e.touches[0].clientY, dragging: true, isHoriz: false }
     setDragX(0)
   }, [])
