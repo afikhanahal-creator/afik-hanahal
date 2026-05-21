@@ -6,7 +6,7 @@ import GovMapWidget from './GovMapWidget.jsx'
 import RealEstateCalc from './RealEstateCalc.jsx'
 import { AnimatePresence, motion } from 'framer-motion'
 import PropertyWizard, { propertyToWizardData } from './PropertyWizard.jsx'
-import { FaChevronLeft, FaChevronRight, FaEnvelope, FaFacebookF, FaInstagram, FaBed, FaRulerCombined, FaCar, FaSwimmingPool, FaBuilding, FaBoxOpen, FaTree, FaSnowflake, FaShieldAlt, FaCouch, FaTools, FaMapMarkerAlt, FaExternalLinkAlt, FaPhone, FaCompass, FaLeaf, FaCalendarAlt, FaTimes, FaWhatsapp, FaSun, FaFileAlt, FaHome, FaMoneyBill, FaSearch, FaBalanceScale, FaHandshake, FaTrophy, FaHardHat, FaLock, FaKey, FaGlobe, FaSeedling, FaBolt, FaRocket, FaStar, FaChartLine, FaEye, FaPlay, FaWheelchair, FaFire, FaCalculator, FaShareAlt, FaHeart, FaStore, FaCamera, FaWifi, FaIndustry, FaExpand, FaUser, FaUsers, FaDesktop, FaMobileAlt, FaTabletAlt, FaCommentAlt, FaRobot, FaInbox, FaExclamationTriangle, FaChartBar, FaThumbsUp, FaImage, FaPencilAlt, FaCrown, FaMousePointer, FaDollarSign, FaVideo, FaLink, FaCheck } from 'react-icons/fa'
+import { FaChevronLeft, FaChevronRight, FaEnvelope, FaFacebookF, FaInstagram, FaBed, FaRulerCombined, FaCar, FaSwimmingPool, FaBuilding, FaBoxOpen, FaTree, FaSnowflake, FaShieldAlt, FaCouch, FaTools, FaMapMarkerAlt, FaExternalLinkAlt, FaPhone, FaCompass, FaLeaf, FaCalendarAlt, FaTimes, FaWhatsapp, FaSun, FaFileAlt, FaHome, FaMoneyBill, FaSearch, FaBalanceScale, FaHandshake, FaTrophy, FaHardHat, FaLock, FaKey, FaGlobe, FaSeedling, FaBolt, FaRocket, FaStar, FaChartLine, FaEye, FaPlay, FaWheelchair, FaFire, FaCalculator, FaShareAlt, FaHeart, FaStore, FaCamera, FaWifi, FaIndustry, FaExpand, FaUser, FaUsers, FaDesktop, FaMobileAlt, FaTabletAlt, FaCommentAlt, FaRobot, FaInbox, FaExclamationTriangle, FaChartBar, FaThumbsUp, FaImage, FaPencilAlt, FaCrown, FaMousePointer, FaDollarSign, FaVideo, FaLink, FaCheck, FaCheckCircle } from 'react-icons/fa'
 
 // ─── SERVER CONFIG ────────────────────────────────────────────────────────────
 // Set VITE_API_URL in Vercel env vars to point at your Render server.
@@ -3529,6 +3529,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const [tab, setTab]     = useState('props')
   const [adminNavOpen, setAdminNavOpen] = useState(false)
   const [listTab, setListTab] = useState('published')
+  const propListRef = useRef(null)
   const [listCat, setListCat] = useState('all')
   const [saved, setSaved]   = useState(false)
   const [propSyncing,    setPropSyncing]    = useState(false)
@@ -3826,16 +3827,23 @@ Return ONLY valid JSON (no markdown, no explanation):
   const baseList = listTab==='published' ? publishedList : draftList
   const filteredList = listCat==='all' ? baseList : baseList.filter(p => p.category===listCat)
 
+  const goToLiveProps = () => {
+    setTab('props')
+    setListTab('published')
+    setTimeout(() => propListRef.current?.scrollIntoView({ behavior:'smooth', block:'start' }), 120)
+  }
+
   const DASH_TABS = [
     { id:'overview', Icon:FaHome,        label:'סקירה כללית' },
-    { id:'props',    Icon:FaBuilding,    label:'נכסים',      badge: properties.length },
+    { id:'live',     Icon:FaCheckCircle, label:'באוויר',     badge: publishedList.length, live:true },
+    { id:'props',    Icon:FaBuilding,    label:'ניהול נכסים' },
     { id:'leads',    Icon:FaHandshake,   label:'לידים',      badge: leads.length },
     { id:'analytics',Icon:FaChartLine,   label:'אנליטיקס' },
     { id:'team',     Icon:FaKey,         label:'צוות' },
     { id:'counters', Icon:FaBalanceScale,label:'מונים' },
     { id:'settings', Icon:FaTools,       label:'הגדרות' },
   ]
-  const TAB_LABELS = { overview:'סקירה כללית', props:'ניהול נכסים', leads:'לידים', analytics:'אנליטיקס', team:'צוות', counters:'מונים', settings:'הגדרות' }
+  const TAB_LABELS = { overview:'סקירה כללית', live:'נכסים באוויר', props:'ניהול נכסים', leads:'לידים', analytics:'אנליטיקס', team:'צוות', counters:'מונים', settings:'הגדרות' }
 
   return (
     <div style={standalone
@@ -3860,16 +3868,20 @@ Return ONLY valid JSON (no markdown, no explanation):
           </div>
           {/* Nav */}
           <nav style={{ flex:1, overflowY:'auto', padding:'12px 10px' }}>
-            {DASH_TABS.map(item => (
-              <button key={item.id} onClick={() => { setTab(item.id); setAdminNavOpen(false) }}
-                style={{ width:'100%', display:'flex', alignItems:'center', gap:10, padding:'10px 13px 10px 10px', border:'none', borderRight: tab===item.id ? `2px solid ${C.purple}` : '2px solid transparent', borderRadius:'0 8px 8px 0', background: tab===item.id ? `rgba(132,144,216,.12)` : 'transparent', color: tab===item.id ? C.purple : 'rgba(232,228,216,.4)', cursor:'pointer', fontFamily:'inherit', fontSize:12.5, fontWeight: tab===item.id ? 600 : 400, marginBottom:1, textAlign:'right', transition:'all .15s', letterSpacing:'.01em' }}
-                onMouseEnter={e=>{ if(tab!==item.id){ e.currentTarget.style.background='rgba(132,144,216,.06)'; e.currentTarget.style.color='rgba(232,228,216,.68)' }}}
-                onMouseLeave={e=>{ if(tab!==item.id){ e.currentTarget.style.background='transparent'; e.currentTarget.style.color='rgba(232,228,216,.4)' }}}>
-                <item.Icon size={13} style={{ flexShrink:0, opacity: tab===item.id ? 1 : 0.7 }}/>
-                <span style={{ flex:1 }}>{item.label}</span>
-                {!!item.badge && <span style={{ background:`${C.purple}25`, color:C.purple, borderRadius:4, padding:'1px 6px', fontSize:10, fontWeight:700 }}>{item.badge}</span>}
-              </button>
-            ))}
+            {DASH_TABS.map(item => {
+              const isLive = item.id === 'live'
+              const isActive = isLive ? (tab==='props' && listTab==='published') : tab===item.id
+              return (
+                <button key={item.id} onClick={() => { if (isLive) { goToLiveProps() } else { setTab(item.id) }; setAdminNavOpen(false) }}
+                  style={{ width:'100%', display:'flex', alignItems:'center', gap:10, padding:'10px 13px 10px 10px', border:'none', borderRight: isActive ? (isLive ? `2px solid #22C55E` : `2px solid ${C.purple}`) : '2px solid transparent', borderRadius:'0 8px 8px 0', background: isActive ? (isLive ? 'rgba(34,197,94,.1)' : `rgba(132,144,216,.12)`) : 'transparent', color: isActive ? (isLive ? '#22C55E' : C.purple) : 'rgba(232,228,216,.4)', cursor:'pointer', fontFamily:'inherit', fontSize:12.5, fontWeight: isActive ? 600 : 400, marginBottom:1, textAlign:'right', transition:'all .15s', letterSpacing:'.01em' }}
+                  onMouseEnter={e=>{ if(!isActive){ e.currentTarget.style.background=isLive?'rgba(34,197,94,.06)':'rgba(132,144,216,.06)'; e.currentTarget.style.color=isLive?'rgba(34,197,94,.85)':'rgba(232,228,216,.68)' }}}
+                  onMouseLeave={e=>{ if(!isActive){ e.currentTarget.style.background='transparent'; e.currentTarget.style.color='rgba(232,228,216,.4)' }}}>
+                  <item.Icon size={13} style={{ flexShrink:0, opacity: isActive ? 1 : 0.7, color: isActive && isLive ? '#22C55E' : undefined }}/>
+                  <span style={{ flex:1 }}>{item.label}</span>
+                  {!!item.badge && <span style={{ background: isLive ? 'rgba(34,197,94,.2)' : `${C.purple}25`, color: isLive ? '#22C55E' : C.purple, borderRadius:4, padding:'1px 6px', fontSize:10, fontWeight:700 }}>{item.badge}</span>}
+                </button>
+              )
+            })}
           </nav>
           {/* Footer */}
           <div style={{ padding:'12px 10px 20px', borderTop:'1px solid rgba(132,144,216,.07)' }}>
@@ -3974,8 +3986,14 @@ Return ONLY valid JSON (no markdown, no explanation):
 
         {/* Modal tabs */}
         {!standalone && (
-          <div style={{ display:'flex', gap:4, marginBottom:24, background:'rgba(255,255,255,.04)', borderRadius:10, padding:4 }}>
+          <div style={{ display:'flex', gap:4, marginBottom:24, background:'rgba(255,255,255,.04)', borderRadius:10, padding:4, flexWrap:'wrap' }}>
             {tabBtn('props', 'ניהול נכסים')}
+            <button onClick={goToLiveProps}
+              style={{ padding:'10px 16px', border:'none', background: tab==='props' && listTab==='published' ? 'rgba(34,197,94,.2)' : 'transparent', color: tab==='props' && listTab==='published' ? '#22C55E' : 'rgba(232,228,216,.65)', fontFamily:'inherit', cursor:'pointer', fontWeight:700, fontSize:14, borderRadius:9, transition:'all .15s', display:'flex', alignItems:'center', gap:6 }}>
+              <span style={{ width:6, height:6, borderRadius:'50%', background:'#22C55E', boxShadow:'0 0 6px rgba(34,197,94,.8)', animation:'pulse 2s infinite', display:'inline-block' }}/>
+              באוויר
+              <span style={{ background:'rgba(34,197,94,.2)', color:'#22C55E', borderRadius:20, padding:'2px 7px', fontSize:11, fontWeight:900, lineHeight:1.6 }}>{publishedList.length}</span>
+            </button>
             {tabBtn('leads', 'לידים', leads.length)}
             {tabBtn('analytics', 'אנליטיקס')}
             {tabBtn('team', 'צוות')}
@@ -4237,6 +4255,11 @@ Return ONLY valid JSON (no markdown, no explanation):
                 <div style={{ marginBottom:14 }}>
                   <label style={{ fontSize:11, color:`${C.cream}70`, display:'block', marginBottom:4, fontWeight:600 }}>לינק גוגל מאפ</label>
                   <input placeholder="https://maps.google.com/..." value={form.mapsUrl||''} onChange={set('mapsUrl')} style={inp}/>
+                  {form.mapsUrl && toMapsEmbed(form.mapsUrl) && (
+                    <div style={{ marginTop:8, borderRadius:8, overflow:'hidden', height:160, border:'1px solid rgba(132,144,216,.2)' }}>
+                      <iframe src={toMapsEmbed(form.mapsUrl)} width="100%" height="100%" style={{ border:'none', display:'block' }} allowFullScreen loading="lazy" referrerPolicy="no-referrer-when-downgrade" title="מיקום הנכס"/>
+                    </div>
+                  )}
                 </div>
                 <div style={{ marginBottom:14, gridColumn:'1/-1' }}>
                   <label style={{ fontSize:11, color:`${C.cream}70`, display:'block', marginBottom:4, fontWeight:600 }}>לינק סרטון (YouTube / Cloudinary)</label>
@@ -4282,7 +4305,7 @@ Return ONLY valid JSON (no markdown, no explanation):
             </div>
 
             {/* Property list */}
-            <div>
+            <div ref={propListRef}>
               {/* Header bar with live count */}
               <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16, padding:'12px 16px', background:'rgba(132,144,216,.06)', borderRadius:12, border:'1px solid rgba(132,144,216,.12)' }}>
                 <div style={{ display:'flex', alignItems:'center', gap:12 }}>
@@ -6446,6 +6469,17 @@ function PdfLeadGate({ pdf, prop, C }) {
   )
 }
 
+function toMapsEmbed(url) {
+  if (!url) return null
+  const u = url.trim()
+  if (u.includes('output=embed')) return u
+  if (!u.includes('google.com/maps') && !u.includes('goo.gl/maps') && !u.includes('maps.app.goo.gl')) return null
+  const coords = u.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/)
+  if (coords) return `https://maps.google.com/maps?q=${coords[1]},${coords[2]}&z=16&output=embed`
+  const sep = u.includes('?') ? '&' : '?'
+  return u + sep + 'output=embed'
+}
+
 function getVideoThumbnail(url, thumbnail) {
   if (thumbnail) return thumbnail
   if (!url) return null
@@ -6858,19 +6892,36 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
               <FaPhone size={13}/> 055-981-1814
             </a>
 
-            {/* Map link */}
-            {prop.mapsUrl && (
-              <a href={prop.mapsUrl} target="_blank" rel="noopener noreferrer"
-                style={{ display:'flex', alignItems:'center', gap:12, padding:'14px 16px', background:'rgba(255,255,255,.04)', border:'1px solid rgba(255,255,255,.1)', borderRadius:10, textDecoration:'none', transition:'background .2s', cursor:'pointer' }}
-                onMouseEnter={e=>e.currentTarget.style.background='rgba(255,255,255,.08)'}
-                onMouseLeave={e=>e.currentTarget.style.background='rgba(255,255,255,.04)'}>
-                <FaMapMarkerAlt size={18} style={{ color:C.purple, flexShrink:0 }}/>
-                <div>
-                  <div style={{ color:'#fff', fontWeight:600, fontSize:14, marginBottom:2 }}>צפה במיקום במפה</div>
-                  <div style={{ fontSize:12, color:`${C.cream}55` }}>{[prop.location, prop.neighborhood].filter(Boolean).join(', ')}</div>
+            {/* Map embed */}
+            {prop.mapsUrl && (() => {
+              const embedSrc = toMapsEmbed(prop.mapsUrl)
+              return embedSrc ? (
+                <div style={{ borderRadius:12, overflow:'hidden', border:'1px solid rgba(132,144,216,.18)' }}>
+                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 14px', background:'rgba(255,255,255,.05)', borderBottom:'1px solid rgba(255,255,255,.07)' }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                      <FaMapMarkerAlt size={14} style={{ color:C.purple }}/>
+                      <span style={{ fontSize:13, fontWeight:600, color:'rgba(232,228,216,.85)' }}>{[prop.location, prop.neighborhood].filter(Boolean).join(', ')}</span>
+                    </div>
+                    <a href={prop.mapsUrl} target="_blank" rel="noopener noreferrer"
+                      style={{ fontSize:11, color:C.purple, textDecoration:'none', fontWeight:600, display:'flex', alignItems:'center', gap:4 }}>
+                      <FaExternalLinkAlt size={9}/> פתח במפות
+                    </a>
+                  </div>
+                  <iframe src={embedSrc} width="100%" height="220" style={{ border:'none', display:'block' }} allowFullScreen loading="lazy" referrerPolicy="no-referrer-when-downgrade" title="מיקום הנכס"/>
                 </div>
-              </a>
-            )}
+              ) : (
+                <a href={prop.mapsUrl} target="_blank" rel="noopener noreferrer"
+                  style={{ display:'flex', alignItems:'center', gap:12, padding:'14px 16px', background:'rgba(255,255,255,.04)', border:'1px solid rgba(255,255,255,.1)', borderRadius:10, textDecoration:'none', transition:'background .2s', cursor:'pointer' }}
+                  onMouseEnter={e=>e.currentTarget.style.background='rgba(255,255,255,.08)'}
+                  onMouseLeave={e=>e.currentTarget.style.background='rgba(255,255,255,.04)'}>
+                  <FaMapMarkerAlt size={18} style={{ color:C.purple, flexShrink:0 }}/>
+                  <div>
+                    <div style={{ color:'#fff', fontWeight:600, fontSize:14, marginBottom:2 }}>צפה במיקום במפה</div>
+                    <div style={{ fontSize:12, color:`${C.cream}55` }}>{[prop.location, prop.neighborhood].filter(Boolean).join(', ')}</div>
+                  </div>
+                </a>
+              )
+            })()}
           </div>
         </div>
 
