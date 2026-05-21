@@ -781,7 +781,8 @@ function Step4({ d, upd }) {
   )
 }
 
-const CLAUDE_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY
+const WIZ_API_BASE    = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
+const WIZ_ADMIN_TOKEN = 'AFIKhanahal2026'
 
 async function callClaudeRewrite(d, _retry = 0) {
   const typeMap = { apartment:'דירה', land:'מגרש', penthouse:'פנטהאוז', villa:'וילה', office:'משרד', commercial:'נכס מסחרי', cottage:'קוטג׳', rooftop:'גג', storage:'מחסן', parking:'חנייה' }
@@ -813,11 +814,14 @@ async function callClaudeRewrite(d, _retry = 0) {
 - החזר רק את התיאור, ללא כותרות או הסברים
 - מקסימום 380 תווים`
 
-  const res = await fetch('/anthropic/v1/messages', {
+  const endpoint = WIZ_API_BASE
+    ? `${WIZ_API_BASE}/api/ai/messages`
+    : '/api/ai/messages'
+  const res = await fetch(endpoint, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': CLAUDE_KEY,
+      'Content-Type':      'application/json',
+      'Authorization':     `Bearer ${WIZ_ADMIN_TOKEN}`,
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({
