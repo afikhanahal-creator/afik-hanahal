@@ -562,10 +562,17 @@ const makeGlobal = (C, isDark) => `
   @media(max-width:860px) { .ceo-photo-col { position:static; max-width:300px; margin:0 auto; width:100%; } }
 
   .prop-gallery-main { position:relative; width:100%; height:clamp(300px,58vw,580px); background:#000; overflow:hidden; }
-  .prop-gallery-thumb-strip { display:flex; gap:6px; padding:10px 16px; background:#07070F; overflow-x:auto; border-bottom:1px solid rgba(132,144,216,.07); scrollbar-width:thin; }
-  .prop-thumb-btn { flex-shrink:0; width:78px !important; height:54px !important; min-width:78px !important; min-height:54px !important; padding:0 !important; border-radius:6px; overflow:hidden; cursor:pointer; background:#1a1a2e; transition:border-color .2s, opacity .2s; }
-  .prop-thumb-btn img { width:100%; height:100%; object-fit:cover; display:block; }
-  .prop-thumb-btn .thumb-fallback { width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:#1a1a2e; color:rgba(132,144,216,.4); font-size:11px; }
+  .prop-gallery-thumb-strip { display:flex; gap:7px; padding:10px 16px; background:#07070F; overflow-x:auto; border-bottom:1px solid rgba(132,144,216,.07); scrollbar-width:thin; scrollbar-color:rgba(132,144,216,.25) transparent; }
+  .prop-thumb-btn { position:relative; flex-shrink:0; width:90px !important; height:62px !important; min-width:90px !important; min-height:62px !important; padding:0 !important; border-radius:8px; overflow:hidden; cursor:pointer; background:#111128; transition:border-color .2s, opacity .2s, transform .15s; }
+  .prop-thumb-btn:hover { opacity:1 !important; transform:scale(1.05); }
+  .prop-thumb-btn img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block; }
+  .prop-thumb-btn .thumb-fallback { position:absolute; inset:0; width:100%; height:100%; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:4px; background:#111128; color:rgba(132,144,216,.5); font-size:20px; }
+  .prop-card { background:var(--c-card); border:1px solid rgba(132,144,216,.1); border-radius:16px; overflow:hidden; display:flex; flex-direction:column; cursor:pointer; transition:transform .3s cubic-bezier(.16,1,.3,1), box-shadow .3s, border-color .25s; }
+  .prop-card:hover { transform:translateY(-6px); box-shadow:0 28px 64px rgba(0,0,0,.32), 0 0 0 1px rgba(132,144,216,.22); border-color:rgba(132,144,216,.3); }
+  .prop-card-img { position:relative; padding-bottom:67%; background:linear-gradient(135deg,rgba(132,144,216,.1),rgba(9,9,15,.5)); flex-shrink:0; overflow:hidden; }
+  .prop-card-body { padding:16px 18px 18px; display:flex; flex-direction:column; flex:1; }
+  .prop-card-price { font-size:21px; font-weight:900; line-height:1.1; }
+  .prop-card-cta { padding:8px 13px; border-radius:8px; font-size:12px; font-weight:700; display:flex; align-items:center; gap:5px; white-space:nowrap; transition:all .2s; border:1px solid; cursor:pointer; font-family:inherit; }
   .mortgage-inline-grid { display:grid; grid-template-columns:1fr 1fr; direction:rtl; }
   @media(max-width:640px) {
     .mortgage-inline-grid { grid-template-columns:1fr !important; }
@@ -573,6 +580,10 @@ const makeGlobal = (C, isDark) => `
     .mortgage-controls-col { padding:16px 16px 18px !important; gap:14px !important; }
     .mortgage-monthly-num  { font-size:30px !important; }
     .mortgage-cta-btn      { padding:11px !important; font-size:13px !important; margin-top:12px !important; }
+  }
+  @media(max-width:480px) {
+    .mortgage-monthly-num  { font-size:26px !important; }
+    .mortgage-cta-btn      { padding:10px !important; font-size:12px !important; }
   }
   .prop-detail-body { display:grid; grid-template-columns:1fr 320px; align-items:start; direction:rtl; }
   @media(max-width:900px) { .prop-detail-body { grid-template-columns:1fr; } }
@@ -6443,9 +6454,10 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
             {imgs.filter(s => s).map((src, i) => (
               <button key={`img-${i}`} onClick={() => setImgIdx(i)}
                 className="prop-thumb-btn"
-                style={{ border:`2px solid ${i === imgIdx ? C.purple : 'transparent'}`, opacity: i === imgIdx ? 1 : .55 }}>
+                style={{ border:`2px solid ${i === imgIdx ? C.purple : 'rgba(255,255,255,.08)'}`, opacity: i === imgIdx ? 1 : .6 }}>
                 <img src={src} alt=""
-                  onError={e => { e.currentTarget.style.display='none'; e.currentTarget.nextSibling && (e.currentTarget.nextSibling.style.display='flex') }}/>
+                  style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover', display:'block' }}
+                  onError={e => { e.currentTarget.style.display='none'; const fb=e.currentTarget.nextElementSibling; if(fb) fb.style.display='flex' }}/>
                 <div className="thumb-fallback" style={{ display:'none' }}>📷</div>
               </button>
             ))}
@@ -6455,16 +6467,17 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
               return (
                 <button key={`vid-${vi}`} onClick={() => setImgIdx(vIdx)}
                   className="prop-thumb-btn"
-                  style={{ border:`2px solid ${active ? C.purple : 'transparent'}`, opacity: active ? 1 : .55, position:'relative' }}>
+                  style={{ border:`2px solid ${active ? C.purple : 'rgba(255,255,255,.08)'}`, opacity: active ? 1 : .6 }}>
                   {v.thumbnail
                     ? <img src={v.thumbnail} alt=""
-                        onError={e => { e.currentTarget.style.display='none'; e.currentTarget.nextSibling && (e.currentTarget.nextSibling.style.display='flex') }}/>
+                        style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover', display:'block' }}
+                        onError={e => { e.currentTarget.style.display='none'; const fb=e.currentTarget.nextElementSibling; if(fb) fb.style.display='flex' }}/>
                     : null}
-                  <div className="thumb-fallback" style={{ display: v.thumbnail ? 'none' : 'flex', flexDirection:'column', gap:2, background:'#180816' }}>
-                    <FaPlay size={12}/><span style={{ fontSize:7, fontWeight:600 }}>וידאו</span>
+                  <div className="thumb-fallback" style={{ display: v.thumbnail ? 'none' : 'flex', flexDirection:'column', gap:3, background:'#180816' }}>
+                    <FaPlay size={14}/><span style={{ fontSize:8, fontWeight:700, letterSpacing:'.04em' }}>וידאו</span>
                   </div>
-                  <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(0,0,0,.35)' }}>
-                    <FaPlay size={10} style={{ color:'#fff' }}/>
+                  <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(0,0,0,.28)', zIndex:1 }}>
+                    <FaPlay size={11} style={{ color:'#fff' }}/>
                   </div>
                 </button>
               )
@@ -6831,87 +6844,82 @@ function PropertyCard({ prop, onContact, onSelect }) {
       onClick={() => onSelect(prop)}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      style={{ background:C.card, border:`1px solid ${hovered ? 'rgba(132,144,216,.32)' : 'rgba(132,144,216,.1)'}`, borderRadius:16, overflow:'hidden', display:'flex', flexDirection:'column', cursor:'pointer', transition:'transform .3s cubic-bezier(0.16,1,0.3,1), box-shadow .3s, border-color .25s', transform:hovered?'translateY(-5px)':'', boxShadow:hovered?'0 24px 56px rgba(0,0,0,.28)':'' }}>
+      className="prop-card">
 
-      {/* Image */}
-      <div style={{ position:'relative', paddingBottom:'71.5%', background:`linear-gradient(135deg,${C.purple}18,${C.bg}55)`, flexShrink:0, overflow:'hidden' }}>
+      {/* ── Image area ── */}
+      <div className="prop-card-img">
         {validImages.length > 0 && !failedImgs.has(imgIdx % validImages.length) ? (
           <>
             <img src={validImages[imgIdx % validImages.length]} alt={prop.title}
-              style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover', display:'block', transition:'transform .6s cubic-bezier(0.16,1,0.3,1)', transform:hovered?'scale(1.04)':'scale(1)' }}
+              style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover', display:'block', transition:'transform .55s cubic-bezier(0.16,1,0.3,1)', transform:hovered?'scale(1.05)':'scale(1)' }}
               onError={() => setFailedImgs(prev => new Set([...prev, imgIdx % validImages.length]))}
             />
-            {validImages.length > 1 && (
-              <>
-                <button onClick={e => { e.stopPropagation(); setImgIdx(i => (i-1+validImages.length)%validImages.length) }}
-                  style={{ position:'absolute', top:'50%', right:8, transform:'translateY(-50%)', background:'rgba(9,9,15,.72)', backdropFilter:'blur(6px)', border:`1px solid rgba(255,255,255,.12)`, borderRadius:'50%', width:30, height:30, color:'white', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'background .2s' }}
-                  onMouseEnter={e=>e.currentTarget.style.background=C.purple} onMouseLeave={e=>e.currentTarget.style.background='rgba(9,9,15,.72)'}>
-                  <FaChevronRight size={11}/>
-                </button>
-                <button onClick={e => { e.stopPropagation(); setImgIdx(i => (i+1)%validImages.length) }}
-                  style={{ position:'absolute', top:'50%', left:8, transform:'translateY(-50%)', background:'rgba(9,9,15,.72)', backdropFilter:'blur(6px)', border:`1px solid rgba(255,255,255,.12)`, borderRadius:'50%', width:30, height:30, color:'white', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'background .2s' }}
-                  onMouseEnter={e=>e.currentTarget.style.background=C.purple} onMouseLeave={e=>e.currentTarget.style.background='rgba(9,9,15,.72)'}>
-                  <FaChevronLeft size={11}/>
-                </button>
-                <div style={{ position:'absolute', bottom:8, left:10, background:'rgba(9,9,15,.72)', backdropFilter:'blur(6px)', borderRadius:5, padding:'2px 8px', fontSize:9, color:`${C.cream}BB`, display:'flex', alignItems:'center', gap:4, fontWeight:600 }}>
-                  <FaMapMarkerAlt size={7} style={{ opacity:.6 }}/> {validImages.length}
-                </div>
-                <div style={{ position:'absolute', bottom:8, right:8, display:'flex', gap:4 }}>
-                  {validImages.slice(0,4).map((_,i) => (
-                    <button key={i} onClick={e=>{e.stopPropagation();setImgIdx(i)}}
-                      style={{ width:i===imgIdx?16:5, height:5, borderRadius:3, background:i===imgIdx?'white':'rgba(255,255,255,.4)', border:'none', cursor:'pointer', padding:0, transition:'all .25s' }}/>
-                  ))}
-                </div>
-              </>
-            )}
+            {/* gradient scrim at bottom for readability */}
+            <div style={{ position:'absolute', bottom:0, left:0, right:0, height:'55%', background:'linear-gradient(to top,rgba(0,0,0,.55),transparent)', pointerEvents:'none', zIndex:1 }}/>
+            {validImages.length > 1 && (<>
+              <button onClick={e => { e.stopPropagation(); setImgIdx(i => (i-1+validImages.length)%validImages.length) }}
+                style={{ position:'absolute', top:'50%', right:8, transform:'translateY(-50%)', background:'rgba(0,0,0,.55)', backdropFilter:'blur(8px)', border:'1px solid rgba(255,255,255,.18)', borderRadius:'50%', width:32, height:32, color:'#fff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'background .2s', zIndex:3 }}
+                onMouseEnter={e=>e.currentTarget.style.background=C.purple} onMouseLeave={e=>e.currentTarget.style.background='rgba(0,0,0,.55)'}>
+                <FaChevronRight size={10}/>
+              </button>
+              <button onClick={e => { e.stopPropagation(); setImgIdx(i => (i+1)%validImages.length) }}
+                style={{ position:'absolute', top:'50%', left:8, transform:'translateY(-50%)', background:'rgba(0,0,0,.55)', backdropFilter:'blur(8px)', border:'1px solid rgba(255,255,255,.18)', borderRadius:'50%', width:32, height:32, color:'#fff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'background .2s', zIndex:3 }}
+                onMouseEnter={e=>e.currentTarget.style.background=C.purple} onMouseLeave={e=>e.currentTarget.style.background='rgba(0,0,0,.55)'}>
+                <FaChevronLeft size={10}/>
+              </button>
+              {/* dot indicators — sit above the category badge row */}
+              <div style={{ position:'absolute', bottom:36, left:'50%', transform:'translateX(-50%)', display:'flex', gap:5, zIndex:3 }}>
+                {validImages.slice(0,5).map((_,i) => (
+                  <button key={i} onClick={e=>{e.stopPropagation();setImgIdx(i)}}
+                    style={{ width:i===imgIdx?18:5, height:5, borderRadius:3, background:i===imgIdx?'#fff':'rgba(255,255,255,.45)', border:'none', cursor:'pointer', padding:0, transition:'all .3s', flexShrink:0 }}/>
+                ))}
+              </div>
+              {/* photo count — bottom right */}
+              <div style={{ position:'absolute', bottom:10, right:10, background:'rgba(0,0,0,.65)', backdropFilter:'blur(6px)', borderRadius:5, padding:'3px 8px', fontSize:10, color:'rgba(255,255,255,.88)', display:'flex', alignItems:'center', gap:4, fontWeight:600, zIndex:4 }}>
+                <FaCamera size={8}/> {validImages.length}
+              </div>
+            </>)}
           </>
         ) : (
-          <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:10, color:`${C.purple}60` }}>
-            <PlaceholderIcon size={44} style={{ opacity:.45 }}/>
-            <span style={{ fontSize:10, color:`${C.cream}40`, letterSpacing:'.08em', textTransform:'uppercase', fontWeight:600 }}>אין תמונה</span>
+          <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:10, background:`linear-gradient(135deg,${C.purple}14,${C.bg}66)` }}>
+            <PlaceholderIcon size={40} style={{ color:`${C.purple}55` }}/>
+            <span style={{ fontSize:9, color:`${C.cream}30`, letterSpacing:'.1em', textTransform:'uppercase', fontWeight:700 }}>אין תמונה</span>
           </div>
         )}
-        {/* SOLD / RENTED stamp overlay */}
+        {/* SOLD / RENTED stamp */}
         {(prop.status === 'נמכר' || prop.status === 'הושכר') && (
-          <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', zIndex:4, pointerEvents:'none', background:'rgba(0,0,0,.18)' }}>
+          <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', zIndex:4, pointerEvents:'none', background:'rgba(0,0,0,.15)' }}>
             <img src={prop.status === 'נמכר' ? '/SOLD.png' : '/Rented.png'} alt={prop.status}
-              style={{ width:'78%', maxWidth:230, opacity:0.92, transform:'rotate(-10deg)', filter:'drop-shadow(0 4px 20px rgba(0,0,0,.7))' }}/>
+              style={{ width:'72%', maxWidth:220, opacity:.9, transform:'rotate(-10deg)', filter:'drop-shadow(0 4px 18px rgba(0,0,0,.7))' }}/>
           </div>
         )}
-        {/* Badges */}
-        <div style={{ position:'absolute', top:10, right:10, display:'flex', flexDirection:'column', gap:4, alignItems:'flex-end', zIndex:5 }}>
-          <span style={{ background:'rgba(9,9,15,.88)', backdropFilter:'blur(8px)', color:sc, border:`1px solid ${sc}40`, borderRadius:5, padding:'3px 9px', fontSize:9, fontWeight:700, letterSpacing:'.05em' }}>{prop.status}</span>
-          {prop.exclusive && <span style={{ background:'rgba(9,9,15,.88)', backdropFilter:'blur(8px)', color:C.green, border:`1px solid ${C.green}40`, borderRadius:5, padding:'3px 9px', fontSize:9, fontWeight:700 }}>✦ בלעדי</span>}
+        {/* Top-right badges */}
+        <div style={{ position:'absolute', top:10, right:10, display:'flex', flexDirection:'column', gap:4, zIndex:5 }}>
+          <span style={{ background:'rgba(9,9,15,.85)', backdropFilter:'blur(8px)', color:sc, border:`1px solid ${sc}35`, borderRadius:6, padding:'4px 10px', fontSize:9, fontWeight:800, letterSpacing:'.06em', textTransform:'uppercase' }}>{prop.status}</span>
+          {prop.exclusive && <span style={{ background:'rgba(9,9,15,.85)', backdropFilter:'blur(8px)', color:C.green, border:`1px solid ${C.green}35`, borderRadius:6, padding:'4px 10px', fontSize:9, fontWeight:800 }}>✦ בלעדי</span>}
+        </div>
+        {/* Category badge — bottom left over scrim */}
+        <div style={{ position:'absolute', bottom:12, left:10, display:'flex', gap:5, zIndex:3 }}>
+          <span style={{ background:C.purple, color:'#fff', borderRadius:5, padding:'4px 10px', fontSize:10, fontWeight:700, letterSpacing:'.03em', backdropFilter:'blur(6px)' }}>{cat.label}</span>
+          {prop.type && <span style={{ background:'rgba(0,0,0,.62)', backdropFilter:'blur(8px)', color:'rgba(255,255,255,.88)', borderRadius:5, padding:'4px 10px', fontSize:10, fontWeight:600 }}>{prop.type}</span>}
         </div>
       </div>
 
-      {/* Body */}
-      <div style={{ padding:'16px 20px 16px', display:'flex', flexDirection:'column', flex:1 }}>
+      {/* ── Body ── */}
+      <div className="prop-card-body">
 
-        {/* Category + type badges */}
-        <div style={{ display:'flex', gap:6, marginBottom:10, flexWrap:'wrap', alignItems:'center' }}>
-          <span style={{ background:C.purple, color:'#fff', borderRadius:20, padding:'4px 12px', fontSize:10, fontWeight:700, letterSpacing:'.04em' }}>{cat.label}</span>
-          {prop.type && <span style={{ background:'rgba(132,144,216,.12)', color:C.purple, borderRadius:20, padding:'4px 10px', fontSize:10, fontWeight:600 }}>{prop.type}</span>}
-          {prop.exclusive && <span style={{ background:`${C.green}14`, color:C.green, borderRadius:20, padding:'4px 10px', fontSize:10, fontWeight:700 }}>✦ בלעדי</span>}
-        </div>
-
-        <h3 style={{ fontSize:18, fontWeight:800, color:C.cream, lineHeight:1.3, marginBottom:6, display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden' }}>{prop.title || '—'}</h3>
-
-        {prop.description && (
-          <p style={{ fontSize:12, color:`${C.cream}60`, lineHeight:1.65, marginBottom:10, display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden' }}>
-            {prop.description}
-          </p>
-        )}
+        {/* Title */}
+        <h3 style={{ fontSize:17, fontWeight:800, color:C.cream, lineHeight:1.3, marginBottom:5, display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden' }}>{prop.title || '—'}</h3>
 
         {/* Location */}
-        <div style={{ display:'flex', alignItems:'center', gap:5, fontSize:12, color:`${C.cream}66`, marginBottom:10 }}>
-          <FaMapMarkerAlt size={10} style={{ color:C.purple, flexShrink:0 }}/>
+        <div style={{ display:'flex', alignItems:'center', gap:5, fontSize:12, color:`${C.cream}55`, marginBottom:10 }}>
+          <FaMapMarkerAlt size={9} style={{ color:C.purple, flexShrink:0 }}/>
           {[prop.location, prop.neighborhood].filter(Boolean).join(' · ') || '—'}
         </div>
 
         {/* Key specs as compact chips */}
         {specs.length > 0 && (
-          <div style={{ display:'flex', flexWrap:'wrap', gap:'4px 10px', marginBottom:12, paddingTop:8, borderTop:'1px solid rgba(132,144,216,.07)' }}>
+          <div style={{ display:'flex', flexWrap:'wrap', gap:'3px 8px', marginBottom:12, paddingTop:8, borderTop:`1px solid rgba(132,144,216,.08)` }}>
             {specs.slice(0,4).map((s,i) => (
               <span key={i} style={{ display:'flex', alignItems:'center', gap:4, fontSize:11, color:`${C.cream}99`, background:'rgba(132,144,216,.06)', borderRadius:4, padding:'3px 8px' }}>
                 <s.Icon size={8} style={{ color:C.purple, flexShrink:0 }}/> {s.v}
@@ -6920,21 +6928,18 @@ function PropertyCard({ prop, onContact, onSelect }) {
           </div>
         )}
 
-        {/* Price row + CTA link */}
-        <div style={{ marginTop:'auto', paddingTop:12, borderTop:'1px solid rgba(132,144,216,.08)', display:'flex', alignItems:'center', justifyContent:'space-between', gap:8 }}>
+        {/* Price row + CTA */}
+        <div style={{ marginTop:'auto', paddingTop:12, borderTop:`1px solid rgba(132,144,216,.08)`, display:'flex', alignItems:'center', justifyContent:'space-between', gap:8 }}>
           <div>
-            <div style={{ fontSize:22, fontWeight:900, color:C.cream, lineHeight:1 }}>
-              {fmt(prop.price)}
-            </div>
-            {prop.priceNegotiable && <div style={{ fontSize:10, color:C.green, fontWeight:700, marginTop:3 }}>מחיר גמיש</div>}
+            <div className="prop-card-price" style={{ color:C.cream }}>{fmt(prop.price)}</div>
+            {prop.priceNegotiable && <div style={{ fontSize:9, color:C.green, fontWeight:700, marginTop:2, letterSpacing:'.04em' }}>✓ מחיר גמיש</div>}
           </div>
-          <span
+          <button
             onClick={e => { e.stopPropagation(); onSelect(prop) }}
-            style={{ fontSize:13, fontWeight:700, color:C.purple, cursor:'pointer', display:'flex', alignItems:'center', gap:4, transition:'gap .15s', whiteSpace:'nowrap' }}
-            onMouseEnter={e => { e.currentTarget.style.gap='8px' }}
-            onMouseLeave={e => { e.currentTarget.style.gap='4px' }}>
-            עוד על הנכס <FaChevronLeft size={10}/>
-          </span>
+            className="prop-card-cta"
+            style={{ background: hovered ? C.purple : `${C.purple}16`, borderColor: hovered ? C.purple : `${C.purple}44`, color: hovered ? '#fff' : C.purple }}>
+            לפרטים <FaChevronLeft size={9}/>
+          </button>
         </div>
       </div>
     </div>
@@ -7590,12 +7595,20 @@ export default function App() {
         <div style={{ maxWidth:1280, margin:'0 auto', position:'relative', zIndex:1 }}>
 
           {/* Header */}
-          <div style={{ textAlign:'center', marginBottom:52 }}>
+          <div style={{ textAlign:'center', marginBottom:48 }}>
             <SectionBadge color={C.purple}>{TR[lang]?.propertiesTitle}</SectionBadge>
             <h2 style={{ fontSize:'clamp(28px,4vw,52px)', fontWeight:900, color:C.cream, marginBottom:14 }}>{TR[lang]?.propertiesH2}</h2>
-            <p style={{ fontSize:15, color:`${C.cream}88`, maxWidth:520, margin:'0 auto 20px', lineHeight:1.8 }}>
+            <p style={{ fontSize:15, color:`${C.cream}77`, maxWidth:520, margin:'0 auto', lineHeight:1.8 }}>
               {TR[lang]?.propertiesDesc}
             </p>
+            {properties.length > 0 && (
+              <div style={{ display:'inline-flex', alignItems:'center', gap:8, marginTop:16, background:`${C.purple}14`, border:`1px solid ${C.purple}30`, borderRadius:20, padding:'6px 16px' }}>
+                <span style={{ width:7, height:7, borderRadius:'50%', background:C.green, display:'inline-block', boxShadow:`0 0 8px ${C.green}` }}/>
+                <span style={{ fontSize:13, color:`${C.cream}BB`, fontWeight:600 }}>
+                  {properties.filter(p=>p.published).length} נכסים זמינים
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Category tabs */}
