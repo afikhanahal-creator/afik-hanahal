@@ -6484,9 +6484,8 @@ function getVideoThumbnail(url, thumbnail) {
   if (thumbnail) return thumbnail
   if (!url) return null
   if (url.includes('cloudinary.com') && url.includes('/video/upload/')) {
-    // Insert thumbnail transformation right after /video/upload/, skipping any existing ones
     return url
-      .replace(/\/video\/upload\/(?:[^/]+\/)*/, '/video/upload/so_0,w_800,q_auto,f_jpg/')
+      .replace('/video/upload/', '/video/upload/so_0,w_800,q_auto,f_jpg/')
       .replace(/\.(mp4|webm|mov|avi|mkv|ogg)(\?.*)?$/i, '.jpg')
   }
   return null
@@ -6723,6 +6722,37 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
           </div>
         </div>
 
+        {/* ══ THUMBNAIL STRIP ══ */}
+        {totalMedia > 1 && (
+          <div className="prop-gallery-thumb-strip">
+            {imgs.map((src, i) => (
+              <button key={i} onClick={() => setImgIdx(i)}
+                className="prop-thumb-btn"
+                style={{ border: imgIdx===i ? `2.5px solid ${C.purple}` : '2.5px solid transparent', opacity: imgIdx===i ? 1 : 0.55 }}>
+                <img src={src} alt=""/>
+              </button>
+            ))}
+            {allVideos.map((v, vi) => {
+              const vIdx = imgs.length + vi
+              const thumb = getVideoThumbnail(v.url, v.thumbnail)
+              return (
+                <button key={vIdx} onClick={() => setImgIdx(vIdx)}
+                  className="prop-thumb-btn"
+                  style={{ border: imgIdx===vIdx ? `2.5px solid ${C.purple}` : '2.5px solid transparent', opacity: imgIdx===vIdx ? 1 : 0.55 }}>
+                  {thumb
+                    ? <img src={thumb} alt=""/>
+                    : <div style={{ width:'100%', height:'100%', display:'flex', alignItems:'center', justifyContent:'center', background:'#111' }}><FaPlay size={16} style={{ color:'rgba(255,255,255,.5)' }}/></div>
+                  }
+                  <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(0,0,0,.28)' }}>
+                    <div style={{ width:22, height:22, borderRadius:'50%', background:'rgba(0,0,0,.55)', display:'flex', alignItems:'center', justifyContent:'center', border:'1.5px solid rgba(255,255,255,.7)' }}>
+                      <FaPlay size={8} style={{ color:'#fff', marginRight:'-1px' }}/>
+                    </div>
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        )}
 
         {/* Project logo strip */}
         {prop.logo && (
