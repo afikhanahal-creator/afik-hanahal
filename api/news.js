@@ -1,16 +1,24 @@
 // Vercel serverless — fetches Israeli real-estate RSS directly, enriches with og:image
 const RENDER = process.env.RENDER_URL || 'https://afik-hanahal-server.onrender.com'
 
-// trusted:true = dedicated real-estate feed, skip keyword filter
+// trusted:true = dedicated real-estate section feed, skip keyword filter
 const RSS_SOURCES = [
-  { name: 'Google נדל"ן',  url: 'https://news.google.com/rss/search?q=%D7%A0%D7%93%D7%9C%D7%9F+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he', trusted: true },
-  { name: 'Google דיור',   url: 'https://news.google.com/rss/search?q=%D7%9E%D7%97%D7%99%D7%A8%D7%99+%D7%93%D7%99%D7%A8%D7%95%D7%AA+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he', trusted: true },
-  { name: 'Ynet נדל"ן',    url: 'https://www.ynet.co.il/Integration/StoryRss8315.xml' },
-  { name: 'Ynet כלכלה',    url: 'https://www.ynet.co.il/Integration/StoryRss6.xml' },
-  { name: 'Globes נדל"ן',  url: 'https://www.globes.co.il/webservice/rss/rssfeeder.asmx/FeederKeyword?iID=1385', trusted: true },
+  // Direct Hebrew feeds — include media:content images
+  { name: 'Ynet נדל"ן',       url: 'https://www.ynet.co.il/Integration/StoryRss8315.xml',                                                                                  trusted: true  },
+  { name: 'Ynet כלכלה',       url: 'https://www.ynet.co.il/Integration/StoryRss6.xml',                                                                                     trusted: false },
+  { name: 'Globes נדל"ן',     url: 'https://www.globes.co.il/webservice/rss/rssfeeder.asmx/FeederPage?iID=3',                                                              trusted: true  },
+  { name: 'כלכליסט נדל"ן',    url: 'https://www.calcalist.co.il/rss/AID-1523869688.xml',                                                                                   trusted: true  },
+  { name: 'TheMarker נדל"ן',   url: 'https://www.themarker.com/cmlink/1.2-rss',                                                                                             trusted: true  },
+  { name: 'Mako נדל"ן',       url: 'https://rss.mako.co.il/rss/31750a2610f26110VgnVCM1000005201000aRCRD.xml',                                                              trusted: true  },
+  { name: 'Walla כלכלה',      url: 'https://rss.walla.co.il/feed/6',                                                                                                       trusted: false },
+  // Google News Hebrew searches — no images but ensure Hebrew content breadth
+  { name: 'Google נדל"ן',     url: 'https://news.google.com/rss/search?q=%D7%A0%D7%93%D7%9C%D7%9F+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he',              trusted: true  },
+  { name: 'Google דיור',      url: 'https://news.google.com/rss/search?q=%D7%9E%D7%97%D7%99%D7%A8%D7%99+%D7%93%D7%99%D7%A8%D7%95%D7%AA+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he', trusted: true },
 ]
 
-const RE_FILTER = /נדל|דיר[הות]|דיור|שכיר[ות]|שוכר|משכיר|קרק[ע]|מגרש|משכנת|פינוי.?בינוי|התחדשות עירונית|מקרקעין|טאבו|קבלן|יזם.?נד|בנייה|בניין|תמ.?א|מגורים|שרון|כפר.?סבא|רעננה|נתניה|הוד.השרון|שוק הד|מחירי ד|רכישת ד|real.?estate|mortgage|housing/i
+const HE_RE     = /[א-ת]/
+const RE_FILTER = /נדל|דיר[הות]|דיור|שכיר[ות]|שוכר|משכיר|קרק[ע]|מגרש|משכנת|פינוי.?בינוי|התחדשות עירונית|מקרקעין|טאבו|קבלן|יזם.?נד|בנייה|בניין|תמ.?א|מגורים|שרון|כפר.?סבא|רעננה|נתניה|הוד.השרון|שוק הד|מחירי ד|רכישת ד/i
+function isHebrew(text)      { return HE_RE.test(text) }
 function isRealEstate(title) { return RE_FILTER.test(title) }
 
 function isArticleImage(url) {
@@ -43,9 +51,9 @@ function parseRSS(xml, sourceName, trusted = false) {
       ?.replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#39;/g,"'") || ''
 
     const rawTitle = g(/<title[^>]*>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/)
-    const link     = g(/<link[^>]*>\s*(https?:\/\/[^\s<]+)\s*<\/link>/)
-               || g(/<guid[^>]*>(https?:\/\/[^\s<]+)<\/guid>/)
-    const pubDate  = g(/<pubDate[^>]*>([\s\S]*?)<\/pubDate>/)
+    const link     = g(/<link[^>]*>(?:<!\[CDATA\[)?\s*(https?:\/\/[^\s<\]]+?)\s*(?:\]\]>)?<\/link>/)
+               || g(/<guid[^>]*>(?:<!\[CDATA\[)?\s*(https?:\/\/[^\s<\]]+?)\s*(?:\]\]>)?<\/guid>/)
+    const pubDate  = g(/<pubDate[^>]*>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/pubDate>/)
     const imgMedia = g(/<media:content[^>]+url=["']([^"']+)["']/)
                || g(/<media:thumbnail[^>]+url=["']([^"']+)["']/)
     const imgEnc   = g(/<enclosure[^>]+url=["']([^"']+)["']/)
@@ -53,7 +61,8 @@ function parseRSS(xml, sourceName, trusted = false) {
 
     if (!rawTitle || !link) continue
     const title = rawTitle.replace(/<[^>]+>/g, '')
-    const rawImg = imgMedia || imgEnc || imgDesc || ''
+    // Google News media:thumbnail/content is a source-branded card, not the real article image
+    const rawImg = link.includes('news.google.com') ? '' : (imgMedia || imgEnc || imgDesc || '')
     const image = isArticleImage(rawImg) ? rawImg : ''
     const date  = pubDate ? new Date(pubDate) : new Date()
 
@@ -83,6 +92,8 @@ async function fetchOGImage(url) {
       redirect: 'follow',
     })
     if (!r.ok) return ''
+    // If redirect landed on a Google domain, we'd only get their site icon — skip
+    try { if (new URL(r.url).hostname.includes('google.com')) return '' } catch {}
     const html = await r.text()
     return (
       html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)?.[1] ||
@@ -114,20 +125,25 @@ export default async function handler(req, res) {
       })
     )
 
-    // Deduplicate
+    // Merge: direct-source articles first so they beat Google News duplicates in deduplication
+    const all = results.flatMap(r => r.status === 'fulfilled' ? r.value : [])
+    const byDate = a => new Date(a.publishedAt).getTime()
+    const combined = [
+      ...all.filter(a => !a.link.includes('news.google.com')).sort((a,b) => byDate(b) - byDate(a)),
+      ...all.filter(a =>  a.link.includes('news.google.com')).sort((a,b) => byDate(b) - byDate(a)),
+    ]
     const seen = new Set()
-    let articles = results
-      .flatMap(r => r.status === 'fulfilled' ? r.value : [])
+    let articles = combined
       .filter(a => {
         if (!a.title || !a.link) return false
+        if (!isHebrew(a.title)) return false
+        if (!a.trusted && !isRealEstate(a.title)) return false
         const key = a.title.replace(/\s+/g,'').slice(0, 30)
         if (seen.has(key)) return false
         seen.add(key); return true
       })
       .sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt))
-
-    // Trusted feeds pass through; general feeds require keyword match
-    articles = articles.filter(a => a.trusted || isRealEstate(a.title)).slice(0, 50)
+      .slice(0, 50)
 
     // Clear any image URL shared by 2+ articles (= source logo, not article image)
     articles = deduplicateImages(articles)
@@ -141,7 +157,7 @@ export default async function handler(req, res) {
       const needImg = [
         ...withoutImg.filter(a => !a.link.includes('news.google.com')),
         ...withoutImg.filter(a =>  a.link.includes('news.google.com')),
-      ].slice(0, 30)
+      ].slice(0, 40)
       if (needImg.length > 0) {
         const ogResults = await Promise.allSettled(needImg.map(a => fetchOGImage(a.url)))
         const ogMap = new Map(needImg.map((a, i) => [a.id, ogResults[i]]))
@@ -149,7 +165,7 @@ export default async function handler(req, res) {
           if (!a.image && ogMap.has(a.id)) {
             const r = ogMap.get(a.id)
             const ogImg = (r?.status === 'fulfilled' ? r.value : '') || ''
-            return { ...a, image: isArticleImage(ogImg) ? ogImg : '' }
+            return { ...a, image: ogImg }
           }
           return a
         })
