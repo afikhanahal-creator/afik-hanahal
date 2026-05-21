@@ -165,7 +165,7 @@ export function wizardToProperty(d, isDraft) {
   const videoItems = d.media.filter(m => m.type === 'video')
 
   return {
-    id: `wiz_${Date.now()}`,
+    id: Date.now(),
     category: inferCategory(d.propType),
     title: `${d.propType}${d.rooms ? `, ${d.rooms} חד׳` : ''}${d.size ? `, ${d.size} מ"ר` : ''} - ${d.city}`,
     type: d.propType,

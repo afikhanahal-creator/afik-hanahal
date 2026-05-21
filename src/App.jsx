@@ -7206,6 +7206,7 @@ export default function App() {
 
   const [isMobile,     setIsMobile]     = useState(() => window.innerWidth < 768)
   const carouselRef = useRef(null)
+  const [carouselIdx,  setCarouselIdx]  = useState(0)
 
   const [properties,   setProperties]   = useState([])
   const [filterCat,    setFilterCat]    = useState('all')
@@ -7318,8 +7319,10 @@ export default function App() {
   }, [])
 
   // ── Save stats/sharon/properties to localStorage as offline backup ──────────
+  // Guard with propsLoaded (not loaded) to avoid wiping cached properties
+  // before the async initial fetch resolves.
   useEffect(() => {
-    if (!loaded.current) return
+    if (!propsLoaded.current) return
     try { localStorage.setItem('afik_data', JSON.stringify({ stats, sharon, properties })) } catch {}
   }, [stats, sharon, properties])
 
@@ -7726,7 +7729,7 @@ export default function App() {
               const count = cat.id === 'all' ? properties.length : properties.filter(p => p.category === cat.id).length
               const active = filterCat === cat.id
               return (
-                <button key={cat.id} onClick={() => { setFilterCat(cat.id); setFilterType(''); setPropPage(0) }}
+                <button key={cat.id} onClick={() => { setFilterCat(cat.id); setFilterType(''); setPropPage(0); setCarouselIdx(0) }}
                   style={{ padding: isMobile ? '12px 16px' : '14px 28px', border:'none', borderBottom:`2px solid ${active ? C.purple : 'transparent'}`, background:'transparent', color:active ? C.purple : `${C.cream}55`, fontFamily:'inherit', cursor:'pointer', fontSize: isMobile ? 12 : 13, fontWeight:active?700:500, whiteSpace:'nowrap', transition:'all .2s', display:'flex', alignItems:'center', gap:5, flexShrink:0 }}>
                   {cat.Icon ? <cat.Icon size={12}/> : <span style={{ fontSize:12, opacity:.6 }}>≡</span>} {cat.label}
                   {count > 0 && <span style={{ background:active?`${C.purple}28`:'rgba(255,255,255,.07)', color:active?C.purple:`${C.cream}55`, borderRadius:10, padding:'2px 7px', fontSize:10, fontWeight:700, minWidth:18, textAlign:'center' }}>{count}</span>}
@@ -7807,26 +7810,68 @@ export default function App() {
                 isMobile ? (
                   /* ── Mobile swipe carousel ── */
                   <>
+                    {/* Nav arrows + counter row */}
+                    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12, paddingInline:4 }}>
+                      <button
+                        onClick={() => {
+                          const newIdx = Math.max(0, carouselIdx - 1)
+                          setCarouselIdx(newIdx)
+                          if (carouselRef.current) {
+                            const cardW = carouselRef.current.scrollWidth / filtered.length
+                            carouselRef.current.scrollTo({ left: newIdx * cardW, behavior:'smooth' })
+                          }
+                        }}
+                        disabled={carouselIdx === 0}
+                        style={{ width:40, height:40, borderRadius:'50%', border:`1.5px solid ${carouselIdx===0?C.purple+'22':C.purple+'66'}`, background:carouselIdx===0?'transparent':`${C.purple}14`, color:carouselIdx===0?`${C.cream}30`:C.purple, cursor:carouselIdx===0?'default':'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s' }}>
+                        <FaChevronRight size={12}/>
+                      </button>
+                      <span style={{ fontSize:12, color:`${C.cream}66`, fontWeight:600 }}>
+                        {carouselIdx + 1} / {filtered.length}
+                      </span>
+                      <button
+                        onClick={() => {
+                          const newIdx = Math.min(filtered.length - 1, carouselIdx + 1)
+                          setCarouselIdx(newIdx)
+                          if (carouselRef.current) {
+                            const cardW = carouselRef.current.scrollWidth / filtered.length
+                            carouselRef.current.scrollTo({ left: newIdx * cardW, behavior:'smooth' })
+                          }
+                        }}
+                        disabled={carouselIdx === filtered.length - 1}
+                        style={{ width:40, height:40, borderRadius:'50%', border:`1.5px solid ${carouselIdx===filtered.length-1?C.purple+'22':C.purple+'66'}`, background:carouselIdx===filtered.length-1?'transparent':`${C.purple}14`, color:carouselIdx===filtered.length-1?`${C.cream}30`:C.purple, cursor:carouselIdx===filtered.length-1?'default':'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s' }}>
+                        <FaChevronLeft size={12}/>
+                      </button>
+                    </div>
                     <div className="prop-carousel" ref={carouselRef}
-                      style={{ display:'flex', gap:16, overflowX:'auto', scrollSnapType:'x mandatory', WebkitOverflowScrolling:'touch', paddingBottom:20, paddingInlineStart:4, paddingInlineEnd:16, marginInlineStart:-4, cursor:'grab' }}
-                      onMouseDown={e => { e.currentTarget.style.cursor='grabbing' }}
-                      onMouseUp={e => { e.currentTarget.style.cursor='grab' }}
-                      onMouseLeave={e => { e.currentTarget.style.cursor='grab' }}>
+                      style={{ display:'flex', gap:16, overflowX:'auto', scrollSnapType:'x mandatory', WebkitOverflowScrolling:'touch', paddingBottom:20, paddingInlineStart:4, paddingInlineEnd:16, marginInlineStart:-4 }}
+                      onScroll={e => {
+                        const el = e.currentTarget
+                        const cardW = el.scrollWidth / filtered.length
+                        setCarouselIdx(Math.round(el.scrollLeft / cardW))
+                      }}>
                       {filtered.map(p => (
-                        <div key={p.id} style={{ flex:'0 0 82vw', maxWidth:340, scrollSnapAlign:'start' }}>
+                        <div key={p.id} style={{ flex:'0 0 88vw', maxWidth:360, scrollSnapAlign:'start' }}>
                           <PropertyCard prop={p} onContact={openContact} onSelect={openProperty}/>
                         </div>
                       ))}
                     </div>
-                    {/* Swipe hint dots */}
-                    <div style={{ display:'flex', justifyContent:'center', gap:6, marginTop:4, marginBottom:32 }}>
-                      {filtered.map((_,i) => (
-                        <div key={i} style={{ width:6, height:6, borderRadius:'50%', background:`${C.purple}${i===0?'CC':'33'}`, transition:'all .25s' }}/>
-                      ))}
-                    </div>
-                    <div style={{ textAlign:'center', marginBottom:8 }}>
-                      <span style={{ fontSize:11, color:`${C.cream}44`, letterSpacing:'.06em' }}>← החלק לגלישה בין הנכסים →</span>
-                    </div>
+                    {/* Interactive dot indicators */}
+                    {filtered.length > 1 && (
+                      <div style={{ display:'flex', justifyContent:'center', gap:6, marginTop:8, marginBottom:24 }}>
+                        {filtered.slice(0, 10).map((_,i) => (
+                          <button key={i}
+                            onClick={() => {
+                              setCarouselIdx(i)
+                              if (carouselRef.current) {
+                                const cardW = carouselRef.current.scrollWidth / filtered.length
+                                carouselRef.current.scrollTo({ left: i * cardW, behavior:'smooth' })
+                              }
+                            }}
+                            style={{ width:i===carouselIdx?22:7, height:7, borderRadius:99, border:'none', background:i===carouselIdx?C.purple:`${C.purple}33`, cursor:'pointer', padding:0, transition:'all .25s' }}/>
+                        ))}
+                        {filtered.length > 10 && <span style={{ fontSize:10, color:`${C.cream}44`, alignSelf:'center' }}>+{filtered.length-10}</span>}
+                      </div>
+                    )}
                   </>
                 ) : (
                   /* ── Desktop paginated grid ── */
