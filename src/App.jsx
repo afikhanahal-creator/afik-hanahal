@@ -402,6 +402,20 @@ const makeGlobal = (C, isDark) => `
   }
   .wa-float:hover { transform:scale(1.12) translateY(-3px); box-shadow:0 10px 40px rgba(37,211,102,.9), 0 0 28px rgba(37,211,102,.5); animation:none; }
 
+  /* ── Back to top ── */
+  .back-to-top {
+    position:fixed; bottom:86px; right:22px; width:44px; height:44px;
+    border-radius:50%; background:rgba(132,144,216,.82); border:1.5px solid rgba(132,144,216,.35);
+    color:#fff; font-size:20px; line-height:1; cursor:pointer; z-index:9991;
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:0 4px 18px rgba(132,144,216,.38); backdrop-filter:blur(10px);
+    transition:opacity .25s, transform .25s, background .2s; opacity:0; pointer-events:none;
+  }
+  .back-to-top.visible { opacity:1; pointer-events:auto; }
+  .back-to-top:hover { background:rgba(132,144,216,1); transform:translateY(-4px); }
+  @media(max-width:600px) { .back-to-top { bottom:78px; right:14px; width:40px; height:40px; font-size:17px; } }
+  @supports(padding:max(0px)) { .back-to-top { right:max(14px,env(safe-area-inset-right)) !important; bottom:max(78px,calc(70px + env(safe-area-inset-bottom))) !important; } }
+
   /* ── Hamburger — animated SVG toggle ── */
   .hamburger-btn {
     display:flex; align-items:center; justify-content:center;
@@ -658,7 +672,8 @@ const makeGlobal = (C, isDark) => `
   /* ═══════════════════════════════════════════════════════════════
      MOBILE UX PRO — שיפור מקיף לחוויית מובייל
   ════════════════════════════════════════════════════════════════ */
-  html, body { overflow-x: hidden; max-width: 100vw; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+  html { scroll-behavior: smooth; }
+  html, body { overflow-x: hidden; max-width: 100vw; -webkit-tap-highlight-color: transparent; touch-action: manipulation; -webkit-overflow-scrolling: touch; }
   * { max-width: 100%; box-sizing: border-box; }
   input, select, textarea { font-size: 16px !important; -webkit-appearance: none; border-radius: 8px; }
   button, a, [role="button"] { min-height: 44px; min-width: 44px; }
@@ -1040,6 +1055,25 @@ function Logo({ size=52 }) {
     <img src="/logo.svg" alt="אפיק הנחל - ייזום שיווק ותיווך"
       style={{ height:size, width:'auto', objectFit:'contain', display:'block',
                filter: isDark ? 'none' : 'invert(1)' }}/>
+  )
+}
+
+// ─── BACK TO TOP ──────────────────────────────────────────────────────────────
+function BackToTop() {
+  const [visible, setVisible] = useState(false)
+  useEffect(() => {
+    const onScroll = () => setVisible(window.scrollY > 500)
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
+  return (
+    <button
+      className={`back-to-top${visible ? ' visible' : ''}`}
+      onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+      title="חזור למעלה"
+      aria-label="חזור למעלה">
+      ↑
+    </button>
   )
 }
 
@@ -7848,6 +7882,9 @@ export default function App() {
       <a href="https://wa.me/972559811814" target="_blank" rel="noopener noreferrer" className="wa-float" title="שלח הודעה ב-WhatsApp" onClick={() => trackEvent('whatsapp_click', { src:'float_btn' })}>
         <WaIcon/>
       </a>
+
+      {/* ── BACK TO TOP ─────────────────────────────── */}
+      <BackToTop />
 
       {/* ── MODALS ──────────────────────────────────── */}
       {showPw      && <PasswordPrompt onSuccess={() => { sessionStorage.setItem('afik_admin_session','1'); setAdminAuth(true); setShowPw(false); setShowAdmin(true) }} onClose={() => setShowPw(false)}/>}

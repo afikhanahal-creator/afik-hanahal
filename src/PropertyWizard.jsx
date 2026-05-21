@@ -341,10 +341,7 @@ function CalendarPicker({ value, onChange, disabled }) {
   const today           = new Date(); today.setHours(0,0,0,0)
   const selected        = value ? new Date(value + 'T00:00:00') : null
   const thisYear        = today.getFullYear()
-  const [view, setView] = useState(() => {
-    const d = value ? new Date(value + 'T00:00:00') : new Date()
-    return { year: d.getFullYear(), month: d.getMonth() }
-  })
+  const [view, setView] = useState({ year: today.getFullYear(), month: today.getMonth() })
   const containerRef = useRef(null)
 
   useEffect(() => {
@@ -478,6 +475,22 @@ function CalendarPicker({ value, onChange, disabled }) {
                 </button>
               )
             })}
+          </div>
+
+          {/* Quick actions row */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, paddingTop: 10, borderTop: `1px solid ${BORDER}` }}>
+            <button onClick={() => setView({ year: today.getFullYear(), month: today.getMonth() })}
+              style={{ padding: '5px 14px', background: `${P}20`, border: `1px solid ${P}44`,
+                borderRadius: 8, color: P, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: FONT }}>
+              היום
+            </button>
+            {selected && (
+              <button onClick={() => { onChange(''); setOpen(false) }}
+                style={{ padding: '5px 14px', background: 'transparent', border: `1px solid ${BORDER}`,
+                  borderRadius: 8, color: MUTED, fontSize: 12, cursor: 'pointer', fontFamily: FONT }}>
+                נקה בחירה
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -831,19 +844,20 @@ async function callClaudeRewrite(d, _retry = 0) {
     }),
   })
   if (!res.ok) {
-    const errText = await res.text()
+    let errMsg = `שגיאת שרת (${res.status})`
     try {
-      const errJson = JSON.parse(errText)
+      const errJson = await res.json()
       if (errJson?.error?.type === 'overloaded_error' && _retry < 3) {
         await new Promise(r => setTimeout(r, 2500 * (_retry + 1)))
         return callClaudeRewrite(d, _retry + 1)
       }
       if (errJson?.error?.type === 'overloaded_error')
         throw new Error('השרת עמוס כרגע — נסה שוב בעוד דקה')
+      errMsg = errJson?.error?.message || errJson?.message || JSON.stringify(errJson)
     } catch (e) {
-      if (e.message.includes('השרת')) throw e
+      if (e.message.includes('עמוס') || e.message.includes('שרת')) throw e
     }
-    throw new Error(errText)
+    throw new Error(errMsg)
   }
   const data = await res.json()
   const text = data.content?.[0]?.text?.trim()
@@ -1371,12 +1385,19 @@ export default function PropertyWizard({ onClose, onPublish }) {
     } catch { return INIT }
   })
   const [showPublishModal, setShowPublishModal] = useState(false)
+  const [draftSaved, setDraftSaved] = useState(false)
   const glowRef = useRef(null)
 
   // Auto-save on every change
   useEffect(() => {
     try { localStorage.setItem(WIZARD_DRAFT_KEY, JSON.stringify(data)) } catch {}
   }, [data])
+
+  const handleSaveDraft = () => {
+    try { localStorage.setItem(WIZARD_DRAFT_KEY, JSON.stringify(data)) } catch {}
+    setDraftSaved(true)
+    setTimeout(() => setDraftSaved(false), 2500)
+  }
 
   const upd = useCallback((key, val) => setData(prev => ({ ...prev, [key]: val })), [])
 
@@ -1508,7 +1529,7 @@ export default function PropertyWizard({ onClose, onPublish }) {
 
             {/* ── Footer — CTA centered ── */}
             <div style={{ padding: '12px 22px 16px', borderTop: `1px solid ${BORDER}`,
-              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
 
               {step < STEPS.length ? (
                 <button onClick={() => canNext() && setStep(s => s + 1)}
@@ -1533,9 +1554,21 @@ export default function PropertyWizard({ onClose, onPublish }) {
                 </button>
               )}
 
+              {/* Save draft button */}
+              <button onClick={handleSaveDraft}
+                style={{ width: '75%', maxWidth: 300, padding: '9px 20px', borderRadius: 10,
+                  border: `1.5px solid ${draftSaved ? G : BORDER}`,
+                  background: draftSaved ? `${G}18` : 'transparent',
+                  color: draftSaved ? G : MUTED,
+                  fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: FONT,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                  transition: 'all .25s' }}>
+                {draftSaved ? <><FaCheck size={11} /> נשמר בטיוטות</> : <><FaSave size={11} /> שמור טיוטה</>}
+              </button>
+
               {step > 1 && (
                 <button onClick={() => setStep(s => Math.max(1, s - 1))}
-                  style={{ padding: '6px 18px', background: 'none', border: 'none',
+                  style={{ padding: '5px 18px', background: 'none', border: 'none',
                     color: MUTED, fontSize: 13, cursor: 'pointer', fontFamily: FONT,
                     display: 'flex', alignItems: 'center', gap: 6, transition: 'color .2s' }}
                   onMouseEnter={e => e.currentTarget.style.color = TEXT}
