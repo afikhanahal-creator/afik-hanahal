@@ -849,6 +849,20 @@ const makeGlobal = (C, isDark) => `
     .admin-mobile-topbar { height: 52px; padding: 0 12px; }
   }
 
+  /* ── Admin bottom nav (standalone mobile) ── */
+  .admin-bottom-nav {
+    display: none;
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
+    background: rgba(7,7,15,.97); border-top: 1px solid rgba(132,144,216,.15);
+    backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+    height: 58px; padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  @media (max-width: 640px) {
+    .admin-bottom-nav { display: flex; }
+    .admin-content { padding-bottom: 72px !important; }
+    .admin-tabs-bar { display: none !important; }
+  }
+
   /* ── UI/UX Pro Max: prefers-reduced-motion ── */
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
@@ -3314,7 +3328,7 @@ function TeamTab({ C, isDark }) {
   const revoke = (id) => { if (window.confirm('להסיר חבר צוות זה?')) save(team.filter(m => m.id !== id)) }
   const changeRole = (id, role) => save(team.map(m => m.id === id ? { ...m, role } : m))
   const regenerate = (id) => save(team.map(m => m.id === id ? { ...m, token: genToken(), status: 'pending' } : m))
-  const getInviteLink = (member) => `${window.location.origin}${window.location.pathname}?team_token=${member.token}`
+  const getInviteLink = (member) => `${window.location.origin}/dashboard?team_token=${member.token}`
   const copyLink = (member) => {
     navigator.clipboard.writeText(getInviteLink(member)).then(() => { setCopied(member.id); setTimeout(() => setCopied(null), 2500) })
   }
@@ -3533,6 +3547,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const [waTestResult, setWaTestResult] = useState('')
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState('')
+  const [wizardOpen, setWizardOpen] = useState(false)
 
   const CLAUDE_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY
 
@@ -3978,7 +3993,10 @@ Return ONLY valid JSON (no markdown, no explanation):
             <div style={{ background:`linear-gradient(135deg,${C.purple}22,${C.purple}0A)`, border:`1px solid ${C.purple}44`, borderRadius:12, padding:'18px 18px 16px', marginBottom:16, display:'flex', flexDirection:'column', alignItems:'center', gap:12, textAlign:'center' }}>
               <div style={{ fontSize:14, fontWeight:800, color:C.cream }}>אשף העלאת נכס</div>
               <div style={{ fontSize:11, color:`${C.cream}70` }}>הדרך המהירה להוסיף נכס חדש עם כל הפרטים</div>
-              <button onClick={() => { onClose(); setTimeout(() => document.dispatchEvent(new CustomEvent('afik:openWizard')), 100) }}
+              <button onClick={() => {
+                if (standalone) { setWizardOpen(true) }
+                else { onClose(); setTimeout(() => document.dispatchEvent(new CustomEvent('afik:openWizard')), 100) }
+              }}
                 style={{ padding:'11px 32px', background:C.purple, border:'none', borderRadius:8, color:'#fff', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'inherit', transition:'background .15s', whiteSpace:'nowrap', letterSpacing:'.02em' }}
                 onMouseEnter={e=>e.currentTarget.style.background='#6b77c4'}
                 onMouseLeave={e=>e.currentTarget.style.background=C.purple}>
@@ -4980,6 +4998,37 @@ function MetaWABotCard({ C, isDark }) {
         5. פרוס לאויר דרך Vercel — הבוט יתחיל לענות אוטומטית ✓<br/>
         <span style={{ color:`${C.cream}44`, fontSize:11 }}>* Google Tag Manager (GTM-MZZ8QR8V) כבר מוטמע ופועל</span>
       </div>
+
+      {/* ── Wizard overlay — standalone mode only ───────────────────── */}
+      {standalone && wizardOpen && (
+        <div style={{ position:'fixed', inset:0, zIndex:2000, background:'rgba(0,0,0,.97)', backdropFilter:'blur(4px)' }}>
+          <PropertyWizard
+            onClose={() => setWizardOpen(false)}
+            onPublish={(prop) => {
+              const nextProps = [...properties, prop]
+              setProperties(nextProps)
+              syncProps(nextProps)
+              setWizardOpen(false)
+              setTab('props')
+            }}
+          />
+        </div>
+      )}
+
+      {/* ── Mobile bottom tab bar — standalone only ──────────────────── */}
+      {standalone && (
+        <nav className="admin-bottom-nav">
+          {DASH_TABS.slice(0,5).map(item => (
+            <button key={item.id} onClick={() => setTab(item.id)}
+              style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:3, border:'none', background:'transparent', color: tab===item.id ? '#8490D8' : 'rgba(232,228,216,.32)', cursor:'pointer', fontFamily:'inherit', padding:'8px 4px', position:'relative', transition:'color .15s', minWidth:0 }}>
+              <item.Icon size={18}/>
+              <span style={{ fontSize:9, fontWeight: tab===item.id ? 700 : 400, letterSpacing:'.02em', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:'100%' }}>{item.label}</span>
+              {!!item.badge && <span style={{ position:'absolute', top:6, right:'50%', transform:'translateX(140%)', background:'#8490D8', color:'#fff', borderRadius:8, padding:'1px 5px', fontSize:8, fontWeight:800, lineHeight:1.6 }}>{item.badge}</span>}
+              {tab===item.id && <div style={{ position:'absolute', top:0, left:'15%', right:'15%', height:2, background:'#8490D8', borderRadius:2 }}/>}
+            </button>
+          ))}
+        </nav>
+      )}
     </div>
   )
 }
