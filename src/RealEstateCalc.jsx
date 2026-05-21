@@ -220,8 +220,8 @@ export default function RealEstateCalc({ onClose }) {
   // ── Swipe-to-close (mobile) ──
   const [dragX,    setDragX]    = useState(0)
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768)
-  const touchRef   = useRef({ x0: 0, dragging: false })
-  const SWIPE_THRESHOLD = 80
+  const touchRef   = useRef({ x0: 0, y0: 0, dragging: false, isHoriz: false })
+  const SWIPE_THRESHOLD = 55
 
   useEffect(() => {
     const h = () => setIsMobile(window.innerWidth < 768)
@@ -229,14 +229,27 @@ export default function RealEstateCalc({ onClose }) {
     return () => window.removeEventListener('resize', h)
   }, [])
 
+  // Lock body scroll while modal is open
+  useEffect(() => {
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = prev }
+  }, [])
+
   const onTouchStart = useCallback(e => {
-    touchRef.current = { x0: e.touches[0].clientX, dragging: true }
+    touchRef.current = { x0: e.touches[0].clientX, y0: e.touches[0].clientY, dragging: true, isHoriz: false }
+    setDragX(0)
   }, [])
 
   const onTouchMove = useCallback(e => {
     if (!touchRef.current.dragging) return
     const dx = e.touches[0].clientX - touchRef.current.x0
-    setDragX(dx)
+    const dy = e.touches[0].clientY - touchRef.current.y0
+    if (!touchRef.current.isHoriz && Math.abs(dy) > Math.abs(dx)) return // vertical scroll — ignore
+    if (Math.abs(dx) > 8) {
+      touchRef.current.isHoriz = true
+      setDragX(dx)
+    }
   }, [])
 
   const onTouchEnd = useCallback(() => {
@@ -306,7 +319,7 @@ export default function RealEstateCalc({ onClose }) {
     >
       {/* ── Always-visible X (mobile only, fixed position) ── */}
       <button className="rc-float-close" onClick={onClose} aria-label="סגור">
-        <FaTimes size={17}/>
+        <FaTimes size={13}/> סגור
       </button>
       <style>{`
         @keyframes rcCalcIn {
@@ -421,40 +434,58 @@ export default function RealEstateCalc({ onClose }) {
         @media (max-width: 768px) {
           .rc-float-close {
             display:flex !important;
-            position:fixed; top:14px; left:14px; z-index:10001;
-            width:44px; height:44px; border-radius:50%;
-            background:rgba(10,4,38,0.92);
-            border:1.5px solid rgba(132,144,216,0.5);
-            color:#E8E4D8; cursor:pointer;
-            align-items:center; justify-content:center;
-            backdrop-filter:blur(14px);
-            box-shadow:0 4px 20px rgba(0,0,0,0.55);
-            transition:all .2s;
+            position:fixed; top:14px; left:12px; z-index:10001;
+            height:44px; padding:0 18px; border-radius:22px;
+            background:rgba(6,3,22,0.97);
+            border:2px solid rgba(232,228,216,0.32);
+            color:#E8E4D8; font-size:13px; font-weight:700;
+            font-family:Rubik,sans-serif; letter-spacing:.03em;
+            cursor:pointer;
+            align-items:center; justify-content:center; gap:8px;
+            backdrop-filter:blur(18px);
+            box-shadow:0 4px 28px rgba(0,0,0,0.8), 0 0 0 1px rgba(132,144,216,0.18);
+            transition:all .18s;
           }
-          .rc-float-close:hover { background:rgba(132,144,216,0.3) !important; border-color:rgba(132,144,216,0.8) !important; }
+          .rc-float-close:active { transform:scale(0.93) !important; }
         }
 
         .rc-swipe-hint {
           display:none;
-          text-align:center; padding:6px 0 12px;
-          font-size:11px; color:rgba(232,228,216,0.22);
+          text-align:center; padding:4px 0 8px;
+          font-size:11px; color:rgba(232,228,216,0.28);
           align-items:center; justify-content:center; gap:10px;
           letter-spacing:.06em;
         }
         @media (max-width:768px) { .rc-swipe-hint { display:flex !important; } }
 
+        @media (max-width: 768px) {
+          .rc-scroll { max-height: calc(100dvh - 88px) !important; overflow-y: auto !important; overflow-x: hidden !important; }
+          .rc-overlay { padding-top: 66px !important; padding-bottom: 8px !important; padding-left: 8px !important; padding-right: 8px !important; align-items: flex-start !important; overflow-y: hidden !important; }
+        }
+
         @media (max-width: 600px) {
-          .rc-overlay      { padding: 12px 8px 20px !important; align-items: flex-start !important; }
-          .rc-header       { padding: 14px 16px 12px !important; }
-          .rc-tabs-wrap    { padding: 6px 8px 0 !important; }
-          .rc-modal-body   { padding: 14px 14px 18px !important; }
-          .rc-grid         { grid-template-columns: 1fr !important; gap: 14px !important; }
-          .rc-compare-grid { grid-template-columns: 1fr !important; gap: 10px !important; }
-          .rc-tab-label    { font-size: 11px !important; }
-          .rc-tab          { padding: 9px 5px 10px !important; }
-          .rc-range        { height: 12px !important; }
-          .rc-range::-webkit-slider-runnable-track { height: 12px !important; }
-          .rc-range::-webkit-slider-thumb { width: 32px !important; height: 32px !important; }
+          .rc-scroll { max-height: calc(100dvh - 84px) !important; }
+          .rc-overlay      { padding: 64px 4px 6px !important; align-items: flex-start !important; }
+          .rc-header       { padding: 11px 14px 9px !important; }
+          .rc-tabs-wrap    { padding: 3px 6px 0 !important; gap: 2px !important; }
+          .rc-modal-body   { padding: 8px 10px 10px !important; }
+          .rc-grid         { grid-template-columns: 1fr !important; gap: 10px !important; }
+          .rc-compare-grid { grid-template-columns: 1fr !important; gap: 8px !important; }
+          .rc-tab-label    { font-size: 9px !important; }
+          .rc-tab          { padding: 6px 3px 7px !important; min-width: 0 !important; }
+          .rc-range        { height: 10px !important; }
+          .rc-range::-webkit-slider-runnable-track { height: 10px !important; }
+          .rc-range::-webkit-slider-thumb { width: 26px !important; height: 26px !important; }
+          .rc-eq-btn       { padding: 7px 6px !important; font-size: 10px !important; }
+        }
+
+        @media (max-width: 380px) {
+          .rc-overlay { padding: 60px 2px 4px !important; }
+          .rc-scroll  { max-height: calc(100dvh - 72px) !important; }
+          .rc-tab-label { display: none !important; }
+          .rc-tab     { padding: 8px 6px !important; }
+          .rc-header  { padding: 9px 12px 8px !important; }
+          .rc-modal-body { padding: 6px 8px 8px !important; }
         }
       `}</style>
 
@@ -503,12 +534,12 @@ export default function RealEstateCalc({ onClose }) {
         <div style={{ position: 'relative', zIndex: 2 }}>
 
           {/* ── HEADER ─────────────────────────────────────────────── */}
-          <div className="rc-header" style={{ padding:'22px 28px 18px', borderBottom:'1px solid rgba(132,144,216,0.12)', display:'flex', alignItems:'center', justifyContent:'space-between', gap:16 }}>
+          <div className="rc-header" style={{ padding:'16px 28px 13px', borderBottom:'1px solid rgba(132,144,216,0.12)', display:'flex', alignItems:'center', justifyContent:'space-between', gap:14 }}>
             <div>
               <div style={{ fontSize:13, fontWeight:700, letterSpacing:'3.5px', color:P, opacity:.8, textTransform:'uppercase', marginBottom:8 }}>
                 כלי עזר לרוכשים ומשקיעים
               </div>
-              <h2 style={{ margin:0, fontSize:28, fontWeight:900, color:CRM, letterSpacing:'-.3px', lineHeight:1.2 }}>
+              <h2 style={{ margin:0, fontSize:24, fontWeight:900, color:CRM, letterSpacing:'-.3px', lineHeight:1.2 }}>
                 מחשבון נדל״ן חכם
                 <span style={{ fontSize:13, fontWeight:700, color:G, background:'rgba(130,246,127,0.14)', border:'1px solid rgba(130,246,127,0.28)', borderRadius:7, padding:'3px 10px', marginRight:12, verticalAlign:'middle', letterSpacing:'.04em' }}>2026</span>
               </h2>
@@ -536,7 +567,7 @@ export default function RealEstateCalc({ onClose }) {
           </div>
 
           {/* ── CONTENT ─────────────────────────────────────────────── */}
-          <div className="rc-modal-body" style={{ padding:'24px 28px 32px' }}>
+          <div className="rc-modal-body" style={{ padding:'16px 28px 22px' }}>
 
             {/* ══ TAB: מס רכישה ═══════════════════════════════════════ */}
             {tab === 'tax' && (
@@ -648,18 +679,18 @@ export default function RealEstateCalc({ onClose }) {
             {/* ══ TAB: משכנתא ═════════════════════════════════════════ */}
             {tab === 'ltv' && (
               <div style={{ animation:'rcFadeUp .28s ease both' }}>
-                <p style={{ fontSize:15, color:`${CRM}65`, margin:'0 0 8px', lineHeight:1.5 }}>
+                <p style={{ fontSize:13, color:`${CRM}65`, margin:'0 0 6px', lineHeight:1.4 }}>
                   חישוב מינוף מקסימלי לפי כללי בנק ישראל — גובה משכנתא, הון עצמי, והחזר חודשי.
                 </p>
-                <div className="rc-grid" style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(300px,1fr))', gap:18, alignItems:'start' }}>
+                <div className="rc-grid" style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(300px,1fr))', gap:14, alignItems:'start' }}>
 
                   {/* LEFT */}
                   <div>
                     <label style={LABEL}>סוג הרכישה</label>
-                    <div style={{ display:'flex', flexDirection:'column', gap:5, marginBottom:10 }}>
+                    <div style={{ display:'flex', flexDirection:'column', gap:4, marginBottom:8 }}>
                       {Object.entries(LTV_RULES).map(([v, { label, ltv }]) => (
                         <button key={v} className={`rc-type${ltvType===v?' rc-type-on':''}`} onClick={() => setLtvType(v)}
-                          style={{ padding:'10px 18px', border:`1.5px solid ${ltvType===v ? P : 'rgba(132,144,216,0.18)'}`, borderRadius:13, background: ltvType===v ? 'rgba(132,144,216,0.18)' : 'rgba(255,255,255,0.025)', color: ltvType===v ? P : `${CRM}65`, fontFamily:'inherit', fontWeight:700, fontSize:16, cursor:'pointer', transition:'all .2s', display:'flex', justifyContent:'space-between', alignItems:'center', boxShadow: ltvType===v ? `0 0 22px rgba(132,144,216,0.2)` : 'none' }}>
+                          style={{ padding:'8px 16px', border:`1.5px solid ${ltvType===v ? P : 'rgba(132,144,216,0.18)'}`, borderRadius:11, background: ltvType===v ? 'rgba(132,144,216,0.18)' : 'rgba(255,255,255,0.025)', color: ltvType===v ? P : `${CRM}65`, fontFamily:'inherit', fontWeight:700, fontSize:15, cursor:'pointer', transition:'all .2s', display:'flex', justifyContent:'space-between', alignItems:'center', boxShadow: ltvType===v ? `0 0 22px rgba(132,144,216,0.2)` : 'none' }}>
                           <span>{label}</span>
                           <span style={{ background: ltvType===v ? P : 'rgba(255,255,255,0.08)', color: ltvType===v ? '#fff' : `${CRM}55`, borderRadius:20, padding:'3px 12px', fontSize:14, fontWeight:900, fontFamily:'monospace', flexShrink:0 }}>
                             {ltv * 100}%
@@ -769,8 +800,8 @@ export default function RealEstateCalc({ onClose }) {
                     </div>
 
                     {/* Rate slider */}
-                    <div style={{ marginBottom:10 }}>
-                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:9 }}>
+                    <div style={{ marginBottom:7 }}>
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:7 }}>
                         <label style={{ ...LABEL, marginBottom:0 }}>ריבית שנתית</label>
                         <span style={{ fontSize:20, fontWeight:900, color:P, fontFamily:'Rubik,monospace', background:'rgba(132,144,216,0.16)', border:'1px solid rgba(132,144,216,0.32)', borderRadius:9, padding:'4px 14px', letterSpacing:'.02em', lineHeight:1.3 }}>{rateVal}%</span>
                       </div>
@@ -784,7 +815,7 @@ export default function RealEstateCalc({ onClose }) {
 
                     {/* Years slider */}
                     <div>
-                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:9 }}>
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:7 }}>
                         <label style={{ ...LABEL, marginBottom:0 }}>תקופה</label>
                         <span style={{ fontSize:20, fontWeight:900, color:G, fontFamily:'Rubik,monospace', background:'rgba(130,246,127,0.14)', border:'1px solid rgba(130,246,127,0.3)', borderRadius:9, padding:'4px 14px', lineHeight:1.3 }}>{yearsVal} שנים</span>
                       </div>
@@ -800,28 +831,28 @@ export default function RealEstateCalc({ onClose }) {
                   {/* RIGHT */}
                   <div>
                     {ltvNum > 0 ? (
-                      <div style={{ display:'flex', flexDirection:'column', gap:12, animation:'rcFadeUp .32s ease .06s both' }}>
-                        <div className="rc-card rc-card-p" style={{ background:'rgba(132,144,216,0.12)', border:'1px solid rgba(132,144,216,0.22)', borderRadius:16, padding:'17px 22px' }}>
-                          <div style={{ fontSize:12, color:`${CRM}55`, marginBottom:5, textTransform:'uppercase', letterSpacing:'.07em' }}>מקסימום משכנתא</div>
-                          <div style={{ fontSize:38, fontWeight:900, color:P, fontFamily:'Rubik,monospace', lineHeight:1.1 }}>₪{fmt(aLoan)}</div>
-                          <div style={{ fontSize:14, color:`${P}CC`, marginTop:5, fontWeight:600 }}>{(effectiveLTV * 100).toFixed(0)}% ממחיר הנכס</div>
+                      <div style={{ display:'flex', flexDirection:'column', gap:9, animation:'rcFadeUp .32s ease .06s both' }}>
+                        <div className="rc-card rc-card-p" style={{ background:'rgba(132,144,216,0.12)', border:'1px solid rgba(132,144,216,0.22)', borderRadius:14, padding:'13px 18px' }}>
+                          <div style={{ fontSize:11, color:`${CRM}55`, marginBottom:4, textTransform:'uppercase', letterSpacing:'.07em' }}>מקסימום משכנתא</div>
+                          <div style={{ fontSize:34, fontWeight:900, color:P, fontFamily:'Rubik,monospace', lineHeight:1.1 }}>₪{fmt(aLoan)}</div>
+                          <div style={{ fontSize:13, color:`${P}CC`, marginTop:4, fontWeight:600 }}>{(effectiveLTV * 100).toFixed(0)}% ממחיר הנכס</div>
                         </div>
 
-                        <div className="rc-card rc-card-g" style={{ background:'rgba(130,246,127,0.08)', border:'1px solid rgba(130,246,127,0.2)', borderRadius:16, padding:'17px 22px' }}>
-                          <div style={{ fontSize:12, color:`${CRM}55`, marginBottom:5, textTransform:'uppercase', letterSpacing:'.07em' }}>הון עצמי</div>
-                          <div style={{ fontSize:32, fontWeight:900, color:G, fontFamily:'Rubik,monospace', lineHeight:1.1 }}>₪{fmt(aEquity)}</div>
-                          <div style={{ fontSize:14, color:`${G}BB`, marginTop:5, fontWeight:600 }}>{(100 - effectiveLTV * 100).toFixed(0)}% — כולל מס רכישה ועו"ד</div>
+                        <div className="rc-card rc-card-g" style={{ background:'rgba(130,246,127,0.08)', border:'1px solid rgba(130,246,127,0.2)', borderRadius:14, padding:'13px 18px' }}>
+                          <div style={{ fontSize:11, color:`${CRM}55`, marginBottom:4, textTransform:'uppercase', letterSpacing:'.07em' }}>הון עצמי</div>
+                          <div style={{ fontSize:28, fontWeight:900, color:G, fontFamily:'Rubik,monospace', lineHeight:1.1 }}>₪{fmt(aEquity)}</div>
+                          <div style={{ fontSize:13, color:`${G}BB`, marginTop:4, fontWeight:600 }}>{(100 - effectiveLTV * 100).toFixed(0)}% — כולל מס רכישה ועו"ד</div>
                         </div>
 
                         {monthly > 0 && (() => {
                           const warn = incomeNum > 0 && monthly > maxPayment
                           const c = warn ? Y : G
                           return (
-                            <div className={`rc-card rc-card-${warn ? 'y' : 'g'}`} style={{ background:`${c}0A`, border:`1px solid ${c}25`, borderRadius:16, padding:'17px 22px' }}>
-                              <div style={{ fontSize:12, color:`${CRM}55`, marginBottom:5, textTransform:'uppercase', letterSpacing:'.07em' }}>החזר חודשי משוער</div>
-                              <div style={{ fontSize:32, fontWeight:900, color:c, fontFamily:'Rubik,monospace', lineHeight:1.1 }}>₪{fmt(aMonthly)}</div>
+                            <div className={`rc-card rc-card-${warn ? 'y' : 'g'}`} style={{ background:`${c}0A`, border:`1px solid ${c}25`, borderRadius:14, padding:'13px 18px' }}>
+                              <div style={{ fontSize:11, color:`${CRM}55`, marginBottom:4, textTransform:'uppercase', letterSpacing:'.07em' }}>החזר חודשי משוער</div>
+                              <div style={{ fontSize:28, fontWeight:900, color:c, fontFamily:'Rubik,monospace', lineHeight:1.1 }}>₪{fmt(aMonthly)}</div>
                               {incomeNum > 0 && (
-                                <div style={{ fontSize:14, color:c, marginTop:5, fontWeight:700 }}>
+                                <div style={{ fontSize:13, color:c, marginTop:4, fontWeight:700 }}>
                                   {warn ? '⚠ ' : '✓ '}{((monthly / incomeNum) * 100).toFixed(1)}% מההכנסה {warn ? '— גבוה מ-35%' : '— תקין'}
                                 </div>
                               )}

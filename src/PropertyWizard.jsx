@@ -161,7 +161,7 @@ export function wizardToProperty(d, isDraft) {
   Object.entries(amenMap).forEach(([wk, ak]) => { amenities[ak] = !!d.amenities[wk] })
 
   const images = d.media.filter(m => m.type === 'image').map(m => m.url)
-  const videoItem = d.media.find(m => m.type === 'video')
+  const videoItems = d.media.filter(m => m.type === 'video')
 
   return {
     id: `wiz_${Date.now()}`,
@@ -192,7 +192,8 @@ export function wizardToProperty(d, isDraft) {
     entryDate: d.entryFlex ? 'גמיש' : d.entryDate,
     description: d.description || '',
     images,
-    videoUrl: d.youtubeUrl || videoItem?.url || '',
+    videos: videoItems.map(v => ({ url: v.url, thumbnail: v.thumbnail || null })),
+    videoUrl: d.youtubeUrl || videoItems[0]?.url || '',
     gush: d.gush || '',
     helka: d.helka || '',
     mapsUrl: d.mapsUrl || '',

@@ -20,6 +20,15 @@
     },
     "api/stats.js": {
       "maxDuration": 15
+    },
+    "api/properties.js": {
+      "maxDuration": 15
+    },
+    "api/properties/bulk.js": {
+      "maxDuration": 20
+    },
+    "api/ai/messages.js": {
+      "maxDuration": 30
     }
   },
   "rewrites": [

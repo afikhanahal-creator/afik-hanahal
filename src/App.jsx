@@ -709,8 +709,18 @@ const makeGlobal = (C, isDark) => `
     .footer-nav-links button { font-size: 14px !important; padding: 6px 0 !important; }
     .footer-hours { display: flex !important; gap: 16px !important; flex-wrap: wrap !important; }
     .footer-social { margin-bottom: 14px !important; }
-    .footer-bottom { flex-direction: column !important; align-items: flex-end !important; gap: 10px !important; }
-    .footer-bottom-links { justify-content: flex-end !important; }
+    .footer-bottom { flex-direction: column !important; align-items: center !important; gap: 10px !important; text-align: center !important; }
+    .footer-bottom-links { justify-content: center !important; flex-wrap: wrap !important; }
+    .footer-col { text-align: center !important; }
+    .footer-col .footer-social { justify-content: center !important; }
+    .footer-col .footer-hours { justify-content: center !important; }
+    footer a[href^="tel"] { justify-content: center !important; }
+    footer a[href^="https://wa.me"] { justify-content: center !important; }
+    footer a[href^="mailto"] { justify-content: center !important; }
+    footer button[style*="fit-content"] { width: 100% !important; justify-content: center !important; }
+    footer .footer-nav-links button { text-align: center !important; }
+    .story-btns a[href^="tel"] { justify-content: center !important; width: 100% !important; }
+    #process a[href^="tel"] { justify-content: center !important; }
     .prop-detail-body { grid-template-columns: 1fr !important; }
     .prop-detail-sidebar { position: static !important; max-height: none !important; border-right: none !important; border-bottom: 1px solid rgba(132,144,216,.1) !important; }
     .prop-gallery-main { height: clamp(210px, 52vw, 320px) !important; }
@@ -760,6 +770,44 @@ const makeGlobal = (C, isDark) => `
 
   @media(min-width:769px) {
     .testi-card-wrap { min-height: 500px; }
+    .testi-card-outer { background: transparent !important; border-color: transparent !important; box-shadow: none !important; backdrop-filter: none !important; }
+  }
+
+  /* ─── Admin Panel — Mobile ─────────────────────────────────── */
+  .admin-sidebar { transition: transform .25s cubic-bezier(.4,0,.2,1); }
+  .admin-mobile-topbar { display: none; }
+  .admin-mobile-overlay { display: none; }
+  @media (max-width: 900px) {
+    .admin-sidebar {
+      position: fixed !important;
+      top: 0; right: 0; bottom: 0;
+      z-index: 1050 !important;
+      transform: translateX(110%);
+      width: min(280px, 88vw) !important;
+      box-shadow: -12px 0 60px rgba(0,0,0,.85) !important;
+    }
+    .admin-sidebar.open { transform: translateX(0) !important; }
+    .admin-mobile-overlay { display: block !important; position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 1049; backdrop-filter: blur(3px); }
+    .admin-mobile-topbar {
+      display: flex !important;
+      height: 56px; padding: 0 16px;
+      border-bottom: 1px solid rgba(132,144,216,.08);
+      align-items: center; justify-content: space-between;
+      background: rgba(7,7,15,.95); flex-shrink: 0;
+      direction: rtl; position: sticky; top: 0; z-index: 20;
+    }
+    .admin-desktop-topbar { display: none !important; }
+    .admin-main-pane { height: 100dvh !important; }
+    .admin-content { padding: 16px 14px 28px !important; }
+    .admin-tabs-bar { padding: 0 12px !important; overflow-x: auto !important; flex-wrap: nowrap !important; gap: 2px !important; }
+    .admin-form-grid { grid-template-columns: 1fr !important; }
+    .admin-prop-list-actions { flex-wrap: wrap !important; gap: 6px !important; }
+    .admin-overview-grid { grid-template-columns: repeat(2,1fr) !important; }
+    .admin-overview-bottom { grid-template-columns: 1fr !important; }
+  }
+  @media (max-width: 480px) {
+    .admin-overview-grid { grid-template-columns: 1fr !important; }
+    .admin-mobile-topbar { height: 52px; padding: 0 12px; }
   }
 
   /* ── UI/UX Pro Max: prefers-reduced-motion ── */
@@ -3382,6 +3430,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const [editId, setEditId] = useState(null)
   const [err, setErr]     = useState('')
   const [tab, setTab]     = useState('props')
+  const [adminNavOpen, setAdminNavOpen] = useState(false)
   const [listTab, setListTab] = useState('published')
   const [listCat, setListCat] = useState('all')
   const [saved, setSaved]   = useState(false)
@@ -3496,11 +3545,11 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   }
 
   const syncProps = async (nextProps) => {
-    if (!API_BASE) return
     setPropSyncing(true)
     setPropSyncError('')
+    const base = API_BASE || ''
     try {
-      const r = await fetch(`${API_BASE}/api/properties/bulk`, {
+      const r = await fetch(`${base}/api/properties/bulk`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
         body:    JSON.stringify(nextProps),
@@ -3680,9 +3729,14 @@ Return ONLY valid JSON (no markdown, no explanation):
       ? { position:'fixed', inset:0, zIndex:1000, display:'flex', background:'#07070F', direction:'rtl', fontFamily:'Rubik, sans-serif' }
       : { position:'fixed', inset:0, background:'rgba(0,0,0,.92)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:16, overflowY:'auto' }}>
 
+      {/* ── MOBILE SIDEBAR OVERLAY — standalone only ──────────────────── */}
+      {standalone && adminNavOpen && (
+        <div className="admin-mobile-overlay" onClick={() => setAdminNavOpen(false)}/>
+      )}
+
       {/* ── SIDEBAR — standalone only ─────────────────────────────────── */}
       {standalone && (
-        <aside style={{ width:232, height:'100dvh', background:'linear-gradient(180deg,#0E0E1C 0%,#090910 100%)', borderLeft:'1px solid rgba(132,144,216,.1)', display:'flex', flexDirection:'column', flexShrink:0 }}>
+        <aside className={`admin-sidebar${adminNavOpen ? ' open' : ''}`} style={{ width:232, height:'100dvh', background:'linear-gradient(180deg,#0E0E1C 0%,#090910 100%)', borderLeft:'1px solid rgba(132,144,216,.1)', display:'flex', flexDirection:'column', flexShrink:0 }}>
           {/* Brand */}
           <div style={{ padding:'26px 20px 20px', borderBottom:'1px solid rgba(132,144,216,.07)' }}>
             <img src="/logo.svg" alt="אפיק הנחל" style={{ height:32, opacity:.85 }} onError={e => { e.currentTarget.style.display='none' }}/>
@@ -3694,7 +3748,7 @@ Return ONLY valid JSON (no markdown, no explanation):
           {/* Nav */}
           <nav style={{ flex:1, overflowY:'auto', padding:'12px 10px' }}>
             {DASH_TABS.map(item => (
-              <button key={item.id} onClick={() => setTab(item.id)}
+              <button key={item.id} onClick={() => { setTab(item.id); setAdminNavOpen(false) }}
                 style={{ width:'100%', display:'flex', alignItems:'center', gap:10, padding:'10px 13px 10px 10px', border:'none', borderRight: tab===item.id ? `2px solid ${C.purple}` : '2px solid transparent', borderRadius:'0 8px 8px 0', background: tab===item.id ? `rgba(132,144,216,.12)` : 'transparent', color: tab===item.id ? C.purple : 'rgba(232,228,216,.4)', cursor:'pointer', fontFamily:'inherit', fontSize:12.5, fontWeight: tab===item.id ? 600 : 400, marginBottom:1, textAlign:'right', transition:'all .15s', letterSpacing:'.01em' }}
                 onMouseEnter={e=>{ if(tab!==item.id){ e.currentTarget.style.background='rgba(132,144,216,.06)'; e.currentTarget.style.color='rgba(232,228,216,.68)' }}}
                 onMouseLeave={e=>{ if(tab!==item.id){ e.currentTarget.style.background='transparent'; e.currentTarget.style.color='rgba(232,228,216,.4)' }}}>
@@ -3723,13 +3777,37 @@ Return ONLY valid JSON (no markdown, no explanation):
       )}
 
       {/* ── MAIN PANE ─────────────────────────────────────────────────── */}
-      <div style={standalone
+      <div className="admin-main-pane" style={standalone
         ? { flex:1, display:'flex', flexDirection:'column', height:'100dvh', overflow:'hidden' }
         : { background:C.card, border:`1px solid ${C.purple}33`, borderRadius:16, padding:28, width:'100%', maxWidth:820, maxHeight:'94vh', overflowY:'auto', direction:'rtl', boxShadow:'0 32px 80px rgba(0,0,0,.7)' }}>
 
-        {/* Standalone top-bar */}
+        {/* ── MOBILE TOP BAR — inside main pane ──────────────────────── */}
         {standalone && (
-          <div style={{ height:56, borderBottom:'1px solid rgba(132,144,216,.08)', display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 26px', flexShrink:0, background:'rgba(7,7,15,.82)', backdropFilter:'blur(20px)', direction:'rtl' }}>
+          <div className="admin-mobile-topbar">
+            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+              <button onClick={() => setAdminNavOpen(v => !v)}
+                style={{ background:'none', border:`1px solid rgba(132,144,216,.25)`, borderRadius:8, width:36, height:36, color:'rgba(232,228,216,.7)', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:4 }}>
+                <div style={{ width:16, height:1.5, background:'currentColor', borderRadius:1 }}/>
+                <div style={{ width:16, height:1.5, background:'currentColor', borderRadius:1 }}/>
+                <div style={{ width:16, height:1.5, background:'currentColor', borderRadius:1 }}/>
+              </button>
+            </div>
+            <div style={{ fontSize:13, fontWeight:700, color:'rgba(232,228,216,.75)' }}>
+              {DASH_TABS.find(t => t.id === tab)?.label || 'ניהול'}
+            </div>
+            <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+              {saved && <span style={{ fontSize:10, color:'#22C55E', fontWeight:700, background:'rgba(34,197,94,.12)', padding:'2px 8px', borderRadius:10 }}>נשמר</span>}
+              <button onClick={onClose}
+                style={{ background:'rgba(224,82,82,.08)', border:'1px solid rgba(224,82,82,.22)', borderRadius:8, width:34, height:34, color:'rgba(224,82,82,.7)', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                <FaTimes size={11}/>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Standalone desktop top-bar */}
+        {standalone && (
+          <div className="admin-desktop-topbar" style={{ height:56, borderBottom:'1px solid rgba(132,144,216,.08)', display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 26px', flexShrink:0, background:'rgba(7,7,15,.82)', backdropFilter:'blur(20px)', direction:'rtl' }}>
             <div style={{ display:'flex', alignItems:'center', gap:10 }}>
               <h2 style={{ fontSize:15, fontWeight:800, color:'rgba(232,228,216,.86)', margin:0 }}>{TAB_LABELS[tab] || ''}</h2>
               {saved && <span style={{ fontSize:11, color:'#22C55E', fontWeight:700, background:'rgba(34,197,94,.1)', padding:'3px 10px', borderRadius:20, border:'1px solid rgba(34,197,94,.2)' }}>✓ נשמר</span>}
@@ -3775,11 +3853,11 @@ Return ONLY valid JSON (no markdown, no explanation):
         )}
 
         {/* ── Scrollable content ─────────────────────────────────────── */}
-        <div style={standalone ? { flex:1, overflowY:'auto', padding:'22px 26px 32px', direction:'rtl' } : {}}>
+        <div className="admin-content" style={standalone ? { flex:1, overflowY:'auto', padding:'22px 26px 32px', direction:'rtl' } : {}}>
 
         {/* Overview tab — standalone only */}
         {tab==='overview' && standalone && (<>
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(190px,1fr))', gap:14, marginBottom:24 }}>
+          <div className="admin-overview-grid" style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(190px,1fr))', gap:14, marginBottom:24 }}>
             {[
               { Icon:FaBuilding,  label:'נכסים פעילים',  value: properties.filter(p=>p.published!==false).length, sub:`מתוך ${properties.length} סה"כ`,          color:'#8490D8' },
               { Icon:FaFileAlt,   label:'טיוטות',          value: properties.filter(p=>p.published===false).length, sub:'ממתינות לפרסום',                          color:'#F7C948' },
@@ -3796,7 +3874,7 @@ Return ONLY valid JSON (no markdown, no explanation):
               </div>
             ))}
           </div>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
+          <div className="admin-overview-bottom" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
             <div style={{ background:'rgba(255,255,255,.03)', border:'1px solid rgba(132,144,216,.1)', borderRadius:14, padding:20 }}>
               <h3 style={{ fontSize:13, fontWeight:700, color:'rgba(232,228,216,.75)', marginBottom:14 }}>לידים אחרונים</h3>
               {leads.slice(0,5).map((l,i) => (
@@ -3859,7 +3937,7 @@ Return ONLY valid JSON (no markdown, no explanation):
               </div>
 
               {/* Base fields */}
-              <div className="prop-form-grid" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0 14px' }}>
+              <div className="admin-form-grid" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0 14px' }}>
                 <div style={{ gridColumn:'1/-1' }}>
                   <label style={{ fontSize:11, color:`${C.cream}70`, display:'block', marginBottom:4, fontWeight:600 }}>שם הנכס *</label>
                   <input placeholder="שם הנכס" value={form.title} onChange={set('title')} style={inp}/>
@@ -3879,7 +3957,7 @@ Return ONLY valid JSON (no markdown, no explanation):
               </div>
 
               {/* Category-specific fields */}
-              <div className="prop-form-grid" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0 14px' }}>
+              <div className="admin-form-grid" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0 14px' }}>
                 {form.category === 'apartments' && <>
                   <div><label style={{ fontSize:11, color:`${C.cream}70`, display:'block', marginBottom:4, fontWeight:600 }}>חדרים</label><input placeholder="3.5" value={form.rooms} onChange={set('rooms')} style={inp}/></div>
                   <div><label style={{ fontSize:11, color:`${C.cream}70`, display:'block', marginBottom:4, fontWeight:600 }}>שטח מ"ר (כולל)</label><input placeholder="120" value={form.size} onChange={set('size')} style={inp}/></div>
@@ -3984,7 +4062,7 @@ Return ONLY valid JSON (no markdown, no explanation):
               )}
 
               {/* Price + status */}
-              <div className="prop-form-grid" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0 14px' }}>
+              <div className="admin-form-grid" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0 14px' }}>
                 <div>
                   <label style={{ fontSize:11, color:`${C.cream}70`, display:'block', marginBottom:4, fontWeight:600 }}>מחיר (₪)</label>
                   <input placeholder="3500000" value={form.price} onChange={set('price')} style={inp}/>
@@ -4016,7 +4094,7 @@ Return ONLY valid JSON (no markdown, no explanation):
               </div>
 
               {/* Links row */}
-              <div className="prop-form-grid" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0 14px', marginBottom:0 }}>
+              <div className="admin-form-grid" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0 14px', marginBottom:0 }}>
                 <div style={{ marginBottom:14 }}>
                   <label style={{ fontSize:11, color:`${C.cream}70`, display:'block', marginBottom:4, fontWeight:600 }}>לינק לדף נחיתה</label>
                   <input placeholder="https://..." value={form.landingPageUrl||''} onChange={set('landingPageUrl')} style={inp}/>
@@ -4060,7 +4138,7 @@ Return ONLY valid JSON (no markdown, no explanation):
                 <button onClick={() => save(true)} disabled={propSyncing} style={{ flex:1, padding:'12px', background: propSyncing ? `${C.purple}88` : C.purple, border:'none', borderRadius:6, color:'#fff', fontSize:13, fontWeight:700, cursor: propSyncing ? 'not-allowed' : 'pointer', fontFamily:'inherit', transition:'background .15s' }}
                   onMouseEnter={e => { if (!propSyncing) e.currentTarget.style.background='#6b77c4' }}
                   onMouseLeave={e => { if (!propSyncing) e.currentTarget.style.background=C.purple }}>
-                  {propSyncing ? '⏳ שומר...' : editId ? 'עדכן ופרסם' : '✓ פרסם לאוויר'}
+                  {propSyncing ? 'שומר...' : editId ? 'עדכן ופרסם' : 'פרסם לאוויר'}
                 </button>
                 {editId && <button onClick={() => { setEditId(null); setForm(EMPTY_PROP); localStorage.removeItem(ADMIN_DRAFT_KEY) }} style={{ padding:'12px 18px', background:'transparent', border:`1px solid ${C.purple}33`, borderRadius:6, color:`${C.cream}AA`, cursor:'pointer', fontFamily:'inherit', fontSize:13 }}>ביטול</button>}
               </div>
@@ -4140,7 +4218,7 @@ Return ONLY valid JSON (no markdown, no explanation):
                             {/* Publish toggle */}
                             {p.published===false
                               ? <button onClick={() => publish(p.id)} style={{ padding:'6px 12px', background:`${C.green}18`, border:`1px solid ${C.green}44`, borderRadius:7, color:C.green, cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:700, whiteSpace:'nowrap' }}>פרסם</button>
-                              : <button onClick={() => unpublish(p.id)} style={{ padding:'6px 12px', background:'rgba(247,201,72,.08)', border:'1px solid rgba(247,201,72,.3)', borderRadius:7, color:'#F7C948', cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:600, whiteSpace:'nowrap' }}>⏸ הסתר</button>
+                              : <button onClick={() => unpublish(p.id)} style={{ padding:'6px 12px', background:'rgba(247,201,72,.08)', border:'1px solid rgba(247,201,72,.3)', borderRadius:7, color:'#F7C948', cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:600, whiteSpace:'nowrap' }}>הסתר</button>
                             }
                             {/* Status quick-set: נמכר / הושכר / החזר לשיווק */}
                             {(p.status==='נמכר' || p.status==='הושכר') && (
@@ -4189,7 +4267,7 @@ Return ONLY valid JSON (no markdown, no explanation):
               </div>
               <button onClick={saveCounters} disabled={countersSaving}
                 style={{ padding:'10px 26px', background: countersSaved ? 'rgba(34,197,94,.15)' : C.purple, border: countersSaved ? '1px solid rgba(34,197,94,.4)' : 'none', borderRadius:9, color: countersSaved ? '#22C55E' : '#fff', fontWeight:700, fontSize:13, cursor: countersSaving ? 'not-allowed' : 'pointer', fontFamily:'inherit', transition:'all .25s', display:'flex', alignItems:'center', gap:8, opacity: countersSaving ? .7 : 1, boxShadow: countersSaved ? 'none' : `0 4px 18px ${C.purple}44`, whiteSpace:'nowrap' }}>
-                {countersSaving ? '⟳ שומר...' : countersSaved ? '✓ נשמר!' : '💾 שמור שינויים'}
+                {countersSaving ? 'שומר...' : countersSaved ? 'נשמר' : 'שמור שינויים'}
               </button>
             </div>
 
@@ -4960,24 +5038,24 @@ function useRotatingNews() {
   const run = useCallback(async (forceReset = false) => {
     setLoading(true); setError(false)
 
-    const CACHE_KEY = 'afik_news_cache_v8'
-    const DAILY_KEY = 'afik_daily_rotation'
+    const CACHE_KEY   = 'afik_news_cache_v10'
+    const DAILY_KEY   = 'afik_daily_rotation'
+    const DISPLAY_KEY = 'afik_display_v2'
     const now = Date.now()
 
-    // Check if daily 08:00 rotation is due
-    const todayStr  = getIsraelDateStr()
-    const hourNow   = getIsraelHour()
-    const lastDaily = localStorage.getItem(DAILY_KEY) || ''
+    const todayStr   = getIsraelDateStr()
+    const hourNow    = getIsraelHour()
+    const lastDaily  = localStorage.getItem(DAILY_KEY) || ''
     const needsDaily = hourNow >= 8 && lastDaily !== todayStr
 
-    // Serve from cache if fresh and no rotation needed
+    // Serve from display cache when pool is still fresh and no rotation pending
     if (!forceReset && !needsDaily) {
       try {
-        const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null')
-        if (cached?.articles?.length && (now - cached.ts) < 30 * 60 * 1000) {
-          setArticles(cached.articles.slice(0, SLOT_COUNT))
-          setLoading(false)
-          return
+        const display = JSON.parse(localStorage.getItem(DISPLAY_KEY) || 'null')
+        const cache   = JSON.parse(localStorage.getItem(CACHE_KEY)   || 'null')
+        if (display?.articles?.length >= SLOT_COUNT && cache?.ts && (now - cache.ts) < 30 * 60 * 1000) {
+          setArticles(display.articles.slice(0, SLOT_COUNT))
+          setLoading(false); return
         }
       } catch {}
     }
@@ -4986,58 +5064,89 @@ function useRotatingNews() {
 
     if (!fresh.length) {
       try {
-        const stale = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null')
-        if (stale?.articles?.length) {
-          setArticles(stale.articles.slice(0, SLOT_COUNT))
-          setLoading(false); return
-        }
+        const display = JSON.parse(localStorage.getItem(DISPLAY_KEY) || 'null')
+        if (display?.articles?.length) { setArticles(display.articles.slice(0, SLOT_COUNT)); setLoading(false); return }
       } catch {}
       setError(true); setLoading(false); return
     }
 
-    // On daily rotation: move current display articles to archive first
-    if (needsDaily) {
-      try {
-        const prev = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null')
-        if (prev?.articles?.length) {
-          const arch = JSON.parse(localStorage.getItem(ARCHIVE_STORE) || '[]')
-          const archSeen = new Set(arch.map(a => a.title?.replace(/\s+/g,'').slice(0,30)))
-          prev.articles.slice(0, SLOT_COUNT).forEach(a => {
-            const k = a.title?.replace(/\s+/g,'').slice(0,30)
-            if (k && !archSeen.has(k)) { arch.unshift({ ...a, archivedAt: now }); archSeen.add(k) }
-          })
-          localStorage.setItem(ARCHIVE_STORE, JSON.stringify(arch.slice(0, 200)))
-        }
-      } catch {}
-      localStorage.setItem(DAILY_KEY, todayStr)
-    }
-
-    // Deduplicate
+    // Deduplicate fresh pool + images first
     const seen = new Set()
     const deduped = fresh
       .filter(a => {
         if (!a.title || !a.url) return false
-        const k = a.title.replace(/\s+/g,'').slice(0,30)
+        const k = a.title.replace(/\s+/g,'').slice(0, 30)
         if (seen.has(k)) return false
         seen.add(k); return true
       })
       .map(a => ({ ...a, image: a.image || '' }))
       .slice(0, 50)
+    const prioritized = [...deduped.filter(a => a.image), ...deduped.filter(a => !a.image)]
 
-    // Archive articles beyond display slot
+    // Load the currently displayed 4 articles
+    let currentDisplay = []
     try {
-      const arch = JSON.parse(localStorage.getItem(ARCHIVE_STORE) || '[]')
-      const archSeen = new Set(arch.map(a => a.title?.replace(/\s+/g,'').slice(0,30)))
-      deduped.slice(SLOT_COUNT).forEach(a => {
-        const k = a.title?.replace(/\s+/g,'').slice(0,30)
-        if (k && !archSeen.has(k)) { arch.unshift({ ...a, archivedAt: now }); archSeen.add(k) }
+      const d = JSON.parse(localStorage.getItem(DISPLAY_KEY) || 'null')
+      currentDisplay = d?.articles || []
+    } catch {}
+
+    let newDisplay
+
+    if (forceReset || currentDisplay.length < SLOT_COUNT) {
+      // First load or manual reset — show top SLOT_COUNT (images preferred)
+      newDisplay = prioritized.slice(0, SLOT_COUNT)
+    } else if (needsDaily) {
+      // Daily 08:00 slide: archive the oldest slot, inject 1 new article at the front
+      const oldest = currentDisplay[SLOT_COUNT - 1]
+      if (oldest) {
+        try {
+          const arch  = JSON.parse(localStorage.getItem(ARCHIVE_STORE) || '[]')
+          const seenT = new Set(arch.map(a => a.title?.replace(/\s+/g,'').slice(0, 30)))
+          const seenU = new Set(arch.map(a => a.link || a.url || '').filter(Boolean))
+          const k = oldest.title?.replace(/\s+/g,'').slice(0, 30)
+          const u = oldest.link || oldest.url || ''
+          if (k && !seenT.has(k) && (!u || !seenU.has(u))) {
+            arch.unshift({ ...oldest, archivedAt: now })
+            localStorage.setItem(ARCHIVE_STORE, JSON.stringify(arch.slice(0, 200)))
+          }
+        } catch {}
+      }
+      // Find the best article not already in current display (with image preferred)
+      const curIds    = new Set(currentDisplay.map(a => a.id))
+      const curTitles = new Set(currentDisplay.map(a => a.title?.replace(/\s+/g,'').slice(0, 30)))
+      const isNew = a => !curIds.has(a.id) && !curTitles.has(a.title?.replace(/\s+/g,'').slice(0, 30))
+      const newArticle = prioritized.find(isNew)
+      newDisplay = newArticle
+        ? [newArticle, ...currentDisplay.slice(0, SLOT_COUNT - 1)]
+        : currentDisplay.slice(0, SLOT_COUNT)
+      localStorage.setItem(DAILY_KEY, todayStr)
+    } else {
+      // Stale cache refresh — keep current display stable, just refresh the pool
+      newDisplay = currentDisplay.slice(0, SLOT_COUNT)
+    }
+
+    // Archive all pool articles not currently displayed
+    try {
+      const displayedIds = new Set(newDisplay.map(a => a.id))
+      const arch  = JSON.parse(localStorage.getItem(ARCHIVE_STORE) || '[]')
+      const seenT = new Set(arch.map(a => a.title?.replace(/\s+/g,'').slice(0, 30)))
+      const seenU = new Set(arch.map(a => a.link || a.url || '').filter(Boolean))
+      prioritized.filter(a => !displayedIds.has(a.id)).forEach(a => {
+        const k = a.title?.replace(/\s+/g,'').slice(0, 30)
+        const u = a.link || a.url || ''
+        if (k && !seenT.has(k) && (!u || !seenU.has(u))) {
+          arch.unshift({ ...a, archivedAt: now })
+          seenT.add(k)
+          if (u) seenU.add(u)
+        }
       })
       localStorage.setItem(ARCHIVE_STORE, JSON.stringify(arch.slice(0, 200)))
     } catch {}
 
-    try { localStorage.setItem(CACHE_KEY, JSON.stringify({ articles: deduped, ts: now })) } catch {}
+    try { localStorage.setItem(CACHE_KEY,   JSON.stringify({ articles: prioritized, ts: now })) } catch {}
+    try { localStorage.setItem(DISPLAY_KEY, JSON.stringify({ articles: newDisplay })) } catch {}
 
-    setArticles(deduped.slice(0, SLOT_COUNT))
+    setArticles(newDisplay.slice(0, SLOT_COUNT))
     setLoading(false)
   }, [])
 
@@ -5522,12 +5631,16 @@ function ArchiveModal({ onClose, C, isDark }) {
       const fresh = await fetchFreshArticles()
       let saved = []
       try { saved = JSON.parse(localStorage.getItem(ARCHIVE_STORE) || '[]') } catch {}
-      const seenKeys = new Set(saved.map(a => a.title?.replace(/\s+/g,'').slice(0,30)))
+      const seenTitles = new Set(saved.map(a => a.title?.replace(/\s+/g,'').slice(0,30)))
+      const seenUrls   = new Set(saved.map(a => a.link || a.url || '').filter(Boolean))
       const newItems = fresh
         .filter(a => {
           const k = a.title?.replace(/\s+/g,'').slice(0,30)
-          if (!k || seenKeys.has(k)) return false
-          seenKeys.add(k); return true
+          const u = a.link || a.url || ''
+          if (!k || seenTitles.has(k) || (u && seenUrls.has(u))) return false
+          seenTitles.add(k)
+          if (u) seenUrls.add(u)
+          return true
         })
         .map(a => ({ ...a, archivedAt: Date.now() }))
       const toSave = [...newItems, ...saved].slice(0, 200)
@@ -5712,7 +5825,7 @@ function TestimonialsSection() {
         </div>
 
         {/* ── Card ── */}
-        <div style={{ position:'relative', borderRadius:24, overflow:'hidden', background:'rgba(255,255,255,.04)', border:`1px solid rgba(132,144,216,.18)`, boxShadow:'0 32px 80px rgba(0,0,0,.45)', backdropFilter:'blur(20px)' }}>
+        <div className="testi-card-outer" style={{ position:'relative', borderRadius:24, overflow:'hidden', background:'rgba(255,255,255,.04)', border:`1px solid rgba(132,144,216,.18)`, boxShadow:'0 32px 80px rgba(0,0,0,.45)', backdropFilter:'blur(20px)' }}>
           <AnimatePresence initial={false} custom={dir} mode="wait">
             <motion.div
               key={active}
@@ -6070,17 +6183,25 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
   const cat = CATEGORIES.find(c => c.id === prop.category) || CATEGORIES[1]
   const sc = { 'זמין':C.green, 'בבדיקה':'#F7C948', 'נמכר':'#E05252', 'הושכר':'#F97316' }[prop.status] || C.green
 
-  const videoType = prop.videoUrl
-    ? (/cloudinary\.com/.test(prop.videoUrl) ? 'cloudinary'
-      : /youtube\.com|youtu\.be/.test(prop.videoUrl) ? 'youtube' : null)
+  const imgs = (prop.images || []).filter(u => u && typeof u === 'string' && u.length > 4)
+  // Build unified video list: wizard videos + legacy videoUrl (deduplicated)
+  const allVideos = [
+    ...(prop.videos || []).filter(v => v?.url),
+    ...(!!(prop.videoUrl) && !(prop.videos || []).some(v => v.url === prop.videoUrl)
+      ? [{ url: prop.videoUrl, thumbnail: null }] : []),
+  ]
+  const hasVideo = allVideos.length > 0
+  const totalMedia = imgs.length + allVideos.length
+  const videoIdx = imgIdx >= imgs.length ? imgIdx - imgs.length : -1
+  const isVideoFrame = videoIdx >= 0
+  const currentVideo = isVideoFrame ? (allVideos[videoIdx] || null) : null
+  const videoType = currentVideo
+    ? (/cloudinary\.com/.test(currentVideo.url) ? 'cloudinary'
+      : /youtube\.com|youtu\.be/.test(currentVideo.url) ? 'youtube' : null)
     : null
   const youtubeId = videoType === 'youtube'
-    ? (prop.videoUrl.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/))([^&\n?#]+)/)?.[1] || null)
+    ? (currentVideo.url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/))([^&\n?#]+)/)?.[1] || null)
     : null
-  const hasVideo = videoType !== null
-  const imgs = prop.images?.length ? prop.images : []
-  const totalMedia = imgs.length + (hasVideo ? 1 : 0)
-  const isVideoFrame = hasVideo && imgIdx >= imgs.length
 
   const fmt = p => {
     if (!p) return 'מחיר בפנייה'
@@ -6159,10 +6280,10 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
 
         {/* ══ FULL-WIDTH GALLERY ══ */}
         <div className="prop-gallery-main">
-          {isVideoFrame ? (
-            videoType === 'cloudinary' ? (
+          {isVideoFrame && currentVideo ? (
+            videoType === 'cloudinary' || (currentVideo.url && !currentVideo.url.includes('youtube') && !currentVideo.url.includes('youtu.be')) ? (
               <video
-                src={prop.videoUrl}
+                src={currentVideo.url}
                 style={{ width:'100%', height:'100%', objectFit:'cover' }}
                 autoPlay={!!prop.videoAutoplay}
                 muted={!!prop.videoAutoplay}
@@ -6243,18 +6364,27 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
         {totalMedia > 1 && (
           <div className="prop-gallery-thumb-strip">
             {imgs.map((src, i) => (
-              <button key={i} onClick={() => setImgIdx(i)}
+              <button key={`img-${i}`} onClick={() => setImgIdx(i)}
                 style={{ flexShrink:0, width:78, height:54, padding:0, border:`2px solid ${i === imgIdx ? C.purple : 'transparent'}`, borderRadius:6, overflow:'hidden', cursor:'pointer', background:'#111', transition:'border-color .2s, opacity .2s', opacity: i === imgIdx ? 1 : .5 }}>
                 <img src={src} style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }} alt=""/>
               </button>
             ))}
-            {hasVideo && (
-              <button onClick={() => setImgIdx(imgs.length)}
-                style={{ flexShrink:0, width:78, height:54, padding:0, border:`2px solid ${imgIdx >= imgs.length ? C.purple : 'transparent'}`, borderRadius:6, cursor:'pointer', background:'#b00', transition:'border-color .2s', opacity: imgIdx >= imgs.length ? 1 : .5, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:2, color:'#fff' }}>
-                <FaPlay size={13}/>
-                <span style={{ fontSize:8, fontWeight:600 }}>וידאו</span>
-              </button>
-            )}
+            {allVideos.map((v, vi) => {
+              const vIdx = imgs.length + vi
+              const active = imgIdx === vIdx
+              return (
+                <button key={`vid-${vi}`} onClick={() => setImgIdx(vIdx)}
+                  style={{ flexShrink:0, width:78, height:54, padding:0, border:`2px solid ${active ? C.purple : 'transparent'}`, borderRadius:6, cursor:'pointer', background:'#111', overflow:'hidden', transition:'border-color .2s, opacity .2s', opacity: active ? 1 : .5, position:'relative' }}>
+                  {v.thumbnail
+                    ? <img src={v.thumbnail} style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }} alt=""/>
+                    : <div style={{ width:'100%', height:'100%', background:'#1a0010', display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:2, color:'#fff' }}><FaPlay size={13}/><span style={{ fontSize:7, fontWeight:600 }}>וידאו</span></div>
+                  }
+                  <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(0,0,0,.35)' }}>
+                    <FaPlay size={10} style={{ color:'#fff' }}/>
+                  </div>
+                </button>
+              )
+            })}
           </div>
         )}
 
@@ -6583,6 +6713,8 @@ function PropertyCard({ prop, onContact, onSelect }) {
   const { C } = useTheme()
   const [imgIdx, setImgIdx] = useState(0)
   const [hovered, setHovered] = useState(false)
+  const [failedImgs, setFailedImgs] = useState(new Set())
+  const validImages = (prop.images || []).filter(u => u && typeof u === 'string' && u.length > 4)
   const cat = CATEGORIES.find(c => c.id === prop.category) || CATEGORIES[1]
   const sc = { 'זמין':C.green, 'בבדיקה':'#F7C948', 'נמכר':'#E05252', 'הושכר':'#F97316' }[prop.status] || C.green
 
@@ -6618,28 +6750,30 @@ function PropertyCard({ prop, onContact, onSelect }) {
       style={{ background:C.card, border:`1px solid ${hovered ? 'rgba(132,144,216,.32)' : 'rgba(132,144,216,.1)'}`, borderRadius:16, overflow:'hidden', display:'flex', flexDirection:'column', cursor:'pointer', transition:'transform .3s cubic-bezier(0.16,1,0.3,1), box-shadow .3s, border-color .25s', transform:hovered?'translateY(-5px)':'', boxShadow:hovered?'0 24px 56px rgba(0,0,0,.28)':'' }}>
 
       {/* Image */}
-      <div style={{ position:'relative', paddingBottom:'71.5%', background:`${C.purple}06`, flexShrink:0, overflow:'hidden' }}>
-        {prop.images?.length > 0 ? (
+      <div style={{ position:'relative', paddingBottom:'71.5%', background:`linear-gradient(135deg,${C.purple}18,${C.bg}55)`, flexShrink:0, overflow:'hidden' }}>
+        {validImages.length > 0 && !failedImgs.has(imgIdx % validImages.length) ? (
           <>
-            <img src={prop.images[imgIdx]} alt={prop.title}
-              style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover', display:'block', transition:'transform .6s cubic-bezier(0.16,1,0.3,1)', transform:hovered?'scale(1.04)':'scale(1)' }}/>
-            {prop.images.length > 1 && (
+            <img src={validImages[imgIdx % validImages.length]} alt={prop.title}
+              style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover', display:'block', transition:'transform .6s cubic-bezier(0.16,1,0.3,1)', transform:hovered?'scale(1.04)':'scale(1)' }}
+              onError={() => setFailedImgs(prev => new Set([...prev, imgIdx % validImages.length]))}
+            />
+            {validImages.length > 1 && (
               <>
-                <button onClick={e => { e.stopPropagation(); setImgIdx(i => (i-1+prop.images.length)%prop.images.length) }}
+                <button onClick={e => { e.stopPropagation(); setImgIdx(i => (i-1+validImages.length)%validImages.length) }}
                   style={{ position:'absolute', top:'50%', right:8, transform:'translateY(-50%)', background:'rgba(9,9,15,.72)', backdropFilter:'blur(6px)', border:`1px solid rgba(255,255,255,.12)`, borderRadius:'50%', width:30, height:30, color:'white', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'background .2s' }}
                   onMouseEnter={e=>e.currentTarget.style.background=C.purple} onMouseLeave={e=>e.currentTarget.style.background='rgba(9,9,15,.72)'}>
                   <FaChevronRight size={11}/>
                 </button>
-                <button onClick={e => { e.stopPropagation(); setImgIdx(i => (i+1)%prop.images.length) }}
+                <button onClick={e => { e.stopPropagation(); setImgIdx(i => (i+1)%validImages.length) }}
                   style={{ position:'absolute', top:'50%', left:8, transform:'translateY(-50%)', background:'rgba(9,9,15,.72)', backdropFilter:'blur(6px)', border:`1px solid rgba(255,255,255,.12)`, borderRadius:'50%', width:30, height:30, color:'white', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'background .2s' }}
                   onMouseEnter={e=>e.currentTarget.style.background=C.purple} onMouseLeave={e=>e.currentTarget.style.background='rgba(9,9,15,.72)'}>
                   <FaChevronLeft size={11}/>
                 </button>
                 <div style={{ position:'absolute', bottom:8, left:10, background:'rgba(9,9,15,.72)', backdropFilter:'blur(6px)', borderRadius:5, padding:'2px 8px', fontSize:9, color:`${C.cream}BB`, display:'flex', alignItems:'center', gap:4, fontWeight:600 }}>
-                  <FaMapMarkerAlt size={7} style={{ opacity:.6 }}/> {prop.images.length}
+                  <FaMapMarkerAlt size={7} style={{ opacity:.6 }}/> {validImages.length}
                 </div>
                 <div style={{ position:'absolute', bottom:8, right:8, display:'flex', gap:4 }}>
-                  {prop.images.slice(0,4).map((_,i) => (
+                  {validImages.slice(0,4).map((_,i) => (
                     <button key={i} onClick={e=>{e.stopPropagation();setImgIdx(i)}}
                       style={{ width:i===imgIdx?16:5, height:5, borderRadius:3, background:i===imgIdx?'white':'rgba(255,255,255,.4)', border:'none', cursor:'pointer', padding:0, transition:'all .25s' }}/>
                   ))}
@@ -6648,9 +6782,9 @@ function PropertyCard({ prop, onContact, onSelect }) {
             )}
           </>
         ) : (
-          <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:10, color:`${C.purple}30` }}>
-            <PlaceholderIcon size={40}/>
-            <span style={{ fontSize:9, color:`${C.cream}20`, letterSpacing:'.1em', textTransform:'uppercase' }}>אין תמונה</span>
+          <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:10, color:`${C.purple}60` }}>
+            <PlaceholderIcon size={44} style={{ opacity:.45 }}/>
+            <span style={{ fontSize:10, color:`${C.cream}40`, letterSpacing:'.08em', textTransform:'uppercase', fontWeight:600 }}>אין תמונה</span>
           </div>
         )}
         {/* SOLD / RENTED stamp overlay */}
@@ -6955,49 +7089,44 @@ export default function App() {
         .catch(() => {})
     }
 
-    // 3. Fetch properties
-    if (API_BASE) {
-      const isAdmin = sessionStorage.getItem('afik_admin_session') === '1'
-      const headers = isAdmin ? { Authorization: `Bearer ${ADMIN_TOKEN}` } : {}
-      fetch(`${API_BASE}/api/properties`, { headers })
+    // 3. Fetch properties — try API first, fall back to localStorage
+    {
+      const isAdminSession = sessionStorage.getItem('afik_admin_session') === '1'
+      const headers = isAdminSession ? { Authorization: `Bearer ${ADMIN_TOKEN}` } : {}
+      const base = API_BASE || ''
+      fetch(`${base}/api/properties`, { headers })
         .then(r => r.ok ? r.json() : Promise.reject(r.status))
         .then(data => {
-          if (Array.isArray(data)) {
-            if (data.length > 0) {
-              setProperties(data)
-            } else if (isAdmin) {
-              try {
-                const d = JSON.parse(localStorage.getItem('afik_data') || '{}')
-                if (d.properties?.length) setProperties(d.properties)
-              } catch {}
-            }
+          if (Array.isArray(data) && data.length > 0) {
+            setProperties(data)
+          } else {
+            try {
+              const d = JSON.parse(localStorage.getItem('afik_data') || '{}')
+              if (d.properties?.length) setProperties(d.properties)
+            } catch {}
           }
         })
         .catch(() => {
           try {
             const d = JSON.parse(localStorage.getItem('afik_data') || '{}')
-            if (d.properties) setProperties(d.properties)
+            if (d.properties?.length) setProperties(d.properties)
           } catch {}
         })
-    } else {
-      try {
-        const d = JSON.parse(localStorage.getItem('afik_data') || '{}')
-        if (d.properties) setProperties(d.properties)
-      } catch {}
     }
   }, [])
 
-  // ── Save stats/sharon to localStorage (properties are synced to API below) ──
+  // ── Save stats/sharon/properties to localStorage as offline backup ──────────
   useEffect(() => {
     if (!loaded.current) return
-    try { localStorage.setItem('afik_data', JSON.stringify({ stats, sharon })) } catch {}
-  }, [stats, sharon])
+    try { localStorage.setItem('afik_data', JSON.stringify({ stats, sharon, properties })) } catch {}
+  }, [stats, sharon, properties])
 
-  // ── Sync properties to Supabase when admin changes them (debounced 1.5 s) ──
+  // ── Sync properties to API when admin changes them (debounced 1.5 s) ────────
   useEffect(() => {
-    if (!adminAuth || !API_BASE) return
+    if (!adminAuth) return
+    const base = API_BASE || ''
     const timer = setTimeout(() => {
-      fetch(`${API_BASE}/api/properties/bulk`, {
+      fetch(`${base}/api/properties/bulk`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
         body:    JSON.stringify(properties),
@@ -7019,10 +7148,11 @@ export default function App() {
     return () => clearTimeout(timer)
   }, [stats, sharon])
 
-  // ── Re-fetch all properties (including unpublished) when admin logs in ──
+  // ── Re-fetch all properties (including unpublished) when admin logs in ──────
   useEffect(() => {
-    if (!adminAuth || !API_BASE) return
-    fetch(`${API_BASE}/api/properties`, {
+    if (!adminAuth) return
+    const base = API_BASE || ''
+    fetch(`${base}/api/properties`, {
       headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
     })
       .then(r => r.ok ? r.json() : Promise.reject())
@@ -7070,12 +7200,36 @@ export default function App() {
     return () => obs.disconnect()
   }, [])
 
+  // ── Hash-based URL routing — scroll to section on load / back-forward ──
+  useEffect(() => {
+    const NAV_IDS = NAV_LINKS.map(n => n.id)
+    const scrollHash = () => {
+      const hash = window.location.hash.slice(1)
+      if (hash && NAV_IDS.includes(hash)) {
+        setTimeout(() => {
+          const el = document.getElementById(hash)
+          if (el) el.scrollIntoView({ behavior:'smooth', block:'start' })
+        }, 350)
+      }
+    }
+    scrollHash()
+    window.addEventListener('popstate', scrollHash)
+    return () => window.removeEventListener('popstate', scrollHash)
+  }, [])
+
   const filtered = properties.filter(p =>
     p.published !== false &&
     (filterCat === 'all' || p.category === filterCat) &&
     (!filterType   || p.type   === filterType)
   )
-  const scrollTo    = id => { document.getElementById(id)?.scrollIntoView({ behavior:'smooth' }); setMobileOpen(false) }
+  const scrollTo    = id => {
+    const el = document.getElementById(id)
+    if (el) {
+      el.scrollIntoView({ behavior:'smooth', block:'start' })
+      window.history.pushState(null, '', `#${id}`)
+    }
+    setMobileOpen(false)
+  }
   const openContact = (p=null) => { setContactProp(p); setShowContact(true) }
   const openProperty = (p) => {
     setSelectedProp(p)
