@@ -563,6 +563,17 @@ const makeGlobal = (C, isDark) => `
 
   .prop-gallery-main { position:relative; width:100%; height:clamp(300px,58vw,580px); background:#000; overflow:hidden; }
   .prop-gallery-thumb-strip { display:flex; gap:6px; padding:10px 16px; background:#07070F; overflow-x:auto; border-bottom:1px solid rgba(132,144,216,.07); scrollbar-width:thin; }
+  .prop-thumb-btn { flex-shrink:0; width:78px !important; height:54px !important; min-width:78px !important; min-height:54px !important; padding:0 !important; border-radius:6px; overflow:hidden; cursor:pointer; background:#1a1a2e; transition:border-color .2s, opacity .2s; }
+  .prop-thumb-btn img { width:100%; height:100%; object-fit:cover; display:block; }
+  .prop-thumb-btn .thumb-fallback { width:100%; height:100%; display:flex; align-items:center; justify-content:center; background:#1a1a2e; color:rgba(132,144,216,.4); font-size:11px; }
+  .mortgage-inline-grid { display:grid; grid-template-columns:1fr 1fr; direction:rtl; }
+  @media(max-width:640px) {
+    .mortgage-inline-grid { grid-template-columns:1fr !important; }
+    .mortgage-result-col  { border-left:none !important; border-bottom:1px solid rgba(255,255,255,.08) !important; padding:16px 16px 14px !important; }
+    .mortgage-controls-col { padding:16px 16px 18px !important; gap:14px !important; }
+    .mortgage-monthly-num  { font-size:30px !important; }
+    .mortgage-cta-btn      { padding:11px !important; font-size:13px !important; margin-top:12px !important; }
+  }
   .prop-detail-body { display:grid; grid-template-columns:1fr 320px; align-items:start; direction:rtl; }
   @media(max-width:900px) { .prop-detail-body { grid-template-columns:1fr; } }
   .prop-detail-sidebar { border-right:1px solid rgba(132,144,216,.08); position:sticky; top:52px; max-height:calc(100dvh - 52px); overflow-y:auto; }
@@ -6112,33 +6123,31 @@ function MortgageInline({ price, C, onContact, prop }) {
         <span style={{ fontSize:11, color:`${C.cream}44`, background:'rgba(255,255,255,.06)', borderRadius:20, padding:'3px 10px' }}>הערכה בלבד</span>
       </div>
 
-      {/* Two-column layout — like Yad2 */}
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', direction:'rtl' }}>
+      {/* Two-column → single-column on mobile */}
+      <div className="mortgage-inline-grid">
 
-        {/* Left: result card */}
-        <div style={{ padding:'24px 22px', background:'rgba(255,255,255,.03)', borderLeft:'1px solid rgba(255,255,255,.08)', display:'flex', flexDirection:'column', justifyContent:'space-between' }}>
+        {/* Result card */}
+        <div className="mortgage-result-col" style={{ padding:'24px 22px', background:'rgba(255,255,255,.03)', borderLeft:'1px solid rgba(255,255,255,.08)', display:'flex', flexDirection:'column', justifyContent:'space-between' }}>
           <div>
-            <div style={{ fontSize:12, color:`${C.cream}55`, letterSpacing:'.06em', textTransform:'uppercase', marginBottom:8 }}>החזר חודשי משוער</div>
-            <div style={{ fontSize:38, fontWeight:900, color:'#fff', lineHeight:1, marginBottom:6 }}>
+            <div style={{ fontSize:11, color:`${C.cream}55`, letterSpacing:'.06em', textTransform:'uppercase', marginBottom:6 }}>החזר חודשי משוער</div>
+            <div className="mortgage-monthly-num" style={{ fontSize:38, fontWeight:900, color:'#fff', lineHeight:1, marginBottom:6 }}>
               ₪{fmtN(monthly)}
             </div>
-            <div style={{ width:32, height:3, background:YAD2_ORANGE, borderRadius:2, marginBottom:16 }}/>
-            <div style={{ display:'flex', flexDirection:'column', gap:7 }}>
+            <div style={{ width:28, height:3, background:YAD2_ORANGE, borderRadius:2, marginBottom:14 }}/>
+            <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
               <div style={{ display:'flex', justifyContent:'space-between', fontSize:13, color:`${C.cream}AA` }}>
-                <span>סכ״ה הלוואה</span>
-                <span style={{ fontWeight:700, color:C.cream }}>₪{fmtN(loan)}</span>
+                <span>סכ״ה הלוואה</span><span style={{ fontWeight:700, color:C.cream }}>₪{fmtN(loan)}</span>
               </div>
               <div style={{ display:'flex', justifyContent:'space-between', fontSize:13, color:`${C.cream}AA` }}>
-                <span>ריבית ממוצעת</span>
-                <span style={{ fontWeight:700, color:C.cream }}>{rate}%</span>
+                <span>ריבית ממוצעת</span><span style={{ fontWeight:700, color:C.cream }}>{rate}%</span>
               </div>
               <div style={{ display:'flex', justifyContent:'space-between', fontSize:13, color:`${C.cream}AA` }}>
-                <span>תקופת הלוואה</span>
-                <span style={{ fontWeight:700, color:C.cream }}>{years} שנה</span>
+                <span>תקופת הלוואה</span><span style={{ fontWeight:700, color:C.cream }}>{years} שנה</span>
               </div>
             </div>
           </div>
           <button onClick={() => onContact(prop)}
+            className="mortgage-cta-btn"
             style={{ marginTop:20, width:'100%', padding:'13px', background:YAD2_ORANGE, border:'none', borderRadius:10, color:'#fff', fontSize:14, fontWeight:800, cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', justifyContent:'center', gap:8, transition:'opacity .15s' }}
             onMouseEnter={e=>e.currentTarget.style.opacity='.88'}
             onMouseLeave={e=>e.currentTarget.style.opacity='1'}>
@@ -6146,8 +6155,8 @@ function MortgageInline({ price, C, onContact, prop }) {
           </button>
         </div>
 
-        {/* Right: controls */}
-        <div style={{ padding:'24px 22px', display:'flex', flexDirection:'column', gap:20 }}>
+        {/* Controls */}
+        <div className="mortgage-controls-col" style={{ padding:'24px 22px', display:'flex', flexDirection:'column', gap:20 }}>
           <div>
             <div style={{ fontSize:14, fontWeight:800, color:C.cream, marginBottom:2 }}>הדרך לבית שלכם מתחילה כאן</div>
             <div style={{ fontSize:11, color:`${C.cream}44` }}>מחשב מיידי — ללא התחייבות</div>
@@ -6155,31 +6164,31 @@ function MortgageInline({ price, C, onContact, prop }) {
 
           {/* Equity slider */}
           <div>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:10 }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
               <span style={{ fontSize:13, color:`${C.cream}88`, fontWeight:600 }}>כמה הון עצמי יש לך?</span>
-              <span style={{ fontSize:16, fontWeight:900, color:C.cream }}>₪{fmtN(equity)}</span>
+              <span style={{ fontSize:15, fontWeight:900, color:C.cream, background:'rgba(255,255,255,.07)', borderRadius:8, padding:'2px 10px' }}>₪{fmtN(equity)}</span>
             </div>
             <input type="range" min={minEquity} max={maxEquity} step={10000} value={equity} onChange={e=>setEquity(+e.target.value)}
-              style={{ width:'100%', accentColor:YAD2_ORANGE, cursor:'pointer', height:4 }}/>
-            <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, color:`${C.cream}33`, marginTop:4 }}>
+              style={{ width:'100%', accentColor:YAD2_ORANGE, cursor:'pointer', height:6, borderRadius:4 }}/>
+            <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, color:`${C.cream}33`, marginTop:5 }}>
               <span>₪{fmtN(minEquity)}</span><span>₪{fmtN(maxEquity)}</span>
             </div>
           </div>
 
           {/* Years slider */}
           <div>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:10 }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
               <span style={{ fontSize:13, color:`${C.cream}88`, fontWeight:600 }}>לכמה שנים המשכנתה?</span>
-              <span style={{ fontSize:16, fontWeight:900, color:C.cream }}>{years}</span>
+              <span style={{ fontSize:15, fontWeight:900, color:C.cream, background:'rgba(255,255,255,.07)', borderRadius:8, padding:'2px 10px' }}>{years} שנה</span>
             </div>
             <input type="range" min={5} max={30} value={years} onChange={e=>setYears(+e.target.value)}
-              style={{ width:'100%', accentColor:YAD2_ORANGE, cursor:'pointer', height:4 }}/>
-            <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, color:`${C.cream}33`, marginTop:4 }}>
+              style={{ width:'100%', accentColor:YAD2_ORANGE, cursor:'pointer', height:6, borderRadius:4 }}/>
+            <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, color:`${C.cream}33`, marginTop:5 }}>
               <span>5 שנים</span><span>30 שנים</span>
             </div>
           </div>
 
-          <div style={{ fontSize:11, color:`${C.cream}28`, lineHeight:1.6 }}>
+          <div style={{ fontSize:11, color:`${C.cream}28`, lineHeight:1.7 }}>
             החישובים מבוססים על ריבית קבועה {rate}%. הנתונים הם הערכה בלבד ואינם מהווים ייעוץ פיננסי.
           </div>
         </div>
@@ -6427,10 +6436,13 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
         {/* Thumbnail strip */}
         {totalMedia > 1 && (
           <div className="prop-gallery-thumb-strip">
-            {imgs.map((src, i) => (
+            {imgs.filter(s => s).map((src, i) => (
               <button key={`img-${i}`} onClick={() => setImgIdx(i)}
-                style={{ flexShrink:0, width:78, height:54, padding:0, border:`2px solid ${i === imgIdx ? C.purple : 'transparent'}`, borderRadius:6, overflow:'hidden', cursor:'pointer', background:'#111', transition:'border-color .2s, opacity .2s', opacity: i === imgIdx ? 1 : .5 }}>
-                <img src={src} style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }} alt=""/>
+                className="prop-thumb-btn"
+                style={{ border:`2px solid ${i === imgIdx ? C.purple : 'transparent'}`, opacity: i === imgIdx ? 1 : .55 }}>
+                <img src={src} alt=""
+                  onError={e => { e.currentTarget.style.display='none'; e.currentTarget.nextSibling && (e.currentTarget.nextSibling.style.display='flex') }}/>
+                <div className="thumb-fallback" style={{ display:'none' }}>📷</div>
               </button>
             ))}
             {allVideos.map((v, vi) => {
@@ -6438,11 +6450,15 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
               const active = imgIdx === vIdx
               return (
                 <button key={`vid-${vi}`} onClick={() => setImgIdx(vIdx)}
-                  style={{ flexShrink:0, width:78, height:54, padding:0, border:`2px solid ${active ? C.purple : 'transparent'}`, borderRadius:6, cursor:'pointer', background:'#111', overflow:'hidden', transition:'border-color .2s, opacity .2s', opacity: active ? 1 : .5, position:'relative' }}>
+                  className="prop-thumb-btn"
+                  style={{ border:`2px solid ${active ? C.purple : 'transparent'}`, opacity: active ? 1 : .55, position:'relative' }}>
                   {v.thumbnail
-                    ? <img src={v.thumbnail} style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }} alt=""/>
-                    : <div style={{ width:'100%', height:'100%', background:'#1a0010', display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:2, color:'#fff' }}><FaPlay size={13}/><span style={{ fontSize:7, fontWeight:600 }}>וידאו</span></div>
-                  }
+                    ? <img src={v.thumbnail} alt=""
+                        onError={e => { e.currentTarget.style.display='none'; e.currentTarget.nextSibling && (e.currentTarget.nextSibling.style.display='flex') }}/>
+                    : null}
+                  <div className="thumb-fallback" style={{ display: v.thumbnail ? 'none' : 'flex', flexDirection:'column', gap:2, background:'#180816' }}>
+                    <FaPlay size={12}/><span style={{ fontSize:7, fontWeight:600 }}>וידאו</span>
+                  </div>
                   <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(0,0,0,.35)' }}>
                     <FaPlay size={10} style={{ color:'#fff' }}/>
                   </div>
