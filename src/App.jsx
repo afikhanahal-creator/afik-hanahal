@@ -5604,6 +5604,8 @@ function ArchiveModal({ onClose, C, isDark }) {
   const [items, setItems]       = useState([])
   const [fetching, setFetching] = useState(false)
   const [progress, setProgress] = useState(0)
+  const [showBackBtn, setShowBackBtn] = useState(false)
+  const scrollRef = useRef(null)
 
   // Merge static base with saved/live articles, deduplicate by id
   function mergeWithStatic(live) {
@@ -5619,10 +5621,16 @@ function ArchiveModal({ onClose, C, isDark }) {
   useEffect(() => {
     let saved = []
     try { saved = JSON.parse(localStorage.getItem(ARCHIVE_STORE) || '[]') } catch {}
-    // Always show static articles as base; supplement with saved live articles
     setItems(mergeWithStatic(saved))
-    // Fetch live articles in background if saved count is low
     if (saved.length < 5) prefill()
+  }, [])
+
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const onScroll = () => setShowBackBtn(el.scrollTop > 280)
+    el.addEventListener('scroll', onScroll, { passive: true })
+    return () => el.removeEventListener('scroll', onScroll)
   }, [])
 
   async function prefill() {
@@ -5652,8 +5660,28 @@ function ArchiveModal({ onClose, C, isDark }) {
   }
 
   return (
-    <div style={{ position:'fixed', inset:0, zIndex:9000, background:'rgba(0,0,0,.78)', backdropFilter:'blur(10px)', overflowY:'auto', direction:'rtl' }}
+    <div ref={scrollRef} style={{ position:'fixed', inset:0, zIndex:9000, background:'rgba(0,0,0,.78)', backdropFilter:'blur(10px)', overflowY:'auto', direction:'rtl' }}
       onClick={e => e.target === e.currentTarget && onClose()}>
+
+      {/* ── Floating back button (appears after scrolling down) ── */}
+      {showBackBtn && (
+        <button onClick={onClose}
+          style={{
+            position: 'sticky', top: 14, float: 'left', marginLeft: 14, zIndex: 9010,
+            display: 'flex', alignItems: 'center', gap: 7,
+            padding: '9px 18px', background: 'rgba(10,10,20,.88)',
+            border: `1px solid ${C.purple}55`, borderRadius: 30,
+            color: C.cream, fontSize: 13, fontWeight: 700, cursor: 'pointer',
+            fontFamily: 'inherit', boxShadow: `0 4px 24px rgba(0,0,0,.6), 0 0 0 1px ${C.purple}22`,
+            backdropFilter: 'blur(14px)', whiteSpace: 'nowrap',
+            transition: 'all .2s', letterSpacing: '.01em',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background=`${C.purple}BB`; e.currentTarget.style.borderColor=C.purple }}
+          onMouseLeave={e => { e.currentTarget.style.background='rgba(10,10,20,.88)'; e.currentTarget.style.borderColor=`${C.purple}55` }}>
+          <FaChevronRight size={11}/> חזור
+        </button>
+      )}
+
       <div style={{ maxWidth:1200, margin:'0 auto', padding:'40px 24px 80px' }}>
 
         {/* Header */}
