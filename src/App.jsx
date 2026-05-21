@@ -771,6 +771,7 @@ const makeGlobal = (C, isDark) => `
   @media(min-width:769px) {
     .testi-card-wrap { min-height: 500px; }
     .testi-card-outer { background: transparent !important; border-color: transparent !important; box-shadow: none !important; backdrop-filter: none !important; }
+    .testi-dots { display: none !important; }
   }
 
   /* ─── Admin Panel — Mobile ─────────────────────────────────── */
