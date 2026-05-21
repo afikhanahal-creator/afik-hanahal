@@ -1232,7 +1232,7 @@ function Step6({ d, upd }) {
     try {
       const result = await uploadToCloudinary(file, setProgress)
       const thumbnail = result.secure_url
-        .replace('/video/upload/', '/video/upload/so_0.0,f_jpg/')
+        .replace(/\/video\/upload\/(?:[^/]+\/)*/, '/video/upload/so_0,w_800,q_auto,f_jpg/')
         .replace(/\.(mp4|mov|avi|webm|ogg)$/i, '.jpg')
       upd('media', [...d.media, {
         url: result.secure_url,

@@ -6483,10 +6483,11 @@ function toMapsEmbed(url) {
 function getVideoThumbnail(url, thumbnail) {
   if (thumbnail) return thumbnail
   if (!url) return null
-  if (url.includes('cloudinary.com')) {
+  if (url.includes('cloudinary.com') && url.includes('/video/upload/')) {
+    // Insert thumbnail transformation right after /video/upload/, skipping any existing ones
     return url
-      .replace(/\/video\/upload\//, '/video/upload/so_0,w_800,q_auto,f_jpg/')
-      .replace(/\.(mp4|webm|mov|avi|mkv)(\?.*)?$/i, '.jpg')
+      .replace(/\/video\/upload\/(?:[^/]+\/)*/, '/video/upload/so_0,w_800,q_auto,f_jpg/')
+      .replace(/\.(mp4|webm|mov|avi|mkv|ogg)(\?.*)?$/i, '.jpg')
   }
   return null
 }
@@ -6498,9 +6499,24 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
   const [shared, setShared] = useState(false)
   const [lightbox, setLightbox] = useState(false)
   const [videoPlaying, setVideoPlaying] = useState(false)
+  const videoRef = useRef(null)
   const propSwipe = useSwipeClose(onClose)
 
   useEffect(() => { setVideoPlaying(false) }, [imgIdx])
+
+  // Programmatic play — autoPlay attribute alone is unreliable on mobile
+  // videoRef is only attached when a <video> element renders (isVideoFrame=true)
+  useEffect(() => {
+    const vid = videoRef.current
+    if (!vid) return
+    const tryPlay = () => vid.play().catch(() => {})
+    if (vid.readyState >= 3) {
+      tryPlay()
+    } else {
+      vid.addEventListener('canplay', tryPlay, { once: true })
+      return () => vid.removeEventListener('canplay', tryPlay)
+    }
+  }, [imgIdx])
 
   const handleShare = () => {
     const txt = `${prop.title} — ${[prop.location, prop.neighborhood].filter(Boolean).join(', ')}`
@@ -6614,18 +6630,20 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
             videoType === 'cloudinary' || (currentVideo.url && !currentVideo.url.includes('youtube') && !currentVideo.url.includes('youtu.be')) ? (
               <>
                 <video
+                  ref={videoRef}
                   key={currentVideo.url}
                   src={currentVideo.url}
                   poster={getVideoThumbnail(currentVideo.url, currentVideo.thumbnail) || undefined}
-                  style={{ width:'100%', height:'100%', objectFit:'cover', position:'relative', zIndex:1 }}
+                  style={{ width:'100%', height:'100%', objectFit:'cover', position:'relative', zIndex:1, background:'#000' }}
                   autoPlay
                   muted
                   playsInline
                   loop={!!prop.videoAutoplay}
                   controls
-                  preload="metadata"
+                  preload="auto"
                   onPlay={() => setVideoPlaying(true)}
                   onPause={() => setVideoPlaying(false)}
+                  onLoadedData={() => { videoRef.current?.play().catch(() => {}) }}
                 />
                 {!videoPlaying && (
                   <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', zIndex:4, pointerEvents:'none' }}>
