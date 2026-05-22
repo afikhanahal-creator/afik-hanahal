@@ -990,7 +990,7 @@ function useSwipeClose(onClose, threshold = 80) {
   const ref = useRef({ x0: 0, y0: 0, dragging: false })
   const onTouchStart = useCallback(e => {
     // Don't start swipe tracking if touch is on any interactive element or its child
-    if (e.target.closest('input, select, textarea, button, a, label, [role="slider"], [type="range"]')) return
+    if (e.target.closest('input, select, textarea, button, a, label, [role="slider"], [type="range"], video')) return
     ref.current = { x0: e.touches[0].clientX, y0: e.touches[0].clientY, dragging: true }
   }, [])
   const onTouchEnd = useCallback(e => {
@@ -6646,7 +6646,8 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
                   onPause={() => setVideoPlaying(false)}
                 />
                 {!videoPlaying && (
-                  <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', zIndex:4, pointerEvents:'none' }}>
+                  <div onClick={() => videoRef.current?.play().catch(() => {})}
+                    style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', zIndex:4, cursor:'pointer' }}>
                     <div style={{ width:72, height:72, borderRadius:'50%', background:'rgba(0,0,0,.45)', backdropFilter:'blur(8px)', display:'flex', alignItems:'center', justifyContent:'center', border:'2.5px solid rgba(255,255,255,.55)', boxShadow:'0 8px 32px rgba(0,0,0,.4)' }}>
                       <FaPlay size={24} style={{ color:'#fff', marginRight:'-4px' }}/>
                     </div>
@@ -6685,12 +6686,14 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
               onMouseEnter={e=>e.currentTarget.style.background=C.purple} onMouseLeave={e=>e.currentTarget.style.background='rgba(0,0,0,.6)'}>
               <FaChevronLeft size={16}/>
             </button>
-            {/* Counter */}
-            <div style={{ position:'absolute', bottom:14, left:16, background:'rgba(0,0,0,.65)', backdropFilter:'blur(4px)', borderRadius:6, padding:'5px 12px', fontSize:13, color:'rgba(255,255,255,.92)', direction:'ltr', fontWeight:600, zIndex:3 }}>
-              {imgIdx + 1} / {totalMedia}
-            </div>
-            {/* Photo count badge — Yad2 style bottom-right */}
-            {imgs.length > 0 && (
+            {/* Counter — hidden on video frame so it doesn't overlap native controls */}
+            {!isVideoFrame && (
+              <div style={{ position:'absolute', bottom:14, left:16, background:'rgba(0,0,0,.65)', backdropFilter:'blur(4px)', borderRadius:6, padding:'5px 12px', fontSize:13, color:'rgba(255,255,255,.92)', direction:'ltr', fontWeight:600, zIndex:3 }}>
+                {imgIdx + 1} / {totalMedia}
+              </div>
+            )}
+            {/* Photo count badge — hidden on video frame so it doesn't overlap native controls */}
+            {imgs.length > 0 && !isVideoFrame && (
               <button onClick={() => setLightbox(true)}
                 style={{ position:'absolute', bottom:14, right:16, background:'rgba(0,0,0,.72)', backdropFilter:'blur(8px)', border:`1px solid rgba(255,255,255,.18)`, borderRadius:8, padding:'7px 14px', fontSize:13, color:'rgba(255,255,255,.92)', cursor:'pointer', fontFamily:'inherit', zIndex:3, display:'flex', alignItems:'center', gap:7, fontWeight:600 }}
                 onMouseEnter={e=>e.currentTarget.style.background='rgba(0,0,0,.9)'}
