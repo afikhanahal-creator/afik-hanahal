@@ -3544,7 +3544,7 @@ function useTeamToken() {
 }
 
 function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSharon, govmapToken, setGovmapToken, onClose, onEditInWizard, standalone = false }) {
-  const { C, isDark } = useTheme()
+  const { C, isDark, lang } = useTheme()
   const initForm = () => {
     try { const d = JSON.parse(localStorage.getItem(ADMIN_DRAFT_KEY)); if (d) return { ...EMPTY_PROP, ...d } } catch {}
     return EMPTY_PROP
