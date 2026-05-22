@@ -474,6 +474,7 @@ export default function RealEstateCalc({ onClose }) {
           .rc-modal-body   { padding: 8px 10px 10px !important; }
           .rc-grid         { grid-template-columns: 1fr !important; gap: 10px !important; }
           .rc-compare-grid { grid-template-columns: 1fr !important; gap: 8px !important; }
+          .rc-slider-pair  { grid-template-columns: 1fr !important; }
           .rc-tab-label    { font-size: 9px !important; }
           .rc-tab          { padding: 6px 3px 7px !important; min-width: 0 !important; }
           .rc-range        { height: 10px !important; }
@@ -690,18 +691,18 @@ export default function RealEstateCalc({ onClose }) {
                   {/* LEFT */}
                   <div>
                     <label style={LABEL}>סוג הרכישה</label>
-                    <div style={{ display:'flex', flexDirection:'column', gap:4, marginBottom:8 }}>
+                    <div style={{ display:'flex', gap:6, marginBottom:6, flexWrap:'wrap' }}>
                       {Object.entries(LTV_RULES).map(([v, { label, ltv }]) => (
                         <button key={v} className={`rc-type${ltvType===v?' rc-type-on':''}`} onClick={() => setLtvType(v)}
-                          style={{ padding:'8px 16px', border:`1.5px solid ${ltvType===v ? P : 'rgba(132,144,216,0.18)'}`, borderRadius:11, background: ltvType===v ? 'rgba(132,144,216,0.18)' : 'rgba(255,255,255,0.025)', color: ltvType===v ? P : `${CRM}65`, fontFamily:'inherit', fontWeight:700, fontSize:15, cursor:'pointer', transition:'all .2s', display:'flex', justifyContent:'space-between', alignItems:'center', boxShadow: ltvType===v ? `0 0 22px rgba(132,144,216,0.2)` : 'none' }}>
-                          <span>{label}</span>
-                          <span style={{ background: ltvType===v ? P : 'rgba(255,255,255,0.08)', color: ltvType===v ? '#fff' : `${CRM}55`, borderRadius:20, padding:'3px 12px', fontSize:14, fontWeight:900, fontFamily:'monospace', flexShrink:0 }}>
+                          style={{ flex:'1 1 120px', padding:'8px 12px', border:`1.5px solid ${ltvType===v ? P : 'rgba(132,144,216,0.18)'}`, borderRadius:11, background: ltvType===v ? 'rgba(132,144,216,0.18)' : 'rgba(255,255,255,0.025)', color: ltvType===v ? P : `${CRM}65`, fontFamily:'inherit', fontWeight:700, fontSize:13, cursor:'pointer', transition:'all .2s', display:'flex', justifyContent:'space-between', alignItems:'center', boxShadow: ltvType===v ? `0 0 18px rgba(132,144,216,0.2)` : 'none' }}>
+                          <span style={{ textAlign:'right' }}>{label}</span>
+                          <span style={{ background: ltvType===v ? P : 'rgba(255,255,255,0.08)', color: ltvType===v ? '#fff' : `${CRM}55`, borderRadius:20, padding:'2px 9px', fontSize:13, fontWeight:900, fontFamily:'monospace', flexShrink:0, marginRight:6 }}>
                             {ltv * 100}%
                           </span>
                         </button>
                       ))}
-                      <div style={{ fontSize:13, color:`${P}BB`, paddingRight:4, lineHeight:1.45 }}>{LTV_RULES[ltvType].note}</div>
                     </div>
+                    <div style={{ fontSize:12, color:`${P}AA`, paddingRight:2, lineHeight:1.45, marginBottom:6 }}>{LTV_RULES[ltvType].note}</div>
 
                     {/* Equity % selector — shown only for first home */}
                     {ltvType === 'first' && (
@@ -824,31 +825,56 @@ export default function RealEstateCalc({ onClose }) {
                       </div>
                     </div>
 
-                    {/* Rate slider */}
-                    <div style={{ marginBottom:7 }}>
-                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:7 }}>
-                        <label style={{ ...LABEL, marginBottom:0 }}>ריבית שנתית</label>
-                        <span style={{ fontSize:20, fontWeight:900, color:P, fontFamily:'Rubik,monospace', background:'rgba(132,144,216,0.16)', border:'1px solid rgba(132,144,216,0.32)', borderRadius:9, padding:'4px 14px', letterSpacing:'.02em', lineHeight:1.3 }}>{rateVal}%</span>
+                    {/* Rate + Years side by side on desktop, stacked on mobile */}
+                    <div className="rc-slider-pair" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+                      {/* Rate slider */}
+                      <div>
+                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
+                          <label style={{ ...LABEL, marginBottom:0 }}>ריבית שנתית</label>
+                          <input type="text" inputMode="decimal" value={rate}
+                            onChange={e => { const v=e.target.value.replace(/[^\d.]/g,''); if(v===''||(/^\d*\.?\d*$/.test(v)&&parseFloat(v||0)<=12)) setRate(v) }}
+                            onBlur={() => { const n=parseFloat(rate); setRate(isNaN(n)?'4.8':String(Math.min(12,Math.max(0.1,n)))) }}
+                            style={{ width:56, padding:'3px 6px', background:'rgba(132,144,216,0.14)', border:'1px solid rgba(132,144,216,0.35)', borderRadius:7, color:P, fontFamily:'Rubik,monospace', fontSize:16, fontWeight:900, outline:'none', textAlign:'center' }}/>
+                        </div>
+                        <input type="range" className="rc-range" min="1" max="12" step="0.1" value={rateVal}
+                          onChange={e => setRate(e.target.value)}
+                          style={{ width:'100%', background:`linear-gradient(to left, rgba(132,144,216,0.68) ${(rateVal-1)/11*100}%, rgba(255,255,255,0.1) ${(rateVal-1)/11*100}%)` }}/>
+                        <div style={{ display:'flex', justifyContent:'space-between', fontSize:11, fontFamily:'Rubik,monospace', color:`${CRM}50`, marginTop:5 }}>
+                          <span>1%</span><span>12%</span>
+                        </div>
+                        <div style={{ display:'flex', gap:4, marginTop:6, flexWrap:'wrap' }}>
+                          {[3.5,4.0,4.5,5.0,5.5].map(r => (
+                            <button key={r} onClick={() => setRate(String(r))}
+                              style={{ flex:1, minWidth:0, padding:'3px 2px', borderRadius:6, border:`1px solid ${rateVal===r?'rgba(132,144,216,0.5)':'rgba(132,144,216,0.18)'}`, background:rateVal===r?'rgba(132,144,216,0.2)':'rgba(132,144,216,0.06)', color:rateVal===r?P:`${CRM}50`, fontFamily:'monospace', fontSize:10, fontWeight:700, cursor:'pointer', transition:'all .14s' }}>
+                              {r}%
+                            </button>
+                          ))}
+                        </div>
                       </div>
-                      <input type="range" className="rc-range" min="1" max="12" step="0.1" value={rateVal}
-                        onChange={e => setRate(e.target.value)}
-                        style={{ width:'100%', background:`linear-gradient(to left, rgba(132,144,216,0.68) ${(rateVal-1)/11*100}%, rgba(255,255,255,0.1) ${(rateVal-1)/11*100}%)` }}/>
-                      <div style={{ display:'flex', justifyContent:'space-between', fontSize:13, fontWeight:700, fontFamily:'Rubik,monospace', color:`${CRM}60`, marginTop:9 }}>
-                        <span>1%</span><span>12%</span>
-                      </div>
-                    </div>
 
-                    {/* Years slider */}
-                    <div>
-                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:7 }}>
-                        <label style={{ ...LABEL, marginBottom:0 }}>תקופה</label>
-                        <span style={{ fontSize:20, fontWeight:900, color:G, fontFamily:'Rubik,monospace', background:'rgba(130,246,127,0.14)', border:'1px solid rgba(130,246,127,0.3)', borderRadius:9, padding:'4px 14px', lineHeight:1.3 }}>{yearsVal} שנים</span>
-                      </div>
-                      <input type="range" className="rc-range rc-range-g" min="5" max="30" step="1" value={yearsVal}
-                        onChange={e => setYears(e.target.value)}
-                        style={{ width:'100%', background:`linear-gradient(to left, rgba(130,246,127,0.62) ${(yearsVal-5)/25*100}%, rgba(255,255,255,0.1) ${(yearsVal-5)/25*100}%)` }}/>
-                      <div style={{ display:'flex', justifyContent:'space-between', fontSize:13, fontWeight:700, fontFamily:'Rubik,monospace', color:`${CRM}60`, marginTop:9 }}>
-                        <span>5</span><span>30 שנה</span>
+                      {/* Years slider */}
+                      <div>
+                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
+                          <label style={{ ...LABEL, marginBottom:0 }}>תקופה</label>
+                          <input type="text" inputMode="numeric" value={years}
+                            onChange={e => { const v=e.target.value.replace(/\D/g,''); if(v===''||parseInt(v)<=30) setYears(v) }}
+                            onBlur={() => { const n=parseInt(years); setYears(String(isNaN(n)?25:Math.min(30,Math.max(5,n)))) }}
+                            style={{ width:52, padding:'3px 6px', background:'rgba(130,246,127,0.12)', border:'1px solid rgba(130,246,127,0.35)', borderRadius:7, color:G, fontFamily:'Rubik,monospace', fontSize:16, fontWeight:900, outline:'none', textAlign:'center' }}/>
+                        </div>
+                        <input type="range" className="rc-range rc-range-g" min="5" max="30" step="1" value={yearsVal}
+                          onChange={e => setYears(e.target.value)}
+                          style={{ width:'100%', background:`linear-gradient(to left, rgba(130,246,127,0.62) ${(yearsVal-5)/25*100}%, rgba(255,255,255,0.1) ${(yearsVal-5)/25*100}%)` }}/>
+                        <div style={{ display:'flex', justifyContent:'space-between', fontSize:11, fontFamily:'Rubik,monospace', color:`${CRM}50`, marginTop:5 }}>
+                          <span>5</span><span>30 שנ׳</span>
+                        </div>
+                        <div style={{ display:'flex', gap:4, marginTop:6, flexWrap:'wrap' }}>
+                          {[10,15,20,25,30].map(y => (
+                            <button key={y} onClick={() => setYears(String(y))}
+                              style={{ flex:1, minWidth:0, padding:'3px 2px', borderRadius:6, border:`1px solid ${yearsVal===y?'rgba(130,246,127,0.5)':'rgba(130,246,127,0.18)'}`, background:yearsVal===y?'rgba(130,246,127,0.16)':'rgba(130,246,127,0.05)', color:yearsVal===y?G:`${CRM}50`, fontFamily:'monospace', fontSize:10, fontWeight:700, cursor:'pointer', transition:'all .14s' }}>
+                              {y}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   </div>
