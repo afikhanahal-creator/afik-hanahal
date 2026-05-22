@@ -3594,6 +3594,8 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const [chatSending, setChatSending] = useState(false)
   const chatPollRef = useRef(null)
   const chatScrollRef = useRef(null)
+  const [selectedLead, setSelectedLead] = useState(null)
+  const [leadSearch, setLeadSearch] = useState('')
 
   const syncLeadsFromServer = () => {
     const base = API_BASE || ''
@@ -3858,9 +3860,6 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
       {!!badge && <span style={{ background:C.green, color:'#09090F', borderRadius:20, padding:'2px 8px', fontSize:11, fontWeight:900, lineHeight:1.6 }}>{badge}</span>}
     </button>
   )
-
-  const [selectedLead, setSelectedLead] = useState(null)
-  const [leadSearch, setLeadSearch] = useState('')
 
   const updateLead = (id, patch) => {
     setLeads(prev => {
@@ -7079,11 +7078,25 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
             <div>
               <h2 style={{ fontSize:'clamp(28px,3.5vw,42px)', fontWeight:900, color:C.cream, lineHeight:1.18, marginBottom:12 }}>{prop.title}</h2>
               {(prop.location || prop.neighborhood || prop.street) && (
-                <div style={{ display:'flex', alignItems:'center', gap:8, color:`${C.cream}77`, fontSize:16 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:8, color:`${C.cream}77`, fontSize:16, marginBottom: prop.mapsUrl ? 14 : 0 }}>
                   <FaMapMarkerAlt size={14} style={{ color:C.purple, flexShrink:0 }}/>
                   {[prop.location, prop.neighborhood, prop.street].filter(Boolean).join(' · ')}
                 </div>
               )}
+              {/* Inline mini map — shown only when a valid embeddable URL exists */}
+              {prop.mapsUrl && (() => {
+                const embedSrc = toMapsEmbed(prop.mapsUrl)
+                if (!embedSrc) return null
+                return (
+                  <div style={{ borderRadius:12, overflow:'hidden', border:'1px solid rgba(132,144,216,.22)', marginTop:4 }}>
+                    <iframe src={embedSrc} width="100%" height="200" style={{ border:'none', display:'block' }} allowFullScreen loading="lazy" referrerPolicy="no-referrer-when-downgrade" title="מיקום הנכס"/>
+                    <a href={prop.mapsUrl} target="_blank" rel="noopener noreferrer"
+                      style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 14px', background:'rgba(255,255,255,.04)', color:`${C.cream}77`, fontSize:12, textDecoration:'none', fontWeight:600 }}>
+                      <FaExternalLinkAlt size={9}/> פתח ב-Google Maps
+                    </a>
+                  </div>
+                )
+              })()}
             </div>
 
             {/* Key specs chips */}
@@ -8139,7 +8152,7 @@ export default function App() {
               <FaCalculator size={13}/> {TR[lang]?.heroCTA3}
             </button>
           </div>
-          <div style={{ display:'flex', gap:10, justifyContent:'center', flexWrap:'wrap' }}>
+          <div style={{ display:'flex', gap:10, justifyContent:'center', flexWrap:'wrap', marginTop:16, paddingBottom:80 }}>
             {(TR[lang]?.heroTags || []).map(tag => (
               <span key={tag} style={{ background:'rgba(255,255,255,.05)', border:`1px solid ${C.purple}33`, borderRadius:20, padding:'6px 14px', fontSize:12, color:C.cream+'AA', backdropFilter:'blur(8px)', transition:'all .2s', cursor:'default' }}
                 onMouseEnter={e => { e.currentTarget.style.background=`${C.purple}18`; e.currentTarget.style.borderColor=`${C.purple}77`; e.currentTarget.style.color=C.cream; e.currentTarget.style.transform='translateY(-2px)' }}

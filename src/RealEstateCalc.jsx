@@ -212,6 +212,7 @@ export default function RealEstateCalc({ onClose }) {
   const [ltvPrice,      setLtvPrice]      = useState('')
   const [ltvType,       setLtvType]       = useState('first')
   const [firstEquityPct, setFirstEquityPct] = useState(25)
+  const [equityInput,    setEquityInput]    = useState('')   // free-text override
   const [income,        setIncome]        = useState('')
   const [rate,          setRate]          = useState('4.8')
   const [years,         setYears]         = useState('25')
@@ -705,17 +706,38 @@ export default function RealEstateCalc({ onClose }) {
                     {/* Equity % selector — shown only for first home */}
                     {ltvType === 'first' && (
                       <div style={{ marginBottom:10 }}>
-                        {/* Header with live badge */}
-                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+                        {/* Header: label + live badge + type-in field */}
+                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8, gap:8 }}>
                           <label style={{ ...LABEL, marginBottom:0 }}>הון עצמי</label>
-                          <span style={{ fontSize:20, fontWeight:900, color: firstEquityPct >= 25 ? G : Y, fontFamily:'Rubik,monospace', background: firstEquityPct >= 25 ? 'rgba(130,246,127,0.14)' : 'rgba(247,201,72,0.14)', border:`1px solid ${firstEquityPct >= 25 ? 'rgba(130,246,127,0.32)' : 'rgba(247,201,72,0.32)'}`, borderRadius:9, padding:'3px 14px', transition:'all .3s', lineHeight:1.3 }}>{firstEquityPct}%</span>
+                          <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                            <input
+                              type="text" inputMode="numeric"
+                              value={equityInput !== '' ? equityInput : String(firstEquityPct)}
+                              onChange={e => {
+                                const raw = e.target.value.replace(/[^\d]/g,'')
+                                setEquityInput(raw)
+                                const n = parseInt(raw)
+                                if (!isNaN(n) && n >= 5 && n <= 95) {
+                                  setFirstEquityPct(n)
+                                }
+                              }}
+                              onBlur={() => {
+                                const n = parseInt(equityInput)
+                                const clamped = isNaN(n) ? firstEquityPct : Math.min(95, Math.max(5, n))
+                                setFirstEquityPct(clamped)
+                                setEquityInput('')
+                              }}
+                              style={{ width:62, padding:'4px 8px', background:'rgba(255,255,255,0.08)', border:`1px solid ${firstEquityPct >= 25 ? 'rgba(130,246,127,0.45)' : 'rgba(247,201,72,0.45)'}`, borderRadius:8, color: firstEquityPct >= 25 ? G : Y, fontFamily:'Rubik,monospace', fontSize:18, fontWeight:900, outline:'none', textAlign:'center' }}
+                            />
+                            <span style={{ fontSize:16, fontWeight:700, color: firstEquityPct >= 25 ? G : Y }}>%</span>
+                          </div>
                         </div>
 
                         {/* Loan / Equity split bar */}
                         <div style={{ marginBottom:8 }}>
-                          <div style={{ height:7, borderRadius:5, background:'rgba(255,255,255,0.07)', overflow:'hidden', display:'flex' }}>
-                            <div style={{ height:'100%', width:`${100-firstEquityPct}%`, background:`linear-gradient(to left,${P},${P}77)`, transition:'width .35s ease', borderRadius:'5px 0 0 5px' }}/>
-                            <div style={{ height:'100%', width:`${firstEquityPct}%`, background:`linear-gradient(to right,${firstEquityPct >= 25 ? G : Y}99,${firstEquityPct >= 25 ? G : Y})`, transition:'width .35s ease', borderRadius:'0 5px 5px 0' }}/>
+                          <div style={{ height:8, borderRadius:6, background:'rgba(255,255,255,0.07)', overflow:'hidden', display:'flex' }}>
+                            <div style={{ height:'100%', width:`${100-firstEquityPct}%`, background:`linear-gradient(to left,${P},${P}77)`, transition:'width .25s ease', borderRadius:'6px 0 0 6px' }}/>
+                            <div style={{ height:'100%', width:`${firstEquityPct}%`, background:`linear-gradient(to right,${firstEquityPct >= 25 ? G : Y}99,${firstEquityPct >= 25 ? G : Y})`, transition:'width .25s ease', borderRadius:'0 6px 6px 0' }}/>
                           </div>
                           <div style={{ display:'flex', justifyContent:'space-between', fontSize:11, marginTop:4, fontWeight:700, fontFamily:'Rubik,monospace' }}>
                             <span style={{ color:`${P}99` }}>משכנתא {100-firstEquityPct}%</span>
@@ -723,36 +745,37 @@ export default function RealEstateCalc({ onClose }) {
                           </div>
                         </div>
 
-                        {/* Drag slider */}
-                        <input type="range" className="rc-range" min="5" max="40" step="5" value={firstEquityPct}
-                          onChange={e => setFirstEquityPct(Number(e.target.value))}
-                          style={{ width:'100%', marginBottom:10, background:`linear-gradient(to left, rgba(132,144,216,0.65) ${(firstEquityPct-5)/35*100}%, rgba(255,255,255,0.1) ${(firstEquityPct-5)/35*100}%)` }}/>
+                        {/* Drag slider — full range 5–95% */}
+                        <input type="range" className="rc-range" min="5" max="95" step="1" value={firstEquityPct}
+                          onChange={e => { setFirstEquityPct(Number(e.target.value)); setEquityInput('') }}
+                          style={{ width:'100%', marginBottom:8, background:`linear-gradient(to left, rgba(132,144,216,0.65) ${(firstEquityPct-5)/90*100}%, rgba(255,255,255,0.1) ${(firstEquityPct-5)/90*100}%)` }}/>
 
-                        {/* 3 key preset bookmarks */}
-                        <div style={{ display:'flex', gap:8 }}>
-                          {[{pct:25,note:'מינימום'}, {pct:30,note:'מומלץ'}, {pct:40,note:'בטוח'}].map(({pct, note}) => {
+                        {/* Quick preset bookmarks */}
+                        <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                          {[{pct:25,note:'מינימום'},{pct:30,note:'מומלץ'},{pct:40,note:'בטוח'},{pct:50,note:'50%'},{pct:60,note:'60%'},{pct:70,note:'70%'}].map(({pct,note}) => {
                             const active = firstEquityPct === pct
                             return (
-                              <button key={pct} className={`rc-eq-btn${active ? ' rc-eq-on' : ''}`} onClick={() => setFirstEquityPct(pct)}
-                                style={{ flex:1, padding:'9px 8px', border:`1.5px solid ${active ? P : 'rgba(132,144,216,0.2)'}`, borderRadius:11, background: active ? 'rgba(132,144,216,0.2)' : 'rgba(255,255,255,0.03)', color: active ? P : `${CRM}55`, fontFamily:'inherit', cursor:'pointer', boxShadow: active ? `0 0 16px rgba(132,144,216,0.22)` : 'none', textAlign:'center' }}>
-                                <div style={{ fontWeight:900, fontSize:16, fontFamily:'monospace' }}>{pct}%</div>
-                                <div style={{ fontSize:10, fontWeight:600, marginTop:2, opacity:.7 }}>{note}</div>
+                              <button key={pct} className={`rc-eq-btn${active ? ' rc-eq-on' : ''}`}
+                                onClick={() => { setFirstEquityPct(pct); setEquityInput('') }}
+                                style={{ flex:'1 1 52px', padding:'7px 4px', border:`1.5px solid ${active ? P : 'rgba(132,144,216,0.2)'}`, borderRadius:10, background: active ? 'rgba(132,144,216,0.2)' : 'rgba(255,255,255,0.03)', color: active ? P : `${CRM}55`, fontFamily:'inherit', cursor:'pointer', boxShadow: active ? `0 0 14px rgba(132,144,216,0.2)` : 'none', textAlign:'center' }}>
+                                <div style={{ fontWeight:900, fontSize:14, fontFamily:'monospace' }}>{pct}%</div>
+                                {pct <= 40 && <div style={{ fontSize:9, fontWeight:600, marginTop:1, opacity:.7 }}>{note}</div>}
                               </button>
                             )
                           })}
                         </div>
 
-                        {/* Status */}
-                        {firstEquityPct < 25 ? (
-                          <div style={{ marginTop:7, fontSize:12, color:'#f59e0bCC', lineHeight:1.55, display:'flex', gap:5, alignItems:'flex-start' }}>
-                            <span style={{ flexShrink:0 }}>⚠️</span>
-                            <span>בנק ישראל מחייב מינימום 25% הון עצמי לדירה ראשונה.</span>
-                          </div>
-                        ) : firstEquityPct === 25 ? (
-                          <div style={{ marginTop:7, fontSize:12, color:`${P}99`, lineHeight:1.55 }}>✓ 25% — מינימום הנדרש לפי בנק ישראל.</div>
-                        ) : (
-                          <div style={{ marginTop:7, fontSize:12, color:`${G}99`, lineHeight:1.55 }}>✓ {firstEquityPct}% — מינוף נמוך, ביטחון גבוה.</div>
-                        )}
+                        {/* Status message */}
+                        <div style={{ marginTop:7, fontSize:12, lineHeight:1.55 }}>
+                          {firstEquityPct < 25
+                            ? <span style={{ color:'#f59e0bCC', display:'flex', gap:5, alignItems:'flex-start' }}><span>⚠️</span><span>בנק ישראל מחייב מינימום 25% הון עצמי לדירה ראשונה.</span></span>
+                            : firstEquityPct === 25
+                              ? <span style={{ color:`${P}99` }}>✓ 25% — מינימום הנדרש לפי בנק ישראל.</span>
+                              : firstEquityPct >= 60
+                                ? <span style={{ color:`${G}CC` }}>✓ {firstEquityPct}% — מימון עצמי גבוה, ריבית עדיפה ופחות סיכון.</span>
+                                : <span style={{ color:`${G}99` }}>✓ {firstEquityPct}% — מינוף נמוך, ביטחון גבוה.</span>
+                          }
+                        </div>
                       </div>
                     )}
 
@@ -835,9 +858,14 @@ export default function RealEstateCalc({ onClose }) {
                     {ltvNum > 0 ? (
                       <div style={{ display:'flex', flexDirection:'column', gap:9, animation:'rcFadeUp .32s ease .06s both' }}>
                         <div className="rc-card rc-card-p" style={{ background:'rgba(132,144,216,0.12)', border:'1px solid rgba(132,144,216,0.22)', borderRadius:14, padding:'13px 18px' }}>
-                          <div style={{ fontSize:11, color:`${CRM}55`, marginBottom:4, textTransform:'uppercase', letterSpacing:'.07em' }}>מקסימום משכנתא</div>
+                          <div style={{ fontSize:11, color:`${CRM}55`, marginBottom:4, textTransform:'uppercase', letterSpacing:'.07em' }}>
+                            {ltvType === 'first' && firstEquityPct > 25 ? 'הלוואה מבוקשת' : 'מקסימום משכנתא'}
+                          </div>
                           <div style={{ fontSize:34, fontWeight:900, color:P, fontFamily:'Rubik,monospace', lineHeight:1.1 }}>₪{fmt(aLoan)}</div>
-                          <div style={{ fontSize:13, color:`${P}CC`, marginTop:4, fontWeight:600 }}>{(effectiveLTV * 100).toFixed(0)}% ממחיר הנכס</div>
+                          <div style={{ fontSize:13, color:`${P}CC`, marginTop:4, fontWeight:600 }}>
+                            {(effectiveLTV * 100).toFixed(0)}% ממחיר הנכס
+                            {ltvType === 'first' && firstEquityPct > 25 && <span style={{ color:`${G}AA`, marginRight:6 }}>· מתחת לתקרת בנק ישראל ✓</span>}
+                          </div>
                         </div>
 
                         <div className="rc-card rc-card-g" style={{ background:'rgba(130,246,127,0.08)', border:'1px solid rgba(130,246,127,0.2)', borderRadius:14, padding:'13px 18px' }}>
