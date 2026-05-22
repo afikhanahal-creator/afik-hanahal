@@ -568,7 +568,7 @@ const makeGlobal = (C, isDark) => `
   .prop-thumb-btn img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block; }
   .prop-thumb-btn .thumb-fallback { position:absolute; inset:0; width:100%; height:100%; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:4px; background:#111128; color:rgba(132,144,216,.5); font-size:20px; }
   .prop-card { background:var(--c-card); border:1px solid rgba(132,144,216,.1); border-radius:16px; overflow:hidden; display:flex; flex-direction:column; cursor:pointer; transition:transform .3s cubic-bezier(.16,1,.3,1), box-shadow .3s, border-color .25s; }
-  .prop-card:hover { transform:translateY(-6px); box-shadow:0 28px 64px rgba(0,0,0,.32), 0 0 0 1px rgba(132,144,216,.22); border-color:rgba(132,144,216,.3); }
+  @media (hover: hover) { .prop-card:hover { transform:translateY(-6px); box-shadow:0 28px 64px rgba(0,0,0,.32), 0 0 0 1px rgba(132,144,216,.22); border-color:rgba(132,144,216,.3); } }
   .prop-card-img { position:relative; padding-bottom:67%; background:linear-gradient(135deg,rgba(132,144,216,.1),rgba(9,9,15,.5)); flex-shrink:0; overflow:hidden; }
   .prop-card-body { padding:16px 18px 18px; display:flex; flex-direction:column; flex:1; }
   .prop-card-price { font-size:21px; font-weight:900; line-height:1.1; }
@@ -6504,10 +6504,12 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
   useEffect(() => { setVideoPlaying(false) }, [imgIdx])
 
   // Programmatic play — autoPlay attribute alone is unreliable on mobile
-  // videoRef is only attached when a <video> element renders (isVideoFrame=true)
+  // Also fix React's known bug where muted prop is not set as DOM attribute
   useEffect(() => {
     const vid = videoRef.current
     if (!vid) return
+    vid.muted = true            // React muted bug fix
+    vid.volume = 0
     const tryPlay = () => vid.play().catch(() => {})
     if (vid.readyState >= 3) {
       tryPlay()
@@ -6548,12 +6550,14 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
     ? (currentVideo.url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/))([^&\n?#]+)/)?.[1] || null)
     : null
 
+  const isRental = prop.status === 'הושכר' || prop.status === 'להשכרה'
   const fmt = p => {
     if (!p) return 'מחיר בפנייה'
     const n = Number(String(p).replace(/[^\d]/g,''))
-    if (n >= 1000000) return `${(n/1000000).toFixed(2).replace(/\.?0+$/,'')} מיל׳ ₪`
-    if (n >= 1000) return `${Math.round(n/1000).toLocaleString('he-IL')} אלף ₪`
-    return `₪${p}`
+    const base = n >= 1000000 ? `${(n/1000000).toFixed(2).replace(/\.?0+$/,'')} מיל׳ ₪`
+                : n >= 1000   ? `${Math.round(n/1000).toLocaleString('he-IL')} אלף ₪`
+                : `₪${p}`
+    return isRental ? `${base} / לחודש` : base
   }
 
   useEffect(() => {
@@ -6634,15 +6638,12 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
                   src={currentVideo.url}
                   poster={getVideoThumbnail(currentVideo.url, currentVideo.thumbnail) || undefined}
                   style={{ width:'100%', height:'100%', objectFit:'cover', position:'relative', zIndex:1, background:'#000' }}
-                  autoPlay
-                  muted
                   playsInline
                   loop={!!prop.videoAutoplay}
                   controls
                   preload="auto"
                   onPlay={() => setVideoPlaying(true)}
                   onPause={() => setVideoPlaying(false)}
-                  onLoadedData={() => { videoRef.current?.play().catch(() => {}) }}
                 />
                 {!videoPlaying && (
                   <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', zIndex:4, pointerEvents:'none' }}>
@@ -7112,12 +7113,14 @@ function PropertyCard({ prop, onContact, onSelect }) {
   const cat = CATEGORIES.find(c => c.id === prop.category) || CATEGORIES[1]
   const sc = { 'זמין':C.green, 'בבדיקה':'#F7C948', 'נמכר':'#E05252', 'הושכר':'#F97316' }[prop.status] || C.green
 
+  const cardIsRental = prop.status === 'הושכר' || prop.status === 'להשכרה'
   const fmt = p => {
     if (!p) return 'מחיר בפנייה'
     const n = Number(String(p).replace(/[^\d]/g,''))
-    if (n >= 1000000) return `${(n/1000000).toFixed(2).replace(/\.?0+$/,'')} מיל׳ ₪`
-    if (n >= 1000) return `${Math.round(n/1000).toLocaleString('he-IL')} אלף ₪`
-    return `₪${p}`
+    const base = n >= 1000000 ? `${(n/1000000).toFixed(2).replace(/\.?0+$/,'')} מיל׳ ₪`
+                : n >= 1000   ? `${Math.round(n/1000).toLocaleString('he-IL')} אלף ₪`
+                : `₪${p}`
+    return cardIsRental ? `${base} / לחודש` : base
   }
 
   const specs = [
