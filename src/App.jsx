@@ -2163,6 +2163,14 @@ function ContactModal({ prop, onClose }) {
             }
             trackEvent('contact_form', { propTitle: prop?.title || '', hasEmail: !!form.email, email: form.email, phone: form.phone, name: form.name })
             setSent(true)
+            // WhatsApp follow-up — delayed per admin panel setting
+            try {
+              const waConf = { ...WA_DEFAULTS, ...JSON.parse(localStorage.getItem(WA_KEY) || '{}') }
+              if (waConf.enabled && waConf.instanceId && waConf.token && form.phone) {
+                const delayMs = (waConf.delayMin || 2) * 60 * 1000
+                setTimeout(() => sendWhatsAppLead(lead, waConf), delayMs)
+              }
+            } catch {}
           }} style={{ display:'flex', flexDirection:'column', gap:12 }}>
             {[['name',lbl.name,'text',lbl.fullName],['phone',lbl.phone,'tel',lbl.phoneEx],['email',lbl.email,'email',lbl.emailEx]].map(([k,l,t,ph]) => (
               <div key={k}>
@@ -6752,6 +6760,13 @@ function PdfLeadGate({ pdf, prop, C }) {
     setDone(true)
     setOpen(false)
     window.open(pdf.url, '_blank', 'noopener')
+    try {
+      const waConf = { ...WA_DEFAULTS, ...JSON.parse(localStorage.getItem(WA_KEY) || '{}') }
+      if (waConf.enabled && waConf.instanceId && waConf.token && phone) {
+        const delayMs = (waConf.delayMin || 2) * 60 * 1000
+        setTimeout(() => sendWhatsAppLead(lead, waConf), delayMs)
+      }
+    } catch {}
   }
 
   const inp = { width:'100%', background:'rgba(255,255,255,.06)', border:'1px solid rgba(255,255,255,.14)', borderRadius:8, padding:'10px 13px', color:'#fff', fontFamily:'inherit', fontSize:14, boxSizing:'border-box', outline:'none' }
