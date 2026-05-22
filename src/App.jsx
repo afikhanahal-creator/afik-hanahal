@@ -3609,6 +3609,13 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const chatScrollRef = useRef(null)
   const [selectedLead, setSelectedLead] = useState(null)
   const [leadSearch, setLeadSearch] = useState('')
+  const [collapsedGroups, setCollapsedGroups] = useState({})
+  const [draggedLeadId, setDraggedLeadId] = useState(null)
+  const [dragOverStatus, setDragOverStatus] = useState(null)
+  const [editingCell, setEditingCell] = useState(null)
+  const [editValue, setEditValue] = useState('')
+  const [showIntegrations, setShowIntegrations] = useState(false)
+  const [intTab, setIntTab] = useState('webhook')
 
   const syncLeadsFromServer = () => {
     const base = API_BASE || ''
@@ -3691,11 +3698,12 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   }
 
   const LEAD_STATUS = {
-    new:         { label: 'ליד חדש',  color: '#8490D8' },
-    contacted:   { label: 'נוצר קשר', color: '#F7A948' },
-    negotiating: { label: 'במו"מ',    color: '#F7C948' },
-    won:         { label: '✓ סגירה!', color: '#82F67F' },
-    lost:        { label: 'ללא מענה', color: '#9B9BA0' },
+    new:         { label: 'ליד חדש',   en: 'New Lead',    color: '#C5C7CF' },
+    contacted:   { label: 'ניצור קשר', en: 'Contacted',   color: '#579BFC' },
+    discovery:   { label: 'גילוי',     en: 'Discovery',   color: '#A25DDC' },
+    negotiating: { label: 'במו"מ',     en: 'Negotiating', color: '#FDBC64' },
+    won:         { label: '✓ סגירה',   en: 'Won',         color: '#00C875' },
+    lost:        { label: 'ללא מענה',  en: 'Lost',        color: '#7D7D7D' },
   }
 
   const updateLeadStatus = (lead, status) => {
@@ -4714,29 +4722,37 @@ Return ONLY valid JSON (no markdown, no code blocks):
           const enrichedCount = leads.filter(l => l.enrichment?.status === 'done').length
           const hotCount      = leads.filter(l => l.enrichment?.intent === 'hot').length
           const todayCount    = leads.filter(l => new Date(l.ts).toDateString() === new Date().toDateString()).length
-          const intentColor   = { hot:'#E05252', warm:'#F7C948', cold:C.purple }
+          const intentColor   = { hot:'#E05252', warm:'#FDBC64', cold:'#579BFC' }
           const intentLabel   = { hot:'חם', warm:'ממוצע', cold:'קר' }
           const scoreStars    = s => '★'.repeat(s||0) + '☆'.repeat(5-(s||0))
           const filtered = leads.filter(l =>
             !leadSearch ||
-            (l.name||'').includes(leadSearch) ||
+            (l.name||'').toLowerCase().includes(leadSearch.toLowerCase()) ||
             (l.phone||'').includes(leadSearch) ||
-            (l.email||'').includes(leadSearch) ||
-            (l.propTitle||'').includes(leadSearch)
+            (l.email||'').toLowerCase().includes(leadSearch.toLowerCase()) ||
+            (l.propTitle||'').toLowerCase().includes(leadSearch.toLowerCase())
           )
+          const statusOrder = ['new','contacted','discovery','negotiating','won','lost']
+          const grouped = statusOrder.reduce((acc, s) => { acc[s] = filtered.filter(l => (l.leadStatus||'new') === s); return acc }, {})
+          const startEdit = (id, field, value) => { setEditingCell({id,field}); setEditValue(value||'') }
+          const commitEdit = (l) => {
+            if (!editingCell) return
+            updateLead(l.id, { [editingCell.field]: editValue })
+            setEditingCell(null); setEditValue('')
+          }
 
           return (
-            <div style={{ display:'flex', flexDirection:'column', gap:18 }}>
+            <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
 
               {/* ── KPI Cards ── */}
               <div className="admin-leads-kpi" style={{ display:'grid', gap:12 }}>
                 {[
-                  { label:'סה״כ לידים', value:leads.length, color:C.purple, Icon:FaUsers },
-                  { label:'הגיעו היום',  value:todayCount,  color:C.green,  Icon:FaInbox },
-                  { label:'לידים חמים', value:hotCount,     color:'#E05252', Icon:FaFire },
-                  { label:'מועשרים',    value:enrichedCount, color:'#F7C948', Icon:FaStar },
+                  { label: lang==='en'?'Total Leads':'סה״כ לידים',   value:leads.length,    color:'#579BFC', Icon:FaUsers },
+                  { label: lang==='en'?'Today':    'הגיעו היום',      value:todayCount,      color:'#00C875', Icon:FaInbox },
+                  { label: lang==='en'?'Hot Leads':'לידים חמים',      value:hotCount,        color:'#E05252', Icon:FaFire },
+                  { label: lang==='en'?'Enriched': 'מועשרים ב-AI',    value:enrichedCount,   color:'#FDBC64', Icon:FaStar },
                 ].map((k,i) => (
-                  <div key={i} style={{ background:`${k.color}0C`, border:`1px solid ${k.color}30`, borderRadius:10, padding:'12px 14px' }}>
+                  <div key={i} style={{ background:`${k.color}0C`, border:`1px solid ${k.color}28`, borderRadius:10, padding:'12px 14px' }}>
                     <div style={{ marginBottom:6 }}><k.Icon size={14} style={{ color:k.color }}/></div>
                     <div style={{ fontSize:24, fontWeight:900, color:k.color, lineHeight:1 }}>{k.value}</div>
                     <div style={{ fontSize:10, color:`${C.cream}55`, marginTop:4, fontWeight:600 }}>{k.label}</div>
@@ -4745,330 +4761,463 @@ Return ONLY valid JSON (no markdown, no code blocks):
               </div>
 
               {/* ── Toolbar ── */}
-              <div style={{ display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
                 <input
                   value={leadSearch} onChange={e => setLeadSearch(e.target.value)}
-                  placeholder="חיפוש לפי שם / טלפון / אימייל..."
-                  style={{ flex:1, minWidth:180, padding:'8px 14px', background:'rgba(255,255,255,.05)', border:`1px solid ${C.purple}33`, borderRadius:8, color:C.cream, fontSize:12, fontFamily:'inherit', outline:'none', direction:'rtl' }}
+                  placeholder={lang==='en'?'Search by name / phone / email...':'חיפוש לפי שם / טלפון / אימייל...'}
+                  style={{ flex:1, minWidth:180, padding:'8px 14px', background:'rgba(255,255,255,.05)', border:`1px solid ${C.purple}33`, borderRadius:8, color:C.cream, fontSize:12, fontFamily:'inherit', outline:'none', direction:lang==='en'?'ltr':'rtl' }}
                 />
                 <button onClick={syncLeadsFromServer} disabled={leadsSyncing}
-                  style={{ padding:'8px 14px', background:'rgba(255,255,255,.05)', border:`1px solid ${C.purple}33`, borderRadius:8, color:leadsSyncing?`${C.cream}44`:C.cream, fontSize:12, fontWeight:700, cursor:leadsSyncing?'not-allowed':'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', gap:6, whiteSpace:'nowrap', transition:'all .15s' }}>
-                  {leadsSyncing ? '⟳ מסנכרן...' : '⟳ סנכרן מהשרת'}
+                  style={{ padding:'8px 13px', background:'rgba(255,255,255,.05)', border:`1px solid ${C.purple}33`, borderRadius:8, color:leadsSyncing?`${C.cream}44`:C.cream, fontSize:11, fontWeight:700, cursor:leadsSyncing?'not-allowed':'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', gap:5, whiteSpace:'nowrap' }}>
+                  {leadsSyncing ? '⟳ מסנכרן...' : '⟳ סנכרן'}
                 </button>
-                {leads.length > 0 && (
-                  <>
-                    <button onClick={enrichAllLeads}
-                      style={{ padding:'8px 14px', background:`${C.purple}20`, border:`1px solid ${C.purple}55`, borderRadius:8, color:C.purple, fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', gap:6, whiteSpace:'nowrap' }}>
-                      ✦ העשרת כל הלידים
-                    </button>
-                    <button onClick={exportCSV}
-                      style={{ padding:'8px 14px', background:`${C.green}14`, border:`1px solid ${C.green}44`, borderRadius:8, color:C.green, fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit', whiteSpace:'nowrap' }}>
-                      ↓ CSV
-                    </button>
-                    <button onClick={clearLeads}
-                      style={{ padding:'8px 14px', background:'rgba(224,82,82,.08)', border:'1px solid rgba(224,82,82,.25)', borderRadius:8, color:'#E05252', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit', whiteSpace:'nowrap' }}>
-                      מחק הכל
-                    </button>
-                  </>
-                )}
+                {leads.length > 0 && <>
+                  <button onClick={enrichAllLeads}
+                    style={{ padding:'8px 13px', background:`${C.purple}20`, border:`1px solid ${C.purple}55`, borderRadius:8, color:C.purple, fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit', whiteSpace:'nowrap' }}>
+                    ✦ {lang==='en'?'Enrich All':'העשרת כל הלידים'}
+                  </button>
+                  <button onClick={exportCSV}
+                    style={{ padding:'8px 13px', background:'rgba(0,200,117,.08)', border:'1px solid rgba(0,200,117,.3)', borderRadius:8, color:'#00C875', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit', whiteSpace:'nowrap' }}>
+                    ↓ CSV
+                  </button>
+                  <button onClick={() => setShowIntegrations(v => !v)}
+                    style={{ padding:'8px 13px', background:showIntegrations?`${C.purple}28`:'rgba(255,255,255,.05)', border:`1px solid ${showIntegrations?C.purple:`${C.purple}33`}`, borderRadius:8, color:showIntegrations?C.purple:C.cream, fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit', whiteSpace:'nowrap', display:'flex', alignItems:'center', gap:5 }}>
+                    🔌 {lang==='en'?'Integrations':'אינטגרציות'}
+                  </button>
+                  <button onClick={clearLeads}
+                    style={{ padding:'8px 13px', background:'rgba(224,82,82,.07)', border:'1px solid rgba(224,82,82,.22)', borderRadius:8, color:'#E05252', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit', whiteSpace:'nowrap' }}>
+                    {lang==='en'?'Clear All':'מחק הכל'}
+                  </button>
+                </>}
               </div>
 
               {/* ── Empty state ── */}
               {leads.length === 0 && (
                 <div style={{ textAlign:'center', padding:'64px 24px', borderRadius:12, border:`1px dashed ${C.purple}22` }}>
                   <FaInbox size={40} style={{ marginBottom:12, color:`${C.cream}33` }}/>
-                  <div style={{ fontSize:15, fontWeight:700, color:`${C.cream}66` }}>אין לידים עדיין</div>
+                  <div style={{ fontSize:15, fontWeight:700, color:`${C.cream}66` }}>{lang==='en'?'No leads yet':'אין לידים עדיין'}</div>
                   <div style={{ fontSize:12, marginTop:8, color:`${C.cream}33`, lineHeight:1.7 }}>
-                    כשמישהו ישאיר פרטים בטופס, הוא יופיע כאן<br/>
-                    ה-AI יאסוף עליו מידע אוטומטית — שם מלא, לינקדאין, חברה, ניתוח כוונה ועוד
+                    {lang==='en'
+                      ? 'When someone submits the contact form, they will appear here.\nAI will automatically enrich their profile.'
+                      : 'כשמישהו ישאיר פרטים בטופס, הוא יופיע כאן\nה-AI יאסוף עליו מידע אוטומטית — שם מלא, לינקדאין, חברה ועוד'}
                   </div>
                 </div>
               )}
 
-              {/* ── Leads table + detail panel ── */}
+              {/* ── Monday.com Board ── */}
               {leads.length > 0 && (
-                <div className="admin-leads-layout" style={{ display:'flex', gap:16, alignItems:'flex-start' }}>
+                <div style={{ borderRadius:12, overflow:'hidden', border:`1px solid ${C.purple}1E`, direction:'rtl', background:'rgba(255,255,255,.01)' }}>
 
-                  {/* Table */}
-                  <div style={{ flex:1, overflowX:'auto', borderRadius:12, border:`1px solid ${C.purple}1A`, minWidth:0 }}>
-                    <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12, direction:'rtl' }}>
-                      <thead>
-                        <tr style={{ background:`${C.purple}10`, borderBottom:`1px solid ${C.purple}20` }}>
-                          {['ציון','כוונה','שם','טלפון','נכס','סטטוס AI',''].map((h,i) => (
-                            <th key={i} style={{ padding:'10px 12px', textAlign:'right', fontSize:10, fontWeight:700, color:`${C.cream}66`, whiteSpace:'nowrap', letterSpacing:'.04em', textTransform:'uppercase' }}>{h}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filtered.map((l,i) => {
-                          const en = l.enrichment || {}
-                          const isSelected = selectedLead?.id === l.id
-                          const isEnriching = en.status === 'enriching'
-                          return (
-                            <tr key={l.id}
-                              onClick={() => setSelectedLead(isSelected ? null : l)}
-                              style={{ borderBottom:`1px solid ${C.purple}0E`, background: isSelected ? `${C.purple}12` : i%2===0 ? 'transparent' : 'rgba(255,255,255,.015)', verticalAlign:'middle', cursor:'pointer', transition:'background .15s' }}
-                              onMouseEnter={e=>{ if (!isSelected) e.currentTarget.style.background=`${C.purple}08` }}
-                              onMouseLeave={e=>{ if (!isSelected) e.currentTarget.style.background=i%2===0?'transparent':'rgba(255,255,255,.015)' }}>
-                              {/* Score */}
-                              <td style={{ padding:'10px 12px', whiteSpace:'nowrap', color:'#F7C948', fontSize:11, letterSpacing:1 }}>
-                                {en.score ? scoreStars(en.score) : <span style={{ color:`${C.cream}25` }}>—</span>}
-                              </td>
-                              {/* Intent */}
-                              <td style={{ padding:'10px 12px', whiteSpace:'nowrap' }}>
-                                {en.intent
-                                  ? <span style={{ fontSize:10, fontWeight:700, color:intentColor[en.intent]||C.purple, background:`${intentColor[en.intent]||C.purple}18`, borderRadius:20, padding:'2px 8px' }}>{intentLabel[en.intent]||en.intent}</span>
-                                  : <span style={{ color:`${C.cream}25`, fontSize:11 }}>—</span>}
-                              </td>
-                              {/* Name */}
-                              <td style={{ padding:'10px 12px' }}>
-                                <div style={{ fontWeight:700, color:C.cream, fontSize:13 }}>{l.name || '—'}</div>
-                                {en.company && <div style={{ fontSize:10, color:`${C.cream}55`, marginTop:2 }}>{en.role ? `${en.role} · ` : ''}{en.company}</div>}
-                                <div style={{ fontSize:10, color:`${C.cream}40`, marginTop:1 }}>
-                                  {new Date(l.ts).toLocaleDateString('he-IL',{day:'2-digit',month:'2-digit',year:'2-digit'})}
-                                </div>
-                              </td>
-                              {/* Phone */}
-                              <td style={{ padding:'10px 12px', whiteSpace:'nowrap' }}>
-                                {l.phone
-                                  ? <a href={`tel:${l.phone}`} onClick={e=>e.stopPropagation()} style={{ color:C.green, textDecoration:'none', fontWeight:700, fontSize:12 }}>{l.phone}</a>
-                                  : <span style={{ color:`${C.cream}33` }}>—</span>}
-                              </td>
-                              {/* Property */}
-                              <td style={{ padding:'10px 12px', maxWidth:140 }}>
-                                <div style={{ fontSize:11, color:`${C.cream}88`, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{l.propTitle || '—'}</div>
-                              </td>
-                              {/* AI status */}
-                              <td style={{ padding:'10px 12px', whiteSpace:'nowrap' }}>
-                                {isEnriching
-                                  ? <span style={{ fontSize:10, color:C.purple, display:'flex', alignItems:'center', gap:4 }}><span style={{ display:'inline-block', width:8, height:8, borderRadius:'50%', background:C.purple, animation:'pulse 1s ease infinite' }}/> מעשיר...</span>
-                                  : en.status === 'done'
-                                    ? <span style={{ fontSize:10, color:C.green, fontWeight:700 }}>✓ הושלם</span>
-                                    : en.status === 'error'
-                                      ? <button onClick={e=>{e.stopPropagation();enrichLead(l)}} style={{ fontSize:10, color:'#E05252', background:'none', border:'none', cursor:'pointer', fontFamily:'inherit', padding:0, textDecoration:'underline' }}>שגיאה — נסה שנית</button>
-                                      : <button onClick={e=>{e.stopPropagation();enrichLead(l)}} style={{ fontSize:10, color:C.purple, background:`${C.purple}14`, border:`1px solid ${C.purple}33`, borderRadius:6, cursor:'pointer', fontFamily:'inherit', padding:'3px 8px', fontWeight:600 }}>✦ הפעל AI</button>}
-                              </td>
-                              {/* Delete */}
-                              <td style={{ padding:'10px 8px' }}>
-                                <button onClick={e=>{e.stopPropagation();deleteLead(l.id)}}
-                                  style={{ background:'none', border:'none', color:'rgba(224,82,82,.5)', cursor:'pointer', fontSize:13, padding:'2px 5px', borderRadius:4, transition:'color .15s' }}
-                                  onMouseEnter={e=>e.currentTarget.style.color='#E05252'}
-                                  onMouseLeave={e=>e.currentTarget.style.color='rgba(224,82,82,.5)'}>✕</button>
-                              </td>
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-                    {filtered.length === 0 && leadSearch && (
-                      <div style={{ textAlign:'center', padding:'32px', color:`${C.cream}44`, fontSize:12 }}>לא נמצאו תוצאות</div>
-                    )}
+                  {/* Column header row */}
+                  <div style={{ display:'flex', alignItems:'center', background:`${C.purple}10`, borderBottom:`2px solid ${C.purple}20`, padding:'0 10px', userSelect:'none' }}>
+                    <div style={{ width:20, flexShrink:0 }}/>
+                    <div style={{ width:16, flexShrink:0 }}/>
+                    {[
+                      { label: lang==='en'?'Name':'שם',           w:'172px' },
+                      { label: lang==='en'?'Phone':'טלפון',       w:'130px' },
+                      { label: lang==='en'?'Email':'אימייל',      w:'162px' },
+                      { label: lang==='en'?'Property':'נכס',      w:'130px' },
+                      { label: lang==='en'?'Date':'תאריך',        w:'88px'  },
+                      { label: 'AI',                              w:'68px'  },
+                      { label: lang==='en'?'Status':'סטטוס',      w:'118px' },
+                      { label: '',                                w:'88px'  },
+                    ].map((col,i) => (
+                      <div key={i} style={{ width:col.w, flexShrink:0, padding:'9px 8px', fontSize:10, fontWeight:700, color:`${C.cream}50`, letterSpacing:'.05em', textTransform:'uppercase', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+                        {col.label}
+                      </div>
+                    ))}
                   </div>
 
-                  {/* ── Lead Detail Panel ── */}
-                  {selectedLead && (() => {
-                    const l = leads.find(x => x.id === selectedLead.id) || selectedLead
-                    const en = l.enrichment || {}
+                  {/* Groups */}
+                  {statusOrder.map(status => {
+                    const st = LEAD_STATUS[status]
+                    if (!st) return null
+                    const groupLeads = grouped[status] || []
+                    const isCollapsed = !!collapsedGroups[status]
+                    const isDragTarget = dragOverStatus === status
+
                     return (
-                      <div className="admin-leads-detail" style={{ background:`${C.purple}08`, border:`1px solid ${C.purple}25`, borderRadius:12, padding:'18px 16px', direction:'rtl', alignSelf:'flex-start' }}>
-                        {/* Header */}
-                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:14 }}>
-                          <div>
-                            <div style={{ fontSize:15, fontWeight:800, color:C.cream }}>{l.name || '—'}</div>
-                            {en.company && <div style={{ fontSize:11, color:`${C.cream}66`, marginTop:2 }}>{en.company}</div>}
-                            {en.role    && <div style={{ fontSize:11, color:C.purple, marginTop:1 }}>{en.role}</div>}
-                          </div>
-                          <button onClick={() => setSelectedLead(null)} style={{ background:'none', border:'none', color:`${C.cream}55`, cursor:'pointer', fontSize:16, padding:'0 2px' }}>✕</button>
+                      <div key={status}
+                        onDragOver={e => { e.preventDefault(); if (dragOverStatus !== status) setDragOverStatus(status) }}
+                        onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget)) setDragOverStatus(null) }}
+                        onDrop={e => {
+                          e.preventDefault()
+                          if (draggedLeadId) {
+                            const dl = leads.find(x => x.id === draggedLeadId)
+                            if (dl) updateLeadStatus(dl, status)
+                          }
+                          setDraggedLeadId(null); setDragOverStatus(null)
+                        }}
+                        style={{ borderLeft:`3px solid ${isDragTarget ? st.color : st.color+'60'}`, transition:'all .18s', background:isDragTarget ? `${st.color}07` : 'transparent' }}>
+
+                        {/* Group header */}
+                        <div
+                          onClick={() => setCollapsedGroups(prev => ({ ...prev, [status]: !prev[status] }))}
+                          style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 14px', cursor:'pointer', borderBottom:`1px solid ${C.purple}0F`, userSelect:'none' }}
+                          onMouseEnter={e => e.currentTarget.style.background=`${st.color}06`}
+                          onMouseLeave={e => e.currentTarget.style.background='transparent'}>
+                          <span style={{ fontSize:9, color:`${C.cream}44`, transform:isCollapsed?'rotate(-90deg)':'rotate(0)', transition:'transform .2s', display:'inline-block', lineHeight:1 }}>▼</span>
+                          <span style={{ width:11, height:11, borderRadius:'50%', background:st.color, display:'inline-block', flexShrink:0, boxShadow:`0 0 0 2px ${st.color}40` }}/>
+                          <span style={{ fontSize:12, fontWeight:800, color:st.color }}>{lang==='en'&&st.en ? st.en : st.label}</span>
+                          <span style={{ fontSize:10, color:`${C.cream}30`, background:`${C.cream}08`, borderRadius:20, padding:'1px 8px' }}>{groupLeads.length}</span>
+                          {isDragTarget && <span style={{ fontSize:10, color:st.color, marginRight:'auto', fontWeight:700 }}>⬇ {lang==='en'?'Drop here':'שחרר כאן'}</span>}
                         </div>
 
-                        {/* Lead status pipeline */}
-                        <div style={{ display:'flex', gap:4, flexWrap:'wrap', marginBottom:12 }}>
-                          {Object.entries(LEAD_STATUS).map(([k, {label, color}]) => {
-                            const active = (l.leadStatus || 'new') === k
-                            return (
-                              <button key={k} onClick={() => updateLeadStatus(l, k)}
-                                style={{ fontSize:10, fontWeight:700, padding:'4px 9px', borderRadius:20, border:`1px solid ${active ? color : `${C.cream}20`}`, background:active ? `${color}20` : 'transparent', color:active ? color : `${C.cream}40`, cursor:'pointer', fontFamily:'inherit', transition:'all .15s' }}>
-                                {label}
-                              </button>
-                            )
-                          })}
-                        </div>
+                        {/* Rows */}
+                        {!isCollapsed && groupLeads.map((l, rowIdx) => {
+                          const en = l.enrichment || {}
+                          const isSelected = selectedLead?.id === l.id
+                          const isDragging = draggedLeadId === l.id
+                          const stRow = LEAD_STATUS[l.leadStatus||'new'] || st
+                          return (
+                            <div key={l.id}>
+                              <div
+                                draggable
+                                onDragStart={e => { setDraggedLeadId(l.id); e.dataTransfer.effectAllowed='move' }}
+                                onDragEnd={() => { setDraggedLeadId(null); setDragOverStatus(null) }}
+                                style={{
+                                  display:'flex', alignItems:'center',
+                                  background: isDragging ? `${st.color}0D` : isSelected ? `${C.purple}14` : rowIdx%2===0 ? 'transparent' : 'rgba(255,255,255,.015)',
+                                  borderBottom:`1px solid ${C.purple}0C`,
+                                  opacity: isDragging ? .55 : 1,
+                                  padding:'0 10px',
+                                  transition:'background .1s',
+                                }}
+                                onMouseEnter={e => { if (!isDragging && !isSelected) e.currentTarget.style.background=`${C.purple}08` }}
+                                onMouseLeave={e => { if (!isDragging && !isSelected) e.currentTarget.style.background=rowIdx%2===0?'transparent':'rgba(255,255,255,.015)' }}>
 
-                        {/* Score + intent */}
-                        {(en.score || en.intent) && (
-                          <div style={{ display:'flex', gap:8, marginBottom:14, alignItems:'center' }}>
-                            {en.score && <div style={{ fontSize:13, color:'#F7C948', letterSpacing:1 }}>{scoreStars(en.score)}</div>}
-                            {en.intent && <span style={{ fontSize:10, fontWeight:700, color:intentColor[en.intent]||C.purple, background:`${intentColor[en.intent]||C.purple}18`, borderRadius:20, padding:'2px 10px' }}>{intentLabel[en.intent]}</span>}
-                          </div>
-                        )}
+                                {/* Drag handle */}
+                                <div style={{ width:20, flexShrink:0, cursor:'grab', color:`${C.cream}20`, fontSize:13, textAlign:'center', lineHeight:1 }}>⠿</div>
 
-                        {/* Contact */}
-                        <div style={{ display:'flex', flexDirection:'column', gap:7, marginBottom:14 }}>
-                          {l.phone && <a href={`tel:${l.phone}`} style={{ display:'flex', alignItems:'center', gap:8, fontSize:12, color:C.green, textDecoration:'none', fontWeight:700, background:`${C.green}0A`, borderRadius:7, padding:'7px 10px' }}>
-                            <FaPhone size={11}/> {l.phone}
-                          </a>}
-                          {l.email && <a href={`mailto:${l.email}`} style={{ display:'flex', alignItems:'center', gap:8, fontSize:11, color:C.purple, textDecoration:'none', background:`${C.purple}0A`, borderRadius:7, padding:'7px 10px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                            <FaEnvelope size={11}/> {l.email}
-                          </a>}
-                          {l.phone && <a href={`https://wa.me/972${(l.phone||'').replace(/^0/,'').replace(/\D/g,'')}`} target="_blank" rel="noopener noreferrer"
-                            style={{ display:'flex', alignItems:'center', gap:8, fontSize:11, color:'#25D366', textDecoration:'none', background:'rgba(37,211,102,.08)', borderRadius:7, padding:'7px 10px', fontWeight:600 }}>
-                            <FaWhatsapp size={12}/> WhatsApp
-                          </a>}
-                        </div>
+                                {/* Status dot — click to cycle */}
+                                <div style={{ width:16, flexShrink:0 }}>
+                                  <button
+                                    title={stRow.label}
+                                    onClick={e => { e.stopPropagation(); const idx=statusOrder.indexOf(l.leadStatus||'new'); updateLeadStatus(l, statusOrder[(idx+1)%statusOrder.length]) }}
+                                    style={{ width:10, height:10, borderRadius:'50%', background:stRow.color, border:'none', cursor:'pointer', padding:0, display:'block', margin:'0 auto', transition:'transform .12s' }}
+                                    onMouseEnter={e => e.currentTarget.style.transform='scale(1.4)'}
+                                    onMouseLeave={e => e.currentTarget.style.transform='scale(1)'}
+                                  />
+                                </div>
 
-                        {/* Demographic estimates */}
-                        {(en.estimatedAge || en.estimatedCity || en.estimatedBudget) && (
-                          <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginBottom:14 }}>
-                            {en.estimatedAge && <span style={{ fontSize:10, background:'rgba(255,255,255,.06)', borderRadius:20, padding:'3px 10px', color:`${C.cream}88`, fontWeight:600 }}>גיל משוער: {en.estimatedAge}</span>}
-                            {en.estimatedCity && <span style={{ fontSize:10, background:'rgba(255,255,255,.06)', borderRadius:20, padding:'3px 10px', color:`${C.cream}88`, fontWeight:600 }}>📍 {en.estimatedCity}</span>}
-                            {en.estimatedBudget && <span style={{ fontSize:10, background:`${C.green}12`, borderRadius:20, padding:'3px 10px', color:C.green, fontWeight:700 }}>💰 {en.estimatedBudget}</span>}
-                          </div>
-                        )}
+                                {/* Name */}
+                                <div style={{ width:'172px', flexShrink:0, padding:'9px 8px' }}>
+                                  {editingCell?.id===l.id && editingCell?.field==='name'
+                                    ? <input autoFocus value={editValue} onChange={e=>setEditValue(e.target.value)}
+                                        onBlur={()=>commitEdit(l)} onKeyDown={e=>{if(e.key==='Enter')commitEdit(l);if(e.key==='Escape'){setEditingCell(null);setEditValue('')}}}
+                                        style={{ width:'100%', background:'rgba(255,255,255,.1)', border:`1px solid ${C.purple}77`, borderRadius:5, color:C.cream, fontSize:12, fontWeight:700, fontFamily:'inherit', padding:'3px 6px', outline:'none', direction:'rtl' }}/>
+                                    : <div onClick={()=>startEdit(l.id,'name',l.name)}
+                                        style={{ fontWeight:700, color:C.cream, fontSize:12, cursor:'text', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:156 }} title={l.name||''}>
+                                        {l.name || <span style={{ color:`${C.cream}28` }}>—</span>}
+                                      </div>}
+                                  {en.company && <div style={{ fontSize:10, color:`${C.cream}42`, marginTop:1, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{en.company}</div>}
+                                </div>
 
-                        {/* Education + Profession */}
-                        {(en.education || en.profession) && (
-                          <div style={{ marginBottom:14, background:'rgba(255,255,255,.03)', borderRadius:8, padding:'8px 10px' }}>
-                            {en.profession && <div style={{ fontSize:11, color:C.cream, fontWeight:600, marginBottom:2 }}>{en.profession}</div>}
-                            {en.education && <div style={{ fontSize:10, color:`${C.cream}55` }}>השכלה משוערת: {en.education}</div>}
-                          </div>
-                        )}
+                                {/* Phone */}
+                                <div style={{ width:'130px', flexShrink:0, padding:'9px 8px' }}>
+                                  {editingCell?.id===l.id && editingCell?.field==='phone'
+                                    ? <input autoFocus value={editValue} onChange={e=>setEditValue(e.target.value)}
+                                        onBlur={()=>commitEdit(l)} onKeyDown={e=>{if(e.key==='Enter')commitEdit(l);if(e.key==='Escape'){setEditingCell(null);setEditValue('')}}}
+                                        style={{ width:'100%', background:'rgba(255,255,255,.1)', border:`1px solid ${C.purple}77`, borderRadius:5, color:C.cream, fontSize:11, fontFamily:'inherit', padding:'3px 6px', outline:'none', direction:'ltr' }}/>
+                                    : <div style={{ display:'flex', alignItems:'center', gap:4 }}>
+                                        {l.phone
+                                          ? <a href={`tel:${l.phone}`} onClick={e=>e.stopPropagation()} style={{ color:'#00C875', textDecoration:'none', fontWeight:700, fontSize:11, whiteSpace:'nowrap' }}>{l.phone}</a>
+                                          : <span style={{ color:`${C.cream}25`, fontSize:11 }}>—</span>}
+                                        <span onClick={e=>{e.stopPropagation();startEdit(l.id,'phone',l.phone)}} style={{ fontSize:9, color:`${C.cream}20`, cursor:'text', padding:'1px 3px', flexShrink:0 }}>✎</span>
+                                      </div>}
+                                </div>
 
-                        {/* Social links */}
-                        {(en.linkedin || en.linkedinDirect || en.facebook || en.instagram || en.google) && (
-                          <div style={{ marginBottom:14 }}>
-                            <div style={{ fontSize:10, color:`${C.cream}44`, fontWeight:700, letterSpacing:'.06em', textTransform:'uppercase', marginBottom:6 }}>רשתות חברתיות וחיפוש</div>
-                            <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
-                              {en.linkedin && <a href={en.linkedin.startsWith('http')?en.linkedin:`https://${en.linkedin}`} target="_blank" rel="noopener noreferrer"
-                                style={{ fontSize:10, color:'#0A66C2', background:'rgba(10,102,194,.12)', borderRadius:6, padding:'4px 10px', textDecoration:'none', fontWeight:700 }}>🔍 LinkedIn</a>}
-                              {en.linkedinDirect && <a href={en.linkedinDirect.startsWith('http')?en.linkedinDirect:`https://${en.linkedinDirect}`} target="_blank" rel="noopener noreferrer"
-                                style={{ fontSize:10, color:'#0A66C2', background:'rgba(10,102,194,.18)', borderRadius:6, padding:'4px 10px', textDecoration:'none', fontWeight:700 }}>in פרופיל</a>}
-                              {en.facebook && <a href={en.facebook.startsWith('http')?en.facebook:`https://${en.facebook}`} target="_blank" rel="noopener noreferrer"
-                                style={{ fontSize:10, color:'#1877F2', background:'rgba(24,119,242,.12)', borderRadius:6, padding:'4px 10px', textDecoration:'none', fontWeight:700 }}>Facebook</a>}
-                              {en.google && <a href={en.google} target="_blank" rel="noopener noreferrer"
-                                style={{ fontSize:10, color:'#EA4335', background:'rgba(234,67,53,.10)', borderRadius:6, padding:'4px 10px', textDecoration:'none', fontWeight:700 }}>Google</a>}
-                              {en.instagram && <a href={en.instagram.startsWith('http')?en.instagram:`https://instagram.com/${en.instagram.replace('@','')}`} target="_blank" rel="noopener noreferrer"
-                                style={{ fontSize:10, color:'#E1306C', background:'rgba(225,48,108,.12)', borderRadius:6, padding:'4px 10px', textDecoration:'none', fontWeight:700 }}>Instagram</a>}
-                            </div>
-                          </div>
-                        )}
+                                {/* Email */}
+                                <div style={{ width:'162px', flexShrink:0, padding:'9px 8px' }}>
+                                  {editingCell?.id===l.id && editingCell?.field==='email'
+                                    ? <input autoFocus value={editValue} onChange={e=>setEditValue(e.target.value)}
+                                        onBlur={()=>commitEdit(l)} onKeyDown={e=>{if(e.key==='Enter')commitEdit(l);if(e.key==='Escape'){setEditingCell(null);setEditValue('')}}}
+                                        style={{ width:'100%', background:'rgba(255,255,255,.1)', border:`1px solid ${C.purple}77`, borderRadius:5, color:C.cream, fontSize:10, fontFamily:'inherit', padding:'3px 6px', outline:'none', direction:'ltr' }}/>
+                                    : <div style={{ display:'flex', alignItems:'center', gap:4 }}>
+                                        {l.email
+                                          ? <a href={`mailto:${l.email}`} onClick={e=>e.stopPropagation()} style={{ color:C.purple, textDecoration:'none', fontSize:10, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:142, display:'block' }} title={l.email}>{l.email}</a>
+                                          : <span style={{ color:`${C.cream}25`, fontSize:11 }}>—</span>}
+                                        <span onClick={e=>{e.stopPropagation();startEdit(l.id,'email',l.email)}} style={{ fontSize:9, color:`${C.cream}20`, cursor:'text', padding:'1px 3px', flexShrink:0 }}>✎</span>
+                                      </div>}
+                                </div>
 
-                        {/* AI Notes */}
-                        {en.notes && (
-                          <div style={{ marginBottom:14 }}>
-                            <div style={{ fontSize:10, color:`${C.cream}44`, fontWeight:700, letterSpacing:'.06em', textTransform:'uppercase', marginBottom:6 }}>ניתוח AI — פגישת מכירה</div>
-                            <div style={{ fontSize:11, color:`${C.cream}88`, lineHeight:1.7, background:'rgba(255,255,255,.03)', borderRadius:8, padding:'10px 12px', border:`1px solid ${C.purple}15` }}>{en.notes}</div>
-                            {en.scoreReason && <div style={{ fontSize:10, color:`${C.cream}44`, marginTop:6, fontStyle:'italic' }}>{en.scoreReason}</div>}
-                          </div>
-                        )}
+                                {/* Property */}
+                                <div style={{ width:'130px', flexShrink:0, padding:'9px 8px' }}>
+                                  <div style={{ fontSize:10, color:`${C.cream}60`, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }} title={l.propTitle||''}>
+                                    {l.propTitle || <span style={{ color:`${C.cream}22` }}>—</span>}
+                                  </div>
+                                </div>
 
-                        {/* Talking Points */}
-                        {en.talkingPoints?.length > 0 && (
-                          <div style={{ marginBottom:14 }}>
-                            <div style={{ fontSize:10, color:`${C.cream}44`, fontWeight:700, letterSpacing:'.06em', textTransform:'uppercase', marginBottom:6 }}>נקודות לשיחה</div>
-                            <ul style={{ margin:0, padding:'0 16px', listStyle:'disc' }}>
-                              {en.talkingPoints.map((pt, i) => (
-                                <li key={i} style={{ fontSize:11, color:`${C.cream}88`, lineHeight:1.7, marginBottom:4 }}>{pt}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
+                                {/* Date */}
+                                <div style={{ width:'88px', flexShrink:0, padding:'9px 8px' }}>
+                                  <div style={{ fontSize:10, color:`${C.cream}40`, whiteSpace:'nowrap' }}>
+                                    {new Date(l.ts).toLocaleDateString('he-IL',{day:'2-digit',month:'2-digit',year:'2-digit'})}
+                                  </div>
+                                </div>
 
-                        {/* Tags */}
-                        {en.tags?.length > 0 && (
-                          <div style={{ display:'flex', flexWrap:'wrap', gap:4, marginBottom:14 }}>
-                            {en.tags.map((t,i) => <span key={i} style={{ fontSize:10, background:`${C.purple}14`, color:C.purple, borderRadius:20, padding:'2px 8px', fontWeight:600 }}>{t}</span>)}
-                          </div>
-                        )}
+                                {/* AI intent */}
+                                <div style={{ width:'68px', flexShrink:0, padding:'9px 8px' }}>
+                                  {en.intent
+                                    ? <span style={{ fontSize:9, fontWeight:700, color:intentColor[en.intent]||C.purple, background:`${intentColor[en.intent]||C.purple}18`, borderRadius:20, padding:'2px 7px', whiteSpace:'nowrap' }}>{intentLabel[en.intent]||en.intent}</span>
+                                    : <span style={{ color:`${C.cream}20`, fontSize:10 }}>—</span>}
+                                </div>
 
-                        {/* Property interest */}
-                        {l.propTitle && (
-                          <div style={{ marginBottom:14, background:'rgba(255,255,255,.03)', borderRadius:8, padding:'8px 10px' }}>
-                            <div style={{ fontSize:10, color:`${C.cream}44`, fontWeight:700, marginBottom:3 }}>עניין בנכס</div>
-                            <div style={{ fontSize:12, color:C.cream }}>{l.propTitle}</div>
-                            {l.propLocation && <div style={{ fontSize:10, color:`${C.cream}55`, marginTop:2 }}><FaMapMarkerAlt size={8} style={{ color:C.purple }}/> {l.propLocation}</div>}
-                          </div>
-                        )}
+                                {/* Status select */}
+                                <div style={{ width:'118px', flexShrink:0, padding:'9px 6px' }}>
+                                  <select
+                                    value={l.leadStatus||'new'}
+                                    onChange={e=>{e.stopPropagation();updateLeadStatus(l,e.target.value)}}
+                                    onClick={e=>e.stopPropagation()}
+                                    style={{ background:`${stRow.color}1E`, border:`1px solid ${stRow.color}55`, borderRadius:20, color:stRow.color, fontSize:10, fontWeight:700, fontFamily:'inherit', padding:'3px 8px', cursor:'pointer', outline:'none', width:'100%', maxWidth:106 }}>
+                                    {Object.entries(LEAD_STATUS).map(([k,v]) => (
+                                      <option key={k} value={k} style={{ background:isDark?'#1a1a2e':'#fff', color:v.color }}>{lang==='en'&&v.en?v.en:v.label}</option>
+                                    ))}
+                                  </select>
+                                </div>
 
-                        {/* Enrich button */}
-                        {en.status !== 'done' && (
-                          <button onClick={() => enrichLead(l)} disabled={en.status==='enriching'}
-                            style={{ width:'100%', padding:'10px', background:en.status==='enriching'?`${C.purple}20`:C.purple, border:'none', borderRadius:8, color:'#fff', fontSize:12, fontWeight:700, cursor:en.status==='enriching'?'not-allowed':'pointer', fontFamily:'inherit', transition:'opacity .15s' }}>
-                            {en.status === 'enriching' ? '✦ אוסף מידע...' : '✦ העשרת פרופיל עם AI'}
-                          </button>
-                        )}
-                        {en.status === 'done' && en.enrichedAt && (
-                          <div style={{ fontSize:10, color:`${C.cream}33`, textAlign:'center', marginTop:8 }}>
-                            עודכן: {new Date(en.enrichedAt).toLocaleString('he-IL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}
-                          </div>
-                        )}
+                                {/* Actions */}
+                                <div style={{ width:'88px', flexShrink:0, padding:'9px 8px', display:'flex', alignItems:'center', gap:5 }}>
+                                  <button onClick={e=>{e.stopPropagation();setSelectedLead(isSelected?null:l)}} title={lang==='en'?'View profile':'פרופיל'}
+                                    style={{ background:isSelected?`${C.purple}30`:'none', border:`1px solid ${isSelected?C.purple:`${C.purple}22`}`, color:isSelected?C.purple:`${C.cream}44`, cursor:'pointer', fontSize:11, padding:'3px 6px', borderRadius:5, transition:'all .12s', fontFamily:'inherit' }}>
+                                    {isSelected ? '✕' : '◎'}
+                                  </button>
+                                  {en.status !== 'done'
+                                    ? <button onClick={e=>{e.stopPropagation();enrichLead(l)}} disabled={en.status==='enriching'} title="AI"
+                                        style={{ background:en.status==='enriching'?`${C.purple}14`:`${C.purple}20`, border:`1px solid ${C.purple}33`, color:en.status==='enriching'?`${C.cream}40`:C.purple, cursor:en.status==='enriching'?'not-allowed':'pointer', fontSize:10, padding:'3px 6px', borderRadius:5, fontFamily:'inherit', transition:'all .12s' }}>
+                                        {en.status==='enriching'?'…':'✦'}
+                                      </button>
+                                    : <span title={lang==='en'?'Enriched':'הועשר'} style={{ fontSize:12, color:'#00C875' }}>✓</span>}
+                                  <button onClick={e=>{e.stopPropagation();deleteLead(l.id)}} title={lang==='en'?'Delete':'מחק'}
+                                    style={{ background:'none', border:'none', color:'rgba(224,82,82,.4)', cursor:'pointer', fontSize:13, padding:'2px 3px', borderRadius:4, transition:'color .12s' }}
+                                    onMouseEnter={e=>e.currentTarget.style.color='#E05252'}
+                                    onMouseLeave={e=>e.currentTarget.style.color='rgba(224,82,82,.4)'}>✕</button>
+                                </div>
+                              </div>
 
-                        {/* ── WhatsApp Chat ─────────────────────────────── */}
-                        {l.phone && (
-                          <div style={{ marginTop:16, borderTop:`1px solid ${C.purple}18`, paddingTop:14 }}>
-                            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
-                              <div style={{ fontSize:10, color:`${C.cream}44`, fontWeight:700, letterSpacing:'.06em', textTransform:'uppercase' }}>💬 צ'אט WhatsApp</div>
-                              <button onClick={() => fetchChats(l.phone)}
-                                style={{ fontSize:9, color:`${C.cream}33`, background:'none', border:'none', cursor:'pointer', fontFamily:'inherit', padding:'2px 6px' }}>
-                                ⟳ רענן
-                              </button>
-                            </div>
+                              {/* ── Inline detail panel ── */}
+                              {isSelected && (() => {
+                                const en2 = l.enrichment || {}
+                                return (
+                                  <div style={{ background:`${C.purple}07`, borderBottom:`1px solid ${C.purple}18`, padding:'16px 20px 16px 56px', display:'flex', gap:18, flexWrap:'wrap', direction:'rtl' }}>
 
-                            {/* Bubble area */}
-                            <div ref={chatScrollRef}
-                              style={{ height:200, overflowY:'auto', background:'rgba(0,0,0,.35)', borderRadius:10, padding:'8px', display:'flex', flexDirection:'column', gap:5, border:`1px solid ${C.purple}18`, WebkitOverflowScrolling:'touch' }}>
-                              {(() => {
-                                const p = intlPhoneFmt(l.phone)
-                                const msgs = chats[p] || []
-                                if (msgs.length === 0) return (
-                                  <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:`${C.cream}28`, fontSize:11, textAlign:'center', flexDirection:'column', gap:6 }}>
-                                    <FaWhatsapp size={22} style={{ opacity:.3 }}/>
-                                    <span>אין הודעות עדיין<br/>שלח הודעה ראשונה ⬇</span>
+                                    {/* Contact + AI */}
+                                    <div style={{ flex:'1 1 200px', minWidth:0 }}>
+                                      <div style={{ fontSize:13, fontWeight:800, color:C.cream, marginBottom:6 }}>{l.name||'—'}</div>
+                                      {en2.role && <div style={{ fontSize:10, color:C.purple, marginBottom:4 }}>{en2.role}{en2.company ? ` · ${en2.company}` : ''}</div>}
+
+                                      <div style={{ display:'flex', flexDirection:'column', gap:5, marginBottom:10 }}>
+                                        {l.phone && <a href={`tel:${l.phone}`} style={{ display:'flex', alignItems:'center', gap:6, fontSize:11, color:'#00C875', textDecoration:'none', fontWeight:700, background:'rgba(0,200,117,.07)', borderRadius:6, padding:'5px 9px' }}><FaPhone size={9}/>{l.phone}</a>}
+                                        {l.email && <a href={`mailto:${l.email}`} style={{ display:'flex', alignItems:'center', gap:6, fontSize:10, color:C.purple, textDecoration:'none', background:`${C.purple}09`, borderRadius:6, padding:'5px 9px', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}><FaEnvelope size={9}/>{l.email}</a>}
+                                        {l.phone && <a href={`https://wa.me/972${(l.phone||'').replace(/^0/,'').replace(/\D/g,'')}`} target="_blank" rel="noopener noreferrer"
+                                          style={{ display:'flex', alignItems:'center', gap:6, fontSize:10, color:'#25D366', textDecoration:'none', fontWeight:600, background:'rgba(37,211,102,.07)', borderRadius:6, padding:'5px 9px' }}><FaWhatsapp size={10}/>WhatsApp</a>}
+                                      </div>
+
+                                      {(en2.score || en2.intent) && (
+                                        <div style={{ display:'flex', gap:6, marginBottom:8, alignItems:'center' }}>
+                                          {en2.score && <span style={{ fontSize:12, color:'#F7C948' }}>{scoreStars(en2.score)}</span>}
+                                          {en2.intent && <span style={{ fontSize:9, fontWeight:700, color:intentColor[en2.intent]||C.purple, background:`${intentColor[en2.intent]||C.purple}18`, borderRadius:20, padding:'1px 8px' }}>{intentLabel[en2.intent]}</span>}
+                                        </div>
+                                      )}
+
+                                      {(en2.estimatedAge || en2.estimatedCity || en2.estimatedBudget) && (
+                                        <div style={{ display:'flex', flexWrap:'wrap', gap:5, marginBottom:8 }}>
+                                          {en2.estimatedAge && <span style={{ fontSize:9, background:'rgba(255,255,255,.06)', borderRadius:20, padding:'2px 8px', color:`${C.cream}77`, fontWeight:600 }}>גיל: {en2.estimatedAge}</span>}
+                                          {en2.estimatedCity && <span style={{ fontSize:9, background:'rgba(255,255,255,.06)', borderRadius:20, padding:'2px 8px', color:`${C.cream}77`, fontWeight:600 }}>📍{en2.estimatedCity}</span>}
+                                          {en2.estimatedBudget && <span style={{ fontSize:9, background:'rgba(0,200,117,.1)', borderRadius:20, padding:'2px 8px', color:'#00C875', fontWeight:700 }}>💰{en2.estimatedBudget}</span>}
+                                        </div>
+                                      )}
+
+                                      {en2.notes && <div style={{ fontSize:10, color:`${C.cream}77`, lineHeight:1.7, background:'rgba(255,255,255,.03)', borderRadius:7, padding:'8px 10px', border:`1px solid ${C.purple}10`, marginBottom:8 }}>{en2.notes}</div>}
+                                      {en2.talkingPoints?.length>0 && (
+                                        <div style={{ marginBottom:8 }}>
+                                          <div style={{ fontSize:9, color:`${C.cream}44`, fontWeight:700, letterSpacing:'.05em', marginBottom:4 }}>{lang==='en'?'TALKING POINTS':'נקודות לשיחה'}</div>
+                                          {en2.talkingPoints.map((pt,i) => <div key={i} style={{ fontSize:10, color:`${C.cream}70`, marginBottom:2 }}>• {pt}</div>)}
+                                        </div>
+                                      )}
+                                      {(en2.linkedin||en2.linkedinDirect||en2.facebook||en2.instagram||en2.google) && (
+                                        <div style={{ display:'flex', gap:5, flexWrap:'wrap', marginBottom:8 }}>
+                                          {en2.linkedin && <a href={en2.linkedin.startsWith('http')?en2.linkedin:`https://${en2.linkedin}`} target="_blank" rel="noopener noreferrer" style={{ fontSize:9, color:'#0A66C2', background:'rgba(10,102,194,.12)', borderRadius:5, padding:'3px 8px', textDecoration:'none', fontWeight:700 }}>LinkedIn</a>}
+                                          {en2.linkedinDirect && <a href={en2.linkedinDirect.startsWith('http')?en2.linkedinDirect:`https://${en2.linkedinDirect}`} target="_blank" rel="noopener noreferrer" style={{ fontSize:9, color:'#0A66C2', background:'rgba(10,102,194,.18)', borderRadius:5, padding:'3px 8px', textDecoration:'none', fontWeight:700 }}>in</a>}
+                                          {en2.facebook && <a href={en2.facebook.startsWith('http')?en2.facebook:`https://${en2.facebook}`} target="_blank" rel="noopener noreferrer" style={{ fontSize:9, color:'#1877F2', background:'rgba(24,119,242,.12)', borderRadius:5, padding:'3px 8px', textDecoration:'none', fontWeight:700 }}>FB</a>}
+                                          {en2.google && <a href={en2.google} target="_blank" rel="noopener noreferrer" style={{ fontSize:9, color:'#EA4335', background:'rgba(234,67,53,.1)', borderRadius:5, padding:'3px 8px', textDecoration:'none', fontWeight:700 }}>Google</a>}
+                                          {en2.instagram && <a href={en2.instagram.startsWith('http')?en2.instagram:`https://instagram.com/${en2.instagram.replace('@','')}`} target="_blank" rel="noopener noreferrer" style={{ fontSize:9, color:'#E1306C', background:'rgba(225,48,108,.12)', borderRadius:5, padding:'3px 8px', textDecoration:'none', fontWeight:700 }}>IG</a>}
+                                        </div>
+                                      )}
+                                      {en2.status !== 'done' && (
+                                        <button onClick={()=>enrichLead(l)} disabled={en2.status==='enriching'}
+                                          style={{ padding:'7px 14px', background:en2.status==='enriching'?`${C.purple}20`:C.purple, border:'none', borderRadius:7, color:'#fff', fontSize:11, fontWeight:700, cursor:en2.status==='enriching'?'not-allowed':'pointer', fontFamily:'inherit' }}>
+                                          {en2.status==='enriching'?'✦ אוסף מידע...':'✦ העשרת פרופיל עם AI'}
+                                        </button>
+                                      )}
+                                    </div>
+
+                                    {/* WhatsApp chat */}
+                                    {l.phone && (
+                                      <div style={{ flex:'1 1 240px', minWidth:0 }}>
+                                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
+                                          <div style={{ fontSize:9, color:`${C.cream}44`, fontWeight:700, letterSpacing:'.06em', textTransform:'uppercase' }}>💬 WhatsApp</div>
+                                          <button onClick={()=>fetchChats(l.phone)} style={{ fontSize:9, color:`${C.cream}33`, background:'none', border:'none', cursor:'pointer', fontFamily:'inherit', padding:'2px 5px' }}>⟳</button>
+                                        </div>
+                                        <div ref={chatScrollRef}
+                                          style={{ height:155, overflowY:'auto', background:'rgba(0,0,0,.3)', borderRadius:8, padding:6, display:'flex', flexDirection:'column', gap:4, border:`1px solid ${C.purple}14` }}>
+                                          {(() => {
+                                            const p = intlPhoneFmt(l.phone)
+                                            const msgs = chats[p] || []
+                                            if (!msgs.length) return (
+                                              <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:`${C.cream}28`, fontSize:10, textAlign:'center', flexDirection:'column', gap:4 }}>
+                                                <FaWhatsapp size={18} style={{ opacity:.3 }}/><span>{lang==='en'?'No messages yet':'אין הודעות עדיין'}</span>
+                                              </div>
+                                            )
+                                            return msgs.map((m,i) => (
+                                              <div key={m.id||i} style={{ display:'flex', justifyContent:m.direction==='out'?'flex-end':'flex-start' }}>
+                                                <div style={{ maxWidth:'80%', padding:'5px 8px', borderRadius:8, background:m.direction==='out'?C.purple:'rgba(255,255,255,.08)', color:m.direction==='out'?'#fff':C.cream, fontSize:10, lineHeight:1.5, wordBreak:'break-word' }}>
+                                                  <div>{m.message}</div>
+                                                  <div style={{ fontSize:8, opacity:.5, marginTop:1, textAlign:m.direction==='out'?'right':'left', direction:'ltr' }}>
+                                                    {new Date(m.created_at).toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'})}{m.direction==='out'&&' ✓'}
+                                                  </div>
+                                                </div>
+                                              </div>
+                                            ))
+                                          })()}
+                                        </div>
+                                        <div style={{ display:'flex', gap:5, marginTop:5 }}>
+                                          <input value={chatInput} onChange={e=>setChatInput(e.target.value)}
+                                            onKeyDown={e=>e.key==='Enter'&&!e.shiftKey&&sendChatMsg(l)}
+                                            placeholder={lang==='en'?'Type a message...':'כתוב הודעה...'} disabled={chatSending}
+                                            style={{ flex:1, padding:'6px 9px', background:'rgba(255,255,255,.06)', border:`1px solid ${C.purple}33`, borderRadius:6, color:C.cream, fontSize:10, fontFamily:'inherit', outline:'none', direction:'rtl' }}/>
+                                          <button onClick={()=>sendChatMsg(l)} disabled={chatSending||!chatInput.trim()}
+                                            style={{ padding:'6px 10px', background:chatSending||!chatInput.trim()?`${C.purple}44`:C.purple, border:'none', borderRadius:6, color:'#fff', cursor:chatSending||!chatInput.trim()?'not-allowed':'pointer', fontSize:10, fontWeight:700, fontFamily:'inherit' }}>
+                                            {chatSending?'...':'↑'}
+                                          </button>
+                                        </div>
+                                        <div style={{ fontSize:8, color:`${C.cream}20`, marginTop:3, textAlign:'center' }}>Green API · auto-refresh 12s</div>
+                                      </div>
+                                    )}
                                   </div>
                                 )
-                                return msgs.map((m, i) => (
-                                  <div key={m.id||i} style={{ display:'flex', justifyContent: m.direction==='out' ? 'flex-end' : 'flex-start' }}>
-                                    <div style={{ maxWidth:'82%', padding:'6px 10px', borderRadius:10, background: m.direction==='out' ? C.purple : 'rgba(255,255,255,.09)', color: m.direction==='out' ? '#fff' : C.cream, fontSize:11, lineHeight:1.5, wordBreak:'break-word' }}>
-                                      <div>{m.message}</div>
-                                      <div style={{ fontSize:9, opacity:.55, marginTop:2, textAlign: m.direction==='out' ? 'right' : 'left', direction:'ltr' }}>
-                                        {new Date(m.created_at).toLocaleTimeString('he-IL', { hour:'2-digit', minute:'2-digit' })}
-                                        {m.direction==='out' && ' ✓'}
-                                      </div>
-                                    </div>
-                                  </div>
-                                ))
                               })()}
                             </div>
+                          )
+                        })}
 
-                            {/* Reply input */}
-                            <div style={{ display:'flex', gap:6, marginTop:6 }}>
-                              <input
-                                value={chatInput}
-                                onChange={e => setChatInput(e.target.value)}
-                                onKeyDown={e => e.key==='Enter' && !e.shiftKey && sendChatMsg(l)}
-                                placeholder="כתוב הודעה..."
-                                disabled={chatSending}
-                                style={{ flex:1, padding:'8px 10px', background:'rgba(255,255,255,.06)', border:`1px solid ${C.purple}33`, borderRadius:8, color:C.cream, fontSize:11, fontFamily:'inherit', outline:'none', direction:'rtl' }}
-                              />
-                              <button
-                                onClick={() => sendChatMsg(l)}
-                                disabled={chatSending || !chatInput.trim()}
-                                style={{ padding:'8px 12px', background:chatSending||!chatInput.trim()?`${C.purple}44`:C.purple, border:'none', borderRadius:8, color:'#fff', cursor:chatSending||!chatInput.trim()?'not-allowed':'pointer', fontSize:11, fontWeight:700, fontFamily:'inherit', whiteSpace:'nowrap', transition:'background .15s' }}>
-                                {chatSending ? '...' : '↑ שלח'}
-                              </button>
-                            </div>
-                            <div style={{ fontSize:9, color:`${C.cream}22`, marginTop:4, textAlign:'center' }}>
-                              Green API · מתעדכן אוטומטית כל 12 שניות
-                            </div>
+                        {!isCollapsed && groupLeads.length === 0 && (
+                          <div style={{ padding:'11px 56px', fontSize:11, color:`${C.cream}28`, fontStyle:'italic', borderBottom:`1px solid ${C.purple}0C` }}>
+                            {isDragTarget
+                              ? <span style={{ color:st.color, fontWeight:700 }}>⬇ {lang==='en'?`Drop to mark as "${st.en}"`:` שחרור יסמן כ"${st.label}"`}</span>
+                              : (lang==='en'?'No leads in this stage':'אין לידים בסטטוס זה')}
                           </div>
                         )}
                       </div>
                     )
-                  })()}
+                  })}
+                </div>
+              )}
+
+              {/* ── Integrations Panel ── */}
+              {showIntegrations && (
+                <div style={{ borderRadius:12, border:`1px solid ${C.purple}25`, overflow:'hidden', direction:'rtl' }}>
+                  <div style={{ background:`${C.purple}10`, padding:'14px 18px', borderBottom:`1px solid ${C.purple}20`, display:'flex', alignItems:'center', gap:10 }}>
+                    <span style={{ fontSize:16 }}>🔌</span>
+                    <div>
+                      <div style={{ fontSize:13, fontWeight:800, color:C.cream }}>{lang==='en'?'External Integrations':'אינטגרציות חיצוניות'}</div>
+                      <div style={{ fontSize:10, color:`${C.cream}55`, marginTop:2 }}>{lang==='en'?'Connect your leads to external tools':'חבר את הלידים שלך לכלים חיצוניים'}</div>
+                    </div>
+                  </div>
+                  <div style={{ display:'flex', gap:4, padding:'10px 14px', borderBottom:`1px solid ${C.purple}14`, flexWrap:'wrap' }}>
+                    {[
+                      { key:'webhook', label:'🪝 Webhook' },
+                      { key:'zapier',  label:'⚡ Zapier'  },
+                      { key:'make',    label:'🔄 Make'    },
+                      { key:'sheets',  label:'📊 Google Sheets' },
+                      { key:'fb',      label:'📘 Facebook Ads'  },
+                    ].map(t => (
+                      <button key={t.key} onClick={()=>setIntTab(t.key)}
+                        style={{ padding:'6px 12px', borderRadius:6, border:`1px solid ${intTab===t.key?C.purple:`${C.purple}22`}`, background:intTab===t.key?`${C.purple}20`:'transparent', color:intTab===t.key?C.purple:`${C.cream}60`, fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div style={{ padding:'16px 18px', direction:'rtl' }}>
+                    {intTab==='webhook' && (
+                      <div>
+                        <div style={{ fontSize:12, fontWeight:700, color:C.cream, marginBottom:8 }}>שלח לידים לכל Webhook</div>
+                        <div style={{ fontSize:11, color:`${C.cream}66`, lineHeight:1.8, marginBottom:10 }}>
+                          כל ליד חדש שמגיע לאתר נשלח אוטומטית לנקודת ה-Webhook שתגדיר. הנתונים נשלחים בפורמט JSON.
+                        </div>
+                        <div style={{ background:'rgba(0,0,0,.32)', borderRadius:8, padding:'10px 14px', fontSize:10, color:`${C.cream}88`, fontFamily:'monospace', direction:'ltr', lineHeight:1.9 }}>
+                          {'POST https://your-webhook.com/leads\n{\n  "name": "ישראל כהן",\n  "phone": "050-1234567",\n  "email": "israel@example.com",\n  "propTitle": "שם הנכס",\n  "source": "website"\n}'}
+                        </div>
+                        <div style={{ marginTop:10, fontSize:11, color:`${C.cream}55` }}>להגדרת URL: <span style={{ color:C.purple, fontWeight:700 }}>הגדרות → CRM Webhook</span></div>
+                      </div>
+                    )}
+                    {intTab==='zapier' && (
+                      <div>
+                        <div style={{ fontSize:12, fontWeight:700, color:C.cream, marginBottom:8 }}>חיבור ל-Zapier</div>
+                        <div style={{ fontSize:11, color:`${C.cream}66`, lineHeight:1.8, marginBottom:8 }}>
+                          צור Zap חדש עם טריגר <strong style={{ color:C.cream }}>Webhooks by Zapier → Catch Hook</strong>, העתק את ה-URL שנוצר, והדבק בהגדרות.
+                        </div>
+                        <ol style={{ margin:0, padding:'0 0 0 16px', fontSize:11, color:`${C.cream}77`, lineHeight:2.1 }}>
+                          <li>zapier.com → Create → Zap</li>
+                          <li>Trigger: <strong style={{ color:C.cream }}>Webhooks by Zapier → Catch Hook</strong></li>
+                          <li>העתק את ה-Webhook URL שנוצר</li>
+                          <li>Action: Gmail / Google Sheets / Slack / CRM</li>
+                          <li>הדבק ב<strong style={{ color:C.purple }}>הגדרות → CRM Webhook</strong></li>
+                        </ol>
+                      </div>
+                    )}
+                    {intTab==='make' && (
+                      <div>
+                        <div style={{ fontSize:12, fontWeight:700, color:C.cream, marginBottom:8 }}>חיבור ל-Make (Integromat)</div>
+                        <div style={{ fontSize:11, color:`${C.cream}66`, lineHeight:1.8, marginBottom:8 }}>
+                          Make מאפשר חיבור לאלפי אפליקציות — Notion, Airtable, HubSpot, Google Sheets ועוד.
+                        </div>
+                        <ol style={{ margin:0, padding:'0 0 0 16px', fontSize:11, color:`${C.cream}77`, lineHeight:2.1 }}>
+                          <li>make.com → Create a scenario</li>
+                          <li>מודול: <strong style={{ color:C.cream }}>Webhooks → Custom webhook</strong></li>
+                          <li>לחץ "Add" ותן שם → העתק URL</li>
+                          <li>חבר לאפליקציה הרצויה</li>
+                          <li>הדבק ב<strong style={{ color:C.purple }}>הגדרות → CRM Webhook</strong></li>
+                        </ol>
+                      </div>
+                    )}
+                    {intTab==='sheets' && (
+                      <div>
+                        <div style={{ fontSize:12, fontWeight:700, color:C.cream, marginBottom:8 }}>ייצוא ל-Google Sheets</div>
+                        <div style={{ fontSize:11, color:`${C.cream}66`, lineHeight:1.8, marginBottom:10 }}>
+                          הורד את רשימת הלידים כ-CSV ויבא ישירות ל-Google Sheets, או השתמש ב-Zapier/Make לסנכרון אוטומטי בזמן אמת.
+                        </div>
+                        <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                          <button onClick={exportCSV}
+                            style={{ padding:'8px 16px', background:'rgba(0,200,117,.08)', border:'1px solid rgba(0,200,117,.3)', borderRadius:8, color:'#00C875', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+                            ↓ הורד CSV עכשיו
+                          </button>
+                        </div>
+                        <div style={{ marginTop:10, fontSize:10, color:`${C.cream}44` }}>לסנכרון אוטומטי: חבר דרך Zapier או Make עם Webhook ↑</div>
+                      </div>
+                    )}
+                    {intTab==='fb' && (
+                      <div>
+                        <div style={{ fontSize:12, fontWeight:700, color:C.cream, marginBottom:8 }}>סנכרון מ-Facebook Lead Ads</div>
+                        <div style={{ fontSize:11, color:`${C.cream}66`, lineHeight:1.8, marginBottom:8 }}>
+                          חבר לידים מ-Facebook Lead Ads אוטומטית דרך Zapier:
+                        </div>
+                        <ol style={{ margin:0, padding:'0 0 0 16px', fontSize:11, color:`${C.cream}77`, lineHeight:2.1 }}>
+                          <li>Zapier → Trigger: <strong style={{ color:C.cream }}>Facebook Lead Ads → New Lead</strong></li>
+                          <li>Action: <strong style={{ color:C.cream }}>Webhooks by Zapier → POST</strong></li>
+                          <li>הדבק את כתובת ה-Webhook של האתר</li>
+                          <li>מפה שדות: name, phone, email</li>
+                        </ol>
+                        <div style={{ marginTop:10, fontSize:10, color:`${C.cream}44` }}>לחלופין: Make עם מודול Facebook Lead Ads → Webhook</div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 
               <div style={{ fontSize:10, color:`${C.cream}25`, textAlign:'center' }}>
-                מידע ה-AI הוא ניתוח אוטומטי ויש לאמתו לפני שימוש · סנכרן עם CRM דרך Webhook בהגדרות
+                {lang==='en'
+                  ? 'AI data is automated analysis — verify before use · Drag rows between groups to change status'
+                  : 'מידע ה-AI הוא ניתוח אוטומטי ויש לאמתו לפני שימוש · גרור שורות בין קבוצות לשינוי סטטוס'}
               </div>
             </div>
           )
