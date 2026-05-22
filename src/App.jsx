@@ -8169,6 +8169,43 @@ export default function App() {
         </div>
       </section>
 
+      {/* ── SPOTIFY SECTION ──────────────────────────────────── */}
+      <section style={{ padding:'64px 24px 56px', background:`linear-gradient(180deg, ${C.bg} 0%, ${C.card} 100%)`, position:'relative', zIndex:1, overflow:'hidden' }}>
+        {/* ambient blobs */}
+        <div style={{ position:'absolute', top:'10%', right:'-6%', width:440, height:440, background:`radial-gradient(circle,${C.purple}12,transparent 70%)`, pointerEvents:'none' }}/>
+        <div style={{ position:'absolute', bottom:'5%', left:'-6%', width:380, height:380, background:`radial-gradient(circle,${C.green}0B,transparent 70%)`, pointerEvents:'none' }}/>
+
+        <div style={{ maxWidth:760, margin:'0 auto', position:'relative', zIndex:1, textAlign:'center' }}>
+          {/* Title */}
+          <p style={{ margin:'0 0 10px', fontSize:'clamp(12px,1.4vw,14px)', fontWeight:700, letterSpacing:'.18em', textTransform:'uppercase', color:C.green, fontFamily:"'Rubik',sans-serif" }}>
+            {lang === 'en' ? 'The Soundtrack' : 'הפסקול שלנו'}
+          </p>
+          <h2 style={{ margin:'0 0 14px', fontSize:'clamp(22px,4vw,36px)', fontWeight:800, color:C.cream, fontFamily:"'Rubik',sans-serif", lineHeight:1.25 }}>
+            {lang === 'en' ? 'Afik Hanahal — Between Close & Close' : 'הפסקול של אפיק הנחל, בין סגירה לסגירה'}
+          </h2>
+          <p style={{ margin:'0 0 36px', fontSize:'clamp(14px,1.6vw,17px)', color:`${C.cream}99`, fontFamily:"'Rubik',sans-serif", lineHeight:1.6 }}>
+            {lang === 'en'
+              ? 'Press Play and get into the rhythm that accompanies our real-estate deals'
+              : 'לחצו Play והיכנסו לקצב שמלווה את עסקאות הנדל"ן שלנו'}
+          </p>
+
+          {/* Spotify embed */}
+          <div style={{ borderRadius:16, overflow:'hidden', boxShadow:`0 8px 48px rgba(0,0,0,.45), 0 0 0 1px ${C.purple}22` }}>
+            <iframe
+              style={{ borderRadius:12, display:'block' }}
+              src="https://open.spotify.com/embed/playlist/7HGgXmznOBKie0g6LDQ0uN?utm_source=generator"
+              width="100%"
+              height="152"
+              frameBorder="0"
+              allowFullScreen
+              allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+              loading="lazy"
+              title="Afik Hanahal Spotify Playlist"
+            />
+          </div>
+        </div>
+      </section>
+
       {/* ── FOOTER ──────────────────────────────────── */}
       <footer id="contact" style={{ position:'relative', overflow:'hidden', scrollMarginTop:80, zIndex:1 }}>
 
