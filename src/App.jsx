@@ -562,6 +562,15 @@ const makeGlobal = (C, isDark) => `
   @media(max-width:860px) { .ceo-photo-col { position:static; max-width:300px; margin:0 auto; width:100%; } }
 
   @keyframes gallery-fade { from { opacity:0 } to { opacity:1 } }
+  @keyframes field-border-glow {
+    0%,100% { box-shadow: 0 0 0 2px rgba(132,144,216,.22), 0 0 8px rgba(132,144,216,.08) }
+    50%      { box-shadow: 0 0 0 3px rgba(130,246,127,.28), 0 0 16px rgba(130,246,127,.12) }
+  }
+  .contact-input:focus {
+    border-color: rgba(132,144,216,.75) !important;
+    outline: none !important;
+    animation: field-border-glow 2.4s ease infinite !important;
+  }
   .prop-gallery-main { position:relative; width:100%; height:clamp(300px,58vw,580px); background:#000; overflow:hidden; }
   .prop-gallery-thumb-strip { display:flex; gap:7px; padding:10px 16px; background:#07070F; overflow-x:auto; border-bottom:1px solid rgba(132,144,216,.07); scrollbar-width:thin; scrollbar-color:rgba(132,144,216,.25) transparent; }
   .prop-thumb-btn { position:relative; flex-shrink:0; width:90px !important; height:62px !important; min-width:90px !important; min-height:62px !important; padding:0 !important; border-radius:8px; overflow:hidden; cursor:pointer; background:#111128; transition:border-color .2s, opacity .2s, transform .15s; }
@@ -2105,13 +2114,13 @@ function ContactModal({ prop, onClose }) {
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.84)', backdropFilter:'blur(12px)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}
       onClick={e => { if (e.target===e.currentTarget) onClose() }}
       onTouchStart={swipe.onTouchStart} onTouchEnd={swipe.onTouchEnd}>
-      <div style={{ background:C.card, border:`1px solid ${C.purple}33`, borderRadius:24, padding:40, maxWidth:480, width:'100%', maxHeight:'90vh', overflowY:'auto', direction: lang==='he' ? 'rtl' : 'ltr', boxShadow:`0 32px 80px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.1)` }}>
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:24 }}>
+      <div style={{ background:C.card, border:`1px solid ${C.purple}33`, borderRadius:24, padding:'28px 36px', maxWidth:480, width:'100%', maxHeight:'88vh', overflowY:'auto', direction: lang==='he' ? 'rtl' : 'ltr', boxShadow:`0 32px 80px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.1)` }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:18 }}>
           <h2 style={{ fontSize:22, fontWeight:800, color:C.cream }}>{prop ? lbl.contactTitle : lbl.contactHeading}</h2>
           <button onClick={onClose} style={{ background:'none', border:'none', color:C.cream+'80', cursor:'pointer', fontSize:26, lineHeight:1 }}>×</button>
         </div>
         {prop && (
-          <div style={{ background:`${C.purple}11`, border:`1px solid ${C.purple}22`, borderRadius:12, padding:16, marginBottom:24 }}>
+          <div style={{ background:`${C.purple}11`, border:`1px solid ${C.purple}22`, borderRadius:12, padding:12, marginBottom:16 }}>
             <div style={{ fontWeight:700, color:C.cream }}>{prop.title}</div>
             <div style={{ fontSize:13, color:C.purple, marginTop:4, display:'flex', alignItems:'center', gap:5 }}><FaMapMarkerAlt size={10}/> {prop.location} · {prop.size} מ"ר · ₪{prop.price}</div>
           </div>
@@ -2141,7 +2150,6 @@ function ContactModal({ prop, onClose }) {
               const wh = localStorage.getItem('afik_crm_webhook')
               if (wh) fetch(wh, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(lead) }).catch(()=>{})
             } catch {}
-            // Save lead to Supabase via the server
             if (API_BASE) {
               fetch(`${API_BASE}/api/contacts`, {
                 method: 'POST',
@@ -2151,20 +2159,20 @@ function ContactModal({ prop, onClose }) {
             }
             trackEvent('contact_form', { propTitle: prop?.title || '', hasEmail: !!form.email, email: form.email, phone: form.phone, name: form.name })
             setSent(true)
-          }} style={{ display:'flex', flexDirection:'column', gap:16 }}>
+          }} style={{ display:'flex', flexDirection:'column', gap:12 }}>
             {[['name',lbl.name,'text',lbl.fullName],['phone',lbl.phone,'tel',lbl.phoneEx],['email',lbl.email,'email',lbl.emailEx]].map(([k,l,t,ph]) => (
               <div key={k}>
-                <label style={{ fontSize:13, color:C.cream+'AA', marginBottom:6, display:'block' }}>{l}</label>
-                <input type={t} placeholder={ph} value={form[k]} onChange={set(k)} style={inp}/>
+                <label style={{ fontSize:12, color:C.cream+'99', marginBottom:4, display:'block' }}>{l}</label>
+                <input type={t} placeholder={ph} value={form[k]} onChange={set(k)} style={inp} className="contact-input"/>
               </div>
             ))}
             <div>
-              <label style={{ fontSize:13, color:C.cream+'AA', marginBottom:6, display:'block' }}>{lbl.msg}</label>
-              <textarea rows={4} value={form.msg} onChange={set('msg')} style={{ ...inp, resize:'vertical' }}/>
+              <label style={{ fontSize:12, color:C.cream+'99', marginBottom:4, display:'block' }}>{lbl.msg}</label>
+              <textarea rows={3} value={form.msg} onChange={set('msg')} style={{ ...inp, resize:'vertical' }} className="contact-input"/>
             </div>
-            <button type="submit" className="primary-btn" style={{ borderRadius:12, fontSize:16 }}>{lbl.sendMsg}</button>
-            <div style={{ textAlign:'center', paddingTop:8, borderTop:`1px solid ${C.purple}22` }}>
-              <a href="tel:0559811814" onClick={() => trackEvent('phone_click', { src:'contact_modal' })} style={{ color:C.green, textDecoration:'none', fontWeight:700, fontSize:18, display:'inline-flex', alignItems:'center', gap:7 }}><FaPhone size={14}/> 055-981-1814</a>
+            <button type="submit" className="primary-btn" style={{ borderRadius:12, fontSize:15 }}>{lbl.sendMsg}</button>
+            <div style={{ textAlign:'center', paddingTop:6, borderTop:`1px solid ${C.purple}22` }}>
+              <a href="tel:0559811814" onClick={() => trackEvent('phone_click', { src:'contact_modal' })} style={{ color:C.green, textDecoration:'none', fontWeight:700, fontSize:17, display:'inline-flex', alignItems:'center', gap:7 }}><FaPhone size={13}/> 055-981-1814</a>
             </div>
           </form>
         )}
@@ -6777,7 +6785,7 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
         {prop.logo && (
           <div style={{ display:'flex', alignItems:'center', justifyContent:'center', padding:'18px 24px 14px', background:'rgba(0,0,0,.45)', borderBottom:'1px solid rgba(132,144,216,.12)' }}>
             <img src={prop.logo} alt="לוגו פרויקט"
-              style={{ height:72, maxWidth:280, objectFit:'contain', filter:'brightness(1.15) drop-shadow(0 2px 8px rgba(0,0,0,.5))', opacity:1 }}/>
+              style={{ height: prop.logoSize || 72, maxWidth:'90%', objectFit:'contain', filter:'brightness(1.15) drop-shadow(0 2px 8px rgba(0,0,0,.5))', opacity:1 }}/>
           </div>
         )}
 

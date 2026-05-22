@@ -138,6 +138,7 @@ const INIT = {
   contactName: '', contactPhone: '',
   gush: '', helka: '', mapsUrl: '', landingPageUrl: '', youtubeUrl: '',
   logo: '',
+  logoSize: 72,
   pdfs: [],  // [{name, url}] — uploaded project PDFs
 }
 
@@ -201,6 +202,7 @@ export function propertyToWizardData(prop) {
     landingPageUrl: prop.landingPageUrl || '',
     youtubeUrl: '',
     logo: prop.logo || '',
+    logoSize: prop.logoSize || 72,
     pdfs: prop.pdfs || [],
   }
 }
@@ -262,6 +264,7 @@ export function wizardToProperty(d, isDraft) {
     mapsUrl: d.mapsUrl || '',
     landingPageUrl: d.landingPageUrl || '',
     logo: d.logo || '',
+    logoSize: d.logoSize || 72,
     contactName: d.contactName || '',
     contactPhone: d.contactPhone || '',
     status: 'בשיווק',
@@ -1170,6 +1173,31 @@ function Step6({ d, upd }) {
   const [uploadErr, setUploadErr] = useState('')
   const [isDragOver, setIsDragOver] = useState(false)
   const [dragIdx, setDragIdx] = useState(null)
+  const [touchOverIdx, setTouchOverIdx] = useState(null)
+  const itemRefs = useRef([])
+
+  const doTouchMove = e => {
+    if (dragIdx === null) return
+    const touch = e.touches[0]
+    let found = null
+    itemRefs.current.forEach((el, i) => {
+      if (!el) return
+      const r = el.getBoundingClientRect()
+      if (touch.clientX >= r.left && touch.clientX <= r.right && touch.clientY >= r.top && touch.clientY <= r.bottom) found = i
+    })
+    setTouchOverIdx(found)
+  }
+
+  const doTouchEnd = () => {
+    if (dragIdx !== null && touchOverIdx !== null && touchOverIdx !== dragIdx) {
+      const next = [...d.media]
+      const [moved] = next.splice(dragIdx, 1)
+      next.splice(touchOverIdx, 0, moved)
+      upd('media', next)
+    }
+    setDragIdx(null)
+    setTouchOverIdx(null)
+  }
 
   const processImageFiles = async files => {
     const remaining = 10 - d.media.filter(m => m.type === 'image').length
@@ -1395,9 +1423,19 @@ function Step6({ d, upd }) {
           לוגו הפרויקט <span style={{ fontWeight: 400, color: MUTED, fontSize: 12 }}>— יוצג מתחת לגלריית התמונות</span>
         </div>
         {d.logo ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <img src={d.logo} alt="לוגו" style={{ height: 60, maxWidth: 140, objectFit: 'contain',
-              background: 'rgba(255,255,255,.06)', borderRadius: 10, border: `1px solid ${BORDER}`, padding: 6 }} />
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
+            {/* Live preview — centered */}
+            <div style={{ width: '100%', display: 'flex', justifyContent: 'center', padding: '12px 0', background: 'rgba(255,255,255,.03)', borderRadius: 10, border: `1px dashed ${BORDER}` }}>
+              <img src={d.logo} alt="לוגו" style={{ height: d.logoSize || 72, maxWidth: '90%', objectFit: 'contain' }} />
+            </div>
+            {/* Size slider */}
+            <div style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12 }}>
+              <span style={{ fontSize: 12, color: MUTED, fontFamily: FONT, flexShrink: 0 }}>גודל: {d.logoSize || 72}px</span>
+              <input type="range" min={36} max={240} step={4} value={d.logoSize || 72}
+                onChange={e => upd('logoSize', Number(e.target.value))}
+                style={{ flex: 1, accentColor: P }} />
+              <span style={{ fontSize: 11, color: MUTED, fontFamily: FONT, flexShrink: 0 }}>קטן ← → גדול</span>
+            </div>
             <button onClick={() => upd('logo', '')}
               style={{ padding: '7px 14px', borderRadius: 8, border: '1px solid rgba(224,82,82,.4)',
                 background: 'rgba(224,82,82,.1)', color: '#E05252', cursor: 'pointer', fontSize: 12, fontFamily: FONT }}>
@@ -1433,6 +1471,7 @@ function Step6({ d, upd }) {
             {d.media.map((item, i) => (
               <div
                 key={i}
+                ref={el => itemRefs.current[i] = el}
                 draggable={item.type === 'image'}
                 onDragStart={() => setDragIdx(i)}
                 onDragOver={e => { e.preventDefault() }}
@@ -1446,12 +1485,16 @@ function Step6({ d, upd }) {
                   setDragIdx(null)
                 }}
                 onDragEnd={() => setDragIdx(null)}
+                onTouchStart={item.type === 'image' ? () => setDragIdx(i) : undefined}
+                onTouchMove={item.type === 'image' ? doTouchMove : undefined}
+                onTouchEnd={item.type === 'image' ? doTouchEnd : undefined}
                 style={{
                   position: 'relative', aspectRatio: '4/3',
                   borderRadius: 12, overflow: 'hidden',
-                  border: dragIdx === i ? `2px solid ${P}` : `1px solid ${BORDER}`,
+                  border: (dragIdx === i || touchOverIdx === i) ? `2px solid ${P}` : `1px solid ${BORDER}`,
                   cursor: item.type === 'image' ? 'grab' : 'default',
                   opacity: dragIdx === i ? 0.5 : 1,
+                  touchAction: item.type === 'image' ? 'none' : 'auto',
                   transition: 'opacity .15s, border-color .15s',
                 }}>
                 {item.type === 'video' ? (
