@@ -6742,12 +6742,30 @@ function PdfLeadGate({ pdf, prop, C }) {
 function toMapsEmbed(url) {
   if (!url) return null
   const u = url.trim()
-  if (u.includes('output=embed')) return u
-  if (!u.includes('google.com/maps') && !u.includes('goo.gl/maps') && !u.includes('maps.app.goo.gl')) return null
+
+  // Already a proper embed URL — use as-is
+  if (u.includes('/maps/embed') || u.includes('output=embed')) return u
+
+  // Short-link URLs (maps.app.goo.gl, goo.gl/maps) redirect server-side and cannot be
+  // embedded in an iframe — return null so we fall back to the "Open in Maps" button
+  if (u.includes('maps.app.goo.gl') || u.includes('goo.gl/maps')) return null
+
+  // Must be a full google.com/maps URL to proceed
+  if (!u.includes('google.com/maps')) return null
+
+  // Extract coordinates from @lat,lng pattern (most reliable)
   const coords = u.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/)
   if (coords) return `https://maps.google.com/maps?q=${coords[1]},${coords[2]}&z=16&output=embed`
-  const sep = u.includes('?') ? '&' : '?'
-  return u + sep + 'output=embed'
+
+  // Extract ?q= query (e.g. /maps?q=TelAviv)
+  const qParam = u.match(/[?&]q=([^&]+)/)
+  if (qParam) return `https://maps.google.com/maps?q=${qParam[1]}&output=embed`
+
+  // Extract place name from /maps/place/NAME/
+  const placeMatch = u.match(/\/maps\/place\/([^/?]+)/)
+  if (placeMatch) return `https://maps.google.com/maps?q=${encodeURIComponent(decodeURIComponent(placeMatch[1]))}&output=embed`
+
+  return null
 }
 
 function cloudImg(url) {
@@ -7239,14 +7257,17 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
                 </div>
               ) : (
                 <a href={prop.mapsUrl} target="_blank" rel="noopener noreferrer"
-                  style={{ display:'flex', alignItems:'center', gap:12, padding:'14px 16px', background:'rgba(255,255,255,.04)', border:'1px solid rgba(255,255,255,.1)', borderRadius:10, textDecoration:'none', transition:'background .2s', cursor:'pointer' }}
-                  onMouseEnter={e=>e.currentTarget.style.background='rgba(255,255,255,.08)'}
-                  onMouseLeave={e=>e.currentTarget.style.background='rgba(255,255,255,.04)'}>
-                  <FaMapMarkerAlt size={18} style={{ color:C.purple, flexShrink:0 }}/>
-                  <div>
-                    <div style={{ color:'#fff', fontWeight:600, fontSize:14, marginBottom:2 }}>צפה במיקום במפה</div>
-                    <div style={{ fontSize:12, color:`${C.cream}55` }}>{[prop.location, prop.neighborhood].filter(Boolean).join(', ')}</div>
+                  style={{ display:'flex', alignItems:'center', gap:12, padding:'16px 18px', background:'rgba(255,255,255,.04)', border:`1px solid ${C.purple}30`, borderRadius:12, textDecoration:'none', transition:'all .2s', cursor:'pointer' }}
+                  onMouseEnter={e=>{ e.currentTarget.style.background='rgba(132,144,216,.1)'; e.currentTarget.style.borderColor=C.purple }}
+                  onMouseLeave={e=>{ e.currentTarget.style.background='rgba(255,255,255,.04)'; e.currentTarget.style.borderColor=`${C.purple}30` }}>
+                  <div style={{ width:44, height:44, borderRadius:12, background:`${C.purple}18`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                    <FaMapMarkerAlt size={20} style={{ color:C.purple }}/>
                   </div>
+                  <div style={{ flex:1 }}>
+                    <div style={{ color:C.cream, fontWeight:700, fontSize:14, marginBottom:3 }}>פתח במפות Google</div>
+                    <div style={{ fontSize:12, color:`${C.cream}55` }}>{[prop.location, prop.neighborhood].filter(Boolean).join(', ') || 'לחץ לצפייה במיקום'}</div>
+                  </div>
+                  <FaExternalLinkAlt size={12} style={{ color:`${C.cream}44`, flexShrink:0 }}/>
                 </a>
               )
             })()}
