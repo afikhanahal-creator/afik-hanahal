@@ -561,6 +561,7 @@ const makeGlobal = (C, isDark) => `
   .ceo-photo-col { position:sticky; top:88px; }
   @media(max-width:860px) { .ceo-photo-col { position:static; max-width:300px; margin:0 auto; width:100%; } }
 
+  @keyframes gallery-fade { from { opacity:0 } to { opacity:1 } }
   .prop-gallery-main { position:relative; width:100%; height:clamp(300px,58vw,580px); background:#000; overflow:hidden; }
   .prop-gallery-thumb-strip { display:flex; gap:7px; padding:10px 16px; background:#07070F; overflow-x:auto; border-bottom:1px solid rgba(132,144,216,.07); scrollbar-width:thin; scrollbar-color:rgba(132,144,216,.25) transparent; }
   .prop-thumb-btn { position:relative; flex-shrink:0; width:90px !important; height:62px !important; min-width:90px !important; min-height:62px !important; padding:0 !important; border-radius:8px; overflow:hidden; cursor:pointer; background:#111128; transition:border-color .2s, opacity .2s, transform .15s; }
@@ -6480,6 +6481,12 @@ function toMapsEmbed(url) {
   return u + sep + 'output=embed'
 }
 
+function cloudImg(url) {
+  if (!url || !url.includes('cloudinary.com') || !url.includes('/image/upload/')) return url
+  if (/\/(?:q_auto|q_\d|f_auto|fl_progressive)/.test(url)) return url
+  return url.replace('/image/upload/', '/image/upload/q_auto:best,f_auto/')
+}
+
 function getVideoThumbnail(url, thumbnail) {
   if (thumbnail) return thumbnail
   if (!url) return null
@@ -6503,21 +6510,21 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
 
   useEffect(() => { setVideoPlaying(false) }, [imgIdx])
 
-  // Programmatic play — autoPlay attribute alone is unreliable on mobile
-  // Also fix React's known bug where muted prop is not set as DOM attribute
-  useEffect(() => {
-    const vid = videoRef.current
-    if (!vid) return
-    vid.muted = true            // React muted bug fix
-    vid.volume = 0
-    const tryPlay = () => vid.play().catch(() => {})
-    if (vid.readyState >= 3) {
+  // Callback ref: fires immediately when <video> mounts (key-prop remount on URL change).
+  // Sets muted imperatively (React drops the muted DOM attribute — known React bug).
+  const setVideoRef = useCallback(node => {
+    videoRef.current = node
+    if (!node) return
+    node.muted = true
+    node.volume = 0
+    const tryPlay = () => node.play().catch(() => {})
+    if (node.readyState >= 2) {
       tryPlay()
     } else {
-      vid.addEventListener('canplay', tryPlay, { once: true })
-      return () => vid.removeEventListener('canplay', tryPlay)
+      node.addEventListener('loadeddata', tryPlay, { once: true })
+      node.addEventListener('canplay',    tryPlay, { once: true })
     }
-  }, [imgIdx])
+  }, [])
 
   const handleShare = () => {
     const txt = `${prop.title} — ${[prop.location, prop.neighborhood].filter(Boolean).join(', ')}`
@@ -6530,7 +6537,7 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
   const cat = CATEGORIES.find(c => c.id === prop.category) || CATEGORIES[1]
   const sc = { 'זמין':C.green, 'בבדיקה':'#F7C948', 'נמכר':'#E05252', 'הושכר':'#F97316' }[prop.status] || C.green
 
-  const imgs = (prop.images || []).filter(u => u && typeof u === 'string' && u.length > 4)
+  const imgs = (prop.images || []).filter(u => u && typeof u === 'string' && u.length > 4).map(cloudImg)
   // Build unified video list: wizard videos + legacy videoUrl (deduplicated)
   const allVideos = [
     ...(prop.videos || []).filter(v => v?.url),
@@ -6633,12 +6640,13 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
             videoType === 'cloudinary' || (currentVideo.url && !currentVideo.url.includes('youtube') && !currentVideo.url.includes('youtu.be')) ? (
               <>
                 <video
-                  ref={videoRef}
+                  ref={setVideoRef}
                   key={currentVideo.url}
                   src={currentVideo.url}
                   poster={getVideoThumbnail(currentVideo.url, currentVideo.thumbnail) || undefined}
                   style={{ width:'100%', height:'100%', objectFit:'cover', position:'relative', zIndex:1, background:'#000' }}
                   playsInline
+                  autoPlay
                   loop={!!prop.videoAutoplay}
                   controls
                   preload="auto"
@@ -6666,8 +6674,9 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
             )
           ) : imgs.length ? (
             <img src={imgs[Math.min(imgIdx, imgs.length - 1)]} alt={prop.title}
+              key={imgIdx}
               onClick={() => setLightbox(true)}
-              style={{ width:'100%', height:'100%', objectFit:'contain', objectPosition:'center', display:'block', transition:'opacity .25s', cursor:'zoom-in', background:'#000' }}/>
+              style={{ width:'100%', height:'100%', objectFit:'contain', objectPosition:'center', display:'block', animation:'gallery-fade .22s ease', cursor:'zoom-in', background:'#000' }}/>
           ) : (
             <div style={{ width:'100%', height:'100%', display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:12 }}>
               <FaBuilding size={64} style={{ color:`${C.purple}30` }}/>
@@ -6677,13 +6686,19 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
           {/* Arrows */}
           {totalMedia > 1 && (<>
             <button onClick={() => setImgIdx(i => (i - 1 + totalMedia) % totalMedia)}
-              style={{ position:'absolute', top:'50%', right:16, transform:'translateY(-50%)', background:'rgba(0,0,0,.6)', backdropFilter:'blur(6px)', border:`1px solid rgba(255,255,255,.15)`, borderRadius:'50%', width:46, height:46, color:'#fff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'background .2s', zIndex:3 }}
-              onMouseEnter={e=>e.currentTarget.style.background=C.purple} onMouseLeave={e=>e.currentTarget.style.background='rgba(0,0,0,.6)'}>
+              style={{ position:'absolute', top:'50%', right:16, transform:'translateY(-50%)', background:'rgba(0,0,0,.6)', backdropFilter:'blur(6px)', border:`1px solid rgba(255,255,255,.15)`, borderRadius:'50%', width:46, height:46, color:'#fff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'background .18s, transform .18s cubic-bezier(.16,1,.3,1)', zIndex:3 }}
+              onMouseEnter={e=>{ e.currentTarget.style.background=C.purple; e.currentTarget.style.transform='translateY(-50%) scale(1.12)' }}
+              onMouseLeave={e=>{ e.currentTarget.style.background='rgba(0,0,0,.6)'; e.currentTarget.style.transform='translateY(-50%)' }}
+              onMouseDown={e=>e.currentTarget.style.transform='translateY(-50%) scale(0.93)'}
+              onMouseUp={e=>e.currentTarget.style.transform='translateY(-50%) scale(1.12)'}>
               <FaChevronRight size={16}/>
             </button>
             <button onClick={() => setImgIdx(i => (i + 1) % totalMedia)}
-              style={{ position:'absolute', top:'50%', left:16, transform:'translateY(-50%)', background:'rgba(0,0,0,.6)', backdropFilter:'blur(6px)', border:`1px solid rgba(255,255,255,.15)`, borderRadius:'50%', width:46, height:46, color:'#fff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'background .2s', zIndex:3 }}
-              onMouseEnter={e=>e.currentTarget.style.background=C.purple} onMouseLeave={e=>e.currentTarget.style.background='rgba(0,0,0,.6)'}>
+              style={{ position:'absolute', top:'50%', left:16, transform:'translateY(-50%)', background:'rgba(0,0,0,.6)', backdropFilter:'blur(6px)', border:`1px solid rgba(255,255,255,.15)`, borderRadius:'50%', width:46, height:46, color:'#fff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'background .18s, transform .18s cubic-bezier(.16,1,.3,1)', zIndex:3 }}
+              onMouseEnter={e=>{ e.currentTarget.style.background=C.purple; e.currentTarget.style.transform='translateY(-50%) scale(1.12)' }}
+              onMouseLeave={e=>{ e.currentTarget.style.background='rgba(0,0,0,.6)'; e.currentTarget.style.transform='translateY(-50%)' }}
+              onMouseDown={e=>e.currentTarget.style.transform='translateY(-50%) scale(0.93)'}
+              onMouseUp={e=>e.currentTarget.style.transform='translateY(-50%) scale(1.12)'}>
               <FaChevronLeft size={16}/>
             </button>
             {/* Counter — hidden on video frame so it doesn't overlap native controls */}
@@ -7112,7 +7127,7 @@ function PropertyCard({ prop, onContact, onSelect }) {
   const [imgIdx, setImgIdx] = useState(0)
   const [hovered, setHovered] = useState(false)
   const [failedImgs, setFailedImgs] = useState(new Set())
-  const validImages = (prop.images || []).filter(u => u && typeof u === 'string' && u.length > 4)
+  const validImages = (prop.images || []).filter(u => u && typeof u === 'string' && u.length > 4).map(cloudImg)
   const cat = CATEGORIES.find(c => c.id === prop.category) || CATEGORIES[1]
   const sc = { 'זמין':C.green, 'בבדיקה':'#F7C948', 'נמכר':'#E05252', 'הושכר':'#F97316' }[prop.status] || C.green
 
@@ -7479,31 +7494,24 @@ export default function App() {
         .catch(() => {})
     }
 
-    // 3. Fetch properties — try API first, fall back to localStorage
+    // 3. Fetch properties — show localStorage cache IMMEDIATELY, then silently update from API
     {
+      // Paint cached properties on frame-0 — zero network latency
+      try {
+        const d = JSON.parse(localStorage.getItem('afik_data') || '{}')
+        if (d.properties?.length) { setProperties(d.properties); propsLoaded.current = true }
+      } catch {}
+
       const isAdminSession = sessionStorage.getItem('afik_admin_session') === '1'
       const headers = isAdminSession ? { Authorization: `Bearer ${ADMIN_TOKEN}` } : {}
       const base = API_BASE || ''
       fetch(`${base}/api/properties`, { headers })
         .then(r => r.ok ? r.json() : Promise.reject(r.status))
         .then(data => {
-          if (Array.isArray(data) && data.length > 0) {
-            setProperties(data)
-          } else {
-            try {
-              const d = JSON.parse(localStorage.getItem('afik_data') || '{}')
-              if (d.properties?.length) setProperties(d.properties)
-            } catch {}
-          }
+          if (Array.isArray(data) && data.length > 0) setProperties(data)
           propsLoaded.current = true
         })
-        .catch(() => {
-          try {
-            const d = JSON.parse(localStorage.getItem('afik_data') || '{}')
-            if (d.properties?.length) setProperties(d.properties)
-          } catch {}
-          propsLoaded.current = true
-        })
+        .catch(() => { propsLoaded.current = true })
     }
   }, [])
 
