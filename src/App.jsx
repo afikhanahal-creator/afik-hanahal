@@ -3773,10 +3773,29 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   }
   const testWA = async () => {
     setWaTesting(true); setWaTestResult('')
+    // Test both client-side (browser→Green API) and server-side (Render→Green API)
     try {
+      // 1. client-side
       await sendWhatsAppLead({ name:'בדיקה', phone:'0559811814', msg:'הודעת בדיקה מהמערכת' }, { ...waSt, enabled:true })
       setWaTestResult('ok')
     } catch { setWaTestResult('err') }
+
+    // 2. server-side — try the Render→Green API path and show its result
+    if (API_BASE) {
+      try {
+        const r = await fetch(`${API_BASE}/api/contacts/test-wa`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+          body: JSON.stringify({ phone: '0559811814' }),
+          signal: AbortSignal.timeout(20000),
+        })
+        const j = await r.json()
+        console.log('[test-wa server]', j)
+        if (!j.ok) console.error('[test-wa server] error:', j.error)
+        else console.log('[test-wa server] ✓ server-side WA send succeeded')
+      } catch (e) { console.error('[test-wa server] fetch failed:', e.message) }
+    }
+
     setWaTesting(false); setTimeout(() => setWaTestResult(''), 4000)
   }
 
