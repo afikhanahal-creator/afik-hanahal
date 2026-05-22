@@ -3597,6 +3597,8 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const [waSaved, setWaSaved] = useState(false)
   const [waTesting, setWaTesting] = useState(false)
   const [waTestResult, setWaTestResult] = useState('')
+  const [emailTesting, setEmailTesting] = useState(false)
+  const [emailTestResult, setEmailTestResult] = useState('')
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState('')
   const [wizardOpen, setWizardOpen] = useState(false)
@@ -3805,6 +3807,22 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     }
 
     setWaTesting(false); setTimeout(() => setWaTestResult(''), 4000)
+  }
+
+  const testEmail = async () => {
+    if (!API_BASE) { setEmailTestResult('err'); return }
+    setEmailTesting(true); setEmailTestResult('')
+    try {
+      const r = await fetch(`${API_BASE}/api/contacts/test-email`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
+        signal: AbortSignal.timeout(15000),
+      })
+      const j = await r.json()
+      setEmailTestResult(j.ok ? 'ok' : 'err')
+      if (!j.ok) console.error('[test-email]', j.error)
+    } catch (e) { setEmailTestResult('err'); console.error('[test-email]', e.message) }
+    finally { setEmailTesting(false); setTimeout(() => setEmailTestResult(''), 5000) }
   }
 
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.type==='checkbox' ? e.target.checked : e.target.value }))
@@ -5255,6 +5273,37 @@ Return ONLY valid JSON (no markdown, no code blocks):
                   <button onClick={() => setGovmapToken('')} style={{ background:'none', border:'none', color:`${C.cream}55`, cursor:'pointer', fontSize:11, textDecoration:'underline', fontFamily:'inherit' }}>נקה</button>
                 </div>
               )}
+            </div>
+
+            {/* ── Email Notifications ── */}
+            <div style={{ background:'rgba(255,255,255,.03)', borderRadius:12, padding:20 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:16 }}>
+                <FaEnvelope size={18} style={{ color:'#EA4335' }}/>
+                <div>
+                  <h3 style={{ fontSize:14, fontWeight:700, color:C.purple, margin:0 }}>התראות אימייל — ליד חדש</h3>
+                  <div style={{ fontSize:11, color:`${C.cream}55`, marginTop:3 }}>
+                    נשלח אוטומטית אל <strong style={{ color:C.cream }}>afik.hanahal@gmail.com</strong> בכל פנייה חדשה
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ background:`${C.purple}08`, border:`1px solid ${C.purple}22`, borderRadius:8, padding:'12px 14px', fontSize:12, color:`${C.cream}77`, lineHeight:1.9, direction:'rtl', marginBottom:14 }}>
+                <strong style={{ color:C.purple }}>הגדרה נדרשת ב-Render (env vars):</strong><br/>
+                1. כנס ל-<strong style={{ color:C.cream }}>render.com → שירות שלך → Environment</strong><br/>
+                2. הוסף: <code style={{ background:'rgba(0,0,0,.3)', borderRadius:4, padding:'1px 6px', fontFamily:'monospace', fontSize:11, color:'#EA4335' }}>GMAIL_USER</code> = כתובת Gmail שולח (לדוג׳: <code style={{ fontFamily:'monospace', fontSize:11 }}>afik.hanahal@gmail.com</code>)<br/>
+                3. הוסף: <code style={{ background:'rgba(0,0,0,.3)', borderRadius:4, padding:'1px 6px', fontFamily:'monospace', fontSize:11, color:'#EA4335' }}>GMAIL_APP_PASSWORD</code> = סיסמת אפליקציה (16 תווים מ-Google)<br/>
+                4. לקבל סיסמת אפליקציה: <strong style={{ color:C.cream }}>Google Account → Security → 2-Step Verification → App Passwords</strong><br/>
+                <span style={{ color:`${C.cream}44`, fontSize:11 }}>* לאחר הוספת env vars — לחץ "Manual Deploy" ב-Render לפריסה מחדש</span>
+              </div>
+
+              <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
+                <button onClick={testEmail} disabled={emailTesting || !API_BASE}
+                  style={{ padding:'9px 20px', background:'rgba(234,67,53,.1)', border:'1px solid rgba(234,67,53,.3)', borderRadius:8, color:'#EA4335', fontWeight:700, fontSize:12, cursor:emailTesting||!API_BASE?'not-allowed':'pointer', fontFamily:'inherit', opacity:!API_BASE?.5:1 }}>
+                  {emailTesting ? '⟳ שולח...' : '✉ שלח אימייל בדיקה'}
+                </button>
+                {emailTestResult === 'ok'  && <span style={{ fontSize:12, color:C.green, fontWeight:700 }}>✓ אימייל בדיקה נשלח ל-afik.hanahal@gmail.com</span>}
+                {emailTestResult === 'err' && <span style={{ fontSize:12, color:'#E05252', fontWeight:700 }}>✕ שגיאה — בדוק GMAIL_USER ו-GMAIL_APP_PASSWORD ב-Render</span>}
+              </div>
             </div>
 
             {/* WhatsApp Automation */}
@@ -7016,6 +7065,15 @@ function getVideoThumbnail(url, thumbnail) {
   return null
 }
 
+// Return a streaming-optimised Cloudinary video URL (quality auto, format auto)
+function optimizeVideoUrl(url) {
+  if (!url) return url
+  if (url.includes('cloudinary.com') && url.includes('/video/upload/')) {
+    return url.replace('/video/upload/', '/video/upload/q_auto,vc_auto/')
+  }
+  return url
+}
+
 function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [], onSelect }) {
   const { C, isDark } = useTheme()
   const [imgIdx, setImgIdx] = useState(0)
@@ -7161,14 +7219,14 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
                 <video
                   ref={setVideoRef}
                   key={currentVideo.url}
-                  src={currentVideo.url}
+                  src={optimizeVideoUrl(currentVideo.url)}
                   poster={getVideoThumbnail(currentVideo.url, currentVideo.thumbnail) || undefined}
                   style={{ width:'100%', height:'100%', objectFit:'contain', position:'relative', zIndex:1, background:'#000' }}
                   playsInline
                   autoPlay
                   loop={!!prop.videoAutoplay}
                   controls
-                  preload="auto"
+                  preload="metadata"
                   onLoadedMetadata={e => { if (!getVideoThumbnail(currentVideo.url, currentVideo.thumbnail)) e.target.currentTime = 0.5 }}
                   onPlay={() => setVideoPlaying(true)}
                   onPause={() => setVideoPlaying(false)}
@@ -7261,7 +7319,7 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
               <button key={i} onClick={() => setImgIdx(i)}
                 className="prop-thumb-btn"
                 style={{ border: imgIdx===i ? `2.5px solid ${C.purple}` : '2.5px solid transparent', opacity: imgIdx===i ? 1 : 0.55 }}>
-                <img src={src} alt=""/>
+                <img src={src} alt="" loading="lazy"/>
               </button>
             ))}
             {allVideos.map((v, vi) => {
@@ -7700,10 +7758,11 @@ function PropertyCard({ prop, onContact, onSelect }) {
       onClick={() => onSelect(prop)}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      className="prop-card">
+      className="prop-card"
+      style={{ touchAction:'manipulation' }}>
 
       {/* ── Image area ── */}
-      <div className="prop-card-img">
+      <div className="prop-card-img" onClick={() => onSelect(prop)}>
         {validImages.length > 0 && !failedImgs.has(imgIdx % validImages.length) ? (
           <>
             <img src={validImages[imgIdx % validImages.length]} alt={prop.title}
