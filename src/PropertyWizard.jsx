@@ -267,6 +267,7 @@ export function wizardToProperty(d, isDraft) {
     logoSize: d.logoSize || 72,
     contactName: d.contactName || '',
     contactPhone: d.contactPhone || '',
+    pdfs: d.pdfs || [],
     status: 'בשיווק',
     published: !isDraft,
     source: 'wizard',
@@ -1262,8 +1263,7 @@ function Step6({ d, upd }) {
             } catch { reject(new Error('תגובת שרת לא תקינה')) }
           })
           xhr.addEventListener('error', () => reject(new Error('שגיאת רשת')))
-          const base = WIZ_API_BASE || ''
-          xhr.open('POST', `${base}/api/upload/video`)
+          xhr.open('POST', `${UPLOAD_BASE}/api/upload/video`)
           xhr.setRequestHeader('Authorization', `Bearer ${WIZ_ADMIN_TOKEN}`)
           xhr.send(fd)
         })

@@ -5761,7 +5761,7 @@ function ArchiveCard({ a, C, isDark }) {
       <div style={{ aspectRatio:'16/9', overflow:'hidden', background:'rgba(132,144,216,.08)', position:'relative', flexShrink:0 }}>
         {a.image && !imgErr
           ? <img src={a.image} alt={a.title} loading="lazy" decoding="async"
-              referrerPolicy="no-referrer-when-downgrade"
+              referrerPolicy="no-referrer"
               onError={() => setImgErr(true)}
               style={{ width:'100%', height:'100%', objectFit:'cover', display:'block', filter:'brightness(1.18) contrast(1.06) saturate(1.14)' }}/>
           : <div style={{ width:'100%', height:'100%', display:'flex', alignItems:'center', justifyContent:'center', background:'linear-gradient(135deg,rgba(132,144,216,.18),rgba(130,246,127,.06))' }}>
@@ -6288,7 +6288,8 @@ function TestimonialsSection() {
   const [dir, setDir]             = useState(1)
   const [hoverPrev, setHoverPrev] = useState(false)
   const [hoverNext, setHoverNext] = useState(false)
-  const timerRef = useRef(null)
+  const timerRef  = useRef(null)
+  const touchX    = useRef(null)
   const n = TESTIMONIALS_DATA.length
 
   const startTimer = useCallback(() => {
@@ -6333,7 +6334,14 @@ function TestimonialsSection() {
         </div>
 
         {/* ── Card ── */}
-        <div className="testi-card-outer" style={{ position:'relative', borderRadius:24, overflow:'hidden', background:'rgba(255,255,255,.04)', border:`1px solid rgba(132,144,216,.18)`, boxShadow:'0 32px 80px rgba(0,0,0,.45)', backdropFilter:'blur(20px)' }}>
+        <div className="testi-card-outer" style={{ position:'relative', borderRadius:24, overflow:'hidden', background:'rgba(255,255,255,.04)', border:`1px solid rgba(132,144,216,.18)`, boxShadow:'0 32px 80px rgba(0,0,0,.45)', backdropFilter:'blur(20px)', touchAction:'pan-y' }}
+          onTouchStart={e => { touchX.current = e.touches[0].clientX }}
+          onTouchEnd={e => {
+            if (touchX.current === null) return
+            const diff = touchX.current - e.changedTouches[0].clientX
+            if (Math.abs(diff) > 45) { diff > 0 ? goNext() : goPrev() }
+            touchX.current = null
+          }}>
           <AnimatePresence initial={false} custom={dir} mode="wait">
             <motion.div
               key={active}
@@ -6844,7 +6852,7 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
     ? (currentVideo.url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/))([^&\n?#]+)/)?.[1] || null)
     : null
 
-  const isRental = prop.status === 'הושכר' || prop.status === 'להשכרה'
+  const isRental = prop.txType === 'rent' || prop.status === 'הושכר' || prop.status === 'להשכרה'
   const fmt = p => {
     if (!p) return 'מחיר בפנייה'
     const n = Number(String(p).replace(/[^\d]/g,''))
@@ -7427,7 +7435,7 @@ function PropertyCard({ prop, onContact, onSelect }) {
   const cat = CATEGORIES.find(c => c.id === prop.category) || CATEGORIES[1]
   const sc = { 'זמין':C.green, 'בבדיקה':'#F7C948', 'נמכר':'#E05252', 'הושכר':'#F97316' }[prop.status] || C.green
 
-  const cardIsRental = prop.status === 'הושכר' || prop.status === 'להשכרה'
+  const cardIsRental = prop.txType === 'rent' || prop.status === 'הושכר' || prop.status === 'להשכרה'
   const fmt = p => {
     if (!p) return 'מחיר בפנייה'
     const n = Number(String(p).replace(/[^\d]/g,''))
@@ -8308,7 +8316,7 @@ export default function App() {
                 isMobile ? (
                   /* ── Mobile swipe carousel ── */
                   <>
-                    {/* Nav arrows + counter row */}
+                    {/* Nav arrows row */}
                     <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12, paddingInline:4 }}>
                       <button
                         onClick={() => {
@@ -8323,9 +8331,6 @@ export default function App() {
                         style={{ width:40, height:40, borderRadius:'50%', border:`1.5px solid ${carouselIdx===0?C.purple+'22':C.purple+'66'}`, background:carouselIdx===0?'transparent':`${C.purple}14`, color:carouselIdx===0?`${C.cream}30`:C.purple, cursor:carouselIdx===0?'default':'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s' }}>
                         <FaChevronRight size={12}/>
                       </button>
-                      <span style={{ fontSize:12, color:`${C.cream}66`, fontWeight:600 }}>
-                        {carouselIdx + 1} / {filtered.length}
-                      </span>
                       <button
                         onClick={() => {
                           const newIdx = Math.min(filtered.length - 1, carouselIdx + 1)
@@ -8625,23 +8630,36 @@ export default function App() {
           initialData={wizardEditData}
           editId={wizardEditId}
           onPublish={(prop, isDraft) => {
+            let nextProps
             if (wizardEditId) {
-              const next = properties.map(x => x.id === wizardEditId ? prop : x)
-              setProperties(next)
-              const base = API_BASE || ''
-              fetch(`${base}/api/properties/bulk`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
-                body: JSON.stringify(next),
-              }).catch(() => {})
+              const oldProp = properties.find(x => x.id === wizardEditId) || {}
+              const merged = {
+                ...prop,
+                status: oldProp.status || prop.status,
+                createdAt: oldProp.createdAt || prop.createdAt,
+              }
+              nextProps = properties.map(x => x.id === wizardEditId ? merged : x)
             } else {
-              setProperties(prev => [...prev, prop])
+              nextProps = [...properties, prop]
             }
+            setProperties(nextProps)
             setWizardEditData(null)
             setWizardEditId(null)
             setShowWizard(false)
             if (!isDraft && prop.published !== false) {
               setTimeout(() => scrollTo('properties'), 350)
+            }
+            const base = API_BASE || ''
+            if (base) {
+              fetch(`${base}/api/properties/bulk`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+                body: JSON.stringify(nextProps),
+                signal: AbortSignal.timeout(20000),
+              }).then(r => {
+                if (!r.ok) console.warn('[wizard] bulk save failed:', r.status)
+                else console.log('[wizard] saved', nextProps.length, 'props')
+              }).catch(e => console.error('[wizard] bulk save error:', e.message))
             }
           }}
         />}
