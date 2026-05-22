@@ -5632,10 +5632,43 @@ function useRotatingNews() {
   return { articles, loading, error, reload: () => run(true) }
 }
 
-function NewsCard({ article, C }) {
+// Client-side og:image fallback via CORS proxy — fires when server-side image is missing
+function useOGImage(articleUrl, hasExistingImage, delayMs) {
+  const [ogImage, setOgImage] = useState('')
+  useEffect(() => {
+    if (hasExistingImage || !articleUrl) return
+    let cancelled = false
+    const timer = setTimeout(async () => {
+      if (cancelled) return
+      try {
+        const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(articleUrl)}`
+        const r = await fetch(proxy, { signal: AbortSignal.timeout(12000) })
+        if (!r.ok || cancelled) return
+        const json = await r.json()
+        if (cancelled || !json.contents) return
+        const html = json.contents
+        const m = (
+          html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i) ||
+          html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i) ||
+          html.match(/<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i)
+        )
+        if (m?.[1] && !cancelled) {
+          setOgImage(m[1].replace(/&amp;/g,'&').replace(/&quot;/g,'"'))
+        }
+      } catch {}
+    }, delayMs)
+    return () => { cancelled = true; clearTimeout(timer) }
+  }, [articleUrl, hasExistingImage, delayMs])
+  return ogImage
+}
+
+function NewsCard({ article, C, cardIndex = 0 }) {
   const [hov, setHov]         = useState(false)
   const [imgReady, setImgReady] = useState(false)
   const [imgErr, setImgErr]   = useState(false)
+  const delayMs = useRef(cardIndex * 400 + Math.floor(Math.random() * 300)).current
+  const ogImage = useOGImage(article.link || article.url, !!article.image, delayMs)
+  const displayImage = (!imgErr && (article.image || ogImage)) || ''
 
   const dateStr = article.date instanceof Date && article.date.getTime() > 0
     ? article.date.toLocaleDateString('he-IL', { day:'numeric', month:'long' })
@@ -5651,8 +5684,8 @@ function NewsCard({ article, C }) {
         {!imgReady && !imgErr && (
           <div style={{ position:'absolute', inset:0, background:'linear-gradient(90deg,rgba(132,144,216,.12) 25%,rgba(132,144,216,.28) 50%,rgba(132,144,216,.12) 75%)', backgroundSize:'200% 100%', animation:'shimmer 1.6s ease-in-out infinite' }}/>
         )}
-        {article.image && !imgErr ? (
-          <img src={article.image} alt={article.title}
+        {displayImage ? (
+          <img src={displayImage} alt={article.title}
             referrerPolicy="no-referrer"
             onLoad={() => setImgReady(true)}
             onError={() => setImgErr(true)}
@@ -5746,8 +5779,11 @@ const STATIC_ARCHIVE = [
   { id:'sa-30', title:'מחשבון מס רכישה 2025: חשבו את המס שתשלמו לפי מדרגות מעודכנות',                    source:'כלכליסט',   link:'https://www.calcalist.co.il/real-estate',                            date:new Date('2024-07-21'), image:'' },
 ]
 
-function ArchiveCard({ a, C, isDark }) {
+function ArchiveCard({ a, C, isDark, cardIndex = 0 }) {
   const [imgErr, setImgErr] = useState(false)
+  const delayMs = useRef(cardIndex * 300 + Math.floor(Math.random() * 400)).current
+  const ogImage = useOGImage(a.link || a.url, !!a.image, delayMs)
+  const displayImage = !imgErr && (a.image || ogImage)
   const pubDate = a.date ? new Date(a.date) : null
   const dateStr = pubDate && !isNaN(pubDate)
     ? pubDate.toLocaleDateString('he-IL', { day:'numeric', month:'long', year:'numeric' })
@@ -5759,8 +5795,8 @@ function ArchiveCard({ a, C, isDark }) {
       onMouseEnter={e => { e.currentTarget.style.transform='translateY(-4px)'; e.currentTarget.style.boxShadow='0 20px 44px rgba(0,0,0,.3)' }}
       onMouseLeave={e => { e.currentTarget.style.transform=''; e.currentTarget.style.boxShadow='' }}>
       <div style={{ aspectRatio:'16/9', overflow:'hidden', background:'rgba(132,144,216,.08)', position:'relative', flexShrink:0 }}>
-        {a.image && !imgErr
-          ? <img src={a.image} alt={a.title} loading="lazy" decoding="async"
+        {displayImage
+          ? <img src={displayImage} alt={a.title} loading="lazy" decoding="async"
               referrerPolicy="no-referrer"
               onError={() => setImgErr(true)}
               style={{ width:'100%', height:'100%', objectFit:'cover', display:'block', filter:'brightness(1.18) contrast(1.06) saturate(1.14)' }}/>
@@ -6196,7 +6232,7 @@ function ArchiveModal({ onClose, C, isDark }) {
         {/* Grid */}
         {items.length > 0 && (
           <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:22 }}>
-            {items.map((a, i) => <ArchiveCard key={a.id || i} a={a} C={C} isDark={isDark}/>)}
+            {items.map((a, i) => <ArchiveCard key={a.id || i} a={a} C={C} isDark={isDark} cardIndex={i}/>)}
           </div>
         )}
 
@@ -6264,7 +6300,7 @@ function NewsSection() {
         {/* Articles grid */}
         {!loading && !error && articles.length > 0 && (
           <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))', gap:20 }}>
-            {articles.map(a => <NewsCard key={a.id} article={a} C={C}/>)}
+            {articles.map((a, i) => <NewsCard key={a.id} article={a} C={C} cardIndex={i}/>)}
           </div>
         )}
 
