@@ -235,8 +235,12 @@ const makeGlobal = (C, isDark) => `
     --c-cream:${C.cream};   --c-green:${C.green};
   }
   *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
-  html { scroll-behavior:smooth; font-size:16px; }
-  body { background:${C.bg}; color:${C.cream}; font-family:'Rubik','Heebo','Segoe UI',sans-serif; direction:rtl; text-align:right; overflow-x:hidden; font-size:15px; line-height:1.6; }
+  html { scroll-behavior:smooth; font-size:16px; -webkit-text-size-adjust:100%; }
+  body { background:${C.bg}; color:${C.cream}; font-family:'Rubik','Heebo','Segoe UI',sans-serif; direction:rtl; text-align:right; overflow-x:hidden; font-size:15px; line-height:1.6; -webkit-overflow-scrolling:touch; overscroll-behavior-y:contain; }
+  * { scroll-behavior:smooth; }
+  @media (prefers-reduced-motion: no-preference) {
+    html { scroll-behavior:smooth; }
+  }
   ::-webkit-scrollbar { width:5px; }
   ::-webkit-scrollbar-track { background:${C.bg}; }
   ::-webkit-scrollbar-thumb { background:${C.purple}55; border-radius:4px; }
@@ -4984,7 +4988,39 @@ Return ONLY valid JSON (no markdown, no explanation):
           </div>
         )}
         </div>
+
+        {/* ── Wizard overlay — standalone mode only ───────────────────── */}
+        {standalone && wizardOpen && (
+          <div style={{ position:'fixed', inset:0, zIndex:2000, background:'rgba(0,0,0,.97)', backdropFilter:'blur(4px)' }}>
+            <PropertyWizard
+              onClose={() => setWizardOpen(false)}
+              onPublish={(prop) => {
+                const nextProps = [...properties, prop]
+                setProperties(nextProps)
+                syncProps(nextProps)
+                setWizardOpen(false)
+                setTab('props')
+              }}
+            />
+          </div>
+        )}
+
       </div>
+
+      {/* ── Mobile bottom tab bar — standalone only ──────────────────── */}
+      {standalone && (
+        <nav className="admin-bottom-nav">
+          {DASH_TABS.slice(0,5).map(item => (
+            <button key={item.id} onClick={() => setTab(item.id)}
+              style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:3, border:'none', background:'transparent', color: tab===item.id ? '#8490D8' : 'rgba(232,228,216,.32)', cursor:'pointer', fontFamily:'inherit', padding:'8px 4px', position:'relative', transition:'color .15s', minWidth:0 }}>
+              <item.Icon size={18}/>
+              <span style={{ fontSize:9, fontWeight: tab===item.id ? 700 : 400, letterSpacing:'.02em', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:'100%' }}>{item.label}</span>
+              {!!item.badge && <span style={{ position:'absolute', top:6, right:'50%', transform:'translateX(140%)', background:'#8490D8', color:'#fff', borderRadius:8, padding:'1px 5px', fontSize:8, fontWeight:800, lineHeight:1.6 }}>{item.badge}</span>}
+              {tab===item.id && <div style={{ position:'absolute', top:0, left:'15%', right:'15%', height:2, background:'#8490D8', borderRadius:2 }}/>}
+            </button>
+          ))}
+        </nav>
+      )}
     </div>
   )
 }
@@ -5104,37 +5140,6 @@ function MetaWABotCard({ C, isDark }) {
         5. פרוס לאויר דרך Vercel — הבוט יתחיל לענות אוטומטית ✓<br/>
         <span style={{ color:`${C.cream}44`, fontSize:11 }}>* Google Tag Manager (GTM-MZZ8QR8V) כבר מוטמע ופועל</span>
       </div>
-
-      {/* ── Wizard overlay — standalone mode only ───────────────────── */}
-      {standalone && wizardOpen && (
-        <div style={{ position:'fixed', inset:0, zIndex:2000, background:'rgba(0,0,0,.97)', backdropFilter:'blur(4px)' }}>
-          <PropertyWizard
-            onClose={() => setWizardOpen(false)}
-            onPublish={(prop) => {
-              const nextProps = [...properties, prop]
-              setProperties(nextProps)
-              syncProps(nextProps)
-              setWizardOpen(false)
-              setTab('props')
-            }}
-          />
-        </div>
-      )}
-
-      {/* ── Mobile bottom tab bar — standalone only ──────────────────── */}
-      {standalone && (
-        <nav className="admin-bottom-nav">
-          {DASH_TABS.slice(0,5).map(item => (
-            <button key={item.id} onClick={() => setTab(item.id)}
-              style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:3, border:'none', background:'transparent', color: tab===item.id ? '#8490D8' : 'rgba(232,228,216,.32)', cursor:'pointer', fontFamily:'inherit', padding:'8px 4px', position:'relative', transition:'color .15s', minWidth:0 }}>
-              <item.Icon size={18}/>
-              <span style={{ fontSize:9, fontWeight: tab===item.id ? 700 : 400, letterSpacing:'.02em', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:'100%' }}>{item.label}</span>
-              {!!item.badge && <span style={{ position:'absolute', top:6, right:'50%', transform:'translateX(140%)', background:'#8490D8', color:'#fff', borderRadius:8, padding:'1px 5px', fontSize:8, fontWeight:800, lineHeight:1.6 }}>{item.badge}</span>}
-              {tab===item.id && <div style={{ position:'absolute', top:0, left:'15%', right:'15%', height:2, background:'#8490D8', borderRadius:2 }}/>}
-            </button>
-          ))}
-        </nav>
-      )}
     </div>
   )
 }
@@ -6652,7 +6657,7 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
                   key={currentVideo.url}
                   src={currentVideo.url}
                   poster={getVideoThumbnail(currentVideo.url, currentVideo.thumbnail) || undefined}
-                  style={{ width:'100%', height:'100%', objectFit:'cover', position:'relative', zIndex:1, background:'#000' }}
+                  style={{ width:'100%', height:'100%', objectFit:'contain', position:'relative', zIndex:1, background:'#000' }}
                   playsInline
                   autoPlay
                   loop={!!prop.videoAutoplay}
@@ -6661,14 +6666,6 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
                   onPlay={() => setVideoPlaying(true)}
                   onPause={() => setVideoPlaying(false)}
                 />
-                {!videoPlaying && (
-                  <div onClick={() => videoRef.current?.play().catch(() => {})}
-                    style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', zIndex:4, cursor:'pointer' }}>
-                    <div style={{ width:72, height:72, borderRadius:'50%', background:'rgba(0,0,0,.45)', backdropFilter:'blur(8px)', display:'flex', alignItems:'center', justifyContent:'center', border:'2.5px solid rgba(255,255,255,.55)', boxShadow:'0 8px 32px rgba(0,0,0,.4)' }}>
-                      <FaPlay size={24} style={{ color:'#fff', marginRight:'-4px' }}/>
-                    </div>
-                  </div>
-                )}
               </>
             ) : (
               <iframe
