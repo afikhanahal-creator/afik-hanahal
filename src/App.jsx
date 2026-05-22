@@ -236,7 +236,7 @@ const makeGlobal = (C, isDark) => `
   }
   *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
   html { scroll-behavior:smooth; font-size:16px; -webkit-text-size-adjust:100%; }
-  body { background:${C.bg}; color:${C.cream}; font-family:'Rubik','Heebo','Segoe UI',sans-serif; direction:rtl; text-align:right; overflow-x:hidden; font-size:15px; line-height:1.6; -webkit-overflow-scrolling:touch; overscroll-behavior-y:contain; }
+  body { background:${C.bg}; color:${C.cream}; font-family:'Rubik','Heebo','Segoe UI',sans-serif; direction:rtl; text-align:right; overflow-x:hidden; font-size:15px; line-height:1.6; -webkit-overflow-scrolling:touch; overscroll-behavior:auto; }
   * { scroll-behavior:smooth; }
   @media (prefers-reduced-motion: no-preference) {
     html { scroll-behavior:smooth; }
@@ -3589,6 +3589,11 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const [wizardOpen, setWizardOpen] = useState(false)
   const [shareCopied, setShareCopied] = useState(false)
   const [leadsSyncing, setLeadsSyncing] = useState(false)
+  const [chats, setChats] = useState({})
+  const [chatInput, setChatInput] = useState('')
+  const [chatSending, setChatSending] = useState(false)
+  const chatPollRef = useRef(null)
+  const chatScrollRef = useRef(null)
 
   const syncLeadsFromServer = () => {
     const base = API_BASE || ''
@@ -3625,6 +3630,85 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
 
   // Sync on admin mount — ensures leads from other browsers/sessions appear
   useEffect(() => { syncLeadsFromServer() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── WhatsApp CRM helpers ──────────────────────────────────────────────────
+  const intlPhoneFmt = p => {
+    const d = (p || '').replace(/\D/g, '')
+    if (!d) return ''
+    if (d.startsWith('972')) return d
+    if (d.startsWith('0'))   return '972' + d.slice(1)
+    return d
+  }
+
+  const fetchChats = useCallback(async (phone) => {
+    if (!phone || !API_BASE) return
+    const p = intlPhoneFmt(phone)
+    if (!p) return
+    try {
+      const r = await fetch(`${API_BASE}/api/chats/${p}`, { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` } })
+      if (r.ok) {
+        const msgs = await r.json()
+        setChats(prev => ({ ...prev, [p]: msgs }))
+      }
+    } catch {}
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const sendChatMsg = async (lead) => {
+    const msg = chatInput.trim()
+    if (!msg || chatSending) return
+    const p = intlPhoneFmt(lead.phone)
+    if (!p) { alert('מספר טלפון לא תקין'); return }
+    setChatSending(true)
+    try {
+      const r = await fetch(`${API_BASE}/api/chats/send`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+        body:    JSON.stringify({ phone: p, message: msg }),
+      })
+      const data = await r.json()
+      if (r.ok) { setChatInput(''); fetchChats(lead.phone) }
+      else       alert('שגיאה בשליחה: ' + (data.error || 'שגיאה לא ידועה'))
+    } catch (e) {
+      alert('שגיאה בשליחה: ' + e.message)
+    } finally {
+      setChatSending(false)
+    }
+  }
+
+  const LEAD_STATUS = {
+    new:         { label: 'ליד חדש',  color: '#8490D8' },
+    contacted:   { label: 'נוצר קשר', color: '#F7A948' },
+    negotiating: { label: 'במו"מ',    color: '#F7C948' },
+    won:         { label: '✓ סגירה!', color: '#82F67F' },
+    lost:        { label: 'ללא מענה', color: '#9B9BA0' },
+  }
+
+  const updateLeadStatus = (lead, status) => {
+    updateLead(lead.id, { leadStatus: status })
+    const p = intlPhoneFmt(lead.phone)
+    if (p && API_BASE) {
+      fetch(`${API_BASE}/api/chats/status`, {
+        method:  'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+        body:    JSON.stringify({ phone: p, status }),
+      }).catch(() => {})
+    }
+  }
+
+  // Poll chats when a lead is selected
+  useEffect(() => {
+    if (chatPollRef.current) { clearInterval(chatPollRef.current); chatPollRef.current = null }
+    const phone = selectedLead?.phone
+    if (!phone) return
+    fetchChats(phone)
+    chatPollRef.current = setInterval(() => fetchChats(phone), 12000)
+    return () => { if (chatPollRef.current) clearInterval(chatPollRef.current) }
+  }, [selectedLead?.id, fetchChats])
+
+  // Auto-scroll chat to bottom when new messages arrive
+  useEffect(() => {
+    if (chatScrollRef.current) chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight
+  }, [chats])
 
   const copyDashLink = () => {
     const url = `${window.location.origin}/dashboard`
@@ -4766,6 +4850,19 @@ Return ONLY valid JSON (no markdown, no code blocks):
                           <button onClick={() => setSelectedLead(null)} style={{ background:'none', border:'none', color:`${C.cream}55`, cursor:'pointer', fontSize:16, padding:'0 2px' }}>✕</button>
                         </div>
 
+                        {/* Lead status pipeline */}
+                        <div style={{ display:'flex', gap:4, flexWrap:'wrap', marginBottom:12 }}>
+                          {Object.entries(LEAD_STATUS).map(([k, {label, color}]) => {
+                            const active = (l.leadStatus || 'new') === k
+                            return (
+                              <button key={k} onClick={() => updateLeadStatus(l, k)}
+                                style={{ fontSize:10, fontWeight:700, padding:'4px 9px', borderRadius:20, border:`1px solid ${active ? color : `${C.cream}20`}`, background:active ? `${color}20` : 'transparent', color:active ? color : `${C.cream}40`, cursor:'pointer', fontFamily:'inherit', transition:'all .15s' }}>
+                                {label}
+                              </button>
+                            )
+                          })}
+                        </div>
+
                         {/* Score + intent */}
                         {(en.score || en.intent) && (
                           <div style={{ display:'flex', gap:8, marginBottom:14, alignItems:'center' }}>
@@ -4871,6 +4968,66 @@ Return ONLY valid JSON (no markdown, no code blocks):
                         {en.status === 'done' && en.enrichedAt && (
                           <div style={{ fontSize:10, color:`${C.cream}33`, textAlign:'center', marginTop:8 }}>
                             עודכן: {new Date(en.enrichedAt).toLocaleString('he-IL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}
+                          </div>
+                        )}
+
+                        {/* ── WhatsApp Chat ─────────────────────────────── */}
+                        {l.phone && (
+                          <div style={{ marginTop:16, borderTop:`1px solid ${C.purple}18`, paddingTop:14 }}>
+                            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+                              <div style={{ fontSize:10, color:`${C.cream}44`, fontWeight:700, letterSpacing:'.06em', textTransform:'uppercase' }}>💬 צ'אט WhatsApp</div>
+                              <button onClick={() => fetchChats(l.phone)}
+                                style={{ fontSize:9, color:`${C.cream}33`, background:'none', border:'none', cursor:'pointer', fontFamily:'inherit', padding:'2px 6px' }}>
+                                ⟳ רענן
+                              </button>
+                            </div>
+
+                            {/* Bubble area */}
+                            <div ref={chatScrollRef}
+                              style={{ height:200, overflowY:'auto', background:'rgba(0,0,0,.35)', borderRadius:10, padding:'8px', display:'flex', flexDirection:'column', gap:5, border:`1px solid ${C.purple}18`, WebkitOverflowScrolling:'touch' }}>
+                              {(() => {
+                                const p = intlPhoneFmt(l.phone)
+                                const msgs = chats[p] || []
+                                if (msgs.length === 0) return (
+                                  <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', color:`${C.cream}28`, fontSize:11, textAlign:'center', flexDirection:'column', gap:6 }}>
+                                    <FaWhatsapp size={22} style={{ opacity:.3 }}/>
+                                    <span>אין הודעות עדיין<br/>שלח הודעה ראשונה ⬇</span>
+                                  </div>
+                                )
+                                return msgs.map((m, i) => (
+                                  <div key={m.id||i} style={{ display:'flex', justifyContent: m.direction==='out' ? 'flex-end' : 'flex-start' }}>
+                                    <div style={{ maxWidth:'82%', padding:'6px 10px', borderRadius:10, background: m.direction==='out' ? C.purple : 'rgba(255,255,255,.09)', color: m.direction==='out' ? '#fff' : C.cream, fontSize:11, lineHeight:1.5, wordBreak:'break-word' }}>
+                                      <div>{m.message}</div>
+                                      <div style={{ fontSize:9, opacity:.55, marginTop:2, textAlign: m.direction==='out' ? 'right' : 'left', direction:'ltr' }}>
+                                        {new Date(m.created_at).toLocaleTimeString('he-IL', { hour:'2-digit', minute:'2-digit' })}
+                                        {m.direction==='out' && ' ✓'}
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))
+                              })()}
+                            </div>
+
+                            {/* Reply input */}
+                            <div style={{ display:'flex', gap:6, marginTop:6 }}>
+                              <input
+                                value={chatInput}
+                                onChange={e => setChatInput(e.target.value)}
+                                onKeyDown={e => e.key==='Enter' && !e.shiftKey && sendChatMsg(l)}
+                                placeholder="כתוב הודעה..."
+                                disabled={chatSending}
+                                style={{ flex:1, padding:'8px 10px', background:'rgba(255,255,255,.06)', border:`1px solid ${C.purple}33`, borderRadius:8, color:C.cream, fontSize:11, fontFamily:'inherit', outline:'none', direction:'rtl' }}
+                              />
+                              <button
+                                onClick={() => sendChatMsg(l)}
+                                disabled={chatSending || !chatInput.trim()}
+                                style={{ padding:'8px 12px', background:chatSending||!chatInput.trim()?`${C.purple}44`:C.purple, border:'none', borderRadius:8, color:'#fff', cursor:chatSending||!chatInput.trim()?'not-allowed':'pointer', fontSize:11, fontWeight:700, fontFamily:'inherit', whiteSpace:'nowrap', transition:'background .15s' }}>
+                                {chatSending ? '...' : '↑ שלח'}
+                              </button>
+                            </div>
+                            <div style={{ fontSize:9, color:`${C.cream}22`, marginTop:4, textAlign:'center' }}>
+                              Green API · מתעדכן אוטומטית כל 12 שניות
+                            </div>
                           </div>
                         )}
                       </div>
@@ -6719,7 +6876,7 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
   ].filter(Boolean)
 
   return (
-    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.88)', backdropFilter:'blur(14px)', zIndex:900, overflowY:'auto' }}
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.88)', backdropFilter:'blur(14px)', zIndex:900, overflowY:'auto', WebkitOverflowScrolling:'touch', scrollBehavior:'smooth' }}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
       onTouchStart={propSwipe.onTouchStart} onTouchEnd={propSwipe.onTouchEnd}>
 
@@ -6877,11 +7034,11 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
           </div>
         )}
 
-        {/* Project logo strip */}
+        {/* Project logo strip — left-aligned */}
         {prop.logo && (
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'center', padding:'18px 24px 14px', background:'rgba(0,0,0,.45)', borderBottom:'1px solid rgba(132,144,216,.12)' }}>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'flex-start', padding:'16px 28px 12px', background:'rgba(0,0,0,.45)', borderBottom:'1px solid rgba(132,144,216,.12)', direction:'ltr' }}>
             <img src={prop.logo} alt="לוגו פרויקט"
-              style={{ height: prop.logoSize || 72, maxWidth:'90%', objectFit:'contain', filter:'brightness(1.15) drop-shadow(0 2px 8px rgba(0,0,0,.5))', opacity:1 }}/>
+              style={{ height: prop.logoSize || 100, maxWidth:'60%', objectFit:'contain', filter:'brightness(1.2) drop-shadow(0 2px 12px rgba(0,0,0,.6))', opacity:1 }}/>
           </div>
         )}
 
