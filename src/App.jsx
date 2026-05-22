@@ -3588,6 +3588,43 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const [aiError, setAiError] = useState('')
   const [wizardOpen, setWizardOpen] = useState(false)
   const [shareCopied, setShareCopied] = useState(false)
+  const [leadsSyncing, setLeadsSyncing] = useState(false)
+
+  const syncLeadsFromServer = () => {
+    const base = API_BASE || ''
+    if (!base || leadsSyncing) return
+    setLeadsSyncing(true)
+    fetch(`${base}/api/contacts`, { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` } })
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(serverLeads => {
+        if (!Array.isArray(serverLeads)) return
+        setLeads(prev => {
+          const localIds = new Set(prev.map(l => String(l.id)))
+          const newOnes = serverLeads
+            .filter(s => !localIds.has(String(s.id)))
+            .map(s => ({
+              id: String(s.id),
+              name: s.name || '',
+              phone: s.phone || '',
+              email: s.email || '',
+              msg: s.message || s.msg || '',
+              propTitle: s.prop_title || '',
+              propLocation: s.prop_location || '',
+              source: s.source || 'website',
+              ts: new Date(s.created_at || Date.now()).getTime(),
+            }))
+          if (newOnes.length === 0) return prev
+          const merged = [...newOnes, ...prev].sort((a, b) => b.ts - a.ts)
+          try { localStorage.setItem(LEADS_STORE, JSON.stringify(merged)) } catch {}
+          return merged
+        })
+      })
+      .catch(() => {})
+      .finally(() => setLeadsSyncing(false))
+  }
+
+  // Sync on admin mount — ensures leads from other browsers/sessions appear
+  useEffect(() => { syncLeadsFromServer() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const copyDashLink = () => {
     const url = `${window.location.origin}/dashboard`
@@ -3753,33 +3790,52 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     if (lead.enrichment?.status === 'enriching') return
     updateLead(lead.id, { enrichment: { ...(lead.enrichment || {}), status: 'enriching' } })
     try {
-      const prompt = `You are a B2B lead intelligence agent for a real estate company in Israel.
-Analyze this lead and return a JSON object with enrichment data. Be realistic and professional.
+      const phoneDigits = (lead.phone || '').replace(/\D/g, '')
+      const phonePrefix = phoneDigits.startsWith('972') ? phoneDigits.slice(3, 5) : phoneDigits.startsWith('0') ? phoneDigits.slice(1, 3) : phoneDigits.slice(0, 2)
+      const prompt = `You are a senior real-estate sales intelligence analyst specializing in the Israeli market.
+Analyze this lead and return comprehensive research for a pre-call briefing. Be realistic, precise, and professional.
 
 Lead data:
 - Name: ${lead.name || 'Unknown'}
-- Phone: ${lead.phone || 'N/A'}
+- Phone: ${lead.phone || 'N/A'} (2-digit prefix after 0: "${phonePrefix}")
 - Email: ${lead.email || 'N/A'}
 - Message: ${lead.msg || 'N/A'}
 - Property interest: ${lead.propTitle || 'General inquiry'}
+- Property location: ${lead.propLocation || 'N/A'}
 
-Return ONLY valid JSON (no markdown, no explanation):
+Israeli landline prefix → city (use for estimatedCity):
+02=Jerusalem, 03=Tel Aviv/Gush Dan, 04=Haifa/North, 08=South Israel, 09=Sharon region (Netanya/Ra'anana/Herzliya).
+Mobile 050-058 = nationwide — use other signals for city.
+
+Analyze name origin (Hebrew/Arabic/Russian/Ethiopian/Western) for age and background estimation.
+Analyze email domain: gmail/yahoo/hotmail=consumer; company domain=professional, extract company.
+Analyze message vocabulary and sentence structure for education level.
+
+Return ONLY valid JSON (no markdown, no code blocks):
 {
-  "score": <1-5 integer based on interest level>,
-  "scoreReason": "<one line why this score>",
-  "company": "<company name if detectable from email domain or message, else empty>",
-  "role": "<likely professional role based on available signals, else empty>",
-  "linkedin": "<likely LinkedIn URL pattern based on name, e.g. linkedin.com/in/firstname-lastname — best guess>",
-  "facebook": "<likely Facebook profile URL if name is common Israeli name>",
-  "instagram": "<likely Instagram handle if detectable>",
+  "score": <1-5 integer, 5=hottest>,
+  "scoreReason": "<one concise line>",
   "intent": "<hot|warm|cold>",
-  "notes": "<2-3 sentence AI analysis of this lead's likely motivation and next best action in Hebrew>",
-  "tags": ["<tag1>", "<tag2>"]
+  "estimatedAge": "<age range e.g. '35-45'>",
+  "estimatedCity": "<city or region>",
+  "estimatedBudget": "<e.g. '2-4M NIS' based on property price signals>",
+  "education": "<תיכון|תואר ראשון|תואר שני|דוקטורט>",
+  "profession": "<likely profession or industry in Hebrew>",
+  "company": "<company name from email domain, else empty>",
+  "role": "<specific role if detectable, else empty>",
+  "linkedin": "<https://www.linkedin.com/search/results/people/?keywords=FIRSTNAME+LASTNAME>",
+  "linkedinDirect": "<https://www.linkedin.com/in/firstname-lastname — transliterate Hebrew name to English>",
+  "facebook": "<https://www.facebook.com/search/people/?q=FIRSTNAME+LASTNAME>",
+  "google": "<https://www.google.com/search?q=FIRSTNAME+LASTNAME+ישראל>",
+  "instagram": "<https://www.instagram.com/LIKELY_HANDLE or empty>",
+  "talkingPoints": ["<talking point 1 in Hebrew — specific to their signals>", "<talking point 2>", "<talking point 3>"],
+  "notes": "<3-4 sentence pre-call briefing in Hebrew: who this person likely is, motivation, urgency signals, best opening line>",
+  "tags": ["<tag1>", "<tag2>", "<tag3>"]
 }`
       const res = await fetch(`${API_BASE}/api/ai/messages`, {
         method: 'POST',
         headers: { 'Content-Type':'application/json', 'Authorization':`Bearer ${ADMIN_TOKEN}`, 'anthropic-version':'2023-06-01' },
-        body: JSON.stringify({ model:'claude-haiku-4-5-20251001', max_tokens:600, messages:[{ role:'user', content:prompt }] }),
+        body: JSON.stringify({ model:'claude-haiku-4-5-20251001', max_tokens:1200, messages:[{ role:'user', content:prompt }] }),
       })
       if (!res.ok) throw new Error(await res.text())
       const data = await res.json()
@@ -3810,18 +3866,24 @@ Return ONLY valid JSON (no markdown, no explanation):
     try { localStorage.setItem(LEADS_STORE, '[]') } catch {}
   }
   const exportCSV = () => {
-    const header = ['תאריך', 'שם', 'טלפון', 'אימייל', 'הודעה', 'נכס', 'ציון', 'כוונת רכישה', 'חברה', 'תפקיד', 'LinkedIn']
-    const rows = leads.map(l => [
-      new Date(l.ts).toLocaleString('he-IL'),
-      l.name || '', l.phone || '', l.email || '',
-      (l.msg || '').replace(/"/g, '""'),
-      l.propTitle || '',
-      l.enrichment?.score || '',
-      l.enrichment?.intent || '',
-      l.enrichment?.company || '',
-      l.enrichment?.role || '',
-      l.enrichment?.linkedin || '',
-    ])
+    const header = ['תאריך','שם','טלפון','אימייל','הודעה','נכס','מיקום נכס','מקור','ציון','כוונה','גיל משוער','עיר משוערת','תקציב משוער','השכלה','מקצוע','חברה','תפקיד','LinkedIn חיפוש','LinkedIn ישיר','Facebook','Google','נקודות שיחה','ניתוח AI','תגיות']
+    const rows = leads.map(l => {
+      const en = l.enrichment || {}
+      return [
+        new Date(l.ts).toLocaleString('he-IL'),
+        l.name || '', l.phone || '', l.email || '',
+        (l.msg || '').replace(/"/g, '""'),
+        l.propTitle || '', l.propLocation || '', l.source || '',
+        en.score || '', en.intent || '',
+        en.estimatedAge || '', en.estimatedCity || '', en.estimatedBudget || '',
+        en.education || '', en.profession || '',
+        en.company || '', en.role || '',
+        en.linkedin || '', en.linkedinDirect || '', en.facebook || '', en.google || '',
+        (en.talkingPoints || []).join(' | '),
+        (en.notes || '').replace(/"/g, '""'),
+        (en.tags || []).join(', '),
+      ]
+    })
     const csv = [header, ...rows].map(r => r.map(c => `"${c}"`).join(',')).join('\n')
     const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
     const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: `leads-${new Date().toISOString().slice(0,10)}.csv` })
@@ -4574,6 +4636,10 @@ Return ONLY valid JSON (no markdown, no explanation):
                   placeholder="חיפוש לפי שם / טלפון / אימייל..."
                   style={{ flex:1, minWidth:180, padding:'8px 14px', background:'rgba(255,255,255,.05)', border:`1px solid ${C.purple}33`, borderRadius:8, color:C.cream, fontSize:12, fontFamily:'inherit', outline:'none', direction:'rtl' }}
                 />
+                <button onClick={syncLeadsFromServer} disabled={leadsSyncing}
+                  style={{ padding:'8px 14px', background:'rgba(255,255,255,.05)', border:`1px solid ${C.purple}33`, borderRadius:8, color:leadsSyncing?`${C.cream}44`:C.cream, fontSize:12, fontWeight:700, cursor:leadsSyncing?'not-allowed':'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', gap:6, whiteSpace:'nowrap', transition:'all .15s' }}>
+                  {leadsSyncing ? '⟳ מסנכרן...' : '⟳ סנכרן מהשרת'}
+                </button>
                 {leads.length > 0 && (
                   <>
                     <button onClick={enrichAllLeads}
@@ -4722,17 +4788,38 @@ Return ONLY valid JSON (no markdown, no explanation):
                           </a>}
                         </div>
 
+                        {/* Demographic estimates */}
+                        {(en.estimatedAge || en.estimatedCity || en.estimatedBudget) && (
+                          <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginBottom:14 }}>
+                            {en.estimatedAge && <span style={{ fontSize:10, background:'rgba(255,255,255,.06)', borderRadius:20, padding:'3px 10px', color:`${C.cream}88`, fontWeight:600 }}>גיל משוער: {en.estimatedAge}</span>}
+                            {en.estimatedCity && <span style={{ fontSize:10, background:'rgba(255,255,255,.06)', borderRadius:20, padding:'3px 10px', color:`${C.cream}88`, fontWeight:600 }}>📍 {en.estimatedCity}</span>}
+                            {en.estimatedBudget && <span style={{ fontSize:10, background:`${C.green}12`, borderRadius:20, padding:'3px 10px', color:C.green, fontWeight:700 }}>💰 {en.estimatedBudget}</span>}
+                          </div>
+                        )}
+
+                        {/* Education + Profession */}
+                        {(en.education || en.profession) && (
+                          <div style={{ marginBottom:14, background:'rgba(255,255,255,.03)', borderRadius:8, padding:'8px 10px' }}>
+                            {en.profession && <div style={{ fontSize:11, color:C.cream, fontWeight:600, marginBottom:2 }}>{en.profession}</div>}
+                            {en.education && <div style={{ fontSize:10, color:`${C.cream}55` }}>השכלה משוערת: {en.education}</div>}
+                          </div>
+                        )}
+
                         {/* Social links */}
-                        {(en.linkedin || en.facebook || en.instagram) && (
+                        {(en.linkedin || en.linkedinDirect || en.facebook || en.instagram || en.google) && (
                           <div style={{ marginBottom:14 }}>
-                            <div style={{ fontSize:10, color:`${C.cream}44`, fontWeight:700, letterSpacing:'.06em', textTransform:'uppercase', marginBottom:6 }}>רשתות חברתיות</div>
-                            <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                            <div style={{ fontSize:10, color:`${C.cream}44`, fontWeight:700, letterSpacing:'.06em', textTransform:'uppercase', marginBottom:6 }}>רשתות חברתיות וחיפוש</div>
+                            <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
                               {en.linkedin && <a href={en.linkedin.startsWith('http')?en.linkedin:`https://${en.linkedin}`} target="_blank" rel="noopener noreferrer"
-                                style={{ fontSize:11, color:'#0A66C2', background:'rgba(10,102,194,.12)', borderRadius:6, padding:'4px 10px', textDecoration:'none', fontWeight:700 }}>in LinkedIn</a>}
+                                style={{ fontSize:10, color:'#0A66C2', background:'rgba(10,102,194,.12)', borderRadius:6, padding:'4px 10px', textDecoration:'none', fontWeight:700 }}>🔍 LinkedIn</a>}
+                              {en.linkedinDirect && <a href={en.linkedinDirect.startsWith('http')?en.linkedinDirect:`https://${en.linkedinDirect}`} target="_blank" rel="noopener noreferrer"
+                                style={{ fontSize:10, color:'#0A66C2', background:'rgba(10,102,194,.18)', borderRadius:6, padding:'4px 10px', textDecoration:'none', fontWeight:700 }}>in פרופיל</a>}
                               {en.facebook && <a href={en.facebook.startsWith('http')?en.facebook:`https://${en.facebook}`} target="_blank" rel="noopener noreferrer"
-                                style={{ fontSize:11, color:'#1877F2', background:'rgba(24,119,242,.12)', borderRadius:6, padding:'4px 10px', textDecoration:'none', fontWeight:700 }}>Facebook</a>}
-                              {en.instagram && <a href={`https://instagram.com/${en.instagram.replace('@','')}`} target="_blank" rel="noopener noreferrer"
-                                style={{ fontSize:11, color:'#E1306C', background:'rgba(225,48,108,.12)', borderRadius:6, padding:'4px 10px', textDecoration:'none', fontWeight:700 }}>Instagram</a>}
+                                style={{ fontSize:10, color:'#1877F2', background:'rgba(24,119,242,.12)', borderRadius:6, padding:'4px 10px', textDecoration:'none', fontWeight:700 }}>Facebook</a>}
+                              {en.google && <a href={en.google} target="_blank" rel="noopener noreferrer"
+                                style={{ fontSize:10, color:'#EA4335', background:'rgba(234,67,53,.10)', borderRadius:6, padding:'4px 10px', textDecoration:'none', fontWeight:700 }}>Google</a>}
+                              {en.instagram && <a href={en.instagram.startsWith('http')?en.instagram:`https://instagram.com/${en.instagram.replace('@','')}`} target="_blank" rel="noopener noreferrer"
+                                style={{ fontSize:10, color:'#E1306C', background:'rgba(225,48,108,.12)', borderRadius:6, padding:'4px 10px', textDecoration:'none', fontWeight:700 }}>Instagram</a>}
                             </div>
                           </div>
                         )}
@@ -4740,9 +4827,21 @@ Return ONLY valid JSON (no markdown, no explanation):
                         {/* AI Notes */}
                         {en.notes && (
                           <div style={{ marginBottom:14 }}>
-                            <div style={{ fontSize:10, color:`${C.cream}44`, fontWeight:700, letterSpacing:'.06em', textTransform:'uppercase', marginBottom:6 }}>ניתוח AI</div>
+                            <div style={{ fontSize:10, color:`${C.cream}44`, fontWeight:700, letterSpacing:'.06em', textTransform:'uppercase', marginBottom:6 }}>ניתוח AI — פגישת מכירה</div>
                             <div style={{ fontSize:11, color:`${C.cream}88`, lineHeight:1.7, background:'rgba(255,255,255,.03)', borderRadius:8, padding:'10px 12px', border:`1px solid ${C.purple}15` }}>{en.notes}</div>
                             {en.scoreReason && <div style={{ fontSize:10, color:`${C.cream}44`, marginTop:6, fontStyle:'italic' }}>{en.scoreReason}</div>}
+                          </div>
+                        )}
+
+                        {/* Talking Points */}
+                        {en.talkingPoints?.length > 0 && (
+                          <div style={{ marginBottom:14 }}>
+                            <div style={{ fontSize:10, color:`${C.cream}44`, fontWeight:700, letterSpacing:'.06em', textTransform:'uppercase', marginBottom:6 }}>נקודות לשיחה</div>
+                            <ul style={{ margin:0, padding:'0 16px', listStyle:'disc' }}>
+                              {en.talkingPoints.map((pt, i) => (
+                                <li key={i} style={{ fontSize:11, color:`${C.cream}88`, lineHeight:1.7, marginBottom:4 }}>{pt}</li>
+                              ))}
+                            </ul>
                           </div>
                         )}
 
