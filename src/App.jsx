@@ -2217,6 +2217,7 @@ const EMPTY_PROP = {
   parking:false, balcony:false, elevator:false, storage:false,
   pool:false, garden:false, safeRoom:false, airCon:false, tornadoAC:false,
   furnished:false, renovated:false, accessible:false, solarBoiler:false, bars:false,
+  kosher:false, unit:false, doorman:false, boiler:false,
   zoning:'', buildingRights:'', buildYear:'', direction:'',
   propertyTax:'', houseCommittee:'',
   condition:'', entryDate:'', parkingCount:'', buildSqm:'',
@@ -2245,6 +2246,10 @@ const ALL_AMENITIES = [
   { key:'renovated',     Icon:FaTools,        label:'משופץ' },
   { key:'solarBoiler',   Icon:FaFire,         label:'דוד שמש' },
   { key:'bars',          Icon:FaLock,         label:'סורגים' },
+  { key:'kosher',        Icon:FaUtensils,     label:'מטבח כשר' },
+  { key:'unit',          Icon:FaDoorOpen,     label:'יחידת דיור' },
+  { key:'doorman',       Icon:FaUserShield,   label:'שוער' },
+  { key:'boiler',        Icon:FaBolt,         label:'דוד חשמל' },
   // commercial amenities
   { key:'cameras',       Icon:FaCamera,       label:'מצלמות אבטחה' },
   { key:'alarm',         Icon:FaBolt,         label:'אזעקה' },
