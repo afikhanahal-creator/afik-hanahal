@@ -6825,10 +6825,11 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
   const sc = { 'זמין':C.green, 'בבדיקה':'#F7C948', 'נמכר':'#E05252', 'הושכר':'#F97316' }[prop.status] || C.green
 
   const imgs = (prop.images || []).filter(u => u && typeof u === 'string' && u.length > 4).map(cloudImg)
-  // Build unified video list: wizard videos + legacy videoUrl (deduplicated)
+  // Build unified video list — skip blob: URLs (temporary local refs that die on reload)
+  const isValidVideoUrl = u => u && typeof u === 'string' && u.length > 4 && !u.startsWith('blob:')
   const allVideos = [
-    ...(prop.videos || []).filter(v => v?.url),
-    ...(!!(prop.videoUrl) && !(prop.videos || []).some(v => v.url === prop.videoUrl)
+    ...(prop.videos || []).filter(v => isValidVideoUrl(v?.url)),
+    ...(isValidVideoUrl(prop.videoUrl) && !(prop.videos || []).some(v => v.url === prop.videoUrl)
       ? [{ url: prop.videoUrl, thumbnail: null }] : []),
   ]
   const hasVideo = allVideos.length > 0

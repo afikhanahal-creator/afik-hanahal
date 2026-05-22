@@ -1226,20 +1226,57 @@ function Step6({ d, upd }) {
   const handleDragOver = e => { e.preventDefault(); setIsDragOver(true) }
   const handleDragLeave = e => { if (!e.currentTarget.contains(e.relatedTarget)) setIsDragOver(false) }
 
-  // Local file → blob URL (works immediately, no upload needed)
-  const addLocalVideos = async e => {
+  // Upload video to server → Supabase Storage → permanent URL
+  const addServerVideos = async e => {
     const files = Array.from(e.target.files)
     if (!files.length) return
     const videoCount = d.media.filter(m => m.type === 'video').length
     const remaining  = 3 - videoCount
     const toAdd = files.filter(f => f.type.startsWith('video/')).slice(0, remaining)
-    const videos = toAdd.map(f => ({
-      url:   URL.createObjectURL(f),
-      name:  f.name,
-      type:  'video',
-      local: true,
-    }))
-    upd('media', [...d.media, ...videos])
+    if (!toAdd.length) return
+
+    setUploading(true)
+    setProgress(0)
+    setUploadErr('')
+
+    const uploaded = []
+    for (let i = 0; i < toAdd.length; i++) {
+      const file = toAdd[i]
+      try {
+        const fd = new FormData()
+        fd.append('file', file)
+
+        const url = await new Promise((resolve, reject) => {
+          const xhr = new XMLHttpRequest()
+          xhr.upload.addEventListener('progress', ev => {
+            if (ev.lengthComputable) {
+              const pct = ((i * 100) + (ev.loaded / ev.total) * 100) / toAdd.length
+              setProgress(Math.round(pct))
+            }
+          })
+          xhr.addEventListener('load', () => {
+            try {
+              const data = JSON.parse(xhr.responseText)
+              if (xhr.status === 200 && data.url) resolve(data.url)
+              else reject(new Error(data.error || `שגיאה ${xhr.status}`))
+            } catch { reject(new Error('תגובת שרת לא תקינה')) }
+          })
+          xhr.addEventListener('error', () => reject(new Error('שגיאת רשת')))
+          const base = WIZ_API_BASE || ''
+          xhr.open('POST', `${base}/api/upload/video`)
+          xhr.setRequestHeader('Authorization', `Bearer ${WIZ_ADMIN_TOKEN}`)
+          xhr.send(fd)
+        })
+
+        uploaded.push({ url, name: file.name, type: 'video', thumbnail: null })
+      } catch (err) {
+        setUploadErr(`שגיאה בהעלאת "${file.name}": ${err.message}`)
+      }
+    }
+
+    if (uploaded.length > 0) upd('media', [...d.media, ...uploaded])
+    setUploading(false)
+    setProgress(0)
     e.target.value = ''
   }
 
@@ -1293,8 +1330,8 @@ function Step6({ d, upd }) {
 
       {/* Hidden inputs */}
       <input ref={imgInputRef}  type="file" accept="image/*"  multiple style={{ display: 'none' }} onChange={addImages} />
-      <input ref={localVidRef}  type="file" accept="video/*"  multiple style={{ display: 'none' }} onChange={addLocalVideos} />
-      <input ref={cloudVidRef}  type="file" accept="video/*"           style={{ display: 'none' }} onChange={addCloudinaryVideo} />
+      <input ref={localVidRef}  type="file" accept="video/*"  multiple style={{ display: 'none' }} onChange={addServerVideos} />
+      <input ref={cloudVidRef}  type="file" accept="video/*"           style={{ display: 'none' }} onChange={addServerVideos} />
 
       {/* Drag & drop zone */}
       {imgCount < 10 && (
@@ -1329,53 +1366,40 @@ function Step6({ d, upd }) {
         </div>
       )}
 
-      {/* Video upload — up to 3 videos */}
+      {/* Video upload — up to 3 videos, stored permanently on Supabase Storage */}
       {videoCount < 3 && (
         <div style={{ marginBottom: 14 }}>
-          <div style={{ display: 'flex', gap: 8 }}>
-            {/* Local file (blob URL — works offline) */}
-            <button onClick={() => localVidRef.current?.click()}
-              style={{ flex: 1, padding: '13px 10px', borderRadius: 12,
-                border: `1px solid ${BORDER}`, background: 'transparent',
-                color: MUTED, fontSize: 13, cursor: 'pointer', fontFamily: FONT,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                transition: 'all .2s' }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = P; e.currentTarget.style.color = P }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = BORDER; e.currentTarget.style.color = MUTED }}>
-              <FaVideo size={15} />
-              <span>העלה מהמחשב</span>
-            </button>
+          <button onClick={() => !uploading && localVidRef.current?.click()}
+            disabled={uploading}
+            style={{ width: '100%', padding: '14px 16px', borderRadius: 12,
+              border: `1.5px dashed ${uploading ? P : BORDER}`,
+              background: uploading ? `${P}0A` : 'transparent',
+              color: uploading ? P : MUTED, fontSize: 13,
+              cursor: uploading ? 'default' : 'pointer', fontFamily: FONT,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+              transition: 'all .2s' }}
+            onMouseEnter={e => { if (!uploading) { e.currentTarget.style.borderColor = P; e.currentTarget.style.color = P } }}
+            onMouseLeave={e => { if (!uploading) { e.currentTarget.style.borderColor = BORDER; e.currentTarget.style.color = MUTED } }}>
+            {uploading ? (
+              <>
+                <FaCircleNotch size={15} style={{ animation: 'pw-spin 1s linear infinite', flexShrink:0 }} />
+                <span>מעלה סרטון... {progress}%</span>
+                <div style={{ flex: 1, height: 4, background: BORDER, borderRadius: 2, overflow: 'hidden', maxWidth: 120 }}>
+                  <div style={{ height: '100%', background: P, width: `${progress}%`, transition: 'width .3s' }} />
+                </div>
+              </>
+            ) : (
+              <>
+                <FaVideo size={16} />
+                <span>העלה סרטון מהמחשב</span>
+                <span style={{ fontSize: 11, opacity: .6 }}>(עד 150MB · mp4 / mov / webm)</span>
+              </>
+            )}
+          </button>
 
-            {/* Cloudinary (permanent hosted URL) */}
-            <button onClick={() => !uploading && cloudVidRef.current?.click()}
-              style={{ flex: 1, padding: '13px 10px', borderRadius: 12,
-                border: `1px solid ${uploading ? P : BORDER}`,
-                background: uploading ? `${P}12` : 'transparent',
-                color: uploading ? P : MUTED, fontSize: 13,
-                cursor: uploading ? 'default' : 'pointer', fontFamily: FONT,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                transition: 'all .2s' }}>
-              {uploading ? (
-                <>
-                  <FaCircleNotch size={14} style={{ animation: 'pw-spin 1s linear infinite' }} />
-                  <span>{progress}%</span>
-                  <div style={{ flex: 1, height: 3, background: BORDER, borderRadius: 2, overflow: 'hidden', maxWidth: 80 }}>
-                    <div style={{ height: '100%', background: P, width: `${progress}%`, transition: 'width .2s' }} />
-                  </div>
-                </>
-              ) : (
-                <>
-                  <FaCloudUploadAlt size={15} />
-                  <span>העלאה (Cloudinary)</span>
-                </>
-              )}
-            </button>
-          </div>
-
-          {/* Counter + hint */}
           <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 12, color: MUTED, fontFamily: FONT }}>
             <span>סרטונים: {videoCount}/3</span>
-            {videoCount > 0 && <span style={{ color: `${P}BB` }}>✓ סרטון מהמחשב עובד מקומית — Cloudinary לפרסום מקוון</span>}
+            {videoCount > 0 && <span style={{ color: '#82F67F', fontWeight: 600 }}>✓ הסרטון נשמר בשרת ויוצג תמיד</span>}
           </div>
         </div>
       )}
