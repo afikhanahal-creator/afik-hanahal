@@ -6945,6 +6945,7 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
                   loop={!!prop.videoAutoplay}
                   controls
                   preload="auto"
+                  onLoadedMetadata={e => { if (!getVideoThumbnail(currentVideo.url, currentVideo.thumbnail)) e.target.currentTime = 0.5 }}
                   onPlay={() => setVideoPlaying(true)}
                   onPause={() => setVideoPlaying(false)}
                 />
@@ -7011,21 +7012,22 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
                 style={{ width:'38%', maxWidth:320, opacity:0.88, transform:'rotate(-10deg)', filter:'drop-shadow(0 8px 32px rgba(0,0,0,.8))' }}/>
             </div>
           )}
-          {/* ── Floating action buttons — top right, Yad2 style ── */}
-          <div style={{ position:'absolute', top:14, right:14, display:'flex', gap:8, zIndex:6 }}>
-            <button onClick={handleShare}
-              style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 14px', background:'rgba(255,255,255,.18)', backdropFilter:'blur(14px)', border:'1px solid rgba(255,255,255,.28)', borderRadius:22, color:'#fff', cursor:'pointer', fontFamily:'inherit', fontSize:13, fontWeight:600, transition:'background .2s' }}
-              onMouseEnter={e=>e.currentTarget.style.background='rgba(255,255,255,.32)'}
-              onMouseLeave={e=>e.currentTarget.style.background='rgba(255,255,255,.18)'}>
-              <FaShareAlt size={13}/> {shared ? 'הועתק!' : 'שיתוף'}
-            </button>
-            <button onClick={() => setSaved(s => !s)}
-              style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 14px', background: saved ? 'rgba(255,100,100,.28)' : 'rgba(255,255,255,.18)', backdropFilter:'blur(14px)', border:`1px solid ${saved ? 'rgba(255,100,100,.5)' : 'rgba(255,255,255,.28)'}`, borderRadius:22, color: saved ? '#FF8888' : '#fff', cursor:'pointer', fontFamily:'inherit', fontSize:13, fontWeight:600, transition:'all .2s' }}
-              onMouseEnter={e=>{ if (!saved) e.currentTarget.style.background='rgba(255,255,255,.32)' }}
-              onMouseLeave={e=>{ if (!saved) e.currentTarget.style.background='rgba(255,255,255,.18)' }}>
-              <FaHeart size={13}/> {saved ? 'שמור' : 'שמירה'}
-            </button>
-          </div>
+        </div>
+
+        {/* ── Share / Save bar — below gallery, never overlaps video ── */}
+        <div style={{ display:'flex', gap:8, padding:'10px 16px', background:'rgba(0,0,0,.55)', borderBottom:'1px solid rgba(132,144,216,.1)', direction:'rtl' }}>
+          <button onClick={handleShare}
+            style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 18px', background:'rgba(255,255,255,.09)', border:'1px solid rgba(255,255,255,.18)', borderRadius:22, color:'rgba(255,255,255,.88)', cursor:'pointer', fontFamily:'inherit', fontSize:13, fontWeight:600, transition:'background .2s' }}
+            onMouseEnter={e=>e.currentTarget.style.background='rgba(255,255,255,.18)'}
+            onMouseLeave={e=>e.currentTarget.style.background='rgba(255,255,255,.09)'}>
+            <FaShareAlt size={13}/> {shared ? 'הועתק!' : 'שיתוף'}
+          </button>
+          <button onClick={() => setSaved(s => !s)}
+            style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 18px', background: saved ? 'rgba(255,100,100,.18)' : 'rgba(255,255,255,.09)', border:`1px solid ${saved ? 'rgba(255,100,100,.4)' : 'rgba(255,255,255,.18)'}`, borderRadius:22, color: saved ? '#FF8888' : 'rgba(255,255,255,.88)', cursor:'pointer', fontFamily:'inherit', fontSize:13, fontWeight:600, transition:'all .2s' }}
+            onMouseEnter={e=>{ if (!saved) e.currentTarget.style.background='rgba(255,255,255,.18)' }}
+            onMouseLeave={e=>{ if (!saved) e.currentTarget.style.background='rgba(255,255,255,.09)' }}>
+            <FaHeart size={13}/> {saved ? 'שמור' : 'שמירה'}
+          </button>
         </div>
 
         {/* ══ THUMBNAIL STRIP ══ */}
@@ -7045,11 +7047,19 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
                 <button key={vIdx} onClick={() => setImgIdx(vIdx)}
                   className="prop-thumb-btn"
                   style={{ border: imgIdx===vIdx ? `2.5px solid ${C.purple}` : '2.5px solid transparent', opacity: imgIdx===vIdx ? 1 : 0.55 }}>
-                  {thumb
-                    ? <img src={thumb} alt=""/>
-                    : <div style={{ width:'100%', height:'100%', display:'flex', alignItems:'center', justifyContent:'center', background:'#111' }}><FaPlay size={16} style={{ color:'rgba(255,255,255,.5)' }}/></div>
-                  }
-                  <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(0,0,0,.28)' }}>
+                  {thumb ? (
+                    <img src={thumb} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }}/>
+                  ) : (
+                    <video
+                      src={v.url}
+                      muted
+                      playsInline
+                      preload="metadata"
+                      style={{ width:'100%', height:'100%', objectFit:'cover', display:'block', pointerEvents:'none' }}
+                      onLoadedMetadata={e => { e.target.currentTime = 0.5 }}
+                    />
+                  )}
+                  <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(0,0,0,.22)' }}>
                     <div style={{ width:22, height:22, borderRadius:'50%', background:'rgba(0,0,0,.55)', display:'flex', alignItems:'center', justifyContent:'center', border:'1.5px solid rgba(255,255,255,.7)' }}>
                       <FaPlay size={8} style={{ color:'#fff', marginRight:'-1px' }}/>
                     </div>
@@ -8316,32 +8326,30 @@ export default function App() {
                 isMobile ? (
                   /* ── Mobile swipe carousel ── */
                   <>
-                    {/* Nav arrows row */}
+                    {/* Nav arrows row — circular */}
                     <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12, paddingInline:4 }}>
                       <button
                         onClick={() => {
-                          const newIdx = Math.max(0, carouselIdx - 1)
+                          const newIdx = (carouselIdx - 1 + filtered.length) % filtered.length
                           setCarouselIdx(newIdx)
                           if (carouselRef.current) {
                             const cardW = carouselRef.current.scrollWidth / filtered.length
                             carouselRef.current.scrollTo({ left: newIdx * cardW, behavior:'smooth' })
                           }
                         }}
-                        disabled={carouselIdx === 0}
-                        style={{ width:40, height:40, borderRadius:'50%', border:`1.5px solid ${carouselIdx===0?C.purple+'22':C.purple+'66'}`, background:carouselIdx===0?'transparent':`${C.purple}14`, color:carouselIdx===0?`${C.cream}30`:C.purple, cursor:carouselIdx===0?'default':'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s' }}>
+                        style={{ width:40, height:40, borderRadius:'50%', border:`1.5px solid ${C.purple}66`, background:`${C.purple}14`, color:C.purple, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s' }}>
                         <FaChevronRight size={12}/>
                       </button>
                       <button
                         onClick={() => {
-                          const newIdx = Math.min(filtered.length - 1, carouselIdx + 1)
+                          const newIdx = (carouselIdx + 1) % filtered.length
                           setCarouselIdx(newIdx)
                           if (carouselRef.current) {
                             const cardW = carouselRef.current.scrollWidth / filtered.length
                             carouselRef.current.scrollTo({ left: newIdx * cardW, behavior:'smooth' })
                           }
                         }}
-                        disabled={carouselIdx === filtered.length - 1}
-                        style={{ width:40, height:40, borderRadius:'50%', border:`1.5px solid ${carouselIdx===filtered.length-1?C.purple+'22':C.purple+'66'}`, background:carouselIdx===filtered.length-1?'transparent':`${C.purple}14`, color:carouselIdx===filtered.length-1?`${C.cream}30`:C.purple, cursor:carouselIdx===filtered.length-1?'default':'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s' }}>
+                        style={{ width:40, height:40, borderRadius:'50%', border:`1.5px solid ${C.purple}66`, background:`${C.purple}14`, color:C.purple, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s' }}>
                         <FaChevronLeft size={12}/>
                       </button>
                     </div>
