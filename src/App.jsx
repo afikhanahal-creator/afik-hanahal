@@ -225,7 +225,7 @@ const TR = {
     language: 'Language',
   }
 }
-const ThemeCtx = createContext({ C: DARK_C, isDark: true, toggleTheme: () => {}, lang: 'he', setLang: () => {} })
+const ThemeCtx = createContext({ C: DARK_C, isDark: true, toggleTheme: () => {}, lang: 'he', setLang: () => {}, logoNavSize: 70, setLogoNavSize: () => {} })
 const useTheme = () => useContext(ThemeCtx)
 
 // ─── GLOBAL CSS ───────────────────────────────────────────────────────────────
@@ -3544,7 +3544,7 @@ function useTeamToken() {
 }
 
 function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSharon, govmapToken, setGovmapToken, onClose, onEditInWizard, standalone = false }) {
-  const { C, isDark, lang } = useTheme()
+  const { C, isDark, lang, logoNavSize, setLogoNavSize } = useTheme()
   const initForm = () => {
     try { const d = JSON.parse(localStorage.getItem(ADMIN_DRAFT_KEY)); if (d) return { ...EMPTY_PROP, ...d } } catch {}
     return EMPTY_PROP
@@ -3625,8 +3625,41 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     try { return JSON.parse(localStorage.getItem('leadsColOrder')) || ['name','phone','email','property','date','ai','status'] }
     catch { return ['name','phone','email','property','date','ai','status'] }
   })
+  const [colWidths, setColWidths] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('leadsColWidths')) || {} }
+    catch { return {} }
+  })
   const [dragColId, setDragColId] = useState(null)
   const [dragOverColId, setDragOverColId] = useState(null)
+  const [customCols, setCustomCols] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('leadsCustomCols')) || [] }
+    catch { return [] }
+  })
+  const [addColOpen, setAddColOpen] = useState(false)
+  const [addColName, setAddColName] = useState('')
+  const resizingColRef = useRef(null)
+  const resizeStartXRef = useRef(0)
+  const resizeStartWRef = useRef(0)
+
+  const startColResize = (e, colId, defaultW) => {
+    e.preventDefault(); e.stopPropagation()
+    resizingColRef.current = colId
+    resizeStartXRef.current = e.clientX
+    resizeStartWRef.current = colWidths[colId] ? parseInt(colWidths[colId]) : defaultW
+    const onMove = (mv) => {
+      if (!resizingColRef.current) return
+      const newW = Math.max(50, resizeStartWRef.current + mv.clientX - resizeStartXRef.current)
+      setColWidths(prev => ({ ...prev, [resizingColRef.current]: newW }))
+    }
+    const onUp = () => {
+      setColWidths(prev => { localStorage.setItem('leadsColWidths', JSON.stringify(prev)); return prev })
+      resizingColRef.current = null
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }
 
   const syncLeadsFromServer = () => {
     const base = API_BASE || ''
@@ -4867,24 +4900,28 @@ Return ONLY valid JSON (no markdown, no code blocks):
 
                   {/* Column header row */}
                   {(() => {
-                    const COLS_META = {
-                      name:     { label: lang==='en'?'Name':'שם',      flex:'1 1 140px', flexShrink:1 },
-                      phone:    { label: lang==='en'?'Phone':'טלפון',  width:'120px', flexShrink:0 },
-                      email:    { label: lang==='en'?'Email':'אימייל', width:'155px', flexShrink:0 },
-                      property: { label: lang==='en'?'Property':'נכס', width:'115px', flexShrink:0 },
-                      date:     { label: lang==='en'?'Date':'תאריך',   width:'85px',  flexShrink:0 },
-                      ai:       { label: 'AI',                          width:'62px',  flexShrink:0 },
-                      status:   { label: lang==='en'?'Status':'סטטוס', width:'120px', flexShrink:0 },
+                    const COLS_DEF = {
+                      name:     { label: lang==='en'?'Name':'שם',      dw:180 },
+                      phone:    { label: lang==='en'?'Phone':'טלפון',  dw:120 },
+                      email:    { label: lang==='en'?'Email':'אימייל', dw:155 },
+                      property: { label: lang==='en'?'Property':'נכס', dw:115 },
+                      date:     { label: lang==='en'?'Date':'תאריך',   dw:85  },
+                      ai:       { label: 'AI',                          dw:62  },
+                      status:   { label: lang==='en'?'Status':'סטטוס', dw:120 },
                     }
+                    const allCols = [...colOrder, ...customCols.map(c=>c.id)]
                     return (
                       <div style={{ display:'flex', alignItems:'center', background:`${C.purple}12`, borderBottom:`2px solid ${C.purple}22`, userSelect:'none' }}>
                         <div style={{ width:32, flexShrink:0, borderRight:`1px solid ${C.purple}12` }}/>
                         <div style={{ width:22, flexShrink:0, borderRight:`1px solid ${C.purple}12` }}/>
-                        {colOrder.map(colId => {
-                          const col = COLS_META[colId]
-                          if (!col) return null
-                          const isOver = dragOverColId === colId
-                          const isDrag = dragColId === colId
+                        {allCols.map(colId => {
+                          const builtIn = COLS_DEF[colId]
+                          const custom  = customCols.find(c=>c.id===colId)
+                          const label   = builtIn ? builtIn.label : (custom?.label || colId)
+                          const dw      = builtIn ? builtIn.dw : (custom?.dw || 110)
+                          const w       = colWidths[colId] || dw
+                          const isOver  = dragOverColId === colId
+                          const isDrag  = dragColId === colId
                           return (
                             <div key={colId}
                               draggable
@@ -4893,12 +4930,28 @@ Return ONLY valid JSON (no markdown, no code blocks):
                               onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget)) setDragOverColId(null) }}
                               onDrop={() => handleColDrop(colId)}
                               onDragEnd={() => { setDragColId(null); setDragOverColId(null) }}
-                              style={{ width:col.width, flex:col.flex||'none', flexShrink:col.flexShrink, padding:'8px 8px', fontSize:10, fontWeight:700, color:isOver?C.purple:`${C.cream}50`, letterSpacing:'.05em', textTransform:'uppercase', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', borderRight:`1px solid ${C.purple}12`, cursor:'grab', background:isOver?`${C.purple}18`:isDrag?`${C.purple}0A`:'transparent', transition:'background .12s', opacity:isDrag?.55:1, outline:isOver?`1px dashed ${C.purple}44`:'none' }}>
-                              {col.label}
+                              style={{ width:w, flexShrink:0, padding:'8px 8px 8px 8px', fontSize:10, fontWeight:700, color:isOver?C.purple:`${C.cream}50`, letterSpacing:'.05em', textTransform:'uppercase', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', borderRight:`1px solid ${C.purple}12`, cursor:'grab', background:isOver?`${C.purple}18`:isDrag?`${C.purple}0A`:'transparent', transition:'background .12s', opacity:isDrag?.55:1, outline:isOver?`1px dashed ${C.purple}44`:'none', position:'relative' }}>
+                              <span style={{ pointerEvents:'none' }}>{label}</span>
+                              {/* Resize handle */}
+                              <div
+                                onMouseDown={e => startColResize(e, colId, dw)}
+                                style={{ position:'absolute', right:0, top:0, bottom:0, width:6, cursor:'col-resize', background:'transparent', zIndex:2 }}
+                                onMouseEnter={e => e.currentTarget.style.background=`${C.purple}44`}
+                                onMouseLeave={e => e.currentTarget.style.background='transparent'}
+                              />
                             </div>
                           )
                         })}
-                        <div style={{ width:'82px', flexShrink:0, borderRight:`1px solid ${C.purple}12` }}/>
+                        {/* Add Column button */}
+                        <div
+                          onClick={() => setAddColOpen(true)}
+                          style={{ width:36, flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', color:`${C.cream}30`, fontSize:16, borderRight:`1px solid ${C.purple}12`, height:'100%', transition:'all .15s' }}
+                          onMouseEnter={e => { e.currentTarget.style.color=C.purple; e.currentTarget.style.background=`${C.purple}14` }}
+                          onMouseLeave={e => { e.currentTarget.style.color=`${C.cream}30`; e.currentTarget.style.background='transparent' }}
+                          title={lang==='en'?'Add column':'הוסף עמודה'}>
+                          +
+                        </div>
+                        <div style={{ width:'82px', flexShrink:0 }}/>
                       </div>
                     )
                   })()}
@@ -4973,7 +5026,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
                                 <div style={{ width:22, flexShrink:0, cursor:'grab', color:`${C.cream}18`, fontSize:12, textAlign:'center', lineHeight:1, borderRight:`1px solid ${C.purple}08`, order:1 }}>⠿</div>
 
                                 {/* Name */}
-                                <div style={{ flex:'1 1 140px', minWidth:0, padding:'9px 8px', borderRight:`1px solid ${C.purple}08`, order:colOrder.indexOf('name')+2 }}>
+                                <div style={{ width:colWidths.name||180, flexShrink:0, minWidth:0, padding:'9px 8px', borderRight:`1px solid ${C.purple}08`, order:colOrder.indexOf('name')+2 }}>
                                   {editingCell?.id===l.id && editingCell?.field==='name'
                                     ? <input autoFocus value={editValue} onChange={e=>setEditValue(e.target.value)}
                                         onBlur={()=>commitEdit(l)} onKeyDown={e=>{if(e.key==='Enter')commitEdit(l);if(e.key==='Escape'){setEditingCell(null);setEditValue('')}}}
@@ -4986,7 +5039,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
                                 </div>
 
                                 {/* Phone */}
-                                <div style={{ width:'120px', flexShrink:0, padding:'9px 8px', borderRight:`1px solid ${C.purple}08`, order:colOrder.indexOf('phone')+2 }}>
+                                <div style={{ width:colWidths.phone||120, flexShrink:0, padding:'9px 8px', borderRight:`1px solid ${C.purple}08`, order:colOrder.indexOf('phone')+2 }}>
                                   {editingCell?.id===l.id && editingCell?.field==='phone'
                                     ? <input autoFocus value={editValue} onChange={e=>setEditValue(e.target.value)}
                                         onBlur={()=>commitEdit(l)} onKeyDown={e=>{if(e.key==='Enter')commitEdit(l);if(e.key==='Escape'){setEditingCell(null);setEditValue('')}}}
@@ -5000,7 +5053,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
                                 </div>
 
                                 {/* Email */}
-                                <div style={{ width:'155px', flexShrink:0, padding:'9px 8px', borderRight:`1px solid ${C.purple}08`, order:colOrder.indexOf('email')+2 }}>
+                                <div style={{ width:colWidths.email||155, flexShrink:0, padding:'9px 8px', borderRight:`1px solid ${C.purple}08`, order:colOrder.indexOf('email')+2 }}>
                                   {editingCell?.id===l.id && editingCell?.field==='email'
                                     ? <input autoFocus value={editValue} onChange={e=>setEditValue(e.target.value)}
                                         onBlur={()=>commitEdit(l)} onKeyDown={e=>{if(e.key==='Enter')commitEdit(l);if(e.key==='Escape'){setEditingCell(null);setEditValue('')}}}
@@ -5014,7 +5067,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
                                 </div>
 
                                 {/* Property */}
-                                <div style={{ width:'115px', flexShrink:0, padding:'9px 8px', borderRight:`1px solid ${C.purple}08`, order:colOrder.indexOf('property')+2 }}>
+                                <div style={{ width:colWidths.property||115, flexShrink:0, padding:'9px 8px', borderRight:`1px solid ${C.purple}08`, order:colOrder.indexOf('property')+2 }}>
                                   <div style={{ fontSize:10, color:`${C.cream}60`, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }} title={l.propTitle||''}>
                                     {l.propTitle || <span style={{ color:`${C.cream}22` }}>—</span>}
                                   </div>
@@ -5022,7 +5075,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
                                 </div>
 
                                 {/* Date */}
-                                <div style={{ width:'85px', flexShrink:0, padding:'9px 8px', borderRight:`1px solid ${C.purple}08`, order:colOrder.indexOf('date')+2 }}>
+                                <div style={{ width:colWidths.date||85, flexShrink:0, padding:'9px 8px', borderRight:`1px solid ${C.purple}08`, order:colOrder.indexOf('date')+2 }}>
                                   <div style={{ fontSize:10, color:`${C.cream}40`, whiteSpace:'nowrap' }}>
                                     {new Date(l.ts).toLocaleDateString('he-IL',{day:'2-digit',month:'2-digit',year:'2-digit'})}
                                   </div>
@@ -5030,7 +5083,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
                                 </div>
 
                                 {/* AI intent */}
-                                <div style={{ width:'62px', flexShrink:0, padding:'9px 6px', borderRight:`1px solid ${C.purple}08`, textAlign:'center', order:colOrder.indexOf('ai')+2 }}>
+                                <div style={{ width:colWidths.ai||62, flexShrink:0, padding:'9px 6px', borderRight:`1px solid ${C.purple}08`, textAlign:'center', order:colOrder.indexOf('ai')+2 }}>
                                   {en.intent
                                     ? <span style={{ fontSize:9, fontWeight:700, color:intentColor[en.intent]||C.purple, background:`${intentColor[en.intent]||C.purple}18`, borderRadius:20, padding:'2px 6px', whiteSpace:'nowrap' }}>{intentLabel[en.intent]||en.intent}</span>
                                     : en.status==='enriching'
@@ -5039,7 +5092,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
                                 </div>
 
                                 {/* Status pill */}
-                                <div style={{ width:'120px', flexShrink:0, padding:'5px 6px', borderRight:`1px solid ${C.purple}08`, order:colOrder.indexOf('status')+2 }}>
+                                <div style={{ width:colWidths.status||120, flexShrink:0, padding:'5px 6px', borderRight:`1px solid ${C.purple}08`, order:colOrder.indexOf('status')+2 }}>
                                   <button
                                     onClick={e => {
                                       e.stopPropagation()
@@ -5051,8 +5104,23 @@ Return ONLY valid JSON (no markdown, no code blocks):
                                   </button>
                                 </div>
 
+                                {/* Custom column cells */}
+                                {customCols.map((cc, ci) => (
+                                  <div key={cc.id} style={{ width:colWidths[cc.id]||cc.dw||110, flexShrink:0, padding:'9px 8px', borderRight:`1px solid ${C.purple}08`, order:colOrder.length+ci+2, overflow:'hidden' }}>
+                                    {editingCell?.id===l.id && editingCell?.field===cc.id
+                                      ? <input autoFocus value={editValue} onChange={e=>setEditValue(e.target.value)}
+                                          onBlur={()=>{ updateLead(l.id,{customFields:{...(l.customFields||{}), [cc.id]:editValue}}); setEditingCell(null); setEditValue('') }}
+                                          onKeyDown={e=>{if(e.key==='Enter'){updateLead(l.id,{customFields:{...(l.customFields||{}), [cc.id]:editValue}});setEditingCell(null);setEditValue('')}if(e.key==='Escape'){setEditingCell(null);setEditValue('')}}}
+                                          style={{ width:'100%', background:'rgba(255,255,255,.1)', border:`1px solid ${C.purple}77`, borderRadius:5, color:C.cream, fontSize:11, fontFamily:'inherit', padding:'3px 6px', outline:'none' }}/>
+                                      : <div onClick={()=>{setEditingCell({id:l.id,field:cc.id});setEditValue(l.customFields?.[cc.id]||'')}}
+                                          style={{ fontSize:11, color:l.customFields?.[cc.id]?C.cream:`${C.cream}25`, cursor:'text', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+                                          {l.customFields?.[cc.id] || '—'}
+                                        </div>}
+                                  </div>
+                                ))}
+
                                 {/* Actions */}
-                                <div style={{ width:'82px', flexShrink:0, padding:'9px 8px', display:'flex', alignItems:'center', gap:5, order:colOrder.length+2 }}>
+                                <div style={{ width:'82px', flexShrink:0, padding:'9px 8px', display:'flex', alignItems:'center', gap:5, order:colOrder.length+customCols.length+2 }}>
                                   {en.status !== 'done'
                                     ? <button onClick={e=>{e.stopPropagation();enrichLead(l)}} disabled={en.status==='enriching'} title="AI"
                                         style={{ background:en.status==='enriching'?`${C.purple}14`:`${C.purple}20`, border:`1px solid ${C.purple}33`, color:en.status==='enriching'?`${C.cream}40`:C.purple, cursor:en.status==='enriching'?'not-allowed':'pointer', fontSize:10, padding:'3px 7px', borderRadius:5, fontFamily:'inherit', transition:'all .12s' }}>
@@ -5194,6 +5262,52 @@ Return ONLY valid JSON (no markdown, no code blocks):
                     )
                   })}
                   </div>{/* end minWidth wrapper */}
+                </div>
+              )}
+
+              {/* ── Add Column dialog ── */}
+              {addColOpen && (
+                <div style={{ position:'fixed', inset:0, zIndex:9999, display:'flex', alignItems:'center', justifyContent:'center' }}
+                  onClick={() => setAddColOpen(false)}>
+                  <div style={{ background:C.card, border:`1px solid ${C.purple}44`, borderRadius:14, padding:28, width:320, boxShadow:'0 24px 80px rgba(0,0,0,.7)', direction:'rtl' }}
+                    onClick={e => e.stopPropagation()}>
+                    <div style={{ fontSize:15, fontWeight:800, color:C.cream, marginBottom:16 }}>{lang==='en'?'Add Column':'הוסף עמודה'}</div>
+                    <label style={{ fontSize:11, color:`${C.cream}77`, display:'block', marginBottom:6 }}>{lang==='en'?'Column name':'שם העמודה'}</label>
+                    <input autoFocus value={addColName} onChange={e => setAddColName(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && addColName.trim()) {
+                          const id = 'custom_' + Date.now()
+                          const newCol = { id, label: addColName.trim(), dw: 110 }
+                          const updated = [...customCols, newCol]
+                          setCustomCols(updated)
+                          localStorage.setItem('leadsCustomCols', JSON.stringify(updated))
+                          setAddColName(''); setAddColOpen(false)
+                        }
+                        if (e.key === 'Escape') { setAddColName(''); setAddColOpen(false) }
+                      }}
+                      placeholder={lang==='en'?'e.g. Budget, Notes...':'לדוג׳: תקציב, הערות...'}
+                      style={{ width:'100%', padding:'9px 12px', background:'rgba(255,255,255,.06)', border:`1px solid ${C.purple}44`, borderRadius:8, color:C.cream, fontSize:13, fontFamily:'inherit', outline:'none', boxSizing:'border-box', direction:'rtl', marginBottom:16 }}/>
+                    <div style={{ display:'flex', gap:8, justifyContent:'flex-start' }}>
+                      <button
+                        disabled={!addColName.trim()}
+                        onClick={() => {
+                          if (!addColName.trim()) return
+                          const id = 'custom_' + Date.now()
+                          const newCol = { id, label: addColName.trim(), dw: 110 }
+                          const updated = [...customCols, newCol]
+                          setCustomCols(updated)
+                          localStorage.setItem('leadsCustomCols', JSON.stringify(updated))
+                          setAddColName(''); setAddColOpen(false)
+                        }}
+                        style={{ padding:'9px 20px', background:addColName.trim()?C.purple:`${C.purple}44`, border:'none', borderRadius:8, color:'#fff', fontSize:12, fontWeight:700, cursor:addColName.trim()?'pointer':'not-allowed', fontFamily:'inherit' }}>
+                        {lang==='en'?'Add':'הוסף'}
+                      </button>
+                      <button onClick={() => { setAddColName(''); setAddColOpen(false) }}
+                        style={{ padding:'9px 16px', background:'rgba(255,255,255,.05)', border:`1px solid ${C.purple}22`, borderRadius:8, color:`${C.cream}77`, fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+                        {lang==='en'?'Cancel':'ביטול'}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -5494,6 +5608,48 @@ Return ONLY valid JSON (no markdown, no code blocks):
 
         {tab==='settings' && (
           <div style={{ display:'flex', flexDirection:'column', gap:24 }}>
+
+            {/* ── Logo Size ── */}
+            <div style={{ background:'rgba(255,255,255,.03)', borderRadius:12, padding:20 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:16 }}>
+                <span style={{ fontSize:20 }}>🖼</span>
+                <div>
+                  <h3 style={{ fontSize:14, fontWeight:700, color:C.purple, margin:0 }}>{lang==='en'?'Logo Size':'גודל לוגו'}</h3>
+                  <div style={{ fontSize:11, color:`${C.cream}55`, marginTop:3 }}>{lang==='en'?'Adjust the navbar logo size':'שנה את גודל הלוגו בסרגל הניווט'}</div>
+                </div>
+              </div>
+              <div style={{ display:'flex', alignItems:'center', gap:20, flexWrap:'wrap' }}>
+                {/* Live preview */}
+                <div style={{ background:'rgba(6,5,14,.95)', borderRadius:10, padding:'12px 24px', display:'flex', alignItems:'center', justifyContent:'center', border:`1px solid ${C.purple}22`, minWidth:160 }}>
+                  <Logo size={logoNavSize}/>
+                </div>
+                {/* Controls */}
+                <div style={{ flex:1, minWidth:200 }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:10 }}>
+                    <label style={{ fontSize:11, color:`${C.cream}70`, fontWeight:600, whiteSpace:'nowrap' }}>{lang==='en'?'Size (px):':'גודל (px):'}</label>
+                    <input type="number" min={20} max={200} value={logoNavSize}
+                      onChange={e => setLogoNavSize(e.target.value)}
+                      style={{ width:70, padding:'5px 8px', background:'rgba(255,255,255,.06)', border:`1px solid ${C.purple}33`, borderRadius:7, color:C.cream, fontSize:13, fontFamily:'inherit', outline:'none', textAlign:'center', direction:'ltr' }}/>
+                    <span style={{ fontSize:10, color:`${C.cream}40` }}>px</span>
+                  </div>
+                  <input type="range" min={20} max={200} value={logoNavSize}
+                    onChange={e => setLogoNavSize(e.target.value)}
+                    style={{ width:'100%', accentColor:C.purple, cursor:'pointer' }}/>
+                  <div style={{ display:'flex', justifyContent:'space-between', fontSize:9, color:`${C.cream}30`, marginTop:2 }}>
+                    <span>20px</span><span style={{ color:C.purple }}>{logoNavSize}px</span><span>200px</span>
+                  </div>
+                  <div style={{ display:'flex', gap:6, marginTop:10, flexWrap:'wrap' }}>
+                    {[40,55,70,90,110].map(s => (
+                      <button key={s} onClick={() => setLogoNavSize(s)}
+                        style={{ padding:'4px 10px', borderRadius:6, border:`1px solid ${logoNavSize===s?C.purple:`${C.purple}22`}`, background:logoNavSize===s?`${C.purple}22`:'transparent', color:logoNavSize===s?C.purple:`${C.cream}55`, fontSize:11, fontWeight:logoNavSize===s?700:400, cursor:'pointer', fontFamily:'inherit' }}>
+                        {s}px
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* GovMap API Token */}
             <div style={{ background:'rgba(255,255,255,.03)', borderRadius:12, padding:20 }}>
               <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:16 }}>
@@ -8285,6 +8441,8 @@ export default function App() {
   const [stats,        setStats]        = useState(DEFAULT_STATS)
   const [sharon,       setSharon]       = useState(DEFAULT_SHARON)
   const [govmapToken,  setGovmapToken]  = useState(() => localStorage.getItem('govmap_token') || '')
+  const [logoNavSize,  setLogoNavSizeRaw] = useState(() => Number(localStorage.getItem('logoNavSize')) || 70)
+  const setLogoNavSize = (v) => { const n = Math.max(20, Math.min(200, Number(v))); localStorage.setItem('logoNavSize', n); setLogoNavSizeRaw(n) }
   // UI/UX Pro Max: parallax scroll
   const [scrollY,      setScrollY]      = useState(0)
 
@@ -8501,7 +8659,7 @@ export default function App() {
   const isDashboard = window.location.pathname.replace(/\/$/, '') === '/dashboard'
   if (isDashboard) {
     return (
-      <ThemeCtx.Provider value={{ C, isDark, toggleTheme, lang, setLang }}>
+      <ThemeCtx.Provider value={{ C, isDark, toggleTheme, lang, setLang, logoNavSize, setLogoNavSize }}>
         <>
           <style>{GLOBAL}</style>
           {!adminAuth && (
@@ -8576,7 +8734,7 @@ export default function App() {
 
         {/* ── CENTER: Logo (desktop only) ── */}
         <div style={{ position:'absolute', left:'50%', top:'50%', transform:'translate(-50%,-50%)', pointerEvents:'none' }} className="desktop-logo-nav">
-          <Logo size={70}/>
+          <Logo size={logoNavSize}/>
         </div>
 
         {/* ── LEFT edge: Social icons + tools + lang ── */}
