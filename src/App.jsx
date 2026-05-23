@@ -3621,6 +3621,12 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const [showIntegrations, setShowIntegrations] = useState(false)
   const [intTab, setIntTab] = useState('webhook')
   const [statusPopup, setStatusPopup] = useState(null) // { id, x, y, width }
+  const [colOrder, setColOrder] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('leadsColOrder')) || ['name','phone','email','property','date','ai','status'] }
+    catch { return ['name','phone','email','property','date','ai','status'] }
+  })
+  const [dragColId, setDragColId] = useState(null)
+  const [dragOverColId, setDragOverColId] = useState(null)
 
   const syncLeadsFromServer = () => {
     const base = API_BASE || ''
@@ -3683,6 +3689,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const sendChatMsg = async (lead) => {
     const msg = chatInput.trim()
     if (!msg || chatSending) return
+    if (!API_BASE) { alert('שגיאה: VITE_API_URL לא מוגדר ב-Vercel'); return }
     const p = intlPhoneFmt(lead.phone)
     if (!p) { alert('מספר טלפון לא תקין'); return }
     setChatSending(true)
@@ -3691,12 +3698,16 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
         method:  'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
         body:    JSON.stringify({ phone: p, message: msg }),
+        signal: AbortSignal.timeout(15000),
       })
-      const data = await r.json()
+      const text = await r.text()
+      let data
+      try { data = JSON.parse(text) } catch { data = { error: `שגיאת שרת: ${text.slice(0, 120)}` } }
       if (r.ok) { setChatInput(''); fetchChats(lead.phone) }
       else       alert('שגיאה בשליחה: ' + (data.error || 'שגיאה לא ידועה'))
     } catch (e) {
-      alert('שגיאה בשליחה: ' + e.message)
+      if (e.name === 'TimeoutError') alert('timeout — הבקשה לקחה יותר מדי זמן')
+      else alert('שגיאה בשליחה: ' + e.message)
     } finally {
       setChatSending(false)
     }
@@ -3721,6 +3732,21 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
         body:    JSON.stringify({ phone: p, status }),
       }).catch(() => {})
     }
+  }
+
+  const handleColDrop = (overId) => {
+    if (!dragColId || dragColId === overId) return
+    setColOrder(prev => {
+      const next = [...prev]
+      const fromIdx = next.indexOf(dragColId)
+      const toIdx = next.indexOf(overId)
+      if (fromIdx < 0 || toIdx < 0) return prev
+      next.splice(fromIdx, 1)
+      next.splice(toIdx, 0, dragColId)
+      localStorage.setItem('leadsColOrder', JSON.stringify(next))
+      return next
+    })
+    setDragColId(null); setDragOverColId(null)
   }
 
   // Poll chats when a lead is selected
@@ -4138,7 +4164,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
       {/* ── MAIN PANE ─────────────────────────────────────────────────── */}
       <div className="admin-main-pane" style={standalone
         ? { flex:1, display:'flex', flexDirection:'column', height:'100dvh', overflow:'hidden' }
-        : { background:C.card, border:`1px solid ${C.purple}33`, borderRadius:16, padding:28, width:'100%', maxWidth:820, maxHeight:'94vh', overflowY:'auto', direction:'rtl', boxShadow:'0 32px 80px rgba(0,0,0,.7)' }}>
+        : { background:C.card, border:`1px solid ${C.purple}33`, borderRadius:16, padding:28, width:'100%', maxWidth:1200, maxHeight:'94vh', overflowY:'auto', direction:'rtl', boxShadow:'0 32px 80px rgba(0,0,0,.7)' }}>
 
         {/* ── MOBILE TOP BAR — inside main pane ──────────────────────── */}
         {standalone && (
@@ -4836,28 +4862,46 @@ Return ONLY valid JSON (no markdown, no code blocks):
 
               {/* ── Monday.com Board ── */}
               {leads.length > 0 && (
-                <div style={{ borderRadius:12, border:`1px solid ${C.purple}1E`, direction:'rtl', background:'rgba(255,255,255,.01)', overflowX:'auto' }}>
-                  <div style={{ minWidth:820, width:'100%' }}>
+                <div style={{ borderRadius:12, border:`1px solid ${C.purple}1E`, direction:'ltr', background:'rgba(255,255,255,.01)', overflowX:'auto' }}>
+                  <div style={{ minWidth:820, width:'100%', direction:'rtl' }}>
 
                   {/* Column header row */}
-                  <div style={{ display:'flex', alignItems:'center', background:`${C.purple}12`, borderBottom:`2px solid ${C.purple}22`, userSelect:'none' }}>
-                    <div style={{ width:32, flexShrink:0, borderRight:`1px solid ${C.purple}12` }}/>
-                    <div style={{ width:22, flexShrink:0, borderRight:`1px solid ${C.purple}12` }}/>
-                    {[
-                      { label: lang==='en'?'Name':'שם',           flex:'1 1 140px' },
-                      { label: lang==='en'?'Phone':'טלפון',       w:'120px' },
-                      { label: lang==='en'?'Email':'אימייל',      w:'155px' },
-                      { label: lang==='en'?'Property':'נכס',      w:'115px' },
-                      { label: lang==='en'?'Date':'תאריך',        w:'85px'  },
-                      { label: 'AI',                              w:'62px'  },
-                      { label: lang==='en'?'Status':'סטטוס',      w:'120px' },
-                      { label: '',                                w:'82px'  },
-                    ].map((col,i) => (
-                      <div key={i} style={{ width:col.w, flex:col.flex||'none', flexShrink:0, padding:'8px 8px', fontSize:10, fontWeight:700, color:`${C.cream}50`, letterSpacing:'.05em', textTransform:'uppercase', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', borderRight:`1px solid ${C.purple}12` }}>
-                        {col.label}
+                  {(() => {
+                    const COLS_META = {
+                      name:     { label: lang==='en'?'Name':'שם',      flex:'1 1 140px', flexShrink:1 },
+                      phone:    { label: lang==='en'?'Phone':'טלפון',  width:'120px', flexShrink:0 },
+                      email:    { label: lang==='en'?'Email':'אימייל', width:'155px', flexShrink:0 },
+                      property: { label: lang==='en'?'Property':'נכס', width:'115px', flexShrink:0 },
+                      date:     { label: lang==='en'?'Date':'תאריך',   width:'85px',  flexShrink:0 },
+                      ai:       { label: 'AI',                          width:'62px',  flexShrink:0 },
+                      status:   { label: lang==='en'?'Status':'סטטוס', width:'120px', flexShrink:0 },
+                    }
+                    return (
+                      <div style={{ display:'flex', alignItems:'center', background:`${C.purple}12`, borderBottom:`2px solid ${C.purple}22`, userSelect:'none' }}>
+                        <div style={{ width:32, flexShrink:0, borderRight:`1px solid ${C.purple}12` }}/>
+                        <div style={{ width:22, flexShrink:0, borderRight:`1px solid ${C.purple}12` }}/>
+                        {colOrder.map(colId => {
+                          const col = COLS_META[colId]
+                          if (!col) return null
+                          const isOver = dragOverColId === colId
+                          const isDrag = dragColId === colId
+                          return (
+                            <div key={colId}
+                              draggable
+                              onDragStart={e => { setDragColId(colId); e.dataTransfer.effectAllowed='move' }}
+                              onDragOver={e => { e.preventDefault(); if (dragOverColId !== colId) setDragOverColId(colId) }}
+                              onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget)) setDragOverColId(null) }}
+                              onDrop={() => handleColDrop(colId)}
+                              onDragEnd={() => { setDragColId(null); setDragOverColId(null) }}
+                              style={{ width:col.width, flex:col.flex||'none', flexShrink:col.flexShrink, padding:'8px 8px', fontSize:10, fontWeight:700, color:isOver?C.purple:`${C.cream}50`, letterSpacing:'.05em', textTransform:'uppercase', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', borderRight:`1px solid ${C.purple}12`, cursor:'grab', background:isOver?`${C.purple}18`:isDrag?`${C.purple}0A`:'transparent', transition:'background .12s', opacity:isDrag?.55:1, outline:isOver?`1px dashed ${C.purple}44`:'none' }}>
+                              {col.label}
+                            </div>
+                          )
+                        })}
+                        <div style={{ width:'82px', flexShrink:0, borderRight:`1px solid ${C.purple}12` }}/>
                       </div>
-                    ))}
-                  </div>
+                    )
+                  })()}
 
                   {/* Groups */}
                   {statusOrder.map(status => {
@@ -4918,7 +4962,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
                                 onMouseLeave={e => { if (!isDragging && !isSelected) e.currentTarget.style.background=rowIdx%2===0?'transparent':'rgba(255,255,255,.015)' }}>
 
                                   {/* Checkbox / row selector */}
-                                <div style={{ width:32, flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center', borderRight:`1px solid ${C.purple}08` }}
+                                <div style={{ width:32, flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center', borderRight:`1px solid ${C.purple}08`, order:0 }}
                                   onClick={e => { e.stopPropagation(); setSelectedLead(isSelected?null:l) }}>
                                   <div style={{ width:14, height:14, borderRadius:3, border:`1.5px solid ${isSelected?stRow.color:`${C.cream}22`}`, background:isSelected?stRow.color:'transparent', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .12s' }}>
                                     {isSelected && <span style={{ color:'#fff', fontSize:9, lineHeight:1, fontWeight:900 }}>✓</span>}
@@ -4926,10 +4970,10 @@ Return ONLY valid JSON (no markdown, no code blocks):
                                 </div>
 
                                 {/* Drag handle */}
-                                <div style={{ width:22, flexShrink:0, cursor:'grab', color:`${C.cream}18`, fontSize:12, textAlign:'center', lineHeight:1, borderRight:`1px solid ${C.purple}08` }}>⠿</div>
+                                <div style={{ width:22, flexShrink:0, cursor:'grab', color:`${C.cream}18`, fontSize:12, textAlign:'center', lineHeight:1, borderRight:`1px solid ${C.purple}08`, order:1 }}>⠿</div>
 
                                 {/* Name */}
-                                <div style={{ flex:'1 1 140px', minWidth:0, padding:'9px 8px', borderRight:`1px solid ${C.purple}08` }}>
+                                <div style={{ flex:'1 1 140px', minWidth:0, padding:'9px 8px', borderRight:`1px solid ${C.purple}08`, order:colOrder.indexOf('name')+2 }}>
                                   {editingCell?.id===l.id && editingCell?.field==='name'
                                     ? <input autoFocus value={editValue} onChange={e=>setEditValue(e.target.value)}
                                         onBlur={()=>commitEdit(l)} onKeyDown={e=>{if(e.key==='Enter')commitEdit(l);if(e.key==='Escape'){setEditingCell(null);setEditValue('')}}}
@@ -4942,7 +4986,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
                                 </div>
 
                                 {/* Phone */}
-                                <div style={{ width:'120px', flexShrink:0, padding:'9px 8px', borderRight:`1px solid ${C.purple}08` }}>
+                                <div style={{ width:'120px', flexShrink:0, padding:'9px 8px', borderRight:`1px solid ${C.purple}08`, order:colOrder.indexOf('phone')+2 }}>
                                   {editingCell?.id===l.id && editingCell?.field==='phone'
                                     ? <input autoFocus value={editValue} onChange={e=>setEditValue(e.target.value)}
                                         onBlur={()=>commitEdit(l)} onKeyDown={e=>{if(e.key==='Enter')commitEdit(l);if(e.key==='Escape'){setEditingCell(null);setEditValue('')}}}
@@ -4956,7 +5000,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
                                 </div>
 
                                 {/* Email */}
-                                <div style={{ width:'155px', flexShrink:0, padding:'9px 8px', borderRight:`1px solid ${C.purple}08` }}>
+                                <div style={{ width:'155px', flexShrink:0, padding:'9px 8px', borderRight:`1px solid ${C.purple}08`, order:colOrder.indexOf('email')+2 }}>
                                   {editingCell?.id===l.id && editingCell?.field==='email'
                                     ? <input autoFocus value={editValue} onChange={e=>setEditValue(e.target.value)}
                                         onBlur={()=>commitEdit(l)} onKeyDown={e=>{if(e.key==='Enter')commitEdit(l);if(e.key==='Escape'){setEditingCell(null);setEditValue('')}}}
@@ -4970,7 +5014,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
                                 </div>
 
                                 {/* Property */}
-                                <div style={{ width:'115px', flexShrink:0, padding:'9px 8px', borderRight:`1px solid ${C.purple}08` }}>
+                                <div style={{ width:'115px', flexShrink:0, padding:'9px 8px', borderRight:`1px solid ${C.purple}08`, order:colOrder.indexOf('property')+2 }}>
                                   <div style={{ fontSize:10, color:`${C.cream}60`, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }} title={l.propTitle||''}>
                                     {l.propTitle || <span style={{ color:`${C.cream}22` }}>—</span>}
                                   </div>
@@ -4978,7 +5022,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
                                 </div>
 
                                 {/* Date */}
-                                <div style={{ width:'85px', flexShrink:0, padding:'9px 8px', borderRight:`1px solid ${C.purple}08` }}>
+                                <div style={{ width:'85px', flexShrink:0, padding:'9px 8px', borderRight:`1px solid ${C.purple}08`, order:colOrder.indexOf('date')+2 }}>
                                   <div style={{ fontSize:10, color:`${C.cream}40`, whiteSpace:'nowrap' }}>
                                     {new Date(l.ts).toLocaleDateString('he-IL',{day:'2-digit',month:'2-digit',year:'2-digit'})}
                                   </div>
@@ -4986,7 +5030,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
                                 </div>
 
                                 {/* AI intent */}
-                                <div style={{ width:'62px', flexShrink:0, padding:'9px 6px', borderRight:`1px solid ${C.purple}08`, textAlign:'center' }}>
+                                <div style={{ width:'62px', flexShrink:0, padding:'9px 6px', borderRight:`1px solid ${C.purple}08`, textAlign:'center', order:colOrder.indexOf('ai')+2 }}>
                                   {en.intent
                                     ? <span style={{ fontSize:9, fontWeight:700, color:intentColor[en.intent]||C.purple, background:`${intentColor[en.intent]||C.purple}18`, borderRadius:20, padding:'2px 6px', whiteSpace:'nowrap' }}>{intentLabel[en.intent]||en.intent}</span>
                                     : en.status==='enriching'
@@ -4995,7 +5039,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
                                 </div>
 
                                 {/* Status pill */}
-                                <div style={{ width:'120px', flexShrink:0, padding:'5px 6px', borderRight:`1px solid ${C.purple}08` }}>
+                                <div style={{ width:'120px', flexShrink:0, padding:'5px 6px', borderRight:`1px solid ${C.purple}08`, order:colOrder.indexOf('status')+2 }}>
                                   <button
                                     onClick={e => {
                                       e.stopPropagation()
@@ -5008,7 +5052,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
                                 </div>
 
                                 {/* Actions */}
-                                <div style={{ width:'82px', flexShrink:0, padding:'9px 8px', display:'flex', alignItems:'center', gap:5 }}>
+                                <div style={{ width:'82px', flexShrink:0, padding:'9px 8px', display:'flex', alignItems:'center', gap:5, order:colOrder.length+2 }}>
                                   {en.status !== 'done'
                                     ? <button onClick={e=>{e.stopPropagation();enrichLead(l)}} disabled={en.status==='enriching'} title="AI"
                                         style={{ background:en.status==='enriching'?`${C.purple}14`:`${C.purple}20`, border:`1px solid ${C.purple}33`, color:en.status==='enriching'?`${C.cream}40`:C.purple, cursor:en.status==='enriching'?'not-allowed':'pointer', fontSize:10, padding:'3px 7px', borderRadius:5, fontFamily:'inherit', transition:'all .12s' }}>
