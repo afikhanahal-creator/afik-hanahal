@@ -3618,6 +3618,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const [editValue, setEditValue] = useState('')
   const [showIntegrations, setShowIntegrations] = useState(false)
   const [intTab, setIntTab] = useState('webhook')
+  const [statusPopup, setStatusPopup] = useState(null) // { id, x, y, width }
 
   const syncLeadsFromServer = () => {
     const base = API_BASE || ''
@@ -4824,12 +4825,13 @@ Return ONLY valid JSON (no markdown, no code blocks):
 
               {/* ── Monday.com Board ── */}
               {leads.length > 0 && (
-                <div style={{ borderRadius:12, overflow:'hidden', border:`1px solid ${C.purple}1E`, direction:'rtl', background:'rgba(255,255,255,.01)' }}>
+                <div style={{ borderRadius:12, border:`1px solid ${C.purple}1E`, direction:'rtl', background:'rgba(255,255,255,.01)', overflowX:'auto' }}>
+                  <div style={{ minWidth:900 }}>
 
                   {/* Column header row */}
-                  <div style={{ display:'flex', alignItems:'center', background:`${C.purple}10`, borderBottom:`2px solid ${C.purple}20`, padding:'0 10px', userSelect:'none' }}>
-                    <div style={{ width:20, flexShrink:0 }}/>
-                    <div style={{ width:16, flexShrink:0 }}/>
+                  <div style={{ display:'flex', alignItems:'center', background:`${C.purple}12`, borderBottom:`2px solid ${C.purple}22`, paddingRight:10, userSelect:'none', position:'sticky', top:0, zIndex:10 }}>
+                    <div style={{ width:20, flexShrink:0, borderRight:`1px solid ${C.purple}12` }}/>
+                    <div style={{ width:16, flexShrink:0, borderRight:`1px solid ${C.purple}12` }}/>
                     {[
                       { label: lang==='en'?'Name':'שם',           w:'172px' },
                       { label: lang==='en'?'Phone':'טלפון',       w:'130px' },
@@ -4840,7 +4842,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
                       { label: lang==='en'?'Status':'סטטוס',      w:'118px' },
                       { label: '',                                w:'88px'  },
                     ].map((col,i) => (
-                      <div key={i} style={{ width:col.w, flexShrink:0, padding:'9px 8px', fontSize:10, fontWeight:700, color:`${C.cream}50`, letterSpacing:'.05em', textTransform:'uppercase', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+                      <div key={i} style={{ width:col.w, flexShrink:0, padding:'9px 8px', fontSize:10, fontWeight:700, color:`${C.cream}50`, letterSpacing:'.05em', textTransform:'uppercase', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', borderRight:`1px solid ${C.purple}12` }}>
                         {col.label}
                       </div>
                     ))}
@@ -4980,17 +4982,17 @@ Return ONLY valid JSON (no markdown, no code blocks):
                                     : <span style={{ color:`${C.cream}20`, fontSize:10 }}>—</span>}
                                 </div>
 
-                                {/* Status select */}
-                                <div style={{ width:'118px', flexShrink:0, padding:'9px 6px' }}>
-                                  <select
-                                    value={l.leadStatus||'new'}
-                                    onChange={e=>{e.stopPropagation();updateLeadStatus(l,e.target.value)}}
-                                    onClick={e=>e.stopPropagation()}
-                                    style={{ background:`${stRow.color}1E`, border:`1px solid ${stRow.color}55`, borderRadius:20, color:stRow.color, fontSize:10, fontWeight:700, fontFamily:'inherit', padding:'3px 8px', cursor:'pointer', outline:'none', width:'100%', maxWidth:106 }}>
-                                    {Object.entries(LEAD_STATUS).map(([k,v]) => (
-                                      <option key={k} value={k} style={{ background:isDark?'#1a1a2e':'#fff', color:v.color }}>{lang==='en'&&v.en?v.en:v.label}</option>
-                                    ))}
-                                  </select>
+                                {/* Status pill */}
+                                <div style={{ width:'118px', flexShrink:0, padding:'5px 6px' }}>
+                                  <button
+                                    onClick={e => {
+                                      e.stopPropagation()
+                                      const rect = e.currentTarget.getBoundingClientRect()
+                                      setStatusPopup(prev => prev?.id===l.id ? null : { id:l.id, x:rect.left, y:rect.bottom+4, width:rect.width })
+                                    }}
+                                    style={{ width:'100%', padding:'5px 8px', borderRadius:4, border:'none', background:stRow.color, color:'#fff', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit', textAlign:'center', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', display:'block' }}>
+                                    {lang==='en'&&stRow.en ? stRow.en : stRow.label}
+                                  </button>
                                 </div>
 
                                 {/* Actions */}
@@ -5125,9 +5127,21 @@ Return ONLY valid JSON (no markdown, no code blocks):
                               : (lang==='en'?'No leads in this stage':'אין לידים בסטטוס זה')}
                           </div>
                         )}
+
+                        {/* Add item row */}
+                        {!isCollapsed && (
+                          <div
+                            style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 14px 7px 36px', fontSize:12, color:`${C.cream}30`, cursor:'pointer', borderBottom:`1px solid ${C.purple}0C`, borderTop:groupLeads.length===0?'none':`1px solid ${C.purple}08`, transition:'all .12s' }}
+                            onMouseEnter={e => { e.currentTarget.style.background=`${st.color}08`; e.currentTarget.style.color=st.color }}
+                            onMouseLeave={e => { e.currentTarget.style.background='transparent'; e.currentTarget.style.color=`${C.cream}30` }}>
+                            <span style={{ fontSize:14, fontWeight:300, lineHeight:1 }}>+</span>
+                            <span style={{ fontSize:11, fontWeight:600 }}>{lang==='en'?'Add item':'הוסף פריט'}</span>
+                          </div>
+                        )}
                       </div>
                     )
                   })}
+                  </div>{/* end minWidth wrapper */}
                 </div>
               )}
 
@@ -5232,6 +5246,35 @@ Return ONLY valid JSON (no markdown, no code blocks):
                 </div>
               )}
 
+              {/* ── Status popup picker ── */}
+              {statusPopup && (() => {
+                const popupLead = leads.find(x => x.id === statusPopup.id)
+                const currentStatus = popupLead?.leadStatus || 'new'
+                const clampedX = Math.min(statusPopup.x, window.innerWidth - 160)
+                const clampedY = statusPopup.y + 160 > window.innerHeight ? statusPopup.y - 180 : statusPopup.y
+                return (
+                  <>
+                    <div onClick={() => setStatusPopup(null)} style={{ position:'fixed', inset:0, zIndex:9998 }}/>
+                    <div style={{ position:'fixed', top:clampedY, left:clampedX, minWidth:148, zIndex:9999, background:isDark?'#1E1E2E':'#fff', border:`1px solid ${C.purple}33`, borderRadius:8, padding:6, boxShadow:'0 8px 32px rgba(0,0,0,.45)', display:'flex', flexDirection:'column', gap:3 }}>
+                      {Object.entries(LEAD_STATUS).map(([k,v]) => {
+                        const isActive = currentStatus === k
+                        return (
+                          <button key={k}
+                            onClick={() => { if (popupLead) updateLeadStatus(popupLead, k); setStatusPopup(null) }}
+                            style={{ padding:'6px 10px', borderRadius:4, border:'none', background:isActive?v.color:'transparent', color:isActive?'#fff':C.cream, fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit', textAlign:lang==='en'?'left':'right', display:'flex', alignItems:'center', gap:7, transition:'background .1s' }}
+                            onMouseEnter={e => { if (!isActive) e.currentTarget.style.background=`${v.color}1A` }}
+                            onMouseLeave={e => { if (!isActive) e.currentTarget.style.background='transparent' }}>
+                            <span style={{ width:10, height:10, borderRadius:'50%', background:v.color, display:'inline-block', flexShrink:0 }}/>
+                            <span style={{ flex:1 }}>{lang==='en'&&v.en ? v.en : v.label}</span>
+                            {isActive && <span style={{ fontSize:10, opacity:.9 }}>✓</span>}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </>
+                )
+              })()}
+
               <div style={{ fontSize:10, color:`${C.cream}25`, textAlign:'center' }}>
                 {lang==='en'
                   ? 'AI data is automated analysis — verify before use · Drag rows between groups to change status'
@@ -5297,8 +5340,8 @@ Return ONLY valid JSON (no markdown, no code blocks):
               </div>
 
               <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
-                <button onClick={testEmail} disabled={emailTesting || !API_BASE}
-                  style={{ padding:'9px 20px', background:'rgba(234,67,53,.1)', border:'1px solid rgba(234,67,53,.3)', borderRadius:8, color:'#EA4335', fontWeight:700, fontSize:12, cursor:emailTesting||!API_BASE?'not-allowed':'pointer', fontFamily:'inherit', opacity:!API_BASE?.5:1 }}>
+                <button onClick={testEmail} disabled={emailTesting}
+                  style={{ padding:'9px 20px', background:'rgba(234,67,53,.1)', border:'1px solid rgba(234,67,53,.3)', borderRadius:8, color:'#EA4335', fontWeight:700, fontSize:12, cursor:emailTesting?'not-allowed':'pointer', fontFamily:'inherit' }}>
                   {emailTesting ? '⟳ שולח...' : '✉ שלח אימייל בדיקה'}
                 </button>
                 {emailTestResult === 'ok'  && <span style={{ fontSize:12, color:C.green, fontWeight:700 }}>✓ אימייל בדיקה נשלח ל-afik.hanahal@gmail.com</span>}
