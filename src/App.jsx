@@ -4826,23 +4826,23 @@ Return ONLY valid JSON (no markdown, no code blocks):
               {/* ── Monday.com Board ── */}
               {leads.length > 0 && (
                 <div style={{ borderRadius:12, border:`1px solid ${C.purple}1E`, direction:'rtl', background:'rgba(255,255,255,.01)', overflowX:'auto' }}>
-                  <div style={{ minWidth:900 }}>
+                  <div style={{ minWidth:820, width:'100%' }}>
 
                   {/* Column header row */}
-                  <div style={{ display:'flex', alignItems:'center', background:`${C.purple}12`, borderBottom:`2px solid ${C.purple}22`, paddingRight:10, userSelect:'none', position:'sticky', top:0, zIndex:10 }}>
-                    <div style={{ width:20, flexShrink:0, borderRight:`1px solid ${C.purple}12` }}/>
-                    <div style={{ width:16, flexShrink:0, borderRight:`1px solid ${C.purple}12` }}/>
+                  <div style={{ display:'flex', alignItems:'center', background:`${C.purple}12`, borderBottom:`2px solid ${C.purple}22`, userSelect:'none' }}>
+                    <div style={{ width:32, flexShrink:0, borderRight:`1px solid ${C.purple}12` }}/>
+                    <div style={{ width:22, flexShrink:0, borderRight:`1px solid ${C.purple}12` }}/>
                     {[
-                      { label: lang==='en'?'Name':'שם',           w:'172px' },
-                      { label: lang==='en'?'Phone':'טלפון',       w:'130px' },
-                      { label: lang==='en'?'Email':'אימייל',      w:'162px' },
-                      { label: lang==='en'?'Property':'נכס',      w:'130px' },
-                      { label: lang==='en'?'Date':'תאריך',        w:'88px'  },
-                      { label: 'AI',                              w:'68px'  },
-                      { label: lang==='en'?'Status':'סטטוס',      w:'118px' },
-                      { label: '',                                w:'88px'  },
+                      { label: lang==='en'?'Name':'שם',           flex:'1 1 140px' },
+                      { label: lang==='en'?'Phone':'טלפון',       w:'120px' },
+                      { label: lang==='en'?'Email':'אימייל',      w:'155px' },
+                      { label: lang==='en'?'Property':'נכס',      w:'115px' },
+                      { label: lang==='en'?'Date':'תאריך',        w:'85px'  },
+                      { label: 'AI',                              w:'62px'  },
+                      { label: lang==='en'?'Status':'סטטוס',      w:'120px' },
+                      { label: '',                                w:'82px'  },
                     ].map((col,i) => (
-                      <div key={i} style={{ width:col.w, flexShrink:0, padding:'9px 8px', fontSize:10, fontWeight:700, color:`${C.cream}50`, letterSpacing:'.05em', textTransform:'uppercase', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', borderRight:`1px solid ${C.purple}12` }}>
+                      <div key={i} style={{ width:col.w, flex:col.flex||'none', flexShrink:0, padding:'8px 8px', fontSize:10, fontWeight:700, color:`${C.cream}50`, letterSpacing:'.05em', textTransform:'uppercase', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', borderRight:`1px solid ${C.purple}12` }}>
                         {col.label}
                       </div>
                     ))}
@@ -4906,22 +4906,19 @@ Return ONLY valid JSON (no markdown, no code blocks):
                                 onMouseEnter={e => { if (!isDragging && !isSelected) e.currentTarget.style.background=`${C.purple}08` }}
                                 onMouseLeave={e => { if (!isDragging && !isSelected) e.currentTarget.style.background=rowIdx%2===0?'transparent':'rgba(255,255,255,.015)' }}>
 
-                                {/* Drag handle */}
-                                <div style={{ width:20, flexShrink:0, cursor:'grab', color:`${C.cream}20`, fontSize:13, textAlign:'center', lineHeight:1 }}>⠿</div>
-
-                                {/* Status dot — click to cycle */}
-                                <div style={{ width:16, flexShrink:0 }}>
-                                  <button
-                                    title={stRow.label}
-                                    onClick={e => { e.stopPropagation(); const idx=statusOrder.indexOf(l.leadStatus||'new'); updateLeadStatus(l, statusOrder[(idx+1)%statusOrder.length]) }}
-                                    style={{ width:10, height:10, borderRadius:'50%', background:stRow.color, border:'none', cursor:'pointer', padding:0, display:'block', margin:'0 auto', transition:'transform .12s' }}
-                                    onMouseEnter={e => e.currentTarget.style.transform='scale(1.4)'}
-                                    onMouseLeave={e => e.currentTarget.style.transform='scale(1)'}
-                                  />
+                                  {/* Checkbox / row selector */}
+                                <div style={{ width:32, flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center', borderRight:`1px solid ${C.purple}08` }}
+                                  onClick={e => { e.stopPropagation(); setSelectedLead(isSelected?null:l) }}>
+                                  <div style={{ width:14, height:14, borderRadius:3, border:`1.5px solid ${isSelected?stRow.color:`${C.cream}22`}`, background:isSelected?stRow.color:'transparent', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .12s' }}>
+                                    {isSelected && <span style={{ color:'#fff', fontSize:9, lineHeight:1, fontWeight:900 }}>✓</span>}
+                                  </div>
                                 </div>
 
+                                {/* Drag handle */}
+                                <div style={{ width:22, flexShrink:0, cursor:'grab', color:`${C.cream}18`, fontSize:12, textAlign:'center', lineHeight:1, borderRight:`1px solid ${C.purple}08` }}>⠿</div>
+
                                 {/* Name */}
-                                <div style={{ width:'172px', flexShrink:0, padding:'9px 8px' }}>
+                                <div style={{ flex:'1 1 140px', minWidth:0, padding:'9px 8px', borderRight:`1px solid ${C.purple}08` }}>
                                   {editingCell?.id===l.id && editingCell?.field==='name'
                                     ? <input autoFocus value={editValue} onChange={e=>setEditValue(e.target.value)}
                                         onBlur={()=>commitEdit(l)} onKeyDown={e=>{if(e.key==='Enter')commitEdit(l);if(e.key==='Escape'){setEditingCell(null);setEditValue('')}}}
@@ -4934,7 +4931,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
                                 </div>
 
                                 {/* Phone */}
-                                <div style={{ width:'130px', flexShrink:0, padding:'9px 8px' }}>
+                                <div style={{ width:'120px', flexShrink:0, padding:'9px 8px', borderRight:`1px solid ${C.purple}08` }}>
                                   {editingCell?.id===l.id && editingCell?.field==='phone'
                                     ? <input autoFocus value={editValue} onChange={e=>setEditValue(e.target.value)}
                                         onBlur={()=>commitEdit(l)} onKeyDown={e=>{if(e.key==='Enter')commitEdit(l);if(e.key==='Escape'){setEditingCell(null);setEditValue('')}}}
@@ -4948,42 +4945,46 @@ Return ONLY valid JSON (no markdown, no code blocks):
                                 </div>
 
                                 {/* Email */}
-                                <div style={{ width:'162px', flexShrink:0, padding:'9px 8px' }}>
+                                <div style={{ width:'155px', flexShrink:0, padding:'9px 8px', borderRight:`1px solid ${C.purple}08` }}>
                                   {editingCell?.id===l.id && editingCell?.field==='email'
                                     ? <input autoFocus value={editValue} onChange={e=>setEditValue(e.target.value)}
                                         onBlur={()=>commitEdit(l)} onKeyDown={e=>{if(e.key==='Enter')commitEdit(l);if(e.key==='Escape'){setEditingCell(null);setEditValue('')}}}
                                         style={{ width:'100%', background:'rgba(255,255,255,.1)', border:`1px solid ${C.purple}77`, borderRadius:5, color:C.cream, fontSize:10, fontFamily:'inherit', padding:'3px 6px', outline:'none', direction:'ltr' }}/>
                                     : <div style={{ display:'flex', alignItems:'center', gap:4 }}>
                                         {l.email
-                                          ? <a href={`mailto:${l.email}`} onClick={e=>e.stopPropagation()} style={{ color:C.purple, textDecoration:'none', fontSize:10, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:142, display:'block' }} title={l.email}>{l.email}</a>
+                                          ? <a href={`mailto:${l.email}`} onClick={e=>e.stopPropagation()} style={{ color:C.purple, textDecoration:'none', fontSize:10, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:135, display:'block' }} title={l.email}>{l.email}</a>
                                           : <span style={{ color:`${C.cream}25`, fontSize:11 }}>—</span>}
                                         <span onClick={e=>{e.stopPropagation();startEdit(l.id,'email',l.email)}} style={{ fontSize:9, color:`${C.cream}20`, cursor:'text', padding:'1px 3px', flexShrink:0 }}>✎</span>
                                       </div>}
                                 </div>
 
                                 {/* Property */}
-                                <div style={{ width:'130px', flexShrink:0, padding:'9px 8px' }}>
+                                <div style={{ width:'115px', flexShrink:0, padding:'9px 8px', borderRight:`1px solid ${C.purple}08` }}>
                                   <div style={{ fontSize:10, color:`${C.cream}60`, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }} title={l.propTitle||''}>
                                     {l.propTitle || <span style={{ color:`${C.cream}22` }}>—</span>}
                                   </div>
+                                  {l.msg && <div style={{ fontSize:9, color:`${C.cream}30`, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', marginTop:1 }} title={l.msg}>{l.msg}</div>}
                                 </div>
 
                                 {/* Date */}
-                                <div style={{ width:'88px', flexShrink:0, padding:'9px 8px' }}>
+                                <div style={{ width:'85px', flexShrink:0, padding:'9px 8px', borderRight:`1px solid ${C.purple}08` }}>
                                   <div style={{ fontSize:10, color:`${C.cream}40`, whiteSpace:'nowrap' }}>
                                     {new Date(l.ts).toLocaleDateString('he-IL',{day:'2-digit',month:'2-digit',year:'2-digit'})}
                                   </div>
+                                  <div style={{ fontSize:9, color:`${C.cream}25` }}>{new Date(l.ts).toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'})}</div>
                                 </div>
 
                                 {/* AI intent */}
-                                <div style={{ width:'68px', flexShrink:0, padding:'9px 8px' }}>
+                                <div style={{ width:'62px', flexShrink:0, padding:'9px 6px', borderRight:`1px solid ${C.purple}08`, textAlign:'center' }}>
                                   {en.intent
-                                    ? <span style={{ fontSize:9, fontWeight:700, color:intentColor[en.intent]||C.purple, background:`${intentColor[en.intent]||C.purple}18`, borderRadius:20, padding:'2px 7px', whiteSpace:'nowrap' }}>{intentLabel[en.intent]||en.intent}</span>
-                                    : <span style={{ color:`${C.cream}20`, fontSize:10 }}>—</span>}
+                                    ? <span style={{ fontSize:9, fontWeight:700, color:intentColor[en.intent]||C.purple, background:`${intentColor[en.intent]||C.purple}18`, borderRadius:20, padding:'2px 6px', whiteSpace:'nowrap' }}>{intentLabel[en.intent]||en.intent}</span>
+                                    : en.status==='enriching'
+                                      ? <span style={{ fontSize:9, color:`${C.cream}30` }}>…</span>
+                                      : <span style={{ color:`${C.cream}18`, fontSize:9 }}>—</span>}
                                 </div>
 
                                 {/* Status pill */}
-                                <div style={{ width:'118px', flexShrink:0, padding:'5px 6px' }}>
+                                <div style={{ width:'120px', flexShrink:0, padding:'5px 6px', borderRight:`1px solid ${C.purple}08` }}>
                                   <button
                                     onClick={e => {
                                       e.stopPropagation()
@@ -4996,19 +4997,15 @@ Return ONLY valid JSON (no markdown, no code blocks):
                                 </div>
 
                                 {/* Actions */}
-                                <div style={{ width:'88px', flexShrink:0, padding:'9px 8px', display:'flex', alignItems:'center', gap:5 }}>
-                                  <button onClick={e=>{e.stopPropagation();setSelectedLead(isSelected?null:l)}} title={lang==='en'?'View profile':'פרופיל'}
-                                    style={{ background:isSelected?`${C.purple}30`:'none', border:`1px solid ${isSelected?C.purple:`${C.purple}22`}`, color:isSelected?C.purple:`${C.cream}44`, cursor:'pointer', fontSize:11, padding:'3px 6px', borderRadius:5, transition:'all .12s', fontFamily:'inherit' }}>
-                                    {isSelected ? '✕' : '◎'}
-                                  </button>
+                                <div style={{ width:'82px', flexShrink:0, padding:'9px 8px', display:'flex', alignItems:'center', gap:5 }}>
                                   {en.status !== 'done'
                                     ? <button onClick={e=>{e.stopPropagation();enrichLead(l)}} disabled={en.status==='enriching'} title="AI"
-                                        style={{ background:en.status==='enriching'?`${C.purple}14`:`${C.purple}20`, border:`1px solid ${C.purple}33`, color:en.status==='enriching'?`${C.cream}40`:C.purple, cursor:en.status==='enriching'?'not-allowed':'pointer', fontSize:10, padding:'3px 6px', borderRadius:5, fontFamily:'inherit', transition:'all .12s' }}>
-                                        {en.status==='enriching'?'…':'✦'}
+                                        style={{ background:en.status==='enriching'?`${C.purple}14`:`${C.purple}20`, border:`1px solid ${C.purple}33`, color:en.status==='enriching'?`${C.cream}40`:C.purple, cursor:en.status==='enriching'?'not-allowed':'pointer', fontSize:10, padding:'3px 7px', borderRadius:5, fontFamily:'inherit', transition:'all .12s' }}>
+                                        {en.status==='enriching'?'…':'✦ AI'}
                                       </button>
-                                    : <span title={lang==='en'?'Enriched':'הועשר'} style={{ fontSize:12, color:'#00C875' }}>✓</span>}
+                                    : <span title={lang==='en'?'Enriched':'הועשר'} style={{ fontSize:11, color:'#00C875' }}>✓ AI</span>}
                                   <button onClick={e=>{e.stopPropagation();deleteLead(l.id)}} title={lang==='en'?'Delete':'מחק'}
-                                    style={{ background:'none', border:'none', color:'rgba(224,82,82,.4)', cursor:'pointer', fontSize:13, padding:'2px 3px', borderRadius:4, transition:'color .12s' }}
+                                    style={{ background:'none', border:'none', color:'rgba(224,82,82,.35)', cursor:'pointer', fontSize:13, padding:'2px 3px', borderRadius:4, transition:'color .12s' }}
                                     onMouseEnter={e=>e.currentTarget.style.color='#E05252'}
                                     onMouseLeave={e=>e.currentTarget.style.color='rgba(224,82,82,.4)'}>✕</button>
                                 </div>
@@ -7796,16 +7793,20 @@ function PropertyCard({ prop, onContact, onSelect }) {
 
   const PlaceholderIcon = cat.id==='land' ? FaLeaf : cat.id==='projects' ? FaBuilding : FaHome
 
+  const touchY = useRef(0)
+
   return (
     <div
       onClick={() => onSelect(prop)}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      onTouchStart={e => { touchY.current = e.touches[0].clientY }}
+      onTouchEnd={e => { if (Math.abs(e.changedTouches[0].clientY - touchY.current) < 8) { e.preventDefault(); onSelect(prop) } }}
       className="prop-card"
       style={{ touchAction:'manipulation' }}>
 
       {/* ── Image area ── */}
-      <div className="prop-card-img" onClick={() => onSelect(prop)}>
+      <div className="prop-card-img">
         {validImages.length > 0 && !failedImgs.has(imgIdx % validImages.length) ? (
           <>
             <img src={validImages[imgIdx % validImages.length]} alt={prop.title}
