@@ -880,6 +880,12 @@ const makeGlobal = (C, isDark) => `
     .admin-tabs-bar { display: none !important; }
   }
 
+  /* ── Scrollbar on right for admin panel (ltr outer = scrollbar right, content restored via > *) ── */
+  .admin-content { direction: ltr !important; }
+  .admin-content > * { direction: rtl; }
+  .admin-panel-modal { direction: ltr !important; }
+  .admin-panel-modal > * { direction: rtl; }
+
   /* ── Leads + analytics KPI grids responsive ── */
   .admin-leads-kpi, .admin-analytics-kpi { grid-template-columns: repeat(4,1fr); }
   .admin-leads-layout { flex-direction: row; }
@@ -3747,7 +3753,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   }
 
   const LEAD_STATUS = {
-    new:         { label: 'ליד חדש',   en: 'New Lead',    color: '#C5C7CF' },
+    new:         { label: 'ליד חדש',   en: 'New Lead',    color: C.purple },
     contacted:   { label: 'ניצור קשר', en: 'Contacted',   color: '#579BFC' },
     discovery:   { label: 'גילוי',     en: 'Discovery',   color: '#A25DDC' },
     negotiating: { label: 'במו"מ',     en: 'Negotiating', color: '#FDBC64' },
@@ -4195,7 +4201,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
       )}
 
       {/* ── MAIN PANE ─────────────────────────────────────────────────── */}
-      <div className="admin-main-pane" style={standalone
+      <div className={`admin-main-pane${standalone ? '' : ' admin-panel-modal'}`} style={standalone
         ? { flex:1, display:'flex', flexDirection:'column', height:'100dvh', overflow:'hidden' }
         : { background:C.card, border:`1px solid ${C.purple}33`, borderRadius:16, padding:28, width:'100%', maxWidth:1200, maxHeight:'94vh', overflowY:'auto', direction:'rtl', boxShadow:'0 32px 80px rgba(0,0,0,.7)' }}>
 
@@ -4895,8 +4901,8 @@ Return ONLY valid JSON (no markdown, no code blocks):
 
               {/* ── Monday.com Board ── */}
               {leads.length > 0 && (
-                <div style={{ borderRadius:12, border:`1px solid ${C.purple}1E`, direction:'ltr', background:'rgba(255,255,255,.01)', overflowX:'auto' }}>
-                  <div style={{ minWidth:820, width:'100%', direction:'rtl' }}>
+                <div style={{ borderRadius:12, border:`1px solid ${C.purple}1E`, direction:'rtl', background:'rgba(255,255,255,.01)', overflowX:'auto' }}>
+                  <div style={{ minWidth:820, width:'100%' }}>
 
                   {/* Column header row */}
                   {(() => {
