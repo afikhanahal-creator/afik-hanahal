@@ -5467,32 +5467,60 @@ Return ONLY valid JSON (no markdown, no code blocks):
               const lb = chats[pb]?.[chats[pb].length-1]?.created_at || 0
               return new Date(lb) - new Date(la)
             })
-          const avatarBg = name => { const colors=['#25D366','#128C7E','#34B7F1','#8490D8','#E05252','#F97316','#F7C948']; return colors[(name?.charCodeAt(0)||65)%colors.length] }
+          const avatarBg = name => { const colors=['#D9626E','#AA7DE0','#3A8FC7','#E08C3A','#3BAF7E','#C2497E','#5C8AE0']; return colors[(name?.charCodeAt(0)||65)%colors.length] }
           const chatPhone = chatContact ? intlPhoneFmt(chatContact.phone) : null
           const msgs = chatPhone ? (chats[chatPhone]||[]) : []
 
+          const fmtMsgDate = ds => {
+            const d = new Date(ds), tod = new Date(); tod.setHours(0,0,0,0)
+            const yes = new Date(tod); yes.setDate(yes.getDate()-1)
+            const md = new Date(d); md.setHours(0,0,0,0)
+            if (md.getTime()===tod.getTime()) return lang==='en'?'TODAY':'היום'
+            if (md.getTime()===yes.getTime()) return lang==='en'?'YESTERDAY':'אתמול'
+            return d.toLocaleDateString('he-IL',{day:'numeric',month:'numeric',year:'2-digit'})
+          }
+          const fmtTime = ds => new Date(ds).toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'})
+          const fmtSidebarTime = ds => {
+            const d = new Date(ds), tod = new Date(); tod.setHours(0,0,0,0)
+            const md = new Date(d); md.setHours(0,0,0,0)
+            return md.getTime()===tod.getTime() ? fmtTime(ds) : d.toLocaleDateString('he-IL',{day:'numeric',month:'numeric'})
+          }
+
+          const WA = { bg:'#0B141A', sidebar:'#111B21', header:'#202C33', divider:'#2A3942', incoming:'#1F2C33', outgoing:'#005C4B', text:'#E9EDEF', sub:'#8696A0', tick:'#53BDEB' }
+
           return (
-            <div style={{ display:'flex', height:'calc(100dvh - 160px)', minHeight:400, direction:'rtl', borderRadius:12, overflow:'hidden', border:`1px solid ${C.purple}1A` }}>
+            <div style={{ display:'flex', height:'calc(100dvh - 160px)', minHeight:500, direction:'ltr', borderRadius:12, overflow:'hidden', border:`1px solid ${C.purple}22`, boxShadow:'0 6px 40px rgba(0,0,0,.5)' }}>
 
-              {/* ── LEFT SIDEBAR — contact list ─────────────────────── */}
-              <div style={{ width:270, flexShrink:0, display:'flex', flexDirection:'column', borderLeft:`1px solid rgba(255,255,255,.07)`, background:'rgba(255,255,255,.02)' }}>
+              {/* ── SIDEBAR ────────────────────────────────────────── */}
+              <div style={{ width:330, flexShrink:0, display:'flex', flexDirection:'column', background:WA.sidebar, borderRight:`1px solid ${WA.divider}` }}>
 
-                {/* Sidebar header */}
-                <div style={{ padding:'14px 14px 10px', borderBottom:`1px solid rgba(255,255,255,.06)` }}>
-                  <div style={{ fontSize:13, fontWeight:800, color:C.cream, marginBottom:10, display:'flex', alignItems:'center', gap:7 }}>
-                    <FaWhatsapp size={14} style={{ color:'#25D366' }}/> {lang==='en'?'WhatsApp Chats':'שיחות WhatsApp'}
+                {/* Sidebar top bar */}
+                <div style={{ padding:'10px 16px', background:WA.header, display:'flex', alignItems:'center', gap:10, flexShrink:0 }}>
+                  <div style={{ width:40, height:40, borderRadius:'50%', background:'#3A4B54', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                    <FaWhatsapp size={20} style={{ color:'#aebac1' }}/>
                   </div>
-                  <input value={chatSearch} onChange={e=>setChatSearch(e.target.value)}
-                    placeholder={lang==='en'?'Search...':'חיפוש...'}
-                    style={{ width:'100%', padding:'7px 12px', background:'rgba(255,255,255,.06)', border:`1px solid ${C.purple}22`, borderRadius:20, color:C.cream, fontSize:11, fontFamily:'inherit', outline:'none', boxSizing:'border-box', direction:'rtl' }}/>
+                  <div style={{ flex:1, fontWeight:600, fontSize:16, color:WA.text }}>{lang==='en'?'WhatsApp':'WhatsApp'}</div>
+                  <button onClick={()=>chatContact&&fetchChats(chatContact.phone)} title={lang==='en'?'Refresh':'רענן'}
+                    style={{ width:34, height:34, borderRadius:'50%', background:'transparent', border:'none', color:WA.sub, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, transition:'background .15s' }}
+                    onMouseEnter={e=>e.currentTarget.style.background='#374045'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>⟳</button>
+                </div>
+
+                {/* Search */}
+                <div style={{ padding:'8px 10px', background:WA.sidebar, borderBottom:`1px solid ${WA.divider}` }}>
+                  <div style={{ position:'relative', display:'flex', alignItems:'center' }}>
+                    <span style={{ position:'absolute', right:12, color:WA.sub, fontSize:13, pointerEvents:'none', lineHeight:1 }}>🔍</span>
+                    <input value={chatSearch} onChange={e=>setChatSearch(e.target.value)}
+                      placeholder={lang==='en'?'Search or start new chat':'חיפוש'}
+                      style={{ width:'100%', padding:'9px 38px 9px 14px', background:WA.header, border:'none', borderRadius:9, color:WA.text, fontSize:13, fontFamily:'inherit', outline:'none', boxSizing:'border-box', direction:'rtl' }}/>
+                  </div>
                 </div>
 
                 {/* Contact list */}
                 <div style={{ flex:1, overflowY:'auto' }}>
                   {contactList.length===0 && (
-                    <div style={{ padding:24, textAlign:'center', color:`${C.cream}28`, fontSize:11 }}>
+                    <div style={{ padding:28, textAlign:'center', color:WA.sub, fontSize:13, direction:'rtl' }}>
                       {leads.filter(l=>l.phone).length===0
-                        ? (lang==='en'?'No leads with phone numbers yet':'אין לידים עם מספר טלפון עדיין')
+                        ? (lang==='en'?'No leads with phone numbers yet':'אין לידים עם מספר טלפון')
                         : (lang==='en'?'No results':'אין תוצאות')}
                     </div>
                   )}
@@ -5501,29 +5529,26 @@ Return ONLY valid JSON (no markdown, no code blocks):
                     const leadMsgs = chats[p]||[]
                     const lastMsg = leadMsgs[leadMsgs.length-1]
                     const isActive = chatContact?.id===lead.id
-                    const st = LEAD_STATUS[lead.leadStatus||'new']
                     return (
                       <div key={lead.id}
-                        onClick={() => { setChatContact(lead); fetchChats(lead.phone) }}
-                        style={{ padding:'10px 13px', display:'flex', gap:10, cursor:'pointer', background:isActive?`${C.purple}14`:'transparent', borderBottom:`1px solid rgba(255,255,255,.04)`, transition:'background .1s', alignItems:'center' }}
-                        onMouseEnter={e=>{ if(!isActive) e.currentTarget.style.background='rgba(255,255,255,.04)' }}
+                        onClick={()=>{ setChatContact(lead); fetchChats(lead.phone) }}
+                        style={{ padding:'12px 16px', display:'flex', gap:13, cursor:'pointer', background:isActive?'#2A3942':'transparent', borderBottom:`1px solid ${WA.divider}`, transition:'background .12s', alignItems:'center' }}
+                        onMouseEnter={e=>{ if(!isActive) e.currentTarget.style.background='#182229' }}
                         onMouseLeave={e=>{ if(!isActive) e.currentTarget.style.background='transparent' }}>
-                        {/* Avatar */}
-                        <div style={{ width:40, height:40, borderRadius:'50%', background:avatarBg(lead.name), display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, fontWeight:700, color:'#fff', flexShrink:0, letterSpacing:'-.5px' }}>
-                          {(lead.name||lead.phone||'?').slice(0,2)}
+                        <div style={{ width:48, height:48, borderRadius:'50%', background:avatarBg(lead.name), display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, fontWeight:700, color:'#fff', flexShrink:0 }}>
+                          {(lead.name||lead.phone||'?')[0].toUpperCase()}
                         </div>
-                        {/* Info */}
-                        <div style={{ flex:1, minWidth:0 }}>
-                          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:1 }}>
-                            <div style={{ fontWeight:700, fontSize:12, color:isActive?C.purple:C.cream, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', flex:1 }}>{lead.name||lead.phone}</div>
-                            <div style={{ fontSize:9, color:`${C.cream}30`, flexShrink:0, marginRight:6 }}>
-                              {lastMsg ? new Date(lastMsg.created_at).toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'}) : ''}
+                        <div style={{ flex:1, minWidth:0, direction:'rtl' }}>
+                          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:3 }}>
+                            <div style={{ fontWeight:600, fontSize:15, color:WA.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', flex:1 }}>{lead.name||lead.phone}</div>
+                            {lastMsg && <div style={{ fontSize:11, color:WA.sub, flexShrink:0, marginRight:10 }}>{fmtSidebarTime(lastMsg.created_at)}</div>}
+                          </div>
+                          <div style={{ display:'flex', alignItems:'center', gap:4 }}>
+                            {lastMsg?.direction==='out' && <span style={{ color:WA.tick, fontSize:13, flexShrink:0, lineHeight:1 }}>✓✓</span>}
+                            <div style={{ fontSize:13, color:WA.sub, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+                              {lastMsg ? lastMsg.message : lead.phone}
                             </div>
                           </div>
-                          <div style={{ fontSize:10, color:`${C.cream}38`, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
-                            {lastMsg ? ((lastMsg.direction==='out'?'✓ ':'')+lastMsg.message) : lead.phone}
-                          </div>
-                          {st && <span style={{ fontSize:8, color:st.color, background:`${st.color}14`, borderRadius:3, padding:'1px 5px', fontWeight:700, display:'inline-block', marginTop:2 }}>{lang==='en'&&st.en?st.en:st.label}</span>}
                         </div>
                       </div>
                     )
@@ -5531,80 +5556,107 @@ Return ONLY valid JSON (no markdown, no code blocks):
                 </div>
               </div>
 
-              {/* ── RIGHT — Chat panel ──────────────────────────────── */}
-              <div style={{ flex:1, display:'flex', flexDirection:'column', minWidth:0 }}>
+              {/* ── CHAT AREA ──────────────────────────────────────── */}
+              <div style={{ flex:1, display:'flex', flexDirection:'column', minWidth:0, background:WA.bg }}>
                 {chatContact ? (
                   <>
                     {/* Chat header */}
-                    <div style={{ padding:'11px 18px', borderBottom:`1px solid rgba(255,255,255,.07)`, display:'flex', alignItems:'center', gap:12, background:'rgba(255,255,255,.02)', flexShrink:0 }}>
-                      <div style={{ width:36, height:36, borderRadius:'50%', background:avatarBg(chatContact.name), display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:13, color:'#fff', flexShrink:0 }}>
-                        {(chatContact.name||chatContact.phone||'?').slice(0,2)}
+                    <div style={{ padding:'10px 18px', background:WA.header, display:'flex', alignItems:'center', gap:13, flexShrink:0, borderBottom:`1px solid ${WA.divider}` }}>
+                      <div style={{ width:42, height:42, borderRadius:'50%', background:avatarBg(chatContact.name), display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:17, color:'#fff', flexShrink:0 }}>
+                        {(chatContact.name||chatContact.phone||'?')[0].toUpperCase()}
                       </div>
                       <div style={{ flex:1, minWidth:0 }}>
-                        <div style={{ fontWeight:700, fontSize:13, color:C.cream, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{chatContact.name||chatContact.phone}</div>
-                        <div style={{ fontSize:10, color:'#25D366' }}>{chatContact.phone}</div>
+                        <div style={{ fontWeight:600, fontSize:15, color:WA.text, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{chatContact.name||chatContact.phone}</div>
+                        <div style={{ fontSize:12, color:WA.sub, direction:'ltr' }}>{chatContact.phone}</div>
                       </div>
-                      <div style={{ display:'flex', gap:6, flexShrink:0 }}>
-                        {chatContact.phone && <a href={`tel:${chatContact.phone}`} style={{ width:30, height:30, borderRadius:'50%', background:'rgba(37,211,102,.1)', border:'1px solid rgba(37,211,102,.25)', color:'#25D366', display:'flex', alignItems:'center', justifyContent:'center', textDecoration:'none' }}><FaPhone size={10}/></a>}
-                        {chatContact.phone && <a href={`https://wa.me/${intlPhoneFmt(chatContact.phone)}`} target="_blank" rel="noopener noreferrer" style={{ width:30, height:30, borderRadius:'50%', background:'rgba(37,211,102,.1)', border:'1px solid rgba(37,211,102,.25)', color:'#25D366', display:'flex', alignItems:'center', justifyContent:'center', textDecoration:'none' }}><FaWhatsapp size={12}/></a>}
-                        <button onClick={()=>fetchChats(chatContact.phone)} title="רענן" style={{ width:30, height:30, borderRadius:'50%', background:`${C.purple}12`, border:`1px solid ${C.purple}22`, color:C.purple, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontSize:14, fontFamily:'inherit' }}>⟳</button>
-                        <button onClick={()=>setChatContact(null)} style={{ width:30, height:30, borderRadius:'50%', background:'rgba(224,82,82,.08)', border:'1px solid rgba(224,82,82,.18)', color:'rgba(224,82,82,.6)', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, fontFamily:'inherit' }}>✕</button>
+                      <div style={{ display:'flex', gap:2, flexShrink:0 }}>
+                        {chatContact.phone && (
+                          <a href={`tel:${chatContact.phone}`} title={lang==='en'?'Call':'התקשר'}
+                            style={{ width:36, height:36, borderRadius:'50%', background:'transparent', color:WA.sub, display:'flex', alignItems:'center', justifyContent:'center', textDecoration:'none', transition:'background .15s' }}
+                            onMouseEnter={e=>e.currentTarget.style.background='#374045'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                            <FaPhone size={15}/>
+                          </a>
+                        )}
+                        {chatContact.phone && (
+                          <a href={`https://wa.me/${intlPhoneFmt(chatContact.phone)}`} target="_blank" rel="noopener noreferrer" title="WhatsApp Web"
+                            style={{ width:36, height:36, borderRadius:'50%', background:'transparent', color:WA.sub, display:'flex', alignItems:'center', justifyContent:'center', textDecoration:'none', transition:'background .15s' }}
+                            onMouseEnter={e=>e.currentTarget.style.background='#374045'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                            <FaWhatsapp size={17}/>
+                          </a>
+                        )}
+                        <button onClick={()=>fetchChats(chatContact.phone)} title={lang==='en'?'Refresh':'רענן'}
+                          style={{ width:36, height:36, borderRadius:'50%', background:'transparent', border:'none', color:WA.sub, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontSize:19, transition:'background .15s' }}
+                          onMouseEnter={e=>e.currentTarget.style.background='#374045'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>⟳</button>
+                        <button onClick={()=>setChatContact(null)} title={lang==='en'?'Close':'סגור'}
+                          style={{ width:36, height:36, borderRadius:'50%', background:'transparent', border:'none', color:WA.sub, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontSize:15, transition:'background .15s' }}
+                          onMouseEnter={e=>e.currentTarget.style.background='#374045'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>✕</button>
                       </div>
                     </div>
 
                     {/* Messages area */}
-                    <div ref={chatScrollRef} style={{ flex:1, overflowY:'auto', padding:'14px 18px', display:'flex', flexDirection:'column', gap:5, background:'rgba(0,0,0,.1)' }}>
+                    <div ref={chatScrollRef} style={{ flex:1, overflowY:'auto', padding:'16px 8%', display:'flex', flexDirection:'column', gap:2, backgroundColor:WA.bg, backgroundImage:`url("data:image/svg+xml,%3Csvg width='80' height='80' viewBox='0 0 80 80' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff' fill-opacity='0.015' fill-rule='evenodd'%3E%3Cpath d='M50 50c0-5.523 4.477-10 10-10s10 4.477 10 10-4.477 10-10 10c0 5.523-4.477 10-10 10s-10-4.477-10-10 4.477-10 10-10zM10 10c0-5.523 4.477-10 10-10s10 4.477 10 10-4.477 10-10 10c0 5.523-4.477 10-10 10S0 25.523 0 20s4.477-10 10-10zm10 0c5.523 0 10 4.477 10 10h10c0-5.523 4.477-10 10-10V0H20v10z'/%3E%3C/g%3E%3C/svg%3E")` }}>
                       {msgs.length===0 ? (
-                        <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:10, color:`${C.cream}25`, minHeight:200 }}>
-                          <FaWhatsapp size={44} style={{ opacity:.15 }}/>
-                          <div style={{ fontSize:12, textAlign:'center' }}>{lang==='en'?'No messages yet — send the first one!':'אין הודעות עדיין · שלח את ההודעה הראשונה!'}</div>
+                        <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:12, color:WA.sub, minHeight:200 }}>
+                          <FaWhatsapp size={52} style={{ opacity:.18, color:'#25D366' }}/>
+                          <div style={{ fontSize:14, textAlign:'center', direction:'rtl' }}>{lang==='en'?'No messages yet':'אין הודעות עדיין'}</div>
                         </div>
-                      ) : msgs.map((msg,i) => {
-                        const isOut = msg.direction==='out'
-                        const showDate = i===0 || new Date(msg.created_at).toDateString()!==new Date(msgs[i-1]?.created_at).toDateString()
-                        return (
-                          <>
-                            {showDate && (
-                              <div key={`d-${i}`} style={{ textAlign:'center', margin:'8px 0 4px' }}>
-                                <span style={{ fontSize:10, color:`${C.cream}33`, background:'rgba(255,255,255,.06)', borderRadius:10, padding:'2px 12px' }}>
-                                  {new Date(msg.created_at).toLocaleDateString('he-IL',{day:'numeric',month:'long',year:'numeric'})}
-                                </span>
-                              </div>
-                            )}
-                            <div key={msg.id||i} style={{ display:'flex', justifyContent:isOut?'flex-end':'flex-start' }}>
-                              <div style={{ maxWidth:'72%', padding:'8px 12px', borderRadius:isOut?'14px 14px 4px 14px':'14px 14px 14px 4px', background:isOut?'#25D366':'rgba(255,255,255,.1)', color:isOut?'#fff':C.cream, fontSize:13, lineHeight:1.55, wordBreak:'break-word', boxShadow:'0 1px 4px rgba(0,0,0,.2)' }}>
+                      ) : (() => {
+                        const items = []
+                        msgs.forEach((msg,i) => {
+                          const isOut = msg.direction==='out'
+                          const showDate = i===0 || new Date(msg.created_at).toDateString()!==new Date(msgs[i-1]?.created_at).toDateString()
+                          if (showDate) items.push(
+                            <div key={`d-${i}`} style={{ display:'flex', justifyContent:'center', margin:'12px 0 8px' }}>
+                              <span style={{ fontSize:11.5, color:WA.text, background:'#1F2C33', borderRadius:8, padding:'5px 16px', boxShadow:'0 1px 3px rgba(0,0,0,.35)', fontWeight:500, letterSpacing:.2 }}>
+                                {fmtMsgDate(msg.created_at)}
+                              </span>
+                            </div>
+                          )
+                          items.push(
+                            <div key={msg.id||i} style={{ display:'flex', justifyContent:isOut?'flex-end':'flex-start', marginBottom:1 }}>
+                              <div style={{ maxWidth:'65%', minWidth:80, padding:'7px 12px 22px 12px', borderRadius:isOut?'8px 8px 2px 8px':'8px 8px 8px 2px', background:isOut?WA.outgoing:WA.incoming, color:WA.text, fontSize:14.5, lineHeight:1.55, wordBreak:'break-word', boxShadow:'0 1px 2px rgba(0,0,0,.3)', position:'relative' }}>
                                 <div style={{ direction:'rtl' }}>{msg.message}</div>
-                                <div style={{ fontSize:9, opacity:.65, marginTop:3, textAlign:'left', direction:'ltr' }}>
-                                  {new Date(msg.created_at).toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'})}
-                                  {isOut&&<span style={{ marginRight:3 }}> ✓✓</span>}
+                                <div style={{ position:'absolute', bottom:5, left:10, display:'flex', alignItems:'center', gap:3, direction:'ltr', whiteSpace:'nowrap' }}>
+                                  <span style={{ fontSize:11, color:'rgba(233,237,239,.55)' }}>{fmtTime(msg.created_at)}</span>
+                                  {isOut && <span style={{ fontSize:15, color:WA.tick, lineHeight:1 }}>✓✓</span>}
                                 </div>
                               </div>
                             </div>
-                          </>
-                        )
-                      })}
+                          )
+                        })
+                        return items
+                      })()}
                     </div>
 
                     {/* Input bar */}
-                    <div style={{ padding:'10px 14px', borderTop:`1px solid rgba(255,255,255,.07)`, display:'flex', gap:8, alignItems:'center', background:'rgba(255,255,255,.02)', flexShrink:0 }}>
+                    <div style={{ padding:'8px 14px', background:WA.header, display:'flex', gap:10, alignItems:'center', flexShrink:0, borderTop:`1px solid ${WA.divider}` }}>
                       <input
                         value={chatInput} onChange={e=>setChatInput(e.target.value)}
                         onKeyDown={e=>{ if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendChatMsg(chatContact)} }}
-                        placeholder={lang==='en'?'Type a message...':'כתוב הודעה לווצאפ...'}
+                        placeholder={lang==='en'?'Type a message':'הקלד הודעה'}
                         disabled={chatSending}
-                        style={{ flex:1, padding:'10px 16px', background:'rgba(255,255,255,.07)', border:`1px solid rgba(255,255,255,.1)`, borderRadius:24, color:C.cream, fontSize:13, fontFamily:'inherit', outline:'none', direction:'rtl' }}/>
+                        style={{ flex:1, padding:'11px 18px', background:'#2A3942', border:'none', borderRadius:24, color:WA.text, fontSize:14, fontFamily:'inherit', outline:'none', direction:'rtl' }}/>
                       <button
                         onClick={()=>sendChatMsg(chatContact)} disabled={chatSending||!chatInput.trim()}
-                        style={{ padding:'10px 20px', background:chatSending||!chatInput.trim()?'rgba(37,211,102,.3)':'#25D366', border:'none', borderRadius:24, color:'#fff', fontSize:13, fontWeight:700, cursor:chatSending||!chatInput.trim()?'not-allowed':'pointer', fontFamily:'inherit', flexShrink:0, transition:'all .15s', minWidth:64 }}>
-                        {chatSending?'...':(lang==='en'?'Send':'שלח')}
+                        style={{ width:46, height:46, borderRadius:'50%', background:chatSending||!chatInput.trim()?'#2A3942':'#00A884', border:'none', color:'#fff', cursor:chatSending||!chatInput.trim()?'not-allowed':'pointer', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, transition:'all .15s', fontSize:20 }}>
+                        {chatSending ? <span style={{ fontSize:13, fontWeight:700 }}>···</span> : '➤'}
                       </button>
                     </div>
                   </>
                 ) : (
-                  <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:14, color:`${C.cream}25` }}>
-                    <FaWhatsapp size={60} style={{ opacity:.12, color:'#25D366' }}/>
-                    <div style={{ fontSize:16, fontWeight:700, color:`${C.cream}40` }}>{lang==='en'?'Select a contact':'בחר איש קשר לשיחה'}</div>
-                    <div style={{ fontSize:12, color:`${C.cream}25` }}>{lang==='en'?'Choose a lead from the list on the left':'בחר ליד מהרשימה'}</div>
+                  <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:18, color:WA.sub }}>
+                    <FaWhatsapp size={88} style={{ opacity:.12, color:'#25D366' }}/>
+                    <div style={{ fontSize:22, fontWeight:300, color:'#aebac1', letterSpacing:.5 }}>WhatsApp Web</div>
+                    <div style={{ fontSize:13, color:WA.sub, maxWidth:300, textAlign:'center', lineHeight:1.7, direction:'rtl' }}>
+                      {lang==='en'
+                        ? 'Select a contact to view conversation history and send messages'
+                        : 'בחר איש קשר מהרשימה לצפייה בהיסטוריית השיחה ולשליחת הודעות'}
+                    </div>
+                    <div style={{ width:300, height:1, background:WA.divider, marginTop:6 }}/>
+                    <div style={{ fontSize:12, color:WA.sub, display:'flex', alignItems:'center', gap:6 }}>
+                      <span>🔒</span>
+                      <span>{lang==='en'?'Messages sent via Green API':'הודעות נשלחות דרך Green API'}</span>
+                    </div>
                   </div>
                 )}
               </div>
