@@ -8215,15 +8215,18 @@ export default function App() {
 
   // ── Save stats/sharon/properties to localStorage as offline backup ──────────
   // Guard with propsLoaded (not loaded) to avoid wiping cached properties
-  // before the async initial fetch resolves.
+  // before the async initial fetch resolves. Also never cache an empty list
+  // (protects against a bug that wipes properties before server fetch resolves).
   useEffect(() => {
     if (!propsLoaded.current) return
+    if (properties.length === 0) return  // never overwrite a good cache with nothing
     try { localStorage.setItem('afik_data', JSON.stringify({ stats, sharon, properties })) } catch {}
   }, [stats, sharon, properties])
 
   // ── Sync properties to API when admin changes them (debounced 1.5 s) ────────
   useEffect(() => {
     if (!adminAuth || !propsLoaded.current) return  // never sync before initial load
+    if (properties.length === 0) return              // NEVER send empty array — would wipe server
     const base = API_BASE || ''
     const timer = setTimeout(() => {
       fetch(`${base}/api/properties/bulk`, {
