@@ -319,6 +319,7 @@ const makeGlobal = (C, isDark) => `
     position:relative; overflow:hidden;
     box-shadow:${isDark ? '0 4px 24px rgba(0,0,0,.18)' : '0 2px 12px rgba(0,0,0,.06), 0 1px 3px rgba(0,0,0,.04)'};
     transition:border-color .3s cubic-bezier(0.16,1,0.3,1), box-shadow .3s cubic-bezier(0.16,1,0.3,1), transform .3s cubic-bezier(0.16,1,0.3,1);
+    will-change:transform;
   }
   .glass-card:hover {
     border-color:${C.purple}55;
@@ -1914,7 +1915,7 @@ function ServicesSection({ onContact }) {
 
         {/* Marquee ticker — floating service names */}
         <div style={{ overflow:'hidden', marginBottom:36, direction:'ltr' }}>
-          <div style={{ display:'flex', gap:0, whiteSpace:'nowrap', animation:'marquee 30s linear infinite' }}>
+          <div style={{ display:'flex', gap:0, whiteSpace:'nowrap', animation:'marquee 30s linear infinite', willChange:'transform' }}>
             {marqItems.map((s, i) => (
               <span key={i} style={{ fontSize:12, fontWeight:700, color:i%2===0?C.purple:C.green, letterSpacing:'2.5px', textTransform:'uppercase', padding:'0 30px', opacity:.5 }}>
                 {s.icon}&nbsp;&nbsp;{s.title}&nbsp;&nbsp;·
@@ -4145,7 +4146,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
   return (
     <div style={standalone
       ? { position:'fixed', inset:0, zIndex:1000, display:'flex', background:'#07070F', direction:'rtl', fontFamily:'Rubik, sans-serif' }
-      : { position:'fixed', inset:0, background:'rgba(0,0,0,.92)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:16, overflowY:'auto' }}>
+      : { position:'fixed', inset:0, background:'rgba(0,0,0,.92)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:16, overflowY:'auto', overscrollBehavior:'contain' }}>
 
       {/* ── MOBILE SIDEBAR OVERLAY — standalone only ──────────────────── */}
       {standalone && adminNavOpen && (
@@ -6890,7 +6891,7 @@ function ArchiveModal({ onClose, C, isDark }) {
   }
 
   return (
-    <div ref={scrollRef} style={{ position:'fixed', inset:0, zIndex:9000, background:'rgba(0,0,0,.78)', backdropFilter:'blur(10px)', overflowY:'auto', direction:'rtl' }}
+    <div ref={scrollRef} style={{ position:'fixed', inset:0, zIndex:9000, background:'rgba(0,0,0,.78)', backdropFilter:'blur(10px)', overflowY:'auto', overscrollBehavior:'contain', direction:'rtl' }}
       onClick={e => e.target === e.currentTarget && onClose()}>
 
       {/* ── Floating back button (appears after scrolling down) ── */}
@@ -8923,14 +8924,14 @@ export default function App() {
       <section id="home" role="main" tabIndex={-1} aria-label="תוכן ראשי" style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', padding:'90px 24px 72px', scrollMarginTop:80, position:'relative', overflow:'hidden', textAlign:'center', zIndex:1 }}>
 
         {/* UI/UX Pro Max: Parallax blobs — outer div moves with scroll, inner animates */}
-        <div style={{ position:'absolute', top:'20%', right:'-8%', pointerEvents:'none', transform:`translateY(${scrollY * 0.22}px)` }}>
-          <div style={{ width:620, height:620, background:`radial-gradient(circle,${C.purple}1A,transparent 70%)`, animation:'blob1 9s ease infinite' }}/>
+        <div style={{ position:'absolute', top:'20%', right:'-8%', pointerEvents:'none', transform:`translateY(${scrollY * 0.22}px)`, willChange:'transform' }}>
+          <div style={{ width:620, height:620, background:`radial-gradient(circle,${C.purple}1A,transparent 70%)`, animation:'blob1 9s ease infinite', willChange:'transform' }}/>
         </div>
-        <div style={{ position:'absolute', bottom:'10%', left:'-8%', pointerEvents:'none', transform:`translateY(${scrollY * -0.18}px)` }}>
-          <div style={{ width:520, height:520, background:`radial-gradient(circle,${C.green}14,transparent 70%)`, animation:'blob2 11s ease infinite' }}/>
+        <div style={{ position:'absolute', bottom:'10%', left:'-8%', pointerEvents:'none', transform:`translateY(${scrollY * -0.18}px)`, willChange:'transform' }}>
+          <div style={{ width:520, height:520, background:`radial-gradient(circle,${C.green}14,transparent 70%)`, animation:'blob2 11s ease infinite', willChange:'transform' }}/>
         </div>
-        <div style={{ position:'absolute', top:'60%', left:'40%', pointerEvents:'none', transform:`translateY(${scrollY * 0.12}px)` }}>
-          <div style={{ width:420, height:420, background:`radial-gradient(circle,${C.purple}09,transparent 70%)`, animation:'blob3 14s ease infinite' }}/>
+        <div style={{ position:'absolute', top:'60%', left:'40%', pointerEvents:'none', transform:`translateY(${scrollY * 0.12}px)`, willChange:'transform' }}>
+          <div style={{ width:420, height:420, background:`radial-gradient(circle,${C.purple}09,transparent 70%)`, animation:'blob3 14s ease infinite', willChange:'transform' }}/>
         </div>
 
         {/* Grid pattern */}
