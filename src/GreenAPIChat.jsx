@@ -317,7 +317,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
     if (pollRef.current) clearInterval(pollRef.current)
     if (!contact?.phone) return
     fetchMsgs(contact.phone, { showLoader: true })
-    pollRef.current = setInterval(() => fetchMsgs(contact.phone), 5000)
+    pollRef.current = setInterval(() => fetchMsgs(contact.phone), 500)
     return () => clearInterval(pollRef.current)
   }, [contact?.id, fetchMsgs])
 
@@ -533,7 +533,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
 
       {/* ── Main Layout ──────────────────────────────────────────────────── */}
       {/* flex:1, minHeight:0 — critical for contained scroll in flex child */}
-      <div style={{ flex:1, minHeight:0, display:'flex', overflow:'hidden', direction:'ltr', background: WA.panelBg }}>
+      <div style={{ flex:1, minHeight:0, display:'flex', flexDirection:'row-reverse', overflow:'hidden', direction:'ltr', background: WA.panelBg }}>
 
         {/* ═══════════════ CHAT WINDOW (left, fills remaining space) ════════ */}
         {/* overflow:hidden isolates internal scroll from page scroll         */}
@@ -877,7 +877,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
         </div>
 
         {/* ═══════════════ ICON SIDEBAR (far right, 52px) ══════════════════ */}
-        <div style={{ width:52, flexShrink:0, display:'flex', flexDirection:'column', background: WA.inputBg, borderRight:`1px solid ${WA.border}`, alignItems:'center', padding:'8px 0', transition:'background .25s' }}>
+        <div style={{ width:52, flexShrink:0, display:'flex', flexDirection:'column', background: WA.inputBg, borderLeft:`1px solid ${WA.border}`, alignItems:'center', padding:'8px 0', transition:'background .25s' }}>
           {[
             { id:'bell',     path:ICONS.bell,     title:'התראות'     },
             { id:'chats',    path:ICONS.chat,     title:'שיחות'      },
