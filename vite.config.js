@@ -213,6 +213,25 @@ function ogProxyPlugin() {
 
 export default defineConfig({
   plugins: [react(), newsDevPlugin(), ogProxyPlugin()],
+
+  build: {
+    target: 'es2017',
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return
+          if (id.includes('/react-dom/') || (id.includes('/react/') && !id.includes('/react-icons/'))) return 'vendor-react'
+          if (id.includes('/framer-motion/')) return 'vendor-framer'
+          if (id.includes('/react-icons/') || id.includes('/lucide-react/')) return 'vendor-icons'
+          if (id.includes('/@dnd-kit/')) return 'vendor-dnd'
+          if (id.includes('/logrocket/')) return 'vendor-analytics'
+          return 'vendor-misc'
+        },
+      },
+    },
+    chunkSizeWarningLimit: 600,
+  },
+
   server: {
     port: 3000,
     host: '127.0.0.1',

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, createContext, useContext, useMemo } from 'react'
+import { useState, useEffect, useRef, useCallback, createContext, useContext, useMemo, lazy, Suspense } from 'react'
 import { MenuToggleIcon } from './MenuToggleIcon.jsx'
 import AccessibilityWidget from './AccessibilityWidget.jsx'
 import CookieConsent from './CookieConsent.jsx'
@@ -6,8 +6,8 @@ import GovMapWidget from './GovMapWidget.jsx'
 import RealEstateCalc from './RealEstateCalc.jsx'
 import { AnimatePresence, motion } from 'framer-motion'
 import PropertyWizard, { propertyToWizardData } from './PropertyWizard.jsx'
-import LeadsBoard from './LeadsBoard.jsx'
-import GreenAPIChat from './GreenAPIChat.jsx'
+const LeadsBoard   = lazy(() => import('./LeadsBoard.jsx'))
+const GreenAPIChat = lazy(() => import('./GreenAPIChat.jsx'))
 import { FaChevronLeft, FaChevronRight, FaEnvelope, FaFacebookF, FaInstagram, FaBed, FaRulerCombined, FaCar, FaSwimmingPool, FaBuilding, FaBoxOpen, FaTree, FaSnowflake, FaShieldAlt, FaCouch, FaTools, FaMapMarkerAlt, FaExternalLinkAlt, FaPhone, FaCompass, FaLeaf, FaCalendarAlt, FaTimes, FaWhatsapp, FaSun, FaFileAlt, FaHome, FaMoneyBill, FaSearch, FaBalanceScale, FaHandshake, FaTrophy, FaHardHat, FaLock, FaKey, FaGlobe, FaSeedling, FaBolt, FaRocket, FaStar, FaChartLine, FaEye, FaPlay, FaWheelchair, FaFire, FaCalculator, FaShareAlt, FaHeart, FaStore, FaCamera, FaWifi, FaIndustry, FaExpand, FaUser, FaUsers, FaDesktop, FaMobileAlt, FaTabletAlt, FaCommentAlt, FaRobot, FaInbox, FaExclamationTriangle, FaChartBar, FaThumbsUp, FaImage, FaPencilAlt, FaCrown, FaMousePointer, FaDollarSign, FaVideo, FaLink, FaCheck, FaCheckCircle, FaUtensils, FaDoorOpen, FaUserShield } from 'react-icons/fa'
 
 // ─── SERVER CONFIG ────────────────────────────────────────────────────────────
@@ -3556,6 +3556,16 @@ function useTeamToken() {
   }, [])
 }
 
+function AdminTabLoader({ label = 'טוען...' }) {
+  return (
+    <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:16, color:'rgba(232,228,216,.4)', minHeight:300 }}>
+      <div style={{ width:36, height:36, border:'3px solid rgba(132,144,216,.2)', borderTopColor:'#8490D8', borderRadius:'50%', animation:'spin 0.7s linear infinite' }}/>
+      <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+      <span style={{ fontSize:13, fontFamily:'Rubik,sans-serif' }}>טוען {label}...</span>
+    </div>
+  )
+}
+
 function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSharon, govmapToken, setGovmapToken, onClose, onEditInWizard, standalone = false }) {
   const { C, isDark, lang, logoNavSize, setLogoNavSize } = useTheme()
   const initForm = () => {
@@ -4749,7 +4759,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
                       {/* Thumbnail */}
                       <div className="admin-prop-thumb" style={{ position:'relative', flexShrink:0, width:130, height:100 }}>
                         {p.images?.[0] ? (
-                          <img src={p.images[0]} style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }} alt=""/>
+                          <img src={p.images[0]} style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }} alt="" loading="lazy" decoding="async"/>
                         ) : (
                           <div style={{ width:'100%', height:'100%', background:`${C.purple}10`, display:'flex', alignItems:'center', justifyContent:'center', color:`${C.purple}55` }}><cat.Icon size={28}/></div>
                         )}
@@ -4934,34 +4944,38 @@ Return ONLY valid JSON (no markdown, no code blocks):
         )}
 
         {tab==='leads' && (
-          <LeadsBoard
-            leads={leads}
-            updateLead={updateLead}
-            updateLeadStatus={updateLeadStatus}
-            deleteLead={id => setLeads(prev => { const next = prev.filter(l => l.id !== id); try { localStorage.setItem(LEADS_STORE, JSON.stringify(next)) } catch {} return next })}
-            addLead={lead => setLeads(prev => { const next = [...prev, lead]; try { localStorage.setItem(LEADS_STORE, JSON.stringify(next)) } catch {} return next })}
-            colOrder={colOrder} setColOrder={setColOrder}
-            customCols={customCols} setCustomCols={setCustomCols}
-            colWidths={colWidths} setColWidths={setColWidths}
-            exportCSV={exportCSV}
-            syncLeads={syncLeadsFromServer}
-            enrichAll={enrichAllLeads}
-            clearLeads={clearLeads}
-            leadsSyncing={leadsSyncing}
-            isDark={isDark}
-            lang={lang}
-            onOpenChat={lead => { setInitialChatLead(lead); setTab('chats') }}
-          />
+          <Suspense fallback={<AdminTabLoader label="לידים" />}>
+            <LeadsBoard
+              leads={leads}
+              updateLead={updateLead}
+              updateLeadStatus={updateLeadStatus}
+              deleteLead={id => setLeads(prev => { const next = prev.filter(l => l.id !== id); try { localStorage.setItem(LEADS_STORE, JSON.stringify(next)) } catch {} return next })}
+              addLead={lead => setLeads(prev => { const next = [...prev, lead]; try { localStorage.setItem(LEADS_STORE, JSON.stringify(next)) } catch {} return next })}
+              colOrder={colOrder} setColOrder={setColOrder}
+              customCols={customCols} setCustomCols={setCustomCols}
+              colWidths={colWidths} setColWidths={setColWidths}
+              exportCSV={exportCSV}
+              syncLeads={syncLeadsFromServer}
+              enrichAll={enrichAllLeads}
+              clearLeads={clearLeads}
+              leadsSyncing={leadsSyncing}
+              isDark={isDark}
+              lang={lang}
+              onOpenChat={lead => { setInitialChatLead(lead); setTab('chats') }}
+            />
+          </Suspense>
         )}
 
         {tab==='chats' && (
-          <GreenAPIChat
-            leads={leads}
-            lang={lang}
-            initialContact={initialChatLead}
-            onOpenLead={lead => { setInitialChatLead(null); setTab('leads') }}
-            onDeleteLead={id => deleteLead(id)}
-          />
+          <Suspense fallback={<AdminTabLoader label="צ'אטים" />}>
+            <GreenAPIChat
+              leads={leads}
+              lang={lang}
+              initialContact={initialChatLead}
+              onOpenLead={lead => { setInitialChatLead(null); setTab('leads') }}
+              onDeleteLead={id => deleteLead(id)}
+            />
+          </Suspense>
         )}
 
         {false && (() => {
@@ -7296,6 +7310,7 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
           ) : imgs.length ? (
             <img src={imgs[Math.min(imgIdx, imgs.length - 1)]} alt={prop.title}
               key={imgIdx}
+              decoding="async"
               onClick={() => setLightbox(true)}
               style={{ width:'100%', height:'100%', objectFit:'contain', objectPosition:'center', display:'block', animation:'gallery-fade .22s ease', cursor:'zoom-in', background:'#000' }}/>
           ) : (
@@ -7669,7 +7684,7 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
                       {/* Image */}
                       <div style={{ height:160, background:'rgba(255,255,255,.03)', position:'relative', overflow:'hidden' }}>
                         {sp.images?.[0]
-                          ? <img src={sp.images[0]} alt={sp.title} style={{ width:'100%', height:'100%', objectFit:'cover', display:'block', transition:'transform .4s' }}/>
+                          ? <img src={sp.images[0]} alt={sp.title} loading="lazy" decoding="async" style={{ width:'100%', height:'100%', objectFit:'cover', display:'block', transition:'transform .4s' }}/>
                           : <div style={{ width:'100%', height:'100%', display:'flex', alignItems:'center', justifyContent:'center' }}><spCat.Icon size={36} style={{ color:'rgba(255,255,255,.15)' }}/></div>
                         }
                         {/* Heart save button */}
@@ -7735,7 +7750,7 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
               {lbIdx + 1} / {imgs.length}
             </div>
             {/* Main image */}
-            <img src={imgs[lbIdx]} alt={prop.title}
+            <img src={imgs[lbIdx]} alt={prop.title} decoding="async"
               style={{ maxWidth:'92vw', maxHeight:'88vh', objectFit:'contain', display:'block', borderRadius:6, userSelect:'none', pointerEvents:'none' }}/>
             {/* Prev arrow (right side = prev in RTL numbering, but visually RTL means right = back) */}
             {imgs.length > 1 && (<>
@@ -7823,6 +7838,7 @@ function PropertyCard({ prop, onContact, onSelect }) {
         {validImages.length > 0 && !failedImgs.has(imgIdx % validImages.length) ? (
           <>
             <img src={validImages[imgIdx % validImages.length]} alt={prop.title}
+              loading="lazy" decoding="async"
               style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover', display:'block', transition:'transform .55s cubic-bezier(0.16,1,0.3,1)', transform:hovered?'scale(1.05)':'scale(1)' }}
               onError={() => setFailedImgs(prev => new Set([...prev, imgIdx % validImages.length]))}
             />
