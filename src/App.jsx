@@ -4313,6 +4313,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
               <span style={{ background:'rgba(34,197,94,.2)', color:'#22C55E', borderRadius:20, padding:'2px 7px', fontSize:11, fontWeight:900, lineHeight:1.6 }}>{publishedList.length}</span>
             </button>
             {tabBtn('leads', 'לידים', leads.length)}
+            {tabBtn('chats', 'צ\'אטים')}
             {tabBtn('analytics', 'אנליטיקס')}
             {tabBtn('team', 'צוות')}
             {tabBtn('counters', 'מונים')}
@@ -4321,7 +4322,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
         )}
 
         {/* ── Scrollable content ─────────────────────────────────────── */}
-        <div className="admin-content" style={standalone ? ((tab==='chats'||tab==='leads') ? { flex:1, overflow:'hidden', display:'flex', flexDirection:'column' } : { flex:1, overflowY:'auto', padding:'22px 26px 32px', direction:'rtl' }) : {}}>
+        <div className="admin-content" style={(tab==='chats'||tab==='leads') ? { flex:1, overflow:'hidden', display:'flex', flexDirection:'column', minHeight: standalone ? undefined : 600 } : standalone ? { flex:1, overflowY:'auto', padding:'22px 26px 32px', direction:'rtl' } : { padding:'22px 26px 32px', direction:'rtl' }}>
 
         {/* Overview tab — standalone only */}
         {tab==='overview' && standalone && (<>
@@ -4854,6 +4855,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
             leadsSyncing={leadsSyncing}
             isDark={isDark}
             lang={lang}
+            onOpenChat={lead => { setChatContact(lead); fetchChats(lead.phone); setTab('chats') }}
           />
         )}
 
@@ -8883,7 +8885,7 @@ export default function App() {
           onPublish={(prop, isDraft) => {
             let nextProps
             if (wizardEditId) {
-              const oldProp = properties.find(x => x.id === wizardEditId) || {}
+              const oldProp = properties.find(x => String(x.id) === String(wizardEditId)) || {}
               const merged = {
                 ...prop,
                 id: wizardEditId,                              // critical: never let wizardToProperty's Date.now() id override
@@ -8891,7 +8893,7 @@ export default function App() {
                 createdAt: oldProp.createdAt || prop.createdAt,
                 published: isDraft ? false : (prop.published ?? oldProp.published ?? true),
               }
-              nextProps = properties.map(x => x.id === wizardEditId ? merged : x)
+              nextProps = properties.map(x => String(x.id) === String(wizardEditId) ? merged : x)
             } else {
               nextProps = [...properties, prop]
             }

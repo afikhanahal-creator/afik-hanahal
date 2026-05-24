@@ -225,7 +225,7 @@ function EditableCell({ value, onSave, T, multiline = false, type = 'text' }) {
 
 // ─── sortable row ─────────────────────────────────────────────────────────────
 
-function SortableRow({ lead, cols, onUpdate, onDelete, onSelect, isSelected, lang, T, onOpenDetail, onStatusClick }) {
+function SortableRow({ lead, cols, onUpdate, onDelete, onSelect, isSelected, lang, T, onOpenDetail, onStatusClick, onOpenChat }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: lead.id })
   const [hovered, setHovered] = useState(false)
   const [checked, setChecked] = useState(false)
@@ -325,6 +325,14 @@ function SortableRow({ lead, cols, onUpdate, onDelete, onSelect, isSelected, lan
       {/* Row actions (on hover) */}
       {hovered && (
         <div style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', display: 'flex', gap: 4, background: T.bgRow, borderRadius: 6, padding: '2px 4px', boxShadow: T.shadowSm, zIndex: 10 }}>
+          {lead.phone && onOpenChat && (
+            <button onClick={() => onOpenChat(lead)} title="פתח צ'אט"
+              style={{ background: 'none', border: 'none', color: '#25D366', cursor: 'pointer', padding: 4, borderRadius: 4, display: 'flex', alignItems: 'center' }}
+              onMouseEnter={e => e.currentTarget.style.background = '#25D36618'}
+              onMouseLeave={e => e.currentTarget.style.background = 'none'}>
+              <MessageSquare size={13} />
+            </button>
+          )}
           <button onClick={() => onOpenDetail(lead)} title="Open detail"
             style={{ background: 'none', border: 'none', color: T.textSub, cursor: 'pointer', padding: 4, borderRadius: 4, display: 'flex', alignItems: 'center' }}
             onMouseEnter={e => e.currentTarget.style.background = T.border}
@@ -345,7 +353,7 @@ function SortableRow({ lead, cols, onUpdate, onDelete, onSelect, isSelected, lan
 
 // ─── board group ─────────────────────────────────────────────────────────────
 
-function BoardGroup({ group, leads, cols, onUpdate, onUpdateStatus, onDelete, onSelect, lang, T, onOpenDetail, onAddRow, onStatusClick }) {
+function BoardGroup({ group, leads, cols, onUpdate, onUpdateStatus, onDelete, onSelect, lang, T, onOpenDetail, onAddRow, onStatusClick, onOpenChat }) {
   const [collapsed, setCollapsed] = useState(false)
   const [adding, setAdding] = useState(false)
   const [newName, setNewName] = useState('')
@@ -381,7 +389,7 @@ function BoardGroup({ group, leads, cols, onUpdate, onUpdateStatus, onDelete, on
           {leads.map(lead => (
             <SortableRow key={lead.id} lead={lead} cols={cols} T={T} lang={lang}
               onUpdate={onUpdate} onDelete={onDelete} onSelect={onSelect}
-              onOpenDetail={onOpenDetail} onStatusClick={onStatusClick} />
+              onOpenDetail={onOpenDetail} onStatusClick={onStatusClick} onOpenChat={onOpenChat} />
           ))}
         </SortableContext>
       )}
@@ -730,7 +738,7 @@ export default function LeadsBoard({
   leads, updateLead, updateLeadStatus, deleteLead, addLead,
   colOrder, setColOrder, customCols, setCustomCols, colWidths, setColWidths,
   exportCSV, syncLeads, enrichAll, clearLeads, leadsSyncing,
-  isDark, lang,
+  isDark, lang, onOpenChat,
 }) {
   const T = useTheme(isDark)
 
@@ -1024,6 +1032,7 @@ export default function LeadsBoard({
                   onSelect={handleSelect}
                   onOpenDetail={setDetailLead}
                   onAddRow={handleAddRow}
+                  onOpenChat={onOpenChat}
                   onStatusClick={(e, lead) => setStatusTarget(lead)} />
               )
             })}
