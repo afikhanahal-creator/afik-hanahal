@@ -12,8 +12,7 @@ import { FaChevronLeft, FaChevronRight, FaEnvelope, FaFacebookF, FaInstagram, Fa
 
 // ─── SERVER CONFIG ────────────────────────────────────────────────────────────
 // Set VITE_API_URL in Vercel env vars to point at your Render server.
-// Leave empty to fall back to localStorage-only mode (dev / no server).
-const API_BASE    = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
+const API_BASE    = (import.meta.env.VITE_API_URL || 'https://afik-hanahal-server.onrender.com').replace(/\/$/, '')
 const ADMIN_TOKEN = 'AFIKhanahal2026'
 
 // ─── THEME COLOURS ────────────────────────────────────────────────────────────
@@ -4296,7 +4295,9 @@ Return ONLY valid JSON (no markdown, no code blocks):
       {/* ── MAIN PANE ─────────────────────────────────────────────────── */}
       <div className={`admin-main-pane${standalone ? '' : ' admin-panel-modal'}`} style={standalone
         ? { flex:1, display:'flex', flexDirection:'column', height:'100dvh', overflow:'hidden' }
-        : { background:C.card, border:`1px solid ${C.purple}33`, borderRadius:16, padding:28, width:'100%', maxWidth:1200, maxHeight:'94vh', overflowY:'auto', direction:'rtl', boxShadow:'0 32px 80px rgba(0,0,0,.7)' }}>
+        : (tab==='chats'||tab==='leads')
+          ? { background:C.card, border:`1px solid ${C.purple}33`, borderRadius:16, padding:28, width:'100%', maxWidth:1200, height:'94vh', overflow:'hidden', direction:'rtl', boxShadow:'0 32px 80px rgba(0,0,0,.7)', display:'flex', flexDirection:'column' }
+          : { background:C.card, border:`1px solid ${C.purple}33`, borderRadius:16, padding:28, width:'100%', maxWidth:1200, maxHeight:'94vh', overflowY:'auto', direction:'rtl', boxShadow:'0 32px 80px rgba(0,0,0,.7)' }}>
 
         {/* ── MOBILE TOP BAR — inside main pane ──────────────────────── */}
         {standalone && (
@@ -4390,7 +4391,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
         )}
 
         {/* ── Scrollable content ─────────────────────────────────────── */}
-        <div className="admin-content" style={(tab==='chats'||tab==='leads') ? { flex:1, overflow:'hidden', display:'flex', flexDirection:'column', minHeight: standalone ? undefined : 600 } : standalone ? { flex:1, overflowY:'auto', padding:'22px 26px 32px', direction:'rtl' } : { padding:'22px 26px 32px', direction:'rtl' }}>
+        <div className="admin-content" style={(tab==='chats'||tab==='leads') ? { flex:1, minHeight:0, overflow:'hidden', display:'flex', flexDirection:'column' } : standalone ? { flex:1, overflowY:'auto', padding:'22px 26px 32px', direction:'rtl' } : { padding:'22px 26px 32px', direction:'rtl' }}>
 
         {/* Overview tab — standalone only */}
         {tab==='overview' && standalone && (<>
@@ -4709,6 +4710,11 @@ Return ONLY valid JSON (no markdown, no code blocks):
                     title="סנכרן הכל לשרת"
                     style={{ padding:'5px 10px', background:`${C.purple}18`, border:`1px solid ${C.purple}44`, borderRadius:6, color:C.purple, cursor: propSyncing ? 'not-allowed' : 'pointer', fontSize:11, fontFamily:'inherit', fontWeight:700, whiteSpace:'nowrap', opacity: propSyncing ? .6 : 1 }}>
                     {propSyncing ? 'מסנכרן...' : '↻ סנכרן הכל'}
+                  </button>
+                  <button onClick={() => { const base = API_BASE || ''; if (!base) return; const headers = { Authorization: `Bearer ${ADMIN_TOKEN}` }; fetch(`${base}/api/properties`, { headers }).then(r => r.ok ? r.json() : Promise.reject()).then(data => { if (Array.isArray(data) && data.length > 0) setProperties(data) }).catch(() => {}) }}
+                    title="רענן נכסים מהשרת"
+                    style={{ padding:'5px 10px', background:'rgba(34,197,94,.1)', border:'1px solid rgba(34,197,94,.3)', borderRadius:6, color:'#22C55E', cursor:'pointer', fontSize:11, fontFamily:'inherit', fontWeight:700, whiteSpace:'nowrap' }}>
+                    ↺ רענן מהשרת
                   </button>
                 </div>
               </div>
@@ -8189,12 +8195,13 @@ export default function App() {
         .then(data => {
           if (Array.isArray(data) && data.length > 0) {
             setProperties(prev => {
-              if (data.length < prev.length) return prev
-              // Per-property merge: keep whichever version has a newer updatedAt
-              const serverById = new Map(data.map(p => [String(p.id), p]))
-              return prev.map(localProp => {
-                const serverProp = serverById.get(String(localProp.id))
-                if (!serverProp) return localProp
+              if (!prev.length) return data  // no local cache: trust server
+              if (data.length < prev.length) return prev  // server lost data (restart): keep local
+              // Server has same/more: server list is authoritative for IDs, merge per-property
+              const localById = new Map(prev.map(p => [String(p.id), p]))
+              return data.map(serverProp => {
+                const localProp = localById.get(String(serverProp.id))
+                if (!localProp) return serverProp
                 const serverNewer = (serverProp.updatedAt || 0) >= (localProp.updatedAt || 0)
                 return serverNewer ? { ...localProp, ...serverProp } : localProp
               })
@@ -8253,12 +8260,12 @@ export default function App() {
       .then(data => {
         if (Array.isArray(data) && data.length > 0) {
           setProperties(prev => {
+            if (!prev.length) return data
             if (data.length < prev.length) return prev
-            // Per-property merge: keep whichever version has a newer updatedAt
-            const serverById = new Map(data.map(p => [String(p.id), p]))
-            return prev.map(localProp => {
-              const serverProp = serverById.get(String(localProp.id))
-              if (!serverProp) return localProp
+            const localById = new Map(prev.map(p => [String(p.id), p]))
+            return data.map(serverProp => {
+              const localProp = localById.get(String(serverProp.id))
+              if (!localProp) return serverProp
               const serverNewer = (serverProp.updatedAt || 0) >= (localProp.updatedAt || 0)
               return serverNewer ? { ...localProp, ...serverProp } : localProp
             })
@@ -8268,6 +8275,21 @@ export default function App() {
       })
       .catch(() => {})
   }, [adminAuth])
+
+  // ── Auto-refresh properties every 60s ─────────────────────────────────────
+  useEffect(() => {
+    if (!API_BASE) return
+    const base = API_BASE
+    const refresh = () => {
+      const headers = adminAuth ? { Authorization: `Bearer ${ADMIN_TOKEN}` } : {}
+      fetch(`${base}/api/properties`, { headers })
+        .then(r => r.ok ? r.json() : Promise.reject())
+        .then(data => { if (Array.isArray(data) && data.length > 0) setProperties(data) })
+        .catch(() => {})
+    }
+    const id = setInterval(refresh, 60000)
+    return () => clearInterval(id)
+  }, [adminAuth]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Open wizard from admin panel banner ──
   useEffect(() => {
