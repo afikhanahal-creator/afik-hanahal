@@ -3742,6 +3742,28 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     } catch {}
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const fetchAllChats = useCallback(async () => {
+    if (!API_BASE) return
+    try {
+      const r = await fetch(`${API_BASE}/api/chats/conversations`, { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` }, signal: AbortSignal.timeout(10000) })
+      if (!r.ok) return
+      const convs = await r.json()
+      if (!Array.isArray(convs)) return
+      setChats(prev => {
+        const next = { ...prev }
+        for (const conv of convs) {
+          const p = (conv.phone || '').replace(/D/g, '')
+          if (!p) continue
+          const normalised = p.startsWith('972') ? p : p.startsWith('0') ? '972' + p.slice(1) : p
+          if (!next[normalised] || next[normalised].length === 0) {
+            next[normalised] = [{ id: 'conv-' + normalised, phone: normalised, message: conv.lastMessage || '', direction: conv.lastDirection || 'in', created_at: conv.lastAt || new Date().toISOString() }]
+          }
+        }
+        return next
+      })
+    } catch {}
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   const sendChatMsg = async (lead) => {
     const msg = chatInput.trim()
     if (!msg || chatSending) return
@@ -3815,13 +3837,21 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     return () => { if (chatPollRef.current) clearInterval(chatPollRef.current) }
   }, [selectedLead?.id, fetchChats])
 
-  // Poll chats for selected contact in the dedicated chat tab
+  // Poll chats for selected contact in the dedicated chat tab (every 3s)
   useEffect(() => {
     if (tab !== 'chats' || !chatContact?.phone) return
     fetchChats(chatContact.phone)
-    const interval = setInterval(() => fetchChats(chatContact.phone), 5000)
+    const interval = setInterval(() => fetchChats(chatContact.phone), 3000)
     return () => clearInterval(interval)
   }, [chatContact?.id, tab, fetchChats]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Poll all conversations list (sidebar last messages) every 8s when in chats tab
+  useEffect(() => {
+    if (tab !== 'chats') return
+    fetchAllChats()
+    const id = setInterval(fetchAllChats, 8000)
+    return () => clearInterval(id)
+  }, [tab, fetchAllChats]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch Green API status when chats tab opens
   useEffect(() => {
@@ -4930,10 +4960,10 @@ Return ONLY valid JSON (no markdown, no code blocks):
               <span style={{ color:'rgba(233,237,239,.6)', fontWeight:500 }}>Green API {statusLabel}</span>
               <span style={{ color:'rgba(233,237,239,.28)', marginRight:'auto' }}>afik.hanahal@gmail.com</span>
             </div>
-            <div style={{ display:'flex', flex:1, height:0, minHeight:0, direction:'ltr', overflow:'hidden' }}>
+            <div style={{ display:'flex', flex:1, height:0, minHeight:0, direction:'rtl', overflow:'hidden' }}>
 
               {/* ── SIDEBAR ────────────────────────────────────────── */}
-              <div style={{ width:330, flexShrink:0, display:'flex', flexDirection:'column', background:WA.sidebar, borderRight:`1px solid ${WA.divider}` }}>
+              <div style={{ width:330, flexShrink:0, display:'flex', flexDirection:'column', background:WA.sidebar, borderLeft:`1px solid ${WA.divider}` }}>
 
                 {/* Sidebar top bar */}
                 <div style={{ padding:'10px 16px', background:WA.header, display:'flex', alignItems:'center', gap:10, flexShrink:0 }}>
