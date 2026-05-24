@@ -4012,7 +4012,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const save = async (publish) => {
     if (!form.title.trim() || !form.location.trim()) { setErr('שם הנכס ועיר הם שדות חובה'); return }
     setErr('')
-    const prop = { ...form, published: publish }
+    const prop = { ...form, published: publish, updatedAt: Date.now() }
     let nextProps
     if (editId !== null) {
       nextProps = properties.map(x => x.id===editId ? { ...prop, id:editId } : x)
@@ -4030,11 +4030,11 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     await syncProps(nextProps)
   }
   const publish = id => {
-    const next = properties.map(x => x.id===id ? { ...x, published:true } : x)
+    const next = properties.map(x => x.id===id ? { ...x, published:true, updatedAt: Date.now() } : x)
     setProperties(next); syncProps(next)
   }
   const unpublish = id => {
-    const next = properties.map(x => x.id===id ? { ...x, published:false } : x)
+    const next = properties.map(x => x.id===id ? { ...x, published:false, updatedAt: Date.now() } : x)
     setProperties(next); syncProps(next)
   }
   const setStatus = (id, status) => {
@@ -4815,7 +4815,13 @@ Return ONLY valid JSON (no markdown, no code blocks):
                                 if (!r.ok) throw new Error(r.status)
                                 const all = await r.json()
                                 const fresh = Array.isArray(all) ? all.find(x => String(x.id)===String(p.id)) : null
-                                if (!fresh) { alert('נכס לא נמצא בשרת'); return }
+                                if (!fresh) { alert('הנכס לא נמצא בשרת — השרת אולי הופעל מחדש.\nהנתונים המקומיים שמורים.'); return }
+                                const localProp = properties.find(x => String(x.id)===String(p.id))
+                                const localNewer = (localProp?.updatedAt || 0) > (fresh.updatedAt || 0)
+                                const msg = localNewer
+                                  ? `⚠️ אזהרה: הנתונים בשרת ישנים יותר מהנתונים המקומיים!\n\nאם תאשר — הנתונים המקומיים העדכניים שלך יוחלפו בנתוני השרת הישנים.\n\nהאם להמשיך בכל זאת?`
+                                  : `רענן את "${p.title}" מהשרת?\n\nהנתונים המקומיים יוחלפו בנתוני השרת.`
+                                if (!window.confirm(msg)) return
                                 setProperties(prev => prev.map(x => String(x.id)===String(p.id) ? { ...x, ...fresh } : x))
                                 alert('נכס רוענן בהצלחה')
                               } catch(e) { alert('שגיאת רענון: ' + e.message) }
@@ -8166,9 +8172,17 @@ export default function App() {
         .then(r => r.ok ? r.json() : Promise.reject(r.status))
         .then(data => {
           if (Array.isArray(data) && data.length > 0) {
-            // Only overwrite localStorage cache if server has more/equal properties
-            // (prevents stale Render cold-start data from wiping admin changes)
-            setProperties(prev => data.length >= prev.length ? data : prev)
+            setProperties(prev => {
+              if (data.length < prev.length) return prev
+              // Per-property merge: keep whichever version has a newer updatedAt
+              const serverById = new Map(data.map(p => [String(p.id), p]))
+              return prev.map(localProp => {
+                const serverProp = serverById.get(String(localProp.id))
+                if (!serverProp) return localProp
+                const serverNewer = (serverProp.updatedAt || 0) >= (localProp.updatedAt || 0)
+                return serverNewer ? { ...localProp, ...serverProp } : localProp
+              })
+            })
           }
           propsLoaded.current = true
         })
@@ -8221,10 +8235,18 @@ export default function App() {
     })
       .then(r => r.ok ? r.json() : Promise.reject())
       .then(data => {
-        // Only overwrite state if the server returned actual properties.
-        // Prefer local state if it has MORE properties (protects against stale server cold-start).
         if (Array.isArray(data) && data.length > 0) {
-          setProperties(prev => data.length >= prev.length ? data : prev)
+          setProperties(prev => {
+            if (data.length < prev.length) return prev
+            // Per-property merge: keep whichever version has a newer updatedAt
+            const serverById = new Map(data.map(p => [String(p.id), p]))
+            return prev.map(localProp => {
+              const serverProp = serverById.get(String(localProp.id))
+              if (!serverProp) return localProp
+              const serverNewer = (serverProp.updatedAt || 0) >= (localProp.updatedAt || 0)
+              return serverNewer ? { ...localProp, ...serverProp } : localProp
+            })
+          })
         }
         if (Array.isArray(data)) propsLoaded.current = true
       })
