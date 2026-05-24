@@ -3620,6 +3620,9 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const [chatSending, setChatSending] = useState(false)
   const [chatContact, setChatContact] = useState(null)
   const [chatSearch, setChatSearch] = useState('')
+  const [chatStatus, setChatStatus]   = useState(null)  // 'authorized'|'notAuthorized'|'error'
+  const [newChatOpen, setNewChatOpen] = useState(false)
+  const [newChatPhone, setNewChatPhone] = useState('')
   const chatPollRef = useRef(null)
   const chatScrollRef = useRef(null)
   const [selectedLead, setSelectedLead] = useState(null)
@@ -3730,6 +3733,14 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     } catch {}
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const fetchChatStatus = useCallback(async () => {
+    if (!API_BASE) return
+    try {
+      const r = await fetch(`${API_BASE}/api/chats/status`, { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` }, signal: AbortSignal.timeout(8000) })
+      if (r.ok) { const d = await r.json(); setChatStatus(d.state || null) }
+    } catch {}
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   const sendChatMsg = async (lead) => {
     const msg = chatInput.trim()
     if (!msg || chatSending) return
@@ -3807,11 +3818,19 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   useEffect(() => {
     if (tab !== 'chats' || !chatContact?.phone) return
     fetchChats(chatContact.phone)
-    const interval = setInterval(() => fetchChats(chatContact.phone), 10000)
+    const interval = setInterval(() => fetchChats(chatContact.phone), 5000)
     return () => clearInterval(interval)
   }, [chatContact?.id, tab, fetchChats]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-scroll chat to bottom when new messages arrive
+  // Fetch Green API status when chats tab opens
+  useEffect(() => {
+    if (tab !== 'chats') return
+    fetchChatStatus()
+    const id = setInterval(fetchChatStatus, 60000)
+    return () => clearInterval(id)
+  }, [tab, fetchChatStatus])
+
+    // Auto-scroll chat to bottom when new messages arrive
   useEffect(() => {
     if (chatScrollRef.current) chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight
   }, [chats])
@@ -4301,7 +4320,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
         )}
 
         {/* ── Scrollable content ─────────────────────────────────────── */}
-        <div className="admin-content" style={standalone ? { flex:1, overflowY:'auto', padding:'22px 26px 32px', direction:'rtl' } : {}}>
+        <div className="admin-content" style={standalone ? (tab==='chats' ? { flex:1, overflow:'hidden', direction:'rtl', display:'flex', flexDirection:'column' } : { flex:1, overflowY:'auto', padding:'22px 26px 32px', direction:'rtl' }) : {}}>
 
         {/* Overview tab — standalone only */}
         {tab==='overview' && standalone && (<>
@@ -5492,8 +5511,44 @@ Return ONLY valid JSON (no markdown, no code blocks):
 
           const WA = { bg:'#0B141A', sidebar:'#111B21', header:'#202C33', divider:'#2A3942', incoming:'#1F2C33', outgoing:'#005C4B', text:'#E9EDEF', sub:'#8696A0', tick:'#53BDEB' }
 
+          const startNewChat = () => {
+            const raw = newChatPhone.trim()
+            if (!raw) return
+            const p = (raw.replace(/D/g,'').startsWith('972') ? raw.replace(/D/g,'') : '972' + raw.replace(/D/g,'').replace(/^0/,''))
+            if (!p || p.length < 11) { alert('מספר לא תקין'); return }
+            setNewChatOpen(false); setNewChatPhone('')
+            const fake = { id:'new-'+p, name: p, phone: p }
+            setChatContact(fake); fetchChats(p)
+          }
+
+          const statusColor = chatStatus==='authorized'?'#22C55E':chatStatus==='notAuthorized'?'#F97316':chatStatus==='error'?'#E05252':'#8696A0'
+          const statusLabel = chatStatus==='authorized'?'מחובר':chatStatus==='notAuthorized'?'לא מורשה':chatStatus==='error'?'שגיאה':chatStatus==='notConfigured'?'לא מוגדר':'...'
+
           return (
-            <div style={{ display:'flex', height:'calc(100dvh - 160px)', minHeight:500, direction:'ltr', borderRadius:12, overflow:'hidden', border:`1px solid ${C.purple}22`, boxShadow:'0 6px 40px rgba(0,0,0,.5)' }}>
+            <>
+            {newChatOpen && (
+              <div style={{ position:'fixed', inset:0, zIndex:10000, background:'rgba(0,0,0,.7)', display:'flex', alignItems:'center', justifyContent:'center' }}
+                onClick={e => e.target===e.currentTarget && setNewChatOpen(false)}>
+                <div style={{ background:WA.header, borderRadius:12, padding:28, width:340, direction:'rtl', boxShadow:'0 20px 60px rgba(0,0,0,.6)' }}>
+                  <div style={{ fontSize:16, fontWeight:700, color:WA.text, marginBottom:18 }}>שיחה חדשה</div>
+                  <div style={{ fontSize:12, color:WA.sub, marginBottom:10 }}>הכנס מספר טלפון</div>
+                  <input autoFocus value={newChatPhone} onChange={e=>setNewChatPhone(e.target.value)}
+                    onKeyDown={e=>e.key==='Enter'&&startNewChat()}
+                    placeholder="05XXXXXXXX"
+                    style={{ width:'100%', padding:'11px 14px', background:WA.sidebar, border:'none', borderRadius:8, color:WA.text, fontSize:14, fontFamily:'inherit', outline:'none', direction:'ltr', marginBottom:16, boxSizing:'border-box' }}/>
+                  <div style={{ display:'flex', gap:10 }}>
+                    <button onClick={startNewChat} style={{ flex:1, padding:'11px 0', background:'#00A884', border:'none', borderRadius:8, color:'#fff', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>התחל שיחה</button>
+                    <button onClick={()=>setNewChatOpen(false)} style={{ flex:1, padding:'11px 0', background:WA.sidebar, border:'none', borderRadius:8, color:WA.sub, fontSize:14, cursor:'pointer', fontFamily:'inherit' }}>ביטול</button>
+                  </div>
+                </div>
+              </div>
+            )}
+            <div style={{ background:'#1A2329', borderBottom:`1px solid ${WA.divider}`, padding:'6px 20px', display:'flex', alignItems:'center', gap:10, flexShrink:0, direction:'rtl', fontSize:12 }}>
+              <span style={{ width:8, height:8, borderRadius:'50%', background:statusColor, boxShadow:`0 0 6px ${statusColor}99`, display:'inline-block', flexShrink:0 }}/>
+              <span style={{ color:'rgba(233,237,239,.6)', fontWeight:500 }}>Green API {statusLabel}</span>
+              <span style={{ color:'rgba(233,237,239,.28)', marginRight:'auto' }}>afik.hanahal@gmail.com</span>
+            </div>
+            <div style={{ display:'flex', flex:1, height:0, minHeight:0, direction:'ltr', overflow:'hidden' }}>
 
               {/* ── SIDEBAR ────────────────────────────────────────── */}
               <div style={{ width:330, flexShrink:0, display:'flex', flexDirection:'column', background:WA.sidebar, borderRight:`1px solid ${WA.divider}` }}>
@@ -5504,6 +5559,9 @@ Return ONLY valid JSON (no markdown, no code blocks):
                     <FaWhatsapp size={20} style={{ color:'#aebac1' }}/>
                   </div>
                   <div style={{ flex:1, fontWeight:600, fontSize:16, color:WA.text }}>{lang==='en'?'WhatsApp':'WhatsApp'}</div>
+                  <button onClick={()=>{ setNewChatOpen(true); setNewChatPhone('') }} title='שיחה חדשה'
+                    style={{ width:34, height:34, borderRadius:8, background:'transparent', border:`1px solid ${WA.sub}44`, color:WA.sub, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, fontWeight:300, transition:'all .15s', marginLeft:4 }}
+                    onMouseEnter={e=>{ e.currentTarget.style.background='#374045'; e.currentTarget.style.color='#fff' }} onMouseLeave={e=>{ e.currentTarget.style.background='transparent'; e.currentTarget.style.color=WA.sub }}>+</button>
                   <button onClick={()=>chatContact&&fetchChats(chatContact.phone)} title={lang==='en'?'Refresh':'רענן'}
                     style={{ width:34, height:34, borderRadius:'50%', background:'transparent', border:'none', color:WA.sub, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, transition:'background .15s' }}
                     onMouseEnter={e=>e.currentTarget.style.background='#374045'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>⟳</button>
@@ -5665,6 +5723,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
                 )}
               </div>
             </div>
+            </>
           )
         })()}
 
