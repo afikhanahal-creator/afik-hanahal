@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react'
+﻿import { useState, useRef, useCallback, useEffect } from 'react'
 import {
   FaTimes, FaChevronRight, FaChevronLeft, FaCheck, FaCamera,
   FaWhatsapp, FaCopy,
@@ -14,7 +14,7 @@ import {
   FaSwimmingPool, FaWifi, FaUsers, FaBriefcase,
 } from 'react-icons/fa'
 
-// ─── Cloudinary config ── fill in your own cloud name + unsigned preset ───────
+// â”€â”€â”€ Cloudinary config â”€â”€ fill in your own cloud name + unsigned preset â”€â”€â”€â”€â”€â”€â”€
 const CLOUDINARY_CLOUD  = 'your-cloud-name'    // e.g. 'dxyz123abc'
 const CLOUDINARY_PRESET = 'your-upload-preset' // unsigned upload preset
 
@@ -35,7 +35,7 @@ const uploadToCloudinary = (file, onProgress) => new Promise((resolve, reject) =
   xhr.send(fd)
 })
 
-// Compress image → base64 JPEG (mirrors App.jsx ImageUpload logic)
+// Compress image â†’ base64 JPEG (mirrors App.jsx ImageUpload logic)
 const compressImage = file => new Promise(res => {
   const reader = new FileReader()
   reader.onload = e => {
@@ -54,76 +54,76 @@ const compressImage = file => new Promise(res => {
   reader.readAsDataURL(file)
 })
 
-// ─── Data ────────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const STEPS = [
-  { id: 1, title: 'סוג עסקה' },
-  { id: 2, title: 'כתובת' },
-  { id: 3, title: 'פרטי נכס' },
-  { id: 4, title: 'מחיר' },
-  { id: 5, title: 'תיאור' },
-  { id: 6, title: 'מדיה' },
-  { id: 7, title: 'סיכום' },
+  { id: 1, title: '×¡×•×’ ×¢×¡×§×”' },
+  { id: 2, title: '×›×ª×•×‘×ª' },
+  { id: 3, title: '×¤×¨×˜×™ × ×›×¡' },
+  { id: 4, title: '×ž×—×™×¨' },
+  { id: 5, title: '×ª×™××•×¨' },
+  { id: 6, title: '×ž×“×™×”' },
+  { id: 7, title: '×¡×™×›×•×' },
 ]
 
 const PROPERTY_TYPES = [
-  'דירה', 'דירת גן', 'בית פרטי / קוטג׳', 'גג / פנטהאוז',
-  'מגרש', 'דופלקס', 'דירת נופש', 'דו משפחתי',
-  'מרתף / פרטר', 'טריפלקס', 'נחלה', 'קרקע חקלאית',
-  'משרד', 'חנות', 'נכס מסחרי', 'מבנה תעשייתי', 'קרקע מסחרית',
+  '×“×™×¨×”', '×“×™×¨×ª ×’×Ÿ', '×‘×™×ª ×¤×¨×˜×™ / ×§×•×˜×’×³', '×’×’ / ×¤× ×˜×”××•×–',
+  '×ž×’×¨×©', '×“×•×¤×œ×§×¡', '×“×™×¨×ª × ×•×¤×©', '×“×• ×ž×©×¤×—×ª×™',
+  '×ž×¨×ª×£ / ×¤×¨×˜×¨', '×˜×¨×™×¤×œ×§×¡', '× ×—×œ×”', '×§×¨×§×¢ ×—×§×œ××™×ª',
+  '×ž×©×¨×“', '×—× ×•×ª', '× ×›×¡ ×ž×¡×—×¨×™', '×ž×‘× ×” ×ª×¢×©×™×™×ª×™', '×§×¨×§×¢ ×ž×¡×—×¨×™×ª',
 ]
 
-const COMMERCIAL_TYPES = ['משרד', 'חנות', 'נכס מסחרי', 'מבנה תעשייתי', 'קרקע מסחרית']
+const COMMERCIAL_TYPES = ['×ž×©×¨×“', '×—× ×•×ª', '× ×›×¡ ×ž×¡×—×¨×™', '×ž×‘× ×” ×ª×¢×©×™×™×ª×™', '×§×¨×§×¢ ×ž×¡×—×¨×™×ª']
 
 const CONDITIONS = [
-  { v: 'new_contractor', l: 'חדש מקבלן', d: 'לא גרו בו בכלל' },
-  { v: 'new',            l: 'חדש',        d: 'נכס בן עד 10 שנים' },
-  { v: 'renovated',      l: 'משופץ',      d: 'שופץ ב-5 השנים האחרונות' },
-  { v: 'good',           l: 'במצב שמור',  d: 'במצב טוב, לא שופץ' },
-  { v: 'needs_reno',     l: 'דרוש שיפוץ', d: 'זקוק לעבודות שיפוץ' },
+  { v: 'new_contractor', l: '×—×“×© ×ž×§×‘×œ×Ÿ', d: '×œ× ×’×¨×• ×‘×• ×‘×›×œ×œ' },
+  { v: 'new',            l: '×—×“×©',        d: '× ×›×¡ ×‘×Ÿ ×¢×“ 10 ×©× ×™×' },
+  { v: 'renovated',      l: '×ž×©×•×¤×¥',      d: '×©×•×¤×¥ ×‘-5 ×”×©× ×™× ×”××—×¨×•× ×•×ª' },
+  { v: 'good',           l: '×‘×ž×¦×‘ ×©×ž×•×¨',  d: '×‘×ž×¦×‘ ×˜×•×‘, ×œ× ×©×•×¤×¥' },
+  { v: 'needs_reno',     l: '×“×¨×•×© ×©×™×¤×•×¥', d: '×–×§×•×§ ×œ×¢×‘×•×“×•×ª ×©×™×¤×•×¥' },
 ]
 
 const AMENITIES = [
-  { k: 'accessible',  l: 'גישה לנכים',  Icon: FaWheelchair },
-  { k: 'ac',          l: 'מיזוג',        Icon: FaSnowflake },
-  { k: 'elevator',    l: 'מעלית',        Icon: FaBuilding },
-  { k: 'parking',     l: 'חניה',         Icon: FaCar },
-  { k: 'storage',     l: 'מחסן',         Icon: FaBox },
-  { k: 'shelter',     l: 'ממ"ד',         Icon: FaShieldAlt },
-  { k: 'balcony',     l: 'מרפסת',        Icon: FaExpand },
-  { k: 'pool',        l: 'בריכה',        Icon: FaSwimmingPool },
-  { k: 'kosher',      l: 'מטבח כשר',     Icon: FaUtensils },
-  { k: 'solar',       l: 'דוד שמש',      Icon: FaSun },
-  { k: 'bars',        l: 'סורגים',       Icon: FaLock },
-  { k: 'unit',        l: 'יחידת דיור',   Icon: FaDoorOpen },
-  { k: 'furnished',   l: 'ריהוט',        Icon: FaCouch },
-  { k: 'renovated_f', l: 'שיפוץ',        Icon: FaTools },
-  { k: 'doorman',     l: 'שוער',         Icon: FaUserShield },
-  { k: 'tornado_ac',  l: 'מזגן טורנדו',  Icon: FaWind },
-  { k: 'boiler',      l: 'דוד חשמל',     Icon: FaBolt },
+  { k: 'accessible',  l: '×’×™×©×” ×œ× ×›×™×',  Icon: FaWheelchair },
+  { k: 'ac',          l: '×ž×™×–×•×’',        Icon: FaSnowflake },
+  { k: 'elevator',    l: '×ž×¢×œ×™×ª',        Icon: FaBuilding },
+  { k: 'parking',     l: '×—× ×™×”',         Icon: FaCar },
+  { k: 'storage',     l: '×ž×—×¡×Ÿ',         Icon: FaBox },
+  { k: 'shelter',     l: '×ž×ž"×“',         Icon: FaShieldAlt },
+  { k: 'balcony',     l: '×ž×¨×¤×¡×ª',        Icon: FaExpand },
+  { k: 'pool',        l: '×‘×¨×™×›×”',        Icon: FaSwimmingPool },
+  { k: 'kosher',      l: '×ž×˜×‘×— ×›×©×¨',     Icon: FaUtensils },
+  { k: 'solar',       l: '×“×•×“ ×©×ž×©',      Icon: FaSun },
+  { k: 'bars',        l: '×¡×•×¨×’×™×',       Icon: FaLock },
+  { k: 'unit',        l: '×™×—×™×“×ª ×“×™×•×¨',   Icon: FaDoorOpen },
+  { k: 'furnished',   l: '×¨×™×”×•×˜',        Icon: FaCouch },
+  { k: 'renovated_f', l: '×©×™×¤×•×¥',        Icon: FaTools },
+  { k: 'doorman',     l: '×©×•×¢×¨',         Icon: FaUserShield },
+  { k: 'tornado_ac',  l: '×ž×–×’×Ÿ ×˜×•×¨× ×“×•',  Icon: FaWind },
+  { k: 'boiler',      l: '×“×•×“ ×—×©×ž×œ',     Icon: FaBolt },
 ]
 
 const COMMERCIAL_AMENITIES = [
-  { k: 'kitchenette',    l: 'מטבחון',        Icon: FaUtensils },
-  { k: 'alarm',          l: 'אזעקה',          Icon: FaExclamationTriangle },
-  { k: 'cameras',        l: 'מצלמות אבטחה',  Icon: FaCamera },
-  { k: 'conf_room',      l: 'חדר ישיבות',    Icon: FaUsers },
-  { k: 'comm_room',      l: 'חדר תקשורת',    Icon: FaWifi },
-  { k: 'mamak',          l: 'ממק',            Icon: FaBriefcase },
-  { k: 'accessible',     l: 'גישה לנכים',    Icon: FaWheelchair },
-  { k: 'elevator',       l: 'מעלית',          Icon: FaBuilding },
-  { k: 'parking',        l: 'חניה',           Icon: FaCar },
-  { k: 'ac',             l: 'מיזוג',          Icon: FaSnowflake },
-  { k: 'storage',        l: 'מחסן',           Icon: FaBox },
-  { k: 'shelter',        l: 'ממ"ד',           Icon: FaShieldAlt },
+  { k: 'kitchenette',    l: '×ž×˜×‘×—×•×Ÿ',        Icon: FaUtensils },
+  { k: 'alarm',          l: '××–×¢×§×”',          Icon: FaExclamationTriangle },
+  { k: 'cameras',        l: '×ž×¦×œ×ž×•×ª ××‘×˜×—×”',  Icon: FaCamera },
+  { k: 'conf_room',      l: '×—×“×¨ ×™×©×™×‘×•×ª',    Icon: FaUsers },
+  { k: 'comm_room',      l: '×—×“×¨ ×ª×§×©×•×¨×ª',    Icon: FaWifi },
+  { k: 'mamak',          l: '×ž×ž×§',            Icon: FaBriefcase },
+  { k: 'accessible',     l: '×’×™×©×” ×œ× ×›×™×',    Icon: FaWheelchair },
+  { k: 'elevator',       l: '×ž×¢×œ×™×ª',          Icon: FaBuilding },
+  { k: 'parking',        l: '×—× ×™×”',           Icon: FaCar },
+  { k: 'ac',             l: '×ž×™×–×•×’',          Icon: FaSnowflake },
+  { k: 'storage',        l: '×ž×—×¡×Ÿ',           Icon: FaBox },
+  { k: 'shelter',        l: '×ž×ž"×“',           Icon: FaShieldAlt },
 ]
 
-const VIEWS      = ['ללא', 'ים', 'פארק', 'עיר', 'טבע']
+const VIEWS      = ['×œ×œ×', '×™×', '×¤××¨×§', '×¢×™×¨', '×˜×‘×¢']
 const DIRECTIONS = ['1', '2', '3', '4']
 
-const HE_MONTHS = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני',
-                   'יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר']
-const HE_DAYS   = ['א׳','ב׳','ג׳','ד׳','ה׳','ו׳','ש׳']
+const HE_MONTHS = ['×™× ×•××¨','×¤×‘×¨×•××¨','×ž×¨×¥','××¤×¨×™×œ','×ž××™','×™×•× ×™',
+                   '×™×•×œ×™','××•×’×•×¡×˜','×¡×¤×˜×ž×‘×¨','××•×§×˜×•×‘×¨','× ×•×‘×ž×‘×¨','×“×¦×ž×‘×¨']
+const HE_DAYS   = ['××³','×‘×³','×’×³','×“×³','×”×³','×•×³','×©×³']
 
 const INIT = {
   txType: 'sale', propType: '',
@@ -139,7 +139,7 @@ const INIT = {
   gush: '', helka: '', mapsUrl: '', landingPageUrl: '', youtubeUrl: '',
   logo: '',
   logoSize: 72,
-  pdfs: [],  // [{name, url}] — uploaded project PDFs
+  pdfs: [],  // [{name, url}] â€” uploaded project PDFs
 }
 
 const parsePrice = raw => raw.replace(/[^\d]/g,'').replace(/\B(?=(\d{3})+(?!\d))/g,',')
@@ -151,7 +151,15 @@ export function propertyToWizardData(prop) {
   const houseNum = streetParts.length > 1 ? streetParts[streetParts.length - 1] : ''
   const street   = streetParts.length > 1 ? streetParts.slice(0, -1).join(' ') : (prop.street || '')
   const images   = (prop.images || []).map(url => ({ url, name: '', type: 'image' }))
-  const videos   = prop.videoUrl ? [{ url: prop.videoUrl, name: 'סרטון', type: 'video', thumbnail: prop.videoThumbnail || '' }] : []
+  const allVideoUrls = new Set()
+  const videos = [
+    ...(prop.videos || [])
+      .filter(v => v && v.url && !v.url.startsWith('blob:'))
+      .map(v => { allVideoUrls.add(v.url); return { url: v.url, name: 'סרטון', type: 'video', thumbnail: v.thumbnail || '' } }),
+    ...(prop.videoUrl && !allVideoUrls.has(prop.videoUrl)
+      ? [{ url: prop.videoUrl, name: 'סרטון', type: 'video', thumbnail: '' }]
+      : []),
+  ]
   const rawPrice = prop.price ? String(prop.price).replace(/[^\d]/g, '') : ''
   const priceFormatted = rawPrice ? parsePrice(rawPrice) : ''
   return {
@@ -205,7 +213,7 @@ export function propertyToWizardData(prop) {
     price: priceFormatted,
     priceOnInquiry: !prop.price,
     entryDate: prop.entryDate || '',
-    entryFlex: prop.entryDate === 'גמיש',
+    entryFlex: prop.entryDate === '×’×ž×™×©',
     description: prop.description || '',
     media: [...images, ...videos],
     contactName: prop.contactName || '',
@@ -221,10 +229,10 @@ export function propertyToWizardData(prop) {
   }
 }
 
-// Wizard data → App.jsx property format
+// Wizard data â†’ App.jsx property format
 const inferCategory = propType => {
-  if (['קרקע חקלאית','מגרש','קרקע מסחרית'].includes(propType)) return 'land'
-  if (['בית פרטי / קוטג׳','דו משפחתי','נחלה'].includes(propType)) return 'projects'
+  if (['×§×¨×§×¢ ×—×§×œ××™×ª','×ž×’×¨×©','×§×¨×§×¢ ×ž×¡×—×¨×™×ª'].includes(propType)) return 'land'
+  if (['×‘×™×ª ×¤×¨×˜×™ / ×§×•×˜×’×³','×“×• ×ž×©×¤×—×ª×™','× ×—×œ×”'].includes(propType)) return 'projects'
   if (COMMERCIAL_TYPES.includes(propType)) return 'commercial'
   return 'apartments'
 }
@@ -266,13 +274,13 @@ export function wizardToProperty(d, isDraft) {
   return {
     id: Date.now(),
     category: inferCategory(d.propType),
-    title: `${d.propType}${d.rooms ? `, ${d.rooms} חד׳` : ''}${d.size ? `, ${d.size} מ"ר` : ''} - ${d.city}`,
+    title: `${d.propType}${d.rooms ? `, ${d.rooms} ×—×“×³` : ''}${d.size ? `, ${d.size} ×ž"×¨` : ''} - ${d.city}`,
     type: d.propType,
     txType: d.txType,
     location: d.city,
     street: [d.street, d.houseNum].filter(Boolean).join(' '),
     neighborhood: d.neighborhood || '',
-    region: d.area || 'השרון',
+    region: d.area || '×”×©×¨×•×Ÿ',
     district: d.district || '',
     floor: d.floor || '',
     totalFloors: d.totalFloors || '',
@@ -288,8 +296,8 @@ export function wizardToProperty(d, isDraft) {
     direction: d.directions || '',
     view: d.view || '',
     price: d.priceOnInquiry ? 0 : (d.price ? Number(d.price.replace(/,/g,'')) : 0),
-    priceDisplay: d.priceOnInquiry ? 'מחיר בפנייה' : (d.price ? `₪${d.price}` : ''),
-    entryDate: d.entryFlex ? 'גמיש' : d.entryDate,
+    priceDisplay: d.priceOnInquiry ? '×ž×—×™×¨ ×‘×¤× ×™×™×”' : (d.price ? `â‚ª${d.price}` : ''),
+    entryDate: d.entryFlex ? '×’×ž×™×©' : d.entryDate,
     description: d.description || '',
     images,
     videos: videoItems.map(v => ({ url: v.url, thumbnail: v.thumbnail || null })),
@@ -303,7 +311,7 @@ export function wizardToProperty(d, isDraft) {
     contactName: d.contactName || '',
     contactPhone: d.contactPhone || '',
     pdfs: d.pdfs || [],
-    status: 'בשיווק',
+    status: '×‘×©×™×•×•×§',
     published: !isDraft,
     source: 'wizard',
     createdAt: new Date().toISOString(),
@@ -311,7 +319,7 @@ export function wizardToProperty(d, isDraft) {
   }
 }
 
-// ─── Theme tokens ─────────────────────────────────────────────────────────────
+// â”€â”€â”€ Theme tokens â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const P      = '#8490D8'
 const G      = '#82F67F'
@@ -335,7 +343,7 @@ const labelStyle = {
   marginBottom: 7, letterSpacing: '.05em', fontFamily: FONT,
 }
 
-// ─── Shared UI pieces ────────────────────────────────────────────────────────
+// â”€â”€â”€ Shared UI pieces â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function Label({ text, req }) {
   return <label style={labelStyle}>{text}{req && <span style={{ color: P }}> *</span>}</label>
@@ -378,7 +386,7 @@ function Counter({ label, value, onChange, min = 0, max = 20 }) {
           style={{ width: 38, height: 38, borderRadius: 10, border: `1.5px solid ${BORDER}`,
             background: DARK, color: TEXT, fontSize: 18, cursor: 'pointer', fontFamily: FONT }}
           onMouseEnter={e => e.target.style.borderColor = P}
-          onMouseLeave={e => e.target.style.borderColor = BORDER}>−</button>
+          onMouseLeave={e => e.target.style.borderColor = BORDER}>âˆ’</button>
         <span style={{ fontSize: 17, fontWeight: 700, color: TEXT, minWidth: 40,
           textAlign: 'center', fontFamily: FONT }}>{value}</span>
         <button onClick={() => onChange(Math.min(max, value + 1))}
@@ -436,7 +444,7 @@ function CheckGrid({ items, checked, onChange }) {
   )
 }
 
-// ─── Calendar Picker ──────────────────────────────────────────────────────────
+// â”€â”€â”€ Calendar Picker â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function CalendarPicker({ value, onChange, disabled }) {
   const [open, setOpen] = useState(false)
@@ -486,7 +494,7 @@ function CalendarPicker({ value, onChange, disabled }) {
     appearance: 'none', textAlign: 'center',
   }
 
-  // Year range: today → +6 years
+  // Year range: today â†’ +6 years
   const yearOptions = Array.from({length: 7}, (_, i) => thisYear + i)
 
   return (
@@ -497,7 +505,7 @@ function CalendarPicker({ value, onChange, disabled }) {
           opacity: disabled ? 0.45 : 1,
           display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <span style={{ color: displayDate ? TEXT : MUTED, fontFamily: FONT }}>
-          {displayDate || 'בחר תאריך...'}
+          {displayDate || '×‘×—×¨ ×ª××¨×™×š...'}
         </span>
         <FaCalendarAlt size={14} style={{ color: MUTED, flexShrink: 0 }} />
       </div>
@@ -508,15 +516,15 @@ function CalendarPicker({ value, onChange, disabled }) {
           border: `1.5px solid ${BORDER}`, borderRadius: 16, padding: '14px 16px',
           boxShadow: `0 8px 32px rgba(0,0,0,.7)`, direction: 'ltr' }}>
 
-          {/* Navigation row — LTR: [‹ prev] [Month ▾] [Year ▾] [next ›] */}
+          {/* Navigation row â€” LTR: [â€¹ prev] [Month â–¾] [Year â–¾] [next â€º] */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8,
             justifyContent: 'space-between', marginBottom: 14 }}>
 
-            {/* ← Previous month */}
-            <button style={navBtn} onClick={prevMonth} title="חודש קודם"
+            {/* â† Previous month */}
+            <button style={navBtn} onClick={prevMonth} title="×—×•×“×© ×§×•×“×"
               onMouseEnter={e => { e.currentTarget.style.borderColor = P; e.currentTarget.style.color = P }}
               onMouseLeave={e => { e.currentTarget.style.borderColor = BORDER; e.currentTarget.style.color = TEXT }}>
-              ‹
+              â€¹
             </button>
 
             {/* Month + Year dropdowns */}
@@ -541,15 +549,15 @@ function CalendarPicker({ value, onChange, disabled }) {
               </select>
             </div>
 
-            {/* Next month → */}
-            <button style={navBtn} onClick={nextMonth} title="חודש הבא"
+            {/* Next month â†’ */}
+            <button style={navBtn} onClick={nextMonth} title="×—×•×“×© ×”×‘×"
               onMouseEnter={e => { e.currentTarget.style.borderColor = P; e.currentTarget.style.color = P }}
               onMouseLeave={e => { e.currentTarget.style.borderColor = BORDER; e.currentTarget.style.color = TEXT }}>
-              ›
+              â€º
             </button>
           </div>
 
-          {/* Day-of-week header — RTL: א׳ on right, ש׳ on left */}
+          {/* Day-of-week header â€” RTL: ××³ on right, ×©×³ on left */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 2,
             marginBottom: 6, direction: 'rtl' }}>
             {HE_DAYS.map(d => (
@@ -558,7 +566,7 @@ function CalendarPicker({ value, onChange, disabled }) {
             ))}
           </div>
 
-          {/* Days grid — RTL so Sunday (index 0) is rightmost */}
+          {/* Days grid â€” RTL so Sunday (index 0) is rightmost */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 3, direction: 'rtl' }}>
             {cells.map((day, i) => {
               if (!day) return <div key={`e${i}`} />
@@ -585,13 +593,13 @@ function CalendarPicker({ value, onChange, disabled }) {
             <button onClick={() => setView({ year: today.getFullYear(), month: today.getMonth() })}
               style={{ padding: '5px 14px', background: `${P}20`, border: `1px solid ${P}44`,
                 borderRadius: 8, color: P, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: FONT }}>
-              היום
+              ×”×™×•×
             </button>
             {selected && (
               <button onClick={() => { onChange(''); setOpen(false) }}
                 style={{ padding: '5px 14px', background: 'transparent', border: `1px solid ${BORDER}`,
                   borderRadius: 8, color: MUTED, fontSize: 12, cursor: 'pointer', fontFamily: FONT }}>
-                נקה בחירה
+                × ×§×” ×‘×—×™×¨×”
               </button>
             )}
           </div>
@@ -601,7 +609,7 @@ function CalendarPicker({ value, onChange, disabled }) {
   )
 }
 
-// ─── Publish Decision Modal ────────────────────────────────────────────────────
+// â”€â”€â”€ Publish Decision Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function PublishModal({ onPublish, onDraft, onCancel }) {
   return (
@@ -618,10 +626,10 @@ function PublishModal({ onPublish, onDraft, onCancel }) {
             <FaCheck size={30} style={{ color: G }} />
           </div>
           <h2 style={{ color: TEXT, fontSize: 22, fontWeight: 900, margin: '0 0 10px', fontFamily: FONT }}>
-            כמעט שם!
+            ×›×ž×¢×˜ ×©×!
           </h2>
           <p style={{ color: MUTED, fontSize: 14.5, lineHeight: 1.7, margin: 0, fontFamily: FONT }}>
-            האם תרצה לשמור את הנכס בטיוטות או לפרסם באתר?
+            ×”×× ×ª×¨×¦×” ×œ×©×ž×•×¨ ××ª ×”× ×›×¡ ×‘×˜×™×•×˜×•×ª ××• ×œ×¤×¨×¡× ×‘××ª×¨?
           </p>
         </div>
 
@@ -637,9 +645,9 @@ function PublishModal({ onPublish, onDraft, onCancel }) {
             onMouseLeave={e => e.currentTarget.style.filter = 'none'}>
             <FaGlobe size={15} />
             <div>
-              <div>פרסם באתר</div>
+              <div>×¤×¨×¡× ×‘××ª×¨</div>
               <div style={{ fontSize: 11.5, fontWeight: 400, opacity: 0.8, marginTop: 2 }}>
-                הנכס יופיע מיד בחיפוש ובדפי המשרד
+                ×”× ×›×¡ ×™×•×¤×™×¢ ×ž×™×“ ×‘×—×™×¤×•×© ×•×‘×“×¤×™ ×”×ž×©×¨×“
               </div>
             </div>
           </button>
@@ -655,9 +663,9 @@ function PublishModal({ onPublish, onDraft, onCancel }) {
             onMouseLeave={e => { e.currentTarget.style.borderColor = BORDER; e.currentTarget.style.color = TEXT }}>
             <FaSave size={14} />
             <div>
-              <div>שמור כטיוטה</div>
+              <div>×©×ž×•×¨ ×›×˜×™×•×˜×”</div>
               <div style={{ fontSize: 11.5, fontWeight: 400, opacity: 0.7, marginTop: 2 }}>
-                לא גלוי לציבור — ניתן לפרסם מאוחר יותר
+                ×œ× ×’×œ×•×™ ×œ×¦×™×‘×•×¨ â€” × ×™×ª×Ÿ ×œ×¤×¨×¡× ×ž××•×—×¨ ×™×•×ª×¨
               </div>
             </div>
           </button>
@@ -669,7 +677,7 @@ function PublishModal({ onPublish, onDraft, onCancel }) {
               textAlign: 'center', transition: 'color .2s' }}
             onMouseEnter={e => e.currentTarget.style.color = TEXT}
             onMouseLeave={e => e.currentTarget.style.color = MUTED}>
-            ← חזרה לסיכום
+            â† ×—×–×¨×” ×œ×¡×™×›×•×
           </button>
         </div>
       </div>
@@ -677,18 +685,18 @@ function PublishModal({ onPublish, onDraft, onCancel }) {
   )
 }
 
-// ─── Step components ──────────────────────────────────────────────────────────
+// â”€â”€â”€ Step components â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function Step1({ d, upd }) {
   return (
     <div>
       <h3 style={{ color: TEXT, fontSize: 20, fontWeight: 800, marginBottom: 24, marginTop: 0, fontFamily: FONT }}>
-        סוג עסקה
+        ×¡×•×’ ×¢×¡×§×”
       </h3>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 28 }}>
         {[
-          { v: 'sale', l: 'מכירה', d: 'אני מוכר נכס',  Icon: FaHome },
-          { v: 'rent', l: 'השכרה', d: 'אני משכיר נכס', Icon: FaKey  },
+          { v: 'sale', l: '×ž×›×™×¨×”', d: '×× ×™ ×ž×•×›×¨ × ×›×¡',  Icon: FaHome },
+          { v: 'rent', l: '×”×©×›×¨×”', d: '×× ×™ ×ž×©×›×™×¨ × ×›×¡', Icon: FaKey  },
         ].map(o => {
           const on = d.txType === o.v
           return (
@@ -704,23 +712,23 @@ function Step1({ d, upd }) {
           )
         })}
       </div>
-      <Field label="סוג נכס" req>
+      <Field label="×¡×•×’ × ×›×¡" req>
         <select value={d.propType} onChange={e => upd('propType', e.target.value)}
           className="pw-select"
           style={{ ...fieldStyle, appearance: 'none', cursor: 'pointer', color: TEXT, backgroundColor: '#0c0820' }}>
-          <option value="" style={{ background: '#0c0820', color: TEXT }}>בחר סוג נכס...</option>
+          <option value="" style={{ background: '#0c0820', color: TEXT }}>×‘×—×¨ ×¡×•×’ × ×›×¡...</option>
           {PROPERTY_TYPES.map(t => (
             <option key={t} value={t} style={{ background: '#0c0820', color: TEXT }}>{t}</option>
           ))}
         </select>
       </Field>
-      <Field label="שם המפרסם / איש קשר" req>
-        <input style={fieldStyle} value={d.contactName} placeholder="שם מלא"
+      <Field label="×©× ×”×ž×¤×¨×¡× / ××™×© ×§×©×¨" req>
+        <input style={fieldStyle} value={d.contactName} placeholder="×©× ×ž×œ×"
           onChange={e => upd('contactName', e.target.value)}
           onFocus={e => e.target.style.borderColor = P}
           onBlur={e  => e.target.style.borderColor = BORDER} />
       </Field>
-      <Field label="טלפון ליצירת קשר" req>
+      <Field label="×˜×œ×¤×•×Ÿ ×œ×™×¦×™×¨×ª ×§×©×¨" req>
         <input style={fieldStyle} value={d.contactPhone} placeholder="05X-XXXXXXX" dir="ltr"
           onChange={e => upd('contactPhone', e.target.value)}
           onFocus={e => e.target.style.borderColor = P}
@@ -734,29 +742,29 @@ function Step2({ d, upd }) {
   return (
     <div>
       <h3 style={{ color: TEXT, fontSize: 20, fontWeight: 800, marginBottom: 24, marginTop: 0, fontFamily: FONT }}>
-        כתובת הנכס
+        ×›×ª×•×‘×ª ×”× ×›×¡
       </h3>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
         <div style={{ gridColumn: '1 / -1' }}>
-          <Input label="ישוב / עיר" req value={d.city}
-            onChange={e => upd('city', e.target.value)} placeholder="לדוג׳: הרצליה, רעננה, כפר סבא..." />
+          <Input label="×™×©×•×‘ / ×¢×™×¨" req value={d.city}
+            onChange={e => upd('city', e.target.value)} placeholder="×œ×“×•×’×³: ×”×¨×¦×œ×™×”, ×¨×¢× × ×”, ×›×¤×¨ ×¡×‘×..." />
         </div>
-        <Input label="רחוב" req value={d.street}
-          onChange={e => upd('street', e.target.value)} placeholder="שם הרחוב" />
-        <Input label='מס׳ בית' req value={d.houseNum}
-          onChange={e => upd('houseNum', e.target.value)} placeholder="מספר" />
-        <Input label="קומה" value={d.floor}
-          onChange={e => upd('floor', e.target.value)} placeholder="מספר קומה" />
-        <Input label='סה"כ קומות בבניין' value={d.totalFloors}
-          onChange={e => upd('totalFloors', e.target.value)} placeholder="מספר" />
+        <Input label="×¨×—×•×‘" req value={d.street}
+          onChange={e => upd('street', e.target.value)} placeholder="×©× ×”×¨×—×•×‘" />
+        <Input label='×ž×¡×³ ×‘×™×ª' req value={d.houseNum}
+          onChange={e => upd('houseNum', e.target.value)} placeholder="×ž×¡×¤×¨" />
+        <Input label="×§×•×ž×”" value={d.floor}
+          onChange={e => upd('floor', e.target.value)} placeholder="×ž×¡×¤×¨ ×§×•×ž×”" />
+        <Input label='×¡×”"×› ×§×•×ž×•×ª ×‘×‘× ×™×™×Ÿ' value={d.totalFloors}
+          onChange={e => upd('totalFloors', e.target.value)} placeholder="×ž×¡×¤×¨" />
         <div style={{ gridColumn: '1 / -1' }}>
-          <Input label="שכונה" value={d.neighborhood}
-            onChange={e => upd('neighborhood', e.target.value)} placeholder="שם השכונה (אופציונלי)" />
+          <Input label="×©×›×•× ×”" value={d.neighborhood}
+            onChange={e => upd('neighborhood', e.target.value)} placeholder="×©× ×”×©×›×•× ×” (××•×¤×¦×™×•× ×œ×™)" />
         </div>
-        <Input label="אזור" value={d.area}
-          onChange={e => upd('area', e.target.value)} placeholder='לדוג׳: שרון, גוש דן...' />
-        <Input label="מחוז" value={d.district}
-          onChange={e => upd('district', e.target.value)} placeholder='מחוז' />
+        <Input label="××–×•×¨" value={d.area}
+          onChange={e => upd('area', e.target.value)} placeholder='×œ×“×•×’×³: ×©×¨×•×Ÿ, ×’×•×© ×“×Ÿ...' />
+        <Input label="×ž×—×•×–" value={d.district}
+          onChange={e => upd('district', e.target.value)} placeholder='×ž×—×•×–' />
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4, padding: '12px 16px',
         background: DARK, borderRadius: 10, border: `1px solid ${BORDER}` }}>
@@ -764,27 +772,27 @@ function Step2({ d, upd }) {
           onChange={e => upd('onPilotis', e.target.checked)}
           style={{ width: 16, height: 16, accentColor: P, cursor: 'pointer' }} />
         <label htmlFor="pilotis" style={{ color: TEXT, fontSize: 14, cursor: 'pointer', fontFamily: FONT }}>
-          על עמודים (פילוטיס)
+          ×¢×œ ×¢×ž×•×“×™× (×¤×™×œ×•×˜×™×¡)
         </label>
       </div>
 
       {/* Gush / Helka + Maps URL */}
       <div style={{ marginTop: 20, padding: '16px 18px', background: DARK, borderRadius: 12, border: `1px solid ${BORDER}` }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: P, marginBottom: 14, fontFamily: FONT, display: 'flex', alignItems: 'center', gap: 6 }}>
-          🗺️ גוש, חלקה וקישורים
+          ðŸ—ºï¸ ×’×•×©, ×—×œ×§×” ×•×§×™×©×•×¨×™×
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
           <div>
-            <label style={labelStyle}>גוש (GovMap)</label>
-            <input value={d.gush} placeholder="לדוג׳: 40095"
+            <label style={labelStyle}>×’×•×© (GovMap)</label>
+            <input value={d.gush} placeholder="×œ×“×•×’×³: 40095"
               onChange={e => upd('gush', e.target.value)}
               style={{ ...fieldStyle, direction: 'ltr' }}
               onFocus={e => e.target.style.borderColor = P}
               onBlur={e  => e.target.style.borderColor = BORDER} />
           </div>
           <div>
-            <label style={labelStyle}>חלקה (GovMap)</label>
-            <input value={d.helka} placeholder="לדוג׳: 13"
+            <label style={labelStyle}>×—×œ×§×” (GovMap)</label>
+            <input value={d.helka} placeholder="×œ×“×•×’×³: 13"
               onChange={e => upd('helka', e.target.value)}
               style={{ ...fieldStyle, direction: 'ltr' }}
               onFocus={e => e.target.style.borderColor = P}
@@ -792,7 +800,7 @@ function Step2({ d, upd }) {
           </div>
         </div>
         <div>
-          <label style={labelStyle}>קישור גוגל מאפ (אופציונלי)</label>
+          <label style={labelStyle}>×§×™×©×•×¨ ×’×•×’×œ ×ž××¤ (××•×¤×¦×™×•× ×œ×™)</label>
           <input value={d.mapsUrl} placeholder="https://maps.google.com/..."
             onChange={e => upd('mapsUrl', e.target.value)}
             style={{ ...fieldStyle, direction: 'ltr' }}
@@ -808,28 +816,28 @@ function Step3({ d, upd }) {
   return (
     <div>
       <h3 style={{ color: TEXT, fontSize: 18, fontWeight: 800, marginBottom: 16, marginTop: 0, fontFamily: FONT }}>
-        פרטי הנכס
+        ×¤×¨×˜×™ ×”× ×›×¡
       </h3>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 4 }}>
-        <Select label="מספר חדרים" req value={d.rooms} onChange={e => upd('rooms', e.target.value)}>
-          <option value="" style={{ background: '#0c0820', color: TEXT }}>בחר...</option>
+        <Select label="×ž×¡×¤×¨ ×—×“×¨×™×" req value={d.rooms} onChange={e => upd('rooms', e.target.value)}>
+          <option value="" style={{ background: '#0c0820', color: TEXT }}>×‘×—×¨...</option>
           {['1','1.5','2','2.5','3','3.5','4','4.5','5','5.5','6','6.5','7','7.5','8','8.5','9','9.5','10','10+'].map(r => (
-            <option key={r} value={r} style={{ background: '#0c0820', color: TEXT }}>{r} חדרים</option>
+            <option key={r} value={r} style={{ background: '#0c0820', color: TEXT }}>{r} ×—×“×¨×™×</option>
           ))}
         </Select>
-        <Counter label="חדרי מקלחת" value={d.bathrooms} min={1} max={8} onChange={v => upd('bathrooms', v)} />
-        <Counter label="חניות" value={d.parking} min={0} max={5} onChange={v => upd('parking', v)} />
-        <Counter label="מרפסות" value={d.balconies} min={0} max={5} onChange={v => upd('balconies', v)} />
-        <Input label='גודל הנכס במ"ר' req value={d.size} placeholder="לדוג׳: 85"
+        <Counter label="×—×“×¨×™ ×ž×§×œ×—×ª" value={d.bathrooms} min={1} max={8} onChange={v => upd('bathrooms', v)} />
+        <Counter label="×—× ×™×•×ª" value={d.parking} min={0} max={5} onChange={v => upd('parking', v)} />
+        <Counter label="×ž×¨×¤×¡×•×ª" value={d.balconies} min={0} max={5} onChange={v => upd('balconies', v)} />
+        <Input label='×’×•×“×œ ×”× ×›×¡ ×‘×ž"×¨' req value={d.size} placeholder="×œ×“×•×’×³: 85"
           onChange={e => upd('size', e.target.value)} />
-        <Input label='מ"ר בנוי' value={d.sqmBuilt} placeholder="לדוג׳: 75"
+        <Input label='×ž"×¨ ×‘× ×•×™' value={d.sqmBuilt} placeholder="×œ×“×•×’×³: 75"
           onChange={e => upd('sqmBuilt', e.target.value)} />
       </div>
-      <ToggleGroup label="מצב הנכס" options={CONDITIONS} value={d.condition} onChange={v => upd('condition', v)} />
-      <ToggleGroup label="כיווני אוויר" options={DIRECTIONS} value={d.directions} onChange={v => upd('directions', v)} />
-      <ToggleGroup label="נוף פתוח" options={VIEWS} value={d.view} onChange={v => upd('view', v)} />
+      <ToggleGroup label="×ž×¦×‘ ×”× ×›×¡" options={CONDITIONS} value={d.condition} onChange={v => upd('condition', v)} />
+      <ToggleGroup label="×›×™×•×•× ×™ ××•×•×™×¨" options={DIRECTIONS} value={d.directions} onChange={v => upd('directions', v)} />
+      <ToggleGroup label="× ×•×£ ×¤×ª×•×—" options={VIEWS} value={d.view} onChange={v => upd('view', v)} />
       <div style={{ marginBottom: 12 }}>
-        <label style={labelStyle}>מאפייני הנכס</label>
+        <label style={labelStyle}>×ž××¤×™×™× ×™ ×”× ×›×¡</label>
         {COMMERCIAL_TYPES.includes(d.propType) ? (
           <CheckGrid items={COMMERCIAL_AMENITIES} checked={d.amenities} onChange={a => upd('amenities', a)} />
         ) : (
@@ -847,21 +855,21 @@ function Step4({ d, upd }) {
   return (
     <div>
       <h3 style={{ color: TEXT, fontSize: 20, fontWeight: 800, marginBottom: 24, marginTop: 0, fontFamily: FONT }}>
-        מחיר ותאריכים
+        ×ž×—×™×¨ ×•×ª××¨×™×›×™×
       </h3>
-      <Field label={d.txType === 'rent' ? 'שכר דירה חודשי (₪)' : 'מחיר (₪)'} req={!d.priceOnInquiry}>
+      <Field label={d.txType === 'rent' ? '×©×›×¨ ×“×™×¨×” ×—×•×“×©×™ (â‚ª)' : '×ž×—×™×¨ (â‚ª)'} req={!d.priceOnInquiry}>
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer',
           color: TEXT, fontSize: 14, fontFamily: FONT, marginBottom: 10 }}>
           <input type="checkbox" checked={!!d.priceOnInquiry}
             onChange={e => { upd('priceOnInquiry', e.target.checked); if (e.target.checked) upd('price', '') }}
             style={{ width: 16, height: 16, accentColor: P, cursor: 'pointer' }} />
-          מחיר בפנייה (אין להציג מחיר)
+          ×ž×—×™×¨ ×‘×¤× ×™×™×” (××™×Ÿ ×œ×”×¦×™×’ ×ž×—×™×¨)
         </label>
         {!d.priceOnInquiry && (
           <div style={{ position: 'relative' }}>
             <span style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)',
-              color: MUTED, fontSize: 15, pointerEvents: 'none' }}>₪</span>
-            <input value={d.price} placeholder="הכנס מחיר..."
+              color: MUTED, fontSize: 15, pointerEvents: 'none' }}>â‚ª</span>
+            <input value={d.price} placeholder="×”×›× ×¡ ×ž×—×™×¨..."
               onChange={e => upd('price', parsePrice(e.target.value))}
               style={{ ...fieldStyle, paddingRight: 36 }} dir="ltr"
               onFocus={e => e.target.style.borderColor = P}
@@ -871,30 +879,30 @@ function Step4({ d, upd }) {
         {d.priceOnInquiry && (
           <div style={{ padding: '10px 14px', borderRadius: 10, background: `${P}12`,
             border: `1px solid ${P}30`, color: `${P}CC`, fontSize: 14, fontFamily: FONT, fontWeight: 600 }}>
-            מחיר בפנייה — יוצג ללא מחיר בלוח הנכסים
+            ×ž×—×™×¨ ×‘×¤× ×™×™×” â€” ×™×•×¦×’ ×œ×œ× ×ž×—×™×¨ ×‘×œ×•×— ×”× ×›×¡×™×
           </div>
         )}
         {perSqm && !d.priceOnInquiry && (
-          <div style={{ marginTop: 6, fontSize: 12.5, color: MUTED, fontFamily: FONT }}>≈ ₪{perSqm} למ"ר</div>
+          <div style={{ marginTop: 6, fontSize: 12.5, color: MUTED, fontFamily: FONT }}>â‰ˆ â‚ª{perSqm} ×œ×ž"×¨</div>
         )}
       </Field>
       {d.txType === 'sale' && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-          <Input label='גודל במ"ר (לחישוב מחיר למ"ר)' value={d.size} placeholder="לדוג׳: 85"
+          <Input label='×’×•×“×œ ×‘×ž"×¨ (×œ×—×™×©×•×‘ ×ž×—×™×¨ ×œ×ž"×¨)' value={d.size} placeholder="×œ×“×•×’×³: 85"
             onChange={e => upd('size', e.target.value)} />
-          <Input label='מ"ר בנוי' value={d.sqmBuilt} placeholder="לדוג׳: 75"
+          <Input label='×ž"×¨ ×‘× ×•×™' value={d.sqmBuilt} placeholder="×œ×“×•×’×³: 75"
             onChange={e => upd('sqmBuilt', e.target.value)} />
         </div>
       )}
 
-      <Field label="תאריך כניסה" req>
+      <Field label="×ª××¨×™×š ×›× ×™×¡×”" req>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer',
             color: TEXT, fontSize: 14, fontFamily: FONT }}>
             <input type="checkbox" checked={d.entryFlex}
               onChange={e => upd('entryFlex', e.target.checked)}
               style={{ width: 16, height: 16, accentColor: P, cursor: 'pointer' }} />
-            גמיש / מיידי (ללא תאריך ספציפי)
+            ×’×ž×™×© / ×ž×™×™×“×™ (×œ×œ× ×ª××¨×™×š ×¡×¤×¦×™×¤×™)
           </label>
           {!d.entryFlex && (
             <CalendarPicker value={d.entryDate} onChange={v => upd('entryDate', v)} disabled={d.entryFlex} />
@@ -906,7 +914,7 @@ function Step4({ d, upd }) {
         border: `1px solid ${G}30`, color: `${G}CC`, fontSize: 13.5, lineHeight: 1.7,
         display: 'flex', alignItems: 'flex-start', gap: 10, fontFamily: FONT }}>
         <FaLightbulb size={14} style={{ flexShrink: 0, marginTop: 2 }} />
-        <span><strong>טיפ:</strong> נכסים עם מחירים ריאליים מקבלים יותר פניות ונמכרים מהר יותר.</span>
+        <span><strong>×˜×™×¤:</strong> × ×›×¡×™× ×¢× ×ž×—×™×¨×™× ×¨×™××œ×™×™× ×ž×§×‘×œ×™× ×™×•×ª×¨ ×¤× ×™×•×ª ×•× ×ž×›×¨×™× ×ž×”×¨ ×™×•×ª×¨.</span>
       </div>
     </div>
   )
@@ -916,34 +924,34 @@ const WIZ_API_BASE    = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
 const WIZ_ADMIN_TOKEN = 'AFIKhanahal2026'
 
 async function callClaudeRewrite(d, _retry = 0) {
-  const typeMap = { apartment:'דירה', land:'מגרש', penthouse:'פנטהאוז', villa:'וילה', office:'משרד', commercial:'נכס מסחרי', cottage:'קוטג׳', rooftop:'גג', storage:'מחסן', parking:'חנייה' }
-  const condMap = { new:'חדש מקבלן', renovated:'משופץ', good:'במצב טוב', asis:'כמות שהוא' }
-  const typeName = typeMap[d.category] || d.category || 'נכס'
+  const typeMap = { apartment:'×“×™×¨×”', land:'×ž×’×¨×©', penthouse:'×¤× ×˜×”××•×–', villa:'×•×™×œ×”', office:'×ž×©×¨×“', commercial:'× ×›×¡ ×ž×¡×—×¨×™', cottage:'×§×•×˜×’×³', rooftop:'×’×’', storage:'×ž×—×¡×Ÿ', parking:'×—× ×™×™×”' }
+  const condMap = { new:'×—×“×© ×ž×§×‘×œ×Ÿ', renovated:'×ž×©×•×¤×¥', good:'×‘×ž×¦×‘ ×˜×•×‘', asis:'×›×ž×•×ª ×©×”×•×' }
+  const typeName = typeMap[d.category] || d.category || '× ×›×¡'
   const cond = condMap[d.condition] || ''
   const amenities = AMENITIES.filter(a => d.amenities?.[a.k]).map(a => a.l).join(', ') || ''
-  const prompt = `אתה מומחה שיווק נדל"ן ישראלי. כתוב תיאור שיווקי מקצועי ומשכנע בעברית לנכס הבא.
+  const prompt = `××ª×” ×ž×•×ž×—×” ×©×™×•×•×§ × ×“×œ"×Ÿ ×™×©×¨××œ×™. ×›×ª×•×‘ ×ª×™××•×¨ ×©×™×•×•×§×™ ×ž×§×¦×•×¢×™ ×•×ž×©×›× ×¢ ×‘×¢×‘×¨×™×ª ×œ× ×›×¡ ×”×‘×.
 
-פרטי הנכס:
-- סוג: ${typeName}${d.txType === 'rent' ? ' להשכרה' : ' למכירה'}
-- כותרת: ${d.title || 'לא צוינה'}
-- עיר: ${d.city || 'לא צוינה'}
-- שכונה: ${d.neighborhood || ''}
-- שטח: ${d.size ? d.size + ' מ"ר' : 'לא צוין'}
-- חדרים: ${d.rooms || 'לא צוין'}
-- קומה: ${d.floor || 'לא צוינה'}${d.totalFloors ? ' מתוך ' + d.totalFloors : ''}
-- מצב: ${cond || 'לא צוין'}
-- חניה: ${d.parking > 0 ? d.parking + ' מקומות' : 'אין'}
-- מרפסות: ${d.balconies > 0 ? d.balconies : 'אין'}
-- מאפיינים: ${amenities || 'לא צוינו'}
-- מחיר: ${d.price ? '₪' + Number(d.price).toLocaleString('he-IL') : 'לא צוין'}
-- תיאור קיים: ${d.description || '(אין)'}
+×¤×¨×˜×™ ×”× ×›×¡:
+- ×¡×•×’: ${typeName}${d.txType === 'rent' ? ' ×œ×”×©×›×¨×”' : ' ×œ×ž×›×™×¨×”'}
+- ×›×•×ª×¨×ª: ${d.title || '×œ× ×¦×•×™× ×”'}
+- ×¢×™×¨: ${d.city || '×œ× ×¦×•×™× ×”'}
+- ×©×›×•× ×”: ${d.neighborhood || ''}
+- ×©×˜×—: ${d.size ? d.size + ' ×ž"×¨' : '×œ× ×¦×•×™×Ÿ'}
+- ×—×“×¨×™×: ${d.rooms || '×œ× ×¦×•×™×Ÿ'}
+- ×§×•×ž×”: ${d.floor || '×œ× ×¦×•×™× ×”'}${d.totalFloors ? ' ×ž×ª×•×š ' + d.totalFloors : ''}
+- ×ž×¦×‘: ${cond || '×œ× ×¦×•×™×Ÿ'}
+- ×—× ×™×”: ${d.parking > 0 ? d.parking + ' ×ž×§×•×ž×•×ª' : '××™×Ÿ'}
+- ×ž×¨×¤×¡×•×ª: ${d.balconies > 0 ? d.balconies : '××™×Ÿ'}
+- ×ž××¤×™×™× ×™×: ${amenities || '×œ× ×¦×•×™× ×•'}
+- ×ž×—×™×¨: ${d.price ? 'â‚ª' + Number(d.price).toLocaleString('he-IL') : '×œ× ×¦×•×™×Ÿ'}
+- ×ª×™××•×¨ ×§×™×™×: ${d.description || '(××™×Ÿ)'}
 
-דרישות:
-- 3-4 משפטים שיווקיים, שפה מקצועית ומושכת
-- הדגש יתרונות ייחודיים ומיקום
-- אל תתחיל בביטויים כמו "הנכס הזה" — הכנס מיד לתוכן
-- החזר רק את התיאור, ללא כותרות או הסברים
-- מקסימום 380 תווים`
+×“×¨×™×©×•×ª:
+- 3-4 ×ž×©×¤×˜×™× ×©×™×•×•×§×™×™×, ×©×¤×” ×ž×§×¦×•×¢×™×ª ×•×ž×•×©×›×ª
+- ×”×“×’×© ×™×ª×¨×•× ×•×ª ×™×™×—×•×“×™×™× ×•×ž×™×§×•×
+- ××œ ×ª×ª×—×™×œ ×‘×‘×™×˜×•×™×™× ×›×ž×• "×”× ×›×¡ ×”×–×”" â€” ×”×›× ×¡ ×ž×™×“ ×œ×ª×•×›×Ÿ
+- ×”×—×–×¨ ×¨×§ ××ª ×”×ª×™××•×¨, ×œ×œ× ×›×•×ª×¨×•×ª ××• ×”×¡×‘×¨×™×
+- ×ž×§×¡×™×ž×•× 380 ×ª×•×•×™×`
 
   const endpoint = WIZ_API_BASE
     ? `${WIZ_API_BASE}/api/ai/messages`
@@ -962,7 +970,7 @@ async function callClaudeRewrite(d, _retry = 0) {
     }),
   })
   if (!res.ok) {
-    let errMsg = `שגיאת שרת (${res.status})`
+    let errMsg = `×©×’×™××ª ×©×¨×ª (${res.status})`
     try {
       const errJson = await res.json()
       if (errJson?.error?.type === 'overloaded_error' && _retry < 3) {
@@ -970,16 +978,16 @@ async function callClaudeRewrite(d, _retry = 0) {
         return callClaudeRewrite(d, _retry + 1)
       }
       if (errJson?.error?.type === 'overloaded_error')
-        throw new Error('השרת עמוס כרגע — נסה שוב בעוד דקה')
+        throw new Error('×”×©×¨×ª ×¢×ž×•×¡ ×›×¨×’×¢ â€” × ×¡×” ×©×•×‘ ×‘×¢×•×“ ×“×§×”')
       errMsg = errJson?.error?.message || errJson?.message || JSON.stringify(errJson)
     } catch (e) {
-      if (e.message.includes('עמוס') || e.message.includes('שרת')) throw e
+      if (e.message.includes('×¢×ž×•×¡') || e.message.includes('×©×¨×ª')) throw e
     }
     throw new Error(errMsg)
   }
   const data = await res.json()
   const text = data.content?.[0]?.text?.trim()
-  if (!text) throw new Error('תגובה ריקה מה-AI')
+  if (!text) throw new Error('×ª×’×•×‘×” ×¨×™×§×” ×ž×”-AI')
   return text.slice(0, 400)
 }
 
@@ -994,7 +1002,7 @@ function Step5({ d, upd }) {
       const result = await callClaudeRewrite(d)
       upd('description', result)
     } catch (e) {
-      setAiError('שגיאה: ' + (e.message?.slice(0, 120) || 'לא ניתן להתחבר ל-AI'))
+      setAiError('×©×’×™××”: ' + (e.message?.slice(0, 120) || '×œ× × ×™×ª×Ÿ ×œ×”×ª×—×‘×¨ ×œ-AI'))
     } finally {
       setGenerating(false)
     }
@@ -1003,21 +1011,21 @@ function Step5({ d, upd }) {
   return (
     <div>
       <h3 style={{ color: TEXT, fontSize: 20, fontWeight: 800, marginBottom: 24, marginTop: 0, fontFamily: FONT }}>
-        מה חשוב לדעת על הנכס?
+        ×ž×” ×—×©×•×‘ ×œ×“×¢×ª ×¢×œ ×”× ×›×¡?
       </h3>
       <Field>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
           <div style={{ fontSize: 13, color: MUTED, fontFamily: FONT }}>
-            תאר את הנכס, בלטי את יתרונותיו, מיקומו, קרבה לתחבורה, מוסדות חינוך וכו׳
+            ×ª××¨ ××ª ×”× ×›×¡, ×‘×œ×˜×™ ××ª ×™×ª×¨×•× ×•×ª×™×•, ×ž×™×§×•×ž×•, ×§×¨×‘×” ×œ×ª×—×‘×•×¨×”, ×ž×•×¡×“×•×ª ×—×™× ×•×š ×•×›×•×³
           </div>
           <button onClick={handleAI} disabled={generating}
             style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '8px 16px', background: generating ? `${P}33` : `linear-gradient(135deg,${P},#8b5cf6)`, border: 'none', borderRadius: 8, color: '#fff', fontSize: 12.5, fontWeight: 700, cursor: generating ? 'default' : 'pointer', fontFamily: FONT, whiteSpace: 'nowrap', flexShrink: 0, transition: 'opacity .2s', opacity: generating ? .7 : 1 }}>
             {generating ? <FaCircleNotch size={12} style={{ animation: 'spin 1s linear infinite' }}/> : <FaMagic size={12}/>}
-            {generating ? 'כותב...' : 'AI שכתוב'}
+            {generating ? '×›×•×ª×‘...' : 'AI ×©×›×ª×•×‘'}
           </button>
         </div>
         <textarea value={d.description} onChange={e => upd('description', e.target.value)}
-          placeholder="זה המקום לתאר את הפרטים הבולטים. למשל: האם נערך שיפוץ? מה שופץ? מה מצב הבניין? כיווני האוויר ברחוב? האם יש גינה / חצר? וכו׳"
+          placeholder="×–×” ×”×ž×§×•× ×œ×ª××¨ ××ª ×”×¤×¨×˜×™× ×”×‘×•×œ×˜×™×. ×œ×ž×©×œ: ×”×× × ×¢×¨×š ×©×™×¤×•×¥? ×ž×” ×©×•×¤×¥? ×ž×” ×ž×¦×‘ ×”×‘× ×™×™×Ÿ? ×›×™×•×•× ×™ ×”××•×•×™×¨ ×‘×¨×—×•×‘? ×”×× ×™×© ×’×™× ×” / ×—×¦×¨? ×•×›×•×³"
           style={{ ...fieldStyle, minHeight: 180, resize: 'vertical', lineHeight: 1.7 }}
           maxLength={400}
           onFocus={e => e.target.style.borderColor = P}
@@ -1028,7 +1036,7 @@ function Step5({ d, upd }) {
             onMouseEnter={e => !generating && (e.currentTarget.style.borderColor = P)}
             onMouseLeave={e => e.currentTarget.style.borderColor = `${P}44`}>
             <FaSyncAlt size={11} style={{ animation: generating ? 'spin 1s linear infinite' : 'none' }}/>
-            שכתוב נוסף
+            ×©×›×ª×•×‘ × ×•×¡×£
           </button>
           <div style={{ fontSize: 12, color: MUTED, fontFamily: FONT }}>{d.description.length} / 400</div>
         </div>
@@ -1042,13 +1050,13 @@ function Step5({ d, upd }) {
         border: `1px solid ${P}25`, fontSize: 13.5, color: `${P}CC`, lineHeight: 1.7,
         display: 'flex', alignItems: 'flex-start', gap: 10, fontFamily: FONT }}>
         <FaExclamationTriangle size={14} style={{ flexShrink: 0, marginTop: 2 }} />
-        <span><strong>שימו לב:</strong> אין לציין מחיר ומספר טלפון בתיאור.</span>
+        <span><strong>×©×™×ž×• ×œ×‘:</strong> ××™×Ÿ ×œ×¦×™×™×Ÿ ×ž×—×™×¨ ×•×ž×¡×¤×¨ ×˜×œ×¤×•×Ÿ ×‘×ª×™××•×¨.</span>
       </div>
     </div>
   )
 }
 
-// ─── PDF Uploader ────────────────────────────────────────────────────────────
+// â”€â”€â”€ PDF Uploader â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const UPLOAD_BASE = (import.meta.env.VITE_API_URL || 'https://afik-hanahal-server.onrender.com').replace(/\/$/, '')
 
@@ -1061,11 +1069,11 @@ function PdfUploader({ pdfs, onUpdate, adminToken }) {
 
   const uploadFile = async (file) => {
     if (!file || file.type !== 'application/pdf') {
-      setErr('יש לבחור קובץ PDF בלבד')
+      setErr('×™×© ×œ×‘×—×•×¨ ×§×•×‘×¥ PDF ×‘×œ×‘×“')
       return
     }
     if (file.size > 25 * 1024 * 1024) {
-      setErr('קובץ גדול מדי — מקסימום 25MB')
+      setErr('×§×•×‘×¥ ×’×“×•×œ ×ž×“×™ â€” ×ž×§×¡×™×ž×•× 25MB')
       return
     }
     setUploading(true)
@@ -1089,24 +1097,24 @@ function PdfUploader({ pdfs, onUpdate, adminToken }) {
             if (data.url) {
               onUpdate([...pdfs, { name: data.name || file.name, url: data.url }])
             } else {
-              setErr(data.error || 'שגיאה בהעלאה')
+              setErr(data.error || '×©×’×™××” ×‘×”×¢×œ××”')
             }
           } catch {
-            setErr('שגיאה בפענוח תגובה')
+            setErr('×©×’×™××” ×‘×¤×¢× ×•×— ×ª×’×•×‘×”')
           }
         } else {
           try {
             const data = JSON.parse(xhr.responseText)
-            setErr(data.error || `שגיאה ${xhr.status}`)
+            setErr(data.error || `×©×’×™××” ${xhr.status}`)
           } catch {
-            setErr(`שגיאה ${xhr.status}`)
+            setErr(`×©×’×™××” ${xhr.status}`)
           }
         }
         resolve()
       })
       xhr.addEventListener('error', () => {
         setUploading(false)
-        setErr('שגיאת רשת — בדוק חיבור אינטרנט')
+        setErr('×©×’×™××ª ×¨×©×ª â€” ×‘×“×•×§ ×—×™×‘×•×¨ ××™× ×˜×¨× ×˜')
         resolve()
       })
       xhr.open('POST', `${UPLOAD_BASE}/api/upload/pdf`)
@@ -1117,7 +1125,7 @@ function PdfUploader({ pdfs, onUpdate, adminToken }) {
 
   const handleFiles = async (files) => {
     for (const file of Array.from(files)) {
-      if (pdfs.length >= 5) { setErr('מקסימום 5 קבצי PDF'); break }
+      if (pdfs.length >= 5) { setErr('×ž×§×¡×™×ž×•× 5 ×§×‘×¦×™ PDF'); break }
       await uploadFile(file)
     }
   }
@@ -1151,7 +1159,7 @@ function PdfUploader({ pdfs, onUpdate, adminToken }) {
           {uploading ? (
             <>
               <FaCircleNotch size={20} style={{ color: P, animation: 'pw-spin 1s linear infinite' }} />
-              <div style={{ fontSize: 13, color: P, fontFamily: FONT, fontWeight: 700 }}>מעלה... {progress}%</div>
+              <div style={{ fontSize: 13, color: P, fontFamily: FONT, fontWeight: 700 }}>×ž×¢×œ×”... {progress}%</div>
               <div style={{ width: '100%', maxWidth: 200, height: 4, background: BORDER, borderRadius: 2, overflow: 'hidden' }}>
                 <div style={{ height: '100%', background: P, width: `${progress}%`, transition: 'width .2s' }} />
               </div>
@@ -1161,10 +1169,10 @@ function PdfUploader({ pdfs, onUpdate, adminToken }) {
               <FaFileAlt size={22} style={{ color: isDragOver ? P : MUTED }} />
               <div style={{ textAlign: 'center' }}>
                 <div style={{ color: isDragOver ? P : TEXT, fontWeight: 700, fontSize: 14, fontFamily: FONT }}>
-                  {isDragOver ? 'שחרר להעלאה' : 'גרור PDF לכאן'}
+                  {isDragOver ? '×©×—×¨×¨ ×œ×”×¢×œ××”' : '×’×¨×•×¨ PDF ×œ×›××Ÿ'}
                 </div>
                 <div style={{ color: MUTED, fontSize: 12, fontFamily: FONT, marginTop: 3 }}>
-                  או <span style={{ color: P, fontWeight: 600 }}>לחץ לבחירה</span> · PDF בלבד · עד 25MB
+                  ××• <span style={{ color: P, fontWeight: 600 }}>×œ×—×¥ ×œ×‘×—×™×¨×”</span> Â· PDF ×‘×œ×‘×“ Â· ×¢×“ 25MB
                 </div>
               </div>
             </>
@@ -1186,11 +1194,11 @@ function PdfUploader({ pdfs, onUpdate, adminToken }) {
           <span style={{ flex: 1, fontSize: 13, color: TEXT, fontFamily: FONT, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pdf.name}</span>
           <a href={pdf.url} target="_blank" rel="noopener noreferrer"
             style={{ fontSize: 11, color: P, fontWeight: 700, fontFamily: FONT, textDecoration: 'none', padding: '3px 8px', border: `1px solid ${P}44`, borderRadius: 6 }}>
-            תצוגה
+            ×ª×¦×•×’×”
           </a>
           <button onClick={() => removePdf(i)}
             style={{ background: 'rgba(224,82,82,.12)', border: '1px solid rgba(224,82,82,.35)', borderRadius: 6, color: '#E05252', cursor: 'pointer', fontSize: 11, fontFamily: FONT, padding: '3px 8px' }}>
-            הסר
+            ×”×¡×¨
           </button>
         </div>
       ))}
@@ -1198,7 +1206,7 @@ function PdfUploader({ pdfs, onUpdate, adminToken }) {
   )
 }
 
-// ─── Step 6: Media upload (images + Cloudinary video) ─────────────────────────
+// â”€â”€â”€ Step 6: Media upload (images + Cloudinary video) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function Step6({ d, upd }) {
   const imgInputRef      = useRef(null)
@@ -1236,7 +1244,7 @@ function Step6({ d, upd }) {
   }
 
   const processImageFiles = async files => {
-    const remaining = 10 - d.media.filter(m => m.type === 'image').length
+    const remaining = 20 - d.media.filter(m => m.type === 'image').length
     const toAdd = files.filter(f => f.type.startsWith('image/')).slice(0, remaining)
     if (!toAdd.length) return
     const compressed = await Promise.all(toAdd.map(async f => ({
@@ -1262,7 +1270,7 @@ function Step6({ d, upd }) {
   const handleDragOver = e => { e.preventDefault(); setIsDragOver(true) }
   const handleDragLeave = e => { if (!e.currentTarget.contains(e.relatedTarget)) setIsDragOver(false) }
 
-  // Upload video to server → Supabase Storage → permanent URL
+  // Upload video to server â†’ Supabase Storage â†’ permanent URL
   const addServerVideos = async e => {
     const files = Array.from(e.target.files)
     if (!files.length) return
@@ -1294,10 +1302,10 @@ function Step6({ d, upd }) {
             try {
               const data = JSON.parse(xhr.responseText)
               if (xhr.status === 200 && data.url) resolve(data.url)
-              else reject(new Error(data.error || `שגיאה ${xhr.status}`))
-            } catch { reject(new Error('תגובת שרת לא תקינה')) }
+              else reject(new Error(data.error || `×©×’×™××” ${xhr.status}`))
+            } catch { reject(new Error('×ª×’×•×‘×ª ×©×¨×ª ×œ× ×ª×§×™× ×”')) }
           })
-          xhr.addEventListener('error', () => reject(new Error('שגיאת רשת')))
+          xhr.addEventListener('error', () => reject(new Error('×©×’×™××ª ×¨×©×ª')))
           xhr.open('POST', `${UPLOAD_BASE}/api/upload/video`)
           xhr.setRequestHeader('Authorization', `Bearer ${WIZ_ADMIN_TOKEN}`)
           xhr.send(fd)
@@ -1305,7 +1313,7 @@ function Step6({ d, upd }) {
 
         uploaded.push({ url, name: file.name, type: 'video', thumbnail: null })
       } catch (err) {
-        setUploadErr(`שגיאה בהעלאת "${file.name}": ${err.message}`)
+        setUploadErr(`×©×’×™××” ×‘×”×¢×œ××ª "${file.name}": ${err.message}`)
       }
     }
 
@@ -1315,14 +1323,14 @@ function Step6({ d, upd }) {
     e.target.value = ''
   }
 
-  // Cloudinary upload → permanent hosted URL
+  // Cloudinary upload â†’ permanent hosted URL
   const addCloudinaryVideo = async e => {
     const file = e.target.files[0]
     if (!file) return
     setUploadErr('')
 
     if (CLOUDINARY_CLOUD === 'your-cloud-name') {
-      setUploadErr('יש להגדיר את שם הענן (CLOUDINARY_CLOUD) בקוד לפני העלאת סרטונים.')
+      setUploadErr('×™×© ×œ×”×’×“×™×¨ ××ª ×©× ×”×¢× ×Ÿ (CLOUDINARY_CLOUD) ×‘×§×•×“ ×œ×¤× ×™ ×”×¢×œ××ª ×¡×¨×˜×•× ×™×.')
       e.target.value = ''
       return
     }
@@ -1342,7 +1350,7 @@ function Step6({ d, upd }) {
         cloudinaryId: result.public_id,
       }])
     } catch (err) {
-      setUploadErr(`שגיאה בהעלאה: ${err.message}`)
+      setUploadErr(`×©×’×™××” ×‘×”×¢×œ××”: ${err.message}`)
     } finally {
       setUploading(false)
       setProgress(0)
@@ -1357,10 +1365,10 @@ function Step6({ d, upd }) {
   return (
     <div>
       <h3 style={{ color: TEXT, fontSize: 20, fontWeight: 800, marginBottom: 8, marginTop: 0, fontFamily: FONT }}>
-        תמונות וסרטונים
+        ×ª×ž×•× ×•×ª ×•×¡×¨×˜×•× ×™×
       </h3>
       <p style={{ color: MUTED, fontSize: 14, marginBottom: 24, lineHeight: 1.7, fontFamily: FONT }}>
-        עד 10 תמונות + עד 3 סרטונים. תמונות איכותיות מגדילות משמעותית את הסיכוי למכירה מהירה.
+        ×¢×“ 10 ×ª×ž×•× ×•×ª + ×¢×“ 3 ×¡×¨×˜×•× ×™×. ×ª×ž×•× ×•×ª ××™×›×•×ª×™×•×ª ×ž×’×“×™×œ×•×ª ×ž×©×ž×¢×•×ª×™×ª ××ª ×”×¡×™×›×•×™ ×œ×ž×›×™×¨×” ×ž×”×™×¨×”.
       </p>
 
       {/* Hidden inputs */}
@@ -1369,7 +1377,7 @@ function Step6({ d, upd }) {
       <input ref={cloudVidRef}  type="file" accept="video/*"           style={{ display: 'none' }} onChange={addServerVideos} />
 
       {/* Drag & drop zone */}
-      {imgCount < 10 && (
+      {imgCount < 20 && (
         <div
           onDrop={handleDrop}
           onDragOver={handleDragOver}
@@ -1392,16 +1400,16 @@ function Step6({ d, upd }) {
           </div>
           <div style={{ textAlign: 'center' }}>
             <div style={{ color: isDragOver ? P : TEXT, fontWeight: 700, fontSize: 15, fontFamily: FONT, marginBottom: 4 }}>
-              {isDragOver ? 'שחרר להוספה' : 'גרור תמונות לכאן'}
+              {isDragOver ? '×©×—×¨×¨ ×œ×”×•×¡×¤×”' : '×’×¨×•×¨ ×ª×ž×•× ×•×ª ×œ×›××Ÿ'}
             </div>
             <div style={{ color: MUTED, fontSize: 13, fontFamily: FONT }}>
-              או <span style={{ color: P, fontWeight: 600 }}>לחץ לבחירת קבצים</span> &nbsp;·&nbsp; {imgCount}/10 תמונות
+              ××• <span style={{ color: P, fontWeight: 600 }}>×œ×—×¥ ×œ×‘×—×™×¨×ª ×§×‘×¦×™×</span> &nbsp;Â·&nbsp; {imgCount}/20 ×ª×ž×•× ×•×ª
             </div>
           </div>
         </div>
       )}
 
-      {/* Video upload — up to 3 videos, stored permanently on Supabase Storage */}
+      {/* Video upload â€” up to 3 videos, stored permanently on Supabase Storage */}
       {videoCount < 3 && (
         <div style={{ marginBottom: 14 }}>
           <button onClick={() => !uploading && localVidRef.current?.click()}
@@ -1418,7 +1426,7 @@ function Step6({ d, upd }) {
             {uploading ? (
               <>
                 <FaCircleNotch size={15} style={{ animation: 'pw-spin 1s linear infinite', flexShrink:0 }} />
-                <span>מעלה סרטון... {progress}%</span>
+                <span>×ž×¢×œ×” ×¡×¨×˜×•×Ÿ... {progress}%</span>
                 <div style={{ flex: 1, height: 4, background: BORDER, borderRadius: 2, overflow: 'hidden', maxWidth: 120 }}>
                   <div style={{ height: '100%', background: P, width: `${progress}%`, transition: 'width .3s' }} />
                 </div>
@@ -1426,15 +1434,15 @@ function Step6({ d, upd }) {
             ) : (
               <>
                 <FaVideo size={16} />
-                <span>העלה סרטון מהמחשב</span>
-                <span style={{ fontSize: 11, opacity: .6 }}>(עד 150MB · mp4 / mov / webm)</span>
+                <span>×”×¢×œ×” ×¡×¨×˜×•×Ÿ ×ž×”×ž×—×©×‘</span>
+                <span style={{ fontSize: 11, opacity: .6 }}>(×¢×“ 150MB Â· mp4 / mov / webm)</span>
               </>
             )}
           </button>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 12, color: MUTED, fontFamily: FONT }}>
-            <span>סרטונים: {videoCount}/3</span>
-            {videoCount > 0 && <span style={{ color: '#82F67F', fontWeight: 600 }}>✓ הסרטון נשמר בשרת ויוצג תמיד</span>}
+            <span>×¡×¨×˜×•× ×™×: {videoCount}/3</span>
+            {videoCount > 0 && <span style={{ color: '#82F67F', fontWeight: 600 }}>âœ“ ×”×¡×¨×˜×•×Ÿ × ×©×ž×¨ ×‘×©×¨×ª ×•×™×•×¦×’ ×ª×ž×™×“</span>}
           </div>
         </div>
       )}
@@ -1449,11 +1457,11 @@ function Step6({ d, upd }) {
       {/* External links: YouTube + Landing page */}
       <div style={{ marginBottom: 16, padding: '16px 18px', background: DARK, borderRadius: 12, border: `1px solid ${BORDER}` }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: P, marginBottom: 14, fontFamily: FONT, display: 'flex', alignItems: 'center', gap: 6 }}>
-          🔗 קישורים חיצוניים
+          ðŸ”— ×§×™×©×•×¨×™× ×—×™×¦×•× ×™×™×
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div>
-            <label style={labelStyle}>קישור יוטיוב / סרטון</label>
+            <label style={labelStyle}>×§×™×©×•×¨ ×™×•×˜×™×•×‘ / ×¡×¨×˜×•×Ÿ</label>
             <input value={d.youtubeUrl || ''} placeholder="https://www.youtube.com/watch?v=..."
               onChange={e => upd('youtubeUrl', e.target.value)}
               style={{ ...fieldStyle, direction: 'ltr' }}
@@ -1461,12 +1469,12 @@ function Step6({ d, upd }) {
               onBlur={e  => e.target.style.borderColor = BORDER} />
             {d.youtubeUrl && !/^https?:\/\/(www\.)?(youtube\.com|youtu\.be)/.test(d.youtubeUrl) && (
               <div style={{ marginTop: 4, fontSize: 11.5, color: '#F7C948', fontFamily: FONT }}>
-                ⚠️ אנא הכנס קישור יוטיוב תקין
+                âš ï¸ ×× × ×”×›× ×¡ ×§×™×©×•×¨ ×™×•×˜×™×•×‘ ×ª×§×™×Ÿ
               </div>
             )}
           </div>
           <div>
-            <label style={labelStyle}>דף נחיתה / קישור חיצוני</label>
+            <label style={labelStyle}>×“×£ × ×—×™×ª×” / ×§×™×©×•×¨ ×—×™×¦×•× ×™</label>
             <input value={d.landingPageUrl || ''} placeholder="https://..."
               onChange={e => upd('landingPageUrl', e.target.value)}
               style={{ ...fieldStyle, direction: 'ltr' }}
@@ -1479,26 +1487,26 @@ function Step6({ d, upd }) {
       {/* Project logo */}
       <div style={{ marginBottom: 16, padding: '14px 18px', background: DARK, borderRadius: 12, border: `1px solid ${BORDER}` }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: P, marginBottom: 12, fontFamily: FONT }}>
-          לוגו הפרויקט <span style={{ fontWeight: 400, color: MUTED, fontSize: 12 }}>— יוצג מתחת לגלריית התמונות</span>
+          ×œ×•×’×• ×”×¤×¨×•×™×§×˜ <span style={{ fontWeight: 400, color: MUTED, fontSize: 12 }}>â€” ×™×•×¦×’ ×ž×ª×—×ª ×œ×’×œ×¨×™×™×ª ×”×ª×ž×•× ×•×ª</span>
         </div>
         {d.logo ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
-            {/* Live preview — centered */}
+            {/* Live preview â€” centered */}
             <div style={{ width: '100%', display: 'flex', justifyContent: 'center', padding: '12px 0', background: 'rgba(255,255,255,.03)', borderRadius: 10, border: `1px dashed ${BORDER}` }}>
-              <img src={d.logo} alt="לוגו" style={{ height: d.logoSize || 72, maxWidth: '90%', objectFit: 'contain' }} />
+              <img src={d.logo} alt="×œ×•×’×•" style={{ height: d.logoSize || 72, maxWidth: '90%', objectFit: 'contain' }} />
             </div>
             {/* Size slider */}
             <div style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12 }}>
-              <span style={{ fontSize: 12, color: MUTED, fontFamily: FONT, flexShrink: 0 }}>גודל: {d.logoSize || 72}px</span>
+              <span style={{ fontSize: 12, color: MUTED, fontFamily: FONT, flexShrink: 0 }}>×’×•×“×œ: {d.logoSize || 72}px</span>
               <input type="range" min={36} max={240} step={4} value={d.logoSize || 72}
                 onChange={e => upd('logoSize', Number(e.target.value))}
                 style={{ flex: 1, accentColor: P }} />
-              <span style={{ fontSize: 11, color: MUTED, fontFamily: FONT, flexShrink: 0 }}>קטן ← → גדול</span>
+              <span style={{ fontSize: 11, color: MUTED, fontFamily: FONT, flexShrink: 0 }}>×§×˜×Ÿ â† â†’ ×’×“×•×œ</span>
             </div>
             <button onClick={() => upd('logo', '')}
               style={{ padding: '7px 14px', borderRadius: 8, border: '1px solid rgba(224,82,82,.4)',
                 background: 'rgba(224,82,82,.1)', color: '#E05252', cursor: 'pointer', fontSize: 12, fontFamily: FONT }}>
-              הסר לוגו
+              ×”×¡×¨ ×œ×•×’×•
             </button>
           </div>
         ) : (
@@ -1508,7 +1516,7 @@ function Step6({ d, upd }) {
             onMouseEnter={e => { e.currentTarget.style.borderColor = P; e.currentTarget.style.color = P }}
             onMouseLeave={e => { e.currentTarget.style.borderColor = BORDER; e.currentTarget.style.color = MUTED }}>
             <FaCloudUploadAlt size={14} />
-            העלה לוגו — PNG / SVG / JPEG
+            ×”×¢×œ×” ×œ×•×’×• â€” PNG / SVG / JPEG
             <input type="file" accept="image/*" style={{ display: 'none' }} onChange={async e => {
               const f = e.target.files[0]
               if (!f) return
@@ -1520,11 +1528,11 @@ function Step6({ d, upd }) {
         )}
       </div>
 
-      {/* Media grid — drag to reorder images */}
+      {/* Media grid â€” drag to reorder images */}
       {d.media.length > 0 && (
         <>
           <div style={{ fontSize: 12, color: MUTED, fontFamily: FONT, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ opacity: .6 }}>↕</span> גרור תמונות לשינוי סדר · תמונה ראשונה = תמונה ראשית
+            <span style={{ opacity: .6 }}>â†•</span> ×’×¨×•×¨ ×ª×ž×•× ×•×ª ×œ×©×™× ×•×™ ×¡×“×¨ Â· ×ª×ž×•× ×” ×¨××©×•× ×” = ×ª×ž×•× ×” ×¨××©×™×ª
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px,1fr))', gap: 10 }}>
             {d.media.map((item, i) => (
@@ -1572,7 +1580,7 @@ function Step6({ d, upd }) {
                     <div style={{ position: 'absolute', top: 6, right: 6, background: `${P}EE`,
                       color: '#fff', fontSize: 10, fontWeight: 700, padding: '2px 7px',
                       borderRadius: 5, fontFamily: FONT, display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <FaVideo size={9} /> וידאו
+                      <FaVideo size={9} /> ×•×™×“××•
                     </div>
                   </>
                 ) : (
@@ -1581,13 +1589,13 @@ function Step6({ d, upd }) {
                 {i === 0 && item.type === 'image' && (
                   <div style={{ position: 'absolute', top: 6, right: 6, background: P,
                     color: '#fff', fontSize: 10.5, fontWeight: 700, padding: '3px 8px',
-                    borderRadius: 6, fontFamily: FONT }}>ראשית</div>
+                    borderRadius: 6, fontFamily: FONT }}>×¨××©×™×ª</div>
                 )}
                 <button onClick={() => remove(i)}
                   style={{ position: 'absolute', top: 6, left: 6, width: 24, height: 24,
                     borderRadius: '50%', background: 'rgba(0,0,0,0.7)', border: 'none',
                     color: '#fff', cursor: 'pointer', fontSize: 12,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+                    display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Ã—</button>
               </div>
             ))}
           </div>
@@ -1598,16 +1606,16 @@ function Step6({ d, upd }) {
         background: `${G}10`, border: `1px solid ${G}25`, color: `${G}CC`, fontSize: 13.5,
         lineHeight: 1.7, fontFamily: FONT, display: 'flex', alignItems: 'flex-start', gap: 10 }}>
         <FaCamera size={14} style={{ flexShrink: 0, marginTop: 2 }} />
-        <span><strong>המלצות:</strong> אור טבעי, חדרים מסודרים, מבט רחב. תמונת הכניסה / סלון כתמונה ראשית.</span>
+        <span><strong>×”×ž×œ×¦×•×ª:</strong> ××•×¨ ×˜×‘×¢×™, ×—×“×¨×™× ×ž×¡×•×“×¨×™×, ×ž×‘×˜ ×¨×—×‘. ×ª×ž×•× ×ª ×”×›× ×™×¡×” / ×¡×œ×•×Ÿ ×›×ª×ž×•× ×” ×¨××©×™×ª.</span>
       </div>
 
       {/* PDF documents & project plans */}
       <div style={{ marginTop: 24, borderTop: `1px solid ${BORDER}`, paddingTop: 20 }}>
         <div style={{ fontSize: 15, fontWeight: 800, color: TEXT, fontFamily: FONT, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <FaFileAlt size={15} style={{ color: P }} /> מסמכי PDF ותוכניות פרויקט
+          <FaFileAlt size={15} style={{ color: P }} /> ×ž×¡×ž×›×™ PDF ×•×ª×•×›× ×™×•×ª ×¤×¨×•×™×§×˜
         </div>
         <div style={{ fontSize: 13, color: MUTED, fontFamily: FONT, marginBottom: 14 }}>
-          העלה קבצי מידע, תוכניות, נספחים — הלקוח יצטרך להשאיר פרטים לפני ההורדה.
+          ×”×¢×œ×” ×§×‘×¦×™ ×ž×™×“×¢, ×ª×•×›× ×™×•×ª, × ×¡×¤×—×™× â€” ×”×œ×§×•×— ×™×¦×˜×¨×š ×œ×”×©××™×¨ ×¤×¨×˜×™× ×œ×¤× ×™ ×”×”×•×¨×“×”.
         </div>
         <PdfUploader pdfs={d.pdfs} onUpdate={pdfs => upd('pdfs', pdfs)} adminToken={WIZ_ADMIN_TOKEN} />
       </div>
@@ -1615,36 +1623,36 @@ function Step6({ d, upd }) {
   )
 }
 
-// ─── Step 7: Summary ──────────────────────────────────────────────────────────
+// â”€â”€â”€ Step 7: Summary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const SUMMARY_ROWS = [
-  { key: 'txType',      Icon: FaTag,          label: 'סוג עסקה',  fmt: (v)    => v === 'sale' ? 'מכירה' : 'השכרה' },
-  { key: 'propType',    Icon: FaHome,          label: 'סוג נכס',   fmt: (v)    => v },
-  { key: '_address',    Icon: FaMapMarkerAlt,  label: 'כתובת',     fmt: (_,d)  => [d.street, d.houseNum, d.city, d.neighborhood].filter(Boolean).join(', ') },
-  { key: '_floor',      Icon: FaLayerGroup,    label: 'קומה',      fmt: (_,d)  => d.floor ? `${d.floor}${d.totalFloors ? ` / ${d.totalFloors}` : ''}` : '' },
-  { key: 'rooms',       Icon: FaBed,           label: 'חדרים',     fmt: (v)    => v ? `${v} חדרים` : '' },
-  { key: 'size',        Icon: FaRulerCombined, label: 'שטח',       fmt: (v)    => v ? `${v} מ"ר` : '' },
-  { key: '_condition',  Icon: FaCheck,         label: 'מצב',       fmt: (_,d)  => CONDITIONS.find(c => c.v === d.condition)?.l || '' },
-  { key: 'price',       Icon: FaMoneyBill,     label: 'מחיר',      fmt: (v)    => v ? `₪${v}` : '' },
-  { key: '_entry',      Icon: FaCalendarAlt,   label: 'כניסה',     fmt: (_,d)  => d.entryFlex ? 'גמיש / מיידי' : d.entryDate },
-  { key: '_amenities',  Icon: FaCog,           label: 'מאפיינים',  fmt: (_,d)  => AMENITIES.filter(a => d.amenities[a.k]).map(a => a.l).join(' • ') },
-  { key: 'description', Icon: FaFileAlt,       label: 'תיאור',     fmt: (v)    => v },
-  { key: '_contact',    Icon: FaPhone,         label: 'איש קשר',   fmt: (_,d)  => `${d.contactName} | ${d.contactPhone}` },
+  { key: 'txType',      Icon: FaTag,          label: '×¡×•×’ ×¢×¡×§×”',  fmt: (v)    => v === 'sale' ? '×ž×›×™×¨×”' : '×”×©×›×¨×”' },
+  { key: 'propType',    Icon: FaHome,          label: '×¡×•×’ × ×›×¡',   fmt: (v)    => v },
+  { key: '_address',    Icon: FaMapMarkerAlt,  label: '×›×ª×•×‘×ª',     fmt: (_,d)  => [d.street, d.houseNum, d.city, d.neighborhood].filter(Boolean).join(', ') },
+  { key: '_floor',      Icon: FaLayerGroup,    label: '×§×•×ž×”',      fmt: (_,d)  => d.floor ? `${d.floor}${d.totalFloors ? ` / ${d.totalFloors}` : ''}` : '' },
+  { key: 'rooms',       Icon: FaBed,           label: '×—×“×¨×™×',     fmt: (v)    => v ? `${v} ×—×“×¨×™×` : '' },
+  { key: 'size',        Icon: FaRulerCombined, label: '×©×˜×—',       fmt: (v)    => v ? `${v} ×ž"×¨` : '' },
+  { key: '_condition',  Icon: FaCheck,         label: '×ž×¦×‘',       fmt: (_,d)  => CONDITIONS.find(c => c.v === d.condition)?.l || '' },
+  { key: 'price',       Icon: FaMoneyBill,     label: '×ž×—×™×¨',      fmt: (v)    => v ? `â‚ª${v}` : '' },
+  { key: '_entry',      Icon: FaCalendarAlt,   label: '×›× ×™×¡×”',     fmt: (_,d)  => d.entryFlex ? '×’×ž×™×© / ×ž×™×™×“×™' : d.entryDate },
+  { key: '_amenities',  Icon: FaCog,           label: '×ž××¤×™×™× ×™×',  fmt: (_,d)  => AMENITIES.filter(a => d.amenities[a.k]).map(a => a.l).join(' â€¢ ') },
+  { key: 'description', Icon: FaFileAlt,       label: '×ª×™××•×¨',     fmt: (v)    => v },
+  { key: '_contact',    Icon: FaPhone,         label: '××™×© ×§×©×¨',   fmt: (_,d)  => `${d.contactName} | ${d.contactPhone}` },
 ]
 
 function Step7({ d }) {
   const summaryText = [
-    `סוג עסקה: ${d.txType === 'sale' ? 'מכירה' : 'השכרה'}`,
-    `סוג נכס: ${d.propType}`,
-    `כתובת: ${d.street} ${d.houseNum}, ${d.city}`,
-    d.rooms     ? `חדרים: ${d.rooms}` : '',
-    d.size      ? `שטח: ${d.size} מ"ר` : '',
-    d.price     ? `מחיר: ₪${d.price}` : '',
-    d.entryDate ? `כניסה: ${d.entryFlex ? 'גמיש' : d.entryDate}` : '',
-    d.description ? `תיאור: ${d.description}` : '',
-    `איש קשר: ${d.contactName} | ${d.contactPhone}`,
+    `×¡×•×’ ×¢×¡×§×”: ${d.txType === 'sale' ? '×ž×›×™×¨×”' : '×”×©×›×¨×”'}`,
+    `×¡×•×’ × ×›×¡: ${d.propType}`,
+    `×›×ª×•×‘×ª: ${d.street} ${d.houseNum}, ${d.city}`,
+    d.rooms     ? `×—×“×¨×™×: ${d.rooms}` : '',
+    d.size      ? `×©×˜×—: ${d.size} ×ž"×¨` : '',
+    d.price     ? `×ž×—×™×¨: â‚ª${d.price}` : '',
+    d.entryDate ? `×›× ×™×¡×”: ${d.entryFlex ? '×’×ž×™×©' : d.entryDate}` : '',
+    d.description ? `×ª×™××•×¨: ${d.description}` : '',
+    `××™×© ×§×©×¨: ${d.contactName} | ${d.contactPhone}`,
     '',
-    'פורסם דרך מערכת אפיק הנחל נדל"ן',
+    '×¤×•×¨×¡× ×“×¨×š ×ž×¢×¨×›×ª ××¤×™×§ ×”× ×—×œ × ×“×œ"×Ÿ',
   ].filter(Boolean).join('\n')
 
   const [copied, setCopied] = useState(false)
@@ -1657,7 +1665,7 @@ function Step7({ d }) {
   return (
     <div>
       <h3 style={{ color: TEXT, fontSize: 20, fontWeight: 800, marginBottom: 24, marginTop: 0, fontFamily: FONT }}>
-        סיכום הנכס
+        ×¡×™×›×•× ×”× ×›×¡
       </h3>
       <div style={{ background: BG_CARD, borderRadius: 18, padding: '20px 22px',
         border: `1.5px solid ${BORDER}`, marginBottom: 24, lineHeight: 1.85 }}>
@@ -1696,7 +1704,7 @@ function Step7({ d }) {
             background: copied ? P : P + '22', color: copied ? '#fff' : P,
             fontSize: 15, fontWeight: 700, cursor: 'pointer', transition: 'all .22s', fontFamily: FONT,
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-          <FaCopy size={14} /> {copied ? 'הועתק!' : 'העתק פרטים'}
+          <FaCopy size={14} /> {copied ? '×”×•×¢×ª×§!' : '×”×¢×ª×§ ×¤×¨×˜×™×'}
         </button>
         <button onClick={() => window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(summaryText)}`, '_blank')}
           style={{ padding: '14px', borderRadius: 14, border: `1.5px solid ${G}`,
@@ -1705,14 +1713,14 @@ function Step7({ d }) {
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
           onMouseEnter={e => { e.currentTarget.style.background = G; e.currentTarget.style.color = '#000' }}
           onMouseLeave={e => { e.currentTarget.style.background = `${G}22`; e.currentTarget.style.color = G }}>
-          <FaWhatsapp size={16} /> שלח בוואטסאפ
+          <FaWhatsapp size={16} /> ×©×œ×— ×‘×•×•××˜×¡××¤
         </button>
       </div>
     </div>
   )
 }
 
-// ─── Main Wizard ──────────────────────────────────────────────────────────────
+// â”€â”€â”€ Main Wizard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const STEP_COMPONENTS = [Step1, Step2, Step3, Step4, Step5, Step6, Step7]
 
@@ -1802,13 +1810,13 @@ export default function PropertyWizard({ onClose, onPublish, initialData, editId
 
           <div style={{ background: BG_INNER, borderRadius: 24, overflow: 'hidden', fontFamily: FONT }}>
 
-            {/* ── Header ── */}
+            {/* â”€â”€ Header â”€â”€ */}
             <div style={{ padding: '14px 22px 12px', display: 'flex', alignItems: 'center',
               justifyContent: 'space-between', borderBottom: `1px solid ${BORDER}` }}>
               <div>
-                <div style={{ fontSize: 19, fontWeight: 900, color: TEXT, fontFamily: FONT }}>{editId ? 'עריכת נכס' : 'פרסום נכס חדש'}</div>
+                <div style={{ fontSize: 19, fontWeight: 900, color: TEXT, fontFamily: FONT }}>{editId ? '×¢×¨×™×›×ª × ×›×¡' : '×¤×¨×¡×•× × ×›×¡ ×—×“×©'}</div>
                 <div style={{ fontSize: 13, color: MUTED, marginTop: 2, fontFamily: FONT }}>
-                  שלב {step} מתוך {STEPS.length}
+                  ×©×œ×‘ {step} ×ž×ª×•×š {STEPS.length}
                 </div>
               </div>
               <button onClick={onClose}
@@ -1821,7 +1829,7 @@ export default function PropertyWizard({ onClose, onPublish, initialData, editId
               </button>
             </div>
 
-            {/* ── Step indicator — all 7 always visible ── */}
+            {/* â”€â”€ Step indicator â€” all 7 always visible â”€â”€ */}
             <div style={{ padding: '10px 18px 6px' }}>
               <div style={{ position: 'relative' }}>
                 {/* progress track */}
@@ -1836,26 +1844,26 @@ export default function PropertyWizard({ onClose, onPublish, initialData, editId
                   {STEPS.map(s => {
                     const done    = step > s.id
                     const current = step === s.id
-                    const clickable = done
+                    const clickable = done || !!editId
                     return (
                       <div key={s.id}
                         onClick={() => clickable && setStep(s.id)}
                         style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
                           cursor: clickable ? 'pointer' : 'default' }}
-                        title={clickable ? `חזור לשלב ${s.id}: ${s.title}` : ''}>
+                        title={clickable ? `×—×–×•×¨ ×œ×©×œ×‘ ${s.id}: ${s.title}` : ''}>
                         <div style={{ width: 22, height: 22, borderRadius: '50%',
-                          background: done ? G : current ? P : '#0c0820',
-                          border: `2px solid ${done ? G : current ? P : BORDER}`,
-                          color: done ? '#000' : current ? '#fff' : MUTED,
+                          background: done ? G : current ? P : (clickable && !current ? `${P}28` : '#0c0820'),
+                          border: `2px solid ${done ? G : current ? P : (clickable ? `${P}66` : BORDER)}`,
+                          color: done ? '#000' : current ? '#fff' : (clickable ? `${P}CC` : MUTED),
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                           fontSize: 10, fontWeight: 800, transition: 'all .3s', flexShrink: 0,
-                          boxShadow: clickable ? `0 0 0 0 ${G}` : 'none' }}>
+                          boxShadow: 'none' }}>
                           {done ? <FaCheck size={9}/> : s.id}
                         </div>
-                        <span style={{ fontSize: 11, color: current ? TEXT : done ? `${G}BB` : MUTED,
-                          fontWeight: current ? 800 : 400, textAlign: 'center', lineHeight: 1.25,
+                        <span style={{ fontSize: 11, color: current ? TEXT : done ? `${G}BB` : (clickable ? `${P}AA` : MUTED),
+                          fontWeight: current ? 800 : (clickable ? 600 : 400), textAlign: 'center', lineHeight: 1.25,
                           fontFamily: FONT, whiteSpace: 'normal',
-                          textDecoration: clickable ? 'underline dotted' : 'none',
+                          textDecoration: clickable && !current ? 'underline dotted' : 'none',
                           textUnderlineOffset: 2 }}>
                           {s.title}
                         </span>
@@ -1866,12 +1874,12 @@ export default function PropertyWizard({ onClose, onPublish, initialData, editId
               </div>
             </div>
 
-            {/* ── Step content ── */}
+            {/* â”€â”€ Step content â”€â”€ */}
             <div style={{ padding: '14px 28px 18px', minHeight: 300, maxHeight: 'calc(100vh - 260px)', overflowY: 'auto' }}>
               <StepComp d={data} upd={upd} />
             </div>
 
-            {/* ── Footer — CTA centered ── */}
+            {/* â”€â”€ Footer â€” CTA centered â”€â”€ */}
             <div style={{ padding: '12px 22px 16px', borderTop: `1px solid ${BORDER}`,
               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
 
@@ -1885,7 +1893,7 @@ export default function PropertyWizard({ onClose, onPublish, initialData, editId
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
                     fontFamily: FONT, transition: 'all .2s',
                     boxShadow: canNext() ? `0 6px 20px ${P}44` : 'none' }}>
-                  המשך <FaChevronLeft size={12} />
+                  ×”×ž×©×š <FaChevronLeft size={12} />
                 </button>
               ) : (
                 <button onClick={handleFinish}
@@ -1894,7 +1902,7 @@ export default function PropertyWizard({ onClose, onPublish, initialData, editId
                     cursor: 'pointer', fontFamily: FONT,
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
                     boxShadow: `0 6px 20px ${G}44` }}>
-                  <FaCheck size={13} /> סיום ופרסום
+                  <FaCheck size={13} /> ×¡×™×•× ×•×¤×¨×¡×•×
                 </button>
               )}
 
@@ -1907,7 +1915,7 @@ export default function PropertyWizard({ onClose, onPublish, initialData, editId
                   fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: FONT,
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
                   transition: 'all .25s' }}>
-                {draftSaved ? <><FaCheck size={11} /> נשמר בטיוטות</> : <><FaSave size={11} /> שמור טיוטה</>}
+                {draftSaved ? <><FaCheck size={11} /> × ×©×ž×¨ ×‘×˜×™×•×˜×•×ª</> : <><FaSave size={11} /> ×©×ž×•×¨ ×˜×™×•×˜×”</>}
               </button>
 
               {step > 1 && (
@@ -1917,7 +1925,7 @@ export default function PropertyWizard({ onClose, onPublish, initialData, editId
                     display: 'flex', alignItems: 'center', gap: 6, transition: 'color .2s' }}
                   onMouseEnter={e => e.currentTarget.style.color = TEXT}
                   onMouseLeave={e => e.currentTarget.style.color = MUTED}>
-                  <FaChevronRight size={11} /> חזרה
+                  <FaChevronRight size={11} /> ×—×–×¨×”
                 </button>
               )}
             </div>
@@ -1937,3 +1945,4 @@ export default function PropertyWizard({ onClose, onPublish, initialData, editId
     </div>
   )
 }
+

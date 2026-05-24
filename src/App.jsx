@@ -1038,7 +1038,7 @@ function useIntersection(threshold = 0.2) {
 const TYPEWRITER_HE = ['מגרשים וקרקעות בלעדיים','ייזום ושיווק פרויקטים','ליווי מקצועי מלא','השרון והמרכז ומעבר']
 const TYPEWRITER_EN = ['Exclusive Plots & Land','Project Development & Marketing','Full Professional Guidance','Sharon Region & Beyond']
 
-function useTypewriter(texts, speed = 70) {
+function useTypewriter(texts, speed = 50) {
   const [idx, setIdx] = useState(0)
   const [ch, setCh]   = useState(0)
   const [del, setDel] = useState(false)
@@ -1052,7 +1052,7 @@ function useTypewriter(texts, speed = 70) {
     const cur = textsRef.current[idx % textsRef.current.length]
     let t
     if (!del && ch < cur.length)      t = setTimeout(() => setCh(c => c+1), speed)
-    else if (!del && ch===cur.length)  t = setTimeout(() => setDel(true), 1800)
+    else if (!del && ch===cur.length)  t = setTimeout(() => setDel(true), 1500)
     else if (del && ch > 0)           t = setTimeout(() => setCh(c => c-1), speed/2)
     else { setDel(false); setIdx(i => (i+1)%textsRef.current.length) }
     setOut(cur.slice(0,ch))
@@ -2117,6 +2117,7 @@ function ContactModal({ prop, onClose }) {
   const lbl = labels[lang] || labels.he
   const [form, setForm] = useState({ name:'', phone:'', email:'', msg:prop?`${lang==='he'?'אני מעוניין בנכס':'I\'m interested in property'}: ${prop.title} – ${prop.location}`:'' })
   const [sent, setSent] = useState(false)
+  const [sending, setSending] = useState(false)
   const set = k => e => setForm(f => ({ ...f, [k]:e.target.value }))
   const inp = { width:'100%', padding:'12px 16px', background:'rgba(255,255,255,.05)', border:`1px solid ${C.purple}33`, borderRadius:10, color:C.cream, fontSize:14, fontFamily:'inherit', outline:'none', direction: lang==='he' ? 'rtl' : 'ltr' }
   const swipe = useSwipeClose(onClose)
@@ -2145,6 +2146,8 @@ function ContactModal({ prop, onClose }) {
         ) : (
           <form onSubmit={e => {
             e.preventDefault()
+            if (sending) return
+            setSending(true)
             const lead = {
               id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
               name: form.name, phone: form.phone, email: form.email, msg: form.msg,
@@ -2169,6 +2172,7 @@ function ContactModal({ prop, onClose }) {
             }
             trackEvent('contact_form', { propTitle: prop?.title || '', hasEmail: !!form.email, email: form.email, phone: form.phone, name: form.name })
             setSent(true)
+            setSending(false)
             // WhatsApp follow-up — delayed per admin panel setting
             try {
               const waConf = { ...WA_DEFAULTS, ...JSON.parse(localStorage.getItem(WA_KEY) || '{}') }
@@ -2188,7 +2192,7 @@ function ContactModal({ prop, onClose }) {
               <label style={{ fontSize:12, color:C.cream+'99', marginBottom:4, display:'block' }}>{lbl.msg}</label>
               <textarea rows={3} value={form.msg} onChange={set('msg')} style={{ ...inp, resize:'vertical' }} className="contact-input"/>
             </div>
-            <button type="submit" className="primary-btn" style={{ borderRadius:12, fontSize:15 }}>{lbl.sendMsg}</button>
+            <button type="submit" disabled={sending} className="primary-btn" style={{ borderRadius:12, fontSize:15, opacity:sending?0.6:1 }}>{sending ? '...' : lbl.sendMsg}</button>
             <div style={{ textAlign:'center', paddingTop:6, borderTop:`1px solid ${C.purple}22` }}>
               <a href="tel:0559811814" onClick={() => trackEvent('phone_click', { src:'contact_modal' })} style={{ color:C.green, textDecoration:'none', fontWeight:700, fontSize:17, display:'inline-flex', alignItems:'center', gap:7 }}><FaPhone size={13}/> 055-981-1814</a>
             </div>
@@ -4705,7 +4709,6 @@ Return ONLY valid JSON (no markdown, no code blocks):
                             {onEditInWizard && (
                               <button onClick={() => { onClose?.(); onEditInWizard(p) }} style={{ padding:'6px 12px', background:`${C.purple}22`, border:`1px solid ${C.purple}55`, borderRadius:7, color:C.purple, cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:700, whiteSpace:'nowrap' }}>ערוך באשף</button>
                             )}
-                            <button onClick={() => startEdit(p)} style={{ padding:'6px 12px', background:'rgba(255,255,255,.06)', border:'1px solid rgba(255,255,255,.14)', borderRadius:7, color:`${C.cream}BB`, cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:600, whiteSpace:'nowrap' }}>עריכה</button>
                             <button onClick={() => del(p.id)} style={{ padding:'6px 12px', background:'rgba(224,82,82,.1)', border:'1px solid rgba(224,82,82,.3)', borderRadius:7, color:'#E05252', cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:600, whiteSpace:'nowrap' }}>מחק</button>
                           </div>
                         </div>
@@ -6170,25 +6173,34 @@ const SLOT_COUNT     = 4
 const SERVER_URL     = import.meta.env.VITE_API_URL || 'https://afik-hanahal-server.onrender.com'
 
 
-// ── Fetch articles from Render → Vercel proxy ─────────────────────────────
+// ── Fetch articles — parallel merge from Vercel + Render ──────────────────
 async function fetchFreshArticles() {
-  // Primary: Vercel → Render pipeline (JSON)
-  try {
-    const r = await fetch('/api/news', { signal: AbortSignal.timeout(20000) })
-    if (r.ok) {
-      const data = await r.json()
-      if (Array.isArray(data) && data.length) return data
-    }
-  } catch(e) { console.warn('[News] Vercel proxy failed:', e?.message) }
+  const [vercelRes, renderRes] = await Promise.allSettled([
+    fetch('/api/news', { signal: AbortSignal.timeout(22000) })
+      .then(r => r.ok ? r.json() : []).catch(() => []),
+    fetch(`${SERVER_URL}/api/news/feed`, { signal: AbortSignal.timeout(22000) })
+      .then(r => r.ok ? r.json() : []).catch(() => []),
+  ])
 
-  // Fallback: direct Render (for local dev)
+  const vercelData = (vercelRes.status === 'fulfilled' && Array.isArray(vercelRes.value)) ? vercelRes.value : []
+  const renderData = (renderRes.status === 'fulfilled' && Array.isArray(renderRes.value)) ? renderRes.value : []
+
+  // Merge and deduplicate — Render articles first so it wins on duplicates vs Vercel
+  const seen = new Set()
+  const merged = [...renderData, ...vercelData].filter(a => {
+    if (!a.title || !(a.url || a.link)) return false
+    const k = (a.title || '').replace(/\s+/g, '').slice(0, 30)
+    if (seen.has(k)) return false
+    seen.add(k); return true
+  })
+
+  if (merged.length) return merged
+
+  // Last resort: Supabase-cached read from Render
   try {
-    const r = await fetch(`${SERVER_URL}/api/news/feed`, { signal: AbortSignal.timeout(20000) })
-    if (r.ok) {
-      const data = await r.json()
-      if (Array.isArray(data) && data.length) return data
-    }
-  } catch(e) { console.warn('[News] Render direct failed:', e?.message) }
+    const r = await fetch(`${SERVER_URL}/api/news`, { signal: AbortSignal.timeout(10000) })
+    if (r.ok) { const d = await r.json(); if (Array.isArray(d) && d.length) return d }
+  } catch {}
 
   return []
 }
@@ -6476,7 +6488,7 @@ const STATIC_ARCHIVE = [
 
 function ArchiveCard({ a, C, isDark, cardIndex = 0 }) {
   const [imgErr, setImgErr] = useState(false)
-  const delayMs = useRef(cardIndex * 300 + Math.floor(Math.random() * 400)).current
+  const delayMs = useRef(Math.min(cardIndex, 6) * 120 + Math.floor(Math.random() * 200)).current
   const ogImage = useOGImage(a.link || a.url, !!a.image, delayMs)
   const displayImage = !imgErr && (a.image || ogImage)
   const pubDate = a.date ? new Date(a.date) : null
@@ -6820,12 +6832,19 @@ function ArchiveModal({ onClose, C, isDark }) {
 
   // Merge static base with saved/live articles, deduplicate by id
   function mergeWithStatic(live) {
-    const seen = new Set(live.map(a => a.id))
+    const THREE_WEEKS = 21 * 24 * 60 * 60 * 1000
+    const cutoff = Date.now() - THREE_WEEKS
+    // Keep live articles from last 3 weeks, fall back to older ones if we have fewer than 20
+    const recent = live.filter(a => (a.archivedAt || new Date(a.publishedAt || a.date || 0).getTime()) >= cutoff)
+    const liveSorted = recent.length >= 20
+      ? recent
+      : live.slice(0, Math.max(20, recent.length))
+    const seen = new Set(liveSorted.map(a => a.id))
     const extras = STATIC_ARCHIVE
       .filter(a => !seen.has(a.id))
       .map(a => ({ ...a, image: a.image || '' }))
-    const merged = [...live, ...extras]
-    merged.sort((a, b) => (b.archivedAt || b.date?.getTime() || 0) - (a.archivedAt || a.date?.getTime() || 0))
+    const merged = [...liveSorted, ...extras]
+    merged.sort((a, b) => (b.archivedAt || new Date(b.publishedAt || b.date || 0).getTime()) - (a.archivedAt || new Date(a.publishedAt || a.date || 0).getTime()))
     return merged.slice(0, 50)
   }
 
@@ -7548,6 +7567,8 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
   const [videoPlaying, setVideoPlaying] = useState(false)
   const videoRef = useRef(null)
   const propSwipe = useSwipeClose(onClose)
+  // Gallery touch swipe — navigate photos without closing modal
+  const galleryTouch = useRef({ x: 0, y: 0 })
 
   useEffect(() => { setVideoPlaying(false) }, [imgIdx])
 
@@ -7677,7 +7698,17 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
         </div>
 
         {/* ══ FULL-WIDTH GALLERY ══ */}
-        <div className="prop-gallery-main">
+        <div className="prop-gallery-main"
+          onTouchStart={e => { galleryTouch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY } }}
+          onTouchEnd={e => {
+            e.stopPropagation()
+            if (!totalMedia || totalMedia <= 1) return
+            const dx = e.changedTouches[0].clientX - galleryTouch.current.x
+            const dy = e.changedTouches[0].clientY - galleryTouch.current.y
+            if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.2) {
+              setImgIdx(i => dx > 0 ? (i - 1 + totalMedia) % totalMedia : (i + 1) % totalMedia)
+            }
+          }}>
           {isVideoFrame && currentVideo ? (
             videoType === 'cloudinary' || (currentVideo.url && !currentVideo.url.includes('youtube') && !currentVideo.url.includes('youtu.be')) ? (
               <>
@@ -8188,6 +8219,7 @@ function PropertyCard({ prop, onContact, onSelect }) {
   const [imgIdx, setImgIdx] = useState(0)
   const [hovered, setHovered] = useState(false)
   const [failedImgs, setFailedImgs] = useState(new Set())
+  const isTouchDevice = useRef(typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0)).current
   const validImages = (prop.images || []).filter(u => u && typeof u === 'string' && u.length > 4).map(cloudImg)
   const cat = CATEGORIES.find(c => c.id === prop.category) || CATEGORIES[1]
   const sc = { 'זמין':C.green, 'בבדיקה':'#F7C948', 'נמכר':'#E05252', 'הושכר':'#F97316' }[prop.status] || C.green
@@ -8219,6 +8251,7 @@ function PropertyCard({ prop, onContact, onSelect }) {
   const PlaceholderIcon = cat.id==='land' ? FaLeaf : cat.id==='projects' ? FaBuilding : FaHome
 
   const touchY = useRef(0)
+  const touchFromArrow = useRef(false)
 
   return (
     <div
@@ -8226,7 +8259,7 @@ function PropertyCard({ prop, onContact, onSelect }) {
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onTouchStart={e => { touchY.current = e.touches[0].clientY }}
-      onTouchEnd={e => { if (Math.abs(e.changedTouches[0].clientY - touchY.current) < 8) { e.preventDefault(); onSelect(prop) } }}
+      onTouchEnd={e => { if (touchFromArrow.current) { touchFromArrow.current = false; return }; if (Math.abs(e.changedTouches[0].clientY - touchY.current) < 8) { e.preventDefault(); onSelect(prop) } }}
       className="prop-card"
       style={{ touchAction:'manipulation' }}>
 
@@ -8241,15 +8274,21 @@ function PropertyCard({ prop, onContact, onSelect }) {
             {/* gradient scrim at bottom for readability */}
             <div style={{ position:'absolute', bottom:0, left:0, right:0, height:'55%', background:'linear-gradient(to top,rgba(0,0,0,.55),transparent)', pointerEvents:'none', zIndex:1 }}/>
             {validImages.length > 1 && (<>
-              <button onClick={e => { e.stopPropagation(); setImgIdx(i => (i-1+validImages.length)%validImages.length) }}
-                style={{ position:'absolute', top:'50%', right:8, transform:'translateY(-50%)', background:'rgba(0,0,0,.55)', backdropFilter:'blur(8px)', border:'1px solid rgba(255,255,255,.18)', borderRadius:'50%', width:32, height:32, color:'#fff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s', zIndex:3, opacity: hovered ? 1 : 0 }}
+              <button
+                onClick={e => { e.stopPropagation(); setImgIdx(i => (i-1+validImages.length)%validImages.length) }}
+                onTouchStart={e => { e.stopPropagation(); touchFromArrow.current = true }}
+                onTouchEnd={e => { e.stopPropagation(); setImgIdx(i => (i-1+validImages.length)%validImages.length) }}
+                style={{ position:'absolute', top:'50%', right:8, transform:'translateY(-50%)', background:'rgba(0,0,0,.55)', backdropFilter:'blur(8px)', border:'1px solid rgba(255,255,255,.18)', borderRadius:'50%', width:44, height:44, color:'#fff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s', zIndex:3, opacity: hovered || isTouchDevice ? 1 : 0 }}
                 onMouseEnter={e=>e.currentTarget.style.background=C.purple} onMouseLeave={e=>e.currentTarget.style.background='rgba(0,0,0,.55)'}>
-                <FaChevronRight size={10}/>
+                <FaChevronRight size={12}/>
               </button>
-              <button onClick={e => { e.stopPropagation(); setImgIdx(i => (i+1)%validImages.length) }}
-                style={{ position:'absolute', top:'50%', left:8, transform:'translateY(-50%)', background:'rgba(0,0,0,.55)', backdropFilter:'blur(8px)', border:'1px solid rgba(255,255,255,.18)', borderRadius:'50%', width:32, height:32, color:'#fff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s', zIndex:3, opacity: hovered ? 1 : 0 }}
+              <button
+                onClick={e => { e.stopPropagation(); setImgIdx(i => (i+1)%validImages.length) }}
+                onTouchStart={e => { e.stopPropagation(); touchFromArrow.current = true }}
+                onTouchEnd={e => { e.stopPropagation(); setImgIdx(i => (i+1)%validImages.length) }}
+                style={{ position:'absolute', top:'50%', left:8, transform:'translateY(-50%)', background:'rgba(0,0,0,.55)', backdropFilter:'blur(8px)', border:'1px solid rgba(255,255,255,.18)', borderRadius:'50%', width:44, height:44, color:'#fff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s', zIndex:3, opacity: hovered || isTouchDevice ? 1 : 0 }}
                 onMouseEnter={e=>e.currentTarget.style.background=C.purple} onMouseLeave={e=>e.currentTarget.style.background='rgba(0,0,0,.55)'}>
-                <FaChevronLeft size={10}/>
+                <FaChevronLeft size={12}/>
               </button>
               {/* photo count — bottom right */}
               <div style={{ position:'absolute', bottom:10, right:10, background:'rgba(0,0,0,.65)', backdropFilter:'blur(6px)', borderRadius:5, padding:'3px 8px', fontSize:10, color:'rgba(255,255,255,.88)', display:'flex', alignItems:'center', gap:4, fontWeight:600, zIndex:4 }}>
@@ -8484,6 +8523,7 @@ export default function App() {
   const [selectedProp, setSelectedProp] = useState(null)
   const [showAdmin,    setShowAdmin]    = useState(false)
   const [showWizard,   setShowWizard]   = useState(false)
+  const [wizardKey,    setWizardKey]    = useState(0)
   const [wizardEditData, setWizardEditData] = useState(null)
   const [wizardEditId,   setWizardEditId]   = useState(null)
   const [adminAuth,    setAdminAuth]    = useState(() => sessionStorage.getItem('afik_admin_session') === '1')
@@ -8639,7 +8679,7 @@ export default function App() {
 
   // ── Open wizard from admin panel banner ──
   useEffect(() => {
-    const h = () => setShowWizard(true)
+    const h = () => { setWizardKey(k => k+1); setShowWizard(true) }
     document.addEventListener('afik:openWizard', h)
     return () => document.removeEventListener('afik:openWizard', h)
   }, [])
@@ -9388,6 +9428,7 @@ export default function App() {
       {showPrivacy && <PrivacyModal onClose={() => setShowPrivacy(false)}/>}
       {selectedProp && <PropertyModal prop={selectedProp} properties={properties} onClose={() => setSelectedProp(null)} onContact={p => { openContact(p) }} onSelect={setSelectedProp} govmapToken={govmapToken}/>}
       {showWizard && <PropertyWizard
+          key={wizardEditId || wizardKey}
           onClose={() => { setShowWizard(false); setWizardEditData(null); setWizardEditId(null) }}
           initialData={wizardEditData}
           editId={wizardEditId}
@@ -9397,8 +9438,10 @@ export default function App() {
               const oldProp = properties.find(x => x.id === wizardEditId) || {}
               const merged = {
                 ...prop,
+                id: wizardEditId,                              // critical: never let wizardToProperty's Date.now() id override
                 status: oldProp.status || prop.status,
                 createdAt: oldProp.createdAt || prop.createdAt,
+                published: isDraft ? false : (prop.published ?? oldProp.published ?? true),
               }
               nextProps = properties.map(x => x.id === wizardEditId ? merged : x)
             } else {
