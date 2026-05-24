@@ -3586,6 +3586,23 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const [propSyncing,    setPropSyncing]    = useState(false)
   const [propSyncError,  setPropSyncError]  = useState('')
   const [propSyncedAt,   setPropSyncedAt]   = useState(null)
+  const [supabaseWarning, setSupabaseWarning] = useState('')
+
+  // Check Supabase health on first open so admin knows if data is at risk
+  useEffect(() => {
+    const base = API_BASE || ''
+    fetch(`${base}/api/properties/status`, {
+      headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
+      signal: AbortSignal.timeout(8000),
+    })
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(s => {
+        if (!s.supabaseConfigured) setSupabaseWarning('⚠ Supabase לא מוגדר בשרת — נכסים נשמרים בזיכרון בלבד ויאבדו בהפעלה מחדש של השרת!')
+        else if (!s.supabaseReachable) setSupabaseWarning('⚠ Supabase מוגדר אבל לא נגיש — נכסים נשמרים בזיכרון בלבד ויאבדו בהפעלה מחדש של השרת!')
+      })
+      .catch(() => {})
+  }, [])
+
   const [countersSaved,  setCountersSaved]  = useState(false)
   const [countersSaving, setCountersSaving] = useState(false)
   const [countersError,  setCountersError]  = useState('')
@@ -4005,10 +4022,10 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
       })
       if (!r.ok) throw new Error(await r.text().catch(() => String(r.status)))
       const body = await r.json().catch(() => ({}))
-      if (body.warning) {
-        setPropSyncError('⚠ זמני בלבד (שרת ב-RAM) — נתונים עלולים להאבד בהפעלה מחדש')
+      if (body.warning || body.storage === 'memory') {
+        setPropSyncError('⚠ נשמר ב-RAM בלבד — Supabase לא זמין! הנתונים יאבדו אם השרת יתחיל מחדש')
       } else {
-        setPropSyncedAt(new Date())
+        setPropSyncedAt(new Date())  // storage === 'supabase'
       }
     } catch (e) {
       setPropSyncError('שגיאת סנכרון: ' + (e.message || 'בעיית תקשורת'))
@@ -4368,6 +4385,15 @@ Return ONLY valid JSON (no markdown, no code blocks):
             <button onClick={onClose} style={{ background:'rgba(255,255,255,.07)', border:`1px solid rgba(132,144,216,.25)`, borderRadius:10, width:38, height:38, color:`${C.cream}80`, cursor:'pointer', fontSize:18, lineHeight:1, display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s' }}
               onMouseEnter={e=>{ e.currentTarget.style.background='rgba(224,82,82,.2)'; e.currentTarget.style.borderColor='#E05252'; e.currentTarget.style.color='#E05252' }}
               onMouseLeave={e=>{ e.currentTarget.style.background='rgba(255,255,255,.07)'; e.currentTarget.style.borderColor='rgba(132,144,216,.25)'; e.currentTarget.style.color=`${C.cream}80` }}>×</button>
+          </div>
+        )}
+
+        {/* Supabase health warning banner */}
+        {supabaseWarning && (
+          <div style={{ background:'rgba(224,82,82,.12)', border:'1px solid rgba(224,82,82,.35)', borderRadius:10, padding:'10px 16px', marginBottom:16, display:'flex', alignItems:'center', gap:10, direction:'rtl' }}>
+            <FaExclamationTriangle size={15} style={{ color:'#E05252', flexShrink:0 }}/>
+            <span style={{ fontSize:13, color:'#E05252', fontWeight:600 }}>{supabaseWarning}</span>
+            <button onClick={() => setSupabaseWarning('')} style={{ marginRight:'auto', background:'none', border:'none', color:'rgba(224,82,82,.6)', cursor:'pointer', fontSize:16, lineHeight:1, padding:'0 4px' }}>×</button>
           </div>
         )}
 
