@@ -5490,6 +5490,8 @@ Return ONLY valid JSON (no markdown, no code blocks):
               const lb = chats[pb]?.[chats[pb].length-1]?.created_at || 0
               return new Date(lb) - new Date(la)
             })
+          const chatIdx = contactList.findIndex(l => l.id === chatContact?.id)
+          const navToContact = t => { setChatContact(t); fetchChats(t.phone) }
           const avatarBg = name => { const colors=['#D9626E','#AA7DE0','#3A8FC7','#E08C3A','#3BAF7E','#C2497E','#5C8AE0']; return colors[(name?.charCodeAt(0)||65)%colors.length] }
           const chatPhone = chatContact ? intlPhoneFmt(chatContact.phone) : null
           const msgs = chatPhone ? (chats[chatPhone]||[]) : []
@@ -5632,6 +5634,14 @@ Return ONLY valid JSON (no markdown, no code blocks):
                         <div style={{ fontSize:12, color:WA.sub, direction:'ltr' }}>{chatContact.phone}</div>
                       </div>
                       <div style={{ display:'flex', gap:2, flexShrink:0 }}>
+                        <button onClick={()=>chatIdx>0&&navToContact(contactList[chatIdx-1])} title="ליד קודם"
+                          disabled={chatIdx<=0}
+                          style={{ width:32, height:32, borderRadius:'50%', background:'transparent', border:'none', color:chatIdx<=0?WA.divider:WA.sub, cursor:chatIdx<=0?'default':'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontSize:17, transition:'background .15s' }}
+                          onMouseEnter={e=>{ if(chatIdx>0) e.currentTarget.style.background='#374045' }} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>‹</button>
+                        <button onClick={()=>chatIdx<contactList.length-1&&navToContact(contactList[chatIdx+1])} title="ליד הבא"
+                          disabled={chatIdx>=contactList.length-1}
+                          style={{ width:32, height:32, borderRadius:'50%', background:'transparent', border:'none', color:chatIdx>=contactList.length-1?WA.divider:WA.sub, cursor:chatIdx>=contactList.length-1?'default':'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontSize:17, transition:'background .15s' }}
+                          onMouseEnter={e=>{ if(chatIdx<contactList.length-1) e.currentTarget.style.background='#374045' }} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>›</button>
                         {chatContact.phone && (
                           <a href={`tel:${chatContact.phone}`} title={lang==='en'?'Call':'התקשר'}
                             style={{ width:36, height:36, borderRadius:'50%', background:'transparent', color:WA.sub, display:'flex', alignItems:'center', justifyContent:'center', textDecoration:'none', transition:'background .15s' }}
