@@ -187,9 +187,11 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
   const [deletingId,    setDeletingId]    = useState(null)  // id hidden during undo window
   const [pendingDelete, setPendingDelete] = useState(null)  // { lead, timer }
 
-  const scrollRef = useRef(null)
-  const pollRef   = useRef(null)
-  const inputRef  = useRef(null)
+  const scrollRef     = useRef(null)
+  const pollRef       = useRef(null)
+  const inputRef      = useRef(null)
+  const isNearBottom  = useRef(true)   // tracks whether user is scrolled to bottom
+  const prevMsgCount  = useRef(0)      // detects genuinely new messages vs re-fetch
   const fileRef   = useRef(null)
 
   // ── Delete handlers ───────────────────────────────────────────────────────
@@ -316,15 +318,26 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
   useEffect(() => {
     if (pollRef.current) clearInterval(pollRef.current)
     if (!contact?.phone) return
+    prevMsgCount.current = 0
+    isNearBottom.current = true
     fetchMsgs(contact.phone, { showLoader: true })
-    pollRef.current = setInterval(() => fetchMsgs(contact.phone), 500)
+    pollRef.current = setInterval(() => fetchMsgs(contact.phone), 4000)
     return () => clearInterval(pollRef.current)
   }, [contact?.id, fetchMsgs])
 
-  // Auto-scroll to bottom
+  // Auto-scroll: only when switching contact (always go bottom) or new messages arrive
+  // while user is already near the bottom — never force-jump while reading old messages.
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+    if (!scrollRef.current || !contact?.phone) return
+    const p    = intlPhone(contact.phone)
+    const msgs = chats[p] || []
+    const count = msgs.length
+    if (count === 0) return
+    if (count > prevMsgCount.current) {
+      if (isNearBottom.current) {
+        scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+      }
+      prevMsgCount.current = count
     }
   }, [chats, contact?.phone])
 
@@ -533,7 +546,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
 
       {/* ── Main Layout ──────────────────────────────────────────────────── */}
       {/* flex:1, minHeight:0 — critical for contained scroll in flex child */}
-      <div style={{ flex:1, minHeight:0, display:'flex', flexDirection:'row-reverse', overflow:'hidden', direction:'ltr', background: WA.panelBg }}>
+      <div style={{ flex:1, minHeight:0, display:'flex', flexDirection:'row', overflow:'hidden', direction:'ltr', background: WA.panelBg }}>
 
         {/* ═══════════════ CHAT WINDOW (left, fills remaining space) ════════ */}
         {/* overflow:hidden isolates internal scroll from page scroll         */}
@@ -581,6 +594,11 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
 
               {/* ── Messages Area (flex: 1 1 auto, ISOLATED SCROLL) ── */}
               <div ref={scrollRef}
+                onScroll={() => {
+                  if (!scrollRef.current) return
+                  const { scrollTop, scrollHeight, clientHeight } = scrollRef.current
+                  isNearBottom.current = scrollHeight - scrollTop - clientHeight < 80
+                }}
                 style={{
                   flex:'1 1 auto',
                   minHeight:0,           /* lets this shrink below content height */
