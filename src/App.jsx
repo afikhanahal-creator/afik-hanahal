@@ -7,6 +7,7 @@ import RealEstateCalc from './RealEstateCalc.jsx'
 import { AnimatePresence, motion } from 'framer-motion'
 import PropertyWizard, { propertyToWizardData } from './PropertyWizard.jsx'
 import LeadsBoard from './LeadsBoard.jsx'
+import GreenAPIChat from './GreenAPIChat.jsx'
 import { FaChevronLeft, FaChevronRight, FaEnvelope, FaFacebookF, FaInstagram, FaBed, FaRulerCombined, FaCar, FaSwimmingPool, FaBuilding, FaBoxOpen, FaTree, FaSnowflake, FaShieldAlt, FaCouch, FaTools, FaMapMarkerAlt, FaExternalLinkAlt, FaPhone, FaCompass, FaLeaf, FaCalendarAlt, FaTimes, FaWhatsapp, FaSun, FaFileAlt, FaHome, FaMoneyBill, FaSearch, FaBalanceScale, FaHandshake, FaTrophy, FaHardHat, FaLock, FaKey, FaGlobe, FaSeedling, FaBolt, FaRocket, FaStar, FaChartLine, FaEye, FaPlay, FaWheelchair, FaFire, FaCalculator, FaShareAlt, FaHeart, FaStore, FaCamera, FaWifi, FaIndustry, FaExpand, FaUser, FaUsers, FaDesktop, FaMobileAlt, FaTabletAlt, FaCommentAlt, FaRobot, FaInbox, FaExclamationTriangle, FaChartBar, FaThumbsUp, FaImage, FaPencilAlt, FaCrown, FaMousePointer, FaDollarSign, FaVideo, FaLink, FaCheck, FaCheckCircle, FaUtensils, FaDoorOpen, FaUserShield } from 'react-icons/fa'
 
 // ─── SERVER CONFIG ────────────────────────────────────────────────────────────
@@ -3569,6 +3570,9 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const [listTab, setListTab] = useState('published')
   const propListRef = useRef(null)
   const [listCat, setListCat] = useState('all')
+  const dragPropId  = useRef(null)
+  const dragOverId  = useRef(null)
+  const [dragActive, setDragActive] = useState(false)
   const [saved, setSaved]   = useState(false)
   const [propSyncing,    setPropSyncing]    = useState(false)
   const [propSyncError,  setPropSyncError]  = useState('')
@@ -3620,6 +3624,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const [chatInput, setChatInput] = useState('')
   const [chatSending, setChatSending] = useState(false)
   const [chatContact, setChatContact] = useState(null)
+  const [initialChatLead, setInitialChatLead] = useState(null)
   const [chatSearch, setChatSearch] = useState('')
   const [chatStatus, setChatStatus]   = useState(null)  // 'authorized'|'notAuthorized'|'error'
   const [newChatOpen, setNewChatOpen] = useState(false)
@@ -3841,7 +3846,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   useEffect(() => {
     if (tab !== 'chats' || !chatContact?.phone) return
     fetchChats(chatContact.phone)
-    const interval = setInterval(() => fetchChats(chatContact.phone), 3000)
+    const interval = setInterval(() => fetchChats(chatContact.phone), 500)
     return () => clearInterval(interval)
   }, [chatContact?.id, tab, fetchChats]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -4041,6 +4046,29 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     if (!window.confirm('למחוק נכס זה?')) return
     const next = properties.filter(x => x.id !== id)
     setProperties(next); syncProps(next)
+  }
+
+  const dup = id => {
+    const src = properties.find(x => String(x.id) === String(id))
+    if (!src) return
+    const copy = { ...src, id: Date.now(), title: src.title + ' (עותק)', published: false, createdAt: new Date().toISOString() }
+    const next = [...properties, copy]
+    setProperties(next); syncProps(next)
+  }
+
+  // Move dragPropId above/below dragOverId in the global properties array
+  const reorderProps = () => {
+    const fromId = dragPropId.current
+    const toId   = dragOverId.current
+    if (!fromId || !toId || fromId === toId) return
+    const next = [...properties]
+    const fi = next.findIndex(x => String(x.id) === String(fromId))
+    const ti = next.findIndex(x => String(x.id) === String(toId))
+    if (fi < 0 || ti < 0) return
+    const [removed] = next.splice(fi, 1)
+    next.splice(ti, 0, removed)
+    setProperties(next)
+    syncProps(next)
   }
 
   const tabBtn = (id, label, badge) => (
@@ -4416,7 +4444,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
               <div style={{ fontSize:14, fontWeight:800, color:C.cream }}>אשף העלאת נכס</div>
               <div style={{ fontSize:11, color:`${C.cream}70` }}>הדרך המהירה להוסיף נכס חדש עם כל הפרטים</div>
               <button onClick={() => {
-                if (standalone) { setWizardOpen(true) }
+                if (standalone) { try { localStorage.removeItem('afik_wizard_draft') } catch {}; setWizardOpen(true) }
                 else { onClose(); setTimeout(() => document.dispatchEvent(new CustomEvent('afik:openWizard')), 100) }
               }}
                 style={{ padding:'11px 32px', background:C.purple, border:'none', borderRadius:8, color:'#fff', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'inherit', transition:'background .15s', whiteSpace:'nowrap', letterSpacing:'.02em' }}
@@ -4664,7 +4692,15 @@ Return ONLY valid JSON (no markdown, no code blocks):
                   </div>
                   {draftList.length > 0 && <span style={{ fontSize:12, color:'#F7C948', fontWeight:600 }}>· {draftList.length} טיוטות</span>}
                 </div>
-                <div style={{ fontSize:11, color:`${C.cream}44` }}>סה"כ {properties.length} נכסים</div>
+                <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                  <span style={{ fontSize:11, color:`${C.cream}44` }}>סה"כ {properties.length} נכסים</span>
+                  <button onClick={() => { if (!window.confirm('סנכרן את כל הנכסים לשרת עכשיו?')) return; syncProps(properties) }}
+                    disabled={propSyncing}
+                    title="סנכרן הכל לשרת"
+                    style={{ padding:'5px 10px', background:`${C.purple}18`, border:`1px solid ${C.purple}44`, borderRadius:6, color:C.purple, cursor: propSyncing ? 'not-allowed' : 'pointer', fontSize:11, fontFamily:'inherit', fontWeight:700, whiteSpace:'nowrap', opacity: propSyncing ? .6 : 1 }}>
+                    {propSyncing ? 'מסנכרן...' : '↻ סנכרן הכל'}
+                  </button>
+                </div>
               </div>
 
               {/* Published / Drafts tabs */}
@@ -4696,9 +4732,18 @@ Return ONLY valid JSON (no markdown, no code blocks):
                   const fmtPrice = p.price ? `₪${Number(String(p.price).replace(/[^\d]/g,'')).toLocaleString('he-IL')}` : 'מחיר בפנייה'
                   const statusClr = { 'בשיווק':C.green,'זמין':C.green,'בבדיקה':'#F7C948','נמכר':'#E05252','הושכר':'#F97316' }[p.status] || C.green
                   return (
-                    <div key={p.id} style={{ display:'flex', gap:0, background: p.published!==false ? 'rgba(34,197,94,.04)' : 'rgba(255,255,255,.04)', borderRadius:14, border:`1.5px solid ${p.published===false ? 'rgba(247,201,72,.25)' : C.green+'28'}`, overflow:'hidden', transition:'all .2s' }}
+                    <div key={p.id}
+                      draggable
+                      onDragStart={() => { dragPropId.current = p.id; setDragActive(true) }}
+                      onDragEnter={() => { dragOverId.current = p.id }}
+                      onDragEnd={() => { reorderProps(); dragPropId.current = null; dragOverId.current = null; setDragActive(false) }}
+                      onDragOver={e => e.preventDefault()}
+                      style={{ display:'flex', gap:0, background: p.published!==false ? 'rgba(34,197,94,.04)' : 'rgba(255,255,255,.04)', borderRadius:14, border:`1.5px solid ${p.published===false ? 'rgba(247,201,72,.25)' : C.green+'28'}`, overflow:'hidden', transition:'all .2s', cursor: dragActive ? 'grabbing' : 'default' }}
                       onMouseEnter={e => { e.currentTarget.style.boxShadow=`0 6px 28px rgba(132,144,216,.18)`; e.currentTarget.style.borderColor=p.published!==false ? C.green+'55' : 'rgba(247,201,72,.5)' }}
                       onMouseLeave={e => { e.currentTarget.style.boxShadow=''; e.currentTarget.style.borderColor=p.published===false ? 'rgba(247,201,72,.25)' : C.green+'28' }}>
+                      {/* Drag handle strip */}
+                      <div style={{ width:18, flexShrink:0, background: p.published!==false ? C.green+'22' : 'rgba(247,201,72,.12)', display:'flex', alignItems:'center', justifyContent:'center', cursor:'grab', fontSize:11, color: p.published!==false ? C.green+'88' : 'rgba(247,201,72,.6)', userSelect:'none', letterSpacing:0 }}
+                        title="גרור לשינוי סדר">⠿</div>
                       {/* Live indicator strip */}
                       <div style={{ width:4, flexShrink:0, background: p.published!==false ? C.green : '#F7C948' }}/>
                       {/* Thumbnail */}
@@ -4761,6 +4806,20 @@ Return ONLY valid JSON (no markdown, no code blocks):
                             {onEditInWizard && (
                               <button onClick={() => { onClose?.(); onEditInWizard(p) }} style={{ padding:'6px 12px', background:`${C.purple}22`, border:`1px solid ${C.purple}55`, borderRadius:7, color:C.purple, cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:700, whiteSpace:'nowrap' }}>ערוך באשף</button>
                             )}
+                            <button onClick={() => dup(p.id)} title='שכפל נכס' style={{ padding:'6px 12px', background:'rgba(247,201,72,.1)', border:'1px solid rgba(247,201,72,.3)', borderRadius:7, color:'#F7C948', cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:700, whiteSpace:'nowrap' }}>שכפל</button>
+                            <button onClick={async () => {
+                              const base = (typeof API_BASE !== 'undefined' ? API_BASE : '') || ''
+                              if (!base) { alert('VITE_API_URL לא מוגדר'); return }
+                              try {
+                                const r = await fetch(`${base}/api/properties`, { headers:{ Authorization:`Bearer ${ADMIN_TOKEN}` } })
+                                if (!r.ok) throw new Error(r.status)
+                                const all = await r.json()
+                                const fresh = Array.isArray(all) ? all.find(x => String(x.id)===String(p.id)) : null
+                                if (!fresh) { alert('נכס לא נמצא בשרת'); return }
+                                setProperties(prev => prev.map(x => String(x.id)===String(p.id) ? { ...x, ...fresh } : x))
+                                alert('נכס רוענן בהצלחה')
+                              } catch(e) { alert('שגיאת רענון: ' + e.message) }
+                            }} title='רענן נכס מהשרת' style={{ padding:'6px 12px', background:'rgba(132,144,216,.1)', border:'1px solid rgba(132,144,216,.3)', borderRadius:7, color:C.purple, cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:700, whiteSpace:'nowrap' }}>↻ רענן</button>
                             <button onClick={() => del(p.id)} style={{ padding:'6px 12px', background:'rgba(224,82,82,.1)', border:'1px solid rgba(224,82,82,.3)', borderRadius:7, color:'#E05252', cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:600, whiteSpace:'nowrap' }}>מחק</button>
                           </div>
                         </div>
@@ -4885,11 +4944,21 @@ Return ONLY valid JSON (no markdown, no code blocks):
             leadsSyncing={leadsSyncing}
             isDark={isDark}
             lang={lang}
-            onOpenChat={lead => { setChatContact(lead); fetchChats(lead.phone); setTab('chats') }}
+            onOpenChat={lead => { setInitialChatLead(lead); setTab('chats') }}
           />
         )}
 
-        {tab==='chats' && (() => {
+        {tab==='chats' && (
+          <GreenAPIChat
+            leads={leads}
+            lang={lang}
+            initialContact={initialChatLead}
+            onOpenLead={lead => { setInitialChatLead(null); setTab('leads') }}
+            onDeleteLead={id => deleteLead(id)}
+          />
+        )}
+
+        {false && (() => {
           const sl = chatSearch.toLowerCase()
           const contactList = leads
             .filter(l => l.phone)
@@ -8096,7 +8165,11 @@ export default function App() {
       fetch(`${base}/api/properties`, { headers })
         .then(r => r.ok ? r.json() : Promise.reject(r.status))
         .then(data => {
-          if (Array.isArray(data) && data.length > 0) setProperties(data)
+          if (Array.isArray(data) && data.length > 0) {
+            // Only overwrite localStorage cache if server has more/equal properties
+            // (prevents stale Render cold-start data from wiping admin changes)
+            setProperties(prev => data.length >= prev.length ? data : prev)
+          }
           propsLoaded.current = true
         })
         .catch(() => { propsLoaded.current = true })
@@ -8149,9 +8222,10 @@ export default function App() {
       .then(r => r.ok ? r.json() : Promise.reject())
       .then(data => {
         // Only overwrite state if the server returned actual properties.
-        // An empty array here almost always means a cold-start memStore fallback,
-        // NOT that the user genuinely has no properties — we must not wipe Supabase.
-        if (Array.isArray(data) && data.length > 0) { setProperties(data) }
+        // Prefer local state if it has MORE properties (protects against stale server cold-start).
+        if (Array.isArray(data) && data.length > 0) {
+          setProperties(prev => data.length >= prev.length ? data : prev)
+        }
         if (Array.isArray(data)) propsLoaded.current = true
       })
       .catch(() => {})
@@ -8159,7 +8233,7 @@ export default function App() {
 
   // ── Open wizard from admin panel banner ──
   useEffect(() => {
-    const h = () => { setWizardKey(k => k+1); setShowWizard(true) }
+    const h = () => { try { localStorage.removeItem('afik_wizard_draft') } catch {}; setWizardKey(k => k+1); setShowWizard(true) }
     document.addEventListener('afik:openWizard', h)
     return () => document.removeEventListener('afik:openWizard', h)
   }, [])
@@ -8600,20 +8674,9 @@ export default function App() {
                 isMobile ? (
                   /* ── Mobile swipe carousel ── */
                   <>
-                    {/* Nav arrows row — circular */}
+                    {/* Nav arrows row — left=prev(right in RTL) right=next(left in RTL) */}
                     <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12, paddingInline:4 }}>
-                      <button
-                        onClick={() => {
-                          const newIdx = (carouselIdx - 1 + filtered.length) % filtered.length
-                          setCarouselIdx(newIdx)
-                          if (carouselRef.current) {
-                            const cardW = carouselRef.current.scrollWidth / filtered.length
-                            carouselRef.current.scrollTo({ left: newIdx * cardW, behavior:'smooth' })
-                          }
-                        }}
-                        style={{ width:40, height:40, borderRadius:'50%', border:`1.5px solid ${C.purple}66`, background:`${C.purple}14`, color:C.purple, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s' }}>
-                        <FaChevronRight size={12}/>
-                      </button>
+                      {/* ‹ LEFT arrow → navigate LEFT → next card in RTL (idx+1) */}
                       <button
                         onClick={() => {
                           const newIdx = (carouselIdx + 1) % filtered.length
@@ -8625,6 +8688,19 @@ export default function App() {
                         }}
                         style={{ width:40, height:40, borderRadius:'50%', border:`1.5px solid ${C.purple}66`, background:`${C.purple}14`, color:C.purple, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s' }}>
                         <FaChevronLeft size={12}/>
+                      </button>
+                      {/* › RIGHT arrow → navigate RIGHT → prev card in RTL (idx-1) */}
+                      <button
+                        onClick={() => {
+                          const newIdx = (carouselIdx - 1 + filtered.length) % filtered.length
+                          setCarouselIdx(newIdx)
+                          if (carouselRef.current) {
+                            const cardW = carouselRef.current.scrollWidth / filtered.length
+                            carouselRef.current.scrollTo({ left: newIdx * cardW, behavior:'smooth' })
+                          }
+                        }}
+                        style={{ width:40, height:40, borderRadius:'50%', border:`1.5px solid ${C.purple}66`, background:`${C.purple}14`, color:C.purple, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s' }}>
+                        <FaChevronRight size={12}/>
                       </button>
                     </div>
                     <div className="prop-carousel" ref={carouselRef}
@@ -8640,21 +8716,12 @@ export default function App() {
                         </div>
                       ))}
                     </div>
-                    {/* Interactive dot indicators */}
+                    {/* Compact page counter */}
                     {filtered.length > 1 && (
-                      <div style={{ display:'flex', justifyContent:'center', gap:6, marginTop:8, marginBottom:24 }}>
-                        {filtered.slice(0, 10).map((_,i) => (
-                          <button key={i}
-                            onClick={() => {
-                              setCarouselIdx(i)
-                              if (carouselRef.current) {
-                                const cardW = carouselRef.current.scrollWidth / filtered.length
-                                carouselRef.current.scrollTo({ left: i * cardW, behavior:'smooth' })
-                              }
-                            }}
-                            style={{ width:i===carouselIdx?22:7, height:7, borderRadius:99, border:'none', background:i===carouselIdx?C.purple:`${C.purple}33`, cursor:'pointer', padding:0, transition:'all .25s' }}/>
-                        ))}
-                        {filtered.length > 10 && <span style={{ fontSize:10, color:`${C.cream}44`, alignSelf:'center' }}>+{filtered.length-10}</span>}
+                      <div style={{ display:'flex', justifyContent:'center', marginTop:4, marginBottom:16 }}>
+                        <span style={{ fontSize:11, color:`${C.cream}44`, fontWeight:600, letterSpacing:'.04em' }}>
+                          {carouselIdx + 1} / {filtered.length}
+                        </span>
                       </div>
                     )}
                   </>

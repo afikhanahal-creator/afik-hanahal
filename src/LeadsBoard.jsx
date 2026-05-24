@@ -116,18 +116,18 @@ const useTheme = isDark => useMemo(() => isDark ? {
 } : {
   bg:          '#F6F7FB',
   bgRow:       '#FFFFFF',
-  bgRowHover:  '#F4F5F8',
+  bgRowHover:  '#F0F4FF',
   bgHeader:    '#FFFFFF',
   bgGroup:     '#F6F7FB',
   bgInput:     '#FFFFFF',
-  border:      '#E6E9EF',
-  borderLight: '#EEF0F4',
+  border:      '#D0D4E4',
+  borderLight: '#E6E9F0',
   text:        '#323338',
   textSub:     '#676879',
   textDim:     '#C4C4C4',
   accent:      '#0073EA',
-  shadow:      '0 4px 24px rgba(0,0,0,.12)',
-  shadowSm:    '0 2px 8px rgba(0,0,0,.08)',
+  shadow:      '0 4px 24px rgba(0,0,0,.1)',
+  shadowSm:    '0 1px 6px rgba(0,0,0,.08)',
 }, [isDark])
 
 // ─── cell components ─────────────────────────────────────────────────────────
@@ -865,31 +865,47 @@ export default function LeadsBoard({
 
   // ── render ──
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: T.bg, fontFamily: "'Inter','Segoe UI',system-ui,sans-serif", direction: lang === 'en' ? 'ltr' : 'rtl', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: T.bg, fontFamily: "Rubik,'Inter','Segoe UI',system-ui,sans-serif", direction: lang === 'en' ? 'ltr' : 'rtl', overflow: 'hidden', colorScheme: 'light' }}>
 
-      {/* ── View Tabs ── */}
-      <div style={{ display: 'flex', alignItems: 'center', borderBottom: `2px solid ${T.border}`, background: T.bgHeader, paddingRight: lang === 'en' ? 0 : 4, paddingLeft: lang === 'en' ? 4 : 0, overflowX: 'auto' }}>
+      {/* ── Monday-style board title bar ── */}
+      <div style={{ padding: '8px 16px 0', background: T.bgHeader, borderBottom: `1px solid ${T.border}` }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+          <div style={{ width: 28, height: 28, borderRadius: 6, background: 'linear-gradient(135deg,#A25DDC,#0073EA)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <User size={14} style={{ color: '#fff' }} />
+          </div>
+          <span style={{ fontSize: 18, fontWeight: 800, color: T.text, letterSpacing: '-.01em' }}>
+            {lang === 'en' ? 'Leads CRM' : 'ניהול לידים'}
+          </span>
+          <span style={{ fontSize: 12, color: T.textSub, background: T.bg, border: `1px solid ${T.border}`, borderRadius: 20, padding: '2px 9px', fontWeight: 600 }}>
+            {leads.length} {lang === 'en' ? 'items' : 'פריטים'}
+          </span>
+          <div style={{ flex: 1 }} />
+          <button onClick={() => setModal('integrate')}
+            style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', background: 'none', border: `1px solid ${T.border}`, borderRadius: 6, color: T.textSub, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = '#0073EA88'; e.currentTarget.style.color = T.text }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.color = T.textSub }}>
+            <Zap size={12} /> {lang === 'en' ? 'Integrations' : 'אינטגרציות'}
+          </button>
+          <button onClick={() => setModal('automate')}
+            style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', background: '#A25DDC14', border: '1px solid #A25DDC44', borderRadius: 6, color: '#A25DDC', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+            <Settings size={12} /> {lang === 'en' ? 'Automate' : 'אוטומציות'}
+            <span style={{ background: '#A25DDC', color: '#fff', borderRadius: 10, fontSize: 9, padding: '0 5px', fontWeight: 800 }}>2</span>
+          </button>
+        </div>
+
+        {/* ── View Tabs ── */}
+        <div style={{ display: 'flex', alignItems: 'center', overflowX: 'auto' }}>
         {[
           { id: 'leads', label: lang === 'en' ? 'Leads Board' : 'בורד לידים' },
           { id: 'table', label: lang === 'en' ? 'Main Table' : 'טבלה ראשית' },
           { id: 'chart', label: lang === 'en' ? 'Chart View' : 'תרשים' },
         ].map(tab => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-            style={{ padding: '10px 16px', background: 'none', border: 'none', borderBottom: activeTab === tab.id ? '2px solid #0073EA' : '2px solid transparent', marginBottom: -2, color: activeTab === tab.id ? '#0073EA' : T.textSub, fontSize: 13, fontWeight: activeTab === tab.id ? 700 : 500, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', transition: 'color .15s' }}>
+            style={{ padding: '8px 14px', background: 'none', border: 'none', borderBottom: activeTab === tab.id ? '2px solid #0073EA' : '2px solid transparent', marginBottom: -1, color: activeTab === tab.id ? '#0073EA' : T.textSub, fontSize: 13, fontWeight: activeTab === tab.id ? 700 : 500, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', transition: 'color .15s' }}>
             {tab.label}
           </button>
         ))}
-        <div style={{ flex: 1 }} />
-        <button onClick={() => setModal('integrate')}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: 'none', border: 'none', color: T.textSub, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}
-          onMouseEnter={e => e.currentTarget.style.color = T.text} onMouseLeave={e => e.currentTarget.style.color = T.textSub}>
-          <Zap size={13} /> {lang === 'en' ? 'Integrate' : 'אינטגרציות'}
-        </button>
-        <button onClick={() => setModal('automate')}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: 'none', border: 'none', color: T.textSub, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}
-          onMouseEnter={e => e.currentTarget.style.color = T.text} onMouseLeave={e => e.currentTarget.style.color = T.textSub}>
-          <Settings size={13} /> {lang === 'en' ? 'Automate' : 'אוטומציה'} {leads.filter((_, i) => i < 3).length ? <span style={{ background: '#0073EA', color: '#fff', borderRadius: 10, fontSize: 10, padding: '0 5px', marginRight: 3, fontWeight: 700 }}>2</span> : null}
-        </button>
+        </div>
       </div>
 
       {/* ── Toolbar ── */}
