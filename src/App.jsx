@@ -5109,6 +5109,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
               exportCSV={exportCSV}
               syncLeads={syncLeadsFromServer}
               enrichAll={enrichAllLeads}
+              enrichLead={enrichLead}
               clearLeads={clearLeads}
               leadsSyncing={leadsSyncing}
               isDark={isDark}

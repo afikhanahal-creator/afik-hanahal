@@ -250,6 +250,101 @@ function EditableCell({ value, onSave, T, multiline = false, type = 'text' }) {
   )
 }
 
+function EditablePhoneCell({ value, T, onSave }) {
+  const [editing, setEditing] = useState(false)
+  const [val, setVal] = useState(value || '')
+  const inputRef = useRef(null)
+
+  useEffect(() => { if (editing) { setVal(value || ''); setTimeout(() => inputRef.current?.focus(), 20) } }, [editing, value])
+
+  const save = () => { setEditing(false); if (val !== value) onSave(val) }
+  const cancel = () => { setEditing(false); setVal(value || '') }
+
+  if (editing) return (
+    <input ref={inputRef} value={val} type="tel"
+      style={{ width: '100%', background: T.bgInput, border: '1.5px solid #0073EA', borderRadius: 6, padding: '4px 8px', fontSize: 12, color: T.text, fontFamily: 'inherit', outline: 'none', direction: 'ltr', boxShadow: '0 0 0 3px #0073EA18' }}
+      onChange={e => setVal(e.target.value)}
+      onBlur={save}
+      onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') cancel() }} />
+  )
+
+  return (
+    <div onClick={() => setEditing(true)} style={{ display: 'flex', alignItems: 'center', width: '100%', minHeight: 20, cursor: 'text', overflow: 'hidden' }}>
+      {value
+        ? <a href={`tel:${value}`} onClick={e => e.stopPropagation()} style={{ color: '#0073EA', fontSize: 12, textDecoration: 'none', fontWeight: 600, direction: 'ltr', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+            onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'}
+            onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}>{value}</a>
+        : <span style={{ opacity: .45, fontStyle: 'italic', fontSize: 12, color: T.textDim }}>—</span>
+      }
+    </div>
+  )
+}
+
+function EditableEmailCell({ value, T, onSave }) {
+  const [editing, setEditing] = useState(false)
+  const [val, setVal] = useState(value || '')
+  const inputRef = useRef(null)
+
+  useEffect(() => { if (editing) { setVal(value || ''); setTimeout(() => inputRef.current?.focus(), 20) } }, [editing, value])
+
+  const save = () => { setEditing(false); if (val !== value) onSave(val) }
+  const cancel = () => { setEditing(false); setVal(value || '') }
+
+  if (editing) return (
+    <input ref={inputRef} value={val} type="email"
+      style={{ width: '100%', background: T.bgInput, border: '1.5px solid #0073EA', borderRadius: 6, padding: '4px 8px', fontSize: 12, color: T.text, fontFamily: 'inherit', outline: 'none', direction: 'ltr', boxShadow: '0 0 0 3px #0073EA18' }}
+      onChange={e => setVal(e.target.value)}
+      onBlur={save}
+      onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') cancel() }} />
+  )
+
+  return (
+    <div onClick={() => setEditing(true)} style={{ display: 'flex', alignItems: 'center', width: '100%', minHeight: 20, cursor: 'text', overflow: 'hidden' }}>
+      {value
+        ? <a href={`mailto:${value}`} onClick={e => e.stopPropagation()} style={{ color: '#0073EA', fontSize: 12, textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}
+            onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'}
+            onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}>{value}</a>
+        : <span style={{ opacity: .45, fontStyle: 'italic', fontSize: 12, color: T.textDim }}>—</span>
+      }
+    </div>
+  )
+}
+
+function ClickableScoreCell({ value, lang, T, onSave }) {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <div onClick={() => setOpen(v => !v)} style={{ cursor: 'pointer', display: 'inline-block' }}>
+        {value ? <ScoreBadge value={value} lang={lang} /> : <span style={{ color: T.textDim, fontSize: 12, opacity: .45, fontStyle: 'italic' }}>—</span>}
+      </div>
+      {open && (
+        <>
+          <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 9000 }} />
+          <div style={{ position: 'absolute', top: '110%', left: 0, background: T.bgHeader, border: `1px solid ${T.border}`, borderRadius: 10, padding: 6, boxShadow: T.shadow, zIndex: 9001, minWidth: 140 }}>
+            {SCORE_OPTS.map(opt => (
+              <button key={opt.v} onClick={() => { onSave(opt.v); setOpen(false) }}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '7px 10px', borderRadius: 7, border: 'none', background: value === opt.v ? opt.bg : 'transparent', cursor: 'pointer', fontFamily: 'inherit' }}
+                onMouseEnter={e => { e.currentTarget.style.background = opt.bg }}
+                onMouseLeave={e => { e.currentTarget.style.background = value === opt.v ? opt.bg : 'transparent' }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: opt.color }}>{lang === 'en' ? opt.en : opt.l}</span>
+                {value === opt.v && <Check size={12} style={{ color: opt.color, marginLeft: 'auto' }} />}
+              </button>
+            ))}
+            <button onClick={() => { onSave(''); setOpen(false) }}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '7px 10px', borderRadius: 7, border: 'none', background: 'transparent', cursor: 'pointer', fontFamily: 'inherit' }}
+              onMouseEnter={e => { e.currentTarget.style.background = T.bgRowHover }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
+              <span style={{ fontSize: 12, color: T.textSub }}>{lang === 'en' ? '— None' : '— ללא'}</span>
+              {!value && <Check size={12} style={{ color: T.textSub, marginLeft: 'auto' }} />}
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 // ─── mobile lead card ─────────────────────────────────────────────────────────
 
 function MobileLeadCard({ lead, lang, T, onUpdate, onDelete, onOpenDetail, onStatusClick, onOpenChat }) {
@@ -481,7 +576,7 @@ function MobileGroupSection({ group, leads, lang, T, onUpdate, onDelete, onOpenD
 
 // ─── desktop sortable row ─────────────────────────────────────────────────────
 
-function SortableRow({ lead, cols, onUpdate, onDelete, onSelect, isSelected, lang, T, onOpenDetail, onStatusClick, onOpenChat }) {
+function SortableRow({ lead, cols, onUpdate, onDelete, onSelect, isSelected, lang, T, onOpenDetail, onStatusClick, onOpenChat, onEnrich }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: lead.id })
   const [hovered, setHovered] = useState(false)
   const [checked, setChecked] = useState(false)
@@ -537,11 +632,11 @@ function SortableRow({ lead, cols, onUpdate, onDelete, onSelect, isSelected, lan
           </div>
         )
       case 'score':
-        return <div key={col.id} style={cellStyle}><ScoreBadge value={val} lang={lang} /></div>
+        return <div key={col.id} style={cellStyle}><ClickableScoreCell value={val} lang={lang} T={T} onSave={v => onUpdate(lead.id, { enrichment: { ...(lead.enrichment || {}), intent: v } })} /></div>
       case 'phone':
-        return <div key={col.id} style={cellStyle}><PhoneCell value={val} /></div>
+        return <div key={col.id} style={cellStyle}><EditablePhoneCell value={val} T={T} onSave={v => handleUpdate(col, v)} /></div>
       case 'email':
-        return <div key={col.id} style={cellStyle}><EmailCell value={val} /></div>
+        return <div key={col.id} style={cellStyle}><EditableEmailCell value={val} T={T} onSave={v => handleUpdate(col, v)} /></div>
       case 'date':
         return <div key={col.id} style={cellStyle}><span style={{ fontSize: 12, color: T.textSub }}>{val || '—'}</span></div>
       case 'notes':
@@ -579,6 +674,18 @@ function SortableRow({ lead, cols, onUpdate, onDelete, onSelect, isSelected, lan
 
       {hovered && (
         <div style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', display: 'flex', gap: 4, background: T.bgRow, borderRadius: 8, padding: '2px 4px', boxShadow: T.shadowSm, zIndex: 10, border: `1px solid ${T.borderLight}` }}>
+          {onEnrich && (
+            lead.enrichment?.status === 'enriching'
+              ? <button style={{ background: 'none', border: 'none', color: '#A25DDC', cursor: 'default', padding: '5px 6px', borderRadius: 6, display: 'flex', alignItems: 'center' }} title="AI מעבד...">
+                  <RefreshCw size={13} style={{ animation: 'spin 1s linear infinite' }} />
+                </button>
+              : <button onClick={() => onEnrich(lead)} title="AI Enrichment"
+                  style={{ background: 'none', border: 'none', color: '#A25DDC', cursor: 'pointer', padding: '5px 6px', borderRadius: 6, display: 'flex', alignItems: 'center', fontSize: 13, fontWeight: 700 }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#A25DDC18'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'none'}>
+                  ✦
+                </button>
+          )}
           {lead.phone && onOpenChat && (
             <button onClick={() => onOpenChat(lead)} title="WhatsApp"
               style={{ background: 'none', border: 'none', color: '#25D366', cursor: 'pointer', padding: '5px 6px', borderRadius: 6, display: 'flex', alignItems: 'center' }}
@@ -607,7 +714,7 @@ function SortableRow({ lead, cols, onUpdate, onDelete, onSelect, isSelected, lan
 
 // ─── desktop board group ──────────────────────────────────────────────────────
 
-function BoardGroup({ group, leads, cols, onUpdate, onUpdateStatus, onDelete, onSelect, lang, T, onOpenDetail, onAddRow, onStatusClick, onOpenChat }) {
+function BoardGroup({ group, leads, cols, onUpdate, onUpdateStatus, onDelete, onSelect, lang, T, onOpenDetail, onAddRow, onStatusClick, onOpenChat, onEnrich }) {
   const [collapsed, setCollapsed] = useState(false)
   const [adding, setAdding] = useState(false)
   const [newName, setNewName] = useState('')
@@ -638,7 +745,7 @@ function BoardGroup({ group, leads, cols, onUpdate, onUpdateStatus, onDelete, on
           {leads.map(lead => (
             <SortableRow key={lead.id} lead={lead} cols={cols} T={T} lang={lang}
               onUpdate={onUpdate} onDelete={onDelete} onSelect={onSelect}
-              onOpenDetail={onOpenDetail} onStatusClick={onStatusClick} onOpenChat={onOpenChat} />
+              onOpenDetail={onOpenDetail} onStatusClick={onStatusClick} onOpenChat={onOpenChat} onEnrich={onEnrich} />
           ))}
         </SortableContext>
       )}
@@ -684,7 +791,7 @@ function BoardGroup({ group, leads, cols, onUpdate, onUpdateStatus, onDelete, on
 
 // ─── item detail drawer ───────────────────────────────────────────────────────
 
-function ItemDetailDrawer({ lead, onClose, onUpdate, onUpdateStatus, lang, T, isDark, isMobile }) {
+function ItemDetailDrawer({ lead, onClose, onUpdate, onUpdateStatus, lang, T, isDark, isMobile, onEnrich }) {
   if (!lead) return null
   const color = getGroupColor(lead.leadStatus || 'new')
 
@@ -737,7 +844,7 @@ function ItemDetailDrawer({ lead, onClose, onUpdate, onUpdateStatus, lang, T, is
         )}
 
         {/* Fields */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 22px', display: 'flex', flexDirection: 'column', gap: 18 }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 22px', display: 'flex', flexDirection: 'column', gap: 16 }}>
           {[
             { label: 'טלפון', en: 'Phone', key: 'phone', type: 'phone' },
             { label: 'אימייל', en: 'Email', key: 'email', type: 'email' },
@@ -745,18 +852,18 @@ function ItemDetailDrawer({ lead, onClose, onUpdate, onUpdateStatus, lang, T, is
             { label: 'הודעה', en: 'Message', key: 'msg', type: 'notes' },
           ].map(f => (
             <div key={f.key}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: T.textSub, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 7, display: 'flex', alignItems: 'center', gap: 5 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: T.textSub, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
                 {f.type === 'phone' && <Phone size={10} style={{ color: T.textSub }} />}
                 {f.type === 'email' && <Mail size={10} style={{ color: T.textSub }} />}
                 {f.type === 'text' && <FileText size={10} style={{ color: T.textSub }} />}
                 {f.type === 'notes' && <MessageSquare size={10} style={{ color: T.textSub }} />}
                 {lang === 'en' ? f.en : f.label}
               </div>
-              <div style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: 10, padding: '10px 12px' }}>
+              <div style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: 10, padding: '9px 12px' }}>
                 {f.type === 'phone' ? (
-                  <a href={`tel:${lead[f.key]}`} style={{ color: T.accent, fontSize: 14, fontWeight: 600 }}>{lead[f.key] || '—'}</a>
+                  <EditablePhoneCell value={lead[f.key]} T={T} onSave={v => onUpdate(lead.id, { [f.key]: v })} />
                 ) : f.type === 'email' ? (
-                  <a href={`mailto:${lead[f.key]}`} style={{ color: T.accent, fontSize: 14, fontWeight: 600 }}>{lead[f.key] || '—'}</a>
+                  <EditableEmailCell value={lead[f.key]} T={T} onSave={v => onUpdate(lead.id, { [f.key]: v })} />
                 ) : f.type === 'notes' ? (
                   <EditableCell value={lead[f.key]} T={T} multiline onSave={v => onUpdate(lead.id, { [f.key]: v })} />
                 ) : (
@@ -766,24 +873,75 @@ function ItemDetailDrawer({ lead, onClose, onUpdate, onUpdateStatus, lang, T, is
             </div>
           ))}
 
-          {lead.enrichment && (
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: T.textSub, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 10 }}>✦ AI Enrichment</div>
-              <div style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: 10, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {/* AI Enrichment section */}
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: T.textSub, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ color: '#A25DDC' }}>✦</span> AI Enrichment
+              {onEnrich && (
+                lead.enrichment?.status === 'enriching'
+                  ? <span style={{ marginLeft: 'auto', fontSize: 11, color: '#A25DDC', display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <RefreshCw size={11} style={{ animation: 'spin 1s linear infinite' }} /> מעבד...
+                    </span>
+                  : <button onClick={() => onEnrich(lead)} style={{ marginLeft: 'auto', background: '#A25DDC14', border: '1px solid #A25DDC44', borderRadius: 6, color: '#A25DDC', fontSize: 11, fontWeight: 700, padding: '3px 10px', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4 }}>
+                      ✦ {lead.enrichment ? (lang === 'en' ? 'Re-enrich' : 'רענן AI') : (lang === 'en' ? 'Enrich' : 'נתח AI')}
+                    </button>
+              )}
+            </div>
+            {lead.enrichment && lead.enrichment.status !== 'enriching' ? (
+              <div style={{ background: T.bg, border: `1px solid #A25DDC33`, borderRadius: 10, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {lead.enrichment.notes && (
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: '#A25DDC', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 5 }}>{lang === 'en' ? 'Pre-Call Brief' : 'תדריך לשיחה'}</div>
+                    <div style={{ fontSize: 13, color: T.text, lineHeight: 1.6 }}>{lead.enrichment.notes}</div>
+                  </div>
+                )}
                 {[
-                  { label: 'Company', value: lead.enrichment?.company },
-                  { label: 'City', value: lead.enrichment?.city },
-                  { label: 'Budget', value: lead.enrichment?.budget },
-                  { label: 'Occupation', value: lead.enrichment?.occupation },
+                  { label: lang === 'en' ? 'Score' : 'ציון', value: lead.enrichment.score ? `${lead.enrichment.score}/5${lead.enrichment.scoreReason ? ' — ' + lead.enrichment.scoreReason : ''}` : null },
+                  { label: lang === 'en' ? 'Intent' : 'כוונה', value: lead.enrichment.intent },
+                  { label: lang === 'en' ? 'Est. Age' : 'גיל משוער', value: lead.enrichment.estimatedAge },
+                  { label: lang === 'en' ? 'City' : 'עיר', value: lead.enrichment.estimatedCity },
+                  { label: lang === 'en' ? 'Budget' : 'תקציב', value: lead.enrichment.estimatedBudget },
+                  { label: lang === 'en' ? 'Profession' : 'מקצוע', value: lead.enrichment.profession },
+                  { label: lang === 'en' ? 'Company' : 'חברה', value: lead.enrichment.company },
+                  { label: lang === 'en' ? 'Role' : 'תפקיד', value: lead.enrichment.role },
+                  { label: lang === 'en' ? 'Education' : 'השכלה', value: lead.enrichment.education },
                 ].filter(x => x.value).map(x => (
-                  <div key={x.label} style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-                    <span style={{ fontSize: 11, color: T.textSub, width: 72, flexShrink: 0 }}>{x.label}</span>
-                    <span style={{ fontSize: 13, color: T.text, fontWeight: 600 }}>{x.value}</span>
+                  <div key={x.label} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                    <span style={{ fontSize: 11, color: T.textSub, width: 76, flexShrink: 0, paddingTop: 1 }}>{x.label}</span>
+                    <span style={{ fontSize: 13, color: T.text, fontWeight: 600, flex: 1 }}>{x.value}</span>
                   </div>
                 ))}
+                {lead.enrichment.talkingPoints?.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: '#A25DDC', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 5 }}>{lang === 'en' ? 'Talking Points' : 'נקודות שיחה'}</div>
+                    {lead.enrichment.talkingPoints.map((pt, i) => (
+                      <div key={i} style={{ fontSize: 12, color: T.text, padding: '3px 0', display: 'flex', gap: 6, alignItems: 'flex-start' }}>
+                        <span style={{ color: '#A25DDC', flexShrink: 0 }}>•</span>{pt}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {(lead.enrichment.linkedin || lead.enrichment.facebook || lead.enrichment.google) && (
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', paddingTop: 4 }}>
+                    {lead.enrichment.linkedin && <a href={lead.enrichment.linkedin} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: '#0077B5', textDecoration: 'none', background: '#0077B514', padding: '3px 8px', borderRadius: 6 }}>LinkedIn</a>}
+                    {lead.enrichment.facebook && <a href={lead.enrichment.facebook} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: '#1877F2', textDecoration: 'none', background: '#1877F214', padding: '3px 8px', borderRadius: 6 }}>Facebook</a>}
+                    {lead.enrichment.google && <a href={lead.enrichment.google} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: T.textSub, textDecoration: 'none', background: T.bgRowHover, padding: '3px 8px', borderRadius: 6 }}>Google</a>}
+                  </div>
+                )}
+                {lead.enrichment.tags?.length > 0 && (
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {lead.enrichment.tags.map(tag => (
+                      <span key={tag} style={{ fontSize: 11, background: '#A25DDC14', color: '#A25DDC', borderRadius: 20, padding: '2px 9px', fontWeight: 600 }}>{tag}</span>
+                    ))}
+                  </div>
+                )}
               </div>
-            </div>
-          )}
+            ) : !lead.enrichment && (
+              <div style={{ background: T.bg, border: `1px dashed ${T.border}`, borderRadius: 10, padding: '16px 14px', textAlign: 'center', color: T.textSub, fontSize: 13 }}>
+                {lang === 'en' ? 'Click "Enrich" to analyze this lead with AI' : 'לחץ "נתח AI" לניתוח הליד'}
+              </div>
+            )}
+          </div>
 
           <div style={{ fontSize: 12, color: T.textDim, display: 'flex', alignItems: 'center', gap: 5 }}>
             <Calendar size={11} />
@@ -1034,7 +1192,7 @@ function MobileStatsBar({ leads, T, lang }) {
 export default function LeadsBoard({
   leads, updateLead, updateLeadStatus, deleteLead, addLead,
   colOrder, setColOrder, customCols, setCustomCols, colWidths, setColWidths,
-  exportCSV, syncLeads, enrichAll, clearLeads, leadsSyncing,
+  exportCSV, syncLeads, enrichAll, enrichLead, clearLeads, leadsSyncing,
   isDark, lang, onOpenChat,
 }) {
   const T = useTheme(isDark)
@@ -1269,7 +1427,7 @@ export default function LeadsBoard({
 
         {/* ── Overlays ── */}
         {statusTarget && <StatusPopup lead={statusTarget} onClose={() => setStatusTarget(null)} onUpdate={updateLeadStatus} lang={lang} T={T} />}
-        {detailLead && <ItemDetailDrawer lead={leads.find(l => l.id === detailLead.id) || detailLead} onClose={() => setDetailLead(null)} onUpdate={updateLead} onUpdateStatus={updateLeadStatus} lang={lang} T={T} isDark={isDark} isMobile />}
+        {detailLead && <ItemDetailDrawer lead={leads.find(l => l.id === detailLead.id) || detailLead} onClose={() => setDetailLead(null)} onUpdate={updateLead} onUpdateStatus={updateLeadStatus} lang={lang} T={T} isDark={isDark} isMobile onEnrich={enrichLead} />}
         {toast && <Toast message={toast} onDismiss={() => setToast(null)} />}
         <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
       </div>
@@ -1453,7 +1611,7 @@ export default function LeadsBoard({
                   onUpdate={updateLead} onUpdateStatus={updateLeadStatus}
                   onDelete={handleDelete} onSelect={handleSelect}
                   onOpenDetail={setDetailLead} onAddRow={handleAddRow}
-                  onOpenChat={onOpenChat}
+                  onOpenChat={onOpenChat} onEnrich={enrichLead}
                   onStatusClick={(e, lead) => setStatusTarget(lead)} />
               )
             })}
@@ -1484,7 +1642,7 @@ export default function LeadsBoard({
       )}
 
       {statusTarget && <StatusPopup lead={statusTarget} onClose={() => setStatusTarget(null)} onUpdate={updateLeadStatus} lang={lang} T={T} />}
-      {detailLead && <ItemDetailDrawer lead={leads.find(l => l.id === detailLead.id) || detailLead} onClose={() => setDetailLead(null)} onUpdate={updateLead} onUpdateStatus={updateLeadStatus} lang={lang} T={T} isDark={isDark} isMobile={false} />}
+      {detailLead && <ItemDetailDrawer lead={leads.find(l => l.id === detailLead.id) || detailLead} onClose={() => setDetailLead(null)} onUpdate={updateLead} onUpdateStatus={updateLeadStatus} lang={lang} T={T} isDark={isDark} isMobile={false} onEnrich={enrichLead} />}
       {selectedIds.size > 0 && <BulkActionBar count={selectedIds.size} lang={lang} T={T} onClearSelection={() => setSelectedIds(new Set())} onDelete={handleBulkDelete} onMove={() => {}} />}
       {toast && <Toast message={toast} onDismiss={() => setToast(null)} />}
 
