@@ -3597,6 +3597,18 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
       .catch(() => {})
   }, [])
 
+  // Auto-save while editing an existing property (3 s debounce, silent — no spinner)
+  useEffect(() => {
+    if (editId === null) return
+    clearTimeout(autoSaveTimer.current)
+    autoSaveTimer.current = setTimeout(() => {
+      if (form.title?.trim() && form.location?.trim()) {
+        savePropSilent({ ...form, id: editId, updatedAt: Date.now() })
+      }
+    }, 3000)
+    return () => clearTimeout(autoSaveTimer.current)
+  }, [form, editId]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const [countersSaved,  setCountersSaved]  = useState(false)
   const [countersSaving, setCountersSaving] = useState(false)
   const [countersError,  setCountersError]  = useState('')
@@ -8364,18 +8376,6 @@ export default function App() {
     if (properties.length === 0) return  // never overwrite a good cache with nothing
     try { localStorage.setItem('afik_data', JSON.stringify({ stats, sharon, properties })) } catch {}
   }, [stats, sharon, properties])
-
-  // Auto-save while editing an existing property (3 s debounce, silent — no spinner)
-  useEffect(() => {
-    if (editId === null || !adminAuth) return
-    clearTimeout(autoSaveTimer.current)
-    autoSaveTimer.current = setTimeout(() => {
-      if (form.title?.trim() && form.location?.trim()) {
-        savePropSilent({ ...form, id: editId, updatedAt: Date.now() })
-      }
-    }, 3000)
-    return () => clearTimeout(autoSaveTimer.current)
-  }, [form, editId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Individual saves now go via PUT /api/properties/:id — no bulk background sync needed.
 
