@@ -4009,23 +4009,25 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     setForm(f => ({ ...EMPTY_PROP, ...f, category:cat, type:newType, images:f.images }))
   }
 
-  const syncProps = async (nextProps) => {
+  // ── Individual property save — PUT /api/properties/:id ────────────────────
+  // Safe: only touches the ONE property being saved. Other properties untouched.
+  const saveProp = async (prop) => {
     setPropSyncing(true)
     setPropSyncError('')
     const base = API_BASE || ''
     try {
-      const r = await fetch(`${base}/api/properties/bulk`, {
-        method:  'POST',
+      const r = await fetch(`${base}/api/properties/${prop.id}`, {
+        method:  'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
-        body:    JSON.stringify(nextProps),
+        body:    JSON.stringify(prop),
         signal:  AbortSignal.timeout(15000),
       })
       if (!r.ok) throw new Error(await r.text().catch(() => String(r.status)))
       const body = await r.json().catch(() => ({}))
-      if (body.warning || body.storage === 'memory') {
+      if (body.storage === 'memory') {
         setPropSyncError('⚠ נשמר ב-RAM בלבד — Supabase לא זמין! הנתונים יאבדו אם השרת יתחיל מחדש')
       } else {
-        setPropSyncedAt(new Date())  // storage === 'supabase'
+        setPropSyncedAt(new Date())
       }
     } catch (e) {
       setPropSyncError('שגיאת סנכרון: ' + (e.message || 'בעיית תקשורת'))
@@ -4035,54 +4037,125 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     }
   }
 
+  // ── Individual property delete — DELETE /api/properties/:id ───────────────
+  const deleteProp = async (id) => {
+    const base = API_BASE || ''
+    try {
+      await fetch(`${base}/api/properties/${id}`, {
+        method:  'DELETE',
+        headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
+        signal:  AbortSignal.timeout(10000),
+      })
+    } catch {}
+  }
+
+  // ── Bulk sync — used for reorder and manual "sync all" button ─────────────
+  const syncProps = async (nextProps) => {
+    setPropSyncing(true)
+    setPropSyncError('')
+    const base = API_BASE || ''
+    try {
+      const r = await fetch(`${base}/api/properties/bulk`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+        body:    JSON.stringify(nextProps),
+        signal:  AbortSignal.timeout(20000),
+      })
+      if (!r.ok) throw new Error(await r.text().catch(() => String(r.status)))
+      const body = await r.json().catch(() => ({}))
+      if (body.storage === 'memory') {
+        setPropSyncError('⚠ נשמר ב-RAM בלבד — Supabase לא זמין! הנתונים יאבדו אם השרת יתחיל מחדש')
+      } else {
+        setPropSyncedAt(new Date())
+      }
+    } catch (e) {
+      setPropSyncError('שגיאת סנכרון: ' + (e.message || 'בעיית תקשורת'))
+      setTimeout(() => setPropSyncError(''), 8000)
+    } finally {
+      setPropSyncing(false)
+    }
+  }
+
+  // ── Export all properties as JSON backup ───────────────────────────────────
+  const exportProps = async () => {
+    const base = API_BASE || ''
+    try {
+      const r = await fetch(`${base}/api/properties/export`, {
+        headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
+        signal: AbortSignal.timeout(15000),
+      })
+      if (!r.ok) throw new Error(r.status)
+      const blob = await r.blob()
+      const url  = URL.createObjectURL(blob)
+      const a    = document.createElement('a')
+      a.href     = url
+      a.download = `properties-backup-${new Date().toISOString().slice(0,10)}.json`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      // Fallback: build JSON from local state
+      const json = JSON.stringify({ exportedAt: new Date().toISOString(), count: properties.length, properties }, null, 2)
+      const blob = new Blob([json], { type: 'application/json' })
+      const url  = URL.createObjectURL(blob)
+      const a    = document.createElement('a')
+      a.href     = url
+      a.download = `properties-backup-${new Date().toISOString().slice(0,10)}.json`
+      a.click()
+      URL.revokeObjectURL(url)
+    }
+  }
+
   const save = async (publish) => {
     if (!form.title.trim() || !form.location.trim()) { setErr('שם הנכס ועיר הם שדות חובה'); return }
     setErr('')
     const prop = { ...form, published: publish, updatedAt: Date.now() }
-    let nextProps
     if (editId !== null) {
-      nextProps = properties.map(x => x.id===editId ? { ...prop, id:editId } : x)
-      setProperties(nextProps)
+      const saved = { ...prop, id: editId }
+      setProperties(prev => prev.map(x => x.id===editId ? saved : x))
       setEditId(null)
+      await saveProp(saved)
     } else {
       const newProp = { ...prop, id: Date.now() }
-      nextProps = [...properties, newProp]
-      setProperties(nextProps)
+      setProperties(prev => [...prev, newProp])
+      await saveProp(newProp)
     }
     localStorage.removeItem(ADMIN_DRAFT_KEY)
     setForm(EMPTY_PROP)
     setSaved(true)
     setTimeout(() => setSaved(false), 2500)
-    await syncProps(nextProps)
   }
   const publish = id => {
-    const next = properties.map(x => x.id===id ? { ...x, published:true, updatedAt: Date.now() } : x)
-    setProperties(next); syncProps(next)
+    const updated = { ...properties.find(x => x.id===id), published:true, updatedAt: Date.now() }
+    setProperties(prev => prev.map(x => x.id===id ? updated : x))
+    saveProp(updated)
   }
   const unpublish = id => {
-    const next = properties.map(x => x.id===id ? { ...x, published:false, updatedAt: Date.now() } : x)
-    setProperties(next); syncProps(next)
+    const updated = { ...properties.find(x => x.id===id), published:false, updatedAt: Date.now() }
+    setProperties(prev => prev.map(x => x.id===id ? updated : x))
+    saveProp(updated)
   }
   const setStatus = (id, status) => {
-    const next = properties.map(x => x.id===id ? { ...x, status } : x)
-    setProperties(next); syncProps(next)
+    const updated = { ...properties.find(x => x.id===id), status }
+    setProperties(prev => prev.map(x => x.id===id ? updated : x))
+    saveProp(updated)
   }
   const startEdit = p => { setForm({...EMPTY_PROP, ...p}); setEditId(p.id); setTab('props') }
   const del = id => {
     if (!window.confirm('למחוק נכס זה?')) return
-    const next = properties.filter(x => x.id !== id)
-    setProperties(next); syncProps(next)
+    setProperties(prev => prev.filter(x => x.id !== id))
+    deleteProp(id)
   }
 
   const dup = id => {
     const src = properties.find(x => String(x.id) === String(id))
     if (!src) return
     const copy = { ...src, id: Date.now(), title: src.title + ' (עותק)', published: false, createdAt: new Date().toISOString() }
-    const next = [...properties, copy]
-    setProperties(next); syncProps(next)
+    setProperties(prev => [...prev, copy])
+    saveProp(copy)
   }
 
   // Move dragPropId above/below dragOverId in the global properties array
+  // Reorder affects all properties so still uses bulk sync.
   const reorderProps = () => {
     const fromId = dragPropId.current
     const toId   = dragOverId.current
@@ -4741,6 +4814,11 @@ Return ONLY valid JSON (no markdown, no code blocks):
                     title="רענן נכסים מהשרת"
                     style={{ padding:'5px 10px', background:'rgba(34,197,94,.1)', border:'1px solid rgba(34,197,94,.3)', borderRadius:6, color:'#22C55E', cursor:'pointer', fontSize:11, fontFamily:'inherit', fontWeight:700, whiteSpace:'nowrap' }}>
                     ↺ רענן מהשרת
+                  </button>
+                  <button onClick={exportProps}
+                    title="הורד גיבוי JSON של כל הנכסים"
+                    style={{ padding:'5px 10px', background:'rgba(247,201,72,.1)', border:'1px solid rgba(247,201,72,.3)', borderRadius:6, color:'#F7C948', cursor:'pointer', fontSize:11, fontFamily:'inherit', fontWeight:700, whiteSpace:'nowrap' }}>
+                    ⬇ גיבוי JSON
                   </button>
                 </div>
               </div>
@@ -8249,20 +8327,7 @@ export default function App() {
     try { localStorage.setItem('afik_data', JSON.stringify({ stats, sharon, properties })) } catch {}
   }, [stats, sharon, properties])
 
-  // ── Sync properties to API when admin changes them (debounced 1.5 s) ────────
-  useEffect(() => {
-    if (!adminAuth || !propsLoaded.current) return  // never sync before initial load
-    if (properties.length === 0) return              // NEVER send empty array — would wipe server
-    const base = API_BASE || ''
-    const timer = setTimeout(() => {
-      fetch(`${base}/api/properties/bulk`, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
-        body:    JSON.stringify(properties),
-      }).catch(() => {})
-    }, 1500)
-    return () => clearTimeout(timer)
-  }, [properties])
+  // Individual saves now go via PUT /api/properties/:id — no bulk background sync needed.
 
   // ── Sync stats/sharon to Supabase when admin changes them (debounced 2 s) ──
   useEffect(() => {
@@ -9083,6 +9148,10 @@ export default function App() {
             } else {
               nextProps = [...properties, prop]
             }
+            // Determine the exact property that was added/updated and save only it
+            const savedProp = wizardEditId
+              ? nextProps.find(x => String(x.id) === String(wizardEditId))
+              : nextProps[nextProps.length - 1]
             setProperties(nextProps)
             setWizardEditData(null)
             setWizardEditId(null)
@@ -9090,17 +9159,17 @@ export default function App() {
             if (!isDraft && prop.published !== false) {
               setTimeout(() => scrollTo('properties'), 350)
             }
+            // Save only the affected property — safe, atomic, never touches others
             const base = API_BASE || ''
-            if (base) {
-              fetch(`${base}/api/properties/bulk`, {
-                method: 'POST',
+            if (base && savedProp) {
+              fetch(`${base}/api/properties/${savedProp.id}`, {
+                method: 'PUT',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
-                body: JSON.stringify(nextProps),
+                body: JSON.stringify(savedProp),
                 signal: AbortSignal.timeout(20000),
-              }).then(r => {
-                if (!r.ok) console.warn('[wizard] bulk save failed:', r.status)
-                else console.log('[wizard] saved', nextProps.length, 'props')
-              }).catch(e => console.error('[wizard] bulk save error:', e.message))
+              }).then(r => r.ok ? r.json() : Promise.reject(r.status))
+                .then(body => console.log('[wizard] saved prop', savedProp.id, '→', body.storage))
+                .catch(e => console.error('[wizard] save error:', e))
             }
           }}
         />}
