@@ -3572,8 +3572,9 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const [listTab, setListTab] = useState('published')
   const propListRef = useRef(null)
   const [listCat, setListCat] = useState('all')
-  const dragPropId  = useRef(null)
-  const dragOverId  = useRef(null)
+  const dragPropId       = useRef(null)
+  const dragOverId       = useRef(null)
+  const autoSaveTimer    = useRef(null)
   const [dragActive, setDragActive] = useState(false)
   const [saved, setSaved]   = useState(false)
   const [propSyncing,    setPropSyncing]    = useState(false)
@@ -4004,29 +4005,54 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
 
   // ── Individual property save — PUT /api/properties/:id ────────────────────
   // Safe: only touches the ONE property being saved. Other properties untouched.
+  // Retries up to 3 extra times (1 s → 2 s → 4 s) to survive Render cold-starts.
   const saveProp = async (prop) => {
     setPropSyncing(true)
     setPropSyncError('')
     const base = API_BASE || ''
-    try {
-      const r = await fetch(`${base}/api/properties/${prop.id}`, {
-        method:  'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
-        body:    JSON.stringify(prop),
-        signal:  AbortSignal.timeout(15000),
-      })
-      if (!r.ok) throw new Error(await r.text().catch(() => String(r.status)))
-      const body = await r.json().catch(() => ({}))
-      if (body.storage === 'memory') {
-        setPropSyncError('⚠ נשמר ב-RAM בלבד — Supabase לא זמין! הנתונים יאבדו אם השרת יתחיל מחדש')
-      } else {
-        setPropSyncedAt(new Date())
+    let lastErr = null
+    for (let attempt = 0; attempt < 4; attempt++) {
+      if (attempt > 0) await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt - 1)))
+      try {
+        const r = await fetch(`${base}/api/properties/${prop.id}`, {
+          method:  'PUT',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+          body:    JSON.stringify(prop),
+          signal:  AbortSignal.timeout(15000),
+        })
+        if (!r.ok) throw new Error(await r.text().catch(() => String(r.status)))
+        const body = await r.json().catch(() => ({}))
+        if (body.storage === 'memory') {
+          setPropSyncError('⚠ נשמר ב-RAM בלבד — Supabase לא זמין! הנתונים יאבדו אם השרת יתחיל מחדש')
+        } else {
+          setPropSyncedAt(new Date())
+          setPropSyncError('')
+        }
+        setPropSyncing(false)
+        return
+      } catch (e) {
+        lastErr = e
       }
-    } catch (e) {
-      setPropSyncError('שגיאת סנכרון: ' + (e.message || 'בעיית תקשורת'))
-      setTimeout(() => setPropSyncError(''), 8000)
-    } finally {
-      setPropSyncing(false)
+    }
+    setPropSyncError('שגיאת סנכרון: ' + (lastErr?.message || 'בעיית תקשורת') + ' — נסה שוב')
+    setTimeout(() => setPropSyncError(''), 12000)
+    setPropSyncing(false)
+  }
+
+  // Silent background save for reorder and auto-save (no spinner, 3 retries)
+  const savePropSilent = async (prop) => {
+    const base = API_BASE || ''
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (attempt > 0) await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt - 1)))
+      try {
+        const r = await fetch(`${base}/api/properties/${prop.id}`, {
+          method:  'PUT',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+          body:    JSON.stringify(prop),
+          signal:  AbortSignal.timeout(15000),
+        })
+        if (r.ok) { setPropSyncedAt(new Date()); return }
+      } catch {}
     }
   }
 
@@ -4147,8 +4173,8 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     saveProp(copy)
   }
 
-  // Move dragPropId above/below dragOverId in the global properties array
-  // Reorder affects all properties so still uses bulk sync.
+  // Move dragPropId above/below dragOverId in the global properties array.
+  // Uses individual PUT requests (no bulk delete risk) with sortOrder field.
   const reorderProps = () => {
     const fromId = dragPropId.current
     const toId   = dragOverId.current
@@ -4159,8 +4185,9 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     if (fi < 0 || ti < 0) return
     const [removed] = next.splice(fi, 1)
     next.splice(ti, 0, removed)
-    setProperties(next)
-    syncProps(next)
+    const withOrder = next.map((p, i) => ({ ...p, sortOrder: i }))
+    setProperties(withOrder)
+    withOrder.forEach(p => savePropSilent(p))
   }
 
   const tabBtn = (id, label, badge) => (
@@ -5620,9 +5647,8 @@ Return ONLY valid JSON (no markdown, no code blocks):
             <PropertyWizard
               onClose={() => setWizardOpen(false)}
               onPublish={(prop) => {
-                const nextProps = [...properties, prop]
-                setProperties(nextProps)
-                syncProps(nextProps)
+                setProperties(prev => [...prev, prop])
+                saveProp(prop)
                 setWizardOpen(false)
                 setTab('props')
               }}
@@ -8338,6 +8364,18 @@ export default function App() {
     if (properties.length === 0) return  // never overwrite a good cache with nothing
     try { localStorage.setItem('afik_data', JSON.stringify({ stats, sharon, properties })) } catch {}
   }, [stats, sharon, properties])
+
+  // Auto-save while editing an existing property (3 s debounce, silent — no spinner)
+  useEffect(() => {
+    if (editId === null || !adminAuth) return
+    clearTimeout(autoSaveTimer.current)
+    autoSaveTimer.current = setTimeout(() => {
+      if (form.title?.trim() && form.location?.trim()) {
+        savePropSilent({ ...form, id: editId, updatedAt: Date.now() })
+      }
+    }, 3000)
+    return () => clearTimeout(autoSaveTimer.current)
+  }, [form, editId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Individual saves now go via PUT /api/properties/:id — no bulk background sync needed.
 
