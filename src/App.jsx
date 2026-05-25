@@ -6551,22 +6551,19 @@ function ArchiveModal({ onClose, C, isDark }) {
   const [showBackBtn, setShowBackBtn] = useState(false)
   const scrollRef = useRef(null)
 
-  // Merge static base with saved/live articles, deduplicate by id
+  // Only articles from the last 30 days, sorted newest-first
   function mergeWithStatic(live) {
-    const ONE_MONTH = 30 * 24 * 60 * 60 * 1000
-    const cutoff = Date.now() - ONE_MONTH
-    // Keep live articles from last 30 days, fall back to older ones if fewer than 20
-    const recent = live.filter(a => (a.archivedAt || new Date(a.publishedAt || a.published_at || a.date || 0).getTime()) >= cutoff)
-    const liveSorted = recent.length >= 20
-      ? recent
-      : live.slice(0, Math.max(20, recent.length))
-    const seen = new Set(liveSorted.map(a => a.id))
-    const extras = STATIC_ARCHIVE
-      .filter(a => !seen.has(a.id))
-      .map(a => ({ ...a, image: a.image || '' }))
-    const merged = [...liveSorted, ...extras]
-    merged.sort((a, b) => (b.archivedAt || new Date(b.publishedAt || b.date || 0).getTime()) - (a.archivedAt || new Date(a.publishedAt || a.date || 0).getTime()))
-    return merged.slice(0, 50)
+    const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000
+    const recent = live.filter(a => {
+      const ts = a.archivedAt || new Date(a.publishedAt || a.published_at || a.date || 0).getTime()
+      return ts >= cutoff
+    })
+    recent.sort((a, b) => {
+      const ta = a.archivedAt || new Date(a.publishedAt || a.published_at || a.date || 0).getTime()
+      const tb = b.archivedAt || new Date(b.publishedAt || b.published_at || b.date || 0).getTime()
+      return tb - ta
+    })
+    return recent.slice(0, 100)
   }
 
   useEffect(() => {

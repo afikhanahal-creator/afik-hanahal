@@ -61,8 +61,8 @@ function parseRSS(xml, sourceName, trusted = false) {
 
     if (!rawTitle || !link) continue
     const title = rawTitle.replace(/<[^>]+>/g, '')
-    // Google News media:thumbnail/content is a source-branded card, not the real article image
-    const rawImg = link.includes('news.google.com') ? '' : (imgMedia || imgEnc || imgDesc || '')
+    // Google News descriptions contain real article thumbnails (lh3.googleusercontent.com) — use them
+    const rawImg = imgMedia || imgEnc || imgDesc || ''
     const image = isArticleImage(rawImg) ? rawImg : ''
     const date  = pubDate ? new Date(pubDate) : new Date()
 
