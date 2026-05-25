@@ -1060,6 +1060,12 @@ export default function LeadsBoard({
     return [...builtIn, ...extra]
   }, [hiddenCols, extraCols])
 
+  // Total table width: checkbox(32) + all column widths + add-col btn(120)
+  const tableMinWidth = useMemo(
+    () => allCols.reduce((s, c) => s + (c.width || 140), 0) + 32 + 120,
+    [allCols]
+  )
+
   const filtered = useMemo(() => {
     if (!search) return leads
     const q = search.toLowerCase()
@@ -1379,6 +1385,13 @@ export default function LeadsBoard({
           <Download size={12} /> CSV
         </button>
 
+        <button onClick={() => setModal('addcol')}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', background: T.accent + '12', border: `1px solid ${T.accent}55`, borderRadius: 8, color: T.accent, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s', whiteSpace: 'nowrap' }}
+          onMouseEnter={e => { e.currentTarget.style.background = T.accent + '22'; e.currentTarget.style.borderColor = T.accent }}
+          onMouseLeave={e => { e.currentTarget.style.background = T.accent + '12'; e.currentTarget.style.borderColor = T.accent + '55' }}>
+          <Columns size={12} /> {lang === 'en' ? '+ Add Column' : '+ יצירת עמודה חדשה'}
+        </button>
+
         {enrichAll && (
           <button onClick={enrichAll}
             style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: '#A25DDC14', border: '1px solid #A25DDC44', borderRadius: 8, color: '#A25DDC', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
@@ -1390,7 +1403,7 @@ export default function LeadsBoard({
       {/* ── Table ── */}
       <div style={{ flex: 1, overflowY: 'auto', overflowX: 'auto', position: 'relative' }}>
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-          <div style={{ minWidth: 860 }}>
+          <div style={{ minWidth: tableMinWidth, width: '100%' }}>
             {/* Column headers */}
             <div style={{ display: 'flex', alignItems: 'center', background: T.bgHeader, borderBottom: `2px solid ${T.border}`, position: 'sticky', top: 0, zIndex: 10, height: 38 }}>
               <div style={{ width: 32, flexShrink: 0, borderRight: `1px solid ${T.border}`, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'sticky', left: 0, background: T.bgHeader, zIndex: 5 }}>
@@ -1408,10 +1421,10 @@ export default function LeadsBoard({
                 </div>
               ))}
               <button onClick={() => setModal('addcol')}
-                style={{ width: 38, flexShrink: 0, height: '100%', background: 'none', border: 'none', borderRight: `1px solid ${T.borderLight}`, color: T.textDim, cursor: 'pointer', fontSize: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .15s' }}
+                style={{ width: 120, flexShrink: 0, height: '100%', background: 'none', border: 'none', borderRight: `1px solid ${T.borderLight}`, color: T.textDim, cursor: 'pointer', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, transition: 'all .15s', fontFamily: 'inherit', whiteSpace: 'nowrap', padding: '0 12px' }}
                 onMouseEnter={e => { e.currentTarget.style.background = T.bgRowHover; e.currentTarget.style.color = T.accent }}
                 onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = T.textDim }}>
-                +
+                <Plus size={13} /> {lang === 'en' ? 'Add Column' : 'עמודה חדשה'}
               </button>
             </div>
 

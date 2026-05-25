@@ -4428,7 +4428,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
       <div className={`admin-main-pane${standalone ? '' : ' admin-panel-modal'}`} style={standalone
         ? { flex:1, display:'flex', flexDirection:'column', height:'100dvh', overflow:'hidden' }
         : (tab==='chats'||tab==='leads')
-          ? { background:C.card, border:`1px solid ${C.purple}33`, borderRadius:16, padding:28, width:'100%', maxWidth:1200, height:'94vh', overflow:'hidden', direction:'rtl', boxShadow:'0 32px 80px rgba(0,0,0,.7)', display:'flex', flexDirection:'column' }
+          ? { background:C.card, border:`1px solid ${C.purple}33`, borderRadius:16, padding:0, width:'100%', maxWidth:'98vw', height:'94vh', overflow:'hidden', direction:'rtl', boxShadow:'0 32px 80px rgba(0,0,0,.7)', display:'flex', flexDirection:'column' }
           : { background:C.card, border:`1px solid ${C.purple}33`, borderRadius:16, padding:28, width:'100%', maxWidth:1200, maxHeight:'94vh', overflowY:'auto', direction:'rtl', boxShadow:'0 32px 80px rgba(0,0,0,.7)' }}>
 
         {/* ── MOBILE TOP BAR — inside main pane ──────────────────────── */}
@@ -7304,6 +7304,8 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
   const [shared, setShared] = useState(false)
   const [lightbox, setLightbox] = useState(false)
   const [videoPlaying, setVideoPlaying] = useState(false)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const slideshowRef = useRef(null)
   const videoRef = useRef(null)
   const propSwipe = useSwipeClose(onClose)
   // Gallery touch swipe — navigate photos without closing modal
@@ -7372,13 +7374,26 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
   useEffect(() => {
     const h = e => {
       if (e.key === 'Escape') { if (lightbox) setLightbox(false); else onClose() }
-      if (totalMedia > 1 && e.key === 'ArrowRight') setImgIdx(i => (i - 1 + totalMedia) % totalMedia)
-      if (totalMedia > 1 && e.key === 'ArrowLeft')  setImgIdx(i => (i + 1) % totalMedia)
+      if (totalMedia > 1 && e.key === 'ArrowRight') { setIsPlaying(false); setImgIdx(i => (i - 1 + totalMedia) % totalMedia) }
+      if (totalMedia > 1 && e.key === 'ArrowLeft')  { setIsPlaying(false); setImgIdx(i => (i + 1) % totalMedia) }
     }
     document.addEventListener('keydown', h)
     document.body.style.overflow = 'hidden'
     return () => { document.removeEventListener('keydown', h); document.body.style.overflow = '' }
   }, [onClose, totalMedia, lightbox])
+
+  // Slideshow — cycles through image frames only (videos play themselves)
+  useEffect(() => {
+    clearInterval(slideshowRef.current)
+    if (!isPlaying || imgs.length <= 1) return
+    slideshowRef.current = setInterval(() => {
+      setImgIdx(i => {
+        const next = (i + 1) % imgs.length
+        return next
+      })
+    }, 4000)
+    return () => clearInterval(slideshowRef.current)
+  }, [isPlaying, imgs.length])
 
   const keySpecs = [
     prop.rooms      && { Icon:FaBed,          label:'חדרים',     v:prop.rooms },
@@ -7491,7 +7506,7 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
           )}
           {/* Arrows */}
           {totalMedia > 1 && (<>
-            <button onClick={() => setImgIdx(i => (i - 1 + totalMedia) % totalMedia)}
+            <button onClick={() => { setIsPlaying(false); setImgIdx(i => (i - 1 + totalMedia) % totalMedia) }}
               style={{ position:'absolute', top:'50%', right:16, transform:'translateY(-50%)', background:'rgba(0,0,0,.6)', backdropFilter:'blur(6px)', border:`1px solid rgba(255,255,255,.15)`, borderRadius:'50%', width:46, height:46, color:'#fff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'background .18s, transform .18s cubic-bezier(.16,1,.3,1)', zIndex:3 }}
               onMouseEnter={e=>{ e.currentTarget.style.background=C.purple; e.currentTarget.style.transform='translateY(-50%) scale(1.12)' }}
               onMouseLeave={e=>{ e.currentTarget.style.background='rgba(0,0,0,.6)'; e.currentTarget.style.transform='translateY(-50%)' }}
@@ -7499,7 +7514,7 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
               onMouseUp={e=>e.currentTarget.style.transform='translateY(-50%) scale(1.12)'}>
               <FaChevronRight size={16}/>
             </button>
-            <button onClick={() => setImgIdx(i => (i + 1) % totalMedia)}
+            <button onClick={() => { setIsPlaying(false); setImgIdx(i => (i + 1) % totalMedia) }}
               style={{ position:'absolute', top:'50%', left:16, transform:'translateY(-50%)', background:'rgba(0,0,0,.6)', backdropFilter:'blur(6px)', border:`1px solid rgba(255,255,255,.15)`, borderRadius:'50%', width:46, height:46, color:'#fff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'background .18s, transform .18s cubic-bezier(.16,1,.3,1)', zIndex:3 }}
               onMouseEnter={e=>{ e.currentTarget.style.background=C.purple; e.currentTarget.style.transform='translateY(-50%) scale(1.12)' }}
               onMouseLeave={e=>{ e.currentTarget.style.background='rgba(0,0,0,.6)'; e.currentTarget.style.transform='translateY(-50%)' }}
@@ -7507,10 +7522,22 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
               onMouseUp={e=>e.currentTarget.style.transform='translateY(-50%) scale(1.12)'}>
               <FaChevronLeft size={16}/>
             </button>
-            {/* Counter — hidden on video frame so it doesn't overlap native controls */}
+            {/* Counter + Play/Pause — hidden on video frame */}
             {!isVideoFrame && (
-              <div style={{ position:'absolute', bottom:14, left:16, background:'rgba(0,0,0,.65)', backdropFilter:'blur(4px)', borderRadius:6, padding:'5px 12px', fontSize:13, color:'rgba(255,255,255,.92)', direction:'ltr', fontWeight:600, zIndex:3 }}>
-                {imgIdx + 1} / {totalMedia}
+              <div style={{ position:'absolute', bottom:14, left:16, display:'flex', alignItems:'center', gap:8, zIndex:3 }}>
+                {/* Play / Pause button — only when there are multiple images */}
+                {imgs.length > 1 && (
+                  <button onClick={() => setIsPlaying(p => !p)}
+                    style={{ width:34, height:34, borderRadius:'50%', background: isPlaying ? C.purple : 'rgba(0,0,0,.72)', backdropFilter:'blur(6px)', border:`1.5px solid ${isPlaying ? C.purple : 'rgba(255,255,255,.25)'}`, color:'#fff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s', flexShrink:0 }}
+                    title={isPlaying ? 'עצור סליידשואו' : 'הפעל סליידשואו'}>
+                    {isPlaying
+                      ? <span style={{ display:'flex', gap:3 }}><span style={{ width:3, height:13, background:'#fff', borderRadius:2 }}/><span style={{ width:3, height:13, background:'#fff', borderRadius:2 }}/></span>
+                      : <FaPlay size={11} style={{ marginRight:'-1px' }}/>}
+                  </button>
+                )}
+                <div style={{ background:'rgba(0,0,0,.65)', backdropFilter:'blur(4px)', borderRadius:6, padding:'5px 12px', fontSize:13, color:'rgba(255,255,255,.92)', direction:'ltr', fontWeight:600 }}>
+                  {imgIdx + 1} / {totalMedia}
+                </div>
               </div>
             )}
             {/* Photo count badge — hidden on video frame so it doesn't overlap native controls */}
@@ -7552,7 +7579,7 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
         {totalMedia > 1 && (
           <div className="prop-gallery-thumb-strip">
             {imgs.map((src, i) => (
-              <button key={i} onClick={() => setImgIdx(i)}
+              <button key={i} onClick={() => { setIsPlaying(false); setImgIdx(i) }}
                 className="prop-thumb-btn"
                 style={{ border: imgIdx===i ? `2.5px solid ${C.purple}` : '2.5px solid transparent', opacity: imgIdx===i ? 1 : 0.55 }}>
                 <img src={src} alt="" loading="lazy"/>
@@ -7562,7 +7589,7 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
               const vIdx = imgs.length + vi
               const thumb = getVideoThumbnail(v.url, v.thumbnail)
               return (
-                <button key={vIdx} onClick={() => setImgIdx(vIdx)}
+                <button key={vIdx} onClick={() => { setIsPlaying(false); setImgIdx(vIdx) }}
                   className="prop-thumb-btn"
                   style={{ border: imgIdx===vIdx ? `2.5px solid ${C.purple}` : '2.5px solid transparent', opacity: imgIdx===vIdx ? 1 : 0.55 }}>
                   {thumb ? (
