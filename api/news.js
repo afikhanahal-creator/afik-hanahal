@@ -24,7 +24,7 @@ const RSS_SOURCES = [
 ]
 
 const HE_RE     = /[א-ת]/
-const RE_FILTER = /נדל|דיר[הות]|דיור|שכיר[ות]|שוכר|משכיר|קרק[ע]|מגרש|משכנת|פינוי.?בינוי|התחדשות.?עירונית|מקרקעין|טאבו|קבלן|יזם|בנייה|בניין|תמ.?א|מגורים|שרון|כפר.?סבא|רעננה|נתניה|הוד.?השרון|שוק.?הד|מחיר.*דיר|רכישת.?דיר/i
+const RE_FILTER = /נדל|דיר[הות]|דיור|שכיר[ות]|שוכר|משכיר|קרק[ע]|מגרש|משכנת|פינוי.?בינוי|התחדשות.?עירונית|מקרקעין|טאבו|קבלן|יזם|בנייה|בניין|תמ.?א|מגורים|שרון|כפר.?סבא|רעננה|נתניה|הוד.?השרון|ראשון.?לציון|פתח.?תקווה|רמת.?גן|בני.?ברק|שוק.?הנד|מחיר.*דיר|רכישת.?דיר|דירה.*למכיר|למכיר.*דיר|אחוזי.?מימון|ריבית.*משכנת|כינוס.?נכסים|תל.?אביב.*נדל|ירושלים.*נדל|הלוואת.?נדל|שכר.?דירה|שוכרים|משכיר|מתחם|יח.?ד|בנייה.?רוויה|בניה.?רוויה|פרויקט|ביצוע.?בינוי|רוכשי.?דיר|שוק.?הדיור|מחיר.?לדיירים|זכות.?בדירה|דמי.?שכירות/i
 function isHebrew(text)      { return HE_RE.test(text) }
 function isRealEstate(title) { return RE_FILTER.test(title) }
 
@@ -190,7 +190,7 @@ export default async function handler(req, res) {
     let articles = combined.filter(a => {
       if (!a.title || !a.link) return false
       if (!isHebrew(a.title)) return false
-      if (!a.trusted && !isRealEstate(a.title)) return false
+      if (!isRealEstate(a.title)) return false
       const key = a.title.replace(/\s+/g,'').slice(0, 30)
       if (seen.has(key)) return false
       seen.add(key); return true
