@@ -6504,10 +6504,10 @@ function ArchiveModal({ onClose, C, isDark }) {
 
   // Merge static base with saved/live articles, deduplicate by id
   function mergeWithStatic(live) {
-    const THREE_WEEKS = 21 * 24 * 60 * 60 * 1000
-    const cutoff = Date.now() - THREE_WEEKS
-    // Keep live articles from last 3 weeks, fall back to older ones if we have fewer than 20
-    const recent = live.filter(a => (a.archivedAt || new Date(a.publishedAt || a.date || 0).getTime()) >= cutoff)
+    const ONE_MONTH = 30 * 24 * 60 * 60 * 1000
+    const cutoff = Date.now() - ONE_MONTH
+    // Keep live articles from last 30 days, fall back to older ones if fewer than 20
+    const recent = live.filter(a => (a.archivedAt || new Date(a.publishedAt || a.published_at || a.date || 0).getTime()) >= cutoff)
     const liveSorted = recent.length >= 20
       ? recent
       : live.slice(0, Math.max(20, recent.length))
@@ -6543,11 +6543,15 @@ function ArchiveModal({ onClose, C, isDark }) {
       let serverArticles = []
       try {
         const r = await fetch(`${SERVER_URL}/api/news/archive`, { signal: AbortSignal.timeout(15000) })
-        if (r.ok) serverArticles = await r.json()
+        if (r.ok) {
+          const all = await r.json()
+          // Only show articles that have an image
+          serverArticles = Array.isArray(all) ? all.filter(a => a.image) : []
+        }
       } catch {}
 
       if (serverArticles.length > 0) {
-        // Server has real archive — use it directly
+        // Server has real archive — use it directly (already image-filtered)
         setProgress(serverArticles.length)
         setItems(mergeWithStatic(serverArticles))
       } else {
