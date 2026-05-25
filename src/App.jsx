@@ -2175,14 +2175,7 @@ function ContactModal({ prop, onClose }) {
             trackEvent('contact_form', { propTitle: prop?.title || '', hasEmail: !!form.email, email: form.email, phone: form.phone, name: form.name })
             setSent(true)
             setSending(false)
-            // WhatsApp follow-up — delayed per admin panel setting
-            try {
-              const waConf = { ...WA_DEFAULTS, ...JSON.parse(localStorage.getItem(WA_KEY) || '{}') }
-              if (waConf.enabled && waConf.instanceId && waConf.token && form.phone) {
-                const delayMs = (waConf.delayMin || 2) * 60 * 1000
-                setTimeout(() => sendWhatsAppLead(lead, waConf), delayMs)
-              }
-            } catch {}
+            // WhatsApp follow-up is handled server-side in /api/contacts (no client send needed)
           }} style={{ display:'flex', flexDirection:'column', gap:12 }}>
             {[['name',lbl.name,'text',lbl.fullName],['phone',lbl.phone,'tel',lbl.phoneEx],['email',lbl.email,'email',lbl.emailEx]].map(([k,l,t,ph]) => (
               <div key={k}>
