@@ -6,8 +6,18 @@ import GovMapWidget from './GovMapWidget.jsx'
 import RealEstateCalc from './RealEstateCalc.jsx'
 import { AnimatePresence, motion } from 'framer-motion'
 import PropertyWizard, { propertyToWizardData } from './PropertyWizard.jsx'
-const LeadsBoard   = lazy(() => import('./LeadsBoard.jsx'))
-const GreenAPIChat = lazy(() => import('./GreenAPIChat.jsx'))
+// Retry lazy import once on chunk-load failure (stale CDN cache after deploy)
+function lazyWithRetry(fn) {
+  return lazy(() => fn().catch(() => {
+    if (!sessionStorage.getItem('_chunk_reload')) {
+      sessionStorage.setItem('_chunk_reload', '1')
+      window.location.reload()
+    }
+    return fn()
+  }))
+}
+const LeadsBoard   = lazyWithRetry(() => import('./LeadsBoard.jsx'))
+const GreenAPIChat = lazyWithRetry(() => import('./GreenAPIChat.jsx'))
 import { FaChevronLeft, FaChevronRight, FaEnvelope, FaFacebookF, FaInstagram, FaBed, FaRulerCombined, FaCar, FaSwimmingPool, FaBuilding, FaBoxOpen, FaTree, FaSnowflake, FaShieldAlt, FaCouch, FaTools, FaMapMarkerAlt, FaExternalLinkAlt, FaPhone, FaCompass, FaLeaf, FaCalendarAlt, FaTimes, FaWhatsapp, FaSun, FaFileAlt, FaHome, FaMoneyBill, FaSearch, FaBalanceScale, FaHandshake, FaTrophy, FaHardHat, FaLock, FaKey, FaGlobe, FaSeedling, FaBolt, FaRocket, FaStar, FaChartLine, FaEye, FaPlay, FaWheelchair, FaFire, FaCalculator, FaShareAlt, FaHeart, FaStore, FaCamera, FaWifi, FaIndustry, FaExpand, FaUser, FaUsers, FaDesktop, FaMobileAlt, FaTabletAlt, FaCommentAlt, FaRobot, FaInbox, FaExclamationTriangle, FaChartBar, FaThumbsUp, FaImage, FaPencilAlt, FaCrown, FaMousePointer, FaDollarSign, FaVideo, FaLink, FaCheck, FaCheckCircle, FaUtensils, FaDoorOpen, FaUserShield } from 'react-icons/fa'
 
 // ─── SERVER CONFIG ────────────────────────────────────────────────────────────
