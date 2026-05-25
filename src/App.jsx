@@ -6521,10 +6521,11 @@ function ArchiveModal({ onClose, C, isDark }) {
   }
 
   useEffect(() => {
+    // Show localStorage immediately, then replace with server archive
     let saved = []
     try { saved = JSON.parse(localStorage.getItem(ARCHIVE_STORE) || '[]') } catch {}
     setItems(mergeWithStatic(saved))
-    if (saved.length < 5) prefill()
+    prefill()
   }, [])
 
   useEffect(() => {
@@ -6538,25 +6539,39 @@ function ArchiveModal({ onClose, C, isDark }) {
   async function prefill() {
     setFetching(true); setProgress(0)
     try {
-      const fresh = await fetchFreshArticles()
-      let saved = []
-      try { saved = JSON.parse(localStorage.getItem(ARCHIVE_STORE) || '[]') } catch {}
-      const seenTitles = new Set(saved.map(a => a.title?.replace(/\s+/g,'').slice(0,30)))
-      const seenUrls   = new Set(saved.map(a => a.link || a.url || '').filter(Boolean))
-      const newItems = fresh
-        .filter(a => {
-          const k = a.title?.replace(/\s+/g,'').slice(0,30)
-          const u = a.link || a.url || ''
-          if (!k || seenTitles.has(k) || (u && seenUrls.has(u))) return false
-          seenTitles.add(k)
-          if (u) seenUrls.add(u)
-          return true
-        })
-        .map(a => ({ ...a, archivedAt: Date.now() }))
-      const toSave = [...newItems, ...saved].slice(0, 200)
-      try { localStorage.setItem(ARCHIVE_STORE, JSON.stringify(toSave)) } catch {}
-      setProgress(newItems.length)
-      setItems(mergeWithStatic(toSave))
+      // Primary: server-side 3-week archive (Supabase)
+      let serverArticles = []
+      try {
+        const r = await fetch(`${SERVER_URL}/api/news/archive`, { signal: AbortSignal.timeout(15000) })
+        if (r.ok) serverArticles = await r.json()
+      } catch {}
+
+      if (serverArticles.length > 0) {
+        // Server has real archive — use it directly
+        setProgress(serverArticles.length)
+        setItems(mergeWithStatic(serverArticles))
+      } else {
+        // Fallback: fetch live feed and save to localStorage
+        const fresh = await fetchFreshArticles()
+        let saved = []
+        try { saved = JSON.parse(localStorage.getItem(ARCHIVE_STORE) || '[]') } catch {}
+        const seenTitles = new Set(saved.map(a => a.title?.replace(/\s+/g,'').slice(0,30)))
+        const seenUrls   = new Set(saved.map(a => a.link || a.url || '').filter(Boolean))
+        const newItems = fresh
+          .filter(a => {
+            const k = a.title?.replace(/\s+/g,'').slice(0,30)
+            const u = a.link || a.url || ''
+            if (!k || seenTitles.has(k) || (u && seenUrls.has(u))) return false
+            seenTitles.add(k)
+            if (u) seenUrls.add(u)
+            return true
+          })
+          .map(a => ({ ...a, archivedAt: Date.now() }))
+        const toSave = [...newItems, ...saved].slice(0, 200)
+        try { localStorage.setItem(ARCHIVE_STORE, JSON.stringify(toSave)) } catch {}
+        setProgress(newItems.length)
+        setItems(mergeWithStatic(toSave))
+      }
     } catch(e) { console.error('[Archive] prefill failed:', e) }
     setFetching(false)
   }
