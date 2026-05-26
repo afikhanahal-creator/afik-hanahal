@@ -7,25 +7,48 @@ const MAX_PER_SOURCE = 3   // max articles per outlet (by domain) in the final f
 
 // ── RSS sources — all real-estate focused ────────────────────────────────────
 const RSS_SOURCES = [
-  // Direct Hebrew real-estate feeds (dedicated sections)
-  { name: 'Ynet נדל"ן',          url: 'https://www.ynet.co.il/Integration/StoryRss8315.xml'                                                                                },
-  { name: 'Globes נדל"ן',        url: 'https://www.globes.co.il/webservice/rss/rssfeeder.asmx/FeederPage?iID=3'                                                            },
-  { name: 'כלכליסט נדל"ן',       url: 'https://www.calcalist.co.il/rss/AID-1523869688.xml'                                                                                 },
-  { name: 'TheMarker נדל"ן',     url: 'https://www.themarker.com/cmlink/1.2-rss'                                                                                           },
-  { name: 'Mako נדל"ן',          url: 'https://rss.mako.co.il/rss/31750a2610f26110VgnVCM1000005201000aRCRD.xml'                                                            },
-  { name: 'מעריב נדל"ן',         url: 'https://www.maariv.co.il/rss/rssfeedsinglkategoriya,7213.xml'                                                                       },
-  { name: 'ישראל היום כלכלה',    url: 'https://www.israelhayom.co.il/rss.php?cat=7'                                                                                        },
-  { name: 'Walla כלכלה',         url: 'https://rss.walla.co.il/feed/6'                                                                                                     },
-  // Google News — aggregate articles from ALL major Israeli outlets on specific RE topics
-  { name: 'Google נדל"ן',        url: 'https://news.google.com/rss/search?q=%D7%A0%D7%93%D7%9C%22%D7%9F+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he',        gn: true },
-  { name: 'Google דירות',        url: 'https://news.google.com/rss/search?q=%D7%9E%D7%97%D7%99%D7%A8%D7%99+%D7%93%D7%99%D7%A8%D7%95%D7%AA+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he', gn: true },
-  { name: 'Google קרקעות',       url: 'https://news.google.com/rss/search?q=%D7%A7%D7%A8%D7%A7%D7%A2%D7%95%D7%AA+%D7%9C%D7%9E%D7%9B%D7%99%D7%A8%D7%94+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he', gn: true },
-  { name: 'Google משכנתאות',     url: 'https://news.google.com/rss/search?q=%D7%9E%D7%A9%D7%9B%D7%A0%D7%AA%D7%90%D7%95%D7%AA+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he', gn: true },
-  { name: 'Google פינוי בינוי',  url: 'https://news.google.com/rss/search?q=%D7%A4%D7%99%D7%A0%D7%95%D7%99+%D7%91%D7%99%D7%A0%D7%95%D7%99+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he', gn: true },
-  { name: 'Google התחדשות',      url: 'https://news.google.com/rss/search?q=%D7%94%D7%AA%D7%97%D7%93%D7%A9%D7%95%D7%AA+%D7%A2%D7%99%D7%A8%D7%95%D7%A0%D7%99%D7%AA&hl=he&gl=IL&ceid=IL:he', gn: true },
-  { name: 'Google שוק הנדל"ן',   url: 'https://news.google.com/rss/search?q=%D7%A9%D7%95%D7%A7+%D7%94%D7%93%D7%99%D7%95%D7%A8+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he', gn: true },
-  { name: 'Google קבלנים',       url: 'https://news.google.com/rss/search?q=%D7%A7%D7%91%D7%9C%D7%A0%D7%99%D7%9D+%D7%91%D7%A0%D7%99%D7%99%D7%94+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he', gn: true },
-  { name: 'Google שכר דירה',     url: 'https://news.google.com/rss/search?q=%D7%A9%D7%9B%D7%A8+%D7%93%D7%99%D7%A8%D7%94+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he', gn: true },
+  // ── ערוצי חדשות גדולים — קטגוריות נדל"ן ייעודיות ──
+  { name: 'Ynet נדל"ן',          url: 'https://www.ynet.co.il/Integration/StoryRss8315.xml'                                                       },
+  { name: 'Globes נדל"ן',        url: 'https://www.globes.co.il/webservice/rss/rssfeeder.asmx/FeederPage?iID=3'                                    },
+  { name: 'כלכליסט נדל"ן',       url: 'https://www.calcalist.co.il/rss/AID-1523869688.xml'                                                         },
+  { name: 'TheMarker נדל"ן',     url: 'https://www.themarker.com/cmlink/1.2-rss'                                                                   },
+  { name: 'Mako נדל"ן',          url: 'https://rss.mako.co.il/rss/31750a2610f26110VgnVCM1000005201000aRCRD.xml'                                    },
+  { name: 'מעריב נדל"ן',         url: 'https://www.maariv.co.il/rss/rssfeedsinglkategoriya,7213.xml'                                               },
+  { name: 'ישראל היום כלכלה',    url: 'https://www.israelhayom.co.il/rss.php?cat=7'                                                                },
+  { name: 'Walla כלכלה',         url: 'https://rss.walla.co.il/feed/6'                                                                             },
+  { name: 'ביזפורטל נדל"ן',      url: 'https://www.bizportal.co.il/rss/realestate'                                                                 },
+  // ── מגזינים, פורטלים ובלוגים מקצועיים ──
+  { name: 'BVD בניין ודיור',     url: 'https://www.bhd.co.il/feed/'                                                                               },
+  { name: 'ZUZNEWS',              url: 'https://zuznews.co.il/feed/'                                                                               },
+  { name: 'מרכז הנדל"ן',          url: 'https://www.nadlan-center.co.il/feed/'                                                                     },
+  { name: 'נדלן מאסטר',           url: 'https://nadlanmaster.co.il/feed/'                                                                         },
+  { name: 'מגדילים',              url: 'https://magdilim.co.il/feed/'                                                                             },
+  { name: 'Duns נדל"ן',           url: 'https://www.duns100.co.il/feed/'                                                                          },
+  { name: 'CivilEng',             url: 'https://civileng.co.il/feed/'                                                                             },
+  { name: 'בית ונוי',              url: 'https://beitvanoy.co.il/feed/'                                                                           },
+  { name: 'Baddror נדלן',         url: 'https://baddror.co.il/feed/'                                                                              },
+  { name: 'נדלניר',               url: 'https://nadlannir.co.il/feed/'                                                                            },
+  { name: 'גורו נדלן',            url: 'https://gurunadlan.co.il/feed/'                                                                           },
+  { name: 'Brookwood נדלן',       url: 'https://brookwood.co.il/blog/feed/'                                                                        },
+  { name: 'ברוקר נדל"ן',          url: 'https://broker-nadlan.co.il/feed/'                                                                        },
+  { name: 'מגזין הבלוק',          url: 'https://theblok.co.il/feed/'                                                                              },
+  { name: 'קפטן אינווסט',         url: 'https://captain-invest.co.il/feed/'                                                                       },
+  { name: "נדל\"ן בג'ינס",        url: 'https://nadlanbejeans.co.il/feed/'                                                                        },
+  { name: 'מדלן',                 url: 'https://www.madlan.co.il/blog/feed/'                                                                      },
+  { name: 'NADLAN.COM',           url: 'https://www.nadlan.com/feed/'                                                                             },
+  // ── Google News — נושאים נבחרים ממגוון אתרי חדשות ──
+  { name: 'Google נדל"ן',        url: 'https://news.google.com/rss/search?q=%D7%A0%D7%93%D7%9C%22%D7%9F+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he',                                                                     gn: true },
+  { name: 'Google דירות',        url: 'https://news.google.com/rss/search?q=%D7%9E%D7%97%D7%99%D7%A8%D7%99+%D7%93%D7%99%D7%A8%D7%95%D7%AA+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he',                                   gn: true },
+  { name: 'Google קרקעות',       url: 'https://news.google.com/rss/search?q=%D7%A7%D7%A8%D7%A7%D7%A2%D7%95%D7%AA+%D7%9C%D7%9E%D7%9B%D7%99%D7%A8%D7%94+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he',                       gn: true },
+  { name: 'Google משכנתאות',     url: 'https://news.google.com/rss/search?q=%D7%9E%D7%A9%D7%9B%D7%A0%D7%AA%D7%90%D7%95%D7%AA+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he',                                               gn: true },
+  { name: 'Google פינוי בינוי',  url: 'https://news.google.com/rss/search?q=%D7%A4%D7%99%D7%A0%D7%95%D7%99+%D7%91%D7%99%D7%A0%D7%95%D7%99+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he',                                   gn: true },
+  { name: 'Google התחדשות',      url: 'https://news.google.com/rss/search?q=%D7%94%D7%AA%D7%97%D7%93%D7%A9%D7%95%D7%AA+%D7%A2%D7%99%D7%A8%D7%95%D7%A0%D7%99%D7%AA&hl=he&gl=IL&ceid=IL:he',                                         gn: true },
+  { name: 'Google שוק הנדל"ן',   url: 'https://news.google.com/rss/search?q=%D7%A9%D7%95%D7%A7+%D7%94%D7%93%D7%99%D7%95%D7%A8+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he',                                             gn: true },
+  { name: 'Google קבלנים',       url: 'https://news.google.com/rss/search?q=%D7%A7%D7%91%D7%9C%D7%A0%D7%99%D7%9D+%D7%91%D7%A0%D7%99%D7%99%D7%94+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he',                           gn: true },
+  { name: 'Google שכר דירה',     url: 'https://news.google.com/rss/search?q=%D7%A9%D7%9B%D7%A8+%D7%93%D7%99%D7%A8%D7%94+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he',                                                   gn: true },
+  { name: 'Google השקעות נדלן',  url: 'https://news.google.com/rss/search?q=%D7%94%D7%A9%D7%A7%D7%A2%D7%95%D7%AA+%D7%A0%D7%93%D7%9C%D7%9F+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he',                                 gn: true },
+  { name: 'Google נדלן מסחרי',   url: 'https://news.google.com/rss/search?q=%D7%A0%D7%93%D7%9C%D7%9F+%D7%9E%D7%A1%D7%97%D7%A8%D7%99+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he',                                       gn: true },
+  { name: 'Google קניית דירה',   url: 'https://news.google.com/rss/search?q=%D7%A7%D7%A0%D7%99%D7%99%D7%AA+%D7%93%D7%99%D7%A8%D7%94+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he',                                       gn: true },
 ]
 
 const HE_RE     = /[א-ת]/
@@ -76,15 +99,16 @@ function balanceSources(articles) {
   return out
 }
 
-// Interleave articles from different sources (A, B, C, A, B, C, ...)
+// Interleave articles from different outlets (A, B, C, A, B, C, ...)
+// Groups by domain key so Ynet-direct and Ynet-from-GN don't get double slots
 function shuffleSources(articles) {
-  const bySource = {}
+  const byOutlet = {}
   articles.forEach(a => {
-    const s = a.source || ''
-    if (!bySource[s]) bySource[s] = []
-    bySource[s].push(a)
+    const key = outletKey(a.url) || a.source || ''
+    if (!byOutlet[key]) byOutlet[key] = []
+    byOutlet[key].push(a)
   })
-  const queues = Object.values(bySource)
+  const queues = Object.values(byOutlet)
   const out = []
   let anyLeft = true
   while (anyLeft) {
