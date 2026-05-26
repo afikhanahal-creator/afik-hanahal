@@ -819,13 +819,16 @@ function Step2({ d, upd, govmapToken }) {
             onFocus={e => e.target.style.borderColor = P}
             onBlur={e  => e.target.style.borderColor = BORDER} />
         </div>
-        {/* Live GovMap preview — appears as soon as gush is filled */}
-        {d.gush && govmapToken && (
+        {/* GovMap live embed — always visible when token is set */}
+        {govmapToken ? (
           <div style={{ marginTop: 16 }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: `${P}99`, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#00C875', display: 'inline-block' }}/>
-              תצוגה מקדימה — GovMap
-              {d.helka && <span style={{ fontWeight: 600, color: `${P}77` }}>גוש {d.gush} · חלקה {d.helka}</span>}
+              מפת GovMap
+              {d.gush && <span style={{ fontWeight: 600, color: `${P}77` }}>
+                גוש {d.gush}{d.helka ? ` · חלקה ${d.helka}` : ''}{d.subHelka ? ` · תת ${d.subHelka}` : ''}
+              </span>}
+              {!d.gush && <span style={{ fontWeight: 500, color: `${P}55` }}>הכנס גוש וחלקה לניווט אוטומטי לחלקה</span>}
             </div>
             <GovMapWidget
               gush={d.gush}
@@ -837,10 +840,9 @@ function Step2({ d, upd, govmapToken }) {
               isDark={true}
             />
           </div>
-        )}
-        {d.gush && !govmapToken && (
+        ) : (
           <div style={{ marginTop: 12, padding: '10px 14px', background: `${P}10`, border: `1px dashed ${P}33`, borderRadius: 8, fontSize: 11, color: `${P}99`, direction: 'rtl' }}>
-            💡 הגדר מפתח GovMap בהגדרות המערכת כדי לראות תצוגה מקדימה של המגרש
+            💡 הגדר מפתח GovMap בהגדרות המערכת כדי לראות מפת גוש/חלקה
           </div>
         )}
       </div>

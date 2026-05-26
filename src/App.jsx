@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, createContext, useContext, us
 import { MenuToggleIcon } from './MenuToggleIcon.jsx'
 import AccessibilityWidget from './AccessibilityWidget.jsx'
 import CookieConsent from './CookieConsent.jsx'
-import GovMapWidget from './GovMapWidget.jsx'
+import GovMapWidget, { LAYERS_DEF as GM_LAYERS, BG_OPTIONS as GM_BG_OPTIONS, LAYER_CATS_DEF as GM_LAYER_CATS } from './GovMapWidget.jsx'
 import RealEstateCalc from './RealEstateCalc.jsx'
 import { AnimatePresence, motion } from 'framer-motion'
 import PropertyWizard, { propertyToWizardData } from './PropertyWizard.jsx'
@@ -3592,6 +3592,20 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const [propSyncedAt,   setPropSyncedAt]   = useState(null)
   const [supabaseWarning, setSupabaseWarning] = useState('')
 
+  // GovMap management panel state
+  const [gmTab,    setGmTab]    = useState('map')   // 'map' | 'layers' | 'bg'
+  const [gmLayers, setGmLayers] = useState(() => {
+    try { const s = localStorage.getItem('govmap_default_layers'); if (s) { const d = JSON.parse(s); return Object.fromEntries(GM_LAYERS.map(l => [l.id, d[l.id] ?? l.on])) } } catch {}
+    return Object.fromEntries(GM_LAYERS.map(l => [l.id, l.on]))
+  })
+  const [gmBg,    setGmBg]    = useState(() => localStorage.getItem('govmap_default_bg') || '2')
+  const [gmSaved, setGmSaved] = useState(false)
+  function saveGmDefaults() {
+    localStorage.setItem('govmap_default_layers', JSON.stringify(gmLayers))
+    localStorage.setItem('govmap_default_bg',     gmBg)
+    setGmSaved(true); setTimeout(() => setGmSaved(false), 2000)
+  }
+
   // Check Supabase health on first open so admin knows if data is at risk
   useEffect(() => {
     const base = API_BASE || ''
@@ -5640,26 +5654,101 @@ Return ONLY valid JSON (no markdown, no code blocks):
             {/* ── Meta WhatsApp Business API Bot ─────────────────────────── */}
             <MetaWABotCard C={C} isDark={isDark}/>
 
-            {/* How GovMap works */}
-            <div style={{ background:'rgba(255,255,255,.02)', borderRadius:12, padding:20, border:`1px solid ${C.purple}15` }}>
-              <h3 style={{ fontSize:14, fontWeight:700, color:C.cream, marginBottom:12 }}>איך עובד שילוב GovMap?</h3>
-              <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-                {[
-                  ['גוש וחלקה','הכנס את מספרי הגוש והחלקה בטופס הנכס (קטגוריית קרקעות) — המפה תתמקד אוטומטית לחלקה'],
-                  ['שכבות','בחר שכבות להצגה: חלקות, גושים, ייעוד קרקע ועוד'],
-                  ['רקע מפה','שנה בין תצלום אוויר, רחובות, משולב וטופוגרפי'],
-                  ['מדידה','כלי מדידת שטחים ומרחקים על גבי המפה'],
-                ].map(([t,d],i) => (
-                  <div key={i} style={{ display:'flex', gap:10, alignItems:'flex-start' }}>
-                    <div style={{ width:22, height:22, borderRadius:'50%', background:`${C.purple}22`, border:`1px solid ${C.purple}55`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontSize:11, color:C.purple, fontWeight:800, marginTop:1 }}>{i+1}</div>
-                    <div>
-                      <div style={{ fontSize:13, fontWeight:700, color:C.cream, marginBottom:2 }}>{t}</div>
-                      <div style={{ fontSize:12, color:`${C.cream}66`, lineHeight:1.6 }}>{d}</div>
-                    </div>
+            {/* GovMap Management Panel */}
+            {govmapToken ? (
+              <div style={{ background:'rgba(255,255,255,.02)', borderRadius:12, border:`1px solid ${C.purple}22`, overflow:'hidden' }}>
+                {/* Tab bar */}
+                <div style={{ display:'flex', borderBottom:`1px solid ${C.purple}22` }}>
+                  {[
+                    { id:'map',    icon:'🗺️', label:'מפה חיה'         },
+                    { id:'layers', icon:'⏏',  label:'ניהול שכבות'     },
+                    { id:'bg',     icon:'🌍',  label:'ניהול מפות רקע'  },
+                  ].map(t => (
+                    <button key={t.id} onClick={() => setGmTab(t.id)}
+                      style={{ flex:1, padding:'12px 8px', background: gmTab===t.id ? `${C.purple}22` : 'transparent',
+                        border:'none', borderBottom: gmTab===t.id ? `2px solid ${C.purple}` : '2px solid transparent',
+                        color: gmTab===t.id ? C.purple : `${C.cream}66`, fontWeight:700, fontSize:12,
+                        cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', justifyContent:'center', gap:5, transition:'all .15s' }}>
+                      <span>{t.icon}</span>{t.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Tab: מפה חיה */}
+                {gmTab === 'map' && (
+                  <div style={{ padding:0 }}>
+                    <GovMapWidget token={govmapToken} C={C} isDark={isDark} />
                   </div>
-                ))}
+                )}
+
+                {/* Tab: ניהול שכבות */}
+                {gmTab === 'layers' && (
+                  <div style={{ padding:20 }}>
+                    <div style={{ fontSize:12, color:`${C.cream}66`, marginBottom:16, lineHeight:1.7 }}>
+                      בחר אילו שכבות יוצגו כברירת מחדל בכל מפות הנכסים באתר. המבקרים יוכלו לשנות זאת בעצמם בכל מפה.
+                    </div>
+                    {GM_LAYER_CATS.map(cat => (
+                      <div key={cat} style={{ marginBottom:16 }}>
+                        <div style={{ fontSize:10, fontWeight:800, color:`${C.cream}44`, letterSpacing:'.08em', textTransform:'uppercase', marginBottom:8, paddingBottom:4, borderBottom:`1px solid ${C.purple}18` }}>{cat}</div>
+                        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                          {GM_LAYERS.filter(l => l.cat === cat).map(l => (
+                            <label key={l.id} style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', padding:'8px 12px', background: gmLayers[l.id] ? `${C.purple}15` : 'rgba(255,255,255,.03)', borderRadius:8, border:`1px solid ${gmLayers[l.id] ? C.purple+'44' : C.purple+'15'}`, transition:'all .15s' }}>
+                              <div style={{ width:16, height:16, borderRadius:4, border:`2px solid ${gmLayers[l.id] ? l.color : `${C.cream}28`}`, background: gmLayers[l.id] ? l.color : 'transparent', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, transition:'all .15s' }}>
+                                {gmLayers[l.id] && <span style={{ color:'#fff', fontSize:10, fontWeight:900, lineHeight:1 }}>✓</span>}
+                              </div>
+                              <input type="checkbox" checked={!!gmLayers[l.id]}
+                                onChange={() => setGmLayers(p => ({ ...p, [l.id]: !p[l.id] }))}
+                                style={{ display:'none' }} />
+                              <span style={{ fontSize:12, color:C.cream, fontWeight:gmLayers[l.id] ? 700 : 400, display:'flex', alignItems:'center', gap:6 }}>
+                                <span style={{ width:8, height:8, borderRadius:2, background:l.color, flexShrink:0 }}/>
+                                {l.label}
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                    <button onClick={saveGmDefaults}
+                      style={{ padding:'10px 24px', background: gmSaved ? `${C.green}22` : `${C.purple}22`, border:`1px solid ${gmSaved ? C.green+'44' : C.purple+'44'}`, borderRadius:8, color: gmSaved ? C.green : C.purple, fontWeight:700, fontSize:13, cursor:'pointer', fontFamily:'inherit', transition:'all .2s', marginTop:4 }}>
+                      {gmSaved ? '✓ נשמר!' : 'שמור ברירות מחדל'}
+                    </button>
+                  </div>
+                )}
+
+                {/* Tab: ניהול מפות רקע */}
+                {gmTab === 'bg' && (
+                  <div style={{ padding:20 }}>
+                    <div style={{ fontSize:12, color:`${C.cream}66`, marginBottom:16, lineHeight:1.7 }}>
+                      בחר את רקע המפה שיוצג כברירת מחדל לכל הנכסים. המבקרים יוכלו לשנות זאת בעצמם.
+                    </div>
+                    <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                      {GM_BG_OPTIONS.map(opt => (
+                        <label key={opt.v} style={{ display:'flex', alignItems:'center', gap:12, cursor:'pointer', padding:'12px 16px', background: gmBg===opt.v ? `${C.purple}18` : 'rgba(255,255,255,.03)', borderRadius:10, border:`1px solid ${gmBg===opt.v ? C.purple+'55' : C.purple+'15'}`, transition:'all .15s' }}>
+                          <div style={{ width:18, height:18, borderRadius:'50%', border:`2px solid ${gmBg===opt.v ? C.purple : `${C.cream}33`}`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                            {gmBg===opt.v && <div style={{ width:9, height:9, borderRadius:'50%', background:C.purple }}/>}
+                          </div>
+                          <input type="radio" name="gmBg" value={opt.v} checked={gmBg===opt.v}
+                            onChange={() => { setGmBg(opt.v); localStorage.setItem('govmap_default_bg', opt.v) }}
+                            style={{ display:'none' }} />
+                          <div>
+                            <div style={{ fontSize:13, fontWeight:700, color:C.cream }}>{opt.label}</div>
+                            <div style={{ fontSize:11, color:`${C.cream}55` }}>{{ '2':'תצלום אוויר + רחובות', '1':'תצלום לוויין בלבד', '0':'מפת רחובות ומבנים', '9':'גבהים ושטחים', '3':'אינפרא-אדום' }[opt.v]}</div>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                    <button onClick={saveGmDefaults}
+                      style={{ padding:'10px 24px', background: gmSaved ? `${C.green}22` : `${C.purple}22`, border:`1px solid ${gmSaved ? C.green+'44' : C.purple+'44'}`, borderRadius:8, color: gmSaved ? C.green : C.purple, fontWeight:700, fontSize:13, cursor:'pointer', fontFamily:'inherit', transition:'all .2s', marginTop:16 }}>
+                      {gmSaved ? '✓ נשמר!' : 'שמור ברירת מחדל'}
+                    </button>
+                  </div>
+                )}
               </div>
-            </div>
+            ) : (
+              <div style={{ background:'rgba(255,255,255,.02)', borderRadius:12, padding:20, border:`1px solid ${C.purple}15`, textAlign:'center', color:`${C.cream}55`, fontSize:13 }}>
+                הגדר מפתח API של GovMap למעלה כדי לנהל שכבות ומפות רקע
+              </div>
+            )}
           </div>
         )}
         </div>
@@ -7683,21 +7772,23 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
               </div>
             )}
 
-            {/* GovMap — shown for land/project when gush+helka defined, or always for land */}
-            {(prop.gush || prop.helka || prop.category === 'land' || prop.category === 'projects') && (
+            {/* GovMap — show whenever token is set OR property has gush/helka */}
+            {govmapToken && (
               <div>
                 <h3 style={{ fontSize:13, fontWeight:800, color:C.cream, marginBottom:12, display:'flex', alignItems:'center', gap:8 }}>
-                  <FaMapMarkerAlt size={12}/> מפת גוש וחלקה
-                  {(prop.gush || prop.helka) && (
+                  <FaMapMarkerAlt size={12}/> מפת GovMap
+                  {(prop.gush || prop.helka) ? (
                     <span style={{ fontSize:11, fontWeight:600, color:`${C.cream}55`, background:`${C.purple}15`, borderRadius:4, padding:'2px 8px' }}>
-                      גוש {prop.gush}{prop.helka ? ` · חלקה ${prop.helka}` : ''}
+                      גוש {prop.gush}{prop.helka ? ` · חלקה ${prop.helka}` : ''}{prop.subHelka ? ` · תת ${prop.subHelka}` : ''}
                     </span>
+                  ) : (
+                    <span style={{ fontSize:11, fontWeight:500, color:`${C.cream}33`, background:`${C.purple}08`, borderRadius:4, padding:'2px 8px' }}>הכנס גוש/חלקה לניווט לחלקה</span>
                   )}
                 </h3>
                 <GovMapWidget
                   gush={prop.gush}
                   helka={prop.helka}
-                  location={prop.location}
+                  subHelka={prop.subHelka}
                   token={govmapToken}
                   C={C}
                   isDark={isDark}

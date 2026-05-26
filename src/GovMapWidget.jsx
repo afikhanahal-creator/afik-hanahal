@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, useCallback, useId } from 'react'
 const SCRIPT_URL = 'https://www.govmap.gov.il/govmap/api/govmap.api.js'
 
 // Real-estate relevant layers — organized by category
-const LAYERS_DEF = [
+export const LAYERS_DEF = [
   // מגרשים וחלקות
   { id:'PARCEL_ALL',        label:'חלקות',                   on:true,  color:'#4B8CE8',  cat:'מגרשים' },
   { id:'PARCEL_HOKS',       label:'גושים',                   on:true,  color:'#334',     cat:'מגרשים' },
@@ -24,7 +24,9 @@ const LAYERS_DEF = [
 ]
 const LAYER_CATS = ['מגרשים', 'תכנון', 'מגבלות', 'סביבה']
 
-const BG_OPTIONS = [
+export const LAYER_CATS_DEF = ['מגרשים', 'תכנון', 'מגבלות', 'סביבה']
+
+export const BG_OPTIONS = [
   { v:'2', label:'משולב' },
   { v:'1', label:'תצלום אוויר' },
   { v:'0', label:'רחובות ומבנים' },
@@ -55,8 +57,14 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
   const uid = useId().replace(/:/g, '')
   const mapDivId = `gm_${uid}`
 
-  const [layers, setLayers]           = useState(() => Object.fromEntries(LAYERS_DEF.map(l => [l.id, l.on])))
-  const [bg, setBg]                   = useState('2')
+  const [layers, setLayers] = useState(() => {
+    try {
+      const s = localStorage.getItem('govmap_default_layers')
+      if (s) { const d = JSON.parse(s); return Object.fromEntries(LAYERS_DEF.map(l => [l.id, d[l.id] ?? l.on])) }
+    } catch {}
+    return Object.fromEntries(LAYERS_DEF.map(l => [l.id, l.on]))
+  })
+  const [bg, setBg] = useState(() => localStorage.getItem('govmap_default_bg') || '2')
   const [gushVal, setGushVal]         = useState(gush || '')
   const [helkaVal, setHelkaVal]       = useState(helka || '')
   const [subHelkaVal, setSubHelkaVal] = useState(subHelka || '')
