@@ -39,12 +39,32 @@ function isArticleImage(url) {
          !u.endsWith('.svg') && !u.endsWith('.gif')
 }
 
-// Cap each source at MAX_PER_SOURCE articles
+// Map URL domain → normalized outlet key so Ynet direct feed + Ynet-from-GN count as one source
+const DOMAIN_KEY = {
+  'ynet.co.il': 'ynet', 'ynetnews.com': 'ynet',
+  'globes.co.il': 'globes',
+  'calcalist.co.il': 'calcalist',
+  'themarker.com': 'themarker', 'haaretz.co.il': 'themarker',
+  'mako.co.il': 'mako', 'n12.co.il': 'mako',
+  'maariv.co.il': 'maariv',
+  'walla.co.il': 'walla',
+  'israelhayom.co.il': 'israelhayom',
+  'kan.org.il': 'kan', 'reshet13.co.il': 'reshet13',
+  'news1.co.il': 'news1', 'davar1.co.il': 'davar1',
+}
+function outletKey(url) {
+  try {
+    const h = new URL(url).hostname.replace(/^www\./, '')
+    return DOMAIN_KEY[h] || h
+  } catch { return '' }
+}
+
+// Cap each outlet at MAX_PER_SOURCE articles (keyed by domain, not display name)
 function balanceSources(articles) {
   const counts = {}
   const out = []
   for (const a of articles) {
-    const key = a.source || ''
+    const key = outletKey(a.url) || a.source || ''
     counts[key] = (counts[key] || 0) + 1
     if (counts[key] <= MAX_PER_SOURCE) out.push(a)
   }

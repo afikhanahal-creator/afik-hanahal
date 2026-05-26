@@ -6588,7 +6588,7 @@ function ArchiveModal({ onClose, C, isDark }) {
       // Primary: server-side 3-week archive (Supabase)
       let serverArticles = []
       try {
-        const r = await fetch(`${SERVER_URL}/api/news/archive`, { signal: AbortSignal.timeout(15000) })
+        const r = await fetch(`/api/news/archive`, { signal: AbortSignal.timeout(8000) })
         if (r.ok) {
           const all = await r.json()
           // Only show articles that have an image
