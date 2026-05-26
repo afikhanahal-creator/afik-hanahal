@@ -1,26 +1,31 @@
 // Vercel serverless — fetches Israeli real-estate RSS, balances sources, enriches with og:image
-const RENDER = process.env.RENDER_URL || 'https://afik-hanahal-server.onrender.com'
+const RENDER   = process.env.RENDER_URL || 'https://afik-hanahal-server.onrender.com'
+const SUPA_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
+const SUPA_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY
 
-const MAX_PER_SOURCE = 3   // max articles per outlet in the final feed
+const MAX_PER_SOURCE = 3   // max articles per outlet (by domain) in the final feed
 
-// trusted:true = dedicated real-estate section, skip keyword filter
+// ── RSS sources — all real-estate focused ────────────────────────────────────
 const RSS_SOURCES = [
-  // ── Direct Hebrew feeds ──────────────────────────────────────────────────────
-  { name: 'Ynet נדל"ן',       url: 'https://www.ynet.co.il/Integration/StoryRss8315.xml',                                                                                  trusted: true  },
-  { name: 'Globes נדל"ן',     url: 'https://www.globes.co.il/webservice/rss/rssfeeder.asmx/FeederPage?iID=3',                                                              trusted: true  },
-  { name: 'כלכליסט נדל"ן',    url: 'https://www.calcalist.co.il/rss/AID-1523869688.xml',                                                                                   trusted: true  },
-  { name: 'TheMarker נדל"ן',  url: 'https://www.themarker.com/cmlink/1.2-rss',                                                                                             trusted: true  },
-  { name: 'Mako נדל"ן',       url: 'https://rss.mako.co.il/rss/31750a2610f26110VgnVCM1000005201000aRCRD.xml',                                                              trusted: true  },
-  { name: 'מעריב נדל"ן',      url: 'https://www.maariv.co.il/rss/rssfeedsinglkategoriya,7213.xml',                                                                         trusted: true  },
-  { name: 'ישראל היום כלכלה', url: 'https://www.israelhayom.co.il/rss.php?cat=7',                                                                                          trusted: false },
-  { name: 'Walla כלכלה',      url: 'https://rss.walla.co.il/feed/6',                                                                                                       trusted: false },
-  // ── Google News searches (aggregate many outlets, always provide thumbnails) ──
-  { name: 'Google נדל"ן',     url: 'https://news.google.com/rss/search?q=%D7%A0%D7%93%D7%9C%D7%9F+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he',              trusted: true, gn: true },
-  { name: 'Google דירות',     url: 'https://news.google.com/rss/search?q=%D7%9E%D7%97%D7%99%D7%A8%D7%99+%D7%93%D7%99%D7%A8%D7%95%D7%AA+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he', trusted: true, gn: true },
-  { name: 'Google קרקעות',    url: 'https://news.google.com/rss/search?q=%D7%A7%D7%A8%D7%A7%D7%A2%D7%95%D7%AA+%D7%9C%D7%9E%D7%9B%D7%99%D7%A8%D7%94+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he', trusted: true, gn: true },
-  { name: 'Google משכנתאות',  url: 'https://news.google.com/rss/search?q=%D7%9E%D7%A9%D7%9B%D7%A0%D7%AA%D7%90%D7%95%D7%AA+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he', trusted: true, gn: true },
-  { name: 'Google פינוי בינוי',url: 'https://news.google.com/rss/search?q=%D7%A4%D7%99%D7%A0%D7%95%D7%99+%D7%91%D7%99%D7%A0%D7%95%D7%99+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he', trusted: true, gn: true },
-  { name: 'Google התחדשות',   url: 'https://news.google.com/rss/search?q=%D7%94%D7%AA%D7%97%D7%93%D7%A9%D7%95%D7%AA+%D7%A2%D7%99%D7%A8%D7%95%D7%A0%D7%99%D7%AA&hl=he&gl=IL&ceid=IL:he', trusted: true, gn: true },
+  // Direct Hebrew real-estate feeds (dedicated sections)
+  { name: 'Ynet נדל"ן',          url: 'https://www.ynet.co.il/Integration/StoryRss8315.xml'                                                                                },
+  { name: 'Globes נדל"ן',        url: 'https://www.globes.co.il/webservice/rss/rssfeeder.asmx/FeederPage?iID=3'                                                            },
+  { name: 'כלכליסט נדל"ן',       url: 'https://www.calcalist.co.il/rss/AID-1523869688.xml'                                                                                 },
+  { name: 'TheMarker נדל"ן',     url: 'https://www.themarker.com/cmlink/1.2-rss'                                                                                           },
+  { name: 'Mako נדל"ן',          url: 'https://rss.mako.co.il/rss/31750a2610f26110VgnVCM1000005201000aRCRD.xml'                                                            },
+  { name: 'מעריב נדל"ן',         url: 'https://www.maariv.co.il/rss/rssfeedsinglkategoriya,7213.xml'                                                                       },
+  { name: 'ישראל היום כלכלה',    url: 'https://www.israelhayom.co.il/rss.php?cat=7'                                                                                        },
+  { name: 'Walla כלכלה',         url: 'https://rss.walla.co.il/feed/6'                                                                                                     },
+  // Google News — aggregate articles from ALL major Israeli outlets on specific RE topics
+  { name: 'Google נדל"ן',        url: 'https://news.google.com/rss/search?q=%D7%A0%D7%93%D7%9C%22%D7%9F+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he',        gn: true },
+  { name: 'Google דירות',        url: 'https://news.google.com/rss/search?q=%D7%9E%D7%97%D7%99%D7%A8%D7%99+%D7%93%D7%99%D7%A8%D7%95%D7%AA+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he', gn: true },
+  { name: 'Google קרקעות',       url: 'https://news.google.com/rss/search?q=%D7%A7%D7%A8%D7%A7%D7%A2%D7%95%D7%AA+%D7%9C%D7%9E%D7%9B%D7%99%D7%A8%D7%94+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he', gn: true },
+  { name: 'Google משכנתאות',     url: 'https://news.google.com/rss/search?q=%D7%9E%D7%A9%D7%9B%D7%A0%D7%AA%D7%90%D7%95%D7%AA+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he', gn: true },
+  { name: 'Google פינוי בינוי',  url: 'https://news.google.com/rss/search?q=%D7%A4%D7%99%D7%A0%D7%95%D7%99+%D7%91%D7%99%D7%A0%D7%95%D7%99+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he', gn: true },
+  { name: 'Google התחדשות',      url: 'https://news.google.com/rss/search?q=%D7%94%D7%AA%D7%97%D7%93%D7%A9%D7%95%D7%AA+%D7%A2%D7%99%D7%A8%D7%95%D7%A0%D7%99%D7%AA&hl=he&gl=IL&ceid=IL:he', gn: true },
+  { name: 'Google שוק הנדל"ן',   url: 'https://news.google.com/rss/search?q=%D7%A9%D7%95%D7%A7+%D7%94%D7%93%D7%99%D7%95%D7%A8+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he', gn: true },
+  { name: 'Google קבלנים',       url: 'https://news.google.com/rss/search?q=%D7%A7%D7%91%D7%9C%D7%A0%D7%99%D7%9D+%D7%91%D7%A0%D7%99%D7%99%D7%94+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he', gn: true },
+  { name: 'Google שכר דירה',     url: 'https://news.google.com/rss/search?q=%D7%A9%D7%9B%D7%A8+%D7%93%D7%99%D7%A8%D7%94+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he', gn: true },
 ]
 
 const HE_RE     = /[א-ת]/
@@ -182,7 +187,34 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
   if (req.method === 'OPTIONS') return res.status(200).end()
 
-  // ── Primary: fetch RSS from Vercel ────────────────────────────────────────
+  // ── Fast path: serve Supabase-curated "featured" articles (set by rotate cron) ─
+  // The rotate cron marks exactly 4 articles as featured=true every morning at 9am.
+  // This path is instant (~50ms) vs. the RSS fetch path (~3-8s).
+  if (SUPA_URL && SUPA_KEY) {
+    try {
+      const url = `${SUPA_URL}/rest/v1/news_articles` +
+        `?select=id,title,url,image,source,published_at` +
+        `&lang=eq.he&featured=eq.true&image=not.is.null&image=neq.` +
+        `&order=published_at.desc&limit=8`
+      const r = await fetch(url, {
+        headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}`, Accept: 'application/json' },
+        signal: AbortSignal.timeout(5000),
+      })
+      if (r.ok) {
+        const data = await r.json()
+        const articles = (Array.isArray(data) ? data : []).filter(a => a.image)
+        if (articles.length >= 4) {
+          console.log(`[news] serving ${articles.length} featured articles from Supabase`)
+          res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=600')
+          return res.status(200).json(articles)
+        }
+      }
+    } catch (e) {
+      console.warn('[news] Supabase featured read skipped:', e.message)
+    }
+  }
+
+  // ── RSS path: fetch live from sources, balance, return ───────────────────────
   try {
     const results = await Promise.allSettled(
       RSS_SOURCES.map(async ({ name, url, trusted = false, gn = false }) => {

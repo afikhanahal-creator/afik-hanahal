@@ -6,6 +6,10 @@
     {
       "path": "/api/cron/warm",
       "schedule": "0 */2 * * *"
+    },
+    {
+      "path": "/api/cron/rotate",
+      "schedule": "5 6 * * *"
     }
   ],
   "functions": {
@@ -14,6 +18,7 @@
     "api/news.js":            { "maxDuration": 30 },
     "api/news/archive.js":    { "maxDuration": 15 },
     "api/cron/warm.js":       { "maxDuration": 15 },
+    "api/cron/rotate.js":     { "maxDuration": 30 },
     "api/stats.js":           { "maxDuration": 15 },
     "api/properties.js":      { "maxDuration": 15 },
     "api/properties/bulk.js": { "maxDuration": 20 },
