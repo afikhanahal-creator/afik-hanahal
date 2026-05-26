@@ -2,15 +2,27 @@ import { useState, useEffect, useRef, useCallback, useId } from 'react'
 
 const SCRIPT_URL = 'https://www.govmap.gov.il/govmap/api/govmap.api.js'
 
-// Key layers for real estate / land parcels
+// Real-estate relevant layers — organized by category
 const LAYERS_DEF = [
-  { id:'PARCEL_ALL',     label:'חלקות',              on:true,  color:'#4B8CE8' },
-  { id:'PARCEL_HOKS',    label:'גושים',               on:true,  color:'#222' },
-  { id:'TABA_DEST',      label:'ייעוד קרקע',          on:true,  color:'#E84B4B' },
-  { id:'KSHTANN_ASSETS', label:'נכסי רמ"י',            on:false, color:'#8490D8' },
-  { id:'bus_stops',      label:'תחנות אוטובוס',       on:false, color:'#82F67F' },
-  { id:'GASSTATIONS',    label:'תחנות דלק',           on:false, color:'#F7C948' },
+  // מגרשים וחלקות
+  { id:'PARCEL_ALL',        label:'חלקות',                   on:true,  color:'#4B8CE8',  cat:'מגרשים' },
+  { id:'PARCEL_HOKS',       label:'גושים',                   on:true,  color:'#334',     cat:'מגרשים' },
+  { id:'KSHTANN_ASSETS',    label:'נכסי רמ"י',               on:false, color:'#8490D8',  cat:'מגרשים' },
+  // תכנון ובנייה
+  { id:'TABA_DEST',         label:'ייעוד קרקע',              on:true,  color:'#E84B4B',  cat:'תכנון' },
+  { id:'PLAN_INFO',         label:'תכניות בניין עיר',        on:false, color:'#F7A348',  cat:'תכנון' },
+  { id:'TAMA38',            label:'תמ"א 38',                 on:false, color:'#A25DDC',  cat:'תכנון' },
+  { id:'BUILDING_PERMITS',  label:'היתרי בנייה',             on:false, color:'#00C875',  cat:'תכנון' },
+  // מגבלות
+  { id:'ARCHEOLOGY',        label:'אתרים ארכיאולוגיים',      on:false, color:'#C4A35A',  cat:'מגבלות' },
+  { id:'NATBDR',            label:'גבולות מינהליים',          on:false, color:'#E2445C',  cat:'מגבלות' },
+  // תשתיות וסביבה
+  { id:'bus_stops',         label:'תחנות אוטובוס',          on:false, color:'#82F67F',  cat:'סביבה' },
+  { id:'TRAIN_LINES',       label:'קווי רכבת',              on:false, color:'#0073EA',  cat:'סביבה' },
+  { id:'GASSTATIONS',       label:'תחנות דלק',              on:false, color:'#F7C948',  cat:'סביבה' },
+  { id:'SCHOOL_AREAS',      label:'אזורי בתי ספר',           on:false, color:'#03C9D7',  cat:'סביבה' },
 ]
+const LAYER_CATS = ['מגרשים', 'תכנון', 'מגבלות', 'סביבה']
 
 const BG_OPTIONS = [
   { v:'2', label:'משולב' },
@@ -39,15 +51,16 @@ function loadGovMapScript(cb) {
   document.head.appendChild(s)
 }
 
-export default function GovMapWidget({ gush, helka, token, C, isDark }) {
+export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, compact = false }) {
   const uid = useId().replace(/:/g, '')
   const mapDivId = `gm_${uid}`
 
-  const [layers, setLayers]       = useState(() => Object.fromEntries(LAYERS_DEF.map(l => [l.id, l.on])))
-  const [bg, setBg]               = useState('2')
-  const [gushVal, setGushVal]     = useState(gush || '')
-  const [helkaVal, setHelkaVal]   = useState(helka || '')
-  const [showPanel, setShowPanel] = useState(false)
+  const [layers, setLayers]           = useState(() => Object.fromEntries(LAYERS_DEF.map(l => [l.id, l.on])))
+  const [bg, setBg]                   = useState('2')
+  const [gushVal, setGushVal]         = useState(gush || '')
+  const [helkaVal, setHelkaVal]       = useState(helka || '')
+  const [subHelkaVal, setSubHelkaVal] = useState(subHelka || '')
+  const [showPanel, setShowPanel]     = useState(false)
   const [mapReady, setMapReady]   = useState(false)
   const [error, setError]         = useState('')
   const [measuring, setMeasuring] = useState(false)
@@ -147,13 +160,16 @@ export default function GovMapWidget({ gush, helka, token, C, isDark }) {
       {/* ── Toolbar ── */}
       <div style={{ display:'flex', gap:8, alignItems:'center', padding:'8px 12px', background: isDark ? 'rgba(11,11,20,.95)' : 'rgba(240,237,230,.97)', borderBottom:`1px solid ${C.purple}18`, flexWrap:'wrap' }}>
 
-        {/* גוש / חלקה search */}
-        <div style={{ display:'flex', alignItems:'center', gap:5, flexShrink:0 }}>
+        {/* גוש / חלקה / תת-חלקה search */}
+        <div style={{ display:'flex', alignItems:'center', gap:5, flexShrink:0, flexWrap:'wrap' }}>
           <span style={{ fontSize:11, color:`${C.cream}66`, fontWeight:600 }}>גוש</span>
           <input value={gushVal} onChange={e=>setGushVal(e.target.value)} placeholder="40095" style={inputSt}
             onKeyDown={e=>e.key==='Enter'&&handleSearch()}/>
           <span style={{ fontSize:11, color:`${C.cream}66`, fontWeight:600 }}>חלקה</span>
           <input value={helkaVal} onChange={e=>setHelkaVal(e.target.value)} placeholder="13" style={inputSt}
+            onKeyDown={e=>e.key==='Enter'&&handleSearch()}/>
+          <span style={{ fontSize:11, color:`${C.cream}66`, fontWeight:600 }}>תת</span>
+          <input value={subHelkaVal} onChange={e=>setSubHelkaVal(e.target.value)} placeholder="0" style={{ ...inputSt, width:48 }}
             onKeyDown={e=>e.key==='Enter'&&handleSearch()}/>
           <button onClick={handleSearch} style={{ ...btnSt(false), padding:'6px 12px' }}>חפש</button>
         </div>
@@ -184,36 +200,40 @@ export default function GovMapWidget({ gush, helka, token, C, isDark }) {
         {error && <span style={{ fontSize:11, color:'#E05252', marginRight:'auto' }}>{error}</span>}
       </div>
 
-      {/* ── Layer Panel ── */}
+      {/* ── Layer Panel — categorised ── */}
       {showPanel && (
-        <div style={{ position:'absolute', top:44, right:0, zIndex:20, background: panelBg, backdropFilter:'blur(12px)', border:`1px solid ${C.purple}28`, borderRadius:'0 0 0 10px', padding:'14px 16px', minWidth:210, boxShadow:'0 8px 32px rgba(0,0,0,.35)', direction:'rtl' }}>
-          <div style={{ fontSize:11, fontWeight:800, color:`${C.cream}66`, letterSpacing:'.06em', marginBottom:10, textTransform:'uppercase' }}>שכבות מידע</div>
-          <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-            {LAYERS_DEF.map(l => (
-              <label key={l.id} style={{ display:'flex', alignItems:'center', gap:9, cursor:'pointer', fontSize:13, color:C.cream, userSelect:'none' }}>
-                <span style={{
-                  width:18, height:18, borderRadius:4, border:`2px solid ${layers[l.id] ? C.purple : `${C.cream}33`}`,
-                  background: layers[l.id] ? C.purple : 'transparent',
-                  display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, transition:'all .15s',
-                }}>
-                  {layers[l.id] && <span style={{ color:'#fff', fontSize:11, fontWeight:900 }}>✓</span>}
-                </span>
-                <input type="checkbox" checked={layers[l.id]} onChange={()=>toggleLayer(l.id)} style={{ display:'none' }}/>
-                <span style={{ display:'flex', alignItems:'center', gap:6 }}>
-                  <span style={{ width:10, height:10, borderRadius:2, background:l.color, flexShrink:0 }}/>
-                  {l.label}
-                </span>
-              </label>
-            ))}
-          </div>
-          <div style={{ marginTop:12, paddingTop:10, borderTop:`1px solid ${C.purple}15`, fontSize:10, color:`${C.cream}33` }}>
-            לייבוא שכבות נוספות — פורטל GovMap
+        <div style={{ position:'absolute', top:44, right:0, zIndex:20, background: panelBg, backdropFilter:'blur(12px)', border:`1px solid ${C.purple}28`, borderRadius:'0 0 0 12px', padding:'14px 16px', minWidth:230, maxHeight:420, overflowY:'auto', boxShadow:'0 8px 32px rgba(0,0,0,.4)', direction:'rtl' }}>
+          <div style={{ fontSize:11, fontWeight:800, color:`${C.cream}55`, letterSpacing:'.07em', marginBottom:12, textTransform:'uppercase' }}>שכבות מידע</div>
+          {LAYER_CATS.map(cat => {
+            const catLayers = LAYERS_DEF.filter(l => l.cat === cat)
+            return (
+              <div key={cat} style={{ marginBottom:12 }}>
+                <div style={{ fontSize:10, fontWeight:700, color:`${C.cream}44`, letterSpacing:'.05em', textTransform:'uppercase', marginBottom:6, borderBottom:`1px solid ${C.purple}15`, paddingBottom:4 }}>{cat}</div>
+                <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                  {catLayers.map(l => (
+                    <label key={l.id} style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', fontSize:12.5, color:C.cream, userSelect:'none' }}>
+                      <span style={{ width:17, height:17, borderRadius:4, border:`2px solid ${layers[l.id] ? l.color : `${C.cream}28`}`, background: layers[l.id] ? l.color : 'transparent', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, transition:'all .15s' }}>
+                        {layers[l.id] && <span style={{ color:'#fff', fontSize:10, fontWeight:900, lineHeight:1 }}>✓</span>}
+                      </span>
+                      <input type="checkbox" checked={layers[l.id]} onChange={()=>toggleLayer(l.id)} style={{ display:'none' }}/>
+                      <span style={{ display:'flex', alignItems:'center', gap:5 }}>
+                        <span style={{ width:9, height:9, borderRadius:2, background:l.color, flexShrink:0, border:`1px solid ${l.color}88` }}/>
+                        {l.label}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )
+          })}
+          <div style={{ marginTop:8, paddingTop:8, borderTop:`1px solid ${C.purple}15`, fontSize:10, color:`${C.cream}33` }}>
+            מקור: פורטל GovMap הממשלתי
           </div>
         </div>
       )}
 
       {/* ── Map container ── */}
-      <div id={mapDivId} style={{ width:'100%', height:480 }}/>
+      <div id={mapDivId} style={{ width:'100%', height: compact ? 340 : 480 }}/>
 
       {/* Loading overlay */}
       {!mapReady && token && (

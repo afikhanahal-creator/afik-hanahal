@@ -7684,7 +7684,7 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
             )}
 
             {/* GovMap — shown for land/project when gush+helka defined, or always for land */}
-            {(prop.category === 'land' || prop.category === 'projects') && (
+            {(prop.gush || prop.helka || prop.category === 'land' || prop.category === 'projects') && (
               <div>
                 <h3 style={{ fontSize:13, fontWeight:800, color:C.cream, marginBottom:12, display:'flex', alignItems:'center', gap:8 }}>
                   <FaMapMarkerAlt size={12}/> מפת גוש וחלקה
@@ -9218,6 +9218,7 @@ export default function App() {
           onClose={() => { setShowWizard(false); setWizardEditData(null); setWizardEditId(null) }}
           initialData={wizardEditData}
           editId={wizardEditId}
+          govmapToken={govmapToken}
           onPublish={(prop, isDraft) => {
             let nextProps
             if (wizardEditId) {

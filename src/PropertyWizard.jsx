@@ -1,4 +1,5 @@
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback, useEffect, lazy, Suspense } from 'react'
+import GovMapWidget from './GovMapWidget.jsx'
 import {
   FaTimes, FaChevronRight, FaChevronLeft, FaCheck, FaCamera,
   FaWhatsapp, FaCopy,
@@ -136,7 +137,7 @@ const INIT = {
   description: '',
   media: [],    // { url, name, type:'image'|'video', thumbnail? }
   contactName: '', contactPhone: '',
-  gush: '', helka: '', mapsUrl: '', landingPageUrl: '', youtubeUrl: '',
+  gush: '', helka: '', subHelka: '', mapsUrl: '', landingPageUrl: '', youtubeUrl: '',
   logo: '',
   logoSize: 72,
   pdfs: [],  // [{name, url}] — uploaded project PDFs
@@ -220,6 +221,7 @@ export function propertyToWizardData(prop) {
     contactPhone: prop.contactPhone || '',
     gush: prop.gush || '',
     helka: prop.helka || '',
+    subHelka: prop.subHelka || '',
     mapsUrl: prop.mapsUrl || '',
     landingPageUrl: prop.landingPageUrl || '',
     youtubeUrl: '',
@@ -300,6 +302,7 @@ export function wizardToProperty(d, isDraft) {
     videoUrl: d.youtubeUrl || videoItems[0]?.url || '',
     gush: d.gush || '',
     helka: d.helka || '',
+    subHelka: d.subHelka || '',
     mapsUrl: d.mapsUrl || '',
     landingPageUrl: d.landingPageUrl || '',
     logo: d.logo || '',
@@ -738,7 +741,7 @@ function Step1({ d, upd }) {
   )
 }
 
-function Step2({ d, upd }) {
+function Step2({ d, upd, govmapToken }) {
   return (
     <div>
       <h3 style={{ color: TEXT, fontSize: 20, fontWeight: 800, marginBottom: 24, marginTop: 0, fontFamily: FONT }}>
@@ -776,14 +779,15 @@ function Step2({ d, upd }) {
         </label>
       </div>
 
-      {/* Gush / Helka + Maps URL */}
+      {/* Gush / Helka / Sub-Helka + GovMap live preview */}
       <div style={{ marginTop: 20, padding: '16px 18px', background: DARK, borderRadius: 12, border: `1px solid ${BORDER}` }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: P, marginBottom: 14, fontFamily: FONT, display: 'flex', alignItems: 'center', gap: 6 }}>
           🗺️ גוש, חלקה וקישורים
+          <span style={{ fontSize: 10, fontWeight: 500, color: `${P}88`, background: `${P}15`, borderRadius: 4, padding: '2px 8px' }}>אופציונלי</span>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 0.6fr', gap: 12, marginBottom: 12 }}>
           <div>
-            <label style={labelStyle}>גוש (GovMap)</label>
+            <label style={labelStyle}>גוש</label>
             <input value={d.gush} placeholder="לדוג׳: 40095"
               onChange={e => upd('gush', e.target.value)}
               style={{ ...fieldStyle, direction: 'ltr' }}
@@ -791,15 +795,23 @@ function Step2({ d, upd }) {
               onBlur={e  => e.target.style.borderColor = BORDER} />
           </div>
           <div>
-            <label style={labelStyle}>חלקה (GovMap)</label>
+            <label style={labelStyle}>חלקה</label>
             <input value={d.helka} placeholder="לדוג׳: 13"
               onChange={e => upd('helka', e.target.value)}
               style={{ ...fieldStyle, direction: 'ltr' }}
               onFocus={e => e.target.style.borderColor = P}
               onBlur={e  => e.target.style.borderColor = BORDER} />
           </div>
+          <div>
+            <label style={labelStyle}>תת-חלקה</label>
+            <input value={d.subHelka} placeholder="0"
+              onChange={e => upd('subHelka', e.target.value)}
+              style={{ ...fieldStyle, direction: 'ltr' }}
+              onFocus={e => e.target.style.borderColor = P}
+              onBlur={e  => e.target.style.borderColor = BORDER} />
+          </div>
         </div>
-        <div>
+        <div style={{ marginBottom: 12 }}>
           <label style={labelStyle}>קישור גוגל מאפ (אופציונלי)</label>
           <input value={d.mapsUrl} placeholder="https://maps.google.com/..."
             onChange={e => upd('mapsUrl', e.target.value)}
@@ -807,6 +819,30 @@ function Step2({ d, upd }) {
             onFocus={e => e.target.style.borderColor = P}
             onBlur={e  => e.target.style.borderColor = BORDER} />
         </div>
+        {/* Live GovMap preview — appears as soon as gush is filled */}
+        {d.gush && govmapToken && (
+          <div style={{ marginTop: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: `${P}99`, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#00C875', display: 'inline-block' }}/>
+              תצוגה מקדימה — GovMap
+              {d.helka && <span style={{ fontWeight: 600, color: `${P}77` }}>גוש {d.gush} · חלקה {d.helka}</span>}
+            </div>
+            <GovMapWidget
+              gush={d.gush}
+              helka={d.helka}
+              subHelka={d.subHelka}
+              token={govmapToken}
+              compact={true}
+              C={{ purple: P, green: G, cream: TEXT }}
+              isDark={true}
+            />
+          </div>
+        )}
+        {d.gush && !govmapToken && (
+          <div style={{ marginTop: 12, padding: '10px 14px', background: `${P}10`, border: `1px dashed ${P}33`, borderRadius: 8, fontSize: 11, color: `${P}99`, direction: 'rtl' }}>
+            💡 הגדר מפתח GovMap בהגדרות המערכת כדי לראות תצוגה מקדימה של המגרש
+          </div>
+        )}
       </div>
     </div>
   )
@@ -1726,7 +1762,7 @@ const STEP_COMPONENTS = [Step1, Step2, Step3, Step4, Step5, Step6, Step7]
 
 const WIZARD_DRAFT_KEY = 'afik_wizard_draft'
 
-export default function PropertyWizard({ onClose, onPublish, initialData, editId }) {
+export default function PropertyWizard({ onClose, onPublish, initialData, editId, govmapToken }) {
   const [step, setStep]             = useState(1)
   const [data, setData]             = useState(() => {
     if (initialData) return { ...INIT, ...initialData }
@@ -1876,7 +1912,7 @@ export default function PropertyWizard({ onClose, onPublish, initialData, editId
 
             {/* ── Step content ── */}
             <div style={{ padding: '14px 28px 18px', minHeight: 300, maxHeight: 'calc(100vh - 260px)', overflowY: 'auto' }}>
-              <StepComp d={data} upd={upd} />
+              <StepComp d={data} upd={upd} govmapToken={govmapToken} />
             </div>
 
             {/* ── Footer — CTA centered ── */}
