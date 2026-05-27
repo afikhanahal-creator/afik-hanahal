@@ -8728,7 +8728,10 @@ export default function App() {
   const openContact = (p=null) => { setContactProp(p); setShowContact(true) }
   const openProperty = (p) => {
     setSelectedProp(p)
-    if (p) trackEvent('property_view', { title: p.title, id: p.id, category: p.category, location: p.location })
+    if (p) {
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+      trackEvent('property_view', { title: p.title, id: p.id, category: p.category, location: p.location })
+    }
   }
 
   // ── Standalone dashboard at /dashboard ──────────────────────────────────────
@@ -9397,7 +9400,7 @@ export default function App() {
       {showContact && <ContactModal  prop={contactProp} onClose={() => setShowContact(false)}/>}
       {showCalc    && <RealEstateCalc onClose={() => setShowCalc(false)}/>}
       {showPrivacy && <PrivacyModal onClose={() => setShowPrivacy(false)}/>}
-      {selectedProp && <PropertyModal prop={selectedProp} properties={properties} onClose={() => setSelectedProp(null)} onContact={p => { openContact(p) }} onSelect={setSelectedProp} govmapToken={govmapToken}/>}
+      {selectedProp && <PropertyModal prop={selectedProp} properties={properties} onClose={() => setSelectedProp(null)} onContact={p => { openContact(p) }} onSelect={openProperty} govmapToken={govmapToken}/>}
       {showWizard && <PropertyWizard
           key={wizardEditId || wizardKey}
           onClose={() => { setShowWizard(false); setWizardEditData(null); setWizardEditId(null) }}
