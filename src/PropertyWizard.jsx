@@ -6,7 +6,7 @@ import {
   FaWheelchair, FaSnowflake, FaBuilding, FaCar, FaBox, FaShieldAlt,
   FaExpand, FaUtensils, FaSun, FaLock, FaDoorOpen, FaCouch,
   FaTools, FaUserShield, FaWind, FaBolt,
-  FaHome, FaKey,
+  FaHome, FaKey, FaHardHat, FaLeaf, FaStore,
   FaLightbulb, FaExclamationTriangle,
   FaTag, FaMapMarkerAlt, FaBed, FaRulerCombined, FaMoneyBill,
   FaCalendarAlt, FaCog, FaFileAlt, FaPhone, FaLayerGroup,
@@ -126,8 +126,15 @@ const HE_MONTHS = ['ינואר','פברואר','מרץ','אפריל','מאי','�
                    'יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר']
 const HE_DAYS   = ['א׳','ב׳','ג׳','ד׳','ה׳','ו׳','ש׳']
 
+const WIZARD_CATEGORIES = [
+  { id: 'projects',   label: 'פרויקטים בשיווק', Icon: FaHardHat },
+  { id: 'apartments', label: 'דירות למכירה',     Icon: FaHome    },
+  { id: 'land',       label: 'מגרשים וקרקעות',  Icon: FaLeaf    },
+  { id: 'commercial', label: 'נכסים מסחריים',    Icon: FaStore   },
+]
+
 const INIT = {
-  txType: 'sale', propType: '',
+  txType: 'sale', propType: '', category: '',
   city: '', street: '', houseNum: '', floor: '', totalFloors: '',
   onPilotis: false, neighborhood: '', area: '', district: '',
   rooms: '', bathrooms: 1, parking: 0, balconies: 0,
@@ -166,6 +173,7 @@ export function propertyToWizardData(prop) {
   return {
     txType: prop.txType || 'sale',
     propType: prop.type || '',
+    category: prop.category || '',
     city: prop.location || '',
     street,
     houseNum,
@@ -275,7 +283,7 @@ export function wizardToProperty(d, isDraft) {
 
   return {
     id: Date.now(),
-    category: inferCategory(d.propType),
+    category: d.category || inferCategory(d.propType),
     title: `${d.propType}${d.rooms ? `, ${d.rooms} חד׳` : ''}${d.size ? `, ${d.size} מ"ר` : ''} - ${d.city}`,
     type: d.propType,
     txType: d.txType,
@@ -715,6 +723,31 @@ function Step1({ d, upd }) {
           )
         })}
       </div>
+
+      {/* Category */}
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ fontSize: 11, color: MUTED, marginBottom: 10, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 6 }}>
+          קטגוריה
+          <span style={{ fontSize: 10, color: `${P}99`, background: `${P}15`, borderRadius: 4, padding: '2px 7px', letterSpacing: 0, textTransform: 'none', fontWeight: 500 }}>אופציונלי — נקבע אוטומטית לפי סוג הנכס</span>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+          {WIZARD_CATEGORIES.map(c => {
+            const on = d.category === c.id
+            return (
+              <button key={c.id} onClick={() => upd('category', on ? '' : c.id)}
+                style={{ padding: '14px 8px', borderRadius: 12,
+                  border: `2px solid ${on ? P : BORDER}`, background: on ? P + '18' : DARK,
+                  color: on ? P : TEXT, cursor: 'pointer', transition: 'all .2s',
+                  textAlign: 'center', fontFamily: FONT, display: 'flex', flexDirection: 'column',
+                  alignItems: 'center', gap: 8 }}>
+                <c.Icon size={20} />
+                <div style={{ fontSize: 12, fontWeight: 700, lineHeight: 1.3 }}>{c.label}</div>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
       <Field label="סוג נכס" req>
         <select value={d.propType} onChange={e => upd('propType', e.target.value)}
           className="pw-select"
