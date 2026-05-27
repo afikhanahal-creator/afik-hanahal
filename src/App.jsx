@@ -5468,7 +5468,18 @@ Return ONLY valid JSON (no markdown, no code blocks):
                   style={{ ...inp, direction:'ltr', fontFamily:'monospace', fontSize:12, marginBottom:0, flex:1 }}
                 />
                 <button
-                  onClick={() => { setGovmapToken(tokenDraft); setTokenSaved(true); setTimeout(() => setTokenSaved(false), 3000) }}
+                  onClick={() => {
+                    setGovmapToken(tokenDraft)
+                    localStorage.setItem('govmap_token', tokenDraft)
+                    const base = API_BASE || ''
+                    fetch(`${base}/api/stats`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+                      body: JSON.stringify({ govmapToken: tokenDraft }),
+                    }).catch(() => {})
+                    setTokenSaved(true)
+                    setTimeout(() => setTokenSaved(false), 3000)
+                  }}
                   style={{ padding:'8px 18px', background: tokenSaved ? C.green : C.purple, border:'none', borderRadius:8, color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'Rubik,inherit', transition:'background .2s', whiteSpace:'nowrap', flexShrink:0 }}
                 >
                   {tokenSaved ? '✓ נשמר!' : 'שמור'}
@@ -8456,7 +8467,7 @@ export default function App() {
     } catch {}
     loaded.current = true
 
-    // 2. Fetch latest stats from API — works with or without VITE_API_URL
+    // 2. Fetch latest stats + govmap token from API
     {
       const base = API_BASE || ''
       fetch(`${base}/api/stats`)
@@ -8464,6 +8475,7 @@ export default function App() {
         .then(data => {
           if (data.stats?.length)  setStats(data.stats)
           if (data.sharon?.length) setSharon(data.sharon)
+          if (data.govmapToken)    { setGovmapToken(data.govmapToken); localStorage.setItem('govmap_token', data.govmapToken) }
         })
         .catch(() => {})
     }
@@ -9364,7 +9376,7 @@ export default function App() {
           properties={properties} setProperties={setProperties}
           stats={stats} setStats={setStats}
           sharon={sharon} setSharon={setSharon}
-          govmapToken={govmapToken} setGovmapToken={t => { setGovmapToken(t); localStorage.setItem('govmap_token', t) }}
+          govmapToken={govmapToken} setGovmapToken={t => { setGovmapToken(t); localStorage.setItem('govmap_token', t) /* cloud save done in AdminPanel save button */ }}
           onClose={() => setShowAdmin(false)}
           onEditInWizard={p => {
             setShowAdmin(false)
