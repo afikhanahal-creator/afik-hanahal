@@ -2,29 +2,28 @@ import { useState, useEffect, useRef, useCallback, useId } from 'react'
 
 const SCRIPT_URL = 'https://www.govmap.gov.il/govmap/api/govmap.api.js'
 
-// Real-estate relevant layers — organized by category
 export const LAYERS_DEF = [
   // מגרשים וחלקות
-  { id:'PARCEL_ALL',        label:'חלקות',                   on:true,  color:'#4B8CE8',  cat:'מגרשים' },
-  { id:'PARCEL_HOKS',       label:'גושים',                   on:true,  color:'#334',     cat:'מגרשים' },
-  { id:'KSHTANN_ASSETS',    label:'נכסי רמ"י',               on:false, color:'#8490D8',  cat:'מגרשים' },
+  { id:'PARCEL_ALL',       label:'חלקות',              on:true,  color:'#4B8CE8', cat:'מגרשים' },
+  { id:'PARCEL_HOKS',      label:'גושים',               on:true,  color:'#334',    cat:'מגרשים' },
+  { id:'KSHTANN_ASSETS',   label:'נכסי רמ"י',           on:false, color:'#8490D8', cat:'מגרשים' },
   // תכנון ובנייה
-  { id:'TABA_DEST',         label:'ייעוד קרקע',              on:true,  color:'#E84B4B',  cat:'תכנון' },
-  { id:'PLAN_INFO',         label:'תכניות בניין עיר',        on:false, color:'#F7A348',  cat:'תכנון' },
-  { id:'TAMA38',            label:'תמ"א 38',                 on:false, color:'#A25DDC',  cat:'תכנון' },
-  { id:'BUILDING_PERMITS',  label:'היתרי בנייה',             on:false, color:'#00C875',  cat:'תכנון' },
+  { id:'TABA_DEST',        label:'ייעוד קרקע',          on:true,  color:'#E84B4B', cat:'תכנון' },
+  { id:'PLAN_INFO',        label:'תכניות בניין עיר',    on:false, color:'#F7A348', cat:'תכנון' },
+  { id:'TAMA38',           label:'תמ"א 38',             on:false, color:'#A25DDC', cat:'תכנון' },
+  { id:'BUILDING_PERMITS', label:'היתרי בנייה',          on:false, color:'#00C875', cat:'תכנון' },
   // מגבלות
-  { id:'ARCHEOLOGY',        label:'אתרים ארכיאולוגיים',      on:false, color:'#C4A35A',  cat:'מגבלות' },
-  { id:'NATBDR',            label:'גבולות מינהליים',          on:false, color:'#E2445C',  cat:'מגבלות' },
+  { id:'ARCHEOLOGY',       label:'אתרים ארכיאולוגיים',  on:false, color:'#C4A35A', cat:'מגבלות' },
+  { id:'NATBDR',           label:'גבולות מינהליים',      on:false, color:'#E2445C', cat:'מגבלות' },
   // תשתיות וסביבה
-  { id:'bus_stops',         label:'תחנות אוטובוס',          on:false, color:'#82F67F',  cat:'סביבה' },
-  { id:'TRAIN_LINES',       label:'קווי רכבת',              on:false, color:'#0073EA',  cat:'סביבה' },
-  { id:'GASSTATIONS',       label:'תחנות דלק',              on:false, color:'#F7C948',  cat:'סביבה' },
-  { id:'SCHOOL_AREAS',      label:'אזורי בתי ספר',           on:false, color:'#03C9D7',  cat:'סביבה' },
+  { id:'bus_stops',        label:'תחנות אוטובוס',       on:false, color:'#82F67F', cat:'סביבה' },
+  { id:'TRAIN_LINES',      label:'קווי רכבת',           on:false, color:'#0073EA', cat:'סביבה' },
+  { id:'GASSTATIONS',      label:'תחנות דלק',           on:false, color:'#F7C948', cat:'סביבה' },
+  { id:'SCHOOL_AREAS',     label:'אזורי בתי ספר',       on:false, color:'#03C9D7', cat:'סביבה' },
 ]
 const LAYER_CATS = ['מגרשים', 'תכנון', 'מגבלות', 'סביבה']
 
-export const LAYER_CATS_DEF = ['מגרשים', 'תכנון', 'מגבלות', 'סביבה']
+export const LAYER_CATS_DEF = LAYER_CATS
 
 export const BG_OPTIONS = [
   { v:'2', label:'משולב' },
@@ -34,7 +33,7 @@ export const BG_OPTIONS = [
   { v:'3', label:'CIR' },
 ]
 
-// Singleton state machine prevents double-loading the heavy govmap bundle
+// Singleton state machine — prevents loading the govmap bundle more than once
 let scriptState = 'idle' // 'idle' | 'loading' | 'ready' | 'error'
 const scriptCallbacks = []
 
@@ -46,77 +45,112 @@ function loadGovMapScript(cb) {
   scriptState = 'loading'
   const s = document.createElement('script')
   s.src = SCRIPT_URL
-  s.onload = () => { scriptState = 'ready'; scriptCallbacks.splice(0).forEach(fn => fn()) }
+  s.onload  = () => { scriptState = 'ready'; scriptCallbacks.splice(0).forEach(fn => fn()) }
   s.onerror = () => { scriptState = 'error'; scriptCallbacks.splice(0) }
   document.head.appendChild(s)
 }
 
-export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, compact = false }) {
-  const uid = useId().replace(/:/g, '')
+// ── Zoom to exact gush + helka ─────────────────────────────────────────────
+// Called from both the onLoad callback (primary) and a fallback schedule.
+// locateType.addressToLotParcel = 3 in the govmap API; we also include a
+// numeric fallback so the call works even if locateType isn't populated yet.
+function makeZoomer(gush, helka) {
+  const lot    = Number(gush)
+  const parcel = Number(helka)
+  let done = false
+
+  return function tryZoom() {
+    if (done || !window.govmap?.searchAndLocate) return
+    try {
+      window.govmap.searchAndLocate({
+        type:      window.govmap.locateType?.addressToLotParcel ?? 3,
+        lot,
+        parcel,
+        zoomLevel: 7,   // 1:1,000 — shows the parcel clearly
+      })
+      done = true
+    } catch {}
+  }
+}
+
+export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark,
+                                       compact = false, defaultLayers, defaultBg }) {
+  const uid      = useId().replace(/:/g, '')
   const mapDivId = `gm_${uid}`
 
+  // Layers: prefer prop > hardcoded defaults (no localStorage)
   const [layers, setLayers] = useState(() => {
-    try {
-      const s = localStorage.getItem('govmap_default_layers')
-      if (s) { const d = JSON.parse(s); return Object.fromEntries(LAYERS_DEF.map(l => [l.id, d[l.id] ?? l.on])) }
-    } catch {}
+    if (defaultLayers && typeof defaultLayers === 'object')
+      return Object.fromEntries(LAYERS_DEF.map(l => [l.id, defaultLayers[l.id] ?? l.on]))
     return Object.fromEntries(LAYERS_DEF.map(l => [l.id, l.on]))
   })
-  const [bg, setBg] = useState(() => localStorage.getItem('govmap_default_bg') || '2')
-  const [gushVal, setGushVal]         = useState(gush || '')
-  const [helkaVal, setHelkaVal]       = useState(helka || '')
+  const [bg,          setBg]          = useState(defaultBg || '2')
+  const [gushVal,     setGushVal]     = useState(gush    || '')
+  const [helkaVal,    setHelkaVal]    = useState(helka   || '')
   const [subHelkaVal, setSubHelkaVal] = useState(subHelka || '')
-  const [showPanel, setShowPanel]     = useState(false)
-  const [mapReady, setMapReady]   = useState(false)
-  const [error, setError]         = useState('')
-  const [measuring, setMeasuring] = useState(false)
+  const [showPanel,   setShowPanel]   = useState(false)
+  const [mapReady,    setMapReady]    = useState(false)
+  const [error,       setError]       = useState('')
+  const [measuring,   setMeasuring]   = useState(false)
   const created = useRef(false)
+  const zoomerRef = useRef(null)
+
+  // Sync search fields if parent swaps to a different property
+  useEffect(() => { setGushVal(gush    || '') }, [gush])
+  useEffect(() => { setHelkaVal(helka  || '') }, [helka])
+  useEffect(() => { setSubHelkaVal(subHelka || '') }, [subHelka])
 
   const createMap = useCallback(() => {
     if (created.current || !window.govmap) return
     const el = document.getElementById(mapDivId)
     if (!el) return
     created.current = true
+
+    // Build a zoomer bound to the CURRENT gush/helka values
+    const tryZoom = (gush && helka) ? makeZoomer(gush, helka) : null
+    zoomerRef.current = tryZoom
+
     try {
       const activeLayers = LAYERS_DEF.filter(l => layers[l.id]).map(l => l.id)
       window.govmap.createMap(mapDivId, {
-        token:           token || '',
-        layers:          activeLayers,
-        showXY:          false,
-        identifyOnClick: true,
-        isEmbeddedToggle:false,
-        background:      bg,
-        layersMode:      1,
-        zoomButtons:     true,
+        token:            token || '',
+        layers:           activeLayers,
+        showXY:           false,
+        identifyOnClick:  true,
+        isEmbeddedToggle: false,
+        background:       bg,
+        layersMode:       1,
+        zoomButtons:      true,
+        // onLoad fires once the map tiles are ready — most reliable zoom trigger
+        ...(tryZoom && { onLoad: () => { setMapReady(true); tryZoom() } }),
       })
+
+      // If the API doesn't support onLoad, setMapReady here as fallback
       setMapReady(true)
       setError('')
-      if (gush && helka) zoomToParcel(gush, helka)
+
+      // Backup schedule: fires if onLoad didn't trigger or fired too early
+      if (tryZoom) {
+        [800, 2500, 5000, 9000, 15000].forEach(ms => setTimeout(tryZoom, ms))
+      }
     } catch {
       setError('שגיאה ביצירת המפה. ודא שמפתח ה-API תקין ורשום לדומיין זה.')
       created.current = false
     }
-  }, [mapDivId, token, bg, gush, helka])
+  }, [mapDivId, token, bg, gush, helka, layers])
 
   useEffect(() => {
     if (!token) return
     loadGovMapScript(createMap)
   }, [token, createMap])
 
-  function zoomToParcel(g, h) {
-    if (!g || !h) return
-    const lot = Number(g), parcel = Number(h)
-    const tryZoom = () => {
-      if (!window.govmap?.searchAndLocate) return
-      try {
-        window.govmap.searchAndLocate({
-          type:   window.govmap.locateType?.addressToLotParcel ?? 3,
-          lot, parcel,
-        })
-      } catch {}
-    }
-    // Four independent attempts — later ones correct any silent early failure
-    ;[600, 1800, 4000, 8000].forEach(ms => setTimeout(tryZoom, ms))
+  function handleSearch() {
+    if (!gushVal || !helkaVal) return
+    const zoom = makeZoomer(gushVal, helkaVal)
+    zoom()
+    // Retry a couple more times in case the map is still loading
+    setTimeout(zoom, 1500)
+    setTimeout(zoom, 4000)
   }
 
   function toggleLayer(id) {
@@ -135,20 +169,16 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
     if (window.govmap && mapReady) window.govmap.setBackground(Number(v))
   }
 
-  function handleSearch() {
-    if (gushVal && helkaVal) zoomToParcel(gushVal, helkaVal)
-  }
-
   function toggleMeasure() {
     if (!window.govmap || !mapReady) return
     if (measuring) { window.govmap.closeMeasure(); setMeasuring(false) }
-    else           { window.govmap.showMeasure();  setMeasuring(true) }
+    else           { window.govmap.showMeasure();  setMeasuring(true)  }
   }
 
-  const panelBg   = isDark ? 'rgba(9,9,15,.97)'  : 'rgba(248,247,243,.97)'
-  const border    = `1px solid ${C.purple}28`
-  const inputSt   = { padding:'6px 10px', background: isDark ? 'rgba(255,255,255,.06)' : '#fff', border, borderRadius:6, color:C.cream, fontSize:12, fontFamily:'Rubik,inherit', outline:'none', width:68, direction:'ltr', textAlign:'center' }
-  const btnSt     = (active) => ({ padding:'6px 13px', background: active ? C.purple : (isDark ? 'rgba(255,255,255,.06)' : '#fff'), border, borderRadius:6, color: active ? '#fff' : C.cream, fontSize:12, fontFamily:'Rubik,inherit', cursor:'pointer', fontWeight:600, transition:'all .15s' })
+  const panelBg = isDark ? 'rgba(9,9,15,.97)' : 'rgba(248,247,243,.97)'
+  const border  = `1px solid ${C.purple}28`
+  const inputSt = { padding:'6px 10px', background: isDark ? 'rgba(255,255,255,.06)' : '#fff', border, borderRadius:6, color:C.cream, fontSize:12, fontFamily:'Rubik,inherit', outline:'none', width:68, direction:'ltr', textAlign:'center' }
+  const btnSt   = (active) => ({ padding:'6px 13px', background: active ? C.purple : (isDark ? 'rgba(255,255,255,.06)' : '#fff'), border, borderRadius:6, color: active ? '#fff' : C.cream, fontSize:12, fontFamily:'Rubik,inherit', cursor:'pointer', fontWeight:600, transition:'all .15s' })
 
   if (!token) {
     return (
@@ -171,23 +201,21 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
       {/* ── Toolbar ── */}
       <div style={{ display:'flex', gap:8, alignItems:'center', padding:'8px 12px', background: isDark ? 'rgba(11,11,20,.95)' : 'rgba(240,237,230,.97)', borderBottom:`1px solid ${C.purple}18`, flexWrap:'wrap' }}>
 
-        {/* גוש / חלקה / תת-חלקה search */}
         <div style={{ display:'flex', alignItems:'center', gap:5, flexShrink:0, flexWrap:'wrap' }}>
           <span style={{ fontSize:11, color:`${C.cream}66`, fontWeight:600 }}>גוש</span>
-          <input value={gushVal} onChange={e=>setGushVal(e.target.value)} placeholder="40095" style={inputSt}
+          <input value={gushVal} onChange={e=>setGushVal(e.target.value)} placeholder="6443" style={inputSt}
             onKeyDown={e=>e.key==='Enter'&&handleSearch()}/>
           <span style={{ fontSize:11, color:`${C.cream}66`, fontWeight:600 }}>חלקה</span>
-          <input value={helkaVal} onChange={e=>setHelkaVal(e.target.value)} placeholder="13" style={inputSt}
+          <input value={helkaVal} onChange={e=>setHelkaVal(e.target.value)} placeholder="276" style={inputSt}
             onKeyDown={e=>e.key==='Enter'&&handleSearch()}/>
           <span style={{ fontSize:11, color:`${C.cream}66`, fontWeight:600 }}>תת</span>
-          <input value={subHelkaVal} onChange={e=>setSubHelkaVal(e.target.value)} placeholder="0" style={{ ...inputSt, width:48 }}
+          <input value={subHelkaVal} onChange={e=>setSubHelkaVal(e.target.value)} placeholder="0" style={{ ...inputSt, width:46 }}
             onKeyDown={e=>e.key==='Enter'&&handleSearch()}/>
-          <button onClick={handleSearch} style={{ ...btnSt(false), padding:'6px 12px' }}>חפש</button>
+          <button onClick={handleSearch} style={{ ...btnSt(false), padding:'6px 12px', background:C.purple, color:'#fff', border:'none' }}>חפש</button>
         </div>
 
         <div style={{ width:1, height:20, background:`${C.purple}22`, flexShrink:0 }}/>
 
-        {/* Background */}
         <div style={{ display:'flex', alignItems:'center', gap:5, flexShrink:0 }}>
           <span style={{ fontSize:11, color:`${C.cream}66`, fontWeight:600 }}>רקע</span>
           <select value={bg} onChange={e=>handleBg(e.target.value)}
@@ -198,12 +226,10 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
 
         <div style={{ width:1, height:20, background:`${C.purple}22`, flexShrink:0 }}/>
 
-        {/* Layer toggle */}
         <button onClick={() => setShowPanel(p=>!p)} style={btnSt(showPanel)}>
           שכבות {showPanel ? '▲' : '▼'}
         </button>
 
-        {/* Measure */}
         <button onClick={toggleMeasure} style={btnSt(measuring)} title="כלי מדידה">
           📐 מדידה
         </button>
@@ -211,9 +237,9 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
         {error && <span style={{ fontSize:11, color:'#E05252', marginRight:'auto' }}>{error}</span>}
       </div>
 
-      {/* ── Layer Panel — categorised ── */}
+      {/* ── Layer Panel ── */}
       {showPanel && (
-        <div style={{ position:'absolute', top:44, right:0, zIndex:20, background: panelBg, backdropFilter:'blur(12px)', border:`1px solid ${C.purple}28`, borderRadius:'0 0 0 12px', padding:'14px 16px', minWidth:230, maxHeight:420, overflowY:'auto', boxShadow:'0 8px 32px rgba(0,0,0,.4)', direction:'rtl' }}>
+        <div style={{ position:'absolute', top:44, right:0, zIndex:20, background:panelBg, backdropFilter:'blur(12px)', border:`1px solid ${C.purple}28`, borderRadius:'0 0 0 12px', padding:'14px 16px', minWidth:230, maxHeight:420, overflowY:'auto', boxShadow:'0 8px 32px rgba(0,0,0,.4)', direction:'rtl' }}>
           <div style={{ fontSize:11, fontWeight:800, color:`${C.cream}55`, letterSpacing:'.07em', marginBottom:12, textTransform:'uppercase' }}>שכבות מידע</div>
           {LAYER_CATS.map(cat => {
             const catLayers = LAYERS_DEF.filter(l => l.cat === cat)

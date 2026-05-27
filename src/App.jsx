@@ -2096,9 +2096,12 @@ function toIntlPhone(phone) {
 
 const WA_DEFAULTS = { provider:'greenapi', instanceId:'7107558519', apiUrl:'https://7107.api.greenapi.com', token:'191b9e9c4fc540f1ad25c8607389c0d689d15794f8094a0589', enabled:true, delayMin:2 }
 
+// Module-level cloud settings cache — populated at app startup from /api/settings
+let _cloudSettings = {}
+
 async function sendWhatsAppLead(lead, overrideSettings) {
   try {
-    const saved = JSON.parse(localStorage.getItem(WA_KEY) || '{}')
+    const saved = _cloudSettings.waSettings || JSON.parse(localStorage.getItem(WA_KEY) || '{}')
     const st = overrideSettings || { ...WA_DEFAULTS, ...saved }
     if (!st.enabled || !st.instanceId || !st.token || !lead.phone) return
     const phone = toIntlPhone(lead.phone)
@@ -2172,7 +2175,7 @@ function ContactModal({ prop, onClose }) {
               localStorage.setItem(LEADS_STORE, JSON.stringify(all.slice(0, 2000)))
             } catch {}
             try {
-              const wh = localStorage.getItem('afik_crm_webhook')
+              const wh = _cloudSettings.crmWebhook || localStorage.getItem('afik_crm_webhook')
               if (wh) fetch(wh, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(lead) }).catch(()=>{})
             } catch {}
             if (API_BASE) {
@@ -3595,18 +3598,38 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   // GovMap management panel state
   const [gmTab,    setGmTab]    = useState('map')   // 'map' | 'layers' | 'bg'
   const [gmLayers, setGmLayers] = useState(() => {
-    try { const s = localStorage.getItem('govmap_default_layers'); if (s) { const d = JSON.parse(s); return Object.fromEntries(GM_LAYERS.map(l => [l.id, d[l.id] ?? l.on])) } } catch {}
+    const d = _cloudSettings.gmLayers
+    if (d && typeof d === 'object') return Object.fromEntries(GM_LAYERS.map(l => [l.id, d[l.id] ?? l.on]))
     return Object.fromEntries(GM_LAYERS.map(l => [l.id, l.on]))
   })
-  const [gmBg,    setGmBg]    = useState(() => localStorage.getItem('govmap_default_bg') || '2')
+  const [gmBg,    setGmBg]    = useState(() => _cloudSettings.gmBg || '2')
   const [gmSaved, setGmSaved] = useState(false)
   const [tokenDraft, setTokenDraft] = useState(govmapToken)
   const [tokenSaved, setTokenSaved] = useState(false)
   function saveGmDefaults() {
-    localStorage.setItem('govmap_default_layers', JSON.stringify(gmLayers))
-    localStorage.setItem('govmap_default_bg',     gmBg)
+    const base = API_BASE || ''
+    fetch(`${base}/api/settings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+      body: JSON.stringify({ gmLayers, gmBg }),
+    }).then(() => { _cloudSettings = { ..._cloudSettings, gmLayers, gmBg } }).catch(() => {})
     setGmSaved(true); setTimeout(() => setGmSaved(false), 2000)
   }
+  // Load cloud settings on mount and sync local state
+  useEffect(() => {
+    const base = API_BASE || ''
+    fetch(`${base}/api/settings`, { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` } })
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(cfg => {
+        _cloudSettings = cfg
+        if (cfg.gmLayers && typeof cfg.gmLayers === 'object')
+          setGmLayers(Object.fromEntries(GM_LAYERS.map(l => [l.id, cfg.gmLayers[l.id] ?? l.on])))
+        if (cfg.gmBg) setGmBg(cfg.gmBg)
+        if (cfg.waSettings) setWaSt(s => ({ ...s, ...cfg.waSettings }))
+        if (typeof cfg.crmWebhook === 'string') setCrmWebhook(cfg.crmWebhook)
+      })
+      .catch(() => {})
+  }, [])
 
   // Check Supabase health on first open so admin knows if data is at risk
   useEffect(() => {
@@ -3665,9 +3688,9 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     }
   }
   const [leads, setLeads]   = useState(() => { try { return JSON.parse(localStorage.getItem(LEADS_STORE) || '[]') } catch { return [] } })
-  const [crmWebhook, setCrmWebhook] = useState(() => localStorage.getItem('afik_crm_webhook') || '')
+  const [crmWebhook, setCrmWebhook] = useState(() => _cloudSettings.crmWebhook || '')
   const [webhookSaved, setWebhookSaved] = useState(false)
-  const [waSt, setWaSt] = useState(() => { try { return { provider:'greenapi', delayMin:2, template:WA_DEFAULT_TEMPLATE, instanceId:'7107558519', apiUrl:'https://7107.api.greenapi.com', token:'191b9e9c4fc540f1ad25c8607389c0d689d15794f8094a0589', enabled:true, ...JSON.parse(localStorage.getItem(WA_KEY) || '{}') } } catch { return { provider:'greenapi', delayMin:2, template:WA_DEFAULT_TEMPLATE, instanceId:'7107558519', apiUrl:'https://7107.api.greenapi.com', token:'191b9e9c4fc540f1ad25c8607389c0d689d15794f8094a0589', enabled:true } } })
+  const [waSt, setWaSt] = useState(() => ({ provider:'greenapi', delayMin:2, template:WA_DEFAULT_TEMPLATE, instanceId:'7107558519', apiUrl:'https://7107.api.greenapi.com', token:'191b9e9c4fc540f1ad25c8607389c0d689d15794f8094a0589', enabled:true, ...(_cloudSettings.waSettings || {}) }))
   const [waSaved, setWaSaved] = useState(false)
   const [waTesting, setWaTesting] = useState(false)
   const [waTestResult, setWaTestResult] = useState('')
@@ -3972,7 +3995,12 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   }
 
   const saveWA = () => {
-    localStorage.setItem(WA_KEY, JSON.stringify(waSt))
+    const base = API_BASE || ''
+    fetch(`${base}/api/settings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+      body: JSON.stringify({ waSettings: waSt }),
+    }).then(() => { _cloudSettings = { ..._cloudSettings, waSettings: waSt } }).catch(() => {})
     setWaSaved(true); setTimeout(() => setWaSaved(false), 2500)
   }
   const testWA = async () => {
@@ -5470,7 +5498,6 @@ Return ONLY valid JSON (no markdown, no code blocks):
                 <button
                   onClick={() => {
                     setGovmapToken(tokenDraft)
-                    localStorage.setItem('govmap_token', tokenDraft)
                     const base = API_BASE || ''
                     fetch(`${base}/api/stats`, {
                       method: 'POST',
@@ -5490,7 +5517,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
                 1. כנס לאתר <a href="https://www.govmap.gov.il" target="_blank" rel="noopener noreferrer" style={{ color:C.purple }}>govmap.gov.il</a><br/>
                 2. פנה לצוות GovMap בבקשה לרישום דומיין ומפתח API<br/>
                 3. הזן כאן את המפתח שתקבל ולחץ <strong>שמור</strong><br/>
-                <span style={{ color:`${C.cream}44`, fontSize:11 }}>* המפתח ישמר מקומית במחשב זה בלבד ולא יועלה לשום שרת</span>
+                <span style={{ color:`${C.cream}44`, fontSize:11 }}>* המפתח נשמר בענן (Supabase) ומסונכרן בין כל המכשירים</span>
               </div>
               {govmapToken && (
                 <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:10, fontSize:12 }}>
@@ -5652,7 +5679,15 @@ Return ONLY valid JSON (no markdown, no code blocks):
                   style={{ ...inp, flex:1, direction:'ltr', fontFamily:'monospace', fontSize:12, marginBottom:0 }}
                 />
                 <button
-                  onClick={() => { localStorage.setItem('afik_crm_webhook', crmWebhook); setWebhookSaved(true); setTimeout(()=>setWebhookSaved(false), 2500) }}
+                  onClick={() => {
+                    const base = API_BASE || ''
+                    fetch(`${base}/api/settings`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+                      body: JSON.stringify({ crmWebhook }),
+                    }).then(() => { _cloudSettings = { ..._cloudSettings, crmWebhook } }).catch(() => {})
+                    setWebhookSaved(true); setTimeout(()=>setWebhookSaved(false), 2500)
+                  }}
                   style={{ padding:'9px 18px', background:`${C.purple}22`, border:`1px solid ${C.purple}44`, borderRadius:6, color:C.purple, fontWeight:700, fontSize:12, cursor:'pointer', fontFamily:'inherit', whiteSpace:'nowrap', flexShrink:0 }}>
                   {webhookSaved ? '✓ נשמר' : 'שמור'}
                 </button>
@@ -5667,7 +5702,15 @@ Return ONLY valid JSON (no markdown, no code blocks):
               {crmWebhook && (
                 <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:10, fontSize:12 }}>
                   <span style={{ color:C.green, fontWeight:700 }}>✓ Webhook מוגדר</span>
-                  <button onClick={() => { setCrmWebhook(''); localStorage.removeItem('afik_crm_webhook') }} style={{ background:'none', border:'none', color:`${C.cream}55`, cursor:'pointer', fontSize:11, textDecoration:'underline', fontFamily:'inherit' }}>נקה</button>
+                  <button onClick={() => {
+                    setCrmWebhook('')
+                    const base = API_BASE || ''
+                    fetch(`${base}/api/settings`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+                      body: JSON.stringify({ crmWebhook: '' }),
+                    }).then(() => { _cloudSettings = { ..._cloudSettings, crmWebhook: '' } }).catch(() => {})
+                  }} style={{ background:'none', border:'none', color:`${C.cream}55`, cursor:'pointer', fontSize:11, textDecoration:'underline', fontFamily:'inherit' }}>נקה</button>
                 </div>
               )}
             </div>
@@ -5749,7 +5792,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
                             {gmBg===opt.v && <div style={{ width:9, height:9, borderRadius:'50%', background:C.purple }}/>}
                           </div>
                           <input type="radio" name="gmBg" value={opt.v} checked={gmBg===opt.v}
-                            onChange={() => { setGmBg(opt.v); localStorage.setItem('govmap_default_bg', opt.v) }}
+                            onChange={() => { setGmBg(opt.v) }}
                             style={{ display:'none' }} />
                           <div>
                             <div style={{ fontSize:13, fontWeight:700, color:C.cream }}>{opt.label}</div>
@@ -7314,7 +7357,7 @@ function PdfLeadGate({ pdf, prop, C }) {
     setOpen(false)
     window.open(pdf.url, '_blank', 'noopener')
     try {
-      const waConf = { ...WA_DEFAULTS, ...JSON.parse(localStorage.getItem(WA_KEY) || '{}') }
+      const waConf = { ...WA_DEFAULTS, ...(_cloudSettings.waSettings || JSON.parse(localStorage.getItem(WA_KEY) || '{}')) }
       if (waConf.enabled && waConf.instanceId && waConf.token && phone) {
         const delayMs = (waConf.delayMin || 2) * 60 * 1000
         setTimeout(() => sendWhatsAppLead(lead, waConf), delayMs)
@@ -8022,6 +8065,8 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
               token={govmapToken}
               C={C}
               isDark={isDark}
+              defaultLayers={_cloudSettings.gmLayers}
+              defaultBg={_cloudSettings.gmBg}
             />
           </div>
         )}
@@ -8415,7 +8460,7 @@ export default function App() {
   const [lang,         setLang]         = useState('he')
   const [stats,        setStats]        = useState(DEFAULT_STATS)
   const [sharon,       setSharon]       = useState(DEFAULT_SHARON)
-  const [govmapToken,  setGovmapToken]  = useState(() => localStorage.getItem('govmap_token') || '')
+  const [govmapToken,  setGovmapToken]  = useState('')
   const [logoNavSize,  setLogoNavSizeRaw] = useState(() => Number(localStorage.getItem('logoNavSize')) || 70)
   const setLogoNavSize = (v) => { const n = Math.max(20, Math.min(200, Number(v))); localStorage.setItem('logoNavSize', n); setLogoNavSizeRaw(n) }
   // UI/UX Pro Max: parallax scroll
@@ -8475,8 +8520,13 @@ export default function App() {
         .then(data => {
           if (data.stats?.length)  setStats(data.stats)
           if (data.sharon?.length) setSharon(data.sharon)
-          if (data.govmapToken)    { setGovmapToken(data.govmapToken); localStorage.setItem('govmap_token', data.govmapToken) }
+          if (data.govmapToken)    setGovmapToken(data.govmapToken)
         })
+        .catch(() => {})
+      // Also load admin cloud settings (WA, CRM webhook, map defaults)
+      fetch(`${base}/api/settings`, { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` } })
+        .then(r => r.ok ? r.json() : Promise.reject())
+        .then(cfg => { _cloudSettings = cfg })
         .catch(() => {})
     }
 
@@ -9376,7 +9426,7 @@ export default function App() {
           properties={properties} setProperties={setProperties}
           stats={stats} setStats={setStats}
           sharon={sharon} setSharon={setSharon}
-          govmapToken={govmapToken} setGovmapToken={t => { setGovmapToken(t); localStorage.setItem('govmap_token', t) /* cloud save done in AdminPanel save button */ }}
+          govmapToken={govmapToken} setGovmapToken={setGovmapToken}
           onClose={() => setShowAdmin(false)}
           onEditInWizard={p => {
             setShowAdmin(false)
