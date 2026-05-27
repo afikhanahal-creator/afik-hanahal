@@ -3749,6 +3749,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const resizingColRef = useRef(null)
   const resizeStartXRef = useRef(0)
   const resizeStartWRef = useRef(0)
+  const pendingDeletes  = useRef(new Set()) // IDs deleted locally, awaiting server confirmation
 
   const startColResize = (e, colId, defaultW) => {
     e.preventDefault(); e.stopPropagation()
@@ -3782,7 +3783,8 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
         // Preserve local-only enrichment data by merging from existing state
         setLeads(prev => {
           const localById = new Map(prev.map(l => [String(l.id), l]))
-          const fromServer = serverLeads.map(s => {
+          // Never restore leads that are mid-delete (avoid flicker when server is slow)
+          const fromServer = serverLeads.filter(s => !pendingDeletes.current.has(String(s.id))).map(s => {
             const local = localById.get(String(s.id)) || {}
             return {
               id: String(s.id),
@@ -4368,22 +4370,26 @@ Return ONLY valid JSON (no markdown, no code blocks):
   }
 
   const deleteLead = id => {
+    pendingDeletes.current.add(String(id))
     const next = leads.filter(l => l.id !== id)
     setLeads(next)
     if (selectedLead?.id === id) setSelectedLead(null)
     try { localStorage.setItem(LEADS_STORE, JSON.stringify(next)) } catch {}
     if (API_BASE) fetch(`${API_BASE}/api/contacts/${id}`, {
       method: 'DELETE', headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
-    }).catch(() => {})
+    }).then(r => { if (r.ok) pendingDeletes.current.delete(String(id)) })
+      .catch(() => {}) // stays in pendingDeletes → won't be restored by sync
   }
   const clearLeads = () => {
     if (!window.confirm('למחוק את כל הלידים לצמיתות?')) return
+    leads.forEach(l => pendingDeletes.current.add(String(l.id)))
     setLeads([])
     setSelectedLead(null)
     try { localStorage.setItem(LEADS_STORE, '[]') } catch {}
     if (API_BASE) fetch(`${API_BASE}/api/contacts`, {
       method: 'DELETE', headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
-    }).catch(() => {})
+    }).then(r => { if (r.ok) pendingDeletes.current.clear() })
+      .catch(() => {})
   }
   const exportCSV = () => {
     const header = ['תאריך','שם','טלפון','אימייל','הודעה','נכס','מיקום נכס','מקור','ציון','כוונה','גיל משוער','עיר משוערת','תקציב משוער','השכלה','מקצוע','חברה','תפקיד','LinkedIn חיפוש','LinkedIn ישיר','Facebook','Google','נקודות שיחה','ניתוח AI','תגיות']
