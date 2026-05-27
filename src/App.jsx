@@ -4347,12 +4347,18 @@ Return ONLY valid JSON (no markdown, no code blocks):
     setLeads(next)
     if (selectedLead?.id === id) setSelectedLead(null)
     try { localStorage.setItem(LEADS_STORE, JSON.stringify(next)) } catch {}
+    if (API_BASE) fetch(`${API_BASE}/api/contacts/${id}`, {
+      method: 'DELETE', headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
+    }).catch(() => {})
   }
   const clearLeads = () => {
     if (!window.confirm('למחוק את כל הלידים לצמיתות?')) return
     setLeads([])
     setSelectedLead(null)
     try { localStorage.setItem(LEADS_STORE, '[]') } catch {}
+    if (API_BASE) fetch(`${API_BASE}/api/contacts`, {
+      method: 'DELETE', headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
+    }).catch(() => {})
   }
   const exportCSV = () => {
     const header = ['תאריך','שם','טלפון','אימייל','הודעה','נכס','מיקום נכס','מקור','ציון','כוונה','גיל משוער','עיר משוערת','תקציב משוער','השכלה','מקצוע','חברה','תפקיד','LinkedIn חיפוש','LinkedIn ישיר','Facebook','Google','נקודות שיחה','ניתוח AI','תגיות']
@@ -5149,7 +5155,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
               leads={leads}
               updateLead={updateLead}
               updateLeadStatus={updateLeadStatus}
-              deleteLead={id => setLeads(prev => { const next = prev.filter(l => l.id !== id); try { localStorage.setItem(LEADS_STORE, JSON.stringify(next)) } catch {} return next })}
+              deleteLead={deleteLead}
               addLead={lead => setLeads(prev => { const next = [...prev, lead]; try { localStorage.setItem(LEADS_STORE, JSON.stringify(next)) } catch {} return next })}
               colOrder={colOrder} setColOrder={setColOrder}
               customCols={customCols} setCustomCols={setCustomCols}
