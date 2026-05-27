@@ -3600,6 +3600,8 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   })
   const [gmBg,    setGmBg]    = useState(() => localStorage.getItem('govmap_default_bg') || '2')
   const [gmSaved, setGmSaved] = useState(false)
+  const [tokenDraft, setTokenDraft] = useState(govmapToken)
+  const [tokenSaved, setTokenSaved] = useState(false)
   function saveGmDefaults() {
     localStorage.setItem('govmap_default_layers', JSON.stringify(gmLayers))
     localStorage.setItem('govmap_default_bg',     gmBg)
@@ -5457,24 +5459,32 @@ Return ONLY valid JSON (no markdown, no code blocks):
                 </div>
               </div>
               <label style={{ fontSize:11, color:`${C.cream}70`, display:'block', marginBottom:6, fontWeight:600 }}>מפתח API (Token)</label>
-              <input
-                type="text"
-                value={govmapToken}
-                onChange={e => setGovmapToken(e.target.value)}
-                placeholder="הדבק כאן את מפתח ה-API שקיבלת מ-GovMap"
-                style={{ ...inp, direction:'ltr', fontFamily:'monospace', fontSize:12, marginBottom:10 }}
-              />
+              <div style={{ display:'flex', gap:8, marginBottom:10 }}>
+                <input
+                  type="text"
+                  value={tokenDraft}
+                  onChange={e => { setTokenDraft(e.target.value); setTokenSaved(false) }}
+                  placeholder="הדבק כאן את מפתח ה-API שקיבלת מ-GovMap"
+                  style={{ ...inp, direction:'ltr', fontFamily:'monospace', fontSize:12, marginBottom:0, flex:1 }}
+                />
+                <button
+                  onClick={() => { setGovmapToken(tokenDraft); setTokenSaved(true); setTimeout(() => setTokenSaved(false), 3000) }}
+                  style={{ padding:'8px 18px', background: tokenSaved ? C.green : C.purple, border:'none', borderRadius:8, color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'Rubik,inherit', transition:'background .2s', whiteSpace:'nowrap', flexShrink:0 }}
+                >
+                  {tokenSaved ? '✓ נשמר!' : 'שמור'}
+                </button>
+              </div>
               <div style={{ background:`${C.purple}08`, border:`1px solid ${C.purple}22`, borderRadius:8, padding:'12px 14px', fontSize:12, color:`${C.cream}77`, lineHeight:1.8, direction:'rtl' }}>
                 <strong style={{ color:C.purple }}>כיצד לקבל מפתח API:</strong><br/>
                 1. כנס לאתר <a href="https://www.govmap.gov.il" target="_blank" rel="noopener noreferrer" style={{ color:C.purple }}>govmap.gov.il</a><br/>
                 2. פנה לצוות GovMap בבקשה לרישום דומיין ומפתח API<br/>
-                3. הזן כאן את המפתח שתקבל<br/>
+                3. הזן כאן את המפתח שתקבל ולחץ <strong>שמור</strong><br/>
                 <span style={{ color:`${C.cream}44`, fontSize:11 }}>* המפתח ישמר מקומית במחשב זה בלבד ולא יועלה לשום שרת</span>
               </div>
               {govmapToken && (
                 <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:10, fontSize:12 }}>
                   <span style={{ color:C.green, fontWeight:700 }}>✓ מפתח מוגדר</span>
-                  <button onClick={() => setGovmapToken('')} style={{ background:'none', border:'none', color:`${C.cream}55`, cursor:'pointer', fontSize:11, textDecoration:'underline', fontFamily:'inherit' }}>נקה</button>
+                  <button onClick={() => { setGovmapToken(''); setTokenDraft('') }} style={{ background:'none', border:'none', color:`${C.cream}55`, cursor:'pointer', fontSize:11, textDecoration:'underline', fontFamily:'inherit' }}>נקה</button>
                 </div>
               )}
             </div>

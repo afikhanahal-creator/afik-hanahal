@@ -34,22 +34,20 @@ export const BG_OPTIONS = [
   { v:'3', label:'CIR' },
 ]
 
-let scriptLoaded = false
-let scriptCallbacks = []
+// Singleton state machine prevents double-loading the heavy govmap bundle
+let scriptState = 'idle' // 'idle' | 'loading' | 'ready' | 'error'
+const scriptCallbacks = []
 
 function loadGovMapScript(cb) {
-  if (scriptLoaded && window.govmap) { cb(); return }
+  if (scriptState === 'ready' && window.govmap) { cb(); return }
+  if (scriptState === 'error') return
   scriptCallbacks.push(cb)
-  if (scriptCallbacks.length > 1) return
+  if (scriptState === 'loading') return
+  scriptState = 'loading'
   const s = document.createElement('script')
   s.src = SCRIPT_URL
-  s.defer = true
-  s.onload = () => {
-    scriptLoaded = true
-    scriptCallbacks.forEach(fn => fn())
-    scriptCallbacks = []
-  }
-  s.onerror = () => { scriptCallbacks = [] }
+  s.onload = () => { scriptState = 'ready'; scriptCallbacks.splice(0).forEach(fn => fn()) }
+  s.onerror = () => { scriptState = 'error'; scriptCallbacks.splice(0) }
   document.head.appendChild(s)
 }
 
@@ -93,10 +91,8 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
       })
       setMapReady(true)
       setError('')
-      if (gush && helka) {
-        setTimeout(() => zoomToParcel(gush, helka), 1800)
-      }
-    } catch (e) {
+      if (gush && helka) zoomToParcel(gush, helka)
+    } catch {
       setError('שגיאה ביצירת המפה. ודא שמפתח ה-API תקין ורשום לדומיין זה.')
       created.current = false
     }
@@ -108,12 +104,19 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
   }, [token, createMap])
 
   function zoomToParcel(g, h) {
-    if (!window.govmap || !g || !h) return
-    window.govmap.searchAndLocate({
-      type:   window.govmap.locateType.addressToLotParcel,
-      lot:    Number(g),
-      parcel: Number(h),
-    }).catch(() => {})
+    if (!g || !h) return
+    const lot = Number(g), parcel = Number(h)
+    const tryZoom = () => {
+      if (!window.govmap?.searchAndLocate) return
+      try {
+        window.govmap.searchAndLocate({
+          type:   window.govmap.locateType?.addressToLotParcel ?? 3,
+          lot, parcel,
+        })
+      } catch {}
+    }
+    // Four independent attempts — later ones correct any silent early failure
+    ;[600, 1800, 4000, 8000].forEach(ms => setTimeout(tryZoom, ms))
   }
 
   function toggleLayer(id) {
