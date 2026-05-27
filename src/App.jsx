@@ -3640,12 +3640,16 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     const base = API_BASE || ''
     fetch(`${base}/api/properties/status`, {
       headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
-      signal: AbortSignal.timeout(8000),
+      signal: AbortSignal.timeout(12000),
     })
       .then(r => r.ok ? r.json() : Promise.reject())
       .then(s => {
-        if (!s.supabaseConfigured) setSupabaseWarning('⚠ Supabase לא מוגדר בשרת — נכסים נשמרים בזיכרון בלבד ויאבדו בהפעלה מחדש של השרת!')
-        else if (!s.supabaseReachable) setSupabaseWarning('⚠ Supabase מוגדר אבל לא נגיש — נכסים נשמרים בזיכרון בלבד ויאבדו בהפעלה מחדש של השרת!')
+        if (!s.supabaseConfigured) {
+          setSupabaseWarning('⚠ Supabase לא מוגדר — חסרים SUPABASE_URL / SUPABASE_SERVICE_KEY ב-Render. כנס ל-Render → Environment ← הוסף את המשתנים.')
+        } else if (!s.supabaseReachable) {
+          const err = s.supabaseError ? ` (${s.supabaseError})` : ''
+          setSupabaseWarning(`⚠ Supabase לא נגיש${err} — הפרויקט כנראה מושהה. כנס ל-supabase.com → הפרויקט שלך → לחץ "Restore Project" → המתן דקה ← רענן.`)
+        }
       })
       .catch(() => {})
   }, [])
