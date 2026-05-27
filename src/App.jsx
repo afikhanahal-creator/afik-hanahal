@@ -3604,8 +3604,12 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   })
   const [gmBg,    setGmBg]    = useState(() => _cloudSettings.gmBg || '2')
   const [gmSaved, setGmSaved] = useState(false)
-  const [tokenDraft, setTokenDraft] = useState(govmapToken)
-  const [tokenSaved, setTokenSaved] = useState(false)
+  const [tokenDraft,   setTokenDraft]   = useState(govmapToken)
+  const [tokenSaved,   setTokenSaved]   = useState(false)
+  const [tokenSaving,  setTokenSaving]  = useState(false)
+  const [tokenError,   setTokenError]   = useState('')
+  // Sync tokenDraft if govmapToken arrives from API after AdminPanel is already open
+  useEffect(() => { if (govmapToken && !tokenDraft) setTokenDraft(govmapToken) }, [govmapToken])
   function saveGmDefaults() {
     const base = API_BASE || ''
     fetch(`${base}/api/settings`, {
@@ -5496,33 +5500,46 @@ Return ONLY valid JSON (no markdown, no code blocks):
                   style={{ ...inp, direction:'ltr', fontFamily:'monospace', fontSize:12, marginBottom:0, flex:1 }}
                 />
                 <button
-                  onClick={() => {
-                    setGovmapToken(tokenDraft)
-                    const base = API_BASE || ''
-                    fetch(`${base}/api/stats`, {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
-                      body: JSON.stringify({ govmapToken: tokenDraft }),
-                    }).catch(() => {})
-                    setTokenSaved(true)
-                    setTimeout(() => setTokenSaved(false), 3000)
+                  disabled={tokenSaving || !tokenDraft.trim()}
+                  onClick={async () => {
+                    if (!tokenDraft.trim()) return
+                    setTokenSaving(true); setTokenError(''); setTokenSaved(false)
+                    try {
+                      const base = API_BASE || ''
+                      const r = await fetch(`${base}/api/stats`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+                        body: JSON.stringify({ govmapToken: tokenDraft.trim() }),
+                      })
+                      if (!r.ok) throw new Error(`שגיאה ${r.status}`)
+                      setGovmapToken(tokenDraft.trim())
+                      localStorage.setItem('govmap_token', tokenDraft.trim())
+                      setTokenSaved(true)
+                      setTimeout(() => setTokenSaved(false), 4000)
+                    } catch (e) {
+                      setTokenError('שגיאה בשמירה — נסה שוב')
+                      setTimeout(() => setTokenError(''), 5000)
+                    } finally {
+                      setTokenSaving(false)
+                    }
                   }}
-                  style={{ padding:'8px 18px', background: tokenSaved ? C.green : C.purple, border:'none', borderRadius:8, color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'Rubik,inherit', transition:'background .2s', whiteSpace:'nowrap', flexShrink:0 }}
+                  style={{ padding:'8px 18px', background: tokenSaved ? C.green : tokenSaving ? `${C.purple}66` : C.purple, border:'none', borderRadius:8, color:'#fff', fontSize:13, fontWeight:700, cursor: tokenSaving ? 'wait' : 'pointer', fontFamily:'Rubik,inherit', transition:'background .2s', whiteSpace:'nowrap', flexShrink:0, opacity: !tokenDraft.trim() ? 0.4 : 1 }}
                 >
-                  {tokenSaved ? '✓ נשמר!' : 'שמור'}
+                  {tokenSaving ? '⏳ שומר...' : tokenSaved ? '✓ נשמר בענן!' : 'שמור בענן'}
                 </button>
               </div>
-              <div style={{ background:`${C.purple}08`, border:`1px solid ${C.purple}22`, borderRadius:8, padding:'12px 14px', fontSize:12, color:`${C.cream}77`, lineHeight:1.8, direction:'rtl' }}>
+              {tokenError && <div style={{ fontSize:12, color:'#E05252', marginTop:6, fontWeight:700 }}>⚠ {tokenError}</div>}
+              <div style={{ background:`${C.purple}08`, border:`1px solid ${C.purple}22`, borderRadius:8, padding:'12px 14px', fontSize:12, color:`${C.cream}77`, lineHeight:1.8, direction:'rtl', marginTop:10 }}>
                 <strong style={{ color:C.purple }}>כיצד לקבל מפתח API:</strong><br/>
                 1. כנס לאתר <a href="https://www.govmap.gov.il" target="_blank" rel="noopener noreferrer" style={{ color:C.purple }}>govmap.gov.il</a><br/>
                 2. פנה לצוות GovMap בבקשה לרישום דומיין ומפתח API<br/>
-                3. הזן כאן את המפתח שתקבל ולחץ <strong>שמור</strong><br/>
-                <span style={{ color:`${C.cream}44`, fontSize:11 }}>* המפתח נשמר בענן (Supabase) ומסונכרן בין כל המכשירים</span>
+                3. הזן כאן את המפתח שתקבל ולחץ <strong>שמור בענן</strong><br/>
+                <span style={{ color:`${C.cream}44`, fontSize:11 }}>* המפתח נשמר ב-Supabase ומסונכרן בין כל המכשירים. localStorage משמש כמטמון מהיר בלבד.</span>
               </div>
               {govmapToken && (
                 <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:10, fontSize:12 }}>
-                  <span style={{ color:C.green, fontWeight:700 }}>✓ מפתח מוגדר</span>
-                  <button onClick={() => { setGovmapToken(''); setTokenDraft('') }} style={{ background:'none', border:'none', color:`${C.cream}55`, cursor:'pointer', fontSize:11, textDecoration:'underline', fontFamily:'inherit' }}>נקה</button>
+                  <span style={{ color:C.green, fontWeight:700 }}>✓ מפתח פעיל: {govmapToken.slice(0,8)}…</span>
+                  <button onClick={() => { setGovmapToken(''); setTokenDraft(''); localStorage.removeItem('govmap_token') }} style={{ background:'none', border:'none', color:`${C.cream}55`, cursor:'pointer', fontSize:11, textDecoration:'underline', fontFamily:'inherit' }}>נקה</button>
                 </div>
               )}
             </div>
@@ -8460,7 +8477,7 @@ export default function App() {
   const [lang,         setLang]         = useState('he')
   const [stats,        setStats]        = useState(DEFAULT_STATS)
   const [sharon,       setSharon]       = useState(DEFAULT_SHARON)
-  const [govmapToken,  setGovmapToken]  = useState('')
+  const [govmapToken,  setGovmapToken]  = useState(() => localStorage.getItem('govmap_token') || '')
   const [logoNavSize,  setLogoNavSizeRaw] = useState(() => Number(localStorage.getItem('logoNavSize')) || 70)
   const setLogoNavSize = (v) => { const n = Math.max(20, Math.min(200, Number(v))); localStorage.setItem('logoNavSize', n); setLogoNavSizeRaw(n) }
   // UI/UX Pro Max: parallax scroll
@@ -8520,7 +8537,7 @@ export default function App() {
         .then(data => {
           if (data.stats?.length)  setStats(data.stats)
           if (data.sharon?.length) setSharon(data.sharon)
-          if (data.govmapToken)    setGovmapToken(data.govmapToken)
+          if (data.govmapToken)    { setGovmapToken(data.govmapToken); localStorage.setItem('govmap_token', data.govmapToken) }
         })
         .catch(() => {})
       // Also load admin cloud settings (WA, CRM webhook, map defaults)
