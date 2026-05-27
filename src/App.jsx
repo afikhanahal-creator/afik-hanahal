@@ -3774,11 +3774,13 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
       .then(r => r.ok ? r.json() : Promise.reject())
       .then(serverLeads => {
         if (!Array.isArray(serverLeads)) return
+        // Server is the source of truth — replace local list entirely
+        // Preserve local-only enrichment data by merging from existing state
         setLeads(prev => {
-          const localIds = new Set(prev.map(l => String(l.id)))
-          const newOnes = serverLeads
-            .filter(s => !localIds.has(String(s.id)))
-            .map(s => ({
+          const localById = new Map(prev.map(l => [String(l.id), l]))
+          const fromServer = serverLeads.map(s => {
+            const local = localById.get(String(s.id)) || {}
+            return {
               id: String(s.id),
               name: s.name || '',
               phone: s.phone || '',
@@ -3787,10 +3789,17 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
               propTitle: s.prop_title || '',
               propLocation: s.prop_location || '',
               source: s.source || 'website',
+              leadStatus: s.lead_status || local.leadStatus || 'new',
               ts: new Date(s.created_at || Date.now()).getTime(),
-            }))
-          if (newOnes.length === 0) return prev
-          const merged = [...newOnes, ...prev].sort((a, b) => b.ts - a.ts)
+              // Preserve locally-generated enrichment (AI analysis, etc.)
+              ...(local.enrichment ? { enrichment: local.enrichment } : {}),
+              ...(local.aiScore   ? { aiScore:   local.aiScore   } : {}),
+            }
+          }).sort((a, b) => b.ts - a.ts)
+          // Also include leads that exist only locally (submitted during this session)
+          const serverIds = new Set(serverLeads.map(s => String(s.id)))
+          const localOnly = prev.filter(l => !serverIds.has(String(l.id)))
+          const merged = [...localOnly, ...fromServer].sort((a, b) => b.ts - a.ts)
           try { localStorage.setItem(LEADS_STORE, JSON.stringify(merged)) } catch {}
           return merged
         })
@@ -3799,8 +3808,12 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
       .finally(() => setLeadsSyncing(false))
   }
 
-  // Sync on admin mount — ensures leads from other browsers/sessions appear
-  useEffect(() => { syncLeadsFromServer() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  // Sync on admin mount + auto-sync every 60 s — cloud is always source of truth
+  useEffect(() => {
+    syncLeadsFromServer()
+    const iv = setInterval(syncLeadsFromServer, 60000)
+    return () => clearInterval(iv)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── WhatsApp CRM helpers ──────────────────────────────────────────────────
   const intlPhoneFmt = p => {
@@ -4273,6 +4286,14 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
       try { localStorage.setItem(LEADS_STORE, JSON.stringify(next)) } catch {}
       return next
     })
+    // Auto-save lead_status to Supabase immediately
+    if (patch.leadStatus !== undefined && API_BASE) {
+      fetch(`${API_BASE}/api/contacts/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+        body: JSON.stringify({ lead_status: patch.leadStatus }),
+      }).catch(() => {})
+    }
   }
 
   const enrichLead = async (lead) => {
