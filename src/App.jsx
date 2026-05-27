@@ -7782,30 +7782,6 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
               </div>
             )}
 
-            {/* GovMap — show whenever token is set OR property has gush/helka */}
-            {govmapToken && (
-              <div>
-                <h3 style={{ fontSize:13, fontWeight:800, color:C.cream, marginBottom:12, display:'flex', alignItems:'center', gap:8 }}>
-                  <FaMapMarkerAlt size={12}/> מפת GovMap
-                  {(prop.gush || prop.helka) ? (
-                    <span style={{ fontSize:11, fontWeight:600, color:`${C.cream}55`, background:`${C.purple}15`, borderRadius:4, padding:'2px 8px' }}>
-                      גוש {prop.gush}{prop.helka ? ` · חלקה ${prop.helka}` : ''}{prop.subHelka ? ` · תת ${prop.subHelka}` : ''}
-                    </span>
-                  ) : (
-                    <span style={{ fontSize:11, fontWeight:500, color:`${C.cream}33`, background:`${C.purple}08`, borderRadius:4, padding:'2px 8px' }}>הכנס גוש/חלקה לניווט לחלקה</span>
-                  )}
-                </h3>
-                <GovMapWidget
-                  gush={prop.gush}
-                  helka={prop.helka}
-                  subHelka={prop.subHelka}
-                  token={govmapToken}
-                  C={C}
-                  isDark={isDark}
-                />
-              </div>
-            )}
-
             {/* Extra specs table — "פרטים נוספים" Yad2-style */}
             {extraSpecs.length > 0 && (
               <div>
@@ -8015,6 +7991,29 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
             </div>
           )
         })()}
+
+        {/* ══ GOVMAP — full width at the very bottom ══ */}
+        {govmapToken && (
+          <div style={{ borderTop:`1px solid ${C.purple}18`, padding:'32px 28px 48px', direction:'rtl' }}>
+            <h3 style={{ fontSize:18, fontWeight:800, color:C.cream, marginBottom:18, display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' }}>
+              <FaMapMarkerAlt size={16} style={{ color:C.purple }}/>
+              מפת גוש וחלקה
+              {(prop.gush || prop.helka) && (
+                <span style={{ fontSize:12, fontWeight:600, color:`${C.cream}55`, background:`${C.purple}15`, borderRadius:6, padding:'3px 12px' }}>
+                  {prop.gush ? `גוש ${prop.gush}` : ''}{prop.gush && prop.helka ? ' · ' : ''}{prop.helka ? `חלקה ${prop.helka}` : ''}{prop.subHelka ? ` · תת ${prop.subHelka}` : ''}
+                </span>
+              )}
+            </h3>
+            <GovMapWidget
+              gush={prop.gush}
+              helka={prop.helka}
+              subHelka={prop.subHelka}
+              token={govmapToken}
+              C={C}
+              isDark={isDark}
+            />
+          </div>
+        )}
       </div>
 
       {/* ══ LIGHTBOX OVERLAY ══ */}
