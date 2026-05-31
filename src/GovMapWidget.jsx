@@ -77,11 +77,12 @@ export function preloadGovMapScript() {
 // GovMap's createMap is asynchronous — searchAndLocate only becomes callable
 // after the internal iframe finishes loading (can take 2–8 s on first paint).
 // We use .call(gm,…) so `this` is always the govmap instance.
+// GovMap API: block/parcel lookup uses `block` (not `lot`) + locateType.Block = 2.
 function makeZoomer(gush, helka, subHelka) {
-  const lot       = Number(gush)
+  const block     = Number(gush)
   const parcel    = Number(helka)
   const subParcel = subHelka ? Number(subHelka) : 0
-  if (!lot || !parcel) return null
+  if (!block || !parcel) return null
 
   return function tryZoom() {
     const gm = window.govmap
@@ -90,8 +91,8 @@ function makeZoomer(gush, helka, subHelka) {
     if (typeof fn !== 'function') return
     try {
       fn.call(gm, {
-        type:     gm.locateType?.lotAndParcel ?? 1,
-        lot,
+        type:     gm.locateType?.Block ?? gm.locateType?.block ?? 2,
+        block,
         parcel,
         subParcel,
       })
@@ -120,7 +121,7 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark,
       return Object.fromEntries(LAYERS_DEF.map(l => [l.id, defaultLayers[l.id] ?? l.on]))
     return Object.fromEntries(LAYERS_DEF.map(l => [l.id, l.on]))
   })
-  const [bg,          setBg]          = useState(defaultBg || '2')
+  const [bg,          setBg]          = useState(defaultBg || '0')
   const [gushVal,     setGushVal]     = useState(gush    || '')
   const [helkaVal,    setHelkaVal]    = useState(helka   || '')
   const [subHelkaVal, setSubHelkaVal] = useState(subHelka || '')
@@ -130,13 +131,16 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark,
   useEffect(() => () => { zoomTimers.current.forEach(clearTimeout) }, [])
 
   // ── Close layer panel on outside click ────────────────────────────────────
+  // Uses capture phase (true) so it fires before React's bubble-phase handlers.
+  // This means stopPropagation on the outer wrapper (which prevents modal close)
+  // does NOT cancel this listener — both can fire independently.
   useEffect(() => {
     if (!showPanel) return
     const handler = e => {
       if (panelRef.current && !panelRef.current.contains(e.target)) setShowPanel(false)
     }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
+    document.addEventListener('mousedown', handler, true)
+    return () => document.removeEventListener('mousedown', handler, true)
   }, [showPanel])
 
   // ── Helper: schedule zoom retries ─────────────────────────────────────────
@@ -222,8 +226,9 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark,
     const zoom = makeZoomer(gushVal, helkaVal, subHelkaVal)
     if (!zoom) return
     setSearching(true)
-    scheduleZoom(zoom, [100, 800, 2000, 4000])
-    setTimeout(() => setSearching(false), 3000)
+    // Map is already initialised — start immediately (delay=0), then retry
+    scheduleZoom(zoom, [0, 400, 1200, 2500, 4500])
+    setTimeout(() => setSearching(false), 5000)
   }
 
   function toggleLayer(id) {
@@ -253,6 +258,8 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark,
   const border  = `1px solid ${C.purple}28`
   const inputSt = { padding:'6px 10px', background: isDark ? 'rgba(255,255,255,.06)' : '#fff', border, borderRadius:6, color:C.cream, fontSize:12, fontFamily:'Rubik,inherit', outline:'none', width:68, direction:'ltr', textAlign:'center' }
   const btnSt   = (active) => ({ padding:'6px 13px', background: active ? C.purple : (isDark ? 'rgba(255,255,255,.06)' : '#fff'), border, borderRadius:6, color: active ? '#fff' : C.cream, fontSize:12, fontFamily:'Rubik,inherit', cursor:'pointer', fontWeight:600, transition:'all .15s' })
+  // Select always uses dark bg + light text so it's readable regardless of theme
+  const selectSt = { ...inputSt, width:'auto', padding:'6px 10px', appearance:'none', cursor:'pointer', direction:'rtl', textAlign:'right', background:'rgba(18,10,40,.92)', color:'#e8e3ff', border:`1px solid ${C.purple}55` }
 
   // ── No token ───────────────────────────────────────────────────────────────
   if (!token) {
@@ -292,8 +299,13 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark,
   const toolbarHeight = 50 // approx height of the toolbar row
 
   return (
-    // Outer wrapper — NO overflow:hidden so the layer panel can overflow freely
-    <div style={{ position:'relative', direction:'rtl', fontFamily:'Rubik,inherit' }}>
+    // Outer wrapper: stopPropagation on all mouse events prevents clicks from
+    // bubbling to the modal backdrop and accidentally closing the property panel.
+    <div
+      style={{ position:'relative', direction:'rtl', fontFamily:'Rubik,inherit' }}
+      onClick={e => e.stopPropagation()}
+      onMouseDown={e => e.stopPropagation()}
+    >
 
       {/* ── Clipped inner: toolbar + map + loading overlay ── */}
       <div ref={containerRef} style={{ position:'relative', border:`1px solid ${C.purple}22`, borderRadius:12, overflow:'hidden', background:'#0A0A16' }}>
@@ -321,9 +333,10 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark,
 
           <div style={{ display:'flex', alignItems:'center', gap:5, flexShrink:0 }}>
             <span style={{ fontSize:11, color:`${C.cream}66`, fontWeight:600 }}>רקע</span>
-            <select value={bg} onChange={e=>handleBg(e.target.value)}
-              style={{ ...inputSt, width:'auto', padding:'6px 10px', appearance:'none', cursor:'pointer', direction:'rtl', textAlign:'right' }}>
-              {BG_OPTIONS.map(o => <option key={o.v} value={o.v}>{o.label}</option>)}
+            <select value={bg} onChange={e=>handleBg(e.target.value)} style={selectSt}>
+              {BG_OPTIONS.map(o => (
+                <option key={o.v} value={o.v} style={{ background:'#120a28', color:'#e8e3ff' }}>{o.label}</option>
+              ))}
             </select>
           </div>
 
@@ -345,8 +358,21 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark,
           )}
         </div>
 
-        {/* ── Map container — pointer-events disabled while layer panel is open ── */}
-        <div id={mapDivId} style={{ width:'100%', height: compact ? 340 : 480, pointerEvents: showPanel ? 'none' : 'auto' }}/>
+        {/* ── Map + overlay ── */}
+        <div style={{ position:'relative' }}>
+          <div id={mapDivId} style={{ width:'100%', height: compact ? 340 : 480 }}/>
+
+          {/* When panel is open, a transparent overlay sits above the GovMap iframe.
+              Without it, clicks pass straight into the iframe (another document) and
+              never reach the parent — the panel can't be closed by clicking the map,
+              and the iframe may fire identify-on-click unexpectedly. */}
+          {showPanel && (
+            <div
+              style={{ position:'absolute', inset:0, zIndex:10, background:'transparent', cursor:'default' }}
+              onMouseDown={e => { e.stopPropagation(); setShowPanel(false) }}
+            />
+          )}
+        </div>
 
         {/* Loading overlay */}
         {!mapReady && (
@@ -364,6 +390,7 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark,
       {/* ── Layer Panel — OUTSIDE overflow:hidden so it isn't clipped ── */}
       {showPanel && (
         <div ref={panelRef}
+          onMouseDown={e => e.stopPropagation()}
           style={{ position:'absolute', top: toolbarHeight + 2, right:0, zIndex:50,
             background:panelBg, backdropFilter:'blur(14px)',
             border:`1px solid ${C.purple}28`, borderRadius:'0 0 0 12px',
