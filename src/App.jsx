@@ -8717,7 +8717,21 @@ export default function App() {
       const headers = adminAuth ? { Authorization: `Bearer ${ADMIN_TOKEN}` } : {}
       fetch(`${base}/api/properties`, { headers })
         .then(r => r.ok ? r.json() : Promise.reject())
-        .then(data => { if (Array.isArray(data) && data.length > 0) setProperties(data) })
+        .then(data => {
+          if (!Array.isArray(data) || !data.length) return
+          // Use same merge as initial fetch — never blindly overwrite optimistic updates
+          setProperties(prev => {
+            if (!prev.length) return data
+            if (data.length < prev.length) return prev
+            const localById = new Map(prev.map(p => [String(p.id), p]))
+            return data.map(serverProp => {
+              const localProp = localById.get(String(serverProp.id))
+              if (!localProp) return serverProp
+              const serverNewer = (serverProp.updatedAt || 0) >= (localProp.updatedAt || 0)
+              return serverNewer ? { ...localProp, ...serverProp } : localProp
+            })
+          })
+        })
         .catch(() => {})
     }
     const id = setInterval(refresh, 60000)
@@ -9509,9 +9523,29 @@ export default function App() {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
                 body: JSON.stringify(savedProp),
-                signal: AbortSignal.timeout(20000),
+                signal: AbortSignal.timeout(30000),
               }).then(r => r.ok ? r.json() : Promise.reject(r.status))
-                .then(body => console.log('[wizard] saved prop', savedProp.id, '→', body.storage))
+                .then(body => {
+                  console.log('[wizard] saved prop', savedProp.id, '→', body.storage)
+                  // Re-fetch after confirmed save so UI reflects what the server actually stored
+                  return fetch(`${base}/api/properties`, {
+                    headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
+                  }).then(r => r.ok ? r.json() : Promise.reject())
+                    .then(data => {
+                      if (Array.isArray(data) && data.length > 0) {
+                        setProperties(prev => {
+                          if (!prev.length) return data
+                          if (data.length < prev.length) return prev
+                          const localById = new Map(prev.map(p => [String(p.id), p]))
+                          return data.map(sp => {
+                            const lp = localById.get(String(sp.id))
+                            if (!lp) return sp
+                            return ((sp.updatedAt || 0) >= (lp.updatedAt || 0)) ? { ...lp, ...sp } : lp
+                          })
+                        })
+                      }
+                    })
+                })
                 .catch(e => console.error('[wizard] save error:', e))
             }
           }}

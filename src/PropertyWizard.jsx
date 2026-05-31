@@ -1391,11 +1391,12 @@ function PdfUploader({ pdfs, onUpdate, adminToken }) {
 
 // ─── Step 6: Media upload (images + Cloudinary video) ─────────────────────────
 
-function Step6({ d, upd }) {
+function Step6({ d, upd, onUploadingChange }) {
   const imgInputRef      = useRef(null)
   const localVidRef      = useRef(null)
   const cloudVidRef      = useRef(null)
   const [uploading, setUploading] = useState(false)
+  const setUploadingState = v => { setUploading(v); onUploadingChange?.(v) }
   const [progress,  setProgress]  = useState(0)
   const [uploadErr, setUploadErr] = useState('')
   const [isDragOver, setIsDragOver] = useState(false)
@@ -1431,7 +1432,7 @@ function Step6({ d, upd }) {
     const toAdd = files.filter(f => f.type.startsWith('image/')).slice(0, remaining)
     if (!toAdd.length) return
 
-    setUploading(true)
+    setUploadingState(true)
     setProgress(0)
     setUploadErr('')
 
@@ -1468,7 +1469,7 @@ function Step6({ d, upd }) {
     }
 
     if (uploaded.length > 0) upd('media', [...d.media, ...uploaded])
-    setUploading(false)
+    setUploadingState(false)
     setProgress(0)
   }
 
@@ -1496,7 +1497,7 @@ function Step6({ d, upd }) {
     const toAdd = files.filter(f => f.type.startsWith('video/')).slice(0, remaining)
     if (!toAdd.length) return
 
-    setUploading(true)
+    setUploadingState(true)
     setProgress(0)
     setUploadErr('')
 
@@ -1535,7 +1536,7 @@ function Step6({ d, upd }) {
     }
 
     if (uploaded.length > 0) upd('media', [...d.media, ...uploaded])
-    setUploading(false)
+    setUploadingState(false)
     setProgress(0)
     e.target.value = ''
   }
@@ -1552,7 +1553,7 @@ function Step6({ d, upd }) {
       return
     }
 
-    setUploading(true)
+    setUploadingState(true)
     setProgress(0)
     try {
       const result = await uploadToCloudinary(file, setProgress)
@@ -1569,7 +1570,7 @@ function Step6({ d, upd }) {
     } catch (err) {
       setUploadErr(`שגיאה בהעלאה: ${err.message}`)
     } finally {
-      setUploading(false)
+      setUploadingState(false)
       setProgress(0)
       e.target.value = ''
     }
@@ -1970,6 +1971,7 @@ export default function PropertyWizard({ onClose, onPublish, initialData, editId
   })
   const [showPublishModal, setShowPublishModal] = useState(false)
   const [draftSaved, setDraftSaved] = useState(false)
+  const [mediaUploading, setMediaUploading] = useState(false)
   const glowRef = useRef(null)
 
   // Auto-save on every change
@@ -2110,7 +2112,7 @@ export default function PropertyWizard({ onClose, onPublish, initialData, editId
 
             {/* ── Step content ── */}
             <div style={{ padding: '14px 28px 18px', minHeight: 300, maxHeight: 'calc(100vh - 260px)', overflowY: 'auto' }}>
-              <StepComp d={data} upd={upd} govmapToken={govmapToken} />
+              <StepComp d={data} upd={upd} govmapToken={govmapToken} onUploadingChange={setMediaUploading} />
             </div>
 
             {/* ── Footer — CTA centered ── */}
@@ -2118,25 +2120,27 @@ export default function PropertyWizard({ onClose, onPublish, initialData, editId
               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
 
               {step < STEPS.length ? (
-                <button onClick={() => canNext() && setStep(s => s + 1)}
+                <button onClick={() => !mediaUploading && canNext() && setStep(s => s + 1)}
                   className="pw-next"
                   style={{ width: '75%', maxWidth: 300, padding: '13px 26px', borderRadius: 14,
-                    border: 'none', background: canNext() ? P : `${P}40`,
-                    color: canNext() ? '#fff' : `${TEXT}60`,
-                    fontSize: 15, fontWeight: 800, cursor: canNext() ? 'pointer' : 'default',
+                    border: 'none', background: (canNext() && !mediaUploading) ? P : `${P}40`,
+                    color: (canNext() && !mediaUploading) ? '#fff' : `${TEXT}60`,
+                    fontSize: 15, fontWeight: 800, cursor: (canNext() && !mediaUploading) ? 'pointer' : 'default',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
                     fontFamily: FONT, transition: 'all .2s',
-                    boxShadow: canNext() ? `0 6px 20px ${P}44` : 'none' }}>
-                  המשך <FaChevronLeft size={12} />
+                    boxShadow: (canNext() && !mediaUploading) ? `0 6px 20px ${P}44` : 'none' }}>
+                  {mediaUploading ? <><FaCircleNotch size={13} style={{ animation: 'pw-spin 1s linear infinite' }} /> מעלה...</> : <>המשך <FaChevronLeft size={12} /></>}
                 </button>
               ) : (
-                <button onClick={handleFinish}
+                <button onClick={!mediaUploading ? handleFinish : undefined}
                   style={{ width: '75%', maxWidth: 300, padding: '13px 26px', borderRadius: 14,
-                    border: 'none', background: G, color: '#000', fontSize: 15, fontWeight: 800,
-                    cursor: 'pointer', fontFamily: FONT,
+                    border: 'none', background: mediaUploading ? `${G}60` : G,
+                    color: '#000', fontSize: 15, fontWeight: 800,
+                    cursor: mediaUploading ? 'default' : 'pointer', fontFamily: FONT,
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-                    boxShadow: `0 6px 20px ${G}44` }}>
-                  <FaCheck size={13} /> סיום ופרסום
+                    boxShadow: mediaUploading ? 'none' : `0 6px 20px ${G}44`,
+                    transition: 'all .2s' }}>
+                  {mediaUploading ? <><FaCircleNotch size={13} style={{ animation: 'pw-spin 1s linear infinite' }} /> מעלה...</> : <><FaCheck size={13} /> סיום ופרסום</>}
                 </button>
               )}
 
