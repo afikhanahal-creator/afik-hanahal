@@ -7441,28 +7441,63 @@ function PdfLeadGate({ pdf, prop, C }) {
     } catch {}
   }
 
-  const inp = { width:'100%', background:'rgba(255,255,255,.06)', border:'1px solid rgba(255,255,255,.14)', borderRadius:8, padding:'10px 13px', color:'#fff', fontFamily:'inherit', fontSize:14, boxSizing:'border-box', outline:'none' }
+  const inp = { width:'100%', background:'rgba(255,255,255,.07)', border:'1px solid rgba(255,255,255,.16)', borderRadius:10, padding:'12px 14px', color:'#fff', fontFamily:'inherit', fontSize:14, boxSizing:'border-box', outline:'none', transition:'border-color .15s' }
 
   return (
-    <div style={{ background:'rgba(255,255,255,.04)', border:'1px solid rgba(255,255,255,.1)', borderRadius:12, overflow:'hidden' }}>
+    <div style={{ background:'rgba(255,255,255,.04)', border:'1px solid rgba(255,255,255,.1)', borderRadius:14, overflow:'hidden' }}>
+      {/* PDF row */}
       <div style={{ display:'flex', alignItems:'center', gap:12, padding:'14px 16px' }}>
-        <FaFileAlt size={18} style={{ color:C.purple, flexShrink:0 }}/>
+        <div style={{ width:40, height:40, borderRadius:10, background:`${C.purple}22`, border:`1px solid ${C.purple}44`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+          <FaFileAlt size={17} style={{ color:C.purple }}/>
+        </div>
         <div style={{ flex:1, minWidth:0 }}>
           <div style={{ fontSize:14, fontWeight:700, color:'#fff', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{pdf.name || 'מסמך PDF'}</div>
-          <div style={{ fontSize:12, color:'rgba(255,255,255,.45)', marginTop:2 }}>PDF · לחץ להורדה</div>
+          <div style={{ fontSize:12, color:'rgba(255,255,255,.45)', marginTop:2 }}>PDF · חינם להורדה</div>
         </div>
         <button
           onClick={() => { if (done) { window.open(pdf.url, '_blank', 'noopener') } else { setOpen(o => !o) } }}
-          style={{ flexShrink:0, padding:'8px 16px', background: done ? `${C.green}18` : `${C.purple}22`, border:`1px solid ${done ? C.green+'44' : C.purple+'44'}`, borderRadius:8, color: done ? C.green : C.purple, cursor:'pointer', fontSize:13, fontFamily:'inherit', fontWeight:700, display:'flex', alignItems:'center', gap:6, transition:'all .15s', whiteSpace:'nowrap' }}>
+          style={{ flexShrink:0, padding:'9px 18px', background: done ? `linear-gradient(135deg,${C.green}cc,${C.green}88)` : `linear-gradient(135deg,${C.purple}dd,${C.purple}99)`, border:'none', borderRadius:10, color:'#fff', cursor:'pointer', fontSize:13, fontFamily:'inherit', fontWeight:700, display:'flex', alignItems:'center', gap:6, transition:'opacity .15s', whiteSpace:'nowrap', boxShadow: done ? `0 2px 8px ${C.green}40` : `0 2px 8px ${C.purple}40` }}>
           {done ? <><FaCheck size={11}/> הורד</> : <><FaFileAlt size={11}/> הורדה</>}
         </button>
       </div>
+
+      {/* Lead-gate form */}
       {open && !done && (
-        <form onSubmit={submit} style={{ borderTop:'1px solid rgba(255,255,255,.08)', padding:'16px', display:'flex', flexDirection:'column', gap:12, background:'rgba(0,0,0,.2)' }}>
-          <div style={{ fontSize:13, color:'rgba(255,255,255,.7)', marginBottom:4 }}>השאר פרטים כדי לקבל את הקובץ:</div>
-          <input required placeholder="שם מלא" value={name} onChange={e=>setName(e.target.value)} style={inp}/>
-          <input required type="tel" placeholder="טלפון" value={phone} onChange={e=>setPhone(e.target.value)} style={inp}/>
-          <button type="submit" style={{ padding:'11px', background:C.purple, border:'none', borderRadius:8, color:'#fff', fontFamily:'inherit', fontSize:14, fontWeight:700, cursor:'pointer' }}>שלח והורד</button>
+        <form onSubmit={submit} style={{ borderTop:'1px solid rgba(255,255,255,.09)', background:'linear-gradient(160deg,rgba(255,255,255,.05) 0%,rgba(0,0,0,.25) 100%)', padding:'20px 18px 18px' }}>
+          {/* Header */}
+          <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:14 }}>
+            <div style={{ width:36, height:36, borderRadius:50, background:`linear-gradient(135deg,${C.purple},${C.purple}88)`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, boxShadow:`0 2px 10px ${C.purple}55` }}>
+              <FaFileAlt size={15} style={{ color:'#fff' }}/>
+            </div>
+            <div>
+              <div style={{ fontSize:15, fontWeight:800, color:'#fff', lineHeight:1.2 }}>קבל את המסמך חינם</div>
+              <div style={{ fontSize:12, color:'rgba(255,255,255,.5)', marginTop:2 }}>מלא פרטים ותוריד מיידית</div>
+            </div>
+          </div>
+
+          {/* Two-column: name (left) | phone (right — RTL start) */}
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:12, direction:'rtl' }}>
+            <input
+              required
+              placeholder="טלפון"
+              type="tel"
+              value={phone}
+              onChange={e=>setPhone(e.target.value)}
+              style={inp}
+            />
+            <input
+              required
+              placeholder="שם מלא"
+              value={name}
+              onChange={e=>setName(e.target.value)}
+              style={inp}
+            />
+          </div>
+
+          <button type="submit" style={{ width:'100%', padding:'13px', background:`linear-gradient(135deg,${C.purple} 0%,${C.purple}bb 100%)`, border:'none', borderRadius:10, color:'#fff', fontFamily:'inherit', fontSize:15, fontWeight:800, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:8, boxShadow:`0 3px 14px ${C.purple}55`, transition:'opacity .15s' }}>
+            <FaFileAlt size={14}/> שלח והורד
+          </button>
+          <div style={{ textAlign:'center', fontSize:11, color:'rgba(255,255,255,.3)', marginTop:10 }}>הפרטים שלך נשמרים בסודיות מוחלטת</div>
         </form>
       )}
     </div>
