@@ -1997,27 +1997,24 @@ export default function PropertyWizard({ onClose, onPublish, initialData, editId
                   {STEPS.map(s => {
                     const done    = step > s.id
                     const current = step === s.id
-                    const clickable = done || !!editId
                     return (
                       <div key={s.id}
-                        onClick={() => clickable && setStep(s.id)}
+                        onClick={() => setStep(s.id)}
                         style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
-                          cursor: clickable ? 'pointer' : 'default' }}
-                        title={clickable ? `חזור לשלב ${s.id}: ${s.title}` : ''}>
+                          cursor: 'pointer' }}
+                        title={`${s.title}`}>
                         <div style={{ width: 22, height: 22, borderRadius: '50%',
-                          background: done ? G : current ? P : (clickable && !current ? `${P}28` : '#0c0820'),
-                          border: `2px solid ${done ? G : current ? P : (clickable ? `${P}66` : BORDER)}`,
-                          color: done ? '#000' : current ? '#fff' : (clickable ? `${P}CC` : MUTED),
+                          background: done ? G : current ? P : `${P}28`,
+                          border: `2px solid ${done ? G : current ? P : `${P}55`}`,
+                          color: done ? '#000' : current ? '#fff' : `${P}CC`,
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                           fontSize: 10, fontWeight: 800, transition: 'all .3s', flexShrink: 0,
                           boxShadow: 'none' }}>
                           {done ? <FaCheck size={9}/> : s.id}
                         </div>
-                        <span style={{ fontSize: 11, color: current ? TEXT : done ? `${G}BB` : (clickable ? `${P}AA` : MUTED),
-                          fontWeight: current ? 800 : (clickable ? 600 : 400), textAlign: 'center', lineHeight: 1.25,
-                          fontFamily: FONT, whiteSpace: 'normal',
-                          textDecoration: clickable ? 'underline dotted' : 'none',
-                          textUnderlineOffset: 2 }}>
+                        <span style={{ fontSize: 11, color: current ? TEXT : done ? `${G}BB` : `${P}99`,
+                          fontWeight: current ? 800 : 600, textAlign: 'center', lineHeight: 1.25,
+                          fontFamily: FONT, whiteSpace: 'normal' }}>
                           {s.title}
                         </span>
                       </div>
