@@ -3817,7 +3817,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   // Sync on admin mount + auto-sync every 60 s — cloud is always source of truth
   useEffect(() => {
     syncLeadsFromServer()
-    const iv = setInterval(syncLeadsFromServer, 60000)
+    const iv = setInterval(syncLeadsFromServer, 15000)
     return () => clearInterval(iv)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 

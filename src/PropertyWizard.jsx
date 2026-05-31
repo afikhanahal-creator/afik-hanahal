@@ -1318,12 +1318,46 @@ function Step6({ d, upd }) {
     const remaining = 20 - d.media.filter(m => m.type === 'image').length
     const toAdd = files.filter(f => f.type.startsWith('image/')).slice(0, remaining)
     if (!toAdd.length) return
-    const compressed = await Promise.all(toAdd.map(async f => ({
-      url: await compressImage(f),
-      name: f.name,
-      type: 'image',
-    })))
-    upd('media', [...d.media, ...compressed])
+
+    setUploading(true)
+    setProgress(0)
+    setUploadErr('')
+
+    const uploaded = []
+    for (let i = 0; i < toAdd.length; i++) {
+      const file = toAdd[i]
+      try {
+        const fd = new FormData()
+        fd.append('file', file)
+        const url = await new Promise((resolve, reject) => {
+          const xhr = new XMLHttpRequest()
+          xhr.upload.addEventListener('progress', ev => {
+            if (ev.lengthComputable) {
+              const pct = ((i * 100) + (ev.loaded / ev.total) * 100) / toAdd.length
+              setProgress(Math.round(pct))
+            }
+          })
+          xhr.addEventListener('load', () => {
+            try {
+              const data = JSON.parse(xhr.responseText)
+              if (xhr.status === 200 && data.url) resolve(data.url)
+              else reject(new Error(data.error || `שגיאה ${xhr.status}`))
+            } catch { reject(new Error('תגובת שרת לא תקינה')) }
+          })
+          xhr.addEventListener('error', () => reject(new Error('שגיאת רשת — בדוק חיבור אינטרנט')))
+          xhr.open('POST', `${UPLOAD_BASE}/api/upload/image`)
+          xhr.setRequestHeader('Authorization', `Bearer ${WIZ_ADMIN_TOKEN}`)
+          xhr.send(fd)
+        })
+        uploaded.push({ url, name: file.name, type: 'image' })
+      } catch (err) {
+        setUploadErr(`שגיאה בהעלאת "${file.name}": ${err.message}`)
+      }
+    }
+
+    if (uploaded.length > 0) upd('media', [...d.media, ...uploaded])
+    setUploading(false)
+    setProgress(0)
   }
 
   const addImages = async e => {
@@ -1450,33 +1484,49 @@ function Step6({ d, upd }) {
       {/* Drag & drop zone */}
       {imgCount < 20 && (
         <div
-          onDrop={handleDrop}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onClick={() => imgInputRef.current?.click()}
+          onDrop={!uploading ? handleDrop : undefined}
+          onDragOver={!uploading ? handleDragOver : undefined}
+          onDragLeave={!uploading ? handleDragLeave : undefined}
+          onClick={() => !uploading && imgInputRef.current?.click()}
           style={{
-            border: `2px dashed ${isDragOver ? P : BORDER}`,
+            border: `2px dashed ${uploading ? P : isDragOver ? P : BORDER}`,
             borderRadius: 16,
-            background: isDragOver ? `${P}14` : DARK,
-            padding: '36px 20px',
+            background: uploading ? `${P}0A` : isDragOver ? `${P}14` : DARK,
+            padding: '28px 20px',
             display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
-            cursor: 'pointer', marginBottom: 14, transition: 'all .2s',
+            cursor: uploading ? 'default' : 'pointer', marginBottom: 14, transition: 'all .2s',
             transform: isDragOver ? 'scale(1.01)' : 'scale(1)',
           }}
         >
-          <div style={{ width: 56, height: 56, borderRadius: '50%',
-            background: isDragOver ? `${P}22` : `${P}14`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .2s' }}>
-            <FaCloudUploadAlt size={24} style={{ color: isDragOver ? P : MUTED, transition: 'color .2s' }} />
-          </div>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ color: isDragOver ? P : TEXT, fontWeight: 700, fontSize: 15, fontFamily: FONT, marginBottom: 4 }}>
-              {isDragOver ? 'שחרר להוספה' : 'גרור תמונות לכאן'}
-            </div>
-            <div style={{ color: MUTED, fontSize: 13, fontFamily: FONT }}>
-              או <span style={{ color: P, fontWeight: 600 }}>לחץ לבחירת קבצים</span> &nbsp;·&nbsp; {imgCount}/20 תמונות
-            </div>
-          </div>
+          {uploading ? (
+            <>
+              <FaCircleNotch size={26} style={{ color: P, animation: 'spin 0.8s linear infinite' }} />
+              <div style={{ fontSize: 13, color: P, fontFamily: FONT, fontWeight: 700 }}>מעלה לענן... {progress}%</div>
+              <div style={{ width: '80%', height: 5, background: `${P}22`, borderRadius: 99, overflow: 'hidden' }}>
+                <div style={{ height: '100%', background: P, width: `${progress}%`, transition: 'width .2s', borderRadius: 99 }} />
+              </div>
+              <div style={{ fontSize: 11, color: MUTED, fontFamily: FONT }}>התמונות מועלות ל-Supabase Storage</div>
+            </>
+          ) : (
+            <>
+              <div style={{ width: 56, height: 56, borderRadius: '50%',
+                background: isDragOver ? `${P}22` : `${P}14`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .2s' }}>
+                <FaCloudUploadAlt size={24} style={{ color: isDragOver ? P : MUTED, transition: 'color .2s' }} />
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ color: isDragOver ? P : TEXT, fontWeight: 700, fontSize: 15, fontFamily: FONT, marginBottom: 4 }}>
+                  {isDragOver ? 'שחרר להוספה' : 'גרור תמונות לכאן'}
+                </div>
+                <div style={{ color: MUTED, fontSize: 13, fontFamily: FONT }}>
+                  או <span style={{ color: P, fontWeight: 600 }}>לחץ לבחירת קבצים</span> &nbsp;·&nbsp; {imgCount}/20 תמונות
+                </div>
+                <div style={{ color: `${MUTED}88`, fontSize: 11, fontFamily: FONT, marginTop: 4 }}>
+                  ☁ מועלה ישירות ל-Supabase Storage
+                </div>
+              </div>
+            </>
+          )}
         </div>
       )}
 
