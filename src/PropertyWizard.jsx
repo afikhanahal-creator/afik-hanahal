@@ -1994,7 +1994,7 @@ export default function PropertyWizard({ onClose, onPublish, initialData, editId
 
   const canNext = () => {
     if (step === 1) return data.txType && data.propType && data.contactName && data.contactPhone
-    if (step === 2) return data.city && data.street && data.houseNum
+    if (step === 2) return !!(data.city || data.gush)
     if (step === 3) return data.rooms && data.size && data.condition
     return true
   }
