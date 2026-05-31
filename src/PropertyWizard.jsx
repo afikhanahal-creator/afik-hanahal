@@ -13,6 +13,7 @@ import {
   FaPlay, FaVideo, FaCloudUploadAlt, FaCircleNotch,
   FaGlobe, FaSave, FaMagic, FaSyncAlt,
   FaSwimmingPool, FaWifi, FaUsers, FaBriefcase,
+  FaFire, FaDumbbell, FaTruck, FaBath,
 } from 'react-icons/fa'
 
 // ─── Cloudinary config ── fill in your own cloud name + unsigned preset ───────
@@ -85,39 +86,101 @@ const CONDITIONS = [
 ]
 
 const AMENITIES = [
-  { k: 'accessible',  l: 'גישה לנכים',  Icon: FaWheelchair },
-  { k: 'ac',          l: 'מיזוג',        Icon: FaSnowflake },
-  { k: 'elevator',    l: 'מעלית',        Icon: FaBuilding },
-  { k: 'parking',     l: 'חניה',         Icon: FaCar },
-  { k: 'storage',     l: 'מחסן',         Icon: FaBox },
-  { k: 'shelter',     l: 'ממ"ד',         Icon: FaShieldAlt },
-  { k: 'balcony',     l: 'מרפסת',        Icon: FaExpand },
-  { k: 'pool',        l: 'בריכה',        Icon: FaSwimmingPool },
-  { k: 'kosher',      l: 'מטבח כשר',     Icon: FaUtensils },
-  { k: 'solar',       l: 'דוד שמש',      Icon: FaSun },
-  { k: 'bars',        l: 'סורגים',       Icon: FaLock },
-  { k: 'unit',        l: 'יחידת דיור',   Icon: FaDoorOpen },
-  { k: 'furnished',   l: 'ריהוט',        Icon: FaCouch },
-  { k: 'renovated_f', l: 'שיפוץ',        Icon: FaTools },
-  { k: 'doorman',     l: 'שוער',         Icon: FaUserShield },
-  { k: 'tornado_ac',  l: 'מזגן טורנדו',  Icon: FaWind },
-  { k: 'boiler',      l: 'דוד חשמל',     Icon: FaBolt },
+  // בסיסיים
+  { k: 'accessible',   l: 'גישה לנכים',       Icon: FaWheelchair },
+  { k: 'ac',           l: 'מיזוג',             Icon: FaSnowflake },
+  { k: 'elevator',     l: 'מעלית',             Icon: FaBuilding },
+  { k: 'parking',      l: 'חניה',              Icon: FaCar },
+  { k: 'storage',      l: 'מחסן',              Icon: FaBox },
+  { k: 'shelter',      l: 'ממ"ד',              Icon: FaShieldAlt },
+  { k: 'balcony',      l: 'מרפסת',             Icon: FaExpand },
+  { k: 'roof_terrace', l: 'מרפסת גג',          Icon: FaExpand },
+  // נוספים — דירות
+  { k: 'master_br',    l: 'חדר הורים',         Icon: FaBed },
+  { k: 'garden',       l: 'גינה פרטית',        Icon: FaLeaf },
+  { k: 'pool',         l: 'בריכה',             Icon: FaSwimmingPool },
+  { k: 'jacuzzi',      l: "ג'קוזי",            Icon: FaBath },
+  { k: 'gym',          l: 'חדר כושר',          Icon: FaDumbbell },
+  { k: 'laundry',      l: 'חדר כביסה',         Icon: FaTools },
+  { k: 'lobby',        l: 'לובי',              Icon: FaDoorOpen },
+  { k: 'intercom',     l: 'אינטרקום',          Icon: FaPhone },
+  { k: 'doorman',      l: 'שוער / שמירה',      Icon: FaUserShield },
+  // תשתיות
+  { k: 'natural_gas',  l: 'גז',                Icon: FaFire },
+  { k: 'solar',        l: 'דוד שמש',           Icon: FaSun },
+  { k: 'boiler',       l: 'דוד חשמל',          Icon: FaBolt },
+  { k: 'ev_charge',    l: 'עמדת טעינה חשמלית', Icon: FaBolt },
+  { k: 'tornado_ac',   l: 'מזגן טורנדו',       Icon: FaWind },
+  // אחר
+  { k: 'kosher',       l: 'מטבח כשר',          Icon: FaUtensils },
+  { k: 'furnished',    l: 'ריהוט',             Icon: FaCouch },
+  { k: 'renovated_f',  l: 'שיפוץ',             Icon: FaTools },
+  { k: 'unit',         l: 'יחידת דיור',        Icon: FaDoorOpen },
+  { k: 'bars',         l: 'סורגים',            Icon: FaLock },
+]
+
+const PROJECT_AMENITIES = [
+  // ליבה
+  { k: 'elevator',      l: 'מעלית',             Icon: FaBuilding },
+  { k: 'parking',       l: 'חניה',              Icon: FaCar },
+  { k: 'underground_p', l: 'חניה תת-קרקעית',    Icon: FaCar },
+  { k: 'storage',       l: 'מחסן',              Icon: FaBox },
+  { k: 'shelter',       l: 'ממ"ד',              Icon: FaShieldAlt },
+  { k: 'balcony',       l: 'מרפסת',             Icon: FaExpand },
+  { k: 'roof_terrace',  l: 'מרפסת גג',          Icon: FaExpand },
+  // שירותים משותפים
+  { k: 'lobby',         l: 'לובי',              Icon: FaDoorOpen },
+  { k: 'gym',           l: 'חדר כושר',          Icon: FaDumbbell },
+  { k: 'pool',          l: 'בריכה',             Icon: FaSwimmingPool },
+  { k: 'garden_shared', l: 'גינה משותפת',       Icon: FaLeaf },
+  { k: 'security_24',   l: 'שמירה 24/7',        Icon: FaUserShield },
+  { k: 'intercom',      l: 'אינטרקום',          Icon: FaPhone },
+  // דירה
+  { k: 'master_br',     l: 'חדר הורים',         Icon: FaBed },
+  { k: 'jacuzzi',       l: "ג'קוזי",            Icon: FaBath },
+  { k: 'accessible',    l: 'גישה לנכים',        Icon: FaWheelchair },
+  { k: 'ac',            l: 'מיזוג',             Icon: FaSnowflake },
+  // תשתיות
+  { k: 'ev_charge',     l: 'עמדת טעינה חשמלית', Icon: FaBolt },
+  { k: 'natural_gas',   l: 'גז',                Icon: FaFire },
+  { k: 'solar',         l: 'דוד שמש',           Icon: FaSun },
 ]
 
 const COMMERCIAL_AMENITIES = [
-  { k: 'kitchenette',    l: 'מטבחון',        Icon: FaUtensils },
-  { k: 'alarm',          l: 'אזעקה',          Icon: FaExclamationTriangle },
-  { k: 'cameras',        l: 'מצלמות אבטחה',  Icon: FaCamera },
-  { k: 'conf_room',      l: 'חדר ישיבות',    Icon: FaUsers },
-  { k: 'comm_room',      l: 'חדר תקשורת',    Icon: FaWifi },
-  { k: 'mamak',          l: 'ממק',            Icon: FaBriefcase },
-  { k: 'accessible',     l: 'גישה לנכים',    Icon: FaWheelchair },
-  { k: 'elevator',       l: 'מעלית',          Icon: FaBuilding },
-  { k: 'parking',        l: 'חניה',           Icon: FaCar },
-  { k: 'ac',             l: 'מיזוג',          Icon: FaSnowflake },
-  { k: 'storage',        l: 'מחסן',           Icon: FaBox },
-  { k: 'shelter',        l: 'ממ"ד',           Icon: FaShieldAlt },
+  // ליבה
+  { k: 'accessible',   l: 'גישה לנכים',       Icon: FaWheelchair },
+  { k: 'elevator',     l: 'מעלית',             Icon: FaBuilding },
+  { k: 'freight_elev', l: 'מעלית מטען',        Icon: FaTruck },
+  { k: 'parking',      l: 'חניה',              Icon: FaCar },
+  { k: 'ac',           l: 'מיזוג',             Icon: FaSnowflake },
+  { k: 'storage',      l: 'מחסן',              Icon: FaBox },
+  { k: 'shelter',      l: 'ממ"ד',              Icon: FaShieldAlt },
+  // כניסות ומרחב
+  { k: 'sep_entrance', l: 'כניסה נפרדת',       Icon: FaDoorOpen },
+  { k: 'lobby_c',      l: 'לובי',              Icon: FaDoorOpen },
+  { k: 'yard_c',       l: 'חצר',               Icon: FaExpand },
+  { k: 'truck_entry',  l: 'כניסת משאית',       Icon: FaTruck },
+  // מתקנים
+  { k: 'kitchenette',  l: 'מטבחון',            Icon: FaUtensils },
+  { k: 'restrooms',    l: 'שירותים נפרדים',     Icon: FaUsers },
+  { k: 'conf_room',    l: 'חדר ישיבות',        Icon: FaUsers },
+  { k: 'server_room',  l: 'חדר שרתים',         Icon: FaWifi },
+  { k: 'comm_room',    l: 'חדר תקשורת',        Icon: FaWifi },
+  // אבטחה ובטיחות
+  { k: 'alarm',        l: 'אזעקה',             Icon: FaExclamationTriangle },
+  { k: 'cameras',      l: 'מצלמות אבטחה',      Icon: FaCamera },
+  { k: 'fire_sys',     l: 'מכבה אש',           Icon: FaFire },
+  { k: 'mamak',        l: 'ממק',               Icon: FaBriefcase },
+  // תשתיות
+  { k: 'generator',    l: 'גנרטור',            Icon: FaBolt },
+  { k: 'natural_gas',  l: 'גז',                Icon: FaFire },
 ]
+
+function amenityListFor(d) {
+  if (d.category === 'projects') return PROJECT_AMENITIES
+  if (d.category === 'commercial' || COMMERCIAL_TYPES.includes(d.propType)) return COMMERCIAL_AMENITIES
+  return AMENITIES
+}
 
 const VIEWS      = ['ללא', 'ים', 'פארק', 'עיר', 'טבע']
 const DIRECTIONS = ['1', '2', '3', '4']
@@ -250,31 +313,56 @@ const inferCategory = propType => {
 
 export function wizardToProperty(d, isDraft) {
   const amenMap = {
-    // Standard amenities
-    accessible:  'accessible',
-    ac:          'airCon',
-    elevator:    'elevator',
-    parking:     'parking',
-    storage:     'storage',
-    shelter:     'safeRoom',
-    balcony:     'balcony',
-    pool:        'pool',
-    kosher:      'kosher',
-    solar:       'solarBoiler',
-    bars:        'bars',
-    unit:        'unit',
-    furnished:   'furnished',
-    renovated_f: 'renovated',
-    doorman:     'doorman',
-    tornado_ac:  'tornadoAC',
-    boiler:      'boiler',
-    // Commercial amenities
-    kitchenette: 'kitchenette',
-    alarm:       'alarm',
-    cameras:     'cameras',
-    conf_room:   'conferenceRoom',
-    comm_room:   'commRoom',
-    mamak:       'mamak',
+    // Residential
+    accessible:   'accessible',
+    ac:           'airCon',
+    elevator:     'elevator',
+    parking:      'parking',
+    storage:      'storage',
+    shelter:      'safeRoom',
+    balcony:      'balcony',
+    roof_terrace: 'roofTerrace',
+    pool:         'pool',
+    kosher:       'kosher',
+    solar:        'solarBoiler',
+    bars:         'bars',
+    unit:         'unit',
+    furnished:    'furnished',
+    renovated_f:  'renovated',
+    doorman:      'doorman',
+    tornado_ac:   'tornadoAC',
+    boiler:       'boiler',
+    // New residential
+    master_br:    'masterBedroom',
+    garden:       'gardenPrivate',
+    jacuzzi:      'jacuzzi',
+    gym:          'gym',
+    laundry:      'laundryRoom',
+    lobby:        'lobby',
+    intercom:     'intercom',
+    natural_gas:  'naturalGas',
+    ev_charge:    'evCharging',
+    // Project-specific
+    underground_p: 'undergroundParking',
+    garden_shared: 'sharedGarden',
+    security_24:   'security24',
+    // Commercial
+    kitchenette:  'kitchenette',
+    alarm:        'alarm',
+    cameras:      'cameras',
+    conf_room:    'conferenceRoom',
+    comm_room:    'commRoom',
+    mamak:        'mamak',
+    // New commercial
+    freight_elev: 'freightElevator',
+    sep_entrance: 'separateEntrance',
+    lobby_c:      'lobby',
+    yard_c:       'yard',
+    truck_entry:  'truckEntry',
+    restrooms:    'separateRestrooms',
+    server_room:  'serverRoom',
+    fire_sys:     'fireSystem',
+    generator:    'generator',
   }
   const amenities = {}
   Object.entries(amenMap).forEach(([wk, ak]) => { amenities[ak] = !!d.amenities[wk] })
@@ -937,11 +1025,7 @@ function Step3({ d, upd }) {
       <ToggleGroup label="נוף פתוח" options={VIEWS} value={d.view} onChange={v => upd('view', v)} />
       <div style={{ marginBottom: 12 }}>
         <label style={labelStyle}>מאפייני הנכס</label>
-        {COMMERCIAL_TYPES.includes(d.propType) ? (
-          <CheckGrid items={COMMERCIAL_AMENITIES} checked={d.amenities} onChange={a => upd('amenities', a)} />
-        ) : (
-          <CheckGrid items={AMENITIES} checked={d.amenities} onChange={a => upd('amenities', a)} />
-        )}
+        <CheckGrid items={amenityListFor(d)} checked={d.amenities} onChange={a => upd('amenities', a)} />
       </div>
     </div>
   )
@@ -1027,7 +1111,7 @@ async function callClaudeRewrite(d, _retry = 0) {
   const condMap = { new:'חדש מקבלן', renovated:'משופץ', good:'במצב טוב', asis:'כמות שהוא' }
   const typeName = typeMap[d.category] || d.category || 'נכס'
   const cond = condMap[d.condition] || ''
-  const amenities = AMENITIES.filter(a => d.amenities?.[a.k]).map(a => a.l).join(', ') || ''
+  const amenities = amenityListFor(d).filter(a => d.amenities?.[a.k]).map(a => a.l).join(', ') || ''
   const prompt = `אתה מומחה שיווק נדל"ן ישראלי. כתוב תיאור שיווקי מקצועי ומשכנע בעברית לנכס הבא.
 
 פרטי הנכס:
@@ -1784,7 +1868,7 @@ const SUMMARY_ROWS = [
   { key: '_condition',  Icon: FaCheck,         label: 'מצב',       fmt: (_,d)  => CONDITIONS.find(c => c.v === d.condition)?.l || '' },
   { key: 'price',       Icon: FaMoneyBill,     label: 'מחיר',      fmt: (v)    => v ? `₪${v}` : '' },
   { key: '_entry',      Icon: FaCalendarAlt,   label: 'כניסה',     fmt: (_,d)  => d.entryFlex ? 'גמיש / מיידי' : d.entryDate },
-  { key: '_amenities',  Icon: FaCog,           label: 'מאפיינים',  fmt: (_,d)  => AMENITIES.filter(a => d.amenities[a.k]).map(a => a.l).join(' • ') },
+  { key: '_amenities',  Icon: FaCog,           label: 'מאפיינים',  fmt: (_,d)  => amenityListFor(d).filter(a => d.amenities[a.k]).map(a => a.l).join(' • ') },
   { key: 'description', Icon: FaFileAlt,       label: 'תיאור',     fmt: (v)    => v },
   { key: '_contact',    Icon: FaPhone,         label: 'איש קשר',   fmt: (_,d)  => `${d.contactName} | ${d.contactPhone}` },
 ]
