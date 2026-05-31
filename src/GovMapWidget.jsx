@@ -74,9 +74,9 @@ export function preloadGovMapScript() {
 }
 
 // ── Zoom helper ────────────────────────────────────────────────────────────────
-// Returns a tryZoom function that calls searchAndLocate without a "done" flag.
-// GovMap's API is asynchronous internally; we schedule several retries and each
-// one is a no-op if the API isn't ready yet. No single-shot guard.
+// GovMap's createMap is asynchronous — searchAndLocate only becomes callable
+// after the internal iframe finishes loading (can take 2–8 s on first paint).
+// We use .call(gm,…) so `this` is always the govmap instance.
 function makeZoomer(gush, helka, subHelka) {
   const lot       = Number(gush)
   const parcel    = Number(helka)
@@ -84,10 +84,13 @@ function makeZoomer(gush, helka, subHelka) {
   if (!lot || !parcel) return null
 
   return function tryZoom() {
-    if (!window.govmap?.searchAndLocate) return
+    const gm = window.govmap
+    if (!gm) return
+    const fn = gm.searchAndLocate
+    if (typeof fn !== 'function') return
     try {
-      window.govmap.searchAndLocate({
-        type:     window.govmap.locateType?.lotAndParcel ?? 1,
+      fn.call(gm, {
+        type:     gm.locateType?.lotAndParcel ?? 1,
         lot,
         parcel,
         subParcel,
@@ -103,12 +106,14 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark,
   const mapDivId = `gm_${uid}`
 
   const containerRef = useRef(null)
+  const panelRef     = useRef(null)
   const created      = useRef(false)
   const zoomTimers   = useRef([])          // all pending setTimeout handles
-  const [inView,    setInView]    = useState(false)
-  const [mapReady,  setMapReady]  = useState(false)
-  const [error,     setError]     = useState('')
-  const [measuring, setMeasuring] = useState(false)
+  const [inView,      setInView]      = useState(false)
+  const [mapReady,    setMapReady]    = useState(false)
+  const [error,       setError]       = useState('')
+  const [measuring,   setMeasuring]   = useState(false)
+  const [searching,   setSearching]   = useState(false)
 
   const [layers, setLayers] = useState(() => {
     if (defaultLayers && typeof defaultLayers === 'object')
@@ -124,11 +129,21 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark,
   // ── Cleanup all pending timers on unmount ──────────────────────────────────
   useEffect(() => () => { zoomTimers.current.forEach(clearTimeout) }, [])
 
-  // ── Helper: schedule aggressive zoom retries ───────────────────────────────
-  // GovMap's createMap is async; tiles may need several seconds to initialise.
-  // Without a reliable onLoad/ready event we simply retry at short intervals.
-  // Retries stop naturally after ~12 s — the user has panned by then.
-  function scheduleZoom(zoom, delaysMs = [0, 400, 1000, 2000, 3500, 6000, 10000, 15000]) {
+  // ── Close layer panel on outside click ────────────────────────────────────
+  useEffect(() => {
+    if (!showPanel) return
+    const handler = e => {
+      if (panelRef.current && !panelRef.current.contains(e.target)) setShowPanel(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [showPanel])
+
+  // ── Helper: schedule zoom retries ─────────────────────────────────────────
+  // GovMap's iframe initialises asynchronously — searchAndLocate silently
+  // fails until the internal state is ready (typically 2–6 s on first load).
+  // Start at 500 ms to avoid the silent-fail window; go up to 25 s.
+  function scheduleZoom(zoom, delaysMs = [500, 1200, 2500, 4000, 6000, 9000, 13000, 18000, 25000]) {
     zoomTimers.current.forEach(clearTimeout)
     zoomTimers.current = delaysMs.map(ms => setTimeout(zoom, ms))
   }
@@ -159,7 +174,7 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark,
     if (!created.current) return      // map not yet created — initial zoom handled by createMap
     const zoom = makeZoomer(gush, helka, subHelka)
     if (!zoom) return
-    scheduleZoom(zoom, [0, 500, 1500, 3000])
+    scheduleZoom(zoom, [200, 800, 2000, 4000])
   }, [gush, helka, subHelka]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Create the map ─────────────────────────────────────────────────────────
@@ -206,7 +221,9 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark,
     if (!gushVal || !helkaVal) return
     const zoom = makeZoomer(gushVal, helkaVal, subHelkaVal)
     if (!zoom) return
-    scheduleZoom(zoom, [0, 600, 1800])
+    setSearching(true)
+    scheduleZoom(zoom, [100, 800, 2000, 4000])
+    setTimeout(() => setSearching(false), 3000)
   }
 
   function toggleLayer(id) {
@@ -272,56 +289,86 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark,
   }
 
   // ── Map ────────────────────────────────────────────────────────────────────
+  const toolbarHeight = 50 // approx height of the toolbar row
+
   return (
-    <div ref={containerRef} style={{ position:'relative', border:`1px solid ${C.purple}22`, borderRadius:12, overflow:'hidden', background:'#0A0A16', direction:'rtl', fontFamily:'Rubik,inherit' }}>
+    // Outer wrapper — NO overflow:hidden so the layer panel can overflow freely
+    <div style={{ position:'relative', direction:'rtl', fontFamily:'Rubik,inherit' }}>
 
-      {/* ── Toolbar ── */}
-      <div style={{ display:'flex', gap:8, alignItems:'center', padding:'8px 12px', background: isDark ? 'rgba(11,11,20,.95)' : 'rgba(240,237,230,.97)', borderBottom:`1px solid ${C.purple}18`, flexWrap:'wrap' }}>
+      {/* ── Clipped inner: toolbar + map + loading overlay ── */}
+      <div ref={containerRef} style={{ position:'relative', border:`1px solid ${C.purple}22`, borderRadius:12, overflow:'hidden', background:'#0A0A16' }}>
 
-        <div style={{ display:'flex', alignItems:'center', gap:5, flexShrink:0, flexWrap:'wrap' }}>
-          <span style={{ fontSize:11, color:`${C.cream}66`, fontWeight:600 }}>גוש</span>
-          <input value={gushVal} onChange={e=>setGushVal(e.target.value)} placeholder="6443" style={inputSt}
-            onKeyDown={e=>e.key==='Enter'&&handleSearch()}/>
-          <span style={{ fontSize:11, color:`${C.cream}66`, fontWeight:600 }}>חלקה</span>
-          <input value={helkaVal} onChange={e=>setHelkaVal(e.target.value)} placeholder="276" style={inputSt}
-            onKeyDown={e=>e.key==='Enter'&&handleSearch()}/>
-          <span style={{ fontSize:11, color:`${C.cream}66`, fontWeight:600 }}>תת</span>
-          <input value={subHelkaVal} onChange={e=>setSubHelkaVal(e.target.value)} placeholder="0" style={{ ...inputSt, width:46 }}
-            onKeyDown={e=>e.key==='Enter'&&handleSearch()}/>
-          <button onClick={handleSearch} style={{ ...btnSt(false), padding:'6px 12px', background:C.purple, color:'#fff', border:'none' }}>חפש</button>
+        {/* ── Toolbar ── */}
+        <div style={{ display:'flex', gap:8, alignItems:'center', padding:'8px 12px', background: isDark ? 'rgba(11,11,20,.95)' : 'rgba(240,237,230,.97)', borderBottom:`1px solid ${C.purple}18`, flexWrap:'wrap' }}>
+
+          <div style={{ display:'flex', alignItems:'center', gap:5, flexShrink:0, flexWrap:'wrap' }}>
+            <span style={{ fontSize:11, color:`${C.cream}66`, fontWeight:600 }}>גוש</span>
+            <input value={gushVal} onChange={e=>setGushVal(e.target.value)} placeholder="6443" style={inputSt}
+              onKeyDown={e=>e.key==='Enter'&&handleSearch()}/>
+            <span style={{ fontSize:11, color:`${C.cream}66`, fontWeight:600 }}>חלקה</span>
+            <input value={helkaVal} onChange={e=>setHelkaVal(e.target.value)} placeholder="276" style={inputSt}
+              onKeyDown={e=>e.key==='Enter'&&handleSearch()}/>
+            <span style={{ fontSize:11, color:`${C.cream}66`, fontWeight:600 }}>תת</span>
+            <input value={subHelkaVal} onChange={e=>setSubHelkaVal(e.target.value)} placeholder="0" style={{ ...inputSt, width:46 }}
+              onKeyDown={e=>e.key==='Enter'&&handleSearch()}/>
+            <button onClick={handleSearch} disabled={!mapReady}
+              style={{ ...btnSt(false), padding:'6px 12px', background: searching ? `${C.purple}BB` : C.purple, color:'#fff', border:'none', minWidth:52, opacity: !mapReady ? .5 : 1 }}>
+              {searching ? '...' : 'חפש'}
+            </button>
+          </div>
+
+          <div style={{ width:1, height:20, background:`${C.purple}22`, flexShrink:0 }}/>
+
+          <div style={{ display:'flex', alignItems:'center', gap:5, flexShrink:0 }}>
+            <span style={{ fontSize:11, color:`${C.cream}66`, fontWeight:600 }}>רקע</span>
+            <select value={bg} onChange={e=>handleBg(e.target.value)}
+              style={{ ...inputSt, width:'auto', padding:'6px 10px', appearance:'none', cursor:'pointer', direction:'rtl', textAlign:'right' }}>
+              {BG_OPTIONS.map(o => <option key={o.v} value={o.v}>{o.label}</option>)}
+            </select>
+          </div>
+
+          <div style={{ width:1, height:20, background:`${C.purple}22`, flexShrink:0 }}/>
+
+          <button onClick={() => setShowPanel(p=>!p)} style={btnSt(showPanel)}>
+            שכבות {showPanel ? '▲' : '▼'}
+          </button>
+
+          <button onClick={toggleMeasure} style={btnSt(measuring)} title="כלי מדידה">
+            📐 מדידה
+          </button>
+
+          {error && (
+            <span style={{ fontSize:11, color:'#E05252', marginRight:'auto', cursor:'pointer' }}
+              onClick={() => { created.current = false; setMapReady(false); setError(''); loadGovMapScript(createMap) }}>
+              {error} — לחץ לנסות שוב
+            </span>
+          )}
         </div>
 
-        <div style={{ width:1, height:20, background:`${C.purple}22`, flexShrink:0 }}/>
+        {/* ── Map container — pointer-events disabled while layer panel is open ── */}
+        <div id={mapDivId} style={{ width:'100%', height: compact ? 340 : 480, pointerEvents: showPanel ? 'none' : 'auto' }}/>
 
-        <div style={{ display:'flex', alignItems:'center', gap:5, flexShrink:0 }}>
-          <span style={{ fontSize:11, color:`${C.cream}66`, fontWeight:600 }}>רקע</span>
-          <select value={bg} onChange={e=>handleBg(e.target.value)}
-            style={{ ...inputSt, width:'auto', padding:'6px 10px', appearance:'none', cursor:'pointer', direction:'rtl', textAlign:'right' }}>
-            {BG_OPTIONS.map(o => <option key={o.v} value={o.v}>{o.label}</option>)}
-          </select>
-        </div>
-
-        <div style={{ width:1, height:20, background:`${C.purple}22`, flexShrink:0 }}/>
-
-        <button onClick={() => setShowPanel(p=>!p)} style={btnSt(showPanel)}>
-          שכבות {showPanel ? '▲' : '▼'}
-        </button>
-
-        <button onClick={toggleMeasure} style={btnSt(measuring)} title="כלי מדידה">
-          📐 מדידה
-        </button>
-
-        {error && (
-          <span style={{ fontSize:11, color:'#E05252', marginRight:'auto', cursor:'pointer' }}
-            onClick={() => { created.current = false; setMapReady(false); setError(''); loadGovMapScript(createMap) }}>
-            {error} — לחץ לנסות שוב
-          </span>
+        {/* Loading overlay */}
+        {!mapReady && (
+          <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:12, background:'rgba(9,9,15,.88)', zIndex:5, color:`${C.cream}88` }}>
+            <div style={{ width:36, height:36, border:`3px solid ${C.purple}33`, borderTopColor:C.purple, borderRadius:'50%', animation:'spin 0.9s linear infinite' }}/>
+            <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+            <span style={{ fontSize:13 }}>טוען מפה…</span>
+            {gush && helka && (
+              <span style={{ fontSize:11, color:`${C.cream}55` }}>גוש {gush} · חלקה {helka}</span>
+            )}
+          </div>
         )}
       </div>
 
-      {/* ── Layer Panel ── */}
+      {/* ── Layer Panel — OUTSIDE overflow:hidden so it isn't clipped ── */}
       {showPanel && (
-        <div style={{ position:'absolute', top:44, right:0, zIndex:20, background:panelBg, backdropFilter:'blur(12px)', border:`1px solid ${C.purple}28`, borderRadius:'0 0 0 12px', padding:'14px 16px', minWidth:230, maxHeight:420, overflowY:'auto', boxShadow:'0 8px 32px rgba(0,0,0,.4)', direction:'rtl' }}>
+        <div ref={panelRef}
+          style={{ position:'absolute', top: toolbarHeight + 2, right:0, zIndex:50,
+            background:panelBg, backdropFilter:'blur(14px)',
+            border:`1px solid ${C.purple}28`, borderRadius:'0 0 0 12px',
+            padding:'14px 16px', minWidth:230, maxHeight:420, overflowY:'auto',
+            boxShadow:'0 8px 32px rgba(0,0,0,.5)', direction:'rtl' }}>
           <div style={{ fontSize:11, fontWeight:800, color:`${C.cream}55`, letterSpacing:'.07em', marginBottom:12, textTransform:'uppercase' }}>שכבות מידע</div>
           {LAYER_CATS.map(cat => {
             const catLayers = LAYERS_DEF.filter(l => l.cat === cat)
@@ -348,21 +395,6 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark,
           <div style={{ marginTop:8, paddingTop:8, borderTop:`1px solid ${C.purple}15`, fontSize:10, color:`${C.cream}33` }}>
             מקור: פורטל GovMap הממשלתי
           </div>
-        </div>
-      )}
-
-      {/* ── Map container ── */}
-      <div id={mapDivId} style={{ width:'100%', height: compact ? 340 : 480 }}/>
-
-      {/* Loading overlay — shown until map is ready */}
-      {!mapReady && (
-        <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:12, background:'rgba(9,9,15,.88)', zIndex:5, color:`${C.cream}88` }}>
-          <div style={{ width:36, height:36, border:`3px solid ${C.purple}33`, borderTopColor:C.purple, borderRadius:'50%', animation:'spin 0.9s linear infinite' }}/>
-          <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-          <span style={{ fontSize:13 }}>טוען מפה…</span>
-          {gush && helka && (
-            <span style={{ fontSize:11, color:`${C.cream}55` }}>גוש {gush} · חלקה {helka}</span>
-          )}
         </div>
       )}
     </div>
