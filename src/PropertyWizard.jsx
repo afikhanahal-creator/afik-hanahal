@@ -137,7 +137,7 @@ const INIT = {
   txType: 'sale', propType: '', category: '',
   city: '', street: '', houseNum: '', floor: '', totalFloors: '',
   onPilotis: false, neighborhood: '', area: '', district: '',
-  rooms: '', bathrooms: 1, parking: 0, balconies: 0,
+  rooms: '', bathrooms: 0, parking: 0, balconies: 0,
   size: '', sqmBuilt: '', condition: '', directions: '', view: '',
   amenities: {},
   price: '', priceOnInquiry: false, entryDate: '', entryFlex: false,
@@ -185,7 +185,7 @@ export function propertyToWizardData(prop) {
     area: prop.region || '',
     district: prop.district || '',
     rooms: prop.rooms || '',
-    bathrooms: prop.bathrooms || 1,
+    bathrooms: prop.bathrooms ?? 0,
     parking: prop.parkingCount || (prop.parking ? 1 : 0),
     balconies: prop.balconies || 0,
     size: prop.size || '',
@@ -924,7 +924,7 @@ function Step3({ d, upd }) {
             <option key={r} value={r} style={{ background: '#0c0820', color: TEXT }}>{r} חדרים</option>
           ))}
         </Select>
-        <Counter label="חדרי מקלחת" value={d.bathrooms} min={1} max={8} onChange={v => upd('bathrooms', v)} />
+        <Counter label="חדרי מקלחת" value={d.bathrooms} min={0} max={8} onChange={v => upd('bathrooms', v)} />
         <Counter label="חניות" value={d.parking} min={0} max={5} onChange={v => upd('parking', v)} />
         <Counter label="מרפסות" value={d.balconies} min={0} max={5} onChange={v => upd('balconies', v)} />
         <Input label='גודל הנכס במ"ר' req value={d.size} placeholder="לדוג׳: 85"
