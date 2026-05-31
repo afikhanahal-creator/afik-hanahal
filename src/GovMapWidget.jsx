@@ -3,25 +3,41 @@ import { useState, useEffect, useRef, useCallback, useId } from 'react'
 const SCRIPT_URL = 'https://www.govmap.gov.il/govmap/api/govmap.api.js'
 
 export const LAYERS_DEF = [
-  // מגרשים וחלקות
-  { id:'PARCEL_ALL',       label:'חלקות',              on:true,  color:'#4B8CE8', cat:'מגרשים' },
-  { id:'PARCEL_HOKS',      label:'גושים',               on:true,  color:'#334',    cat:'מגרשים' },
-  { id:'KSHTANN_ASSETS',   label:'נכסי רמ"י',           on:false, color:'#8490D8', cat:'מגרשים' },
+  // מגרשים וחלקות — property-focused layers (on by default)
+  { id:'PARCEL_ALL',         label:'חלקות',                on:true,  color:'#4B8CE8', cat:'מגרשים' },
+  { id:'PARCEL_HOKS',        label:'גושים',                on:true,  color:'#334488', cat:'מגרשים' },
+  { id:'KSHTANN_ASSETS',     label:'נכסי רמ"י',            on:false, color:'#8490D8', cat:'מגרשים' },
+  { id:'OWNERSHIP_TYPE',     label:'סוג בעלות בחלקות',    on:false, color:'#C97B3E', cat:'מגרשים' },
   // תכנון ובנייה
-  { id:'TABA_DEST',        label:'ייעוד קרקע',          on:true,  color:'#E84B4B', cat:'תכנון' },
-  { id:'PLAN_INFO',        label:'תכניות בניין עיר',    on:false, color:'#F7A348', cat:'תכנון' },
-  { id:'TAMA38',           label:'תמ"א 38',             on:false, color:'#A25DDC', cat:'תכנון' },
-  { id:'BUILDING_PERMITS', label:'היתרי בנייה',          on:false, color:'#00C875', cat:'תכנון' },
+  { id:'TABA_DEST',          label:'ייעוד קרקע',           on:true,  color:'#E84B4B', cat:'תכנון' },
+  { id:'PLAN_INFO',          label:'תכניות בניין עיר',     on:false, color:'#F7A348', cat:'תכנון' },
+  { id:'TAMA38',             label:'תמ"א 38',              on:false, color:'#A25DDC', cat:'תכנון' },
+  { id:'BUILDING_PERMITS',   label:'היתרי בנייה',           on:false, color:'#00C875', cat:'תכנון' },
+  { id:'PLAN_ROAD',          label:'תכניות דרכים',         on:false, color:'#F0965A', cat:'תכנון' },
+  // נדל"ן
+  { id:'REAL_ESTATE',        label:'עסקאות נדל"ן',         on:false, color:'#FF6B35', cat:'נדל"ן' },
+  // גבולות מינהל
+  { id:'NATBDR',             label:'גבולות מינהליים',       on:false, color:'#E2445C', cat:'גבולות' },
+  { id:'MUNICIPALITIES',     label:'רשויות מקומיות',        on:false, color:'#F96854', cat:'גבולות' },
+  { id:'LOCAL_COMMITTEES',   label:'ועדות מקומיות',         on:false, color:'#FF7575', cat:'גבולות' },
+  { id:'NEIGHBORHOODS',      label:'שכונות',                on:false, color:'#FFD700', cat:'גבולות' },
+  { id:'STATISTICAL_AREAS',  label:'אזורים סטטיסטיים',     on:false, color:'#98D8C8', cat:'גבולות' },
   // מגבלות
-  { id:'ARCHEOLOGY',       label:'אתרים ארכיאולוגיים',  on:false, color:'#C4A35A', cat:'מגבלות' },
-  { id:'NATBDR',           label:'גבולות מינהליים',      on:false, color:'#E2445C', cat:'מגבלות' },
+  { id:'ARCHEOLOGY',         label:'אתרים ארכיאולוגיים',   on:false, color:'#C4A35A', cat:'מגבלות' },
+  { id:'NATURE_RESERVES',    label:'שמורות טבע',            on:false, color:'#6DBF67', cat:'מגבלות' },
+  { id:'FOREST',             label:'יערות',                 on:false, color:'#2E8B57', cat:'מגבלות' },
   // תשתיות וסביבה
-  { id:'bus_stops',        label:'תחנות אוטובוס',       on:false, color:'#82F67F', cat:'סביבה' },
-  { id:'TRAIN_LINES',      label:'קווי רכבת',           on:false, color:'#0073EA', cat:'סביבה' },
-  { id:'GASSTATIONS',      label:'תחנות דלק',           on:false, color:'#F7C948', cat:'סביבה' },
-  { id:'SCHOOL_AREAS',     label:'אזורי בתי ספר',       on:false, color:'#03C9D7', cat:'סביבה' },
+  { id:'bus_stops',          label:'תחנות אוטובוס',        on:false, color:'#82F67F', cat:'סביבה' },
+  { id:'TRAIN_LINES',        label:'קווי רכבת',            on:false, color:'#0073EA', cat:'סביבה' },
+  { id:'GASSTATIONS',        label:'תחנות דלק',            on:false, color:'#F7C948', cat:'סביבה' },
+  { id:'SCHOOL_AREAS',       label:'אזורי בתי ספר',        on:false, color:'#03C9D7', cat:'סביבה' },
+  { id:'SCHOOLS',            label:'בתי ספר',              on:false, color:'#A8D8EA', cat:'סביבה' },
+  { id:'KINDERGARTENS',      label:'גני ילדים',            on:false, color:'#FF9EC4', cat:'סביבה' },
+  { id:'SHELTERS',           label:'מקלטים',               on:false, color:'#B5EAD7', cat:'סביבה' },
+  { id:'HOSPITALS',          label:'בתי חולים',            on:false, color:'#FF6B8A', cat:'סביבה' },
+  { id:'PARKS',              label:'פארקים וגנים',         on:false, color:'#77DD77', cat:'סביבה' },
 ]
-const LAYER_CATS = ['מגרשים', 'תכנון', 'מגבלות', 'סביבה']
+const LAYER_CATS = ['מגרשים', 'תכנון', 'נדל"ן', 'גבולות', 'מגבלות', 'סביבה']
 
 export const LAYER_CATS_DEF = LAYER_CATS
 
@@ -51,22 +67,21 @@ function loadGovMapScript(cb) {
 }
 
 // ── Zoom to exact gush + helka ─────────────────────────────────────────────
-// Called from both the onLoad callback (primary) and a fallback schedule.
-// locateType.addressToLotParcel = 3 in the govmap API; we also include a
-// numeric fallback so the call works even if locateType isn't populated yet.
-function makeZoomer(gush, helka) {
-  const lot    = Number(gush)
-  const parcel = Number(helka)
+// GovMap API: type 1 = lotAndParcel (גוש/חלקה). `lot` = גוש, `parcel` = חלקה.
+function makeZoomer(gush, helka, subHelka) {
+  const lot       = Number(gush)
+  const parcel    = Number(helka)
+  const subParcel = subHelka ? Number(subHelka) : 0
   let done = false
 
   return function tryZoom() {
     if (done || !window.govmap?.searchAndLocate) return
     try {
       window.govmap.searchAndLocate({
-        type:      window.govmap.locateType?.addressToLotParcel ?? 3,
+        type:      window.govmap.locateType?.lotAndParcel ?? 1,
         lot,
         parcel,
-        zoomLevel: 7,   // 1:1,000 — shows the parcel clearly
+        subParcel,
       })
       done = true
     } catch {}
@@ -107,7 +122,7 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark,
     created.current = true
 
     // Build a zoomer bound to the CURRENT gush/helka values
-    const tryZoom = (gush && helka) ? makeZoomer(gush, helka) : null
+    const tryZoom = (gush && helka) ? makeZoomer(gush, helka, subHelka) : null
     zoomerRef.current = tryZoom
 
     try {
@@ -146,11 +161,10 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark,
 
   function handleSearch() {
     if (!gushVal || !helkaVal) return
-    const zoom = makeZoomer(gushVal, helkaVal)
+    const zoom = makeZoomer(gushVal, helkaVal, subHelkaVal)
     zoom()
-    // Retry a couple more times in case the map is still loading
-    setTimeout(zoom, 1500)
-    setTimeout(zoom, 4000)
+    setTimeout(zoom, 1200)
+    setTimeout(zoom, 3500)
   }
 
   function toggleLayer(id) {
