@@ -2009,7 +2009,12 @@ function ServicesSection({ onContact }) {
 }
 
 // ─── CONTACT MODAL ────────────────────────────────────────────────────────────
-const LEADS_STORE    = 'afik_leads_v1'
+const LEADS_STORE      = 'afik_leads_v1'
+const DELETED_IDS_KEY  = 'afik_deleted_lead_ids'
+const getDeletedIds    = () => { try { return new Set(JSON.parse(localStorage.getItem(DELETED_IDS_KEY) || '[]')) } catch { return new Set() } }
+const persistDeletedId = id => { try { const s = getDeletedIds(); s.add(String(id)); localStorage.setItem(DELETED_IDS_KEY, JSON.stringify([...s])) } catch {} }
+const clearDeletedId   = id => { try { const s = getDeletedIds(); s.delete(String(id)); localStorage.setItem(DELETED_IDS_KEY, JSON.stringify([...s])) } catch {} }
+const clearAllDeletedIds = ()  => { try { localStorage.removeItem(DELETED_IDS_KEY) } catch {} }
 const WA_KEY         = 'afik_wa_settings'
 const ANALYTICS_KEY  = 'afik_analytics_v2'
 const WA_DEFAULT_TEMPLATE = `היי {name},
@@ -3779,12 +3784,26 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
       .then(r => r.ok ? r.json() : Promise.reject())
       .then(serverLeads => {
         if (!Array.isArray(serverLeads)) return
-        // Server is the source of truth — replace local list entirely
-        // Preserve local-only enrichment data by merging from existing state
+
+        // Retry any deletes that failed when Render was sleeping
+        const deletedIds = getDeletedIds()
+        deletedIds.forEach(id => {
+          if (serverLeads.some(s => String(s.id) === id)) {
+            fetch(`${base}/api/contacts/${id}`, {
+              method: 'DELETE', headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
+            }).then(r => { if (r.ok) clearDeletedId(id) }).catch(() => {})
+          } else {
+            clearDeletedId(id) // already gone from server
+          }
+        })
+
         setLeads(prev => {
           const localById = new Map(prev.map(l => [String(l.id), l]))
-          // Never restore leads that are mid-delete (avoid flicker when server is slow)
-          const fromServer = serverLeads.filter(s => !pendingDeletes.current.has(String(s.id))).map(s => {
+          const freshDeletedIds = getDeletedIds()
+          // Never restore leads that are mid-delete OR persisted as deleted across page refreshes
+          const fromServer = serverLeads.filter(s =>
+            !pendingDeletes.current.has(String(s.id)) && !freshDeletedIds.has(String(s.id))
+          ).map(s => {
             const local = localById.get(String(s.id)) || {}
             return {
               id: String(s.id),
@@ -4370,25 +4389,28 @@ Return ONLY valid JSON (no markdown, no code blocks):
   }
 
   const deleteLead = id => {
-    pendingDeletes.current.add(String(id))
+    const sid = String(id)
+    pendingDeletes.current.add(sid)
+    persistDeletedId(sid) // survives page refresh — retry DELETE on next sync
     const next = leads.filter(l => l.id !== id)
     setLeads(next)
     if (selectedLead?.id === id) setSelectedLead(null)
     try { localStorage.setItem(LEADS_STORE, JSON.stringify(next)) } catch {}
     if (API_BASE) fetch(`${API_BASE}/api/contacts/${id}`, {
       method: 'DELETE', headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
-    }).then(r => { if (r.ok) pendingDeletes.current.delete(String(id)) })
-      .catch(() => {}) // stays in pendingDeletes → won't be restored by sync
+    }).then(r => {
+      if (r.ok) { pendingDeletes.current.delete(sid); clearDeletedId(sid) }
+    }).catch(() => {}) // stays in pendingDeletes + localStorage → retried on next sync
   }
   const clearLeads = () => {
     if (!window.confirm('למחוק את כל הלידים לצמיתות?')) return
-    leads.forEach(l => pendingDeletes.current.add(String(l.id)))
+    leads.forEach(l => { pendingDeletes.current.add(String(l.id)); persistDeletedId(String(l.id)) })
     setLeads([])
     setSelectedLead(null)
     try { localStorage.setItem(LEADS_STORE, '[]') } catch {}
     if (API_BASE) fetch(`${API_BASE}/api/contacts`, {
       method: 'DELETE', headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
-    }).then(r => { if (r.ok) pendingDeletes.current.clear() })
+    }).then(r => { if (r.ok) { pendingDeletes.current.clear(); clearAllDeletedIds() } })
       .catch(() => {})
   }
   const exportCSV = () => {

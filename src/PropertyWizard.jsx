@@ -148,6 +148,7 @@ const INIT = {
   logo: '',
   logoSize: 72,
   pdfs: [],  // [{name, url}] — uploaded project PDFs
+  publishMode: 'publish', // 'publish' | 'draft'
 }
 
 const parsePrice = raw => raw.replace(/[^\d]/g,'').replace(/\B(?=(\d{3})+(?!\d))/g,',')
@@ -770,6 +771,33 @@ function Step1({ d, upd }) {
           onFocus={e => e.target.style.borderColor = P}
           onBlur={e  => e.target.style.borderColor = BORDER} />
       </Field>
+
+      {/* Publish mode */}
+      <div style={{ marginTop: 28, paddingTop: 20, borderTop: `1px solid ${BORDER}` }}>
+        <div style={{ fontSize: 11, color: MUTED, marginBottom: 12, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase' }}>
+          פרסום נכס
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          {[
+            { v: 'publish', icon: FaGlobe, label: 'פרסם מיידית', desc: 'הנכס יופיע באתר מיד עם השמירה' },
+            { v: 'draft',   icon: FaSave,  label: 'שמור כטיוטה',  desc: 'הנכס יישמר בלבד, ללא פרסום עדיין' },
+          ].map(o => {
+            const on = d.publishMode === o.v
+            return (
+              <button key={o.v} onClick={() => upd('publishMode', o.v)}
+                style={{ padding: '16px 12px', borderRadius: 14,
+                  border: `2px solid ${on ? (o.v === 'publish' ? P : '#F7C948') : BORDER}`,
+                  background: on ? (o.v === 'publish' ? P + '18' : '#F7C94812') : DARK,
+                  color: on ? (o.v === 'publish' ? P : '#F7C948') : TEXT,
+                  cursor: 'pointer', transition: 'all .2s', textAlign: 'center', fontFamily: FONT }}>
+                <o.icon size={20} style={{ marginBottom: 8, display: 'block', margin: '0 auto 8px' }} />
+                <div style={{ fontSize: 14, fontWeight: 800 }}>{o.label}</div>
+                <div style={{ fontSize: 11.5, color: MUTED, marginTop: 4, lineHeight: 1.4 }}>{o.desc}</div>
+              </button>
+            )
+          })}
+        </div>
+      </div>
     </div>
   )
 }
@@ -1887,7 +1915,11 @@ export default function PropertyWizard({ onClose, onPublish, initialData, editId
     return true
   }
 
-  const handleFinish = () => setShowPublishModal(true)
+  const handleFinish = () => {
+    // If user chose draft in Step 1, skip the modal and save directly
+    if (data.publishMode === 'draft') { handlePublish(true); return }
+    setShowPublishModal(true)
+  }
 
   const handlePublish = (isDraft) => {
     setShowPublishModal(false)
