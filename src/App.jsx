@@ -7498,17 +7498,14 @@ function toMapsEmbed(url) {
   return null
 }
 
-// Transform image URL: WebP + resize via Supabase Storage render API or Cloudinary.
+// Transform image URL: Cloudinary quality/format optimisation.
+// Supabase Storage URLs are returned as-is — Image Transformations require Pro plan.
 // base64 data URLs returned as-is (legacy images uploaded before cloud storage).
 function cloudImg(url, width = 1200) {
   if (!url || url.startsWith('data:')) return url
 
-  // Supabase Storage → use render/image endpoint for WebP + resize
-  if (url.includes('.supabase.co/storage/v1/object/public/')) {
-    const transformed = url.replace('/storage/v1/object/public/', '/storage/v1/render/image/public/')
-    const sep = transformed.includes('?') ? '&' : '?'
-    return `${transformed}${sep}width=${width}&quality=80&format=webp`
-  }
+  // Supabase Storage — serve original URL (render/image endpoint = Pro plan only)
+  if (url.includes('.supabase.co/storage/')) return url
 
   // Cloudinary → add quality + format-auto params
   if (url.includes('cloudinary.com') && url.includes('/image/upload/')) {
