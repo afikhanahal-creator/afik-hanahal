@@ -74,15 +74,16 @@ export function preloadGovMapScript() {
 }
 
 // ── Zoom helper ────────────────────────────────────────────────────────────────
-// GovMap's createMap is asynchronous — searchAndLocate only becomes callable
-// after the internal iframe finishes loading (can take 2–8 s on first paint).
+// Verified against GovMap iframe source (index-892f07a9.js):
+//   handler uses LocateType.addressToLotParcel (= 1)
+//   with params:  { type:1, lot:<gush>, parcel:<helka>, subParcel }
+//   internally calls: search("block {lot} parcel {parcel}", ..., "parcel")
 // We use .call(gm,…) so `this` is always the govmap instance.
-// GovMap API: block/parcel lookup uses `block` (not `lot`) + locateType.Block = 2.
 function makeZoomer(gush, helka, subHelka) {
-  const block     = Number(gush)
+  const lot       = Number(gush)
   const parcel    = Number(helka)
   const subParcel = subHelka ? Number(subHelka) : 0
-  if (!block || !parcel) return null
+  if (!lot || !parcel) return null
 
   return function tryZoom() {
     const gm = window.govmap
@@ -91,8 +92,8 @@ function makeZoomer(gush, helka, subHelka) {
     if (typeof fn !== 'function') return
     try {
       fn.call(gm, {
-        type:     gm.locateType?.Block ?? gm.locateType?.block ?? 2,
-        block,
+        type:     gm.locateType?.addressToLotParcel ?? 1,
+        lot,
         parcel,
         subParcel,
       })
