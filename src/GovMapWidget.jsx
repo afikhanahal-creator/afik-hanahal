@@ -90,8 +90,10 @@ function makeZoomer(gush, helka, subHelka) {
 
 export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark,
                                        compact = false, defaultLayers, defaultBg }) {
-  const uid      = useId().replace(/:/g, '')
-  const mapDivId = `gm_${uid}`
+  const uid         = useId().replace(/:/g, '')
+  const mapDivId    = `gm_${uid}`
+  const containerRef = useRef(null)
+  const [inView, setInView] = useState(false) // deferred until widget scrolls into viewport
 
   // Layers: prefer prop > hardcoded defaults (no localStorage)
   const [layers, setLayers] = useState(() => {
@@ -109,6 +111,17 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark,
   const [measuring,   setMeasuring]   = useState(false)
   const created = useRef(false)
   const zoomerRef = useRef(null)
+
+  // ── Lazy-load: only initialise the GovMap SDK when widget enters viewport ──
+  useEffect(() => {
+    if (!containerRef.current) return
+    const obs = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) setInView(true) },
+      { rootMargin: '300px' } // pre-load 300 px before the widget is visible
+    )
+    obs.observe(containerRef.current)
+    return () => obs.disconnect()
+  }, [])
 
   // Sync search fields if parent swaps to a different property
   useEffect(() => { setGushVal(gush    || '') }, [gush])
@@ -154,10 +167,11 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark,
     }
   }, [mapDivId, token, bg, gush, helka, layers])
 
+  // Only load the GovMap script once the widget is in the viewport
   useEffect(() => {
-    if (!token) return
+    if (!token || !inView) return
     loadGovMapScript(createMap)
-  }, [token, createMap])
+  }, [token, inView, createMap])
 
   function handleSearch() {
     if (!gushVal || !helkaVal) return
@@ -209,8 +223,24 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark,
     )
   }
 
+  // Skeleton shown before the widget enters viewport (no SDK loaded yet)
+  if (!inView) {
+    return (
+      <div ref={containerRef} style={{ position:'relative', border:`1px solid ${C.purple}15`, borderRadius:12, overflow:'hidden', background: isDark ? '#0A0A16' : '#F5F4F0', height: compact ? 340 : 480, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:12, direction:'rtl', fontFamily:'Rubik,inherit' }}>
+        <div style={{ width:48, height:48, borderRadius:'50%', background:`${C.purple}18`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+          <span style={{ fontSize:24 }}>🗺️</span>
+        </div>
+        <div style={{ fontSize:14, fontWeight:700, color:`${C.cream}66` }}>מפת גוש/חלקה</div>
+        <div style={{ fontSize:12, color:`${C.cream}33` }}>המפה תיטען בעת גלילה לאזור זה</div>
+        {/* Shimmer effect */}
+        <style>{`@keyframes shimmer{0%{opacity:.4}50%{opacity:.8}100%{opacity:.4}}`}</style>
+        <div style={{ position:'absolute', inset:0, background:`linear-gradient(135deg,${C.purple}05,${C.purple}0A,${C.purple}05)`, animation:'shimmer 2s ease-in-out infinite' }}/>
+      </div>
+    )
+  }
+
   return (
-    <div style={{ position:'relative', border:`1px solid ${C.purple}22`, borderRadius:12, overflow:'hidden', background:'#0A0A16', direction:'rtl', fontFamily:'Rubik,inherit' }}>
+    <div ref={containerRef} style={{ position:'relative', border:`1px solid ${C.purple}22`, borderRadius:12, overflow:'hidden', background:'#0A0A16', direction:'rtl', fontFamily:'Rubik,inherit' }}>
 
       {/* ── Toolbar ── */}
       <div style={{ display:'flex', gap:8, alignItems:'center', padding:'8px 12px', background: isDark ? 'rgba(11,11,20,.95)' : 'rgba(240,237,230,.97)', borderBottom:`1px solid ${C.purple}18`, flexWrap:'wrap' }}>

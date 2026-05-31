@@ -7476,11 +7476,29 @@ function toMapsEmbed(url) {
   return null
 }
 
-function cloudImg(url) {
-  if (!url || !url.includes('cloudinary.com') || !url.includes('/image/upload/')) return url
-  if (/\/(?:q_auto|q_\d|f_auto|fl_progressive)/.test(url)) return url
-  return url.replace('/image/upload/', '/image/upload/q_auto:best,f_auto/')
+// Transform image URL: WebP + resize via Supabase Storage render API or Cloudinary.
+// base64 data URLs returned as-is (legacy images uploaded before cloud storage).
+function cloudImg(url, width = 1200) {
+  if (!url || url.startsWith('data:')) return url
+
+  // Supabase Storage → use render/image endpoint for WebP + resize
+  if (url.includes('.supabase.co/storage/v1/object/public/')) {
+    const transformed = url.replace('/storage/v1/object/public/', '/storage/v1/render/image/public/')
+    const sep = transformed.includes('?') ? '&' : '?'
+    return `${transformed}${sep}width=${width}&quality=80&format=webp`
+  }
+
+  // Cloudinary → add quality + format-auto params
+  if (url.includes('cloudinary.com') && url.includes('/image/upload/')) {
+    if (/\/(?:q_auto|q_\d|f_auto|fl_progressive)/.test(url)) return url
+    return url.replace('/image/upload/', `/image/upload/w_${width},q_auto:good,f_auto/`)
+  }
+
+  return url
 }
+
+// Small thumbnail — card cover images (saves 60–80 % bandwidth vs full size)
+function thumbImg(url) { return cloudImg(url, 600) }
 
 function getVideoThumbnail(url, thumbnail) {
   if (thumbnail) return thumbnail
@@ -8195,7 +8213,8 @@ function PropertyCard({ prop, onContact, onSelect }) {
   const [hovered, setHovered] = useState(false)
   const [failedImgs, setFailedImgs] = useState(new Set())
   const isTouchDevice = useRef(typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0)).current
-  const validImages = (prop.images || []).filter(u => u && typeof u === 'string' && u.length > 4).map(cloudImg)
+  // Cards use thumbnail-size images (600px wide) — 60-80% bandwidth saving
+  const validImages = (prop.images || []).filter(u => u && typeof u === 'string' && u.length > 4).map(thumbImg)
   const cat = CATEGORIES.find(c => c.id === prop.category) || CATEGORIES[1]
   const sc = { 'זמין':C.green, 'בבדיקה':'#F7C948', 'נמכר':'#E05252', 'הושכר':'#F97316' }[prop.status] || C.green
 
