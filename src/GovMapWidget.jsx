@@ -49,7 +49,7 @@ export const BG_OPTIONS = [
   { v:'3', label:'CIR' },
 ]
 
-// Singleton state machine — prevents loading the govmap bundle more than once
+// ── Script singleton ───────────────────────────────────────────────────────────
 let scriptState = 'idle' // 'idle' | 'loading' | 'ready' | 'error'
 const scriptCallbacks = []
 
@@ -61,41 +61,55 @@ function loadGovMapScript(cb) {
   scriptState = 'loading'
   const s = document.createElement('script')
   s.src = SCRIPT_URL
+  s.async = true
   s.onload  = () => { scriptState = 'ready'; scriptCallbacks.splice(0).forEach(fn => fn()) }
-  s.onerror = () => { scriptState = 'error'; scriptCallbacks.splice(0) }
+  s.onerror = () => { scriptState = 'error';  scriptCallbacks.splice(0) }
   document.head.appendChild(s)
 }
 
-// ── Zoom to exact gush + helka ─────────────────────────────────────────────
-// GovMap API: type 1 = lotAndParcel (גוש/חלקה). `lot` = גוש, `parcel` = חלקה.
+// Start downloading the SDK as soon as a token is known — before the widget
+// scrolls into view. Hides the download latency inside the scroll window.
+export function preloadGovMapScript() {
+  if (scriptState === 'idle') loadGovMapScript(() => {})
+}
+
+// ── Zoom helper ────────────────────────────────────────────────────────────────
+// Returns a tryZoom function that calls searchAndLocate without a "done" flag.
+// GovMap's API is asynchronous internally; we schedule several retries and each
+// one is a no-op if the API isn't ready yet. No single-shot guard.
 function makeZoomer(gush, helka, subHelka) {
   const lot       = Number(gush)
   const parcel    = Number(helka)
   const subParcel = subHelka ? Number(subHelka) : 0
-  let done = false
+  if (!lot || !parcel) return null
 
   return function tryZoom() {
-    if (done || !window.govmap?.searchAndLocate) return
+    if (!window.govmap?.searchAndLocate) return
     try {
       window.govmap.searchAndLocate({
-        type:      window.govmap.locateType?.lotAndParcel ?? 1,
+        type:     window.govmap.locateType?.lotAndParcel ?? 1,
         lot,
         parcel,
         subParcel,
       })
-      done = true
     } catch {}
   }
 }
 
+// ── Component ─────────────────────────────────────────────────────────────────
 export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark,
                                        compact = false, defaultLayers, defaultBg }) {
-  const uid         = useId().replace(/:/g, '')
-  const mapDivId    = `gm_${uid}`
-  const containerRef = useRef(null)
-  const [inView, setInView] = useState(false) // deferred until widget scrolls into viewport
+  const uid      = useId().replace(/:/g, '')
+  const mapDivId = `gm_${uid}`
 
-  // Layers: prefer prop > hardcoded defaults (no localStorage)
+  const containerRef = useRef(null)
+  const created      = useRef(false)
+  const zoomTimers   = useRef([])          // all pending setTimeout handles
+  const [inView,    setInView]    = useState(false)
+  const [mapReady,  setMapReady]  = useState(false)
+  const [error,     setError]     = useState('')
+  const [measuring, setMeasuring] = useState(false)
+
   const [layers, setLayers] = useState(() => {
     if (defaultLayers && typeof defaultLayers === 'object')
       return Object.fromEntries(LAYERS_DEF.map(l => [l.id, defaultLayers[l.id] ?? l.on]))
@@ -106,37 +120,56 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark,
   const [helkaVal,    setHelkaVal]    = useState(helka   || '')
   const [subHelkaVal, setSubHelkaVal] = useState(subHelka || '')
   const [showPanel,   setShowPanel]   = useState(false)
-  const [mapReady,    setMapReady]    = useState(false)
-  const [error,       setError]       = useState('')
-  const [measuring,   setMeasuring]   = useState(false)
-  const created = useRef(false)
-  const zoomerRef = useRef(null)
 
-  // ── Lazy-load: only initialise the GovMap SDK when widget enters viewport ──
+  // ── Cleanup all pending timers on unmount ──────────────────────────────────
+  useEffect(() => () => { zoomTimers.current.forEach(clearTimeout) }, [])
+
+  // ── Helper: schedule aggressive zoom retries ───────────────────────────────
+  // GovMap's createMap is async; tiles may need several seconds to initialise.
+  // Without a reliable onLoad/ready event we simply retry at short intervals.
+  // Retries stop naturally after ~12 s — the user has panned by then.
+  function scheduleZoom(zoom, delaysMs = [0, 400, 1000, 2000, 3500, 6000, 10000, 15000]) {
+    zoomTimers.current.forEach(clearTimeout)
+    zoomTimers.current = delaysMs.map(ms => setTimeout(zoom, ms))
+  }
+
+  // ── Preload SDK as soon as token is known ──────────────────────────────────
+  useEffect(() => {
+    if (token) preloadGovMapScript()
+  }, [token])
+
+  // ── IntersectionObserver: defer actual map creation until visible ──────────
   useEffect(() => {
     if (!containerRef.current) return
     const obs = new IntersectionObserver(
       ([entry]) => { if (entry.isIntersecting) setInView(true) },
-      { rootMargin: '300px' } // pre-load 300 px before the widget is visible
+      { rootMargin: '200px' }
     )
     obs.observe(containerRef.current)
     return () => obs.disconnect()
   }, [])
 
-  // Sync search fields if parent swaps to a different property
+  // Sync search fields when parent swaps to a different property
   useEffect(() => { setGushVal(gush    || '') }, [gush])
   useEffect(() => { setHelkaVal(helka  || '') }, [helka])
   useEffect(() => { setSubHelkaVal(subHelka || '') }, [subHelka])
 
+  // ── Re-zoom when gush/helka props change (switching between properties) ────
+  useEffect(() => {
+    if (!created.current) return      // map not yet created — initial zoom handled by createMap
+    const zoom = makeZoomer(gush, helka, subHelka)
+    if (!zoom) return
+    scheduleZoom(zoom, [0, 500, 1500, 3000])
+  }, [gush, helka, subHelka]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Create the map ─────────────────────────────────────────────────────────
   const createMap = useCallback(() => {
     if (created.current || !window.govmap) return
     const el = document.getElementById(mapDivId)
     if (!el) return
     created.current = true
 
-    // Build a zoomer bound to the CURRENT gush/helka values
-    const tryZoom = (gush && helka) ? makeZoomer(gush, helka, subHelka) : null
-    zoomerRef.current = tryZoom
+    const zoom = (gush && helka) ? makeZoomer(gush, helka, subHelka) : null
 
     try {
       const activeLayers = LAYERS_DEF.filter(l => layers[l.id]).map(l => l.id)
@@ -146,39 +179,34 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark,
         showXY:           false,
         identifyOnClick:  true,
         isEmbeddedToggle: false,
-        background:       bg,
+        background:       Number(bg),
         layersMode:       1,
         zoomButtons:      true,
-        // onLoad fires once the map tiles are ready — most reliable zoom trigger
-        ...(tryZoom && { onLoad: () => { setMapReady(true); tryZoom() } }),
       })
-
-      // If the API doesn't support onLoad, setMapReady here as fallback
       setMapReady(true)
       setError('')
 
-      // Backup schedule: fires if onLoad didn't trigger or fired too early
-      if (tryZoom) {
-        [800, 2500, 5000, 9000, 15000].forEach(ms => setTimeout(tryZoom, ms))
-      }
+      // Aggressive retry schedule — GovMap tiles take 2–5 s to initialise.
+      // No "done" flag: each call is safe to repeat; retries stop after ~15 s.
+      if (zoom) scheduleZoom(zoom)
     } catch {
-      setError('שגיאה ביצירת המפה. ודא שמפתח ה-API תקין ורשום לדומיין זה.')
+      setError('שגיאה ביצירת המפה. ודא שמפתח ה-API תקין.')
       created.current = false
     }
-  }, [mapDivId, token, bg, gush, helka, layers])
+  }, [mapDivId, token, bg, gush, helka, subHelka, layers]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Only load the GovMap script once the widget is in the viewport
+  // ── Load SDK + create map once in view ────────────────────────────────────
   useEffect(() => {
     if (!token || !inView) return
     loadGovMapScript(createMap)
   }, [token, inView, createMap])
 
+  // ── Manual gush/helka search ───────────────────────────────────────────────
   function handleSearch() {
     if (!gushVal || !helkaVal) return
     const zoom = makeZoomer(gushVal, helkaVal, subHelkaVal)
-    zoom()
-    setTimeout(zoom, 1200)
-    setTimeout(zoom, 3500)
+    if (!zoom) return
+    scheduleZoom(zoom, [0, 600, 1800])
   }
 
   function toggleLayer(id) {
@@ -203,11 +231,13 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark,
     else           { window.govmap.showMeasure();  setMeasuring(true)  }
   }
 
+  // ── Styles ─────────────────────────────────────────────────────────────────
   const panelBg = isDark ? 'rgba(9,9,15,.97)' : 'rgba(248,247,243,.97)'
   const border  = `1px solid ${C.purple}28`
   const inputSt = { padding:'6px 10px', background: isDark ? 'rgba(255,255,255,.06)' : '#fff', border, borderRadius:6, color:C.cream, fontSize:12, fontFamily:'Rubik,inherit', outline:'none', width:68, direction:'ltr', textAlign:'center' }
   const btnSt   = (active) => ({ padding:'6px 13px', background: active ? C.purple : (isDark ? 'rgba(255,255,255,.06)' : '#fff'), border, borderRadius:6, color: active ? '#fff' : C.cream, fontSize:12, fontFamily:'Rubik,inherit', cursor:'pointer', fontWeight:600, transition:'all .15s' })
 
+  // ── No token ───────────────────────────────────────────────────────────────
   if (!token) {
     return (
       <div style={{ padding:'32px 24px', textAlign:'center', background: isDark ? 'rgba(255,255,255,.02)' : 'rgba(0,0,0,.03)', border:`1px dashed ${C.purple}33`, borderRadius:12, direction:'rtl', fontFamily:'Rubik,inherit' }}>
@@ -223,7 +253,7 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark,
     )
   }
 
-  // Skeleton shown before the widget enters viewport (no SDK loaded yet)
+  // ── Skeleton (not yet in viewport) ────────────────────────────────────────
   if (!inView) {
     return (
       <div ref={containerRef} style={{ position:'relative', border:`1px solid ${C.purple}15`, borderRadius:12, overflow:'hidden', background: isDark ? '#0A0A16' : '#F5F4F0', height: compact ? 340 : 480, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:12, direction:'rtl', fontFamily:'Rubik,inherit' }}>
@@ -231,14 +261,17 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark,
           <span style={{ fontSize:24 }}>🗺️</span>
         </div>
         <div style={{ fontSize:14, fontWeight:700, color:`${C.cream}66` }}>מפת גוש/חלקה</div>
+        {gush && helka && (
+          <div style={{ fontSize:12, color:`${C.cream}44` }}>גוש {gush} · חלקה {helka}</div>
+        )}
         <div style={{ fontSize:12, color:`${C.cream}33` }}>המפה תיטען בעת גלילה לאזור זה</div>
-        {/* Shimmer effect */}
         <style>{`@keyframes shimmer{0%{opacity:.4}50%{opacity:.8}100%{opacity:.4}}`}</style>
         <div style={{ position:'absolute', inset:0, background:`linear-gradient(135deg,${C.purple}05,${C.purple}0A,${C.purple}05)`, animation:'shimmer 2s ease-in-out infinite' }}/>
       </div>
     )
   }
 
+  // ── Map ────────────────────────────────────────────────────────────────────
   return (
     <div ref={containerRef} style={{ position:'relative', border:`1px solid ${C.purple}22`, borderRadius:12, overflow:'hidden', background:'#0A0A16', direction:'rtl', fontFamily:'Rubik,inherit' }}>
 
@@ -278,7 +311,12 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark,
           📐 מדידה
         </button>
 
-        {error && <span style={{ fontSize:11, color:'#E05252', marginRight:'auto' }}>{error}</span>}
+        {error && (
+          <span style={{ fontSize:11, color:'#E05252', marginRight:'auto', cursor:'pointer' }}
+            onClick={() => { created.current = false; setMapReady(false); setError(''); loadGovMapScript(createMap) }}>
+            {error} — לחץ לנסות שוב
+          </span>
+        )}
       </div>
 
       {/* ── Layer Panel ── */}
@@ -316,12 +354,15 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark,
       {/* ── Map container ── */}
       <div id={mapDivId} style={{ width:'100%', height: compact ? 340 : 480 }}/>
 
-      {/* Loading overlay */}
-      {!mapReady && token && (
+      {/* Loading overlay — shown until map is ready */}
+      {!mapReady && (
         <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:12, background:'rgba(9,9,15,.88)', zIndex:5, color:`${C.cream}88` }}>
           <div style={{ width:36, height:36, border:`3px solid ${C.purple}33`, borderTopColor:C.purple, borderRadius:'50%', animation:'spin 0.9s linear infinite' }}/>
           <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
           <span style={{ fontSize:13 }}>טוען מפה…</span>
+          {gush && helka && (
+            <span style={{ fontSize:11, color:`${C.cream}55` }}>גוש {gush} · חלקה {helka}</span>
+          )}
         </div>
       )}
     </div>
