@@ -138,11 +138,17 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark,
   // Side effects must NOT live inside setState updaters (React 18 StrictMode can
   // call updaters twice; concurrent transitions may defer them). useEffect is the
   // correct pattern for synchronising external systems with React state.
+  // A 500ms delayed retry guards against the case where the GovMap catalog is
+  // still loading when the user first toggles a layer after a slow cold start.
   useEffect(() => {
     if (!mapReady || !window.govmap) return
     const on  = LAYERS_DEF.filter(l =>  layers[l.id]).map(l => l.id)
     const off = LAYERS_DEF.filter(l => !layers[l.id]).map(l => l.id)
     window.govmap.setVisibleLayers(on, off)
+    const t = setTimeout(() => {
+      if (window.govmap) window.govmap.setVisibleLayers(on, off)
+    }, 500)
+    return () => clearTimeout(t)
   }, [layers, mapReady])
 
   // ── Close layer panel on outside click ────────────────────────────────────
@@ -168,7 +174,7 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark,
     if (!containerRef.current) return
     const obs = new IntersectionObserver(
       ([entry]) => { if (entry.isIntersecting) setInView(true) },
-      { rootMargin: '200px' }
+      { rootMargin: '400px' }   // 400px ahead → starts loading sooner
     )
     obs.observe(containerRef.current)
     return () => obs.disconnect()
@@ -192,17 +198,20 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark,
     if (!el) return
     created.current = true
 
-    const activeLayers = LAYERS_DEF.filter(l => layers[l.id]).map(l => l.id)
+    // Pass ALL layer IDs to createMap so every layer exists in the GovMap
+    // workspace.  Only layers registered in the workspace can be shown/hidden
+    // via setVisibleLayers later.  Passing only the "on" subset means the
+    // user can never toggle the others on at runtime.
+    const allLayerIds = LAYERS_DEF.map(l => l.id)
 
     // createMap returns a Promise — resolves once iframe MessageChannel is up.
     // At that point the GovMap catalog is still loading from the server (async).
-    // `layers` (→ laym=) only adds layers to the workspace panel; it does NOT
-    // make them visible.  The ONLY way to show layers is setVisibleLayers(),
-    // which does a catalog name→numericId lookup.  We retry after a delay so
-    // the catalog has time to finish loading before we call it.
+    // `layers` (→ laym=) adds layers to the workspace; setVisibleLayers()
+    // controls visibility via catalog name→numericId lookup.
+    // Catalog can take 2-5s to load: retry at multiple intervals.
     window.govmap.createMap(mapDivId, {
       token:            token || '',
-      layers:           activeLayers,
+      layers:           allLayerIds,   // ALL layers in workspace
       showXY:           false,
       identifyOnClick:  true,
       isEmbeddedToggle: false,
@@ -214,9 +223,9 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark,
       setError('')
       if (gush && helka) zoomToParcel(gush, helka)
 
-      // Apply initial layer visibility.  Call immediately (optimistic) and
-      // again at 1.2s to catch the common case where the catalog finishes
-      // loading 300–800ms after the iframe handshake resolves.
+      // Apply initial layer visibility with multiple retries.
+      // The GovMap catalog finishes loading 0.5–5s after the iframe handshake;
+      // four retries cover almost all network conditions.
       const applyLayers = () => {
         const gm = window.govmap
         if (!gm) return
@@ -225,12 +234,12 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark,
         gm.setVisibleLayers(on, off)
       }
       applyLayers()
-      setTimeout(applyLayers, 1200)
+      ;[600, 1500, 3000, 5500].forEach(ms => setTimeout(applyLayers, ms))
     }).catch(() => {
       setError('שגיאה ביצירת המפה. ודא שמפתח ה-API תקין.')
       created.current = false
     })
-  }, [mapDivId, token, bg, gush, helka, subHelka, layers]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [mapDivId, token, bg, gush, helka, subHelka]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Load SDK + create map once in view ────────────────────────────────────
   useEffect(() => {
