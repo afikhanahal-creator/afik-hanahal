@@ -491,7 +491,7 @@ function MobileLeadCard({ lead, lang, T, onUpdate, onDelete, onOpenDetail, onSta
         )}
         {lead.phone && onOpenChat && (
           <button onClick={e => { e.stopPropagation(); onOpenChat(lead) }}
-            style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 0', background: '#25D36614', border: '1px solid #25D36630', borderRadius: 10, color: '#25D366', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', border: 'none' }}>
+            style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 0', background: '#25D36614', border: '1px solid #25D36630', borderRadius: 10, color: '#25D366', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
             <MessageSquare size={14} /> WhatsApp
           </button>
         )}

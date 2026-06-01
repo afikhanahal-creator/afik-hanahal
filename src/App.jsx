@@ -4218,7 +4218,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const testEmail = async () => {
     setEmailTesting(true); setEmailTestResult('')
     try {
-      const r = await fetch(`/api/contacts/test-email`, {
+      const r = await fetch(`/api/contacts?action=test-email`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
         signal: AbortSignal.timeout(20000),

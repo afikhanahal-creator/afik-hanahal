@@ -291,8 +291,8 @@ function KanbanColumn({ stage, leads, stages, onCardClick, onCardDelete, onCardM
                 <path d="M157 100l4 4 8-8" stroke="#1877F2" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" opacity=".7" />
               </svg>
             </div>
-            <div style={{ fontSize: 12, fontWeight: 600, color: '#65676B', marginBottom: 4 }}>No {stage.label} leads</div>
-            <div style={{ fontSize: 11, color: '#BCC0C4', lineHeight: 1.5 }}>{STAGE_DESC[stage.id] || 'Move leads to this stage'}</div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: T.sub, marginBottom: 4 }}>No {stage.label} leads</div>
+            <div style={{ fontSize: 11, color: T.dim, lineHeight: 1.5 }}>{STAGE_DESC[stage.id] || 'Move leads to this stage'}</div>
           </div>
         )}
       </div>
@@ -315,19 +315,19 @@ function RowMenu({ lead, stages, onMoveStage, onDelete, onOpenLead }) {
   return (
     <div ref={ref} style={{ position: 'relative' }}>
       <button onClick={e => { e.stopPropagation(); setOpen(v => !v) }}
-        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 7px', color: '#65676B', fontSize: 16, borderRadius: 4 }}
-        onMouseEnter={e => { e.currentTarget.style.background = '#F0F2F5' }}
+        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 7px', color: T.sub, fontSize: 16, borderRadius: 4 }}
+        onMouseEnter={e => { e.currentTarget.style.background = T.surfHov }}
         onMouseLeave={e => { e.currentTarget.style.background = 'none' }}
       >⋮</button>
       {open && (
         <div style={{ position: 'absolute', right: 0, top: 24, zIndex: 200, background: T.popup, border: `1px solid ${T.border}`, borderRadius: 10, boxShadow: '0 8px 28px rgba(0,0,0,.6)', minWidth: 165 }}>
           <MenuItem icon="👤" label="Open lead" onClick={() => { onOpenLead(lead); setOpen(false) }} />
           <div style={{ borderTop: `1px solid ${T.divider}`, margin: '3px 0' }} />
-          <div style={{ padding: '4px 12px 2px', fontSize: 10, color: '#65676B', fontWeight: 700, textTransform: 'uppercase', direction: 'rtl' }}>Move to</div>
+          <div style={{ padding: '4px 12px 2px', fontSize: 10, color: T.sub, fontWeight: 700, textTransform: 'uppercase', direction: 'rtl' }}>Move to</div>
           {stages.filter(s => s.id !== lead.status).map(s => (
             <button key={s.id} onClick={() => { onMoveStage(lead.id, s.id); setOpen(false) }}
-              style={{ width: '100%', padding: '7px 12px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 13, color: '#1C1E21', display: 'flex', alignItems: 'center', gap: 8, direction: 'rtl' }}
-              onMouseEnter={e => { e.currentTarget.style.background = '#F0F2F5' }}
+              style={{ width: '100%', padding: '7px 12px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 13, color: T.text, display: 'flex', alignItems: 'center', gap: 8, direction: 'rtl' }}
+              onMouseEnter={e => { e.currentTarget.style.background = T.surfHov }}
               onMouseLeave={e => { e.currentTarget.style.background = 'none' }}
             >
               <span style={{ width: 9, height: 9, borderRadius: '50%', background: s.color, flexShrink: 0 }} />
@@ -481,24 +481,24 @@ function LeadDrawer({ lead, stages, onClose, onMoveStage, onDelete }) {
             { label: 'Notes', value: lead.notes || '—', icon: '📝' },
             { label: 'Received', value: lead.created_at ? new Date(lead.created_at).toLocaleString('he-IL') : '—', icon: '🕐' },
           ].map(row => (
-            <div key={row.label} style={{ display: 'flex', gap: 10, marginBottom: 14, paddingBottom: 14, borderBottom: '1px solid #F0F2F5' }}>
+            <div key={row.label} style={{ display: 'flex', gap: 10, marginBottom: 14, paddingBottom: 14, borderBottom: `1px solid ${T.divider}` }}>
               <span style={{ fontSize: 14, flexShrink: 0, marginTop: 2 }}>{row.icon}</span>
               <div>
-                <div style={{ fontSize: 10, color: '#BCC0C4', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 2 }}>{row.label}</div>
-                <div style={{ fontSize: 13, color: '#1C1E21', direction: 'rtl' }}>{row.value}</div>
+                <div style={{ fontSize: 10, color: T.dim, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 2 }}>{row.label}</div>
+                <div style={{ fontSize: 13, color: T.text, direction: 'rtl' }}>{row.value}</div>
               </div>
             </div>
           ))}
 
           {/* Move to stage */}
           <div style={{ marginTop: 8 }}>
-            <div style={{ fontSize: 11, color: '#65676B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 8 }}>Move to stage</div>
+            <div style={{ fontSize: 11, color: T.sub, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 8 }}>Move to stage</div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               {stages.map(s => (
                 <button key={s.id} onClick={() => onMoveStage(lead.id, s.id)}
-                  style={{ padding: '5px 10px', border: `1.5px solid ${lead.status === s.id ? s.color : '#E4E6EB'}`, borderRadius: 20, background: lead.status === s.id ? s.color + '22' : '#fff', color: lead.status === s.id ? s.color : '#65676B', fontSize: 11, fontWeight: 600, cursor: 'pointer', transition: 'all .12s' }}
+                  style={{ padding: '5px 10px', border: `1.5px solid ${lead.status === s.id ? s.color : T.border}`, borderRadius: 20, background: lead.status === s.id ? s.color + '22' : T.surf, color: lead.status === s.id ? s.color : T.sub, fontSize: 11, fontWeight: 600, cursor: 'pointer', transition: 'all .12s' }}
                   onMouseEnter={e => { e.currentTarget.style.borderColor = s.color; e.currentTarget.style.color = s.color }}
-                  onMouseLeave={e => { if (lead.status !== s.id) { e.currentTarget.style.borderColor = '#E4E6EB'; e.currentTarget.style.color = '#65676B' } }}
+                  onMouseLeave={e => { if (lead.status !== s.id) { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.color = T.sub } }}
                 >
                   {s.label}
                 </button>
@@ -508,7 +508,7 @@ function LeadDrawer({ lead, stages, onClose, onMoveStage, onDelete }) {
         </div>
 
         {/* Footer */}
-        <div style={{ padding: '12px 20px', borderTop: '1px solid #E4E6EB', display: 'flex', gap: 8 }}>
+        <div style={{ padding: '12px 20px', borderTop: `1px solid ${T.border}`, display: 'flex', gap: 8 }}>
           {lead.phone && (
             <a href={`https://wa.me/${lead.phone}`} target="_blank" rel="noopener noreferrer"
               style={{ flex: 1, padding: '8px 12px', background: '#25D366', border: 'none', borderRadius: 7, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', textDecoration: 'none', textAlign: 'center', display: 'block' }}>
@@ -516,9 +516,9 @@ function LeadDrawer({ lead, stages, onClose, onMoveStage, onDelete }) {
             </a>
           )}
           <button onClick={() => onDelete(lead)}
-            style={{ padding: '8px 14px', border: '1px solid #E4E6EB', borderRadius: 7, background: '#fff', color: '#E05252', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = '#E05252'; e.currentTarget.style.background = '#FFF0F0' }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = '#E4E6EB'; e.currentTarget.style.background = '#fff' }}
+            style={{ padding: '8px 14px', border: `1px solid ${T.border}`, borderRadius: 7, background: T.surf, color: '#E05252', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = '#E05252'; e.currentTarget.style.background = 'rgba(224,82,82,.12)' }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.background = T.surf }}
           >🗑 Delete</button>
         </div>
       </div>
@@ -845,14 +845,14 @@ export default function MetaKanban({ leads: propLeads = [], onUpdateLead, onDele
             </SortableContext>
             <DragOverlay>
               {activeLead && (
-                <div style={{ background: '#fff', borderRadius: 8, border: '2px solid #1877F2', padding: '10px 12px', width: 240, boxShadow: '0 12px 36px rgba(0,0,0,.25)', opacity: .95 }}>
+                <div style={{ background: T.card, borderRadius: 8, border: `2px solid ${T.accent}`, padding: '10px 12px', width: 240, boxShadow: '0 12px 36px rgba(0,0,0,.55)', opacity: .95 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <div style={{ width: 34, height: 34, borderRadius: '50%', background: avatarBg(activeLead.name), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: '#fff' }}>
                       {initials(activeLead.name)}
                     </div>
                     <div>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: '#1C1E21', direction: 'rtl' }}>{activeLead.name}</div>
-                      <div style={{ fontSize: 11, color: '#65676B', marginTop: 2 }}>{activeLead.campaign_name || activeLead.form_name || 'Lead'}</div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: T.text, direction: 'rtl' }}>{activeLead.name}</div>
+                      <div style={{ fontSize: 11, color: T.sub, marginTop: 2 }}>{activeLead.campaign_name || activeLead.form_name || 'Lead'}</div>
                     </div>
                   </div>
                 </div>
@@ -887,19 +887,19 @@ export default function MetaKanban({ leads: propLeads = [], onUpdateLead, onDele
 
       {/* DELETE CONFIRM */}
       {delConfirm && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: '#fff', borderRadius: 12, padding: 24, maxWidth: 340, width: '90%', boxShadow: '0 20px 60px rgba(0,0,0,.35)' }}>
-            <h3 style={{ margin: '0 0 8px', fontSize: 16, color: '#1C1E21' }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: T.popup, borderRadius: 12, padding: 24, maxWidth: 340, width: '90%', border: `1px solid ${T.border}`, boxShadow: '0 20px 60px rgba(0,0,0,.7)' }}>
+            <h3 style={{ margin: '0 0 8px', fontSize: 16, color: T.text }}>
               {delConfirm.type === 'stage' ? 'Delete stage?' : 'Delete lead?'}
             </h3>
-            <p style={{ margin: '0 0 20px', fontSize: 13, color: '#65676B', lineHeight: 1.5 }}>
+            <p style={{ margin: '0 0 20px', fontSize: 13, color: T.sub, lineHeight: 1.5 }}>
               {delConfirm.type === 'stage'
                 ? 'All leads in this stage will move to Intake. This cannot be undone.'
                 : `Delete "${delConfirm.lead?.name}"? This cannot be undone.`}
             </p>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button onClick={() => setDelConfirm(null)}
-                style={{ padding: '8px 16px', border: '1px solid #E4E6EB', borderRadius: 7, background: '#fff', fontSize: 13, cursor: 'pointer' }}>
+                style={{ padding: '8px 16px', border: `1px solid ${T.border}`, borderRadius: 7, background: T.surf, color: T.text, fontSize: 13, cursor: 'pointer' }}>
                 Cancel
               </button>
               <button onClick={() => delConfirm.type === 'stage' ? confirmDeleteStage(delConfirm.id) : handleDeleteLead(delConfirm.lead)}
