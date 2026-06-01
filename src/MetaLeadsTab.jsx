@@ -800,23 +800,39 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
           </div>
 
           {/* Campaign filter dropdown */}
-          <div ref={campaignDropRef} style={{ position: 'relative', marginTop: 8 }}>
+          <div ref={campaignDropRef} style={{ position: 'relative', marginTop: 10 }}>
             <button
               onClick={() => setCampaignDropOpen(v => !v)}
               style={{
                 width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '7px 12px',
-                background: campaignFilter ? 'rgba(132,144,216,.1)' : 'rgba(255,255,255,.04)',
-                border: `1px solid ${campaignFilter ? PURPLE + '55' : BORDER}`,
-                borderRadius: 8,
-                color: campaignFilter ? PURPLE : MUTED,
+                padding: '9px 13px',
+                background: campaignFilter
+                  ? `linear-gradient(135deg, rgba(132,144,216,.22) 0%, rgba(132,144,216,.12) 100%)`
+                  : `linear-gradient(135deg, rgba(132,144,216,.13) 0%, rgba(132,144,216,.06) 100%)`,
+                border: `1px solid ${campaignFilter ? PURPLE + '80' : 'rgba(132,144,216,.38)'}`,
+                borderRadius: 10,
+                color: campaignFilter ? PURPLE : 'rgba(232,228,216,.75)',
                 fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
                 transition: 'all .15s',
+                boxShadow: campaignFilter ? `0 0 0 2px ${PURPLE}22` : '0 1px 6px rgba(0,0,0,.3)',
               }}
-              onMouseEnter={e => { e.currentTarget.style.background = campaignFilter ? 'rgba(132,144,216,.16)' : 'rgba(255,255,255,.08)' }}
-              onMouseLeave={e => { e.currentTarget.style.background = campaignFilter ? 'rgba(132,144,216,.1)' : 'rgba(255,255,255,.04)' }}
+              onMouseEnter={e => {
+                e.currentTarget.style.background = 'linear-gradient(135deg, rgba(132,144,216,.28) 0%, rgba(132,144,216,.16) 100%)'
+                e.currentTarget.style.borderColor = PURPLE + 'aa'
+                e.currentTarget.style.color = PURPLE
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.background = campaignFilter
+                  ? 'linear-gradient(135deg, rgba(132,144,216,.22) 0%, rgba(132,144,216,.12) 100%)'
+                  : 'linear-gradient(135deg, rgba(132,144,216,.13) 0%, rgba(132,144,216,.06) 100%)'
+                e.currentTarget.style.borderColor = campaignFilter ? PURPLE + '80' : 'rgba(132,144,216,.38)'
+                e.currentTarget.style.color = campaignFilter ? PURPLE : 'rgba(232,228,216,.75)'
+              }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, opacity: 0.8 }}>
+                  <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                </svg>
                 {campaignFilter && (
                   <span style={{ width: 8, height: 8, borderRadius: '50%', background: CAMPAIGN_COLORS[campaigns.indexOf(campaignFilter) % CAMPAIGN_COLORS.length], flexShrink: 0 }}/>
                 )}
@@ -824,12 +840,12 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
                   {campaignFilter || (lang === 'en' ? 'All Campaigns' : 'כל הקמפיינים')}
                 </span>
                 {campaignFilter && (
-                  <span style={{ background: PURPLE + '22', color: PURPLE, borderRadius: 10, padding: '1px 6px', fontSize: 10, flexShrink: 0 }}>
+                  <span style={{ background: PURPLE + '30', color: PURPLE, borderRadius: 10, padding: '1px 7px', fontSize: 10, fontWeight: 800, flexShrink: 0 }}>
                     {filteredLeads.length}
                   </span>
                 )}
               </div>
-              <span style={{ fontSize: 10, opacity: 0.6, flexShrink: 0, marginRight: dir === 'rtl' ? 0 : undefined, marginLeft: dir === 'ltr' ? 0 : undefined }}>
+              <span style={{ fontSize: 9, flexShrink: 0, color: PURPLE, opacity: 0.7 }}>
                 {campaignDropOpen ? '▲' : '▼'}
               </span>
             </button>
