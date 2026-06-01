@@ -17,7 +17,19 @@ const WA_META_TOKEN           = process.env.WA_META_TOKEN           || ''
 const PHONE_NUMBER_ID         = process.env.WA_PHONE_NUMBER_ID      || '1160230953835065'
 const SUPABASE_URL            = process.env.SUPABASE_URL            || ''
 const SUPABASE_KEY            = process.env.SUPABASE_SERVICE_KEY    || ''
-const META_NOTIFY_PHONE       = process.env.META_NOTIFY_PHONE        || '972559811814'
+const META_NOTIFY_PHONE       = process.env.META_NOTIFY_PHONE       || '972559811814'
+
+// ── Green API (admin notifications) ──────────────────────────────────────────
+const GREEN_INSTANCE = process.env.WA_GREENAPI_INSTANCE || ''
+const GREEN_TOKEN    = process.env.WA_GREENAPI_TOKEN    || ''
+const BUSINESS_NOTIFY_CHATID = (() => {
+  const raw = (process.env.BUSINESS_NOTIFY_CHATID || '972559811814').replace(/\D/g, '')
+  return raw ? `${raw}@c.us` : ''
+})()
+const GREEN_BASE_URL = (() => {
+  const region = String(GREEN_INSTANCE).slice(0, 4)
+  return region ? `https://${region}.api.greenapi.com` : 'https://api.green-api.com'
+})()
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -74,6 +86,28 @@ async function sendWA(to, message) {
     if (!r.ok) { console.error('[WA]', await r.text()); return null }
     return (await r.json())?.messages?.[0]?.id || null
   } catch (e) { console.error('[WA]', e); return null }
+}
+
+// Sends admin notification via Green API with one automatic retry
+async function sendGreenNotify(chatId, message) {
+  if (!GREEN_INSTANCE || !GREEN_TOKEN || !chatId) return
+  const url = `${GREEN_BASE_URL}/waInstance${GREEN_INSTANCE}/sendMessage/${GREEN_TOKEN}`
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chatId, message }),
+        signal: AbortSignal.timeout(15000),
+      })
+      if (r.ok) { console.log(`[GreenNotify] ✓ sent to ${chatId}`); return }
+      console.error(`[GreenNotify] attempt ${attempt}: HTTP ${r.status} — ${(await r.text().catch(() => '')).slice(0, 200)}`)
+    } catch (e) {
+      console.error(`[GreenNotify] attempt ${attempt} error: ${e.message}`)
+    }
+    if (attempt < 2) await new Promise(res => setTimeout(res, 3000))
+  }
+  console.error('[GreenNotify] all attempts failed — notification not delivered (lead is safe)')
 }
 
 // ── route handlers ────────────────────────────────────────────────────────────
@@ -150,7 +184,30 @@ async function handleWebhook(req, res) {
             }
           }
 
-          // Notify business owner about new lead
+          // ── Admin notification via Green API ──────────────────────────────
+          {
+            const displayPhone = phone ? (phone.startsWith('972') ? '0' + phone.slice(3) : phone) : '—'
+            const now = new Date().toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+            // Extract free-text message field if present in the lead form
+            const msgField = (leadData.field_data || []).find(f =>
+              ['message','msg','הודעה','תיאור','description','comments','comment','text'].some(k =>
+                (f.name || '').toLowerCase().includes(k)
+              )
+            )
+            const msgText = msgField ? (Array.isArray(msgField.values) ? msgField.values[0] : msgField.value) || '' : ''
+            const notifyLines = [
+              '🔔 ליד חדש',
+              `שם: ${name || '—'}`,
+              `טלפון: ${displayPhone}`,
+              `קמפיין: ${campaignName || formName || '—'}`,
+              msgText ? `הודעה: ${msgText}` : null,
+              `התקבל: ${now}`,
+            ].filter(Boolean).join('\n')
+            // Send via Green API (fire-and-forget; errors are logged but never block lead saving)
+            sendGreenNotify(BUSINESS_NOTIFY_CHATID, notifyLines).catch(e => console.error('[GreenNotify]', e.message))
+          }
+
+          // Legacy: notify via Meta Business WA API if token is configured
           if (WA_META_TOKEN && META_NOTIFY_PHONE) {
             const displayPhone = phone ? (phone.startsWith('972') ? '0' + phone.slice(3) : phone) : '—'
             const now = new Date().toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })

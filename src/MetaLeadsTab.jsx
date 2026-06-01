@@ -3,6 +3,7 @@
 // Props: { C, lang, isDark, onSaveToCRM }
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { supabase } from './lib/supabaseClient'
 
 const ADMIN_TOKEN = 'AFIKhanahal2026'
 const META_PAGE_ID = '591701444021114'
@@ -227,7 +228,7 @@ async function syncLeads(pageId) {
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
-export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat, onNewLead }) {
+export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat, onNewLead, onNewMetaMessage, onSentMetaMessage }) {
   const t = TR[lang] || TR.he
   const dir = lang === 'en' ? 'ltr' : 'rtl'
 
@@ -258,13 +259,18 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
   const [campaignDropOpen, setCampaignDropOpen] = useState(false)
   const [sortOrder, setSortOrder]               = useState('desc') // 'desc' = newest first
 
-  const messagesEndRef      = useRef(null)
-  const leadsIntervalRef    = useRef(null)
-  const messagesIntervalRef = useRef(null)
-  const campaignDropRef     = useRef(null)
-  const knownLeadIdsRef     = useRef(null)
-  const onNewLeadRef        = useRef(onNewLead)
-  useEffect(() => { onNewLeadRef.current = onNewLead }, [onNewLead])
+  const messagesEndRef        = useRef(null)
+  const leadsIntervalRef      = useRef(null)
+  const messagesIntervalRef   = useRef(null)
+  const campaignDropRef       = useRef(null)
+  const knownLeadIdsRef       = useRef(null)
+  const knownMsgIdsRef        = useRef(new Map()) // leadId → Set<msgId>
+  const onNewLeadRef          = useRef(onNewLead)
+  const onNewMetaMsgRef       = useRef(onNewMetaMessage)
+  const onSentMetaMsgRef      = useRef(onSentMetaMessage)
+  useEffect(() => { onNewLeadRef.current     = onNewLead         }, [onNewLead])
+  useEffect(() => { onNewMetaMsgRef.current  = onNewMetaMessage  }, [onNewMetaMessage])
+  useEffect(() => { onSentMetaMsgRef.current = onSentMetaMessage }, [onSentMetaMessage])
 
   // Track deleted lead IDs so polling never brings them back
   const deletedIdsRef = useRef(new Set(
@@ -308,27 +314,100 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
     try {
       const data = await fetchMessages(leadId)
       setMessages(data)
+
+      // Detect new incoming messages and fire notification
+      if (!knownMsgIdsRef.current.has(leadId)) {
+        knownMsgIdsRef.current.set(leadId, new Set(data.map(m => m.id)))
+      } else {
+        const known = knownMsgIdsRef.current.get(leadId)
+        const newIn = data.filter(m => m.direction === 'in' && m.id && !known.has(m.id))
+        data.forEach(m => { if (m.id) known.add(m.id) })
+        if (newIn.length > 0 && onNewMetaMsgRef.current) {
+          const latest = newIn[newIn.length - 1]
+          const lead = leads.find(l => l.id === leadId)
+          onNewMetaMsgRef.current({ leadName: lead?.name || '—', message: latest.message })
+        }
+      }
     } catch (e) {
       setMessagesError(e.message)
     } finally {
       setLoadingMessages(false)
     }
-  }, [])
+  }, [leads])
 
-  // ── Initial load + 30s polling for leads ────────────────────────────────────
+  // ── Initial load + Realtime subscription for leads ──────────────────────────
   useEffect(() => {
     loadLeads()
-    leadsIntervalRef.current = setInterval(() => loadLeads(true), 30000)
-    return () => clearInterval(leadsIntervalRef.current)
-  }, [loadLeads])
 
-  // ── 15s polling for messages when a lead is selected ────────────────────────
+    if (!supabase) {
+      // Fallback: poll every 30s when Realtime not configured
+      leadsIntervalRef.current = setInterval(() => loadLeads(true), 30000)
+      return () => clearInterval(leadsIntervalRef.current)
+    }
+
+    const channel = supabase
+      .channel('meta_leads_rt')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'meta_leads' }, (payload) => {
+        const { eventType, new: next, old } = payload
+
+        if (eventType === 'INSERT') {
+          if (deletedIdsRef.current.has(next.id)) return
+          setLeads(prev => {
+            if (prev.some(l => l.id === next.id)) return prev
+            onNewLeadRef.current?.({ name: next.name, campaign: next.campaign_name || next.form_name })
+            knownLeadIdsRef.current?.add(next.id)
+            return [next, ...prev]
+          })
+        } else if (eventType === 'UPDATE') {
+          if (deletedIdsRef.current.has(next.id)) return
+          setLeads(prev => prev.map(l => l.id === next.id ? { ...l, ...next } : l))
+          setSelectedLead(prev => prev?.id === next.id ? { ...prev, ...next } : prev)
+        } else if (eventType === 'DELETE') {
+          setLeads(prev => prev.filter(l => l.id !== old.id))
+          setSelectedLead(prev => prev?.id === old.id ? null : prev)
+        }
+      })
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [loadLeads]) // eslint-disable-line
+
+  // ── Messages: Realtime for selected lead + one-time load ────────────────────
   useEffect(() => {
     clearInterval(messagesIntervalRef.current)
     if (!selectedLead) { setMessages([]); return }
     loadMessages(selectedLead.id)
-    messagesIntervalRef.current = setInterval(() => loadMessages(selectedLead.id, true), 15000)
-    return () => clearInterval(messagesIntervalRef.current)
+
+    if (!supabase) {
+      messagesIntervalRef.current = setInterval(() => loadMessages(selectedLead.id, true), 15000)
+      return () => clearInterval(messagesIntervalRef.current)
+    }
+
+    const channel = supabase
+      .channel(`meta_messages_${selectedLead.id}`)
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'meta_messages',
+        filter: `lead_id=eq.${selectedLead.id}`,
+      }, (payload) => {
+        const msg = payload.new
+        setMessages(prev => {
+          if (prev.some(m => m.id === msg.id)) return prev
+          if (msg.direction === 'in') {
+            const known = knownMsgIdsRef.current.get(selectedLead.id)
+            if (known && !known.has(msg.id)) {
+              known.add(msg.id)
+              onNewMetaMsgRef.current?.({ leadName: selectedLead.name || '—', message: msg.message })
+            }
+          }
+          return [...prev, msg]
+        })
+      })
+      .subscribe()
+
+    return () => {
+      clearInterval(messagesIntervalRef.current)
+      supabase.removeChannel(channel)
+    }
   }, [selectedLead?.id, loadMessages])
 
   // ── Scroll to bottom when messages change ───────────────────────────────────
@@ -360,8 +439,15 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
     setSending(true)
     try {
       const newMsg = await sendMessage(selectedLead.id, msg)
-      if (newMsg) setMessages(prev => [...prev, newMsg])
-      else await loadMessages(selectedLead.id, true)
+      if (newMsg) {
+        setMessages(prev => [...prev, newMsg])
+        // Mark as known so it doesn't re-trigger an incoming notification
+        const known = knownMsgIdsRef.current.get(selectedLead.id)
+        if (known && newMsg.id) known.add(newMsg.id)
+      } else {
+        await loadMessages(selectedLead.id, true)
+      }
+      onSentMetaMsgRef.current?.({ leadName: selectedLead.name || '—', message: msg })
     } catch (e) {
       console.error('[MetaLeadsTab] send error:', e)
     } finally {
@@ -666,49 +752,106 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
             ))}
           </div>
 
-          {/* Campaign filter chips — horizontal scroll */}
-          {campaigns.length > 0 && (
-            <div style={{ display: 'flex', gap: 5, overflowX: 'auto', paddingBottom: 2, marginTop: 8, scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-              <button
-                onClick={() => setCampaignFilter(null)}
-                style={{
-                  flexShrink: 0, padding: '4px 11px', borderRadius: 20,
-                  background: !campaignFilter ? `${PURPLE}22` : 'rgba(255,255,255,.04)',
-                  border: `1px solid ${!campaignFilter ? PURPLE + '44' : BORDER}`,
-                  color: !campaignFilter ? PURPLE : MUTED,
-                  fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
-                  transition: 'all .12s', whiteSpace: 'nowrap',
-                }}
-              >
-                {lang === 'en' ? '● All' : '● הכל'} ({leads.length})
-              </button>
-              {campaigns.map((camp, i) => {
-                const color = CAMPAIGN_COLORS[i % CAMPAIGN_COLORS.length]
-                const isActive = campaignFilter === camp
-                const count = leads.filter(l => l.campaign_name === camp).length
-                return (
-                  <button key={camp}
-                    onClick={() => setCampaignFilter(isActive ? null : camp)}
-                    style={{
-                      flexShrink: 0, padding: '4px 11px', borderRadius: 20,
-                      background: isActive ? `${color}22` : 'rgba(255,255,255,.04)',
-                      border: `1px solid ${isActive ? color + '55' : BORDER}`,
-                      color: isActive ? color : MUTED,
-                      fontSize: 11, fontWeight: isActive ? 700 : 500,
-                      cursor: 'pointer', fontFamily: 'inherit',
-                      transition: 'all .12s', whiteSpace: 'nowrap',
-                      display: 'flex', alignItems: 'center', gap: 5,
-                    }}
-                    onMouseEnter={e => { if (!isActive) { e.currentTarget.style.background = `${color}12`; e.currentTarget.style.color = color } }}
-                    onMouseLeave={e => { if (!isActive) { e.currentTarget.style.background = 'rgba(255,255,255,.04)'; e.currentTarget.style.color = MUTED } }}
-                  >
-                    <span style={{ width: 7, height: 7, borderRadius: '50%', background: color, display: 'inline-block', flexShrink: 0 }}/>
-                    {camp} ({count})
-                  </button>
-                )
-              })}
-            </div>
-          )}
+          {/* Campaign filter dropdown */}
+          <div ref={campaignDropRef} style={{ position: 'relative', marginTop: 8 }}>
+            <button
+              onClick={() => setCampaignDropOpen(v => !v)}
+              style={{
+                width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '7px 12px',
+                background: campaignFilter ? 'rgba(132,144,216,.1)' : 'rgba(255,255,255,.04)',
+                border: `1px solid ${campaignFilter ? PURPLE + '55' : BORDER}`,
+                borderRadius: 8,
+                color: campaignFilter ? PURPLE : MUTED,
+                fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+                transition: 'all .15s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = campaignFilter ? 'rgba(132,144,216,.16)' : 'rgba(255,255,255,.08)' }}
+              onMouseLeave={e => { e.currentTarget.style.background = campaignFilter ? 'rgba(132,144,216,.1)' : 'rgba(255,255,255,.04)' }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                {campaignFilter && (
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: CAMPAIGN_COLORS[campaigns.indexOf(campaignFilter) % CAMPAIGN_COLORS.length], flexShrink: 0 }}/>
+                )}
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {campaignFilter || (lang === 'en' ? 'All Campaigns' : 'כל הקמפיינים')}
+                </span>
+                {campaignFilter && (
+                  <span style={{ background: PURPLE + '22', color: PURPLE, borderRadius: 10, padding: '1px 6px', fontSize: 10, flexShrink: 0 }}>
+                    {filteredLeads.length}
+                  </span>
+                )}
+              </div>
+              <span style={{ fontSize: 10, opacity: 0.6, flexShrink: 0, marginRight: dir === 'rtl' ? 0 : undefined, marginLeft: dir === 'ltr' ? 0 : undefined }}>
+                {campaignDropOpen ? '▲' : '▼'}
+              </span>
+            </button>
+
+            {campaignDropOpen && (
+              <div style={{
+                position: 'absolute', top: 'calc(100% + 4px)', right: 0, left: 0, zIndex: 200,
+                background: '#0E0E1C', border: `1px solid ${BORDER}`, borderRadius: 10,
+                boxShadow: '0 8px 24px rgba(0,0,0,.55)', overflow: 'hidden',
+                maxHeight: 260, overflowY: 'auto',
+              }}>
+                {/* All campaigns option */}
+                <button
+                  onClick={() => { setCampaignFilter(null); setCampaignDropOpen(false) }}
+                  style={{
+                    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '10px 14px', border: 'none', borderBottom: `1px solid ${BORDER}`,
+                    background: !campaignFilter ? 'rgba(132,144,216,.1)' : 'transparent',
+                    color: !campaignFilter ? PURPLE : MUTED,
+                    fontSize: 12, fontWeight: !campaignFilter ? 700 : 500,
+                    cursor: 'pointer', fontFamily: 'inherit', textAlign: 'right', direction: dir,
+                    transition: 'background .1s',
+                  }}
+                  onMouseEnter={e => { if (campaignFilter) e.currentTarget.style.background = 'rgba(255,255,255,.04)' }}
+                  onMouseLeave={e => { if (campaignFilter) e.currentTarget.style.background = 'transparent' }}
+                >
+                  <span>{lang === 'en' ? 'All Campaigns' : 'כל הקמפיינים'}</span>
+                  <span style={{ background: 'rgba(132,144,216,.15)', color: PURPLE, borderRadius: 10, padding: '1px 7px', fontSize: 10, fontWeight: 700 }}>
+                    {leads.length}
+                  </span>
+                </button>
+
+                {campaigns.length === 0 && (
+                  <div style={{ padding: '12px 14px', fontSize: 12, color: MUTED, textAlign: 'center' }}>
+                    {lang === 'en' ? 'No campaigns yet' : 'אין קמפיינים עדיין'}
+                  </div>
+                )}
+
+                {campaigns.map((camp, i) => {
+                  const color = CAMPAIGN_COLORS[i % CAMPAIGN_COLORS.length]
+                  const isActive = campaignFilter === camp
+                  const count = leads.filter(l => l.campaign_name === camp).length
+                  return (
+                    <button key={camp}
+                      onClick={() => { setCampaignFilter(isActive ? null : camp); setCampaignDropOpen(false) }}
+                      style={{
+                        width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+                        padding: '10px 14px', border: 'none', borderBottom: `1px solid ${BORDER}`,
+                        background: isActive ? `${color}14` : 'transparent',
+                        color: isActive ? color : MUTED,
+                        fontSize: 12, fontWeight: isActive ? 700 : 400,
+                        cursor: 'pointer', fontFamily: 'inherit', textAlign: 'right', direction: dir,
+                        transition: 'background .1s',
+                      }}
+                      onMouseEnter={e => { if (!isActive) { e.currentTarget.style.background = `${color}0D`; e.currentTarget.style.color = color } }}
+                      onMouseLeave={e => { if (!isActive) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = MUTED } }}
+                    >
+                      <span style={{ width: 9, height: 9, borderRadius: '50%', background: color, flexShrink: 0 }}/>
+                      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{camp}</span>
+                      <span style={{ background: `${color}22`, color, borderRadius: 10, padding: '1px 7px', fontSize: 10, fontWeight: 700, flexShrink: 0 }}>
+                        {count}
+                      </span>
+                      {isActive && <span style={{ fontSize: 12, flexShrink: 0 }}>✓</span>}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Restore panel */}

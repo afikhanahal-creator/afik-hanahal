@@ -3,6 +3,7 @@
  * Dark/Light theme · RTL Hebrew · Isolated scroll · Sticky input
  */
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { supabase } from './lib/supabaseClient'
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 const API_BASE      = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
@@ -154,7 +155,7 @@ const ICONS = {
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
-export default function GreenAPIChat({ leads = [], lang = 'he', initialContact = null, onOpenLead, onDeleteLead, onNewMessage }) {
+export default function GreenAPIChat({ leads = [], lang = 'he', initialContact = null, onOpenLead, onDeleteLead, onNewMessage, onSentMessage }) {
 
   // ── Theme ─────────────────────────────────────────────────────────────────
   const [isDark, setIsDark] = useState(() => localStorage.getItem('whatsapp_theme') !== 'light')
@@ -196,8 +197,10 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
   const notifiedMsgIdsRef = useRef(new Set())
   const pageLoadTimeRef   = useRef(Date.now())
   const onNewMessageRef   = useRef(onNewMessage)
+  const onSentMessageRef  = useRef(onSentMessage)
   const leadsRef          = useRef(leads)
-  useEffect(() => { onNewMessageRef.current = onNewMessage }, [onNewMessage])
+  useEffect(() => { onNewMessageRef.current  = onNewMessage  }, [onNewMessage])
+  useEffect(() => { onSentMessageRef.current = onSentMessage }, [onSentMessage])
   useEffect(() => { leadsRef.current = leads }, [leads])
 
   // ── Delete handlers ───────────────────────────────────────────────────────
@@ -281,7 +284,20 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
         .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
 
       setFetchError(merged.length === 0 && greenErr ? greenErr : null)
-      setChats(prev => ({ ...prev, [p]: merged }))
+      setChats(prev => {
+        const existing = prev[p] || []
+        const optimistics = existing.filter(m => m.id && String(m.id).startsWith('opt-'))
+        if (optimistics.length > 0) {
+          const confirmedOut = new Set(merged.filter(m => m.direction === 'out').map(m => m.message))
+          const unconfirmed = optimistics.filter(m => !confirmedOut.has(m.message))
+          if (unconfirmed.length > 0) {
+            const all = [...merged, ...unconfirmed]
+              .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+            return { ...prev, [p]: all }
+          }
+        }
+        return { ...prev, [p]: merged }
+      })
 
       // Detect new incoming messages and notify; mark all IDs as seen
       const threshold = pageLoadTimeRef.current
@@ -343,8 +359,42 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
     prevMsgCount.current = 0
     isNearBottom.current = true
     fetchMsgs(contact.phone, { showLoader: true })
-    pollRef.current = setInterval(() => fetchMsgs(contact.phone), 4000)
-    return () => clearInterval(pollRef.current)
+
+    const p = intlPhone(contact.phone)
+
+    if (supabase) {
+      // Realtime: listen for new rows in chats table for this phone number
+      const channel = supabase
+        .channel(`chats_rt_${p}`)
+        .on('postgres_changes', {
+          event: 'INSERT', schema: 'public', table: 'chats',
+          filter: `phone=eq.${p}`,
+        }, (payload) => {
+          const msg = payload.new
+          if (!msg?.id) return
+          setChats(prev => {
+            const existing = prev[p] || []
+            if (existing.some(m => String(m.id) === String(msg.id))) return prev
+            // Notify incoming messages
+            if (msg.direction === 'in' && !notifiedMsgIdsRef.current.has(String(msg.id))) {
+              const threshold = pageLoadTimeRef.current
+              if (new Date(msg.created_at).getTime() > threshold) {
+                notifiedMsgIdsRef.current.add(String(msg.id))
+                const lead = leadsRef.current.find(l => intlPhone(l.phone) === p)
+                onNewMessageRef.current?.({ contactName: lead?.name || p, message: msg.message, phone: p })
+              }
+            }
+            notifiedMsgIdsRef.current.add(String(msg.id))
+            return { ...prev, [p]: [...existing, msg].sort((a, b) => new Date(a.created_at) - new Date(b.created_at)) }
+          })
+        })
+        .subscribe()
+      return () => { supabase.removeChannel(channel) }
+    } else {
+      // Fallback: poll every 4s when Realtime not configured
+      pollRef.current = setInterval(() => fetchMsgs(contact.phone), 4000)
+      return () => clearInterval(pollRef.current)
+    }
   }, [contact?.id, fetchMsgs])
 
   // Auto-scroll: only when switching contact (always go bottom) or new messages arrive
@@ -407,6 +457,8 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
       if (ok) {
         setAttached(null)
         setTimeout(() => fetchMsgs(contact.phone), 2000)
+        const contactName = contact.name || intlPhone(contact.phone)
+        onSentMessageRef.current?.({ contactName, message: msg })
       } else {
         throw new Error('שליחה נכשלה')
       }

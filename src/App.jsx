@@ -3839,26 +3839,31 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const pendingDeletes  = useRef(new Set()) // IDs deleted locally, awaiting server confirmation
 
   // ── Push notification system ────────────────────────────────────────────────
-  const [toasts, setToasts]   = useState([])
-  const toastIdRef            = useRef(0)
+  const [toasts, setToasts]           = useState([])
+  const [notifPerm, setNotifPerm]     = useState(() =>
+    'Notification' in window ? Notification.permission : 'unsupported'
+  )
+  const [notifBannerDismissed, setNotifBannerDismissed] = useState(false)
+  const toastIdRef = useRef(0)
 
-  useEffect(() => {
-    if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission()
-    }
+  const requestNotifPermission = useCallback(async () => {
+    if (!('Notification' in window)) return
+    const result = await Notification.requestPermission()
+    setNotifPerm(result)
   }, [])
 
   const showBrowserNotification = useCallback((title, body, onClick) => {
-    if ('Notification' in window && Notification.permission === 'granted') {
-      const n = new Notification(title, { body, icon: '/favicon.ico' })
-      if (onClick) n.onclick = () => { window.focus(); onClick(); n.close() }
-    }
+    if (!('Notification' in window) || Notification.permission !== 'granted') return
+    // Only show OS notification when the tab is not focused — the in-app toast covers the focused case
+    if (document.hasFocus()) return
+    const n = new Notification(title, { body, icon: '/favicon.ico' })
+    if (onClick) n.onclick = () => { window.focus(); onClick(); n.close() }
   }, [])
 
-  const addToast = useCallback((title, body, targetTab) => {
+  const addToast = useCallback((title, body, targetTab, icon = '🔔', durationMs = 6000) => {
     const id = ++toastIdRef.current
-    setToasts(prev => [...prev, { id, title, body, targetTab }])
-    const timer = setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 6000)
+    setToasts(prev => [...prev, { id, title, body, targetTab, icon }])
+    const timer = setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), durationMs)
     showBrowserNotification(title, body, targetTab ? () => setTab(targetTab) : undefined)
     return () => clearTimeout(timer)
   }, [showBrowserNotification]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -4756,6 +4761,34 @@ Return ONLY valid JSON (no markdown, no code blocks):
           </div>
         )}
 
+        {/* Push notification permission banner */}
+        {!notifBannerDismissed && notifPerm === 'default' && (
+          <div style={{ background:'rgba(247,201,72,.09)', border:'1px solid rgba(247,201,72,.35)', borderRadius:10, padding:'10px 16px', marginBottom:16, display:'flex', alignItems:'center', gap:10, direction:'rtl', flexWrap:'wrap' }}>
+            <span style={{ fontSize:18, flexShrink:0 }}>🔔</span>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontSize:13, fontWeight:700, color:'#F7C948' }}>הפעל התראות דחיפה</div>
+              <div style={{ fontSize:11, color:'rgba(247,201,72,.65)', marginTop:2 }}>Enable push notifications for new leads &amp; messages</div>
+            </div>
+            <button onClick={requestNotifPermission}
+              style={{ background:'rgba(247,201,72,.18)', border:'1px solid rgba(247,201,72,.5)', borderRadius:8, padding:'6px 14px', color:'#F7C948', cursor:'pointer', fontFamily:'inherit', fontSize:12, fontWeight:700, flexShrink:0, whiteSpace:'nowrap', transition:'background .15s' }}
+              onMouseEnter={e=>{ e.currentTarget.style.background='rgba(247,201,72,.32)' }}
+              onMouseLeave={e=>{ e.currentTarget.style.background='rgba(247,201,72,.18)' }}>
+              אשר הרשאה
+            </button>
+            <button onClick={() => setNotifBannerDismissed(true)} style={{ background:'none', border:'none', color:'rgba(247,201,72,.5)', cursor:'pointer', fontSize:16, lineHeight:1, padding:'0 4px', flexShrink:0 }}>×</button>
+          </div>
+        )}
+        {!notifBannerDismissed && notifPerm === 'denied' && (
+          <div style={{ background:'rgba(156,163,175,.07)', border:'1px solid rgba(156,163,175,.25)', borderRadius:10, padding:'10px 16px', marginBottom:16, display:'flex', alignItems:'center', gap:10, direction:'rtl', flexWrap:'wrap' }}>
+            <span style={{ fontSize:18, flexShrink:0 }}>🔕</span>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontSize:13, fontWeight:700, color:'rgba(232,228,216,.7)' }}>התראות חסומות בדפדפן</div>
+              <div style={{ fontSize:11, color:'rgba(232,228,216,.4)', marginTop:2 }}>Notifications blocked — open Chrome Settings → Site Settings → Notifications → allow this site</div>
+            </div>
+            <button onClick={() => setNotifBannerDismissed(true)} style={{ background:'none', border:'none', color:'rgba(156,163,175,.45)', cursor:'pointer', fontSize:16, lineHeight:1, padding:'0 4px', flexShrink:0 }}>×</button>
+          </div>
+        )}
+
         {/* Modal tabs */}
         {!standalone && (
           <div style={{ display:'flex', gap:4, marginBottom:24, background:'rgba(255,255,255,.04)', borderRadius:10, padding:4, flexWrap:'wrap' }}>
@@ -5561,8 +5594,11 @@ Return ONLY valid JSON (no markdown, no code blocks):
               onDeleteLead={id => deleteLead(id)}
               onNewMessage={({ contactName, message }) => addToast(
                 lang === 'en' ? `New message from ${contactName}` : `הודעה חדשה מ-${contactName}`,
-                message,
-                'chats'
+                message, 'chats', '💬'
+              )}
+              onSentMessage={({ contactName, message }) => addToast(
+                lang === 'en' ? `Sent to ${contactName}` : `נשלח ל-${contactName}`,
+                message, 'chats', '✅', 3500
               )}
             />
           </Suspense>
@@ -5574,7 +5610,15 @@ Return ONLY valid JSON (no markdown, no code blocks):
               onNewLead={({ name, campaign }) => addToast(
                 lang === 'en' ? 'New Meta Lead!' : 'ליד חדש ממטא!',
                 (name || (lang === 'en' ? 'Unknown' : 'לא ידוע')) + (campaign ? ' • ' + campaign : ''),
-                'meta'
+                'meta', '🎯'
+              )}
+              onNewMetaMessage={({ leadName, message }) => addToast(
+                lang === 'en' ? `Message from ${leadName}` : `הודעה מ-${leadName}`,
+                message, 'meta', '💬'
+              )}
+              onSentMetaMessage={({ leadName, message }) => addToast(
+                lang === 'en' ? `Sent to ${leadName}` : `נשלח ל-${leadName}`,
+                message, 'meta', '✅', 3500
               )}
               onSaveToCRM={metaLead => {
                 if (metaLead) {
@@ -6277,14 +6321,14 @@ Return ONLY valid JSON (no markdown, no code blocks):
 
       </div>
 
-      {/* ── Push notification toasts — bottom-left ───────────────────── */}
-      <style>{`@keyframes toastIn{from{opacity:0;transform:translateX(-24px)}to{opacity:1;transform:translateX(0)}}`}</style>
-      <div style={{ position:'fixed', bottom:24, left:24, zIndex:99999, display:'flex', flexDirection:'column-reverse', gap:10, pointerEvents:'none', maxWidth:340 }}>
+      {/* ── Push notification toasts — bottom-right ──────────────────── */}
+      <style>{`@keyframes toastIn{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:translateX(0)}}`}</style>
+      <div style={{ position:'fixed', bottom:24, right:24, zIndex:99999, display:'flex', flexDirection:'column-reverse', gap:10, pointerEvents:'none', maxWidth:340 }}>
         {toasts.map(toast => (
           <div key={toast.id}
             onClick={() => { setToasts(prev => prev.filter(t => t.id !== toast.id)); if (toast.targetTab) setTab(toast.targetTab) }}
             style={{ pointerEvents:'auto', background:'#1F2C33', border:'1px solid rgba(132,144,216,.35)', borderRadius:12, padding:'12px 14px 12px 16px', boxShadow:'0 6px 24px rgba(0,0,0,.55)', cursor:toast.targetTab?'pointer':'default', fontFamily:'Rubik,sans-serif', display:'flex', gap:10, alignItems:'flex-start', animation:'toastIn .25s ease', direction:'rtl' }}>
-            <div style={{ fontSize:22, flexShrink:0, lineHeight:1 }}>🔔</div>
+            <div style={{ fontSize:22, flexShrink:0, lineHeight:1 }}>{toast.icon || '🔔'}</div>
             <div style={{ flex:1, minWidth:0 }}>
               <div style={{ fontSize:13, fontWeight:700, color:'#E9EDEF', marginBottom:3, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{toast.title}</div>
               <div style={{ fontSize:12, color:'#8696A0', lineHeight:1.45, overflow:'hidden', display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical' }}>{toast.body}</div>
@@ -9023,6 +9067,28 @@ export default function App() {
     return () => window.removeEventListener('resize', handler)
   }, [])
 
+  // ── /admin-panel URL routing ──
+  useEffect(() => {
+    if (window.location.pathname === '/admin-panel') {
+      const alreadyAuth = sessionStorage.getItem('afik_admin_session') === '1'
+      if (alreadyAuth) setShowAdmin(true)
+      else setShowPw(true)
+    }
+    const onPop = () => {
+      if (window.location.pathname !== '/admin-panel') setShowAdmin(false)
+    }
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, []) // eslint-disable-line
+
+  useEffect(() => {
+    if (showAdmin && adminAuth) {
+      if (window.location.pathname !== '/admin-panel') history.pushState({}, '', '/admin-panel')
+    } else {
+      if (window.location.pathname === '/admin-panel') history.replaceState({}, '', '/')
+    }
+  }, [showAdmin, adminAuth])
+
   // ── Load stats/sharon/properties on startup ──
   useEffect(() => {
     // 1. Fast initial state from localStorage (avoids flash of default numbers)
@@ -9918,12 +9984,14 @@ export default function App() {
       </footer>
 
       {/* ── WHATSAPP FLOAT ───────────────────────────── */}
-      <a href="https://wa.me/972559811814" target="_blank" rel="noopener noreferrer" className="wa-float" title="שלח הודעה ב-WhatsApp" onClick={() => trackEvent('whatsapp_click', { src:'float_btn' })}>
-        <WaIcon/>
-      </a>
+      {!(showAdmin && adminAuth) && (
+        <a href="https://wa.me/972559811814" target="_blank" rel="noopener noreferrer" className="wa-float" title="שלח הודעה ב-WhatsApp" onClick={() => trackEvent('whatsapp_click', { src:'float_btn' })}>
+          <WaIcon/>
+        </a>
+      )}
 
       {/* ── BACK TO TOP ─────────────────────────────── */}
-      <BackToTop />
+      {!(showAdmin && adminAuth) && <BackToTop />}
 
       {/* ── MODALS ──────────────────────────────────── */}
       {showPw      && <PasswordPrompt onSuccess={() => { sessionStorage.setItem('afik_admin_session','1'); setAdminAuth(true); setShowPw(false); setShowAdmin(true) }} onClose={() => setShowPw(false)}/>}
