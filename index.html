@@ -121,6 +121,39 @@
         background: transparent;
       }
 
+      /* Lead row hover (CSS-only — keeps 100+ items off the React render loop) */
+      .lead-row {
+        transition: background-color .12s ease;
+      }
+      .lead-row:not(.is-selected):hover {
+        background-color: rgba(255,255,255,.035) !important;
+      }
+      .lead-row-archive {
+        opacity: 0;
+        pointer-events: none;
+        transform: translateY(-50%) scale(.72);
+        transition: opacity .15s ease, transform .15s ease,
+                    background-color .12s ease, color .12s ease, border-color .12s ease;
+      }
+      .lead-row:hover .lead-row-archive {
+        opacity: 1;
+        pointer-events: auto;
+        transform: translateY(-50%) scale(1);
+      }
+      .lead-row-archive:hover {
+        background-color: rgba(224,82,82,.22) !important;
+        color: #E05252 !important;
+        border-color: rgba(224,82,82,.5) !important;
+      }
+      /* Touch devices: archive button is always visible (no hover state) */
+      @media (hover: none) and (pointer: coarse) {
+        .lead-row-archive {
+          opacity: .9;
+          pointer-events: auto;
+          transform: translateY(-50%) scale(1);
+        }
+      }
+
       /* Mobile: thinner scrollbar so it doesn't steal column width, and
          force iOS momentum scrolling on every overflow container. */
       @media (max-width: 768px) {
