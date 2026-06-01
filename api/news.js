@@ -55,6 +55,12 @@ const RSS_SOURCES = [
   { name: 'Google השקעות נדלן',  url: 'https://news.google.com/rss/search?q=%D7%94%D7%A9%D7%A7%D7%A2%D7%95%D7%AA+%D7%A0%D7%93%D7%9C%D7%9F+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he',                                 gn: true },
   { name: 'Google נדלן מסחרי',   url: 'https://news.google.com/rss/search?q=%D7%A0%D7%93%D7%9C%D7%9F+%D7%9E%D7%A1%D7%97%D7%A8%D7%99+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he',                                       gn: true },
   { name: 'Google קניית דירה',   url: 'https://news.google.com/rss/search?q=%D7%A7%D7%A0%D7%99%D7%99%D7%AA+%D7%93%D7%99%D7%A8%D7%94+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he',                                       gn: true },
+  { name: 'Google ICE נדל"ן',    url: 'https://news.google.com/rss/search?q=site%3Aice.co.il+%D7%A0%D7%93%D7%9C%D7%9F&hl=he&gl=IL&ceid=IL:he', gn: true },
+  { name: 'Google N12 נדל"ן',    url: 'https://news.google.com/rss/search?q=site%3An12.co.il+%D7%A0%D7%93%D7%9C%D7%9F&hl=he&gl=IL&ceid=IL:he', gn: true },
+  { name: 'Google יד2 נדל"ן',    url: 'https://news.google.com/rss/search?q=site%3Ayad2.co.il+%D7%A0%D7%93%D7%9C%D7%9F&hl=he&gl=IL&ceid=IL:he', gn: true },
+  { name: 'Google רשות מיסים',   url: 'https://news.google.com/rss/search?q=%D7%A8%D7%A9%D7%95%D7%AA+%D7%94%D7%9E%D7%99%D7%A1%D7%99%D7%9D+%D7%9E%D7%99%D7%A1%D7%95%D7%99+%D7%9E%D7%A7%D7%A8%D7%A7%D7%A2%D7%99%D7%9F&hl=he&gl=IL&ceid=IL:he', gn: true },
+  { name: 'Google מדלן',         url: 'https://news.google.com/rss/search?q=site%3Amadlan.co.il&hl=he&gl=IL&ceid=IL:he', gn: true },
+  { name: 'Google Bizportal',    url: 'https://news.google.com/rss/search?q=site%3Abizportal.co.il+%D7%A0%D7%93%D7%9C%D7%9F&hl=he&gl=IL&ceid=IL:he', gn: true },
 ]
 
 const HE_RE     = /[א-ת]/
@@ -85,6 +91,10 @@ const DOMAIN_KEY = {
   'israelhayom.co.il': 'israelhayom',
   'kan.org.il': 'kan', 'reshet13.co.il': 'reshet13',
   'news1.co.il': 'news1', 'davar1.co.il': 'davar1',
+  'ice.co.il': 'ice',
+  'yad2.co.il': 'yad2',
+  'n12.co.il': 'n12',
+  'nadlan20.co.il': 'nadlan20',
 }
 function outletKey(url) {
   try {

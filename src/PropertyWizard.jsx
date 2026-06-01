@@ -6,13 +6,14 @@ import {
   FaWheelchair, FaSnowflake, FaBuilding, FaCar, FaBox, FaShieldAlt,
   FaExpand, FaUtensils, FaSun, FaLock, FaDoorOpen, FaCouch,
   FaTools, FaUserShield, FaWind, FaBolt,
-  FaHome, FaKey,
+  FaHome, FaKey, FaHardHat, FaLeaf, FaStore,
   FaLightbulb, FaExclamationTriangle,
   FaTag, FaMapMarkerAlt, FaBed, FaRulerCombined, FaMoneyBill,
   FaCalendarAlt, FaCog, FaFileAlt, FaPhone, FaLayerGroup,
   FaPlay, FaVideo, FaCloudUploadAlt, FaCircleNotch,
   FaGlobe, FaSave, FaMagic, FaSyncAlt,
   FaSwimmingPool, FaWifi, FaUsers, FaBriefcase,
+  FaFire, FaDumbbell, FaTruck, FaBath,
 } from 'react-icons/fa'
 
 // ─── Cloudinary config ── fill in your own cloud name + unsigned preset ───────
@@ -85,39 +86,101 @@ const CONDITIONS = [
 ]
 
 const AMENITIES = [
-  { k: 'accessible',  l: 'גישה לנכים',  Icon: FaWheelchair },
-  { k: 'ac',          l: 'מיזוג',        Icon: FaSnowflake },
-  { k: 'elevator',    l: 'מעלית',        Icon: FaBuilding },
-  { k: 'parking',     l: 'חניה',         Icon: FaCar },
-  { k: 'storage',     l: 'מחסן',         Icon: FaBox },
-  { k: 'shelter',     l: 'ממ"ד',         Icon: FaShieldAlt },
-  { k: 'balcony',     l: 'מרפסת',        Icon: FaExpand },
-  { k: 'pool',        l: 'בריכה',        Icon: FaSwimmingPool },
-  { k: 'kosher',      l: 'מטבח כשר',     Icon: FaUtensils },
-  { k: 'solar',       l: 'דוד שמש',      Icon: FaSun },
-  { k: 'bars',        l: 'סורגים',       Icon: FaLock },
-  { k: 'unit',        l: 'יחידת דיור',   Icon: FaDoorOpen },
-  { k: 'furnished',   l: 'ריהוט',        Icon: FaCouch },
-  { k: 'renovated_f', l: 'שיפוץ',        Icon: FaTools },
-  { k: 'doorman',     l: 'שוער',         Icon: FaUserShield },
-  { k: 'tornado_ac',  l: 'מזגן טורנדו',  Icon: FaWind },
-  { k: 'boiler',      l: 'דוד חשמל',     Icon: FaBolt },
+  // בסיסיים
+  { k: 'accessible',   l: 'גישה לנכים',       Icon: FaWheelchair },
+  { k: 'ac',           l: 'מיזוג',             Icon: FaSnowflake },
+  { k: 'elevator',     l: 'מעלית',             Icon: FaBuilding },
+  { k: 'parking',      l: 'חניה',              Icon: FaCar },
+  { k: 'storage',      l: 'מחסן',              Icon: FaBox },
+  { k: 'shelter',      l: 'ממ"ד',              Icon: FaShieldAlt },
+  { k: 'balcony',      l: 'מרפסת',             Icon: FaExpand },
+  { k: 'roof_terrace', l: 'מרפסת גג',          Icon: FaExpand },
+  // נוספים — דירות
+  { k: 'master_br',    l: 'חדר הורים',         Icon: FaBed },
+  { k: 'garden',       l: 'גינה פרטית',        Icon: FaLeaf },
+  { k: 'pool',         l: 'בריכה',             Icon: FaSwimmingPool },
+  { k: 'jacuzzi',      l: "ג'קוזי",            Icon: FaBath },
+  { k: 'gym',          l: 'חדר כושר',          Icon: FaDumbbell },
+  { k: 'laundry',      l: 'חדר כביסה',         Icon: FaTools },
+  { k: 'lobby',        l: 'לובי',              Icon: FaDoorOpen },
+  { k: 'intercom',     l: 'אינטרקום',          Icon: FaPhone },
+  { k: 'doorman',      l: 'שוער / שמירה',      Icon: FaUserShield },
+  // תשתיות
+  { k: 'natural_gas',  l: 'גז',                Icon: FaFire },
+  { k: 'solar',        l: 'דוד שמש',           Icon: FaSun },
+  { k: 'boiler',       l: 'דוד חשמל',          Icon: FaBolt },
+  { k: 'ev_charge',    l: 'עמדת טעינה חשמלית', Icon: FaBolt },
+  { k: 'tornado_ac',   l: 'מזגן טורנדו',       Icon: FaWind },
+  // אחר
+  { k: 'kosher',       l: 'מטבח כשר',          Icon: FaUtensils },
+  { k: 'furnished',    l: 'ריהוט',             Icon: FaCouch },
+  { k: 'renovated_f',  l: 'שיפוץ',             Icon: FaTools },
+  { k: 'unit',         l: 'יחידת דיור',        Icon: FaDoorOpen },
+  { k: 'bars',         l: 'סורגים',            Icon: FaLock },
+]
+
+const PROJECT_AMENITIES = [
+  // ליבה
+  { k: 'elevator',      l: 'מעלית',             Icon: FaBuilding },
+  { k: 'parking',       l: 'חניה',              Icon: FaCar },
+  { k: 'underground_p', l: 'חניה תת-קרקעית',    Icon: FaCar },
+  { k: 'storage',       l: 'מחסן',              Icon: FaBox },
+  { k: 'shelter',       l: 'ממ"ד',              Icon: FaShieldAlt },
+  { k: 'balcony',       l: 'מרפסת',             Icon: FaExpand },
+  { k: 'roof_terrace',  l: 'מרפסת גג',          Icon: FaExpand },
+  // שירותים משותפים
+  { k: 'lobby',         l: 'לובי',              Icon: FaDoorOpen },
+  { k: 'gym',           l: 'חדר כושר',          Icon: FaDumbbell },
+  { k: 'pool',          l: 'בריכה',             Icon: FaSwimmingPool },
+  { k: 'garden_shared', l: 'גינה משותפת',       Icon: FaLeaf },
+  { k: 'security_24',   l: 'שמירה 24/7',        Icon: FaUserShield },
+  { k: 'intercom',      l: 'אינטרקום',          Icon: FaPhone },
+  // דירה
+  { k: 'master_br',     l: 'חדר הורים',         Icon: FaBed },
+  { k: 'jacuzzi',       l: "ג'קוזי",            Icon: FaBath },
+  { k: 'accessible',    l: 'גישה לנכים',        Icon: FaWheelchair },
+  { k: 'ac',            l: 'מיזוג',             Icon: FaSnowflake },
+  // תשתיות
+  { k: 'ev_charge',     l: 'עמדת טעינה חשמלית', Icon: FaBolt },
+  { k: 'natural_gas',   l: 'גז',                Icon: FaFire },
+  { k: 'solar',         l: 'דוד שמש',           Icon: FaSun },
 ]
 
 const COMMERCIAL_AMENITIES = [
-  { k: 'kitchenette',    l: 'מטבחון',        Icon: FaUtensils },
-  { k: 'alarm',          l: 'אזעקה',          Icon: FaExclamationTriangle },
-  { k: 'cameras',        l: 'מצלמות אבטחה',  Icon: FaCamera },
-  { k: 'conf_room',      l: 'חדר ישיבות',    Icon: FaUsers },
-  { k: 'comm_room',      l: 'חדר תקשורת',    Icon: FaWifi },
-  { k: 'mamak',          l: 'ממק',            Icon: FaBriefcase },
-  { k: 'accessible',     l: 'גישה לנכים',    Icon: FaWheelchair },
-  { k: 'elevator',       l: 'מעלית',          Icon: FaBuilding },
-  { k: 'parking',        l: 'חניה',           Icon: FaCar },
-  { k: 'ac',             l: 'מיזוג',          Icon: FaSnowflake },
-  { k: 'storage',        l: 'מחסן',           Icon: FaBox },
-  { k: 'shelter',        l: 'ממ"ד',           Icon: FaShieldAlt },
+  // ליבה
+  { k: 'accessible',   l: 'גישה לנכים',       Icon: FaWheelchair },
+  { k: 'elevator',     l: 'מעלית',             Icon: FaBuilding },
+  { k: 'freight_elev', l: 'מעלית מטען',        Icon: FaTruck },
+  { k: 'parking',      l: 'חניה',              Icon: FaCar },
+  { k: 'ac',           l: 'מיזוג',             Icon: FaSnowflake },
+  { k: 'storage',      l: 'מחסן',              Icon: FaBox },
+  { k: 'shelter',      l: 'ממ"ד',              Icon: FaShieldAlt },
+  // כניסות ומרחב
+  { k: 'sep_entrance', l: 'כניסה נפרדת',       Icon: FaDoorOpen },
+  { k: 'lobby_c',      l: 'לובי',              Icon: FaDoorOpen },
+  { k: 'yard_c',       l: 'חצר',               Icon: FaExpand },
+  { k: 'truck_entry',  l: 'כניסת משאית',       Icon: FaTruck },
+  // מתקנים
+  { k: 'kitchenette',  l: 'מטבחון',            Icon: FaUtensils },
+  { k: 'restrooms',    l: 'שירותים נפרדים',     Icon: FaUsers },
+  { k: 'conf_room',    l: 'חדר ישיבות',        Icon: FaUsers },
+  { k: 'server_room',  l: 'חדר שרתים',         Icon: FaWifi },
+  { k: 'comm_room',    l: 'חדר תקשורת',        Icon: FaWifi },
+  // אבטחה ובטיחות
+  { k: 'alarm',        l: 'אזעקה',             Icon: FaExclamationTriangle },
+  { k: 'cameras',      l: 'מצלמות אבטחה',      Icon: FaCamera },
+  { k: 'fire_sys',     l: 'מכבה אש',           Icon: FaFire },
+  { k: 'mamak',        l: 'ממק',               Icon: FaBriefcase },
+  // תשתיות
+  { k: 'generator',    l: 'גנרטור',            Icon: FaBolt },
+  { k: 'natural_gas',  l: 'גז',                Icon: FaFire },
 ]
+
+function amenityListFor(d) {
+  if (d.category === 'projects') return PROJECT_AMENITIES
+  if (d.category === 'commercial' || COMMERCIAL_TYPES.includes(d.propType)) return COMMERCIAL_AMENITIES
+  return AMENITIES
+}
 
 const VIEWS      = ['ללא', 'ים', 'פארק', 'עיר', 'טבע']
 const DIRECTIONS = ['1', '2', '3', '4']
@@ -126,11 +189,18 @@ const HE_MONTHS = ['ינואר','פברואר','מרץ','אפריל','מאי','�
                    'יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר']
 const HE_DAYS   = ['א׳','ב׳','ג׳','ד׳','ה׳','ו׳','ש׳']
 
+const WIZARD_CATEGORIES = [
+  { id: 'projects',   label: 'פרויקטים בשיווק', Icon: FaHardHat },
+  { id: 'apartments', label: 'דירות למכירה',     Icon: FaHome    },
+  { id: 'land',       label: 'מגרשים וקרקעות',  Icon: FaLeaf    },
+  { id: 'commercial', label: 'נכסים מסחריים',    Icon: FaStore   },
+]
+
 const INIT = {
-  txType: 'sale', propType: '',
+  txType: 'sale', propType: '', category: '',
   city: '', street: '', houseNum: '', floor: '', totalFloors: '',
   onPilotis: false, neighborhood: '', area: '', district: '',
-  rooms: '', bathrooms: 1, parking: 0, balconies: 0,
+  rooms: '', bathrooms: 0, parking: 0, balconies: 0,
   size: '', sqmBuilt: '', condition: '', directions: '', view: '',
   amenities: {},
   price: '', priceOnInquiry: false, entryDate: '', entryFlex: false,
@@ -141,6 +211,7 @@ const INIT = {
   logo: '',
   logoSize: 72,
   pdfs: [],  // [{name, url}] — uploaded project PDFs
+  publishMode: 'publish', // 'publish' | 'draft'
 }
 
 const parsePrice = raw => raw.replace(/[^\d]/g,'').replace(/\B(?=(\d{3})+(?!\d))/g,',')
@@ -166,6 +237,7 @@ export function propertyToWizardData(prop) {
   return {
     txType: prop.txType || 'sale',
     propType: prop.type || '',
+    category: prop.category || '',
     city: prop.location || '',
     street,
     houseNum,
@@ -176,7 +248,7 @@ export function propertyToWizardData(prop) {
     area: prop.region || '',
     district: prop.district || '',
     rooms: prop.rooms || '',
-    bathrooms: prop.bathrooms || 1,
+    bathrooms: prop.bathrooms ?? 0,
     parking: prop.parkingCount || (prop.parking ? 1 : 0),
     balconies: prop.balconies || 0,
     size: prop.size || '',
@@ -241,31 +313,56 @@ const inferCategory = propType => {
 
 export function wizardToProperty(d, isDraft) {
   const amenMap = {
-    // Standard amenities
-    accessible:  'accessible',
-    ac:          'airCon',
-    elevator:    'elevator',
-    parking:     'parking',
-    storage:     'storage',
-    shelter:     'safeRoom',
-    balcony:     'balcony',
-    pool:        'pool',
-    kosher:      'kosher',
-    solar:       'solarBoiler',
-    bars:        'bars',
-    unit:        'unit',
-    furnished:   'furnished',
-    renovated_f: 'renovated',
-    doorman:     'doorman',
-    tornado_ac:  'tornadoAC',
-    boiler:      'boiler',
-    // Commercial amenities
-    kitchenette: 'kitchenette',
-    alarm:       'alarm',
-    cameras:     'cameras',
-    conf_room:   'conferenceRoom',
-    comm_room:   'commRoom',
-    mamak:       'mamak',
+    // Residential
+    accessible:   'accessible',
+    ac:           'airCon',
+    elevator:     'elevator',
+    parking:      'parking',
+    storage:      'storage',
+    shelter:      'safeRoom',
+    balcony:      'balcony',
+    roof_terrace: 'roofTerrace',
+    pool:         'pool',
+    kosher:       'kosher',
+    solar:        'solarBoiler',
+    bars:         'bars',
+    unit:         'unit',
+    furnished:    'furnished',
+    renovated_f:  'renovated',
+    doorman:      'doorman',
+    tornado_ac:   'tornadoAC',
+    boiler:       'boiler',
+    // New residential
+    master_br:    'masterBedroom',
+    garden:       'gardenPrivate',
+    jacuzzi:      'jacuzzi',
+    gym:          'gym',
+    laundry:      'laundryRoom',
+    lobby:        'lobby',
+    intercom:     'intercom',
+    natural_gas:  'naturalGas',
+    ev_charge:    'evCharging',
+    // Project-specific
+    underground_p: 'undergroundParking',
+    garden_shared: 'sharedGarden',
+    security_24:   'security24',
+    // Commercial
+    kitchenette:  'kitchenette',
+    alarm:        'alarm',
+    cameras:      'cameras',
+    conf_room:    'conferenceRoom',
+    comm_room:    'commRoom',
+    mamak:        'mamak',
+    // New commercial
+    freight_elev: 'freightElevator',
+    sep_entrance: 'separateEntrance',
+    lobby_c:      'lobby',
+    yard_c:       'yard',
+    truck_entry:  'truckEntry',
+    restrooms:    'separateRestrooms',
+    server_room:  'serverRoom',
+    fire_sys:     'fireSystem',
+    generator:    'generator',
   }
   const amenities = {}
   Object.entries(amenMap).forEach(([wk, ak]) => { amenities[ak] = !!d.amenities[wk] })
@@ -275,7 +372,7 @@ export function wizardToProperty(d, isDraft) {
 
   return {
     id: Date.now(),
-    category: inferCategory(d.propType),
+    category: d.category || inferCategory(d.propType),
     title: `${d.propType}${d.rooms ? `, ${d.rooms} חד׳` : ''}${d.size ? `, ${d.size} מ"ר` : ''} - ${d.city}`,
     type: d.propType,
     txType: d.txType,
@@ -715,6 +812,31 @@ function Step1({ d, upd }) {
           )
         })}
       </div>
+
+      {/* Category */}
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ fontSize: 11, color: MUTED, marginBottom: 10, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 6 }}>
+          קטגוריה
+          <span style={{ fontSize: 10, color: `${P}99`, background: `${P}15`, borderRadius: 4, padding: '2px 7px', letterSpacing: 0, textTransform: 'none', fontWeight: 500 }}>אופציונלי — נקבע אוטומטית לפי סוג הנכס</span>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+          {WIZARD_CATEGORIES.map(c => {
+            const on = d.category === c.id
+            return (
+              <button key={c.id} onClick={() => upd('category', on ? '' : c.id)}
+                style={{ padding: '14px 8px', borderRadius: 12,
+                  border: `2px solid ${on ? P : BORDER}`, background: on ? P + '18' : DARK,
+                  color: on ? P : TEXT, cursor: 'pointer', transition: 'all .2s',
+                  textAlign: 'center', fontFamily: FONT, display: 'flex', flexDirection: 'column',
+                  alignItems: 'center', gap: 8 }}>
+                <c.Icon size={20} />
+                <div style={{ fontSize: 12, fontWeight: 700, lineHeight: 1.3 }}>{c.label}</div>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
       <Field label="סוג נכס" req>
         <select value={d.propType} onChange={e => upd('propType', e.target.value)}
           className="pw-select"
@@ -737,6 +859,33 @@ function Step1({ d, upd }) {
           onFocus={e => e.target.style.borderColor = P}
           onBlur={e  => e.target.style.borderColor = BORDER} />
       </Field>
+
+      {/* Publish mode */}
+      <div style={{ marginTop: 28, paddingTop: 20, borderTop: `1px solid ${BORDER}` }}>
+        <div style={{ fontSize: 11, color: MUTED, marginBottom: 12, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase' }}>
+          פרסום נכס
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          {[
+            { v: 'publish', icon: FaGlobe, label: 'פרסם מיידית', desc: 'הנכס יופיע באתר מיד עם השמירה' },
+            { v: 'draft',   icon: FaSave,  label: 'שמור כטיוטה',  desc: 'הנכס יישמר בלבד, ללא פרסום עדיין' },
+          ].map(o => {
+            const on = d.publishMode === o.v
+            return (
+              <button key={o.v} onClick={() => upd('publishMode', o.v)}
+                style={{ padding: '16px 12px', borderRadius: 14,
+                  border: `2px solid ${on ? (o.v === 'publish' ? P : '#F7C948') : BORDER}`,
+                  background: on ? (o.v === 'publish' ? P + '18' : '#F7C94812') : DARK,
+                  color: on ? (o.v === 'publish' ? P : '#F7C948') : TEXT,
+                  cursor: 'pointer', transition: 'all .2s', textAlign: 'center', fontFamily: FONT }}>
+                <o.icon size={20} style={{ marginBottom: 8, display: 'block', margin: '0 auto 8px' }} />
+                <div style={{ fontSize: 14, fontWeight: 800 }}>{o.label}</div>
+                <div style={{ fontSize: 11.5, color: MUTED, marginTop: 4, lineHeight: 1.4 }}>{o.desc}</div>
+              </button>
+            )
+          })}
+        </div>
+      </div>
     </div>
   )
 }
@@ -863,7 +1012,7 @@ function Step3({ d, upd }) {
             <option key={r} value={r} style={{ background: '#0c0820', color: TEXT }}>{r} חדרים</option>
           ))}
         </Select>
-        <Counter label="חדרי מקלחת" value={d.bathrooms} min={1} max={8} onChange={v => upd('bathrooms', v)} />
+        <Counter label="חדרי מקלחת" value={d.bathrooms} min={0} max={8} onChange={v => upd('bathrooms', v)} />
         <Counter label="חניות" value={d.parking} min={0} max={5} onChange={v => upd('parking', v)} />
         <Counter label="מרפסות" value={d.balconies} min={0} max={5} onChange={v => upd('balconies', v)} />
         <Input label='גודל הנכס במ"ר' req value={d.size} placeholder="לדוג׳: 85"
@@ -876,11 +1025,7 @@ function Step3({ d, upd }) {
       <ToggleGroup label="נוף פתוח" options={VIEWS} value={d.view} onChange={v => upd('view', v)} />
       <div style={{ marginBottom: 12 }}>
         <label style={labelStyle}>מאפייני הנכס</label>
-        {COMMERCIAL_TYPES.includes(d.propType) ? (
-          <CheckGrid items={COMMERCIAL_AMENITIES} checked={d.amenities} onChange={a => upd('amenities', a)} />
-        ) : (
-          <CheckGrid items={AMENITIES} checked={d.amenities} onChange={a => upd('amenities', a)} />
-        )}
+        <CheckGrid items={amenityListFor(d)} checked={d.amenities} onChange={a => upd('amenities', a)} />
       </div>
     </div>
   )
@@ -966,7 +1111,7 @@ async function callClaudeRewrite(d, _retry = 0) {
   const condMap = { new:'חדש מקבלן', renovated:'משופץ', good:'במצב טוב', asis:'כמות שהוא' }
   const typeName = typeMap[d.category] || d.category || 'נכס'
   const cond = condMap[d.condition] || ''
-  const amenities = AMENITIES.filter(a => d.amenities?.[a.k]).map(a => a.l).join(', ') || ''
+  const amenities = amenityListFor(d).filter(a => d.amenities?.[a.k]).map(a => a.l).join(', ') || ''
   const prompt = `אתה מומחה שיווק נדל"ן ישראלי. כתוב תיאור שיווקי מקצועי ומשכנע בעברית לנכס הבא.
 
 פרטי הנכס:
@@ -1246,11 +1391,12 @@ function PdfUploader({ pdfs, onUpdate, adminToken }) {
 
 // ─── Step 6: Media upload (images + Cloudinary video) ─────────────────────────
 
-function Step6({ d, upd }) {
+function Step6({ d, upd, onUploadingChange }) {
   const imgInputRef      = useRef(null)
   const localVidRef      = useRef(null)
   const cloudVidRef      = useRef(null)
   const [uploading, setUploading] = useState(false)
+  const setUploadingState = v => { setUploading(v); onUploadingChange?.(v) }
   const [progress,  setProgress]  = useState(0)
   const [uploadErr, setUploadErr] = useState('')
   const [isDragOver, setIsDragOver] = useState(false)
@@ -1285,12 +1431,46 @@ function Step6({ d, upd }) {
     const remaining = 20 - d.media.filter(m => m.type === 'image').length
     const toAdd = files.filter(f => f.type.startsWith('image/')).slice(0, remaining)
     if (!toAdd.length) return
-    const compressed = await Promise.all(toAdd.map(async f => ({
-      url: await compressImage(f),
-      name: f.name,
-      type: 'image',
-    })))
-    upd('media', [...d.media, ...compressed])
+
+    setUploadingState(true)
+    setProgress(0)
+    setUploadErr('')
+
+    const uploaded = []
+    for (let i = 0; i < toAdd.length; i++) {
+      const file = toAdd[i]
+      try {
+        const fd = new FormData()
+        fd.append('file', file)
+        const url = await new Promise((resolve, reject) => {
+          const xhr = new XMLHttpRequest()
+          xhr.upload.addEventListener('progress', ev => {
+            if (ev.lengthComputable) {
+              const pct = ((i * 100) + (ev.loaded / ev.total) * 100) / toAdd.length
+              setProgress(Math.round(pct))
+            }
+          })
+          xhr.addEventListener('load', () => {
+            try {
+              const data = JSON.parse(xhr.responseText)
+              if (xhr.status === 200 && data.url) resolve(data.url)
+              else reject(new Error(data.error || `שגיאה ${xhr.status}`))
+            } catch { reject(new Error('תגובת שרת לא תקינה')) }
+          })
+          xhr.addEventListener('error', () => reject(new Error('שגיאת רשת — בדוק חיבור אינטרנט')))
+          xhr.open('POST', `${UPLOAD_BASE}/api/upload/image`)
+          xhr.setRequestHeader('Authorization', `Bearer ${WIZ_ADMIN_TOKEN}`)
+          xhr.send(fd)
+        })
+        uploaded.push({ url, name: file.name, type: 'image' })
+      } catch (err) {
+        setUploadErr(`שגיאה בהעלאת "${file.name}": ${err.message}`)
+      }
+    }
+
+    if (uploaded.length > 0) upd('media', [...d.media, ...uploaded])
+    setUploadingState(false)
+    setProgress(0)
   }
 
   const addImages = async e => {
@@ -1317,7 +1497,7 @@ function Step6({ d, upd }) {
     const toAdd = files.filter(f => f.type.startsWith('video/')).slice(0, remaining)
     if (!toAdd.length) return
 
-    setUploading(true)
+    setUploadingState(true)
     setProgress(0)
     setUploadErr('')
 
@@ -1356,7 +1536,7 @@ function Step6({ d, upd }) {
     }
 
     if (uploaded.length > 0) upd('media', [...d.media, ...uploaded])
-    setUploading(false)
+    setUploadingState(false)
     setProgress(0)
     e.target.value = ''
   }
@@ -1373,7 +1553,7 @@ function Step6({ d, upd }) {
       return
     }
 
-    setUploading(true)
+    setUploadingState(true)
     setProgress(0)
     try {
       const result = await uploadToCloudinary(file, setProgress)
@@ -1390,7 +1570,7 @@ function Step6({ d, upd }) {
     } catch (err) {
       setUploadErr(`שגיאה בהעלאה: ${err.message}`)
     } finally {
-      setUploading(false)
+      setUploadingState(false)
       setProgress(0)
       e.target.value = ''
     }
@@ -1417,33 +1597,49 @@ function Step6({ d, upd }) {
       {/* Drag & drop zone */}
       {imgCount < 20 && (
         <div
-          onDrop={handleDrop}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onClick={() => imgInputRef.current?.click()}
+          onDrop={!uploading ? handleDrop : undefined}
+          onDragOver={!uploading ? handleDragOver : undefined}
+          onDragLeave={!uploading ? handleDragLeave : undefined}
+          onClick={() => !uploading && imgInputRef.current?.click()}
           style={{
-            border: `2px dashed ${isDragOver ? P : BORDER}`,
+            border: `2px dashed ${uploading ? P : isDragOver ? P : BORDER}`,
             borderRadius: 16,
-            background: isDragOver ? `${P}14` : DARK,
-            padding: '36px 20px',
+            background: uploading ? `${P}0A` : isDragOver ? `${P}14` : DARK,
+            padding: '28px 20px',
             display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
-            cursor: 'pointer', marginBottom: 14, transition: 'all .2s',
+            cursor: uploading ? 'default' : 'pointer', marginBottom: 14, transition: 'all .2s',
             transform: isDragOver ? 'scale(1.01)' : 'scale(1)',
           }}
         >
-          <div style={{ width: 56, height: 56, borderRadius: '50%',
-            background: isDragOver ? `${P}22` : `${P}14`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .2s' }}>
-            <FaCloudUploadAlt size={24} style={{ color: isDragOver ? P : MUTED, transition: 'color .2s' }} />
-          </div>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ color: isDragOver ? P : TEXT, fontWeight: 700, fontSize: 15, fontFamily: FONT, marginBottom: 4 }}>
-              {isDragOver ? 'שחרר להוספה' : 'גרור תמונות לכאן'}
-            </div>
-            <div style={{ color: MUTED, fontSize: 13, fontFamily: FONT }}>
-              או <span style={{ color: P, fontWeight: 600 }}>לחץ לבחירת קבצים</span> &nbsp;·&nbsp; {imgCount}/20 תמונות
-            </div>
-          </div>
+          {uploading ? (
+            <>
+              <FaCircleNotch size={26} style={{ color: P, animation: 'spin 0.8s linear infinite' }} />
+              <div style={{ fontSize: 13, color: P, fontFamily: FONT, fontWeight: 700 }}>מעלה לענן... {progress}%</div>
+              <div style={{ width: '80%', height: 5, background: `${P}22`, borderRadius: 99, overflow: 'hidden' }}>
+                <div style={{ height: '100%', background: P, width: `${progress}%`, transition: 'width .2s', borderRadius: 99 }} />
+              </div>
+              <div style={{ fontSize: 11, color: MUTED, fontFamily: FONT }}>התמונות מועלות ל-Supabase Storage</div>
+            </>
+          ) : (
+            <>
+              <div style={{ width: 56, height: 56, borderRadius: '50%',
+                background: isDragOver ? `${P}22` : `${P}14`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .2s' }}>
+                <FaCloudUploadAlt size={24} style={{ color: isDragOver ? P : MUTED, transition: 'color .2s' }} />
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ color: isDragOver ? P : TEXT, fontWeight: 700, fontSize: 15, fontFamily: FONT, marginBottom: 4 }}>
+                  {isDragOver ? 'שחרר להוספה' : 'גרור תמונות לכאן'}
+                </div>
+                <div style={{ color: MUTED, fontSize: 13, fontFamily: FONT }}>
+                  או <span style={{ color: P, fontWeight: 600 }}>לחץ לבחירת קבצים</span> &nbsp;·&nbsp; {imgCount}/20 תמונות
+                </div>
+                <div style={{ color: `${MUTED}88`, fontSize: 11, fontFamily: FONT, marginTop: 4 }}>
+                  ☁ מועלה ישירות ל-Supabase Storage
+                </div>
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -1673,7 +1869,7 @@ const SUMMARY_ROWS = [
   { key: '_condition',  Icon: FaCheck,         label: 'מצב',       fmt: (_,d)  => CONDITIONS.find(c => c.v === d.condition)?.l || '' },
   { key: 'price',       Icon: FaMoneyBill,     label: 'מחיר',      fmt: (v)    => v ? `₪${v}` : '' },
   { key: '_entry',      Icon: FaCalendarAlt,   label: 'כניסה',     fmt: (_,d)  => d.entryFlex ? 'גמיש / מיידי' : d.entryDate },
-  { key: '_amenities',  Icon: FaCog,           label: 'מאפיינים',  fmt: (_,d)  => AMENITIES.filter(a => d.amenities[a.k]).map(a => a.l).join(' • ') },
+  { key: '_amenities',  Icon: FaCog,           label: 'מאפיינים',  fmt: (_,d)  => amenityListFor(d).filter(a => d.amenities[a.k]).map(a => a.l).join(' • ') },
   { key: 'description', Icon: FaFileAlt,       label: 'תיאור',     fmt: (v)    => v },
   { key: '_contact',    Icon: FaPhone,         label: 'איש קשר',   fmt: (_,d)  => `${d.contactName} | ${d.contactPhone}` },
 ]
@@ -1775,6 +1971,7 @@ export default function PropertyWizard({ onClose, onPublish, initialData, editId
   })
   const [showPublishModal, setShowPublishModal] = useState(false)
   const [draftSaved, setDraftSaved] = useState(false)
+  const [mediaUploading, setMediaUploading] = useState(false)
   const glowRef = useRef(null)
 
   // Auto-save on every change
@@ -1799,12 +1996,16 @@ export default function PropertyWizard({ onClose, onPublish, initialData, editId
 
   const canNext = () => {
     if (step === 1) return data.txType && data.propType && data.contactName && data.contactPhone
-    if (step === 2) return data.city && data.street && data.houseNum
+    if (step === 2) return !!(data.city || data.gush)
     if (step === 3) return data.rooms && data.size && data.condition
     return true
   }
 
-  const handleFinish = () => setShowPublishModal(true)
+  const handleFinish = () => {
+    // If user chose draft in Step 1, skip the modal and save directly
+    if (data.publishMode === 'draft') { handlePublish(true); return }
+    setShowPublishModal(true)
+  }
 
   const handlePublish = (isDraft) => {
     setShowPublishModal(false)
@@ -1882,27 +2083,24 @@ export default function PropertyWizard({ onClose, onPublish, initialData, editId
                   {STEPS.map(s => {
                     const done    = step > s.id
                     const current = step === s.id
-                    const clickable = done || !!editId
                     return (
                       <div key={s.id}
-                        onClick={() => clickable && setStep(s.id)}
+                        onClick={() => setStep(s.id)}
                         style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
-                          cursor: clickable ? 'pointer' : 'default' }}
-                        title={clickable ? `חזור לשלב ${s.id}: ${s.title}` : ''}>
+                          cursor: 'pointer' }}
+                        title={`${s.title}`}>
                         <div style={{ width: 22, height: 22, borderRadius: '50%',
-                          background: done ? G : current ? P : (clickable && !current ? `${P}28` : '#0c0820'),
-                          border: `2px solid ${done ? G : current ? P : (clickable ? `${P}66` : BORDER)}`,
-                          color: done ? '#000' : current ? '#fff' : (clickable ? `${P}CC` : MUTED),
+                          background: done ? G : current ? P : `${P}28`,
+                          border: `2px solid ${done ? G : current ? P : `${P}55`}`,
+                          color: done ? '#000' : current ? '#fff' : `${P}CC`,
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                           fontSize: 10, fontWeight: 800, transition: 'all .3s', flexShrink: 0,
                           boxShadow: 'none' }}>
                           {done ? <FaCheck size={9}/> : s.id}
                         </div>
-                        <span style={{ fontSize: 11, color: current ? TEXT : done ? `${G}BB` : (clickable ? `${P}AA` : MUTED),
-                          fontWeight: current ? 800 : (clickable ? 600 : 400), textAlign: 'center', lineHeight: 1.25,
-                          fontFamily: FONT, whiteSpace: 'normal',
-                          textDecoration: clickable ? 'underline dotted' : 'none',
-                          textUnderlineOffset: 2 }}>
+                        <span style={{ fontSize: 11, color: current ? TEXT : done ? `${G}BB` : `${P}99`,
+                          fontWeight: current ? 800 : 600, textAlign: 'center', lineHeight: 1.25,
+                          fontFamily: FONT, whiteSpace: 'normal' }}>
                           {s.title}
                         </span>
                       </div>
@@ -1914,7 +2112,7 @@ export default function PropertyWizard({ onClose, onPublish, initialData, editId
 
             {/* ── Step content ── */}
             <div style={{ padding: '14px 28px 18px', minHeight: 300, maxHeight: 'calc(100vh - 260px)', overflowY: 'auto' }}>
-              <StepComp d={data} upd={upd} govmapToken={govmapToken} />
+              <StepComp d={data} upd={upd} govmapToken={govmapToken} onUploadingChange={setMediaUploading} />
             </div>
 
             {/* ── Footer — CTA centered ── */}
@@ -1922,25 +2120,27 @@ export default function PropertyWizard({ onClose, onPublish, initialData, editId
               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
 
               {step < STEPS.length ? (
-                <button onClick={() => canNext() && setStep(s => s + 1)}
+                <button onClick={() => !mediaUploading && canNext() && setStep(s => s + 1)}
                   className="pw-next"
                   style={{ width: '75%', maxWidth: 300, padding: '13px 26px', borderRadius: 14,
-                    border: 'none', background: canNext() ? P : `${P}40`,
-                    color: canNext() ? '#fff' : `${TEXT}60`,
-                    fontSize: 15, fontWeight: 800, cursor: canNext() ? 'pointer' : 'default',
+                    border: 'none', background: (canNext() && !mediaUploading) ? P : `${P}40`,
+                    color: (canNext() && !mediaUploading) ? '#fff' : `${TEXT}60`,
+                    fontSize: 15, fontWeight: 800, cursor: (canNext() && !mediaUploading) ? 'pointer' : 'default',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
                     fontFamily: FONT, transition: 'all .2s',
-                    boxShadow: canNext() ? `0 6px 20px ${P}44` : 'none' }}>
-                  המשך <FaChevronLeft size={12} />
+                    boxShadow: (canNext() && !mediaUploading) ? `0 6px 20px ${P}44` : 'none' }}>
+                  {mediaUploading ? <><FaCircleNotch size={13} style={{ animation: 'pw-spin 1s linear infinite' }} /> מעלה...</> : <>המשך <FaChevronLeft size={12} /></>}
                 </button>
               ) : (
-                <button onClick={handleFinish}
+                <button onClick={!mediaUploading ? handleFinish : undefined}
                   style={{ width: '75%', maxWidth: 300, padding: '13px 26px', borderRadius: 14,
-                    border: 'none', background: G, color: '#000', fontSize: 15, fontWeight: 800,
-                    cursor: 'pointer', fontFamily: FONT,
+                    border: 'none', background: mediaUploading ? `${G}60` : G,
+                    color: '#000', fontSize: 15, fontWeight: 800,
+                    cursor: mediaUploading ? 'default' : 'pointer', fontFamily: FONT,
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-                    boxShadow: `0 6px 20px ${G}44` }}>
-                  <FaCheck size={13} /> סיום ופרסום
+                    boxShadow: mediaUploading ? 'none' : `0 6px 20px ${G}44`,
+                    transition: 'all .2s' }}>
+                  {mediaUploading ? <><FaCircleNotch size={13} style={{ animation: 'pw-spin 1s linear infinite' }} /> מעלה...</> : <><FaCheck size={13} /> סיום ופרסום</>}
                 </button>
               )}
 

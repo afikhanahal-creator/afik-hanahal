@@ -18,7 +18,7 @@ export const LAYERS_DEF = [
   { id:'GASSTATIONS',      label:'תחנות דלק',            on:false, color:'#F7C948', cat:'סביבה'  },
   { id:'SCHOOL_AREAS',     label:'אזורי בתי ספר',        on:false, color:'#03C9D7', cat:'סביבה'  },
 ]
-const LAYER_CATS = ['מגרשים', 'תכנון', 'מגבלות', 'סביבה']
+const LAYER_CATS = ['מגרשים', 'תכנון', 'נדל"ן', 'גבולות', 'מגבלות', 'סביבה']
 
 export const LAYER_CATS_DEF = LAYER_CATS
 
@@ -35,7 +35,8 @@ let scriptLoaded    = false
 let scriptCallbacks = []
 
 function loadGovMapScript(cb) {
-  if (scriptLoaded && window.govmap) { cb(); return }
+  if (scriptState === 'ready' && window.govmap) { cb(); return }
+  if (scriptState === 'error') return
   scriptCallbacks.push(cb)
   if (scriptCallbacks.length > 1) return          // already loading
   const s   = document.createElement('script')
@@ -150,6 +151,42 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
     }
   }, [mapDivId, token])  // layers/bg excluded — read via refs to avoid spurious re-runs
 
+    // Official GovMap API (api.govmap.gov.il/docs):
+    //   • background MUST be a string ("0","1","2"…), not a number
+    //   • visibleLayers = layers shown on map at init (separate from `layers` = panel list)
+    //   • onLoad fires AFTER the catalog is fully loaded inside the iframe — this is
+    //     the correct place to call setVisibleLayers; the .then() only fires when the
+    //     postMessage bridge is ready (before catalog), so retries were needed before
+    window.govmap.createMap(mapDivId, {
+      token:            token || '',
+      layers:           allLayerIds,    // all layers available in the panel
+      visibleLayers:    initiallyOn,    // layers shown on map at start
+      background:       bg,             // STRING — was Number(bg), which the API ignores
+      showXY:           false,
+      identifyOnClick:  true,
+      isEmbeddedToggle: false,
+      layersMode:       1,
+      zoomButtons:      true,
+      onLoad: () => {
+        // Catalog fully loaded — single setVisibleLayers call is sufficient
+        setMapReady(true)
+        setError('')
+        if (gush && helka) zoomToParcel(gush, helka)
+        applyLayers()
+      },
+    }).then(() => {
+      // .then() fires when bridge is up (may be before onLoad / before catalog).
+      // Guard against double-execution with setMapReady (React deduplicates).
+      // Keep fallback retries here for environments where onLoad doesn't fire.
+      setMapReady(true)
+      ;[800, 2500, 5000].forEach(ms => setTimeout(applyLayers, ms))
+    }).catch(() => {
+      setError('שגיאה ביצירת המפה. ודא שמפתח ה-API תקין.')
+      created.current = false
+    })
+  }, [mapDivId, token, bg, gush, helka, subHelka]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Load SDK + create map once in view ────────────────────────────────────
   useEffect(() => {
     if (!token || !inView) return
     loadGovMapScript(createMap)
@@ -164,23 +201,14 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
 
   // ── Layer / BG controls ─────────────────────────────────────────────────────
   function toggleLayer(id) {
-    setLayers(prev => {
-      const next = { ...prev, [id]: !prev[id] }
-      if (window.govmap && mapReady) {
-        if (next[id]) window.govmap.setVisibleLayers([id], [])
-        else          window.govmap.setVisibleLayers([], [id])
-      }
-      return next
-    })
+    // Pure state update only — the useEffect([layers, mapReady]) above
+    // applies the change to the map without any side effects here.
+    setLayers(prev => ({ ...prev, [id]: !prev[id] }))
   }
 
   function handleBg(v) {
     setBg(v)
     if (window.govmap && mapReady) window.govmap.setBackground(Number(v))
-  }
-
-  function handleSearch() {
-    if (gushVal && helkaVal) zoomToParcel(gushVal, helkaVal)
   }
 
   function toggleMeasure() {
@@ -221,6 +249,27 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
       </div>
     )
   }
+
+  // ── Skeleton (not yet in viewport) ────────────────────────────────────────
+  if (!inView) {
+    return (
+      <div ref={containerRef} style={{ position:'relative', border:`1px solid ${C.purple}15`, borderRadius:12, overflow:'hidden', background: isDark ? '#0A0A16' : '#F5F4F0', height: compact ? 340 : 480, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:12, direction:'rtl', fontFamily:'Rubik,inherit' }}>
+        <div style={{ width:48, height:48, borderRadius:'50%', background:`${C.purple}18`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+          <span style={{ fontSize:24 }}>🗺️</span>
+        </div>
+        <div style={{ fontSize:14, fontWeight:700, color:`${C.cream}66` }}>מפת גוש/חלקה</div>
+        {gush && helka && (
+          <div style={{ fontSize:12, color:`${C.cream}44` }}>גוש {gush} · חלקה {helka}</div>
+        )}
+        <div style={{ fontSize:12, color:`${C.cream}33` }}>המפה תיטען בעת גלילה לאזור זה</div>
+        <style>{`@keyframes shimmer{0%{opacity:.4}50%{opacity:.8}100%{opacity:.4}}`}</style>
+        <div style={{ position:'absolute', inset:0, background:`linear-gradient(135deg,${C.purple}05,${C.purple}0A,${C.purple}05)`, animation:'shimmer 2s ease-in-out infinite' }}/>
+      </div>
+    )
+  }
+
+  // ── Map ────────────────────────────────────────────────────────────────────
+  const toolbarHeight = 50 // approx height of the toolbar row
 
   return (
     <div ref={containerRef}

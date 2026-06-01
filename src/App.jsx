@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, createContext, useContext, useMemo, lazy, Suspense } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, createContext, useContext, useMemo, lazy, Suspense } from 'react'
 import { MenuToggleIcon } from './MenuToggleIcon.jsx'
 import AccessibilityWidget from './AccessibilityWidget.jsx'
 import CookieConsent from './CookieConsent.jsx'
@@ -18,7 +18,8 @@ function lazyWithRetry(fn) {
 }
 const LeadsBoard   = lazyWithRetry(() => import('./LeadsBoard.jsx'))
 const GreenAPIChat = lazyWithRetry(() => import('./GreenAPIChat.jsx'))
-import { FaChevronLeft, FaChevronRight, FaEnvelope, FaFacebookF, FaInstagram, FaBed, FaRulerCombined, FaCar, FaSwimmingPool, FaBuilding, FaBoxOpen, FaTree, FaSnowflake, FaShieldAlt, FaCouch, FaTools, FaMapMarkerAlt, FaExternalLinkAlt, FaPhone, FaCompass, FaLeaf, FaCalendarAlt, FaTimes, FaWhatsapp, FaSun, FaFileAlt, FaHome, FaMoneyBill, FaSearch, FaBalanceScale, FaHandshake, FaTrophy, FaHardHat, FaLock, FaKey, FaGlobe, FaSeedling, FaBolt, FaRocket, FaStar, FaChartLine, FaEye, FaPlay, FaWheelchair, FaFire, FaCalculator, FaShareAlt, FaHeart, FaStore, FaCamera, FaWifi, FaIndustry, FaExpand, FaUser, FaUsers, FaDesktop, FaMobileAlt, FaTabletAlt, FaCommentAlt, FaRobot, FaInbox, FaExclamationTriangle, FaChartBar, FaThumbsUp, FaImage, FaPencilAlt, FaCrown, FaMousePointer, FaDollarSign, FaVideo, FaLink, FaCheck, FaCheckCircle, FaUtensils, FaDoorOpen, FaUserShield } from 'react-icons/fa'
+const MetaLeadsTab = lazyWithRetry(() => import('./MetaLeadsTab.jsx'))
+import { FaChevronLeft, FaChevronRight, FaEnvelope, FaFacebookF, FaInstagram, FaBed, FaRulerCombined, FaCar, FaSwimmingPool, FaBuilding, FaBoxOpen, FaTree, FaSnowflake, FaShieldAlt, FaCouch, FaTools, FaMapMarkerAlt, FaExternalLinkAlt, FaPhone, FaCompass, FaLeaf, FaCalendarAlt, FaTimes, FaWhatsapp, FaSun, FaFileAlt, FaHome, FaMoneyBill, FaSearch, FaBalanceScale, FaHandshake, FaTrophy, FaHardHat, FaLock, FaKey, FaGlobe, FaSeedling, FaBolt, FaRocket, FaStar, FaChartLine, FaEye, FaPlay, FaWheelchair, FaFire, FaCalculator, FaShareAlt, FaHeart, FaStore, FaCamera, FaWifi, FaIndustry, FaExpand, FaUser, FaUsers, FaDesktop, FaMobileAlt, FaTabletAlt, FaCommentAlt, FaRobot, FaInbox, FaExclamationTriangle, FaChartBar, FaThumbsUp, FaImage, FaPencilAlt, FaCrown, FaMousePointer, FaDollarSign, FaVideo, FaLink, FaCheck, FaCheckCircle, FaUtensils, FaDoorOpen, FaUserShield, FaTrash } from 'react-icons/fa'
 
 // ─── SERVER CONFIG ────────────────────────────────────────────────────────────
 // Set VITE_API_URL in Vercel env vars to point at your Render server.
@@ -816,8 +817,10 @@ const makeGlobal = (C, isDark) => `
     .footer-nav-links button { font-size: 14px !important; padding: 6px 0 !important; }
     .footer-hours { display: flex !important; gap: 16px !important; flex-wrap: wrap !important; }
     .footer-social { margin-bottom: 14px !important; }
-    .footer-bottom { flex-direction: column !important; align-items: center !important; gap: 10px !important; text-align: center !important; }
-    .footer-bottom-links { justify-content: center !important; flex-wrap: wrap !important; }
+    .footer-bottom { flex-wrap: wrap !important; gap: 10px 0 !important; padding-top: 16px !important; }
+    .footer-bottom-links { order: 0 !important; flex: 1 1 100% !important; justify-content: center !important; }
+    .footer-bottom-copyright { order: 1 !important; flex: 1 1 100% !important; text-align: center !important; white-space: normal !important; overflow: visible !important; padding: 0 !important; }
+    .footer-bottom-actions { order: 2 !important; flex: 1 1 100% !important; justify-content: center !important; }
     .footer-col { text-align: center !important; }
     .footer-logo-wrap { display: flex !important; justify-content: center !important; }
     .footer-col .footer-social { justify-content: center !important; }
@@ -1294,9 +1297,9 @@ function LangSwitch({ compact = false }) {
   const txtSz  = compact ? 10 : 12
 
   const textColor    = isDark ? '#fff' : C.cream
-  const activeBg     = isDark ? 'rgba(255,255,255,0.13)' : `${C.purple}14`
-  const activeBorder = isDark ? 'rgba(255,255,255,0.28)' : `${C.purple}55`
-  const sepColor     = isDark ? 'rgba(255,255,255,0.18)' : `${C.cream}33`
+  const activeBg     = `${C.purple}22`
+  const activeBorder = `${C.purple}66`
+  const sepColor     = isDark ? 'rgba(132,144,216,0.25)' : `${C.cream}33`
 
   const opt = (active) => ({
     display: 'flex', alignItems: 'center', gap: compact ? 5 : 7,
@@ -2056,9 +2059,11 @@ const LEADS_DELETED  = 'afik_leads_deleted_v1'
 const LEADS_TRASH    = 'afik_leads_trash_v1'
 const WA_KEY         = 'afik_wa_settings'
 const ANALYTICS_KEY  = 'afik_analytics_v2'
-const WA_DEFAULT_TEMPLATE = `היי {name},
-ראינו שהשארת פרטים באתר של אפיק הנחל.
-כיצד נוכל לעזור?`
+const WA_DEFAULT_TEMPLATE = `היי {name} 👋
+תודה שפנית לאפיק הנחל!
+ראינו את הפנייה שלך
+
+מתי נוח לך לדבר? נשמח לתאם שיחה`
 
 function _getDevice() {
   const ua = navigator.userAgent
@@ -2140,14 +2145,17 @@ function toIntlPhone(phone) {
 
 const WA_DEFAULTS = { provider:'greenapi', instanceId:'7107558519', apiUrl:'https://7107.api.greenapi.com', token:'191b9e9c4fc540f1ad25c8607389c0d689d15794f8094a0589', enabled:true, delayMin:2 }
 
+// Module-level cloud settings cache — populated at app startup from /api/settings
+let _cloudSettings = {}
+
 async function sendWhatsAppLead(lead, overrideSettings) {
   try {
-    const saved = JSON.parse(localStorage.getItem(WA_KEY) || '{}')
+    const saved = _cloudSettings.waSettings || JSON.parse(localStorage.getItem(WA_KEY) || '{}')
     const st = overrideSettings || { ...WA_DEFAULTS, ...saved }
     if (!st.enabled || !st.instanceId || !st.token || !lead.phone) return
     const phone = toIntlPhone(lead.phone)
     if (!phone) return
-    const msg = (st.template || WA_DEFAULT_TEMPLATE).replace(/\{name\}/g, lead.name || '')
+    const msg = (st.template || WA_DEFAULT_TEMPLATE).replace(/\{name\}/g, (lead.name || '').split(' ')[0] || '')
     if (st.provider === 'ultramsg') {
       await fetch(`https://api.ultramsg.com/${st.instanceId}/messages/chat`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -2216,7 +2224,7 @@ function ContactModal({ prop, onClose }) {
               localStorage.setItem(LEADS_STORE, JSON.stringify(all.slice(0, 2000)))
             } catch {}
             try {
-              const wh = localStorage.getItem('afik_crm_webhook')
+              const wh = _cloudSettings.crmWebhook || localStorage.getItem('afik_crm_webhook')
               if (wh) fetch(wh, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(lead) }).catch(()=>{})
             } catch {}
             fetch(`${CONTACTS_API}/api/contacts`, {
@@ -3191,21 +3199,26 @@ function AnalyticsDashboard({ leads }) {
       )}
 
       {analyticsTab === 'site' && <>
-      {/* ── Top KPI Row ── */}
-      <div className="admin-analytics-kpi" style={{ display:'grid', gap:10 }}>
+
+      {/* ── Primary KPI Row ── */}
+      <div className="admin-analytics-kpi" style={{ display:'grid', gap:12 }}>
         {[
-          { label:'סשנים היום',   value:todaySess.length,   color:C.purple,    Icon:FaUser,       sub:'כניסות ייחודיות' },
-          { label:'סשנים השבוע',  value:weekSess.length,    color:C.green,     Icon:FaChartLine,  sub:'7 ימים אחרונים' },
-          { label:'צפיות נכסים',  value:propViews.length,   color:'#F7C948',   Icon:FaHome,       sub:'סה"כ' },
-          { label:'המרות',        value:`${convRate}%`,     color:'#FF6B6B',   Icon:FaBalanceScale, sub:'פניות / סשנים' },
+          { label:'סשנים היום',  value:todaySess.length,  color:C.purple,      Icon:FaUser,         sub:'כניסות ייחודיות' },
+          { label:'סשנים השבוע', value:weekSess.length,   color:C.green,       Icon:FaChartLine,    sub:'7 ימים אחרונים'  },
+          { label:'צפיות נכסים', value:propViews.length,  color:'#F7C948',     Icon:FaHome,         sub:'סה"כ'             },
+          { label:'המרות',       value:`${convRate}%`,    color:'#FF6B6B',     Icon:FaBalanceScale, sub:'פניות / סשנים'   },
         ].map((k,i) => (
-          <div key={i} style={{ background:`${k.color}10`, border:`1px solid ${k.color}35`, borderRadius:14, padding:'16px 14px', textAlign:'center' }}>
-            <div style={{ marginBottom:8, display:'flex', alignItems:'center', justifyContent:'center' }}>
-              <k.Icon size={18} style={{ color:k.color }}/>
+          <div key={i} style={{ background:`linear-gradient(145deg,${k.color}1C 0%,${k.color}07 100%)`, border:`1px solid ${k.color}44`, borderRadius:18, padding:'20px 16px', position:'relative', overflow:'hidden' }}>
+            <div style={{ position:'absolute', top:-26, right:-26, width:96, height:96, background:k.color, opacity:.07, borderRadius:'50%', filter:'blur(28px)', pointerEvents:'none' }}/>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
+              <div style={{ width:40, height:40, borderRadius:12, background:`${k.color}22`, border:`1px solid ${k.color}44`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                <k.Icon size={17} style={{ color:k.color }}/>
+              </div>
+              <span style={{ fontSize:9, fontWeight:800, letterSpacing:'.09em', background:`${k.color}18`, border:`1px solid ${k.color}28`, borderRadius:20, padding:'2px 9px', color:k.color }}>LIVE</span>
             </div>
-            <div style={{ fontSize:26, fontWeight:900, color:k.color, lineHeight:1 }}>{k.value}</div>
-            <div style={{ fontSize:11, color:`${C.cream}80`, marginTop:5, fontWeight:700 }}>{k.label}</div>
-            <div style={{ fontSize:10, color:`${C.cream}40`, marginTop:2 }}>{k.sub}</div>
+            <div style={{ fontSize:34, fontWeight:900, color:k.color, lineHeight:1, letterSpacing:'-.01em' }}>{k.value}</div>
+            <div style={{ fontSize:12, color:C.cream, marginTop:8, fontWeight:700 }}>{k.label}</div>
+            <div style={{ fontSize:10, color:`${C.cream}44`, marginTop:2 }}>{k.sub}</div>
           </div>
         ))}
       </div>
@@ -3216,79 +3229,114 @@ function AnalyticsDashboard({ leads }) {
           { label:'טפסי יצירת קשר', value:contacts.length,    color:'#FF6B6B', Icon:FaEnvelope },
           { label:'קליקי WhatsApp',  value:waClicks.length,    color:'#25D366', Icon:FaWhatsapp },
           { label:'קליקי טלפון',     value:phoneClicks.length, color:C.green,   Icon:FaPhone },
-          { label:'סה"כ לידים CRM',  value:leads.length,       color:C.purple,  Icon:FaUsers },
+          { label:'סה"כ לידים CRM',  value:leads.length,       color:C.purple,  Icon:FaUsers  },
         ].map((k,i) => (
-          <div key={i} style={{ background:`${k.color}0A`, border:`1px solid ${k.color}28`, borderRadius:10, padding:'10px 12px', display:'flex', alignItems:'center', gap:10 }}>
-            <k.Icon size={17} style={{ color:k.color, flexShrink:0 }}/>
+          <div key={i} style={{ background:`${k.color}0D`, border:`1px solid ${k.color}30`, borderRadius:13, padding:'13px 14px', display:'flex', alignItems:'center', gap:12 }}>
+            <div style={{ width:38, height:38, borderRadius:11, background:`${k.color}20`, border:`1px solid ${k.color}40`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+              <k.Icon size={16} style={{ color:k.color }}/>
+            </div>
             <div>
-              <div style={{ fontSize:20, fontWeight:900, color:k.color, lineHeight:1 }}>{k.value}</div>
-              <div style={{ fontSize:10, color:`${C.cream}55`, marginTop:2, fontWeight:600 }}>{k.label}</div>
+              <div style={{ fontSize:22, fontWeight:900, color:k.color, lineHeight:1 }}>{k.value}</div>
+              <div style={{ fontSize:10.5, color:`${C.cream}66`, marginTop:3, fontWeight:600 }}>{k.label}</div>
             </div>
           </div>
         ))}
       </div>
 
-      {/* ── 7-day chart ── */}
-      <div style={{ background:'rgba(255,255,255,.03)', borderRadius:14, padding:'16px 18px', border:`1px solid ${C.purple}18` }}>
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
-          <div style={{ fontSize:13, fontWeight:800, color:C.cream }}>ביקורים — 7 ימים אחרונים</div>
-          <div style={{ fontSize:11, color:`${C.cream}44` }}>סשנים ייחודיים</div>
+      {/* ── 7-day bar chart ── */}
+      <div style={{ background: isDark ? 'rgba(255,255,255,.025)' : 'rgba(0,0,0,.02)', borderRadius:18, padding:'20px 22px', border:`1px solid ${C.purple}20`, boxShadow: isDark ? '0 4px 24px rgba(0,0,0,.22)' : '0 2px 10px rgba(0,0,0,.05)' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:18 }}>
+          <div>
+            <div style={{ fontSize:14, fontWeight:800, color:C.cream }}>ביקורים — 7 ימים אחרונים</div>
+            <div style={{ fontSize:11, color:`${C.cream}44`, marginTop:2 }}>סשנים ייחודיים</div>
+          </div>
+          <div style={{ fontSize:11, fontWeight:700, color:C.purple, background:`${C.purple}14`, border:`1px solid ${C.purple}30`, borderRadius:20, padding:'4px 13px' }}>
+            שבוע: {weekSess.length}
+          </div>
         </div>
-        <svg viewBox="0 0 490 100" style={{ width:'100%', height:100, direction:'ltr', overflow:'visible' }}>
-          <line x1="0" y1="78" x2="490" y2="78" stroke={`${C.cream}12`} strokeWidth="1"/>
+        <svg viewBox="0 0 490 128" style={{ width:'100%', height:128, direction:'ltr', overflow:'visible' }}>
+          {/* Gridlines */}
+          {[0,.33,.66,1].map((pct,gi) => {
+            const y = 96 - pct * 76
+            return <line key={gi} x1="0" y1={y} x2="490" y2={y} stroke={`${C.cream}${gi===0?'12':'07'}`} strokeWidth="1" strokeDasharray={gi===0?undefined:'3 5'}/>
+          })}
           {days7.map((d,i) => {
-            const bw = 52, gap = (490 - 7*bw)/6
-            const x = i*(bw+gap)
-            const bh = Math.max((d.cnt/maxCnt)*62, d.cnt > 0 ? 4 : 0)
-            const by = 78 - bh
+            const bw = 50, gap = (490 - 7*bw) / 6
+            const x  = i * (bw + gap)
+            const bh = Math.max((d.cnt / maxCnt) * 76, d.cnt > 0 ? 5 : 0)
+            const by = 96 - bh
+            const isToday = i === 6
             return (
               <g key={i}>
-                <rect x={x} y={by} width={bw} height={bh} rx={5}
-                  fill={i===6 ? C.purple : `${C.purple}50`}
-                  style={{ transition:'height .6s, y .6s' }}/>
-                <text x={x+bw/2} y={94} textAnchor="middle" fill={`${C.cream}55`} fontSize="9.5" fontFamily="Rubik,sans-serif">{d.label}</text>
-                {d.cnt > 0 && <text x={x+bw/2} y={by-4} textAnchor="middle" fill={i===6?C.purple:`${C.cream}77`} fontSize="10" fontWeight="700" fontFamily="Rubik,sans-serif">{d.cnt}</text>}
+                <defs>
+                  <linearGradient id={`gb${i}`} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%"   stopColor={isToday ? C.purple : `${C.purple}99`}/>
+                    <stop offset="100%" stopColor={isToday ? `${C.purple}cc` : `${C.purple}2A`}/>
+                  </linearGradient>
+                </defs>
+                {isToday && <rect x={x+5} y={by+6} width={bw-10} height={bh} rx={6} fill={C.purple} opacity=".12" style={{ filter:'blur(7px)' }}/>}
+                <rect x={x} y={by} width={bw} height={bh} rx={6} fill={`url(#gb${i})`}
+                  style={{ transition:'height .7s cubic-bezier(.34,1.56,.64,1), y .7s cubic-bezier(.34,1.56,.64,1)' }}/>
+                {d.cnt > 0 && (
+                  <text x={x+bw/2} y={by-5} textAnchor="middle"
+                    fill={isToday ? C.purple : `${C.cream}77`}
+                    fontSize="10" fontWeight="800" fontFamily="Rubik,sans-serif">{d.cnt}</text>
+                )}
+                <text x={x+bw/2} y={113} textAnchor="middle"
+                  fill={isToday ? C.purple : `${C.cream}55`}
+                  fontSize="10" fontWeight={isToday?'800':'500'} fontFamily="Rubik,sans-serif">{d.label}</text>
+                {isToday && <circle cx={x+bw/2} cy={121} r={3} fill={C.purple}/>}
               </g>
             )
           })}
         </svg>
       </div>
 
-      {/* ── Sources + Devices row ── */}
+      {/* ── Sources + Devices ── */}
       <div className="admin-overview-bottom" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
 
         {/* Traffic Sources */}
-        <div style={{ background:'rgba(255,255,255,.03)', borderRadius:14, padding:'16px 18px', border:`1px solid ${C.purple}18` }}>
-          <div style={{ fontSize:13, fontWeight:800, color:C.cream, marginBottom:14 }}>מקורות טראפיק</div>
+        <div style={{ background: isDark ? 'rgba(255,255,255,.025)' : 'rgba(0,0,0,.02)', borderRadius:18, padding:'20px 20px', border:`1px solid ${C.purple}20` }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
+            <div style={{ fontSize:13, fontWeight:800, color:C.cream }}>מקורות טראפיק</div>
+            <span style={{ fontSize:10, color:`${C.cream}44`, background:`${C.purple}12`, borderRadius:20, padding:'2px 9px', border:`1px solid ${C.purple}20` }}>{sessions.length} סשנים</span>
+          </div>
           {srcList.length > 0 ? (
-            <div style={{ display:'flex', flexDirection:'column', gap:9 }}>
+            <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
               {srcList.map(([src,cnt],i) => {
                 const pct = sessions.length > 0 ? Math.round((cnt/sessions.length)*100) : 0
                 return (
                   <div key={i}>
-                    <div style={{ display:'flex', justifyContent:'space-between', marginBottom:3 }}>
-                      <span style={{ fontSize:12, color:C.cream, fontWeight:600 }}>{src}</span>
-                      <span style={{ fontSize:11, color:`${C.cream}55` }}>{cnt} · {pct}%</span>
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:5 }}>
+                      <div style={{ display:'flex', alignItems:'center', gap:7 }}>
+                        <span style={{ width:9, height:9, borderRadius:'50%', background:src6Colors[i], flexShrink:0, boxShadow:`0 0 7px ${src6Colors[i]}88` }}/>
+                        <span style={{ fontSize:12.5, color:C.cream, fontWeight:600 }}>{src}</span>
+                      </div>
+                      <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                        <span style={{ fontSize:11, color:`${C.cream}44` }}>{cnt}</span>
+                        <span style={{ fontSize:11, fontWeight:800, color:src6Colors[i], background:`${src6Colors[i]}18`, padding:'1px 8px', borderRadius:20, border:`1px solid ${src6Colors[i]}30` }}>{pct}%</span>
+                      </div>
                     </div>
-                    <div style={{ height:6, background:'rgba(255,255,255,.08)', borderRadius:3 }}>
-                      <div style={{ height:6, width:`${pct}%`, background:src6Colors[i], borderRadius:3, transition:'width 1s ease' }}/>
+                    <div style={{ height:8, background: isDark ? 'rgba(255,255,255,.07)' : 'rgba(0,0,0,.07)', borderRadius:4 }}>
+                      <div style={{ height:8, width:`${pct}%`, background:`linear-gradient(90deg,${src6Colors[i]},${src6Colors[i]}aa)`, borderRadius:4, transition:'width 1s cubic-bezier(.34,1.56,.64,1)', boxShadow:`0 0 8px ${src6Colors[i]}55` }}/>
                     </div>
                   </div>
                 )
               })}
             </div>
           ) : (
-            <div style={{ textAlign:'center', color:`${C.cream}30`, fontSize:12, padding:'20px 0', lineHeight:1.7 }}>
-              אין נתונים עדיין<br/>
-              <span style={{ fontSize:10 }}>יצטברו בביקורים הבאים</span>
+            <div style={{ textAlign:'center', padding:'28px 0' }}>
+              <div style={{ fontSize:30, marginBottom:8, opacity:.25 }}>📊</div>
+              <div style={{ color:`${C.cream}35`, fontSize:12, fontWeight:600 }}>אין נתונים עדיין</div>
+              <div style={{ color:`${C.cream}25`, fontSize:10, marginTop:4 }}>יצטברו בביקורים הבאים</div>
             </div>
           )}
         </div>
 
         {/* Devices */}
-        <div style={{ background:'rgba(255,255,255,.03)', borderRadius:14, padding:'16px 18px', border:`1px solid ${C.purple}18` }}>
-          <div style={{ fontSize:13, fontWeight:800, color:C.cream, marginBottom:14 }}>סוג מכשיר</div>
-          <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+        <div style={{ background: isDark ? 'rgba(255,255,255,.025)' : 'rgba(0,0,0,.02)', borderRadius:18, padding:'20px 20px', border:`1px solid ${C.purple}20` }}>
+          <div style={{ fontSize:13, fontWeight:800, color:C.cream, marginBottom:16 }}>סוג מכשיר</div>
+          <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
             {[
               { label:'מובייל',  key:'mobile',  Icon:FaMobileAlt, color:'#60D4F7' },
               { label:'דסקטופ',  key:'desktop', Icon:FaDesktop,   color:C.purple },
@@ -3296,31 +3344,38 @@ function AnalyticsDashboard({ leads }) {
             ].map(d => {
               const pct = sessions.length > 0 ? Math.round((devMap[d.key]/sessions.length)*100) : 0
               return (
-                <div key={d.key} style={{ display:'flex', alignItems:'center', gap:10 }}>
-                  <d.Icon size={16} style={{ color:d.color, flexShrink:0 }}/>
-                  <div style={{ flex:1 }}>
-                    <div style={{ display:'flex', justifyContent:'space-between', marginBottom:3 }}>
-                      <span style={{ fontSize:12, color:C.cream, fontWeight:600 }}>{d.label}</span>
-                      <span style={{ fontSize:11, color:`${C.cream}55` }}>{devMap[d.key]} ({pct}%)</span>
+                <div key={d.key}>
+                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:5 }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                      <div style={{ width:30, height:30, borderRadius:9, background:`${d.color}18`, border:`1px solid ${d.color}33`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                        <d.Icon size={13} style={{ color:d.color }}/>
+                      </div>
+                      <span style={{ fontSize:12.5, color:C.cream, fontWeight:600 }}>{d.label}</span>
                     </div>
-                    <div style={{ height:6, background:'rgba(255,255,255,.08)', borderRadius:3 }}>
-                      <div style={{ height:6, width:`${pct}%`, background:d.color, borderRadius:3 }}/>
+                    <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                      <span style={{ fontSize:11, color:`${C.cream}44` }}>{devMap[d.key]}</span>
+                      <span style={{ fontSize:11, fontWeight:800, color:d.color, background:`${d.color}18`, padding:'1px 8px', borderRadius:20 }}>{pct}%</span>
                     </div>
+                  </div>
+                  <div style={{ height:8, background: isDark ? 'rgba(255,255,255,.07)' : 'rgba(0,0,0,.07)', borderRadius:4 }}>
+                    <div style={{ height:8, width:`${pct}%`, background:`linear-gradient(90deg,${d.color},${d.color}aa)`, borderRadius:4, transition:'width 1s ease', boxShadow:`0 0 8px ${d.color}44` }}/>
                   </div>
                 </div>
               )
             })}
           </div>
           {sessions.length > 0 && (
-            <div style={{ marginTop:14, display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+            <div style={{ marginTop:16, display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
               {[
-                { label:'WhatsApp', v:waClicks.length, c:'#25D366', Icon:FaWhatsapp },
-                { label:'טלפון',    v:phoneClicks.length, c:C.green, Icon:FaPhone },
+                { label:'WhatsApp', v:waClicks.length,    c:'#25D366', Icon:FaWhatsapp },
+                { label:'טלפון',    v:phoneClicks.length, c:C.green,   Icon:FaPhone },
               ].map((d,i) => (
-                <div key={i} style={{ background:`${d.c}0C`, border:`1px solid ${d.c}28`, borderRadius:9, padding:'8px 10px', textAlign:'center' }}>
-                  <d.Icon size={14} style={{ color:d.c }}/>
-                  <div style={{ fontSize:18, fontWeight:800, color:d.c, lineHeight:1.2 }}>{d.v}</div>
-                  <div style={{ fontSize:10, color:`${C.cream}44`, marginTop:2 }}>{d.label}</div>
+                <div key={i} style={{ background:`${d.c}0E`, border:`1px solid ${d.c}30`, borderRadius:11, padding:'11px 12px', textAlign:'center' }}>
+                  <div style={{ width:30, height:30, borderRadius:9, background:`${d.c}20`, border:`1px solid ${d.c}40`, display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 7px' }}>
+                    <d.Icon size={13} style={{ color:d.c }}/>
+                  </div>
+                  <div style={{ fontSize:20, fontWeight:900, color:d.c, lineHeight:1 }}>{d.v}</div>
+                  <div style={{ fontSize:10, color:`${C.cream}44`, marginTop:3 }}>{d.label}</div>
                 </div>
               ))}
             </div>
@@ -3330,55 +3385,70 @@ function AnalyticsDashboard({ leads }) {
 
       {/* ── Top Properties ── */}
       {topProps.length > 0 && (
-        <div style={{ background:'rgba(255,255,255,.03)', borderRadius:14, padding:'16px 18px', border:`1px solid ${C.purple}18` }}>
-          <div style={{ fontSize:13, fontWeight:800, color:C.cream, marginBottom:12 }}>נכסים שנצפו הכי הרבה</div>
-          <div style={{ display:'flex', flexDirection:'column', gap:7 }}>
-            {topProps.map(([title,cnt],i) => (
-              <div key={i} style={{ display:'flex', alignItems:'center', gap:12, padding:'9px 14px', background:'rgba(255,255,255,.03)', borderRadius:9, border:`1px solid ${C.purple}12` }}>
-                <span style={{ fontSize:14, fontWeight:900, color:C.purple, minWidth:22, textAlign:'center' }}>#{i+1}</span>
-                <span style={{ fontSize:13, color:C.cream, flex:1 }}>{title}</span>
-                <span style={{ fontSize:12, color:C.purple, fontWeight:700, background:`${C.purple}18`, padding:'3px 12px', borderRadius:20, flexShrink:0 }}>{cnt} צפיות</span>
-              </div>
-            ))}
+        <div style={{ background: isDark ? 'rgba(255,255,255,.025)' : 'rgba(0,0,0,.02)', borderRadius:18, padding:'20px 22px', border:`1px solid ${C.purple}20` }}>
+          <div style={{ fontSize:13, fontWeight:800, color:C.cream, marginBottom:14 }}>נכסים שנצפו הכי הרבה</div>
+          <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+            {topProps.map(([title,cnt],i) => {
+              const maxV = topProps[0][1]
+              const pct  = Math.round((cnt / maxV) * 100)
+              const rankColors = [C.purple, C.green, '#F7C948', '#FF6B6B', '#60D4F7']
+              const rc = rankColors[i] || C.purple
+              return (
+                <div key={i} style={{ position:'relative', borderRadius:11, overflow:'hidden', border:`1px solid ${rc}18` }}>
+                  <div style={{ position:'absolute', inset:0, width:`${pct}%`, background:`${rc}10`, borderRadius:11, transition:'width .9s ease', pointerEvents:'none' }}/>
+                  <div style={{ position:'relative', display:'flex', alignItems:'center', gap:12, padding:'11px 14px' }}>
+                    <div style={{ width:30, height:30, borderRadius:9, background:`${rc}22`, border:`1px solid ${rc}40`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                      <span style={{ fontSize:12, fontWeight:900, color:rc }}>#{i+1}</span>
+                    </div>
+                    <span style={{ fontSize:13, color:C.cream, flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{title}</span>
+                    <span style={{ fontSize:12, color:rc, fontWeight:800, background:`${rc}18`, padding:'3px 12px', borderRadius:20, flexShrink:0, border:`1px solid ${rc}28` }}>{cnt} צפיות</span>
+                  </div>
+                </div>
+              )
+            })}
           </div>
         </div>
       )}
 
       {/* ── External Platforms ── */}
-      <div style={{ background:'rgba(255,255,255,.03)', borderRadius:14, padding:'16px 18px', border:`1px solid ${C.purple}18` }}>
-        <div style={{ fontSize:13, fontWeight:800, color:C.cream, marginBottom:14 }}>לוחות בקרה חיצוניים</div>
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:9 }}>
+      <div style={{ background: isDark ? 'rgba(255,255,255,.025)' : 'rgba(0,0,0,.02)', borderRadius:18, padding:'20px 22px', border:`1px solid ${C.purple}20` }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16, flexWrap:'wrap', gap:8 }}>
+          <div style={{ fontSize:13, fontWeight:800, color:C.cream }}>לוחות בקרה חיצוניים</div>
+          <div style={{ display:'flex', gap:7, flexWrap:'wrap' }}>
+            {[
+              { label:'Meta Pixel', color:'#1877F2' },
+              { label:'GA4',        color:'#FF6B35' },
+              { label:'LogRocket',  color:'#764ABC' },
+            ].map((b,i) => (
+              <span key={i} style={{ fontSize:10, color:b.color, background:`${b.color}12`, padding:'3px 10px', borderRadius:20, border:`1px solid ${b.color}30`, fontWeight:800 }}>✦ {b.label} פעיל</span>
+            ))}
+          </div>
+        </div>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:10 }}>
           {[
-            { label:'Google Analytics',   sub:'G-X1S3XX7TRV',            Icon:FaChartBar,   color:'#FF6B35', url:'https://analytics.google.com' },
-            { label:'Meta Business Suite', sub:'Pixel 1341264237748951',  Icon:FaFacebookF,  color:'#1877F2', url:'https://business.facebook.com' },
-            { label:'Meta Events Manager', sub:'פיקסל ופרסומות',          Icon:FaBolt,       color:'#F7C948', url:'https://business.facebook.com/events_manager' },
-            { label:'Facebook – אפיק הנחל', sub:'Profile page',           Icon:FaThumbsUp,   color:'#1877F2', url:'https://www.facebook.com/profile.php?id=61573376818745' },
-            { label:'Instagram – afik.hanahal', sub:'@afik.hanahal',      Icon:FaInstagram,  color:'#E1306C', url:'https://www.instagram.com/afik.hanahal/' },
-            { label:'LogRocket Sessions',  sub:'tkrebw/afik-hanahal',     Icon:FaVideo,      color:'#764ABC', url:'https://app.logrocket.com/tkrebw/afik-hanahal' },
+            { label:'Google Analytics',      sub:'G-X1S3XX7TRV',           Icon:FaChartBar,  color:'#FF6B35', url:'https://analytics.google.com' },
+            { label:'Meta Business Suite',   sub:'Pixel 1341264237748951',  Icon:FaFacebookF, color:'#1877F2', url:'https://business.facebook.com' },
+            { label:'Meta Events Manager',   sub:'פיקסל ופרסומות',          Icon:FaBolt,      color:'#F7C948', url:'https://business.facebook.com/events_manager' },
+            { label:'Facebook – אפיק הנחל',  sub:'Profile page',            Icon:FaThumbsUp,  color:'#1877F2', url:'https://www.facebook.com/profile.php?id=61573376818745' },
+            { label:'Instagram – afik.hanahal', sub:'@afik.hanahal',        Icon:FaInstagram, color:'#E1306C', url:'https://www.instagram.com/afik.hanahal/' },
+            { label:'LogRocket Sessions',    sub:'tkrebw/afik-hanahal',     Icon:FaVideo,     color:'#764ABC', url:'https://app.logrocket.com/tkrebw/afik-hanahal' },
           ].map((p,i) => (
             <a key={i} href={p.url} target="_blank" rel="noopener noreferrer"
-              style={{ display:'flex', flexDirection:'column', gap:5, background:`${p.color}09`, border:`1px solid ${p.color}28`, borderRadius:11, padding:'12px 12px', textDecoration:'none', color:'inherit', transition:'all .2s', cursor:'pointer' }}
-              onMouseEnter={e => { e.currentTarget.style.background=`${p.color}1A`; e.currentTarget.style.borderColor=`${p.color}55`; e.currentTarget.style.transform='translateY(-2px)' }}
-              onMouseLeave={e => { e.currentTarget.style.background=`${p.color}09`; e.currentTarget.style.borderColor=`${p.color}28`; e.currentTarget.style.transform='' }}>
-              <p.Icon size={16} style={{ color:p.color }}/>
+              style={{ display:'flex', flexDirection:'column', gap:6, background:`${p.color}0D`, border:`1px solid ${p.color}30`, borderRadius:13, padding:'14px', textDecoration:'none', color:'inherit', transition:'all .2s', cursor:'pointer' }}
+              onMouseEnter={e => { e.currentTarget.style.background=`${p.color}1C`; e.currentTarget.style.borderColor=`${p.color}60`; e.currentTarget.style.transform='translateY(-3px)'; e.currentTarget.style.boxShadow=`0 8px 20px ${p.color}22` }}
+              onMouseLeave={e => { e.currentTarget.style.background=`${p.color}0D`; e.currentTarget.style.borderColor=`${p.color}30`; e.currentTarget.style.transform=''; e.currentTarget.style.boxShadow='' }}>
+              <div style={{ width:34, height:34, borderRadius:10, background:`${p.color}20`, border:`1px solid ${p.color}44`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                <p.Icon size={14} style={{ color:p.color }}/>
+              </div>
               <div style={{ fontSize:12, fontWeight:700, color:C.cream, lineHeight:1.3 }}>{p.label}</div>
               <div style={{ fontSize:10, color:`${C.cream}40`, direction:'ltr' }}>{p.sub}</div>
             </a>
           ))}
         </div>
-        <div style={{ marginTop:12, display:'flex', gap:16, flexWrap:'wrap' }}>
-          {[
-            { label:'✦ Meta Pixel פעיל', color:'#1877F2' },
-            { label:'✦ GA4 פעיל', color:'#FF6B35' },
-            { label:'✦ LogRocket מוגדר', color:'#764ABC' },
-          ].map((b,i) => (
-            <span key={i} style={{ fontSize:11, color:b.color, background:`${b.color}12`, padding:'3px 10px', borderRadius:20, border:`1px solid ${b.color}30`, fontWeight:700 }}>{b.label}</span>
-          ))}
-        </div>
       </div>
 
-      {/* ── Footer: clear + refresh ── */}
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+      {/* ── Footer ── */}
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'4px 0' }}>
         <span style={{ fontSize:11, color:`${C.cream}33` }}>
           {events.length} אירועים · {sessions.length} סשנים · עדכון כל 30 שניות
         </span>
@@ -3653,30 +3723,67 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   // GovMap management panel state
   const [gmTab,    setGmTab]    = useState('map')   // 'map' | 'layers' | 'bg'
   const [gmLayers, setGmLayers] = useState(() => {
-    try { const s = localStorage.getItem('govmap_default_layers'); if (s) { const d = JSON.parse(s); return Object.fromEntries(GM_LAYERS.map(l => [l.id, d[l.id] ?? l.on])) } } catch {}
+    const d = _cloudSettings.gmLayers
+    if (d && typeof d === 'object') return Object.fromEntries(GM_LAYERS.map(l => [l.id, d[l.id] ?? l.on]))
     return Object.fromEntries(GM_LAYERS.map(l => [l.id, l.on]))
   })
   const [gmBg,    setGmBg]    = useState(() => localStorage.getItem('govmap_default_bg') || '0')
   const [gmSaved, setGmSaved] = useState(false)
+  const [tokenDraft,   setTokenDraft]   = useState(govmapToken)
+  const [tokenSaved,   setTokenSaved]   = useState(false)
+  const [tokenSaving,  setTokenSaving]  = useState(false)
+  const [tokenError,   setTokenError]   = useState('')
+  // Sync tokenDraft if govmapToken arrives from API after AdminPanel is already open
+  useEffect(() => { if (govmapToken && !tokenDraft) setTokenDraft(govmapToken) }, [govmapToken])
   function saveGmDefaults() {
-    localStorage.setItem('govmap_default_layers', JSON.stringify(gmLayers))
-    localStorage.setItem('govmap_default_bg',     gmBg)
+    const base = API_BASE || ''
+    fetch(`${base}/api/settings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+      body: JSON.stringify({ gmLayers, gmBg }),
+    }).then(() => { _cloudSettings = { ..._cloudSettings, gmLayers, gmBg } }).catch(() => {})
     setGmSaved(true); setTimeout(() => setGmSaved(false), 2000)
   }
+  // Load cloud settings on mount and sync local state
+  useEffect(() => {
+    const base = API_BASE || ''
+    fetch(`${base}/api/settings`, { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` } })
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(cfg => {
+        _cloudSettings = cfg
+        if (cfg.gmLayers && typeof cfg.gmLayers === 'object')
+          setGmLayers(Object.fromEntries(GM_LAYERS.map(l => [l.id, cfg.gmLayers[l.id] ?? l.on])))
+        if (cfg.gmBg) setGmBg(cfg.gmBg)
+        if (cfg.waSettings) setWaSt(s => ({ ...s, ...cfg.waSettings }))
+        if (typeof cfg.crmWebhook === 'string') setCrmWebhook(cfg.crmWebhook)
+      })
+      .catch(() => {})
+  }, [])
 
   // Check Supabase health on first open so admin knows if data is at risk
   useEffect(() => {
     const base = API_BASE || ''
     fetch(`${base}/api/properties/status`, {
       headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
-      signal: AbortSignal.timeout(8000),
+      signal: AbortSignal.timeout(12000),
     })
       .then(r => r.ok ? r.json() : Promise.reject())
       .then(s => {
-        if (!s.supabaseConfigured) setSupabaseWarning('⚠ Supabase לא מוגדר בשרת — נכסים נשמרים בזיכרון בלבד ויאבדו בהפעלה מחדש של השרת!')
-        else if (!s.supabaseReachable) setSupabaseWarning('⚠ Supabase מוגדר אבל לא נגיש — נכסים נשמרים בזיכרון בלבד ויאבדו בהפעלה מחדש של השרת!')
+        if (!s.supabaseConfigured) {
+          setSupabaseWarning('⚠ Supabase לא מוגדר — חסרים SUPABASE_URL / SUPABASE_SERVICE_KEY ב-Render. כנס ל-Render → Environment ← הוסף את המשתנים.')
+        } else if (!s.supabaseReachable) {
+          const err = s.supabaseError ? ` (${s.supabaseError})` : ''
+          setSupabaseWarning(`⚠ Supabase לא נגיש${err} — הפרויקט כנראה מושהה. כנס ל-supabase.com → הפרויקט שלך → לחץ "Restore Project" → המתן דקה ← רענן.`)
+        }
       })
       .catch(() => {})
+  }, [])
+
+  // Track viewport width for responsive KPI grid
+  useEffect(() => {
+    const onResize = () => setViewW(window.innerWidth)
+    window.addEventListener('resize', onResize, { passive: true })
+    return () => window.removeEventListener('resize', onResize)
   }, [])
 
   // Auto-save while editing an existing property (3 s debounce, silent — no spinner)
@@ -3724,7 +3831,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const [trashedLeads, setTrashedLeads] = useState(() => { try { return JSON.parse(localStorage.getItem(LEADS_TRASH) || '[]') } catch { return [] } })
   const [crmWebhook, setCrmWebhook] = useState(() => localStorage.getItem('afik_crm_webhook') || '')
   const [webhookSaved, setWebhookSaved] = useState(false)
-  const [waSt, setWaSt] = useState(() => { try { return { provider:'greenapi', delayMin:2, template:WA_DEFAULT_TEMPLATE, instanceId:'7107558519', apiUrl:'https://7107.api.greenapi.com', token:'191b9e9c4fc540f1ad25c8607389c0d689d15794f8094a0589', enabled:true, ...JSON.parse(localStorage.getItem(WA_KEY) || '{}') } } catch { return { provider:'greenapi', delayMin:2, template:WA_DEFAULT_TEMPLATE, instanceId:'7107558519', apiUrl:'https://7107.api.greenapi.com', token:'191b9e9c4fc540f1ad25c8607389c0d689d15794f8094a0589', enabled:true } } })
+  const [waSt, setWaSt] = useState(() => ({ provider:'greenapi', delayMin:2, template:WA_DEFAULT_TEMPLATE, instanceId:'7107558519', apiUrl:'https://7107.api.greenapi.com', token:'191b9e9c4fc540f1ad25c8607389c0d689d15794f8094a0589', enabled:true, ...(_cloudSettings.waSettings || {}) }))
   const [waSaved, setWaSaved] = useState(false)
   const [waTesting, setWaTesting] = useState(false)
   const [waTestResult, setWaTestResult] = useState('')
@@ -3775,6 +3882,37 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const resizingColRef = useRef(null)
   const resizeStartXRef = useRef(0)
   const resizeStartWRef = useRef(0)
+  const pendingDeletes  = useRef(new Set()) // IDs deleted locally, awaiting server confirmation
+
+  // ── Push notification system ────────────────────────────────────────────────
+  const [toasts, setToasts]           = useState([])
+  const [notifPerm, setNotifPerm]     = useState(() =>
+    'Notification' in window ? Notification.permission : 'unsupported'
+  )
+  const [notifBannerDismissed, setNotifBannerDismissed] = useState(false)
+  const toastIdRef = useRef(0)
+
+  const requestNotifPermission = useCallback(async () => {
+    if (!('Notification' in window)) return
+    const result = await Notification.requestPermission()
+    setNotifPerm(result)
+  }, [])
+
+  const showBrowserNotification = useCallback((title, body, onClick) => {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return
+    // Only show OS notification when the tab is not focused — the in-app toast covers the focused case
+    if (document.hasFocus()) return
+    const n = new Notification(title, { body, icon: '/favicon.ico' })
+    if (onClick) n.onclick = () => { window.focus(); onClick(); n.close() }
+  }, [])
+
+  const addToast = useCallback((title, body, targetTab, icon = '🔔', durationMs = 6000) => {
+    const id = ++toastIdRef.current
+    setToasts(prev => [...prev, { id, title, body, targetTab, icon }])
+    const timer = setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), durationMs)
+    showBrowserNotification(title, body, targetTab ? () => setTab(targetTab) : undefined)
+    return () => clearTimeout(timer)
+  }, [showBrowserNotification]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const startColResize = (e, colId, defaultW) => {
     e.preventDefault(); e.stopPropagation()
@@ -3833,8 +3971,12 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
       .finally(() => setLeadsSyncing(false))
   }
 
-  // Sync on admin mount — ensures leads from other browsers/sessions appear
-  useEffect(() => { syncLeadsFromServer() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  // Sync on admin mount + auto-sync every 60 s — cloud is always source of truth
+  useEffect(() => {
+    syncLeadsFromServer()
+    const iv = setInterval(syncLeadsFromServer, 15000)
+    return () => clearInterval(iv)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── WhatsApp CRM helpers ──────────────────────────────────────────────────
   const intlPhoneFmt = p => {
@@ -4033,7 +4175,12 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   }
 
   const saveWA = () => {
-    localStorage.setItem(WA_KEY, JSON.stringify(waSt))
+    const base = API_BASE || ''
+    fetch(`${base}/api/settings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+      body: JSON.stringify({ waSettings: waSt }),
+    }).then(() => { _cloudSettings = { ..._cloudSettings, waSettings: waSt } }).catch(() => {})
     setWaSaved(true); setTimeout(() => setWaSaved(false), 2500)
   }
   const testWA = async () => {
@@ -4419,6 +4566,10 @@ Return ONLY valid JSON (no markdown, no code blocks):
     setLeads([])
     setSelectedLead(null)
     try { localStorage.setItem(LEADS_STORE, '[]') } catch {}
+    if (API_BASE) fetch(`${API_BASE}/api/contacts`, {
+      method: 'DELETE', headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
+    }).then(r => { if (r.ok) { pendingDeletes.current.clear(); clearAllDeletedIds() } })
+      .catch(() => {})
   }
   const restoreLead = id => {
     try {
@@ -4507,12 +4658,13 @@ Return ONLY valid JSON (no markdown, no code blocks):
     { id:'props',    Icon:FaBuilding,    label:'ניהול נכסים' },
     { id:'leads',    Icon:FaHandshake,   label:'לידים',      badge: leads.length },
     { id:'chats',    Icon:FaWhatsapp,    label:'צ\'אטים',    badge: leads.filter(l=>l.phone).length },
+    { id:'meta',     Icon:FaFacebookF,   label:'מרכז מטא' },
     { id:'analytics',Icon:FaChartLine,   label:'אנליטיקס' },
     { id:'team',     Icon:FaKey,         label:'צוות' },
     { id:'counters', Icon:FaBalanceScale,label:'מונים' },
     { id:'settings', Icon:FaTools,       label:'הגדרות' },
   ]
-  const TAB_LABELS = { overview:'סקירה כללית', live:'נכסים באוויר', props:'ניהול נכסים', leads:'לידים', chats:'שיחות WhatsApp', analytics:'אנליטיקס', team:'צוות', counters:'מונים', settings:'הגדרות' }
+  const TAB_LABELS = { overview:'סקירה כללית', live:'נכסים באוויר', props:'ניהול נכסים', leads:'לידים', chats:'שיחות WhatsApp', meta:'מרכז מטא', analytics:'אנליטיקס', team:'צוות', counters:'מונים', settings:'הגדרות' }
 
   return (
     <div style={standalone
@@ -4579,7 +4731,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
       {/* ── MAIN PANE ─────────────────────────────────────────────────── */}
       <div className={`admin-main-pane${standalone ? '' : ' admin-panel-modal'}`} style={standalone
         ? { flex:1, display:'flex', flexDirection:'column', height:'100dvh', overflow:'hidden' }
-        : (tab==='chats'||tab==='leads')
+        : (tab==='chats'||tab==='leads'||tab==='meta')
           ? { background:C.card, border:`1px solid ${C.purple}33`, borderRadius:16, padding:0, width:'100%', maxWidth:'98vw', height:'94vh', overflow:'hidden', direction:'rtl', boxShadow:'0 32px 80px rgba(0,0,0,.7)', display:'flex', flexDirection:'column' }
           : { background:C.card, border:`1px solid ${C.purple}33`, borderRadius:16, padding:28, width:'100%', maxWidth:1200, maxHeight:'94vh', overflowY:'auto', direction:'rtl', boxShadow:'0 32px 80px rgba(0,0,0,.7)' }}>
 
@@ -4670,6 +4822,34 @@ Return ONLY valid JSON (no markdown, no code blocks):
           </div>
         )}
 
+        {/* Push notification permission banner */}
+        {!notifBannerDismissed && notifPerm === 'default' && (
+          <div style={{ background:'rgba(247,201,72,.09)', border:'1px solid rgba(247,201,72,.35)', borderRadius:10, padding:'10px 16px', marginBottom:16, display:'flex', alignItems:'center', gap:10, direction:'rtl', flexWrap:'wrap' }}>
+            <span style={{ fontSize:18, flexShrink:0 }}>🔔</span>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontSize:13, fontWeight:700, color:'#F7C948' }}>הפעל התראות דחיפה</div>
+              <div style={{ fontSize:11, color:'rgba(247,201,72,.65)', marginTop:2 }}>Enable push notifications for new leads &amp; messages</div>
+            </div>
+            <button onClick={requestNotifPermission}
+              style={{ background:'rgba(247,201,72,.18)', border:'1px solid rgba(247,201,72,.5)', borderRadius:8, padding:'6px 14px', color:'#F7C948', cursor:'pointer', fontFamily:'inherit', fontSize:12, fontWeight:700, flexShrink:0, whiteSpace:'nowrap', transition:'background .15s' }}
+              onMouseEnter={e=>{ e.currentTarget.style.background='rgba(247,201,72,.32)' }}
+              onMouseLeave={e=>{ e.currentTarget.style.background='rgba(247,201,72,.18)' }}>
+              אשר הרשאה
+            </button>
+            <button onClick={() => setNotifBannerDismissed(true)} style={{ background:'none', border:'none', color:'rgba(247,201,72,.5)', cursor:'pointer', fontSize:16, lineHeight:1, padding:'0 4px', flexShrink:0 }}>×</button>
+          </div>
+        )}
+        {!notifBannerDismissed && notifPerm === 'denied' && (
+          <div style={{ background:'rgba(156,163,175,.07)', border:'1px solid rgba(156,163,175,.25)', borderRadius:10, padding:'10px 16px', marginBottom:16, display:'flex', alignItems:'center', gap:10, direction:'rtl', flexWrap:'wrap' }}>
+            <span style={{ fontSize:18, flexShrink:0 }}>🔕</span>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontSize:13, fontWeight:700, color:'rgba(232,228,216,.7)' }}>התראות חסומות בדפדפן</div>
+              <div style={{ fontSize:11, color:'rgba(232,228,216,.4)', marginTop:2 }}>Notifications blocked — open Chrome Settings → Site Settings → Notifications → allow this site</div>
+            </div>
+            <button onClick={() => setNotifBannerDismissed(true)} style={{ background:'none', border:'none', color:'rgba(156,163,175,.45)', cursor:'pointer', fontSize:16, lineHeight:1, padding:'0 4px', flexShrink:0 }}>×</button>
+          </div>
+        )}
+
         {/* Modal tabs */}
         {!standalone && (
           <div style={{ display:'flex', gap:4, marginBottom:12, background:'rgba(255,255,255,.04)', borderRadius:10, padding:4, flexWrap:'wrap', flexShrink:0 }}>
@@ -4682,6 +4862,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
             </button>
             {tabBtn('leads', 'לידים', leads.length)}
             {tabBtn('chats', 'צ\'אטים')}
+            {tabBtn('meta', 'מרכז מטא')}
             {tabBtn('analytics', 'אנליטיקס')}
             {tabBtn('team', 'צוות')}
             {tabBtn('counters', 'מונים')}
@@ -5290,6 +5471,59 @@ Return ONLY valid JSON (no markdown, no code blocks):
               initialContact={initialChatLead}
               onOpenLead={lead => { setInitialChatLead(null); setTab('leads') }}
               onDeleteLead={id => deleteLead(id)}
+              onNewMessage={({ contactName, message }) => addToast(
+                lang === 'en' ? `New message from ${contactName}` : `הודעה חדשה מ-${contactName}`,
+                message, 'chats', '💬'
+              )}
+              onSentMessage={({ contactName, message }) => addToast(
+                lang === 'en' ? `Sent to ${contactName}` : `נשלח ל-${contactName}`,
+                message, 'chats', '✅', 3500
+              )}
+            />
+          </Suspense>
+        )}
+
+        {tab==='meta' && (
+          <Suspense fallback={<AdminTabLoader label="מרכז מטא" />}>
+            <MetaLeadsTab C={C} lang={lang} isDark={isDark}
+              onNewLead={({ name, campaign }) => addToast(
+                lang === 'en' ? 'New Meta Lead!' : 'ליד חדש ממטא!',
+                (name || (lang === 'en' ? 'Unknown' : 'לא ידוע')) + (campaign ? ' • ' + campaign : ''),
+                'meta', '🎯'
+              )}
+              onNewMetaMessage={({ leadName, message }) => addToast(
+                lang === 'en' ? `Message from ${leadName}` : `הודעה מ-${leadName}`,
+                message, 'meta', '💬'
+              )}
+              onSentMetaMessage={({ leadName, message }) => addToast(
+                lang === 'en' ? `Sent to ${leadName}` : `נשלח ל-${leadName}`,
+                message, 'meta', '✅', 3500
+              )}
+              onSaveToCRM={metaLead => {
+                if (metaLead) {
+                  const newId = 'meta_' + metaLead.id
+                  setLeads(prev => {
+                    if (prev.some(l => l.id === newId)) return prev
+                    const next = [...prev, {
+                      id: newId,
+                      name: metaLead.name || '',
+                      phone: metaLead.phone || '',
+                      email: metaLead.email || '',
+                      msg: metaLead.notes || '',
+                      propTitle: metaLead.campaign_name || metaLead.form_name || 'מרכז מטא',
+                      ts: new Date(metaLead.created_at).getTime() || Date.now(),
+                      leadStatus: 'new',
+                    }]
+                    try { localStorage.setItem(LEADS_STORE, JSON.stringify(next)) } catch {}
+                    return next
+                  })
+                }
+                setTab('leads')
+              }}
+              onOpenChat={metaLead => {
+                setInitialChatLead({ id: 'meta_' + metaLead.id, name: metaLead.name || '', phone: metaLead.phone || '', email: metaLead.email || '' })
+                setTab('chats')
+              }}
             />
           </Suspense>
         )}
@@ -5820,7 +6054,15 @@ Return ONLY valid JSON (no markdown, no code blocks):
                   style={{ ...inp, flex:1, direction:'ltr', fontFamily:'monospace', fontSize:12, marginBottom:0 }}
                 />
                 <button
-                  onClick={() => { localStorage.setItem('afik_crm_webhook', crmWebhook); setWebhookSaved(true); setTimeout(()=>setWebhookSaved(false), 2500) }}
+                  onClick={() => {
+                    const base = API_BASE || ''
+                    fetch(`${base}/api/settings`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+                      body: JSON.stringify({ crmWebhook }),
+                    }).then(() => { _cloudSettings = { ..._cloudSettings, crmWebhook } }).catch(() => {})
+                    setWebhookSaved(true); setTimeout(()=>setWebhookSaved(false), 2500)
+                  }}
                   style={{ padding:'9px 18px', background:`${C.purple}22`, border:`1px solid ${C.purple}44`, borderRadius:6, color:C.purple, fontWeight:700, fontSize:12, cursor:'pointer', fontFamily:'inherit', whiteSpace:'nowrap', flexShrink:0 }}>
                   {webhookSaved ? '✓ נשמר' : 'שמור'}
                 </button>
@@ -5835,7 +6077,15 @@ Return ONLY valid JSON (no markdown, no code blocks):
               {crmWebhook && (
                 <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:10, fontSize:12 }}>
                   <span style={{ color:C.green, fontWeight:700 }}>✓ Webhook מוגדר</span>
-                  <button onClick={() => { setCrmWebhook(''); localStorage.removeItem('afik_crm_webhook') }} style={{ background:'none', border:'none', color:`${C.cream}55`, cursor:'pointer', fontSize:11, textDecoration:'underline', fontFamily:'inherit' }}>נקה</button>
+                  <button onClick={() => {
+                    setCrmWebhook('')
+                    const base = API_BASE || ''
+                    fetch(`${base}/api/settings`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+                      body: JSON.stringify({ crmWebhook: '' }),
+                    }).then(() => { _cloudSettings = { ..._cloudSettings, crmWebhook: '' } }).catch(() => {})
+                  }} style={{ background:'none', border:'none', color:`${C.cream}55`, cursor:'pointer', fontSize:11, textDecoration:'underline', fontFamily:'inherit' }}>נקה</button>
                 </div>
               )}
             </div>
@@ -5917,7 +6167,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
                             {gmBg===opt.v && <div style={{ width:9, height:9, borderRadius:'50%', background:C.purple }}/>}
                           </div>
                           <input type="radio" name="gmBg" value={opt.v} checked={gmBg===opt.v}
-                            onChange={() => { setGmBg(opt.v); localStorage.setItem('govmap_default_bg', opt.v) }}
+                            onChange={() => { setGmBg(opt.v) }}
                             style={{ display:'none' }} />
                           <div>
                             <div style={{ fontSize:13, fontWeight:700, color:C.cream }}>{opt.label}</div>
@@ -5957,6 +6207,25 @@ Return ONLY valid JSON (no markdown, no code blocks):
           </div>
         )}
 
+      </div>
+
+      {/* ── Push notification toasts — bottom-right ──────────────────── */}
+      <style>{`@keyframes toastIn{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:translateX(0)}}`}</style>
+      <div style={{ position:'fixed', bottom:24, right:24, zIndex:99999, display:'flex', flexDirection:'column-reverse', gap:10, pointerEvents:'none', maxWidth:340 }}>
+        {toasts.map(toast => (
+          <div key={toast.id}
+            onClick={() => { setToasts(prev => prev.filter(t => t.id !== toast.id)); if (toast.targetTab) setTab(toast.targetTab) }}
+            style={{ pointerEvents:'auto', background:'#1F2C33', border:'1px solid rgba(132,144,216,.35)', borderRadius:12, padding:'12px 14px 12px 16px', boxShadow:'0 6px 24px rgba(0,0,0,.55)', cursor:toast.targetTab?'pointer':'default', fontFamily:'Rubik,sans-serif', display:'flex', gap:10, alignItems:'flex-start', animation:'toastIn .25s ease', direction:'rtl' }}>
+            <div style={{ fontSize:22, flexShrink:0, lineHeight:1 }}>{toast.icon || '🔔'}</div>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontSize:13, fontWeight:700, color:'#E9EDEF', marginBottom:3, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{toast.title}</div>
+              <div style={{ fontSize:12, color:'#8696A0', lineHeight:1.45, overflow:'hidden', display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical' }}>{toast.body}</div>
+              {toast.targetTab && <div style={{ fontSize:11, color:'#8490D8', marginTop:4, fontWeight:600 }}>{lang==='en'?'Click to open →':'לחץ לפתיחה ←'}</div>}
+            </div>
+            <button onClick={e => { e.stopPropagation(); setToasts(prev => prev.filter(t => t.id !== toast.id)) }}
+              style={{ background:'none', border:'none', color:'#8696A0', cursor:'pointer', fontSize:15, padding:0, lineHeight:1, flexShrink:0, marginTop:1 }}>✕</button>
+          </div>
+        ))}
       </div>
 
       {/* ── Mobile bottom tab bar — standalone only ──────────────────── */}
@@ -7480,7 +7749,7 @@ function PdfLeadGate({ pdf, prop, C }) {
     setOpen(false)
     window.open(pdf.url, '_blank', 'noopener')
     try {
-      const waConf = { ...WA_DEFAULTS, ...JSON.parse(localStorage.getItem(WA_KEY) || '{}') }
+      const waConf = { ...WA_DEFAULTS, ...(_cloudSettings.waSettings || JSON.parse(localStorage.getItem(WA_KEY) || '{}')) }
       if (waConf.enabled && waConf.instanceId && waConf.token && phone) {
         const delayMs = (waConf.delayMin || 2) * 60 * 1000
         setTimeout(() => sendWhatsAppLead(lead, waConf), delayMs)
@@ -7488,28 +7757,63 @@ function PdfLeadGate({ pdf, prop, C }) {
     } catch {}
   }
 
-  const inp = { width:'100%', background:'rgba(255,255,255,.06)', border:'1px solid rgba(255,255,255,.14)', borderRadius:8, padding:'10px 13px', color:'#fff', fontFamily:'inherit', fontSize:14, boxSizing:'border-box', outline:'none' }
+  const inp = { width:'100%', background:'rgba(255,255,255,.07)', border:'1px solid rgba(255,255,255,.16)', borderRadius:10, padding:'12px 14px', color:'#fff', fontFamily:'inherit', fontSize:14, boxSizing:'border-box', outline:'none', transition:'border-color .15s' }
 
   return (
-    <div style={{ background:'rgba(255,255,255,.04)', border:'1px solid rgba(255,255,255,.1)', borderRadius:12, overflow:'hidden' }}>
+    <div style={{ background:'rgba(255,255,255,.04)', border:'1px solid rgba(255,255,255,.1)', borderRadius:14, overflow:'hidden' }}>
+      {/* PDF row */}
       <div style={{ display:'flex', alignItems:'center', gap:12, padding:'14px 16px' }}>
-        <FaFileAlt size={18} style={{ color:C.purple, flexShrink:0 }}/>
+        <div style={{ width:40, height:40, borderRadius:10, background:`${C.purple}22`, border:`1px solid ${C.purple}44`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+          <FaFileAlt size={17} style={{ color:C.purple }}/>
+        </div>
         <div style={{ flex:1, minWidth:0 }}>
           <div style={{ fontSize:14, fontWeight:700, color:'#fff', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{pdf.name || 'מסמך PDF'}</div>
-          <div style={{ fontSize:12, color:'rgba(255,255,255,.45)', marginTop:2 }}>PDF · לחץ להורדה</div>
+          <div style={{ fontSize:12, color:'rgba(255,255,255,.45)', marginTop:2 }}>PDF · חינם להורדה</div>
         </div>
         <button
           onClick={() => { if (done) { window.open(pdf.url, '_blank', 'noopener') } else { setOpen(o => !o) } }}
-          style={{ flexShrink:0, padding:'8px 16px', background: done ? `${C.green}18` : `${C.purple}22`, border:`1px solid ${done ? C.green+'44' : C.purple+'44'}`, borderRadius:8, color: done ? C.green : C.purple, cursor:'pointer', fontSize:13, fontFamily:'inherit', fontWeight:700, display:'flex', alignItems:'center', gap:6, transition:'all .15s', whiteSpace:'nowrap' }}>
+          style={{ flexShrink:0, padding:'9px 18px', background: done ? `linear-gradient(135deg,${C.green}cc,${C.green}88)` : `linear-gradient(135deg,${C.purple}dd,${C.purple}99)`, border:'none', borderRadius:10, color:'#fff', cursor:'pointer', fontSize:13, fontFamily:'inherit', fontWeight:700, display:'flex', alignItems:'center', gap:6, transition:'opacity .15s', whiteSpace:'nowrap', boxShadow: done ? `0 2px 8px ${C.green}40` : `0 2px 8px ${C.purple}40` }}>
           {done ? <><FaCheck size={11}/> הורד</> : <><FaFileAlt size={11}/> הורדה</>}
         </button>
       </div>
+
+      {/* Lead-gate form */}
       {open && !done && (
-        <form onSubmit={submit} style={{ borderTop:'1px solid rgba(255,255,255,.08)', padding:'16px', display:'flex', flexDirection:'column', gap:12, background:'rgba(0,0,0,.2)' }}>
-          <div style={{ fontSize:13, color:'rgba(255,255,255,.7)', marginBottom:4 }}>השאר פרטים כדי לקבל את הקובץ:</div>
-          <input required placeholder="שם מלא" value={name} onChange={e=>setName(e.target.value)} style={inp}/>
-          <input required type="tel" placeholder="טלפון" value={phone} onChange={e=>setPhone(e.target.value)} style={inp}/>
-          <button type="submit" style={{ padding:'11px', background:C.purple, border:'none', borderRadius:8, color:'#fff', fontFamily:'inherit', fontSize:14, fontWeight:700, cursor:'pointer' }}>שלח והורד</button>
+        <form onSubmit={submit} style={{ borderTop:'1px solid rgba(255,255,255,.09)', background:'linear-gradient(160deg,rgba(255,255,255,.05) 0%,rgba(0,0,0,.25) 100%)', padding:'20px 18px 18px' }}>
+          {/* Header */}
+          <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:14 }}>
+            <div style={{ width:36, height:36, borderRadius:50, background:`linear-gradient(135deg,${C.purple},${C.purple}88)`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, boxShadow:`0 2px 10px ${C.purple}55` }}>
+              <FaFileAlt size={15} style={{ color:'#fff' }}/>
+            </div>
+            <div>
+              <div style={{ fontSize:15, fontWeight:800, color:'#fff', lineHeight:1.2 }}>קבל את המסמך חינם</div>
+              <div style={{ fontSize:12, color:'rgba(255,255,255,.5)', marginTop:2 }}>מלא פרטים ותוריד מיידית</div>
+            </div>
+          </div>
+
+          {/* Two-column: name (left) | phone (right — RTL start) */}
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:12, direction:'rtl' }}>
+            <input
+              required
+              placeholder="טלפון"
+              type="tel"
+              value={phone}
+              onChange={e=>setPhone(e.target.value)}
+              style={inp}
+            />
+            <input
+              required
+              placeholder="שם מלא"
+              value={name}
+              onChange={e=>setName(e.target.value)}
+              style={inp}
+            />
+          </div>
+
+          <button type="submit" style={{ width:'100%', padding:'13px', background:`linear-gradient(135deg,${C.purple} 0%,${C.purple}bb 100%)`, border:'none', borderRadius:10, color:'#fff', fontFamily:'inherit', fontSize:15, fontWeight:800, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:8, boxShadow:`0 3px 14px ${C.purple}55`, transition:'opacity .15s' }}>
+            <FaFileAlt size={14}/> שלח והורד
+          </button>
+          <div style={{ textAlign:'center', fontSize:11, color:'rgba(255,255,255,.3)', marginTop:10 }}>הפרטים שלך נשמרים בסודיות מוחלטת</div>
         </form>
       )}
     </div>
@@ -7545,11 +7849,26 @@ function toMapsEmbed(url) {
   return null
 }
 
-function cloudImg(url) {
-  if (!url || !url.includes('cloudinary.com') || !url.includes('/image/upload/')) return url
-  if (/\/(?:q_auto|q_\d|f_auto|fl_progressive)/.test(url)) return url
-  return url.replace('/image/upload/', '/image/upload/q_auto:best,f_auto/')
+// Transform image URL: Cloudinary quality/format optimisation.
+// Supabase Storage URLs are returned as-is — Image Transformations require Pro plan.
+// base64 data URLs returned as-is (legacy images uploaded before cloud storage).
+function cloudImg(url, width = 1200) {
+  if (!url || url.startsWith('data:')) return url
+
+  // Supabase Storage — serve original URL (render/image endpoint = Pro plan only)
+  if (url.includes('.supabase.co/storage/')) return url
+
+  // Cloudinary → add quality + format-auto params
+  if (url.includes('cloudinary.com') && url.includes('/image/upload/')) {
+    if (/\/(?:q_auto|q_\d|f_auto|fl_progressive)/.test(url)) return url
+    return url.replace('/image/upload/', `/image/upload/w_${width},q_auto:good,f_auto/`)
+  }
+
+  return url
 }
+
+// Small thumbnail — card cover images (saves 60–80 % bandwidth vs full size)
+function thumbImg(url) { return cloudImg(url, 600) }
 
 function getVideoThumbnail(url, thumbnail) {
   if (thumbnail) return thumbnail
@@ -7581,6 +7900,17 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
   const [isPlaying, setIsPlaying] = useState(false)
   const slideshowRef = useRef(null)
   const videoRef = useRef(null)
+  const modalScrollRef = useRef(null)
+
+  // useLayoutEffect fires synchronously after DOM mutations but BEFORE the
+  // browser paints — the user never sees the new property at the old position.
+  // behavior:'instant' overrides scroll-behavior:smooth on the container so
+  // the jump is frame-perfect even when CSS smooth-scroll is enabled.
+  useLayoutEffect(() => {
+    const el = modalScrollRef.current
+    if (!el) return
+    el.scrollTo({ top: 0, behavior: 'instant' })
+  }, [prop.id])
   const propSwipe = useSwipeClose(onClose)
   // Gallery touch swipe — navigate photos without closing modal
   const galleryTouch = useRef({ x: 0, y: 0 })
@@ -7698,7 +8028,7 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
   ].filter(Boolean)
 
   return (
-    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.88)', backdropFilter:'blur(14px)', zIndex:900, overflowY:'auto', WebkitOverflowScrolling:'touch', scrollBehavior:'smooth' }}
+    <div ref={modalScrollRef} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.88)', backdropFilter:'blur(14px)', zIndex:900, overflowY:'auto', WebkitOverflowScrolling:'touch', scrollBehavior:'smooth' }}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
       onTouchStart={propSwipe.onTouchStart} onTouchEnd={propSwipe.onTouchEnd}>
 
@@ -8263,7 +8593,8 @@ function PropertyCard({ prop, onContact, onSelect }) {
   const [hovered, setHovered] = useState(false)
   const [failedImgs, setFailedImgs] = useState(new Set())
   const isTouchDevice = useRef(typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0)).current
-  const validImages = (prop.images || []).filter(u => u && typeof u === 'string' && u.length > 4).map(cloudImg)
+  // Cards use thumbnail-size images (600px wide) — 60-80% bandwidth saving
+  const validImages = (prop.images || []).filter(u => u && typeof u === 'string' && u.length > 4).map(thumbImg)
   const cat = CATEGORIES.find(c => c.id === prop.category) || CATEGORIES[1]
   const sc = { 'זמין':C.green, 'בבדיקה':'#F7C948', 'נמכר':'#E05252', 'הושכר':'#F97316' }[prop.status] || C.green
 
@@ -8631,6 +8962,28 @@ export default function App() {
     return () => window.removeEventListener('resize', handler)
   }, [])
 
+  // ── /admin-panel URL routing ──
+  useEffect(() => {
+    if (window.location.pathname === '/admin-panel') {
+      const alreadyAuth = sessionStorage.getItem('afik_admin_session') === '1'
+      if (alreadyAuth) setShowAdmin(true)
+      else setShowPw(true)
+    }
+    const onPop = () => {
+      if (window.location.pathname !== '/admin-panel') setShowAdmin(false)
+    }
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, []) // eslint-disable-line
+
+  useEffect(() => {
+    if (showAdmin && adminAuth) {
+      if (window.location.pathname !== '/admin-panel') history.pushState({}, '', '/admin-panel')
+    } else {
+      if (window.location.pathname === '/admin-panel') history.replaceState({}, '', '/')
+    }
+  }, [showAdmin, adminAuth])
+
   // ── Load stats/sharon/properties on startup ──
   useEffect(() => {
     // 1. Fast initial state from localStorage (avoids flash of default numbers)
@@ -8644,7 +8997,7 @@ export default function App() {
     } catch {}
     loaded.current = true
 
-    // 2. Fetch latest stats from API — works with or without VITE_API_URL
+    // 2. Fetch latest stats + govmap token from API
     {
       const base = API_BASE || ''
       fetch(`${base}/api/stats`)
@@ -8652,7 +9005,13 @@ export default function App() {
         .then(data => {
           if (data.stats?.length)  setStats(data.stats)
           if (data.sharon?.length) setSharon(data.sharon)
+          if (data.govmapToken)    { setGovmapToken(data.govmapToken); localStorage.setItem('govmap_token', data.govmapToken) }
         })
+        .catch(() => {})
+      // Also load admin cloud settings (WA, CRM webhook, map defaults)
+      fetch(`${base}/api/settings`, { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` } })
+        .then(r => r.ok ? r.json() : Promise.reject())
+        .then(cfg => { _cloudSettings = cfg })
         .catch(() => {})
     }
 
@@ -8751,7 +9110,21 @@ export default function App() {
       const headers = adminAuth ? { Authorization: `Bearer ${ADMIN_TOKEN}` } : {}
       fetch(`${base}/api/properties`, { headers })
         .then(r => r.ok ? r.json() : Promise.reject())
-        .then(data => { if (Array.isArray(data) && data.length > 0) setProperties(data) })
+        .then(data => {
+          if (!Array.isArray(data) || !data.length) return
+          // Use same merge as initial fetch — never blindly overwrite optimistic updates
+          setProperties(prev => {
+            if (!prev.length) return data
+            if (data.length < prev.length) return prev
+            const localById = new Map(prev.map(p => [String(p.id), p]))
+            return data.map(serverProp => {
+              const localProp = localById.get(String(serverProp.id))
+              if (!localProp) return serverProp
+              const serverNewer = (serverProp.updatedAt || 0) >= (localProp.updatedAt || 0)
+              return serverNewer ? { ...localProp, ...serverProp } : localProp
+            })
+          })
+        })
         .catch(() => {})
     }
     const id = setInterval(refresh, 60000)
@@ -8831,7 +9204,10 @@ export default function App() {
   const openContact = (p=null) => { setContactProp(p); setShowContact(true) }
   const openProperty = (p) => {
     setSelectedProp(p)
-    if (p) trackEvent('property_view', { title: p.title, id: p.id, category: p.category, location: p.location })
+    if (p) {
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+      trackEvent('property_view', { title: p.title, id: p.id, category: p.category, location: p.location })
+    }
   }
 
   // ── Standalone dashboard at /dashboard ──────────────────────────────────────
@@ -9497,34 +9873,51 @@ export default function App() {
           </div>
 
           {/* ── Bottom bar ── */}
-          <div className="footer-bottom" style={{ display:'flex', justifyContent:'space-between', alignItems:'center', borderTop:'1px solid rgba(132,144,216,.15)', paddingTop:20, flexWrap:'wrap', gap:10 }}>
-            <div className="footer-bottom-links" style={{ display:'flex', alignItems:'center', gap:16, flexWrap:'wrap' }}>
-              <div style={{ fontSize:13, color:'rgba(232,228,216,.35)' }}>{TR[lang]?.copyright}</div>
-              <a href="/accessibility" style={{ fontSize:13, color:C.purple, textDecoration:'none', fontWeight:600, opacity:.75, transition:'opacity .15s' }}
+          <div className="footer-bottom" style={{ display:'flex', alignItems:'center', justifyContent:'space-between', borderTop:'1px solid rgba(132,144,216,.15)', paddingTop:18, gap:12 }}>
+
+            {/* Right (RTL start): legal links */}
+            <div className="footer-bottom-links" style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
+              <a href="/accessibility"
+                style={{ fontSize:12, color:C.purple, textDecoration:'none', fontWeight:600, opacity:.85, transition:'opacity .15s', whiteSpace:'nowrap', letterSpacing:'.01em' }}
                 onMouseEnter={e => e.currentTarget.style.opacity='1'}
-                onMouseLeave={e => e.currentTarget.style.opacity='.75'}>{TR[lang]?.accessibility}</a>
-              <button onClick={() => setShowPrivacy(true)} style={{ background:'none', border:'none', padding:0, fontSize:13, color:'rgba(132,144,216,.6)', fontWeight:500, cursor:'pointer', opacity:.7, transition:'opacity .15s', fontFamily:'inherit', textDecoration:'underline', textUnderlineOffset:3 }}
-                onMouseEnter={e => e.currentTarget.style.opacity='1'}
-                onMouseLeave={e => e.currentTarget.style.opacity='.7'}>{TR[lang]?.privacy}</button>
+                onMouseLeave={e => e.currentTarget.style.opacity='.85'}>
+                {TR[lang]?.accessibility}
+              </a>
+              <span style={{ color:'rgba(132,144,216,.3)', fontSize:14, lineHeight:1, fontWeight:300 }}>|</span>
+              <button onClick={() => setShowPrivacy(true)}
+                style={{ background:'none', border:'none', padding:0, fontSize:12, color:'rgba(132,144,216,.75)', fontWeight:500, cursor:'pointer', opacity:.85, transition:'opacity .15s', fontFamily:'inherit', textDecoration:'none', whiteSpace:'nowrap' }}
+                onMouseEnter={e => { e.currentTarget.style.opacity='1'; e.currentTarget.style.color=C.purple }}
+                onMouseLeave={e => { e.currentTarget.style.opacity='.85'; e.currentTarget.style.color='rgba(132,144,216,.75)' }}>
+                {TR[lang]?.privacy}
+              </button>
             </div>
-            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+
+            {/* Center: copyright */}
+            <div className="footer-bottom-copyright" style={{ flex:1, fontSize:11, color:'rgba(132,144,216,.35)', textAlign:'center', padding:'0 12px', minWidth:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+              {TR[lang]?.copyright}
+            </div>
+
+            {/* Left (RTL end): lang + admin lock */}
+            <div className="footer-bottom-actions" style={{ display:'flex', alignItems:'center', gap:6, flexShrink:0 }}>
               <LangSwitch />
               <button onClick={() => adminAuth ? setShowAdmin(true) : setShowPw(true)} title="כניסת מנהל"
-                style={{ background:'none', border:'none', color:'rgba(232,228,216,.14)', cursor:'pointer', transition:'color .2s', marginRight:6, padding:4 }}
+                style={{ background:'none', border:'none', color:'rgba(132,144,216,.18)', cursor:'pointer', transition:'color .2s', padding:'4px 6px', borderRadius:6 }}
                 onMouseEnter={e => e.currentTarget.style.color=C.purple}
-                onMouseLeave={e => e.currentTarget.style.color='rgba(232,228,216,.14)'}><FaLock size={13}/></button>
+                onMouseLeave={e => e.currentTarget.style.color='rgba(132,144,216,.18)'}><FaLock size={12}/></button>
             </div>
           </div>
         </div>
       </footer>
 
       {/* ── WHATSAPP FLOAT ───────────────────────────── */}
-      <a href="https://wa.me/972559811814" target="_blank" rel="noopener noreferrer" className="wa-float" title="שלח הודעה ב-WhatsApp" onClick={() => trackEvent('whatsapp_click', { src:'float_btn' })}>
-        <WaIcon/>
-      </a>
+      {!(showAdmin && adminAuth) && (
+        <a href="https://wa.me/972559811814" target="_blank" rel="noopener noreferrer" className="wa-float" title="שלח הודעה ב-WhatsApp" onClick={() => trackEvent('whatsapp_click', { src:'float_btn' })}>
+          <WaIcon/>
+        </a>
+      )}
 
       {/* ── BACK TO TOP ─────────────────────────────── */}
-      <BackToTop />
+      {!(showAdmin && adminAuth) && <BackToTop />}
 
       {/* ── MODALS ──────────────────────────────────── */}
       {showPw      && <PasswordPrompt onSuccess={() => { sessionStorage.setItem('afik_admin_session','1'); setAdminAuth(true); setShowPw(false); setShowAdmin(true) }} onClose={() => setShowPw(false)}/>}
@@ -9571,9 +9964,29 @@ export default function App() {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
                 body: JSON.stringify(savedProp),
-                signal: AbortSignal.timeout(20000),
+                signal: AbortSignal.timeout(30000),
               }).then(r => r.ok ? r.json() : Promise.reject(r.status))
-                .then(body => console.log('[wizard] saved prop', savedProp.id, '→', body.storage))
+                .then(body => {
+                  console.log('[wizard] saved prop', savedProp.id, '→', body.storage)
+                  // Re-fetch after confirmed save so UI reflects what the server actually stored
+                  return fetch(`${base}/api/properties`, {
+                    headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
+                  }).then(r => r.ok ? r.json() : Promise.reject())
+                    .then(data => {
+                      if (Array.isArray(data) && data.length > 0) {
+                        setProperties(prev => {
+                          if (!prev.length) return data
+                          if (data.length < prev.length) return prev
+                          const localById = new Map(prev.map(p => [String(p.id), p]))
+                          return data.map(sp => {
+                            const lp = localById.get(String(sp.id))
+                            if (!lp) return sp
+                            return ((sp.updatedAt || 0) >= (lp.updatedAt || 0)) ? { ...lp, ...sp } : lp
+                          })
+                        })
+                      }
+                    })
+                })
                 .catch(e => console.error('[wizard] save error:', e))
             }
           }}
@@ -9583,7 +9996,7 @@ export default function App() {
           properties={properties} setProperties={setProperties}
           stats={stats} setStats={setStats}
           sharon={sharon} setSharon={setSharon}
-          govmapToken={govmapToken} setGovmapToken={t => { setGovmapToken(t); localStorage.setItem('govmap_token', t) }}
+          govmapToken={govmapToken} setGovmapToken={setGovmapToken}
           onClose={() => setShowAdmin(false)}
           onEditInWizard={p => {
             setShowAdmin(false)
@@ -9597,8 +10010,8 @@ export default function App() {
       {/* ── THEME TOGGLE ────────────────────────────── */}
       <CurtainThemeToggle/>
 
-      {/* ── ACCESSIBILITY WIDGET ────────────────────── */}
-      <AccessibilityWidget/>
+      {/* ── ACCESSIBILITY WIDGET — hidden when admin panel is open ── */}
+      {!(showAdmin && adminAuth) && <AccessibilityWidget/>}
 
       {/* ── COOKIE CONSENT ──────────────────────────── */}
       <CookieConsent C={C} isDark={isDark}/>
