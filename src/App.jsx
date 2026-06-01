@@ -10016,8 +10016,8 @@ export default function App() {
       {/* ── THEME TOGGLE ────────────────────────────── */}
       <CurtainThemeToggle/>
 
-      {/* ── ACCESSIBILITY WIDGET ────────────────────── */}
-      <AccessibilityWidget/>
+      {/* ── ACCESSIBILITY WIDGET — hidden when admin panel is open ── */}
+      {!(showAdmin && adminAuth) && <AccessibilityWidget/>}
 
       {/* ── COOKIE CONSENT ──────────────────────────── */}
       <CookieConsent C={C} isDark={isDark}/>

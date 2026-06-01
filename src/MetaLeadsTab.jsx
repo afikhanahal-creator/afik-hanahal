@@ -118,16 +118,18 @@ const CAMPAIGN_COLORS = ['#8490D8','#E05252','#3BAF7E','#E08C3A','#3A8FC7','#C24
 
 const QUICK_REPLIES = {
   he: [
-    { label: 'תיאום שיחה 📞', message: 'שלום {{firstName}}, שמחים שהתעניינת ב{{project}}!\nמתי נוח לך לשיחה קצרה?' },
-    { label: 'מידע נוסף 📋',   message: 'היי {{firstName}}, יש לנו פרטים נוספים על {{project}} שנשמח לשתף אתך. מתי אפשר לדבר?' },
-    { label: 'תיאום פגישה 📅', message: 'שלום {{firstName}}, נשמח לתאם פגישה להצגת {{project}}. מתי מתאים לך?' },
-    { label: 'חזרה אליך 💬',   message: 'היי {{firstName}}, חוזרים אליך בנוגע ל{{project}}. מתי נוח לדבר?' },
+    { label: 'תיאום שיחה 📞',    message: 'היי {{firstName}}, ראינו שהשארתם פרטים באתר של {{project}}. מתי זמן נוח לדבר?' },
+    { label: 'חזרה מהירה ⚡',    message: 'היי {{firstName}}, מדבר/ת מ{{project}}. ניסיתי להשיג אתכם בנוגע לפנייה שלכם — אפשר לחזור אליכם כעת או שעדיף מאוחר יותר?' },
+    { label: 'תיאום פגישה 📅',   message: 'שלום {{firstName}}, תודה על העניין ב{{project}}. אשמח לתאם פגישה קצרה ולהציג את הפרטים והתוכניות. איזה יום מתאים לכם השבוע?' },
+    { label: 'שליחת פרטים 📋',   message: 'היי {{firstName}}, כאן {{project}}. אשמח לשלוח לכם את כל הפרטים והתוכניות. מעדיפים שנעבור על זה יחד בשיחה קצרה?' },
+    { label: 'בדיקת זמינות ✅',  message: 'שלום {{firstName}}, ראינו את הפנייה שלכם ל{{project}}. יש לי כמה דקות עכשיו — נוח לכם שנדבר?' },
   ],
   en: [
-    { label: 'Schedule Call 📞', message: 'Hello {{firstName}}, glad you\'re interested in {{project}}!\nWhen\'s a good time for a quick call?' },
-    { label: 'More Info 📋',     message: 'Hi {{firstName}}, we have more details about {{project}} to share. When can we talk?' },
-    { label: 'Book Meeting 📅',  message: 'Hello {{firstName}}, we\'d love to schedule a presentation of {{project}}. When works for you?' },
-    { label: 'Follow Up 💬',     message: 'Hi {{firstName}}, following up about {{project}}. When\'s a good time to chat?' },
+    { label: 'Schedule Call 📞',      message: "Hi {{firstName}}, we saw you left your details on {{project}}'s site. When's a good time to talk?" },
+    { label: 'Quick Reply ⚡',        message: "Hi {{firstName}}, calling from {{project}}. I tried to reach you about your inquiry — can I call you now or would later be better?" },
+    { label: 'Book Meeting 📅',       message: "Hello {{firstName}}, thank you for your interest in {{project}}. I'd love to schedule a quick meeting to present the details. Which day works for you this week?" },
+    { label: 'Send Details 📋',       message: "Hi {{firstName}}, this is {{project}}. I'd be happy to send you all the details. Would you prefer to go over them together in a quick call?" },
+    { label: 'Check Availability ✅', message: "Hello {{firstName}}, we saw your inquiry about {{project}}. I have a few minutes now — is it convenient for you to talk?" },
   ],
 }
 
@@ -254,6 +256,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
   })
   const [showRestore, setShowRestore]   = useState(false)
   const [campaignDropOpen, setCampaignDropOpen] = useState(false)
+  const [sortOrder, setSortOrder]               = useState('desc') // 'desc' = newest first
 
   const messagesEndRef      = useRef(null)
   const leadsIntervalRef    = useRef(null)
@@ -263,25 +266,32 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
   const onNewLeadRef        = useRef(onNewLead)
   useEffect(() => { onNewLeadRef.current = onNewLead }, [onNewLead])
 
+  // Track deleted lead IDs so polling never brings them back
+  const deletedIdsRef = useRef(new Set(
+    (() => { try { return JSON.parse(localStorage.getItem('meta_deleted_leads') || '[]') } catch { return [] } })().map(l => l.id)
+  ))
+  useEffect(() => { deletedIdsRef.current = new Set(deletedLeads.map(l => l.id)) }, [deletedLeads])
+
   // ── Load leads ──────────────────────────────────────────────────────────────
   const loadLeads = useCallback(async (silent = false) => {
     if (!silent) setLoadingLeads(true)
     setLeadsError(null)
     try {
       const data = await fetchLeads()
-      setLeads(data)
+      const visible = data.filter(l => !deletedIdsRef.current.has(l.id))
+      setLeads(visible)
 
       if (knownLeadIdsRef.current === null) {
-        knownLeadIdsRef.current = new Set(data.map(l => l.id))
+        knownLeadIdsRef.current = new Set(visible.map(l => l.id))
       } else if (onNewLeadRef.current) {
-        const newLeads = data.filter(l => !knownLeadIdsRef.current.has(l.id))
+        const newLeads = visible.filter(l => !knownLeadIdsRef.current.has(l.id))
         if (newLeads.length > 0) {
           newLeads.forEach(l => knownLeadIdsRef.current.add(l.id))
           const latest = newLeads[0]
           onNewLeadRef.current({ name: latest.name, campaign: latest.campaign_name || latest.form_name })
         }
       } else {
-        data.forEach(l => knownLeadIdsRef.current.add(l.id))
+        visible.forEach(l => knownLeadIdsRef.current.add(l.id))
       }
     } catch (e) {
       setLeadsError(e.message)
@@ -357,6 +367,14 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
     } finally {
       setSending(false)
     }
+  }
+
+  // ── Quick reply → open WhatsApp with pre-filled message ──────────────────────
+  const handleQuickReply = (qr) => {
+    if (!selectedLead?.phone) return
+    const message = applyTemplate(qr.message, selectedLead)
+    const url = `https://wa.me/${selectedLead.phone}?text=${encodeURIComponent(message)}`
+    window.open(url, '_blank', 'noopener,noreferrer')
   }
 
   // ── Sync ─────────────────────────────────────────────────────────────────────
@@ -460,14 +478,19 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
   const campaigns = [...new Set(leads.map(l => l.campaign_name).filter(Boolean))]
 
   // ── Filtered leads ────────────────────────────────────────────────────────────
-  const filteredLeads = leads.filter(l => {
-    const matchStatus = statusFilter === 'all' || l.status === statusFilter
-    const q = search.toLowerCase()
-    const matchSearch = !search || [l.name, l.phone, l.email, l.campaign_name, l.form_name]
-      .filter(Boolean).some(s => s.toLowerCase().includes(q))
-    const matchCampaign = !campaignFilter || l.campaign_name === campaignFilter
-    return matchStatus && matchSearch && matchCampaign
-  })
+  const filteredLeads = leads
+    .filter(l => {
+      const matchStatus = statusFilter === 'all' || l.status === statusFilter
+      const q = search.toLowerCase()
+      const matchSearch = !search || [l.name, l.phone, l.email, l.campaign_name, l.form_name]
+        .filter(Boolean).some(s => s.toLowerCase().includes(q))
+      const matchCampaign = !campaignFilter || l.campaign_name === campaignFilter
+      return matchStatus && matchSearch && matchCampaign
+    })
+    .sort((a, b) => sortOrder === 'desc'
+      ? new Date(b.created_at) - new Date(a.created_at)
+      : new Date(a.created_at) - new Date(b.created_at)
+    )
 
   // ── Group messages by date ────────────────────────────────────────────────────
   const groupedMessages = []
@@ -547,6 +570,27 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
                 </button>
               )}
               <button
+                onClick={() => setSortOrder(v => v === 'desc' ? 'asc' : 'desc')}
+                title={sortOrder === 'desc' ? (lang === 'en' ? 'Newest first — click for oldest' : 'חדש לישן — לחץ להיפוך') : (lang === 'en' ? 'Oldest first — click for newest' : 'ישן לחדש — לחץ להיפוך')}
+                style={{
+                  padding: '6px 9px',
+                  background: 'rgba(255,255,255,.05)',
+                  border: `1px solid ${BORDER}`,
+                  borderRadius: 8,
+                  color: MUTED,
+                  cursor: 'pointer',
+                  fontSize: 12,
+                  fontFamily: 'inherit',
+                  transition: 'all .15s',
+                  display: 'flex', alignItems: 'center', gap: 3,
+                  whiteSpace: 'nowrap',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,.1)'; e.currentTarget.style.color = CREAM }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,.05)'; e.currentTarget.style.color = MUTED }}
+              >
+                {sortOrder === 'desc' ? '↓' : '↑'} {lang === 'en' ? 'Date' : 'תאריך'}
+              </button>
+              <button
                 onClick={handleSync}
                 disabled={syncing}
                 title={t.sync}
@@ -622,55 +666,47 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
             ))}
           </div>
 
-          {/* Campaign filter dropdown */}
+          {/* Campaign filter chips — horizontal scroll */}
           {campaigns.length > 0 && (
-            <div ref={campaignDropRef} style={{ position: 'relative', marginTop: 8 }}>
+            <div style={{ display: 'flex', gap: 5, overflowX: 'auto', paddingBottom: 2, marginTop: 8, scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
               <button
-                onClick={() => setCampaignDropOpen(v => !v)}
+                onClick={() => setCampaignFilter(null)}
                 style={{
-                  display: 'flex', alignItems: 'center', gap: 6,
-                  padding: '5px 12px', borderRadius: 8,
-                  border: `1px solid ${campaignFilter ? PURPLE + '66' : BORDER}`,
-                  background: campaignFilter ? `${PURPLE}18` : 'rgba(255,255,255,.04)',
-                  color: campaignFilter ? PURPLE : CREAM,
-                  fontSize: 11, fontWeight: 700, cursor: 'pointer',
-                  fontFamily: 'inherit', transition: 'all .12s',
-                  maxWidth: '100%', overflow: 'hidden',
-                }}>
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, textAlign: dir === 'rtl' ? 'right' : 'left' }}>
-                  {campaignFilter || (lang === 'en' ? 'All Campaigns' : 'כל הקמפיינים')}
-                </span>
-                <span style={{ fontSize: 9, opacity: .7 }}>{campaignDropOpen ? '▲' : '▼'}</span>
+                  flexShrink: 0, padding: '4px 11px', borderRadius: 20,
+                  background: !campaignFilter ? `${PURPLE}22` : 'rgba(255,255,255,.04)',
+                  border: `1px solid ${!campaignFilter ? PURPLE + '44' : BORDER}`,
+                  color: !campaignFilter ? PURPLE : MUTED,
+                  fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+                  transition: 'all .12s', whiteSpace: 'nowrap',
+                }}
+              >
+                {lang === 'en' ? '● All' : '● הכל'} ({leads.length})
               </button>
-              {campaignDropOpen && (
-                <div style={{
-                  position: 'absolute', top: '100%', right: dir === 'rtl' ? 0 : 'auto', left: dir === 'ltr' ? 0 : 'auto',
-                  marginTop: 4, zIndex: 200, minWidth: 200, maxWidth: 280,
-                  background: '#0E0E1C', border: `1px solid ${BORDER}`,
-                  borderRadius: 10, overflow: 'hidden',
-                  boxShadow: '0 8px 24px rgba(0,0,0,.45)',
-                }}>
-                  <button
-                    onClick={() => { setCampaignFilter(null); setCampaignDropOpen(false) }}
-                    style={{ width: '100%', padding: '9px 14px', background: !campaignFilter ? `${PURPLE}18` : 'transparent', border: 'none', borderBottom: `1px solid ${BORDER}`, color: !campaignFilter ? PURPLE : MUTED, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', textAlign: dir === 'rtl' ? 'right' : 'left', direction: dir }}>
-                    {lang === 'en' ? 'All Campaigns' : 'כל הקמפיינים'}
+              {campaigns.map((camp, i) => {
+                const color = CAMPAIGN_COLORS[i % CAMPAIGN_COLORS.length]
+                const isActive = campaignFilter === camp
+                const count = leads.filter(l => l.campaign_name === camp).length
+                return (
+                  <button key={camp}
+                    onClick={() => setCampaignFilter(isActive ? null : camp)}
+                    style={{
+                      flexShrink: 0, padding: '4px 11px', borderRadius: 20,
+                      background: isActive ? `${color}22` : 'rgba(255,255,255,.04)',
+                      border: `1px solid ${isActive ? color + '55' : BORDER}`,
+                      color: isActive ? color : MUTED,
+                      fontSize: 11, fontWeight: isActive ? 700 : 500,
+                      cursor: 'pointer', fontFamily: 'inherit',
+                      transition: 'all .12s', whiteSpace: 'nowrap',
+                      display: 'flex', alignItems: 'center', gap: 5,
+                    }}
+                    onMouseEnter={e => { if (!isActive) { e.currentTarget.style.background = `${color}12`; e.currentTarget.style.color = color } }}
+                    onMouseLeave={e => { if (!isActive) { e.currentTarget.style.background = 'rgba(255,255,255,.04)'; e.currentTarget.style.color = MUTED } }}
+                  >
+                    <span style={{ width: 7, height: 7, borderRadius: '50%', background: color, display: 'inline-block', flexShrink: 0 }}/>
+                    {camp} ({count})
                   </button>
-                  {campaigns.map((camp, i) => {
-                    const color = CAMPAIGN_COLORS[i % CAMPAIGN_COLORS.length]
-                    const isActive = campaignFilter === camp
-                    return (
-                      <button key={camp}
-                        onClick={() => { setCampaignFilter(isActive ? null : camp); setCampaignDropOpen(false) }}
-                        style={{ width: '100%', padding: '9px 14px', background: isActive ? `${color}18` : 'transparent', border: 'none', borderBottom: `1px solid ${BORDER}`, color: isActive ? color : CREAM, fontSize: 12, fontWeight: isActive ? 700 : 500, cursor: 'pointer', fontFamily: 'inherit', textAlign: dir === 'rtl' ? 'right' : 'left', direction: dir, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', transition: 'background .1s' }}
-                        onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = `${color}0D` }}
-                        onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent' }}>
-                        <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: color, marginLeft: dir === 'rtl' ? 8 : 0, marginRight: dir === 'ltr' ? 8 : 0, verticalAlign: 'middle', flexShrink: 0 }}/>
-                        {camp}
-                      </button>
-                    )
-                  })}
-                </div>
-              )}
+                )
+              })}
             </div>
           )}
         </div>
@@ -1061,8 +1097,9 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
                 {(QUICK_REPLIES[lang] || QUICK_REPLIES.he).map((qr, i) => (
                   <button
                     key={i}
-                    onClick={() => handleSend(applyTemplate(qr.message, selectedLead))}
-                    disabled={sending}
+                    onClick={() => handleQuickReply(qr)}
+                    disabled={!selectedLead?.phone}
+                    title={selectedLead ? applyTemplate(qr.message, selectedLead) : ''}
                     style={{
                       padding: '6px 14px',
                       background: 'rgba(255,255,255,.04)',
@@ -1070,13 +1107,14 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
                       borderRadius: 20,
                       color: MUTED,
                       fontSize: 11, fontWeight: 600,
-                      cursor: sending ? 'not-allowed' : 'pointer',
+                      cursor: !selectedLead?.phone ? 'not-allowed' : 'pointer',
                       fontFamily: 'inherit',
                       transition: 'all .12s',
                       whiteSpace: 'nowrap',
+                      opacity: !selectedLead?.phone ? 0.5 : 1,
                     }}
-                    onMouseEnter={e => { if (!sending) { e.currentTarget.style.background = `rgba(132,144,216,.12)`; e.currentTarget.style.color = PURPLE; e.currentTarget.style.borderColor = `${PURPLE}44` }}}
-                    onMouseLeave={e => { if (!sending) { e.currentTarget.style.background = 'rgba(255,255,255,.04)'; e.currentTarget.style.color = MUTED; e.currentTarget.style.borderColor = BORDER }}}
+                    onMouseEnter={e => { if (selectedLead?.phone) { e.currentTarget.style.background = 'rgba(37,211,102,.1)'; e.currentTarget.style.color = '#25D366'; e.currentTarget.style.borderColor = 'rgba(37,211,102,.3)' }}}
+                    onMouseLeave={e => { if (selectedLead?.phone) { e.currentTarget.style.background = 'rgba(255,255,255,.04)'; e.currentTarget.style.color = MUTED; e.currentTarget.style.borderColor = BORDER }}}
                   >
                     {qr.label}
                   </button>
