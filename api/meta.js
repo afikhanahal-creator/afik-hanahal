@@ -220,22 +220,24 @@ async function handleMessages(req, res) {
   return res.status(405).json({ error: 'Method not allowed' })
 }
 
-async function handleSync(req, res) {
-  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' })
-  if (!checkAuth(req))      return res.status(401).json({ error: 'Unauthorized' })
-  if (!META_PAGE_ACCESS_TOKEN) return res.status(500).json({ error: 'META_PAGE_ACCESS_TOKEN not configured' })
-  if (!SUPABASE_URL)        return res.status(500).json({ error: 'Supabase not configured' })
+// Resolve all page IDs to sync:
+// 1. ?page_id=X query param (single, for manual override)
+// 2. META_PAGE_IDS env var (comma-separated list, e.g. "591701444021114,otherPageId")
+// 3. META_PAGE_ID env var (single legacy)
+function resolvePageIds(query) {
+  if (query.page_id) return [query.page_id]
+  const multi = (process.env.META_PAGE_IDS || '').split(',').map(s => s.trim()).filter(Boolean)
+  if (multi.length) return multi
+  const single = process.env.META_PAGE_ID || ''
+  if (single) return [single]
+  return []
+}
 
-  const pageId = req.query.page_id || process.env.META_PAGE_ID || ''
-  if (!pageId) return res.status(400).json({ error: 'page_id required' })
-
-  const client = sb()
+async function syncOnePage(pageId, client, errors) {
   let totalSynced = 0
-  const errors = []
-
   let formsData
   try { formsData = await graphGet(`/${pageId}/leadgen_forms?fields=id,name`, META_PAGE_ACCESS_TOKEN) }
-  catch (e) { return res.status(500).json({ error: `Failed to fetch forms: ${e.message}` }) }
+  catch (e) { errors.push(`Page ${pageId}: ${e.message}`); return 0 }
 
   for (const form of formsData.data || []) {
     let cursor = null, page = 1
@@ -264,8 +266,32 @@ async function handleSync(req, res) {
       page++
     } while (cursor && page < 20)
   }
+  return totalSynced
+}
 
-  return res.status(200).json({ synced: totalSynced, forms: (formsData.data || []).length, errors: errors.length ? errors : undefined })
+async function handleSync(req, res) {
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' })
+  if (!checkAuth(req))      return res.status(401).json({ error: 'Unauthorized' })
+  if (!META_PAGE_ACCESS_TOKEN) return res.status(500).json({ error: 'META_PAGE_ACCESS_TOKEN not configured' })
+  if (!SUPABASE_URL)        return res.status(500).json({ error: 'Supabase not configured' })
+
+  const pageIds = resolvePageIds(req.query)
+  if (!pageIds.length) return res.status(400).json({ error: 'No page IDs configured. Set META_PAGE_IDS or META_PAGE_ID in Vercel env vars.' })
+
+  const client = sb()
+  let totalSynced = 0
+  const errors = []
+
+  for (const pageId of pageIds) {
+    totalSynced += await syncOnePage(pageId, client, errors)
+  }
+
+  return res.status(200).json({
+    synced: totalSynced,
+    pages: pageIds.length,
+    page_ids: pageIds,
+    errors: errors.length ? errors : undefined,
+  })
 }
 
 // ── main router ───────────────────────────────────────────────────────────────
