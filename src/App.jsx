@@ -2067,6 +2067,27 @@ const WA_DEFAULT_TEMPLATE = `היי {name} 👋
 
 צוות אפיק הנחל`
 
+// One-time migration: if the saved WA template still equals the OLD pre-2026
+// default (which said "תודה שפנית לאפיק הנחל" and had no "צוות אפיק הנחל"
+// signature), upgrade it to the new WA_DEFAULT_TEMPLATE. Any user-customized
+// template is left untouched. Runs once per browser.
+const _WA_OLD_DEFAULT = `היי {name} 👋
+תודה שפנית לאפיק הנחל!
+ראינו את הפנייה שלך
+
+מתי נוח לך לדבר? נשמח לתאם שיחה`
+try {
+  const _waMigKey = 'afik_wa_template_v2'
+  if (!localStorage.getItem(_waMigKey)) {
+    const _saved = JSON.parse(localStorage.getItem(WA_KEY) || '{}')
+    const _tpl = (_saved.template || '').trim()
+    if (!_tpl || _tpl === _WA_OLD_DEFAULT.trim()) {
+      localStorage.setItem(WA_KEY, JSON.stringify({ ..._saved, template: WA_DEFAULT_TEMPLATE }))
+    }
+    localStorage.setItem(_waMigKey, '1')
+  }
+} catch {}
+
 function _getDevice() {
   const ua = navigator.userAgent
   if (/Mobi|Android|iPhone/i.test(ua)) return 'mobile'
