@@ -1,11 +1,63 @@
 // Vercel serverless function — Meta WhatsApp Business API bot
 // Handles webhook verification (GET) and incoming messages (POST)
 
+import { createClient } from '@supabase/supabase-js'
+
 const WA_META_TOKEN   = process.env.WA_META_TOKEN   || 'EAAnqYHiWM8cBRY4NZCJoUxhn41ETA9XiODRsPtkbkZAeyNULZBgJJBWcgdpaL0nrJVKw0y8PGD9XOiMXyacGlYTWS0HC41GguWbdMIUQn3NZBScF7guZCD9bwZAZAa4v0nI2ht4nrmF4CY0ayni8TKSVWSkoM2ywMRC9GSTp2nHSOxSm6RZB7tnDjRvdEN75LP5EWSsUe9oaxMpuojrdctDV8bkXuuI27N9nwh3E9kviZBZBZAYVcw054i9hd7wXmQTGvL7MkfZApzQjHluRBWaY2wOR'
 const PHONE_NUMBER_ID = process.env.WA_PHONE_NUMBER_ID || '1160230953835065'
 const VERIFY_TOKEN    = process.env.WA_VERIFY_TOKEN    || 'AFIKhanahal2026'
 const ANTHROPIC_KEY   = process.env.ANTHROPIC_API_KEY  || process.env.ANTHROPIC_API_KEY
 const WA_BOT_ENABLED  = process.env.WA_BOT_ENABLED !== 'false'
+
+const SUPABASE_URL = process.env.SUPABASE_URL || ''
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY || ''
+
+// ── Normalize phone: strip non-digits, ensure 972-prefixed ──────────────────
+function normalizePhone(raw) {
+  if (!raw) return raw
+  const d = String(raw).replace(/\D/g, '')
+  if (d.startsWith('972')) return d
+  if (d.startsWith('0')) return '972' + d.slice(1)
+  return d
+}
+
+// ── Store inbound message in meta_messages if phone matches a meta_lead ──────
+async function storeInboundMetaMessage(from, text) {
+  if (!SUPABASE_URL || !SUPABASE_KEY) return
+  try {
+    const sb = createClient(SUPABASE_URL, SUPABASE_KEY)
+    const normFrom = normalizePhone(from)
+
+    // Try several phone variants to find a match
+    const variants = new Set([normFrom])
+    // Add without country code (Israeli local)
+    if (normFrom.startsWith('972')) variants.add('0' + normFrom.slice(3))
+    // The raw value as-is
+    variants.add(from)
+
+    let matchedLead = null
+    for (const variant of variants) {
+      const { data } = await sb
+        .from('meta_leads')
+        .select('id')
+        .eq('phone', variant)
+        .limit(1)
+        .single()
+      if (data) { matchedLead = data; break }
+    }
+
+    if (!matchedLead) return // no meta lead for this number
+
+    await sb.from('meta_messages').insert({
+      lead_id: matchedLead.id,
+      direction: 'in',
+      message: text,
+    })
+  } catch (e) {
+    // Non-fatal — don't block main bot flow
+    console.warn('[WA] storeInboundMetaMessage error:', e.message)
+  }
+}
 
 const SYSTEM_PROMPT = `אתה עוזר מכירות ושירות לקוחות של חברת "אפיק הנחל" — חברה יזמית מובילה לאיתור, שיווק וליווי עסקאות קרקע בישראל.
 
@@ -70,6 +122,9 @@ export default async function handler(req, res) {
 
             // Mark message as read
             await markRead(msgId)
+
+            // Store inbound message in meta_messages if this is a Meta Lead (non-blocking)
+            storeInboundMetaMessage(from, text).catch(() => {})
 
             // Send typing indicator (optional — best-effort)
             // await sendTyping(from)

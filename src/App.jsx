@@ -18,6 +18,7 @@ function lazyWithRetry(fn) {
 }
 const LeadsBoard   = lazyWithRetry(() => import('./LeadsBoard.jsx'))
 const GreenAPIChat = lazyWithRetry(() => import('./GreenAPIChat.jsx'))
+const MetaLeadsTab = lazyWithRetry(() => import('./MetaLeadsTab.jsx'))
 import { FaChevronLeft, FaChevronRight, FaEnvelope, FaFacebookF, FaInstagram, FaBed, FaRulerCombined, FaCar, FaSwimmingPool, FaBuilding, FaBoxOpen, FaTree, FaSnowflake, FaShieldAlt, FaCouch, FaTools, FaMapMarkerAlt, FaExternalLinkAlt, FaPhone, FaCompass, FaLeaf, FaCalendarAlt, FaTimes, FaWhatsapp, FaSun, FaFileAlt, FaHome, FaMoneyBill, FaSearch, FaBalanceScale, FaHandshake, FaTrophy, FaHardHat, FaLock, FaKey, FaGlobe, FaSeedling, FaBolt, FaRocket, FaStar, FaChartLine, FaEye, FaPlay, FaWheelchair, FaFire, FaCalculator, FaShareAlt, FaHeart, FaStore, FaCamera, FaWifi, FaIndustry, FaExpand, FaUser, FaUsers, FaDesktop, FaMobileAlt, FaTabletAlt, FaCommentAlt, FaRobot, FaInbox, FaExclamationTriangle, FaChartBar, FaThumbsUp, FaImage, FaPencilAlt, FaCrown, FaMousePointer, FaDollarSign, FaVideo, FaLink, FaCheck, FaCheckCircle, FaUtensils, FaDoorOpen, FaUserShield, FaTrash } from 'react-icons/fa'
 
 // ─── SERVER CONFIG ────────────────────────────────────────────────────────────
@@ -4571,12 +4572,13 @@ Return ONLY valid JSON (no markdown, no code blocks):
     { id:'props',    Icon:FaBuilding,    label:'ניהול נכסים' },
     { id:'leads',    Icon:FaHandshake,   label:'לידים',      badge: leads.length },
     { id:'chats',    Icon:FaWhatsapp,    label:'צ\'אטים',    badge: leads.filter(l=>l.phone).length },
+    { id:'meta',     Icon:FaFacebookF,   label:'מרכז מטא' },
     { id:'analytics',Icon:FaChartLine,   label:'אנליטיקס' },
     { id:'team',     Icon:FaKey,         label:'צוות' },
     { id:'counters', Icon:FaBalanceScale,label:'מונים' },
     { id:'settings', Icon:FaTools,       label:'הגדרות' },
   ]
-  const TAB_LABELS = { overview:'סקירה כללית', live:'נכסים באוויר', props:'ניהול נכסים', leads:'לידים', chats:'שיחות WhatsApp', analytics:'אנליטיקס', team:'צוות', counters:'מונים', settings:'הגדרות' }
+  const TAB_LABELS = { overview:'סקירה כללית', live:'נכסים באוויר', props:'ניהול נכסים', leads:'לידים', chats:'שיחות WhatsApp', meta:'מרכז מטא', analytics:'אנליטיקס', team:'צוות', counters:'מונים', settings:'הגדרות' }
 
   return (
     <div style={standalone
@@ -4643,7 +4645,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
       {/* ── MAIN PANE ─────────────────────────────────────────────────── */}
       <div className={`admin-main-pane${standalone ? '' : ' admin-panel-modal'}`} style={standalone
         ? { flex:1, display:'flex', flexDirection:'column', height:'100dvh', overflow:'hidden' }
-        : (tab==='chats'||tab==='leads')
+        : (tab==='chats'||tab==='leads'||tab==='meta')
           ? { background:C.card, border:`1px solid ${C.purple}33`, borderRadius:16, padding:0, width:'100%', maxWidth:'98vw', height:'94vh', overflow:'hidden', direction:'rtl', boxShadow:'0 32px 80px rgba(0,0,0,.7)', display:'flex', flexDirection:'column' }
           : { background:C.card, border:`1px solid ${C.purple}33`, borderRadius:16, padding:28, width:'100%', maxWidth:1200, maxHeight:'94vh', overflowY:'auto', direction:'rtl', boxShadow:'0 32px 80px rgba(0,0,0,.7)' }}>
 
@@ -4740,6 +4742,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
             </button>
             {tabBtn('leads', 'לידים', leads.length)}
             {tabBtn('chats', 'צ\'אטים')}
+            {tabBtn('meta', 'מרכז מטא')}
             {tabBtn('analytics', 'אנליטיקס')}
             {tabBtn('team', 'צוות')}
             {tabBtn('counters', 'מונים')}
@@ -4748,7 +4751,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
         )}
 
         {/* ── Scrollable content ─────────────────────────────────────── */}
-        <div className="admin-content" style={(tab==='chats'||tab==='leads') ? { flex:1, minHeight:0, overflow:'hidden', display:'flex', flexDirection:'column' } : standalone ? { flex:1, overflowY:'auto', padding:'22px 26px 32px', direction:'rtl' } : { padding:'22px 26px 32px', direction:'rtl' }}>
+        <div className="admin-content" style={(tab==='chats'||tab==='leads'||tab==='meta') ? { flex:1, minHeight:0, overflow:'hidden', display:'flex', flexDirection:'column' } : standalone ? { flex:1, overflowY:'auto', padding:'22px 26px 32px', direction:'rtl' } : { padding:'22px 26px 32px', direction:'rtl' }}>
 
         {/* Overview tab — standalone only */}
         {tab==='overview' && standalone && (<>
@@ -5531,6 +5534,12 @@ Return ONLY valid JSON (no markdown, no code blocks):
               onOpenLead={lead => { setInitialChatLead(null); setTab('leads') }}
               onDeleteLead={id => deleteLead(id)}
             />
+          </Suspense>
+        )}
+
+        {tab==='meta' && (
+          <Suspense fallback={<AdminTabLoader label="מרכז מטא" />}>
+            <MetaLeadsTab C={C} lang={lang} isDark={isDark} />
           </Suspense>
         )}
 
