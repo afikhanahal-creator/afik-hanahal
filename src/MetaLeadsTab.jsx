@@ -1,11 +1,11 @@
 // MetaLeadsTab.jsx — Meta Lead Ads Lead Center
 // RTL, dark-theme UI matching the Afik Hanahal admin panel
-// Props: { C, lang, isDark }
+// Props: { C, lang, isDark, onSaveToCRM }
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 
 const ADMIN_TOKEN = 'AFIKhanahal2026'
-const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
+const META_PAGE_ID = '591701444021114'
 
 // ── Translations ─────────────────────────────────────────────────────────────
 const TR = {
@@ -40,9 +40,10 @@ const TR = {
     waSent: 'WA נשלח',
     loading: 'טוען...',
     error: 'שגיאה',
-    quickReply1: 'מתי נוח לך?',
-    quickReply2: 'תיאום שיחה',
-    quickReply3: 'מידע נוסף',
+    quickReply1: 'היי! מתי נוח לך?',
+    quickReply2: 'שלחתי לך פרטים 📋',
+    quickReply3: 'תיאום פגישה 📅',
+    quickReply4: 'ספר לי על הנכס 🏠',
     statusNew: 'חדש',
     statusContacted: 'נוצר קשר',
     statusScheduled: 'נקבעה שיחה',
@@ -52,6 +53,8 @@ const TR = {
     noteSaved: 'נשמר',
     callTime: 'זמן שיחה',
     callTimePlaceholder: 'ניתן להגדיר לאחר השיחה...',
+    saveToCRM: 'שמור ל-CRM →',
+    savedToCRM: '✓ נשמר!',
   },
   en: {
     title: 'Meta Lead Center',
@@ -84,9 +87,10 @@ const TR = {
     waSent: 'WA sent',
     loading: 'Loading...',
     error: 'Error',
-    quickReply1: 'When are you available?',
-    quickReply2: 'Schedule a call',
-    quickReply3: 'More info',
+    quickReply1: 'Hi! When are you available?',
+    quickReply2: 'I sent you details 📋',
+    quickReply3: 'Schedule a meeting 📅',
+    quickReply4: 'Tell me about the property 🏠',
     statusNew: 'New',
     statusContacted: 'Contacted',
     statusScheduled: 'Scheduled',
@@ -96,16 +100,21 @@ const TR = {
     noteSaved: 'Saved',
     callTime: 'Call time',
     callTimePlaceholder: 'Set after the call...',
+    saveToCRM: 'Save to CRM →',
+    savedToCRM: '✓ Saved!',
   },
 }
 
 // ── Status config ─────────────────────────────────────────────────────────────
 const STATUS_CONFIG = {
-  new:        { color: '#8490D8', bg: 'rgba(132,144,216,.18)', label: { he: 'חדש',        en: 'New' } },
-  contacted:  { color: '#F97316', bg: 'rgba(249,115, 22,.18)', label: { he: 'נוצר קשר',   en: 'Contacted' } },
-  scheduled:  { color: '#22C55E', bg: 'rgba( 34,197, 94,.18)', label: { he: 'נקבעה שיחה', en: 'Scheduled' } },
-  closed:     { color: '#6B7280', bg: 'rgba(107,114,128,.18)', label: { he: 'סגור',        en: 'Closed' } },
+  new:          { color: '#8490D8', bg: 'rgba(132,144,216,.18)', label: { he: 'חדש',        en: 'New' } },
+  contacted:    { color: '#F97316', bg: 'rgba(249,115, 22,.18)', label: { he: 'נוצר קשר',   en: 'Contacted' } },
+  scheduled:    { color: '#22C55E', bg: 'rgba( 34,197, 94,.18)', label: { he: 'נקבעה שיחה', en: 'Scheduled' } },
+  closed:       { color: '#6B7280', bg: 'rgba(107,114,128,.18)', label: { he: 'סגור',        en: 'Closed' } },
+  saved_to_crm: { color: '#22D3EE', bg: 'rgba(34,211,238,.18)',  label: { he: 'נשמר ב-CRM', en: 'Saved to CRM' } },
 }
+
+const CAMPAIGN_COLORS = ['#8490D8','#E05252','#3BAF7E','#E08C3A','#3A8FC7','#C2497E','#F59E0B']
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function timeAgo(dateStr, lang) {
@@ -150,6 +159,11 @@ function fmtPhone(phone) {
   return phone
 }
 
+function isNewRecent(lead) {
+  if (lead.status !== 'new') return false
+  return (Date.now() - new Date(lead.created_at)) < 86400000
+}
+
 // ── API calls ─────────────────────────────────────────────────────────────────
 async function fetchLeads() {
   const res = await fetch(`/api/meta/leads`, {
@@ -189,13 +203,8 @@ async function syncLeads(pageId) {
   return res.json()
 }
 
-async function updateLeadStatus(leadId, status) {
-  // We do this via Supabase directly from the API — for now, update local state only
-  // Full implementation would call a PATCH endpoint; keeping it simple for now
-}
-
 // ── Main component ────────────────────────────────────────────────────────────
-export default function MetaLeadsTab({ C, lang, isDark }) {
+export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM }) {
   const t = TR[lang] || TR.he
   const dir = lang === 'en' ? 'ltr' : 'rtl'
 
@@ -204,6 +213,7 @@ export default function MetaLeadsTab({ C, lang, isDark }) {
   const [messages, setMessages]         = useState([])
   const [selectedLead, setSelectedLead] = useState(null)
   const [statusFilter, setStatusFilter] = useState('all')
+  const [campaignFilter, setCampaignFilter] = useState(null)
   const [search, setSearch]             = useState('')
   const [msgInput, setMsgInput]         = useState('')
   const [noteInput, setNoteInput]       = useState('')
@@ -216,9 +226,15 @@ export default function MetaLeadsTab({ C, lang, isDark }) {
   const [noteSaved, setNoteSaved]       = useState(false)
   const [leadsError, setLeadsError]     = useState(null)
   const [messagesError, setMessagesError] = useState(null)
+  const [savedToCRM, setSavedToCRM]     = useState(false)
+  const [hoveredLeadId, setHoveredLeadId] = useState(null)
+  const [deletedLeads, setDeletedLeads] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('meta_deleted_leads') || '[]') } catch { return [] }
+  })
+  const [showRestore, setShowRestore]   = useState(false)
 
-  const messagesEndRef  = useRef(null)
-  const leadsIntervalRef   = useRef(null)
+  const messagesEndRef      = useRef(null)
+  const leadsIntervalRef    = useRef(null)
   const messagesIntervalRef = useRef(null)
 
   // ── Load leads ──────────────────────────────────────────────────────────────
@@ -276,6 +292,7 @@ export default function MetaLeadsTab({ C, lang, isDark }) {
     if (selectedLead) {
       setNoteInput(selectedLead.notes || '')
       setCallTimeInput(selectedLead.call_time || '')
+      setSavedToCRM(false)
     }
   }, [selectedLead?.id])
 
@@ -304,8 +321,7 @@ export default function MetaLeadsTab({ C, lang, isDark }) {
     setSyncing(true)
     setSyncResult(null)
     try {
-      const pageId = prompt(lang === 'en' ? 'Enter Page ID (or leave empty for default):' : 'הזן Page ID (או השאר ריק לברירת מחדל):') || ''
-      const result = await syncLeads(pageId)
+      const result = await syncLeads(META_PAGE_ID)
       setSyncResult(`${result.synced || 0} ${lang === 'en' ? 'leads synced' : 'לידים סונכרנו'}`)
       await loadLeads(true)
     } catch (e) {
@@ -317,12 +333,11 @@ export default function MetaLeadsTab({ C, lang, isDark }) {
   }
 
   // ── Update status ─────────────────────────────────────────────────────────────
-  const handleStatusChange = (status) => {
+  const handleStatusChange = async (status) => {
     if (!selectedLead) return
     setSelectedLead(prev => ({ ...prev, status }))
     setLeads(prev => prev.map(l => l.id === selectedLead.id ? { ...l, status } : l))
-    // Fire-and-forget update via API
-    fetch(`/api/meta/leads`, {
+    await fetch('/api/meta/leads', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
       body: JSON.stringify({ id: selectedLead.id, status }),
@@ -330,13 +345,53 @@ export default function MetaLeadsTab({ C, lang, isDark }) {
   }
 
   // ── Save notes ────────────────────────────────────────────────────────────────
-  const handleSaveNotes = () => {
+  const handleSaveNotes = async () => {
     if (!selectedLead) return
     setSelectedLead(prev => ({ ...prev, notes: noteInput, call_time: callTimeInput }))
     setLeads(prev => prev.map(l => l.id === selectedLead.id ? { ...l, notes: noteInput, call_time: callTimeInput } : l))
+    await fetch('/api/meta/leads', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+      body: JSON.stringify({ id: selectedLead.id, notes: noteInput, call_time: callTimeInput }),
+    }).catch(() => {})
     setNoteSaved(true)
     setTimeout(() => setNoteSaved(false), 2000)
   }
+
+  // ── Save to CRM ───────────────────────────────────────────────────────────────
+  const handleSaveToCRM = async () => {
+    if (!selectedLead) return
+    await fetch('/api/meta/leads', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+      body: JSON.stringify({ id: selectedLead.id, status: 'saved_to_crm' }),
+    }).catch(() => {})
+    setSelectedLead(prev => ({ ...prev, status: 'saved_to_crm' }))
+    setLeads(prev => prev.map(l => l.id === selectedLead.id ? { ...l, status: 'saved_to_crm' } : l))
+    setSavedToCRM(true)
+    setTimeout(() => { setSavedToCRM(false); if (onSaveToCRM) onSaveToCRM(selectedLead) }, 1500)
+  }
+
+  // ── Delete lead (soft, with restore) ─────────────────────────────────────────
+  const handleDeleteLead = (lead, e) => {
+    e.stopPropagation()
+    const updated = [{ ...lead, deletedAt: new Date().toISOString() }, ...deletedLeads]
+    setDeletedLeads(updated)
+    localStorage.setItem('meta_deleted_leads', JSON.stringify(updated))
+    setLeads(prev => prev.filter(l => l.id !== lead.id))
+    if (selectedLead?.id === lead.id) setSelectedLead(null)
+  }
+
+  const handleRestoreLead = (lead) => {
+    const { deletedAt, ...restored } = lead
+    setLeads(prev => [restored, ...prev].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)))
+    const updated = deletedLeads.filter(l => l.id !== lead.id)
+    setDeletedLeads(updated)
+    localStorage.setItem('meta_deleted_leads', JSON.stringify(updated))
+  }
+
+  // ── Campaign list ─────────────────────────────────────────────────────────────
+  const campaigns = [...new Set(leads.map(l => l.campaign_name).filter(Boolean))]
 
   // ── Filtered leads ────────────────────────────────────────────────────────────
   const filteredLeads = leads.filter(l => {
@@ -344,7 +399,8 @@ export default function MetaLeadsTab({ C, lang, isDark }) {
     const q = search.toLowerCase()
     const matchSearch = !search || [l.name, l.phone, l.email, l.campaign_name, l.form_name]
       .filter(Boolean).some(s => s.toLowerCase().includes(q))
-    return matchStatus && matchSearch
+    const matchCampaign = !campaignFilter || l.campaign_name === campaignFilter
+    return matchStatus && matchSearch && matchCampaign
   })
 
   // ── Group messages by date ────────────────────────────────────────────────────
@@ -403,6 +459,7 @@ export default function MetaLeadsTab({ C, lang, isDark }) {
           padding: '16px 16px 12px',
           borderBottom: `1px solid ${BORDER}`,
           flexShrink: 0,
+          background: 'linear-gradient(180deg, rgba(132,144,216,.06) 0%, transparent 100%)',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
             <div>
@@ -416,6 +473,12 @@ export default function MetaLeadsTab({ C, lang, isDark }) {
                 <span style={{ fontSize: 10, color: GREEN, fontWeight: 700, background: 'rgba(130,246,127,.12)', padding: '3px 8px', borderRadius: 10, maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {syncResult}
                 </span>
+              )}
+              {deletedLeads.length > 0 && (
+                <button onClick={() => setShowRestore(!showRestore)}
+                  style={{ padding: '6px 10px', background: 'rgba(224,82,82,.12)', border: '1px solid rgba(224,82,82,.3)', borderRadius: 8, color: '#E05252', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  ↩ שחזור ({deletedLeads.length})
+                </button>
               )}
               <button
                 onClick={handleSync}
@@ -492,7 +555,42 @@ export default function MetaLeadsTab({ C, lang, isDark }) {
               </button>
             ))}
           </div>
+
+          {/* Campaign filter chips */}
+          {campaigns.length > 0 && (
+            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 8 }}>
+              {campaignFilter && (
+                <button onClick={() => setCampaignFilter(null)} style={{ padding: '3px 8px', borderRadius: 20, border: 'none', background: 'rgba(255,255,255,.08)', color: 'rgba(232,228,216,.5)', fontSize: 10, cursor: 'pointer', fontFamily: 'inherit' }}>✕ הכל</button>
+              )}
+              {campaigns.map((camp, i) => {
+                const color = CAMPAIGN_COLORS[i % CAMPAIGN_COLORS.length]
+                const isActive = campaignFilter === camp
+                return (
+                  <button key={camp} onClick={() => setCampaignFilter(isActive ? null : camp)}
+                    style={{ padding: '3px 10px', borderRadius: 20, border: `1px solid ${color}44`, background: isActive ? `${color}22` : 'transparent', color: isActive ? color : `${color}99`, fontSize: 10, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .12s', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {camp}
+                  </button>
+                )
+              })}
+            </div>
+          )}
         </div>
+
+        {/* Restore panel */}
+        {showRestore && deletedLeads.length > 0 && (
+          <div style={{ padding: '8px 12px', background: 'rgba(224,82,82,.06)', borderBottom: '1px solid rgba(224,82,82,.15)', flexShrink: 0 }}>
+            <div style={{ fontSize: 11, color: '#E05252', fontWeight: 700, marginBottom: 6 }}>לידים שנמחקו:</div>
+            {deletedLeads.map(lead => (
+              <div key={lead.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px solid rgba(255,255,255,.04)' }}>
+                <span style={{ fontSize: 12, color: 'rgba(232,228,216,.6)' }}>{lead.name || '—'}</span>
+                <button onClick={() => handleRestoreLead(lead)}
+                  style={{ padding: '2px 8px', background: 'rgba(130,246,127,.12)', border: '1px solid rgba(130,246,127,.3)', borderRadius: 6, color: '#82F67F', fontSize: 10, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  ↩ שחזר
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Lead list */}
         <div style={{ flex: 1, overflowY: 'auto' }}>
@@ -505,7 +603,6 @@ export default function MetaLeadsTab({ C, lang, isDark }) {
           {!loadingLeads && filteredLeads.length === 0 && (
             <div style={{ padding: '40px 24px', textAlign: 'center' }}>
               <div style={{ fontSize: 32, marginBottom: 12 }}>
-                {/* Facebook-like icon */}
                 <svg width="40" height="40" viewBox="0 0 24 24" fill="none" style={{ margin: '0 auto', display: 'block' }}>
                   <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" stroke={PURPLE} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
@@ -518,30 +615,68 @@ export default function MetaLeadsTab({ C, lang, isDark }) {
             const sc = STATUS_CONFIG[lead.status] || STATUS_CONFIG.new
             const isSelected = selectedLead?.id === lead.id
             const color = avatarColors(lead.name)
+            const isHovered = hoveredLeadId === lead.id
+            const showNewDot = isNewRecent(lead)
             return (
               <div
                 key={lead.id}
                 onClick={() => setSelectedLead(lead)}
+                onMouseEnter={() => setHoveredLeadId(lead.id)}
+                onMouseLeave={() => setHoveredLeadId(null)}
                 style={{
                   padding: '12px 14px',
                   borderBottom: `1px solid rgba(255,255,255,.04)`,
                   cursor: 'pointer',
-                  background: isSelected ? `rgba(132,144,216,.1)` : 'transparent',
+                  background: isSelected ? `rgba(132,144,216,.1)` : isHovered ? 'rgba(255,255,255,.03)' : 'transparent',
                   borderRight: isSelected ? `2px solid ${PURPLE}` : '2px solid transparent',
                   transition: 'all .12s',
+                  position: 'relative',
                 }}
-                onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = 'rgba(255,255,255,.03)' }}
-                onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'transparent' }}
               >
+                {/* Delete button (shows on hover) */}
+                {isHovered && (
+                  <button
+                    onClick={(e) => handleDeleteLead(lead, e)}
+                    title="מחק ליד"
+                    style={{
+                      position: 'absolute',
+                      top: 8,
+                      left: dir === 'rtl' ? 8 : undefined,
+                      right: dir === 'ltr' ? 8 : undefined,
+                      background: 'rgba(224,82,82,.15)',
+                      border: '1px solid rgba(224,82,82,.3)',
+                      borderRadius: 6,
+                      color: '#E05252',
+                      cursor: 'pointer',
+                      padding: '2px 6px',
+                      fontSize: 11,
+                      fontFamily: 'inherit',
+                      zIndex: 1,
+                    }}
+                  >🗑</button>
+                )}
+
                 <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
                   {/* Avatar */}
-                  <div style={{
-                    width: 38, height: 38, borderRadius: '50%',
-                    background: `${color}25`, border: `1.5px solid ${color}55`,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 13, fontWeight: 800, color, flexShrink: 0,
-                  }}>
-                    {initials(lead.name)}
+                  <div style={{ position: 'relative', flexShrink: 0 }}>
+                    <div style={{
+                      width: 38, height: 38, borderRadius: '50%',
+                      background: `${color}25`, border: `1.5px solid ${color}55`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 13, fontWeight: 800, color,
+                    }}>
+                      {initials(lead.name)}
+                    </div>
+                    {/* New recent indicator */}
+                    {showNewDot && (
+                      <div style={{
+                        position: 'absolute', bottom: 0, right: 0,
+                        width: 9, height: 9, borderRadius: '50%',
+                        background: '#22C55E',
+                        border: '1.5px solid #0E0E1C',
+                        boxShadow: '0 0 5px #22C55E88',
+                      }} />
+                    )}
                   </div>
 
                   {/* Info */}
@@ -636,7 +771,11 @@ export default function MetaLeadsTab({ C, lang, isDark }) {
                   <div>
                     <div style={{ fontSize: 15, fontWeight: 800, color: CREAM }}>{selectedLead.name || '—'}</div>
                     {selectedLead.phone && (
-                      <div style={{ fontSize: 12, color: MUTED }}>{fmtPhone(selectedLead.phone)}</div>
+                      <a href={`https://wa.me/${selectedLead.phone}`} target="_blank" rel="noopener noreferrer"
+                        style={{ fontSize: 12, color: '#25D366', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="#25D366"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                        {fmtPhone(selectedLead.phone)}
+                      </a>
                     )}
                   </div>
                 </div>
@@ -660,8 +799,8 @@ export default function MetaLeadsTab({ C, lang, isDark }) {
                   )}
                 </div>
 
-                {/* Status selector */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {/* Status selector + Save to CRM */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                   <span style={{ fontSize: 11, color: MUTED, fontWeight: 600 }}>{t.status}:</span>
                   <select
                     value={selectedLead.status || 'new'}
@@ -686,6 +825,10 @@ export default function MetaLeadsTab({ C, lang, isDark }) {
                       </option>
                     ))}
                   </select>
+                  <button onClick={handleSaveToCRM} disabled={selectedLead.status === 'saved_to_crm'}
+                    style={{ padding: '6px 14px', background: savedToCRM ? 'rgba(34,211,238,.2)' : 'rgba(34,211,238,.1)', border: `1px solid rgba(34,211,238,.${savedToCRM ? '5' : '3'})`, borderRadius: 8, color: '#22D3EE', fontSize: 12, fontWeight: 700, cursor: selectedLead.status === 'saved_to_crm' ? 'not-allowed' : 'pointer', fontFamily: 'inherit', transition: 'all .15s', whiteSpace: 'nowrap' }}>
+                    {savedToCRM ? t.savedToCRM : t.saveToCRM}
+                  </button>
                 </div>
               </div>
 
@@ -814,7 +957,7 @@ export default function MetaLeadsTab({ C, lang, isDark }) {
             }}>
               {/* Quick replies */}
               <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
-                {[t.quickReply1, t.quickReply2, t.quickReply3].map((qr, i) => (
+                {[t.quickReply1, t.quickReply2, t.quickReply3, t.quickReply4].map((qr, i) => (
                   <button
                     key={i}
                     onClick={() => handleSend(qr)}

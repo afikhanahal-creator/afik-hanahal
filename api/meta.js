@@ -22,7 +22,7 @@ const SUPABASE_KEY            = process.env.SUPABASE_SERVICE_KEY    || ''
 
 function cors(res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization')
 }
 
@@ -158,6 +158,19 @@ async function handleWebhook(req, res) {
 }
 
 async function handleLeads(req, res) {
+  if (req.method === 'PATCH') {
+    if (!checkAuth(req)) return res.status(401).json({ error: 'Unauthorized' })
+    const { id, status, notes, call_time } = req.body || {}
+    if (!id) return res.status(400).json({ error: 'id required' })
+    const updates = {}
+    if (status    !== undefined) updates.status    = status
+    if (notes     !== undefined) updates.notes     = notes
+    if (call_time !== undefined) updates.call_time = call_time
+    const { error } = await sb().from('meta_leads').update(updates).eq('id', id)
+    if (error) return res.status(500).json({ error: error.message })
+    return res.status(200).json({ ok: true })
+  }
+
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' })
   if (!checkAuth(req))      return res.status(401).json({ error: 'Unauthorized' })
   if (!SUPABASE_URL)        return res.status(500).json({ error: 'Supabase not configured' })

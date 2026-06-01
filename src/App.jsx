@@ -5540,7 +5540,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
 
         {tab==='meta' && (
           <Suspense fallback={<AdminTabLoader label="מרכז מטא" />}>
-            <MetaLeadsTab C={C} lang={lang} isDark={isDark} />
+            <MetaLeadsTab C={C} lang={lang} isDark={isDark} onSaveToCRM={() => setTab('leads')} />
           </Suspense>
         )}
 
