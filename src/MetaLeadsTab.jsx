@@ -343,6 +343,8 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
 
   // ── Initial load + Realtime subscription for leads ──────────────────────────
   useEffect(() => {
+    // One-time: clear old localStorage-based deleted leads (no longer used)
+    localStorage.removeItem('meta_deleted_leads')
     loadLeads()
     loadDeletedLeads()
 
@@ -579,6 +581,30 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
     }).catch(() => {})
   }
 
+  // ── Restore ALL archived leads at once ───────────────────────────────────────
+  const handleRestoreAll = async () => {
+    const toRestore = [...deletedLeads]
+    if (!toRestore.length) return
+    // Optimistic: move all back to active list
+    setLeads(prev => {
+      const existing = new Set(prev.map(l => l.id))
+      const incoming = toRestore
+        .filter(l => !existing.has(l.id))
+        .map(({ deleted_at, ...l }) => l)
+      return [...incoming, ...prev].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    })
+    setDeletedLeads([])
+    setShowRestore(false)
+    // Persist all to server (fire-and-forget, parallel)
+    await Promise.all(toRestore.map(lead =>
+      fetch('/api/meta/leads', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+        body: JSON.stringify({ id: lead.id, deleted_at: null }),
+      }).catch(() => {})
+    ))
+  }
+
   // ── Campaign list — use campaign_name, fall back to form_name ────────────────
   const getCampaignLabel = (l) => l.campaign_name || l.form_name || null
   const campaigns = [...new Set(leads.map(getCampaignLabel).filter(Boolean))]
@@ -671,8 +697,9 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
               )}
               {deletedLeads.length > 0 && (
                 <button onClick={() => setShowRestore(!showRestore)}
-                  style={{ padding: '6px 10px', background: 'rgba(224,82,82,.12)', border: '1px solid rgba(224,82,82,.3)', borderRadius: 8, color: '#E05252', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-                  ↩ שחזור ({deletedLeads.length})
+                  style={{ padding: '6px 10px', background: showRestore ? 'rgba(224,82,82,.2)' : 'rgba(224,82,82,.1)', border: `1px solid ${showRestore ? 'rgba(224,82,82,.5)' : 'rgba(224,82,82,.25)'}`, borderRadius: 8, color: '#E05252', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4, transition: 'all .15s' }}>
+                  <span>↩</span>
+                  <span style={{ background: 'rgba(224,82,82,.2)', borderRadius: 10, padding: '0px 5px', fontSize: 10 }}>{deletedLeads.length}</span>
                 </button>
               )}
               <button
@@ -877,8 +904,16 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
         {/* Restore panel */}
         {showRestore && deletedLeads.length > 0 && (
           <div style={{ flexShrink: 0, borderBottom: `1px solid rgba(224,82,82,.15)`, background: 'rgba(224,82,82,.04)', maxHeight: 220, overflowY: 'auto' }}>
-            <div style={{ padding: '8px 14px 4px', fontSize: 10, color: 'rgba(224,82,82,.6)', fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase' }}>
-              {lang === 'en' ? 'Archived leads' : 'לידים בארכיון'} ({deletedLeads.length})
+            <div style={{ padding: '8px 14px 6px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+              <span style={{ fontSize: 10, color: 'rgba(224,82,82,.6)', fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase' }}>
+                {lang === 'en' ? 'Archived' : 'ארכיון'} ({deletedLeads.length})
+              </span>
+              <button onClick={handleRestoreAll}
+                style={{ padding: '4px 10px', background: 'rgba(34,197,94,.1)', border: '1px solid rgba(34,197,94,.25)', borderRadius: 7, color: '#22C55E', fontSize: 10, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4, transition: 'all .12s', whiteSpace: 'nowrap' }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(34,197,94,.2)'; e.currentTarget.style.borderColor = 'rgba(34,197,94,.5)' }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(34,197,94,.1)'; e.currentTarget.style.borderColor = 'rgba(34,197,94,.25)' }}>
+                ↩ {lang === 'en' ? 'Restore all' : 'שחזר הכל'}
+              </button>
             </div>
             {deletedLeads.map(lead => (
               <div key={lead.id}
