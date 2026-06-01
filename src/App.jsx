@@ -3730,7 +3730,6 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const [gmBg,    setGmBg]    = useState(() => localStorage.getItem('govmap_default_bg') || '0')
   const [gmSaved, setGmSaved] = useState(false)
   const [tokenDraft,   setTokenDraft]   = useState(govmapToken)
-  const [tokenSaved,   setTokenSaved]   = useState(false)
   const [tokenSaving,  setTokenSaving]  = useState(false)
   const [tokenError,   setTokenError]   = useState('')
   // Sync tokenDraft if govmapToken arrives from API after AdminPanel is already open

@@ -151,41 +151,6 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
     }
   }, [mapDivId, token])  // layers/bg excluded — read via refs to avoid spurious re-runs
 
-    // Official GovMap API (api.govmap.gov.il/docs):
-    //   • background MUST be a string ("0","1","2"…), not a number
-    //   • visibleLayers = layers shown on map at init (separate from `layers` = panel list)
-    //   • onLoad fires AFTER the catalog is fully loaded inside the iframe — this is
-    //     the correct place to call setVisibleLayers; the .then() only fires when the
-    //     postMessage bridge is ready (before catalog), so retries were needed before
-    window.govmap.createMap(mapDivId, {
-      token:            token || '',
-      layers:           allLayerIds,    // all layers available in the panel
-      visibleLayers:    initiallyOn,    // layers shown on map at start
-      background:       bg,             // STRING — was Number(bg), which the API ignores
-      showXY:           false,
-      identifyOnClick:  true,
-      isEmbeddedToggle: false,
-      layersMode:       1,
-      zoomButtons:      true,
-      onLoad: () => {
-        // Catalog fully loaded — single setVisibleLayers call is sufficient
-        setMapReady(true)
-        setError('')
-        if (gush && helka) zoomToParcel(gush, helka)
-        applyLayers()
-      },
-    }).then(() => {
-      // .then() fires when bridge is up (may be before onLoad / before catalog).
-      // Guard against double-execution with setMapReady (React deduplicates).
-      // Keep fallback retries here for environments where onLoad doesn't fire.
-      setMapReady(true)
-      ;[800, 2500, 5000].forEach(ms => setTimeout(applyLayers, ms))
-    }).catch(() => {
-      setError('שגיאה ביצירת המפה. ודא שמפתח ה-API תקין.')
-      created.current = false
-    })
-  }, [mapDivId, token, bg, gush, helka, subHelka]) // eslint-disable-line react-hooks/exhaustive-deps
-
   // ── Load SDK + create map once in view ────────────────────────────────────
   useEffect(() => {
     if (!token || !inView) return

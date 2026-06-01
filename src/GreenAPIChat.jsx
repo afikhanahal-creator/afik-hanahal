@@ -177,6 +177,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
   const [loading,       setLoading]      = useState(false)
   const [fetchError,    setFetchError]   = useState(null)
   const [status,        setStatus]       = useState(null)
+  const [loadingPhones, setLoadingPhones] = useState(() => new Set())
   const [newChatOpen,   setNewChat]      = useState(false)
   const [newPhone,      setNewPhone]     = useState('')
   const [activeNav,     setActiveNav]    = useState('chats')
@@ -260,6 +261,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
     const p = intlPhone(phone)
     if (!p) return
     if (opts.showLoader) { setLoading(true); setFetchError(null) }
+    setLoadingPhones(prev => { const s = new Set(prev); s.add(p); return s })
 
     try {
       const [backendResult, greenResult] = await Promise.allSettled([
@@ -316,6 +318,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
       }
     } finally {
       if (opts.showLoader) setLoading(false)
+      setLoadingPhones(prev => { const s = new Set(prev); s.delete(p); return s })
     }
   }, [fetchGreenHistory])
 
@@ -515,6 +518,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
         @keyframes wa-spin { to { transform: rotate(360deg); } }
         @keyframes wa-toast-in { from { opacity:0; transform: translateX(-50%) translateY(16px); } to { opacity:1; transform: translateX(-50%) translateY(0); } }
         @keyframes wa-fade-in { from { opacity:0; } to { opacity:1; } }
+        .wa-row-spinner { width:14px; height:14px; border-radius:50%; border:2px solid transparent; border-top-color:${WA.green}; animation:wa-spin 0.7s linear infinite; flex-shrink:0; }
       `}</style>
 
       {/* ── Delete Confirmation Modal ─────────────────────────────────────── */}
@@ -620,7 +624,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
 
       {/* ── Main Layout ──────────────────────────────────────────────────── */}
       {/* flex:1, minHeight:0 — critical for contained scroll in flex child */}
-      <div style={{ flex:1, minHeight:0, display:'flex', flexDirection:'row', overflow:'hidden', direction:'ltr', background: WA.panelBg }}>
+      <div style={{ flex:1, minHeight:0, display:'flex', flexDirection:'row', overflow:'hidden', direction:'rtl', background: WA.panelBg }}>
 
         {/* ═══════════════ CHAT WINDOW (left, fills remaining space) ════════ */}
         {/* overflow:hidden isolates internal scroll from page scroll         */}
@@ -917,6 +921,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
               const leadMsgs = chats[p] || []
               const lastMsg  = leadMsgs[leadMsgs.length-1]
               const isActive = contact?.id === lead.id
+              const isRowLoading = loadingPhones.has(p) && !lastMsg
               return (
                 <div key={lead.id}
                   onClick={() => selectContact(lead)}
@@ -947,11 +952,12 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                       )}
                     </div>
                     <div style={{ display:'flex', alignItems:'center', gap:4 }}>
-                      {lastMsg?.direction==='out' && (
+                      {isRowLoading && <div className="wa-row-spinner"/>}
+                      {!isRowLoading && lastMsg?.direction==='out' && (
                         <span style={{ color:lastMsg.status==='read'?WA.tick:WA.tickGray, fontSize:14, flexShrink:0, lineHeight:1 }}>✓✓</span>
                       )}
                       <span style={{ fontSize:13, color: WA.subText, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', flex:1 }}>
-                        {lastMsg ? lastMsg.message : lead.phone}
+                        {isRowLoading ? <span style={{ opacity:.5 }}>טוען...</span> : lastMsg ? lastMsg.message : lead.phone}
                       </span>
                     </div>
                   </div>
@@ -968,8 +974,8 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
           </div>
         </div>
 
-        {/* ═══════════════ ICON SIDEBAR (far right, 52px) ══════════════════ */}
-        <div style={{ width:52, flexShrink:0, display:'flex', flexDirection:'column', background: WA.inputBg, borderLeft:`1px solid ${WA.border}`, alignItems:'center', padding:'8px 0', transition:'background .25s' }}>
+        {/* ═══════════════ ICON SIDEBAR (far left in RTL, 52px) ═══════════ */}
+        <div style={{ width:52, flexShrink:0, display:'flex', flexDirection:'column', background: WA.inputBg, borderRight:`1px solid ${WA.border}`, alignItems:'center', padding:'8px 0', transition:'background .25s' }}>
           {[
             { id:'bell',     path:ICONS.bell,     title:'התראות'     },
             { id:'chats',    path:ICONS.chat,     title:'שיחות'      },
