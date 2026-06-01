@@ -4,6 +4,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from './lib/supabaseClient'
+import MetaKanban from './MetaKanban'
 
 const ADMIN_TOKEN = 'AFIKhanahal2026'
 const META_PAGE_ID = '591701444021114'
@@ -256,6 +257,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
   const [showRestore, setShowRestore]   = useState(false)
   const [campaignDropOpen, setCampaignDropOpen] = useState(false)
   const [sortOrder, setSortOrder]               = useState('desc') // 'desc' = newest first
+  const [metaView, setMetaView]                 = useState('chat') // 'chat' | 'pipeline' | 'table'
 
   const messagesEndRef        = useRef(null)
   const leadsIntervalRef      = useRef(null)
@@ -653,6 +655,24 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
     { id: 'closed',    label: t.filterClosed },
   ]
 
+  const VIEW_TABS = [
+    { id: 'pipeline', icon: (
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="3" width="4" height="18" rx="1"/><rect x="10" y="3" width="4" height="14" rx="1"/><rect x="17" y="3" width="4" height="10" rx="1"/>
+      </svg>
+    ), label: lang === 'en' ? 'Pipeline' : 'Pipeline' },
+    { id: 'table', icon: (
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 10h18M3 14h18M10 3v18M3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V6z"/>
+      </svg>
+    ), label: lang === 'en' ? 'Table' : 'טבלה' },
+    { id: 'chat', icon: (
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+      </svg>
+    ), label: lang === 'en' ? 'Chats' : 'צ\'אטים' },
+  ]
+
   return (
     <div style={{
       display: 'flex',
@@ -662,7 +682,75 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
       direction: dir,
       fontFamily: 'Rubik, sans-serif',
       background: BG,
+      flexDirection: 'column',
     }}>
+
+      {/* ── View toggle bar ── */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 4,
+        padding: '8px 16px',
+        background: 'rgba(14,14,28,.95)',
+        borderBottom: `1px solid ${BORDER}`,
+        flexShrink: 0,
+        direction: 'ltr',
+      }}>
+        {VIEW_TABS.map(tab => {
+          const active = metaView === tab.id
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setMetaView(tab.id)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '6px 14px',
+                borderRadius: 8,
+                border: active ? `1px solid ${PURPLE}55` : '1px solid transparent',
+                background: active ? `rgba(132,144,216,.18)` : 'transparent',
+                color: active ? PURPLE : MUTED,
+                fontSize: 12, fontWeight: active ? 700 : 500,
+                cursor: 'pointer', fontFamily: 'inherit',
+                transition: 'all .15s',
+              }}
+              onMouseEnter={e => { if (!active) { e.currentTarget.style.background = 'rgba(132,144,216,.08)'; e.currentTarget.style.color = CREAM } }}
+              onMouseLeave={e => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = MUTED } }}
+            >
+              {tab.icon}
+              {tab.label}
+            </button>
+          )
+        })}
+      </div>
+
+      {/* ── Kanban / Table view ── */}
+      {(metaView === 'pipeline' || metaView === 'table') && (
+        <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <MetaKanban
+            leads={leads}
+            initialView={metaView}
+            onUpdateLead={(id, changes) => setLeads(prev => prev.map(l => String(l.id) === String(id) ? { ...l, ...changes } : l))}
+            onDeleteLead={(lead) => {
+              const now = new Date().toISOString()
+              setLeads(prev => prev.filter(l => l.id !== lead.id))
+              setDeletedLeads(prev => [{ ...lead, deleted_at: now }, ...prev])
+              fetch('/api/meta/leads', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+                body: JSON.stringify({ id: lead.id, deleted_at: now }),
+              }).catch(() => {})
+            }}
+          />
+        </div>
+      )}
+
+      {/* ── Chat view ── */}
+      {metaView === 'chat' && <div style={{
+        display: 'flex',
+        flex: 1,
+        minHeight: 0,
+        overflow: 'hidden',
+      }}>
 
       {/* ─────────────────── LEFT PANEL: Lead List ─────────────────────── */}
       <div style={{
@@ -1412,6 +1500,8 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
           </>
         )}
       </div>
+      </div>}
+
     </div>
   )
 }
