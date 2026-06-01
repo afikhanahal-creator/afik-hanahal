@@ -204,7 +204,7 @@ async function syncLeads(pageId) {
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
-export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM }) {
+export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat }) {
   const t = TR[lang] || TR.he
   const dir = lang === 'en' ? 'ltr' : 'rtl'
 
@@ -358,18 +358,41 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM }) {
     setTimeout(() => setNoteSaved(false), 2000)
   }
 
-  // ── Save to CRM ───────────────────────────────────────────────────────────────
+  // ── Save to CRM (toggle) ──────────────────────────────────────────────────────
   const handleSaveToCRM = async () => {
     if (!selectedLead) return
-    await fetch('/api/meta/leads', {
+
+    // Toggle: undo if already saved
+    if (selectedLead.status === 'saved_to_crm') {
+      const revert = 'contacted'
+      setSelectedLead(prev => ({ ...prev, status: revert }))
+      setLeads(prev => prev.map(l => l.id === selectedLead.id ? { ...l, status: revert } : l))
+      fetch('/api/meta/leads', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+        body: JSON.stringify({ id: selectedLead.id, status: revert }),
+      }).catch(() => {})
+      return
+    }
+
+    // Optimistic update immediately
+    const leadSnapshot = selectedLead
+    setSelectedLead(prev => ({ ...prev, status: 'saved_to_crm' }))
+    setLeads(prev => prev.map(l => l.id === leadSnapshot.id ? { ...l, status: 'saved_to_crm' } : l))
+    setSavedToCRM(true)
+
+    // API call in background
+    fetch('/api/meta/leads', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
-      body: JSON.stringify({ id: selectedLead.id, status: 'saved_to_crm' }),
+      body: JSON.stringify({ id: leadSnapshot.id, status: 'saved_to_crm' }),
     }).catch(() => {})
-    setSelectedLead(prev => ({ ...prev, status: 'saved_to_crm' }))
-    setLeads(prev => prev.map(l => l.id === selectedLead.id ? { ...l, status: 'saved_to_crm' } : l))
-    setSavedToCRM(true)
-    setTimeout(() => { setSavedToCRM(false); if (onSaveToCRM) onSaveToCRM(selectedLead) }, 1500)
+
+    // Transfer to LeadsBoard after 500ms
+    setTimeout(() => {
+      setSavedToCRM(false)
+      if (onSaveToCRM) onSaveToCRM(leadSnapshot)
+    }, 500)
   }
 
   // ── Delete lead (soft, with restore) ─────────────────────────────────────────
@@ -825,9 +848,11 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM }) {
                       </option>
                     ))}
                   </select>
-                  <button onClick={handleSaveToCRM} disabled={selectedLead.status === 'saved_to_crm'}
-                    style={{ padding: '6px 14px', background: savedToCRM ? 'rgba(34,211,238,.2)' : 'rgba(34,211,238,.1)', border: `1px solid rgba(34,211,238,.${savedToCRM ? '5' : '3'})`, borderRadius: 8, color: '#22D3EE', fontSize: 12, fontWeight: 700, cursor: selectedLead.status === 'saved_to_crm' ? 'not-allowed' : 'pointer', fontFamily: 'inherit', transition: 'all .15s', whiteSpace: 'nowrap' }}>
-                    {savedToCRM ? t.savedToCRM : t.saveToCRM}
+                  <button onClick={handleSaveToCRM}
+                    style={{ padding: '6px 14px', background: selectedLead.status === 'saved_to_crm' ? 'rgba(34,211,238,.22)' : savedToCRM ? 'rgba(34,211,238,.2)' : 'rgba(34,211,238,.1)', border: `1px solid rgba(34,211,238,.${selectedLead.status === 'saved_to_crm' ? '55' : savedToCRM ? '5' : '3'})`, borderRadius: 8, color: '#22D3EE', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s', whiteSpace: 'nowrap' }}>
+                    {selectedLead.status === 'saved_to_crm'
+                      ? (lang === 'en' ? '✓ In CRM · Undo' : '✓ נשמר ב-CRM · בטל')
+                      : savedToCRM ? t.savedToCRM : t.saveToCRM}
                   </button>
                 </div>
               </div>
@@ -984,6 +1009,31 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM }) {
 
               {/* Textarea + send button */}
               <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
+                {onOpenChat && (
+                  <button
+                    onClick={() => onOpenChat(selectedLead)}
+                    title={lang === 'en' ? 'Open in Chat' : 'פתח בצ\'אט'}
+                    style={{
+                      padding: '10px 14px',
+                      background: 'rgba(130,246,127,.08)',
+                      border: '1px solid rgba(130,246,127,.25)',
+                      borderRadius: 10,
+                      color: '#82F67F',
+                      fontSize: 13, fontWeight: 700, fontFamily: 'inherit',
+                      cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
+                      height: 'fit-content',
+                      transition: 'all .15s',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(130,246,127,.18)' }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'rgba(130,246,127,.08)' }}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                    </svg>
+                    {lang === 'en' ? 'Chat' : 'צ\'אט'}
+                  </button>
+                )}
                 <textarea
                   value={msgInput}
                   onChange={e => setMsgInput(e.target.value)}

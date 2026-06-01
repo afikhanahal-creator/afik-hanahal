@@ -5540,7 +5540,33 @@ Return ONLY valid JSON (no markdown, no code blocks):
 
         {tab==='meta' && (
           <Suspense fallback={<AdminTabLoader label="מרכז מטא" />}>
-            <MetaLeadsTab C={C} lang={lang} isDark={isDark} onSaveToCRM={() => setTab('leads')} />
+            <MetaLeadsTab C={C} lang={lang} isDark={isDark}
+              onSaveToCRM={metaLead => {
+                if (metaLead) {
+                  const newId = 'meta_' + metaLead.id
+                  setLeads(prev => {
+                    if (prev.some(l => l.id === newId)) return prev
+                    const next = [...prev, {
+                      id: newId,
+                      name: metaLead.name || '',
+                      phone: metaLead.phone || '',
+                      email: metaLead.email || '',
+                      msg: metaLead.notes || '',
+                      propTitle: metaLead.campaign_name || metaLead.form_name || 'מרכז מטא',
+                      ts: new Date(metaLead.created_at).getTime() || Date.now(),
+                      leadStatus: 'new',
+                    }]
+                    try { localStorage.setItem(LEADS_STORE, JSON.stringify(next)) } catch {}
+                    return next
+                  })
+                }
+                setTab('leads')
+              }}
+              onOpenChat={metaLead => {
+                setInitialChatLead({ id: 'meta_' + metaLead.id, name: metaLead.name || '', phone: metaLead.phone || '', email: metaLead.email || '' })
+                setTab('chats')
+              }}
+            />
           </Suspense>
         )}
 
