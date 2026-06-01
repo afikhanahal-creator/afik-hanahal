@@ -560,8 +560,9 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
     localStorage.setItem('meta_deleted_leads', JSON.stringify(updated))
   }
 
-  // ── Campaign list ─────────────────────────────────────────────────────────────
-  const campaigns = [...new Set(leads.map(l => l.campaign_name).filter(Boolean))]
+  // ── Campaign list — use campaign_name, fall back to form_name ────────────────
+  const getCampaignLabel = (l) => l.campaign_name || l.form_name || null
+  const campaigns = [...new Set(leads.map(getCampaignLabel).filter(Boolean))]
 
   // ── Filtered leads ────────────────────────────────────────────────────────────
   const filteredLeads = leads
@@ -570,7 +571,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
       const q = search.toLowerCase()
       const matchSearch = !search || [l.name, l.phone, l.email, l.campaign_name, l.form_name]
         .filter(Boolean).some(s => s.toLowerCase().includes(q))
-      const matchCampaign = !campaignFilter || l.campaign_name === campaignFilter
+      const matchCampaign = !campaignFilter || getCampaignLabel(l) === campaignFilter
       return matchStatus && matchSearch && matchCampaign
     })
     .sort((a, b) => sortOrder === 'desc'
@@ -824,7 +825,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
                 {campaigns.map((camp, i) => {
                   const color = CAMPAIGN_COLORS[i % CAMPAIGN_COLORS.length]
                   const isActive = campaignFilter === camp
-                  const count = leads.filter(l => l.campaign_name === camp).length
+                  const count = leads.filter(l => getCampaignLabel(l) === camp).length
                   return (
                     <button key={camp}
                       onClick={() => { setCampaignFilter(isActive ? null : camp); setCampaignDropOpen(false) }}
