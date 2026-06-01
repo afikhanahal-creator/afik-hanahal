@@ -252,9 +252,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
   const [messagesError, setMessagesError] = useState(null)
   const [savedToCRM, setSavedToCRM]     = useState(false)
   const [hoveredLeadId, setHoveredLeadId] = useState(null)
-  const [deletedLeads, setDeletedLeads] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('meta_deleted_leads') || '[]') } catch { return [] }
-  })
+  const [deletedLeads, setDeletedLeads] = useState([])
   const [showRestore, setShowRestore]   = useState(false)
   const [campaignDropOpen, setCampaignDropOpen] = useState(false)
   const [sortOrder, setSortOrder]               = useState('desc') // 'desc' = newest first
@@ -272,10 +270,8 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
   useEffect(() => { onNewMetaMsgRef.current  = onNewMetaMessage  }, [onNewMetaMessage])
   useEffect(() => { onSentMetaMsgRef.current = onSentMetaMessage }, [onSentMetaMessage])
 
-  // Track deleted lead IDs so polling never brings them back
-  const deletedIdsRef = useRef(new Set(
-    (() => { try { return JSON.parse(localStorage.getItem('meta_deleted_leads') || '[]') } catch { return [] } })().map(l => l.id)
-  ))
+  // Track deleted lead IDs so Realtime/polling never brings them back
+  const deletedIdsRef = useRef(new Set())
   useEffect(() => { deletedIdsRef.current = new Set(deletedLeads.map(l => l.id)) }, [deletedLeads])
 
   // ── Load leads ──────────────────────────────────────────────────────────────
@@ -335,9 +331,20 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
     }
   }, [leads])
 
+  // ── Load archived (soft-deleted) leads from server ──────────────────────────
+  const loadDeletedLeads = useCallback(async () => {
+    try {
+      const res = await fetch('/api/meta/leads?deleted=1', { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` } })
+      if (!res.ok) return
+      const data = await res.json()
+      setDeletedLeads(data.leads || [])
+    } catch {}
+  }, [])
+
   // ── Initial load + Realtime subscription for leads ──────────────────────────
   useEffect(() => {
     loadLeads()
+    loadDeletedLeads()
 
     if (!supabase) {
       // Fallback: poll every 30s when Realtime not configured
@@ -542,22 +549,34 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
     }, 500)
   }
 
-  // ── Delete lead (soft, with restore) ─────────────────────────────────────────
+  // ── Delete lead (soft-delete → server) ───────────────────────────────────────
   const handleDeleteLead = (lead, e) => {
     e.stopPropagation()
-    const updated = [{ ...lead, deletedAt: new Date().toISOString() }, ...deletedLeads]
-    setDeletedLeads(updated)
-    localStorage.setItem('meta_deleted_leads', JSON.stringify(updated))
+    const now = new Date().toISOString()
+    // Optimistic UI
     setLeads(prev => prev.filter(l => l.id !== lead.id))
+    setDeletedLeads(prev => [{ ...lead, deleted_at: now }, ...prev])
     if (selectedLead?.id === lead.id) setSelectedLead(null)
+    // Persist to server
+    fetch('/api/meta/leads', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+      body: JSON.stringify({ id: lead.id, deleted_at: now }),
+    }).catch(() => {})
   }
 
+  // ── Restore lead (clear deleted_at → server) ──────────────────────────────
   const handleRestoreLead = (lead) => {
-    const { deletedAt, ...restored } = lead
+    // Optimistic UI
+    const { deleted_at, ...restored } = lead
     setLeads(prev => [restored, ...prev].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)))
-    const updated = deletedLeads.filter(l => l.id !== lead.id)
-    setDeletedLeads(updated)
-    localStorage.setItem('meta_deleted_leads', JSON.stringify(updated))
+    setDeletedLeads(prev => prev.filter(l => l.id !== lead.id))
+    // Persist to server
+    fetch('/api/meta/leads', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+      body: JSON.stringify({ id: lead.id, deleted_at: null }),
+    }).catch(() => {})
   }
 
   // ── Campaign list — use campaign_name, fall back to form_name ────────────────
@@ -857,14 +876,41 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
 
         {/* Restore panel */}
         {showRestore && deletedLeads.length > 0 && (
-          <div style={{ padding: '8px 12px', background: 'rgba(224,82,82,.06)', borderBottom: '1px solid rgba(224,82,82,.15)', flexShrink: 0 }}>
-            <div style={{ fontSize: 11, color: '#E05252', fontWeight: 700, marginBottom: 6 }}>לידים שנמחקו:</div>
+          <div style={{ flexShrink: 0, borderBottom: `1px solid rgba(224,82,82,.15)`, background: 'rgba(224,82,82,.04)', maxHeight: 220, overflowY: 'auto' }}>
+            <div style={{ padding: '8px 14px 4px', fontSize: 10, color: 'rgba(224,82,82,.6)', fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase' }}>
+              {lang === 'en' ? 'Archived leads' : 'לידים בארכיון'} ({deletedLeads.length})
+            </div>
             {deletedLeads.map(lead => (
-              <div key={lead.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px solid rgba(255,255,255,.04)' }}>
-                <span style={{ fontSize: 12, color: 'rgba(232,228,216,.6)' }}>{lead.name || '—'}</span>
+              <div key={lead.id}
+                style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 14px', borderTop: '1px solid rgba(255,255,255,.03)', direction: dir }}>
+                <div style={{
+                  width: 30, height: 30, borderRadius: '50%', flexShrink: 0,
+                  background: 'rgba(224,82,82,.12)', border: '1px solid rgba(224,82,82,.2)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 11, fontWeight: 800, color: 'rgba(224,82,82,.6)',
+                }}>
+                  {initials(lead.name)}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: 'rgba(232,228,216,.55)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {lead.name || '—'}
+                  </div>
+                  <div style={{ fontSize: 10, color: 'rgba(232,228,216,.28)', marginTop: 1 }}>
+                    {getCampaignLabel(lead) || lead.phone || ''}
+                  </div>
+                </div>
                 <button onClick={() => handleRestoreLead(lead)}
-                  style={{ padding: '2px 8px', background: 'rgba(130,246,127,.12)', border: '1px solid rgba(130,246,127,.3)', borderRadius: 6, color: '#82F67F', fontSize: 10, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-                  ↩ שחזר
+                  style={{
+                    flexShrink: 0, padding: '4px 10px',
+                    background: 'rgba(34,197,94,.1)', border: '1px solid rgba(34,197,94,.25)',
+                    borderRadius: 8, color: '#22C55E', fontSize: 11, fontWeight: 700,
+                    cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4,
+                    transition: 'all .12s',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(34,197,94,.2)'; e.currentTarget.style.borderColor = 'rgba(34,197,94,.5)' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'rgba(34,197,94,.1)'; e.currentTarget.style.borderColor = 'rgba(34,197,94,.25)' }}
+                >
+                  ↩ {lang === 'en' ? 'Restore' : 'שחזר'}
                 </button>
               </div>
             ))}
@@ -913,27 +959,49 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
                 }}
               >
                 {/* Delete button (shows on hover) */}
-                {isHovered && (
-                  <button
-                    onClick={(e) => handleDeleteLead(lead, e)}
-                    title="מחק ליד"
-                    style={{
-                      position: 'absolute',
-                      top: 8,
-                      left: dir === 'rtl' ? 8 : undefined,
-                      right: dir === 'ltr' ? 8 : undefined,
-                      background: 'rgba(224,82,82,.15)',
-                      border: '1px solid rgba(224,82,82,.3)',
-                      borderRadius: 6,
-                      color: '#E05252',
-                      cursor: 'pointer',
-                      padding: '2px 6px',
-                      fontSize: 11,
-                      fontFamily: 'inherit',
-                      zIndex: 1,
-                    }}
-                  >🗑</button>
-                )}
+                <button
+                  onClick={(e) => handleDeleteLead(lead, e)}
+                  title={lang === 'en' ? 'Archive lead' : 'העבר לארכיון'}
+                  style={{
+                    position: 'absolute',
+                    top: '50%',
+                    transform: `translateY(-50%) ${isHovered ? 'scale(1)' : 'scale(0.7)'}`,
+                    left: dir === 'rtl' ? 8 : undefined,
+                    right: dir === 'ltr' ? 8 : undefined,
+                    opacity: isHovered ? 1 : 0,
+                    pointerEvents: isHovered ? 'auto' : 'none',
+                    background: 'rgba(224,82,82,.1)',
+                    border: '1px solid rgba(224,82,82,.22)',
+                    borderRadius: 10,
+                    color: 'rgba(224,82,82,.7)',
+                    cursor: 'pointer',
+                    padding: '5px 9px',
+                    display: 'flex', alignItems: 'center', gap: 4,
+                    fontFamily: 'inherit',
+                    fontSize: 11, fontWeight: 600,
+                    zIndex: 2,
+                    transition: 'opacity .15s, transform .15s, background .12s, color .12s, border-color .12s',
+                    backdropFilter: 'blur(6px)',
+                  }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.background = 'rgba(224,82,82,.22)'
+                    e.currentTarget.style.color = '#E05252'
+                    e.currentTarget.style.borderColor = 'rgba(224,82,82,.5)'
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.background = 'rgba(224,82,82,.1)'
+                    e.currentTarget.style.color = 'rgba(224,82,82,.7)'
+                    e.currentTarget.style.borderColor = 'rgba(224,82,82,.22)'
+                  }}
+                >
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="3 6 5 6 21 6"/>
+                    <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
+                    <path d="M10 11v6M14 11v6"/>
+                    <path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
+                  </svg>
+                  <span>{lang === 'en' ? 'Archive' : 'ארכיון'}</span>
+                </button>
 
                 <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
                   {/* Avatar */}
