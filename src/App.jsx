@@ -6309,7 +6309,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
               style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:3, border:'none', background:'transparent', color: tab===item.id ? '#8490D8' : 'rgba(232,228,216,.32)', cursor:'pointer', fontFamily:'inherit', padding:'8px 4px', position:'relative', transition:'color .15s', minWidth:0 }}>
               <item.Icon size={18}/>
               <span style={{ fontSize:9, fontWeight: tab===item.id ? 700 : 400, letterSpacing:'.02em', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:'100%' }}>{item.label}</span>
-              {!!item.badge && <span style={{ position:'absolute', top:6, right:'50%', transform:'translateX(140%)', background:'#8490D8', color:'#fff', borderRadius:8, padding:'1px 5px', fontSize:8, fontWeight:800, lineHeight:1.6 }}>{item.badge}</span>}
+              {!!item.badge && <span style={{ position:'absolute', top:6, right:'50%', transform:'translateX(140%)', background: item.id==='chats' ? '#075E54' : '#8490D8', color:'#fff', borderRadius:8, padding:'1px 5px', fontSize:8, fontWeight:800, lineHeight:1.6 }}>{item.badge}</span>}
               {tab===item.id && <div style={{ position:'absolute', top:0, left:'15%', right:'15%', height:2, background:'#8490D8', borderRadius:2 }}/>}
             </button>
           ))}
