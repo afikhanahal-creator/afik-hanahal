@@ -1,0 +1,272 @@
+// Vercel serverless — combined Meta Lead Ads router
+// Routes by ?_path= query param (set via vercel.json rewrite from /api/meta/*)
+//
+//  webhook  → GET verify / POST lead event
+//  leads    → GET list all leads
+//  messages → GET thread / POST send message
+//  sync     → GET historical sync from Meta
+
+import { createClient } from '@supabase/supabase-js'
+import crypto from 'crypto'
+
+const META_PAGE_ACCESS_TOKEN  = process.env.META_PAGE_ACCESS_TOKEN  || process.env.WA_META_TOKEN || ''
+const META_APP_SECRET         = process.env.META_APP_SECRET         || ''
+const META_LEADS_VERIFY_TOKEN = process.env.META_LEADS_VERIFY_TOKEN || 'AFIKhanahal2026leads'
+const ADMIN_TOKEN             = process.env.ADMIN_TOKEN             || 'AFIKhanahal2026'
+const WA_META_TOKEN           = process.env.WA_META_TOKEN           || ''
+const PHONE_NUMBER_ID         = process.env.WA_PHONE_NUMBER_ID      || '1160230953835065'
+const SUPABASE_URL            = process.env.SUPABASE_URL            || ''
+const SUPABASE_KEY            = process.env.SUPABASE_SERVICE_KEY    || ''
+
+// ── helpers ──────────────────────────────────────────────────────────────────
+
+function cors(res) {
+  res.setHeader('Access-Control-Allow-Origin', '*')
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+}
+
+function sb() {
+  return createClient(SUPABASE_URL, SUPABASE_KEY)
+}
+
+function checkAuth(req) {
+  const auth = req.headers['authorization'] || ''
+  return auth.replace(/^Bearer\s+/i, '') === ADMIN_TOKEN
+}
+
+function normalizePhone(raw) {
+  if (!raw) return raw
+  const d = String(raw).replace(/\D/g, '')
+  if (d.startsWith('972')) return d
+  if (d.startsWith('0'))   return '972' + d.slice(1)
+  return d
+}
+
+function parseFieldData(fieldData) {
+  const f = {}
+  for (const item of fieldData || []) {
+    const key = (item.name || '').toLowerCase().replace(/[\s_-]/g, '')
+    const val = Array.isArray(item.values) ? item.values[0] : item.value
+    if (!val) continue
+    if (key.includes('fullname') || key.includes('name'))  f.name  = f.name  || val
+    if (key.includes('email'))                              f.email = f.email || val
+    if (key.includes('phone') || key.includes('mobile'))   f.phone = f.phone || val
+  }
+  return f
+}
+
+async function graphGet(path, token) {
+  const url = `https://graph.facebook.com/v20.0${path}${path.includes('?') ? '&' : '?'}access_token=${token}`
+  const r = await fetch(url)
+  if (!r.ok) throw new Error(`Graph ${path} → HTTP ${r.status}: ${await r.text()}`)
+  return r.json()
+}
+
+async function sendWA(to, message) {
+  try {
+    const r = await fetch(`https://graph.facebook.com/v25.0/${PHONE_NUMBER_ID}/messages`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${WA_META_TOKEN}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messaging_product: 'whatsapp', to, type: 'text', text: { body: message, preview_url: false } }),
+    })
+    if (!r.ok) { console.error('[WA]', await r.text()); return null }
+    return (await r.json())?.messages?.[0]?.id || null
+  } catch (e) { console.error('[WA]', e); return null }
+}
+
+// ── route handlers ────────────────────────────────────────────────────────────
+
+async function handleWebhook(req, res) {
+  if (req.method === 'GET') {
+    const { 'hub.mode': mode, 'hub.verify_token': token, 'hub.challenge': challenge } = req.query
+    if (mode === 'subscribe' && token === META_LEADS_VERIFY_TOKEN) {
+      console.log('[MetaLeads] Webhook verified')
+      return res.status(200).send(challenge)
+    }
+    return res.status(403).json({ error: 'Verify token mismatch' })
+  }
+
+  if (req.method === 'POST') {
+    res.status(200).json({ status: 'ok' }) // respond immediately
+
+    try {
+      if (META_APP_SECRET) {
+        const sig      = req.headers['x-hub-signature-256'] || ''
+        const expected = 'sha256=' + crypto.createHmac('sha256', META_APP_SECRET).update(JSON.stringify(req.body)).digest('hex')
+        if (sig !== expected) { console.warn('[MetaLeads] Signature mismatch'); return }
+      }
+
+      const body = req.body
+      if (body?.object !== 'page') return
+
+      const client = sb()
+      for (const entry of body.entry || []) {
+        for (const change of entry.changes || []) {
+          if (change.field !== 'leadgen') continue
+          const { leadgen_id, page_id } = change.value || {}
+          if (!leadgen_id) continue
+
+          let leadData, campaignName = '', formName = ''
+          try {
+            leadData = await graphGet(`/${leadgen_id}?fields=id,created_time,field_data,campaign_id,ad_id,form_id,page_id`, META_PAGE_ACCESS_TOKEN)
+          } catch (e) { console.error('[MetaLeads] fetch lead:', e.message); continue }
+
+          if (leadData.campaign_id) {
+            try { campaignName = (await graphGet(`/${leadData.campaign_id}?fields=name`, META_PAGE_ACCESS_TOKEN)).name || '' } catch {}
+          }
+          if (leadData.form_id) {
+            try { formName = (await graphGet(`/${leadData.form_id}?fields=name`, META_PAGE_ACCESS_TOKEN)).name || '' } catch {}
+          }
+
+          const parsed = parseFieldData(leadData.field_data)
+          const phone  = normalizePhone(parsed.phone)
+          const name   = parsed.name  || ''
+          const email  = parsed.email || ''
+
+          const { data: inserted, error: upsertErr } = await client
+            .from('meta_leads')
+            .upsert({
+              leadgen_id, name, email, phone,
+              campaign_id: leadData.campaign_id || null, campaign_name: campaignName,
+              ad_id: leadData.ad_id || null, form_id: leadData.form_id || null, form_name: formName,
+              raw_fields: leadData.field_data || [], page_id: leadData.page_id || page_id || null,
+              status: 'new',
+            }, { onConflict: 'leadgen_id' })
+            .select('id').single()
+
+          if (upsertErr) { console.error('[MetaLeads] upsert:', upsertErr); continue }
+
+          const leadId    = inserted?.id
+          const firstName = name.split(' ')[0] || name
+          if (phone && WA_META_TOKEN) {
+            const src  = campaignName || formName || 'הנכס שלנו'
+            const waMsg = `היי ${firstName} 👋\nתודה שמלאת פרטים לגבי ${src}!\nאנחנו מצוות אפיק הנחל 🏠\n\nמתי יהיה נוח לך שנדבר?\nנשמח לתאם שיחה ולספר לך יותר פרטים 📞`
+            const waId  = await sendWA(phone, waMsg)
+            if (leadId) {
+              await client.from('meta_messages').insert({ lead_id: leadId, direction: 'out', message: waMsg, wa_message_id: waId || null })
+              await client.from('meta_leads').update({ wa_sent: true }).eq('id', leadId)
+            }
+          }
+        }
+      }
+    } catch (err) { console.error('[MetaLeads] unhandled:', err) }
+    return
+  }
+
+  return res.status(405).json({ error: 'Method not allowed' })
+}
+
+async function handleLeads(req, res) {
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' })
+  if (!checkAuth(req))      return res.status(401).json({ error: 'Unauthorized' })
+  if (!SUPABASE_URL)        return res.status(500).json({ error: 'Supabase not configured' })
+
+  const client = sb()
+  const { data: leads, error } = await client.from('meta_leads').select('*').order('created_at', { ascending: false })
+  if (error) return res.status(500).json({ error: error.message })
+  if (!leads?.length) return res.status(200).json({ leads: [] })
+
+  const { data: msgs } = await client.from('meta_messages').select('lead_id').in('lead_id', leads.map(l => l.id))
+  const countMap = {}
+  for (const m of msgs || []) countMap[m.lead_id] = (countMap[m.lead_id] || 0) + 1
+
+  return res.status(200).json({ leads: leads.map(l => ({ ...l, message_count: countMap[l.id] || 0 })) })
+}
+
+async function handleMessages(req, res) {
+  if (!checkAuth(req)) return res.status(401).json({ error: 'Unauthorized' })
+  if (!SUPABASE_URL)   return res.status(500).json({ error: 'Supabase not configured' })
+
+  const client = sb()
+
+  if (req.method === 'GET') {
+    const { lead_id } = req.query
+    if (!lead_id) return res.status(400).json({ error: 'lead_id required' })
+    const { data, error } = await client.from('meta_messages').select('*').eq('lead_id', lead_id).order('created_at', { ascending: true })
+    if (error) return res.status(500).json({ error: error.message })
+    return res.status(200).json({ messages: data || [] })
+  }
+
+  if (req.method === 'POST') {
+    const { lead_id, message } = req.body || {}
+    if (!lead_id || !message) return res.status(400).json({ error: 'lead_id and message required' })
+
+    const { data: lead, error: leadErr } = await client.from('meta_leads').select('id,phone').eq('id', lead_id).single()
+    if (leadErr || !lead)  return res.status(404).json({ error: 'Lead not found' })
+    if (!lead.phone)       return res.status(400).json({ error: 'Lead has no phone number' })
+
+    const waId = WA_META_TOKEN ? await sendWA(lead.phone, message) : null
+    const { data: newMsg, error: insertErr } = await client.from('meta_messages')
+      .insert({ lead_id: lead.id, direction: 'out', message, wa_message_id: waId || null })
+      .select('*').single()
+    if (insertErr) return res.status(500).json({ error: insertErr.message })
+    return res.status(201).json({ message: newMsg })
+  }
+
+  return res.status(405).json({ error: 'Method not allowed' })
+}
+
+async function handleSync(req, res) {
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' })
+  if (!checkAuth(req))      return res.status(401).json({ error: 'Unauthorized' })
+  if (!META_PAGE_ACCESS_TOKEN) return res.status(500).json({ error: 'META_PAGE_ACCESS_TOKEN not configured' })
+  if (!SUPABASE_URL)        return res.status(500).json({ error: 'Supabase not configured' })
+
+  const pageId = req.query.page_id || process.env.META_PAGE_ID || ''
+  if (!pageId) return res.status(400).json({ error: 'page_id required' })
+
+  const client = sb()
+  let totalSynced = 0
+  const errors = []
+
+  let formsData
+  try { formsData = await graphGet(`/${pageId}/leadgen_forms?fields=id,name`, META_PAGE_ACCESS_TOKEN) }
+  catch (e) { return res.status(500).json({ error: `Failed to fetch forms: ${e.message}` }) }
+
+  for (const form of formsData.data || []) {
+    let cursor = null, page = 1
+    do {
+      let url = `/${form.id}/leads?fields=id,created_time,field_data,campaign_id,ad_id,page_id`
+      if (cursor) url += `&after=${cursor}`
+      let leadsData
+      try { leadsData = await graphGet(url, META_PAGE_ACCESS_TOKEN) }
+      catch (e) { errors.push(`Form ${form.id}: ${e.message}`); break }
+
+      for (const lead of leadsData.data || []) {
+        try {
+          const parsed = parseFieldData(lead.field_data)
+          await client.from('meta_leads').upsert({
+            leadgen_id: lead.id, name: parsed.name || null, email: parsed.email || null,
+            phone: normalizePhone(parsed.phone) || null,
+            campaign_id: lead.campaign_id || null, ad_id: lead.ad_id || null,
+            form_id: form.id, form_name: form.name || null,
+            raw_fields: lead.field_data || [], page_id: lead.page_id || pageId, status: 'new',
+          }, { onConflict: 'leadgen_id', ignoreDuplicates: true })
+          totalSynced++
+        } catch (e) { errors.push(`Lead ${lead.id}: ${e.message}`) }
+      }
+
+      cursor = leadsData.paging?.next ? leadsData.paging?.cursors?.after : null
+      page++
+    } while (cursor && page < 20)
+  }
+
+  return res.status(200).json({ synced: totalSynced, forms: (formsData.data || []).length, errors: errors.length ? errors : undefined })
+}
+
+// ── main router ───────────────────────────────────────────────────────────────
+
+export default async function handler(req, res) {
+  if (req.method === 'OPTIONS') { cors(res); return res.status(204).end() }
+  cors(res)
+
+  const path = (req.query._path || '').replace(/^\/+/, '')
+
+  if (path === 'webhook')  return handleWebhook(req, res)
+  if (path === 'leads')    return handleLeads(req, res)
+  if (path === 'messages') return handleMessages(req, res)
+  if (path === 'sync')     return handleSync(req, res)
+
+  return res.status(404).json({ error: `Unknown path: ${path}` })
+}

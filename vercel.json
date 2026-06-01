@@ -24,12 +24,13 @@
     "api/properties/bulk.js": { "maxDuration": 20 },
     "api/ai/messages.js":     { "maxDuration": 30 },
     "api/contacts.js":        { "maxDuration": 15 },
-    "api/meta/webhook.js":    { "maxDuration": 30 },
-    "api/meta/leads.js":      { "maxDuration": 15 },
-    "api/meta/sync.js":       { "maxDuration": 30 },
-    "api/meta/messages.js":   { "maxDuration": 15 }
+    "api/meta.js":            { "maxDuration": 30 }
   },
   "rewrites": [
+    {
+      "source": "/api/meta/:path*",
+      "destination": "/api/meta?_path=:path*"
+    },
     {
       "source": "/api/(.*)",
       "destination": "/api/$1"
