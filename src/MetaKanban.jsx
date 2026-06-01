@@ -266,7 +266,7 @@ function KanbanColumn({ stage, leads, stages, onCardClick, onCardDelete, onCardM
       </div>
 
       {/* Cards */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '8px 8px 0', minHeight: 80 }}>
+      <div className="meta-kanban-scroll" style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '8px 8px 0', minHeight: 80, WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', scrollBehavior: 'smooth', touchAction: 'pan-y' }}>
         <SortableContext items={leads.map(l => `card-${l.id}`)} strategy={verticalListSortingStrategy}>
           {leads.map(lead => (
             <SortableCard
@@ -378,7 +378,7 @@ function TableView({ leads, stages, onMoveStage, onDelete, onOpenLead }) {
   )
 
   return (
-    <div style={{ height: '100%', overflowY: 'auto', overflowX: 'auto' }}>
+    <div className="meta-kanban-scroll" style={{ height: '100%', overflowY: 'auto', overflowX: 'auto', WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', scrollBehavior: 'smooth' }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 680 }}>
         <thead style={{ position: 'sticky', top: 0, background: T.bg, zIndex: 10 }}>
           <tr>
@@ -825,7 +825,7 @@ export default function MetaKanban({ leads: propLeads = [], onUpdateLead, onDele
         {viewMode === 'pipeline' ? (
           <DndContext sensors={sensors} collisionDetection={collisionDetection} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
             <SortableContext items={stages.map(s => s.id)} strategy={horizontalListSortingStrategy}>
-              <div style={{ display: 'flex', gap: 10, padding: '12px 16px', height: '100%', overflowX: 'auto', overflowY: 'hidden', boxSizing: 'border-box', alignItems: 'flex-start', background: T.bg, direction: 'rtl' }}>
+              <div className="meta-kanban-scroll" style={{ display: 'flex', gap: 10, padding: '12px 16px', height: '100%', overflowX: 'auto', overflowY: 'hidden', boxSizing: 'border-box', alignItems: 'flex-start', background: T.bg, direction: 'rtl', WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', scrollBehavior: 'smooth', touchAction: 'pan-x pan-y' }}>
                 {stages.map(stage => (
                   <KanbanColumn
                     key={stage.id} stage={stage}

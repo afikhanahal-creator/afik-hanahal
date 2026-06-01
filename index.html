@@ -4,10 +4,59 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
 
-    <!-- ── Critical CSS: dark background + FOUT guard ── -->
+    <!-- ── Critical CSS: dark background + FOUT guard + custom scrollbars ── -->
     <style>
       html { opacity: 0; transition: opacity .2s ease }
       body { background: #09090F; margin: 0 }
+
+      /* Custom scrollbar for admin / lead lists — visible on dark bg, mobile-friendly */
+      .meta-leads-scroll,
+      .meta-kanban-scroll {
+        scrollbar-width: thin;
+        scrollbar-color: rgba(132,144,216,.45) transparent;
+      }
+      .meta-leads-scroll::-webkit-scrollbar,
+      .meta-kanban-scroll::-webkit-scrollbar {
+        width: 10px;
+        height: 10px;
+      }
+      .meta-leads-scroll::-webkit-scrollbar-track,
+      .meta-kanban-scroll::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      .meta-leads-scroll::-webkit-scrollbar-thumb,
+      .meta-kanban-scroll::-webkit-scrollbar-thumb {
+        background: rgba(132,144,216,.35);
+        border-radius: 8px;
+        border: 2px solid transparent;
+        background-clip: padding-box;
+        transition: background-color .15s;
+      }
+      .meta-leads-scroll::-webkit-scrollbar-thumb:hover,
+      .meta-kanban-scroll::-webkit-scrollbar-thumb:hover {
+        background: rgba(132,144,216,.65);
+        background-clip: padding-box;
+        border: 2px solid transparent;
+      }
+      .meta-leads-scroll::-webkit-scrollbar-thumb:active,
+      .meta-kanban-scroll::-webkit-scrollbar-thumb:active {
+        background: rgba(132,144,216,.85);
+        background-clip: padding-box;
+        border: 2px solid transparent;
+      }
+
+      /* Mobile: thinner scrollbar, momentum scrolling */
+      @media (max-width: 768px) {
+        .meta-leads-scroll::-webkit-scrollbar,
+        .meta-kanban-scroll::-webkit-scrollbar {
+          width: 4px;
+          height: 4px;
+        }
+        .meta-leads-scroll,
+        .meta-kanban-scroll {
+          -webkit-overflow-scrolling: touch;
+        }
+      }
     </style>
 
     <!-- ── Google Fonts: preconnect + load with fallback display ── -->

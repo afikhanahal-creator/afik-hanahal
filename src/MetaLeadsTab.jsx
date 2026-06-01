@@ -257,7 +257,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
   const [showRestore, setShowRestore]   = useState(false)
   const [campaignDropOpen, setCampaignDropOpen] = useState(false)
   const [sortOrder, setSortOrder]               = useState('desc') // 'desc' = newest first
-  const [metaView, setMetaView]                 = useState('chat') // 'chat' | 'pipeline' | 'table'
+  const [metaView, setMetaView]                 = useState('pipeline') // 'chat' | 'pipeline' | 'table' — default to Kanban
 
   const messagesEndRef        = useRef(null)
   const leadsIntervalRef      = useRef(null)
@@ -685,36 +685,43 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
       flexDirection: 'column',
     }}>
 
-      {/* ── View toggle bar ── */}
+      {/* ── View toggle bar (Pipeline / Table / Chats) — anchored top-right ── */}
       <div style={{
         display: 'flex',
         alignItems: 'center',
-        gap: 4,
-        padding: '8px 16px',
+        justifyContent: 'flex-start',
+        gap: 6,
+        padding: '10px 16px',
         background: 'rgba(14,14,28,.95)',
         borderBottom: `1px solid ${BORDER}`,
         flexShrink: 0,
-        direction: 'ltr',
+        direction: 'rtl',
       }}>
         {VIEW_TABS.map(tab => {
           const active = metaView === tab.id
           return (
             <button
               key={tab.id}
+              type="button"
               onClick={() => setMetaView(tab.id)}
               style={{
                 display: 'flex', alignItems: 'center', gap: 6,
-                padding: '6px 14px',
-                borderRadius: 8,
-                border: active ? `1px solid ${PURPLE}55` : '1px solid transparent',
-                background: active ? `rgba(132,144,216,.18)` : 'transparent',
+                padding: '7px 16px',
+                borderRadius: 9,
+                border: active ? `1px solid ${PURPLE}80` : `1px solid ${BORDER}`,
+                background: active
+                  ? `linear-gradient(135deg, rgba(132,144,216,.28) 0%, rgba(132,144,216,.16) 100%)`
+                  : 'rgba(255,255,255,.03)',
                 color: active ? PURPLE : MUTED,
-                fontSize: 12, fontWeight: active ? 700 : 500,
+                fontSize: 12.5, fontWeight: active ? 700 : 600,
                 cursor: 'pointer', fontFamily: 'inherit',
                 transition: 'all .15s',
+                boxShadow: active ? `0 0 0 2px ${PURPLE}22` : 'none',
+                pointerEvents: 'auto',
+                userSelect: 'none',
               }}
-              onMouseEnter={e => { if (!active) { e.currentTarget.style.background = 'rgba(132,144,216,.08)'; e.currentTarget.style.color = CREAM } }}
-              onMouseLeave={e => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = MUTED } }}
+              onMouseEnter={e => { if (!active) { e.currentTarget.style.background = 'rgba(132,144,216,.1)'; e.currentTarget.style.color = CREAM; e.currentTarget.style.borderColor = `${PURPLE}55` } }}
+              onMouseLeave={e => { if (!active) { e.currentTarget.style.background = 'rgba(255,255,255,.03)'; e.currentTarget.style.color = MUTED; e.currentTarget.style.borderColor = BORDER } }}
             >
               {tab.icon}
               {tab.label}
@@ -1056,8 +1063,18 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
           </div>
         )}
 
-        {/* Lead list */}
-        <div style={{ flex: 1, overflowY: 'auto' }}>
+        {/* Lead list — smooth scroll (desktop wheel + mobile touch inertia) */}
+        <div className="meta-leads-scroll" style={{
+          flex: 1,
+          minHeight: 0,
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          WebkitOverflowScrolling: 'touch',
+          overscrollBehavior: 'contain',
+          scrollBehavior: 'smooth',
+          scrollbarGutter: 'stable',
+          touchAction: 'pan-y',
+        }}>
           {loadingLeads && (
             <div style={{ padding: 24, textAlign: 'center', color: MUTED, fontSize: 13 }}>{t.loading}</div>
           )}
