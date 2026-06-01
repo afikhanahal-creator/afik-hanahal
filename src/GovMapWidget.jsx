@@ -74,31 +74,35 @@ export function preloadGovMapScript() {
 }
 
 // ── Zoom helper ────────────────────────────────────────────────────────────────
-// Verified against GovMap iframe source (index-892f07a9.js):
-//   handler uses LocateType.addressToLotParcel (= 1)
-//   with params:  { type:1, lot:<gush>, parcel:<helka>, subParcel }
-//   internally calls: search("block {lot} parcel {parcel}", ..., "parcel")
-// We use .call(gm,…) so `this` is always the govmap instance.
-function makeZoomer(gush, helka, subHelka) {
-  const lot       = Number(gush)
-  const parcel    = Number(helka)
-  const subParcel = subHelka ? Number(subHelka) : 0
-  if (!lot || !parcel) return null
-
-  return function tryZoom() {
+// Analysis of GovMap iframe source (index-892f07a9.js) revealed that
+// searchAndLocate(type=1) only RETURNS address data — it does NOT zoom the map.
+// The correct approach: call GovMap's public geocoding REST API (CORS: *)
+// to get ITM coordinates, then call govmap.zoomToXY({ x, y, level:12 }).
+// level:12 → internal zoom 19 (= 1:2000 parcel-level scale), matching the
+// zoom that govmap's own parcel search UI uses.
+async function zoomToParcel(gush, helka) {
+  const lot    = Number(gush)
+  const parcel = Number(helka)
+  if (!lot || !parcel) return
+  try {
+    const res = await fetch('https://www.govmap.gov.il/api/search-service/autocomplete', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({
+        searchText: `block ${lot} parcel ${parcel}`,
+        maxResults: 1,
+        isAccurate: false,
+        subType:    'parcel',
+      }),
+    })
+    const data  = res.ok ? await res.json() : null
+    const shape = data?.results?.[0]?.shape          // "POINT(x y)" in ITM
+    if (!shape) return
+    const m = shape.match(/POINT\(([^ ]+)\s+([^ )]+)\)/)
+    if (!m) return
     const gm = window.govmap
-    if (!gm) return
-    const fn = gm.searchAndLocate
-    if (typeof fn !== 'function') return
-    try {
-      fn.call(gm, {
-        type:     gm.locateType?.addressToLotParcel ?? 1,
-        lot,
-        parcel,
-        subParcel,
-      })
-    } catch {}
-  }
+    if (gm?.zoomToXY) gm.zoomToXY({ x: parseFloat(m[1]), y: parseFloat(m[2]), level: 12, marker: true })
+  } catch {}
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -110,7 +114,6 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark,
   const containerRef = useRef(null)
   const panelRef     = useRef(null)
   const created      = useRef(false)
-  const zoomTimers   = useRef([])          // all pending setTimeout handles
   const [inView,      setInView]      = useState(false)
   const [mapReady,    setMapReady]    = useState(false)
   const [error,       setError]       = useState('')
@@ -122,14 +125,25 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark,
       return Object.fromEntries(LAYERS_DEF.map(l => [l.id, defaultLayers[l.id] ?? l.on]))
     return Object.fromEntries(LAYERS_DEF.map(l => [l.id, l.on]))
   })
+  const layersRef    = useRef(layers)   // always holds the latest layers state
   const [bg,          setBg]          = useState(defaultBg || '0')
   const [gushVal,     setGushVal]     = useState(gush    || '')
   const [helkaVal,    setHelkaVal]    = useState(helka   || '')
   const [subHelkaVal, setSubHelkaVal] = useState(subHelka || '')
   const [showPanel,   setShowPanel]   = useState(false)
 
-  // ── Cleanup all pending timers on unmount ──────────────────────────────────
-  useEffect(() => () => { zoomTimers.current.forEach(clearTimeout) }, [])
+  useEffect(() => { layersRef.current = layers }, [layers])
+
+  // ── Apply layer visibility to map whenever layers state or mapReady changes ──
+  // Side effects must NOT live inside setState updaters (React 18 StrictMode can
+  // call updaters twice; concurrent transitions may defer them). useEffect is the
+  // correct pattern for synchronising external systems with React state.
+  useEffect(() => {
+    if (!mapReady || !window.govmap) return
+    const on  = LAYERS_DEF.filter(l =>  layers[l.id]).map(l => l.id)
+    const off = LAYERS_DEF.filter(l => !layers[l.id]).map(l => l.id)
+    window.govmap.setVisibleLayers(on, off)
+  }, [layers, mapReady])
 
   // ── Close layer panel on outside click ────────────────────────────────────
   // Uses capture phase (true) so it fires before React's bubble-phase handlers.
@@ -143,15 +157,6 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark,
     document.addEventListener('mousedown', handler, true)
     return () => document.removeEventListener('mousedown', handler, true)
   }, [showPanel])
-
-  // ── Helper: schedule zoom retries ─────────────────────────────────────────
-  // GovMap's iframe initialises asynchronously — searchAndLocate silently
-  // fails until the internal state is ready (typically 2–6 s on first load).
-  // Start at 500 ms to avoid the silent-fail window; go up to 25 s.
-  function scheduleZoom(zoom, delaysMs = [500, 1200, 2500, 4000, 6000, 9000, 13000, 18000, 25000]) {
-    zoomTimers.current.forEach(clearTimeout)
-    zoomTimers.current = delaysMs.map(ms => setTimeout(zoom, ms))
-  }
 
   // ── Preload SDK as soon as token is known ──────────────────────────────────
   useEffect(() => {
@@ -176,11 +181,9 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark,
 
   // ── Re-zoom when gush/helka props change (switching between properties) ────
   useEffect(() => {
-    if (!created.current) return      // map not yet created — initial zoom handled by createMap
-    const zoom = makeZoomer(gush, helka, subHelka)
-    if (!zoom) return
-    scheduleZoom(zoom, [200, 800, 2000, 4000])
-  }, [gush, helka, subHelka]) // eslint-disable-line react-hooks/exhaustive-deps
+    if (!mapReady) return
+    if (gush && helka) zoomToParcel(gush, helka)
+  }, [gush, helka, subHelka, mapReady]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Create the map ─────────────────────────────────────────────────────────
   const createMap = useCallback(() => {
@@ -189,30 +192,44 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark,
     if (!el) return
     created.current = true
 
-    const zoom = (gush && helka) ? makeZoomer(gush, helka, subHelka) : null
+    const activeLayers = LAYERS_DEF.filter(l => layers[l.id]).map(l => l.id)
 
-    try {
-      const activeLayers = LAYERS_DEF.filter(l => layers[l.id]).map(l => l.id)
-      window.govmap.createMap(mapDivId, {
-        token:            token || '',
-        layers:           activeLayers,
-        showXY:           false,
-        identifyOnClick:  true,
-        isEmbeddedToggle: false,
-        background:       Number(bg),
-        layersMode:       1,
-        zoomButtons:      true,
-      })
+    // createMap returns a Promise — resolves once iframe MessageChannel is up.
+    // At that point the GovMap catalog is still loading from the server (async).
+    // `layers` (→ laym=) only adds layers to the workspace panel; it does NOT
+    // make them visible.  The ONLY way to show layers is setVisibleLayers(),
+    // which does a catalog name→numericId lookup.  We retry after a delay so
+    // the catalog has time to finish loading before we call it.
+    window.govmap.createMap(mapDivId, {
+      token:            token || '',
+      layers:           activeLayers,
+      showXY:           false,
+      identifyOnClick:  true,
+      isEmbeddedToggle: false,
+      background:       Number(bg),
+      layersMode:       1,
+      zoomButtons:      true,
+    }).then(() => {
       setMapReady(true)
       setError('')
+      if (gush && helka) zoomToParcel(gush, helka)
 
-      // Aggressive retry schedule — GovMap tiles take 2–5 s to initialise.
-      // No "done" flag: each call is safe to repeat; retries stop after ~15 s.
-      if (zoom) scheduleZoom(zoom)
-    } catch {
+      // Apply initial layer visibility.  Call immediately (optimistic) and
+      // again at 1.2s to catch the common case where the catalog finishes
+      // loading 300–800ms after the iframe handshake resolves.
+      const applyLayers = () => {
+        const gm = window.govmap
+        if (!gm) return
+        const on  = LAYERS_DEF.filter(l =>  layersRef.current[l.id]).map(l => l.id)
+        const off = LAYERS_DEF.filter(l => !layersRef.current[l.id]).map(l => l.id)
+        gm.setVisibleLayers(on, off)
+      }
+      applyLayers()
+      setTimeout(applyLayers, 1200)
+    }).catch(() => {
       setError('שגיאה ביצירת המפה. ודא שמפתח ה-API תקין.')
       created.current = false
-    }
+    })
   }, [mapDivId, token, bg, gush, helka, subHelka, layers]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Load SDK + create map once in view ────────────────────────────────────
@@ -222,25 +239,17 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark,
   }, [token, inView, createMap])
 
   // ── Manual gush/helka search ───────────────────────────────────────────────
-  function handleSearch() {
+  async function handleSearch() {
     if (!gushVal || !helkaVal) return
-    const zoom = makeZoomer(gushVal, helkaVal, subHelkaVal)
-    if (!zoom) return
     setSearching(true)
-    // Map is already initialised — start immediately (delay=0), then retry
-    scheduleZoom(zoom, [0, 400, 1200, 2500, 4500])
-    setTimeout(() => setSearching(false), 5000)
+    await zoomToParcel(gushVal, helkaVal)
+    setSearching(false)
   }
 
   function toggleLayer(id) {
-    setLayers(prev => {
-      const next = { ...prev, [id]: !prev[id] }
-      if (window.govmap && mapReady) {
-        if (next[id]) window.govmap.setVisibleLayers([id], [])
-        else          window.govmap.setVisibleLayers([], [id])
-      }
-      return next
-    })
+    // Pure state update only — the useEffect([layers, mapReady]) above
+    // applies the change to the map without any side effects here.
+    setLayers(prev => ({ ...prev, [id]: !prev[id] }))
   }
 
   function handleBg(v) {
@@ -300,12 +309,20 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark,
   const toolbarHeight = 50 // approx height of the toolbar row
 
   return (
-    // Outer wrapper: stopPropagation on all mouse events prevents clicks from
-    // bubbling to the modal backdrop and accidentally closing the property panel.
+    // Outer wrapper: stop ALL pointer/touch/keyboard events from bubbling to the
+    // modal backdrop.  The modal's onClick checks e.target===e.currentTarget to
+    // close, but its onTouchStart/onTouchEnd run the swipe-close hook — so we
+    // must also stop touch and pointer events here.
     <div
       style={{ position:'relative', direction:'rtl', fontFamily:'Rubik,inherit' }}
       onClick={e => e.stopPropagation()}
       onMouseDown={e => e.stopPropagation()}
+      onMouseUp={e => e.stopPropagation()}
+      onTouchStart={e => e.stopPropagation()}
+      onTouchEnd={e => e.stopPropagation()}
+      onPointerDown={e => e.stopPropagation()}
+      onPointerUp={e => e.stopPropagation()}
+      onKeyDown={e => e.key !== 'Escape' && e.stopPropagation()}
     >
 
       {/* ── Clipped inner: toolbar + map + loading overlay ── */}
@@ -317,13 +334,13 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark,
           <div style={{ display:'flex', alignItems:'center', gap:5, flexShrink:0, flexWrap:'wrap' }}>
             <span style={{ fontSize:11, color:`${C.cream}66`, fontWeight:600 }}>גוש</span>
             <input value={gushVal} onChange={e=>setGushVal(e.target.value)} placeholder="6443" style={inputSt}
-              onKeyDown={e=>e.key==='Enter'&&handleSearch()}/>
+              onKeyDown={e=>{e.stopPropagation();if(e.key==='Enter'){e.preventDefault();handleSearch()}}}/>
             <span style={{ fontSize:11, color:`${C.cream}66`, fontWeight:600 }}>חלקה</span>
             <input value={helkaVal} onChange={e=>setHelkaVal(e.target.value)} placeholder="276" style={inputSt}
-              onKeyDown={e=>e.key==='Enter'&&handleSearch()}/>
+              onKeyDown={e=>{e.stopPropagation();if(e.key==='Enter'){e.preventDefault();handleSearch()}}}/>
             <span style={{ fontSize:11, color:`${C.cream}66`, fontWeight:600 }}>תת</span>
             <input value={subHelkaVal} onChange={e=>setSubHelkaVal(e.target.value)} placeholder="0" style={{ ...inputSt, width:46 }}
-              onKeyDown={e=>e.key==='Enter'&&handleSearch()}/>
+              onKeyDown={e=>{e.stopPropagation();if(e.key==='Enter'){e.preventDefault();handleSearch()}}}/>
             <button onClick={handleSearch} disabled={!mapReady}
               style={{ ...btnSt(false), padding:'6px 12px', background: searching ? `${C.purple}BB` : C.purple, color:'#fff', border:'none', minWidth:52, opacity: !mapReady ? .5 : 1 }}>
               {searching ? '...' : 'חפש'}
@@ -391,7 +408,11 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark,
       {/* ── Layer Panel — OUTSIDE overflow:hidden so it isn't clipped ── */}
       {showPanel && (
         <div ref={panelRef}
+          onClick={e => e.stopPropagation()}
           onMouseDown={e => e.stopPropagation()}
+          onTouchStart={e => e.stopPropagation()}
+          onTouchEnd={e => e.stopPropagation()}
+          onPointerDown={e => e.stopPropagation()}
           style={{ position:'absolute', top: toolbarHeight + 2, right:0, zIndex:50,
             background:panelBg, backdropFilter:'blur(14px)',
             border:`1px solid ${C.purple}28`, borderRadius:'0 0 0 12px',

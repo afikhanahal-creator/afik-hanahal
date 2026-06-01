@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, createContext, useContext, useMemo, lazy, Suspense } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, createContext, useContext, useMemo, lazy, Suspense } from 'react'
 import { MenuToggleIcon } from './MenuToggleIcon.jsx'
 import AccessibilityWidget from './AccessibilityWidget.jsx'
 import CookieConsent from './CookieConsent.jsx'
@@ -18,7 +18,7 @@ function lazyWithRetry(fn) {
 }
 const LeadsBoard   = lazyWithRetry(() => import('./LeadsBoard.jsx'))
 const GreenAPIChat = lazyWithRetry(() => import('./GreenAPIChat.jsx'))
-import { FaChevronLeft, FaChevronRight, FaEnvelope, FaFacebookF, FaInstagram, FaBed, FaRulerCombined, FaCar, FaSwimmingPool, FaBuilding, FaBoxOpen, FaTree, FaSnowflake, FaShieldAlt, FaCouch, FaTools, FaMapMarkerAlt, FaExternalLinkAlt, FaPhone, FaCompass, FaLeaf, FaCalendarAlt, FaTimes, FaWhatsapp, FaSun, FaFileAlt, FaHome, FaMoneyBill, FaSearch, FaBalanceScale, FaHandshake, FaTrophy, FaHardHat, FaLock, FaKey, FaGlobe, FaSeedling, FaBolt, FaRocket, FaStar, FaChartLine, FaEye, FaPlay, FaWheelchair, FaFire, FaCalculator, FaShareAlt, FaHeart, FaStore, FaCamera, FaWifi, FaIndustry, FaExpand, FaUser, FaUsers, FaDesktop, FaMobileAlt, FaTabletAlt, FaCommentAlt, FaRobot, FaInbox, FaExclamationTriangle, FaChartBar, FaThumbsUp, FaImage, FaPencilAlt, FaCrown, FaMousePointer, FaDollarSign, FaVideo, FaLink, FaCheck, FaCheckCircle, FaUtensils, FaDoorOpen, FaUserShield } from 'react-icons/fa'
+import { FaChevronLeft, FaChevronRight, FaEnvelope, FaFacebookF, FaInstagram, FaBed, FaRulerCombined, FaCar, FaSwimmingPool, FaBuilding, FaBoxOpen, FaTree, FaSnowflake, FaShieldAlt, FaCouch, FaTools, FaMapMarkerAlt, FaExternalLinkAlt, FaPhone, FaCompass, FaLeaf, FaCalendarAlt, FaTimes, FaWhatsapp, FaSun, FaFileAlt, FaHome, FaMoneyBill, FaSearch, FaBalanceScale, FaHandshake, FaTrophy, FaHardHat, FaLock, FaKey, FaGlobe, FaSeedling, FaBolt, FaRocket, FaStar, FaChartLine, FaEye, FaPlay, FaWheelchair, FaFire, FaCalculator, FaShareAlt, FaHeart, FaStore, FaCamera, FaWifi, FaIndustry, FaExpand, FaUser, FaUsers, FaDesktop, FaMobileAlt, FaTabletAlt, FaCommentAlt, FaRobot, FaInbox, FaExclamationTriangle, FaChartBar, FaThumbsUp, FaImage, FaPencilAlt, FaCrown, FaMousePointer, FaDollarSign, FaVideo, FaLink, FaCheck, FaCheckCircle, FaUtensils, FaDoorOpen, FaUserShield, FaTrash } from 'react-icons/fa'
 
 // ─── SERVER CONFIG ────────────────────────────────────────────────────────────
 // Set VITE_API_URL in Vercel env vars to point at your Render server.
@@ -2010,6 +2010,8 @@ function ServicesSection({ onContact }) {
 
 // ─── CONTACT MODAL ────────────────────────────────────────────────────────────
 const LEADS_STORE      = 'afik_leads_v1'
+const LEADS_TRASH_KEY  = 'afik_leads_trash_v1'
+const KPI_HEIGHT_KEY   = 'afik_kpi_panel_height'
 const DELETED_IDS_KEY  = 'afik_deleted_lead_ids'
 const getDeletedIds    = () => { try { return new Set(JSON.parse(localStorage.getItem(DELETED_IDS_KEY) || '[]')) } catch { return new Set() } }
 const persistDeletedId = id => { try { const s = getDeletedIds(); s.add(String(id)); localStorage.setItem(DELETED_IDS_KEY, JSON.stringify([...s])) } catch {} }
@@ -2017,9 +2019,11 @@ const clearDeletedId   = id => { try { const s = getDeletedIds(); s.delete(Strin
 const clearAllDeletedIds = ()  => { try { localStorage.removeItem(DELETED_IDS_KEY) } catch {} }
 const WA_KEY         = 'afik_wa_settings'
 const ANALYTICS_KEY  = 'afik_analytics_v2'
-const WA_DEFAULT_TEMPLATE = `היי {name},
-ראינו שהשארת פרטים באתר של אפיק הנחל.
-כיצד נוכל לעזור?`
+const WA_DEFAULT_TEMPLATE = `היי {name} 👋
+תודה שפנית לאפיק הנחל!
+ראינו את הפנייה שלך
+
+מתי נוח לך לדבר? נשמח לתאם שיחה`
 
 function _getDevice() {
   const ua = navigator.userAgent
@@ -2111,7 +2115,7 @@ async function sendWhatsAppLead(lead, overrideSettings) {
     if (!st.enabled || !st.instanceId || !st.token || !lead.phone) return
     const phone = toIntlPhone(lead.phone)
     if (!phone) return
-    const msg = (st.template || WA_DEFAULT_TEMPLATE).replace(/\{name\}/g, lead.name || '')
+    const msg = (st.template || WA_DEFAULT_TEMPLATE).replace(/\{name\}/g, (lead.name || '').split(' ')[0] || '')
     if (st.provider === 'ultramsg') {
       await fetch(`https://api.ultramsg.com/${st.instanceId}/messages/chat`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -3157,21 +3161,26 @@ function AnalyticsDashboard({ leads }) {
       )}
 
       {analyticsTab === 'site' && <>
-      {/* ── Top KPI Row ── */}
-      <div className="admin-analytics-kpi" style={{ display:'grid', gap:10 }}>
+
+      {/* ── Primary KPI Row ── */}
+      <div className="admin-analytics-kpi" style={{ display:'grid', gap:12 }}>
         {[
-          { label:'סשנים היום',   value:todaySess.length,   color:C.purple,    Icon:FaUser,       sub:'כניסות ייחודיות' },
-          { label:'סשנים השבוע',  value:weekSess.length,    color:C.green,     Icon:FaChartLine,  sub:'7 ימים אחרונים' },
-          { label:'צפיות נכסים',  value:propViews.length,   color:'#F7C948',   Icon:FaHome,       sub:'סה"כ' },
-          { label:'המרות',        value:`${convRate}%`,     color:'#FF6B6B',   Icon:FaBalanceScale, sub:'פניות / סשנים' },
+          { label:'סשנים היום',  value:todaySess.length,  color:C.purple,      Icon:FaUser,         sub:'כניסות ייחודיות' },
+          { label:'סשנים השבוע', value:weekSess.length,   color:C.green,       Icon:FaChartLine,    sub:'7 ימים אחרונים'  },
+          { label:'צפיות נכסים', value:propViews.length,  color:'#F7C948',     Icon:FaHome,         sub:'סה"כ'             },
+          { label:'המרות',       value:`${convRate}%`,    color:'#FF6B6B',     Icon:FaBalanceScale, sub:'פניות / סשנים'   },
         ].map((k,i) => (
-          <div key={i} style={{ background:`${k.color}10`, border:`1px solid ${k.color}35`, borderRadius:14, padding:'16px 14px', textAlign:'center' }}>
-            <div style={{ marginBottom:8, display:'flex', alignItems:'center', justifyContent:'center' }}>
-              <k.Icon size={18} style={{ color:k.color }}/>
+          <div key={i} style={{ background:`linear-gradient(145deg,${k.color}1C 0%,${k.color}07 100%)`, border:`1px solid ${k.color}44`, borderRadius:18, padding:'20px 16px', position:'relative', overflow:'hidden' }}>
+            <div style={{ position:'absolute', top:-26, right:-26, width:96, height:96, background:k.color, opacity:.07, borderRadius:'50%', filter:'blur(28px)', pointerEvents:'none' }}/>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
+              <div style={{ width:40, height:40, borderRadius:12, background:`${k.color}22`, border:`1px solid ${k.color}44`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                <k.Icon size={17} style={{ color:k.color }}/>
+              </div>
+              <span style={{ fontSize:9, fontWeight:800, letterSpacing:'.09em', background:`${k.color}18`, border:`1px solid ${k.color}28`, borderRadius:20, padding:'2px 9px', color:k.color }}>LIVE</span>
             </div>
-            <div style={{ fontSize:26, fontWeight:900, color:k.color, lineHeight:1 }}>{k.value}</div>
-            <div style={{ fontSize:11, color:`${C.cream}80`, marginTop:5, fontWeight:700 }}>{k.label}</div>
-            <div style={{ fontSize:10, color:`${C.cream}40`, marginTop:2 }}>{k.sub}</div>
+            <div style={{ fontSize:34, fontWeight:900, color:k.color, lineHeight:1, letterSpacing:'-.01em' }}>{k.value}</div>
+            <div style={{ fontSize:12, color:C.cream, marginTop:8, fontWeight:700 }}>{k.label}</div>
+            <div style={{ fontSize:10, color:`${C.cream}44`, marginTop:2 }}>{k.sub}</div>
           </div>
         ))}
       </div>
@@ -3182,79 +3191,114 @@ function AnalyticsDashboard({ leads }) {
           { label:'טפסי יצירת קשר', value:contacts.length,    color:'#FF6B6B', Icon:FaEnvelope },
           { label:'קליקי WhatsApp',  value:waClicks.length,    color:'#25D366', Icon:FaWhatsapp },
           { label:'קליקי טלפון',     value:phoneClicks.length, color:C.green,   Icon:FaPhone },
-          { label:'סה"כ לידים CRM',  value:leads.length,       color:C.purple,  Icon:FaUsers },
+          { label:'סה"כ לידים CRM',  value:leads.length,       color:C.purple,  Icon:FaUsers  },
         ].map((k,i) => (
-          <div key={i} style={{ background:`${k.color}0A`, border:`1px solid ${k.color}28`, borderRadius:10, padding:'10px 12px', display:'flex', alignItems:'center', gap:10 }}>
-            <k.Icon size={17} style={{ color:k.color, flexShrink:0 }}/>
+          <div key={i} style={{ background:`${k.color}0D`, border:`1px solid ${k.color}30`, borderRadius:13, padding:'13px 14px', display:'flex', alignItems:'center', gap:12 }}>
+            <div style={{ width:38, height:38, borderRadius:11, background:`${k.color}20`, border:`1px solid ${k.color}40`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+              <k.Icon size={16} style={{ color:k.color }}/>
+            </div>
             <div>
-              <div style={{ fontSize:20, fontWeight:900, color:k.color, lineHeight:1 }}>{k.value}</div>
-              <div style={{ fontSize:10, color:`${C.cream}55`, marginTop:2, fontWeight:600 }}>{k.label}</div>
+              <div style={{ fontSize:22, fontWeight:900, color:k.color, lineHeight:1 }}>{k.value}</div>
+              <div style={{ fontSize:10.5, color:`${C.cream}66`, marginTop:3, fontWeight:600 }}>{k.label}</div>
             </div>
           </div>
         ))}
       </div>
 
-      {/* ── 7-day chart ── */}
-      <div style={{ background:'rgba(255,255,255,.03)', borderRadius:14, padding:'16px 18px', border:`1px solid ${C.purple}18` }}>
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
-          <div style={{ fontSize:13, fontWeight:800, color:C.cream }}>ביקורים — 7 ימים אחרונים</div>
-          <div style={{ fontSize:11, color:`${C.cream}44` }}>סשנים ייחודיים</div>
+      {/* ── 7-day bar chart ── */}
+      <div style={{ background: isDark ? 'rgba(255,255,255,.025)' : 'rgba(0,0,0,.02)', borderRadius:18, padding:'20px 22px', border:`1px solid ${C.purple}20`, boxShadow: isDark ? '0 4px 24px rgba(0,0,0,.22)' : '0 2px 10px rgba(0,0,0,.05)' }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:18 }}>
+          <div>
+            <div style={{ fontSize:14, fontWeight:800, color:C.cream }}>ביקורים — 7 ימים אחרונים</div>
+            <div style={{ fontSize:11, color:`${C.cream}44`, marginTop:2 }}>סשנים ייחודיים</div>
+          </div>
+          <div style={{ fontSize:11, fontWeight:700, color:C.purple, background:`${C.purple}14`, border:`1px solid ${C.purple}30`, borderRadius:20, padding:'4px 13px' }}>
+            שבוע: {weekSess.length}
+          </div>
         </div>
-        <svg viewBox="0 0 490 100" style={{ width:'100%', height:100, direction:'ltr', overflow:'visible' }}>
-          <line x1="0" y1="78" x2="490" y2="78" stroke={`${C.cream}12`} strokeWidth="1"/>
+        <svg viewBox="0 0 490 128" style={{ width:'100%', height:128, direction:'ltr', overflow:'visible' }}>
+          {/* Gridlines */}
+          {[0,.33,.66,1].map((pct,gi) => {
+            const y = 96 - pct * 76
+            return <line key={gi} x1="0" y1={y} x2="490" y2={y} stroke={`${C.cream}${gi===0?'12':'07'}`} strokeWidth="1" strokeDasharray={gi===0?undefined:'3 5'}/>
+          })}
           {days7.map((d,i) => {
-            const bw = 52, gap = (490 - 7*bw)/6
-            const x = i*(bw+gap)
-            const bh = Math.max((d.cnt/maxCnt)*62, d.cnt > 0 ? 4 : 0)
-            const by = 78 - bh
+            const bw = 50, gap = (490 - 7*bw) / 6
+            const x  = i * (bw + gap)
+            const bh = Math.max((d.cnt / maxCnt) * 76, d.cnt > 0 ? 5 : 0)
+            const by = 96 - bh
+            const isToday = i === 6
             return (
               <g key={i}>
-                <rect x={x} y={by} width={bw} height={bh} rx={5}
-                  fill={i===6 ? C.purple : `${C.purple}50`}
-                  style={{ transition:'height .6s, y .6s' }}/>
-                <text x={x+bw/2} y={94} textAnchor="middle" fill={`${C.cream}55`} fontSize="9.5" fontFamily="Rubik,sans-serif">{d.label}</text>
-                {d.cnt > 0 && <text x={x+bw/2} y={by-4} textAnchor="middle" fill={i===6?C.purple:`${C.cream}77`} fontSize="10" fontWeight="700" fontFamily="Rubik,sans-serif">{d.cnt}</text>}
+                <defs>
+                  <linearGradient id={`gb${i}`} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%"   stopColor={isToday ? C.purple : `${C.purple}99`}/>
+                    <stop offset="100%" stopColor={isToday ? `${C.purple}cc` : `${C.purple}2A`}/>
+                  </linearGradient>
+                </defs>
+                {isToday && <rect x={x+5} y={by+6} width={bw-10} height={bh} rx={6} fill={C.purple} opacity=".12" style={{ filter:'blur(7px)' }}/>}
+                <rect x={x} y={by} width={bw} height={bh} rx={6} fill={`url(#gb${i})`}
+                  style={{ transition:'height .7s cubic-bezier(.34,1.56,.64,1), y .7s cubic-bezier(.34,1.56,.64,1)' }}/>
+                {d.cnt > 0 && (
+                  <text x={x+bw/2} y={by-5} textAnchor="middle"
+                    fill={isToday ? C.purple : `${C.cream}77`}
+                    fontSize="10" fontWeight="800" fontFamily="Rubik,sans-serif">{d.cnt}</text>
+                )}
+                <text x={x+bw/2} y={113} textAnchor="middle"
+                  fill={isToday ? C.purple : `${C.cream}55`}
+                  fontSize="10" fontWeight={isToday?'800':'500'} fontFamily="Rubik,sans-serif">{d.label}</text>
+                {isToday && <circle cx={x+bw/2} cy={121} r={3} fill={C.purple}/>}
               </g>
             )
           })}
         </svg>
       </div>
 
-      {/* ── Sources + Devices row ── */}
+      {/* ── Sources + Devices ── */}
       <div className="admin-overview-bottom" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
 
         {/* Traffic Sources */}
-        <div style={{ background:'rgba(255,255,255,.03)', borderRadius:14, padding:'16px 18px', border:`1px solid ${C.purple}18` }}>
-          <div style={{ fontSize:13, fontWeight:800, color:C.cream, marginBottom:14 }}>מקורות טראפיק</div>
+        <div style={{ background: isDark ? 'rgba(255,255,255,.025)' : 'rgba(0,0,0,.02)', borderRadius:18, padding:'20px 20px', border:`1px solid ${C.purple}20` }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
+            <div style={{ fontSize:13, fontWeight:800, color:C.cream }}>מקורות טראפיק</div>
+            <span style={{ fontSize:10, color:`${C.cream}44`, background:`${C.purple}12`, borderRadius:20, padding:'2px 9px', border:`1px solid ${C.purple}20` }}>{sessions.length} סשנים</span>
+          </div>
           {srcList.length > 0 ? (
-            <div style={{ display:'flex', flexDirection:'column', gap:9 }}>
+            <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
               {srcList.map(([src,cnt],i) => {
                 const pct = sessions.length > 0 ? Math.round((cnt/sessions.length)*100) : 0
                 return (
                   <div key={i}>
-                    <div style={{ display:'flex', justifyContent:'space-between', marginBottom:3 }}>
-                      <span style={{ fontSize:12, color:C.cream, fontWeight:600 }}>{src}</span>
-                      <span style={{ fontSize:11, color:`${C.cream}55` }}>{cnt} · {pct}%</span>
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:5 }}>
+                      <div style={{ display:'flex', alignItems:'center', gap:7 }}>
+                        <span style={{ width:9, height:9, borderRadius:'50%', background:src6Colors[i], flexShrink:0, boxShadow:`0 0 7px ${src6Colors[i]}88` }}/>
+                        <span style={{ fontSize:12.5, color:C.cream, fontWeight:600 }}>{src}</span>
+                      </div>
+                      <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                        <span style={{ fontSize:11, color:`${C.cream}44` }}>{cnt}</span>
+                        <span style={{ fontSize:11, fontWeight:800, color:src6Colors[i], background:`${src6Colors[i]}18`, padding:'1px 8px', borderRadius:20, border:`1px solid ${src6Colors[i]}30` }}>{pct}%</span>
+                      </div>
                     </div>
-                    <div style={{ height:6, background:'rgba(255,255,255,.08)', borderRadius:3 }}>
-                      <div style={{ height:6, width:`${pct}%`, background:src6Colors[i], borderRadius:3, transition:'width 1s ease' }}/>
+                    <div style={{ height:8, background: isDark ? 'rgba(255,255,255,.07)' : 'rgba(0,0,0,.07)', borderRadius:4 }}>
+                      <div style={{ height:8, width:`${pct}%`, background:`linear-gradient(90deg,${src6Colors[i]},${src6Colors[i]}aa)`, borderRadius:4, transition:'width 1s cubic-bezier(.34,1.56,.64,1)', boxShadow:`0 0 8px ${src6Colors[i]}55` }}/>
                     </div>
                   </div>
                 )
               })}
             </div>
           ) : (
-            <div style={{ textAlign:'center', color:`${C.cream}30`, fontSize:12, padding:'20px 0', lineHeight:1.7 }}>
-              אין נתונים עדיין<br/>
-              <span style={{ fontSize:10 }}>יצטברו בביקורים הבאים</span>
+            <div style={{ textAlign:'center', padding:'28px 0' }}>
+              <div style={{ fontSize:30, marginBottom:8, opacity:.25 }}>📊</div>
+              <div style={{ color:`${C.cream}35`, fontSize:12, fontWeight:600 }}>אין נתונים עדיין</div>
+              <div style={{ color:`${C.cream}25`, fontSize:10, marginTop:4 }}>יצטברו בביקורים הבאים</div>
             </div>
           )}
         </div>
 
         {/* Devices */}
-        <div style={{ background:'rgba(255,255,255,.03)', borderRadius:14, padding:'16px 18px', border:`1px solid ${C.purple}18` }}>
-          <div style={{ fontSize:13, fontWeight:800, color:C.cream, marginBottom:14 }}>סוג מכשיר</div>
-          <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+        <div style={{ background: isDark ? 'rgba(255,255,255,.025)' : 'rgba(0,0,0,.02)', borderRadius:18, padding:'20px 20px', border:`1px solid ${C.purple}20` }}>
+          <div style={{ fontSize:13, fontWeight:800, color:C.cream, marginBottom:16 }}>סוג מכשיר</div>
+          <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
             {[
               { label:'מובייל',  key:'mobile',  Icon:FaMobileAlt, color:'#60D4F7' },
               { label:'דסקטופ',  key:'desktop', Icon:FaDesktop,   color:C.purple },
@@ -3262,31 +3306,38 @@ function AnalyticsDashboard({ leads }) {
             ].map(d => {
               const pct = sessions.length > 0 ? Math.round((devMap[d.key]/sessions.length)*100) : 0
               return (
-                <div key={d.key} style={{ display:'flex', alignItems:'center', gap:10 }}>
-                  <d.Icon size={16} style={{ color:d.color, flexShrink:0 }}/>
-                  <div style={{ flex:1 }}>
-                    <div style={{ display:'flex', justifyContent:'space-between', marginBottom:3 }}>
-                      <span style={{ fontSize:12, color:C.cream, fontWeight:600 }}>{d.label}</span>
-                      <span style={{ fontSize:11, color:`${C.cream}55` }}>{devMap[d.key]} ({pct}%)</span>
+                <div key={d.key}>
+                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:5 }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                      <div style={{ width:30, height:30, borderRadius:9, background:`${d.color}18`, border:`1px solid ${d.color}33`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                        <d.Icon size={13} style={{ color:d.color }}/>
+                      </div>
+                      <span style={{ fontSize:12.5, color:C.cream, fontWeight:600 }}>{d.label}</span>
                     </div>
-                    <div style={{ height:6, background:'rgba(255,255,255,.08)', borderRadius:3 }}>
-                      <div style={{ height:6, width:`${pct}%`, background:d.color, borderRadius:3 }}/>
+                    <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                      <span style={{ fontSize:11, color:`${C.cream}44` }}>{devMap[d.key]}</span>
+                      <span style={{ fontSize:11, fontWeight:800, color:d.color, background:`${d.color}18`, padding:'1px 8px', borderRadius:20 }}>{pct}%</span>
                     </div>
+                  </div>
+                  <div style={{ height:8, background: isDark ? 'rgba(255,255,255,.07)' : 'rgba(0,0,0,.07)', borderRadius:4 }}>
+                    <div style={{ height:8, width:`${pct}%`, background:`linear-gradient(90deg,${d.color},${d.color}aa)`, borderRadius:4, transition:'width 1s ease', boxShadow:`0 0 8px ${d.color}44` }}/>
                   </div>
                 </div>
               )
             })}
           </div>
           {sessions.length > 0 && (
-            <div style={{ marginTop:14, display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+            <div style={{ marginTop:16, display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
               {[
-                { label:'WhatsApp', v:waClicks.length, c:'#25D366', Icon:FaWhatsapp },
-                { label:'טלפון',    v:phoneClicks.length, c:C.green, Icon:FaPhone },
+                { label:'WhatsApp', v:waClicks.length,    c:'#25D366', Icon:FaWhatsapp },
+                { label:'טלפון',    v:phoneClicks.length, c:C.green,   Icon:FaPhone },
               ].map((d,i) => (
-                <div key={i} style={{ background:`${d.c}0C`, border:`1px solid ${d.c}28`, borderRadius:9, padding:'8px 10px', textAlign:'center' }}>
-                  <d.Icon size={14} style={{ color:d.c }}/>
-                  <div style={{ fontSize:18, fontWeight:800, color:d.c, lineHeight:1.2 }}>{d.v}</div>
-                  <div style={{ fontSize:10, color:`${C.cream}44`, marginTop:2 }}>{d.label}</div>
+                <div key={i} style={{ background:`${d.c}0E`, border:`1px solid ${d.c}30`, borderRadius:11, padding:'11px 12px', textAlign:'center' }}>
+                  <div style={{ width:30, height:30, borderRadius:9, background:`${d.c}20`, border:`1px solid ${d.c}40`, display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 7px' }}>
+                    <d.Icon size={13} style={{ color:d.c }}/>
+                  </div>
+                  <div style={{ fontSize:20, fontWeight:900, color:d.c, lineHeight:1 }}>{d.v}</div>
+                  <div style={{ fontSize:10, color:`${C.cream}44`, marginTop:3 }}>{d.label}</div>
                 </div>
               ))}
             </div>
@@ -3296,55 +3347,70 @@ function AnalyticsDashboard({ leads }) {
 
       {/* ── Top Properties ── */}
       {topProps.length > 0 && (
-        <div style={{ background:'rgba(255,255,255,.03)', borderRadius:14, padding:'16px 18px', border:`1px solid ${C.purple}18` }}>
-          <div style={{ fontSize:13, fontWeight:800, color:C.cream, marginBottom:12 }}>נכסים שנצפו הכי הרבה</div>
-          <div style={{ display:'flex', flexDirection:'column', gap:7 }}>
-            {topProps.map(([title,cnt],i) => (
-              <div key={i} style={{ display:'flex', alignItems:'center', gap:12, padding:'9px 14px', background:'rgba(255,255,255,.03)', borderRadius:9, border:`1px solid ${C.purple}12` }}>
-                <span style={{ fontSize:14, fontWeight:900, color:C.purple, minWidth:22, textAlign:'center' }}>#{i+1}</span>
-                <span style={{ fontSize:13, color:C.cream, flex:1 }}>{title}</span>
-                <span style={{ fontSize:12, color:C.purple, fontWeight:700, background:`${C.purple}18`, padding:'3px 12px', borderRadius:20, flexShrink:0 }}>{cnt} צפיות</span>
-              </div>
-            ))}
+        <div style={{ background: isDark ? 'rgba(255,255,255,.025)' : 'rgba(0,0,0,.02)', borderRadius:18, padding:'20px 22px', border:`1px solid ${C.purple}20` }}>
+          <div style={{ fontSize:13, fontWeight:800, color:C.cream, marginBottom:14 }}>נכסים שנצפו הכי הרבה</div>
+          <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+            {topProps.map(([title,cnt],i) => {
+              const maxV = topProps[0][1]
+              const pct  = Math.round((cnt / maxV) * 100)
+              const rankColors = [C.purple, C.green, '#F7C948', '#FF6B6B', '#60D4F7']
+              const rc = rankColors[i] || C.purple
+              return (
+                <div key={i} style={{ position:'relative', borderRadius:11, overflow:'hidden', border:`1px solid ${rc}18` }}>
+                  <div style={{ position:'absolute', inset:0, width:`${pct}%`, background:`${rc}10`, borderRadius:11, transition:'width .9s ease', pointerEvents:'none' }}/>
+                  <div style={{ position:'relative', display:'flex', alignItems:'center', gap:12, padding:'11px 14px' }}>
+                    <div style={{ width:30, height:30, borderRadius:9, background:`${rc}22`, border:`1px solid ${rc}40`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                      <span style={{ fontSize:12, fontWeight:900, color:rc }}>#{i+1}</span>
+                    </div>
+                    <span style={{ fontSize:13, color:C.cream, flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{title}</span>
+                    <span style={{ fontSize:12, color:rc, fontWeight:800, background:`${rc}18`, padding:'3px 12px', borderRadius:20, flexShrink:0, border:`1px solid ${rc}28` }}>{cnt} צפיות</span>
+                  </div>
+                </div>
+              )
+            })}
           </div>
         </div>
       )}
 
       {/* ── External Platforms ── */}
-      <div style={{ background:'rgba(255,255,255,.03)', borderRadius:14, padding:'16px 18px', border:`1px solid ${C.purple}18` }}>
-        <div style={{ fontSize:13, fontWeight:800, color:C.cream, marginBottom:14 }}>לוחות בקרה חיצוניים</div>
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:9 }}>
+      <div style={{ background: isDark ? 'rgba(255,255,255,.025)' : 'rgba(0,0,0,.02)', borderRadius:18, padding:'20px 22px', border:`1px solid ${C.purple}20` }}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16, flexWrap:'wrap', gap:8 }}>
+          <div style={{ fontSize:13, fontWeight:800, color:C.cream }}>לוחות בקרה חיצוניים</div>
+          <div style={{ display:'flex', gap:7, flexWrap:'wrap' }}>
+            {[
+              { label:'Meta Pixel', color:'#1877F2' },
+              { label:'GA4',        color:'#FF6B35' },
+              { label:'LogRocket',  color:'#764ABC' },
+            ].map((b,i) => (
+              <span key={i} style={{ fontSize:10, color:b.color, background:`${b.color}12`, padding:'3px 10px', borderRadius:20, border:`1px solid ${b.color}30`, fontWeight:800 }}>✦ {b.label} פעיל</span>
+            ))}
+          </div>
+        </div>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:10 }}>
           {[
-            { label:'Google Analytics',   sub:'G-X1S3XX7TRV',            Icon:FaChartBar,   color:'#FF6B35', url:'https://analytics.google.com' },
-            { label:'Meta Business Suite', sub:'Pixel 1341264237748951',  Icon:FaFacebookF,  color:'#1877F2', url:'https://business.facebook.com' },
-            { label:'Meta Events Manager', sub:'פיקסל ופרסומות',          Icon:FaBolt,       color:'#F7C948', url:'https://business.facebook.com/events_manager' },
-            { label:'Facebook – אפיק הנחל', sub:'Profile page',           Icon:FaThumbsUp,   color:'#1877F2', url:'https://www.facebook.com/profile.php?id=61573376818745' },
-            { label:'Instagram – afik.hanahal', sub:'@afik.hanahal',      Icon:FaInstagram,  color:'#E1306C', url:'https://www.instagram.com/afik.hanahal/' },
-            { label:'LogRocket Sessions',  sub:'tkrebw/afik-hanahal',     Icon:FaVideo,      color:'#764ABC', url:'https://app.logrocket.com/tkrebw/afik-hanahal' },
+            { label:'Google Analytics',      sub:'G-X1S3XX7TRV',           Icon:FaChartBar,  color:'#FF6B35', url:'https://analytics.google.com' },
+            { label:'Meta Business Suite',   sub:'Pixel 1341264237748951',  Icon:FaFacebookF, color:'#1877F2', url:'https://business.facebook.com' },
+            { label:'Meta Events Manager',   sub:'פיקסל ופרסומות',          Icon:FaBolt,      color:'#F7C948', url:'https://business.facebook.com/events_manager' },
+            { label:'Facebook – אפיק הנחל',  sub:'Profile page',            Icon:FaThumbsUp,  color:'#1877F2', url:'https://www.facebook.com/profile.php?id=61573376818745' },
+            { label:'Instagram – afik.hanahal', sub:'@afik.hanahal',        Icon:FaInstagram, color:'#E1306C', url:'https://www.instagram.com/afik.hanahal/' },
+            { label:'LogRocket Sessions',    sub:'tkrebw/afik-hanahal',     Icon:FaVideo,     color:'#764ABC', url:'https://app.logrocket.com/tkrebw/afik-hanahal' },
           ].map((p,i) => (
             <a key={i} href={p.url} target="_blank" rel="noopener noreferrer"
-              style={{ display:'flex', flexDirection:'column', gap:5, background:`${p.color}09`, border:`1px solid ${p.color}28`, borderRadius:11, padding:'12px 12px', textDecoration:'none', color:'inherit', transition:'all .2s', cursor:'pointer' }}
-              onMouseEnter={e => { e.currentTarget.style.background=`${p.color}1A`; e.currentTarget.style.borderColor=`${p.color}55`; e.currentTarget.style.transform='translateY(-2px)' }}
-              onMouseLeave={e => { e.currentTarget.style.background=`${p.color}09`; e.currentTarget.style.borderColor=`${p.color}28`; e.currentTarget.style.transform='' }}>
-              <p.Icon size={16} style={{ color:p.color }}/>
+              style={{ display:'flex', flexDirection:'column', gap:6, background:`${p.color}0D`, border:`1px solid ${p.color}30`, borderRadius:13, padding:'14px', textDecoration:'none', color:'inherit', transition:'all .2s', cursor:'pointer' }}
+              onMouseEnter={e => { e.currentTarget.style.background=`${p.color}1C`; e.currentTarget.style.borderColor=`${p.color}60`; e.currentTarget.style.transform='translateY(-3px)'; e.currentTarget.style.boxShadow=`0 8px 20px ${p.color}22` }}
+              onMouseLeave={e => { e.currentTarget.style.background=`${p.color}0D`; e.currentTarget.style.borderColor=`${p.color}30`; e.currentTarget.style.transform=''; e.currentTarget.style.boxShadow='' }}>
+              <div style={{ width:34, height:34, borderRadius:10, background:`${p.color}20`, border:`1px solid ${p.color}44`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                <p.Icon size={14} style={{ color:p.color }}/>
+              </div>
               <div style={{ fontSize:12, fontWeight:700, color:C.cream, lineHeight:1.3 }}>{p.label}</div>
               <div style={{ fontSize:10, color:`${C.cream}40`, direction:'ltr' }}>{p.sub}</div>
             </a>
           ))}
         </div>
-        <div style={{ marginTop:12, display:'flex', gap:16, flexWrap:'wrap' }}>
-          {[
-            { label:'✦ Meta Pixel פעיל', color:'#1877F2' },
-            { label:'✦ GA4 פעיל', color:'#FF6B35' },
-            { label:'✦ LogRocket מוגדר', color:'#764ABC' },
-          ].map((b,i) => (
-            <span key={i} style={{ fontSize:11, color:b.color, background:`${b.color}12`, padding:'3px 10px', borderRadius:20, border:`1px solid ${b.color}30`, fontWeight:700 }}>{b.label}</span>
-          ))}
-        </div>
       </div>
 
-      {/* ── Footer: clear + refresh ── */}
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+      {/* ── Footer ── */}
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'4px 0' }}>
         <span style={{ fontSize:11, color:`${C.cream}33` }}>
           {events.length} אירועים · {sessions.length} סשנים · עדכון כל 30 שניות
         </span>
@@ -3659,6 +3725,13 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
       .catch(() => {})
   }, [])
 
+  // Track viewport width for responsive KPI grid
+  useEffect(() => {
+    const onResize = () => setViewW(window.innerWidth)
+    window.addEventListener('resize', onResize, { passive: true })
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+
   // Auto-save while editing an existing property (3 s debounce, silent — no spinner)
   useEffect(() => {
     if (editId === null) return
@@ -3701,6 +3774,12 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     }
   }
   const [leads, setLeads]   = useState(() => { try { return JSON.parse(localStorage.getItem(LEADS_STORE) || '[]') } catch { return [] } })
+  const [deletedLeads, setDeletedLeads] = useState(() => { try { return JSON.parse(localStorage.getItem(LEADS_TRASH_KEY) || '[]') } catch { return [] } })
+  const [showTrash, setShowTrash] = useState(false)
+  const [kpiHeight, setKpiHeight] = useState(() => { try { const v = localStorage.getItem(KPI_HEIGHT_KEY); return v !== null ? Number(v) : null } catch { return null } })
+  const kpiDragRef = useRef(null)
+  const kpiDragState = useRef(null)
+  const [viewW, setViewW] = useState(() => window.innerWidth)
   const [crmWebhook, setCrmWebhook] = useState(() => _cloudSettings.crmWebhook || '')
   const [webhookSaved, setWebhookSaved] = useState(false)
   const [waSt, setWaSt] = useState(() => ({ provider:'greenapi', delayMin:2, template:WA_DEFAULT_TEMPLATE, instanceId:'7107558519', apiUrl:'https://7107.api.greenapi.com', token:'191b9e9c4fc540f1ad25c8607389c0d689d15794f8094a0589', enabled:true, ...(_cloudSettings.waSettings || {}) }))
@@ -4390,6 +4469,14 @@ Return ONLY valid JSON (no markdown, no code blocks):
 
   const deleteLead = id => {
     const sid = String(id)
+    const lead = leads.find(l => l.id === id)
+    if (lead) {
+      setDeletedLeads(prev => {
+        const next = [{ ...lead, deletedAt: Date.now() }, ...prev].slice(0, 50)
+        try { localStorage.setItem(LEADS_TRASH_KEY, JSON.stringify(next)) } catch {}
+        return next
+      })
+    }
     pendingDeletes.current.add(sid)
     persistDeletedId(sid) // survives page refresh — retry DELETE on next sync
     const next = leads.filter(l => l.id !== id)
@@ -4401,6 +4488,27 @@ Return ONLY valid JSON (no markdown, no code blocks):
     }).then(r => {
       if (r.ok) { pendingDeletes.current.delete(sid); clearDeletedId(sid) }
     }).catch(() => {}) // stays in pendingDeletes + localStorage → retried on next sync
+  }
+
+  const restoreLead = id => {
+    const lead = deletedLeads.find(l => l.id === id)
+    if (!lead) return
+    const { deletedAt, ...restored } = lead
+    setLeads(prev => {
+      const next = [restored, ...prev.filter(l => l.id !== id)]
+      try { localStorage.setItem(LEADS_STORE, JSON.stringify(next)) } catch {}
+      return next
+    })
+    setDeletedLeads(prev => {
+      const next = prev.filter(l => l.id !== id)
+      try { localStorage.setItem(LEADS_TRASH_KEY, JSON.stringify(next)) } catch {}
+      return next
+    })
+  }
+
+  const emptyTrash = () => {
+    setDeletedLeads([])
+    try { localStorage.removeItem(LEADS_TRASH_KEY) } catch {}
   }
   const clearLeads = () => {
     if (!window.confirm('למחוק את כל הלידים לצמיתות?')) return
@@ -5203,27 +5311,157 @@ Return ONLY valid JSON (no markdown, no code blocks):
         )}
 
         {tab==='leads' && (
-          <Suspense fallback={<AdminTabLoader label="לידים" />}>
-            <LeadsBoard
-              leads={leads}
-              updateLead={updateLead}
-              updateLeadStatus={updateLeadStatus}
-              deleteLead={deleteLead}
-              addLead={lead => setLeads(prev => { const next = [...prev, lead]; try { localStorage.setItem(LEADS_STORE, JSON.stringify(next)) } catch {} return next })}
-              colOrder={colOrder} setColOrder={setColOrder}
-              customCols={customCols} setCustomCols={setCustomCols}
-              colWidths={colWidths} setColWidths={setColWidths}
-              exportCSV={exportCSV}
-              syncLeads={syncLeadsFromServer}
-              enrichAll={enrichAllLeads}
-              enrichLead={enrichLead}
-              clearLeads={clearLeads}
-              leadsSyncing={leadsSyncing}
-              isDark={isDark}
-              lang={lang}
-              onOpenChat={lead => { setInitialChatLead(lead); setTab('chats') }}
-            />
-          </Suspense>
+          <div style={{ display:'flex', flexDirection:'column', flex:1, minHeight:0, overflow:'hidden' }}>
+            {/* ── Leads KPI strip ─────────────────────────────────────── */}
+            {(() => {
+              const hotLeads   = leads.filter(l => l.enrichment?.intent === 'hot').length
+              const active     = leads.filter(l => !['won','lost'].includes(l.leadStatus || 'new')).length
+              const won        = leads.filter(l => l.leadStatus === 'won').length
+              const kpiCols    = viewW < 500 ? 2 : viewW < 800 ? 2 : 4
+              const kpiCollapsed = kpiHeight !== null && kpiHeight < 56
+              const kpis = [
+                { Icon:FaUsers,    color:'#22C55E', value: leads.length, label: lang==='en'?'Total Leads':'סה"כ לידים',    sub: lang==='en'?'all time':'כלל הזמן',         badge:'TOTAL' },
+                { Icon:FaFire,     color:'#F97316', value: hotLeads,     label: lang==='en'?'Hot Leads':'לידים חמים',       sub: lang==='en'?'AI score: hot':'ציון AI: חם', badge:'HOT' },
+                { Icon:FaChartBar, color:'#8490D8', value: active,       label: lang==='en'?'Active Pipeline':'צינור פעיל', sub: lang==='en'?'not won/lost':'לא נסגרו',     badge:'LIVE' },
+                { Icon:FaTrophy,   color:'#F7C948', value: won,          label: lang==='en'?'Closed Won':'עסקאות שנסגרו',  sub: lang==='en'?'all time':'כלל הזמן',         badge:'WON' },
+              ]
+              const startDrag = e => {
+                e.preventDefault()
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY
+                kpiDragState.current = { y: clientY, h: kpiDragRef.current ? kpiDragRef.current.offsetHeight : 160 }
+                const onMove = ev => {
+                  if (!kpiDragState.current) return
+                  const cy = ev.touches ? ev.touches[0].clientY : ev.clientY
+                  const dy = cy - kpiDragState.current.y
+                  const h = Math.max(0, Math.min(kpiDragState.current.h + dy, 260))
+                  setKpiHeight(h)
+                  try { localStorage.setItem(KPI_HEIGHT_KEY, String(h)) } catch {}
+                }
+                const onUp = () => {
+                  document.removeEventListener('mousemove', onMove)
+                  document.removeEventListener('mouseup', onUp)
+                  document.removeEventListener('touchmove', onMove)
+                  document.removeEventListener('touchend', onUp)
+                  kpiDragState.current = null
+                }
+                document.addEventListener('mousemove', onMove)
+                document.addEventListener('mouseup', onUp)
+                document.addEventListener('touchmove', onMove, { passive: false })
+                document.addEventListener('touchend', onUp)
+              }
+              return (
+                <>
+                  <div ref={kpiDragRef}
+                    style={{ overflow:'hidden', flexShrink:0, transition: kpiDragState.current ? 'none' : 'height .15s ease',
+                      height: kpiHeight !== null ? kpiHeight : 'auto' }}>
+                    {kpiCollapsed
+                      ? (
+                        <div style={{ display:'flex', gap:8, padding:'6px 16px', alignItems:'center', flexWrap:'wrap' }}>
+                          {kpis.map((k,i) => (
+                            <div key={i} style={{ display:'flex', alignItems:'center', gap:5, background:`${k.color}18`, border:`1px solid ${k.color}30`, borderRadius:20, padding:'3px 10px' }}>
+                              <k.Icon size={10} style={{ color:k.color }}/>
+                              <span style={{ fontSize:11, fontWeight:800, color:k.color }}>{k.value}</span>
+                              <span style={{ fontSize:10, color:`${C.cream}88` }}>{k.label}</span>
+                            </div>
+                          ))}
+                          {deletedLeads.length > 0 && (
+                            <button onClick={() => setShowTrash(t => !t)}
+                              style={{ marginRight:'auto', display:'flex', alignItems:'center', gap:5, background:'rgba(239,68,68,.12)', border:'1px solid rgba(239,68,68,.3)', borderRadius:20, padding:'3px 10px', cursor:'pointer', color:'#EF4444', fontSize:10, fontWeight:700 }}>
+                              <FaTrash size={9}/>{deletedLeads.length}
+                            </button>
+                          )}
+                        </div>
+                      )
+                      : (
+                        <div style={{ padding:'10px 16px 8px' }}>
+                          <div style={{ display:'grid', gridTemplateColumns:`repeat(${kpiCols},1fr)`, gap:viewW < 500 ? 8 : 12 }}>
+                            {kpis.map((k,i) => (
+                              <div key={i} style={{ background:`linear-gradient(145deg,${k.color}1C 0%,${k.color}07 100%)`, border:`1px solid ${k.color}44`, borderRadius:16, padding: viewW < 500 ? '10px 10px' : '16px 14px', position:'relative', overflow:'hidden' }}>
+                                <div style={{ position:'absolute', top:-22, right:-22, width:80, height:80, background:k.color, opacity:.08, borderRadius:'50%', filter:'blur(24px)', pointerEvents:'none' }}/>
+                                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: viewW < 500 ? 6 : 10 }}>
+                                  <div style={{ width:30, height:30, borderRadius:8, background:`${k.color}22`, border:`1px solid ${k.color}44`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                                    <k.Icon size={13} style={{ color:k.color }}/>
+                                  </div>
+                                  <span style={{ fontSize:8, fontWeight:800, letterSpacing:'.09em', background:`${k.color}18`, border:`1px solid ${k.color}28`, borderRadius:20, padding:'2px 7px', color:k.color }}>{k.badge}</span>
+                                </div>
+                                <div style={{ fontSize: viewW < 500 ? 22 : 28, fontWeight:900, color:k.color, lineHeight:1, letterSpacing:'-.01em' }}>{k.value}</div>
+                                <div style={{ fontSize:11, color:C.cream, marginTop:5, fontWeight:700 }}>{k.label}</div>
+                                {viewW >= 500 && <div style={{ fontSize:9, color:`${C.cream}55`, marginTop:2 }}>{k.sub}</div>}
+                              </div>
+                            ))}
+                          </div>
+                          {deletedLeads.length > 0 && (
+                            <button onClick={() => setShowTrash(t => !t)}
+                              style={{ marginTop:8, display:'flex', alignItems:'center', gap:6, background: showTrash ? 'rgba(239,68,68,.15)' : 'rgba(239,68,68,.08)', border:'1px solid rgba(239,68,68,.25)', borderRadius:8, padding:'5px 12px', cursor:'pointer', color:'#EF4444', fontSize:11, fontWeight:700, direction:'rtl' }}>
+                              <FaTrash size={10}/>{lang==='en'?`Trash (${deletedLeads.length})`:`סל מחזור (${deletedLeads.length})`}
+                            </button>
+                          )}
+                        </div>
+                      )
+                    }
+                  </div>
+
+                  {/* Trash panel */}
+                  {showTrash && !kpiCollapsed && (
+                    <div style={{ flexShrink:0, maxHeight:220, overflowY:'auto', background:'rgba(239,68,68,.04)', borderTop:'1px solid rgba(239,68,68,.15)', borderBottom:'1px solid rgba(239,68,68,.15)', padding:'8px 16px' }}>
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+                        <span style={{ fontSize:11, fontWeight:700, color:'#EF4444' }}>{lang==='en'?'Recently Deleted':'נמחקו לאחרונה'}</span>
+                        <button onClick={emptyTrash}
+                          style={{ fontSize:10, color:`${C.cream}55`, background:'none', border:'none', cursor:'pointer', padding:'2px 6px' }}>
+                          {lang==='en'?'Empty Trash':'רוקן סל'}
+                        </button>
+                      </div>
+                      <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+                        {deletedLeads.map(dl => (
+                          <div key={dl.id} style={{ display:'flex', alignItems:'center', gap:10, background:'rgba(255,255,255,.03)', border:'1px solid rgba(255,255,255,.07)', borderRadius:8, padding:'6px 10px', direction:'rtl' }}>
+                            <div style={{ flex:1, minWidth:0 }}>
+                              <div style={{ fontSize:12, fontWeight:700, color:C.cream, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{dl.name || '—'}</div>
+                              <div style={{ fontSize:10, color:`${C.cream}55` }}>{dl.phone || dl.email || ''}</div>
+                            </div>
+                            <span style={{ fontSize:9, color:`${C.cream}44`, flexShrink:0 }}>{dl.deletedAt ? new Date(dl.deletedAt).toLocaleDateString('he-IL') : ''}</span>
+                            <button onClick={() => restoreLead(dl.id)}
+                              style={{ flexShrink:0, background:'rgba(34,197,94,.15)', border:'1px solid rgba(34,197,94,.3)', borderRadius:6, padding:'3px 9px', cursor:'pointer', color:'#22C55E', fontSize:10, fontWeight:700 }}>
+                              {lang==='en'?'Restore':'שחזר'}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── Drag handle — double-click resets to default ── */}
+                  <div
+                    onMouseDown={startDrag} onTouchStart={startDrag}
+                    onDoubleClick={() => { setKpiHeight(null); try { localStorage.removeItem(KPI_HEIGHT_KEY) } catch {} }}
+                    style={{ height:10, flexShrink:0, cursor:'ns-resize', display:'flex', alignItems:'center', justifyContent:'center', userSelect:'none', background:'transparent' }}
+                    title={lang==='en'?'Drag to resize · double-click to reset':'גרור לשינוי גובה · לחץ פעמיים לאיפוס'}>
+                    <div style={{ width:40, height:4, borderRadius:4, background:`${C.purple}55`, transition:'background .15s' }}/>
+                  </div>
+                </>
+              )
+            })()}
+            <Suspense fallback={<AdminTabLoader label="לידים" />}>
+              <LeadsBoard
+                leads={leads}
+                updateLead={updateLead}
+                updateLeadStatus={updateLeadStatus}
+                deleteLead={deleteLead}
+                addLead={lead => setLeads(prev => { const next = [...prev, lead]; try { localStorage.setItem(LEADS_STORE, JSON.stringify(next)) } catch {} return next })}
+                colOrder={colOrder} setColOrder={setColOrder}
+                customCols={customCols} setCustomCols={setCustomCols}
+                colWidths={colWidths} setColWidths={setColWidths}
+                exportCSV={exportCSV}
+                syncLeads={syncLeadsFromServer}
+                enrichAll={enrichAllLeads}
+                enrichLead={enrichLead}
+                clearLeads={clearLeads}
+                leadsSyncing={leadsSyncing}
+                isDark={isDark}
+                lang={lang}
+                onOpenChat={lead => { setInitialChatLead(lead); setTab('chats') }}
+              />
+            </Suspense>
+          </div>
         )}
 
         {tab==='chats' && (
@@ -7584,6 +7822,17 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
   const [isPlaying, setIsPlaying] = useState(false)
   const slideshowRef = useRef(null)
   const videoRef = useRef(null)
+  const modalScrollRef = useRef(null)
+
+  // useLayoutEffect fires synchronously after DOM mutations but BEFORE the
+  // browser paints — the user never sees the new property at the old position.
+  // behavior:'instant' overrides scroll-behavior:smooth on the container so
+  // the jump is frame-perfect even when CSS smooth-scroll is enabled.
+  useLayoutEffect(() => {
+    const el = modalScrollRef.current
+    if (!el) return
+    el.scrollTo({ top: 0, behavior: 'instant' })
+  }, [prop.id])
   const propSwipe = useSwipeClose(onClose)
   // Gallery touch swipe — navigate photos without closing modal
   const galleryTouch = useRef({ x: 0, y: 0 })
@@ -7701,7 +7950,7 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
   ].filter(Boolean)
 
   return (
-    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.88)', backdropFilter:'blur(14px)', zIndex:900, overflowY:'auto', WebkitOverflowScrolling:'touch', scrollBehavior:'smooth' }}
+    <div ref={modalScrollRef} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.88)', backdropFilter:'blur(14px)', zIndex:900, overflowY:'auto', WebkitOverflowScrolling:'touch', scrollBehavior:'smooth' }}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
       onTouchStart={propSwipe.onTouchStart} onTouchEnd={propSwipe.onTouchEnd}>
 
