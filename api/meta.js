@@ -17,6 +17,7 @@ const WA_META_TOKEN           = process.env.WA_META_TOKEN           || ''
 const PHONE_NUMBER_ID         = process.env.WA_PHONE_NUMBER_ID      || '1160230953835065'
 const SUPABASE_URL            = process.env.SUPABASE_URL            || ''
 const SUPABASE_KEY            = process.env.SUPABASE_SERVICE_KEY    || ''
+const META_NOTIFY_PHONE       = process.env.META_NOTIFY_PHONE        || '972559811814'
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -147,6 +148,21 @@ async function handleWebhook(req, res) {
               await client.from('meta_messages').insert({ lead_id: leadId, direction: 'out', message: waMsg, wa_message_id: waId || null })
               await client.from('meta_leads').update({ wa_sent: true }).eq('id', leadId)
             }
+          }
+
+          // Notify business owner about new lead
+          if (WA_META_TOKEN && META_NOTIFY_PHONE) {
+            const displayPhone = phone ? (phone.startsWith('972') ? '0' + phone.slice(3) : phone) : '—'
+            const now = new Date().toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+            const notifyMsg = [
+              '🔔 ליד חדש נכנס!',
+              '',
+              `👤 שם: ${name || '—'}`,
+              `📞 טלפון: ${displayPhone}`,
+              `📣 קמפיין: ${campaignName || formName || '—'}`,
+              `📅 ${now}`,
+            ].join('\n')
+            await sendWA(META_NOTIFY_PHONE, notifyMsg)
           }
         }
       }

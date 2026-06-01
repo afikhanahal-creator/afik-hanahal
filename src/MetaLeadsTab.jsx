@@ -116,6 +116,27 @@ const STATUS_CONFIG = {
 
 const CAMPAIGN_COLORS = ['#8490D8','#E05252','#3BAF7E','#E08C3A','#3A8FC7','#C2497E','#F59E0B']
 
+const QUICK_REPLIES = {
+  he: [
+    { label: 'תיאום שיחה 📞', message: 'שלום {{firstName}}, שמחים שהתעניינת ב{{project}}!\nמתי נוח לך לשיחה קצרה?' },
+    { label: 'מידע נוסף 📋',   message: 'היי {{firstName}}, יש לנו פרטים נוספים על {{project}} שנשמח לשתף אתך. מתי אפשר לדבר?' },
+    { label: 'תיאום פגישה 📅', message: 'שלום {{firstName}}, נשמח לתאם פגישה להצגת {{project}}. מתי מתאים לך?' },
+    { label: 'חזרה אליך 💬',   message: 'היי {{firstName}}, חוזרים אליך בנוגע ל{{project}}. מתי נוח לדבר?' },
+  ],
+  en: [
+    { label: 'Schedule Call 📞', message: 'Hello {{firstName}}, glad you\'re interested in {{project}}!\nWhen\'s a good time for a quick call?' },
+    { label: 'More Info 📋',     message: 'Hi {{firstName}}, we have more details about {{project}} to share. When can we talk?' },
+    { label: 'Book Meeting 📅',  message: 'Hello {{firstName}}, we\'d love to schedule a presentation of {{project}}. When works for you?' },
+    { label: 'Follow Up 💬',     message: 'Hi {{firstName}}, following up about {{project}}. When\'s a good time to chat?' },
+  ],
+}
+
+function applyTemplate(tpl, lead) {
+  const firstName = lead?.name?.split(' ')[0] || ''
+  const project   = lead?.campaign_name || lead?.form_name || 'הפרויקט שלנו'
+  return tpl.replace(/\{\{firstName\}\}/g, firstName).replace(/\{\{project\}\}/g, project)
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function timeAgo(dateStr, lang) {
   const diff = (Date.now() - new Date(dateStr)) / 1000
@@ -232,10 +253,12 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat 
     try { return JSON.parse(localStorage.getItem('meta_deleted_leads') || '[]') } catch { return [] }
   })
   const [showRestore, setShowRestore]   = useState(false)
+  const [campaignDropOpen, setCampaignDropOpen] = useState(false)
 
   const messagesEndRef      = useRef(null)
   const leadsIntervalRef    = useRef(null)
   const messagesIntervalRef = useRef(null)
+  const campaignDropRef     = useRef(null)
 
   // ── Load leads ──────────────────────────────────────────────────────────────
   const loadLeads = useCallback(async (silent = false) => {
@@ -296,19 +319,23 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat 
     }
   }, [selectedLead?.id])
 
+  // ── Close campaign dropdown on outside click ─────────────────────────────────
+  useEffect(() => {
+    if (!campaignDropOpen) return
+    const handler = (e) => { if (campaignDropRef.current && !campaignDropRef.current.contains(e.target)) setCampaignDropOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [campaignDropOpen])
+
   // ── Send message ─────────────────────────────────────────────────────────────
   const handleSend = async (text) => {
-    const msg = (text || msgInput).trim()
+    const msg = (typeof text === 'string' ? text : '').trim()
     if (!msg || !selectedLead) return
     setSending(true)
     try {
       const newMsg = await sendMessage(selectedLead.id, msg)
-      if (newMsg) {
-        setMessages(prev => [...prev, newMsg])
-      } else {
-        await loadMessages(selectedLead.id, true)
-      }
-      setMsgInput('')
+      if (newMsg) setMessages(prev => [...prev, newMsg])
+      else await loadMessages(selectedLead.id, true)
     } catch (e) {
       console.error('[MetaLeadsTab] send error:', e)
     } finally {
@@ -579,22 +606,55 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat 
             ))}
           </div>
 
-          {/* Campaign filter chips */}
+          {/* Campaign filter dropdown */}
           {campaigns.length > 0 && (
-            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 8 }}>
-              {campaignFilter && (
-                <button onClick={() => setCampaignFilter(null)} style={{ padding: '3px 8px', borderRadius: 20, border: 'none', background: 'rgba(255,255,255,.08)', color: 'rgba(232,228,216,.5)', fontSize: 10, cursor: 'pointer', fontFamily: 'inherit' }}>✕ הכל</button>
-              )}
-              {campaigns.map((camp, i) => {
-                const color = CAMPAIGN_COLORS[i % CAMPAIGN_COLORS.length]
-                const isActive = campaignFilter === camp
-                return (
-                  <button key={camp} onClick={() => setCampaignFilter(isActive ? null : camp)}
-                    style={{ padding: '3px 10px', borderRadius: 20, border: `1px solid ${color}44`, background: isActive ? `${color}22` : 'transparent', color: isActive ? color : `${color}99`, fontSize: 10, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .12s', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {camp}
+            <div ref={campaignDropRef} style={{ position: 'relative', marginTop: 8 }}>
+              <button
+                onClick={() => setCampaignDropOpen(v => !v)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '5px 12px', borderRadius: 8,
+                  border: `1px solid ${campaignFilter ? PURPLE + '66' : BORDER}`,
+                  background: campaignFilter ? `${PURPLE}18` : 'rgba(255,255,255,.04)',
+                  color: campaignFilter ? PURPLE : CREAM,
+                  fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                  fontFamily: 'inherit', transition: 'all .12s',
+                  maxWidth: '100%', overflow: 'hidden',
+                }}>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, textAlign: dir === 'rtl' ? 'right' : 'left' }}>
+                  {campaignFilter || (lang === 'en' ? 'All Campaigns' : 'כל הקמפיינים')}
+                </span>
+                <span style={{ fontSize: 9, opacity: .7 }}>{campaignDropOpen ? '▲' : '▼'}</span>
+              </button>
+              {campaignDropOpen && (
+                <div style={{
+                  position: 'absolute', top: '100%', right: dir === 'rtl' ? 0 : 'auto', left: dir === 'ltr' ? 0 : 'auto',
+                  marginTop: 4, zIndex: 200, minWidth: 200, maxWidth: 280,
+                  background: '#0E0E1C', border: `1px solid ${BORDER}`,
+                  borderRadius: 10, overflow: 'hidden',
+                  boxShadow: '0 8px 24px rgba(0,0,0,.45)',
+                }}>
+                  <button
+                    onClick={() => { setCampaignFilter(null); setCampaignDropOpen(false) }}
+                    style={{ width: '100%', padding: '9px 14px', background: !campaignFilter ? `${PURPLE}18` : 'transparent', border: 'none', borderBottom: `1px solid ${BORDER}`, color: !campaignFilter ? PURPLE : MUTED, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', textAlign: dir === 'rtl' ? 'right' : 'left', direction: dir }}>
+                    {lang === 'en' ? 'All Campaigns' : 'כל הקמפיינים'}
                   </button>
-                )
-              })}
+                  {campaigns.map((camp, i) => {
+                    const color = CAMPAIGN_COLORS[i % CAMPAIGN_COLORS.length]
+                    const isActive = campaignFilter === camp
+                    return (
+                      <button key={camp}
+                        onClick={() => { setCampaignFilter(isActive ? null : camp); setCampaignDropOpen(false) }}
+                        style={{ width: '100%', padding: '9px 14px', background: isActive ? `${color}18` : 'transparent', border: 'none', borderBottom: `1px solid ${BORDER}`, color: isActive ? color : CREAM, fontSize: 12, fontWeight: isActive ? 700 : 500, cursor: 'pointer', fontFamily: 'inherit', textAlign: dir === 'rtl' ? 'right' : 'left', direction: dir, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', transition: 'background .1s' }}
+                        onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = `${color}0D` }}
+                        onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent' }}>
+                        <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: color, marginLeft: dir === 'rtl' ? 8 : 0, marginRight: dir === 'ltr' ? 8 : 0, verticalAlign: 'middle', flexShrink: 0 }}/>
+                        {camp}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -980,103 +1040,56 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat 
               flexShrink: 0,
               background: CARD,
             }}>
-              {/* Quick replies */}
-              <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
-                {[t.quickReply1, t.quickReply2, t.quickReply3, t.quickReply4].map((qr, i) => (
+              {/* Quick replies + Chat button */}
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                {(QUICK_REPLIES[lang] || QUICK_REPLIES.he).map((qr, i) => (
                   <button
                     key={i}
-                    onClick={() => handleSend(qr)}
+                    onClick={() => handleSend(applyTemplate(qr.message, selectedLead))}
                     disabled={sending}
                     style={{
-                      padding: '5px 12px',
+                      padding: '6px 14px',
                       background: 'rgba(255,255,255,.04)',
                       border: `1px solid ${BORDER}`,
                       borderRadius: 20,
                       color: MUTED,
-                      fontSize: 11,
+                      fontSize: 11, fontWeight: 600,
                       cursor: sending ? 'not-allowed' : 'pointer',
                       fontFamily: 'inherit',
-                      fontWeight: 600,
                       transition: 'all .12s',
+                      whiteSpace: 'nowrap',
                     }}
                     onMouseEnter={e => { if (!sending) { e.currentTarget.style.background = `rgba(132,144,216,.12)`; e.currentTarget.style.color = PURPLE; e.currentTarget.style.borderColor = `${PURPLE}44` }}}
                     onMouseLeave={e => { if (!sending) { e.currentTarget.style.background = 'rgba(255,255,255,.04)'; e.currentTarget.style.color = MUTED; e.currentTarget.style.borderColor = BORDER }}}
                   >
-                    {qr}
+                    {qr.label}
                   </button>
                 ))}
-              </div>
-
-              {/* Textarea + send button */}
-              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
                 {onOpenChat && (
                   <button
                     onClick={() => onOpenChat(selectedLead)}
                     title={lang === 'en' ? 'Open in Chat' : 'פתח בצ\'אט'}
                     style={{
-                      padding: '10px 14px',
+                      padding: '6px 14px',
                       background: 'rgba(130,246,127,.08)',
                       border: '1px solid rgba(130,246,127,.25)',
-                      borderRadius: 10,
+                      borderRadius: 20,
                       color: '#82F67F',
-                      fontSize: 13, fontWeight: 700, fontFamily: 'inherit',
+                      fontSize: 11, fontWeight: 700, fontFamily: 'inherit',
                       cursor: 'pointer',
-                      display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0,
-                      height: 'fit-content',
-                      transition: 'all .15s',
+                      display: 'flex', alignItems: 'center', gap: 5,
+                      transition: 'all .12s',
+                      whiteSpace: 'nowrap',
                     }}
-                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(130,246,127,.18)' }}
-                    onMouseLeave={e => { e.currentTarget.style.background = 'rgba(130,246,127,.08)' }}
+                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(130,246,127,.18)'; e.currentTarget.style.borderColor = 'rgba(130,246,127,.5)' }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'rgba(130,246,127,.08)'; e.currentTarget.style.borderColor = 'rgba(130,246,127,.25)' }}
                   >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
                     </svg>
                     {lang === 'en' ? 'Chat' : 'צ\'אט'}
                   </button>
                 )}
-                <textarea
-                  value={msgInput}
-                  onChange={e => setMsgInput(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
-                  placeholder={t.messagePlaceholder}
-                  rows={3}
-                  style={{
-                    flex: 1,
-                    padding: '10px 13px',
-                    background: 'rgba(255,255,255,.05)',
-                    border: `1px solid ${BORDER}`,
-                    borderRadius: 10, resize: 'none',
-                    color: CREAM, fontSize: 13, fontFamily: 'inherit',
-                    outline: 'none', direction: dir,
-                    lineHeight: 1.5,
-                  }}
-                  onFocus={e => { e.currentTarget.style.borderColor = `${PURPLE}66` }}
-                  onBlur={e => { e.currentTarget.style.borderColor = BORDER }}
-                />
-                <button
-                  onClick={() => handleSend()}
-                  disabled={sending || !msgInput.trim()}
-                  style={{
-                    padding: '10px 18px',
-                    background: (sending || !msgInput.trim()) ? 'rgba(37,211,102,.08)' : 'rgba(37,211,102,.2)',
-                    border: `1px solid ${(sending || !msgInput.trim()) ? 'rgba(37,211,102,.2)' : 'rgba(37,211,102,.5)'}`,
-                    borderRadius: 10,
-                    color: (sending || !msgInput.trim()) ? 'rgba(37,211,102,.4)' : '#25D366',
-                    fontSize: 13, fontWeight: 700, fontFamily: 'inherit',
-                    cursor: (sending || !msgInput.trim()) ? 'not-allowed' : 'pointer',
-                    transition: 'all .15s',
-                    display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0,
-                    height: 'fit-content',
-                  }}
-                  onMouseEnter={e => { if (!sending && msgInput.trim()) e.currentTarget.style.background = 'rgba(37,211,102,.3)' }}
-                  onMouseLeave={e => { if (!sending && msgInput.trim()) e.currentTarget.style.background = 'rgba(37,211,102,.2)' }}
-                >
-                  {/* WhatsApp icon */}
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
-                  </svg>
-                  {sending ? t.sending : t.send}
-                </button>
               </div>
             </div>
           </>
