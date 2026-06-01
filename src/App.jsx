@@ -5364,12 +5364,6 @@ Return ONLY valid JSON (no markdown, no code blocks):
                               <span style={{ fontSize:10, color:`${C.cream}88` }}>{k.label}</span>
                             </div>
                           ))}
-                          {deletedLeads.length > 0 && (
-                            <button onClick={() => setShowTrash(t => !t)}
-                              style={{ marginRight:'auto', display:'flex', alignItems:'center', gap:5, background:'rgba(239,68,68,.12)', border:'1px solid rgba(239,68,68,.3)', borderRadius:20, padding:'3px 10px', cursor:'pointer', color:'#EF4444', fontSize:10, fontWeight:700 }}>
-                              <FaTrash size={9}/>{deletedLeads.length}
-                            </button>
-                          )}
                         </div>
                       )
                       : (
@@ -5390,53 +5384,116 @@ Return ONLY valid JSON (no markdown, no code blocks):
                               </div>
                             ))}
                           </div>
-                          {deletedLeads.length > 0 && (
-                            <button onClick={() => setShowTrash(t => !t)}
-                              style={{ marginTop:8, display:'flex', alignItems:'center', gap:6, background: showTrash ? 'rgba(239,68,68,.15)' : 'rgba(239,68,68,.08)', border:'1px solid rgba(239,68,68,.25)', borderRadius:8, padding:'5px 12px', cursor:'pointer', color:'#EF4444', fontSize:11, fontWeight:700, direction:'rtl' }}>
-                              <FaTrash size={10}/>{lang==='en'?`Trash (${deletedLeads.length})`:`סל מחזור (${deletedLeads.length})`}
-                            </button>
-                          )}
                         </div>
                       )
                     }
                   </div>
 
-                  {/* Trash panel */}
-                  {showTrash && !kpiCollapsed && (
-                    <div style={{ flexShrink:0, maxHeight:220, overflowY:'auto', background:'rgba(239,68,68,.04)', borderTop:'1px solid rgba(239,68,68,.15)', borderBottom:'1px solid rgba(239,68,68,.15)', padding:'8px 16px' }}>
-                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
-                        <span style={{ fontSize:11, fontWeight:700, color:'#EF4444' }}>{lang==='en'?'Recently Deleted':'נמחקו לאחרונה'}</span>
-                        <button onClick={emptyTrash}
-                          style={{ fontSize:10, color:`${C.cream}55`, background:'none', border:'none', cursor:'pointer', padding:'2px 6px' }}>
-                          {lang==='en'?'Empty Trash':'רוקן סל'}
-                        </button>
-                      </div>
-                      <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
-                        {deletedLeads.map(dl => (
-                          <div key={dl.id} style={{ display:'flex', alignItems:'center', gap:10, background:'rgba(255,255,255,.03)', border:'1px solid rgba(255,255,255,.07)', borderRadius:8, padding:'6px 10px', direction:'rtl' }}>
-                            <div style={{ flex:1, minWidth:0 }}>
-                              <div style={{ fontSize:12, fontWeight:700, color:C.cream, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{dl.name || '—'}</div>
-                              <div style={{ fontSize:10, color:`${C.cream}55` }}>{dl.phone || dl.email || ''}</div>
-                            </div>
-                            <span style={{ fontSize:9, color:`${C.cream}44`, flexShrink:0 }}>{dl.deletedAt ? new Date(dl.deletedAt).toLocaleDateString('he-IL') : ''}</span>
-                            <button onClick={() => restoreLead(dl.id)}
-                              style={{ flexShrink:0, background:'rgba(34,197,94,.15)', border:'1px solid rgba(34,197,94,.3)', borderRadius:6, padding:'3px 9px', cursor:'pointer', color:'#22C55E', fontSize:10, fontWeight:700 }}>
-                              {lang==='en'?'Restore':'שחזר'}
-                            </button>
-                          </div>
+                  {/* ── Enhanced Drag Handle ── */}
+                  <div style={{ flexShrink:0, userSelect:'none' }}>
+                    {/* grip strip — draggable */}
+                    <div
+                      onMouseDown={startDrag} onTouchStart={startDrag}
+                      onDoubleClick={() => { setKpiHeight(null); try { localStorage.removeItem(KPI_HEIGHT_KEY) } catch {} }}
+                      style={{
+                        height:20, cursor:'ns-resize', display:'flex', alignItems:'center', justifyContent:'center',
+                        background:`linear-gradient(180deg,${C.purple}12 0%,transparent 100%)`,
+                        borderTop:`1px solid ${C.purple}35`, borderBottom:`1px solid ${C.purple}20`,
+                      }}
+                      title={lang==='en'?'Drag ↑ full leads · drag ↓ show KPI · double-click reset':'גרור ↑ להרחבת לידים · גרור ↓ להצגת KPI · לחץ פעמיים לאיפוס'}
+                    >
+                      <div style={{ display:'flex', gap:3, alignItems:'center' }}>
+                        <span style={{ fontSize:10, color:`${C.purple}66`, lineHeight:1 }}>↕</span>
+                        {[0,1,2,3,4,5].map(i => (
+                          <div key={i} style={{ width:3, height:3, borderRadius:'50%', background:`${C.purple}55` }}/>
                         ))}
+                        <span style={{ fontSize:10, color:`${C.purple}66`, lineHeight:1 }}>↕</span>
                       </div>
                     </div>
-                  )}
-
-                  {/* ── Drag handle — double-click resets to default ── */}
-                  <div
-                    onMouseDown={startDrag} onTouchStart={startDrag}
-                    onDoubleClick={() => { setKpiHeight(null); try { localStorage.removeItem(KPI_HEIGHT_KEY) } catch {} }}
-                    style={{ height:10, flexShrink:0, cursor:'ns-resize', display:'flex', alignItems:'center', justifyContent:'center', userSelect:'none', background:'transparent' }}
-                    title={lang==='en'?'Drag to resize · double-click to reset':'גרור לשינוי גובה · לחץ פעמיים לאיפוס'}>
-                    <div style={{ width:40, height:4, borderRadius:4, background:`${C.purple}55`, transition:'background .15s' }}/>
+                    {/* action row below grip */}
+                    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'5px 14px', background:C.card, borderBottom:`1px solid ${C.purple}18` }}>
+                      {/* restore leads — always visible */}
+                      <button
+                        onClick={() => setShowTrash(t => !t)}
+                        style={{
+                          display:'flex', alignItems:'center', gap:5,
+                          background: deletedLeads.length > 0
+                            ? (showTrash ? 'rgba(239,68,68,.18)' : 'rgba(239,68,68,.09)')
+                            : 'transparent',
+                          border: deletedLeads.length > 0
+                            ? '1px solid rgba(239,68,68,.35)'
+                            : `1px solid ${C.purple}20`,
+                          borderRadius:7, padding:'3px 10px', cursor:'pointer',
+                          color: deletedLeads.length > 0 ? '#EF4444' : `${C.cream}44`,
+                          fontSize:10, fontWeight:700, direction:'rtl', transition:'all .15s',
+                        }}
+                      >
+                        <FaTrash size={9}/>
+                        {lang==='en'
+                          ? `Restore Leads${deletedLeads.length > 0 ? ` (${deletedLeads.length})` : ''}`
+                          : `שחזור לידים${deletedLeads.length > 0 ? ` (${deletedLeads.length})` : ''}`}
+                      </button>
+                      {/* expand / collapse toggle */}
+                      <button
+                        onClick={() => {
+                          const next = kpiHeight === 0 ? null : 0
+                          setKpiHeight(next)
+                          setShowTrash(false)
+                          if (next === null) { try { localStorage.removeItem(KPI_HEIGHT_KEY) } catch {} }
+                          else { try { localStorage.setItem(KPI_HEIGHT_KEY, '0') } catch {} }
+                        }}
+                        style={{
+                          display:'flex', alignItems:'center', gap:5,
+                          background: kpiHeight === 0 ? `${C.purple}22` : 'transparent',
+                          border:`1px solid ${C.purple}33`,
+                          borderRadius:7, padding:'3px 10px', cursor:'pointer',
+                          color:C.purple, fontSize:10, fontWeight:700, direction:'rtl', transition:'all .15s',
+                        }}
+                      >
+                        {kpiHeight === 0
+                          ? (lang==='en' ? '▼ Show KPI' : '▼ הצג KPI')
+                          : (lang==='en' ? '▲ Full Screen' : '▲ מסך מלא')}
+                      </button>
+                    </div>
                   </div>
+
+                  {/* Trash panel — below handle, always shows when open */}
+                  {showTrash && (
+                    <div style={{ flexShrink:0, maxHeight:220, overflowY:'auto', background:'rgba(239,68,68,.04)', borderBottom:'1px solid rgba(239,68,68,.18)', padding:'8px 16px' }}>
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+                        <span style={{ fontSize:11, fontWeight:700, color:'#EF4444', direction:'rtl' }}>
+                          {lang==='en'?'Recently Deleted':'נמחקו לאחרונה'}
+                          {deletedLeads.length === 0 && <span style={{ fontWeight:400, opacity:.6 }}>{lang==='en'?' — empty':' — ריק'}</span>}
+                        </span>
+                        {deletedLeads.length > 0 && (
+                          <button onClick={emptyTrash}
+                            style={{ fontSize:10, color:`${C.cream}55`, background:'none', border:'none', cursor:'pointer', padding:'2px 6px' }}>
+                            {lang==='en'?'Empty Trash':'רוקן סל'}
+                          </button>
+                        )}
+                      </div>
+                      {deletedLeads.length === 0
+                        ? <div style={{ fontSize:11, color:`${C.cream}44`, textAlign:'center', padding:'10px 0', direction:'rtl' }}>{lang==='en'?'No deleted leads':'אין לידים שנמחקו'}</div>
+                        : (
+                          <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+                            {deletedLeads.map(dl => (
+                              <div key={dl.id} style={{ display:'flex', alignItems:'center', gap:10, background:'rgba(255,255,255,.03)', border:'1px solid rgba(255,255,255,.07)', borderRadius:8, padding:'6px 10px', direction:'rtl' }}>
+                                <div style={{ flex:1, minWidth:0 }}>
+                                  <div style={{ fontSize:12, fontWeight:700, color:C.cream, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{dl.name || '—'}</div>
+                                  <div style={{ fontSize:10, color:`${C.cream}55` }}>{dl.phone || dl.email || ''}</div>
+                                </div>
+                                <span style={{ fontSize:9, color:`${C.cream}44`, flexShrink:0 }}>{dl.deletedAt ? new Date(dl.deletedAt).toLocaleDateString('he-IL') : ''}</span>
+                                <button onClick={() => restoreLead(dl.id)}
+                                  style={{ flexShrink:0, background:'rgba(34,197,94,.15)', border:'1px solid rgba(34,197,94,.3)', borderRadius:6, padding:'3px 9px', cursor:'pointer', color:'#22C55E', fontSize:10, fontWeight:700 }}>
+                                  {lang==='en'?'Restore':'שחזר'}
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )
+                      }
+                    </div>
+                  )}
                 </>
               )
             })()}
