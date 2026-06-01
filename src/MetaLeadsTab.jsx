@@ -655,23 +655,9 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
     { id: 'closed',    label: t.filterClosed },
   ]
 
-  const VIEW_TABS = [
-    { id: 'pipeline', icon: (
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="3" y="3" width="4" height="18" rx="1"/><rect x="10" y="3" width="4" height="14" rx="1"/><rect x="17" y="3" width="4" height="10" rx="1"/>
-      </svg>
-    ), label: lang === 'en' ? 'Pipeline' : 'Pipeline' },
-    { id: 'table', icon: (
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M3 10h18M3 14h18M10 3v18M3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V6z"/>
-      </svg>
-    ), label: lang === 'en' ? 'Table' : 'טבלה' },
-    { id: 'chat', icon: (
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-      </svg>
-    ), label: lang === 'en' ? 'Chats' : 'צ\'אטים' },
-  ]
+  // Single toggle: Pipeline (Kanban) ↔ Lead Center (Chat). The Pipeline/Table
+  // sub-toggle lives inside MetaKanban — no need to duplicate it here.
+  const inChat = metaView === 'chat'
 
   return (
     <div style={{
@@ -685,11 +671,11 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
       flexDirection: 'column',
     }}>
 
-      {/* ── View toggle bar (Pipeline / Table / Chats) — anchored top-right ── */}
+      {/* ── View toggle: single "LEAD CENTER" / "Pipeline" button anchored top-right ── */}
       <div style={{
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'flex-start',
+        justifyContent: 'flex-end',
         gap: 6,
         padding: '10px 16px',
         background: 'rgba(14,14,28,.95)',
@@ -697,37 +683,38 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
         flexShrink: 0,
         direction: 'rtl',
       }}>
-        {VIEW_TABS.map(tab => {
-          const active = metaView === tab.id
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setMetaView(tab.id)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 6,
-                padding: '7px 16px',
-                borderRadius: 9,
-                border: active ? `1px solid ${PURPLE}80` : `1px solid ${BORDER}`,
-                background: active
-                  ? `linear-gradient(135deg, rgba(132,144,216,.28) 0%, rgba(132,144,216,.16) 100%)`
-                  : 'rgba(255,255,255,.03)',
-                color: active ? PURPLE : MUTED,
-                fontSize: 12.5, fontWeight: active ? 700 : 600,
-                cursor: 'pointer', fontFamily: 'inherit',
-                transition: 'all .15s',
-                boxShadow: active ? `0 0 0 2px ${PURPLE}22` : 'none',
-                pointerEvents: 'auto',
-                userSelect: 'none',
-              }}
-              onMouseEnter={e => { if (!active) { e.currentTarget.style.background = 'rgba(132,144,216,.1)'; e.currentTarget.style.color = CREAM; e.currentTarget.style.borderColor = `${PURPLE}55` } }}
-              onMouseLeave={e => { if (!active) { e.currentTarget.style.background = 'rgba(255,255,255,.03)'; e.currentTarget.style.color = MUTED; e.currentTarget.style.borderColor = BORDER } }}
-            >
-              {tab.icon}
-              {tab.label}
-            </button>
-          )
-        })}
+        <button
+          type="button"
+          onClick={() => setMetaView(inChat ? 'pipeline' : 'chat')}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            padding: '8px 18px',
+            borderRadius: 9,
+            border: `1px solid ${PURPLE}80`,
+            background: `linear-gradient(135deg, rgba(132,144,216,.28) 0%, rgba(132,144,216,.16) 100%)`,
+            color: PURPLE,
+            fontSize: 12.5, fontWeight: 700,
+            cursor: 'pointer', fontFamily: 'inherit',
+            transition: 'all .15s',
+            boxShadow: `0 0 0 2px ${PURPLE}22`,
+            pointerEvents: 'auto',
+            userSelect: 'none',
+            letterSpacing: inChat ? 0 : '.06em',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = `linear-gradient(135deg, rgba(132,144,216,.4) 0%, rgba(132,144,216,.22) 100%)`; e.currentTarget.style.borderColor = PURPLE }}
+          onMouseLeave={e => { e.currentTarget.style.background = `linear-gradient(135deg, rgba(132,144,216,.28) 0%, rgba(132,144,216,.16) 100%)`; e.currentTarget.style.borderColor = `${PURPLE}80` }}
+        >
+          {inChat ? (
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="4" height="18" rx="1"/><rect x="10" y="3" width="4" height="14" rx="1"/><rect x="17" y="3" width="4" height="10" rx="1"/>
+            </svg>
+          ) : (
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+          )}
+          {inChat ? (lang === 'en' ? 'Pipeline' : 'Pipeline') : 'LEAD CENTER'}
+        </button>
       </div>
 
       {/* ── Kanban / Table view ── */}
