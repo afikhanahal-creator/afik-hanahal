@@ -583,6 +583,10 @@ const makeGlobal = (C, isDark) => `
     .svc-bento > * { grid-column:span 1 !important; }
     .nav-phone       { display:none !important; }
     .nav-social-hide { display:none !important; }
+    /* Contact cards on the "פנה אלינו עכשיו" panel: center icon + text as a balanced group */
+    .contact-card-row { justify-content:center !important; gap:18px !important; }
+    .contact-card-text { flex:0 1 auto !important; text-align:center !important; }
+    .contact-card-text > div { text-align:center !important; }
     .testi-card-wrap { flex-direction:column !important; min-height:0 !important; }
     .testi-txt-col   { order:1 !important; padding:12px 14px 8px !important; gap:5px !important; justify-content:flex-start !important; }
     .testi-img-col   { order:2 !important; width:100% !important; height:clamp(180px,30vh,300px) !important; background:#06040f !important; border-top:1px solid rgba(132,144,216,.15) !important; }
@@ -9783,39 +9787,39 @@ export default function App() {
             <div style={{ display:'flex', flexDirection:'column', gap:12, direction:'rtl' }}>
 
               {/* טלפון */}
-              <a href="tel:0559811814"
+              <a href="tel:0559811814" className="contact-card-row"
                 style={{ display:'flex', flexDirection:'row', alignItems:'center', gap:14, background:`${C.green}12`, borderRadius:14, padding:'16px 18px', border:`1.5px solid ${C.green}28`, textDecoration:'none', color:'inherit', transition:'all .2s', cursor:'pointer' }}
                 onMouseEnter={e => { e.currentTarget.style.background=`${C.green}22`; e.currentTarget.style.borderColor=`${C.green}55`; e.currentTarget.style.transform='translateY(-1px)' }}
                 onMouseLeave={e => { e.currentTarget.style.background=`${C.green}12`; e.currentTarget.style.borderColor=`${C.green}28`; e.currentTarget.style.transform='' }}>
-                <div style={{ width:46, height:46, borderRadius:'50%', background:`linear-gradient(135deg,${C.green}33,${C.green}18)`, border:`1.5px solid ${C.green}44`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, boxShadow:`0 4px 14px ${C.green}25` }}>
+                <div className="contact-card-icon" style={{ width:46, height:46, borderRadius:'50%', background:`linear-gradient(135deg,${C.green}33,${C.green}18)`, border:`1.5px solid ${C.green}44`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, boxShadow:`0 4px 14px ${C.green}25` }}>
                   <FaPhone size={18} style={{ color:C.green }}/>
                 </div>
-                <div style={{ flex:1, textAlign:'right' }}>
+                <div className="contact-card-text" style={{ flex:1, textAlign:'right' }}>
                   <div style={{ fontSize:11, fontWeight:600, color:`${C.cream}60`, marginBottom:3, letterSpacing:'.04em', textTransform:'uppercase' }}>{TR[lang]?.phoneLabel}</div>
-                  <div style={{ fontSize:22, fontWeight:800, color:C.green, direction:'ltr', textAlign:'right', letterSpacing:'.01em' }}>055-981-1814</div>
+                  <div style={{ fontSize:22, fontWeight:800, color:C.green, direction:'ltr', letterSpacing:'.01em' }}>055-981-1814</div>
                 </div>
               </a>
 
               {/* WhatsApp */}
-              <a href="https://wa.me/972559811814" target="_blank" rel="noopener noreferrer"
+              <a href="https://wa.me/972559811814" target="_blank" rel="noopener noreferrer" className="contact-card-row"
                 style={{ display:'flex', flexDirection:'row', alignItems:'center', gap:14, background:'rgba(37,211,102,.09)', borderRadius:14, padding:'16px 18px', border:'1.5px solid rgba(37,211,102,.22)', textDecoration:'none', color:'inherit', transition:'all .2s', cursor:'pointer' }}
                 onMouseEnter={e => { e.currentTarget.style.background='rgba(37,211,102,.2)'; e.currentTarget.style.borderColor='rgba(37,211,102,.5)'; e.currentTarget.style.transform='translateY(-1px)' }}
                 onMouseLeave={e => { e.currentTarget.style.background='rgba(37,211,102,.09)'; e.currentTarget.style.borderColor='rgba(37,211,102,.22)'; e.currentTarget.style.transform='' }}>
-                <div style={{ width:46, height:46, borderRadius:'50%', background:'linear-gradient(135deg,rgba(37,211,102,.25),rgba(37,211,102,.12))', border:'1.5px solid rgba(37,211,102,.4)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, boxShadow:'0 4px 14px rgba(37,211,102,.2)' }}>
+                <div className="contact-card-icon" style={{ width:46, height:46, borderRadius:'50%', background:'linear-gradient(135deg,rgba(37,211,102,.25),rgba(37,211,102,.12))', border:'1.5px solid rgba(37,211,102,.4)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, boxShadow:'0 4px 14px rgba(37,211,102,.2)' }}>
                   <FaWhatsapp size={20} style={{ color:'#25D366' }}/>
                 </div>
-                <div style={{ flex:1, textAlign:'right' }}>
+                <div className="contact-card-text" style={{ flex:1, textAlign:'right' }}>
                   <div style={{ fontSize:11, fontWeight:600, color:`${C.cream}60`, marginBottom:3, letterSpacing:'.04em', textTransform:'uppercase' }}>WhatsApp</div>
                   <div style={{ fontSize:18, fontWeight:800, color:'#25D366' }}>{TR[lang]?.whatsappSend}</div>
                 </div>
               </a>
 
               {/* אזור פעילות */}
-              <div style={{ display:'flex', flexDirection:'row', alignItems:'center', gap:14, background:`${C.purple}0D`, borderRadius:14, padding:'16px 18px', border:`1.5px solid ${C.purple}1E` }}>
-                <div style={{ width:46, height:46, borderRadius:'50%', background:`linear-gradient(135deg,${C.purple}30,${C.purple}15)`, border:`1.5px solid ${C.purple}40`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, boxShadow:`0 4px 14px ${C.purple}20` }}>
+              <div className="contact-card-row" style={{ display:'flex', flexDirection:'row', alignItems:'center', gap:14, background:`${C.purple}0D`, borderRadius:14, padding:'16px 18px', border:`1.5px solid ${C.purple}1E` }}>
+                <div className="contact-card-icon" style={{ width:46, height:46, borderRadius:'50%', background:`linear-gradient(135deg,${C.purple}30,${C.purple}15)`, border:`1.5px solid ${C.purple}40`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, boxShadow:`0 4px 14px ${C.purple}20` }}>
                   <FaMapMarkerAlt size={18} style={{ color:C.purple }}/>
                 </div>
-                <div style={{ flex:1, textAlign:'right' }}>
+                <div className="contact-card-text" style={{ flex:1, textAlign:'right' }}>
                   <div style={{ fontSize:11, fontWeight:600, color:`${C.cream}60`, marginBottom:3, letterSpacing:'.04em', textTransform:'uppercase' }}>{TR[lang]?.operatingAreaLabel}</div>
                   <div style={{ fontSize:15, fontWeight:700, color:C.cream }}>{TR[lang]?.areaServed}</div>
                 </div>
