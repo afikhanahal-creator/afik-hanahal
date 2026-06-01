@@ -775,9 +775,10 @@ const makeGlobal = (C, isDark) => `
     .footer-nav-links button { font-size: 14px !important; padding: 6px 0 !important; }
     .footer-hours { display: flex !important; gap: 16px !important; flex-wrap: wrap !important; }
     .footer-social { margin-bottom: 14px !important; }
-    .footer-bottom { flex-direction: column-reverse !important; align-items: center !important; gap: 8px !important; text-align: center !important; padding-top: 16px !important; }
-    .footer-bottom-links { justify-content: center !important; }
-    .footer-bottom > div[style*="flex:1"] { width: 100% !important; text-align: center !important; padding: 0 !important; white-space: normal !important; overflow: visible !important; }
+    .footer-bottom { flex-wrap: wrap !important; gap: 10px 0 !important; padding-top: 16px !important; }
+    .footer-bottom-links { order: 0 !important; flex: 1 1 100% !important; justify-content: center !important; }
+    .footer-bottom-copyright { order: 1 !important; flex: 1 1 100% !important; text-align: center !important; white-space: normal !important; overflow: visible !important; padding: 0 !important; }
+    .footer-bottom-actions { order: 2 !important; flex: 1 1 100% !important; justify-content: center !important; }
     .footer-col { text-align: center !important; }
     .footer-logo-wrap { display: flex !important; justify-content: center !important; }
     .footer-col .footer-social { justify-content: center !important; }
@@ -1254,9 +1255,9 @@ function LangSwitch({ compact = false }) {
   const txtSz  = compact ? 10 : 12
 
   const textColor    = isDark ? '#fff' : C.cream
-  const activeBg     = isDark ? 'rgba(255,255,255,0.13)' : `${C.purple}14`
-  const activeBorder = isDark ? 'rgba(255,255,255,0.28)' : `${C.purple}55`
-  const sepColor     = isDark ? 'rgba(255,255,255,0.18)' : `${C.cream}33`
+  const activeBg     = `${C.purple}22`
+  const activeBorder = `${C.purple}66`
+  const sepColor     = isDark ? 'rgba(132,144,216,0.25)' : `${C.cream}33`
 
   const opt = (active) => ({
     display: 'flex', alignItems: 'center', gap: compact ? 5 : 7,
@@ -9803,34 +9804,34 @@ export default function App() {
           <div className="footer-bottom" style={{ display:'flex', alignItems:'center', justifyContent:'space-between', borderTop:'1px solid rgba(132,144,216,.15)', paddingTop:18, gap:12 }}>
 
             {/* Right (RTL start): legal links */}
-            <div className="footer-bottom-links" style={{ display:'flex', alignItems:'center', gap:6, flexShrink:0 }}>
+            <div className="footer-bottom-links" style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
               <a href="/accessibility"
-                style={{ fontSize:12, color:C.purple, textDecoration:'none', fontWeight:600, opacity:.8, transition:'opacity .15s', whiteSpace:'nowrap', letterSpacing:'.01em' }}
+                style={{ fontSize:12, color:C.purple, textDecoration:'none', fontWeight:600, opacity:.85, transition:'opacity .15s', whiteSpace:'nowrap', letterSpacing:'.01em' }}
                 onMouseEnter={e => e.currentTarget.style.opacity='1'}
-                onMouseLeave={e => e.currentTarget.style.opacity='.8'}>
+                onMouseLeave={e => e.currentTarget.style.opacity='.85'}>
                 {TR[lang]?.accessibility}
               </a>
-              <span style={{ color:'rgba(132,144,216,.35)', fontSize:13, lineHeight:1 }}>·</span>
+              <span style={{ color:'rgba(132,144,216,.3)', fontSize:14, lineHeight:1, fontWeight:300 }}>|</span>
               <button onClick={() => setShowPrivacy(true)}
-                style={{ background:'none', border:'none', padding:0, fontSize:12, color:'rgba(132,144,216,.7)', fontWeight:500, cursor:'pointer', opacity:.8, transition:'opacity .15s', fontFamily:'inherit', textDecoration:'underline', textUnderlineOffset:3, whiteSpace:'nowrap' }}
-                onMouseEnter={e => e.currentTarget.style.opacity='1'}
-                onMouseLeave={e => e.currentTarget.style.opacity='.8'}>
+                style={{ background:'none', border:'none', padding:0, fontSize:12, color:'rgba(132,144,216,.75)', fontWeight:500, cursor:'pointer', opacity:.85, transition:'opacity .15s', fontFamily:'inherit', textDecoration:'none', whiteSpace:'nowrap' }}
+                onMouseEnter={e => { e.currentTarget.style.opacity='1'; e.currentTarget.style.color=C.purple }}
+                onMouseLeave={e => { e.currentTarget.style.opacity='.85'; e.currentTarget.style.color='rgba(132,144,216,.75)' }}>
                 {TR[lang]?.privacy}
               </button>
             </div>
 
             {/* Center: copyright */}
-            <div style={{ flex:1, fontSize:11, color:'rgba(232,228,216,.28)', textAlign:'center', padding:'0 12px', minWidth:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+            <div className="footer-bottom-copyright" style={{ flex:1, fontSize:11, color:'rgba(132,144,216,.35)', textAlign:'center', padding:'0 12px', minWidth:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
               {TR[lang]?.copyright}
             </div>
 
             {/* Left (RTL end): lang + admin lock */}
-            <div style={{ display:'flex', alignItems:'center', gap:6, flexShrink:0 }}>
+            <div className="footer-bottom-actions" style={{ display:'flex', alignItems:'center', gap:6, flexShrink:0 }}>
               <LangSwitch />
               <button onClick={() => adminAuth ? setShowAdmin(true) : setShowPw(true)} title="כניסת מנהל"
-                style={{ background:'none', border:'none', color:'rgba(232,228,216,.13)', cursor:'pointer', transition:'color .2s', padding:'4px 6px', borderRadius:6 }}
+                style={{ background:'none', border:'none', color:'rgba(132,144,216,.18)', cursor:'pointer', transition:'color .2s', padding:'4px 6px', borderRadius:6 }}
                 onMouseEnter={e => e.currentTarget.style.color=C.purple}
-                onMouseLeave={e => e.currentTarget.style.color='rgba(232,228,216,.13)'}><FaLock size={12}/></button>
+                onMouseLeave={e => e.currentTarget.style.color='rgba(132,144,216,.18)'}><FaLock size={12}/></button>
             </div>
           </div>
         </div>
