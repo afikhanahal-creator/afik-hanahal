@@ -126,9 +126,11 @@ export default async function handler(req, res) {
     const toUnfeature = featured.slice(0, 2)
     await Promise.all(toUnfeature.map(a => patchById(a.id, { featured: false })))
 
-    // ── 4. Find 2 newest non-featured articles with images ───────────────────────
-    const keepIds = new Set(featured.slice(2).map(a => a.id))
+    // ── 4. Find 2 new articles from DIFFERENT sources (enforces daily variety) ────
+    const keepIds    = new Set(featured.slice(2).map(a => a.id))
+    const keepSources = new Set(featured.slice(2).map(a => a.source))
 
+    // Fetch large pool so we have enough source diversity to choose from
     const pool = await supaGet('news_articles', [
       ['select',   'id,title,source,published_at'],
       ['lang',     'eq.he'],
@@ -137,12 +139,40 @@ export default async function handler(req, res) {
       ['image',    'not.is.null'],
       ['image',    'neq.'],
       ['order',    'published_at.desc'],
-      ['limit',    '30'],
+      ['limit',    '200'],
     ])
 
-    const fresh = (pool || [])
-      .filter(a => !keepIds.has(a.id))
-      .slice(0, 2)
+    // One best (most recent) candidate per source — prevents Ynet from getting N slots
+    const bestBySource = {}
+    for (const a of (pool || [])) {
+      if (!keepIds.has(a.id) && !bestBySource[a.source]) {
+        bestBySource[a.source] = a
+      }
+    }
+
+    // Sort: new sources (not in keepSources) first, then by date descending
+    const ranked = Object.values(bestBySource).sort((a, b) => {
+      const aNew = keepSources.has(a.source) ? 1 : 0
+      const bNew = keepSources.has(b.source) ? 1 : 0
+      if (aNew !== bNew) return aNew - bNew
+      return new Date(b.published_at) - new Date(a.published_at)
+    })
+
+    // Pick 2 from 2 different sources
+    const fresh = []
+    const usedSrc = new Set(keepSources)
+    for (const candidate of ranked) {
+      if (fresh.length >= 2) break
+      if (!usedSrc.has(candidate.source)) {
+        fresh.push(candidate)
+        usedSrc.add(candidate.source)
+      }
+    }
+    // Fallback: if we couldn't find 2 fully unique sources, fill with best available
+    for (const candidate of ranked) {
+      if (fresh.length >= 2) break
+      if (!fresh.some(f => f.id === candidate.id)) fresh.push(candidate)
+    }
 
     if (fresh.length === 0) {
       return res.status(200).json({

@@ -9,7 +9,7 @@ const RENDER      = process.env.RENDER_URL       || 'https://afik-hanahal-server
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN       || 'AFIKhanahal2026'
 const SUPA_URL    = process.env.SUPABASE_URL      || process.env.VITE_SUPABASE_URL
 const SUPA_KEY    = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY
-const MAX_PER_SOURCE = 3
+const MAX_PER_SOURCE = 2
 
 // ── Same source list as api/news.js ──────────────────────────────────────────
 const RSS_SOURCES = [
@@ -42,6 +42,10 @@ const RSS_SOURCES = [
   { name: "נדל\"ן בג'ינס",        url: 'https://nadlanbejeans.co.il/feed/'                                                                        },
   { name: 'מדלן',                 url: 'https://www.madlan.co.il/blog/feed/'                                                                      },
   { name: 'NADLAN.COM',           url: 'https://www.nadlan.com/feed/'                                                                             },
+  { name: 'ICE נדל"ן',           url: 'https://www.ice.co.il/category/realestate/feed/' },
+  { name: 'N12 כלכלה',           url: 'https://www.n12.co.il/rss/economy.xml' },
+  { name: 'יד2 בלוג',            url: 'https://www.yad2.co.il/blog/feed/' },
+  { name: 'נדלן 2.0',            url: 'https://nadlan20.co.il/feed/' },
   // Google News — נושאים נבחרים
   { name: 'Google נדל"ן',        url: 'https://news.google.com/rss/search?q=%D7%A0%D7%93%D7%9C%22%D7%9F+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he',                                                                     gn: true },
   { name: 'Google דירות',        url: 'https://news.google.com/rss/search?q=%D7%9E%D7%97%D7%99%D7%A8%D7%99+%D7%93%D7%99%D7%A8%D7%95%D7%AA+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he',                                   gn: true },
@@ -55,6 +59,12 @@ const RSS_SOURCES = [
   { name: 'Google השקעות נדלן',  url: 'https://news.google.com/rss/search?q=%D7%94%D7%A9%D7%A7%D7%A2%D7%95%D7%AA+%D7%A0%D7%93%D7%9C%D7%9F+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he',                                 gn: true },
   { name: 'Google נדלן מסחרי',   url: 'https://news.google.com/rss/search?q=%D7%A0%D7%93%D7%9C%D7%9F+%D7%9E%D7%A1%D7%97%D7%A8%D7%99+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he',                                       gn: true },
   { name: 'Google קניית דירה',   url: 'https://news.google.com/rss/search?q=%D7%A7%D7%A0%D7%99%D7%99%D7%AA+%D7%93%D7%99%D7%A8%D7%94+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he',                                       gn: true },
+  { name: 'Google ICE נדל"ן',    url: 'https://news.google.com/rss/search?q=site%3Aice.co.il+%D7%A0%D7%93%D7%9C%D7%9F&hl=he&gl=IL&ceid=IL:he', gn: true },
+  { name: 'Google N12 נדל"ן',    url: 'https://news.google.com/rss/search?q=site%3An12.co.il+%D7%A0%D7%93%D7%9C%D7%9F&hl=he&gl=IL&ceid=IL:he', gn: true },
+  { name: 'Google יד2 נדל"ן',    url: 'https://news.google.com/rss/search?q=site%3Ayad2.co.il+%D7%A0%D7%93%D7%9C%D7%9F&hl=he&gl=IL&ceid=IL:he', gn: true },
+  { name: 'Google רשות מיסים',   url: 'https://news.google.com/rss/search?q=%D7%A8%D7%A9%D7%95%D7%AA+%D7%94%D7%9E%D7%99%D7%A1%D7%99%D7%9D+%D7%9E%D7%99%D7%A1%D7%95%D7%99+%D7%9E%D7%A7%D7%A8%D7%A7%D7%A2%D7%99%D7%9F&hl=he&gl=IL&ceid=IL:he', gn: true },
+  { name: 'Google מדלן',         url: 'https://news.google.com/rss/search?q=site%3Amadlan.co.il&hl=he&gl=IL&ceid=IL:he', gn: true },
+  { name: 'Google Bizportal',    url: 'https://news.google.com/rss/search?q=site%3Abizportal.co.il+%D7%A0%D7%93%D7%9C%D7%9F&hl=he&gl=IL&ceid=IL:he', gn: true },
 ]
 
 const HE_RE     = /[א-ת]/
@@ -69,6 +79,9 @@ const DOMAIN_KEY = {
   'maariv.co.il': 'maariv',
   'walla.co.il': 'walla',
   'israelhayom.co.il': 'israelhayom',
+  'ice.co.il': 'ice',
+  'yad2.co.il': 'yad2',
+  'nadlan20.co.il': 'nadlan20',
 }
 
 const HEADERS = {
@@ -230,6 +243,43 @@ async function refreshSupabase() {
     const t = await ir.text().catch(() => '')
     console.error('[warm] insert failed:', ir.status, t.slice(0, 200))
     return { count: 0, error: `Supabase ${ir.status}: ${t.slice(0, 100)}` }
+  }
+
+  // 6. Rebalance: cap any single source to max MAX_POOL = 8 articles in the last 7 days
+  // This prevents Ynet (frequent publisher) from dominating the rotation pool
+  const MAX_POOL = 8
+  const sourceCounts = {}
+  newRows.forEach(a => { sourceCounts[a.source] = (sourceCounts[a.source] || 0) + 1 })
+  const overSources = Object.entries(sourceCounts).filter(([,c]) => c > MAX_POOL / 2)
+  if (overSources.length > 0) {
+    for (const [source] of overSources) {
+      try {
+        // Get ALL articles for this source (beyond 7-day window too)
+        const allForSource = await fetch(
+          `${SUPA_URL}/rest/v1/news_articles?select=id,published_at&source=eq.${encodeURIComponent(source)}&lang=eq.he&featured=eq.false&archived=eq.false&order=published_at.asc&limit=200`,
+          { headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}`, Accept: 'application/json' }, signal: AbortSignal.timeout(5000) }
+        )
+        if (!allForSource.ok) continue
+        const rows = await allForSource.json()
+        if (!Array.isArray(rows) || rows.length <= MAX_POOL) continue
+        // Archive everything beyond the newest MAX_POOL (i.e. archive the oldest)
+        const toArchive = rows.slice(0, rows.length - MAX_POOL)
+        const ids = toArchive.map(r => r.id)
+        if (!ids.length) continue
+        // Batch archive: PATCH with `id=in.(id1,id2,...)`
+        const archiveUrl = new URL(`${SUPA_URL}/rest/v1/news_articles`)
+        archiveUrl.searchParams.set('id', `in.(${ids.join(',')})`)
+        await fetch(archiveUrl.toString(), {
+          method: 'PATCH',
+          headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+          body: JSON.stringify({ archived: true }),
+          signal: AbortSignal.timeout(8000),
+        }).catch(() => {})
+        console.log(`[warm] rebalance: archived ${ids.length} old ${source} articles (keeping ${MAX_POOL})`)
+      } catch (e) {
+        console.warn(`[warm] rebalance ${source}:`, e.message)
+      }
+    }
   }
 
   const sources = [...new Set(newRows.map(a => a.source))]
