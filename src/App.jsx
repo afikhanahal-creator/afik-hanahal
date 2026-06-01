@@ -2175,33 +2175,12 @@ function toIntlPhone(phone) {
   return d.startsWith('972') ? d : d.startsWith('0') ? '972' + d.slice(1) : d
 }
 
-const WA_DEFAULTS = { provider:'greenapi', instanceId:'7107558519', apiUrl:'https://7107.api.greenapi.com', token:'191b9e9c4fc540f1ad25c8607389c0d689d15794f8094a0589', enabled:true, delayMin:2 }
+// No secrets here — the Green API token lives only in server env (WA_GREENAPI_TOKEN).
+// The lead auto-reply is sent server-side from /api/contacts on lead creation.
+const WA_DEFAULTS = { provider:'greenapi', instanceId:'7107558519', apiUrl:'https://7107.api.greenapi.com', enabled:true, delayMin:2 }
 
 // Module-level cloud settings cache — populated at app startup from /api/settings
 let _cloudSettings = {}
-
-async function sendWhatsAppLead(lead, overrideSettings) {
-  try {
-    const saved = _cloudSettings.waSettings || JSON.parse(localStorage.getItem(WA_KEY) || '{}')
-    const st = overrideSettings || { ...WA_DEFAULTS, ...saved }
-    if (!st.enabled || !st.instanceId || !st.token || !lead.phone) return
-    const phone = toIntlPhone(lead.phone)
-    if (!phone) return
-    const msg = (st.template || WA_DEFAULT_TEMPLATE).replace(/\{name\}/g, (lead.name || '').split(' ')[0] || '')
-    if (st.provider === 'ultramsg') {
-      await fetch(`https://api.ultramsg.com/${st.instanceId}/messages/chat`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: st.token, to: phone, body: msg }),
-      })
-    } else {
-      const baseUrl = (st.apiUrl || 'https://api.green-api.com').replace(/\/$/, '')
-      await fetch(`${baseUrl}/waInstance${st.instanceId}/sendMessage/${st.token}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chatId: `${phone}@c.us`, message: msg }),
-      })
-    }
-  } catch {}
-}
 
 function ContactModal({ prop, onClose }) {
   const { C, lang } = useTheme()
@@ -3865,7 +3844,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const [trashedLeads, setTrashedLeads] = useState(() => { try { return JSON.parse(localStorage.getItem(LEADS_TRASH) || '[]') } catch { return [] } })
   const [crmWebhook, setCrmWebhook] = useState(() => localStorage.getItem('afik_crm_webhook') || '')
   const [webhookSaved, setWebhookSaved] = useState(false)
-  const [waSt, setWaSt] = useState(() => ({ provider:'greenapi', delayMin:2, template:WA_DEFAULT_TEMPLATE, instanceId:'7107558519', apiUrl:'https://7107.api.greenapi.com', token:'191b9e9c4fc540f1ad25c8607389c0d689d15794f8094a0589', enabled:true, ...(_cloudSettings.waSettings || {}) }))
+  const [waSt, setWaSt] = useState(() => ({ provider:'greenapi', delayMin:2, template:WA_DEFAULT_TEMPLATE, instanceId:'7107558519', apiUrl:'https://7107.api.greenapi.com', token:'', enabled:true, ...(_cloudSettings.waSettings || {}) }))
   const [waSaved, setWaSaved] = useState(false)
   const [waTesting, setWaTesting] = useState(false)
   const [waTestResult, setWaTestResult] = useState('')
@@ -4269,29 +4248,21 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   }
   const testWA = async () => {
     setWaTesting(true); setWaTestResult('')
-    // Test both client-side (browser→Green API) and server-side (Render→Green API)
+    // Server-side send — the Green API token lives in Vercel env (WA_GREENAPI_TOKEN)
     try {
-      // 1. client-side
-      await sendWhatsAppLead({ name:'בדיקה', phone:'0559811814', msg:'הודעת בדיקה מהמערכת' }, { ...waSt, enabled:true })
-      setWaTestResult('ok')
-    } catch { setWaTestResult('err') }
-
-    // 2. server-side — try the Render→Green API path and show its result
-    if (API_BASE) {
-      try {
-        const r = await fetch(`${API_BASE}/api/contacts/test-wa`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
-          body: JSON.stringify({ phone: '0559811814' }),
-          signal: AbortSignal.timeout(20000),
-        })
-        const j = await r.json()
-        console.log('[test-wa server]', j)
-        if (!j.ok) console.error('[test-wa server] error:', j.error)
-        else console.log('[test-wa server] ✓ server-side WA send succeeded')
-      } catch (e) { console.error('[test-wa server] fetch failed:', e.message) }
+      const r = await fetch(`/api/contacts?action=test-wa`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+        body: JSON.stringify({ phone: '0559811814' }),
+        signal: AbortSignal.timeout(20000),
+      })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok || !j.ok) console.error('[test-wa]', j.error)
+      setWaTestResult(r.ok && j.ok ? 'ok' : 'err')
+    } catch (e) {
+      console.error('[test-wa] fetch failed:', e.message)
+      setWaTestResult('err')
     }
-
     setWaTesting(false); setTimeout(() => setWaTestResult(''), 4000)
   }
 
@@ -6125,8 +6096,8 @@ Return ONLY valid JSON (no markdown, no code blocks):
                   style={{ padding:'9px 20px', background:`${C.purple}22`, border:`1px solid ${C.purple}44`, borderRadius:8, color: waSaved ? C.green : C.purple, fontWeight:700, fontSize:12, cursor:'pointer', fontFamily:'inherit' }}>
                   {waSaved ? '✓ נשמר' : 'שמור הגדרות'}
                 </button>
-                <button onClick={testWA} disabled={waTesting || !waSt.instanceId || !waSt.token}
-                  style={{ padding:'9px 20px', background:'rgba(130,246,127,.1)', border:'1px solid rgba(130,246,127,.3)', borderRadius:8, color: C.green, fontWeight:700, fontSize:12, cursor:'pointer', fontFamily:'inherit', opacity: (!waSt.instanceId || !waSt.token) ? .45 : 1 }}>
+                <button onClick={testWA} disabled={waTesting}
+                  style={{ padding:'9px 20px', background:'rgba(130,246,127,.1)', border:'1px solid rgba(130,246,127,.3)', borderRadius:8, color: C.green, fontWeight:700, fontSize:12, cursor:'pointer', fontFamily:'inherit', opacity: waTesting ? .45 : 1 }}>
                   {waTesting ? 'שולח...' : 'שלח בדיקה ל-0559811814'}
                 </button>
                 {waTestResult === 'ok'  && <span style={{ fontSize:12, color:C.green, fontWeight:700 }}>✓ הודעת בדיקה נשלחה!</span>}
@@ -7855,13 +7826,7 @@ function PdfLeadGate({ pdf, prop, C }) {
     setDone(true)
     setOpen(false)
     window.open(pdf.url, '_blank', 'noopener')
-    try {
-      const waConf = { ...WA_DEFAULTS, ...(_cloudSettings.waSettings || JSON.parse(localStorage.getItem(WA_KEY) || '{}')) }
-      if (waConf.enabled && waConf.instanceId && waConf.token && phone) {
-        const delayMs = (waConf.delayMin || 2) * 60 * 1000
-        setTimeout(() => sendWhatsAppLead(lead, waConf), delayMs)
-      }
-    } catch {}
+    // WhatsApp auto-reply is sent server-side from /api/contacts (token stays on the server)
   }
 
   const inp = { width:'100%', background:'rgba(255,255,255,.07)', border:'1px solid rgba(255,255,255,.16)', borderRadius:10, padding:'12px 14px', color:'#fff', fontFamily:'inherit', fontSize:14, boxSizing:'border-box', outline:'none', transition:'border-color .15s' }
