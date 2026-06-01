@@ -3,7 +3,11 @@ const RENDER   = process.env.RENDER_URL || 'https://afik-hanahal-server.onrender
 const SUPA_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
 const SUPA_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY
 
-const MAX_PER_SOURCE = 3   // max articles per outlet (by domain) in the final feed
+// Major outlets publish many articles/day — cap them lower so specialist sites get slots
+const BIG_SOURCES    = new Set(['ynet', 'maariv', 'globes', 'calcalist', 'themarker', 'mako', 'walla', 'israelhayom', 'bizportal.co.il'])
+const MAX_BIG        = 2   // max per major outlet
+const MAX_SMALL      = 4   // max per specialist/blog outlet
+const MAX_PER_SOURCE = MAX_SMALL  // kept for the shuffleSources helper (unused in balanceSources now)
 
 // ── RSS sources — all real-estate focused ────────────────────────────────────
 const RSS_SOURCES = [
@@ -36,6 +40,8 @@ const RSS_SOURCES = [
   { name: "נדל\"ן בג'ינס",        url: 'https://nadlanbejeans.co.il/feed/'                                                                        },
   { name: 'מדלן',                 url: 'https://www.madlan.co.il/blog/feed/'                                                                      },
   { name: 'NADLAN.COM',           url: 'https://www.nadlan.com/feed/'                                                                             },
+  { name: 'השקעות נדל"ן בחו"ל',  url: 'https://israelforestrealestate.co.il/feed/'                                                               },
+  { name: 'קליקת הנדל"ן',         url: 'https://klikat-nadlan.co.il/feed/'                                                                       },
   // ── Google News — נושאים נבחרים ממגוון אתרי חדשות ──
   { name: 'Google נדל"ן',        url: 'https://news.google.com/rss/search?q=%D7%A0%D7%93%D7%9C%22%D7%9F+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he',                                                                     gn: true },
   { name: 'Google דירות',        url: 'https://news.google.com/rss/search?q=%D7%9E%D7%97%D7%99%D7%A8%D7%99+%D7%93%D7%99%D7%A8%D7%95%D7%AA+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he',                                   gn: true },
@@ -87,14 +93,15 @@ function outletKey(url) {
   } catch { return '' }
 }
 
-// Cap each outlet at MAX_PER_SOURCE articles (keyed by domain, not display name)
+// Cap each outlet — big outlets get MAX_BIG, specialist/blog outlets get MAX_SMALL
 function balanceSources(articles) {
   const counts = {}
   const out = []
   for (const a of articles) {
     const key = outletKey(a.url) || a.source || ''
     counts[key] = (counts[key] || 0) + 1
-    if (counts[key] <= MAX_PER_SOURCE) out.push(a)
+    const cap = BIG_SOURCES.has(key) ? MAX_BIG : MAX_SMALL
+    if (counts[key] <= cap) out.push(a)
   }
   return out
 }

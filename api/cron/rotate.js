@@ -126,9 +126,11 @@ export default async function handler(req, res) {
     const toUnfeature = featured.slice(0, 2)
     await Promise.all(toUnfeature.map(a => patchById(a.id, { featured: false })))
 
-    // ── 4. Find 2 newest non-featured articles with images ───────────────────────
-    const keepIds = new Set(featured.slice(2).map(a => a.id))
+    // ── 4. Find 2 articles with max source diversity ─────────────────────────────
+    const keepIds     = new Set(featured.slice(2).map(a => a.id))
+    const keptSources = new Set(featured.slice(2).map(a => a.source))
 
+    // Fetch a wide pool (100) so we have choices across many outlets
     const pool = await supaGet('news_articles', [
       ['select',   'id,title,source,published_at'],
       ['lang',     'eq.he'],
@@ -137,12 +139,33 @@ export default async function handler(req, res) {
       ['image',    'not.is.null'],
       ['image',    'neq.'],
       ['order',    'published_at.desc'],
-      ['limit',    '30'],
+      ['limit',    '100'],
     ])
 
-    const fresh = (pool || [])
-      .filter(a => !keepIds.has(a.id))
-      .slice(0, 2)
+    const available = (pool || []).filter(a => !keepIds.has(a.id))
+
+    // Sort: articles from sources NOT already shown get priority; then newest
+    available.sort((a, b) => {
+      const aNew = keptSources.has(a.source) ? 0 : 1
+      const bNew = keptSources.has(b.source) ? 0 : 1
+      if (aNew !== bNew) return bNew - aNew
+      return new Date(b.published_at) - new Date(a.published_at)
+    })
+
+    // Pick 2 from different sources for maximum variety
+    const fresh = []
+    const pickedSrc = new Set()
+    for (const a of available) {
+      if (fresh.length >= 2) break
+      if (!pickedSrc.has(a.source)) { fresh.push(a); pickedSrc.add(a.source) }
+    }
+    // Fallback: fill remaining slots if diversity wasn't possible
+    if (fresh.length < 2) {
+      for (const a of available) {
+        if (fresh.length >= 2) break
+        if (!fresh.some(f => f.id === a.id)) fresh.push(a)
+      }
+    }
 
     if (fresh.length === 0) {
       return res.status(200).json({

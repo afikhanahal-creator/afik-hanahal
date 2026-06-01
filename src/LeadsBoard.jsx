@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import {
-  DndContext, closestCenter, useSensor, useSensors, PointerSensor,
+  DndContext, closestCenter, closestCorners, useSensor, useSensors,
+  PointerSensor, DragOverlay, useDroppable,
 } from '@dnd-kit/core'
 import {
   SortableContext, verticalListSortingStrategy, useSortable, arrayMove,
@@ -109,51 +110,55 @@ function useIsMobile() {
 // ─── theme ────────────────────────────────────────────────────────────────────
 
 const useTheme = isDark => useMemo(() => isDark ? {
-  bg:          '#12142B',
-  bgRow:       '#1A1D3A',
-  bgRowHover:  '#222546',
-  bgHeader:    '#0F1126',
-  bgGroup:     '#161932',
-  bgCard:      '#1E2140',
-  bgCardHover: '#252850',
-  bgInput:     '#222546',
-  border:      '#2E3158',
-  borderLight: '#262848',
-  text:        '#E0E3F5',
-  textSub:     '#9699C0',
-  textDim:     '#4A4D6E',
+  bg:          '#111827',
+  bgRow:       '#1E2433',
+  bgRowHover:  '#252E42',
+  bgHeader:    '#0D1117',
+  bgGroup:     '#161C2B',
+  bgCard:      '#1E2433',
+  bgCardHover: '#252E42',
+  bgInput:     '#252E42',
+  border:      '#2A3347',
+  borderLight: '#222C3D',
+  text:        '#E2E8F8',
+  textSub:     '#8B98BC',
+  textDim:     '#3D4B63',
   accent:      '#0073EA',
   accentHover: '#0060CC',
   green:       '#00C875',
   orange:      '#FDAB3D',
   purple:      '#A25DDC',
   red:         '#E2445C',
-  shadow:      '0 8px 32px rgba(0,0,0,.6)',
-  shadowSm:    '0 2px 12px rgba(0,0,0,.4)',
-  shadowCard:  '0 2px 8px rgba(0,0,0,.35)',
+  pink:        '#FF5AC4',
+  teal:        '#03C9D7',
+  shadow:      '0 8px 32px rgba(0,0,0,.65)',
+  shadowSm:    '0 2px 12px rgba(0,0,0,.45)',
+  shadowCard:  '0 2px 8px rgba(0,0,0,.4)',
 } : {
-  bg:          '#F0F2F8',
+  bg:          '#F5F6FA',
   bgRow:       '#FFFFFF',
-  bgRowHover:  '#EEF2FF',
+  bgRowHover:  '#EDF2FF',
   bgHeader:    '#FFFFFF',
-  bgGroup:     '#F5F7FD',
+  bgGroup:     '#F0F2FA',
   bgCard:      '#FFFFFF',
-  bgCardHover: '#F0F4FF',
+  bgCardHover: '#EDF2FF',
   bgInput:     '#FFFFFF',
-  border:      '#D0D6EE',
-  borderLight: '#E4E8F5',
-  text:        '#1C1F3B',
-  textSub:     '#5C6080',
-  textDim:     '#B0B4CC',
+  border:      '#D5DAF0',
+  borderLight: '#E8EBF8',
+  text:        '#1C1F3A',
+  textSub:     '#5C6280',
+  textDim:     '#A8AECA',
   accent:      '#0073EA',
   accentHover: '#0060CC',
   green:       '#00C875',
   orange:      '#FDAB3D',
   purple:      '#A25DDC',
   red:         '#E2445C',
-  shadow:      '0 8px 32px rgba(30,32,80,.12)',
-  shadowSm:    '0 2px 8px rgba(30,32,80,.08)',
-  shadowCard:  '0 2px 8px rgba(30,32,80,.08)',
+  pink:        '#FF5AC4',
+  teal:        '#03C9D7',
+  shadow:      '0 8px 32px rgba(20,30,80,.13)',
+  shadowSm:    '0 2px 8px rgba(20,30,80,.09)',
+  shadowCard:  '0 2px 8px rgba(20,30,80,.09)',
 }, [isDark])
 
 // ─── cell components ──────────────────────────────────────────────────────────
@@ -581,6 +586,7 @@ function SortableRow({ lead, cols, onUpdate, onDelete, onSelect, isSelected, lan
   const [hovered, setHovered] = useState(false)
   const [checked, setChecked] = useState(false)
 
+  const statusColor = getGroupColor(lead.leadStatus || 'new')
   const style = {
     transform: CSS.Transform.toString(transform),
     opacity: isDragging ? 0.4 : 1,
@@ -589,8 +595,9 @@ function SortableRow({ lead, cols, onUpdate, onDelete, onSelect, isSelected, lan
     background: isSelected ? '#0073EA0D' : hovered ? T.bgRowHover : T.bgRow,
     transition: `background .1s${transition ? ', ' + transition : ''}`,
     cursor: isDragging ? 'grabbing' : 'default',
-    minHeight: 46,
+    minHeight: 44,
     position: 'relative',
+    borderRight: `3px solid ${hovered || isSelected ? statusColor : 'transparent'}`,
   }
 
   const getCellValue = (col) => {
@@ -730,13 +737,13 @@ function BoardGroup({ group, leads, cols, onUpdate, onUpdateStatus, onDelete, on
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', padding: '6px 10px 6px 0', borderBottom: `1px solid ${T.borderLight}`, userSelect: 'none', background: T.bgGroup, position: 'sticky', top: 36, zIndex: 4 }}>
-        <div style={{ width: 4, alignSelf: 'stretch', background: color, borderRadius: '0 3px 3px 0', marginRight: 8, flexShrink: 0 }} />
-        <button onClick={() => setCollapsed(v => !v)} style={{ background: 'none', border: 'none', cursor: 'pointer', color, display: 'flex', alignItems: 'center', padding: '0 6px 0 0' }}>
-          <ChevronDown size={15} style={{ transform: collapsed ? 'rotate(-90deg)' : 'none', transition: 'transform .2s' }} />
+      <div style={{ display: 'flex', alignItems: 'center', padding: '5px 10px 5px 0', borderBottom: `2px solid ${color}22`, userSelect: 'none', background: `linear-gradient(90deg, ${color}12 0%, ${T.bgGroup} 60%)`, position: 'sticky', top: 36, zIndex: 4 }}>
+        <div style={{ width: 5, alignSelf: 'stretch', background: color, borderRadius: '0 4px 4px 0', marginRight: 10, flexShrink: 0, minHeight: 28 }} />
+        <button onClick={() => setCollapsed(v => !v)} style={{ background: 'none', border: 'none', cursor: 'pointer', color, display: 'flex', alignItems: 'center', padding: '0 4px 0 0' }}>
+          <ChevronDown size={14} style={{ transform: collapsed ? 'rotate(-90deg)' : 'none', transition: 'transform .2s' }} />
         </button>
-        <span style={{ fontSize: 13, fontWeight: 800, color, marginRight: 6 }}>{label}</span>
-        <span style={{ fontSize: 11, background: color + '20', color, borderRadius: 20, padding: '2px 8px', fontWeight: 700, marginRight: 8 }}>{leads.length}</span>
+        <span style={{ fontSize: 12, fontWeight: 800, color, marginRight: 7, letterSpacing: '.01em' }}>{label}</span>
+        <span style={{ fontSize: 11, background: color, color: '#fff', borderRadius: 20, padding: '1px 8px', fontWeight: 800, marginRight: 8, minWidth: 20, textAlign: 'center' }}>{leads.length}</span>
         <div style={{ flex: 1 }} />
       </div>
 
@@ -989,6 +996,287 @@ function StatusPopup({ lead, onClose, onUpdate, lang, T }) {
   )
 }
 
+// ─── kanban card ──────────────────────────────────────────────────────────────
+
+function KanbanCard({ lead, T, isDark, lang, onOpen, onDelete, onOpenChat, onEnrich }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: lead.id,
+    data: { type: 'card', groupId: lead.leadStatus || 'new' },
+  })
+  const color = getGroupColor(lead.leadStatus || 'new')
+  const score = getScoreOpt(lead.enrichment?.intent)
+
+  return (
+    <div ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition: transition || 'box-shadow .15s',
+        opacity: isDragging ? 0.15 : 1,
+        background: isDark ? '#1A2235' : '#FFFFFF',
+        border: `1px solid ${isDark ? '#243046' : '#D8DCF0'}`,
+        borderRadius: 12,
+        padding: '13px 13px 10px',
+        marginBottom: 10,
+        cursor: isDragging ? 'grabbing' : 'grab',
+        boxShadow: isDragging
+          ? 'none'
+          : isDark
+            ? '0 2px 12px rgba(0,0,0,.4), 0 1px 3px rgba(0,0,0,.25)'
+            : '0 2px 8px rgba(20,30,80,.08)',
+        direction: 'rtl',
+        borderRight: `3px solid ${color}`,
+        userSelect: 'none',
+        touchAction: 'none',
+        willChange: 'transform',
+      }}
+      {...attributes} {...listeners}>
+
+      {/* Avatar + name */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 9 }}>
+        <div style={{
+          width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
+          background: `linear-gradient(135deg, ${avatarColor(lead.name)}, ${avatarColor(lead.name)}88)`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 14, fontWeight: 900, color: '#fff',
+          boxShadow: `0 2px 8px ${avatarColor(lead.name)}44`,
+        }}>
+          {(lead.name || '?')[0].toUpperCase()}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {lead.name || '—'}
+          </div>
+          {lead.phone && (
+            <div style={{ fontSize: 11, color: T.textSub, direction: 'ltr', textAlign: 'right', marginTop: 1 }}>{lead.phone}</div>
+          )}
+        </div>
+      </div>
+
+      {/* Property + message preview */}
+      {lead.propTitle && (
+        <div style={{ fontSize: 11, color: T.textSub, marginBottom: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span style={{ fontSize: 10 }}>🏠</span>
+          <span>{lead.propTitle}</span>
+        </div>
+      )}
+      {lead.msg && !lead.propTitle && (
+        <div style={{ fontSize: 11, color: T.textSub, marginBottom: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {lead.msg}
+        </div>
+      )}
+
+      {/* Score + date row */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 9 }}>
+        {score
+          ? <span style={{ fontSize: 11, fontWeight: 700, color: score.color, background: score.bg, borderRadius: 20, padding: '2px 8px', border: `1px solid ${score.color}30` }}>{lang === 'en' ? score.en : score.l}</span>
+          : <span />}
+        <span style={{ fontSize: 10, color: T.textDim }}>{fmtDate(lead.ts)}</span>
+      </div>
+
+      {/* Action buttons — stop propagation so dnd doesn't interfere */}
+      <div style={{ display: 'flex', gap: 5, borderTop: `1px solid ${isDark ? '#2A3347' : '#E8EBF8'}`, paddingTop: 9 }}
+        onPointerDown={e => e.stopPropagation()}>
+        {lead.phone && (
+          <a href={`tel:${lead.phone}`} onClick={e => e.stopPropagation()}
+            style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '5px 0', background: `${T.accent}14`, border: `1px solid ${T.accent}30`, borderRadius: 7, color: T.accent, fontSize: 11, fontWeight: 700, textDecoration: 'none', cursor: 'pointer' }}>
+            <Phone size={10} /> {lang === 'en' ? 'Call' : 'שיחה'}
+          </a>
+        )}
+        {lead.phone && onOpenChat && (
+          <button onClick={e => { e.stopPropagation(); onOpenChat(lead) }}
+            style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '5px 0', background: '#25D36614', border: '1px solid #25D36630', borderRadius: 7, color: '#25D366', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+            <MessageSquare size={10} /> WA
+          </button>
+        )}
+        <button onClick={e => { e.stopPropagation(); onOpen(lead) }}
+          style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '5px 0', background: isDark ? '#252E42' : '#F0F2FA', border: `1px solid ${isDark ? '#2A3347' : '#DDE3F5'}`, borderRadius: 7, color: T.textSub, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>
+          <ExternalLink size={10} /> {lang === 'en' ? 'Open' : 'פתח'}
+        </button>
+        <button onClick={e => { e.stopPropagation(); onDelete(lead.id) }}
+          style={{ width: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '5px 0', background: 'none', border: `1px solid ${isDark ? '#2A3347' : '#DDE3F5'}`, borderRadius: 7, color: T.red, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>
+          <Trash2 size={10} />
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ─── kanban column ────────────────────────────────────────────────────────────
+
+function KanbanColumn({ group, leads, T, isDark, lang, onOpen, onDelete, onOpenChat, onEnrich, onAddRow }) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: group.id,
+    data: { type: 'column', groupId: group.id },
+  })
+  const color = group.color
+  const label = lang === 'en' ? group.en : group.label
+
+  return (
+    <div style={{
+      width: 288,
+      flexShrink: 0,
+      display: 'flex',
+      flexDirection: 'column',
+      background: isDark
+        ? (isOver ? `${color}12` : '#131B2A')
+        : (isOver ? `${color}08` : '#ECEEF8'),
+      border: `1.5px solid ${isOver ? color : (isDark ? '#1E2A3A' : '#CDD0E8')}`,
+      borderRadius: 16,
+      overflow: 'hidden',
+      transition: 'all .2s cubic-bezier(.4,0,.2,1)',
+      boxShadow: isOver
+        ? `0 0 0 3px ${color}30, 0 8px 32px rgba(0,0,0,.4)`
+        : isDark ? '0 2px 12px rgba(0,0,0,.3)' : '0 2px 8px rgba(0,0,0,.06)',
+      maxHeight: '100%',
+    }}>
+
+      {/* Column header */}
+      <div style={{
+        padding: '13px 14px 10px',
+        background: `linear-gradient(180deg, ${color}18 0%, transparent 100%)`,
+        borderBottom: `1px solid ${isDark ? '#222E42' : '#DDE3F5'}`,
+        flexShrink: 0,
+        direction: 'rtl',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 17, lineHeight: 1 }}>{group.icon}</span>
+          <span style={{ fontSize: 13, fontWeight: 800, color, flex: 1 }}>{label}</span>
+          <span style={{
+            background: leads.length > 0 ? color : (isDark ? '#2A3347' : '#DDE3F5'),
+            color: leads.length > 0 ? '#fff' : T.textDim,
+            borderRadius: 20, padding: '2px 9px', fontSize: 11, fontWeight: 900,
+            minWidth: 22, textAlign: 'center',
+          }}>{leads.length}</span>
+        </div>
+      </div>
+
+      {/* Scrollable cards area */}
+      <div ref={setNodeRef} className="kanban-col-scroll" style={{ flex: 1, padding: '10px 10px 6px', minHeight: 80, direction: 'rtl' }}>
+        <SortableContext items={leads.map(l => l.id)} strategy={verticalListSortingStrategy}>
+          {leads.map(lead => (
+            <KanbanCard key={lead.id} lead={lead} T={T} isDark={isDark} lang={lang}
+              onOpen={onOpen} onDelete={onDelete} onOpenChat={onOpenChat} onEnrich={onEnrich} />
+          ))}
+        </SortableContext>
+
+        {leads.length === 0 && (
+          <div style={{
+            padding: '28px 12px', textAlign: 'center', color: T.textDim, fontSize: 12,
+            border: `2px dashed ${isDark ? '#2A3347' : '#D5DAF0'}`,
+            borderRadius: 10, margin: '4px 0', lineHeight: 1.6,
+          }}>
+            {lang === 'en' ? 'Drop leads here' : 'גרור לידים לכאן'}
+          </div>
+        )}
+      </div>
+
+      {/* Add lead footer */}
+      <div style={{ padding: '8px 10px', borderTop: `1px solid ${isDark ? '#222E42' : '#DDE3F5'}`, flexShrink: 0, direction: 'rtl' }}>
+        <button onClick={() => onAddRow(group.id, '')}
+          style={{
+            width: '100%', padding: '7px 0',
+            background: 'none', border: `1px dashed ${color}55`, borderRadius: 8,
+            cursor: 'pointer', color, fontSize: 12, fontWeight: 700,
+            fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+            transition: 'background .15s',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = `${color}14` }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'none' }}>
+          <Plus size={12} /> {lang === 'en' ? 'Add lead' : 'הוסף ליד'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ─── kanban board ─────────────────────────────────────────────────────────────
+
+function KanbanBoard({ leads, T, isDark, lang, updateLead, updateLeadStatus, onAddRow, onOpen, onDelete, onOpenChat, onEnrich, showToast }) {
+  const [activeId, setActiveId] = useState(null)
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
+
+  const grouped = useMemo(() => {
+    const m = {}
+    GROUPS.forEach(g => { m[g.id] = [] })
+    leads.forEach(l => {
+      const s = l.leadStatus || 'new'
+      if (m[s] !== undefined) m[s].push(l)
+      else m['new'].push(l)
+    })
+    return m
+  }, [leads])
+
+  const findGroupForLead = useCallback(id => {
+    for (const g of GROUPS) {
+      if ((grouped[g.id] || []).find(l => l.id === id)) return g.id
+    }
+    return null
+  }, [grouped])
+
+  const handleDragEnd = ({ active, over }) => {
+    setActiveId(null)
+    if (!over || active.id === over.id) return
+
+    const fromGroup = findGroupForLead(active.id)
+    const toGroup = over.data?.current?.type === 'column'
+      ? over.id
+      : (over.data?.current?.type === 'card' ? findGroupForLead(over.id) : findGroupForLead(over.id))
+
+    if (!fromGroup || !toGroup || fromGroup === toGroup) return
+    const lead = leads.find(l => l.id === active.id)
+    if (lead) {
+      updateLeadStatus(lead, toGroup)
+      if (showToast) showToast(lang === 'en' ? `Moved to ${getGroupLabel(toGroup, lang)}` : `הועבר ל${getGroupLabel(toGroup, lang)}`)
+    }
+  }
+
+  const activeLead = activeId ? leads.find(l => l.id === activeId) : null
+
+  return (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCorners}
+      onDragStart={({ active }) => setActiveId(active.id)}
+      onDragEnd={handleDragEnd}>
+
+      {/* RTL horizontal scroll — first column (ליד חדש) is on the RIGHT */}
+      <div className="kanban-board-scroll" style={{
+        display: 'flex',
+        gap: 16,
+        padding: '16px 20px 24px',
+        height: '100%',
+        alignItems: 'flex-start',
+        direction: 'rtl',
+        background: isDark ? '#0D1117' : '#EEF0FA',
+      }}>
+        {GROUPS.map(group => (
+          <KanbanColumn
+            key={group.id}
+            group={group}
+            leads={grouped[group.id] || []}
+            T={T} isDark={isDark} lang={lang}
+            onOpen={onOpen}
+            onDelete={onDelete}
+            onOpenChat={onOpenChat}
+            onEnrich={onEnrich}
+            onAddRow={onAddRow}
+          />
+        ))}
+      </div>
+
+      <DragOverlay dropAnimation={{ duration: 200, easing: 'cubic-bezier(.18,.67,.6,1.22)' }}>
+        {activeLead && (
+          <div style={{ width: 272, opacity: 0.95, transform: 'rotate(2deg)', filter: 'drop-shadow(0 12px 32px rgba(0,0,0,.45))' }}>
+            <KanbanCard
+              lead={activeLead} T={T} isDark={isDark} lang={lang}
+              onOpen={() => {}} onDelete={() => {}} />
+          </div>
+        )}
+      </DragOverlay>
+    </DndContext>
+  )
+}
+
 // ─── integrations modal ───────────────────────────────────────────────────────
 
 function IntegrationsModal({ onClose, T, lang }) {
@@ -1192,7 +1480,9 @@ function MobileStatsBar({ leads, T, lang }) {
 export default function LeadsBoard({
   leads, updateLead, updateLeadStatus, deleteLead, addLead,
   colOrder, setColOrder, customCols, setCustomCols, colWidths, setColWidths,
-  exportCSV, syncLeads, enrichAll, enrichLead, clearLeads, leadsSyncing,
+  exportCSV, syncLeads, enrichAll, enrichLead, clearLeads,
+  trashedLeads = [], restoreLead, permanentDeleteLead,
+  leadsSyncing,
   isDark, lang, onOpenChat,
 }) {
   const T = useTheme(isDark)
@@ -1205,7 +1495,7 @@ export default function LeadsBoard({
   const [detailLead, setDetailLead]   = useState(null)
   const [statusTarget, setStatusTarget] = useState(null)
   const [modal, setModal]             = useState(null)
-  const [activeTab, setActiveTab]     = useState('leads')
+  const [activeTab, setActiveTab]     = useState('pipeline')
   const [toast, setToast]             = useState(null)
   const [activeDragId, setActiveDragId] = useState(null)
   const [mobileSearch, setMobileSearch] = useState(false)
@@ -1300,7 +1590,7 @@ export default function LeadsBoard({
   // ────────────────────────────────────────────────────────────────────────────
   if (isMobile) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: T.bg, fontFamily: "Rubik,'Inter','Segoe UI',system-ui,sans-serif", direction: lang === 'en' ? 'ltr' : 'rtl', overflow: 'hidden' }}>
+      <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', background: T.bg, fontFamily: "Rubik,'Inter','Segoe UI',system-ui,sans-serif", direction: lang === 'en' ? 'ltr' : 'rtl', overflow: 'hidden' }}>
 
         {/* ── Mobile Header ── */}
         <div style={{ padding: '14px 16px 10px', background: T.bgHeader, borderBottom: `1px solid ${T.border}` }}>
@@ -1438,18 +1728,18 @@ export default function LeadsBoard({
   // DESKTOP LAYOUT
   // ────────────────────────────────────────────────────────────────────────────
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: T.bg, fontFamily: "Rubik,'Inter','Segoe UI',system-ui,sans-serif", direction: lang === 'en' ? 'ltr' : 'rtl', overflow: 'hidden' }}>
+    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', background: T.bg, fontFamily: "Rubik,'Inter','Segoe UI',system-ui,sans-serif", direction: lang === 'en' ? 'ltr' : 'rtl', overflow: 'hidden' }}>
 
       {/* ── Board title bar ── */}
-      <div style={{ padding: '10px 20px 0', background: T.bgHeader, borderBottom: `1px solid ${T.border}` }}>
+      <div style={{ padding: '10px 20px 0', background: isDark ? '#0D1117' : T.bgHeader, borderBottom: `1px solid ${T.border}`, flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-          <div style={{ width: 30, height: 30, borderRadius: 8, background: 'linear-gradient(135deg,#A25DDC,#0073EA)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 3px 10px #0073EA44' }}>
-            <User size={15} style={{ color: '#fff' }} />
+          <div style={{ width: 32, height: 32, borderRadius: 9, background: 'linear-gradient(135deg,#0073EA,#A25DDC)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 3px 12px #0073EA55' }}>
+            <User size={16} style={{ color: '#fff' }} />
           </div>
           <span style={{ fontSize: 18, fontWeight: 800, color: T.text, letterSpacing: '-.01em' }}>
             {lang === 'en' ? 'Leads CRM' : 'ניהול לידים'}
           </span>
-          <span style={{ fontSize: 12, color: T.textSub, background: T.bg, border: `1px solid ${T.border}`, borderRadius: 20, padding: '2px 10px', fontWeight: 700 }}>
+          <span style={{ fontSize: 11, color: T.accent, background: T.accent + '18', border: `1px solid ${T.accent}33`, borderRadius: 20, padding: '2px 10px', fontWeight: 800 }}>
             {leads.length} {lang === 'en' ? 'items' : 'פריטים'}
           </span>
           <div style={{ flex: 1 }} />
@@ -1466,22 +1756,21 @@ export default function LeadsBoard({
           </button>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', overflowX: 'auto' }}>
+        <div style={{ display: 'flex', alignItems: 'center', overflowX: 'auto', borderTop: `1px solid ${T.borderLight}`, marginTop: 6 }}>
           {[
-            { id: 'leads', label: lang === 'en' ? 'Leads Board' : 'בורד לידים' },
-            { id: 'table', label: lang === 'en' ? 'Main Table' : 'טבלה ראשית' },
-            { id: 'chart', label: lang === 'en' ? 'Chart View' : 'תרשים' },
-          ].map(tab => (
-            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-              style={{ padding: '8px 16px', background: 'none', border: 'none', borderBottom: activeTab === tab.id ? `2px solid ${T.accent}` : '2px solid transparent', marginBottom: -1, color: activeTab === tab.id ? T.accent : T.textSub, fontSize: 13, fontWeight: activeTab === tab.id ? 700 : 500, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', transition: 'color .15s' }}>
-              {tab.label}
+            { id: 'pipeline', icon: '⬛', label: lang === 'en' ? 'Pipeline' : 'Pipeline' },
+            { id: 'table',    icon: '☰',  label: lang === 'en' ? 'Table'    : 'טבלה'    },
+          ].map(tb => (
+            <button key={tb.id} onClick={() => setActiveTab(tb.id)}
+              style={{ padding: '7px 16px', background: 'none', border: 'none', borderBottom: activeTab === tb.id ? `2px solid ${T.accent}` : '2px solid transparent', marginBottom: -1, color: activeTab === tb.id ? T.accent : T.textSub, fontSize: 12, fontWeight: activeTab === tb.id ? 700 : 500, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', transition: 'color .15s', display: 'flex', alignItems: 'center', gap: 5 }}>
+              {tb.icon} {tb.label}
             </button>
           ))}
         </div>
       </div>
 
       {/* ── Toolbar ── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 20px', background: T.bgHeader, borderBottom: `1px solid ${T.border}`, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', background: isDark ? '#0D1117' : T.bgHeader, borderBottom: `1px solid ${T.border}`, flexShrink: 0, overflowX: 'auto', overflowY: 'visible' }}>
         <div style={{ display: 'flex', alignItems: 'stretch', borderRadius: 8, overflow: 'hidden', boxShadow: `0 2px 8px ${T.accent}30` }}>
           <button onClick={() => handleAddRow(GROUPS[0].id, '')}
             style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 18px', background: T.accent, border: 'none', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', borderRight: '1px solid rgba(255,255,255,.25)' }}>
@@ -1536,6 +1825,19 @@ export default function LeadsBoard({
           {lang === 'en' ? 'Sync' : 'סנכרן'}
         </button>
 
+        {restoreLead && (
+          <button onClick={() => setModal('trash')}
+            style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: trashedLeads.length > 0 ? T.red + '12' : 'none', border: `1px solid ${trashedLeads.length > 0 ? T.red + '55' : T.border}`, borderRadius: 8, color: trashedLeads.length > 0 ? T.red : T.textSub, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s' }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = T.red + '88'; e.currentTarget.style.color = T.red }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = trashedLeads.length > 0 ? T.red + '55' : T.border; e.currentTarget.style.color = trashedLeads.length > 0 ? T.red : T.textSub }}>
+            <Trash2 size={12} />
+            {lang === 'en' ? 'Trash' : 'אשפה'}
+            {trashedLeads.length > 0 && (
+              <span style={{ background: T.red, color: '#fff', borderRadius: 10, fontSize: 10, padding: '0 5px', fontWeight: 700, minWidth: 16, textAlign: 'center' }}>{trashedLeads.length}</span>
+            )}
+          </button>
+        )}
+
         <button onClick={exportCSV}
           style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: 'none', border: `1px solid ${T.border}`, borderRadius: 8, color: T.textSub, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s' }}
           onMouseEnter={e => { e.currentTarget.style.borderColor = T.green + '88'; e.currentTarget.style.color = T.green }}
@@ -1558,68 +1860,87 @@ export default function LeadsBoard({
         )}
       </div>
 
-      {/* ── Table ── */}
-      <div style={{ flex: 1, overflowY: 'auto', overflowX: 'auto', position: 'relative' }}>
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-          <div style={{ minWidth: tableMinWidth, width: '100%' }}>
-            {/* Column headers */}
-            <div style={{ display: 'flex', alignItems: 'center', background: T.bgHeader, borderBottom: `2px solid ${T.border}`, position: 'sticky', top: 0, zIndex: 10, height: 38 }}>
-              <div style={{ width: 32, flexShrink: 0, borderRight: `1px solid ${T.border}`, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'sticky', left: 0, background: T.bgHeader, zIndex: 5 }}>
-                <input type="checkbox" style={{ accentColor: T.accent, width: 14, height: 14 }}
-                  onChange={e => {
-                    if (e.target.checked) setSelectedIds(new Set(filtered.map(l => l.id)))
-                    else setSelectedIds(new Set())
-                  }} />
-              </div>
-              {allCols.map(col => (
-                <div key={col.id} style={{ width: col.width, flexShrink: 0, padding: '0 10px', fontSize: 11, fontWeight: 700, color: T.textSub, textTransform: 'uppercase', letterSpacing: '.05em', borderRight: `1px solid ${T.borderLight}`, height: '100%', display: 'flex', alignItems: 'center', userSelect: 'none', cursor: 'pointer', transition: 'color .15s, background .15s', whiteSpace: 'nowrap', overflow: 'hidden', ...(col.pinned ? { position: 'sticky', left: 32, zIndex: 4, background: T.bgHeader } : {}) }}
-                  onMouseEnter={e => { e.currentTarget.style.color = T.text; e.currentTarget.style.background = T.bgRowHover }}
-                  onMouseLeave={e => { e.currentTarget.style.color = T.textSub; e.currentTarget.style.background = col.pinned ? T.bgHeader : 'transparent' }}>
-                  {lang === 'en' ? (col.en || col.label) : col.label}
-                </div>
-              ))}
-              <button onClick={() => setModal('addcol')}
-                style={{ width: 120, flexShrink: 0, height: '100%', background: 'none', border: 'none', borderRight: `1px solid ${T.borderLight}`, color: T.textDim, cursor: 'pointer', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, transition: 'all .15s', fontFamily: 'inherit', whiteSpace: 'nowrap', padding: '0 12px' }}
-                onMouseEnter={e => { e.currentTarget.style.background = T.bgRowHover; e.currentTarget.style.color = T.accent }}
-                onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = T.textDim }}>
-                <Plus size={13} /> {lang === 'en' ? 'Add Column' : 'עמודה חדשה'}
-              </button>
-            </div>
+      {/* ── Pipeline (Kanban) view ── */}
+      {activeTab === 'pipeline' && (
+        <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+          <KanbanBoard
+            leads={filtered}
+            T={T} isDark={isDark} lang={lang}
+            updateLead={updateLead}
+            updateLeadStatus={updateLeadStatus}
+            onAddRow={handleAddRow}
+            onOpen={setDetailLead}
+            onDelete={handleDelete}
+            onOpenChat={onOpenChat}
+            onEnrich={enrichLead}
+            showToast={showToast}
+          />
+        </div>
+      )}
 
-            {leads.length === 0 && (
-              <div style={{ textAlign: 'center', padding: '80px 24px', color: T.textSub }}>
-                <div style={{ fontSize: 52, marginBottom: 16 }}>📋</div>
-                <div style={{ fontSize: 18, fontWeight: 700, color: T.text, marginBottom: 8 }}>
-                  {lang === 'en' ? 'No leads yet!' : 'עוד אין לידים!'}
+      {/* ── Table view ── */}
+      {activeTab === 'table' && (
+        <div className="leads-table-scroll" style={{ flex: 1, minHeight: 0, position: 'relative' }}>
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+            <div style={{ minWidth: tableMinWidth, width: '100%' }}>
+              {/* Column headers */}
+              <div style={{ display: 'flex', alignItems: 'center', background: T.bgHeader, borderBottom: `2px solid ${T.border}`, position: 'sticky', top: 0, zIndex: 10, height: 36, boxShadow: '0 2px 8px rgba(0,0,0,.06)' }}>
+                <div style={{ width: 32, flexShrink: 0, borderRight: `1px solid ${T.border}`, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'sticky', left: 0, background: T.bgHeader, zIndex: 5 }}>
+                  <input type="checkbox" style={{ accentColor: T.accent, width: 14, height: 14 }}
+                    onChange={e => {
+                      if (e.target.checked) setSelectedIds(new Set(filtered.map(l => l.id)))
+                      else setSelectedIds(new Set())
+                    }} />
                 </div>
-                <div style={{ fontSize: 14, lineHeight: 1.7, marginBottom: 24 }}>
-                  {lang === 'en' ? 'Click + New Item to add your first lead.' : 'לחץ על פריט חדש+ להוספת הליד הראשון.'}
-                </div>
-                <button onClick={() => handleAddRow('new', 'New Lead')}
-                  style={{ padding: '11px 26px', background: T.accent, border: 'none', borderRadius: 10, color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', boxShadow: `0 4px 16px ${T.accent}44` }}>
-                  <Plus size={14} style={{ display: 'inline', marginRight: 6 }} />
-                  {lang === 'en' ? 'Add First Lead' : 'הוסף ליד ראשון'}
+                {allCols.map(col => (
+                  <div key={col.id} style={{ width: col.width, flexShrink: 0, padding: '0 10px', fontSize: 11, fontWeight: 700, color: T.textSub, textTransform: 'uppercase', letterSpacing: '.05em', borderRight: `1px solid ${T.borderLight}`, height: '100%', display: 'flex', alignItems: 'center', userSelect: 'none', cursor: 'pointer', transition: 'color .15s, background .15s', whiteSpace: 'nowrap', overflow: 'hidden', ...(col.pinned ? { position: 'sticky', left: 32, zIndex: 4, background: T.bgHeader } : {}) }}
+                    onMouseEnter={e => { e.currentTarget.style.color = T.text; e.currentTarget.style.background = T.bgRowHover }}
+                    onMouseLeave={e => { e.currentTarget.style.color = T.textSub; e.currentTarget.style.background = col.pinned ? T.bgHeader : 'transparent' }}>
+                    {lang === 'en' ? (col.en || col.label) : col.label}
+                  </div>
+                ))}
+                <button onClick={() => setModal('addcol')}
+                  style={{ width: 120, flexShrink: 0, height: '100%', background: 'none', border: 'none', borderRight: `1px solid ${T.borderLight}`, color: T.textDim, cursor: 'pointer', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, transition: 'all .15s', fontFamily: 'inherit', whiteSpace: 'nowrap', padding: '0 12px' }}
+                  onMouseEnter={e => { e.currentTarget.style.background = T.bgRowHover; e.currentTarget.style.color = T.accent }}
+                  onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = T.textDim }}>
+                  <Plus size={13} /> {lang === 'en' ? 'Add Column' : 'עמודה חדשה'}
                 </button>
               </div>
-            )}
 
-            {GROUPS.map(group => {
-              const groupLeads = grouped[group.id] || []
-              return (
-                <BoardGroup key={group.id} group={group} leads={groupLeads} cols={allCols}
-                  T={T} lang={lang}
-                  onUpdate={updateLead} onUpdateStatus={updateLeadStatus}
-                  onDelete={handleDelete} onSelect={handleSelect}
-                  onOpenDetail={setDetailLead} onAddRow={handleAddRow}
-                  onOpenChat={onOpenChat} onEnrich={enrichLead}
-                  onStatusClick={(e, lead) => setStatusTarget(lead)} />
-              )
-            })}
+              {leads.length === 0 && (
+                <div style={{ textAlign: 'center', padding: '80px 24px', color: T.textSub }}>
+                  <div style={{ fontSize: 52, marginBottom: 16 }}>📋</div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: T.text, marginBottom: 8 }}>
+                    {lang === 'en' ? 'No leads yet!' : 'עוד אין לידים!'}
+                  </div>
+                  <div style={{ fontSize: 14, lineHeight: 1.7, marginBottom: 24 }}>
+                    {lang === 'en' ? 'Click + New Item to add your first lead.' : 'לחץ על פריט חדש+ להוספת הליד הראשון.'}
+                  </div>
+                  <button onClick={() => handleAddRow('new', 'New Lead')}
+                    style={{ padding: '11px 26px', background: T.accent, border: 'none', borderRadius: 10, color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', boxShadow: `0 4px 16px ${T.accent}44` }}>
+                    <Plus size={14} style={{ display: 'inline', marginRight: 6 }} />
+                    {lang === 'en' ? 'Add First Lead' : 'הוסף ליד ראשון'}
+                  </button>
+                </div>
+              )}
 
-            <div style={{ height: 60 }} />
-          </div>
-        </DndContext>
-      </div>
+              {GROUPS.map(group => {
+                const groupLeads = grouped[group.id] || []
+                return (
+                  <BoardGroup key={group.id} group={group} leads={groupLeads} cols={allCols}
+                    T={T} lang={lang}
+                    onUpdate={updateLead} onUpdateStatus={updateLeadStatus}
+                    onDelete={handleDelete} onSelect={handleSelect}
+                    onOpenDetail={setDetailLead} onAddRow={handleAddRow}
+                    onOpenChat={onOpenChat} onEnrich={enrichLead}
+                    onStatusClick={(e, lead) => setStatusTarget(lead)} />
+                )
+              })}
+              <div style={{ height: 60 }} />
+            </div>
+          </DndContext>
+        </div>
+      )}
 
       {/* ── Modals ── */}
       {modal === 'integrate'  && <IntegrationsModal onClose={() => setModal(null)} T={T} lang={lang} />}
@@ -1645,6 +1966,106 @@ export default function LeadsBoard({
       {detailLead && <ItemDetailDrawer lead={leads.find(l => l.id === detailLead.id) || detailLead} onClose={() => setDetailLead(null)} onUpdate={updateLead} onUpdateStatus={updateLeadStatus} lang={lang} T={T} isDark={isDark} isMobile={false} onEnrich={enrichLead} />}
       {selectedIds.size > 0 && <BulkActionBar count={selectedIds.size} lang={lang} T={T} onClearSelection={() => setSelectedIds(new Set())} onDelete={handleBulkDelete} onMove={() => {}} />}
       {toast && <Toast message={toast} onDismiss={() => setToast(null)} />}
+
+      {/* ── Trash Modal ── */}
+      {modal === 'trash' && (
+        <>
+          <div onClick={() => setModal(null)} style={{ position: 'fixed', inset: 0, zIndex: 900, background: 'rgba(0,0,0,.45)' }} />
+          <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: T.bgHeader, border: `1px solid ${T.border}`, borderRadius: 16, padding: 0, boxShadow: T.shadow, zIndex: 901, width: 580, maxWidth: '95vw', maxHeight: '80vh', display: 'flex', flexDirection: 'column', direction: 'rtl' }}>
+            {/* Header */}
+            <div style={{ padding: '18px 22px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', gap: 10 }}>
+              <Trash2 size={18} style={{ color: T.red, flexShrink: 0 }} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 16, fontWeight: 800, color: T.text }}>
+                  {lang === 'en' ? 'Trash' : 'אשפה — לידים שנמחקו'}
+                </div>
+                <div style={{ fontSize: 12, color: T.textSub, marginTop: 2 }}>
+                  {lang === 'en' ? `${trashedLeads.length} deleted leads` : `${trashedLeads.length} לידים במחיקה — ניתן לשחזר בכל עת`}
+                </div>
+              </div>
+              {trashedLeads.length > 0 && permanentDeleteLead && (
+                <button
+                  onClick={() => { if (window.confirm(lang === 'en' ? 'Empty trash permanently?' : 'לרוקן את האשפה לצמיתות?')) { [...trashedLeads].forEach(l => permanentDeleteLead(l.id)); setModal(null) } }}
+                  style={{ padding: '6px 12px', background: T.red + '15', border: `1px solid ${T.red}44`, borderRadius: 8, color: T.red, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
+                  {lang === 'en' ? 'Empty Trash' : '🗑️ ריקון אשפה'}
+                </button>
+              )}
+              <button onClick={() => setModal(null)} style={{ width: 30, height: 30, borderRadius: '50%', border: `1px solid ${T.border}`, background: 'transparent', cursor: 'pointer', color: T.textSub, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <X size={14} />
+              </button>
+            </div>
+            {/* List */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
+              {trashedLeads.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '48px 24px', color: T.textSub }}>
+                  <div style={{ fontSize: 40, marginBottom: 12 }}>🗑️</div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: T.text, marginBottom: 6 }}>{lang === 'en' ? 'Trash is empty' : 'האשפה ריקה'}</div>
+                  <div style={{ fontSize: 12 }}>{lang === 'en' ? 'Deleted leads will appear here' : 'לידים שנמחקו יופיעו כאן לשחזור'}</div>
+                </div>
+              ) : trashedLeads.map(lead => {
+                const deletedAgo = lead.deletedAt
+                  ? (() => {
+                      const diff = Date.now() - lead.deletedAt
+                      if (diff < 60000) return 'עכשיו'
+                      if (diff < 3600000) return `לפני ${Math.floor(diff/60000)} דק'`
+                      if (diff < 86400000) return `לפני ${Math.floor(diff/3600000)} שע'`
+                      return `לפני ${Math.floor(diff/86400000)} ימים`
+                    })()
+                  : ''
+                const color = getGroupColor(lead.leadStatus || 'new')
+                return (
+                  <div key={lead.id}
+                    style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 20px', borderBottom: `1px solid ${T.borderLight}`, transition: 'background .1s' }}
+                    onMouseEnter={e => e.currentTarget.style.background = T.bgRowHover}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                    {/* Avatar */}
+                    <div style={{ width: 38, height: 38, borderRadius: '50%', background: avatarColor(lead.name) + '22', border: `1.5px solid ${avatarColor(lead.name)}55`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 15, color: avatarColor(lead.name), flexShrink: 0 }}>
+                      {(lead.name || lead.phone || '?')[0]?.toUpperCase()}
+                    </div>
+                    {/* Info */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {lead.name || lead.phone || '—'}
+                        </span>
+                        <span style={{ fontSize: 10, fontWeight: 700, color, background: color + '1A', padding: '2px 7px', borderRadius: 10, border: `1px solid ${color}44`, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                          {GROUPS.find(g => g.id === lead.leadStatus)?.label || lead.leadStatus || 'ליד חדש'}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', gap: 12, fontSize: 12, color: T.textSub }}>
+                        {lead.phone && <span style={{ direction: 'ltr', display: 'inline-block' }}>{lead.phone}</span>}
+                        {lead.email && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 180 }}>{lead.email}</span>}
+                        {deletedAgo && <span style={{ marginRight: 'auto', flexShrink: 0, opacity: .7 }}>{deletedAgo}</span>}
+                      </div>
+                    </div>
+                    {/* Actions */}
+                    <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                      <button
+                        onClick={() => restoreLead(lead.id)}
+                        title={lang === 'en' ? 'Restore' : 'שחזר ליד'}
+                        style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: T.green + '15', border: `1px solid ${T.green}44`, borderRadius: 8, color: T.green, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', transition: 'all .15s' }}
+                        onMouseEnter={e => { e.currentTarget.style.background = T.green + '28' }}
+                        onMouseLeave={e => { e.currentTarget.style.background = T.green + '15' }}>
+                        ↩ {lang === 'en' ? 'Restore' : 'שחזר'}
+                      </button>
+                      {permanentDeleteLead && (
+                        <button
+                          onClick={() => permanentDeleteLead(lead.id)}
+                          title={lang === 'en' ? 'Delete permanently' : 'מחק לצמיתות'}
+                          style={{ width: 30, height: 30, borderRadius: 8, border: `1px solid ${T.border}`, background: 'transparent', cursor: 'pointer', color: T.textSub, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .15s' }}
+                          onMouseEnter={e => { e.currentTarget.style.borderColor = T.red + '88'; e.currentTarget.style.color = T.red; e.currentTarget.style.background = T.red + '12' }}
+                          onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.color = T.textSub; e.currentTarget.style.background = 'transparent' }}>
+                          <X size={13} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </>
+      )}
 
       <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
     </div>

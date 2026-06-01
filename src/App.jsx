@@ -22,8 +22,11 @@ import { FaChevronLeft, FaChevronRight, FaEnvelope, FaFacebookF, FaInstagram, Fa
 
 // ─── SERVER CONFIG ────────────────────────────────────────────────────────────
 // Set VITE_API_URL in Vercel env vars to point at your Render server.
-const API_BASE    = (import.meta.env.VITE_API_URL || 'https://afik-hanahal-server.onrender.com').replace(/\/$/, '')
-const ADMIN_TOKEN = 'AFIKhanahal2026'
+const API_BASE     = (import.meta.env.VITE_API_URL || 'https://afik-hanahal-server.onrender.com').replace(/\/$/, '')
+// In production, contacts CRUD goes through Vercel → Supabase (never sleeps).
+// In dev, fall back to the Render server so local testing still works.
+const CONTACTS_API = import.meta.env.PROD ? '' : API_BASE
+const ADMIN_TOKEN  = 'AFIKhanahal2026'
 
 // ─── THEME COLOURS ────────────────────────────────────────────────────────────
 const DARK_C  = { bg:'#09090F', purple:'#8490D8', green:'#82F67F', cream:'#E8E4D8', card:'#0E0E1C' }
@@ -252,9 +255,48 @@ const makeGlobal = (C, isDark) => `
   @media (prefers-reduced-motion: no-preference) {
     html { scroll-behavior:smooth; }
   }
-  ::-webkit-scrollbar { width:5px; }
-  ::-webkit-scrollbar-track { background:${C.bg}; }
-  ::-webkit-scrollbar-thumb { background:${C.purple}55; border-radius:4px; }
+  /* ── Global scrollbars ── */
+  ::-webkit-scrollbar { width:6px; height:6px; }
+  ::-webkit-scrollbar-track { background:transparent; }
+  ::-webkit-scrollbar-thumb { background:${C.purple}44; border-radius:4px; }
+  ::-webkit-scrollbar-thumb:hover { background:${C.purple}88; }
+  ::-webkit-scrollbar-corner { background:transparent; }
+
+  /* ── Admin panel always-dark surfaces ── */
+  .admin-board-dark { background:#0D1117 !important; color:#E2E8F8 !important; }
+  .admin-board-dark ::-webkit-scrollbar-thumb { background:rgba(100,120,200,.35) !important; }
+  .admin-board-dark ::-webkit-scrollbar-thumb:hover { background:rgba(100,120,200,.6) !important; }
+
+  /* ── Kanban board horizontal scroll ── */
+  .kanban-board-scroll {
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(100,120,200,.3) transparent;
+    -webkit-overflow-scrolling: touch;
+  }
+  .kanban-board-scroll::-webkit-scrollbar { height: 7px; }
+  .kanban-board-scroll::-webkit-scrollbar-thumb { background: rgba(100,120,200,.3); border-radius: 4px; }
+  .kanban-board-scroll::-webkit-scrollbar-track { background: transparent; }
+
+  /* ── Kanban column vertical scroll ── */
+  .kanban-col-scroll {
+    overflow-y: auto !important;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(100,120,200,.2) transparent;
+    -webkit-overflow-scrolling: touch;
+  }
+  .kanban-col-scroll::-webkit-scrollbar { width: 4px; }
+  .kanban-col-scroll::-webkit-scrollbar-thumb { background: rgba(100,120,200,.25); border-radius: 3px; }
+
+  /* ── Table horizontal scroll ── */
+  .leads-table-scroll {
+    overflow-x: auto !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(100,120,200,.25) transparent;
+  }
 
   /* ── Core animations ── */
   @keyframes fadeUp      { from{opacity:0;transform:translateY(32px)} to{opacity:1;transform:translateY(0)} }
@@ -893,7 +935,7 @@ const makeGlobal = (C, isDark) => `
   }
 
   /* ── Scrollbar on right for admin panel (ltr outer = scrollbar right, content restored via > *) ── */
-  .admin-content { direction: ltr !important; }
+  .admin-content { direction: ltr !important; position: relative; }
   .admin-content > * { direction: rtl; }
   .admin-panel-modal { direction: ltr !important; }
   .admin-panel-modal > * { direction: rtl; }
@@ -2010,6 +2052,8 @@ function ServicesSection({ onContact }) {
 
 // ─── CONTACT MODAL ────────────────────────────────────────────────────────────
 const LEADS_STORE    = 'afik_leads_v1'
+const LEADS_DELETED  = 'afik_leads_deleted_v1'
+const LEADS_TRASH    = 'afik_leads_trash_v1'
 const WA_KEY         = 'afik_wa_settings'
 const ANALYTICS_KEY  = 'afik_analytics_v2'
 const WA_DEFAULT_TEMPLATE = `היי {name},
@@ -2175,13 +2219,11 @@ function ContactModal({ prop, onClose }) {
               const wh = localStorage.getItem('afik_crm_webhook')
               if (wh) fetch(wh, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(lead) }).catch(()=>{})
             } catch {}
-            if (API_BASE) {
-              fetch(`${API_BASE}/api/contacts`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(lead),
-              }).catch(() => {})
-            }
+            fetch(`${CONTACTS_API}/api/contacts`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(lead),
+            }).catch(() => {})
             trackEvent('contact_form', { propTitle: prop?.title || '', hasEmail: !!form.email, email: form.email, phone: form.phone, name: form.name })
             setSent(true)
             setSending(false)
@@ -3592,13 +3634,29 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const [propSyncedAt,   setPropSyncedAt]   = useState(null)
   const [supabaseWarning, setSupabaseWarning] = useState('')
 
+  const [tokenSaved, setTokenSaved]         = useState(false)
+  const [settingsAllSaved, setSettingsAllSaved] = useState(false)
+  const tokenSaveTimer   = useRef(null)
+  const settingsSaveTimer = useRef(null)
+
+  function saveAllSettings() {
+    // Explicitly flush all settings to localStorage
+    localStorage.setItem('govmap_token', govmapToken)
+    localStorage.setItem('logoNavSize',  String(logoNavSize))
+    localStorage.setItem('govmap_default_layers', JSON.stringify(gmLayers))
+    localStorage.setItem('govmap_default_bg', gmBg)
+    setSettingsAllSaved(true)
+    clearTimeout(settingsSaveTimer.current)
+    settingsSaveTimer.current = setTimeout(() => setSettingsAllSaved(false), 3000)
+  }
+
   // GovMap management panel state
   const [gmTab,    setGmTab]    = useState('map')   // 'map' | 'layers' | 'bg'
   const [gmLayers, setGmLayers] = useState(() => {
     try { const s = localStorage.getItem('govmap_default_layers'); if (s) { const d = JSON.parse(s); return Object.fromEntries(GM_LAYERS.map(l => [l.id, d[l.id] ?? l.on])) } } catch {}
     return Object.fromEntries(GM_LAYERS.map(l => [l.id, l.on]))
   })
-  const [gmBg,    setGmBg]    = useState(() => localStorage.getItem('govmap_default_bg') || '2')
+  const [gmBg,    setGmBg]    = useState(() => localStorage.getItem('govmap_default_bg') || '0')
   const [gmSaved, setGmSaved] = useState(false)
   function saveGmDefaults() {
     localStorage.setItem('govmap_default_layers', JSON.stringify(gmLayers))
@@ -3662,7 +3720,8 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
       setCountersSaving(false)
     }
   }
-  const [leads, setLeads]   = useState(() => { try { return JSON.parse(localStorage.getItem(LEADS_STORE) || '[]') } catch { return [] } })
+  const [leads, setLeads]           = useState(() => { try { return JSON.parse(localStorage.getItem(LEADS_STORE) || '[]') } catch { return [] } })
+  const [trashedLeads, setTrashedLeads] = useState(() => { try { return JSON.parse(localStorage.getItem(LEADS_TRASH) || '[]') } catch { return [] } })
   const [crmWebhook, setCrmWebhook] = useState(() => localStorage.getItem('afik_crm_webhook') || '')
   const [webhookSaved, setWebhookSaved] = useState(false)
   const [waSt, setWaSt] = useState(() => { try { return { provider:'greenapi', delayMin:2, template:WA_DEFAULT_TEMPLATE, instanceId:'7107558519', apiUrl:'https://7107.api.greenapi.com', token:'191b9e9c4fc540f1ad25c8607389c0d689d15794f8094a0589', enabled:true, ...JSON.parse(localStorage.getItem(WA_KEY) || '{}') } } catch { return { provider:'greenapi', delayMin:2, template:WA_DEFAULT_TEMPLATE, instanceId:'7107558519', apiUrl:'https://7107.api.greenapi.com', token:'191b9e9c4fc540f1ad25c8607389c0d689d15794f8094a0589', enabled:true } } })
@@ -3738,27 +3797,31 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   }
 
   const syncLeadsFromServer = () => {
-    const base = API_BASE || ''
-    if (!base || leadsSyncing) return
+    if (leadsSyncing) return
     setLeadsSyncing(true)
-    fetch(`${base}/api/contacts`, { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` } })
+    fetch(`${CONTACTS_API}/api/contacts`, { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` } })
       .then(r => r.ok ? r.json() : Promise.reject())
       .then(serverLeads => {
         if (!Array.isArray(serverLeads)) return
+        const deletedIds = new Set(
+          JSON.parse(localStorage.getItem(LEADS_DELETED) || '[]').map(String)
+        )
         setLeads(prev => {
-          const localIds = new Set(prev.map(l => String(l.id)))
+          const localById = new Map(prev.map(l => [String(l.id), l]))
+          // Pull in leads that exist on server but not locally (and weren't deleted)
           const newOnes = serverLeads
-            .filter(s => !localIds.has(String(s.id)))
+            .filter(s => !localById.has(String(s.id)) && !deletedIds.has(String(s.id)))
             .map(s => ({
-              id: String(s.id),
-              name: s.name || '',
-              phone: s.phone || '',
-              email: s.email || '',
-              msg: s.message || s.msg || '',
-              propTitle: s.prop_title || '',
-              propLocation: s.prop_location || '',
-              source: s.source || 'website',
-              ts: new Date(s.created_at || Date.now()).getTime(),
+              id:           String(s.id),
+              name:         s.name         || '',
+              phone:        s.phone        || '',
+              email:        s.email        || '',
+              msg:          s.message      || s.msg || '',
+              propTitle:    s.prop_title   || s.propTitle   || '',
+              propLocation: s.prop_location|| s.propLocation|| '',
+              source:       s.source       || 'website',
+              ts:           new Date(s.created_at || Date.now()).getTime(),
+              ...(s.crm_data || {}),   // restore leadStatus, enrichment, notes, tags
             }))
           if (newOnes.length === 0) return prev
           const merged = [...newOnes, ...prev].sort((a, b) => b.ts - a.ts)
@@ -4002,13 +4065,12 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   }
 
   const testEmail = async () => {
-    if (!API_BASE) { setEmailTestResult('err'); return }
     setEmailTesting(true); setEmailTestResult('')
     try {
-      const r = await fetch(`${API_BASE}/api/contacts/test-email`, {
+      const r = await fetch(`/api/contacts/test-email`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
-        signal: AbortSignal.timeout(15000),
+        signal: AbortSignal.timeout(20000),
       })
       const j = await r.json()
       setEmailTestResult(j.ok ? 'ok' : 'err')
@@ -4239,6 +4301,11 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
       try { localStorage.setItem(LEADS_STORE, JSON.stringify(next)) } catch {}
       return next
     })
+    fetch(`${CONTACTS_API}/api/contacts?id=${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+      body: JSON.stringify(patch),
+    }).catch(() => {})
   }
 
   const enrichLead = async (lead) => {
@@ -4309,16 +4376,87 @@ Return ONLY valid JSON (no markdown, no code blocks):
   }
 
   const deleteLead = id => {
+    const lead = leads.find(l => l.id === id)
     const next = leads.filter(l => l.id !== id)
     setLeads(next)
     if (selectedLead?.id === id) setSelectedLead(null)
     try { localStorage.setItem(LEADS_STORE, JSON.stringify(next)) } catch {}
+    // Track deleted ID to block re-sync from server
+    try {
+      const deleted = new Set(JSON.parse(localStorage.getItem(LEADS_DELETED) || '[]'))
+      deleted.add(String(id))
+      localStorage.setItem(LEADS_DELETED, JSON.stringify([...deleted]))
+    } catch {}
+    // Save full lead to trash for restore
+    if (lead) {
+      try {
+        const trash = JSON.parse(localStorage.getItem(LEADS_TRASH) || '[]')
+        trash.unshift({ ...lead, deletedAt: Date.now() })
+        localStorage.setItem(LEADS_TRASH, JSON.stringify(trash.slice(0, 200)))
+        setTrashedLeads(trash.slice(0, 200))
+      } catch {}
+    }
+    fetch(`${CONTACTS_API}/api/contacts?id=${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
+    }).catch(() => {})
   }
   const clearLeads = () => {
     if (!window.confirm('למחוק את כל הלידים לצמיתות?')) return
+    try {
+      const deleted = new Set(JSON.parse(localStorage.getItem(LEADS_DELETED) || '[]'))
+      leads.forEach(l => deleted.add(String(l.id)))
+      localStorage.setItem(LEADS_DELETED, JSON.stringify([...deleted]))
+    } catch {}
+    // Move all to trash
+    try {
+      const existing = JSON.parse(localStorage.getItem(LEADS_TRASH) || '[]')
+      const now = Date.now()
+      const newTrash = [...leads.map(l => ({ ...l, deletedAt: now })), ...existing].slice(0, 200)
+      localStorage.setItem(LEADS_TRASH, JSON.stringify(newTrash))
+      setTrashedLeads(newTrash)
+    } catch {}
     setLeads([])
     setSelectedLead(null)
     try { localStorage.setItem(LEADS_STORE, '[]') } catch {}
+  }
+  const restoreLead = id => {
+    try {
+      const trash = JSON.parse(localStorage.getItem(LEADS_TRASH) || '[]')
+      const lead = trash.find(l => String(l.id) === String(id))
+      if (!lead) return
+      // Remove from trash
+      const newTrash = trash.filter(l => String(l.id) !== String(id))
+      localStorage.setItem(LEADS_TRASH, JSON.stringify(newTrash))
+      setTrashedLeads(newTrash)
+      // Remove from deleted set
+      const deleted = new Set(JSON.parse(localStorage.getItem(LEADS_DELETED) || '[]'))
+      deleted.delete(String(id))
+      localStorage.setItem(LEADS_DELETED, JSON.stringify([...deleted]))
+      // Restore to active leads (without deletedAt)
+      // eslint-disable-next-line no-unused-vars
+      const { deletedAt, ...leadData } = lead
+      setLeads(prev => {
+        const next = [leadData, ...prev.filter(l => String(l.id) !== String(id))]
+          .sort((a, b) => b.ts - a.ts)
+        try { localStorage.setItem(LEADS_STORE, JSON.stringify(next)) } catch {}
+        return next
+      })
+      // Re-sync to server
+      fetch(`${CONTACTS_API}/api/contacts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+        body: JSON.stringify(leadData),
+      }).catch(() => {})
+    } catch {}
+  }
+  const permanentDeleteLead = id => {
+    try {
+      const trash = JSON.parse(localStorage.getItem(LEADS_TRASH) || '[]')
+      const newTrash = trash.filter(l => String(l.id) !== String(id))
+      localStorage.setItem(LEADS_TRASH, JSON.stringify(newTrash))
+      setTrashedLeads(newTrash)
+    } catch {}
   }
   const exportCSV = () => {
     const header = ['תאריך','שם','טלפון','אימייל','הודעה','נכס','מיקום נכס','מקור','ציון','כוונה','גיל משוער','עיר משוערת','תקציב משוער','השכלה','מקצוע','חברה','תפקיד','LinkedIn חיפוש','LinkedIn ישיר','Facebook','Google','נקודות שיחה','ניתוח AI','תגיות']
@@ -4494,13 +4632,19 @@ Return ONLY valid JSON (no markdown, no code blocks):
                 </div>
                 <span style={{ fontSize:12, color:'rgba(232,228,216,.55)', fontWeight:600 }}>מנהל ראשי</span>
               </div>
+              <button onClick={onClose}
+                style={{ display:'flex', alignItems:'center', gap:7, padding:'7px 15px', background:'rgba(224,82,82,.08)', border:'1px solid rgba(224,82,82,.28)', borderRadius:20, color:'rgba(224,82,82,.75)', cursor:'pointer', fontFamily:'inherit', fontSize:12, fontWeight:700, transition:'all .2s' }}
+                onMouseEnter={e=>{ e.currentTarget.style.background='rgba(224,82,82,.2)'; e.currentTarget.style.borderColor='#E05252'; e.currentTarget.style.color='#E05252' }}
+                onMouseLeave={e=>{ e.currentTarget.style.background='rgba(224,82,82,.08)'; e.currentTarget.style.borderColor='rgba(224,82,82,.28)'; e.currentTarget.style.color='rgba(224,82,82,.75)' }}>
+                <FaTimes size={11}/> <span>יציאה</span>
+              </button>
             </div>
           </div>
         )}
 
         {/* Modal header */}
         {!standalone && (
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:22, paddingBottom:18, borderBottom:`1px solid ${C.purple}22` }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16, paddingBottom:14, borderBottom:`1px solid ${C.purple}22`, flexShrink:0 }}>
             <div style={{ display:'flex', alignItems:'center', gap:12 }}>
               <div style={{ width:42, height:42, borderRadius:12, background:`${C.purple}22`, border:`1.5px solid ${C.purple}44`, display:'flex', alignItems:'center', justifyContent:'center' }}>
                 <FaLock size={16} style={{ color:C.purple }}/>
@@ -4528,7 +4672,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
 
         {/* Modal tabs */}
         {!standalone && (
-          <div style={{ display:'flex', gap:4, marginBottom:24, background:'rgba(255,255,255,.04)', borderRadius:10, padding:4, flexWrap:'wrap' }}>
+          <div style={{ display:'flex', gap:4, marginBottom:12, background:'rgba(255,255,255,.04)', borderRadius:10, padding:4, flexWrap:'wrap', flexShrink:0 }}>
             {tabBtn('props', 'ניהול נכסים')}
             <button onClick={goToLiveProps}
               style={{ padding:'10px 16px', border:'none', background: tab==='props' && listTab==='published' ? 'rgba(34,197,94,.2)' : 'transparent', color: tab==='props' && listTab==='published' ? '#22C55E' : 'rgba(232,228,216,.65)', fontFamily:'inherit', cursor:'pointer', fontWeight:700, fontSize:14, borderRadius:9, transition:'all .15s', display:'flex', alignItems:'center', gap:6 }}>
@@ -4546,7 +4690,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
         )}
 
         {/* ── Scrollable content ─────────────────────────────────────── */}
-        <div className="admin-content" style={(tab==='chats'||tab==='leads') ? { flex:1, minHeight:0, overflow:'hidden', display:'flex', flexDirection:'column' } : standalone ? { flex:1, overflowY:'auto', padding:'22px 26px 32px', direction:'rtl' } : { padding:'22px 26px 32px', direction:'rtl' }}>
+        <div className="admin-content" style={(tab==='chats'||tab==='leads') ? { flex:1, minHeight:0, overflow:'hidden', position:'relative' } : standalone ? { flex:1, overflowY:'auto', padding:'22px 26px 32px', direction:'rtl' } : { padding:'22px 26px 32px', direction:'rtl' }}>
 
         {/* Overview tab — standalone only */}
         {tab==='overview' && standalone && (<>
@@ -5110,27 +5254,32 @@ Return ONLY valid JSON (no markdown, no code blocks):
         )}
 
         {tab==='leads' && (
-          <Suspense fallback={<AdminTabLoader label="לידים" />}>
-            <LeadsBoard
-              leads={leads}
-              updateLead={updateLead}
-              updateLeadStatus={updateLeadStatus}
-              deleteLead={id => setLeads(prev => { const next = prev.filter(l => l.id !== id); try { localStorage.setItem(LEADS_STORE, JSON.stringify(next)) } catch {} return next })}
-              addLead={lead => setLeads(prev => { const next = [...prev, lead]; try { localStorage.setItem(LEADS_STORE, JSON.stringify(next)) } catch {} return next })}
-              colOrder={colOrder} setColOrder={setColOrder}
-              customCols={customCols} setCustomCols={setCustomCols}
-              colWidths={colWidths} setColWidths={setColWidths}
-              exportCSV={exportCSV}
-              syncLeads={syncLeadsFromServer}
-              enrichAll={enrichAllLeads}
-              enrichLead={enrichLead}
-              clearLeads={clearLeads}
-              leadsSyncing={leadsSyncing}
-              isDark={isDark}
-              lang={lang}
-              onOpenChat={lead => { setInitialChatLead(lead); setTab('chats') }}
-            />
-          </Suspense>
+          <div className="admin-board-dark" style={{ position:'absolute', inset:0, overflow:'hidden' }}>
+            <Suspense fallback={<AdminTabLoader label="לידים" />}>
+              <LeadsBoard
+                leads={leads}
+                updateLead={updateLead}
+                updateLeadStatus={updateLeadStatus}
+                deleteLead={deleteLead}
+                addLead={lead => setLeads(prev => { const next = [...prev, lead]; try { localStorage.setItem(LEADS_STORE, JSON.stringify(next)) } catch {} return next })}
+                colOrder={colOrder} setColOrder={setColOrder}
+                customCols={customCols} setCustomCols={setCustomCols}
+                colWidths={colWidths} setColWidths={setColWidths}
+                exportCSV={exportCSV}
+                syncLeads={syncLeadsFromServer}
+                enrichAll={enrichAllLeads}
+                enrichLead={enrichLead}
+                clearLeads={clearLeads}
+                trashedLeads={trashedLeads}
+                restoreLead={restoreLead}
+                permanentDeleteLead={permanentDeleteLead}
+                leadsSyncing={leadsSyncing}
+                isDark={true}
+                lang={lang}
+                onOpenChat={lead => { setInitialChatLead(lead); setTab('chats') }}
+              />
+            </Suspense>
+          </div>
         )}
 
         {tab==='chats' && (
@@ -5406,6 +5555,25 @@ Return ONLY valid JSON (no markdown, no code blocks):
         {tab==='settings' && (
           <div style={{ display:'flex', flexDirection:'column', gap:24 }}>
 
+            {/* ── Settings header with auto-save indicator + save button ── */}
+            <div style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 18px', background:`${C.green}0D`, border:`1px solid ${C.green}28`, borderRadius:12, direction:'rtl', flexWrap:'wrap' }}>
+              <span style={{ width:9, height:9, borderRadius:'50%', background:C.green, flexShrink:0, boxShadow:`0 0 8px ${C.green}` }}/>
+              <div style={{ flex:1, minWidth:0 }}>
+                <span style={{ fontSize:13, color:C.green, fontWeight:700 }}>שמירה אוטומטית פעילה</span>
+                <span style={{ fontSize:12, color:`${C.cream}44`, marginRight:8 }}>— כל שינוי נשמר מיידית לדפדפן</span>
+              </div>
+              <button onClick={saveAllSettings}
+                style={{ display:'flex', alignItems:'center', gap:7, padding:'8px 20px', background: settingsAllSaved ? `${C.green}22` : `${C.purple}22`, border:`1px solid ${settingsAllSaved ? C.green : `${C.purple}55`}`, borderRadius:9, color: settingsAllSaved ? C.green : C.purple, fontWeight:700, fontSize:13, cursor:'pointer', fontFamily:'inherit', transition:'all .25s', flexShrink:0 }}>
+                {settingsAllSaved ? '✓ כל ההגדרות נשמרו' : '💾 שמור הכל'}
+              </button>
+              <button onClick={onClose}
+                style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 16px', background:'rgba(224,82,82,.08)', border:'1px solid rgba(224,82,82,.28)', borderRadius:9, color:'rgba(224,82,82,.8)', fontWeight:700, fontSize:13, cursor:'pointer', fontFamily:'inherit', transition:'all .2s', flexShrink:0 }}
+                onMouseEnter={e=>{ e.currentTarget.style.background='rgba(224,82,82,.2)'; e.currentTarget.style.borderColor='#E05252'; e.currentTarget.style.color='#E05252' }}
+                onMouseLeave={e=>{ e.currentTarget.style.background='rgba(224,82,82,.08)'; e.currentTarget.style.borderColor='rgba(224,82,82,.28)'; e.currentTarget.style.color='rgba(224,82,82,.8)' }}>
+                <FaTimes size={11}/> יציאה
+              </button>
+            </div>
+
             {/* ── Logo Size ── */}
             <div style={{ background:'rgba(255,255,255,.03)', borderRadius:12, padding:20 }}>
               <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:16 }}>
@@ -5460,21 +5628,42 @@ Return ONLY valid JSON (no markdown, no code blocks):
               <input
                 type="text"
                 value={govmapToken}
-                onChange={e => setGovmapToken(e.target.value)}
+                onChange={e => {
+                  setGovmapToken(e.target.value)
+                  clearTimeout(tokenSaveTimer.current)
+                  tokenSaveTimer.current = setTimeout(() => {
+                    setTokenSaved(true)
+                    setSettingsAllSaved(true)
+                    setTimeout(() => { setTokenSaved(false); setSettingsAllSaved(false) }, 2500)
+                  }, 500)
+                }}
                 placeholder="הדבק כאן את מפתח ה-API שקיבלת מ-GovMap"
-                style={{ ...inp, direction:'ltr', fontFamily:'monospace', fontSize:12, marginBottom:10 }}
+                style={{ ...inp, direction:'ltr', fontFamily:'monospace', fontSize:12, marginBottom:10, border:`1px solid ${tokenSaved ? C.green : `${C.purple}33`}`, transition:'border-color .3s' }}
               />
+              <div style={{ display:'flex', gap:8, alignItems:'center', marginBottom:12, flexWrap:'wrap' }}>
+                <button
+                  onClick={() => { saveAllSettings(); setTokenSaved(true); setTimeout(() => setTokenSaved(false), 2500) }}
+                  style={{ padding:'7px 18px', background: tokenSaved ? `${C.green}22` : `${C.purple}22`, border:`1px solid ${tokenSaved ? C.green : `${C.purple}44`}`, borderRadius:8, color: tokenSaved ? C.green : C.purple, fontWeight:700, fontSize:12, cursor:'pointer', fontFamily:'inherit', transition:'all .25s', display:'flex', alignItems:'center', gap:6 }}>
+                  {tokenSaved ? '✓ נשמר' : '💾 שמור מפתח'}
+                </button>
+                <span style={{ fontSize:11, color:`${C.cream}44`, display:'flex', alignItems:'center', gap:5 }}>
+                  <span style={{ width:7, height:7, borderRadius:'50%', background: C.green, display:'inline-block', flexShrink:0 }}/>
+                  שמירה אוטומטית פעילה
+                </span>
+                {govmapToken && (
+                  <button onClick={() => { setGovmapToken(''); setTokenSaved(false) }} style={{ background:'none', border:'none', color:`${C.cream}44`, cursor:'pointer', fontSize:11, textDecoration:'underline', fontFamily:'inherit', marginRight:'auto' }}>נקה מפתח</button>
+                )}
+              </div>
               <div style={{ background:`${C.purple}08`, border:`1px solid ${C.purple}22`, borderRadius:8, padding:'12px 14px', fontSize:12, color:`${C.cream}77`, lineHeight:1.8, direction:'rtl' }}>
                 <strong style={{ color:C.purple }}>כיצד לקבל מפתח API:</strong><br/>
                 1. כנס לאתר <a href="https://www.govmap.gov.il" target="_blank" rel="noopener noreferrer" style={{ color:C.purple }}>govmap.gov.il</a><br/>
                 2. פנה לצוות GovMap בבקשה לרישום דומיין ומפתח API<br/>
                 3. הזן כאן את המפתח שתקבל<br/>
-                <span style={{ color:`${C.cream}44`, fontSize:11 }}>* המפתח ישמר מקומית במחשב זה בלבד ולא יועלה לשום שרת</span>
+                <span style={{ color:`${C.cream}44`, fontSize:11 }}>* המפתח נשמר אוטומטית בדפדפן ולא יועלה לשום שרת</span>
               </div>
               {govmapToken && (
                 <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:10, fontSize:12 }}>
                   <span style={{ color:C.green, fontWeight:700 }}>✓ מפתח מוגדר</span>
-                  <button onClick={() => setGovmapToken('')} style={{ background:'none', border:'none', color:`${C.cream}55`, cursor:'pointer', fontSize:11, textDecoration:'underline', fontFamily:'inherit' }}>נקה</button>
                 </div>
               )}
             </div>
@@ -5492,12 +5681,12 @@ Return ONLY valid JSON (no markdown, no code blocks):
               </div>
 
               <div style={{ background:`${C.purple}08`, border:`1px solid ${C.purple}22`, borderRadius:8, padding:'12px 14px', fontSize:12, color:`${C.cream}77`, lineHeight:1.9, direction:'rtl', marginBottom:14 }}>
-                <strong style={{ color:C.purple }}>הגדרה נדרשת ב-Render (env vars):</strong><br/>
-                1. כנס ל-<strong style={{ color:C.cream }}>render.com → שירות שלך → Environment</strong><br/>
-                2. הוסף: <code style={{ background:'rgba(0,0,0,.3)', borderRadius:4, padding:'1px 6px', fontFamily:'monospace', fontSize:11, color:'#EA4335' }}>GMAIL_USER</code> = כתובת Gmail שולח (לדוג׳: <code style={{ fontFamily:'monospace', fontSize:11 }}>afik.hanahal@gmail.com</code>)<br/>
+                <strong style={{ color:C.purple }}>הגדרה נדרשת ב-Vercel (env vars):</strong><br/>
+                1. כנס ל-<strong style={{ color:C.cream }}>vercel.com → הפרוייקט שלך → Settings → Environment Variables</strong><br/>
+                2. הוסף: <code style={{ background:'rgba(0,0,0,.3)', borderRadius:4, padding:'1px 6px', fontFamily:'monospace', fontSize:11, color:'#EA4335' }}>GMAIL_USER</code> = <code style={{ fontFamily:'monospace', fontSize:11 }}>afik.hanahal@gmail.com</code><br/>
                 3. הוסף: <code style={{ background:'rgba(0,0,0,.3)', borderRadius:4, padding:'1px 6px', fontFamily:'monospace', fontSize:11, color:'#EA4335' }}>GMAIL_APP_PASSWORD</code> = סיסמת אפליקציה (16 תווים מ-Google)<br/>
                 4. לקבל סיסמת אפליקציה: <strong style={{ color:C.cream }}>Google Account → Security → 2-Step Verification → App Passwords</strong><br/>
-                <span style={{ color:`${C.cream}44`, fontSize:11 }}>* לאחר הוספת env vars — לחץ "Manual Deploy" ב-Render לפריסה מחדש</span>
+                <span style={{ color:`${C.cream}44`, fontSize:11 }}>* לאחר הוספת env vars ב-Vercel — הפרוייקט יעלה מחדש אוטומטית. הכישלון הקודם היה כי ה-vars היו רק ב-Render.</span>
               </div>
 
               <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
@@ -7282,13 +7471,11 @@ function PdfLeadGate({ pdf, prop, C }) {
       localStorage.setItem(LEADS_STORE, JSON.stringify(all.slice(0, 2000)))
       localStorage.setItem(storageKey, '1')
     } catch {}
-    if (API_BASE) {
-      fetch(`${API_BASE}/api/contacts`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(lead),
-      }).catch(() => {})
-    }
+    fetch(`${CONTACTS_API}/api/contacts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(lead),
+    }).catch(() => {})
     setDone(true)
     setOpen(false)
     window.open(pdf.url, '_blank', 'noopener')
@@ -7772,30 +7959,6 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
               </div>
             )}
 
-            {/* GovMap — show whenever token is set OR property has gush/helka */}
-            {govmapToken && (
-              <div>
-                <h3 style={{ fontSize:13, fontWeight:800, color:C.cream, marginBottom:12, display:'flex', alignItems:'center', gap:8 }}>
-                  <FaMapMarkerAlt size={12}/> מפת GovMap
-                  {(prop.gush || prop.helka) ? (
-                    <span style={{ fontSize:11, fontWeight:600, color:`${C.cream}55`, background:`${C.purple}15`, borderRadius:4, padding:'2px 8px' }}>
-                      גוש {prop.gush}{prop.helka ? ` · חלקה ${prop.helka}` : ''}{prop.subHelka ? ` · תת ${prop.subHelka}` : ''}
-                    </span>
-                  ) : (
-                    <span style={{ fontSize:11, fontWeight:500, color:`${C.cream}33`, background:`${C.purple}08`, borderRadius:4, padding:'2px 8px' }}>הכנס גוש/חלקה לניווט לחלקה</span>
-                  )}
-                </h3>
-                <GovMapWidget
-                  gush={prop.gush}
-                  helka={prop.helka}
-                  subHelka={prop.subHelka}
-                  token={govmapToken}
-                  C={C}
-                  isDark={isDark}
-                />
-              </div>
-            )}
-
             {/* Extra specs table — "פרטים נוספים" Yad2-style */}
             {extraSpecs.length > 0 && (
               <div>
@@ -8005,6 +8168,30 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
             </div>
           )
         })()}
+
+        {/* ══ GOVMAP — full-width, below all property details ══ */}
+        {govmapToken && (
+          <div style={{ borderTop:'1px solid rgba(255,255,255,.08)', padding:'36px 32px 52px', direction:'rtl' }}>
+            <h3 style={{ fontSize:20, fontWeight:800, color:C.cream, margin:'0 0 18px', display:'flex', alignItems:'center', gap:10 }}>
+              <FaMapMarkerAlt size={16} style={{ color:C.purple }}/> מפת GovMap
+              {(prop.gush || prop.helka) ? (
+                <span style={{ fontSize:13, fontWeight:600, color:`${C.cream}66`, background:`${C.purple}15`, borderRadius:6, padding:'3px 12px' }}>
+                  גוש {prop.gush}{prop.helka ? ` · חלקה ${prop.helka}` : ''}{prop.subHelka ? ` · תת ${prop.subHelka}` : ''}
+                </span>
+              ) : (
+                <span style={{ fontSize:12, fontWeight:500, color:`${C.cream}33`, background:`${C.purple}08`, borderRadius:6, padding:'3px 12px' }}>הכנס גוש/חלקה לניווט לחלקה</span>
+              )}
+            </h3>
+            <GovMapWidget
+              gush={prop.gush}
+              helka={prop.helka}
+              subHelka={prop.subHelka}
+              token={govmapToken}
+              C={C}
+              isDark={isDark}
+            />
+          </div>
+        )}
       </div>
 
       {/* ══ LIGHTBOX OVERLAY ══ */}
@@ -8395,9 +8582,19 @@ export default function App() {
   const [lang,         setLang]         = useState('he')
   const [stats,        setStats]        = useState(DEFAULT_STATS)
   const [sharon,       setSharon]       = useState(DEFAULT_SHARON)
-  const [govmapToken,  setGovmapToken]  = useState(() => localStorage.getItem('govmap_token') || '')
+  const [govmapToken,  setGovmapToken]  = useState(() => {
+    const stored = localStorage.getItem('govmap_token')
+    if (stored) return stored
+    const def = '402956e5-908c-4797-accd-7c7b19c7803a'
+    localStorage.setItem('govmap_token', def)
+    return def
+  })
   const [logoNavSize,  setLogoNavSizeRaw] = useState(() => Number(localStorage.getItem('logoNavSize')) || 70)
   const setLogoNavSize = (v) => { const n = Math.max(20, Math.min(200, Number(v))); localStorage.setItem('logoNavSize', n); setLogoNavSizeRaw(n) }
+
+  // Always persist govmapToken — guards against the standalone mode missing the wrapper
+  useEffect(() => { localStorage.setItem('govmap_token', govmapToken) }, [govmapToken])
+
   // UI/UX Pro Max: parallax scroll
   const [scrollY,      setScrollY]      = useState(0)
 
@@ -8663,7 +8860,7 @@ export default function App() {
               sharon={sharon}
               setSharon={setSharon}
               govmapToken={govmapToken}
-              setGovmapToken={setGovmapToken}
+              setGovmapToken={t => { setGovmapToken(t); localStorage.setItem('govmap_token', t) }}
               onClose={() => {
                 sessionStorage.removeItem('afik_admin_session')
                 window.location.href = '/'
@@ -9132,26 +9329,57 @@ export default function App() {
               </div>
             ))}
           </div>
-          <GlassCard style={{ padding:40 }}>
-            <h3 style={{ fontSize:20, fontWeight:700, color:C.cream, marginBottom:24, textAlign:'center' }}>{TR[lang]?.contactNowBtn}</h3>
-            <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
-              <a href="tel:0559811814" style={{ display:'flex', gap:16, alignItems:'center', background:`${C.green}11`, borderRadius:12, padding:16, border:`1px solid ${C.green}22`, textDecoration:'none', color:'inherit', transition:'background .25s', cursor:'pointer' }}
-                onMouseEnter={e => e.currentTarget.style.background=`${C.green}22`}
-                onMouseLeave={e => e.currentTarget.style.background=`${C.green}11`}>
-                <div style={{ width:40, height:40, borderRadius:'50%', background:`${C.green}15`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}><FaPhone size={16} style={{ color:C.green }}/></div>
-                <div><div style={{ fontSize:12, color:C.cream+'70', marginBottom:2 }}>{TR[lang]?.phoneLabel}</div><div style={{ fontSize:20, fontWeight:700, color:C.green }}>055-981-1814</div></div>
+          <GlassCard style={{ padding:'32px 28px' }}>
+            <h3 style={{ fontSize:21, fontWeight:800, color:C.cream, marginBottom:22, textAlign:'center', letterSpacing:'-.01em' }}>{TR[lang]?.contactNowBtn}</h3>
+            <div style={{ display:'flex', flexDirection:'column', gap:12, direction:'rtl' }}>
+
+              {/* טלפון */}
+              <a href="tel:0559811814"
+                style={{ display:'flex', flexDirection:'row', alignItems:'center', gap:14, background:`${C.green}12`, borderRadius:14, padding:'16px 18px', border:`1.5px solid ${C.green}28`, textDecoration:'none', color:'inherit', transition:'all .2s', cursor:'pointer' }}
+                onMouseEnter={e => { e.currentTarget.style.background=`${C.green}22`; e.currentTarget.style.borderColor=`${C.green}55`; e.currentTarget.style.transform='translateY(-1px)' }}
+                onMouseLeave={e => { e.currentTarget.style.background=`${C.green}12`; e.currentTarget.style.borderColor=`${C.green}28`; e.currentTarget.style.transform='' }}>
+                <div style={{ width:46, height:46, borderRadius:'50%', background:`linear-gradient(135deg,${C.green}33,${C.green}18)`, border:`1.5px solid ${C.green}44`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, boxShadow:`0 4px 14px ${C.green}25` }}>
+                  <FaPhone size={18} style={{ color:C.green }}/>
+                </div>
+                <div style={{ flex:1, textAlign:'right' }}>
+                  <div style={{ fontSize:11, fontWeight:600, color:`${C.cream}60`, marginBottom:3, letterSpacing:'.04em', textTransform:'uppercase' }}>{TR[lang]?.phoneLabel}</div>
+                  <div style={{ fontSize:22, fontWeight:800, color:C.green, direction:'ltr', textAlign:'right', letterSpacing:'.01em' }}>055-981-1814</div>
+                </div>
               </a>
-              <a href="https://wa.me/972559811814" target="_blank" rel="noopener noreferrer" style={{ display:'flex', gap:16, alignItems:'center', background:'rgba(37,211,102,.08)', borderRadius:12, padding:16, border:'1px solid rgba(37,211,102,.2)', textDecoration:'none', color:'inherit', transition:'background .25s', cursor:'pointer' }}
-                onMouseEnter={e => e.currentTarget.style.background='rgba(37,211,102,.18)'}
-                onMouseLeave={e => e.currentTarget.style.background='rgba(37,211,102,.08)'}>
-                <div style={{ width:40, height:40, borderRadius:'50%', background:'rgba(37,211,102,.12)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}><FaWhatsapp size={18} style={{ color:'#25D366' }}/></div>
-                <div><div style={{ fontSize:12, color:C.cream+'70', marginBottom:2 }}>WhatsApp</div><div style={{ fontSize:16, fontWeight:700, color:'#25D366' }}>{TR[lang]?.whatsappSend}</div></div>
+
+              {/* WhatsApp */}
+              <a href="https://wa.me/972559811814" target="_blank" rel="noopener noreferrer"
+                style={{ display:'flex', flexDirection:'row', alignItems:'center', gap:14, background:'rgba(37,211,102,.09)', borderRadius:14, padding:'16px 18px', border:'1.5px solid rgba(37,211,102,.22)', textDecoration:'none', color:'inherit', transition:'all .2s', cursor:'pointer' }}
+                onMouseEnter={e => { e.currentTarget.style.background='rgba(37,211,102,.2)'; e.currentTarget.style.borderColor='rgba(37,211,102,.5)'; e.currentTarget.style.transform='translateY(-1px)' }}
+                onMouseLeave={e => { e.currentTarget.style.background='rgba(37,211,102,.09)'; e.currentTarget.style.borderColor='rgba(37,211,102,.22)'; e.currentTarget.style.transform='' }}>
+                <div style={{ width:46, height:46, borderRadius:'50%', background:'linear-gradient(135deg,rgba(37,211,102,.25),rgba(37,211,102,.12))', border:'1.5px solid rgba(37,211,102,.4)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, boxShadow:'0 4px 14px rgba(37,211,102,.2)' }}>
+                  <FaWhatsapp size={20} style={{ color:'#25D366' }}/>
+                </div>
+                <div style={{ flex:1, textAlign:'right' }}>
+                  <div style={{ fontSize:11, fontWeight:600, color:`${C.cream}60`, marginBottom:3, letterSpacing:'.04em', textTransform:'uppercase' }}>WhatsApp</div>
+                  <div style={{ fontSize:18, fontWeight:800, color:'#25D366' }}>{TR[lang]?.whatsappSend}</div>
+                </div>
               </a>
-              <div style={{ display:'flex', gap:16, alignItems:'center', background:'rgba(255,255,255,.04)', borderRadius:12, padding:16 }}>
-                <div style={{ width:40, height:40, borderRadius:'50%', background:`${C.purple}15`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}><FaMapMarkerAlt size={16} style={{ color:C.purple }}/></div>
-                <div><div style={{ fontSize:12, color:C.cream+'70', marginBottom:2 }}>{TR[lang]?.operatingAreaLabel}</div><div style={{ fontSize:14, fontWeight:600, color:C.cream }}>{TR[lang]?.areaServed}</div></div>
+
+              {/* אזור פעילות */}
+              <div style={{ display:'flex', flexDirection:'row', alignItems:'center', gap:14, background:`${C.purple}0D`, borderRadius:14, padding:'16px 18px', border:`1.5px solid ${C.purple}1E` }}>
+                <div style={{ width:46, height:46, borderRadius:'50%', background:`linear-gradient(135deg,${C.purple}30,${C.purple}15)`, border:`1.5px solid ${C.purple}40`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, boxShadow:`0 4px 14px ${C.purple}20` }}>
+                  <FaMapMarkerAlt size={18} style={{ color:C.purple }}/>
+                </div>
+                <div style={{ flex:1, textAlign:'right' }}>
+                  <div style={{ fontSize:11, fontWeight:600, color:`${C.cream}60`, marginBottom:3, letterSpacing:'.04em', textTransform:'uppercase' }}>{TR[lang]?.operatingAreaLabel}</div>
+                  <div style={{ fontSize:15, fontWeight:700, color:C.cream }}>{TR[lang]?.areaServed}</div>
+                </div>
               </div>
-              <button onClick={() => openContact()} className="primary-btn" style={{ width:'100%', borderRadius:12, fontSize:16 }}>{TR[lang]?.sendMessageBtn}</button>
+
+              {/* CTA button */}
+              <button onClick={() => openContact()}
+                style={{ width:'100%', marginTop:4, padding:'17px 0', borderRadius:14, border:'none', cursor:'pointer', fontFamily:'Rubik,inherit', fontSize:17, fontWeight:800, color:'#fff', background:`linear-gradient(135deg,${C.green},${C.purple})`, boxShadow:`0 6px 28px ${C.purple}44`, letterSpacing:'-.01em', display:'flex', alignItems:'center', justifyContent:'center', gap:8, transition:'all .22s' }}
+                onMouseEnter={e => { e.currentTarget.style.transform='translateY(-2px)'; e.currentTarget.style.boxShadow=`0 10px 36px ${C.purple}55` }}
+                onMouseLeave={e => { e.currentTarget.style.transform=''; e.currentTarget.style.boxShadow=`0 6px 28px ${C.purple}44` }}>
+                <FaEnvelope size={15}/> {TR[lang]?.sendMessageBtn}
+              </button>
+
             </div>
           </GlassCard>
         </div>
@@ -9303,7 +9531,7 @@ export default function App() {
       {showContact && <ContactModal  prop={contactProp} onClose={() => setShowContact(false)}/>}
       {showCalc    && <RealEstateCalc onClose={() => setShowCalc(false)}/>}
       {showPrivacy && <PrivacyModal onClose={() => setShowPrivacy(false)}/>}
-      {selectedProp && <PropertyModal prop={selectedProp} properties={properties} onClose={() => setSelectedProp(null)} onContact={p => { openContact(p) }} onSelect={setSelectedProp} govmapToken={govmapToken}/>}
+      {selectedProp && <PropertyModal key={selectedProp.id} prop={selectedProp} properties={properties} onClose={() => setSelectedProp(null)} onContact={p => { openContact(p) }} onSelect={setSelectedProp} govmapToken={govmapToken}/>}
       {showWizard && <PropertyWizard
           key={wizardEditId || wizardKey}
           onClose={() => { setShowWizard(false); setWizardEditData(null); setWizardEditId(null) }}
