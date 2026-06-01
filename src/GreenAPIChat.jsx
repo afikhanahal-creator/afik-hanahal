@@ -10,10 +10,11 @@ const API_BASE      = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
 const ADMIN_TOKEN   = 'AFIKhanahal2026'
 const ACCOUNT_EMAIL = 'afik.hanahal@gmail.com'
 
-// ─── Green API direct credentials ────────────────────────────────────────────
-const GREEN_INSTANCE = '7107558519'
-const GREEN_TOKEN    = '191b9e9c4fc540f1ad25c8607389c0d689d15794f8094a0589'
-const GREEN_URL      = `https://7107.api.greenapi.com/waInstance${GREEN_INSTANCE}`
+// All Green API traffic is proxied through the server (/api/meta/chat-*), which
+// holds the apiToken in WA_GREENAPI_TOKEN. The token is never shipped to the browser.
+const CHAT_API     = '/api/meta'
+const AUTH_HEADER  = { Authorization: `Bearer ${ADMIN_TOKEN}` }
+const MAX_FILE_MB  = 3   // Vercel request-body cap (base64 inflates ~33%)
 
 // ─── Theme palettes ───────────────────────────────────────────────────────────
 const DARK = {
@@ -283,11 +284,11 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
     const p = intlPhone(phone)
     if (!p) return []
     try {
-      const r = await fetch(`${GREEN_URL}/getChatHistory/${GREEN_TOKEN}`, {
+      const r = await fetch(`${CHAT_API}/chat-history`, {
         method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ chatId: `${p}@c.us`, count: 100 }),
-        signal:  AbortSignal.timeout(15000),
+        headers: { 'Content-Type': 'application/json', ...AUTH_HEADER },
+        body:    JSON.stringify({ phone: p, count: 100 }),
+        signal:  AbortSignal.timeout(20000),
       })
       if (!r.ok) return []
       const data = await r.json()
@@ -364,38 +365,42 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
   }, [fetchGreenHistory])
 
   const sendViaGreenAPI = useCallback(async (p, msg) => {
-    const r = await fetch(`${GREEN_URL}/sendMessage/${GREEN_TOKEN}`, {
+    const r = await fetch(`${CHAT_API}/chat-send`, {
       method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ chatId: `${p}@c.us`, message: msg }),
-      signal:  AbortSignal.timeout(20000),
+      headers: { 'Content-Type': 'application/json', ...AUTH_HEADER },
+      body:    JSON.stringify({ phone: p, message: msg }),
+      signal:  AbortSignal.timeout(25000),
     })
     return r.ok
   }, [])
 
-  // Send an image / PDF as a real WhatsApp attachment (multipart upload).
+  // Send an image / PDF as a real WhatsApp attachment. The file is base64-encoded
+  // and the server rebuilds the multipart upload to Green API (token stays server-side).
   const sendFileViaGreenAPI = useCallback(async (p, file, caption) => {
-    const fd = new FormData()
-    fd.append('chatId', `${p}@c.us`)
-    fd.append('file', file, file.name)
-    fd.append('fileName', file.name)
-    if (caption) fd.append('caption', caption)
-    const r = await fetch(`${GREEN_URL}/sendFileByUpload/${GREEN_TOKEN}`, {
-      method: 'POST',
-      body:   fd,
-      signal: AbortSignal.timeout(60000),
+    const fileBase64 = await new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload  = () => resolve(String(reader.result).split(',')[1] || '')
+      reader.onerror = reject
+      reader.readAsDataURL(file)
+    })
+    const r = await fetch(`${CHAT_API}/chat-send-file`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', ...AUTH_HEADER },
+      body:    JSON.stringify({ phone: p, fileName: file.name, fileType: file.type, fileBase64, caption }),
+      signal:  AbortSignal.timeout(90000),
     })
     return r.ok
   }, [])
 
   const fetchStatus = useCallback(async () => {
     try {
-      const r = await fetch(`${GREEN_URL}/getStateInstance/${GREEN_TOKEN}`, { signal: AbortSignal.timeout(8000) })
-      if (r.ok) { const d = await r.json(); setStatus(d.stateInstance || null); return }
+      const r = await fetch(`${CHAT_API}/chat-status`, { headers: AUTH_HEADER, signal: AbortSignal.timeout(8000) })
+      if (r.ok) { const d = await r.json(); setStatus(d.state || null); return }
     } catch {}
+    // Fallback to the Render backend if the Vercel proxy is unreachable (e.g. local dev)
     if (!API_BASE) { setStatus('notConfigured'); return }
     try {
-      const r = await fetch(`${API_BASE}/api/chats/status`, { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` }, signal: AbortSignal.timeout(8000) })
+      const r = await fetch(`${API_BASE}/api/chats/status`, { headers: AUTH_HEADER, signal: AbortSignal.timeout(8000) })
       if (r.ok) { const d = await r.json(); setStatus(d.state || null) }
       else setStatus('error')
     } catch { setStatus('error') }
@@ -531,6 +536,10 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
     if ((!msg && !file) || !contact || sending) return
     const p = intlPhone(contact.phone)
     if (!p) { alert('מספר טלפון לא תקין'); return }
+    if (file && file.size > MAX_FILE_MB * 1024 * 1024) {
+      alert(lang === 'en' ? `File too large (max ${MAX_FILE_MB}MB)` : `הקובץ גדול מדי (מקסימום ${MAX_FILE_MB}MB)`)
+      return
+    }
 
     const optId = 'opt-' + Date.now()
     setSending(true)
