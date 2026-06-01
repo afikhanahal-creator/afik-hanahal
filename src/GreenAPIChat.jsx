@@ -154,7 +154,7 @@ const ICONS = {
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
-export default function GreenAPIChat({ leads = [], lang = 'he', initialContact = null, onOpenLead, onDeleteLead }) {
+export default function GreenAPIChat({ leads = [], lang = 'he', initialContact = null, onOpenLead, onDeleteLead, onNewMessage }) {
 
   // ── Theme ─────────────────────────────────────────────────────────────────
   const [isDark, setIsDark] = useState(() => localStorage.getItem('whatsapp_theme') !== 'light')
@@ -187,12 +187,18 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
   const [deletingId,    setDeletingId]    = useState(null)  // id hidden during undo window
   const [pendingDelete, setPendingDelete] = useState(null)  // { lead, timer }
 
-  const scrollRef     = useRef(null)
-  const pollRef       = useRef(null)
-  const inputRef      = useRef(null)
-  const isNearBottom  = useRef(true)   // tracks whether user is scrolled to bottom
-  const prevMsgCount  = useRef(0)      // detects genuinely new messages vs re-fetch
-  const fileRef   = useRef(null)
+  const scrollRef         = useRef(null)
+  const pollRef           = useRef(null)
+  const inputRef          = useRef(null)
+  const isNearBottom      = useRef(true)
+  const prevMsgCount      = useRef(0)
+  const fileRef           = useRef(null)
+  const notifiedMsgIdsRef = useRef(new Set())
+  const pageLoadTimeRef   = useRef(Date.now())
+  const onNewMessageRef   = useRef(onNewMessage)
+  const leadsRef          = useRef(leads)
+  useEffect(() => { onNewMessageRef.current = onNewMessage }, [onNewMessage])
+  useEffect(() => { leadsRef.current = leads }, [leads])
 
   // ── Delete handlers ───────────────────────────────────────────────────────
   const handleDeleteClick = (e, lead) => {
@@ -276,6 +282,22 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
 
       setFetchError(merged.length === 0 && greenErr ? greenErr : null)
       setChats(prev => ({ ...prev, [p]: merged }))
+
+      // Detect new incoming messages and notify; mark all IDs as seen
+      const threshold = pageLoadTimeRef.current
+      const newIncoming = merged.filter(m =>
+        m.direction === 'in' &&
+        m.id &&
+        !notifiedMsgIdsRef.current.has(m.id) &&
+        new Date(m.created_at).getTime() > threshold
+      )
+      merged.forEach(m => { if (m.id) notifiedMsgIdsRef.current.add(m.id) })
+      if (newIncoming.length > 0 && onNewMessageRef.current) {
+        const contactLead = leadsRef.current.find(l => intlPhone(l.phone) === p)
+        const contactName = contactLead?.name || p
+        const latest = newIncoming[newIncoming.length - 1]
+        onNewMessageRef.current({ contactName, message: latest.message, phone: p })
+      }
     } finally {
       if (opts.showLoader) setLoading(false)
     }

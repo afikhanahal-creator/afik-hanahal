@@ -225,7 +225,7 @@ async function syncLeads(pageId) {
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
-export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat }) {
+export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat, onNewLead }) {
   const t = TR[lang] || TR.he
   const dir = lang === 'en' ? 'ltr' : 'rtl'
 
@@ -259,6 +259,9 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat 
   const leadsIntervalRef    = useRef(null)
   const messagesIntervalRef = useRef(null)
   const campaignDropRef     = useRef(null)
+  const knownLeadIdsRef     = useRef(null)
+  const onNewLeadRef        = useRef(onNewLead)
+  useEffect(() => { onNewLeadRef.current = onNewLead }, [onNewLead])
 
   // ── Load leads ──────────────────────────────────────────────────────────────
   const loadLeads = useCallback(async (silent = false) => {
@@ -267,6 +270,19 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat 
     try {
       const data = await fetchLeads()
       setLeads(data)
+
+      if (knownLeadIdsRef.current === null) {
+        knownLeadIdsRef.current = new Set(data.map(l => l.id))
+      } else if (onNewLeadRef.current) {
+        const newLeads = data.filter(l => !knownLeadIdsRef.current.has(l.id))
+        if (newLeads.length > 0) {
+          newLeads.forEach(l => knownLeadIdsRef.current.add(l.id))
+          const latest = newLeads[0]
+          onNewLeadRef.current({ name: latest.name, campaign: latest.campaign_name || latest.form_name })
+        }
+      } else {
+        data.forEach(l => knownLeadIdsRef.current.add(l.id))
+      }
     } catch (e) {
       setLeadsError(e.message)
     } finally {

@@ -3838,6 +3838,31 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const resizeStartWRef = useRef(0)
   const pendingDeletes  = useRef(new Set()) // IDs deleted locally, awaiting server confirmation
 
+  // ── Push notification system ────────────────────────────────────────────────
+  const [toasts, setToasts]   = useState([])
+  const toastIdRef            = useRef(0)
+
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission()
+    }
+  }, [])
+
+  const showBrowserNotification = useCallback((title, body, onClick) => {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      const n = new Notification(title, { body, icon: '/favicon.ico' })
+      if (onClick) n.onclick = () => { window.focus(); onClick(); n.close() }
+    }
+  }, [])
+
+  const addToast = useCallback((title, body, targetTab) => {
+    const id = ++toastIdRef.current
+    setToasts(prev => [...prev, { id, title, body, targetTab }])
+    const timer = setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 6000)
+    showBrowserNotification(title, body, targetTab ? () => setTab(targetTab) : undefined)
+    return () => clearTimeout(timer)
+  }, [showBrowserNotification]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const startColResize = (e, colId, defaultW) => {
     e.preventDefault(); e.stopPropagation()
     resizingColRef.current = colId
@@ -5534,6 +5559,11 @@ Return ONLY valid JSON (no markdown, no code blocks):
               initialContact={initialChatLead}
               onOpenLead={lead => { setInitialChatLead(null); setTab('leads') }}
               onDeleteLead={id => deleteLead(id)}
+              onNewMessage={({ contactName, message }) => addToast(
+                lang === 'en' ? `New message from ${contactName}` : `הודעה חדשה מ-${contactName}`,
+                message,
+                'chats'
+              )}
             />
           </Suspense>
         )}
@@ -5541,6 +5571,11 @@ Return ONLY valid JSON (no markdown, no code blocks):
         {tab==='meta' && (
           <Suspense fallback={<AdminTabLoader label="מרכז מטא" />}>
             <MetaLeadsTab C={C} lang={lang} isDark={isDark}
+              onNewLead={({ name, campaign }) => addToast(
+                lang === 'en' ? 'New Meta Lead!' : 'ליד חדש ממטא!',
+                (name || (lang === 'en' ? 'Unknown' : 'לא ידוע')) + (campaign ? ' • ' + campaign : ''),
+                'meta'
+              )}
               onSaveToCRM={metaLead => {
                 if (metaLead) {
                   const newId = 'meta_' + metaLead.id
@@ -6240,6 +6275,25 @@ Return ONLY valid JSON (no markdown, no code blocks):
           </div>
         )}
 
+      </div>
+
+      {/* ── Push notification toasts — bottom-left ───────────────────── */}
+      <style>{`@keyframes toastIn{from{opacity:0;transform:translateX(-24px)}to{opacity:1;transform:translateX(0)}}`}</style>
+      <div style={{ position:'fixed', bottom:24, left:24, zIndex:99999, display:'flex', flexDirection:'column-reverse', gap:10, pointerEvents:'none', maxWidth:340 }}>
+        {toasts.map(toast => (
+          <div key={toast.id}
+            onClick={() => { setToasts(prev => prev.filter(t => t.id !== toast.id)); if (toast.targetTab) setTab(toast.targetTab) }}
+            style={{ pointerEvents:'auto', background:'#1F2C33', border:'1px solid rgba(132,144,216,.35)', borderRadius:12, padding:'12px 14px 12px 16px', boxShadow:'0 6px 24px rgba(0,0,0,.55)', cursor:toast.targetTab?'pointer':'default', fontFamily:'Rubik,sans-serif', display:'flex', gap:10, alignItems:'flex-start', animation:'toastIn .25s ease', direction:'rtl' }}>
+            <div style={{ fontSize:22, flexShrink:0, lineHeight:1 }}>🔔</div>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontSize:13, fontWeight:700, color:'#E9EDEF', marginBottom:3, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{toast.title}</div>
+              <div style={{ fontSize:12, color:'#8696A0', lineHeight:1.45, overflow:'hidden', display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical' }}>{toast.body}</div>
+              {toast.targetTab && <div style={{ fontSize:11, color:'#8490D8', marginTop:4, fontWeight:600 }}>{lang==='en'?'Click to open →':'לחץ לפתיחה ←'}</div>}
+            </div>
+            <button onClick={e => { e.stopPropagation(); setToasts(prev => prev.filter(t => t.id !== toast.id)) }}
+              style={{ background:'none', border:'none', color:'#8696A0', cursor:'pointer', fontSize:15, padding:0, lineHeight:1, flexShrink:0, marginTop:1 }}>✕</button>
+          </div>
+        ))}
       </div>
 
       {/* ── Mobile bottom tab bar — standalone only ──────────────────── */}
