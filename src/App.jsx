@@ -2060,10 +2060,12 @@ const LEADS_TRASH    = 'afik_leads_trash_v1'
 const WA_KEY         = 'afik_wa_settings'
 const ANALYTICS_KEY  = 'afik_analytics_v2'
 const WA_DEFAULT_TEMPLATE = `היי {name} 👋
-תודה שפנית לאפיק הנחל!
+תודה שהשארת פרטים!
 ראינו את הפנייה שלך
 
-מתי נוח לך לדבר? נשמח לתאם שיחה`
+מתי נוח לך לדבר? נשמח לתאם שיחה
+
+צוות אפיק הנחל`
 
 function _getDevice() {
   const ua = navigator.userAgent
@@ -3681,7 +3683,10 @@ function AdminTabLoader({ label = 'טוען...' }) {
 }
 
 function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSharon, govmapToken, setGovmapToken, onClose, onEditInWizard, standalone = false }) {
-  const { C, isDark, lang, logoNavSize, setLogoNavSize } = useTheme()
+  const { lang, logoNavSize, setLogoNavSize } = useTheme()
+  // Admin panel is ALWAYS dark regardless of site theme
+  const isDark = true
+  const C      = DARK_C
   const initForm = () => {
     try { const d = JSON.parse(localStorage.getItem(ADMIN_DRAFT_KEY)); if (d) return { ...EMPTY_PROP, ...d } } catch {}
     return EMPTY_PROP
@@ -5484,7 +5489,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
 
         {tab==='meta' && (
           <Suspense fallback={<AdminTabLoader label="מרכז מטא" />}>
-            <MetaLeadsTab C={C} lang={lang} isDark={isDark}
+            <MetaLeadsTab C={DARK_C} lang={lang} isDark={true}
               onNewLead={({ name, campaign }) => addToast(
                 lang === 'en' ? 'New Meta Lead!' : 'ליד חדש ממטא!',
                 (name || (lang === 'en' ? 'Unknown' : 'לא ידוע')) + (campaign ? ' • ' + campaign : ''),

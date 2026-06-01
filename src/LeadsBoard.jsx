@@ -1756,10 +1756,10 @@ export default function LeadsBoard({
           </button>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', overflowX: 'auto', borderTop: `1px solid ${T.borderLight}`, marginTop: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', overflowX: 'auto', borderTop: `1px solid ${T.borderLight}`, marginTop: 6, justifyContent: 'flex-end' }}>
           {[
-            { id: 'pipeline', icon: '⬛', label: lang === 'en' ? 'Pipeline' : 'Pipeline' },
-            { id: 'table',    icon: '☰',  label: lang === 'en' ? 'Table'    : 'טבלה'    },
+            { id: 'pipeline', icon: '⬛', label: 'Pipeline' },
+            { id: 'table',    icon: '☰',  label: lang === 'en' ? 'Table' : 'טבלה' },
           ].map(tb => (
             <button key={tb.id} onClick={() => setActiveTab(tb.id)}
               style={{ padding: '7px 16px', background: 'none', border: 'none', borderBottom: activeTab === tb.id ? `2px solid ${T.accent}` : '2px solid transparent', marginBottom: -1, color: activeTab === tb.id ? T.accent : T.textSub, fontSize: 12, fontWeight: activeTab === tb.id ? 700 : 500, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', transition: 'color .15s', display: 'flex', alignItems: 'center', gap: 5 }}>
