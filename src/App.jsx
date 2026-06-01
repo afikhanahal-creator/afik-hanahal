@@ -6,6 +6,7 @@ import GovMapWidget, { LAYERS_DEF as GM_LAYERS, BG_OPTIONS as GM_BG_OPTIONS, LAY
 import RealEstateCalc from './RealEstateCalc.jsx'
 import { AnimatePresence, motion } from 'framer-motion'
 import PropertyWizard, { propertyToWizardData } from './PropertyWizard.jsx'
+import { supabase } from './lib/supabaseClient'
 // Retry lazy import once on chunk-load failure (stale CDN cache after deploy)
 function lazyWithRetry(fn) {
   return lazy(() => fn().catch(() => {
@@ -3868,6 +3869,9 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const [shareCopied, setShareCopied] = useState(false)
   const [leadsSyncing, setLeadsSyncing] = useState(false)
   const [chats, setChats] = useState({})
+  const [chatsUnread, setChatsUnread] = useState(0)   // total unread WhatsApp msgs (for tab badge)
+  const appLoadRef = useRef(Date.now())               // baseline so old history isn't flagged
+  const chatsRef = useRef({})                         // latest chats for on-demand recompute
   const [chatInput, setChatInput] = useState('')
   const [chatSending, setChatSending] = useState(false)
   const [chatContact, setChatContact] = useState(null)
@@ -4053,6 +4057,49 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
         return next
       })
     } catch {}
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Count unread WhatsApp messages for the tab badge. Mirrors GreenAPIChat:
+  // unread = incoming msgs newer than the last time that chat was opened
+  // (tracked in the shared `wa_last_read` localStorage map). Chats never opened
+  // are baselined to app load so old history isn't flagged.
+  const recomputeChatsUnread = useCallback((chatsObj) => {
+    let lastRead = {}
+    try { lastRead = JSON.parse(localStorage.getItem('wa_last_read') || '{}') } catch {}
+    let n = 0
+    for (const p in chatsObj) {
+      const base = lastRead[p] ? new Date(lastRead[p]).getTime() : appLoadRef.current
+      for (const m of (chatsObj[p] || [])) {
+        if (m.direction === 'in' && new Date(m.created_at).getTime() > base) n++
+      }
+    }
+    setChatsUnread(n)
+  }, [])
+
+  // Recompute whenever the conversation store changes
+  useEffect(() => { chatsRef.current = chats; recomputeChatsUnread(chats) }, [chats, recomputeChatsUnread])
+
+  // Called by GreenAPIChat when a chat is opened/marked read → drop the badge
+  const handleChatsRead = useCallback(() => recomputeChatsUnread(chatsRef.current), [recomputeChatsUnread])
+
+  // Global Realtime: track incoming messages across ALL tabs (not just when the
+  // chats tab is open) so the sidebar badge stays live even while you're elsewhere.
+  useEffect(() => {
+    if (!supabase) return
+    const channel = supabase
+      .channel('chats_rt_app')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chats' }, (payload) => {
+        const msg = payload.new
+        if (!msg?.id || !msg.phone) return
+        const p = intlPhoneFmt(msg.phone)
+        setChats(prev => {
+          const existing = prev[p] || []
+          if (existing.some(m => String(m.id) === String(msg.id))) return prev
+          return { ...prev, [p]: [...existing, msg].sort((a, b) => new Date(a.created_at) - new Date(b.created_at)) }
+        })
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const sendChatMsg = async (lead) => {
@@ -4682,7 +4729,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
     { id:'live',     Icon:FaCheckCircle, label:'באוויר',     badge: publishedList.length, live:true },
     { id:'props',    Icon:FaBuilding,    label:'ניהול נכסים' },
     { id:'leads',    Icon:FaHandshake,   label:'לידים',      badge: leads.length },
-    { id:'chats',    Icon:FaWhatsapp,    label:'צ\'אטים',    badge: leads.filter(l=>l.phone).length },
+    { id:'chats',    Icon:FaWhatsapp,    label:'צ\'אטים',    badge: chatsUnread },
     { id:'meta',     Icon:FaFacebookF,   label:'מרכז מטא' },
     { id:'analytics',Icon:FaChartLine,   label:'אנליטיקס' },
     { id:'team',     Icon:FaKey,         label:'צוות' },
@@ -4692,7 +4739,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
   const TAB_LABELS = { overview:'סקירה כללית', live:'נכסים באוויר', props:'ניהול נכסים', leads:'לידים', chats:'שיחות WhatsApp', meta:'מרכז מטא', analytics:'אנליטיקס', team:'צוות', counters:'מונים', settings:'הגדרות' }
 
   return (
-    <div style={standalone
+    <div className="admin-shell admin-scroll" style={standalone
       ? { position:'fixed', inset:0, zIndex:1000, display:'flex', background:'#07070F', direction:'rtl', fontFamily:'Rubik, sans-serif' }
       : { position:'fixed', inset:0, background:'rgba(0,0,0,.92)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:16, overflowY:'auto', overscrollBehavior:'contain' }}>
 
@@ -4724,7 +4771,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
                   onMouseLeave={e=>{ if(!isActive){ e.currentTarget.style.background='transparent'; e.currentTarget.style.color='rgba(232,228,216,.4)' }}}>
                   <item.Icon size={13} style={{ flexShrink:0, opacity: isActive ? 1 : 0.7, color: isActive && isLive ? '#22C55E' : undefined }}/>
                   <span style={{ flex:1 }}>{item.label}</span>
-                  {!!item.badge && <span style={{ background: isLive ? 'rgba(34,197,94,.2)' : `${C.purple}25`, color: isLive ? '#22C55E' : C.purple, borderRadius:4, padding:'1px 6px', fontSize:10, fontWeight:700 }}>{item.badge}</span>}
+                  {!!item.badge && <span style={{ background: isLive ? 'rgba(34,197,94,.2)' : item.id==='chats' ? '#075E54' : `${C.purple}25`, color: isLive ? '#22C55E' : item.id==='chats' ? '#fff' : C.purple, borderRadius:4, padding:'1px 6px', fontSize:10, fontWeight:700 }}>{item.badge}</span>}
                 </button>
               )
             })}
@@ -5504,6 +5551,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
                 lang === 'en' ? `Sent to ${contactName}` : `נשלח ל-${contactName}`,
                 message, 'chats', '✅', 3500
               )}
+              onReadChange={handleChatsRead}
             />
           </Suspense>
         )}
