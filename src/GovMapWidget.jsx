@@ -62,8 +62,9 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
   const uid      = useId().replace(/:/g, '')
   const mapDivId = `gm_${uid}`
 
-  const containerRef = useRef(null)
-  const created      = useRef(false)
+  const containerRef    = useRef(null)
+  const created         = useRef(false)
+  const pendingTimers   = useRef([])
 
   const [inView,    setInView]    = useState(false)
   const [mapReady,  setMapReady]  = useState(false)
@@ -111,13 +112,25 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
     return () => obs.disconnect()
   }, [])
 
+  // Cancel all pending zoom retries (prevents stale timeouts from a previous
+  // property overwriting the correct zoom when the user opens a new one).
+  const clearRetries = useCallback(() => {
+    pendingTimers.current.forEach(clearTimeout)
+    pendingTimers.current = []
+  }, [])
+
+  // Always cancel on unmount so old timeouts never pollute a future instance.
+  useEffect(() => clearRetries, [clearRetries])
+
   // ── 2. Zoom to parcel using searchAndLocate ───────────────────────────────────
   const doSearchAndLocate = useCallback((g, h) => {
     if (!g || !h || !window.govmap) return
     const type = window.govmap.locateType?.parcel
                ?? window.govmap.locateType?.addressToLotParcel
                ?? 5
-    try { window.govmap.searchAndLocate({ type, lot: Number(g), parcel: Number(h) }) } catch {}
+    // Send both 'block' (correct for most GovMap versions) AND 'lot' (legacy).
+    // The API ignores unknown keys so sending both is safe.
+    try { window.govmap.searchAndLocate({ type, block: Number(g), lot: Number(g), parcel: Number(h) }) } catch {}
   }, [])
 
   // ── 3. Create map ────────────────────────────────────────────────────────────
@@ -126,13 +139,14 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
     const el = document.getElementById(mapDivId)
     if (!el) return
     created.current = true
+
+    // Cancel any stale retries from a previous mount before creating a new map.
+    clearRetries()
+
     try {
       const activeLayers = LAYERS_DEF.filter(l => layersRef.current[l.id]).map(l => l.id)
 
-      // Called by whichever mechanism fires first (callback option / setMapReadyCallback)
-      const onMapReady = () => {
-        doSearchAndLocate(gushRef.current, helkaRef.current)
-      }
+      const onMapReady = () => doSearchAndLocate(gushRef.current, helkaRef.current)
 
       window.govmap.createMap(mapDivId, {
         token:            token || '',
@@ -143,32 +157,31 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
         background:       Number(bgRef.current) || 0,
         layersMode:       1,
         zoomButtons:      true,
-        // Some GovMap versions accept a ready callback via this option
-        callback:         onMapReady,
+        callback:         onMapReady,  // fires when ready in some GovMap builds
       })
       setError('')
       setMapReady(true)
 
-      // Official ready callback (newer GovMap builds)
       if (typeof window.govmap.setMapReadyCallback === 'function') {
         window.govmap.setMapReadyCallback(onMapReady)
       }
 
-      // Aggressive polling fallback — searchAndLocate is a silent no-op before
-      // internal init finishes; calling it many times is harmless and ensures
-      // at least one attempt lands after the map is truly ready.
+      // Timed retries — searchAndLocate is a silent no-op before internal init.
+      // IDs stored so they can be cancelled if the component unmounts or a new
+      // property is opened before they fire.
       const g = gushRef.current
       const h = helkaRef.current
       if (g && h) {
-        ;[200, 600, 1200, 2000, 3200, 5000, 8000, 12000].forEach(ms =>
-          setTimeout(() => doSearchAndLocate(gushRef.current, helkaRef.current), ms)
-        )
+        ;[300, 700, 1400, 2500, 4000, 6000, 9000, 13000].forEach(ms => {
+          const id = setTimeout(() => doSearchAndLocate(gushRef.current, helkaRef.current), ms)
+          pendingTimers.current.push(id)
+        })
       }
     } catch {
       setError('שגיאה ביצירת המפה — ודא שמפתח ה-API תקין ורשום לדומיין זה.')
       created.current = false
     }
-  }, [mapDivId, token, doSearchAndLocate])
+  }, [mapDivId, token, doSearchAndLocate, clearRetries])
 
   const onScriptError = useCallback(() => {
     setError('שגיאה בטעינת ספריית GovMap. בדוק חיבור אינטרנט ולחץ לנסות שוב.')
