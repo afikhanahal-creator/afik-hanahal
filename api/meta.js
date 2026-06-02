@@ -15,8 +15,8 @@ const META_LEADS_VERIFY_TOKEN = process.env.META_LEADS_VERIFY_TOKEN || 'AFIKhana
 const ADMIN_TOKEN             = process.env.ADMIN_TOKEN             || 'AFIKhanahal2026'
 const WA_META_TOKEN           = process.env.WA_META_TOKEN           || ''
 const PHONE_NUMBER_ID         = process.env.WA_PHONE_NUMBER_ID      || '1160230953835065'
-const SUPABASE_URL            = process.env.SUPABASE_URL            || ''
-const SUPABASE_KEY            = process.env.SUPABASE_SERVICE_KEY    || ''
+const SUPABASE_URL            = process.env.SUPABASE_URL            || process.env.VITE_SUPABASE_URL        || ''
+const SUPABASE_KEY            = process.env.SUPABASE_SERVICE_KEY    || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || ''
 const META_NOTIFY_PHONE       = process.env.META_NOTIFY_PHONE       || '972559811814'
 
 // ── Green API (admin notifications) ──────────────────────────────────────────
