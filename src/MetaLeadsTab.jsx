@@ -663,8 +663,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
   return (
     <div style={{
       display: 'flex',
-      flex: 1,
-      minHeight: 0,
+      height: '100%',
       overflow: 'hidden',
       direction: dir,
       fontFamily: 'Rubik, sans-serif',
