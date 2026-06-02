@@ -17,60 +17,26 @@ function checkAuth(req) {
 }
 
 // One config block per data source.
-// Field names follow Supermetrics Enterprise v2 naming conventions.
+// No fields specified — mirrors the user's original working URLs exactly.
+// Supermetrics returns its default field set for the connector.
 const SOURCES = {
   fa: {
     label:       'Facebook Ads',
     ds_id:       'FA',
     ds_accounts: 'list.all_accounts',
     ds_user:     '3729529637187426',
-    fields: [
-      'Date',
-      'Campaign name',
-      'Impressions',
-      'Reach',
-      'Clicks (all)',
-      'Amount spent (USD)',
-      'CTR (all)',
-      'CPC (all)',
-      'CPM (cost per 1,000 impressions)',
-      'Frequency',
-      'Conversions',
-    ],
   },
   gawa: {
     label:       'Google Analytics',
     ds_id:       'GAWA',
     ds_accounts: 'list.all_accounts',
     ds_user:     'afik.hanahal@gmail.com',
-    fields: [
-      'Date',
-      'Sessions',
-      'Users',
-      'New users',
-      'Pageviews',
-      'Bounce rate',
-      'Avg. session duration',
-      'Goal completions',
-    ],
   },
   igi: {
     label:       'Instagram Insights',
     ds_id:       'IGI',
     ds_accounts: '17841445211723833',
     ds_user:     '3729535990520124',
-    fields: [
-      'Date',
-      'Profile impressions',
-      'Profile reach',
-      'Followers',
-      'Post impressions',
-      'Post reach',
-      'Post likes',
-      'Post comments',
-      'Post shares',
-      'Post saves',
-    ],
   },
 }
 
@@ -88,22 +54,26 @@ export default async function handler(req, res) {
   if (!cfg) return res.status(400).json({ error: `Unknown source: ${source}. Use fa, gawa, or igi.` })
 
   const query = {
-    ds_id:          cfg.ds_id,
-    ds_accounts:    cfg.ds_accounts,
-    ds_user:        cfg.ds_user,
+    ds_id:           cfg.ds_id,
+    ds_accounts:     cfg.ds_accounts,
+    ds_user:         cfg.ds_user,
     date_range_type: range,
-    max_rows:       1000,
-    api_key:        SUPERMETRICS_API_KEY,
-    fields:         cfg.fields,
+    max_rows:        1000,
+    api_key:         SUPERMETRICS_API_KEY,
   }
 
   try {
     const url = `https://api.supermetrics.com/enterprise/v2/query/data/json?json=${encodeURIComponent(JSON.stringify(query))}`
-    const r   = await fetch(url, { signal: AbortSignal.timeout(30000) })
-    const body = await r.json().catch(() => ({}))
+    console.log('[supermetrics] querying', source, range)
+    const r    = await fetch(url, { signal: AbortSignal.timeout(30000) })
+    const text = await r.text()
+    let body
+    try { body = JSON.parse(text) } catch { body = {} }
+
+    console.log('[supermetrics] HTTP', r.status, '| rows:', body?.data?.rows?.length ?? '?', '| meta error:', body?.meta?.error || 'none')
 
     if (!r.ok) {
-      const msg = body?.meta?.error || body?.error || `Supermetrics HTTP ${r.status}`
+      const msg = body?.meta?.error || body?.message || body?.error || `Supermetrics HTTP ${r.status}: ${text.slice(0, 300)}`
       return res.status(502).json({ error: msg })
     }
     if (body?.meta?.error) {
@@ -119,6 +89,7 @@ export default async function handler(req, res) {
       meta:    body?.meta          || {},
     })
   } catch (e) {
+    console.error('[supermetrics] error:', e.message)
     return res.status(502).json({ error: e.message || 'Supermetrics request failed' })
   }
 }
