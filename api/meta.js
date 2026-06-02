@@ -8,7 +8,6 @@
 
 import { createClient } from '@supabase/supabase-js'
 import crypto from 'crypto'
-import nodemailer from 'nodemailer'
 
 const META_PAGE_ACCESS_TOKEN  = process.env.META_PAGE_ACCESS_TOKEN  || process.env.WA_META_TOKEN || ''
 const META_APP_SECRET         = process.env.META_APP_SECRET         || ''
@@ -93,6 +92,8 @@ async function sendMetaLeadEmail({ name, phone, email, campaign, message, ts }) 
   const pass = process.env.GMAIL_APP_PASSWORD
   if (!user || !pass) return
   try {
+    // Dynamic import keeps a potential nodemailer bundling issue from crashing the module
+    const { default: nodemailer } = await import('nodemailer')
     const transporter = nodemailer.createTransport({ service: 'gmail', auth: { user, pass } })
     const timestamp = ts || new Date().toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
     await transporter.sendMail({
