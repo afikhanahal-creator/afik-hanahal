@@ -8,6 +8,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import crypto from 'crypto'
+import nodemailer from 'nodemailer'
 
 const META_PAGE_ACCESS_TOKEN  = process.env.META_PAGE_ACCESS_TOKEN  || process.env.WA_META_TOKEN || ''
 const META_APP_SECRET         = process.env.META_APP_SECRET         || ''
@@ -32,6 +33,76 @@ const GREEN_BASE_URL = (() => {
 })()
 // Build a Green API method URL. The apiToken stays server-side — never sent to the browser.
 const greenUrl = (method) => `${GREEN_BASE_URL}/waInstance${GREEN_INSTANCE}/${method}/${GREEN_TOKEN}`
+
+const ADMIN_PANEL_URL = 'https://www.afikhanahal.co.il/admin-panel'
+
+// ── Email notification ────────────────────────────────────────────────────────
+
+function buildLeadEmailHtml({ name, phone, email, message, campaign, source, ts, badge }) {
+  const d = String(phone || '').replace(/\D/g, '')
+  const phoneIntl    = d.startsWith('972') ? d : d.startsWith('0') ? '972' + d.slice(1) : d
+  const phoneDisplay = phoneIntl.startsWith('972') ? '0' + phoneIntl.slice(3) : phone || ''
+
+  const rows = [
+    name     && { label: 'שם',      value: `<strong style="color:#1a1a2e">${name}</strong>` },
+    phone    && { label: 'טלפון',   value: `<a href="https://wa.me/${phoneIntl}" style="color:#25D366;font-weight:700;text-decoration:none">📱 ${phoneDisplay}</a>&nbsp;&nbsp;<a href="tel:${phone}" style="color:#0073EA;font-size:13px;text-decoration:none">חייג</a>` },
+    email    && { label: 'אימייל',  value: `<a href="mailto:${email}" style="color:#0073EA;text-decoration:none">${email}</a>` },
+    message  && { label: 'הודעה',   value: `<span style="color:#333;line-height:1.6">${message}</span>` },
+    campaign && { label: 'קמפיין',  value: `<span style="color:#8490D8;font-weight:600">${campaign}</span>` },
+    source   && { label: 'מקור',    value: `<span style="color:#555">${source}</span>` },
+    ts       && { label: 'תאריך',   value: `<span style="color:#888">${ts}</span>` },
+  ].filter(Boolean)
+
+  const tableRows = rows.map(r => `
+    <tr>
+      <td style="padding:11px 18px;border-bottom:1px solid #eef0f5;color:#888;font-size:13px;white-space:nowrap;width:110px;text-align:right">${r.label}</td>
+      <td style="padding:11px 18px;border-bottom:1px solid #eef0f5;font-size:14px;text-align:right">${r.value}</td>
+    </tr>`).join('')
+
+  return `<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f0f2f7;font-family:Arial,'Helvetica Neue',sans-serif;direction:rtl">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f0f2f7;padding:32px 16px">
+    <tr><td align="center">
+      <table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%">
+        <tr><td style="background:linear-gradient(135deg,#1a1a2e 0%,#2d2d5e 100%);border-radius:14px 14px 0 0;padding:28px 32px;text-align:right">
+          <div style="color:#8490D8;font-size:13px;font-weight:600;letter-spacing:1px;margin-bottom:6px">אפיק הנחל — ייזום שיווק ותיווך</div>
+          <div style="color:#fff;font-size:22px;font-weight:800;margin-bottom:4px">🔔 ${badge || 'ליד חדש התקבל'}</div>
+          <div style="color:#a0a8c8;font-size:13px">${ts || ''}</div>
+        </td></tr>
+        <tr><td style="background:#fff;border-radius:0 0 14px 14px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.10)">
+          <table width="100%" cellpadding="0" cellspacing="0">${tableRows}</table>
+          <div style="padding:24px 32px 28px;text-align:center">
+            <a href="${ADMIN_PANEL_URL}" style="display:inline-block;background:linear-gradient(135deg,#8490D8,#6070c8);color:#fff;font-size:15px;font-weight:700;text-decoration:none;padding:13px 36px;border-radius:50px;box-shadow:0 4px 16px rgba(132,144,216,.4)">
+              כניסה למערכת הניהול ←
+            </a>
+          </div>
+        </td></tr>
+        <tr><td style="padding:18px 0 0;text-align:center">
+          <p style="margin:0;font-size:12px;color:#aaa">מייל זה נשלח אוטומטית ממערכת CRM · <a href="${ADMIN_PANEL_URL}" style="color:#8490D8;text-decoration:none">אפיק הנחל</a></p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`
+}
+
+async function sendMetaLeadEmail({ name, phone, email, campaign, message, ts }) {
+  const user = process.env.GMAIL_USER
+  const pass = process.env.GMAIL_APP_PASSWORD
+  if (!user || !pass) return
+  try {
+    const transporter = nodemailer.createTransport({ service: 'gmail', auth: { user, pass } })
+    const timestamp = ts || new Date().toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    await transporter.sendMail({
+      from:    `"אפיק הנחל CRM" <${user}>`,
+      to:      user,
+      subject: `🔔 ליד Meta חדש: ${name || phone || 'אנונימי'} — אפיק הנחל`,
+      html:    buildLeadEmailHtml({ name, phone, email, campaign, message, ts: timestamp, badge: 'ליד חדש ממטא' }),
+    })
+  } catch (e) { console.error('[meta-lead-email]', e.message) }
+}
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -222,6 +293,8 @@ async function handleWebhook(req, res) {
             ].filter(Boolean).join('\n')
             // Send via Green API (fire-and-forget; errors are logged but never block lead saving)
             sendGreenNotify(BUSINESS_NOTIFY_CHATID, notifyLines).catch(e => console.error('[GreenNotify]', e.message))
+            // Email notification (fire-and-forget)
+            sendMetaLeadEmail({ name, phone, email, campaign: campaignName || formName, message: msgText, ts: now }).catch(() => {})
           }
 
           // Legacy: notify via Meta Business WA API if token is configured
@@ -390,6 +463,10 @@ async function syncOnePage(pageId, client, errors) {
               parsed.email ? `אימייל: ${parsed.email}` : null,
               `קמפיין: ${form.name || '—'}`, `התקבל: ${now}`].filter(Boolean).join('\n')
             sendGreenNotify(BUSINESS_NOTIFY_CHATID, adminMsg).catch(() => {})
+
+            // Email notification for synced lead
+            const now = new Date().toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+            sendMetaLeadEmail({ name: parsed.name, phone, email: parsed.email, campaign: form.name, ts: now }).catch(() => {})
 
             // Mark wa_sent so we don't re-notify on subsequent syncs
             client.from('meta_leads').update({ wa_sent: true }).eq('leadgen_id', lead.id).catch(() => {})
