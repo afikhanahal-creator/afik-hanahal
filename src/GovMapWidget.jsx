@@ -176,6 +176,20 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
     if (window.govmap && mapReady) window.govmap.setBackground(Number(v))
   }
 
+  // Manual search from the toolbar inputs (גוש / חלקה / תת). Falls back to the
+  // pre-existing zoom helper, which already has retry-on-not-ready logic.
+  function handleSearch() {
+    const g = String(gushVal  || '').trim()
+    const h = String(helkaVal || '').trim()
+    if (!g || !h) return
+    if (!mapReady || !window.govmap) {
+      setError('המפה עוד לא מוכנה — נסה שוב בעוד רגע')
+      return
+    }
+    setError('')
+    zoomToParcel(g, h)
+  }
+
   function toggleMeasure() {
     if (!window.govmap || !mapReady) return
     if (measuring) { window.govmap.closeMeasure(); setMeasuring(false) }
