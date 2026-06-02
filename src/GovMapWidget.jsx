@@ -112,26 +112,28 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
   }, [])
 
   // ── 2. Zoom to parcel — fires at multiple time-points so it always lands ──────
-  // searchAndLocate can silently no-op if called before the map finishes its
-  // internal async init (it may return undefined OR a resolved promise, so
-  // .catch() never fires and the old retry logic never triggered).
-  // Solution: fire the same call at 0 / 700 / 1600 / 3200 / 6000 ms offsets.
   const zoomToParcel = useCallback((g, h) => {
     if (!g || !h) return
-    const params = {
-      type:   (window.govmap?.locateType?.parcel)
-              ?? (window.govmap?.locateType?.addressToLotParcel)
-              ?? 5,
-      lot:    Number(g),
-      parcel: Number(h),
+    const lot    = Number(g)
+    const parcel = Number(h)
+    if (!lot || !parcel) return
+
+    const doLocate = () => {
+      if (!window.govmap) return
+      const lType  = window.govmap.locateType
+      const type   = lType?.parcel ?? lType?.addressToLotParcel ?? 5
+      const params = { type, lot, parcel }
+
+      // 1. dedicated method (some API versions)
+      try { if (typeof window.govmap.locateByLotParcel === 'function') window.govmap.locateByLotParcel(lot, parcel) } catch {}
+      // 2. locate() — fires zoom without opening the search panel
+      try { if (typeof window.govmap.locate          === 'function') window.govmap.locate(params) } catch {}
+      // 3. searchAndLocate — standard approach
+      try { window.govmap.searchAndLocate(params) } catch {}
     }
-    const attempts = [0, 700, 1600, 3200, 6000]
-    attempts.forEach(ms => {
-      setTimeout(() => {
-        if (!window.govmap) return
-        try { window.govmap.searchAndLocate(params) } catch {}
-      }, ms)
-    })
+
+    const attempts = [0, 800, 2000, 4000, 7000]
+    attempts.forEach(ms => setTimeout(doLocate, ms))
   }, [])
 
   // ── 3. Create map ────────────────────────────────────────────────────────────
@@ -155,18 +157,18 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
       setMapReady(true)
       setError('')
       // Use setMapReadyCallback as an additional, more reliable zoom trigger.
-      // The staggered timeouts in zoomToParcel handle maps that are already
-      // "created" but haven't finished their async tile/layer init yet.
       if (typeof window.govmap.setMapReadyCallback === 'function') {
         window.govmap.setMapReadyCallback(() => {
-          if (!gushRef.current || !helkaRef.current) return
-          const p = {
-            type:   (window.govmap?.locateType?.parcel)
-                    ?? (window.govmap?.locateType?.addressToLotParcel)
-                    ?? 5,
-            lot:    Number(gushRef.current),
-            parcel: Number(helkaRef.current),
-          }
+          const g = gushRef.current
+          const h = helkaRef.current
+          if (!g || !h) return
+          const lot    = Number(g)
+          const parcel = Number(h)
+          const lType  = window.govmap.locateType
+          const type   = lType?.parcel ?? lType?.addressToLotParcel ?? 5
+          const p      = { type, lot, parcel }
+          try { if (typeof window.govmap.locateByLotParcel === 'function') window.govmap.locateByLotParcel(lot, parcel) } catch {}
+          try { if (typeof window.govmap.locate          === 'function') window.govmap.locate(p) } catch {}
           try { window.govmap.searchAndLocate(p) } catch {}
         })
       }

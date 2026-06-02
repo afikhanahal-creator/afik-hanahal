@@ -1071,20 +1071,22 @@ const CITY_IMG_FILTER = {
 function useSwipeClose(onClose, threshold = 120) {
   const ref = useRef({ x0: 0, y0: 0, dragging: false })
   const onTouchStart = useCallback(e => {
-    // Don't start swipe tracking if touch is on any interactive element, its child,
-    // or a zone that has explicitly opted out (data-no-swipe="true").
     if (e.target.closest('input, select, textarea, button, a, label, [role="slider"], [type="range"], video, [data-no-swipe]')) return
     ref.current = { x0: e.touches[0].clientX, y0: e.touches[0].clientY, dragging: true }
+  }, [])
+  // Cancel the swipe the moment the finger moves more than 12 px vertically —
+  // this stops any accidental close during normal vertical page scrolling.
+  const onTouchMove = useCallback(e => {
+    if (!ref.current.dragging) return
+    if (Math.abs(e.touches[0].clientY - ref.current.y0) > 12) ref.current.dragging = false
   }, [])
   const onTouchEnd = useCallback(e => {
     if (!ref.current.dragging) return
     ref.current.dragging = false
     const dx = e.changedTouches[0].clientX - ref.current.x0
-    const dy = e.changedTouches[0].clientY - (ref.current.y0 || 0)
-    // Close only on strongly horizontal swipes (dx must dominate dy by 2.5×)
-    if (Math.abs(dx) > threshold && Math.abs(dx) > Math.abs(dy) * 2.5) onClose()
+    if (Math.abs(dx) > threshold) onClose()
   }, [onClose, threshold])
-  return { onTouchStart, onTouchEnd }
+  return { onTouchStart, onTouchMove, onTouchEnd }
 }
 
 function useIntersection(threshold = 0.2) {
@@ -2217,7 +2219,7 @@ function ContactModal({ prop, onClose }) {
   return (
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.84)', backdropFilter:'blur(12px)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}
       onClick={e => { if (e.target===e.currentTarget) onClose() }}
-      onTouchStart={swipe.onTouchStart} onTouchEnd={swipe.onTouchEnd}>
+      onTouchStart={swipe.onTouchStart} onTouchMove={swipe.onTouchMove} onTouchEnd={swipe.onTouchEnd}>
       <div style={{ background:C.card, border:`1px solid ${C.purple}33`, borderRadius:24, padding:'28px 36px', maxWidth:480, width:'100%', maxHeight:'88vh', overflowY:'auto', direction: lang==='he' ? 'rtl' : 'ltr', boxShadow:`0 32px 80px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.1)` }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:18 }}>
           <h2 style={{ fontSize:22, fontWeight:800, color:C.cream }}>{prop ? lbl.contactTitle : lbl.contactHeading}</h2>
@@ -8127,7 +8129,7 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
   return (
     <div ref={modalScrollRef} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.88)', backdropFilter:'blur(14px)', zIndex:900, overflowY:'auto', WebkitOverflowScrolling:'touch', scrollBehavior:'smooth' }}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
-      onTouchStart={propSwipe.onTouchStart} onTouchEnd={propSwipe.onTouchEnd}>
+      onTouchStart={propSwipe.onTouchStart} onTouchMove={propSwipe.onTouchMove} onTouchEnd={propSwipe.onTouchEnd}>
 
       <div style={{ background:'#0B0B14', maxWidth:1100, margin:'0 auto', minHeight:'100dvh', direction:'rtl', position:'relative' }}>
 
