@@ -1,11 +1,11 @@
 // MetaKanban.jsx — Pipeline / Table view for Meta Lead Center
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import {
-  DndContext, DragOverlay, PointerSensor, useSensor, useSensors,
+  DndContext, DragOverlay, PointerSensor, TouchSensor, KeyboardSensor, useSensor, useSensors,
   pointerWithin, rectIntersection, closestCenter,
 } from '@dnd-kit/core'
 import {
-  SortableContext, useSortable, arrayMove,
+  SortableContext, useSortable, arrayMove, sortableKeyboardCoordinates,
   horizontalListSortingStrategy, verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
@@ -109,15 +109,15 @@ function SortableCard({ lead, stages, onClick, onDelete, onMoveStage, bulkMode, 
       {...listeners}
       style={{
         transform: CSS.Transform.toString(transform),
-        transition,
-        opacity: isDragging ? 0.25 : 1,
+        transition: isDragging ? 'none' : [transition, 'box-shadow .15s, border-color .15s'].filter(Boolean).join(', '),
+        opacity: isDragging ? 0 : 1,
         background: T.card,
         borderRadius: 8,
         border: isSelected ? `2px solid ${T.accent}` : `1px solid ${T.border}`,
         padding: '10px 12px',
         marginBottom: 8,
         cursor: isDragging ? 'grabbing' : 'grab',
-        boxShadow: isDragging ? '0 10px 28px rgba(0,0,0,.22)' : '0 1px 3px rgba(0,0,0,.08)',
+        boxShadow: isDragging ? 'none' : '0 1px 3px rgba(0,0,0,.08)',
         position: 'relative',
         userSelect: 'none',
         touchAction: 'none',
@@ -189,7 +189,7 @@ function SortableCard({ lead, stages, onClick, onDelete, onMoveStage, bulkMode, 
 }
 
 // ── KanbanColumn ───────────────────────────────────────────────────────────────
-function KanbanColumn({ stage, leads, stages, onCardClick, onCardDelete, onCardMoveStage, bulkMode, selectedCards, onToggleCardSelect, onRenameStage, onDeleteStage }) {
+function KanbanColumn({ stage, leads, stages, onCardClick, onCardDelete, onCardMoveStage, bulkMode, selectedCards, onToggleCardSelect, onRenameStage, onDeleteStage, isDraggingCard }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging, isOver } = useSortable({
     id: stage.id,
     data: { type: 'column', stageId: stage.id },
@@ -278,22 +278,28 @@ function KanbanColumn({ stage, leads, stages, onCardClick, onCardDelete, onCardM
         </SortableContext>
 
         {leads.length === 0 && (
-          <div style={{ padding: '18px 10px 22px', textAlign: 'center' }}>
-            <div style={{ marginBottom: 8 }}>
-              <svg width="44" height="36" viewBox="0 0 220 180" fill="none" style={{ display: 'block', margin: '0 auto', opacity: .28 }}>
-                <rect x="20" y="20" width="80" height="14" rx="7" fill="#BCC0C4" />
-                <rect x="20" y="44" width="56" height="14" rx="7" fill="#BCC0C4" />
-                <rect x="20" y="68" width="66" height="14" rx="7" fill="#BCC0C4" />
-                <rect x="116" y="48" width="82" height="68" rx="12" fill="#E7F0FF" />
-                <rect x="126" y="62" width="62" height="10" rx="5" fill="#1877F2" opacity=".45" />
-                <rect x="126" y="80" width="44" height="10" rx="5" fill="#BCC0C4" />
-                <circle cx="162" cy="100" r="11" fill="#1877F2" opacity=".2" />
-                <path d="M157 100l4 4 8-8" stroke="#1877F2" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" opacity=".7" />
-              </svg>
+          isDraggingCard ? (
+            <div style={{ margin: '8px 4px', padding: '20px 8px', borderRadius: 8, border: `2px dashed ${isOver ? T.accent : T.border}`, background: isOver ? 'rgba(24,119,242,.08)' : 'transparent', transition: 'all .15s', textAlign: 'center', fontSize: 12, color: isOver ? T.accent : T.dim, fontWeight: isOver ? 700 : 400 }}>
+              {isOver ? '⬇ Drop here' : 'Drop cards here'}
             </div>
-            <div style={{ fontSize: 12, fontWeight: 600, color: T.sub, marginBottom: 4 }}>No {stage.label} leads</div>
-            <div style={{ fontSize: 11, color: T.dim, lineHeight: 1.5 }}>{STAGE_DESC[stage.id] || 'Move leads to this stage'}</div>
-          </div>
+          ) : (
+            <div style={{ padding: '18px 10px 22px', textAlign: 'center' }}>
+              <div style={{ marginBottom: 8 }}>
+                <svg width="44" height="36" viewBox="0 0 220 180" fill="none" style={{ display: 'block', margin: '0 auto', opacity: .28 }}>
+                  <rect x="20" y="20" width="80" height="14" rx="7" fill="#BCC0C4" />
+                  <rect x="20" y="44" width="56" height="14" rx="7" fill="#BCC0C4" />
+                  <rect x="20" y="68" width="66" height="14" rx="7" fill="#BCC0C4" />
+                  <rect x="116" y="48" width="82" height="68" rx="12" fill="#E7F0FF" />
+                  <rect x="126" y="62" width="62" height="10" rx="5" fill="#1877F2" opacity=".45" />
+                  <rect x="126" y="80" width="44" height="10" rx="5" fill="#BCC0C4" />
+                  <circle cx="162" cy="100" r="11" fill="#1877F2" opacity=".2" />
+                  <path d="M157 100l4 4 8-8" stroke="#1877F2" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" opacity=".7" />
+                </svg>
+              </div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: T.sub, marginBottom: 4 }}>No {stage.label} leads</div>
+              <div style={{ fontSize: 11, color: T.dim, lineHeight: 1.5 }}>{STAGE_DESC[stage.id] || 'Move leads to this stage'}</div>
+            </div>
+          )
         )}
       </div>
       <div style={{ height: 8 }} />
@@ -573,7 +579,11 @@ export default function MetaKanban({ leads: propLeads = [], onUpdateLead, onDele
   const [activeId, setActiveId]         = useState(null)
   const [activeType, setActiveType]     = useState(null)
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
 
   // ── DnD helpers ──────────────────────────────────────────────────────────────
   const findCardStage = useCallback(cardId => {
@@ -738,6 +748,11 @@ export default function MetaKanban({ leads: propLeads = [], onUpdateLead, onDele
 
       {/* TOP BAR */}
       <div style={{ padding: '8px 16px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, background: T.surf }}>
+        <button onClick={() => setShowFilters(v => !v)}
+          style={{ padding: '5px 11px', border: `1px solid ${T.border}`, borderRadius: 7, background: T.card, color: T.sub, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span>⇅</span><span>{showFilters ? 'Hide filters' : 'Show filters'}</span>
+        </button>
+        <div style={{ flex: 1 }} />
         <div style={{ display: 'flex', background: T.bg, borderRadius: 8, padding: 3, gap: 2 }}>
           {[{ id: 'pipeline', icon: '⠿', label: 'Pipeline view' }, { id: 'table', icon: '≡', label: 'Table view' }].map(v => (
             <button key={v.id} onClick={() => setViewMode(v.id)}
@@ -746,11 +761,6 @@ export default function MetaKanban({ leads: propLeads = [], onUpdateLead, onDele
             </button>
           ))}
         </div>
-        <div style={{ flex: 1 }} />
-        <button onClick={() => setShowFilters(v => !v)}
-          style={{ padding: '5px 11px', border: `1px solid ${T.border}`, borderRadius: 7, background: T.card, color: T.sub, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
-          <span>⇅</span><span>{showFilters ? 'Hide filters' : 'Show filters'}</span>
-        </button>
       </div>
 
       {/* TOOLBAR */}
@@ -839,20 +849,21 @@ export default function MetaKanban({ leads: propLeads = [], onUpdateLead, onDele
                     onToggleCardSelect={id => setSelectedCards(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })}
                     onRenameStage={renameStage}
                     onDeleteStage={sid => setDelConfirm({ type: 'stage', id: sid })}
+                    isDraggingCard={activeType === 'card'}
                   />
                 ))}
               </div>
             </SortableContext>
-            <DragOverlay>
+            <DragOverlay dropAnimation={{ duration: 180, easing: 'cubic-bezier(0.18, 0.67, 0.6, 1.22)' }}>
               {activeLead && (
-                <div style={{ background: T.card, borderRadius: 8, border: `2px solid ${T.accent}`, padding: '10px 12px', width: 240, boxShadow: '0 12px 36px rgba(0,0,0,.55)', opacity: .95 }}>
+                <div style={{ background: T.card, borderRadius: 8, border: `2px solid ${T.accent}`, padding: '10px 12px', width: 240, boxShadow: '0 24px 64px rgba(0,0,0,.75)', opacity: 1, transform: 'rotate(2deg) scale(1.04)', cursor: 'grabbing', pointerEvents: 'none' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{ width: 34, height: 34, borderRadius: '50%', background: avatarBg(activeLead.name), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: '#fff' }}>
+                    <div style={{ width: 34, height: 34, borderRadius: '50%', background: avatarBg(activeLead.name), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: '#fff', flexShrink: 0 }}>
                       {initials(activeLead.name)}
                     </div>
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: T.text, direction: 'rtl' }}>{activeLead.name}</div>
-                      <div style={{ fontSize: 11, color: T.sub, marginTop: 2 }}>{activeLead.campaign_name || activeLead.form_name || 'Lead'}</div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: T.text, direction: 'rtl', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{activeLead.name}</div>
+                      <div style={{ fontSize: 11, color: T.sub, marginTop: 3 }}>{activeLead.campaign_name || activeLead.form_name || 'Lead'}</div>
                     </div>
                   </div>
                 </div>

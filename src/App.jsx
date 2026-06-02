@@ -8153,7 +8153,8 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
 
         {/* ══ FULL-WIDTH GALLERY ══ */}
         <div className="prop-gallery-main"
-          onTouchStart={e => { galleryTouch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY } }}
+          onTouchStart={e => { e.stopPropagation(); galleryTouch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY } }}
+          onTouchMove={e => e.stopPropagation()}
           onTouchEnd={e => {
             e.stopPropagation()
             if (!totalMedia || totalMedia <= 1) return
@@ -9846,9 +9847,9 @@ export default function App() {
 
               {/* CTA button */}
               <button onClick={() => openContact()}
-                style={{ width:'100%', marginTop:4, padding:'17px 0', borderRadius:14, border:'none', cursor:'pointer', fontFamily:'Rubik,inherit', fontSize:17, fontWeight:800, color:'#fff', background:`linear-gradient(135deg,${C.green},${C.purple})`, boxShadow:`0 6px 28px ${C.purple}44`, letterSpacing:'-.01em', display:'flex', alignItems:'center', justifyContent:'center', gap:8, transition:'all .22s' }}
-                onMouseEnter={e => { e.currentTarget.style.transform='translateY(-2px)'; e.currentTarget.style.boxShadow=`0 10px 36px ${C.purple}55` }}
-                onMouseLeave={e => { e.currentTarget.style.transform=''; e.currentTarget.style.boxShadow=`0 6px 28px ${C.purple}44` }}>
+                style={{ width:'100%', marginTop:4, padding:'17px 0', borderRadius:14, border:'none', cursor:'pointer', fontFamily:'Rubik, sans-serif', fontSize:17, fontWeight:800, color:'#fff', background:`linear-gradient(135deg,#8490D8,#6B7BE0)`, boxShadow:`0 6px 28px ${C.purple}55`, letterSpacing:'-.01em', display:'flex', alignItems:'center', justifyContent:'center', gap:8, transition:'all .22s' }}
+                onMouseEnter={e => { e.currentTarget.style.transform='translateY(-2px)'; e.currentTarget.style.boxShadow=`0 12px 40px ${C.purple}70`; e.currentTarget.style.background='linear-gradient(135deg,#9AA4E8,#7B8EF0)' }}
+                onMouseLeave={e => { e.currentTarget.style.transform=''; e.currentTarget.style.boxShadow=`0 6px 28px ${C.purple}55`; e.currentTarget.style.background='linear-gradient(135deg,#8490D8,#6B7BE0)' }}>
                 <FaEnvelope size={15}/> {TR[lang]?.sendMessageBtn}
               </button>
 

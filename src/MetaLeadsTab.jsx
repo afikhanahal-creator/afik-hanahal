@@ -676,7 +676,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
       <div style={{
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'flex-end',
+        justifyContent: 'flex-start',
         gap: 6,
         padding: '10px 16px',
         background: 'rgba(14,14,28,.95)',
@@ -1065,6 +1065,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
           touchAction: 'pan-y',
           willChange: 'scroll-position',
           transform: 'translateZ(0)',
+          paddingBottom: 16,
         }}>
           {loadingLeads && (
             <div style={{ padding: 24, textAlign: 'center', color: MUTED, fontSize: 13 }}>{t.loading}</div>

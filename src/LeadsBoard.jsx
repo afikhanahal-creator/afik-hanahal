@@ -1756,7 +1756,7 @@ export default function LeadsBoard({
           </button>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', overflowX: 'auto', borderTop: `1px solid ${T.borderLight}`, marginTop: 6, justifyContent: 'flex-end' }}>
+        <div style={{ display: 'flex', alignItems: 'center', overflowX: 'auto', borderTop: `1px solid ${T.borderLight}`, marginTop: 6, justifyContent: 'flex-start' }}>
           {[
             { id: 'pipeline', icon: '⬛', label: 'Pipeline' },
             { id: 'table',    icon: '☰',  label: lang === 'en' ? 'Table' : 'טבלה' },
