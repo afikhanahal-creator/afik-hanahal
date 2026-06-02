@@ -9970,19 +9970,19 @@ export default function App() {
           </div>
 
           {/* ── Bottom bar ── */}
-          <div className="footer-bottom" style={{ display:'flex', alignItems:'center', justifyContent:'space-between', borderTop:'1px solid rgba(132,144,216,.15)', paddingTop:18, gap:12 }}>
+          <div className="footer-bottom" style={{ display:'flex', flexDirection:'row', alignItems:'center', justifyContent:'space-between', borderTop:'1px solid rgba(132,144,216,.15)', paddingTop:18, gap:12 }}>
 
             {/* Right (RTL start): legal links */}
-            <div className="footer-bottom-links" style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
-              <a href="/accessibility"
-                style={{ fontSize:12, color:C.purple, textDecoration:'none', fontWeight:600, opacity:.85, transition:'opacity .15s', whiteSpace:'nowrap', letterSpacing:'.01em' }}
+            <div className="footer-bottom-links" style={{ display:'flex', flexDirection:'row', alignItems:'center', flexWrap:'nowrap', gap:6, flexShrink:0 }}>
+              <button onClick={() => window.open('/accessibility','_blank')}
+                style={{ background:'none', border:'none', padding:'2px 0', margin:0, fontSize:12, color:C.purple, fontWeight:600, cursor:'pointer', opacity:.85, transition:'opacity .15s', fontFamily:'inherit', whiteSpace:'nowrap', lineHeight:1, display:'inline-flex', alignItems:'center' }}
                 onMouseEnter={e => e.currentTarget.style.opacity='1'}
                 onMouseLeave={e => e.currentTarget.style.opacity='.85'}>
                 {TR[lang]?.accessibility}
-              </a>
-              <span style={{ color:'rgba(132,144,216,.3)', fontSize:14, lineHeight:1, fontWeight:300 }}>|</span>
+              </button>
+              <span style={{ color:'rgba(132,144,216,.28)', fontSize:12, lineHeight:1, userSelect:'none', flexShrink:0 }}>|</span>
               <button onClick={() => setShowPrivacy(true)}
-                style={{ background:'none', border:'none', padding:0, fontSize:12, color:'rgba(132,144,216,.75)', fontWeight:500, cursor:'pointer', opacity:.85, transition:'opacity .15s', fontFamily:'inherit', textDecoration:'none', whiteSpace:'nowrap' }}
+                style={{ background:'none', border:'none', padding:'2px 0', margin:0, fontSize:12, color:'rgba(132,144,216,.75)', fontWeight:500, cursor:'pointer', opacity:.85, transition:'opacity .15s', fontFamily:'inherit', whiteSpace:'nowrap', lineHeight:1, display:'inline-flex', alignItems:'center' }}
                 onMouseEnter={e => { e.currentTarget.style.opacity='1'; e.currentTarget.style.color=C.purple }}
                 onMouseLeave={e => { e.currentTarget.style.opacity='.85'; e.currentTarget.style.color='rgba(132,144,216,.75)' }}>
                 {TR[lang]?.privacy}
@@ -9990,15 +9990,15 @@ export default function App() {
             </div>
 
             {/* Center: copyright */}
-            <div className="footer-bottom-copyright" style={{ flex:1, fontSize:11, color:'rgba(132,144,216,.35)', textAlign:'center', padding:'0 12px', minWidth:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+            <div className="footer-bottom-copyright" style={{ flex:1, fontSize:11, color:'rgba(132,144,216,.35)', textAlign:'center', padding:'0 8px', minWidth:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
               {TR[lang]?.copyright}
             </div>
 
             {/* Left (RTL end): lang + admin lock */}
-            <div className="footer-bottom-actions" style={{ display:'flex', alignItems:'center', gap:6, flexShrink:0 }}>
+            <div className="footer-bottom-actions" style={{ display:'flex', flexDirection:'row', alignItems:'center', gap:6, flexShrink:0 }}>
               <LangSwitch />
               <button onClick={() => adminAuth ? setShowAdmin(true) : setShowPw(true)} title="כניסת מנהל"
-                style={{ background:'none', border:'none', color:'rgba(132,144,216,.18)', cursor:'pointer', transition:'color .2s', padding:'4px 6px', borderRadius:6 }}
+                style={{ background:'none', border:'none', color:'rgba(132,144,216,.18)', cursor:'pointer', transition:'color .2s', padding:'4px 6px', borderRadius:6, display:'inline-flex', alignItems:'center' }}
                 onMouseEnter={e => e.currentTarget.style.color=C.purple}
                 onMouseLeave={e => e.currentTarget.style.color='rgba(132,144,216,.18)'}><FaLock size={12}/></button>
             </div>
