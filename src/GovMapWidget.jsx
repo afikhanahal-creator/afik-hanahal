@@ -30,29 +30,20 @@ export const BG_OPTIONS = [
   { v:'3', label:'CIR'          },
 ]
 
-// ── Script singleton ───────────────────────────────────────────────────────────
-// 'idle' | 'loading' | 'ready' | 'error'
-let scriptState        = 'idle'
-let scriptCallbacks    = []
-let scriptErrCallbacks = []
+// ── Script loader — singleton so the script is injected only once ─────────────
+let scriptLoaded    = false
+let scriptCallbacks = []
 
-function loadGovMapScript(cb, onErr) {
+function loadGovMapScript(cb) {
   if (scriptState === 'ready' && window.govmap) { cb(); return }
-  // Reset on error so callers can retry (e.g. transient network failure)
-  if (scriptState === 'error') scriptState = 'idle'
+  if (scriptState === 'error') return
   scriptCallbacks.push(cb)
-  if (onErr) scriptErrCallbacks.push(onErr)
-  if (scriptState === 'loading') return
-  scriptState = 'loading'
-  const s = document.createElement('script')
-  s.src   = SCRIPT_URL
-  s.async = true
-  s.onload  = () => { scriptState = 'ready'; scriptCallbacks.splice(0).forEach(fn => fn()) }
-  s.onerror = () => {
-    scriptState = 'error'
-    scriptCallbacks.splice(0)
-    scriptErrCallbacks.splice(0).forEach(fn => fn())
-  }
+  if (scriptCallbacks.length > 1) return          // already loading
+  const s   = document.createElement('script')
+  s.src     = SCRIPT_URL
+  s.async   = true
+  s.onload  = () => { scriptLoaded = true; scriptCallbacks.forEach(fn => fn()); scriptCallbacks = [] }
+  s.onerror = () => { scriptCallbacks = [] }
   document.head.appendChild(s)
 }
 
@@ -62,9 +53,8 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
   const uid      = useId().replace(/:/g, '')
   const mapDivId = `gm_${uid}`
 
-  const containerRef    = useRef(null)
-  const created         = useRef(false)
-  const pendingTimers   = useRef([])
+  const containerRef = useRef(null)
+  const created      = useRef(false)   // true once window.govmap.createMap() succeeded
 
   const [inView,    setInView]    = useState(false)
   const [mapReady,  setMapReady]  = useState(false)
@@ -85,17 +75,14 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
 
   const [bg, setBg] = useState(() => localStorage.getItem('govmap_default_bg') || '0')
 
+  // Refs so createMap reads the latest values without being in its dep array
+  // (prevents the script-loading effect from re-firing on every layer toggle)
   const layersRef = useRef(layers)
   const bgRef     = useRef(bg)
   useEffect(() => { layersRef.current = layers }, [layers])
   useEffect(() => { bgRef.current     = bg     }, [bg])
 
-  // Refs so async callbacks always see the latest gush/helka values.
-  const gushRef  = useRef(gush  || '')
-  const helkaRef = useRef(helka || '')
-  useEffect(() => { gushRef.current  = gush  || '' }, [gush])
-  useEffect(() => { helkaRef.current = helka || '' }, [helka])
-
+  // Search-bar state — seeded from props
   const [gushVal,     setGushVal]     = useState(gush     || '')
   const [helkaVal,    setHelkaVal]    = useState(helka    || '')
   const [subHelkaVal, setSubHelkaVal] = useState(subHelka || '')
@@ -112,42 +99,40 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
     return () => obs.disconnect()
   }, [])
 
-  // Cancel all pending zoom retries (prevents stale timeouts from a previous
-  // property overwriting the correct zoom when the user opens a new one).
-  const clearRetries = useCallback(() => {
-    pendingTimers.current.forEach(clearTimeout)
-    pendingTimers.current = []
-  }, [])
+  // ── 2. Zoom with exponential-backoff retry ──────────────────────────────────
+  // Guards against: API not returning a Promise, synchronous throw, map not ready
+  const zoomToParcel = useCallback((g, h, attempts = 10, delay = 300) => {
+    if (!window.govmap || !g || !h) return
+    try {
+      const res = window.govmap.searchAndLocate({
+        type:   window.govmap.locateType?.addressToLotParcel
+               ?? window.govmap.locateType?.parcel
+               ?? 5,
+        lot:    Number(g),
+        parcel: Number(h),
+      })
+      // API may or may not return a Promise — handle both
+      const p = res && typeof res.then === 'function' ? res : Promise.resolve()
+      p.catch(() => {
+        if (attempts > 1)
+          setTimeout(() => zoomToParcel(g, h, attempts - 1, Math.min(delay * 1.5, 2000)), delay)
+      })
+    } catch {
+      if (attempts > 1)
+        setTimeout(() => zoomToParcel(g, h, attempts - 1, Math.min(delay * 1.5, 2000)), delay)
+    }
+  }, [])  // stable reference — safe to use inside setTimeout
 
-  // Always cancel on unmount so old timeouts never pollute a future instance.
-  useEffect(() => clearRetries, [clearRetries])
-
-  // ── 2. Zoom to parcel using searchAndLocate ───────────────────────────────────
-  const doSearchAndLocate = useCallback((g, h) => {
-    if (!g || !h || !window.govmap) return
-    const type = window.govmap.locateType?.parcel
-               ?? window.govmap.locateType?.addressToLotParcel
-               ?? 5
-    // Send both 'block' (correct for most GovMap versions) AND 'lot' (legacy).
-    // The API ignores unknown keys so sending both is safe.
-    try { window.govmap.searchAndLocate({ type, block: Number(g), lot: Number(g), parcel: Number(h) }) } catch {}
-  }, [])
-
-  // ── 3. Create map ────────────────────────────────────────────────────────────
+  // ── 3. Create map (runs once when token + inView are ready) ────────────────
   const createMap = useCallback(() => {
     if (created.current || !window.govmap) return
     const el = document.getElementById(mapDivId)
     if (!el) return
     created.current = true
-
-    // Cancel any stale retries from a previous mount before creating a new map.
-    clearRetries()
-
     try {
-      const activeLayers = LAYERS_DEF.filter(l => layersRef.current[l.id]).map(l => l.id)
-
-      const onMapReady = () => doSearchAndLocate(gushRef.current, helkaRef.current)
-
+      const activeLayers = LAYERS_DEF
+        .filter(l => layersRef.current[l.id])
+        .map(l => l.id)
       window.govmap.createMap(mapDivId, {
         token:            token || '',
         layers:           activeLayers,
@@ -157,60 +142,33 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
         background:       Number(bgRef.current) || 0,
         layersMode:       1,
         zoomButtons:      true,
-        callback:         onMapReady,  // fires when ready in some GovMap builds
       })
-      setError('')
       setMapReady(true)
-
-      if (typeof window.govmap.setMapReadyCallback === 'function') {
-        window.govmap.setMapReadyCallback(onMapReady)
-      }
-
-      // Timed retries — searchAndLocate is a silent no-op before internal init.
-      // IDs stored so they can be cancelled if the component unmounts or a new
-      // property is opened before they fire.
-      const g = gushRef.current
-      const h = helkaRef.current
-      if (g && h) {
-        ;[300, 700, 1400, 2500, 4000, 6000, 9000, 13000].forEach(ms => {
-          const id = setTimeout(() => doSearchAndLocate(gushRef.current, helkaRef.current), ms)
-          pendingTimers.current.push(id)
-        })
-      }
-    } catch {
+      setError('')
+    } catch (e) {
       setError('שגיאה ביצירת המפה — ודא שמפתח ה-API תקין ורשום לדומיין זה.')
       created.current = false
     }
-  }, [mapDivId, token, doSearchAndLocate, clearRetries])
-
-  const onScriptError = useCallback(() => {
-    setError('שגיאה בטעינת ספריית GovMap. בדוק חיבור אינטרנט ולחץ לנסות שוב.')
-  }, [])
+  }, [mapDivId, token])  // layers/bg excluded — read via refs to avoid spurious re-runs
 
   // ── Load SDK + create map once in view ────────────────────────────────────
   useEffect(() => {
     if (!token || !inView) return
-    loadGovMapScript(createMap, onScriptError)
-  }, [token, inView, createMap, onScriptError])
+    loadGovMapScript(createMap)
+  }, [token, inView, createMap])
 
-  // ── 4. Re-zoom when gush/helka change after the map is already ready ─────────
+  // ── 4. Zoom to parcel when map is ready (or gush/helka change) ─────────────
   useEffect(() => {
     if (!mapReady || !gush || !helka) return
-    doSearchAndLocate(gush, helka)
-  }, [gush, helka, mapReady, doSearchAndLocate])
+    const t = setTimeout(() => zoomToParcel(gush, helka), 700)
+    return () => clearTimeout(t)
+  }, [gush, helka, mapReady, zoomToParcel])
 
-  // ── Controls ─────────────────────────────────────────────────────────────────
+  // ── Layer / BG controls ─────────────────────────────────────────────────────
   function toggleLayer(id) {
-    setLayers(prev => {
-      const next = !prev[id]
-      if (window.govmap && mapReady) {
-        try {
-          if (next) window.govmap.showLayer(id)
-          else      window.govmap.hideLayer(id)
-        } catch {}
-      }
-      return { ...prev, [id]: next }
-    })
+    // Pure state update only — the useEffect([layers, mapReady]) above
+    // applies the change to the map without any side effects here.
+    setLayers(prev => ({ ...prev, [id]: !prev[id] }))
   }
 
   function handleBg(v) {
@@ -224,12 +182,7 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
     else           { window.govmap.showMeasure();  setMeasuring(true)  }
   }
 
-  function handleSearch() {
-    if (!gushVal || !helkaVal) return
-    zoomToParcel(gushVal, helkaVal)
-  }
-
-  // ── Styles ───────────────────────────────────────────────────────────────────
+  // ── Shared styles ───────────────────────────────────────────────────────────
   const panelBg = isDark ? 'rgba(9,9,15,.98)'    : 'rgba(248,247,243,.98)'
   const border  = `1px solid ${C.purple}28`
   const selBg   = isDark ? '#1c1c30' : '#eceaf5'
@@ -249,7 +202,7 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
     whiteSpace:'nowrap',
   })
 
-  // ── No token ──────────────────────────────────────────────────────────────────
+  // ── No token ────────────────────────────────────────────────────────────────
   if (!token) {
     return (
       <div style={{ padding:'32px 24px', textAlign:'center', background: isDark ? 'rgba(255,255,255,.02)' : 'rgba(0,0,0,.03)', border:`1px dashed ${C.purple}33`, borderRadius:12, direction:'rtl', fontFamily:'Rubik,inherit' }}>
@@ -262,7 +215,7 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
     )
   }
 
-  // ── Skeleton ──────────────────────────────────────────────────────────────────
+  // ── Skeleton (not yet in viewport) ────────────────────────────────────────
   if (!inView) {
     return (
       <div ref={containerRef} style={{ position:'relative', border:`1px solid ${C.purple}15`, borderRadius:12, overflow:'hidden', background: isDark ? '#0A0A16' : '#F5F4F0', height: compact ? 340 : 480, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:12, direction:'rtl', fontFamily:'Rubik,inherit' }}>
@@ -270,7 +223,9 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
           <span style={{ fontSize:24 }}>🗺️</span>
         </div>
         <div style={{ fontSize:14, fontWeight:700, color:`${C.cream}66` }}>מפת גוש/חלקה</div>
-        {gush && helka && <div style={{ fontSize:12, color:`${C.cream}44` }}>גוש {gush} · חלקה {helka}</div>}
+        {gush && helka && (
+          <div style={{ fontSize:12, color:`${C.cream}44` }}>גוש {gush} · חלקה {helka}</div>
+        )}
         <div style={{ fontSize:12, color:`${C.cream}33` }}>המפה תיטען בעת גלילה לאזור זה</div>
         <style>{`@keyframes shimmer{0%{opacity:.4}50%{opacity:.8}100%{opacity:.4}}`}</style>
         <div style={{ position:'absolute', inset:0, background:`linear-gradient(135deg,${C.purple}05,${C.purple}0A,${C.purple}05)`, animation:'shimmer 2s ease-in-out infinite' }}/>
@@ -278,38 +233,36 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
     )
   }
 
-  // ── Map ───────────────────────────────────────────────────────────────────────
+  // ── Map ────────────────────────────────────────────────────────────────────
+  const toolbarHeight = 50 // approx height of the toolbar row
+
   return (
     <div ref={containerRef}
-      data-no-swipe="true"
-      onClick={e => e.stopPropagation()}
-      onTouchStart={e => e.stopPropagation()}
-      onTouchMove={e => e.stopPropagation()}
-      onTouchEnd={e => e.stopPropagation()}
       style={{ position:'relative', border:`1px solid ${C.purple}22`, borderRadius:12,
                overflow:'hidden', background: isDark ? '#0A0A16' : '#f8f7f3',
                direction:'rtl', fontFamily:'Rubik,inherit' }}>
 
-      {/* Toolbar */}
+      {/* ── Toolbar ─────────────────────────────────────────────────────────── */}
       <div style={{ display:'flex', gap:8, alignItems:'center', padding:'9px 12px',
                     background: isDark ? 'rgba(14,14,28,.97)' : 'rgba(236,234,245,.97)',
                     borderBottom:`1px solid ${C.purple}20`, flexWrap:'wrap' }}>
 
+        {/* Gush / Helka search */}
         <div style={{ display:'flex', alignItems:'center', gap:5, flexShrink:0, flexWrap:'wrap' }}>
           <span style={{ fontSize:11, color:`${C.cream}88`, fontWeight:700 }}>גוש</span>
-          <input value={gushVal}     onChange={e=>setGushVal(e.target.value)}     placeholder="40095" style={inputSt} onKeyDown={e=>{e.stopPropagation();if(e.key==='Enter')handleSearch()}}/>
+          <input value={gushVal}     onChange={e=>setGushVal(e.target.value)}     placeholder="40095" style={inputSt} onKeyDown={e=>e.key==='Enter'&&handleSearch()}/>
           <span style={{ fontSize:11, color:`${C.cream}88`, fontWeight:700 }}>חלקה</span>
-          <input value={helkaVal}    onChange={e=>setHelkaVal(e.target.value)}    placeholder="13"    style={inputSt} onKeyDown={e=>{e.stopPropagation();if(e.key==='Enter')handleSearch()}}/>
+          <input value={helkaVal}    onChange={e=>setHelkaVal(e.target.value)}    placeholder="13"    style={inputSt} onKeyDown={e=>e.key==='Enter'&&handleSearch()}/>
           <span style={{ fontSize:11, color:`${C.cream}88`, fontWeight:700 }}>תת</span>
-          <input value={subHelkaVal} onChange={e=>setSubHelkaVal(e.target.value)} placeholder="0"     style={{ ...inputSt, width:44 }} onKeyDown={e=>{e.stopPropagation();if(e.key==='Enter')handleSearch()}}/>
-          <button onClick={handleSearch} disabled={!mapReady}
-            style={{ ...btnSt(false), padding:'6px 14px', background: C.purple, color:'#fff', border:'none', opacity: !mapReady ? .5 : 1 }}>
+          <input value={subHelkaVal} onChange={e=>setSubHelkaVal(e.target.value)} placeholder="0"     style={{ ...inputSt, width:44 }} onKeyDown={e=>e.key==='Enter'&&handleSearch()}/>
+          <button onClick={handleSearch} style={{ ...btnSt(false), padding:'6px 14px', background: C.purple, color:'#fff', border:'none' }}>
             חפש
           </button>
         </div>
 
         <div style={{ width:1, height:22, background:`${C.purple}25`, flexShrink:0 }}/>
 
+        {/* Background selector with visible arrow */}
         <div style={{ display:'flex', alignItems:'center', gap:6, flexShrink:0 }}>
           <span style={{ fontSize:11, color:`${C.cream}88`, fontWeight:700 }}>רקע</span>
           <div style={{ position:'relative' }}>
@@ -330,25 +283,20 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
 
         <div style={{ width:1, height:22, background:`${C.purple}25`, flexShrink:0 }}/>
 
+        {/* Layer panel toggle */}
         <button onClick={()=>setShowPanel(p=>!p)} style={btnSt(showPanel)}>
           שכבות {showPanel ? '▲' : '▼'}
         </button>
 
+        {/* Measure */}
         <button onClick={toggleMeasure} style={btnSt(measuring)} title="כלי מדידה">
           📐 מדידה
         </button>
 
-        {error && (
-          <span
-            style={{ fontSize:11, color:'#E05252', marginRight:'auto', maxWidth:240, cursor:'pointer' }}
-            onClick={() => { created.current = false; setMapReady(false); setError(''); loadGovMapScript(createMap, onScriptError) }}
-          >
-            {error} — לחץ לנסות שוב
-          </span>
-        )}
+        {error && <span style={{ fontSize:11, color:'#E05252', marginRight:'auto', maxWidth:220 }}>{error}</span>}
       </div>
 
-      {/* Layer panel */}
+      {/* ── Layer panel (absolute, opens over the map) ───────────────────────── */}
       {showPanel && (
         <div style={{ position:'absolute', top:43, right:0, zIndex:30,
                       background: panelBg, backdropFilter:'blur(14px)',
@@ -357,6 +305,7 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
                       overflowY:'auto', boxShadow:'0 10px 40px rgba(0,0,0,.45)',
                       direction:'rtl' }}>
 
+          {/* Close button */}
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
             <span style={{ fontSize:11, fontWeight:800, color:`${C.cream}66`, letterSpacing:'.07em', textTransform:'uppercase' }}>שכבות מידע</span>
             <button onClick={()=>setShowPanel(false)}
@@ -378,6 +327,7 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
                       style={{ display:'flex', alignItems:'center', gap:9, cursor:'pointer',
                                fontSize:13, color: layers[l.id] ? C.cream : `${C.cream}88`,
                                userSelect:'none', transition:'color .12s' }}>
+                      {/* Custom checkbox */}
                       <span onClick={()=>toggleLayer(l.id)}
                         style={{ width:18, height:18, borderRadius:5, flexShrink:0, transition:'all .15s',
                                  border:`2px solid ${layers[l.id] ? l.color : `${C.cream}28`}`,
@@ -404,31 +354,40 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
         </div>
       )}
 
-      {/* Map canvas */}
+      {/* ── Map canvas ──────────────────────────────────────────────────────── */}
       <div id={mapDivId} style={{ width:'100%', height: compact ? 340 : 500 }}/>
 
-      {/* Loading overlay */}
+      {/* ── Loading / placeholder overlay ───────────────────────────────────── */}
       {!mapReady && (
         <div style={{ position:'absolute', inset:0, top:43, zIndex:5,
                       display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
                       gap:16,
                       background: isDark ? 'rgba(10,10,22,.93)' : 'rgba(245,242,252,.93)' }}>
-          <>
-            <style>{`@keyframes gm_spin{to{transform:rotate(360deg)}}`}</style>
-            <div style={{ width:44, height:44, border:`3px solid ${C.purple}28`,
-                          borderTopColor:C.purple, borderRadius:'50%',
-                          animation:'gm_spin 0.8s linear infinite' }}/>
-            <div style={{ textAlign:'center', direction:'rtl' }}>
-              <div style={{ fontSize:14, color:`${C.cream}99`, fontFamily:'Rubik,inherit', marginBottom:6 }}>
-                טוען מפת GovMap…
-              </div>
-              {(gush || helka) && (
-                <div style={{ fontSize:12, color:C.purple, fontFamily:'Rubik,inherit', opacity:.8 }}>
-                  מאתר: גוש {gush}{helka ? ` · חלקה ${helka}` : ''}
+          {inView ? (
+            <>
+              <style>{`@keyframes gm_spin{to{transform:rotate(360deg)}}`}</style>
+              <div style={{ width:44, height:44, border:`3px solid ${C.purple}28`,
+                            borderTopColor:C.purple, borderRadius:'50%',
+                            animation:'gm_spin 0.8s linear infinite' }}/>
+              <div style={{ textAlign:'center', direction:'rtl' }}>
+                <div style={{ fontSize:14, color:`${C.cream}99`, fontFamily:'Rubik,inherit', marginBottom:6 }}>
+                  טוען מפת GovMap…
                 </div>
-              )}
+                {(gush || helka) && (
+                  <div style={{ fontSize:12, color:C.purple, fontFamily:'Rubik,inherit', opacity:.8 }}>
+                    מאתר: גוש {gush}{helka ? ` · חלקה ${helka}` : ''}
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <div style={{ textAlign:'center', direction:'rtl' }}>
+              <div style={{ fontSize:28, marginBottom:10 }}>🗺️</div>
+              <div style={{ fontSize:13, color:`${C.cream}55`, fontFamily:'Rubik,inherit' }}>
+                גלול למטה להצגת המפה
+              </div>
             </div>
-          </>
+          )}
         </div>
       )}
     </div>
