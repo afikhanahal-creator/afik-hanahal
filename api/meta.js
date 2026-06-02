@@ -9,6 +9,7 @@
 import { createClient } from '@supabase/supabase-js'
 import crypto from 'crypto'
 
+const SUPERMETRICS_API_KEY    = process.env.SUPERMETRICS_API_KEY    || ''
 const META_PAGE_ACCESS_TOKEN  = process.env.META_PAGE_ACCESS_TOKEN  || process.env.WA_META_TOKEN || ''
 const META_APP_SECRET         = process.env.META_APP_SECRET         || ''
 const META_LEADS_VERIFY_TOKEN = process.env.META_LEADS_VERIFY_TOKEN || 'AFIKhanahal2026leads'
@@ -583,6 +584,52 @@ async function handleChat(req, res, action) {
   }
 }
 
+// ── Supermetrics proxy ────────────────────────────────────────────────────────
+// Merged here (instead of a separate file) to stay within Vercel Hobby 12-function limit.
+
+const SM_SOURCES = {
+  fa:   { label: 'Facebook Ads',       ds_id: 'FA',   ds_accounts: 'list.all_accounts', ds_user: '3729529637187426' },
+  gawa: { label: 'Google Analytics',   ds_id: 'GAWA', ds_accounts: 'list.all_accounts', ds_user: 'afik.hanahal@gmail.com' },
+  igi:  { label: 'Instagram Insights', ds_id: 'IGI',  ds_accounts: '17841445211723833', ds_user: '3729535990520124' },
+}
+
+async function handleSupermetrics(req, res) {
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' })
+  if (!checkAuth(req))        return res.status(401).json({ error: 'Unauthorized' })
+  if (!SUPERMETRICS_API_KEY)  return res.status(500).json({ error: 'SUPERMETRICS_API_KEY not configured in Vercel env vars' })
+
+  const source = (req.query.source || 'fa').toLowerCase()
+  const range  = req.query.range   || 'last_7_days'
+  const cfg    = SM_SOURCES[source]
+  if (!cfg) return res.status(400).json({ error: `Unknown source: ${source}. Use fa, gawa, or igi.` })
+
+  const query = {
+    ds_id: cfg.ds_id, ds_accounts: cfg.ds_accounts, ds_user: cfg.ds_user,
+    date_range_type: range, max_rows: 1000, api_key: SUPERMETRICS_API_KEY,
+  }
+  try {
+    const url  = `https://api.supermetrics.com/enterprise/v2/query/data/json?json=${encodeURIComponent(JSON.stringify(query))}`
+    console.log('[supermetrics] querying', source, range)
+    const r    = await fetch(url, { signal: AbortSignal.timeout(30000) })
+    const text = await r.text()
+    let body; try { body = JSON.parse(text) } catch { body = {} }
+    console.log('[supermetrics] HTTP', r.status, '| rows:', body?.data?.rows?.length ?? '?')
+    if (!r.ok || body?.meta?.error) {
+      const msg = body?.meta?.error || body?.message || body?.error || `HTTP ${r.status}: ${text.slice(0, 200)}`
+      return res.status(502).json({ error: msg })
+    }
+    return res.status(200).json({
+      source, range, label: cfg.label,
+      headers: body?.data?.headers || [],
+      rows:    body?.data?.rows    || [],
+      meta:    body?.meta          || {},
+    })
+  } catch (e) {
+    console.error('[supermetrics]', e.message)
+    return res.status(502).json({ error: e.message || 'Supermetrics request failed' })
+  }
+}
+
 // ── main router ───────────────────────────────────────────────────────────────
 
 export default async function handler(req, res) {
@@ -595,7 +642,8 @@ export default async function handler(req, res) {
   if (path === 'leads')        return handleLeads(req, res)
   if (path === 'messages')     return handleMessages(req, res)
   if (path === 'sync')         return handleSync(req, res)
-  if (path.startsWith('chat-')) return handleChat(req, res, path)
+  if (path.startsWith('chat-'))  return handleChat(req, res, path)
+  if (path === 'supermetrics')   return handleSupermetrics(req, res)
 
   return res.status(404).json({ error: `Unknown path: ${path}` })
 }

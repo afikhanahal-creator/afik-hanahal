@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useTheme } from './App.jsx'
 import {
   FaFacebookF, FaInstagram, FaChartBar, FaChartLine,
   FaEye, FaUsers, FaDollarSign, FaMousePointer,
@@ -301,8 +300,9 @@ function DataTable({ headers, rows, C }) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function SupermetricsTab() {
-  const { C, lang } = useTheme()
+const DARK_C = { purple:'#8490D8', cream:'#E8E4D8', green:'#22C55E' }
+
+export default function SupermetricsTab({ C = DARK_C, lang = 'he' }) {
   const t = TR[lang] || TR.he
 
   const [source, setSource] = useState('fa')
@@ -326,7 +326,7 @@ export default function SupermetricsTab() {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch(`/api/supermetrics?source=${src}&range=${rng}`, {
+      const res = await fetch(`/api/meta/supermetrics?source=${src}&range=${rng}`, {
         headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
         signal: ctrl.signal,
       })

@@ -243,7 +243,7 @@ const TR = {
   }
 }
 const ThemeCtx = createContext({ C: DARK_C, isDark: true, toggleTheme: () => {}, lang: 'he', setLang: () => {}, logoNavSize: 70, setLogoNavSize: () => {} })
-export const useTheme = () => useContext(ThemeCtx)
+const useTheme = () => useContext(ThemeCtx)
 
 // ─── GLOBAL CSS ───────────────────────────────────────────────────────────────
 const makeGlobal = (C, isDark) => `
@@ -5440,7 +5440,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
         {tab==='analytics' && <AnalyticsDashboard leads={leads}/>}
         {tab==='supermetrics' && (
           <Suspense fallback={<AdminTabLoader label="טוען ביצועים…"/>}>
-            <SupermetricsTab/>
+            <SupermetricsTab C={C} lang={lang}/>
           </Suspense>
         )}
         {tab==='team' && <TeamTab C={C} isDark={isDark}/>}
