@@ -355,16 +355,46 @@ async function syncOnePage(pageId, client, errors) {
       try { leadsData = await graphGet(url, META_PAGE_ACCESS_TOKEN) }
       catch (e) { errors.push(`Form ${form.id}: ${e.message}`); break }
 
+      // Identify which leads are truly new (not already in DB) so we can notify
+      const incomingIds = (leadsData.data || []).map(l => l.id)
+      let existingIds = new Set()
+      if (incomingIds.length > 0) {
+        const { data: ex } = await client.from('meta_leads').select('leadgen_id').in('leadgen_id', incomingIds)
+        existingIds = new Set((ex || []).map(l => l.leadgen_id))
+      }
+
       for (const lead of leadsData.data || []) {
         try {
-          const parsed = parseFieldData(lead.field_data)
+          const parsed  = parseFieldData(lead.field_data)
+          const phone   = normalizePhone(parsed.phone)
+          const isNew   = !existingIds.has(lead.id)
+
           await client.from('meta_leads').upsert({
             leadgen_id: lead.id, name: parsed.name || null, email: parsed.email || null,
-            phone: normalizePhone(parsed.phone) || null,
+            phone: phone || null,
             campaign_id: lead.campaign_id || null, ad_id: lead.ad_id || null,
             form_id: form.id, form_name: form.name || null,
             raw_fields: lead.field_data || [], page_id: lead.page_id || pageId, status: 'new',
           }, { onConflict: 'leadgen_id', ignoreDuplicates: true })
+
+          // For genuinely new leads: send WA to customer + admin (same as webhook handler)
+          if (isNew && phone) {
+            const firstName = (parsed.name || '').split(' ')[0] || parsed.name || ''
+            const waMsg = `היי ${firstName} 👋\nתודה שפנית לאפיק הנחל!\nראינו את הפנייה שלך\n\nמתי נוח לך לדבר? נשמח לתאם שיחה`
+            const custChatId = `${phone}@c.us`
+            sendGreenNotify(custChatId, waMsg).catch(() => {})
+
+            const displayPhone = phone.startsWith('972') ? '0' + phone.slice(3) : phone
+            const now = new Date().toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+            const adminMsg = ['🔔 ליד חדש (sync)', `שם: ${parsed.name || '—'}`, `טלפון: ${displayPhone}`,
+              parsed.email ? `אימייל: ${parsed.email}` : null,
+              `קמפיין: ${form.name || '—'}`, `התקבל: ${now}`].filter(Boolean).join('\n')
+            sendGreenNotify(BUSINESS_NOTIFY_CHATID, adminMsg).catch(() => {})
+
+            // Mark wa_sent so we don't re-notify on subsequent syncs
+            client.from('meta_leads').update({ wa_sent: true }).eq('leadgen_id', lead.id).catch(() => {})
+          }
+
           totalSynced++
         } catch (e) { errors.push(`Lead ${lead.id}: ${e.message}`) }
       }

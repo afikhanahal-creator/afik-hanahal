@@ -263,6 +263,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
   const messagesEndRef        = useRef(null)
   const leadsIntervalRef      = useRef(null)
   const messagesIntervalRef   = useRef(null)
+  const autoSyncRef           = useRef(null)
   const campaignDropRef       = useRef(null)
   const knownLeadIdsRef       = useRef(null)
   const knownMsgIdsRef        = useRef(new Map()) // leadId → Set<msgId>
@@ -421,6 +422,20 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
       supabase.removeChannel(channel)
     }
   }, [selectedLead?.id, loadMessages])
+
+  // ── Auto-sync from Meta every 5 min (covers missing webhook) ────────────────
+  useEffect(() => {
+    const run = async () => {
+      try { await syncLeads(META_PAGE_ID) } catch {} // silent failures are fine
+      try { await fetchLeads().then(data => {
+        const visible = data.filter(l => !deletedIdsRef.current.has(l.id))
+        setLeads(visible)
+      }) } catch {}
+    }
+    const t = setTimeout(run, 20000) // first run 20s after mount
+    autoSyncRef.current = setInterval(run, 5 * 60 * 1000)
+    return () => { clearTimeout(t); clearInterval(autoSyncRef.current) }
+  }, []) // eslint-disable-line
 
   // ── Scroll to bottom when messages change ───────────────────────────────────
   useEffect(() => {
