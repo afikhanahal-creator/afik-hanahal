@@ -89,6 +89,12 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
   useEffect(() => { layersRef.current = layers }, [layers])
   useEffect(() => { bgRef.current     = bg     }, [bg])
 
+  // Refs so async callbacks always see the latest gush/helka values.
+  const gushRef  = useRef(gush  || '')
+  const helkaRef = useRef(helka || '')
+  useEffect(() => { gushRef.current  = gush  || '' }, [gush])
+  useEffect(() => { helkaRef.current = helka || '' }, [helka])
+
   const [gushVal,     setGushVal]     = useState(gush     || '')
   const [helkaVal,    setHelkaVal]    = useState(helka    || '')
   const [subHelkaVal, setSubHelkaVal] = useState(subHelka || '')
@@ -105,28 +111,22 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
     return () => obs.disconnect()
   }, [])
 
-  // ── 2. Zoom to parcel — fires at multiple time-points so it always lands ──────
-  // searchAndLocate can silently no-op if called before the map finishes its
-  // internal async init (it may return undefined OR a resolved promise, so
-  // .catch() never fires and the old retry logic never triggered).
-  // Solution: fire the same call at 0 / 700 / 1600 / 3200 / 6000 ms offsets.
+  // ── 2. Zoom to parcel using searchAndLocate (only proven working method) ─────
+  const doSearchAndLocate = useCallback((g, h) => {
+    if (!g || !h || !window.govmap) return
+    const type = window.govmap.locateType?.parcel
+               ?? window.govmap.locateType?.addressToLotParcel
+               ?? 5
+    try { window.govmap.searchAndLocate({ type, lot: Number(g), parcel: Number(h) }) } catch {}
+  }, [])
+
   const zoomToParcel = useCallback((g, h) => {
     if (!g || !h) return
-    const params = {
-      type:   (window.govmap?.locateType?.parcel)
-              ?? (window.govmap?.locateType?.addressToLotParcel)
-              ?? 5,
-      lot:    Number(g),
-      parcel: Number(h),
-    }
-    const attempts = [0, 700, 1600, 3200, 6000]
-    attempts.forEach(ms => {
-      setTimeout(() => {
-        if (!window.govmap) return
-        try { window.govmap.searchAndLocate(params) } catch {}
-      }, ms)
-    })
-  }, [])
+    // Fire at multiple offsets — GovMap createMap is async under the hood and
+    // searchAndLocate silently no-ops if called before internal init completes.
+    const attempts = [100, 800, 2000, 4000, 7000]
+    attempts.forEach(ms => setTimeout(() => doSearchAndLocate(g, h), ms))
+  }, [doSearchAndLocate])
 
   // ── 3. Create map ────────────────────────────────────────────────────────────
   const createMap = useCallback(() => {
@@ -146,13 +146,26 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
         layersMode:       1,
         zoomButtons:      true,
       })
-      setMapReady(true)
       setError('')
+
+      // setMapReadyCallback fires when the API has truly finished internal init —
+      // this is the most reliable moment to call searchAndLocate.
+      if (typeof window.govmap.setMapReadyCallback === 'function') {
+        window.govmap.setMapReadyCallback(() => {
+          setMapReady(true)
+          const g = gushRef.current
+          const h = helkaRef.current
+          doSearchAndLocate(g, h)
+        })
+      } else {
+        // Fallback for API versions without setMapReadyCallback
+        setMapReady(true)
+      }
     } catch {
       setError('שגיאה ביצירת המפה — ודא שמפתח ה-API תקין ורשום לדומיין זה.')
       created.current = false
     }
-  }, [mapDivId, token])
+  }, [mapDivId, token, doSearchAndLocate])
 
   const onScriptError = useCallback(() => {
     setError('שגיאה בטעינת ספריית GovMap. בדוק חיבור אינטרנט ולחץ לנסות שוב.')
@@ -164,10 +177,10 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
     loadGovMapScript(createMap, onScriptError)
   }, [token, inView, createMap, onScriptError])
 
-  // ── 4. Zoom when map ready or gush/helka change ─────────────────────────────
+  // ── 4. Zoom when map ready or gush/helka change (backup staggered retries) ──
   useEffect(() => {
     if (!mapReady || !gush || !helka) return
-    zoomToParcel(gush, helka)  // zoomToParcel already staggers its own retries
+    zoomToParcel(gush, helka)
   }, [gush, helka, mapReady, zoomToParcel])
 
   // ── Controls ─────────────────────────────────────────────────────────────────
