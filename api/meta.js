@@ -473,8 +473,7 @@ async function syncOnePage(pageId, client, errors) {
               `קמפיין: ${form.name || '—'}`, `התקבל: ${now}`].filter(Boolean).join('\n')
             sendGreenNotify(BUSINESS_NOTIFY_CHATID, adminMsg).catch(() => {})
 
-            // Email notification for synced lead
-            const now = new Date().toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+            // Email notification for synced lead (reuse `now` from above)
             sendMetaLeadEmail({ name: parsed.name, phone, email: parsed.email, campaign: form.name, ts: now }).catch(() => {})
 
             // Mark wa_sent so we don't re-notify on subsequent syncs
