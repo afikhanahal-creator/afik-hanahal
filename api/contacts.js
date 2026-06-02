@@ -20,9 +20,10 @@ const SUPA_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
 const SUPA_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY
 const ADMIN_TOKEN = 'AFIKhanahal2026'
 
-// ── Green API auto-reply (token stays server-side in WA_GREENAPI_TOKEN) ───────
-const GREEN_INSTANCE = process.env.WA_GREENAPI_INSTANCE || ''
-const GREEN_TOKEN    = process.env.WA_GREENAPI_TOKEN    || ''
+// ── Green API (token stays server-side) ──────────────────────────────────────
+const GREEN_INSTANCE          = process.env.WA_GREENAPI_INSTANCE || ''
+const GREEN_TOKEN             = process.env.WA_GREENAPI_TOKEN    || ''
+const BUSINESS_NOTIFY_CHATID  = process.env.BUSINESS_NOTIFY_CHATID || ''
 const GREEN_BASE_URL = (() => {
   const region = String(GREEN_INSTANCE).slice(0, 4)
   return region ? `https://${region}.api.greenapi.com` : 'https://api.green-api.com'
@@ -45,16 +46,16 @@ function toIntlPhone(raw) {
   return d
 }
 
-// Send the WhatsApp lead auto-reply via Green API. Fire-and-forget; never blocks
-// the lead save. Returns { ok, error } so the admin test button can surface it.
-async function sendGreenMessage(phone, message) {
+// Low-level send — chatId may be "972XXXXXXXX@c.us" or a raw phone number.
+async function sendToChatId(chatId, message) {
   if (!GREEN_INSTANCE || !GREEN_TOKEN) return { ok: false, error: 'Green API not configured (WA_GREENAPI_INSTANCE/TOKEN)' }
-  const p = toIntlPhone(phone)
-  if (!p) return { ok: false, error: 'invalid phone' }
+  if (!chatId) return { ok: false, error: 'no chatId' }
+  const finalChatId = chatId.includes('@') ? chatId : `${toIntlPhone(chatId)}@c.us`
+  if (!finalChatId || finalChatId === '@c.us') return { ok: false, error: 'invalid chatId' }
   try {
     const r = await fetch(greenUrl('sendMessage'), {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chatId: `${p}@c.us`, message }),
+      body: JSON.stringify({ chatId: finalChatId, message }),
       signal: AbortSignal.timeout(20000),
     })
     if (!r.ok) return { ok: false, error: `Green API HTTP ${r.status}: ${(await r.text().catch(() => '')).slice(0, 200)}` }
@@ -65,12 +66,39 @@ async function sendGreenMessage(phone, message) {
   }
 }
 
+// Send to a phone number (converts to chatId automatically).
+async function sendGreenMessage(phone, message) {
+  const p = toIntlPhone(phone)
+  if (!p) return { ok: false, error: 'invalid phone' }
+  return sendToChatId(`${p}@c.us`, message)
+}
+
+// Auto-reply to the lead who submitted the form.
 async function sendLeadAutoReply(lead) {
   if (!WA_AUTOREPLY_ENABLED || !lead.phone) return
   const firstName = String(lead.name || '').split(' ')[0] || ''
   const msg = WA_AUTOREPLY_TEMPLATE.replace(/\{name\}/g, firstName)
   const r = await sendGreenMessage(lead.phone, msg)
   if (!r.ok) console.error('[lead-autoreply]', r.error)
+}
+
+// Notify the business owner (admin) about a new lead.
+async function notifyAdmin(lead) {
+  if (!BUSINESS_NOTIFY_CHATID) return
+  const ts = new Date().toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem' })
+  const lines = [
+    '🔔 *ליד חדש התקבל!*',
+    '',
+    `👤 שם: ${lead.name || '—'}`,
+    `📱 טלפון: ${lead.phone ? `https://wa.me/${toIntlPhone(lead.phone)}` : '—'}`,
+  ]
+  if (lead.email)                       lines.push(`📧 אימייל: ${lead.email}`)
+  if (lead.message || lead.msg)         lines.push(`💬 הודעה: ${lead.message || lead.msg}`)
+  if (lead.prop_title || lead.propTitle) lines.push(`🏠 נכס: ${lead.prop_title || lead.propTitle}`)
+  if (lead.source)                      lines.push(`📍 מקור: ${lead.source}`)
+  lines.push(`🕐 ${ts}`)
+  const r = await sendToChatId(BUSINESS_NOTIFY_CHATID, lines.join('\n'))
+  if (!r.ok) console.error('[admin-notify]', r.error)
 }
 
 const CORS = {
@@ -256,10 +284,10 @@ export default async function handler(req, res) {
         crm_data:     {},
       }
       const inserted = await insertContact(row)
+      // Fire all notifications in parallel, never block the response.
       sendLeadEmail(b).catch(e => console.error('[lead-email]', e.message))
-      // WhatsApp auto-reply to the lead — server-side so the Green token never
-      // reaches the browser and it fires even if the visitor closes the tab.
       sendLeadAutoReply(row).catch(e => console.error('[lead-autoreply]', e.message))
+      notifyAdmin(row).catch(e => console.error('[admin-notify]', e.message))
       return res.status(201).json(inserted || row)
     }
 
