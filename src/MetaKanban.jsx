@@ -393,6 +393,7 @@ function TableView({ leads, stages, onMoveStage, onDelete, onOpenLead }) {
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 680 }}>
         <thead style={{ position: 'sticky', top: 0, background: T.bg, zIndex: 10 }}>
           <tr>
+            <th style={{ padding: '10px 12px', width: 48, borderBottom: `2px solid ${T.border}`, background: T.bg }} />
             <th style={{ padding: '10px 12px', width: 36, borderBottom: `2px solid ${T.border}`, background: T.bg }}>
               <input type="checkbox" style={{ cursor: 'pointer', accentColor: '#1877F2' }}
                 checked={selected.size === leads.length && leads.length > 0}
@@ -404,7 +405,6 @@ function TableView({ leads, stages, onMoveStage, onDelete, onOpenLead }) {
             <TH col="phone" label="Phone" w={130} />
             <TH col="campaign" label="Campaign / Form" w={160} />
             <TH col="date" label="Date" w={110} />
-            <th style={{ padding: '10px 12px', width: 48, borderBottom: `2px solid ${T.border}`, background: T.bg }} />
           </tr>
         </thead>
         <tbody>
@@ -418,6 +418,9 @@ function TableView({ leads, stages, onMoveStage, onDelete, onOpenLead }) {
                 onMouseLeave={e => { if (!isSel) e.currentTarget.style.background = i % 2 === 0 ? T.card : T.surf }}
                 onClick={() => onOpenLead(lead)}
               >
+                <td style={{ padding: '9px 12px' }} onClick={e => e.stopPropagation()}>
+                  <RowMenu lead={lead} stages={stages} onMoveStage={onMoveStage} onDelete={onDelete} onOpenLead={onOpenLead} />
+                </td>
                 <td style={{ padding: '9px 12px' }}>
                   <input type="checkbox" checked={isSel} style={{ cursor: 'pointer', accentColor: '#1877F2' }}
                     onClick={e => e.stopPropagation()}
@@ -443,9 +446,6 @@ function TableView({ leads, stages, onMoveStage, onDelete, onOpenLead }) {
                 </td>
                 <td style={{ padding: '9px 12px', color: T.dim, fontSize: 12, whiteSpace: 'nowrap' }}>
                   {lead.created_at ? timeAgo(lead.created_at) : '—'}
-                </td>
-                <td style={{ padding: '9px 12px' }} onClick={e => e.stopPropagation()}>
-                  <RowMenu lead={lead} stages={stages} onMoveStage={onMoveStage} onDelete={onDelete} onOpenLead={onOpenLead} />
                 </td>
               </tr>
             )
