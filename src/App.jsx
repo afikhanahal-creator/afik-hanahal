@@ -1068,11 +1068,12 @@ const CITY_IMG_FILTER = {
 
 // ─── HOOKS ────────────────────────────────────────────────────────────────────
 // Returns touch handlers that call onClose when user swipes > threshold px in either direction
-function useSwipeClose(onClose, threshold = 80) {
+function useSwipeClose(onClose, threshold = 120) {
   const ref = useRef({ x0: 0, y0: 0, dragging: false })
   const onTouchStart = useCallback(e => {
-    // Don't start swipe tracking if touch is on any interactive element or its child
-    if (e.target.closest('input, select, textarea, button, a, label, [role="slider"], [type="range"], video')) return
+    // Don't start swipe tracking if touch is on any interactive element, its child,
+    // or a zone that has explicitly opted out (data-no-swipe="true").
+    if (e.target.closest('input, select, textarea, button, a, label, [role="slider"], [type="range"], video, [data-no-swipe]')) return
     ref.current = { x0: e.touches[0].clientX, y0: e.touches[0].clientY, dragging: true }
   }, [])
   const onTouchEnd = useCallback(e => {
@@ -1080,8 +1081,8 @@ function useSwipeClose(onClose, threshold = 80) {
     ref.current.dragging = false
     const dx = e.changedTouches[0].clientX - ref.current.x0
     const dy = e.changedTouches[0].clientY - (ref.current.y0 || 0)
-    // Only close on primarily horizontal swipes
-    if (Math.abs(dx) > threshold && Math.abs(dx) > Math.abs(dy) * 1.5) onClose()
+    // Close only on strongly horizontal swipes (dx must dominate dy by 2.5×)
+    if (Math.abs(dx) > threshold && Math.abs(dx) > Math.abs(dy) * 2.5) onClose()
   }, [onClose, threshold])
   return { onTouchStart, onTouchEnd }
 }

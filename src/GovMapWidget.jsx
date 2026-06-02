@@ -93,6 +93,12 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
   const [helkaVal,    setHelkaVal]    = useState(helka    || '')
   const [subHelkaVal, setSubHelkaVal] = useState(subHelka || '')
 
+  // Refs so async callbacks (setMapReadyCallback) can read latest gush/helka
+  const gushRef  = useRef(gush  || '')
+  const helkaRef = useRef(helka || '')
+  useEffect(() => { gushRef.current  = gush  || '' }, [gush])
+  useEffect(() => { helkaRef.current = helka || '' }, [helka])
+
   // ── 1. Lazy: only load script after the widget enters the viewport ──────────
   useEffect(() => {
     const el = containerRef.current
@@ -148,6 +154,22 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
       })
       setMapReady(true)
       setError('')
+      // Use setMapReadyCallback as an additional, more reliable zoom trigger.
+      // The staggered timeouts in zoomToParcel handle maps that are already
+      // "created" but haven't finished their async tile/layer init yet.
+      if (typeof window.govmap.setMapReadyCallback === 'function') {
+        window.govmap.setMapReadyCallback(() => {
+          if (!gushRef.current || !helkaRef.current) return
+          const p = {
+            type:   (window.govmap?.locateType?.parcel)
+                    ?? (window.govmap?.locateType?.addressToLotParcel)
+                    ?? 5,
+            lot:    Number(gushRef.current),
+            parcel: Number(helkaRef.current),
+          }
+          try { window.govmap.searchAndLocate(p) } catch {}
+        })
+      }
     } catch {
       setError('שגיאה ביצירת המפה — ודא שמפתח ה-API תקין ורשום לדומיין זה.')
       created.current = false
@@ -172,7 +194,16 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
 
   // ── Controls ─────────────────────────────────────────────────────────────────
   function toggleLayer(id) {
-    setLayers(prev => ({ ...prev, [id]: !prev[id] }))
+    setLayers(prev => {
+      const next = !prev[id]
+      if (window.govmap && mapReady) {
+        try {
+          if (next) window.govmap.showLayer(id)
+          else      window.govmap.hideLayer(id)
+        } catch {}
+      }
+      return { ...prev, [id]: next }
+    })
   }
 
   function handleBg(v) {
@@ -243,6 +274,7 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
   // ── Map ───────────────────────────────────────────────────────────────────────
   return (
     <div ref={containerRef}
+      data-no-swipe="true"
       onClick={e => e.stopPropagation()}
       onTouchStart={e => e.stopPropagation()}
       onTouchMove={e => e.stopPropagation()}
