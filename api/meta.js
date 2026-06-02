@@ -174,13 +174,27 @@ async function handleWebhook(req, res) {
 
           const leadId    = inserted?.id
           const firstName = name.split(' ')[0] || name
-          if (phone && WA_META_TOKEN) {
-            const src  = campaignName || formName || 'הנכס שלנו'
-            const waMsg = `היי ${firstName} 👋\nתודה שמלאת פרטים לגבי ${src}!\nאנחנו מצוות אפיק הנחל 🏠\n\nמתי יהיה נוח לך שנדבר?\nנשמח לתאם שיחה ולספר לך יותר פרטים 📞`
-            const waId  = await sendWA(phone, waMsg)
-            if (leadId) {
-              await client.from('meta_messages').insert({ lead_id: leadId, direction: 'out', message: waMsg, wa_message_id: waId || null })
-              await client.from('meta_leads').update({ wa_sent: true }).eq('id', leadId)
+          if (phone) {
+            const waMsg = `היי ${firstName} 👋\nתודה שפנית לאפיק הנחל!\nראינו את הפנייה שלך\n\nמתי נוח לך לדבר? נשמח לתאם שיחה`
+            let waSent = false
+
+            if (WA_META_TOKEN) {
+              const waId = await sendWA(phone, waMsg)
+              waSent = !!waId
+              if (leadId) {
+                await client.from('meta_messages').insert({ lead_id: leadId, direction: 'out', message: waMsg, wa_message_id: waId || null })
+                await client.from('meta_leads').update({ wa_sent: true }).eq('id', leadId)
+              }
+            }
+
+            // Fallback: send via Green API when Meta token not configured or send failed
+            if (!waSent && GREEN_INSTANCE && GREEN_TOKEN) {
+              const custChatId = phone.startsWith('972') ? `${phone}@c.us` : `972${phone.replace(/^0/, '')}@c.us`
+              await sendGreenNotify(custChatId, waMsg).catch(() => {})
+              if (leadId && !WA_META_TOKEN) {
+                await client.from('meta_messages').insert({ lead_id: leadId, direction: 'out', message: waMsg, wa_message_id: null }).catch(() => {})
+                await client.from('meta_leads').update({ wa_sent: true }).eq('id', leadId).catch(() => {})
+              }
             }
           }
 
@@ -292,7 +306,13 @@ async function handleMessages(req, res) {
     if (leadErr || !lead)  return res.status(404).json({ error: 'Lead not found' })
     if (!lead.phone)       return res.status(400).json({ error: 'Lead has no phone number' })
 
-    const waId = WA_META_TOKEN ? await sendWA(lead.phone, message) : null
+    let waId = null
+    if (WA_META_TOKEN) {
+      waId = await sendWA(lead.phone, message)
+    } else if (GREEN_INSTANCE && GREEN_TOKEN) {
+      const cid = lead.phone.startsWith('972') ? `${lead.phone}@c.us` : `972${lead.phone.replace(/^0/, '')}@c.us`
+      await sendGreenNotify(cid, message).catch(() => {})
+    }
     const { data: newMsg, error: insertErr } = await client.from('meta_messages')
       .insert({ lead_id: lead.id, direction: 'out', message, wa_message_id: waId || null })
       .select('*').single()

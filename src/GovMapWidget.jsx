@@ -52,18 +52,25 @@ export const BG_OPTIONS = [
 // ── Script singleton ───────────────────────────────────────────────────────────
 let scriptState = 'idle' // 'idle' | 'loading' | 'ready' | 'error'
 const scriptCallbacks = []
+const scriptErrCallbacks = []
 
-function loadGovMapScript(cb) {
+function loadGovMapScript(cb, onErr) {
   if (scriptState === 'ready' && window.govmap) { cb(); return }
-  if (scriptState === 'error') return
+  // If previously errored, reset so the caller can trigger a fresh load attempt
+  if (scriptState === 'error') scriptState = 'idle'
   scriptCallbacks.push(cb)
+  if (onErr) scriptErrCallbacks.push(onErr)
   if (scriptState === 'loading') return
   scriptState = 'loading'
   const s = document.createElement('script')
   s.src = SCRIPT_URL
   s.async = true
   s.onload  = () => { scriptState = 'ready'; scriptCallbacks.splice(0).forEach(fn => fn()) }
-  s.onerror = () => { scriptState = 'error';  scriptCallbacks.splice(0) }
+  s.onerror = () => {
+    scriptState = 'error'
+    scriptCallbacks.splice(0)
+    scriptErrCallbacks.splice(0).forEach(fn => fn())
+  }
   document.head.appendChild(s)
 }
 
@@ -244,11 +251,15 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark,
     })
   }, [mapDivId, token, bg, gush, helka, subHelka]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const onScriptError = useCallback(() => {
+    setError('שגיאה בטעינת ספריית GovMap. בדוק חיבור אינטרנט ולחץ לנסות שוב.')
+  }, [])
+
   // ── Load SDK + create map once in view ────────────────────────────────────
   useEffect(() => {
     if (!token || !inView) return
-    loadGovMapScript(createMap)
-  }, [token, inView, createMap])
+    loadGovMapScript(createMap, onScriptError)
+  }, [token, inView, createMap, onScriptError])
 
   // ── Manual gush/helka search ───────────────────────────────────────────────
   async function handleSearch() {
@@ -382,7 +393,7 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark,
 
           {error && (
             <span style={{ fontSize:11, color:'#E05252', marginRight:'auto', cursor:'pointer' }}
-              onClick={() => { created.current = false; setMapReady(false); setError(''); loadGovMapScript(createMap) }}>
+              onClick={() => { created.current = false; setMapReady(false); setError(''); loadGovMapScript(createMap, onScriptError) }}>
               {error} — לחץ לנסות שוב
             </span>
           )}
