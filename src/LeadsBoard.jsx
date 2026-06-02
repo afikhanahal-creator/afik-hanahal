@@ -1574,16 +1574,51 @@ export default function LeadsBoard({
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
 
+  // Column resize
+  const resizingRef  = useRef(null)
+  const resizeStartX = useRef(0)
+  const resizeStartW = useRef(0)
+
+  const startColResize = useCallback((e, colId, defaultW) => {
+    e.preventDefault(); e.stopPropagation()
+    resizingRef.current  = colId
+    resizeStartX.current = e.clientX
+    resizeStartW.current = (colWidths || {})[colId] || defaultW
+    const onMove = mv => {
+      if (!resizingRef.current) return
+      const w = Math.max(60, resizeStartW.current + mv.clientX - resizeStartX.current)
+      setColWidths(prev => ({ ...(prev || {}), [resizingRef.current]: w }))
+    }
+    const onUp = () => {
+      setColWidths(prev => {
+        const next = { ...(prev || {}) }
+        localStorage.setItem('leadsColWidths', JSON.stringify(next))
+        return next
+      })
+      resizingRef.current = null
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }, [colWidths, setColWidths])
+
   const allCols = useMemo(() => {
     const builtIn = BUILT_IN_COLS.filter(c => !hiddenCols[c.id])
     const extra = extraCols.filter(c => !hiddenCols[c.id])
     return [...builtIn, ...extra]
   }, [hiddenCols, extraCols])
 
+  // Override col.width with saved colWidths
+  const allColsResized = useMemo(
+    () => allCols.map(c => ({ ...c, width: (colWidths || {})[c.id] || c.width })),
+    [allCols, colWidths]
+  )
+
   // Total table width: checkbox(32) + all column widths + add-col btn(120)
   const tableMinWidth = useMemo(
-    () => allCols.reduce((s, c) => s + (c.width || 140), 0) + 32 + 120,
-    [allCols]
+    () => allColsResized.reduce((s, c) => s + (c.width || 140), 0) + 32 + 120,
+    [allColsResized]
   )
 
   const filtered = useMemo(() => {
@@ -1964,11 +1999,18 @@ export default function LeadsBoard({
                       else setSelectedIds(new Set())
                     }} />
                 </div>
-                {allCols.map(col => (
-                  <div key={col.id} style={{ width: col.width, flexShrink: 0, padding: '0 10px', fontSize: 11, fontWeight: 700, color: T.textSub, textTransform: 'uppercase', letterSpacing: '.05em', borderRight: `1px solid ${T.borderLight}`, height: '100%', display: 'flex', alignItems: 'center', userSelect: 'none', cursor: 'pointer', transition: 'color .15s, background .15s', whiteSpace: 'nowrap', overflow: 'hidden', ...(col.pinned ? { position: 'sticky', left: 32, zIndex: 4, background: T.bgHeader } : {}) }}
+                {allColsResized.map(col => (
+                  <div key={col.id} style={{ width: col.width, flexShrink: 0, padding: '0 10px', fontSize: 11, fontWeight: 700, color: T.textSub, textTransform: 'uppercase', letterSpacing: '.05em', borderRight: `1px solid ${T.borderLight}`, height: '100%', display: 'flex', alignItems: 'center', userSelect: 'none', cursor: 'pointer', transition: 'color .15s, background .15s', whiteSpace: 'nowrap', overflow: 'hidden', position: 'relative', ...(col.pinned ? { position: 'sticky', left: 32, zIndex: 4, background: T.bgHeader } : {}) }}
                     onMouseEnter={e => { e.currentTarget.style.color = T.text; e.currentTarget.style.background = T.bgRowHover }}
                     onMouseLeave={e => { e.currentTarget.style.color = T.textSub; e.currentTarget.style.background = col.pinned ? T.bgHeader : 'transparent' }}>
                     {lang === 'en' ? (col.en || col.label) : col.label}
+                    <span
+                      onMouseDown={e => startColResize(e, col.id, col.width)}
+                      onClick={e => e.stopPropagation()}
+                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(0,115,234,.55)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                      style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 5, cursor: 'col-resize', background: 'transparent', zIndex: 5, flexShrink: 0 }}
+                    />
                   </div>
                 ))}
                 <button onClick={() => setModal('addcol')}
@@ -1999,7 +2041,7 @@ export default function LeadsBoard({
               {GROUPS.map(group => {
                 const groupLeads = grouped[group.id] || []
                 return (
-                  <BoardGroup key={group.id} group={group} leads={groupLeads} cols={allCols}
+                  <BoardGroup key={group.id} group={group} leads={groupLeads} cols={allColsResized}
                     T={T} lang={lang}
                     onUpdate={updateLead} onUpdateStatus={updateLeadStatus}
                     onDelete={handleDelete} onSelect={handleSelect}

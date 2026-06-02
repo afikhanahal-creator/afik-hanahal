@@ -358,6 +358,34 @@ function TableView({ leads, stages, onMoveStage, onDelete, onOpenLead }) {
   const [sortCol, setSortCol] = useState('date')
   const [sortDir, setSortDir] = useState('desc')
   const [selected, setSelected] = useState(new Set())
+  const [colWidths, setColWidths] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('mk_col_widths')) || {} }
+    catch { return {} }
+  })
+  const resizingRef  = useRef(null)
+  const resizeStartX = useRef(0)
+  const resizeStartW = useRef(0)
+
+  const cw = (id, def) => colWidths[id] || def
+
+  const startResize = (e, colId, defaultW) => {
+    e.preventDefault(); e.stopPropagation()
+    resizingRef.current  = colId
+    resizeStartX.current = e.clientX
+    resizeStartW.current = colWidths[colId] || defaultW
+    const onMove = mv => {
+      if (!resizingRef.current) return
+      setColWidths(prev => ({ ...prev, [resizingRef.current]: Math.max(48, resizeStartW.current + mv.clientX - resizeStartX.current) }))
+    }
+    const onUp = () => {
+      setColWidths(prev => { localStorage.setItem('mk_col_widths', JSON.stringify(prev)); return prev })
+      resizingRef.current = null
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }
 
   const sorted = useMemo(() => [...leads].sort((a, b) => {
     if (sortCol === 'date') {
@@ -383,21 +411,54 @@ function TableView({ leads, stages, onMoveStage, onDelete, onOpenLead }) {
 
   const TH = ({ col, label, w }) => (
     <th onClick={() => toggle(col)}
-      style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 600, color: T.sub, cursor: 'pointer', whiteSpace: 'nowrap', userSelect: 'none', fontSize: 12, width: w, borderBottom: `2px solid ${T.border}`, background: T.bg }}>
+      style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 600, color: T.sub, cursor: 'pointer', whiteSpace: 'nowrap', userSelect: 'none', fontSize: 12, borderBottom: `2px solid ${T.border}`, background: T.bg, position: 'relative', overflow: 'hidden' }}>
       {label} <span style={{ opacity: sortCol === col ? 1 : 0.3, color: sortCol === col ? '#1877F2' : undefined }}>{sortCol === col ? (sortDir === 'asc' ? '↑' : '↓') : '↕'}</span>
+      <span
+        onMouseDown={e => startResize(e, col, w)}
+        onClick={e => e.stopPropagation()}
+        onMouseEnter={e => e.currentTarget.style.background = 'rgba(24,119,242,.55)'}
+        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+        style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 5, cursor: 'col-resize', background: 'transparent', zIndex: 3 }}
+      />
     </th>
   )
 
+  const totalWidth = cw('menu',48) + cw('checkbox',36) + cw('name',160) + cw('stage',140) + cw('phone',130) + cw('campaign',160) + cw('date',110)
+
   return (
     <div className="meta-kanban-scroll" style={{ height: '100%', overflowY: 'auto', overflowX: 'auto', WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', scrollBehavior: 'smooth' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 680 }}>
+      <table style={{ width: totalWidth, tableLayout: 'fixed', borderCollapse: 'collapse', fontSize: 13 }}>
+        <colgroup>
+          <col style={{ width: cw('menu',48) }} />
+          <col style={{ width: cw('checkbox',36) }} />
+          <col style={{ width: cw('name',160) }} />
+          <col style={{ width: cw('stage',140) }} />
+          <col style={{ width: cw('phone',130) }} />
+          <col style={{ width: cw('campaign',160) }} />
+          <col style={{ width: cw('date',110) }} />
+        </colgroup>
         <thead style={{ position: 'sticky', top: 0, background: T.bg, zIndex: 10 }}>
           <tr>
-            <th style={{ padding: '10px 12px', width: 48, borderBottom: `2px solid ${T.border}`, background: T.bg }} />
-            <th style={{ padding: '10px 12px', width: 36, borderBottom: `2px solid ${T.border}`, background: T.bg }}>
+            <th style={{ padding: '10px 12px', borderBottom: `2px solid ${T.border}`, background: T.bg, position: 'relative' }}>
+              <span
+                onMouseDown={e => startResize(e, 'menu', 48)}
+                onClick={e => e.stopPropagation()}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(24,119,242,.55)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 5, cursor: 'col-resize', background: 'transparent', zIndex: 3 }}
+              />
+            </th>
+            <th style={{ padding: '10px 12px', borderBottom: `2px solid ${T.border}`, background: T.bg, position: 'relative' }}>
               <input type="checkbox" style={{ cursor: 'pointer', accentColor: '#1877F2' }}
                 checked={selected.size === leads.length && leads.length > 0}
                 onChange={e => setSelected(e.target.checked ? new Set(leads.map(l => l.id)) : new Set())}
+              />
+              <span
+                onMouseDown={e => startResize(e, 'checkbox', 36)}
+                onClick={e => e.stopPropagation()}
+                onMouseEnter={e => e.currentTarget.style.background = 'rgba(24,119,242,.55)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 5, cursor: 'col-resize', background: 'transparent', zIndex: 3 }}
               />
             </th>
             <TH col="name" label="Name" w={160} />
@@ -432,7 +493,7 @@ function TableView({ leads, stages, onMoveStage, onDelete, onOpenLead }) {
                     <div style={{ width: 28, height: 28, borderRadius: '50%', background: avatarBg(lead.name), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800, color: '#fff', flexShrink: 0 }}>
                       {initials(lead.name)}
                     </div>
-                    <span style={{ fontWeight: 600, color: T.text, direction: 'rtl', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 110 }}>{lead.name || '—'}</span>
+                    <span style={{ fontWeight: 600, color: T.text, direction: 'rtl', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>{lead.name || '—'}</span>
                   </div>
                 </td>
                 <td style={{ padding: '9px 12px' }}>
@@ -441,7 +502,7 @@ function TableView({ leads, stages, onMoveStage, onDelete, onOpenLead }) {
                   ) : <span style={{ color: T.dim, fontSize: 11 }}>—</span>}
                 </td>
                 <td style={{ padding: '9px 12px', color: T.sub }}>{fmtPhone(lead.phone) || '—'}</td>
-                <td style={{ padding: '9px 12px', color: T.sub, maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <td style={{ padding: '9px 12px', color: T.sub, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {lead.campaign_name || lead.form_name || '—'}
                 </td>
                 <td style={{ padding: '9px 12px', color: T.dim, fontSize: 12, whiteSpace: 'nowrap' }}>
