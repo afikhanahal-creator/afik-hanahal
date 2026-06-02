@@ -3917,10 +3917,57 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
 
   const showBrowserNotification = useCallback((title, body, onClick) => {
     if (!('Notification' in window) || Notification.permission !== 'granted') return
-    // Only show OS notification when the tab is not focused — the in-app toast covers the focused case
-    if (document.hasFocus()) return
-    const n = new Notification(title, { body, icon: '/favicon.ico' })
+    // Fire the OS notification regardless of tab focus — when Afik is *inside* the
+    // admin tab on a different monitor (or windowed) the in-app toast still fires
+    // but the OS banner is what actually catches the eye.
+    const n = new Notification(title, { body, icon: '/favicon.ico', tag: 'afik-new-lead', renotify: true })
     if (onClick) n.onclick = () => { window.focus(); onClick(); n.close() }
+  }, [])
+
+  // Single short chime via WebAudio — no asset to host, no autoplay block.
+  // Lazily allocated AudioContext so the first user gesture is what unlocks it.
+  const audioCtxRef = useRef(null)
+  const playLeadChime = useCallback(() => {
+    try {
+      if (!audioCtxRef.current) {
+        const Ctx = window.AudioContext || window.webkitAudioContext
+        if (!Ctx) return
+        audioCtxRef.current = new Ctx()
+      }
+      const ctx = audioCtxRef.current
+      if (ctx.state === 'suspended') ctx.resume().catch(() => {})
+      const now = ctx.currentTime
+      const tones = [880, 1320] // A5 → E6 — ascending two-note chime
+      tones.forEach((freq, i) => {
+        const osc = ctx.createOscillator()
+        const gain = ctx.createGain()
+        osc.type = 'sine'
+        osc.frequency.value = freq
+        gain.gain.setValueAtTime(0.0001, now + i * 0.12)
+        gain.gain.exponentialRampToValueAtTime(0.18, now + i * 0.12 + 0.02)
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.12 + 0.32)
+        osc.connect(gain).connect(ctx.destination)
+        osc.start(now + i * 0.12)
+        osc.stop(now + i * 0.12 + 0.34)
+      })
+    } catch {}
+  }, [])
+
+  // Document.title alerter — appends "(N) " when there's pending leads/messages
+  // even when the admin tab is in the foreground but on a different monitor.
+  const titleBaseRef = useRef(document.title)
+  const titleCountRef = useRef(0)
+  const bumpTitle = useCallback(() => {
+    titleCountRef.current += 1
+    document.title = `(${titleCountRef.current}) 🔔 ${titleBaseRef.current}`
+  }, [])
+  useEffect(() => {
+    const reset = () => {
+      titleCountRef.current = 0
+      document.title = titleBaseRef.current
+    }
+    window.addEventListener('focus', reset)
+    return () => window.removeEventListener('focus', reset)
   }, [])
 
   const addToast = useCallback((title, body, targetTab, icon = '🔔', durationMs = 6000) => {
@@ -3928,8 +3975,10 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     setToasts(prev => [...prev, { id, title, body, targetTab, icon }])
     const timer = setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), durationMs)
     showBrowserNotification(title, body, targetTab ? () => setTab(targetTab) : undefined)
+    playLeadChime()
+    if (!document.hasFocus()) bumpTitle()
     return () => clearTimeout(timer)
-  }, [showBrowserNotification]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [showBrowserNotification, playLeadChime, bumpTitle]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const startColResize = (e, colId, defaultW) => {
     e.preventDefault(); e.stopPropagation()

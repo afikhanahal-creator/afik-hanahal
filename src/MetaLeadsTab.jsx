@@ -155,6 +155,16 @@ function fmtTime(dateStr) {
   return new Date(dateStr).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })
 }
 
+// Compact "DD/MM · HH:MM" used in the lead card so Afik sees both the date AND
+// the exact time the lead came in, not only "לפני 8 שעי".
+function fmtDateTimeShort(dateStr) {
+  const d = new Date(dateStr)
+  if (Number.isNaN(d.getTime())) return ''
+  const date = d.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit' })
+  const time = d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })
+  return `${date} · ${time}`
+}
+
 function fmtDate(dateStr, lang) {
   const d = new Date(dateStr)
   const today = new Date(); today.setHours(0,0,0,0)
@@ -1172,36 +1182,36 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
                   contain: 'layout style',
                 }}
               >
-                {/* Delete button (visibility via CSS .lead-row:hover) */}
+                {/* Compact archive icon (visibility via CSS .lead-row:hover) */}
                 <button
                   className="lead-row-archive"
                   onClick={(e) => handleDeleteLead(lead, e)}
+                  aria-label={lang === 'en' ? 'Archive lead' : 'העבר לארכיון'}
                   title={lang === 'en' ? 'Archive lead' : 'העבר לארכיון'}
                   style={{
                     position: 'absolute',
                     top: '50%',
-                    left: dir === 'rtl' ? 8 : undefined,
-                    right: dir === 'ltr' ? 8 : undefined,
-                    background: 'rgba(224,82,82,.1)',
-                    border: '1px solid rgba(224,82,82,.22)',
-                    borderRadius: 10,
-                    color: 'rgba(224,82,82,.7)',
+                    left: dir === 'rtl' ? 10 : undefined,
+                    right: dir === 'ltr' ? 10 : undefined,
+                    width: 28, height: 28,
+                    background: 'rgba(224,82,82,.12)',
+                    border: '1px solid rgba(224,82,82,.28)',
+                    borderRadius: '50%',
+                    color: 'rgba(224,82,82,.85)',
                     cursor: 'pointer',
-                    padding: '5px 9px',
-                    display: 'flex', alignItems: 'center', gap: 4,
+                    padding: 0,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
                     fontFamily: 'inherit',
-                    fontSize: 11, fontWeight: 600,
                     zIndex: 2,
                     backdropFilter: 'blur(6px)',
                   }}
                 >
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
                     <polyline points="3 6 5 6 21 6"/>
                     <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
                     <path d="M10 11v6M14 11v6"/>
                     <path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
                   </svg>
-                  <span>{lang === 'en' ? 'Archive' : 'ארכיון'}</span>
                 </button>
 
                 <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
@@ -1229,12 +1239,18 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
 
                   {/* Info */}
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 3 }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, marginBottom: 3 }}>
                       <span style={{ fontSize: 13, fontWeight: 700, color: CREAM, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
                         {lead.name || '—'}
                       </span>
-                      <span style={{ fontSize: 10, color: MUTED, flexShrink: 0 }}>
-                        {timeAgo(lead.created_at, lang)}
+                      <span
+                        title={new Date(lead.created_at).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' })}
+                        style={{ fontSize: 10, color: MUTED, flexShrink: 0, textAlign: 'left', lineHeight: 1.35, display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}
+                      >
+                        <span>{timeAgo(lead.created_at, lang)}</span>
+                        <span style={{ fontSize: 9.5, color: 'rgba(232,228,216,.3)', fontFeatureSettings: '"tnum"', whiteSpace: 'nowrap' }}>
+                          {fmtDateTimeShort(lead.created_at)}
+                        </span>
                       </span>
                     </div>
 
