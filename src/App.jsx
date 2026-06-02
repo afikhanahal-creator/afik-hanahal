@@ -3792,12 +3792,9 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
       .catch(() => {})
   }, [])
 
-  // Track viewport width for responsive KPI grid
-  useEffect(() => {
-    const onResize = () => setViewW(window.innerWidth)
-    window.addEventListener('resize', onResize, { passive: true })
-    return () => window.removeEventListener('resize', onResize)
-  }, [])
+  // Viewport-width tracking was removed when the responsive KPI grid switched
+  // to CSS media-queries; the lingering listener was calling a setter that no
+  // longer exists, crashing the page render. Intentionally empty.
 
   // Auto-save while editing an existing property (3 s debounce, silent — no spinner)
   useEffect(() => {
@@ -4672,7 +4669,12 @@ Return ONLY valid JSON (no markdown, no code blocks):
     try { localStorage.setItem(LEADS_STORE, '[]') } catch {}
     if (API_BASE) fetch(`${API_BASE}/api/contacts`, {
       method: 'DELETE', headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
-    }).then(r => { if (r.ok) { pendingDeletes.current.clear(); clearAllDeletedIds() } })
+    }).then(r => {
+      if (r.ok) {
+        pendingDeletes.current.clear()
+        try { localStorage.setItem(LEADS_DELETED, '[]') } catch {}
+      }
+    })
       .catch(() => {})
   }
   const restoreLead = id => {

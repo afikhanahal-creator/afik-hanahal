@@ -31,19 +31,34 @@ export const BG_OPTIONS = [
 ]
 
 // ── Script loader — singleton so the script is injected only once ─────────────
-let scriptLoaded    = false
+// scriptState: 'idle' | 'loading' | 'ready' | 'error'
+let scriptState     = 'idle'
 let scriptCallbacks = []
 
 function loadGovMapScript(cb) {
+  // Already loaded — run immediately
   if (scriptState === 'ready' && window.govmap) { cb(); return }
+  // Previously errored — don't keep retrying mid-session (caller will get a skeleton + error)
   if (scriptState === 'error') return
+  // Currently loading — queue and let the existing load notify us
   scriptCallbacks.push(cb)
-  if (scriptCallbacks.length > 1) return          // already loading
+  if (scriptState === 'loading') return
+  // First call — actually inject the <script> tag
+  scriptState = 'loading'
   const s   = document.createElement('script')
   s.src     = SCRIPT_URL
   s.async   = true
-  s.onload  = () => { scriptLoaded = true; scriptCallbacks.forEach(fn => fn()); scriptCallbacks = [] }
-  s.onerror = () => { scriptCallbacks = [] }
+  s.onload  = () => {
+    scriptState = 'ready'
+    const queued = scriptCallbacks
+    scriptCallbacks = []
+    queued.forEach(fn => { try { fn() } catch (e) { console.error('[GovMap] callback error:', e) } })
+  }
+  s.onerror = () => {
+    scriptState = 'error'
+    scriptCallbacks = []
+    console.error('[GovMap] failed to load', SCRIPT_URL)
+  }
   document.head.appendChild(s)
 }
 
