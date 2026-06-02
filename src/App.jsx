@@ -243,7 +243,7 @@ const TR = {
   }
 }
 const ThemeCtx = createContext({ C: DARK_C, isDark: true, toggleTheme: () => {}, lang: 'he', setLang: () => {}, logoNavSize: 70, setLogoNavSize: () => {} })
-const useTheme = () => useContext(ThemeCtx)
+export const useTheme = () => useContext(ThemeCtx)
 
 // ─── GLOBAL CSS ───────────────────────────────────────────────────────────────
 const makeGlobal = (C, isDark) => `
