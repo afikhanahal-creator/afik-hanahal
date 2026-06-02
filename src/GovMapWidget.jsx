@@ -105,26 +105,27 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
     return () => obs.disconnect()
   }, [])
 
-  // ── 2. Zoom with exponential-backoff retry ──────────────────────────────────
-  const zoomToParcel = useCallback((g, h, attempts = 10, delay = 300) => {
-    if (!window.govmap || !g || !h) return
-    try {
-      const res = window.govmap.searchAndLocate({
-        type:   window.govmap.locateType?.addressToLotParcel
-               ?? window.govmap.locateType?.parcel
-               ?? 5,
-        lot:    Number(g),
-        parcel: Number(h),
-      })
-      const p = res && typeof res.then === 'function' ? res : Promise.resolve()
-      p.catch(() => {
-        if (attempts > 1)
-          setTimeout(() => zoomToParcel(g, h, attempts - 1, Math.min(delay * 1.5, 2000)), delay)
-      })
-    } catch {
-      if (attempts > 1)
-        setTimeout(() => zoomToParcel(g, h, attempts - 1, Math.min(delay * 1.5, 2000)), delay)
+  // ── 2. Zoom to parcel — fires at multiple time-points so it always lands ──────
+  // searchAndLocate can silently no-op if called before the map finishes its
+  // internal async init (it may return undefined OR a resolved promise, so
+  // .catch() never fires and the old retry logic never triggered).
+  // Solution: fire the same call at 0 / 700 / 1600 / 3200 / 6000 ms offsets.
+  const zoomToParcel = useCallback((g, h) => {
+    if (!g || !h) return
+    const params = {
+      type:   (window.govmap?.locateType?.parcel)
+              ?? (window.govmap?.locateType?.addressToLotParcel)
+              ?? 5,
+      lot:    Number(g),
+      parcel: Number(h),
     }
+    const attempts = [0, 700, 1600, 3200, 6000]
+    attempts.forEach(ms => {
+      setTimeout(() => {
+        if (!window.govmap) return
+        try { window.govmap.searchAndLocate(params) } catch {}
+      }, ms)
+    })
   }, [])
 
   // ── 3. Create map ────────────────────────────────────────────────────────────
@@ -166,8 +167,7 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
   // ── 4. Zoom when map ready or gush/helka change ─────────────────────────────
   useEffect(() => {
     if (!mapReady || !gush || !helka) return
-    const t = setTimeout(() => zoomToParcel(gush, helka), 700)
-    return () => clearTimeout(t)
+    zoomToParcel(gush, helka)  // zoomToParcel already staggers its own retries
   }, [gush, helka, mapReady, zoomToParcel])
 
   // ── Controls ─────────────────────────────────────────────────────────────────
@@ -243,6 +243,10 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
   // ── Map ───────────────────────────────────────────────────────────────────────
   return (
     <div ref={containerRef}
+      onClick={e => e.stopPropagation()}
+      onTouchStart={e => e.stopPropagation()}
+      onTouchMove={e => e.stopPropagation()}
+      onTouchEnd={e => e.stopPropagation()}
       style={{ position:'relative', border:`1px solid ${C.purple}22`, borderRadius:12,
                overflow:'hidden', background: isDark ? '#0A0A16' : '#f8f7f3',
                direction:'rtl', fontFamily:'Rubik,inherit' }}>
