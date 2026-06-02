@@ -215,6 +215,7 @@ async function handleWebhook(req, res) {
               '🔔 ליד חדש',
               `שם: ${name || '—'}`,
               `טלפון: ${displayPhone}`,
+              email ? `אימייל: ${email}` : null,
               `קמפיין: ${campaignName || formName || '—'}`,
               msgText ? `הודעה: ${msgText}` : null,
               `התקבל: ${now}`,
@@ -232,9 +233,10 @@ async function handleWebhook(req, res) {
               '',
               `👤 שם: ${name || '—'}`,
               `📞 טלפון: ${displayPhone}`,
+              email ? `📧 אימייל: ${email}` : null,
               `📣 קמפיין: ${campaignName || formName || '—'}`,
               `📅 ${now}`,
-            ].join('\n')
+            ].filter(Boolean).join('\n')
             await sendWA(META_NOTIFY_PHONE, notifyMsg)
           }
         }

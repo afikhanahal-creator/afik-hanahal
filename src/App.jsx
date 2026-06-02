@@ -3874,6 +3874,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const [leadsSyncing, setLeadsSyncing] = useState(false)
   const [chats, setChats] = useState({})
   const [chatsUnread, setChatsUnread] = useState(0)   // total unread WhatsApp msgs (for tab badge)
+  const [metaNewLeads, setMetaNewLeads] = useState(0) // unseen new Meta leads (for tab badge)
   const appLoadRef = useRef(Date.now())               // baseline so old history isn't flagged
   const chatsRef = useRef({})                         // latest chats for on-demand recompute
   const [chatInput, setChatInput] = useState('')
@@ -4085,6 +4086,9 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
 
   // Called by GreenAPIChat when a chat is opened/marked read → drop the badge
   const handleChatsRead = useCallback(() => recomputeChatsUnread(chatsRef.current), [recomputeChatsUnread])
+
+  // Clear Meta new-leads badge whenever the Lead Center tab is active
+  useEffect(() => { if (tab === 'meta') setMetaNewLeads(0) }, [tab])
 
   // Global Realtime: track incoming messages across ALL tabs (not just when the
   // chats tab is open) so the sidebar badge stays live even while you're elsewhere.
@@ -4730,11 +4734,11 @@ Return ONLY valid JSON (no markdown, no code blocks):
 
   const DASH_TABS = [
     { id:'overview', Icon:FaHome,        label:'סקירה כללית' },
-    { id:'live',     Icon:FaCheckCircle, label:'באוויר',     badge: publishedList.length, live:true },
+    { id:'meta',     Icon:FaFacebookF,   label:'Lead Center', badge: metaNewLeads || undefined },
+    { id:'live',     Icon:FaCheckCircle, label:'באוויר',      badge: publishedList.length, live:true },
     { id:'props',    Icon:FaBuilding,    label:'ניהול נכסים' },
-    { id:'leads',    Icon:FaHandshake,   label:'לידים',      badge: leads.length },
-    { id:'chats',    Icon:FaWhatsapp,    label:'צ\'אטים',    badge: chatsUnread },
-    { id:'meta',     Icon:FaFacebookF,   label:'מרכז מטא' },
+    { id:'leads',    Icon:FaHandshake,   label:'לידים',       badge: leads.length },
+    { id:'chats',    Icon:FaWhatsapp,    label:'צ\'אטים',     badge: chatsUnread },
     { id:'analytics',Icon:FaChartLine,   label:'אנליטיקס' },
     { id:'team',     Icon:FaKey,         label:'צוות' },
     { id:'counters', Icon:FaBalanceScale,label:'מונים' },
@@ -4845,6 +4849,18 @@ Return ONLY valid JSON (no markdown, no code blocks):
             <div style={{ display:'flex', alignItems:'center', gap:10 }}>
               <h2 style={{ fontSize:15, fontWeight:800, color:'rgba(232,228,216,.86)', margin:0 }}>{TAB_LABELS[tab] || ''}</h2>
               {saved && <span style={{ fontSize:11, color:'#22C55E', fontWeight:700, background:'rgba(34,197,94,.1)', padding:'3px 10px', borderRadius:20, border:'1px solid rgba(34,197,94,.2)' }}>✓ נשמר</span>}
+              <div style={{ width:1, height:18, background:'rgba(132,144,216,.15)', flexShrink:0, marginRight:2 }}/>
+              <button
+                onClick={() => { setTab('meta'); setMetaNewLeads(0) }}
+                style={{ display:'flex', alignItems:'center', gap:7, padding:'6px 14px', background: tab==='meta' ? 'rgba(132,144,216,.22)' : 'rgba(132,144,216,.08)', border:`1px solid ${tab==='meta' ? 'rgba(132,144,216,.5)' : 'rgba(132,144,216,.2)'}`, borderRadius:20, color: tab==='meta' ? '#A0ACFF' : 'rgba(132,144,216,.7)', cursor:'pointer', fontFamily:'inherit', fontSize:12, fontWeight:700, transition:'all .18s', position:'relative' }}
+                onMouseEnter={e=>{ e.currentTarget.style.background='rgba(132,144,216,.18)'; e.currentTarget.style.borderColor='rgba(132,144,216,.45)'; e.currentTarget.style.color='#A0ACFF' }}
+                onMouseLeave={e=>{ if(tab!=='meta'){ e.currentTarget.style.background='rgba(132,144,216,.08)'; e.currentTarget.style.borderColor='rgba(132,144,216,.2)'; e.currentTarget.style.color='rgba(132,144,216,.7)' }}}>
+                <FaFacebookF size={11}/>
+                <span>Lead Center</span>
+                {metaNewLeads > 0 && (
+                  <span style={{ background:'#E05252', color:'#fff', borderRadius:10, padding:'1px 6px', fontSize:10, fontWeight:900, lineHeight:1.6, minWidth:18, textAlign:'center' }}>{metaNewLeads}</span>
+                )}
+              </button>
             </div>
             <div style={{ display:'flex', alignItems:'center', gap:8 }}>
               <button onClick={copyDashLink}
@@ -4929,6 +4945,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
         {/* Modal tabs */}
         {!standalone && (
           <div style={{ display:'flex', gap:4, marginBottom:12, background:'rgba(255,255,255,.04)', borderRadius:10, padding:4, flexWrap:'wrap', flexShrink:0 }}>
+            {tabBtn('meta', 'Lead Center', metaNewLeads || undefined)}
             {tabBtn('props', 'ניהול נכסים')}
             <button onClick={goToLiveProps}
               style={{ padding:'10px 16px', border:'none', background: tab==='props' && listTab==='published' ? 'rgba(34,197,94,.2)' : 'transparent', color: tab==='props' && listTab==='published' ? '#22C55E' : 'rgba(232,228,216,.65)', fontFamily:'inherit', cursor:'pointer', fontWeight:700, fontSize:14, borderRadius:9, transition:'all .15s', display:'flex', alignItems:'center', gap:6 }}>
@@ -4938,7 +4955,6 @@ Return ONLY valid JSON (no markdown, no code blocks):
             </button>
             {tabBtn('leads', 'לידים', leads.length)}
             {tabBtn('chats', 'צ\'אטים')}
-            {tabBtn('meta', 'מרכז מטא')}
             {tabBtn('analytics', 'אנליטיקס')}
             {tabBtn('team', 'צוות')}
             {tabBtn('counters', 'מונים')}
@@ -4947,7 +4963,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
         )}
 
         {/* ── Scrollable content ─────────────────────────────────────── */}
-        <div className="admin-content" style={(tab==='chats'||tab==='leads') ? { flex:1, minHeight:0, overflow:'hidden', position:'relative' } : standalone ? { flex:1, overflowY:'auto', padding:'22px 26px 32px', direction:'rtl' } : { padding:'22px 26px 32px', direction:'rtl' }}>
+        <div className="admin-content" style={(tab==='chats'||tab==='leads'||tab==='meta') ? { flex:1, minHeight:0, overflow:'hidden', position:'relative' } : standalone ? { flex:1, overflowY:'auto', scrollBehavior:'smooth', padding:'22px 26px 32px', direction:'rtl' } : { padding:'22px 26px 32px', direction:'rtl', overflowY:'auto', scrollBehavior:'smooth' }}>
 
         {/* Overview tab — standalone only */}
         {tab==='overview' && standalone && (<>
@@ -5563,11 +5579,14 @@ Return ONLY valid JSON (no markdown, no code blocks):
         {tab==='meta' && (
           <Suspense fallback={<AdminTabLoader label="מרכז מטא" />}>
             <MetaLeadsTab C={DARK_C} lang={lang} isDark={true}
-              onNewLead={({ name, campaign }) => addToast(
-                lang === 'en' ? 'New Meta Lead!' : 'ליד חדש ממטא!',
-                (name || (lang === 'en' ? 'Unknown' : 'לא ידוע')) + (campaign ? ' • ' + campaign : ''),
-                'meta', '🎯'
-              )}
+              onNewLead={({ name, campaign }) => {
+                if (tab !== 'meta') setMetaNewLeads(v => v + 1)
+                addToast(
+                  lang === 'en' ? 'New Meta Lead!' : 'ליד חדש ממטא!',
+                  (name || (lang === 'en' ? 'Unknown' : 'לא ידוע')) + (campaign ? ' • ' + campaign : ''),
+                  'meta', '🎯'
+                )
+              }}
               onNewMetaMessage={({ leadName, message }) => addToast(
                 lang === 'en' ? `Message from ${leadName}` : `הודעה מ-${leadName}`,
                 message, 'meta', '💬'
