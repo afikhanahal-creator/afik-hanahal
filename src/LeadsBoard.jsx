@@ -18,12 +18,12 @@ import {
 // ─── constants ────────────────────────────────────────────────────────────────
 
 const GROUPS = [
-  { id: 'new',         label: 'ליד חדש',   en: 'New Leads',      color: '#0073EA', icon: '🆕' },
-  { id: 'contacted',   label: 'ניצור קשר', en: 'Contacted',      color: '#FDAB3D', icon: '📞' },
-  { id: 'discovery',   label: 'גילוי',     en: 'Discovery',      color: '#A25DDC', icon: '🔍' },
-  { id: 'negotiating', label: 'במו"מ',     en: 'In Negotiation', color: '#FF7575', icon: '🤝' },
-  { id: 'won',         label: '✓ סגירה',   en: 'Closed Won',     color: '#00C875', icon: '🏆' },
-  { id: 'lost',        label: 'ללא מענה',  en: 'Lost',           color: '#7D7D7D', icon: '😶' },
+  { id: 'new',         label: 'ליד חדש',   en: 'New Leads',      color: '#0073EA' },
+  { id: 'contacted',   label: 'ניצור קשר', en: 'Contacted',      color: '#FDAB3D' },
+  { id: 'discovery',   label: 'גילוי',     en: 'Discovery',      color: '#A25DDC' },
+  { id: 'negotiating', label: 'במו"מ',     en: 'In Negotiation', color: '#FF7575' },
+  { id: 'won',         label: 'סגירה',     en: 'Closed Won',     color: '#00C875' },
+  { id: 'lost',        label: 'ללא מענה',  en: 'No Answer',      color: '#7D7D7D' },
 ]
 
 const SCORE_OPTS = [
@@ -55,15 +55,87 @@ const COLUMN_TYPES = [
   { type: 'notes',    icon: MessageSquare, label: 'Notes',      desc: 'Long text' },
 ]
 
+// SVG brand logos for integrations
+const IntegrationIcon = ({ id, size = 36 }) => {
+  const s = size
+  if (id === 'slack') return (
+    <svg width={s} height={s} viewBox="0 0 54 54" fill="none">
+      <path d="M19.7 0a5.4 5.4 0 0 0 0 10.8h5.4V5.4A5.4 5.4 0 0 0 19.7 0m0 14.4H5.4a5.4 5.4 0 0 0 0 10.7h14.3a5.4 5.4 0 0 0 0-10.7" fill="#36C5F0"/>
+      <path d="M54 19.7a5.4 5.4 0 0 0-10.8 0v5.4h5.4A5.4 5.4 0 0 0 54 19.7m-14.4 0V5.4a5.4 5.4 0 0 0-10.7 0v14.3a5.4 5.4 0 0 0 10.7 0" fill="#2EB67D"/>
+      <path d="M34.3 54a5.4 5.4 0 0 0 0-10.8h-5.4v5.4A5.4 5.4 0 0 0 34.3 54m0-14.4h14.3a5.4 5.4 0 0 0 0-10.7H34.3a5.4 5.4 0 0 0 0 10.7" fill="#ECB22E"/>
+      <path d="M0 34.3a5.4 5.4 0 0 0 10.8 0v-5.4H5.4A5.4 5.4 0 0 0 0 34.3m14.4 0v14.3a5.4 5.4 0 0 0 10.7 0V34.3a5.4 5.4 0 0 0-10.7 0" fill="#E01E5A"/>
+    </svg>
+  )
+  if (id === 'whatsapp') return (
+    <svg width={s} height={s} viewBox="0 0 32 32" fill="none">
+      <circle cx="16" cy="16" r="16" fill="#25D366"/>
+      <path d="M22.5 9.4A9.1 9.1 0 0 0 7 20.3L5.5 26l5.8-1.5a9 9 0 0 0 4.4 1.1A9.1 9.1 0 0 0 22.5 9.4zm-6.8 14a7.5 7.5 0 0 1-3.8-1l-.3-.2-2.9.8.8-2.8-.2-.3A7.5 7.5 0 1 1 22 19.8a7.5 7.5 0 0 1-6.3 3.6zm4.1-5.6c-.2-.1-1.4-.7-1.6-.8-.2-.1-.4-.1-.5.1l-.7.9c-.1.1-.3.2-.5.1a6 6 0 0 1-1.8-1.1 6.8 6.8 0 0 1-1.2-1.6c-.1-.2 0-.4.1-.5l.4-.4.2-.4v-.4l-.7-1.7c-.2-.4-.4-.4-.5-.4h-.5c-.2 0-.4.1-.6.3a2.9 2.9 0 0 0-.9 2.2 5 5 0 0 0 1 2.6 11.5 11.5 0 0 0 4.4 3.9c.6.3 1.1.4 1.5.5a3.5 3.5 0 0 0 1.6.1 2.7 2.7 0 0 0 1.7-1.2c.2-.4.2-.7.1-.9l-.5-.3z" fill="#fff"/>
+    </svg>
+  )
+  if (id === 'gmail') return (
+    <svg width={s} height={s} viewBox="0 0 48 48" fill="none">
+      <path d="M4.5 39h6V22.5L2 17v19.5C2 37.9 3.1 39 4.5 39z" fill="#4285F4"/>
+      <path d="M37.5 39h6c1.4 0 2.5-1.1 2.5-2.5V17l-8.5 5.5V39z" fill="#34A853"/>
+      <path d="M37.5 11.5V22.5L46 17v-4c0-3.1-3.6-4.9-6.1-3L37.5 11.5z" fill="#FBBC04"/>
+      <path d="M10.5 22.5V11.5L24 21l13.5-9.5v11L24 32 10.5 22.5z" fill="#EA4335"/>
+      <path d="M2 13v4l8.5 5.5V11.5L8.1 10C5.6 8.1 2 9.9 2 13z" fill="#C5221F"/>
+    </svg>
+  )
+  if (id === 'hubspot') return (
+    <svg width={s} height={s} viewBox="0 0 50 50" fill="none">
+      <circle cx="35" cy="13" r="6" fill="#FF7A59"/>
+      <circle cx="35" cy="13" r="3" fill="#fff"/>
+      <path d="M28.5 16A13 13 0 1 0 35 27.5M35 27.5V20" stroke="#FF7A59" strokeWidth="3.5" strokeLinecap="round"/>
+    </svg>
+  )
+  if (id === 'linkedin') return (
+    <svg width={s} height={s} viewBox="0 0 34 34" fill="none">
+      <rect width="34" height="34" rx="4" fill="#0077B5"/>
+      <path d="M8 13h4v13H8V13zm2-6.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zM15 13h3.8v1.8h.1c.5-1 1.8-2 3.7-2 4 0 4.7 2.6 4.7 6V26h-4v-6.4c0-1.5 0-3.5-2.1-3.5s-2.4 1.6-2.4 3.4V26H15V13z" fill="#fff"/>
+    </svg>
+  )
+  if (id === 'calendar') return (
+    <svg width={s} height={s} viewBox="0 0 48 48" fill="none">
+      <rect x="4" y="8" width="40" height="36" rx="4" fill="#fff" stroke="#4285F4" strokeWidth="2"/>
+      <rect x="4" y="8" width="40" height="12" rx="4" fill="#4285F4"/>
+      <rect x="4" y="14" width="40" height="6" fill="#4285F4"/>
+      <path d="M16 6v6M32 6v6" stroke="#4285F4" strokeWidth="2.5" strokeLinecap="round"/>
+      <text x="24" y="34" textAnchor="middle" fontSize="13" fontWeight="700" fill="#4285F4" fontFamily="Arial">G</text>
+    </svg>
+  )
+  if (id === 'zapier') return (
+    <svg width={s} height={s} viewBox="0 0 50 50" fill="none">
+      <circle cx="25" cy="25" r="25" fill="#FF4A00"/>
+      <path d="M25 10v9M25 31v9M10 25h9M31 25h9M14.6 14.6l6.4 6.4M28.9 28.9l6.4 6.4M35.4 14.6l-6.4 6.4M21.1 28.9l-6.4 6.4" stroke="#fff" strokeWidth="3" strokeLinecap="round"/>
+      <circle cx="25" cy="25" r="5" fill="#fff"/>
+    </svg>
+  )
+  if (id === 'mailchimp') return (
+    <svg width={s} height={s} viewBox="0 0 50 50" fill="none">
+      <ellipse cx="25" cy="28" rx="17" ry="14" fill="#FFE01B"/>
+      <ellipse cx="25" cy="25" rx="13" ry="10" fill="#241C15"/>
+      <circle cx="19" cy="24" r="2.5" fill="#fff"/>
+      <circle cx="31" cy="24" r="2.5" fill="#fff"/>
+      <circle cx="19.8" cy="24" r="1.2" fill="#241C15"/>
+      <circle cx="31.8" cy="24" r="1.2" fill="#241C15"/>
+      <path d="M20 29c1 2 9 2 10 0" stroke="#fff" strokeWidth="1.5" strokeLinecap="round"/>
+      <ellipse cx="25" cy="13" rx="5" ry="6" fill="#FFE01B"/>
+      <circle cx="25" cy="10" r="3" fill="#241C15"/>
+    </svg>
+  )
+  // fallback
+  return <div style={{ width: s, height: s, borderRadius: 8, background: '#333', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: s * 0.5, color: '#fff', fontWeight: 700 }}>{id[0].toUpperCase()}</div>
+}
+
 const INTEGRATIONS = [
-  { id: 'gmail',      name: 'Gmail',              logo: '📧', color: '#EA4335', desc: 'Import leads from email' },
-  { id: 'whatsapp',   name: 'WhatsApp Business',  logo: '💬', color: '#25D366', desc: 'Send automated messages' },
-  { id: 'slack',      name: 'Slack',              logo: '⚡', color: '#4A154B', desc: 'Status change notifications' },
-  { id: 'calendar',   name: 'Google Calendar',    logo: '📅', color: '#4285F4', desc: 'Sync follow-up meetings' },
-  { id: 'linkedin',   name: 'LinkedIn Sales Nav', logo: '🔗', color: '#0077B5', desc: 'Lead enrichment' },
-  { id: 'hubspot',    name: 'HubSpot',            logo: '🧲', color: '#FF7A59', desc: 'Two-way CRM sync' },
-  { id: 'zapier',     name: 'Zapier',             logo: '⚙️', color: '#FF4A00', desc: 'Custom automations' },
-  { id: 'mailchimp',  name: 'Mailchimp',          logo: '🐒', color: '#FFE01B', desc: 'Email campaigns' },
+  { id: 'gmail',      name: 'Gmail',              color: '#EA4335', desc: 'Import leads from email' },
+  { id: 'whatsapp',   name: 'WhatsApp Business',  color: '#25D366', desc: 'Send automated messages' },
+  { id: 'slack',      name: 'Slack',              color: '#4A154B', desc: 'Status change notifications' },
+  { id: 'calendar',   name: 'Google Calendar',    color: '#4285F4', desc: 'Sync follow-up meetings' },
+  { id: 'linkedin',   name: 'LinkedIn Sales Nav', color: '#0077B5', desc: 'Lead enrichment' },
+  { id: 'hubspot',    name: 'HubSpot',            color: '#FF7A59', desc: 'Two-way CRM sync' },
+  { id: 'zapier',     name: 'Zapier',             color: '#FF4A00', desc: 'Custom automations' },
+  { id: 'mailchimp',  name: 'Mailchimp',          color: '#FFE01B', desc: 'Email campaigns' },
 ]
 
 const AUTOMATION_RECIPES = [
@@ -1314,7 +1386,7 @@ function IntegrationsModal({ onClose, T, lang }) {
               <div key={intg.id} style={{ background: T.bg, border: `1px solid ${isConn ? intg.color + '44' : T.border}`, borderRadius: 12, padding: '16px 14px', display: 'flex', flexDirection: 'column', gap: 10, transition: 'all .2s', cursor: 'pointer' }}
                 onMouseEnter={e => { e.currentTarget.style.boxShadow = T.shadowSm; e.currentTarget.style.borderColor = intg.color + '66' }}
                 onMouseLeave={e => { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.borderColor = isConn ? intg.color + '44' : T.border }}>
-                <div style={{ fontSize: 28 }}>{intg.logo}</div>
+                <IntegrationIcon id={intg.id} size={36} />
                 <div style={{ fontSize: 13, fontWeight: 700, color: T.text }}>{intg.name}</div>
                 <div style={{ fontSize: 11, color: T.textSub, flex: 1, lineHeight: 1.6 }}>{intg.desc}</div>
                 <button onClick={() => setConnected(prev => ({ ...prev, [intg.id]: !prev[intg.id] }))}

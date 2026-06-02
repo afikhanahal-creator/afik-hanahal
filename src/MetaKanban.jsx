@@ -112,12 +112,13 @@ function SortableCard({ lead, stages, onClick, onDelete, onMoveStage, bulkMode, 
         transition: isDragging ? 'none' : [transition, 'box-shadow .15s, border-color .15s'].filter(Boolean).join(', '),
         opacity: isDragging ? 0 : 1,
         background: T.card,
-        borderRadius: 8,
-        border: isSelected ? `2px solid ${T.accent}` : `1px solid ${T.border}`,
+        borderRadius: 10,
+        border: isSelected ? `1.5px solid ${T.accent}` : `1px solid ${T.border}`,
+        borderTop: isSelected ? `1.5px solid ${T.accent}` : `2px solid ${AV[(lead.name?.charCodeAt(0) || 65) % AV.length]}44`,
         padding: '10px 12px',
         marginBottom: 8,
         cursor: isDragging ? 'grabbing' : 'grab',
-        boxShadow: isDragging ? 'none' : '0 1px 3px rgba(0,0,0,.08)',
+        boxShadow: isDragging ? 'none' : '0 2px 8px rgba(0,0,0,.18)',
         position: 'relative',
         userSelect: 'none',
         touchAction: 'none',
@@ -213,22 +214,26 @@ function KanbanColumn({ stage, leads, stages, onCardClick, onCardDelete, onCardM
         transform: CSS.Transform.toString(transform),
         transition: [transition, 'border-color .15s, background .15s'].filter(Boolean).join(', '),
         opacity: isDragging ? 0.45 : 1,
-        width: 255,
+        width: 260,
         flexShrink: 0,
         display: 'flex',
         flexDirection: 'column',
-        background: isOver ? 'rgba(24,119,242,.12)' : T.surf,
-        borderRadius: 10,
+        background: isOver ? 'rgba(24,119,242,.08)' : T.surf,
+        borderRadius: 12,
         maxHeight: '100%',
-        border: isOver ? `2px dashed ${T.accent}` : `2px solid ${T.borderL}`,
+        border: isOver ? `2px dashed ${T.accent}` : `1px solid ${T.borderL}`,
+        boxShadow: isDragging ? 'none' : '0 4px 20px rgba(0,0,0,.25)',
       }}
     >
+      {/* Colored accent bar at top of column */}
+      <div style={{ height: 3, borderRadius: '12px 12px 0 0', background: `linear-gradient(90deg, ${stage.color}, ${stage.color}88)`, flexShrink: 0 }} />
+
       {/* Column header — drag handle */}
       <div
         {...listeners} {...attributes}
-        style={{ padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 8, cursor: 'grab', borderRadius: '8px 8px 0 0', background: T.bg, userSelect: 'none', borderBottom: `1px solid ${T.border}` }}
+        style={{ padding: '11px 12px 10px', display: 'flex', alignItems: 'center', gap: 8, cursor: 'grab', background: T.bg, userSelect: 'none', borderBottom: `1px solid ${T.border}`, touchAction: 'none' }}
       >
-        <div style={{ width: 10, height: 10, borderRadius: '50%', background: stage.color, flexShrink: 0 }} />
+        <div style={{ width: 8, height: 8, borderRadius: '50%', background: stage.color, flexShrink: 0, boxShadow: `0 0 6px ${stage.color}` }} />
         {editing ? (
           <input
             autoFocus value={nameVal}
@@ -246,7 +251,7 @@ function KanbanColumn({ stage, leads, stages, onCardClick, onCardDelete, onCardM
             {stage.label}
           </span>
         )}
-        <span style={{ fontSize: 11, fontWeight: 700, color: T.sub, background: T.border, borderRadius: 10, padding: '1px 7px', flexShrink: 0 }}>
+        <span style={{ fontSize: 11, fontWeight: 800, color: leads.length > 0 ? stage.color : T.dim, background: leads.length > 0 ? `${stage.color}20` : T.border, borderRadius: 10, padding: '2px 8px', flexShrink: 0, border: leads.length > 0 ? `1px solid ${stage.color}44` : 'none' }}>
           {leads.length}
         </span>
 
@@ -578,6 +583,10 @@ export default function MetaKanban({ leads: propLeads = [], onUpdateLead, onDele
   const [delConfirm, setDelConfirm]     = useState(null)
   const [activeId, setActiveId]         = useState(null)
   const [activeType, setActiveType]     = useState(null)
+  // Ref tracks drag type synchronously — state updates are async and miss the
+  // very first collisionDetection call, causing INTAKE (column id: 'new') to
+  // fail column-drag because cards underneath get detected first.
+  const activeTypeRef = useRef(null)
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -594,8 +603,10 @@ export default function MetaKanban({ leads: propLeads = [], onUpdateLead, onDele
   }, [leadsByStage])
 
   function handleDragStart({ active }) {
+    const type = active.data.current?.type
+    activeTypeRef.current = type
     setActiveId(active.id)
-    setActiveType(active.data.current?.type)
+    setActiveType(type)
   }
 
   function handleDragOver({ active, over }) {
@@ -618,13 +629,16 @@ export default function MetaKanban({ leads: propLeads = [], onUpdateLead, onDele
   }
 
   function handleDragEnd({ active, over }) {
-    const type = activeType
+    const type = activeTypeRef.current
+    activeTypeRef.current = null
     setActiveId(null); setActiveType(null)
     if (!over) return
 
     if (type === 'column') {
       const oi = stages.findIndex(s => s.id === active.id)
-      const ni = stages.findIndex(s => s.id === over.id)
+      // If dropped on a card (possible in dense columns), resolve to that card's column
+      const targetId = over.data.current?.type === 'card' ? (over.data.current?.stageId || over.id) : over.id
+      const ni = stages.findIndex(s => s.id === targetId)
       if (oi >= 0 && ni >= 0 && oi !== ni) setStages(prev => arrayMove(prev, oi, ni))
       return
     }
@@ -737,10 +751,12 @@ export default function MetaKanban({ leads: propLeads = [], onUpdateLead, onDele
   const activeLead = activeId?.startsWith('card-') ? allLeads.find(l => `card-${l.id}` === activeId) : null
 
   const collisionDetection = useCallback(args => {
-    if (activeType === 'column') return closestCenter({ ...args, droppableContainers: args.droppableContainers.filter(c => c.data.current?.type === 'column') })
+    // Use ref (synchronous) not state (async) so the very first drag frame
+    // already uses the correct column-only filter — fixes INTAKE column drag
+    if (activeTypeRef.current === 'column') return closestCenter({ ...args, droppableContainers: args.droppableContainers.filter(c => c.data.current?.type === 'column') })
     const pw = pointerWithin(args)
     return pw.length > 0 ? pw : rectIntersection(args)
-  }, [activeType])
+  }, [])
 
   // ── Render ───────────────────────────────────────────────────────────────────
   return (
@@ -800,20 +816,22 @@ export default function MetaKanban({ leads: propLeads = [], onUpdateLead, onDele
       )}
 
       {/* STATS BAR */}
-      <div style={{ padding: '6px 16px', borderBottom: `1px solid ${T.border}`, display: 'flex', gap: 20, flexShrink: 0, background: T.bg, alignItems: 'center', flexWrap: 'wrap' }}>
+      <div style={{ padding: '8px 16px', borderBottom: `1px solid ${T.border}`, display: 'flex', gap: 6, flexShrink: 0, background: T.bg, alignItems: 'center', flexWrap: 'wrap' }}>
         {[
-          { label: 'Intake leads', val: stats.intake, sub: 'this week', color: '#22C55E' },
-          { label: 'Converted leads', val: stats.converted, sub: 'total', color: T.accent },
-          { label: 'Conversion rate', val: `${stats.rate}%`, sub: 'overall', color: stats.rate >= 10 ? '#22C55E' : '#F97316' },
+          { label: 'Intake', val: stats.intake, sub: 'this week', color: '#22C55E', icon: '↑' },
+          { label: 'Converted', val: stats.converted, sub: 'total', color: T.accent, icon: '✓' },
+          { label: 'Rate', val: `${stats.rate}%`, sub: 'conversion', color: stats.rate >= 10 ? '#22C55E' : '#F97316', icon: '%' },
         ].map(s => (
-          <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-            <span style={{ fontSize: 12, color: T.sub }}>{s.label}:</span>
-            <span style={{ fontSize: 13, fontWeight: 700, color: s.color }}>{s.val}</span>
-            <span style={{ fontSize: 11, color: T.dim }}>{s.sub}</span>
+          <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,.04)', border: `1px solid ${T.borderL}`, borderRadius: 8, padding: '4px 10px' }}>
+            <span style={{ fontSize: 16, fontWeight: 800, color: s.color, lineHeight: 1 }}>{s.val}</span>
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: T.sub, lineHeight: 1.2 }}>{s.label}</div>
+              <div style={{ fontSize: 9, color: T.dim, lineHeight: 1.2 }}>{s.sub}</div>
+            </div>
           </div>
         ))}
-        <div style={{ flex: 1, textAlign: 'right', fontSize: 12, color: T.accent, fontWeight: 600 }}>
-          {allLeads.length} leads total
+        <div style={{ flex: 1, textAlign: 'right', fontSize: 11, color: T.sub }}>
+          <span style={{ fontWeight: 800, color: T.text, fontSize: 14 }}>{allLeads.length}</span> leads total
         </div>
       </div>
 
@@ -835,7 +853,7 @@ export default function MetaKanban({ leads: propLeads = [], onUpdateLead, onDele
         {viewMode === 'pipeline' ? (
           <DndContext sensors={sensors} collisionDetection={collisionDetection} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
             <SortableContext items={stages.map(s => s.id)} strategy={horizontalListSortingStrategy}>
-              <div className="meta-kanban-scroll" style={{ display: 'flex', gap: 10, padding: '12px 16px', height: '100%', overflowX: 'auto', overflowY: 'hidden', boxSizing: 'border-box', alignItems: 'flex-start', background: T.bg, direction: 'rtl', WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', scrollBehavior: 'smooth', touchAction: 'pan-x pan-y' }}>
+              <div className="meta-kanban-scroll" style={{ display: 'flex', gap: 12, padding: '14px 16px', height: '100%', overflowX: 'auto', overflowY: 'hidden', boxSizing: 'border-box', alignItems: 'flex-start', background: `radial-gradient(ellipse at 50% 0%, rgba(24,119,242,.06) 0%, ${T.bg} 70%)`, direction: 'rtl', WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', scrollBehavior: 'smooth', touchAction: 'pan-x pan-y' }}>
                 {stages.map(stage => (
                   <KanbanColumn
                     key={stage.id} stage={stage}
