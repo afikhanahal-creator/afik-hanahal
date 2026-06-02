@@ -19,7 +19,8 @@ function lazyWithRetry(fn) {
 }
 const LeadsBoard   = lazyWithRetry(() => import('./LeadsBoard.jsx'))
 const GreenAPIChat = lazyWithRetry(() => import('./GreenAPIChat.jsx'))
-const MetaLeadsTab = lazyWithRetry(() => import('./MetaLeadsTab.jsx'))
+const MetaLeadsTab      = lazyWithRetry(() => import('./MetaLeadsTab.jsx'))
+const SupermetricsTab   = lazyWithRetry(() => import('./SupermetricsTab.jsx'))
 import { FaChevronLeft, FaChevronRight, FaEnvelope, FaFacebookF, FaInstagram, FaBed, FaRulerCombined, FaCar, FaSwimmingPool, FaBuilding, FaBoxOpen, FaTree, FaSnowflake, FaShieldAlt, FaCouch, FaTools, FaMapMarkerAlt, FaExternalLinkAlt, FaPhone, FaCompass, FaLeaf, FaCalendarAlt, FaTimes, FaWhatsapp, FaSun, FaFileAlt, FaHome, FaMoneyBill, FaSearch, FaBalanceScale, FaHandshake, FaTrophy, FaHardHat, FaLock, FaKey, FaGlobe, FaSeedling, FaBolt, FaRocket, FaStar, FaChartLine, FaEye, FaPlay, FaWheelchair, FaFire, FaCalculator, FaShareAlt, FaHeart, FaStore, FaCamera, FaWifi, FaIndustry, FaExpand, FaUser, FaUsers, FaDesktop, FaMobileAlt, FaTabletAlt, FaCommentAlt, FaRobot, FaInbox, FaExclamationTriangle, FaChartBar, FaThumbsUp, FaImage, FaPencilAlt, FaCrown, FaMousePointer, FaDollarSign, FaVideo, FaLink, FaCheck, FaCheckCircle, FaUtensils, FaDoorOpen, FaUserShield, FaTrash } from 'react-icons/fa'
 
 // ─── SERVER CONFIG ────────────────────────────────────────────────────────────
@@ -4959,6 +4960,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
             {tabBtn('leads', 'לידים', leads.length)}
             {tabBtn('chats', 'צ\'אטים')}
             {tabBtn('analytics', 'אנליטיקס')}
+            {tabBtn('supermetrics', 'ביצועים')}
             {tabBtn('team', 'צוות')}
             {tabBtn('counters', 'מונים')}
             {tabBtn('settings', 'הגדרות')}
@@ -5435,6 +5437,11 @@ Return ONLY valid JSON (no markdown, no code blocks):
         )}
 
         {tab==='analytics' && <AnalyticsDashboard leads={leads}/>}
+        {tab==='supermetrics' && (
+          <Suspense fallback={<AdminTabLoader label="טוען ביצועים…"/>}>
+            <SupermetricsTab/>
+          </Suspense>
+        )}
         {tab==='team' && <TeamTab C={C} isDark={isDark}/>}
 
         {tab==='counters' && (
