@@ -6028,7 +6028,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
                   {emailTesting ? '⟳ שולח...' : '✉ שלח אימייל בדיקה'}
                 </button>
                 {emailTestResult === 'ok'  && <span style={{ fontSize:12, color:C.green, fontWeight:700 }}>✓ אימייל בדיקה נשלח ל-afik.hanahal@gmail.com</span>}
-                {emailTestResult === 'err' && <span style={{ fontSize:12, color:'#E05252', fontWeight:700 }}>✕ שגיאה — בדוק GMAIL_USER ו-GMAIL_APP_PASSWORD ב-Render</span>}
+                {emailTestResult === 'err' && <span style={{ fontSize:12, color:'#E05252', fontWeight:700 }}>✕ שגיאה — בדוק GMAIL_USER ו-GMAIL_APP_PASSWORD ב-Vercel env vars</span>}
               </div>
             </div>
 
