@@ -140,14 +140,24 @@ async function insertContact(row) {
     headers: { Prefer: 'return=representation' },
     body: JSON.stringify(row),
   })
-  if (!r.ok) {
-    const msg = await r.text().catch(() => '')
-    // Conflict (duplicate id) — still OK, just return the id
-    if (r.status === 409) return row
-    throw new Error(`Supabase INSERT ${r.status}: ${msg}`)
+  if (r.ok) {
+    const rows = await r.json().catch(() => [])
+    return Array.isArray(rows) ? rows[0] : rows
   }
-  const rows = await r.json().catch(() => [])
-  return Array.isArray(rows) ? rows[0] : rows
+  if (r.status === 409) return row  // duplicate id — already saved
+
+  const msg = await r.text().catch(() => '')
+  // Schema-mismatch retry: if the Supabase contacts table is missing optional
+  // columns (e.g. crm_data was never migrated), strip unknown fields and try
+  // again. The error message includes 'Could not find the X column'.
+  const missingCol = /Could not find the '([^']+)' column/i.exec(msg)
+  if (missingCol && missingCol[1] in row) {
+    const colName = missingCol[1]
+    console.warn(`[contacts] retrying INSERT without missing column '${colName}'`)
+    const { [colName]: _dropped, ...trimmed } = row
+    return insertContact(trimmed)   // recursive retry — may strip more cols
+  }
+  throw new Error(`Supabase INSERT ${r.status}: ${msg}`)
 }
 
 async function getCrmData(id) {
@@ -167,7 +177,23 @@ async function patchContact(id, body) {
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(8000),
   })
-  return r.ok
+  // Schema-mismatch: drop unknown columns and retry. Keeps CRM-edit alive even
+  // if the contacts table is missing crm_data — at worst, that field silently
+  // no-ops until the column is migrated.
+  if (!r.ok) {
+    const msg = await r.text().catch(() => '')
+    const missingCol = /Could not find the '([^']+)' column/i.exec(msg)
+    if (missingCol && missingCol[1] in body) {
+      const colName = missingCol[1]
+      const { [colName]: _dropped, ...trimmed } = body
+      console.warn(`[contacts] PATCH retrying without missing column '${colName}'`)
+      if (Object.keys(trimmed).length === 0) return true  // nothing left to write
+      return patchContact(id, trimmed)
+    }
+    console.error(`[contacts] PATCH failed: ${r.status} — ${msg}`)
+    return false
+  }
+  return true
 }
 
 async function deleteContact(id) {
