@@ -96,15 +96,17 @@ export default async function handler(req, res) {
 
   // ── Incoming messages (Meta sends POST) ───────────────────────────────────
   if (req.method === 'POST') {
+    // CRITICAL: must NOT respond before processing. Vercel kills the function
+    // the instant the response is flushed, so the Supabase insert + WA reply
+    // would die mid-flight. Meta accepts up to 20s; maxDuration is 30s.
     const body = req.body
 
-    // Always respond 200 immediately so Meta doesn't retry
-    res.status(200).json({ status: 'ok' })
-
-    if (!WA_BOT_ENABLED) return
+    if (!WA_BOT_ENABLED) return res.status(200).json({ status: 'ok', skipped: 'bot disabled' })
 
     try {
-      if (body?.object !== 'whatsapp_business_account') return
+      if (body?.object !== 'whatsapp_business_account') {
+        return res.status(200).json({ status: 'ok', skipped: 'not a WhatsApp event' })
+      }
 
       for (const entry of body.entry || []) {
         for (const change of entry.changes || []) {
@@ -114,35 +116,27 @@ export default async function handler(req, res) {
           for (const msg of value.messages || []) {
             if (msg.type !== 'text') continue
 
-            const from    = msg.from        // e.g. "972501234567"
-            const text    = msg.text?.body  // customer message
-            const msgId   = msg.id
+            const from  = msg.from         // e.g. "972501234567"
+            const text  = msg.text?.body   // customer message
+            const msgId = msg.id
 
             if (!from || !text) continue
 
-            // Mark message as read
-            await markRead(msgId)
-
-            // Store inbound message in meta_messages if this is a Meta Lead (non-blocking)
-            storeInboundMetaMessage(from, text).catch(() => {})
-
-            // Send typing indicator (optional — best-effort)
-            // await sendTyping(from)
-
-            // Get AI response
+            // Mark read + persist + AI reply, all awaited so nothing dies on flush.
+            await markRead(msgId).catch(e => console.warn('[WA] markRead:', e.message))
+            await storeInboundMetaMessage(from, text).catch(e => console.warn('[WA] store inbound:', e.message))
             const reply = await getAIResponse(text, from)
-
-            // Send reply
             await sendWAMessage(from, reply)
-
             console.log(`[WA] Replied to ${from}: ${reply.slice(0, 80)}...`)
           }
         }
       }
     } catch (err) {
       console.error('[WA] Error processing message:', err)
+      if (!res.headersSent) return res.status(200).json({ status: 'error', error: err.message })
     }
 
+    if (!res.headersSent) return res.status(200).json({ status: 'ok' })
     return
   }
 

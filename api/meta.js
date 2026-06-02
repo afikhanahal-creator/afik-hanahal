@@ -663,6 +663,37 @@ function flattenError(payload, status) {
   return String(e)
 }
 
+// Supermetrics' /enterprise/v2/query/data/json endpoint is ASYNC: the first
+// call returns a schedule_id and status_code=SUCCESS but no rows. The real
+// data appears on /enterprise/v2/query/result/{schedule_id} after a moment.
+// This poller waits up to ~25s (fits inside our 30s function maxDuration).
+async function pollSupermetricsResult(scheduleId, source) {
+  const url = `https://api.supermetrics.com/enterprise/v2/query/result/${encodeURIComponent(scheduleId)}?api_key=${encodeURIComponent(SUPERMETRICS_API_KEY)}`
+  const start = Date.now()
+  let delayMs = 800
+  while (Date.now() - start < 25000) {
+    await new Promise(res => setTimeout(res, delayMs))
+    delayMs = Math.min(delayMs * 1.4, 3000)
+    let r
+    try { r = await fetch(url, { signal: AbortSignal.timeout(15000) }) }
+    catch (e) { console.warn(`[supermetrics/poll ${source}] fetch error: ${e.message}`); continue }
+    const txt = await r.text()
+    let b; try { b = JSON.parse(txt) } catch { b = {} }
+    const status = b?.data?.status || b?.status
+    if (!r.ok || b?.error) return { ok: false, error: flattenError(b, r.status) }
+    if (status === 'completed' || status === 'COMPLETED' || status === 'SUCCESS') {
+      // payload may be data.data (nested) OR data at root
+      const payload = b?.data?.data || b?.data || b
+      return { ok: true, headers: payload?.headers || [], rows: payload?.rows || [], meta: b?.meta || {} }
+    }
+    if (status === 'failed' || status === 'FAILED' || status === 'error') {
+      return { ok: false, error: flattenError(b, r.status) }
+    }
+    // still queued/running — loop again
+  }
+  return { ok: false, error: 'Query timed out after 25s — Supermetrics still processing' }
+}
+
 async function handleSupermetrics(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' })
   if (!checkAuth(req))        return res.status(401).json({ error: 'Unauthorized' })
@@ -685,20 +716,34 @@ async function handleSupermetrics(req, res) {
   try {
     const url  = `https://api.supermetrics.com/enterprise/v2/query/data/json?json=${encodeURIComponent(JSON.stringify(query))}`
     console.log(`[supermetrics] querying ${source} (${range}) with fields: ${cfg.fields}`)
-    const r    = await fetch(url, { signal: AbortSignal.timeout(30000) })
+    const r    = await fetch(url, { signal: AbortSignal.timeout(15000) })
     const text = await r.text()
     let body; try { body = JSON.parse(text) } catch { body = {} }
-    console.log(`[supermetrics] HTTP ${r.status} | rows: ${body?.data?.rows?.length ?? '?'}`)
     if (!r.ok || body?.error || body?.meta?.error) {
       const msg = flattenError(body, r.status)
-      console.error(`[supermetrics] ${source} failed: ${msg}`)
+      console.error(`[supermetrics] ${source} submit failed: ${msg}`)
       return res.status(502).json({ error: msg, source, status: r.status })
     }
+    const scheduleId = body?.meta?.schedule_id || body?.data?.schedule_id || body?.schedule_id
+    let headers = body?.data?.headers || []
+    let rows    = body?.data?.rows    || []
+    // If inline data is empty AND we got a schedule_id, this is the async path —
+    // poll until results are ready.
+    if (rows.length === 0 && scheduleId) {
+      console.log(`[supermetrics] ${source} queued (schedule_id=${scheduleId.slice(0, 12)}…) — polling`)
+      const polled = await pollSupermetricsResult(scheduleId, source)
+      if (!polled.ok) {
+        console.error(`[supermetrics] ${source} poll failed: ${polled.error}`)
+        return res.status(502).json({ error: polled.error, source, schedule_id: scheduleId })
+      }
+      headers = polled.headers
+      rows    = polled.rows
+    }
+    console.log(`[supermetrics] ${source} → ${rows.length} rows ready`)
     return res.status(200).json({
       source, range, label: cfg.label,
-      headers: body?.data?.headers || [],
-      rows:    body?.data?.rows    || [],
-      meta:    body?.meta          || {},
+      headers, rows,
+      meta: body?.meta || {},
     })
   } catch (e) {
     console.error(`[supermetrics] ${source} exception: ${e.message}`)
