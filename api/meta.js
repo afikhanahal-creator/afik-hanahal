@@ -91,19 +91,33 @@ function buildLeadEmailHtml({ name, phone, email, message, campaign, source, ts,
 async function sendMetaLeadEmail({ name, phone, email, campaign, message, ts }) {
   const user = process.env.GMAIL_USER
   const pass = process.env.GMAIL_APP_PASSWORD
-  if (!user || !pass) return
+  const to   = process.env.ADMIN_NOTIFY_EMAIL || user
+  if (!user || !pass) {
+    console.warn('[meta-lead-email] skipped — GMAIL_USER / GMAIL_APP_PASSWORD missing on Vercel')
+    return
+  }
   try {
     // Dynamic import keeps a potential nodemailer bundling issue from crashing the module
     const { default: nodemailer } = await import('nodemailer')
-    const transporter = nodemailer.createTransport({ service: 'gmail', auth: { user, pass } })
+    // Explicit smtp.gmail.com:465 + secure — service:'gmail' can fail on Vercel
+    // cold-starts. App-password spaces are stripped (Google shows them with spaces).
+    const transporter = nodemailer.createTransport({
+      host:   'smtp.gmail.com',
+      port:   465,
+      secure: true,
+      auth:   { user, pass: pass.replace(/\s+/g, '') },
+    })
     const timestamp = ts || new Date().toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-    await transporter.sendMail({
+    const info = await transporter.sendMail({
       from:    `"אפיק הנחל CRM" <${user}>`,
-      to:      user,
+      to,
       subject: `🔔 ליד Meta חדש: ${name || phone || 'אנונימי'} — אפיק הנחל`,
       html:    buildLeadEmailHtml({ name, phone, email, campaign, message, ts: timestamp, badge: 'ליד חדש ממטא' }),
     })
-  } catch (e) { console.error('[meta-lead-email]', e.message) }
+    console.log(`[meta-lead-email] ✓ sent to ${to}, messageId: ${info.messageId}`)
+  } catch (e) {
+    console.error(`[meta-lead-email] failed sending to ${to}: ${e.message}`)
+  }
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -198,17 +212,20 @@ async function handleWebhook(req, res) {
   }
 
   if (req.method === 'POST') {
-    res.status(200).json({ status: 'ok' }) // respond immediately
+    // CRITICAL: must NOT respond before processing. Vercel kills the function as
+    // soon as the response is flushed, so all the lead-save + WA/email work would
+    // die mid-flight. We respond at the END once everything has run (or thrown).
+    // Meta accepts up to ~20s for the webhook response; our maxDuration is 30s.
 
     try {
       if (META_APP_SECRET) {
         const sig      = req.headers['x-hub-signature-256'] || ''
         const expected = 'sha256=' + crypto.createHmac('sha256', META_APP_SECRET).update(JSON.stringify(req.body)).digest('hex')
-        if (sig !== expected) { console.warn('[MetaLeads] Signature mismatch'); return }
+        if (sig !== expected) { console.warn('[MetaLeads] Signature mismatch'); return res.status(403).json({ error: 'signature mismatch' }) }
       }
 
       const body = req.body
-      if (body?.object !== 'page') return
+      if (body?.object !== 'page') return res.status(200).json({ status: 'ignored', reason: 'not a page event' })
 
       const client = sb()
       for (const entry of body.entry || []) {
@@ -293,10 +310,15 @@ async function handleWebhook(req, res) {
               msgText ? `הודעה: ${msgText}` : null,
               `התקבל: ${now}`,
             ].filter(Boolean).join('\n')
-            // Send via Green API (fire-and-forget; errors are logged but never block lead saving)
-            sendGreenNotify(BUSINESS_NOTIFY_CHATID, notifyLines).catch(e => console.error('[GreenNotify]', e.message))
-            // Email notification (fire-and-forget)
-            sendMetaLeadEmail({ name, phone, email, campaign: campaignName || formName, message: msgText, ts: now }).catch(() => {})
+            // AWAIT both — fire-and-forget here was being killed by Vercel as
+            // soon as the response was flushed, so the admin never got pinged.
+            await Promise.allSettled([
+              sendGreenNotify(BUSINESS_NOTIFY_CHATID, notifyLines),
+              sendMetaLeadEmail({ name, phone, email, campaign: campaignName || formName, message: msgText, ts: now }),
+            ]).then(rs => rs.forEach((r, i) => {
+              const lbl = i === 0 ? 'admin-wa' : 'admin-email'
+              if (r.status === 'rejected') console.error(`[${lbl}] crashed:`, r.reason?.message || r.reason)
+            }))
           }
 
           // Legacy: notify via Meta Business WA API if token is configured
@@ -316,7 +338,13 @@ async function handleWebhook(req, res) {
           }
         }
       }
-    } catch (err) { console.error('[MetaLeads] unhandled:', err) }
+    } catch (err) {
+      console.error('[MetaLeads] unhandled:', err)
+      if (!res.headersSent) return res.status(200).json({ status: 'error', error: err.message })
+      return
+    }
+    // ALL processing done — only NOW respond. Meta will accept this 200.
+    if (!res.headersSent) return res.status(200).json({ status: 'ok' })
     return
   }
 
@@ -465,20 +493,26 @@ async function syncOnePage(pageId, client, errors) {
             const firstName = (parsed.name || '').split(' ')[0] || parsed.name || ''
             const waMsg = `היי ${firstName} 👋\nתודה שפנית לאפיק הנחל!\nראינו את הפנייה שלך\n\nמתי נוח לך לדבר? נשמח לתאם שיחה`
             const custChatId = `${phone}@c.us`
-            sendGreenNotify(custChatId, waMsg).catch(() => {})
-
             const displayPhone = phone.startsWith('972') ? '0' + phone.slice(3) : phone
             const now = new Date().toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
             const adminMsg = ['🔔 ליד חדש (sync)', `שם: ${parsed.name || '—'}`, `טלפון: ${displayPhone}`,
               parsed.email ? `אימייל: ${parsed.email}` : null,
               `קמפיין: ${form.name || '—'}`, `התקבל: ${now}`].filter(Boolean).join('\n')
-            sendGreenNotify(BUSINESS_NOTIFY_CHATID, adminMsg).catch(() => {})
 
-            // Email notification for synced lead (reuse `now` from above)
-            sendMetaLeadEmail({ name: parsed.name, phone, email: parsed.email, campaign: form.name, ts: now }).catch(() => {})
+            // AWAIT all three sends so the function isn't killed before they hit
+            // the wire. Per-call timeouts inside sendGreenNotify keep total bounded.
+            const rs = await Promise.allSettled([
+              sendGreenNotify(custChatId, waMsg),
+              sendGreenNotify(BUSINESS_NOTIFY_CHATID, adminMsg),
+              sendMetaLeadEmail({ name: parsed.name, phone, email: parsed.email, campaign: form.name, ts: now }),
+            ])
+            rs.forEach((r, i) => {
+              const lbl = ['lead-wa', 'admin-wa', 'admin-email'][i]
+              if (r.status === 'rejected') console.error(`[sync/${lbl}] crashed:`, r.reason?.message || r.reason)
+            })
 
             // Mark wa_sent so we don't re-notify on subsequent syncs
-            client.from('meta_leads').update({ wa_sent: true }).eq('leadgen_id', lead.id).catch(() => {})
+            await client.from('meta_leads').update({ wa_sent: true }).eq('leadgen_id', lead.id)
           }
 
           totalSynced++
