@@ -111,7 +111,7 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
     return () => obs.disconnect()
   }, [])
 
-  // ── 2. Zoom to parcel using searchAndLocate (only proven working method) ─────
+  // ── 2. Zoom to parcel using searchAndLocate ───────────────────────────────────
   const doSearchAndLocate = useCallback((g, h) => {
     if (!g || !h || !window.govmap) return
     const type = window.govmap.locateType?.parcel
@@ -119,14 +119,6 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
                ?? 5
     try { window.govmap.searchAndLocate({ type, lot: Number(g), parcel: Number(h) }) } catch {}
   }, [])
-
-  const zoomToParcel = useCallback((g, h) => {
-    if (!g || !h) return
-    // Fire at multiple offsets — GovMap createMap is async under the hood and
-    // searchAndLocate silently no-ops if called before internal init completes.
-    const attempts = [100, 800, 2000, 4000, 7000]
-    attempts.forEach(ms => setTimeout(() => doSearchAndLocate(g, h), ms))
-  }, [doSearchAndLocate])
 
   // ── 3. Create map ────────────────────────────────────────────────────────────
   const createMap = useCallback(() => {
@@ -136,6 +128,12 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
     created.current = true
     try {
       const activeLayers = LAYERS_DEF.filter(l => layersRef.current[l.id]).map(l => l.id)
+
+      // Called by whichever mechanism fires first (callback option / setMapReadyCallback)
+      const onMapReady = () => {
+        doSearchAndLocate(gushRef.current, helkaRef.current)
+      }
+
       window.govmap.createMap(mapDivId, {
         token:            token || '',
         layers:           activeLayers,
@@ -145,21 +143,26 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
         background:       Number(bgRef.current) || 0,
         layersMode:       1,
         zoomButtons:      true,
+        // Some GovMap versions accept a ready callback via this option
+        callback:         onMapReady,
       })
       setError('')
+      setMapReady(true)
 
-      // setMapReadyCallback fires when the API has truly finished internal init —
-      // this is the most reliable moment to call searchAndLocate.
+      // Official ready callback (newer GovMap builds)
       if (typeof window.govmap.setMapReadyCallback === 'function') {
-        window.govmap.setMapReadyCallback(() => {
-          setMapReady(true)
-          const g = gushRef.current
-          const h = helkaRef.current
-          doSearchAndLocate(g, h)
-        })
-      } else {
-        // Fallback for API versions without setMapReadyCallback
-        setMapReady(true)
+        window.govmap.setMapReadyCallback(onMapReady)
+      }
+
+      // Aggressive polling fallback — searchAndLocate is a silent no-op before
+      // internal init finishes; calling it many times is harmless and ensures
+      // at least one attempt lands after the map is truly ready.
+      const g = gushRef.current
+      const h = helkaRef.current
+      if (g && h) {
+        ;[200, 600, 1200, 2000, 3200, 5000, 8000, 12000].forEach(ms =>
+          setTimeout(() => doSearchAndLocate(gushRef.current, helkaRef.current), ms)
+        )
       }
     } catch {
       setError('שגיאה ביצירת המפה — ודא שמפתח ה-API תקין ורשום לדומיין זה.')
@@ -177,11 +180,11 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
     loadGovMapScript(createMap, onScriptError)
   }, [token, inView, createMap, onScriptError])
 
-  // ── 4. Zoom when map ready or gush/helka change (backup staggered retries) ──
+  // ── 4. Re-zoom when gush/helka change after the map is already ready ─────────
   useEffect(() => {
     if (!mapReady || !gush || !helka) return
-    zoomToParcel(gush, helka)
-  }, [gush, helka, mapReady, zoomToParcel])
+    doSearchAndLocate(gush, helka)
+  }, [gush, helka, mapReady, doSearchAndLocate])
 
   // ── Controls ─────────────────────────────────────────────────────────────────
   function toggleLayer(id) {
