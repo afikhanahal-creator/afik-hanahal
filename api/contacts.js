@@ -84,7 +84,9 @@ async function sendLeadAutoReply(lead) {
 
 // Notify the business owner (admin) about a new lead.
 async function notifyAdmin(lead) {
-  if (!BUSINESS_NOTIFY_CHATID) return
+  // Falls back to Afik's number (055-981-1814 = 972559811814) so the alert
+  // still fires even when BUSINESS_NOTIFY_CHATID was never configured on Vercel.
+  const target = BUSINESS_NOTIFY_CHATID || '972559811814'
   const ts = new Date().toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem' })
   const lines = [
     '🔔 *ליד חדש התקבל!*',
@@ -97,8 +99,10 @@ async function notifyAdmin(lead) {
   if (lead.prop_title || lead.propTitle) lines.push(`🏠 נכס: ${lead.prop_title || lead.propTitle}`)
   if (lead.source)                      lines.push(`📍 מקור: ${lead.source}`)
   lines.push(`🕐 ${ts}`)
-  const r = await sendToChatId(BUSINESS_NOTIFY_CHATID, lines.join('\n'))
-  if (!r.ok) console.error('[admin-notify]', r.error)
+  const r = await sendToChatId(target, lines.join('\n'))
+  if (r.ok) console.log(`[admin-notify] ✓ alert sent to ${target}`)
+  else      console.error(`[admin-notify] failed sending to ${target}: ${r.error}`)
+  return r
 }
 
 const CORS = {
@@ -244,25 +248,43 @@ function buildLeadEmailHtml({ name, phone, email, message, propTitle, source, ca
 async function sendLeadEmail(lead) {
   const user = process.env.GMAIL_USER
   const pass = process.env.GMAIL_APP_PASSWORD
-  if (!user || !pass) return
+  const to   = process.env.ADMIN_NOTIFY_EMAIL || user
+  if (!user || !pass) {
+    console.warn('[lead-email] skipped — GMAIL_USER / GMAIL_APP_PASSWORD missing on Vercel')
+    return { ok: false, error: 'GMAIL_USER / GMAIL_APP_PASSWORD missing' }
+  }
 
-  const transporter = nodemailer.createTransport({ service: 'gmail', auth: { user, pass } })
+  // Explicit smtp.gmail.com:465 + secure — `service: 'gmail'` can fail on Vercel
+  // cold-starts. App-password spaces are stripped (Google shows them with spaces).
+  const transporter = nodemailer.createTransport({
+    host:   'smtp.gmail.com',
+    port:   465,
+    secure: true,
+    auth:   { user, pass: pass.replace(/\s+/g, '') },
+  })
   const ts = new Date().toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 
-  await transporter.sendMail({
-    from:    `"אפיק הנחל CRM" <${user}>`,
-    to:      user,
-    subject: `🔔 ליד חדש: ${lead.name || lead.phone || 'אנונימי'} — אפיק הנחל`,
-    html:    buildLeadEmailHtml({
-      name:      lead.name,
-      phone:     lead.phone,
-      email:     lead.email,
-      message:   lead.msg || lead.message,
-      propTitle: lead.propTitle || lead.prop_title,
-      source:    lead.source,
-      ts,
-    }),
-  })
+  try {
+    const info = await transporter.sendMail({
+      from:    `"אפיק הנחל CRM" <${user}>`,
+      to,
+      subject: `🔔 ליד חדש: ${lead.name || lead.phone || 'אנונימי'} — אפיק הנחל`,
+      html:    buildLeadEmailHtml({
+        name:      lead.name,
+        phone:     lead.phone,
+        email:     lead.email,
+        message:   lead.msg || lead.message,
+        propTitle: lead.propTitle || lead.prop_title,
+        source:    lead.source,
+        ts,
+      }),
+    })
+    console.log(`[lead-email] ✓ sent to ${to}, messageId: ${info.messageId}`)
+    return { ok: true, messageId: info.messageId }
+  } catch (e) {
+    console.error(`[lead-email] failed sending to ${to}: ${e.message}`)
+    return { ok: false, error: e.message }
+  }
 }
 
 // ── Handler ───────────────────────────────────────────────────────────────────
@@ -342,11 +364,37 @@ export default async function handler(req, res) {
         source:       b.source       || 'website',
         crm_data:     {},
       }
+      console.log(`[new-lead] ${row.name || '—'} | ${row.phone || '—'} | source=${row.source}`)
       const inserted = await insertContact(row)
-      // Fire all notifications in parallel, never block the response.
-      sendLeadEmail(b).catch(e => console.error('[lead-email]', e.message))
-      sendLeadAutoReply(row).catch(e => console.error('[lead-autoreply]', e.message))
-      notifyAdmin(row).catch(e => console.error('[admin-notify]', e.message))
+
+      // Fire all 3 notifications in parallel: email to Afik, WA to Afik, WA-reply to lead.
+      // MUST be awaited — Vercel serverless kills the function as soon as the response
+      // is flushed, so a bare .catch() drops promises mid-flight. Hard 12s cap; if any
+      // call stalls past that we still respond and let it finish in the background
+      // (function maxDuration is 30s, so there is room for late completion).
+      const labels = ['lead-email', 'admin-wa', 'lead-autoreply']
+      const work = Promise.allSettled([
+        sendLeadEmail(b),
+        notifyAdmin(row),
+        sendLeadAutoReply(row),
+      ])
+      const results = await Promise.race([
+        work,
+        new Promise(resolve => setTimeout(() => resolve(null), 12000)),
+      ])
+      if (results) {
+        results.forEach((r, i) => {
+          if (r.status === 'rejected')          console.error(`[${labels[i]}] crashed:`, r.reason?.message || r.reason)
+          else if (r.value && r.value.ok === false) console.error(`[${labels[i]}] failed:`, r.value.error)
+        })
+      } else {
+        console.warn('[new-lead] notifications past 12s cap — completing in background')
+        work.then(rs => rs.forEach((r, i) => {
+          if (r.status === 'rejected')          console.error(`[${labels[i]}] late-crash:`, r.reason?.message || r.reason)
+          else if (r.value && r.value.ok === false) console.error(`[${labels[i]}] late-fail:`, r.value.error)
+        })).catch(() => {})
+      }
+
       return res.status(201).json(inserted || row)
     }
 

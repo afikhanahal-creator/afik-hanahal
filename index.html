@@ -9,6 +9,13 @@
       html { opacity: 0; transition: opacity .2s ease; scroll-behavior: smooth }
       body { background: #09090F; margin: 0; -webkit-overflow-scrolling: touch }
 
+      /* Pulsing red badge on the LEAD CENTER button when new leads arrived */
+      @keyframes meta-lead-badge-pulse {
+        0%   { box-shadow: 0 2px 8px rgba(224,82,82,.55), 0 0 0 2px rgba(14,14,28,.95), 0 0 0 0 rgba(224,82,82,.7); }
+        70%  { box-shadow: 0 2px 8px rgba(224,82,82,.55), 0 0 0 2px rgba(14,14,28,.95), 0 0 0 12px rgba(224,82,82,0); }
+        100% { box-shadow: 0 2px 8px rgba(224,82,82,.55), 0 0 0 2px rgba(14,14,28,.95), 0 0 0 0 rgba(224,82,82,0); }
+      }
+
       /* ── Admin-wide scroll behaviour ──────────────────────────────────────
          Applies smooth + touch-momentum + contained overscroll to every
          scrollable container inside the admin shell, plus the dedicated

@@ -262,6 +262,11 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
   const [campaignDropOpen, setCampaignDropOpen] = useState(false)
   const [sortOrder, setSortOrder]               = useState('desc') // 'desc' = newest first
   const [metaView, setMetaView]                 = useState('pipeline') // 'chat' | 'pipeline' | 'table' — default to Kanban
+  // "Last time the user opened the Lead Center" — used to badge new leads on the toggle button.
+  const [lastVisitTs, setLastVisitTs] = useState(() => {
+    try { return Number(localStorage.getItem('meta_chat_last_visit_v1')) || Date.now() }
+    catch { return Date.now() }
+  })
 
   const messagesEndRef        = useRef(null)
   const leadsIntervalRef      = useRef(null)
@@ -678,6 +683,22 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
   // sub-toggle lives inside MetaKanban — no need to duplicate it here.
   const inChat = metaView === 'chat'
 
+  // Red badge: count leads that landed AFTER the user's last visit to the Lead
+  // Center. Cleared the moment Afik clicks the button to enter the chat view.
+  const unreadCount = inChat ? 0 : leads.reduce((n, l) => {
+    const t = new Date(l.created_at).getTime()
+    return Number.isFinite(t) && t > lastVisitTs ? n + 1 : n
+  }, 0)
+
+  function handleViewToggle() {
+    if (!inChat) {
+      const now = Date.now()
+      setLastVisitTs(now)
+      try { localStorage.setItem('meta_chat_last_visit_v1', String(now)) } catch {}
+    }
+    setMetaView(inChat ? 'pipeline' : 'chat')
+  }
+
   return (
     <div style={{
       display: 'flex',
@@ -703,8 +724,9 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
       }}>
         <button
           type="button"
-          onClick={() => setMetaView(inChat ? 'pipeline' : 'chat')}
+          onClick={handleViewToggle}
           style={{
+            position: 'relative',
             display: 'flex', alignItems: 'center', gap: 8,
             padding: '8px 18px',
             borderRadius: 9,
@@ -732,6 +754,34 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
             </svg>
           )}
           {inChat ? (lang === 'en' ? 'Pipeline' : 'Pipeline') : 'LEAD CENTER'}
+          {unreadCount > 0 && (
+            <span
+              aria-label={lang === 'en' ? `${unreadCount} new leads` : `${unreadCount} לידים חדשים`}
+              title={lang === 'en' ? `${unreadCount} new since last visit` : `${unreadCount} לידים חדשים מהפעם האחרונה`}
+              style={{
+                position: 'absolute',
+                top: -8,
+                left: -8,
+                minWidth: 22,
+                height: 22,
+                padding: '0 7px',
+                borderRadius: 999,
+                background: 'linear-gradient(135deg, #E05252 0%, #C8392E 100%)',
+                color: '#fff',
+                fontSize: 11,
+                fontWeight: 800,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: '0 2px 8px rgba(224,82,82,.55), 0 0 0 2px rgba(14,14,28,.95)',
+                lineHeight: 1,
+                fontFamily: 'inherit',
+                letterSpacing: 0,
+                animation: 'meta-lead-badge-pulse 1.6s ease-out infinite',
+                pointerEvents: 'none',
+              }}
+            >
+              {unreadCount > 99 ? '99+' : unreadCount}
+            </span>
+          )}
         </button>
       </div>
 

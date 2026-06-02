@@ -23,7 +23,7 @@
     "api/properties.js":      { "maxDuration": 15 },
     "api/properties/bulk.js": { "maxDuration": 20 },
     "api/ai/messages.js":     { "maxDuration": 30 },
-    "api/contacts.js":        { "maxDuration": 15 },
+    "api/contacts.js":        { "maxDuration": 30 },
     "api/meta.js":            { "maxDuration": 30 }
   },
   "rewrites": [
