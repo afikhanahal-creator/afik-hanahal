@@ -621,10 +621,46 @@ async function handleChat(req, res, action) {
 // ── Supermetrics proxy ────────────────────────────────────────────────────────
 // Merged here (instead of a separate file) to stay within Vercel Hobby 12-function limit.
 
+// Per-source query config. fields are EXACT Supermetrics field IDs from
+// field_discovery — case-sensitive. The Date column must come first so the
+// frontend's per-day chart picks it up.
 const SM_SOURCES = {
-  fa:   { label: 'Facebook Ads',       ds_id: 'FA',   ds_accounts: 'list.all_accounts', ds_user: '3729529637187426' },
-  gawa: { label: 'Google Analytics',   ds_id: 'GAWA', ds_accounts: 'list.all_accounts', ds_user: 'afik.hanahal@gmail.com' },
-  igi:  { label: 'Instagram Insights', ds_id: 'IGI',  ds_accounts: '17841445211723833', ds_user: '3729535990520124' },
+  fa: {
+    label:       'Facebook Ads',
+    ds_id:       'FA',
+    ds_accounts: 'list.all_accounts',
+    ds_user:     '3729529637187426',
+    fields:      'Date,impressions,reach,Clicks,cost,CTR,CPC,CPM',
+  },
+  gawa: {
+    label:       'Google Analytics',
+    ds_id:       'GAWA',
+    ds_accounts: 'list.all_accounts',
+    ds_user:     'afik.hanahal@gmail.com',
+    fields:      'date,sessions,totalUsers,newUsers,screenPageViews,bounceRate,averageSessionDuration,conversions',
+  },
+  igi: {
+    label:       'Instagram Insights',
+    ds_id:       'IGI',
+    ds_accounts: '17841445211723833',
+    ds_user:     '3729535990520124',
+    fields:      'date,reach,follower_count',
+  },
+}
+
+// Recursively coerce Supermetrics' nested error object into a human-readable string.
+// Their API returns shapes like { error: { code, message, description } } or
+// { meta: { error: '...' } } — the frontend was getting "[object Object]"
+// because we were forwarding the whole object.
+function flattenError(payload, status) {
+  const e = payload?.error ?? payload?.meta?.error ?? payload?.message
+  if (!e) return `HTTP ${status}`
+  if (typeof e === 'string') return e
+  if (typeof e === 'object') {
+    // Supermetrics shapes: { code, message, description }
+    return e.description || e.message || e.code || JSON.stringify(e).slice(0, 300)
+  }
+  return String(e)
 }
 
 async function handleSupermetrics(req, res) {
@@ -638,19 +674,25 @@ async function handleSupermetrics(req, res) {
   if (!cfg) return res.status(400).json({ error: `Unknown source: ${source}. Use fa, gawa, or igi.` })
 
   const query = {
-    ds_id: cfg.ds_id, ds_accounts: cfg.ds_accounts, ds_user: cfg.ds_user,
-    date_range_type: range, max_rows: 1000, api_key: SUPERMETRICS_API_KEY,
+    ds_id:           cfg.ds_id,
+    ds_accounts:     cfg.ds_accounts,
+    ds_user:         cfg.ds_user,
+    date_range_type: range,
+    fields:          cfg.fields,
+    max_rows:        1000,
+    api_key:         SUPERMETRICS_API_KEY,
   }
   try {
     const url  = `https://api.supermetrics.com/enterprise/v2/query/data/json?json=${encodeURIComponent(JSON.stringify(query))}`
-    console.log('[supermetrics] querying', source, range)
+    console.log(`[supermetrics] querying ${source} (${range}) with fields: ${cfg.fields}`)
     const r    = await fetch(url, { signal: AbortSignal.timeout(30000) })
     const text = await r.text()
     let body; try { body = JSON.parse(text) } catch { body = {} }
-    console.log('[supermetrics] HTTP', r.status, '| rows:', body?.data?.rows?.length ?? '?')
-    if (!r.ok || body?.meta?.error) {
-      const msg = body?.meta?.error || body?.message || body?.error || `HTTP ${r.status}: ${text.slice(0, 200)}`
-      return res.status(502).json({ error: msg })
+    console.log(`[supermetrics] HTTP ${r.status} | rows: ${body?.data?.rows?.length ?? '?'}`)
+    if (!r.ok || body?.error || body?.meta?.error) {
+      const msg = flattenError(body, r.status)
+      console.error(`[supermetrics] ${source} failed: ${msg}`)
+      return res.status(502).json({ error: msg, source, status: r.status })
     }
     return res.status(200).json({
       source, range, label: cfg.label,
@@ -659,8 +701,8 @@ async function handleSupermetrics(req, res) {
       meta:    body?.meta          || {},
     })
   } catch (e) {
-    console.error('[supermetrics]', e.message)
-    return res.status(502).json({ error: e.message || 'Supermetrics request failed' })
+    console.error(`[supermetrics] ${source} exception: ${e.message}`)
+    return res.status(502).json({ error: e.message || 'Supermetrics request failed', source })
   }
 }
 

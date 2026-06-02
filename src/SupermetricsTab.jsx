@@ -330,11 +330,21 @@ export default function SupermetricsTab({ C = DARK_C, lang = 'he' }) {
         headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
         signal: ctrl.signal,
       })
-      const body = await res.json()
-      if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`)
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        // body.error may be a string or a nested object (Supermetrics returns
+        // {code, message, description}). Coerce to a real string so we never
+        // render the literal "[object Object]" in the error panel again.
+        const raw = body?.error
+        let msg
+        if (typeof raw === 'string') msg = raw
+        else if (raw && typeof raw === 'object') msg = raw.description || raw.message || raw.code || JSON.stringify(raw).slice(0, 300)
+        else msg = `HTTP ${res.status}`
+        throw new Error(msg)
+      }
       setCache(prev => ({ ...prev, [key]: { headers: body.headers || [], rows: body.rows || [], ts: Date.now() } }))
     } catch (e) {
-      if (e.name !== 'AbortError') setError(e.message)
+      if (e.name !== 'AbortError') setError(typeof e.message === 'string' ? e.message : String(e))
     } finally {
       setLoading(false)
     }
