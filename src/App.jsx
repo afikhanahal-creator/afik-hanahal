@@ -943,7 +943,7 @@ const makeGlobal = (C, isDark) => `
   }
 
   /* ── Scrollbar on right for admin panel (ltr outer = scrollbar right, content restored via > *) ── */
-  .admin-content { direction: ltr !important; position: relative; }
+  .admin-content { direction: ltr !important; position: relative; -webkit-overflow-scrolling: touch !important; overscroll-behavior: contain; }
   .admin-content > * { direction: rtl; }
   .admin-panel-modal { direction: ltr !important; }
   .admin-panel-modal > * { direction: rtl; }
@@ -4816,7 +4816,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
         ? { flex:1, display:'flex', flexDirection:'column', height:'100dvh', overflow:'hidden' }
         : (tab==='chats'||tab==='leads'||tab==='meta')
           ? { background:C.card, border:`1px solid ${C.purple}33`, borderRadius:16, padding:0, width:'100%', maxWidth:'98vw', height:'94vh', overflow:'hidden', direction:'rtl', boxShadow:'0 32px 80px rgba(0,0,0,.7)', display:'flex', flexDirection:'column' }
-          : { background:C.card, border:`1px solid ${C.purple}33`, borderRadius:16, padding:28, width:'100%', maxWidth:1200, maxHeight:'94vh', overflowY:'auto', direction:'rtl', boxShadow:'0 32px 80px rgba(0,0,0,.7)' }}>
+          : { background:C.card, border:`1px solid ${C.purple}33`, borderRadius:16, padding:'28px 28px 0', width:'100%', maxWidth:1200, height:'94vh', overflow:'hidden', direction:'rtl', boxShadow:'0 32px 80px rgba(0,0,0,.7)', display:'flex', flexDirection:'column' }}>
 
         {/* ── MOBILE TOP BAR — inside main pane ──────────────────────── */}
         {standalone && (
@@ -4910,7 +4910,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
 
         {/* Supabase health warning banner */}
         {supabaseWarning && (
-          <div style={{ background:'rgba(224,82,82,.12)', border:'1px solid rgba(224,82,82,.35)', borderRadius:10, padding:'10px 16px', marginBottom:16, display:'flex', alignItems:'center', gap:10, direction:'rtl' }}>
+          <div style={{ background:'rgba(224,82,82,.12)', border:'1px solid rgba(224,82,82,.35)', borderRadius:10, padding:'10px 16px', marginBottom:16, display:'flex', alignItems:'center', gap:10, direction:'rtl', flexShrink:0 }}>
             <FaExclamationTriangle size={15} style={{ color:'#E05252', flexShrink:0 }}/>
             <span style={{ fontSize:13, color:'#E05252', fontWeight:600 }}>{supabaseWarning}</span>
             <button onClick={() => setSupabaseWarning('')} style={{ marginRight:'auto', background:'none', border:'none', color:'rgba(224,82,82,.6)', cursor:'pointer', fontSize:16, lineHeight:1, padding:'0 4px' }}>×</button>
@@ -4919,7 +4919,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
 
         {/* Push notification permission banner */}
         {!notifBannerDismissed && notifPerm === 'default' && (
-          <div style={{ background:'rgba(247,201,72,.09)', border:'1px solid rgba(247,201,72,.35)', borderRadius:10, padding:'10px 16px', marginBottom:16, display:'flex', alignItems:'center', gap:10, direction:'rtl', flexWrap:'wrap' }}>
+          <div style={{ background:'rgba(247,201,72,.09)', border:'1px solid rgba(247,201,72,.35)', borderRadius:10, padding:'10px 16px', marginBottom:16, display:'flex', alignItems:'center', gap:10, direction:'rtl', flexWrap:'wrap', flexShrink:0 }}>
             <span style={{ fontSize:18, flexShrink:0 }}>🔔</span>
             <div style={{ flex:1, minWidth:0 }}>
               <div style={{ fontSize:13, fontWeight:700, color:'#F7C948' }}>הפעל התראות דחיפה</div>
@@ -4935,7 +4935,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
           </div>
         )}
         {!notifBannerDismissed && notifPerm === 'denied' && (
-          <div style={{ background:'rgba(156,163,175,.07)', border:'1px solid rgba(156,163,175,.25)', borderRadius:10, padding:'10px 16px', marginBottom:16, display:'flex', alignItems:'center', gap:10, direction:'rtl', flexWrap:'wrap' }}>
+          <div style={{ background:'rgba(156,163,175,.07)', border:'1px solid rgba(156,163,175,.25)', borderRadius:10, padding:'10px 16px', marginBottom:16, display:'flex', alignItems:'center', gap:10, direction:'rtl', flexWrap:'wrap', flexShrink:0 }}>
             <span style={{ fontSize:18, flexShrink:0 }}>🔕</span>
             <div style={{ flex:1, minWidth:0 }}>
               <div style={{ fontSize:13, fontWeight:700, color:'rgba(232,228,216,.7)' }}>התראות חסומות בדפדפן</div>
@@ -4966,7 +4966,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
         )}
 
         {/* ── Scrollable content ─────────────────────────────────────── */}
-        <div className="admin-content" style={(tab==='chats'||tab==='leads'||tab==='meta') ? { flex:1, minHeight:0, overflow:'hidden', position:'relative' } : standalone ? { flex:1, overflowY:'auto', scrollBehavior:'smooth', padding:'22px 26px 32px', direction:'rtl' } : { padding:'22px 26px 32px', direction:'rtl', overflowY:'auto', scrollBehavior:'smooth' }}>
+        <div className="admin-content" style={(tab==='chats'||tab==='leads'||tab==='meta') ? { flex:1, minHeight:0, overflow:'hidden', position:'relative' } : { flex:1, minHeight:0, overflowY:'auto', WebkitOverflowScrolling:'touch', overscrollBehavior:'contain', scrollBehavior:'smooth', padding:'22px 26px 32px', direction:'rtl' }}>
 
         {/* Overview tab — standalone only */}
         {tab==='overview' && standalone && (<>
