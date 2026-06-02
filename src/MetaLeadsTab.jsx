@@ -194,7 +194,10 @@ async function fetchLeads() {
   const res = await fetch(`/api/meta/leads`, {
     headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
   })
-  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(`HTTP ${res.status}${body.error ? ': ' + body.error : ''}`)
+  }
   const data = await res.json()
   return data.leads || []
 }

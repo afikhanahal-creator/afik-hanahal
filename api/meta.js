@@ -338,7 +338,8 @@ async function handleLeads(req, res) {
 
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' })
   if (!checkAuth(req))      return res.status(401).json({ error: 'Unauthorized' })
-  if (!SUPABASE_URL)        return res.status(500).json({ error: 'Supabase not configured' })
+  if (!SUPABASE_URL)        return res.status(500).json({ error: 'SUPABASE_URL not configured in Vercel env vars' })
+  if (!SUPABASE_KEY)        return res.status(500).json({ error: 'SUPABASE_SERVICE_KEY / SUPABASE_ANON_KEY not configured in Vercel env vars' })
 
   const client   = sb()
   const showDel  = req.query.deleted === '1'  // ?deleted=1 → archived leads only
@@ -351,7 +352,14 @@ async function handleLeads(req, res) {
   }
 
   const { data: leads, error } = await query
-  if (error) return res.status(500).json({ error: error.message })
+  if (error) {
+    const msg = error.message || ''
+    // Guide the user if the table simply doesn't exist yet
+    if (msg.includes('does not exist') || msg.includes('relation')) {
+      return res.status(500).json({ error: 'טבלת meta_leads לא קיימת — הרץ את ה-SQL ב-Supabase (ראה הוראות)' })
+    }
+    return res.status(500).json({ error: msg })
+  }
   if (!leads?.length) return res.status(200).json({ leads: [] })
 
   const { data: msgs } = await client.from('meta_messages').select('lead_id').in('lead_id', leads.map(l => l.id))
