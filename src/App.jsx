@@ -6,6 +6,7 @@ import GovMapWidget, { LAYERS_DEF as GM_LAYERS, BG_OPTIONS as GM_BG_OPTIONS, LAY
 import RealEstateCalc from './RealEstateCalc.jsx'
 import { AnimatePresence, motion } from 'framer-motion'
 import PropertyWizard, { propertyToWizardData } from './PropertyWizard.jsx'
+import { supabase } from './lib/supabaseClient'
 // Retry lazy import once on chunk-load failure (stale CDN cache after deploy)
 function lazyWithRetry(fn) {
   return lazy(() => fn().catch(() => {
@@ -23,8 +24,11 @@ import { FaChevronLeft, FaChevronRight, FaEnvelope, FaFacebookF, FaInstagram, Fa
 
 // ─── SERVER CONFIG ────────────────────────────────────────────────────────────
 // Set VITE_API_URL in Vercel env vars to point at your Render server.
-const API_BASE    = (import.meta.env.VITE_API_URL || 'https://afik-hanahal-server.onrender.com').replace(/\/$/, '')
-const ADMIN_TOKEN = 'AFIKhanahal2026'
+const API_BASE     = (import.meta.env.VITE_API_URL || 'https://afik-hanahal-server.onrender.com').replace(/\/$/, '')
+// In production, contacts CRUD goes through Vercel → Supabase (never sleeps).
+// In dev, fall back to the Render server so local testing still works.
+const CONTACTS_API = import.meta.env.PROD ? '' : API_BASE
+const ADMIN_TOKEN  = 'AFIKhanahal2026'
 
 // ─── THEME COLOURS ────────────────────────────────────────────────────────────
 const DARK_C  = { bg:'#09090F', purple:'#8490D8', green:'#82F67F', cream:'#E8E4D8', card:'#0E0E1C' }
@@ -253,9 +257,48 @@ const makeGlobal = (C, isDark) => `
   @media (prefers-reduced-motion: no-preference) {
     html { scroll-behavior:smooth; }
   }
-  ::-webkit-scrollbar { width:5px; }
-  ::-webkit-scrollbar-track { background:${C.bg}; }
-  ::-webkit-scrollbar-thumb { background:${C.purple}55; border-radius:4px; }
+  /* ── Global scrollbars ── */
+  ::-webkit-scrollbar { width:6px; height:6px; }
+  ::-webkit-scrollbar-track { background:transparent; }
+  ::-webkit-scrollbar-thumb { background:${C.purple}44; border-radius:4px; }
+  ::-webkit-scrollbar-thumb:hover { background:${C.purple}88; }
+  ::-webkit-scrollbar-corner { background:transparent; }
+
+  /* ── Admin panel always-dark surfaces ── */
+  .admin-board-dark { background:#0D1117 !important; color:#E2E8F8 !important; }
+  .admin-board-dark ::-webkit-scrollbar-thumb { background:rgba(100,120,200,.35) !important; }
+  .admin-board-dark ::-webkit-scrollbar-thumb:hover { background:rgba(100,120,200,.6) !important; }
+
+  /* ── Kanban board horizontal scroll ── */
+  .kanban-board-scroll {
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(100,120,200,.3) transparent;
+    -webkit-overflow-scrolling: touch;
+  }
+  .kanban-board-scroll::-webkit-scrollbar { height: 7px; }
+  .kanban-board-scroll::-webkit-scrollbar-thumb { background: rgba(100,120,200,.3); border-radius: 4px; }
+  .kanban-board-scroll::-webkit-scrollbar-track { background: transparent; }
+
+  /* ── Kanban column vertical scroll ── */
+  .kanban-col-scroll {
+    overflow-y: auto !important;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(100,120,200,.2) transparent;
+    -webkit-overflow-scrolling: touch;
+  }
+  .kanban-col-scroll::-webkit-scrollbar { width: 4px; }
+  .kanban-col-scroll::-webkit-scrollbar-thumb { background: rgba(100,120,200,.25); border-radius: 3px; }
+
+  /* ── Table horizontal scroll ── */
+  .leads-table-scroll {
+    overflow-x: auto !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(100,120,200,.25) transparent;
+  }
 
   /* ── Core animations ── */
   @keyframes fadeUp      { from{opacity:0;transform:translateY(32px)} to{opacity:1;transform:translateY(0)} }
@@ -540,6 +583,10 @@ const makeGlobal = (C, isDark) => `
     .svc-bento > * { grid-column:span 1 !important; }
     .nav-phone       { display:none !important; }
     .nav-social-hide { display:none !important; }
+    /* Contact cards on the "פנה אלינו עכשיו" panel: center icon + text as a balanced group */
+    .contact-card-row { justify-content:center !important; gap:18px !important; }
+    .contact-card-text { flex:0 1 auto !important; text-align:center !important; }
+    .contact-card-text > div { text-align:center !important; }
     .testi-card-wrap { flex-direction:column !important; min-height:0 !important; }
     .testi-txt-col   { order:1 !important; padding:12px 14px 8px !important; gap:5px !important; justify-content:flex-start !important; }
     .testi-img-col   { order:2 !important; width:100% !important; height:clamp(180px,30vh,300px) !important; background:#06040f !important; border-top:1px solid rgba(132,144,216,.15) !important; }
@@ -896,7 +943,7 @@ const makeGlobal = (C, isDark) => `
   }
 
   /* ── Scrollbar on right for admin panel (ltr outer = scrollbar right, content restored via > *) ── */
-  .admin-content { direction: ltr !important; }
+  .admin-content { direction: ltr !important; position: relative; }
   .admin-content > * { direction: rtl; }
   .admin-panel-modal { direction: ltr !important; }
   .admin-panel-modal > * { direction: rtl; }
@@ -2012,21 +2059,39 @@ function ServicesSection({ onContact }) {
 }
 
 // ─── CONTACT MODAL ────────────────────────────────────────────────────────────
-const LEADS_STORE      = 'afik_leads_v1'
-const LEADS_TRASH_KEY  = 'afik_leads_trash_v1'
-const KPI_HEIGHT_KEY   = 'afik_kpi_panel_height'
-const DELETED_IDS_KEY  = 'afik_deleted_lead_ids'
-const getDeletedIds    = () => { try { return new Set(JSON.parse(localStorage.getItem(DELETED_IDS_KEY) || '[]')) } catch { return new Set() } }
-const persistDeletedId = id => { try { const s = getDeletedIds(); s.add(String(id)); localStorage.setItem(DELETED_IDS_KEY, JSON.stringify([...s])) } catch {} }
-const clearDeletedId   = id => { try { const s = getDeletedIds(); s.delete(String(id)); localStorage.setItem(DELETED_IDS_KEY, JSON.stringify([...s])) } catch {} }
-const clearAllDeletedIds = ()  => { try { localStorage.removeItem(DELETED_IDS_KEY) } catch {} }
+const LEADS_STORE    = 'afik_leads_v1'
+const LEADS_DELETED  = 'afik_leads_deleted_v1'
+const LEADS_TRASH    = 'afik_leads_trash_v1'
 const WA_KEY         = 'afik_wa_settings'
 const ANALYTICS_KEY  = 'afik_analytics_v2'
 const WA_DEFAULT_TEMPLATE = `היי {name} 👋
+תודה שהשארת פרטים!
+ראינו את הפנייה שלך
+
+מתי נוח לך לדבר? נשמח לתאם שיחה
+
+צוות אפיק הנחל`
+
+// One-time migration: if the saved WA template still equals the OLD pre-2026
+// default (which said "תודה שפנית לאפיק הנחל" and had no "צוות אפיק הנחל"
+// signature), upgrade it to the new WA_DEFAULT_TEMPLATE. Any user-customized
+// template is left untouched. Runs once per browser.
+const _WA_OLD_DEFAULT = `היי {name} 👋
 תודה שפנית לאפיק הנחל!
 ראינו את הפנייה שלך
 
 מתי נוח לך לדבר? נשמח לתאם שיחה`
+try {
+  const _waMigKey = 'afik_wa_template_v2'
+  if (!localStorage.getItem(_waMigKey)) {
+    const _saved = JSON.parse(localStorage.getItem(WA_KEY) || '{}')
+    const _tpl = (_saved.template || '').trim()
+    if (!_tpl || _tpl === _WA_OLD_DEFAULT.trim()) {
+      localStorage.setItem(WA_KEY, JSON.stringify({ ..._saved, template: WA_DEFAULT_TEMPLATE }))
+    }
+    localStorage.setItem(_waMigKey, '1')
+  }
+} catch {}
 
 function _getDevice() {
   const ua = navigator.userAgent
@@ -2190,13 +2255,11 @@ function ContactModal({ prop, onClose }) {
               const wh = _cloudSettings.crmWebhook || localStorage.getItem('afik_crm_webhook')
               if (wh) fetch(wh, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(lead) }).catch(()=>{})
             } catch {}
-            if (API_BASE) {
-              fetch(`${API_BASE}/api/contacts`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(lead),
-              }).catch(() => {})
-            }
+            fetch(`${CONTACTS_API}/api/contacts`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(lead),
+            }).catch(() => {})
             trackEvent('contact_form', { propTitle: prop?.title || '', hasEmail: !!form.email, email: form.email, phone: form.phone, name: form.name })
             setSent(true)
             setSending(false)
@@ -3646,7 +3709,10 @@ function AdminTabLoader({ label = 'טוען...' }) {
 }
 
 function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSharon, govmapToken, setGovmapToken, onClose, onEditInWizard, standalone = false }) {
-  const { C, isDark, lang, logoNavSize, setLogoNavSize } = useTheme()
+  const { lang, logoNavSize, setLogoNavSize } = useTheme()
+  // Admin panel is ALWAYS dark regardless of site theme
+  const isDark = true
+  const C      = DARK_C
   const initForm = () => {
     try { const d = JSON.parse(localStorage.getItem(ADMIN_DRAFT_KEY)); if (d) return { ...EMPTY_PROP, ...d } } catch {}
     return EMPTY_PROP
@@ -3669,6 +3735,22 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const [propSyncedAt,   setPropSyncedAt]   = useState(null)
   const [supabaseWarning, setSupabaseWarning] = useState('')
 
+  const [tokenSaved, setTokenSaved]         = useState(false)
+  const [settingsAllSaved, setSettingsAllSaved] = useState(false)
+  const tokenSaveTimer   = useRef(null)
+  const settingsSaveTimer = useRef(null)
+
+  function saveAllSettings() {
+    // Explicitly flush all settings to localStorage
+    localStorage.setItem('govmap_token', govmapToken)
+    localStorage.setItem('logoNavSize',  String(logoNavSize))
+    localStorage.setItem('govmap_default_layers', JSON.stringify(gmLayers))
+    localStorage.setItem('govmap_default_bg', gmBg)
+    setSettingsAllSaved(true)
+    clearTimeout(settingsSaveTimer.current)
+    settingsSaveTimer.current = setTimeout(() => setSettingsAllSaved(false), 3000)
+  }
+
   // GovMap management panel state
   const [gmTab,    setGmTab]    = useState('map')   // 'map' | 'layers' | 'bg'
   const [gmLayers, setGmLayers] = useState(() => {
@@ -3676,10 +3758,9 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     if (d && typeof d === 'object') return Object.fromEntries(GM_LAYERS.map(l => [l.id, d[l.id] ?? l.on]))
     return Object.fromEntries(GM_LAYERS.map(l => [l.id, l.on]))
   })
-  const [gmBg,    setGmBg]    = useState(() => _cloudSettings.gmBg || '2')
+  const [gmBg,    setGmBg]    = useState(() => localStorage.getItem('govmap_default_bg') || '0')
   const [gmSaved, setGmSaved] = useState(false)
   const [tokenDraft,   setTokenDraft]   = useState(govmapToken)
-  const [tokenSaved,   setTokenSaved]   = useState(false)
   const [tokenSaving,  setTokenSaving]  = useState(false)
   const [tokenError,   setTokenError]   = useState('')
   // Sync tokenDraft if govmapToken arrives from API after AdminPanel is already open
@@ -3776,14 +3857,9 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
       setCountersSaving(false)
     }
   }
-  const [leads, setLeads]   = useState(() => { try { return JSON.parse(localStorage.getItem(LEADS_STORE) || '[]') } catch { return [] } })
-  const [deletedLeads, setDeletedLeads] = useState(() => { try { return JSON.parse(localStorage.getItem(LEADS_TRASH_KEY) || '[]') } catch { return [] } })
-  const [showTrash, setShowTrash] = useState(false)
-  const [kpiHeight, setKpiHeight] = useState(() => { try { const v = localStorage.getItem(KPI_HEIGHT_KEY); return v !== null ? Number(v) : null } catch { return null } })
-  const kpiDragRef = useRef(null)
-  const kpiDragState = useRef(null)
-  const [viewW, setViewW] = useState(() => window.innerWidth)
-  const [crmWebhook, setCrmWebhook] = useState(() => _cloudSettings.crmWebhook || '')
+  const [leads, setLeads]           = useState(() => { try { return JSON.parse(localStorage.getItem(LEADS_STORE) || '[]') } catch { return [] } })
+  const [trashedLeads, setTrashedLeads] = useState(() => { try { return JSON.parse(localStorage.getItem(LEADS_TRASH) || '[]') } catch { return [] } })
+  const [crmWebhook, setCrmWebhook] = useState(() => localStorage.getItem('afik_crm_webhook') || '')
   const [webhookSaved, setWebhookSaved] = useState(false)
   const [waSt, setWaSt] = useState(() => ({ provider:'greenapi', delayMin:2, template:WA_DEFAULT_TEMPLATE, instanceId:'7107558519', apiUrl:'https://7107.api.greenapi.com', token:'191b9e9c4fc540f1ad25c8607389c0d689d15794f8094a0589', enabled:true, ...(_cloudSettings.waSettings || {}) }))
   const [waSaved, setWaSaved] = useState(false)
@@ -3797,6 +3873,9 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const [shareCopied, setShareCopied] = useState(false)
   const [leadsSyncing, setLeadsSyncing] = useState(false)
   const [chats, setChats] = useState({})
+  const [chatsUnread, setChatsUnread] = useState(0)   // total unread WhatsApp msgs (for tab badge)
+  const appLoadRef = useRef(Date.now())               // baseline so old history isn't flagged
+  const chatsRef = useRef({})                         // latest chats for on-demand recompute
   const [chatInput, setChatInput] = useState('')
   const [chatSending, setChatSending] = useState(false)
   const [chatContact, setChatContact] = useState(null)
@@ -3889,54 +3968,34 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   }
 
   const syncLeadsFromServer = () => {
-    const base = API_BASE || ''
-    if (!base || leadsSyncing) return
+    if (leadsSyncing) return
     setLeadsSyncing(true)
-    fetch(`${base}/api/contacts`, { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` } })
+    fetch(`${CONTACTS_API}/api/contacts`, { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` } })
       .then(r => r.ok ? r.json() : Promise.reject())
       .then(serverLeads => {
         if (!Array.isArray(serverLeads)) return
-
-        // Retry any deletes that failed when Render was sleeping
-        const deletedIds = getDeletedIds()
-        deletedIds.forEach(id => {
-          if (serverLeads.some(s => String(s.id) === id)) {
-            fetch(`${base}/api/contacts/${id}`, {
-              method: 'DELETE', headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
-            }).then(r => { if (r.ok) clearDeletedId(id) }).catch(() => {})
-          } else {
-            clearDeletedId(id) // already gone from server
-          }
-        })
-
+        const deletedIds = new Set(
+          JSON.parse(localStorage.getItem(LEADS_DELETED) || '[]').map(String)
+        )
         setLeads(prev => {
           const localById = new Map(prev.map(l => [String(l.id), l]))
-          const freshDeletedIds = getDeletedIds()
-          // Never restore leads that are mid-delete OR persisted as deleted across page refreshes
-          const fromServer = serverLeads.filter(s =>
-            !pendingDeletes.current.has(String(s.id)) && !freshDeletedIds.has(String(s.id))
-          ).map(s => {
-            const local = localById.get(String(s.id)) || {}
-            return {
-              id: String(s.id),
-              name: s.name || '',
-              phone: s.phone || '',
-              email: s.email || '',
-              msg: s.message || s.msg || '',
-              propTitle: s.prop_title || '',
-              propLocation: s.prop_location || '',
-              source: s.source || 'website',
-              leadStatus: s.lead_status || local.leadStatus || 'new',
-              ts: new Date(s.created_at || Date.now()).getTime(),
-              // Preserve locally-generated enrichment (AI analysis, etc.)
-              ...(local.enrichment ? { enrichment: local.enrichment } : {}),
-              ...(local.aiScore   ? { aiScore:   local.aiScore   } : {}),
-            }
-          }).sort((a, b) => b.ts - a.ts)
-          // Also include leads that exist only locally (submitted during this session)
-          const serverIds = new Set(serverLeads.map(s => String(s.id)))
-          const localOnly = prev.filter(l => !serverIds.has(String(l.id)))
-          const merged = [...localOnly, ...fromServer].sort((a, b) => b.ts - a.ts)
+          // Pull in leads that exist on server but not locally (and weren't deleted)
+          const newOnes = serverLeads
+            .filter(s => !localById.has(String(s.id)) && !deletedIds.has(String(s.id)))
+            .map(s => ({
+              id:           String(s.id),
+              name:         s.name         || '',
+              phone:        s.phone        || '',
+              email:        s.email        || '',
+              msg:          s.message      || s.msg || '',
+              propTitle:    s.prop_title   || s.propTitle   || '',
+              propLocation: s.prop_location|| s.propLocation|| '',
+              source:       s.source       || 'website',
+              ts:           new Date(s.created_at || Date.now()).getTime(),
+              ...(s.crm_data || {}),   // restore leadStatus, enrichment, notes, tags
+            }))
+          if (newOnes.length === 0) return prev
+          const merged = [...newOnes, ...prev].sort((a, b) => b.ts - a.ts)
           try { localStorage.setItem(LEADS_STORE, JSON.stringify(merged)) } catch {}
           return merged
         })
@@ -4002,6 +4061,49 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
         return next
       })
     } catch {}
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Count unread WhatsApp messages for the tab badge. Mirrors GreenAPIChat:
+  // unread = incoming msgs newer than the last time that chat was opened
+  // (tracked in the shared `wa_last_read` localStorage map). Chats never opened
+  // are baselined to app load so old history isn't flagged.
+  const recomputeChatsUnread = useCallback((chatsObj) => {
+    let lastRead = {}
+    try { lastRead = JSON.parse(localStorage.getItem('wa_last_read') || '{}') } catch {}
+    let n = 0
+    for (const p in chatsObj) {
+      const base = lastRead[p] ? new Date(lastRead[p]).getTime() : appLoadRef.current
+      for (const m of (chatsObj[p] || [])) {
+        if (m.direction === 'in' && new Date(m.created_at).getTime() > base) n++
+      }
+    }
+    setChatsUnread(n)
+  }, [])
+
+  // Recompute whenever the conversation store changes
+  useEffect(() => { chatsRef.current = chats; recomputeChatsUnread(chats) }, [chats, recomputeChatsUnread])
+
+  // Called by GreenAPIChat when a chat is opened/marked read → drop the badge
+  const handleChatsRead = useCallback(() => recomputeChatsUnread(chatsRef.current), [recomputeChatsUnread])
+
+  // Global Realtime: track incoming messages across ALL tabs (not just when the
+  // chats tab is open) so the sidebar badge stays live even while you're elsewhere.
+  useEffect(() => {
+    if (!supabase) return
+    const channel = supabase
+      .channel('chats_rt_app')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chats' }, (payload) => {
+        const msg = payload.new
+        if (!msg?.id || !msg.phone) return
+        const p = intlPhoneFmt(msg.phone)
+        setChats(prev => {
+          const existing = prev[p] || []
+          if (existing.some(m => String(m.id) === String(msg.id))) return prev
+          return { ...prev, [p]: [...existing, msg].sort((a, b) => new Date(a.created_at) - new Date(b.created_at)) }
+        })
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const sendChatMsg = async (lead) => {
@@ -4186,13 +4288,12 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   }
 
   const testEmail = async () => {
-    if (!API_BASE) { setEmailTestResult('err'); return }
     setEmailTesting(true); setEmailTestResult('')
     try {
-      const r = await fetch(`${API_BASE}/api/contacts/test-email`, {
+      const r = await fetch(`/api/contacts?action=test-email`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
-        signal: AbortSignal.timeout(15000),
+        signal: AbortSignal.timeout(20000),
       })
       const j = await r.json()
       setEmailTestResult(j.ok ? 'ok' : 'err')
@@ -4423,14 +4524,11 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
       try { localStorage.setItem(LEADS_STORE, JSON.stringify(next)) } catch {}
       return next
     })
-    // Auto-save lead_status to Supabase immediately
-    if (patch.leadStatus !== undefined && API_BASE) {
-      fetch(`${API_BASE}/api/contacts/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
-        body: JSON.stringify({ lead_status: patch.leadStatus }),
-      }).catch(() => {})
-    }
+    fetch(`${CONTACTS_API}/api/contacts?id=${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+      body: JSON.stringify(patch),
+    }).catch(() => {})
   }
 
   const enrichLead = async (lead) => {
@@ -4501,51 +4599,46 @@ Return ONLY valid JSON (no markdown, no code blocks):
   }
 
   const deleteLead = id => {
-    const sid = String(id)
     const lead = leads.find(l => l.id === id)
-    if (lead) {
-      setDeletedLeads(prev => {
-        const next = [{ ...lead, deletedAt: Date.now() }, ...prev].slice(0, 50)
-        try { localStorage.setItem(LEADS_TRASH_KEY, JSON.stringify(next)) } catch {}
-        return next
-      })
-    }
-    pendingDeletes.current.add(sid)
-    persistDeletedId(sid) // survives page refresh — retry DELETE on next sync
     const next = leads.filter(l => l.id !== id)
     setLeads(next)
     if (selectedLead?.id === id) setSelectedLead(null)
     try { localStorage.setItem(LEADS_STORE, JSON.stringify(next)) } catch {}
-    if (API_BASE) fetch(`${API_BASE}/api/contacts/${id}`, {
-      method: 'DELETE', headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
-    }).then(r => {
-      if (r.ok) { pendingDeletes.current.delete(sid); clearDeletedId(sid) }
-    }).catch(() => {}) // stays in pendingDeletes + localStorage → retried on next sync
-  }
-
-  const restoreLead = id => {
-    const lead = deletedLeads.find(l => l.id === id)
-    if (!lead) return
-    const { deletedAt, ...restored } = lead
-    setLeads(prev => {
-      const next = [restored, ...prev.filter(l => l.id !== id)]
-      try { localStorage.setItem(LEADS_STORE, JSON.stringify(next)) } catch {}
-      return next
-    })
-    setDeletedLeads(prev => {
-      const next = prev.filter(l => l.id !== id)
-      try { localStorage.setItem(LEADS_TRASH_KEY, JSON.stringify(next)) } catch {}
-      return next
-    })
-  }
-
-  const emptyTrash = () => {
-    setDeletedLeads([])
-    try { localStorage.removeItem(LEADS_TRASH_KEY) } catch {}
+    // Track deleted ID to block re-sync from server
+    try {
+      const deleted = new Set(JSON.parse(localStorage.getItem(LEADS_DELETED) || '[]'))
+      deleted.add(String(id))
+      localStorage.setItem(LEADS_DELETED, JSON.stringify([...deleted]))
+    } catch {}
+    // Save full lead to trash for restore
+    if (lead) {
+      try {
+        const trash = JSON.parse(localStorage.getItem(LEADS_TRASH) || '[]')
+        trash.unshift({ ...lead, deletedAt: Date.now() })
+        localStorage.setItem(LEADS_TRASH, JSON.stringify(trash.slice(0, 200)))
+        setTrashedLeads(trash.slice(0, 200))
+      } catch {}
+    }
+    fetch(`${CONTACTS_API}/api/contacts?id=${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
+    }).catch(() => {})
   }
   const clearLeads = () => {
     if (!window.confirm('למחוק את כל הלידים לצמיתות?')) return
-    leads.forEach(l => { pendingDeletes.current.add(String(l.id)); persistDeletedId(String(l.id)) })
+    try {
+      const deleted = new Set(JSON.parse(localStorage.getItem(LEADS_DELETED) || '[]'))
+      leads.forEach(l => deleted.add(String(l.id)))
+      localStorage.setItem(LEADS_DELETED, JSON.stringify([...deleted]))
+    } catch {}
+    // Move all to trash
+    try {
+      const existing = JSON.parse(localStorage.getItem(LEADS_TRASH) || '[]')
+      const now = Date.now()
+      const newTrash = [...leads.map(l => ({ ...l, deletedAt: now })), ...existing].slice(0, 200)
+      localStorage.setItem(LEADS_TRASH, JSON.stringify(newTrash))
+      setTrashedLeads(newTrash)
+    } catch {}
     setLeads([])
     setSelectedLead(null)
     try { localStorage.setItem(LEADS_STORE, '[]') } catch {}
@@ -4553,6 +4646,44 @@ Return ONLY valid JSON (no markdown, no code blocks):
       method: 'DELETE', headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
     }).then(r => { if (r.ok) { pendingDeletes.current.clear(); clearAllDeletedIds() } })
       .catch(() => {})
+  }
+  const restoreLead = id => {
+    try {
+      const trash = JSON.parse(localStorage.getItem(LEADS_TRASH) || '[]')
+      const lead = trash.find(l => String(l.id) === String(id))
+      if (!lead) return
+      // Remove from trash
+      const newTrash = trash.filter(l => String(l.id) !== String(id))
+      localStorage.setItem(LEADS_TRASH, JSON.stringify(newTrash))
+      setTrashedLeads(newTrash)
+      // Remove from deleted set
+      const deleted = new Set(JSON.parse(localStorage.getItem(LEADS_DELETED) || '[]'))
+      deleted.delete(String(id))
+      localStorage.setItem(LEADS_DELETED, JSON.stringify([...deleted]))
+      // Restore to active leads (without deletedAt)
+      // eslint-disable-next-line no-unused-vars
+      const { deletedAt, ...leadData } = lead
+      setLeads(prev => {
+        const next = [leadData, ...prev.filter(l => String(l.id) !== String(id))]
+          .sort((a, b) => b.ts - a.ts)
+        try { localStorage.setItem(LEADS_STORE, JSON.stringify(next)) } catch {}
+        return next
+      })
+      // Re-sync to server
+      fetch(`${CONTACTS_API}/api/contacts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+        body: JSON.stringify(leadData),
+      }).catch(() => {})
+    } catch {}
+  }
+  const permanentDeleteLead = id => {
+    try {
+      const trash = JSON.parse(localStorage.getItem(LEADS_TRASH) || '[]')
+      const newTrash = trash.filter(l => String(l.id) !== String(id))
+      localStorage.setItem(LEADS_TRASH, JSON.stringify(newTrash))
+      setTrashedLeads(newTrash)
+    } catch {}
   }
   const exportCSV = () => {
     const header = ['תאריך','שם','טלפון','אימייל','הודעה','נכס','מיקום נכס','מקור','ציון','כוונה','גיל משוער','עיר משוערת','תקציב משוער','השכלה','מקצוע','חברה','תפקיד','LinkedIn חיפוש','LinkedIn ישיר','Facebook','Google','נקודות שיחה','ניתוח AI','תגיות']
@@ -4602,7 +4733,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
     { id:'live',     Icon:FaCheckCircle, label:'באוויר',     badge: publishedList.length, live:true },
     { id:'props',    Icon:FaBuilding,    label:'ניהול נכסים' },
     { id:'leads',    Icon:FaHandshake,   label:'לידים',      badge: leads.length },
-    { id:'chats',    Icon:FaWhatsapp,    label:'צ\'אטים',    badge: leads.filter(l=>l.phone).length },
+    { id:'chats',    Icon:FaWhatsapp,    label:'צ\'אטים',    badge: chatsUnread },
     { id:'meta',     Icon:FaFacebookF,   label:'מרכז מטא' },
     { id:'analytics',Icon:FaChartLine,   label:'אנליטיקס' },
     { id:'team',     Icon:FaKey,         label:'צוות' },
@@ -4612,7 +4743,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
   const TAB_LABELS = { overview:'סקירה כללית', live:'נכסים באוויר', props:'ניהול נכסים', leads:'לידים', chats:'שיחות WhatsApp', meta:'מרכז מטא', analytics:'אנליטיקס', team:'צוות', counters:'מונים', settings:'הגדרות' }
 
   return (
-    <div style={standalone
+    <div className="admin-shell admin-scroll" style={standalone
       ? { position:'fixed', inset:0, zIndex:1000, display:'flex', background:'#07070F', direction:'rtl', fontFamily:'Rubik, sans-serif' }
       : { position:'fixed', inset:0, background:'rgba(0,0,0,.92)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:16, overflowY:'auto', overscrollBehavior:'contain' }}>
 
@@ -4644,7 +4775,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
                   onMouseLeave={e=>{ if(!isActive){ e.currentTarget.style.background='transparent'; e.currentTarget.style.color='rgba(232,228,216,.4)' }}}>
                   <item.Icon size={13} style={{ flexShrink:0, opacity: isActive ? 1 : 0.7, color: isActive && isLive ? '#22C55E' : undefined }}/>
                   <span style={{ flex:1 }}>{item.label}</span>
-                  {!!item.badge && <span style={{ background: isLive ? 'rgba(34,197,94,.2)' : `${C.purple}25`, color: isLive ? '#22C55E' : C.purple, borderRadius:4, padding:'1px 6px', fontSize:10, fontWeight:700 }}>{item.badge}</span>}
+                  {!!item.badge && <span style={{ background: isLive ? 'rgba(34,197,94,.2)' : item.id==='chats' ? '#075E54' : `${C.purple}25`, color: isLive ? '#22C55E' : item.id==='chats' ? '#fff' : C.purple, borderRadius:4, padding:'1px 6px', fontSize:10, fontWeight:700 }}>{item.badge}</span>}
                 </button>
               )
             })}
@@ -4729,13 +4860,19 @@ Return ONLY valid JSON (no markdown, no code blocks):
                 </div>
                 <span style={{ fontSize:12, color:'rgba(232,228,216,.55)', fontWeight:600 }}>מנהל ראשי</span>
               </div>
+              <button onClick={onClose}
+                style={{ display:'flex', alignItems:'center', gap:7, padding:'7px 15px', background:'rgba(224,82,82,.08)', border:'1px solid rgba(224,82,82,.28)', borderRadius:20, color:'rgba(224,82,82,.75)', cursor:'pointer', fontFamily:'inherit', fontSize:12, fontWeight:700, transition:'all .2s' }}
+                onMouseEnter={e=>{ e.currentTarget.style.background='rgba(224,82,82,.2)'; e.currentTarget.style.borderColor='#E05252'; e.currentTarget.style.color='#E05252' }}
+                onMouseLeave={e=>{ e.currentTarget.style.background='rgba(224,82,82,.08)'; e.currentTarget.style.borderColor='rgba(224,82,82,.28)'; e.currentTarget.style.color='rgba(224,82,82,.75)' }}>
+                <FaTimes size={11}/> <span>יציאה</span>
+              </button>
             </div>
           </div>
         )}
 
         {/* Modal header */}
         {!standalone && (
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:22, paddingBottom:18, borderBottom:`1px solid ${C.purple}22` }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16, paddingBottom:14, borderBottom:`1px solid ${C.purple}22`, flexShrink:0 }}>
             <div style={{ display:'flex', alignItems:'center', gap:12 }}>
               <div style={{ width:42, height:42, borderRadius:12, background:`${C.purple}22`, border:`1.5px solid ${C.purple}44`, display:'flex', alignItems:'center', justifyContent:'center' }}>
                 <FaLock size={16} style={{ color:C.purple }}/>
@@ -4791,7 +4928,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
 
         {/* Modal tabs */}
         {!standalone && (
-          <div style={{ display:'flex', gap:4, marginBottom:24, background:'rgba(255,255,255,.04)', borderRadius:10, padding:4, flexWrap:'wrap' }}>
+          <div style={{ display:'flex', gap:4, marginBottom:12, background:'rgba(255,255,255,.04)', borderRadius:10, padding:4, flexWrap:'wrap', flexShrink:0 }}>
             {tabBtn('props', 'ניהול נכסים')}
             <button onClick={goToLiveProps}
               style={{ padding:'10px 16px', border:'none', background: tab==='props' && listTab==='published' ? 'rgba(34,197,94,.2)' : 'transparent', color: tab==='props' && listTab==='published' ? '#22C55E' : 'rgba(232,228,216,.65)', fontFamily:'inherit', cursor:'pointer', fontWeight:700, fontSize:14, borderRadius:9, transition:'all .15s', display:'flex', alignItems:'center', gap:6 }}>
@@ -4810,7 +4947,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
         )}
 
         {/* ── Scrollable content ─────────────────────────────────────── */}
-        <div className="admin-content" style={(tab==='chats'||tab==='leads'||tab==='meta') ? { flex:1, minHeight:0, overflow:'hidden', display:'flex', flexDirection:'column' } : standalone ? { flex:1, overflowY:'auto', padding:'22px 26px 32px', direction:'rtl' } : { padding:'22px 26px 32px', direction:'rtl' }}>
+        <div className="admin-content" style={(tab==='chats'||tab==='leads') ? { flex:1, minHeight:0, overflow:'hidden', position:'relative' } : standalone ? { flex:1, overflowY:'auto', padding:'22px 26px 32px', direction:'rtl' } : { padding:'22px 26px 32px', direction:'rtl' }}>
 
         {/* Overview tab — standalone only */}
         {tab==='overview' && standalone && (<>
@@ -5374,192 +5511,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
         )}
 
         {tab==='leads' && (
-          <div style={{ display:'flex', flexDirection:'column', flex:1, minHeight:0, overflow:'hidden' }}>
-            {/* ── Leads KPI strip ─────────────────────────────────────── */}
-            {(() => {
-              const hotLeads   = leads.filter(l => l.enrichment?.intent === 'hot').length
-              const active     = leads.filter(l => !['won','lost'].includes(l.leadStatus || 'new')).length
-              const won        = leads.filter(l => l.leadStatus === 'won').length
-              const kpiCols    = viewW < 500 ? 2 : viewW < 800 ? 2 : 4
-              const kpiCollapsed = kpiHeight !== null && kpiHeight < 56
-              const kpis = [
-                { Icon:FaUsers,    color:'#22C55E', value: leads.length, label: lang==='en'?'Total Leads':'סה"כ לידים',    sub: lang==='en'?'all time':'כלל הזמן',         badge:'TOTAL' },
-                { Icon:FaFire,     color:'#F97316', value: hotLeads,     label: lang==='en'?'Hot Leads':'לידים חמים',       sub: lang==='en'?'AI score: hot':'ציון AI: חם', badge:'HOT' },
-                { Icon:FaChartBar, color:'#8490D8', value: active,       label: lang==='en'?'Active Pipeline':'צינור פעיל', sub: lang==='en'?'not won/lost':'לא נסגרו',     badge:'LIVE' },
-                { Icon:FaTrophy,   color:'#F7C948', value: won,          label: lang==='en'?'Closed Won':'עסקאות שנסגרו',  sub: lang==='en'?'all time':'כלל הזמן',         badge:'WON' },
-              ]
-              const startDrag = e => {
-                e.preventDefault()
-                const clientY = e.touches ? e.touches[0].clientY : e.clientY
-                kpiDragState.current = { y: clientY, h: kpiDragRef.current ? kpiDragRef.current.offsetHeight : 160 }
-                const onMove = ev => {
-                  if (!kpiDragState.current) return
-                  const cy = ev.touches ? ev.touches[0].clientY : ev.clientY
-                  const dy = cy - kpiDragState.current.y
-                  const h = Math.max(0, Math.min(kpiDragState.current.h + dy, 260))
-                  setKpiHeight(h)
-                  try { localStorage.setItem(KPI_HEIGHT_KEY, String(h)) } catch {}
-                }
-                const onUp = () => {
-                  document.removeEventListener('mousemove', onMove)
-                  document.removeEventListener('mouseup', onUp)
-                  document.removeEventListener('touchmove', onMove)
-                  document.removeEventListener('touchend', onUp)
-                  kpiDragState.current = null
-                }
-                document.addEventListener('mousemove', onMove)
-                document.addEventListener('mouseup', onUp)
-                document.addEventListener('touchmove', onMove, { passive: false })
-                document.addEventListener('touchend', onUp)
-              }
-              return (
-                <>
-                  <div ref={kpiDragRef}
-                    style={{ overflow:'hidden', flexShrink:0, transition: kpiDragState.current ? 'none' : 'height .15s ease',
-                      height: kpiHeight !== null ? kpiHeight : 'auto' }}>
-                    {kpiCollapsed
-                      ? (
-                        <div style={{ display:'flex', gap:8, padding:'6px 16px', alignItems:'center', flexWrap:'wrap' }}>
-                          {kpis.map((k,i) => (
-                            <div key={i} style={{ display:'flex', alignItems:'center', gap:5, background:`${k.color}18`, border:`1px solid ${k.color}30`, borderRadius:20, padding:'3px 10px' }}>
-                              <k.Icon size={10} style={{ color:k.color }}/>
-                              <span style={{ fontSize:11, fontWeight:800, color:k.color }}>{k.value}</span>
-                              <span style={{ fontSize:10, color:`${C.cream}88` }}>{k.label}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )
-                      : (
-                        <div style={{ padding:'10px 16px 8px' }}>
-                          <div style={{ display:'grid', gridTemplateColumns:`repeat(${kpiCols},1fr)`, gap:viewW < 500 ? 8 : 12 }}>
-                            {kpis.map((k,i) => (
-                              <div key={i} style={{ background:`linear-gradient(145deg,${k.color}1C 0%,${k.color}07 100%)`, border:`1px solid ${k.color}44`, borderRadius:16, padding: viewW < 500 ? '10px 10px' : '16px 14px', position:'relative', overflow:'hidden' }}>
-                                <div style={{ position:'absolute', top:-22, right:-22, width:80, height:80, background:k.color, opacity:.08, borderRadius:'50%', filter:'blur(24px)', pointerEvents:'none' }}/>
-                                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: viewW < 500 ? 6 : 10 }}>
-                                  <div style={{ width:30, height:30, borderRadius:8, background:`${k.color}22`, border:`1px solid ${k.color}44`, display:'flex', alignItems:'center', justifyContent:'center' }}>
-                                    <k.Icon size={13} style={{ color:k.color }}/>
-                                  </div>
-                                  <span style={{ fontSize:8, fontWeight:800, letterSpacing:'.09em', background:`${k.color}18`, border:`1px solid ${k.color}28`, borderRadius:20, padding:'2px 7px', color:k.color }}>{k.badge}</span>
-                                </div>
-                                <div style={{ fontSize: viewW < 500 ? 22 : 28, fontWeight:900, color:k.color, lineHeight:1, letterSpacing:'-.01em' }}>{k.value}</div>
-                                <div style={{ fontSize:11, color:C.cream, marginTop:5, fontWeight:700 }}>{k.label}</div>
-                                {viewW >= 500 && <div style={{ fontSize:9, color:`${C.cream}55`, marginTop:2 }}>{k.sub}</div>}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )
-                    }
-                  </div>
-
-                  {/* ── Enhanced Drag Handle ── */}
-                  <div style={{ flexShrink:0, userSelect:'none' }}>
-                    {/* grip strip — draggable */}
-                    <div
-                      onMouseDown={startDrag} onTouchStart={startDrag}
-                      onDoubleClick={() => { setKpiHeight(null); try { localStorage.removeItem(KPI_HEIGHT_KEY) } catch {} }}
-                      style={{
-                        height:20, cursor:'ns-resize', display:'flex', alignItems:'center', justifyContent:'center',
-                        background:`linear-gradient(180deg,${C.purple}12 0%,transparent 100%)`,
-                        borderTop:`1px solid ${C.purple}35`, borderBottom:`1px solid ${C.purple}20`,
-                      }}
-                      title={lang==='en'?'Drag ↑ full leads · drag ↓ show KPI · double-click reset':'גרור ↑ להרחבת לידים · גרור ↓ להצגת KPI · לחץ פעמיים לאיפוס'}
-                    >
-                      <div style={{ display:'flex', gap:3, alignItems:'center' }}>
-                        <span style={{ fontSize:10, color:`${C.purple}66`, lineHeight:1 }}>↕</span>
-                        {[0,1,2,3,4,5].map(i => (
-                          <div key={i} style={{ width:3, height:3, borderRadius:'50%', background:`${C.purple}55` }}/>
-                        ))}
-                        <span style={{ fontSize:10, color:`${C.purple}66`, lineHeight:1 }}>↕</span>
-                      </div>
-                    </div>
-                    {/* action row below grip */}
-                    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'5px 14px', background:C.card, borderBottom:`1px solid ${C.purple}18` }}>
-                      {/* restore leads — always visible */}
-                      <button
-                        onClick={() => setShowTrash(t => !t)}
-                        style={{
-                          display:'flex', alignItems:'center', gap:5,
-                          background: deletedLeads.length > 0
-                            ? (showTrash ? 'rgba(239,68,68,.18)' : 'rgba(239,68,68,.09)')
-                            : 'transparent',
-                          border: deletedLeads.length > 0
-                            ? '1px solid rgba(239,68,68,.35)'
-                            : `1px solid ${C.purple}20`,
-                          borderRadius:7, padding:'3px 10px', cursor:'pointer',
-                          color: deletedLeads.length > 0 ? '#EF4444' : `${C.cream}44`,
-                          fontSize:10, fontWeight:700, direction:'rtl', transition:'all .15s',
-                        }}
-                      >
-                        <FaTrash size={9}/>
-                        {lang==='en'
-                          ? `Restore Leads${deletedLeads.length > 0 ? ` (${deletedLeads.length})` : ''}`
-                          : `שחזור לידים${deletedLeads.length > 0 ? ` (${deletedLeads.length})` : ''}`}
-                      </button>
-                      {/* expand / collapse toggle */}
-                      <button
-                        onClick={() => {
-                          const next = kpiHeight === 0 ? null : 0
-                          setKpiHeight(next)
-                          setShowTrash(false)
-                          if (next === null) { try { localStorage.removeItem(KPI_HEIGHT_KEY) } catch {} }
-                          else { try { localStorage.setItem(KPI_HEIGHT_KEY, '0') } catch {} }
-                        }}
-                        style={{
-                          display:'flex', alignItems:'center', gap:5,
-                          background: kpiHeight === 0 ? `${C.purple}22` : 'transparent',
-                          border:`1px solid ${C.purple}33`,
-                          borderRadius:7, padding:'3px 10px', cursor:'pointer',
-                          color:C.purple, fontSize:10, fontWeight:700, direction:'rtl', transition:'all .15s',
-                        }}
-                      >
-                        {kpiHeight === 0
-                          ? (lang==='en' ? '▼ Show KPI' : '▼ הצג KPI')
-                          : (lang==='en' ? '▲ Full Screen' : '▲ מסך מלא')}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Trash panel — below handle, always shows when open */}
-                  {showTrash && (
-                    <div style={{ flexShrink:0, maxHeight:220, overflowY:'auto', background:'rgba(239,68,68,.04)', borderBottom:'1px solid rgba(239,68,68,.18)', padding:'8px 16px' }}>
-                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
-                        <span style={{ fontSize:11, fontWeight:700, color:'#EF4444', direction:'rtl' }}>
-                          {lang==='en'?'Recently Deleted':'נמחקו לאחרונה'}
-                          {deletedLeads.length === 0 && <span style={{ fontWeight:400, opacity:.6 }}>{lang==='en'?' — empty':' — ריק'}</span>}
-                        </span>
-                        {deletedLeads.length > 0 && (
-                          <button onClick={emptyTrash}
-                            style={{ fontSize:10, color:`${C.cream}55`, background:'none', border:'none', cursor:'pointer', padding:'2px 6px' }}>
-                            {lang==='en'?'Empty Trash':'רוקן סל'}
-                          </button>
-                        )}
-                      </div>
-                      {deletedLeads.length === 0
-                        ? <div style={{ fontSize:11, color:`${C.cream}44`, textAlign:'center', padding:'10px 0', direction:'rtl' }}>{lang==='en'?'No deleted leads':'אין לידים שנמחקו'}</div>
-                        : (
-                          <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
-                            {deletedLeads.map(dl => (
-                              <div key={dl.id} style={{ display:'flex', alignItems:'center', gap:10, background:'rgba(255,255,255,.03)', border:'1px solid rgba(255,255,255,.07)', borderRadius:8, padding:'6px 10px', direction:'rtl' }}>
-                                <div style={{ flex:1, minWidth:0 }}>
-                                  <div style={{ fontSize:12, fontWeight:700, color:C.cream, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{dl.name || '—'}</div>
-                                  <div style={{ fontSize:10, color:`${C.cream}55` }}>{dl.phone || dl.email || ''}</div>
-                                </div>
-                                <span style={{ fontSize:9, color:`${C.cream}44`, flexShrink:0 }}>{dl.deletedAt ? new Date(dl.deletedAt).toLocaleDateString('he-IL') : ''}</span>
-                                <button onClick={() => restoreLead(dl.id)}
-                                  style={{ flexShrink:0, background:'rgba(34,197,94,.15)', border:'1px solid rgba(34,197,94,.3)', borderRadius:6, padding:'3px 9px', cursor:'pointer', color:'#22C55E', fontSize:10, fontWeight:700 }}>
-                                  {lang==='en'?'Restore':'שחזר'}
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        )
-                      }
-                    </div>
-                  )}
-                </>
-              )
-            })()}
+          <div className="admin-board-dark" style={{ position:'absolute', inset:0, overflow:'hidden' }}>
             <Suspense fallback={<AdminTabLoader label="לידים" />}>
               <LeadsBoard
                 leads={leads}
@@ -5575,8 +5527,11 @@ Return ONLY valid JSON (no markdown, no code blocks):
                 enrichAll={enrichAllLeads}
                 enrichLead={enrichLead}
                 clearLeads={clearLeads}
+                trashedLeads={trashedLeads}
+                restoreLead={restoreLead}
+                permanentDeleteLead={permanentDeleteLead}
                 leadsSyncing={leadsSyncing}
-                isDark={isDark}
+                isDark={true}
                 lang={lang}
                 onOpenChat={lead => { setInitialChatLead(lead); setTab('chats') }}
               />
@@ -5600,13 +5555,14 @@ Return ONLY valid JSON (no markdown, no code blocks):
                 lang === 'en' ? `Sent to ${contactName}` : `נשלח ל-${contactName}`,
                 message, 'chats', '✅', 3500
               )}
+              onReadChange={handleChatsRead}
             />
           </Suspense>
         )}
 
         {tab==='meta' && (
           <Suspense fallback={<AdminTabLoader label="מרכז מטא" />}>
-            <MetaLeadsTab C={C} lang={lang} isDark={isDark}
+            <MetaLeadsTab C={DARK_C} lang={lang} isDark={true}
               onNewLead={({ name, campaign }) => addToast(
                 lang === 'en' ? 'New Meta Lead!' : 'ליד חדש ממטא!',
                 (name || (lang === 'en' ? 'Unknown' : 'לא ידוע')) + (campaign ? ' • ' + campaign : ''),
@@ -5910,6 +5866,25 @@ Return ONLY valid JSON (no markdown, no code blocks):
         {tab==='settings' && (
           <div style={{ display:'flex', flexDirection:'column', gap:24 }}>
 
+            {/* ── Settings header with auto-save indicator + save button ── */}
+            <div style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 18px', background:`${C.green}0D`, border:`1px solid ${C.green}28`, borderRadius:12, direction:'rtl', flexWrap:'wrap' }}>
+              <span style={{ width:9, height:9, borderRadius:'50%', background:C.green, flexShrink:0, boxShadow:`0 0 8px ${C.green}` }}/>
+              <div style={{ flex:1, minWidth:0 }}>
+                <span style={{ fontSize:13, color:C.green, fontWeight:700 }}>שמירה אוטומטית פעילה</span>
+                <span style={{ fontSize:12, color:`${C.cream}44`, marginRight:8 }}>— כל שינוי נשמר מיידית לדפדפן</span>
+              </div>
+              <button onClick={saveAllSettings}
+                style={{ display:'flex', alignItems:'center', gap:7, padding:'8px 20px', background: settingsAllSaved ? `${C.green}22` : `${C.purple}22`, border:`1px solid ${settingsAllSaved ? C.green : `${C.purple}55`}`, borderRadius:9, color: settingsAllSaved ? C.green : C.purple, fontWeight:700, fontSize:13, cursor:'pointer', fontFamily:'inherit', transition:'all .25s', flexShrink:0 }}>
+                {settingsAllSaved ? '✓ כל ההגדרות נשמרו' : '💾 שמור הכל'}
+              </button>
+              <button onClick={onClose}
+                style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 16px', background:'rgba(224,82,82,.08)', border:'1px solid rgba(224,82,82,.28)', borderRadius:9, color:'rgba(224,82,82,.8)', fontWeight:700, fontSize:13, cursor:'pointer', fontFamily:'inherit', transition:'all .2s', flexShrink:0 }}
+                onMouseEnter={e=>{ e.currentTarget.style.background='rgba(224,82,82,.2)'; e.currentTarget.style.borderColor='#E05252'; e.currentTarget.style.color='#E05252' }}
+                onMouseLeave={e=>{ e.currentTarget.style.background='rgba(224,82,82,.08)'; e.currentTarget.style.borderColor='rgba(224,82,82,.28)'; e.currentTarget.style.color='rgba(224,82,82,.8)' }}>
+                <FaTimes size={11}/> יציאה
+              </button>
+            </div>
+
             {/* ── Logo Size ── */}
             <div style={{ background:'rgba(255,255,255,.03)', borderRadius:12, padding:20 }}>
               <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:16 }}>
@@ -5961,55 +5936,45 @@ Return ONLY valid JSON (no markdown, no code blocks):
                 </div>
               </div>
               <label style={{ fontSize:11, color:`${C.cream}70`, display:'block', marginBottom:6, fontWeight:600 }}>מפתח API (Token)</label>
-              <div style={{ display:'flex', gap:8, marginBottom:10 }}>
-                <input
-                  type="text"
-                  value={tokenDraft}
-                  onChange={e => { setTokenDraft(e.target.value); setTokenSaved(false) }}
-                  placeholder="הדבק כאן את מפתח ה-API שקיבלת מ-GovMap"
-                  style={{ ...inp, direction:'ltr', fontFamily:'monospace', fontSize:12, marginBottom:0, flex:1 }}
-                />
+              <input
+                type="text"
+                value={govmapToken}
+                onChange={e => {
+                  setGovmapToken(e.target.value)
+                  clearTimeout(tokenSaveTimer.current)
+                  tokenSaveTimer.current = setTimeout(() => {
+                    setTokenSaved(true)
+                    setSettingsAllSaved(true)
+                    setTimeout(() => { setTokenSaved(false); setSettingsAllSaved(false) }, 2500)
+                  }, 500)
+                }}
+                placeholder="הדבק כאן את מפתח ה-API שקיבלת מ-GovMap"
+                style={{ ...inp, direction:'ltr', fontFamily:'monospace', fontSize:12, marginBottom:10, border:`1px solid ${tokenSaved ? C.green : `${C.purple}33`}`, transition:'border-color .3s' }}
+              />
+              <div style={{ display:'flex', gap:8, alignItems:'center', marginBottom:12, flexWrap:'wrap' }}>
                 <button
-                  disabled={tokenSaving || !tokenDraft.trim()}
-                  onClick={async () => {
-                    if (!tokenDraft.trim()) return
-                    setTokenSaving(true); setTokenError(''); setTokenSaved(false)
-                    try {
-                      const base = API_BASE || ''
-                      const r = await fetch(`${base}/api/stats`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
-                        body: JSON.stringify({ govmapToken: tokenDraft.trim() }),
-                      })
-                      if (!r.ok) throw new Error(`שגיאה ${r.status}`)
-                      setGovmapToken(tokenDraft.trim())
-                      localStorage.setItem('govmap_token', tokenDraft.trim())
-                      setTokenSaved(true)
-                      setTimeout(() => setTokenSaved(false), 4000)
-                    } catch (e) {
-                      setTokenError('שגיאה בשמירה — נסה שוב')
-                      setTimeout(() => setTokenError(''), 5000)
-                    } finally {
-                      setTokenSaving(false)
-                    }
-                  }}
-                  style={{ padding:'8px 18px', background: tokenSaved ? C.green : tokenSaving ? `${C.purple}66` : C.purple, border:'none', borderRadius:8, color:'#fff', fontSize:13, fontWeight:700, cursor: tokenSaving ? 'wait' : 'pointer', fontFamily:'Rubik,inherit', transition:'background .2s', whiteSpace:'nowrap', flexShrink:0, opacity: !tokenDraft.trim() ? 0.4 : 1 }}
-                >
-                  {tokenSaving ? '⏳ שומר...' : tokenSaved ? '✓ נשמר בענן!' : 'שמור בענן'}
+                  onClick={() => { saveAllSettings(); setTokenSaved(true); setTimeout(() => setTokenSaved(false), 2500) }}
+                  style={{ padding:'7px 18px', background: tokenSaved ? `${C.green}22` : `${C.purple}22`, border:`1px solid ${tokenSaved ? C.green : `${C.purple}44`}`, borderRadius:8, color: tokenSaved ? C.green : C.purple, fontWeight:700, fontSize:12, cursor:'pointer', fontFamily:'inherit', transition:'all .25s', display:'flex', alignItems:'center', gap:6 }}>
+                  {tokenSaved ? '✓ נשמר' : '💾 שמור מפתח'}
                 </button>
+                <span style={{ fontSize:11, color:`${C.cream}44`, display:'flex', alignItems:'center', gap:5 }}>
+                  <span style={{ width:7, height:7, borderRadius:'50%', background: C.green, display:'inline-block', flexShrink:0 }}/>
+                  שמירה אוטומטית פעילה
+                </span>
+                {govmapToken && (
+                  <button onClick={() => { setGovmapToken(''); setTokenSaved(false) }} style={{ background:'none', border:'none', color:`${C.cream}44`, cursor:'pointer', fontSize:11, textDecoration:'underline', fontFamily:'inherit', marginRight:'auto' }}>נקה מפתח</button>
+                )}
               </div>
-              {tokenError && <div style={{ fontSize:12, color:'#E05252', marginTop:6, fontWeight:700 }}>⚠ {tokenError}</div>}
-              <div style={{ background:`${C.purple}08`, border:`1px solid ${C.purple}22`, borderRadius:8, padding:'12px 14px', fontSize:12, color:`${C.cream}77`, lineHeight:1.8, direction:'rtl', marginTop:10 }}>
+              <div style={{ background:`${C.purple}08`, border:`1px solid ${C.purple}22`, borderRadius:8, padding:'12px 14px', fontSize:12, color:`${C.cream}77`, lineHeight:1.8, direction:'rtl' }}>
                 <strong style={{ color:C.purple }}>כיצד לקבל מפתח API:</strong><br/>
                 1. כנס לאתר <a href="https://www.govmap.gov.il" target="_blank" rel="noopener noreferrer" style={{ color:C.purple }}>govmap.gov.il</a><br/>
                 2. פנה לצוות GovMap בבקשה לרישום דומיין ומפתח API<br/>
-                3. הזן כאן את המפתח שתקבל ולחץ <strong>שמור בענן</strong><br/>
-                <span style={{ color:`${C.cream}44`, fontSize:11 }}>* המפתח נשמר ב-Supabase ומסונכרן בין כל המכשירים. localStorage משמש כמטמון מהיר בלבד.</span>
+                3. הזן כאן את המפתח שתקבל<br/>
+                <span style={{ color:`${C.cream}44`, fontSize:11 }}>* המפתח נשמר אוטומטית בדפדפן ולא יועלה לשום שרת</span>
               </div>
               {govmapToken && (
                 <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:10, fontSize:12 }}>
-                  <span style={{ color:C.green, fontWeight:700 }}>✓ מפתח פעיל: {govmapToken.slice(0,8)}…</span>
-                  <button onClick={() => { setGovmapToken(''); setTokenDraft(''); localStorage.removeItem('govmap_token') }} style={{ background:'none', border:'none', color:`${C.cream}55`, cursor:'pointer', fontSize:11, textDecoration:'underline', fontFamily:'inherit' }}>נקה</button>
+                  <span style={{ color:C.green, fontWeight:700 }}>✓ מפתח מוגדר</span>
                 </div>
               )}
             </div>
@@ -6027,12 +5992,12 @@ Return ONLY valid JSON (no markdown, no code blocks):
               </div>
 
               <div style={{ background:`${C.purple}08`, border:`1px solid ${C.purple}22`, borderRadius:8, padding:'12px 14px', fontSize:12, color:`${C.cream}77`, lineHeight:1.9, direction:'rtl', marginBottom:14 }}>
-                <strong style={{ color:C.purple }}>הגדרה נדרשת ב-Render (env vars):</strong><br/>
-                1. כנס ל-<strong style={{ color:C.cream }}>render.com → שירות שלך → Environment</strong><br/>
-                2. הוסף: <code style={{ background:'rgba(0,0,0,.3)', borderRadius:4, padding:'1px 6px', fontFamily:'monospace', fontSize:11, color:'#EA4335' }}>GMAIL_USER</code> = כתובת Gmail שולח (לדוג׳: <code style={{ fontFamily:'monospace', fontSize:11 }}>afik.hanahal@gmail.com</code>)<br/>
+                <strong style={{ color:C.purple }}>הגדרה נדרשת ב-Vercel (env vars):</strong><br/>
+                1. כנס ל-<strong style={{ color:C.cream }}>vercel.com → הפרוייקט שלך → Settings → Environment Variables</strong><br/>
+                2. הוסף: <code style={{ background:'rgba(0,0,0,.3)', borderRadius:4, padding:'1px 6px', fontFamily:'monospace', fontSize:11, color:'#EA4335' }}>GMAIL_USER</code> = <code style={{ fontFamily:'monospace', fontSize:11 }}>afik.hanahal@gmail.com</code><br/>
                 3. הוסף: <code style={{ background:'rgba(0,0,0,.3)', borderRadius:4, padding:'1px 6px', fontFamily:'monospace', fontSize:11, color:'#EA4335' }}>GMAIL_APP_PASSWORD</code> = סיסמת אפליקציה (16 תווים מ-Google)<br/>
                 4. לקבל סיסמת אפליקציה: <strong style={{ color:C.cream }}>Google Account → Security → 2-Step Verification → App Passwords</strong><br/>
-                <span style={{ color:`${C.cream}44`, fontSize:11 }}>* לאחר הוספת env vars — לחץ "Manual Deploy" ב-Render לפריסה מחדש</span>
+                <span style={{ color:`${C.cream}44`, fontSize:11 }}>* לאחר הוספת env vars ב-Vercel — הפרוייקט יעלה מחדש אוטומטית. הכישלון הקודם היה כי ה-vars היו רק ב-Render.</span>
               </div>
 
               <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
@@ -6348,7 +6313,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
               style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:3, border:'none', background:'transparent', color: tab===item.id ? '#8490D8' : 'rgba(232,228,216,.32)', cursor:'pointer', fontFamily:'inherit', padding:'8px 4px', position:'relative', transition:'color .15s', minWidth:0 }}>
               <item.Icon size={18}/>
               <span style={{ fontSize:9, fontWeight: tab===item.id ? 700 : 400, letterSpacing:'.02em', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:'100%' }}>{item.label}</span>
-              {!!item.badge && <span style={{ position:'absolute', top:6, right:'50%', transform:'translateX(140%)', background:'#8490D8', color:'#fff', borderRadius:8, padding:'1px 5px', fontSize:8, fontWeight:800, lineHeight:1.6 }}>{item.badge}</span>}
+              {!!item.badge && <span style={{ position:'absolute', top:6, right:'50%', transform:'translateX(140%)', background: item.id==='chats' ? '#075E54' : '#8490D8', color:'#fff', borderRadius:8, padding:'1px 5px', fontSize:8, fontWeight:800, lineHeight:1.6 }}>{item.badge}</span>}
               {tab===item.id && <div style={{ position:'absolute', top:0, left:'15%', right:'15%', height:2, background:'#8490D8', borderRadius:2 }}/>}
             </button>
           ))}
@@ -7852,13 +7817,11 @@ function PdfLeadGate({ pdf, prop, C }) {
       localStorage.setItem(LEADS_STORE, JSON.stringify(all.slice(0, 2000)))
       localStorage.setItem(storageKey, '1')
     } catch {}
-    if (API_BASE) {
-      fetch(`${API_BASE}/api/contacts`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(lead),
-      }).catch(() => {})
-    }
+    fetch(`${CONTACTS_API}/api/contacts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(lead),
+    }).catch(() => {})
     setDone(true)
     setOpen(false)
     window.open(pdf.url, '_blank', 'noopener')
@@ -8613,16 +8576,17 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
           )
         })()}
 
-        {/* ══ GOVMAP — full width at the very bottom ══ */}
+        {/* ══ GOVMAP — full-width, below all property details ══ */}
         {govmapToken && (
-          <div style={{ borderTop:`1px solid ${C.purple}18`, padding:'32px 28px 48px', direction:'rtl' }}>
-            <h3 style={{ fontSize:18, fontWeight:800, color:C.cream, marginBottom:18, display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' }}>
-              <FaMapMarkerAlt size={16} style={{ color:C.purple }}/>
-              מפת גוש וחלקה
-              {(prop.gush || prop.helka) && (
-                <span style={{ fontSize:12, fontWeight:600, color:`${C.cream}55`, background:`${C.purple}15`, borderRadius:6, padding:'3px 12px' }}>
-                  {prop.gush ? `גוש ${prop.gush}` : ''}{prop.gush && prop.helka ? ' · ' : ''}{prop.helka ? `חלקה ${prop.helka}` : ''}{prop.subHelka ? ` · תת ${prop.subHelka}` : ''}
+          <div style={{ borderTop:'1px solid rgba(255,255,255,.08)', padding:'36px 32px 52px', direction:'rtl' }}>
+            <h3 style={{ fontSize:20, fontWeight:800, color:C.cream, margin:'0 0 18px', display:'flex', alignItems:'center', gap:10 }}>
+              <FaMapMarkerAlt size={16} style={{ color:C.purple }}/> מפת GovMap
+              {(prop.gush || prop.helka) ? (
+                <span style={{ fontSize:13, fontWeight:600, color:`${C.cream}66`, background:`${C.purple}15`, borderRadius:6, padding:'3px 12px' }}>
+                  גוש {prop.gush}{prop.helka ? ` · חלקה ${prop.helka}` : ''}{prop.subHelka ? ` · תת ${prop.subHelka}` : ''}
                 </span>
+              ) : (
+                <span style={{ fontSize:12, fontWeight:500, color:`${C.cream}33`, background:`${C.purple}08`, borderRadius:6, padding:'3px 12px' }}>הכנס גוש/חלקה לניווט לחלקה</span>
               )}
             </h3>
             <GovMapWidget
@@ -8632,8 +8596,6 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
               token={govmapToken}
               C={C}
               isDark={isDark}
-              defaultLayers={_cloudSettings.gmLayers}
-              defaultBg={_cloudSettings.gmBg}
             />
           </div>
         )}
@@ -9028,9 +8990,19 @@ export default function App() {
   const [lang,         setLang]         = useState('he')
   const [stats,        setStats]        = useState(DEFAULT_STATS)
   const [sharon,       setSharon]       = useState(DEFAULT_SHARON)
-  const [govmapToken,  setGovmapToken]  = useState(() => localStorage.getItem('govmap_token') || '')
+  const [govmapToken,  setGovmapToken]  = useState(() => {
+    const stored = localStorage.getItem('govmap_token')
+    if (stored) return stored
+    const def = '402956e5-908c-4797-accd-7c7b19c7803a'
+    localStorage.setItem('govmap_token', def)
+    return def
+  })
   const [logoNavSize,  setLogoNavSizeRaw] = useState(() => Number(localStorage.getItem('logoNavSize')) || 70)
   const setLogoNavSize = (v) => { const n = Math.max(20, Math.min(200, Number(v))); localStorage.setItem('logoNavSize', n); setLogoNavSizeRaw(n) }
+
+  // Always persist govmapToken — guards against the standalone mode missing the wrapper
+  useEffect(() => { localStorage.setItem('govmap_token', govmapToken) }, [govmapToken])
+
   // UI/UX Pro Max: parallax scroll
   const [scrollY,      setScrollY]      = useState(0)
 
@@ -9341,7 +9313,7 @@ export default function App() {
               sharon={sharon}
               setSharon={setSharon}
               govmapToken={govmapToken}
-              setGovmapToken={setGovmapToken}
+              setGovmapToken={t => { setGovmapToken(t); localStorage.setItem('govmap_token', t) }}
               onClose={() => {
                 sessionStorage.removeItem('afik_admin_session')
                 window.location.href = '/'
@@ -9810,26 +9782,57 @@ export default function App() {
               </div>
             ))}
           </div>
-          <GlassCard style={{ padding:40 }}>
-            <h3 style={{ fontSize:20, fontWeight:700, color:C.cream, marginBottom:24, textAlign:'center' }}>{TR[lang]?.contactNowBtn}</h3>
-            <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
-              <a href="tel:0559811814" style={{ display:'flex', gap:16, alignItems:'center', background:`${C.green}11`, borderRadius:12, padding:16, border:`1px solid ${C.green}22`, textDecoration:'none', color:'inherit', transition:'background .25s', cursor:'pointer' }}
-                onMouseEnter={e => e.currentTarget.style.background=`${C.green}22`}
-                onMouseLeave={e => e.currentTarget.style.background=`${C.green}11`}>
-                <div style={{ width:40, height:40, borderRadius:'50%', background:`${C.green}15`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}><FaPhone size={16} style={{ color:C.green }}/></div>
-                <div><div style={{ fontSize:12, color:C.cream+'70', marginBottom:2 }}>{TR[lang]?.phoneLabel}</div><div style={{ fontSize:20, fontWeight:700, color:C.green }}>055-981-1814</div></div>
+          <GlassCard style={{ padding:'32px 28px' }}>
+            <h3 style={{ fontSize:21, fontWeight:800, color:C.cream, marginBottom:22, textAlign:'center', letterSpacing:'-.01em' }}>{TR[lang]?.contactNowBtn}</h3>
+            <div style={{ display:'flex', flexDirection:'column', gap:12, direction:'rtl' }}>
+
+              {/* טלפון */}
+              <a href="tel:0559811814" className="contact-card-row"
+                style={{ display:'flex', flexDirection:'row', alignItems:'center', gap:14, background:`${C.green}12`, borderRadius:14, padding:'16px 18px', border:`1.5px solid ${C.green}28`, textDecoration:'none', color:'inherit', transition:'all .2s', cursor:'pointer' }}
+                onMouseEnter={e => { e.currentTarget.style.background=`${C.green}22`; e.currentTarget.style.borderColor=`${C.green}55`; e.currentTarget.style.transform='translateY(-1px)' }}
+                onMouseLeave={e => { e.currentTarget.style.background=`${C.green}12`; e.currentTarget.style.borderColor=`${C.green}28`; e.currentTarget.style.transform='' }}>
+                <div className="contact-card-icon" style={{ width:46, height:46, borderRadius:'50%', background:`linear-gradient(135deg,${C.green}33,${C.green}18)`, border:`1.5px solid ${C.green}44`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, boxShadow:`0 4px 14px ${C.green}25` }}>
+                  <FaPhone size={18} style={{ color:C.green }}/>
+                </div>
+                <div className="contact-card-text" style={{ flex:1, textAlign:'right' }}>
+                  <div style={{ fontSize:11, fontWeight:600, color:`${C.cream}60`, marginBottom:3, letterSpacing:'.04em', textTransform:'uppercase' }}>{TR[lang]?.phoneLabel}</div>
+                  <div style={{ fontSize:22, fontWeight:800, color:C.green, direction:'ltr', letterSpacing:'.01em' }}>055-981-1814</div>
+                </div>
               </a>
-              <a href="https://wa.me/972559811814" target="_blank" rel="noopener noreferrer" style={{ display:'flex', gap:16, alignItems:'center', background:'rgba(37,211,102,.08)', borderRadius:12, padding:16, border:'1px solid rgba(37,211,102,.2)', textDecoration:'none', color:'inherit', transition:'background .25s', cursor:'pointer' }}
-                onMouseEnter={e => e.currentTarget.style.background='rgba(37,211,102,.18)'}
-                onMouseLeave={e => e.currentTarget.style.background='rgba(37,211,102,.08)'}>
-                <div style={{ width:40, height:40, borderRadius:'50%', background:'rgba(37,211,102,.12)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}><FaWhatsapp size={18} style={{ color:'#25D366' }}/></div>
-                <div><div style={{ fontSize:12, color:C.cream+'70', marginBottom:2 }}>WhatsApp</div><div style={{ fontSize:16, fontWeight:700, color:'#25D366' }}>{TR[lang]?.whatsappSend}</div></div>
+
+              {/* WhatsApp */}
+              <a href="https://wa.me/972559811814" target="_blank" rel="noopener noreferrer" className="contact-card-row"
+                style={{ display:'flex', flexDirection:'row', alignItems:'center', gap:14, background:'rgba(37,211,102,.09)', borderRadius:14, padding:'16px 18px', border:'1.5px solid rgba(37,211,102,.22)', textDecoration:'none', color:'inherit', transition:'all .2s', cursor:'pointer' }}
+                onMouseEnter={e => { e.currentTarget.style.background='rgba(37,211,102,.2)'; e.currentTarget.style.borderColor='rgba(37,211,102,.5)'; e.currentTarget.style.transform='translateY(-1px)' }}
+                onMouseLeave={e => { e.currentTarget.style.background='rgba(37,211,102,.09)'; e.currentTarget.style.borderColor='rgba(37,211,102,.22)'; e.currentTarget.style.transform='' }}>
+                <div className="contact-card-icon" style={{ width:46, height:46, borderRadius:'50%', background:'linear-gradient(135deg,rgba(37,211,102,.25),rgba(37,211,102,.12))', border:'1.5px solid rgba(37,211,102,.4)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, boxShadow:'0 4px 14px rgba(37,211,102,.2)' }}>
+                  <FaWhatsapp size={20} style={{ color:'#25D366' }}/>
+                </div>
+                <div className="contact-card-text" style={{ flex:1, textAlign:'right' }}>
+                  <div style={{ fontSize:11, fontWeight:600, color:`${C.cream}60`, marginBottom:3, letterSpacing:'.04em', textTransform:'uppercase' }}>WhatsApp</div>
+                  <div style={{ fontSize:18, fontWeight:800, color:'#25D366' }}>{TR[lang]?.whatsappSend}</div>
+                </div>
               </a>
-              <div style={{ display:'flex', gap:16, alignItems:'center', background:'rgba(255,255,255,.04)', borderRadius:12, padding:16 }}>
-                <div style={{ width:40, height:40, borderRadius:'50%', background:`${C.purple}15`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}><FaMapMarkerAlt size={16} style={{ color:C.purple }}/></div>
-                <div><div style={{ fontSize:12, color:C.cream+'70', marginBottom:2 }}>{TR[lang]?.operatingAreaLabel}</div><div style={{ fontSize:14, fontWeight:600, color:C.cream }}>{TR[lang]?.areaServed}</div></div>
+
+              {/* אזור פעילות */}
+              <div className="contact-card-row" style={{ display:'flex', flexDirection:'row', alignItems:'center', gap:14, background:`${C.purple}0D`, borderRadius:14, padding:'16px 18px', border:`1.5px solid ${C.purple}1E` }}>
+                <div className="contact-card-icon" style={{ width:46, height:46, borderRadius:'50%', background:`linear-gradient(135deg,${C.purple}30,${C.purple}15)`, border:`1.5px solid ${C.purple}40`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, boxShadow:`0 4px 14px ${C.purple}20` }}>
+                  <FaMapMarkerAlt size={18} style={{ color:C.purple }}/>
+                </div>
+                <div className="contact-card-text" style={{ flex:1, textAlign:'right' }}>
+                  <div style={{ fontSize:11, fontWeight:600, color:`${C.cream}60`, marginBottom:3, letterSpacing:'.04em', textTransform:'uppercase' }}>{TR[lang]?.operatingAreaLabel}</div>
+                  <div style={{ fontSize:15, fontWeight:700, color:C.cream }}>{TR[lang]?.areaServed}</div>
+                </div>
               </div>
-              <button onClick={() => openContact()} className="primary-btn" style={{ width:'100%', borderRadius:12, fontSize:16 }}>{TR[lang]?.sendMessageBtn}</button>
+
+              {/* CTA button */}
+              <button onClick={() => openContact()}
+                style={{ width:'100%', marginTop:4, padding:'17px 0', borderRadius:14, border:'none', cursor:'pointer', fontFamily:'Rubik,inherit', fontSize:17, fontWeight:800, color:'#fff', background:`linear-gradient(135deg,${C.green},${C.purple})`, boxShadow:`0 6px 28px ${C.purple}44`, letterSpacing:'-.01em', display:'flex', alignItems:'center', justifyContent:'center', gap:8, transition:'all .22s' }}
+                onMouseEnter={e => { e.currentTarget.style.transform='translateY(-2px)'; e.currentTarget.style.boxShadow=`0 10px 36px ${C.purple}55` }}
+                onMouseLeave={e => { e.currentTarget.style.transform=''; e.currentTarget.style.boxShadow=`0 6px 28px ${C.purple}44` }}>
+                <FaEnvelope size={15}/> {TR[lang]?.sendMessageBtn}
+              </button>
+
             </div>
           </GlassCard>
         </div>
@@ -9998,7 +10001,7 @@ export default function App() {
       {showContact && <ContactModal  prop={contactProp} onClose={() => setShowContact(false)}/>}
       {showCalc    && <RealEstateCalc onClose={() => setShowCalc(false)}/>}
       {showPrivacy && <PrivacyModal onClose={() => setShowPrivacy(false)}/>}
-      {selectedProp && <PropertyModal prop={selectedProp} properties={properties} onClose={() => setSelectedProp(null)} onContact={p => { openContact(p) }} onSelect={openProperty} govmapToken={govmapToken}/>}
+      {selectedProp && <PropertyModal key={selectedProp.id} prop={selectedProp} properties={properties} onClose={() => setSelectedProp(null)} onContact={p => { openContact(p) }} onSelect={setSelectedProp} govmapToken={govmapToken}/>}
       {showWizard && <PropertyWizard
           key={wizardEditId || wizardKey}
           onClose={() => { setShowWizard(false); setWizardEditData(null); setWizardEditId(null) }}

@@ -252,12 +252,13 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
   const [leadsError, setLeadsError]     = useState(null)
   const [messagesError, setMessagesError] = useState(null)
   const [savedToCRM, setSavedToCRM]     = useState(false)
-  const [hoveredLeadId, setHoveredLeadId] = useState(null)
+  // Hover state lives in CSS (`.lead-row:hover`) — keeping it in React caused
+  // a re-render of all 100+ leads on every mouse move, which froze the scroll.
   const [deletedLeads, setDeletedLeads] = useState([])
   const [showRestore, setShowRestore]   = useState(false)
   const [campaignDropOpen, setCampaignDropOpen] = useState(false)
   const [sortOrder, setSortOrder]               = useState('desc') // 'desc' = newest first
-  const [metaView, setMetaView]                 = useState('chat') // 'chat' | 'pipeline' | 'table'
+  const [metaView, setMetaView]                 = useState('pipeline') // 'chat' | 'pipeline' | 'table' — default to Kanban
 
   const messagesEndRef        = useRef(null)
   const leadsIntervalRef      = useRef(null)
@@ -655,23 +656,9 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
     { id: 'closed',    label: t.filterClosed },
   ]
 
-  const VIEW_TABS = [
-    { id: 'pipeline', icon: (
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="3" y="3" width="4" height="18" rx="1"/><rect x="10" y="3" width="4" height="14" rx="1"/><rect x="17" y="3" width="4" height="10" rx="1"/>
-      </svg>
-    ), label: lang === 'en' ? 'Pipeline' : 'Pipeline' },
-    { id: 'table', icon: (
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M3 10h18M3 14h18M10 3v18M3 6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V6z"/>
-      </svg>
-    ), label: lang === 'en' ? 'Table' : 'טבלה' },
-    { id: 'chat', icon: (
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-      </svg>
-    ), label: lang === 'en' ? 'Chats' : 'צ\'אטים' },
-  ]
+  // Single toggle: Pipeline (Kanban) ↔ Lead Center (Chat). The Pipeline/Table
+  // sub-toggle lives inside MetaKanban — no need to duplicate it here.
+  const inChat = metaView === 'chat'
 
   return (
     <div style={{
@@ -685,42 +672,50 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
       flexDirection: 'column',
     }}>
 
-      {/* ── View toggle bar ── */}
+      {/* ── View toggle: single "LEAD CENTER" / "Pipeline" button anchored top-right ── */}
       <div style={{
         display: 'flex',
         alignItems: 'center',
-        gap: 4,
-        padding: '8px 16px',
+        justifyContent: 'flex-end',
+        gap: 6,
+        padding: '10px 16px',
         background: 'rgba(14,14,28,.95)',
         borderBottom: `1px solid ${BORDER}`,
         flexShrink: 0,
-        direction: 'ltr',
+        direction: 'rtl',
       }}>
-        {VIEW_TABS.map(tab => {
-          const active = metaView === tab.id
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setMetaView(tab.id)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 6,
-                padding: '6px 14px',
-                borderRadius: 8,
-                border: active ? `1px solid ${PURPLE}55` : '1px solid transparent',
-                background: active ? `rgba(132,144,216,.18)` : 'transparent',
-                color: active ? PURPLE : MUTED,
-                fontSize: 12, fontWeight: active ? 700 : 500,
-                cursor: 'pointer', fontFamily: 'inherit',
-                transition: 'all .15s',
-              }}
-              onMouseEnter={e => { if (!active) { e.currentTarget.style.background = 'rgba(132,144,216,.08)'; e.currentTarget.style.color = CREAM } }}
-              onMouseLeave={e => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = MUTED } }}
-            >
-              {tab.icon}
-              {tab.label}
-            </button>
-          )
-        })}
+        <button
+          type="button"
+          onClick={() => setMetaView(inChat ? 'pipeline' : 'chat')}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            padding: '8px 18px',
+            borderRadius: 9,
+            border: `1px solid ${PURPLE}80`,
+            background: `linear-gradient(135deg, rgba(132,144,216,.28) 0%, rgba(132,144,216,.16) 100%)`,
+            color: PURPLE,
+            fontSize: 12.5, fontWeight: 700,
+            cursor: 'pointer', fontFamily: 'inherit',
+            transition: 'all .15s',
+            boxShadow: `0 0 0 2px ${PURPLE}22`,
+            pointerEvents: 'auto',
+            userSelect: 'none',
+            letterSpacing: inChat ? 0 : '.06em',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = `linear-gradient(135deg, rgba(132,144,216,.4) 0%, rgba(132,144,216,.22) 100%)`; e.currentTarget.style.borderColor = PURPLE }}
+          onMouseLeave={e => { e.currentTarget.style.background = `linear-gradient(135deg, rgba(132,144,216,.28) 0%, rgba(132,144,216,.16) 100%)`; e.currentTarget.style.borderColor = `${PURPLE}80` }}
+        >
+          {inChat ? (
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="4" height="18" rx="1"/><rect x="10" y="3" width="4" height="14" rx="1"/><rect x="17" y="3" width="4" height="10" rx="1"/>
+            </svg>
+          ) : (
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+          )}
+          {inChat ? (lang === 'en' ? 'Pipeline' : 'Pipeline') : 'LEAD CENTER'}
+        </button>
       </div>
 
       {/* ── Kanban / Table view ── */}
@@ -1056,8 +1051,21 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
           </div>
         )}
 
-        {/* Lead list */}
-        <div style={{ flex: 1, overflowY: 'auto' }}>
+        {/* Lead list — smooth scroll (desktop wheel + mobile touch inertia).
+            CSS `contain` + GPU layer hint keep the long list paint-isolated so
+            scrolling stays at 60fps even with 100+ rows.                    */}
+        <div className="meta-leads-scroll meta-leads-list" style={{
+          flex: 1,
+          minHeight: 0,
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          WebkitOverflowScrolling: 'touch',
+          overscrollBehavior: 'contain',
+          scrollbarGutter: 'stable',
+          touchAction: 'pan-y',
+          willChange: 'scroll-position',
+          transform: 'translateZ(0)',
+        }}>
           {loadingLeads && (
             <div style={{ padding: 24, textAlign: 'center', color: MUTED, fontSize: 13 }}>{t.loading}</div>
           )}
@@ -1079,36 +1087,33 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
             const sc = STATUS_CONFIG[lead.status] || STATUS_CONFIG.new
             const isSelected = selectedLead?.id === lead.id
             const color = avatarColors(lead.name)
-            const isHovered = hoveredLeadId === lead.id
             const showNewDot = isNewRecent(lead)
             return (
               <div
                 key={lead.id}
+                className={`lead-row${isSelected ? ' is-selected' : ''}`}
                 onClick={() => setSelectedLead(lead)}
-                onMouseEnter={() => setHoveredLeadId(lead.id)}
-                onMouseLeave={() => setHoveredLeadId(null)}
                 style={{
                   padding: '12px 14px',
                   borderBottom: `1px solid rgba(255,255,255,.04)`,
                   cursor: 'pointer',
-                  background: isSelected ? `rgba(132,144,216,.1)` : isHovered ? 'rgba(255,255,255,.03)' : 'transparent',
+                  background: isSelected ? `rgba(132,144,216,.1)` : 'transparent',
                   borderRight: isSelected ? `2px solid ${PURPLE}` : '2px solid transparent',
-                  transition: 'all .12s',
+                  transition: 'background-color .12s',
                   position: 'relative',
+                  contain: 'layout style',
                 }}
               >
-                {/* Delete button (shows on hover) */}
+                {/* Delete button (visibility via CSS .lead-row:hover) */}
                 <button
+                  className="lead-row-archive"
                   onClick={(e) => handleDeleteLead(lead, e)}
                   title={lang === 'en' ? 'Archive lead' : 'העבר לארכיון'}
                   style={{
                     position: 'absolute',
                     top: '50%',
-                    transform: `translateY(-50%) ${isHovered ? 'scale(1)' : 'scale(0.7)'}`,
                     left: dir === 'rtl' ? 8 : undefined,
                     right: dir === 'ltr' ? 8 : undefined,
-                    opacity: isHovered ? 1 : 0,
-                    pointerEvents: isHovered ? 'auto' : 'none',
                     background: 'rgba(224,82,82,.1)',
                     border: '1px solid rgba(224,82,82,.22)',
                     borderRadius: 10,
@@ -1119,18 +1124,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
                     fontFamily: 'inherit',
                     fontSize: 11, fontWeight: 600,
                     zIndex: 2,
-                    transition: 'opacity .15s, transform .15s, background .12s, color .12s, border-color .12s',
                     backdropFilter: 'blur(6px)',
-                  }}
-                  onMouseEnter={e => {
-                    e.currentTarget.style.background = 'rgba(224,82,82,.22)'
-                    e.currentTarget.style.color = '#E05252'
-                    e.currentTarget.style.borderColor = 'rgba(224,82,82,.5)'
-                  }}
-                  onMouseLeave={e => {
-                    e.currentTarget.style.background = 'rgba(224,82,82,.1)'
-                    e.currentTarget.style.color = 'rgba(224,82,82,.7)'
-                    e.currentTarget.style.borderColor = 'rgba(224,82,82,.22)'
                   }}
                 >
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">

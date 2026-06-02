@@ -30,6 +30,8 @@ const GREEN_BASE_URL = (() => {
   const region = String(GREEN_INSTANCE).slice(0, 4)
   return region ? `https://${region}.api.greenapi.com` : 'https://api.green-api.com'
 })()
+// Build a Green API method URL. The apiToken stays server-side — never sent to the browser.
+const greenUrl = (method) => `${GREEN_BASE_URL}/waInstance${GREEN_INSTANCE}/${method}/${GREEN_TOKEN}`
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -397,6 +399,73 @@ async function handleSync(req, res) {
   })
 }
 
+// ── Green API chat proxy ───────────────────────────────────────────────────────
+// Keeps WA_GREENAPI_TOKEN server-side. The browser only ever talks to these
+// endpoints (with the ADMIN_TOKEN guard); it never sees the Green API token.
+async function handleChat(req, res, action) {
+  if (!checkAuth(req)) return res.status(401).json({ error: 'Unauthorized' })
+  if (!GREEN_INSTANCE || !GREEN_TOKEN) return res.status(500).json({ error: 'Green API not configured' })
+
+  try {
+    // GET /api/meta/chat-status → instance connection state
+    if (action === 'chat-status') {
+      const r = await fetch(greenUrl('getStateInstance'), { signal: AbortSignal.timeout(8000) })
+      const d = await r.json().catch(() => ({}))
+      return res.status(r.ok ? 200 : 502).json({ state: d.stateInstance || null })
+    }
+
+    // POST /api/meta/chat-history { phone, count } → raw Green getChatHistory array
+    if (action === 'chat-history') {
+      const { phone, count = 100 } = req.body || {}
+      const p = normalizePhone(phone)
+      if (!p) return res.status(400).json({ error: 'phone required' })
+      const r = await fetch(greenUrl('getChatHistory'), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chatId: `${p}@c.us`, count: Math.min(Number(count) || 100, 200) }),
+        signal: AbortSignal.timeout(20000),
+      })
+      const data = await r.json().catch(() => [])
+      return res.status(r.ok ? 200 : 502).json(Array.isArray(data) ? data : [])
+    }
+
+    // POST /api/meta/chat-send { phone, message } → sendMessage
+    if (action === 'chat-send') {
+      const { phone, message } = req.body || {}
+      const p = normalizePhone(phone)
+      if (!p || !message) return res.status(400).json({ error: 'phone and message required' })
+      const r = await fetch(greenUrl('sendMessage'), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chatId: `${p}@c.us`, message }),
+        signal: AbortSignal.timeout(20000),
+      })
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) return res.status(502).json({ error: 'Green API send failed', detail: d })
+      return res.status(200).json({ ok: true, idMessage: d.idMessage || null })
+    }
+
+    // POST /api/meta/chat-send-file { phone, fileName, fileType, fileBase64, caption } → sendFileByUpload
+    if (action === 'chat-send-file') {
+      const { phone, fileName, fileType, fileBase64, caption } = req.body || {}
+      const p = normalizePhone(phone)
+      if (!p || !fileName || !fileBase64) return res.status(400).json({ error: 'phone, fileName, fileBase64 required' })
+      const buffer = Buffer.from(fileBase64, 'base64')
+      const fd = new FormData()
+      fd.append('chatId', `${p}@c.us`)
+      fd.append('file', new Blob([buffer], { type: fileType || 'application/octet-stream' }), fileName)
+      fd.append('fileName', fileName)
+      if (caption) fd.append('caption', caption)
+      const r = await fetch(greenUrl('sendFileByUpload'), { method: 'POST', body: fd, signal: AbortSignal.timeout(60000) })
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) return res.status(502).json({ error: 'Green API file send failed', detail: d })
+      return res.status(200).json({ ok: true, idMessage: d.idMessage || null })
+    }
+
+    return res.status(404).json({ error: `Unknown chat action: ${action}` })
+  } catch (e) {
+    return res.status(502).json({ error: e.message || 'Green API proxy error' })
+  }
+}
+
 // ── main router ───────────────────────────────────────────────────────────────
 
 export default async function handler(req, res) {
@@ -405,10 +474,11 @@ export default async function handler(req, res) {
 
   const path = (req.query._path || '').replace(/^\/+/, '')
 
-  if (path === 'webhook')  return handleWebhook(req, res)
-  if (path === 'leads')    return handleLeads(req, res)
-  if (path === 'messages') return handleMessages(req, res)
-  if (path === 'sync')     return handleSync(req, res)
+  if (path === 'webhook')      return handleWebhook(req, res)
+  if (path === 'leads')        return handleLeads(req, res)
+  if (path === 'messages')     return handleMessages(req, res)
+  if (path === 'sync')         return handleSync(req, res)
+  if (path.startsWith('chat-')) return handleChat(req, res, path)
 
   return res.status(404).json({ error: `Unknown path: ${path}` })
 }

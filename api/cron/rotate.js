@@ -126,11 +126,11 @@ export default async function handler(req, res) {
     const toUnfeature = featured.slice(0, 2)
     await Promise.all(toUnfeature.map(a => patchById(a.id, { featured: false })))
 
-    // ── 4. Find 2 new articles from DIFFERENT sources (enforces daily variety) ────
-    const keepIds    = new Set(featured.slice(2).map(a => a.id))
-    const keepSources = new Set(featured.slice(2).map(a => a.source))
+    // ── 4. Find 2 articles with max source diversity ─────────────────────────────
+    const keepIds     = new Set(featured.slice(2).map(a => a.id))
+    const keptSources = new Set(featured.slice(2).map(a => a.source))
 
-    // Fetch large pool so we have enough source diversity to choose from
+    // Fetch a wide pool (100) so we have choices across many outlets
     const pool = await supaGet('news_articles', [
       ['select',   'id,title,source,published_at'],
       ['lang',     'eq.he'],
@@ -139,39 +139,32 @@ export default async function handler(req, res) {
       ['image',    'not.is.null'],
       ['image',    'neq.'],
       ['order',    'published_at.desc'],
-      ['limit',    '200'],
+      ['limit',    '100'],
     ])
 
-    // One best (most recent) candidate per source — prevents Ynet from getting N slots
-    const bestBySource = {}
-    for (const a of (pool || [])) {
-      if (!keepIds.has(a.id) && !bestBySource[a.source]) {
-        bestBySource[a.source] = a
-      }
-    }
+    const available = (pool || []).filter(a => !keepIds.has(a.id))
 
-    // Sort: new sources (not in keepSources) first, then by date descending
-    const ranked = Object.values(bestBySource).sort((a, b) => {
-      const aNew = keepSources.has(a.source) ? 1 : 0
-      const bNew = keepSources.has(b.source) ? 1 : 0
-      if (aNew !== bNew) return aNew - bNew
+    // Sort: articles from sources NOT already shown get priority; then newest
+    available.sort((a, b) => {
+      const aNew = keptSources.has(a.source) ? 0 : 1
+      const bNew = keptSources.has(b.source) ? 0 : 1
+      if (aNew !== bNew) return bNew - aNew
       return new Date(b.published_at) - new Date(a.published_at)
     })
 
-    // Pick 2 from 2 different sources
+    // Pick 2 from different sources for maximum variety
     const fresh = []
-    const usedSrc = new Set(keepSources)
-    for (const candidate of ranked) {
+    const pickedSrc = new Set()
+    for (const a of available) {
       if (fresh.length >= 2) break
-      if (!usedSrc.has(candidate.source)) {
-        fresh.push(candidate)
-        usedSrc.add(candidate.source)
-      }
+      if (!pickedSrc.has(a.source)) { fresh.push(a); pickedSrc.add(a.source) }
     }
-    // Fallback: if we couldn't find 2 fully unique sources, fill with best available
-    for (const candidate of ranked) {
-      if (fresh.length >= 2) break
-      if (!fresh.some(f => f.id === candidate.id)) fresh.push(candidate)
+    // Fallback: fill remaining slots if diversity wasn't possible
+    if (fresh.length < 2) {
+      for (const a of available) {
+        if (fresh.length >= 2) break
+        if (!fresh.some(f => f.id === a.id)) fresh.push(a)
+      }
     }
 
     if (fresh.length === 0) {

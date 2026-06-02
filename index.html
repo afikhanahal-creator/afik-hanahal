@@ -4,10 +4,173 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
 
-    <!-- ── Critical CSS: dark background + FOUT guard ── -->
+    <!-- ── Critical CSS: dark background + FOUT guard + admin-wide scrolling ── -->
     <style>
-      html { opacity: 0; transition: opacity .2s ease }
-      body { background: #09090F; margin: 0 }
+      html { opacity: 0; transition: opacity .2s ease; scroll-behavior: smooth }
+      body { background: #09090F; margin: 0; -webkit-overflow-scrolling: touch }
+
+      /* ── Admin-wide scroll behaviour ──────────────────────────────────────
+         Applies smooth + touch-momentum + contained overscroll to every
+         scrollable container inside the admin shell, plus the dedicated
+         lead-list / kanban containers. Inner descendants are matched with
+         the `* {…}` rule so inline-styled overflow:auto sections inherit
+         the same behaviour without code changes.                          */
+      .admin-main-pane,
+      .admin-panel-modal,
+      .admin-sidebar,
+      .admin-sidebar nav,
+      .admin-content,
+      .admin-scroll,
+      .meta-leads-scroll,
+      .meta-kanban-scroll,
+      .admin-main-pane *,
+      .admin-panel-modal *,
+      .admin-content * {
+        -webkit-overflow-scrolling: touch;
+        scroll-behavior: smooth;
+        scrollbar-width: thin;
+        scrollbar-color: rgba(132,144,216,.45) transparent;
+      }
+      .admin-main-pane,
+      .admin-panel-modal,
+      .admin-sidebar nav,
+      .admin-content,
+      .admin-scroll,
+      .meta-leads-scroll,
+      .meta-kanban-scroll {
+        overscroll-behavior: contain;
+        scrollbar-gutter: stable;
+      }
+
+      /* Webkit scrollbar — visible on dark backgrounds (Chrome/Edge/Safari) */
+      .admin-main-pane::-webkit-scrollbar,
+      .admin-panel-modal::-webkit-scrollbar,
+      .admin-sidebar nav::-webkit-scrollbar,
+      .admin-content::-webkit-scrollbar,
+      .admin-content *::-webkit-scrollbar,
+      .admin-main-pane *::-webkit-scrollbar,
+      .admin-panel-modal *::-webkit-scrollbar,
+      .admin-scroll::-webkit-scrollbar,
+      .meta-leads-scroll::-webkit-scrollbar,
+      .meta-kanban-scroll::-webkit-scrollbar {
+        width: 10px;
+        height: 10px;
+      }
+      .admin-main-pane::-webkit-scrollbar-track,
+      .admin-panel-modal::-webkit-scrollbar-track,
+      .admin-sidebar nav::-webkit-scrollbar-track,
+      .admin-content::-webkit-scrollbar-track,
+      .admin-content *::-webkit-scrollbar-track,
+      .admin-main-pane *::-webkit-scrollbar-track,
+      .admin-panel-modal *::-webkit-scrollbar-track,
+      .admin-scroll::-webkit-scrollbar-track,
+      .meta-leads-scroll::-webkit-scrollbar-track,
+      .meta-kanban-scroll::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      .admin-main-pane::-webkit-scrollbar-thumb,
+      .admin-panel-modal::-webkit-scrollbar-thumb,
+      .admin-sidebar nav::-webkit-scrollbar-thumb,
+      .admin-content::-webkit-scrollbar-thumb,
+      .admin-content *::-webkit-scrollbar-thumb,
+      .admin-main-pane *::-webkit-scrollbar-thumb,
+      .admin-panel-modal *::-webkit-scrollbar-thumb,
+      .admin-scroll::-webkit-scrollbar-thumb,
+      .meta-leads-scroll::-webkit-scrollbar-thumb,
+      .meta-kanban-scroll::-webkit-scrollbar-thumb {
+        background: rgba(132,144,216,.35);
+        border-radius: 8px;
+        border: 2px solid transparent;
+        background-clip: padding-box;
+        transition: background-color .15s;
+        min-height: 32px;
+      }
+      .admin-main-pane::-webkit-scrollbar-thumb:hover,
+      .admin-panel-modal::-webkit-scrollbar-thumb:hover,
+      .admin-sidebar nav::-webkit-scrollbar-thumb:hover,
+      .admin-content::-webkit-scrollbar-thumb:hover,
+      .admin-content *::-webkit-scrollbar-thumb:hover,
+      .admin-main-pane *::-webkit-scrollbar-thumb:hover,
+      .admin-panel-modal *::-webkit-scrollbar-thumb:hover,
+      .admin-scroll::-webkit-scrollbar-thumb:hover,
+      .meta-leads-scroll::-webkit-scrollbar-thumb:hover,
+      .meta-kanban-scroll::-webkit-scrollbar-thumb:hover {
+        background: rgba(132,144,216,.7);
+        background-clip: padding-box;
+        border: 2px solid transparent;
+      }
+      .admin-main-pane::-webkit-scrollbar-thumb:active,
+      .admin-panel-modal::-webkit-scrollbar-thumb:active,
+      .admin-sidebar nav::-webkit-scrollbar-thumb:active,
+      .admin-content::-webkit-scrollbar-thumb:active,
+      .admin-content *::-webkit-scrollbar-thumb:active,
+      .admin-main-pane *::-webkit-scrollbar-thumb:active,
+      .admin-panel-modal *::-webkit-scrollbar-thumb:active,
+      .admin-scroll::-webkit-scrollbar-thumb:active,
+      .meta-leads-scroll::-webkit-scrollbar-thumb:active,
+      .meta-kanban-scroll::-webkit-scrollbar-thumb:active {
+        background: rgba(132,144,216,.9);
+        background-clip: padding-box;
+        border: 2px solid transparent;
+      }
+      .admin-main-pane::-webkit-scrollbar-corner,
+      .admin-panel-modal::-webkit-scrollbar-corner,
+      .admin-content::-webkit-scrollbar-corner,
+      .meta-leads-scroll::-webkit-scrollbar-corner,
+      .meta-kanban-scroll::-webkit-scrollbar-corner {
+        background: transparent;
+      }
+
+      /* Lead row hover (CSS-only — keeps 100+ items off the React render loop) */
+      .lead-row {
+        transition: background-color .12s ease;
+      }
+      .lead-row:not(.is-selected):hover {
+        background-color: rgba(255,255,255,.035) !important;
+      }
+      .lead-row-archive {
+        opacity: 0;
+        pointer-events: none;
+        transform: translateY(-50%) scale(.72);
+        transition: opacity .15s ease, transform .15s ease,
+                    background-color .12s ease, color .12s ease, border-color .12s ease;
+      }
+      .lead-row:hover .lead-row-archive {
+        opacity: 1;
+        pointer-events: auto;
+        transform: translateY(-50%) scale(1);
+      }
+      .lead-row-archive:hover {
+        background-color: rgba(224,82,82,.22) !important;
+        color: #E05252 !important;
+        border-color: rgba(224,82,82,.5) !important;
+      }
+      /* Touch devices: archive button is always visible (no hover state) */
+      @media (hover: none) and (pointer: coarse) {
+        .lead-row-archive {
+          opacity: .9;
+          pointer-events: auto;
+          transform: translateY(-50%) scale(1);
+        }
+      }
+
+      /* Mobile: thinner scrollbar so it doesn't steal column width, and
+         force iOS momentum scrolling on every overflow container. */
+      @media (max-width: 768px) {
+        .admin-main-pane::-webkit-scrollbar,
+        .admin-panel-modal::-webkit-scrollbar,
+        .admin-sidebar nav::-webkit-scrollbar,
+        .admin-content::-webkit-scrollbar,
+        .admin-content *::-webkit-scrollbar,
+        .admin-main-pane *::-webkit-scrollbar,
+        .admin-panel-modal *::-webkit-scrollbar,
+        .admin-scroll::-webkit-scrollbar,
+        .meta-leads-scroll::-webkit-scrollbar,
+        .meta-kanban-scroll::-webkit-scrollbar {
+          width: 3px;
+          height: 3px;
+        }
+      }
     </style>
 
     <!-- ── Google Fonts: preconnect + load with fallback display ── -->

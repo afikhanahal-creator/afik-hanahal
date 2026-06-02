@@ -13,6 +13,23 @@ import { CSS } from '@dnd-kit/utilities'
 const ADMIN_TOKEN = 'AFIKhanahal2026'
 const STAGES_LS   = 'meta_kanban_stages_v3'
 
+// ── Dark theme tokens ─────────────────────────────────────────────────────────
+const T = {
+  bg:      '#0D1117',
+  card:    '#1A2235',
+  cardHov: '#212D42',
+  surf:    '#131B2A',
+  surfHov: '#1E2840',
+  border:  '#2A3347',
+  borderL: '#1E2A3A',
+  text:    '#E2E8F8',
+  sub:     '#8B98BC',
+  dim:     '#4A5568',
+  popup:   '#0F1825',
+  divider: '#1E2A3A',
+  accent:  '#1877F2',
+}
+
 const DEFAULT_STAGES = [
   { id: 'new',          label: 'Intake',                   color: '#1877F2' },
   { id: 'contacted',    label: 'רציניים',                  color: '#F59E0B' },
@@ -59,8 +76,8 @@ function timeAgo(str) {
 function MenuItem({ icon, label, onClick, danger, sub }) {
   return (
     <button onClick={onClick}
-      style={{ width: '100%', padding: sub ? '6px 12px 6px 24px' : '8px 12px', border: 'none', background: 'none', cursor: 'pointer', textAlign: 'right', fontSize: sub ? 12 : 13, color: danger ? '#E02020' : '#1C1E21', display: 'flex', alignItems: 'center', gap: 8, direction: 'rtl' }}
-      onMouseEnter={e => { e.currentTarget.style.background = danger ? '#FFF0F0' : '#F0F2F5' }}
+      style={{ width: '100%', padding: sub ? '6px 12px 6px 24px' : '8px 12px', border: 'none', background: 'none', cursor: 'pointer', textAlign: 'right', fontSize: sub ? 12 : 13, color: danger ? '#E05252' : T.text, display: 'flex', alignItems: 'center', gap: 8, direction: 'rtl' }}
+      onMouseEnter={e => { e.currentTarget.style.background = danger ? 'rgba(224,82,82,.12)' : T.surfHov }}
       onMouseLeave={e => { e.currentTarget.style.background = 'none' }}
     >
       {icon && <span style={{ fontSize: 13 }}>{icon}</span>}
@@ -94,9 +111,9 @@ function SortableCard({ lead, stages, onClick, onDelete, onMoveStage, bulkMode, 
         transform: CSS.Transform.toString(transform),
         transition,
         opacity: isDragging ? 0.25 : 1,
-        background: '#fff',
+        background: T.card,
         borderRadius: 8,
-        border: isSelected ? '2px solid #1877F2' : '1px solid #E4E6EB',
+        border: isSelected ? `2px solid ${T.accent}` : `1px solid ${T.border}`,
         padding: '10px 12px',
         marginBottom: 8,
         cursor: isDragging ? 'grabbing' : 'grab',
@@ -119,21 +136,21 @@ function SortableCard({ lead, stages, onClick, onDelete, onMoveStage, bulkMode, 
           {initials(lead.name)}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: '#1C1E21', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', direction: 'rtl' }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', direction: 'rtl' }}>
             {lead.name || '—'}
           </div>
           <div style={{ display: 'flex', gap: 4, marginTop: 5, flexWrap: 'wrap' }}>
             {(lead.campaign_name || lead.form_name) && (
-              <span style={{ fontSize: 10, color: '#65676B', background: '#F0F2F5', borderRadius: 4, padding: '2px 5px', maxWidth: 110, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <span style={{ fontSize: 10, color: T.sub, background: T.surf, borderRadius: 4, padding: '2px 5px', maxWidth: 110, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {lead.campaign_name || lead.form_name}
               </span>
             )}
-            <span style={{ fontSize: 10, color: '#1877F2', background: '#E7F0FF', borderRadius: 4, padding: '2px 5px', fontWeight: 600, whiteSpace: 'nowrap' }}>
+            <span style={{ fontSize: 10, color: T.accent, background: 'rgba(24,119,242,.15)', borderRadius: 4, padding: '2px 5px', fontWeight: 600, whiteSpace: 'nowrap' }}>
               ✓ Complete form
             </span>
           </div>
           {lead.created_at && (
-            <div style={{ fontSize: 10, color: '#BCC0C4', marginTop: 4 }}>{timeAgo(lead.created_at)}</div>
+            <div style={{ fontSize: 10, color: T.dim, marginTop: 4 }}>{timeAgo(lead.created_at)}</div>
           )}
         </div>
 
@@ -141,27 +158,27 @@ function SortableCard({ lead, stages, onClick, onDelete, onMoveStage, bulkMode, 
         <div ref={menuRef} style={{ flexShrink: 0, position: 'relative' }} onClick={e => e.stopPropagation()}>
           <button
             onClick={e => { e.stopPropagation(); setMenuOpen(v => !v) }}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 5px', color: '#65676B', fontSize: 18, borderRadius: 4, lineHeight: 1 }}
-            onMouseEnter={e => { e.currentTarget.style.background = '#F0F2F5' }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 5px', color: T.sub, fontSize: 18, borderRadius: 4, lineHeight: 1 }}
+            onMouseEnter={e => { e.currentTarget.style.background = T.surfHov }}
             onMouseLeave={e => { e.currentTarget.style.background = 'none' }}
           >⋮</button>
 
           {menuOpen && (
-            <div style={{ position: 'absolute', top: 22, right: 0, zIndex: 999, background: '#fff', border: '1px solid #E4E6EB', borderRadius: 10, boxShadow: '0 8px 28px rgba(0,0,0,.2)', minWidth: 170 }}>
+            <div style={{ position: 'absolute', top: 22, right: 0, zIndex: 999, background: T.popup, border: `1px solid ${T.border}`, borderRadius: 10, boxShadow: '0 8px 28px rgba(0,0,0,.6)', minWidth: 170 }}>
               <MenuItem icon="👤" label="Open lead" onClick={() => { onClick(lead); setMenuOpen(false) }} />
-              <div style={{ borderTop: '1px solid #E4E6EB', margin: '3px 0' }} />
-              <div style={{ padding: '4px 12px 2px', fontSize: 10, color: '#65676B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', direction: 'rtl' }}>Move to</div>
+              <div style={{ borderTop: `1px solid ${T.divider}`, margin: '3px 0' }} />
+              <div style={{ padding: '4px 12px 2px', fontSize: 10, color: T.sub, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', direction: 'rtl' }}>Move to</div>
               {stages.filter(s => s.id !== lead.status).map(s => (
                 <button key={s.id} onClick={() => { onMoveStage(lead.id, s.id); setMenuOpen(false) }}
                   style={{ width: '100%', padding: '7px 12px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 13, color: s.color, display: 'flex', alignItems: 'center', gap: 8, direction: 'rtl' }}
-                  onMouseEnter={e => { e.currentTarget.style.background = '#F0F2F5' }}
+                  onMouseEnter={e => { e.currentTarget.style.background = T.surfHov }}
                   onMouseLeave={e => { e.currentTarget.style.background = 'none' }}
                 >
                   <span style={{ width: 9, height: 9, borderRadius: '50%', background: s.color, flexShrink: 0 }} />
                   <span>{s.label}</span>
                 </button>
               ))}
-              <div style={{ borderTop: '1px solid #E4E6EB', margin: '3px 0' }} />
+              <div style={{ borderTop: `1px solid ${T.divider}`, margin: '3px 0' }} />
               <MenuItem icon="🗑" label="Delete lead" danger onClick={() => { onDelete(lead); setMenuOpen(false) }} />
             </div>
           )}
@@ -200,16 +217,16 @@ function KanbanColumn({ stage, leads, stages, onCardClick, onCardDelete, onCardM
         flexShrink: 0,
         display: 'flex',
         flexDirection: 'column',
-        background: isOver ? '#E8F0FE' : '#F0F2F5',
+        background: isOver ? 'rgba(24,119,242,.12)' : T.surf,
         borderRadius: 10,
         maxHeight: '100%',
-        border: isOver ? '2px dashed #1877F2' : '2px solid transparent',
+        border: isOver ? `2px dashed ${T.accent}` : `2px solid ${T.borderL}`,
       }}
     >
       {/* Column header — drag handle */}
       <div
         {...listeners} {...attributes}
-        style={{ padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 8, cursor: 'grab', borderRadius: '8px 8px 0 0', background: '#EAECF0', userSelect: 'none', borderBottom: '1px solid #D8DADF' }}
+        style={{ padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 8, cursor: 'grab', borderRadius: '8px 8px 0 0', background: T.bg, userSelect: 'none', borderBottom: `1px solid ${T.border}` }}
       >
         <div style={{ width: 10, height: 10, borderRadius: '50%', background: stage.color, flexShrink: 0 }} />
         {editing ? (
@@ -225,22 +242,22 @@ function KanbanColumn({ stage, leads, stages, onCardClick, onCardDelete, onCardM
             style={{ flex: 1, border: '1px solid #1877F2', borderRadius: 4, padding: '2px 6px', fontSize: 13, fontWeight: 600, outline: 'none', fontFamily: 'inherit' }}
           />
         ) : (
-          <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: '#1C1E21', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', direction: 'rtl' }}>
+          <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', direction: 'rtl' }}>
             {stage.label}
           </span>
         )}
-        <span style={{ fontSize: 11, fontWeight: 700, color: '#65676B', background: '#D8DADF', borderRadius: 10, padding: '1px 7px', flexShrink: 0 }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color: T.sub, background: T.border, borderRadius: 10, padding: '1px 7px', flexShrink: 0 }}>
           {leads.length}
         </span>
 
         <div ref={colMenuRef} style={{ flexShrink: 0, position: 'relative' }} onClick={e => e.stopPropagation()}>
           <button onClick={e => { e.stopPropagation(); setColMenu(v => !v) }}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 5px', color: '#65676B', fontSize: 15, borderRadius: 4, lineHeight: 1 }}
-            onMouseEnter={e => { e.currentTarget.style.background = '#D8DADF' }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 5px', color: T.sub, fontSize: 15, borderRadius: 4, lineHeight: 1 }}
+            onMouseEnter={e => { e.currentTarget.style.background = T.border }}
             onMouseLeave={e => { e.currentTarget.style.background = 'none' }}
           >···</button>
           {colMenu && (
-            <div style={{ position: 'absolute', top: 24, right: 0, zIndex: 999, background: '#fff', border: '1px solid #E4E6EB', borderRadius: 10, boxShadow: '0 8px 28px rgba(0,0,0,.18)', minWidth: 150 }}>
+            <div style={{ position: 'absolute', top: 24, right: 0, zIndex: 999, background: T.popup, border: `1px solid ${T.border}`, borderRadius: 10, boxShadow: '0 8px 28px rgba(0,0,0,.6)', minWidth: 150 }}>
               <MenuItem icon="✏️" label="Rename" onClick={() => { setEditing(true); setNameVal(stage.label); setColMenu(false) }} />
               <MenuItem icon="🗑" label="Delete stage" danger onClick={() => { onDeleteStage(stage.id); setColMenu(false) }} />
             </div>
@@ -249,7 +266,7 @@ function KanbanColumn({ stage, leads, stages, onCardClick, onCardDelete, onCardM
       </div>
 
       {/* Cards */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '8px 8px 0', minHeight: 80 }}>
+      <div className="meta-kanban-scroll" style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '8px 8px 0', minHeight: 80, WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', scrollBehavior: 'smooth', touchAction: 'pan-y' }}>
         <SortableContext items={leads.map(l => `card-${l.id}`)} strategy={verticalListSortingStrategy}>
           {leads.map(lead => (
             <SortableCard
@@ -274,8 +291,8 @@ function KanbanColumn({ stage, leads, stages, onCardClick, onCardDelete, onCardM
                 <path d="M157 100l4 4 8-8" stroke="#1877F2" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" opacity=".7" />
               </svg>
             </div>
-            <div style={{ fontSize: 12, fontWeight: 600, color: '#65676B', marginBottom: 4 }}>No {stage.label} leads</div>
-            <div style={{ fontSize: 11, color: '#BCC0C4', lineHeight: 1.5 }}>{STAGE_DESC[stage.id] || 'Move leads to this stage'}</div>
+            <div style={{ fontSize: 12, fontWeight: 600, color: T.sub, marginBottom: 4 }}>No {stage.label} leads</div>
+            <div style={{ fontSize: 11, color: T.dim, lineHeight: 1.5 }}>{STAGE_DESC[stage.id] || 'Move leads to this stage'}</div>
           </div>
         )}
       </div>
@@ -298,26 +315,26 @@ function RowMenu({ lead, stages, onMoveStage, onDelete, onOpenLead }) {
   return (
     <div ref={ref} style={{ position: 'relative' }}>
       <button onClick={e => { e.stopPropagation(); setOpen(v => !v) }}
-        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 7px', color: '#65676B', fontSize: 16, borderRadius: 4 }}
-        onMouseEnter={e => { e.currentTarget.style.background = '#F0F2F5' }}
+        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 7px', color: T.sub, fontSize: 16, borderRadius: 4 }}
+        onMouseEnter={e => { e.currentTarget.style.background = T.surfHov }}
         onMouseLeave={e => { e.currentTarget.style.background = 'none' }}
       >⋮</button>
       {open && (
-        <div style={{ position: 'absolute', right: 0, top: 24, zIndex: 200, background: '#fff', border: '1px solid #E4E6EB', borderRadius: 10, boxShadow: '0 8px 28px rgba(0,0,0,.18)', minWidth: 165 }}>
+        <div style={{ position: 'absolute', right: 0, top: 24, zIndex: 200, background: T.popup, border: `1px solid ${T.border}`, borderRadius: 10, boxShadow: '0 8px 28px rgba(0,0,0,.6)', minWidth: 165 }}>
           <MenuItem icon="👤" label="Open lead" onClick={() => { onOpenLead(lead); setOpen(false) }} />
-          <div style={{ borderTop: '1px solid #E4E6EB', margin: '3px 0' }} />
-          <div style={{ padding: '4px 12px 2px', fontSize: 10, color: '#65676B', fontWeight: 700, textTransform: 'uppercase', direction: 'rtl' }}>Move to</div>
+          <div style={{ borderTop: `1px solid ${T.divider}`, margin: '3px 0' }} />
+          <div style={{ padding: '4px 12px 2px', fontSize: 10, color: T.sub, fontWeight: 700, textTransform: 'uppercase', direction: 'rtl' }}>Move to</div>
           {stages.filter(s => s.id !== lead.status).map(s => (
             <button key={s.id} onClick={() => { onMoveStage(lead.id, s.id); setOpen(false) }}
-              style={{ width: '100%', padding: '7px 12px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 13, color: '#1C1E21', display: 'flex', alignItems: 'center', gap: 8, direction: 'rtl' }}
-              onMouseEnter={e => { e.currentTarget.style.background = '#F0F2F5' }}
+              style={{ width: '100%', padding: '7px 12px', border: 'none', background: 'none', cursor: 'pointer', fontSize: 13, color: T.text, display: 'flex', alignItems: 'center', gap: 8, direction: 'rtl' }}
+              onMouseEnter={e => { e.currentTarget.style.background = T.surfHov }}
               onMouseLeave={e => { e.currentTarget.style.background = 'none' }}
             >
               <span style={{ width: 9, height: 9, borderRadius: '50%', background: s.color, flexShrink: 0 }} />
               <span>{s.label}</span>
             </button>
           ))}
-          <div style={{ borderTop: '1px solid #E4E6EB', margin: '3px 0' }} />
+          <div style={{ borderTop: `1px solid ${T.divider}`, margin: '3px 0' }} />
           <MenuItem icon="🗑" label="Delete lead" danger onClick={() => { onDelete(lead); setOpen(false) }} />
         </div>
       )}
@@ -355,17 +372,17 @@ function TableView({ leads, stages, onMoveStage, onDelete, onOpenLead }) {
 
   const TH = ({ col, label, w }) => (
     <th onClick={() => toggle(col)}
-      style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 600, color: '#65676B', cursor: 'pointer', whiteSpace: 'nowrap', userSelect: 'none', fontSize: 12, width: w, borderBottom: '2px solid #E4E6EB' }}>
+      style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 600, color: T.sub, cursor: 'pointer', whiteSpace: 'nowrap', userSelect: 'none', fontSize: 12, width: w, borderBottom: `2px solid ${T.border}`, background: T.bg }}>
       {label} <span style={{ opacity: sortCol === col ? 1 : 0.3, color: sortCol === col ? '#1877F2' : undefined }}>{sortCol === col ? (sortDir === 'asc' ? '↑' : '↓') : '↕'}</span>
     </th>
   )
 
   return (
-    <div style={{ height: '100%', overflowY: 'auto', overflowX: 'auto' }}>
+    <div className="meta-kanban-scroll" style={{ height: '100%', overflowY: 'auto', overflowX: 'auto', WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', scrollBehavior: 'smooth' }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 680 }}>
-        <thead style={{ position: 'sticky', top: 0, background: '#FAFAFA', zIndex: 10 }}>
+        <thead style={{ position: 'sticky', top: 0, background: T.bg, zIndex: 10 }}>
           <tr>
-            <th style={{ padding: '10px 12px', width: 36, borderBottom: '2px solid #E4E6EB' }}>
+            <th style={{ padding: '10px 12px', width: 36, borderBottom: `2px solid ${T.border}`, background: T.bg }}>
               <input type="checkbox" style={{ cursor: 'pointer', accentColor: '#1877F2' }}
                 checked={selected.size === leads.length && leads.length > 0}
                 onChange={e => setSelected(e.target.checked ? new Set(leads.map(l => l.id)) : new Set())}
@@ -376,7 +393,7 @@ function TableView({ leads, stages, onMoveStage, onDelete, onOpenLead }) {
             <TH col="phone" label="Phone" w={130} />
             <TH col="campaign" label="Campaign / Form" w={160} />
             <TH col="date" label="Date" w={110} />
-            <th style={{ padding: '10px 12px', width: 48, borderBottom: '2px solid #E4E6EB' }} />
+            <th style={{ padding: '10px 12px', width: 48, borderBottom: `2px solid ${T.border}`, background: T.bg }} />
           </tr>
         </thead>
         <tbody>
@@ -385,9 +402,9 @@ function TableView({ leads, stages, onMoveStage, onDelete, onOpenLead }) {
             const isSel = selected.has(lead.id)
             return (
               <tr key={lead.id}
-                style={{ background: isSel ? '#E7F0FF' : i % 2 === 0 ? '#fff' : '#FAFAFA', cursor: 'pointer' }}
-                onMouseEnter={e => { if (!isSel) e.currentTarget.style.background = '#F0F4FF' }}
-                onMouseLeave={e => { if (!isSel) e.currentTarget.style.background = i % 2 === 0 ? '#fff' : '#FAFAFA' }}
+                style={{ background: isSel ? 'rgba(24,119,242,.12)' : i % 2 === 0 ? T.card : T.surf, cursor: 'pointer', borderBottom: `1px solid ${T.borderL}` }}
+                onMouseEnter={e => { if (!isSel) e.currentTarget.style.background = T.cardHov }}
+                onMouseLeave={e => { if (!isSel) e.currentTarget.style.background = i % 2 === 0 ? T.card : T.surf }}
                 onClick={() => onOpenLead(lead)}
               >
                 <td style={{ padding: '9px 12px' }}>
@@ -401,19 +418,19 @@ function TableView({ leads, stages, onMoveStage, onDelete, onOpenLead }) {
                     <div style={{ width: 28, height: 28, borderRadius: '50%', background: avatarBg(lead.name), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800, color: '#fff', flexShrink: 0 }}>
                       {initials(lead.name)}
                     </div>
-                    <span style={{ fontWeight: 600, color: '#1C1E21', direction: 'rtl', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 110 }}>{lead.name || '—'}</span>
+                    <span style={{ fontWeight: 600, color: T.text, direction: 'rtl', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 110 }}>{lead.name || '—'}</span>
                   </div>
                 </td>
                 <td style={{ padding: '9px 12px' }}>
                   {stg ? (
                     <span style={{ padding: '3px 8px', borderRadius: 12, background: stg.color + '22', color: stg.color, fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }}>{stg.label}</span>
-                  ) : <span style={{ color: '#BCC0C4', fontSize: 11 }}>—</span>}
+                  ) : <span style={{ color: T.dim, fontSize: 11 }}>—</span>}
                 </td>
-                <td style={{ padding: '9px 12px', color: '#65676B' }}>{fmtPhone(lead.phone) || '—'}</td>
-                <td style={{ padding: '9px 12px', color: '#65676B', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <td style={{ padding: '9px 12px', color: T.sub }}>{fmtPhone(lead.phone) || '—'}</td>
+                <td style={{ padding: '9px 12px', color: T.sub, maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {lead.campaign_name || lead.form_name || '—'}
                 </td>
-                <td style={{ padding: '9px 12px', color: '#BCC0C4', fontSize: 12, whiteSpace: 'nowrap' }}>
+                <td style={{ padding: '9px 12px', color: T.dim, fontSize: 12, whiteSpace: 'nowrap' }}>
                   {lead.created_at ? timeAgo(lead.created_at) : '—'}
                 </td>
                 <td style={{ padding: '9px 12px' }} onClick={e => e.stopPropagation()}>
@@ -425,7 +442,7 @@ function TableView({ leads, stages, onMoveStage, onDelete, onOpenLead }) {
         </tbody>
       </table>
       {sorted.length === 0 && (
-        <div style={{ padding: '60px 24px', textAlign: 'center', color: '#BCC0C4', fontSize: 14 }}>No leads found</div>
+        <div style={{ padding: '60px 24px', textAlign: 'center', color: T.dim, fontSize: 14 }}>No leads found</div>
       )}
     </div>
   )
@@ -437,19 +454,19 @@ function LeadDrawer({ lead, stages, onClose, onMoveStage, onDelete }) {
   return (
     <>
       <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.35)', zIndex: 400 }} onClick={onClose} />
-      <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 380, background: '#fff', boxShadow: '-8px 0 40px rgba(0,0,0,.2)', zIndex: 500, display: 'flex', flexDirection: 'column', fontFamily: 'Helvetica Neue,Arial,sans-serif' }}>
+      <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 380, background: T.popup, boxShadow: '-8px 0 48px rgba(0,0,0,.7)', zIndex: 500, display: 'flex', flexDirection: 'column', fontFamily: 'Rubik,Helvetica Neue,Arial,sans-serif' }}>
         {/* Header */}
-        <div style={{ padding: '16px 20px', borderBottom: '1px solid #E4E6EB', display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ padding: '16px 20px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{ width: 44, height: 44, borderRadius: '50%', background: avatarBg(lead.name), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 800, color: '#fff', flexShrink: 0 }}>
             {initials(lead.name)}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 16, fontWeight: 700, color: '#1C1E21', direction: 'rtl' }}>{lead.name}</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: T.text, direction: 'rtl' }}>{lead.name}</div>
             {stg && <span style={{ marginTop: 4, display: 'inline-block', padding: '2px 8px', borderRadius: 10, background: stg.color + '22', color: stg.color, fontSize: 11, fontWeight: 700 }}>{stg.label}</span>}
           </div>
           <button onClick={onClose}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: '#65676B', padding: '4px', borderRadius: 6, lineHeight: 1 }}
-            onMouseEnter={e => { e.currentTarget.style.background = '#F0F2F5' }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: T.sub, padding: '4px', borderRadius: 6, lineHeight: 1 }}
+            onMouseEnter={e => { e.currentTarget.style.background = T.surfHov }}
             onMouseLeave={e => { e.currentTarget.style.background = 'none' }}
           >✕</button>
         </div>
@@ -464,24 +481,24 @@ function LeadDrawer({ lead, stages, onClose, onMoveStage, onDelete }) {
             { label: 'Notes', value: lead.notes || '—', icon: '📝' },
             { label: 'Received', value: lead.created_at ? new Date(lead.created_at).toLocaleString('he-IL') : '—', icon: '🕐' },
           ].map(row => (
-            <div key={row.label} style={{ display: 'flex', gap: 10, marginBottom: 14, paddingBottom: 14, borderBottom: '1px solid #F0F2F5' }}>
+            <div key={row.label} style={{ display: 'flex', gap: 10, marginBottom: 14, paddingBottom: 14, borderBottom: `1px solid ${T.divider}` }}>
               <span style={{ fontSize: 14, flexShrink: 0, marginTop: 2 }}>{row.icon}</span>
               <div>
-                <div style={{ fontSize: 10, color: '#BCC0C4', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 2 }}>{row.label}</div>
-                <div style={{ fontSize: 13, color: '#1C1E21', direction: 'rtl' }}>{row.value}</div>
+                <div style={{ fontSize: 10, color: T.dim, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 2 }}>{row.label}</div>
+                <div style={{ fontSize: 13, color: T.text, direction: 'rtl' }}>{row.value}</div>
               </div>
             </div>
           ))}
 
           {/* Move to stage */}
           <div style={{ marginTop: 8 }}>
-            <div style={{ fontSize: 11, color: '#65676B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 8 }}>Move to stage</div>
+            <div style={{ fontSize: 11, color: T.sub, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 8 }}>Move to stage</div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               {stages.map(s => (
                 <button key={s.id} onClick={() => onMoveStage(lead.id, s.id)}
-                  style={{ padding: '5px 10px', border: `1.5px solid ${lead.status === s.id ? s.color : '#E4E6EB'}`, borderRadius: 20, background: lead.status === s.id ? s.color + '22' : '#fff', color: lead.status === s.id ? s.color : '#65676B', fontSize: 11, fontWeight: 600, cursor: 'pointer', transition: 'all .12s' }}
+                  style={{ padding: '5px 10px', border: `1.5px solid ${lead.status === s.id ? s.color : T.border}`, borderRadius: 20, background: lead.status === s.id ? s.color + '22' : T.surf, color: lead.status === s.id ? s.color : T.sub, fontSize: 11, fontWeight: 600, cursor: 'pointer', transition: 'all .12s' }}
                   onMouseEnter={e => { e.currentTarget.style.borderColor = s.color; e.currentTarget.style.color = s.color }}
-                  onMouseLeave={e => { if (lead.status !== s.id) { e.currentTarget.style.borderColor = '#E4E6EB'; e.currentTarget.style.color = '#65676B' } }}
+                  onMouseLeave={e => { if (lead.status !== s.id) { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.color = T.sub } }}
                 >
                   {s.label}
                 </button>
@@ -491,7 +508,7 @@ function LeadDrawer({ lead, stages, onClose, onMoveStage, onDelete }) {
         </div>
 
         {/* Footer */}
-        <div style={{ padding: '12px 20px', borderTop: '1px solid #E4E6EB', display: 'flex', gap: 8 }}>
+        <div style={{ padding: '12px 20px', borderTop: `1px solid ${T.border}`, display: 'flex', gap: 8 }}>
           {lead.phone && (
             <a href={`https://wa.me/${lead.phone}`} target="_blank" rel="noopener noreferrer"
               style={{ flex: 1, padding: '8px 12px', background: '#25D366', border: 'none', borderRadius: 7, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', textDecoration: 'none', textAlign: 'center', display: 'block' }}>
@@ -499,9 +516,9 @@ function LeadDrawer({ lead, stages, onClose, onMoveStage, onDelete }) {
             </a>
           )}
           <button onClick={() => onDelete(lead)}
-            style={{ padding: '8px 14px', border: '1px solid #E4E6EB', borderRadius: 7, background: '#fff', color: '#E05252', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = '#E05252'; e.currentTarget.style.background = '#FFF0F0' }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = '#E4E6EB'; e.currentTarget.style.background = '#fff' }}
+            style={{ padding: '8px 14px', border: `1px solid ${T.border}`, borderRadius: 7, background: T.surf, color: '#E05252', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = '#E05252'; e.currentTarget.style.background = 'rgba(224,82,82,.12)' }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.background = T.surf }}
           >🗑 Delete</button>
         </div>
       </div>
@@ -717,55 +734,55 @@ export default function MetaKanban({ leads: propLeads = [], onUpdateLead, onDele
 
   // ── Render ───────────────────────────────────────────────────────────────────
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#fff', fontFamily: 'Helvetica Neue,Arial,sans-serif', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: T.bg, fontFamily: 'Rubik,Helvetica Neue,Arial,sans-serif', overflow: 'hidden' }}>
 
       {/* TOP BAR */}
-      <div style={{ padding: '8px 16px', borderBottom: '1px solid #E4E6EB', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-        <div style={{ display: 'flex', background: '#F0F2F5', borderRadius: 8, padding: 3, gap: 2 }}>
+      <div style={{ padding: '8px 16px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0, background: T.surf }}>
+        <div style={{ display: 'flex', background: T.bg, borderRadius: 8, padding: 3, gap: 2 }}>
           {[{ id: 'pipeline', icon: '⠿', label: 'Pipeline view' }, { id: 'table', icon: '≡', label: 'Table view' }].map(v => (
             <button key={v.id} onClick={() => setViewMode(v.id)}
-              style={{ padding: '5px 11px', border: 'none', borderRadius: 6, background: viewMode === v.id ? '#fff' : 'transparent', color: viewMode === v.id ? '#1877F2' : '#65676B', fontSize: 12, fontWeight: viewMode === v.id ? 700 : 500, cursor: 'pointer', boxShadow: viewMode === v.id ? '0 1px 4px rgba(0,0,0,.12)' : 'none', transition: 'all .15s', display: 'flex', alignItems: 'center', gap: 4 }}>
+              style={{ padding: '5px 11px', border: 'none', borderRadius: 6, background: viewMode === v.id ? T.card : 'transparent', color: viewMode === v.id ? T.accent : T.sub, fontSize: 12, fontWeight: viewMode === v.id ? 700 : 500, cursor: 'pointer', boxShadow: viewMode === v.id ? '0 1px 6px rgba(0,0,0,.35)' : 'none', transition: 'all .15s', display: 'flex', alignItems: 'center', gap: 4 }}>
               <span style={{ fontSize: 13 }}>{v.icon}</span><span>{v.label}</span>
             </button>
           ))}
         </div>
         <div style={{ flex: 1 }} />
         <button onClick={() => setShowFilters(v => !v)}
-          style={{ padding: '5px 11px', border: '1px solid #E4E6EB', borderRadius: 7, background: '#fff', color: '#65676B', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+          style={{ padding: '5px 11px', border: `1px solid ${T.border}`, borderRadius: 7, background: T.card, color: T.sub, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
           <span>⇅</span><span>{showFilters ? 'Hide filters' : 'Show filters'}</span>
         </button>
       </div>
 
       {/* TOOLBAR */}
-      <div style={{ padding: '7px 16px', borderBottom: '1px solid #E4E6EB', display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0, flexWrap: 'wrap' }}>
+      <div style={{ padding: '7px 16px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', gap: 7, flexShrink: 0, flexWrap: 'wrap', background: T.surf }}>
         <button onClick={() => setAddingStage(true)}
-          style={{ padding: '5px 11px', border: '1px solid #E4E6EB', borderRadius: 7, background: '#fff', color: '#1C1E21', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
-          onMouseEnter={e => { e.currentTarget.style.background = '#F0F2F5' }}
-          onMouseLeave={e => { e.currentTarget.style.background = '#fff' }}>
+          style={{ padding: '5px 11px', border: `1px solid ${T.border}`, borderRadius: 7, background: T.card, color: T.text, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+          onMouseEnter={e => { e.currentTarget.style.background = T.cardHov }}
+          onMouseLeave={e => { e.currentTarget.style.background = T.card }}>
           + Add custom stage
         </button>
         <button onClick={() => { setBulkMode(v => !v); setSelectedCards(new Set()) }}
-          style={{ padding: '5px 11px', border: `1px solid ${bulkMode ? '#1877F2' : '#E4E6EB'}`, borderRadius: 7, background: bulkMode ? '#E7F0FF' : '#fff', color: bulkMode ? '#1877F2' : '#1C1E21', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+          style={{ padding: '5px 11px', border: `1px solid ${bulkMode ? T.accent : T.border}`, borderRadius: 7, background: bulkMode ? 'rgba(24,119,242,.15)' : T.card, color: bulkMode ? T.accent : T.text, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
           {bulkMode ? `✓ ${selectedCards.size} selected` : 'Bulk edit'}
         </button>
         {bulkMode && selectedCards.size > 0 && (
           <button onClick={() => { selectedCards.forEach(id => { const l = allLeads.find(x => x.id === id); if (l) handleDeleteLead(l) }); setSelectedCards(new Set()); setBulkMode(false) }}
-            style={{ padding: '5px 11px', border: '1px solid #E05252', borderRadius: 7, background: '#FFF0F0', color: '#E05252', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+            style={{ padding: '5px 11px', border: '1px solid #E05252', borderRadius: 7, background: 'rgba(224,82,82,.12)', color: '#E05252', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
             🗑 Delete selected ({selectedCards.size})
           </button>
         )}
         <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="+ חיפוש לידים..."
-          style={{ flex: 1, minWidth: 120, padding: '5px 11px', border: '1px solid #E4E6EB', borderRadius: 7, fontSize: 12, outline: 'none', fontFamily: 'inherit' }}
+          style={{ flex: 1, minWidth: 120, padding: '5px 11px', border: `1px solid ${T.border}`, borderRadius: 7, fontSize: 12, outline: 'none', fontFamily: 'inherit', background: T.card, color: T.text }}
         />
       </div>
 
       {/* FILTERS */}
       {showFilters && (
-        <div style={{ padding: '6px 16px', borderBottom: '1px solid #E4E6EB', display: 'flex', gap: 5, flexShrink: 0, flexWrap: 'wrap', alignItems: 'center' }}>
-          {campaigns.length === 0 && <span style={{ fontSize: 11, color: '#BCC0C4' }}>אין קמפיינים לסינון</span>}
+        <div style={{ padding: '6px 16px', borderBottom: `1px solid ${T.border}`, display: 'flex', gap: 5, flexShrink: 0, flexWrap: 'wrap', alignItems: 'center', background: T.surf }}>
+          {campaigns.length === 0 && <span style={{ fontSize: 11, color: T.dim }}>אין קמפיינים לסינון</span>}
           {campaigns.map(c => (
             <button key={c} onClick={() => setCampaignFilter(campaignFilter === c ? null : c)}
-              style={{ padding: '3px 9px', border: `1px solid ${campaignFilter === c ? '#1877F2' : '#E4E6EB'}`, borderRadius: 20, background: campaignFilter === c ? '#E7F0FF' : '#fff', color: campaignFilter === c ? '#1877F2' : '#65676B', fontSize: 11, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+              style={{ padding: '3px 9px', border: `1px solid ${campaignFilter === c ? T.accent : T.border}`, borderRadius: 20, background: campaignFilter === c ? 'rgba(24,119,242,.15)' : T.card, color: campaignFilter === c ? T.accent : T.sub, fontSize: 11, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
               {c} {campaignFilter === c && '×'}
             </button>
           ))}
@@ -773,33 +790,33 @@ export default function MetaKanban({ leads: propLeads = [], onUpdateLead, onDele
       )}
 
       {/* STATS BAR */}
-      <div style={{ padding: '6px 16px', borderBottom: '1px solid #E4E6EB', display: 'flex', gap: 20, flexShrink: 0, background: '#FAFAFA', alignItems: 'center', flexWrap: 'wrap' }}>
+      <div style={{ padding: '6px 16px', borderBottom: `1px solid ${T.border}`, display: 'flex', gap: 20, flexShrink: 0, background: T.bg, alignItems: 'center', flexWrap: 'wrap' }}>
         {[
           { label: 'Intake leads', val: stats.intake, sub: 'this week', color: '#22C55E' },
-          { label: 'Converted leads', val: stats.converted, sub: 'total', color: '#1877F2' },
+          { label: 'Converted leads', val: stats.converted, sub: 'total', color: T.accent },
           { label: 'Conversion rate', val: `${stats.rate}%`, sub: 'overall', color: stats.rate >= 10 ? '#22C55E' : '#F97316' },
         ].map(s => (
           <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-            <span style={{ fontSize: 12, color: '#65676B' }}>{s.label}:</span>
+            <span style={{ fontSize: 12, color: T.sub }}>{s.label}:</span>
             <span style={{ fontSize: 13, fontWeight: 700, color: s.color }}>{s.val}</span>
-            <span style={{ fontSize: 11, color: '#BCC0C4' }}>{s.sub}</span>
+            <span style={{ fontSize: 11, color: T.dim }}>{s.sub}</span>
           </div>
         ))}
-        <div style={{ flex: 1, textAlign: 'right', fontSize: 12, color: '#1877F2', fontWeight: 600 }}>
+        <div style={{ flex: 1, textAlign: 'right', fontSize: 12, color: T.accent, fontWeight: 600 }}>
           {allLeads.length} leads total
         </div>
       </div>
 
       {/* ADD STAGE FORM */}
       {addingStage && (
-        <div style={{ padding: '7px 16px', background: '#F0F4FF', borderBottom: '1px solid #D0DCFF', display: 'flex', gap: 7, flexShrink: 0 }}>
+        <div style={{ padding: '7px 16px', background: 'rgba(24,119,242,.08)', borderBottom: `1px solid ${T.border}`, display: 'flex', gap: 7, flexShrink: 0 }}>
           <input autoFocus value={newStageName} onChange={e => setNewStageName(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') addStage(); if (e.key === 'Escape') { setAddingStage(false); setNewStageName('') } }}
             placeholder="Stage name..."
-            style={{ flex: 1, padding: '6px 10px', border: '1px solid #1877F2', borderRadius: 6, fontSize: 13, outline: 'none', fontFamily: 'inherit' }}
+            style={{ flex: 1, padding: '6px 10px', border: `1px solid ${T.accent}`, borderRadius: 6, fontSize: 13, outline: 'none', fontFamily: 'inherit', background: T.card, color: T.text }}
           />
-          <button onClick={addStage} style={{ padding: '6px 14px', background: '#1877F2', border: 'none', borderRadius: 6, color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Add</button>
-          <button onClick={() => { setAddingStage(false); setNewStageName('') }} style={{ padding: '6px 10px', background: '#fff', border: '1px solid #E4E6EB', borderRadius: 6, fontSize: 12, cursor: 'pointer' }}>Cancel</button>
+          <button onClick={addStage} style={{ padding: '6px 14px', background: T.accent, border: 'none', borderRadius: 6, color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Add</button>
+          <button onClick={() => { setAddingStage(false); setNewStageName('') }} style={{ padding: '6px 10px', background: T.card, border: `1px solid ${T.border}`, borderRadius: 6, fontSize: 12, cursor: 'pointer', color: T.sub }}>Cancel</button>
         </div>
       )}
 
@@ -808,7 +825,7 @@ export default function MetaKanban({ leads: propLeads = [], onUpdateLead, onDele
         {viewMode === 'pipeline' ? (
           <DndContext sensors={sensors} collisionDetection={collisionDetection} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
             <SortableContext items={stages.map(s => s.id)} strategy={horizontalListSortingStrategy}>
-              <div style={{ display: 'flex', gap: 10, padding: '12px 16px', height: '100%', overflowX: 'auto', overflowY: 'hidden', boxSizing: 'border-box', alignItems: 'flex-start' }}>
+              <div className="meta-kanban-scroll" style={{ display: 'flex', gap: 10, padding: '12px 16px', height: '100%', overflowX: 'auto', overflowY: 'hidden', boxSizing: 'border-box', alignItems: 'flex-start', background: T.bg, direction: 'rtl', WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', scrollBehavior: 'smooth', touchAction: 'pan-x pan-y' }}>
                 {stages.map(stage => (
                   <KanbanColumn
                     key={stage.id} stage={stage}
@@ -828,14 +845,14 @@ export default function MetaKanban({ leads: propLeads = [], onUpdateLead, onDele
             </SortableContext>
             <DragOverlay>
               {activeLead && (
-                <div style={{ background: '#fff', borderRadius: 8, border: '2px solid #1877F2', padding: '10px 12px', width: 240, boxShadow: '0 12px 36px rgba(0,0,0,.25)', opacity: .95 }}>
+                <div style={{ background: T.card, borderRadius: 8, border: `2px solid ${T.accent}`, padding: '10px 12px', width: 240, boxShadow: '0 12px 36px rgba(0,0,0,.55)', opacity: .95 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <div style={{ width: 34, height: 34, borderRadius: '50%', background: avatarBg(activeLead.name), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: '#fff' }}>
                       {initials(activeLead.name)}
                     </div>
                     <div>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: '#1C1E21', direction: 'rtl' }}>{activeLead.name}</div>
-                      <div style={{ fontSize: 11, color: '#65676B', marginTop: 2 }}>{activeLead.campaign_name || activeLead.form_name || 'Lead'}</div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: T.text, direction: 'rtl' }}>{activeLead.name}</div>
+                      <div style={{ fontSize: 11, color: T.sub, marginTop: 2 }}>{activeLead.campaign_name || activeLead.form_name || 'Lead'}</div>
                     </div>
                   </div>
                 </div>
@@ -870,19 +887,19 @@ export default function MetaKanban({ leads: propLeads = [], onUpdateLead, onDele
 
       {/* DELETE CONFIRM */}
       {delConfirm && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: '#fff', borderRadius: 12, padding: 24, maxWidth: 340, width: '90%', boxShadow: '0 20px 60px rgba(0,0,0,.35)' }}>
-            <h3 style={{ margin: '0 0 8px', fontSize: 16, color: '#1C1E21' }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: T.popup, borderRadius: 12, padding: 24, maxWidth: 340, width: '90%', border: `1px solid ${T.border}`, boxShadow: '0 20px 60px rgba(0,0,0,.7)' }}>
+            <h3 style={{ margin: '0 0 8px', fontSize: 16, color: T.text }}>
               {delConfirm.type === 'stage' ? 'Delete stage?' : 'Delete lead?'}
             </h3>
-            <p style={{ margin: '0 0 20px', fontSize: 13, color: '#65676B', lineHeight: 1.5 }}>
+            <p style={{ margin: '0 0 20px', fontSize: 13, color: T.sub, lineHeight: 1.5 }}>
               {delConfirm.type === 'stage'
                 ? 'All leads in this stage will move to Intake. This cannot be undone.'
                 : `Delete "${delConfirm.lead?.name}"? This cannot be undone.`}
             </p>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button onClick={() => setDelConfirm(null)}
-                style={{ padding: '8px 16px', border: '1px solid #E4E6EB', borderRadius: 7, background: '#fff', fontSize: 13, cursor: 'pointer' }}>
+                style={{ padding: '8px 16px', border: `1px solid ${T.border}`, borderRadius: 7, background: T.surf, color: T.text, fontSize: 13, cursor: 'pointer' }}>
                 Cancel
               </button>
               <button onClick={() => delConfirm.type === 'stage' ? confirmDeleteStage(delConfirm.id) : handleDeleteLead(delConfirm.lead)}

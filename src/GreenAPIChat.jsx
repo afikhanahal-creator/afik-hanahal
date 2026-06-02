@@ -10,10 +10,11 @@ const API_BASE      = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
 const ADMIN_TOKEN   = 'AFIKhanahal2026'
 const ACCOUNT_EMAIL = 'afik.hanahal@gmail.com'
 
-// ─── Green API direct credentials ────────────────────────────────────────────
-const GREEN_INSTANCE = '7107558519'
-const GREEN_TOKEN    = '191b9e9c4fc540f1ad25c8607389c0d689d15794f8094a0589'
-const GREEN_URL      = `https://7107.api.greenapi.com/waInstance${GREEN_INSTANCE}`
+// All Green API traffic is proxied through the server (/api/meta/chat-*), which
+// holds the apiToken in WA_GREENAPI_TOKEN. The token is never shipped to the browser.
+const CHAT_API     = '/api/meta'
+const AUTH_HEADER  = { Authorization: `Bearer ${ADMIN_TOKEN}` }
+const MAX_FILE_MB  = 3   // Vercel request-body cap (base64 inflates ~33%)
 
 // ─── Theme palettes ───────────────────────────────────────────────────────────
 const DARK = {
@@ -25,6 +26,7 @@ const DARK = {
   authBadgeBg:   '#1B3B2E',
   authBadgeTxt:  '#22C55E',
   green:         '#00A884',
+  unread:        '#075E54',   // WhatsApp authentic dark green (unread badge)
   inputBg:       '#202C33',
   inputFieldBg:  '#2A3942',
   bodyText:      '#E9EDEF',
@@ -50,6 +52,7 @@ const LIGHT = {
   authBadgeBg:   '#D4F4DD',
   authBadgeTxt:  '#2E7D32',
   green:         '#00A884',
+  unread:        '#075E54',   // WhatsApp authentic dark green (unread badge)
   inputBg:       '#F0F2F5',
   inputFieldBg:  '#FFFFFF',
   bodyText:      '#111B21',
@@ -126,7 +129,9 @@ function normalizeGreenMsg(m) {
     direction:  m.type === 'outgoing' ? 'out' : 'in',
     message:    text,
     created_at: new Date((m.timestamp || 0) * 1000).toISOString(),
-    status:     m.statusMessage === 'read' ? 'read' : 'delivered',
+    // Preserve the real delivery state for outgoing messages so the ticks can
+    // show sent (✓) → delivered (✓✓ gray) → read (✓✓ blue). Incoming needs none.
+    status:     m.type === 'outgoing' ? (m.statusMessage || 'sent') : 'read',
   }
 }
 
@@ -154,8 +159,31 @@ const ICONS = {
   trash:     'M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z',
 }
 
+// ─── Delivery-status ticks ────────────────────────────────────────────────────
+// sending → clock · sent → ✓ · delivered → ✓✓ gray · read → ✓✓ blue · failed → !
+function TickMark({ status, WA, size = 14 }) {
+  if (status === 'sending' || status === 'pending') {
+    return (
+      <svg width={size - 1} height={size - 1} viewBox="0 0 16 16" style={{ flexShrink: 0 }}>
+        <circle cx="8" cy="8" r="6.4" fill="none" stroke={WA.tickGray} strokeWidth="1.3" />
+        <path d="M8 4.4V8l2.4 1.5" fill="none" stroke={WA.tickGray} strokeWidth="1.3" strokeLinecap="round" />
+      </svg>
+    )
+  }
+  if (status === 'failed' || status === 'noAccount') {
+    return <span style={{ fontSize: size - 1, color: '#E05252', fontWeight: 800, lineHeight: 1, flexShrink: 0 }}>!</span>
+  }
+  const read = status === 'read'
+  const single = status === 'sent'
+  return (
+    <span style={{ fontSize: size, lineHeight: 1, color: read ? WA.tick : WA.tickGray, flexShrink: 0, letterSpacing: '-1px' }}>
+      {single ? '✓' : '✓✓'}
+    </span>
+  )
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
-export default function GreenAPIChat({ leads = [], lang = 'he', initialContact = null, onOpenLead, onDeleteLead, onNewMessage, onSentMessage }) {
+export default function GreenAPIChat({ leads = [], lang = 'he', initialContact = null, onOpenLead, onDeleteLead, onNewMessage, onSentMessage, onReadChange }) {
 
   // ── Theme ─────────────────────────────────────────────────────────────────
   const [isDark, setIsDark] = useState(() => localStorage.getItem('whatsapp_theme') !== 'light')
@@ -177,11 +205,24 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
   const [loading,       setLoading]      = useState(false)
   const [fetchError,    setFetchError]   = useState(null)
   const [status,        setStatus]       = useState(null)
+  const [loadingPhones, setLoadingPhones] = useState(() => new Set())
   const [newChatOpen,   setNewChat]      = useState(false)
   const [newPhone,      setNewPhone]     = useState('')
   const [activeNav,     setActiveNav]    = useState('chats')
   const [emoji,         setEmoji]        = useState(false)
   const [attached,      setAttached]     = useState(null)
+
+  // Per-conversation read tracking (persisted) → drives unread badges
+  const [lastRead, setLastRead] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('wa_last_read') || '{}') } catch { return {} }
+  })
+
+  // Local object-URL preview for an attached image (revoked on change/unmount)
+  const attachedPreview = useMemo(
+    () => (attached && attached.type?.startsWith('image/') ? URL.createObjectURL(attached) : null),
+    [attached]
+  )
+  useEffect(() => () => { if (attachedPreview) URL.revokeObjectURL(attachedPreview) }, [attachedPreview])
 
   // delete flow
   const [deleteConfirm, setDeleteConfirm] = useState(null)  // lead object to confirm
@@ -198,9 +239,11 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
   const pageLoadTimeRef   = useRef(Date.now())
   const onNewMessageRef   = useRef(onNewMessage)
   const onSentMessageRef  = useRef(onSentMessage)
+  const onReadChangeRef   = useRef(onReadChange)
   const leadsRef          = useRef(leads)
   useEffect(() => { onNewMessageRef.current  = onNewMessage  }, [onNewMessage])
   useEffect(() => { onSentMessageRef.current = onSentMessage }, [onSentMessage])
+  useEffect(() => { onReadChangeRef.current  = onReadChange  }, [onReadChange])
   useEffect(() => { leadsRef.current = leads }, [leads])
 
   // ── Delete handlers ───────────────────────────────────────────────────────
@@ -241,11 +284,11 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
     const p = intlPhone(phone)
     if (!p) return []
     try {
-      const r = await fetch(`${GREEN_URL}/getChatHistory/${GREEN_TOKEN}`, {
+      const r = await fetch(`${CHAT_API}/chat-history`, {
         method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ chatId: `${p}@c.us`, count: 100 }),
-        signal:  AbortSignal.timeout(15000),
+        headers: { 'Content-Type': 'application/json', ...AUTH_HEADER },
+        body:    JSON.stringify({ phone: p, count: 100 }),
+        signal:  AbortSignal.timeout(20000),
       })
       if (!r.ok) return []
       const data = await r.json()
@@ -260,6 +303,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
     const p = intlPhone(phone)
     if (!p) return
     if (opts.showLoader) { setLoading(true); setFetchError(null) }
+    setLoadingPhones(prev => { const s = new Set(prev); s.add(p); return s })
 
     try {
       const [backendResult, greenResult] = await Promise.allSettled([
@@ -316,30 +360,62 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
       }
     } finally {
       if (opts.showLoader) setLoading(false)
+      setLoadingPhones(prev => { const s = new Set(prev); s.delete(p); return s })
     }
   }, [fetchGreenHistory])
 
   const sendViaGreenAPI = useCallback(async (p, msg) => {
-    const r = await fetch(`${GREEN_URL}/sendMessage/${GREEN_TOKEN}`, {
+    const r = await fetch(`${CHAT_API}/chat-send`, {
       method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ chatId: `${p}@c.us`, message: msg }),
-      signal:  AbortSignal.timeout(20000),
+      headers: { 'Content-Type': 'application/json', ...AUTH_HEADER },
+      body:    JSON.stringify({ phone: p, message: msg }),
+      signal:  AbortSignal.timeout(25000),
+    })
+    return r.ok
+  }, [])
+
+  // Send an image / PDF as a real WhatsApp attachment. The file is base64-encoded
+  // and the server rebuilds the multipart upload to Green API (token stays server-side).
+  const sendFileViaGreenAPI = useCallback(async (p, file, caption) => {
+    const fileBase64 = await new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload  = () => resolve(String(reader.result).split(',')[1] || '')
+      reader.onerror = reject
+      reader.readAsDataURL(file)
+    })
+    const r = await fetch(`${CHAT_API}/chat-send-file`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json', ...AUTH_HEADER },
+      body:    JSON.stringify({ phone: p, fileName: file.name, fileType: file.type, fileBase64, caption }),
+      signal:  AbortSignal.timeout(90000),
     })
     return r.ok
   }, [])
 
   const fetchStatus = useCallback(async () => {
     try {
-      const r = await fetch(`${GREEN_URL}/getStateInstance/${GREEN_TOKEN}`, { signal: AbortSignal.timeout(8000) })
-      if (r.ok) { const d = await r.json(); setStatus(d.stateInstance || null); return }
+      const r = await fetch(`${CHAT_API}/chat-status`, { headers: AUTH_HEADER, signal: AbortSignal.timeout(8000) })
+      if (r.ok) { const d = await r.json(); setStatus(d.state || null); return }
     } catch {}
+    // Fallback to the Render backend if the Vercel proxy is unreachable (e.g. local dev)
     if (!API_BASE) { setStatus('notConfigured'); return }
     try {
-      const r = await fetch(`${API_BASE}/api/chats/status`, { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` }, signal: AbortSignal.timeout(8000) })
+      const r = await fetch(`${API_BASE}/api/chats/status`, { headers: AUTH_HEADER, signal: AbortSignal.timeout(8000) })
       if (r.ok) { const d = await r.json(); setStatus(d.state || null) }
       else setStatus('error')
     } catch { setStatus('error') }
+  }, [])
+
+  // Mark a conversation as read up to "now" (clears its unread badge)
+  const markRead = useCallback((phone) => {
+    const p = intlPhone(phone)
+    if (!p) return
+    setLastRead(prev => {
+      const next = { ...prev, [p]: new Date().toISOString() }
+      try { localStorage.setItem('wa_last_read', JSON.stringify(next)) } catch {}
+      return next
+    })
+    onReadChangeRef.current?.()
   }, [])
 
   // ── Effects ──────────────────────────────────────────────────────────────
@@ -397,6 +473,39 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
     }
   }, [contact?.id, fetchMsgs])
 
+  // Global Realtime: keep ALL conversations fresh (not just the open one) so the
+  // unread badges update in real time. Dedup + notifiedMsgIdsRef make it safe to
+  // run alongside the per-contact subscription above.
+  useEffect(() => {
+    if (!supabase) return
+    const channel = supabase
+      .channel('chats_rt_global')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chats' }, (payload) => {
+        const msg = payload.new
+        if (!msg?.id || !msg.phone) return
+        const p = intlPhone(msg.phone)
+        setChats(prev => {
+          const existing = prev[p] || []
+          if (existing.some(m => String(m.id) === String(msg.id))) return prev
+          return { ...prev, [p]: [...existing, msg].sort((a, b) => new Date(a.created_at) - new Date(b.created_at)) }
+        })
+        if (msg.direction === 'in' && !notifiedMsgIdsRef.current.has(String(msg.id))) {
+          if (new Date(msg.created_at).getTime() > pageLoadTimeRef.current) {
+            notifiedMsgIdsRef.current.add(String(msg.id))
+            const lead = leadsRef.current.find(l => intlPhone(l.phone) === p)
+            onNewMessageRef.current?.({ contactName: lead?.name || p, message: msg.message, phone: p })
+          }
+        }
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [])
+
+  // Keep the currently-open chat marked read as new messages stream in
+  useEffect(() => {
+    if (contact?.phone) markRead(contact.phone)
+  }, [contact?.phone, chats, markRead])
+
   // Auto-scroll: only when switching contact (always go bottom) or new messages arrive
   // while user is already near the bottom — never force-jump while reading old messages.
   useEffect(() => {
@@ -422,10 +531,15 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
   }
 
   const sendMsg = async () => {
-    const msg = input.trim()
-    if ((!msg && !attached) || !contact || sending) return
+    const msg  = input.trim()
+    const file = attached
+    if ((!msg && !file) || !contact || sending) return
     const p = intlPhone(contact.phone)
     if (!p) { alert('מספר טלפון לא תקין'); return }
+    if (file && file.size > MAX_FILE_MB * 1024 * 1024) {
+      alert(lang === 'en' ? `File too large (max ${MAX_FILE_MB}MB)` : `הקובץ גדול מדי (מקסימום ${MAX_FILE_MB}MB)`)
+      return
+    }
 
     const optId = 'opt-' + Date.now()
     setSending(true)
@@ -436,29 +550,35 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
       ...prev,
       [p]: [...(prev[p]||[]), {
         id: optId, direction: 'out',
-        message: msg || (attached?.name || 'קובץ'),
+        message: msg || (file?.name || ''),
+        file: file ? { name: file.name, type: file.type, preview: attachedPreview } : null,
         created_at: new Date().toISOString(), status: 'sending',
       }]
     }))
 
     let ok = false
     try {
-      if (API_BASE) {
-        const r = await fetch(`${API_BASE}/api/chats/send`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
-          body: JSON.stringify({ phone: p, message: msg }),
-          signal: AbortSignal.timeout(15000),
-        })
-        if (r.ok) ok = true
+      if (file) {
+        // Attachment: upload straight to Green API (caption = the typed text)
+        ok = await sendFileViaGreenAPI(p, file, msg)
+      } else {
+        if (API_BASE) {
+          const r = await fetch(`${API_BASE}/api/chats/send`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+            body: JSON.stringify({ phone: p, message: msg }),
+            signal: AbortSignal.timeout(15000),
+          })
+          if (r.ok) ok = true
+        }
+        if (!ok) ok = await sendViaGreenAPI(p, msg)
       }
-      if (!ok) ok = await sendViaGreenAPI(p, msg)
 
       if (ok) {
         setAttached(null)
-        setTimeout(() => fetchMsgs(contact.phone), 2000)
+        setTimeout(() => fetchMsgs(contact.phone), file ? 3500 : 2000)
         const contactName = contact.name || intlPhone(contact.phone)
-        onSentMessageRef.current?.({ contactName, message: msg })
+        onSentMessageRef.current?.({ contactName, message: msg || file?.name })
       } else {
         throw new Error('שליחה נכשלה')
       }
@@ -495,6 +615,18 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
   const msgs       = chatPhone ? (chats[chatPhone]||[]) : []
   const contactIdx = contactList.findIndex(l => l.id === contact?.id)
 
+  // Unread = incoming messages newer than the last time this chat was opened.
+  // Chats never opened are baselined to page-load so old history isn't flagged.
+  const unreadFor = useCallback((p) => {
+    const base = lastRead[p] ? new Date(lastRead[p]).getTime() : pageLoadTimeRef.current
+    return (chats[p] || []).reduce((n, m) =>
+      (m.direction === 'in' && new Date(m.created_at).getTime() > base ? n + 1 : n), 0)
+  }, [chats, lastRead])
+
+  const totalUnread = useMemo(() => contactList.reduce((sum, lead) =>
+    contact?.id === lead.id ? sum : sum + unreadFor(intlPhone(lead.phone)),
+    0), [contactList, contact?.id, unreadFor])
+
   const statusColor = status==='authorized' ? '#22C55E' : status==='notAuthorized' ? '#F97316' : status==='error' ? '#E05252' : '#8696A0'
   const statusLabel = status==='authorized' ? 'מחובר' : status==='notAuthorized' ? 'לא מחובר' : status==='error' ? 'שגיאה' : status==='notConfigured' ? 'לא מוגדר' : 'טוען...'
 
@@ -515,6 +647,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
         @keyframes wa-spin { to { transform: rotate(360deg); } }
         @keyframes wa-toast-in { from { opacity:0; transform: translateX(-50%) translateY(16px); } to { opacity:1; transform: translateX(-50%) translateY(0); } }
         @keyframes wa-fade-in { from { opacity:0; } to { opacity:1; } }
+        .wa-row-spinner { width:14px; height:14px; border-radius:50%; border:2px solid transparent; border-top-color:${WA.green}; animation:wa-spin 0.7s linear infinite; flex-shrink:0; }
       `}</style>
 
       {/* ── Delete Confirmation Modal ─────────────────────────────────────── */}
@@ -620,7 +753,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
 
       {/* ── Main Layout ──────────────────────────────────────────────────── */}
       {/* flex:1, minHeight:0 — critical for contained scroll in flex child */}
-      <div style={{ flex:1, minHeight:0, display:'flex', flexDirection:'row', overflow:'hidden', direction:'ltr', background: WA.panelBg }}>
+      <div style={{ flex:1, minHeight:0, display:'flex', flexDirection:'row', overflow:'hidden', direction:'rtl', background: WA.panelBg }}>
 
         {/* ═══════════════ CHAT WINDOW (left, fills remaining space) ════════ */}
         {/* overflow:hidden isolates internal scroll from page scroll         */}
@@ -775,12 +908,20 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                               <path d="M0 0 Q9 10 9 13 L0 13 Z" fill={bubbleColor}/>
                             </svg>
                           )}
-                          <div style={{ direction:'rtl', wordBreak:'break-word' }}>{msg.message}</div>
+                          {msg.file && (
+                            <div style={{ display:'flex', alignItems:'center', gap:9, padding:'7px 9px', marginBottom: (msg.message && msg.message !== msg.file.name) ? 5 : 0, background: isDark ? 'rgba(0,0,0,.20)' : 'rgba(0,0,0,.05)', borderRadius:7, direction:'rtl' }}>
+                            {msg.file.preview
+                                ? <img src={msg.file.preview} alt="" style={{ width:40, height:40, borderRadius:5, objectFit:'cover', flexShrink:0 }}/>
+                                : <span style={{ fontSize:24, flexShrink:0 }}>{msg.file.type?.startsWith('image/') ? '🖼️' : '📎'}</span>}
+                              <span style={{ fontSize:12.5, color: WA.bodyText, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:180 }}>{msg.file.name}</span>
+                            </div>
+                          )}
+                          {(!msg.file || (msg.message && msg.message !== msg.file.name)) && (
+                            <div style={{ direction:'rtl', wordBreak:'break-word' }}>{msg.message}</div>
+                          )}
                           <div style={{ position:'absolute', bottom:5, left:8, display:'flex', alignItems:'center', gap:3, direction:'ltr', userSelect:'none' }}>
                             <span style={{ fontSize:11, color: WA.subText }}>{fmtTime(msg.created_at)}</span>
-                            {isOut && (
-                              <span style={{ fontSize:14, lineHeight:1, color: isOptimistic ? WA.tickGray : msg.status==='read' ? WA.tick : WA.tickGray }}>✓✓</span>
-                            )}
+                            {isOut && <TickMark status={isOptimistic ? 'sending' : (msg.status || 'sent')} WA={WA}/>}
                           </div>
                         </div>
                       </div>
@@ -793,8 +934,13 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
               {/* ── Attachment preview (flex: 0 0 auto) ── */}
               {attached && (
                 <div style={{ flexShrink:0, padding:'8px 16px', background: WA.inputBg, borderTop:`1px solid ${WA.border}`, display:'flex', alignItems:'center', gap:10, direction:'rtl' }}>
-                  <span style={{ fontSize:22 }}>📎</span>
-                  <span style={{ fontSize:13, color: WA.bodyText, flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{attached.name}</span>
+                  {attachedPreview
+                    ? <img src={attachedPreview} alt="" style={{ width:38, height:38, borderRadius:6, objectFit:'cover', flexShrink:0 }}/>
+                    : <span style={{ fontSize:22 }}>📎</span>}
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontSize:13, color: WA.bodyText, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{attached.name}</div>
+                    <div style={{ fontSize:11, color: WA.subText }}>{(attached.size/1024).toFixed(0)} KB · {attached.type?.startsWith('image/') ? 'תמונה' : 'מסמך'}</div>
+                  </div>
                   <button onClick={()=>setAttached(null)} style={{ background:'none', border:'none', cursor:'pointer', color: WA.subText, fontSize:18, padding:'0 4px' }}>✕</button>
                 </div>
               )}
@@ -917,6 +1063,8 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
               const leadMsgs = chats[p] || []
               const lastMsg  = leadMsgs[leadMsgs.length-1]
               const isActive = contact?.id === lead.id
+              const isRowLoading = loadingPhones.has(p) && !lastMsg
+              const unread   = isActive ? 0 : unreadFor(p)
               return (
                 <div key={lead.id}
                   onClick={() => selectContact(lead)}
@@ -937,22 +1085,26 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                   </div>
                   <div style={{ flex:1, minWidth:0 }}>
                     <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:3, gap:8 }}>
-                      <span style={{ fontWeight:600, fontSize:15, color: WA.bodyText, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', flex:1 }}>
+                      <span style={{ fontWeight: unread?700:600, fontSize:15, color: WA.bodyText, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', flex:1 }}>
                         {lead.name||lead.phone}
                       </span>
                       {lastMsg && (
-                        <span style={{ fontSize:11, color: WA.subText, flexShrink:0, whiteSpace:'nowrap' }}>
+                        <span style={{ fontSize:11, color: unread ? WA.green : WA.subText, fontWeight: unread?700:400, flexShrink:0, whiteSpace:'nowrap' }}>
                           {fmtRowTime(lastMsg.created_at)}
                         </span>
                       )}
                     </div>
                     <div style={{ display:'flex', alignItems:'center', gap:4 }}>
-                      {lastMsg?.direction==='out' && (
-                        <span style={{ color:lastMsg.status==='read'?WA.tick:WA.tickGray, fontSize:14, flexShrink:0, lineHeight:1 }}>✓✓</span>
-                      )}
-                      <span style={{ fontSize:13, color: WA.subText, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', flex:1 }}>
-                        {lastMsg ? lastMsg.message : lead.phone}
+                      {isRowLoading && <div className="wa-row-spinner"/>}
+                      {!isRowLoading && lastMsg?.direction==='out' && <TickMark status={lastMsg.status || 'sent'} WA={WA}/>}
+                      <span style={{ fontSize:13, color: unread ? WA.bodyText : WA.subText, fontWeight: unread?600:400, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', flex:1 }}>
+                        {isRowLoading ? <span style={{ opacity:.5 }}>טוען...</span> : lastMsg ? lastMsg.message : lead.phone}
                       </span>
+                      {unread > 0 && (
+                        <span style={{ background: WA.unread, color:'#fff', fontSize:11, fontWeight:700, minWidth:18, height:18, borderRadius:9, padding:'0 5px', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, lineHeight:1 }}>
+                          {unread > 99 ? '99+' : unread}
+                        </span>
+                      )}
                     </div>
                   </div>
                   {/* Delete button — hover-reveal */}
@@ -968,8 +1120,8 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
           </div>
         </div>
 
-        {/* ═══════════════ ICON SIDEBAR (far right, 52px) ══════════════════ */}
-        <div style={{ width:52, flexShrink:0, display:'flex', flexDirection:'column', background: WA.inputBg, borderLeft:`1px solid ${WA.border}`, alignItems:'center', padding:'8px 0', transition:'background .25s' }}>
+        {/* ═══════════════ ICON SIDEBAR (far left in RTL, 52px) ═══════════ */}
+        <div style={{ width:52, flexShrink:0, display:'flex', flexDirection:'column', background: WA.inputBg, borderRight:`1px solid ${WA.border}`, alignItems:'center', padding:'8px 0', transition:'background .25s' }}>
           {[
             { id:'bell',     path:ICONS.bell,     title:'התראות'     },
             { id:'chats',    path:ICONS.chat,     title:'שיחות'      },
@@ -979,10 +1131,15 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
             const active = activeNav === id
             return (
               <button key={id} title={title} onClick={()=>setActiveNav(id)}
-                style={{ width:44, height:44, borderRadius:10, border:'none', background:active?WA.green+'18':'transparent', color:active?WA.green:WA.subText, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .15s', marginBottom:4 }}
+                style={{ position:'relative', width:44, height:44, borderRadius:10, border:'none', background:active?WA.green+'18':'transparent', color:active?WA.green:WA.subText, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .15s', marginBottom:4 }}
                 onMouseEnter={e=>{ if(!active){ e.currentTarget.style.background=WA.border; e.currentTarget.style.color=WA.bodyText } }}
                 onMouseLeave={e=>{ e.currentTarget.style.background=active?WA.green+'18':'transparent'; e.currentTarget.style.color=active?WA.green:WA.subText }}>
                 <Icon path={path} size={22}/>
+                {id==='chats' && totalUnread>0 && (
+                  <span style={{ position:'absolute', top:3, left:3, minWidth:16, height:16, padding:'0 4px', borderRadius:8, background:'#E05252', color:'#fff', fontSize:10, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', lineHeight:1, border:`2px solid ${WA.inputBg}` }}>
+                    {totalUnread>99?'99+':totalUnread}
+                  </span>
+                )}
               </button>
             )
           })}
