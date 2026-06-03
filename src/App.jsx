@@ -4536,12 +4536,15 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     withOrder.forEach(p => savePropSilent(p))
   }
 
-  const tabBtn = (id, label, badge) => (
-    <button onClick={() => setTab(id)} style={{ padding:'10px 20px', border:'none', background:tab===id?`${C.purple}30`:'transparent', color:tab===id?C.purple:`${C.cream}65`, fontFamily:'inherit', cursor:'pointer', fontWeight:700, fontSize:14, borderRadius:9, transition:'all .15s', display:'flex', alignItems:'center', gap:7, boxShadow: tab===id ? `0 2px 10px ${C.purple}22` : 'none' }}>
-      {label}
-      {!!badge && <span style={{ background:C.green, color:'#09090F', borderRadius:20, padding:'2px 8px', fontSize:11, fontWeight:900, lineHeight:1.6 }}>{badge}</span>}
-    </button>
-  )
+  const tabBtn = (id, label, badge) => {
+    const isAlert = id === 'meta'
+    return (
+      <button onClick={() => setTab(id)} style={{ padding:'10px 20px', border:'none', background:tab===id?`${C.purple}30`:'transparent', color:tab===id?C.purple:`${C.cream}65`, fontFamily:'inherit', cursor:'pointer', fontWeight:700, fontSize:14, borderRadius:9, transition:'all .15s', display:'flex', alignItems:'center', gap:7, boxShadow: tab===id ? `0 2px 10px ${C.purple}22` : 'none' }}>
+        {label}
+        {!!badge && <span style={{ background: isAlert ? '#E05252' : C.green, color: isAlert ? '#fff' : '#09090F', borderRadius:20, padding:'2px 8px', fontSize:11, fontWeight:900, lineHeight:1.6 }}>{badge}</span>}
+      </button>
+    )
+  }
 
   const updateLead = (id, patch) => {
     setLeads(prev => {
@@ -4806,7 +4809,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
                   onMouseLeave={e=>{ if(!isActive){ e.currentTarget.style.background='transparent'; e.currentTarget.style.color='rgba(232,228,216,.4)' }}}>
                   <item.Icon size={13} style={{ flexShrink:0, opacity: isActive ? 1 : 0.7, color: isActive && isLive ? '#22C55E' : undefined }}/>
                   <span style={{ flex:1 }}>{item.label}</span>
-                  {!!item.badge && <span style={{ background: isLive ? 'rgba(34,197,94,.2)' : item.id==='chats' ? '#075E54' : `${C.purple}25`, color: isLive ? '#22C55E' : item.id==='chats' ? '#fff' : C.purple, borderRadius:4, padding:'1px 6px', fontSize:10, fontWeight:700 }}>{item.badge}</span>}
+                  {!!item.badge && <span style={{ background: isLive ? 'rgba(34,197,94,.2)' : item.id==='chats' ? '#075E54' : item.id==='meta' ? 'rgba(224,82,82,.18)' : `${C.purple}25`, color: isLive ? '#22C55E' : item.id==='chats' ? '#fff' : item.id==='meta' ? '#E05252' : C.purple, borderRadius:4, padding:'1px 6px', fontSize:10, fontWeight:700 }}>{item.badge}</span>}
                 </button>
               )
             })}

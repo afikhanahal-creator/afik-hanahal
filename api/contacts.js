@@ -141,6 +141,11 @@ async function supaFetch(path, opts = {}) {
 
 async function getContacts() {
   const r = await supaFetch('/contacts?order=created_at.desc&limit=500')
+  // 404 / 406 means the contacts table hasn't been created yet — return empty instead of 500
+  if (r.status === 404 || r.status === 406) {
+    console.warn('[contacts] table not found — run the SQL migration in Supabase')
+    return []
+  }
   if (!r.ok) throw new Error(`Supabase GET ${r.status}: ${await r.text().catch(() => '')}`)
   return r.json()
 }
