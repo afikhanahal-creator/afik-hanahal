@@ -684,6 +684,20 @@ const SM_SOURCES = {
     report_type: 'AccountInsightsDaily',
     fields:      ['date', 'reach', 'profile_views', 'follower_count'],
   },
+  device: {
+    label:       'GA4 Device Breakdown',
+    ds_id:       'GAWA',
+    ds_accounts: 'list.all_accounts',
+    ds_user:     'afik.hanahal@gmail.com',
+    fields:      ['deviceCategory', 'sessions', 'activeUsers', 'newUsers', 'bounceRate', 'screenPageViews'],
+  },
+  traffic: {
+    label:       'GA4 Traffic Overview',
+    ds_id:       'GAWA',
+    ds_accounts: 'list.all_accounts',
+    ds_user:     'afik.hanahal@gmail.com',
+    fields:      ['date', 'sessions', 'activeUsers', 'newUsers', 'screenPageViews', 'bounceRate', 'averageSessionDuration'],
+  },
 }
 
 // Recursively coerce Supermetrics' nested error object into a human-readable string.

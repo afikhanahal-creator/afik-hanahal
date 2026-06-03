@@ -3133,6 +3133,8 @@ function AnalyticsDashboard({ leads }) {
   const [events, setEvents] = useState([])
   const [refreshTs, setRefreshTs] = useState(0)
   const [analyticsTab, setAnalyticsTab] = useState('site')
+  const [ga4Devices, setGa4Devices] = useState(null)   // real GA4 device data
+  const [ga4Loading, setGa4Loading] = useState(false)
 
   useEffect(() => {
     const load = () => {
@@ -3142,6 +3144,50 @@ function AnalyticsDashboard({ leads }) {
     const t = setInterval(load, 30000)
     return () => clearInterval(t)
   }, [refreshTs])
+
+  // Fetch real GA4 device data from Supermetrics
+  useEffect(() => {
+    if (ga4Devices || ga4Loading) return
+    setGa4Loading(true)
+    const poll = async (scheduleId, tries = 0) => {
+      if (tries > 15) return
+      const r2 = await fetch(`/api/meta/supermetrics?source=device&range=last_30_days`, {
+        headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
+      })
+      const d2 = await r2.json()
+      if (d2.rows?.length) {
+        // rows: [deviceCategory, sessions, activeUsers, newUsers, bounceRate, views]
+        const parsed = d2.rows.map(row => ({
+          device: String(row[0] || '').toLowerCase(),
+          sessions: Number(row[1]) || 0,
+          activeUsers: Number(row[2]) || 0,
+          newUsers: Number(row[3]) || 0,
+          bounceRate: Number(row[4]) || 0,
+          views: Number(row[5]) || 0,
+        }))
+        setGa4Devices(parsed)
+        setGa4Loading(false)
+      } else {
+        setTimeout(() => poll(scheduleId, tries + 1), 2000)
+      }
+    }
+    fetch(`/api/meta/supermetrics?source=device&range=last_30_days`, {
+      headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
+    }).then(r => r.json()).then(d => {
+      if (d.rows?.length) {
+        const parsed = d.rows.map(row => ({
+          device: String(row[0] || '').toLowerCase(),
+          sessions: Number(row[1]) || 0,
+          activeUsers: Number(row[2]) || 0,
+          newUsers: Number(row[3]) || 0,
+          bounceRate: Number(row[4]) || 0,
+          views: Number(row[5]) || 0,
+        }))
+        setGa4Devices(parsed)
+      }
+      setGa4Loading(false)
+    }).catch(() => setGa4Loading(false))
+  }, []) // eslint-disable-line
 
   const now = Date.now()
   const todayStart = (() => { const d = new Date(); d.setHours(0,0,0,0); return d.getTime() })()
@@ -3348,47 +3394,106 @@ function AnalyticsDashboard({ leads }) {
           )}
         </div>
 
-        {/* Devices */}
+        {/* Devices — real GA4 data */}
         <div style={{ background: isDark ? 'rgba(255,255,255,.025)' : 'rgba(0,0,0,.02)', borderRadius:18, padding:'20px 20px', border:`1px solid ${C.purple}20` }}>
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
-            <div style={{ fontSize:13, fontWeight:800, color:C.cream }}>סוג מכשיר</div>
-            <a href="https://analytics.google.com" target="_blank" rel="noopener noreferrer"
-              style={{ fontSize:10, color:'#4285F4', background:'rgba(66,133,244,.1)', padding:'3px 9px', borderRadius:20, border:'1px solid rgba(66,133,244,.25)', textDecoration:'none', fontWeight:700, display:'flex', alignItems:'center', gap:4 }}>
-              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-              GA4 ← נתוני מובייל אמיתיים
-            </a>
+            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+              <div style={{ fontSize:13, fontWeight:800, color:C.cream }}>סוג מכשיר</div>
+              {ga4Devices && (
+                <span style={{ fontSize:10, color:'#4285F4', background:'rgba(66,133,244,.1)', padding:'2px 8px', borderRadius:20, border:'1px solid rgba(66,133,244,.25)', fontWeight:700 }}>
+                  GA4 · 30 יום
+                </span>
+              )}
+            </div>
+            {ga4Loading && <span style={{ fontSize:10, color:`${C.cream}44` }}>טוען מ-GA4...</span>}
           </div>
-          <div style={{ background:'rgba(247,201,72,.06)', border:'1px solid rgba(247,201,72,.2)', borderRadius:8, padding:'8px 12px', marginBottom:14, fontSize:11, color:'rgba(247,201,72,.9)', lineHeight:1.6 }}>
-            ⚠️ נתונים אלה מגיעים מהדפדפן שלך בלבד. לנתוני מובייל מלאים — עבור ל-<strong>Google Analytics</strong>
-          </div>
-          <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-            {[
-              { label:'מובייל',  key:'mobile',  Icon:FaMobileAlt, color:'#60D4F7' },
-              { label:'דסקטופ',  key:'desktop', Icon:FaDesktop,   color:C.purple },
-              { label:'טאבלט',   key:'tablet',  Icon:FaTabletAlt, color:'#E17BFF' },
-            ].map(d => {
-              const pct = sessions.length > 0 ? Math.round((devMap[d.key]/sessions.length)*100) : 0
-              return (
-                <div key={d.key}>
-                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:5 }}>
-                    <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                      <div style={{ width:30, height:30, borderRadius:9, background:`${d.color}18`, border:`1px solid ${d.color}33`, display:'flex', alignItems:'center', justifyContent:'center' }}>
-                        <d.Icon size={13} style={{ color:d.color }}/>
+
+          {ga4Devices ? (
+            <>
+              {/* Real GA4 device data */}
+              {(() => {
+                const DEVICE_CONFIG = [
+                  { key:'mobile',  label:'מובייל',  Icon:FaMobileAlt, color:'#60D4F7' },
+                  { key:'desktop', label:'דסקטופ',  Icon:FaDesktop,   color:C.purple },
+                  { key:'tablet',  label:'טאבלט',   Icon:FaTabletAlt, color:'#E17BFF' },
+                ]
+                const totalSessions = ga4Devices.reduce((s, d) => s + d.sessions, 0)
+                return (
+                  <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+                    {DEVICE_CONFIG.map(dc => {
+                      const row = ga4Devices.find(d => d.device === dc.key) || { sessions:0, activeUsers:0, bounceRate:0, views:0 }
+                      const pct = totalSessions > 0 ? Math.round((row.sessions / totalSessions) * 100) : 0
+                      return (
+                        <div key={dc.key}>
+                          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:6 }}>
+                            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                              <div style={{ width:32, height:32, borderRadius:9, background:`${dc.color}18`, border:`1px solid ${dc.color}33`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                                <dc.Icon size={14} style={{ color:dc.color }}/>
+                              </div>
+                              <div>
+                                <div style={{ fontSize:13, color:C.cream, fontWeight:700 }}>{dc.label}</div>
+                                <div style={{ fontSize:10, color:`${C.cream}44` }}>
+                                  {row.activeUsers} פעילים · {row.views} צפיות · {row.bounceRate ? Math.round(row.bounceRate*100) : 0}% נטישה
+                                </div>
+                              </div>
+                            </div>
+                            <div style={{ textAlign:'left' }}>
+                              <div style={{ fontSize:20, fontWeight:900, color:dc.color, lineHeight:1 }}>{row.sessions}</div>
+                              <div style={{ fontSize:11, fontWeight:800, color:`${dc.color}99` }}>{pct}%</div>
+                            </div>
+                          </div>
+                          <div style={{ height:8, background: isDark ? 'rgba(255,255,255,.07)' : 'rgba(0,0,0,.07)', borderRadius:4 }}>
+                            <div style={{ height:8, width:`${pct}%`, background:`linear-gradient(90deg,${dc.color},${dc.color}88)`, borderRadius:4, transition:'width 1s ease', boxShadow:`0 0 10px ${dc.color}44` }}/>
+                          </div>
+                        </div>
+                      )
+                    })}
+                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8, marginTop:4, paddingTop:12, borderTop:`1px solid ${C.purple}18` }}>
+                      {[
+                        { label:'סה"כ סשנים', value: ga4Devices.reduce((s,d)=>s+d.sessions,0), color:C.purple },
+                        { label:'משתמשים פעילים', value: ga4Devices.reduce((s,d)=>s+d.activeUsers,0), color:'#22C55E' },
+                        { label:'צפיות סה"כ', value: ga4Devices.reduce((s,d)=>s+d.views,0), color:'#F7C948' },
+                      ].map((m,i) => (
+                        <div key={i} style={{ textAlign:'center', padding:'10px 6px', background:`${m.color}0D`, borderRadius:10, border:`1px solid ${m.color}22` }}>
+                          <div style={{ fontSize:18, fontWeight:900, color:m.color }}>{m.value}</div>
+                          <div style={{ fontSize:10, color:`${C.cream}55`, marginTop:3, fontWeight:600 }}>{m.label}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })()}
+            </>
+          ) : (
+            <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+              {[
+                { label:'מובייל',  key:'mobile',  Icon:FaMobileAlt, color:'#60D4F7' },
+                { label:'דסקטופ',  key:'desktop', Icon:FaDesktop,   color:C.purple },
+                { label:'טאבלט',   key:'tablet',  Icon:FaTabletAlt, color:'#E17BFF' },
+              ].map(d => {
+                const pct = sessions.length > 0 ? Math.round((devMap[d.key]/sessions.length)*100) : 0
+                return (
+                  <div key={d.key}>
+                    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:5 }}>
+                      <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                        <div style={{ width:30, height:30, borderRadius:9, background:`${d.color}18`, border:`1px solid ${d.color}33`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                          <d.Icon size={13} style={{ color:d.color }}/>
+                        </div>
+                        <span style={{ fontSize:12.5, color:C.cream, fontWeight:600 }}>{d.label}</span>
                       </div>
-                      <span style={{ fontSize:12.5, color:C.cream, fontWeight:600 }}>{d.label}</span>
+                      <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                        <span style={{ fontSize:11, color:`${C.cream}44` }}>{devMap[d.key]}</span>
+                        <span style={{ fontSize:11, fontWeight:800, color:d.color, background:`${d.color}18`, padding:'1px 8px', borderRadius:20 }}>{pct}%</span>
+                      </div>
                     </div>
-                    <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                      <span style={{ fontSize:11, color:`${C.cream}44` }}>{devMap[d.key]}</span>
-                      <span style={{ fontSize:11, fontWeight:800, color:d.color, background:`${d.color}18`, padding:'1px 8px', borderRadius:20 }}>{pct}%</span>
+                    <div style={{ height:8, background: isDark ? 'rgba(255,255,255,.07)' : 'rgba(0,0,0,.07)', borderRadius:4 }}>
+                      <div style={{ height:8, width:`${pct}%`, background:`linear-gradient(90deg,${d.color},${d.color}aa)`, borderRadius:4, transition:'width 1s ease', boxShadow:`0 0 8px ${d.color}44` }}/>
                     </div>
                   </div>
-                  <div style={{ height:8, background: isDark ? 'rgba(255,255,255,.07)' : 'rgba(0,0,0,.07)', borderRadius:4 }}>
-                    <div style={{ height:8, width:`${pct}%`, background:`linear-gradient(90deg,${d.color},${d.color}aa)`, borderRadius:4, transition:'width 1s ease', boxShadow:`0 0 8px ${d.color}44` }}/>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
+                )
+              })}
+            </div>
+          )}
           {sessions.length > 0 && (
             <div style={{ marginTop:16, display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
               {[
