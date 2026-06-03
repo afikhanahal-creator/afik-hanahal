@@ -394,7 +394,8 @@ export default async function handler(req, res) {
     if (req.method === 'POST') {
       const b = req.body || {}
       const row = {
-        id:           b.id || (Date.now().toString(36) + Math.random().toString(36).slice(2, 7)),
+        // No custom id — let Supabase auto-generate it.
+        // The contacts table uses bigint (serial), so sending a text id causes a 400.
         name:         b.name         || null,
         phone:        b.phone        || null,
         email:        b.email        || null,
@@ -405,32 +406,37 @@ export default async function handler(req, res) {
         crm_data:     {},
       }
       console.log(`[new-lead] ${row.name || '—'} | ${row.phone || '—'} | source=${row.source}`)
-      const inserted = await insertContact(row)
 
-      // Fire all 3 notifications in parallel: email to Afik, WA to Afik, WA-reply to lead.
-      // MUST be awaited — Vercel serverless kills the function as soon as the response
-      // is flushed, so a bare .catch() drops promises mid-flight. Hard 12s cap; if any
-      // call stalls past that we still respond and let it finish in the background
-      // (function maxDuration is 30s, so there is room for late completion).
+      // Fire all 3 notifications in parallel with the DB insert.
+      // Notifications run regardless of insert success so the admin is ALWAYS notified
+      // even if there's a DB schema issue. Hard 12s cap fits inside the 30s maxDuration.
       const labels = ['lead-email', 'admin-wa', 'lead-autoreply']
       const work = Promise.allSettled([
         sendLeadEmail(b),
         notifyAdmin(row),
         sendLeadAutoReply(row),
       ])
+
+      let inserted = row
+      try {
+        inserted = await insertContact(row) || row
+      } catch (dbErr) {
+        console.error('[new-lead] DB insert failed (notifications still sent):', dbErr.message)
+      }
+
       const results = await Promise.race([
         work,
         new Promise(resolve => setTimeout(() => resolve(null), 12000)),
       ])
       if (results) {
         results.forEach((r, i) => {
-          if (r.status === 'rejected')          console.error(`[${labels[i]}] crashed:`, r.reason?.message || r.reason)
+          if (r.status === 'rejected')              console.error(`[${labels[i]}] crashed:`, r.reason?.message || r.reason)
           else if (r.value && r.value.ok === false) console.error(`[${labels[i]}] failed:`, r.value.error)
         })
       } else {
         console.warn('[new-lead] notifications past 12s cap — completing in background')
         work.then(rs => rs.forEach((r, i) => {
-          if (r.status === 'rejected')          console.error(`[${labels[i]}] late-crash:`, r.reason?.message || r.reason)
+          if (r.status === 'rejected')              console.error(`[${labels[i]}] late-crash:`, r.reason?.message || r.reason)
           else if (r.value && r.value.ok === false) console.error(`[${labels[i]}] late-fail:`, r.value.error)
         })).catch(() => {})
       }
