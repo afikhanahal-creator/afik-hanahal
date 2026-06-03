@@ -127,12 +127,12 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
   }, [])
 
   // ── 2. Zoom to parcel ────────────────────────────────────────────────────────
-  // GovMap's searchAndLocate(lotParcelToAddress) resolves the gush/helka but does
-  // NOT move the map. The actual navigation must be done explicitly with
-  // zoomToXY({x,y,level}) using the ITM coordinates from the response. We therefore
-  // search → read the parcel's X/Y → zoomToXY, with retries while the SDK warms up.
+  // The SDK's searchAndLocate(lotParcelToAddress) returns "no result" for parcels
+  // that have no registered street address — so it can't be relied on for zoom.
+  // Instead we resolve the gush/helka to its parcel centroid (ITM x/y) via GovMap's
+  // TldSearch service (CORS-open, works for every parcel incl. empty land), then
+  // navigate there with zoomToXY. Retries cover the window while the SDK warms up.
   const zoomToParcel = useCallback((g, h, attempts = 8, delay = 400) => {
-    if (!window.govmap || !window.govmap.searchAndLocate) return
     const lot = Number(g), parcel = Number(h)
     if (!lot || !parcel) return
 
@@ -141,29 +141,24 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
         setTimeout(() => zoomToParcel(g, h, attempts - 1, Math.min(delay * 1.5, 2500)), delay)
     }
 
-    let res
-    try {
-      res = window.govmap.searchAndLocate({
-        // lotParcelToAddress takes lot+parcel (addressToLotParcel is the inverse —
-        // it expects an address string — so it must not be used here).
-        type: window.govmap.locateType?.lotParcelToAddress
-              ?? window.govmap.locateType?.LotParcelToAddress,
-        lot,
-        parcel,
+    const url = `https://es.govmap.gov.il/TldSearch/api/DetailsByQuery?query=${encodeURIComponent(`גוש ${lot} חלקה ${parcel}`)}&lyrs=276589&gid=govmap`
+    fetch(url, { headers: { Accept: 'application/json' } })
+      .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
+      .then(body => {
+        // Response groups results by layer (e.g. GOVMAP_PARCEL_ALL); take the first.
+        const groups  = body?.data || {}
+        const firstKey = (body?.order || Object.keys(groups))[0]
+        const item = groups[firstKey]?.[0]
+        const x = Number(item?.X), y = Number(item?.Y)
+        if (!window.govmap || !window.govmap.zoomToXY) { retry(); return }
+        if (x && y) {
+          window.govmap.zoomToXY({ x, y, level: 8, marker: true })
+          setError('')
+        } else {
+          setError(`לא נמצאה חלקה: גוש ${lot} חלקה ${parcel}`)
+        }
       })
-    } catch { retry(); return }
-
-    Promise.resolve(res).then(response => {
-      // If the SDK returns ITM coordinates, zoom to them explicitly (most precise).
-      // If it doesn't, searchAndLocate itself centres the map on the parcel — so we
-      // do nothing rather than retry-looping (which would re-trigger the search).
-      const item = Array.isArray(response) ? response[0] : (response?.data?.[0] ?? response)
-      const x = Number(item?.X ?? item?.x ?? item?.centroidX ?? item?.CenterX)
-      const y = Number(item?.Y ?? item?.y ?? item?.centroidY ?? item?.CenterY)
-      if (x && y && window.govmap.zoomToXY) {
-        window.govmap.zoomToXY({ x, y, level: 8, marker: true })
-      }
-    }).catch(retry)
+      .catch(retry)
   }, [])
 
   // ── 3. Create map (runs once when token + inView are ready) ────────────────
