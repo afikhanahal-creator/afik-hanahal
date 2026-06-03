@@ -184,10 +184,23 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
     return () => clearTimeout(t)
   }, [gush, helka, mapReady, zoomToParcel])
 
+  // ── 5. Apply the layer selection to the map ─────────────────────────────────
+  // This effect was MISSING — toggling a layer only updated React state (the
+  // checkbox) but never told the map, so nothing ever appeared. GovMap's runtime
+  // API for showing/hiding layers is setVisibleLayers(layersOn, layersOff); we call
+  // it on every change (and once the map is ready) so the map mirrors the panel,
+  // exactly like the GovMap site.
+  useEffect(() => {
+    if (!mapReady || !window.govmap || typeof window.govmap.setVisibleLayers !== 'function') return
+    const on  = LAYERS_DEF.filter(l =>  layers[l.id]).map(l => l.id)
+    const off = LAYERS_DEF.filter(l => !layers[l.id]).map(l => l.id)
+    try { window.govmap.setVisibleLayers(on, off) }
+    catch (e) { console.error('[GovMap] setVisibleLayers failed:', e) }
+  }, [layers, mapReady])
+
   // ── Layer / BG controls ─────────────────────────────────────────────────────
   function toggleLayer(id) {
-    // Pure state update only — the useEffect([layers, mapReady]) above
-    // applies the change to the map without any side effects here.
+    // Pure state update — the effect above applies it to the map via setVisibleLayers.
     setLayers(prev => ({ ...prev, [id]: !prev[id] }))
   }
 
