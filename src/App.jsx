@@ -3346,7 +3346,17 @@ function AnalyticsDashboard({ leads }) {
 
         {/* Devices */}
         <div style={{ background: isDark ? 'rgba(255,255,255,.025)' : 'rgba(0,0,0,.02)', borderRadius:18, padding:'20px 20px', border:`1px solid ${C.purple}20` }}>
-          <div style={{ fontSize:13, fontWeight:800, color:C.cream, marginBottom:16 }}>סוג מכשיר</div>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
+            <div style={{ fontSize:13, fontWeight:800, color:C.cream }}>סוג מכשיר</div>
+            <a href="https://analytics.google.com" target="_blank" rel="noopener noreferrer"
+              style={{ fontSize:10, color:'#4285F4', background:'rgba(66,133,244,.1)', padding:'3px 9px', borderRadius:20, border:'1px solid rgba(66,133,244,.25)', textDecoration:'none', fontWeight:700, display:'flex', alignItems:'center', gap:4 }}>
+              <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              GA4 ← נתוני מובייל אמיתיים
+            </a>
+          </div>
+          <div style={{ background:'rgba(247,201,72,.06)', border:'1px solid rgba(247,201,72,.2)', borderRadius:8, padding:'8px 12px', marginBottom:14, fontSize:11, color:'rgba(247,201,72,.9)', lineHeight:1.6 }}>
+            ⚠️ נתונים אלה מגיעים מהדפדפן שלך בלבד. לנתוני מובייל מלאים — עבור ל-<strong>Google Analytics</strong>
+          </div>
           <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
             {[
               { label:'מובייל',  key:'mobile',  Icon:FaMobileAlt, color:'#60D4F7' },
@@ -3703,7 +3713,14 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const [form, setForm]   = useState(initForm)
   const [editId, setEditId] = useState(null)
   const [err, setErr]     = useState('')
-  const [tab, setTab]     = useState('props')
+  // Tab ↔ URL path mapping
+  const TAB_TO_PATH = { overview:'', props:'properties', leads:'leads', chats:'chats', meta:'lead-center', analytics:'analytics', supermetrics:'performance', team:'team', settings:'settings', counters:'counters', live:'live' }
+  const PATH_TO_TAB = Object.fromEntries(Object.entries(TAB_TO_PATH).map(([k,v])=>[v,k]))
+
+  const [tab, setTab]     = useState(() => {
+    const seg = window.location.pathname.replace(/^\/admin-panel\/?/, '')
+    return PATH_TO_TAB[seg] || 'props'
+  })
   const [adminNavOpen, setAdminNavOpen] = useState(false)
   const [listTab, setListTab] = useState('published')
   const propListRef = useRef(null)
@@ -9144,27 +9161,42 @@ export default function App() {
     return () => window.removeEventListener('resize', handler)
   }, [])
 
-  // ── /admin-panel URL routing ──
+  // ── /admin-panel URL routing (with per-tab deep links) ──
   useEffect(() => {
-    if (window.location.pathname === '/admin-panel') {
+    const path = window.location.pathname
+    if (path.startsWith('/admin-panel')) {
       const alreadyAuth = sessionStorage.getItem('afik_admin_session') === '1'
       if (alreadyAuth) setShowAdmin(true)
       else setShowPw(true)
     }
     const onPop = () => {
-      if (window.location.pathname !== '/admin-panel') setShowAdmin(false)
+      const p = window.location.pathname
+      if (!p.startsWith('/admin-panel')) { setShowAdmin(false); return }
+      const seg = p.replace(/^\/admin-panel\/?/, '')
+      const t = PATH_TO_TAB[seg] || 'props'
+      setTab(t)
     }
     window.addEventListener('popstate', onPop)
     return () => window.removeEventListener('popstate', onPop)
   }, []) // eslint-disable-line
 
+  // Sync URL when tab changes
+  useEffect(() => {
+    if (!showAdmin || !adminAuth) return
+    const seg = TAB_TO_PATH[tab] || ''
+    const target = '/admin-panel' + (seg ? '/' + seg : '')
+    if (window.location.pathname !== target) history.pushState({}, '', target)
+  }, [tab, showAdmin, adminAuth]) // eslint-disable-line
+
   useEffect(() => {
     if (showAdmin && adminAuth) {
-      if (window.location.pathname !== '/admin-panel') history.pushState({}, '', '/admin-panel')
+      const seg = TAB_TO_PATH[tab] || ''
+      const target = '/admin-panel' + (seg ? '/' + seg : '')
+      if (window.location.pathname !== target) history.replaceState({}, '', target)
     } else {
-      if (window.location.pathname === '/admin-panel') history.replaceState({}, '', '/')
+      if (window.location.pathname.startsWith('/admin-panel')) history.replaceState({}, '', '/')
     }
-  }, [showAdmin, adminAuth])
+  }, [showAdmin, adminAuth]) // eslint-disable-line
 
   // ── Load stats/sharon/properties on startup ──
   useEffect(() => {
