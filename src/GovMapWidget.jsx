@@ -95,6 +95,7 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
   const gushRef    = useRef(gush)
   const helkaRef   = useRef(helka)
   const timerIds   = useRef([])
+  const lastZoomed = useRef('')   // "gush-helka" we've already auto-zoomed to (avoids double-zoom)
   useEffect(() => { gushRef.current  = gush  }, [gush])
   useEffect(() => { helkaRef.current = helka }, [helka])
 
@@ -162,6 +163,12 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
       })
       setMapReady(true)
       setError('')
+      // Auto-navigate to the parcel the moment the map opens — so the location is
+      // shown zoomed in immediately, before any manual "search" click.
+      if (gushRef.current && helkaRef.current) {
+        lastZoomed.current = `${gushRef.current}-${helkaRef.current}`
+        zoomToParcel(gushRef.current, helkaRef.current)
+      }
     } catch (e) {
       setError('שגיאה ביצירת המפה — ודא שמפתח ה-API תקין ורשום לדומיין זה.')
       created.current = false
@@ -177,10 +184,15 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
   // Cancel timers on unmount
   useEffect(() => clearRetryTimers, [])  // eslint-disable-line
 
-  // ── 4. Also zoom when gush/helka props change after map is ready ────────────
+  // ── 4. Re-zoom if the gush/helka props change after the map is ready ────────
+  // (createMap already auto-zooms on open; this only handles a later prop change,
+  // and skips the parcel we've already navigated to so the map never jumps twice.)
   useEffect(() => {
     if (!mapReady || !gush || !helka) return
-    const t = setTimeout(() => zoomToParcel(gush, helka), 700)
+    const key = `${gush}-${helka}`
+    if (lastZoomed.current === key) return
+    lastZoomed.current = key
+    const t = setTimeout(() => zoomToParcel(gush, helka), 250)
     return () => clearTimeout(t)
   }, [gush, helka, mapReady, zoomToParcel])
 
