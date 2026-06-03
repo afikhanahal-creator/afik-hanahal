@@ -152,7 +152,9 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
         const x = Number(item?.X), y = Number(item?.Y)
         if (!window.govmap || !window.govmap.zoomToXY) { retry(); return }
         if (x && y) {
-          window.govmap.zoomToXY({ x, y, level: 8, marker: true })
+          // level 0–10 (10 = closest). Use the max so the individual parcel —
+          // and the PARCEL_ALL/PARCEL_HOKS cadastral outlines — are seen up close.
+          window.govmap.zoomToXY({ x, y, level: 10, marker: true })
           setError('')
         } else {
           setError(`לא נמצאה חלקה: גוש ${lot} חלקה ${parcel}`)
