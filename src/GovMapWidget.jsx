@@ -170,17 +170,6 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
       })
       setMapReady(true)
       setError('')
-      // GovMap's internal tile loading finishes after createMap returns.
-      // Schedule retries so searchAndLocate finds the map truly ready.
-      // Uses refs so stale closures never capture an old gush/helka value.
-      clearRetryTimers()
-      ;[400, 900, 1800, 3200, 5500].forEach(ms => {
-        const id = setTimeout(() => {
-          const g = gushRef.current, h = helkaRef.current
-          if (g && h) zoomToParcel(g, h)
-        }, ms)
-        timerIds.current.push(id)
-      })
     } catch (e) {
       setError('שגיאה ביצירת המפה — ודא שמפתח ה-API תקין ורשום לדומיין זה.')
       created.current = false
@@ -199,7 +188,7 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
   // ── 4. Also zoom when gush/helka props change after map is ready ────────────
   useEffect(() => {
     if (!mapReady || !gush || !helka) return
-    const t = setTimeout(() => zoomToParcel(gush, helka), 300)
+    const t = setTimeout(() => zoomToParcel(gush, helka), 700)
     return () => clearTimeout(t)
   }, [gush, helka, mapReady, zoomToParcel])
 
