@@ -2343,6 +2343,10 @@ const ENTRY_OPTIONS     = ['','מיידית','כניסה גמישה','לפי ה�
 
 const ADMIN_DRAFT_KEY = 'afik_form_draft'
 
+// Tab ↔ URL deep-link mapping (module-level so both AdminPanel and main app can use it)
+const ADMIN_TAB_TO_PATH = { overview:'', props:'properties', leads:'leads', chats:'chats', meta:'lead-center', analytics:'analytics', supermetrics:'performance', team:'team', settings:'settings', counters:'counters', live:'live' }
+const ADMIN_PATH_TO_TAB = Object.fromEntries(Object.entries(ADMIN_TAB_TO_PATH).map(([k,v])=>[v,k]))
+
 // ─── LOGO UPLOAD (single image, compressed) ──────────────────────────────────
 function LogoUpload({ logo, onChange }) {
   const { C } = useTheme()
@@ -3713,15 +3717,18 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const [form, setForm]   = useState(initForm)
   const [editId, setEditId] = useState(null)
   const [err, setErr]     = useState('')
-  // Tab ↔ URL path mapping
-  const TAB_TO_PATH = { overview:'', props:'properties', leads:'leads', chats:'chats', meta:'lead-center', analytics:'analytics', supermetrics:'performance', team:'team', settings:'settings', counters:'counters', live:'live' }
-  const PATH_TO_TAB = Object.fromEntries(Object.entries(TAB_TO_PATH).map(([k,v])=>[v,k]))
-
   const [tab, setTab]     = useState(() => {
     const seg = window.location.pathname.replace(/^\/admin-panel\/?/, '')
-    return PATH_TO_TAB[seg] || 'props'
+    return ADMIN_PATH_TO_TAB[seg] || 'props'
   })
   const [adminNavOpen, setAdminNavOpen] = useState(false)
+
+  // Sync URL when tab changes (deep-link routing)
+  useEffect(() => {
+    const seg = ADMIN_TAB_TO_PATH[tab] ?? ''
+    const target = '/admin-panel' + (seg ? '/' + seg : '')
+    if (window.location.pathname !== target) history.pushState({}, '', target)
+  }, [tab])
   const [listTab, setListTab] = useState('published')
   const propListRef = useRef(null)
   const [listCat, setListCat] = useState('all')
@@ -9161,38 +9168,23 @@ export default function App() {
     return () => window.removeEventListener('resize', handler)
   }, [])
 
-  // ── /admin-panel URL routing (with per-tab deep links) ──
+  // ── /admin-panel URL routing ──
   useEffect(() => {
-    const path = window.location.pathname
-    if (path.startsWith('/admin-panel')) {
+    if (window.location.pathname.startsWith('/admin-panel')) {
       const alreadyAuth = sessionStorage.getItem('afik_admin_session') === '1'
       if (alreadyAuth) setShowAdmin(true)
       else setShowPw(true)
     }
     const onPop = () => {
-      const p = window.location.pathname
-      if (!p.startsWith('/admin-panel')) { setShowAdmin(false); return }
-      const seg = p.replace(/^\/admin-panel\/?/, '')
-      const t = PATH_TO_TAB[seg] || 'props'
-      setTab(t)
+      if (!window.location.pathname.startsWith('/admin-panel')) setShowAdmin(false)
     }
     window.addEventListener('popstate', onPop)
     return () => window.removeEventListener('popstate', onPop)
   }, []) // eslint-disable-line
 
-  // Sync URL when tab changes
-  useEffect(() => {
-    if (!showAdmin || !adminAuth) return
-    const seg = TAB_TO_PATH[tab] || ''
-    const target = '/admin-panel' + (seg ? '/' + seg : '')
-    if (window.location.pathname !== target) history.pushState({}, '', target)
-  }, [tab, showAdmin, adminAuth]) // eslint-disable-line
-
   useEffect(() => {
     if (showAdmin && adminAuth) {
-      const seg = TAB_TO_PATH[tab] || ''
-      const target = '/admin-panel' + (seg ? '/' + seg : '')
-      if (window.location.pathname !== target) history.replaceState({}, '', target)
+      if (!window.location.pathname.startsWith('/admin-panel')) history.replaceState({}, '', '/admin-panel')
     } else {
       if (window.location.pathname.startsWith('/admin-panel')) history.replaceState({}, '', '/')
     }
