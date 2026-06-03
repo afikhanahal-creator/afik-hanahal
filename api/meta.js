@@ -665,8 +665,7 @@ const SM_SOURCES = {
     label:       'Facebook Ads',
     ds_id:       'FA',
     ds_accounts: 'list.all_accounts',
-    ds_user:     '3729529637187426',
-    // Field IDs verified via Supermetrics field_discovery API
+    // ds_user omitted — auto-resolves, avoids stale cached schedule_id
     fields:      ['adcampaign_name', 'impressions', 'Clicks', 'cost', 'reach', 'CTR', 'CPC'],
   },
   gawa: {
@@ -732,7 +731,9 @@ async function pollSupermetricsResult(scheduleId, source) {
     const txt = await r.text()
     let b; try { b = JSON.parse(txt) } catch { b = {} }
     const status = b?.data?.status || b?.status
-    if (!r.ok || b?.error) return { ok: false, error: flattenError(b, r.status) }
+    const errMsg = flattenError(b, r.status)
+    // "No endpoint could be found" means the cached schedule_id expired — signal caller to retry fresh
+    if (!r.ok || b?.error) return { ok: false, error: errMsg, expired: /endpoint could not be found|no endpoint/i.test(errMsg) }
     if (status === 'completed' || status === 'COMPLETED' || status === 'SUCCESS') {
       // payload may be data.data (nested) OR data at root
       const payload = b?.data?.data || b?.data || b
@@ -759,7 +760,7 @@ async function handleSupermetrics(req, res) {
   const query = {
     ds_id:           cfg.ds_id,
     ds_accounts:     cfg.ds_accounts,
-    ds_user:         cfg.ds_user,
+    ...(cfg.ds_user ? { ds_user: cfg.ds_user } : {}),
     fields:          cfg.fields,
     ...(cfg.report_type ? { report_type: cfg.report_type } : {}),
     date_range_type: range,
@@ -781,10 +782,21 @@ async function handleSupermetrics(req, res) {
     let headers = body?.data?.headers || []
     let rows    = body?.data?.rows    || []
     // If inline data is empty AND we got a schedule_id, this is the async path —
-    // poll until results are ready.
+    // poll until results are ready. If the cached schedule_id expired, re-submit once.
     if (rows.length === 0 && scheduleId) {
       console.log(`[supermetrics] ${source} queued (schedule_id=${scheduleId.slice(0, 12)}…) — polling`)
-      const polled = await pollSupermetricsResult(scheduleId, source)
+      let polled = await pollSupermetricsResult(scheduleId, source)
+      if (!polled.ok && polled.expired) {
+        // Cached schedule_id expired — force a fresh query with a unique nonce
+        console.log(`[supermetrics] ${source} schedule expired — re-submitting fresh query`)
+        const freshQuery = { ...query, _ts: Date.now() }
+        const r2 = await fetch(`https://api.supermetrics.com/enterprise/v2/query/data/json?json=${encodeURIComponent(JSON.stringify(freshQuery))}`, { signal: AbortSignal.timeout(15000) })
+        const b2 = await r2.json().catch(() => ({}))
+        const freshId = b2?.meta?.schedule_id || b2?.data?.schedule_id
+        if (freshId) {
+          polled = await pollSupermetricsResult(freshId, source)
+        }
+      }
       if (!polled.ok) {
         console.error(`[supermetrics] ${source} poll failed: ${polled.error}`)
         return res.status(502).json({ error: polled.error, source, schedule_id: scheduleId })
