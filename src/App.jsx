@@ -6225,6 +6225,69 @@ Return ONLY valid JSON (no markdown, no code blocks):
             {/* ── Meta WhatsApp Business API Bot ─────────────────────────── */}
             <MetaWABotCard C={C} isDark={isDark}/>
 
+            {/* ── Meta Pixel ─────────────────────────────────────────────────── */}
+            <div style={{ background:'rgba(255,255,255,.03)', borderRadius:12, padding:20 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:16 }}>
+                <div style={{ width:32, height:32, borderRadius:8, background:'rgba(24,119,242,.15)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                  <FaFacebookF size={14} style={{ color:'#1877F2' }}/>
+                </div>
+                <div>
+                  <h3 style={{ fontSize:14, fontWeight:700, color:C.purple, margin:0 }}>Meta Pixel — פיקסל מעקב</h3>
+                  <div style={{ fontSize:11, color:`${C.cream}55`, marginTop:3 }}>פיקסל פעיל באתר — עוקב אחרי ביקורים, לידים ואירועי המרה</div>
+                </div>
+              </div>
+
+              {/* Status card */}
+              <div style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 16px', background:'rgba(34,197,94,.06)', border:'1px solid rgba(34,197,94,.25)', borderRadius:10, marginBottom:14 }}>
+                <div style={{ width:10, height:10, borderRadius:'50%', background:'#22C55E', boxShadow:'0 0 8px #22C55E', flexShrink:0 }}/>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <span style={{ fontSize:13, color:'#22C55E', fontWeight:700 }}>פיקסל פעיל</span>
+                  <span style={{ fontSize:12, color:`${C.cream}44`, marginRight:8 }}>— מוטמע ב-index.html</span>
+                </div>
+                <code style={{ fontSize:12, color:'#1877F2', background:'rgba(24,119,242,.1)', padding:'3px 10px', borderRadius:6, fontFamily:'monospace', border:'1px solid rgba(24,119,242,.2)' }}>
+                  1341264237748951
+                </code>
+              </div>
+
+              {/* Events tracked */}
+              <div style={{ fontSize:11, color:`${C.cream}66`, marginBottom:12, fontWeight:700 }}>אירועים שנמדדים:</div>
+              <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:16 }}>
+                {[
+                  { label:'PageView',    color:'#8490D8', desc:'כל ביקור בדף' },
+                  { label:'Lead',        color:'#22C55E', desc:'מילוי טופס ליד' },
+                  { label:'ViewContent', color:'#F97316', desc:'צפייה בנכס' },
+                  { label:'Contact',     color:'#3B82F6', desc:'יצירת קשר' },
+                ].map(ev => (
+                  <div key={ev.label} style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 12px', background:`${ev.color}12`, border:`1px solid ${ev.color}30`, borderRadius:8 }}>
+                    <div style={{ width:7, height:7, borderRadius:'50%', background:ev.color, flexShrink:0 }}/>
+                    <span style={{ fontSize:11, fontWeight:700, color:ev.color }}>{ev.label}</span>
+                    <span style={{ fontSize:10, color:`${C.cream}44` }}>— {ev.desc}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* UTM tip */}
+              <div style={{ background:'rgba(24,119,242,.06)', border:'1px solid rgba(24,119,242,.2)', borderRadius:8, padding:'12px 14px', fontSize:12, color:`${C.cream}88`, lineHeight:1.8, direction:'rtl' }}>
+                <strong style={{ color:'#1877F2' }}>טיפ — URL קמפיין עם UTM:</strong><br/>
+                בקמפיין ב-Meta Ads Manager, הגדר Destination URL:
+                <code style={{ display:'block', marginTop:6, padding:'8px 10px', background:'rgba(0,0,0,.25)', borderRadius:6, fontFamily:'monospace', fontSize:11, color:'#A0ACFF', wordBreak:'break-all', direction:'ltr' }}>
+                  https://afikhanahal.co.il/?utm_source=facebook&utm_medium=paid&utm_campaign=<span style={{ color:'#22C55E' }}>שם_קמפיין</span>
+                </code>
+              </div>
+
+              {/* Open Events Manager */}
+              <a href="https://business.facebook.com/events_manager" target="_blank" rel="noopener noreferrer"
+                style={{ display:'inline-flex', alignItems:'center', gap:7, marginTop:14, padding:'8px 16px', background:'rgba(24,119,242,.1)', border:'1px solid rgba(24,119,242,.3)', borderRadius:8, color:'#1877F2', fontSize:12, fontWeight:700, textDecoration:'none', transition:'all .15s' }}
+                onMouseEnter={e=>{ e.currentTarget.style.background='rgba(24,119,242,.2)' }}
+                onMouseLeave={e=>{ e.currentTarget.style.background='rgba(24,119,242,.1)' }}>
+                <FaFacebookF size={11}/>
+                פתח Meta Events Manager
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+                </svg>
+              </a>
+            </div>
+
             {/* GovMap Management Panel */}
             {govmapToken ? (
               <div style={{ background:'rgba(255,255,255,.02)', borderRadius:12, border:`1px solid ${C.purple}22`, overflow:'hidden' }}>
