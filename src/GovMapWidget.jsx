@@ -114,29 +114,36 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
     return () => obs.disconnect()
   }, [])
 
-  // ── 2. Zoom with exponential-backoff retry ──────────────────────────────────
-  // Guards against: API not returning a Promise, synchronous throw, map not ready
-  const zoomToParcel = useCallback((g, h, attempts = 10, delay = 300) => {
+  // Refs so timed retries always use the latest prop values without stale closures
+  const gushRef    = useRef(gush)
+  const helkaRef   = useRef(helka)
+  const timerIds   = useRef([])
+  useEffect(() => { gushRef.current  = gush  }, [gush])
+  useEffect(() => { helkaRef.current = helka }, [helka])
+
+  const clearRetryTimers = useCallback(() => {
+    timerIds.current.forEach(clearTimeout)
+    timerIds.current = []
+  }, [])
+
+  // ── 2. Zoom to parcel ────────────────────────────────────────────────────────
+  // locateType.lotParcelToAddress (=0): given block+lot numbers, zoom to location.
+  // Send both 'block' (current GovMap) and 'lot' (legacy alias) for גוש so the
+  // call works regardless of API version. חלקה goes to 'parcel'.
+  const zoomToParcel = useCallback((g, h) => {
     if (!window.govmap || !g || !h) return
+    const type = window.govmap.locateType?.lotParcelToAddress ?? 0
     try {
-      const res = window.govmap.searchAndLocate({
-        type:   window.govmap.locateType?.addressToLotParcel
-               ?? window.govmap.locateType?.parcel
-               ?? 5,
-        lot:    Number(g),
+      window.govmap.searchAndLocate({
+        type,
+        block:  Number(g),
+        lot:    Number(g),   // legacy alias for block
         parcel: Number(h),
       })
-      // API may or may not return a Promise — handle both
-      const p = res && typeof res.then === 'function' ? res : Promise.resolve()
-      p.catch(() => {
-        if (attempts > 1)
-          setTimeout(() => zoomToParcel(g, h, attempts - 1, Math.min(delay * 1.5, 2000)), delay)
-      })
-    } catch {
-      if (attempts > 1)
-        setTimeout(() => zoomToParcel(g, h, attempts - 1, Math.min(delay * 1.5, 2000)), delay)
+    } catch (e) {
+      console.warn('[GovMap] searchAndLocate threw:', e?.message)
     }
-  }, [])  // stable reference — safe to use inside setTimeout
+  }, [])
 
   // ── 3. Create map (runs once when token + inView are ready) ────────────────
   const createMap = useCallback(() => {
@@ -160,11 +167,22 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
       })
       setMapReady(true)
       setError('')
+      // GovMap's internal tile loading finishes after createMap returns.
+      // Schedule retries so searchAndLocate finds the map truly ready.
+      // Uses refs so stale closures never capture an old gush/helka value.
+      clearRetryTimers()
+      ;[400, 900, 1800, 3200, 5500].forEach(ms => {
+        const id = setTimeout(() => {
+          const g = gushRef.current, h = helkaRef.current
+          if (g && h) zoomToParcel(g, h)
+        }, ms)
+        timerIds.current.push(id)
+      })
     } catch (e) {
       setError('שגיאה ביצירת המפה — ודא שמפתח ה-API תקין ורשום לדומיין זה.')
       created.current = false
     }
-  }, [mapDivId, token])  // layers/bg excluded — read via refs to avoid spurious re-runs
+  }, [mapDivId, token, zoomToParcel, clearRetryTimers])  // eslint-disable-line
 
   // ── Load SDK + create map once in view ────────────────────────────────────
   useEffect(() => {
@@ -172,10 +190,13 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
     loadGovMapScript(createMap)
   }, [token, inView, createMap])
 
-  // ── 4. Zoom to parcel when map is ready (or gush/helka change) ─────────────
+  // Cancel timers on unmount
+  useEffect(() => clearRetryTimers, [])  // eslint-disable-line
+
+  // ── 4. Also zoom when gush/helka props change after map is ready ────────────
   useEffect(() => {
     if (!mapReady || !gush || !helka) return
-    const t = setTimeout(() => zoomToParcel(gush, helka), 700)
+    const t = setTimeout(() => zoomToParcel(gush, helka), 300)
     return () => clearTimeout(t)
   }, [gush, helka, mapReady, zoomToParcel])
 
