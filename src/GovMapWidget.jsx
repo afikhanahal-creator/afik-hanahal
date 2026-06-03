@@ -127,28 +127,43 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
   }, [])
 
   // ── 2. Zoom to parcel ────────────────────────────────────────────────────────
-  const zoomToParcel = useCallback((g, h, attempts = 10, delay = 300) => {
-    if (!window.govmap || !g || !h) return
-    try {
-      const res = window.govmap.searchAndLocate({
-        // lotParcelToAddress = "given gush (lot) + helka (parcel), locate & zoom to it".
-        // addressToLotParcel is the INVERSE (it expects an address string), so passing
-        // lot/parcel to it silently failed — that's what broke the gush/helka zoom.
-        // Official docs example: { type: lotParcelToAddress, lot: 40095, parcel: 13 }.
-        type:   window.govmap.locateType?.lotParcelToAddress
-               ?? window.govmap.locateType?.LotParcelToAddress,
-        lot:    Number(g),
-        parcel: Number(h),
-      })
-      const p = res && typeof res.then === 'function' ? res : Promise.resolve()
-      p.catch(() => {
-        if (attempts > 1)
-          setTimeout(() => zoomToParcel(g, h, attempts - 1, Math.min(delay * 1.5, 2000)), delay)
-      })
-    } catch {
+  // GovMap's searchAndLocate(lotParcelToAddress) resolves the gush/helka but does
+  // NOT move the map. The actual navigation must be done explicitly with
+  // zoomToXY({x,y,level}) using the ITM coordinates from the response. We therefore
+  // search → read the parcel's X/Y → zoomToXY, with retries while the SDK warms up.
+  const zoomToParcel = useCallback((g, h, attempts = 8, delay = 400) => {
+    if (!window.govmap || !window.govmap.searchAndLocate) return
+    const lot = Number(g), parcel = Number(h)
+    if (!lot || !parcel) return
+
+    const retry = () => {
       if (attempts > 1)
-        setTimeout(() => zoomToParcel(g, h, attempts - 1, Math.min(delay * 1.5, 2000)), delay)
+        setTimeout(() => zoomToParcel(g, h, attempts - 1, Math.min(delay * 1.5, 2500)), delay)
     }
+
+    let res
+    try {
+      res = window.govmap.searchAndLocate({
+        // lotParcelToAddress takes lot+parcel (addressToLotParcel is the inverse —
+        // it expects an address string — so it must not be used here).
+        type: window.govmap.locateType?.lotParcelToAddress
+              ?? window.govmap.locateType?.LotParcelToAddress,
+        lot,
+        parcel,
+      })
+    } catch { retry(); return }
+
+    Promise.resolve(res).then(response => {
+      // If the SDK returns ITM coordinates, zoom to them explicitly (most precise).
+      // If it doesn't, searchAndLocate itself centres the map on the parcel — so we
+      // do nothing rather than retry-looping (which would re-trigger the search).
+      const item = Array.isArray(response) ? response[0] : (response?.data?.[0] ?? response)
+      const x = Number(item?.X ?? item?.x ?? item?.centroidX ?? item?.CenterX)
+      const y = Number(item?.Y ?? item?.y ?? item?.centroidY ?? item?.CenterY)
+      if (x && y && window.govmap.zoomToXY) {
+        window.govmap.zoomToXY({ x, y, level: 8, marker: true })
+      }
+    }).catch(retry)
   }, [])
 
   // ── 3. Create map (runs once when token + inView are ready) ────────────────
@@ -288,7 +303,10 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
                direction:'rtl', fontFamily:'Rubik,inherit' }}>
 
       {/* ── Toolbar ─────────────────────────────────────────────────────────── */}
-      <div style={{ display:'flex', gap:8, alignItems:'center', padding:'9px 12px',
+      {/* position:relative + high z-index keeps the toolbar (and its חפש button)
+          clickable above the GovMap canvas, which otherwise overlays it. */}
+      <div style={{ position:'relative', zIndex:40,
+                    display:'flex', gap:8, alignItems:'center', padding:'9px 12px',
                     background: isDark ? 'rgba(14,14,28,.97)' : 'rgba(236,234,245,.97)',
                     borderBottom:`1px solid ${C.purple}20`, flexWrap:'wrap' }}>
 
