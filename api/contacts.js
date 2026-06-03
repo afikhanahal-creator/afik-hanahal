@@ -14,7 +14,8 @@
 //   );
 //   CREATE INDEX IF NOT EXISTS contacts_created_at_idx ON contacts(created_at DESC);
 
-import nodemailer from 'nodemailer'
+// nodemailer is loaded dynamically inside sendLeadEmail to prevent a static-import
+// crash from taking down the entire module (same fix applied to meta.js).
 
 const SUPA_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
 const SUPA_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY
@@ -48,20 +49,30 @@ function toIntlPhone(raw) {
 
 // Low-level send — chatId may be "972XXXXXXXX@c.us" or a raw phone number.
 async function sendToChatId(chatId, message) {
-  if (!GREEN_INSTANCE || !GREEN_TOKEN) return { ok: false, error: 'Green API not configured (WA_GREENAPI_INSTANCE/TOKEN)' }
+  if (!GREEN_INSTANCE || !GREEN_TOKEN) {
+    console.error('[green-api] WA_GREENAPI_INSTANCE or WA_GREENAPI_TOKEN not set in Vercel env vars')
+    return { ok: false, error: 'Green API not configured (WA_GREENAPI_INSTANCE/TOKEN missing in Vercel)' }
+  }
   if (!chatId) return { ok: false, error: 'no chatId' }
   const finalChatId = chatId.includes('@') ? chatId : `${toIntlPhone(chatId)}@c.us`
   if (!finalChatId || finalChatId === '@c.us') return { ok: false, error: 'invalid chatId' }
+  console.log('[green-api] sending to', finalChatId, '| instance:', GREEN_INSTANCE)
   try {
     const r = await fetch(greenUrl('sendMessage'), {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ chatId: finalChatId, message }),
       signal: AbortSignal.timeout(20000),
     })
-    if (!r.ok) return { ok: false, error: `Green API HTTP ${r.status}: ${(await r.text().catch(() => '')).slice(0, 200)}` }
-    const d = await r.json().catch(() => ({}))
+    const text = await r.text()
+    if (!r.ok) {
+      console.error('[green-api] HTTP', r.status, text.slice(0, 300))
+      return { ok: false, error: `Green API HTTP ${r.status}: ${text.slice(0, 200)}` }
+    }
+    let d; try { d = JSON.parse(text) } catch { d = {} }
+    console.log('[green-api] ✓ sent, idMessage:', d.idMessage || 'n/a')
     return { ok: true, idMessage: d.idMessage || null }
   } catch (e) {
+    console.error('[green-api] error:', e.message)
     return { ok: false, error: e.message }
   }
 }
@@ -279,18 +290,15 @@ async function sendLeadEmail(lead) {
     console.warn('[lead-email] skipped — GMAIL_USER / GMAIL_APP_PASSWORD missing on Vercel')
     return { ok: false, error: 'GMAIL_USER / GMAIL_APP_PASSWORD missing' }
   }
-
-  // Explicit smtp.gmail.com:465 + secure — `service: 'gmail'` can fail on Vercel
-  // cold-starts. App-password spaces are stripped (Google shows them with spaces).
-  const transporter = nodemailer.createTransport({
-    host:   'smtp.gmail.com',
-    port:   465,
-    secure: true,
-    auth:   { user, pass: pass.replace(/\s+/g, '') },
-  })
   const ts = new Date().toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-
   try {
+    const { default: nodemailer } = await import('nodemailer')
+    const transporter = nodemailer.createTransport({
+      host:   'smtp.gmail.com',
+      port:   465,
+      secure: true,
+      auth:   { user, pass: pass.replace(/\s+/g, '') },
+    })
     const info = await transporter.sendMail({
       from:    `"אפיק הנחל CRM" <${user}>`,
       to,
@@ -331,6 +339,7 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: 'GMAIL_USER / GMAIL_APP_PASSWORD לא מוגדרים ב-Vercel env vars' })
     }
     try {
+      const { default: nodemailer } = await import('nodemailer')
       const transporter = nodemailer.createTransport({ service: 'gmail', auth: { user, pass } })
       await transporter.sendMail({
         from: `"אפיק הנחל CRM" <${user}>`,

@@ -618,6 +618,41 @@ async function handleChat(req, res, action) {
   }
 }
 
+// ── Diagnostics ───────────────────────────────────────────────────────────────
+// GET /api/meta/diagnostics — returns which env vars are set vs missing
+async function handleDiagnostics(req, res) {
+  if (!checkAuth(req)) return res.status(401).json({ error: 'Unauthorized' })
+  const check = (v) => v ? '✅ set' : '❌ MISSING'
+  return res.status(200).json({
+    supabase: {
+      SUPABASE_URL:         check(process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL),
+      SUPABASE_SERVICE_KEY: check(process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY),
+    },
+    whatsapp_greenapi: {
+      WA_GREENAPI_INSTANCE:  check(process.env.WA_GREENAPI_INSTANCE),
+      WA_GREENAPI_TOKEN:     check(process.env.WA_GREENAPI_TOKEN),
+      BUSINESS_NOTIFY_CHATID:check(process.env.BUSINESS_NOTIFY_CHATID),
+    },
+    email: {
+      GMAIL_USER:         check(process.env.GMAIL_USER),
+      GMAIL_APP_PASSWORD: check(process.env.GMAIL_APP_PASSWORD),
+    },
+    meta_leads: {
+      META_PAGE_ACCESS_TOKEN: check(process.env.META_PAGE_ACCESS_TOKEN || process.env.WA_META_TOKEN),
+      META_PAGE_IDS:          check(process.env.META_PAGE_IDS || process.env.META_PAGE_ID),
+      META_APP_SECRET:        check(process.env.META_APP_SECRET) + ' (optional)',
+    },
+    supermetrics: {
+      SUPERMETRICS_API_KEY: check(process.env.SUPERMETRICS_API_KEY),
+    },
+    green_api_url: (() => {
+      const inst = process.env.WA_GREENAPI_INSTANCE || ''
+      const region = inst.slice(0, 4)
+      return region ? `https://${region}.api.greenapi.com/waInstance${inst}/...` : 'https://api.green-api.com/...'
+    })(),
+  })
+}
+
 // ── Supermetrics proxy ────────────────────────────────────────────────────────
 // Merged here (instead of a separate file) to stay within Vercel Hobby 12-function limit.
 
@@ -765,6 +800,7 @@ export default async function handler(req, res) {
   if (path === 'sync')         return handleSync(req, res)
   if (path.startsWith('chat-'))  return handleChat(req, res, path)
   if (path === 'supermetrics')   return handleSupermetrics(req, res)
+  if (path === 'diagnostics')    return handleDiagnostics(req, res)
 
   return res.status(404).json({ error: `Unknown path: ${path}` })
 }
