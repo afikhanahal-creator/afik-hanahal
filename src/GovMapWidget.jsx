@@ -131,9 +131,12 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
     if (!window.govmap || !g || !h) return
     try {
       const res = window.govmap.searchAndLocate({
-        type:   window.govmap.locateType?.addressToLotParcel
-               ?? window.govmap.locateType?.parcel
-               ?? 5,
+        // lotParcelToAddress = "given gush (lot) + helka (parcel), locate & zoom to it".
+        // addressToLotParcel is the INVERSE (it expects an address string), so passing
+        // lot/parcel to it silently failed — that's what broke the gush/helka zoom.
+        // Official docs example: { type: lotParcelToAddress, lot: 40095, parcel: 13 }.
+        type:   window.govmap.locateType?.lotParcelToAddress
+               ?? window.govmap.locateType?.LotParcelToAddress,
         lot:    Number(g),
         parcel: Number(h),
       })
