@@ -709,6 +709,12 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
     setMetaView(inChat ? 'pipeline' : 'chat')
   }
 
+  // ── Derived stats ────────────────────────────────────────────────────────────
+  const totalLeads    = leads.length
+  const newLeads      = leads.filter(l => l.status === 'new').length
+  const contacted     = leads.filter(l => l.status === 'contacted' || l.status === 'scheduled').length
+  const waSentCount   = leads.filter(l => l.wa_sent).length
+
   return (
     <div style={{
       display: 'flex',
@@ -720,79 +726,91 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
       flexDirection: 'column',
     }}>
 
-      {/* ── View toggle: single "LEAD CENTER" / "Pipeline" button anchored top-right ── */}
+      {/* ── Premium Header: title + stats + view toggle ── */}
       <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'flex-start',
-        gap: 6,
-        padding: '10px 16px',
-        background: 'rgba(14,14,28,.95)',
-        borderBottom: `1px solid ${BORDER}`,
         flexShrink: 0,
-        direction: 'rtl',
+        background: 'linear-gradient(180deg, rgba(132,144,216,.10) 0%, rgba(14,14,28,.98) 100%)',
+        borderBottom: `1px solid ${BORDER}`,
       }}>
-        <button
-          type="button"
-          onClick={handleViewToggle}
-          style={{
-            position: 'relative',
-            display: 'flex', alignItems: 'center', gap: 8,
-            padding: '8px 18px',
-            borderRadius: 9,
-            border: `1px solid ${PURPLE}80`,
-            background: `linear-gradient(135deg, rgba(132,144,216,.28) 0%, rgba(132,144,216,.16) 100%)`,
-            color: PURPLE,
-            fontSize: 12.5, fontWeight: 700,
-            cursor: 'pointer', fontFamily: 'inherit',
-            transition: 'all .15s',
-            boxShadow: `0 0 0 2px ${PURPLE}22`,
-            pointerEvents: 'auto',
-            userSelect: 'none',
-            letterSpacing: inChat ? 0 : '.06em',
-          }}
-          onMouseEnter={e => { e.currentTarget.style.background = `linear-gradient(135deg, rgba(132,144,216,.4) 0%, rgba(132,144,216,.22) 100%)`; e.currentTarget.style.borderColor = PURPLE }}
-          onMouseLeave={e => { e.currentTarget.style.background = `linear-gradient(135deg, rgba(132,144,216,.28) 0%, rgba(132,144,216,.16) 100%)`; e.currentTarget.style.borderColor = `${PURPLE}80` }}
-        >
-          {inChat ? (
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="3" width="4" height="18" rx="1"/><rect x="10" y="3" width="4" height="14" rx="1"/><rect x="17" y="3" width="4" height="10" rx="1"/>
-            </svg>
-          ) : (
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-            </svg>
-          )}
-          {inChat ? (lang === 'en' ? 'Pipeline' : 'Pipeline') : 'LEAD CENTER'}
-          {unreadCount > 0 && (
-            <span
-              aria-label={lang === 'en' ? `${unreadCount} new leads` : `${unreadCount} לידים חדשים`}
-              title={lang === 'en' ? `${unreadCount} new since last visit` : `${unreadCount} לידים חדשים מהפעם האחרונה`}
-              style={{
-                position: 'absolute',
-                top: -8,
-                left: -8,
-                minWidth: 22,
-                height: 22,
-                padding: '0 7px',
-                borderRadius: 999,
-                background: 'linear-gradient(135deg, #E05252 0%, #C8392E 100%)',
-                color: '#fff',
-                fontSize: 11,
-                fontWeight: 800,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: '0 2px 8px rgba(224,82,82,.55), 0 0 0 2px rgba(14,14,28,.95)',
-                lineHeight: 1,
-                fontFamily: 'inherit',
-                letterSpacing: 0,
-                animation: 'meta-lead-badge-pulse 1.6s ease-out infinite',
-                pointerEvents: 'none',
-              }}
+        {/* Top bar: branding + toggle */}
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 20px 8px', direction:'rtl' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+            <div style={{ width:32, height:32, borderRadius:8, background:`linear-gradient(135deg,${PURPLE},#6070C8)`, display:'flex', alignItems:'center', justifyContent:'center', boxShadow:`0 4px 12px ${PURPLE}44` }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+              </svg>
+            </div>
+            <div>
+              <div style={{ fontSize:15, fontWeight:800, color:CREAM, letterSpacing:'-.01em' }}>
+                {lang === 'en' ? 'Lead Center' : 'מרכז לידים'}
+              </div>
+              <div style={{ fontSize:10, color:`${PURPLE}99`, fontWeight:600, marginTop:1 }}>
+                Meta · Facebook · Instagram
+              </div>
+            </div>
+          </div>
+          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+            {syncResult && (
+              <span style={{ fontSize:10, color:GREEN, fontWeight:700, background:'rgba(130,246,127,.12)', padding:'3px 10px', borderRadius:20, border:'1px solid rgba(130,246,127,.25)' }}>
+                {syncResult}
+              </span>
+            )}
+            <button onClick={handleSync} disabled={syncing}
+              style={{ padding:'6px 13px', background:syncing?`${PURPLE}12`:`${PURPLE}20`, border:`1px solid ${PURPLE}55`, borderRadius:8, color:PURPLE, fontSize:11, fontWeight:700, cursor:syncing?'not-allowed':'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', gap:5, transition:'all .15s' }}
+              onMouseEnter={e=>{ if(!syncing){e.currentTarget.style.background=`${PURPLE}38`} }}
+              onMouseLeave={e=>{ if(!syncing){e.currentTarget.style.background=`${PURPLE}20`} }}
             >
-              {unreadCount > 99 ? '99+' : unreadCount}
-            </span>
-          )}
-        </button>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ animation: syncing ? 'gm_spin .7s linear infinite' : 'none' }}>
+                <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+              </svg>
+              {syncing ? t.syncing : t.sync}
+            </button>
+            <button type="button" onClick={handleViewToggle}
+              style={{ position:'relative', display:'flex', alignItems:'center', gap:7, padding:'7px 16px', borderRadius:8, border:`1px solid ${PURPLE}70`, background: inChat ? `linear-gradient(135deg,${PURPLE}30,${PURPLE}18)` : `linear-gradient(135deg,rgba(34,197,94,.22),rgba(34,197,94,.12))`, color: inChat ? PURPLE : '#22C55E', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit', transition:'all .15s', userSelect:'none' }}
+              onMouseEnter={e=>{ e.currentTarget.style.opacity='.85' }}
+              onMouseLeave={e=>{ e.currentTarget.style.opacity='1' }}
+            >
+              {inChat ? (
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="3" width="4" height="18" rx="1"/><rect x="10" y="3" width="4" height="14" rx="1"/><rect x="17" y="3" width="4" height="10" rx="1"/>
+                </svg>
+              ) : (
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
+              )}
+              {inChat ? 'Pipeline' : 'LEAD CENTER'}
+              {unreadCount > 0 && (
+                <span style={{ position:'absolute', top:-7, left:-7, minWidth:20, height:20, padding:'0 5px', borderRadius:999, background:'linear-gradient(135deg,#E05252,#C8392E)', color:'#fff', fontSize:10, fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center', boxShadow:'0 2px 8px rgba(224,82,82,.5)', animation:'meta-lead-badge-pulse 1.6s ease-out infinite', pointerEvents:'none' }}>
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Stats strip */}
+        <div style={{ display:'flex', gap:0, padding:'0 16px 12px', direction:'rtl' }}>
+          {[
+            { label: lang==='en'?'Total':'סה"כ לידים',  value: totalLeads,  color: PURPLE,    icon: 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 7a4 4 0 1 0 0 8 4 4 0 0 0 0-8z' },
+            { label: lang==='en'?'New':'חדשים',          value: newLeads,    color: '#E05252', icon: 'M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z' },
+            { label: lang==='en'?'In Progress':'בטיפול', value: contacted,   color: '#F97316', icon: 'M22 12h-4l-3 9L9 3l-3 9H2' },
+            { label: lang==='en'?'WA Sent':'WA נשלח',   value: waSentCount, color: '#25D366', icon: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z' },
+          ].map((s, i) => (
+            <div key={i} style={{ flex:1, display:'flex', alignItems:'center', gap:10, padding:'8px 12px', background:`rgba(255,255,255,.02)`, border:`1px solid ${BORDER}`, borderRadius: i===0?'10px 0 0 10px' : i===3?'0 10px 10px 0' : '0', borderLeft: i>0 ? 'none' : `1px solid ${BORDER}` }}>
+              <div style={{ width:28, height:28, borderRadius:7, background:`${s.color}18`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={s.color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d={s.icon}/>
+                </svg>
+              </div>
+              <div>
+                <div style={{ fontSize:18, fontWeight:800, color:s.color, lineHeight:1 }}>{s.value}</div>
+                <div style={{ fontSize:10, color:`${CREAM}55`, fontWeight:600, marginTop:2 }}>{s.label}</div>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* ── Kanban / Table view ── */}
@@ -826,7 +844,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
 
       {/* ─────────────────── LEFT PANEL: Lead List ─────────────────────── */}
       <div style={{
-        width: 320,
+        width: 330,
         flexShrink: 0,
         borderLeft: `1px solid ${BORDER}`,
         display: 'flex',
@@ -837,72 +855,28 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
 
         {/* Header */}
         <div style={{
-          padding: '16px 16px 12px',
+          padding: '14px 14px 10px',
           borderBottom: `1px solid ${BORDER}`,
           flexShrink: 0,
-          background: 'linear-gradient(180deg, rgba(132,144,216,.06) 0%, transparent 100%)',
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-            <div>
-              <div style={{ fontSize: 15, fontWeight: 800, color: CREAM }}>{t.title}</div>
-              <div style={{ fontSize: 11, color: MUTED, marginTop: 2 }}>
-                {filteredLeads.length} {t.leadsCount}
-              </div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+              <span style={{ fontSize:13, fontWeight:800, color:CREAM }}>{filteredLeads.length}</span>
+              <span style={{ fontSize:12, color:MUTED, fontWeight:600 }}>{t.leadsCount}</span>
             </div>
-            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              {syncResult && (
-                <span style={{ fontSize: 10, color: GREEN, fontWeight: 700, background: 'rgba(130,246,127,.12)', padding: '3px 8px', borderRadius: 10, maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {syncResult}
-                </span>
-              )}
+            <div style={{ display:'flex', gap:5 }}>
               {deletedLeads.length > 0 && (
                 <button onClick={() => setShowRestore(!showRestore)}
-                  style={{ padding: '6px 10px', background: showRestore ? 'rgba(224,82,82,.2)' : 'rgba(224,82,82,.1)', border: `1px solid ${showRestore ? 'rgba(224,82,82,.5)' : 'rgba(224,82,82,.25)'}`, borderRadius: 8, color: '#E05252', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4, transition: 'all .15s' }}>
+                  style={{ padding:'5px 9px', background:showRestore?'rgba(224,82,82,.2)':'rgba(224,82,82,.08)', border:`1px solid rgba(224,82,82,.${showRestore?'5':'2'})`, borderRadius:7, color:'#E05252', fontSize:10, fontWeight:700, cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', gap:3, transition:'all .15s' }}>
                   <span>↩</span>
-                  <span style={{ background: 'rgba(224,82,82,.2)', borderRadius: 10, padding: '0px 5px', fontSize: 10 }}>{deletedLeads.length}</span>
+                  <span style={{ background:'rgba(224,82,82,.2)', borderRadius:10, padding:'0 5px', fontSize:10 }}>{deletedLeads.length}</span>
                 </button>
               )}
-              <button
-                onClick={() => setSortOrder(v => v === 'desc' ? 'asc' : 'desc')}
-                title={sortOrder === 'desc' ? (lang === 'en' ? 'Newest first — click for oldest' : 'חדש לישן — לחץ להיפוך') : (lang === 'en' ? 'Oldest first — click for newest' : 'ישן לחדש — לחץ להיפוך')}
-                style={{
-                  padding: '6px 9px',
-                  background: 'rgba(255,255,255,.05)',
-                  border: `1px solid ${BORDER}`,
-                  borderRadius: 8,
-                  color: MUTED,
-                  cursor: 'pointer',
-                  fontSize: 12,
-                  fontFamily: 'inherit',
-                  transition: 'all .15s',
-                  display: 'flex', alignItems: 'center', gap: 3,
-                  whiteSpace: 'nowrap',
-                }}
-                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,.1)'; e.currentTarget.style.color = CREAM }}
-                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,.05)'; e.currentTarget.style.color = MUTED }}
-              >
-                {sortOrder === 'desc' ? '↓' : '↑'} {lang === 'en' ? 'Date' : 'תאריך'}
-              </button>
-              <button
-                onClick={handleSync}
-                disabled={syncing}
-                title={t.sync}
-                style={{
-                  padding: '6px 11px',
-                  background: syncing ? 'rgba(132,144,216,.08)' : `rgba(132,144,216,.14)`,
-                  border: `1px solid ${PURPLE}44`,
-                  borderRadius: 8,
-                  color: PURPLE,
-                  cursor: syncing ? 'not-allowed' : 'pointer',
-                  fontSize: 11,
-                  fontWeight: 700,
-                  fontFamily: 'inherit',
-                  transition: 'all .15s',
-                }}
-                onMouseEnter={e => { if (!syncing) e.currentTarget.style.background = `rgba(132,144,216,.25)` }}
-                onMouseLeave={e => { if (!syncing) e.currentTarget.style.background = `rgba(132,144,216,.14)` }}
-              >
-                {syncing ? t.syncing : t.sync}
+              <button onClick={() => setSortOrder(v => v==='desc'?'asc':'desc')}
+                style={{ padding:'5px 9px', background:'rgba(255,255,255,.04)', border:`1px solid ${BORDER}`, borderRadius:7, color:MUTED, cursor:'pointer', fontSize:11, fontFamily:'inherit', transition:'all .15s', display:'flex', alignItems:'center', gap:2 }}
+                onMouseEnter={e=>{ e.currentTarget.style.background='rgba(255,255,255,.09)'; e.currentTarget.style.color=CREAM }}
+                onMouseLeave={e=>{ e.currentTarget.style.background='rgba(255,255,255,.04)'; e.currentTarget.style.color=MUTED }}>
+                {sortOrder==='desc'?'↓':'↑'}
               </button>
             </div>
           </div>
@@ -1172,117 +1146,68 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
                 className={`lead-row${isSelected ? ' is-selected' : ''}`}
                 onClick={() => setSelectedLead(lead)}
                 style={{
-                  padding: '12px 14px',
+                  padding: '11px 14px 11px 16px',
                   borderBottom: `1px solid rgba(255,255,255,.04)`,
                   cursor: 'pointer',
-                  background: isSelected ? `rgba(132,144,216,.1)` : 'transparent',
-                  borderRight: isSelected ? `2px solid ${PURPLE}` : '2px solid transparent',
-                  transition: 'background-color .12s',
+                  background: isSelected ? `linear-gradient(135deg,rgba(132,144,216,.14),rgba(132,144,216,.06))` : 'transparent',
+                  borderRight: isSelected ? `3px solid ${PURPLE}` : '3px solid transparent',
+                  borderLeft: `3px solid ${sc.color}${isSelected ? 'cc' : '44'}`,
+                  transition: 'all .12s',
                   position: 'relative',
                   contain: 'layout style',
                 }}
               >
-                {/* Compact archive icon (visibility via CSS .lead-row:hover) */}
                 <button
                   className="lead-row-archive"
                   onClick={(e) => handleDeleteLead(lead, e)}
                   aria-label={lang === 'en' ? 'Archive lead' : 'העבר לארכיון'}
-                  title={lang === 'en' ? 'Archive lead' : 'העבר לארכיון'}
-                  style={{
-                    position: 'absolute',
-                    top: '50%',
-                    left: dir === 'rtl' ? 10 : undefined,
-                    right: dir === 'ltr' ? 10 : undefined,
-                    width: 28, height: 28,
-                    background: 'rgba(224,82,82,.12)',
-                    border: '1px solid rgba(224,82,82,.28)',
-                    borderRadius: '50%',
-                    color: 'rgba(224,82,82,.85)',
-                    cursor: 'pointer',
-                    padding: 0,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontFamily: 'inherit',
-                    zIndex: 2,
-                    backdropFilter: 'blur(6px)',
-                  }}
-                >
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'block' }}>
-                    <polyline points="3 6 5 6 21 6"/>
-                    <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
-                    <path d="M10 11v6M14 11v6"/>
-                    <path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
+                  style={{ position:'absolute', top:'50%', left:dir==='rtl'?8:undefined, right:dir==='ltr'?8:undefined, width:26, height:26, background:'rgba(224,82,82,.1)', border:'1px solid rgba(224,82,82,.25)', borderRadius:'50%', color:'rgba(224,82,82,.8)', cursor:'pointer', padding:0, display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'inherit', zIndex:2, backdropFilter:'blur(6px)' }}>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
                   </svg>
                 </button>
 
-                <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                <div style={{ display:'flex', gap:10, alignItems:'center' }}>
                   {/* Avatar */}
-                  <div style={{ position: 'relative', flexShrink: 0 }}>
-                    <div style={{
-                      width: 38, height: 38, borderRadius: '50%',
-                      background: `${color}25`, border: `1.5px solid ${color}55`,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 13, fontWeight: 800, color,
-                    }}>
+                  <div style={{ position:'relative', flexShrink:0 }}>
+                    <div style={{ width:38, height:38, borderRadius:10, background:`linear-gradient(135deg,${color}30,${color}15)`, border:`1.5px solid ${color}50`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:800, color }}>
                       {initials(lead.name)}
                     </div>
-                    {/* New recent indicator */}
                     {showNewDot && (
-                      <div style={{
-                        position: 'absolute', bottom: 0, right: 0,
-                        width: 9, height: 9, borderRadius: '50%',
-                        background: '#22C55E',
-                        border: '1.5px solid #0E0E1C',
-                        boxShadow: '0 0 5px #22C55E88',
-                      }} />
+                      <div style={{ position:'absolute', bottom:-1, right:-1, width:10, height:10, borderRadius:'50%', background:'#22C55E', border:'2px solid #0E0E1C', boxShadow:'0 0 6px #22C55E' }} />
                     )}
                   </div>
 
                   {/* Info */}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, marginBottom: 3 }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: CREAM, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:3 }}>
+                      <span style={{ fontSize:13, fontWeight:700, color:isSelected?CREAM:`${CREAM}cc`, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', flex:1 }}>
                         {lead.name || '—'}
                       </span>
-                      <span
-                        title={new Date(lead.created_at).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' })}
-                        style={{ fontSize: 10, color: MUTED, flexShrink: 0, textAlign: 'left', lineHeight: 1.35, display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}
-                      >
-                        <span>{timeAgo(lead.created_at, lang)}</span>
-                        <span style={{ fontSize: 9.5, color: 'rgba(232,228,216,.3)', fontFeatureSettings: '"tnum"', whiteSpace: 'nowrap' }}>
-                          {fmtDateTimeShort(lead.created_at)}
-                        </span>
+                      <span style={{ fontSize:9.5, color:`${CREAM}40`, flexShrink:0, marginRight:4, fontFeatureSettings:'"tnum"' }}>
+                        {timeAgo(lead.created_at, lang)}
                       </span>
                     </div>
 
-                    {/* Campaign / form */}
-                    <div style={{ fontSize: 11, color: MUTED, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 5 }}>
+                    <div style={{ fontSize:11, color:`${PURPLE}99`, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', marginBottom:5, fontWeight:500 }}>
                       {lead.campaign_name || lead.form_name || '—'}
                     </div>
 
-                    {/* Bottom row */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                      {lead.phone && (
-                        <span style={{ fontSize: 11, color: 'rgba(232,228,216,.5)' }}>
-                          {fmtPhone(lead.phone)}
-                        </span>
-                      )}
-                      <span style={{
-                        fontSize: 10, fontWeight: 700,
-                        color: sc.color, background: sc.bg,
-                        padding: '1px 7px', borderRadius: 10,
-                      }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:5, flexWrap:'wrap' }}>
+                      <span style={{ fontSize:10, fontWeight:700, color:sc.color, background:sc.bg, padding:'2px 8px', borderRadius:20, border:`1px solid ${sc.color}30` }}>
                         {sc.label[lang] || sc.label.he}
                       </span>
+                      {lead.phone && (
+                        <span style={{ fontSize:10, color:`${CREAM}45`, fontFeatureSettings:'"tnum"' }}>{fmtPhone(lead.phone)}</span>
+                      )}
                       {lead.wa_sent && (
-                        <span title={t.waSent} style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="#25D366">
-                            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
-                          </svg>
-                        </span>
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="#25D366" title={t.waSent}>
+                          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                        </svg>
                       )}
                       {lead.message_count > 0 && (
-                        <span style={{ fontSize: 10, color: PURPLE }}>
-                          {lead.message_count} {lang === 'en' ? 'msgs' : 'הודעות'}
+                        <span style={{ fontSize:10, color:PURPLE, background:`${PURPLE}18`, padding:'1px 6px', borderRadius:10 }}>
+                          {lead.message_count}💬
                         </span>
                       )}
                     </div>
@@ -1303,152 +1228,113 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
         background: BG,
       }}>
         {!selectedLead ? (
-          // Empty state
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
-            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" style={{ opacity: .3 }}>
-              <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" stroke={PURPLE} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-            <div style={{ color: CREAM, fontSize: 16, fontWeight: 700, opacity: .5 }}>{t.selectLead}</div>
-            <div style={{ color: MUTED, fontSize: 13 }}>{t.selectLeadDesc}</div>
+          // Premium empty state
+          <div style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:16, padding:40 }}>
+            <div style={{ position:'relative' }}>
+              <div style={{ width:80, height:80, borderRadius:20, background:`linear-gradient(135deg,${PURPLE}25,${PURPLE}10)`, border:`1px solid ${PURPLE}30`, display:'flex', alignItems:'center', justifyContent:'center', boxShadow:`0 0 40px ${PURPLE}20` }}>
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke={PURPLE} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                </svg>
+              </div>
+              <div style={{ position:'absolute', bottom:-4, right:-4, width:24, height:24, borderRadius:'50%', background:'linear-gradient(135deg,#E05252,#C8392E)', display:'flex', alignItems:'center', justifyContent:'center', border:'2px solid #09090F' }}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round">
+                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.63 3.36 2 2 0 0 1 3.6 1.18h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.83a16 16 0 0 0 8.26 8.26l.98-1.34a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>
+                </svg>
+              </div>
+            </div>
+            <div style={{ textAlign:'center' }}>
+              <div style={{ color:CREAM, fontSize:18, fontWeight:800, marginBottom:8 }}>{t.selectLead}</div>
+              <div style={{ color:`${CREAM}44`, fontSize:13, lineHeight:1.6, maxWidth:260 }}>{t.selectLeadDesc}</div>
+            </div>
+            <div style={{ display:'flex', gap:8, marginTop:4 }}>
+              {[STATUS_CONFIG.new, STATUS_CONFIG.contacted, STATUS_CONFIG.scheduled].map((sc,i) => (
+                <div key={i} style={{ padding:'4px 12px', borderRadius:20, background:sc.bg, border:`1px solid ${sc.color}30`, fontSize:10, fontWeight:700, color:sc.color }}>
+                  {sc.label[lang] || sc.label.he}
+                </div>
+              ))}
+            </div>
           </div>
         ) : (
           <>
-            {/* ── Lead details bar ─────────────────────────────────── */}
-            <div style={{
-              padding: '14px 20px',
-              borderBottom: `1px solid ${BORDER}`,
-              flexShrink: 0,
-              background: CARD,
-            }}>
-              <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-                {/* Avatar + Name */}
-                <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                  <div style={{
-                    width: 42, height: 42, borderRadius: '50%',
-                    background: `${avatarColors(selectedLead.name)}25`,
-                    border: `2px solid ${avatarColors(selectedLead.name)}55`,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 14, fontWeight: 900, color: avatarColors(selectedLead.name), flexShrink: 0,
-                  }}>
+            {/* ── Lead Hero Header ─────────────────────────────────── */}
+            <div style={{ flexShrink:0, borderBottom:`1px solid ${BORDER}`, background:`linear-gradient(180deg,rgba(132,144,216,.08) 0%,${CARD} 100%)` }}>
+              {/* Profile row */}
+              <div style={{ padding:'16px 20px 12px', display:'flex', gap:14, alignItems:'center', flexWrap:'wrap' }}>
+                {/* Avatar */}
+                <div style={{ position:'relative', flexShrink:0 }}>
+                  <div style={{ width:52, height:52, borderRadius:14, background:`linear-gradient(135deg,${avatarColors(selectedLead.name)}35,${avatarColors(selectedLead.name)}18)`, border:`2px solid ${avatarColors(selectedLead.name)}50`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:17, fontWeight:900, color:avatarColors(selectedLead.name), boxShadow:`0 4px 16px ${avatarColors(selectedLead.name)}30` }}>
                     {initials(selectedLead.name)}
                   </div>
-                  <div>
-                    <div style={{ fontSize: 15, fontWeight: 800, color: CREAM }}>{selectedLead.name || '—'}</div>
+                  {selectedLead.wa_sent && (
+                    <div style={{ position:'absolute', bottom:-3, right:-3, width:18, height:18, borderRadius:'50%', background:'#25D366', border:`2px solid ${CARD}`, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                      <svg width="9" height="9" viewBox="0 0 24 24" fill="white"><path d="M20 6L9 17l-5-5"/></svg>
+                    </div>
+                  )}
+                </div>
+
+                {/* Name + phone + campaign */}
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:4 }}>
+                    <span style={{ fontSize:17, fontWeight:800, color:CREAM }}>{selectedLead.name || '—'}</span>
+                    <span style={{ fontSize:10, fontWeight:700, color:(STATUS_CONFIG[selectedLead.status||'new']?.color||PURPLE), background:(STATUS_CONFIG[selectedLead.status||'new']?.bg||STATUS_CONFIG.new.bg), padding:'2px 9px', borderRadius:20, border:`1px solid ${STATUS_CONFIG[selectedLead.status||'new']?.color||PURPLE}30` }}>
+                      {STATUS_CONFIG[selectedLead.status||'new']?.label[lang] || STATUS_CONFIG.new.label.he}
+                    </span>
+                  </div>
+                  <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
                     {selectedLead.phone && (
-                      <a href={`https://wa.me/${selectedLead.phone}`} target="_blank" rel="noopener noreferrer"
-                        style={{ fontSize: 12, color: '#25D366', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="#25D366"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+                      <a href={`https://wa.me/${selectedLead.phone}`} target="_blank" rel="noopener noreferrer" style={{ fontSize:12, color:'#25D366', textDecoration:'none', display:'flex', alignItems:'center', gap:4, background:'rgba(37,211,102,.1)', border:'1px solid rgba(37,211,102,.25)', padding:'3px 9px', borderRadius:20 }}>
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="#25D366"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
                         {fmtPhone(selectedLead.phone)}
                       </a>
+                    )}
+                    {selectedLead.email && (
+                      <span style={{ fontSize:11, color:MUTED, background:'rgba(255,255,255,.05)', padding:'3px 9px', borderRadius:20, border:`1px solid ${BORDER}` }}>
+                        {selectedLead.email}
+                      </span>
+                    )}
+                    {(selectedLead.campaign_name || selectedLead.form_name) && (
+                      <span style={{ fontSize:11, color:PURPLE, background:`${PURPLE}12`, padding:'3px 9px', borderRadius:20, border:`1px solid ${PURPLE}30` }}>
+                        {selectedLead.campaign_name || selectedLead.form_name}
+                      </span>
                     )}
                   </div>
                 </div>
 
-                {/* Meta info chips */}
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', flex: 1 }}>
-                  {selectedLead.email && (
-                    <span style={{ fontSize: 11, color: MUTED, background: 'rgba(255,255,255,.04)', padding: '3px 9px', borderRadius: 20, border: `1px solid ${BORDER}` }}>
-                      {selectedLead.email}
-                    </span>
-                  )}
-                  {(selectedLead.campaign_name || selectedLead.form_name) && (
-                    <span style={{ fontSize: 11, color: PURPLE, background: `${PURPLE}12`, padding: '3px 9px', borderRadius: 20, border: `1px solid ${PURPLE}33` }}>
-                      {selectedLead.campaign_name || selectedLead.form_name}
-                    </span>
-                  )}
-                  {selectedLead.wa_sent && (
-                    <span style={{ fontSize: 11, color: '#25D366', background: 'rgba(37,211,102,.12)', padding: '3px 9px', borderRadius: 20, border: '1px solid rgba(37,211,102,.3)' }}>
-                      {t.waSent}
-                    </span>
-                  )}
-                </div>
-
-                {/* Status selector + Save to CRM */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: 11, color: MUTED, fontWeight: 600 }}>{t.status}:</span>
-                  <select
-                    value={selectedLead.status || 'new'}
-                    onChange={e => handleStatusChange(e.target.value)}
-                    style={{
-                      padding: '5px 10px',
-                      background: STATUS_CONFIG[selectedLead.status || 'new']?.bg || STATUS_CONFIG.new.bg,
-                      border: `1px solid ${STATUS_CONFIG[selectedLead.status || 'new']?.color || STATUS_CONFIG.new.color}44`,
-                      borderRadius: 8,
-                      color: STATUS_CONFIG[selectedLead.status || 'new']?.color || STATUS_CONFIG.new.color,
-                      fontSize: 12,
-                      fontWeight: 700,
-                      fontFamily: 'inherit',
-                      cursor: 'pointer',
-                      outline: 'none',
-                      direction: dir,
-                    }}
-                  >
-                    {Object.entries(STATUS_CONFIG).map(([key, sc]) => (
-                      <option key={key} value={key} style={{ background: '#0E0E1C', color: sc.color }}>
-                        {sc.label[lang] || sc.label.he}
-                      </option>
+                {/* Action buttons */}
+                <div style={{ display:'flex', gap:6, alignItems:'center', flexWrap:'wrap' }}>
+                  <select value={selectedLead.status||'new'} onChange={e=>handleStatusChange(e.target.value)}
+                    style={{ padding:'6px 11px', background:STATUS_CONFIG[selectedLead.status||'new']?.bg||STATUS_CONFIG.new.bg, border:`1px solid ${STATUS_CONFIG[selectedLead.status||'new']?.color||PURPLE}44`, borderRadius:8, color:STATUS_CONFIG[selectedLead.status||'new']?.color||PURPLE, fontSize:11, fontWeight:700, fontFamily:'inherit', cursor:'pointer', outline:'none', direction:dir }}>
+                    {Object.entries(STATUS_CONFIG).map(([key,sc]) => (
+                      <option key={key} value={key} style={{ background:'#0E0E1C', color:sc.color }}>{sc.label[lang]||sc.label.he}</option>
                     ))}
                   </select>
                   <button onClick={handleSaveToCRM}
-                    style={{ padding: '6px 14px', background: selectedLead.status === 'saved_to_crm' ? 'rgba(34,211,238,.22)' : savedToCRM ? 'rgba(34,211,238,.2)' : 'rgba(34,211,238,.1)', border: `1px solid rgba(34,211,238,.${selectedLead.status === 'saved_to_crm' ? '55' : savedToCRM ? '5' : '3'})`, borderRadius: 8, color: '#22D3EE', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s', whiteSpace: 'nowrap' }}>
-                    {selectedLead.status === 'saved_to_crm'
-                      ? (lang === 'en' ? '✓ In CRM · Undo' : '✓ נשמר ב-CRM · בטל')
-                      : savedToCRM ? t.savedToCRM : t.saveToCRM}
+                    style={{ padding:'6px 13px', background:selectedLead.status==='saved_to_crm'?'rgba(34,211,238,.22)':savedToCRM?'rgba(34,211,238,.2)':'rgba(34,211,238,.1)', border:`1px solid rgba(34,211,238,.${selectedLead.status==='saved_to_crm'?'55':savedToCRM?'5':'3'})`, borderRadius:8, color:'#22D3EE', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit', transition:'all .15s', whiteSpace:'nowrap', display:'flex', alignItems:'center', gap:5 }}>
+                    {selectedLead.status==='saved_to_crm' ? (
+                      <><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M20 6L9 17l-5-5"/></svg>{lang==='en'?'In CRM · Undo':'בCRM · בטל'}</>
+                    ) : savedToCRM ? t.savedToCRM : t.saveToCRM}
                   </button>
                 </div>
               </div>
 
-              {/* Notes + call time row */}
-              <div style={{ display: 'flex', gap: 10, marginTop: 12, flexWrap: 'wrap' }}>
-                <div style={{ flex: 2, minWidth: 200 }}>
-                  <label style={{ fontSize: 10, color: MUTED, fontWeight: 700, display: 'block', marginBottom: 4 }}>{t.notes}</label>
-                  <textarea
-                    value={noteInput}
-                    onChange={e => setNoteInput(e.target.value)}
-                    placeholder={t.notesPlaceholder}
-                    rows={2}
-                    style={{
-                      width: '100%', boxSizing: 'border-box',
-                      padding: '7px 10px',
-                      background: 'rgba(255,255,255,.04)',
-                      border: `1px solid ${BORDER}`,
-                      borderRadius: 8, resize: 'none',
-                      color: CREAM, fontSize: 12, fontFamily: 'inherit',
-                      outline: 'none', direction: dir,
-                    }}
-                  />
+              {/* Notes + call time */}
+              <div style={{ padding:'0 20px 14px', display:'flex', gap:8, flexWrap:'wrap' }}>
+                <div style={{ flex:2, minWidth:180 }}>
+                  <label style={{ fontSize:10, color:MUTED, fontWeight:700, display:'block', marginBottom:4, letterSpacing:'.05em' }}>{t.notes}</label>
+                  <textarea value={noteInput} onChange={e=>setNoteInput(e.target.value)} placeholder={t.notesPlaceholder} rows={2}
+                    style={{ width:'100%', boxSizing:'border-box', padding:'7px 10px', background:'rgba(255,255,255,.04)', border:`1px solid ${BORDER}`, borderRadius:8, resize:'none', color:CREAM, fontSize:12, fontFamily:'inherit', outline:'none', direction:dir }} />
                 </div>
-                <div style={{ flex: 1, minWidth: 140 }}>
-                  <label style={{ fontSize: 10, color: MUTED, fontWeight: 700, display: 'block', marginBottom: 4 }}>{t.callTime}</label>
-                  <input
-                    type="text"
-                    value={callTimeInput}
-                    onChange={e => setCallTimeInput(e.target.value)}
-                    placeholder={t.callTimePlaceholder}
-                    style={{
-                      width: '100%', boxSizing: 'border-box',
-                      padding: '7px 10px',
-                      background: 'rgba(255,255,255,.04)',
-                      border: `1px solid ${BORDER}`,
-                      borderRadius: 8,
-                      color: CREAM, fontSize: 12, fontFamily: 'inherit',
-                      outline: 'none', direction: dir,
-                    }}
-                  />
+                <div style={{ flex:1, minWidth:130 }}>
+                  <label style={{ fontSize:10, color:MUTED, fontWeight:700, display:'block', marginBottom:4, letterSpacing:'.05em' }}>{t.callTime}</label>
+                  <input type="text" value={callTimeInput} onChange={e=>setCallTimeInput(e.target.value)} placeholder={t.callTimePlaceholder}
+                    style={{ width:'100%', boxSizing:'border-box', padding:'7px 10px', background:'rgba(255,255,255,.04)', border:`1px solid ${BORDER}`, borderRadius:8, color:CREAM, fontSize:12, fontFamily:'inherit', outline:'none', direction:dir }} />
                 </div>
-                <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-                  <button
-                    onClick={handleSaveNotes}
-                    style={{
-                      padding: '7px 14px',
-                      background: noteSaved ? 'rgba(130,246,127,.14)' : `rgba(132,144,216,.14)`,
-                      border: `1px solid ${noteSaved ? 'rgba(130,246,127,.4)' : PURPLE + '44'}`,
-                      borderRadius: 8, color: noteSaved ? GREEN : PURPLE,
-                      fontSize: 12, fontWeight: 700, fontFamily: 'inherit',
-                      cursor: 'pointer', transition: 'all .15s',
-                    }}
-                  >
-                    {noteSaved ? t.noteSaved : t.saveNotes}
+                <div style={{ display:'flex', alignItems:'flex-end' }}>
+                  <button onClick={handleSaveNotes}
+                    style={{ padding:'7px 14px', background:noteSaved?'rgba(130,246,127,.14)':`${PURPLE}18`, border:`1px solid ${noteSaved?'rgba(130,246,127,.4)':PURPLE+'44'}`, borderRadius:8, color:noteSaved?GREEN:PURPLE, fontSize:12, fontWeight:700, fontFamily:'inherit', cursor:'pointer', transition:'all .15s', display:'flex', alignItems:'center', gap:5 }}>
+                    {noteSaved ? (
+                      <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M20 6L9 17l-5-5"/></svg>{t.noteSaved}</>
+                    ) : t.saveNotes}
                   </button>
                 </div>
               </div>
