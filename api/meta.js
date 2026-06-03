@@ -656,30 +656,27 @@ async function handleDiagnostics(req, res) {
 // ── Supermetrics proxy ────────────────────────────────────────────────────────
 // Merged here (instead of a separate file) to stay within Vercel Hobby 12-function limit.
 
-// Per-source query config. fields are EXACT Supermetrics field IDs from
-// field_discovery — case-sensitive. The Date column must come first so the
-// frontend's per-day chart picks it up.
+// Per-source query config — mirrors the original URLs provided by the user exactly.
+// No `fields` parameter: Supermetrics returns its default field set and rejects
+// custom field lists that don't exactly match the connection's schema.
 const SM_SOURCES = {
   fa: {
     label:       'Facebook Ads',
     ds_id:       'FA',
     ds_accounts: 'list.all_accounts',
     ds_user:     '3729529637187426',
-    fields:      'Date,impressions,reach,Clicks,cost,CTR,CPC,CPM',
   },
   gawa: {
     label:       'Google Analytics',
     ds_id:       'GAWA',
     ds_accounts: 'list.all_accounts',
     ds_user:     'afik.hanahal@gmail.com',
-    fields:      'date,sessions,totalUsers,newUsers,screenPageViews,bounceRate,averageSessionDuration,conversions',
   },
   igi: {
     label:       'Instagram Insights',
     ds_id:       'IGI',
     ds_accounts: '17841445211723833',
     ds_user:     '3729535990520124',
-    fields:      'date,reach,follower_count',
   },
 }
 
@@ -744,13 +741,12 @@ async function handleSupermetrics(req, res) {
     ds_accounts:     cfg.ds_accounts,
     ds_user:         cfg.ds_user,
     date_range_type: range,
-    fields:          cfg.fields,
     max_rows:        1000,
     api_key:         SUPERMETRICS_API_KEY,
   }
   try {
     const url  = `https://api.supermetrics.com/enterprise/v2/query/data/json?json=${encodeURIComponent(JSON.stringify(query))}`
-    console.log(`[supermetrics] querying ${source} (${range}) with fields: ${cfg.fields}`)
+    console.log(`[supermetrics] querying ${source} (${range})`)
     const r    = await fetch(url, { signal: AbortSignal.timeout(15000) })
     const text = await r.text()
     let body; try { body = JSON.parse(text) } catch { body = {} }
