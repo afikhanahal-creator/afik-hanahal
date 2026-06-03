@@ -26,14 +26,6 @@
     "api/contacts.js":        { "maxDuration": 30 },
     "api/meta.js":            { "maxDuration": 30 }
   },
-  "redirects": [
-    {
-      "source": "/:path*",
-      "has": [{ "type": "host", "value": "www.afikhanahal.co.il" }],
-      "destination": "https://afikhanahal.co.il/:path*",
-      "permanent": true
-    }
-  ],
   "rewrites": [
     {
       "source": "/api/meta/:path*",
