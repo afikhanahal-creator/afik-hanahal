@@ -3136,8 +3136,8 @@ function MetaMarketingLive() {
 // Shape matches the live row parser: { device, sessions, activeUsers, newUsers, bounceRate, views, avgDuration }.
 const GA4_DEVICE_VERIFIED_DATE = '03/06/2026'
 const GA4_DEVICE_VERIFIED = [
-  { device:'mobile',  sessions:194, activeUsers:101, newUsers:97, bounceRate:0.4381, views:403, avgDuration:592.51 },
-  { device:'desktop', sessions:193, activeUsers:73,  newUsers:73, bounceRate:0.3005, views:687, avgDuration:1279.77 },
+  { device:'mobile',  sessions:198, activeUsers:104, newUsers:99, bounceRate:0.4495, views:408, avgDuration:615.42 },
+  { device:'desktop', sessions:198, activeUsers:75,  newUsers:75, bounceRate:0.3081, views:734, avgDuration:1477.64 },
 ]
 
 function AnalyticsDashboard({ leads }) {
@@ -3148,6 +3148,7 @@ function AnalyticsDashboard({ leads }) {
   const [ga4Devices, setGa4Devices] = useState(null)   // real GA4 device data
   const [ga4Source,  setGa4Source]  = useState(null)   // 'live' | 'verified'
   const [ga4Reason,  setGa4Reason]  = useState('')     // why live was unavailable (transparency)
+  const [ga4UpdatedAt, setGa4UpdatedAt] = useState(null) // timestamp of last successful live pull
   const [ga4Loading, setGa4Loading] = useState(false)
 
   useEffect(() => {
@@ -3159,16 +3160,15 @@ function AnalyticsDashboard({ leads }) {
     return () => clearInterval(t)
   }, [refreshTs])
 
-  // Fetch real GA4 device data from Supermetrics. Supermetrics is async, so the
-  // first response can arrive with no rows yet — we retry a few times, and if the
-  // live pull never yields data we fall back to the verified GA4 numbers so the
-  // card always shows trustworthy figures instead of empty localStorage counts.
+  // Live GA4 device data from Supermetrics, kept near-real-time: an initial load
+  // (with retries + verified-snapshot fallback) followed by an auto-refresh every
+  // 2 minutes while the panel is open. A background refresh only updates on success
+  // — it never downgrades good live data back to the fallback.
   useEffect(() => {
     let cancelled = false
-    setGa4Loading(true)
 
     // rows: [deviceCategory, sessions, activeUsers, newUsers, bounceRate, views, avgDuration]
-    const parseRows = rows => rows
+    const parseRows = rows => (rows || [])
       .filter(row => row[0])            // drop empty/placeholder device rows
       .map(row => ({
         device: String(row[0] || '').toLowerCase(),
@@ -3180,40 +3180,53 @@ function AnalyticsDashboard({ leads }) {
         avgDuration: Number(row[6]) || 0,
       }))
 
-    let lastReason = ''
-    const attempt = async (tries = 0) => {
+    // One live fetch. Returns { ok, parsed } or { ok:false, reason }.
+    const fetchOnce = async () => {
       try {
         const r = await fetch(`/api/meta/supermetrics?source=device&range=last_30_days`, {
           headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
         })
         const d = await r.json().catch(() => ({}))
-        if (cancelled) return
-        const parsed = parseRows(d.rows || [])
-        if (parsed.length) {
-          setGa4Devices(parsed)
-          setGa4Source('live')
-          setGa4Reason('')
-          setGa4Loading(false)
-          return
-        }
-        // No rows — remember why, so we can show it transparently on the card.
-        lastReason = typeof d.error === 'string' ? d.error
-          : !r.ok ? `HTTP ${r.status}`
-          : 'אין עדיין שורות מ-Supermetrics'
+        const parsed = parseRows(d.rows)
+        if (parsed.length) return { ok: true, parsed }
+        return { ok: false, reason: typeof d.error === 'string' ? d.error : !r.ok ? `HTTP ${r.status}` : 'אין עדיין שורות מ-Supermetrics' }
       } catch (e) {
-        lastReason = e?.message || 'שגיאת רשת'
+        return { ok: false, reason: e?.message || 'שגיאת רשת' }
       }
+    }
+
+    const applyLive = parsed => {
+      setGa4Devices(parsed)
+      setGa4Source('live')
+      setGa4Reason('')
+      setGa4UpdatedAt(Date.now())
+    }
+
+    // Initial load: retry a few times (cold start), else show verified snapshot.
+    const initialLoad = async (tries = 0) => {
       if (cancelled) return
-      if (tries < 4) { setTimeout(() => attempt(tries + 1), 2500); return }
-      // Live pull exhausted — show the verified GA4 snapshot (real data, see const above).
+      const res = await fetchOnce()
+      if (cancelled) return
+      if (res.ok) { applyLive(res.parsed); setGa4Loading(false); return }
+      if (tries < 4) { setTimeout(() => initialLoad(tries + 1), 2500); return }
       setGa4Devices(GA4_DEVICE_VERIFIED)
       setGa4Source('verified')
-      setGa4Reason(lastReason)
+      setGa4Reason(res.reason)
       setGa4Loading(false)
     }
 
-    attempt()
-    return () => { cancelled = true }
+    // Background refresh: update only when live succeeds; keep last data otherwise.
+    const refresh = async () => {
+      if (cancelled) return
+      const res = await fetchOnce()
+      if (cancelled || !res.ok) return
+      applyLive(res.parsed)
+    }
+
+    setGa4Loading(true)
+    initialLoad()
+    const intervalId = setInterval(refresh, 120000) // auto-refresh every 2 min
+    return () => { cancelled = true; clearInterval(intervalId) }
   }, []) // eslint-disable-line
 
   const now = Date.now()
@@ -3440,7 +3453,14 @@ function AnalyticsDashboard({ leads }) {
                 )
               )}
             </div>
-            {ga4Loading && <span style={{ fontSize:10, color:`${C.cream}44` }}>טוען מ-GA4...</span>}
+            {ga4Loading
+              ? <span style={{ fontSize:10, color:`${C.cream}44` }}>טוען מ-GA4...</span>
+              : ga4Source === 'live' && ga4UpdatedAt && (
+                <span title="הנתונים מתרעננים אוטומטית כל 2 דקות" style={{ display:'flex', alignItems:'center', gap:5, fontSize:10, color:`${C.cream}44` }}>
+                  <span style={{ width:6, height:6, borderRadius:'50%', background:'#22C55E', boxShadow:'0 0 6px #22C55E', animation:'pulse 2s ease-in-out infinite' }}/>
+                  עודכן {new Date(ga4UpdatedAt).toLocaleTimeString('he-IL', { hour:'2-digit', minute:'2-digit' })} · מתעדכן אוטומטית
+                </span>
+              )}
           </div>
 
           {ga4Devices ? (
