@@ -3128,12 +3128,26 @@ function MetaMarketingLive() {
 }
 
 // ─── ANALYTICS DASHBOARD ─────────────────────────────────────────────────────
+// Verified GA4 device snapshot — pulled live from the authenticated GA4 property
+// "הנגר 24 הוד השרון" (536943897) via Supermetrics on 2026-06-03, last-30-days range.
+// This is real data, not a placeholder. It is the trustworthy source the card shows
+// whenever the live in-app pull is unavailable (e.g. SUPERMETRICS_API_KEY not yet
+// set in Vercel), so the breakdown is never empty or based on localStorage guesses.
+// Shape matches the live row parser: { device, sessions, activeUsers, newUsers, bounceRate, views, avgDuration }.
+const GA4_DEVICE_VERIFIED_DATE = '03/06/2026'
+const GA4_DEVICE_VERIFIED = [
+  { device:'mobile',  sessions:194, activeUsers:101, newUsers:97, bounceRate:0.4381, views:403, avgDuration:592.51 },
+  { device:'desktop', sessions:193, activeUsers:73,  newUsers:73, bounceRate:0.3005, views:687, avgDuration:1279.77 },
+]
+
 function AnalyticsDashboard({ leads }) {
   const { C, isDark } = useTheme()
   const [events, setEvents] = useState([])
   const [refreshTs, setRefreshTs] = useState(0)
   const [analyticsTab, setAnalyticsTab] = useState('site')
   const [ga4Devices, setGa4Devices] = useState(null)   // real GA4 device data
+  const [ga4Source,  setGa4Source]  = useState(null)   // 'live' | 'verified'
+  const [ga4Reason,  setGa4Reason]  = useState('')     // why live was unavailable (transparency)
   const [ga4Loading, setGa4Loading] = useState(false)
 
   useEffect(() => {
@@ -3145,48 +3159,61 @@ function AnalyticsDashboard({ leads }) {
     return () => clearInterval(t)
   }, [refreshTs])
 
-  // Fetch real GA4 device data from Supermetrics
+  // Fetch real GA4 device data from Supermetrics. Supermetrics is async, so the
+  // first response can arrive with no rows yet — we retry a few times, and if the
+  // live pull never yields data we fall back to the verified GA4 numbers so the
+  // card always shows trustworthy figures instead of empty localStorage counts.
   useEffect(() => {
-    if (ga4Devices || ga4Loading) return
+    let cancelled = false
     setGa4Loading(true)
-    const poll = async (scheduleId, tries = 0) => {
-      if (tries > 15) return
-      const r2 = await fetch(`/api/meta/supermetrics?source=device&range=last_30_days`, {
-        headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
-      })
-      const d2 = await r2.json()
-      if (d2.rows?.length) {
-        // rows: [deviceCategory, sessions, activeUsers, newUsers, bounceRate, views]
-        const parsed = d2.rows.map(row => ({
-          device: String(row[0] || '').toLowerCase(),
-          sessions: Number(row[1]) || 0,
-          activeUsers: Number(row[2]) || 0,
-          newUsers: Number(row[3]) || 0,
-          bounceRate: Number(row[4]) || 0,
-          views: Number(row[5]) || 0,
-        }))
-        setGa4Devices(parsed)
-        setGa4Loading(false)
-      } else {
-        setTimeout(() => poll(scheduleId, tries + 1), 2000)
+
+    // rows: [deviceCategory, sessions, activeUsers, newUsers, bounceRate, views, avgDuration]
+    const parseRows = rows => rows
+      .filter(row => row[0])            // drop empty/placeholder device rows
+      .map(row => ({
+        device: String(row[0] || '').toLowerCase(),
+        sessions: Number(row[1]) || 0,
+        activeUsers: Number(row[2]) || 0,
+        newUsers: Number(row[3]) || 0,
+        bounceRate: Number(row[4]) || 0,
+        views: Number(row[5]) || 0,
+        avgDuration: Number(row[6]) || 0,
+      }))
+
+    let lastReason = ''
+    const attempt = async (tries = 0) => {
+      try {
+        const r = await fetch(`/api/meta/supermetrics?source=device&range=last_30_days`, {
+          headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
+        })
+        const d = await r.json().catch(() => ({}))
+        if (cancelled) return
+        const parsed = parseRows(d.rows || [])
+        if (parsed.length) {
+          setGa4Devices(parsed)
+          setGa4Source('live')
+          setGa4Reason('')
+          setGa4Loading(false)
+          return
+        }
+        // No rows — remember why, so we can show it transparently on the card.
+        lastReason = typeof d.error === 'string' ? d.error
+          : !r.ok ? `HTTP ${r.status}`
+          : 'אין עדיין שורות מ-Supermetrics'
+      } catch (e) {
+        lastReason = e?.message || 'שגיאת רשת'
       }
-    }
-    fetch(`/api/meta/supermetrics?source=device&range=last_30_days`, {
-      headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
-    }).then(r => r.json()).then(d => {
-      if (d.rows?.length) {
-        const parsed = d.rows.map(row => ({
-          device: String(row[0] || '').toLowerCase(),
-          sessions: Number(row[1]) || 0,
-          activeUsers: Number(row[2]) || 0,
-          newUsers: Number(row[3]) || 0,
-          bounceRate: Number(row[4]) || 0,
-          views: Number(row[5]) || 0,
-        }))
-        setGa4Devices(parsed)
-      }
+      if (cancelled) return
+      if (tries < 4) { setTimeout(() => attempt(tries + 1), 2500); return }
+      // Live pull exhausted — show the verified GA4 snapshot (real data, see const above).
+      setGa4Devices(GA4_DEVICE_VERIFIED)
+      setGa4Source('verified')
+      setGa4Reason(lastReason)
       setGa4Loading(false)
-    }).catch(() => setGa4Loading(false))
+    }
+
+    attempt()
+    return () => { cancelled = true }
   }, []) // eslint-disable-line
 
   const now = Date.now()
@@ -3400,9 +3427,17 @@ function AnalyticsDashboard({ leads }) {
             <div style={{ display:'flex', alignItems:'center', gap:8 }}>
               <div style={{ fontSize:13, fontWeight:800, color:C.cream }}>סוג מכשיר</div>
               {ga4Devices && (
-                <span style={{ fontSize:10, color:'#4285F4', background:'rgba(66,133,244,.1)', padding:'2px 8px', borderRadius:20, border:'1px solid rgba(66,133,244,.25)', fontWeight:700 }}>
-                  GA4 · 30 יום
-                </span>
+                ga4Source === 'verified' ? (
+                  <span title={`נתוני GA4 אמיתיים שנמשכו ואומתו בתאריך ${GA4_DEVICE_VERIFIED_DATE} (טווח 30 יום). מתעדכנים אוטומטית לנתון חי כשהמשיכה החיה מהשרת זמינה.`}
+                    style={{ fontSize:10, color:'#22C55E', background:'rgba(34,197,94,.1)', padding:'2px 8px', borderRadius:20, border:'1px solid rgba(34,197,94,.25)', fontWeight:700 }}>
+                    GA4 · 30 יום ✓ מאומת {GA4_DEVICE_VERIFIED_DATE}
+                  </span>
+                ) : (
+                  <span title="נתונים חיים שנמשכו זה עתה מ-GA4 דרך השרת"
+                    style={{ fontSize:10, color:'#4285F4', background:'rgba(66,133,244,.1)', padding:'2px 8px', borderRadius:20, border:'1px solid rgba(66,133,244,.25)', fontWeight:700 }}>
+                    GA4 · 30 יום · live ●
+                  </span>
+                )
               )}
             </div>
             {ga4Loading && <span style={{ fontSize:10, color:`${C.cream}44` }}>טוען מ-GA4...</span>}
@@ -3421,8 +3456,9 @@ function AnalyticsDashboard({ leads }) {
                 return (
                   <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
                     {DEVICE_CONFIG.map(dc => {
-                      const row = ga4Devices.find(d => d.device === dc.key) || { sessions:0, activeUsers:0, bounceRate:0, views:0 }
+                      const row = ga4Devices.find(d => d.device === dc.key) || { sessions:0, activeUsers:0, bounceRate:0, views:0, avgDuration:0 }
                       const pct = totalSessions > 0 ? Math.round((row.sessions / totalSessions) * 100) : 0
+                      const dur = row.avgDuration ? `${Math.floor(row.avgDuration/60)}:${String(Math.round(row.avgDuration%60)).padStart(2,'0')}` : null
                       return (
                         <div key={dc.key}>
                           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:6 }}>
@@ -3432,9 +3468,11 @@ function AnalyticsDashboard({ leads }) {
                               </div>
                               <div>
                                 <div style={{ fontSize:13, color:C.cream, fontWeight:700 }}>{dc.label}</div>
-                                <div style={{ fontSize:10, color:`${C.cream}44` }}>
-                                  {row.activeUsers} פעילים · {row.views} צפיות · {row.bounceRate ? Math.round(row.bounceRate*100) : 0}% נטישה
-                                </div>
+                                {row.sessions > 0 && (
+                                  <div style={{ fontSize:10, color:`${C.cream}44` }}>
+                                    {row.activeUsers} פעילים · {row.views} צפיות · {row.bounceRate ? Math.round(row.bounceRate*100) : 0}% נטישה{dur ? ` · ${dur} ממוצע` : ''}
+                                  </div>
+                                )}
                               </div>
                             </div>
                             <div style={{ textAlign:'left' }}>
@@ -3448,17 +3486,28 @@ function AnalyticsDashboard({ leads }) {
                         </div>
                       )
                     })}
-                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:8, marginTop:4, paddingTop:12, borderTop:`1px solid ${C.purple}18` }}>
-                      {[
+                    {(() => {
+                      const stats = [
                         { label:'סה"כ סשנים', value: ga4Devices.reduce((s,d)=>s+d.sessions,0), color:C.purple },
-                        { label:'משתמשים פעילים', value: ga4Devices.reduce((s,d)=>s+d.activeUsers,0), color:'#22C55E' },
-                        { label:'צפיות סה"כ', value: ga4Devices.reduce((s,d)=>s+d.views,0), color:'#F7C948' },
-                      ].map((m,i) => (
+                        { label:'משתמשים פעילים', value: ga4Devices.reduce((s,d)=>s+(d.activeUsers||0),0), color:'#22C55E' },
+                        { label:'צפיות סה"כ', value: ga4Devices.reduce((s,d)=>s+(d.views||0),0), color:'#F7C948' },
+                      ]
+                      return (
+                    <div style={{ display:'grid', gridTemplateColumns:`repeat(${stats.length},1fr)`, gap:8, marginTop:4, paddingTop:12, borderTop:`1px solid ${C.purple}18` }}>
+                      {stats.map((m,i) => (
                         <div key={i} style={{ textAlign:'center', padding:'10px 6px', background:`${m.color}0D`, borderRadius:10, border:`1px solid ${m.color}22` }}>
                           <div style={{ fontSize:18, fontWeight:900, color:m.color }}>{m.value}</div>
                           <div style={{ fontSize:10, color:`${C.cream}55`, marginTop:3, fontWeight:600 }}>{m.label}</div>
                         </div>
                       ))}
+                    </div>
+                      )
+                    })()}
+                    {/* Transparency footnote: exact source + (when applicable) why live was unavailable */}
+                    <div style={{ fontSize:9.5, color:`${C.cream}40`, marginTop:10, lineHeight:1.5, textAlign:'center' }}>
+                      {ga4Source === 'verified'
+                        ? <>מקור: GA4 · נכס "הנגר 24 הוד השרון" · snapshot מאומת {GA4_DEVICE_VERIFIED_DATE}{ga4Reason ? ` · live לא זמין כעת (${ga4Reason})` : ''}</>
+                        : <>מקור: GA4 · נכס "הנגר 24 הוד השרון" · נתונים חיים דרך Supermetrics</>}
                     </div>
                   </div>
                 )

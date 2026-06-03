@@ -688,7 +688,9 @@ const SM_SOURCES = {
     ds_id:       'GAWA',
     ds_accounts: 'list.all_accounts',
     ds_user:     'afik.hanahal@gmail.com',
-    fields:      ['deviceCategory', 'sessions', 'activeUsers', 'newUsers', 'bounceRate', 'screenPageViews'],
+    // Field order MUST match the frontend row parser in AnalyticsDashboard:
+    // [deviceCategory, sessions, activeUsers, newUsers, bounceRate, screenPageViews, averageSessionDuration]
+    fields:      ['deviceCategory', 'sessions', 'activeUsers', 'newUsers', 'bounceRate', 'screenPageViews', 'averageSessionDuration'],
   },
   traffic: {
     label:       'GA4 Traffic Overview',
@@ -714,12 +716,27 @@ function flattenError(payload, status) {
   return String(e)
 }
 
-// Supermetrics' /enterprise/v2/query/data/json endpoint is ASYNC: the first
-// call returns a schedule_id and status_code=SUCCESS but no rows. The real
-// data appears on /enterprise/v2/query/result/{schedule_id} after a moment.
-// This poller waits up to ~25s (fits inside our 30s function maxDuration).
+// Supermetrics' /enterprise/v2/query/data/json returns the result table in
+// `body.data` as an array-of-arrays: [ [header...], [row...], [row...] ].
+// (It is NOT an object with .headers/.rows — that mismatch is what previously
+// made every query look "empty" and fall through to a broken async poll.)
+// This normalises that shape into { headers, rows } for the rest of the code.
+function extractTable(body) {
+  const d = body?.data
+  if (Array.isArray(d) && d.length) {
+    return { headers: d[0] || [], rows: d.slice(1) }
+  }
+  // Tolerate the alternative {headers, rows} object shape, just in case.
+  if (d && Array.isArray(d.rows)) return { headers: d.headers || [], rows: d.rows }
+  return { headers: [], rows: [] }
+}
+
+// Most queries return their data inline in the submit response. For the rare
+// async case (status_code reports the job is still running), poll the STATUS
+// endpoint — /enterprise/v2/query/status?schedule_id=… — until rows appear.
+// Waits up to ~25s (fits inside our 30s function maxDuration).
 async function pollSupermetricsResult(scheduleId, source) {
-  const url = `https://api.supermetrics.com/enterprise/v2/query/result/${encodeURIComponent(scheduleId)}?api_key=${encodeURIComponent(SUPERMETRICS_API_KEY)}`
+  const url = `https://api.supermetrics.com/enterprise/v2/query/status?schedule_id=${encodeURIComponent(scheduleId)}&api_key=${encodeURIComponent(SUPERMETRICS_API_KEY)}`
   const start = Date.now()
   let delayMs = 800
   while (Date.now() - start < 25000) {
@@ -730,21 +747,29 @@ async function pollSupermetricsResult(scheduleId, source) {
     catch (e) { console.warn(`[supermetrics/poll ${source}] fetch error: ${e.message}`); continue }
     const txt = await r.text()
     let b; try { b = JSON.parse(txt) } catch { b = {} }
-    const status = b?.data?.status || b?.status
-    const errMsg = flattenError(b, r.status)
-    // "No endpoint could be found" means the cached schedule_id expired — signal caller to retry fresh
-    if (!r.ok || b?.error) return { ok: false, error: errMsg, expired: /endpoint could not be found|no endpoint/i.test(errMsg) }
-    if (status === 'completed' || status === 'COMPLETED' || status === 'SUCCESS') {
-      // payload may be data.data (nested) OR data at root
-      const payload = b?.data?.data || b?.data || b
-      return { ok: true, headers: payload?.headers || [], rows: payload?.rows || [], meta: b?.meta || {} }
-    }
-    if (status === 'failed' || status === 'FAILED' || status === 'error') {
+    if (!r.ok || b?.error) return { ok: false, error: flattenError(b, r.status) }
+    const status = b?.meta?.status_code || b?.data?.status
+    const { headers, rows } = extractTable(b)
+    if (rows.length) return { ok: true, headers, rows, meta: b?.meta || {} }
+    if (['FAILED', 'failed', 'ERROR', 'error'].includes(status)) {
       return { ok: false, error: flattenError(b, r.status) }
     }
-    // still queued/running — loop again
+    // SUCCESS-but-empty or still running — keep polling until rows arrive
   }
   return { ok: false, error: 'Query timed out after 25s — Supermetrics still processing' }
+}
+
+// Convert relative range (last_7_days, last_30_days, etc.) to explicit custom dates.
+// This ensures every calendar day gets a unique cache key in Supermetrics so stale
+// schedule_ids never block us.
+function rangeToCustomDates(range) {
+  const today = new Date()
+  const pad = n => String(n).padStart(2,'0')
+  const fmt = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`
+  const end_date = fmt(today)
+  const days = { last_7_days:7, last_14_days:14, last_30_days:30, last_month:30, last_90_days:90, yesterday:1 }[range] || 7
+  const start = new Date(today); start.setDate(start.getDate() - days)
+  return { date_range_type: 'custom', start_date: fmt(start), end_date }
 }
 
 async function handleSupermetrics(req, res) {
@@ -757,13 +782,17 @@ async function handleSupermetrics(req, res) {
   const cfg    = SM_SOURCES[source]
   if (!cfg) return res.status(400).json({ error: `Unknown source: ${source}. Use fa, gawa, or igi.` })
 
+  const { date_range_type, start_date, end_date } = rangeToCustomDates(range)
+
   const query = {
     ds_id:           cfg.ds_id,
     ds_accounts:     cfg.ds_accounts,
     ...(cfg.ds_user ? { ds_user: cfg.ds_user } : {}),
     fields:          cfg.fields,
     ...(cfg.report_type ? { report_type: cfg.report_type } : {}),
-    date_range_type: range,
+    date_range_type,
+    start_date,
+    end_date,
     max_rows:        1000,
     api_key:         SUPERMETRICS_API_KEY,
   }
@@ -778,25 +807,13 @@ async function handleSupermetrics(req, res) {
       console.error(`[supermetrics] ${source} submit failed: ${msg}`)
       return res.status(502).json({ error: msg, source, status: r.status })
     }
+    // The result table is normally returned inline in the submit response.
+    let { headers, rows } = extractTable(body)
     const scheduleId = body?.meta?.schedule_id || body?.data?.schedule_id || body?.schedule_id
-    let headers = body?.data?.headers || []
-    let rows    = body?.data?.rows    || []
-    // If inline data is empty AND we got a schedule_id, this is the async path —
-    // poll until results are ready. If the cached schedule_id expired, re-submit once.
+    // Only if the data hasn't materialised yet do we poll the status endpoint.
     if (rows.length === 0 && scheduleId) {
-      console.log(`[supermetrics] ${source} queued (schedule_id=${scheduleId.slice(0, 12)}…) — polling`)
-      let polled = await pollSupermetricsResult(scheduleId, source)
-      if (!polled.ok && polled.expired) {
-        // Cached schedule_id expired — force a fresh query with a unique nonce
-        console.log(`[supermetrics] ${source} schedule expired — re-submitting fresh query`)
-        const freshQuery = { ...query, _ts: Date.now() }
-        const r2 = await fetch(`https://api.supermetrics.com/enterprise/v2/query/data/json?json=${encodeURIComponent(JSON.stringify(freshQuery))}`, { signal: AbortSignal.timeout(15000) })
-        const b2 = await r2.json().catch(() => ({}))
-        const freshId = b2?.meta?.schedule_id || b2?.data?.schedule_id
-        if (freshId) {
-          polled = await pollSupermetricsResult(freshId, source)
-        }
-      }
+      console.log(`[supermetrics] ${source} no inline rows (schedule_id=${scheduleId.slice(0, 12)}…) — polling status`)
+      const polled = await pollSupermetricsResult(scheduleId, source)
       if (!polled.ok) {
         console.error(`[supermetrics] ${source} poll failed: ${polled.error}`)
         return res.status(502).json({ error: polled.error, source, schedule_id: scheduleId })
