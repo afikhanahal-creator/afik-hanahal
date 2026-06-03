@@ -2,9 +2,20 @@ import { StrictMode, Component } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App.jsx'
 import AccessibilityPage from './AccessibilityPage.jsx'
-import LogRocket from 'logrocket'
 
-LogRocket.init('tkrebw/afik-hanahal')
+// LogRocket (session recording) is heavy — ~18KB gzip plus significant main-thread
+// instrumentation at init. Load and start it lazily, off the critical path, so it
+// never delays first paint or interactivity. Dynamic import() also splits it into
+// its own chunk that the initial page never has to download.
+function startLogRocketWhenIdle() {
+  const begin = () => import('logrocket')
+    .then(({ default: LogRocket }) => { try { LogRocket.init('tkrebw/afik-hanahal') } catch {} })
+    .catch(() => {})
+  if ('requestIdleCallback' in window) requestIdleCallback(begin, { timeout: 4000 })
+  else setTimeout(begin, 2500)
+}
+if (document.readyState === 'complete') startLogRocketWhenIdle()
+else window.addEventListener('load', startLogRocketWhenIdle)
 
 class ErrorBoundary extends Component {
   constructor(props) { super(props); this.state = { error: null } }

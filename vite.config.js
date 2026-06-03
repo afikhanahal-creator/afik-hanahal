@@ -225,6 +225,10 @@ export default defineConfig({
           if (id.includes('/react-icons/') || id.includes('/lucide-react/')) return 'vendor-icons'
           if (id.includes('/@dnd-kit/')) return 'vendor-dnd'
           if (id.includes('/logrocket/')) return 'vendor-analytics'
+          // Supabase is admin-only and dynamically imported — keep it in its own
+          // chunk so it loads lazily (with the admin code) instead of riding along
+          // in the eagerly-loaded vendor-misc chunk on every public page view.
+          if (id.includes('/@supabase/')) return 'vendor-supabase'
           return 'vendor-misc'
         },
       },

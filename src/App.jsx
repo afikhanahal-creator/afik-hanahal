@@ -6,7 +6,8 @@ import GovMapWidget, { LAYERS_DEF as GM_LAYERS, BG_OPTIONS as GM_BG_OPTIONS, LAY
 import RealEstateCalc from './RealEstateCalc.jsx'
 import { AnimatePresence, motion } from 'framer-motion'
 import PropertyWizard, { propertyToWizardData } from './PropertyWizard.jsx'
-import { supabase } from './lib/supabaseClient'
+// NOTE: @supabase/supabase-js is heavy and only used by the admin realtime channel
+// below — it is imported dynamically there (not here) so the public bundle stays lean.
 // Retry lazy import once on chunk-load failure (stale CDN cache after deploy)
 function lazyWithRetry(fn) {
   return lazy(() => fn().catch(() => {
@@ -4320,21 +4321,27 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   // Global Realtime: track incoming messages across ALL tabs (not just when the
   // chats tab is open) so the sidebar badge stays live even while you're elsewhere.
   useEffect(() => {
-    if (!supabase) return
-    const channel = supabase
-      .channel('chats_rt_app')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chats' }, (payload) => {
-        const msg = payload.new
-        if (!msg?.id || !msg.phone) return
-        const p = intlPhoneFmt(msg.phone)
-        setChats(prev => {
-          const existing = prev[p] || []
-          if (existing.some(m => String(m.id) === String(msg.id))) return prev
-          return { ...prev, [p]: [...existing, msg].sort((a, b) => new Date(a.created_at) - new Date(b.created_at)) }
+    let sb = null, channel = null, cancelled = false
+    // Dynamic import keeps @supabase/supabase-js out of the initial bundle —
+    // it only loads once the admin panel (this component) is actually mounted.
+    import('./lib/supabaseClient').then(({ supabase }) => {
+      if (cancelled || !supabase) return
+      sb = supabase
+      channel = supabase
+        .channel('chats_rt_app')
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chats' }, (payload) => {
+          const msg = payload.new
+          if (!msg?.id || !msg.phone) return
+          const p = intlPhoneFmt(msg.phone)
+          setChats(prev => {
+            const existing = prev[p] || []
+            if (existing.some(m => String(m.id) === String(msg.id))) return prev
+            return { ...prev, [p]: [...existing, msg].sort((a, b) => new Date(a.created_at) - new Date(b.created_at)) }
+          })
         })
-      })
-      .subscribe()
-    return () => { supabase.removeChannel(channel) }
+        .subscribe()
+    }).catch(() => {})
+    return () => { cancelled = true; if (sb && channel) sb.removeChannel(channel) }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const sendChatMsg = async (lead) => {
