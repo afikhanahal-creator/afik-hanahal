@@ -6291,10 +6291,9 @@ Return ONLY valid JSON (no markdown, no code blocks):
             {/* GovMap Management Panel */}
             {govmapToken ? (
               <div style={{ background:'rgba(255,255,255,.02)', borderRadius:12, border:`1px solid ${C.purple}22`, overflow:'hidden' }}>
-                {/* Tab bar */}
+                {/* Tab bar — map tab removed (not relevant in settings) */}
                 <div style={{ display:'flex', borderBottom:`1px solid ${C.purple}22` }}>
                   {[
-                    { id:'map',    icon:'🗺️', label:'מפה חיה'         },
                     { id:'layers', icon:'⏏',  label:'ניהול שכבות'     },
                     { id:'bg',     icon:'🌍',  label:'ניהול מפות רקע'  },
                   ].map(t => (
@@ -6307,13 +6306,6 @@ Return ONLY valid JSON (no markdown, no code blocks):
                     </button>
                   ))}
                 </div>
-
-                {/* Tab: מפה חיה */}
-                {gmTab === 'map' && (
-                  <div style={{ padding:0 }}>
-                    <GovMapWidget token={govmapToken} C={C} isDark={isDark} />
-                  </div>
-                )}
 
                 {/* Tab: ניהול שכבות */}
                 {gmTab === 'layers' && (
