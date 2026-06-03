@@ -2,10 +2,11 @@ import { useState, useEffect, useLayoutEffect, useRef, useCallback, createContex
 import { MenuToggleIcon } from './MenuToggleIcon.jsx'
 import AccessibilityWidget from './AccessibilityWidget.jsx'
 import CookieConsent from './CookieConsent.jsx'
-import GovMapWidget, { LAYERS_DEF as GM_LAYERS, BG_OPTIONS as GM_BG_OPTIONS, LAYER_CATS_DEF as GM_LAYER_CATS } from './GovMapWidget.jsx'
-import RealEstateCalc from './RealEstateCalc.jsx'
+import { LAYERS_DEF as GM_LAYERS, BG_OPTIONS as GM_BG_OPTIONS, LAYER_CATS_DEF as GM_LAYER_CATS } from './govmapLayers.js'
 import { AnimatePresence, motion } from 'framer-motion'
-import PropertyWizard, { propertyToWizardData } from './PropertyWizard.jsx'
+// PropertyWizard (2k+ lines, admin-only) is lazy-loaded below. Its propertyToWizardData
+// helper is dynamically imported at the edit call sites so it never pulls the wizard
+// (and its GovMapWidget dependency) into the public bundle.
 // NOTE: @supabase/supabase-js is heavy and only used by the admin realtime channel
 // below — it is imported dynamically there (not here) so the public bundle stays lean.
 // Retry lazy import once on chunk-load failure (stale CDN cache after deploy)
@@ -22,6 +23,10 @@ const LeadsBoard   = lazyWithRetry(() => import('./LeadsBoard.jsx'))
 const GreenAPIChat = lazyWithRetry(() => import('./GreenAPIChat.jsx'))
 const MetaLeadsTab      = lazyWithRetry(() => import('./MetaLeadsTab.jsx'))
 const SupermetricsTab   = lazyWithRetry(() => import('./SupermetricsTab.jsx'))
+// On-demand, heavy single-purpose modules — lazy so the public bundle stays lean.
+const RealEstateCalc    = lazyWithRetry(() => import('./RealEstateCalc.jsx'))
+const GovMapWidget      = lazyWithRetry(() => import('./GovMapWidget.jsx'))
+const PropertyWizard    = lazyWithRetry(() => import('./PropertyWizard.jsx'))
 import { FaChevronLeft, FaChevronRight, FaEnvelope, FaFacebookF, FaInstagram, FaBed, FaRulerCombined, FaCar, FaSwimmingPool, FaBuilding, FaBoxOpen, FaTree, FaSnowflake, FaShieldAlt, FaCouch, FaTools, FaMapMarkerAlt, FaExternalLinkAlt, FaPhone, FaCompass, FaLeaf, FaCalendarAlt, FaTimes, FaWhatsapp, FaSun, FaFileAlt, FaHome, FaMoneyBill, FaSearch, FaBalanceScale, FaHandshake, FaTrophy, FaHardHat, FaLock, FaKey, FaGlobe, FaSeedling, FaBolt, FaRocket, FaStar, FaChartLine, FaEye, FaPlay, FaWheelchair, FaFire, FaCalculator, FaShareAlt, FaHeart, FaStore, FaCamera, FaWifi, FaIndustry, FaExpand, FaUser, FaUsers, FaDesktop, FaMobileAlt, FaTabletAlt, FaCommentAlt, FaRobot, FaInbox, FaExclamationTriangle, FaChartBar, FaThumbsUp, FaImage, FaPencilAlt, FaCrown, FaMousePointer, FaDollarSign, FaVideo, FaLink, FaCheck, FaCheckCircle, FaUtensils, FaDoorOpen, FaUserShield, FaTrash } from 'react-icons/fa'
 
 // ─── SERVER CONFIG ────────────────────────────────────────────────────────────
@@ -6587,15 +6592,17 @@ Return ONLY valid JSON (no markdown, no code blocks):
         {/* ── Wizard overlay — standalone mode only ───────────────────── */}
         {standalone && wizardOpen && (
           <div style={{ position:'fixed', inset:0, zIndex:2000, background:'rgba(0,0,0,.97)', backdropFilter:'blur(4px)' }}>
-            <PropertyWizard
-              onClose={() => setWizardOpen(false)}
-              onPublish={(prop) => {
-                setProperties(prev => [...prev, prop])
-                saveProp(prop)
-                setWizardOpen(false)
-                setTab('props')
-              }}
-            />
+            <Suspense fallback={null}>
+              <PropertyWizard
+                onClose={() => setWizardOpen(false)}
+                onPublish={(prop) => {
+                  setProperties(prev => [...prev, prop])
+                  saveProp(prop)
+                  setWizardOpen(false)
+                  setTab('props')
+                }}
+              />
+            </Suspense>
           </div>
         )}
 
@@ -8899,14 +8906,16 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
                 <span style={{ fontSize:12, fontWeight:500, color:`${C.cream}33`, background:`${C.purple}08`, borderRadius:6, padding:'3px 12px' }}>הכנס גוש/חלקה לניווט לחלקה</span>
               )}
             </h3>
-            <GovMapWidget
-              gush={prop.gush}
-              helka={prop.helka}
-              subHelka={prop.subHelka}
-              token={govmapToken}
-              C={C}
-              isDark={isDark}
-            />
+            <Suspense fallback={<div style={{ height: 360, display:'flex', alignItems:'center', justifyContent:'center', color:`${C.cream}44`, fontSize:13 }}>טוען מפה…</div>}>
+              <GovMapWidget
+                gush={prop.gush}
+                helka={prop.helka}
+                subHelka={prop.subHelka}
+                token={govmapToken}
+                C={C}
+                isDark={isDark}
+              />
+            </Suspense>
           </div>
         )}
       </div>
@@ -9628,7 +9637,8 @@ export default function App() {
                 sessionStorage.removeItem('afik_admin_session')
                 window.location.href = '/'
               }}
-              onEditInWizard={p => {
+              onEditInWizard={async p => {
+                const { propertyToWizardData } = await import('./PropertyWizard.jsx')
                 setWizardEditData(propertyToWizardData(p))
                 setWizardEditId(p.id)
                 setShowWizard(true)
@@ -10309,10 +10319,10 @@ export default function App() {
       {/* ── MODALS ──────────────────────────────────── */}
       {showPw      && <PasswordPrompt onSuccess={() => { sessionStorage.setItem('afik_admin_session','1'); setAdminAuth(true); setShowPw(false); setShowAdmin(true) }} onClose={() => setShowPw(false)}/>}
       {showContact && <ContactModal  prop={contactProp} onClose={() => setShowContact(false)}/>}
-      {showCalc    && <RealEstateCalc onClose={() => setShowCalc(false)}/>}
+      {showCalc    && <Suspense fallback={null}><RealEstateCalc onClose={() => setShowCalc(false)}/></Suspense>}
       {showPrivacy && <PrivacyModal onClose={() => setShowPrivacy(false)}/>}
       {selectedProp && <PropertyModal key={selectedProp.id} prop={selectedProp} properties={properties} onClose={() => setSelectedProp(null)} onContact={p => { openContact(p) }} onSelect={setSelectedProp} govmapToken={govmapToken}/>}
-      {showWizard && <PropertyWizard
+      {showWizard && <Suspense fallback={null}><PropertyWizard
           key={wizardEditId || wizardKey}
           onClose={() => { setShowWizard(false); setWizardEditData(null); setWizardEditId(null) }}
           initialData={wizardEditData}
@@ -10377,7 +10387,7 @@ export default function App() {
                 .catch(e => console.error('[wizard] save error:', e))
             }
           }}
-        />}
+        /></Suspense>}
       {showAdmin && adminAuth && (
         <AdminPanel
           properties={properties} setProperties={setProperties}
@@ -10385,8 +10395,9 @@ export default function App() {
           sharon={sharon} setSharon={setSharon}
           govmapToken={govmapToken} setGovmapToken={setGovmapToken}
           onClose={() => setShowAdmin(false)}
-          onEditInWizard={p => {
+          onEditInWizard={async p => {
             setShowAdmin(false)
+            const { propertyToWizardData } = await import('./PropertyWizard.jsx')
             setWizardEditData(propertyToWizardData(p))
             setWizardEditId(p.id)
             setShowWizard(true)
