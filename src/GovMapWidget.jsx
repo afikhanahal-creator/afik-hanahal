@@ -129,20 +129,23 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
   // ── 2. Zoom to parcel ────────────────────────────────────────────────────────
   const zoomToParcel = useCallback((g, h, attempts = 10, delay = 300) => {
     if (!window.govmap || !g || !h) return
+    const type = window.govmap.locateType?.addressToLotParcel ?? window.govmap.locateType?.parcel ?? 5
+    console.log('[GovMap] searchAndLocate', { type, lot: Number(g), parcel: Number(h), locateType: window.govmap.locateType })
     try {
       const res = window.govmap.searchAndLocate({
-        type:   window.govmap.locateType?.addressToLotParcel
-               ?? window.govmap.locateType?.parcel
-               ?? 5,
+        type,
         lot:    Number(g),
         parcel: Number(h),
       })
+      console.log('[GovMap] searchAndLocate result:', res)
       const p = res && typeof res.then === 'function' ? res : Promise.resolve()
-      p.catch(() => {
+      p.catch((e) => {
+        console.warn('[GovMap] searchAndLocate rejected:', e)
         if (attempts > 1)
           setTimeout(() => zoomToParcel(g, h, attempts - 1, Math.min(delay * 1.5, 2000)), delay)
       })
-    } catch {
+    } catch (e) {
+      console.warn('[GovMap] searchAndLocate threw:', e)
       if (attempts > 1)
         setTimeout(() => zoomToParcel(g, h, attempts - 1, Math.min(delay * 1.5, 2000)), delay)
     }
