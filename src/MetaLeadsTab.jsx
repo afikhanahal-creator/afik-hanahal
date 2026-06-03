@@ -271,7 +271,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
   const [showRestore, setShowRestore]   = useState(false)
   const [campaignDropOpen, setCampaignDropOpen] = useState(false)
   const [sortOrder, setSortOrder]               = useState('desc') // 'desc' = newest first
-  const [metaView, setMetaView]                 = useState('pipeline') // 'chat' | 'pipeline' | 'table' — default to Kanban
+  const [metaView, setMetaView]                 = useState('chat') // 'chat' | 'pipeline' | 'table' — default to lead list
   // "Last time the user opened the Lead Center" — used to badge new leads on the toggle button.
   const [lastVisitTs, setLastVisitTs] = useState(() => {
     try { return Number(localStorage.getItem('meta_chat_last_visit_v1')) || Date.now() }
@@ -732,24 +732,31 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
         background: 'linear-gradient(180deg, rgba(132,144,216,.10) 0%, rgba(14,14,28,.98) 100%)',
         borderBottom: `1px solid ${BORDER}`,
       }}>
-        {/* Top bar: branding + toggle */}
+        {/* Top bar: toggle (RIGHT) + branding (LEFT) — RTL: first child = visual right */}
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 20px 8px', direction:'rtl' }}>
-          <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-            <div style={{ width:32, height:32, borderRadius:8, background:`linear-gradient(135deg,${PURPLE},#6070C8)`, display:'flex', alignItems:'center', justifyContent:'center', boxShadow:`0 4px 12px ${PURPLE}44` }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-              </svg>
-            </div>
-            <div>
-              <div style={{ fontSize:15, fontWeight:800, color:CREAM, letterSpacing:'-.01em' }}>
-                {lang === 'en' ? 'Lead Center' : 'מרכז לידים'}
-              </div>
-              <div style={{ fontSize:10, color:`${PURPLE}99`, fontWeight:600, marginTop:1 }}>
-                Meta · Facebook · Instagram
-              </div>
-            </div>
-          </div>
+          {/* LEAD CENTER toggle — first in RTL = visual RIGHT */}
           <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+            <button type="button" onClick={handleViewToggle}
+              style={{ position:'relative', display:'flex', alignItems:'center', gap:7, padding:'7px 18px', borderRadius:8, border:`1px solid ${inChat ? PURPLE : 'rgba(34,197,94,.5)'}`, background: inChat ? `linear-gradient(135deg,${PURPLE}30,${PURPLE}18)` : `linear-gradient(135deg,rgba(34,197,94,.22),rgba(34,197,94,.12))`, color: inChat ? PURPLE : '#22C55E', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit', transition:'all .15s', userSelect:'none' }}
+              onMouseEnter={e=>{ e.currentTarget.style.opacity='.85' }}
+              onMouseLeave={e=>{ e.currentTarget.style.opacity='1' }}
+            >
+              {inChat ? (
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="3" width="4" height="18" rx="1"/><rect x="10" y="3" width="4" height="14" rx="1"/><rect x="17" y="3" width="4" height="10" rx="1"/>
+                </svg>
+              ) : (
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
+              )}
+              {inChat ? 'Pipeline' : 'LEAD CENTER'}
+              {unreadCount > 0 && (
+                <span style={{ position:'absolute', top:-7, right:-7, minWidth:20, height:20, padding:'0 5px', borderRadius:999, background:'linear-gradient(135deg,#E05252,#C8392E)', color:'#fff', fontSize:10, fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center', boxShadow:'0 2px 8px rgba(224,82,82,.5)', animation:'meta-lead-badge-pulse 1.6s ease-out infinite', pointerEvents:'none' }}>
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
+            </button>
             {syncResult && (
               <span style={{ fontSize:10, color:GREEN, fontWeight:700, background:'rgba(130,246,127,.12)', padding:'3px 10px', borderRadius:20, border:'1px solid rgba(130,246,127,.25)' }}>
                 {syncResult}
@@ -766,27 +773,23 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
               </svg>
               {syncing ? t.syncing : t.sync}
             </button>
-            <button type="button" onClick={handleViewToggle}
-              style={{ position:'relative', display:'flex', alignItems:'center', gap:7, padding:'7px 16px', borderRadius:8, border:`1px solid ${PURPLE}70`, background: inChat ? `linear-gradient(135deg,${PURPLE}30,${PURPLE}18)` : `linear-gradient(135deg,rgba(34,197,94,.22),rgba(34,197,94,.12))`, color: inChat ? PURPLE : '#22C55E', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit', transition:'all .15s', userSelect:'none' }}
-              onMouseEnter={e=>{ e.currentTarget.style.opacity='.85' }}
-              onMouseLeave={e=>{ e.currentTarget.style.opacity='1' }}
-            >
-              {inChat ? (
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="3" width="4" height="18" rx="1"/><rect x="10" y="3" width="4" height="14" rx="1"/><rect x="17" y="3" width="4" height="10" rx="1"/>
-                </svg>
-              ) : (
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-                </svg>
-              )}
-              {inChat ? 'Pipeline' : 'LEAD CENTER'}
-              {unreadCount > 0 && (
-                <span style={{ position:'absolute', top:-7, left:-7, minWidth:20, height:20, padding:'0 5px', borderRadius:999, background:'linear-gradient(135deg,#E05252,#C8392E)', color:'#fff', fontSize:10, fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center', boxShadow:'0 2px 8px rgba(224,82,82,.5)', animation:'meta-lead-badge-pulse 1.6s ease-out infinite', pointerEvents:'none' }}>
-                  {unreadCount > 99 ? '99+' : unreadCount}
-                </span>
-              )}
-            </button>
+          </div>
+
+          {/* Branding — second in RTL = visual LEFT */}
+          <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+            <div style={{ width:32, height:32, borderRadius:8, background:`linear-gradient(135deg,${PURPLE},#6070C8)`, display:'flex', alignItems:'center', justifyContent:'center', boxShadow:`0 4px 12px ${PURPLE}44` }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+              </svg>
+            </div>
+            <div>
+              <div style={{ fontSize:15, fontWeight:800, color:CREAM, letterSpacing:'-.01em' }}>
+                {lang === 'en' ? 'Lead Center' : 'מרכז לידים'}
+              </div>
+              <div style={{ fontSize:10, color:`${PURPLE}99`, fontWeight:600, marginTop:1 }}>
+                Meta · Facebook · Instagram
+              </div>
+            </div>
           </div>
         </div>
 
