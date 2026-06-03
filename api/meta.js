@@ -666,21 +666,23 @@ const SM_SOURCES = {
     ds_id:       'FA',
     ds_accounts: 'list.all_accounts',
     ds_user:     '3729529637187426',
-    fields:      ['campaign_name', 'date_start', 'impressions', 'clicks', 'spend', 'reach', 'ctr', 'cpc'],
+    // Field IDs verified via Supermetrics field_discovery API
+    fields:      ['adcampaign_name', 'impressions', 'Clicks', 'cost', 'reach', 'CTR', 'CPC'],
   },
   gawa: {
     label:       'Google Analytics',
     ds_id:       'GAWA',
     ds_accounts: 'list.all_accounts',
     ds_user:     'afik.hanahal@gmail.com',
-    fields:      ['date', 'sessions', 'activeUsers', 'newUsers', 'screenPageViews', 'bounceRate'],
+    fields:      ['date', 'sessions', 'activeUsers', 'newUsers', 'screenPageViews', 'bounceRate', 'averageSessionDuration'],
   },
   igi: {
     label:       'Instagram Insights',
     ds_id:       'IGI',
     ds_accounts: '17841445211723833',
     ds_user:     '3729535990520124',
-    fields:      ['impressions', 'reach', 'profile_views', 'follower_count', 'website_clicks'],
+    report_type: 'AccountInsightsDaily',
+    fields:      ['date', 'reach', 'profile_views', 'follower_count'],
   },
 }
 
@@ -745,6 +747,7 @@ async function handleSupermetrics(req, res) {
     ds_accounts:     cfg.ds_accounts,
     ds_user:         cfg.ds_user,
     fields:          cfg.fields,
+    ...(cfg.report_type ? { report_type: cfg.report_type } : {}),
     date_range_type: range,
     max_rows:        1000,
     api_key:         SUPERMETRICS_API_KEY,
