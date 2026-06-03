@@ -220,7 +220,8 @@ async function handleWebhook(req, res) {
     try {
       if (META_APP_SECRET) {
         const sig      = req.headers['x-hub-signature-256'] || ''
-        const expected = 'sha256=' + crypto.createHmac('sha256', META_APP_SECRET).update(JSON.stringify(req.body)).digest('hex')
+        // Must use raw bytes — Meta signs the original payload, not re-serialised JSON
+        const expected = 'sha256=' + crypto.createHmac('sha256', META_APP_SECRET).update(req.rawBody || '').digest('hex')
         if (sig !== expected) { console.warn('[MetaLeads] Signature mismatch'); return res.status(403).json({ error: 'signature mismatch' }) }
       }
 
@@ -788,9 +789,24 @@ async function handleSupermetrics(req, res) {
 
 // ── main router ───────────────────────────────────────────────────────────────
 
+// Disable Vercel's automatic body parser so we can read the raw bytes.
+// Required for correct Meta webhook signature verification — Meta signs the
+// exact raw payload bytes, and JSON.stringify(parsedBody) ≠ original bytes.
+export const config = { api: { bodyParser: false } }
+
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') { cors(res); return res.status(204).end() }
   cors(res)
+
+  // Read raw body — needed for signature verification and JSON parsing
+  let rawBody = ''
+  await new Promise((resolve, reject) => {
+    req.on('data', chunk => { rawBody += chunk })
+    req.on('end', resolve)
+    req.on('error', reject)
+  })
+  try { req.body = rawBody ? JSON.parse(rawBody) : {} } catch { req.body = {} }
+  req.rawBody = rawBody
 
   const path = (req.query._path || '').replace(/^\/+/, '')
 
