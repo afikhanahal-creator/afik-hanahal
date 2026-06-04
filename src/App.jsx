@@ -9445,8 +9445,9 @@ export default function App() {
 
       const isAdminSession = sessionStorage.getItem('afik_admin_session') === '1'
       const headers = isAdminSession ? { Authorization: `Bearer ${ADMIN_TOKEN}` } : {}
-      const base = API_BASE || ''
-      fetch(`${base}/api/properties`, { headers })
+      // Public read goes through Vercel's CDN-cached /api/properties (instant, no
+      // Render cold-start). Admins send a token → that endpoint bypasses the cache.
+      fetch(`/api/properties`, { headers })
         .then(r => r.ok ? r.json() : Promise.reject(r.status))
         .then(data => {
           if (Array.isArray(data) && data.length > 0) {
@@ -9524,11 +9525,11 @@ export default function App() {
 
   // ── Auto-refresh properties every 60s ─────────────────────────────────────
   useEffect(() => {
-    if (!API_BASE) return
-    const base = API_BASE
     const refresh = () => {
       const headers = adminAuth ? { Authorization: `Bearer ${ADMIN_TOKEN}` } : {}
-      fetch(`${base}/api/properties`, { headers })
+      // Public refresh hits Vercel's CDN-cached endpoint (instant, served from the
+      // edge); admins send a token so they bypass the cache and get fresh data.
+      fetch(`/api/properties`, { headers })
         .then(r => r.ok ? r.json() : Promise.reject())
         .then(data => {
           if (!Array.isArray(data) || !data.length) return
