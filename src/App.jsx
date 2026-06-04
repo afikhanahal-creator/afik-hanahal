@@ -9625,7 +9625,10 @@ export default function App() {
   const openProperty = (p) => {
     setSelectedProp(p)
     if (p) {
-      window.scrollTo({ top: 0, behavior: 'smooth' })
+      // NOTE: do NOT scroll the page here. The property modal is position:fixed and
+      // covers the screen, so scrolling the page to the top is pointless — and it
+      // dumped the user at the top/home after they closed a property (felt like a
+      // "bounce to home", especially after a stray tap-open while scrolling the grid).
       trackEvent('property_view', { title: p.title, id: p.id, category: p.category, location: p.location })
     }
   }
