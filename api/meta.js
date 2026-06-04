@@ -693,7 +693,12 @@ const SM_SOURCES = {
     ds_accounts: '17841445211723833',
     ds_user:     '3729535990520124',
     report_type: 'AccountInsightsDaily',
-    fields:      ['date', 'reach', 'profile_views', 'follower_count'],
+    // NOTE: do NOT add 'follower_count' (New followers) — that metric rejects any
+    // date range that includes the current day, which makes the WHOLE query fail
+    // with a 500 ("only supports querying data for the last 30 days excluding the
+    // current day"), so no Instagram data shows at all. reach + profile_views are
+    // the daily metrics that actually return data.
+    fields:      ['date', 'reach', 'profile_views'],
   },
   device: {
     label:       'GA4 Device Breakdown',

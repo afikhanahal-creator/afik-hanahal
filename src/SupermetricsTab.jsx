@@ -23,6 +23,7 @@ const TR = {
     refresh:      'רענן',
     impressions:  'חשיפות',
     reach:        'טווח הגעה',
+    profileViews: 'צפיות בפרופיל',
     clicks:       'קליקים',
     spend:        'הוצאה',
     ctr:          'CTR',
@@ -62,6 +63,7 @@ const TR = {
     refresh:      'Refresh',
     impressions:  'Impressions',
     reach:        'Reach',
+    profileViews: 'Profile Views',
     clicks:       'Clicks',
     spend:        'Spend',
     ctr:          'CTR',
@@ -117,6 +119,7 @@ function canonicalKey(header) {
   if (h.includes('post comment') || h.includes('comment'))     return 'comments'
   if (h.includes('post share') || h.includes('share'))         return 'shares'
   if (h.includes('post save') || h.includes('save'))           return 'saves'
+  if (h.includes('profile view') || h.includes('profile_view'))  return 'profileViews'
   if (h.includes('profile impression') || (h.includes('impression') && h.includes('profile'))) return 'impressions'
   return h.replace(/[^a-z0-9]/g, '_')
 }
@@ -194,19 +197,18 @@ const KPI_CONFIG = {
     { key: 'duration',    label: t.duration,    Icon: FaChartBar,     color: '#8490D8' },
     { key: 'goals',       label: t.goals,       Icon: FaBullseye,     color: '#22C55E' },
   ],
+  // Instagram's AccountInsightsDaily report only returns reach + profile views as
+  // daily series (follower_count breaks the query — see api/meta.js). So those are
+  // the only two KPIs with real data; showing empty likes/comments/etc. cards just
+  // looked broken.
   igi: (t) => [
-    { key: 'impressions', label: t.impressions, Icon: FaEye,          color: '#E1306C' },
-    { key: 'reach',       label: t.reach,       Icon: FaUsers,        color: '#F56040' },
-    { key: 'followers',   label: t.followers,   Icon: FaUsers,        color: '#FCAF45' },
-    { key: 'likes',       label: t.likes,       Icon: FaChartLine,    color: '#405DE6' },
-    { key: 'comments',    label: t.comments,    Icon: FaChartBar,     color: '#8490D8' },
-    { key: 'shares',      label: t.shares,      Icon: FaMousePointer, color: '#60D4F7' },
-    { key: 'saves',       label: t.saves,       Icon: FaBullseye,     color: '#34D399' },
+    { key: 'reach',        label: t.reach,        Icon: FaUsers, color: '#E1306C' },
+    { key: 'profileViews', label: t.profileViews, Icon: FaEye,   color: '#F56040' },
   ],
 }
 
 // Chart metric per source
-const CHART_METRIC = { fa: 'impressions', gawa: 'sessions', igi: 'impressions' }
+const CHART_METRIC = { fa: 'impressions', gawa: 'sessions', igi: 'reach' }
 
 // ── Mini bar chart ────────────────────────────────────────────────────────────
 
