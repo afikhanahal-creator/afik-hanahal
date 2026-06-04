@@ -167,12 +167,14 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
     if (!el) return
     created.current = true
     try {
-      const activeLayers = LAYERS_DEF
-        .filter(l => layersRef.current[l.id])
-        .map(l => l.id)
+      // Load ALL layers (not just the default-on ones) so GovMap's own white
+      // "שכבות" control lists every one of them. Effect #5 below then hides the
+      // non-default layers via setVisibleLayers, so the map opens uncluttered while
+      // all layers remain available to toggle in both the GovMap control and ours.
+      const allLayers = LAYERS_DEF.map(l => l.id)
       window.govmap.createMap(mapDivId, {
         token:            token || '',
-        layers:           activeLayers,
+        layers:           allLayers,
         showXY:           false,
         identifyOnClick:  true,
         isEmbeddedToggle: false,
@@ -217,8 +219,14 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
     if (!mapReady || !window.govmap || typeof window.govmap.setVisibleLayers !== 'function') return
     const on  = LAYERS_DEF.filter(l =>  layers[l.id]).map(l => l.id)
     const off = LAYERS_DEF.filter(l => !layers[l.id]).map(l => l.id)
-    try { window.govmap.setVisibleLayers(on, off) }
-    catch (e) { console.error('[GovMap] setVisibleLayers failed:', e) }
+    // Re-issue over the first seconds — GovMap ignores setVisibleLayers until the
+    // map finishes loading (same as zoomToXY). Without this the non-default layers
+    // we load in createMap (so the white control lists them all) would stay visible
+    // and clutter the map on open.
+    const ts = [0, 500, 1200, 2400].map(d => setTimeout(() => {
+      try { window.govmap.setVisibleLayers(on, off) } catch (e) { console.error('[GovMap] setVisibleLayers failed:', e) }
+    }, d))
+    return () => ts.forEach(clearTimeout)
   }, [layers, mapReady])
 
   // ── Layer / BG controls ─────────────────────────────────────────────────────
