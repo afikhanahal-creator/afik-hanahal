@@ -252,18 +252,29 @@ async function handleWebhook(req, res) {
           const name   = parsed.name  || ''
           const email  = parsed.email || ''
 
-          const { data: inserted, error: upsertErr } = await client
+          // Atomic claim: plain INSERT (not upsert). If this leadgen_id already
+          // exists we get a 23505 unique-violation — meaning this is a Meta webhook
+          // RETRY (Meta re-delivers if it didn't get our 200 fast enough) or the
+          // client sync already saved it. In that case we skip ALL notifications so
+          // the admin is never emailed/pinged twice for the same lead.
+          const { data: inserted, error: insErr } = await client
             .from('meta_leads')
-            .upsert({
+            .insert({
               leadgen_id, name, email, phone,
               campaign_id: leadData.campaign_id || null, campaign_name: campaignName,
               ad_id: leadData.ad_id || null, form_id: leadData.form_id || null, form_name: formName,
               raw_fields: leadData.field_data || [], page_id: leadData.page_id || page_id || null,
               status: 'new',
-            }, { onConflict: 'leadgen_id' })
+            })
             .select('id').single()
 
-          if (upsertErr) { console.error('[MetaLeads] upsert:', upsertErr); continue }
+          if (insErr) {
+            if (insErr.code === '23505' || /duplicate key|already exists/i.test(insErr.message || '')) {
+              console.log(`[MetaLeads] ${leadgen_id} already saved — skipping duplicate notification`)
+              continue
+            }
+            console.error('[MetaLeads] insert:', insErr); continue
+          }
 
           const leadId    = inserted?.id
           const firstName = name.split(' ')[0] || name
@@ -467,27 +478,25 @@ async function syncOnePage(pageId, client, errors) {
       try { leadsData = await graphGet(url, META_PAGE_ACCESS_TOKEN) }
       catch (e) { errors.push(`Form ${form.id}: ${e.message}`); break }
 
-      // Identify which leads are truly new (not already in DB) so we can notify
-      const incomingIds = (leadsData.data || []).map(l => l.id)
-      let existingIds = new Set()
-      if (incomingIds.length > 0) {
-        const { data: ex } = await client.from('meta_leads').select('leadgen_id').in('leadgen_id', incomingIds)
-        existingIds = new Set((ex || []).map(l => l.leadgen_id))
-      }
-
       for (const lead of leadsData.data || []) {
         try {
           const parsed  = parseFieldData(lead.field_data)
           const phone   = normalizePhone(parsed.phone)
-          const isNew   = !existingIds.has(lead.id)
 
-          await client.from('meta_leads').upsert({
+          // Atomic claim: plain INSERT decides "is new". Success → genuinely new
+          // (notify). 23505 unique-violation → already saved (a concurrent sync, or
+          // the webhook got it first) → skip notify. This replaces the old racy
+          // "pre-query existingIds" that double-notified when two syncs overlapped.
+          const { error: insErr } = await client.from('meta_leads').insert({
             leadgen_id: lead.id, name: parsed.name || null, email: parsed.email || null,
             phone: phone || null,
             campaign_id: lead.campaign_id || null, ad_id: lead.ad_id || null,
             form_id: form.id, form_name: form.name || null,
             raw_fields: lead.field_data || [], page_id: lead.page_id || pageId, status: 'new',
-          }, { onConflict: 'leadgen_id', ignoreDuplicates: true })
+          })
+          const isDuplicate = insErr && (insErr.code === '23505' || /duplicate key|already exists/i.test(insErr.message || ''))
+          if (insErr && !isDuplicate) { errors.push(`Lead ${lead.id}: ${insErr.message}`); continue }
+          const isNew = !insErr
 
           // For genuinely new leads: send WA to customer + admin (same as webhook handler)
           if (isNew && phone) {

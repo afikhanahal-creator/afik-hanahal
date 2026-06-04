@@ -407,6 +407,24 @@ export default async function handler(req, res) {
       }
       console.log(`[new-lead] ${row.name || '—'} | ${row.phone || '—'} | source=${row.source}`)
 
+      // Dedup: if the SAME phone was submitted in the last 2 minutes, treat this as
+      // a duplicate (double-click / form retry / network retry) and skip BOTH the
+      // insert and the notifications — so the admin is never emailed twice for one
+      // person. Best-effort: any error here never blocks a genuine lead.
+      if (row.phone) {
+        try {
+          const since = new Date(Date.now() - 2 * 60 * 1000).toISOString()
+          const dupR = await supaFetch(`/contacts?phone=eq.${encodeURIComponent(row.phone)}&created_at=gte.${encodeURIComponent(since)}&select=id&order=created_at.desc&limit=1`)
+          if (dupR.ok) {
+            const dups = await dupR.json().catch(() => [])
+            if (Array.isArray(dups) && dups.length) {
+              console.log(`[new-lead] duplicate within 2min for ${row.phone} — skipping notify + insert`)
+              return res.status(200).json(dups[0])
+            }
+          }
+        } catch { /* dedup is best-effort — never block a real lead */ }
+      }
+
       // Fire all 3 notifications in parallel with the DB insert.
       // Notifications run regardless of insert success so the admin is ALWAYS notified
       // even if there's a DB schema issue. Hard 12s cap fits inside the 30s maxDuration.
