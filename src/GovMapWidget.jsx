@@ -179,8 +179,8 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
         identifyOnClick:  true,
         isEmbeddedToggle: false,
         background:       Number(bgRef.current) || 0,
-        layersMode:       4,   // 4 = HIDE GovMap's own on-map "שכבות" button (it
-                               // kept bouncing the user); we use our isolated panel.
+        layersMode:       1,   // 1 = GovMap's own on-map "שכבות" button (restored).
+                               // All 18 layers loaded above are listed in it.
         zoomButtons:      true,
       })
       setMapReady(true)
@@ -371,10 +371,8 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
 
         <div style={{ width:1, height:22, background:`${C.purple}25`, flexShrink:0 }}/>
 
-        {/* Layer panel toggle */}
-        <button type="button" onClick={()=>setShowPanel(p=>!p)} style={btnSt(showPanel)}>
-          שכבות {showPanel ? '▲' : '▼'}
-        </button>
+        {/* Layers are selected via GovMap's own on-map "שכבות" button (layersMode:2),
+            so our custom layer panel/button was removed to avoid two competing controls. */}
 
         {/* Measure */}
         <button type="button" onClick={toggleMeasure} style={btnSt(measuring)} title="כלי מדידה">
