@@ -98,7 +98,6 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
   const gushRef    = useRef(gush)
   const helkaRef   = useRef(helka)
   const timerIds   = useRef([])
-  const lastZoomed = useRef('')   // "gush-helka" we've already auto-zoomed to (avoids double-zoom)
   useEffect(() => { gushRef.current  = gush  }, [gush])
   useEffect(() => { helkaRef.current = helka }, [helka])
 
@@ -113,35 +112,47 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
   // Instead we resolve the gush/helka to its parcel centroid (ITM x/y) via GovMap's
   // TldSearch service (CORS-open, works for every parcel incl. empty land), then
   // navigate there with zoomToXY. Retries cover the window while the SDK warms up.
-  const zoomToParcel = useCallback((g, h, attempts = 8, delay = 400) => {
+  const zoomToParcel = useCallback((g, h) => {
     const lot = Number(g), parcel = Number(h)
     if (!lot || !parcel) return
 
-    const retry = () => {
-      if (attempts > 1)
-        setTimeout(() => zoomToParcel(g, h, attempts - 1, Math.min(delay * 1.5, 2500)), delay)
+    // Cancel any pending zoom/fetch timers from a previous call so a new search
+    // (or a different parcel) supersedes the old one cleanly.
+    timerIds.current.forEach(clearTimeout)
+    timerIds.current = []
+
+    // GovMap SILENTLY IGNORES zoomToXY until the map has finished initialising —
+    // that's why a single call right after createMap never moved the map, and only
+    // a later "חפש" click worked. So once we have the parcel's x/y we re-issue the
+    // zoom several times over the first few seconds; whichever call lands once the
+    // map is ready wins (re-zooming to the same point is harmless). level 10 = the
+    // closest zoom the API allows, so the parcel + cadastral outlines are seen up close.
+    const zoomRepeatedly = (x, y) => {
+      ;[0, 400, 900, 1600, 2600, 4000].forEach(d => {
+        timerIds.current.push(setTimeout(() => {
+          if (window.govmap && window.govmap.zoomToXY) window.govmap.zoomToXY({ x, y, level: 10, marker: true })
+        }, d))
+      })
     }
 
     const url = `https://es.govmap.gov.il/TldSearch/api/DetailsByQuery?query=${encodeURIComponent(`גוש ${lot} חלקה ${parcel}`)}&lyrs=276589&gid=govmap`
-    fetch(url, { headers: { Accept: 'application/json' } })
-      .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
-      .then(body => {
-        // Response groups results by layer (e.g. GOVMAP_PARCEL_ALL); take the first.
-        const groups  = body?.data || {}
-        const firstKey = (body?.order || Object.keys(groups))[0]
-        const item = groups[firstKey]?.[0]
-        const x = Number(item?.X), y = Number(item?.Y)
-        if (!window.govmap || !window.govmap.zoomToXY) { retry(); return }
-        if (x && y) {
-          // level 0–10 (10 = closest). Use the max so the individual parcel —
-          // and the PARCEL_ALL/PARCEL_HOKS cadastral outlines — are seen up close.
-          window.govmap.zoomToXY({ x, y, level: 10, marker: true })
-          setError('')
-        } else {
-          setError(`לא נמצאה חלקה: גוש ${lot} חלקה ${parcel}`)
-        }
-      })
-      .catch(retry)
+    let fetchTries = 0
+    const resolveAndZoom = () => {
+      fetch(url, { headers: { Accept: 'application/json' } })
+        .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
+        .then(body => {
+          // Response groups results by layer (e.g. GOVMAP_PARCEL_ALL); take the first.
+          const groups = body?.data || {}
+          const item = groups[(body?.order || Object.keys(groups))[0]]?.[0]
+          const x = Number(item?.X), y = Number(item?.Y)
+          if (x && y) { setError(''); zoomRepeatedly(x, y) }
+          else setError(`לא נמצאה חלקה: גוש ${lot} חלקה ${parcel}`)
+        })
+        .catch(() => {
+          if (fetchTries++ < 4) timerIds.current.push(setTimeout(resolveAndZoom, 800))
+        })
+    }
+    resolveAndZoom()
   }, [])
 
   // ── 3. Create map (runs once when token + inView are ready) ────────────────
@@ -166,12 +177,8 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
       })
       setMapReady(true)
       setError('')
-      // Auto-navigate to the parcel the moment the map opens — so the location is
-      // shown zoomed in immediately, before any manual "search" click.
-      if (gushRef.current && helkaRef.current) {
-        lastZoomed.current = `${gushRef.current}-${helkaRef.current}`
-        zoomToParcel(gushRef.current, helkaRef.current)
-      }
+      // The auto-zoom is driven by effect #4 below (it fires once mapReady flips
+      // true), so the parcel is shown zoomed-in on open without any "חפש" click.
     } catch (e) {
       setError('שגיאה ביצירת המפה — ודא שמפתח ה-API תקין ורשום לדומיין זה.')
       created.current = false
@@ -187,16 +194,12 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
   // Cancel timers on unmount
   useEffect(() => clearRetryTimers, [])  // eslint-disable-line
 
-  // ── 4. Re-zoom if the gush/helka props change after the map is ready ────────
-  // (createMap already auto-zooms on open; this only handles a later prop change,
-  // and skips the parcel we've already navigated to so the map never jumps twice.)
+  // ── 4. Auto-zoom to the parcel once the map is ready (and on prop change) ───
+  // zoomToParcel itself re-issues the zoom over the first few seconds, so this
+  // single trigger reliably lands the map on the gush/helka WITHOUT a "חפש" click.
   useEffect(() => {
     if (!mapReady || !gush || !helka) return
-    const key = `${gush}-${helka}`
-    if (lastZoomed.current === key) return
-    lastZoomed.current = key
-    const t = setTimeout(() => zoomToParcel(gush, helka), 250)
-    return () => clearTimeout(t)
+    zoomToParcel(gush, helka)
   }, [gush, helka, mapReady, zoomToParcel])
 
   // ── 5. Apply the layer selection to the map ─────────────────────────────────
