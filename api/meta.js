@@ -538,7 +538,10 @@ async function syncOnePage(pageId, client, errors) {
 
 async function handleSync(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' })
-  if (!checkAuth(req))      return res.status(401).json({ error: 'Unauthorized' })
+  // Accept either a Bearer token (admin UI) OR a ?key= query param, so an external
+  // cron service (e.g. cron-job.org) can trigger near-real-time lead sync with a
+  // single plain URL — no custom headers needed.
+  if (!checkAuth(req) && req.query.key !== ADMIN_TOKEN) return res.status(401).json({ error: 'Unauthorized' })
   if (!META_PAGE_ACCESS_TOKEN) return res.status(500).json({ error: 'META_PAGE_ACCESS_TOKEN not configured' })
   if (!SUPABASE_URL)        return res.status(500).json({ error: 'Supabase not configured' })
 
