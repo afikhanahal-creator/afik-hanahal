@@ -8285,6 +8285,7 @@ function optimizeVideoUrl(url) {
 
 function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [], onSelect }) {
   const { C, isDark } = useTheme()
+  const [confirmLeave, setConfirmLeave] = useState(false)  // "stay or go back" choice
   const [imgIdx, setImgIdx] = useState(0)
   const [saved, setSaved] = useState(false)
   const [shared, setShared] = useState(false)
@@ -8431,7 +8432,29 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
     // the GovMap map / scrolling and bounced the user back to the home screen.
     <div ref={modalScrollRef} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.88)', backdropFilter:'blur(14px)', zIndex:900, overflowY:'auto', WebkitOverflowScrolling:'touch', scrollBehavior:'smooth' }}
       onMouseDown={e => { backdropDown.current = e.target === e.currentTarget }}
-      onClick={e => { if (e.target === e.currentTarget && backdropDown.current) onClose() }}>
+      onClick={e => { if (e.target === e.currentTarget && backdropDown.current) setConfirmLeave(true) }}>
+
+      {/* ══ "Stay or go back" choice — instead of bouncing the user off the property ══ */}
+      {confirmLeave && (
+        <div onClick={e => { e.stopPropagation(); setConfirmLeave(false) }}
+          style={{ position:'fixed', inset:0, zIndex:1500, background:'rgba(0,0,0,.6)', display:'flex', alignItems:'center', justifyContent:'center', padding:20, direction:'rtl' }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ background:'#14141f', border:`1px solid ${C.purple}44`, borderRadius:18, padding:'26px 24px', maxWidth:360, width:'100%', boxShadow:'0 24px 70px rgba(0,0,0,.6)', textAlign:'center' }}>
+            <div style={{ fontSize:18, fontWeight:800, color:C.cream, marginBottom:8 }}>לחזור לרשימת הנכסים?</div>
+            <div style={{ fontSize:13.5, color:`${C.cream}88`, marginBottom:22, lineHeight:1.6 }}>אתה בעמוד הנכס. רוצה להישאר כאן או לחזור לרשימה?</div>
+            <div style={{ display:'flex', gap:10 }}>
+              <button type="button" onClick={() => setConfirmLeave(false)}
+                style={{ flex:1, padding:'13px 0', borderRadius:11, border:'none', background:C.purple, color:'#fff', fontSize:14.5, fontWeight:800, cursor:'pointer', fontFamily:'inherit' }}>
+                להישאר בנכס
+              </button>
+              <button type="button" onClick={() => { setConfirmLeave(false); onClose() }}
+                style={{ flex:1, padding:'13px 0', borderRadius:11, border:`1px solid ${C.cream}28`, background:'transparent', color:`${C.cream}AA`, fontSize:14.5, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+                חזור לרשימה
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div style={{ background:'#0B0B14', maxWidth:1100, margin:'0 auto', minHeight:'100dvh', direction:'rtl', position:'relative' }}>
 

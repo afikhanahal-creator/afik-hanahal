@@ -179,7 +179,8 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
         identifyOnClick:  true,
         isEmbeddedToggle: false,
         background:       Number(bgRef.current) || 0,
-        layersMode:       1,
+        layersMode:       4,   // 4 = HIDE GovMap's own on-map "שכבות" button (it
+                               // kept bouncing the user); we use our isolated panel.
         zoomButtons:      true,
       })
       setMapReady(true)
