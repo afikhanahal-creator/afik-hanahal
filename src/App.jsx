@@ -8370,6 +8370,10 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
 
   useEffect(() => {
     const h = e => {
+      // Ignore keys originating inside the GovMap widget (root carries data-no-swipe)
+      // or any input/select — pressing Escape to close a GovMap popup, or panning the
+      // map with the keyboard, must NOT close the property modal or flip the gallery.
+      if (e.target?.closest?.('[data-no-swipe], input, textarea, select')) return
       if (e.key === 'Escape') { if (lightbox) setLightbox(false); else onClose() }
       if (totalMedia > 1 && e.key === 'ArrowRight') { setIsPlaying(false); setImgIdx(i => (i - 1 + totalMedia) % totalMedia) }
       if (totalMedia > 1 && e.key === 'ArrowLeft')  { setIsPlaying(false); setImgIdx(i => (i + 1) % totalMedia) }

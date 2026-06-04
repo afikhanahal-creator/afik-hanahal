@@ -130,7 +130,12 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
     const zoomRepeatedly = (x, y) => {
       ;[0, 400, 900, 1600, 2600, 4000].forEach(d => {
         timerIds.current.push(setTimeout(() => {
-          if (window.govmap && window.govmap.zoomToXY) window.govmap.zoomToXY({ x, y, level: 10, marker: true })
+          // level 13 = ~3 zoom steps deeper than the previous 10, so the parcel is
+          // seen really up close. Fall back to 10 if GovMap rejects the higher level.
+          if (window.govmap && window.govmap.zoomToXY) {
+            try { window.govmap.zoomToXY({ x, y, level: 13, marker: true }) }
+            catch { try { window.govmap.zoomToXY({ x, y, level: 10, marker: true }) } catch {} }
+          }
         }, d))
       })
     }
@@ -308,6 +313,7 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
     // handler to ignore every touch that originates inside the map widget.
     <div ref={containerRef} data-no-swipe
       onTouchStart={e => e.stopPropagation()} onTouchMove={e => e.stopPropagation()} onTouchEnd={e => e.stopPropagation()}
+      onPointerDown={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()} onClick={e => e.stopPropagation()}
       style={{ position:'relative', border:`1px solid ${C.purple}22`, borderRadius:12,
                overflow:'hidden', background: isDark ? '#0A0A16' : '#f8f7f3',
                direction:'rtl', fontFamily:'Rubik,inherit' }}>
@@ -396,24 +402,29 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
                 </div>
                 <div style={{ display:'flex', flexDirection:'column', gap:7 }}>
                   {catLayers.map(l => (
-                    <label key={l.id}
+                    // Whole row is ONE click target → a single toggle (the old <label>
+                    // + hidden <input> + span onClick fired toggleLayer twice, so clicks
+                    // appeared to do nothing). Bigger padding + active highlight = easy to click.
+                    <div key={l.id} role="checkbox" aria-checked={!!layers[l.id]}
+                      onClick={() => toggleLayer(l.id)}
                       style={{ display:'flex', alignItems:'center', gap:9, cursor:'pointer',
                                fontSize:13, color: layers[l.id] ? C.cream : `${C.cream}88`,
-                               userSelect:'none', transition:'color .12s' }}>
+                               userSelect:'none', transition:'all .12s', padding:'7px 9px', borderRadius:8,
+                               background: layers[l.id] ? `${l.color}1F` : 'transparent' }}
+                      onMouseEnter={e => { if (!layers[l.id]) e.currentTarget.style.background = `${C.cream}0E` }}
+                      onMouseLeave={e => { e.currentTarget.style.background = layers[l.id] ? `${l.color}1F` : 'transparent' }}>
                       {/* Custom checkbox */}
-                      <span onClick={()=>toggleLayer(l.id)}
-                        style={{ width:18, height:18, borderRadius:5, flexShrink:0, transition:'all .15s',
+                      <span style={{ width:18, height:18, borderRadius:5, flexShrink:0, transition:'all .15s',
                                  border:`2px solid ${layers[l.id] ? l.color : `${C.cream}28`}`,
                                  background: layers[l.id] ? l.color : 'transparent',
                                  display:'flex', alignItems:'center', justifyContent:'center' }}>
                         {layers[l.id] && <span style={{ color:'#fff', fontSize:11, fontWeight:900, lineHeight:1 }}>✓</span>}
                       </span>
-                      <input type="checkbox" checked={!!layers[l.id]} onChange={()=>toggleLayer(l.id)} style={{ display:'none' }}/>
                       <span style={{ display:'flex', alignItems:'center', gap:6 }}>
                         <span style={{ width:10, height:10, borderRadius:3, background:l.color, flexShrink:0 }}/>
                         {l.label}
                       </span>
-                    </label>
+                    </div>
                   ))}
                 </div>
               </div>
