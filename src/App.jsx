@@ -9025,15 +9025,31 @@ function PropertyCard({ prop, onContact, onSelect }) {
   const PlaceholderIcon = cat.id==='land' ? FaLeaf : cat.id==='projects' ? FaBuilding : FaHome
 
   const touchY = useRef(0)
+  const touchX = useRef(0)
+  const touchMoved = useRef(false)
+  const lastTouch = useRef(0)
   const touchFromArrow = useRef(false)
 
   return (
     <div
-      onClick={() => onSelect(prop)}
+      // Ignore the click that some mobile browsers synthesize after a touch — the
+      // touch handler already decided (so a scroll never opens a property).
+      onClick={() => { if (Date.now() - lastTouch.current < 700) return; onSelect(prop) }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      onTouchStart={e => { touchY.current = e.touches[0].clientY }}
-      onTouchEnd={e => { if (touchFromArrow.current) { touchFromArrow.current = false; return }; if (Math.abs(e.changedTouches[0].clientY - touchY.current) < 8) { e.preventDefault(); onSelect(prop) } }}
+      onTouchStart={e => { touchX.current = e.touches[0].clientX; touchY.current = e.touches[0].clientY; touchMoved.current = false }}
+      onTouchMove={e => {
+        // Mark as a scroll/swipe the moment the finger travels > 10px in ANY
+        // direction, so scrolling between properties never counts as a tap.
+        if (Math.abs(e.touches[0].clientX - touchX.current) > 10 || Math.abs(e.touches[0].clientY - touchY.current) > 10) touchMoved.current = true
+      }}
+      onTouchEnd={e => {
+        lastTouch.current = Date.now()
+        if (touchFromArrow.current) { touchFromArrow.current = false; return }
+        // Open ONLY on a genuine tap (no scroll/swipe in any axis). The old check
+        // looked at vertical movement only, so a horizontal swipe opened a property.
+        if (!touchMoved.current) { e.preventDefault(); onSelect(prop) }
+      }}
       className="prop-card"
       style={{ touchAction:'manipulation' }}>
 
