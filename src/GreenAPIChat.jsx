@@ -648,6 +648,23 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
         @keyframes wa-toast-in { from { opacity:0; transform: translateX(-50%) translateY(16px); } to { opacity:1; transform: translateX(-50%) translateY(0); } }
         @keyframes wa-fade-in { from { opacity:0; } to { opacity:1; } }
         .wa-row-spinner { width:14px; height:14px; border-radius:50%; border:2px solid transparent; border-top-color:${WA.green}; animation:wa-spin 0.7s linear infinite; flex-shrink:0; }
+        /* Smooth, comfortable scrolling for the contacts/names list */
+        .wa-contacts-scroll {
+          scroll-behavior: smooth;
+          -webkit-overflow-scrolling: touch;
+          overscroll-behavior: contain;
+          scrollbar-width: thin;
+          scrollbar-color: ${WA.subText}66 transparent;
+          scrollbar-gutter: stable;
+        }
+        .wa-contacts-scroll::-webkit-scrollbar { width: 7px; }
+        .wa-contacts-scroll::-webkit-scrollbar-track { background: transparent; }
+        .wa-contacts-scroll::-webkit-scrollbar-thumb {
+          background: ${WA.subText}55; border-radius: 8px;
+          border: 2px solid transparent; background-clip: padding-box;
+          transition: background-color .15s;
+        }
+        .wa-contacts-scroll:hover::-webkit-scrollbar-thumb { background: ${WA.green}; background-clip: padding-box; }
       `}</style>
 
       {/* ── Delete Confirmation Modal ─────────────────────────────────────── */}
@@ -756,8 +773,9 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
       <div style={{ flex:1, minHeight:0, display:'flex', flexDirection:'row', overflow:'hidden', direction:'rtl', background: WA.panelBg }}>
 
         {/* ═══════════════ CHAT WINDOW (left, fills remaining space) ════════ */}
-        {/* overflow:hidden isolates internal scroll from page scroll         */}
-        <div style={{ flex:'1 1 0', minWidth:0, display:'flex', flexDirection:'column', overflow:'hidden', background: WA.chatBg, backgroundImage: DOODLE, backgroundRepeat:'repeat', transition:'background .25s' }}>
+        {/* overflow:hidden isolates internal scroll from page scroll. order:3
+            places it on the LEFT (names list sits on the right, RTL-correct).  */}
+        <div style={{ order:3, flex:'1 1 0', minWidth:0, display:'flex', flexDirection:'column', overflow:'hidden', background: WA.chatBg, backgroundImage: DOODLE, backgroundRepeat:'repeat', transition:'background .25s' }}>
           {contact ? (
             <>
               {/* ── Chat Header (flex: 0 0 auto) ── */}
@@ -1013,8 +1031,9 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
           )}
         </div>
 
-        {/* ═══════════════ CHAT LIST (right, 340px) ════════════════════════ */}
-        <div style={{ width:340, flexShrink:0, display:'flex', flexDirection:'column', overflow:'hidden', background: WA.panelBg, borderRight:`1px solid ${WA.border}`, borderLeft:`1px solid ${WA.border}`, transition:'background .25s' }}>
+        {/* ═══════════════ CHAT LIST — names, on the RIGHT (340px) ═════════ */}
+        {/* order:2 → sits just left of the icon rail, i.e. on the right side. */}
+        <div style={{ order:2, width:340, flexShrink:0, display:'flex', flexDirection:'column', overflow:'hidden', background: WA.panelBg, borderLeft:`1px solid ${WA.border}`, transition:'background .25s' }}>
 
           {/* Panel header */}
           <div style={{ height:62, background: WA.inputBg, borderBottom:`1px solid ${WA.border}`, display:'flex', alignItems:'center', padding:'0 10px 0 10px', gap:8, flexShrink:0, direction:'rtl', transition:'background .25s' }}>
@@ -1050,8 +1069,8 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
             </div>
           </div>
 
-          {/* Contact list — isolated scroll */}
-          <div style={{ flex:1, minHeight:0, overflowY:'auto', overscrollBehavior:'contain' }}>
+          {/* Contact list — isolated, smooth scroll */}
+          <div className="wa-contacts-scroll" style={{ flex:1, minHeight:0, overflowY:'auto' }}>
             {contactList.length === 0 ? (
               <div style={{ padding:28, textAlign:'center', color: WA.subText, fontSize:13, direction:'rtl', lineHeight:1.7 }}>
                 {leads.filter(l=>l.phone).length === 0
@@ -1120,8 +1139,9 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
           </div>
         </div>
 
-        {/* ═══════════════ ICON SIDEBAR (far left in RTL, 52px) ═══════════ */}
-        <div style={{ width:52, flexShrink:0, display:'flex', flexDirection:'column', background: WA.inputBg, borderRight:`1px solid ${WA.border}`, alignItems:'center', padding:'8px 0', transition:'background .25s' }}>
+        {/* ═══════════════ ICON SIDEBAR — far RIGHT in RTL (52px) ═════════ */}
+        {/* order:1 → the rightmost panel, with the names list directly beside it. */}
+        <div style={{ order:1, width:52, flexShrink:0, display:'flex', flexDirection:'column', background: WA.inputBg, borderLeft:`1px solid ${WA.border}`, alignItems:'center', padding:'8px 0', transition:'background .25s' }}>
           {[
             { id:'bell',     path:ICONS.bell,     title:'התראות'     },
             { id:'chats',    path:ICONS.chat,     title:'שיחות'      },
