@@ -375,65 +375,71 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
         {error && <span style={{ fontSize:11, color:'#E05252', marginRight:'auto', maxWidth:220 }}>{error}</span>}
       </div>
 
-      {/* ── Layer panel (absolute, opens over the map) ───────────────────────── */}
+      {/* ── Layer panel — full-screen bottom-sheet so it's NEVER clipped by the
+            map's overflow:hidden (that clipping is why only ~2 layers showed on
+            mobile), shows ALL layers in a responsive grid, and fully isolates its
+            events so interacting with it never bounces the property modal closed. */}
       {showPanel && (
-        <div style={{ position:'absolute', top:43, right:0, zIndex:30,
-                      background: panelBg, backdropFilter:'blur(14px)',
-                      border:`1px solid ${C.purple}30`, borderRadius:'0 0 0 14px',
-                      padding:'14px 16px', minWidth:240, maxHeight:440,
-                      overflowY:'auto', boxShadow:'0 10px 40px rgba(0,0,0,.45)',
-                      direction:'rtl' }}>
+        <div
+          data-no-swipe
+          onClick={e => { e.stopPropagation(); setShowPanel(false) }}
+          onTouchStart={e => e.stopPropagation()} onTouchMove={e => e.stopPropagation()} onTouchEnd={e => e.stopPropagation()}
+          onPointerDown={e => e.stopPropagation()} onMouseDown={e => e.stopPropagation()}
+          style={{ position:'fixed', inset:0, zIndex:100000, background:'rgba(0,0,0,.55)',
+                   display:'flex', alignItems:'flex-end', justifyContent:'center', direction:'rtl' }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ background: panelBg, width:'100%', maxWidth:560, maxHeight:'82vh',
+                     borderRadius:'20px 20px 0 0', display:'flex', flexDirection:'column',
+                     boxShadow:'0 -14px 50px rgba(0,0,0,.6)', border:`1px solid ${C.purple}30`,
+                     borderBottom:'none', overflow:'hidden', fontFamily:'Rubik,inherit' }}>
 
-          {/* Close button */}
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
-            <span style={{ fontSize:11, fontWeight:800, color:`${C.cream}66`, letterSpacing:'.07em', textTransform:'uppercase' }}>שכבות מידע</span>
-            <button type="button" onClick={()=>setShowPanel(false)}
-              style={{ background:'none', border:'none', color:`${C.cream}55`, cursor:'pointer', fontSize:16, lineHeight:1, padding:'0 2px' }}>×</button>
-          </div>
-
-          {LAYER_CATS.map(cat => {
-            const catLayers = LAYERS_DEF.filter(l => l.cat === cat)
-            return (
-              <div key={cat} style={{ marginBottom:14 }}>
-                <div style={{ fontSize:10, fontWeight:800, color:`${C.cream}50`, letterSpacing:'.06em',
-                              textTransform:'uppercase', marginBottom:7,
-                              borderBottom:`1px solid ${C.purple}18`, paddingBottom:4 }}>
-                  {cat}
-                </div>
-                <div style={{ display:'flex', flexDirection:'column', gap:7 }}>
-                  {catLayers.map(l => (
-                    // Whole row is ONE click target → a single toggle (the old <label>
-                    // + hidden <input> + span onClick fired toggleLayer twice, so clicks
-                    // appeared to do nothing). Bigger padding + active highlight = easy to click.
-                    <div key={l.id} role="checkbox" aria-checked={!!layers[l.id]}
-                      onClick={() => toggleLayer(l.id)}
-                      style={{ display:'flex', alignItems:'center', gap:9, cursor:'pointer',
-                               fontSize:13, color: layers[l.id] ? C.cream : `${C.cream}88`,
-                               userSelect:'none', transition:'all .12s', padding:'7px 9px', borderRadius:8,
-                               background: layers[l.id] ? `${l.color}1F` : 'transparent' }}
-                      onMouseEnter={e => { if (!layers[l.id]) e.currentTarget.style.background = `${C.cream}0E` }}
-                      onMouseLeave={e => { e.currentTarget.style.background = layers[l.id] ? `${l.color}1F` : 'transparent' }}>
-                      {/* Custom checkbox */}
-                      <span style={{ width:18, height:18, borderRadius:5, flexShrink:0, transition:'all .15s',
-                                 border:`2px solid ${layers[l.id] ? l.color : `${C.cream}28`}`,
-                                 background: layers[l.id] ? l.color : 'transparent',
-                                 display:'flex', alignItems:'center', justifyContent:'center' }}>
-                        {layers[l.id] && <span style={{ color:'#fff', fontSize:11, fontWeight:900, lineHeight:1 }}>✓</span>}
-                      </span>
-                      <span style={{ display:'flex', alignItems:'center', gap:6 }}>
-                        <span style={{ width:10, height:10, borderRadius:3, background:l.color, flexShrink:0 }}/>
-                        {l.label}
-                      </span>
-                    </div>
-                  ))}
-                </div>
+            {/* Header + grab handle */}
+            <div style={{ flexShrink:0, padding:'10px 18px 12px', borderBottom:`1px solid ${C.purple}1A` }}>
+              <div style={{ width:42, height:4, borderRadius:3, background:`${C.cream}33`, margin:'0 auto 12px' }}/>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <span style={{ fontSize:16, fontWeight:800, color:C.cream }}>שכבות מידע</span>
+                <button type="button" onClick={() => setShowPanel(false)}
+                  style={{ width:32, height:32, borderRadius:9, background:`${C.cream}12`, border:'none', color:C.cream, cursor:'pointer', fontSize:19, lineHeight:1, display:'flex', alignItems:'center', justifyContent:'center' }}>×</button>
               </div>
-            )
-          })}
+            </div>
 
-          <div style={{ marginTop:6, paddingTop:8, borderTop:`1px solid ${C.purple}15`,
-                        fontSize:10, color:`${C.cream}33`, textAlign:'center' }}>
-            מקור: פורטל GovMap הממשלתי
+            {/* Scrollable, responsive layer grid */}
+            <div style={{ flex:1, minHeight:0, overflowY:'auto', WebkitOverflowScrolling:'touch', overscrollBehavior:'contain', scrollBehavior:'smooth', padding:'14px 16px 20px' }}>
+              {LAYER_CATS.map(cat => {
+                const catLayers = LAYERS_DEF.filter(l => l.cat === cat)
+                if (!catLayers.length) return null
+                return (
+                  <div key={cat} style={{ marginBottom:16 }}>
+                    <div style={{ fontSize:11, fontWeight:800, color:`${C.cream}55`, letterSpacing:'.06em',
+                                  textTransform:'uppercase', marginBottom:9, borderBottom:`1px solid ${C.purple}18`, paddingBottom:5 }}>
+                      {cat}
+                    </div>
+                    <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(150px, 1fr))', gap:9 }}>
+                      {catLayers.map(l => (
+                        <div key={l.id} role="checkbox" aria-checked={!!layers[l.id]}
+                          onClick={() => toggleLayer(l.id)}
+                          style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', fontSize:13.5,
+                                   color: layers[l.id] ? C.cream : `${C.cream}AA`, userSelect:'none', transition:'all .12s',
+                                   padding:'12px 12px', borderRadius:11,
+                                   border:`1px solid ${layers[l.id] ? `${l.color}77` : `${C.purple}1A`}`,
+                                   background: layers[l.id] ? `${l.color}24` : `${C.cream}07` }}>
+                          <span style={{ width:21, height:21, borderRadius:6, flexShrink:0, transition:'all .15s',
+                                     border:`2px solid ${layers[l.id] ? l.color : `${C.cream}33`}`,
+                                     background: layers[l.id] ? l.color : 'transparent',
+                                     display:'flex', alignItems:'center', justifyContent:'center' }}>
+                            {layers[l.id] && <span style={{ color:'#fff', fontSize:12, fontWeight:900, lineHeight:1 }}>✓</span>}
+                          </span>
+                          <span style={{ flex:1, lineHeight:1.25 }}>{l.label}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
+              <div style={{ paddingTop:6, fontSize:10, color:`${C.cream}33`, textAlign:'center' }}>
+                מקור: פורטל GovMap הממשלתי
+              </div>
+            </div>
           </div>
         </div>
       )}
