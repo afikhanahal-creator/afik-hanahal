@@ -8304,7 +8304,9 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
     if (!el) return
     el.scrollTo({ top: 0, behavior: 'instant' })
   }, [prop.id])
-  const propSwipe = useSwipeClose(onClose)
+  // Backdrop-close guard: only close when the press AND release both land on the
+  // backdrop (a deliberate tap) — never after a scroll/drag that ends there.
+  const backdropDown = useRef(false)
   // Gallery touch swipe — navigate photos without closing modal
   const galleryTouch = useRef({ x: 0, y: 0 })
 
@@ -8425,9 +8427,11 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
   ].filter(Boolean)
 
   return (
+    // Swipe-to-close was REMOVED here — on mobile it misfired while interacting with
+    // the GovMap map / scrolling and bounced the user back to the home screen.
     <div ref={modalScrollRef} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.88)', backdropFilter:'blur(14px)', zIndex:900, overflowY:'auto', WebkitOverflowScrolling:'touch', scrollBehavior:'smooth' }}
-      onClick={e => { if (e.target === e.currentTarget) onClose() }}
-      onTouchStart={propSwipe.onTouchStart} onTouchMove={propSwipe.onTouchMove} onTouchEnd={propSwipe.onTouchEnd}>
+      onMouseDown={e => { backdropDown.current = e.target === e.currentTarget }}
+      onClick={e => { if (e.target === e.currentTarget && backdropDown.current) onClose() }}>
 
       <div style={{ background:'#0B0B14', maxWidth:1100, margin:'0 auto', minHeight:'100dvh', direction:'rtl', position:'relative' }}>
 

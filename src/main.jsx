@@ -17,6 +17,24 @@ function startLogRocketWhenIdle() {
 if (document.readyState === 'complete') startLogRocketWhenIdle()
 else window.addEventListener('load', startLogRocketWhenIdle)
 
+// Prefetch the heavy GovMap SDK (~786KB) during idle time, so when a visitor opens
+// a property the parcel map appears almost instantly (it's already cached) instead
+// of waiting on the download. Low priority — never competes with the initial load.
+function prefetchGovMapSdk() {
+  const begin = () => {
+    if (document.querySelector('link[data-gm-prefetch]')) return
+    const l = document.createElement('link')
+    l.rel = 'prefetch'; l.as = 'script'
+    l.href = 'https://www.govmap.gov.il/govmap/api/govmap.api.js'
+    l.setAttribute('data-gm-prefetch', '1')
+    document.head.appendChild(l)
+  }
+  if ('requestIdleCallback' in window) requestIdleCallback(begin, { timeout: 9000 })
+  else setTimeout(begin, 6000)
+}
+if (document.readyState === 'complete') prefetchGovMapSdk()
+else window.addEventListener('load', prefetchGovMapSdk)
+
 class ErrorBoundary extends Component {
   constructor(props) { super(props); this.state = { error: null } }
   static getDerivedStateFromError(error) { return { error } }
