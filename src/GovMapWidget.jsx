@@ -48,7 +48,10 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
   const containerRef = useRef(null)
   const created      = useRef(false)   // true once window.govmap.createMap() succeeded
 
-  const [inView,    setInView]    = useState(false)
+  // Start the GovMap SDK + map loading immediately on mount (the widget only
+  // renders inside an opened property modal, so the user wants the map fast). The
+  // 786KB SDK is cached after the first load, so later maps open instantly.
+  const [inView,    setInView]    = useState(true)
   const [mapReady,  setMapReady]  = useState(false)
   const [error,     setError]     = useState('')
   const [measuring, setMeasuring] = useState(false)
@@ -296,7 +299,12 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
   const toolbarHeight = 50 // approx height of the toolbar row
 
   return (
-    <div ref={containerRef}
+    // data-no-swipe: the parent PropertyModal closes on a horizontal swipe
+    // (useSwipeClose). Panning the GovMap map horizontally was triggering that and
+    // bouncing the user back to the main page — this attribute tells the swipe
+    // handler to ignore every touch that originates inside the map widget.
+    <div ref={containerRef} data-no-swipe
+      onTouchStart={e => e.stopPropagation()} onTouchMove={e => e.stopPropagation()} onTouchEnd={e => e.stopPropagation()}
       style={{ position:'relative', border:`1px solid ${C.purple}22`, borderRadius:12,
                overflow:'hidden', background: isDark ? '#0A0A16' : '#f8f7f3',
                direction:'rtl', fontFamily:'Rubik,inherit' }}>
@@ -317,7 +325,7 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
           <input value={helkaVal}    onChange={e=>setHelkaVal(e.target.value)}    placeholder="13"    style={inputSt} onKeyDown={e=>e.key==='Enter'&&handleSearch()}/>
           <span style={{ fontSize:11, color:`${C.cream}88`, fontWeight:700 }}>תת</span>
           <input value={subHelkaVal} onChange={e=>setSubHelkaVal(e.target.value)} placeholder="0"     style={{ ...inputSt, width:44 }} onKeyDown={e=>e.key==='Enter'&&handleSearch()}/>
-          <button onClick={handleSearch} style={{ ...btnSt(false), padding:'6px 14px', background: C.purple, color:'#fff', border:'none' }}>
+          <button type="button" onClick={handleSearch} style={{ ...btnSt(false), padding:'6px 14px', background: C.purple, color:'#fff', border:'none' }}>
             חפש
           </button>
         </div>
@@ -346,12 +354,12 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
         <div style={{ width:1, height:22, background:`${C.purple}25`, flexShrink:0 }}/>
 
         {/* Layer panel toggle */}
-        <button onClick={()=>setShowPanel(p=>!p)} style={btnSt(showPanel)}>
+        <button type="button" onClick={()=>setShowPanel(p=>!p)} style={btnSt(showPanel)}>
           שכבות {showPanel ? '▲' : '▼'}
         </button>
 
         {/* Measure */}
-        <button onClick={toggleMeasure} style={btnSt(measuring)} title="כלי מדידה">
+        <button type="button" onClick={toggleMeasure} style={btnSt(measuring)} title="כלי מדידה">
           📐 מדידה
         </button>
 
@@ -370,7 +378,7 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
           {/* Close button */}
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
             <span style={{ fontSize:11, fontWeight:800, color:`${C.cream}66`, letterSpacing:'.07em', textTransform:'uppercase' }}>שכבות מידע</span>
-            <button onClick={()=>setShowPanel(false)}
+            <button type="button" onClick={()=>setShowPanel(false)}
               style={{ background:'none', border:'none', color:`${C.cream}55`, cursor:'pointer', fontSize:16, lineHeight:1, padding:'0 2px' }}>×</button>
           </div>
 
