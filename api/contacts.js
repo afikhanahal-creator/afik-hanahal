@@ -407,10 +407,9 @@ export default async function handler(req, res) {
       }
       console.log(`[new-lead] ${row.name || '—'} | ${row.phone || '—'} | source=${row.source}`)
 
-      // Dedup: if the SAME phone was submitted in the last 2 minutes, treat this as
-      // a duplicate (double-click / form retry / network retry) and skip BOTH the
-      // insert and the notifications — so the admin is never emailed twice for one
-      // person. Best-effort: any error here never blocks a genuine lead.
+      // Fast-path dedup: SAME phone submitted in the last 2 minutes (double-click /
+      // form retry / network retry) → skip insert AND notifications entirely.
+      // Best-effort: any error here never blocks a genuine lead.
       if (row.phone) {
         try {
           const since = new Date(Date.now() - 2 * 60 * 1000).toISOString()
@@ -425,38 +424,61 @@ export default async function handler(req, res) {
         } catch { /* dedup is best-effort — never block a real lead */ }
       }
 
-      // Fire all 3 notifications in parallel with the DB insert.
-      // Notifications run regardless of insert success so the admin is ALWAYS notified
-      // even if there's a DB schema issue. Hard 12s cap fits inside the 30s maxDuration.
-      const labels = ['lead-email', 'admin-wa', 'lead-autoreply']
-      const work = Promise.allSettled([
-        sendLeadEmail(b),
-        notifyAdmin(row),
-        sendLeadAutoReply(row),
-      ])
-
+      // Insert FIRST so the saved row is the atomic dedup anchor. This closes the
+      // race where two near-simultaneous submits both pass the fast-path check
+      // above (neither has inserted yet) and both fire an email.
       let inserted = row
+      let insertOk = false
       try {
         inserted = await insertContact(row) || row
+        insertOk = !!(inserted && inserted.id)
       } catch (dbErr) {
-        console.error('[new-lead] DB insert failed (notifications still sent):', dbErr.message)
+        console.error('[new-lead] DB insert failed (will still notify as fallback):', dbErr.message)
       }
 
-      const results = await Promise.race([
-        work,
-        new Promise(resolve => setTimeout(() => resolve(null), 12000)),
-      ])
-      if (results) {
-        results.forEach((r, i) => {
-          if (r.status === 'rejected')              console.error(`[${labels[i]}] crashed:`, r.reason?.message || r.reason)
-          else if (r.value && r.value.ok === false) console.error(`[${labels[i]}] failed:`, r.value.error)
-        })
-      } else {
-        console.warn('[new-lead] notifications past 12s cap — completing in background')
-        work.then(rs => rs.forEach((r, i) => {
-          if (r.status === 'rejected')              console.error(`[${labels[i]}] late-crash:`, r.reason?.message || r.reason)
-          else if (r.value && r.value.ok === false) console.error(`[${labels[i]}] late-fail:`, r.value.error)
-        })).catch(() => {})
+      // Originality gate: only the EARLIEST same-phone row in the 2-min window sends
+      // notifications. Concurrent duplicates see an earlier row and defer → exactly
+      // ONE email per lead, sent immediately after the row lands. If the insert
+      // failed we can't dedup reliably, so we fall back to notifying (never lose a lead).
+      let shouldNotify = true
+      if (insertOk && row.phone) {
+        try {
+          const since = new Date(Date.now() - 2 * 60 * 1000).toISOString()
+          const origR = await supaFetch(`/contacts?phone=eq.${encodeURIComponent(row.phone)}&created_at=gte.${encodeURIComponent(since)}&select=id&order=created_at.asc&limit=1`)
+          if (origR.ok) {
+            const rows = await origR.json().catch(() => [])
+            if (rows[0] && String(rows[0].id) !== String(inserted.id)) {
+              shouldNotify = false
+              console.log(`[new-lead] not the original submission for ${row.phone} — skipping duplicate notify`)
+            }
+          }
+        } catch { /* best-effort — on error, default to notifying */ }
+      }
+
+      if (shouldNotify) {
+        // Fire all 3 notifications immediately, in parallel. Hard 12s cap fits the 30s maxDuration.
+        const labels = ['lead-email', 'admin-wa', 'lead-autoreply']
+        const work = Promise.allSettled([
+          sendLeadEmail(b),
+          notifyAdmin(row),
+          sendLeadAutoReply(row),
+        ])
+        const results = await Promise.race([
+          work,
+          new Promise(resolve => setTimeout(() => resolve(null), 12000)),
+        ])
+        if (results) {
+          results.forEach((r, i) => {
+            if (r.status === 'rejected')              console.error(`[${labels[i]}] crashed:`, r.reason?.message || r.reason)
+            else if (r.value && r.value.ok === false) console.error(`[${labels[i]}] failed:`, r.value.error)
+          })
+        } else {
+          console.warn('[new-lead] notifications past 12s cap — completing in background')
+          work.then(rs => rs.forEach((r, i) => {
+            if (r.status === 'rejected')              console.error(`[${labels[i]}] late-crash:`, r.reason?.message || r.reason)
+            else if (r.value && r.value.ok === false) console.error(`[${labels[i]}] late-fail:`, r.value.error)
+          })).catch(() => {})
+        }
       }
 
       return res.status(201).json(inserted || row)
