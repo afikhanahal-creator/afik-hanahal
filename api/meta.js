@@ -10,7 +10,11 @@ import { createClient } from '@supabase/supabase-js'
 import crypto from 'crypto'
 
 const SUPERMETRICS_API_KEY    = process.env.SUPERMETRICS_API_KEY    || ''
-const META_PAGE_ACCESS_TOKEN  = process.env.META_PAGE_ACCESS_TOKEN  || process.env.WA_META_TOKEN || ''
+// System User token (afik-api) — permanent, survives password changes. Used to
+// DERIVE a per-page Page Access Token (required for reading leadgen forms/leads).
+// Env var overrides the embedded fallback.
+const META_PAGE_ACCESS_TOKEN  = process.env.META_PAGE_ACCESS_TOKEN  || process.env.WA_META_TOKEN ||
+  'EAAnqYHiWM8cBRvFbXjxZAVjg39koOtAVOJuZC0p1YUFVWpPZACkVAt065X4wJ7FdoBOsvMGN7ldvj6LdiyOFfOcKeXirqcmFPY4sSGJMwK22lagJh2oKC6tERZADuRNNnu7S0Y9B212hWWxfyzy5N4VBprMRNlswT3KF9E8MtVyq2qzSkzZAVhlmBwrmN5jyVqBU2cm344AmvzscH9KXZBIgxI2ZASF4ZBTijw2E'
 const META_APP_SECRET         = process.env.META_APP_SECRET         || ''
 const META_LEADS_VERIFY_TOKEN = process.env.META_LEADS_VERIFY_TOKEN || 'AFIKhanahal2026leads'
 const ADMIN_TOKEN             = process.env.ADMIN_TOKEN             || 'AFIKhanahal2026'
@@ -165,6 +169,20 @@ async function graphGet(path, token) {
   return r.json()
 }
 
+// Reading leadgen forms/leads requires a PAGE access token. We derive it on the fly
+// from the System User token (which is permanent), and cache per page for this invocation.
+// Falls back to the base token if derivation fails.
+const _pageTokenCache = {}
+async function getPageToken(pageId) {
+  if (!pageId) return META_PAGE_ACCESS_TOKEN
+  if (_pageTokenCache[pageId]) return _pageTokenCache[pageId]
+  try {
+    const d = await graphGet(`/${pageId}?fields=access_token`, META_PAGE_ACCESS_TOKEN)
+    if (d.access_token) { _pageTokenCache[pageId] = d.access_token; return d.access_token }
+  } catch (e) { console.warn(`[meta] page-token derive failed for ${pageId}: ${e.message}`) }
+  return META_PAGE_ACCESS_TOKEN
+}
+
 async function sendWA(to, message) {
   try {
     const r = await fetch(`https://graph.facebook.com/v25.0/${PHONE_NUMBER_ID}/messages`, {
@@ -235,16 +253,19 @@ async function handleWebhook(req, res) {
           const { leadgen_id, page_id } = change.value || {}
           if (!leadgen_id) continue
 
+          const pageToken = await getPageToken(page_id)
+
           let leadData, campaignName = '', formName = ''
           try {
-            leadData = await graphGet(`/${leadgen_id}?fields=id,created_time,field_data,campaign_id,ad_id,form_id,page_id`, META_PAGE_ACCESS_TOKEN)
+            leadData = await graphGet(`/${leadgen_id}?fields=id,created_time,field_data,campaign_id,ad_id,form_id,page_id`, pageToken)
           } catch (e) { console.error('[MetaLeads] fetch lead:', e.message); continue }
 
           if (leadData.campaign_id) {
+            // Campaign objects are ad-account-scoped → use the System User token (has ads access).
             try { campaignName = (await graphGet(`/${leadData.campaign_id}?fields=name`, META_PAGE_ACCESS_TOKEN)).name || '' } catch {}
           }
           if (leadData.form_id) {
-            try { formName = (await graphGet(`/${leadData.form_id}?fields=name`, META_PAGE_ACCESS_TOKEN)).name || '' } catch {}
+            try { formName = (await graphGet(`/${leadData.form_id}?fields=name`, pageToken)).name || '' } catch {}
           }
 
           const parsed = parseFieldData(leadData.field_data)
@@ -465,8 +486,9 @@ function resolvePageIds(query) {
 
 async function syncOnePage(pageId, client, errors) {
   let totalSynced = 0
+  const pageToken = await getPageToken(pageId)
   let formsData
-  try { formsData = await graphGet(`/${pageId}/leadgen_forms?fields=id,name`, META_PAGE_ACCESS_TOKEN) }
+  try { formsData = await graphGet(`/${pageId}/leadgen_forms?fields=id,name`, pageToken) }
   catch (e) { errors.push(`Page ${pageId}: ${e.message}`); return 0 }
 
   for (const form of formsData.data || []) {
@@ -475,7 +497,7 @@ async function syncOnePage(pageId, client, errors) {
       let url = `/${form.id}/leads?fields=id,created_time,field_data,campaign_id,ad_id,page_id`
       if (cursor) url += `&after=${cursor}`
       let leadsData
-      try { leadsData = await graphGet(url, META_PAGE_ACCESS_TOKEN) }
+      try { leadsData = await graphGet(url, pageToken) }
       catch (e) { errors.push(`Form ${form.id}: ${e.message}`); break }
 
       for (const lead of leadsData.data || []) {
