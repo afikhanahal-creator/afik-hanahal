@@ -8,6 +8,28 @@ import MetaKanban from './MetaKanban'
 
 const ADMIN_TOKEN = 'AFIKhanahal2026'
 const META_PAGE_ID = '591701444021114'
+// Default lead pages always synced: the original page + afik.hanahal (999391656594390),
+// the page the אפיק הנחל ad-account campaigns and the site are connected to.
+const DEFAULT_LEAD_PAGE_IDS = ['591701444021114', '999391656594390']
+// localStorage key written by the Settings → "מקורות לידים — Meta" card.
+const META_LEAD_PAGES_KEY = 'afik_meta_lead_pages'
+
+// All Facebook Page IDs to sync: the defaults + any enabled extra ad-account pages
+// the admin registered in Settings. Leads are collected per-page, so each page must
+// be synced separately. Deduped, empties dropped.
+function getConfiguredPageIds() {
+  const ids = [...DEFAULT_LEAD_PAGE_IDS]
+  try {
+    const raw = JSON.parse(localStorage.getItem(META_LEAD_PAGES_KEY) || 'null')
+    if (Array.isArray(raw)) {
+      for (const s of raw) {
+        const pid = s && s.enabled !== false ? String(s.pageId || '').trim() : ''
+        if (pid && !ids.includes(pid)) ids.push(pid)
+      }
+    }
+  } catch {}
+  return ids
+}
 
 // ── Translations ─────────────────────────────────────────────────────────────
 const TR = {
@@ -444,7 +466,8 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
   // ── Auto-sync from Meta every 5 min (covers missing webhook) ────────────────
   useEffect(() => {
     const run = async () => {
-      try { await syncLeads(META_PAGE_ID) } catch {} // silent failures are fine
+      // Sync every configured page (main + extra ad-account pages). Silent failures are fine.
+      for (const pid of getConfiguredPageIds()) { try { await syncLeads(pid) } catch {} }
       try { await fetchLeads().then(data => {
         const visible = data.filter(l => !deletedIdsRef.current.has(l.id))
         setLeads(visible)
@@ -513,8 +536,12 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
     setSyncing(true)
     setSyncResult(null)
     try {
-      const result = await syncLeads(META_PAGE_ID)
-      setSyncResult(`${result.synced || 0} ${lang === 'en' ? 'leads synced' : 'לידים סונכרנו'}`)
+      // Sync each configured page and sum the results.
+      let total = 0
+      for (const pid of getConfiguredPageIds()) {
+        try { const r = await syncLeads(pid); total += r.synced || 0 } catch {}
+      }
+      setSyncResult(`${total} ${lang === 'en' ? 'leads synced' : 'לידים סונכרנו'}`)
       await loadLeads(true)
     } catch (e) {
       setSyncResult(lang === 'en' ? 'Sync failed: ' + e.message : 'שגיאת סנכרון: ' + e.message)

@@ -2074,6 +2074,10 @@ const LEADS_DELETED  = 'afik_leads_deleted_v1'
 const LEADS_TRASH    = 'afik_leads_trash_v1'
 const WA_KEY         = 'afik_wa_settings'
 const ANALYTICS_KEY  = 'afik_analytics_v2'
+// Additional Meta lead-source pages (beyond the main page hardcoded in MetaLeadsTab).
+// Shape: [{ id, name, adAccountId, pageId, enabled }]. Read by MetaLeadsTab sync,
+// managed in the Settings → "מקורות לידים — Meta" card, synced to cloud as `metaLeadSources`.
+const META_LEAD_PAGES_KEY = 'afik_meta_lead_pages'
 const WA_DEFAULT_TEMPLATE = `היי {name} 👋
 תודה שהשארת פרטים!
 ראינו את הפנייה שלך
@@ -2570,7 +2574,7 @@ const PLATFORM_CFG = {
   },
   meta: {
     name:'Meta Business Suite', color:'#1877F2', Icon:FaFacebookF,
-    id:'Pixel: 1341264237748951',
+    id:'Pixels: 1311196023271539 + 1341264237748951',
     url:'https://business.facebook.com/latest/home',
     desc:'ניהול קמפיינים, קהלי ריטרגטינג, ביצועי פרסומות',
     metrics:[
@@ -3632,7 +3636,7 @@ function AnalyticsDashboard({ leads }) {
         <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:10 }}>
           {[
             { label:'Google Analytics',      sub:'G-X1S3XX7TRV',           Icon:FaChartBar,  color:'#FF6B35', url:'https://analytics.google.com' },
-            { label:'Meta Business Suite',   sub:'Pixel 1341264237748951',  Icon:FaFacebookF, color:'#1877F2', url:'https://business.facebook.com' },
+            { label:'Meta Business Suite',   sub:'Pixels 1311196023271539 + 1341264237748951',  Icon:FaFacebookF, color:'#1877F2', url:'https://business.facebook.com' },
             { label:'Meta Events Manager',   sub:'פיקסל ופרסומות',          Icon:FaBolt,      color:'#F7C948', url:'https://business.facebook.com/events_manager' },
             { label:'Facebook – אפיק הנחל',  sub:'Profile page',            Icon:FaThumbsUp,  color:'#1877F2', url:'https://www.facebook.com/profile.php?id=61573376818745' },
             { label:'Instagram – afik.hanahal', sub:'@afik.hanahal',        Icon:FaInstagram, color:'#E1306C', url:'https://www.instagram.com/afik.hanahal/' },
@@ -3973,6 +3977,10 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
         if (cfg.gmBg) setGmBg(cfg.gmBg)
         if (cfg.waSettings) setWaSt(s => ({ ...s, ...cfg.waSettings }))
         if (typeof cfg.crmWebhook === 'string') setCrmWebhook(cfg.crmWebhook)
+        // Mirror cloud Meta lead-source pages into localStorage so MetaLeadsTab's
+        // sync picks them up on this device too (cross-device source of truth = cloud).
+        if (Array.isArray(cfg.metaLeadSources))
+          try { localStorage.setItem(META_LEAD_PAGES_KEY, JSON.stringify(cfg.metaLeadSources)) } catch {}
       })
       .catch(() => {})
   }, [])
@@ -6435,6 +6443,9 @@ Return ONLY valid JSON (no markdown, no code blocks):
             {/* ── Meta WhatsApp Business API Bot ─────────────────────────── */}
             <MetaWABotCard C={C} isDark={isDark}/>
 
+            {/* ── Meta Accounts → Lead Sources ───────────────────────────── */}
+            <MetaLeadSourcesCard C={C}/>
+
             {/* ── Meta Pixel ─────────────────────────────────────────────────── */}
             <div style={{ background:'rgba(255,255,255,.03)', borderRadius:12, padding:20 }}>
               <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:16 }}>
@@ -6442,22 +6453,28 @@ Return ONLY valid JSON (no markdown, no code blocks):
                   <FaFacebookF size={14} style={{ color:'#1877F2' }}/>
                 </div>
                 <div>
-                  <h3 style={{ fontSize:14, fontWeight:700, color:C.purple, margin:0 }}>Meta Pixel — פיקסל מעקב</h3>
-                  <div style={{ fontSize:11, color:`${C.cream}55`, marginTop:3 }}>פיקסל פעיל באתר — עוקב אחרי ביקורים, לידים ואירועי המרה</div>
+                  <h3 style={{ fontSize:14, fontWeight:700, color:C.purple, margin:0 }}>Meta Pixel — פיקסלי מעקב</h3>
+                  <div style={{ fontSize:11, color:`${C.cream}55`, marginTop:3 }}>שני פיקסלים פעילים באתר — עוקבים אחרי ביקורים, לידים ואירועי המרה (Pixel + CAPI)</div>
                 </div>
               </div>
 
-              {/* Status card */}
-              <div style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 16px', background:'rgba(34,197,94,.06)', border:'1px solid rgba(34,197,94,.25)', borderRadius:10, marginBottom:14 }}>
-                <div style={{ width:10, height:10, borderRadius:'50%', background:'#22C55E', boxShadow:'0 0 8px #22C55E', flexShrink:0 }}/>
-                <div style={{ flex:1, minWidth:0 }}>
-                  <span style={{ fontSize:13, color:'#22C55E', fontWeight:700 }}>פיקסל פעיל</span>
-                  <span style={{ fontSize:12, color:`${C.cream}44`, marginRight:8 }}>— מוטמע ב-index.html</span>
+              {/* Status cards — both pixels fire on every event (Pixel + Conversions API) */}
+              {[
+                { id:'1311196023271539', name:'הפיקסל של אפיק הנחל' },
+                { id:'1341264237748951', name:'פיקסל קודם (legacy)' },
+              ].map(px => (
+                <div key={px.id} style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 16px', background:'rgba(34,197,94,.06)', border:'1px solid rgba(34,197,94,.25)', borderRadius:10, marginBottom:10 }}>
+                  <div style={{ width:10, height:10, borderRadius:'50%', background:'#22C55E', boxShadow:'0 0 8px #22C55E', flexShrink:0 }}/>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <span style={{ fontSize:13, color:'#22C55E', fontWeight:700 }}>פעיל</span>
+                    <span style={{ fontSize:12, color:`${C.cream}44`, marginRight:8 }}>— {px.name}</span>
+                  </div>
+                  <code style={{ fontSize:12, color:'#1877F2', background:'rgba(24,119,242,.1)', padding:'3px 10px', borderRadius:6, fontFamily:'monospace', border:'1px solid rgba(24,119,242,.2)' }}>
+                    {px.id}
+                  </code>
                 </div>
-                <code style={{ fontSize:12, color:'#1877F2', background:'rgba(24,119,242,.1)', padding:'3px 10px', borderRadius:6, fontFamily:'monospace', border:'1px solid rgba(24,119,242,.2)' }}>
-                  1341264237748951
-                </code>
-              </div>
+              ))}
+              <div style={{ height:4 }}/>
 
               {/* Events tracked */}
               <div style={{ fontSize:11, color:`${C.cream}66`, marginBottom:12, fontWeight:700 }}>אירועים שנמדדים:</div>
@@ -6759,6 +6776,145 @@ function MetaWABotCard({ C, isDark }) {
         4. הפעל Subscribe על: <strong>messages</strong><br/>
         5. פרוס לאויר דרך Vercel — הבוט יתחיל לענות אוטומטית ✓<br/>
         <span style={{ color:`${C.cream}44`, fontSize:11 }}>* Google Tag Manager (GTM-MZZ8QR8V) כבר מוטמע ופועל</span>
+      </div>
+    </div>
+  )
+}
+
+// ─── META LEAD SOURCES (ad accounts → lead pages) ─────────────────────────────
+// The Lead Center pulls leads PER FACEBOOK PAGE (api/meta.js → /{pageId}/leadgen_forms).
+// An ad account runs the campaigns, but the leads are collected on a Page. This card
+// lets the admin register additional ad-account → page mappings; each enabled pageId
+// is added to MetaLeadsTab's sync loop (alongside the hardcoded main page).
+const META_MAIN_PAGE_ID = '591701444021114'
+
+function MetaLeadSourcesCard({ C }) {
+  const { lang } = useTheme()
+  const en = lang === 'en'
+  const [sources, setSources] = useState(() => {
+    try {
+      const raw = JSON.parse(localStorage.getItem(META_LEAD_PAGES_KEY) || 'null')
+      if (Array.isArray(raw) && raw.length) return raw
+    } catch {}
+    // Seed with the אפיק הנחל ad account + its lead page (afik.hanahal, 999391656594390 —
+    // the page the campaigns and the site are connected to).
+    return [{ id: 'src_afik_main', name: 'אפיק הנחל', adAccountId: '1130143728423686', pageId: '999391656594390', enabled: true }]
+  })
+  const [saved, setSaved] = useState(false)
+
+  const update = (id, patch) => setSources(prev => prev.map(s => s.id === id ? { ...s, ...patch } : s))
+  const remove = (id) => setSources(prev => prev.filter(s => s.id !== id))
+  const add = () => setSources(prev => [...prev, { id: 'src_' + Date.now(), name: '', adAccountId: '', pageId: '', enabled: true }])
+
+  const save = () => {
+    const clean = sources.filter(s => s.name || s.adAccountId || s.pageId)
+    try { localStorage.setItem(META_LEAD_PAGES_KEY, JSON.stringify(clean)) } catch {}
+    const base = API_BASE || ''
+    fetch(`${base}/api/settings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+      body: JSON.stringify({ metaLeadSources: clean }),
+    }).then(() => { _cloudSettings = { ..._cloudSettings, metaLeadSources: clean } }).catch(() => {})
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2500)
+  }
+
+  const inp = { width:'100%', padding:'9px 12px', background:'rgba(255,255,255,.05)', border:`1px solid ${C.purple}33`, borderRadius:8, color:C.cream, fontSize:13, fontFamily:'inherit', outline:'none', boxSizing:'border-box' }
+  const lbl = { fontSize:10, color:`${C.cream}66`, display:'block', marginBottom:4, fontWeight:600 }
+
+  return (
+    <div style={{ background:'rgba(255,255,255,.03)', borderRadius:12, padding:20 }}>
+      {/* Header */}
+      <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:16 }}>
+        <div style={{ width:32, height:32, borderRadius:8, background:'rgba(24,119,242,.15)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+          <FaFacebookF size={14} style={{ color:'#1877F2' }}/>
+        </div>
+        <div>
+          <h3 style={{ fontSize:14, fontWeight:700, color:C.purple, margin:0 }}>{en ? 'Meta Accounts — Lead Sources' : 'חשבונות Meta — מקורות לידים'}</h3>
+          <div style={{ fontSize:11, color:`${C.cream}55`, marginTop:3 }}>{en ? 'Ad accounts whose Lead Ads feed into the Lead Center' : 'חשבונות פרסום שהלידים שלהם מוזרמים למרכז הלידים'}</div>
+        </div>
+      </div>
+
+      {/* Main connected page (read-only) */}
+      <div style={{ display:'flex', alignItems:'center', gap:12, padding:'11px 14px', background:'rgba(34,197,94,.06)', border:'1px solid rgba(34,197,94,.25)', borderRadius:10, marginBottom:14 }}>
+        <div style={{ width:9, height:9, borderRadius:'50%', background:'#22C55E', boxShadow:'0 0 8px #22C55E', flexShrink:0 }}/>
+        <div style={{ flex:1, minWidth:0 }}>
+          <span style={{ fontSize:13, color:'#22C55E', fontWeight:700 }}>{en ? 'Main page connected' : 'דף ראשי מחובר'}</span>
+          <span style={{ fontSize:12, color:`${C.cream}44`, marginRight:8 }}>— {en ? 'always synced' : 'מסונכרן תמיד'}</span>
+        </div>
+        <code style={{ fontSize:12, color:'#1877F2', background:'rgba(24,119,242,.1)', padding:'3px 10px', borderRadius:6, fontFamily:'monospace', border:'1px solid rgba(24,119,242,.2)' }}>
+          {META_MAIN_PAGE_ID}
+        </code>
+      </div>
+
+      {/* Additional sources */}
+      {sources.map(s => (
+        <div key={s.id} style={{ border:`1px solid ${C.purple}22`, borderRadius:10, padding:14, marginBottom:12, background:'rgba(255,255,255,.02)' }}>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
+            <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer' }}>
+              <div onClick={() => update(s.id, { enabled: !s.enabled })}
+                style={{ width:40, height:22, borderRadius:11, background: s.enabled ? C.green : 'rgba(255,255,255,.12)', cursor:'pointer', position:'relative', transition:'background .2s', flexShrink:0 }}>
+                <div style={{ position:'absolute', top:3, width:16, height:16, borderRadius:'50%', background:'#fff', left: s.enabled ? 21 : 3, transition:'left .2s', boxShadow:'0 1px 4px rgba(0,0,0,.4)' }}/>
+              </div>
+              <span style={{ fontSize:12, color:`${C.cream}88`, fontWeight:600 }}>{s.enabled ? (en ? 'Active' : 'פעיל') : (en ? 'Disabled' : 'כבוי')}</span>
+            </label>
+            <button onClick={() => remove(s.id)} style={{ background:'none', border:'none', color:'rgba(224,82,82,.7)', cursor:'pointer', fontSize:12, fontFamily:'inherit', display:'flex', alignItems:'center', gap:5 }}>
+              <FaTrash size={11}/> {en ? 'Remove' : 'הסר'}
+            </button>
+          </div>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+            <div>
+              <label style={lbl}>{en ? 'Account name' : 'שם החשבון'}</label>
+              <input type="text" value={s.name} onChange={e => update(s.id, { name: e.target.value })}
+                placeholder={en ? 'e.g. Afik Hanahal' : 'לדוגמה: אפיק הנחל'} style={inp}/>
+            </div>
+            <div>
+              <label style={lbl}>{en ? 'Ad account ID' : 'מזהה חשבון פרסום (Ad Account ID)'}</label>
+              <input type="text" value={s.adAccountId} onChange={e => update(s.id, { adAccountId: e.target.value })}
+                placeholder="1130143728423686" style={{ ...inp, direction:'ltr', fontFamily:'monospace', fontSize:12 }}/>
+            </div>
+            <div style={{ gridColumn:'1/-1' }}>
+              <label style={lbl}>
+                {en ? 'Facebook Page ID — required for lead sync' : 'מזהה דף פייסבוק (Page ID) — חובה לסנכרון לידים'}
+              </label>
+              <input type="text" value={s.pageId} onChange={e => update(s.id, { pageId: e.target.value })}
+                placeholder={en ? 'The page the campaigns collect leads on' : 'הדף שעליו הקמפיינים אוספים לידים'}
+                style={{ ...inp, direction:'ltr', fontFamily:'monospace', fontSize:12, borderColor: s.pageId ? `${C.purple}33` : 'rgba(247,201,72,.6)' }}/>
+            </div>
+          </div>
+        </div>
+      ))}
+
+      {/* Actions */}
+      <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', marginTop:4 }}>
+        <button onClick={save}
+          style={{ padding:'9px 20px', background:`${C.purple}22`, border:`1px solid ${C.purple}44`, borderRadius:8, color: saved ? C.green : C.purple, fontWeight:700, fontSize:12, cursor:'pointer', fontFamily:'inherit' }}>
+          {saved ? (en ? '✓ Saved' : '✓ נשמר') : (en ? 'Save accounts' : 'שמור חשבונות')}
+        </button>
+        <button onClick={add}
+          style={{ padding:'9px 16px', background:'transparent', border:`1px dashed ${C.purple}55`, borderRadius:8, color:C.purple, fontWeight:700, fontSize:12, cursor:'pointer', fontFamily:'inherit' }}>
+          + {en ? 'Add account' : 'הוסף חשבון'}
+        </button>
+      </div>
+
+      {/* How to find the Page ID */}
+      <div style={{ background:'rgba(24,119,242,.06)', border:'1px solid rgba(24,119,242,.2)', borderRadius:8, padding:'12px 14px', fontSize:12, color:`${C.cream}88`, lineHeight:1.9, direction:'rtl', marginTop:14 }}>
+        <strong style={{ color:'#1877F2' }}>{en ? 'How to find the Page ID:' : 'איך מוצאים את ה-Page ID:'}</strong><br/>
+        {en ? (
+          <>1. Open the Facebook Page → <strong style={{ color:C.cream }}>Settings → About / Page transparency</strong><br/>
+          2. Copy the numeric <strong style={{ color:C.cream }}>Page ID</strong> shown there<br/>
+          3. Paste it above and press “Save accounts”</>
+        ) : (
+          <>1. כנס לדף הפייסבוק של הקמפיין → <strong style={{ color:C.cream }}>הגדרות → פרטים / שקיפות הדף</strong><br/>
+          2. העתק את ה-<strong style={{ color:C.cream }}>Page ID</strong> המספרי שמופיע שם<br/>
+          3. הדבק אותו למעלה ולחץ "שמור חשבונות"</>
+        )}
+        <br/>
+        <span style={{ color:`${C.cream}55`, fontSize:11 }}>
+          {en
+            ? '* If this account’s campaigns use the main page above, leads already flow — no Page ID needed.'
+            : '* אם הקמפיינים של החשבון הזה רצים על הדף הראשי שלמעלה — הלידים כבר זורמים ואין צורך ב-Page ID.'}
+        </span>
       </div>
     </div>
   )
