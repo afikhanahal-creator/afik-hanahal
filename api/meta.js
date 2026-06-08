@@ -12,8 +12,11 @@ import crypto from 'crypto'
 const SUPERMETRICS_API_KEY    = process.env.SUPERMETRICS_API_KEY    || ''
 // System User token (afik-api) — permanent, survives password changes. Used to
 // DERIVE a per-page Page Access Token (required for reading leadgen forms/leads).
-// Env var overrides the embedded fallback.
-const META_PAGE_ACCESS_TOKEN  = process.env.META_PAGE_ACCESS_TOKEN  || process.env.WA_META_TOKEN ||
+// We intentionally do NOT read the old META_PAGE_ACCESS_TOKEN / WA_META_TOKEN env
+// vars here: the previous value was invalidated by a password change and still lives
+// in Vercel's env, which would override (poison) this good token. Rotate via the
+// fresh META_SYSTEM_USER_TOKEN env var instead.
+const META_PAGE_ACCESS_TOKEN  = process.env.META_SYSTEM_USER_TOKEN ||
   'EAAnqYHiWM8cBRvFbXjxZAVjg39koOtAVOJuZC0p1YUFVWpPZACkVAt065X4wJ7FdoBOsvMGN7ldvj6LdiyOFfOcKeXirqcmFPY4sSGJMwK22lagJh2oKC6tERZADuRNNnu7S0Y9B212hWWxfyzy5N4VBprMRNlswT3KF9E8MtVyq2qzSkzZAVhlmBwrmN5jyVqBU2cm344AmvzscH9KXZBIgxI2ZASF4ZBTijw2E'
 const META_APP_SECRET         = process.env.META_APP_SECRET         || ''
 const META_LEADS_VERIFY_TOKEN = process.env.META_LEADS_VERIFY_TOKEN || 'AFIKhanahal2026leads'
