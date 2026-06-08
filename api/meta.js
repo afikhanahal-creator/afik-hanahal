@@ -186,6 +186,19 @@ async function getPageToken(pageId) {
   return META_PAGE_ACCESS_TOKEN
 }
 
+// Resolve a campaign's name from its ID (ad-account-scoped → System User token).
+// Cached per invocation. Lets each lead show its real CAMPAIGN ("הנרייטה סאלד #3")
+// instead of only the form name (which is often reused across campaigns).
+const _campaignNameCache = {}
+async function getCampaignName(campaignId) {
+  if (!campaignId) return ''
+  if (campaignId in _campaignNameCache) return _campaignNameCache[campaignId]
+  let name = ''
+  try { name = (await graphGet(`/${campaignId}?fields=name`, META_PAGE_ACCESS_TOKEN)).name || '' } catch {}
+  _campaignNameCache[campaignId] = name
+  return name
+}
+
 async function sendWA(to, message) {
   try {
     const r = await fetch(`https://graph.facebook.com/v25.0/${PHONE_NUMBER_ID}/messages`, {
@@ -507,6 +520,7 @@ async function syncOnePage(pageId, client, errors) {
         try {
           const parsed  = parseFieldData(lead.field_data)
           const phone   = normalizePhone(parsed.phone)
+          const campaignName = await getCampaignName(lead.campaign_id)
 
           // Atomic claim: plain INSERT decides "is new". Success → genuinely new
           // (notify). 23505 unique-violation → already saved (a concurrent sync, or
@@ -515,13 +529,20 @@ async function syncOnePage(pageId, client, errors) {
           const { error: insErr } = await client.from('meta_leads').insert({
             leadgen_id: lead.id, name: parsed.name || null, email: parsed.email || null,
             phone: phone || null,
-            campaign_id: lead.campaign_id || null, ad_id: lead.ad_id || null,
+            campaign_id: lead.campaign_id || null, campaign_name: campaignName || null,
+            ad_id: lead.ad_id || null,
             form_id: form.id, form_name: form.name || null,
             raw_fields: lead.field_data || [], page_id: lead.page_id || pageId, status: 'new',
           })
           const isDuplicate = insErr && (insErr.code === '23505' || /duplicate key|already exists/i.test(insErr.message || ''))
           if (insErr && !isDuplicate) { errors.push(`Lead ${lead.id}: ${insErr.message}`); continue }
           const isNew = !insErr
+
+          // Backfill: existing leads saved before campaign capture get their campaign
+          // name filled in (only when still empty — cheap no-op once populated).
+          if (isDuplicate && campaignName) {
+            await client.from('meta_leads').update({ campaign_name: campaignName }).eq('leadgen_id', lead.id).is('campaign_name', null)
+          }
 
           // For genuinely new leads: send WA to customer + admin (same as webhook handler)
           if (isNew && phone) {
