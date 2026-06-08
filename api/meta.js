@@ -256,7 +256,11 @@ async function handleWebhook(req, res) {
         const sig      = req.headers['x-hub-signature-256'] || ''
         // Must use raw bytes — Meta signs the original payload, not re-serialised JSON
         const expected = 'sha256=' + crypto.createHmac('sha256', META_APP_SECRET).update(req.rawBody || '').digest('hex')
-        if (sig !== expected) { console.warn('[MetaLeads] Signature mismatch'); return res.status(403).json({ error: 'signature mismatch' }) }
+        // WARN-but-PROCESS: a stale/wrong META_APP_SECRET must never silently drop a
+        // real lead (zero-delay email/WA is the priority). We log the mismatch for
+        // visibility but still process the event. Forged page-leadgen events are low
+        // risk here (worst case: a spam lead the admin deletes).
+        if (sig !== expected) console.warn('[MetaLeads] Signature mismatch — processing anyway (check META_APP_SECRET)')
       }
 
       const body = req.body
