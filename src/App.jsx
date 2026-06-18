@@ -2428,25 +2428,53 @@ function ImageUpload({ images, onChange }) {
     reader.onload = e => {
       const img = new Image()
       img.onload = () => {
-        const MAX = 1200
+        const MAX = 1600
         let w = img.width, h = img.height
         if (w > MAX) { h = Math.round(h * MAX / w); w = MAX }
         const cv = document.createElement('canvas')
         cv.width = w; cv.height = h
         cv.getContext('2d').drawImage(img, 0, 0, w, h)
-        res(cv.toDataURL('image/jpeg', 0.78))
+        res(cv.toDataURL('image/jpeg', 0.8))
       }
+      img.onerror = () => res(null)
       img.src = e.target.result
     }
     reader.readAsDataURL(file)
   })
 
+  // Persist a photo optimally: upload the compressed copy to Supabase Storage and
+  // keep only the short URL on the property. Storing base64 inline bloats the DB
+  // row and every /api/properties payload (slower admin load + more egress). Falls
+  // back to inline base64 only if the upload endpoint is unavailable, so saving
+  // never breaks.
+  const persist = async file => {
+    const dataUrl = await compress(file)
+    if (!dataUrl) return null
+    if (API_BASE) {
+      try {
+        const blob = await (await fetch(dataUrl)).blob()
+        const fd = new FormData()
+        fd.append('file', new File([blob], 'photo.jpg', { type: 'image/jpeg' }))
+        const r = await fetch(`${API_BASE}/api/upload/image`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
+          body: fd,
+        })
+        if (r.ok) {
+          const data = await r.json().catch(() => null)
+          if (data?.url) return data.url
+        }
+      } catch {}
+    }
+    return dataUrl // fallback — inline base64 (previous behaviour)
+  }
+
   const addFiles = async files => {
     const allowed = Array.from(files).filter(f => f.type.startsWith('image/')).slice(0, 8 - images.length)
     if (!allowed.length) return
     setLoading(true)
-    const compressed = await Promise.all(allowed.map(compress))
-    onChange([...images, ...compressed])
+    const results = (await Promise.all(allowed.map(persist))).filter(Boolean)
+    onChange([...images, ...results])
     setLoading(false)
   }
 
@@ -4249,7 +4277,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   // Sync on admin mount + auto-sync every 60 s — cloud is always source of truth
   useEffect(() => {
     syncLeadsFromServer()
-    const iv = setInterval(syncLeadsFromServer, 15000)
+    const iv = setInterval(() => { if (!document.hidden) syncLeadsFromServer() }, 15000)
     return () => clearInterval(iv)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -4426,7 +4454,9 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     const phone = selectedLead?.phone
     if (!phone) return
     fetchChats(phone)
-    chatPollRef.current = setInterval(() => fetchChats(phone), 12000)
+    // Skip polling while the tab is in the background — admins keep the dashboard
+    // open for hours, and a hidden tab hammering the API is pure wasted egress.
+    chatPollRef.current = setInterval(() => { if (!document.hidden) fetchChats(phone) }, 12000)
     return () => { if (chatPollRef.current) clearInterval(chatPollRef.current) }
   }, [selectedLead?.id, fetchChats])
 
@@ -4434,7 +4464,9 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   useEffect(() => {
     if (tab !== 'chats' || !chatContact?.phone) return
     fetchChats(chatContact.phone)
-    const interval = setInterval(() => fetchChats(chatContact.phone), 500)
+    // 3s is plenty responsive for a chat view; the old 500ms fired ~2 req/sec
+    // continuously. Also pause entirely while the tab is hidden.
+    const interval = setInterval(() => { if (!document.hidden) fetchChats(chatContact.phone) }, 3000)
     return () => clearInterval(interval)
   }, [chatContact?.id, tab, fetchChats]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -4442,7 +4474,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   useEffect(() => {
     if (tab !== 'chats') return
     fetchAllChats()
-    const id = setInterval(fetchAllChats, 8000)
+    const id = setInterval(() => { if (!document.hidden) fetchAllChats() }, 8000)
     return () => clearInterval(id)
   }, [tab, fetchAllChats]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -4450,7 +4482,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   useEffect(() => {
     if (tab !== 'chats') return
     fetchChatStatus()
-    const id = setInterval(fetchChatStatus, 60000)
+    const id = setInterval(() => { if (!document.hidden) fetchChatStatus() }, 60000)
     return () => clearInterval(id)
   }, [tab, fetchChatStatus])
 
