@@ -5254,7 +5254,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
               {[...properties].reverse().slice(0,5).map((p,i) => (
                 <div key={i} style={{ display:'flex', alignItems:'center', gap:9, padding:'7px 0', borderBottom:i<4?'1px solid rgba(255,255,255,.04)':'' }}>
                   <div style={{ width:30,height:30,borderRadius:6,background:'rgba(132,144,216,.1)',overflow:'hidden',flexShrink:0 }}>
-                    {p.images?.[0]?<img src={p.images[0]} style={{width:'100%',height:'100%',objectFit:'cover'}} alt=""/>:<div style={{width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center'}}><FaBuilding size={12} style={{color:'rgba(132,144,216,.5)'}}/></div>}
+                    {p.images?.[0]?<img src={thumbImg(p.images[0])} onError={imgFallback} style={{width:'100%',height:'100%',objectFit:'cover'}} alt=""/>:<div style={{width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center'}}><FaBuilding size={12} style={{color:'rgba(132,144,216,.5)'}}/></div>}
                   </div>
                   <div style={{ flex:1, minWidth:0 }}>
                     <div style={{ fontSize:12,fontWeight:600,color:'rgba(232,228,216,.78)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>{p.title||'ללא שם'}</div>
@@ -5591,7 +5591,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
                       {/* Thumbnail */}
                       <div className="admin-prop-thumb" style={{ position:'relative', flexShrink:0, width:130, height:100 }}>
                         {p.images?.[0] ? (
-                          <img src={p.images[0]} style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }} alt="" loading="lazy" decoding="async"/>
+                          <img src={thumbImg(p.images[0])} onError={imgFallback} style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }} alt="" loading="lazy" decoding="async"/>
                         ) : (
                           <div style={{ width:'100%', height:'100%', background:`${C.purple}10`, display:'flex', alignItems:'center', justifyContent:'center', color:`${C.purple}55` }}><cat.Icon size={28}/></div>
                         )}
@@ -8398,14 +8398,50 @@ function toMapsEmbed(url) {
   return null
 }
 
+// Free image CDN (wsrv.nl) — fetches the source ONCE, caches it on Cloudflare's
+// edge, then serves a resized + compressed WebP copy to every visitor. This is
+// the single biggest lever on Supabase egress: without it every browser pulls
+// every full-resolution photo straight from Supabase Storage on every page view
+// (Supabase's own render/image transforms are Pro-plan only). With it, Supabase
+// serves each image just once (to the CDN) and the CDN absorbs all the rest.
+// Disable or swap the proxy via VITE_IMG_CDN ('' = serve original Supabase URLs).
+const IMG_CDN = (import.meta.env.VITE_IMG_CDN ?? 'https://wsrv.nl').replace(/\/$/, '')
+
+// Route a remote image through the CDN: resize to `width`, compress to `quality`,
+// convert to WebP, and never upscale smaller originals (`we`).
+function proxyImg(url, width, quality) {
+  if (!IMG_CDN) return url
+  return `${IMG_CDN}/?url=${encodeURIComponent(url)}&w=${width}&q=${quality}&output=webp&we`
+}
+
+// Recover the original source URL from a proxied one (used as an onError fallback
+// so images stay visible even if the CDN is ever unreachable).
+function unproxyImg(url) {
+  if (typeof url === 'string' && IMG_CDN && url.startsWith(`${IMG_CDN}/?url=`)) {
+    try { return decodeURIComponent(url.slice(`${IMG_CDN}/?url=`.length).split('&')[0]) } catch {}
+  }
+  return url
+}
+
+// <img onError> handler: if a CDN-proxied image fails, retry once with the
+// original source before giving up.
+function imgFallback(e) {
+  const el = e.currentTarget
+  if (el.dataset.fellBack) return
+  const orig = unproxyImg(el.src)
+  if (orig !== el.src) { el.dataset.fellBack = '1'; el.src = orig }
+}
+
 // Transform image URL: Cloudinary quality/format optimisation.
-// Supabase Storage URLs are returned as-is — Image Transformations require Pro plan.
 // base64 data URLs returned as-is (legacy images uploaded before cloud storage).
 function cloudImg(url, width = 1200) {
   if (!url || url.startsWith('data:')) return url
 
-  // Supabase Storage — serve original URL (render/image endpoint = Pro plan only)
-  if (url.includes('.supabase.co/storage/')) return url
+  // Supabase Storage — route through the caching image CDN (resize + WebP).
+  // Smaller renders get slightly stronger compression; quality stays high.
+  if (url.includes('.supabase.co/storage/')) {
+    return proxyImg(url, width, width <= 600 ? 68 : 74)
+  }
 
   // Cloudinary → add quality + format-auto params
   if (url.includes('cloudinary.com') && url.includes('/image/upload/')) {
@@ -8682,6 +8718,7 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
               key={imgIdx}
               decoding="async"
               onClick={() => setLightbox(true)}
+              onError={imgFallback}
               style={{ width:'100%', height:'100%', objectFit:'contain', objectPosition:'center', display:'block', animation:'gallery-fade .22s ease', cursor:'zoom-in', background:'#000' }}/>
           ) : (
             <div style={{ width:'100%', height:'100%', display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:12 }}>
@@ -8767,7 +8804,7 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
               <button key={i} onClick={() => { setIsPlaying(false); setImgIdx(i) }}
                 className="prop-thumb-btn"
                 style={{ border: imgIdx===i ? `2.5px solid ${C.purple}` : '2.5px solid transparent', opacity: imgIdx===i ? 1 : 0.55 }}>
-                <img src={src} alt="" loading="lazy"/>
+                <img src={src} alt="" loading="lazy" onError={imgFallback}/>
               </button>
             ))}
             {allVideos.map((v, vi) => {
@@ -8803,7 +8840,7 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
         {/* Project logo strip — left-aligned */}
         {prop.logo && (
           <div style={{ display:'flex', alignItems:'center', justifyContent:'flex-start', padding:'16px 28px 12px', background:'rgba(0,0,0,.45)', borderBottom:'1px solid rgba(132,144,216,.12)', direction:'ltr' }}>
-            <img src={prop.logo} alt="לוגו פרויקט"
+            <img src={cloudImg(prop.logo, 600)} alt="לוגו פרויקט" onError={imgFallback}
               style={{ height: prop.logoSize || 100, maxWidth:'60%', objectFit:'contain', filter:'brightness(1.2) drop-shadow(0 2px 12px rgba(0,0,0,.6))', opacity:1 }}/>
           </div>
         )}
@@ -9044,7 +9081,7 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
                       {/* Image */}
                       <div style={{ height:160, background:'rgba(255,255,255,.03)', position:'relative', overflow:'hidden' }}>
                         {sp.images?.[0]
-                          ? <img src={sp.images[0]} alt={sp.title} loading="lazy" decoding="async" style={{ width:'100%', height:'100%', objectFit:'cover', display:'block', transition:'transform .4s' }}/>
+                          ? <img src={thumbImg(sp.images[0])} alt={sp.title} loading="lazy" decoding="async" onError={imgFallback} style={{ width:'100%', height:'100%', objectFit:'cover', display:'block', transition:'transform .4s' }}/>
                           : <div style={{ width:'100%', height:'100%', display:'flex', alignItems:'center', justifyContent:'center' }}><spCat.Icon size={36} style={{ color:'rgba(255,255,255,.15)' }}/></div>
                         }
                         {/* Heart save button */}
@@ -9136,7 +9173,7 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
               {lbIdx + 1} / {imgs.length}
             </div>
             {/* Main image */}
-            <img src={imgs[lbIdx]} alt={prop.title} decoding="async"
+            <img src={imgs[lbIdx]} alt={prop.title} decoding="async" onError={imgFallback}
               style={{ maxWidth:'92vw', maxHeight:'88vh', objectFit:'contain', display:'block', borderRadius:6, userSelect:'none', pointerEvents:'none' }}/>
             {/* Prev arrow (right side = prev in RTL numbering, but visually RTL means right = back) */}
             {imgs.length > 1 && (<>
@@ -9243,7 +9280,12 @@ function PropertyCard({ prop, onContact, onSelect }) {
             <img src={validImages[imgIdx % validImages.length]} alt={prop.title}
               loading="lazy" decoding="async"
               style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover', display:'block', transition:'transform .55s cubic-bezier(0.16,1,0.3,1)', transform:hovered?'scale(1.05)':'scale(1)' }}
-              onError={() => setFailedImgs(prev => new Set([...prev, imgIdx % validImages.length]))}
+              onError={e => {
+                const el = e.currentTarget
+                const orig = unproxyImg(el.src)
+                if (orig !== el.src && !el.dataset.fellBack) { el.dataset.fellBack = '1'; el.src = orig; return }
+                setFailedImgs(prev => new Set([...prev, imgIdx % validImages.length]))
+              }}
             />
             {/* gradient scrim at bottom for readability */}
             <div style={{ position:'absolute', bottom:0, left:0, right:0, height:'55%', background:'linear-gradient(to top,rgba(0,0,0,.55),transparent)', pointerEvents:'none', zIndex:1 }}/>
