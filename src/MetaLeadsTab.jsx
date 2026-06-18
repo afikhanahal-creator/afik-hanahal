@@ -394,7 +394,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
 
     if (!supabase) {
       // Fallback: poll every 30s when Realtime not configured
-      leadsIntervalRef.current = setInterval(() => loadLeads(true), 30000)
+      leadsIntervalRef.current = setInterval(() => { if (!document.hidden) loadLeads(true) }, 30000)
       return () => clearInterval(leadsIntervalRef.current)
     }
 
@@ -432,7 +432,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
     loadMessages(selectedLead.id)
 
     if (!supabase) {
-      messagesIntervalRef.current = setInterval(() => loadMessages(selectedLead.id, true), 15000)
+      messagesIntervalRef.current = setInterval(() => { if (!document.hidden) loadMessages(selectedLead.id, true) }, 15000)
       return () => clearInterval(messagesIntervalRef.current)
     }
 
@@ -474,7 +474,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
       }) } catch {}
     }
     const t = setTimeout(run, 20000) // first run 20s after mount
-    autoSyncRef.current = setInterval(run, 5 * 60 * 1000)
+    autoSyncRef.current = setInterval(() => { if (!document.hidden) run() }, 5 * 60 * 1000)
     return () => { clearTimeout(t); clearInterval(autoSyncRef.current) }
   }, []) // eslint-disable-line
 

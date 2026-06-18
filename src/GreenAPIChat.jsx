@@ -468,7 +468,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
       return () => { supabase.removeChannel(channel) }
     } else {
       // Fallback: poll every 4s when Realtime not configured
-      pollRef.current = setInterval(() => fetchMsgs(contact.phone), 4000)
+      pollRef.current = setInterval(() => { if (!document.hidden) fetchMsgs(contact.phone) }, 4000)
       return () => clearInterval(pollRef.current)
     }
   }, [contact?.id, fetchMsgs])
