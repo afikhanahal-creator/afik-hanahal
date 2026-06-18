@@ -56,6 +56,38 @@ const compressImage = file => new Promise(res => {
   reader.readAsDataURL(file)
 })
 
+// Downscale + recompress a photo to a Blob BEFORE uploading to Supabase Storage.
+// Phone photos are 4–8 MB at 4000px+; the site never shows them above ~1200px,
+// so storing a 1600px JPEG cuts Supabase storage (and the first CDN fetch) by
+// ~85% with no visible quality loss. Falls back to the original file if the
+// image can't be processed (e.g. unsupported/animated formats) or barely shrinks.
+const compressForUpload = (file, { max = 1600, quality = 0.82 } = {}) => new Promise(resolve => {
+  if (!file.type.startsWith('image/') || file.type === 'image/gif' || file.type === 'image/svg+xml') {
+    return resolve(file)
+  }
+  const url = URL.createObjectURL(file)
+  const img = new Image()
+  img.onload = () => {
+    URL.revokeObjectURL(url)
+    try {
+      let w = img.naturalWidth, h = img.naturalHeight
+      if (!w || !h) return resolve(file)
+      if (w > max) { h = Math.round(h * max / w); w = max }
+      const cv = document.createElement('canvas')
+      cv.width = w; cv.height = h
+      cv.getContext('2d').drawImage(img, 0, 0, w, h)
+      cv.toBlob(blob => {
+        // keep the original if compression didn't actually help
+        if (!blob || blob.size >= file.size) return resolve(file)
+        const name = file.name.replace(/\.(png|webp|bmp|tiff?|heic|heif)$/i, '.jpg')
+        resolve(new File([blob], name, { type: 'image/jpeg' }))
+      }, 'image/jpeg', quality)
+    } catch { resolve(file) }
+  }
+  img.onerror = () => { URL.revokeObjectURL(url); resolve(file) }
+  img.src = url
+})
+
 // ─── Data ────────────────────────────────────────────────────────────────────
 
 const STEPS = [
@@ -1440,8 +1472,11 @@ function Step6({ d, upd, onUploadingChange }) {
     for (let i = 0; i < toAdd.length; i++) {
       const file = toAdd[i]
       try {
+        // Shrink the photo client-side first so Supabase Storage holds a small
+        // optimised copy instead of the multi-MB original off the camera.
+        const optimised = await compressForUpload(file)
         const fd = new FormData()
-        fd.append('file', file)
+        fd.append('file', optimised)
         const url = await new Promise((resolve, reject) => {
           const xhr = new XMLHttpRequest()
           xhr.upload.addEventListener('progress', ev => {
