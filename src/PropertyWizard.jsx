@@ -443,6 +443,7 @@ export function wizardToProperty(d, isDraft) {
     published: !isDraft,
     source: 'wizard',
     createdAt: new Date().toISOString(),
+    updatedAt: Date.now(),
     ...amenities,
     parking: d.parking > 0 || !!d.amenities?.parking,
     parkingCount: d.parking,

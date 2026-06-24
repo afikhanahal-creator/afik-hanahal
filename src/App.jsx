@@ -2469,8 +2469,10 @@ function ImageUpload({ images, onChange }) {
     return dataUrl // fallback — inline base64 (previous behaviour)
   }
 
+  const MAX_IMAGES = 20
   const addFiles = async files => {
-    const allowed = Array.from(files).filter(f => f.type.startsWith('image/')).slice(0, 8 - images.length)
+    const remaining = Math.max(0, MAX_IMAGES - images.length)
+    const allowed = Array.from(files).filter(f => f.type.startsWith('image/')).slice(0, remaining)
     if (!allowed.length) return
     setLoading(true)
     const results = (await Promise.all(allowed.map(persist))).filter(Boolean)
@@ -2507,6 +2509,7 @@ function ImageUpload({ images, onChange }) {
   return (
     <div>
       {/* Drop zone */}
+      {images.length < MAX_IMAGES && (
       <div
         onDrop={onDropZone}
         onDragOver={e => { e.preventDefault(); setDragOver(true) }}
@@ -2530,10 +2533,11 @@ function ImageUpload({ images, onChange }) {
           <>
             <FaImage size={20} style={{ marginBottom:4, opacity:.3, color:'rgba(232,228,216,.6)' }}/>
             <div style={{ fontSize:12, color:'rgba(232,228,216,.6)', fontWeight:600 }}>גרור תמונות לכאן או לחץ לבחירה</div>
-            <div style={{ fontSize:10, color:'rgba(232,228,216,.3)', marginTop:3 }}>עד {8 - images.length} תמונות נוספות · JPEG/PNG/WEBP</div>
+            <div style={{ fontSize:10, color:'rgba(232,228,216,.3)', marginTop:3 }}>עד {MAX_IMAGES - images.length} תמונות נוספות · JPEG/PNG/WEBP</div>
           </>
         )}
       </div>
+      )}
 
       {/* Thumbnails — draggable to reorder */}
       {images.length > 0 && (
@@ -8836,7 +8840,8 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
               <button key={i} onClick={() => { setIsPlaying(false); setImgIdx(i) }}
                 className="prop-thumb-btn"
                 style={{ border: imgIdx===i ? `2.5px solid ${C.purple}` : '2.5px solid transparent', opacity: imgIdx===i ? 1 : 0.55 }}>
-                <img src={src} alt="" loading="lazy" onError={imgFallback}/>
+                <img src={src} alt="" decoding="async" onError={imgFallback}/>
+                <div className="thumb-fallback" style={{ display:'none' }}><FaBuilding size={18}/></div>
               </button>
             ))}
             {allVideos.map((v, vi) => {
