@@ -8473,11 +8473,9 @@ function imgFallback(e) {
 function cloudImg(url, width = 1200) {
   if (!url || url.startsWith('data:')) return url
 
-  // Supabase Storage — route through the caching image CDN (resize + WebP).
-  // Smaller renders get slightly stronger compression; quality stays high.
-  if (url.includes('.supabase.co/storage/')) {
-    return proxyImg(url, width, width <= 600 ? 68 : 74)
-  }
+  // Supabase Storage — serve original URL directly (wsrv.nl proxy disabled
+  // because it fails to fetch from this bucket and hides all images).
+  if (url.includes('.supabase.co/storage/')) return url
 
   // Cloudinary → add quality + format-auto params
   if (url.includes('cloudinary.com') && url.includes('/image/upload/')) {
