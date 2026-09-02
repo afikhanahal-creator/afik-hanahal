@@ -77,18 +77,22 @@ export default async function handler(req, res) {
   if (SUPA_URL && SUPA_KEY) {
     try {
       const sel = 'select=id,title,url,image,source,published_at&lang=eq.he&image=not.is.null&image=neq.'
-      const board = (await supa(`${sel}&featured=eq.true&order=published_at.desc&limit=8`)).filter(valid)
-      diag.counts.featured = board.length
-      let articles = board
-      if (board.length < BOARD_SIZE) {
-        const since = new Date(Date.now() - 30 * 864e5).toISOString()
-        const pool = (await supa(`${sel}&featured=eq.false&published_at=gte.${encodeURIComponent(since)}&order=published_at.desc&limit=150`)).filter(valid)
-        diag.counts.pool = pool.length
-        articles = dedupe([...board, ...interleave(pool)])
-      }
+      const since = new Date(Date.now() - 30 * 864e5).toISOString()
+      const [boardRaw, poolRaw] = await Promise.all([
+        supa(`${sel}&featured=eq.true&order=published_at.desc&limit=8`),
+        supa(`${sel}&featured=eq.false&published_at=gte.${encodeURIComponent(since)}&order=published_at.desc&limit=150`),
+      ])
+      const board = boardRaw.filter(valid), pool = poolRaw.filter(valid)
+      diag.counts.featured = board.length; diag.counts.pool = pool.length
+      const articles = board.length >= BOARD_SIZE ? board : dedupe([...board, ...interleave(pool)])
+      const outlets = new Set(articles.slice(0, RESPONSE_MAX).map(a => outletKey(a.url, a.source)))
+      diag.counts.outlets = outlets.size
       diag.timings.supabase = Date.now() - t0
       if (articles.length >= BOARD_SIZE) {
         diag.path = board.length >= BOARD_SIZE ? 'board' : 'board+pool'
+        // Tell the browser when the stored pool is thin, so it can nudge /api/cron/warm in the background
+        res.setHeader('X-News-Outlets', String(outlets.size))
+        res.setHeader('Access-Control-Expose-Headers', 'X-News-Outlets')
         return send(articles, 's-maxage=300, stale-while-revalidate=900')
       }
       diag.log.push(`supabase has only ${articles.length} valid articles — going live`)

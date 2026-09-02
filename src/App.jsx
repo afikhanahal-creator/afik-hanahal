@@ -2470,8 +2470,25 @@ const newsKey = a => (a.title || '').replace(/\s+/g, '').slice(0, 30)
 //   /api/news/archive  every verified stored article — a plain Supabase read, always fast
 //   Render (legacy)    last resort
 // Everything is re-checked by the shared real-estate classifier so nothing off-topic reaches a card.
+// If the server says its stored pool covers few outlets (or is stale), ask it to ingest — once per
+// 6 h per browser, fire-and-forget. The daily cron does the same at 08:30; this just doesn't wait for it.
+function nudgeIngest(reason) {
+  try {
+    const KEY = 'afik_news_warm_ts', last = +(localStorage.getItem(KEY) || 0)
+    if (Date.now() - last < 6 * 60 * 60 * 1000) return
+    localStorage.setItem(KEY, String(Date.now()))
+    console.info('[news] nudging /api/cron/warm:', reason)
+    fetch('/api/cron/warm', { keepalive: true, signal: AbortSignal.timeout(60000) }).catch(() => {})
+  } catch {}
+}
+
 async function fetchFreshArticles() {
-  const get = (u, ms) => fetch(u, { signal: AbortSignal.timeout(ms) }).then(r => r.ok ? r.json() : []).catch(() => [])
+  const get = (u, ms) => fetch(u, { signal: AbortSignal.timeout(ms) }).then(r => {
+    if (!r.ok) return []
+    const outlets = +(r.headers.get('X-News-Outlets') || 0)
+    if (u === '/api/news' && outlets > 0 && outlets < 4) nudgeIngest(`only ${outlets} outlets in pool`)
+    return r.json()
+  }).catch(() => [])
   const clean = list => (Array.isArray(list) ? list : []).filter(a => a?.title && (a.url || a.link)).filter(isRealEstateArticle).map(normalizeArticle)
   const seen = new Set()
   const merge = (acc, more) => [...acc, ...more].filter(a => { const k = newsKey(a); if (seen.has(k)) return false; seen.add(k); return true })
@@ -2535,6 +2552,8 @@ function useRotatingNews() {
       localStorage.setItem(ARCHIVE_STORE, JSON.stringify(arch.slice(0, 200)))
     } catch {}
 
+    const newest = Math.max(0, ...fresh.map(a => a.date ? a.date.getTime() : 0))
+    if (newest && Date.now() - newest > 36 * 60 * 60 * 1000) nudgeIngest('newest article is > 36h old')
     setArticles(board); setLoading(false)
   }
 
