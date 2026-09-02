@@ -2457,10 +2457,11 @@ const SERVER_URL     = import.meta.env.VITE_API_URL || 'https://afik-hanahal-ser
 // ── Normalise any article shape (Vercel / Supabase / Render / localStorage) ──
 function normalizeArticle(a) {
   const url = a.url || a.link || ''
-  const publishedAt = a.publishedAt || a.published_at || (a.date ? new Date(a.date).toISOString() : null)
-  const d = publishedAt ? new Date(publishedAt) : null
-  return { id: a.id || url, title: a.title, url, link: a.link || url, image: a.image || '', source: a.source || '',
-           publishedAt, date: d && !isNaN(d) ? d : null }
+  const raw = a.publishedAt || a.published_at || a.date || null
+  const d = raw ? new Date(raw) : null
+  const ok = d && !isNaN(d)
+  return { id: a.id || url, title: String(a.title || ''), url, link: a.link || url, image: a.image || '', source: a.source || '',
+           publishedAt: ok ? d.toISOString() : null, date: ok ? d : null }
 }
 const newsKey = a => (a.title || '').replace(/\s+/g, '').slice(0, 30)
 
@@ -2475,7 +2476,7 @@ async function fetchFreshArticles() {
   const seen = new Set()
   const merge = (acc, more) => [...acc, ...more].filter(a => { const k = newsKey(a); if (seen.has(k)) return false; seen.add(k); return true })
 
-  let list = merge([], clean(await get('/api/news', 16000)))
+  let list = merge([], clean(await get('/api/news', 20000)))
   if (list.length < SLOT_COUNT) list = merge(list, clean(await get('/api/news/archive', 8000)))
   if (list.length < SLOT_COUNT) list = merge(list, clean(await get(`${SERVER_URL}/api/news/feed`, 10000)))
   return list
@@ -2498,6 +2499,11 @@ function useRotatingNews() {
   const [error, setError]       = useState(false)
 
   const run = useCallback(async (forceReset = false) => {
+    try { await runInner(forceReset) }
+    catch (e) { console.error('[news] load failed:', e); setError(true); setLoading(false) }
+  }, [])
+
+  async function runInner(forceReset) {
     setLoading(true); setError(false)
     const CACHE_KEY = 'afik_news_board_v11'
     const readCache = () => { try { return JSON.parse(localStorage.getItem(CACHE_KEY) || 'null') } catch { return null } }
@@ -2530,7 +2536,7 @@ function useRotatingNews() {
     } catch {}
 
     setArticles(board); setLoading(false)
-  }, [])
+  }
 
   useEffect(() => { run() }, [run])
 
