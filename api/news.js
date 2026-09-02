@@ -5,7 +5,7 @@
 //   4. Render (legacy) : last resort, filtered
 // Every path is filtered through lib/news/classify.js. Add ?debug=1 for timings and per-source results.
 
-import { fetchAllSources, outletKey, outletCap, titleKey, cleanTitle, deduplicateImages, isArticleImage, RSS_HEADERS } from '../lib/news/sources.js'
+import { fetchAllSources, outletKey, outletCap, titleKey, cleanTitle, deduplicateImages, fetchOGImage } from '../lib/news/sources.js'
 import { scoreRealEstate } from '../lib/news/classify.js'
 
 const RENDER   = process.env.RENDER_URL || 'https://afik-hanahal-server.onrender.com'
@@ -40,22 +40,6 @@ function dedupe(list) {
   return list.filter(a => { const k = titleKey(a.title); if (seen.has(k)) return false; seen.add(k); return true })
 }
 const valid = a => a?.title && a.image && scoreRealEstate(a.title).ok
-
-async function fetchOGImage(url) {
-  try {
-    const r = await fetch(url, { headers: { ...RSS_HEADERS, Accept: 'text/html,application/xhtml+xml,*/*' }, signal: AbortSignal.timeout(2500), redirect: 'follow' })
-    if (!r.ok) return ''
-    try { if (new URL(r.url).hostname.includes('google.com')) return '' } catch {}
-    const html = (await r.text()).slice(0, 200_000)
-    const img = (
-      html.match(/<meta[^>]+property=["']og:image(?::url)?["'][^>]+content=["']([^"']+)["']/i) ||
-      html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image(?::url)?["']/i) ||
-      html.match(/<meta[^>]+name=["']twitter:image(?::src)?["'][^>]+content=["']([^"']+)["']/i) ||
-      html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image(?::src)?["']/i)
-    )?.[1]?.replace(/&amp;/g, '&').trim() || ''
-    return isArticleImage(img) ? img : ''
-  } catch { return '' }
-}
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
@@ -116,7 +100,7 @@ export default async function handler(req, res) {
     if (articles.length) {
       const needImg = articles.filter(a => !a.image).slice(0, 6)
       if (needImg.length) {
-        const og = await Promise.allSettled(needImg.map(a => fetchOGImage(a.url)))
+        const og = await Promise.allSettled(needImg.map(a => fetchOGImage(a.url, 2500)))
         const m = new Map(needImg.map((a, i) => [a.id, og[i].status === 'fulfilled' ? og[i].value : '']))
         articles = articles.map(a => (!a.image && m.has(a.id)) ? { ...a, image: m.get(a.id) || '' } : a)
       }
@@ -126,10 +110,10 @@ export default async function handler(req, res) {
       if (SUPA_URL && SUPA_KEY) {
         try {
           const rows = articles.filter(a => a.image).slice(0, 30).map(a => ({
-            title: a.title.slice(0, 500), url: a.url, image: a.image, source: a.source, published_at: a.publishedAt, lang: 'he', archived: false,
+            id: a.url, title: a.title.slice(0, 500), url: a.url, image: a.image, source: a.source, published_at: a.publishedAt, lang: 'he', archived: false,
           }))
           if (rows.length) {
-            const ir = await fetch(`${SUPA_URL}/rest/v1/news_articles?on_conflict=url`, {
+            const ir = await fetch(`${SUPA_URL}/rest/v1/news_articles?on_conflict=id`, {
               method: 'POST', body: JSON.stringify(rows), signal: AbortSignal.timeout(3000),
               headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}`, 'Content-Type': 'application/json', Prefer: 'resolution=ignore-duplicates,return=minimal' },
             })

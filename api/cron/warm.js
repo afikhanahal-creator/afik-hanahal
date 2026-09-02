@@ -9,8 +9,9 @@
 // Requires: SUPABASE_URL + SUPABASE_SERVICE_KEY (Vercel env vars). Safe to call manually:
 //   GET https://afikhanahal.co.il/api/cron/warm   → then   GET /api/cron/rotate
 
-import { fetchAllSources, outletKey, outletCap, titleKey, cleanTitle } from '../../lib/news/sources.js'
+import { fetchAllSources, outletKey, outletCap, titleKey, cleanTitle, isTrustedSource, fetchOGImage, mapWithBudget } from '../../lib/news/sources.js'
 import { scoreRealEstate } from '../../lib/news/classify.js'
+import { resolveGoogleNewsUrl, isGoogleNewsUrl } from '../../lib/news/gnews.js'
 
 const RENDER      = process.env.RENDER_URL   || 'https://afik-hanahal-server.onrender.com'
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN  || 'AFIKhanahal2026'
@@ -57,7 +58,7 @@ async function supaDeleteIds(ids) {
 async function ingest(log) {
   const since = Date.now() - INGEST_WINDOW_DAYS * 864e5
   // hard 30s budget: the function must still have time to classify, insert and sweep inside maxDuration
-  const all = await fetchAllSources({ timeoutMs: 8000, concurrency: 12, deadlineMs: 30000, log: m => log.push(`[fetch] ${m}`) })
+  const all = await fetchAllSources({ timeoutMs: 8000, concurrency: 16, deadlineMs: 18000, log: m => log.push(`[fetch] ${m}`) })
 
   const rejected = {}
   const seen = new Set()
@@ -85,27 +86,42 @@ async function ingest(log) {
   log.push(`[ingest] fetched=${all.length} kept=${kept.length} balanced=${balanced.length} rejected=${JSON.stringify(rejected)}`)
   if (!balanced.length) return { inserted: 0, outlets: [] }
 
-  // skip URLs we already have
+  // Google News links are redirects with no image → resolve to the publisher URL, then og:image.
+  // Bounded: 6 in parallel, 22 s in total; whatever doesn't finish keeps its GN link (and no image).
+  const t1 = Date.now()
+  const gnItems = balanced.filter(a => isGoogleNewsUrl(a.url))
+  const resolved = await mapWithBudget(gnItems, a => resolveGoogleNewsUrl(a.url, { timeoutMs: 5000 }), { concurrency: 6, budgetMs: 14000 })
+  let nRes = 0
+  gnItems.forEach((a, i) => { if (resolved[i]) { a.url = resolved[i]; a.key = outletKey(a.url, a.source); nRes++ } })
+  const needImg = balanced.filter(a => !a.image && !isGoogleNewsUrl(a.url))
+  const imgs = await mapWithBudget(needImg, a => fetchOGImage(a.url, 3000), { concurrency: 8, budgetMs: Math.max(3000, 22000 - (Date.now() - t1)) })
+  let nImg = 0
+  needImg.forEach((a, i) => { if (imgs[i]) { a.image = imgs[i]; nImg++ } })
+  log.push(`[ingest] google-news resolved ${nRes}/${gnItems.length}, og:image found ${nImg}/${needImg.length} (${Date.now() - t1} ms)`)
+
+  // skip URLs we already have (the upsert below ignores duplicates too — this just keeps the payload small)
   let existing = new Set()
   try {
     const rows = await supaGet([['select', 'url'], ['lang', 'eq.he'], ['published_at', `gte.${new Date(since - 5 * 864e5).toISOString()}`]])
     existing = new Set(rows.map(r => r.url))
   } catch (e) { log.push(`[ingest] existing-url read failed: ${e.message}`) }
 
-  const rows = balanced.filter(a => !existing.has(a.url)).map(a => ({
+  const seenUrl = new Set()
+  const rows = balanced.filter(a => !existing.has(a.url) && !seenUrl.has(a.url) && seenUrl.add(a.url)).map(a => ({
+    id: a.url,                       // the table's id is the URL (NOT NULL, no default — Render's convention)
     title: a.title.slice(0, 500), url: a.url, image: a.image || null, source: a.source,
     published_at: a.publishedAt, lang: 'he', archived: false,
   }))
   if (!rows.length) return { inserted: 0, outlets: [], note: 'all already stored' }
 
-  const r = await fetch(`${SUPA_URL}/rest/v1/news_articles`, {
-    method: 'POST', headers: supaHeaders({ 'Content-Type': 'application/json', Prefer: 'return=minimal' }),
+  const r = await fetch(`${SUPA_URL}/rest/v1/news_articles?on_conflict=id`, {
+    method: 'POST', headers: supaHeaders({ 'Content-Type': 'application/json', Prefer: 'resolution=ignore-duplicates,return=minimal' }),
     body: JSON.stringify(rows), signal: AbortSignal.timeout(8000),
   })
   if (!r.ok) throw new Error(`insert ${r.status}: ${(await r.text().catch(() => '')).slice(0, 160)}`)
   const outlets = [...new Set(rows.map(a => outletKey(a.url, a.source)))]
   log.push(`[ingest] inserted=${rows.length} outlets=${outlets.length}: ${outlets.join(', ')}`)
-  return { inserted: rows.length, outlets }
+  return { inserted: rows.length, withImage: rows.filter(a => a.image).length, outlets }
 }
 
 // ── 4. Sweep: delete off-topic rows, archive per-outlet overflow ──────────────
@@ -115,7 +131,7 @@ async function sweep(log) {
     ['published_at', `gte.${since}`], ['order', 'published_at.desc']], 1000)
 
   // 4a. off-topic → delete (title only — stored rows have no description)
-  const bad = rows.filter(r => !scoreRealEstate(r.title).ok)
+  const bad = rows.filter(r => !scoreRealEstate(r.title, '', { trusted: isTrustedSource(r.source) }).ok)
   const badIds = new Set(bad.map(r => r.id))
   const deleted = bad.length ? await supaDeleteIds(bad.map(r => r.id)) : 0
   if (bad.length) log.push(`[sweep] deleted ${deleted}/${bad.length} off-topic: ${bad.slice(0, 6).map(r => `${r.source}: ${r.title.slice(0, 40)}`).join(' | ')}`)
