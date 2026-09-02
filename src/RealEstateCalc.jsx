@@ -96,7 +96,7 @@ function CalcGradientBg() {
       onMouseMove={handleMouseMove}
       style={{
         position: 'absolute', inset: 0, zIndex: 0,
-        background: 'linear-gradient(40deg, rgb(10,4,38) 0%, rgb(4,2,24) 100%)',
+        background: 'linear-gradient(40deg, rgb(38,29,84) 0%, rgb(24,17,60) 100%)',
         overflow: 'hidden', borderRadius: 24,
       }}>
 
@@ -289,8 +289,8 @@ export default function RealEstateCalc({ onClose }) {
 
   const INP = {
     width: '100%', padding: '16px 20px',
-    background: 'rgba(255,255,255,0.06)',
-    border: '1px solid rgba(132,144,216,0.25)',
+    background: 'rgba(12,8,34,0.45)',
+    border: '1px solid rgba(132,144,216,0.38)',
     borderRadius: 14, color: CRM,
     fontSize: 11,
     fontFamily: 'Rubik,inherit',
@@ -439,7 +439,7 @@ export default function RealEstateCalc({ onClose }) {
             display:flex !important;
             position:fixed; top:14px; left:12px; z-index:10001;
             height:44px; padding:0 18px; border-radius:22px;
-            background:rgba(6,3,22,0.97);
+            background:rgba(30,23,68,0.97);
             border:2px solid rgba(232,228,216,0.32);
             color:#E8E4D8; font-size:13px; font-weight:700;
             font-family:Rubik,sans-serif; letter-spacing:.03em;
@@ -502,7 +502,7 @@ export default function RealEstateCalc({ onClose }) {
           borderRadius: 26,
           padding: 2,
           '--bh-rot': '4.2rad',
-          background: 'linear-gradient(calc(var(--bh-rot, 4.2rad)), #8490D8 0%, rgb(4,2,24) 32%, rgb(14,8,48) 65%, transparent 100%)',
+          background: 'linear-gradient(calc(var(--bh-rot, 4.2rad)), #8490D8 0%, rgb(26,19,62) 32%, rgb(40,28,92) 65%, transparent 100%)',
           animation: 'rcCalcIn .42s cubic-bezier(0.16,1,0.3,1) both',
           flexShrink: 0,
           transform: `translateX(${dragX}px)`,
@@ -528,7 +528,7 @@ export default function RealEstateCalc({ onClose }) {
         {/* Glass overlay on top of gradient */}
         <div style={{
           position: 'absolute', inset: 0, zIndex: 1,
-          background: 'rgba(6,4,20,0.72)',
+          background: 'rgba(30,23,68,0.58)',
           backdropFilter: 'blur(0px)',
           borderRadius: 24,
           pointerEvents: 'none',
