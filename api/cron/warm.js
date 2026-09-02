@@ -56,7 +56,8 @@ async function supaDeleteIds(ids) {
 // ── 1-3. Ingest ───────────────────────────────────────────────────────────────
 async function ingest(log) {
   const since = Date.now() - INGEST_WINDOW_DAYS * 864e5
-  const all = await fetchAllSources({ timeoutMs: 8000, concurrency: 10, log: m => log.push(`[fetch] ${m}`) })
+  // hard 30s budget: the function must still have time to classify, insert and sweep inside maxDuration
+  const all = await fetchAllSources({ timeoutMs: 8000, concurrency: 12, deadlineMs: 30000, log: m => log.push(`[fetch] ${m}`) })
 
   const rejected = {}
   const seen = new Set()

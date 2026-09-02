@@ -183,9 +183,10 @@
     <!-- ── Google Fonts: preconnect + load with fallback display ── -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;700&display=swap" onload="this.onload=null;this.rel='stylesheet'" />
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700;800;900&display=swap" media="print" onload="this.media='all'" />
-    <noscript><link href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" /></noscript>
+    <!-- one stylesheet request, only the weights the site actually uses (was: two overlapping requests for 3 + 7 weights) -->
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800;900&display=swap" />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800;900&display=swap" media="print" onload="this.media='all'" />
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" /></noscript>
 
     <!-- ── Reveal page once Rubik is ready (max 700 ms fallback) ── -->
     <script>
@@ -206,8 +207,8 @@
     <link rel="dns-prefetch" href="https://res.cloudinary.com" />
 
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="icon" type="image/png" href="/Afik-icon.png" />
-    <link rel="apple-touch-icon" href="/Afik-icon.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/img/icon-192.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/img/apple-touch-icon.png" />
 
     <meta name="description" content="אפיק הנחל - ייזום שיווק ותיווך | חברה יזמית מובילה לאיתור, שיווק וליווי עסקאות קרקע בכל רחבי ישראל. מומחים בשיווק ותיווך קרקעות בשרון והמרכז." />
     <meta property="og:title" content="אפיק הנחל - ייזום שיווק ותיווך | נדל״ן וקרקעות" />
@@ -328,13 +329,18 @@
     </script>
 
     <!-- ── Meta Pixel (deferred — loads after page paint) ── -->
+    <!-- Meta Pixel — deferred to idle time after load so it never competes with first paint (PageView still fires on every visit) -->
     <script>
-      window.addEventListener('load', function() {
-        !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
-        fbq('init', '1341264237748951');
-        fbq('init', '1311196023271539');
-        fbq('track', 'PageView');
-      });
+      (function(){
+        function initPixel(){
+          !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
+          fbq('init', '1341264237748951');
+          fbq('init', '1311196023271539');
+          fbq('track', 'PageView');
+        }
+        function whenIdle(){ if ('requestIdleCallback' in window) requestIdleCallback(initPixel, { timeout: 3000 }); else setTimeout(initPixel, 1500); }
+        if (document.readyState === 'complete') whenIdle(); else window.addEventListener('load', whenIdle);
+      })();
     </script>
 
     <!-- Accessibility FOUC prevention: re-apply saved classes before React hydrates -->
