@@ -2464,23 +2464,30 @@ function normalizeArticle(a) {
 }
 const newsKey = a => (a.title || '').replace(/\s+/g, '').slice(0, 30)
 
-// ── Fetch the board — /api/news (curated in Supabase by /api/cron/rotate) is the source of truth.
-// The legacy Render feed is only consulted when Vercel comes back short, and EVERYTHING is
-// re-checked by the shared real-estate classifier so nothing off-topic can reach a card.
+// ── Fetch the board. Order of trust, each step only if the previous came back short:
+//   /api/news          curated board (+ verified pool) — normally answers in ~100 ms
+//   /api/news/archive  every verified stored article — a plain Supabase read, always fast
+//   Render (legacy)    last resort
+// Everything is re-checked by the shared real-estate classifier so nothing off-topic reaches a card.
 async function fetchFreshArticles() {
   const get = (u, ms) => fetch(u, { signal: AbortSignal.timeout(ms) }).then(r => r.ok ? r.json() : []).catch(() => [])
-  let list = await get('/api/news', 22000)
-  if (!Array.isArray(list)) list = []
-  if (list.length < SLOT_COUNT) {
-    const extra = await get(`${SERVER_URL}/api/news/feed`, 15000)
-    if (Array.isArray(extra)) list = [...list, ...extra]
-  }
+  const clean = list => (Array.isArray(list) ? list : []).filter(a => a?.title && (a.url || a.link)).filter(isRealEstateArticle).map(normalizeArticle)
   const seen = new Set()
+  const merge = (acc, more) => [...acc, ...more].filter(a => { const k = newsKey(a); if (seen.has(k)) return false; seen.add(k); return true })
+
+  let list = merge([], clean(await get('/api/news', 16000)))
+  if (list.length < SLOT_COUNT) list = merge(list, clean(await get('/api/news/archive', 8000)))
+  if (list.length < SLOT_COUNT) list = merge(list, clean(await get(`${SERVER_URL}/api/news/feed`, 10000)))
   return list
-    .filter(a => a?.title && (a.url || a.link))
-    .filter(isRealEstateArticle)
-    .map(normalizeArticle)
-    .filter(a => { const k = newsKey(a); if (seen.has(k)) return false; seen.add(k); return true })
+}
+
+// First SLOT_COUNT cards: images first, and as many different outlets as possible
+function pickBoard(list) {
+  const withImg = [...list.filter(a => a.image), ...list.filter(a => !a.image)]
+  const used = new Set(), board = []
+  for (const a of withImg) { const k = (a.source || '').trim(); if (board.length < SLOT_COUNT && !used.has(k)) { board.push(a); used.add(k) } }
+  for (const a of withImg) { if (board.length >= SLOT_COUNT) break; if (!board.includes(a)) board.push(a) }
+  return board
 }
 
 // The server swaps 2 of the 4 cards every morning (/api/cron/rotate). The client just shows the
@@ -2511,7 +2518,7 @@ function useRotatingNews() {
       setError(true); setLoading(false); return
     }
 
-    const board = [...fresh.filter(a => a.image), ...fresh.filter(a => !a.image)].slice(0, SLOT_COUNT)
+    const board = pickBoard(fresh)
     try { localStorage.setItem(CACHE_KEY, JSON.stringify({ articles: board, ts: Date.now() })) } catch {}
 
     // Local archive of everything seen — the archive modal's offline fallback
