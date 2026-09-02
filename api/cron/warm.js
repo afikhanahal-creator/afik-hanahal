@@ -1,306 +1,174 @@
-// Vercel cron — every 2 hours:
-//   1. Fetches RSS from 39 real-estate sources in parallel
-//   2. Filters to Hebrew real-estate articles from the last 7 days
-//   3. Balances sources (max 3 per outlet) then upserts new articles to Supabase
-//   4. Pings Render to keep the free-tier server alive
-// schedule: "0 */2 * * *"   maxDuration: 15
+// Vercel cron — daily ingest (runs BEFORE /api/cron/rotate — see vercel.json):
+//   1. Fetches every source in lib/news/sources.js (direct RSS + Google News topics/sites)
+//   2. Keeps only Hebrew real-estate articles (lib/news/classify.js) from the last 10 days
+//   3. Caps each outlet so big publishers don't crowd out specialist sites, upserts to Supabase
+//   4. Sweeps the last 45 days of stored rows through the same classifier and DELETES
+//      anything off-topic — so the archive is real-estate-only too
+//   5. Pings Render to keep the legacy server alive
+//
+// Requires: SUPABASE_URL + SUPABASE_SERVICE_KEY (Vercel env vars). Safe to call manually:
+//   GET https://afikhanahal.co.il/api/cron/warm   → then   GET /api/cron/rotate
 
-const RENDER      = process.env.RENDER_URL       || 'https://afik-hanahal-server.onrender.com'
-const ADMIN_TOKEN = process.env.ADMIN_TOKEN       || 'AFIKhanahal2026'
-const SUPA_URL    = process.env.SUPABASE_URL      || process.env.VITE_SUPABASE_URL
+import { fetchAllSources, outletKey, outletCap, titleKey, cleanTitle } from '../../lib/news/sources.js'
+import { scoreRealEstate } from '../../lib/news/classify.js'
+
+const RENDER      = process.env.RENDER_URL   || 'https://afik-hanahal-server.onrender.com'
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN  || 'AFIKhanahal2026'
+const SUPA_URL    = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
 const SUPA_KEY    = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY
-// Major news sites publish many articles/day — cap lower so small sites get slots
-const BIG_SOURCES  = new Set(['ynet', 'maariv', 'globes', 'calcalist', 'themarker', 'mako', 'walla', 'israelhayom', 'bizportal.co.il'])
-const MAX_BIG      = 2   // max articles per major outlet per cron run
-const MAX_SMALL    = 5   // max articles per small/specialist outlet per cron run
 
-// ── Source list — kept in sync with api/news.js ───────────────────────────────
-const RSS_SOURCES = [
-  // ערוצי חדשות גדולים (capped at MAX_BIG)
-  { name: 'Ynet נדל"ן',          url: 'https://www.ynet.co.il/Integration/StoryRss8315.xml'                                                       },
-  { name: 'Globes נדל"ן',        url: 'https://www.globes.co.il/webservice/rss/rssfeeder.asmx/FeederPage?iID=3'                                    },
-  { name: 'כלכליסט נדל"ן',       url: 'https://www.calcalist.co.il/rss/AID-1523869688.xml'                                                         },
-  { name: 'TheMarker נדל"ן',     url: 'https://www.themarker.com/cmlink/1.2-rss'                                                                   },
-  { name: 'Mako נדל"ן',          url: 'https://rss.mako.co.il/rss/31750a2610f26110VgnVCM1000005201000aRCRD.xml'                                    },
-  { name: 'מעריב נדל"ן',         url: 'https://www.maariv.co.il/rss/rssfeedsinglkategoriya,7213.xml'                                               },
-  { name: 'ישראל היום נדל"ן',    url: 'https://www.israelhayom.co.il/rss.php?cat=7'                                                                },
-  { name: 'וואלה נדל"ן',         url: 'https://rss.walla.co.il/feed/6'                                                                             },
-  { name: 'ביזפורטל נדל"ן',      url: 'https://www.bizportal.co.il/rss/realestate'                                                                 },
-  // מגזינים, פורטלים ובלוגים מקצועיים (capped at MAX_SMALL)
-  { name: 'BVD בניין ודיור',     url: 'https://www.bhd.co.il/feed/'                                                                               },
-  { name: 'ZUZNEWS',              url: 'https://zuznews.co.il/feed/'                                                                               },
-  { name: 'מרכז הנדל"ן',          url: 'https://www.nadlan-center.co.il/feed/'                                                                     },
-  { name: 'נדלן מאסטר',           url: 'https://nadlanmaster.co.il/feed/'                                                                         },
-  { name: 'מגדילים',              url: 'https://magdilim.co.il/feed/'                                                                             },
-  { name: 'Duns 100 נדל"ן',       url: 'https://www.duns100.co.il/feed/'                                                                          },
-  { name: 'CivilEng',             url: 'https://civileng.co.il/feed/'                                                                             },
-  { name: 'בית ונוי',              url: 'https://beitvanoy.co.il/feed/'                                                                           },
-  { name: 'עמית והגר Baddror',    url: 'https://baddror.co.il/feed/'                                                                              },
-  { name: 'נדלניר',               url: 'https://nadlannir.co.il/feed/'                                                                            },
-  { name: 'גורו נדלן',            url: 'https://gurunadlan.co.il/feed/'                                                                           },
-  { name: 'Brookwood נדלן',       url: 'https://brookwood.co.il/blog/feed/'                                                                        },
-  { name: 'רשת ברוקר נדל"ן',      url: 'https://broker-nadlan.co.il/feed/'                                                                        },
-  { name: 'מגזין הבלוק',          url: 'https://theblok.co.il/feed/'                                                                              },
-  { name: 'קפטן אינווסט',         url: 'https://captain-invest.co.il/feed/'                                                                       },
-  { name: "נדל\"ן בג'ינס",        url: 'https://nadlanbejeans.co.il/feed/'                                                                        },
-  { name: 'מדלן',                 url: 'https://www.madlan.co.il/blog/feed/'                                                                      },
-  { name: 'NADLAN.COM',           url: 'https://www.nadlan.com/feed/'                                                                             },
-  { name: 'השקעות נדל"ן בחו"ל',  url: 'https://israelforestrealestate.co.il/feed/'                                                               },
-  { name: 'קליקת הנדל"ן',         url: 'https://klikat-nadlan.co.il/feed/'                                                                       },
-  // Google News — נושאים נבחרים (GN articles often originate from many outlets)
-  { name: 'Google נדל"ן',        url: 'https://news.google.com/rss/search?q=%D7%A0%D7%93%D7%9C%22%D7%9F+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he',                                                                     gn: true },
-  { name: 'Google דירות',        url: 'https://news.google.com/rss/search?q=%D7%9E%D7%97%D7%99%D7%A8%D7%99+%D7%93%D7%99%D7%A8%D7%95%D7%AA+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he',                                   gn: true },
-  { name: 'Google קרקעות',       url: 'https://news.google.com/rss/search?q=%D7%A7%D7%A8%D7%A7%D7%A2%D7%95%D7%AA+%D7%9C%D7%9E%D7%9B%D7%99%D7%A8%D7%94+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he',                       gn: true },
-  { name: 'Google משכנתאות',     url: 'https://news.google.com/rss/search?q=%D7%9E%D7%A9%D7%9B%D7%A0%D7%AA%D7%90%D7%95%D7%AA+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he',                                               gn: true },
-  { name: 'Google פינוי בינוי',  url: 'https://news.google.com/rss/search?q=%D7%A4%D7%99%D7%A0%D7%95%D7%99+%D7%91%D7%99%D7%A0%D7%95%D7%99+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he',                                   gn: true },
-  { name: 'Google התחדשות',      url: 'https://news.google.com/rss/search?q=%D7%94%D7%AA%D7%97%D7%93%D7%A9%D7%95%D7%AA+%D7%A2%D7%99%D7%A8%D7%95%D7%A0%D7%99%D7%AA&hl=he&gl=IL&ceid=IL:he',                                         gn: true },
-  { name: 'Google שוק הנדל"ן',   url: 'https://news.google.com/rss/search?q=%D7%A9%D7%95%D7%A7+%D7%94%D7%93%D7%99%D7%95%D7%A8+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he',                                             gn: true },
-  { name: 'Google קבלנים',       url: 'https://news.google.com/rss/search?q=%D7%A7%D7%91%D7%9C%D7%A0%D7%99%D7%9D+%D7%91%D7%A0%D7%99%D7%99%D7%94+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he',                           gn: true },
-  { name: 'Google שכר דירה',     url: 'https://news.google.com/rss/search?q=%D7%A9%D7%9B%D7%A8+%D7%93%D7%99%D7%A8%D7%94+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he',                                                   gn: true },
-  { name: 'Google השקעות נדלן',  url: 'https://news.google.com/rss/search?q=%D7%94%D7%A9%D7%A7%D7%A2%D7%95%D7%AA+%D7%A0%D7%93%D7%9C%D7%9F+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he',                                 gn: true },
-  { name: 'Google נדלן מסחרי',   url: 'https://news.google.com/rss/search?q=%D7%A0%D7%93%D7%9C%D7%9F+%D7%9E%D7%A1%D7%97%D7%A8%D7%99+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he',                                       gn: true },
-  { name: 'Google קניית דירה',   url: 'https://news.google.com/rss/search?q=%D7%A7%D7%A0%D7%99%D7%99%D7%AA+%D7%93%D7%99%D7%A8%D7%94+%D7%99%D7%A9%D7%A8%D7%90%D7%9C&hl=he&gl=IL&ceid=IL:he',                                       gn: true },
-  { name: 'Google ICE נדל"ן',    url: 'https://news.google.com/rss/search?q=site%3Aice.co.il+%D7%A0%D7%93%D7%9C%D7%9F&hl=he&gl=IL&ceid=IL:he', gn: true },
-  { name: 'Google N12 נדל"ן',    url: 'https://news.google.com/rss/search?q=site%3An12.co.il+%D7%A0%D7%93%D7%9C%D7%9F&hl=he&gl=IL&ceid=IL:he', gn: true },
-  { name: 'Google יד2 נדל"ן',    url: 'https://news.google.com/rss/search?q=site%3Ayad2.co.il+%D7%A0%D7%93%D7%9C%D7%9F&hl=he&gl=IL&ceid=IL:he', gn: true },
-  { name: 'Google רשות מיסים',   url: 'https://news.google.com/rss/search?q=%D7%A8%D7%A9%D7%95%D7%AA+%D7%94%D7%9E%D7%99%D7%A1%D7%99%D7%9D+%D7%9E%D7%99%D7%A1%D7%95%D7%99+%D7%9E%D7%A7%D7%A8%D7%A7%D7%A2%D7%99%D7%9F&hl=he&gl=IL&ceid=IL:he', gn: true },
-  { name: 'Google מדלן',         url: 'https://news.google.com/rss/search?q=site%3Amadlan.co.il&hl=he&gl=IL&ceid=IL:he', gn: true },
-  { name: 'Google Bizportal',    url: 'https://news.google.com/rss/search?q=site%3Abizportal.co.il+%D7%A0%D7%93%D7%9C%D7%9F&hl=he&gl=IL&ceid=IL:he', gn: true },
-]
+const INGEST_WINDOW_DAYS = 10   // how far back a freshly-seen article may be dated
+const SWEEP_WINDOW_DAYS  = 45   // how far back the off-topic sweep looks
+const POOL_PER_OUTLET    = 10   // rolling cap of non-featured articles per outlet (older → archived)
 
-const HE_RE     = /[א-ת]/
-const RE_FILTER = /נדל|דיר[הות]|דיור|שכיר[ות]|שוכר|משכיר|קרק[ע]|מגרש|משכנת|פינוי.?בינוי|התחדשות.?עירונית|מקרקעין|טאבו|קבלן|יזם|בנייה|בניין|תמ.?א|מגורים|כפר.?סבא|רעננה|נתניה|הוד.?השרון|ראשון.?לציון|פתח.?תקווה|רמת.?גן|בני.?ברק|שוק.?הנד|מחיר.*דיר|רכישת.?דיר|דירה.*למכיר|למכיר.*דיר|אחוזי.?מימון|ריבית.*משכנת|כינוס.?נכסים|הלוואת.?נדל|שכר.?דירה|שוכרים|מתחם|יח.?ד|בנייה.?רוויה|פרויקט|ביצוע.?בינוי|רוכשי.?דיר|שוק.?הדיור|דמי.?שכירות/i
+const supaHeaders = extra => ({ apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}`, Accept: 'application/json', ...extra })
 
-const DOMAIN_KEY = {
-  'ynet.co.il': 'ynet', 'ynetnews.com': 'ynet',
-  'globes.co.il': 'globes',
-  'calcalist.co.il': 'calcalist',
-  'themarker.com': 'themarker', 'haaretz.co.il': 'themarker',
-  'mako.co.il': 'mako', 'n12.co.il': 'mako',
-  'maariv.co.il': 'maariv',
-  'walla.co.il': 'walla',
-  'israelhayom.co.il': 'israelhayom',
-  'ice.co.il': 'ice',
-  'yad2.co.il': 'yad2',
-  'nadlan20.co.il': 'nadlan20',
+async function supaGet(params, limit = 1000) {
+  const u = new URL(`${SUPA_URL}/rest/v1/news_articles`)
+  params.forEach(([k, v]) => u.searchParams.append(k, v))
+  u.searchParams.append('limit', String(limit))
+  const r = await fetch(u, { headers: supaHeaders(), signal: AbortSignal.timeout(8000) })
+  if (!r.ok) throw new Error(`Supabase GET ${r.status}: ${(await r.text().catch(() => '')).slice(0, 160)}`)
+  return r.json()
 }
+// PostgREST `in.()` — values double-quoted so ids with commas/parens are safe
+const inList = ids => `in.(${ids.map(id => `"${String(id).replace(/"/g, '')}"`).join(',')})`
 
-const HEADERS = {
-  'User-Agent':    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124 Safari/537.36',
-  'Accept':        'application/xml,text/xml,application/rss+xml,*/*;q=0.8',
-  'Accept-Language': 'he-IL,he;q=0.9,en-US;q=0.8',
-}
-
-function outletKey(url) {
-  try {
-    const h = new URL(url).hostname.replace(/^www\./, '')
-    return DOMAIN_KEY[h] || h
-  } catch { return '' }
-}
-
-function parseRSS(xml, sourceName, isGN = false) {
-  const items = []
-  const itemRe = /<item[^>]*>([\s\S]*?)<\/item>/g
-  let m
-  while ((m = itemRe.exec(xml)) !== null) {
-    const c = m[1]
-    const g = re => (c.match(re) || [])[1]?.trim()
-      ?.replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#39;/g,"'") || ''
-
-    const rawTitle = g(/<title[^>]*>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/title>/)
-    const link     = g(/<link[^>]*>(?:<!\[CDATA\[)?\s*(https?:\/\/[^\s<\]]+?)\s*(?:\]\]>)?<\/link>/)
-               || g(/<guid[^>]*>(?:<!\[CDATA\[)?\s*(https?:\/\/[^\s<\]]+?)\s*(?:\]\]>)?<\/guid>/)
-    const pubDate  = g(/<pubDate[^>]*>(?:<!\[CDATA\[)?([\s\S]*?)(?:\]\]>)?<\/pubDate>/)
-
-    const extractTagUrl = tag => {
-      const t = c.match(new RegExp(`<${tag}[^>]*>`))?.[0] || ''
-      return (t.match(/url=["']([^"']+)["']/) || [])[1] || ''
-    }
-    const imgMedia = extractTagUrl('media:content') || extractTagUrl('media:thumbnail')
-    const imgEnc   = g(/<enclosure[^>]+type=["']image[^"']*["'][^>]+url=["']([^"']+)["']/)
-               || g(/<enclosure[^>]+url=["']([^"']+)["'][^>]+type=["']image[^"']*["']/)
-    const rawDesc  = (c.match(/<description[^>]*>([\s\S]*?)<\/description>/) || [])[1] || ''
-    const descDec  = rawDesc.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g,'$1')
-      .replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&amp;/g,'&')
-    const imgDesc  = (descDec.match(/<img[^>]+src=["']([^"']+)["']/) || [])[1] || ''
-
-    const rawImg = imgMedia || imgEnc || imgDesc || ''
-    const isGoodImg = url => {
-      if (!url || !url.startsWith('http') || url.length < 24) return false
-      const u = url.toLowerCase()
-      return !u.includes('logo') && !u.includes('favicon') && !u.includes('icon') &&
-             !u.includes('default') && !u.includes('placeholder') && !u.includes('blank') &&
-             !u.includes('avatar') && !u.includes('pixel') && !u.includes('spacer') &&
-             !u.includes('1x1') && !u.endsWith('.svg') && !u.endsWith('.gif')
-    }
-    const image = isGoodImg(rawImg) ? rawImg : ''
-
-    if (!rawTitle || !link) continue
-    const title = rawTitle.replace(/<[^>]+>/g, '').trim()
-    const date  = pubDate ? new Date(pubDate) : new Date()
-
-    let articleUrl    = link
-    let displaySource = sourceName
-    if (isGN) {
-      const realHref = descDec.match(/href=["']?(https?:\/\/(?!news\.google)[^"'\s>]+)/i)
-      if (realHref) articleUrl = realHref[1]
-      const gnSrc = g(/<source[^>]*>([^<]+)<\/source>/)
-      if (gnSrc) displaySource = gnSrc
-    }
-
-    items.push({ title, url: articleUrl, image, source: displaySource,
-      publishedAt: isNaN(date) ? new Date().toISOString() : date.toISOString() })
+async function supaPatchIds(ids, body) {
+  for (let i = 0; i < ids.length; i += 50) {
+    const u = new URL(`${SUPA_URL}/rest/v1/news_articles`)
+    u.searchParams.set('id', inList(ids.slice(i, i + 50)))
+    await fetch(u, { method: 'PATCH', headers: supaHeaders({ 'Content-Type': 'application/json', Prefer: 'return=minimal' }),
+      body: JSON.stringify(body), signal: AbortSignal.timeout(8000) }).catch(() => {})
   }
-  return items
+}
+async function supaDeleteIds(ids) {
+  let n = 0
+  for (let i = 0; i < ids.length; i += 50) {
+    const u = new URL(`${SUPA_URL}/rest/v1/news_articles`)
+    u.searchParams.set('id', inList(ids.slice(i, i + 50)))
+    const r = await fetch(u, { method: 'DELETE', headers: supaHeaders({ Prefer: 'return=minimal' }), signal: AbortSignal.timeout(8000) }).catch(() => null)
+    if (r?.ok) n += Math.min(50, ids.length - i)
+  }
+  return n
 }
 
-async function refreshSupabase() {
-  if (!SUPA_URL || !SUPA_KEY) return { count: 0, note: 'no Supabase config' }
+// ── 1-3. Ingest ───────────────────────────────────────────────────────────────
+async function ingest(log) {
+  const since = Date.now() - INGEST_WINDOW_DAYS * 864e5
+  const all = await fetchAllSources({ timeoutMs: 8000, concurrency: 10, log: m => log.push(`[fetch] ${m}`) })
 
-  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 3600 * 1000)
-
-  // 1. Fetch all RSS sources in parallel (7s timeout each)
-  const raw = await Promise.allSettled(
-    RSS_SOURCES.map(async ({ name, url, gn = false }) => {
-      try {
-        const r = await fetch(url, { headers: HEADERS, signal: AbortSignal.timeout(7000) })
-        if (!r.ok) return []
-        const parsed = parseRSS(await r.text(), name, gn)
-        console.log(`[warm] ${name}: ${parsed.length} articles`)
-        return parsed
-      } catch (e) {
-        console.warn(`[warm] ${name}: ${e.message}`)
-        return []
-      }
-    })
-  )
-
-  const all = raw.flatMap(r => r.status === 'fulfilled' ? r.value : [])
-
-  // 2. Filter: Hebrew, real-estate, within 7 days, dedup by title
+  const rejected = {}
   const seen = new Set()
-  const filtered = all.filter(a => {
-    if (!a.title || !a.url) return false
-    if (!HE_RE.test(a.title)) return false
-    if (!RE_FILTER.test(a.title)) return false
-    if (new Date(a.publishedAt) < sevenDaysAgo) return false
-    const key = a.title.replace(/\s+/g, '').slice(0, 30)
-    if (seen.has(key)) return false
-    seen.add(key); return true
-  })
+  const kept = []
+  // direct feeds first so they win dedupe over Google News duplicates
+  const ordered = [...all.filter(a => !a.gn), ...all.filter(a => a.gn)]
+    .sort((a, b) => (b.gn ? 0 : 1) - (a.gn ? 0 : 1) || new Date(b.publishedAt) - new Date(a.publishedAt))
+  for (const a of ordered) {
+    if (new Date(a.publishedAt).getTime() < since) { rejected.old = (rejected.old || 0) + 1; continue }
+    const title = cleanTitle(a.title, a.gn)
+    const s = scoreRealEstate(title, a.desc, { trusted: a.trusted })
+    if (!s.ok) { rejected[s.reason] = (rejected[s.reason] || 0) + 1; continue }
+    const k = titleKey(title)
+    if (seen.has(k)) { rejected.dup = (rejected.dup || 0) + 1; continue }
+    seen.add(k)
+    kept.push({ ...a, title, key: outletKey(a.url, a.source) })
+  }
 
-  // 3. Balance: tiered cap — big outlets max MAX_BIG, specialist outlets max MAX_SMALL
+  // per-outlet cap for this run, newest first
   const counts = {}
-  const balanced = filtered
+  const balanced = kept
     .sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt))
-    .filter(a => {
-      const key = outletKey(a.url) || a.source || ''
-      counts[key] = (counts[key] || 0) + 1
-      const cap = BIG_SOURCES.has(key) ? MAX_BIG : MAX_SMALL
-      return counts[key] <= cap
-    })
+    .filter(a => { counts[a.key] = (counts[a.key] || 0) + 1; return counts[a.key] <= outletCap(a.key) })
 
-  if (!balanced.length) return { count: 0, note: 'nothing passed filters' }
+  log.push(`[ingest] fetched=${all.length} kept=${kept.length} balanced=${balanced.length} rejected=${JSON.stringify(rejected)}`)
+  if (!balanced.length) return { inserted: 0, outlets: [] }
 
-  // 4. Fetch existing URLs from Supabase to skip duplicates
-  let existingUrls = new Set()
+  // skip URLs we already have
+  let existing = new Set()
   try {
-    const cutoff = encodeURIComponent(sevenDaysAgo.toISOString())
-    const er = await fetch(
-      `${SUPA_URL}/rest/v1/news_articles?select=url&lang=eq.he&published_at=gte.${cutoff}&limit=1000`,
-      { headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}`, Accept: 'application/json' },
-        signal: AbortSignal.timeout(4000) }
-    )
-    if (er.ok) existingUrls = new Set((await er.json()).map(a => a.url))
-  } catch {}
+    const rows = await supaGet([['select', 'url'], ['lang', 'eq.he'], ['published_at', `gte.${new Date(since - 5 * 864e5).toISOString()}`]])
+    existing = new Set(rows.map(r => r.url))
+  } catch (e) { log.push(`[ingest] existing-url read failed: ${e.message}`) }
 
-  const newRows = balanced
-    .filter(a => !existingUrls.has(a.url))
-    .map(a => ({
-      title:        a.title.slice(0, 500),
-      url:          a.url,
-      image:        a.image || null,
-      source:       a.source,
-      published_at: a.publishedAt,
-      lang:         'he',
-      archived:     false,
-    }))
+  const rows = balanced.filter(a => !existing.has(a.url)).map(a => ({
+    title: a.title.slice(0, 500), url: a.url, image: a.image || null, source: a.source,
+    published_at: a.publishedAt, lang: 'he', archived: false,
+  }))
+  if (!rows.length) return { inserted: 0, outlets: [], note: 'all already stored' }
 
-  if (!newRows.length) return { count: 0, note: 'all articles already in Supabase' }
-
-  // 5. Batch insert new articles
-  const ir = await fetch(`${SUPA_URL}/rest/v1/news_articles`, {
-    method: 'POST',
-    headers: {
-      apikey:         SUPA_KEY,
-      Authorization:  `Bearer ${SUPA_KEY}`,
-      'Content-Type': 'application/json',
-      Prefer:         'return=minimal',
-    },
-    body: JSON.stringify(newRows),
-    signal: AbortSignal.timeout(8000),
+  const r = await fetch(`${SUPA_URL}/rest/v1/news_articles`, {
+    method: 'POST', headers: supaHeaders({ 'Content-Type': 'application/json', Prefer: 'return=minimal' }),
+    body: JSON.stringify(rows), signal: AbortSignal.timeout(8000),
   })
+  if (!r.ok) throw new Error(`insert ${r.status}: ${(await r.text().catch(() => '')).slice(0, 160)}`)
+  const outlets = [...new Set(rows.map(a => outletKey(a.url, a.source)))]
+  log.push(`[ingest] inserted=${rows.length} outlets=${outlets.length}: ${outlets.join(', ')}`)
+  return { inserted: rows.length, outlets }
+}
 
-  if (!ir.ok) {
-    const t = await ir.text().catch(() => '')
-    console.error('[warm] insert failed:', ir.status, t.slice(0, 200))
-    return { count: 0, error: `Supabase ${ir.status}: ${t.slice(0, 100)}` }
+// ── 4. Sweep: delete off-topic rows, archive per-outlet overflow ──────────────
+async function sweep(log) {
+  const since = new Date(Date.now() - SWEEP_WINDOW_DAYS * 864e5).toISOString()
+  const rows = await supaGet([['select', 'id,title,url,source,featured,archived,published_at'], ['lang', 'eq.he'],
+    ['published_at', `gte.${since}`], ['order', 'published_at.desc']], 1000)
+
+  // 4a. off-topic → delete (title only — stored rows have no description)
+  const bad = rows.filter(r => !scoreRealEstate(r.title).ok)
+  const badIds = new Set(bad.map(r => r.id))
+  const deleted = bad.length ? await supaDeleteIds(bad.map(r => r.id)) : 0
+  if (bad.length) log.push(`[sweep] deleted ${deleted}/${bad.length} off-topic: ${bad.slice(0, 6).map(r => `${r.source}: ${r.title.slice(0, 40)}`).join(' | ')}`)
+
+  // 4b. same story stored twice (direct + GN) → keep the first (newest), delete the rest
+  const seen = new Set(); const dups = []
+  for (const r of rows) {
+    if (badIds.has(r.id)) continue
+    const k = titleKey(r.title)
+    if (seen.has(k) && !r.featured) dups.push(r.id); else seen.add(k)
   }
+  const dupDeleted = dups.length ? await supaDeleteIds(dups) : 0
+  if (dups.length) log.push(`[sweep] deleted ${dupDeleted} duplicate titles`)
 
-  // 6. Rebalance: cap any single source to max MAX_POOL = 8 articles in the last 7 days
-  // This prevents Ynet (frequent publisher) from dominating the rotation pool
-  const MAX_POOL = 8
-  const sourceCounts = {}
-  newRows.forEach(a => { sourceCounts[a.source] = (sourceCounts[a.source] || 0) + 1 })
-  const overSources = Object.entries(sourceCounts).filter(([,c]) => c > MAX_POOL / 2)
-  if (overSources.length > 0) {
-    for (const [source] of overSources) {
-      try {
-        // Get ALL articles for this source (beyond 7-day window too)
-        const allForSource = await fetch(
-          `${SUPA_URL}/rest/v1/news_articles?select=id,published_at&source=eq.${encodeURIComponent(source)}&lang=eq.he&featured=eq.false&archived=eq.false&order=published_at.asc&limit=200`,
-          { headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}`, Accept: 'application/json' }, signal: AbortSignal.timeout(5000) }
-        )
-        if (!allForSource.ok) continue
-        const rows = await allForSource.json()
-        if (!Array.isArray(rows) || rows.length <= MAX_POOL) continue
-        // Archive everything beyond the newest MAX_POOL (i.e. archive the oldest)
-        const toArchive = rows.slice(0, rows.length - MAX_POOL)
-        const ids = toArchive.map(r => r.id)
-        if (!ids.length) continue
-        // Batch archive: PATCH with `id=in.(id1,id2,...)`
-        const archiveUrl = new URL(`${SUPA_URL}/rest/v1/news_articles`)
-        archiveUrl.searchParams.set('id', `in.(${ids.join(',')})`)
-        await fetch(archiveUrl.toString(), {
-          method: 'PATCH',
-          headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
-          body: JSON.stringify({ archived: true }),
-          signal: AbortSignal.timeout(8000),
-        }).catch(() => {})
-        console.log(`[warm] rebalance: archived ${ids.length} old ${source} articles (keeping ${MAX_POOL})`)
-      } catch (e) {
-        console.warn(`[warm] rebalance ${source}:`, e.message)
-      }
-    }
-  }
+  // 4c. rolling pool cap per outlet — archive the oldest non-featured beyond POOL_PER_OUTLET
+  const dupIds = new Set(dups)
+  const live = rows.filter(r => !badIds.has(r.id) && !dupIds.has(r.id) && !r.archived && !r.featured)
+  const byOutlet = {}
+  live.forEach(r => { const k = outletKey(r.url, r.source); (byOutlet[k] ||= []).push(r) })
+  const overflow = Object.values(byOutlet).flatMap(list => list.slice(POOL_PER_OUTLET).map(r => r.id))
+  if (overflow.length) { await supaPatchIds(overflow, { archived: true }); log.push(`[sweep] archived ${overflow.length} overflow rows`) }
 
-  const sources = [...new Set(newRows.map(a => a.source))]
-  console.log(`[warm] inserted ${newRows.length} articles from ${sources.length} sources: ${sources.slice(0, 12).join(', ')}`)
-  return { count: newRows.length, sourceCount: sources.length, sources: sources.slice(0, 15) }
+  const featuredBad = bad.filter(r => r.featured).length
+  return { scanned: rows.length, deleted, dupDeleted, archived: overflow.length, featuredDeleted: featuredBad }
+}
+
+
+// Optional protection: when CRON_SECRET is set in Vercel, only Vercel Cron (Authorization: Bearer)
+// or a manual call with ?key=<secret> may run this. Unset → open, as before.
+function authorized(req) {
+  const secret = process.env.CRON_SECRET
+  if (!secret) return true
+  const bearer = (req.headers?.authorization || '').replace(/^Bearer\s+/i, '')
+  let key = ''
+  try { key = new URL(req.url, 'http://x').searchParams.get('key') || '' } catch {}
+  return bearer === secret || key === secret
 }
 
 export default async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*')
   if (req.method !== 'GET' && req.method !== 'POST') return res.status(405).end()
+  if (!authorized(req)) return res.status(401).json({ error: 'unauthorized' })
 
-  // Ping Render in background (non-blocking — just keeps it alive)
-  fetch(`${RENDER}/api/news/rebuild`, {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
-    signal:  AbortSignal.timeout(10000),
-  }).catch(() => {})
+  // keep the legacy Render server warm (non-blocking)
+  fetch(`${RENDER}/api/news/rebuild`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+    signal: AbortSignal.timeout(10000) }).catch(() => {})
 
-  // RSS fetch + Supabase upsert (this is the main work)
-  const result = await refreshSupabase()
+  if (!SUPA_URL || !SUPA_KEY) return res.status(500).json({ error: 'SUPABASE_URL / SUPABASE_SERVICE_KEY not set' })
 
-  return res.status(200).json({ ok: true, ...result, ts: new Date().toISOString() })
+  const log = []
+  const out = { ok: true, ts: new Date().toISOString() }
+  try { out.ingest = await ingest(log) } catch (e) { out.ingest = { error: e.message }; log.push(`[ingest] ERROR ${e.message}`) }
+  try { out.sweep  = await sweep(log)  } catch (e) { out.sweep  = { error: e.message }; log.push(`[sweep] ERROR ${e.message}`) }
+  log.forEach(l => console.log('[warm]', l))
+  out.log = log.filter(l => !l.startsWith('[fetch]')).concat(log.filter(l => l.startsWith('[fetch]')).slice(0, 80))
+  return res.status(200).json(out)
 }

@@ -1,4 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, createContext, useContext, useMemo, lazy, Suspense } from 'react'
+import { isRealEstateArticle } from '../lib/news/classify.js'
 import { MenuToggleIcon } from './MenuToggleIcon.jsx'
 import AccessibilityWidget from './AccessibilityWidget.jsx'
 import CookieConsent from './CookieConsent.jsx'
@@ -131,7 +132,7 @@ const TR = {
     newsBadge: 'עדכונים שוטפים',
     newsH2: 'מה חדש בתחום הנדל"ן',
     newsArchiveBtn: 'כתבות ישנות',
-    newsDisclaimer: 'כל יום מתחלפת כתבה אחת בכתבה חדשה · אפיק הנחל אינה אחראית לתוכן הכתבות',
+    newsDisclaimer: 'כל בוקר מתחלפות שתי כתבות בכתבות חדשות ממקורות שונים · כתבות נדל״ן בלבד · אפיק הנחל אינה אחראית לתוכן הכתבות',
     newsErrorMsg: 'לא ניתן לטעון כתבות כרגע',
     newsErrorSub: 'ייתכן בעיית חיבור — נסה שוב',
     newsRetry: 'נסה שוב',
@@ -234,7 +235,7 @@ const TR = {
     newsBadge: 'Latest Updates',
     newsH2: "What's New in Real Estate",
     newsArchiveBtn: 'Archive',
-    newsDisclaimer: 'One article rotates daily · Afik Hanahal is not responsible for article content',
+    newsDisclaimer: 'Two articles rotate every morning from different outlets · real-estate news only · Afik Hanahal is not responsible for article content',
     newsErrorMsg: 'Unable to load articles right now',
     newsErrorSub: 'Connection issue — please try again',
     newsRetry: 'Retry',
@@ -7026,53 +7027,42 @@ const TESTIMONIALS_DATA = [
 ]
 
 // ─── NEWS SECTION ─────────────────────────────────────────────────────────────
-const ROTATION_STORE = 'afik_rotation_v5'   // daily-rotation persistent store
 const ARCHIVE_STORE  = 'afik_archive_v1'
 const SLOT_COUNT     = 4
 const SERVER_URL     = import.meta.env.VITE_API_URL || 'https://afik-hanahal-server.onrender.com'
 
 
-// ── Fetch articles — parallel merge from Vercel + Render ──────────────────
+// ── Normalise any article shape (Vercel / Supabase / Render / localStorage) ──
+function normalizeArticle(a) {
+  const url = a.url || a.link || ''
+  const publishedAt = a.publishedAt || a.published_at || (a.date ? new Date(a.date).toISOString() : null)
+  const d = publishedAt ? new Date(publishedAt) : null
+  return { id: a.id || url, title: a.title, url, link: a.link || url, image: a.image || '', source: a.source || '',
+           publishedAt, date: d && !isNaN(d) ? d : null }
+}
+const newsKey = a => (a.title || '').replace(/\s+/g, '').slice(0, 30)
+
+// ── Fetch the board — /api/news (curated in Supabase by /api/cron/rotate) is the source of truth.
+// The legacy Render feed is only consulted when Vercel comes back short, and EVERYTHING is
+// re-checked by the shared real-estate classifier so nothing off-topic can reach a card.
 async function fetchFreshArticles() {
-  const [vercelRes, renderRes] = await Promise.allSettled([
-    fetch('/api/news', { signal: AbortSignal.timeout(22000) })
-      .then(r => r.ok ? r.json() : []).catch(() => []),
-    fetch(`${SERVER_URL}/api/news/feed`, { signal: AbortSignal.timeout(22000) })
-      .then(r => r.ok ? r.json() : []).catch(() => []),
-  ])
-
-  const vercelData = (vercelRes.status === 'fulfilled' && Array.isArray(vercelRes.value)) ? vercelRes.value : []
-  const renderData = (renderRes.status === 'fulfilled' && Array.isArray(renderRes.value)) ? renderRes.value : []
-
-  // Merge and deduplicate — Render articles first so it wins on duplicates vs Vercel
+  const get = (u, ms) => fetch(u, { signal: AbortSignal.timeout(ms) }).then(r => r.ok ? r.json() : []).catch(() => [])
+  let list = await get('/api/news', 22000)
+  if (!Array.isArray(list)) list = []
+  if (list.length < SLOT_COUNT) {
+    const extra = await get(`${SERVER_URL}/api/news/feed`, 15000)
+    if (Array.isArray(extra)) list = [...list, ...extra]
+  }
   const seen = new Set()
-  const merged = [...renderData, ...vercelData].filter(a => {
-    if (!a.title || !(a.url || a.link)) return false
-    const k = (a.title || '').replace(/\s+/g, '').slice(0, 30)
-    if (seen.has(k)) return false
-    seen.add(k); return true
-  })
-
-  if (merged.length) return merged
-
-  // Last resort: Supabase-cached read from Render
-  try {
-    const r = await fetch(`${SERVER_URL}/api/news`, { signal: AbortSignal.timeout(10000) })
-    if (r.ok) { const d = await r.json(); if (Array.isArray(d) && d.length) return d }
-  } catch {}
-
-  return []
+  return list
+    .filter(a => a?.title && (a.url || a.link))
+    .filter(isRealEstateArticle)
+    .map(normalizeArticle)
+    .filter(a => { const k = newsKey(a); if (seen.has(k)) return false; seen.add(k); return true })
 }
 
-// Returns today's date string in Israel timezone (for daily rotation key)
-function getIsraelDateStr() {
-  return new Date().toLocaleDateString('en-US', { timeZone: 'Asia/Jerusalem' })
-}
-// Returns current hour in Israel time (0-23)
-function getIsraelHour() {
-  return parseInt(new Date().toLocaleString('en-US', { timeZone: 'Asia/Jerusalem', hour: 'numeric', hour12: false }), 10)
-}
-
+// The server swaps 2 of the 4 cards every morning (/api/cron/rotate). The client just shows the
+// board, image-bearing cards first, and caches it for 6h so a visitor sees a stable set.
 function useRotatingNews() {
   const [articles, setArticles] = useState([])
   const [loading, setLoading]   = useState(true)
@@ -7080,117 +7070,37 @@ function useRotatingNews() {
 
   const run = useCallback(async (forceReset = false) => {
     setLoading(true); setError(false)
+    const CACHE_KEY = 'afik_news_board_v11'
+    const readCache = () => { try { return JSON.parse(localStorage.getItem(CACHE_KEY) || 'null') } catch { return null } }
+    const hydrate = list => (list || []).map(normalizeArticle).filter(isRealEstateArticle).slice(0, SLOT_COUNT)
 
-    const CACHE_KEY   = 'afik_news_cache_v10'
-    const DAILY_KEY   = 'afik_daily_rotation'
-    const DISPLAY_KEY = 'afik_display_v2'
-    const now = Date.now()
-
-    const todayStr   = getIsraelDateStr()
-    const hourNow    = getIsraelHour()
-    const lastDaily  = localStorage.getItem(DAILY_KEY) || ''
-    const needsDaily = hourNow >= 8 && lastDaily !== todayStr
-
-    // Serve from display cache when pool is still fresh and no rotation pending
-    if (!forceReset && !needsDaily) {
-      try {
-        const display = JSON.parse(localStorage.getItem(DISPLAY_KEY) || 'null')
-        const cache   = JSON.parse(localStorage.getItem(CACHE_KEY)   || 'null')
-        if (display?.articles?.length >= SLOT_COUNT && cache?.ts && (now - cache.ts) < 30 * 60 * 1000) {
-          setArticles(display.articles.slice(0, SLOT_COUNT))
-          setLoading(false); return
-        }
-      } catch {}
+    if (!forceReset) {
+      const c = readCache()
+      if (c?.articles?.length >= SLOT_COUNT && Date.now() - c.ts < 6 * 60 * 60 * 1000) {
+        const cached = hydrate(c.articles)
+        if (cached.length >= SLOT_COUNT) { setArticles(cached); setLoading(false); return }
+      }
     }
 
     const fresh = await fetchFreshArticles()
-
     if (!fresh.length) {
-      try {
-        const display = JSON.parse(localStorage.getItem(DISPLAY_KEY) || 'null')
-        if (display?.articles?.length) { setArticles(display.articles.slice(0, SLOT_COUNT)); setLoading(false); return }
-      } catch {}
+      const cached = hydrate(readCache()?.articles)
+      if (cached.length) { setArticles(cached); setLoading(false); return }
       setError(true); setLoading(false); return
     }
 
-    // Deduplicate fresh pool + images first
-    const seen = new Set()
-    const deduped = fresh
-      .filter(a => {
-        if (!a.title || !a.url) return false
-        const k = a.title.replace(/\s+/g,'').slice(0, 30)
-        if (seen.has(k)) return false
-        seen.add(k); return true
-      })
-      .map(a => ({ ...a, image: a.image || '' }))
-      .slice(0, 50)
-    const prioritized = [...deduped.filter(a => a.image), ...deduped.filter(a => !a.image)]
+    const board = [...fresh.filter(a => a.image), ...fresh.filter(a => !a.image)].slice(0, SLOT_COUNT)
+    try { localStorage.setItem(CACHE_KEY, JSON.stringify({ articles: board, ts: Date.now() })) } catch {}
 
-    // Load the currently displayed 4 articles
-    let currentDisplay = []
+    // Local archive of everything seen — the archive modal's offline fallback
     try {
-      const d = JSON.parse(localStorage.getItem(DISPLAY_KEY) || 'null')
-      currentDisplay = d?.articles || []
-    } catch {}
-
-    let newDisplay
-
-    if (forceReset || currentDisplay.length < SLOT_COUNT) {
-      // First load or manual reset — show top SLOT_COUNT (images preferred)
-      newDisplay = prioritized.slice(0, SLOT_COUNT)
-    } else if (needsDaily) {
-      // Daily 08:00 slide: archive the oldest slot, inject 1 new article at the front
-      const oldest = currentDisplay[SLOT_COUNT - 1]
-      if (oldest) {
-        try {
-          const arch  = JSON.parse(localStorage.getItem(ARCHIVE_STORE) || '[]')
-          const seenT = new Set(arch.map(a => a.title?.replace(/\s+/g,'').slice(0, 30)))
-          const seenU = new Set(arch.map(a => a.link || a.url || '').filter(Boolean))
-          const k = oldest.title?.replace(/\s+/g,'').slice(0, 30)
-          const u = oldest.link || oldest.url || ''
-          if (k && !seenT.has(k) && (!u || !seenU.has(u))) {
-            arch.unshift({ ...oldest, archivedAt: now })
-            localStorage.setItem(ARCHIVE_STORE, JSON.stringify(arch.slice(0, 200)))
-          }
-        } catch {}
-      }
-      // Find the best article not already in current display (with image preferred)
-      const curIds    = new Set(currentDisplay.map(a => a.id))
-      const curTitles = new Set(currentDisplay.map(a => a.title?.replace(/\s+/g,'').slice(0, 30)))
-      const isNew = a => !curIds.has(a.id) && !curTitles.has(a.title?.replace(/\s+/g,'').slice(0, 30))
-      const newArticle = prioritized.find(isNew)
-      newDisplay = newArticle
-        ? [newArticle, ...currentDisplay.slice(0, SLOT_COUNT - 1)]
-        : currentDisplay.slice(0, SLOT_COUNT)
-      localStorage.setItem(DAILY_KEY, todayStr)
-    } else {
-      // Stale cache refresh — keep current display stable, just refresh the pool
-      newDisplay = currentDisplay.slice(0, SLOT_COUNT)
-    }
-
-    // Archive all pool articles not currently displayed
-    try {
-      const displayedIds = new Set(newDisplay.map(a => a.id))
-      const arch  = JSON.parse(localStorage.getItem(ARCHIVE_STORE) || '[]')
-      const seenT = new Set(arch.map(a => a.title?.replace(/\s+/g,'').slice(0, 30)))
-      const seenU = new Set(arch.map(a => a.link || a.url || '').filter(Boolean))
-      prioritized.filter(a => !displayedIds.has(a.id)).forEach(a => {
-        const k = a.title?.replace(/\s+/g,'').slice(0, 30)
-        const u = a.link || a.url || ''
-        if (k && !seenT.has(k) && (!u || !seenU.has(u))) {
-          arch.unshift({ ...a, archivedAt: now })
-          seenT.add(k)
-          if (u) seenU.add(u)
-        }
-      })
+      const arch = JSON.parse(localStorage.getItem(ARCHIVE_STORE) || '[]')
+      const seen = new Set(arch.map(newsKey))
+      fresh.forEach(a => { const k = newsKey(a); if (!seen.has(k)) { arch.unshift({ ...a, archivedAt: Date.now() }); seen.add(k) } })
       localStorage.setItem(ARCHIVE_STORE, JSON.stringify(arch.slice(0, 200)))
     } catch {}
 
-    try { localStorage.setItem(CACHE_KEY,   JSON.stringify({ articles: prioritized, ts: now })) } catch {}
-    try { localStorage.setItem(DISPLAY_KEY, JSON.stringify({ articles: newDisplay })) } catch {}
-
-    setArticles(newDisplay.slice(0, SLOT_COUNT))
-    setLoading(false)
+    setArticles(board); setLoading(false)
   }, [])
 
   useEffect(() => { run() }, [run])
@@ -7692,7 +7602,7 @@ function ArchiveModal({ onClose, C, isDark }) {
   // Only articles from the last 30 days, sorted newest-first
   function mergeWithStatic(live) {
     const cutoff = Date.now() - 30 * 24 * 60 * 60 * 1000
-    const recent = live.filter(a => {
+    const recent = live.filter(isRealEstateArticle).map(a => ({ ...a, date: a.date || a.publishedAt || a.published_at || null })).filter(a => {
       const ts = a.archivedAt || new Date(a.publishedAt || a.published_at || a.date || 0).getTime()
       return ts >= cutoff
     })

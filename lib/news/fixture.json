@@ -1,0 +1,17 @@
+{
+  "_comment": "Offline dev fixture — NEWS_FIXTURE=lib/news/fixture.json npm run dev. Images point at /public so it renders without network.",
+  "board": [
+    { "id": "fx1", "title": "מחירי הדירות בשרון עלו ב-4.2% בשנה האחרונה — כפר סבא והוד השרון מובילות", "url": "https://www.globes.co.il/news/article.aspx?did=1", "image": "/kfar-saba.png", "source": "גלובס", "publishedAt": "2026-09-01T06:10:00.000Z" },
+    { "id": "fx2", "title": "רמ\"י פרסמה מכרז ל-620 יח\"ד צמודות קרקע ברעננה מערב", "url": "https://www.ynet.co.il/economy/article/2", "image": "/raanana.png", "source": "ynet", "publishedAt": "2026-08-31T15:40:00.000Z" },
+    { "id": "fx3", "title": "בנק ישראל: היקף המשכנתאות זינק ל-9.4 מיליארד שקל בחודש אוגוסט", "url": "https://www.calcalist.co.il/real-estate/article/3", "image": "/herzliya.png", "source": "כלכליסט", "publishedAt": "2026-08-31T09:00:00.000Z" },
+    { "id": "fx4", "title": "פינוי-בינוי בהוד השרון: הוועדה המחוזית אישרה תוכנית ל-1,150 דירות", "url": "https://www.nadlan-center.co.il/article/4", "image": "/hod-hasharon.png", "source": "מרכז הנדל\"ן", "publishedAt": "2026-08-30T12:00:00.000Z" }
+  ],
+  "archive": [
+    { "id": "fa1", "title": "היטל השבחה: בית המשפט העליון קבע הלכה חדשה לגבי מועד התשלום", "url": "https://www.themarker.com/realestate/a1", "image": "/herzliya.png", "source": "TheMarker", "publishedAt": "2026-08-29T08:00:00.000Z" },
+    { "id": "fa2", "title": "שכר הדירה הממוצע ברעננה חצה את 8,000 שקל לדירת 4 חדרים", "url": "https://www.madlan.co.il/blog/a2", "image": "/raanana.png", "source": "מדלן", "publishedAt": "2026-08-28T08:00:00.000Z" },
+    { "id": "fa3", "title": "מס רכישה 2026: כל מדרגות המס לדירה ראשונה, שנייה ולמשקיעים", "url": "https://www.bizportal.co.il/realestate/a3", "image": "/kfar-saba.png", "source": "ביזפורטל", "publishedAt": "2026-08-27T08:00:00.000Z" },
+    { "id": "fa4", "title": "התחלות הבנייה ירדו ב-12% ברבעון השני — הלמ\"ס", "url": "https://www.maariv.co.il/business/a4", "image": "/hod-hasharon.png", "source": "מעריב", "publishedAt": "2026-08-26T08:00:00.000Z" },
+    { "id": "fa5", "title": "צעיר נמצא מת בדירה בחיפה — המשטרה חוקרת", "url": "https://www.walla.co.il/a5", "image": "/herzliya.png", "source": "וואלה", "publishedAt": "2026-08-25T08:00:00.000Z" },
+    { "id": "fa6", "title": "מכבי תל אביב ניצחה על המגרש הביתי 3:1", "url": "https://www.sport5.co.il/a6", "image": "/raanana.png", "source": "ספורט 5", "publishedAt": "2026-08-25T07:00:00.000Z" }
+  ]
+}
