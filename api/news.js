@@ -43,7 +43,7 @@ const valid = a => a?.title && a.image && scoreRealEstate(a.title).ok
 
 async function fetchOGImage(url) {
   try {
-    const r = await fetch(url, { headers: { ...RSS_HEADERS, Accept: 'text/html,application/xhtml+xml,*/*' }, signal: AbortSignal.timeout(3000), redirect: 'follow' })
+    const r = await fetch(url, { headers: { ...RSS_HEADERS, Accept: 'text/html,application/xhtml+xml,*/*' }, signal: AbortSignal.timeout(2500), redirect: 'follow' })
     if (!r.ok) return ''
     try { if (new URL(r.url).hostname.includes('google.com')) return '' } catch {}
     const html = (await r.text()).slice(0, 200_000)
@@ -98,7 +98,7 @@ export default async function handler(req, res) {
   // ── 3. Live RSS with a hard deadline ───────────────────────────────────────
   try {
     const t1 = Date.now()
-    const all = await fetchAllSources({ timeoutMs: 7000, concurrency: 12, deadlineMs: 12000, log: m => diag.log.push(m) })
+    const all = await fetchAllSources({ timeoutMs: 6000, concurrency: 16, deadlineMs: 8000, log: m => diag.log.push(m) })
     diag.counts.fetched = all.length; diag.counts.sources = all.stats
     const counts = {}
     let articles = dedupe([...all.filter(a => !a.gn), ...all.filter(a => a.gn)]
@@ -110,13 +110,29 @@ export default async function handler(req, res) {
     diag.counts.live = articles.length; diag.timings.rss = Date.now() - t1
 
     if (articles.length) {
-      const needImg = articles.filter(a => !a.image).slice(0, 8)
+      const needImg = articles.filter(a => !a.image).slice(0, 6)
       if (needImg.length) {
         const og = await Promise.allSettled(needImg.map(a => fetchOGImage(a.url)))
         const m = new Map(needImg.map((a, i) => [a.id, og[i].status === 'fulfilled' ? og[i].value : '']))
         articles = articles.map(a => (!a.image && m.has(a.id)) ? { ...a, image: m.get(a.id) || '' } : a)
       }
       diag.path = 'live-rss'
+      // Self-heal: store what we just fetched so the next request is served from Supabase in ~100 ms
+      // instead of hitting RSS again (the daily cron does the full ingest + sweep; this is a stopgap).
+      if (SUPA_URL && SUPA_KEY) {
+        try {
+          const rows = articles.filter(a => a.image).slice(0, 30).map(a => ({
+            title: a.title.slice(0, 500), url: a.url, image: a.image, source: a.source, published_at: a.publishedAt, lang: 'he', archived: false,
+          }))
+          if (rows.length) {
+            const ir = await fetch(`${SUPA_URL}/rest/v1/news_articles?on_conflict=url`, {
+              method: 'POST', body: JSON.stringify(rows), signal: AbortSignal.timeout(3000),
+              headers: { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}`, 'Content-Type': 'application/json', Prefer: 'resolution=ignore-duplicates,return=minimal' },
+            })
+            diag.log.push(`self-heal insert: ${ir.status}`)
+          }
+        } catch (e) { diag.log.push(`self-heal insert: ${e.message}`) }
+      }
       return send([...articles.filter(a => a.image), ...articles.filter(a => !a.image)], 's-maxage=600, stale-while-revalidate=1800')
     }
     diag.log.push('0 live articles')
