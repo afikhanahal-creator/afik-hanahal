@@ -5,7 +5,7 @@
   "crons": [
     {
       "path": "/api/cron/warm",
-      "schedule": "0 7 * * *"
+      "schedule": "30 5 * * *"
     },
     {
       "path": "/api/cron/rotate",
@@ -13,18 +13,42 @@
     }
   ],
   "functions": {
-    "api/whatsapp.js":        { "maxDuration": 30 },
-    "api/capi.js":            { "maxDuration": 10 },
-    "api/news.js":            { "maxDuration": 30 },
-    "api/news/archive.js":    { "maxDuration": 15 },
-    "api/cron/warm.js":       { "maxDuration": 15 },
-    "api/cron/rotate.js":     { "maxDuration": 30 },
-    "api/stats.js":           { "maxDuration": 15 },
-    "api/properties.js":      { "maxDuration": 15 },
-    "api/properties/bulk.js": { "maxDuration": 20 },
-    "api/ai/messages.js":     { "maxDuration": 30 },
-    "api/contacts.js":        { "maxDuration": 30 },
-    "api/meta.js":            { "maxDuration": 30 }
+    "api/whatsapp.js": {
+      "maxDuration": 30
+    },
+    "api/capi.js": {
+      "maxDuration": 10
+    },
+    "api/news.js": {
+      "maxDuration": 30
+    },
+    "api/news/archive.js": {
+      "maxDuration": 15
+    },
+    "api/cron/warm.js": {
+      "maxDuration": 60
+    },
+    "api/cron/rotate.js": {
+      "maxDuration": 30
+    },
+    "api/stats.js": {
+      "maxDuration": 15
+    },
+    "api/properties.js": {
+      "maxDuration": 15
+    },
+    "api/properties/bulk.js": {
+      "maxDuration": 20
+    },
+    "api/ai/messages.js": {
+      "maxDuration": 30
+    },
+    "api/contacts.js": {
+      "maxDuration": 30
+    },
+    "api/meta.js": {
+      "maxDuration": 30
+    }
   },
   "rewrites": [
     {
@@ -44,23 +68,44 @@
     {
       "source": "/index.html",
       "headers": [
-        { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" },
-        { "key": "Pragma",        "value": "no-cache" },
-        { "key": "Expires",       "value": "0" }
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        },
+        {
+          "key": "Pragma",
+          "value": "no-cache"
+        },
+        {
+          "key": "Expires",
+          "value": "0"
+        }
       ]
     },
     {
       "source": "/assets/(.*)",
       "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
       ]
     },
     {
       "source": "/api/(.*)",
       "headers": [
-        { "key": "Access-Control-Allow-Origin",  "value": "*" },
-        { "key": "Access-Control-Allow-Methods", "value": "GET,POST,OPTIONS" },
-        { "key": "Access-Control-Allow-Headers", "value": "Content-Type,Authorization" }
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        },
+        {
+          "key": "Access-Control-Allow-Methods",
+          "value": "GET,POST,OPTIONS"
+        },
+        {
+          "key": "Access-Control-Allow-Headers",
+          "value": "Content-Type,Authorization"
+        }
       ]
     }
   ]
