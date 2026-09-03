@@ -43,7 +43,7 @@ export const SECTIONS = [
   { id: 'features',  n: 3,  title: 'מאפייני הנכס',         en: 'Features',                desc: 'ממ״ד, מעלית, חניה, מחסן, מיזוג ומה שיש בנכס',                           en_desc: 'Safe room, elevator, parking, storage, climate and what the property offers' },
   { id: 'condition', n: 4,  title: 'מצב הנכס',             en: 'Condition',               desc: 'שיפוצים, מצב תחזוקתי, מה נשאר בנכס ומי גר בו כיום',                     en_desc: 'Renovations, maintenance, what stays and who lives there today' },
   { id: 'building',  n: 5,  title: 'הבניין',               en: 'The building',            desc: 'מה שחשוב לדעת על הבניין והוועד',                                        en_desc: 'What buyers should know about the building' },
-  { id: 'legal',     n: 6,  title: 'מידע משפטי ותכנוני',   en: 'Legal & planning',        desc: 'בעלות, רישום, משכנתא, שעבודים, חריגות וזכויות — נאמת הכל מול מסמכים',   en_desc: 'Ownership, registration, mortgage, liens, violations and rights. We verify everything against documents' },
+  { id: 'legal',     n: 6,  title: 'מידע משפטי ותכנוני',   en: 'Legal & planning',        desc: 'בעלות, רישום, משכנתא, שעבודים, חריגות וזכויות. המידע משמש לקליטת הנכס בלבד ואינו מהווה תחליף לבדיקה משפטית',   en_desc: 'Ownership, registration, mortgage, liens, violations and rights. This information is used for property intake only and is not a substitute for legal due diligence' },
   { id: 'price',     n: 7,  title: 'המכירה והציפיות שלכם', en: 'The sale & expectations', desc: 'מחיר, לוחות זמנים והיסטוריית השיווק — כדי שנבנה אסטרטגיה שמתאימה לכם',   en_desc: 'Price, timing and marketing history, so we build a strategy that fits you' },
   { id: 'marketing', n: 8,  title: 'מידע שיווקי',          en: 'Marketing',               desc: 'מה מיוחד בנכס — זה מה שיבנה את המודעה',                                 en_desc: 'What makes the property special. This shapes the listing' },
   { id: 'media',     n: 9,  title: 'תמונות ומסמכים',       en: 'Photos & documents',      desc: 'העלאת תמונות, סרטונים ומסמכים לתיק הנכס',                               en_desc: 'Upload photos, videos and documents for the property file' },
@@ -139,8 +139,8 @@ export const STEPS = [
   { id: 'p_baths', section: 'property', type: 'counter', required: true, showIf: a => !isLand(a),
     q: 'חדרי רחצה ושירותים', en_q: 'Bathrooms and toilets',
     rows: [
-      { k: 'bathrooms', l: 'חדרי רחצה',       en: 'Bathrooms', min: 0, max: 10, step: 1, def: 2 },
-      { k: 'toilets',   l: 'שירותים (סה״כ)',  en: 'Toilets (total)', min: 0, max: 10, step: 1, def: 2 },
+      { k: 'bathrooms', l: 'חדרי רחצה',       en: 'Bathrooms', min: 0, max: 10, step: 1, def: 1 },
+      { k: 'toilets',   l: 'שירותים (סה״כ)',  en: 'Toilets (total)', min: 0, max: 10, step: 1, def: 1 },
     ] },
   { id: 'p_year', section: 'property', type: 'number', showIf: a => !isLand(a),
     q: 'באיזו שנה נבנה הנכס?', en_q: 'What year was the property built?',
@@ -177,6 +177,7 @@ export const STEPS = [
     rows: [ { k: 'parking', l: 'חניות', en: 'Parking spaces', min: 0, max: 10, step: 1, def: 1 } ] },
   { id: 'f_parking_type', section: 'features', type: 'multi', showIf: a => !isLand(a) && hasParking(a),
     q: 'איזה סוג חניה? האם היא מקורה?', en_q: 'What kind of parking? Is it covered?',
+    linkedCounter: { id: 'f_parking', k: 'parking', l: 'מספר חניות', en: 'Parking spaces', min: 1, max: 10 },
     opts: [
       o('regular',     'חניה פתוחה (לא מקורה)',  'Open (not covered)'),
       o('covered',     'חניה מקורה',            'Covered'),
@@ -196,6 +197,7 @@ export const STEPS = [
       o('units',   'מזגנים בכל החדרים',    'Split units in every room'),
       o('partial', 'מזגן בחלק מהחדרים',    'Units in some rooms'),
       o('none',    'אין מיזוג',            'No air conditioning'),
+      o('other',   'אחר',                  'Other'),
     ] },
   { id: 'f_kitchen', section: 'features', type: 'choice', showIf: a => !isLand(a),
     q: 'איך המטבח בנוי?', en_q: 'How is the kitchen laid out?',
@@ -271,7 +273,16 @@ export const STEPS = [
       o('windows',  'חלונות',        'Windows'),
       o('paint',    'צבע',           'Paint'),
       o('ac',       'מיזוג',         'Air conditioning'),
+      o('doors',    'דלתות',         'Doors'),
+      o('closets',  'ארונות',        'Closets'),
+      o('aluminum', 'אלומיניום / תריסים', 'Aluminium / shutters'),
+      o('sealing',  'איטום',         'Sealing / waterproofing'),
+      o('lighting', 'תאורה',         'Lighting'),
+      o('roof',     'גג',            'Roof'),
+      o('garden',   'גינה / חצר',    'Garden / yard'),
+      o('facade',   'חזית / חוץ',    'Facade / exterior'),
       o('full',     'שיפוץ כללי',    'Full renovation'),
+      o('other',    'אחר',           'Other'),
     ] },
   { id: 'k_matrix', section: 'condition', type: 'matrix', required: true, showIf: a => !isLand(a),
     q: 'איך היית מדרג/ת את המצב של…', en_q: 'How would you rate the condition of…',
@@ -405,6 +416,9 @@ export const STEPS = [
       o('no',      'לא, יש התנגדות',                 'No, there is opposition'),
       o('single',  'אני הבעלים היחיד/ה',             'I am the sole owner'),
     ] },
+  { id: 'l_inherit', section: 'legal', type: 'choice', required: true,
+    q: 'האם הנכס התקבל בירושה?', en_q: 'Was the property inherited?',
+    opts: [ o('no', 'לא', 'No'), o('yes', 'כן, הירושה הוסדרה (צו ירושה / קיום צוואה)', 'Yes, and the estate is settled (inheritance / probate order)'), o('pending', 'כן, ההליך עדיין בתהליך', 'Yes, the process is still ongoing') ] },
   { id: 'l_rights', section: 'legal', type: 'choice', required: true,
     q: 'איך הנכס רשום?', en_q: 'How is the property registered?',
     opts: [
@@ -416,7 +430,7 @@ export const STEPS = [
     ] },
   { id: 'l_matrix', section: 'legal', type: 'matrix', required: true,
     q: 'סמנו לכל סעיף: כן, לא או לא יודע', en_q: 'For each item mark yes, no or unknown',
-    help: '״לא יודע״ זו תשובה לגיטימית לגמרי — נבדוק בעצמנו בנסח', en_help: '"Unknown" is a perfectly fine answer. We will check the Tabu extract ourselves',
+    help: '״לא יודע״ זו תשובה לגיטימית. המידע משמש לקליטת הנכס ואינו תחליף לבדיקה משפטית, נאמת הכל בנסח', en_help: '"Unknown" is a perfectly fine answer. This is intake information, not a substitute for legal due diligence. We verify everything in the Tabu extract',
     scale: YES_NO_UNKNOWN,
     rows: [
       { k: 'mortgage',    l: 'קיימת משכנתא על הנכס',                    en: 'There is a mortgage on the property' },
@@ -467,9 +481,12 @@ export const STEPS = [
     q: 'האם יש מחיר מינימום שאתם מוכנים לשקול?', en_q: 'Is there a minimum price you would consider?',
     help: 'לעיניים שלנו בלבד — לא מתפרסם ולא נחשף לקונים', en_help: 'For our eyes only. Never published or shown to buyers',
     unit: '₪', en_unit: '₪', ph: 'לא חובה', en_ph: 'Optional' },
-  { id: 'd_best_offer', section: 'price', type: 'group',
+  { id: 'd_offers_received', section: 'price', type: 'choice', required: true,
+    q: 'האם התקבלו הצעות על הנכס בעבר?', en_q: 'Have you received offers on the property before?',
+    opts: YES_NO },
+  { id: 'd_best_offer', section: 'price', type: 'group', showIf: a => a.d_offers_received === 'yes',
     q: 'מה המחיר הגבוה ביותר שהוצע לכם עד היום?', en_q: 'What is the highest offer you have received so far?',
-    help: 'אם הנכס כבר הוצע למכירה. אחרת אפשר לדלג', en_help: 'If the property was already on the market. Otherwise skip',
+    help: 'לעינינו בלבד, לא מתפרסם', en_help: 'For our eyes only. Never published',
     fields: [
       { k: 'amount', l: 'סכום ההצעה',                en: 'Offer amount',   type: 'number', unit: '₪', en_unit: '₪', half: true },
       { k: 'when',   l: 'מתי',                       en: 'When',           type: 'text', half: true, ph: 'לדוגמה: לפני חודשיים', en_ph: 'e.g. two months ago' },
@@ -574,6 +591,10 @@ export const STEPS = [
   { id: 'm_unique', section: 'marketing', type: 'long',
     q: 'מה מייחד את הנכס לעומת נכסים אחרים באזור?', en_q: 'What sets it apart from other properties in the area?',
     ph: 'לא חובה', en_ph: 'Optional' },
+  { id: 'm_love', section: 'marketing', type: 'long',
+    q: 'מה אתם הכי אוהבים בנכס?', en_q: 'What do you love most about the property?',
+    help: 'הרגע, הפינה, השעה ביום. זה מה שקונים מתחברים אליו', en_help: 'The moment, the corner, the time of day. That is what buyers connect with',
+    ph: 'לא חובה', en_ph: 'Optional' },
   { id: 'm_nearby', section: 'marketing', type: 'multi',
     q: 'מה יש במרחק הליכה?', en_q: 'What is within walking distance?',
     opts: [
@@ -608,7 +629,15 @@ export const STEPS = [
       o('other',     'אחר',               'Other'),
     ] },
   { id: 'm_story', section: 'marketing', type: 'long',
-    q: 'יש סיפור או פרט מיוחד שכדאי להדגיש בפרסום?', en_q: 'Any story or special detail worth highlighting?',
+    q: 'מה חשוב לכם שנדגיש בפרסום?', en_q: 'What is important for us to emphasise in the listing?',
+    help: 'סיפור, פרט מיוחד או מסר שחייב להופיע', en_help: 'A story, a special detail or a message that must appear',
+    ph: 'לא חובה', en_ph: 'Optional' },
+  { id: 'm_hide', section: 'marketing', type: 'long',
+    q: 'יש משהו שאינכם רוצים שיופיע בפרסום?', en_q: 'Is there anything you do not want to appear in the listing?',
+    help: 'למשל: הכתובת המדויקת, תמונות של חדר מסוים, סיבת המכירה', en_help: 'e.g. the exact address, photos of a certain room, the reason for selling',
+    ph: 'לא חובה', en_ph: 'Optional' },
+  { id: 'm_extra', section: 'marketing', type: 'long',
+    q: 'מידע נוסף שחשוב לנו לדעת?', en_q: 'Anything else we should know?',
     ph: 'לא חובה', en_ph: 'Optional' },
 
   // ═══════════════════ 9. MEDIA ═════════════════════════════════════════════
@@ -738,16 +767,15 @@ export function directionsText(vals, lang = 'he') {
     : (has('south') && has('west')) ? (lang === 'en' ? 'south-west' : 'דרום-מערב') : ''
   const join = arr => lang === 'en' ? arr.join(', ').replace(/, ([^,]*)$/, ' and $1') : arr.join(', ').replace(/, ([^,]*)$/, ' ו$1')
   if (lang === 'en') {
-    if (v.length === 4) return 'The property faces all four directions: north, east, south and west, with light throughout the day.'
-    if (v.length === 3) return `The property faces three directions (${join(names)}), so it gets light most of the day.`
-    if (v.length === 2) return corner ? `Corner property facing ${corner} (${join(names)}).` : `The property faces ${join(names)} (front and back exposure).`
-    return `The property faces ${names[0]}.`
+    if (v.length === 4) return 'Faces all four directions, light all day.'
+    if (v.length === 3) return `Faces three directions: ${join(names)}.`
+    if (v.length === 2) return corner ? `Corner property facing ${corner}.` : `Faces ${join(names)}, front and back.`
+    return `Faces ${names[0]}.`
   }
-  const hint = { north: 'כיוון קריר ונעים, ללא שמש ישירה', south: 'שמש רוב שעות היום, חמים בחורף', east: 'שמש של בוקר', west: 'שמש של אחר הצהריים ושקיעות' }
-  if (v.length === 4) return 'הנכס פונה לארבעה כיווני אוויר: צפון, מזרח, דרום ומערב, עם אור טבעי לאורך כל היום.'
-  if (v.length === 3) return `הנכס פונה לשלושה כיווני אוויר (${join(names)}), כך שיש אור טבעי רוב שעות היום.`
-  if (v.length === 2) return corner ? `נכס פינתי הפונה ל${corner} (${join(names)}): ${hint[order[0]]}, ${hint[order[1]]}.` : `הנכס פונה ל${join(names)} (חזית ועורף): ${hint[order[0]]}, ${hint[order[1]]}.`
-  return `הנכס פונה ל${names[0]}: ${hint[order[0]]}.`
+  if (v.length === 4) return 'ארבעה כיווני אוויר, אור לאורך כל היום.'
+  if (v.length === 3) return `שלושה כיווני אוויר: ${join(names)}.`
+  if (v.length === 2) return corner ? `נכס פינתי, פונה ל${corner}.` : `פונה ל${join(names)}, חזית ועורף.`
+  return `פונה ל${names[0]}.`
 }
 export const fmtNum = (n, lang) => {
   if (isBlank(n) || Number.isNaN(Number(n))) return String(n ?? '')
@@ -775,17 +803,17 @@ const SHORT = {
   b_numbers: ['נתוני הבניין', 'Building figures'], b_amenities: ['מה יש בבניין', 'Building amenities'], b_fees: ['תשלומים חודשיים', 'Monthly fees'],
   b_renovation: ['שיפוץ בבניין', 'Building renovation'], b_tama: ['התחדשות עירונית בבניין', 'Urban renewal (building)'], b_tama_detail: ['שלב התהליך', 'Process stage'],
   l_owners: ['הבעלים', 'Owners'], l_more_owners: ['בעלים נוספים', 'Other owners'], l_more_owners_detail: ['פירוט בעלים נוספים', 'Other owners details'],
-  l_agree: ['הסכמת כל הבעלים', 'All owners agree'], l_rights: ['סוג הרישום', 'Registration type'], l_matrix: ['מצב משפטי', 'Legal status'],
+  l_agree: ['הסכמת כל הבעלים', 'All owners agree'], l_inherit: ['ירושה', 'Inheritance'], l_rights: ['סוג הרישום', 'Registration type'], l_matrix: ['מצב משפטי', 'Legal status'],
   l_mortgage: ['יתרת משכנתא', 'Remaining mortgage'], l_issues_detail: ['פירוט שעבודים / הליכים / חריגות', 'Liens / proceedings / violations details'],
   l_area_plans: ['תוכניות בסביבה', 'Plans in the area'], l_area_plans_detail: ['פירוט תוכניות בסביבה', 'Area plans details'], l_notes: ['הערות משפטיות', 'Legal notes'],
   d_ask: ['מחיר מבוקש', 'Asking price'], d_expected: ['מחיר צפוי בפועל', 'Expected sale price'], d_flex: ['גמישות במחיר', 'Price flexibility'],
-  d_min: ['מחיר מינימום (פנימי)', 'Minimum price (internal)'], d_best_offer: ['ההצעה הגבוהה עד היום', 'Highest offer so far'],
+  d_min: ['מחיר מינימום (פנימי)', 'Minimum price (internal)'], d_offers_received: ['התקבלו הצעות בעבר', 'Offers received before'], d_best_offer: ['ההצעה הגבוהה עד היום', 'Highest offer so far'],
   d_timeline: ['מתי למכור', 'When to sell'], d_deadline: ['דד-ליין', 'Deadline'], d_vacate: ['מועד פינוי', 'Move-out'], d_vacate_flex: ['גמישות בפינוי', 'Move-out flexibility'],
   d_alt: ['רכישת נכס אחר', 'Buying another property'], d_why: ['סיבת המכירה', 'Reason for selling'],
   d_published: ['פורסם בעבר', 'Listed before'], d_brokers: ['מתווכים / בלעדיות', 'Agents / exclusivity'], d_published_detail: ['השיווק עד היום', 'Marketing so far'],
   d_offers: ['פתיחות להצעות', 'Openness to offers'], d_buyer: ['העדפות קונה / תנאים', 'Buyer / terms preferences'], d_notes: ['חשוב לדעת לפני השיווק', 'Important before marketing'],
   m_pros: ['יתרונות', 'Advantages'], m_unique: ['מה מייחד', 'What sets it apart'], m_nearby: ['במרחק הליכה', 'Within walking distance'], m_fit: ['מתאים ל', 'Ideal for'],
-  m_story: ['סיפור / דגש לפרסום', 'Story / highlight'],
+  m_love: ['מה אתם הכי אוהבים', 'What you love most'], m_story: ['מה להדגיש בפרסום', 'Emphasise in the listing'], m_hide: ['לא לפרסם', 'Keep out of the listing'], m_extra: ['מידע נוסף', 'Additional information'],
   u_photos: ['תמונות', 'Photos'], u_videos: ['סרטונים', 'Videos'], u_plan: ['תוכנית', 'Floor plan'], u_docs: ['מסמכים', 'Documents'],
 }
 export function stepLabel(step, lang) {
@@ -866,7 +894,7 @@ export const DOC_TAG_LABEL = (v, lang = 'he') => {
   return t ? L(t, lang) : (v || '')
 }
 
-export const SCHEMA_VERSION = 3
+export const SCHEMA_VERSION = 4
 
 // Key phrase of each question, shown in bold (Typeform style). Must be an exact substring of q / en_q.
 export const EMPHASIS = {
@@ -945,11 +973,12 @@ export const EMPHASIS = {
   d_offers: ["פתוחים להצעות", "open are you to offers"],
   d_buyer: ["סוג קונה", "the buyer"],
   d_notes: ["משהו חשוב נוסף", "anything else important"],
+  l_inherit: ["בירושה", "inherited"], d_offers_received: ["הצעות על הנכס", "received offers"], m_love: ["הכי אוהבים", "love most"], m_hide: ["אינכם רוצים שיופיע", "do not want to appear"], m_extra: ["מידע נוסף", "Anything else"],
   m_pros: ["היתרונות הגדולים ביותר", "biggest advantages"],
   m_unique: ["מה מייחד", "sets it apart"],
   m_nearby: ["במרחק הליכה", "walking distance"],
   m_fit: ["למי הנכס מתאים", "ideal for"],
-  m_story: ["סיפור או פרט מיוחד", "story or special detail"],
+  m_story: ["חשוב לכם שנדגיש", "important for us to emphasise"],
   u_photos: ["תמונות עדכניות", "Recent photos"],
   u_videos: ["סרטון", "video"],
   u_plan: ["תוכנית", "Floor plan"],
@@ -1113,6 +1142,7 @@ export function buildStory(a, lang = 'he') {
       if (a.l_owners) t.push(`Rights are registered in the name of ${a.l_owners}${a.l_rights ? ` (${lab('l_rights', a.l_rights)})` : ''}.`)
       if (a.l_more_owners === 'yes') t.push(`Additional owners: ${a.l_more_owners_detail || 'yes'}.`)
       if (a.l_agree) t.push(`Consent to sell: ${lab('l_agree', a.l_agree).toLowerCase()}.`)
+      if (a.l_inherit && a.l_inherit !== 'no') t.push(`Inherited property: ${lab('l_inherit', a.l_inherit).toLowerCase()}.`)
       if (yesRows.length) t.push(`Confirmed: ${list(yesRows).toLowerCase()}.`)
       if (a.l_mortgage) t.push(`Remaining mortgage about ${ils(a.l_mortgage)}.`)
       if (unkRows.length) t.push(`To verify against documents: ${list(unkRows).toLowerCase()}.`)
@@ -1123,6 +1153,7 @@ export function buildStory(a, lang = 'he') {
       if (a.l_owners) t.push(`הזכויות רשומות על שם ${a.l_owners}${a.l_rights ? ` (${lab('l_rights', a.l_rights)})` : ''}.`)
       if (a.l_more_owners === 'yes') t.push(`בעלים נוספים: ${a.l_more_owners_detail || 'כן'}.`)
       if (a.l_agree) t.push(`הסכמה למכירה: ${lab('l_agree', a.l_agree)}.`)
+      if (a.l_inherit && a.l_inherit !== 'no') t.push(`הנכס התקבל בירושה: ${lab('l_inherit', a.l_inherit)}.`)
       if (yesRows.length) t.push(`דווח כי: ${list(yesRows)}.`)
       if (a.l_mortgage) t.push(`יתרת המשכנתא כ-${ils(a.l_mortgage)}.`)
       if (unkRows.length) t.push(`לבדיקה מול מסמכים: ${list(unkRows)}.`)
@@ -1178,13 +1209,19 @@ export function buildStory(a, lang = 'he') {
       if (a.m_unique) t.push(`What sets it apart: ${a.m_unique}.`)
       if (multi('m_nearby').length) t.push(`Within walking distance: ${list(multi('m_nearby')).toLowerCase()}.`)
       if (multi('m_fit').length) t.push(`Ideal for ${list(multi('m_fit')).toLowerCase()}.`)
+      if (a.m_love) t.push(`What the owners love most: ${a.m_love}.`)
       if (a.m_story) t.push(`Worth highlighting: ${a.m_story}.`)
+      if (a.m_hide) t.push(`Keep out of the listing: ${a.m_hide}.`)
+      if (a.m_extra) t.push(`Also: ${a.m_extra}.`)
     } else {
       if (a.m_pros) t.push(`היתרונות הגדולים: ${a.m_pros}.`)
       if (a.m_unique) t.push(`מה מייחד: ${a.m_unique}.`)
       if (multi('m_nearby').length) t.push(`במרחק הליכה: ${list(multi('m_nearby'))}.`)
       if (multi('m_fit').length) t.push(`מתאים במיוחד ל${list(multi('m_fit'))}.`)
+      if (a.m_love) t.push(`מה הבעלים הכי אוהבים: ${a.m_love}.`)
       if (a.m_story) t.push(`כדאי להדגיש: ${a.m_story}.`)
+      if (a.m_hide) t.push(`לא לפרסם: ${a.m_hide}.`)
+      if (a.m_extra) t.push(`עוד: ${a.m_extra}.`)
     }
     if (t.length) paras.push({ title: en ? 'The marketing angle' : 'הזווית השיווקית', text: t.join(' ') })
   }
@@ -1210,3 +1247,29 @@ export function buildStory(a, lang = 'he') {
   return paras
 }
 export const storyText = (a, lang = 'he') => buildStory(a, lang).map(p => `${p.title}\n${p.text}`).join('\n\n')
+
+// ── Public / shareable subset ────────────────────────────────────────────────
+// Internal-only answers never leave the office: they are stripped before the
+// summary page (share link) and before the public story are built.
+export const INTERNAL_ONLY = ['d_min', 'd_expected', 'd_best_offer', 'd_offers_received', 'l_mortgage', 'd_notes', 'm_hide']
+export function publicAnswers(a) {
+  const out = {}
+  Object.entries(a || {}).forEach(([k, v]) => {
+    if (INTERNAL_ONLY.includes(k)) return
+    if (INTERNAL_ONLY.some(id => k === `${id}_other` || k === `${id}_note`)) return
+    if (k.startsWith('__')) return
+    out[k] = v
+  })
+  return out
+}
+
+// ── Intake status pipeline (shared by API + admin) ───────────────────────────
+export const INTAKE_STATUSES = [
+  { v: 'draft',     l: 'טיוטה',              en: 'Draft',      color: '#9A9AA8' },
+  { v: 'new',       l: 'חדש / ממתין לבדיקה', en: 'New',        color: '#E05252' },
+  { v: 'review',    l: 'בבדיקה',             en: 'In review',  color: '#F5A623' },
+  { v: 'approved',  l: 'מאושר',              en: 'Approved',   color: '#60D4F7' },
+  { v: 'published', l: 'פורסם באתר',         en: 'Published',  color: '#22C55E' },
+  { v: 'inactive',  l: 'לא פעיל',            en: 'Inactive',   color: '#6B6B7A' },
+  { v: 'sold',      l: 'נמכר',               en: 'Sold',       color: '#82F67F' },
+]

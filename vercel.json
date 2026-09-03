@@ -50,7 +50,7 @@
       "maxDuration": 30
     },
     "api/seller-form.js": {
-      "maxDuration": 30
+      "maxDuration": 60
     }
   },
   "rewrites": [

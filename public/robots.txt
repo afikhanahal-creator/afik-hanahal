@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /newproperty
+Disallow: /sell
+Disallow: /seller-form
+Disallow: /admin-panel

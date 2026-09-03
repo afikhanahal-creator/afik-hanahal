@@ -54,16 +54,25 @@ class ErrorBoundary extends Component {
 
 const cleanPath = window.location.pathname.replace(/\/$/, '')
 const isAccessibilityPage = cleanPath === '/accessibility'
-// Public seller intake form (Typeform-style) — its own chunk, never loaded by the main site.
-const isSellerForm = cleanPath === '/sell' || cleanPath === '/seller-form'
+// Property intake (Typeform-style) — direct link only, its own chunk, never loaded by the main site.
+//   /newproperty            the intake form (also /sell, /seller-form)
+//   /newproperty/<token>    public, shareable summary of a submitted property (noindex)
+const isSellerForm = ['/newproperty', '/sell', '/seller-form'].includes(cleanPath)
+const summaryToken = (cleanPath.match(/^\/newproperty\/([A-Za-z0-9]{16,64})$/) || [])[1] || null
 const SellerForm = lazy(() => import('./SellerForm.jsx'))
+const PropertySummary = lazy(() => import('./PropertySummary.jsx'))
+if (isSellerForm || summaryToken) {
+  const m = document.createElement('meta'); m.name = 'robots'; m.content = 'noindex, nofollow'; document.head.appendChild(m)
+}
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <ErrorBoundary>
-      {isSellerForm
-        ? <Suspense fallback={<div style={{ minHeight: '100vh', background: '#fff' }}/>}><SellerForm /></Suspense>
-        : isAccessibilityPage ? <AccessibilityPage /> : <App />}
+      {summaryToken
+        ? <Suspense fallback={<div style={{ minHeight: '100vh', background: '#EFEFF1' }}/>}><PropertySummary token={summaryToken} /></Suspense>
+        : isSellerForm
+          ? <Suspense fallback={<div style={{ minHeight: '100vh', background: '#EFEFF1' }}/>}><SellerForm /></Suspense>
+          : isAccessibilityPage ? <AccessibilityPage /> : <App />}
     </ErrorBoundary>
   </StrictMode>,
 )

@@ -39,3 +39,22 @@ ALTER TABLE seller_submissions ENABLE ROW LEVEL SECURITY;
 
 -- Added later: narrative summary (safe to run on an existing table)
 ALTER TABLE seller_submissions ADD COLUMN IF NOT EXISTS story TEXT;
+
+-- ── Property intake v2: drafts, share links, owner verification, publishing ──
+ALTER TABLE seller_submissions ADD COLUMN IF NOT EXISTS share_token TEXT UNIQUE;          -- public summary link /newproperty/<token>
+ALTER TABLE seller_submissions ADD COLUMN IF NOT EXISTS submitted_at TIMESTAMPTZ;         -- null while still a draft
+ALTER TABLE seller_submissions ADD COLUMN IF NOT EXISTS draft_updated_at TIMESTAMPTZ;
+ALTER TABLE seller_submissions ADD COLUMN IF NOT EXISTS cur TEXT;                         -- step id the draft stopped at
+ALTER TABLE seller_submissions ADD COLUMN IF NOT EXISTS owner_verified_at TIMESTAMPTZ;    -- first "I confirm the details" click
+ALTER TABLE seller_submissions ADD COLUMN IF NOT EXISTS verifications JSONB DEFAULT '[]'::jsonb; -- [{ name, at }]
+ALTER TABLE seller_submissions ADD COLUMN IF NOT EXISTS history JSONB DEFAULT '[]'::jsonb;      -- [{ at, by, action, note }]
+ALTER TABLE seller_submissions ADD COLUMN IF NOT EXISTS overrides JSONB DEFAULT '{}'::jsonb;    -- office edits used for publishing (title, price, description…)
+ALTER TABLE seller_submissions ADD COLUMN IF NOT EXISTS published_property_id TEXT;       -- id of the property in the site's property generator
+ALTER TABLE seller_submissions ADD COLUMN IF NOT EXISTS published_at TIMESTAMPTZ;
+CREATE UNIQUE INDEX IF NOT EXISTS seller_submissions_sid_idx ON seller_submissions (sid);
+CREATE INDEX IF NOT EXISTS seller_submissions_share_token_idx ON seller_submissions (share_token);
+
+-- Public bucket for photos copied at publish time (the site's property generator needs public URLs).
+INSERT INTO storage.buckets (id, name, public, file_size_limit)
+VALUES ('property-media', 'property-media', true, 209715200)
+ON CONFLICT (id) DO NOTHING;

@@ -18,6 +18,7 @@ import {
   otherKey, noteKey, directionsText, buildStory, storyText, headline, PROPERTY_TYPE_LABEL,
 } from './sellerFormSchema.js'
 import CITIES from './data/israelCities.json'
+import { SummaryView, ShareMenu, buildLocalSummary } from './PropertySummary.jsx'
 
 const API = import.meta.env.PROD ? '' : (import.meta.env.VITE_SELLER_API_BASE || '')
 const DRAFT_KEY = 'afik_seller_form_v1'
@@ -49,10 +50,10 @@ const T = {
     otherPh: 'פרטו במילים…', notePh: 'תיאור כיווני האוויר. אפשר לערוך חופשי', noteReset: 'חזרה לתיאור האוטומטי', loadingStreets: 'טוען רחובות…', noStreets: 'הקלידו את שם הרחוב',
     edit: 'עריכה', missingTitle: 'נשארו שאלות חובה שלא נענו', jump: 'מעבר לשאלה',
     consent: 'אני מאשר/ת שהפרטים שמסרתי נכונים למיטב ידיעתי, ומסכים/ה שאפיק הנחל תיצור איתי קשר בנוגע לשיווק הנכס.',
-    submit: 'שליחת הטופס', submitting: 'שולחים…',
+    submit: 'סיום ושליחת הנכס', submitting: 'שולחים…', shareForm: 'שתף טופס', shareFormText: 'היי, אפיק הנחל מבקשים שנמלא את פרטי הנכס למכירה. אפשר להמשיך את הטופס כאן:', shareFormHint: 'שלחו את הקישור לבן/בת זוג או לשותף כדי שיעזרו למלא. הטופס המשותף נשמר אוטומטית.', resumedFromLink: 'המשכנו מהמקום שבו הטופס נעצר', savedCloud: 'נשמר', dateDay: 'יום', dateMonth: 'חודש', dateYear: 'שנה', dirPresets: 'בחירה מהירה', pickFromList: 'או בחרו מהרשימה',
     submitErr: 'משהו השתבש בשליחה. הטופס שלכם שמור, נסו שוב בעוד רגע או שלחו לנו הודעה בוואטסאפ.',
     consentErr: 'צריך לאשר את ההצהרה כדי לשלוח',
-    doneTitle: 'תודה, {name}!', doneSub: 'תיק הנכס הגיע אלינו. צוות השיווק של אפיק הנחל יעבור על הפרטים וייצור איתכם קשר תוך יום עסקים כדי לתאם את הצעד הבא במכירה.',
+    doneTitle: 'תודה, {name}!', doneSub: 'הנכס נקלט אצלנו. צוות השיווק של אפיק הנחל יעבור על הפרטים וייצור איתכם קשר תוך יום עסקים כדי לתאם את הצעד הבא במכירה.',
     refLabel: 'מספר תיק', doneWa: 'לשלוח לנו הודעה בוואטסאפ', doneHome: 'חזרה לאתר אפיק הנחל', copyRef: 'העתקת מספר התיק', copied: 'הועתק',
     autosaved: 'נשמר אוטומטית', privacyNote: 'הפרטים נשמרים באופן מאובטח ומשמשים את אפיק הנחל בלבד.',
     files: '{n} קבצים', minus: 'פחות', plus: 'יותר', langToggle: 'English',
@@ -82,7 +83,7 @@ const T = {
     otherPh: 'Please specify…', notePh: 'Direction description. Edit freely', noteReset: 'Back to the automatic description', loadingStreets: 'Loading streets…', noStreets: 'Type the street name',
     edit: 'Edit', missingTitle: 'Some required questions are still unanswered', jump: 'Go to question',
     consent: 'I confirm the details I provided are accurate to the best of my knowledge, and I agree that Afik Hanahal may contact me regarding marketing this property.',
-    submit: 'Submit form', submitting: 'Sending…',
+    submit: 'Finish and submit the property', submitting: 'Sending…', shareForm: 'Share form', shareFormText: 'Hi, Afik Hanahal asked us to fill in the property details for the sale. You can continue the form here:', shareFormHint: 'Send the link to a spouse or partner so they can help fill it in. The shared form saves automatically.', resumedFromLink: 'Continuing from where the form stopped', savedCloud: 'Saved', dateDay: 'Day', dateMonth: 'Month', dateYear: 'Year', dirPresets: 'Quick pick', pickFromList: 'or pick from the list',
     submitErr: 'Something went wrong. Your form is saved. Try again in a moment or message us on WhatsApp.',
     consentErr: 'Please confirm the statement to submit',
     doneTitle: 'Thank you, {name}!', doneSub: 'Your property file has reached us. The Afik Hanahal marketing team will review the details and contact you within one business day to plan the next step of the sale.',
@@ -204,6 +205,21 @@ const CSS = `
 .sf-combo-list { position:absolute; top:100%; inset-inline:0; z-index:20; margin:4px 0 0; padding:4px; list-style:none; background:var(--paper); border:1px solid var(--line2); border-radius:6px; box-shadow:0 10px 30px rgba(0,0,0,.12); text-align:start; max-height:260px; overflow-y:auto; }
 .sf-combo-list li { padding:9px 12px; border-radius:4px; font-size:16px; cursor:pointer; }
 .sf-combo-list li.on { background:var(--tint2); color:var(--ink); }
+.sf-stage-done { padding:0; }
+.sf-done-wrap { width:100%; }
+.sf-resumed { margin:0 auto 14px; max-width:560px; font-size:13px; color:var(--deep); background:var(--tint2); border-radius:6px; padding:8px 12px; }
+.sf-select-wrap { margin:14px auto 0; display:flex; align-items:center; justify-content:center; gap:10px; font-size:13.5px; color:var(--muted); }
+.sf-select { font-size:16px; padding:8px 12px; border:1px solid var(--line2); border-radius:6px; background:#fff; color:var(--ink); min-width:120px; }
+.sf-presets { display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:6px; margin:14px auto 0; font-size:13px; color:var(--muted); }
+.sf-linked { display:flex; align-items:center; justify-content:center; gap:16px; margin:0 auto 16px; padding:10px 16px; background:var(--paper); border:1px solid var(--line); border-radius:8px; width:fit-content; }
+.sf-linked .lbl { font-size:15px; font-weight:600; }
+.sf-linked .ctl { display:flex; align-items:center; gap:10px; }
+.sf-linked .ctl b { min-width:30px; text-align:center; font-size:20px; font-variant-numeric:tabular-nums; }
+.sf-date { display:flex; gap:8px; }
+.sf-date label { flex:1; display:flex; flex-direction:column; gap:2px; text-align:start; }
+.sf-date small { font-size:11px; color:var(--muted); letter-spacing:.04em; }
+.sf-date select { font-size:16px; padding:9px 8px; border:1px solid var(--line2); border-radius:6px; background:#fff; color:var(--ink); width:100%; }
+.sf-date.is-err select { border-color:var(--err); }
 .sf-count { position:fixed; bottom:12px; left:50%; transform:translateX(-50%); font-size:12px; color:var(--ink2); pointer-events:none; font-variant-numeric:tabular-nums; background:rgba(255,255,255,.85); backdrop-filter:blur(6px); border:1px solid var(--line); border-radius:20px; padding:4px 12px; }
 
 /* ── inputs ────────────────────────────────────────────────────────────── */
@@ -245,11 +261,11 @@ textarea.sf-input { resize:none; line-height:1.5; font-size:clamp(17px,2vw,22px)
 .sf-opt.on .sf-box svg { opacity:1; }
 
 /* ── counters / matrix / toggles ───────────────────────────────────────── */
-.sf-counter { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:12px 0; border-bottom:1px solid var(--line); }
-.sf-counter:last-child { border-bottom:0; }
-.sf-counter .lbl { font-size:19px; }
-.sf-counter .ctl { display:flex; align-items:center; gap:12px; }
-.sf-counter .ctl b { min-width:40px; text-align:center; font-size:24px; font-weight:600; font-variant-numeric:tabular-nums; }
+.sf-counters { display:flex; flex-wrap:wrap; justify-content:center; gap:12px; }
+.sf-counter { display:flex; flex-direction:column; align-items:center; gap:10px; padding:16px 22px; background:var(--paper); border:1px solid var(--line); border-radius:10px; min-width:200px; }
+.sf-counter .lbl { font-size:16px; font-weight:600; color:var(--ink2); }
+.sf-counter .ctl { display:flex; align-items:center; gap:14px; }
+.sf-counter .ctl b { min-width:44px; text-align:center; font-size:30px; font-weight:700; font-variant-numeric:tabular-nums; }
 .sf-round { width:40px; height:40px; border-radius:4px; border:1px solid var(--line2); background:var(--box); color:var(--ink); font-size:20px; line-height:1; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; transition:all .12s; }
 .sf-round:hover { background:var(--boxHover); }
 .sf-round:disabled { opacity:.35; cursor:default; }
@@ -410,7 +426,6 @@ textarea.sf-input { resize:none; line-height:1.5; font-size:clamp(17px,2vw,22px)
   .sf-mrow { flex-direction:column; align-items:center; text-align:center; gap:8px; }
   .sf-mrow .lbl { flex-basis:auto; }
   .sf-scale { justify-content:center; }
-  .sf-counter { flex-direction:column; gap:8px; }
   .sf-tags { justify-content:center; }
   .sf-welcome .logo { height:120px; }
   .sf-welcome-actions .sf-btn { width:100%; justify-content:center; }
@@ -499,6 +514,8 @@ export default function SellerForm() {
   const [submitErr, setSubmitErr] = useState('')
   const [result, setResult] = useState(null)
   const sidRef = useRef(null)
+  const [linkState, setLinkState] = useState(null)   // null | loading | resumed | fresh | submitted
+  const [cloudSaved, setCloudSaved] = useState(false)
   const startedAt = useRef(Date.now())
   const stageRef = useRef(null)
 
@@ -510,8 +527,29 @@ export default function SellerForm() {
     const prevBg = document.body.style.background
     document.body.style.background = '#fff'
     document.documentElement.style.opacity = '1'
-    const d = loadDraft()
-    if (d) { setDraft(d); sidRef.current = d.sid || null }
+    const linkSid = new URLSearchParams(window.location.search).get('d')
+    if (linkSid && /^[\w-]{8,64}$/.test(linkSid)) {
+      // Shared / resume link: the draft lives on the server under this id
+      sidRef.current = linkSid
+      setLinkState('loading')
+      fetch(`${API}/api/seller-form?action=draft&sid=${encodeURIComponent(linkSid)}`)
+        .then(r => r.json().then(d => ({ status: r.status, d })))
+        .then(({ status, d }) => {
+          if (status === 200 && d.ok && d.submitted) { setLinkState('submitted'); setResult({ ref: d.ref, token: d.token, url: `${window.location.origin}/newproperty/${d.token}` }); setPhase('done'); return }
+          if (status === 200 && d.ok && d.draft) {
+            setAnswers(d.draft.answers || {})
+            if (d.draft.lang) setLang(d.draft.lang)
+            setCur(d.draft.cur && STEPS.some(s => s.id === d.draft.cur) ? d.draft.cur : STEPS[0].id)
+            setLinkState('resumed'); setPhase('form'); startedAt.current = Date.now()
+            return
+          }
+          setLinkState('fresh')  // link to a brand-new form: keep the shared id so both people write to the same draft
+        })
+        .catch(() => setLinkState('fresh'))
+    } else {
+      const d = loadDraft()
+      if (d) { setDraft(d); sidRef.current = d.sid || null }
+    }
     return () => { document.body.style.background = prevBg }
   }, [])
   useEffect(() => {
@@ -550,6 +588,17 @@ export default function SellerForm() {
     }, 500)
     return () => clearTimeout(h)
   }, [answers, cur, phase, lang])
+  // Server draft: survives a closed tab, a new device, and is what a shared partner continues from
+  useEffect(() => {
+    if (phase !== 'form' || !sidRef.current) return
+    if (!Object.keys(answers).length) return
+    const h = setTimeout(() => {
+      const clean = stripFilesForDraft(answers); delete clean.__consent
+      fetch(`${API}/api/seller-form?action=draft`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sid: sidRef.current, answers: clean, cur, lang, schemaVersion: SCHEMA_VERSION, ua: navigator.userAgent }) })
+        .then(r => setCloudSaved(r.ok)).catch(() => setCloudSaved(false))
+    }, 2500)
+    return () => clearTimeout(h)
+  }, [answers, cur, phase, lang])
 
   const setAnswer = useCallback((id, v) => {
     setErr(null)
@@ -572,7 +621,7 @@ export default function SellerForm() {
       setCur(draft.cur && STEPS.some(s => s.id === draft.cur) ? draft.cur : STEPS[0].id)
       if (draft.lang) setLang(draft.lang)
     } else {
-      clearDraft(); setAnswers({}); setCur(STEPS[0].id); sidRef.current = null
+      clearDraft(); setAnswers({}); setCur(STEPS[0].id); if (linkState !== 'fresh') sidRef.current = null
     }
     if (!sidRef.current) sidRef.current = uid()
     startedAt.current = Date.now()
@@ -647,7 +696,7 @@ export default function SellerForm() {
       })
       const data = await r.json().catch(() => ({}))
       if (!r.ok || !data.ok) throw new Error(data.error || `HTTP ${r.status}`)
-      setResult({ ref: data.ref, name: answers.c_name })
+      setResult({ ref: data.ref, token: data.token, url: `${window.location.origin}/newproperty/${data.token}`, name: answers.c_name, answers })
       clearDraft()
       setPhase('done'); window.scrollTo({ top: 0 })
     } catch (e) {
@@ -665,25 +714,27 @@ export default function SellerForm() {
       <style>{CSS}</style>
 
       <div className="sf-progress" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100} aria-label={t.progress}><i style={{ width: `${progress}%` }}/></div>
-      <header className="sf-top">
+      {phase !== 'done' && <header className="sf-top">
         <a href="/" aria-label={t.brand} className="sf-brand">
           <img className="sf-logo" src="/logo-mark-black.svg" alt={t.brand}/>
           <span className="sf-brandtxt">{t.brand}<small>{t.tagline}</small></span>
         </a>
         {phase === 'form' ? <Stepper curIdx={sectionIdx} lang={lang}/> : <div style={{ flex: 1 }}/>}
         <div className="sf-top-right">
-          {phase === 'form' && <span className="sf-saved" key={savedTick} style={{ opacity: savedTick ? 1 : 0 }}><i/>{t.autosaved}</span>}
+          {phase === 'form' && <span className="sf-saved" key={savedTick} style={{ opacity: savedTick ? 1 : 0 }}><i/>{cloudSaved ? t.savedCloud : t.autosaved}</span>}
+          {phase === 'form' && sidRef.current && <ShareMenu url={`${window.location.origin}/newproperty?d=${sidRef.current}`} title={t.brand} text={t.shareFormText} lang={lang} label={t.shareForm} compact/>}
           <button className="sf-lang" onClick={() => setLang(l => l === 'he' ? 'en' : 'he')} aria-label="Switch language" lang={lang === 'he' ? 'en' : 'he'}><IcoGlobe/>{t.langToggle}</button>
         </div>
-      </header>
+      </header>}
 
-      <main className="sf-stage" ref={stageRef}>
+      <main className={phase === 'done' ? 'sf-stage-done' : 'sf-stage'} ref={stageRef}>
         {phase === 'welcome' && (
-          <Welcome t={t} lang={lang} draft={draft} onStart={() => begin(false)} onResume={() => begin(true)}/>
+          <Welcome t={t} lang={lang} draft={draft} onStart={() => begin(false)} onResume={() => begin(true)} loading={linkState === 'loading'}/>
         )}
 
         {phase === 'form' && step && (
           <div className="sf-card">
+            {linkState === 'resumed' && idx > 0 && <div className="sf-resumed">{t.resumedFromLink}</div>}
             <AnimatePresence mode="wait" custom={dir} initial={false}>
               <motion.div key={step.id} custom={dir} variants={stepVariants} initial="enter" animate="center" exit="exit" transition={stepTransition}>
                 {step.type === 'intro' && (
@@ -725,7 +776,13 @@ export default function SellerForm() {
           </div>
         )}
 
-        {phase === 'done' && <Done t={t} result={result}/>}
+        {phase === 'done' && result && (
+          <div className="sf-done-wrap">
+            {linkState === 'submitted' && result.token
+              ? <div className="sf-done"><div className="ck"><IcoCheck size={38}/></div><h1>{t.doneTitle.replace('{name}!', '').replace(', !', '!').trim() || t.brand}</h1><p>{t.doneSub}</p><div className="sf-actions"><a className="sf-btn" href={result.url}>{t.reviewTitle}<IcoFwd/></a></div></div>
+              : <SummaryView data={{ ...buildLocalSummary(result.answers || {}, { ref: result.ref, token: result.token }), local: !API && !import.meta.env.PROD ? true : false }} lang={lang} setLang={setLang} shareUrl={result.url} mode="done"/>}
+          </div>
+        )}
       </main>
 
       {phase === 'form' && (
@@ -736,8 +793,9 @@ export default function SellerForm() {
 }
 
 // ═══ WELCOME ══════════════════════════════════════════════════════════════════
-function Welcome({ t, lang, draft, onStart, onResume }) {
+function Welcome({ t, lang, draft, onStart, onResume, loading }) {
   const hasDraft = draft && Object.keys(draft.answers || {}).length > 0
+  if (loading) return <div className="sf-welcome"><img className="logo" src={LOGO_SRC} alt={t.brand}/><p>…</p></div>
   return (
     <div className="sf-welcome">
       <img className="logo" src={LOGO_SRC} alt={t.brand}/>
@@ -874,6 +932,15 @@ function Choice({ step, value, lang, t, pickChoice, answers, setAnswer }) {
         ))}
       </div>
       {value === 'other' && step.opts.some(o => o.v === 'other') && <OtherInput step={step} answers={answers} setAnswer={setAnswer} lang={lang} t={t}/>}
+      {step.compact && (
+        <div className="sf-select-wrap">
+          <span>{t.pickFromList}</span>
+          <select className="sf-select" value={value || ''} onChange={e => pickChoice(e.target.value)} aria-label={t.pickFromList}>
+            <option value="">—</option>
+            {step.opts.map(o => <option key={o.v} value={o.v}>{L(o, lang)}</option>)}
+          </select>
+        </div>
+      )}
       <div className="sf-hint">{t.selectOne}</div>
     </>
   )
@@ -881,8 +948,21 @@ function Choice({ step, value, lang, t, pickChoice, answers, setAnswer }) {
 
 function Multi({ step, value, lang, t, toggleMulti, answers, setAnswer }) {
   const arr = Array.isArray(value) ? value : []
+  const lc = step.linkedCounter
+  const lcVal = lc ? Number(answers[lc.id]?.[lc.k] ?? lc.min ?? 0) : 0
+  const lcSet = n => setAnswer(lc.id, { ...(answers[lc.id] || {}), [lc.k]: Math.min(lc.max ?? 99, Math.max(lc.min ?? 0, n)) })
   return (
     <>
+      {lc && (
+        <div className="sf-linked">
+          <span className="lbl">{lang === 'en' ? lc.en : lc.l}</span>
+          <span className="ctl">
+            <button type="button" className="sf-round" onClick={() => lcSet(lcVal - 1)} disabled={lcVal <= (lc.min ?? 0)} aria-label={t.minus}>−</button>
+            <b>{lcVal}</b>
+            <button type="button" className="sf-round" onClick={() => lcSet(lcVal + 1)} disabled={lcVal >= (lc.max ?? 99)} aria-label={t.plus}>+</button>
+          </span>
+        </div>
+      )}
       <div className={`sf-opts${step.opts.length > 6 ? ' grid' : ''}`} role="group">
         {step.opts.map((o, i) => (
           <button key={o.v} type="button" aria-pressed={arr.includes(o.v)} className={`sf-opt${arr.includes(o.v) ? ' on' : ''}`} onClick={() => toggleMulti(o.v)}>
@@ -893,6 +973,15 @@ function Multi({ step, value, lang, t, toggleMulti, answers, setAnswer }) {
         ))}
       </div>
       {arr.includes('other') && <OtherInput step={step} answers={answers} setAnswer={setAnswer} lang={lang} t={t}/>}
+      {step.note && (
+        <div className="sf-presets">
+          <span>{t.dirPresets}:</span>
+          {[['north', 'east'], ['north', 'west'], ['south', 'east'], ['south', 'west'], ['north', 'east', 'south', 'west']].map(p => {
+            const on = p.length === arr.length && p.every(x => arr.includes(x))
+            return <button key={p.join('-')} type="button" className={`sf-pill${on ? ' on purple' : ''}`} onClick={() => setAnswer(step.id, p)}>{directionsText(p, lang).replace(/^(נכס פינתי, |Corner property |Faces |פונה ל)/, '').replace(/\.$/, '')}</button>
+          })}
+        </div>
+      )}
       {step.note && <DirectionsNote step={step} value={arr} answers={answers} setAnswer={setAnswer} lang={lang} t={t}/>}
       <div className="sf-hint">{t.selectMany}</div>
     </>
@@ -913,7 +1002,7 @@ function Counter({ step, value, setValue, answers, lang, t }) {
     setValue({ ...v, [r.k]: n })
   }
   return (
-    <div>
+    <div className="sf-counters">
       {rows.map(r => (
         <div className="sf-counter" key={r.k}>
           <span className="lbl">{L(r, lang)}</span>
@@ -938,6 +1027,14 @@ function Group({ step, value, setValue, answers, lang, err, t }) {
         const req = typeof f.required === 'function' ? f.required(answers) : f.required
         const unit = lang === 'en' ? (f.en_unit || f.unit) : f.unit
         const isNum = f.type === 'number'
+        if (f.type === 'date') {
+          return (
+            <div className={`sf-field${f.half ? '' : ' full'}`} key={f.k}>
+              <label>{L(f, lang)}{req && <i>*</i>}</label>
+              <DateField id={`${step.id}-${f.k}`} value={v[f.k] || ''} onChange={val => setValue({ ...v, [f.k]: val })} lang={lang} t={t} invalid={bad.includes(f.k)}/>
+            </div>
+          )
+        }
         if (f.type === 'city' || f.type === 'street') {
           return (
             <div className={`sf-field${f.half ? '' : ' full'}`} key={f.k}>
@@ -1033,6 +1130,29 @@ function Combo({ id, value, onChange, options, loadKey, loader, placeholder, inv
           ))}
         </ul>
       )}
+    </div>
+  )
+}
+
+const MONTHS_HE = ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר']
+const MONTHS_EN = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+function DateField({ id, value, onChange, lang, t, invalid }) {
+  const [y, m, d] = String(value || '').split('-').map(x => parseInt(x, 10))
+  const thisYear = new Date().getFullYear()
+  const years = Array.from({ length: 6 }, (_, i) => thisYear - 1 + i)
+  const set = (ny, nm, nd) => {
+    if (!ny || !nm || !nd) { onChange(''); return }
+    const dim = new Date(ny, nm, 0).getDate()
+    onChange(`${ny}-${String(nm).padStart(2, '0')}-${String(Math.min(nd, dim)).padStart(2, '0')}`)
+  }
+  const [py, pm, pd] = [y || 0, m || 0, d || 0]
+  const dim = py && pm ? new Date(py, pm, 0).getDate() : 31
+  const months = lang === 'en' ? MONTHS_EN : MONTHS_HE
+  return (
+    <div className={`sf-date${invalid ? ' is-err' : ''}`} id={id}>
+      <label><small>{t.dateDay}</small><select value={pd || ''} onChange={e => set(py || thisYear, pm || 1, +e.target.value)}><option value="">—</option>{Array.from({ length: dim }, (_, i) => <option key={i + 1} value={i + 1}>{i + 1}</option>)}</select></label>
+      <label><small>{t.dateMonth}</small><select value={pm || ''} onChange={e => set(py || thisYear, +e.target.value, pd || 1)}><option value="">—</option>{months.map((n, i) => <option key={i + 1} value={i + 1}>{n}</option>)}</select></label>
+      <label><small>{t.dateYear}</small><select value={py || ''} onChange={e => set(+e.target.value, pm || 1, pd || 1)}><option value="">—</option>{years.map(yy => <option key={yy} value={yy}>{yy}</option>)}</select></label>
     </div>
   )
 }
@@ -1307,27 +1427,3 @@ function FilesLine({ files, lang, t }) {
   return <span>{parts.join(' · ')}</span>
 }
 
-// ═══ DONE ═════════════════════════════════════════════════════════════════════
-function Done({ t, result }) {
-  const [copied, setCopied] = useState(false)
-  const ref = result?.ref || ''
-  const first = String(result?.name || '').trim().split(/\s+/)[0] || ''
-  return (
-    <div className="sf-done">
-      <div className="ck"><IcoCheck size={38}/></div>
-      <h1>{fill(t.doneTitle, { name: first }).replace(', !', '!')}</h1>
-      <p>{t.doneSub}</p>
-      {ref && (
-        <div className="sf-ref">
-          <small>{t.refLabel}</small>
-          <b dir="ltr">{ref}</b>
-          <button type="button" onClick={() => { navigator.clipboard?.writeText(ref).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1800) }) }}>{copied ? t.copied : t.copyRef}</button>
-        </div>
-      )}
-      <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap', marginTop: ref ? 0 : 26 }}>
-        <a className="sf-btn wa" href={`https://wa.me/${OFFICE_WA}?text=${encodeURIComponent(fill(t.waMsg, { ref }))}`} target="_blank" rel="noreferrer"><IcoWa/> {t.doneWa}</a>
-        <a className="sf-btn ghost" href="/">{t.doneHome}</a>
-      </div>
-    </div>
-  )
-}
