@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS seller_submissions (
   answers         JSONB DEFAULT '{}'::jsonb,   -- every answer, keyed by step id (see src/sellerFormSchema.js)
   files           JSONB DEFAULT '[]'::jsonb,   -- [{ name, size, type, kind, tag, path }] — path inside the seller-uploads bucket
   notes           TEXT,                        -- internal office notes
+  story           TEXT,                        -- narrative "property story" generated from the answers
   schema_version  INT DEFAULT 1,
   meta            JSONB DEFAULT '{}'::jsonb,
   created_at      TIMESTAMPTZ DEFAULT NOW(),
@@ -35,3 +36,6 @@ ON CONFLICT (id) DO NOTHING;
 
 -- Lock the table down: only the service role (used by /api/seller-form) may touch it.
 ALTER TABLE seller_submissions ENABLE ROW LEVEL SECURITY;
+
+-- Added later: narrative summary (safe to run on an existing table)
+ALTER TABLE seller_submissions ADD COLUMN IF NOT EXISTS story TEXT;

@@ -81,14 +81,6 @@ export const STEPS = [
       { k: 'phone',    l: 'טלפון',        en: 'Phone',        type: 'tel',  half: true },
       { k: 'relation', l: 'הקשר לנכס',   en: 'Relationship', type: 'text' },
     ] },
-  { id: 'c_hours', section: 'contact', type: 'multi',
-    q: 'מתי נוח לך שנתקשר?', en_q: 'When is it convenient to call you?',
-    opts: [
-      o('morning', 'בוקר (8:00–12:00)',   'Morning (8:00–12:00)'),
-      o('noon',    'צהריים (12:00–16:00)', 'Midday (12:00–16:00)'),
-      o('evening', 'ערב (16:00–20:00)',   'Evening (16:00–20:00)'),
-      o('any',     'כל שעה סבירה',        'Any reasonable hour'),
-    ] },
   { id: 'c_privacy', section: 'contact', type: 'toggles', required: true,
     q: 'כמה הגדרות פרטיות לפרסום', en_q: 'A couple of privacy settings for the listing',
     help: 'אפשר לשנות בכל שלב', en_help: 'You can change these at any time',
@@ -100,7 +92,8 @@ export const STEPS = [
   // ═══════════════════ 2. PROPERTY ══════════════════════════════════════════
   { id: 'p_intro', section: 'property', type: 'intro' },
   { id: 'p_type', section: 'property', type: 'choice', required: true, grid: true,
-    q: 'איזה סוג נכס אתם משווקים?', en_q: 'What type of property are you selling?',
+    q: 'איזה סוג נכס אתם מוכרים?', en_q: 'What type of property are you selling?',
+    other_ph: 'איזה נכס? תארו במילים', en_other_ph: 'Describe the property',
     opts: [
       o('apartment',  'דירה',                 'Apartment'),
       o('garden',     'דירת גן',              'Garden apartment'),
@@ -116,20 +109,17 @@ export const STEPS = [
     q: 'מה הכתובת המלאה של הנכס?', en_q: 'What is the full address of the property?',
     help: 'הכתובת המלאה נשארת אצלנו — היא תפורסם רק אם אישרתם', en_help: 'The full address stays with us and is published only with your approval',
     fields: [
-      { k: 'city',         l: 'עיר / יישוב',   en: 'City / town',    type: 'text', required: true, half: true, autocomplete: 'address-level2' },
+      { k: 'city',         l: 'עיר / יישוב',   en: 'City / town',    type: 'city', required: true, half: true, ph: 'התחילו להקליד ובחרו מהרשימה', en_ph: 'Start typing and pick from the list' },
       { k: 'neighborhood', l: 'שכונה',         en: 'Neighborhood',   type: 'text', half: true },
-      { k: 'street',       l: 'רחוב',          en: 'Street',         type: 'text', required: true, half: true, autocomplete: 'address-line1' },
+      { k: 'street',       l: 'רחוב',          en: 'Street',         type: 'street', required: true, half: true, ph: 'התחילו להקליד', en_ph: 'Start typing' },
       { k: 'number',       l: 'מספר בית',      en: 'House number',   type: 'text', required: true, half: true },
       { k: 'entrance',     l: 'כניסה',         en: 'Entrance',       type: 'text', half: true, showIf: a => !isHouse(a) },
       { k: 'apt',          l: 'מספר דירה',     en: 'Apartment no.',  type: 'text', half: true, showIf: a => !isHouse(a) },
     ] },
-  { id: 'p_rooms', section: 'property', type: 'counter', required: true, showIf: a => !isLand(a),
+  { id: 'p_rooms', section: 'property', type: 'choice', required: true, grid: true, compact: true, showIf: a => !isLand(a),
     q: 'כמה חדרים בנכס?', en_q: 'How many rooms does the property have?',
-    help: 'לפי הספירה הישראלית — סלון נחשב חדר', en_help: 'Israeli count: the living room counts as a room',
-    rows: [
-      { k: 'rooms',    l: 'חדרים',       en: 'Rooms',     min: 1, max: 30, step: 0.5, def: 4 },
-      { k: 'bedrooms', l: 'חדרי שינה',   en: 'Bedrooms',  min: 0, max: 20, step: 1,   def: 3 },
-    ] },
+    help: 'לפי הספירה הישראלית: סלון נחשב חדר', en_help: 'Israeli count: the living room counts as a room',
+    opts: ['1', '1.5', '2', '2.5', '3', '3.5', '4', '4.5', '5', '5.5', '6', '6.5', '7', '8+'].map(v => o(v, v, v)) },
   { id: 'p_floor', section: 'property', type: 'group', required: true, showIf: a => !isHouse(a),
     q: 'באיזו קומה הנכס?', en_q: 'Which floor is the property on?',
     fields: [
@@ -158,6 +148,8 @@ export const STEPS = [
     ph: 'לדוגמה: 2005', en_ph: 'e.g. 2005', min: 1880, max: 2030 },
   { id: 'p_directions', section: 'property', type: 'multi', showIf: a => !isLand(a),
     q: 'לאילו כיווני אוויר פונה הנכס?', en_q: 'Which directions does the property face?',
+    help: 'סמנו את הכיוונים, ולמטה יופיע תיאור מלא שאפשר לערוך', en_help: 'Pick the directions. A full description appears below and can be edited',
+    note: true,
     opts: [ o('north', 'צפון', 'North'), o('south', 'דרום', 'South'), o('east', 'מזרח', 'East'), o('west', 'מערב', 'West') ] },
   { id: 'p_view', section: 'property', type: 'multi',
     q: 'מה הנוף מהנכס? יש כיוון מיוחד?', en_q: 'What is the view? Anything special about the orientation?',
@@ -364,6 +356,7 @@ export const STEPS = [
       o('pool',         'בריכה',             'Pool'),
       o('gym',          'חדר כושר',          'Gym'),
       o('guestParking', 'חניית אורחים',      'Guest parking'),
+      o('other',        'אחר',               'Other'),
     ] },
   { id: 'b_fees', section: 'building', type: 'group', showIf: a => !isHouse(a),
     q: 'תשלומים חודשיים לבניין', en_q: 'Monthly building payments',
@@ -593,7 +586,15 @@ export const STEPS = [
       o('synagogue','בתי כנסת',              'Synagogues'),
       o('highways', 'כבישים ראשיים',         'Main roads'),
       o('beach',    'ים',                    'Beach'),
-      o('clinics',  'מרפאות',                'Clinics'),
+      o('clinics',  'מרפאות / קופת חולים',   'Clinics / HMO'),
+      o('super',    'סופרמרקט',              'Supermarket'),
+      o('pharmacy', 'בית מרקחת',             'Pharmacy'),
+      o('mall',     'קניון',                 'Mall'),
+      o('community','מתנ״ס / מרכז קהילתי',   'Community center'),
+      o('gym',      'חדר כושר / בריכה',      'Gym / pool'),
+      o('college',  'אוניברסיטה / מכללה',    'University / college'),
+      o('hospital', 'בית חולים',             'Hospital'),
+      o('other',    'אחר',                   'Other'),
     ] },
   { id: 'm_fit', section: 'marketing', type: 'multi',
     q: 'למי הנכס מתאים במיוחד?', en_q: 'Who is the property ideal for?',
@@ -642,6 +643,7 @@ export const STEPS = [
 
   // ═══════════════════ 10. REVIEW ═══════════════════════════════════════════
   { id: 'r_review', section: 'review', type: 'review' },
+  { id: 'r_story',  section: 'review', type: 'story' },
 ]
 
 // ── visibility / validation ──────────────────────────────────────────────────
@@ -712,9 +714,40 @@ export function groupInvalidFields(step, a) {
 
 // ── human-readable summary (review screen, e-mail, WhatsApp, admin) ──────────
 const L = (item, lang) => (lang === 'en' ? (item.en ?? item.l) : item.l)
-const optLabel = (step, val, lang) => {
+const optLabel = (step, val, lang, a) => {
   const opt = (step.opts || step.scale || []).find(x => x.v === val)
-  return opt ? L(opt, lang) : String(val ?? '')
+  const base = opt ? L(opt, lang) : String(val ?? '')
+  const other = a && val === 'other' && a[`${step.id}_other`] ? String(a[`${step.id}_other`]).trim() : ''
+  return other ? `${base}: ${other}` : base
+}
+export const otherKey = id => `${id}_other`
+export const noteKey = id => `${id}_note`
+
+// Human description of the selected compass directions (used live under the question and in summaries)
+export function directionsText(vals, lang = 'he') {
+  const v = Array.isArray(vals) ? vals : []
+  if (!v.length) return ''
+  const he = { north: 'צפון', south: 'דרום', east: 'מזרח', west: 'מערב' }
+  const en = { north: 'north', south: 'south', east: 'east', west: 'west' }
+  const order = ['north', 'east', 'south', 'west'].filter(k => v.includes(k))
+  const names = order.map(k => (lang === 'en' ? en[k] : he[k]))
+  const has = k => v.includes(k)
+  const corner = (has('north') && has('east')) ? (lang === 'en' ? 'north-east' : 'צפון-מזרח')
+    : (has('north') && has('west')) ? (lang === 'en' ? 'north-west' : 'צפון-מערב')
+    : (has('south') && has('east')) ? (lang === 'en' ? 'south-east' : 'דרום-מזרח')
+    : (has('south') && has('west')) ? (lang === 'en' ? 'south-west' : 'דרום-מערב') : ''
+  const join = arr => lang === 'en' ? arr.join(', ').replace(/, ([^,]*)$/, ' and $1') : arr.join(', ').replace(/, ([^,]*)$/, ' ו$1')
+  if (lang === 'en') {
+    if (v.length === 4) return 'The property faces all four directions: north, east, south and west, with light throughout the day.'
+    if (v.length === 3) return `The property faces three directions (${join(names)}), so it gets light most of the day.`
+    if (v.length === 2) return corner ? `Corner property facing ${corner} (${join(names)}).` : `The property faces ${join(names)} (front and back exposure).`
+    return `The property faces ${names[0]}.`
+  }
+  const hint = { north: 'כיוון קריר ונעים, ללא שמש ישירה', south: 'שמש רוב שעות היום, חמים בחורף', east: 'שמש של בוקר', west: 'שמש של אחר הצהריים ושקיעות' }
+  if (v.length === 4) return 'הנכס פונה לארבעה כיווני אוויר: צפון, מזרח, דרום ומערב, עם אור טבעי לאורך כל היום.'
+  if (v.length === 3) return `הנכס פונה לשלושה כיווני אוויר (${join(names)}), כך שיש אור טבעי רוב שעות היום.`
+  if (v.length === 2) return corner ? `נכס פינתי הפונה ל${corner} (${join(names)}): ${hint[order[0]]}, ${hint[order[1]]}.` : `הנכס פונה ל${join(names)} (חזית ועורף): ${hint[order[0]]}, ${hint[order[1]]}.`
+  return `הנכס פונה ל${names[0]}: ${hint[order[0]]}.`
 }
 export const fmtNum = (n, lang) => {
   if (isBlank(n) || Number.isNaN(Number(n))) return String(n ?? '')
@@ -726,7 +759,7 @@ const yesNo = (b, lang) => (lang === 'en' ? (b ? 'Yes' : 'No') : (b ? 'כן' : '
 // conversational; summaries want nouns). Falls back to the question text.
 const SHORT = {
   c_name: ['שם מלא', 'Full name'], c_phone: ['טלפון', 'Phone'], c_email: ['אימייל', 'E-mail'], c_role: ['הקשר לנכס', 'Relationship to property'],
-  c_extra: ['איש קשר נוסף', 'Additional contact'], c_hours: ['שעות נוחות לשיחה', 'Preferred call hours'], c_privacy: ['פרטיות בפרסום', 'Listing privacy'],
+  c_extra: ['איש קשר נוסף', 'Additional contact'], c_privacy: ['פרטיות בפרסום', 'Listing privacy'],
   p_type: ['סוג הנכס', 'Property type'], p_address: ['כתובת', 'Address'], p_rooms: ['חדרים', 'Rooms'], p_floor: ['קומה', 'Floor'],
   p_area: ['שטחים', 'Areas'], p_baths: ['חדרי רחצה ושירותים', 'Bathrooms and toilets'], p_year: ['שנת בנייה', 'Year built'],
   p_directions: ['כיווני אוויר', 'Facing directions'], p_view: ['נוף', 'View'],
@@ -772,9 +805,13 @@ export function stepValueText(step, a, lang) {
       return `${fmtNum(v, lang)}${unit ? ' ' + unit : ''}`
     }
     case 'choice':
-      return optLabel(step, v, lang)
-    case 'multi':
-      return Array.isArray(v) && v.length ? v.map(x => optLabel(step, x, lang)).join(', ') : ''
+      return optLabel(step, v, lang, a)
+    case 'multi': {
+      if (!(Array.isArray(v) && v.length)) return ''
+      const base = v.map(x => optLabel(step, x, lang, a)).join(', ')
+      if (step.note) { const n = a[noteKey(step.id)] || directionsText(v, lang); return n ? `${base}. ${n}` : base }
+      return base
+    }
     case 'counter':
       return visibleRows(step, a).filter(r => !isBlank(v?.[r.k])).map(r => `${L(r, lang)}: ${fmtNum(v[r.k], lang)}`).join(' · ')
     case 'toggles':
@@ -802,7 +839,9 @@ export function buildSummary(a, lang = 'he') {
   return SECTIONS.filter(s => s.id !== 'review').map(sec => {
     const items = steps
       .filter(st => st.section === sec.id && !['intro', 'review'].includes(st.type))
-      .map(st => ({ id: st.id, label: stepLabel(st, lang), value: stepValueText(st, a, lang), type: st.type }))
+      .map(st => ({ id: st.id, label: stepLabel(st, lang), value: stepValueText(st, a, lang), type: st.type,
+        chips: st.type === 'multi' && Array.isArray(a[st.id]) ? a[st.id].map(x => optLabel(st, x, lang, a)) : null,
+        note: st.type === 'multi' && st.note ? (a[noteKey(st.id)] || directionsText(a[st.id], lang)) : null }))
       .filter(it => it.value)
     return { section: sec.id, title: lang === 'en' ? sec.en : sec.title, items }
   }).filter(sec => sec.items.length)
@@ -815,7 +854,7 @@ export function headline(a, lang = 'he') {
   const addr = a.p_address || {}
   const where = [addr.street, addr.number].filter(Boolean).join(' ')
   const city = addr.city || ''
-  const rooms = a.p_rooms?.rooms ? (lang === 'en' ? `${a.p_rooms.rooms} rooms` : `${a.p_rooms.rooms} חדרים`) : ''
+  const rooms = a.p_rooms ? (lang === 'en' ? `${a.p_rooms} rooms` : `${a.p_rooms} חדרים`) : ''
   return [t, rooms, [where, city].filter(Boolean).join(', ')].filter(Boolean).join(' · ')
 }
 
@@ -827,7 +866,7 @@ export const DOC_TAG_LABEL = (v, lang = 'he') => {
   return t ? L(t, lang) : (v || '')
 }
 
-export const SCHEMA_VERSION = 2
+export const SCHEMA_VERSION = 3
 
 // Key phrase of each question, shown in bold (Typeform style). Must be an exact substring of q / en_q.
 export const EMPHASIS = {
@@ -916,3 +955,258 @@ export const EMPHASIS = {
   u_plan: ["תוכנית", "Floor plan"],
   u_docs: ["נסח טאבו / אישור זכויות", "Tabu extract / rights confirmation"],
 }
+
+// ── "Property story": a narrative summary the seller and the marketer both read ──
+// Returns [{ title, text }] paragraphs. Every sentence is skipped when its data is missing.
+export function buildStory(a, lang = 'he') {
+  const en = lang === 'en'
+  const S = id => STEPS.find(s => s.id === id)
+  const lab = (id, v) => (v === undefined || v === null || v === '') ? '' : optLabel(S(id), v, lang, a)
+  const multi = id => Array.isArray(a[id]) ? a[id].map(x => optLabel(S(id), x, lang, a)) : []
+  const list = arr => {
+    if (!arr.length) return ''
+    if (en) return arr.join(', ').replace(/, ([^,]*)$/, ' and $1')
+    const last = arr[arr.length - 1]
+    const glue = /^[\d₪]/.test(String(last)) ? ' ו-' : ' ו'
+    return arr.length === 1 ? String(last) : arr.slice(0, -1).join(', ') + glue + last
+  }
+  const num = n => (n === undefined || n === null || n === '' || Number.isNaN(Number(n))) ? '' : Number(n).toLocaleString(en ? 'en-US' : 'he-IL')
+  const ils = n => num(n) ? (en ? `₪${num(n)}` : `${num(n)} ₪`) : ''
+  const sent = parts => parts.filter(Boolean).join(' ')
+  const paras = []
+  const addr = a.p_address || {}
+  const area = a.p_area || {}
+  const floor = a.p_floor || {}
+  const type = lab('p_type', a.p_type)
+  const where = [addr.street, addr.number].filter(Boolean).join(' ')
+  const place = [where, addr.neighborhood, addr.city].filter(Boolean).join(', ')
+  const rooms = a.p_rooms
+  const land = isLand(a), house = isHouse(a)
+
+  // 1. Opening
+  {
+    const t = []
+    if (en) {
+      t.push(sent([type ? `${/^[aeiou]/i.test(type) ? 'An' : 'A'} ${type.toLowerCase()}` : 'A property', rooms ? `with ${rooms} rooms` : '', place ? `at ${place}` : '', '.']).replace(' .', '.'))
+      if (!house && floor.floor !== undefined && floor.floor !== '') t.push(`It sits on floor ${floor.floor}${floor.totalFloors ? ` of ${floor.totalFloors}` : ''}.`)
+      const sz = [area.built ? `${num(area.built)} m² built` : '', area.plot ? `a ${num(area.plot)} m² plot` : '', area.balcony ? `a ${num(area.balcony)} m² balcony` : '', area.roof ? `a ${num(area.roof)} m² roof` : '', area.garden ? `a ${num(area.garden)} m² garden` : ''].filter(Boolean)
+      if (sz.length) t.push(`Size: ${list(sz)}.`)
+      const b = a.p_baths || {}
+      if (b.bathrooms !== undefined) t.push(`${b.bathrooms} bathroom${b.bathrooms == 1 ? '' : 's'}${b.toilets !== undefined ? ` and ${b.toilets} toilets` : ''}.`)
+      if (a.p_year) t.push(`Built in ${a.p_year}.`)
+    } else {
+      t.push(sent([type || 'נכס', rooms ? `${rooms} חדרים` : '', place ? `ב${place}` : '', '.']).replace(' .', '.'))
+      if (!house && floor.floor !== undefined && floor.floor !== '') t.push(`הנכס בקומה ${floor.floor}${floor.totalFloors ? ` מתוך ${floor.totalFloors}` : ''}.`)
+      const sz = [area.built ? `${num(area.built)} מ״ר בנוי` : '', area.plot ? `מגרש של ${num(area.plot)} מ״ר` : '', area.balcony ? `מרפסת של ${num(area.balcony)} מ״ר` : '', area.roof ? `גג של ${num(area.roof)} מ״ר` : '', area.garden ? `גינה של ${num(area.garden)} מ״ר` : ''].filter(Boolean)
+      if (sz.length) t.push(`שטחים: ${list(sz)}.`)
+      const b = a.p_baths || {}
+      if (b.bathrooms !== undefined) t.push(`${b.bathrooms} חדרי רחצה${b.toilets !== undefined ? ` ו-${b.toilets} שירותים` : ''}.`)
+      if (a.p_year) t.push(`שנת בנייה: ${a.p_year}.`)
+    }
+    paras.push({ title: en ? 'The property' : 'הנכס', text: t.join(' ') })
+  }
+  // 2. Light & view
+  {
+    const t = []
+    const d = a[noteKey('p_directions')] || directionsText(a.p_directions, lang)
+    if (d) t.push(d)
+    const v = multi('p_view').filter(x => x)
+    if (v.length) t.push(en ? `The view: ${list(v)}.` : `הנוף: ${list(v)}.`)
+    if (t.length) paras.push({ title: en ? 'Light and view' : 'אור ונוף', text: t.join(' ') })
+  }
+  // 3. Features
+  if (!land) {
+    const t = []
+    const yes = v => v === 'yes'
+    if (en) {
+      const f = []
+      if (a.f_mamad) f.push(a.f_mamad === 'yes' ? 'a safe room (Mamad)' : a.f_mamad === 'shared' ? 'a shared shelter in the building' : 'no safe room')
+      if (a.f_elevator) f.push(a.f_elevator === 'no' ? 'no elevator' : a.f_elevator === 'shabbat' ? 'an elevator including a Shabbat elevator' : 'an elevator')
+      const pk = Number(a.f_parking?.parking || 0)
+      if (a.f_parking) f.push(pk ? `${pk} parking space${pk > 1 ? 's' : ''}${multi('f_parking_type').length ? ` (${list(multi('f_parking_type'))})` : ''}` : 'no private parking')
+      if (a.f_storage) f.push(yes(a.f_storage) ? `a storage room${a.f_storage_size ? ` of ${num(a.f_storage_size)} m²` : ''}` : 'no storage room')
+      if (f.length) t.push(`The property has ${list(f)}.`)
+      if (a.f_climate) t.push(`Air conditioning: ${lab('f_climate', a.f_climate).toLowerCase()}.`)
+      if (a.f_kitchen) t.push(`Kitchen: ${lab('f_kitchen', a.f_kitchen).toLowerCase()}${a.f_island === 'yes' ? ', with an island' : ''}.`)
+      if (multi('f_rooms').length) t.push(`Additional spaces: ${list(multi('f_rooms'))}.`)
+      if (multi('f_water').length) t.push(`Water heating: ${list(multi('f_water'))}.`)
+      const sys = multi('f_systems').filter(x => !/no special/i.test(x))
+      if (sys.length) t.push(`Extras: ${list(sys)}.`)
+    } else {
+      const f = []
+      if (a.f_mamad) f.push(a.f_mamad === 'yes' ? 'ממ״ד' : a.f_mamad === 'shared' ? 'מקלט משותף בבניין' : 'ללא ממ״ד')
+      if (a.f_elevator) f.push(a.f_elevator === 'no' ? 'ללא מעלית' : a.f_elevator === 'shabbat' ? 'מעלית כולל מעלית שבת' : 'מעלית')
+      const pk = Number(a.f_parking?.parking || 0)
+      if (a.f_parking) f.push(pk ? `${pk === 1 ? 'חניה אחת' : `${pk} חניות`}${multi('f_parking_type').length ? ` (${list(multi('f_parking_type'))})` : ''}` : 'ללא חניה פרטית')
+      if (a.f_storage) f.push(yes(a.f_storage) ? `מחסן${a.f_storage_size ? ` של ${num(a.f_storage_size)} מ״ר` : ''}` : 'ללא מחסן')
+      if (f.length) t.push(`בנכס ${list(f)}.`)
+      if (a.f_climate) t.push(`מיזוג: ${lab('f_climate', a.f_climate)}.`)
+      if (a.f_kitchen) t.push(`${lab('f_kitchen', a.f_kitchen)}${a.f_island === 'yes' ? ' עם אי' : ''}.`)
+      if (multi('f_rooms').length) t.push(`חללים נוספים: ${list(multi('f_rooms'))}.`)
+      if (multi('f_water').length) t.push(`חימום מים: ${list(multi('f_water'))}.`)
+      const sys = multi('f_systems').filter(x => !/אין תוספות/.test(x))
+      if (sys.length) t.push(`תוספות: ${list(sys)}.`)
+    }
+    if (t.length) paras.push({ title: en ? 'Features' : 'מאפיינים', text: t.join(' ') })
+  }
+  // 4. Condition & occupancy
+  {
+    const t = []
+    const m = a.k_matrix || {}
+    const mrows = visibleRows(S('k_matrix') || { rows: [] }, a).filter(r => m[r.k]).map(r => `${L(r, lang)}: ${optLabel(S('k_matrix'), m[r.k], lang)}`)
+    if (en) {
+      if (a.p_state) t.push(`Overall: ${lab('p_state', a.p_state).toLowerCase()}.`)
+      if (a.k_renovated === 'yes' || a.k_renovated === 'partial') t.push(`${a.k_renovated === 'partial' ? 'Partially renovated' : 'Renovated'}${a.k_reno_year ? ` in ${a.k_reno_year}` : ''}${multi('k_reno_what').length ? ` (${list(multi('k_reno_what')).toLowerCase()})` : ''}.`)
+      else if (a.k_renovated === 'no') t.push('Not renovated.')
+      if (mrows.length) t.push(`Condition ratings: ${mrows.join('; ')}.`)
+      if (a.k_defects === 'yes') t.push(`Known defects: ${a.k_defects_detail || 'yes'}.`)
+      else if (a.k_defects === 'no') t.push('No known defects.')
+      if (a.k_moisture && a.k_moisture !== 'none') t.push(`Moisture: ${lab('k_moisture', a.k_moisture).toLowerCase()}.`)
+      if (a.k_investment) t.push(`Investment before move-in: ${lab('k_investment', a.k_investment).toLowerCase()}.`)
+      if (a.f_furniture) t.push(`What stays: ${lab('f_furniture', a.f_furniture).toLowerCase()}${a.f_furniture_detail ? ` (${a.f_furniture_detail})` : ''}.`)
+      if (a.k_occupancy) t.push(`Occupancy: ${lab('k_occupancy', a.k_occupancy).toLowerCase()}${a.k_occupancy === 'rented' && a.k_lease?.leaseEnd ? `, lease ends ${a.k_lease.leaseEnd}` : ''}${a.k_lease?.rent ? `, rent ${ils(a.k_lease.rent)}/month` : ''}${a.k_lease?.notes ? ` (${a.k_lease.notes})` : ''}.`)
+    } else {
+      if (a.p_state) t.push(`מצב כללי: ${lab('p_state', a.p_state)}.`)
+      if (a.k_renovated === 'yes' || a.k_renovated === 'partial') t.push(`${a.k_renovated === 'partial' ? 'שופץ חלקית' : 'שופץ'}${a.k_reno_year ? ` ב-${a.k_reno_year}` : ''}${multi('k_reno_what').length ? ` (${list(multi('k_reno_what'))})` : ''}.`)
+      else if (a.k_renovated === 'no') t.push('הנכס לא שופץ.')
+      if (mrows.length) t.push(`דירוג מצב: ${mrows.join('; ')}.`)
+      if (a.k_defects === 'yes') t.push(`ליקויים ידועים: ${a.k_defects_detail || 'כן'}.`)
+      else if (a.k_defects === 'no') t.push('אין ליקויים ידועים.')
+      if (a.k_moisture && a.k_moisture !== 'none') t.push(`רטיבות: ${lab('k_moisture', a.k_moisture)}.`)
+      if (a.k_investment) t.push(`השקעה לפני כניסה: ${lab('k_investment', a.k_investment)}.`)
+      if (a.f_furniture) t.push(`מה נשאר בנכס: ${lab('f_furniture', a.f_furniture)}${a.f_furniture_detail ? ` (${a.f_furniture_detail})` : ''}.`)
+      if (a.k_occupancy) t.push(`${lab('k_occupancy', a.k_occupancy)}${a.k_occupancy === 'rented' && a.k_lease?.leaseEnd ? `, החוזה מסתיים ב-${a.k_lease.leaseEnd}` : ''}${a.k_lease?.rent ? `, שכר דירה ${ils(a.k_lease.rent)} לחודש` : ''}${a.k_lease?.notes ? ` (${a.k_lease.notes})` : ''}.`)
+    }
+    if (t.length) paras.push({ title: en ? 'Condition and occupancy' : 'מצב הנכס ומי גר בו', text: t.join(' ') })
+  }
+  // 5. Building
+  if (!house) {
+    const t = []
+    const b = a.b_numbers || {}
+    const fees = a.b_fees || {}
+    if (en) {
+      const nums = [b.year ? `built in ${b.year}` : '', b.apartments ? `${b.apartments} apartments` : '', b.floors ? `${b.floors} floors` : '', b.elevators ? `${b.elevators} elevator${b.elevators == 1 ? '' : 's'}` : ''].filter(Boolean)
+      if (nums.length) t.push(`The building: ${list(nums)}.`)
+      if (multi('b_amenities').length) t.push(`In the building: ${list(multi('b_amenities')).toLowerCase()}.`)
+      const f = [fees.vaad ? `committee fee ${ils(fees.vaad)}/month` : '', fees.management ? `management ${ils(fees.management)}/month` : ''].filter(Boolean)
+      if (f.length) t.push(`${list(f)}.`)
+      if (a.b_renovation && a.b_renovation !== 'no') t.push(`Building renovation: ${lab('b_renovation', a.b_renovation).toLowerCase()}.`)
+      if (a.b_tama && a.b_tama !== 'none') t.push(`Urban renewal: ${lab('b_tama', a.b_tama)}${a.b_tama_detail ? ` (${a.b_tama_detail})` : ''}.`)
+    } else {
+      const nums = [b.year ? `נבנה ב-${b.year}` : '', b.apartments ? `${b.apartments} דירות` : '', b.floors ? `${b.floors} קומות` : '', b.elevators ? `${b.elevators} מעליות` : ''].filter(Boolean)
+      if (nums.length) t.push(`הבניין: ${list(nums)}.`)
+      if (multi('b_amenities').length) t.push(`בבניין: ${list(multi('b_amenities'))}.`)
+      const f = [fees.vaad ? `ועד בית ${ils(fees.vaad)} לחודש` : '', fees.management ? `דמי ניהול ${ils(fees.management)} לחודש` : ''].filter(Boolean)
+      if (f.length) t.push(`${list(f)}.`)
+      if (a.b_renovation && a.b_renovation !== 'no') t.push(`שיפוץ בבניין: ${lab('b_renovation', a.b_renovation)}.`)
+      if (a.b_tama && a.b_tama !== 'none') t.push(`התחדשות עירונית: ${lab('b_tama', a.b_tama)}${a.b_tama_detail ? ` (${a.b_tama_detail})` : ''}.`)
+    }
+    if (t.length) paras.push({ title: en ? 'The building' : 'הבניין', text: t.join(' ') })
+  }
+  // 6. Legal
+  {
+    const t = []
+    const m = a.l_matrix || {}
+    const yesRows = visibleRows(S('l_matrix') || { rows: [] }, a).filter(r => m[r.k] === 'yes').map(r => L(r, lang))
+    const unkRows = visibleRows(S('l_matrix') || { rows: [] }, a).filter(r => m[r.k] === 'unknown').map(r => L(r, lang))
+    if (en) {
+      if (a.l_owners) t.push(`Rights are registered in the name of ${a.l_owners}${a.l_rights ? ` (${lab('l_rights', a.l_rights)})` : ''}.`)
+      if (a.l_more_owners === 'yes') t.push(`Additional owners: ${a.l_more_owners_detail || 'yes'}.`)
+      if (a.l_agree) t.push(`Consent to sell: ${lab('l_agree', a.l_agree).toLowerCase()}.`)
+      if (yesRows.length) t.push(`Confirmed: ${list(yesRows).toLowerCase()}.`)
+      if (a.l_mortgage) t.push(`Remaining mortgage about ${ils(a.l_mortgage)}.`)
+      if (unkRows.length) t.push(`To verify against documents: ${list(unkRows).toLowerCase()}.`)
+      if (a.l_issues_detail) t.push(`Details: ${a.l_issues_detail}.`)
+      if (a.l_area_plans === 'yes') t.push(`Plans in the area: ${a.l_area_plans_detail || 'yes'}.`)
+      if (a.l_notes) t.push(`Notes: ${a.l_notes}.`)
+    } else {
+      if (a.l_owners) t.push(`הזכויות רשומות על שם ${a.l_owners}${a.l_rights ? ` (${lab('l_rights', a.l_rights)})` : ''}.`)
+      if (a.l_more_owners === 'yes') t.push(`בעלים נוספים: ${a.l_more_owners_detail || 'כן'}.`)
+      if (a.l_agree) t.push(`הסכמה למכירה: ${lab('l_agree', a.l_agree)}.`)
+      if (yesRows.length) t.push(`דווח כי: ${list(yesRows)}.`)
+      if (a.l_mortgage) t.push(`יתרת המשכנתא כ-${ils(a.l_mortgage)}.`)
+      if (unkRows.length) t.push(`לבדיקה מול מסמכים: ${list(unkRows)}.`)
+      if (a.l_issues_detail) t.push(`פירוט: ${a.l_issues_detail}.`)
+      if (a.l_area_plans === 'yes') t.push(`תוכניות בסביבה: ${a.l_area_plans_detail || 'כן'}.`)
+      if (a.l_notes) t.push(`הערות: ${a.l_notes}.`)
+    }
+    if (t.length) paras.push({ title: en ? 'Legal and planning' : 'משפטי ותכנוני', text: t.join(' ') })
+  }
+  // 7. Sale & expectations
+  {
+    const t = []
+    const bo = a.d_best_offer || {}
+    const dl = a.d_deadline || {}
+    if (en) {
+      if (a.d_ask) t.push(`Asking price ${ils(a.d_ask)}${a.d_flex ? ` (${lab('d_flex', a.d_flex).toLowerCase()})` : ''}.`)
+      if (a.d_expected) t.push(`Realistic expectation: ${ils(a.d_expected)}.`)
+      if (a.d_min) t.push(`Internal minimum: ${ils(a.d_min)}.`)
+      if (bo.amount) t.push(`Highest offer so far: ${ils(bo.amount)}${bo.when ? ` (${bo.when})` : ''}${bo.notes ? `, ${bo.notes}` : ''}.`)
+      if (a.d_timeline) t.push(`Timing: ${lab('d_timeline', a.d_timeline).toLowerCase()}${dl.date ? `, deadline ${dl.date}` : ''}${dl.reason ? ` (${dl.reason})` : ''}.`)
+      if (a.d_vacate) t.push(`Handover: ${lab('d_vacate', a.d_vacate).toLowerCase()}${multi('d_vacate_flex').length ? ` (${list(multi('d_vacate_flex')).toLowerCase()})` : ''}.`)
+      if (a.d_alt && a.d_alt !== 'no') t.push(`Buying another property: ${lab('d_alt', a.d_alt).toLowerCase()}.`)
+      if (a.d_why && a.d_why !== 'private') t.push(`Reason for selling: ${lab('d_why', a.d_why).toLowerCase()}.`)
+      if (a.d_published) t.push(`Listed before: ${lab('d_published', a.d_published).toLowerCase()}.`)
+      if (a.d_brokers) t.push(`Other agents: ${lab('d_brokers', a.d_brokers).toLowerCase()}.`)
+      if (a.d_published_detail) t.push(`Marketing so far: ${a.d_published_detail}.`)
+      if (a.d_offers) t.push(`Offers: ${lab('d_offers', a.d_offers).toLowerCase()}.`)
+      if (a.d_buyer) t.push(`Buyer / terms preferences: ${a.d_buyer}.`)
+      if (a.d_notes) t.push(`Also important: ${a.d_notes}.`)
+    } else {
+      if (a.d_ask) t.push(`המחיר המבוקש ${ils(a.d_ask)}${a.d_flex ? ` (${lab('d_flex', a.d_flex)})` : ''}.`)
+      if (a.d_expected) t.push(`ציפייה ריאלית: ${ils(a.d_expected)}.`)
+      if (a.d_min) t.push(`מינימום פנימי: ${ils(a.d_min)}.`)
+      if (bo.amount) t.push(`ההצעה הגבוהה עד היום: ${ils(bo.amount)}${bo.when ? ` (${bo.when})` : ''}${bo.notes ? `, ${bo.notes}` : ''}.`)
+      if (a.d_timeline) t.push(`לוח זמנים: ${lab('d_timeline', a.d_timeline)}${dl.date ? `, דד-ליין ${dl.date}` : ''}${dl.reason ? ` (${dl.reason})` : ''}.`)
+      if (a.d_vacate) t.push(`מסירה: ${lab('d_vacate', a.d_vacate)}${multi('d_vacate_flex').length ? ` (${list(multi('d_vacate_flex'))})` : ''}.`)
+      if (a.d_alt && a.d_alt !== 'no') t.push(`רכישת נכס אחר: ${lab('d_alt', a.d_alt)}.`)
+      if (a.d_why && a.d_why !== 'private') t.push(`סיבת המכירה: ${lab('d_why', a.d_why)}.`)
+      if (a.d_published) t.push(`פורסם בעבר: ${lab('d_published', a.d_published)}.`)
+      if (a.d_brokers) t.push(`מתווכים: ${lab('d_brokers', a.d_brokers)}.`)
+      if (a.d_published_detail) t.push(`השיווק עד היום: ${a.d_published_detail}.`)
+      if (a.d_offers) t.push(`הצעות: ${lab('d_offers', a.d_offers)}.`)
+      if (a.d_buyer) t.push(`העדפות קונה / תנאים: ${a.d_buyer}.`)
+      if (a.d_notes) t.push(`חשוב לדעת: ${a.d_notes}.`)
+    }
+    if (t.length) paras.push({ title: en ? 'Price, timing and expectations' : 'מחיר, זמנים וציפיות', text: t.join(' ') })
+  }
+  // 8. Marketing angle
+  {
+    const t = []
+    if (en) {
+      if (a.m_pros) t.push(`Biggest advantages: ${a.m_pros}.`)
+      if (a.m_unique) t.push(`What sets it apart: ${a.m_unique}.`)
+      if (multi('m_nearby').length) t.push(`Within walking distance: ${list(multi('m_nearby')).toLowerCase()}.`)
+      if (multi('m_fit').length) t.push(`Ideal for ${list(multi('m_fit')).toLowerCase()}.`)
+      if (a.m_story) t.push(`Worth highlighting: ${a.m_story}.`)
+    } else {
+      if (a.m_pros) t.push(`היתרונות הגדולים: ${a.m_pros}.`)
+      if (a.m_unique) t.push(`מה מייחד: ${a.m_unique}.`)
+      if (multi('m_nearby').length) t.push(`במרחק הליכה: ${list(multi('m_nearby'))}.`)
+      if (multi('m_fit').length) t.push(`מתאים במיוחד ל${list(multi('m_fit'))}.`)
+      if (a.m_story) t.push(`כדאי להדגיש: ${a.m_story}.`)
+    }
+    if (t.length) paras.push({ title: en ? 'The marketing angle' : 'הזווית השיווקית', text: t.join(' ') })
+  }
+  // 9. Materials & contact
+  {
+    const t = []
+    const cnt = id => (Array.isArray(a[id]) ? a[id].filter(f => !f.status || f.status === 'done').length : 0)
+    const files = [[cnt('u_photos'), en ? 'photos' : 'תמונות'], [cnt('u_videos'), en ? 'videos' : 'סרטונים'], [cnt('u_plan'), en ? 'floor plan files' : 'קבצי תוכנית'], [cnt('u_docs'), en ? 'documents' : 'מסמכים']].filter(x => x[0]).map(x => `${x[0]} ${x[1]}`)
+    const priv = a.c_privacy || {}
+    if (en) {
+      if (files.length) t.push(`Materials received: ${list(files)}.`)
+      if (a.c_name) t.push(`Contact: ${a.c_name}${a.c_role ? ` (${lab('c_role', a.c_role).toLowerCase()})` : ''}${a.c_phone ? `, ${a.c_phone}` : ''}${a.c_email ? `, ${a.c_email}` : ''}.`)
+      if (a.c_extra?.name) t.push(`Additional contact: ${a.c_extra.name}${a.c_extra.phone ? `, ${a.c_extra.phone}` : ''}${a.c_extra.relation ? ` (${a.c_extra.relation})` : ''}.`)
+      t.push(`${priv.publishPhone ? 'Phone number may be published' : 'Phone number stays private'}; ${priv.showAddress ? 'exact address may be shown' : 'exact address stays private'}.`)
+    } else {
+      if (files.length) t.push(`חומרים שהתקבלו: ${list(files)}.`)
+      if (a.c_name) t.push(`איש קשר: ${a.c_name}${a.c_role ? ` (${lab('c_role', a.c_role)})` : ''}${a.c_phone ? `, ${a.c_phone}` : ''}${a.c_email ? `, ${a.c_email}` : ''}.`)
+      if (a.c_extra?.name) t.push(`איש קשר נוסף: ${a.c_extra.name}${a.c_extra.phone ? `, ${a.c_extra.phone}` : ''}${a.c_extra.relation ? ` (${a.c_extra.relation})` : ''}.`)
+      t.push(`${priv.publishPhone ? 'מותר לפרסם את מספר הטלפון' : 'מספר הטלפון נשאר חסוי'}; ${priv.showAddress ? 'מותר להציג את הכתובת המדויקת' : 'הכתובת המדויקת נשארת חסויה'}.`)
+    }
+    if (t.length) paras.push({ title: en ? 'Materials and contact' : 'חומרים ואיש קשר', text: t.join(' ') })
+  }
+  return paras
+}
+export const storyText = (a, lang = 'he') => buildStory(a, lang).map(p => `${p.title}\n${p.text}`).join('\n\n')

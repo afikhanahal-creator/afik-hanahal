@@ -2,6 +2,7 @@
 //
 //   POST  /api/seller-form                     public  — store a submission, notify the office
 //   POST  /api/seller-form?action=upload-url   public  — mint a signed Supabase Storage upload URL
+//   GET   /api/seller-form?action=streets&city= public  — street names of a locality (data.gov.il, cached)
 //   GET   /api/seller-form                     admin   — list submissions
 //   GET   /api/seller-form?id=123              admin   — one submission + signed download URLs
 //   PATCH /api/seller-form?id=123              admin   — update status / notes
@@ -28,6 +29,8 @@ const TABLE = 'seller_submissions'
 const SITE = 'https://afikhanahal.co.il'
 
 const KIND_LIMITS = { photos: 25, videos: 200, plan: 25, docs: 25 }   // MB
+const STREETS_RESOURCE = '9ad3862c-8391-4b2f-84a4-2d4c68625f4b'         // data.gov.il "רחובות בישראל"
+const streetsCache = new Map()                                            // per warm lambda
 const KIND_TYPES = {
   photos: t => t.startsWith('image/'),
   videos: t => t.startsWith('video/'),
@@ -157,6 +160,9 @@ function buildEmailHtml(row, a, signedFiles) {
       ${signedFiles.map(f => `<li>${f.url ? `<a href="${esc(f.url)}" style="color:#3F4EB0">${esc(f.name)}</a>` : esc(f.name)} <span style="color:#7A7A8A">· ${esc(f.kind)}${f.tag ? ' · ' + esc(DOC_TAG_LABEL(f.tag, 'he')) : ''}</span></li>`).join('')}
     </ul>
     <p style="font-size:12px;color:#7A7A8A">הקישורים לקבצים תקפים ל-7 ימים. הקבצים נשמרים לצמיתות בתיק הנכס בפאנל הניהול.</p>` : ''
+  const storyHtml = row.story ? `
+    <h3 style="margin:22px 0 6px;font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:#3F4EB0">סיפור הנכס</h3>
+    <div style="font-size:15px;line-height:1.7;white-space:pre-wrap;background:#F7F7FA;border-radius:10px;padding:14px 16px">${esc(row.story)}</div>` : ''
   return `<!doctype html><html dir="rtl" lang="he"><body style="margin:0;background:#F5F5F9;font-family:Heebo,Arial,sans-serif;color:#0B0B0F">
     <div style="max-width:680px;margin:0 auto;padding:28px 16px">
       <div style="background:#fff;border-radius:16px;padding:28px 30px;border:1px solid #E6E6EC">
@@ -164,6 +170,7 @@ function buildEmailHtml(row, a, signedFiles) {
         <h1 style="margin:8px 0 4px;font-size:24px">${esc(headline(a, 'he') || 'נכס חדש לשיווק')}</h1>
         <div style="font-size:14px;color:#7A7A8A">תיק ${esc(row.ref)} · ${esc(row.contact_name || '')} · <a href="tel:${esc(row.phone || '')}" style="color:#3F4EB0">${esc(row.phone || '')}</a>${row.email ? ` · <a href="mailto:${esc(row.email)}" style="color:#3F4EB0">${esc(row.email)}</a>` : ''}</div>
         ${row.asking_price ? `<div style="margin-top:14px;display:inline-block;background:#F2F3FB;border:1px solid #E4E7F8;border-radius:10px;padding:8px 14px;font-weight:700">מחיר מבוקש: ${fmtILS(row.asking_price)}</div>` : ''}
+        ${storyHtml}
         ${secHtml}
         ${filesHtml}
         <div style="margin-top:28px;text-align:center"><a href="${SITE}/admin-panel/seller-forms" style="display:inline-block;background:#0B0B0F;color:#fff;text-decoration:none;padding:12px 24px;border-radius:10px;font-weight:600">פתיחה בפאנל הניהול</a></div>
@@ -215,6 +222,29 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, signedUrl: data.signedUrl, token: data.token, path })
     }
 
+    // ── streets of a locality (public, proxied from data.gov.il, CDN-cached) ──
+    if (action === 'streets') {
+      const city = String(req.query.city || '').trim().slice(0, 60)
+      if (!city) return res.status(400).json({ ok: false, error: 'city required' })
+      if (streetsCache.has(city)) { res.setHeader('Cache-Control', 'public, s-maxage=604800, stale-while-revalidate=2592000'); return res.status(200).json({ ok: true, city, streets: streetsCache.get(city) }) }
+      try {
+        const u = `https://data.gov.il/api/3/action/datastore_search?resource_id=${STREETS_RESOURCE}&limit=32000&q=${encodeURIComponent(city)}`
+        const r = await fetch(u, { signal: AbortSignal.timeout(12000), headers: { Accept: 'application/json' } })
+        if (!r.ok) throw new Error(`data.gov.il HTTP ${r.status}`)
+        const d = await r.json()
+        const recs = d?.result?.records || []
+        const cityKey = recs.length ? Object.keys(recs[0]).find(k => /ישוב/.test(k) && !/סמל/.test(k)) : null
+        const streetKey = recs.length ? Object.keys(recs[0]).find(k => /רחוב/.test(k) && !/סמל/.test(k)) : null
+        const streets = [...new Set(recs.filter(x => String(x[cityKey] || '').trim() === city).map(x => String(x[streetKey] || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'he'))
+        streetsCache.set(city, streets)
+        res.setHeader('Cache-Control', 'public, s-maxage=604800, stale-while-revalidate=2592000')
+        return res.status(200).json({ ok: true, city, streets })
+      } catch (e) {
+        console.warn('[seller-form] streets lookup failed:', e.message)
+        return res.status(502).json({ ok: false, error: e.message, streets: [] })
+      }
+    }
+
     // ── public submission ───────────────────────────────────────────────────
     if (req.method === 'POST' && !action) {
       const b = req.body || {}
@@ -239,6 +269,7 @@ export default async function handler(req, res) {
         asking_price: a.d_ask !== undefined && a.d_ask !== '' && !Number.isNaN(Number(a.d_ask)) ? Number(a.d_ask) : null,
         answers: a,
         files,
+        story: typeof b.story === 'string' ? b.story.slice(0, 20000) : null,
         schema_version: Number(b.schemaVersion || 1),
         meta: b.meta && typeof b.meta === 'object' ? { url: b.meta.url, ua: String(b.meta.ua || '').slice(0, 300), durationSec: b.meta.durationSec } : {},
       }

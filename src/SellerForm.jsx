@@ -15,7 +15,9 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   STEPS, SECTIONS, visibleSteps, visibleFields, visibleRows, validateStep, groupInvalidFields,
   buildSummary, VALIDATION_MSG, fmtNum, SCHEMA_VERSION, DOC_TAG_LABEL, EMPHASIS,
+  otherKey, noteKey, directionsText, buildStory, storyText, headline, PROPERTY_TYPE_LABEL,
 } from './sellerFormSchema.js'
+import CITIES from './data/israelCities.json'
 
 const API = import.meta.env.PROD ? '' : (import.meta.env.VITE_SELLER_API_BASE || '')
 const DRAFT_KEY = 'afik_seller_form_v1'
@@ -26,9 +28,9 @@ const FONT_HREF = 'https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;5
 const T = {
   he: {
     brand: 'אפיק הנחל', tagline: 'ייזום · שיווק · תיווך',
-    welcomeKicker: 'טופס שיווק נכס',
-    welcomeTitle: 'בואו נשווק את הנכס שלכם',
-    welcomeSub: 'כמה שאלות קצרות, שאלה אחת בכל מסך, ואנחנו מתחילים לעבוד.',
+    welcomeKicker: 'אפיק הנחל · שיווק ומכירת נכסים',
+    welcomeTitle: 'בואו נמכור את הנכס שלכם',
+    welcomeSub: 'אנחנו באפיק הנחל נשווק ונמכור את הנכס שלכם. ספרו לנו עליו בכמה שאלות קצרות, וצוות השיווק שלנו יוצא לדרך.',
     bul1: 'כ־10 דקות', bul2: 'נשמר אוטומטית', bul3: 'פרטי ומאובטח',
     start: 'בואו נתחיל', resume: 'להמשיך מאיפה שעצרתי', restart: 'להתחיל מחדש',
     savedDraft: 'מצאנו טופס שהתחלתם למלא',
@@ -41,13 +43,16 @@ const T = {
     docTypePick: 'איזה מסמך אתם מעלים עכשיו?', laterWhatsapp: 'אפשר לדלג ולשלוח לנו מאוחר יותר בוואטסאפ',
     fileTooBig: '{name}: הקובץ גדול מדי (מקסימום {mb}MB)', tooMany: 'אפשר להעלות עד {n} קבצים בשלב הזה', wrongType: '{name}: סוג הקובץ לא נתמך כאן',
     uploadedCount: '{n} קבצים הועלו',
-    reviewTitle: 'הנה מה שסיפרתם לנו', reviewSub: 'עברו על הפרטים. אפשר לערוך כל תשובה בלחיצה.',
+    reviewTitle: 'תיק הנכס', reviewKicker: 'סיכום כל הפרטים', reviewSub: 'כל מה שסיפרתם לנו, מסודר. אפשר לערוך כל תשובה בלחיצה.',
+    toStory: 'לסיפור הנכס', storyKicker: 'סיפור הנכס', storySub: 'כך נציג את הנכס לקונים. קראו, ואם משהו לא מדויק, חזרו ותקנו.', copyStory: 'העתקת הסיפור',
+    factPrice: 'מחיר מבוקש', factRooms: 'חדרים', factArea: 'מ״ר בנוי', factFloor: 'קומה', factParking: 'חניות', factState: 'מצב', factType: 'סוג הנכס',
+    otherPh: 'פרטו במילים…', notePh: 'תיאור כיווני האוויר. אפשר לערוך חופשי', noteReset: 'חזרה לתיאור האוטומטי', loadingStreets: 'טוען רחובות…', noStreets: 'הקלידו את שם הרחוב',
     edit: 'עריכה', missingTitle: 'נשארו שאלות חובה שלא נענו', jump: 'מעבר לשאלה',
     consent: 'אני מאשר/ת שהפרטים שמסרתי נכונים למיטב ידיעתי, ומסכים/ה שאפיק הנחל תיצור איתי קשר בנוגע לשיווק הנכס.',
     submit: 'שליחת הטופס', submitting: 'שולחים…',
     submitErr: 'משהו השתבש בשליחה. הטופס שלכם שמור, נסו שוב בעוד רגע או שלחו לנו הודעה בוואטסאפ.',
     consentErr: 'צריך לאשר את ההצהרה כדי לשלוח',
-    doneTitle: 'תודה, {name}!', doneSub: 'תיק הנכס הגיע אלינו. נעבור על הפרטים וניצור איתכם קשר תוך יום עסקים כדי לתאם את הצעד הבא.',
+    doneTitle: 'תודה, {name}!', doneSub: 'תיק הנכס הגיע אלינו. צוות השיווק של אפיק הנחל יעבור על הפרטים וייצור איתכם קשר תוך יום עסקים כדי לתאם את הצעד הבא במכירה.',
     refLabel: 'מספר תיק', doneWa: 'לשלוח לנו הודעה בוואטסאפ', doneHome: 'חזרה לאתר אפיק הנחל', copyRef: 'העתקת מספר התיק', copied: 'הועתק',
     autosaved: 'נשמר אוטומטית', privacyNote: 'הפרטים נשמרים באופן מאובטח ומשמשים את אפיק הנחל בלבד.',
     files: '{n} קבצים', minus: 'פחות', plus: 'יותר', langToggle: 'English',
@@ -56,9 +61,9 @@ const T = {
   },
   en: {
     brand: 'Afik Hanahal', tagline: 'Development · Marketing · Brokerage',
-    welcomeKicker: 'Property marketing form',
-    welcomeTitle: "Let's market your property",
-    welcomeSub: 'A few short questions, one per screen, and we get to work.',
+    welcomeKicker: 'Afik Hanahal · Property marketing & sales',
+    welcomeTitle: 'Let us sell your property',
+    welcomeSub: 'Afik Hanahal markets and sells your property. Tell us about it in a few short questions and our marketing team gets to work.',
     bul1: 'About 10 minutes', bul2: 'Auto-saved', bul3: 'Private and secure',
     start: "Let's start", resume: 'Continue where I stopped', restart: 'Start over',
     savedDraft: 'We found a form you started',
@@ -71,13 +76,16 @@ const T = {
     docTypePick: 'Which document are you uploading now?', laterWhatsapp: 'You can skip and send it later via WhatsApp',
     fileTooBig: '{name}: file is too large (max {mb}MB)', tooMany: 'Up to {n} files can be uploaded here', wrongType: '{name}: this file type is not supported here',
     uploadedCount: '{n} files uploaded',
-    reviewTitle: "Here's what you told us", reviewSub: 'Review the details. Click any answer to edit it.',
+    reviewTitle: 'Property file', reviewKicker: 'Everything in one place', reviewSub: 'Everything you told us, organised. Click any answer to edit it.',
+    toStory: 'To the property story', storyKicker: 'The property story', storySub: 'This is how we will present the property to buyers. Read it, and go back to fix anything inaccurate.', copyStory: 'Copy story',
+    factPrice: 'Asking price', factRooms: 'Rooms', factArea: 'm² built', factFloor: 'Floor', factParking: 'Parking', factState: 'Condition', factType: 'Type',
+    otherPh: 'Please specify…', notePh: 'Direction description. Edit freely', noteReset: 'Back to the automatic description', loadingStreets: 'Loading streets…', noStreets: 'Type the street name',
     edit: 'Edit', missingTitle: 'Some required questions are still unanswered', jump: 'Go to question',
     consent: 'I confirm the details I provided are accurate to the best of my knowledge, and I agree that Afik Hanahal may contact me regarding marketing this property.',
     submit: 'Submit form', submitting: 'Sending…',
     submitErr: 'Something went wrong. Your form is saved. Try again in a moment or message us on WhatsApp.',
     consentErr: 'Please confirm the statement to submit',
-    doneTitle: 'Thank you, {name}!', doneSub: 'Your property file has reached us. We will review the details and contact you within one business day to plan the next step.',
+    doneTitle: 'Thank you, {name}!', doneSub: 'Your property file has reached us. The Afik Hanahal marketing team will review the details and contact you within one business day to plan the next step of the sale.',
     refLabel: 'File number', doneWa: 'Message us on WhatsApp', doneHome: 'Back to the Afik Hanahal website', copyRef: 'Copy file number', copied: 'Copied',
     autosaved: 'Auto-saved', privacyNote: 'Your details are stored securely and used by Afik Hanahal only.',
     files: '{n} files', minus: 'Less', plus: 'More', langToggle: 'עברית',
@@ -175,41 +183,53 @@ const CSS = `
 .sf-lang:hover { border-color:var(--deep); color:var(--deep); background:var(--tint); }
 
 /* ── stage ─────────────────────────────────────────────────────────────── */
-.sf-stage { min-height:100dvh; display:flex; align-items:center; justify-content:center; padding:100px clamp(18px,5vw,48px) 130px; }
-.sf-card { width:100%; max-width:720px; }
-.sf-qhead { display:flex; align-items:flex-start; gap:12px; }
-.sf-badge { flex:none; margin-top:7px; min-width:20px; height:20px; padding:0 5px; border-radius:4px; background:var(--ink); color:#fff; font-size:11px; font-weight:700; display:inline-flex; align-items:center; justify-content:center; letter-spacing:.02em; }
-.sf-q { font-size:clamp(20px, 2.6vw, 25px); font-weight:400; line-height:1.4; margin:0; color:var(--ink); }
+.sf-stage { min-height:100dvh; display:flex; align-items:center; justify-content:center; padding:96px clamp(18px,5vw,48px) 90px; }
+.sf-card { width:100%; max-width:820px; text-align:center; }
+.sf-qhead { display:flex; flex-direction:column; align-items:center; gap:12px; }
+.sf-badge { flex:none; min-width:24px; height:24px; padding:0 7px; border-radius:5px; background:var(--ink); color:#fff; font-size:12.5px; font-weight:700; display:inline-flex; align-items:center; justify-content:center; letter-spacing:.02em; }
+.sf-q { font-size:clamp(23px, 2.9vw, 33px); font-weight:400; line-height:1.35; margin:0; color:var(--ink); text-wrap:balance; }
 .sf-q b { font-weight:700; }
 .sf-q .req { color:var(--ink2); margin-inline-start:2px; }
-.sf-sec { font-size:12px; color:var(--muted); margin-bottom:10px; letter-spacing:.02em; }
-.sf-help { margin:8px 0 0 32px; font-size:16px; line-height:1.55; color:var(--muted); }
-[dir="rtl"] .sf-help { margin:8px 32px 0 0; }
-.sf-body { margin:26px 0 0 32px; }
-[dir="rtl"] .sf-body { margin:26px 32px 0 0; }
-.sf-hint { margin-top:10px; font-size:12.5px; color:var(--muted); }
+.sf-sec { font-size:13px; color:var(--muted); margin-bottom:12px; letter-spacing:.02em; }
+.sf-help { margin:12px auto 0; font-size:18px; line-height:1.55; color:var(--muted); max-width:640px; text-wrap:balance; }
+.sf-body { margin:30px auto 0; max-width:640px; }
+.sf-hint { margin-top:12px; font-size:13.5px; color:var(--muted); }
+.sf-other { margin:12px auto 0; max-width:560px; }
+.sf-other .sf-input { font-size:19px; }
+.sf-note { margin:16px auto 0; max-width:560px; background:var(--paper); border:1px solid var(--line); border-radius:6px; padding:10px 14px; text-align:start; }
+.sf-note textarea.sf-input { font-size:16px; min-height:70px; border-bottom:0; box-shadow:none; padding:4px 0; }
+.sf-link { border:0; background:none; color:var(--deep); font-size:13px; font-weight:600; cursor:pointer; padding:4px 0; display:inline-flex; align-items:center; gap:6px; }
+.sf-link:hover { text-decoration:underline; }
+.sf-combo { position:relative; }
+.sf-combo-list { position:absolute; top:100%; inset-inline:0; z-index:20; margin:4px 0 0; padding:4px; list-style:none; background:var(--paper); border:1px solid var(--line2); border-radius:6px; box-shadow:0 10px 30px rgba(0,0,0,.12); text-align:start; max-height:260px; overflow-y:auto; }
+.sf-combo-list li { padding:9px 12px; border-radius:4px; font-size:16px; cursor:pointer; }
+.sf-combo-list li.on { background:var(--tint2); color:var(--ink); }
+.sf-count { position:fixed; bottom:12px; left:50%; transform:translateX(-50%); font-size:12px; color:var(--ink2); pointer-events:none; font-variant-numeric:tabular-nums; background:rgba(255,255,255,.85); backdrop-filter:blur(6px); border:1px solid var(--line); border-radius:20px; padding:4px 12px; }
 
 /* ── inputs ────────────────────────────────────────────────────────────── */
-.sf-input { width:100%; font-size:clamp(20px, 2.4vw, 26px); font-weight:400; padding:8px 0; border:0; border-bottom:1px solid var(--line2); background:transparent; color:var(--ink); border-radius:0; transition:border-color .2s, box-shadow .2s; }
+.sf-input { width:100%; font-size:clamp(20px, 2.6vw, 30px); font-weight:400; padding:8px 0; border:0; border-bottom:1px solid var(--line2); background:transparent; color:var(--ink); border-radius:0; transition:border-color .2s, box-shadow .2s; text-align:center; }
 .sf-input::placeholder { color:#A8A7AE; }
 .sf-input:focus { outline:none; border-bottom-color:var(--ink); box-shadow:0 1px 0 0 var(--ink); }
 .sf-input.is-err { border-bottom-color:var(--err); box-shadow:0 1px 0 0 var(--err); }
-textarea.sf-input { resize:none; line-height:1.5; font-size:clamp(17px,2vw,20px); min-height:96px; }
+textarea.sf-input { resize:none; line-height:1.5; font-size:clamp(17px,2vw,22px); min-height:96px; text-align:start; }
 .sf-input-wrap { position:relative; display:flex; align-items:center; gap:12px; }
 .sf-unit { font-size:16px; color:var(--muted); white-space:nowrap; padding-bottom:4px; }
 
 .sf-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px 22px; }
 .sf-grid .full { grid-column:1 / -1; }
-.sf-field label { display:block; font-size:12.5px; font-weight:600; letter-spacing:.02em; color:var(--ink2); margin-bottom:0; }
+.sf-field { text-align:start; }
+.sf-field label { display:block; font-size:13px; font-weight:600; letter-spacing:.02em; color:var(--ink2); margin-bottom:0; }
 .sf-field label i { color:var(--deep); font-style:normal; margin-inline-start:3px; }
-.sf-field .sf-input { font-size:18px; padding:7px 0; }
+.sf-field .sf-input { font-size:20px; padding:8px 0; text-align:start; }
 .sf-field .sf-unit { font-size:13px; }
 
 /* ── choice / multi (Typeform-style grey boxes with key badges) ────────── */
-.sf-opts { display:flex; flex-direction:column; gap:8px; align-items:flex-start; }
-.sf-opts.grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); align-items:stretch; }
-.sf-opt { display:flex; align-items:center; gap:12px; min-width:250px; max-width:100%; padding:9px 12px; border:1px solid var(--line2); border-radius:4px; background:var(--box); color:var(--ink); font-size:16.5px; font-weight:400; text-align:start; cursor:pointer; transition:background .12s, border-color .12s, box-shadow .12s; min-height:44px; }
-.sf-opts.grid .sf-opt { min-width:0; width:100%; }
+.sf-opts { display:flex; flex-direction:column; gap:9px; align-items:stretch; width:min(100%, 540px); margin:0 auto; }
+.sf-opts.grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); width:100%; }
+.sf-opts.compact { display:grid; grid-template-columns:repeat(auto-fill, minmax(84px, 1fr)); width:100%; }
+.sf-opts.compact .sf-opt { justify-content:center; font-weight:600; font-size:19px; }
+.sf-opt { display:flex; align-items:center; gap:12px; width:100%; padding:11px 14px; border:1px solid var(--line2); border-radius:5px; background:var(--box); color:var(--ink); font-size:18px; font-weight:400; text-align:start; cursor:pointer; transition:background .12s, border-color .12s, box-shadow .12s; min-height:52px; }
+.sf-opt .lbl { flex:1; }
 .sf-opt:hover { background:var(--boxHover); }
 .sf-opt.on { background:var(--tint2); border-color:var(--deep); box-shadow:0 0 0 1px var(--deep) inset; }
 .sf-opt.on.flash { animation:sfFlash .32s ease; }
@@ -227,7 +247,7 @@ textarea.sf-input { resize:none; line-height:1.5; font-size:clamp(17px,2vw,20px)
 /* ── counters / matrix / toggles ───────────────────────────────────────── */
 .sf-counter { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:12px 0; border-bottom:1px solid var(--line); }
 .sf-counter:last-child { border-bottom:0; }
-.sf-counter .lbl { font-size:17px; }
+.sf-counter .lbl { font-size:19px; }
 .sf-counter .ctl { display:flex; align-items:center; gap:12px; }
 .sf-counter .ctl b { min-width:40px; text-align:center; font-size:24px; font-weight:600; font-variant-numeric:tabular-nums; }
 .sf-round { width:40px; height:40px; border-radius:4px; border:1px solid var(--line2); background:var(--box); color:var(--ink); font-size:20px; line-height:1; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; transition:all .12s; }
@@ -235,10 +255,10 @@ textarea.sf-input { resize:none; line-height:1.5; font-size:clamp(17px,2vw,20px)
 .sf-round:disabled { opacity:.35; cursor:default; }
 .sf-mrow { display:flex; align-items:center; justify-content:space-between; gap:14px; padding:11px 0; border-bottom:1px solid var(--line); flex-wrap:wrap; }
 .sf-mrow:last-child { border-bottom:0; }
-.sf-mrow .lbl { font-size:16px; flex:1 1 220px; }
+.sf-mrow .lbl { font-size:18px; flex:1 1 220px; text-align:start; }
 .sf-mrow.is-err .lbl { color:var(--err); }
 .sf-scale { display:flex; gap:6px; flex-wrap:wrap; }
-.sf-pill { padding:7px 13px; border-radius:4px; border:1px solid var(--line2); background:var(--box); color:var(--ink2); font-size:13.5px; font-weight:500; cursor:pointer; transition:all .12s; white-space:nowrap; }
+.sf-pill { padding:8px 14px; border-radius:4px; border:1px solid var(--line2); background:var(--box); color:var(--ink2); font-size:15px; font-weight:500; cursor:pointer; transition:all .12s; white-space:nowrap; }
 .sf-pill:hover { background:var(--boxHover); color:var(--ink); }
 .sf-pill.on { background:var(--ink); border-color:var(--ink); color:#fff; }
 .sf-pill.on.purple { background:var(--deep); border-color:var(--deep); }
@@ -267,9 +287,9 @@ textarea.sf-input { resize:none; line-height:1.5; font-size:clamp(17px,2vw,20px)
 .sf-tags { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:14px; }
 
 /* ── actions ───────────────────────────────────────────────────────────── */
-.sf-actions { display:flex; align-items:center; gap:14px; margin:26px 0 0 32px; flex-wrap:wrap; }
-[dir="rtl"] .sf-actions { margin:26px 32px 0 0; }
-.sf-btn { display:inline-flex; align-items:center; gap:8px; padding:10px 20px; border-radius:4px; border:1px solid var(--ink); background:var(--ink); color:#fff; font-size:16px; font-weight:700; cursor:pointer; transition:all .15s; text-decoration:none; }
+.sf-actions { display:flex; align-items:center; justify-content:center; gap:12px; margin:30px auto 0; flex-wrap:wrap; }
+.sf-btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-width:150px; padding:12px 26px; border-radius:6px; border:1px solid var(--ink); background:var(--ink); color:#fff; font-size:17px; font-weight:700; cursor:pointer; transition:all .15s; text-decoration:none; }
+[dir="rtl"] .sf-ico-back, [dir="rtl"] .sf-ico-fwd { transform:scaleX(-1); }
 .sf-btn:hover { background:var(--deep); border-color:var(--deep); }
 .sf-btn:disabled { opacity:.5; cursor:default; }
 .sf-btn.ghost { background:var(--paper); color:var(--ink); border-color:var(--line2); }
@@ -277,21 +297,10 @@ textarea.sf-input { resize:none; line-height:1.5; font-size:clamp(17px,2vw,20px)
 .sf-btn.big { padding:13px 28px; font-size:17px; }
 .sf-btn.wa { background:#25D366; border-color:#25D366; }
 .sf-btn.wa:hover { background:#1EBE5A; border-color:#1EBE5A; }
-.sf-enter { font-size:12.5px; color:var(--muted); }
+.sf-enter { font-size:13px; color:var(--muted); margin-top:12px; }
 .sf-enter b { color:var(--ink2); font-weight:700; }
-.sf-err { display:flex; align-items:center; gap:8px; margin:14px 0 0 32px; color:var(--err); font-size:14px; font-weight:500; background:#FDECEC; border:1px solid #F3C4C4; border-radius:4px; padding:9px 12px; }
-[dir="rtl"] .sf-err { margin:14px 32px 0 0; }
+.sf-err { display:flex; align-items:center; justify-content:center; gap:8px; margin:14px auto 0; max-width:640px; color:var(--err); font-size:14.5px; font-weight:500; background:#FDECEC; border:1px solid #F3C4C4; border-radius:4px; padding:9px 12px; }
 
-/* ── footer nav (dark pill, bottom corner like Typeform) ───────────────── */
-.sf-foot { position:fixed; bottom:0; inset-inline:0; padding:14px clamp(14px,3vw,32px) 16px; display:flex; align-items:center; justify-content:flex-end; gap:12px; z-index:50; pointer-events:none; }
-.sf-foot > * { pointer-events:auto; }
-.sf-nav { display:inline-flex; align-items:center; background:var(--ink); border-radius:6px; overflow:hidden; box-shadow:0 6px 18px rgba(0,0,0,.18); }
-.sf-nav .cnt { font-size:12px; color:rgba(255,255,255,.75); padding:0 12px; font-variant-numeric:tabular-nums; }
-.sf-nav button { width:40px; height:40px; border:0; background:transparent; color:#fff; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; transition:background .12s; }
-.sf-nav button + button { border-inline-start:1px solid rgba(255,255,255,.18); }
-.sf-nav button:hover { background:var(--deep); }
-.sf-nav button:disabled { opacity:.3; cursor:default; background:transparent; }
-.sf-privacy { font-size:11.5px; color:var(--muted); display:none; }
 
 /* ── welcome / intro / review / done ───────────────────────────────────── */
 .sf-welcome { text-align:center; max-width:620px; margin:0 auto; }
@@ -308,20 +317,55 @@ textarea.sf-input { resize:none; line-height:1.5; font-size:clamp(17px,2vw,20px)
 .sf-intro h2 { font-size:clamp(26px, 4vw, 36px); font-weight:700; margin:0 0 10px; letter-spacing:-.01em; line-height:1.2; }
 .sf-intro p { font-size:17px; color:var(--ink2); line-height:1.55; margin:0; max-width:540px; }
 .sf-intro .line { width:48px; height:3px; background:var(--deep); border-radius:2px; margin:18px 0 22px; }
-.sf-intro .sf-actions, .sf-review .sf-actions { margin-inline-start:0; }
-.sf-review h2 { font-size:clamp(24px, 3.2vw, 32px); font-weight:700; margin:0 0 6px; }
-.sf-review > p { margin:0 0 22px; color:var(--muted); font-size:15px; }
-.sf-rsec { border:1px solid var(--line); border-radius:6px; padding:4px 18px; margin-bottom:12px; background:var(--paper); }
-.sf-rsec h3 { font-size:12px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; color:var(--deep); margin:14px 0 4px; }
-.sf-ritem { display:flex; align-items:flex-start; gap:12px; padding:10px 0; border-top:1px solid var(--line); }
-.sf-ritem .k { flex:0 0 38%; font-size:13px; color:var(--muted); line-height:1.4; }
+.sf-intro { text-align:center; }
+.sf-intro .line { margin:18px auto 22px; }
+.sf-intro p { margin:0 auto; }
+/* ── review: property file ── */
+.sf-review { text-align:start; max-width:880px; margin:0 auto; }
+.sf-rhero { background:var(--ink); color:#fff; border-radius:12px; padding:26px 28px 22px; text-align:center; position:relative; overflow:hidden; }
+.sf-rhero::after { content:''; position:absolute; inset:auto -40px -60px auto; width:220px; height:220px; border-radius:50%; background:radial-gradient(circle, rgba(132,144,216,.35), transparent 70%); pointer-events:none; }
+.sf-rk { font-size:11.5px; font-weight:700; letter-spacing:.16em; text-transform:uppercase; color:var(--purple); margin-bottom:8px; }
+.sf-rhero h2 { font-size:clamp(24px, 3.2vw, 34px); font-weight:700; margin:0; color:#fff; letter-spacing:-.01em; }
+.sf-rplace { margin:6px 0 0; color:rgba(255,255,255,.72); font-size:15px; }
+.sf-facts { display:flex; flex-wrap:wrap; justify-content:center; gap:8px; margin-top:18px; }
+.sf-fact { min-width:104px; padding:10px 14px; border-radius:8px; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.12); display:flex; flex-direction:column; gap:2px; align-items:center; }
+.sf-fact small { font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; color:rgba(255,255,255,.6); }
+.sf-fact b { font-size:18px; font-weight:700; font-variant-numeric:tabular-nums; }
+.sf-fact.hi { background:var(--deep); border-color:var(--deep); }
+.sf-rsub { text-align:center; margin:18px 0 16px; color:var(--muted); font-size:15px; }
+.sf-rgrid { display:grid; grid-template-columns:1fr 1fr; gap:12px; align-items:start; }
+.sf-rsec { border:1px solid var(--line); border-radius:10px; padding:6px 18px 8px; background:var(--paper); }
+.sf-rsec h3 { display:flex; align-items:center; gap:9px; font-size:13px; font-weight:700; letter-spacing:.06em; color:var(--ink); margin:12px 0 6px; }
+.sf-rsec h3 i { width:22px; height:22px; border-radius:50%; background:var(--deep); color:#fff; font-size:11px; font-weight:700; font-style:normal; display:inline-flex; align-items:center; justify-content:center; }
+.sf-ritem { display:flex; align-items:flex-start; gap:10px; padding:9px 0; border-top:1px solid var(--line); }
+.sf-ritem .k { flex:0 0 36%; font-size:12.5px; color:var(--muted); line-height:1.4; padding-top:2px; }
 .sf-ritem .v { flex:1; font-size:15px; line-height:1.45; white-space:pre-wrap; word-break:break-word; }
-.sf-ritem button { flex:none; border:0; background:none; color:var(--deep); font-size:13px; font-weight:600; cursor:pointer; padding:2px 6px; border-radius:4px; }
+.sf-ritem button { flex:none; border:0; background:none; color:var(--deep); font-size:12.5px; font-weight:600; cursor:pointer; padding:2px 6px; border-radius:4px; opacity:.75; }
+.sf-ritem:hover button { opacity:1; }
 .sf-ritem button:hover { background:var(--tint); }
+.sf-chips { display:flex; flex-wrap:wrap; gap:5px; }
+.sf-chips em { font-style:normal; font-size:13px; padding:3px 9px; border-radius:20px; background:var(--tint2); color:var(--ink); }
+.sf-vnote { display:block; margin-top:6px; font-size:13px; color:var(--ink2); line-height:1.45; }
+/* ── story ── */
+.sf-story { text-align:center; max-width:760px; margin:0 auto; }
+.sf-story h2 { font-size:clamp(24px, 3.2vw, 34px); font-weight:700; margin:0; letter-spacing:-.01em; }
+.sf-paper { text-align:start; background:var(--paper); border:1px solid var(--line); border-radius:12px; padding:26px clamp(20px, 4vw, 40px) 30px; box-shadow:0 12px 40px rgba(38,36,43,.08); }
+.sf-paper-h { display:flex; align-items:center; gap:14px; padding-bottom:18px; margin-bottom:6px; border-bottom:1px solid var(--line); }
+.sf-paper-logo { height:34px; width:auto; }
+.sf-paper-h b { display:block; font-size:16px; }
+.sf-paper-h small { display:block; font-size:12.5px; color:var(--muted); }
+.sf-paper-h .sf-link { margin-inline-start:auto; }
+.sf-para { padding:16px 0; border-bottom:1px solid var(--line); }
+.sf-para:last-child { border-bottom:0; }
+.sf-para h3 { display:flex; align-items:baseline; gap:10px; margin:0 0 6px; font-size:13px; letter-spacing:.12em; text-transform:uppercase; color:var(--deep); font-weight:700; }
+.sf-para h3 span { font-size:11px; color:var(--muted); letter-spacing:.06em; font-variant-numeric:tabular-nums; }
+.sf-para p { margin:0; font-size:17px; line-height:1.75; color:var(--ink); }
+.sf-para:first-of-type p { font-size:19px; }
+.sf-privacy-line { margin-top:16px; font-size:12.5px; color:var(--muted); }
 .sf-missing { border:1px solid #F3C4C4; background:#FDECEC; border-radius:6px; padding:12px 16px; margin-bottom:14px; }
 .sf-missing h4 { margin:0 0 6px; font-size:14.5px; color:var(--err); }
 .sf-missing button { display:block; border:0; background:none; color:var(--deep); font-size:14px; padding:3px 0; cursor:pointer; text-align:start; }
-.sf-consent { display:flex; gap:12px; align-items:flex-start; padding:14px 16px; border:1px solid var(--line2); border-radius:4px; cursor:pointer; margin-top:20px; font-size:14.5px; line-height:1.5; color:var(--ink2); background:var(--box); transition:all .12s; }
+.sf-consent { display:flex; gap:12px; align-items:flex-start; text-align:start; padding:14px 16px; border:1px solid var(--line2); border-radius:6px; cursor:pointer; margin-top:20px; font-size:14.5px; line-height:1.5; color:var(--ink2); background:var(--box); transition:all .12s; }
 .sf-consent:hover { background:var(--boxHover); }
 .sf-consent.on { border-color:var(--deep); background:var(--tint2); color:var(--ink); }
 .sf-consent .sf-box { margin:3px 0 0; }
@@ -345,36 +389,29 @@ textarea.sf-input { resize:none; line-height:1.5; font-size:clamp(17px,2vw,20px)
   .sf-brandtxt { display:none; }
   .sf-saved { display:none; }
   .sf-lang { padding:7px 11px; font-size:12.5px; }
-  .sf-stage { align-items:center; padding:84px 18px 96px; }
+  .sf-stage { align-items:center; padding:80px 18px 72px; }
   .sf-opt { min-height:50px; font-size:17px; }
   .sf-pill { padding:9px 14px; font-size:14px; }
   .sf-round { width:44px; height:44px; }
   .sf-file select, .sf-field .sf-input { font-size:16px; }
   .sf-btn { min-height:50px; font-size:17px; }
-  .sf-nav button { width:46px; height:46px; }
-  .sf-card { text-align:center; }
-  .sf-sec { text-align:center; }
-  .sf-qhead { flex-direction:column; align-items:center; gap:10px; }
-  .sf-badge { margin-top:0; }
-  .sf-q { font-size:21px; text-align:center; text-wrap:balance; }
-  .sf-help { text-align:center; text-wrap:balance; }
-  .sf-help, .sf-body, .sf-actions, .sf-err { margin-inline-start:0 !important; margin-inline-end:0 !important; }
-  .sf-input { text-align:center !important; }
-  .sf-field label { text-align:center; }
-  .sf-hint { text-align:center; }
-  .sf-actions { justify-content:center; flex-direction:column; gap:8px; }
-  .sf-actions .sf-btn { width:100%; justify-content:center; }
-  .sf-err { justify-content:center; text-align:center; }
+  .sf-count { bottom:8px; }
+  .sf-q { font-size:22px; }
+  .sf-help { font-size:16px; }
+  .sf-actions { gap:8px; }
+  .sf-actions .sf-btn { flex:1 1 40%; min-width:0; }
+  .sf-actions .sf-btn.big { flex-basis:100%; }
+  .sf-rgrid { grid-template-columns:1fr; }
+  .sf-rhero { padding:20px 16px; }
+  .sf-fact { min-width:84px; padding:8px 10px; }
+  .sf-paper { padding:18px 16px 20px; }
+  .sf-para p { font-size:16px; }
+  .sf-para:first-of-type p { font-size:17px; }
   .sf-mrow { flex-direction:column; align-items:center; text-align:center; gap:8px; }
   .sf-mrow .lbl { flex-basis:auto; }
   .sf-scale { justify-content:center; }
   .sf-counter { flex-direction:column; gap:8px; }
   .sf-tags { justify-content:center; }
-  .sf-intro { text-align:center; }
-  .sf-intro .line { margin:18px auto 22px; }
-  .sf-intro p { margin:0 auto; }
-  .sf-review { text-align:start; }
-  .sf-review h2, .sf-review > p { text-align:center; }
   .sf-welcome .logo { height:120px; }
   .sf-welcome-actions .sf-btn { width:100%; justify-content:center; }
   .sf-welcome h1 { font-size:27px; }
@@ -391,7 +428,6 @@ textarea.sf-input { resize:none; line-height:1.5; font-size:clamp(17px,2vw,20px)
   .sf-ritem button { align-self:flex-end; margin-top:-26px; }
   .sf-enter { display:none; }
   .sf-welcome .logo { height:110px; }
-  .sf-foot { padding:10px 14px max(12px, env(safe-area-inset-bottom)); }
   .sf-btn { padding:11px 18px; }
 }
 @media (prefers-reduced-motion: reduce) { .sf-root * { animation:none !important; transition:none !important; } }
@@ -408,6 +444,10 @@ const IcoWarn  = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="non
 const IcoWa    = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M17.5 14.4c-.3-.1-1.8-.9-2-1-.3-.1-.5-.1-.7.1-.2.3-.8 1-.9 1.2-.2.2-.3.2-.6.1-.3-.1-1.3-.5-2.4-1.5-.9-.8-1.5-1.8-1.7-2.1-.2-.3 0-.5.1-.6l.4-.5.3-.5c.1-.2 0-.4 0-.5l-.9-2.2c-.2-.6-.5-.5-.7-.5h-.6c-.2 0-.5.1-.8.4-.3.3-1 1-1 2.5s1.1 2.9 1.2 3.1c.1.2 2.1 3.2 5.1 4.5.7.3 1.3.5 1.7.6.7.2 1.4.2 1.9.1.6-.1 1.8-.7 2-1.4.2-.7.2-1.3.2-1.4-.1-.2-.3-.3-.6-.4zM12 2C6.5 2 2 6.5 2 12c0 1.8.5 3.5 1.3 5L2 22l5.2-1.4c1.4.8 3.1 1.2 4.8 1.2 5.5 0 10-4.5 10-10S17.5 2 12 2zm0 18.2c-1.5 0-3-.4-4.3-1.2l-.3-.2-3.1.8.8-3-.2-.3C4.1 15 3.7 13.5 3.7 12c0-4.6 3.7-8.3 8.3-8.3s8.3 3.7 8.3 8.3-3.7 8.2-8.3 8.2z"/></svg>
 
 const IcoGlobe = () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+
+const IcoBack = () => <svg className="sf-ico-back" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+const IcoFwd = () => <svg className="sf-ico-fwd" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+const IcoCopy = () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
 
 // Bold the key phrase of a question, Typeform style ("what's **the main thing**…")
 function Emph({ text, phrase }) {
@@ -550,7 +590,7 @@ export default function SellerForm() {
       if (e.key === 'Enter') {
         if (inTextarea && !(e.ctrlKey || e.metaKey)) return
         if (el?.tagName === 'BUTTON' || el?.tagName === 'A' || el?.tagName === 'SELECT') return
-        if (step.type === 'review') return
+        if (step.type === 'review' || step.type === 'story') return
         e.preventDefault(); goNext(); return
       }
       if (e.key === 'ArrowDown' && !inTextarea && el?.type !== 'number') { e.preventDefault(); goNext(); return }
@@ -601,7 +641,7 @@ export default function SellerForm() {
       const r = await fetch(`${API}/api/seller-form`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          sid: sidRef.current, lang, schemaVersion: SCHEMA_VERSION, answers: clean, files,
+          sid: sidRef.current, lang, schemaVersion: SCHEMA_VERSION, answers: clean, files, story: storyText(answers, 'he'),
           meta: { url: location.href, ua: navigator.userAgent, startedAt: startedAt.current, durationSec: Math.round((Date.now() - startedAt.current) / 1000) },
         }),
       })
@@ -650,11 +690,14 @@ export default function SellerForm() {
                   <Intro section={section} t={t} lang={lang} onNext={goNext}/>
                 )}
                 {step.type === 'review' && (
-                  <Review answers={answers} lang={lang} t={t} visible={visible} onEdit={id => goTo(id, -1)}
+                  <Review answers={answers} lang={lang} t={t} visible={visible} onEdit={id => goTo(id, -1)} onBack={goPrev} onNext={goNext}/>
+                )}
+                {step.type === 'story' && (
+                  <Story answers={answers} lang={lang} t={t} onBack={goPrev}
                     consent={!!answers.__consent} setConsent={v => { setSubmitErr(''); setAnswer('__consent', v) }}
                     onSubmit={submit} submitting={submitting} submitErr={submitErr}/>
                 )}
-                {!['intro', 'review'].includes(step.type) && (
+                {!['intro', 'review', 'story'].includes(step.type) && (
                   <>
                     <div className="sf-sec">{t.part} {section?.n} · {lang === 'en' ? section?.en : section?.title}</div>
                     <div className="sf-qhead">
@@ -666,14 +709,15 @@ export default function SellerForm() {
                     </div>
                     {(step.help || step.en_help) && <p className="sf-help">{lang === 'en' ? (step.en_help || step.help) : step.help}</p>}
                     <div className="sf-body">
-                      <Field step={step} answers={answers} value={answers[step.id]} setValue={v => setAnswer(step.id, v)} lang={lang} t={t} err={err}
+                      <Field step={step} answers={answers} value={answers[step.id]} setValue={v => setAnswer(step.id, v)} setAnswer={setAnswer} lang={lang} t={t} err={err}
                         onEnter={goNext} pickChoice={pickChoice} toggleMulti={toggleMulti} sid={sidRef.current}/>
                     </div>
                     {err && <div className="sf-err" role="alert"><IcoWarn/>{VALIDATION_MSG[lang][err]}</div>}
                     <div className="sf-actions">
-                      <button className="sf-btn" onClick={goNext}>{t.cont}</button>
-                      <span className="sf-enter">{t.press} <b>{step.type === 'long' ? 'Ctrl + Enter ↵' : 'Enter ↵'}</b></span>
+                      <button className="sf-btn ghost" onClick={goPrev} disabled={idx === 0}><IcoBack/>{t.back}</button>
+                      <button className="sf-btn" onClick={goNext}>{t.cont}<IcoFwd/></button>
                     </div>
+                    <div className="sf-enter">{t.press} <b>{step.type === 'long' ? 'Ctrl + Enter ↵' : 'Enter ↵'}</b></div>
                   </>
                 )}
               </motion.div>
@@ -685,13 +729,7 @@ export default function SellerForm() {
       </main>
 
       {phase === 'form' && (
-        <footer className="sf-foot">
-          <div className="sf-nav">
-            <span className="cnt">{idx + 1} {t.of} {total}</span>
-            <button onClick={goPrev} disabled={idx === 0} aria-label={t.back}><IcoUp/></button>
-            <button onClick={goNext} disabled={idx >= total - 1} aria-label={t.cont}><IcoDown/></button>
-          </div>
-        </footer>
+        <footer className="sf-foot"><span className="sf-count">{idx + 1} {t.of} {total}</span></footer>
       )}
     </div>
   )
@@ -729,9 +767,9 @@ function Intro({ section, t, lang, onNext }) {
       <div className="line"/>
       <p>{lang === 'en' ? section.en_desc : section.desc}</p>
       <div className="sf-actions">
-        <button className="sf-btn" onClick={onNext} data-autofocus>{t.cont}</button>
-        <span className="sf-enter">{t.press} <b>Enter ↵</b></span>
+        <button className="sf-btn" onClick={onNext} data-autofocus>{t.cont}<IcoFwd/></button>
       </div>
+      <div className="sf-enter">{t.press} <b>Enter ↵</b></div>
     </div>
   )
 }
@@ -794,27 +832,54 @@ function NumberInput({ step, value, setValue, lang, err }) {
   )
 }
 
-function Choice({ step, value, lang, t, pickChoice }) {
+function OtherInput({ step, answers, setAnswer, lang, t }) {
+  const key = otherKey(step.id)
+  return (
+    <div className="sf-other">
+      <input className="sf-input" type="text" value={answers[key] || ''} onChange={e => setAnswer(key, e.target.value)}
+        placeholder={lang === 'en' ? (step.en_other_ph || step.other_ph || t.otherPh) : (step.other_ph || t.otherPh)} autoFocus/>
+    </div>
+  )
+}
+
+function DirectionsNote({ step, value, answers, setAnswer, lang, t }) {
+  const key = noteKey(step.id)
+  const auto = directionsText(value, lang)
+  const manual = answers[key]
+  const shown = manual !== undefined && manual !== '' ? manual : auto
+  if (!auto && !manual) return null
+  return (
+    <div className="sf-note">
+      <textarea className="sf-input" rows={3} value={shown} onChange={e => setAnswer(key, e.target.value)} placeholder={t.notePh}/>
+      {manual !== undefined && manual !== '' && manual !== auto && (
+        <button type="button" className="sf-link" onClick={() => setAnswer(key, '')}>{t.noteReset}</button>
+      )}
+    </div>
+  )
+}
+
+function Choice({ step, value, lang, t, pickChoice, answers, setAnswer }) {
   const [flash, setFlash] = useState(null)
   return (
     <>
-      <div className={`sf-opts${step.grid ? ' grid' : ''}`} role="radiogroup">
+      <div className={`sf-opts${step.grid ? ' grid' : ''}${step.compact ? ' compact' : ''}`} role="radiogroup">
         {step.opts.map((o, i) => (
           <button key={o.v} type="button" role="radio" aria-checked={value === o.v}
             className={`sf-opt${value === o.v ? ' on' : ''}${flash === o.v ? ' flash' : ''}`}
             onClick={() => { setFlash(o.v); pickChoice(o.v) }}>
-            <span className="sf-key">{LETTERS[i]}</span>
-            <span>{L(o, lang)}</span>
-            <span className="sf-check"><IcoCheck size={18}/></span>
+            {!step.compact && <span className="sf-key">{LETTERS[i]}</span>}
+            <span className="lbl">{L(o, lang)}</span>
+            {!step.compact && <span className="sf-check"><IcoCheck size={18}/></span>}
           </button>
         ))}
       </div>
+      {value === 'other' && step.opts.some(o => o.v === 'other') && <OtherInput step={step} answers={answers} setAnswer={setAnswer} lang={lang} t={t}/>}
       <div className="sf-hint">{t.selectOne}</div>
     </>
   )
 }
 
-function Multi({ step, value, lang, t, toggleMulti }) {
+function Multi({ step, value, lang, t, toggleMulti, answers, setAnswer }) {
   const arr = Array.isArray(value) ? value : []
   return (
     <>
@@ -822,11 +887,13 @@ function Multi({ step, value, lang, t, toggleMulti }) {
         {step.opts.map((o, i) => (
           <button key={o.v} type="button" aria-pressed={arr.includes(o.v)} className={`sf-opt${arr.includes(o.v) ? ' on' : ''}`} onClick={() => toggleMulti(o.v)}>
             <span className="sf-key">{LETTERS[i]}</span>
-            <span>{L(o, lang)}</span>
+            <span className="lbl">{L(o, lang)}</span>
             <span className="sf-box"><IcoCheck size={13}/></span>
           </button>
         ))}
       </div>
+      {arr.includes('other') && <OtherInput step={step} answers={answers} setAnswer={setAnswer} lang={lang} t={t}/>}
+      {step.note && <DirectionsNote step={step} value={arr} answers={answers} setAnswer={setAnswer} lang={lang} t={t}/>}
       <div className="sf-hint">{t.selectMany}</div>
     </>
   )
@@ -861,7 +928,7 @@ function Counter({ step, value, setValue, answers, lang, t }) {
   )
 }
 
-function Group({ step, value, setValue, answers, lang, err }) {
+function Group({ step, value, setValue, answers, lang, err, t }) {
   const fields = visibleFields(step, answers)
   const v = value || {}
   const bad = err ? groupInvalidFields(step, answers) : []
@@ -871,6 +938,16 @@ function Group({ step, value, setValue, answers, lang, err }) {
         const req = typeof f.required === 'function' ? f.required(answers) : f.required
         const unit = lang === 'en' ? (f.en_unit || f.unit) : f.unit
         const isNum = f.type === 'number'
+        if (f.type === 'city' || f.type === 'street') {
+          return (
+            <div className={`sf-field${f.half ? '' : ' full'}`} key={f.k}>
+              <label htmlFor={`${step.id}-${f.k}`}>{L(f, lang)}{req && <i>*</i>}</label>
+              <Combo id={`${step.id}-${f.k}`} value={v[f.k] ?? ''} onChange={val => setValue({ ...v, [f.k]: val })}
+                options={f.type === 'city' ? CITIES : undefined} loadKey={f.type === 'street' ? (v.city || '') : undefined} loader={f.type === 'street' ? loadStreets : undefined}
+                placeholder={lang === 'en' ? (f.en_ph || f.ph || '') : (f.ph || '')} invalid={bad.includes(f.k)} autoFocus={i === 0} t={t}/>
+            </div>
+          )
+        }
         return (
           <div className={`sf-field${f.half ? '' : ' full'}`} key={f.k}>
             <label htmlFor={`${step.id}-${f.k}`}>{L(f, lang)}{req && <i>*</i>}</label>
@@ -886,6 +963,76 @@ function Group({ step, value, setValue, answers, lang, err }) {
           </div>
         )
       })}
+    </div>
+  )
+}
+
+// ── Autocomplete combo (cities: bundled CBS list; streets: fetched per city) ──
+const streetCache = {}
+async function loadStreets(city) {
+  const c = String(city || '').trim()
+  if (!c) return []
+  if (streetCache[c]) return streetCache[c]
+  const get = async url => { const r = await fetch(url); if (!r.ok) throw new Error(String(r.status)); return r.json() }
+  let names = []
+  try {
+    const d = await get(`${API}/api/seller-form?action=streets&city=${encodeURIComponent(c)}`)
+    names = Array.isArray(d.streets) ? d.streets : []
+  } catch {
+    try {
+      const d = await get(`https://data.gov.il/api/3/action/datastore_search?resource_id=9ad3862c-8391-4b2f-84a4-2d4c68625f4b&limit=32000&q=${encodeURIComponent(c)}`)
+      names = (d.result?.records || []).filter(r => String(r['שם_ישוב'] || '').trim() === c).map(r => String(r['שם_רחוב'] || '').trim()).filter(Boolean)
+    } catch { names = [] }
+  }
+  names = [...new Set(names)].sort((a, b) => a.localeCompare(b, 'he'))
+  streetCache[c] = names
+  return names
+}
+
+function Combo({ id, value, onChange, options, loadKey, loader, placeholder, invalid, autoFocus, t }) {
+  const [list, setList] = useState(options || [])
+  const [open, setOpen] = useState(false)
+  const [hi, setHi] = useState(0)
+  const [loading, setLoading] = useState(false)
+  useEffect(() => { if (options) setList(options) }, [options])
+  useEffect(() => {
+    if (!loader) return
+    let alive = true
+    if (!loadKey) { setList([]); return }
+    setLoading(true)
+    loader(loadKey).then(l => { if (alive) { setList(l || []); setLoading(false) } }).catch(() => { if (alive) { setList([]); setLoading(false) } })
+    return () => { alive = false }
+  }, [loadKey, loader])
+  const q = String(value || '').trim()
+  const matches = useMemo(() => {
+    if (!list.length) return []
+    if (!q) return list.slice(0, 8)
+    const starts = list.filter(x => x.startsWith(q))
+    const inc = starts.length < 8 ? list.filter(x => !x.startsWith(q) && x.includes(q)) : []
+    return [...starts, ...inc].slice(0, 8)
+  }, [q, list])
+  const show = open && matches.length > 0 && !(matches.length === 1 && matches[0] === q)
+  const pick = val => { onChange(val); setOpen(false) }
+  const onKey = e => {
+    if (!show) return
+    if (e.key === 'ArrowDown') { e.preventDefault(); e.stopPropagation(); setHi(h => Math.min(matches.length - 1, h + 1)) }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); e.stopPropagation(); setHi(h => Math.max(0, h - 1)) }
+    else if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); pick(matches[hi] ?? q) }
+    else if (e.key === 'Escape') { setOpen(false) }
+  }
+  return (
+    <div className="sf-combo">
+      <input id={id} className={`sf-input${invalid ? ' is-err' : ''}`} type="text" value={value} autoComplete="off" role="combobox" aria-expanded={show} aria-autocomplete="list"
+        onChange={e => { onChange(e.target.value); setOpen(true); setHi(0) }} onFocus={() => setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 150)}
+        onKeyDown={onKey} placeholder={loader && loadKey && loading ? t.loadingStreets : (loader && loadKey && !list.length && !loading ? t.noStreets : placeholder)}
+        data-autofocus={autoFocus ? true : undefined} aria-invalid={invalid}/>
+      {show && (
+        <ul className="sf-combo-list" role="listbox">
+          {matches.map((m, i) => (
+            <li key={m} role="option" aria-selected={i === hi} className={i === hi ? 'on' : ''} onMouseDown={e => { e.preventDefault(); pick(m) }} onMouseEnter={() => setHi(i)}>{m}</li>
+          ))}
+        </ul>
+      )}
     </div>
   )
 }
@@ -1048,32 +1195,94 @@ function Upload({ step, value, setValue, lang, t, sid }) {
   )
 }
 
-// ═══ REVIEW ═══════════════════════════════════════════════════════════════════
-function Review({ answers, lang, t, visible, onEdit, consent, setConsent, onSubmit, submitting, submitErr }) {
+// ═══ REVIEW (property file) ═══════════════════════════════════════════════════
+function Review({ answers, lang, t, visible, onEdit, onBack, onNext }) {
   const summary = useMemo(() => buildSummary(answers, lang), [answers, lang])
   const missing = visible.filter(s => validateStep(s, answers))
+  const addr = answers.p_address || {}
+  const place = [[addr.street, addr.number].filter(Boolean).join(' '), addr.neighborhood ? `${lang === 'en' ? '' : 'שכונת '}${addr.neighborhood}` : '', addr.city, addr.apt ? (lang === 'en' ? `apt. ${addr.apt}` : `דירה ${addr.apt}`) : ''].filter(Boolean).join(' · ')
+  const stateStep = STEPS.find(s => s.id === 'p_state')
+  const stateLabel = answers.p_state ? (stateStep.opts.find(o => o.v === answers.p_state) || {})[lang === 'en' ? 'en' : 'l'] : ''
+  const facts = [
+    answers.d_ask ? { k: t.factPrice, v: `${lang === 'en' ? '₪' : ''}${fmtNum(answers.d_ask, lang)}${lang === 'en' ? '' : ' ₪'}`, hi: true } : null,
+    answers.p_rooms ? { k: t.factRooms, v: answers.p_rooms } : null,
+    answers.p_area?.built ? { k: t.factArea, v: fmtNum(answers.p_area.built, lang) } : null,
+    answers.p_floor?.floor !== undefined && answers.p_floor?.floor !== '' ? { k: t.factFloor, v: `${answers.p_floor.floor}${answers.p_floor.totalFloors ? ` / ${answers.p_floor.totalFloors}` : ''}` } : null,
+    answers.f_parking?.parking !== undefined ? { k: t.factParking, v: answers.f_parking.parking } : null,
+    stateLabel ? { k: t.factState, v: stateLabel } : null,
+  ].filter(Boolean)
   return (
     <div className="sf-review">
-      <h2>{t.reviewTitle}</h2>
-      <p>{t.reviewSub}</p>
+      <div className="sf-rhero">
+        <div className="sf-rk">{t.reviewKicker}</div>
+        <h2>{headline(answers, lang) || t.reviewTitle}</h2>
+        {place && (addr.neighborhood || addr.apt) && <p className="sf-rplace">{place}</p>}
+        {facts.length > 0 && (
+          <div className="sf-facts">
+            {facts.map(f => <div className={`sf-fact${f.hi ? ' hi' : ''}`} key={f.k}><small>{f.k}</small><b>{f.v}</b></div>)}
+          </div>
+        )}
+      </div>
+      <p className="sf-rsub">{t.reviewSub}</p>
       {missing.length > 0 && (
         <div className="sf-missing">
           <h4>{t.missingTitle}</h4>
           {missing.map(s => <button key={s.id} type="button" onClick={() => onEdit(s.id)}>→ {lang === 'en' ? (s.en_q || s.q) : s.q}</button>)}
         </div>
       )}
-      {summary.map(sec => (
-        <div className="sf-rsec" key={sec.section}>
-          <h3>{sec.title}</h3>
-          {sec.items.map(it => (
-            <div className="sf-ritem" key={it.id}>
-              <span className="k">{it.label}</span>
-              <span className="v">{it.type === 'upload' ? <FilesLine files={answers[it.id]} lang={lang} t={t}/> : it.value}</span>
-              <button type="button" onClick={() => onEdit(it.id)}>{t.edit}</button>
-            </div>
-          ))}
-        </div>
-      ))}
+      <div className="sf-rgrid">
+        {summary.map(sec => {
+          const secDef = SECTIONS.find(x => x.id === sec.section)
+          return (
+            <section className="sf-rsec" key={sec.section}>
+              <h3><i>{secDef?.n}</i>{sec.title}</h3>
+              {sec.items.map(it => (
+                <div className="sf-ritem" key={it.id}>
+                  <span className="k">{it.label}</span>
+                  <span className="v">
+                    {it.type === 'upload' ? <FilesLine files={answers[it.id]} lang={lang} t={t}/>
+                      : it.chips ? <><span className="sf-chips">{it.chips.map(c => <em key={c}>{c}</em>)}</span>{it.note && <span className="sf-vnote">{it.note}</span>}</>
+                      : it.value}
+                  </span>
+                  <button type="button" onClick={() => onEdit(it.id)} aria-label={t.edit}>{t.edit}</button>
+                </div>
+              ))}
+            </section>
+          )
+        })}
+      </div>
+      <div className="sf-actions">
+        <button className="sf-btn ghost" onClick={onBack}><IcoBack/>{t.back}</button>
+        <button className="sf-btn" onClick={onNext} disabled={missing.length > 0}>{t.toStory}<IcoFwd/></button>
+      </div>
+    </div>
+  )
+}
+
+// ═══ STORY (final slide: narrative presentation + submit) ═════════════════════
+function Story({ answers, lang, t, onBack, consent, setConsent, onSubmit, submitting, submitErr }) {
+  const paras = useMemo(() => buildStory(answers, lang), [answers, lang])
+  const [copied, setCopied] = useState(false)
+  const copy = () => { navigator.clipboard?.writeText(storyText(answers, lang)).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1800) }) }
+  const first = String(answers.c_name || '').trim().split(/\s+/)[0]
+  return (
+    <div className="sf-story">
+      <div className="sf-rk">{t.storyKicker}</div>
+      <h2>{headline(answers, lang) || t.storyKicker}</h2>
+      <p className="sf-rsub">{t.storySub}</p>
+      <article className="sf-paper">
+        <header className="sf-paper-h">
+          <img src="/logo-mark-black.svg" alt="" className="sf-paper-logo"/>
+          <div><b>{PROPERTY_TYPE_LABEL(answers.p_type, lang) || t.brand}</b><small>{[answers.p_address?.street, answers.p_address?.number, answers.p_address?.city].filter(Boolean).join(' ')}{first ? ` · ${first}` : ''}</small></div>
+          <button type="button" className="sf-link" onClick={copy}><IcoCopy/> {copied ? t.copied : t.copyStory}</button>
+        </header>
+        {paras.map((p, i) => (
+          <section key={i} className="sf-para">
+            <h3><span>{String(i + 1).padStart(2, '0')}</span>{p.title}</h3>
+            <p>{p.text}</p>
+          </section>
+        ))}
+      </article>
       <label className={`sf-consent${consent ? ' on' : ''}`}>
         <input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)} style={{ position: 'absolute', opacity: 0, width: 0, height: 0 }}/>
         <span className="sf-box" style={consent ? { background: 'var(--deep)', borderColor: 'var(--deep)' } : undefined}><IcoCheck size={13}/></span>
@@ -1081,10 +1290,11 @@ function Review({ answers, lang, t, visible, onEdit, consent, setConsent, onSubm
       </label>
       {submitErr && <div className="sf-err" role="alert"><IcoWarn/>{submitErr}</div>}
       <div className="sf-actions">
-        <button className="sf-btn big" onClick={onSubmit} disabled={submitting || missing.length > 0}>{submitting ? t.submitting : t.submit} {!submitting && <IcoCheck size={16}/>}</button>
+        <button className="sf-btn ghost" onClick={onBack}><IcoBack/>{t.back}</button>
+        <button className="sf-btn big" onClick={onSubmit} disabled={submitting}>{submitting ? t.submitting : t.submit} {!submitting && <IcoCheck size={16}/>}</button>
         {submitErr && <a className="sf-btn ghost" href={`https://wa.me/${OFFICE_WA}`} target="_blank" rel="noreferrer"><IcoWa/> WhatsApp</a>}
       </div>
-      <p style={{ marginTop: 18, fontSize: 12.5, color: 'var(--muted)' }}>{t.privacyNote}</p>
+      <p className="sf-privacy-line">{t.privacyNote}</p>
     </div>
   )
 }

@@ -198,6 +198,17 @@ export default function SellerSubmissionsTab({ C }) {
               ))}
             </div>
 
+            {/* property story */}
+            {detail.story && (
+              <div style={{ ...card, padding: '14px 16px', marginBottom: 18, borderColor: 'rgba(132,144,216,.3)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <h3 style={{ fontSize: 12, letterSpacing: '.12em', color: purple, margin: 0, fontWeight: 700 }}>סיפור הנכס</h3>
+                  <button onClick={() => navigator.clipboard?.writeText(detail.story)} style={btn()}><FaCopy size={11}/> העתקה</button>
+                </div>
+                <div style={{ fontSize: 13.5, lineHeight: 1.7, whiteSpace: 'pre-wrap', color: 'rgba(232,228,216,.9)' }}>{detail.story}</div>
+              </div>
+            )}
+
             {/* files */}
             {(detail.files || []).length > 0 && (
               <div style={{ marginBottom: 18 }}>
