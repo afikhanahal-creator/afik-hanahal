@@ -366,7 +366,7 @@ textarea.sf-input { resize:none; line-height:1.5; font-size:clamp(17px,2vw,22px)
 .sf-ritem button { border:0; background:none; color:var(--deep); font-size:13px; font-weight:600; cursor:pointer; padding:4px 8px; border-radius:4px; opacity:0; transition:opacity .15s; }
 .sf-ritem:hover button, .sf-ritem button:focus-visible { opacity:1; }
 .sf-ritem button:hover { background:var(--tint); }
-@media (hover:none) { .sf-ritem button { opacity:1; font-size:14px; padding:8px 10px; min-height:40px; background:var(--tint); } }
+@media (hover:none) { .sf-ritem button { opacity:1; font-size:13.5px; padding:6px 12px; min-height:36px; background:var(--tint); } }
 .sf-chips { display:flex; flex-wrap:wrap; gap:5px; }
 .sf-chips em { font-style:normal; font-size:13px; padding:3px 9px; border-radius:20px; background:var(--tint2); color:var(--ink); }
 .sf-vnote { display:block; margin-top:6px; font-size:13px; color:var(--ink2); line-height:1.45; }
@@ -407,7 +407,9 @@ textarea.sf-input { resize:none; line-height:1.5; font-size:clamp(17px,2vw,22px)
 @media (max-width: 720px) {
   .sf-top { justify-content:center; padding:0 14px; min-height:56px; }
   .sf-brand { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); }
-  .sf-top-right { position:absolute; inset-inline-start:12px; top:50%; transform:translateY(-50%); }
+  .sf-top-right { position:static; }
+  .sf-top .ps-share { position:absolute; inset-inline-start:12px; top:50%; transform:translateY(-50%); }
+  .sf-top .sf-lang { position:absolute; inset-inline-end:8px; top:50%; transform:translateY(-50%); }
   .sf-stepper { display:none; }
   .sf-logo { height:32px; }
   .sf-brandtxt { display:none; }
@@ -431,8 +433,10 @@ textarea.sf-input { resize:none; line-height:1.5; font-size:clamp(17px,2vw,22px)
   .sf-actions { gap:8px; }
   .sf-actions .sf-btn { flex:1 1 40%; min-width:0; }
   .sf-actions .sf-btn.big { flex-basis:100%; }
-  .sf-ritem { grid-template-columns:1fr auto; }
-  .sf-ritem .v { grid-column:1 / -1; }
+  .sf-ritem { grid-template-columns:1fr auto; grid-template-areas:'k b' 'v v'; gap:4px 10px; align-items:center; }
+  .sf-ritem .k { grid-area:k; }
+  .sf-ritem .v { grid-area:v; }
+  .sf-ritem button { grid-area:b; margin:0; justify-self:end; }
   .sf-rsec { padding:0 14px 4px; }
   .sf-rhero { padding:20px 16px; }
   .sf-fact { min-width:84px; padding:8px 10px; }
@@ -453,9 +457,6 @@ textarea.sf-input { resize:none; line-height:1.5; font-size:clamp(17px,2vw,22px)
   .sf-opt { min-width:0; width:100%; }
   .sf-opts.grid { grid-template-columns:1fr; }
   .sf-counter .lbl { font-size:15.5px; }
-  .sf-ritem { flex-direction:column; gap:3px; }
-  .sf-ritem .k { flex-basis:auto; }
-  .sf-ritem button { align-self:flex-end; margin-top:-26px; }
   .sf-enter { display:none; }
   .sf-welcome .logo { height:110px; }
   .sf-btn { padding:11px 18px; }
