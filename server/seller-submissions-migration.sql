@@ -1,11 +1,11 @@
--- ─── Seller intake form (/sell) — one-time Supabase migration ────────────────
+-- ─── Property intake (/newproperty) — one-time Supabase migration ────────────
 -- Run once in Supabase → SQL editor. Safe to re-run (IF NOT EXISTS everywhere).
 
 CREATE TABLE IF NOT EXISTS seller_submissions (
   id              BIGSERIAL PRIMARY KEY,
   ref             TEXT UNIQUE,                 -- human-friendly file number, e.g. AH-260903-K7PD
   sid             TEXT,                        -- browser session id = storage folder name
-  status          TEXT DEFAULT 'new',          -- new | contacted | meeting | signed | marketing | closed | rejected
+  status          TEXT DEFAULT 'new',          -- draft | new | review | approved | published | inactive | sold
   lang            TEXT DEFAULT 'he',
   contact_name    TEXT,
   phone           TEXT,

@@ -62,7 +62,11 @@ const summaryToken = (cleanPath.match(/^\/newproperty\/([A-Za-z0-9]{16,64})$/) |
 const SellerForm = lazy(() => import('./SellerForm.jsx'))
 const PropertySummary = lazy(() => import('./PropertySummary.jsx'))
 if (isSellerForm || summaryToken) {
-  const m = document.createElement('meta'); m.name = 'robots'; m.content = 'noindex, nofollow'; document.head.appendChild(m)
+  // Private pages: override the site-wide "index, follow" meta and drop the home-page canonical
+  let m = document.querySelector('meta[name="robots"]')
+  if (!m) { m = document.createElement('meta'); m.name = 'robots'; document.head.appendChild(m) }
+  m.content = 'noindex, nofollow'
+  document.querySelector('link[rel="canonical"]')?.remove()
 }
 
 createRoot(document.getElementById('root')).render(

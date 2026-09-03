@@ -1737,6 +1737,8 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const [chats, setChats] = useState({})
   const [chatsUnread, setChatsUnread] = useState(0)   // total unread WhatsApp msgs (for tab badge)
   const [metaNewLeads, setMetaNewLeads] = useState(0) // unseen new Meta leads (for tab badge)
+  const [intakeStats, setIntakeStats] = useState(null) // /newproperty submissions: counts + latest (for tab badge + "new property" alert)
+  const intakeSeenRef = useRef(null)                  // latest submitted_at we have already alerted on
   const appLoadRef = useRef(Date.now())               // baseline so old history isn't flagged
   const chatsRef = useRef({})                         // latest chats for on-demand recompute
   const [chatInput, setChatInput] = useState('')
@@ -1848,6 +1850,34 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     window.addEventListener('focus', reset)
     return () => window.removeEventListener('focus', reset)
   }, [])
+
+  // New property from /newproperty → same treatment as a new lead: sidebar badge, toast, chime, OS notification.
+  useEffect(() => {
+    let stop = false
+    const poll = async () => {
+      try {
+        const r = await fetch('/api/seller-form?action=stats', { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` }, signal: AbortSignal.timeout(10000) })
+        const d = await r.json().catch(() => null)
+        if (stop || !r.ok || !d?.ok) return
+        setIntakeStats(d)
+        const latest = d.latest?.[0]
+        if (latest?.submitted_at) {
+          if (intakeSeenRef.current === null) intakeSeenRef.current = latest.submitted_at   // baseline on first load
+          else if (latest.submitted_at > intakeSeenRef.current) {
+            intakeSeenRef.current = latest.submitted_at
+            const fresh = (d.latest || []).filter(x => x.submitted_at > (intakeSeenRef.prev || '')).slice(0, 3)
+            ;(fresh.length ? fresh : [latest]).forEach(x => addToast(`נכס חדש נקלט ${x.purpose === 'rental' ? 'להשכרה' : 'למכירה'}`, `${x.name || ''}${x.type ? ' · ' + x.type : ''}${x.city ? ' · ' + x.city : ''}${x.price ? ' · ₪' + Number(x.price).toLocaleString('he-IL') : ''} · תיק ${x.ref}`, 'sellers', '🏠', 9000))
+          }
+          intakeSeenRef.prev = intakeSeenRef.current
+        }
+      } catch {}
+    }
+    poll()
+    const t = setInterval(poll, 60000)
+    const onFocus = () => poll()
+    window.addEventListener('focus', onFocus)
+    return () => { stop = true; clearInterval(t); window.removeEventListener('focus', onFocus) }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const addToast = useCallback((title, body, targetTab, icon = '🔔', durationMs = 6000) => {
     const id = ++toastIdRef.current
@@ -2659,7 +2689,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
     { id:'live',     Icon:FaCheckCircle, label:'באוויר',      badge: publishedList.length, live:true },
     { id:'props',    Icon:FaBuilding,    label:'ניהול נכסים' },
     { id:'leads',    Icon:FaHandshake,   label:'לידים',       badge: leads.length },
-    { id:'sellers',  Icon:FaClipboardList, label:'נכסים שנקלטו' },
+    { id:'sellers',  Icon:FaClipboardList, label:'נכסים שנקלטו', badge: intakeStats?.new || undefined },
     { id:'chats',    Icon:FaWhatsapp,    label:'צ\'אטים',     badge: chatsUnread },
     { id:'analytics',    Icon:FaChartLine,   label:'אנליטיקס' },
     { id:'supermetrics', Icon:FaChartBar,   label:'ביצועים' },
@@ -2995,7 +3025,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
 
               {/* Category-specific fields */}
               <div className="admin-form-grid" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0 14px' }}>
-                {form.category === 'apartments' && <>
+                {['apartments','rentals'].includes(form.category) && <>
                   <div><label style={{ fontSize:11, color:`${C.cream}70`, display:'block', marginBottom:4, fontWeight:600 }}>חדרים</label><input placeholder="3.5" value={form.rooms} onChange={set('rooms')} style={inp}/></div>
                   <div><label style={{ fontSize:11, color:`${C.cream}70`, display:'block', marginBottom:4, fontWeight:600 }}>שטח מ"ר (כולל)</label><input placeholder="120" value={form.size} onChange={set('size')} style={inp}/></div>
                   <div><label style={{ fontSize:11, color:`${C.cream}70`, display:'block', marginBottom:4, fontWeight:600 }}>מ"ר בנוי</label><input placeholder="100" value={form.buildSqm} onChange={set('buildSqm')} style={inp}/></div>
@@ -3093,7 +3123,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
                       {chk('wifi','אינטרנט מהיר')}
                       {chk('commRoom','חדר תקשורת')} {chk('mamak','ממק')}
                     </>}
-                    {form.category==='apartments' && <>{chk('furnished','מרוהט')} {chk('renovated','משופץ')}</>}
+                    {['apartments','rentals'].includes(form.category) && <>{chk('furnished','מרוהט')} {chk('renovated','משופץ')}</>}
                   </div>
                 </div>
               )}
@@ -3364,7 +3394,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
         {tab==='sellers' && (
           <div style={{ height:'100%', minHeight:'calc(100vh - 180px)' }}>
             <Suspense fallback={<AdminTabLoader label="טוען נכסים שנקלטו…"/>}>
-              <SellerSubmissionsTab C={C}/>
+              <SellerSubmissionsTab C={C} onChanged={() => { fetch('/api/seller-form?action=stats', { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` } }).then(r => r.json()).then(d => d?.ok && setIntakeStats(d)).catch(() => {}) }}/>
             </Suspense>
           </div>
         )}

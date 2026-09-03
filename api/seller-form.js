@@ -35,7 +35,7 @@ import { buildSummary, headline, PROPERTY_TYPE_LABEL, DOC_TAG_LABEL, publicAnswe
 const SUPA_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
 const SUPA_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY
 const RENDER = (process.env.RENDER_URL || 'https://afik-hanahal-server.onrender.com').replace(/\/$/, '')
-const ADMIN_TOKEN = 'AFIKhanahal2026'
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN || 'AFIKhanahal2026'   // same token the admin panel and the Render backend use
 const BUCKET = 'seller-uploads'          // private: intake media + documents
 const PUBLIC_BUCKET = 'property-media'   // public: photos copied at publish time
 const TABLE = 'seller_submissions'
@@ -62,6 +62,21 @@ const sb = () => createClient(SUPA_URL, SUPA_KEY, { auth: { persistSession: fals
 const SID_RE = /^[\w-]{8,64}$/
 const TOKEN_RE = /^[A-Za-z0-9]{16,64}$/
 const now = () => new Date().toISOString()
+
+// ── abuse guards (best effort, per lambda instance) ─────────────────────────
+const RL = new Map()
+const clientIp = req => String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim() || 'unknown'
+function rateLimited(req, bucket, max, windowMs = 60000) {
+  const key = `${bucket}:${clientIp(req)}`, t = Date.now(), e = RL.get(key)
+  if (!e || t - e.t > windowMs) { if (RL.size > 5000) RL.clear(); RL.set(key, { t, n: 1 }); return false }
+  e.n += 1
+  return e.n > max
+}
+const PHONE_RE = /^\+?\d[\d\s\-()]{6,17}\d$/
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
+const STEP_IDS = new Set(STEPS.map(s => s.id))
+// Only keys the questionnaire actually defines are stored (plus their _other / _note companions)
+const sanitizeAnswers = a => Object.fromEntries(Object.entries(a && typeof a === 'object' ? a : {}).filter(([k]) => typeof k === 'string' && k.length < 60 && STEP_IDS.has(k.replace(/_(other|note)$/, ''))))
 
 // ── Supabase REST helpers ────────────────────────────────────────────────────
 async function supaFetch(path, opts = {}) {
@@ -189,7 +204,7 @@ async function publishMedia(client, row) {
 
 // ── property generator mapping (answers + office overrides → site property) ──
 const TYPE_HE = { apartment: 'דירה', garden: 'דירת גן', penthouse: 'פנטהאוז', duplex: 'דופלקס', cottage: 'קוטג׳', house: 'בית פרטי', land: 'מגרש לבנייה', commercial: 'נכס מסחרי', other: 'דירה' }
-const CATEGORY = t => t === 'land' ? 'land' : t === 'commercial' ? 'commercial' : 'apartments'
+const CATEGORY = (t, rental) => t === 'land' ? 'land' : t === 'commercial' ? 'commercial' : rental ? 'rentals' : 'apartments'
 const CONDITION_HE = { new: 'חדש מקבלן', secondhand: 'שמור', renovated: 'משופץ', needs: 'דרוש שיפוץ' }
 const ENTRY_HE = { immediate: 'מיידית', flexible: 'כניסה גמישה' }
 const optLabelHe = (id, v) => { const st = STEPS.find(s => s.id === id); const o = st?.opts?.find(x => x.v === v); return o ? o.l : '' }
@@ -210,7 +225,7 @@ function buildSiteProperty(row, media) {
   const rental = purposeOf(a) === 'rental'
   return {
     id: row.published_property_id || `intake-${row.sid}`,
-    category: ov.category || CATEGORY(a.p_type),
+    category: ov.category || CATEGORY(a.p_type, purposeOf(a) === 'rental'),
     title: ov.title || `${typeHe}${rooms ? `, ${rooms} חד׳` : ''}${size ? `, ${size} מ"ר` : ''} - ${addr.city || ''}`.trim(),
     type: typeHe,
     txType: rental ? 'rent' : 'sale',
@@ -380,6 +395,7 @@ export default async function handler(req, res) {
     // ── signed upload URL (public) ──────────────────────────────────────────
     if (action === 'upload-url') {
       if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'POST only' })
+      if (rateLimited(req, 'upload', 120)) return res.status(429).json({ ok: false, error: 'too many uploads, try again in a minute' })
       const b = req.body || {}
       const sid = String(b.sid || ''), kind = String(b.kind || ''), type = String(b.type || 'application/octet-stream'), size = Number(b.size || 0)
       if (!SID_RE.test(sid)) return res.status(400).json({ ok: false, error: 'invalid sid' })
@@ -408,7 +424,8 @@ export default async function handler(req, res) {
         const b = req.body || {}
         const sid = String(b.sid || '')
         if (!SID_RE.test(sid)) return res.status(400).json({ ok: false, error: 'invalid sid' })
-        const answers = b.answers && typeof b.answers === 'object' ? b.answers : {}
+        if (rateLimited(req, 'draft', 90)) return res.status(429).json({ ok: false, error: 'too many requests' })
+        const answers = sanitizeAnswers(b.answers)
         if (JSON.stringify(answers).length > 300000) return res.status(413).json({ ok: false, error: 'draft too large' })
         const existing = await getRow(`sid=eq.${encodeURIComponent(sid)}`, 'id,submitted_at,history')
         if (existing?.submitted_at) return res.status(409).json({ ok: false, error: 'already submitted' })
@@ -431,6 +448,7 @@ export default async function handler(req, res) {
       const client = sb()
       if (action === 'verify') {
         if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'POST only' })
+        if (rateLimited(req, 'verify', 10)) return res.status(429).json({ ok: false, error: 'too many requests' })
         const name = String(req.body?.name || '').trim().slice(0, 80)
         if (!name) return res.status(400).json({ ok: false, error: 'name required' })
         const verifications = [...(Array.isArray(row.verifications) ? row.verifications : []), { name, at: now(), ua: String(req.headers['user-agent'] || '').slice(0, 200) }].slice(-50)
@@ -443,12 +461,16 @@ export default async function handler(req, res) {
 
     // ── submission (public) ─────────────────────────────────────────────────
     if (req.method === 'POST' && !action) {
+      if (rateLimited(req, 'submit', 6)) return res.status(429).json({ ok: false, error: 'too many submissions, try again in a minute' })
       const b = req.body || {}
-      const a = b.answers && typeof b.answers === 'object' ? b.answers : {}
+      const a = sanitizeAnswers(b.answers)
       const sid = String(b.sid || '')
       if (!SID_RE.test(sid)) return res.status(400).json({ ok: false, error: 'invalid sid' })
-      const name = String(a.c_name || '').trim(), phone = String(a.c_phone || '').trim()
+      const name = String(a.c_name || '').trim(), phone = String(a.c_phone || '').trim(), email = String(a.c_email || '').trim()
       if (!name || !phone) return res.status(400).json({ ok: false, error: 'name and phone are required' })
+      if (!PHONE_RE.test(phone)) return res.status(400).json({ ok: false, error: 'invalid phone number' })
+      if (email && !EMAIL_RE.test(email)) return res.status(400).json({ ok: false, error: 'invalid email address' })
+      if (a.d_ask !== undefined && a.d_ask !== '' && !(num(a.d_ask) > 0)) return res.status(400).json({ ok: false, error: 'invalid asking price' })
       if (!a.p_address?.city || !a.p_type) return res.status(400).json({ ok: false, error: 'property type and city are required' })
       const files = cleanFiles(b.files, sid)
       const existing = await getRow(`sid=eq.${encodeURIComponent(sid)}`, 'id,ref,share_token,submitted_at,history,status')
@@ -482,6 +504,58 @@ export default async function handler(req, res) {
     if (!isAdmin(req)) return res.status(401).json({ ok: false, error: 'unauthorized' })
     res.setHeader('Cache-Control', 'no-store')
 
+    // Cheap counters for the admin sidebar badge / "new property" alert (polled by the admin panel)
+    if (req.method === 'GET' && action === 'stats') {
+      const r = await supaFetch(`/${TABLE}?select=id,ref,status,purpose,contact_name,city,property_type,asking_price,submitted_at,owner_verified_at&submitted_at=not.is.null&order=submitted_at.desc&limit=400`)
+      if (r.status === 404 || r.status === 406) return res.status(200).json({ ok: true, new: 0, unverified: 0, total: 0, latest: [] })
+      if (!r.ok) return res.status(r.status).json({ ok: false, error: await r.text().catch(() => '') })
+      const rows = await r.json().catch(() => [])
+      const counts = rows.reduce((m, x) => { m[x.status] = (m[x.status] || 0) + 1; return m }, {})
+      return res.status(200).json({ ok: true, total: rows.length, new: counts.new || 0, review: counts.review || 0, approved: counts.approved || 0, published: counts.published || 0,
+        unverified: rows.filter(x => !x.owner_verified_at).length, sale: rows.filter(x => (x.purpose || 'sale') === 'sale').length, rental: rows.filter(x => x.purpose === 'rental').length,
+        latest: rows.slice(0, 8).map(x => ({ id: x.id, ref: x.ref, status: x.status, purpose: x.purpose || 'sale', name: x.contact_name, city: x.city, type: PROPERTY_TYPE_LABEL(x.property_type, 'he'), price: x.asking_price, submitted_at: x.submitted_at })) })
+    }
+
+    // Media library: add a file to an existing property (admin) — same bucket/folder layout as the seller's uploads
+    if (req.method === 'POST' && action === 'admin-upload-url') {
+      if (!id) return res.status(400).json({ ok: false, error: 'id required' })
+      const b = req.body || {}
+      const kind = String(b.kind || ''), type = String(b.type || 'application/octet-stream'), size = Number(b.size || 0)
+      if (!KIND_LIMITS[kind]) return res.status(400).json({ ok: false, error: 'invalid kind' })
+      if (!KIND_TYPES[kind](type)) return res.status(400).json({ ok: false, error: 'file type not allowed for this kind' })
+      if (!size || size > KIND_LIMITS[kind] * 1024 * 1024) return res.status(400).json({ ok: false, error: `file too large (max ${KIND_LIMITS[kind]}MB)` })
+      const row = await getRow(`id=eq.${encodeURIComponent(id)}`, 'id,sid')
+      if (!row?.sid) return res.status(404).json({ ok: false, error: 'not found' })
+      const path = `${row.sid}/${kind}/${Date.now()}-${rand(3)}-${safeName(b.name)}`
+      const data = await signedUploadUrl(sb(), path)
+      return res.status(200).json({ ok: true, signedUrl: data.signedUrl, token: data.token, path })
+    }
+    if (req.method === 'POST' && action === 'file') {
+      if (!id) return res.status(400).json({ ok: false, error: 'id required' })
+      const row = await getRow(`id=eq.${encodeURIComponent(id)}`, 'id,sid,files,history')
+      if (!row?.sid) return res.status(404).json({ ok: false, error: 'not found' })
+      const [f] = cleanFiles([req.body || {}], row.sid)
+      if (!f || !KIND_LIMITS[f.kind]) return res.status(400).json({ ok: false, error: 'invalid file' })
+      const files = [...(Array.isArray(row.files) ? row.files : []).filter(x => x.path !== f.path), f].slice(0, 150)
+      await patchRow(`id=eq.${row.id}`, { files, updated_at: now(), history: withHistory(row, { by: 'admin', action: 'file_added', note: `${f.kind} · ${f.name}` }) })
+      return res.status(200).json({ ok: true, files: files.length })
+    }
+    if (req.method === 'DELETE' && action === 'file') {
+      if (!id) return res.status(400).json({ ok: false, error: 'id required' })
+      const path = String(req.query.path || req.body?.path || '')
+      const row = await getRow(`id=eq.${encodeURIComponent(id)}`, 'id,sid,files,meta,history')
+      if (!row?.sid) return res.status(404).json({ ok: false, error: 'not found' })
+      if (!path.startsWith(`${row.sid}/`)) return res.status(400).json({ ok: false, error: 'invalid path' })
+      const client = sb()
+      const gone = (Array.isArray(row.files) ? row.files : []).find(x => x.path === path)
+      await client.storage.from(BUCKET).remove([path]).catch(() => {})
+      const meta = { ...(row.meta || {}) }
+      if (meta.publicMedia?.[path]) { await client.storage.from(PUBLIC_BUCKET).remove([`${row.sid}/${path.split('/').pop()}`]).catch(() => {}); const pm = { ...meta.publicMedia }; delete pm[path]; meta.publicMedia = pm }
+      const files = (Array.isArray(row.files) ? row.files : []).filter(x => x.path !== path)
+      await patchRow(`id=eq.${row.id}`, { files, meta, updated_at: now(), history: withHistory(row, { by: 'admin', action: 'file_deleted', note: gone ? `${gone.kind} · ${gone.name}` : path.split('/').pop() }) })
+      return res.status(200).json({ ok: true, files: files.length })
+    }
+
     if (req.method === 'GET' && action === 'file-url') {
       const path = String(req.query.path || '')
       if (!path) return res.status(400).json({ ok: false, error: 'path required' })
@@ -510,7 +584,7 @@ export default async function handler(req, res) {
     if (req.method === 'PATCH') {
       if (!id) return res.status(400).json({ ok: false, error: 'id required' })
       const b = req.body || {}
-      const row = await getRow(`id=eq.${encodeURIComponent(id)}`, 'id,status,notes,overrides,history,published_property_id')
+      const row = await getRow(`id=eq.${encodeURIComponent(id)}`, 'id,status,notes,overrides,history,published_property_id,purpose')
       if (!row) return res.status(404).json({ ok: false, error: 'not found' })
       const patch = { updated_at: now() }
       let history = Array.isArray(row.history) ? row.history : []
@@ -519,6 +593,14 @@ export default async function handler(req, res) {
         if (b.status === 'published') return res.status(400).json({ ok: false, error: 'use action=publish' })
         patch.status = b.status
         history = [...history, { at: now(), by: 'admin', action: 'status', note: `${row.status} → ${b.status}` }]
+        // Single source of truth: a property that is live on the site follows the intake status
+        if (row.published_property_id && ['sold', 'inactive'].includes(b.status)) {
+          const siteStatus = b.status === 'sold' ? (row.purpose === 'rental' ? 'הושכר' : 'נמכר') : 'לא פעיל'
+          try {
+            const current = await renderGet(row.published_property_id)
+            if (current) { await renderPut({ ...current, id: row.published_property_id, published: false, status: siteStatus, updatedAt: now() }); history = [...history, { at: now(), by: 'system', action: 'unpublished', note: `${siteStatus} · הוסר מהאתר אוטומטית` }] }
+          } catch (e) { history = [...history, { at: now(), by: 'system', action: 'status', note: `עדכון האתר נכשל: ${e.message}` }] }
+        }
       }
       if (typeof b.notes === 'string' && b.notes !== (row.notes || '')) { patch.notes = b.notes.slice(0, 20000); history = [...history, { at: now(), by: 'admin', action: 'notes' }] }
       if (b.overrides && typeof b.overrides === 'object') {

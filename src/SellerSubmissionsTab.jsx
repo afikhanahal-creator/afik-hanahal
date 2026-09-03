@@ -7,8 +7,8 @@
 // Property card tabs: כללי · משפטי · מסחרי · מדיה · מסמכים · שיווק · היסטוריה.
 // "פרסם באתר" builds a property for the existing property generator (server
 // side) and it appears on the live site; "הסר מהאתר" hides it without deleting.
-import { useState, useEffect, useMemo, useCallback } from 'react'
-import { FaWhatsapp, FaPhone, FaEnvelope, FaTrash, FaSearch, FaCopy, FaDownload, FaFileAlt, FaVideo, FaSyncAlt, FaExternalLinkAlt, FaCheck, FaGlobe, FaEyeSlash, FaLink, FaShieldAlt, FaHistory, FaImage, FaBullhorn, FaBalanceScale, FaMoneyBill, FaInfoCircle, FaSave } from 'react-icons/fa'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { FaWhatsapp, FaPhone, FaEnvelope, FaTrash, FaSearch, FaCopy, FaDownload, FaFileAlt, FaVideo, FaSyncAlt, FaExternalLinkAlt, FaCheck, FaGlobe, FaEyeSlash, FaLink, FaShieldAlt, FaHistory, FaImage, FaBullhorn, FaBalanceScale, FaMoneyBill, FaInfoCircle, FaSave, FaPlus, FaTimes, FaExclamationTriangle } from 'react-icons/fa'
 import { buildSummary, headline, PROPERTY_TYPE_LABEL, DOC_TAG_LABEL, fmtNum, INTAKE_STATUSES } from './sellerFormSchema.js'
 
 const ADMIN_TOKEN = 'AFIKhanahal2026'
@@ -24,10 +24,11 @@ const SECTION_GROUPS = {
   legal:     ['legal'],
   marketing: ['marketing'],
 }
-const HISTORY_LABEL = { draft_created: 'טיוטה נוצרה', submitted: 'הטופס נשלח', verified: 'אימות בעלים', status: 'שינוי סטטוס', notes: 'הערות עודכנו', edit: 'עריכה', published: 'פורסם באתר', republished: 'עודכן באתר', unpublished: 'הוסר מהאתר' }
+const HISTORY_LABEL = { draft_created: 'טיוטה נוצרה', submitted: 'הטופס נשלח', verified: 'אימות בעלים', status: 'שינוי סטטוס', notes: 'הערות עודכנו', edit: 'עריכה', published: 'פורסם באתר', republished: 'עודכן באתר', unpublished: 'הוסר מהאתר', file_added: 'קובץ נוסף', file_deleted: 'קובץ נמחק' }
+const ACCEPT = { photos: 'image/*', videos: 'video/*', plan: 'image/*,application/pdf', docs: 'image/*,application/pdf' }
 const BY_LABEL = { seller: 'המוכר', owner: 'בעלים', admin: 'צוות', system: 'מערכת' }
 
-export default function SellerSubmissionsTab({ C }) {
+export default function SellerSubmissionsTab({ C, onChanged }) {
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -43,6 +44,9 @@ export default function SellerSubmissionsTab({ C }) {
   const [saving, setSaving] = useState('')
   const [busy, setBusy] = useState('')
   const [flash, setFlash] = useState('')
+  const [fileBusy, setFileBusy] = useState('')      // '' | 'up:<kind>' | 'del:<path>'
+  const [stale, setStale] = useState(false)          // published property edited but not re-published yet
+  const fileInputRef = useRef({})
 
   const say = m => { setFlash(m); setTimeout(() => setFlash(''), 2200) }
   const load = useCallback(async () => {
@@ -76,11 +80,12 @@ export default function SellerSubmissionsTab({ C }) {
     return d
   }
   const setStatus = async (id, status) => {
-    try { await patch(id, { status }); setRows(rs => rs.map(x => x.id === id ? { ...x, status } : x)); if (detail?.id === id) await refreshDetail(id); say('הסטטוס עודכן') }
+    try { await patch(id, { status }); setRows(rs => rs.map(x => x.id === id ? { ...x, status } : x)); if (detail?.id === id) await refreshDetail(id); say('הסטטוס עודכן'); onChanged?.() }
     catch (e) { setError(e.message) }
   }
   const saveNotes = async () => { if (!detail) return; setSaving('notes'); try { await patch(detail.id, { notes }); await refreshDetail(detail.id); say('ההערות נשמרו') } catch (e) { setError(e.message) } finally { setSaving('') } }
-  const saveOverrides = async () => { if (!detail) return; setSaving('ov'); try { await patch(detail.id, { overrides: ov }); await refreshDetail(detail.id); say('הנתונים נשמרו') } catch (e) { setError(e.message) } finally { setSaving('') } }
+  const saveOverrides = async () => { if (!detail) return; setSaving('ov'); try { await patch(detail.id, { overrides: ov }); await refreshDetail(detail.id); if (detail.status === 'published') { setStale(true); say('נשמר. לחצו "עדכן באתר" כדי שהשינוי יופיע בלייב') } else say('הנתונים נשמרו') } catch (e) { setError(e.message) } finally { setSaving('') } }
+  useEffect(() => { setStale(false) }, [selId])
   const act = async (action) => {
     if (!detail) return
     if (action === 'publish' && !window.confirm(detail.status === 'published' ? 'לעדכן את הנכס באתר עם הנתונים הנוכחיים?' : 'לפרסם את הנכס באתר החי? הוא יופיע במחולל הנכסים ובעמוד הנכסים.')) return
@@ -90,7 +95,7 @@ export default function SellerSubmissionsTab({ C }) {
       const r = await fetch(`${API}?action=${action}&id=${encodeURIComponent(detail.id)}`, { method: 'POST', headers: H })
       const d = await r.json().catch(() => ({}))
       if (!r.ok || !d.ok) throw new Error(d.error || `HTTP ${r.status}`)
-      await refreshDetail(detail.id); await load()
+      await refreshDetail(detail.id); await load(); setStale(false); onChanged?.()
       say(action === 'publish' ? `פורסם באתר (${d.images} תמונות)` : 'הוסר מהאתר')
     } catch (e) { setError(e.message) }
     finally { setBusy('') }
@@ -102,8 +107,50 @@ export default function SellerSubmissionsTab({ C }) {
       const d = await r.json().catch(() => ({}))
       if (!r.ok || !d.ok) throw new Error(d.error || `HTTP ${r.status}`)
       setRows(rs => rs.filter(x => x.id !== id)); if (selId === id) { setSelId(null); setDetail(null) }
+      onChanged?.()
     } catch (e) { setError(e.message) }
   }
+  // ── media library: add / delete single files (same folder layout as the seller's uploads) ──
+  const addFiles = async (kind, fileList) => {
+    if (!detail || !fileList?.length) return
+    setFileBusy(`up:${kind}`); setError('')
+    let added = 0
+    try {
+      for (const file of Array.from(fileList)) {
+        const r = await fetch(`${API}?action=admin-upload-url&id=${encodeURIComponent(detail.id)}`, { method: 'POST', headers: { ...H, 'Content-Type': 'application/json' }, body: JSON.stringify({ kind, name: file.name, type: file.type, size: file.size }) })
+        const d = await r.json().catch(() => ({}))
+        if (!r.ok || !d.ok) throw new Error(d.error || `HTTP ${r.status}`)
+        const put = await fetch(d.signedUrl, { method: 'PUT', headers: { 'Content-Type': file.type || 'application/octet-stream', 'x-upsert': 'true' }, body: file })
+        if (!put.ok) throw new Error(`העלאה נכשלה (HTTP ${put.status})`)
+        const reg = await fetch(`${API}?action=file&id=${encodeURIComponent(detail.id)}`, { method: 'POST', headers: { ...H, 'Content-Type': 'application/json' }, body: JSON.stringify({ path: d.path, name: file.name, type: file.type, size: file.size, kind }) })
+        const rd = await reg.json().catch(() => ({}))
+        if (!reg.ok || !rd.ok) throw new Error(rd.error || `HTTP ${reg.status}`)
+        added += 1
+      }
+      say(`${added} קבצים נוספו לתיק הנכס`)
+      if (detail.status === 'published' && kind !== 'docs') setStale(true)
+    } catch (e) { setError(e.message) }
+    finally { setFileBusy(''); await refreshDetail(detail.id); await load() }
+  }
+  const deleteFile = async f => {
+    if (!detail || !f?.path) return
+    if (!window.confirm(`למחוק את הקובץ "${f.name}" לצמיתות מתיק הנכס?`)) return
+    setFileBusy(`del:${f.path}`); setError('')
+    try {
+      const r = await fetch(`${API}?action=file&id=${encodeURIComponent(detail.id)}&path=${encodeURIComponent(f.path)}`, { method: 'DELETE', headers: H })
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok || !d.ok) throw new Error(d.error || `HTTP ${r.status}`)
+      say('הקובץ נמחק')
+      if (detail.status === 'published' && f.kind !== 'docs') setStale(true)
+    } catch (e) { setError(e.message) }
+    finally { setFileBusy(''); await refreshDetail(detail.id); await load() }
+  }
+  const AddFiles = ({ kind, label }) => (
+    <>
+      <input ref={el => { fileInputRef.current[kind] = el }} type="file" multiple accept={ACCEPT[kind]} style={{ display: 'none' }} onChange={e => { addFiles(kind, e.target.files); e.target.value = '' }}/>
+      <button onClick={() => fileInputRef.current[kind]?.click()} disabled={!!fileBusy} style={btn()}><FaPlus size={10}/> {fileBusy === `up:${kind}` ? 'מעלה…' : label}</button>
+    </>
+  )
 
   const summary = useMemo(() => detail ? buildSummary(detail.answers || {}, 'he') : [], [detail])
   const copyText = txt => navigator.clipboard?.writeText(txt).then(() => say('הועתק'))
@@ -149,13 +196,16 @@ export default function SellerSubmissionsTab({ C }) {
   const FileGrid = ({ files }) => (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 8 }}>
       {files.map((f, i) => (
-        <a key={f.path || i} href={f.url || '#'} target="_blank" rel="noreferrer" title={f.name} style={{ ...card, overflow: 'hidden', textDecoration: 'none', color: 'inherit', display: 'block' }}>
-          <div style={{ height: 96, background: 'rgba(132,144,216,.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: purple, overflow: 'hidden' }}>
-            {f.url && String(f.type || '').startsWith('image/') ? <img src={f.url} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }}/> : String(f.type || '').startsWith('video/') ? <FaVideo size={22}/> : <FaFileAlt size={22}/>}
-          </div>
-          <div style={{ padding: '6px 8px', fontSize: 11, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.tag ? DOC_TAG_LABEL(f.tag, 'he') : f.name}</div>
-          <div style={{ padding: '0 8px 6px', fontSize: 10, color: 'rgba(232,228,216,.45)', display: 'flex', justifyContent: 'space-between' }}><span>{f.size ? `${Math.round(f.size / 1024)}KB` : ''}</span><FaExternalLinkAlt size={9}/></div>
-        </a>
+        <div key={f.path || i} style={{ ...card, overflow: 'hidden', position: 'relative', opacity: fileBusy === `del:${f.path}` ? .4 : 1 }}>
+          <a href={f.url || '#'} target="_blank" rel="noreferrer" title={f.name} style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
+            <div style={{ height: 96, background: 'rgba(132,144,216,.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: purple, overflow: 'hidden' }}>
+              {f.url && String(f.type || '').startsWith('image/') ? <img src={f.url} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }}/> : String(f.type || '').startsWith('video/') ? <FaVideo size={22}/> : <FaFileAlt size={22}/>}
+            </div>
+            <div style={{ padding: '6px 8px', fontSize: 11, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.tag ? DOC_TAG_LABEL(f.tag, 'he') : f.name}</div>
+            <div style={{ padding: '0 8px 6px', fontSize: 10, color: 'rgba(232,228,216,.45)', display: 'flex', justifyContent: 'space-between' }}><span>{f.size ? `${Math.round(f.size / 1024)}KB` : ''}</span><FaExternalLinkAlt size={9}/></div>
+          </a>
+          <button onClick={() => deleteFile(f)} disabled={!!fileBusy} title="מחיקת הקובץ" style={{ position: 'absolute', top: 6, left: 6, width: 24, height: 24, borderRadius: 6, border: 0, background: 'rgba(224,82,82,.85)', color: '#fff', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}><FaTimes size={10}/></button>
+        </div>
       ))}
     </div>
   )
@@ -253,6 +303,13 @@ export default function SellerSubmissionsTab({ C }) {
               </div>
             </div>
 
+            {stale && detail.status === 'published' && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 12, fontSize: 12.5, color: '#F5A623', background: 'rgba(245,166,35,.1)', border: '1px solid rgba(245,166,35,.35)', borderRadius: 8, padding: '8px 12px' }}>
+                <FaExclamationTriangle size={12}/> יש שינויים בכרטיס הנכס שעדיין לא פורסמו באתר.
+                <button onClick={() => act('publish')} disabled={!!busy} style={btn({ background: 'rgba(34,197,94,.12)', borderColor: 'rgba(34,197,94,.4)', color: '#22C55E' })}><FaGlobe size={11}/> {busy === 'publish' ? 'מעדכן…' : 'עדכן באתר עכשיו'}</button>
+              </div>
+            )}
+
             {/* key facts */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, margin: '18px 0 14px' }}>
               {[
@@ -300,7 +357,7 @@ export default function SellerSubmissionsTab({ C }) {
                     <div><span style={label}>חדרים</span><input style={input} value={ov.rooms ?? ''} onChange={e => setOv({ ...ov, rooms: e.target.value })} placeholder={detail.answers?.p_rooms || ''}/></div>
                     <div><span style={label}>שטח (מ״ר)</span><input style={input} value={ov.size ?? ''} onChange={e => setOv({ ...ov, size: e.target.value.replace(/[^\d.]/g, '') })} placeholder={detail.answers?.p_area?.built ? String(detail.answers.p_area.built) : ''} inputMode="decimal"/></div>
                     <div><span style={label}>סוג באתר</span><input style={input} value={ov.type || ''} onChange={e => setOv({ ...ov, type: e.target.value })} placeholder={PROPERTY_TYPE_LABEL(detail.property_type, 'he')}/></div>
-                    <div><span style={label}>קטגוריה באתר</span><select style={input} value={ov.category || ''} onChange={e => setOv({ ...ov, category: e.target.value })}><option value="">אוטומטי</option><option value="apartments">דירות למכירה</option><option value="projects">פרוייקטים</option><option value="land">מגרשים וקרקעות</option><option value="commercial">נכסים מסחריים</option></select></div>
+                    <div><span style={label}>קטגוריה באתר</span><select style={input} value={ov.category || ''} onChange={e => setOv({ ...ov, category: e.target.value })}><option value="">אוטומטי ({detail.purpose === 'rental' ? 'נכסים להשכרה' : 'לפי סוג הנכס'})</option><option value="apartments">דירות למכירה</option><option value="rentals">נכסים להשכרה</option><option value="projects">פרוייקטים</option><option value="land">מגרשים וקרקעות</option><option value="commercial">נכסים מסחריים</option></select></div>
                     <div><span style={label}>כתובת מדויקת באתר</span><select style={input} value={ov.showAddress === undefined ? '' : ov.showAddress ? '1' : '0'} onChange={e => setOv({ ...ov, showAddress: e.target.value === '' ? undefined : e.target.value === '1' })}><option value="">לפי בחירת המוכר ({detail.answers?.c_privacy?.showAddress ? 'להציג' : 'להסתיר'})</option><option value="1">להציג</option><option value="0">להסתיר</option></select></div>
                     <div><span style={label}>טלפון המוכר באתר</span><select style={input} value={ov.showPhone === undefined ? '' : ov.showPhone ? '1' : '0'} onChange={e => setOv({ ...ov, showPhone: e.target.value === '' ? undefined : e.target.value === '1' })}><option value="">לפי בחירת המוכר ({detail.answers?.c_privacy?.publishPhone ? 'להציג' : 'להסתיר'})</option><option value="1">להציג</option><option value="0">להסתיר</option></select></div>
                   </div>
@@ -318,14 +375,21 @@ export default function SellerSubmissionsTab({ C }) {
 
             {tab === 'media' && (
               <>
-                {['photos', 'videos', 'plan'].map(kind => { const list = (detail.files || []).filter(f => f.kind === kind); return list.length ? <div key={kind} style={{ marginBottom: 14 }}><div style={{ fontSize: 12, color: 'rgba(232,228,216,.6)', marginBottom: 6 }}>{KIND_LABEL[kind]} · {list.length}</div><FileGrid files={list}/></div> : null })}
-                {!(detail.files || []).some(f => f.kind !== 'docs') && <div style={{ color: 'rgba(232,228,216,.45)', fontSize: 13 }}>לא הועלו תמונות או סרטונים.</div>}
-                <div style={{ fontSize: 10.5, color: 'rgba(232,228,216,.4)', marginTop: 6 }}>הקישורים תקפים לשעה. רענון הכרטיס מנפיק קישורים חדשים. המדיה שייכת לנכס ונמחקת רק במחיקה מפורשת.</div>
+                {['photos', 'videos', 'plan'].map(kind => { const list = (detail.files || []).filter(f => f.kind === kind); return (
+                  <div key={kind} style={{ marginBottom: 16 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                      <div style={{ fontSize: 12, color: 'rgba(232,228,216,.6)' }}>{KIND_LABEL[kind]} · {list.length}</div>
+                      <AddFiles kind={kind} label={`הוספת ${KIND_LABEL[kind]}`}/>
+                    </div>
+                    {list.length ? <FileGrid files={list}/> : <div style={{ color: 'rgba(232,228,216,.35)', fontSize: 12 }}>אין {KIND_LABEL[kind]} בתיק.</div>}
+                  </div>) })}
+                <div style={{ fontSize: 10.5, color: 'rgba(232,228,216,.4)', marginTop: 6 }}>ספריית המדיה של הנכס: כל הקבצים נשמרים באחסון המערכת בתיקייה של הנכס ומשמשים לפרסום באתר ולשיווק. הקישורים תקפים לשעה, רענון הכרטיס מנפיק קישורים חדשים. מחיקת קובץ היא לצמיתות.</div>
               </>
             )}
 
             {tab === 'docs' && (
               <>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}><AddFiles kind="docs" label="הוספת מסמך"/></div>
                 {(detail.files || []).filter(f => f.kind === 'docs').length ? <FileGrid files={(detail.files || []).filter(f => f.kind === 'docs')}/> : <div style={{ color: 'rgba(232,228,216,.45)', fontSize: 13 }}>לא הועלו מסמכים.</div>}
               </>
             )}

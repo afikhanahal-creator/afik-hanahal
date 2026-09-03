@@ -2288,12 +2288,14 @@ const CATEGORIES_DATA = {
     { id:'projects',    label:'פרוייקטים בשיווק', Icon:FaHardHat, types:['וילה','בנייה רוויה','פרויקט חדש','נכס מסחרי','דיור מוגן','בית פרטי'] },
     { id:'land',        label:'מגרשים וקרקעות',   Icon:FaLeaf,    types:['קרקע חקלאית','מגרש לבנייה','קרקע מסחרית','מגרש פינתי','קרקע יזמית'] },
     { id:'apartments',  label:'דירות למכירה',      Icon:FaHome,    types:['דירה','פנטהאוז','דירת גן','דופלקס','וילה','קוטג׳'] },
+    { id:'rentals',     label:'נכסים להשכרה',      Icon:FaKey,     types:['דירה','דירת גן','פנטהאוז','דופלקס','בית פרטי','קוטג׳','משרד','חנות'] },
     { id:'commercial',  label:'נכסים מסחריים',     Icon:FaStore,   types:['משרד','חנות','מסחר ושירותים','מחסן / לוגיסטיקה','מבנה תעשייתי','אולם אירועים','קרקע מסחרית','מתחם מסחרי'] },
   ],
   en: [
     { id:'projects',    label:'Projects for Marketing', Icon:FaHardHat, types:['Villa','Multi-family','New Project','Commercial Property','Senior Living','Private Home'] },
     { id:'land',        label:'Plots & Land',   Icon:FaLeaf,    types:['Agricultural Land','Building Plot','Commercial Land','Corner Plot','Development Land'] },
     { id:'apartments',  label:'Apartments for Sale',      Icon:FaHome,    types:['Apartment','Penthouse','Garden Apartment','Duplex','Villa','Cottage'] },
+    { id:'rentals',     label:'Properties for Rent',      Icon:FaKey,     types:['Apartment','Garden Apartment','Penthouse','Duplex','Private Home','Cottage','Office','Store'] },
     { id:'commercial',  label:'Commercial Properties',    Icon:FaStore,   types:['Office','Store','Retail & Services','Warehouse / Logistics','Industrial Building','Event Hall','Commercial Land','Commercial Complex'] },
   ]
 }

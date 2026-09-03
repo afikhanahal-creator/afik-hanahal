@@ -224,6 +224,7 @@ const HE_DAYS   = ['א׳','ב׳','ג׳','ד׳','ה׳','ו׳','ש׳']
 const WIZARD_CATEGORIES = [
   { id: 'projects',   label: 'פרויקטים בשיווק', Icon: FaHardHat },
   { id: 'apartments', label: 'דירות למכירה',     Icon: FaHome    },
+  { id: 'rentals',    label: 'נכסים להשכרה',     Icon: FaKey     },
   { id: 'land',       label: 'מגרשים וקרקעות',  Icon: FaLeaf    },
   { id: 'commercial', label: 'נכסים מסחריים',    Icon: FaStore   },
 ]
