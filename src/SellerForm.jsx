@@ -1017,12 +1017,15 @@ function DirectionsNote({ step, value, answers, setAnswer, lang, t }) {
   )
 }
 
-function Choice({ step, value, lang, t, pickChoice, answers, setAnswer }) {
+function Choice({ step, value, lang, t, pickChoice, answers, setAnswer, onEnter }) {
   const [flash, setFlash] = useState(null)
   const opts = stepOpts(step, answers)
+  // big select: picking a value moves on by itself (Typeform-like), once the new value has rendered
+  const wantNext = useRef(false)
+  useEffect(() => { if (wantNext.current && value) { wantNext.current = false; const h = setTimeout(() => onEnter?.(), 380); return () => clearTimeout(h) } }, [value]) // eslint-disable-line react-hooks/exhaustive-deps
   if (step.select) return (
     <div className="sf-bigselect-wrap">
-      <select className="sf-bigselect" value={value || ''} onChange={e => pickChoice(e.target.value)} aria-label={stepQuestion(step, lang, answers)} data-autofocus>
+      <select className="sf-bigselect" value={value || ''} onChange={e => { wantNext.current = true; pickChoice(e.target.value); e.target.blur() }} aria-label={stepQuestion(step, lang, answers)} data-autofocus>
         <option value="" disabled>{t.pickOne}</option>
         {opts.map(o => <option key={o.v} value={o.v}>{L(o, lang)}</option>)}
       </select>
