@@ -192,6 +192,8 @@
     <script>
     (function(){
       var done=false;
+      // The seller form (/sell) is a white page — paint the canvas white before React mounts so there is no dark flash.
+      if(/^\/(sell|seller-form|newproperty)(\/|$)/.test(location.pathname)){document.documentElement.style.background='#EFEFF1';}
       function reveal(){if(done)return;done=true;document.documentElement.style.opacity='1';}
       setTimeout(reveal,200);
       if(document.fonts&&document.fonts.ready){document.fonts.ready.then(reveal);}else{reveal();}

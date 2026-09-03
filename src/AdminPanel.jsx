@@ -5,11 +5,13 @@
 // dynamic→static cycle, which is safe: by the time this chunk evaluates, App.jsx already has.
 import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react'
 import { LAYERS_DEF as GM_LAYERS, BG_OPTIONS as GM_BG_OPTIONS, LAYER_CATS_DEF as GM_LAYER_CATS } from './govmapLayers.js'
-import { FaEnvelope, FaFacebookF, FaInstagram, FaBed, FaRulerCombined, FaBuilding, FaTools, FaMapMarkerAlt, FaPhone, FaLeaf, FaCalendarAlt, FaTimes, FaWhatsapp, FaFileAlt, FaHome, FaSearch, FaBalanceScale, FaHandshake, FaLock, FaKey, FaGlobe, FaBolt, FaChartLine, FaEye, FaPlay, FaFire, FaShareAlt, FaHeart, FaCamera, FaUser, FaUsers, FaDesktop, FaMobileAlt, FaTabletAlt, FaRobot, FaExclamationTriangle, FaChartBar, FaThumbsUp, FaImage, FaPencilAlt, FaCrown, FaMousePointer, FaDollarSign, FaVideo, FaLink, FaCheckCircle, FaTrash } from 'react-icons/fa'
+import { FaEnvelope, FaFacebookF, FaInstagram, FaBed, FaRulerCombined, FaBuilding, FaTools, FaMapMarkerAlt, FaPhone, FaLeaf, FaCalendarAlt, FaTimes, FaWhatsapp, FaFileAlt, FaHome, FaSearch, FaBalanceScale, FaHandshake, FaLock, FaKey, FaGlobe, FaBolt, FaChartLine, FaEye, FaPlay, FaFire, FaShareAlt, FaHeart, FaCamera, FaUser, FaUsers, FaDesktop, FaMobileAlt, FaTabletAlt, FaRobot, FaExclamationTriangle, FaChartBar, FaThumbsUp, FaImage, FaPencilAlt, FaCrown, FaMousePointer, FaDollarSign, FaVideo, FaLink, FaCheckCircle, FaTrash, FaClipboardList } from 'react-icons/fa'
+// Seller intake submissions (from the public /sell form) — lazy, admin-only
+const SellerSubmissionsTab = lazy(() => import('./SellerSubmissionsTab.jsx'))
 import { LeadsBoard, GreenAPIChat, MetaLeadsTab, SupermetricsTab, PropertyWizard, API_BASE, CONTACTS_API, ADMIN_TOKEN, DARK_C, useTheme, TEAM, G, Logo, LEADS_STORE, LEADS_DELETED, LEADS_TRASH, ANALYTICS_KEY, META_LEAD_PAGES_KEY, WA_DEFAULT_TEMPLATE, _cloudSettings, CATEGORIES, EMPTY_PROP, CONDITION_OPTIONS, ENTRY_OPTIONS, ADMIN_DRAFT_KEY, toMapsEmbed, imgFallback, thumbImg, TEAM_KEY, setCloudSettings } from './App.jsx'
 
 // Tab ↔ URL deep-link mapping (module-level so both AdminPanel and main app can use it)
-const ADMIN_TAB_TO_PATH = { overview:'', props:'properties', leads:'leads', chats:'chats', meta:'lead-center', analytics:'analytics', supermetrics:'performance', team:'team', settings:'settings', counters:'counters', live:'live' }
+const ADMIN_TAB_TO_PATH = { overview:'', props:'properties', leads:'leads', sellers:'properties-intake', chats:'chats', meta:'lead-center', analytics:'analytics', supermetrics:'performance', team:'team', settings:'settings', counters:'counters', live:'live' }
 const ADMIN_PATH_TO_TAB = Object.fromEntries(Object.entries(ADMIN_TAB_TO_PATH).map(([k,v])=>[v,k]))
 
 // ─── LOGO UPLOAD (single image, compressed) ──────────────────────────────────
@@ -1735,6 +1737,8 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const [chats, setChats] = useState({})
   const [chatsUnread, setChatsUnread] = useState(0)   // total unread WhatsApp msgs (for tab badge)
   const [metaNewLeads, setMetaNewLeads] = useState(0) // unseen new Meta leads (for tab badge)
+  const [intakeStats, setIntakeStats] = useState(null) // /newproperty submissions: counts + latest (for tab badge + "new property" alert)
+  const intakeSeenRef = useRef(null)                  // latest submitted_at we have already alerted on
   const appLoadRef = useRef(Date.now())               // baseline so old history isn't flagged
   const chatsRef = useRef({})                         // latest chats for on-demand recompute
   const [chatInput, setChatInput] = useState('')
@@ -1846,6 +1850,34 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     window.addEventListener('focus', reset)
     return () => window.removeEventListener('focus', reset)
   }, [])
+
+  // New property from /newproperty → same treatment as a new lead: sidebar badge, toast, chime, OS notification.
+  useEffect(() => {
+    let stop = false
+    const poll = async () => {
+      try {
+        const r = await fetch('/api/seller-form?action=stats', { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` }, signal: AbortSignal.timeout(10000) })
+        const d = await r.json().catch(() => null)
+        if (stop || !r.ok || !d?.ok) return
+        setIntakeStats(d)
+        const latest = d.latest?.[0]
+        if (latest?.submitted_at) {
+          if (intakeSeenRef.current === null) intakeSeenRef.current = latest.submitted_at   // baseline on first load
+          else if (latest.submitted_at > intakeSeenRef.current) {
+            intakeSeenRef.current = latest.submitted_at
+            const fresh = (d.latest || []).filter(x => x.submitted_at > (intakeSeenRef.prev || '')).slice(0, 3)
+            ;(fresh.length ? fresh : [latest]).forEach(x => addToast(`נכס חדש נקלט ${x.purpose === 'rental' ? 'להשכרה' : 'למכירה'}`, `${x.name || ''}${x.type ? ' · ' + x.type : ''}${x.city ? ' · ' + x.city : ''}${x.price ? ' · ₪' + Number(x.price).toLocaleString('he-IL') : ''} · תיק ${x.ref}`, 'sellers', '🏠', 9000))
+          }
+          intakeSeenRef.prev = intakeSeenRef.current
+        }
+      } catch {}
+    }
+    poll()
+    const t = setInterval(poll, 60000)
+    const onFocus = () => poll()
+    window.addEventListener('focus', onFocus)
+    return () => { stop = true; clearInterval(t); window.removeEventListener('focus', onFocus) }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const addToast = useCallback((title, body, targetTab, icon = '🔔', durationMs = 6000) => {
     const id = ++toastIdRef.current
@@ -2657,6 +2689,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
     { id:'live',     Icon:FaCheckCircle, label:'באוויר',      badge: publishedList.length, live:true },
     { id:'props',    Icon:FaBuilding,    label:'ניהול נכסים' },
     { id:'leads',    Icon:FaHandshake,   label:'לידים',       badge: leads.length },
+    { id:'sellers',  Icon:FaClipboardList, label:'נכסים שנקלטו', badge: intakeStats?.new || undefined },
     { id:'chats',    Icon:FaWhatsapp,    label:'צ\'אטים',     badge: chatsUnread },
     { id:'analytics',    Icon:FaChartLine,   label:'אנליטיקס' },
     { id:'supermetrics', Icon:FaChartBar,   label:'ביצועים' },
@@ -2664,7 +2697,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
     { id:'counters', Icon:FaBalanceScale,label:'מונים' },
     { id:'settings', Icon:FaTools,       label:'הגדרות' },
   ]
-  const TAB_LABELS = { overview:'סקירה כללית', live:'נכסים באוויר', props:'ניהול נכסים', leads:'לידים', chats:'שיחות WhatsApp', meta:'מרכז מטא', analytics:'אנליטיקס', supermetrics:'ביצועים', team:'צוות', counters:'מונים', settings:'הגדרות' }
+  const TAB_LABELS = { overview:'סקירה כללית', live:'נכסים באוויר', props:'ניהול נכסים', leads:'לידים', sellers:'נכסים שנקלטו', chats:'שיחות WhatsApp', meta:'מרכז מטא', analytics:'אנליטיקס', supermetrics:'ביצועים', team:'צוות', counters:'מונים', settings:'הגדרות' }
 
   return (
     <div className="admin-shell admin-scroll" style={standalone
@@ -2874,6 +2907,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
               <span style={{ background:'rgba(34,197,94,.2)', color:'#22C55E', borderRadius:20, padding:'2px 7px', fontSize:11, fontWeight:900, lineHeight:1.6 }}>{publishedList.length}</span>
             </button>
             {tabBtn('leads', 'לידים', leads.length)}
+            {tabBtn('sellers', 'נכסים שנקלטו', intakeStats?.new || undefined)}
             {tabBtn('chats', 'צ\'אטים')}
             {tabBtn('analytics', 'אנליטיקס')}
             {tabBtn('supermetrics', 'ביצועים')}
@@ -2992,7 +3026,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
 
               {/* Category-specific fields */}
               <div className="admin-form-grid" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0 14px' }}>
-                {form.category === 'apartments' && <>
+                {['apartments','rentals'].includes(form.category) && <>
                   <div><label style={{ fontSize:11, color:`${C.cream}70`, display:'block', marginBottom:4, fontWeight:600 }}>חדרים</label><input placeholder="3.5" value={form.rooms} onChange={set('rooms')} style={inp}/></div>
                   <div><label style={{ fontSize:11, color:`${C.cream}70`, display:'block', marginBottom:4, fontWeight:600 }}>שטח מ"ר (כולל)</label><input placeholder="120" value={form.size} onChange={set('size')} style={inp}/></div>
                   <div><label style={{ fontSize:11, color:`${C.cream}70`, display:'block', marginBottom:4, fontWeight:600 }}>מ"ר בנוי</label><input placeholder="100" value={form.buildSqm} onChange={set('buildSqm')} style={inp}/></div>
@@ -3090,7 +3124,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
                       {chk('wifi','אינטרנט מהיר')}
                       {chk('commRoom','חדר תקשורת')} {chk('mamak','ממק')}
                     </>}
-                    {form.category==='apartments' && <>{chk('furnished','מרוהט')} {chk('renovated','משופץ')}</>}
+                    {['apartments','rentals'].includes(form.category) && <>{chk('furnished','מרוהט')} {chk('renovated','משופץ')}</>}
                   </div>
                 </div>
               )}
@@ -3357,6 +3391,13 @@ Return ONLY valid JSON (no markdown, no code blocks):
           <Suspense fallback={<AdminTabLoader label="טוען ביצועים…"/>}>
             <SupermetricsTab C={C} lang={lang}/>
           </Suspense>
+        )}
+        {tab==='sellers' && (
+          <div style={{ height:'100%', minHeight:'calc(100vh - 180px)' }}>
+            <Suspense fallback={<AdminTabLoader label="טוען נכסים שנקלטו…"/>}>
+              <SellerSubmissionsTab C={C} onChanged={() => { fetch('/api/seller-form?action=stats', { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` } }).then(r => r.json()).then(d => d?.ok && setIntakeStats(d)).catch(() => {}) }}/>
+            </Suspense>
+          </div>
         )}
         {tab==='team' && <TeamTab C={C} isDark={isDark}/>}
 

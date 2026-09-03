@@ -1,4 +1,4 @@
-import { StrictMode, Component } from 'react'
+import { StrictMode, Component, lazy, Suspense } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App.jsx'
 import AccessibilityPage from './AccessibilityPage.jsx'
@@ -52,12 +52,31 @@ class ErrorBoundary extends Component {
   }
 }
 
-const isAccessibilityPage = window.location.pathname.replace(/\/$/, '') === '/accessibility'
+const cleanPath = window.location.pathname.replace(/\/$/, '')
+const isAccessibilityPage = cleanPath === '/accessibility'
+// Property intake (Typeform-style) — direct link only, its own chunk, never loaded by the main site.
+//   /newproperty            the intake form (also /sell, /seller-form)
+//   /newproperty/<token>    public, shareable summary of a submitted property (noindex)
+const isSellerForm = ['/newproperty', '/sell', '/seller-form'].includes(cleanPath)
+const summaryToken = (cleanPath.match(/^\/newproperty\/([A-Za-z0-9]{16,64})$/) || [])[1] || null
+const SellerForm = lazy(() => import('./SellerForm.jsx'))
+const PropertySummary = lazy(() => import('./PropertySummary.jsx'))
+if (isSellerForm || summaryToken) {
+  // Private pages: override the site-wide "index, follow" meta and drop the home-page canonical
+  let m = document.querySelector('meta[name="robots"]')
+  if (!m) { m = document.createElement('meta'); m.name = 'robots'; document.head.appendChild(m) }
+  m.content = 'noindex, nofollow'
+  document.querySelector('link[rel="canonical"]')?.remove()
+}
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <ErrorBoundary>
-      {isAccessibilityPage ? <AccessibilityPage /> : <App />}
+      {summaryToken
+        ? <Suspense fallback={<div style={{ minHeight: '100vh', background: '#EFEFF1' }}/>}><PropertySummary token={summaryToken} /></Suspense>
+        : isSellerForm
+          ? <Suspense fallback={<div style={{ minHeight: '100vh', background: '#EFEFF1' }}/>}><SellerForm /></Suspense>
+          : isAccessibilityPage ? <AccessibilityPage /> : <App />}
     </ErrorBoundary>
   </StrictMode>,
 )

@@ -1,0 +1,64 @@
+-- ─── Property intake (/newproperty) — one-time Supabase migration ────────────
+-- Run once in Supabase → SQL editor. Safe to re-run (IF NOT EXISTS everywhere).
+
+CREATE TABLE IF NOT EXISTS seller_submissions (
+  id              BIGSERIAL PRIMARY KEY,
+  ref             TEXT UNIQUE,                 -- human-friendly file number, e.g. AH-260903-K7PD
+  sid             TEXT,                        -- browser session id = storage folder name
+  status          TEXT DEFAULT 'new',          -- draft | new | review | approved | published | inactive | sold
+  lang            TEXT DEFAULT 'he',
+  contact_name    TEXT,
+  phone           TEXT,
+  email           TEXT,
+  city            TEXT,
+  address         TEXT,
+  property_type   TEXT,
+  asking_price    NUMERIC,
+  answers         JSONB DEFAULT '{}'::jsonb,   -- every answer, keyed by step id (see src/sellerFormSchema.js)
+  files           JSONB DEFAULT '[]'::jsonb,   -- [{ name, size, type, kind, tag, path }] — path inside the seller-uploads bucket
+  notes           TEXT,                        -- internal office notes
+  story           TEXT,                        -- narrative "property story" generated from the answers
+  schema_version  INT DEFAULT 1,
+  meta            JSONB DEFAULT '{}'::jsonb,
+  created_at      TIMESTAMPTZ DEFAULT NOW(),
+  updated_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS seller_submissions_created_at_idx ON seller_submissions (created_at DESC);
+CREATE INDEX IF NOT EXISTS seller_submissions_status_idx     ON seller_submissions (status);
+CREATE INDEX IF NOT EXISTS seller_submissions_phone_idx      ON seller_submissions (phone);
+
+-- Private bucket for photos / videos / plans / documents.
+-- (The API also creates it on first upload if it is missing — this just makes it explicit.)
+INSERT INTO storage.buckets (id, name, public, file_size_limit)
+VALUES ('seller-uploads', 'seller-uploads', false, 209715200)
+ON CONFLICT (id) DO NOTHING;
+
+-- Lock the table down: only the service role (used by /api/seller-form) may touch it.
+ALTER TABLE seller_submissions ENABLE ROW LEVEL SECURITY;
+
+-- Added later: narrative summary (safe to run on an existing table)
+ALTER TABLE seller_submissions ADD COLUMN IF NOT EXISTS story TEXT;
+
+-- ── Property intake v2: drafts, share links, owner verification, publishing ──
+ALTER TABLE seller_submissions ADD COLUMN IF NOT EXISTS share_token TEXT UNIQUE;          -- public summary link /newproperty/<token>
+ALTER TABLE seller_submissions ADD COLUMN IF NOT EXISTS submitted_at TIMESTAMPTZ;         -- null while still a draft
+ALTER TABLE seller_submissions ADD COLUMN IF NOT EXISTS draft_updated_at TIMESTAMPTZ;
+ALTER TABLE seller_submissions ADD COLUMN IF NOT EXISTS cur TEXT;                         -- step id the draft stopped at
+ALTER TABLE seller_submissions ADD COLUMN IF NOT EXISTS owner_verified_at TIMESTAMPTZ;    -- first "I confirm the details" click
+ALTER TABLE seller_submissions ADD COLUMN IF NOT EXISTS verifications JSONB DEFAULT '[]'::jsonb; -- [{ name, at }]
+ALTER TABLE seller_submissions ADD COLUMN IF NOT EXISTS history JSONB DEFAULT '[]'::jsonb;      -- [{ at, by, action, note }]
+ALTER TABLE seller_submissions ADD COLUMN IF NOT EXISTS overrides JSONB DEFAULT '{}'::jsonb;    -- office edits used for publishing (title, price, description…)
+ALTER TABLE seller_submissions ADD COLUMN IF NOT EXISTS published_property_id TEXT;       -- id of the property in the site's property generator
+ALTER TABLE seller_submissions ADD COLUMN IF NOT EXISTS published_at TIMESTAMPTZ;
+CREATE UNIQUE INDEX IF NOT EXISTS seller_submissions_sid_idx ON seller_submissions (sid);
+CREATE INDEX IF NOT EXISTS seller_submissions_share_token_idx ON seller_submissions (share_token);
+
+-- Public bucket for photos copied at publish time (the site's property generator needs public URLs).
+INSERT INTO storage.buckets (id, name, public, file_size_limit)
+VALUES ('property-media', 'property-media', true, 209715200)
+ON CONFLICT (id) DO NOTHING;
+
+-- Sale / rental purpose of the intake (one dynamic questionnaire, two property kinds)
+ALTER TABLE seller_submissions ADD COLUMN IF NOT EXISTS purpose TEXT DEFAULT 'sale';   -- 'sale' | 'rental'
+CREATE INDEX IF NOT EXISTS seller_submissions_purpose_idx ON seller_submissions (purpose);
