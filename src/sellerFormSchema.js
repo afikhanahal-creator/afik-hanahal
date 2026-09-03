@@ -1,0 +1,741 @@
+// ─── SELLER INTAKE FORM — question schema ────────────────────────────────────
+// Framework-free (no React) so the same schema powers the public form, the
+// admin "seller forms" tab AND the serverless notification e-mail/WhatsApp.
+//
+// Every step is one screen (Typeform style). Bilingual by design: each label
+// has an `en` twin. `showIf(answers)` drives the conditional logic so sellers
+// only ever see questions that are relevant to their property.
+//
+// Step types
+//   intro    – section cover screen
+//   text     – single-line text          long    – multi-line text
+//   number   – numeric (unit / thousands) phone   – Israeli phone number
+//   email    – e-mail                    date    – date picker
+//   choice   – pick ONE (letter keys, auto-advance)
+//   multi    – pick MANY (checkbox pills)
+//   counter  – one or more numeric steppers (rows)
+//   group    – several short fields on one screen (address, fees…)
+//   matrix   – rows × scale (condition ratings, legal yes/no/unknown)
+//   toggles  – rows of yes/no switches
+//   upload   – file drop-zone (photos / videos / documents)
+//   review   – summary + consent + submit
+
+const o = (v, l, en) => ({ v, l, en })
+
+const YES_NO = [o('yes', 'כן', 'Yes'), o('no', 'לא', 'No')]
+const YES_NO_UNKNOWN = [o('yes', 'כן', 'Yes'), o('no', 'לא', 'No'), o('unknown', 'לא יודע/ת', "Don't know")]
+
+// ── answer helpers ────────────────────────────────────────────────────────────
+export const isLand   = a => a.p_type === 'land'
+export const isHouse  = a => ['cottage', 'house', 'land'].includes(a.p_type)
+export const hasPlot  = a => isHouse(a) || a.p_type === 'garden'
+export const hasParking = a => Number(a.f_parking?.parking || 0) > 0
+export const hasStorage = a => Array.isArray(a.f_rooms) && a.f_rooms.includes('storage')
+
+export const SECTIONS = [
+  { id: 'contact',   n: 1, title: 'היכרות',               en: 'About you',          desc: 'כמה פרטים כדי שנדע עם מי אנחנו מדברים',                       en_desc: 'A few details so we know who we are talking to' },
+  { id: 'property',  n: 2, title: 'פרטי הנכס',            en: 'Property details',   desc: 'כתובת, סוג הנכס, גודל וחלוקה',                                en_desc: 'Address, type, size and layout' },
+  { id: 'features',  n: 3, title: 'מאפייני הנכס',         en: 'Features',           desc: 'מה יש בנכס — חדרים, חניה, מיזוג ומערכות',                     en_desc: 'What the property offers: rooms, parking, climate and systems' },
+  { id: 'condition', n: 4, title: 'מצב הנכס',             en: 'Condition',          desc: 'שיפוצים, מצב תחזוקתי ומי גר בנכס כיום',                       en_desc: 'Renovations, maintenance and current occupancy' },
+  { id: 'building',  n: 5, title: 'הבניין',               en: 'The building',       desc: 'מה שחשוב לדעת על הבניין והוועד',                              en_desc: 'What buyers should know about the building' },
+  { id: 'legal',     n: 6, title: 'מידע משפטי ותכנוני',   en: 'Legal & planning',   desc: 'רישום, זכויות, היתרים ושעבודים — נאמת הכל מול מסמכים',        en_desc: 'Registration, rights, permits and liens. We verify everything against documents' },
+  { id: 'price',     n: 7, title: 'מחיר ותנאי העסקה',     en: 'Price & terms',      desc: 'ציפיות מחיר, גמישות ומועד פינוי',                             en_desc: 'Price expectations, flexibility and move-out timing' },
+  { id: 'marketing', n: 8, title: 'מידע שיווקי',          en: 'Marketing',          desc: 'מה מיוחד בנכס — זה מה שיבנה את המודעה',                       en_desc: 'What makes the property special. This shapes the listing' },
+  { id: 'media',     n: 9, title: 'תמונות ומסמכים',       en: 'Photos & documents', desc: 'העלאת תמונות, סרטונים ומסמכים לתיק הנכס',                     en_desc: 'Upload photos, videos and documents for the property file' },
+  { id: 'review',    n: 10, title: 'סיכום ושליחה',        en: 'Review & submit',    desc: 'בדיקה אחרונה לפני שהטופס עובר אלינו',                          en_desc: 'One last look before the form reaches us' },
+]
+
+export const STEPS = [
+  // ═══════════════════ 1. CONTACT ═══════════════════════════════════════════
+  { id: 'c_intro', section: 'contact', type: 'intro' },
+  { id: 'c_name', section: 'contact', type: 'text', required: true,
+    q: 'נעים מאוד! מה שמך המלא?', en_q: 'Nice to meet you! What is your full name?',
+    ph: 'שם פרטי ושם משפחה', en_ph: 'First and last name', autocomplete: 'name' },
+  { id: 'c_phone', section: 'contact', type: 'phone', required: true,
+    q: 'מה מספר הטלפון שלך?', en_q: 'What is your phone number?',
+    help: 'נשתמש בו רק כדי ליצור איתך קשר לגבי הנכס', en_help: 'Used only to contact you about this property',
+    ph: '050-000-0000', en_ph: '050-000-0000' },
+  { id: 'c_email', section: 'contact', type: 'email',
+    q: 'ומה כתובת האימייל שלך?', en_q: 'And your e-mail address?',
+    help: 'נשלח לשם עותק של הטופס ועדכונים על תהליך השיווק', en_help: 'We will send a copy of this form and marketing updates there',
+    ph: 'name@example.com', en_ph: 'name@example.com' },
+  { id: 'c_role', section: 'contact', type: 'choice', required: true,
+    q: 'מה הקשר שלך לנכס?', en_q: 'What is your relationship to the property?',
+    opts: [
+      o('owner',   'אני הבעלים',                 'I am the owner'),
+      o('partial', 'אחד/ת מהבעלים',              'One of the owners'),
+      o('poa',     'מיופה/ת כוח',                'Power of attorney'),
+      o('family',  'בן/בת משפחה של הבעלים',      'Family member of the owner'),
+      o('other',   'אחר',                        'Other'),
+    ] },
+  { id: 'c_extra', section: 'contact', type: 'group',
+    q: 'יש איש קשר נוסף שכדאי שנכיר?', en_q: 'Is there another contact person we should know?',
+    help: 'לא חובה — למשל בן/בת זוג, שותף/ה או עו״ד', en_help: 'Optional. A spouse, partner or lawyer, for example',
+    fields: [
+      { k: 'name',     l: 'שם',           en: 'Name',         type: 'text', half: true },
+      { k: 'phone',    l: 'טלפון',        en: 'Phone',        type: 'tel',  half: true },
+      { k: 'relation', l: 'הקשר לנכס',   en: 'Relationship', type: 'text' },
+    ] },
+  { id: 'c_hours', section: 'contact', type: 'multi',
+    q: 'מתי נוח לך שנתקשר?', en_q: 'When is it convenient to call you?',
+    opts: [
+      o('morning', 'בוקר (8:00–12:00)',   'Morning (8:00–12:00)'),
+      o('noon',    'צהריים (12:00–16:00)', 'Midday (12:00–16:00)'),
+      o('evening', 'ערב (16:00–20:00)',   'Evening (16:00–20:00)'),
+      o('any',     'כל שעה סבירה',        'Any reasonable hour'),
+    ] },
+  { id: 'c_privacy', section: 'contact', type: 'toggles', required: true,
+    q: 'כמה הגדרות פרטיות לפרסום', en_q: 'A couple of privacy settings for the listing',
+    help: 'אפשר לשנות בכל שלב', en_help: 'You can change these at any time',
+    rows: [
+      { k: 'publishPhone', l: 'לפרסם את מספר הטלפון שלך במודעה',  en: 'Show your phone number in the listing' },
+      { k: 'showAddress',  l: 'להציג את הכתובת המדויקת בפרסום',  en: 'Show the exact address in the listing' },
+    ] },
+
+  // ═══════════════════ 2. PROPERTY ══════════════════════════════════════════
+  { id: 'p_intro', section: 'property', type: 'intro' },
+  { id: 'p_type', section: 'property', type: 'choice', required: true, grid: true,
+    q: 'איזה סוג נכס אתם משווקים?', en_q: 'What type of property are you selling?',
+    opts: [
+      o('apartment',  'דירה',                 'Apartment'),
+      o('garden',     'דירת גן',              'Garden apartment'),
+      o('penthouse',  'פנטהאוז',              'Penthouse'),
+      o('duplex',     'דופלקס',               'Duplex'),
+      o('cottage',    'קוטג׳ / דו-משפחתי',    'Cottage / semi-detached'),
+      o('house',      'בית פרטי / וילה',      'Private house / villa'),
+      o('land',       'מגרש',                 'Plot of land'),
+      o('commercial', 'נכס מסחרי',            'Commercial property'),
+      o('other',      'אחר',                  'Other'),
+    ] },
+  { id: 'p_address', section: 'property', type: 'group', required: true,
+    q: 'איפה הנכס נמצא?', en_q: 'Where is the property located?',
+    help: 'הכתובת המלאה נשארת אצלנו — היא תפורסם רק אם אישרתם', en_help: 'The full address stays with us and is published only with your approval',
+    fields: [
+      { k: 'city',         l: 'עיר / יישוב',   en: 'City / town',    type: 'text', required: true, half: true, autocomplete: 'address-level2' },
+      { k: 'neighborhood', l: 'שכונה',         en: 'Neighborhood',   type: 'text', half: true },
+      { k: 'street',       l: 'רחוב',          en: 'Street',         type: 'text', required: true, half: true, autocomplete: 'address-line1' },
+      { k: 'number',       l: 'מספר בית',      en: 'House number',   type: 'text', required: true, half: true },
+      { k: 'entrance',     l: 'כניסה',         en: 'Entrance',       type: 'text', half: true, showIf: a => !isHouse(a) },
+      { k: 'apt',          l: 'מספר דירה',     en: 'Apartment no.',  type: 'text', half: true, showIf: a => !isHouse(a) },
+    ] },
+  { id: 'p_floor', section: 'property', type: 'group', required: true, showIf: a => !isHouse(a),
+    q: 'באיזו קומה הנכס?', en_q: 'Which floor is the property on?',
+    fields: [
+      { k: 'floor',       l: 'קומה',                en: 'Floor',            type: 'number', required: true, half: true, ph: '0 = קרקע', en_ph: '0 = ground' },
+      { k: 'totalFloors', l: 'מתוך כמה קומות',      en: 'Out of how many',  type: 'number', half: true },
+    ] },
+  { id: 'p_year', section: 'property', type: 'number', showIf: a => !isLand(a),
+    q: 'באיזו שנה נבנה הנכס?', en_q: 'What year was the property built?',
+    help: 'בערך זה בסדר — אפשר לדלג אם לא יודעים', en_help: 'An estimate is fine. Skip if you do not know',
+    ph: 'לדוגמה: 2005', en_ph: 'e.g. 2005', min: 1880, max: 2030 },
+  { id: 'p_state', section: 'property', type: 'choice', required: true, showIf: a => !isLand(a),
+    q: 'איך היית מגדיר/ה את מצב הנכס?', en_q: 'How would you describe the property?',
+    opts: [
+      o('new',       'חדש מקבלן',              'Brand new from developer'),
+      o('secondhand','יד שנייה במצב טוב',      'Second-hand, good condition'),
+      o('renovated', 'לאחר שיפוץ',             'Recently renovated'),
+      o('needs',     'דורש שיפוץ',             'Needs renovation'),
+    ] },
+  { id: 'p_rooms', section: 'property', type: 'counter', required: true, showIf: a => !isLand(a),
+    q: 'כמה חדרים בנכס?', en_q: 'How many rooms does the property have?',
+    help: 'לפי הספירה הישראלית — סלון נחשב חדר', en_help: 'Israeli count: the living room counts as a room',
+    rows: [
+      { k: 'rooms',    l: 'חדרים',       en: 'Rooms',     min: 1, max: 30, step: 0.5, def: 4 },
+      { k: 'bedrooms', l: 'חדרי שינה',   en: 'Bedrooms',  min: 0, max: 20, step: 1,   def: 3 },
+    ] },
+  { id: 'p_baths', section: 'property', type: 'counter', required: true, showIf: a => !isLand(a),
+    q: 'חדרי רחצה ושירותים', en_q: 'Bathrooms and toilets',
+    rows: [
+      { k: 'bathrooms', l: 'חדרי רחצה',       en: 'Bathrooms', min: 0, max: 10, step: 1, def: 2 },
+      { k: 'toilets',   l: 'שירותים (סה״כ)',  en: 'Toilets (total)', min: 0, max: 10, step: 1, def: 2 },
+    ] },
+  { id: 'p_area', section: 'property', type: 'group', required: true,
+    q: 'מה השטחים של הנכס?', en_q: 'What are the property areas?',
+    help: 'במ״ר. אם אין נתון מדויק — הערכה טובה מספיקה, נאמת מול המסמכים', en_help: 'In square meters. An estimate is fine. We verify against the documents',
+    fields: [
+      { k: 'built',   l: 'שטח בנוי',         en: 'Built area',        type: 'number', unit: 'מ״ר', en_unit: 'm²', half: true, required: a => !isLand(a), showIf: a => !isLand(a) },
+      { k: 'plot',    l: 'שטח מגרש',         en: 'Plot area',         type: 'number', unit: 'מ״ר', en_unit: 'm²', half: true, required: a => isLand(a), showIf: a => hasPlot(a) },
+      { k: 'balcony', l: 'מרפסת / גג',       en: 'Balcony / roof',    type: 'number', unit: 'מ״ר', en_unit: 'm²', half: true, showIf: a => !isLand(a) },
+      { k: 'garden',  l: 'גינה',             en: 'Garden',            type: 'number', unit: 'מ״ר', en_unit: 'm²', half: true, showIf: a => hasPlot(a) && !isLand(a) },
+    ] },
+  { id: 'p_directions', section: 'property', type: 'multi', showIf: a => !isLand(a),
+    q: 'לאילו כיווני אוויר פונה הנכס?', en_q: 'Which directions does the property face?',
+    opts: [ o('north', 'צפון', 'North'), o('south', 'דרום', 'South'), o('east', 'מזרח', 'East'), o('west', 'מערב', 'West') ] },
+  { id: 'p_view', section: 'property', type: 'multi',
+    q: 'מה רואים מהנכס?', en_q: 'What is the view?',
+    opts: [
+      o('open',   'נוף פתוח',          'Open view'),
+      o('urban',  'נוף עירוני',        'Urban view'),
+      o('sea',    'ים',                'Sea'),
+      o('park',   'פארק / ירוק',       'Park / greenery'),
+      o('garden', 'גינה',              'Garden'),
+      o('hills',  'הרים / שטחים פתוחים', 'Hills / open fields'),
+      o('none',   'ללא נוף מיוחד',     'No particular view'),
+    ] },
+
+  // ═══════════════════ 3. FEATURES ══════════════════════════════════════════
+  { id: 'f_intro', section: 'features', type: 'intro', showIf: a => !isLand(a) },
+  { id: 'f_rooms', section: 'features', type: 'multi', showIf: a => !isLand(a),
+    q: 'אילו חללים וחדרים יש בנכס?', en_q: 'Which spaces does the property include?',
+    help: 'סמנו את כל מה שרלוונטי', en_help: 'Select everything that applies',
+    opts: [
+      o('mamad',   'ממ״ד',            'Safe room (Mamad)'),
+      o('closet',  'חדר ארונות',      'Walk-in closet'),
+      o('storage', 'מחסן',            'Storage room'),
+      o('laundry', 'חדר כביסה',       'Laundry room'),
+      o('family',  'חדר משפחה',       'Family room'),
+      o('office',  'חדר עבודה',       'Home office'),
+      o('balcony', 'מרפסת',           'Balcony'),
+      o('sukkah',  'מרפסת סוכה',      'Sukkah balcony'),
+      o('garden',  'גינה',            'Garden'),
+      o('roof',    'גג',              'Roof'),
+      o('pool',    'בריכה',           'Pool'),
+      o('basement','מרתף',            'Basement'),
+    ] },
+  { id: 'f_storage_size', section: 'features', type: 'number', showIf: a => !isLand(a) && hasStorage(a),
+    q: 'מה גודל המחסן?', en_q: 'How big is the storage room?', unit: 'מ״ר', en_unit: 'm²', ph: 'לדוגמה: 6', en_ph: 'e.g. 6', min: 0, max: 500 },
+  { id: 'f_kitchen', section: 'features', type: 'choice', showIf: a => !isLand(a),
+    q: 'איך המטבח בנוי?', en_q: 'How is the kitchen laid out?',
+    opts: [
+      o('open',   'מטבח פתוח לסלון',   'Open to the living room'),
+      o('semi',   'חצי פתוח',          'Semi-open'),
+      o('closed', 'מטבח סגור',         'Closed kitchen'),
+    ] },
+  { id: 'f_island', section: 'features', type: 'choice', showIf: a => !isLand(a),
+    q: 'האם יש אי במטבח?', en_q: 'Is there a kitchen island?', opts: YES_NO },
+  { id: 'f_parking', section: 'features', type: 'counter', required: true, showIf: a => !isLand(a),
+    q: 'כמה חניות שייכות לנכס?', en_q: 'How many parking spaces come with the property?',
+    rows: [ { k: 'parking', l: 'חניות', en: 'Parking spaces', min: 0, max: 10, step: 1, def: 1 } ] },
+  { id: 'f_parking_type', section: 'features', type: 'multi', showIf: a => !isLand(a) && hasParking(a),
+    q: 'איזה סוג חניה?', en_q: 'What kind of parking?',
+    opts: [
+      o('regular',     'חניה רגילה (פתוחה)',   'Regular (open)'),
+      o('covered',     'חניה מקורה',            'Covered'),
+      o('underground', 'תת-קרקעית',             'Underground'),
+      o('double',      'חניה כפולה / טורית',    'Double / tandem'),
+      o('ev',          'הכנה לרכב חשמלי',       'EV charging ready'),
+      o('street',      'חניה ברחוב בלבד',       'Street parking only'),
+    ] },
+  { id: 'f_access', section: 'features', type: 'multi', showIf: a => !isHouse(a),
+    q: 'מעליות ונגישות בבניין', en_q: 'Elevators and accessibility',
+    opts: [
+      o('elevator',   'מעלית',            'Elevator'),
+      o('shabbat',    'מעלית שבת',        'Shabbat elevator'),
+      o('accessible', 'נגישות לנכים',     'Wheelchair accessible'),
+      o('none',       'אין מעלית',        'No elevator'),
+    ] },
+  { id: 'f_climate', section: 'features', type: 'choice', showIf: a => !isLand(a),
+    q: 'איך הנכס ממוזג?', en_q: 'How is the property air-conditioned?',
+    opts: [
+      o('central', 'מיזוג מרכזי',          'Central air conditioning'),
+      o('mini',    'מיני-מרכזי',           'Mini-central'),
+      o('units',   'מזגנים בחדרים',        'Split units in rooms'),
+      o('partial', 'מזגן בחלק מהחדרים',    'Units in some rooms'),
+      o('none',    'אין מיזוג',            'No air conditioning'),
+    ] },
+  { id: 'f_water', section: 'features', type: 'multi', showIf: a => !isLand(a),
+    q: 'איך מחממים מים?', en_q: 'How is water heated?',
+    opts: [
+      o('solar',    'דוד שמש',        'Solar water heater'),
+      o('electric', 'דוד חשמלי',      'Electric boiler'),
+      o('gas',      'גז',             'Gas'),
+      o('central',  'חימום מרכזי',    'Central heating'),
+      o('other',    'אחר',            'Other'),
+    ] },
+  { id: 'f_systems', section: 'features', type: 'multi', showIf: a => !isLand(a),
+    q: 'מערכות ותוספות בנכס', en_q: 'Systems and extras',
+    opts: [
+      o('smart',    'מערכת בית חכם',                 'Smart-home system'),
+      o('shutters', 'תריסים חשמליים',                 'Electric shutters'),
+      o('bars',     'סורגים',                         'Window bars'),
+      o('windows',  'חלונות מיוחדים (טרמיים/אקוסטיים)', 'Special windows (thermal / acoustic)'),
+      o('alarm',    'אזעקה',                          'Alarm'),
+      o('cameras',  'מצלמות',                         'Cameras'),
+      o('heating',  'חימום תת-רצפתי',                 'Underfloor heating'),
+      o('none',     'אין תוספות מיוחדות',             'No special extras'),
+    ] },
+  { id: 'f_furniture', section: 'features', type: 'choice', showIf: a => !isLand(a),
+    q: 'האם ריהוט נשאר בנכס?', en_q: 'Does furniture stay with the property?',
+    opts: [
+      o('none',    'לא — הנכס נמסר ריק',   'No. The property is handed over empty'),
+      o('partial', 'חלקי',                 'Partially'),
+      o('full',    'מרוהט במלואו',         'Fully furnished'),
+      o('flexible','גמיש, לפי הקונה',       'Flexible, depending on the buyer'),
+    ] },
+  { id: 'f_furniture_detail', section: 'features', type: 'long', showIf: a => !isLand(a) && ['partial', 'full', 'flexible'].includes(a.f_furniture),
+    q: 'מה נשאר בנכס?', en_q: 'What stays in the property?',
+    ph: 'למשל: מטבח, ארונות קיר, מזגנים, מכשירי חשמל…', en_ph: 'e.g. kitchen, built-in closets, AC units, appliances…' },
+
+  // ═══════════════════ 4. CONDITION ═════════════════════════════════════════
+  { id: 'k_intro', section: 'condition', type: 'intro', showIf: a => !isLand(a) },
+  { id: 'k_renovated', section: 'condition', type: 'choice', required: true, showIf: a => !isLand(a),
+    q: 'האם הנכס שופץ?', en_q: 'Has the property been renovated?',
+    opts: [ o('yes', 'כן', 'Yes'), o('no', 'לא', 'No'), o('partial', 'שיפוץ חלקי', 'Partially') ] },
+  { id: 'k_reno_year', section: 'condition', type: 'text', showIf: a => !isLand(a) && ['yes', 'partial'].includes(a.k_renovated),
+    q: 'מתי בוצע השיפוץ?', en_q: 'When was the renovation done?', ph: 'לדוגמה: 2021', en_ph: 'e.g. 2021' },
+  { id: 'k_reno_what', section: 'condition', type: 'multi', showIf: a => !isLand(a) && ['yes', 'partial'].includes(a.k_renovated),
+    q: 'מה שופץ?', en_q: 'What was renovated?',
+    opts: [
+      o('kitchen',  'מטבח',          'Kitchen'),
+      o('baths',    'חדרי רחצה',     'Bathrooms'),
+      o('floor',    'ריצוף',         'Flooring'),
+      o('electric', 'חשמל',          'Electrical'),
+      o('plumbing', 'אינסטלציה',     'Plumbing'),
+      o('windows',  'חלונות',        'Windows'),
+      o('paint',    'צבע',           'Paint'),
+      o('ac',       'מיזוג',         'Air conditioning'),
+      o('full',     'שיפוץ כללי',    'Full renovation'),
+    ] },
+  { id: 'k_matrix', section: 'condition', type: 'matrix', required: true, showIf: a => !isLand(a),
+    q: 'איך היית מדרג/ת את המצב של…', en_q: 'How would you rate the condition of…',
+    scale: [ o('excellent', 'מצוין', 'Excellent'), o('good', 'טוב', 'Good'), o('fair', 'סביר', 'Fair'), o('poor', 'דורש טיפול', 'Needs work') ],
+    rows: [
+      { k: 'kitchen', l: 'המטבח',        en: 'Kitchen' },
+      { k: 'baths',   l: 'חדרי הרחצה',   en: 'Bathrooms' },
+      { k: 'floor',   l: 'הריצוף',       en: 'Flooring' },
+      { k: 'windows', l: 'החלונות',      en: 'Windows' },
+      { k: 'ac',      l: 'המזגנים',      en: 'Air conditioning' },
+    ] },
+  { id: 'k_defects', section: 'condition', type: 'choice', required: true, showIf: a => !isLand(a),
+    q: 'האם ידועים לך ליקויים בנכס?', en_q: 'Are you aware of any defects?',
+    help: 'שקיפות עוזרת למכור מהר יותר ומונעת הפתעות בבדיקה', en_help: 'Transparency sells faster and avoids surprises at inspection',
+    opts: YES_NO },
+  { id: 'k_defects_detail', section: 'condition', type: 'long', required: true, showIf: a => !isLand(a) && a.k_defects === 'yes',
+    q: 'ספרו לנו על הליקויים', en_q: 'Tell us about the defects', ph: 'מה, איפה ומתי התגלה', en_ph: 'What, where and when it was found' },
+  { id: 'k_moisture', section: 'condition', type: 'choice', required: true, showIf: a => !isLand(a),
+    q: 'רטיבויות או נזילות?', en_q: 'Any moisture or leaks?',
+    opts: [
+      o('none',    'לא',                       'No'),
+      o('fixed',   'היה בעבר וטופל',           'There was, and it was fixed'),
+      o('current', 'יש כיום',                  'Yes, currently'),
+    ] },
+  { id: 'k_investment', section: 'condition', type: 'choice', required: true, showIf: a => !isLand(a),
+    q: 'האם הנכס דורש השקעה לפני כניסה?', en_q: 'Does the property need investment before moving in?',
+    opts: [
+      o('none',  'לא — מוכן לכניסה מיידית',      'No. Ready to move in'),
+      o('light', 'השקעה קלה (צבע, תיקונים קטנים)', 'Light work (paint, small repairs)'),
+      o('major', 'השקעה משמעותית',               'Significant investment'),
+    ] },
+  { id: 'k_occupancy', section: 'condition', type: 'choice', required: true,
+    q: 'מי נמצא בנכס כיום?', en_q: 'Who occupies the property today?',
+    opts: [
+      o('vacant', 'הנכס פנוי',           'It is vacant'),
+      o('owners', 'הבעלים גרים בנכס',    'The owners live there'),
+      o('rented', 'הנכס מושכר',          'It is rented out'),
+    ] },
+  { id: 'k_lease', section: 'condition', type: 'group', showIf: a => a.k_occupancy === 'rented',
+    q: 'פרטי השכירות', en_q: 'Lease details',
+    fields: [
+      { k: 'leaseEnd', l: 'מועד סיום החוזה',       en: 'Lease end date',   type: 'date',   half: true },
+      { k: 'rent',     l: 'שכר דירה חודשי',        en: 'Monthly rent',     type: 'number', unit: '₪', en_unit: '₪', half: true },
+      { k: 'notes',    l: 'הערות (למשל אופציה להארכה)', en: 'Notes (e.g. extension option)', type: 'text' },
+    ] },
+
+  // ═══════════════════ 5. BUILDING ══════════════════════════════════════════
+  { id: 'b_intro', section: 'building', type: 'intro', showIf: a => !isHouse(a) },
+  { id: 'b_numbers', section: 'building', type: 'group', showIf: a => !isHouse(a),
+    q: 'כמה מספרים על הבניין', en_q: 'A few numbers about the building',
+    fields: [
+      { k: 'year',       l: 'שנת בנייה',        en: 'Year built',       type: 'number', half: true },
+      { k: 'apartments', l: 'דירות בבניין',     en: 'Apartments',       type: 'number', half: true },
+      { k: 'floors',     l: 'קומות',            en: 'Floors',           type: 'number', half: true },
+      { k: 'elevators',  l: 'מעליות',           en: 'Elevators',        type: 'number', half: true },
+    ] },
+  { id: 'b_amenities', section: 'building', type: 'multi', showIf: a => !isHouse(a),
+    q: 'מה יש בבניין?', en_q: 'What does the building offer?',
+    opts: [
+      o('lobby',        'לובי',              'Lobby'),
+      o('guard',        'שומר / אבטחה',      'Doorman / security'),
+      o('intercom',     'אינטרקום',          'Intercom'),
+      o('cameras',      'מצלמות',            'Cameras'),
+      o('bikes',        'חדר אופניים',       'Bike room'),
+      o('strollers',    'חדר עגלות',         'Stroller room'),
+      o('residents',    'חדר דיירים',        'Residents lounge'),
+      o('garden',       'גינה משותפת',       'Shared garden'),
+      o('pool',         'בריכה',             'Pool'),
+      o('gym',          'חדר כושר',          'Gym'),
+      o('guestParking', 'חניית אורחים',      'Guest parking'),
+      o('parking',      'חניון לדיירים',     'Residents parking'),
+    ] },
+  { id: 'b_fees', section: 'building', type: 'group', showIf: a => !isHouse(a),
+    q: 'תשלומים חודשיים לבניין', en_q: 'Monthly building payments',
+    fields: [
+      { k: 'vaad',       l: 'ועד בית',    en: 'Building committee', type: 'number', unit: '₪ / חודש', en_unit: '₪ / month', half: true },
+      { k: 'management', l: 'דמי ניהול',  en: 'Management fee',     type: 'number', unit: '₪ / חודש', en_unit: '₪ / month', half: true },
+    ] },
+  { id: 'b_renovation', section: 'building', type: 'choice', showIf: a => !isHouse(a),
+    q: 'האם צפוי שיפוץ בבניין?', en_q: 'Is a building renovation expected?',
+    opts: [
+      o('no',         'לא',                'No'),
+      o('planned',    'מתוכנן',            'Planned'),
+      o('inProgress', 'בביצוע כרגע',       'In progress'),
+      o('unknown',    'לא יודע/ת',         "Don't know"),
+    ] },
+  { id: 'b_tama', section: 'building', type: 'choice', showIf: a => !isHouse(a),
+    q: 'האם הבניין בתהליך התחדשות עירונית?', en_q: 'Is the building in an urban-renewal process?',
+    opts: [
+      o('none',     'לא',                              'No'),
+      o('tama1',    'תמ״א 38/1 — חיזוק ותוספת',        'TAMA 38/1 (reinforcement and addition)'),
+      o('tama2',    'תמ״א 38/2 — הריסה ובנייה',        'TAMA 38/2 (demolish and rebuild)'),
+      o('pinui',    'פינוי-בינוי',                     'Pinui-Binui (evacuation and reconstruction)'),
+      o('checking', 'בבדיקה ראשונית / חתימות',         'Early stage / collecting signatures'),
+      o('unknown',  'לא יודע/ת',                       "Don't know"),
+    ] },
+  { id: 'b_tama_detail', section: 'building', type: 'long', showIf: a => !isHouse(a) && ['tama1', 'tama2', 'pinui', 'checking'].includes(a.b_tama),
+    q: 'באיזה שלב נמצא התהליך?', en_q: 'What stage is the process at?',
+    ph: 'למשל: נחתם הסכם עם יזם, ממתינים להיתר…', en_ph: 'e.g. agreement signed with developer, waiting for permit…' },
+
+  // ═══════════════════ 6. LEGAL ═════════════════════════════════════════════
+  { id: 'l_intro', section: 'legal', type: 'intro' },
+  { id: 'l_owners', section: 'legal', type: 'text', required: true,
+    q: 'על שם מי רשומות הזכויות בנכס?', en_q: 'In whose name are the property rights registered?',
+    ph: 'שמות בעלי הזכויות', en_ph: 'Names of the rights holders' },
+  { id: 'l_more_owners', section: 'legal', type: 'choice', required: true,
+    q: 'האם יש בעלים נוספים שצריכים לאשר מכירה?', en_q: 'Are there other owners who must approve a sale?',
+    opts: [ o('no', 'לא', 'No'), o('yes', 'כן', 'Yes'), o('unknown', 'לא בטוח/ה', 'Not sure') ] },
+  { id: 'l_more_owners_detail', section: 'legal', type: 'text', showIf: a => a.l_more_owners === 'yes',
+    q: 'מי הבעלים הנוספים?', en_q: 'Who are the other owners?', ph: 'שמות והקשר', en_ph: 'Names and relationship' },
+  { id: 'l_rights', section: 'legal', type: 'choice', required: true,
+    q: 'איך הנכס רשום?', en_q: 'How is the property registered?',
+    opts: [
+      o('tabu',    'טאבו (לשכת רישום מקרקעין)',   'Tabu (Land Registry)'),
+      o('rmi',     'רמ״י — מינהל מקרקעי ישראל',   'Israel Land Authority (RMI)'),
+      o('company', 'חברה משכנת',                  'Housing company'),
+      o('other',   'אחר',                         'Other'),
+      o('unknown', 'לא יודע/ת',                   "Don't know"),
+    ] },
+  { id: 'l_matrix', section: 'legal', type: 'matrix', required: true,
+    q: 'סמנו לכל סעיף: כן, לא או לא יודע', en_q: 'For each item mark yes, no or unknown',
+    help: '״לא יודע״ זו תשובה לגיטימית לגמרי — נבדוק בעצמנו', en_help: '"Unknown" is a perfectly fine answer. We will check ourselves',
+    scale: YES_NO_UNKNOWN,
+    rows: [
+      { k: 'mortgage',    l: 'קיימת משכנתא על הנכס',       en: 'There is a mortgage on the property' },
+      { k: 'liens',       l: 'קיימים עיקולים או שעבודים',   en: 'There are liens or attachments' },
+      { k: 'violation',   l: 'קיימת חריגת בנייה ידועה',     en: 'There is a known building violation' },
+      { k: 'permit',      l: 'קיים היתר בנייה',             en: 'There is a building permit' },
+      { k: 'extraRights', l: 'קיימות זכויות בנייה נוספות',  en: 'There are additional building rights' },
+      { k: 'condo',       l: 'קיים צו בית משותף',           en: 'There is a condominium order', showIf: a => !isHouse(a) },
+      { k: 'parkingTabu', l: 'החניה צמודה בטאבו',           en: 'Parking is attached in the Tabu', showIf: a => hasParking(a) },
+      { k: 'storageTabu', l: 'המחסן צמוד בטאבו',            en: 'Storage is attached in the Tabu', showIf: a => hasStorage(a) },
+      { k: 'legalProc',   l: 'קיים הליך משפטי הקשור לנכס',  en: 'There is a legal proceeding related to the property' },
+    ] },
+  { id: 'l_mortgage', section: 'legal', type: 'number', showIf: a => a.l_matrix?.mortgage === 'yes',
+    q: 'מה יתרת המשכנתא המשוערת?', en_q: 'What is the approximate remaining mortgage?',
+    help: 'עוזר לנו לתכנן את העסקה — לא מתפרסם', en_help: 'Helps us structure the deal. Never published',
+    unit: '₪', en_unit: '₪', thousands: true, ph: '0', en_ph: '0' },
+  { id: 'l_notes', section: 'legal', type: 'long',
+    q: 'הערות משפטיות או תכנוניות שכדאי שנדע?', en_q: 'Any legal or planning notes we should know?',
+    help: 'למשל: הליך משפטי, ירושה בתהליך, הסכם שיתוף, הערות בנסח', en_help: 'e.g. proceedings, inheritance in progress, co-ownership agreement, Tabu remarks',
+    ph: 'לא חובה', en_ph: 'Optional' },
+
+  // ═══════════════════ 7. PRICE ═════════════════════════════════════════════
+  { id: 'd_intro', section: 'price', type: 'intro' },
+  { id: 'd_ask', section: 'price', type: 'number', required: true, thousands: true,
+    q: 'מה המחיר המבוקש?', en_q: 'What is the asking price?', unit: '₪', en_unit: '₪', ph: '3,500,000', en_ph: '3,500,000', min: 1 },
+  { id: 'd_flex', section: 'price', type: 'choice', required: true,
+    q: 'עד כמה המחיר גמיש?', en_q: 'How flexible is the price?',
+    opts: [
+      o('firm',     'לא גמיש',                    'Not flexible'),
+      o('little',   'גמיש מעט',                   'Slightly flexible'),
+      o('flexible', 'גמיש — פתוחים למשא ומתן',    'Flexible. Open to negotiation'),
+    ] },
+  { id: 'd_min', section: 'price', type: 'number', thousands: true,
+    q: 'מה המחיר המינימלי שתשקלו?', en_q: 'What is the minimum price you would consider?',
+    help: 'לעיניים שלנו בלבד — לא מתפרסם ולא נחשף לקונים', en_help: 'For our eyes only. Never published or shown to buyers',
+    unit: '₪', en_unit: '₪', ph: 'לא חובה', en_ph: 'Optional' },
+  { id: 'd_vacate', section: 'price', type: 'choice', required: true,
+    q: 'מתי תרצו למסור את הנכס?', en_q: 'When would you like to hand over the property?',
+    opts: [
+      o('immediate', 'מיידי',              'Immediately'),
+      o('m3',        'עד 3 חודשים',        'Within 3 months'),
+      o('m6',        '3–6 חודשים',         '3–6 months'),
+      o('y1',        '6–12 חודשים',        '6–12 months'),
+      o('later',     'יותר משנה',          'More than a year'),
+      o('flexible',  'גמיש',               'Flexible'),
+    ] },
+  { id: 'd_vacate_flex', section: 'price', type: 'multi',
+    q: 'האם ניתן להזיז את מועד המסירה?', en_q: 'Can the handover date move?',
+    opts: [
+      o('earlier', 'ניתן להקדים',        'Can be earlier'),
+      o('later',   'ניתן לדחות',         'Can be later'),
+      o('no',      'לא ניתן לשנות',      'Cannot change'),
+    ] },
+  { id: 'd_alt', section: 'price', type: 'choice', required: true,
+    q: 'האם המכירה תלויה ברכישת נכס חלופי?', en_q: 'Does the sale depend on buying another property?',
+    opts: [
+      o('no',      'לא',                             'No'),
+      o('looking', 'כן — עדיין מחפשים',              'Yes. Still searching'),
+      o('found',   'כן — כבר נמצא נכס',              'Yes. A property was already found'),
+    ] },
+  { id: 'd_offers', section: 'price', type: 'choice', required: true,
+    q: 'כמה אתם פתוחים להצעות?', en_q: 'How open are you to offers?',
+    opts: [
+      o('open',  'פתוחים לכל הצעה רצינית',      'Open to any serious offer'),
+      o('close', 'רק הצעות קרובות למחיר',       'Only offers close to the asking price'),
+      o('firm',  'המחיר סופי',                  'The price is final'),
+    ] },
+  { id: 'd_buyer', section: 'price', type: 'long',
+    q: 'יש העדפה לסוג קונה או לתנאי עסקה?', en_q: 'Any preference regarding the buyer or deal terms?',
+    help: 'למשל: מימון מהיר, ללא תלות במכירת נכס, אפשרות לשכירות חוזרת', en_help: 'e.g. fast financing, no chain, leaseback option',
+    ph: 'לא חובה', en_ph: 'Optional' },
+
+  // ═══════════════════ 8. MARKETING ═════════════════════════════════════════
+  { id: 'm_intro', section: 'marketing', type: 'intro' },
+  { id: 'm_pros', section: 'marketing', type: 'long', required: true,
+    q: 'מה לדעתך היתרונות הגדולים ביותר של הנכס?', en_q: 'What are the biggest advantages of the property?',
+    help: 'תחשבו מה גרם לכם להתאהב בו', en_help: 'Think about what made you fall in love with it',
+    ph: 'למשל: אור טבעי כל היום, שקט מוחלט, מרפסת ענקית…', en_ph: 'e.g. daylight all day, complete quiet, huge balcony…' },
+  { id: 'm_unique', section: 'marketing', type: 'long',
+    q: 'מה מייחד את הנכס לעומת נכסים אחרים באזור?', en_q: 'What sets it apart from other properties in the area?',
+    ph: 'לא חובה', en_ph: 'Optional' },
+  { id: 'm_nearby', section: 'marketing', type: 'multi',
+    q: 'מה יש במרחק הליכה?', en_q: 'What is within walking distance?',
+    opts: [
+      o('schools',  'בתי ספר וגני ילדים',    'Schools and kindergartens'),
+      o('transit',  'תחבורה ציבורית',        'Public transport'),
+      o('train',    'תחנת רכבת',             'Train station'),
+      o('shops',    'מרכזי קניות',           'Shopping centers'),
+      o('parks',    'פארקים',                'Parks'),
+      o('cafes',    'בתי קפה ומסעדות',       'Cafés and restaurants'),
+      o('synagogue','בתי כנסת',              'Synagogues'),
+      o('highways', 'כבישים ראשיים',         'Main roads'),
+      o('beach',    'ים',                    'Beach'),
+      o('clinics',  'מרפאות',                'Clinics'),
+    ] },
+  { id: 'm_fit', section: 'marketing', type: 'multi',
+    q: 'למי הנכס מתאים במיוחד?', en_q: 'Who is the property ideal for?',
+    opts: [
+      o('family',    'משפחות',            'Families'),
+      o('couple',    'זוגות צעירים',      'Young couples'),
+      o('investors', 'משקיעים',           'Investors'),
+      o('retirees',  'גיל השלישי',        'Retirees'),
+      o('upgraders', 'משפרי דיור',        'Upgraders'),
+      o('singles',   'רווקים/ות',         'Singles'),
+      o('other',     'אחר',               'Other'),
+    ] },
+  { id: 'm_why', section: 'marketing', type: 'choice',
+    q: 'למה מוכרים?', en_q: 'Why are you selling?',
+    help: 'עוזר לנו להתאים את האסטרטגיה — לא מתפרסם', en_help: 'Helps us tailor the strategy. Never published',
+    opts: [
+      o('upgrade',     'שדרוג לנכס גדול יותר',     'Upgrading to a larger property'),
+      o('downsize',    'הקטנה',                    'Downsizing'),
+      o('relocate',    'מעבר לעיר אחרת / חו״ל',    'Relocating to another city / abroad'),
+      o('investment',  'מימוש השקעה',              'Cashing in an investment'),
+      o('inheritance', 'ירושה',                    'Inheritance'),
+      o('other',       'אחר',                      'Other'),
+      o('private',     'מעדיף/ה לא לשתף',          'Prefer not to say'),
+    ] },
+  { id: 'm_story', section: 'marketing', type: 'long',
+    q: 'יש סיפור או פרט מיוחד שכדאי להדגיש בפרסום?', en_q: 'Any story or special detail worth highlighting?',
+    ph: 'לא חובה', en_ph: 'Optional' },
+
+  // ═══════════════════ 9. MEDIA ═════════════════════════════════════════════
+  { id: 'u_intro', section: 'media', type: 'intro' },
+  { id: 'u_photos', section: 'media', type: 'upload', kind: 'photos', accept: 'image/*', maxMB: 25,
+    q: 'תמונות של הנכס', en_q: 'Photos of the property',
+    help: 'תמונות עדכניות של כל חדר, באור יום, ישר מהטלפון. אפשר להעלות עד 40 תמונות', en_help: 'Recent photos of every room in daylight, straight from your phone. Up to 40 photos',
+    max: 40 },
+  { id: 'u_videos', section: 'media', type: 'upload', kind: 'videos', accept: 'video/*', maxMB: 200,
+    q: 'סרטונים', en_q: 'Videos',
+    help: 'סרטון קצר של הנכס, המרפסת, הגג או הגינה. אפשר גם לשלוח אחר כך בוואטסאפ', en_help: 'A short video of the property, balcony, roof or garden. You can also send it later via WhatsApp',
+    max: 5 },
+  { id: 'u_plan', section: 'media', type: 'upload', kind: 'plan', accept: 'image/*,application/pdf', maxMB: 25,
+    q: 'תוכנית הדירה / הבית', en_q: 'Floor plan',
+    help: 'צילום או קובץ PDF של התוכנית, אם קיים', en_help: 'A photo or PDF of the plan, if available',
+    max: 5 },
+  { id: 'u_docs', section: 'media', type: 'upload', kind: 'docs', accept: 'image/*,application/pdf', maxMB: 25,
+    q: 'מסמכי הנכס', en_q: 'Property documents',
+    help: 'בחרו סוג מסמך ואז העלו. כל מסמך שמראה שטחים או זכויות עוזר לנו לשווק מדויק', en_help: 'Pick a document type, then upload. Anything that shows areas or rights helps us market accurately',
+    max: 20,
+    tags: [
+      o('tabu',    'נסח טאבו / אישור זכויות', 'Tabu extract / rights confirmation'),
+      o('arnona',  'ארנונה',                  'Arnona (municipal tax)'),
+      o('vaad',    'חשבון ועד בית',            'Building committee bill'),
+      o('spec',    'מפרט טכני',                'Technical specification'),
+      o('permit',  'היתר בנייה',               'Building permit'),
+      o('parking', 'מסמכי חניה / מחסן',        'Parking / storage documents'),
+      o('id',      'תעודת זהות / ייפוי כוח',   'ID / power of attorney'),
+      o('other',   'אחר',                      'Other'),
+    ] },
+
+  // ═══════════════════ 10. REVIEW ═══════════════════════════════════════════
+  { id: 'r_review', section: 'review', type: 'review' },
+]
+
+// ── visibility / validation ──────────────────────────────────────────────────
+export const visibleSteps = a => STEPS.filter(s => !s.showIf || s.showIf(a))
+export const visibleFields = (step, a) => (step.fields || []).filter(f => !f.showIf || f.showIf(a))
+export const visibleRows = (step, a) => (step.rows || []).filter(r => !r.showIf || r.showIf(a))
+
+const PHONE_RE = /^(\+?972[-\s]?|0)(5\d|7\d|[2-4]|8|9)[-\s]?\d{3}[-\s]?\d{4}$/
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
+export const isValidPhone = v => PHONE_RE.test(String(v || '').trim())
+export const isValidEmail = v => EMAIL_RE.test(String(v || '').trim())
+
+export const VALIDATION_MSG = {
+  he: { required: 'זה שדה חובה — נצטרך את התשובה כדי להמשיך', phone: 'נראה שמספר הטלפון לא תקין', email: 'כתובת האימייל לא נראית תקינה', matrix: 'סמנו תשובה לכל השורות', choose: 'בחרו אפשרות אחת כדי להמשיך', group: 'השלימו את השדות המסומנים', number: 'הזינו מספר תקין' },
+  en: { required: 'This field is required to continue', phone: 'That phone number does not look right', email: 'That e-mail address does not look valid', matrix: 'Please answer every row', choose: 'Pick one option to continue', group: 'Please complete the highlighted fields', number: 'Enter a valid number' },
+}
+
+const isBlank = v => v === undefined || v === null || String(v).trim() === ''
+
+// Returns null when the step is valid, otherwise a message key from VALIDATION_MSG
+export function validateStep(step, a) {
+  const v = a[step.id]
+  switch (step.type) {
+    case 'text': case 'long': case 'date':
+      return step.required && isBlank(v) ? 'required' : null
+    case 'number':
+      if (step.required && isBlank(v)) return 'required'
+      if (!isBlank(v) && Number.isNaN(Number(v))) return 'number'
+      return null
+    case 'phone':
+      if (isBlank(v)) return step.required ? 'required' : null
+      return isValidPhone(v) ? null : 'phone'
+    case 'email':
+      if (isBlank(v)) return step.required ? 'required' : null
+      return isValidEmail(v) ? null : 'email'
+    case 'choice':
+      return step.required && isBlank(v) ? 'choose' : null
+    case 'multi':
+      return step.required && !(Array.isArray(v) && v.length) ? 'choose' : null
+    case 'counter':
+      return null
+    case 'toggles':
+      return null
+    case 'group': {
+      const bad = visibleFields(step, a).some(f => {
+        const req = typeof f.required === 'function' ? f.required(a) : f.required
+        return req && isBlank(v?.[f.k])
+      })
+      return bad ? 'group' : null
+    }
+    case 'matrix': {
+      if (!step.required) return null
+      const missing = visibleRows(step, a).some(r => isBlank(v?.[r.k]))
+      return missing ? 'matrix' : null
+    }
+    default:
+      return null
+  }
+}
+
+export function groupInvalidFields(step, a) {
+  const v = a[step.id] || {}
+  return visibleFields(step, a).filter(f => {
+    const req = typeof f.required === 'function' ? f.required(a) : f.required
+    return req && isBlank(v?.[f.k])
+  }).map(f => f.k)
+}
+
+// ── human-readable summary (review screen, e-mail, WhatsApp, admin) ──────────
+const L = (item, lang) => (lang === 'en' ? (item.en ?? item.l) : item.l)
+const optLabel = (step, val, lang) => {
+  const opt = (step.opts || step.scale || []).find(x => x.v === val)
+  return opt ? L(opt, lang) : String(val ?? '')
+}
+export const fmtNum = (n, lang) => {
+  if (isBlank(n) || Number.isNaN(Number(n))) return String(n ?? '')
+  return Number(n).toLocaleString(lang === 'en' ? 'en-US' : 'he-IL')
+}
+const yesNo = (b, lang) => (lang === 'en' ? (b ? 'Yes' : 'No') : (b ? 'כן' : 'לא'))
+
+// Short labels for the review screen, e-mail and admin sheet (questions are
+// conversational; summaries want nouns). Falls back to the question text.
+const SHORT = {
+  c_name: ['שם מלא', 'Full name'], c_phone: ['טלפון', 'Phone'], c_email: ['אימייל', 'E-mail'], c_role: ['הקשר לנכס', 'Relationship to property'],
+  c_extra: ['איש קשר נוסף', 'Additional contact'], c_hours: ['שעות נוחות לשיחה', 'Preferred call hours'], c_privacy: ['פרטיות בפרסום', 'Listing privacy'],
+  p_type: ['סוג הנכס', 'Property type'], p_address: ['כתובת', 'Address'], p_floor: ['קומה', 'Floor'], p_year: ['שנת בנייה', 'Year built'],
+  p_state: ['מצב כללי', 'Overall state'], p_rooms: ['חדרים', 'Rooms'], p_baths: ['חדרי רחצה ושירותים', 'Bathrooms and toilets'], p_area: ['שטחים', 'Areas'],
+  p_directions: ['כיווני אוויר', 'Facing directions'], p_view: ['נוף', 'View'],
+  f_rooms: ['חללים וחדרים', 'Spaces'], f_storage_size: ['גודל מחסן', 'Storage size'], f_kitchen: ['מטבח', 'Kitchen'], f_island: ['אי במטבח', 'Kitchen island'],
+  f_parking: ['חניות', 'Parking spaces'], f_parking_type: ['סוג חניה', 'Parking type'], f_access: ['מעליות ונגישות', 'Elevators and accessibility'],
+  f_climate: ['מיזוג', 'Air conditioning'], f_water: ['חימום מים', 'Water heating'], f_systems: ['מערכות ותוספות', 'Systems and extras'],
+  f_furniture: ['ריהוט', 'Furniture'], f_furniture_detail: ['מה נשאר בנכס', 'What stays'],
+  k_renovated: ['שופץ', 'Renovated'], k_reno_year: ['שנת שיפוץ', 'Renovation year'], k_reno_what: ['מה שופץ', 'What was renovated'], k_matrix: ['דירוג מצב', 'Condition ratings'],
+  k_defects: ['ליקויים ידועים', 'Known defects'], k_defects_detail: ['פירוט ליקויים', 'Defect details'], k_moisture: ['רטיבות / נזילות', 'Moisture / leaks'],
+  k_investment: ['השקעה לפני כניסה', 'Investment before move-in'], k_occupancy: ['מי בנכס כיום', 'Current occupancy'], k_lease: ['פרטי שכירות', 'Lease details'],
+  b_numbers: ['נתוני הבניין', 'Building figures'], b_amenities: ['מה יש בבניין', 'Building amenities'], b_fees: ['תשלומים חודשיים', 'Monthly fees'],
+  b_renovation: ['שיפוץ בבניין', 'Building renovation'], b_tama: ['התחדשות עירונית', 'Urban renewal'], b_tama_detail: ['שלב התהליך', 'Process stage'],
+  l_owners: ['בעלי הזכויות', 'Rights holders'], l_more_owners: ['בעלים נוספים', 'Other owners'], l_more_owners_detail: ['פירוט בעלים נוספים', 'Other owners details'],
+  l_rights: ['סוג הרישום', 'Registration type'], l_matrix: ['מצב משפטי', 'Legal status'], l_mortgage: ['יתרת משכנתא', 'Remaining mortgage'], l_notes: ['הערות משפטיות', 'Legal notes'],
+  d_ask: ['מחיר מבוקש', 'Asking price'], d_flex: ['גמישות במחיר', 'Price flexibility'], d_min: ['מחיר מינימום (פנימי)', 'Minimum price (internal)'],
+  d_vacate: ['מועד מסירה', 'Handover'], d_vacate_flex: ['גמישות במסירה', 'Handover flexibility'], d_alt: ['תלות בנכס חלופי', 'Depends on buying another property'],
+  d_offers: ['פתיחות להצעות', 'Openness to offers'], d_buyer: ['העדפות קונה / תנאים', 'Buyer / terms preferences'],
+  m_pros: ['יתרונות', 'Advantages'], m_unique: ['מה מייחד', 'What sets it apart'], m_nearby: ['במרחק הליכה', 'Within walking distance'], m_fit: ['מתאים ל', 'Ideal for'],
+  m_why: ['סיבת המכירה', 'Reason for selling'], m_story: ['סיפור / דגש לפרסום', 'Story / highlight'],
+  u_photos: ['תמונות', 'Photos'], u_videos: ['סרטונים', 'Videos'], u_plan: ['תוכנית', 'Floor plan'], u_docs: ['מסמכים', 'Documents'],
+}
+export function stepLabel(step, lang) {
+  const s = SHORT[step.id]
+  if (lang === 'en') return s?.[1] || step.en_q || step.q || ''
+  return s?.[0] || step.q || ''
+}
+
+export function stepValueText(step, a, lang) {
+  const v = a[step.id]
+  if (v === undefined || v === null || v === '') return ''
+  switch (step.type) {
+    case 'text': case 'long': case 'phone': case 'email': case 'date':
+      return String(v)
+    case 'number': {
+      const unit = lang === 'en' ? (step.en_unit || step.unit || '') : (step.unit || '')
+      return `${fmtNum(v, lang)}${unit ? ' ' + unit : ''}`
+    }
+    case 'choice':
+      return optLabel(step, v, lang)
+    case 'multi':
+      return Array.isArray(v) && v.length ? v.map(x => optLabel(step, x, lang)).join(', ') : ''
+    case 'counter':
+      return visibleRows(step, a).filter(r => !isBlank(v?.[r.k])).map(r => `${L(r, lang)}: ${fmtNum(v[r.k], lang)}`).join(' · ')
+    case 'toggles':
+      return visibleRows(step, a).map(r => `${L(r, lang)}: ${yesNo(!!v?.[r.k], lang)}`).join(' · ')
+    case 'group':
+      return visibleFields(step, a).filter(f => !isBlank(v?.[f.k])).map(f => {
+        const unit = lang === 'en' ? (f.en_unit || f.unit || '') : (f.unit || '')
+        const val = f.type === 'number' ? fmtNum(v[f.k], lang) : v[f.k]
+        return `${L(f, lang)}: ${val}${unit ? ' ' + unit : ''}`
+      }).join(' · ')
+    case 'matrix':
+      return visibleRows(step, a).filter(r => !isBlank(v?.[r.k])).map(r => `${L(r, lang)}: ${optLabel(step, v[r.k], lang)}`).join(' · ')
+    case 'upload':
+      return Array.isArray(v) && v.length
+        ? (lang === 'en' ? `${v.length} file${v.length > 1 ? 's' : ''}` : `${v.length} קבצים`)
+        : ''
+    default:
+      return ''
+  }
+}
+
+// [{ section, title, items: [{ id, label, value }] }] — only answered, visible steps
+export function buildSummary(a, lang = 'he') {
+  const steps = visibleSteps(a)
+  return SECTIONS.filter(s => s.id !== 'review').map(sec => {
+    const items = steps
+      .filter(st => st.section === sec.id && !['intro', 'review'].includes(st.type))
+      .map(st => ({ id: st.id, label: stepLabel(st, lang), value: stepValueText(st, a, lang), type: st.type }))
+      .filter(it => it.value)
+    return { section: sec.id, title: lang === 'en' ? sec.en : sec.title, items }
+  }).filter(sec => sec.items.length)
+}
+
+// One-line headline used in notifications and the admin list
+export function headline(a, lang = 'he') {
+  const type = STEPS.find(s => s.id === 'p_type')
+  const t = a.p_type ? optLabel(type, a.p_type, lang) : ''
+  const addr = a.p_address || {}
+  const where = [addr.street, addr.number].filter(Boolean).join(' ')
+  const city = addr.city || ''
+  const rooms = a.p_rooms?.rooms ? (lang === 'en' ? `${a.p_rooms.rooms} rooms` : `${a.p_rooms.rooms} חדרים`) : ''
+  return [t, rooms, [where, city].filter(Boolean).join(', ')].filter(Boolean).join(' · ')
+}
+
+export const PROPERTY_TYPE_LABEL = (v, lang = 'he') => optLabel(STEPS.find(s => s.id === 'p_type'), v, lang)
+
+export const DOC_TAG_LABEL = (v, lang = 'he') => {
+  const step = STEPS.find(s => s.id === 'u_docs')
+  const t = (step.tags || []).find(x => x.v === v)
+  return t ? L(t, lang) : (v || '')
+}
+
+export const SCHEMA_VERSION = 1

@@ -48,6 +48,9 @@
     },
     "api/meta.js": {
       "maxDuration": 30
+    },
+    "api/seller-form.js": {
+      "maxDuration": 30
     }
   },
   "rewrites": [

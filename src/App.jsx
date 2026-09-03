@@ -42,6 +42,7 @@ const DARK_C  = { bg:'#09090F', purple:'#8490D8', green:'#82F67F', cream:'#E8E4D
 const LIGHT_C = { bg:'#F5F1E9', purple:'#3F4EB0', green:'#1A6818', cream:'#141420', card:'#FDFCF8' }
 const TR = {
   he: {
+    sellCta: 'מוכרים נכס? טופס שיווק',
     nav: { home:'ראשי', ceo:'המנכ״ל', story:'הסיפור', process:'תהליך', services:'שירותים', testimonials:'לקוחות', properties:'נכסים', news:'מה חדש', faq:'שאלות נפוצות', about:'אודות', contact:'צרו קשר' },
     heroBadge:'מומחים בשיווק ותיווך · השרון והמרכז',
     heroH1line1:'הבית הבא שלכם', heroH1line2:'מתחיל כאן',
@@ -145,6 +146,7 @@ const TR = {
     language: 'שפה',
   },
   en: {
+    sellCta: 'Selling a property? Marketing form',
     nav: { home:'Home', ceo:'CEO', story:'Story', process:'Process', services:'Services', testimonials:'Clients', properties:'Properties', news:'News', faq:'FAQ', about:'About', contact:'Contact' },
     heroBadge:'Experts in Marketing & Brokerage · Sharon & Center',
     heroH1line1:'Your Next Home', heroH1line2:'Starts Here',
@@ -5406,6 +5408,20 @@ export default function App() {
                 >
                   <FaCalculator size={15}/> מחשבון נדל״ן
                 </button>
+                {/* Seller intake form CTA — opens the standalone /sell page */}
+                <a href="/sell"
+                  style={{
+                    display:'flex', alignItems:'center', justifyContent:'center', gap:10,
+                    width:'100%', marginTop:8, padding:'13px 18px',
+                    border:`1.5px solid ${C.purple}55`, borderRadius:14,
+                    background:'transparent', color:C.cream, textDecoration:'none',
+                    fontFamily:'inherit', fontWeight:700, fontSize:14.5, letterSpacing:'.02em', transition:'all .22s',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor=C.purple; e.currentTarget.style.background=`${C.purple}18`; e.currentTarget.style.color=C.purple }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor=`${C.purple}55`; e.currentTarget.style.background='transparent'; e.currentTarget.style.color=C.cream }}
+                >
+                  <FaHome size={14}/> {TR[lang]?.sellCta || TR.he.sellCta}
+                </a>
               </div>
 
               <div className="nav-panel-links">

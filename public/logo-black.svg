@@ -1,0 +1,15 @@
+<svg viewBox="0 0 924 860" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Afik Hanachal Real Estate">
+  <!-- A -->
+  <line x1="344" y1="150" x2="136" y2="656" stroke="#0B0B0F" stroke-width="16"/>
+  <line x1="344" y1="150" x2="552" y2="656" stroke="#0B0B0F" stroke-width="16"/>
+  <line x1="222" y1="496" x2="470" y2="496" stroke="#0B0B0F" stroke-width="16"/>
+  <!-- H -->
+  <line x1="438" y1="150" x2="438" y2="656" stroke="#0B0B0F" stroke-width="16"/>
+  <line x1="788" y1="150" x2="788" y2="656" stroke="#0B0B0F" stroke-width="16"/>
+  <line x1="438" y1="400" x2="788" y2="400" stroke="#0B0B0F" stroke-width="16"/>
+  <!-- Wordmark -->
+  <text x="462" y="756" fill="#0B0B0F" font-family="Heebo, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="46" font-weight="300" letter-spacing="9" text-anchor="middle">AFIK HANACHAL</text>
+  <line x1="272" y1="808" x2="318" y2="808" stroke="#0B0B0F" stroke-width="3"/>
+  <text x="462" y="818" fill="#0B0B0F" font-family="Heebo, 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="28" font-weight="400" letter-spacing="7" text-anchor="middle">REAL ESTATE</text>
+  <line x1="606" y1="808" x2="652" y2="808" stroke="#0B0B0F" stroke-width="3"/>
+</svg>

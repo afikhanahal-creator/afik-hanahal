@@ -1,4 +1,4 @@
-import { StrictMode, Component } from 'react'
+import { StrictMode, Component, lazy, Suspense } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App.jsx'
 import AccessibilityPage from './AccessibilityPage.jsx'
@@ -52,12 +52,18 @@ class ErrorBoundary extends Component {
   }
 }
 
-const isAccessibilityPage = window.location.pathname.replace(/\/$/, '') === '/accessibility'
+const cleanPath = window.location.pathname.replace(/\/$/, '')
+const isAccessibilityPage = cleanPath === '/accessibility'
+// Public seller intake form (Typeform-style) — its own chunk, never loaded by the main site.
+const isSellerForm = cleanPath === '/sell' || cleanPath === '/seller-form'
+const SellerForm = lazy(() => import('./SellerForm.jsx'))
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <ErrorBoundary>
-      {isAccessibilityPage ? <AccessibilityPage /> : <App />}
+      {isSellerForm
+        ? <Suspense fallback={<div style={{ minHeight: '100vh', background: '#fff' }}/>}><SellerForm /></Suspense>
+        : isAccessibilityPage ? <AccessibilityPage /> : <App />}
     </ErrorBoundary>
   </StrictMode>,
 )

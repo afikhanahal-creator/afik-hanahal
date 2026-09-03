@@ -5,11 +5,13 @@
 // dynamic→static cycle, which is safe: by the time this chunk evaluates, App.jsx already has.
 import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react'
 import { LAYERS_DEF as GM_LAYERS, BG_OPTIONS as GM_BG_OPTIONS, LAYER_CATS_DEF as GM_LAYER_CATS } from './govmapLayers.js'
-import { FaEnvelope, FaFacebookF, FaInstagram, FaBed, FaRulerCombined, FaBuilding, FaTools, FaMapMarkerAlt, FaPhone, FaLeaf, FaCalendarAlt, FaTimes, FaWhatsapp, FaFileAlt, FaHome, FaSearch, FaBalanceScale, FaHandshake, FaLock, FaKey, FaGlobe, FaBolt, FaChartLine, FaEye, FaPlay, FaFire, FaShareAlt, FaHeart, FaCamera, FaUser, FaUsers, FaDesktop, FaMobileAlt, FaTabletAlt, FaRobot, FaExclamationTriangle, FaChartBar, FaThumbsUp, FaImage, FaPencilAlt, FaCrown, FaMousePointer, FaDollarSign, FaVideo, FaLink, FaCheckCircle, FaTrash } from 'react-icons/fa'
+import { FaEnvelope, FaFacebookF, FaInstagram, FaBed, FaRulerCombined, FaBuilding, FaTools, FaMapMarkerAlt, FaPhone, FaLeaf, FaCalendarAlt, FaTimes, FaWhatsapp, FaFileAlt, FaHome, FaSearch, FaBalanceScale, FaHandshake, FaLock, FaKey, FaGlobe, FaBolt, FaChartLine, FaEye, FaPlay, FaFire, FaShareAlt, FaHeart, FaCamera, FaUser, FaUsers, FaDesktop, FaMobileAlt, FaTabletAlt, FaRobot, FaExclamationTriangle, FaChartBar, FaThumbsUp, FaImage, FaPencilAlt, FaCrown, FaMousePointer, FaDollarSign, FaVideo, FaLink, FaCheckCircle, FaTrash, FaClipboardList } from 'react-icons/fa'
+// Seller intake submissions (from the public /sell form) — lazy, admin-only
+const SellerSubmissionsTab = lazy(() => import('./SellerSubmissionsTab.jsx'))
 import { LeadsBoard, GreenAPIChat, MetaLeadsTab, SupermetricsTab, PropertyWizard, API_BASE, CONTACTS_API, ADMIN_TOKEN, DARK_C, useTheme, TEAM, G, Logo, LEADS_STORE, LEADS_DELETED, LEADS_TRASH, ANALYTICS_KEY, META_LEAD_PAGES_KEY, WA_DEFAULT_TEMPLATE, _cloudSettings, CATEGORIES, EMPTY_PROP, CONDITION_OPTIONS, ENTRY_OPTIONS, ADMIN_DRAFT_KEY, toMapsEmbed, imgFallback, thumbImg, TEAM_KEY, setCloudSettings } from './App.jsx'
 
 // Tab ↔ URL deep-link mapping (module-level so both AdminPanel and main app can use it)
-const ADMIN_TAB_TO_PATH = { overview:'', props:'properties', leads:'leads', chats:'chats', meta:'lead-center', analytics:'analytics', supermetrics:'performance', team:'team', settings:'settings', counters:'counters', live:'live' }
+const ADMIN_TAB_TO_PATH = { overview:'', props:'properties', leads:'leads', sellers:'seller-forms', chats:'chats', meta:'lead-center', analytics:'analytics', supermetrics:'performance', team:'team', settings:'settings', counters:'counters', live:'live' }
 const ADMIN_PATH_TO_TAB = Object.fromEntries(Object.entries(ADMIN_TAB_TO_PATH).map(([k,v])=>[v,k]))
 
 // ─── LOGO UPLOAD (single image, compressed) ──────────────────────────────────
@@ -2657,6 +2659,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
     { id:'live',     Icon:FaCheckCircle, label:'באוויר',      badge: publishedList.length, live:true },
     { id:'props',    Icon:FaBuilding,    label:'ניהול נכסים' },
     { id:'leads',    Icon:FaHandshake,   label:'לידים',       badge: leads.length },
+    { id:'sellers',  Icon:FaClipboardList, label:'טפסי מוכרים' },
     { id:'chats',    Icon:FaWhatsapp,    label:'צ\'אטים',     badge: chatsUnread },
     { id:'analytics',    Icon:FaChartLine,   label:'אנליטיקס' },
     { id:'supermetrics', Icon:FaChartBar,   label:'ביצועים' },
@@ -2664,7 +2667,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
     { id:'counters', Icon:FaBalanceScale,label:'מונים' },
     { id:'settings', Icon:FaTools,       label:'הגדרות' },
   ]
-  const TAB_LABELS = { overview:'סקירה כללית', live:'נכסים באוויר', props:'ניהול נכסים', leads:'לידים', chats:'שיחות WhatsApp', meta:'מרכז מטא', analytics:'אנליטיקס', supermetrics:'ביצועים', team:'צוות', counters:'מונים', settings:'הגדרות' }
+  const TAB_LABELS = { overview:'סקירה כללית', live:'נכסים באוויר', props:'ניהול נכסים', leads:'לידים', sellers:'טפסי מוכרים', chats:'שיחות WhatsApp', meta:'מרכז מטא', analytics:'אנליטיקס', supermetrics:'ביצועים', team:'צוות', counters:'מונים', settings:'הגדרות' }
 
   return (
     <div className="admin-shell admin-scroll" style={standalone
@@ -3357,6 +3360,13 @@ Return ONLY valid JSON (no markdown, no code blocks):
           <Suspense fallback={<AdminTabLoader label="טוען ביצועים…"/>}>
             <SupermetricsTab C={C} lang={lang}/>
           </Suspense>
+        )}
+        {tab==='sellers' && (
+          <div style={{ height:'100%', minHeight:'calc(100vh - 180px)' }}>
+            <Suspense fallback={<AdminTabLoader label="טוען טפסי מוכרים…"/>}>
+              <SellerSubmissionsTab C={C}/>
+            </Suspense>
+          </div>
         )}
         {tab==='team' && <TeamTab C={C} isDark={isDark}/>}
 
