@@ -132,10 +132,11 @@ export const STEPS = [
       { k: 'entrance',     l: 'כניסה',         en: 'Entrance',       type: 'text', half: true, showIf: a => !isHouse(a) },
       { k: 'apt',          l: 'מספר דירה',     en: 'Apartment no.',  type: 'text', half: true, showIf: a => !isHouse(a) },
     ] },
-  { id: 'p_rooms', section: 'property', type: 'choice', required: true, grid: true, compact: true, showIf: a => !isLand(a),
+  { id: 'p_rooms', section: 'property', type: 'choice', required: true, select: true, showIf: a => !isLand(a),
     q: 'כמה חדרים בנכס?', en_q: 'How many rooms does the property have?',
     help: 'לפי הספירה הישראלית: סלון נחשב חדר', en_help: 'Israeli count: the living room counts as a room',
-    opts: ['1', '1.5', '2', '2.5', '3', '3.5', '4', '4.5', '5', '5.5', '6', '6.5', '7', '8+'].map(v => o(v, v, v)) },
+    opts: ['1', '1.5', '2', '2.5', '3', '3.5', '4', '4.5', '5', '5.5', '6', '6.5', '7', '7.5', '8', '8.5', '9', '9.5', '10', '10+']
+      .map(v => o(v, v === '1' ? 'חדר אחד' : v === '10+' ? '10 חדרים ומעלה' : `${v} חדרים`, v === '1' ? '1 room' : v === '10+' ? '10+ rooms' : `${v} rooms`)) },
   { id: 'p_floor', section: 'property', type: 'group', required: true, showIf: a => !isHouse(a),
     q: 'באיזו קומה הנכס?', en_q: 'Which floor is the property on?',
     fields: [
