@@ -31,7 +31,7 @@ const T = {
     brand: 'אפיק הנחל', tagline: 'ייזום · שיווק · תיווך',
     welcomeKicker: 'אפיק הנחל · ייזום, שיווק ותיווך נדל״ן',
     welcomeTitle: 'בואו נכיר את הנכס שלכם',
-    welcomeSub: 'ספרו לנו על הנכס בכמה דקות. אנחנו באפיק הנחל נשתמש בכל פרט כדי לתמחר נכון, לדייק את השיווק ולהציג את הנכס בצורה הטובה ביותר לקונים או לשוכרים המתאימים.',
+    welcomeSub: 'שאלון קצר של כ־10 דקות שעוזר לנו להכיר את הנכס ולשווק אותו נכון.',
     bul1: 'כ־10 דקות', bul2: 'נשמר אוטומטית', bul3: 'פרטי ומאובטח',
     how1: 'אתם מספרים', how1s: 'עונים על שאלות קצרות, בקצב שלכם', how2: 'אנחנו בונים תיק נכס', how2s: 'סיכום מסודר וסיפור נכס מוכן לשיווק', how3: 'יוצאים לשיווק', how3s: 'נחזור אליכם תוך יום עסקים עם תוכנית פעולה',
     ctaNote: 'בסיום תקבלו סיכום מסודר של הנכס וקישור לשיתוף עם בני המשפחה.',
@@ -66,7 +66,7 @@ const T = {
     brand: 'Afik Hanahal', tagline: 'Development · Marketing · Brokerage',
     welcomeKicker: 'Afik Hanahal · Real estate development, marketing and brokerage',
     welcomeTitle: "Let's get to know your property",
-    welcomeSub: 'Tell us about the property in a few minutes. We at Afik Hanahal will use every detail to price it right, sharpen the marketing and present it at its best to the right buyers or tenants.',
+    welcomeSub: 'A short questionnaire, about 10 minutes, that helps us get to know the property and market it right.',
     bul1: 'About 10 minutes', bul2: 'Auto-saved', bul3: 'Private and secure',
     how1: 'You tell us', how1s: 'Short questions, at your own pace', how2: 'We build the property file', how2s: 'An organised summary and a marketing-ready property story', how3: 'We go to market', how3s: 'We get back to you within one business day with a plan',
     ctaNote: 'At the end you get an organised summary of the property and a link to share with your family.',
@@ -331,12 +331,12 @@ textarea.sf-input { resize:none; line-height:1.5; font-size:clamp(17px,2vw,22px)
 .sf-welcome { text-align:center; max-width:620px; margin:0 auto; }
 .sf-welcome .logo { height:130px; width:auto; margin:0 auto 18px; display:block; }
 .sf-kicker { display:inline-block; font-size:12px; font-weight:700; letter-spacing:.16em; text-transform:uppercase; color:var(--deep); background:var(--tint2); border-radius:4px; padding:5px 12px; margin-bottom:16px; }
-.sf-welcome h1 { font-size:clamp(28px, 4.6vw, 40px); font-weight:700; margin:0 0 12px; letter-spacing:-.01em; line-height:1.2; }
-.sf-welcome p { font-size:17px; color:var(--ink2); line-height:1.6; margin:0 auto; max-width:520px; }
+.sf-welcome h1 { font-size:clamp(30px, 4.8vw, 42px); font-weight:700; margin:0 0 12px; letter-spacing:-.01em; line-height:1.2; }
+.sf-welcome p { font-size:18px; color:var(--ink2); line-height:1.6; margin:0 auto; max-width:460px; }
 .sf-bullets { display:flex; justify-content:center; gap:20px; flex-wrap:wrap; margin:22px 0 28px; }
 .sf-bullets span { display:inline-flex; align-items:center; gap:8px; font-size:13.5px; color:var(--ink2); }
 .sf-bullets span i { width:7px; height:7px; border-radius:50%; background:var(--deep); display:inline-block; }
-.sf-welcome-actions { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin-top:22px; }
+.sf-welcome-actions { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin-top:28px; }
 .sf-how { list-style:none; margin:24px auto 0; padding:0; display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:10px; max-width:640px; text-align:start; }
 .sf-how li { display:flex; gap:10px; align-items:flex-start; background:var(--paper); border:1px solid var(--line); border-radius:12px; padding:13px 14px; }
 .sf-how li i { flex:none; width:26px; height:26px; border-radius:50%; background:var(--tint2); color:var(--deep); font-style:normal; font-weight:700; font-size:12.5px; display:inline-flex; align-items:center; justify-content:center; }
@@ -863,24 +863,14 @@ function Welcome({ t, lang, draft, onStart, onResume, loading }) {
   return (
     <div className="sf-welcome">
       <img className="logo" src={LOGO_SRC} alt={t.brand}/>
-      <span className="sf-kicker">{t.welcomeKicker}</span>
       <h1>{t.welcomeTitle}</h1>
       <p>{t.welcomeSub}</p>
-      <div className="sf-bullets">
-        <span><i/>{t.bul1}</span><span><i/>{t.bul2}</span><span><i/>{t.bul3}</span>
-      </div>
-      <ol className="sf-how">
-        <li><i>1</i><div><b>{t.how1}</b><span>{t.how1s}</span></div></li>
-        <li><i>2</i><div><b>{t.how2}</b><span>{t.how2s}</span></div></li>
-        <li><i>3</i><div><b>{t.how3}</b><span>{t.how3s}</span></div></li>
-      </ol>
       {hasDraft && <div className="sf-draftbox"><IcoWarn/>{t.savedDraft}</div>}
       <div className="sf-welcome-actions">
         {hasDraft
           ? <><button className="sf-btn big" onClick={onResume} data-autofocus>{t.resume}<IcoFwd/></button><button className="sf-btn big ghost" onClick={onStart}>{t.restart}</button></>
           : <button className="sf-btn big" onClick={onStart} data-autofocus>{t.start}<IcoFwd/></button>}
       </div>
-      <p className="sf-cta-note">{t.ctaNote}</p>
     </div>
   )
 }
