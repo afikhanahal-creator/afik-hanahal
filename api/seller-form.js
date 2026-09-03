@@ -30,7 +30,7 @@
 // WA_GREENAPI_TOKEN, BUSINESS_NOTIFY_CHATID.
 // One-time SQL: server/seller-submissions-migration.sql
 import { createClient } from '@supabase/supabase-js'
-import { buildSummary, headline, PROPERTY_TYPE_LABEL, DOC_TAG_LABEL, publicAnswers, buildStory, storyText, directionsText, STEPS, INTAKE_STATUSES } from '../src/sellerFormSchema.js'
+import { buildSummary, headline, PROPERTY_TYPE_LABEL, DOC_TAG_LABEL, publicAnswers, buildStory, storyText, directionsText, STEPS, INTAKE_STATUSES, purposeOf } from '../src/sellerFormSchema.js'
 
 const SUPA_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
 const SUPA_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY
@@ -124,6 +124,7 @@ const summaryFields = a => {
     address: [addr.street, addr.number, addr.apt ? `דירה ${addr.apt}` : null].filter(Boolean).join(' ') || null,
     property_type: a?.p_type || null,
     asking_price: num(a?.d_ask),
+    purpose: purposeOf(a || {}),
   }
 }
 
@@ -206,12 +207,14 @@ function buildSiteProperty(row, media) {
   const marketing = [a.m_pros, a.m_unique, a.m_love, a.m_story].filter(Boolean).join('\n\n')
   const has = (arr, v) => Array.isArray(arr) && arr.includes(v)
   const pk = Number(a.f_parking?.parking || 0)
+  const rental = purposeOf(a) === 'rental'
   return {
     id: row.published_property_id || `intake-${row.sid}`,
     category: ov.category || CATEGORY(a.p_type),
     title: ov.title || `${typeHe}${rooms ? `, ${rooms} חד׳` : ''}${size ? `, ${size} מ"ר` : ''} - ${addr.city || ''}`.trim(),
     type: typeHe,
-    txType: 'sale',
+    txType: rental ? 'rent' : 'sale',
+    purpose: rental ? 'rental' : 'sale',
     location: addr.city || '',
     street: showAddress ? [addr.street, addr.number].filter(Boolean).join(' ') : '',
     neighborhood: addr.neighborhood || '',
@@ -230,9 +233,9 @@ function buildSiteProperty(row, media) {
     buildYear: a.p_year || '',
     houseCommittee: a.b_fees?.vaad ? String(a.b_fees.vaad) : '',
     price,
-    priceDisplay: price ? `₪${price.toLocaleString('he-IL')}` : 'מחיר בפנייה',
+    priceDisplay: price ? `₪${price.toLocaleString('he-IL')}${rental ? ' לחודש' : ''}` : 'מחיר בפנייה',
     priceNegotiable: a.d_flex ? a.d_flex !== 'firm' : false,
-    entryDate: ENTRY_HE[a.d_vacate] || (a.d_vacate ? 'לפי הסכם' : ''),
+    entryDate: rental ? ({ now: 'מיידית', flex: 'כניסה גמישה' }[a.d_timeline] || (a.d_timeline ? 'לפי הסכם' : '')) : (ENTRY_HE[a.d_vacate] || (a.d_vacate ? 'לפי הסכם' : '')),
     description: ov.description || marketing,
     // amenities (same keys the wizard / site cards use)
     parking: pk > 0, parkingCount: pk ? String(pk) : '',
@@ -257,7 +260,7 @@ function buildSiteProperty(row, media) {
     videoUrl: media.videos[0]?.url || '',
     contactName: showPhone ? (a.c_name || '') : '',
     contactPhone: showPhone ? (a.c_phone || '') : '',
-    status: 'בשיווק',
+    status: rental ? 'להשכרה' : 'בשיווק',
     published: true,
     source: 'intake',
     intakeRef: row.ref,
@@ -289,7 +292,7 @@ const greenBase = () => { const region = String(GREEN_INSTANCE).slice(0, 4); ret
 async function notifyWhatsApp(row, a) {
   if (!GREEN_INSTANCE || !GREEN_TOKEN) return { ok: false, error: 'Green API not configured' }
   const chatId = NOTIFY_CHATID.includes('@') ? NOTIFY_CHATID : `${toIntlPhone(NOTIFY_CHATID)}@c.us`
-  const lines = ['🏠 *נכס חדש נקלט למכירה!*', '', `📁 תיק: ${row.ref}`, `👤 ${row.contact_name || '—'}`, `📱 ${row.phone ? `https://wa.me/${toIntlPhone(row.phone)}` : '—'}`,
+  const lines = [purposeOf(a) === 'rental' ? '🏠 *נכס חדש נקלט להשכרה!*' : '🏠 *נכס חדש נקלט למכירה!*', '', `📁 תיק: ${row.ref}`, `👤 ${row.contact_name || '—'}`, `📱 ${row.phone ? `https://wa.me/${toIntlPhone(row.phone)}` : '—'}`,
     `🏷 ${headline(a, 'he') || '—'}`, row.asking_price ? `💰 מחיר מבוקש: ${fmtILS(row.asking_price)}` : null, `📎 ${(row.files || []).length} קבצים`,
     `🔗 ${SITE}/admin-panel/properties-intake`, `🕐 ${new Date().toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem' })}`].filter(Boolean)
   try {
@@ -334,7 +337,7 @@ async function publicView(client, row) {
   return {
     ok: true, ref: row.ref, lang: row.lang || 'he', submitted_at: row.submitted_at || row.created_at, status: row.status,
     headline: { he: headline(a, 'he'), en: headline(a, 'en') },
-    property_type: row.property_type, city: row.city,
+    property_type: row.property_type, city: row.city, purpose: purposeOf(a),
     sections: { he: buildSummary(a, 'he'), en: buildSummary(a, 'en') },
     story: { he: buildStory(a, 'he'), en: buildStory(a, 'en') },
     facts: { price: num(a.d_ask), rooms: a.p_rooms || null, built: num(a.p_area?.built), floor: a.p_floor?.floor ?? null, totalFloors: a.p_floor?.totalFloors ?? null, parking: num(a.f_parking?.parking), state: a.p_state || null },
@@ -496,7 +499,7 @@ export default async function handler(req, res) {
         row.form_url = row.sid ? `${SITE}/newproperty?d=${row.sid}` : null
         return res.status(200).json(row)
       }
-      const cols = 'id,ref,sid,status,lang,contact_name,phone,email,city,address,property_type,asking_price,files,notes,created_at,updated_at,submitted_at,draft_updated_at,owner_verified_at,verifications,published_property_id,published_at,share_token'
+      const cols = 'id,ref,sid,status,lang,purpose,contact_name,phone,email,city,address,property_type,asking_price,files,notes,created_at,updated_at,submitted_at,draft_updated_at,owner_verified_at,verifications,published_property_id,published_at,share_token'
       const r = await supaFetch(`/${TABLE}?select=${cols}&order=created_at.desc&limit=1000`)
       if (r.status === 404 || r.status === 406) return res.status(200).json([])
       if (!r.ok) return res.status(r.status).json({ ok: false, error: await r.text().catch(() => '') })

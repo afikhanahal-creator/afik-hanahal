@@ -33,6 +33,7 @@ export default function SellerSubmissionsTab({ C }) {
   const [error, setError] = useState('')
   const [q, setQ] = useState('')
   const [filter, setFilter] = useState('all')
+  const [purpose, setPurpose] = useState('all')
   const [selId, setSelId] = useState(null)
   const [detail, setDetail] = useState(null)
   const [detailLoading, setDetailLoading] = useState(false)
@@ -117,8 +118,9 @@ export default function SellerSubmissionsTab({ C }) {
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase()
     return rows.filter(r => (filter === 'all' ? r.status !== 'draft' : filter === 'draft' ? r.status === 'draft' : filter === 'unverified' ? (r.submitted_at && !r.owner_verified_at) : r.status === filter)
+      && (purpose === 'all' || (r.purpose || 'sale') === purpose)
       && (!s || [r.ref, r.contact_name, r.phone, r.email, r.city, r.address, r.property_type_label].some(x => String(x || '').toLowerCase().includes(s))))
-  }, [rows, q, filter])
+  }, [rows, q, filter, purpose])
   const counts = useMemo(() => rows.reduce((m, r) => { m[r.status] = (m[r.status] || 0) + 1; if (r.submitted_at && !r.owner_verified_at) m.unverified = (m.unverified || 0) + 1; return m }, {}), [rows])
 
   const purple = C?.purple || '#8490D8'
@@ -183,6 +185,11 @@ export default function SellerSubmissionsTab({ C }) {
             </button>
           ))}
         </div>
+        <div style={{ display: 'flex', gap: 5 }}>
+          {[{ v: 'all', l: 'מכירה והשכרה' }, { v: 'sale', l: 'למכירה' }, { v: 'rental', l: 'להשכרה' }].map(x => (
+            <button key={x.v} onClick={() => setPurpose(x.v)} style={{ padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', border: `1px solid ${purpose === x.v ? purple : 'rgba(132,144,216,.2)'}`, background: purpose === x.v ? `${purple}22` : 'transparent', color: purpose === x.v ? purple : 'rgba(232,228,216,.6)' }}>{x.l}</button>
+          ))}
+        </div>
         {error && <div style={{ fontSize: 12, color: '#E05252', background: 'rgba(224,82,82,.1)', border: '1px solid rgba(224,82,82,.3)', borderRadius: 8, padding: '8px 10px' }}>{error}</div>}
         {flash && <div style={{ fontSize: 12, color: '#22C55E', background: 'rgba(34,197,94,.1)', border: '1px solid rgba(34,197,94,.3)', borderRadius: 8, padding: '8px 10px' }}>{flash}</div>}
         <div className="admin-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, paddingLeft: 4 }}>
@@ -193,7 +200,7 @@ export default function SellerSubmissionsTab({ C }) {
             return (
               <button key={r.id} onClick={() => open(r.id)} style={{ ...card, textAlign: 'right', padding: '12px 14px', cursor: 'pointer', fontFamily: 'inherit', color: 'inherit', borderColor: on ? purple : 'rgba(132,144,216,.14)', background: on ? 'rgba(132,144,216,.12)' : 'rgba(255,255,255,.03)', transition: 'all .15s' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 14, fontWeight: 700 }}>{r.contact_name || (r.status === 'draft' ? 'טיוטה ללא שם' : '—')}</span>
+                  <span style={{ fontSize: 14, fontWeight: 700 }}>{r.contact_name || (r.status === 'draft' ? 'טיוטה ללא שם' : '—')} <span style={{ fontSize: 10, fontWeight: 700, color: r.purpose === 'rental' ? '#60D4F7' : purple, background: r.purpose === 'rental' ? 'rgba(96,212,247,.12)' : 'rgba(132,144,216,.12)', borderRadius: 4, padding: '1px 6px', marginRight: 6 }}>{r.purpose === 'rental' ? 'להשכרה' : 'למכירה'}</span></span>
                   <span style={{ fontSize: 10.5, fontWeight: 700, color: st.color, background: `${st.color}1F`, border: `1px solid ${st.color}55`, borderRadius: 20, padding: '2px 8px', whiteSpace: 'nowrap' }}>{st.l}</span>
                 </div>
                 <div style={{ fontSize: 12.5, color: 'rgba(232,228,216,.75)', marginTop: 3 }}>{[r.property_type_label, [r.address, r.city].filter(Boolean).join(', ')].filter(Boolean).join(' · ') || '—'}</div>
@@ -249,7 +256,8 @@ export default function SellerSubmissionsTab({ C }) {
             {/* key facts */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, margin: '18px 0 14px' }}>
               {[
-                ['מחיר מבוקש', detail.asking_price ? `₪${fmtNum(detail.asking_price, 'he')}` : '—'],
+                [detail.purpose === 'rental' ? 'שכירות חודשית מבוקשת' : 'מחיר מבוקש', detail.asking_price ? `₪${fmtNum(detail.asking_price, 'he')}${detail.purpose === 'rental' ? ' לחודש' : ''}` : '—'],
+                ['סוג עסקה', detail.purpose === 'rental' ? 'השכרה' : 'מכירה'],
                 ['מחיר מינימום (פנימי)', detail.answers?.d_min ? `₪${fmtNum(detail.answers.d_min, 'he')}` : (ov.minPrice ? `₪${fmtNum(ov.minPrice, 'he')}` : '—')],
                 ['סוג נכס', PROPERTY_TYPE_LABEL(detail.property_type, 'he') || '—'],
                 ['כתובת', [detail.address, detail.city].filter(Boolean).join(', ') || '—'],

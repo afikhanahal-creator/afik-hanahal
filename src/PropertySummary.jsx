@@ -10,7 +10,7 @@
 //   ShareMenu          – copy link / WhatsApp / native share
 //   buildLocalSummary  – turn local answers into the same data shape the API returns
 import { useState, useEffect, useMemo } from 'react'
-import { buildSummary, buildStory, headline, publicAnswers, fmtNum, STEPS } from './sellerFormSchema.js'
+import { buildSummary, buildStory, headline, publicAnswers, fmtNum, STEPS, purposeOf } from './sellerFormSchema.js'
 
 const API = import.meta.env.PROD ? '' : (import.meta.env.VITE_SELLER_API_BASE || '')
 const FONT_HREF = 'https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&display=swap'
@@ -23,7 +23,7 @@ export const T = {
     shareText: 'היי, מילאתי את פרטי הנכס לאפיק הנחל. תעברו על הסיכום ותאשרו שהכל נכון:', shareFormText: 'היי, אפיק הנחל מבקשים שנמלא את פרטי הנכס למכירה. אפשר להמשיך את הטופס כאן:',
     story: 'סיפור הנכס', details: 'כל הפרטים', media: 'תמונות וסרטונים', verifyTitle: 'אימות הפרטים', verifySub: 'כל אחד מהבעלים יכול לאשר כאן שהפרטים נכונים. האישור נרשם בתיק הנכס.',
     yourName: 'השם שלכם', verifyBtn: 'אני מאשר/ת שהפרטים נכונים', verified: 'אימתו את הפרטים', verifiedBadge: 'הפרטים אומתו', notVerified: 'ממתין לאימות בעלים', verifyDone: 'תודה! האישור נרשם.',
-    factPrice: 'מחיר מבוקש', factRooms: 'חדרים', factArea: 'מ״ר בנוי', factFloor: 'קומה', factParking: 'חניות',
+    factPrice: 'מחיר מבוקש', factRent: 'שכירות חודשית', factRooms: 'חדרים', factArea: 'מ״ר בנוי', factFloor: 'קומה', factParking: 'חניות',
     loading: 'טוען את פרטי הנכס…', notFound: 'הקישור לא נמצא או שפג תוקפו', error: 'לא הצלחנו לטעון את הסיכום. נסו שוב בעוד רגע.', retry: 'נסו שוב',
     privacy: 'עמוד זה מיועד לבעלי הנכס ולמי שהם בחרו לשתף. מידע פנימי (מחיר מינימום, הצעות קודמות) אינו מוצג כאן.', home: 'לאתר אפיק הנחל', wa: 'לשלוח לנו הודעה בוואטסאפ',
     demo: 'תצוגה מקומית: הסיכום נבנה מהתשובות שמולאו במכשיר הזה.', videos: 'סרטונים', photos: 'תמונות', plan: 'תוכנית',
@@ -35,13 +35,29 @@ export const T = {
     shareText: 'Hi, I filled in our property details for Afik Hanahal. Please review the summary and confirm everything is correct:', shareFormText: 'Hi, Afik Hanahal asked us to fill in the property details for the sale. You can continue the form here:',
     story: 'The property story', details: 'All the details', media: 'Photos and videos', verifyTitle: 'Verify the details', verifySub: 'Each owner can confirm here that the details are correct. The confirmation is recorded in the property file.',
     yourName: 'Your name', verifyBtn: 'I confirm the details are correct', verified: 'verified the details', verifiedBadge: 'Details verified', notVerified: 'Awaiting owner verification', verifyDone: 'Thank you! Your confirmation was recorded.',
-    factPrice: 'Asking price', factRooms: 'Rooms', factArea: 'm² built', factFloor: 'Floor', factParking: 'Parking',
+    factPrice: 'Asking price', factRent: 'Monthly rent', factRooms: 'Rooms', factArea: 'm² built', factFloor: 'Floor', factParking: 'Parking',
     loading: 'Loading the property details…', notFound: 'This link was not found or has expired', error: 'We could not load the summary. Please try again in a moment.', retry: 'Try again',
     privacy: 'This page is for the property owners and whoever they choose to share it with. Internal information (minimum price, past offers) is not shown here.', home: 'Afik Hanahal website', wa: 'Message us on WhatsApp',
     demo: 'Local view: this summary was built from the answers filled in on this device.', videos: 'Videos', photos: 'Photos', plan: 'Floor plan',
   },
 }
 const OFFICE_WA = '972559811814'
+
+// Button + share-menu styles, self-contained so ShareMenu also works inside the intake form header
+const SHARE_CSS = `
+.ps-btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:11px 20px; border-radius:6px; border:1px solid #26242B; background:#26242B; color:#fff; font-size:15.5px; font-weight:700; cursor:pointer; text-decoration:none; transition:all .15s; font-family:inherit; }
+.ps-btn:hover { background:#3F4EB0; border-color:#3F4EB0; }
+.ps-btn:disabled { opacity:.5; cursor:default; }
+.ps-btn.ghost { background:#fff; color:#26242B; border-color:#C6C6CC; }
+.ps-btn.ghost:hover { background:#EEF0FA; color:#3F4EB0; border-color:#3F4EB0; }
+.ps-btn.wa { background:#25D366; border-color:#25D366; }
+.ps-btn.sm { padding:7px 12px; font-size:13px; }
+.ps-share { position:relative; display:inline-block; }
+.ps-share-menu { position:absolute; top:calc(100% + 6px); inset-inline-start:50%; transform:translateX(-50%); background:#fff; border:1px solid #C6C6CC; border-radius:8px; box-shadow:0 12px 32px rgba(0,0,0,.14); padding:6px; z-index:80; display:flex; flex-direction:column; min-width:220px; }
+[dir="rtl"] .ps-share-menu { transform:translateX(50%); }
+.ps-share-menu button, .ps-share-menu a { display:flex; align-items:center; gap:10px; width:100%; text-align:start; padding:10px 12px; border:0; background:none; color:#26242B; font-size:14.5px; font-weight:500; cursor:pointer; border-radius:6px; text-decoration:none; font-family:inherit; }
+.ps-share-menu button:hover, .ps-share-menu a:hover { background:#EEF0FA; color:#3F4EB0; }
+`
 
 // ── share helpers ────────────────────────────────────────────────────────────
 export function ShareMenu({ url, title, text, lang = 'he', label, compact }) {
@@ -54,6 +70,7 @@ export function ShareMenu({ url, title, text, lang = 'he', label, compact }) {
   const native = async () => { try { await navigator.share({ title, text, url }) ; setOpen(false) } catch {} }
   return (
     <div className={`ps-share${open ? ' open' : ''}`}>
+      <style>{SHARE_CSS}</style>
       <button type="button" className={`ps-btn${compact ? ' sm' : ''}`} onClick={() => setOpen(o => !o)} aria-expanded={open}><IcoShare/>{label || t.share}</button>
       {open && (
         <div className="ps-share-menu" role="menu">
@@ -73,7 +90,7 @@ export function buildLocalSummary(answers, { ref, token, files = [] } = {}) {
   const media = []
   STEPS.filter(s => s.type === 'upload' && ['photos', 'videos', 'plan'].includes(s.kind)).forEach(s => (Array.isArray(answers?.[s.id]) ? answers[s.id] : []).forEach(f => { if (f.status === 'done' || !f.status) media.push({ kind: s.kind, name: f.name, type: f.type, url: f.preview || f.url || null }) }))
   return {
-    ok: true, ref, token, lang: 'he', submitted_at: new Date().toISOString(), status: 'new', local: true,
+    ok: true, ref, token, lang: 'he', submitted_at: new Date().toISOString(), status: 'new', local: true, purpose: purposeOf(a),
     headline: { he: headline(a, 'he'), en: headline(a, 'en') },
     sections: { he: buildSummary(a, 'he'), en: buildSummary(a, 'en') },
     story: { he: buildStory(a, 'he'), en: buildStory(a, 'en') },
@@ -96,7 +113,7 @@ export function SummaryView({ data, lang, setLang, shareUrl, mode = 'page', onVe
   const title = data.headline?.[lang] || data.headline?.he || ''
   const f = data.facts || {}
   const facts = [
-    f.price ? { k: t.factPrice, v: `${lang === 'en' ? '₪' : ''}${fmtNum(f.price, lang)}${lang === 'en' ? '' : ' ₪'}`, hi: true } : null,
+    f.price ? { k: data.purpose === 'rental' ? t.factRent : t.factPrice, v: `${lang === 'en' ? '₪' : ''}${fmtNum(f.price, lang)}${lang === 'en' ? '' : ' ₪'}`, hi: true } : null,
     f.rooms ? { k: t.factRooms, v: f.rooms } : null,
     f.built ? { k: t.factArea, v: fmtNum(f.built, lang) } : null,
     f.floor !== null && f.floor !== undefined && f.floor !== '' ? { k: t.factFloor, v: `${f.floor}${f.totalFloors ? ` / ${f.totalFloors}` : ''}` } : null,
@@ -277,11 +294,12 @@ const CSS = `
 .ps-para h4 { display:flex; align-items:baseline; gap:8px; margin:0 0 4px; font-size:13px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink2); font-weight:700; }
 .ps-para h4 span { font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums; }
 .ps-para p { margin:0; font-size:16px; line-height:1.7; }
-.ps-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px 22px; }
-.ps-sec h4 { margin:8px 0 4px; font-size:13px; font-weight:700; color:var(--ink); }
-.ps-item { display:flex; gap:10px; padding:7px 0; border-top:1px solid var(--line); font-size:14px; }
-.ps-item .k { flex:0 0 40%; color:var(--muted); font-size:12.5px; padding-top:1px; }
-.ps-item .v { flex:1; white-space:pre-wrap; word-break:break-word; line-height:1.45; }
+.ps-grid { display:flex; flex-direction:column; gap:18px; }
+.ps-sec h4 { margin:0 0 4px; font-size:14px; font-weight:700; color:var(--ink); padding-bottom:8px; border-bottom:1px solid var(--line); }
+.ps-item { display:grid; grid-template-columns:170px 1fr; gap:12px; padding:8px 0; border-top:1px solid var(--line); font-size:14.5px; align-items:baseline; }
+.ps-item:first-of-type { border-top:0; }
+.ps-item .k { color:var(--muted); font-size:12.5px; }
+.ps-item .v { white-space:pre-wrap; word-break:break-word; line-height:1.5; }
 .ps-chips { display:flex; flex-wrap:wrap; gap:4px; }
 .ps-chips em { font-style:normal; font-size:12.5px; padding:2px 8px; border-radius:20px; background:var(--tint2); }
 .ps-note { display:block; margin-top:5px; font-size:12.5px; color:var(--ink2); }
@@ -311,5 +329,5 @@ const CSS = `
 .ps-center h1 { font-size:20px; font-weight:600; margin:0; }
 .ps-spin { width:34px; height:34px; border-radius:50%; border:3px solid var(--line2); border-top-color:var(--deep); animation:psSpin .9s linear infinite; }
 @keyframes psSpin { to { transform:rotate(360deg) } }
-@media (max-width: 640px) { .ps-grid { grid-template-columns:1fr; } .ps-item { flex-direction:column; gap:2px; } .ps-item .k { flex-basis:auto; } .ps-fact { min-width:80px; } }
+@media (max-width: 640px) { .ps-item { grid-template-columns:1fr; gap:2px; } .ps-fact { min-width:80px; } }
 `

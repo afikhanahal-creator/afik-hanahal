@@ -16,6 +16,7 @@ import {
   STEPS, SECTIONS, visibleSteps, visibleFields, visibleRows, validateStep, groupInvalidFields,
   buildSummary, VALIDATION_MSG, fmtNum, SCHEMA_VERSION, DOC_TAG_LABEL, EMPHASIS,
   otherKey, noteKey, directionsText, buildStory, storyText, headline, PROPERTY_TYPE_LABEL,
+  stepOpts, stepQuestion, stepHelp, stepPh, stepUnit, sectionText, emphasisFor, purposeOf, purposeSpecificKeys,
 } from './sellerFormSchema.js'
 import CITIES from './data/israelCities.json'
 import { SummaryView, ShareMenu, buildLocalSummary } from './PropertySummary.jsx'
@@ -29,9 +30,9 @@ const FONT_HREF = 'https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;5
 const T = {
   he: {
     brand: 'אפיק הנחל', tagline: 'ייזום · שיווק · תיווך',
-    welcomeKicker: 'אפיק הנחל · שיווק ומכירת נכסים',
-    welcomeTitle: 'בואו נמכור את הנכס שלכם',
-    welcomeSub: 'אנחנו באפיק הנחל נשווק ונמכור את הנכס שלכם. ספרו לנו עליו בכמה שאלות קצרות, וצוות השיווק שלנו יוצא לדרך.',
+    welcomeKicker: 'אפיק הנחל · שיווק נכסים למכירה ולהשכרה',
+    welcomeTitle: 'בואו נכיר את הנכס שלכם',
+    welcomeSub: 'אנחנו באפיק הנחל נשווק את הנכס שלכם, למכירה או להשכרה. ספרו לנו עליו בכמה שאלות קצרות, וצוות השיווק שלנו יוצא לדרך.',
     bul1: 'כ־10 דקות', bul2: 'נשמר אוטומטית', bul3: 'פרטי ומאובטח',
     start: 'בואו נתחיל', resume: 'להמשיך מאיפה שעצרתי', restart: 'להתחיל מחדש',
     savedDraft: 'מצאנו טופס שהתחלתם למלא',
@@ -45,7 +46,7 @@ const T = {
     fileTooBig: '{name}: הקובץ גדול מדי (מקסימום {mb}MB)', tooMany: 'אפשר להעלות עד {n} קבצים בשלב הזה', wrongType: '{name}: סוג הקובץ לא נתמך כאן',
     uploadedCount: '{n} קבצים הועלו',
     reviewTitle: 'תיק הנכס', reviewKicker: 'סיכום כל הפרטים', reviewSub: 'כל מה שסיפרתם לנו, מסודר. אפשר לערוך כל תשובה בלחיצה.',
-    toStory: 'לסיפור הנכס', storyKicker: 'סיפור הנכס', storySub: 'כך נציג את הנכס לקונים. קראו, ואם משהו לא מדויק, חזרו ותקנו.', copyStory: 'העתקת הסיפור',
+    toStory: 'לסיפור הנכס', storyKicker: 'סיפור הנכס', storySub: 'כך נציג את הנכס. קראו, ואם משהו לא מדויק, חזרו ותקנו.', copyStory: 'העתקת הסיפור',
     factPrice: 'מחיר מבוקש', factRooms: 'חדרים', factArea: 'מ״ר בנוי', factFloor: 'קומה', factParking: 'חניות', factState: 'מצב', factType: 'סוג הנכס',
     otherPh: 'פרטו במילים…', notePh: 'תיאור כיווני האוויר. אפשר לערוך חופשי', noteReset: 'חזרה לתיאור האוטומטי', loadingStreets: 'טוען רחובות…', noStreets: 'הקלידו את שם הרחוב',
     edit: 'עריכה', missingTitle: 'נשארו שאלות חובה שלא נענו', jump: 'מעבר לשאלה',
@@ -53,7 +54,7 @@ const T = {
     submit: 'סיום ושליחת הנכס', submitting: 'שולחים…', shareForm: 'שתף טופס', shareFormText: 'היי, אפיק הנחל מבקשים שנמלא את פרטי הנכס למכירה. אפשר להמשיך את הטופס כאן:', shareFormHint: 'שלחו את הקישור לבן/בת זוג או לשותף כדי שיעזרו למלא. הטופס המשותף נשמר אוטומטית.', resumedFromLink: 'המשכנו מהמקום שבו הטופס נעצר', savedCloud: 'נשמר', dateDay: 'יום', dateMonth: 'חודש', dateYear: 'שנה', dirPresets: 'בחירה מהירה', pickFromList: 'או בחרו מהרשימה',
     submitErr: 'משהו השתבש בשליחה. הטופס שלכם שמור, נסו שוב בעוד רגע או שלחו לנו הודעה בוואטסאפ.',
     consentErr: 'צריך לאשר את ההצהרה כדי לשלוח',
-    doneTitle: 'תודה, {name}!', doneSub: 'הנכס נקלט אצלנו. צוות השיווק של אפיק הנחל יעבור על הפרטים וייצור איתכם קשר תוך יום עסקים כדי לתאם את הצעד הבא במכירה.',
+    doneTitle: 'תודה, {name}!', doneSub: 'הנכס נקלט אצלנו. צוות השיווק של אפיק הנחל יעבור על הפרטים וייצור איתכם קשר תוך יום עסקים כדי לתאם את הצעד הבא.', factRent: 'שכירות חודשית',
     refLabel: 'מספר תיק', doneWa: 'לשלוח לנו הודעה בוואטסאפ', doneHome: 'חזרה לאתר אפיק הנחל', copyRef: 'העתקת מספר התיק', copied: 'הועתק',
     autosaved: 'נשמר אוטומטית', privacyNote: 'הפרטים נשמרים באופן מאובטח ומשמשים את אפיק הנחל בלבד.',
     files: '{n} קבצים', minus: 'פחות', plus: 'יותר', langToggle: 'English',
@@ -62,9 +63,9 @@ const T = {
   },
   en: {
     brand: 'Afik Hanahal', tagline: 'Development · Marketing · Brokerage',
-    welcomeKicker: 'Afik Hanahal · Property marketing & sales',
-    welcomeTitle: 'Let us sell your property',
-    welcomeSub: 'Afik Hanahal markets and sells your property. Tell us about it in a few short questions and our marketing team gets to work.',
+    welcomeKicker: 'Afik Hanahal · Marketing properties for sale and rent',
+    welcomeTitle: "Let's get to know your property",
+    welcomeSub: 'Afik Hanahal markets your property, for sale or for rent. Tell us about it in a few short questions and our marketing team gets to work.',
     bul1: 'About 10 minutes', bul2: 'Auto-saved', bul3: 'Private and secure',
     start: "Let's start", resume: 'Continue where I stopped', restart: 'Start over',
     savedDraft: 'We found a form you started',
@@ -78,7 +79,7 @@ const T = {
     fileTooBig: '{name}: file is too large (max {mb}MB)', tooMany: 'Up to {n} files can be uploaded here', wrongType: '{name}: this file type is not supported here',
     uploadedCount: '{n} files uploaded',
     reviewTitle: 'Property file', reviewKicker: 'Everything in one place', reviewSub: 'Everything you told us, organised. Click any answer to edit it.',
-    toStory: 'To the property story', storyKicker: 'The property story', storySub: 'This is how we will present the property to buyers. Read it, and go back to fix anything inaccurate.', copyStory: 'Copy story',
+    toStory: 'To the property story', storyKicker: 'The property story', storySub: 'This is how we will present the property. Read it, and go back to fix anything inaccurate.', copyStory: 'Copy story',
     factPrice: 'Asking price', factRooms: 'Rooms', factArea: 'm² built', factFloor: 'Floor', factParking: 'Parking', factState: 'Condition', factType: 'Type',
     otherPh: 'Please specify…', notePh: 'Direction description. Edit freely', noteReset: 'Back to the automatic description', loadingStreets: 'Loading streets…', noStreets: 'Type the street name',
     edit: 'Edit', missingTitle: 'Some required questions are still unanswered', jump: 'Go to question',
@@ -86,7 +87,7 @@ const T = {
     submit: 'Finish and submit the property', submitting: 'Sending…', shareForm: 'Share form', shareFormText: 'Hi, Afik Hanahal asked us to fill in the property details for the sale. You can continue the form here:', shareFormHint: 'Send the link to a spouse or partner so they can help fill it in. The shared form saves automatically.', resumedFromLink: 'Continuing from where the form stopped', savedCloud: 'Saved', dateDay: 'Day', dateMonth: 'Month', dateYear: 'Year', dirPresets: 'Quick pick', pickFromList: 'or pick from the list',
     submitErr: 'Something went wrong. Your form is saved. Try again in a moment or message us on WhatsApp.',
     consentErr: 'Please confirm the statement to submit',
-    doneTitle: 'Thank you, {name}!', doneSub: 'Your property file has reached us. The Afik Hanahal marketing team will review the details and contact you within one business day to plan the next step of the sale.',
+    doneTitle: 'Thank you, {name}!', doneSub: 'Your property file has reached us. The Afik Hanahal marketing team will review the details and contact you within one business day to plan the next step.', factRent: 'Monthly rent',
     refLabel: 'File number', doneWa: 'Message us on WhatsApp', doneHome: 'Back to the Afik Hanahal website', copyRef: 'Copy file number', copied: 'Copied',
     autosaved: 'Auto-saved', privacyNote: 'Your details are stored securely and used by Afik Hanahal only.',
     files: '{n} files', minus: 'Less', plus: 'More', langToggle: 'עברית',
@@ -244,6 +245,9 @@ textarea.sf-input { resize:none; line-height:1.5; font-size:clamp(17px,2vw,22px)
 .sf-opts.grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(190px, 1fr)); width:100%; }
 .sf-opts.compact { display:grid; grid-template-columns:repeat(auto-fill, minmax(84px, 1fr)); width:100%; }
 .sf-opts.compact .sf-opt { justify-content:center; font-weight:600; font-size:19px; }
+.sf-opts.big { grid-template-columns:repeat(2, minmax(0, 1fr)); max-width:560px; margin:0 auto; }
+.sf-opts.big .sf-opt { min-height:96px; font-size:21px; font-weight:600; justify-content:center; background:var(--paper); border-width:2px; }
+.sf-opts.big .sf-opt.on { background:var(--tint2); }
 .sf-opt { display:flex; align-items:center; gap:12px; width:100%; padding:11px 14px; border:1px solid var(--line2); border-radius:5px; background:var(--box); color:var(--ink); font-size:18px; font-weight:400; text-align:start; cursor:pointer; transition:background .12s, border-color .12s, box-shadow .12s; min-height:52px; }
 .sf-opt .lbl { flex:1; }
 .sf-opt:hover { background:var(--boxHover); }
@@ -337,7 +341,7 @@ textarea.sf-input { resize:none; line-height:1.5; font-size:clamp(17px,2vw,22px)
 .sf-intro .line { margin:18px auto 22px; }
 .sf-intro p { margin:0 auto; }
 /* ── review: property file ── */
-.sf-review { text-align:start; max-width:880px; margin:0 auto; }
+.sf-review { text-align:start; max-width:720px; margin:0 auto; }
 .sf-rhero { background:var(--ink); color:#fff; border-radius:12px; padding:26px 28px 22px; text-align:center; position:relative; overflow:hidden; }
 .sf-rhero::after { content:''; position:absolute; inset:auto -40px -60px auto; width:220px; height:220px; border-radius:50%; background:radial-gradient(circle, rgba(132,144,216,.35), transparent 70%); pointer-events:none; }
 .sf-rk { font-size:11.5px; font-weight:700; letter-spacing:.16em; text-transform:uppercase; color:var(--purple); margin-bottom:8px; }
@@ -349,16 +353,18 @@ textarea.sf-input { resize:none; line-height:1.5; font-size:clamp(17px,2vw,22px)
 .sf-fact b { font-size:18px; font-weight:700; font-variant-numeric:tabular-nums; }
 .sf-fact.hi { background:var(--deep); border-color:var(--deep); }
 .sf-rsub { text-align:center; margin:18px 0 16px; color:var(--muted); font-size:15px; }
-.sf-rgrid { display:grid; grid-template-columns:1fr 1fr; gap:12px; align-items:start; }
-.sf-rsec { border:1px solid var(--line); border-radius:10px; padding:6px 18px 8px; background:var(--paper); }
-.sf-rsec h3 { display:flex; align-items:center; gap:9px; font-size:13px; font-weight:700; letter-spacing:.06em; color:var(--ink); margin:12px 0 6px; }
-.sf-rsec h3 i { width:22px; height:22px; border-radius:50%; background:var(--deep); color:#fff; font-size:11px; font-weight:700; font-style:normal; display:inline-flex; align-items:center; justify-content:center; }
-.sf-ritem { display:flex; align-items:flex-start; gap:10px; padding:9px 0; border-top:1px solid var(--line); }
-.sf-ritem .k { flex:0 0 36%; font-size:12.5px; color:var(--muted); line-height:1.4; padding-top:2px; }
-.sf-ritem .v { flex:1; font-size:15px; line-height:1.45; white-space:pre-wrap; word-break:break-word; }
-.sf-ritem button { flex:none; border:0; background:none; color:var(--deep); font-size:12.5px; font-weight:600; cursor:pointer; padding:2px 6px; border-radius:4px; opacity:.75; }
-.sf-ritem:hover button { opacity:1; }
+.sf-rgrid { display:flex; flex-direction:column; gap:10px; }
+.sf-rsec { border:1px solid var(--line); border-radius:12px; padding:0 20px 6px; background:var(--paper); }
+.sf-rsec h3 { display:flex; align-items:center; gap:10px; font-size:14px; font-weight:700; color:var(--ink); margin:0; padding:14px 0 10px; border-bottom:1px solid var(--line); }
+.sf-rsec h3 i { width:24px; height:24px; border-radius:50%; background:var(--ink); color:#fff; font-size:11.5px; font-weight:700; font-style:normal; display:inline-flex; align-items:center; justify-content:center; }
+.sf-ritem { display:grid; grid-template-columns:180px 1fr auto; align-items:baseline; gap:14px; padding:10px 0; border-top:1px solid var(--line); }
+.sf-ritem:first-of-type { border-top:0; }
+.sf-ritem .k { font-size:13px; color:var(--muted); line-height:1.45; }
+.sf-ritem .v { font-size:15.5px; line-height:1.5; white-space:pre-wrap; word-break:break-word; color:var(--ink); }
+.sf-ritem button { border:0; background:none; color:var(--deep); font-size:12.5px; font-weight:600; cursor:pointer; padding:2px 8px; border-radius:4px; opacity:0; transition:opacity .15s; }
+.sf-ritem:hover button, .sf-ritem button:focus-visible { opacity:1; }
 .sf-ritem button:hover { background:var(--tint); }
+@media (hover:none) { .sf-ritem button { opacity:.8; } }
 .sf-chips { display:flex; flex-wrap:wrap; gap:5px; }
 .sf-chips em { font-style:normal; font-size:13px; padding:3px 9px; border-radius:20px; background:var(--tint2); color:var(--ink); }
 .sf-vnote { display:block; margin-top:6px; font-size:13px; color:var(--ink2); line-height:1.45; }
@@ -417,7 +423,9 @@ textarea.sf-input { resize:none; line-height:1.5; font-size:clamp(17px,2vw,22px)
   .sf-actions { gap:8px; }
   .sf-actions .sf-btn { flex:1 1 40%; min-width:0; }
   .sf-actions .sf-btn.big { flex-basis:100%; }
-  .sf-rgrid { grid-template-columns:1fr; }
+  .sf-ritem { grid-template-columns:1fr auto; }
+  .sf-ritem .v { grid-column:1 / -1; }
+  .sf-rsec { padding:0 14px 4px; }
   .sf-rhero { padding:20px 16px; }
   .sf-fact { min-width:84px; padding:8px 10px; }
   .sf-paper { padding:18px 16px 20px; }
@@ -473,7 +481,7 @@ function Emph({ text, phrase }) {
 }
 
 // Top stepper: every section with its number, done sections ticked, current highlighted.
-function Stepper({ curIdx, lang }) {
+function Stepper({ curIdx, lang, answers }) {
   const ref = useRef(null)
   useEffect(() => { ref.current?.querySelector('.sf-step.cur')?.scrollIntoView({ inline: 'center', block: 'nearest' }) }, [curIdx])
   return (
@@ -481,7 +489,7 @@ function Stepper({ curIdx, lang }) {
       {SECTIONS.map((s, i) => (
         <span key={s.id} className={`sf-step${i < curIdx ? ' done' : i === curIdx ? ' cur' : ''}${Math.abs(i - curIdx) === 1 ? ' near' : ''}`} aria-current={i === curIdx ? 'step' : undefined}>
           <i>{i < curIdx ? <IcoCheck size={10}/> : s.n}</i>
-          <b>{lang === 'en' ? s.en : s.title}</b>
+          <b>{sectionText(s, 'title', lang, answers || {})}</b>
           {i < SECTIONS.length - 1 && <em/>}
         </span>
       ))}
@@ -646,7 +654,7 @@ export default function SellerForm() {
       if (e.key === 'ArrowUp' && !inTextarea && el?.type !== 'number') { e.preventDefault(); goPrev(); return }
       if (!inText && (step.type === 'choice' || step.type === 'multi') && /^[a-zA-Z]$/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey) {
         const i = LETTERS.indexOf(e.key.toUpperCase())
-        const opt = step.opts?.[i]
+        const opt = stepOpts(step, answers)[i]
         if (!opt) return
         e.preventDefault()
         if (step.type === 'choice') pickChoice(opt.v)
@@ -668,7 +676,15 @@ export default function SellerForm() {
   }, [cur, phase])
 
   // Like Typeform's onboarding: picking an option highlights it, "Continue" (or Enter) moves on.
-  const pickChoice = v => setAnswer(step.id, v)
+  const pickChoice = v => {
+    if (step.id === 'x_purpose' && v !== answers.x_purpose) {
+      const drop = purposeSpecificKeys(v)
+      setErr(null)
+      setAnswers(prev => { const next = { ...prev, x_purpose: v }; drop.forEach(k => { delete next[k] }); return next })
+      return
+    }
+    setAnswer(step.id, v)
+  }
   const toggleMulti = v => setAnswer(step.id, prev => {
     const arr = Array.isArray(prev) ? prev : []
     return arr.includes(v) ? arr.filter(x => x !== v) : [...arr, v]
@@ -719,7 +735,7 @@ export default function SellerForm() {
           <img className="sf-logo" src="/logo-mark-black.svg" alt={t.brand}/>
           <span className="sf-brandtxt">{t.brand}<small>{t.tagline}</small></span>
         </a>
-        {phase === 'form' ? <Stepper curIdx={sectionIdx} lang={lang}/> : <div style={{ flex: 1 }}/>}
+        {phase === 'form' ? <Stepper curIdx={sectionIdx} lang={lang} answers={answers}/> : <div style={{ flex: 1 }}/>}
         <div className="sf-top-right">
           {phase === 'form' && <span className="sf-saved" key={savedTick} style={{ opacity: savedTick ? 1 : 0 }}><i/>{cloudSaved ? t.savedCloud : t.autosaved}</span>}
           {phase === 'form' && sidRef.current && <ShareMenu url={`${window.location.origin}/newproperty?d=${sidRef.current}`} title={t.brand} text={t.shareFormText} lang={lang} label={t.shareForm} compact/>}
@@ -738,7 +754,7 @@ export default function SellerForm() {
             <AnimatePresence mode="wait" custom={dir} initial={false}>
               <motion.div key={step.id} custom={dir} variants={stepVariants} initial="enter" animate="center" exit="exit" transition={stepTransition}>
                 {step.type === 'intro' && (
-                  <Intro section={section} t={t} lang={lang} onNext={goNext}/>
+                  <Intro section={section} t={t} lang={lang} onNext={goNext} answers={answers}/>
                 )}
                 {step.type === 'review' && (
                   <Review answers={answers} lang={lang} t={t} visible={visible} onEdit={id => goTo(id, -1)} onBack={goPrev} onNext={goNext}/>
@@ -750,15 +766,15 @@ export default function SellerForm() {
                 )}
                 {!['intro', 'review', 'story'].includes(step.type) && (
                   <>
-                    <div className="sf-sec">{t.part} {section?.n} · {lang === 'en' ? section?.en : section?.title}</div>
+                    <div className="sf-sec">{t.part} {section?.n} · {section ? sectionText(section, 'title', lang, answers) : ''}</div>
                     <div className="sf-qhead">
                       <span className="sf-badge" aria-hidden="true">{qNumber}</span>
                       <h2 className="sf-q">
-                        <Emph text={lang === 'en' ? (step.en_q || step.q) : step.q} phrase={EMPHASIS[step.id]?.[lang === 'en' ? 1 : 0]}/>
+                        <Emph text={stepQuestion(step, lang, answers)} phrase={emphasisFor(step.id, lang, answers)}/>
                         {isReq ? <span className="req" title={t.requiredMark}>*</span> : <span className="sf-opt-tag"> ({t.optional})</span>}
                       </h2>
                     </div>
-                    {(step.help || step.en_help) && <p className="sf-help">{lang === 'en' ? (step.en_help || step.help) : step.help}</p>}
+                    {stepHelp(step, lang, answers) && <p className="sf-help">{stepHelp(step, lang, answers)}</p>}
                     <div className="sf-body">
                       <Field step={step} answers={answers} value={answers[step.id]} setValue={v => setAnswer(step.id, v)} setAnswer={setAnswer} lang={lang} t={t} err={err}
                         onEnter={goNext} pickChoice={pickChoice} toggleMulti={toggleMulti} sid={sidRef.current}/>
@@ -816,14 +832,14 @@ function Welcome({ t, lang, draft, onStart, onResume, loading }) {
 }
 
 // ═══ SECTION INTRO ════════════════════════════════════════════════════════════
-function Intro({ section, t, lang, onNext }) {
+function Intro({ section, t, lang, onNext, answers }) {
   if (!section) return null
   return (
     <div className="sf-intro">
       <div className="n">{t.part} {section.n} / {SECTIONS.length}</div>
-      <h2>{lang === 'en' ? section.en : section.title}</h2>
+      <h2>{sectionText(section, 'title', lang, answers || {})}</h2>
       <div className="line"/>
-      <p>{lang === 'en' ? section.en_desc : section.desc}</p>
+      <p>{sectionText(section, 'desc', lang, answers || {})}</p>
       <div className="sf-actions">
         <button className="sf-btn" onClick={onNext} data-autofocus>{t.cont}<IcoFwd/></button>
       </div>
@@ -852,11 +868,11 @@ function Field(props) {
 
 const L = (item, lang) => (lang === 'en' ? (item.en ?? item.l) : item.l)
 
-function TextInput({ step, value, setValue, lang, err }) {
+function TextInput({ step, value, setValue, lang, err, answers }) {
   const type = step.type === 'phone' ? 'tel' : step.type === 'email' ? 'email' : step.type === 'date' ? 'date' : 'text'
   return (
     <input className={`sf-input${err ? ' is-err' : ''}`} type={type} inputMode={step.type === 'phone' ? 'tel' : undefined}
-      value={value || ''} onChange={e => setValue(e.target.value)} placeholder={lang === 'en' ? (step.en_ph || step.ph) : step.ph}
+      value={value || ''} onChange={e => setValue(e.target.value)} placeholder={stepPh(step, lang, answers)}
       autoComplete={step.autocomplete || (step.type === 'phone' ? 'tel' : step.type === 'email' ? 'email' : 'off')}
       dir={step.type === 'phone' || step.type === 'email' ? 'ltr' : undefined}
       style={step.type === 'phone' || step.type === 'email' ? { textAlign: lang === 'he' ? 'right' : 'left' } : undefined}
@@ -864,17 +880,17 @@ function TextInput({ step, value, setValue, lang, err }) {
   )
 }
 
-function LongInput({ step, value, setValue, lang, err }) {
+function LongInput({ step, value, setValue, lang, err, answers }) {
   const ref = useRef(null)
   useEffect(() => { const el = ref.current; if (el) { el.style.height = 'auto'; el.style.height = Math.min(360, el.scrollHeight) + 'px' } }, [value])
   return (
     <textarea ref={ref} className={`sf-input${err ? ' is-err' : ''}`} rows={3} value={value || ''} onChange={e => setValue(e.target.value)}
-      placeholder={lang === 'en' ? (step.en_ph || step.ph) : step.ph} data-autofocus aria-invalid={!!err}/>
+      placeholder={stepPh(step, lang, answers)} data-autofocus aria-invalid={!!err}/>
   )
 }
 
-function NumberInput({ step, value, setValue, lang, err }) {
-  const unit = lang === 'en' ? (step.en_unit || step.unit) : step.unit
+function NumberInput({ step, value, setValue, lang, err, answers }) {
+  const unit = stepUnit(step, lang, answers)
   const shown = step.thousands && value !== undefined && value !== '' ? fmtNum(value, 'en') : (value ?? '')
   const onChange = e => {
     const raw = e.target.value.replace(/[^\d.]/g, '')
@@ -883,7 +899,7 @@ function NumberInput({ step, value, setValue, lang, err }) {
   return (
     <div className="sf-input-wrap">
       <input className={`sf-input${err ? ' is-err' : ''}`} type="text" inputMode="decimal" value={shown} onChange={onChange}
-        placeholder={lang === 'en' ? (step.en_ph || step.ph) : step.ph} dir="ltr" style={{ textAlign: lang === 'he' ? 'right' : 'left' }}
+        placeholder={stepPh(step, lang, answers)} dir="ltr" style={{ textAlign: lang === 'he' ? 'right' : 'left' }}
         enterKeyHint="next" data-autofocus aria-invalid={!!err}/>
       {unit && <span className="sf-unit">{unit}</span>}
     </div>
@@ -918,10 +934,11 @@ function DirectionsNote({ step, value, answers, setAnswer, lang, t }) {
 
 function Choice({ step, value, lang, t, pickChoice, answers, setAnswer }) {
   const [flash, setFlash] = useState(null)
+  const opts = stepOpts(step, answers)
   return (
     <>
-      <div className={`sf-opts${step.grid ? ' grid' : ''}${step.compact ? ' compact' : ''}`} role="radiogroup">
-        {step.opts.map((o, i) => (
+      <div className={`sf-opts${step.grid ? ' grid' : ''}${step.compact ? ' compact' : ''}${step.big ? ' big' : ''}`} role="radiogroup">
+        {opts.map((o, i) => (
           <button key={o.v} type="button" role="radio" aria-checked={value === o.v}
             className={`sf-opt${value === o.v ? ' on' : ''}${flash === o.v ? ' flash' : ''}`}
             onClick={() => { setFlash(o.v); pickChoice(o.v) }}>
@@ -931,13 +948,13 @@ function Choice({ step, value, lang, t, pickChoice, answers, setAnswer }) {
           </button>
         ))}
       </div>
-      {value === 'other' && step.opts.some(o => o.v === 'other') && <OtherInput step={step} answers={answers} setAnswer={setAnswer} lang={lang} t={t}/>}
+      {value === 'other' && opts.some(o => o.v === 'other') && <OtherInput step={step} answers={answers} setAnswer={setAnswer} lang={lang} t={t}/>}
       {step.compact && (
         <div className="sf-select-wrap">
           <span>{t.pickFromList}</span>
           <select className="sf-select" value={value || ''} onChange={e => pickChoice(e.target.value)} aria-label={t.pickFromList}>
             <option value="">—</option>
-            {step.opts.map(o => <option key={o.v} value={o.v}>{L(o, lang)}</option>)}
+            {opts.map(o => <option key={o.v} value={o.v}>{L(o, lang)}</option>)}
           </select>
         </div>
       )}
@@ -948,6 +965,7 @@ function Choice({ step, value, lang, t, pickChoice, answers, setAnswer }) {
 
 function Multi({ step, value, lang, t, toggleMulti, answers, setAnswer }) {
   const arr = Array.isArray(value) ? value : []
+  const opts = stepOpts(step, answers)
   const lc = step.linkedCounter
   const lcVal = lc ? Number(answers[lc.id]?.[lc.k] ?? lc.min ?? 0) : 0
   const lcSet = n => setAnswer(lc.id, { ...(answers[lc.id] || {}), [lc.k]: Math.min(lc.max ?? 99, Math.max(lc.min ?? 0, n)) })
@@ -963,8 +981,8 @@ function Multi({ step, value, lang, t, toggleMulti, answers, setAnswer }) {
           </span>
         </div>
       )}
-      <div className={`sf-opts${step.opts.length > 6 ? ' grid' : ''}`} role="group">
-        {step.opts.map((o, i) => (
+      <div className={`sf-opts${opts.length > 6 ? ' grid' : ''}`} role="group">
+        {opts.map((o, i) => (
           <button key={o.v} type="button" aria-pressed={arr.includes(o.v)} className={`sf-opt${arr.includes(o.v) ? ' on' : ''}`} onClick={() => toggleMulti(o.v)}>
             <span className="sf-key">{LETTERS[i]}</span>
             <span className="lbl">{L(o, lang)}</span>
@@ -1324,7 +1342,7 @@ function Review({ answers, lang, t, visible, onEdit, onBack, onNext }) {
   const stateStep = STEPS.find(s => s.id === 'p_state')
   const stateLabel = answers.p_state ? (stateStep.opts.find(o => o.v === answers.p_state) || {})[lang === 'en' ? 'en' : 'l'] : ''
   const facts = [
-    answers.d_ask ? { k: t.factPrice, v: `${lang === 'en' ? '₪' : ''}${fmtNum(answers.d_ask, lang)}${lang === 'en' ? '' : ' ₪'}`, hi: true } : null,
+    answers.d_ask ? { k: purposeOf(answers) === 'rental' ? t.factRent : t.factPrice, v: `${lang === 'en' ? '₪' : ''}${fmtNum(answers.d_ask, lang)}${lang === 'en' ? '' : ' ₪'}`, hi: true } : null,
     answers.p_rooms ? { k: t.factRooms, v: answers.p_rooms } : null,
     answers.p_area?.built ? { k: t.factArea, v: fmtNum(answers.p_area.built, lang) } : null,
     answers.p_floor?.floor !== undefined && answers.p_floor?.floor !== '' ? { k: t.factFloor, v: `${answers.p_floor.floor}${answers.p_floor.totalFloors ? ` / ${answers.p_floor.totalFloors}` : ''}` } : null,

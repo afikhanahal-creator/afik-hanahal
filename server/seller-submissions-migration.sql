@@ -58,3 +58,7 @@ CREATE INDEX IF NOT EXISTS seller_submissions_share_token_idx ON seller_submissi
 INSERT INTO storage.buckets (id, name, public, file_size_limit)
 VALUES ('property-media', 'property-media', true, 209715200)
 ON CONFLICT (id) DO NOTHING;
+
+-- Sale / rental purpose of the intake (one dynamic questionnaire, two property kinds)
+ALTER TABLE seller_submissions ADD COLUMN IF NOT EXISTS purpose TEXT DEFAULT 'sale';   -- 'sale' | 'rental'
+CREATE INDEX IF NOT EXISTS seller_submissions_purpose_idx ON seller_submissions (purpose);
