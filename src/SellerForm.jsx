@@ -15,7 +15,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   STEPS, SECTIONS, visibleSteps, visibleFields, visibleRows, validateStep, groupInvalidFields,
   buildSummary, VALIDATION_MSG, fmtNum, SCHEMA_VERSION, DOC_TAG_LABEL, EMPHASIS,
-  otherKey, noteKey, directionsText, buildStory, storyText, headline, PROPERTY_TYPE_LABEL,
+  otherKey, noteKey, directionsText, buildStory, storyText, headline, storyTitle, storyLine, addressLine, PROPERTY_TYPE_LABEL,
   stepOpts, stepQuestion, stepHelp, stepPh, stepUnit, sectionText, emphasisFor, purposeOf, purposeSpecificKeys, PROPERTY_STATE_LABEL } from './sellerFormSchema.js'
 import CITIES from './data/israelCities.json'
 import { SummaryView, ShareMenu, buildLocalSummary } from './PropertySummary.jsx'
@@ -47,7 +47,7 @@ const T = {
     fileTooBig: '{name}: הקובץ גדול מדי (מקסימום {mb}MB)', tooMany: 'אפשר להעלות עד {n} קבצים בשלב הזה', wrongType: '{name}: סוג הקובץ לא נתמך כאן',
     uploadedCount: '{n} קבצים הועלו',
     reviewTitle: 'תיק הנכס', reviewKicker: 'סיכום כל הפרטים', reviewSub: 'כל מה שסיפרתם לנו, מסודר לפי נושאים. אפשר לערוך כל תשובה בלחיצה.',
-    toStory: 'לסיפור הנכס', storyKicker: 'סיפור הנכס', storySub: 'כך נספר על הנכס ללקוחות. קראו בנחת, ואם משהו לא מדויק, חזרו ותקנו.', copyStory: 'העתקת הסיפור', storyDoc: 'תיק נכס', storyBy: 'הוכן על ידי אפיק הנחל על סמך הפרטים שמסרתם', storyFoot: 'אפיק הנחל · ייזום, שיווק ותיווך נדל״ן',
+    toStory: 'לסיפור הנכס', storyKicker: 'סיפור הנכס', storySub: 'כך נציג את הנכס לקונים. קראו בנחת, ואם משהו אינו מדויק, חזרו ותקנו.', storySubRent: 'כך נציג את הנכס לשוכרים. קראו בנחת, ואם משהו אינו מדויק, חזרו ותקנו.', preparedFor: 'הוכן עבור', copyStory: 'העתקת הסיפור', storyDoc: 'תיק נכס', storyBy: 'הוכן על ידי אפיק הנחל על סמך הפרטים שמסרתם', storyFoot: 'אפיק הנחל · ייזום, שיווק ותיווך נדל״ן',
     factPrice: 'מחיר מבוקש', factRooms: 'חדרים', factArea: 'מ״ר בנוי', factFloor: 'קומה', factParking: 'חניות', factState: 'מצב', factType: 'סוג הנכס',
     otherPh: 'פרטו במילים…', notePh: 'תיאור כיווני האוויר. אפשר לערוך חופשי', noteReset: 'חזרה לתיאור האוטומטי', loadingStreets: 'טוען רחובות…', noStreets: 'הקלידו את שם הרחוב',
     edit: 'עריכה', missingTitle: 'נשארו שאלות חובה שלא נענו', jump: 'מעבר לשאלה',
@@ -83,7 +83,7 @@ const T = {
     fileTooBig: '{name}: file is too large (max {mb}MB)', tooMany: 'Up to {n} files can be uploaded here', wrongType: '{name}: this file type is not supported here',
     uploadedCount: '{n} files uploaded',
     reviewTitle: 'Property file', reviewKicker: 'Everything in one place', reviewSub: 'Everything you told us, organised by topic. Click any answer to edit it.',
-    toStory: 'To the property story', storyKicker: 'The property story', storySub: 'This is how we will tell clients about the property. Read it at your leisure, and go back to fix anything inaccurate.', copyStory: 'Copy story', storyDoc: 'Property file', storyBy: 'Prepared by Afik Hanahal from the details you provided', storyFoot: 'Afik Hanahal · Real estate development, marketing and brokerage',
+    toStory: 'To the property story', storyKicker: 'The property story', storySub: 'This is how we will present the property to buyers. Read it at your leisure, and go back to fix anything inaccurate.', storySubRent: 'This is how we will present the property to tenants. Read it at your leisure, and go back to fix anything inaccurate.', preparedFor: 'Prepared for', copyStory: 'Copy story', storyDoc: 'Property file', storyBy: 'Prepared by Afik Hanahal from the details you provided', storyFoot: 'Afik Hanahal · Real estate development, marketing and brokerage',
     factPrice: 'Asking price', factRooms: 'Rooms', factArea: 'm² built', factFloor: 'Floor', factParking: 'Parking', factState: 'Condition', factType: 'Type',
     otherPh: 'Please specify…', notePh: 'Direction description. Edit freely', noteReset: 'Back to the automatic description', loadingStreets: 'Loading streets…', noStreets: 'Type the street name',
     edit: 'Edit', missingTitle: 'Some required questions are still unanswered', jump: 'Go to question',
@@ -373,6 +373,7 @@ textarea.sf-input { resize:none; line-height:1.5; font-size:clamp(17px,2vw,22px)
 .sf-fact b { font-size:18px; font-weight:700; font-variant-numeric:tabular-nums; }
 .sf-fact.hi { background:var(--deep); border-color:var(--deep); }
 .sf-rsub { text-align:center; margin:12px 0 14px; color:var(--muted); font-size:14px; }
+.sf-rline { text-align:center; margin:8px 0 0; color:var(--deep); font-size:15.5px; font-weight:600; letter-spacing:.01em; }
 .sf-rgrid { display:flex; flex-direction:column; gap:10px; }
 .sf-rsec { border:1px solid var(--line); border-radius:14px; padding:0 20px 6px; background:var(--paper); box-shadow:0 4px 18px rgba(38,36,43,.04); }
 .sf-rsec h3 { margin:0; }
@@ -1519,12 +1520,13 @@ function Story({ answers, lang, t, onBack, consent, setConsent, onSubmit, submit
   return (
     <div className="sf-story">
       <div className="sf-rk">{t.storyKicker}</div>
-      <h2>{headline(answers, lang) || t.storyKicker}</h2>
-      <p className="sf-rsub">{t.storySub}</p>
+      <h2>{storyTitle(answers, lang) || t.storyKicker}</h2>
+      {storyLine(answers, lang) && <p className="sf-rline">{storyLine(answers, lang)}</p>}
+      <p className="sf-rsub">{rental ? t.storySubRent : t.storySub}</p>
       <article className="sf-paper">
         <header className="sf-paper-h">
           <img src="/logo-mark-black.svg" alt="" className="sf-paper-logo"/>
-          <div className="sf-paper-t"><b>{t.storyDoc} · {PROPERTY_TYPE_LABEL(answers.p_type, lang) || t.brand}</b><small>{[answers.p_address?.street, answers.p_address?.number, answers.p_address?.city].filter(Boolean).join(' ')}{first ? ` · ${first}` : ''}</small></div>
+          <div className="sf-paper-t"><b>{t.storyDoc} · {PROPERTY_TYPE_LABEL(answers.p_type, lang) || t.brand}</b><small>{[addressLine(answers, lang), answers.c_name ? `${t.preparedFor} ${String(answers.c_name).trim()}` : ''].filter(Boolean).join(' · ')}</small></div>
           <button type="button" className="sf-link" onClick={copy}><IcoCopy/> {copied ? t.copied : t.copyStory}</button>
         </header>
         {storyFacts.length > 0 && <div className="sf-facts light">{storyFacts.map(x => <div key={x.k} className={`sf-fact${x.hi ? ' hi' : ''}`}><small>{x.k}</small><b>{x.v}</b></div>)}</div>}

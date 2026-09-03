@@ -57,6 +57,9 @@ const SHARE_CSS = `
 [dir="rtl"] .ps-share-menu { transform:translateX(50%); }
 .ps-share-menu button, .ps-share-menu a { display:flex; align-items:center; gap:10px; width:100%; text-align:start; padding:12px 14px; min-height:44px; border:0; background:none; color:#26242B; font-size:15px; font-weight:500; cursor:pointer; border-radius:6px; text-decoration:none; font-family:inherit; }
 .ps-share-menu button:hover, .ps-share-menu a:hover { background:#EEF0FA; color:#3F4EB0; }
+.ps-share-menu a.wa { color:#128C7E; }
+.ps-share-menu a.wa svg { color:#25D366; }
+.ps-share-menu a.wa:hover { background:#E6F7EC; color:#0B7A6B; }
 `
 
 // ── share helpers ────────────────────────────────────────────────────────────
@@ -84,7 +87,7 @@ export function ShareMenu({ url, title, text, lang = 'he', label, compact }) {
       {open && (
         <div className="ps-share-menu" role="menu">
           <button type="button" role="menuitem" onClick={copy}><IcoLink/>{copied ? t.copied : t.copyLink}</button>
-          <a role="menuitem" href={wa} target="_blank" rel="noreferrer" onClick={() => setOpen(false)}><IcoWa/>{t.whatsapp}</a>
+          <a role="menuitem" className="wa" href={wa} target="_blank" rel="noreferrer" onClick={() => setOpen(false)}><IcoWa/>{t.whatsapp}</a>
           {canNative && <button type="button" role="menuitem" onClick={native}><IcoShare/>{t.native}</button>}
         </div>
       )}
@@ -333,6 +336,9 @@ const CSS = `
 [dir="rtl"] .ps-share-menu { transform:translateX(50%); }
 .ps-share-menu button, .ps-share-menu a { display:flex; align-items:center; gap:10px; width:100%; text-align:start; padding:10px 12px; border:0; background:none; color:var(--ink); font-size:14.5px; font-weight:500; cursor:pointer; border-radius:6px; text-decoration:none; }
 .ps-share-menu button:hover, .ps-share-menu a:hover { background:var(--tint); color:var(--deep); }
+.ps-share-menu a.wa { color:#128C7E; }
+.ps-share-menu a.wa svg { color:#25D366; }
+.ps-share-menu a.wa:hover { background:#E6F7EC; color:#0B7A6B; }
 .ps-foot { text-align:center; padding:14px 0 0; }
 .ps-foot p { font-size:12.5px; color:var(--muted); margin:0 0 12px; }
 .ps-foot-links { display:flex; justify-content:center; gap:8px; flex-wrap:wrap; }
