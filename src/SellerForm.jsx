@@ -39,7 +39,7 @@ const T = {
     savedDraft: 'מצאנו טופס שהתחלתם למלא',
     ok: 'אישור', cont: 'המשך', back: 'חזרה', press: 'או לחצו', requiredMark: 'שדה חובה',
     of: 'מתוך', part: 'חלק', optional: 'לא חובה',
-    selectMany: 'אפשר לבחור כמה תשובות', selectOne: 'בחרו תשובה אחת',
+    selectMany: 'אפשר לבחור כמה תשובות', selectOne: 'בחרו תשובה אחת', pickOne: 'בחרו מהרשימה…',
     yes: 'כן', no: 'לא',
     dropTitle: 'גררו קבצים לכאן או לחצו לבחירה', dropSub: 'עד {n} קבצים · עד {mb}MB לקובץ',
     uploading: 'מעלה…', uploadDone: 'הועלה', uploadErr: 'ההעלאה נכשלה', retry: 'נסו שוב', remove: 'הסרה',
@@ -74,7 +74,7 @@ const T = {
     savedDraft: 'We found a form you started',
     ok: 'OK', cont: 'Continue', back: 'Back', press: 'or press', requiredMark: 'Required',
     of: 'of', part: 'Part', optional: 'Optional',
-    selectMany: 'Select as many as apply', selectOne: 'Select one answer',
+    selectMany: 'Select as many as apply', selectOne: 'Select one answer', pickOne: 'Choose from the list…',
     yes: 'Yes', no: 'No',
     dropTitle: 'Drag files here or click to choose', dropSub: 'Up to {n} files · {mb}MB per file',
     uploading: 'Uploading…', uploadDone: 'Uploaded', uploadErr: 'Upload failed', retry: 'Retry', remove: 'Remove',
@@ -208,12 +208,18 @@ const CSS = `
 .sf-link { border:0; background:none; color:var(--deep); font-size:14px; font-weight:600; cursor:pointer; padding:8px 0; min-height:40px; display:inline-flex; align-items:center; gap:6px; }
 .sf-link:hover { text-decoration:underline; }
 .sf-combo { position:relative; }
-.sf-combo-list { position:absolute; top:100%; inset-inline:0; z-index:20; margin:4px 0 0; padding:4px; list-style:none; background:var(--paper); border:1px solid var(--line2); border-radius:6px; box-shadow:0 10px 30px rgba(0,0,0,.12); text-align:start; max-height:260px; overflow-y:auto; }
-.sf-combo-list li { padding:9px 12px; border-radius:4px; font-size:16px; cursor:pointer; }
+.sf-combo-list { position:absolute; top:100%; inset-inline:0; z-index:20; margin:4px 0 0; padding:4px; list-style:none; background:var(--paper); border:1px solid var(--line2); border-radius:8px; box-shadow:0 10px 30px rgba(0,0,0,.12); text-align:start; max-height:min(320px, 45vh); overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; }
+.sf-combo-list li { padding:11px 12px; border-radius:4px; font-size:16px; cursor:pointer; min-height:42px; }
 .sf-combo-list li.on { background:var(--tint2); color:var(--ink); }
 .sf-stage-done { padding:0; }
 .sf-done-wrap { width:100%; }
 .sf-resumed { margin:0 auto 14px; max-width:560px; font-size:13px; color:var(--deep); background:var(--tint2); border-radius:6px; padding:8px 12px; }
+.sf-bigselect-wrap { position:relative; max-width:420px; margin:0 auto; }
+.sf-bigselect { width:100%; appearance:none; -webkit-appearance:none; font-family:inherit; font-size:22px; font-weight:600; color:var(--ink); background:var(--paper); border:2px solid var(--line2); border-radius:10px; padding:16px 52px 16px 20px; min-height:64px; cursor:pointer; text-align:center; text-align-last:center; transition:border-color .15s, box-shadow .15s; }
+[dir="rtl"] .sf-bigselect { padding:16px 20px 16px 52px; }
+.sf-bigselect:focus { outline:none; border-color:var(--deep); box-shadow:0 0 0 3px var(--tint2); }
+.sf-bigselect:invalid, .sf-bigselect option[value=""] { color:var(--muted); }
+.sf-bigselect-arrow { position:absolute; top:50%; inset-inline-end:18px; transform:translateY(-50%); pointer-events:none; color:var(--deep); display:inline-flex; }
 .sf-select-wrap { margin:14px auto 0; display:flex; align-items:center; justify-content:center; gap:10px; font-size:13.5px; color:var(--muted); }
 .sf-select { font-size:16px; padding:10px 12px; min-height:44px; border:1px solid var(--line2); border-radius:6px; background:#fff; color:var(--ink); min-width:120px; }
 .sf-presets { display:flex; flex-wrap:wrap; justify-content:center; align-items:center; gap:6px; margin:14px auto 0; font-size:13px; color:var(--muted); }
@@ -487,6 +493,7 @@ textarea.sf-input { resize:none; line-height:1.5; font-size:clamp(17px,2vw,22px)
 `
 
 // ── icons (inline SVG keeps the page self-contained) ─────────────────────────
+const IcoChevron = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
 const IcoCheck = ({ size = 16 }) => <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
 const IcoUp    = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="m18 15-6-6-6 6"/></svg>
 const IcoDown  = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
@@ -979,6 +986,15 @@ function DirectionsNote({ step, value, answers, setAnswer, lang, t }) {
 function Choice({ step, value, lang, t, pickChoice, answers, setAnswer }) {
   const [flash, setFlash] = useState(null)
   const opts = stepOpts(step, answers)
+  if (step.select) return (
+    <div className="sf-bigselect-wrap">
+      <select className="sf-bigselect" value={value || ''} onChange={e => pickChoice(e.target.value)} aria-label={stepQuestion(step, lang, answers)} data-autofocus>
+        <option value="" disabled>{t.pickOne}</option>
+        {opts.map(o => <option key={o.v} value={o.v}>{L(o, lang)}</option>)}
+      </select>
+      <span className="sf-bigselect-arrow" aria-hidden="true"><IcoChevron/></span>
+    </div>
+  )
   return (
     <>
       <div className={`sf-opts${step.grid ? ' grid' : ''}${step.compact ? ' compact' : ''}${step.big ? ' big' : ''}`} role="radiogroup">
@@ -1165,13 +1181,15 @@ function Combo({ id, value, onChange, options, loadKey, loader, placeholder, inv
   const q = String(value || '').trim()
   const matches = useMemo(() => {
     if (!list.length) return []
-    if (!q) return list.slice(0, 8)
+    if (!q) return list.slice(0, 2000)
     const starts = list.filter(x => x.startsWith(q))
-    const inc = starts.length < 8 ? list.filter(x => !x.startsWith(q) && x.includes(q)) : []
-    return [...starts, ...inc].slice(0, 8)
+    const inc = list.filter(x => !x.startsWith(q) && x.includes(q))
+    return [...starts, ...inc].slice(0, 2000)
   }, [q, list])
   const show = open && matches.length > 0 && !(matches.length === 1 && matches[0] === q)
   const pick = val => { onChange(val); setOpen(false) }
+  const listRef = useRef(null)
+  useEffect(() => { listRef.current?.children[hi]?.scrollIntoView?.({ block: 'nearest' }) }, [hi])
   const onKey = e => {
     if (!show) return
     if (e.key === 'ArrowDown') { e.preventDefault(); e.stopPropagation(); setHi(h => Math.min(matches.length - 1, h + 1)) }
@@ -1186,7 +1204,7 @@ function Combo({ id, value, onChange, options, loadKey, loader, placeholder, inv
         onKeyDown={onKey} placeholder={loader && loadKey && loading ? t.loadingStreets : (loader && loadKey && !list.length && !loading ? t.noStreets : placeholder)}
         data-autofocus={autoFocus ? true : undefined} aria-invalid={invalid}/>
       {show && (
-        <ul className="sf-combo-list" role="listbox">
+        <ul className="sf-combo-list" role="listbox" ref={listRef}>
           {matches.map((m, i) => (
             <li key={m} role="option" aria-selected={i === hi} className={i === hi ? 'on' : ''} onMouseDown={e => { e.preventDefault(); pick(m) }} onMouseEnter={() => setHi(i)}>{m}</li>
           ))}
