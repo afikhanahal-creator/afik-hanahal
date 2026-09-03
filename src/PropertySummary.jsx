@@ -329,5 +329,5 @@ const CSS = `
 .ps-center h1 { font-size:20px; font-weight:600; margin:0; }
 .ps-spin { width:34px; height:34px; border-radius:50%; border:3px solid var(--line2); border-top-color:var(--deep); animation:psSpin .9s linear infinite; }
 @keyframes psSpin { to { transform:rotate(360deg) } }
-@media (max-width: 640px) { .ps-item { grid-template-columns:1fr; gap:2px; } .ps-fact { min-width:80px; } .ps-videos { grid-template-columns:1fr; } .ps-item .k { font-size:13.5px; } }
+@media (max-width: 640px) { .ps-item { grid-template-columns:1fr; gap:2px; } .ps-fact { min-width:80px; } .ps-videos { grid-template-columns:1fr; } .ps-item .k { font-size:13.5px; } .ps-btn.sm { min-height:44px; } .ps-lang { min-height:44px; } }
 `

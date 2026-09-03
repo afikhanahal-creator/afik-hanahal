@@ -425,7 +425,8 @@ textarea.sf-input { resize:none; line-height:1.5; font-size:clamp(17px,2vw,22px)
   .sf-seg button { min-height:44px; }
   .sf-file .x { width:34px; height:34px; }
   .sf-round { width:44px; height:44px; }
-  .sf-file select, .sf-field .sf-input { font-size:16px; }
+  .sf-file select { font-size:16px; }
+  .sf-field .sf-input { font-size:16px; min-height:44px; padding:10px 0; }
   .sf-btn { min-height:50px; font-size:17px; }
   .sf-count { bottom:8px; }
   .sf-q { font-size:22px; }
