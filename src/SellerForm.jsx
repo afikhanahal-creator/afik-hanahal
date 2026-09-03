@@ -28,10 +28,9 @@ const T = {
     brand: 'אפיק הנחל', tagline: 'ייזום · שיווק · תיווך',
     welcomeKicker: 'טופס שיווק נכס',
     welcomeTitle: 'בואו נשווק את הנכס שלכם',
-    welcomeSub: 'כמה דקות של שאלות פשוטות, וצוות אפיק הנחל מקבל תיק נכס מלא ומסודר כדי להתחיל לשווק נכון מהיום הראשון.',
-    bul1: 'כ־10 דקות', bul2: 'נשמר אוטומטית, אפשר לעצור ולהמשיך', bul3: 'המידע נשאר אצלנו בלבד',
+    welcomeSub: 'כמה שאלות קצרות, שאלה אחת בכל מסך, ואנחנו מתחילים לעבוד.',
+    bul1: 'כ־10 דקות', bul2: 'נשמר אוטומטית', bul3: 'פרטי ומאובטח',
     start: 'בואו נתחיל', resume: 'להמשיך מאיפה שעצרתי', restart: 'להתחיל מחדש',
-    howTitle: 'איך זה עובד', howSub: '9 חלקים קצרים, שאלה אחת בכל מסך', prepTitle: 'כדאי להכין מראש', prep: 'תמונות של הנכס, נסח טאבו או אישור זכויות, ומידע על ועד הבית. אפשר גם להשלים אחר כך.',
     savedDraft: 'מצאנו טופס שהתחלתם למלא',
     ok: 'אישור', cont: 'המשך', back: 'חזרה', press: 'או לחצו', requiredMark: 'שדה חובה',
     of: 'מתוך', part: 'חלק', optional: 'לא חובה',
@@ -59,10 +58,9 @@ const T = {
     brand: 'Afik Hanahal', tagline: 'Development · Marketing · Brokerage',
     welcomeKicker: 'Property marketing form',
     welcomeTitle: "Let's market your property",
-    welcomeSub: 'A few minutes of simple questions, and the Afik Hanahal team receives a complete, organised property file to start marketing correctly from day one.',
-    bul1: 'About 10 minutes', bul2: 'Auto-saved, stop and resume any time', bul3: 'Your information stays with us only',
+    welcomeSub: 'A few short questions, one per screen, and we get to work.',
+    bul1: 'About 10 minutes', bul2: 'Auto-saved', bul3: 'Private and secure',
     start: "Let's start", resume: 'Continue where I stopped', restart: 'Start over',
-    howTitle: 'How it works', howSub: '9 short parts, one question per screen', prepTitle: 'Good to have ready', prep: 'Property photos, a Tabu extract or rights confirmation, and building committee details. You can also add them later.',
     savedDraft: 'We found a form you started',
     ok: 'OK', cont: 'Continue', back: 'Back', press: 'or press', requiredMark: 'Required',
     of: 'of', part: 'Part', optional: 'Optional',
@@ -297,23 +295,13 @@ textarea.sf-input { resize:none; line-height:1.5; font-size:clamp(17px,2vw,20px)
 
 /* ── welcome / intro / review / done ───────────────────────────────────── */
 .sf-welcome { text-align:center; max-width:620px; margin:0 auto; }
-.sf-welcome .logo { height:140px; width:auto; margin:0 auto 22px; display:block; }
+.sf-welcome .logo { height:130px; width:auto; margin:0 auto 18px; display:block; }
 .sf-kicker { display:inline-block; font-size:11.5px; font-weight:700; letter-spacing:.16em; text-transform:uppercase; color:var(--deep); background:var(--tint2); border-radius:4px; padding:5px 12px; margin-bottom:16px; }
 .sf-welcome h1 { font-size:clamp(28px, 4.6vw, 40px); font-weight:700; margin:0 0 12px; letter-spacing:-.01em; line-height:1.2; }
 .sf-welcome p { font-size:17px; color:var(--ink2); line-height:1.6; margin:0 auto; max-width:520px; }
 .sf-bullets { display:flex; justify-content:center; gap:20px; flex-wrap:wrap; margin:22px 0 28px; }
 .sf-bullets span { display:inline-flex; align-items:center; gap:8px; font-size:13.5px; color:var(--ink2); }
 .sf-bullets span i { width:7px; height:7px; border-radius:50%; background:var(--deep); display:inline-block; }
-.sf-how { margin:28px auto 0; max-width:680px; text-align:start; }
-.sf-how-h { text-align:center; font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--deep); font-weight:700; margin-bottom:12px; }
-.sf-how-h small { display:block; font-size:13px; letter-spacing:0; text-transform:none; color:var(--muted); font-weight:400; margin-top:3px; }
-.sf-how-list { list-style:none; margin:0; padding:0; display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; }
-.sf-how-list li { display:flex; gap:10px; align-items:flex-start; background:var(--paper); border:1px solid var(--line); border-radius:6px; padding:10px 12px; min-height:64px; }
-.sf-how-list li i { flex:none; width:22px; height:22px; border-radius:50%; background:var(--ink); color:#fff; font-size:11px; font-weight:700; font-style:normal; display:inline-flex; align-items:center; justify-content:center; margin-top:1px; }
-.sf-how-list li b { display:block; font-size:14px; font-weight:700; line-height:1.3; }
-.sf-how-list li span { display:block; font-size:12.5px; color:var(--muted); line-height:1.4; margin-top:2px; }
-.sf-prep { margin:12px 0 0; font-size:13.5px; color:var(--ink2); background:var(--tint2); border-radius:6px; padding:10px 14px; line-height:1.5; }
-.sf-prep b { color:var(--deep); }
 .sf-welcome-actions { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin-top:24px; }
 .sf-draftbox { margin:0 auto 20px; max-width:420px; padding:12px 16px; border-radius:6px; background:var(--tint2); font-size:14px; color:var(--ink); display:flex; align-items:center; gap:10px; justify-content:center; }
 .sf-intro .n { font-size:12px; font-weight:700; color:var(--deep); letter-spacing:.14em; margin-bottom:10px; }
@@ -349,16 +337,21 @@ textarea.sf-input { resize:none; line-height:1.5; font-size:clamp(17px,2vw,20px)
 
 /* ── mobile ────────────────────────────────────────────────────────────── */
 @media (max-width: 720px) {
-  .sf-top { flex-wrap:wrap; gap:0; padding:8px 14px 0; min-height:0; }
-  .sf-brand { order:1; }
-  .sf-top-right { order:2; margin-inline-start:auto; }
-  .sf-stepper { order:3; flex:1 0 100%; justify-content:flex-start; padding:8px 0 10px; }
-  .sf-step em { width:18px; margin:0 6px; }
-  .sf-step:not(.cur) b { display:none; }
-  .sf-logo { height:30px; }
-  .sf-brandtxt small { display:none; }
+  .sf-top { justify-content:center; padding:0 14px; min-height:56px; }
+  .sf-brand { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); }
+  .sf-top-right { position:absolute; inset-inline-start:12px; top:50%; transform:translateY(-50%); }
+  .sf-stepper { display:none; }
+  .sf-logo { height:32px; }
+  .sf-brandtxt { display:none; }
   .sf-saved { display:none; }
-  .sf-stage { align-items:center; padding:118px 18px 110px; }
+  .sf-lang { padding:7px 11px; font-size:12.5px; }
+  .sf-stage { align-items:center; padding:84px 18px 96px; }
+  .sf-opt { min-height:50px; font-size:17px; }
+  .sf-pill { padding:9px 14px; font-size:14px; }
+  .sf-round { width:44px; height:44px; }
+  .sf-file select, .sf-field .sf-input { font-size:16px; }
+  .sf-btn { min-height:50px; font-size:17px; }
+  .sf-nav button { width:46px; height:46px; }
   .sf-card { text-align:center; }
   .sf-sec { text-align:center; }
   .sf-qhead { flex-direction:column; align-items:center; gap:10px; }
@@ -382,13 +375,11 @@ textarea.sf-input { resize:none; line-height:1.5; font-size:clamp(17px,2vw,20px)
   .sf-intro p { margin:0 auto; }
   .sf-review { text-align:start; }
   .sf-review h2, .sf-review > p { text-align:center; }
-  .sf-how-list { grid-template-columns:1fr; gap:6px; }
-  .sf-how-list li { min-height:0; padding:9px 12px; }
-  .sf-how-list li span { display:none; }
+  .sf-welcome .logo { height:120px; }
   .sf-welcome-actions .sf-btn { width:100%; justify-content:center; }
-  .sf-welcome h1 { font-size:26px; }
-  .sf-welcome p { font-size:15.5px; }
-  .sf-bullets { gap:8px 14px; margin:18px 0 6px; }
+  .sf-welcome h1 { font-size:27px; }
+  .sf-welcome p { font-size:16px; }
+  .sf-bullets { gap:8px 14px; margin:18px 0 4px; }
   .sf-bullets span { font-size:12.5px; }
   .sf-grid { grid-template-columns:1fr; }
   .sf-opts { align-items:stretch; }
@@ -718,22 +709,12 @@ function Welcome({ t, lang, draft, onStart, onResume }) {
       <div className="sf-bullets">
         <span><i/>{t.bul1}</span><span><i/>{t.bul2}</span><span><i/>{t.bul3}</span>
       </div>
-      <section className="sf-how" aria-label={t.howTitle}>
-        <div className="sf-how-h">{t.howTitle}<small>{t.howSub}</small></div>
-        <ol className="sf-how-list">
-          {SECTIONS.filter(s => s.id !== 'review').map(s => (
-            <li key={s.id}><i>{s.n}</i><div><b>{lang === 'en' ? s.en : s.title}</b><span>{lang === 'en' ? s.en_desc : s.desc}</span></div></li>
-          ))}
-        </ol>
-        <div className="sf-prep"><b>{t.prepTitle}:</b> {t.prep}</div>
-      </section>
       {hasDraft && <div className="sf-draftbox"><IcoWarn/>{t.savedDraft}</div>}
       <div className="sf-welcome-actions">
         {hasDraft
           ? <><button className="sf-btn big" onClick={onResume} data-autofocus>{t.resume}</button><button className="sf-btn big ghost" onClick={onStart}>{t.restart}</button></>
           : <button className="sf-btn big" onClick={onStart} data-autofocus>{t.start}</button>}
       </div>
-      <p style={{ marginTop: 28, fontSize: 12.5, color: 'var(--muted)' }}>{t.privacyNote}</p>
     </div>
   )
 }
@@ -783,7 +764,7 @@ function TextInput({ step, value, setValue, lang, err }) {
       autoComplete={step.autocomplete || (step.type === 'phone' ? 'tel' : step.type === 'email' ? 'email' : 'off')}
       dir={step.type === 'phone' || step.type === 'email' ? 'ltr' : undefined}
       style={step.type === 'phone' || step.type === 'email' ? { textAlign: lang === 'he' ? 'right' : 'left' } : undefined}
-      data-autofocus aria-invalid={!!err}/>
+      enterKeyHint="next" data-autofocus aria-invalid={!!err}/>
   )
 }
 
@@ -807,7 +788,7 @@ function NumberInput({ step, value, setValue, lang, err }) {
     <div className="sf-input-wrap">
       <input className={`sf-input${err ? ' is-err' : ''}`} type="text" inputMode="decimal" value={shown} onChange={onChange}
         placeholder={lang === 'en' ? (step.en_ph || step.ph) : step.ph} dir="ltr" style={{ textAlign: lang === 'he' ? 'right' : 'left' }}
-        data-autofocus aria-invalid={!!err}/>
+        enterKeyHint="next" data-autofocus aria-invalid={!!err}/>
       {unit && <span className="sf-unit">{unit}</span>}
     </div>
   )
@@ -899,7 +880,7 @@ function Group({ step, value, setValue, answers, lang, err }) {
                 value={v[f.k] ?? ''} onChange={e => setValue({ ...v, [f.k]: isNum ? e.target.value.replace(/[^\d.\-]/g, '') : e.target.value })}
                 placeholder={lang === 'en' ? (f.en_ph || f.ph || '') : (f.ph || '')} autoComplete={f.autocomplete || 'off'}
                 dir={isNum || f.type === 'tel' ? 'ltr' : undefined} style={isNum || f.type === 'tel' ? { textAlign: lang === 'he' ? 'right' : 'left' } : undefined}
-                data-autofocus={i === 0 ? true : undefined} aria-invalid={bad.includes(f.k)}/>
+                enterKeyHint={i === fields.length - 1 ? 'next' : 'next'} data-autofocus={i === 0 ? true : undefined} aria-invalid={bad.includes(f.k)}/>
               {unit && <span className="sf-unit">{unit}</span>}
             </div>
           </div>
