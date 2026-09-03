@@ -2907,6 +2907,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
               <span style={{ background:'rgba(34,197,94,.2)', color:'#22C55E', borderRadius:20, padding:'2px 7px', fontSize:11, fontWeight:900, lineHeight:1.6 }}>{publishedList.length}</span>
             </button>
             {tabBtn('leads', 'לידים', leads.length)}
+            {tabBtn('sellers', 'נכסים שנקלטו', intakeStats?.new || undefined)}
             {tabBtn('chats', 'צ\'אטים')}
             {tabBtn('analytics', 'אנליטיקס')}
             {tabBtn('supermetrics', 'ביצועים')}
