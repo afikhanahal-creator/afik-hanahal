@@ -51,7 +51,7 @@ const T = {
     otherPh: 'פרטו במילים…', notePh: 'תיאור כיווני האוויר. אפשר לערוך חופשי', noteReset: 'חזרה לתיאור האוטומטי', loadingStreets: 'טוען רחובות…', noStreets: 'הקלידו את שם הרחוב',
     edit: 'עריכה', missingTitle: 'נשארו שאלות חובה שלא נענו', jump: 'מעבר לשאלה',
     consent: 'אני מאשר/ת שהפרטים שמסרתי נכונים למיטב ידיעתי, ומסכים/ה שאפיק הנחל תיצור איתי קשר בנוגע לשיווק הנכס.',
-    submit: 'סיום ושליחת הנכס', submitting: 'שולחים…', shareForm: 'שתף טופס', shareFormText: 'היי, אפיק הנחל מבקשים שנמלא את פרטי הנכס למכירה. אפשר להמשיך את הטופס כאן:', shareFormHint: 'שלחו את הקישור לבן/בת זוג או לשותף כדי שיעזרו למלא. הטופס המשותף נשמר אוטומטית.', resumedFromLink: 'המשכנו מהמקום שבו הטופס נעצר', savedCloud: 'נשמר', dateDay: 'יום', dateMonth: 'חודש', dateYear: 'שנה', dirPresets: 'בחירה מהירה', pickFromList: 'או בחרו מהרשימה',
+    submit: 'סיום ושליחת הנכס', submitting: 'שולחים…', shareForm: 'שתף טופס', shareFormText: 'היי, אפיק הנחל מבקשים שנמלא את פרטי הנכס. אפשר להמשיך את הטופס כאן:', shareFormHint: 'שלחו את הקישור לבן/בת זוג או לשותף כדי שיעזרו למלא. הטופס המשותף נשמר אוטומטית.', resumedFromLink: 'המשכנו מהמקום שבו הטופס נעצר', savedCloud: 'נשמר', dateDay: 'יום', dateMonth: 'חודש', dateYear: 'שנה', dirPresets: 'בחירה מהירה', pickFromList: 'או בחרו מהרשימה',
     submitErr: 'משהו השתבש בשליחה. הטופס שלכם שמור, נסו שוב בעוד רגע או שלחו לנו הודעה בוואטסאפ.',
     consentErr: 'צריך לאשר את ההצהרה כדי לשלוח',
     doneTitle: 'תודה, {name}!', doneSub: 'הנכס נקלט אצלנו. צוות השיווק של אפיק הנחל יעבור על הפרטים וייצור איתכם קשר תוך יום עסקים כדי לתאם את הצעד הבא.', factRent: 'שכירות חודשית',
@@ -84,7 +84,7 @@ const T = {
     otherPh: 'Please specify…', notePh: 'Direction description. Edit freely', noteReset: 'Back to the automatic description', loadingStreets: 'Loading streets…', noStreets: 'Type the street name',
     edit: 'Edit', missingTitle: 'Some required questions are still unanswered', jump: 'Go to question',
     consent: 'I confirm the details I provided are accurate to the best of my knowledge, and I agree that Afik Hanahal may contact me regarding marketing this property.',
-    submit: 'Finish and submit the property', submitting: 'Sending…', shareForm: 'Share form', shareFormText: 'Hi, Afik Hanahal asked us to fill in the property details for the sale. You can continue the form here:', shareFormHint: 'Send the link to a spouse or partner so they can help fill it in. The shared form saves automatically.', resumedFromLink: 'Continuing from where the form stopped', savedCloud: 'Saved', dateDay: 'Day', dateMonth: 'Month', dateYear: 'Year', dirPresets: 'Quick pick', pickFromList: 'or pick from the list',
+    submit: 'Finish and submit the property', submitting: 'Sending…', shareForm: 'Share form', shareFormText: 'Hi, Afik Hanahal asked us to fill in our property details. You can continue the form here:', shareFormHint: 'Send the link to a spouse or partner so they can help fill it in. The shared form saves automatically.', resumedFromLink: 'Continuing from where the form stopped', savedCloud: 'Saved', dateDay: 'Day', dateMonth: 'Month', dateYear: 'Year', dirPresets: 'Quick pick', pickFromList: 'or pick from the list',
     submitErr: 'Something went wrong. Your form is saved. Try again in a moment or message us on WhatsApp.',
     consentErr: 'Please confirm the statement to submit',
     doneTitle: 'Thank you, {name}!', doneSub: 'Your property file has reached us. The Afik Hanahal marketing team will review the details and contact you within one business day to plan the next step.', factRent: 'Monthly rent',
@@ -192,6 +192,7 @@ const CSS = `
 .sf-q { font-size:clamp(23px, 2.9vw, 33px); font-weight:400; line-height:1.35; margin:0; color:var(--ink); text-wrap:balance; }
 .sf-q b { font-weight:700; }
 .sf-q .req { color:var(--ink2); margin-inline-start:2px; }
+.sf-q .sf-opt-tag { font-size:.55em; font-weight:400; color:var(--muted); white-space:nowrap; }
 .sf-sec { font-size:13px; color:var(--muted); margin-bottom:12px; letter-spacing:.02em; }
 .sf-help { margin:12px auto 0; font-size:18px; line-height:1.55; color:var(--muted); max-width:640px; text-wrap:balance; }
 .sf-body { margin:30px auto 0; max-width:640px; }

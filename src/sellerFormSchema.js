@@ -1489,7 +1489,7 @@ export function buildStory(a, lang = 'he') {
     ].filter(Boolean)
     const lacks = [a.f_mamad === 'no' ? 'ממ״ד' : '', a.f_elevator === 'no' ? 'מעלית' : '', a.f_parking && !pk ? 'חניה פרטית' : '', a.f_storage === 'no' ? 'מחסן' : ''].filter(Boolean)
     const kitchen = a.f_kitchen ? `המטבח ${lab('f_kitchen', a.f_kitchen).replace(/^מטבח /, '').replace('חצי פתוח', 'חצי פתוח לסלון')}${a.f_island === 'yes' ? ' וכולל אי' : ''}.` : (a.f_island === 'yes' ? 'במטבח יש אי.' : '')
-    const climate = a.f_climate ? (a.f_climate === 'none' ? `ב${the.replace(/^ה/, '')} אין מיזוג.` : `המיזוג ${lab('f_climate', a.f_climate).replace(/^מיזוג /, '').replace(/^מזגנים/, 'באמצעות מזגנים').replace(/^מזגן/, 'באמצעות מזגן')}${a.f_climate === 'other' && a.f_climate_other ? '' : ''}.`) : ''
+    const climate = a.f_climate ? (a.f_climate === 'none' ? `ב${the.replace(/^ה/, '')} אין מיזוג.` : `המיזוג ${lab('f_climate', a.f_climate).replace(/^מיזוג /, '').replace(/^מזגנים/, 'באמצעות מזגנים').replace(/^מזגן/, 'באמצעות מזגן')}${a.f_climate === 'other' && a.f_climate_other ? ` (${a.f_climate_other})` : ''}.`) : ''
     const rooms = labs('f_rooms')
     const water = labs('f_water')
     const sys = labs('f_systems').filter(x => !/אין תוספות/.test(x))
@@ -1665,7 +1665,7 @@ function buildStoryEn(a) {
     add('Features', [
       has.length ? `The property has ${list(has)}.` : '', lacks.length ? `There is no ${list(lacks)}.` : '',
       a.f_kitchen ? `The kitchen is ${lc(lab('f_kitchen', a.f_kitchen))}${a.f_island === 'yes' ? ' and has an island' : ''}.` : '',
-      a.f_climate ? (a.f_climate === 'none' ? 'There is no air conditioning.' : `Air conditioning: ${lc(lab('f_climate', a.f_climate))}.`) : '',
+      a.f_climate ? (a.f_climate === 'none' ? 'There is no air conditioning.' : `Air conditioning: ${lc(lab('f_climate', a.f_climate))}${a.f_climate === 'other' && a.f_climate_other ? ` (${a.f_climate_other})` : ''}.`) : '',
       labs('f_rooms').length ? `Additional spaces: ${lc(list(labs('f_rooms')))}.` : '',
       labs('f_water').length ? `Water is heated by ${lc(list(labs('f_water')))}.` : '',
       labs('f_systems').filter(x => !/no special/i.test(x)).length ? `Extras: ${lc(list(labs('f_systems').filter(x => !/no special/i.test(x))))}.` : '',
