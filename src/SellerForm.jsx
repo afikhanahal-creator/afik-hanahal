@@ -98,7 +98,7 @@ const stripFilesForDraft = answers => {
   })
   return out
 }
-const loadDraft = () => { try { const d = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); return d && d.answers ? d : null } catch { return null } }
+const loadDraft = () => { try { const d = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); return d && d.answers && d.v === SCHEMA_VERSION ? d : null } catch { return null } }
 const saveDraft = d => { try { localStorage.setItem(DRAFT_KEY, JSON.stringify(d)) } catch {} }
 const clearDraft = () => { try { localStorage.removeItem(DRAFT_KEY) } catch {} }
 
