@@ -22,9 +22,6 @@
     "api/news.js": {
       "maxDuration": 30
     },
-    "api/news/archive.js": {
-      "maxDuration": 15
-    },
     "api/cron/warm.js": {
       "maxDuration": 60
     },
@@ -57,6 +54,10 @@
     {
       "source": "/api/meta/:path*",
       "destination": "/api/meta?_path=:path*"
+    },
+    {
+      "source": "/api/news/archive",
+      "destination": "/api/news?archive=1"
     },
     {
       "source": "/api/(.*)",

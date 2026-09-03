@@ -7,6 +7,7 @@
 
 import { fetchAllSources, outletKey, outletCap, titleKey, cleanTitle, deduplicateImages, fetchOGImage } from '../lib/news/sources.js'
 import { scoreRealEstate } from '../lib/news/classify.js'
+import archiveHandler from '../lib/news/archive.js'
 
 const RENDER   = process.env.RENDER_URL || 'https://afik-hanahal-server.onrender.com'
 const SUPA_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
@@ -42,6 +43,8 @@ function dedupe(list) {
 const valid = a => a?.title && a.image && scoreRealEstate(a.title).ok
 
 export default async function handler(req, res) {
+  // /api/news/archive is rewritten here (vercel.json) — keeps the function count within the Hobby limit
+  if (String(req.query?.archive || '') === '1' || /^\/api\/news\/archive(\?|$)/.test(req.url || '')) return archiveHandler(req, res)
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
