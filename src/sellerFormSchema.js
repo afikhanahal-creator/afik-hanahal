@@ -1475,6 +1475,66 @@ export function headline(a, lang = 'he') {
   return head
 }
 
+// Story page header: "דירת 4 חדרים ברעננה" + "למכירה · רחוב אחוזה 12, נווה זמר"
+export function storyTitle(a, lang = 'he') {
+  const city = a.p_address?.city
+  if (lang === 'en') return `${enTypePhrase(a)}${city ? ` in ${city}` : ''}`
+  return `${heTypePhrase(a)}${city ? ` ב${city}` : ''}`
+}
+export function storyLine(a, lang = 'he') {
+  const addr = a.p_address || {}
+  const street = [addr.street, addr.number].filter(Boolean).join(' ')
+  const purpose = a.x_purpose ? (lang === 'en' ? (a.x_purpose === 'rental' ? 'For rent' : 'For sale') : (a.x_purpose === 'rental' ? 'להשכרה' : 'למכירה')) : ''
+  return [purpose, street ? (lang === 'en' ? street : `רחוב ${street}`) : '', addr.neighborhood ? (lang === 'en' ? addr.neighborhood : `שכונת ${addr.neighborhood}`) : ''].filter(Boolean).join(' · ')
+}
+export function addressLine(a, lang = 'he') {
+  const addr = a.p_address || {}
+  const street = [addr.street, addr.number].filter(Boolean).join(' ')
+  return [street ? (lang === 'en' ? street : `רחוב ${street}`) : '', addr.city].filter(Boolean).join(', ')
+}
+
+// Ready-to-use marketing copy for the office (social post, WhatsApp broadcast, one-line listing)
+export function marketingTexts(a, { phone = '055-981-1814', brand = 'אפיק הנחל' } = {}) {
+  const rental = purposeOf(a) === 'rental'
+  const addr = a.p_address || {}, fl = a.p_floor || {}
+  const clean = t => String(t || '').trim().replace(/[.\s]+$/, '')
+  const S = id => STEPS.find(s => s.id === id)
+  const labs = id => Array.isArray(a[id]) ? a[id].map(x => optLabel(S(id), x, 'he', a)).filter(x => x && x !== 'אחר') : []
+  const facts = [
+    a.p_rooms ? `🛏 ${heRooms(a.p_rooms)}` : '',
+    a.p_area?.built ? `📐 ${fmtNum(a.p_area.built)} מ״ר` : '',
+    !isHouse(a) && !isBlank(fl.floor) ? `🏢 קומה ${fl.floor}${fl.totalFloors ? ` מתוך ${fl.totalFloors}` : ''}` : '',
+    Number(a.f_parking?.parking) ? `🚗 ${Number(a.f_parking.parking) === 1 ? 'חניה' : `${a.f_parking.parking} חניות`}` : '',
+    a.f_elevator && a.f_elevator !== 'no' ? '🛗 מעלית' : '',
+    a.f_mamad === 'yes' ? '🛡 ממ״ד' : '',
+    a.p_area?.balcony ? `🌿 מרפסת ${fmtNum(a.p_area.balcony)} מ״ר` : '',
+  ].filter(Boolean)
+  const price = a.d_ask ? (rental ? `💰 ${fmtNum(a.d_ask)} ₪ לחודש` : `💰 ${fmtNum(a.d_ask)} ₪`) : ''
+  const where = [addr.neighborhood ? `שכונת ${addr.neighborhood}` : '', addr.city].filter(Boolean).join(', ')
+  const title = `${heTypePhrase(a)} ${rental ? 'להשכרה' : 'למכירה'}${where ? ` ב${where}` : ''}`
+  const near = labs('m_nearby')
+  const highlights = [clean(a.m_pros), clean(a.m_unique), clean(a.m_story)].filter(Boolean)
+  const tags = ['#אפיק_הנחל', '#נדלן', rental ? '#להשכרה' : '#למכירה', addr.city ? `#${String(addr.city).replace(/[\s-]+/g, '_')}` : '', a.p_type === 'penthouse' ? '#פנטהאוז' : a.p_type === 'garden' ? '#דירת_גן' : a.p_type === 'house' || a.p_type === 'cottage' ? '#בית_פרטי' : ''].filter(Boolean)
+  const post = [
+    `🏡 ${title}`, '',
+    ...highlights.map(h => `✨ ${h}`),
+    highlights.length ? '' : null,
+    facts.join('  ·  '),
+    price,
+    near.length ? `🚶 במרחק הליכה: ${near.slice(0, 4).join(', ')}` : '',
+    '', `📞 לפרטים ולתיאום ביקור: ${brand} · ${phone}`, tags.join(' '),
+  ].filter(x => x !== null).join('\n').replace(/\n{3,}/g, '\n\n')
+  const wa = [
+    `*${title}*`,
+    facts.join(' · '),
+    price,
+    highlights[0] ? `✨ ${highlights[0]}` : '',
+    `לפרטים: ${brand} ${phone}`,
+  ].filter(Boolean).join('\n')
+  const short = [title, facts.slice(0, 3).map(f => f.replace(/^\S+\s/, '')).join(' · '), price.replace(/^💰 /, ''), `${brand} ${phone}`].filter(Boolean).join(' | ')
+  return { post, wa, short, title }
+}
+
 export function buildStory(a, lang = 'he') {
   if (lang === 'en') return buildStoryEn(a)
   const S = id => STEPS.find(s => s.id === id)

@@ -9,7 +9,7 @@
 // side) and it appears on the live site; "הסר מהאתר" hides it without deleting.
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { FaWhatsapp, FaPhone, FaEnvelope, FaTrash, FaSearch, FaCopy, FaDownload, FaFileAlt, FaVideo, FaSyncAlt, FaExternalLinkAlt, FaCheck, FaGlobe, FaEyeSlash, FaLink, FaShieldAlt, FaHistory, FaImage, FaBullhorn, FaBalanceScale, FaMoneyBill, FaInfoCircle, FaSave, FaPlus, FaTimes, FaExclamationTriangle } from 'react-icons/fa'
-import { buildSummary, headline, PROPERTY_TYPE_LABEL, DOC_TAG_LABEL, fmtNum, INTAKE_STATUSES } from './sellerFormSchema.js'
+import { buildSummary, headline, PROPERTY_TYPE_LABEL, DOC_TAG_LABEL, fmtNum, INTAKE_STATUSES, marketingTexts } from './sellerFormSchema.js'
 
 const ADMIN_TOKEN = 'AFIKhanahal2026'
 const API = '/api/seller-form'
@@ -396,6 +396,23 @@ export default function SellerSubmissionsTab({ C, onChanged }) {
 
             {tab === 'marketing' && (
               <>
+                {(() => { const mk = marketingTexts(detail.answers || {}); return (
+                  <div style={{ ...card, padding: '14px 16px', marginBottom: 10, borderColor: 'rgba(34,197,94,.3)' }}>
+                    <h3 style={{ fontSize: 12, letterSpacing: '.12em', color: '#22C55E', margin: '0 0 4px', fontWeight: 700 }}>טקסטים מוכנים לשיווק</h3>
+                    <div style={{ fontSize: 11.5, color: 'rgba(232,228,216,.5)', marginBottom: 10 }}>נבנים אוטומטית מהתשובות. העתיקו, ערכו אם צריך, ופרסמו.</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 10 }}>
+                      {[['פוסט לפייסבוק / אינסטגרם', mk.post], ['הודעת וואטסאפ', mk.wa], ['שורת מודעה', mk.short]].map(([title, text]) => (
+                        <div key={title} style={{ background: 'rgba(255,255,255,.03)', border: '1px solid rgba(132,144,216,.14)', borderRadius: 10, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <b style={{ fontSize: 12.5 }}>{title}</b>
+                            <button onClick={() => copyText(text)} style={btn()}><FaCopy size={11}/> העתקה</button>
+                          </div>
+                          <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: 12.5, lineHeight: 1.6, color: 'rgba(232,228,216,.85)' }}>{text}</pre>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) })()}
                 {detail.story && (
                   <div style={{ ...card, padding: '14px 16px', marginBottom: 10, borderColor: 'rgba(132,144,216,.3)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
