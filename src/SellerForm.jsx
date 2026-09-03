@@ -432,15 +432,16 @@ textarea.sf-input { resize:none; line-height:1.5; font-size:clamp(17px,2vw,22px)
   .sf-top { justify-content:center; padding:0 14px; min-height:56px; }
   .sf-brand { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); }
   .sf-top-right { position:static; }
-  .sf-top .ps-share { position:absolute; inset-inline-start:12px; top:50%; transform:translateY(-50%); }
+  .sf-top .ps-share { position:absolute; inset-inline-start:12px; top:8px; transform:none; }   /* no transform: the fixed menu below must position against the viewport */
   .sf-top .sf-lang { position:absolute; inset-inline-end:8px; top:50%; transform:translateY(-50%); }
   .sf-stepper { display:none; }
   .sf-logo { height:32px; }
   .sf-brandtxt { display:none; }
   .sf-saved { display:none; }
   .sf-lang { padding:8px 8px; min-height:44px; font-size:13px; }
-  .sf-top .ps-btn.sm { min-height:44px; padding:8px 12px; font-size:14px; }
-  .sf-top .ps-share-menu { position:fixed; top:64px; inset-inline:12px; transform:none; min-width:0; }
+  .sf-top .ps-btn.sm { min-height:40px; padding:6px 11px; font-size:13px; font-weight:600; gap:6px; border-color:var(--line2); background:var(--paper); color:var(--ink2); box-shadow:none; }
+  .sf-top .ps-btn.sm svg { width:14px; height:14px; }
+  .sf-root .sf-top .ps-share-menu, [dir="rtl"] .sf-root .sf-top .ps-share-menu { position:fixed; top:64px; inset-inline:12px; transform:none; min-width:0; border-radius:12px; box-shadow:0 16px 40px rgba(0,0,0,.18); }
   .sf-stage { padding:76px 18px 72px; }
   .sf-opt { min-height:50px; font-size:17px; }
   .sf-opts { gap:10px; }

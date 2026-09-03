@@ -9,7 +9,7 @@
 //   SummaryView        – the rendered summary (from API data or local answers)
 //   ShareMenu          – copy link / WhatsApp / native share
 //   buildLocalSummary  – turn local answers into the same data shape the API returns
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { buildSummary, buildStory, headline, publicAnswers, fmtNum, STEPS, purposeOf } from './sellerFormSchema.js'
 
 const API = import.meta.env.PROD ? '' : (import.meta.env.VITE_SELLER_API_BASE || '')
@@ -55,7 +55,7 @@ const SHARE_CSS = `
 .ps-share { position:relative; display:inline-block; }
 .ps-share-menu { position:absolute; top:calc(100% + 6px); inset-inline-start:50%; transform:translateX(-50%); background:#fff; border:1px solid #C6C6CC; border-radius:8px; box-shadow:0 12px 32px rgba(0,0,0,.14); padding:6px; z-index:80; display:flex; flex-direction:column; min-width:220px; }
 [dir="rtl"] .ps-share-menu { transform:translateX(50%); }
-.ps-share-menu button, .ps-share-menu a { display:flex; align-items:center; gap:10px; width:100%; text-align:start; padding:10px 12px; border:0; background:none; color:#26242B; font-size:14.5px; font-weight:500; cursor:pointer; border-radius:6px; text-decoration:none; font-family:inherit; }
+.ps-share-menu button, .ps-share-menu a { display:flex; align-items:center; gap:10px; width:100%; text-align:start; padding:12px 14px; min-height:44px; border:0; background:none; color:#26242B; font-size:15px; font-weight:500; cursor:pointer; border-radius:6px; text-decoration:none; font-family:inherit; }
 .ps-share-menu button:hover, .ps-share-menu a:hover { background:#EEF0FA; color:#3F4EB0; }
 `
 
@@ -64,18 +64,27 @@ export function ShareMenu({ url, title, text, lang = 'he', label, compact }) {
   const t = T[lang] || T.he
   const [open, setOpen] = useState(false)
   const [copied, setCopied] = useState(false)
+  const rootRef = useRef(null)
   const canNative = typeof navigator !== 'undefined' && !!navigator.share
+  // close on outside tap / Escape (mobile and desktop)
+  useEffect(() => {
+    if (!open) return
+    const onDown = e => { if (rootRef.current && !rootRef.current.contains(e.target)) setOpen(false) }
+    const onKey = e => { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('pointerdown', onDown); document.addEventListener('keydown', onKey)
+    return () => { document.removeEventListener('pointerdown', onDown); document.removeEventListener('keydown', onKey) }
+  }, [open])
   const copy = async () => { try { await navigator.clipboard.writeText(url) } catch { const i = document.createElement('input'); i.value = url; document.body.appendChild(i); i.select(); document.execCommand('copy'); i.remove() } setCopied(true); setTimeout(() => setCopied(false), 1800) }
   const wa = `https://wa.me/?text=${encodeURIComponent(`${text}\n${url}`)}`
   const native = async () => { try { await navigator.share({ title, text, url }) ; setOpen(false) } catch {} }
   return (
-    <div className={`ps-share${open ? ' open' : ''}`}>
+    <div className={`ps-share${open ? ' open' : ''}${compact ? ' compact' : ''}`} ref={rootRef}>
       <style>{SHARE_CSS}</style>
-      <button type="button" className={`ps-btn${compact ? ' sm' : ''}`} onClick={() => setOpen(o => !o)} aria-expanded={open}><IcoShare/>{label || t.share}</button>
+      <button type="button" className={`ps-btn${compact ? ' sm ghost' : ''}`} onClick={() => setOpen(o => !o)} aria-expanded={open} aria-haspopup="menu"><IcoShare/>{label || t.share}</button>
       {open && (
         <div className="ps-share-menu" role="menu">
           <button type="button" role="menuitem" onClick={copy}><IcoLink/>{copied ? t.copied : t.copyLink}</button>
-          <a role="menuitem" href={wa} target="_blank" rel="noreferrer"><IcoWa/>{t.whatsapp}</a>
+          <a role="menuitem" href={wa} target="_blank" rel="noreferrer" onClick={() => setOpen(false)}><IcoWa/>{t.whatsapp}</a>
           {canNative && <button type="button" role="menuitem" onClick={native}><IcoShare/>{t.native}</button>}
         </div>
       )}
