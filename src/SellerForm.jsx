@@ -16,8 +16,7 @@ import {
   STEPS, SECTIONS, visibleSteps, visibleFields, visibleRows, validateStep, groupInvalidFields,
   buildSummary, VALIDATION_MSG, fmtNum, SCHEMA_VERSION, DOC_TAG_LABEL, EMPHASIS,
   otherKey, noteKey, directionsText, buildStory, storyText, headline, PROPERTY_TYPE_LABEL,
-  stepOpts, stepQuestion, stepHelp, stepPh, stepUnit, sectionText, emphasisFor, purposeOf, purposeSpecificKeys,
-} from './sellerFormSchema.js'
+  stepOpts, stepQuestion, stepHelp, stepPh, stepUnit, sectionText, emphasisFor, purposeOf, purposeSpecificKeys, PROPERTY_STATE_LABEL } from './sellerFormSchema.js'
 import CITIES from './data/israelCities.json'
 import { SummaryView, ShareMenu, buildLocalSummary } from './PropertySummary.jsx'
 
@@ -30,10 +29,12 @@ const FONT_HREF = 'https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;5
 const T = {
   he: {
     brand: 'אפיק הנחל', tagline: 'ייזום · שיווק · תיווך',
-    welcomeKicker: 'אפיק הנחל · שיווק נכסים למכירה ולהשכרה',
+    welcomeKicker: 'אפיק הנחל · ייזום, שיווק ותיווך נדל״ן',
     welcomeTitle: 'בואו נכיר את הנכס שלכם',
-    welcomeSub: 'הקדישו לנו כ־10 דקות, ואנחנו באפיק הנחל נשתמש במידע כדי לדייק את השיווק של הנכס שלכם, למכירה או להשכרה, ולהציג אותו בצורה הטובה ביותר.',
+    welcomeSub: 'ספרו לנו על הנכס בכמה דקות. אנחנו באפיק הנחל נשתמש בכל פרט כדי לתמחר נכון, לדייק את השיווק ולהציג את הנכס בצורה הטובה ביותר לקונים או לשוכרים המתאימים.',
     bul1: 'כ־10 דקות', bul2: 'נשמר אוטומטית', bul3: 'פרטי ומאובטח',
+    how1: 'אתם מספרים', how1s: 'עונים על שאלות קצרות, בקצב שלכם', how2: 'אנחנו בונים תיק נכס', how2s: 'סיכום מסודר וסיפור נכס מוכן לשיווק', how3: 'יוצאים לשיווק', how3s: 'נחזור אליכם תוך יום עסקים עם תוכנית פעולה',
+    ctaNote: 'בסיום תקבלו סיכום מסודר של הנכס וקישור לשיתוף עם בני המשפחה.',
     start: 'בואו נתחיל', resume: 'להמשיך מאיפה שעצרתי', restart: 'להתחיל מחדש',
     savedDraft: 'מצאנו טופס שהתחלתם למלא',
     ok: 'אישור', cont: 'המשך', back: 'חזרה', press: 'או לחצו', requiredMark: 'שדה חובה',
@@ -45,8 +46,8 @@ const T = {
     docTypePick: 'איזה מסמך אתם מעלים עכשיו?', laterWhatsapp: 'אפשר לדלג ולשלוח לנו מאוחר יותר בוואטסאפ',
     fileTooBig: '{name}: הקובץ גדול מדי (מקסימום {mb}MB)', tooMany: 'אפשר להעלות עד {n} קבצים בשלב הזה', wrongType: '{name}: סוג הקובץ לא נתמך כאן',
     uploadedCount: '{n} קבצים הועלו',
-    reviewTitle: 'תיק הנכס', reviewKicker: 'סיכום כל הפרטים', reviewSub: 'כל מה שסיפרתם לנו, מסודר. אפשר לערוך כל תשובה בלחיצה.',
-    toStory: 'לסיפור הנכס', storyKicker: 'סיפור הנכס', storySub: 'כך נציג את הנכס. קראו, ואם משהו לא מדויק, חזרו ותקנו.', copyStory: 'העתקת הסיפור',
+    reviewTitle: 'תיק הנכס', reviewKicker: 'סיכום כל הפרטים', reviewSub: 'כל מה שסיפרתם לנו, מסודר לפי נושאים. אפשר לערוך כל תשובה בלחיצה.',
+    toStory: 'לסיפור הנכס', storyKicker: 'סיפור הנכס', storySub: 'כך נספר על הנכס ללקוחות. קראו בנחת, ואם משהו לא מדויק, חזרו ותקנו.', copyStory: 'העתקת הסיפור', storyDoc: 'תיק נכס', storyBy: 'הוכן על ידי אפיק הנחל על סמך הפרטים שמסרתם', storyFoot: 'אפיק הנחל · ייזום, שיווק ותיווך נדל״ן',
     factPrice: 'מחיר מבוקש', factRooms: 'חדרים', factArea: 'מ״ר בנוי', factFloor: 'קומה', factParking: 'חניות', factState: 'מצב', factType: 'סוג הנכס',
     otherPh: 'פרטו במילים…', notePh: 'תיאור כיווני האוויר. אפשר לערוך חופשי', noteReset: 'חזרה לתיאור האוטומטי', loadingStreets: 'טוען רחובות…', noStreets: 'הקלידו את שם הרחוב',
     edit: 'עריכה', missingTitle: 'נשארו שאלות חובה שלא נענו', jump: 'מעבר לשאלה',
@@ -63,10 +64,12 @@ const T = {
   },
   en: {
     brand: 'Afik Hanahal', tagline: 'Development · Marketing · Brokerage',
-    welcomeKicker: 'Afik Hanahal · Marketing properties for sale and rent',
+    welcomeKicker: 'Afik Hanahal · Real estate development, marketing and brokerage',
     welcomeTitle: "Let's get to know your property",
-    welcomeSub: 'Give us about 10 minutes, and we at Afik Hanahal will use the details to sharpen the marketing of your property, for sale or for rent, and present it at its best.',
+    welcomeSub: 'Tell us about the property in a few minutes. We at Afik Hanahal will use every detail to price it right, sharpen the marketing and present it at its best to the right buyers or tenants.',
     bul1: 'About 10 minutes', bul2: 'Auto-saved', bul3: 'Private and secure',
+    how1: 'You tell us', how1s: 'Short questions, at your own pace', how2: 'We build the property file', how2s: 'An organised summary and a marketing-ready property story', how3: 'We go to market', how3s: 'We get back to you within one business day with a plan',
+    ctaNote: 'At the end you get an organised summary of the property and a link to share with your family.',
     start: "Let's start", resume: 'Continue where I stopped', restart: 'Start over',
     savedDraft: 'We found a form you started',
     ok: 'OK', cont: 'Continue', back: 'Back', press: 'or press', requiredMark: 'Required',
@@ -78,8 +81,8 @@ const T = {
     docTypePick: 'Which document are you uploading now?', laterWhatsapp: 'You can skip and send it later via WhatsApp',
     fileTooBig: '{name}: file is too large (max {mb}MB)', tooMany: 'Up to {n} files can be uploaded here', wrongType: '{name}: this file type is not supported here',
     uploadedCount: '{n} files uploaded',
-    reviewTitle: 'Property file', reviewKicker: 'Everything in one place', reviewSub: 'Everything you told us, organised. Click any answer to edit it.',
-    toStory: 'To the property story', storyKicker: 'The property story', storySub: 'This is how we will present the property. Read it, and go back to fix anything inaccurate.', copyStory: 'Copy story',
+    reviewTitle: 'Property file', reviewKicker: 'Everything in one place', reviewSub: 'Everything you told us, organised by topic. Click any answer to edit it.',
+    toStory: 'To the property story', storyKicker: 'The property story', storySub: 'This is how we will tell clients about the property. Read it at your leisure, and go back to fix anything inaccurate.', copyStory: 'Copy story', storyDoc: 'Property file', storyBy: 'Prepared by Afik Hanahal from the details you provided', storyFoot: 'Afik Hanahal · Real estate development, marketing and brokerage',
     factPrice: 'Asking price', factRooms: 'Rooms', factArea: 'm² built', factFloor: 'Floor', factParking: 'Parking', factState: 'Condition', factType: 'Type',
     otherPh: 'Please specify…', notePh: 'Direction description. Edit freely', noteReset: 'Back to the automatic description', loadingStreets: 'Loading streets…', noStreets: 'Type the street name',
     edit: 'Edit', missingTitle: 'Some required questions are still unanswered', jump: 'Go to question',
@@ -333,7 +336,13 @@ textarea.sf-input { resize:none; line-height:1.5; font-size:clamp(17px,2vw,22px)
 .sf-bullets { display:flex; justify-content:center; gap:20px; flex-wrap:wrap; margin:22px 0 28px; }
 .sf-bullets span { display:inline-flex; align-items:center; gap:8px; font-size:13.5px; color:var(--ink2); }
 .sf-bullets span i { width:7px; height:7px; border-radius:50%; background:var(--deep); display:inline-block; }
-.sf-welcome-actions { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin-top:24px; }
+.sf-welcome-actions { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin-top:22px; }
+.sf-how { list-style:none; margin:24px auto 0; padding:0; display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:10px; max-width:640px; text-align:start; }
+.sf-how li { display:flex; gap:10px; align-items:flex-start; background:var(--paper); border:1px solid var(--line); border-radius:12px; padding:13px 14px; }
+.sf-how li i { flex:none; width:26px; height:26px; border-radius:50%; background:var(--tint2); color:var(--deep); font-style:normal; font-weight:700; font-size:12.5px; display:inline-flex; align-items:center; justify-content:center; }
+.sf-how b { display:block; font-size:14.5px; font-weight:700; color:var(--ink); line-height:1.3; }
+.sf-how span { display:block; font-size:13px; color:var(--muted); line-height:1.45; margin-top:3px; }
+.sf-cta-note { margin:14px auto 0; font-size:13.5px; color:var(--muted); max-width:460px; line-height:1.5; }
 .sf-draftbox { margin:0 auto 20px; max-width:420px; padding:12px 16px; border-radius:6px; background:var(--tint2); font-size:14px; color:var(--ink); display:flex; align-items:center; gap:10px; justify-content:center; }
 .sf-intro .n { font-size:12px; font-weight:700; color:var(--deep); letter-spacing:.14em; margin-bottom:10px; }
 .sf-intro h2 { font-size:clamp(26px, 4vw, 36px); font-weight:700; margin:0 0 10px; letter-spacing:-.01em; line-height:1.2; }
@@ -344,7 +353,7 @@ textarea.sf-input { resize:none; line-height:1.5; font-size:clamp(17px,2vw,22px)
 .sf-intro p { margin:0 auto; }
 /* ── review: property file ── */
 .sf-review { text-align:start; max-width:720px; margin:0 auto; }
-.sf-rhero { background:var(--ink); color:#fff; border-radius:12px; padding:26px 28px 22px; text-align:center; position:relative; overflow:hidden; }
+.sf-rhero { background:linear-gradient(135deg, #26242B 0%, #33324A 100%); color:#fff; border-radius:16px; padding:28px 28px 24px; text-align:center; position:relative; overflow:hidden; box-shadow:0 18px 50px rgba(38,36,43,.18); }
 .sf-rhero::after { content:''; position:absolute; inset:auto -40px -60px auto; width:220px; height:220px; border-radius:50%; background:radial-gradient(circle, rgba(132,144,216,.35), transparent 70%); pointer-events:none; }
 .sf-rk { font-size:11.5px; font-weight:700; letter-spacing:.16em; text-transform:uppercase; color:var(--purple); margin-bottom:8px; }
 .sf-rhero h2 { font-size:clamp(24px, 3.2vw, 34px); font-weight:700; margin:0; color:#fff; letter-spacing:-.01em; }
@@ -356,12 +365,12 @@ textarea.sf-input { resize:none; line-height:1.5; font-size:clamp(17px,2vw,22px)
 .sf-fact.hi { background:var(--deep); border-color:var(--deep); }
 .sf-rsub { text-align:center; margin:18px 0 16px; color:var(--muted); font-size:15px; }
 .sf-rgrid { display:flex; flex-direction:column; gap:10px; }
-.sf-rsec { border:1px solid var(--line); border-radius:12px; padding:0 20px 6px; background:var(--paper); }
-.sf-rsec h3 { display:flex; align-items:center; gap:10px; font-size:14px; font-weight:700; color:var(--ink); margin:0; padding:14px 0 10px; border-bottom:1px solid var(--line); }
+.sf-rsec { border:1px solid var(--line); border-radius:14px; padding:0 20px 6px; background:var(--paper); box-shadow:0 4px 18px rgba(38,36,43,.04); }
+.sf-rsec h3 { display:flex; align-items:center; gap:10px; font-size:15px; font-weight:700; color:var(--ink); margin:0; padding:15px 0 11px; border-bottom:1px solid var(--line); }
 .sf-rsec h3 i { width:24px; height:24px; border-radius:50%; background:var(--ink); color:#fff; font-size:11.5px; font-weight:700; font-style:normal; display:inline-flex; align-items:center; justify-content:center; }
 .sf-ritem { display:grid; grid-template-columns:180px 1fr auto; align-items:baseline; gap:14px; padding:10px 0; border-top:1px solid var(--line); }
 .sf-ritem:first-of-type { border-top:0; }
-.sf-ritem .k { font-size:14px; color:var(--muted); line-height:1.45; }
+.sf-ritem .k { font-size:13.5px; color:var(--muted); line-height:1.45; letter-spacing:.01em; }
 .sf-ritem .v { font-size:15.5px; line-height:1.5; white-space:pre-wrap; word-break:break-word; color:var(--ink); }
 .sf-ritem button { border:0; background:none; color:var(--deep); font-size:13px; font-weight:600; cursor:pointer; padding:4px 8px; border-radius:4px; opacity:0; transition:opacity .15s; }
 .sf-ritem:hover button, .sf-ritem button:focus-visible { opacity:1; }
@@ -370,21 +379,30 @@ textarea.sf-input { resize:none; line-height:1.5; font-size:clamp(17px,2vw,22px)
 .sf-chips { display:flex; flex-wrap:wrap; gap:5px; }
 .sf-chips em { font-style:normal; font-size:13px; padding:3px 9px; border-radius:20px; background:var(--tint2); color:var(--ink); }
 .sf-vnote { display:block; margin-top:6px; font-size:13px; color:var(--ink2); line-height:1.45; }
-/* ── story ── */
-.sf-story { text-align:center; max-width:760px; margin:0 auto; }
-.sf-story h2 { font-size:clamp(24px, 3.2vw, 34px); font-weight:700; margin:0; letter-spacing:-.01em; }
-.sf-paper { text-align:start; background:var(--paper); border:1px solid var(--line); border-radius:12px; padding:26px clamp(20px, 4vw, 40px) 30px; box-shadow:0 12px 40px rgba(38,36,43,.08); }
-.sf-paper-h { display:flex; align-items:center; gap:14px; padding-bottom:18px; margin-bottom:6px; border-bottom:1px solid var(--line); }
-.sf-paper-logo { height:34px; width:auto; }
-.sf-paper-h b { display:block; font-size:16px; }
-.sf-paper-h small { display:block; font-size:12.5px; color:var(--muted); }
-.sf-paper-h .sf-link { margin-inline-start:auto; }
-.sf-para { padding:16px 0; border-bottom:1px solid var(--line); }
+/* ── story: a designed document ── */
+.sf-story { text-align:center; max-width:780px; margin:0 auto; }
+.sf-story h2 { font-size:clamp(26px, 3.4vw, 38px); font-weight:700; margin:0; letter-spacing:-.015em; line-height:1.2; text-wrap:balance; }
+.sf-paper { text-align:start; background:var(--paper); border:1px solid var(--line); border-radius:18px; padding:0; overflow:hidden; box-shadow:0 22px 60px rgba(38,36,43,.10); margin-top:22px; }
+.sf-paper-h { display:flex; align-items:center; gap:14px; padding:20px clamp(20px, 4vw, 40px); background:linear-gradient(135deg, #F8F8FB 0%, #EEF0FA 100%); border-bottom:1px solid var(--line); }
+.sf-paper-logo { height:36px; width:auto; }
+.sf-paper-t { min-width:0; }
+.sf-paper-h b { display:block; font-size:16.5px; letter-spacing:-.005em; }
+.sf-paper-h small { display:block; font-size:13px; color:var(--muted); margin-top:2px; }
+.sf-paper-h .sf-link { margin-inline-start:auto; flex:none; }
+.sf-facts.light { margin:0; padding:16px clamp(20px, 4vw, 40px) 4px; justify-content:flex-start; }
+.sf-facts.light .sf-fact { background:var(--canvas); border-color:var(--line); color:var(--ink); }
+.sf-facts.light .sf-fact small { color:var(--muted); }
+.sf-facts.light .sf-fact.hi { background:var(--deep); border-color:var(--deep); color:#fff; }
+.sf-facts.light .sf-fact.hi small { color:rgba(255,255,255,.7); }
+.sf-paper-body { padding:8px clamp(20px, 4vw, 40px) 26px; }
+.sf-para { padding:22px 0; border-bottom:1px solid var(--line); }
 .sf-para:last-child { border-bottom:0; }
-.sf-para h3 { display:flex; align-items:baseline; gap:10px; margin:0 0 6px; font-size:13px; letter-spacing:.12em; text-transform:uppercase; color:var(--deep); font-weight:700; }
-.sf-para h3 span { font-size:11px; color:var(--muted); letter-spacing:.06em; font-variant-numeric:tabular-nums; }
-.sf-para p { margin:0; font-size:17px; line-height:1.75; color:var(--ink); }
-.sf-para:first-of-type p { font-size:19px; }
+.sf-para h3 { display:flex; align-items:center; gap:10px; margin:0 0 10px; font-size:12.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--deep); font-weight:700; }
+.sf-para h3 span { flex:none; width:26px; height:26px; border-radius:50%; background:var(--tint2); color:var(--deep); font-size:11px; letter-spacing:0; display:inline-flex; align-items:center; justify-content:center; font-variant-numeric:tabular-nums; }
+.sf-para p { margin:0; font-size:17.5px; line-height:1.85; color:var(--ink); }
+.sf-para:first-of-type { padding-top:18px; }
+.sf-para:first-of-type p { font-size:20px; line-height:1.7; font-weight:500; padding-inline-start:18px; border-inline-start:3px solid var(--deep); }
+.sf-paper-f { display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; padding:14px clamp(20px, 4vw, 40px) 18px; border-top:1px solid var(--line); background:#FAFAFB; font-size:12.5px; color:var(--muted); }
 .sf-privacy-line { margin-top:16px; font-size:13.5px; color:var(--muted); }
 .sf-missing { border:1px solid #F3C4C4; background:#FDECEC; border-radius:6px; padding:12px 16px; margin-bottom:14px; }
 .sf-missing h4 { margin:0 0 6px; font-size:14.5px; color:var(--err); }
@@ -441,9 +459,12 @@ textarea.sf-input { resize:none; line-height:1.5; font-size:clamp(17px,2vw,22px)
   .sf-rsec { padding:0 14px 4px; }
   .sf-rhero { padding:20px 16px; }
   .sf-fact { min-width:84px; padding:8px 10px; }
-  .sf-paper { padding:18px 16px 20px; }
-  .sf-para p { font-size:16px; }
-  .sf-para:first-of-type p { font-size:17px; }
+  .sf-paper { border-radius:14px; }
+  .sf-paper-h, .sf-paper-body, .sf-paper-f, .sf-facts.light { padding-inline:16px; }
+  .sf-para p { font-size:16.5px; line-height:1.8; }
+  .sf-para:first-of-type p { font-size:18px; padding-inline-start:14px; }
+  .sf-how { grid-template-columns:1fr; gap:8px; }
+  .sf-how li { padding:11px 12px; }
   .sf-mrow { flex-direction:column; align-items:center; text-align:center; gap:8px; }
   .sf-mrow .lbl { flex-basis:auto; }
   .sf-scale { justify-content:center; }
@@ -848,12 +869,18 @@ function Welcome({ t, lang, draft, onStart, onResume, loading }) {
       <div className="sf-bullets">
         <span><i/>{t.bul1}</span><span><i/>{t.bul2}</span><span><i/>{t.bul3}</span>
       </div>
+      <ol className="sf-how">
+        <li><i>1</i><div><b>{t.how1}</b><span>{t.how1s}</span></div></li>
+        <li><i>2</i><div><b>{t.how2}</b><span>{t.how2s}</span></div></li>
+        <li><i>3</i><div><b>{t.how3}</b><span>{t.how3s}</span></div></li>
+      </ol>
       {hasDraft && <div className="sf-draftbox"><IcoWarn/>{t.savedDraft}</div>}
       <div className="sf-welcome-actions">
         {hasDraft
-          ? <><button className="sf-btn big" onClick={onResume} data-autofocus>{t.resume}</button><button className="sf-btn big ghost" onClick={onStart}>{t.restart}</button></>
-          : <button className="sf-btn big" onClick={onStart} data-autofocus>{t.start}</button>}
+          ? <><button className="sf-btn big" onClick={onResume} data-autofocus>{t.resume}<IcoFwd/></button><button className="sf-btn big ghost" onClick={onStart}>{t.restart}</button></>
+          : <button className="sf-btn big" onClick={onStart} data-autofocus>{t.start}<IcoFwd/></button>}
       </div>
+      <p className="sf-cta-note">{t.ctaNote}</p>
     </div>
   )
 }
@@ -1430,6 +1457,14 @@ function Story({ answers, lang, t, onBack, consent, setConsent, onSubmit, submit
   const [copied, setCopied] = useState(false)
   const copy = () => { navigator.clipboard?.writeText(storyText(answers, lang)).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1800) }) }
   const first = String(answers.c_name || '').trim().split(/\s+/)[0]
+  const rental = answers.x_purpose === 'rental'
+  const storyFacts = [
+    answers.d_ask ? { k: rental ? t.factRent : t.factPrice, v: `${fmtNum(answers.d_ask, lang)} ₪${rental ? (lang === 'en' ? ' / mo' : ' לחודש') : ''}`, hi: true } : null,
+    answers.p_rooms ? { k: t.factRooms, v: answers.p_rooms } : null,
+    answers.p_area?.built ? { k: t.factArea, v: fmtNum(answers.p_area.built, lang) } : null,
+    answers.p_floor?.floor !== undefined && answers.p_floor?.floor !== '' && answers.p_floor?.floor !== null ? { k: t.factFloor, v: `${answers.p_floor.floor}${answers.p_floor.totalFloors ? ` / ${answers.p_floor.totalFloors}` : ''}` } : null,
+    answers.p_state ? { k: t.factState, v: PROPERTY_STATE_LABEL(answers.p_state, lang) } : null,
+  ].filter(Boolean)
   return (
     <div className="sf-story">
       <div className="sf-rk">{t.storyKicker}</div>
@@ -1438,15 +1473,19 @@ function Story({ answers, lang, t, onBack, consent, setConsent, onSubmit, submit
       <article className="sf-paper">
         <header className="sf-paper-h">
           <img src="/logo-mark-black.svg" alt="" className="sf-paper-logo"/>
-          <div><b>{PROPERTY_TYPE_LABEL(answers.p_type, lang) || t.brand}</b><small>{[answers.p_address?.street, answers.p_address?.number, answers.p_address?.city].filter(Boolean).join(' ')}{first ? ` · ${first}` : ''}</small></div>
+          <div className="sf-paper-t"><b>{t.storyDoc} · {PROPERTY_TYPE_LABEL(answers.p_type, lang) || t.brand}</b><small>{[answers.p_address?.street, answers.p_address?.number, answers.p_address?.city].filter(Boolean).join(' ')}{first ? ` · ${first}` : ''}</small></div>
           <button type="button" className="sf-link" onClick={copy}><IcoCopy/> {copied ? t.copied : t.copyStory}</button>
         </header>
-        {paras.map((p, i) => (
-          <section key={i} className="sf-para">
-            <h3><span>{String(i + 1).padStart(2, '0')}</span>{p.title}</h3>
-            <p>{p.text}</p>
-          </section>
-        ))}
+        {storyFacts.length > 0 && <div className="sf-facts light">{storyFacts.map(x => <div key={x.k} className={`sf-fact${x.hi ? ' hi' : ''}`}><small>{x.k}</small><b>{x.v}</b></div>)}</div>}
+        <div className="sf-paper-body">
+          {paras.map((p, i) => (
+            <section key={i} className="sf-para">
+              <h3><span>{String(i + 1).padStart(2, '0')}</span>{p.title}</h3>
+              <p>{p.text}</p>
+            </section>
+          ))}
+        </div>
+        <footer className="sf-paper-f"><span>{t.storyFoot}</span><span>{t.storyBy}</span></footer>
       </article>
       <label className={`sf-consent${consent ? ' on' : ''}`}>
         <input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)} style={{ position: 'absolute', opacity: 0, width: 0, height: 0 }}/>

@@ -968,6 +968,7 @@ function headlineLegacy(a, lang = 'he') {
 }
 
 export const PROPERTY_TYPE_LABEL = (v, lang = 'he') => optLabel(STEPS.find(s => s.id === 'p_type'), v, lang)
+export const PROPERTY_STATE_LABEL = (v, lang = 'he') => ({ he: { new: 'חדש מקבלן', secondhand: 'יד שנייה', renovated: 'לאחר שיפוץ', needs: 'דרוש שיפוץ' }, en: { new: 'New from developer', secondhand: 'Second hand', renovated: 'Renovated', needs: 'Needs renovation' } })[lang === 'en' ? 'en' : 'he'][v] || ''
 
 export const DOC_TAG_LABEL = (v, lang = 'he') => {
   const step = STEPS.find(s => s.id === 'u_docs')
@@ -1428,58 +1429,69 @@ export function headline(a, lang = 'he') {
 export function buildStory(a, lang = 'he') {
   if (lang === 'en') return buildStoryEn(a)
   const S = id => STEPS.find(s => s.id === id)
+  const known = (id, x) => { const st = S(id); const opts = st ? (stepOpts(st, a) || []) : []; return opts.some(o => o.v === x) }
   const lab = (id, v) => (v === undefined || v === null || v === '') ? '' : optLabel(S(id), v, 'he', a)
-  const labs = id => Array.isArray(a[id]) ? a[id].map(x => optLabel(S(id), x, 'he', a)) : []
+  // only values that exist in the (purpose-specific) option list — a stale answer never leaks as a raw key
+  const labs = id => Array.isArray(a[id]) ? a[id].filter(x => known(id, x)).map(x => optLabel(S(id), x, 'he', a)) : []
   const list = arr => { if (!arr.length) return ''; if (arr.length === 1) return arr[0]; const last = arr[arr.length - 1]; return arr.slice(0, -1).join(', ') + (/^[\d₪]/.test(last) ? ' ו-' : ' ו') + last }
   const num = n => fmtNum(n, 'he')
   const ils = n => (n === undefined || n === null || n === '' || Number.isNaN(Number(n))) ? '' : `${num(n)} ₪`
-  const ti = typeInfo(a), fem = ti.g === 'f', the = ti.the
+  const ti = typeInfo(a), fem = ti.g === 'f', the = ti.the, inThe = `ב${the.replace(/^ה/, '')}`
   const v = (f, m) => (fem ? f : m)   // verb / adjective by gender
   const addr = a.p_address || {}, area = a.p_area || {}, fl = a.p_floor || {}
   const rental = purposeOf(a) === 'rental'
   const land = isLand(a), house = isHouse(a)
+  const wordF = n => ({ 1: 'אחת', 2: 'שתיים', 3: 'שלוש', 4: 'ארבע', 5: 'חמש', 6: 'שש', 7: 'שבע', 8: 'שמונה', 9: 'תשע', 10: 'עשר' })[Number(n)] || String(n)
+  const clean = t => String(t || '').trim().replace(/[.\s]+$/, '')
   const paras = []
   const add = (title, sentences) => { const t = sentences.filter(Boolean).join(' ').trim(); if (t) paras.push({ title, text: t }) }
-  const ownersRef = a.l_owners ? a.l_owners : 'הבעלים'
 
   // 1. הנכס
   {
     const where = [addr.street, addr.number].filter(Boolean).join(' ')
-    const place = where ? `ברחוב ${where}${addr.neighborhood ? ` בשכונת ${addr.neighborhood}` : ''}${addr.city ? ` ב${addr.city}` : ''}` : (addr.city ? `ב${addr.city}` : '')
+    const place = where ? `ברחוב ${where}${addr.neighborhood ? `, בשכונת ${addr.neighborhood},` : ''}${addr.city ? ` ב${addr.city}` : ''}` : (addr.city ? `ב${addr.city}` : '')
     const floorTxt = !house ? heFloor(fl.floor) : ''
-    const floorFull = floorTxt ? `${floorTxt}${fl.totalFloors ? ` מתוך ${fl.totalFloors}` : ''}` : ''
-    const sizes = [
-      area.built ? `בשטח בנוי של ${num(area.built)} מ״ר` : '',
-      area.balcony ? `עם מרפסת של ${num(area.balcony)} מ״ר` : '',
+    const floorFull = floorTxt ? `${floorTxt}${fl.totalFloors ? ` מתוך ${Number(fl.totalFloors) <= 10 ? wordF(fl.totalFloors) : fl.totalFloors}` : ''}` : ''
+    const extras = [
+      area.balcony ? `מרפסת של ${num(area.balcony)} מ״ר` : '',
       area.roof ? `גג של ${num(area.roof)} מ״ר` : '',
       area.garden ? `גינה של ${num(area.garden)} מ״ר` : '',
-      area.plot && !land ? `על מגרש של ${num(area.plot)} מ״ר` : '',
     ].filter(Boolean)
-    const sizeTxt = sizes.length ? ` ${sizes[0]}${sizes.length > 1 ? ' ' + list(sizes.slice(1)).replace(/^עם /, 'עם ') : ''}` : ''
+    const sizeTxt = [
+      area.built ? ` בשטח בנוי של ${num(area.built)} מ״ר` : '',
+      extras.length ? `${area.built ? ',' : ''} עם ${list(extras)}` : '',
+      area.plot && !land ? `, על מגרש של ${num(area.plot)} מ״ר` : '',
+    ].join('')
     const opening = `${place ? place + ', ' : ''}${floorFull ? floorFull + ', ' : ''}${v('נמצאת', 'נמצא')} ${heTypePhrase(a)}${sizeTxt}.`
     const b = a.p_baths || {}
     const baths = b.bathrooms ? heCount(b.bathrooms, 'חדר רחצה אחד', 'שני חדרי רחצה', 'חדרי רחצה') : ''
     const toilets = b.toilets && Number(b.toilets) !== Number(b.bathrooms) ? heCount(b.toilets, 'יחידת שירותים אחת', 'שתי יחידות שירותים', 'יחידות שירותים', true) : ''
     add('הנכס', [
-      opening.charAt(0).toUpperCase() + opening.slice(1),
-      baths ? `ב${the.replace(/^ה/, '')} ${baths}${toilets ? ` ו${toilets}` : ''}.` : '',
+      opening,
+      baths ? `${inThe} ${baths}${toilets ? ` ו${toilets}` : ''}.` : '',
       a.p_year ? `${the} ${v('נבנתה', 'נבנה')} בשנת ${a.p_year}.` : '',
     ])
   }
-  // 2. אור ונוף
+  // 2. אור, כיוונים ונוף
   {
     const dirs = Array.isArray(a.p_directions) ? a.p_directions : []
     const dirTxt = a[noteKey('p_directions')] || directionsText(dirs, 'he')
-    const views = labs('p_view').filter(x => x && !/ללא נוף/.test(x))
-    add('אור ונוף', [
-      dirTxt ? `${the} ${dirTxt.replace(/^נכס פינתי, פונה/, v('פינתית ופונה', 'פינתי ופונה')).replace(/^פונה/, 'פונה').replace(/^ארבעה/, 'נהנה מארבעה').replace(/^שלושה/, 'נהנה משלושה').replace(/^נהנה/, v('נהנית', 'נהנה'))}` : '',
-      views.length ? `הנוף מהחלונות: ${list(views.map(x => x.replace(' / ירוק', ' וירוק').replace(' / שטחים פתוחים', ' ושטחים פתוחים').replace(' / כיוון שמש מיוחד', '')))}.` : '',
+    const VIEW = { open: 'נוף פתוח', urban: 'נוף עירוני', sea: 'הים', park: 'הפארק', garden: 'הגינה', hills: 'ההרים', sunset: 'השקיעה' }
+    const views = (Array.isArray(a.p_view) ? a.p_view : []).map(x => VIEW[x]).filter(Boolean)
+    const dirSentence = dirTxt ? clean(dirTxt)
+      .replace(/^נכס פינתי, פונה/, `${the} ${v('פינתית ופונה', 'פינתי ופונה')}`)
+      .replace(/^פונה/, `${the} ${v('פונה', 'פונה')}`)
+      .replace(/^ארבעה כיווני אוויר/, `${the} ${v('נהנית', 'נהנה')} מארבעה כיווני אוויר`)
+      .replace(/^שלושה כיווני אוויר/, `${the} ${v('נהנית', 'נהנה')} משלושה כיווני אוויר`) : ''
+    add('אור, כיוונים ונוף', [
+      dirSentence ? `${/^ה/.test(dirSentence) ? dirSentence : `${the}: ${dirSentence}`}.` : '',
+      views.length ? `מהחלונות ${views.length > 1 ? 'נשקפים' : 'נשקף'} ${list(views)}.` : '',
     ])
   }
-  // 3. מאפיינים
+  // 3. מה יש בנכס
   if (!land) {
     const pk = Number(a.f_parking?.parking || 0)
-    const pkTypes = labs('f_parking_type').map(x => x.replace(/^חניה /, '').replace(/ \(.*\)$/, ''))
+    const pkTypes = labs('f_parking_type').map(x => x.replace(/ \(.*\)$/, ''))
     const parkingTxt = a.f_parking ? (pk ? `${pk === 1 ? 'חניה אחת' : pk === 2 ? 'שתי חניות' : `${pk} חניות`}${pkTypes.length ? ` (${list(pkTypes)})` : ''}` : '') : ''
     const has = [
       a.f_mamad === 'yes' ? 'ממ״ד' : a.f_mamad === 'shared' ? 'מקלט משותף בבניין' : '',
@@ -1488,141 +1500,152 @@ export function buildStory(a, lang = 'he') {
       a.f_storage === 'yes' ? `מחסן${a.f_storage_size ? ` של ${num(a.f_storage_size)} מ״ר` : ''}` : '',
     ].filter(Boolean)
     const lacks = [a.f_mamad === 'no' ? 'ממ״ד' : '', a.f_elevator === 'no' ? 'מעלית' : '', a.f_parking && !pk ? 'חניה פרטית' : '', a.f_storage === 'no' ? 'מחסן' : ''].filter(Boolean)
-    const kitchen = a.f_kitchen ? `המטבח ${lab('f_kitchen', a.f_kitchen).replace(/^מטבח /, '').replace('חצי פתוח', 'חצי פתוח לסלון')}${a.f_island === 'yes' ? ' וכולל אי' : ''}.` : (a.f_island === 'yes' ? 'במטבח יש אי.' : '')
-    const climate = a.f_climate ? (a.f_climate === 'none' ? `ב${the.replace(/^ה/, '')} אין מיזוג.` : `המיזוג ${lab('f_climate', a.f_climate).replace(/^מיזוג /, '').replace(/^מזגנים/, 'באמצעות מזגנים').replace(/^מזגן/, 'באמצעות מזגן')}${a.f_climate === 'other' && a.f_climate_other ? ` (${a.f_climate_other})` : ''}.`) : ''
+    const kitchen = a.f_kitchen ? ({ open: 'המטבח פתוח לסלון', semi: 'המטבח חצי פתוח לסלון', closed: 'המטבח סגור' })[a.f_kitchen] + `${a.f_island === 'yes' ? ' וכולל אי' : ''}.` : (a.f_island === 'yes' ? 'במטבח יש אי.' : '')
+    const climate = a.f_climate ? ({
+      central: `${inThe} מיזוג מרכזי.`, mini: `${inThe} מיזוג מיני-מרכזי.`, units: 'יש מזגנים בכל החדרים.', partial: 'יש מזגן בחלק מהחדרים.', none: `${inThe} אין מיזוג.`,
+      other: `המיזוג: ${clean(a.f_climate_other) || 'אחר'}.`,
+    })[a.f_climate] || '' : ''
     const rooms = labs('f_rooms')
-    const water = labs('f_water')
+    const water = labs('f_water').map(x => x === 'אחר' ? clean(a.f_water_other) : x).filter(Boolean)
     const sys = labs('f_systems').filter(x => !/אין תוספות/.test(x))
-    add('מאפיינים', [
-      has.length ? `ב${the.replace(/^ה/, '')} ${list(has)}.` : '',
+    add('מה יש בנכס', [
+      has.length ? `${inThe} ${list(has)}.` : '',
       lacks.length ? `אין ${list(lacks)}.` : '',
       kitchen, climate,
-      rooms.length ? `בנוסף, יש ${list(rooms)}.` : '',
-      water.length ? `חימום המים ב${list(water).replace(/^דוד /, 'דוד ')}.` : '',
-      sys.length ? `${the} ${v('מצוידת', 'מצויד')} גם ב${list(sys)}.` : '',
+      rooms.length ? `בנוסף יש ${inThe} ${list(rooms)}.` : '',
+      water.length ? `המים מחוממים באמצעות ${list(water)}.` : '',
+      sys.length ? `${the} ${v('מצוידת', 'מצויד')} גם ${list(sys.map(x => `ב${x}`))}.` : '',
     ])
   }
-  // 4. מצב הנכס ומי גר בו
+  // 4. מצב הנכס ומי מתגורר בו
   if (!land) {
-    const state = a.p_state ? ({ new: `${the} ${v('חדשה', 'חדש')} מקבלן.`, secondhand: `${the} יד שנייה ${v('שמורה', 'שמור')} ובמצב טוב.`, renovated: `${the} לאחר שיפוץ.`, needs: `${the} ${v('דורשת', 'דורש')} שיפוץ.` })[a.p_state] : ''
+    const state = a.p_state ? ({ new: `${the} ${v('חדשה', 'חדש')} מקבלן.`, secondhand: `${the} מיד שנייה, ${v('שמורה', 'שמור')} ובמצב טוב.`, renovated: `${the} לאחר שיפוץ.`, needs: `${the} ${v('דורשת', 'דורש')} שיפוץ.` })[a.p_state] : ''
+    const RENO = { kitchen: 'המטבח', baths: 'חדרי הרחצה', floor: 'הריצוף', electric: 'מערכת החשמל', plumbing: 'האינסטלציה', windows: 'החלונות', paint: 'הצבע', ac: 'המיזוג', doors: 'הדלתות', closets: 'הארונות', aluminum: 'האלומיניום והתריסים', sealing: 'האיטום', lighting: 'התאורה', roof: 'הגג', garden: 'הגינה והחצר', facade: 'החזית', full: 'הנכס כולו' }
+    const renoWhat = (Array.isArray(a.k_reno_what) ? a.k_reno_what : []).map(x => x === 'other' ? clean(a.k_reno_what_other) : RENO[x]).filter(Boolean)
     const reno = a.k_renovated === 'yes' || a.k_renovated === 'partial'
-      ? `${the} ${a.k_renovated === 'partial' ? v('עברה שיפוץ חלקי', 'עבר שיפוץ חלקי') : v('שופצה', 'שופץ')}${a.k_reno_year ? ` בשנת ${a.k_reno_year}` : ''}${labs('k_reno_what').length ? `, ובמסגרת השיפוץ חודשו ${list(labs('k_reno_what').map(x => x.replace(/^שיפוץ כללי$/, 'הנכס כולו')))}` : ''}.`
+      ? `${the} ${a.k_renovated === 'partial' ? v('עברה שיפוץ חלקי', 'עבר שיפוץ חלקי') : v('שופצה', 'שופץ')}${a.k_reno_year ? ` בשנת ${a.k_reno_year}` : ''}${renoWhat.length ? `, ובמסגרת השיפוץ חודשו ${list(renoWhat)}` : ''}.`
       : a.k_renovated === 'no' ? `${the} לא ${v('שופצה', 'שופץ')}.` : ''
     const m = a.k_matrix || {}
-    const rate = k => ({ excellent: 'במצב מצוין', good: 'במצב טוב', fair: 'במצב סביר', poor: 'ודורש טיפול' })[m[k]] || ''
-    const rateF = k => ({ excellent: 'במצב מצוין', good: 'במצב טוב', fair: 'במצב סביר', poor: 'ודורשים טיפול' })[m[k]] || ''
-    const cond = [m.kitchen ? `המטבח ${rate('kitchen')}` : '', m.baths ? `חדרי הרחצה ${rateF('baths')}` : '', m.floor ? `הריצוף ${rate('floor')}` : '', m.windows ? `החלונות ${rateF('windows')}` : '', m.ac ? `המזגנים ${rateF('ac')}` : ''].filter(Boolean)
-    const defects = a.k_defects === 'yes' ? `הבעלים מדווחים על ליקויים: ${a.k_defects_detail || 'פרטים יימסרו'}.` : a.k_defects === 'no' ? 'לא ידועים ליקויים.' : ''
-    const moist = a.k_moisture === 'current' ? 'קיימת כיום רטיבות.' : a.k_moisture === 'fixed' ? 'הייתה בעבר רטיבות שטופלה.' : a.k_moisture === 'none' ? 'אין רטיבות.' : ''
-    const invest = a.k_investment ? ({ none: `${the} ${v('מוכנה', 'מוכן')} לכניסה מיידית.`, light: 'לפני כניסה נדרשת השקעה קלה בלבד (צבע ותיקונים קטנים).', major: 'לפני כניסה נדרשת השקעה משמעותית.' })[a.k_investment] : ''
-    const furn = a.f_furniture ? ({ none: `${the} ${v('נמסרת ריקה', 'נמסר ריק')}, ללא ריהוט.`, fixed: 'בנכס נשארים המטבח, ארונות הקיר והמזגנים.', partial: `חלק מהריהוט והמכשירים נשארים בנכס${a.f_furniture_detail ? `: ${a.f_furniture_detail}` : ''}.`, full: `${the} ${v('נמסרת מרוהטת', 'נמסר מרוהט')} במלואה${a.f_furniture_detail ? ` (${a.f_furniture_detail})` : ''}.`, flexible: `הריהוט גמיש, לפי ${rental ? 'השוכר' : 'הקונה'}${a.f_furniture_detail ? ` (${a.f_furniture_detail})` : ''}.` })[a.f_furniture] : ''
+    const rate = (k, plural) => ({ excellent: 'במצב מצוין', good: 'במצב טוב', fair: 'במצב סביר', poor: plural ? 'דורשים טיפול' : 'דורש טיפול' })[m[k]] || ''
+    const cond = [m.kitchen ? `המטבח ${rate('kitchen')}` : '', m.baths ? `חדרי הרחצה ${rate('baths', true)}` : '', m.floor ? `הריצוף ${rate('floor')}` : '', m.windows ? `החלונות ${rate('windows', true)}` : '', m.ac ? `המזגנים ${rate('ac', true)}` : ''].filter(Boolean)
+    const defects = a.k_defects === 'yes' ? `הבעלים מדווחים על ליקויים: ${clean(a.k_defects_detail) || 'הפרטים יימסרו בהמשך'}.` : a.k_defects === 'no' ? 'לא ידועים ליקויים בנכס.' : ''
+    const moist = a.k_moisture === 'current' ? 'קיימת כיום רטיבות בנכס.' : a.k_moisture === 'fixed' ? 'בעבר הייתה רטיבות, והיא טופלה.' : a.k_moisture === 'none' ? 'אין בעיות רטיבות.' : ''
+    const invest = a.k_investment ? ({ none: `${the} ${v('מוכנה', 'מוכן')} לכניסה מיידית.`, light: 'לפני הכניסה נדרשת השקעה קלה בלבד (צבע ותיקונים קטנים).', major: 'לפני הכניסה נדרשת השקעה משמעותית.' })[a.k_investment] : ''
+    const fd = clean(a.f_furniture_detail)
+    const furn = a.f_furniture ? ({ none: `${the} ${v('נמסרת ריקה', 'נמסר ריק')}, ללא ריהוט.`, fixed: 'בנכס נשארים המטבח, ארונות הקיר והמזגנים.', partial: `חלק מהריהוט והמכשירים נשארים בנכס${fd ? `: ${fd}` : ''}.`, full: `${the} ${v('נמסרת מרוהטת', 'נמסר מרוהט')} במלואה${fd ? ` (${fd})` : ''}.`, flexible: `הריהוט גמיש, בהתאם ל${rental ? 'שוכר' : 'קונה'}${fd ? ` (${fd})` : ''}.` })[a.f_furniture] : ''
     const lease = a.k_lease || {}
-    const occ = a.k_occupancy ? ({ vacant: `${the} ${v('פנויה', 'פנוי')} כיום.`, owners: `כיום הבעלים מתגוררים בנכס.`, family: 'כיום מתגוררים בנכס בני משפחה, ללא חוזה שכירות.', rented: `${the} ${v('מושכרת', 'מושכר')} כיום${lease.leaseEnd ? `, והחוזה מסתיים ב-${lease.leaseEnd}` : ''}${lease.rent ? ` (שכר הדירה ${ils(lease.rent)} לחודש)` : ''}${lease.notes ? `. ${lease.notes}` : ''}.` })[a.k_occupancy] : ''
-    add('מצב הנכס ומי גר בו', [state, reno, cond.length ? `${list(cond)}.` : '', defects, moist, invest, furn, occ])
+    const occ = a.k_occupancy ? ({ vacant: `${the} ${v('פנויה', 'פנוי')} כיום.`, owners: 'כיום מתגוררים בנכס הבעלים.', family: 'כיום מתגוררים בנכס בני משפחה, ללא חוזה שכירות.', rented: `${the} ${v('מושכרת', 'מושכר')} כיום${lease.leaseEnd ? `, והחוזה מסתיים ב-${lease.leaseEnd}` : ''}${lease.rent ? ` (דמי השכירות: ${ils(lease.rent)} לחודש)` : ''}.${lease.notes ? ` ${clean(lease.notes)}.` : ''}` })[a.k_occupancy] : ''
+    add('מצב הנכס ומי מתגורר בו', [state, reno, cond.length ? `${list(cond)}.` : '', defects, moist, invest, furn, occ])
   }
   // 5. הבניין
   if (!house) {
     const b = a.b_numbers || {}, fees = a.b_fees || {}
-    const facts = [b.apartments ? `${b.apartments} דירות` : '', b.floors ? `${b.floors} קומות` : '', b.elevators ? heCount(b.elevators, 'מעלית אחת', 'שתי מעליות', 'מעליות', true) : ''].filter(Boolean)
-    const amen = labs('b_amenities')
-    const feeTxt = [fees.vaad ? `ועד הבית ${ils(fees.vaad)} לחודש` : '', fees.management ? `דמי הניהול ${ils(fees.management)} לחודש` : ''].filter(Boolean)
+    const facts = [b.apartments ? `${b.apartments} דירות` : '', b.floors ? `${Number(b.floors) <= 10 ? wordF(b.floors) : b.floors} קומות` : '', b.elevators ? heCount(b.elevators, 'מעלית אחת', 'שתי מעליות', 'מעליות', true) : ''].filter(Boolean)
+    const amen = labs('b_amenities').map(x => x === 'אחר' ? clean(a.b_amenities_other) : x).filter(Boolean)
+    const feeTxt = [fees.vaad ? `דמי ועד הבית ${ils(fees.vaad)} לחודש` : '', fees.management ? `דמי הניהול ${ils(fees.management)} לחודש` : ''].filter(Boolean)
     const renov = a.b_renovation ? ({ no: 'לא צפוי שיפוץ בבניין.', planned: 'מתוכנן שיפוץ בבניין.', inProgress: 'הבניין נמצא כעת בשיפוץ.', unknown: '' })[a.b_renovation] : ''
-    const tama = a.b_tama && a.b_tama !== 'none' && a.b_tama !== 'unknown' ? `הבניין בתהליך התחדשות עירונית (${lab('b_tama', a.b_tama)})${a.b_tama_detail ? `: ${a.b_tama_detail}` : ''}.` : a.b_tama === 'none' ? 'הבניין אינו בתהליך התחדשות עירונית.' : ''
+    const tama = a.b_tama && a.b_tama !== 'none' && a.b_tama !== 'unknown' ? `הבניין בתהליך התחדשות עירונית (${lab('b_tama', a.b_tama)})${a.b_tama_detail ? `: ${clean(a.b_tama_detail)}` : ''}.` : a.b_tama === 'none' ? 'הבניין אינו בתהליך התחדשות עירונית.' : ''
     add('הבניין', [
-      (b.year || facts.length) ? `הבניין${b.year ? ` נבנה בשנת ${b.year}` : ''}${facts.length ? `${b.year ? ' ובו' : ' כולל'} ${list(facts)}` : ''}.` : '',
+      (b.year || facts.length) ? `הבניין${b.year ? ` נבנה בשנת ${b.year}` : ''}${facts.length ? `${b.year ? ', ובו' : ' כולל'} ${list(facts)}` : ''}.` : '',
       amen.length ? `בבניין ${list(amen)}.` : '',
       feeTxt.length ? `${list(feeTxt)}.` : '',
       renov, tama,
     ])
   }
-  // 6. משפטי ותכנוני
+  // 6. מצב משפטי ותכנוני
   {
     const m = a.l_matrix || {}
     const yes = k => m[k] === 'yes', no = k => m[k] === 'no', unk = k => m[k] === 'unknown'
-    const reg = a.l_rights ? ({ tabu: 'בטאבו', rmi: 'ברשות מקרקעי ישראל', company: 'בחברה משכנת', other: `(${a.l_rights_other || 'רישום אחר'})`, unknown: '' })[a.l_rights] : ''
-    const ownersTxt = a.l_owners ? `הזכויות רשומות${reg ? ` ${reg}` : ''} על שם ${a.l_owners}.` : (reg ? `הנכס רשום ${reg}.` : '')
-    const agree = a.l_agree ? ({ single: 'הבעלים הם הבעלים היחידים, ואין צורך בהסכמת גורם נוסף.', yes: `כל הבעלים מסכימים ל${rental ? 'השכרה' : 'מכירה'}.`, mostly: `רוב הבעלים מסכימים ל${rental ? 'השכרה' : 'מכירה'}, ועדיין מתואמת הסכמת חלקם.`, no: `יש התנגדות של חלק מהבעלים ל${rental ? 'השכרה' : 'מכירה'}, ויש לטפל בכך לפני תחילת השיווק.` })[a.l_agree] : ''
-    const more = a.l_more_owners === 'yes' ? `בעלים נוספים: ${a.l_more_owners_detail || 'יימסרו'}.` : ''
-    const inherit = a.l_inherit === 'yes' ? 'הנכס התקבל בירושה, וההליך הוסדר.' : a.l_inherit === 'pending' ? 'הנכס התקבל בירושה, והליך הירושה עדיין בתהליך.' : ''
-    const mort = yes('mortgage') ? `על הנכס רובצת משכנתא${a.l_mortgage ? ` ביתרה של כ-${ils(a.l_mortgage)}` : ''}.` : no('mortgage') ? 'הנכס נקי ממשכנתא.' : ''
-    const liens = yes('liens') || yes('legalProc') ? `${yes('liens') && yes('legalProc') ? 'קיימים שעבודים וכן הליך משפטי הקשור לנכס' : yes('liens') ? 'קיימים שעבודים או עיקולים' : 'קיים הליך משפטי הקשור לנכס'}${a.l_issues_detail ? `: ${a.l_issues_detail}` : ''}.` : (no('liens') && no('legalProc')) ? 'אין שעבודים, עיקולים או הליכים משפטיים.' : ''
-    const viol = yes('violation') ? `ידועה חריגת בנייה${!yes('liens') && !yes('legalProc') && a.l_issues_detail ? `: ${a.l_issues_detail}` : ''}.` : no('violation') ? 'לא ידועות חריגות בנייה.' : ''
+    const reg = a.l_rights ? ({ tabu: 'בטאבו', rmi: 'ברשות מקרקעי ישראל', company: 'בחברה משכנת', other: clean(a.l_rights_other) ? `(${clean(a.l_rights_other)})` : '', unknown: '' })[a.l_rights] : ''
+    const ownersTxt = a.l_owners ? `הזכויות בנכס רשומות${reg ? ` ${reg}` : ''} על שם ${clean(a.l_owners)}.` : (reg ? `הנכס רשום ${reg}.` : '')
+    const agree = a.l_agree ? ({ single: 'הנכס בבעלות יחידה, ואין צורך בהסכמת גורם נוסף.', yes: `כל הבעלים מסכימים ל${rental ? 'השכרה' : 'מכירה'}.`, mostly: `רוב הבעלים מסכימים ל${rental ? 'השכרה' : 'מכירה'}, והסכמת היתר עדיין מתואמת.`, no: `חלק מהבעלים מתנגדים ל${rental ? 'השכרה' : 'מכירה'}, ויש להסדיר זאת לפני תחילת השיווק.` })[a.l_agree] : ''
+    const more = a.l_more_owners === 'yes' ? `בעלים נוספים: ${clean(a.l_more_owners_detail) || 'הפרטים יימסרו בהמשך'}.` : ''
+    const inherit = a.l_inherit === 'yes' ? 'הנכס התקבל בירושה, וההליך הוסדר.' : a.l_inherit === 'pending' ? 'הנכס התקבל בירושה, והליך הירושה עדיין מתנהל.' : ''
+    const mort = yes('mortgage') ? `על הנכס רובצת משכנתא${a.l_mortgage ? `, ביתרה משוערת של כ-${ils(a.l_mortgage)}` : ''}.` : no('mortgage') ? 'הנכס נקי ממשכנתא.' : ''
+    const issues = clean(a.l_issues_detail)
+    const liens = yes('liens') || yes('legalProc') ? `${yes('liens') && yes('legalProc') ? 'קיימים שעבודים וכן הליך משפטי הקשור לנכס' : yes('liens') ? 'קיימים שעבודים או עיקולים' : 'קיים הליך משפטי הקשור לנכס'}${issues ? `: ${issues}` : ''}.` : (no('liens') && no('legalProc')) ? 'אין שעבודים, עיקולים או הליכים משפטיים.' : ''
+    const viol = yes('violation') ? `ידועה חריגת בנייה${!yes('liens') && !yes('legalProc') && issues ? `: ${issues}` : ''}.` : no('violation') ? 'לא ידועות חריגות בנייה.' : ''
     const permit = yes('permit') ? 'קיים היתר בנייה.' : ''
     const rights = yes('extraRights') ? 'קיימות זכויות בנייה נוספות שטרם נוצלו.' : ''
     const attach = [yes('parkingTabu') ? 'החניה' : '', yes('storageTabu') ? 'המחסן' : ''].filter(Boolean)
     const attachTxt = attach.length ? `${list(attach)} ${attach.length > 1 ? 'רשומים' : (attach[0] === 'החניה' ? 'רשומה' : 'רשום')} בנסח כהצמדה לנכס.` : ''
-    const toCheck = visibleRows(S('l_matrix') || { rows: [] }, a).filter(r => unk(r.k)).map(r => L(r, 'he').replace(/^(קיים|קיימת|קיימים|קיימות|ידועה) /, '').replace(/^(הבניין רשום|החניה רשומה|המחסן רשום) /, m => m))
-    const plans = a.l_area_plans === 'yes' ? `בסביבת הנכס ידועות תוכניות בנייה או התחדשות עירונית${a.l_area_plans_detail ? `: ${a.l_area_plans_detail}` : ''}.` : a.l_area_plans === 'no' ? 'לא ידוע על תוכניות בנייה בסביבה.' : ''
-    add('משפטי ותכנוני', [ownersTxt, more, agree, inherit, mort, liens, viol, permit, rights, attachTxt, toCheck.length ? `נותר לאמת מול הנסח: ${list(toCheck)}.` : '', plans, a.l_notes ? `הערת הבעלים: ${a.l_notes}.` : ''])
+    const toCheck = visibleRows(S('l_matrix') || { rows: [] }, a).filter(r => unk(r.k)).map(r => L(r, 'he').replace(/^(קיים|קיימת|קיימים|קיימות|ידועה) /, ''))
+    const plans = a.l_area_plans === 'yes' ? `בסביבת הנכס ידועות תוכניות בנייה או התחדשות עירונית${a.l_area_plans_detail ? `: ${clean(a.l_area_plans_detail)}` : ''}.` : a.l_area_plans === 'no' ? 'לא ידוע על תוכניות בנייה בסביבה.' : ''
+    add('מצב משפטי ותכנוני', [ownersTxt, more, agree, inherit, mort, liens, viol, permit, rights, attachTxt, toCheck.length ? `נותר לאמת מול נסח הטאבו: ${list(toCheck)}.` : '', plans, clean(a.l_notes) ? `הערת הבעלים: ${clean(a.l_notes)}.` : ''])
   }
-  // 7. מכירה / השכרה וציפיות
+  // 7. המכירה / ההשכרה
   {
     const bo = a.d_best_offer || {}, dl = a.d_deadline || {}
-    const flex = a.d_flex ? ({ firm: 'והמחיר סופי', little: 'עם גמישות קטנה', flexible: 'והבעלים פתוחים למשא ומתן' })[a.d_flex] : ''
+    const flex = a.d_flex ? ({ firm: rental ? ', והסכום סופי' : ', והמחיר סופי', little: ', עם גמישות מסוימת', flexible: ', והבעלים פתוחים למשא ומתן' })[a.d_flex] : ''
+    const pub = a.d_published ? ({ no: `הנכס לא פורסם בעבר ל${rental ? 'השכרה' : 'מכירה'}.`, past: `הנכס פורסם בעבר ל${rental ? 'השכרה' : 'מכירה'} והורד מהשוק.`, current: `הנכס מפורסם ל${rental ? 'השכרה' : 'מכירה'} גם כיום.` })[a.d_published] : ''
+    const brokers = a.d_brokers ? ({ none: 'הנכס אינו נמצא אצל מתווכים נוספים.', others: 'הנכס נמצא גם אצל מתווכים נוספים, ללא בלעדיות.', exclusive: 'הנכס בבלעדיות אצל משרד אחר.', expired: 'הייתה בלעדיות אצל משרד אחר, והיא הסתיימה.', self: 'הבעלים מפרסמים את הנכס בעצמם.' })[a.d_brokers] : ''
     if (rental) {
-      const avail = a.d_timeline ? ({ now: 'זמין להשכרה מיידית', m1: 'יהיה זמין תוך חודש', m3: 'יהיה זמין תוך שלושה חודשים לכל היותר', lease: 'יתפנה בסיום חוזה השוכרים הנוכחיים', flex: 'זמין במועד גמיש' })[a.d_timeline] : ''
-      add('ההשכרה והציפיות', [
-        a.d_ask ? `דמי השכירות המבוקשים הם ${ils(a.d_ask)} לחודש${flex ? `, ${flex}` : ''}.` : '',
-        a.d_min ? `דמי השכירות המינימליים שהבעלים ישקלו: ${ils(a.d_min)} לחודש (נתון פנימי).` : '',
-        avail ? `${the} ${avail}.` : '',
-        a.r_term ? `הבעלים מכוונים ל${lab('r_term', a.r_term).replace(/^שנה$/, 'חוזה לשנה').replace(/^שנה עם/, 'חוזה לשנה עם').replace(/^שנתיים/, 'חוזה לשנתיים').replace(/^טווח קצר/, 'חוזה לטווח קצר').replace(/^גמיש$/, 'תקופת שכירות גמישה')}.` : '',
-        labs('r_guarantees').length ? `הערבויות שיתבקשו: ${list(labs('r_guarantees'))}.` : '',
-        labs('r_included').length && !a.r_included?.includes('none') ? `דמי השכירות כוללים ${list(labs('r_included'))}.` : a.r_included?.includes('none') ? 'דמי השכירות אינם כוללים תשלומים נוספים.' : '',
-        a.r_pets ? ({ yes: 'מותר להחזיק בעלי חיים.', no: 'לא ניתן להחזיק בעלי חיים.', negotiable: 'החזקת בעלי חיים תיבחן לפי המקרה.' })[a.r_pets] : '',
-        a.d_published ? ({ no: 'הנכס לא פורסם בעבר להשכרה.', past: 'הנכס פורסם בעבר להשכרה והורד מהשוק.', current: 'הנכס מפורסם להשכרה גם כיום.' })[a.d_published] : '',
-        a.d_brokers ? ({ none: 'אין מתווכים נוספים.', others: 'הנכס נמצא גם אצל מתווכים נוספים, ללא בלעדיות.', exclusive: 'הנכס בבלעדיות אצל משרד אחר.', expired: 'הייתה בלעדיות אצל משרד אחר והיא הסתיימה.', self: 'הבעלים מפרסמים בעצמם.' })[a.d_brokers] : '',
-        a.d_published_detail ? `על השיווק עד היום: ${a.d_published_detail}.` : '',
-        a.d_buyer ? `העדפות לגבי השוכרים: ${a.d_buyer}.` : '',
-        a.d_notes ? `חשוב לדעת: ${a.d_notes}.` : '',
+      const avail = a.d_timeline ? ({ now: `${the} ${v('זמינה', 'זמין')} להשכרה מיידית.`, m1: `${the} ${v('תהיה זמינה', 'יהיה זמין')} תוך חודש.`, m3: `${the} ${v('תהיה זמינה', 'יהיה זמין')} תוך שלושה חודשים לכל היותר.`, lease: `${the} ${v('תתפנה', 'יתפנה')} בסיום חוזה השוכרים הנוכחיים.`, flex: 'מועד הכניסה גמיש.' })[a.d_timeline] : ''
+      const term = a.r_term ? ({ y1: 'חוזה לשנה', y1opt: 'חוזה לשנה עם אופציה להארכה', y2: 'חוזה לשנתיים ומעלה', short: 'חוזה לטווח קצר (פחות משנה)', flex: 'תקופת שכירות גמישה' })[a.r_term] : ''
+      const guar = (Array.isArray(a.r_guarantees) ? a.r_guarantees : []).filter(x => x !== 'flex').map(x => lab('r_guarantees', x)).filter(Boolean)
+      const inc = labs('r_included').filter(x => !/לא כלול/.test(x))
+      add('ההשכרה והתנאים', [
+        a.d_ask ? `דמי השכירות המבוקשים הם ${ils(a.d_ask)} לחודש${flex}.` : '',
+        a.d_min ? `דמי השכירות המינימליים שהבעלים ישקלו הם ${ils(a.d_min)} לחודש (נתון פנימי, לא לפרסום).` : '',
+        avail,
+        term ? `הבעלים מכוונים ל${term}.` : '',
+        guar.length ? `הערבויות שיתבקשו: ${list(guar)}.` : (a.r_guarantees?.includes('flex') ? 'סוג הערבויות ייקבע בתיאום עם השוכרים.' : ''),
+        inc.length ? `דמי השכירות כוללים ${list(inc)}.` : a.r_included?.includes('none') ? 'דמי השכירות אינם כוללים תשלומים נוספים.' : '',
+        a.r_pets ? ({ yes: 'מותר להחזיק בעלי חיים.', no: 'לא ניתן להחזיק בעלי חיים.', negotiable: 'החזקת בעלי חיים תיבחן לגופו של מקרה.' })[a.r_pets] : '',
+        pub, brokers,
+        clean(a.d_published_detail) ? `על השיווק עד היום: ${clean(a.d_published_detail)}.` : '',
+        clean(a.d_buyer) ? `העדפות לגבי השוכרים: ${clean(a.d_buyer)}.` : '',
+        clean(a.d_notes) ? `חשוב לדעת: ${clean(a.d_notes)}.` : '',
       ])
     } else {
-      const when = a.d_timeline ? ({ asap: 'כמה שיותר מהר', m3: 'בחודשים הקרובים', m6: 'תוך חצי שנה', y1: 'תוך שנה', norush: 'ללא לחץ, רק במחיר הנכון' })[a.d_timeline] : ''
-      const vacate = a.d_vacate ? ({ immediate: 'מיידית', m3: 'תוך שלושה חודשים', m6: 'תוך שלושה עד שישה חודשים', y1: 'תוך חצי שנה עד שנה', later: 'בעוד יותר משנה', flexible: 'במועד גמיש' })[a.d_vacate] : ''
-      const vflex = labs('d_vacate_flex').map(x => x.replace(/^ניתן /, 'ניתן ')).filter(x => !/לא ניתן/.test(x))
+      const when = a.d_timeline ? ({ asap: 'בהקדם האפשרי', m3: 'בחודשים הקרובים', m6: 'תוך חצי שנה', y1: 'תוך שנה', norush: 'ללא לחץ של זמן, ורק במחיר הנכון' })[a.d_timeline] : ''
+      const vacate = a.d_vacate ? ({ immediate: 'באופן מיידי', m3: 'תוך שלושה חודשים', m6: 'תוך שלושה עד שישה חודשים', y1: 'תוך חצי שנה עד שנה', later: 'בעוד יותר משנה', flexible: 'במועד גמיש' })[a.d_vacate] : ''
+      const vflex = (Array.isArray(a.d_vacate_flex) ? a.d_vacate_flex : []).map(x => ({ earlier: 'ניתן להקדים', later: 'ניתן לדחות' })[x]).filter(Boolean)
       add('המכירה והציפיות', [
-        a.d_ask ? `המחיר המבוקש הוא ${ils(a.d_ask)}${flex ? `, ${flex}` : ''}.` : '',
+        a.d_ask ? `המחיר המבוקש הוא ${ils(a.d_ask)}${flex}.` : '',
         a.d_expected ? `הציפייה הריאלית של הבעלים היא כ-${ils(a.d_expected)}.` : '',
-        a.d_min ? `המחיר המינימלי שישקלו: ${ils(a.d_min)} (נתון פנימי).` : '',
-        a.d_offers_received === 'yes' && bo.amount ? `ההצעה הגבוהה ביותר שהתקבלה עד היום הייתה ${ils(bo.amount)}${bo.when ? ` (${bo.when})` : ''}${bo.notes ? `, ${bo.notes}` : ''}.` : a.d_offers_received === 'no' ? 'טרם התקבלו הצעות על הנכס.' : '',
-        when ? `הבעלים מעוניינים למכור ${when}${vacate ? ` ולמסור את הנכס ${vacate}` : ''}.` : (vacate ? `מסירת הנכס ${vacate}.` : ''),
-        dl.date ? `יש מועד חשוב להשלמת המכירה: ${dl.date}${dl.reason ? ` (${dl.reason})` : ''}.` : '',
-        vflex.length ? `את מועד המסירה ${list(vflex).toLowerCase()}.` : '',
+        a.d_min ? `המחיר המינימלי שהבעלים ישקלו הוא ${ils(a.d_min)} (נתון פנימי, לא לפרסום).` : '',
+        a.d_offers_received === 'yes' && bo.amount ? `ההצעה הגבוהה ביותר שהתקבלה עד היום עמדה על ${ils(bo.amount)}${bo.when ? ` (${clean(bo.when)})` : ''}${clean(bo.notes) ? `. ${clean(bo.notes)}` : ''}.` : a.d_offers_received === 'no' ? 'טרם התקבלו הצעות על הנכס.' : '',
+        when ? `הבעלים מעוניינים למכור ${when}${vacate ? `, ולמסור את הנכס ${vacate}` : ''}.` : (vacate ? `מסירת הנכס ${vacate}.` : ''),
+        dl.date ? `יש מועד חשוב להשלמת המכירה: ${dl.date}${clean(dl.reason) ? ` (${clean(dl.reason)})` : ''}.` : '',
+        vflex.length ? `את מועד המסירה ${list(vflex)}.` : '',
         a.d_alt ? ({ no: '', looking: 'המכירה תלויה ברכישת נכס חלופי, והבעלים עדיין מחפשים.', found: 'המכירה תלויה ברכישת נכס חלופי שכבר נמצא.', after: 'הבעלים ירכשו נכס אחר רק לאחר המכירה.' })[a.d_alt] : '',
-        a.d_why && a.d_why !== 'private' ? `סיבת המכירה: ${lab('d_why', a.d_why).toLowerCase()}.` : '',
-        a.d_published ? ({ no: 'הנכס לא פורסם בעבר למכירה.', past: 'הנכס פורסם בעבר למכירה והורד מהשוק.', current: 'הנכס מפורסם למכירה גם כיום.' })[a.d_published] : '',
-        a.d_brokers ? ({ none: 'אין מתווכים נוספים.', others: 'הנכס נמצא גם אצל מתווכים נוספים, ללא בלעדיות.', exclusive: 'הנכס בבלעדיות אצל משרד אחר.', expired: 'הייתה בלעדיות אצל משרד אחר והיא הסתיימה.', self: 'הבעלים מפרסמים בעצמם.' })[a.d_brokers] : '',
-        a.d_published_detail ? `על השיווק עד היום: ${a.d_published_detail}.` : '',
-        a.d_offers ? ({ open: 'הבעלים פתוחים לכל הצעה רצינית.', close: 'הבעלים ישקלו רק הצעות קרובות למחיר המבוקש.', firm: 'המחיר סופי.' })[a.d_offers] : '',
-        a.d_buyer ? `העדפות לגבי הקונה או תנאי העסקה: ${a.d_buyer}.` : '',
-        a.d_notes ? `חשוב לדעת: ${a.d_notes}.` : '',
+        a.d_why && a.d_why !== 'private' ? `סיבת המכירה: ${a.d_why === 'other' ? (clean(a.d_why_other) || 'אחר') : lab('d_why', a.d_why)}.` : '',
+        pub, brokers,
+        clean(a.d_published_detail) ? `על השיווק עד היום: ${clean(a.d_published_detail)}.` : '',
+        a.d_offers ? ({ open: 'הבעלים פתוחים לכל הצעה רצינית.', close: 'הבעלים ישקלו רק הצעות הקרובות למחיר המבוקש.', firm: 'המחיר סופי.' })[a.d_offers] : '',
+        clean(a.d_buyer) ? `העדפות לגבי הקונה או תנאי העסקה: ${clean(a.d_buyer)}.` : '',
+        clean(a.d_notes) ? `חשוב לדעת: ${clean(a.d_notes)}.` : '',
       ])
     }
   }
-  // 8. הזווית השיווקית
+  // 8. מה מייחד את הנכס
   {
-    const near = labs('m_nearby')
-    const fit = labs('m_fit')
-    add('הזווית השיווקית', [
-      a.m_pros ? `לדברי הבעלים, היתרון הגדול של הנכס הוא ${String(a.m_pros).trim().replace(/\.$/, '')}.` : '',
-      a.m_unique ? `מה שמייחד אותו לעומת נכסים אחרים באזור: ${String(a.m_unique).trim().replace(/\.$/, '')}.` : '',
-      a.m_love ? `הבעלים הכי אוהבים ${String(a.m_love).trim().replace(/\.$/, '')}.` : '',
-      near.length ? `במרחק הליכה ${list(near)}.` : '',
-      fit.length ? `${the} ${v('מתאימה', 'מתאים')} במיוחד ל${list(fit)}.` : '',
-      a.m_story ? `בפרסום חשוב להדגיש: ${String(a.m_story).trim().replace(/\.$/, '')}.` : '',
-      a.m_hide ? `לא לפרסם: ${String(a.m_hide).trim().replace(/\.$/, '')}.` : '',
-      a.m_extra ? `עוד כדאי לדעת: ${String(a.m_extra).trim().replace(/\.$/, '')}.` : '',
+    const near = labs('m_nearby').map(x => x === 'אחר' ? clean(a.m_nearby_other) : x).filter(Boolean)
+    const fit = labs('m_fit').map(x => x === 'אחר' ? clean(a.m_fit_other) : x).filter(Boolean)
+    add('מה מייחד את הנכס', [
+      clean(a.m_pros) ? `לדברי הבעלים, היתרון הגדול של הנכס הוא ${clean(a.m_pros)}.` : '',
+      clean(a.m_unique) ? `מה שמייחד ${v('אותה', 'אותו')} לעומת נכסים אחרים באזור: ${clean(a.m_unique)}.` : '',
+      clean(a.m_love) ? `מה שהבעלים הכי אוהבים בנכס: ${clean(a.m_love)}.` : '',
+      near.length ? `במרחק הליכה: ${list(near)}.` : '',
+      fit.length ? `${the} ${v('מתאימה', 'מתאים')} במיוחד ${list(fit.map(x => `ל${x}`))}.` : '',
+      clean(a.m_story) ? `בפרסום חשוב להדגיש: ${clean(a.m_story)}.` : '',
+      clean(a.m_hide) ? `לא לפרסם: ${clean(a.m_hide)}.` : '',
+      clean(a.m_extra) ? `עוד כדאי לדעת: ${clean(a.m_extra)}.` : '',
     ])
   }
-  // 9. חומרים ואיש קשר
+  // 9. תמונות, מסמכים ואיש קשר
   {
     const cnt = id => (Array.isArray(a[id]) ? a[id].filter(f => !f.status || f.status === 'done').length : 0)
-    const files = [[cnt('u_photos'), 'תמונות'], [cnt('u_videos'), 'סרטונים'], [cnt('u_plan'), 'קבצי תוכנית'], [cnt('u_docs'), 'מסמכים']].filter(x => x[0]).map(x => `${x[0]} ${x[1]}`)
+    const files = [
+      [cnt('u_photos'), 'תמונה אחת', 'תמונות'], [cnt('u_videos'), 'סרטון אחד', 'סרטונים'], [cnt('u_plan'), 'קובץ תוכנית אחד', 'קבצי תוכנית'], [cnt('u_docs'), 'מסמך אחד', 'מסמכים'],
+    ].filter(x => x[0]).map(x => x[0] === 1 ? x[1] : `${x[0]} ${x[2]}`)
     const priv = a.c_privacy || {}
-    const role = a.c_role ? ({ owner: 'הבעלים', partial: 'אחד הבעלים', poa: 'מיופה כוח', family: 'בן משפחה של הבעלים', other: a.c_role_other || 'איש קשר' })[a.c_role] : ''
-    add('חומרים ואיש קשר', [
-      files.length ? `לתיק צורפו ${list(files)}.` : 'לתיק טרם צורפו תמונות או מסמכים.',
-      a.c_name ? `איש הקשר הוא ${a.c_name}${role ? ` (${role})` : ''}${a.c_phone ? `, טלפון ${a.c_phone}` : ''}${a.c_email ? `, אימייל ${a.c_email}` : ''}.` : '',
-      a.c_extra?.name ? `איש קשר נוסף: ${a.c_extra.name}${a.c_extra.phone ? `, ${a.c_extra.phone}` : ''}${a.c_extra.relation ? ` (${a.c_extra.relation})` : ''}.` : '',
+    const role = a.c_role ? ({ owner: 'הבעלים', partial: 'אחד הבעלים', poa: 'מיופה כוח', family: 'בן משפחה של הבעלים', other: clean(a.c_role_other) || 'איש קשר' })[a.c_role] : ''
+    add('תמונות, מסמכים ואיש קשר', [
+      files.length ? `לתיק הנכס צורפו ${list(files)}.` : 'לתיק הנכס טרם צורפו תמונות או מסמכים.',
+      a.c_name ? `איש הקשר לנכס: ${clean(a.c_name)}${role ? ` (${role})` : ''}${a.c_phone ? `, טלפון ${a.c_phone}` : ''}${a.c_email ? `, דוא״ל ${a.c_email}` : ''}.` : '',
+      a.c_extra?.name ? `איש קשר נוסף: ${clean(a.c_extra.name)}${a.c_extra.phone ? `, ${a.c_extra.phone}` : ''}${clean(a.c_extra.relation) ? ` (${clean(a.c_extra.relation)})` : ''}.` : '',
       `${priv.publishPhone ? 'מותר לפרסם את מספר הטלפון' : 'מספר הטלפון לא יפורסם'}, ו${priv.showAddress ? 'הכתובת המדויקת יכולה להופיע בפרסום' : 'הכתובת המדויקת לא תופיע בפרסום'}.`,
     ])
   }
