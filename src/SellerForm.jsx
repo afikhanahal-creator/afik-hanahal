@@ -51,6 +51,7 @@ const T = {
     factPrice: 'מחיר מבוקש', factRooms: 'חדרים', factArea: 'מ״ר בנוי', factFloor: 'קומה', factParking: 'חניות', factState: 'מצב', factType: 'סוג הנכס',
     otherPh: 'פרטו במילים…', notePh: 'תיאור כיווני האוויר. אפשר לערוך חופשי', noteReset: 'חזרה לתיאור האוטומטי', loadingStreets: 'טוען רחובות…', noStreets: 'הקלידו את שם הרחוב',
     edit: 'עריכה', missingTitle: 'נשארו שאלות חובה שלא נענו', jump: 'מעבר לשאלה',
+    editing: 'עריכת תשובה מהסיכום. לחיצה על "המשך" תחזיר אתכם לסיכום', backToReview: 'חזרה לסיכום', toReview: 'לסיכום', showAll: 'הצגת כל הפרטים', hideAll: 'כיווץ הכל', itemsCount: '{n} פרטים', reviewHint: 'לחצו על כותרת כדי לפתוח או לסגור. אפשר לערוך כל תשובה בלחיצה על "עריכה".',
     consent: 'אני מאשר/ת שהפרטים שמסרתי נכונים למיטב ידיעתי, ומסכים/ה שאפיק הנחל תיצור איתי קשר בנוגע לשיווק הנכס.',
     submit: 'סיום ושליחת הנכס', submitting: 'שולחים…', shareForm: 'שתף טופס', shareFormText: 'היי, אפיק הנחל מבקשים שנמלא את פרטי הנכס. אפשר להמשיך את הטופס כאן:', shareFormHint: 'שלחו את הקישור לבן/בת זוג או לשותף כדי שיעזרו למלא. הטופס המשותף נשמר אוטומטית.', resumedFromLink: 'המשכנו מהמקום שבו הטופס נעצר', savedCloud: 'נשמר', dateDay: 'יום', dateMonth: 'חודש', dateYear: 'שנה', dirPresets: 'בחירה מהירה', pickFromList: 'או בחרו מהרשימה',
     submitErr: 'משהו השתבש בשליחה. הטופס שלכם שמור, נסו שוב בעוד רגע או שלחו לנו הודעה בוואטסאפ.',
@@ -86,6 +87,7 @@ const T = {
     factPrice: 'Asking price', factRooms: 'Rooms', factArea: 'm² built', factFloor: 'Floor', factParking: 'Parking', factState: 'Condition', factType: 'Type',
     otherPh: 'Please specify…', notePh: 'Direction description. Edit freely', noteReset: 'Back to the automatic description', loadingStreets: 'Loading streets…', noStreets: 'Type the street name',
     edit: 'Edit', missingTitle: 'Some required questions are still unanswered', jump: 'Go to question',
+    editing: 'Editing an answer from the summary. "Continue" takes you back to the summary', backToReview: 'Back to summary', toReview: 'To summary', showAll: 'Show all details', hideAll: 'Collapse all', itemsCount: '{n} details', reviewHint: 'Tap a heading to open or close it. Click "Edit" to change any answer.',
     consent: 'I confirm the details I provided are accurate to the best of my knowledge, and I agree that Afik Hanahal may contact me regarding marketing this property.',
     submit: 'Finish and submit the property', submitting: 'Sending…', shareForm: 'Share form', shareFormText: 'Hi, Afik Hanahal asked us to fill in our property details. You can continue the form here:', shareFormHint: 'Send the link to a spouse or partner so they can help fill it in. The shared form saves automatically.', resumedFromLink: 'Continuing from where the form stopped', savedCloud: 'Saved', dateDay: 'Day', dateMonth: 'Month', dateYear: 'Year', dirPresets: 'Quick pick', pickFromList: 'or pick from the list',
     submitErr: 'Something went wrong. Your form is saved. Try again in a moment or message us on WhatsApp.',
@@ -232,7 +234,8 @@ const CSS = `
 .sf-date small { font-size:11px; color:var(--muted); letter-spacing:.04em; }
 .sf-date select { font-size:16px; padding:10px 8px; min-height:44px; border:1px solid var(--line2); border-radius:6px; background:#fff; color:var(--ink); width:100%; }
 .sf-date.is-err select { border-color:var(--err); }
-.sf-count { position:fixed; bottom:12px; left:50%; transform:translateX(-50%); font-size:13px; color:var(--ink2); pointer-events:none; font-variant-numeric:tabular-nums; background:rgba(255,255,255,.85); backdrop-filter:blur(6px); border:1px solid var(--line); border-radius:20px; padding:4px 12px; }
+.sf-foot { position:fixed; bottom:12px; inset-inline:0; display:flex; justify-content:center; align-items:center; gap:8px; pointer-events:none; z-index:50; }
+.sf-count { font-size:13px; color:var(--ink2); font-variant-numeric:tabular-nums; background:rgba(255,255,255,.85); backdrop-filter:blur(6px); border:1px solid var(--line); border-radius:20px; padding:6px 12px; }
 
 /* ── inputs ────────────────────────────────────────────────────────────── */
 .sf-input { width:100%; font-size:clamp(20px, 2.6vw, 30px); font-weight:400; padding:8px 0; border:0; border-bottom:1px solid var(--line2); background:transparent; color:var(--ink); border-radius:0; transition:border-color .2s, box-shadow .2s; text-align:center; }
@@ -369,19 +372,29 @@ textarea.sf-input { resize:none; line-height:1.5; font-size:clamp(17px,2vw,22px)
 .sf-fact small { font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; color:rgba(255,255,255,.6); }
 .sf-fact b { font-size:18px; font-weight:700; font-variant-numeric:tabular-nums; }
 .sf-fact.hi { background:var(--deep); border-color:var(--deep); }
-.sf-rsub { text-align:center; margin:18px 0 16px; color:var(--muted); font-size:15px; }
+.sf-rsub { text-align:center; margin:12px 0 14px; color:var(--muted); font-size:14px; }
 .sf-rgrid { display:flex; flex-direction:column; gap:10px; }
 .sf-rsec { border:1px solid var(--line); border-radius:14px; padding:0 20px 6px; background:var(--paper); box-shadow:0 4px 18px rgba(38,36,43,.04); }
-.sf-rsec h3 { display:flex; align-items:center; gap:10px; font-size:15px; font-weight:700; color:var(--ink); margin:0; padding:15px 0 11px; border-bottom:1px solid var(--line); }
-.sf-rsec h3 i { width:24px; height:24px; border-radius:50%; background:var(--ink); color:#fff; font-size:11.5px; font-weight:700; font-style:normal; display:inline-flex; align-items:center; justify-content:center; }
+.sf-rsec h3 { margin:0; }
+.sf-rsec h3 button { width:100%; display:flex; align-items:center; gap:10px; font-size:15px; font-weight:700; color:var(--ink); font-family:inherit; background:none; border:0; cursor:pointer; padding:15px 0 13px; text-align:start; }
+.sf-rsec h3 button span { flex:1; }
+.sf-rsec h3 button small { font-size:12px; font-weight:500; color:var(--muted); }
+.sf-rsec h3 button svg { flex:none; color:var(--muted); transition:transform .2s; }
+.sf-rsec.open h3 button { border-bottom:1px solid var(--line); }
+.sf-rsec.open h3 button svg { transform:rotate(180deg); }
+.sf-ractions { display:flex; justify-content:center; gap:10px; flex-wrap:wrap; margin:18px 0 0; }
+.sf-editbar { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin:0 auto 18px; max-width:640px; padding:10px 14px; border-radius:10px; background:var(--tint2); color:var(--deep); font-size:14px; text-align:start; }
+.sf-editbar button { display:inline-flex; align-items:center; gap:6px; border:1px solid var(--deep); background:var(--paper); color:var(--deep); font-family:inherit; font-weight:700; font-size:13.5px; padding:8px 12px; min-height:40px; border-radius:8px; cursor:pointer; }
+.sf-jump { pointer-events:auto; display:inline-flex; align-items:center; gap:6px; border:1px solid var(--deep); background:var(--deep); color:#fff; font-family:inherit; font-weight:700; font-size:13px; padding:6px 12px; border-radius:20px; cursor:pointer; box-shadow:0 6px 18px rgba(63,78,176,.25); }
+.sf-rsec h3 button i { width:24px; height:24px; border-radius:50%; background:var(--ink); color:#fff; font-size:11.5px; font-weight:700; font-style:normal; display:inline-flex; align-items:center; justify-content:center; }
 .sf-ritem { display:grid; grid-template-columns:180px 1fr auto; align-items:baseline; gap:14px; padding:10px 0; border-top:1px solid var(--line); }
 .sf-ritem:first-of-type { border-top:0; }
 .sf-ritem .k { font-size:13.5px; color:var(--muted); line-height:1.45; letter-spacing:.01em; }
 .sf-ritem .v { font-size:15.5px; line-height:1.5; white-space:pre-wrap; word-break:break-word; color:var(--ink); }
-.sf-ritem button { border:0; background:none; color:var(--deep); font-size:13px; font-weight:600; cursor:pointer; padding:4px 8px; border-radius:4px; opacity:0; transition:opacity .15s; }
+.sf-ritem button { border:1px solid transparent; background:none; color:var(--deep); font-size:12.5px; font-weight:600; cursor:pointer; padding:3px 8px; min-height:28px; border-radius:6px; opacity:0; transition:opacity .15s; }
 .sf-ritem:hover button, .sf-ritem button:focus-visible { opacity:1; }
 .sf-ritem button:hover { background:var(--tint); }
-@media (hover:none) { .sf-ritem button { opacity:1; font-size:13.5px; padding:6px 12px; min-height:36px; background:var(--tint); } }
+@media (hover:none) { .sf-ritem button { opacity:1; border-color:var(--line2); } }
 .sf-chips { display:flex; flex-wrap:wrap; gap:5px; }
 .sf-chips em { font-style:normal; font-size:13px; padding:3px 9px; border-radius:20px; background:var(--tint2); color:var(--ink); }
 .sf-vnote { display:block; margin-top:6px; font-size:13px; color:var(--ink2); line-height:1.45; }
@@ -453,13 +466,13 @@ textarea.sf-input { resize:none; line-height:1.5; font-size:clamp(17px,2vw,22px)
   .sf-file select { font-size:16px; }
   .sf-field .sf-input { font-size:16px; min-height:44px; padding:10px 0; }
   .sf-btn { min-height:50px; font-size:17px; }
-  .sf-count { bottom:8px; }
+  .sf-foot { bottom:8px; }
   .sf-q { font-size:22px; }
   .sf-help { font-size:16px; }
   .sf-actions { gap:8px; }
   .sf-actions .sf-btn { flex:1 1 40%; min-width:0; }
   .sf-actions .sf-btn.big { flex-basis:100%; }
-  .sf-ritem { grid-template-columns:1fr auto; grid-template-areas:'k b' 'v v'; gap:4px 10px; align-items:center; }
+  .sf-ritem { grid-template-columns:1fr auto; grid-template-areas:'k b' 'v v'; gap:2px 10px; align-items:center; padding:9px 0; }
   .sf-ritem .k { grid-area:k; }
   .sf-ritem .v { grid-area:v; }
   .sf-ritem button { grid-area:b; margin:0; justify-self:end; }
@@ -556,6 +569,8 @@ export default function SellerForm() {
   const [err, setErr] = useState(null)
   const [draft, setDraft] = useState(null)
   const [savedTick, setSavedTick] = useState(0)
+  const [editReturn, setEditReturn] = useState(false)     // came from the review to fix one answer → "Continue" goes back there
+  const [reachedReview, setReachedReview] = useState(false) // once the summary was seen, a shortcut to it stays available
   const [submitting, setSubmitting] = useState(false)
   const [submitErr, setSubmitErr] = useState('')
   const [result, setResult] = useState(null)
@@ -647,11 +662,11 @@ export default function SellerForm() {
   useEffect(() => {
     if (phase !== 'form') return
     const h = setTimeout(() => {
-      saveDraft({ answers: stripFilesForDraft(answers), cur, sid: sidRef.current, lang, savedAt: Date.now(), v: SCHEMA_VERSION })
+      saveDraft({ answers: stripFilesForDraft(answers), cur, sid: sidRef.current, lang, savedAt: Date.now(), v: SCHEMA_VERSION, reached: reachedReview })
       setSavedTick(x => x + 1)
     }, 500)
     return () => clearTimeout(h)
-  }, [answers, cur, phase, lang])
+  }, [answers, cur, phase, lang, reachedReview])
   // Server draft: survives a closed tab, a new device, and is what a shared partner continues from
   useEffect(() => {
     if (phase !== 'form' || !sidRef.current) return
@@ -671,12 +686,17 @@ export default function SellerForm() {
 
   // ── navigation ───────────────────────────────────────────────────────────
   const goTo = useCallback((id, d = 1) => { setDir(d); setErr(null); setCur(id); window.scrollTo({ top: 0, behavior: 'smooth' }) }, [])
+  const reviewId = useMemo(() => (visible.find(s => s.type === 'review') || {}).id, [visible])
   const goNext = useCallback(() => {
     if (!step) return
     const e = validateStep(step, answers)
     if (e) { setErr(e); return }
+    if (editReturn && reviewId && !['review', 'story'].includes(step.type)) { setEditReturn(false); goTo(reviewId, 1); return }
     if (idx < total - 1) goTo(visible[idx + 1].id, 1)
-  }, [step, answers, idx, total, visible, goTo])
+  }, [step, answers, idx, total, visible, goTo, editReturn, reviewId])
+  const goReview = useCallback(() => { if (reviewId) { setEditReturn(false); goTo(reviewId, 1) } }, [reviewId, goTo])
+  const editFromReview = useCallback(id => { setEditReturn(true); goTo(id, -1) }, [goTo])
+  useEffect(() => { if (phase === 'form' && (step?.type === 'review' || step?.type === 'story')) { setReachedReview(true); setEditReturn(false) } }, [phase, step])
   const goPrev = useCallback(() => { if (idx > 0) goTo(visible[idx - 1].id, -1) }, [idx, visible, goTo])
 
   const begin = (resume) => {
@@ -684,6 +704,7 @@ export default function SellerForm() {
       setAnswers(draft.answers || {})
       setCur(draft.cur && STEPS.some(s => s.id === draft.cur) ? draft.cur : STEPS[0].id)
       if (draft.lang) setLang(draft.lang)
+      setReachedReview(!!draft.reached)
     } else {
       clearDraft(); setAnswers({}); setCur(STEPS[0].id); if (linkState !== 'fresh') sidRef.current = null
     }
@@ -813,7 +834,7 @@ export default function SellerForm() {
                   <Intro section={section} t={t} lang={lang} onNext={goNext} answers={answers}/>
                 )}
                 {step.type === 'review' && (
-                  <Review answers={answers} lang={lang} t={t} visible={visible} onEdit={id => goTo(id, -1)} onBack={goPrev} onNext={goNext}/>
+                  <Review answers={answers} lang={lang} t={t} visible={visible} onEdit={editFromReview} onBack={goPrev} onNext={goNext}/>
                 )}
                 {step.type === 'story' && (
                   <Story answers={answers} lang={lang} t={t} onBack={goPrev}
@@ -822,6 +843,12 @@ export default function SellerForm() {
                 )}
                 {!['intro', 'review', 'story'].includes(step.type) && (
                   <>
+                    {editReturn && (
+                      <div className="sf-editbar" role="status">
+                        <span>{t.editing}</span>
+                        <button type="button" onClick={goReview}><IcoBack/>{t.backToReview}</button>
+                      </div>
+                    )}
                     <div className="sf-sec">{t.part} {section?.n} · {section ? sectionText(section, 'title', lang, answers) : ''}</div>
                     <div className="sf-qhead">
                       <span className="sf-badge" aria-hidden="true">{qNumber}</span>
@@ -858,7 +885,12 @@ export default function SellerForm() {
       </main>
 
       {phase === 'form' && (
-        <footer className="sf-foot"><span className="sf-count">{idx + 1} {t.of} {total}</span></footer>
+        <footer className="sf-foot">
+          <span className="sf-count">{idx + 1} {t.of} {total}</span>
+          {reachedReview && !editReturn && !['review', 'story'].includes(step?.type) && (
+            <button type="button" className="sf-jump" onClick={goReview}>{t.toReview}<IcoFwd/></button>
+          )}
+        </footer>
       )}
     </div>
   )
@@ -1400,6 +1432,12 @@ function Upload({ step, value, setValue, lang, t, sid }) {
 function Review({ answers, lang, t, visible, onEdit, onBack, onNext }) {
   const summary = useMemo(() => buildSummary(answers, lang), [answers, lang])
   const missing = visible.filter(s => validateStep(s, answers))
+  // Phones: sections start collapsed so the story is one tap away; desktop: everything open
+  const [openSecs, setOpenSecs] = useState(() => (typeof window !== 'undefined' && window.innerWidth <= 720 ? new Set() : null))
+  const isOpen = id => openSecs === null || openSecs.has(id)
+  const toggle = id => setOpenSecs(prev => { const next = new Set(prev === null ? summary.map(s => s.section) : prev); if (next.has(id)) next.delete(id); else next.add(id); return next })
+  const allOpen = openSecs === null || summary.every(s => openSecs.has(s.section))
+  const toggleAll = () => setOpenSecs(allOpen ? new Set() : null)
   const addr = answers.p_address || {}
   const place = [[addr.street, addr.number].filter(Boolean).join(' '), addr.neighborhood ? `${lang === 'en' ? '' : 'שכונת '}${addr.neighborhood}` : '', addr.city, addr.apt ? (lang === 'en' ? `apt. ${addr.apt}` : `דירה ${addr.apt}`) : ''].filter(Boolean).join(' · ')
   const stateStep = STEPS.find(s => s.id === 'p_state')
@@ -1424,7 +1462,11 @@ function Review({ answers, lang, t, visible, onEdit, onBack, onNext }) {
           </div>
         )}
       </div>
-      <p className="sf-rsub">{t.reviewSub}</p>
+      <div className="sf-ractions">
+        <button className="sf-btn" onClick={onNext} disabled={missing.length > 0}>{t.toStory}<IcoFwd/></button>
+        <button className="sf-btn ghost" type="button" onClick={toggleAll}>{allOpen ? t.hideAll : t.showAll}</button>
+      </div>
+      <p className="sf-rsub">{t.reviewHint}</p>
       {missing.length > 0 && (
         <div className="sf-missing">
           <h4>{t.missingTitle}</h4>
@@ -1435,9 +1477,9 @@ function Review({ answers, lang, t, visible, onEdit, onBack, onNext }) {
         {summary.map(sec => {
           const secDef = SECTIONS.find(x => x.id === sec.section)
           return (
-            <section className="sf-rsec" key={sec.section}>
-              <h3><i>{secDef?.n}</i>{sec.title}</h3>
-              {sec.items.map(it => (
+            <section className={`sf-rsec${isOpen(sec.section) ? ' open' : ''}`} key={sec.section}>
+              <h3><button type="button" onClick={() => toggle(sec.section)} aria-expanded={isOpen(sec.section)}><i>{secDef?.n}</i><span>{sec.title}</span><small>{fill(t.itemsCount, { n: sec.items.length })}</small><IcoChevron/></button></h3>
+              {isOpen(sec.section) && sec.items.map(it => (
                 <div className="sf-ritem" key={it.id}>
                   <span className="k">{it.label}</span>
                   <span className="v">

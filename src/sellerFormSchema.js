@@ -714,20 +714,20 @@ export const STEPS = [
   { id: 'u_intro', section: 'media', type: 'intro' },
   { id: 'u_photos', section: 'media', type: 'upload', kind: 'photos', accept: 'image/*', maxMB: 25,
     q: 'תמונות עדכניות של הנכס', en_q: 'Recent photos of the property',
-    help: 'תמונות של כל חדר, באור יום, ישר מהטלפון. אפשר להעלות עד 40 תמונות', en_help: 'Photos of every room in daylight, straight from your phone. Up to 40 photos',
-    max: 40 },
+    help: 'תמונות של כל חדר, באור יום, ישר מהטלפון. אפשר להעלות עד 60 תמונות', en_help: 'Photos of every room in daylight, straight from your phone. Up to 60 photos',
+    max: 60 },
   { id: 'u_videos', section: 'media', type: 'upload', kind: 'videos', accept: 'video/*', maxMB: 200,
     q: 'סרטון של הנכס, אם קיים', en_q: 'A video of the property, if you have one',
-    help: 'סרטון קצר של הנכס, המרפסת, הגג או הגינה. אפשר גם לשלוח אחר כך בוואטסאפ', en_help: 'A short video of the property, balcony, roof or garden. You can also send it later via WhatsApp',
-    max: 5 },
+    help: 'סרטונים קצרים של הנכס, המרפסת, הגג או הגינה. אפשר גם לשלוח אחר כך בוואטסאפ', en_help: 'Short videos of the property, balcony, roof or garden. You can also send them later via WhatsApp',
+    max: 15 },
   { id: 'u_plan', section: 'media', type: 'upload', kind: 'plan', accept: 'image/*,application/pdf', maxMB: 25,
     q: 'תוכנית הדירה / הבית', en_q: 'Floor plan',
     help: 'צילום או קובץ PDF של התוכנית, אם קיים', en_help: 'A photo or PDF of the plan, if available',
-    max: 5 },
+    max: 10 },
   { id: 'u_docs', section: 'media', type: 'upload', kind: 'docs', accept: 'image/*,application/pdf', maxMB: 25,
     q: 'נסח טאבו / אישור זכויות ומסמכים נוספים', en_q: 'Tabu extract / rights confirmation and other documents',
     help: 'בחרו סוג מסמך ואז העלו. כל מסמך שמראה שטחים או זכויות עוזר לנו לשווק מדויק', en_help: 'Pick a document type, then upload. Anything that shows areas or rights helps us market accurately',
-    max: 20,
+    max: 40,
     tags: [
       o('tabu',    'נסח טאבו / אישור זכויות', 'Tabu extract / rights confirmation'),
       o('arnona',  'ארנונה',                  'Arnona (municipal tax)'),
@@ -1466,10 +1466,11 @@ export function headline(a, lang = 'he') {
     const head = [enTypePhrase(a), purpose].filter(Boolean).join(' ')
     const place = [where, addr.city].filter(Boolean).join(', ')
     if (!head && !place) return ''
-    return place ? `${head ? head + ', ' : ''}${place}` : head
+    return place ? `${head ? head + (where ? ' at ' : ' in ') : ''}${place}` : head
   }
   const head = [heTypePhrase(a), purpose].filter(Boolean).join(' ')
-  if (where && addr.city) return `${head}, ${where}, ${addr.city}`
+  if (where && addr.city) return `${head} ברחוב ${where}, ${addr.city}`
+  if (where) return `${head} ברחוב ${where}`
   if (addr.city) return `${head} ב${addr.city}`
   return head
 }
