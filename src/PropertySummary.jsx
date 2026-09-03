@@ -18,7 +18,7 @@ const FONT_HREF = 'https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;5
 export const T = {
   he: {
     brand: 'אפיק הנחל', thanks: 'תודה, הפרטים התקבלו בהצלחה', thanksSub: 'הנכס נקלט אצלנו ומחכה לבדיקת צוות אפיק הנחל. זה סיכום כל מה שנמסר. בדקו שהכל נכון, ושתפו עם מי שצריך לאמת.',
-    pageTitle: 'סיכום פרטי הנכס', pageSub: 'סיכום הפרטים שנמסרו לאפיק הנחל לקליטת הנכס למכירה. בדקו שהכל נכון ואשרו למטה.',
+    pageTitle: 'סיכום פרטי הנכס', pageSub: 'סיכום הפרטים שנמסרו לאפיק הנחל לקליטת הנכס. בדקו שהכל נכון ואשרו למטה.',
     refLabel: 'מספר תיק', submittedAt: 'התקבל', share: 'שתף ואמת את הפרטים', shareForm: 'שתף טופס', copyLink: 'העתקת קישור', copied: 'הקישור הועתק', whatsapp: 'שליחה בוואטסאפ', native: 'שיתוף…',
     shareText: 'היי, מילאתי את פרטי הנכס לאפיק הנחל. תעברו על הסיכום ותאשרו שהכל נכון:', shareFormText: 'היי, אפיק הנחל מבקשים שנמלא את פרטי הנכס. אפשר להמשיך את הטופס כאן:',
     story: 'סיפור הנכס', details: 'כל הפרטים', media: 'תמונות וסרטונים', verifyTitle: 'אימות הפרטים', verifySub: 'כל אחד מהבעלים יכול לאשר כאן שהפרטים נכונים. האישור נרשם בתיק הנכס.',
@@ -51,7 +51,7 @@ const SHARE_CSS = `
 .ps-btn.ghost { background:#fff; color:#26242B; border-color:#C6C6CC; }
 .ps-btn.ghost:hover { background:#EEF0FA; color:#3F4EB0; border-color:#3F4EB0; }
 .ps-btn.wa { background:#25D366; border-color:#25D366; }
-.ps-btn.sm { padding:7px 12px; font-size:13px; }
+.ps-btn.sm { padding:8px 12px; min-height:38px; font-size:13.5px; }
 .ps-share { position:relative; display:inline-block; }
 .ps-share-menu { position:absolute; top:calc(100% + 6px); inset-inline-start:50%; transform:translateX(-50%); background:#fff; border:1px solid #C6C6CC; border-radius:8px; box-shadow:0 12px 32px rgba(0,0,0,.14); padding:6px; z-index:80; display:flex; flex-direction:column; min-width:220px; }
 [dir="rtl"] .ps-share-menu { transform:translateX(50%); }
@@ -260,7 +260,7 @@ const CSS = `
 .ps-top { position:sticky; top:0; z-index:20; background:var(--paper); border-bottom:1px solid var(--line); display:flex; align-items:center; justify-content:space-between; padding:0 clamp(14px,3vw,32px); min-height:56px; }
 .ps-brand { display:flex; align-items:center; gap:10px; text-decoration:none; color:var(--ink); font-weight:700; font-size:14px; }
 .ps-logo { height:30px; width:auto; }
-.ps-lang { font-size:12.5px; font-weight:700; padding:7px 12px; border-radius:6px; border:1px solid var(--line2); background:#fff; color:var(--ink); cursor:pointer; }
+.ps-lang { font-size:13px; font-weight:600; min-height:40px; padding:8px 12px; border-radius:6px; border:1px solid var(--line2); background:#fff; color:var(--ink); cursor:pointer; }
 .ps-main { max-width:860px; margin:0 auto; padding:28px clamp(14px,3vw,28px) 60px; display:flex; flex-direction:column; gap:14px; }
 .ps-hero { text-align:center; padding:8px 0 6px; }
 .ps-ok { width:64px; height:64px; border-radius:50%; background:var(--tint2); color:var(--deep); display:inline-flex; align-items:center; justify-content:center; margin-bottom:14px; }
@@ -329,5 +329,5 @@ const CSS = `
 .ps-center h1 { font-size:20px; font-weight:600; margin:0; }
 .ps-spin { width:34px; height:34px; border-radius:50%; border:3px solid var(--line2); border-top-color:var(--deep); animation:psSpin .9s linear infinite; }
 @keyframes psSpin { to { transform:rotate(360deg) } }
-@media (max-width: 640px) { .ps-item { grid-template-columns:1fr; gap:2px; } .ps-fact { min-width:80px; } }
+@media (max-width: 640px) { .ps-item { grid-template-columns:1fr; gap:2px; } .ps-fact { min-width:80px; } .ps-videos { grid-template-columns:1fr; } .ps-item .k { font-size:13.5px; } }
 `
