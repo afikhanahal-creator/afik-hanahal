@@ -205,7 +205,9 @@ async function publishMedia(client, row) {
 // ── property generator mapping (answers + office overrides → site property) ──
 const TYPE_HE = { apartment: 'דירה', garden: 'דירת גן', penthouse: 'פנטהאוז', duplex: 'דופלקס', cottage: 'קוטג׳', house: 'בית פרטי', land: 'מגרש לבנייה', commercial: 'נכס מסחרי', other: 'דירה' }
 const CATEGORY = (t, rental) => t === 'land' ? 'land' : t === 'commercial' ? 'commercial' : rental ? 'rentals' : 'apartments'
-const CONDITION_HE = { new: 'חדש מקבלן', secondhand: 'שמור', renovated: 'משופץ', needs: 'דרוש שיפוץ' }
+// labels must match the wizard's CONDITIONS / VIEWS / DIRECTIONS so a prepared property opens fully selected
+const CONDITION_HE = { new: 'חדש מקבלן', secondhand: 'במצב שמור', renovated: 'משופץ', needs: 'דרוש שיפוץ' }
+const VIEW_WIZ = { sea: 'ים', park: 'פארק', urban: 'עיר', open: 'טבע', hills: 'טבע', garden: 'טבע', sunset: 'טבע', none: 'ללא' }
 const ENTRY_HE = { immediate: 'מיידית', flexible: 'כניסה גמישה' }
 const optLabelHe = (id, v) => { const st = STEPS.find(s => s.id === id); const o = st?.opts?.find(x => x.v === v); return o ? o.l : '' }
 function buildSiteProperty(row, media) {
@@ -242,9 +244,11 @@ function buildSiteProperty(row, media) {
     buildSqm: a.p_area?.built ?? '',
     dunams: a.p_area?.plot ? +(Number(a.p_area.plot) / 1000).toFixed(3) : '',
     condition: CONDITION_HE[a.p_state] || '',
-    direction: (Array.isArray(a.p_directions) ? a.p_directions : []).map(d => optLabelHe('p_directions', d)).join(', '),
+    direction: Array.isArray(a.p_directions) && a.p_directions.length ? String(Math.min(4, a.p_directions.length)) : '',
+    directionNames: (Array.isArray(a.p_directions) ? a.p_directions : []).map(d => optLabelHe('p_directions', d)).join(', '),
     directionText: a.p_directions_note || directionsText(a.p_directions, 'he'),
-    view: (Array.isArray(a.p_view) ? a.p_view : []).map(v => optLabelHe('p_view', v)).join(', '),
+    view: (Array.isArray(a.p_view) ? a.p_view : []).map(v => VIEW_WIZ[v]).filter(Boolean).find(v => v !== 'ללא') || (a.p_view?.length ? 'ללא' : ''),
+    viewNames: (Array.isArray(a.p_view) ? a.p_view : []).map(v => optLabelHe('p_view', v)).join(', '),
     buildYear: a.p_year || '',
     houseCommittee: a.b_fees?.vaad ? String(a.b_fees.vaad) : '',
     price,
@@ -273,8 +277,9 @@ function buildSiteProperty(row, media) {
     images: media.images,
     videos: media.videos,
     videoUrl: media.videos[0]?.url || '',
-    contactName: showPhone ? (a.c_name || '') : '',
-    contactPhone: showPhone ? (a.c_phone || '') : '',
+    // the site card / wizard always has a contact: the owner when they allowed it, otherwise the office
+    contactName: showPhone && a.c_name ? a.c_name : 'אפיק הנחל',
+    contactPhone: showPhone && a.c_phone ? a.c_phone : '055-981-1814',
     status: rental ? 'להשכרה' : 'בשיווק',
     published: true,
     source: 'intake',
@@ -616,6 +621,35 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, status: patch.status || row.status, overrides: patch.overrides || row.overrides || {} })
     }
 
+    // Repopulate the office's property wizard: photos copied to the public bucket, videos signed,
+    // every answer mapped to the site's property shape — nothing is pushed to the site yet.
+    if (req.method === 'POST' && action === 'prepare') {
+      if (!id) return res.status(400).json({ ok: false, error: 'id required' })
+      const row = await getRow(`id=eq.${encodeURIComponent(id)}`)
+      if (!row) return res.status(404).json({ ok: false, error: 'not found' })
+      if (!row.submitted_at) return res.status(400).json({ ok: false, error: 'draft cannot be prepared' })
+      const media = await publishMedia(sb(), row)
+      const property = { ...buildSiteProperty(row, media), published: false }
+      await patchRow(`id=eq.${row.id}`, { meta: { ...(row.meta || {}), publicMedia: media.map }, updated_at: now(),
+        history: withHistory(row, { by: 'admin', action: 'edit', note: `נפתח באשף הנכסים · ${media.images.length} תמונות, ${media.videos.length} סרטונים` }) })
+      return res.status(200).json({ ok: true, property, images: media.images.length, videos: media.videos.length })
+    }
+    // The wizard saved/published the property itself — record the link and the status here
+    if (req.method === 'POST' && action === 'linked') {
+      if (!id) return res.status(400).json({ ok: false, error: 'id required' })
+      const row = await getRow(`id=eq.${encodeURIComponent(id)}`, 'id,status,history,published_at,published_property_id')
+      if (!row) return res.status(404).json({ ok: false, error: 'not found' })
+      const b = req.body || {}
+      const propertyId = String(b.propertyId || row.published_property_id || '').slice(0, 120)
+      if (!propertyId) return res.status(400).json({ ok: false, error: 'propertyId required' })
+      const published = !!b.published
+      const patch = { published_property_id: propertyId, updated_at: now(),
+        status: published ? 'published' : (row.status === 'published' ? 'published' : (['new', 'review'].includes(row.status) ? 'approved' : row.status)),
+        published_at: published ? (row.published_at || now()) : row.published_at,
+        history: withHistory(row, { by: 'admin', action: published ? (row.status === 'published' ? 'republished' : 'published') : 'edit', note: `${published ? 'פורסם' : 'נשמר כטיוטה'} דרך אשף הנכסים · property ${propertyId}` }) }
+      await patchRow(`id=eq.${row.id}`, patch)
+      return res.status(200).json({ ok: true, status: patch.status })
+    }
     if (req.method === 'POST' && (action === 'publish' || action === 'unpublish')) {
       if (!id) return res.status(400).json({ ok: false, error: 'id required' })
       const row = await getRow(`id=eq.${encodeURIComponent(id)}`)

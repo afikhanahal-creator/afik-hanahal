@@ -4944,6 +4944,7 @@ export default function App() {
   const [wizardKey,    setWizardKey]    = useState(0)
   const [wizardEditData, setWizardEditData] = useState(null)
   const [wizardEditId,   setWizardEditId]   = useState(null)
+  const [wizardIntakeId, setWizardIntakeId] = useState(null)   // set when the wizard was opened from a submitted property (repopulate)
   const [adminAuth,    setAdminAuth]    = useState(() => sessionStorage.getItem('afik_admin_session') === '1')
   const [showPw,       setShowPw]       = useState(false)
   const [contactProp,  setContactProp]  = useState(null)
@@ -5292,7 +5293,7 @@ export default function App() {
               onEditInWizard={async p => {
                 const { propertyToWizardData } = await import('./PropertyWizard.jsx')
                 setWizardEditData(propertyToWizardData(p))
-                setWizardEditId(p.id)
+                setWizardEditId(p.id); setWizardIntakeId(p.intakeId || null)
                 setShowWizard(true)
               }}
             />
@@ -5977,11 +5978,16 @@ export default function App() {
       {selectedProp && <PropertyModal key={selectedProp.id} prop={selectedProp} properties={properties} onClose={() => setSelectedProp(null)} onContact={p => { openContact(p) }} onSelect={setSelectedProp} govmapToken={govmapToken}/>}
       {showWizard && <Suspense fallback={null}><PropertyWizard
           key={wizardEditId || wizardKey}
-          onClose={() => { setShowWizard(false); setWizardEditData(null); setWizardEditId(null) }}
+          onClose={() => { setShowWizard(false); setWizardEditData(null); setWizardEditId(null); setWizardIntakeId(null) }}
           initialData={wizardEditData}
           editId={wizardEditId}
           govmapToken={govmapToken}
           onPublish={(prop, isDraft) => {
+            if (wizardIntakeId) {
+              // opened from "נכסים שנקלטו": record the link + status on the intake record
+              fetch(`/api/seller-form?action=linked&id=${encodeURIComponent(wizardIntakeId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` }, body: JSON.stringify({ propertyId: wizardEditId || prop.id, published: !isDraft }) }).catch(() => {})
+              setWizardIntakeId(null)
+            }
             let nextProps
             if (wizardEditId) {
               const oldProp = properties.find(x => String(x.id) === String(wizardEditId)) || {}
@@ -6053,7 +6059,7 @@ export default function App() {
             setShowAdmin(false)
             const { propertyToWizardData } = await import('./PropertyWizard.jsx')
             setWizardEditData(propertyToWizardData(p))
-            setWizardEditId(p.id)
+            setWizardEditId(p.id); setWizardIntakeId(p.intakeId || null)
             setShowWizard(true)
           }}
         />
