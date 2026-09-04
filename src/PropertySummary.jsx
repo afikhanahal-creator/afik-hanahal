@@ -253,6 +253,8 @@ export default function PropertySummary({ token }) {
   }
   useEffect(load, [token]) // eslint-disable-line react-hooks/exhaustive-deps
   const shareUrl = typeof window !== 'undefined' ? `${window.location.origin}/newproperty/${token}` : ''
+  const wantPrint = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('print') === '1'
+  useEffect(() => { if (wantPrint && state.data && !state.loading) { const h = setTimeout(() => window.print(), 900); return () => clearTimeout(h) } }, [wantPrint, state.data, state.loading]) // eslint-disable-line react-hooks/exhaustive-deps
   if (state.loading) return <div className="ps-wrap"><div className="ps-center"><div className="ps-spin"/><p>{t.loading}</p></div><style>{CSS}</style></div>
   if (state.error) return <div className="ps-wrap"><div className="ps-center"><h1>{state.error === 'notfound' ? t.notFound : t.error}</h1>{state.error !== 'notfound' && <button className="ps-btn" onClick={load}>{t.retry}</button>}<a className="ps-btn ghost" href="/">{t.home}</a></div><style>{CSS}</style></div>
   return <SummaryView data={state.data} lang={lang} setLang={setLang} shareUrl={shareUrl} mode="page"/>

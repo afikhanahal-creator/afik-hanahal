@@ -1481,6 +1481,81 @@ export function addressLine(a, lang = 'he') {
   return [street ? (lang === 'en' ? street : `רחוב ${street}`) : '', addr.city].filter(Boolean).join(', ')
 }
 
+// ── AI copy studio (admin) ────────────────────────────────────────────────────
+// What the office can generate with one click. `brief` is what the model sees; it is built from the
+// PUBLIC view of the answers, so internal numbers (minimum price, offers, defects…) never reach a post.
+export const AI_TONES = [
+  { v: 'pro', l: 'מקצועי', hint: 'ענייני, אמין, בלי סופרלטיבים' },
+  { v: 'warm', l: 'חם ואישי', hint: 'מדבר אל הקונה, מצייר את החיים בנכס' },
+  { v: 'short', l: 'קצר וממוקד', hint: 'מינימום מילים, מקסימום עובדות' },
+]
+export const AI_CHANNELS = [
+  { v: 'facebook', l: 'פוסט לפייסבוק', icon: '📘', task: 'כתוב פוסט לפייסבוק: 90–140 מילים. פתיח מושך של שורה, 4–6 נקודות קצרות עם אימוג׳י עדין בתחילת כל נקודה, משפט סיום עם קריאה לפעולה ומספר הטלפון של המשרד, ובשורה האחרונה 4–6 האשטגים בעברית.' },
+  { v: 'instagram', l: 'כיתוב לאינסטגרם', icon: '📸', task: 'כתוב כיתוב לאינסטגרם: 60–100 מילים, שורות קצרות ואווריריות, אימוג׳ים במידה, קריאה לפעולה, ובשורה נפרדת בסוף 8–12 האשטגים (עברית ואנגלית).' },
+  { v: 'yad2', l: 'מודעה ליד2', icon: '🏷️', task: 'כתוב מודעה ליד2. שורה ראשונה: כותרת עד 60 תווים, בלי אימוג׳ים. אחריה שורה ריקה, ואז תיאור של 70–120 מילים ב-2–3 פסקאות קצרות: ענייני, אמין, מדגיש את היתרונות האמיתיים, בלי האשטגים ובלי אימוג׳ים, בלי לחזור על נתונים שכבר מופיעים בשדות המודעה (חדרים, קומה, שטח).' },
+  { v: 'whatsapp', l: 'הודעת וואטסאפ', icon: '💬', task: 'כתוב הודעת וואטסאפ להפצה ללקוחות: עד 70 מילים. כותרת מודגשת בין *כוכביות*, 3–5 שורות תמציתיות עם אימוג׳י בתחילת כל שורה, ושורת סיום עם קריאה לפעולה ומספר הטלפון של המשרד.' },
+  { v: 'website', l: 'תיאור לאתר', icon: '🌐', task: 'כתוב תיאור לעמוד הנכס באתר אפיק הנחל: 120–180 מילים ב-2–3 פסקאות, מקצועי וחם, בלי אימוג׳ים, בלי האשטגים ובלי מספרי טלפון.' },
+  { v: 'story', l: 'סטורי / רילס', icon: '🎬', task: 'כתוב טקסט לסטורי או רילס: 4–6 שורות קצרות מאוד (עד 8 מילים כל אחת), כל שורה עומדת בפני עצמה כמסך, פאנצ׳ית, ומסתיים בקריאה לפעולה.' },
+]
+export const AI_SYSTEM = `אתה קופירייטר הנדל״ן הבכיר של "אפיק הנחל" — משרד ייזום, שיווק ותיווך נדל״ן באזור השרון. כתוב בעברית תקנית, טבעית ומשכנעת, ללא שגיאות כתיב או תחביר, ובלי קלישאות ריקות.
+כללים מחייבים:
+1. השתמש רק בעובדות שמופיעות בתיק הנכס. אל תמציא פרטים, מידות, שנים או מאפיינים.
+2. אם בתיק כתוב שהכתובת המדויקת לא לפרסום — ציין רק שכונה ועיר. אם כתוב שהטלפון של הבעלים לא לפרסום — אל תזכיר אותו כלל.
+3. פרטי הקשר היחידים שמותר לפרסם: אפיק הנחל, טלפון 055-981-1814.
+4. אל תזכיר מחיר אם לא מופיע מחיר מבוקש בתיק. לעולם אל תחשוף נתונים פנימיים (מחיר מינימום, ציפיות, הצעות שהתקבלו, ליקויים, רטיבות, סיבת מכירה אישית, פרטי משכנתא).
+5. כבד כל הנחיה של "לא לפרסם" שמופיעה בתיק.
+6. החזר אך ורק את הטקסט המבוקש, בלי הקדמה, בלי הסברים ובלי כותרת "הנה הפוסט".`
+export function aiBrief(a) {
+  const pub = publicAnswers(a)
+  const priv = a.c_privacy || {}
+  const lines = [
+    `כותרת: ${headline(a, 'he')}`,
+    `סוג עסקה: ${purposeOf(a) === 'rental' ? 'השכרה' : 'מכירה'}`,
+    a.d_ask ? `${purposeOf(a) === 'rental' ? 'דמי שכירות מבוקשים' : 'מחיר מבוקש'}: ${fmtNum(a.d_ask)} ₪${purposeOf(a) === 'rental' ? ' לחודש' : ''}` : 'מחיר: לא לפרסום',
+    `כתובת מדויקת לפרסום: ${priv.showAddress ? 'כן' : 'לא — שכונה ועיר בלבד'}`,
+    `טלפון הבעלים לפרסום: ${priv.publishPhone ? 'כן' : 'לא'}`,
+    a.m_hide ? `לא לפרסם: ${String(a.m_hide).trim()}` : '',
+    '',
+    'סיפור הנכס (הגרסה הציבורית):',
+    storyText(pub, 'he'),
+  ].filter(x => x !== '')
+  return lines.join('\n')
+}
+// Fields in the order Yad2's listing form asks for them — copy one by one or all at once
+export function yad2Fields(a, ov = {}) {
+  const rental = purposeOf(a) === 'rental'
+  const addr = a.p_address || {}, area = a.p_area || {}, fl = a.p_floor || {}, priv = a.c_privacy || {}
+  const S = id => STEPS.find(s => s.id === id)
+  const lab = (id, v) => v ? optLabel(S(id), v, 'he', a) : ''
+  const yes = v => v === 'yes' || v === 'shabbat' || v === 'shared'
+  const feats = [
+    a.f_mamad === 'yes' ? 'ממ״ד' : '', yes(a.f_elevator) ? 'מעלית' : '', Number(a.f_parking?.parking) ? 'חניה' : '', a.f_storage === 'yes' ? 'מחסן' : '',
+    a.f_climate && a.f_climate !== 'none' ? 'מיזוג' : '', area.balcony ? 'מרפסת' : '', area.garden ? 'גינה' : '', area.roof ? 'גג' : '',
+    (a.f_systems || []).includes('bars') ? 'סורגים' : '', (a.f_systems || []).includes('accessible') || (a.b_amenities || []).includes('accessible') ? 'גישה לנכים' : '',
+    a.p_state === 'renovated' || a.k_renovated === 'yes' ? 'משופצת' : '', a.f_furniture === 'full' ? 'מרוהטת' : a.f_furniture === 'partial' ? 'מרוהטת חלקית' : '',
+    (a.f_water || []).includes('solar') ? 'דוד שמש' : '', (a.f_rooms || []).includes('sukkah') ? 'מרפסת סוכה' : '', (a.f_rooms || []).includes('unit') ? 'יחידת דיור' : '',
+    a.r_pets === 'yes' ? 'מתאים לבעלי חיים' : '',
+  ].filter(Boolean)
+  const entry = rental
+    ? ({ now: 'מיידי', m1: 'תוך חודש', m3: 'תוך 1–3 חודשים', lease: 'בסיום חוזה נוכחי', flex: 'גמיש' })[a.d_timeline] || ''
+    : ({ immediate: 'מיידי', m3: 'עד 3 חודשים', m6: '3–6 חודשים', y1: '6–12 חודשים', later: 'יותר משנה', flexible: 'גמיש' })[a.d_vacate] || ''
+  const rows = [
+    ['סוג הנכס', PROPERTY_TYPE_LABEL(a.p_type, 'he') === 'אחר' ? (a.p_type_other || 'אחר') : PROPERTY_TYPE_LABEL(a.p_type, 'he')],
+    ['עיר', addr.city], ['שכונה', addr.neighborhood],
+    ['רחוב', priv.showAddress || ov.showAddress ? addr.street : ''], ['מספר בית', priv.showAddress || ov.showAddress ? addr.number : ''],
+    ['קומה', isHouse(a) ? '' : fl.floor], ['קומות בבניין', isHouse(a) ? '' : fl.totalFloors],
+    ['חדרים', ov.rooms || a.p_rooms], ['שטח בנוי (מ״ר)', ov.size || area.built], ['שטח מרפסת (מ״ר)', area.balcony], ['שטח גינה (מ״ר)', area.garden], ['שטח מגרש (מ״ר)', area.plot],
+    [rental ? 'שכירות חודשית (₪)' : 'מחיר (₪)', ov.price || a.d_ask ? fmtNum(ov.price || a.d_ask) : ''],
+    ['תאריך כניסה', entry], ['מצב הנכס', lab('p_state', a.p_state)], ['שנת בנייה', a.p_year],
+    ['ועד בית (₪ לחודש)', a.b_fees?.vaad ? fmtNum(a.b_fees.vaad) : ''], ['חניות', a.f_parking?.parking],
+    ['מאפיינים', feats.join(', ')],
+    ['כותרת המודעה', ov.title || marketingTexts(a).title],
+    ['תיאור', ov.ai_copy?.yad2 ? ov.ai_copy.yad2.split('\n').slice(1).join('\n').trim() : (ov.description || [a.m_pros, a.m_unique].filter(Boolean).join('. '))],
+    ['איש קשר', 'אפיק הנחל · 055-981-1814'],
+  ]
+  return rows.filter(([, v]) => v !== undefined && v !== null && String(v).trim() !== '').map(([k, v]) => ({ k, v: String(v).trim() }))
+}
+
 // Ready-to-use marketing copy for the office (social post, WhatsApp broadcast, one-line listing)
 export function marketingTexts(a, { phone = '055-981-1814', brand = 'אפיק הנחל' } = {}) {
   const rental = purposeOf(a) === 'rental'
