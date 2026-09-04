@@ -333,21 +333,65 @@ async function notifyWhatsApp(row, a) {
     return r.ok ? { ok: true } : { ok: false, error: `Green API HTTP ${r.status}` }
   } catch (e) { return { ok: false, error: e.message } }
 }
+// Office notification email. Table-based, every block carries dir="rtl" + text-align:right because
+// Gmail/Outlook drop <html dir> and CSS logical properties; that is what keeps the whole mail RTL.
+const KIND_HE = { photos: 'תמונות', videos: 'סרטונים', plans: 'תוכניות', docs: 'מסמכים' }
 function buildEmailHtml(row, a, signedFiles) {
+  const rental = purposeOf(a) === 'rental'
+  const R = 'dir="rtl" align="right" style="direction:rtl;text-align:right;'
+  const cell = (extra = '') => `${R}${extra}"`
+  const h3 = txt => `<tr><td ${cell('padding:24px 0 8px;font-family:Heebo,Arial,sans-serif;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#3F4EB0;font-weight:700')}>${txt}</td></tr>`
+  const kv = items => `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" dir="rtl" style="direction:rtl;border-collapse:collapse;border:1px solid #ECECF2;border-radius:10px">${items.map((it, i) => `<tr style="background:${i % 2 ? '#FAFAFC' : '#fff'}"><td ${cell('width:36%;padding:9px 12px;border-top:1px solid #ECECF2;font-family:Heebo,Arial,sans-serif;font-size:13.5px;color:#7A7A8A;vertical-align:top')}>${esc(it.label)}</td><td ${cell('padding:9px 12px;border-top:1px solid #ECECF2;font-family:Heebo,Arial,sans-serif;font-size:14px;color:#0B0B0F;white-space:pre-wrap;line-height:1.55')}>${it.html ?? esc(it.value)}</td></tr>`).join('')}</table>`
   const sections = buildSummary(a, 'he')
-  const secHtml = sections.map(sec => `
-    <h3 style="margin:26px 0 6px;font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:#3F4EB0">${esc(sec.title)}</h3>
-    <table style="width:100%;border-collapse:collapse;font-size:14px">${sec.items.map(it => `<tr><td style="padding:7px 10px;border-top:1px solid #ECECF2;color:#7A7A8A;width:38%;vertical-align:top">${esc(it.label)}</td><td style="padding:7px 10px;border-top:1px solid #ECECF2;color:#0B0B0F;white-space:pre-wrap">${esc(it.value)}</td></tr>`).join('')}</table>`).join('')
-  const filesHtml = signedFiles.length ? `<h3 style="margin:26px 0 6px;font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:#3F4EB0">קבצים (${signedFiles.length})</h3><ul style="padding-inline-start:18px;font-size:14px;line-height:1.8">${signedFiles.map(f => `<li>${f.url ? `<a href="${esc(f.url)}" style="color:#3F4EB0">${esc(f.name)}</a>` : esc(f.name)} <span style="color:#7A7A8A">· ${esc(f.kind)}${f.tag ? ' · ' + esc(DOC_TAG_LABEL(f.tag, 'he')) : ''}</span></li>`).join('')}</ul><p style="font-size:12px;color:#7A7A8A">הקישורים לקבצים תקפים ל-7 ימים. הקבצים נשמרים לצמיתות בכרטיס הנכס בפאנל הניהול.</p>` : ''
-  const storyHtml = row.story ? `<h3 style="margin:22px 0 6px;font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:#3F4EB0">סיפור הנכס</h3><div style="font-size:15px;line-height:1.7;white-space:pre-wrap;background:#F7F7FA;border-radius:10px;padding:14px 16px">${esc(row.story)}</div>` : ''
-  return `<!doctype html><html dir="rtl" lang="he"><body style="margin:0;background:#F5F5F9;font-family:Heebo,Arial,sans-serif;color:#0B0B0F"><div style="max-width:680px;margin:0 auto;padding:28px 16px"><div style="background:#fff;border-radius:16px;padding:28px 30px;border:1px solid #E6E6EC">
-    <div style="font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:#3F4EB0;font-weight:700">אפיק הנחל · נכס חדש נקלט למכירה</div>
-    <h1 style="margin:8px 0 4px;font-size:24px">${esc(headline(a, 'he') || 'נכס חדש')}</h1>
-    <div style="font-size:14px;color:#7A7A8A">תיק ${esc(row.ref)} · ${esc(row.contact_name || '')} · <a href="tel:${esc(row.phone || '')}" style="color:#3F4EB0">${esc(row.phone || '')}</a>${row.email ? ` · <a href="mailto:${esc(row.email)}" style="color:#3F4EB0">${esc(row.email)}</a>` : ''}</div>
-    ${row.asking_price ? `<div style="margin-top:14px;display:inline-block;background:#F2F3FB;border:1px solid #E4E7F8;border-radius:10px;padding:8px 14px;font-weight:700">מחיר מבוקש: ${fmtILS(row.asking_price)}</div>` : ''}
-    ${storyHtml}${secHtml}${filesHtml}
-    <div style="margin-top:28px;text-align:center"><a href="${SITE}/admin-panel/properties-intake" style="display:inline-block;background:#0B0B0F;color:#fff;text-decoration:none;padding:12px 24px;border-radius:10px;font-weight:600">פתיחת כרטיס הנכס בפאנל</a> &nbsp; <a href="${SITE}/newproperty/${esc(row.share_token || '')}" style="display:inline-block;background:#F2F3FB;color:#3F4EB0;text-decoration:none;padding:12px 24px;border-radius:10px;font-weight:600">דף הסיכום ששותף עם הבעלים</a></div>
-  </div></div></body></html>`
+  const secHtml = sections.map(sec => h3(esc(sec.title)) + `<tr><td ${cell('padding:0')}>${kv(sec.items)}</td></tr>`).join('')
+
+  const floor = a.p_floor || {}
+  const facts = [
+    row.asking_price ? [rental ? 'שכר דירה מבוקש' : 'מחיר מבוקש', Number(row.asking_price).toLocaleString('he-IL') + ' ₪', true] : null,
+    roomsOf(a) ? ['חדרים', roomsOf(a)] : null,
+    a.p_area?.built ? ['מ״ר בנוי', Number(a.p_area.built).toLocaleString('he-IL')] : null,
+    floor.floor !== undefined && floor.floor !== '' ? ['קומה', `${floor.floor}${floor.totalFloors ? ` מתוך ${floor.totalFloors}` : ''}`] : null,
+    a.f_parking?.parking !== undefined ? ['חניות', a.f_parking.parking] : null,
+  ].filter(Boolean)
+  const factsHtml = facts.length ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" dir="rtl" align="right" style="direction:rtl;margin:16px 0 4px"><tr>${facts.map(([k, v, hi]) => `<td ${cell(`padding:0 0 8px 8px`)}><table role="presentation" cellpadding="0" cellspacing="0" border="0" dir="rtl" style="direction:rtl;background:${hi ? '#3F4EB0' : '#F2F3FB'};border-radius:10px"><tr><td ${cell(`padding:9px 14px;font-family:Heebo,Arial,sans-serif;white-space:nowrap`)}><div style="font-size:11px;color:${hi ? 'rgba(255,255,255,.8)' : '#7A7A8A'};direction:rtl;text-align:right">${esc(k)}</div><div style="font-size:17px;font-weight:700;color:${hi ? '#fff' : '#0B0B0F'};direction:rtl;text-align:right">${esc(v)}</div></td></tr></table></td>`).join('')}</tr></table>` : ''
+
+  const phone = row.phone || ''
+  const intl = toIntlPhone(phone)
+  const contactHtml = kv([
+    { label: 'שם', value: row.contact_name || '—' },
+    { label: 'טלפון', html: phone ? `<a href="tel:${esc(phone)}" style="color:#3F4EB0;text-decoration:none">${esc(phone)}</a>${intl ? ` &nbsp;·&nbsp; <a href="https://wa.me/${intl}" style="color:#25D366;text-decoration:none;font-weight:600">וואטסאפ</a>` : ''}` : '—' },
+    ...(row.email ? [{ label: 'אימייל', html: `<a href="mailto:${esc(row.email)}" style="color:#3F4EB0;text-decoration:none">${esc(row.email)}</a>` }] : []),
+    { label: 'מספר תיק', value: row.ref },
+    { label: 'התקבל', value: new Date().toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem', dateStyle: 'medium', timeStyle: 'short' }) },
+  ])
+
+  const byKind = {}
+  signedFiles.forEach(f => { (byKind[f.kind] = byKind[f.kind] || []).push(f) })
+  const filesRows = Object.entries(byKind).map(([kind, list]) => `<tr><td ${cell('width:36%;padding:9px 12px;border-top:1px solid #ECECF2;font-family:Heebo,Arial,sans-serif;font-size:13.5px;color:#7A7A8A;vertical-align:top')}>${esc(KIND_HE[kind] || kind)} (${list.length})</td><td ${cell('padding:9px 12px;border-top:1px solid #ECECF2;font-family:Heebo,Arial,sans-serif;font-size:14px;line-height:1.8')}>${list.map(f => `${f.url ? `<a href="${esc(f.url)}" style="color:#3F4EB0;text-decoration:none">${esc(f.name)}</a>` : esc(f.name)}${f.tag ? ` <span style="color:#7A7A8A;font-size:12.5px">· ${esc(DOC_TAG_LABEL(f.tag, 'he'))}</span>` : ''}`).join('<br>')}</td></tr>`).join('')
+  const filesBlock = signedFiles.length ? h3(`קבצים שהועלו (${signedFiles.length})`) + `<tr><td ${cell('padding:0')}><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" dir="rtl" style="direction:rtl;border-collapse:collapse;border:1px solid #ECECF2;border-radius:10px">${filesRows}</table><div ${cell('padding:8px 2px 0;font-family:Heebo,Arial,sans-serif;font-size:12px;color:#7A7A8A')}>הקישורים לקבצים תקפים ל-7 ימים. הקבצים עצמם שמורים לצמיתות בכרטיס הנכס בפאנל הניהול.</div></td></tr>` : ''
+
+  const storyHtml = row.story ? h3('סיפור הנכס') + `<tr><td ${cell('padding:14px 16px;background:#F7F7FA;border-radius:10px;font-family:Heebo,Arial,sans-serif;font-size:15px;line-height:1.75;color:#0B0B0F;white-space:pre-wrap')}>${esc(row.story)}</td></tr>` : ''
+  const btn = (href, txt, dark) => `<a href="${href}" style="display:inline-block;background:${dark ? '#0B0B0F' : '#F2F3FB'};color:${dark ? '#fff' : '#3F4EB0'};text-decoration:none;padding:12px 22px;border-radius:10px;font-family:Heebo,Arial,sans-serif;font-weight:600;font-size:14px;margin:4px 4px 4px 0">${txt}</a>`
+
+  return `<!doctype html><html dir="rtl" lang="he"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"></head>
+<body dir="rtl" style="margin:0;padding:0;background:#F5F5F9;direction:rtl;text-align:right">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" dir="rtl" style="direction:rtl;background:#F5F5F9"><tr><td align="center" style="padding:28px 12px">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" dir="rtl" style="direction:rtl;max-width:680px;background:#fff;border:1px solid #E6E6EC;border-radius:16px">
+<tr><td ${cell('padding:26px 28px 8px')}>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" dir="rtl" style="direction:rtl">
+    ${h3(`אפיק הנחל · נכס חדש נקלט ${rental ? 'להשכרה' : 'למכירה'}`).replace('padding:24px 0 8px', 'padding:0 0 6px')}
+    <tr><td ${cell('font-family:Heebo,Arial,sans-serif;font-size:23px;font-weight:700;line-height:1.3;color:#0B0B0F;padding:0 0 4px')}>${esc(headline(a, 'he') || 'נכס חדש')}</td></tr>
+    <tr><td ${cell('padding:0')}>${factsHtml}</td></tr>
+    ${h3('איש קשר')}
+    <tr><td ${cell('padding:0')}>${contactHtml}</td></tr>
+    <tr><td ${cell('padding:22px 0 6px')}>${btn(`${SITE}/admin-panel/properties-intake`, 'פתיחת כרטיס הנכס בפאנל', true)} ${btn(`${SITE}/newproperty/${esc(row.share_token || '')}`, 'דף הסיכום של הבעלים')}</td></tr>
+    ${storyHtml}${secHtml}${filesBlock}
+    <tr><td ${cell('padding:26px 0 8px;border-top:1px solid #ECECF2;margin-top:20px;font-family:Heebo,Arial,sans-serif;font-size:12px;color:#7A7A8A;line-height:1.6')}>הודעה אוטומטית ממערכת קליטת הנכסים של אפיק הנחל · תיק ${esc(row.ref)}<br>${btn(`${SITE}/admin-panel/properties-intake`, 'לכל הנכסים שנקלטו').replace('padding:12px 22px', 'padding:8px 14px').replace('font-size:14px', 'font-size:12.5px')}</td></tr>
+  </table>
+</td></tr>
+</table>
+</td></tr></table>
+</body></html>`
 }
 async function notifyEmail(row, a, signedFiles) {
   const user = process.env.GMAIL_USER, pass = process.env.GMAIL_APP_PASSWORD
@@ -357,7 +401,7 @@ async function notifyEmail(row, a, signedFiles) {
     const { default: nodemailer } = await import('nodemailer')
     const transporter = nodemailer.createTransport({ host: 'smtp.gmail.com', port: 465, secure: true, auth: { user, pass: pass.replace(/\s+/g, '') } })
     const cc = row.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(row.email) ? row.email : undefined
-    await transporter.sendMail({ from: `"אפיק הנחל · קליטת נכסים" <${user}>`, to, cc, subject: `🏠 נכס חדש נקלט: ${headline(a, 'he') || row.contact_name || row.ref} — תיק ${row.ref}`, html: buildEmailHtml(row, a, signedFiles) })
+    await transporter.sendMail({ from: `"אפיק הנחל · קליטת נכסים" <${user}>`, to, cc, subject: `🏠 נכס חדש ${purposeOf(a) === 'rental' ? 'להשכרה' : 'למכירה'}: ${headline(a, 'he') || row.contact_name || row.ref} · תיק ${row.ref}`, html: buildEmailHtml(row, a, signedFiles) })
     return { ok: true }
   } catch (e) { return { ok: false, error: e.message } }
 }

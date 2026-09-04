@@ -316,6 +316,8 @@ textarea.sf-input { resize:none; line-height:1.5; font-size:clamp(17px,2vw,22px)
 .sf-file { border:1px solid var(--line); border-radius:6px; overflow:hidden; background:var(--paper); position:relative; }
 .sf-file .th { height:96px; background:var(--tint); display:flex; align-items:center; justify-content:center; color:var(--deep); overflow:hidden; }
 .sf-file .th img { width:100%; height:100%; object-fit:cover; display:block; }
+.sf-file .th.vid { position:relative; background:#111; }
+.sf-file .th .play { position:absolute; inset:0; margin:auto; width:34px; height:34px; border-radius:50%; background:rgba(0,0,0,.55); color:#fff; font-size:13px; display:flex; align-items:center; justify-content:center; padding-inline-start:3px; pointer-events:none; }
 .sf-file .nm { padding:7px 10px 3px; font-size:12px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .sf-file .st { padding:0 10px 8px; font-size:12.5px; color:var(--muted); display:flex; align-items:center; justify-content:space-between; gap:6px; }
 .sf-file .st.ok { color:var(--ok); } .sf-file .st.err { color:var(--err); }
@@ -387,7 +389,6 @@ textarea.sf-input { resize:none; line-height:1.5; font-size:clamp(17px,2vw,22px)
 .sf-rhero::after { content:''; position:absolute; inset:auto -40px -60px auto; width:220px; height:220px; border-radius:50%; background:radial-gradient(circle, rgba(132,144,216,.35), transparent 70%); pointer-events:none; }
 .sf-rk { font-size:11.5px; font-weight:700; letter-spacing:.16em; text-transform:uppercase; color:var(--purple); margin-bottom:8px; }
 .sf-rhero h2 { font-size:clamp(24px, 3.2vw, 34px); font-weight:700; margin:0; color:#fff; letter-spacing:-.01em; }
-.sf-rplace { margin:6px 0 0; color:rgba(255,255,255,.72); font-size:15px; }
 .sf-facts { display:flex; flex-wrap:wrap; justify-content:center; gap:8px; margin-top:18px; }
 .sf-fact { min-width:104px; padding:10px 14px; border-radius:8px; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.12); display:flex; flex-direction:column; gap:2px; align-items:center; }
 .sf-fact small { font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; color:rgba(255,255,255,.6); }
@@ -764,7 +765,16 @@ export default function SellerForm() {
       const inTextarea = el?.tagName === 'TEXTAREA'
       if (e.key === 'Enter') {
         if (inTextarea && !(e.ctrlKey || e.metaKey)) return
-        if (el?.tagName === 'BUTTON' || el?.tagName === 'A' || el?.tagName === 'SELECT') return
+        if (el?.tagName === 'A' || el?.tagName === 'SELECT') return
+        if (el?.tagName === 'BUTTON') {
+          // Navigation / action buttons keep their native Enter = click.
+          if (el.closest('.sf-foot, .sf-top, .sf-editbar, .sf-ractions, .sf-review, .sf-story, .sf-intro, .sf-later, .sf-combo') || el.classList.contains('x') || el.classList.contains('sf-btn') || el.classList.contains('sf-link')) return
+          // After a mouse click focus stays on the option button; Enter would re-toggle it instead of continuing.
+          // An option that is not selected yet: let the click select it. Anything else: continue.
+          const isOption = el.classList.contains('sf-opt') || el.classList.contains('sf-pill')
+          if (isOption && !el.classList.contains('on') && el.getAttribute('aria-pressed') !== 'true' && el.getAttribute('aria-checked') !== 'true') return
+          e.preventDefault(); el.blur(); goNext(); return
+        }
         if (step.type === 'review' || step.type === 'story') return
         e.preventDefault(); goNext(); return
       }
@@ -1489,6 +1499,29 @@ function Upload({ step, value, setValue, lang, t, sid }) {
     }
   }
 
+  // Poster frame for a video (first second), as a blob: URL like image previews. Best effort.
+  const videoPoster = file => new Promise(resolve => {
+    try {
+      const url = URL.createObjectURL(file)
+      const v = document.createElement('video')
+      let settled = false
+      const finish = out => { if (settled) return; settled = true; clearTimeout(h); URL.revokeObjectURL(url); v.removeAttribute('src'); v.load(); resolve(out) }
+      const h = setTimeout(() => finish(null), 6000)
+      v.muted = true; v.playsInline = true; v.preload = 'metadata'; v.crossOrigin = 'anonymous'
+      v.onerror = () => finish(null)
+      v.onloadedmetadata = () => { try { v.currentTime = Math.min(1, (v.duration || 2) / 2) } catch { finish(null) } }
+      v.onseeked = () => {
+        try {
+          const w = v.videoWidth || 320, hgt = v.videoHeight || 180, scale = Math.min(1, 480 / w)
+          const c = document.createElement('canvas'); c.width = Math.round(w * scale); c.height = Math.round(hgt * scale)
+          c.getContext('2d').drawImage(v, 0, 0, c.width, c.height)
+          c.toBlob(b => finish(b ? URL.createObjectURL(b) : null), 'image/jpeg', .8)
+        } catch { finish(null) }
+      }
+      v.src = url
+    } catch { resolve(null) }
+  })
+
   const addFiles = list => {
     setMsg('')
     const incoming = Array.from(list || [])
@@ -1512,6 +1545,7 @@ function Upload({ step, value, setValue, lang, t, sid }) {
     setValue(prev => [...(Array.isArray(prev) ? prev : []), ...entries])
     ok.forEach((f, i) => { entries[i]._file = f; queue.current.push(uploadOne(f, entries[i])) })
     pump()
+    ok.forEach((f, i) => { if (f.type.startsWith('video/')) videoPoster(f).then(url => { if (url) patch(entries[i].id, { preview: url }) }) })
   }
 
   const retry = f => { if (f._file) { patch(f.id, { status: 'uploading', progress: 0, error: null }); queue.current.push(uploadOne(f._file, f)); pump() } else { remove(f) } }
@@ -1542,7 +1576,7 @@ function Upload({ step, value, setValue, lang, t, sid }) {
         <div className="sf-files">
           {files.map(f => (
             <div className="sf-file" key={f.id}>
-              <div className="th">{f.preview ? <img src={f.preview} alt=""/> : f.type?.startsWith('video/') ? <IcoVideo/> : <IcoFile/>}</div>
+              <div className={`th${f.type?.startsWith('video/') ? ' vid' : ''}`}>{f.preview ? <img src={f.preview} alt=""/> : f.type?.startsWith('video/') ? <IcoVideo/> : <IcoFile/>}{f.preview && f.type?.startsWith('video/') && <span className="play">▶</span>}</div>
               <div className="nm" title={f.name}>{f.name}</div>
               <div className={`st ${f.status === 'done' ? 'ok' : f.status === 'error' ? 'err' : ''}`}>
                 {f.status === 'uploading' && <span>{t.uploading} {f.progress || 0}%</span>}
@@ -1575,8 +1609,6 @@ function Review({ answers, lang, t, visible, onEdit, onBack, onNext }) {
   const toggle = id => setOpenSecs(prev => { const next = new Set(prev === null ? summary.map(s => s.section) : prev); if (next.has(id)) next.delete(id); else next.add(id); return next })
   const allOpen = openSecs === null || summary.every(s => openSecs.has(s.section))
   const toggleAll = () => setOpenSecs(allOpen ? new Set() : null)
-  const addr = answers.p_address || {}
-  const place = [[addr.street, addr.number].filter(Boolean).join(' '), addr.neighborhood ? `${lang === 'en' ? '' : 'שכונת '}${addr.neighborhood}` : '', addr.city, addr.apt ? (lang === 'en' ? `apt. ${addr.apt}` : `דירה ${addr.apt}`) : ''].filter(Boolean).join(' · ')
   const stateStep = STEPS.find(s => s.id === 'p_state')
   const stateLabel = answers.p_state ? (stateStep.opts.find(o => o.v === answers.p_state) || {})[lang === 'en' ? 'en' : 'l'] : ''
   const facts = [
@@ -1592,7 +1624,6 @@ function Review({ answers, lang, t, visible, onEdit, onBack, onNext }) {
       <div className="sf-rhero">
         <div className="sf-rk">{t.reviewKicker}</div>
         <h2>{headline(answers, lang) || t.reviewTitle}</h2>
-        {place && (addr.neighborhood || addr.apt) && <p className="sf-rplace">{place}</p>}
         {facts.length > 0 && (
           <div className="sf-facts">
             {facts.map(f => <div className={`sf-fact${f.hi ? ' hi' : ''}`} key={f.k}><small>{f.k}</small><b>{f.v}</b></div>)}
