@@ -604,10 +604,10 @@ export default async function handler(req, res) {
       }
       if (typeof b.notes === 'string' && b.notes !== (row.notes || '')) { patch.notes = b.notes.slice(0, 20000); history = [...history, { at: now(), by: 'admin', action: 'notes' }] }
       if (b.overrides && typeof b.overrides === 'object') {
-        const allowed = ['title', 'price', 'description', 'rooms', 'size', 'type', 'category', 'region', 'showAddress', 'showPhone', 'minPrice']
+        const allowed = ['title', 'price', 'description', 'rooms', 'size', 'type', 'category', 'region', 'showAddress', 'showPhone', 'minPrice', 'ai_copy']
         const next = { ...(row.overrides || {}) }
         const changed = []
-        allowed.forEach(k => { if (k in b.overrides) { const v = b.overrides[k]; if (v === '' || v === null || v === undefined) delete next[k]; else next[k] = typeof v === 'string' ? v.slice(0, 5000) : v; changed.push(k) } })
+        allowed.forEach(k => { if (k in b.overrides) { const v = b.overrides[k]; if (v === '' || v === null || v === undefined) delete next[k]; else if (k === 'ai_copy') { if (typeof v === 'object' && JSON.stringify(v).length <= 40000) next[k] = Object.fromEntries(Object.entries(v).filter(([ck, cv]) => /^[a-z_]{1,24}$/.test(ck) && typeof cv === 'string').map(([ck, cv]) => [ck, cv.slice(0, 6000)])) } else next[k] = typeof v === 'string' ? v.slice(0, 5000) : v; changed.push(k) } })
         patch.overrides = next
         if (changed.length) history = [...history, { at: now(), by: 'admin', action: 'edit', note: changed.join(', ') }]
       }

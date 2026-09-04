@@ -9,7 +9,7 @@
 // side) and it appears on the live site; "הסר מהאתר" hides it without deleting.
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { FaWhatsapp, FaPhone, FaEnvelope, FaTrash, FaSearch, FaCopy, FaDownload, FaFileAlt, FaVideo, FaSyncAlt, FaExternalLinkAlt, FaCheck, FaGlobe, FaEyeSlash, FaLink, FaShieldAlt, FaHistory, FaImage, FaBullhorn, FaBalanceScale, FaMoneyBill, FaInfoCircle, FaSave, FaPlus, FaTimes, FaExclamationTriangle } from 'react-icons/fa'
-import { buildSummary, headline, PROPERTY_TYPE_LABEL, DOC_TAG_LABEL, fmtNum, INTAKE_STATUSES, marketingTexts } from './sellerFormSchema.js'
+import { buildSummary, headline, PROPERTY_TYPE_LABEL, DOC_TAG_LABEL, fmtNum, INTAKE_STATUSES, marketingTexts, AI_CHANNELS, AI_TONES, AI_SYSTEM, aiBrief, yad2Fields } from './sellerFormSchema.js'
 
 const ADMIN_TOKEN = 'AFIKhanahal2026'
 const API = '/api/seller-form'
@@ -27,6 +27,97 @@ const SECTION_GROUPS = {
 const HISTORY_LABEL = { draft_created: 'טיוטה נוצרה', submitted: 'הטופס נשלח', verified: 'אימות בעלים', status: 'שינוי סטטוס', notes: 'הערות עודכנו', edit: 'עריכה', published: 'פורסם באתר', republished: 'עודכן באתר', unpublished: 'הוסר מהאתר', file_added: 'קובץ נוסף', file_deleted: 'קובץ נמחק' }
 const ACCEPT = { photos: 'image/*', videos: 'video/*', plan: 'image/*,application/pdf', docs: 'image/*,application/pdf' }
 const BY_LABEL = { seller: 'המוכר', owner: 'בעלים', admin: 'צוות', system: 'מערכת' }
+const AI_MODEL = 'claude-opus-5'
+
+// ── AI copy studio: one click per channel, editable result, saved on the property card ──
+function AiStudio({ detail, ov, setOv, onSave, saving, copyText, say, styles }) {
+  const { card, btn, purple } = styles
+  const saved = ov.ai_copy || {}
+  const [channel, setChannel] = useState(AI_CHANNELS[0].v)
+  const [tone, setTone] = useState('pro')
+  const [text, setText] = useState(saved[AI_CHANNELS[0].v] || '')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  const pick = v => { setChannel(v); setText((ov.ai_copy || {})[v] || ''); setErr('') }
+  const generate = async () => {
+    const ch = AI_CHANNELS.find(c => c.v === channel); const tn = AI_TONES.find(t => t.v === tone)
+    setBusy(true); setErr('')
+    try {
+      const r = await fetch('/api/ai/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...H, 'anthropic-version': '2023-06-01' },
+        body: JSON.stringify({
+          model: AI_MODEL, max_tokens: 2000, system: AI_SYSTEM,
+          messages: [{ role: 'user', content: `תיק הנכס:\n${aiBrief(detail.answers || {})}\n\nמשימה: ${ch.task}\nטון: ${tn.l} — ${tn.hint}.` }],
+        }),
+        signal: AbortSignal.timeout(60000),
+      })
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) throw new Error(d.error?.message || d.error || `HTTP ${r.status}`)
+      if (d.stop_reason === 'refusal') throw new Error('המודל סירב לבקשה. נסו טון אחר או ערכו את תיק הנכס.')
+      const out = (d.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n').trim()
+      if (!out) throw new Error('לא התקבל טקסט')
+      setText(out)
+    } catch (e) { setErr(e.name === 'TimeoutError' ? 'הבקשה ארכה יותר מדי. נסו שוב.' : (e.message || 'שגיאה')) }
+    finally { setBusy(false) }
+  }
+  const save = async () => { const next = { ...ov, ai_copy: { ...(ov.ai_copy || {}), [channel]: text } }; setOv(next); await onSave(next) }
+  const wa = `https://wa.me/?text=${encodeURIComponent(text)}`
+  const ch = AI_CHANNELS.find(c => c.v === channel)
+  return (
+    <div style={{ ...card, padding: '14px 16px', marginBottom: 10, borderColor: 'rgba(132,144,216,.45)', background: 'linear-gradient(135deg, rgba(63,78,176,.12), rgba(255,255,255,.02))' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
+        <h3 style={{ fontSize: 12, letterSpacing: '.12em', color: purple, margin: 0, fontWeight: 700 }}>✨ סטודיו AI לשיווק</h3>
+        <span style={{ fontSize: 11.5, color: 'rgba(232,228,216,.55)' }}>הטקסט נבנה מהגרסה הציבורית של התיק בלבד — נתונים פנימיים לא נחשפים</span>
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+        {AI_CHANNELS.map(c => <button key={c.v} onClick={() => pick(c.v)} style={{ ...btn(), background: c.v === channel ? purple : undefined, color: c.v === channel ? '#fff' : undefined, borderColor: c.v === channel ? purple : undefined }}>{c.icon} {c.l}{saved[c.v] ? ' ·' : ''}</button>)}
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', marginBottom: 10 }}>
+        <span style={{ fontSize: 11.5, color: 'rgba(232,228,216,.55)' }}>טון:</span>
+        {AI_TONES.map(t => <button key={t.v} onClick={() => setTone(t.v)} title={t.hint} style={{ ...btn(), opacity: t.v === tone ? 1 : .55, borderColor: t.v === tone ? purple : undefined }}>{t.l}</button>)}
+        <button onClick={generate} disabled={busy} style={{ ...btn(), marginInlineStart: 'auto', background: '#22C55E', borderColor: '#22C55E', color: '#0B1F12', fontWeight: 800 }}>{busy ? '✨ כותב…' : text ? '✨ ניסוח מחדש' : `✨ צור ${ch.l}`}</button>
+      </div>
+      {err && <div style={{ color: '#F87171', fontSize: 12.5, marginBottom: 8 }}>{err}</div>}
+      <textarea value={text} onChange={e => setText(e.target.value)} rows={ch.v === 'website' ? 9 : 7} placeholder={`לחצו "צור ${ch.l}" — ואפשר לערוך את התוצאה כאן לפני השמירה`} dir="rtl"
+        style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(0,0,0,.25)', color: '#E8E4D8', border: '1px solid rgba(132,144,216,.25)', borderRadius: 10, padding: '10px 12px', fontFamily: 'inherit', fontSize: 13.5, lineHeight: 1.7, resize: 'vertical' }}/>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+        <button onClick={() => text && copyText(text)} disabled={!text} style={btn()}><FaCopy size={11}/> העתקה</button>
+        <a href={text ? wa : undefined} target="_blank" rel="noreferrer" onClick={e => { if (!text) e.preventDefault() }} style={{ ...btn(), textDecoration: 'none', color: '#25D366', borderColor: 'rgba(37,211,102,.4)', opacity: text ? 1 : .5 }}><FaWhatsapp size={12}/> שליחה בוואטסאפ</a>
+        <button onClick={save} disabled={!text || saving === 'ov'} style={btn()}><FaSave size={11}/> {saving === 'ov' ? 'שומר…' : 'שמירה בכרטיס הנכס'}</button>
+        {saved[channel] && saved[channel] !== text && <button onClick={() => setText(saved[channel])} style={{ ...btn(), opacity: .7 }}>חזרה לגרסה השמורה</button>}
+      </div>
+    </div>
+  )
+}
+
+function Yad2Card({ detail, ov, copyText, styles }) {
+  const { card, btn } = styles
+  const rows = yad2Fields(detail.answers || {}, ov)
+  const all = rows.map(r => `${r.k}: ${r.v}`).join('\n')
+  return (
+    <div style={{ ...card, padding: '14px 16px', marginBottom: 10, borderColor: 'rgba(255,140,0,.35)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 8, flexWrap: 'wrap' }}>
+        <h3 style={{ fontSize: 12, letterSpacing: '.12em', color: '#FF8C00', margin: 0, fontWeight: 700 }}>🏷️ פרסום ביד2 — השדות מוכנים להעתקה</h3>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button onClick={() => copyText(all)} style={btn()}><FaCopy size={11}/> העתק הכל</button>
+          <a href="https://www.yad2.co.il/realestate/publish" target="_blank" rel="noreferrer" style={{ ...btn(), textDecoration: 'none' }}><FaExternalLinkAlt size={10}/> פתיחת יד2</a>
+        </div>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 6 }}>
+        {rows.map(r => (
+          <div key={r.k} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, background: 'rgba(255,255,255,.03)', border: '1px solid rgba(132,144,216,.12)', borderRadius: 8, padding: '7px 10px', gridColumn: r.k === 'תיאור' ? '1 / -1' : undefined }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 10.5, color: 'rgba(232,228,216,.5)', letterSpacing: '.04em' }}>{r.k}</div>
+              <div style={{ fontSize: 13, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{r.v}</div>
+            </div>
+            <button onClick={() => copyText(r.v)} title="העתקה" style={{ ...btn(), padding: '4px 7px', minHeight: 26 }}><FaCopy size={10}/></button>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
 
 export default function SellerSubmissionsTab({ C, onChanged }) {
   const [rows, setRows] = useState([])
@@ -396,6 +487,15 @@ export default function SellerSubmissionsTab({ C, onChanged }) {
 
             {tab === 'marketing' && (
               <>
+                <AiStudio detail={detail} ov={ov} setOv={setOv} saving={saving} copyText={copyText} say={say} styles={{ card, btn, purple }}
+                  onSave={async next => { setSaving('ov'); try { await patch(detail.id, { overrides: next }); await refreshDetail(detail.id); say('הטקסט נשמר בכרטיס הנכס') } catch (e) { setError(e.message) } finally { setSaving('') } }}/>
+                <Yad2Card detail={detail} ov={ov} copyText={copyText} styles={{ card, btn }}/>
+                {detail.share_token && (
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+                    <a href={`/newproperty/${detail.share_token}`} target="_blank" rel="noreferrer" style={{ ...btn(), textDecoration: 'none' }}><FaExternalLinkAlt size={10}/> דף הסיכום הציבורי</a>
+                    <a href={`/newproperty/${detail.share_token}?print=1`} target="_blank" rel="noreferrer" style={{ ...btn(), textDecoration: 'none' }}><FaDownload size={10}/> הדפסה / שמירה כ-PDF</a>
+                  </div>
+                )}
                 {(() => { const mk = marketingTexts(detail.answers || {}); return (
                   <div style={{ ...card, padding: '14px 16px', marginBottom: 10, borderColor: 'rgba(34,197,94,.3)' }}>
                     <h3 style={{ fontSize: 12, letterSpacing: '.12em', color: '#22C55E', margin: '0 0 4px', fontWeight: 700 }}>טקסטים מוכנים לשיווק</h3>
