@@ -350,7 +350,8 @@ textarea.sf-input { resize:none; line-height:1.5; font-size:clamp(17px,2vw,22px)
 .sf-later-link { font-size:12.5px; color:var(--ink2); background:var(--canvas); border:1px solid var(--line); border-radius:8px; padding:10px 12px; word-break:break-all; margin-bottom:12px; }
 .sf-later-actions { display:flex; flex-direction:column; gap:8px; margin-bottom:10px; }
 .sf-later-actions .sf-btn { width:100%; justify-content:center; }
-.sf-later-actions .sf-btn.wa { color:#128C7E; border-color:rgba(37,211,102,.5); text-decoration:none; }
+.sf-later-actions .sf-btn.wa { background:#25D366; border-color:#25D366; color:#fff; text-decoration:none; }
+.sf-later-actions .sf-btn.wa:hover { background:#1EBE5A; border-color:#1EBE5A; }
 .sf-later-card .sf-link { margin-top:6px; }
 .sf-other-device { margin:26px auto 0; max-width:460px; text-align:center; }
 .sf-other-device summary { cursor:pointer; color:var(--deep); font-weight:600; font-size:14px; list-style:none; padding:8px; min-height:40px; display:inline-flex; align-items:center; }
@@ -360,6 +361,7 @@ textarea.sf-input { resize:none; line-height:1.5; font-size:clamp(17px,2vw,22px)
 .sf-other-form input { flex:1; min-width:0; font-family:inherit; font-size:16px; padding:10px 12px; min-height:48px; border:1px solid var(--line2); border-radius:10px; background:var(--paper); text-align:center; }
 .sf-other-form .sf-btn { min-height:48px; padding-inline:16px; }
 .sf-other-ok { display:inline-flex; align-items:center; gap:8px; color:var(--deep); background:var(--tint2); border-radius:8px; padding:10px 14px; font-size:14px; margin-top:8px; text-align:start; }
+.sf-welcome .sf-draftbox { display:flex; flex-direction:column; align-items:center; text-align:center; gap:0; }
 .sf-draftbox-h { display:flex; align-items:center; justify-content:center; gap:8px; font-weight:700; }
 .sf-draftbox b { display:block; margin-top:6px; font-size:16px; color:var(--ink); }
 .sf-draftbox small { display:block; margin-top:2px; font-size:13px; color:var(--muted); }
