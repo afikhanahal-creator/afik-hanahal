@@ -119,7 +119,7 @@ function Yad2Card({ detail, ov, copyText, styles }) {
   )
 }
 
-export default function SellerSubmissionsTab({ C, onChanged }) {
+export default function SellerSubmissionsTab({ C, onChanged, onOpenWizard }) {
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -267,6 +267,19 @@ export default function SellerSubmissionsTab({ C, onChanged }) {
   const input = { width: '100%', padding: '9px 11px', borderRadius: 8, border: '1px solid rgba(132,144,216,.2)', background: 'rgba(255,255,255,.04)', color: '#E8E4D8', fontFamily: 'inherit', fontSize: 13 }
   const label = { fontSize: 11, color: 'rgba(232,228,216,.5)', letterSpacing: '.06em', marginBottom: 4, display: 'block' }
   const canPublish = detail && ['approved', 'published'].includes(detail.status) && detail.submitted_at
+  // Repopulate: everything the seller filled (and uploaded) lands in the office's property wizard, ready to review and publish
+  const openInWizard = async () => {
+    if (!detail || !onOpenWizard) return
+    setBusy('prepare')
+    try {
+      const r = await fetch(`${API}?action=prepare&id=${encodeURIComponent(detail.id)}`, { method: 'POST', headers: H })
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok || !d.ok) throw new Error(d.error || `HTTP ${r.status}`)
+      say(`נפתח באשף עם ${d.images} תמונות${d.videos ? ` ו-${d.videos} סרטונים` : ''}`)
+      await onOpenWizard(d.property, detail.id)
+      refreshDetail(detail.id)
+    } catch (e) { setError(e.message) } finally { setBusy('') }
+  }
   const TABS = [
     { id: 'general', l: 'כללי', Icon: FaInfoCircle }, { id: 'legal', l: 'משפטי', Icon: FaBalanceScale }, { id: 'commercial', l: 'מסחרי', Icon: FaMoneyBill },
     { id: 'media', l: 'מדיה', Icon: FaImage, badge: detail ? (detail.files || []).filter(f => f.kind !== 'docs').length : 0 }, { id: 'docs', l: 'מסמכים', Icon: FaFileAlt, badge: detail ? (detail.files || []).filter(f => f.kind === 'docs').length : 0 },
@@ -383,6 +396,7 @@ export default function SellerSubmissionsTab({ C, onChanged }) {
                   style={{ padding: '8px 10px', borderRadius: 8, border: `1px solid ${statusOf(detail.status).color}66`, background: `${statusOf(detail.status).color}1A`, color: statusOf(detail.status).color, fontFamily: 'inherit', fontSize: 12.5, fontWeight: 700 }}>
                   {INTAKE_STATUSES.filter(s => s.v !== 'published' || detail.status === 'published').map(s => <option key={s.v} value={s.v} style={{ color: '#111' }}>{s.l}</option>)}
                 </select>
+                {onOpenWizard && detail.submitted_at && <button onClick={openInWizard} disabled={!!busy} title="כל השדות, התמונות והסרטונים נטענים לאשף הנכסים — עוברים, מאשרים ומפרסמים" style={btn({ background: 'rgba(132,144,216,.14)', borderColor: 'rgba(132,144,216,.5)', color: '#C9CEF5', fontWeight: 700 })}><FaSyncAlt size={11}/> {busy === 'prepare' ? 'מכין…' : 'פתח באשף הנכסים (ממולא)'}</button>}
                 {detail.status === 'published'
                   ? <><button onClick={() => act('publish')} disabled={!!busy} style={btn({ background: 'rgba(34,197,94,.12)', borderColor: 'rgba(34,197,94,.4)', color: '#22C55E' })}><FaGlobe size={11}/> {busy === 'publish' ? 'מעדכן…' : 'עדכן באתר'}</button>
                      <button onClick={() => act('unpublish')} disabled={!!busy} style={btn({ color: '#F5A623', borderColor: 'rgba(245,166,35,.4)', background: 'rgba(245,166,35,.08)' })}><FaEyeSlash size={11}/> {busy === 'unpublish' ? 'מסיר…' : 'הסר מהאתר'}</button></>

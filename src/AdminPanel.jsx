@@ -1732,6 +1732,13 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState('')
   const [wizardOpen, setWizardOpen] = useState(false)
+  const [wizardSeed, setWizardSeed] = useState(null)   // { data, editId, intakeId } when opened from a submitted property (repopulate)
+  const openWizardFromIntake = async (property, intakeId) => {
+    if (!standalone && onEditInWizard) { onClose?.(); return onEditInWizard({ ...property, intakeId }) }   // modal mode: the site owns the wizard
+    const { propertyToWizardData } = await import('./PropertyWizard.jsx')
+    setWizardSeed({ data: propertyToWizardData(property), editId: property.id, intakeId })
+    setWizardOpen(true)
+  }
   const [shareCopied, setShareCopied] = useState(false)
   const [leadsSyncing, setLeadsSyncing] = useState(false)
   const [chats, setChats] = useState({})
@@ -3395,7 +3402,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
         {tab==='sellers' && (
           <div style={{ height:'100%', minHeight:'calc(100vh - 180px)' }}>
             <Suspense fallback={<AdminTabLoader label="טוען נכסים שנקלטו…"/>}>
-              <SellerSubmissionsTab C={C} onChanged={() => { fetch('/api/seller-form?action=stats', { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` } }).then(r => r.json()).then(d => d?.ok && setIntakeStats(d)).catch(() => {}) }}/>
+              <SellerSubmissionsTab C={C} onOpenWizard={openWizardFromIntake} onChanged={() => { fetch('/api/seller-form?action=stats', { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` } }).then(r => r.json()).then(d => d?.ok && setIntakeStats(d)).catch(() => {}) }}/>
             </Suspense>
           </div>
         )}
@@ -4324,11 +4331,20 @@ Return ONLY valid JSON (no markdown, no code blocks):
           <div style={{ position:'fixed', inset:0, zIndex:2000, background:'rgba(0,0,0,.97)', backdropFilter:'blur(4px)' }}>
             <Suspense fallback={null}>
               <PropertyWizard
-                onClose={() => setWizardOpen(false)}
-                onPublish={(prop) => {
-                  setProperties(prev => [...prev, prop])
+                key={wizardSeed?.editId || 'new'}
+                initialData={wizardSeed?.data || undefined}
+                editId={wizardSeed?.editId || undefined}
+                onClose={() => { setWizardOpen(false); setWizardSeed(null) }}
+                onPublish={(prop, isDraft) => {
+                  setProperties(prev => prev.some(p => p.id === prop.id) ? prev.map(p => p.id === prop.id ? prop : p) : [...prev, prop])
                   saveProp(prop)
-                  setWizardOpen(false)
+                  if (wizardSeed?.intakeId) {
+                    // keep the intake record in sync with what the wizard just did
+                    fetch(`/api/seller-form?action=linked&id=${encodeURIComponent(wizardSeed.intakeId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` }, body: JSON.stringify({ propertyId: prop.id, published: !isDraft }) })
+                      .then(() => fetch('/api/seller-form?action=stats', { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` } }).then(r => r.json()).then(d => d?.ok && setIntakeStats(d)))
+                      .catch(() => {})
+                  }
+                  setWizardOpen(false); setWizardSeed(null)
                   setTab('props')
                 }}
               />
