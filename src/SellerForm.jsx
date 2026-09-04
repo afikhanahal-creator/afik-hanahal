@@ -18,7 +18,7 @@ import {
   otherKey, noteKey, directionsText, buildStory, storyText, headline, storyTitle, storyLine, addressLine, PROPERTY_TYPE_LABEL,
   stepOpts, stepQuestion, stepHelp, stepPh, stepUnit, sectionText, emphasisFor, purposeOf, purposeSpecificKeys, PROPERTY_STATE_LABEL } from './sellerFormSchema.js'
 import CITIES from './data/israelCities.json'
-import { visibleSteps as visibleStepsOf } from './sellerFormSchema.js'
+import { visibleSteps as visibleStepsOf, roomsOf } from './sellerFormSchema.js'
 import { SummaryView, ShareMenu, buildLocalSummary } from './PropertySummary.jsx'
 
 const API = import.meta.env.PROD ? '' : (import.meta.env.VITE_SELLER_API_BASE || '')
@@ -48,7 +48,7 @@ const T = {
     reviewTitle: 'תיק הנכס', reviewKicker: 'סיכום כל הפרטים', reviewSub: 'כל מה שסיפרתם לנו, מסודר לפי נושאים. אפשר לערוך כל תשובה בלחיצה.',
     toStory: 'לסיפור הנכס', storyKicker: 'סיפור הנכס', storySub: 'כך נציג את הנכס לקונים. קראו בנחת, ואם משהו אינו מדויק, חזרו ותקנו.', storySubRent: 'כך נציג את הנכס לשוכרים. קראו בנחת, ואם משהו אינו מדויק, חזרו ותקנו.', preparedFor: 'הוכן עבור', copyStory: 'העתקת הסיפור', storyDoc: 'תיק נכס', storyBy: 'הוכן על ידי אפיק הנחל על סמך הפרטים שמסרתם', storyFoot: 'אפיק הנחל · ייזום, שיווק ותיווך נדל״ן',
     factPrice: 'מחיר מבוקש', factRooms: 'חדרים', factArea: 'מ״ר בנוי', factFloor: 'קומה', factParking: 'חניות', factState: 'מצב', factType: 'סוג הנכס',
-    otherPh: 'פרטו במילים…', notePh: 'תיאור כיווני האוויר. אפשר לערוך חופשי', noteReset: 'חזרה לתיאור האוטומטי', loadingStreets: 'טוען רחובות…', noStreets: 'הקלידו את שם הרחוב',
+    otherPh: 'פרטו במילים…', clear: 'ניקוי', noMatches: 'לא נמצאה התאמה — אפשר להשאיר כפי שהקלדתם', noStreetMatch: 'הרחוב לא ברשימה? אפשר להשאיר כפי שהקלדתם', popularCities: 'ערים נפוצות', allCities: 'כל היישובים', notePh: 'תיאור כיווני האוויר. אפשר לערוך חופשי', noteReset: 'חזרה לתיאור האוטומטי', loadingStreets: 'טוען רחובות…', noStreets: 'הקלידו את שם הרחוב',
     edit: 'עריכה', missingTitle: 'נשארו שאלות חובה שלא נענו', jump: 'מעבר לשאלה',
     editing: 'עריכת תשובה מהסיכום. לחיצה על "המשך" תחזיר אתכם לסיכום', backToReview: 'חזרה לסיכום', toReview: 'לסיכום', showAll: 'הצגת כל הפרטים', hideAll: 'כיווץ הכל', itemsCount: '{n} פרטים', reviewHint: 'לחצו על כותרת כדי לפתוח או לסגור. אפשר לערוך כל תשובה בלחיצה על "עריכה".',
     consent: 'אני מאשר/ת שהפרטים שמסרתי נכונים למיטב ידיעתי, ומסכים/ה שאפיק הנחל תיצור איתי קשר בנוגע לשיווק הנכס.',
@@ -82,7 +82,7 @@ const T = {
     reviewTitle: 'Property file', reviewKicker: 'Everything in one place', reviewSub: 'Everything you told us, organised by topic. Click any answer to edit it.',
     toStory: 'To the property story', storyKicker: 'The property story', storySub: 'This is how we will present the property to buyers. Read it at your leisure, and go back to fix anything inaccurate.', storySubRent: 'This is how we will present the property to tenants. Read it at your leisure, and go back to fix anything inaccurate.', preparedFor: 'Prepared for', copyStory: 'Copy story', storyDoc: 'Property file', storyBy: 'Prepared by Afik Hanahal from the details you provided', storyFoot: 'Afik Hanahal · Real estate development, marketing and brokerage',
     factPrice: 'Asking price', factRooms: 'Rooms', factArea: 'm² built', factFloor: 'Floor', factParking: 'Parking', factState: 'Condition', factType: 'Type',
-    otherPh: 'Please specify…', notePh: 'Direction description. Edit freely', noteReset: 'Back to the automatic description', loadingStreets: 'Loading streets…', noStreets: 'Type the street name',
+    otherPh: 'Please specify…', clear: 'Clear', noMatches: 'No match — you can keep what you typed', noStreetMatch: 'Street not listed? Keep what you typed', popularCities: 'Popular cities', allCities: 'All localities', notePh: 'Direction description. Edit freely', noteReset: 'Back to the automatic description', loadingStreets: 'Loading streets…', noStreets: 'Type the street name',
     edit: 'Edit', missingTitle: 'Some required questions are still unanswered', jump: 'Go to question',
     editing: 'Editing an answer from the summary. "Continue" takes you back to the summary', backToReview: 'Back to summary', toReview: 'To summary', showAll: 'Show all details', hideAll: 'Collapse all', itemsCount: '{n} details', reviewHint: 'Tap a heading to open or close it. Click "Edit" to change any answer.',
     consent: 'I confirm the details I provided are accurate to the best of my knowledge, and I agree that Afik Hanahal may contact me regarding marketing this property.',
@@ -207,6 +207,14 @@ const CSS = `
 .sf-link { border:0; background:none; color:var(--deep); font-size:14px; font-weight:600; cursor:pointer; padding:8px 0; min-height:40px; display:inline-flex; align-items:center; gap:6px; }
 .sf-link:hover { text-decoration:underline; }
 .sf-combo { position:relative; }
+.sf-combo .sf-input { padding-inline-end:36px; }
+.sf-combo-x, .sf-combo-arrow { position:absolute; inset-inline-end:2px; top:50%; transform:translateY(-50%); width:34px; height:34px; border:0; background:none; color:var(--muted); font-size:22px; line-height:1; cursor:pointer; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; }
+.sf-combo-x:hover, .sf-combo-arrow:hover { background:var(--tint2); color:var(--deep); }
+.sf-combo-list mark { background:var(--tint2); color:var(--deep); border-radius:3px; padding:0 1px; }
+.sf-combo-list li.pop { font-weight:600; }
+.sf-combo-list li.first-after-pop { border-top:1px solid var(--line); margin-top:4px; padding-top:12px; }
+.sf-combo-sec { display:block; font-size:11px; letter-spacing:.08em; color:var(--muted); font-weight:600; margin:-4px 0 4px; }
+.sf-combo-empty { padding:11px 12px; font-size:14px; color:var(--muted); cursor:default; }
 .sf-combo-list { position:absolute; top:100%; inset-inline:0; z-index:20; margin:4px 0 0; padding:4px; list-style:none; background:var(--paper); border:1px solid var(--line2); border-radius:8px; box-shadow:0 10px 30px rgba(0,0,0,.12); text-align:start; max-height:min(320px, 45vh); overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; }
 .sf-combo-list li { padding:11px 12px; border-radius:4px; font-size:16px; cursor:pointer; min-height:42px; }
 .sf-combo-list li.on { background:var(--tint2); color:var(--ink); }
@@ -562,11 +570,12 @@ function Stepper({ curIdx, lang, answers }) {
 
 const LOGO_SRC = '/logo-black.svg'
 const stepVariants = {
-  enter: d => ({ y: d > 0 ? 56 : -56, opacity: 0 }),
+  enter: d => ({ y: d > 0 ? 26 : -26, opacity: 0 }),
   center: { y: 0, opacity: 1 },
-  exit: d => ({ y: d > 0 ? -56 : 56, opacity: 0 }),
+  exit: d => ({ y: d > 0 ? -18 : 18, opacity: 0 }),
 }
-const stepTransition = { duration: .34, ease: [.16, 1, .3, 1] }
+// snappy: the exit is very short, the enter settles in ~180ms
+const stepTransition = { duration: .18, ease: [.2, .8, .2, 1] }
 
 // ═════════════════════════════════════════════════════════════════════════════
 export default function SellerForm() {
@@ -780,7 +789,7 @@ export default function SellerForm() {
     const h = setTimeout(() => {
       const el = stageRef.current?.querySelector('[data-autofocus]')
       if (el && window.innerWidth > 640) el.focus()
-    }, 360)
+    }, 190)
     return () => clearTimeout(h)
   }, [cur, phase])
 
@@ -862,7 +871,7 @@ export default function SellerForm() {
           <div className="sf-card">
             {linkState === 'resumed' && idx > 0 && <div className="sf-resumed">{t.resumedFromLink}</div>}
             {resumedLocal && linkState !== 'resumed' && idx > 0 && <div className="sf-resumed">{t.resumedLocal}</div>}
-            <AnimatePresence mode="wait" custom={dir} initial={false}>
+            <AnimatePresence mode="popLayout" custom={dir} initial={false}>
               <motion.div key={step.id} custom={dir} variants={stepVariants} initial="enter" animate="center" exit="exit" transition={stepTransition}>
                 {step.type === 'intro' && (
                   <Intro section={section} t={t} lang={lang} onNext={goNext} answers={answers}/>
@@ -1130,7 +1139,7 @@ function Choice({ step, value, lang, t, pickChoice, answers, setAnswer, onEnter 
   const opts = stepOpts(step, answers)
   // big select: picking a value moves on by itself (Typeform-like), once the new value has rendered
   const wantNext = useRef(false)
-  useEffect(() => { if (wantNext.current && value) { wantNext.current = false; const h = setTimeout(() => onEnter?.(), 380); return () => clearTimeout(h) } }, [value]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (wantNext.current && value) { wantNext.current = false; if (value === 'other') return; const h = setTimeout(() => onEnter?.(), 220); return () => clearTimeout(h) } }, [value]) // eslint-disable-line react-hooks/exhaustive-deps
   if (step.select) return (
     <div className="sf-bigselect-wrap">
       <select className="sf-bigselect" value={value || ''} onChange={e => { const same = e.target.value === value; pickChoice(e.target.value); e.target.blur(); if (same) setTimeout(() => onEnter?.(), 200); else wantNext.current = true }} aria-label={stepQuestion(step, lang, answers)} data-autofocus>
@@ -1138,6 +1147,7 @@ function Choice({ step, value, lang, t, pickChoice, answers, setAnswer, onEnter 
         {opts.map(o => <option key={o.v} value={o.v}>{L(o, lang)}</option>)}
       </select>
       <span className="sf-bigselect-arrow" aria-hidden="true"><IcoChevron/></span>
+      {value === 'other' && opts.some(o => o.v === 'other') && <OtherInput step={step} answers={answers} setAnswer={setAnswer} lang={lang} t={t}/>}
     </div>
   )
   return (
@@ -1262,8 +1272,10 @@ function Group({ step, value, setValue, answers, lang, err, t }) {
           return (
             <div className={`sf-field${f.half ? '' : ' full'}`} key={f.k}>
               <label htmlFor={`${step.id}-${f.k}`}>{L(f, lang)}{req && <i>*</i>}</label>
-              <Combo id={`${step.id}-${f.k}`} value={v[f.k] ?? ''} onChange={val => setValue({ ...v, [f.k]: val })}
+              <Combo id={`${step.id}-${f.k}`} value={v[f.k] ?? ''} onChange={val => setValue(f.type === 'city' && val !== v.city ? { ...v, [f.k]: val, street: '' } : { ...v, [f.k]: val })}
                 options={f.type === 'city' ? CITIES : undefined} loadKey={f.type === 'street' ? (v.city || '') : undefined} loader={f.type === 'street' ? loadStreets : undefined}
+                popular={f.type === 'city' ? POPULAR_CITIES : undefined} emptyHint={f.type === 'street' ? t.noStreetMatch : t.noMatches}
+                onPick={() => { const nxtKey = f.type === 'city' ? (fields.some(x => x.k === 'street') ? 'street' : fields[i + 1]?.k) : f.type === 'street' ? (fields.some(x => x.k === 'number') ? 'number' : fields[i + 1]?.k) : fields[i + 1]?.k; if (nxtKey) document.getElementById(`${step.id}-${nxtKey}`)?.focus() }}
                 placeholder={lang === 'en' ? (f.en_ph || f.ph || '') : (f.ph || '')} invalid={bad.includes(f.k)} autoFocus={i === 0} t={t}/>
             </div>
           )
@@ -1309,7 +1321,9 @@ async function loadStreets(city) {
   return names
 }
 
-function Combo({ id, value, onChange, options, loadKey, loader, placeholder, invalid, autoFocus, t }) {
+const POPULAR_CITIES = ['רעננה', 'כפר סבא', 'הוד השרון', 'הרצליה', 'רמת השרון', 'נתניה', 'תל אביב - יפו', 'פתח תקווה', 'ראש העין', 'אבן יהודה', 'כוכב יאיר', 'קדימה-צורן']
+const Hi = ({ text, q }) => { if (!q) return text; const i = text.indexOf(q); if (i < 0) return text; return <>{text.slice(0, i)}<mark>{text.slice(i, i + q.length)}</mark>{text.slice(i + q.length)}</> }
+function Combo({ id, value, onChange, options, loadKey, loader, placeholder, invalid, autoFocus, t, popular, onPick, emptyHint }) {
   const [list, setList] = useState(options || [])
   const [open, setOpen] = useState(false)
   const [hi, setHi] = useState(0)
@@ -1326,20 +1340,24 @@ function Combo({ id, value, onChange, options, loadKey, loader, placeholder, inv
   const q = String(value || '').trim()
   const matches = useMemo(() => {
     if (!list.length) return []
-    if (!q) return list.slice(0, 2000)
+    if (!q) {
+      const pop = (popular || []).filter(x => list.includes(x))
+      return pop.length ? [...pop.map(x => ({ v: x, pop: true })), ...list.filter(x => !pop.includes(x)).map(x => ({ v: x }))].slice(0, 2000) : list.slice(0, 2000).map(x => ({ v: x }))
+    }
     const starts = list.filter(x => x.startsWith(q))
     const inc = list.filter(x => !x.startsWith(q) && x.includes(q))
-    return [...starts, ...inc].slice(0, 2000)
-  }, [q, list])
-  const show = open && matches.length > 0 && !(matches.length === 1 && matches[0] === q)
-  const pick = val => { onChange(val); setOpen(false) }
+    return [...starts, ...inc].slice(0, 2000).map(x => ({ v: x }))
+  }, [q, list, popular])
+  const exact = matches.length === 1 && matches[0].v === q
+  const show = open && (matches.length > 0 ? !exact : (!!q && !!list.length))
+  const pick = val => { onChange(val); setOpen(false); setTimeout(() => onPick?.(val), 30) }
   const listRef = useRef(null)
   useEffect(() => { listRef.current?.children[hi]?.scrollIntoView?.({ block: 'nearest' }) }, [hi])
   const onKey = e => {
     if (!show) return
     if (e.key === 'ArrowDown') { e.preventDefault(); e.stopPropagation(); setHi(h => Math.min(matches.length - 1, h + 1)) }
     else if (e.key === 'ArrowUp') { e.preventDefault(); e.stopPropagation(); setHi(h => Math.max(0, h - 1)) }
-    else if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); pick(matches[hi] ?? q) }
+    else if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); pick(matches[hi]?.v ?? q) }
     else if (e.key === 'Escape') { setOpen(false) }
   }
   return (
@@ -1348,10 +1366,17 @@ function Combo({ id, value, onChange, options, loadKey, loader, placeholder, inv
         onChange={e => { onChange(e.target.value); setOpen(true); setHi(0) }} onFocus={() => setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 150)}
         onKeyDown={onKey} placeholder={loader && loadKey && loading ? t.loadingStreets : (loader && loadKey && !list.length && !loading ? t.noStreets : placeholder)}
         data-autofocus={autoFocus ? true : undefined} aria-invalid={invalid}/>
+      {q && <button type="button" className="sf-combo-x" aria-label={t.clear} onMouseDown={e => { e.preventDefault(); onChange(''); setOpen(true); setHi(0) }}>×</button>}
+      {!q && list.length > 0 && <button type="button" className="sf-combo-arrow" aria-label={t.pickFromList} onMouseDown={e => { e.preventDefault(); setOpen(o => !o); document.getElementById(id)?.focus() }}><IcoChevron/></button>}
       {show && (
         <ul className="sf-combo-list" role="listbox" ref={listRef}>
+          {matches.length === 0 && <li className="sf-combo-empty">{emptyHint || t.noMatches}</li>}
           {matches.map((m, i) => (
-            <li key={m} role="option" aria-selected={i === hi} className={i === hi ? 'on' : ''} onMouseDown={e => { e.preventDefault(); pick(m) }} onMouseEnter={() => setHi(i)}>{m}</li>
+            <li key={m.v} role="option" aria-selected={i === hi} className={`${i === hi ? 'on' : ''}${m.pop ? ' pop' : ''}${!q && !m.pop && i > 0 && matches[i - 1].pop ? ' first-after-pop' : ''}`} onMouseDown={e => { e.preventDefault(); pick(m.v) }} onMouseEnter={() => setHi(i)}>
+              {!q && m.pop && i === 0 && <small className="sf-combo-sec">{t.popularCities}</small>}
+              {!q && !m.pop && i > 0 && matches[i - 1].pop && <small className="sf-combo-sec">{t.allCities}</small>}
+              <Hi text={m.v} q={q}/>
+            </li>
           ))}
         </ul>
       )}
@@ -1556,7 +1581,7 @@ function Review({ answers, lang, t, visible, onEdit, onBack, onNext }) {
   const stateLabel = answers.p_state ? (stateStep.opts.find(o => o.v === answers.p_state) || {})[lang === 'en' ? 'en' : 'l'] : ''
   const facts = [
     answers.d_ask ? { k: purposeOf(answers) === 'rental' ? t.factRent : t.factPrice, v: `${lang === 'en' ? '₪' : ''}${fmtNum(answers.d_ask, lang)}${lang === 'en' ? '' : ' ₪'}`, hi: true } : null,
-    answers.p_rooms ? { k: t.factRooms, v: answers.p_rooms } : null,
+    roomsOf(answers) ? { k: t.factRooms, v: roomsOf(answers) } : null,
     answers.p_area?.built ? { k: t.factArea, v: fmtNum(answers.p_area.built, lang) } : null,
     answers.p_floor?.floor !== undefined && answers.p_floor?.floor !== '' ? { k: t.factFloor, v: `${answers.p_floor.floor}${answers.p_floor.totalFloors ? ` / ${answers.p_floor.totalFloors}` : ''}` } : null,
     answers.f_parking?.parking !== undefined ? { k: t.factParking, v: answers.f_parking.parking } : null,
@@ -1623,7 +1648,7 @@ function Story({ answers, lang, t, onBack, consent, setConsent, onSubmit, submit
   const rental = answers.x_purpose === 'rental'
   const storyFacts = [
     answers.d_ask ? { k: rental ? t.factRent : t.factPrice, v: `${fmtNum(answers.d_ask, lang)} ₪${rental ? (lang === 'en' ? ' / mo' : ' לחודש') : ''}`, hi: true } : null,
-    answers.p_rooms ? { k: t.factRooms, v: answers.p_rooms } : null,
+    roomsOf(answers) ? { k: t.factRooms, v: roomsOf(answers) } : null,
     answers.p_area?.built ? { k: t.factArea, v: fmtNum(answers.p_area.built, lang) } : null,
     answers.p_floor?.floor !== undefined && answers.p_floor?.floor !== '' && answers.p_floor?.floor !== null ? { k: t.factFloor, v: `${answers.p_floor.floor}${answers.p_floor.totalFloors ? ` / ${answers.p_floor.totalFloors}` : ''}` } : null,
     answers.p_state ? { k: t.factState, v: PROPERTY_STATE_LABEL(answers.p_state, lang) } : null,
