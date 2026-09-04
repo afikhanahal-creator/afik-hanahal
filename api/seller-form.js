@@ -76,7 +76,7 @@ const PHONE_RE = /^\+?\d[\d\s\-()]{6,17}\d$/
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
 const STEP_IDS = new Set(STEPS.map(s => s.id))
 // Only keys the questionnaire actually defines are stored (plus their _other / _note companions)
-const sanitizeAnswers = a => Object.fromEntries(Object.entries(a && typeof a === 'object' ? a : {}).filter(([k]) => typeof k === 'string' && k.length < 60 && STEP_IDS.has(k.replace(/_(other|note)$/, ''))))
+const sanitizeAnswers = a => Object.fromEntries(Object.entries(a && typeof a === 'object' ? a : {}).filter(([k]) => typeof k === 'string' && k.length < 60 && (k === '__reached' || STEP_IDS.has(k.replace(/_(other|note)$/, '')))))
 
 // ── Supabase REST helpers ────────────────────────────────────────────────────
 async function supaFetch(path, opts = {}) {

@@ -29,12 +29,8 @@ const FONT_HREF = 'https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;5
 const T = {
   he: {
     brand: 'אפיק הנחל', tagline: 'ייזום · שיווק · תיווך',
-    welcomeKicker: 'אפיק הנחל · ייזום, שיווק ותיווך נדל״ן',
     welcomeTitle: 'בואו נכיר את הנכס שלכם',
     welcomeSub: 'שאלון קצר של כ־10 דקות שעוזר לנו להכיר את הנכס ולשווק אותו נכון.',
-    bul1: 'כ־10 דקות', bul2: 'נשמר אוטומטית', bul3: 'פרטי ומאובטח',
-    how1: 'אתם מספרים', how1s: 'עונים על שאלות קצרות, בקצב שלכם', how2: 'אנחנו בונים תיק נכס', how2s: 'סיכום מסודר וסיפור נכס מוכן לשיווק', how3: 'יוצאים לשיווק', how3s: 'נחזור אליכם תוך יום עסקים עם תוכנית פעולה',
-    ctaNote: 'בסיום תקבלו סיכום מסודר של הנכס וקישור לשיתוף עם בני המשפחה.',
     start: 'בואו נתחיל', resume: 'להמשיך מאיפה שעצרתי', restart: 'להתחיל מחדש',
     savedDraft: 'מצאנו טופס שהתחלתם למלא',
     ok: 'אישור', cont: 'המשך', back: 'חזרה', press: 'או לחצו', requiredMark: 'שדה חובה',
@@ -56,7 +52,7 @@ const T = {
     submit: 'סיום ושליחת הנכס', submitting: 'שולחים…', shareForm: 'שתף טופס', shareFormText: 'היי, אפיק הנחל מבקשים שנמלא את פרטי הנכס. אפשר להמשיך את הטופס כאן:', shareFormHint: 'שלחו את הקישור לבן/בת זוג או לשותף כדי שיעזרו למלא. הטופס המשותף נשמר אוטומטית.', resumedFromLink: 'המשכנו מהמקום שבו הטופס נעצר', savedCloud: 'נשמר', dateDay: 'יום', dateMonth: 'חודש', dateYear: 'שנה', dirPresets: 'בחירה מהירה', pickFromList: 'או בחרו מהרשימה',
     submitErr: 'משהו השתבש בשליחה. הטופס שלכם שמור, נסו שוב בעוד רגע או שלחו לנו הודעה בוואטסאפ.',
     consentErr: 'צריך לאשר את ההצהרה כדי לשלוח',
-    doneTitle: 'תודה, {name}!', doneSub: 'הנכס נקלט אצלנו. צוות השיווק של אפיק הנחל יעבור על הפרטים וייצור איתכם קשר תוך יום עסקים כדי לתאם את הצעד הבא.', factRent: 'שכירות חודשית',
+    doneTitle: 'תודה, {name}!', doneTitleShort: 'תודה!', doneSub: 'הנכס נקלט אצלנו. צוות השיווק של אפיק הנחל יעבור על הפרטים וייצור איתכם קשר תוך יום עסקים כדי לתאם את הצעד הבא.', factRent: 'שכירות חודשית',
     refLabel: 'מספר תיק', doneWa: 'לשלוח לנו הודעה בוואטסאפ', doneHome: 'חזרה לאתר אפיק הנחל', copyRef: 'העתקת מספר התיק', copied: 'הועתק',
     autosaved: 'נשמר אוטומטית', privacyNote: 'הפרטים נשמרים באופן מאובטח ומשמשים את אפיק הנחל בלבד.',
     files: '{n} קבצים', minus: 'פחות', plus: 'יותר', langToggle: 'English',
@@ -65,12 +61,8 @@ const T = {
   },
   en: {
     brand: 'Afik Hanahal', tagline: 'Development · Marketing · Brokerage',
-    welcomeKicker: 'Afik Hanahal · Real estate development, marketing and brokerage',
     welcomeTitle: "Let's get to know your property",
     welcomeSub: 'A short questionnaire, about 10 minutes, that helps us get to know the property and market it right.',
-    bul1: 'About 10 minutes', bul2: 'Auto-saved', bul3: 'Private and secure',
-    how1: 'You tell us', how1s: 'Short questions, at your own pace', how2: 'We build the property file', how2s: 'An organised summary and a marketing-ready property story', how3: 'We go to market', how3s: 'We get back to you within one business day with a plan',
-    ctaNote: 'At the end you get an organised summary of the property and a link to share with your family.',
     start: "Let's start", resume: 'Continue where I stopped', restart: 'Start over',
     savedDraft: 'We found a form you started',
     ok: 'OK', cont: 'Continue', back: 'Back', press: 'or press', requiredMark: 'Required',
@@ -92,7 +84,7 @@ const T = {
     submit: 'Finish and submit the property', submitting: 'Sending…', shareForm: 'Share form', shareFormText: 'Hi, Afik Hanahal asked us to fill in our property details. You can continue the form here:', shareFormHint: 'Send the link to a spouse or partner so they can help fill it in. The shared form saves automatically.', resumedFromLink: 'Continuing from where the form stopped', savedCloud: 'Saved', dateDay: 'Day', dateMonth: 'Month', dateYear: 'Year', dirPresets: 'Quick pick', pickFromList: 'or pick from the list',
     submitErr: 'Something went wrong. Your form is saved. Try again in a moment or message us on WhatsApp.',
     consentErr: 'Please confirm the statement to submit',
-    doneTitle: 'Thank you, {name}!', doneSub: 'Your property file has reached us. The Afik Hanahal marketing team will review the details and contact you within one business day to plan the next step.', factRent: 'Monthly rent',
+    doneTitle: 'Thank you, {name}!', doneTitleShort: 'Thank you!', doneSub: 'Your property file has reached us. The Afik Hanahal marketing team will review the details and contact you within one business day to plan the next step.', factRent: 'Monthly rent',
     refLabel: 'File number', doneWa: 'Message us on WhatsApp', doneHome: 'Back to the Afik Hanahal website', copyRef: 'Copy file number', copied: 'Copied',
     autosaved: 'Auto-saved', privacyNote: 'Your details are stored securely and used by Afik Hanahal only.',
     files: '{n} files', minus: 'Less', plus: 'More', langToggle: 'עברית',
@@ -339,19 +331,9 @@ textarea.sf-input { resize:none; line-height:1.5; font-size:clamp(17px,2vw,22px)
 /* ── welcome / intro / review / done ───────────────────────────────────── */
 .sf-welcome { text-align:center; max-width:620px; margin:0 auto; }
 .sf-welcome .logo { height:130px; width:auto; margin:0 auto 18px; display:block; }
-.sf-kicker { display:inline-block; font-size:12px; font-weight:700; letter-spacing:.16em; text-transform:uppercase; color:var(--deep); background:var(--tint2); border-radius:4px; padding:5px 12px; margin-bottom:16px; }
 .sf-welcome h1 { font-size:clamp(30px, 4.8vw, 42px); font-weight:700; margin:0 0 12px; letter-spacing:-.01em; line-height:1.2; }
 .sf-welcome p { font-size:18px; color:var(--ink2); line-height:1.6; margin:0 auto; max-width:460px; }
-.sf-bullets { display:flex; justify-content:center; gap:20px; flex-wrap:wrap; margin:22px 0 28px; }
-.sf-bullets span { display:inline-flex; align-items:center; gap:8px; font-size:13.5px; color:var(--ink2); }
-.sf-bullets span i { width:7px; height:7px; border-radius:50%; background:var(--deep); display:inline-block; }
 .sf-welcome-actions { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin-top:28px; }
-.sf-how { list-style:none; margin:24px auto 0; padding:0; display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:10px; max-width:640px; text-align:start; }
-.sf-how li { display:flex; gap:10px; align-items:flex-start; background:var(--paper); border:1px solid var(--line); border-radius:12px; padding:13px 14px; }
-.sf-how li i { flex:none; width:26px; height:26px; border-radius:50%; background:var(--tint2); color:var(--deep); font-style:normal; font-weight:700; font-size:12.5px; display:inline-flex; align-items:center; justify-content:center; }
-.sf-how b { display:block; font-size:14.5px; font-weight:700; color:var(--ink); line-height:1.3; }
-.sf-how span { display:block; font-size:13px; color:var(--muted); line-height:1.45; margin-top:3px; }
-.sf-cta-note { margin:14px auto 0; font-size:13.5px; color:var(--muted); max-width:460px; line-height:1.5; }
 .sf-draftbox { margin:0 auto 20px; max-width:420px; padding:12px 16px; border-radius:6px; background:var(--tint2); font-size:14px; color:var(--ink); display:flex; align-items:center; gap:10px; justify-content:center; }
 .sf-intro .n { font-size:12px; font-weight:700; color:var(--deep); letter-spacing:.14em; margin-bottom:10px; }
 .sf-intro h2 { font-size:clamp(26px, 4vw, 36px); font-weight:700; margin:0 0 10px; letter-spacing:-.01em; line-height:1.2; }
@@ -484,8 +466,6 @@ textarea.sf-input { resize:none; line-height:1.5; font-size:clamp(17px,2vw,22px)
   .sf-paper-h, .sf-paper-body, .sf-paper-f, .sf-facts.light { padding-inline:16px; }
   .sf-para p { font-size:16.5px; line-height:1.8; }
   .sf-para:first-of-type p { font-size:18px; padding-inline-start:14px; }
-  .sf-how { grid-template-columns:1fr; gap:8px; }
-  .sf-how li { padding:11px 12px; }
   .sf-mrow { flex-direction:column; align-items:center; text-align:center; gap:8px; }
   .sf-mrow .lbl { flex-basis:auto; }
   .sf-scale { justify-content:center; }
@@ -493,8 +473,6 @@ textarea.sf-input { resize:none; line-height:1.5; font-size:clamp(17px,2vw,22px)
   .sf-welcome-actions .sf-btn { width:100%; justify-content:center; }
   .sf-welcome h1 { font-size:27px; }
   .sf-welcome p { font-size:16px; }
-  .sf-bullets { gap:8px 14px; margin:18px 0 4px; }
-  .sf-bullets span { font-size:14px; }
   .sf-grid { grid-template-columns:1fr; }
   .sf-opts { align-items:stretch; }
   .sf-opt { min-width:0; width:100%; }
@@ -576,6 +554,7 @@ export default function SellerForm() {
   const [submitErr, setSubmitErr] = useState('')
   const [result, setResult] = useState(null)
   const sidRef = useRef(null)
+  const pendingSid = useRef(uid())   // id used by "share form" before the form was started; begin() adopts it
   const [linkState, setLinkState] = useState(null)   // null | loading | resumed | fresh | submitted
   const [cloudSaved, setCloudSaved] = useState(false)
   const startedAt = useRef(Date.now())
@@ -599,7 +578,8 @@ export default function SellerForm() {
         .then(({ status, d }) => {
           if (status === 200 && d.ok && d.submitted) { setLinkState('submitted'); setResult({ ref: d.ref, token: d.token, url: `${window.location.origin}/newproperty/${d.token}` }); setPhase('done'); return }
           if (status === 200 && d.ok && d.draft) {
-            setAnswers(d.draft.answers || {})
+            const { __reached, ...restored } = d.draft.answers || {}
+            setAnswers(restored); setReachedReview(!!__reached)
             if (d.draft.lang) setLang(d.draft.lang)
             setCur(d.draft.cur && STEPS.some(s => s.id === d.draft.cur) ? d.draft.cur : STEPS[0].id)
             setLinkState('resumed'); setPhase('form'); startedAt.current = Date.now()
@@ -674,7 +654,7 @@ export default function SellerForm() {
     if (!Object.keys(answers).length) return
     const h = setTimeout(() => {
       const clean = stripFilesForDraft(answers); delete clean.__consent
-      fetch(`${API}/api/seller-form?action=draft`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sid: sidRef.current, answers: clean, cur, lang, schemaVersion: SCHEMA_VERSION, ua: navigator.userAgent }) })
+      fetch(`${API}/api/seller-form?action=draft`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sid: sidRef.current, answers: { ...clean, __reached: reachedReview }, cur, lang, schemaVersion: SCHEMA_VERSION, ua: navigator.userAgent }) })
         .then(r => setCloudSaved(r.ok)).catch(() => setCloudSaved(false))
     }, 2500)
     return () => clearTimeout(h)
@@ -709,7 +689,7 @@ export default function SellerForm() {
     } else {
       clearDraft(); setAnswers({}); setCur(STEPS[0].id); if (linkState !== 'fresh') sidRef.current = null
     }
-    if (!sidRef.current) sidRef.current = uid()
+    if (!sidRef.current) sidRef.current = pendingSid.current
     startedAt.current = Date.now()
     setDir(1); setPhase('form')
     window.scrollTo({ top: 0 })
@@ -816,7 +796,7 @@ export default function SellerForm() {
         {phase === 'form' ? <Stepper curIdx={sectionIdx} lang={lang} answers={answers}/> : <div style={{ flex: 1 }}/>}
         <div className="sf-top-right">
           {phase === 'form' && <span className="sf-saved" key={savedTick} style={{ opacity: savedTick ? 1 : 0 }}><i/>{cloudSaved ? t.savedCloud : t.autosaved}</span>}
-          {phase === 'form' && sidRef.current && <ShareMenu url={`${window.location.origin}/newproperty?d=${sidRef.current}`} title={t.brand} text={t.shareFormText} lang={lang} label={t.shareForm} compact/>}
+          {phase !== 'done' && <ShareMenu url={`${window.location.origin}/newproperty?d=${sidRef.current || pendingSid.current}`} title={t.brand} text={t.shareFormText} lang={lang} label={t.shareForm} compact/>}
           <button className="sf-lang" onClick={() => setLang(l => l === 'he' ? 'en' : 'he')} aria-label="Switch language" lang={lang === 'he' ? 'en' : 'he'}><IcoGlobe/>{t.langToggle}</button>
         </div>
       </header>}
@@ -879,7 +859,7 @@ export default function SellerForm() {
         {phase === 'done' && result && (
           <div className="sf-done-wrap">
             {linkState === 'submitted' && result.token
-              ? <div className="sf-done"><div className="ck"><IcoCheck size={38}/></div><h1>{t.doneTitle.replace('{name}!', '').replace(', !', '!').trim() || t.brand}</h1><p>{t.doneSub}</p><div className="sf-actions"><a className="sf-btn" href={result.url}>{t.reviewTitle}<IcoFwd/></a></div></div>
+              ? <div className="sf-done"><div className="ck"><IcoCheck size={38}/></div><h1>{t.doneTitleShort}</h1><p>{t.doneSub}</p><div className="sf-actions"><a className="sf-btn" href={result.url}>{t.reviewTitle}<IcoFwd/></a></div></div>
               : <SummaryView data={{ ...buildLocalSummary(result.answers || {}, { ref: result.ref, token: result.token }), local: !API && !import.meta.env.PROD ? true : false }} lang={lang} setLang={setLang} shareUrl={result.url} mode="done"/>}
           </div>
         )}
@@ -1025,7 +1005,7 @@ function Choice({ step, value, lang, t, pickChoice, answers, setAnswer, onEnter 
   useEffect(() => { if (wantNext.current && value) { wantNext.current = false; const h = setTimeout(() => onEnter?.(), 380); return () => clearTimeout(h) } }, [value]) // eslint-disable-line react-hooks/exhaustive-deps
   if (step.select) return (
     <div className="sf-bigselect-wrap">
-      <select className="sf-bigselect" value={value || ''} onChange={e => { wantNext.current = true; pickChoice(e.target.value); e.target.blur() }} aria-label={stepQuestion(step, lang, answers)} data-autofocus>
+      <select className="sf-bigselect" value={value || ''} onChange={e => { const same = e.target.value === value; pickChoice(e.target.value); e.target.blur(); if (same) setTimeout(() => onEnter?.(), 200); else wantNext.current = true }} aria-label={stepQuestion(step, lang, answers)} data-autofocus>
         <option value="" disabled>{t.pickOne}</option>
         {opts.map(o => <option key={o.v} value={o.v}>{L(o, lang)}</option>)}
       </select>

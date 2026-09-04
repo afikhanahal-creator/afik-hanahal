@@ -224,7 +224,7 @@ export function SummaryView({ data, lang, setLang, shareUrl, mode = 'page', onVe
           <p>{t.privacy}</p>
           <div className="ps-foot-links">
             <a className="ps-btn ghost sm" href="/">{t.home}</a>
-            <a className="ps-btn wa sm" href={`https://wa.me/${OFFICE_WA}?text=${encodeURIComponent(`${data.ref ? `תיק ${data.ref}: ` : ''}`)}`} target="_blank" rel="noreferrer"><IcoWa/>{t.wa}</a>
+            <a className="ps-btn wa sm" href={`https://wa.me/${OFFICE_WA}${data.ref ? `?text=${encodeURIComponent(`תיק ${data.ref}: `)}` : ''}`} target="_blank" rel="noreferrer"><IcoWa/>{t.wa}</a>
           </div>
         </footer>
       </main>

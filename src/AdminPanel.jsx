@@ -1864,11 +1864,11 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
         if (latest?.submitted_at) {
           if (intakeSeenRef.current === null) intakeSeenRef.current = latest.submitted_at   // baseline on first load
           else if (latest.submitted_at > intakeSeenRef.current) {
+            const prevSeen = intakeSeenRef.current
             intakeSeenRef.current = latest.submitted_at
-            const fresh = (d.latest || []).filter(x => x.submitted_at > (intakeSeenRef.prev || '')).slice(0, 3)
+            const fresh = (d.latest || []).filter(x => x.submitted_at > prevSeen).slice(0, 3)
             ;(fresh.length ? fresh : [latest]).forEach(x => addToast(`נכס חדש נקלט ${x.purpose === 'rental' ? 'להשכרה' : 'למכירה'}`, `${x.name || ''}${x.type ? ' · ' + x.type : ''}${x.city ? ' · ' + x.city : ''}${x.price ? ' · ₪' + Number(x.price).toLocaleString('he-IL') : ''} · תיק ${x.ref}`, 'sellers', '🏠', 9000))
           }
-          intakeSeenRef.prev = intakeSeenRef.current
         }
       } catch {}
     }
