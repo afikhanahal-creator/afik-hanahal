@@ -980,10 +980,10 @@ export function stepValueText(step, a, lang) {
       }).join(' · ')
     case 'matrix':
       return visibleRows(step, a).filter(r => !isBlank(v?.[r.k])).map(r => `${L(r, lang)}: ${optLabel(step, v[r.k], lang)}`).join(' · ')
-    case 'upload':
-      return Array.isArray(v) && v.length
-        ? (lang === 'en' ? `${v.length} file${v.length > 1 ? 's' : ''}` : `${v.length} קבצים`)
-        : ''
+    case 'upload': {
+      const n = Array.isArray(v) ? v.filter(f => !f.status || f.status === 'done').length : 0
+      return n ? (lang === 'en' ? `${n} file${n > 1 ? 's' : ''}` : n === 1 ? 'קובץ אחד' : `${n} קבצים`) : ''
+    }
     default:
       return ''
   }
@@ -1003,17 +1003,6 @@ export function buildSummary(a, lang = 'he') {
   }).filter(sec => sec.items.length)
 }
 
-// One-line headline used in notifications and the admin list
-function headlineLegacy(a, lang = 'he') {
-  const type = STEPS.find(s => s.id === 'p_type')
-  const t = a.p_type ? optLabel(type, a.p_type, lang) : ''
-  const addr = a.p_address || {}
-  const where = [addr.street, addr.number].filter(Boolean).join(' ')
-  const city = addr.city || ''
-  const rooms = a.p_rooms ? (lang === 'en' ? `${a.p_rooms} rooms` : `${a.p_rooms} חדרים`) : ''
-  const purp = a.x_purpose ? (lang === 'en' ? (a.x_purpose === 'rental' ? 'for rent' : 'for sale') : (a.x_purpose === 'rental' ? 'להשכרה' : 'למכירה')) : ''
-  return [t, rooms, [where, city].filter(Boolean).join(', '), purp].filter(Boolean).join(' · ')
-}
 
 export const PROPERTY_TYPE_LABEL = (v, lang = 'he') => optLabel(STEPS.find(s => s.id === 'p_type'), v, lang)
 export const PROPERTY_STATE_LABEL = (v, lang = 'he') => ({ he: { new: 'חדש מקבלן', secondhand: 'יד שנייה', renovated: 'לאחר שיפוץ', needs: 'דרוש שיפוץ' }, en: { new: 'New from developer', secondhand: 'Second hand', renovated: 'Renovated', needs: 'Needs renovation' } })[lang === 'en' ? 'en' : 'he'][v] || ''
@@ -1033,7 +1022,6 @@ export const EMPHASIS = {
   c_email: ["כתובת האימייל", "e-mail address"],
   c_role: ["הקשר שלך לנכס", "relationship to the property"],
   c_extra: ["איש קשר נוסף", "another contact person"],
-  c_hours: ["מתי נוח לך", "When is it convenient"],
   c_privacy: ["הגדרות פרטיות", "privacy settings"],
   p_type: ["איזה סוג נכס", "type of property"],
   p_address: ["הכתובת המלאה", "full address"],
