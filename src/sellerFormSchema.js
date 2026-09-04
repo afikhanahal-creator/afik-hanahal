@@ -420,7 +420,7 @@ export const STEPS = [
 
   // ═══════════════════ 6. LEGAL ═════════════════════════════════════════════
   { id: 'l_intro', section: 'legal', type: 'intro' },
-  { id: 'l_owners', section: 'legal', type: 'text', required: true,
+  { id: 'l_owners', section: 'legal', type: 'text',
     q: 'מי הבעלים של הנכס? על שם מי רשומות הזכויות?', en_q: 'Who owns the property? In whose name are the rights registered?',
     ph: 'שמות בעלי הזכויות', en_ph: 'Names of the rights holders' },
   { id: 'l_more_owners', section: 'legal', type: 'choice', required: true,
