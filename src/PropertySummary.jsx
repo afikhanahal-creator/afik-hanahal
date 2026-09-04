@@ -10,7 +10,7 @@
 //   ShareMenu          – copy link / WhatsApp / native share
 //   buildLocalSummary  – turn local answers into the same data shape the API returns
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { buildSummary, buildStory, headline, publicAnswers, fmtNum, STEPS, purposeOf } from './sellerFormSchema.js'
+import { buildSummary, buildStory, headline, publicAnswers, fmtNum, STEPS, purposeOf, roomsOf } from './sellerFormSchema.js'
 
 const API = import.meta.env.PROD ? '' : (import.meta.env.VITE_SELLER_API_BASE || '')
 const FONT_HREF = 'https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700;800&display=swap'
@@ -106,7 +106,7 @@ export function buildLocalSummary(answers, { ref, token, files = [] } = {}) {
     headline: { he: headline(a, 'he'), en: headline(a, 'en') },
     sections: { he: buildSummary(a, 'he'), en: buildSummary(a, 'en') },
     story: { he: buildStory(a, 'he'), en: buildStory(a, 'en') },
-    facts: { price: n(a.d_ask), rooms: a.p_rooms || null, built: n(a.p_area?.built), floor: a.p_floor?.floor ?? null, totalFloors: a.p_floor?.totalFloors ?? null, parking: n(a.f_parking?.parking) },
+    facts: { price: n(a.d_ask), rooms: roomsOf(a) || null, built: n(a.p_area?.built), floor: a.p_floor?.floor ?? null, totalFloors: a.p_floor?.totalFloors ?? null, parking: n(a.f_parking?.parking) },
     media, verifications: [], owner_verified_at: null,
   }
 }

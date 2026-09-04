@@ -42,6 +42,8 @@ const appliesTo = (x, a) => !x.appliesTo || x.appliesTo.includes(purposeOf(a))
 
 // ── answer helpers ────────────────────────────────────────────────────────────
 export const isLand   = a => a.p_type === 'land'
+// rooms as the seller meant them: a list value, or the free text behind "אחר (יותר מ-10 חדרים)"
+export const roomsOf  = a => a?.p_rooms === 'other' ? String(a.p_rooms_other || '').trim().replace(/\s*חדרים?$/, '') : (a?.p_rooms || '')
 export const isHouse  = a => ['cottage', 'house', 'land'].includes(a.p_type)
 export const hasPlot  = a => isHouse(a) || a.p_type === 'garden'
 export const hasParking = a => Number(a.f_parking?.parking || 0) > 0
@@ -118,6 +120,7 @@ export const STEPS = [
       o('cottage',    'קוטג׳ / דו-משפחתי',    'Cottage / semi-detached'),
       o('house',      'בית פרטי / וילה',      'Private house / villa'),
       o('land',       'מגרש',                 'Plot of land'),
+      o('office',     'משרד',                 'Office'),
       o('commercial', 'נכס מסחרי',            'Commercial property'),
       o('other',      'אחר',                  'Other'),
     ] },
@@ -135,8 +138,9 @@ export const STEPS = [
   { id: 'p_rooms', section: 'property', type: 'choice', required: true, select: true, showIf: a => !isLand(a),
     q: 'כמה חדרים בנכס?', en_q: 'How many rooms does the property have?',
     help: 'לפי הספירה הישראלית: סלון נחשב חדר', en_help: 'Israeli count: the living room counts as a room',
-    opts: ['1', '1.5', '2', '2.5', '3', '3.5', '4', '4.5', '5', '5.5', '6', '6.5', '7', '7.5', '8', '8.5', '9', '9.5', '10', '10+']
-      .map(v => o(v, v === '1' ? 'חדר אחד' : v === '10+' ? '10 חדרים ומעלה' : `${v} חדרים`, v === '1' ? '1 room' : v === '10+' ? '10+ rooms' : `${v} rooms`)) },
+    other_ph: 'כמה חדרים? למשל 12', en_other_ph: 'How many rooms? e.g. 12',
+    opts: [...['1', '1.5', '2', '2.5', '3', '3.5', '4', '4.5', '5', '5.5', '6', '6.5', '7', '7.5', '8', '8.5', '9', '9.5', '10']
+      .map(v => o(v, v === '1' ? 'חדר אחד' : `${v} חדרים`, v === '1' ? '1 room' : `${v} rooms`)), o('other', 'אחר (יותר מ-10 חדרים)', 'Other (more than 10 rooms)')] },
   { id: 'p_floor', section: 'property', type: 'group', required: true, showIf: a => !isHouse(a),
     q: 'באיזו קומה הנכס?', en_q: 'Which floor is the property on?',
     fields: [
@@ -1128,7 +1132,7 @@ function buildStoryLegacy(a, lang = 'he') {
   const type = lab('p_type', a.p_type)
   const where = [addr.street, addr.number].filter(Boolean).join(' ')
   const place = [where, addr.neighborhood, addr.city].filter(Boolean).join(', ')
-  const rooms = a.p_rooms
+  const rooms = roomsOf(a)
   const land = isLand(a), house = isHouse(a)
 
   // 1. Opening
@@ -1422,18 +1426,19 @@ const HE_TYPE = {
   cottage:    { noun: 'קוטג׳',      the: 'הקוטג׳',     g: 'm' },
   house:      { noun: 'בית פרטי',   the: 'הבית',       g: 'm' },
   land:       { noun: 'מגרש',       the: 'המגרש',      g: 'm' },
+  office:     { noun: 'משרד',       the: 'המשרד',      g: 'm' },
   commercial: { noun: 'נכס מסחרי',  the: 'הנכס',       g: 'm' },
   other:      { noun: 'נכס',        the: 'הנכס',       g: 'm' },
 }
-const EN_TYPE = { apartment: 'apartment', garden: 'garden apartment', penthouse: 'penthouse', duplex: 'duplex', cottage: 'cottage', house: 'private house', land: 'plot of land', commercial: 'commercial property', other: 'property' }
+const EN_TYPE = { apartment: 'apartment', garden: 'garden apartment', penthouse: 'penthouse', duplex: 'duplex', cottage: 'cottage', house: 'private house', land: 'plot of land', office: 'office', commercial: 'commercial property', other: 'property' }
 const HE_ORD_F = ['הקרקע', 'הראשונה', 'השנייה', 'השלישית', 'הרביעית', 'החמישית', 'השישית', 'השביעית', 'השמינית', 'התשיעית', 'העשירית']
-const heRooms = r => { const s = String(r || ''); if (!s) return ''; return s.endsWith('+') ? `${s.slice(0, -1)} חדרים ומעלה` : s === '1' ? 'חדר אחד' : `${s} חדרים` }
+const heRooms = r => { const s = String(r || '').trim(); if (!s) return ''; if (/חדר/.test(s)) return s; return s.endsWith('+') ? `${s.slice(0, -1)} חדרים ומעלה` : s === '1' ? 'חדר אחד' : `${s} חדרים` }
 const heCount = (n, one, two, many, fem) => { const k = Number(n); if (!k) return ''; if (k === 1) return one; if (k === 2) return two; return `${fem ? ['', '', '', 'שלוש', 'ארבע', 'חמש', 'שש', 'שבע', 'שמונה', 'תשע', 'עשר'][k] || k : ['', '', '', 'שלושה', 'ארבעה', 'חמישה', 'שישה', 'שבעה', 'שמונה', 'תשעה', 'עשרה'][k] || k} ${many}` }
 const heFloor = f => { const n = Number(f); if (Number.isNaN(n) || f === '' || f === null || f === undefined) return ''; if (n < 0) return 'בקומת מרתף'; return n <= 10 ? `בקומה ${HE_ORD_F[n]}` : `בקומה ${n}` }
 const typeInfo = a => HE_TYPE[a.p_type] || HE_TYPE.other
 const heTypePhrase = a => {
   const ti = typeInfo(a)
-  const rooms = heRooms(a.p_rooms)
+  const rooms = heRooms(roomsOf(a))
   if (a.p_type === 'other') return a.p_type_other ? String(a.p_type_other).trim() : (rooms ? `נכס עם ${rooms}` : 'נכס')
   if (a.p_type === 'land') return a.p_area?.plot ? `מגרש של ${fmtNum(a.p_area.plot)} מ״ר` : 'מגרש'
   if (!rooms) return ti.noun
@@ -1443,7 +1448,7 @@ const heTypePhrase = a => {
 const enTypePhrase = a => {
   const base = a.p_type === 'other' && a.p_type_other ? String(a.p_type_other).trim() : (EN_TYPE[a.p_type] || 'property')
   if (a.p_type === 'land') return a.p_area?.plot ? `${fmtNum(a.p_area.plot, 'en')} m² plot` : 'plot of land'
-  return a.p_rooms ? `${a.p_rooms}-room ${base}` : base
+  return roomsOf(a) ? `${roomsOf(a)}-room ${base}` : base
 }
 
 export function headline(a, lang = 'he') {
@@ -1544,7 +1549,7 @@ export function yad2Fields(a, ov = {}) {
     ['עיר', addr.city], ['שכונה', addr.neighborhood],
     ['רחוב', priv.showAddress || ov.showAddress ? addr.street : ''], ['מספר בית', priv.showAddress || ov.showAddress ? addr.number : ''],
     ['קומה', isHouse(a) ? '' : fl.floor], ['קומות בבניין', isHouse(a) ? '' : fl.totalFloors],
-    ['חדרים', ov.rooms || a.p_rooms], ['שטח בנוי (מ״ר)', ov.size || area.built], ['שטח מרפסת (מ״ר)', area.balcony], ['שטח גינה (מ״ר)', area.garden], ['שטח מגרש (מ״ר)', area.plot],
+    ['חדרים', ov.rooms || roomsOf(a)], ['שטח בנוי (מ״ר)', ov.size || area.built], ['שטח מרפסת (מ״ר)', area.balcony], ['שטח גינה (מ״ר)', area.garden], ['שטח מגרש (מ״ר)', area.plot],
     [rental ? 'שכירות חודשית (₪)' : 'מחיר (₪)', ov.price || a.d_ask ? fmtNum(ov.price || a.d_ask) : ''],
     ['תאריך כניסה', entry], ['מצב הנכס', lab('p_state', a.p_state)], ['שנת בנייה', a.p_year],
     ['ועד בית (₪ לחודש)', a.b_fees?.vaad ? fmtNum(a.b_fees.vaad) : ''], ['חניות', a.f_parking?.parking],
@@ -1564,7 +1569,7 @@ export function marketingTexts(a, { phone = '055-981-1814', brand = 'אפיק ה
   const S = id => STEPS.find(s => s.id === id)
   const labs = id => Array.isArray(a[id]) ? a[id].map(x => optLabel(S(id), x, 'he', a)).filter(x => x && x !== 'אחר') : []
   const facts = [
-    a.p_rooms ? `🛏 ${heRooms(a.p_rooms)}` : '',
+    roomsOf(a) ? `🛏 ${heRooms(roomsOf(a))}` : '',
     a.p_area?.built ? `📐 ${fmtNum(a.p_area.built)} מ״ר` : '',
     !isHouse(a) && !isBlank(fl.floor) ? `🏢 קומה ${fl.floor}${fl.totalFloors ? ` מתוך ${fl.totalFloors}` : ''}` : '',
     Number(a.f_parking?.parking) ? `🚗 ${Number(a.f_parking.parking) === 1 ? 'חניה' : `${a.f_parking.parking} חניות`}` : '',

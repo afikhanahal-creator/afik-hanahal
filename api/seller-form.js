@@ -30,7 +30,7 @@
 // WA_GREENAPI_TOKEN, BUSINESS_NOTIFY_CHATID.
 // One-time SQL: server/seller-submissions-migration.sql
 import { createClient } from '@supabase/supabase-js'
-import { buildSummary, headline, PROPERTY_TYPE_LABEL, DOC_TAG_LABEL, publicAnswers, buildStory, storyText, directionsText, STEPS, INTAKE_STATUSES, purposeOf } from '../src/sellerFormSchema.js'
+import { buildSummary, headline, PROPERTY_TYPE_LABEL, DOC_TAG_LABEL, publicAnswers, buildStory, storyText, directionsText, STEPS, INTAKE_STATUSES, purposeOf, roomsOf } from '../src/sellerFormSchema.js'
 
 const SUPA_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
 const SUPA_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY
@@ -203,8 +203,8 @@ async function publishMedia(client, row) {
 }
 
 // ── property generator mapping (answers + office overrides → site property) ──
-const TYPE_HE = { apartment: 'דירה', garden: 'דירת גן', penthouse: 'פנטהאוז', duplex: 'דופלקס', cottage: 'קוטג׳', house: 'בית פרטי', land: 'מגרש לבנייה', commercial: 'נכס מסחרי', other: 'דירה' }
-const CATEGORY = (t, rental) => t === 'land' ? 'land' : t === 'commercial' ? 'commercial' : rental ? 'rentals' : 'apartments'
+const TYPE_HE = { apartment: 'דירה', garden: 'דירת גן', penthouse: 'פנטהאוז', duplex: 'דופלקס', cottage: 'קוטג׳', house: 'בית פרטי', land: 'מגרש לבנייה', office: 'משרד', commercial: 'נכס מסחרי', other: 'דירה' }
+const CATEGORY = (t, rental) => t === 'land' ? 'land' : (t === 'commercial' || t === 'office') ? 'commercial' : rental ? 'rentals' : 'apartments'
 // labels must match the wizard's CONDITIONS / VIEWS / DIRECTIONS so a prepared property opens fully selected
 const CONDITION_HE = { new: 'חדש מקבלן', secondhand: 'במצב שמור', renovated: 'משופץ', needs: 'דרוש שיפוץ' }
 const VIEW_WIZ = { sea: 'ים', park: 'פארק', urban: 'עיר', open: 'טבע', hills: 'טבע', garden: 'טבע', sunset: 'טבע', none: 'ללא' }
@@ -216,7 +216,7 @@ function buildSiteProperty(row, media) {
   const addr = a.p_address || {}
   const priv = a.c_privacy || {}
   const typeHe = ov.type || TYPE_HE[a.p_type] || (a.p_type === 'other' ? (a.p_type_other || 'נכס') : 'נכס')
-  const rooms = ov.rooms ?? a.p_rooms ?? ''
+  const rooms = ov.rooms ?? roomsOf(a) ?? ''
   const size = ov.size ?? a.p_area?.built ?? ''
   const price = num(ov.price) ?? num(a.d_ask) ?? 0
   const showAddress = ov.showAddress !== undefined ? !!ov.showAddress : !!priv.showAddress
@@ -373,7 +373,7 @@ async function publicView(client, row) {
     property_type: row.property_type, city: row.city, purpose: purposeOf(a),
     sections: { he: buildSummary(a, 'he'), en: buildSummary(a, 'en') },
     story: { he: buildStory(a, 'he'), en: buildStory(a, 'en') },
-    facts: { price: num(a.d_ask), rooms: a.p_rooms || null, built: num(a.p_area?.built), floor: a.p_floor?.floor ?? null, totalFloors: a.p_floor?.totalFloors ?? null, parking: num(a.f_parking?.parking), state: a.p_state || null },
+    facts: { price: num(a.d_ask), rooms: roomsOf(a) || null, built: num(a.p_area?.built), floor: a.p_floor?.floor ?? null, totalFloors: a.p_floor?.totalFloors ?? null, parking: num(a.f_parking?.parking), state: a.p_state || null },
     media: signed.map(f => ({ kind: f.kind, name: f.name, type: f.type, url: f.url })),
     verifications: (Array.isArray(row.verifications) ? row.verifications : []).map(v => ({ name: v.name, at: v.at })),
     owner_verified_at: row.owner_verified_at || null,
