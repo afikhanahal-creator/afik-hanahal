@@ -18,6 +18,7 @@ import {
   otherKey, noteKey, directionsText, buildStory, storyText, headline, storyTitle, storyLine, addressLine, PROPERTY_TYPE_LABEL,
   stepOpts, stepQuestion, stepHelp, stepPh, stepUnit, sectionText, emphasisFor, purposeOf, purposeSpecificKeys, PROPERTY_STATE_LABEL } from './sellerFormSchema.js'
 import CITIES from './data/israelCities.json'
+import { visibleSteps as visibleStepsOf } from './sellerFormSchema.js'
 import { SummaryView, ShareMenu, buildLocalSummary } from './PropertySummary.jsx'
 
 const API = import.meta.env.PROD ? '' : (import.meta.env.VITE_SELLER_API_BASE || '')
@@ -32,7 +33,9 @@ const T = {
     welcomeTitle: 'בואו נכיר את הנכס שלכם',
     welcomeSub: 'שאלון קצר של כ־10 דקות שעוזר לנו להכיר את הנכס ולשווק אותו נכון.',
     start: 'בואו נתחיל', resume: 'להמשיך מאיפה שעצרתי', restart: 'להתחיל מחדש',
-    savedDraft: 'מצאנו טופס שהתחלתם למלא',
+    savedDraft: 'מצאנו טופס שהתחלתם למלא', draftStep: 'נעצרתם בשאלה {n} מתוך {total}', draftWhen: { now: 'לפני רגע', min: 'לפני {n} דקות', hour: 'לפני {n} שעות', day: 'לפני {n} ימים' },
+    otherDevice: 'התחלתם למלא במכשיר אחר?', otherDeviceHint: 'הזינו את מספר הטלפון שמסרתם בטופס, ונשלח לכם קישור להמשך בוואטסאפ', otherDeviceSend: 'שלחו לי קישור', otherDeviceSent: 'אם קיים טופס שמור למספר הזה, קישור להמשך נשלח אליכם בוואטסאפ', otherDeviceErr: 'לא הצלחנו לשלוח כרגע. נסו שוב בעוד רגע',
+    later: 'להמשיך אחר כך', laterTitle: 'הטופס שלכם נשמר', laterSub: 'אפשר לסגור ולחזור מאותו מכשיר בכל זמן. כדי להמשיך ממכשיר אחר, שמרו את הקישור:', laterWaSelf: 'שליחה לעצמי בוואטסאפ', laterWaServer: 'שלחו לי את הקישור בוואטסאפ', laterSentOk: 'הקישור נשלח לוואטסאפ שלכם ({phone})', laterSentNo: 'לא הצלחנו לשלוח — העתיקו את הקישור', laterClose: 'חזרה לטופס', copyLink: 'העתקת הקישור', resumedLocal: 'המשכנו מהמקום שבו עצרתם. כל התשובות נשמרו',
     ok: 'אישור', cont: 'המשך', back: 'חזרה', press: 'או לחצו', requiredMark: 'שדה חובה',
     of: 'מתוך', part: 'חלק', optional: 'לא חובה',
     selectMany: 'אפשר לבחור כמה תשובות', selectOne: 'בחרו תשובה אחת', pickOne: 'בחרו מהרשימה…',
@@ -64,7 +67,9 @@ const T = {
     welcomeTitle: "Let's get to know your property",
     welcomeSub: 'A short questionnaire, about 10 minutes, that helps us get to know the property and market it right.',
     start: "Let's start", resume: 'Continue where I stopped', restart: 'Start over',
-    savedDraft: 'We found a form you started',
+    savedDraft: 'We found a form you started', draftStep: 'You stopped at question {n} of {total}', draftWhen: { now: 'a moment ago', min: '{n} minutes ago', hour: '{n} hours ago', day: '{n} days ago' },
+    otherDevice: 'Started on another device?', otherDeviceHint: 'Enter the phone number you gave in the form and we will send you a link to continue on WhatsApp', otherDeviceSend: 'Send me a link', otherDeviceSent: 'If a saved form exists for this number, a link to continue was sent to your WhatsApp', otherDeviceErr: 'We could not send right now. Please try again in a moment',
+    later: 'Continue later', laterTitle: 'Your form is saved', laterSub: 'You can close and come back on this device any time. To continue on another device, keep the link:', laterWaSelf: 'Send to myself on WhatsApp', laterWaServer: 'Send me the link on WhatsApp', laterSentOk: 'The link was sent to your WhatsApp ({phone})', laterSentNo: 'We could not send it — copy the link instead', laterClose: 'Back to the form', copyLink: 'Copy link', resumedLocal: 'Continuing from where you stopped. All your answers were saved',
     ok: 'OK', cont: 'Continue', back: 'Back', press: 'or press', requiredMark: 'Required',
     of: 'of', part: 'Part', optional: 'Optional',
     selectMany: 'Select as many as apply', selectOne: 'Select one answer', pickOne: 'Choose from the list…',
@@ -334,6 +339,30 @@ textarea.sf-input { resize:none; line-height:1.5; font-size:clamp(17px,2vw,22px)
 .sf-welcome h1 { font-size:clamp(30px, 4.8vw, 42px); font-weight:700; margin:0 0 12px; letter-spacing:-.01em; line-height:1.2; }
 .sf-welcome p { font-size:18px; color:var(--ink2); line-height:1.6; margin:0 auto; max-width:460px; }
 .sf-welcome-actions { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin-top:28px; }
+.sf-later-btn { border:1px solid transparent; background:transparent; color:var(--muted); font-family:inherit; font-size:13px; font-weight:600; padding:6px 10px; min-height:40px; border-radius:8px; cursor:pointer; }
+.sf-later-btn:hover { color:var(--deep); background:var(--tint2); }
+.sf-later-inline { display:none; margin:14px auto 0; border:0; background:none; color:var(--muted); font-family:inherit; font-size:13.5px; font-weight:600; padding:8px 12px; min-height:40px; cursor:pointer; text-decoration:underline; text-underline-offset:3px; }
+.sf-later { position:fixed; inset:0; z-index:200; background:rgba(38,36,43,.45); backdrop-filter:blur(3px); display:flex; align-items:center; justify-content:center; padding:18px; }
+.sf-later-card { width:min(100%, 480px); background:var(--paper); border-radius:16px; padding:26px 22px 18px; text-align:center; box-shadow:0 30px 80px rgba(0,0,0,.25); }
+.sf-later-ok { width:48px; height:48px; border-radius:50%; background:var(--tint2); color:var(--deep); display:inline-flex; align-items:center; justify-content:center; margin-bottom:10px; }
+.sf-later-card h3 { margin:0 0 6px; font-size:22px; }
+.sf-later-card p { margin:0 0 14px; color:var(--muted); font-size:14.5px; line-height:1.55; }
+.sf-later-link { font-size:12.5px; color:var(--ink2); background:var(--canvas); border:1px solid var(--line); border-radius:8px; padding:10px 12px; word-break:break-all; margin-bottom:12px; }
+.sf-later-actions { display:flex; flex-direction:column; gap:8px; margin-bottom:10px; }
+.sf-later-actions .sf-btn { width:100%; justify-content:center; }
+.sf-later-actions .sf-btn.wa { color:#128C7E; border-color:rgba(37,211,102,.5); text-decoration:none; }
+.sf-later-card .sf-link { margin-top:6px; }
+.sf-other-device { margin:26px auto 0; max-width:460px; text-align:center; }
+.sf-other-device summary { cursor:pointer; color:var(--deep); font-weight:600; font-size:14px; list-style:none; padding:8px; min-height:40px; display:inline-flex; align-items:center; }
+.sf-other-device summary::-webkit-details-marker { display:none; }
+.sf-other-device p { font-size:13.5px; color:var(--muted); margin:4px 0 10px; }
+.sf-other-form { display:flex; gap:8px; }
+.sf-other-form input { flex:1; min-width:0; font-family:inherit; font-size:16px; padding:10px 12px; min-height:48px; border:1px solid var(--line2); border-radius:10px; background:var(--paper); text-align:center; }
+.sf-other-form .sf-btn { min-height:48px; padding-inline:16px; }
+.sf-other-ok { display:inline-flex; align-items:center; gap:8px; color:var(--deep); background:var(--tint2); border-radius:8px; padding:10px 14px; font-size:14px; margin-top:8px; text-align:start; }
+.sf-draftbox-h { display:flex; align-items:center; justify-content:center; gap:8px; font-weight:700; }
+.sf-draftbox b { display:block; margin-top:6px; font-size:16px; color:var(--ink); }
+.sf-draftbox small { display:block; margin-top:2px; font-size:13px; color:var(--muted); }
 .sf-draftbox { margin:0 auto 20px; max-width:420px; padding:12px 16px; border-radius:6px; background:var(--tint2); font-size:14px; color:var(--ink); display:flex; align-items:center; gap:10px; justify-content:center; }
 .sf-intro .n { font-size:12px; font-weight:700; color:var(--deep); letter-spacing:.14em; margin-bottom:10px; }
 .sf-intro h2 { font-size:clamp(26px, 4vw, 36px); font-weight:700; margin:0 0 10px; letter-spacing:-.01em; line-height:1.2; }
@@ -450,6 +479,8 @@ textarea.sf-input { resize:none; line-height:1.5; font-size:clamp(17px,2vw,22px)
   .sf-field .sf-input { font-size:16px; min-height:44px; padding:10px 0; }
   .sf-btn { min-height:50px; font-size:17px; }
   .sf-foot { bottom:8px; }
+  .sf-top .sf-later-btn { display:none; }
+  .sf-later-inline { display:inline-block; }
   .sf-q { font-size:22px; }
   .sf-help { font-size:16px; }
   .sf-actions { gap:8px; }
@@ -548,7 +579,9 @@ export default function SellerForm() {
   const [err, setErr] = useState(null)
   const [draft, setDraft] = useState(null)
   const [savedTick, setSavedTick] = useState(0)
-  const [editReturn, setEditReturn] = useState(false)     // came from the review to fix one answer → "Continue" goes back there
+  const [editReturn, setEditReturn] = useState(false)
+  const [resumedLocal, setResumedLocal] = useState(false)   // came back on the same device → one reassuring line
+  const [laterOpen, setLaterOpen] = useState(false)     // came from the review to fix one answer → "Continue" goes back there
   const [reachedReview, setReachedReview] = useState(false) // once the summary was seen, a shortcut to it stays available
   const [submitting, setSubmitting] = useState(false)
   const [submitErr, setSubmitErr] = useState('')
@@ -648,6 +681,21 @@ export default function SellerForm() {
     }, 500)
     return () => clearTimeout(h)
   }, [answers, cur, phase, lang, reachedReview])
+  // Leaving the page (tab closed, app switched): push the latest answers right away
+  const latestRef = useRef({})
+  useEffect(() => { latestRef.current = { answers, cur, lang, reached: reachedReview } }, [answers, cur, lang, reachedReview])
+  useEffect(() => {
+    if (phase !== 'form') return
+    const flush = () => {
+      const { answers: a, cur: c, lang: l, reached } = latestRef.current
+      if (!sidRef.current || !Object.keys(a || {}).length) return
+      const clean = stripFilesForDraft(a); delete clean.__consent
+      try { fetch(`${API}/api/seller-form?action=draft`, { method: 'PUT', keepalive: true, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sid: sidRef.current, answers: { ...clean, __reached: reached }, cur: c, lang: l, schemaVersion: SCHEMA_VERSION }) }).catch(() => {}) } catch {}
+    }
+    const onVis = () => { if (document.visibilityState === 'hidden') flush() }
+    window.addEventListener('pagehide', flush); document.addEventListener('visibilitychange', onVis)
+    return () => { window.removeEventListener('pagehide', flush); document.removeEventListener('visibilitychange', onVis) }
+  }, [phase])
   // Server draft: survives a closed tab, a new device, and is what a shared partner continues from
   useEffect(() => {
     if (phase !== 'form' || !sidRef.current) return
@@ -686,6 +734,7 @@ export default function SellerForm() {
       setCur(draft.cur && STEPS.some(s => s.id === draft.cur) ? draft.cur : STEPS[0].id)
       if (draft.lang) setLang(draft.lang)
       setReachedReview(!!draft.reached)
+      setResumedLocal(true)
     } else {
       clearDraft(); setAnswers({}); setCur(STEPS[0].id); if (linkState !== 'fresh') sidRef.current = null
     }
@@ -797,6 +846,7 @@ export default function SellerForm() {
         <div className="sf-top-right">
           {phase === 'form' && <span className="sf-saved" key={savedTick} style={{ opacity: savedTick ? 1 : 0 }}><i/>{cloudSaved ? t.savedCloud : t.autosaved}</span>}
           {phase !== 'done' && <ShareMenu url={`${window.location.origin}/newproperty?d=${sidRef.current || pendingSid.current}`} title={t.brand} text={t.shareFormText} lang={lang} label={t.shareForm} compact/>}
+          {phase === 'form' && <button type="button" className="sf-later-btn" onClick={() => setLaterOpen(true)}>{t.later}</button>}
           <button className="sf-lang" onClick={() => setLang(l => l === 'he' ? 'en' : 'he')} aria-label="Switch language" lang={lang === 'he' ? 'en' : 'he'}><IcoGlobe/>{t.langToggle}</button>
         </div>
       </header>}
@@ -809,6 +859,7 @@ export default function SellerForm() {
         {phase === 'form' && step && (
           <div className="sf-card">
             {linkState === 'resumed' && idx > 0 && <div className="sf-resumed">{t.resumedFromLink}</div>}
+            {resumedLocal && linkState !== 'resumed' && idx > 0 && <div className="sf-resumed">{t.resumedLocal}</div>}
             <AnimatePresence mode="wait" custom={dir} initial={false}>
               <motion.div key={step.id} custom={dir} variants={stepVariants} initial="enter" animate="center" exit="exit" transition={stepTransition}>
                 {step.type === 'intro' && (
@@ -848,6 +899,7 @@ export default function SellerForm() {
                       <button className="sf-btn ghost" onClick={goPrev} disabled={idx === 0}><IcoBack/>{t.back}</button>
                       <button className="sf-btn" onClick={goNext}>{t.cont}<IcoFwd/></button>
                     </div>
+                    <button type="button" className="sf-later-inline" onClick={() => setLaterOpen(true)}>{t.later}</button>
                     <div className="sf-enter">{t.press} <b>{step.type === 'long' ? 'Ctrl + Enter ↵' : 'Enter ↵'}</b></div>
                   </>
                 )}
@@ -865,6 +917,7 @@ export default function SellerForm() {
         )}
       </main>
 
+      {laterOpen && phase === 'form' && <LaterModal t={t} lang={lang} sid={sidRef.current} phone={answers.c_phone || ''} url={`${window.location.origin}/newproperty?d=${sidRef.current}`} onClose={() => setLaterOpen(false)}/>}
       {phase === 'form' && (
         <footer className="sf-foot">
           <span className="sf-count">{idx + 1} {t.of} {total}</span>
@@ -878,19 +931,92 @@ export default function SellerForm() {
 }
 
 // ═══ WELCOME ══════════════════════════════════════════════════════════════════
+const relTime = (ts, t) => {
+  if (!ts) return ''
+  const m = Math.max(0, Math.round((Date.now() - ts) / 60000))
+  if (m < 2) return t.draftWhen.now
+  if (m < 60) return fill(t.draftWhen.min, { n: m })
+  if (m < 48 * 60) return fill(t.draftWhen.hour, { n: Math.round(m / 60) })
+  return fill(t.draftWhen.day, { n: Math.round(m / 1440) })
+}
 function Welcome({ t, lang, draft, onStart, onResume, loading }) {
   const hasDraft = draft && Object.keys(draft.answers || {}).length > 0
+  const [phone, setPhone] = useState('')
+  const [lookup, setLookup] = useState('')   // '' | sending | sent | err
+  const meta = useMemo(() => {
+    if (!hasDraft) return null
+    const a = draft.answers || {}
+    const vis = visibleStepsOf(a)
+    const i = Math.max(0, vis.findIndex(s => s.id === draft.cur))
+    const what = headline(a, lang) || (a.c_name ? String(a.c_name).trim() : '')
+    return { what, step: fill(t.draftStep, { n: i + 1, total: vis.length }), when: relTime(draft.savedAt, t) }
+  }, [draft, hasDraft, lang, t])
+  const send = async e => {
+    e.preventDefault()
+    if (!phone.trim()) return
+    setLookup('sending')
+    try { const r = await fetch(`${API}/api/seller-form?action=find-draft`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone: phone.trim() }) }); setLookup(r.ok ? 'sent' : 'err') } catch { setLookup('err') }
+  }
   if (loading) return <div className="sf-welcome"><img className="logo" src={LOGO_SRC} alt={t.brand}/><p>…</p></div>
   return (
     <div className="sf-welcome">
       <img className="logo" src={LOGO_SRC} alt={t.brand}/>
       <h1>{t.welcomeTitle}</h1>
       <p>{t.welcomeSub}</p>
-      {hasDraft && <div className="sf-draftbox"><IcoWarn/>{t.savedDraft}</div>}
+      {hasDraft && (
+        <div className="sf-draftbox">
+          <div className="sf-draftbox-h"><IcoCheck size={14}/>{t.savedDraft}</div>
+          {meta?.what && <b>{meta.what}</b>}
+          <small>{[meta?.step, meta?.when].filter(Boolean).join(' · ')}</small>
+        </div>
+      )}
       <div className="sf-welcome-actions">
         {hasDraft
           ? <><button className="sf-btn big" onClick={onResume} data-autofocus>{t.resume}<IcoFwd/></button><button className="sf-btn big ghost" onClick={onStart}>{t.restart}</button></>
           : <button className="sf-btn big" onClick={onStart} data-autofocus>{t.start}<IcoFwd/></button>}
+      </div>
+      {!hasDraft && (
+        <details className="sf-other-device">
+          <summary>{t.otherDevice}</summary>
+          <p>{t.otherDeviceHint}</p>
+          {lookup === 'sent' ? <div className="sf-other-ok"><IcoCheck size={14}/>{t.otherDeviceSent}</div> : (
+            <form onSubmit={send} className="sf-other-form">
+              <input type="tel" inputMode="tel" autoComplete="tel" dir="ltr" value={phone} onChange={e => setPhone(e.target.value)} placeholder="050-000-0000" aria-label={t.otherDevice}/>
+              <button type="submit" className="sf-btn" disabled={lookup === 'sending' || !phone.trim()}>{lookup === 'sending' ? '…' : t.otherDeviceSend}</button>
+            </form>
+          )}
+          {lookup === 'err' && <div className="sf-err"><IcoWarn/>{t.otherDeviceErr}</div>}
+        </details>
+      )}
+    </div>
+  )
+}
+
+// "Continue later": the draft is already saved — show the link, offer WhatsApp-to-self and a server-sent WhatsApp
+function LaterModal({ t, lang, url, sid, phone, onClose }) {
+  const [copied, setCopied] = useState(false)
+  const [sent, setSent] = useState('')   // '' | sending | ok:<phone> | no
+  const copy = async () => { try { await navigator.clipboard.writeText(url) } catch {} setCopied(true); setTimeout(() => setCopied(false), 1800) }
+  const sendServer = async () => {
+    setSent('sending')
+    try { const r = await fetch(`${API}/api/seller-form?action=resume-link`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sid, phone }) }); const d = await r.json().catch(() => ({})); setSent(r.ok && d.sent ? `ok:${d.phoneMasked || ''}` : 'no') } catch { setSent('no') }
+  }
+  const waSelf = `https://wa.me/?text=${encodeURIComponent(`${lang === 'en' ? 'My property form at Afik Hanahal — continue here:' : 'טופס הנכס שלי באפיק הנחל — להמשך:'}\n${url}`)}`
+  return (
+    <div className="sf-later" role="dialog" aria-modal="true" aria-label={t.laterTitle} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div className="sf-later-card">
+        <div className="sf-later-ok"><IcoCheck size={22}/></div>
+        <h3>{t.laterTitle}</h3>
+        <p>{t.laterSub}</p>
+        <div className="sf-later-link" dir="ltr">{url}</div>
+        <div className="sf-later-actions">
+          <button type="button" className="sf-btn ghost" onClick={copy}><IcoCopy/> {copied ? t.copied : t.copyLink}</button>
+          <a className="sf-btn ghost wa" href={waSelf} target="_blank" rel="noreferrer"><IcoWa/> {t.laterWaSelf}</a>
+          {phone && !sent.startsWith('ok') && <button type="button" className="sf-btn" onClick={sendServer} disabled={sent === 'sending'}><IcoWa/> {sent === 'sending' ? '…' : t.laterWaServer}</button>}
+        </div>
+        {sent.startsWith('ok') && <div className="sf-other-ok"><IcoCheck size={14}/>{fill(t.laterSentOk, { phone: sent.slice(3) })}</div>}
+        {sent === 'no' && <div className="sf-err"><IcoWarn/>{t.laterSentNo}</div>}
+        <button type="button" className="sf-link" onClick={onClose}>{t.laterClose}</button>
       </div>
     </div>
   )

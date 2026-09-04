@@ -309,6 +309,19 @@ const GREEN_INSTANCE = process.env.WA_GREENAPI_INSTANCE || ''
 const GREEN_TOKEN    = process.env.WA_GREENAPI_TOKEN || ''
 const NOTIFY_CHATID  = process.env.BUSINESS_NOTIFY_CHATID || '972559811814'
 const greenBase = () => { const region = String(GREEN_INSTANCE).slice(0, 4); return region ? `https://${region}.api.greenapi.com` : 'https://api.green-api.com' }
+// Send a WhatsApp message from the office number (Green API) to any phone
+async function sendWa(phone, message) {
+  if (!GREEN_INSTANCE || !GREEN_TOKEN) return { ok: false, error: 'Green API not configured' }
+  const intl = toIntlPhone(phone)
+  if (!intl || intl.length < 11) return { ok: false, error: 'bad phone' }
+  try {
+    const r = await fetch(`${greenBase()}/waInstance${GREEN_INSTANCE}/sendMessage/${GREEN_TOKEN}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chatId: `${intl}@c.us`, message }), signal: AbortSignal.timeout(15000) })
+    return r.ok ? { ok: true } : { ok: false, error: `Green API HTTP ${r.status}` }
+  } catch (e) { return { ok: false, error: e.message } }
+}
+const resumeMessage = (name, sid, lang) => lang === 'en'
+  ? `Hi${name ? ` ${name}` : ''}, your property form at Afik Hanahal is saved. Continue from where you stopped, on any device:\n${SITE}/newproperty?d=${sid}`
+  : `היי${name ? ` ${name}` : ''}, טופס הנכס שלכם באפיק הנחל נשמר. אפשר להמשיך מהמקום שבו עצרתם, מכל מכשיר:\n${SITE}/newproperty?d=${sid}\n\nאפיק הנחל · ייזום, שיווק ותיווך נדל״ן`
 async function notifyWhatsApp(row, a) {
   if (!GREEN_INSTANCE || !GREEN_TOKEN) return { ok: false, error: 'Green API not configured' }
   const chatId = NOTIFY_CHATID.includes('@') ? NOTIFY_CHATID : `${toIntlPhone(NOTIFY_CHATID)}@c.us`
@@ -415,6 +428,37 @@ export default async function handler(req, res) {
     }
 
     // ── draft: load / save (public, sid is the secret) ──────────────────────
+    // "Send me the link": the seller gets their own resume link on WhatsApp (never exposes anyone else's draft)
+    if (action === 'resume-link' && req.method === 'POST') {
+      if (rateLimited(req, 'resume', 6, 10 * 60000)) return res.status(429).json({ ok: false, error: 'too many requests' })
+      const b = req.body || {}
+      const sid = String(b.sid || '')
+      if (!SID_RE.test(sid)) return res.status(400).json({ ok: false, error: 'invalid sid' })
+      const row = await getRow(`sid=eq.${encodeURIComponent(sid)}`, 'sid,phone,contact_name,lang,submitted_at,answers')
+      if (!row) return res.status(404).json({ ok: false, error: 'not found' })
+      if (row.submitted_at) return res.status(400).json({ ok: false, error: 'already submitted' })
+      const phone = row.phone || row.answers?.c_phone || (PHONE_RE.test(String(b.phone || '')) ? String(b.phone) : '')
+      if (!phone) return res.status(400).json({ ok: false, error: 'no phone yet' })
+      const sent = await sendWa(phone, resumeMessage((row.contact_name || row.answers?.c_name || '').split(/\s+/)[0], sid, row.lang))
+      const intl = toIntlPhone(phone)
+      return res.status(200).json({ ok: true, sent: sent.ok, phoneMasked: intl ? `${intl.slice(0, 3)}…${intl.slice(-3)}` : '', error: sent.ok ? undefined : sent.error })
+    }
+    // "I started on another device": look the draft up by phone and send the link to THAT phone only
+    if (action === 'find-draft' && req.method === 'POST') {
+      if (rateLimited(req, 'find', 4, 10 * 60000)) return res.status(429).json({ ok: false, error: 'too many requests' })
+      const raw = String((req.body || {}).phone || '')
+      if (!PHONE_RE.test(raw)) return res.status(400).json({ ok: false, error: 'invalid phone' })
+      const intl = toIntlPhone(raw), d = intl.slice(-7)
+      let sent = { ok: false }
+      if (d.length === 7) {
+        const r = await supaFetch(`/${TABLE}?select=sid,phone,contact_name,lang,submitted_at&phone=ilike.*${d.slice(0, 3)}*${d.slice(3)}*&submitted_at=is.null&order=draft_updated_at.desc.nullslast&limit=5`)
+        const rows = r.ok ? await r.json().catch(() => []) : []
+        const hit = (Array.isArray(rows) ? rows : []).find(x => toIntlPhone(x.phone) === intl)
+        if (hit) sent = await sendWa(intl, resumeMessage((hit.contact_name || '').split(/\s+/)[0], hit.sid, hit.lang))
+      }
+      // the response never says whether a draft exists for that number
+      return res.status(200).json({ ok: true, sent: sent.ok })
+    }
     if (action === 'draft') {
       if (req.method === 'GET') {
         const sid = String(req.query.sid || '')
