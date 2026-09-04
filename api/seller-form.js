@@ -527,7 +527,7 @@ export default async function handler(req, res) {
       const ref = existing?.ref || makeRef(), share_token = existing?.share_token || makeToken()
       const row = {
         sid, ref, share_token, status: 'new', lang: b.lang === 'en' ? 'en' : 'he', answers: a, files, cur: null,
-        story: typeof b.story === 'string' ? b.story.slice(0, 20000) : storyText(a, 'he'),
+        story: (() => { try { const st = storyText(a, 'he'); if (st && st.length > 40) return st.slice(0, 20000) } catch {} return typeof b.story === 'string' ? b.story.slice(0, 20000) : null })(),   // generated here from the stored answers — one source of truth 'he'),
         schema_version: Number(b.schemaVersion || 1), submitted_at: now(), updated_at: now(),
         meta: { url: String(b.meta?.url || '').slice(0, 300), ua: String(b.meta?.ua || '').slice(0, 300), durationSec: b.meta?.durationSec },
         history: withHistory(existing, { by: 'seller', action: 'submitted', note: `${name} · ${(files || []).length} קבצים` }),
@@ -714,8 +714,11 @@ export default async function handler(req, res) {
       // unpublish: keep the property record in the generator, just hide it on the site
       if (!row.published_property_id) return res.status(400).json({ ok: false, error: 'not published' })
       const current = await renderGet(row.published_property_id).catch(() => null)
-      const media = { images: current?.images || [], videos: current?.videos || [], map: (row.meta || {}).publicMedia || {} }
-      const property = { ...(current || buildSiteProperty(row, media)), id: row.published_property_id, published: false, status: 'לא פעיל', updatedAt: now() }
+      // keep the media on the hidden property: what the site has now, else the public copies we made at publish time
+      const publicMap = (row.meta || {}).publicMedia || {}
+      const images = current?.images?.length ? current.images : (row.files || []).filter(f => f.kind === 'photos' && publicMap[f.path]).map(f => publicMap[f.path])
+      const media = { images, videos: current?.videos || [], map: publicMap }
+      const property = { ...buildSiteProperty(row, media), ...(current || {}), images, id: row.published_property_id, published: false, status: 'לא פעיל', updatedAt: now() }
       await renderPut(property)
       const patch = { status: 'approved', updated_at: now(), history: withHistory(row, { by: 'admin', action: 'unpublished', note: `property ${row.published_property_id}` }) }
       await patchRow(`id=eq.${row.id}`, patch)
