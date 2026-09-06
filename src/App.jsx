@@ -37,6 +37,21 @@ const API_BASE     = (import.meta.env.VITE_API_URL || 'https://afik-hanahal-serv
 const CONTACTS_API = import.meta.env.PROD ? '' : API_BASE
 const ADMIN_TOKEN  = 'AFIKhanahal2026'
 
+// Conditional GET for everything the admin panel polls. Remembers the ETag of the last body per URL
+// and sends If-None-Match, so an unchanged list costs an empty 304 instead of the whole payload
+// (both Render and Vercel bill outbound bytes). Returns { ok, changed, data }.
+const _etagCache = new Map()
+async function condFetchJson(url, headers = {}, opts = {}) {
+  const prev = _etagCache.get(url)
+  const r = await fetch(url, { ...opts, headers: { ...headers, ...(prev?.etag ? { 'If-None-Match': prev.etag } : {}) } })
+  if (r.status === 304) return prev ? { ok: true, changed: false, data: prev.data } : { ok: false, changed: false, data: null }
+  if (!r.ok) return { ok: false, changed: false, data: null, status: r.status }
+  const data = await r.json()
+  const etag = r.headers.get('etag')
+  if (etag) _etagCache.set(url, { etag, data }); else _etagCache.delete(url)
+  return { ok: true, changed: true, data }
+}
+
 // ─── THEME COLOURS ────────────────────────────────────────────────────────────
 const DARK_C  = { bg:'#09090F', purple:'#8490D8', green:'#82F67F', cream:'#E8E4D8', card:'#0E0E1C' }
 const LIGHT_C = { bg:'#F5F1E9', purple:'#3F4EB0', green:'#1A6818', cream:'#141420', card:'#FDFCF8' }
@@ -5153,12 +5168,11 @@ export default function App() {
   // Visitors: every 10 minutes from Vercel's edge cache, with an ETag so an unchanged
   // list costs a 304 instead of the whole payload. Both pause while the tab is hidden.
   useEffect(() => {
-    let etag = ''
     const refresh = () => {
       if (typeof document !== 'undefined' && document.hidden) return
-      const headers = adminAuth ? { Authorization: `Bearer ${ADMIN_TOKEN}` } : (etag ? { 'If-None-Match': etag } : {})
-      fetch(adminAuth && API_BASE ? `${API_BASE}/api/properties` : `/api/properties`, { headers })
-        .then(r => { if (r.status === 304) return Promise.reject(); etag = r.headers.get('etag') || etag; return r.ok ? r.json() : Promise.reject() })
+      const headers = adminAuth ? { Authorization: `Bearer ${ADMIN_TOKEN}` } : {}
+      condFetchJson(adminAuth && API_BASE ? `${API_BASE}/api/properties` : `/api/properties`, headers)
+        .then(res => (res.ok && res.changed ? res.data : Promise.reject()))
         .then(data => {
           if (!Array.isArray(data) || !data.length) return
           // Use same merge as initial fetch — never blindly overwrite optimistic updates
@@ -5176,7 +5190,7 @@ export default function App() {
         })
         .catch(() => {})
     }
-    const id = setInterval(refresh, adminAuth ? 60000 : 600000)
+    const id = setInterval(refresh, adminAuth ? 120000 : 600000)
     return () => clearInterval(id)
   }, [adminAuth]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -6084,4 +6098,4 @@ export default function App() {
 }
 
 // Shared with the lazily-loaded admin dashboard (src/AdminPanel.jsx)
-export { TEAM_KEY, LeadsBoard, GreenAPIChat, MetaLeadsTab, SupermetricsTab, PropertyWizard, API_BASE, CONTACTS_API, ADMIN_TOKEN, DARK_C, useTheme, TEAM, G, Logo, LEADS_STORE, LEADS_DELETED, LEADS_TRASH, ANALYTICS_KEY, META_LEAD_PAGES_KEY, WA_DEFAULT_TEMPLATE, _cloudSettings, CATEGORIES, EMPTY_PROP, CONDITION_OPTIONS, ENTRY_OPTIONS, ADMIN_DRAFT_KEY, toMapsEmbed, imgFallback, thumbImg }
+export { TEAM_KEY, LeadsBoard, GreenAPIChat, MetaLeadsTab, SupermetricsTab, PropertyWizard, API_BASE, CONTACTS_API, ADMIN_TOKEN, condFetchJson, DARK_C, useTheme, TEAM, G, Logo, LEADS_STORE, LEADS_DELETED, LEADS_TRASH, ANALYTICS_KEY, META_LEAD_PAGES_KEY, WA_DEFAULT_TEMPLATE, _cloudSettings, CATEGORIES, EMPTY_PROP, CONDITION_OPTIONS, ENTRY_OPTIONS, ADMIN_DRAFT_KEY, toMapsEmbed, imgFallback, thumbImg }

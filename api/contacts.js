@@ -17,6 +17,7 @@
 // nodemailer is loaded dynamically inside sendLeadEmail to prevent a static-import
 // crash from taking down the entire module (same fix applied to meta.js).
 
+import { sendJson } from '../lib/http.js'
 const SUPA_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
 const SUPA_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY
 const ADMIN_TOKEN = 'AFIKhanahal2026'
@@ -387,7 +388,8 @@ export default async function handler(req, res) {
     // ── GET: list all contacts ───────────────────────────────────────────────
     if (req.method === 'GET') {
       const contacts = await getContacts()
-      return res.status(200).json(contacts)
+      res.setHeader('Cache-Control', 'no-store')
+      return sendJson(req, res, contacts)
     }
 
     // ── POST: create new contact ─────────────────────────────────────────────

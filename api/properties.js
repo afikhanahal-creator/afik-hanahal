@@ -1,24 +1,6 @@
 // Vercel serverless — proxies property GET to Render backend
-import { gzipSync } from 'zlib'
-import { createHash } from 'crypto'
+import { sendJson } from '../lib/http.js'
 const RENDER = process.env.RENDER_URL || 'https://afik-hanahal-server.onrender.com'
-
-// The property list is the largest payload this site serves. Vercel meters every byte that leaves a
-// function ("Fast Origin Transfer"), so the body is gzipped here (JSON shrinks 5-10x) and carries an
-// ETag so a repeat poll costs a few hundred bytes instead of the whole list.
-function sendJson(req, res, data) {
-  const body = JSON.stringify(data)
-  const etag = `"${createHash('sha1').update(body).digest('hex').slice(0, 20)}"`
-  res.setHeader('ETag', etag)
-  res.setHeader('Vary', 'Accept-Encoding, Authorization')
-  if ((req.headers['if-none-match'] || '') === etag) return res.status(304).end()
-  res.setHeader('Content-Type', 'application/json; charset=utf-8')
-  if (/\bgzip\b/.test(req.headers['accept-encoding'] || '') && body.length > 1024) {
-    res.setHeader('Content-Encoding', 'gzip')
-    return res.status(200).send(gzipSync(Buffer.from(body, 'utf8')))
-  }
-  return res.status(200).send(body)
-}
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')

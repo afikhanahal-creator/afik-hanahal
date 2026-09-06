@@ -8,7 +8,7 @@ import { LAYERS_DEF as GM_LAYERS, BG_OPTIONS as GM_BG_OPTIONS, LAYER_CATS_DEF as
 import { FaEnvelope, FaFacebookF, FaInstagram, FaBed, FaRulerCombined, FaBuilding, FaTools, FaMapMarkerAlt, FaPhone, FaLeaf, FaCalendarAlt, FaTimes, FaWhatsapp, FaFileAlt, FaHome, FaSearch, FaBalanceScale, FaHandshake, FaLock, FaKey, FaGlobe, FaBolt, FaChartLine, FaEye, FaPlay, FaFire, FaShareAlt, FaHeart, FaCamera, FaUser, FaUsers, FaDesktop, FaMobileAlt, FaTabletAlt, FaRobot, FaExclamationTriangle, FaChartBar, FaThumbsUp, FaImage, FaPencilAlt, FaCrown, FaMousePointer, FaDollarSign, FaVideo, FaLink, FaCheckCircle, FaTrash, FaClipboardList } from 'react-icons/fa'
 // Seller intake submissions (from the public /sell form) — lazy, admin-only
 const SellerSubmissionsTab = lazy(() => import('./SellerSubmissionsTab.jsx'))
-import { LeadsBoard, GreenAPIChat, MetaLeadsTab, SupermetricsTab, PropertyWizard, API_BASE, CONTACTS_API, ADMIN_TOKEN, DARK_C, useTheme, TEAM, G, Logo, LEADS_STORE, LEADS_DELETED, LEADS_TRASH, ANALYTICS_KEY, META_LEAD_PAGES_KEY, WA_DEFAULT_TEMPLATE, _cloudSettings, CATEGORIES, EMPTY_PROP, CONDITION_OPTIONS, ENTRY_OPTIONS, ADMIN_DRAFT_KEY, toMapsEmbed, imgFallback, thumbImg, TEAM_KEY, setCloudSettings } from './App.jsx'
+import { LeadsBoard, GreenAPIChat, MetaLeadsTab, SupermetricsTab, PropertyWizard, API_BASE, CONTACTS_API, ADMIN_TOKEN, condFetchJson, DARK_C, useTheme, TEAM, G, Logo, LEADS_STORE, LEADS_DELETED, LEADS_TRASH, ANALYTICS_KEY, META_LEAD_PAGES_KEY, WA_DEFAULT_TEMPLATE, _cloudSettings, CATEGORIES, EMPTY_PROP, CONDITION_OPTIONS, ENTRY_OPTIONS, ADMIN_DRAFT_KEY, toMapsEmbed, imgFallback, thumbImg, TEAM_KEY, setCloudSettings } from './App.jsx'
 
 // Tab ↔ URL deep-link mapping (module-level so both AdminPanel and main app can use it)
 const ADMIN_TAB_TO_PATH = { overview:'', props:'properties', leads:'leads', sellers:'properties-intake', chats:'chats', meta:'lead-center', analytics:'analytics', supermetrics:'performance', team:'team', settings:'settings', counters:'counters', live:'live' }
@@ -1919,8 +1919,8 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const syncLeadsFromServer = () => {
     if (leadsSyncing) return
     setLeadsSyncing(true)
-    fetch(`${CONTACTS_API}/api/contacts`, { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` } })
-      .then(r => r.ok ? r.json() : Promise.reject())
+    condFetchJson(`${CONTACTS_API}/api/contacts`, { Authorization: `Bearer ${ADMIN_TOKEN}` })
+      .then(res => (res.ok && res.changed ? res.data : Promise.reject()))
       .then(serverLeads => {
         if (!Array.isArray(serverLeads)) return
         const deletedIds = new Set(
@@ -1956,7 +1956,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   // Sync on admin mount + auto-sync every 60 s — cloud is always source of truth
   useEffect(() => {
     syncLeadsFromServer()
-    const iv = setInterval(() => { if (!document.hidden) syncLeadsFromServer() }, 15000)
+    const iv = setInterval(() => { if (!document.hidden) syncLeadsFromServer() }, 45000)
     return () => clearInterval(iv)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1974,11 +1974,8 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     const p = intlPhoneFmt(phone)
     if (!p) return
     try {
-      const r = await fetch(`${API_BASE}/api/chats/${p}`, { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` } })
-      if (r.ok) {
-        const msgs = await r.json()
-        setChats(prev => ({ ...prev, [p]: msgs }))
-      }
+      const res = await condFetchJson(`${API_BASE}/api/chats/${p}`, { Authorization: `Bearer ${ADMIN_TOKEN}` })
+      if (res.ok && res.changed) setChats(prev => ({ ...prev, [p]: res.data }))
     } catch {}
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1993,9 +1990,9 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const fetchAllChats = useCallback(async () => {
     if (!API_BASE) return
     try {
-      const r = await fetch(`${API_BASE}/api/chats/conversations`, { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` }, signal: AbortSignal.timeout(10000) })
-      if (!r.ok) return
-      const convs = await r.json()
+      const res = await condFetchJson(`${API_BASE}/api/chats/conversations`, { Authorization: `Bearer ${ADMIN_TOKEN}` }, { signal: AbortSignal.timeout(10000) })
+      if (!res.ok || !res.changed) return
+      const convs = res.data
       if (!Array.isArray(convs)) return
       setChats(prev => {
         const next = { ...prev }
@@ -2135,7 +2132,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     fetchChats(phone)
     // Skip polling while the tab is in the background — admins keep the dashboard
     // open for hours, and a hidden tab hammering the API is pure wasted egress.
-    chatPollRef.current = setInterval(() => { if (!document.hidden) fetchChats(phone) }, 12000)
+    chatPollRef.current = setInterval(() => { if (!document.hidden) fetchChats(phone) }, 15000)
     return () => { if (chatPollRef.current) clearInterval(chatPollRef.current) }
   }, [selectedLead?.id, fetchChats])
 
@@ -2145,7 +2142,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     fetchChats(chatContact.phone)
     // 3s is plenty responsive for a chat view; the old 500ms fired ~2 req/sec
     // continuously. Also pause entirely while the tab is hidden.
-    const interval = setInterval(() => { if (!document.hidden) fetchChats(chatContact.phone) }, 3000)
+    const interval = setInterval(() => { if (!document.hidden) fetchChats(chatContact.phone) }, 4000)
     return () => clearInterval(interval)
   }, [chatContact?.id, tab, fetchChats]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -2153,7 +2150,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   useEffect(() => {
     if (tab !== 'chats') return
     fetchAllChats()
-    const id = setInterval(() => { if (!document.hidden) fetchAllChats() }, 8000)
+    const id = setInterval(() => { if (!document.hidden) fetchAllChats() }, 12000)
     return () => clearInterval(id)
   }, [tab, fetchAllChats]) // eslint-disable-line react-hooks/exhaustive-deps
 
