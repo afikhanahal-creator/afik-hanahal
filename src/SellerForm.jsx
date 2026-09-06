@@ -536,25 +536,25 @@ textarea.sf-input { resize:none; line-height:1.5; font-size:clamp(17px,2vw,22px)
   .sf-welcome .logo { height:110px; }
   .sf-btn { padding:11px 18px; }
 }
-/* Desktop: every reading size one or two pixels larger. Layout, spacing and centring are untouched. */
+/* Desktop: every reading size about one pixel larger. Layout, spacing and centring are untouched. */
 @media (min-width: 721px) {
-  .sf-brandtxt { font-size:15px; } .sf-step { font-size:13.5px; } .sf-lang { font-size:14px; } .sf-saved { font-size:12.5px; }
-  .sf-badge { font-size:13.5px; } .sf-q { font-size:clamp(25px, 3vw, 35px); } .sf-sec { font-size:15px; } .sf-help { font-size:19.5px; } .sf-hint { font-size:15.5px; } .sf-link { font-size:15px; }
-  .sf-input { font-size:clamp(22px, 2.7vw, 32px); } textarea.sf-input { font-size:clamp(18.5px, 2.1vw, 23.5px); } .sf-unit { font-size:17px; }
-  .sf-field label { font-size:15px; } .sf-field .sf-input { font-size:21.5px; } .sf-field .sf-unit { font-size:14px; } .sf-other .sf-input { font-size:20.5px; } .sf-note textarea.sf-input { font-size:17px; }
-  .sf-opt { font-size:19.5px; } .sf-opts.compact .sf-opt { font-size:20.5px; } .sf-opts.big .sf-opt { font-size:22.5px; } .sf-key { font-size:12px; }
-  .sf-pill { font-size:16px; } .sf-mrow .lbl { font-size:19px; } .sf-counter .lbl { font-size:17px; } .sf-linked .lbl { font-size:16px; } .sf-presets { font-size:14px; } .sf-seg button { font-size:14.5px; }
-  .sf-combo-list li { font-size:17px; } .sf-combo-empty { font-size:15px; } .sf-bigselect { font-size:23px; } .sf-select-wrap { font-size:14.5px; } .sf-select, .sf-date select { font-size:17px; }
-  .sf-drop h4 { font-size:17px; } .sf-drop p { font-size:14px; } .sf-file .nm { font-size:13px; } .sf-file .st { font-size:13.5px; }
-  .sf-btn, .sf-btn.big { font-size:18px; } .sf-enter { font-size:14px; } .sf-err { font-size:15.5px; } .sf-count { font-size:14px; } .sf-jump { font-size:14px; } .sf-later-btn { font-size:14px; } .sf-later-inline { font-size:14.5px; }
-  .sf-welcome h1 { font-size:clamp(32px, 5vw, 44px); } .sf-welcome p { font-size:19.5px; } .sf-draftbox { font-size:15px; } .sf-draftbox b { font-size:17px; } .sf-draftbox small { font-size:14px; }
-  .sf-other-device summary { font-size:15px; } .sf-other-device p { font-size:14.5px; } .sf-later-card h3 { font-size:23px; } .sf-later-card p { font-size:15.5px; }
-  .sf-intro .n { font-size:13px; } .sf-intro h2 { font-size:clamp(28px, 4.2vw, 38px); } .sf-intro p { font-size:18.5px; }
-  .sf-rk { font-size:12.5px; } .sf-rhero h2 { font-size:clamp(26px, 3.4vw, 36px); } .sf-fact small { font-size:11.5px; } .sf-fact b { font-size:19.5px; } .sf-rsub { font-size:15px; } .sf-rline { font-size:16.5px; }
-  .sf-rsec h3 button { font-size:16px; } .sf-rsec h3 button small { font-size:13px; } .sf-ritem .k { font-size:14.5px; } .sf-ritem .v { font-size:16.5px; } .sf-ritem button { font-size:13.5px; } .sf-editbar { font-size:15px; } .sf-editbar button { font-size:14.5px; }
-  .sf-chips em, .sf-vnote { font-size:14px; } .sf-story h2 { font-size:clamp(28px, 3.6vw, 40px); } .sf-paper-h b { font-size:17.5px; } .sf-paper-h small { font-size:14px; }
-  .sf-para h3 { font-size:13.5px; } .sf-para p { font-size:19px; } .sf-para:first-of-type p { font-size:21.5px; } .sf-paper-f { font-size:13.5px; } .sf-privacy-line { font-size:14.5px; }
-  .sf-missing h4 { font-size:15.5px; } .sf-missing button { font-size:16px; } .sf-consent { font-size:15.5px; } .sf-done h1 { font-size:clamp(30px, 4.6vw, 42px); } .sf-done p { font-size:18.5px; }
+  .sf-brandtxt { font-size:14px; } .sf-step { font-size:12.5px; } .sf-lang { font-size:13px; } .sf-saved { font-size:11.5px; }
+  .sf-badge { font-size:12.5px; } .sf-q { font-size:clamp(24px, 3vw, 34px); } .sf-sec { font-size:14px; } .sf-help { font-size:18.5px; } .sf-hint { font-size:14.5px; } .sf-link { font-size:14px; }
+  .sf-input { font-size:clamp(21px, 2.7vw, 31px); } textarea.sf-input { font-size:clamp(17.5px, 2.1vw, 22.5px); } .sf-unit { font-size:16px; }
+  .sf-field label { font-size:14px; } .sf-field .sf-input { font-size:20.5px; } .sf-field .sf-unit { font-size:13px; } .sf-other .sf-input { font-size:19.5px; } .sf-note textarea.sf-input { font-size:16px; }
+  .sf-opt { font-size:18.5px; } .sf-opts.compact .sf-opt { font-size:19.5px; } .sf-opts.big .sf-opt { font-size:21.5px; } .sf-key { font-size:11px; }
+  .sf-pill { font-size:15px; } .sf-mrow .lbl { font-size:18px; } .sf-counter .lbl { font-size:16px; } .sf-linked .lbl { font-size:15px; } .sf-presets { font-size:13px; } .sf-seg button { font-size:13.5px; }
+  .sf-combo-list li { font-size:16px; } .sf-combo-empty { font-size:14px; } .sf-bigselect { font-size:22px; } .sf-select-wrap { font-size:13.5px; } .sf-select, .sf-date select { font-size:16px; }
+  .sf-drop h4 { font-size:16px; } .sf-drop p { font-size:13px; } .sf-file .nm { font-size:12px; } .sf-file .st { font-size:12.5px; }
+  .sf-btn, .sf-btn.big { font-size:17px; } .sf-enter { font-size:13px; } .sf-err { font-size:14.5px; } .sf-count { font-size:13px; } .sf-jump { font-size:13px; } .sf-later-btn { font-size:13px; } .sf-later-inline { font-size:13.5px; }
+  .sf-welcome h1 { font-size:clamp(31px, 5vw, 43px); } .sf-welcome p { font-size:18.5px; } .sf-draftbox { font-size:14px; } .sf-draftbox b { font-size:16px; } .sf-draftbox small { font-size:13px; }
+  .sf-other-device summary { font-size:14px; } .sf-other-device p { font-size:13.5px; } .sf-later-card h3 { font-size:22px; } .sf-later-card p { font-size:14.5px; }
+  .sf-intro .n { font-size:12px; } .sf-intro h2 { font-size:clamp(27px, 4.2vw, 37px); } .sf-intro p { font-size:17.5px; }
+  .sf-rk { font-size:11.5px; } .sf-rhero h2 { font-size:clamp(25px, 3.4vw, 35px); } .sf-fact small { font-size:10.5px; } .sf-fact b { font-size:18.5px; } .sf-rsub { font-size:14px; } .sf-rline { font-size:15.5px; }
+  .sf-rsec h3 button { font-size:15px; } .sf-rsec h3 button small { font-size:12px; } .sf-ritem .k { font-size:13.5px; } .sf-ritem .v { font-size:15.5px; } .sf-ritem button { font-size:12.5px; } .sf-editbar { font-size:14px; } .sf-editbar button { font-size:13.5px; }
+  .sf-chips em, .sf-vnote { font-size:13px; } .sf-story h2 { font-size:clamp(27px, 3.6vw, 39px); } .sf-paper-h b { font-size:16.5px; } .sf-paper-h small { font-size:13px; }
+  .sf-para h3 { font-size:12.5px; } .sf-para p { font-size:18px; } .sf-para:first-of-type p { font-size:20.5px; } .sf-paper-f { font-size:12.5px; } .sf-privacy-line { font-size:13.5px; }
+  .sf-missing h4 { font-size:14.5px; } .sf-missing button { font-size:15px; } .sf-consent { font-size:14.5px; } .sf-done h1 { font-size:clamp(29px, 4.6vw, 41px); } .sf-done p { font-size:17.5px; }
 }
 @media (prefers-reduced-motion: reduce) { .sf-root * { animation:none !important; transition:none !important; } }
 `
