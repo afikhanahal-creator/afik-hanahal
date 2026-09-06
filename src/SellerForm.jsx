@@ -36,7 +36,7 @@ const T = {
     savedDraft: 'מצאנו טופס שהתחלתם למלא', draftStep: 'נעצרתם בשאלה {n} מתוך {total}', draftWhen: { now: 'לפני רגע', min: 'לפני {n} דקות', hour: 'לפני {n} שעות', day: 'לפני {n} ימים' },
     otherDevice: 'התחלתם למלא במכשיר אחר?', otherDeviceHint: 'הזינו את מספר הטלפון שמסרתם בטופס, ונשלח לכם קישור להמשך בוואטסאפ', otherDeviceSend: 'שלחו לי קישור', otherDeviceSent: 'אם קיים טופס שמור למספר הזה, קישור להמשך נשלח אליכם בוואטסאפ', otherDeviceErr: 'לא הצלחנו לשלוח כרגע. נסו שוב בעוד רגע',
     later: 'להמשיך אחר כך', laterTitle: 'הטופס שלכם נשמר', laterSub: 'אפשר לסגור ולחזור מאותו מכשיר בכל זמן. כדי להמשיך ממכשיר אחר, שמרו את הקישור:', laterWaSelf: 'שליחה לעצמי בוואטסאפ', laterWaServer: 'שלחו לי את הקישור בוואטסאפ', laterSentOk: 'הקישור נשלח לוואטסאפ שלכם ({phone})', laterSentNo: 'לא הצלחנו לשלוח — העתיקו את הקישור', laterClose: 'חזרה לטופס', copyLink: 'העתקת הקישור', resumedLocal: 'המשכנו מהמקום שבו עצרתם. כל התשובות נשמרו',
-    ok: 'אישור', cont: 'המשך', back: 'חזרה', press: 'או לחצו', requiredMark: 'שדה חובה',
+    ok: 'אישור', cont: 'המשך', back: 'חזרה', press: 'או לחצו', requiredMark: 'שדה חובה', navPrev: 'לשאלה הקודמת', navNext: 'לשאלה הבאה',
     of: 'מתוך', part: 'חלק', optional: 'לא חובה',
     selectMany: 'אפשר לבחור כמה תשובות', selectOne: 'בחרו תשובה אחת', pickOne: 'בחרו מהרשימה…',
     yes: 'כן', no: 'לא',
@@ -70,7 +70,7 @@ const T = {
     savedDraft: 'We found a form you started', draftStep: 'You stopped at question {n} of {total}', draftWhen: { now: 'a moment ago', min: '{n} minutes ago', hour: '{n} hours ago', day: '{n} days ago' },
     otherDevice: 'Started on another device?', otherDeviceHint: 'Enter the phone number you gave in the form and we will send you a link to continue on WhatsApp', otherDeviceSend: 'Send me a link', otherDeviceSent: 'If a saved form exists for this number, a link to continue was sent to your WhatsApp', otherDeviceErr: 'We could not send right now. Please try again in a moment',
     later: 'Continue later', laterTitle: 'Your form is saved', laterSub: 'You can close and come back on this device any time. To continue on another device, keep the link:', laterWaSelf: 'Send to myself on WhatsApp', laterWaServer: 'Send me the link on WhatsApp', laterSentOk: 'The link was sent to your WhatsApp ({phone})', laterSentNo: 'We could not send it — copy the link instead', laterClose: 'Back to the form', copyLink: 'Copy link', resumedLocal: 'Continuing from where you stopped. All your answers were saved',
-    ok: 'OK', cont: 'Continue', back: 'Back', press: 'or press', requiredMark: 'Required',
+    ok: 'OK', cont: 'Continue', back: 'Back', press: 'or press', requiredMark: 'Required', navPrev: 'Previous question', navNext: 'Next question',
     of: 'of', part: 'Part', optional: 'Optional',
     selectMany: 'Select as many as apply', selectOne: 'Select one answer', pickOne: 'Choose from the list…',
     yes: 'Yes', no: 'No',
@@ -240,6 +240,11 @@ const CSS = `
 .sf-date select { font-size:16px; padding:10px 8px; min-height:44px; border:1px solid var(--line2); border-radius:6px; background:#fff; color:var(--ink); width:100%; }
 .sf-date.is-err select { border-color:var(--err); }
 .sf-foot { position:fixed; bottom:12px; inset-inline:0; display:flex; justify-content:center; align-items:center; gap:8px; pointer-events:none; z-index:50; }
+.sf-nav { pointer-events:auto; position:absolute; inset-inline-end:14px; bottom:0; display:flex; direction:ltr; border:1px solid var(--line); border-radius:8px; overflow:hidden; background:rgba(255,255,255,.92); backdrop-filter:blur(6px); box-shadow:0 4px 14px rgba(11,11,15,.08); }
+.sf-nav button { width:40px; height:36px; border:0; background:transparent; color:var(--ink); display:inline-flex; align-items:center; justify-content:center; cursor:pointer; transition:background .12s; }
+.sf-nav button + button { border-inline-start:1px solid var(--line); }
+.sf-nav button:hover:not(:disabled) { background:var(--tint); color:var(--deep); }
+.sf-nav button:disabled { color:var(--muted); opacity:.45; cursor:default; }
 .sf-count { font-size:13px; color:var(--ink2); font-variant-numeric:tabular-nums; background:rgba(255,255,255,.85); backdrop-filter:blur(6px); border:1px solid var(--line); border-radius:20px; padding:6px 12px; }
 
 /* ── inputs ────────────────────────────────────────────────────────────── */
@@ -465,6 +470,8 @@ textarea.sf-input { resize:none; line-height:1.5; font-size:clamp(17px,2vw,22px)
 
 /* ── mobile ────────────────────────────────────────────────────────────── */
 @media (max-width: 720px) {
+  .sf-nav { inset-inline-end:10px; }
+  .sf-nav button { width:38px; height:34px; }
   .sf-top { justify-content:center; padding:0 14px; min-height:56px; }
   .sf-brand { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); }
   .sf-top-right { position:static; }
@@ -945,6 +952,10 @@ export default function SellerForm() {
           {reachedReview && !editReturn && !['review', 'story'].includes(step?.type) && (
             <button type="button" className="sf-jump" onClick={goReview}>{t.toReview}<IcoFwd/></button>
           )}
+          <div className="sf-nav" role="group" aria-label={`${t.navPrev} / ${t.navNext}`}>
+            <button type="button" onClick={goPrev} disabled={idx === 0} aria-label={t.navPrev} title={`${t.navPrev} (↑)`}><IcoUp/></button>
+            <button type="button" onClick={goNext} disabled={idx >= total - 1} aria-label={t.navNext} title={`${t.navNext} (↓)`}><IcoDown/></button>
+          </div>
         </footer>
       )}
     </div>
