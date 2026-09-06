@@ -128,7 +128,7 @@ export const STEPS = [
     q: 'מה הכתובת המלאה של הנכס?', en_q: 'What is the full address of the property?',
     help: 'הכתובת המלאה נשארת אצלנו — היא תפורסם רק אם אישרתם', en_help: 'The full address stays with us and is published only with your approval',
     fields: [
-      { k: 'city',         l: 'עיר / יישוב',   en: 'City / town',    type: 'city', required: true, half: true, ph: 'התחילו להקליד ובחרו מהרשימה', en_ph: 'Start typing and pick from the list' },
+      { k: 'city',         l: 'עיר / יישוב',   en: 'City / town',    type: 'city', required: true, half: true, ph: 'הקלידו שם עיר', en_ph: 'Type a city name' },
       { k: 'neighborhood', l: 'שכונה',         en: 'Neighborhood',   type: 'text', half: true },
       { k: 'street',       l: 'רחוב',          en: 'Street',         type: 'street', required: true, half: true, ph: 'התחילו להקליד', en_ph: 'Start typing' },
       { k: 'number',       l: 'מספר בית',      en: 'House number',   type: 'text', required: true, half: true },
