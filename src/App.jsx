@@ -5070,8 +5070,9 @@ export default function App() {
       const isAdminSession = sessionStorage.getItem('afik_admin_session') === '1'
       const headers = isAdminSession ? { Authorization: `Bearer ${ADMIN_TOKEN}` } : {}
       // Public read goes through Vercel's CDN-cached /api/properties (instant, no
-      // Render cold-start). Admins send a token → that endpoint bypasses the cache.
-      fetch(`/api/properties`, { headers })
+      // Render cold-start). Admins read straight from Render: always fresh, and the
+      // uncached full list never passes through Vercel's metered function transfer.
+      fetch(isAdminSession && API_BASE ? `${API_BASE}/api/properties` : `/api/properties`, { headers })
         .then(r => r.ok ? r.json() : Promise.reject(r.status))
         .then(data => {
           if (Array.isArray(data) && data.length > 0) {
@@ -5147,14 +5148,17 @@ export default function App() {
       .catch(() => {})
   }, [adminAuth])
 
-  // ── Auto-refresh properties every 60s ─────────────────────────────────────
+  // ── Auto-refresh properties ───────────────────────────────────────────────
+  // Admins: every 60s straight from Render (fresh, and not metered by Vercel).
+  // Visitors: every 10 minutes from Vercel's edge cache, with an ETag so an unchanged
+  // list costs a 304 instead of the whole payload. Both pause while the tab is hidden.
   useEffect(() => {
+    let etag = ''
     const refresh = () => {
-      const headers = adminAuth ? { Authorization: `Bearer ${ADMIN_TOKEN}` } : {}
-      // Public refresh hits Vercel's CDN-cached endpoint (instant, served from the
-      // edge); admins send a token so they bypass the cache and get fresh data.
-      fetch(`/api/properties`, { headers })
-        .then(r => r.ok ? r.json() : Promise.reject())
+      if (typeof document !== 'undefined' && document.hidden) return
+      const headers = adminAuth ? { Authorization: `Bearer ${ADMIN_TOKEN}` } : (etag ? { 'If-None-Match': etag } : {})
+      fetch(adminAuth && API_BASE ? `${API_BASE}/api/properties` : `/api/properties`, { headers })
+        .then(r => { if (r.status === 304) return Promise.reject(); etag = r.headers.get('etag') || etag; return r.ok ? r.json() : Promise.reject() })
         .then(data => {
           if (!Array.isArray(data) || !data.length) return
           // Use same merge as initial fetch — never blindly overwrite optimistic updates
@@ -5172,7 +5176,7 @@ export default function App() {
         })
         .catch(() => {})
     }
-    const id = setInterval(refresh, 60000)
+    const id = setInterval(refresh, adminAuth ? 60000 : 600000)
     return () => clearInterval(id)
   }, [adminAuth]) // eslint-disable-line react-hooks/exhaustive-deps
 
