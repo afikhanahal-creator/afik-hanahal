@@ -7,9 +7,18 @@ const table = []; let nextId = 1; const storage = new Map(); const renderStore =
 const parseFilters = qs => { const f = []; for (const [k, v] of qs) { if (['select', 'order', 'limit', 'offset'].includes(k)) continue; const m = /^(eq|neq|is|not\.is|ilike|gte|lte)\.(.*)$/.exec(v); if (m) f.push({ k, op: m[1], v: m[2] }) }; return f }
 const match = (row, f) => f.every(({ k, op, v }) => { const x = row[k]; if (op === 'eq') return String(x) === v; if (op === 'neq') return String(x) !== v; if (op === 'is') return v === 'null' ? x == null : x === (v === 'true'); if (op === 'not.is') return v === 'null' ? x != null : true; if (op === 'ilike') { const re = new RegExp('^' + v.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*') + '$', 'i'); return re.test(String(x ?? '')) } return true })
 const json = (status, body, headers = {}) => new Response(typeof body === 'string' ? body : JSON.stringify(body), { status, headers: { 'content-type': 'application/json', ...headers } })
+process.env.BLOB_READ_WRITE_TOKEN = 'blob-test-token'
+const blobs = new Map(); let supaDown = false
 globalThis.fetch = async (input, init = {}) => {
   const url = new URL(typeof input === 'string' ? input : input.url); const method = (init.method || 'GET').toUpperCase(); log.push(`${method} ${url.pathname}`)
   const body = init.body ? (typeof init.body === 'string' ? init.body : init.body) : null
+  if (url.hostname.endsWith('blob.vercel-storage.com')) {
+    if (url.hostname === 'blob.vercel-storage.com' && method === 'PUT') { const p = url.pathname.slice(1) + '-rnd1'; const u = `https://store1.public.blob.vercel-storage.com/${p}`; blobs.set(u, { pathname: p, body, uploadedAt: new Date().toISOString() }); return json(200, { url: u, downloadUrl: u + '?download=1', pathname: p }) }
+    if (url.hostname === 'blob.vercel-storage.com' && method === 'GET') { const prefix = url.searchParams.get('prefix') || ''; return json(200, { blobs: [...blobs.entries()].filter(([, b]) => b.pathname.startsWith(prefix)).map(([u, b]) => ({ url: u, downloadUrl: u + '?download=1', pathname: b.pathname, size: b.body.length, uploadedAt: b.uploadedAt })) }) }
+    if (url.pathname === '/delete' && method === 'POST') { JSON.parse(body).urls.forEach(u => blobs.delete(u)); return json(200, {}) }
+    const hit = blobs.get(url.origin + url.pathname); return hit ? new Response(hit.body, { status: 200, headers: { 'content-type': 'application/json' } }) : json(404, {})
+  }
+  if (supaDown && url.origin === SUPA) return json(402, { message: 'Service for this project is restricted due to the following violations: exceed_egress_quota.' })
   if (url.origin === SUPA && url.pathname.startsWith('/rest/v1/seller_submissions')) {
     const f = parseFilters(url.searchParams); const order = url.searchParams.get('order'); const limit = +(url.searchParams.get('limit') || 1000)
     if (method === 'GET') { let rows = table.filter(r => match(r, f)); if (order) { const [col, dir] = order.split('.'); rows = [...rows].sort((a, b) => (String(a[col] ?? '') < String(b[col] ?? '') ? 1 : -1) * (dir === 'desc' ? 1 : -1)) } return json(200, rows.slice(0, limit)) }
@@ -100,6 +109,18 @@ r.invite  = await call('POST', { action: 'invite' }, { name: 'אבי מזרחי'
 r.inviteRow = r.invite.body?.sid ? await call('GET', { action: 'draft', sid: r.invite.body.sid }) : null
 r.inviteList = await call('GET', {}, null, true)
 
+// ── Supabase down: the form must still land somewhere (Blob + email/WhatsApp) and be restorable ──
+supaDown = true
+const dsid = 'e2e-down-' + Date.now()
+r.downSubmit = await call('POST', {}, { sid: dsid, answers: { ...answers, c_name: 'רוני גיבוי', c_phone: '054-777-7777' }, files: [], lang: 'he', schemaVersion: 4, meta: {} })
+r.downList = await call('GET', {}, null, true)
+r.downBackups = await call('GET', { action: 'backup-list' }, null, true)
+const bkRow = (r.downBackups.body?.rows || [])[0]
+r.downGet = bkRow ? await call('GET', { action: 'backup-get', url: bkRow.blob_url }, null, true) : null
+supaDown = false
+r.restore = bkRow ? await call('POST', { action: 'backup-restore' }, { url: bkRow.blob_url }, true) : null
+r.afterRestore = await call('GET', { action: 'backup-list' }, null, true)
+
 // ── report ──
 const row = table.find(x => x.sid === sid)
 const sentKeys = Object.keys(withFiles), storedKeys = Object.keys(row?.answers || {})
@@ -142,6 +163,14 @@ step('resume-link / find-draft answer safely without Green API', r.resumeLink.st
   step('journey: admin list + detail expose stage / progress / last question (no raw answers in list)', li?.stage === 'in_progress' && li.progress_pct > 0 && li.progress_pct < 100 && /כתובת/.test(li.last_step_label || '') && dj?.stage === 'in_progress' && ((r.jList.body || []).find(x => x.sid === jsid) || {}).answers === undefined, `stage=${li?.stage} ${li?.progress_pct}% "${li?.last_step_label}"`)
   const inv = r.invite.body, invRow = table.find(x => x.sid === inv?.sid), invJ = (r.inviteList.body || []).find(x => x.sid === inv?.sid)?.journey
   step('invite: creates a prefilled draft, personal link, stage "invited"; the link opens the draft', r.invite.statusCode === 200 && /newproperty\?d=/.test(inv?.url || '') && invRow?.answers?.c_phone === '0509876543' && invRow?.answers?.x_purpose === 'rental' && invJ?.stage === 'invited' && r.inviteRow?.body?.draft?.answers?.c_name === 'אבי מזרחי', `stage=${invJ?.stage} sent=${inv?.sent}`)
+}
+{
+  const b = r.downSubmit.body || {}
+  step('supabase down: submit still succeeds → 201, degraded, stored in blob', r.downSubmit.statusCode === 201 && b.ok && b.degraded && (b.stored || []).includes('blob') && b.ref && b.url === '', `status ${r.downSubmit.statusCode} stored=${(b.stored || []).join(',')}`)
+  const bl = r.downBackups.body || {}
+  step('supabase down: admin backup-list shows the form with contact + summary fields; backup-get returns full answers', bl.enabled && bl.rows?.length === 1 && bl.rows[0].contact_name === 'רוני גיבוי' && bl.rows[0].status === 'backup' && r.downGet?.body?.answers?.c_phone === '054-777-7777' && !!r.downGet?.body?.story, `rows=${bl.rows?.length} story=${!!r.downGet?.body?.story}`)
+  const restored = table.find(x => x.sid === dsid)
+  step('supabase back: restore moves the form into seller_submissions (status new, history "restored") and empties the backup', r.restore?.statusCode === 200 && restored?.status === 'new' && restored?.answers?.c_name === 'רוני גיבוי' && (restored?.history || []).some(h => h.action === 'restored') && (r.afterRestore.body?.rows || []).length === 0, `restored id=${restored?.id} backups left=${(r.afterRestore.body?.rows || []).length}`)
 }
 console.log('\nrow columns:', Object.keys(row || {}).join(', '))
 console.log('external calls made:', [...new Set(log.map(l => l.replace(/\/[^/]*e2e-[^/]*.*$/, '/<sid>…').replace(/eq\.\d+/g, 'eq.N')))].slice(0, 14).join(' | '))

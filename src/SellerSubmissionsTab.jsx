@@ -15,7 +15,8 @@ const ADMIN_TOKEN = 'AFIKhanahal2026'
 const API = '/api/seller-form'
 const H = { Authorization: `Bearer ${ADMIN_TOKEN}` }
 export const SELLER_STATUSES = INTAKE_STATUSES
-const statusOf = v => INTAKE_STATUSES.find(s => s.v === v) || INTAKE_STATUSES[1]
+const BACKUP_STATUS = { v: 'backup', l: 'גיבוי · לא בסופאבייס', color: '#F5A623' }
+const statusOf = v => v === 'backup' ? BACKUP_STATUS : (INTAKE_STATUSES.find(s => s.v === v) || INTAKE_STATUSES[1])
 const KIND_LABEL = { photos: 'תמונות', videos: 'סרטונים', plan: 'תוכנית', docs: 'מסמכים' }
 const fmtDate = iso => { if (!iso) return ''; try { return new Date(iso).toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem', day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) } catch { return '' } }
 const toIntl = raw => { const d = String(raw || '').replace(/\D/g, ''); if (d.startsWith('972')) return d; if (d.startsWith('0')) return '972' + d.slice(1); return d }
@@ -24,7 +25,7 @@ const SECTION_GROUPS = {
   legal:     ['legal'],
   marketing: ['marketing'],
 }
-const HISTORY_LABEL = { draft_created: 'טיוטה נוצרה', submitted: 'הטופס נשלח', verified: 'אימות בעלים', status: 'שינוי סטטוס', notes: 'הערות עודכנו', edit: 'עריכה', published: 'פורסם באתר', republished: 'עודכן באתר', unpublished: 'הוסר מהאתר', file_added: 'קובץ נוסף', file_deleted: 'קובץ נמחק' }
+const HISTORY_LABEL = { restored: 'שוחזר מגיבוי', draft_created: 'טיוטה נוצרה', submitted: 'הטופס נשלח', verified: 'אימות בעלים', status: 'שינוי סטטוס', notes: 'הערות עודכנו', edit: 'עריכה', published: 'פורסם באתר', republished: 'עודכן באתר', unpublished: 'הוסר מהאתר', file_added: 'קובץ נוסף', file_deleted: 'קובץ נמחק' }
 const ACCEPT = { photos: 'image/*', videos: 'video/*', plan: 'image/*,application/pdf', docs: 'image/*,application/pdf' }
 const BY_LABEL = { seller: 'המוכר', owner: 'בעלים', admin: 'צוות', system: 'מערכת' }
 const AI_MODEL = 'claude-opus-5'
@@ -185,19 +186,26 @@ export default function SellerSubmissionsTab({ C, onChanged, onOpenWizard }) {
   const [flash, setFlash] = useState('')
   const [fileBusy, setFileBusy] = useState('')      // '' | 'up:<kind>' | 'del:<path>'
   const [stale, setStale] = useState(false)          // published property edited but not re-published yet
+  const [backupInfo, setBackupInfo] = useState({ enabled: false, count: 0 })
   const [inviteOpen, setInviteOpen] = useState(false)
   const [invite, setInvite] = useState({ name: '', phone: '', purpose: 'sale', send: true })
   const [inviteResult, setInviteResult] = useState(null)
   const fileInputRef = useRef({})
 
+  const rowsRef = useRef([]); useEffect(() => { rowsRef.current = rows }, [rows])
   const say = m => { setFlash(m); setTimeout(() => setFlash(''), 2200) }
   const load = useCallback(async () => {
     setLoading(true); setError('')
     try {
-      const r = await fetch(API, { headers: H })
+      const [r, rb] = await Promise.all([fetch(API, { headers: H }), fetch(`${API}?action=backup-list`, { headers: H }).catch(() => null)])
       const data = await r.json().catch(() => [])
-      if (!r.ok) throw new Error(data?.error || `HTTP ${r.status}`)
-      setRows(Array.isArray(data) ? data : [])
+      const backups = rb && rb.ok ? await rb.json().catch(() => ({})) : {}
+      setBackupInfo({ enabled: !!backups.enabled, count: (backups.rows || []).length })
+      // Forms that arrived while Supabase was down live in Vercel Blob until restored; they are listed
+      // here with the same card so nothing is ever "lost somewhere".
+      if (!r.ok && !(backups.rows || []).length) throw new Error(data?.error || `HTTP ${r.status}`)
+      if (!r.ok) setError(/egress|402|restricted/i.test(JSON.stringify(data)) ? 'Supabase חסום כרגע (מכסת תעבורה). מוצגות רשומות הגיבוי בלבד.' : (data?.error || `HTTP ${r.status}`))
+      setRows([...(backups.rows || []), ...(Array.isArray(data) ? data : [])])
     } catch (e) { setError(e.message) }
     finally { setLoading(false) }
   }, [])
@@ -205,6 +213,17 @@ export default function SellerSubmissionsTab({ C, onChanged, onOpenWizard }) {
 
   const open = useCallback(async id => {
     setSelId(id); setDetail(null); setDetailLoading(true); setTab('general')
+    if (String(id).startsWith('bk:')) {
+      try {
+        const url = rowsRef.current.find(x => x.id === id)?.blob_url || ''
+        const r = await fetch(`${API}?action=backup-get&url=${encodeURIComponent(url)}`, { headers: H })
+        const d = await r.json().catch(() => ({}))
+        if (!r.ok) throw new Error(d?.error || `HTTP ${r.status}`)
+        setDetail(d); setNotes(''); setOv({})
+      } catch (e) { setError(e.message) }
+      finally { setDetailLoading(false) }
+      return
+    }
     try {
       const r = await fetch(`${API}?id=${encodeURIComponent(id)}`, { headers: H })
       const data = await r.json().catch(() => null)
@@ -235,6 +254,17 @@ export default function SellerSubmissionsTab({ C, onChanged, onOpenWizard }) {
       if (!r.ok || !d.ok) throw new Error(d.error || `HTTP ${r.status}`)
       setInviteResult(d); say(d.sent ? 'הקישור נשלח בוואטסאפ' : 'הקישור האישי נוצר'); load()
     } catch (e) { say(e.message) }
+    finally { setBusy('') }
+  }
+  const restoreBackup = async () => {
+    if (!detail?.blob_url || !window.confirm('לשחזר את הטופס הזה לתוך Supabase? הרשומה תעבור לרשימה הרגילה ותימחק מהגיבוי.')) return
+    setBusy('restore')
+    try {
+      const r = await fetch(`${API}?action=backup-restore`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...H }, body: JSON.stringify({ url: detail.blob_url }) })
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok || !d.ok) throw new Error(d.error || `HTTP ${r.status}`)
+      say(`שוחזר לסופאבייס · תיק ${d.ref}`); setSelId(null); setDetail(null); load()
+    } catch (e) { say(`השחזור נכשל: ${e.message}`) }
     finally { setBusy('') }
   }
   const remind = async () => {
@@ -329,7 +359,7 @@ export default function SellerSubmissionsTab({ C, onChanged, onOpenWizard }) {
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase()
     const j = r => r.journey || {}
-    return rows.filter(r => (filter === 'all' ? r.status !== 'draft' : filter === 'draft' ? r.status === 'draft' : filter === 'unverified' ? (r.submitted_at && !r.owner_verified_at)
+    return rows.filter(r => (filter === 'all' ? r.status !== 'draft' : filter === 'backup' ? r.status === 'backup' : filter === 'draft' ? r.status === 'draft' : filter === 'unverified' ? (r.submitted_at && !r.owner_verified_at)
         : filter === 'j_stalled' ? (r.status === 'draft' && j(r).stalled) : filter === 'j_active' ? (r.status === 'draft' && !j(r).stalled && ['started', 'in_progress', 'review'].includes(j(r).stage))
         : filter === 'j_opened' ? (r.status === 'draft' && j(r).stage === 'opened') : filter === 'j_invited' ? (r.status === 'draft' && j(r).stage === 'invited') : r.status === filter)
       && (purpose === 'all' || (r.purpose || 'sale') === purpose)
@@ -410,7 +440,7 @@ export default function SellerSubmissionsTab({ C, onChanged, onOpenWizard }) {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
             <div style={{ fontSize: 17, fontWeight: 700 }}>נכסים שנקלטו <span style={{ fontSize: 12, color: purple, fontWeight: 600 }}>{rows.filter(r => r.status !== 'draft').length}</span></div>
-            <div style={{ fontSize: 11.5, color: 'rgba(232,228,216,.5)' }}>נכסים מהטופס <a href="/newproperty" target="_blank" rel="noreferrer" style={{ color: purple }}>/newproperty</a> · נפרד מהלידים</div>
+            <div style={{ fontSize: 11.5, color: 'rgba(232,228,216,.5)' }}>נכסים מהטופס <a href="/newproperty" target="_blank" rel="noreferrer" style={{ color: purple }}>/newproperty</a> · נפרד מהלידים · <span title={backupInfo.enabled ? 'טפסים שמגיעים כשסופאבייס לא זמין נשמרים ב-Vercel Blob ונשלחים במייל ובוואטסאפ' : 'להפעלת מאגר גיבוי: Vercel → Storage → Create → Blob'} style={{ color: backupInfo.enabled ? '#22C55E' : '#F5A623' }}>{backupInfo.enabled ? 'גיבוי פעיל ✓' : 'ללא מאגר גיבוי'}</span></div>
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
             <button onClick={() => { setInviteOpen(o => !o); setInviteResult(null) }} title="קישור אישי ללקוח: רואים אם פתח, התחיל ואיפה עצר" style={btn(inviteOpen ? { background: 'rgba(132,144,216,.25)' } : {})}><FaUserPlus size={11}/> הזמנת לקוח</button>
@@ -463,7 +493,7 @@ export default function SellerSubmissionsTab({ C, onChanged, onOpenWizard }) {
           <input value={q} onChange={e => setQ(e.target.value)} placeholder="חיפוש לפי שם, טלפון, עיר, מספר תיק…" style={{ ...input, padding: '9px 34px 9px 12px', borderRadius: 10 }}/>
         </div>
         <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-          {[{ v: 'all', l: 'הכל' }, ...INTAKE_STATUSES.filter(s => s.v !== 'draft'), { v: 'unverified', l: 'ממתין לאימות בעלים', color: '#F5A623' },
+          {[{ v: 'all', l: 'הכל' }, ...(counts.backup ? [{ v: 'backup', l: 'גיבוי (Supabase לא זמין)', color: '#F5A623' }] : []), ...INTAKE_STATUSES.filter(s => s.v !== 'draft'), { v: 'unverified', l: 'ממתין לאימות בעלים', color: '#F5A623' },
             { v: 'j_active', l: 'בתהליך', color: '#60D4F7' }, { v: 'j_stalled', l: 'נעצרו', color: '#E05252' }, { v: 'j_opened', l: 'פתחו ולא התחילו', color: '#F5A623' }, { v: 'j_invited', l: 'הוזמנו ולא פתחו', color: '#9A9AA8' }, { v: 'draft', l: 'כל הטיוטות', color: '#9A9AA8' }].map(s => (
             <button key={s.v} onClick={() => setFilter(s.v)} style={{ padding: '4px 9px', borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', border: `1px solid ${filter === s.v ? (s.color || purple) : 'rgba(132,144,216,.2)'}`, background: filter === s.v ? `${s.color || purple}22` : 'transparent', color: filter === s.v ? (s.color || purple) : 'rgba(232,228,216,.6)' }}>
               {s.l}{s.v !== 'all' && counts[s.v] ? ` · ${counts[s.v]}` : ''}
@@ -525,11 +555,11 @@ export default function SellerSubmissionsTab({ C, onChanged, onOpenWizard }) {
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                <select value={detail.status || 'new'} onChange={e => setStatus(detail.id, e.target.value)} disabled={detail.status === 'published'}
+                {!detail.backup && <select value={detail.status || 'new'} onChange={e => setStatus(detail.id, e.target.value)} disabled={detail.status === 'published'}
                   style={{ padding: '8px 10px', borderRadius: 8, border: `1px solid ${statusOf(detail.status).color}66`, background: `${statusOf(detail.status).color}1A`, color: statusOf(detail.status).color, fontFamily: 'inherit', fontSize: 12.5, fontWeight: 700 }}>
                   {INTAKE_STATUSES.filter(s => s.v !== 'published' || detail.status === 'published').map(s => <option key={s.v} value={s.v} style={{ color: '#111' }}>{s.l}</option>)}
-                </select>
-                {onOpenWizard && detail.submitted_at && <button onClick={openInWizard} disabled={!!busy} title="כל השדות, התמונות והסרטונים נטענים לאשף הנכסים — עוברים, מאשרים ומפרסמים" style={btn({ background: 'rgba(132,144,216,.14)', borderColor: 'rgba(132,144,216,.5)', color: '#C9CEF5', fontWeight: 700 })}><FaSyncAlt size={11}/> {busy === 'prepare' ? 'מכין…' : 'פתח באשף הנכסים (ממולא)'}</button>}
+                </select>}
+                {onOpenWizard && detail.submitted_at && !detail.backup && <button onClick={openInWizard} disabled={!!busy} title="כל השדות, התמונות והסרטונים נטענים לאשף הנכסים — עוברים, מאשרים ומפרסמים" style={btn({ background: 'rgba(132,144,216,.14)', borderColor: 'rgba(132,144,216,.5)', color: '#C9CEF5', fontWeight: 700 })}><FaSyncAlt size={11}/> {busy === 'prepare' ? 'מכין…' : 'פתח באשף הנכסים (ממולא)'}</button>}
                 {detail.status === 'published'
                   ? <><button onClick={() => act('publish')} disabled={!!busy} style={btn({ background: 'rgba(34,197,94,.12)', borderColor: 'rgba(34,197,94,.4)', color: '#22C55E' })}><FaGlobe size={11}/> {busy === 'publish' ? 'מעדכן…' : 'עדכן באתר'}</button>
                      <button onClick={() => act('unpublish')} disabled={!!busy} style={btn({ color: '#F5A623', borderColor: 'rgba(245,166,35,.4)', background: 'rgba(245,166,35,.08)' })}><FaEyeSlash size={11}/> {busy === 'unpublish' ? 'מסיר…' : 'הסר מהאתר'}</button></>
@@ -537,10 +567,16 @@ export default function SellerSubmissionsTab({ C, onChanged, onOpenWizard }) {
                 {detail.public_url && <a href={detail.public_url} target="_blank" rel="noreferrer" style={btn()}><FaLink size={11}/> דף הסיכום</a>}
                 <button onClick={copySummary} style={btn()}><FaCopy size={11}/></button>
                 <button onClick={exportJson} style={btn()}><FaDownload size={11}/></button>
-                {detail.status !== 'published' && <button onClick={() => remove(detail.id, false)} style={btn({ color: '#E05252', borderColor: 'rgba(224,82,82,.35)', background: 'rgba(224,82,82,.08)' })}><FaTrash size={11}/></button>}
+                {detail.status !== 'published' && !detail.backup && <button onClick={() => remove(detail.id, false)} style={btn({ color: '#E05252', borderColor: 'rgba(224,82,82,.35)', background: 'rgba(224,82,82,.08)' })}><FaTrash size={11}/></button>}
               </div>
             </div>
 
+            {detail.backup && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 12, fontSize: 12.5, color: '#F5A623', background: 'rgba(245,166,35,.1)', border: '1px solid rgba(245,166,35,.35)', borderRadius: 10, padding: '10px 12px', flexWrap: 'wrap' }}>
+                <FaExclamationTriangle size={12}/> הטופס הזה הגיע כש-Supabase לא היה זמין{detail.supabase_error ? ` (${detail.supabase_error.slice(0, 80)})` : ''}. הוא שמור במאגר הגיבוי של Vercel עם כל הפרטים והסיכום. כשסופאבייס חוזר לעבוד, שחזרו אותו כדי לפרסם ולנהל כרגיל.
+                <button onClick={restoreBackup} disabled={busy === 'restore'} style={btn({ background: 'rgba(34,197,94,.12)', borderColor: 'rgba(34,197,94,.4)', color: '#22C55E' })}><FaSyncAlt size={11}/> שחזר לסופאבייס</button>
+              </div>
+            )}
             {stale && detail.status === 'published' && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 12, fontSize: 12.5, color: '#F5A623', background: 'rgba(245,166,35,.1)', border: '1px solid rgba(245,166,35,.35)', borderRadius: 8, padding: '8px 12px' }}>
                 <FaExclamationTriangle size={12}/> יש שינויים בכרטיס הנכס שעדיין לא פורסמו באתר.

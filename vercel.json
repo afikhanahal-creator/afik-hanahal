@@ -52,6 +52,10 @@
   },
   "rewrites": [
     {
+      "source": "/media/:path*",
+      "destination": "/api/properties?img=:path*"
+    },
+    {
       "source": "/api/meta/:path*",
       "destination": "/api/meta?_path=:path*"
     },
@@ -83,6 +87,15 @@
         {
           "key": "Expires",
           "value": "0"
+        }
+      ]
+    },
+    {
+      "source": "/media/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, s-maxage=31536000, immutable"
         }
       ]
     },

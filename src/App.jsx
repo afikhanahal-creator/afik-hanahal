@@ -2490,6 +2490,9 @@ const newsKey = a => (a.title || '').replace(/\s+/g, '').slice(0, 30)
 // If the server says its stored pool covers few outlets (or is stale), ask it to ingest — once per
 // 6 h per browser, fire-and-forget. The daily cron does the same at 08:30; this just doesn't wait for it.
 function nudgeIngest(reason) {
+  // Disabled: the daily Vercel cron is the only ingest. Letting every browser trigger a full
+  // news sweep (45 days of rows read + written in Supabase) every 6 h was pure metered egress.
+  if (reason) return
   try {
     const KEY = 'afik_news_warm_ts', last = +(localStorage.getItem(KEY) || 0)
     if (Date.now() - last < 6 * 60 * 60 * 1000) return
@@ -3834,9 +3837,15 @@ function proxyImg(url, width, quality) {
 
 // Recover the original source URL from a proxied one (used as an onError fallback
 // so images stay visible even if the CDN is ever unreachable).
+const SUPA_PUBLIC = (import.meta.env.VITE_SUPABASE_URL || '').replace(/\/$/, '')
 function unproxyImg(url) {
   if (typeof url === 'string' && IMG_CDN && url.startsWith(`${IMG_CDN}/?url=`)) {
     try { return decodeURIComponent(url.slice(`${IMG_CDN}/?url=`.length).split('&')[0]) } catch {}
+  }
+  // /media/… → the original Supabase public URL (used if the CDN route ever fails)
+  if (typeof url === 'string' && SUPA_PUBLIC) {
+    const m = /\/media\/(.+)$/.exec(url)
+    if (m) return `${SUPA_PUBLIC}/storage/v1/object/public/${m[1]}`
   }
   return url
 }
@@ -3855,9 +3864,12 @@ function imgFallback(e) {
 function cloudImg(url, width = 1200) {
   if (!url || url.startsWith('data:')) return url
 
-  // Supabase Storage — serve original URL directly (wsrv.nl proxy disabled
-  // because it fails to fetch from this bucket and hides all images).
-  if (url.includes('.supabase.co/storage/')) return url
+  // Supabase Storage — public files go through /media/<bucket>/<path>, which Vercel's CDN
+  // caches for a year. Supabase then serves each photo once instead of to every visitor
+  // (its free tier meters egress; the site went dark once when that ran out).
+  const pub = url.indexOf('.supabase.co/storage/v1/object/public/')
+  if (pub > 0) return `/media/${url.slice(pub + '.supabase.co/storage/v1/object/public/'.length).split('?')[0]}`
+  if (url.includes('.supabase.co/storage/')) return url   // signed / private URLs stay as they are
 
   // Cloudinary → add quality + format-auto params
   if (url.includes('cloudinary.com') && url.includes('/image/upload/')) {

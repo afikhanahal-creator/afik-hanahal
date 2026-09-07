@@ -140,8 +140,12 @@ async function supaFetch(path, opts = {}) {
   return r
 }
 
-async function getContacts() {
-  const r = await supaFetch('/contacts?order=created_at.desc&limit=500')
+const CONTACT_COLS = 'id,name,phone,email,message,prop_title,prop_location,source,created_at,crm_data'
+async function getContacts(since = '') {
+  // Incremental sync: the admin panel remembers the newest created_at it has and asks only for
+  // rows after it — a poll of an unchanged board pulls 0 rows out of Supabase instead of 500.
+  const q = since ? `&created_at=gt.${encodeURIComponent(since)}` : ''
+  const r = await supaFetch(`/contacts?select=${CONTACT_COLS}&order=created_at.desc&limit=500${q}`)
   // 404 / 406 means the contacts table hasn't been created yet — return empty instead of 500
   if (r.status === 404 || r.status === 406) {
     console.warn('[contacts] table not found — run the SQL migration in Supabase')
@@ -387,7 +391,8 @@ export default async function handler(req, res) {
   try {
     // ── GET: list all contacts ───────────────────────────────────────────────
     if (req.method === 'GET') {
-      const contacts = await getContacts()
+      const since = String(req.query?.since || '')
+      const contacts = await getContacts(/^\d{4}-\d{2}-\d{2}T[\d:.]+Z?$/.test(since) ? since : '')
       res.setHeader('Cache-Control', 'no-store')
       return sendJson(req, res, contacts)
     }

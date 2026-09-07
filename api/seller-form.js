@@ -31,6 +31,7 @@
 // One-time SQL: server/seller-submissions-migration.sql
 import { createClient } from '@supabase/supabase-js'
 import { randomBytes } from 'crypto'
+import { backupEnabled, backupPut, backupList, backupGet, backupDelete } from '../lib/backup.js'
 import { buildSummary, headline, PROPERTY_TYPE_LABEL, DOC_TAG_LABEL, publicAnswers, buildStory, storyText, directionsText, STEPS, INTAKE_STATUSES, purposeOf, roomsOf, visibleSteps, stepQuestion } from '../src/sellerFormSchema.js'
 
 const SUPA_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
@@ -61,6 +62,7 @@ const CORS = {
 const isAdmin = req => (req.headers.authorization || '').replace(/^Bearer\s+/i, '') === ADMIN_TOKEN
 const sb = () => createClient(SUPA_URL, SUPA_KEY, { auth: { persistSession: false } })
 const SID_RE = /^[\w-]{8,64}$/
+let statsCache = null
 const TOKEN_RE = /^[A-Za-z0-9]{16,64}$/
 const now = () => new Date().toISOString()
 
@@ -386,12 +388,14 @@ const inviteMessage = (name, sid, purpose, lang) => lang === 'en'
   ? `Hi${name ? ` ${name}` : ''}, this is Afik Hanahal. Here is your personal link to tell us about the property${purpose === 'rental' ? ' for rent' : ''}. It takes about 10 minutes and saves as you go:\n${SITE}/newproperty?d=${sid}`
   : `היי${name ? ` ${name}` : ''}, כאן אפיק הנחל. זה הקישור האישי שלכם לספר לנו על הנכס${purpose === 'rental' ? ' להשכרה' : ''}. לוקח כ-10 דקות, נשמר תוך כדי ואפשר להמשיך מכל מכשיר:\n${SITE}/newproperty?d=${sid}\n\nאפיק הנחל · ייזום, שיווק ותיווך נדל״ן`
 
-async function notifyWhatsApp(row, a) {
+async function notifyWhatsApp(row, a, opts = {}) {
   if (!GREEN_INSTANCE || !GREEN_TOKEN) return { ok: false, error: 'Green API not configured' }
   const chatId = NOTIFY_CHATID.includes('@') ? NOTIFY_CHATID : `${toIntlPhone(NOTIFY_CHATID)}@c.us`
   const lines = [purposeOf(a) === 'rental' ? '🏠 *נכס חדש נקלט להשכרה!*' : '🏠 *נכס חדש נקלט למכירה!*', '', `📁 תיק: ${row.ref}`, `👤 ${row.contact_name || '—'}`, `📱 ${row.phone ? `https://wa.me/${toIntlPhone(row.phone)}` : '—'}`,
     `🏷 ${headline(a, 'he') || '—'}`, row.asking_price ? `💰 מחיר מבוקש: ${fmtILS(row.asking_price)}` : null, `📎 ${(row.files || []).length} קבצים`,
+    row.backup ? '⚠️ *Supabase לא זמין — הטופס נשמר בגיבוי.* כל הפרטים למטה ובמייל.' : null,
     `🔗 ${SITE}/admin-panel/properties-intake`, `🕐 ${new Date().toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem' })}`].filter(Boolean)
+  if (opts.full) { try { buildSummary(a, 'he').forEach(sec => { lines.push('', `*${sec.title}*`); sec.items.forEach(it => lines.push(`${it.label}: ${it.value}`)) }) } catch {} }
   try {
     const r = await fetch(`${greenBase()}/waInstance${GREEN_INSTANCE}/sendMessage/${GREEN_TOKEN}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chatId, message: lines.join('\n') }), signal: AbortSignal.timeout(15000) })
     return r.ok ? { ok: true } : { ok: false, error: `Green API HTTP ${r.status}` }
@@ -444,6 +448,7 @@ function buildEmailHtml(row, a, signedFiles) {
 <tr><td ${cell('padding:26px 28px 8px')}>
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" dir="rtl" style="direction:rtl">
     ${h3(`אפיק הנחל · נכס חדש נקלט ${rental ? 'להשכרה' : 'למכירה'}`).replace('padding:24px 0 8px', 'padding:0 0 6px')}
+    ${row.backup ? `<tr><td ${cell('padding:10px 12px;margin:0 0 10px;background:#FFF4E5;border:1px solid #F5A623;border-radius:10px;font-family:Heebo,Arial,sans-serif;font-size:13px;color:#7A4B00;line-height:1.6')}>⚠️ Supabase לא היה זמין בזמן השליחה (${esc(row.supabase_error || 'שגיאה')}). הטופס המלא נשמר ${row.blob_url ? 'במאגר הגיבוי של Vercel ומופיע בפאנל תחת "גיבויים"' : 'רק במייל הזה'}. קובץ JSON עם כל הפרטים מצורף.</td></tr>` : ''}
     <tr><td ${cell('font-family:Heebo,Arial,sans-serif;font-size:23px;font-weight:700;line-height:1.3;color:#0B0B0F;padding:0 0 4px')}>${esc(headline(a, 'he') || 'נכס חדש')}</td></tr>
     <tr><td ${cell('padding:0')}>${factsHtml}</td></tr>
     ${h3('איש קשר')}
@@ -457,7 +462,7 @@ function buildEmailHtml(row, a, signedFiles) {
 </td></tr></table>
 </body></html>`
 }
-async function notifyEmail(row, a, signedFiles) {
+async function notifyEmail(row, a, signedFiles, opts = {}) {
   const user = process.env.GMAIL_USER, pass = process.env.GMAIL_APP_PASSWORD
   const to = process.env.ADMIN_NOTIFY_EMAIL || user
   if (!user || !pass) return { ok: false, error: 'GMAIL_USER / GMAIL_APP_PASSWORD missing' }
@@ -465,7 +470,8 @@ async function notifyEmail(row, a, signedFiles) {
     const { default: nodemailer } = await import('nodemailer')
     const transporter = nodemailer.createTransport({ host: 'smtp.gmail.com', port: 465, secure: true, auth: { user, pass: pass.replace(/\s+/g, '') } })
     const cc = row.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(row.email) ? row.email : undefined
-    await transporter.sendMail({ from: `"אפיק הנחל · קליטת נכסים" <${user}>`, to, cc, subject: `🏠 נכס חדש ${purposeOf(a) === 'rental' ? 'להשכרה' : 'למכירה'}: ${headline(a, 'he') || row.contact_name || row.ref} · תיק ${row.ref}`, html: buildEmailHtml(row, a, signedFiles) })
+    await transporter.sendMail({ from: `"אפיק הנחל · קליטת נכסים" <${user}>`, to, cc, subject: `${row.backup ? '⚠️ גיבוי · ' : ''}🏠 נכס חדש ${purposeOf(a) === 'rental' ? 'להשכרה' : 'למכירה'}: ${headline(a, 'he') || row.contact_name || row.ref} · תיק ${row.ref}`, html: buildEmailHtml(row, a, signedFiles),
+      ...(opts.attachJson ? { attachments: [{ filename: `${row.ref}.json`, content: JSON.stringify(row, null, 2), contentType: 'application/json' }] } : {}) })
     return { ok: true }
   } catch (e) { return { ok: false, error: e.message } }
 }
@@ -474,7 +480,17 @@ async function notifyEmail(row, a, signedFiles) {
 async function publicView(client, row) {
   const a = publicAnswers(row.answers || {})
   const files = (row.files || []).filter(f => f.kind === 'photos' || f.kind === 'videos' || f.kind === 'plan')
-  const signed = await signFiles(client, files, 3600)
+  // Signed URLs are kept on the row for ~6 days and reused: the same URL is a CDN hit at Supabase
+  // (cheap "cached egress") instead of a fresh token per view that always misses the cache.
+  const cache = (row.meta && row.meta.signed) || {}
+  const fresh = files.every(f => cache[f.path] && cache[f.path].exp > Date.now() + 12 * 3600 * 1000)
+  let signed
+  if (fresh) signed = files.map(f => ({ ...f, url: cache[f.path].url }))
+  else {
+    signed = await signFiles(client, files, 7 * 24 * 3600)
+    const next = {}; signed.forEach(f => { if (f.url) next[f.path] = { url: f.url, exp: Date.now() + 7 * 24 * 3600 * 1000 } })
+    if (row.id && Object.keys(next).length) patchRow(`id=eq.${row.id}`, { meta: { ...(row.meta || {}), signed: next } }).catch(() => {})
+  }
   return {
     ok: true, ref: row.ref, lang: row.lang || 'he', submitted_at: row.submitted_at || row.created_at, status: row.status,
     headline: { he: headline(a, 'he'), en: headline(a, 'en') },
@@ -652,7 +668,10 @@ export default async function handler(req, res) {
       if (a.d_ask !== undefined && a.d_ask !== '' && !(num(a.d_ask) > 0)) return res.status(400).json({ ok: false, error: 'invalid asking price' })
       if (!a.p_address?.city || !a.p_type) return res.status(400).json({ ok: false, error: 'property type and city are required' })
       const files = cleanFiles(b.files, sid)
-      const existing = await getRow(`sid=eq.${encodeURIComponent(sid)}`, 'id,ref,share_token,submitted_at,history,status')
+      // Supabase down (quota, paused, outage)? The form must still land somewhere: Vercel Blob + email + WhatsApp.
+      let existing = null, supaDown = false, supaErr = ''
+      try { existing = await getRow(`sid=eq.${encodeURIComponent(sid)}`, 'id,ref,share_token,submitted_at,history,status') }
+      catch (e) { supaDown = true; supaErr = String(e.message || e).slice(0, 200); console.error('[intake] Supabase unavailable at submit:', supaErr) }
       if (existing?.submitted_at) return res.status(200).json({ ok: true, id: existing.id, ref: existing.ref, token: existing.share_token, url: `${SITE}/newproperty/${existing.share_token}`, already: true })
       const ref = existing?.ref || makeRef(), share_token = existing?.share_token || makeToken()
       const row = {
@@ -664,10 +683,22 @@ export default async function handler(req, res) {
         ...summaryFields(a),
       }
       let saved
-      try { saved = existing ? await patchRow(`id=eq.${existing.id}`, row) : await insertRow(row) }
-      catch (e) {
-        if (/relation .* does not exist|Could not find the table|404/i.test(e.message)) return res.status(500).json({ ok: false, error: 'seller_submissions table not found — run server/seller-submissions-migration.sql' })
-        throw e
+      if (!supaDown) {
+        try { saved = existing ? await patchRow(`id=eq.${existing.id}`, row) : await insertRow(row) }
+        catch (e) {
+          if (/relation .* does not exist|Could not find the table/i.test(e.message)) return res.status(500).json({ ok: false, error: 'seller_submissions table not found — run server/seller-submissions-migration.sql' })
+          supaDown = true; supaErr = String(e.message || e).slice(0, 200); console.error('[intake] Supabase write failed at submit:', supaErr)
+        }
+      }
+      if (supaDown) {
+        const rec = { ...row, id: null, backup: true, supabase_error: supaErr, backed_up_at: now() }
+        const stored = []
+        if (backupEnabled()) { try { const bl = await backupPut(`intake/${ref}.json`, rec); rec.blob_url = bl.url; stored.push('blob') } catch (e) { console.error('[intake] blob backup failed:', e.message) } }
+        const results = await Promise.race([Promise.allSettled([notifyEmail(rec, a, files, { attachJson: true }), notifyWhatsApp(rec, a, { full: true })]), new Promise(r => setTimeout(() => r(null), 14000))])
+        if (results) { if (results[0]?.value?.ok) stored.push('email'); if (results[1]?.value?.ok) stored.push('whatsapp') }
+        console.warn(`[intake] ${ref} saved WITHOUT Supabase → ${stored.join(', ') || 'nowhere'}`)
+        if (!stored.length) return res.status(503).json({ ok: false, error: 'המערכת עמוסה כרגע והפרטים לא נקלטו. הכל נשמר במכשיר הזה — נסו לשלוח שוב בעוד כמה דקות, או שלחו לנו הודעה בוואטסאפ.' })
+        return res.status(201).json({ ok: true, id: null, ref, token: null, url: '', degraded: true, stored })
       }
       const rec = { ...row, id: saved?.id ?? existing?.id ?? null }
       console.log(`[intake] submitted ${ref} | ${name} | ${headline(a, 'he')}`)
@@ -682,6 +713,33 @@ export default async function handler(req, res) {
     // ── everything below is admin-only ──────────────────────────────────────
     if (!isAdmin(req)) return res.status(401).json({ ok: false, error: 'unauthorized' })
     res.setHeader('Cache-Control', 'no-store')
+
+    // ── Backups: forms that arrived while Supabase was unavailable (Vercel Blob) ──
+    if (req.method === 'GET' && action === 'backup-list') {
+      if (!backupEnabled()) return res.status(200).json({ ok: true, enabled: false, rows: [] })
+      const blobs = await backupList('intake/', 100)
+      const rows = []
+      for (const bl of blobs.slice(0, 60)) {
+        try { const rec = await backupGet(bl.downloadUrl || bl.url); rows.push({ id: `bk:${bl.pathname}`, blob_url: bl.url, backup: true, status: 'backup', ref: rec.ref, sid: rec.sid, purpose: rec.purpose, contact_name: rec.contact_name, phone: rec.phone, email: rec.email, city: rec.city, address: rec.address, property_type: rec.property_type, property_type_label: PROPERTY_TYPE_LABEL(rec.property_type, 'he'), asking_price: rec.asking_price, created_at: rec.submitted_at || bl.uploadedAt, submitted_at: rec.submitted_at || bl.uploadedAt, backed_up_at: rec.backed_up_at, supabase_error: rec.supabase_error, files_count: (rec.files || []).length, photos_count: (rec.files || []).filter(f => f.kind === 'photos').length }) }
+        catch (e) { console.warn('[intake] backup read failed:', bl.pathname, e.message) }
+      }
+      rows.sort((x, y) => String(y.created_at).localeCompare(String(x.created_at)))
+      return res.status(200).json({ ok: true, enabled: true, rows })
+    }
+    if (req.method === 'GET' && action === 'backup-get') {
+      const rec = await backupGet(String(req.query.url || ''))
+      return res.status(200).json({ ...rec, id: `bk:${req.query.url}`, backup: true, status: 'backup', blob_url: String(req.query.url), property_type_label: PROPERTY_TYPE_LABEL(rec.property_type, 'he'), form_url: rec.sid ? `${SITE}/newproperty?d=${rec.sid}` : null, files: (rec.files || []).map(f => ({ ...f, url: null })) })
+    }
+    if (req.method === 'POST' && action === 'backup-restore') {
+      const url = String((req.body || {}).url || '')
+      const rec = await backupGet(url)
+      const { backup: _b, supabase_error: _e, backed_up_at, blob_url: _u, id: _i, ...row } = rec
+      const dup = row.sid ? await getRow(`sid=eq.${encodeURIComponent(row.sid)}`, 'id,ref') : null
+      const saved = dup ? await patchRow(`id=eq.${dup.id}`, { ...row, history: [...(row.history || []), { at: now(), by: 'system', action: 'restored', note: `שוחזר מגיבוי (${backed_up_at || ''})` }] })
+                        : await insertRow({ ...row, history: [...(row.history || []), { at: now(), by: 'system', action: 'restored', note: `שוחזר מגיבוי (${backed_up_at || ''})` }] })
+      await backupDelete([url])
+      return res.status(200).json({ ok: true, id: saved?.id ?? dup?.id ?? null, ref: row.ref })
+    }
 
     // Personal link for a specific client: the office creates the draft with the contact details
     // filled in, sends it (WhatsApp) and can then watch whether the client opened / started / stopped.
@@ -705,12 +763,15 @@ export default async function handler(req, res) {
 
     // Cheap counters for the admin sidebar badge / "new property" alert (polled by the admin panel)
     if (req.method === 'GET' && action === 'stats') {
-      const r = await supaFetch(`/${TABLE}?select=id,ref,status,purpose,contact_name,city,property_type,asking_price,submitted_at,owner_verified_at&submitted_at=not.is.null&order=submitted_at.desc&limit=400`)
+      // Polled by every open admin tab: answer from a short in-memory cache when the instance is warm
+      if (statsCache && Date.now() - statsCache.at < 45000) return res.status(200).json(statsCache.body)
+      const r = await supaFetch(`/${TABLE}?select=id,ref,status,purpose,contact_name,city,property_type,asking_price,submitted_at,owner_verified_at&submitted_at=not.is.null&order=submitted_at.desc&limit=200`)
       if (r.status === 404 || r.status === 406) return res.status(200).json({ ok: true, new: 0, unverified: 0, total: 0, latest: [] })
       if (!r.ok) return res.status(r.status).json({ ok: false, error: await r.text().catch(() => '') })
       const rows = await r.json().catch(() => [])
       const counts = rows.reduce((m, x) => { m[x.status] = (m[x.status] || 0) + 1; return m }, {})
-      return res.status(200).json({ ok: true, total: rows.length, new: counts.new || 0, review: counts.review || 0, approved: counts.approved || 0, published: counts.published || 0,
+      statsCache = { at: Date.now(), body: null }
+      return res.status(200).json(statsCache.body = { ok: true, total: rows.length, new: counts.new || 0, review: counts.review || 0, approved: counts.approved || 0, published: counts.published || 0,
         unverified: rows.filter(x => !x.owner_verified_at).length, sale: rows.filter(x => (x.purpose || 'sale') === 'sale').length, rental: rows.filter(x => x.purpose === 'rental').length,
         latest: rows.slice(0, 8).map(x => ({ id: x.id, ref: x.ref, status: x.status, purpose: x.purpose || 'sale', name: x.contact_name, city: x.city, type: PROPERTY_TYPE_LABEL(x.property_type, 'he'), price: x.asking_price, submitted_at: x.submitted_at })) })
     }
