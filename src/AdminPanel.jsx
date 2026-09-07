@@ -1668,7 +1668,8 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
           setSupabaseWarning('⚠ Supabase לא מוגדר — חסרים SUPABASE_URL / SUPABASE_SERVICE_KEY ב-Render. כנס ל-Render → Environment ← הוסף את המשתנים.')
         } else if (!s.supabaseReachable) {
           const err = s.supabaseError ? ` (${s.supabaseError})` : ''
-          setSupabaseWarning(`⚠ Supabase לא נגיש${err} — הפרויקט כנראה מושהה. כנס ל-supabase.com → הפרויקט שלך → לחץ "Restore Project" → המתן דקה ← רענן.`)
+          if (/egress|quota|restricted/i.test(s.supabaseError || '')) setSupabaseWarning('⚠ Supabase חסם את הפרויקט: נגמרה מכסת התעבורה החודשית (5GB בחינם). הטופס, הפאנל והתמונות לא יעבדו עד שדרוג. כנס ל-supabase.com → Organization → Billing → Upgrade to Pro (השירות חוזר תוך דקות), או המתן לאיפוס החודשי.')
+          else setSupabaseWarning(`⚠ Supabase לא נגיש${err} — הפרויקט כנראה מושהה. כנס ל-supabase.com → הפרויקט שלך → לחץ "Restore Project" → המתן דקה ← רענן.`)
         }
       })
       .catch(() => {})
@@ -1880,7 +1881,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
       } catch {}
     }
     poll()
-    const t = setInterval(poll, 60000)
+    const t = setInterval(poll, 180000)
     const onFocus = () => poll()
     window.addEventListener('focus', onFocus)
     return () => { stop = true; clearInterval(t); window.removeEventListener('focus', onFocus) }
@@ -1919,10 +1920,15 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const syncLeadsFromServer = () => {
     if (leadsSyncing) return
     setLeadsSyncing(true)
-    condFetchJson(`${CONTACTS_API}/api/contacts`, { Authorization: `Bearer ${ADMIN_TOKEN}` })
+    // Incremental: ask only for leads newer than the newest one we already have (persisted per browser)
+    let since = ''
+    try { since = localStorage.getItem('afik_leads_since') || '' } catch {}
+    condFetchJson(`${CONTACTS_API}/api/contacts${since ? `?since=${encodeURIComponent(since)}` : ''}`, { Authorization: `Bearer ${ADMIN_TOKEN}` })
       .then(res => (res.ok && res.changed ? res.data : Promise.reject()))
       .then(serverLeads => {
         if (!Array.isArray(serverLeads)) return
+        const newest = serverLeads.map(s => s.created_at).filter(Boolean).sort().pop()
+        if (newest && newest > since) { try { localStorage.setItem('afik_leads_since', newest) } catch {} }
         const deletedIds = new Set(
           JSON.parse(localStorage.getItem(LEADS_DELETED) || '[]').map(String)
         )
@@ -1956,7 +1962,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   // Sync on admin mount + auto-sync every 60 s — cloud is always source of truth
   useEffect(() => {
     syncLeadsFromServer()
-    const iv = setInterval(() => { if (!document.hidden) syncLeadsFromServer() }, 45000)
+    const iv = setInterval(() => { if (!document.hidden) syncLeadsFromServer() }, 90000)
     return () => clearInterval(iv)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -2132,7 +2138,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     fetchChats(phone)
     // Skip polling while the tab is in the background — admins keep the dashboard
     // open for hours, and a hidden tab hammering the API is pure wasted egress.
-    chatPollRef.current = setInterval(() => { if (!document.hidden) fetchChats(phone) }, 15000)
+    chatPollRef.current = setInterval(() => { if (!document.hidden) fetchChats(phone) }, 30000)   // Realtime delivers new messages; this is a safety net
     return () => { if (chatPollRef.current) clearInterval(chatPollRef.current) }
   }, [selectedLead?.id, fetchChats])
 
@@ -2142,7 +2148,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     fetchChats(chatContact.phone)
     // 3s is plenty responsive for a chat view; the old 500ms fired ~2 req/sec
     // continuously. Also pause entirely while the tab is hidden.
-    const interval = setInterval(() => { if (!document.hidden) fetchChats(chatContact.phone) }, 4000)
+    const interval = setInterval(() => { if (!document.hidden) fetchChats(chatContact.phone) }, 30000)   // Realtime is the live channel
     return () => clearInterval(interval)
   }, [chatContact?.id, tab, fetchChats]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -2150,7 +2156,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   useEffect(() => {
     if (tab !== 'chats') return
     fetchAllChats()
-    const id = setInterval(() => { if (!document.hidden) fetchAllChats() }, 12000)
+    const id = setInterval(() => { if (!document.hidden) fetchAllChats() }, 30000)
     return () => clearInterval(id)
   }, [tab, fetchAllChats]) // eslint-disable-line react-hooks/exhaustive-deps
 
