@@ -636,6 +636,18 @@ export default function SellerForm() {
   const [cloudSaved, setCloudSaved] = useState(false)
   const startedAt = useRef(Date.now())
   const stageRef = useRef(null)
+  const latestRef = useRef({})
+  // Journey pixel: tells the office whether this person opened / started / reached the summary / left.
+  // Fire-and-forget, keepalive so a closing tab still delivers it. Progress is read from latestRef.
+  const progressRef = useRef({ idx: 0, total: 0 })
+  const track = useCallback((event, extra = {}) => {
+    const sid = sidRef.current || pendingSid.current
+    if (!sid) return
+    const q = new URLSearchParams(window.location.search)
+    const body = { sid, event, step: latestRef.current?.cur, stepIndex: progressRef.current.idx, total: progressRef.current.total, lang: latestRef.current?.lang,
+      ua: navigator.userAgent, ref: document.referrer, source: q.get('utm_source') || q.get('src') || '', link: !!q.get('d'), screen: `${window.innerWidth}x${window.innerHeight}`, schemaVersion: SCHEMA_VERSION, ...extra }
+    try { fetch(`${API}/api/seller-form?action=track`, { method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).catch(() => {}) } catch {}
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── page setup: fonts, title, body background, direction ─────────────────
   useEffect(() => {
@@ -669,8 +681,9 @@ export default function SellerForm() {
       const d = loadDraft()
       if (d) { setDraft(d); sidRef.current = d.sid || null }
     }
+    track('open')
     return () => { document.body.style.background = prevBg }
-  }, [])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
   // Mobile keyboard: let the layout shrink with the keyboard (Chrome) and allow pinch-zoom; scroll the question into view on focus
   useEffect(() => {
     const meta = document.querySelector('meta[name="viewport"]')
@@ -699,6 +712,7 @@ export default function SellerForm() {
   // ── derived ──────────────────────────────────────────────────────────────
   const visible = useMemo(() => visibleSteps(answers), [answers])
   const idx = Math.max(0, visible.findIndex(s => s.id === cur))
+  progressRef.current = { idx, total: visible.length }
   const step = visible[idx] || visible[0]
   const total = visible.length
   const questionSteps = useMemo(() => visible.filter(s => !['intro', 'review'].includes(s.type)), [visible])
@@ -726,15 +740,15 @@ export default function SellerForm() {
     return () => clearTimeout(h)
   }, [answers, cur, phase, lang, reachedReview])
   // Leaving the page (tab closed, app switched): push the latest answers right away
-  const latestRef = useRef({})
   useEffect(() => { latestRef.current = { answers, cur, lang, reached: reachedReview } }, [answers, cur, lang, reachedReview])
   useEffect(() => {
     if (phase !== 'form') return
     const flush = () => {
       const { answers: a, cur: c, lang: l, reached } = latestRef.current
-      if (!sidRef.current || !Object.keys(a || {}).length) return
+      if (!sidRef.current) return
+      if (!Object.keys(a || {}).length) { track('leave'); return }
       const clean = stripFilesForDraft(a); delete clean.__consent
-      try { fetch(`${API}/api/seller-form?action=draft`, { method: 'PUT', keepalive: true, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sid: sidRef.current, answers: { ...clean, __reached: reached }, cur: c, lang: l, schemaVersion: SCHEMA_VERSION }) }).catch(() => {}) } catch {}
+      try { fetch(`${API}/api/seller-form?action=draft`, { method: 'PUT', keepalive: true, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sid: sidRef.current, answers: { ...clean, __reached: reached }, cur: c, lang: l, schemaVersion: SCHEMA_VERSION, progress: { index: progressRef.current.idx, total: progressRef.current.total }, leave: true }) }).catch(() => {}) } catch {}
     }
     const onVis = () => { if (document.visibilityState === 'hidden') flush() }
     window.addEventListener('pagehide', flush); document.addEventListener('visibilitychange', onVis)
@@ -746,7 +760,7 @@ export default function SellerForm() {
     if (!Object.keys(answers).length) return
     const h = setTimeout(() => {
       const clean = stripFilesForDraft(answers); delete clean.__consent
-      fetch(`${API}/api/seller-form?action=draft`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sid: sidRef.current, answers: { ...clean, __reached: reachedReview }, cur, lang, schemaVersion: SCHEMA_VERSION, ua: navigator.userAgent }) })
+      fetch(`${API}/api/seller-form?action=draft`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sid: sidRef.current, answers: { ...clean, __reached: reachedReview }, cur, lang, schemaVersion: SCHEMA_VERSION, ua: navigator.userAgent, progress: { index: idx, total: visible.length } }) })
         .then(r => setCloudSaved(r.ok)).catch(() => setCloudSaved(false))
     }, 2500)
     return () => clearTimeout(h)
@@ -769,7 +783,7 @@ export default function SellerForm() {
   }, [step, answers, idx, total, visible, goTo, editReturn, reviewId])
   const goReview = useCallback(() => { if (reviewId) { setEditReturn(false); goTo(reviewId, 1) } }, [reviewId, goTo])
   const editFromReview = useCallback(id => { setEditReturn(true); goTo(id, -1) }, [goTo])
-  useEffect(() => { if (phase === 'form' && (step?.type === 'review' || step?.type === 'story')) { setReachedReview(true); setEditReturn(false) } }, [phase, step])
+  useEffect(() => { if (phase === 'form' && (step?.type === 'review' || step?.type === 'story')) { if (!reachedReview) track('review'); setReachedReview(true); setEditReturn(false) } }, [phase, step]) // eslint-disable-line react-hooks/exhaustive-deps
   const goPrev = useCallback(() => { if (idx > 0) goTo(visible[idx - 1].id, -1) }, [idx, visible, goTo])
 
   const begin = (resume) => {
@@ -786,6 +800,7 @@ export default function SellerForm() {
     startedAt.current = Date.now()
     setDir(1); setPhase('form')
     window.scrollTo({ top: 0 })
+    track('start', { resume: !!(resume && draft) })
   }
 
   // ── keyboard ─────────────────────────────────────────────────────────────

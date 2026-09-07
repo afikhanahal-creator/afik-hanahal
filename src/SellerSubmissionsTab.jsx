@@ -8,7 +8,7 @@
 // "פרסם באתר" builds a property for the existing property generator (server
 // side) and it appears on the live site; "הסר מהאתר" hides it without deleting.
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { FaWhatsapp, FaPhone, FaEnvelope, FaTrash, FaSearch, FaCopy, FaDownload, FaFileAlt, FaVideo, FaSyncAlt, FaExternalLinkAlt, FaCheck, FaGlobe, FaEyeSlash, FaLink, FaShieldAlt, FaHistory, FaImage, FaBullhorn, FaBalanceScale, FaMoneyBill, FaInfoCircle, FaSave, FaPlus, FaTimes, FaExclamationTriangle } from 'react-icons/fa'
+import { FaWhatsapp, FaPhone, FaEnvelope, FaTrash, FaSearch, FaCopy, FaDownload, FaFileAlt, FaVideo, FaSyncAlt, FaExternalLinkAlt, FaCheck, FaGlobe, FaEyeSlash, FaLink, FaShieldAlt, FaHistory, FaImage, FaBullhorn, FaBalanceScale, FaMoneyBill, FaInfoCircle, FaSave, FaPlus, FaTimes, FaExclamationTriangle, FaUserPlus, FaMobileAlt, FaDesktop, FaBell, FaRoute } from 'react-icons/fa'
 import { buildSummary, headline, PROPERTY_TYPE_LABEL, DOC_TAG_LABEL, fmtNum, INTAKE_STATUSES, marketingTexts, AI_CHANNELS, AI_TONES, AI_SYSTEM, aiBrief, yad2Fields } from './sellerFormSchema.js'
 
 const ADMIN_TOKEN = 'AFIKhanahal2026'
@@ -28,6 +28,54 @@ const HISTORY_LABEL = { draft_created: 'טיוטה נוצרה', submitted: 'הט
 const ACCEPT = { photos: 'image/*', videos: 'video/*', plan: 'image/*,application/pdf', docs: 'image/*,application/pdf' }
 const BY_LABEL = { seller: 'המוכר', owner: 'בעלים', admin: 'צוות', system: 'מערכת' }
 const AI_MODEL = 'claude-opus-5'
+
+// ── Journey (funnel) labels: where a person is between "got the link" and "sent the form" ──
+const STAGES = [
+  { v: 'invited',     l: 'הוזמנו ולא פתחו',   color: '#9A9AA8' },
+  { v: 'opened',      l: 'פתחו ולא התחילו',   color: '#F5A623' },
+  { v: 'started',     l: 'התחילו',            color: '#60D4F7' },
+  { v: 'in_progress', l: 'באמצע',             color: '#8490D8' },
+  { v: 'review',      l: 'הגיעו לסיכום',      color: '#C084FC' },
+  { v: 'submitted',   l: 'שלחו',              color: '#22C55E' },
+]
+const stageOf = v => STAGES.find(x => x.v === v) || STAGES[2]
+const relTime = iso => {
+  if (!iso) return ''
+  const m = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000))
+  if (m < 2) return 'עכשיו'
+  if (m < 60) return `לפני ${m} דק׳`
+  if (m < 48 * 60) return `לפני ${Math.round(m / 60)} שע׳`
+  return `לפני ${Math.round(m / 1440)} ימים`
+}
+const SOURCE_LABEL = s => ({ invite: 'קישור אישי', direct: 'קישור ישיר', site: 'מהאתר', whatsapp: 'וואטסאפ', facebook: 'פייסבוק', instagram: 'אינסטגרם' }[s] || s || '')
+
+function ProgressBar({ pct, color }) {
+  return <div style={{ height: 5, borderRadius: 3, background: 'rgba(255,255,255,.08)', overflow: 'hidden' }}><i style={{ display: 'block', height: '100%', width: `${Math.max(2, Math.min(100, pct || 0))}%`, background: color, borderRadius: 3, transition: 'width .3s' }}/></div>
+}
+
+// "Where did they stop?" — one card, used in the list rows and at the top of a draft's detail
+function JourneyLine({ j, compact }) {
+  if (!j) return null
+  const st = stageOf(j.stage)
+  return (
+    <div style={{ marginTop: compact ? 7 : 0 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, fontSize: 11, marginBottom: 4 }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: st.color, fontWeight: 700 }}>
+          <span style={{ width: 7, height: 7, borderRadius: '50%', background: st.color, display: 'inline-block' }}/>{st.l}{j.stalled && j.stage !== 'submitted' ? <span style={{ color: '#E05252', fontWeight: 700 }}> · נעצרו</span> : ''}
+        </span>
+        <span style={{ color: 'rgba(232,228,216,.5)', whiteSpace: 'nowrap' }}>{j.progress_pct}% {j.total_steps ? `· שלב ${Math.min(j.total_steps, (j.step_index || 0) + 1)} מתוך ${j.total_steps}` : ''}</span>
+      </div>
+      <ProgressBar pct={j.progress_pct} color={st.color}/>
+      {!compact && j.last_step_label && j.stage !== 'submitted' && <div style={{ fontSize: 12, color: 'rgba(232,228,216,.75)', marginTop: 6 }}>עצרו בשאלה: <b>{j.last_step_label}</b></div>}
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', fontSize: 10.5, color: 'rgba(232,228,216,.45)', marginTop: 5 }}>
+        {j.last_seen_at && <span>נראו {relTime(j.last_seen_at)}</span>}
+        {j.device && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>{j.device === 'mobile' ? <FaMobileAlt size={9}/> : <FaDesktop size={9}/>}{j.device === 'mobile' ? 'נייד' : 'מחשב'}</span>}
+        {j.source && <span>{SOURCE_LABEL(j.source)}</span>}
+        {j.opens > 1 && <span>{j.opens} פתיחות</span>}
+      </div>
+    </div>
+  )
+}
 
 // ── AI copy studio: one click per channel, editable result, saved on the property card ──
 function AiStudio({ detail, ov, setOv, onSave, saving, copyText, say, styles }) {
@@ -137,6 +185,9 @@ export default function SellerSubmissionsTab({ C, onChanged, onOpenWizard }) {
   const [flash, setFlash] = useState('')
   const [fileBusy, setFileBusy] = useState('')      // '' | 'up:<kind>' | 'del:<path>'
   const [stale, setStale] = useState(false)          // published property edited but not re-published yet
+  const [inviteOpen, setInviteOpen] = useState(false)
+  const [invite, setInvite] = useState({ name: '', phone: '', purpose: 'sale', send: true })
+  const [inviteResult, setInviteResult] = useState(null)
   const fileInputRef = useRef({})
 
   const say = m => { setFlash(m); setTimeout(() => setFlash(''), 2200) }
@@ -175,6 +226,28 @@ export default function SellerSubmissionsTab({ C, onChanged, onOpenWizard }) {
     catch (e) { setError(e.message) }
   }
   const saveNotes = async () => { if (!detail) return; setSaving('notes'); try { await patch(detail.id, { notes }); await refreshDetail(detail.id); say('ההערות נשמרו') } catch (e) { setError(e.message) } finally { setSaving('') } }
+  const sendInvite = async () => {
+    if (!invite.phone.trim()) { say('צריך מספר טלפון'); return }
+    setBusy('invite'); setInviteResult(null)
+    try {
+      const r = await fetch(`${API}?action=invite`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...H }, body: JSON.stringify(invite) })
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok || !d.ok) throw new Error(d.error || `HTTP ${r.status}`)
+      setInviteResult(d); say(d.sent ? 'הקישור נשלח בוואטסאפ' : 'הקישור האישי נוצר'); load()
+    } catch (e) { say(e.message) }
+    finally { setBusy('') }
+  }
+  const remind = async () => {
+    if (!detail?.sid) return
+    setBusy('remind')
+    try {
+      const r = await fetch(`${API}?action=resume-link`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sid: detail.sid }) })
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok || !d.ok) throw new Error(d.error || `HTTP ${r.status}`)
+      say(d.sent ? `תזכורת נשלחה בוואטסאפ ל-${d.phoneMasked}` : `לא נשלח: ${d.error || 'Green API לא מוגדר'}`)
+    } catch (e) { say(e.message) }
+    finally { setBusy('') }
+  }
   const saveOverrides = async () => { if (!detail) return; setSaving('ov'); try { await patch(detail.id, { overrides: ov }); await refreshDetail(detail.id); if (detail.status === 'published') { setStale(true); say('נשמר. לחצו "עדכן באתר" כדי שהשינוי יופיע בלייב') } else say('הנתונים נשמרו') } catch (e) { setError(e.message) } finally { setSaving('') } }
   useEffect(() => { setStale(false) }, [selId])
   const act = async (action) => {
@@ -255,11 +328,27 @@ export default function SellerSubmissionsTab({ C, onChanged, onOpenWizard }) {
 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase()
-    return rows.filter(r => (filter === 'all' ? r.status !== 'draft' : filter === 'draft' ? r.status === 'draft' : filter === 'unverified' ? (r.submitted_at && !r.owner_verified_at) : r.status === filter)
+    const j = r => r.journey || {}
+    return rows.filter(r => (filter === 'all' ? r.status !== 'draft' : filter === 'draft' ? r.status === 'draft' : filter === 'unverified' ? (r.submitted_at && !r.owner_verified_at)
+        : filter === 'j_stalled' ? (r.status === 'draft' && j(r).stalled) : filter === 'j_active' ? (r.status === 'draft' && !j(r).stalled && ['started', 'in_progress', 'review'].includes(j(r).stage))
+        : filter === 'j_opened' ? (r.status === 'draft' && j(r).stage === 'opened') : filter === 'j_invited' ? (r.status === 'draft' && j(r).stage === 'invited') : r.status === filter)
       && (purpose === 'all' || (r.purpose || 'sale') === purpose)
       && (!s || [r.ref, r.contact_name, r.phone, r.email, r.city, r.address, r.property_type_label].some(x => String(x || '').toLowerCase().includes(s))))
   }, [rows, q, filter, purpose])
-  const counts = useMemo(() => rows.reduce((m, r) => { m[r.status] = (m[r.status] || 0) + 1; if (r.submitted_at && !r.owner_verified_at) m.unverified = (m.unverified || 0) + 1; return m }, {}), [rows])
+  const counts = useMemo(() => rows.reduce((m, r) => {
+    m[r.status] = (m[r.status] || 0) + 1; if (r.submitted_at && !r.owner_verified_at) m.unverified = (m.unverified || 0) + 1
+    const j = r.journey || {}
+    if (r.status === 'draft') { if (j.stage === 'invited') m.j_invited = (m.j_invited || 0) + 1; else if (j.stage === 'opened') m.j_opened = (m.j_opened || 0) + 1; else if (j.stalled) m.j_stalled = (m.j_stalled || 0) + 1; else if (['started', 'in_progress', 'review'].includes(j.stage)) m.j_active = (m.j_active || 0) + 1 }
+    return m
+  }, {}), [rows])
+  // Funnel for the last 30 days: how many got a link, opened, started, reached the summary, sent
+  const funnel = useMemo(() => {
+    const since = Date.now() - 30 * 86400000
+    const recent = rows.filter(r => new Date(r.created_at || 0).getTime() >= since)
+    const j = r => r.journey || {}
+    const has = f => recent.filter(f).length
+    return { total: recent.length, invited: has(r => j(r).invited_at), opened: has(r => j(r).opened_at || j(r).started_at || r.submitted_at), started: has(r => j(r).started_at || (j(r).answered > 0) || r.submitted_at), review: has(r => j(r).review_at || r.submitted_at), submitted: has(r => r.submitted_at) }
+  }, [rows])
 
   const purple = C?.purple || '#8490D8'
   const card = { background: 'rgba(255,255,255,.03)', border: '1px solid rgba(132,144,216,.14)', borderRadius: 12 }
@@ -324,16 +413,58 @@ export default function SellerSubmissionsTab({ C, onChanged, onOpenWizard }) {
             <div style={{ fontSize: 11.5, color: 'rgba(232,228,216,.5)' }}>נכסים מהטופס <a href="/newproperty" target="_blank" rel="noreferrer" style={{ color: purple }}>/newproperty</a> · נפרד מהלידים</div>
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
+            <button onClick={() => { setInviteOpen(o => !o); setInviteResult(null) }} title="קישור אישי ללקוח: רואים אם פתח, התחיל ואיפה עצר" style={btn(inviteOpen ? { background: 'rgba(132,144,216,.25)' } : {})}><FaUserPlus size={11}/> הזמנת לקוח</button>
             <button onClick={() => copyText(`${window.location.origin}/newproperty`)} title="העתקת קישור הטופס" style={btn()}><FaLink size={11}/></button>
             <button onClick={load} title="רענון" style={btn()}><FaSyncAlt size={11} style={loading ? { animation: 'spin 1s linear infinite' } : undefined}/></button>
           </div>
         </div>
+        {inviteOpen && (
+          <div style={{ ...card, padding: '12px 14px', borderColor: 'rgba(132,144,216,.35)' }}>
+            <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 2 }}>קישור אישי ללקוח</div>
+            <div style={{ fontSize: 11, color: 'rgba(232,228,216,.55)', marginBottom: 8 }}>הטופס נפתח עם השם והטלפון כבר מלאים, ותראו כאן אם הלקוח פתח, התחיל ואיפה עצר.</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+              <input value={invite.name} onChange={e => setInvite(v => ({ ...v, name: e.target.value }))} placeholder="שם הלקוח" style={input}/>
+              <input value={invite.phone} onChange={e => setInvite(v => ({ ...v, phone: e.target.value }))} placeholder="טלפון" dir="ltr" style={{ ...input, textAlign: 'right' }}/>
+            </div>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 8, flexWrap: 'wrap' }}>
+              {[['sale', 'למכירה'], ['rental', 'להשכרה']].map(([v, l]) => <button key={v} onClick={() => setInvite(x => ({ ...x, purpose: v }))} style={{ padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', border: `1px solid ${invite.purpose === v ? purple : 'rgba(132,144,216,.2)'}`, background: invite.purpose === v ? 'rgba(132,144,216,.18)' : 'transparent', color: invite.purpose === v ? '#fff' : 'rgba(232,228,216,.6)' }}>{l}</button>)}
+              <label style={{ fontSize: 11.5, display: 'inline-flex', alignItems: 'center', gap: 5, cursor: 'pointer', marginInlineStart: 'auto' }}><input type="checkbox" checked={invite.send} onChange={e => setInvite(v => ({ ...v, send: e.target.checked }))}/> לשלוח בוואטסאפ</label>
+            </div>
+            <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
+              <button onClick={sendInvite} disabled={busy === 'invite'} style={btn({ background: 'rgba(37,211,102,.14)', borderColor: 'rgba(37,211,102,.45)', color: '#25D366' })}><FaWhatsapp size={12}/> {invite.send ? 'צור ושלח' : 'צור קישור'}</button>
+              <button onClick={() => setInviteOpen(false)} style={btn()}>סגור</button>
+            </div>
+            {inviteResult && (
+              <div style={{ marginTop: 10, fontSize: 11.5 }}>
+                <div style={{ color: inviteResult.sent ? '#22C55E' : '#F5A623' }}>{inviteResult.sent ? 'נשלח בוואטסאפ ✓' : invite.send ? `לא נשלח (${inviteResult.error || 'Green API לא מוגדר'}). אפשר להעתיק ולשלוח ידנית:` : 'הקישור מוכן:'}</div>
+                <div dir="ltr" style={{ fontFamily: 'monospace', fontSize: 11, background: 'rgba(0,0,0,.25)', borderRadius: 6, padding: '6px 8px', marginTop: 4, wordBreak: 'break-all' }}>{inviteResult.url}</div>
+                <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                  <button onClick={() => copyText(inviteResult.url)} style={btn()}><FaCopy size={10}/> העתק קישור</button>
+                  <button onClick={() => copyText(inviteResult.message)} style={btn()}><FaCopy size={10}/> העתק הודעה</button>
+                  <a href={`https://wa.me/${toIntl(invite.phone)}?text=${encodeURIComponent(inviteResult.message || inviteResult.url)}`} target="_blank" rel="noreferrer" style={btn({ color: '#25D366', borderColor: 'rgba(37,211,102,.4)' })}><FaWhatsapp size={10}/> פתח בוואטסאפ</a>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+        {funnel.total > 0 && (
+          <div style={{ ...card, padding: '9px 12px' }} title="30 הימים האחרונים">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10.5, color: 'rgba(232,228,216,.5)', letterSpacing: '.06em', marginBottom: 6 }}><FaRoute size={10}/> מסע הלקוח · 30 יום</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 4, textAlign: 'center' }}>
+              {[['הוזמנו', funnel.invited, '#9A9AA8'], ['פתחו', funnel.opened, '#F5A623'], ['התחילו', funnel.started, '#60D4F7'], ['לסיכום', funnel.review, '#C084FC'], ['שלחו', funnel.submitted, '#22C55E']].map(([l, n, c]) => (
+                <div key={l} style={{ background: 'rgba(255,255,255,.03)', borderRadius: 8, padding: '5px 2px' }}><div style={{ fontSize: 16, fontWeight: 800, color: c }}>{n}</div><div style={{ fontSize: 10, color: 'rgba(232,228,216,.55)' }}>{l}</div></div>
+              ))}
+            </div>
+            {(counts.j_stalled || counts.j_opened) ? <div style={{ fontSize: 11, color: '#F5A623', marginTop: 7 }}>{[counts.j_stalled ? `${counts.j_stalled} נעצרו באמצע` : '', counts.j_opened ? `${counts.j_opened} פתחו ולא התחילו` : ''].filter(Boolean).join(' · ')} — כדאי לשלוח תזכורת.</div> : null}
+          </div>
+        )}
         <div style={{ position: 'relative' }}>
           <FaSearch size={12} style={{ position: 'absolute', right: 12, top: 11, color: 'rgba(232,228,216,.4)' }}/>
           <input value={q} onChange={e => setQ(e.target.value)} placeholder="חיפוש לפי שם, טלפון, עיר, מספר תיק…" style={{ ...input, padding: '9px 34px 9px 12px', borderRadius: 10 }}/>
         </div>
         <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-          {[{ v: 'all', l: 'הכל' }, ...INTAKE_STATUSES.filter(s => s.v !== 'draft'), { v: 'unverified', l: 'ממתין לאימות בעלים', color: '#F5A623' }, { v: 'draft', l: 'טיוטות', color: '#9A9AA8' }].map(s => (
+          {[{ v: 'all', l: 'הכל' }, ...INTAKE_STATUSES.filter(s => s.v !== 'draft'), { v: 'unverified', l: 'ממתין לאימות בעלים', color: '#F5A623' },
+            { v: 'j_active', l: 'בתהליך', color: '#60D4F7' }, { v: 'j_stalled', l: 'נעצרו', color: '#E05252' }, { v: 'j_opened', l: 'פתחו ולא התחילו', color: '#F5A623' }, { v: 'j_invited', l: 'הוזמנו ולא פתחו', color: '#9A9AA8' }, { v: 'draft', l: 'כל הטיוטות', color: '#9A9AA8' }].map(s => (
             <button key={s.v} onClick={() => setFilter(s.v)} style={{ padding: '4px 9px', borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', border: `1px solid ${filter === s.v ? (s.color || purple) : 'rgba(132,144,216,.2)'}`, background: filter === s.v ? `${s.color || purple}22` : 'transparent', color: filter === s.v ? (s.color || purple) : 'rgba(232,228,216,.6)' }}>
               {s.l}{s.v !== 'all' && counts[s.v] ? ` · ${counts[s.v]}` : ''}
             </button>
@@ -363,7 +494,9 @@ export default function SellerSubmissionsTab({ C, onChanged, onOpenWizard }) {
                   <span>{r.asking_price ? `₪${fmtNum(r.asking_price, 'he')}` : ''}{r.photos_count ? ` · ${r.photos_count} תמונות` : ''}</span>
                   <span>{r.submitted_at && !r.owner_verified_at ? <span style={{ color: '#F5A623' }}>ממתין לאימות</span> : r.owner_verified_at ? <span style={{ color: '#22C55E' }}>אומת ✓</span> : ''}</span>
                 </div>
-                <div style={{ fontSize: 10.5, color: 'rgba(232,228,216,.35)', marginTop: 4 }}>{r.status === 'draft' ? `נערך ${fmtDate(r.draft_updated_at || r.updated_at)}` : `התקבל ${fmtDate(r.submitted_at || r.created_at)}`}</div>
+                {r.status === 'draft' && r.journey
+                  ? <JourneyLine j={r.journey} compact/>
+                  : <div style={{ fontSize: 10.5, color: 'rgba(232,228,216,.35)', marginTop: 4 }}>{`התקבל ${fmtDate(r.submitted_at || r.created_at)}`}</div>}
               </button>
             )
           })}
@@ -412,6 +545,28 @@ export default function SellerSubmissionsTab({ C, onChanged, onOpenWizard }) {
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 12, fontSize: 12.5, color: '#F5A623', background: 'rgba(245,166,35,.1)', border: '1px solid rgba(245,166,35,.35)', borderRadius: 8, padding: '8px 12px' }}>
                 <FaExclamationTriangle size={12}/> יש שינויים בכרטיס הנכס שעדיין לא פורסמו באתר.
                 <button onClick={() => act('publish')} disabled={!!busy} style={btn({ background: 'rgba(34,197,94,.12)', borderColor: 'rgba(34,197,94,.4)', color: '#22C55E' })}><FaGlobe size={11}/> {busy === 'publish' ? 'מעדכן…' : 'עדכן באתר עכשיו'}</button>
+              </div>
+            )}
+
+            {detail.journey && !detail.submitted_at && (
+              <div style={{ ...card, padding: '12px 14px', marginTop: 14, borderColor: `${stageOf(detail.journey.stage).color}55` }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 700 }}><FaRoute size={11} style={{ color: purple }}/> מסע הלקוח</div>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {detail.phone && <button onClick={remind} disabled={busy === 'remind'} style={btn({ background: 'rgba(37,211,102,.12)', borderColor: 'rgba(37,211,102,.4)', color: '#25D366' })}><FaBell size={10}/> תזכורת בוואטסאפ</button>}
+                    {detail.form_url && <button onClick={() => copyText(detail.form_url)} style={btn()}><FaCopy size={10}/> העתק קישור אישי</button>}
+                    {detail.form_url && <a href={detail.form_url} target="_blank" rel="noreferrer" style={btn()}><FaExternalLinkAlt size={10}/> פתח את הטופס</a>}
+                  </div>
+                </div>
+                <JourneyLine j={detail.journey}/>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 8, marginTop: 12 }}>
+                  {[['הוזמנו', detail.journey.invited_at], ['פתחו', detail.journey.opened_at], ['התחילו', detail.journey.started_at], ['הגיעו לסיכום', detail.journey.review_at], ['נראו לאחרונה', detail.journey.last_seen_at]].map(([k, v]) => (
+                    <div key={k} style={{ background: 'rgba(255,255,255,.03)', borderRadius: 8, padding: '7px 10px' }}>
+                      <div style={{ fontSize: 10, color: 'rgba(232,228,216,.5)', letterSpacing: '.06em' }}>{k}</div>
+                      <div style={{ fontSize: 12.5, fontWeight: 700, marginTop: 2, color: v ? '#E8E4D8' : 'rgba(232,228,216,.3)' }}>{v ? fmtDate(v) : '—'}</div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
