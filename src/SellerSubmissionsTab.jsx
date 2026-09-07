@@ -25,7 +25,7 @@ const SECTION_GROUPS = {
   legal:     ['legal'],
   marketing: ['marketing'],
 }
-const HISTORY_LABEL = { restored: 'שוחזר מגיבוי', draft_created: 'טיוטה נוצרה', submitted: 'הטופס נשלח', verified: 'אימות בעלים', status: 'שינוי סטטוס', notes: 'הערות עודכנו', edit: 'עריכה', published: 'פורסם באתר', republished: 'עודכן באתר', unpublished: 'הוסר מהאתר', file_added: 'קובץ נוסף', file_deleted: 'קובץ נמחק' }
+const HISTORY_LABEL = { archived: 'נשמר בארכיון GitHub', restored: 'שוחזר מגיבוי', draft_created: 'טיוטה נוצרה', submitted: 'הטופס נשלח', verified: 'אימות בעלים', status: 'שינוי סטטוס', notes: 'הערות עודכנו', edit: 'עריכה', published: 'פורסם באתר', republished: 'עודכן באתר', unpublished: 'הוסר מהאתר', file_added: 'קובץ נוסף', file_deleted: 'קובץ נמחק' }
 const ACCEPT = { photos: 'image/*', videos: 'video/*', plan: 'image/*,application/pdf', docs: 'image/*,application/pdf' }
 const BY_LABEL = { seller: 'המוכר', owner: 'בעלים', admin: 'צוות', system: 'מערכת' }
 const AI_MODEL = 'claude-opus-5'
@@ -186,7 +186,7 @@ export default function SellerSubmissionsTab({ C, onChanged, onOpenWizard }) {
   const [flash, setFlash] = useState('')
   const [fileBusy, setFileBusy] = useState('')      // '' | 'up:<kind>' | 'del:<path>'
   const [stale, setStale] = useState(false)          // published property edited but not re-published yet
-  const [backupInfo, setBackupInfo] = useState({ enabled: false, count: 0 })
+  const [backupInfo, setBackupInfo] = useState({ enabled: false, count: 0, archive: {} })
   const [inviteOpen, setInviteOpen] = useState(false)
   const [invite, setInvite] = useState({ name: '', phone: '', purpose: 'sale', send: true })
   const [inviteResult, setInviteResult] = useState(null)
@@ -200,7 +200,7 @@ export default function SellerSubmissionsTab({ C, onChanged, onOpenWizard }) {
       const [r, rb] = await Promise.all([fetch(API, { headers: H }), fetch(`${API}?action=backup-list`, { headers: H }).catch(() => null)])
       const data = await r.json().catch(() => [])
       const backups = rb && rb.ok ? await rb.json().catch(() => ({})) : {}
-      setBackupInfo({ enabled: !!backups.enabled, count: (backups.rows || []).length })
+      setBackupInfo({ enabled: !!backups.enabled, count: (backups.rows || []).length, archive: backups.archive || {} })
       // Forms that arrived while Supabase was down live in Vercel Blob until restored; they are listed
       // here with the same card so nothing is ever "lost somewhere".
       if (!r.ok && !(backups.rows || []).length) throw new Error(data?.error || `HTTP ${r.status}`)
@@ -440,7 +440,7 @@ export default function SellerSubmissionsTab({ C, onChanged, onOpenWizard }) {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
             <div style={{ fontSize: 17, fontWeight: 700 }}>נכסים שנקלטו <span style={{ fontSize: 12, color: purple, fontWeight: 600 }}>{rows.filter(r => r.status !== 'draft').length}</span></div>
-            <div style={{ fontSize: 11.5, color: 'rgba(232,228,216,.5)' }}>נכסים מהטופס <a href="/newproperty" target="_blank" rel="noreferrer" style={{ color: purple }}>/newproperty</a> · נפרד מהלידים · <span title={backupInfo.enabled ? 'טפסים שמגיעים כשסופאבייס לא זמין נשמרים ב-Vercel Blob ונשלחים במייל ובוואטסאפ' : 'להפעלת מאגר גיבוי: Vercel → Storage → Create → Blob'} style={{ color: backupInfo.enabled ? '#22C55E' : '#F5A623' }}>{backupInfo.enabled ? 'גיבוי פעיל ✓' : 'ללא מאגר גיבוי'}</span></div>
+            <div style={{ fontSize: 11.5, color: 'rgba(232,228,216,.5)' }}>נכסים מהטופס <a href="/newproperty" target="_blank" rel="noreferrer" style={{ color: purple }}>/newproperty</a> · נפרד מהלידים · <span title={backupInfo.enabled ? 'טפסים שמגיעים כשסופאבייס לא זמין נשמרים ב-Vercel Blob ונשלחים במייל ובוואטסאפ' : 'להפעלת מאגר גיבוי: Vercel → Storage → Create → Blob'} style={{ color: backupInfo.enabled ? '#22C55E' : '#F5A623' }}>{backupInfo.enabled ? 'גיבוי פעיל ✓' : 'ללא מאגר גיבוי'}</span> · <a href={backupInfo.archive?.url || 'https://github.com/afikhanahal-creator/afik-hanahal-records'} target="_blank" rel="noreferrer" title={backupInfo.archive?.enabled ? 'כל טופס נשמר גם כקובץ במאגר GitHub פרטי של המשרד' : 'להפעלת הארכיון: צרו מאגר פרטי afik-hanahal-records והוסיפו GITHUB_ARCHIVE_TOKEN ב-Vercel'} style={{ color: backupInfo.archive?.enabled ? '#22C55E' : '#F5A623' }}>{backupInfo.archive?.enabled ? 'ארכיון GitHub פעיל ✓' : 'ארכיון GitHub לא מוגדר'}</a></div>
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
             <button onClick={() => { setInviteOpen(o => !o); setInviteResult(null) }} title="קישור אישי ללקוח: רואים אם פתח, התחיל ואיפה עצר" style={btn(inviteOpen ? { background: 'rgba(132,144,216,.25)' } : {})}><FaUserPlus size={11}/> הזמנת לקוח</button>

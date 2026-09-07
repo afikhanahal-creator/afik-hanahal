@@ -7,11 +7,16 @@ const table = []; let nextId = 1; const storage = new Map(); const renderStore =
 const parseFilters = qs => { const f = []; for (const [k, v] of qs) { if (['select', 'order', 'limit', 'offset'].includes(k)) continue; const m = /^(eq|neq|is|not\.is|ilike|gte|lte)\.(.*)$/.exec(v); if (m) f.push({ k, op: m[1], v: m[2] }) }; return f }
 const match = (row, f) => f.every(({ k, op, v }) => { const x = row[k]; if (op === 'eq') return String(x) === v; if (op === 'neq') return String(x) !== v; if (op === 'is') return v === 'null' ? x == null : x === (v === 'true'); if (op === 'not.is') return v === 'null' ? x != null : true; if (op === 'ilike') { const re = new RegExp('^' + v.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*') + '$', 'i'); return re.test(String(x ?? '')) } return true })
 const json = (status, body, headers = {}) => new Response(typeof body === 'string' ? body : JSON.stringify(body), { status, headers: { 'content-type': 'application/json', ...headers } })
-process.env.BLOB_READ_WRITE_TOKEN = 'blob-test-token'
-const blobs = new Map(); let supaDown = false
+process.env.BLOB_READ_WRITE_TOKEN = 'blob-test-token'; process.env.GITHUB_ARCHIVE_TOKEN = 'gh-test-token'
+const blobs = new Map(); let supaDown = false; const gh = new Map()
 globalThis.fetch = async (input, init = {}) => {
   const url = new URL(typeof input === 'string' ? input : input.url); const method = (init.method || 'GET').toUpperCase(); log.push(`${method} ${url.pathname}`)
   const body = init.body ? (typeof init.body === 'string' ? init.body : init.body) : null
+  if (url.hostname === 'api.github.com') {
+    const m = /^\/repos\/[^/]+\/[^/]+\/contents\/(.+)$/.exec(url.pathname); const path = m ? decodeURIComponent(m[1]) : ''
+    if (method === 'GET') { const f = gh.get(path); return f ? json(200, { sha: f.sha, content: Buffer.from(f.content).toString('base64') }) : json(404, { message: 'Not Found' }) }
+    if (method === 'PUT') { const b = JSON.parse(body); const cur = gh.get(path); if (cur && !b.sha) return json(422, { message: 'sha required' }); gh.set(path, { sha: 'sha-' + gh.size, content: Buffer.from(b.content, 'base64').toString('utf8') }); return json(cur ? 200 : 201, { content: { html_url: `https://github.com/afikhanahal-creator/afik-hanahal-records/blob/main/${path}` } }) }
+  }
   if (url.hostname.endsWith('blob.vercel-storage.com')) {
     if (url.hostname === 'blob.vercel-storage.com' && method === 'PUT') { const p = url.pathname.slice(1) + '-rnd1'; const u = `https://store1.public.blob.vercel-storage.com/${p}`; blobs.set(u, { pathname: p, body, uploadedAt: new Date().toISOString() }); return json(200, { url: u, downloadUrl: u + '?download=1', pathname: p }) }
     if (url.hostname === 'blob.vercel-storage.com' && method === 'GET') { const prefix = url.searchParams.get('prefix') || ''; return json(200, { blobs: [...blobs.entries()].filter(([, b]) => b.pathname.startsWith(prefix)).map(([u, b]) => ({ url: u, downloadUrl: u + '?download=1', pathname: b.pathname, size: b.body.length, uploadedAt: b.uploadedAt })) }) }
@@ -166,7 +171,11 @@ step('resume-link / find-draft answer safely without Green API', r.resumeLink.st
 }
 {
   const b = r.downSubmit.body || {}
-  step('supabase down: submit still succeeds → 201, degraded, stored in blob', r.downSubmit.statusCode === 201 && b.ok && b.degraded && (b.stored || []).includes('blob') && b.ref && b.url === '', `status ${r.downSubmit.statusCode} stored=${(b.stored || []).join(',')}`)
+  step('supabase down: submit still succeeds → 201, degraded, stored in blob + GitHub archive', r.downSubmit.statusCode === 201 && b.ok && b.degraded && (b.stored || []).includes('blob') && (b.stored || []).includes('github') && b.ref && b.url === '', `status ${r.downSubmit.statusCode} stored=${(b.stored || []).join(',')}`)
+  const ghFiles = [...gh.keys()]
+  const normalJson = ghFiles.find(k => k.endsWith(`/${row?.ref}.json`)), normalMd = ghFiles.find(k => k.endsWith(`/${row?.ref}.md`))
+  const mdText = normalMd ? gh.get(normalMd).content : ''
+  step('every submission is archived to the private GitHub repo as JSON + readable Markdown (README bootstrapped)', !!normalJson && !!normalMd && gh.has('README.md') && /records\/\d{4}\/\d{2}\//.test(normalJson) && mdText.includes('ישראל בן-יהודה') && mdText.includes('## סיפור הנכס') && mdText.includes('| שדה | תשובה |') && (row?.history || []).some(h => h.action === 'archived'), `${ghFiles.length} files: ${ghFiles.slice(0, 3).join(', ')}`)
   const bl = r.downBackups.body || {}
   step('supabase down: admin backup-list shows the form with contact + summary fields; backup-get returns full answers', bl.enabled && bl.rows?.length === 1 && bl.rows[0].contact_name === 'רוני גיבוי' && bl.rows[0].status === 'backup' && r.downGet?.body?.answers?.c_phone === '054-777-7777' && !!r.downGet?.body?.story, `rows=${bl.rows?.length} story=${!!r.downGet?.body?.story}`)
   const restored = table.find(x => x.sid === dsid)
