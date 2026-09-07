@@ -32,6 +32,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { randomBytes } from 'crypto'
 import { backupEnabled, backupPut, backupList, backupGet, backupDelete } from '../lib/backup.js'
+import { archiveEnabled, archiveSubmission, archiveRepoUrl } from '../lib/archive.js'
 import { buildSummary, headline, PROPERTY_TYPE_LABEL, DOC_TAG_LABEL, publicAnswers, buildStory, storyText, directionsText, STEPS, INTAKE_STATUSES, purposeOf, roomsOf, visibleSteps, stepQuestion } from '../src/sellerFormSchema.js'
 
 const SUPA_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
@@ -694,8 +695,8 @@ export default async function handler(req, res) {
         const rec = { ...row, id: null, backup: true, supabase_error: supaErr, backed_up_at: now() }
         const stored = []
         if (backupEnabled()) { try { const bl = await backupPut(`intake/${ref}.json`, rec); rec.blob_url = bl.url; stored.push('blob') } catch (e) { console.error('[intake] blob backup failed:', e.message) } }
-        const results = await Promise.race([Promise.allSettled([notifyEmail(rec, a, files, { attachJson: true }), notifyWhatsApp(rec, a, { full: true })]), new Promise(r => setTimeout(() => r(null), 14000))])
-        if (results) { if (results[0]?.value?.ok) stored.push('email'); if (results[1]?.value?.ok) stored.push('whatsapp') }
+        const results = await Promise.race([Promise.allSettled([notifyEmail(rec, a, files, { attachJson: true }), notifyWhatsApp(rec, a, { full: true }), archiveSubmission(rec)]), new Promise(r => setTimeout(() => r(null), 14000))])
+        if (results) { if (results[0]?.value?.ok) stored.push('email'); if (results[1]?.value?.ok) stored.push('whatsapp'); if (results[2]?.value?.ok) { stored.push('github'); rec.archive_url = results[2].value.url } }
         console.warn(`[intake] ${ref} saved WITHOUT Supabase → ${stored.join(', ') || 'nowhere'}`)
         if (!stored.length) return res.status(503).json({ ok: false, error: 'המערכת עמוסה כרגע והפרטים לא נקלטו. הכל נשמר במכשיר הזה — נסו לשלוח שוב בעוד כמה דקות, או שלחו לנו הודעה בוואטסאפ.' })
         return res.status(201).json({ ok: true, id: null, ref, token: null, url: '', degraded: true, stored })
@@ -704,9 +705,10 @@ export default async function handler(req, res) {
       console.log(`[intake] submitted ${ref} | ${name} | ${headline(a, 'he')}`)
       // Notify the office (capped so we stay inside the function timeout)
       const client = sb()
-      const work = (async () => { const signed = await signFiles(client, files, 7 * 24 * 3600).catch(() => files); return Promise.allSettled([notifyEmail(rec, a, signed), notifyWhatsApp(rec, a)]) })()
+      const work = (async () => { const signed = await signFiles(client, files, 7 * 24 * 3600).catch(() => files); return Promise.allSettled([notifyEmail(rec, a, signed), notifyWhatsApp(rec, a), archiveSubmission(rec)]) })()
       const results = await Promise.race([work, new Promise(r => setTimeout(() => r(null), 12000))])
-      if (results) results.forEach((r, i) => { const label = ['email', 'whatsapp'][i]; if (r.status === 'rejected') console.error(`[intake] ${label} crashed:`, r.reason?.message); else if (r.value?.ok === false) console.warn(`[intake] ${label} skipped:`, r.value.error) })
+      if (results?.[2]?.value?.ok && rec.id) patchRow(`id=eq.${rec.id}`, { history: [...(rec.history || []), { at: now(), by: 'system', action: 'archived', note: results[2].value.url }] }).catch(() => {})
+      if (results) results.forEach((r, i) => { const label = ['email', 'whatsapp', 'archive'][i]; if (r.status === 'rejected') console.error(`[intake] ${label} crashed:`, r.reason?.message); else if (r.value?.ok === false) console.warn(`[intake] ${label} skipped:`, r.value.error) })
       return res.status(201).json({ ok: true, id: rec.id, ref, token: share_token, url: `${SITE}/newproperty/${share_token}` })
     }
 
@@ -716,7 +718,8 @@ export default async function handler(req, res) {
 
     // ── Backups: forms that arrived while Supabase was unavailable (Vercel Blob) ──
     if (req.method === 'GET' && action === 'backup-list') {
-      if (!backupEnabled()) return res.status(200).json({ ok: true, enabled: false, rows: [] })
+      const archive = { enabled: archiveEnabled(), url: archiveRepoUrl() }
+      if (!backupEnabled()) return res.status(200).json({ ok: true, enabled: false, rows: [], archive })
       const blobs = await backupList('intake/', 100)
       const rows = []
       for (const bl of blobs.slice(0, 60)) {
@@ -724,7 +727,7 @@ export default async function handler(req, res) {
         catch (e) { console.warn('[intake] backup read failed:', bl.pathname, e.message) }
       }
       rows.sort((x, y) => String(y.created_at).localeCompare(String(x.created_at)))
-      return res.status(200).json({ ok: true, enabled: true, rows })
+      return res.status(200).json({ ok: true, enabled: true, rows, archive })
     }
     if (req.method === 'GET' && action === 'backup-get') {
       const rec = await backupGet(String(req.query.url || ''))
