@@ -88,6 +88,18 @@ r.linked = await call('POST', { action: 'linked', id }, { propertyId: 'intake-' 
 r.resumeLink = await call('POST', { action: 'resume-link' }, { sid })
 r.findDraft = await call('POST', { action: 'find-draft' }, { phone: '0501234567' })
 
+// ── journey: a second person who only opened, started, saved progress and left ──
+const jsid = 'e2e-journey-' + Date.now()
+r.trOpen  = await call('POST', { action: 'track' }, { sid: jsid, event: 'open', ua: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)', ref: 'https://l.instagram.com/', link: true, lang: 'he' })
+r.trStart = await call('POST', { action: 'track' }, { sid: jsid, event: 'start', step: 'x_purpose', stepIndex: 0, total: 87 })
+r.jDraft  = await call('PUT', { action: 'draft' }, { sid: jsid, answers: { x_purpose: 'sale', c_name: 'נועה', c_phone: '052-000-0000', p_type: 'apartment' }, cur: 'p_address', lang: 'he', schemaVersion: 4, progress: { index: 11, total: 87 }, leave: true })
+r.trBad   = await call('POST', { action: 'track' }, { sid: jsid, event: 'hack' })
+r.jList   = await call('GET', {}, null, true)
+r.jDetail = await call('GET', { id: table.find(x => x.sid === jsid)?.id }, null, true)
+r.invite  = await call('POST', { action: 'invite' }, { name: 'אבי מזרחי', phone: '0509876543', purpose: 'rental', send: false }, true)
+r.inviteRow = r.invite.body?.sid ? await call('GET', { action: 'draft', sid: r.invite.body.sid }) : null
+r.inviteList = await call('GET', {}, null, true)
+
 // ── report ──
 const row = table.find(x => x.sid === sid)
 const sentKeys = Object.keys(withFiles), storedKeys = Object.keys(row?.answers || {})
@@ -122,5 +134,14 @@ console.log('   unpublish debug:', r.unpublish.statusCode, JSON.stringify(r.unpu
 step('unpublish keeps the row + media, hides on site', r.unpublish.statusCode === 200 && afterUnpublish.status === 'approved' && afterUnpublish.site.published === false && afterUnpublish.files === 7 && (afterUnpublish.site.images || []).length === 2, `status ${afterUnpublish.status}, site published ${afterUnpublish.site.published}, site images kept ${(afterUnpublish.site.images || []).length}`)
 step('wizard link (action=linked) syncs status', r.linked.statusCode === 200 && table.find(x => x.sid === sid)?.status === 'published')
 step('resume-link / find-draft answer safely without Green API', r.resumeLink.statusCode === 400 && /already submitted/.test(r.resumeLink.body?.error || '') && r.findDraft.statusCode === 200 && r.findDraft.body?.sent === false, `${r.resumeLink.body?.error} | find sent=${r.findDraft.body?.sent}`)
+{
+  const jr = table.find(x => x.sid === jsid), jm = jr?.meta?.journey || {}
+  const li = (r.jList.body || []).find(x => x.sid === jsid)?.journey, dj = r.jDetail.body?.journey
+  step('journey: open + start create ONE draft row with opened_at/started_at, device + source', r.trOpen.statusCode === 200 && r.trStart.statusCode === 200 && table.filter(x => x.sid === jsid).length === 1 && !!jm.opened_at && !!jm.started_at && jm.device === 'mobile' && jm.source === 'l.instagram.com', `device=${jm.device} source=${jm.source}`)
+  step('journey: draft save records progress + leave, invalid event rejected', r.jDraft.statusCode === 200 && jm.max_step_index === 11 && jm.total_steps === 87 && jm.leaves === 1 && r.trBad.statusCode === 400, `max=${jm.max_step_index}/${jm.total_steps} leaves=${jm.leaves}`)
+  step('journey: admin list + detail expose stage / progress / last question (no raw answers in list)', li?.stage === 'in_progress' && li.progress_pct > 0 && li.progress_pct < 100 && /כתובת/.test(li.last_step_label || '') && dj?.stage === 'in_progress' && ((r.jList.body || []).find(x => x.sid === jsid) || {}).answers === undefined, `stage=${li?.stage} ${li?.progress_pct}% "${li?.last_step_label}"`)
+  const inv = r.invite.body, invRow = table.find(x => x.sid === inv?.sid), invJ = (r.inviteList.body || []).find(x => x.sid === inv?.sid)?.journey
+  step('invite: creates a prefilled draft, personal link, stage "invited"; the link opens the draft', r.invite.statusCode === 200 && /newproperty\?d=/.test(inv?.url || '') && invRow?.answers?.c_phone === '0509876543' && invRow?.answers?.x_purpose === 'rental' && invJ?.stage === 'invited' && r.inviteRow?.body?.draft?.answers?.c_name === 'אבי מזרחי', `stage=${invJ?.stage} sent=${inv?.sent}`)
+}
 console.log('\nrow columns:', Object.keys(row || {}).join(', '))
 console.log('external calls made:', [...new Set(log.map(l => l.replace(/\/[^/]*e2e-[^/]*.*$/, '/<sid>…').replace(/eq\.\d+/g, 'eq.N')))].slice(0, 14).join(' | '))

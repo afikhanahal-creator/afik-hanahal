@@ -30,7 +30,8 @@
 // WA_GREENAPI_TOKEN, BUSINESS_NOTIFY_CHATID.
 // One-time SQL: server/seller-submissions-migration.sql
 import { createClient } from '@supabase/supabase-js'
-import { buildSummary, headline, PROPERTY_TYPE_LABEL, DOC_TAG_LABEL, publicAnswers, buildStory, storyText, directionsText, STEPS, INTAKE_STATUSES, purposeOf, roomsOf } from '../src/sellerFormSchema.js'
+import { randomBytes } from 'crypto'
+import { buildSummary, headline, PROPERTY_TYPE_LABEL, DOC_TAG_LABEL, publicAnswers, buildStory, storyText, directionsText, STEPS, INTAKE_STATUSES, purposeOf, roomsOf, visibleSteps, stepQuestion } from '../src/sellerFormSchema.js'
 
 const SUPA_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
 const SUPA_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY
@@ -322,6 +323,69 @@ async function sendWa(phone, message) {
 const resumeMessage = (name, sid, lang) => lang === 'en'
   ? `Hi${name ? ` ${name}` : ''}, your property form at Afik Hanahal is saved. Continue from where you stopped, on any device:\n${SITE}/newproperty?d=${sid}`
   : `היי${name ? ` ${name}` : ''}, טופס הנכס שלכם באפיק הנחל נשמר. אפשר להמשיך מהמקום שבו עצרתם, מכל מכשיר:\n${SITE}/newproperty?d=${sid}\n\nאפיק הנחל · ייזום, שיווק ותיווך נדל״ן`
+// ── Journey tracking ("did the client open / start / stop?") ─────────────────
+// Everything lives in meta.journey on the seller_submissions row, so a draft row already
+// tells the office where the person is. Events come from the form (open / start / review /
+// leave) and from every draft save; nothing is stored beyond timestamps, step ids and a
+// device / source hint.
+const deviceOf = ua => /Mobi|Android|iPhone|iPad/i.test(String(ua || '')) ? 'mobile' : 'desktop'
+const sourceOf = (b) => {
+  const src = String(b.source || '').trim().slice(0, 60)
+  if (src) return src
+  const ref = String(b.ref || '').trim()
+  if (!ref) return 'direct'
+  try { const h = new URL(ref).hostname.replace(/^www\./, ''); return h.includes('afikhanahal') ? 'site' : h.slice(0, 60) } catch { return 'direct' }
+}
+function mergeJourney(prev, ev, b) {
+  const j = { ...(prev || {}) }
+  const t = now()
+  const idx = Number.isFinite(+b.stepIndex) ? Math.max(0, Math.floor(+b.stepIndex)) : null
+  const total = Number.isFinite(+b.total) && +b.total > 0 ? Math.floor(+b.total) : null
+  if (ev === 'open')   { j.opened_at = j.opened_at || t; j.opens = (j.opens || 0) + 1; j.link = !!b.link }
+  if (ev === 'start')  { j.opened_at = j.opened_at || t; j.started_at = j.started_at || t; j.resumed = !!b.resume || j.resumed || false }
+  if (ev === 'review') { j.review_at = j.review_at || t }
+  if (ev === 'leave')  { j.leaves = (j.leaves || 0) + 1 }
+  j.last_seen_at = t
+  if (b.step) j.last_step = String(b.step).slice(0, 40)
+  if (idx !== null) { j.last_step_index = idx; j.max_step_index = Math.max(j.max_step_index || 0, idx) }
+  if (total) j.total_steps = total
+  if (b.ua && !j.device) j.device = deviceOf(b.ua)
+  if (!j.source) j.source = sourceOf(b)
+  if (b.lang) j.lang = b.lang === 'en' ? 'en' : 'he'
+  if (b.screen && !j.screen) j.screen = String(b.screen).slice(0, 20)
+  return j
+}
+// Where the person is in the funnel, derived — the row itself is the source of truth
+function journeyOf(row) {
+  const j = (row.meta && row.meta.journey) || {}
+  const a = row.answers || {}
+  const answered = Object.keys(a).filter(k => !k.startsWith('__') && a[k] !== '' && a[k] !== null && a[k] !== undefined).length
+  const vis = visibleSteps(a)
+  const total = vis.length || j.total_steps || STEPS.length
+  const curStep = STEPS.find(s => s.id === (row.cur || j.last_step))
+  const curIdx = curStep ? Math.max(0, vis.findIndex(s => s.id === curStep.id)) : (j.last_step_index || 0)
+  const maxIdx = Math.max(j.max_step_index || 0, curIdx)
+  const saved = !!row.draft_updated_at   // the person answered something (a real draft save happened)
+  let stage
+  if (row.submitted_at) stage = 'submitted'
+  else if (j.review_at || a.__reached) stage = 'review'
+  else if (!j.opened_at && !j.started_at && !saved) stage = j.invited_at ? 'invited' : (answered ? 'started' : 'opened')
+  else if (!j.started_at && !saved) stage = 'opened'
+  else stage = saved && answered > 2 ? 'in_progress' : 'started'
+  const lastSeen = j.last_seen_at || row.draft_updated_at || row.updated_at || row.created_at
+  const stalled = !row.submitted_at && stage !== 'invited' && lastSeen && (Date.now() - new Date(lastSeen).getTime()) > 24 * 3600 * 1000
+  return {
+    stage, stalled: !!stalled, progress_pct: total ? Math.min(100, Math.round(100 * (row.submitted_at ? total : maxIdx + (answered ? 1 : 0)) / total)) : 0,
+    step_index: curIdx, total_steps: total, answered,
+    last_step: curStep ? curStep.id : null, last_step_label: curStep ? (curStep.type === 'intro' ? 'פתיחת חלק' : stepQuestion(curStep, 'he', a)).replace(/\*$/, '') : null,
+    invited_at: j.invited_at || null, opened_at: j.opened_at || null, started_at: j.started_at || null, review_at: j.review_at || null, last_seen_at: lastSeen || null,
+    opens: j.opens || 0, device: j.device || null, source: j.source || null, invited_by: (row.meta && row.meta.invite && row.meta.invite.by) || null,
+  }
+}
+const inviteMessage = (name, sid, purpose, lang) => lang === 'en'
+  ? `Hi${name ? ` ${name}` : ''}, this is Afik Hanahal. Here is your personal link to tell us about the property${purpose === 'rental' ? ' for rent' : ''}. It takes about 10 minutes and saves as you go:\n${SITE}/newproperty?d=${sid}`
+  : `היי${name ? ` ${name}` : ''}, כאן אפיק הנחל. זה הקישור האישי שלכם לספר לנו על הנכס${purpose === 'rental' ? ' להשכרה' : ''}. לוקח כ-10 דקות, נשמר תוך כדי ואפשר להמשיך מכל מכשיר:\n${SITE}/newproperty?d=${sid}\n\nאפיק הנחל · ייזום, שיווק ותיווך נדל״ן`
+
 async function notifyWhatsApp(row, a) {
   if (!GREEN_INSTANCE || !GREEN_TOKEN) return { ok: false, error: 'Green API not configured' }
   const chatId = NOTIFY_CHATID.includes('@') ? NOTIFY_CHATID : `${toIntlPhone(NOTIFY_CHATID)}@c.us`
@@ -473,6 +537,26 @@ export default async function handler(req, res) {
 
     // ── draft: load / save (public, sid is the secret) ──────────────────────
     // "Send me the link": the seller gets their own resume link on WhatsApp (never exposes anyone else's draft)
+    // Journey pixel: open / start / review / leave. Creates the draft row on first contact so the
+    // office sees "opened, did not start" too. Never returns anything about the row.
+    if (action === 'track' && req.method === 'POST') {
+      if (rateLimited(req, 'track', 120)) return res.status(429).json({ ok: false })
+      const b = req.body || {}
+      const sid = String(b.sid || ''), ev = String(b.event || '')
+      if (!SID_RE.test(sid) || !['open', 'start', 'review', 'leave'].includes(ev)) return res.status(400).json({ ok: false })
+      const existing = await getRow(`sid=eq.${encodeURIComponent(sid)}`, 'id,submitted_at,meta,history')
+      res.setHeader('Cache-Control', 'no-store')
+      if (existing?.submitted_at) return res.status(200).json({ ok: true })
+      const journey = mergeJourney(existing?.meta?.journey, ev, b)
+      if (existing) {
+        const history = Array.isArray(existing.history) ? existing.history : []
+        const mark = ev === 'start' && !existing.meta?.journey?.started_at ? [{ at: now(), by: 'seller', action: 'started' }] : ev === 'open' && !existing.meta?.journey?.opened_at ? [{ at: now(), by: 'seller', action: 'opened' }] : []
+        await patchRow(`id=eq.${existing.id}`, { meta: { ...(existing.meta || {}), journey }, updated_at: now(), ...(mark.length ? { history: [...history, ...mark] } : {}) })
+      } else {
+        await insertRow({ sid, status: 'draft', schema_version: Number(b.schemaVersion || 1), answers: {}, lang: b.lang === 'en' ? 'en' : 'he', history: [{ at: now(), by: 'seller', action: ev === 'start' ? 'started' : 'opened' }], meta: { ua: String(b.ua || '').slice(0, 300), journey }, updated_at: now() })
+      }
+      return res.status(200).json({ ok: true })
+    }
     if (action === 'resume-link' && req.method === 'POST') {
       if (rateLimited(req, 'resume', 6, 10 * 60000)) return res.status(429).json({ ok: false, error: 'too many requests' })
       const b = req.body || {}
@@ -520,11 +604,13 @@ export default async function handler(req, res) {
         if (rateLimited(req, 'draft', 90)) return res.status(429).json({ ok: false, error: 'too many requests' })
         const answers = sanitizeAnswers(b.answers)
         if (JSON.stringify(answers).length > 300000) return res.status(413).json({ ok: false, error: 'draft too large' })
-        const existing = await getRow(`sid=eq.${encodeURIComponent(sid)}`, 'id,submitted_at,history')
+        const existing = await getRow(`sid=eq.${encodeURIComponent(sid)}`, 'id,submitted_at,history,meta')
         if (existing?.submitted_at) return res.status(409).json({ ok: false, error: 'already submitted' })
-        const patch = { answers, cur: b.cur ? String(b.cur).slice(0, 40) : null, lang: b.lang === 'en' ? 'en' : 'he', files: filesFromAnswers(answers, sid), draft_updated_at: now(), updated_at: now(), ...summaryFields(answers) }
+        const prog = b.progress && typeof b.progress === 'object' ? b.progress : {}
+        const journey = mergeJourney(existing?.meta?.journey, b.leave ? 'leave' : 'save', { step: b.cur, stepIndex: prog.index, total: prog.total, ua: b.ua, lang: b.lang })
+        const patch = { answers, cur: b.cur ? String(b.cur).slice(0, 40) : null, lang: b.lang === 'en' ? 'en' : 'he', files: filesFromAnswers(answers, sid), draft_updated_at: now(), updated_at: now(), ...summaryFields(answers), meta: { ...(existing?.meta || {}), ua: existing?.meta?.ua || String(b.ua || '').slice(0, 300), journey } }
         if (existing) await patchRow(`id=eq.${existing.id}`, patch)
-        else await insertRow({ sid, status: 'draft', schema_version: Number(b.schemaVersion || 1), history: [{ at: now(), by: 'seller', action: 'draft_created' }], meta: { ua: String(b.ua || '').slice(0, 300) }, ...patch })
+        else await insertRow({ sid, status: 'draft', schema_version: Number(b.schemaVersion || 1), history: [{ at: now(), by: 'seller', action: 'draft_created' }], ...patch })
         res.setHeader('Cache-Control', 'no-store')
         return res.status(200).json({ ok: true, savedAt: patch.draft_updated_at })
       }
@@ -597,6 +683,26 @@ export default async function handler(req, res) {
     if (!isAdmin(req)) return res.status(401).json({ ok: false, error: 'unauthorized' })
     res.setHeader('Cache-Control', 'no-store')
 
+    // Personal link for a specific client: the office creates the draft with the contact details
+    // filled in, sends it (WhatsApp) and can then watch whether the client opened / started / stopped.
+    if (req.method === 'POST' && action === 'invite') {
+      const b = req.body || {}
+      const name = String(b.name || '').trim().slice(0, 80), phone = String(b.phone || '').trim().slice(0, 30)
+      if (!PHONE_RE.test(phone)) return res.status(400).json({ ok: false, error: 'טלפון לא תקין' })
+      const purpose = b.purpose === 'rental' ? 'rental' : b.purpose === 'sale' ? 'sale' : null
+      const lang = b.lang === 'en' ? 'en' : 'he'
+      const sid = randomBytes(12).toString('base64url')
+      const answers = { c_name: name || undefined, c_phone: phone, ...(purpose ? { x_purpose: purpose } : {}) }
+      Object.keys(answers).forEach(k => answers[k] === undefined && delete answers[k])
+      const t = now()
+      const row = await insertRow({ sid, status: 'draft', schema_version: 2, answers, cur: purpose ? 'c_intro' : STEPS[0].id, lang, files: [], updated_at: t, ...summaryFields(answers),
+        history: [{ at: t, by: 'admin', action: 'invited', note: name || phone }], meta: { invite: { by: 'admin', at: t, name, phone, purpose }, journey: { invited_at: t, source: 'invite' } } })
+      const url = `${SITE}/newproperty?d=${sid}`
+      let sent = { ok: false }
+      if (b.send) sent = await sendWa(phone, inviteMessage((name || '').split(/\s+/)[0], sid, purpose, lang))
+      return res.status(200).json({ ok: true, id: row?.id, sid, url, sent: sent.ok, error: sent.ok || !b.send ? undefined : sent.error, message: inviteMessage((name || '').split(/\s+/)[0], sid, purpose, lang) })
+    }
+
     // Cheap counters for the admin sidebar badge / "new property" alert (polled by the admin panel)
     if (req.method === 'GET' && action === 'stats') {
       const r = await supaFetch(`/${TABLE}?select=id,ref,status,purpose,contact_name,city,property_type,asking_price,submitted_at,owner_verified_at&submitted_at=not.is.null&order=submitted_at.desc&limit=400`)
@@ -664,14 +770,15 @@ export default async function handler(req, res) {
         row.files = await signFiles(sb(), row.files || [], 3600)
         row.public_url = row.share_token ? `${SITE}/newproperty/${row.share_token}` : null
         row.form_url = row.sid ? `${SITE}/newproperty?d=${row.sid}` : null
+        row.journey = journeyOf(row)
         return res.status(200).json(row)
       }
-      const cols = 'id,ref,sid,status,lang,purpose,contact_name,phone,email,city,address,property_type,asking_price,files,notes,created_at,updated_at,submitted_at,draft_updated_at,owner_verified_at,verifications,published_property_id,published_at,share_token'
+      const cols = 'id,ref,sid,status,lang,purpose,contact_name,phone,email,city,address,property_type,asking_price,files,notes,created_at,updated_at,submitted_at,draft_updated_at,owner_verified_at,verifications,cur,answers,meta,published_property_id,published_at,share_token'
       const r = await supaFetch(`/${TABLE}?select=${cols}&order=created_at.desc&limit=1000`)
       if (r.status === 404 || r.status === 406) return res.status(200).json([])
       if (!r.ok) return res.status(r.status).json({ ok: false, error: await r.text().catch(() => '') })
       const rows = await r.json().catch(() => [])
-      return res.status(200).json(rows.map(x => ({ ...x, files_count: Array.isArray(x.files) ? x.files.length : 0, photos_count: Array.isArray(x.files) ? x.files.filter(f => f.kind === 'photos').length : 0, files: undefined, verifications_count: Array.isArray(x.verifications) ? x.verifications.length : 0, verifications: undefined, property_type_label: PROPERTY_TYPE_LABEL(x.property_type, 'he') })))
+      return res.status(200).json(rows.map(x => ({ ...x, journey: journeyOf(x), answers: undefined, meta: undefined, cur: undefined, files_count: Array.isArray(x.files) ? x.files.length : 0, photos_count: Array.isArray(x.files) ? x.files.filter(f => f.kind === 'photos').length : 0, files: undefined, verifications_count: Array.isArray(x.verifications) ? x.verifications.length : 0, verifications: undefined, property_type_label: PROPERTY_TYPE_LABEL(x.property_type, 'he') })))
     }
 
     if (req.method === 'PATCH') {
