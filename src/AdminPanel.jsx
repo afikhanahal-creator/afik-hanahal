@@ -4,6 +4,7 @@
 // Shared constants / helpers still live in App.jsx and are imported back from there — that is a
 // dynamic→static cycle, which is safe: by the time this chunk evaluates, App.jsx already has.
 import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react'
+import { metaFormAnswers, answersToText } from './lib/leadFields.js'
 import { LAYERS_DEF as GM_LAYERS, BG_OPTIONS as GM_BG_OPTIONS, LAYER_CATS_DEF as GM_LAYER_CATS } from './govmapLayers.js'
 import { FaEnvelope, FaFacebookF, FaInstagram, FaBed, FaRulerCombined, FaBuilding, FaTools, FaMapMarkerAlt, FaPhone, FaLeaf, FaCalendarAlt, FaTimes, FaWhatsapp, FaFileAlt, FaHome, FaSearch, FaBalanceScale, FaHandshake, FaLock, FaKey, FaGlobe, FaBolt, FaChartLine, FaEye, FaPlay, FaFire, FaShareAlt, FaHeart, FaCamera, FaUser, FaUsers, FaDesktop, FaMobileAlt, FaTabletAlt, FaRobot, FaExclamationTriangle, FaChartBar, FaThumbsUp, FaImage, FaPencilAlt, FaCrown, FaMousePointer, FaDollarSign, FaVideo, FaLink, FaCheckCircle, FaTrash, FaClipboardList } from 'react-icons/fa'
 // Seller intake submissions (from the public /sell form) — lazy, admin-only
@@ -2507,6 +2508,9 @@ Lead data:
 - Message: ${lead.msg || 'N/A'}
 - Property interest: ${lead.propTitle || 'General inquiry'}
 - Property location: ${lead.propLocation || 'N/A'}
+- Lead source: ${lead.source || 'website'}${lead.campaignName ? ` (campaign: ${lead.campaignName})` : ''}
+- Form answers: ${Array.isArray(lead.formAnswers) && lead.formAnswers.length ? answersToText(lead.formAnswers) : 'N/A'}
+- Landing page / UTM: ${lead.origin?.page || 'N/A'}${lead.origin?.utm && Object.keys(lead.origin.utm).length ? ' ' + JSON.stringify(lead.origin.utm) : ''}
 
 Israeli landline prefix → city (use for estimatedCity):
 02=Jerusalem, 03=Tel Aviv/Gush Dan, 04=Haifa/North, 08=South Israel, 09=Sharon region (Netanya/Ra'anana/Herzliya).
@@ -3577,13 +3581,18 @@ Return ONLY valid JSON (no markdown, no code blocks):
                   const newId = 'meta_' + metaLead.id
                   setLeads(prev => {
                     if (prev.some(l => l.id === newId)) return prev
+                    const answers = metaFormAnswers(metaLead.raw_fields)
                     const next = [...prev, {
                       id: newId,
                       name: metaLead.name || '',
                       phone: metaLead.phone || '',
                       email: metaLead.email || '',
-                      msg: metaLead.notes || '',
+                      msg: [metaLead.notes || '', answersToText(answers)].filter(Boolean).join('\n'),
                       propTitle: metaLead.campaign_name || metaLead.form_name || 'מרכז מטא',
+                      source: 'meta',
+                      campaignName: metaLead.campaign_name || '',
+                      formName: metaLead.form_name || '',
+                      formAnswers: answers,
                       ts: new Date(metaLead.created_at).getTime() || Date.now(),
                       leadStatus: 'new',
                     }]

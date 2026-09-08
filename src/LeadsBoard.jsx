@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
+import { sourceLabel, sourceColor, originLines } from './lib/leadFields.js'
 import {
   DndContext, closestCenter, closestCorners, useSensor, useSensors,
   PointerSensor, DragOverlay, useDroppable,
@@ -38,6 +39,8 @@ const BUILT_IN_COLS = [
   { id: 'email',      label: 'אימייל',       en: 'Email',        type: 'email',  width: 200 },
   { id: 'leadStatus', label: 'סטטוס',        en: 'Status',       type: 'status', width: 140 },
   { id: 'property',   label: 'נכס',          en: 'Property',     type: 'text',   width: 170 },
+  { id: 'location',   label: 'מיקום',        en: 'Location',     type: 'text',   width: 150 },
+  { id: 'source',     label: 'מקור',         en: 'Source',       type: 'source', width: 130 },
   { id: 'intent',     label: 'ציון',         en: 'Score',        type: 'score',  width: 110 },
   { id: 'date',       label: 'תאריך',        en: 'Date',         type: 'date',   width: 110 },
   { id: 'msg',        label: 'הודעה',        en: 'Message',      type: 'notes',  width: 200 },
@@ -679,6 +682,8 @@ function SortableRow({ lead, cols, onUpdate, onDelete, onSelect, isSelected, lan
       case 'email':      return lead.email || ''
       case 'leadStatus': return lead.leadStatus || 'new'
       case 'property':   return lead.propTitle || ''
+      case 'location':   return lead.propLocation || ''
+      case 'source':     return lead.source || (String(lead.id).startsWith('meta_') ? 'meta' : 'website')
       case 'intent':     return lead.enrichment?.intent || ''
       case 'date':       return fmtDate(lead.ts)
       case 'msg':        return lead.msg || ''
@@ -689,6 +694,7 @@ function SortableRow({ lead, cols, onUpdate, onDelete, onSelect, isSelected, lan
   const handleUpdate = (col, val) => {
     if (col.id === 'name') onUpdate(lead.id, { name: val })
     else if (col.id === 'property') onUpdate(lead.id, { propTitle: val })
+    else if (col.id === 'location') onUpdate(lead.id, { propLocation: val })
     else if (col.id === 'msg') onUpdate(lead.id, { msg: val })
     else onUpdate(lead.id, { [col.id]: val })
   }
@@ -718,6 +724,14 @@ function SortableRow({ lead, cols, onUpdate, onDelete, onSelect, isSelected, lan
         return <div key={col.id} style={cellStyle}><EditableEmailCell value={val} T={T} onSave={v => handleUpdate(col, v)} /></div>
       case 'date':
         return <div key={col.id} style={cellStyle}><span style={{ fontSize: 12, color: T.textSub }}>{val || '—'}</span></div>
+      case 'source':
+        return (
+          <div key={col.id} style={cellStyle}>
+            <span title={val} style={{ fontSize: 11, fontWeight: 700, color: sourceColor(val), background: sourceColor(val) + '18', border: `1px solid ${sourceColor(val)}44`, borderRadius: 20, padding: '2px 9px', whiteSpace: 'nowrap' }}>
+              {sourceLabel(val, lang)}
+            </span>
+          </div>
+        )
       case 'notes':
         return (
           <div key={col.id} style={{ ...cellStyle }}>
@@ -928,6 +942,7 @@ function ItemDetailDrawer({ lead, onClose, onUpdate, onUpdateStatus, lang, T, is
             { label: 'טלפון', en: 'Phone', key: 'phone', type: 'phone' },
             { label: 'אימייל', en: 'Email', key: 'email', type: 'email' },
             { label: 'נכס', en: 'Property', key: 'propTitle', type: 'text' },
+            { label: 'מיקום הנכס', en: 'Property location', key: 'propLocation', type: 'text' },
             { label: 'הודעה', en: 'Message', key: 'msg', type: 'notes' },
           ].map(f => (
             <div key={f.key}>
@@ -951,6 +966,37 @@ function ItemDetailDrawer({ lead, onClose, onUpdate, onUpdateStatus, lang, T, is
               </div>
             </div>
           ))}
+
+          {/* Where the lead came from — source, form answers (Meta), page / referrer / UTM (website) */}
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: T.textSub, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 6 }}>
+              {lang === 'en' ? 'Source' : 'מקור הליד'}
+            </div>
+            <div style={{ background: T.bg, border: `1px solid ${T.border}`, borderRadius: 10, padding: '9px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {(() => { const src = lead.source || (String(lead.id).startsWith('meta_') ? 'meta' : 'website'); return (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: sourceColor(src), background: sourceColor(src) + '18', border: `1px solid ${sourceColor(src)}44`, borderRadius: 20, padding: '2px 9px' }}>{sourceLabel(src, lang)}</span>
+                  {lead.campaignName && <span style={{ fontSize: 12, color: T.textSub }}>{lang === 'en' ? 'Campaign' : 'קמפיין'}: {lead.campaignName}</span>}
+                  {lead.formName && <span style={{ fontSize: 12, color: T.textSub }}>{lang === 'en' ? 'Form' : 'טופס'}: {lead.formName}</span>}
+                </div>
+              ) })()}
+              {Array.isArray(lead.formAnswers) && lead.formAnswers.length > 0 && (
+                <div>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: T.textSub, marginBottom: 4 }}>{lang === 'en' ? 'Form answers' : 'תשובות מהטופס'}</div>
+                  {lead.formAnswers.map((x, i) => (
+                    <div key={i} style={{ fontSize: 13, color: T.text, lineHeight: 1.5 }}><span style={{ color: T.textSub }}>{x.q}:</span> {x.a}</div>
+                  ))}
+                </div>
+              )}
+              {originLines(lead.origin, lang).length > 0 && (
+                <div>
+                  {originLines(lead.origin, lang).map((x, i) => (
+                    <div key={i} style={{ fontSize: 12, color: T.textSub, lineHeight: 1.5, direction: 'ltr', textAlign: lang === 'en' ? 'left' : 'right', wordBreak: 'break-all' }}><span style={{ color: T.textDim }}>{x.q}:</span> {x.a}</div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
 
           {/* AI Enrichment section */}
           <div>
@@ -1142,7 +1188,14 @@ function KanbanCard({ lead, T, isDark, lang, onOpen, onDelete, onOpenChat, onEnr
         {score
           ? <span style={{ fontSize: 11, fontWeight: 700, color: score.color, background: score.bg, borderRadius: 20, padding: '2px 8px', border: `1px solid ${score.color}30` }}>{lang === 'en' ? score.en : score.l}</span>
           : <span />}
-        <span style={{ fontSize: 10, color: T.textDim }}>{fmtDate(lead.ts)}</span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {(() => { const src = lead.source || (String(lead.id).startsWith('meta_') ? 'meta' : 'website'); return (
+            <span title={sourceLabel(src, lang)} style={{ fontSize: 9.5, fontWeight: 700, color: sourceColor(src), background: sourceColor(src) + '18', border: `1px solid ${sourceColor(src)}44`, borderRadius: 20, padding: '1px 7px', whiteSpace: 'nowrap' }}>
+              {sourceLabel(src, lang)}
+            </span>
+          ) })()}
+          <span style={{ fontSize: 10, color: T.textDim }}>{fmtDate(lead.ts)}</span>
+        </span>
       </div>
 
       {/* Action buttons — stop propagation so dnd doesn't interfere */}

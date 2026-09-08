@@ -140,6 +140,15 @@ async function supaFetch(path, opts = {}) {
   return r
 }
 
+// Whitelist + truncate the client-supplied origin object before it lands in crm_data
+function sanitizeOrigin(o, lang) {
+  const str = (v, n = 200) => (typeof v === 'string' ? v.slice(0, n) : '')
+  if (!o || typeof o !== 'object') return lang ? { lang: str(lang, 5) } : {}
+  const utm = {}
+  for (const [k, v] of Object.entries(o.utm || {})) if (/^(utm_\w{1,20}|fbclid|gclid)$/.test(k) && typeof v === 'string') utm[k] = v.slice(0, 120)
+  return { page: str(o.page, 160), referrer: str(o.referrer), device: str(o.device, 10), lang: str(lang, 5), utm }
+}
+
 const CONTACT_COLS = 'id,name,phone,email,message,prop_title,prop_location,source,created_at,crm_data'
 async function getContacts(since = '') {
   // Incremental sync: the admin panel remembers the newest created_at it has and asks only for
@@ -320,6 +329,7 @@ async function sendLeadEmail(lead) {
         message:   lead.msg || lead.message,
         propTitle: lead.propTitle || lead.prop_title,
         source:    lead.source,
+        campaign:  lead.origin?.utm?.utm_campaign || '',
         ts,
       }),
     })
@@ -410,7 +420,9 @@ export default async function handler(req, res) {
         prop_title:   b.propTitle    || null,
         prop_location:b.propLocation || null,
         source:       b.source       || 'website',
-        crm_data:     {},
+        // Everything else the form knew — page, referrer, UTM, language, device — so the admin
+        // can see exactly where each lead came from (shown in the lead drawer as "מקור").
+        crm_data:     { origin: sanitizeOrigin(b.origin, b.lang) },
       }
       console.log(`[new-lead] ${row.name || '—'} | ${row.phone || '—'} | source=${row.source}`)
 

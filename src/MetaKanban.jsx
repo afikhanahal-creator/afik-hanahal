@@ -1,5 +1,6 @@
 // MetaKanban.jsx — Pipeline / Table view for Meta Lead Center
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
+import { metaFormAnswers } from './lib/leadFields.js'
 import {
   DndContext, DragOverlay, PointerSensor, TouchSensor, KeyboardSensor, useSensor, useSensors,
   pointerWithin, rectIntersection, closestCenter,
@@ -550,6 +551,7 @@ function LeadDrawer({ lead, stages, onClose, onMoveStage, onDelete }) {
             { label: 'Email', value: lead.email || '—', icon: '✉️' },
             { label: 'Campaign', value: lead.campaign_name || '—', icon: '📣' },
             { label: 'Form', value: lead.form_name || '—', icon: '📋' },
+            ...metaFormAnswers(lead.raw_fields).map(x => ({ label: x.q, value: x.a, icon: '❓' })),
             { label: 'Notes', value: lead.notes || '—', icon: '📝' },
             { label: 'Received', value: lead.created_at ? new Date(lead.created_at).toLocaleString('he-IL') : '—', icon: '🕐' },
           ].map(row => (

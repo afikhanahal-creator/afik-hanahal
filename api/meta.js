@@ -154,13 +154,23 @@ function normalizePhone(raw) {
 
 function parseFieldData(fieldData) {
   const f = {}
-  for (const item of fieldData || []) {
-    const key = (item.name || '').toLowerCase().replace(/[\s_-]/g, '')
-    const val = Array.isArray(item.values) ? item.values[0] : item.value
-    if (!val) continue
-    if (key.includes('fullname') || key.includes('name'))  f.name  = f.name  || val
-    if (key.includes('email'))                              f.email = f.email || val
-    if (key.includes('phone') || key.includes('mobile'))   f.phone = f.phone || val
+  const items = (fieldData || []).map(item => ({
+    key: (item.name || '').toLowerCase().replace(/[\s_-]/g, ''),
+    val: Array.isArray(item.values) ? item.values[0] : item.value,
+  })).filter(x => x.val)
+  // Pass 1: Meta's standard keys, exact — so a custom "street_name" question can never
+  // become the lead's name just because it appears first in the form.
+  for (const { key, val } of items) {
+    if (['fullname', 'name'].includes(key))                    f.name  = f.name  || val
+    if (['email', 'workemail'].includes(key))                  f.email = f.email || val
+    if (['phonenumber', 'phone', 'mobile', 'workphone'].includes(key)) f.phone = f.phone || val
+  }
+  if (!f.name) { const fn = items.find(x => x.key === 'firstname')?.val, ln = items.find(x => x.key === 'lastname')?.val; if (fn || ln) f.name = [fn, ln].filter(Boolean).join(' ') }
+  // Pass 2: loose match, only for whatever is still missing
+  for (const { key, val } of items) {
+    if (!f.name  && key.includes('name'))                      f.name  = val
+    if (!f.email && key.includes('email'))                     f.email = val
+    if (!f.phone && (key.includes('phone') || key.includes('mobile'))) f.phone = val
   }
   return f
 }
