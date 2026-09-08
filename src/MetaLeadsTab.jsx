@@ -3,6 +3,7 @@
 // Props: { C, lang, isDark, onSaveToCRM }
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { metaFormAnswers } from './lib/leadFields.js'
 import { supabase } from './lib/supabaseClient'
 import MetaKanban from './MetaKanban'
 
@@ -61,6 +62,7 @@ const TR = {
     form: 'טופס',
     phone: 'טלפון',
     email: 'אימייל',
+    formAnswers: 'תשובות מהטופס',
     waSent: 'WA נשלח',
     loading: 'טוען...',
     error: 'שגיאה',
@@ -108,6 +110,7 @@ const TR = {
     form: 'Form',
     phone: 'Phone',
     email: 'Email',
+    formAnswers: 'Form answers',
     waSent: 'WA sent',
     loading: 'Loading...',
     error: 'Error',
@@ -1328,6 +1331,15 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
                       </span>
                     )}
                   </div>
+                  {/* Custom form questions — everything the lead answered beyond name / phone / email */}
+                  {metaFormAnswers(selectedLead.raw_fields, lang).length > 0 && (
+                    <div style={{ marginTop:8, display:'flex', flexDirection:'column', gap:3, padding:'8px 11px', background:'rgba(255,255,255,.035)', border:`1px solid ${BORDER}`, borderRadius:10 }}>
+                      <div style={{ fontSize:10, fontWeight:700, color:MUTED, letterSpacing:'.04em', marginBottom:2 }}>{t.formAnswers}</div>
+                      {metaFormAnswers(selectedLead.raw_fields, lang).map((x, i) => (
+                        <div key={i} style={{ fontSize:12, color:CREAM, lineHeight:1.5 }}><span style={{ color:MUTED }}>{x.q}:</span> {x.a}</div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* Action buttons */}

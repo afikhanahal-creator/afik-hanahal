@@ -35,6 +35,19 @@ const API_BASE     = (import.meta.env.VITE_API_URL || 'https://afik-hanahal-serv
 // In production, contacts CRUD goes through Vercel → Supabase (never sleeps).
 // In dev, fall back to the Render server so local testing still works.
 const CONTACTS_API = import.meta.env.PROD ? '' : API_BASE
+
+// Context captured with every website lead so the admin can see where it came from:
+// page + hash, referrer, UTM parameters and device. Stored server-side in contacts.crm_data.origin.
+function leadOrigin() {
+  try {
+    const u = new URL(window.location.href)
+    const utm = {}
+    for (const k of ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'fbclid', 'gclid'])
+      if (u.searchParams.get(k)) utm[k] = u.searchParams.get(k).slice(0, 120)
+    const ref = document.referrer && !document.referrer.includes(u.hostname) ? document.referrer.slice(0, 200) : ''
+    return { page: (u.pathname + u.hash).slice(0, 160), referrer: ref, utm, device: /Mobi|Android/i.test(navigator.userAgent) ? 'mobile' : 'desktop' }
+  } catch { return {} }
+}
 const ADMIN_TOKEN  = 'AFIKhanahal2026'
 
 // Conditional GET for everything the admin panel polls. Remembers the ETag of the last body per URL
@@ -2255,6 +2268,9 @@ function ContactModal({ prop, onClose }) {
               id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
               name: form.name, phone: form.phone, email: form.email, msg: form.msg,
               propTitle: prop?.title || '', propLocation: prop?.location || '',
+              source: prop ? 'property_form' : 'contact_form',
+              lang,
+              origin: leadOrigin(),
               ts: Date.now(),
             }
             try {
@@ -3708,6 +3724,7 @@ function PdfLeadGate({ pdf, prop, C }) {
       propTitle: prop.title || '', propLocation: prop.location || '',
       msg: `הורדת PDF: ${pdf.name}`,
       source: 'pdf_download',
+      origin: leadOrigin(),
       ts: Date.now(),
     }
     try {
