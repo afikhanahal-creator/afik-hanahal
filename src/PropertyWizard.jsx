@@ -1309,19 +1309,37 @@ async function uploadViaRender(file, kind, onProgress) {
   throw new Error(data.error || `שגיאה ${xhr.status}`)
 }
 
-// Preferred route: signed direct upload to Supabase Storage.
+// Preferred route: signed direct upload to Supabase Storage. Every failure is reported with its
+// real reason (API status / storage status / network), and only then the legacy Render route is tried;
+// if that fails too, both reasons are shown so the cause is visible in the wizard itself.
+const UPLOAD_ENGINE = 'v2'
 async function uploadDirect(file, kind, onProgress) {
-  let meta = null
+  let directErr = null
   try {
-    const r = await fetch(WIZ_UPLOAD_API, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${WIZ_ADMIN_TOKEN}` }, body: JSON.stringify({ name: file.name, type: file.type, size: file.size, kind }) })
+    let r, meta
+    try {
+      r = await fetch(WIZ_UPLOAD_API, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${WIZ_ADMIN_TOKEN}` }, body: JSON.stringify({ name: file.name, type: file.type, size: file.size, kind }) })
+    } catch (e) { throw new Error(`ה-API לא נגיש (${e.message})`) }
     meta = await r.json().catch(() => null)
     if (r.status === 400 && meta?.error) throw Object.assign(new Error(meta.error), { fatal: true })   // our own validation (type/size) — no point retrying elsewhere
-    if (!r.ok || !meta?.signedUrl) meta = null
-  } catch (e) { if (e.fatal) throw e; meta = null }
-  if (!meta) { console.warn('[wizard] signed upload unavailable → falling back to Render upload route'); return uploadViaRender(file, kind, onProgress) }
-  const xhr = await xhrSend({ method: 'PUT', url: meta.signedUrl, body: file, headers: { 'Content-Type': file.type || 'application/octet-stream', 'x-upsert': 'true' }, onProgress })
-  if (xhr.status < 200 || xhr.status >= 300) { const d = parseJson(xhr); throw new Error(d?.message || d?.error || `שגיאה ${xhr.status} מהאחסון`) }
-  return { url: meta.url, path: meta.path, name: file.name }
+    if (!r.ok || !meta?.signedUrl) throw new Error(`API ${r.status}${meta?.error ? ': ' + meta.error : ''}`)
+    let xhr
+    try {
+      xhr = await xhrSend({ method: 'PUT', url: meta.signedUrl, body: file, headers: { 'Content-Type': file.type || 'application/octet-stream', 'x-upsert': 'true' }, onProgress })
+    } catch (e) { throw new Error(`Supabase Storage לא נגיש (${e.message})`) }
+    if (xhr.status < 200 || xhr.status >= 300) { const d = parseJson(xhr); throw new Error(`Supabase Storage ${xhr.status}${d?.message || d?.error ? ': ' + (d.message || d.error) : ''}`) }
+    return { url: meta.url, path: meta.path, name: file.name }
+  } catch (e) {
+    if (e.fatal) throw e
+    directErr = e
+    console.error('[wizard] direct upload failed:', e)
+  }
+  try {
+    return await uploadViaRender(file, kind, onProgress)
+  } catch (e2) {
+    console.error('[wizard] Render upload failed:', e2)
+    throw new Error(`העלאה ישירה נכשלה — ${directErr.message}. גם המסלול הישן נכשל — ${e2.message} [${UPLOAD_ENGINE}]`)
+  }
 }
 
 function PdfUploader({ pdfs, onUpdate, adminToken }) {
@@ -1643,7 +1661,7 @@ function Step6({ d, upd, onUploadingChange }) {
                   או <span style={{ color: P, fontWeight: 600 }}>לחץ לבחירת קבצים</span> &nbsp;·&nbsp; {imgCount}/20 תמונות
                 </div>
                 <div style={{ color: `${MUTED}88`, fontSize: 11, fontFamily: FONT, marginTop: 4 }}>
-                  ☁ מועלה ישירות ל-Supabase Storage
+                  ☁ מועלה ישירות ל-Supabase Storage · {UPLOAD_ENGINE}
                 </div>
               </div>
             </>
