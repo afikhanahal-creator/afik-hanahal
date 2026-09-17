@@ -96,6 +96,7 @@ const TR = {
     typeFilter: 'סוג:',
     allTypes: 'כל הסוגים',
     noProperties: 'לא נמצאו נכסים התואמים את הפילטרים',
+    showingOf: 'מציג {shown} מתוך {total} נכסים', loadMoreProps: 'הצג עוד נכסים', showAllProps: 'הצג את כל {total} הנכסים', allPropsShown: 'כל {total} הנכסים מוצגים', collapseProps: 'כווץ רשימה', listViewProps: 'לכל {total} הנכסים ברשימה', carouselViewProps: 'חזרה לגלילה', swipeHint: 'החליקו לנכס הבא', nextProp: 'הנכס הבא', prevProp: 'הנכס הקודם', availableCount: '{n} נכסים זמינים',
     haveProperty: 'יש לך קרקע, מגרש או נכס?',
     propertyDesc: 'בין אם שדה חקלאי, מגרש ירושה או נכס שרוצים לשווק, נבחן יחד את הפוטנציאל',
     contactUsBtn: 'פנה אלינו ←',
@@ -200,6 +201,7 @@ const TR = {
     typeFilter: 'Type:',
     allTypes: 'All Types',
     noProperties: 'No properties match the selected filters',
+    showingOf: 'Showing {shown} of {total} properties', loadMoreProps: 'Show more properties', showAllProps: 'Show all {total} properties', allPropsShown: 'All {total} properties are shown', collapseProps: 'Collapse list', listViewProps: 'See all {total} properties as a list', carouselViewProps: 'Back to swipe view', swipeHint: 'Swipe for the next property', nextProp: 'Next property', prevProp: 'Previous property', availableCount: '{n} properties available',
     haveProperty: 'Have land, a plot, or a property?',
     propertyDesc: 'Whether it\'s an agricultural field, an inherited plot, or a property you want to market, let\'s look at the potential together',
     contactUsBtn: 'Contact Us →',
@@ -1016,6 +1018,9 @@ const makeGlobal = (C, isDark) => `
 `
 
 // ─── NAV ──────────────────────────────────────────────────────────────────────
+// Tiny template helper for TR strings with {placeholders}
+const fmtT = (str, vars) => String(str || '').replace(/\{(\w+)\}/g, (_, k) => (vars && vars[k] !== undefined ? vars[k] : ''))
+
 // Static, crawlable content hubs (built by scripts/build-content.mjs) — real links, not scroll anchors
 const HUB_LINKS = [['services','hubServices'], ['areas','hubAreas'], ['guides','hubGuides'], ['glossary','hubGlossary'], ['tools','hubTools'], ['faq','hubFaq'], ['company','hubCompany']]
 const hubHref = (lang, hub) => (lang === 'en' ? '/en/' : '/') + hub + '/'
@@ -4986,7 +4991,8 @@ export default function App() {
   const [properties,   setProperties]   = useState([])
   const [filterCat,    setFilterCat]    = useState('all')
   const [filterType,   setFilterType]   = useState('')
-  const [propPage,     setPropPage]     = useState(0)
+  const [propPage,     setPropPage]     = useState(0)   // batches revealed in the property list (999 = all)
+  const [mobileList,   setMobileList]   = useState(false) // mobile: swipe carousel (false) or vertical list (true)
   const [filterRegion, setFilterRegion] = useState('')
   const [selectedProp, setSelectedProp] = useState(null)
   const [showAdmin,    setShowAdmin]    = useState(false)
@@ -5597,7 +5603,7 @@ export default function App() {
               <div style={{ display:'inline-flex', alignItems:'center', gap:8, marginTop:16, background:`${C.purple}14`, border:`1px solid ${C.purple}30`, borderRadius:20, padding:'6px 16px' }}>
                 <span style={{ width:7, height:7, borderRadius:'50%', background:C.green, display:'inline-block', boxShadow:`0 0 8px ${C.green}` }}/>
                 <span style={{ fontSize:13, color:`${C.cream}BB`, fontWeight:600 }}>
-                  {properties.filter(p=>p.published).length} נכסים זמינים
+                  {fmtT(TR[lang]?.availableCount, { n: properties.filter(p=>p.published).length })}
                 </span>
               </div>
             )}
@@ -5687,102 +5693,98 @@ export default function App() {
           ) : (
             <>
               {filtered.length > 0 ? (
-                isMobile ? (
-                  /* ── Mobile swipe carousel ── */
-                  <>
-                    {/* Nav arrows row — left=prev(right in RTL) right=next(left in RTL) */}
-                    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12, paddingInline:4 }}>
-                      {/* ‹ LEFT arrow → navigate LEFT → next card in RTL (idx+1) */}
-                      <button
-                        onClick={() => {
-                          const newIdx = (carouselIdx + 1) % filtered.length
-                          setCarouselIdx(newIdx)
-                          if (carouselRef.current) {
-                            const cardW = carouselRef.current.scrollWidth / filtered.length
-                            carouselRef.current.scrollTo({ left: newIdx * cardW, behavior:'smooth' })
-                          }
-                        }}
-                        style={{ width:40, height:40, borderRadius:'50%', border:`1.5px solid ${C.purple}66`, background:`${C.purple}14`, color:C.purple, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s' }}>
-                        <FaChevronLeft size={12}/>
-                      </button>
-                      {/* › RIGHT arrow → navigate RIGHT → prev card in RTL (idx-1) */}
-                      <button
-                        onClick={() => {
-                          const newIdx = (carouselIdx - 1 + filtered.length) % filtered.length
-                          setCarouselIdx(newIdx)
-                          if (carouselRef.current) {
-                            const cardW = carouselRef.current.scrollWidth / filtered.length
-                            carouselRef.current.scrollTo({ left: newIdx * cardW, behavior:'smooth' })
-                          }
-                        }}
-                        style={{ width:40, height:40, borderRadius:'50%', border:`1.5px solid ${C.purple}66`, background:`${C.purple}14`, color:C.purple, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s' }}>
-                        <FaChevronRight size={12}/>
-                      </button>
-                    </div>
-                    <div className="prop-carousel" ref={carouselRef}
-                      style={{ display:'flex', gap:16, overflowX:'auto', scrollSnapType:'x mandatory', WebkitOverflowScrolling:'touch', paddingBottom:20, paddingInlineStart:4, paddingInlineEnd:16, marginInlineStart:-4 }}
-                      onScroll={e => {
-                        const el = e.currentTarget
-                        const cardW = el.scrollWidth / filtered.length
-                        setCarouselIdx(Math.round(el.scrollLeft / cardW))
-                      }}>
-                      {filtered.map(p => (
-                        <div key={p.id} style={{ flex:'0 0 88vw', maxWidth:360, scrollSnapAlign:'start' }}>
-                          <PropertyCard prop={p} onContact={openContact} onSelect={openProperty}/>
-                        </div>
-                      ))}
-                    </div>
-                    {/* Compact page counter */}
-                    {filtered.length > 1 && (
-                      <div style={{ display:'flex', justifyContent:'center', marginTop:4, marginBottom:16 }}>
-                        <span style={{ fontSize:11, color:`${C.cream}44`, fontWeight:600, letterSpacing:'.04em' }}>
-                          {carouselIdx + 1} / {filtered.length}
-                        </span>
+(() => {
+                  /* ── Property list: "load more" grid (desktop + mobile list view) or mobile swipe carousel ──
+                     propPage now means "batches revealed": shown = PER_PAGE × (propPage + 1); 999 = everything.
+                     Filter changes already reset propPage to 0. */
+                  const t = TR[lang] || TR.he
+                  const PER_PAGE = isMobile ? 6 : 9
+                  const shown = Math.min(filtered.length, PER_PAGE * (propPage + 1))
+                  const allShown = shown >= filtered.length
+                  const remaining = filtered.length - shown
+                  const jumpTop = () => document.getElementById('properties')?.scrollIntoView({ behavior:'smooth', block:'start' })
+                  const primaryBtn = { display:'inline-flex', alignItems:'center', justifyContent:'center', gap:10, padding:'15px 30px', borderRadius:14, border:'none', background:`linear-gradient(135deg,${C.purple},${C.purple}CC)`, color:'#fff', fontWeight:800, fontSize:15, cursor:'pointer', fontFamily:'inherit', boxShadow:`0 12px 32px ${C.purple}44`, transition:'transform .2s, box-shadow .2s', width: isMobile ? '100%' : 'auto' }
+                  const ghostBtn = { display:'inline-flex', alignItems:'center', justifyContent:'center', gap:8, padding:'13px 22px', borderRadius:14, border:`1.5px solid ${C.purple}66`, background:`${C.purple}14`, color:C.purple, fontWeight:700, fontSize:14, cursor:'pointer', fontFamily:'inherit', transition:'all .2s', width: isMobile ? '100%' : 'auto' }
+                  const countBadge = { background:'rgba(255,255,255,.2)', borderRadius:10, padding:'2px 9px', fontSize:12, fontWeight:800, letterSpacing:'.02em' }
+                  const lift = e => { e.currentTarget.style.transform='translateY(-2px)'; e.currentTarget.style.boxShadow=`0 16px 40px ${C.purple}55` }
+                  const drop = e => { e.currentTarget.style.transform=''; e.currentTarget.style.boxShadow=`0 12px 32px ${C.purple}44` }
+                  const ghostIn = e => { e.currentTarget.style.background=C.purple; e.currentTarget.style.color='#fff' }
+                  const ghostOut = e => { e.currentTarget.style.background=`${C.purple}14`; e.currentTarget.style.color=C.purple }
+
+                  const grid = (
+                    <>
+                      {/* Results bar — always tells the visitor how much there is */}
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:10, flexWrap:'wrap', marginBottom:16 }}>
+                        <span style={{ fontSize:13, fontWeight:600, color:`${C.cream}80` }}>{fmtT(t.showingOf, { shown, total: filtered.length })}</span>
+                        {isMobile
+                          ? <button onClick={() => { setMobileList(false); jumpTop() }} style={{ ...ghostBtn, width:'auto', padding:'8px 14px', fontSize:12 }}>{t.carouselViewProps}</button>
+                          : (!allShown && <button onClick={() => setPropPage(999)} style={{ ...ghostBtn, padding:'8px 14px', fontSize:12 }} onMouseEnter={ghostIn} onMouseLeave={ghostOut}>{fmtT(t.showAllProps, { total: filtered.length })}</button>)}
                       </div>
-                    )}
-                  </>
-                ) : (
-                  /* ── Desktop paginated grid ── */
-                  (() => {
-                    const PER_PAGE = 6
-                    const totalPages = Math.ceil(filtered.length / PER_PAGE)
-                    const safePage = Math.min(propPage, totalPages - 1)
-                    const visible = filtered.slice(safePage * PER_PAGE, safePage * PER_PAGE + PER_PAGE)
-                    return (
-                      <>
-                        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(320px,1fr))', gap:28, marginBottom:28 }}>
-                          {visible.map(p => <PropertyCard key={p.id} prop={p} onContact={openContact} onSelect={openProperty}/>)}
-                        </div>
-                        {totalPages > 1 && (
-                          <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:16, marginBottom:48 }}>
-                            <button
-                              onClick={() => setPropPage(p => Math.max(0, p - 1))}
-                              disabled={safePage === 0}
-                              style={{ width:44, height:44, borderRadius:'50%', border:`1.5px solid ${safePage===0 ? C.purple+'22' : C.purple+'66'}`, background:safePage===0?'transparent':`${C.purple}14`, color:safePage===0?`${C.cream}30`:C.purple, cursor:safePage===0?'default':'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s' }}
-                              onMouseEnter={e=>{ if(safePage>0){ e.currentTarget.style.background=C.purple; e.currentTarget.style.color='#fff' }}}
-                              onMouseLeave={e=>{ e.currentTarget.style.background=safePage===0?'transparent':`${C.purple}14`; e.currentTarget.style.color=safePage===0?`${C.cream}30`:C.purple }}>
-                              <FaChevronRight size={13}/>
-                            </button>
-                            <div style={{ display:'flex', gap:6 }}>
-                              {Array.from({length:totalPages},(_,i) => (
-                                <button key={i} onClick={() => setPropPage(i)}
-                                  style={{ width:i===safePage?28:8, height:8, borderRadius:4, border:'none', background:i===safePage?C.purple:`${C.purple}33`, cursor:'pointer', padding:0, transition:'all .25s' }}/>
-                              ))}
-                            </div>
-                            <button
-                              onClick={() => setPropPage(p => Math.min(totalPages - 1, p + 1))}
-                              disabled={safePage === totalPages - 1}
-                              style={{ width:44, height:44, borderRadius:'50%', border:`1.5px solid ${safePage===totalPages-1 ? C.purple+'22' : C.purple+'66'}`, background:safePage===totalPages-1?'transparent':`${C.purple}14`, color:safePage===totalPages-1?`${C.cream}30`:C.purple, cursor:safePage===totalPages-1?'default':'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s' }}
-                              onMouseEnter={e=>{ if(safePage<totalPages-1){ e.currentTarget.style.background=C.purple; e.currentTarget.style.color='#fff' }}}
-                              onMouseLeave={e=>{ e.currentTarget.style.background=safePage===totalPages-1?'transparent':`${C.purple}14`; e.currentTarget.style.color=safePage===totalPages-1?`${C.cream}30`:C.purple }}>
-                              <FaChevronLeft size={13}/>
-                            </button>
+                      <div style={{ display:'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill,minmax(300px,1fr))', gap: isMobile ? 18 : 22, marginBottom:28 }}>
+                        {filtered.slice(0, shown).map(p => <PropertyCard key={p.id} prop={p} onContact={openContact} onSelect={openProperty}/>)}
+                      </div>
+                      {filtered.length > PER_PAGE && (
+                        <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:16, marginBottom:48 }}>
+                          <div aria-hidden="true" style={{ width:240, maxWidth:'70%', height:4, borderRadius:2, background:`${C.purple}22`, overflow:'hidden' }}>
+                            <div style={{ width:`${Math.round(shown / filtered.length * 100)}%`, height:'100%', background:`linear-gradient(90deg,${C.purple},${C.green})`, transition:'width .35s' }}/>
                           </div>
-                        )}
-                      </>
-                    )
-                  })()
-                )
+                          {!allShown ? (
+                            <div style={{ display:'flex', gap:12, flexWrap:'wrap', justifyContent:'center', width: isMobile ? '100%' : 'auto' }}>
+                              <button onClick={() => setPropPage(p => p + 1)} style={primaryBtn} onMouseEnter={lift} onMouseLeave={drop}>
+                                {t.loadMoreProps} <span style={countBadge}>+{Math.min(PER_PAGE, remaining)}</span>
+                              </button>
+                              <button onClick={() => setPropPage(999)} style={ghostBtn} onMouseEnter={ghostIn} onMouseLeave={ghostOut}>{fmtT(t.showAllProps, { total: filtered.length })}</button>
+                            </div>
+                          ) : (
+                            <div style={{ display:'flex', alignItems:'center', gap:12, flexWrap:'wrap', justifyContent:'center', fontSize:13, color:`${C.cream}70` }}>
+                              <span>{fmtT(t.allPropsShown, { total: filtered.length })}</span>
+                              <button onClick={() => { setPropPage(0); jumpTop() }} style={{ ...ghostBtn, width:'auto', padding:'8px 14px', fontSize:12 }} onMouseEnter={ghostIn} onMouseLeave={ghostOut}>{t.collapseProps}</button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )
+                  if (!isMobile || mobileList) return grid
+
+                  /* ── Mobile swipe carousel (next card peeks in from the edge) ── */
+                  const goTo = newIdx => {
+                    setCarouselIdx(newIdx)
+                    if (carouselRef.current) { const cardW = carouselRef.current.scrollWidth / filtered.length; carouselRef.current.scrollTo({ left: newIdx * cardW, behavior:'smooth' }) }
+                  }
+                  const arrow = { width:40, height:40, borderRadius:'50%', border:`1.5px solid ${C.purple}66`, background:`${C.purple}14`, color:C.purple, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s', flexShrink:0 }
+                  return (
+                    <>
+                      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12, paddingInline:4, gap:10 }}>
+                        {/* ‹ LEFT arrow → next card in RTL (idx+1) */}
+                        <button aria-label={t.nextProp} onClick={() => goTo((carouselIdx + 1) % filtered.length)} style={arrow}><FaChevronLeft size={12}/></button>
+                        <span style={{ fontSize:13, color:`${C.cream}80`, fontWeight:700, letterSpacing:'.04em' }}>
+                          <span style={{ color:C.purple }}>{carouselIdx + 1}</span> / {filtered.length} · <span style={{ fontWeight:500, color:`${C.cream}55` }}>{t.swipeHint}</span>
+                        </span>
+                        {/* › RIGHT arrow → previous card in RTL (idx-1) */}
+                        <button aria-label={t.prevProp} onClick={() => goTo((carouselIdx - 1 + filtered.length) % filtered.length)} style={arrow}><FaChevronRight size={12}/></button>
+                      </div>
+                      <div className="prop-carousel" ref={carouselRef}
+                        style={{ display:'flex', gap:14, overflowX:'auto', scrollSnapType:'x mandatory', WebkitOverflowScrolling:'touch', paddingBottom:16, paddingInlineStart:4, paddingInlineEnd:16, marginInlineStart:-4 }}
+                        onScroll={e => { const el = e.currentTarget; const cardW = el.scrollWidth / filtered.length; setCarouselIdx(Math.round(el.scrollLeft / cardW)) }}>
+                        {filtered.map(p => (
+                          <div key={p.id} style={{ flex:'0 0 82vw', maxWidth:360, scrollSnapAlign:'start' }}>
+                            <PropertyCard prop={p} onContact={openContact} onSelect={openProperty}/>
+                          </div>
+                        ))}
+                      </div>
+                      {/* Progress dots (capped) + the clear way to see everything */}
+                      <div style={{ display:'flex', justifyContent:'center', gap:5, marginBottom:16 }}>
+                        {Array.from({ length: Math.min(filtered.length, 12) }, (_, i) => (
+                          <span key={i} style={{ width: i === Math.min(carouselIdx, 11) ? 22 : 6, height:6, borderRadius:3, background: i === Math.min(carouselIdx, 11) ? C.purple : `${C.purple}33`, transition:'all .25s' }}/>
+                        ))}
+                      </div>
+                      <button onClick={() => { setPropPage(0); setMobileList(true) }} style={{ ...primaryBtn, marginBottom:40 }}>
+                        {fmtT(t.listViewProps, { total: filtered.length })} <FaChevronLeft size={12}/>
+                      </button>
+                    </>
+                  )
+                })()
               ) : (
                 <div style={{ textAlign:'center', padding:'60px 24px', color:`${C.cream}40`, fontSize:15 }}>{TR[lang]?.noProperties}</div>
               )}
