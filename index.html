@@ -231,31 +231,220 @@
     <meta property="og:url" content="https://afikhanahal.co.il/" />
     <meta property="og:locale" content="he_IL" />
     <meta property="og:site_name" content="אפיק הנחל - ייזום שיווק ותיווך" />
+    <meta property="og:image" content="https://afikhanahal.co.il/img/og-default.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="אפיק הנחל - ייזום, שיווק ותיווך נדל״ן וקרקעות בשרון" />
+    <meta name="twitter:image" content="https://afikhanahal.co.il/img/og-default.png" />
+    <link rel="sitemap" type="application/xml" href="/sitemap.xml" />
+    <link rel="alternate" hreflang="he" href="https://afikhanahal.co.il/" />
+    <link rel="alternate" hreflang="x-default" href="https://afikhanahal.co.il/" />
 
-    <!-- JSON-LD: Organization + LocalBusiness -->
+    <!-- JSON-LD: Organization + WebSite (entity ids shared with /services, /areas, /guides …) -->
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
-      "@type": ["Organization", "LocalBusiness"],
-      "name": "אפיק הנחל - ייזום שיווק ותיווך",
-      "alternateName": "Afik HaNahal - Real Estate Development Marketing & Brokerage",
-      "url": "https://afikhanahal.co.il/",
-      "logo": "https://afikhanahal.co.il/favicon.svg",
-      "description": "חברה יזמית מובילה לאיתור, שיווק וליווי עסקאות קרקע בכל רחבי ישראל. מומחים בשיווק ותיווך קרקעות בשרון והמרכז.",
-      "telephone": "+972-55-981-1814",
-      "email": "info@afikhanahal.co.il",
-      "areaServed": ["השרון", "המרכז", "ישראל"],
-      "address": {
-        "@type": "PostalAddress",
-        "addressCountry": "IL",
-        "addressRegion": "השרון"
-      },
-      "openingHoursSpecification": [
-        { "@type": "OpeningHoursSpecification", "dayOfWeek": ["Sunday","Monday","Tuesday","Wednesday","Thursday"], "opens": "09:00", "closes": "19:00" },
-        { "@type": "OpeningHoursSpecification", "dayOfWeek": "Friday", "opens": "09:00", "closes": "14:00" }
-      ],
-      "sameAs": ["https://wa.me/972559811814"],
-      "knowsAbout": ["קרקעות למכירה","מגרשים","נדל\"ן","שיווק קרקעות","ייזום נדל\"ן","השרון","בנייה רוויה","קרקע חקלאית"]
+      "@graph": [
+        {
+          "@type": [
+            "Organization",
+            "RealEstateAgent",
+            "LocalBusiness"
+          ],
+          "@id": "https://afikhanahal.co.il/#org",
+          "name": "אפיק הנחל - ייזום שיווק ותיווך",
+          "legalName": "אפיק הנחל יזום שיווק תיווך נדלן בע\"מ",
+          "alternateName": [
+            "אפיק הנחל",
+            "Afik Hanahal",
+            "Afik Hanahal Development Marketing & Brokerage Ltd."
+          ],
+          "url": "https://afikhanahal.co.il/",
+          "logo": "https://afikhanahal.co.il/img/icon-512.png",
+          "image": "https://afikhanahal.co.il/img/og-default.png",
+          "description": "חברה יזמית מהוד השרון המתמחה בקרקעות פרטיות ומגרשים, ייזום וניהול פרויקטים, ושיווק ומכירת נכסים בשרון ובמרכז. כ-30 שנות ניסיון.",
+          "telephone": "+972559811814",
+          "email": "afik.hanahal@gmail.com",
+          "founder": {
+            "@type": "Person",
+            "@id": "https://afikhanahal.co.il/#founder",
+            "name": "ישראל בן יהודה",
+            "alternateName": "Israel Ben-Yehuda",
+            "jobTitle": "מייסד ומנכ\"ל",
+            "worksFor": {
+              "@id": "https://afikhanahal.co.il/#org"
+            }
+          },
+          "address": {
+            "@type": "PostalAddress",
+            "streetAddress": "הנגר 24, מגדלי Amy, מגדל A",
+            "addressLocality": "הוד השרון",
+            "addressRegion": "השרון",
+            "addressCountry": "IL"
+          },
+          "areaServed": [
+            {
+              "@type": "Place",
+              "name": "השרון"
+            },
+            {
+              "@type": "Place",
+              "name": "המרכז"
+            },
+            {
+              "@type": "Place",
+              "name": "ישראל"
+            }
+          ],
+          "openingHoursSpecification": [
+            {
+              "@type": "OpeningHoursSpecification",
+              "dayOfWeek": [
+                "Sunday",
+                "Monday",
+                "Tuesday",
+                "Wednesday",
+                "Thursday"
+              ],
+              "opens": "09:00",
+              "closes": "19:00"
+            },
+            {
+              "@type": "OpeningHoursSpecification",
+              "dayOfWeek": "Friday",
+              "opens": "09:00",
+              "closes": "14:00"
+            }
+          ],
+          "sameAs": [
+            "https://www.facebook.com/profile.php?id=61573376818745",
+            "https://www.instagram.com/afik.hanahal/",
+            "https://wa.me/972559811814"
+          ],
+          "knowsAbout": [
+            "קרקעות פרטיות",
+            "מגרשים למכירה",
+            "תיווך קרקעות",
+            "שינוי ייעוד",
+            "יזמות נדל\"ן",
+            "ניהול ופיקוח פרויקטים",
+            "שיווק נכסים",
+            "נדל\"ן בשרון",
+            "נדל\"ן במרכז"
+          ],
+          "hasOfferCatalog": {
+            "@type": "OfferCatalog",
+            "name": "שירותים",
+            "itemListElement": [
+              {
+                "@type": "Offer",
+                "itemOffered": {
+                  "@type": "Service",
+                  "name": "שיווק ותיווך קרקעות ומגרשים",
+                  "url": "https://afikhanahal.co.il/services/land-brokerage/",
+                  "provider": {
+                    "@id": "https://afikhanahal.co.il/#org"
+                  }
+                }
+              },
+              {
+                "@type": "Offer",
+                "itemOffered": {
+                  "@type": "Service",
+                  "name": "ייזום נדל\"ן והשבחת קרקע",
+                  "url": "https://afikhanahal.co.il/services/real-estate-development/",
+                  "provider": {
+                    "@id": "https://afikhanahal.co.il/#org"
+                  }
+                }
+              },
+              {
+                "@type": "Offer",
+                "itemOffered": {
+                  "@type": "Service",
+                  "name": "ניהול, ביצוע ופיקוח פרויקטים",
+                  "url": "https://afikhanahal.co.il/services/project-management-supervision/",
+                  "provider": {
+                    "@id": "https://afikhanahal.co.il/#org"
+                  }
+                }
+              },
+              {
+                "@type": "Offer",
+                "itemOffered": {
+                  "@type": "Service",
+                  "name": "מכירת נכסים",
+                  "url": "https://afikhanahal.co.il/services/sell-your-property/",
+                  "provider": {
+                    "@id": "https://afikhanahal.co.il/#org"
+                  }
+                }
+              },
+              {
+                "@type": "Offer",
+                "itemOffered": {
+                  "@type": "Service",
+                  "name": "השכרת נכסים",
+                  "url": "https://afikhanahal.co.il/services/rent-your-property/",
+                  "provider": {
+                    "@id": "https://afikhanahal.co.il/#org"
+                  }
+                }
+              },
+              {
+                "@type": "Offer",
+                "itemOffered": {
+                  "@type": "Service",
+                  "name": "השקעה בקרקע",
+                  "url": "https://afikhanahal.co.il/services/land-investment/",
+                  "provider": {
+                    "@id": "https://afikhanahal.co.il/#org"
+                  }
+                }
+              },
+              {
+                "@type": "Offer",
+                "itemOffered": {
+                  "@type": "Service",
+                  "name": "שיווק פרויקטים ובתי יוקרה",
+                  "url": "https://afikhanahal.co.il/services/project-marketing/",
+                  "provider": {
+                    "@id": "https://afikhanahal.co.il/#org"
+                  }
+                }
+              }
+            ]
+          }
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://afikhanahal.co.il/#website",
+          "url": "https://afikhanahal.co.il/",
+          "name": "אפיק הנחל",
+          "alternateName": "Afik Hanahal",
+          "publisher": {
+            "@id": "https://afikhanahal.co.il/#org"
+          },
+          "inLanguage": [
+            "he",
+            "en"
+          ]
+        },
+        {
+          "@type": "WebPage",
+          "@id": "https://afikhanahal.co.il/#page",
+          "url": "https://afikhanahal.co.il/",
+          "name": "אפיק הנחל - ייזום שיווק ותיווך | נדל״ן וקרקעות",
+          "isPartOf": {
+            "@id": "https://afikhanahal.co.il/#website"
+          },
+          "about": {
+            "@id": "https://afikhanahal.co.il/#org"
+          },
+          "inLanguage": "he",
+          "primaryImageOfPage": "https://afikhanahal.co.il/img/og-default.png"
+        }
+      ]
     }
     </script>
 
@@ -357,7 +546,15 @@
     <!-- Meta Pixel noscript fallback (both pixels) -->
     <noscript><img height="1" width="1" style="display:none" src="https://www.facebook.com/tr?id=1341264237748951&ev=PageView&noscript=1" alt=""/></noscript>
     <noscript><img height="1" width="1" style="display:none" src="https://www.facebook.com/tr?id=1311196023271539&ev=PageView&noscript=1" alt=""/></noscript>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Server-less fallback: what crawlers and no-JS visitors see before React mounts. Replaced on hydration. -->
+      <main style="max-width:860px;margin:0 auto;padding:48px 20px;color:#E8E4D8;font-family:Rubik,Arial,sans-serif;line-height:1.7">
+        <h1 style="font-size:32px;margin:0 0 12px">אפיק הנחל - ייזום, שיווק ותיווך נדל״ן וקרקעות בשרון ובמרכז</h1>
+        <p>אפיק הנחל היא חברה יזמית מהוד השרון המתמחה בקרקעות פרטיות ומגרשים, ייזום וניהול פרויקטים עם ביצוע ופיקוח, ושיווק ומכירת נכסים בשרון ובמרכז - הוד השרון, כפר סבא, רעננה, הרצליה ורמת השרון. בראשה עומד ישראל בן-יהודה, עם כ-30 שנות ניסיון בשוק הנדל״ן והקרקעות בישראל.</p>
+        <p>טלפון: <a href="tel:+972559811814" style="color:#82F67F">055-981-1814</a> · <a href="https://wa.me/972559811814" style="color:#82F67F">WhatsApp</a> · <a href="mailto:afik.hanahal@gmail.com" style="color:#82F67F">afik.hanahal@gmail.com</a></p>
+        <nav aria-label="תוכן האתר"><ul style="padding-inline-start:20px"><li><a href="/services/" style="color:#8490D8">השירותים שלנו</a></li><li><a href="/areas/" style="color:#8490D8">אזורי פעילות</a></li><li><a href="/guides/" style="color:#8490D8">מדריכים</a></li><li><a href="/glossary/" style="color:#8490D8">מילון מונחים</a></li><li><a href="/tools/" style="color:#8490D8">כלים ומחשבונים</a></li><li><a href="/faq/" style="color:#8490D8">שאלות נפוצות</a></li><li><a href="/company/" style="color:#8490D8">על החברה</a></li><li><a href="/en/company/" style="color:#8490D8">English</a></li></ul></nav>
+      </main>
+    </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
