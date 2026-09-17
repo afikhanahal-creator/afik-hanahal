@@ -3,13 +3,13 @@
 // App.jsx loads it on demand: const AdminPanel = lazyWithRetry(() => import('./AdminPanel.jsx'))
 // Shared constants / helpers still live in App.jsx and are imported back from there — that is a
 // dynamic→static cycle, which is safe: by the time this chunk evaluates, App.jsx already has.
-import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react'
 import { metaFormAnswers, answersToText } from './lib/leadFields.js'
 import { LAYERS_DEF as GM_LAYERS, BG_OPTIONS as GM_BG_OPTIONS, LAYER_CATS_DEF as GM_LAYER_CATS } from './govmapLayers.js'
 import { FaEnvelope, FaFacebookF, FaInstagram, FaBed, FaRulerCombined, FaBuilding, FaTools, FaMapMarkerAlt, FaPhone, FaLeaf, FaCalendarAlt, FaTimes, FaWhatsapp, FaFileAlt, FaHome, FaSearch, FaBalanceScale, FaHandshake, FaLock, FaKey, FaGlobe, FaBolt, FaChartLine, FaEye, FaPlay, FaFire, FaShareAlt, FaHeart, FaCamera, FaUser, FaUsers, FaDesktop, FaMobileAlt, FaTabletAlt, FaRobot, FaExclamationTriangle, FaChartBar, FaThumbsUp, FaImage, FaPencilAlt, FaCrown, FaMousePointer, FaDollarSign, FaVideo, FaLink, FaCheckCircle, FaTrash, FaClipboardList } from 'react-icons/fa'
 // Seller intake submissions (from the public /sell form) — lazy, admin-only
 const SellerSubmissionsTab = lazy(() => import('./SellerSubmissionsTab.jsx'))
-import { LeadsBoard, GreenAPIChat, MetaLeadsTab, SupermetricsTab, PropertyWizard, API_BASE, CONTACTS_API, ADMIN_TOKEN, condFetchJson, DARK_C, useTheme, TEAM, G, Logo, LEADS_STORE, LEADS_DELETED, LEADS_TRASH, ANALYTICS_KEY, META_LEAD_PAGES_KEY, WA_DEFAULT_TEMPLATE, _cloudSettings, CATEGORIES, EMPTY_PROP, CONDITION_OPTIONS, ENTRY_OPTIONS, ADMIN_DRAFT_KEY, toMapsEmbed, imgFallback, thumbImg, TEAM_KEY, setCloudSettings } from './App.jsx'
+import { LeadsBoard, GreenAPIChat, MetaLeadsTab, SupermetricsTab, PropertyWizard, API_BASE, CONTACTS_API, ADMIN_TOKEN, condFetchJson, DARK_C, useTheme, TEAM, G, Logo, LEADS_STORE, LEADS_DELETED, LEADS_TRASH, ANALYTICS_KEY, META_LEAD_PAGES_KEY, WA_DEFAULT_TEMPLATE, _cloudSettings, CATEGORIES, EMPTY_PROP, CONDITION_OPTIONS, ENTRY_OPTIONS, ADMIN_DRAFT_KEY, toMapsEmbed, imgFallback, thumbImg, sortByOrder, TEAM_KEY, setCloudSettings } from './App.jsx'
 
 // Tab ↔ URL deep-link mapping (module-level so both AdminPanel and main app can use it)
 const ADMIN_TAB_TO_PATH = { overview:'', props:'properties', leads:'leads', sellers:'properties-intake', chats:'chats', meta:'lead-center', analytics:'analytics', supermetrics:'performance', team:'team', settings:'settings', counters:'counters', live:'live' }
@@ -1560,6 +1560,213 @@ function AdminTabLoader({ label = 'טוען...' }) {
   )
 }
 
+// ─── PROPERTY MANAGER LIST (admin → ניהול נכסים) ─────────────────────────────
+// One row per property: site position + drag handle + ▲▼, thumbnail, details, price,
+// then three clear controls — visibility switch, status segmented control, "ערוך" —
+// and a "⋯" menu for the rarer actions (duplicate, refresh, delete). Multi-select
+// enables bulk publish / hide / status / delete. Drag-and-drop shows a live drop line
+// and saves only the rows whose position changed.
+const PM_STATUS = [
+  { id:'בשיווק', label:'בשיווק', color:'#22C55E' },
+  { id:'נמכר',   label:'נמכר',   color:'#E05252' },
+  { id:'הושכר',  label:'הושכר',  color:'#F97316' },
+]
+function PropertyManagerList({ C, list, publishedList, draftList, listTab, setListTab, listCat, setListCat,
+  onMove, onStep, onTop, publish, unpublish, setStatus, dup, del, onEdit, refreshOne, bulkPatch, bulkDelete, note }) {
+  const [search, setSearch]     = useState('')
+  const [selected, setSelected] = useState(() => new Set())
+  const [menuId, setMenuId]     = useState(null)
+  const [drag, setDrag]         = useState({ id:null, overId:null, place:'before' })
+  const posOf = useMemo(() => { const m = new Map(); publishedList.forEach((p, i) => m.set(String(p.id), i + 1)); return m }, [publishedList])
+
+  const q = search.trim().toLowerCase()
+  const rows = q ? list.filter(p => [p.title, p.location, p.neighborhood, p.type, p.id].filter(Boolean).some(v => String(v).toLowerCase().includes(q))) : list
+  const ids = rows.map(p => String(p.id))
+  const allSel = ids.length > 0 && ids.every(id => selected.has(id))
+  const toggleSel = id => setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+  const clearSel = () => setSelected(new Set())
+  const selIds = [...selected].filter(id => ids.includes(id))
+
+  useEffect(() => {
+    if (menuId === null) return
+    const close = e => { if (!e.target.closest?.('[data-pm-menu]')) setMenuId(null) }
+    document.addEventListener('mousedown', close); return () => document.removeEventListener('mousedown', close)
+  }, [menuId])
+
+  const btn = (extra = {}) => ({ padding:'7px 12px', borderRadius:8, border:'1px solid rgba(132,144,216,.25)', background:'rgba(255,255,255,.04)', color:`${C.cream}CC`, cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:700, whiteSpace:'nowrap', display:'inline-flex', alignItems:'center', gap:6, transition:'all .15s', ...extra })
+  const iconBtn = (title, extra = {}) => ({ title, 'aria-label':title, style:{ width:28, height:22, minWidth:0, minHeight:0, borderRadius:6, border:'1px solid rgba(132,144,216,.22)', background:'rgba(255,255,255,.04)', color:`${C.cream}AA`, cursor:'pointer', fontSize:10, display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'inherit', padding:0, ...extra } })
+
+  // ── drag & drop with a live drop line ──
+  const onDragOverRow = (e, p) => {
+    e.preventDefault()
+    if (!drag.id || String(p.id) === String(drag.id)) return
+    const r = e.currentTarget.getBoundingClientRect()
+    const place = e.clientY < r.top + r.height / 2 ? 'before' : 'after'
+    if (drag.overId !== String(p.id) || drag.place !== place) setDrag(d => ({ ...d, overId:String(p.id), place }))
+  }
+  const onDropRow = (e, p) => { e.preventDefault(); if (drag.id && String(p.id) !== String(drag.id)) onMove(drag.id, p.id, drag.place); setDrag({ id:null, overId:null, place:'before' }) }
+
+  return (
+    <div className="admin-pm">
+      {/* Toolbar: tabs · search · category chips */}
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12, flexWrap:'wrap', gap:10 }}>
+        <div style={{ display:'flex', gap:4, background:'rgba(255,255,255,.04)', borderRadius:10, padding:4 }}>
+          {[['published', `באוויר (${publishedList.length})`, C.green], ['draft', `מוסתרים / טיוטות (${draftList.length})`, '#F7C948']].map(([id, label, color]) => (
+            <button key={id} onClick={() => { setListTab(id); clearSel() }}
+              style={{ display:'flex', alignItems:'center', gap:7, padding:'8px 16px', border:'none', borderRadius:7, background:listTab===id?color+'22':'transparent', color:listTab===id?color:`${C.cream}55`, cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:800, transition:'all .15s' }}>
+              {listTab===id && <span style={{ width:6, height:6, borderRadius:'50%', background:color, display:'inline-block' }}/>}{label}
+            </button>
+          ))}
+        </div>
+        <div style={{ position:'relative', flex:'1 1 220px', maxWidth:340 }}>
+          <FaSearch size={11} style={{ position:'absolute', insetInlineStart:12, top:'50%', transform:'translateY(-50%)', color:`${C.cream}44` }}/>
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="חיפוש לפי כותרת, עיר, סוג…"
+            style={{ width:'100%', padding:'9px 34px 9px 12px', background:'rgba(255,255,255,.05)', border:`1px solid ${search ? C.purple : 'rgba(132,144,216,.25)'}`, borderRadius:9, color:C.cream, fontSize:12, fontFamily:'inherit', outline:'none', boxSizing:'border-box' }}/>
+        </div>
+        <div className="admin-cat-filter">
+          {[{id:'all',label:'הכל',Icon:null},...CATEGORIES].map(({id,label,Icon:CIcon}) => (
+            <button key={id} onClick={() => setListCat(id)} style={{ padding:'5px 10px', border:`1px solid ${listCat===id?C.purple:'rgba(132,144,216,.2)'}`, borderRadius:6, background:listCat===id?`${C.purple}22`:'transparent', color:listCat===id?C.purple:`${C.cream}70`, cursor:'pointer', fontSize:11, fontFamily:'inherit', fontWeight:600, whiteSpace:'nowrap', display:'flex', alignItems:'center', gap:5 }}>
+              {CIcon && <CIcon size={10}/>} {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Hint + select-all + saved note */}
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:10, marginBottom:10, flexWrap:'wrap' }}>
+        <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:12, color:`${C.cream}80`, cursor:'pointer' }}>
+          <input type="checkbox" checked={allSel} onChange={() => setSelected(allSel ? new Set() : new Set(ids))} style={{ accentColor:C.purple, width:16, height:16, appearance:'auto', WebkitAppearance:'checkbox', borderRadius:4 }}/>
+          בחר הכל ({rows.length})
+        </label>
+        <span style={{ fontSize:11, color: note ? C.green : `${C.cream}50`, fontWeight: note ? 700 : 500, transition:'color .2s' }}>
+          {note || (listTab==='published' ? '⠿ גררו שורה, או השתמשו בחיצים ▲▼ כדי לקבוע את הסדר באתר. המספר משמאל הוא המיקום בעמוד.' : 'נכסים מוסתרים לא מוצגים באתר. "פרסם" מחזיר אותם לאוויר.')}
+        </span>
+      </div>
+
+      {/* Bulk action bar */}
+      {selIds.length > 0 && (
+        <div style={{ position:'sticky', top:0, zIndex:5, display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', padding:'10px 14px', marginBottom:10, background:'rgba(19,19,42,.96)', border:`1px solid ${C.purple}55`, borderRadius:12, boxShadow:`0 10px 30px rgba(0,0,0,.35)`, backdropFilter:'blur(8px)' }}>
+          <span style={{ fontSize:13, fontWeight:800, color:C.purple, marginInlineEnd:6 }}>נבחרו {selIds.length}</span>
+          {listTab==='draft'
+            ? <button onClick={() => { bulkPatch(selIds, { published:true }); clearSel() }} style={btn({ background:`${C.green}18`, borderColor:`${C.green}55`, color:C.green })}>▶ פרסם באתר</button>
+            : <button onClick={() => { bulkPatch(selIds, { published:false }); clearSel() }} style={btn({ background:'rgba(247,201,72,.1)', borderColor:'rgba(247,201,72,.4)', color:'#F7C948' })}>⏸ הסתר מהאתר</button>}
+          <button onClick={() => { bulkPatch(selIds, { status:'נמכר' }); clearSel() }} style={btn({ color:'#E05252', borderColor:'rgba(224,82,82,.35)' })}>סמן נמכר</button>
+          <button onClick={() => { bulkPatch(selIds, { status:'הושכר' }); clearSel() }} style={btn({ color:'#F97316', borderColor:'rgba(249,115,22,.35)' })}>סמן הושכר</button>
+          <button onClick={() => { bulkPatch(selIds, { status:'בשיווק' }); clearSel() }} style={btn({ color:C.green, borderColor:`${C.green}44` })}>החזר לשיווק</button>
+          <span style={{ flex:1 }}/>
+          <button onClick={() => { bulkDelete(selIds); clearSel() }} style={btn({ color:'#E05252', borderColor:'rgba(224,82,82,.45)', background:'rgba(224,82,82,.08)' })}><FaTrash size={10}/> מחק</button>
+          <button onClick={clearSel} style={btn({ color:`${C.cream}88` })}>בטל בחירה</button>
+        </div>
+      )}
+
+      {rows.length === 0 && <div style={{ textAlign:'center', padding:'32px 0', color:`${C.cream}40`, fontSize:13 }}>{q ? 'לא נמצאו נכסים לחיפוש הזה.' : listTab==='draft' ? 'אין נכסים מוסתרים או טיוטות.' : 'אין נכסים באוויר.'}</div>}
+
+      <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+        {rows.map((p, idx) => {
+          const id = String(p.id)
+          const live = p.published !== false
+          const cat = CATEGORIES.find(c => c.id === p.category) || CATEGORIES[1]
+          const price = p.price ? `₪${Number(String(p.price).replace(/[^\d]/g,'')).toLocaleString('he-IL')}` : 'מחיר בפנייה'
+          const status = ['נמכר','הושכר'].includes(p.status) ? p.status : 'בשיווק'
+          const pos = posOf.get(id)
+          const isDragging = drag.id === id
+          const over = drag.overId === id ? drag.place : null
+          const accent = live ? C.green : '#F7C948'
+          return (
+            <div key={p.id} className="admin-pm-row"
+              draggable
+              onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', id) } catch {} setDrag({ id, overId:null, place:'before' }) }}
+              onDragEnd={() => setDrag({ id:null, overId:null, place:'before' })}
+              onDragOver={e => onDragOverRow(e, p)}
+              onDrop={e => onDropRow(e, p)}
+              style={{ display:'flex', alignItems:'stretch', background: selected.has(id) ? `${C.purple}12` : live ? 'rgba(34,197,94,.035)' : 'rgba(255,255,255,.035)', borderRadius:14, border:`1.5px solid ${selected.has(id) ? C.purple+'66' : accent+'2A'}`, overflow:'visible', position:'relative', opacity: isDragging ? .35 : 1, transition:'opacity .15s, border-color .15s, box-shadow .15s', cursor: drag.id ? 'grabbing' : 'default',
+                boxShadow: over === 'before' ? `0 -3px 0 0 ${C.purple}` : over === 'after' ? `0 3px 0 0 ${C.purple}` : 'none' }}>
+              {/* Select + position + order controls */}
+              <div className="admin-pm-order" style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:6, padding:'8px 6px', borderInlineEnd:`1px solid ${accent}22`, background:`${accent}0C`, flexShrink:0, width:76 }}>
+                <input type="checkbox" checked={selected.has(id)} onChange={() => toggleSel(id)} aria-label="בחר נכס" style={{ accentColor:C.purple, width:16, height:16, appearance:'auto', WebkitAppearance:'checkbox', borderRadius:4, cursor:'pointer' }}/>
+                <div title={live ? 'מיקום בעמוד הנכסים באתר' : 'לא מוצג באתר'} style={{ minWidth:30, textAlign:'center', padding:'2px 6px', borderRadius:7, background: live ? `${C.purple}22` : 'rgba(247,201,72,.15)', color: live ? C.purple : '#F7C948', fontSize:12, fontWeight:900, fontFamily:'monospace' }}>{live && pos ? `#${pos}` : '—'}</div>
+                <div title="גרור לשינוי הסדר" style={{ cursor:'grab', color:`${accent}99`, fontSize:16, lineHeight:1, userSelect:'none', letterSpacing:-2 }}>⠿</div>
+                <div style={{ display:'flex', gap:3 }}>
+                  <button {...iconBtn('העלה בסדר', { opacity: idx === 0 ? .35 : 1 })} disabled={idx === 0} onClick={() => onStep(p.id, -1)}>▲</button>
+                  <button {...iconBtn('הורד בסדר', { opacity: idx === rows.length - 1 ? .35 : 1 })} disabled={idx === rows.length - 1} onClick={() => onStep(p.id, +1)}>▼</button>
+                </div>
+              </div>
+              {/* Thumbnail */}
+              <div className="admin-prop-thumb" style={{ position:'relative', flexShrink:0, width:132, minHeight:104, alignSelf:'stretch', background:`${C.purple}10` }}>
+                {p.images?.[0]
+                  ? <img src={thumbImg(p.images[0])} onError={imgFallback} style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover', display:'block' }} alt="" loading="lazy" decoding="async"/>
+                  : <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', color:`${C.purple}55` }}><cat.Icon size={28}/></div>}
+                <div style={{ position:'absolute', top:6, insetInlineStart:6, background: live ? `${C.green}DD` : 'rgba(247,201,72,.92)', borderRadius:5, padding:'2px 7px', fontSize:9, fontWeight:900, color:'#000', letterSpacing:'.05em' }}>{live ? '● LIVE' : 'מוסתר'}</div>
+                {(p.images?.length || 0) > 1 && <div style={{ position:'absolute', bottom:6, insetInlineEnd:6, background:'rgba(0,0,0,.6)', borderRadius:5, padding:'1px 6px', fontSize:9, color:'#fff', fontWeight:700 }}>📷 {p.images.length}</div>}
+              </div>
+              {/* Info */}
+              <div style={{ flex:1, minWidth:0, padding:'10px 14px', display:'flex', flexDirection:'column', gap:5, justifyContent:'center' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
+                  <span style={{ fontWeight:800, fontSize:15, color:C.cream, lineHeight:1.25 }}>{p.title || 'ללא כותרת'}</span>
+                  {p.exclusive && <span style={{ fontSize:10, background:`${C.green}18`, color:C.green, border:`1px solid ${C.green}35`, borderRadius:5, padding:'1px 7px', fontWeight:700 }}>✦ בלעדי</span>}
+                  <span style={{ background:`${C.purple}22`, color:C.purple, borderRadius:5, padding:'1px 8px', fontSize:10, fontWeight:700 }}>{cat.label}</span>
+                  {p.type && <span style={{ background:'rgba(255,255,255,.06)', color:`${C.cream}70`, borderRadius:5, padding:'1px 8px', fontSize:10 }}>{p.type}</span>}
+                </div>
+                <div style={{ display:'flex', gap:12, flexWrap:'wrap', fontSize:12, color:`${C.cream}75` }}>
+                  {p.location && <span style={{ display:'flex', alignItems:'center', gap:4 }}><FaMapMarkerAlt size={10} style={{ color:C.purple }}/>{p.location}{p.neighborhood ? ' · '+p.neighborhood : ''}</span>}
+                  {p.rooms && <span style={{ display:'flex', alignItems:'center', gap:4 }}><FaBed size={10} style={{ color:C.purple }}/>{p.rooms} חד'</span>}
+                  {p.size && <span style={{ display:'flex', alignItems:'center', gap:4 }}><FaRulerCombined size={10} style={{ color:C.purple }}/>{p.size} מ"ר</span>}
+                  {p.floor && <span style={{ display:'flex', alignItems:'center', gap:4 }}><FaBuilding size={10} style={{ color:C.purple }}/>קומה {p.floor}{p.totalFloors?'/'+p.totalFloors:''}</span>}
+                  {p.dunams && <span style={{ display:'flex', alignItems:'center', gap:4 }}><FaLeaf size={10} style={{ color:C.purple }}/>{p.dunams} דונם</span>}
+                </div>
+                <div style={{ display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' }}>
+                  <span style={{ fontSize:15, fontWeight:900, color: p.price ? C.cream : `${C.cream}66` }}>{price}</span>
+                  {p.updatedAt && <span style={{ fontSize:10, color:`${C.cream}40` }}>עודכן {new Date(p.updatedAt).toLocaleDateString('he-IL')}</span>}
+                </div>
+              </div>
+              {/* Controls */}
+              <div className="admin-pm-actions" style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 12px', flexShrink:0, flexWrap:'wrap', justifyContent:'flex-end' }}>
+                {/* Visibility switch */}
+                <button onClick={() => live ? unpublish(p.id) : publish(p.id)} title={live ? 'לחיצה תסתיר את הנכס מהאתר' : 'לחיצה תפרסם את הנכס באתר'}
+                  style={{ display:'inline-flex', alignItems:'center', gap:8, padding:'6px 10px 6px 6px', borderRadius:20, border:`1px solid ${live ? C.green+'55' : 'rgba(247,201,72,.45)'}`, background: live ? `${C.green}14` : 'rgba(247,201,72,.1)', color: live ? C.green : '#F7C948', cursor:'pointer', fontSize:12, fontWeight:800, fontFamily:'inherit' }}>
+                  <span style={{ width:34, height:18, borderRadius:10, background: live ? C.green : 'rgba(247,201,72,.35)', position:'relative', transition:'background .2s', flexShrink:0 }}>
+                    <span style={{ position:'absolute', top:2, insetInlineStart: live ? 18 : 2, width:14, height:14, borderRadius:'50%', background:'#fff', transition:'all .2s' }}/>
+                  </span>
+                  {live ? 'באוויר' : 'מוסתר'}
+                </button>
+                {/* Status segmented */}
+                <div role="group" aria-label="סטטוס" style={{ display:'inline-flex', background:'rgba(255,255,255,.05)', border:'1px solid rgba(132,144,216,.2)', borderRadius:9, padding:3, gap:2 }}>
+                  {PM_STATUS.map(s => {
+                    const on = status === s.id
+                    return <button key={s.id} onClick={() => !on && setStatus(p.id, s.id)} style={{ padding:'5px 10px', borderRadius:7, border:'none', background: on ? s.color : 'transparent', color: on ? '#0b0b12' : `${C.cream}80`, cursor: on ? 'default' : 'pointer', fontSize:11, fontWeight:800, fontFamily:'inherit', transition:'all .15s' }}>{s.label}</button>
+                  })}
+                </div>
+                {/* Edit */}
+                <button onClick={() => onEdit(p)} style={btn({ background:C.purple, borderColor:C.purple, color:'#fff', padding:'8px 16px' })}><FaPencilAlt size={10}/> ערוך</button>
+                {/* More menu */}
+                <div data-pm-menu style={{ position:'relative' }}>
+                  <button onClick={() => setMenuId(menuId === id ? null : id)} aria-haspopup="menu" aria-expanded={menuId === id} title="פעולות נוספות" style={btn({ padding:'8px 10px', fontSize:14, lineHeight:1 })}>⋯</button>
+                  {menuId === id && (
+                    <div role="menu" style={{ position:'absolute', top:'calc(100% + 6px)', insetInlineEnd:0, zIndex:20, minWidth:190, background:'#13132A', border:`1px solid ${C.purple}44`, borderRadius:12, boxShadow:'0 16px 40px rgba(0,0,0,.5)', padding:6, display:'flex', flexDirection:'column', gap:2 }}>
+                      {[
+                        ...(idx > 0 ? [['⤒ העבר לראש הרשימה', () => onTop(p.id)]] : []),
+                        ['📄 שכפל נכס', () => dup(p.id)],
+                        ['↻ רענן מהשרת', () => refreshOne(p)],
+                        [`🔗 פתח את האתר`, () => window.open('/#properties', '_blank')],
+                      ].map(([label, fn]) => (
+                        <button key={label} role="menuitem" onClick={() => { setMenuId(null); fn() }} style={{ textAlign:'start', padding:'9px 12px', borderRadius:8, border:'none', background:'transparent', color:C.cream, fontSize:12, fontFamily:'inherit', cursor:'pointer', fontWeight:600 }}
+                          onMouseEnter={e => e.currentTarget.style.background=`${C.purple}22`} onMouseLeave={e => e.currentTarget.style.background='transparent'}>{label}</button>
+                      ))}
+                      <div style={{ height:1, background:'rgba(255,255,255,.08)', margin:'4px 6px' }}/>
+                      <button role="menuitem" onClick={() => { setMenuId(null); del(p.id) }} style={{ textAlign:'start', padding:'9px 12px', borderRadius:8, border:'none', background:'transparent', color:'#E05252', fontSize:12, fontFamily:'inherit', cursor:'pointer', fontWeight:700 }}
+                        onMouseEnter={e => e.currentTarget.style.background='rgba(224,82,82,.14)'} onMouseLeave={e => e.currentTarget.style.background='transparent'}>🗑 מחק נכס</button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSharon, govmapToken, setGovmapToken, onClose, onEditInWizard, standalone = false }) {
   const { lang, logoNavSize, setLogoNavSize } = useTheme()
   // Admin panel is ALWAYS dark regardless of site theme
@@ -1587,10 +1794,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const [listTab, setListTab] = useState('published')
   const propListRef = useRef(null)
   const [listCat, setListCat] = useState('all')
-  const dragPropId       = useRef(null)
-  const dragOverId       = useRef(null)
   const autoSaveTimer    = useRef(null)
-  const [dragActive, setDragActive] = useState(false)
   const [saved, setSaved]   = useState(false)
   const [propSyncing,    setPropSyncing]    = useState(false)
   const [propSyncError,  setPropSyncError]  = useState('')
@@ -2452,21 +2656,80 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     saveProp(copy)
   }
 
-  // Move dragPropId above/below dragOverId in the global properties array.
-  // Uses individual PUT requests (no bulk delete risk) with sortOrder field.
-  const reorderProps = () => {
-    const fromId = dragPropId.current
-    const toId   = dragOverId.current
-    if (!fromId || !toId || fromId === toId) return
-    const next = [...properties]
-    const fi = next.findIndex(x => String(x.id) === String(fromId))
-    const ti = next.findIndex(x => String(x.id) === String(toId))
-    if (fi < 0 || ti < 0) return
-    const [removed] = next.splice(fi, 1)
-    next.splice(ti, 0, removed)
-    const withOrder = next.map((p, i) => ({ ...p, sortOrder: i }))
+  // ── Ordering (the site sorts by sortOrder; see sortByOrder in App.jsx) ─────
+  // Re-number the whole ordered list and save only the rows whose position changed.
+  const [orderNote, setOrderNote] = useState('')
+  const orderNoteTimer = useRef(null)
+  const flashNote = msg => { setOrderNote(msg); clearTimeout(orderNoteTimer.current); orderNoteTimer.current = setTimeout(() => setOrderNote(''), 2500) }
+  const commitOrder = (nextOrdered, label = 'הסדר נשמר') => {
+    const withOrder = nextOrdered.map((p, i) => ({ ...p, sortOrder: i }))
+    const before = new Map(properties.map(p => [String(p.id), p.sortOrder]))
+    const changed = withOrder.filter(p => before.get(String(p.id)) !== p.sortOrder)
     setProperties(withOrder)
-    withOrder.forEach(p => savePropSilent(p))
+    changed.forEach(p => savePropSilent({ ...p, updatedAt: Date.now() }))
+    flashNote(`✓ ${label} (${changed.length} נכסים עודכנו)`)
+  }
+  const orderedProps = sortByOrder(properties)
+  // Drop `fromId` before/after `toId`
+  const moveProp = (fromId, toId, place = 'before') => {
+    const next = [...orderedProps]
+    const fi = next.findIndex(x => String(x.id) === String(fromId))
+    if (fi < 0) return
+    const [moved] = next.splice(fi, 1)
+    let ti = next.findIndex(x => String(x.id) === String(toId))
+    if (ti < 0) return
+    if (place === 'after') ti += 1
+    next.splice(ti, 0, moved)
+    commitOrder(next)
+  }
+  // ▲ / ▼ within the same visibility group (published or hidden), so the site position moves by exactly one
+  const stepProp = (id, dir) => {
+    const me = orderedProps.find(x => String(x.id) === String(id)); if (!me) return
+    const group = orderedProps.filter(x => (x.published !== false) === (me.published !== false))
+    const gi = group.findIndex(x => String(x.id) === String(id))
+    const neighbour = group[gi + dir]; if (!neighbour) return
+    moveProp(id, neighbour.id, dir < 0 ? 'before' : 'after')
+  }
+  const topProp = id => {
+    const next = [...orderedProps]
+    const fi = next.findIndex(x => String(x.id) === String(id)); if (fi <= 0) return
+    const [moved] = next.splice(fi, 1); next.unshift(moved)
+    commitOrder(next, 'הנכס הועבר לראש')
+  }
+  // Bulk actions from the multi-select bar
+  const bulkPatch = (ids, patch) => {
+    const set = new Set(ids.map(String))
+    const stamp = Date.now()
+    const updated = properties.filter(p => set.has(String(p.id))).map(p => ({ ...p, ...patch, updatedAt: stamp }))
+    setProperties(prev => prev.map(p => set.has(String(p.id)) ? { ...p, ...patch, updatedAt: stamp } : p))
+    updated.forEach(p => savePropSilent(p))
+    flashNote(`✓ ${updated.length} נכסים עודכנו`)
+  }
+  const bulkDelete = ids => {
+    if (!ids.length || !window.confirm(`למחוק ${ids.length} נכסים לצמיתות?`)) return
+    const set = new Set(ids.map(String))
+    setProperties(prev => prev.filter(p => !set.has(String(p.id))))
+    ids.forEach(id => deleteProp(id))
+    flashNote(`✓ ${ids.length} נכסים נמחקו`)
+  }
+  const refreshOneFromServer = async p => {
+    const base = (typeof API_BASE !== 'undefined' ? API_BASE : '') || ''
+    if (!base) { alert('VITE_API_URL לא מוגדר'); return }
+    try {
+      const r = await fetch(`${base}/api/properties`, { headers:{ Authorization:`Bearer ${ADMIN_TOKEN}` } })
+      if (!r.ok) throw new Error(r.status)
+      const all = await r.json()
+      const fresh = Array.isArray(all) ? all.find(x => String(x.id)===String(p.id)) : null
+      if (!fresh) { alert('הנכס לא נמצא בשרת — השרת אולי הופעל מחדש.\nהנתונים המקומיים שמורים.'); return }
+      const localProp = properties.find(x => String(x.id)===String(p.id))
+      const localNewer = (localProp?.updatedAt || 0) > (fresh.updatedAt || 0)
+      const msg = localNewer
+        ? `⚠️ אזהרה: הנתונים בשרת ישנים יותר מהנתונים המקומיים!\n\nאם תאשר — הנתונים המקומיים העדכניים שלך יוחלפו בנתוני השרת הישנים.\n\nהאם להמשיך בכל זאת?`
+        : `רענן את "${p.title}" מהשרת?\n\nהנתונים המקומיים יוחלפו בנתוני השרת.`
+      if (!window.confirm(msg)) return
+      setProperties(prev => prev.map(x => String(x.id)===String(p.id) ? { ...x, ...fresh } : x))
+      flashNote('✓ הנכס רוענן מהשרת')
+    } catch(e) { alert('שגיאת רענון: ' + e.message) }
   }
 
   const tabBtn = (id, label, badge) => {
@@ -2686,8 +2949,8 @@ Return ONLY valid JSON (no markdown, no code blocks):
     </button>
   )
 
-  const publishedList = properties.filter(p => p.published !== false)
-  const draftList     = properties.filter(p => p.published === false)
+  const publishedList = orderedProps.filter(p => p.published !== false)
+  const draftList     = orderedProps.filter(p => p.published === false)
   const baseList = listTab==='published' ? publishedList : draftList
   const filteredList = listCat==='all' ? baseList : baseList.filter(p => p.category===listCat)
 
@@ -3265,137 +3528,12 @@ Return ONLY valid JSON (no markdown, no code blocks):
                 </div>
               </div>
 
-              {/* Published / Drafts tabs */}
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12, flexWrap:'wrap', gap:8 }}>
-                <div style={{ display:'flex', gap:4, background:'rgba(255,255,255,.04)', borderRadius:10, padding:4 }}>
-                  <button onClick={() => setListTab('published')}
-                    style={{ display:'flex', alignItems:'center', gap:7, padding:'7px 16px', border:'none', borderRadius:7, background:listTab==='published'?C.green+'22':'transparent', color:listTab==='published'?C.green:`${C.cream}55`, cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:800, transition:'all .15s' }}>
-                    {listTab==='published' && <span style={{ width:6, height:6, borderRadius:'50%', background:C.green, display:'inline-block' }}/>}
-                    באוויר ({publishedList.length})
-                  </button>
-                  <button onClick={() => setListTab('draft')}
-                    style={{ display:'flex', alignItems:'center', gap:7, padding:'7px 16px', border:'none', borderRadius:7, background:listTab==='draft'?'rgba(247,201,72,.18)':'transparent', color:listTab==='draft'?'#F7C948':`${C.cream}55`, cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:800, transition:'all .15s' }}>
-                    {listTab==='draft' && <span style={{ width:6, height:6, borderRadius:'50%', background:'#F7C948', display:'inline-block' }}/>}
-                    טיוטות ({draftList.length})
-                  </button>
-                </div>
-                <div className="admin-cat-filter">
-                  {[{id:'all',label:'הכל',Icon:null},...CATEGORIES].map(({id,label,Icon:CIcon}) => (
-                    <button key={id} onClick={() => setListCat(id)} style={{ padding:'4px 10px', border:`1px solid ${listCat===id?C.purple:'rgba(132,144,216,.2)'}`, borderRadius:6, background:listCat===id?`${C.purple}22`:'transparent', color:listCat===id?C.purple:`${C.cream}70`, cursor:'pointer', fontSize:11, fontFamily:'inherit', display:'flex', alignItems:'center', gap:4, flexShrink:0, whiteSpace:'nowrap' }}>
-                      {CIcon && <CIcon size={10}/>} {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              {filteredList.length === 0 && <div style={{ textAlign:'center', padding:'28px 0', color:`${C.cream}40`, fontSize:13 }}>{listTab==='draft' ? 'אין טיוטות שמורות.' : 'אין נכסים פעילים באוויר.'}</div>}
-              <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-                {filteredList.map(p => {
-                  const cat = CATEGORIES.find(c => c.id === p.category) || CATEGORIES[1]
-                  const fmtPrice = p.price ? `₪${Number(String(p.price).replace(/[^\d]/g,'')).toLocaleString('he-IL')}` : 'מחיר בפנייה'
-                  const statusClr = { 'בשיווק':C.green,'זמין':C.green,'בבדיקה':'#F7C948','נמכר':'#E05252','הושכר':'#F97316' }[p.status] || C.green
-                  return (
-                    <div key={p.id}
-                      draggable
-                      onDragStart={() => { dragPropId.current = p.id; setDragActive(true) }}
-                      onDragEnter={() => { dragOverId.current = p.id }}
-                      onDragEnd={() => { reorderProps(); dragPropId.current = null; dragOverId.current = null; setDragActive(false) }}
-                      onDragOver={e => e.preventDefault()}
-                      style={{ display:'flex', gap:0, background: p.published!==false ? 'rgba(34,197,94,.04)' : 'rgba(255,255,255,.04)', borderRadius:14, border:`1.5px solid ${p.published===false ? 'rgba(247,201,72,.25)' : C.green+'28'}`, overflow:'hidden', transition:'all .2s', cursor: dragActive ? 'grabbing' : 'default' }}
-                      onMouseEnter={e => { e.currentTarget.style.boxShadow=`0 6px 28px rgba(132,144,216,.18)`; e.currentTarget.style.borderColor=p.published!==false ? C.green+'55' : 'rgba(247,201,72,.5)' }}
-                      onMouseLeave={e => { e.currentTarget.style.boxShadow=''; e.currentTarget.style.borderColor=p.published===false ? 'rgba(247,201,72,.25)' : C.green+'28' }}>
-                      {/* Drag handle strip */}
-                      <div style={{ width:18, flexShrink:0, background: p.published!==false ? C.green+'22' : 'rgba(247,201,72,.12)', display:'flex', alignItems:'center', justifyContent:'center', cursor:'grab', fontSize:11, color: p.published!==false ? C.green+'88' : 'rgba(247,201,72,.6)', userSelect:'none', letterSpacing:0 }}
-                        title="גרור לשינוי סדר">⠿</div>
-                      {/* Live indicator strip */}
-                      <div style={{ width:4, flexShrink:0, background: p.published!==false ? C.green : '#F7C948' }}/>
-                      {/* Thumbnail */}
-                      <div className="admin-prop-thumb" style={{ position:'relative', flexShrink:0, width:130, height:100 }}>
-                        {p.images?.[0] ? (
-                          <img src={thumbImg(p.images[0])} onError={imgFallback} style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }} alt="" loading="lazy" decoding="async"/>
-                        ) : (
-                          <div style={{ width:'100%', height:'100%', background:`${C.purple}10`, display:'flex', alignItems:'center', justifyContent:'center', color:`${C.purple}55` }}><cat.Icon size={28}/></div>
-                        )}
-                        {/* Live / Draft badge on thumbnail */}
-                        <div style={{ position:'absolute', top:6, right:6, background: p.published!==false ? `${C.green}CC` : 'rgba(247,201,72,.88)', borderRadius:5, padding:'2px 7px', fontSize:9, fontWeight:800, color:'#000', letterSpacing:'.04em', display:'flex', alignItems:'center', gap:4 }}>
-                          {p.published!==false && <span style={{ width:5, height:5, borderRadius:'50%', background:'#000', opacity:.7, display:'inline-block' }}/>}
-                          {p.published!==false ? 'LIVE' : 'טיוטה'}
-                        </div>
-                        <div style={{ position:'absolute', bottom:0, left:0, right:0, background:`${statusClr}CC`, padding:'2px 0', textAlign:'center', fontSize:9, fontWeight:800, color:'#000' }}>
-                          {p.status || 'זמין'}
-                        </div>
-                      </div>
-                      {/* Info */}
-                      <div style={{ flex:1, minWidth:0, padding:'10px 14px', display:'flex', flexDirection:'column', justifyContent:'space-between' }}>
-                        <div>
-                          <div style={{ display:'flex', alignItems:'flex-start', gap:8, marginBottom:5, flexWrap:'wrap' }}>
-                            <span style={{ fontWeight:800, fontSize:15, color:C.cream, lineHeight:1.25, flex:1 }}>{p.title}</span>
-                            <div style={{ display:'flex', gap:4, flexShrink:0, alignItems:'center' }}>
-                              {p.exclusive && <span style={{ fontSize:10, background:`${C.green}18`, color:C.green, border:`1px solid ${C.green}35`, borderRadius:5, padding:'2px 8px', fontWeight:700 }}>✦ בלעדי</span>}
-                            </div>
-                          </div>
-                          <div style={{ display:'flex', gap:5, flexWrap:'wrap', marginBottom:5 }}>
-                            <span style={{ background:`${C.purple}22`, color:C.purple, borderRadius:5, padding:'2px 8px', fontSize:10, fontWeight:700 }}>{cat.label}</span>
-                            {p.type && <span style={{ background:'rgba(255,255,255,.06)', color:`${C.cream}70`, borderRadius:5, padding:'2px 8px', fontSize:10 }}>{p.type}</span>}
-                          </div>
-                          <div style={{ display:'flex', gap:12, flexWrap:'wrap', fontSize:12, color:`${C.cream}75`, marginBottom:4 }}>
-                            {p.location && <span style={{ display:'flex', alignItems:'center', gap:4 }}><FaMapMarkerAlt size={10} style={{ color:C.purple }}/>{p.location}{p.neighborhood ? ' · '+p.neighborhood : ''}</span>}
-                            {p.rooms && <span style={{ display:'flex', alignItems:'center', gap:4 }}><FaBed size={10} style={{ color:C.purple }}/>{p.rooms} חד'</span>}
-                            {p.size && <span style={{ display:'flex', alignItems:'center', gap:4 }}><FaRulerCombined size={10} style={{ color:C.purple }}/>{p.size} מ"ר</span>}
-                            {p.floor && <span style={{ display:'flex', alignItems:'center', gap:4 }}><FaBuilding size={10} style={{ color:C.purple }}/>קומה {p.floor}{p.totalFloors?'/'+p.totalFloors:''}</span>}
-                            {p.dunams && <span style={{ display:'flex', alignItems:'center', gap:4 }}><FaLeaf size={10} style={{ color:C.purple }}/>{p.dunams} דונם</span>}
-                          </div>
-                        </div>
-                        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:6, borderTop:'1px solid rgba(255,255,255,.06)', paddingTop:8, marginTop:4 }}>
-                          <span style={{ fontSize:14, fontWeight:900, color: p.price ? C.cream : `${C.cream}66` }}>{fmtPrice}</span>
-                          <div className="admin-prop-list-actions" style={{ display:'flex', gap:5, flexWrap:'wrap', alignItems:'center' }}>
-                            {/* Publish toggle */}
-                            {p.published===false
-                              ? <button onClick={() => publish(p.id)} style={{ padding:'6px 12px', background:`${C.green}18`, border:`1px solid ${C.green}44`, borderRadius:7, color:C.green, cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:700, whiteSpace:'nowrap', display:'flex', alignItems:'center', gap:5 }}><span style={{ width:6, height:6, borderRadius:'50%', background:C.green, display:'inline-block' }}/>פרסם לאוויר</button>
-                              : <button onClick={() => unpublish(p.id)} style={{ padding:'6px 12px', background:'rgba(247,201,72,.08)', border:'1px solid rgba(247,201,72,.3)', borderRadius:7, color:'#F7C948', cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:600, whiteSpace:'nowrap' }}>הסתר</button>
-                            }
-                            {/* Status quick-set */}
-                            {(p.status==='נמכר' || p.status==='הושכר') && (
-                              <button onClick={() => setStatus(p.id, 'בשיווק')} style={{ padding:'6px 12px', background:`${C.green}18`, border:`1px solid ${C.green}44`, borderRadius:7, color:C.green, cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:700, whiteSpace:'nowrap' }}>החזר לשיווק</button>
-                            )}
-                            <button onClick={() => setStatus(p.id, p.status==='נמכר' ? 'בשיווק' : 'נמכר')}
-                              style={{ padding:'6px 12px', background: p.status==='נמכר' ? 'rgba(224,82,82,.22)' : 'rgba(224,82,82,.08)', border:`1px solid ${p.status==='נמכר' ? '#E05252' : 'rgba(224,82,82,.3)'}`, borderRadius:7, color:'#E05252', cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:700, whiteSpace:'nowrap' }}>
-                              {p.status==='נמכר' ? '✓ נמכר' : 'נמכר'}
-                            </button>
-                            <button onClick={() => setStatus(p.id, p.status==='הושכר' ? 'בשיווק' : 'הושכר')}
-                              style={{ padding:'6px 12px', background: p.status==='הושכר' ? 'rgba(249,115,22,.22)' : 'rgba(249,115,22,.08)', border:`1px solid ${p.status==='הושכר' ? '#F97316' : 'rgba(249,115,22,.3)'}`, borderRadius:7, color:'#F97316', cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:700, whiteSpace:'nowrap' }}>
-                              {p.status==='הושכר' ? '✓ הושכר' : 'הושכר'}
-                            </button>
-                            {onEditInWizard && (
-                              <button onClick={() => { onClose?.(); onEditInWizard(p) }} style={{ padding:'6px 12px', background:`${C.purple}22`, border:`1px solid ${C.purple}55`, borderRadius:7, color:C.purple, cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:700, whiteSpace:'nowrap' }}>ערוך באשף</button>
-                            )}
-                            <button onClick={() => dup(p.id)} title='שכפל נכס' style={{ padding:'6px 12px', background:'rgba(247,201,72,.1)', border:'1px solid rgba(247,201,72,.3)', borderRadius:7, color:'#F7C948', cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:700, whiteSpace:'nowrap' }}>שכפל</button>
-                            <button onClick={async () => {
-                              const base = (typeof API_BASE !== 'undefined' ? API_BASE : '') || ''
-                              if (!base) { alert('VITE_API_URL לא מוגדר'); return }
-                              try {
-                                const r = await fetch(`${base}/api/properties`, { headers:{ Authorization:`Bearer ${ADMIN_TOKEN}` } })
-                                if (!r.ok) throw new Error(r.status)
-                                const all = await r.json()
-                                const fresh = Array.isArray(all) ? all.find(x => String(x.id)===String(p.id)) : null
-                                if (!fresh) { alert('הנכס לא נמצא בשרת — השרת אולי הופעל מחדש.\nהנתונים המקומיים שמורים.'); return }
-                                const localProp = properties.find(x => String(x.id)===String(p.id))
-                                const localNewer = (localProp?.updatedAt || 0) > (fresh.updatedAt || 0)
-                                const msg = localNewer
-                                  ? `⚠️ אזהרה: הנתונים בשרת ישנים יותר מהנתונים המקומיים!\n\nאם תאשר — הנתונים המקומיים העדכניים שלך יוחלפו בנתוני השרת הישנים.\n\nהאם להמשיך בכל זאת?`
-                                  : `רענן את "${p.title}" מהשרת?\n\nהנתונים המקומיים יוחלפו בנתוני השרת.`
-                                if (!window.confirm(msg)) return
-                                setProperties(prev => prev.map(x => String(x.id)===String(p.id) ? { ...x, ...fresh } : x))
-                                alert('נכס רוענן בהצלחה')
-                              } catch(e) { alert('שגיאת רענון: ' + e.message) }
-                            }} title='רענן נכס מהשרת' style={{ padding:'6px 12px', background:'rgba(132,144,216,.1)', border:'1px solid rgba(132,144,216,.3)', borderRadius:7, color:C.purple, cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:700, whiteSpace:'nowrap' }}>↻ רענן</button>
-                            <button onClick={() => del(p.id)} style={{ padding:'6px 12px', background:'rgba(224,82,82,.1)', border:'1px solid rgba(224,82,82,.3)', borderRadius:7, color:'#E05252', cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:600, whiteSpace:'nowrap' }}>מחק</button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
+              <PropertyManagerList C={C} list={filteredList} publishedList={publishedList} draftList={draftList}
+                listTab={listTab} setListTab={setListTab} listCat={listCat} setListCat={setListCat}
+                onMove={moveProp} onStep={stepProp} onTop={topProp}
+                publish={publish} unpublish={unpublish} setStatus={setStatus} dup={dup} del={del}
+                onEdit={p => { if (onEditInWizard) { onClose?.(); onEditInWizard(p) } else startEdit(p) }}
+                refreshOne={refreshOneFromServer} bulkPatch={bulkPatch} bulkDelete={bulkDelete} note={orderNote}/>
             </div>
           </>
         )}

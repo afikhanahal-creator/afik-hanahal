@@ -959,6 +959,10 @@ const makeGlobal = (C, isDark) => `
     .admin-tabs-bar { padding: 0 12px !important; overflow-x: auto !important; flex-wrap: nowrap !important; gap: 2px !important; }
     .admin-form-grid { grid-template-columns: 1fr !important; }
     .admin-prop-list-actions { flex-wrap: wrap !important; gap: 6px !important; }
+    .admin-pm-row { flex-wrap: wrap !important; }
+    .admin-pm-order { flex-direction: row !important; width: 100% !important; justify-content: space-between !important; gap: 10px !important; padding: 6px 12px !important; border-inline-end: none !important; border-bottom: 1px solid rgba(132,144,216,.12); }
+    .admin-pm-order > div:last-child { display: flex !important; gap: 6px !important; }
+    .admin-pm-actions { width: 100% !important; justify-content: flex-start !important; border-top: 1px solid rgba(132,144,216,.12); }
     .admin-overview-grid { grid-template-columns: repeat(2,1fr) !important; }
     .admin-overview-bottom { grid-template-columns: 1fr !important; }
   }
@@ -3327,6 +3331,9 @@ function TestimonialsSection() {
   const timerRef  = useRef(null)
   const touchX    = useRef(null)
   const n = TESTIMONIALS_DATA.length
+  // Phones get a portrait-first card (photo ring, name, stars, quote) instead of the two-column layout
+  const [mobile, setMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768)
+  useEffect(() => { const h = () => setMobile(window.innerWidth < 768); window.addEventListener('resize', h); return () => window.removeEventListener('resize', h) }, [])
 
   const startTimer = useCallback(() => {
     clearInterval(timerRef.current)
@@ -3378,6 +3385,42 @@ function TestimonialsSection() {
             if (Math.abs(diff) > 45) { diff > 0 ? goNext() : goPrev() }
             touchX.current = null
           }}>
+          {mobile ? (
+            /* ── Mobile: portrait-first card that fits the screen — photo ring, name, stars, quote, controls ── */
+            <AnimatePresence initial={false} custom={dir} mode="wait">
+              <motion.div key={active} custom={dir}
+                initial={{ opacity:0, x: dir > 0 ? 40 : -40 }} animate={{ opacity:1, x:0 }} exit={{ opacity:0, x: dir > 0 ? -40 : 40 }}
+                transition={{ duration:.32, ease:[.4,0,.2,1] }}
+                className="testi-card-m"
+                style={{ padding:'26px 20px 22px', display:'flex', flexDirection:'column', alignItems:'center', textAlign:'center', gap:12, position:'relative' }}>
+                {/* soft glow behind the portrait */}
+                <div aria-hidden="true" style={{ position:'absolute', top:-40, left:'50%', transform:'translateX(-50%)', width:220, height:220, borderRadius:'50%', background:`radial-gradient(circle,${C.purple}33,transparent 65%)`, pointerEvents:'none' }}/>
+                <div style={{ width:112, height:112, borderRadius:'50%', padding:3, background:`linear-gradient(135deg,${C.purple},${C.green})`, boxShadow:`0 14px 34px ${C.purple}55`, position:'relative' }}>
+                  <img src={item.src} alt={tName} loading="lazy" decoding="async"
+                    style={{ width:'100%', height:'100%', borderRadius:'50%', objectFit:'cover', objectPosition: item.imgPos || 'center top', display:'block', border:'3px solid #0d0d1a', background:'#0d0d1a' }}/>
+                  <span style={{ position:'absolute', bottom:2, insetInlineEnd:2, width:28, height:28, borderRadius:'50%', background:C.purple, color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Georgia,serif', fontSize:20, lineHeight:1, border:'2px solid #0d0d1a' }}>"</span>
+                </div>
+                <div>
+                  <div style={{ fontSize:19, fontWeight:800, color:C.cream, lineHeight:1.2 }}>{tName}</div>
+                  {tDesig && <div style={{ fontSize:13, color:C.purple, marginTop:4, fontWeight:600 }}>{tDesig}</div>}
+                  {tFirm && <div style={{ fontSize:12, color:`${C.cream}88`, marginTop:2 }}>{tFirm}</div>}
+                </div>
+                <div style={{ display:'flex', gap:3 }} aria-label="5 כוכבים">{[1,2,3,4,5].map(s => <span key={s} style={{ color:C.green, fontSize:17, lineHeight:1 }}>★</span>)}</div>
+                <p style={{ fontSize:15.5, color:`${C.cream}EE`, lineHeight:1.75, margin:'2px 0 0', maxWidth:440 }}>{tQuote}</p>
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:14, marginTop:6, width:'100%' }}>
+                  <button onClick={goPrev} style={{ ...arBtn(false), width:42, height:42 }} aria-label="הקודם"><FaChevronRight size={14}/></button>
+                  <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                    {TESTIMONIALS_DATA.map((_, i) => (
+                      <button key={i} onClick={() => goTo(i)} aria-label={`עדות ${i+1}`}
+                        style={{ width:i===active?22:7, height:7, minWidth:0, minHeight:0, borderRadius:4, background:i===active?C.purple:C.purple+'33', border:'none', cursor:'pointer', transition:'all .3s', padding:0 }}/>
+                    ))}
+                  </div>
+                  <button onClick={goNext} style={{ ...arBtn(false), width:42, height:42 }} aria-label="הבא"><FaChevronLeft size={14}/></button>
+                </div>
+                <span style={{ fontSize:11, color:`${C.cream}55`, fontWeight:600 }}>{active + 1} / {n} · {lang === 'en' ? 'swipe for more' : 'החליקו לעדות הבאה'}</span>
+              </motion.div>
+            </AnimatePresence>
+          ) : (
           <AnimatePresence initial={false} custom={dir} mode="wait">
             <motion.div
               key={active}
@@ -3462,6 +3505,7 @@ function TestimonialsSection() {
               </div>
             </motion.div>
           </AnimatePresence>
+          )}
         </div>
 
       </div>
@@ -3910,6 +3954,8 @@ function cloudImg(url, width = 1200) {
 
 // Small thumbnail — card cover images (saves 60–80 % bandwidth vs full size)
 function thumbImg(url) { return cloudImg(url, 600) }
+// Site order = admin drag order. Rows without sortOrder keep the API order, after the ordered ones.
+function sortByOrder(arr) { return [...(arr || [])].sort((x, y) => (Number.isFinite(x?.sortOrder) ? x.sortOrder : 1e9) - (Number.isFinite(y?.sortOrder) ? y.sortOrder : 1e9)) }
 
 function getVideoThumbnail(url, thumbnail) {
   if (thumbnail) return thumbnail
@@ -5294,7 +5340,7 @@ export default function App() {
     return () => window.removeEventListener('popstate', scrollHash)
   }, [])
 
-  const filtered = properties.filter(p =>
+  const filtered = sortByOrder(properties).filter(p =>
     p.published !== false &&
     (filterCat === 'all' || p.category === filterCat) &&
     (!filterType   || p.type   === filterType)
@@ -6158,4 +6204,4 @@ export default function App() {
 }
 
 // Shared with the lazily-loaded admin dashboard (src/AdminPanel.jsx)
-export { TEAM_KEY, LeadsBoard, GreenAPIChat, MetaLeadsTab, SupermetricsTab, PropertyWizard, API_BASE, CONTACTS_API, ADMIN_TOKEN, condFetchJson, DARK_C, useTheme, TEAM, G, Logo, LEADS_STORE, LEADS_DELETED, LEADS_TRASH, ANALYTICS_KEY, META_LEAD_PAGES_KEY, WA_DEFAULT_TEMPLATE, _cloudSettings, CATEGORIES, EMPTY_PROP, CONDITION_OPTIONS, ENTRY_OPTIONS, ADMIN_DRAFT_KEY, toMapsEmbed, imgFallback, thumbImg }
+export { TEAM_KEY, LeadsBoard, GreenAPIChat, MetaLeadsTab, SupermetricsTab, PropertyWizard, API_BASE, CONTACTS_API, ADMIN_TOKEN, condFetchJson, DARK_C, useTheme, TEAM, G, Logo, LEADS_STORE, LEADS_DELETED, LEADS_TRASH, ANALYTICS_KEY, META_LEAD_PAGES_KEY, WA_DEFAULT_TEMPLATE, _cloudSettings, CATEGORIES, EMPTY_PROP, CONDITION_OPTIONS, ENTRY_OPTIONS, ADMIN_DRAFT_KEY, toMapsEmbed, imgFallback, thumbImg, sortByOrder }
