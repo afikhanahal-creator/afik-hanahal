@@ -716,6 +716,26 @@ export default async function handler(req, res) {
     if (!isAdmin(req)) return res.status(401).json({ ok: false, error: 'unauthorized' })
     res.setHeader('Cache-Control', 'no-store')
 
+    // ── Property wizard media (admin): browser → Supabase Storage directly ─────
+    // Replaces the Render `/api/upload/{image,video,pdf}` round-trip (a browser POST to a
+    // sleeping / cross-origin Render service surfaced as "שגיאת רשת" in the wizard).
+    // Files land in the public bucket, so `/media/<bucket>/<path>` and the CDN proxy work unchanged.
+    if (req.method === 'POST' && action === 'wizard-upload-url') {
+      const WIZ_KINDS = { image: [t => t.startsWith('image/'), 25], video: [t => t.startsWith('video/'), 200], pdf: [t => t === 'application/pdf', 25] }
+      const b = req.body || {}
+      const kind = String(b.kind || ''), type = String(b.type || 'application/octet-stream'), size = Number(b.size || 0)
+      if (!WIZ_KINDS[kind]) return res.status(400).json({ ok: false, error: 'invalid kind' })
+      if (!WIZ_KINDS[kind][0](type)) return res.status(400).json({ ok: false, error: 'file type not allowed for this kind' })
+      if (!size || size > WIZ_KINDS[kind][1] * 1024 * 1024) return res.status(400).json({ ok: false, error: `file too large (max ${WIZ_KINDS[kind][1]}MB)` })
+      const client = sb()
+      const path = `wizard/${new Date().toISOString().slice(0, 7)}/${Date.now()}-${rand(3)}-${safeName(b.name)}`
+      let { data, error } = await client.storage.from(PUBLIC_BUCKET).createSignedUploadUrl(path)
+      if (error && /not found|does not exist/i.test(error.message || '')) { await ensureBucket(client, PUBLIC_BUCKET, true); ({ data, error } = await client.storage.from(PUBLIC_BUCKET).createSignedUploadUrl(path)) }
+      if (error) return res.status(502).json({ ok: false, error: `storage: ${error.message}` })
+      const url = client.storage.from(PUBLIC_BUCKET).getPublicUrl(path).data.publicUrl
+      return res.status(200).json({ ok: true, signedUrl: data.signedUrl, token: data.token, path: `${PUBLIC_BUCKET}/${path}`, url })
+    }
+
     // ── Backups: forms that arrived while Supabase was unavailable (Vercel Blob) ──
     if (req.method === 'GET' && action === 'backup-list') {
       const archive = { enabled: archiveEnabled(), url: archiveRepoUrl() }
