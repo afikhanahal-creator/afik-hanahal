@@ -1639,7 +1639,7 @@ function PropertyManagerList({ C, list, publishedList, draftList, listTab, setLi
           בחר הכל ({rows.length})
         </label>
         <span style={{ fontSize:11, color: note ? C.green : `${C.cream}50`, fontWeight: note ? 700 : 500, transition:'color .2s' }}>
-          {note || (listTab==='published' ? '⠿ גררו שורה, או השתמשו בחיצים ▲▼ כדי לקבוע את הסדר באתר. המספר משמאל הוא המיקום בעמוד.' : 'נכסים מוסתרים לא מוצגים באתר. "פרסם" מחזיר אותם לאוויר.')}
+          {note || (listTab==='published' ? '⠿ גררו שורה, או השתמשו בחיצים ▲▼ כדי לקבוע את הסדר באתר. נכס חדש נכנס אוטומטית לראש הרשימה עד שתזיזו אותו.' : 'נכסים מוסתרים לא מוצגים באתר. "פרסם" מחזיר אותם לאוויר.')}
         </span>
       </div>
 
