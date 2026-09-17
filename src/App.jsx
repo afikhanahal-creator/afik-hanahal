@@ -3983,8 +3983,17 @@ function useFavs() {
 const propertyUrl = p => `${window.location.origin}/?p=${encodeURIComponent(p.id)}#properties`
 const isNewProp = p => { const t = Date.parse(p?.createdAt || '') || (typeof p?.createdAt === 'number' ? p.createdAt : 0); return t && Date.now() - t < 14 * 86400000 }
 const pricePerSqm = p => { const n = Number(String(p?.price || '').replace(/[^\d]/g, '')), s = Number(p?.size); return n > 0 && s > 0 && ['apartments', 'rentals', 'commercial', 'projects'].includes(p.category) ? Math.round(n / s) : 0 }
-// Site order = admin drag order. Rows without sortOrder keep the API order, after the ordered ones.
-function sortByOrder(arr) { return [...(arr || [])].sort((x, y) => (Number.isFinite(x?.sortOrder) ? x.sortOrder : 1e9) - (Number.isFinite(y?.sortOrder) ? y.sortOrder : 1e9)) }
+// Site order = admin drag order. Properties the office has NOT placed yet (no sortOrder — every
+// newly added property) come FIRST, newest first, so a new listing is always visible at the top
+// until it is dragged into place. Then the ordered ones by sortOrder.
+const propCreatedTs = p => Date.parse(p?.createdAt || '') || (typeof p?.createdAt === 'number' ? p.createdAt : 0) || (Number(p?.id) > 1e12 ? Number(p.id) : 0) || Number(p?.updatedAt) || 0
+function sortByOrder(arr) {
+  const ordered = [], fresh = []
+  for (const p of arr || []) (Number.isFinite(p?.sortOrder) ? ordered : fresh).push(p)
+  ordered.sort((a, b) => a.sortOrder - b.sortOrder)
+  fresh.sort((a, b) => propCreatedTs(b) - propCreatedTs(a))
+  return [...fresh, ...ordered]
+}
 
 function getVideoThumbnail(url, thumbnail) {
   if (thumbnail) return thumbnail
