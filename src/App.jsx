@@ -96,6 +96,10 @@ const TR = {
     typeFilter: 'סוג:',
     allTypes: 'כל הסוגים',
     noProperties: 'לא נמצאו נכסים התואמים את הפילטרים',
+    sortLabel: 'מיון', sortRecommended: 'מומלץ', sortNewest: 'חדש ביותר', sortPriceAsc: 'מחיר: מהנמוך לגבוה', sortPriceDesc: 'מחיר: מהגבוה לנמוך',
+    cityLabel: 'עיר', allCities: 'כל הערים', maxPriceLabel: 'עד מחיר', anyPrice: 'ללא הגבלה', roomsLabel: 'חדרים', roomsAny: 'הכל',
+    favorites: 'המועדפים שלי', favAdd: 'שמירה למועדפים', favRemove: 'הסרה מהמועדפים', noFavs: 'עדיין לא שמרתם נכסים. לחצו על הלב בכרטיס נכס כדי לשמור אותו כאן.',
+    clearFilters: 'נקה סינון', newBadge: 'חדש', perSqm: 'למ״ר', shareProp: 'שיתוף', linkCopied: 'הקישור הועתק!', shareWa: 'שיתוף ב-WhatsApp', copyLink: 'העתקת קישור',
     showingOf: 'מציג {shown} מתוך {total} נכסים', loadMoreProps: 'הצג עוד נכסים', showAllProps: 'הצג את כל {total} הנכסים', allPropsShown: 'כל {total} הנכסים מוצגים', collapseProps: 'כווץ רשימה', listViewProps: 'לכל {total} הנכסים ברשימה', carouselViewProps: 'חזרה לגלילה', swipeHint: 'החליקו לנכס הבא', nextProp: 'הנכס הבא', prevProp: 'הנכס הקודם', availableCount: '{n} נכסים זמינים',
     haveProperty: 'יש לך קרקע, מגרש או נכס?',
     propertyDesc: 'בין אם שדה חקלאי, מגרש ירושה או נכס שרוצים לשווק, נבחן יחד את הפוטנציאל',
@@ -201,6 +205,10 @@ const TR = {
     typeFilter: 'Type:',
     allTypes: 'All Types',
     noProperties: 'No properties match the selected filters',
+    sortLabel: 'Sort', sortRecommended: 'Recommended', sortNewest: 'Newest', sortPriceAsc: 'Price: low to high', sortPriceDesc: 'Price: high to low',
+    cityLabel: 'City', allCities: 'All cities', maxPriceLabel: 'Max price', anyPrice: 'No limit', roomsLabel: 'Rooms', roomsAny: 'Any',
+    favorites: 'My favourites', favAdd: 'Save to favourites', favRemove: 'Remove from favourites', noFavs: 'No saved properties yet. Tap the heart on a property card to keep it here.',
+    clearFilters: 'Clear filters', newBadge: 'New', perSqm: 'per m²', shareProp: 'Share', linkCopied: 'Link copied!', shareWa: 'Share on WhatsApp', copyLink: 'Copy link',
     showingOf: 'Showing {shown} of {total} properties', loadMoreProps: 'Show more properties', showAllProps: 'Show all {total} properties', allPropsShown: 'All {total} properties are shown', collapseProps: 'Collapse list', listViewProps: 'See all {total} properties as a list', carouselViewProps: 'Back to swipe view', swipeHint: 'Swipe for the next property', nextProp: 'Next property', prevProp: 'Previous property', availableCount: '{n} properties available',
     haveProperty: 'Have land, a plot, or a property?',
     propertyDesc: 'Whether it\'s an agricultural field, an inherited plot, or a property you want to market, let\'s look at the potential together',
@@ -3954,6 +3962,27 @@ function cloudImg(url, width = 1200) {
 
 // Small thumbnail — card cover images (saves 60–80 % bandwidth vs full size)
 function thumbImg(url) { return cloudImg(url, 600) }
+
+// ── Favourites (persisted per browser) ─────────────────────────────────────
+const FAVS_KEY = 'afik_favs'
+const loadFavs = () => { try { const a = JSON.parse(localStorage.getItem(FAVS_KEY) || '[]'); return new Set(Array.isArray(a) ? a.map(String) : []) } catch { return new Set() } }
+function toggleFav(id) {
+  const next = loadFavs(); const key = String(id)
+  const on = !next.has(key); on ? next.add(key) : next.delete(key)
+  try { localStorage.setItem(FAVS_KEY, JSON.stringify([...next])) } catch {}
+  try { window.dispatchEvent(new CustomEvent('afik-favs')) } catch {}
+  trackEvent(on ? 'favorite_add' : 'favorite_remove', { id: key })
+  return on
+}
+function useFavs() {
+  const [favs, setFavs] = useState(loadFavs)
+  useEffect(() => { const h = () => setFavs(loadFavs()); window.addEventListener('afik-favs', h); window.addEventListener('storage', h); return () => { window.removeEventListener('afik-favs', h); window.removeEventListener('storage', h) } }, [])
+  return favs
+}
+// Shareable link for a property: /?p=<id>#properties (the SPA opens it on load)
+const propertyUrl = p => `${window.location.origin}/?p=${encodeURIComponent(p.id)}#properties`
+const isNewProp = p => { const t = Date.parse(p?.createdAt || '') || (typeof p?.createdAt === 'number' ? p.createdAt : 0); return t && Date.now() - t < 14 * 86400000 }
+const pricePerSqm = p => { const n = Number(String(p?.price || '').replace(/[^\d]/g, '')), s = Number(p?.size); return n > 0 && s > 0 && ['apartments', 'rentals', 'commercial', 'projects'].includes(p.category) ? Math.round(n / s) : 0 }
 // Site order = admin drag order. Rows without sortOrder keep the API order, after the ordered ones.
 function sortByOrder(arr) { return [...(arr || [])].sort((x, y) => (Number.isFinite(x?.sortOrder) ? x.sortOrder : 1e9) - (Number.isFinite(y?.sortOrder) ? y.sortOrder : 1e9)) }
 
@@ -3978,10 +4007,12 @@ function optimizeVideoUrl(url) {
 }
 
 function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [], onSelect }) {
-  const { C, isDark } = useTheme()
+  const { C, isDark, lang } = useTheme()
   const [confirmLeave, setConfirmLeave] = useState(false)  // "stay or go back" choice
   const [imgIdx, setImgIdx] = useState(0)
-  const [saved, setSaved] = useState(false)
+  const favsSet = useFavs()
+  const saved = favsSet.has(String(prop.id))
+  const setSaved = () => toggleFav(prop.id)
   const [shared, setShared] = useState(false)
   const [lightbox, setLightbox] = useState(false)
   const [videoPlaying, setVideoPlaying] = useState(false)
@@ -4023,14 +4054,15 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
     }
   }, [])
 
+  const shareUrl = propertyUrl(prop)
+  const shareTxt = `${prop.title} — ${[prop.location, prop.neighborhood].filter(Boolean).join(', ')}`
+  const copyLink = () => navigator.clipboard?.writeText(shareTxt + '\n' + shareUrl).then(() => { setShared(true); setTimeout(() => setShared(false), 2000) }).catch(() => {})
   const handleShare = () => {
-    const txt = `${prop.title} — ${[prop.location, prop.neighborhood].filter(Boolean).join(', ')}`
-    if (navigator.share) {
-      navigator.share({ title: prop.title, text: txt, url: window.location.href }).catch(() => {})
-    } else {
-      navigator.clipboard.writeText(txt + '\n' + window.location.href).then(() => { setShared(true); setTimeout(() => setShared(false), 2000) }).catch(() => {})
-    }
+    trackEvent('share_property', { id: prop.id, title: prop.title })
+    if (navigator.share) navigator.share({ title: prop.title, text: shareTxt, url: shareUrl }).catch(() => {})
+    else copyLink()
   }
+  const shareWa = () => { trackEvent('share_property', { id: prop.id, title: prop.title, channel: 'whatsapp' }); window.open(`https://wa.me/?text=${encodeURIComponent(shareTxt + '\n' + shareUrl)}`, '_blank', 'noopener') }
   const cat = CATEGORIES.find(c => c.id === prop.category) || CATEGORIES[1]
   const sc = { 'זמין':C.green, 'בבדיקה':'#F7C948', 'נמכר':'#E05252', 'הושכר':'#F97316' }[prop.status] || C.green
 
@@ -4289,13 +4321,21 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
             style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 18px', background:'rgba(255,255,255,.09)', border:'1px solid rgba(255,255,255,.18)', borderRadius:22, color:'rgba(255,255,255,.88)', cursor:'pointer', fontFamily:'inherit', fontSize:13, fontWeight:600, transition:'background .2s' }}
             onMouseEnter={e=>e.currentTarget.style.background='rgba(255,255,255,.18)'}
             onMouseLeave={e=>e.currentTarget.style.background='rgba(255,255,255,.09)'}>
-            <FaShareAlt size={13}/> {shared ? 'הועתק!' : 'שיתוף'}
+            <FaShareAlt size={13}/> {shared ? (TR[lang]?.linkCopied || 'הועתק!') : (TR[lang]?.shareProp || 'שיתוף')}
+          </button>
+          <button onClick={shareWa} title={TR[lang]?.shareWa} aria-label={TR[lang]?.shareWa}
+            style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 14px', background:'rgba(37,211,102,.12)', border:'1px solid rgba(37,211,102,.35)', borderRadius:22, color:'#25D366', cursor:'pointer', fontFamily:'inherit', fontSize:13, fontWeight:600 }}>
+            <FaWhatsapp size={14}/>
+          </button>
+          <button onClick={copyLink} title={TR[lang]?.copyLink} aria-label={TR[lang]?.copyLink}
+            style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 14px', background:'rgba(255,255,255,.09)', border:'1px solid rgba(255,255,255,.18)', borderRadius:22, color:'rgba(255,255,255,.88)', cursor:'pointer', fontFamily:'inherit', fontSize:13 }}>
+            <FaLink size={12}/>
           </button>
           <button onClick={() => setSaved(s => !s)}
             style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 18px', background: saved ? 'rgba(255,100,100,.18)' : 'rgba(255,255,255,.09)', border:`1px solid ${saved ? 'rgba(255,100,100,.4)' : 'rgba(255,255,255,.18)'}`, borderRadius:22, color: saved ? '#FF8888' : 'rgba(255,255,255,.88)', cursor:'pointer', fontFamily:'inherit', fontSize:13, fontWeight:600, transition:'all .2s' }}
             onMouseEnter={e=>{ if (!saved) e.currentTarget.style.background='rgba(255,255,255,.18)' }}
             onMouseLeave={e=>{ if (!saved) e.currentTarget.style.background='rgba(255,255,255,.09)' }}>
-            <FaHeart size={13}/> {saved ? 'שמור' : 'שמירה'}
+            <FaHeart size={13}/> {saved ? (TR[lang]?.favRemove || 'שמור') : (TR[lang]?.favAdd || 'שמירה')}
           </button>
         </div>
 
@@ -4711,7 +4751,11 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
 
 // ─── PROPERTY CARD ────────────────────────────────────────────────────────────
 function PropertyCard({ prop, onContact, onSelect }) {
-  const { C } = useTheme()
+  const { C, lang } = useTheme()
+  const tt = TR[lang] || TR.he
+  const favs = useFavs()
+  const isFav = favs.has(String(prop.id))
+  const ppsqm = pricePerSqm(prop)
   const [imgIdx, setImgIdx] = useState(0)
   const [hovered, setHovered] = useState(false)
   const [failedImgs, setFailedImgs] = useState(new Set())
@@ -4828,8 +4872,18 @@ function PropertyCard({ prop, onContact, onSelect }) {
               style={{ width:'72%', maxWidth:220, opacity:.9, transform:'rotate(-10deg)', filter:'drop-shadow(0 4px 18px rgba(0,0,0,.7))' }}/>
           </div>
         )}
+        {/* Favourite heart — top left */}
+        <button
+          aria-label={isFav ? tt.favRemove : tt.favAdd} aria-pressed={isFav} title={isFav ? tt.favRemove : tt.favAdd}
+          onClick={e => { e.stopPropagation(); toggleFav(prop.id) }}
+          onTouchStart={e => { e.stopPropagation(); touchFromArrow.current = true }}
+          onTouchEnd={e => { e.stopPropagation(); e.preventDefault(); toggleFav(prop.id) }}
+          style={{ position:'absolute', top:10, left:10, zIndex:6, width:36, height:36, minWidth:0, minHeight:0, borderRadius:'50%', border:`1px solid ${isFav ? 'rgba(255,90,110,.6)' : 'rgba(255,255,255,.2)'}`, background: isFav ? 'rgba(255,90,110,.22)' : 'rgba(9,9,15,.6)', backdropFilter:'blur(8px)', color: isFav ? '#FF5A6E' : 'rgba(255,255,255,.85)', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', transition:'all .2s', transform: isFav ? 'scale(1.06)' : 'scale(1)' }}>
+          <FaHeart size={14}/>
+        </button>
         {/* Top-right badges */}
         <div style={{ position:'absolute', top:10, right:10, display:'flex', flexDirection:'column', gap:4, zIndex:5 }}>
+          {isNewProp(prop) && <span style={{ background:C.green, color:'#06200a', borderRadius:6, padding:'4px 10px', fontSize:9, fontWeight:900, letterSpacing:'.08em', textTransform:'uppercase', boxShadow:`0 0 14px ${C.green}66` }}>{tt.newBadge}</span>}
           <span style={{ background:'rgba(9,9,15,.85)', backdropFilter:'blur(8px)', color:sc, border:`1px solid ${sc}35`, borderRadius:6, padding:'4px 10px', fontSize:9, fontWeight:800, letterSpacing:'.06em', textTransform:'uppercase' }}>{prop.status}</span>
           {prop.exclusive && <span style={{ background:'rgba(9,9,15,.85)', backdropFilter:'blur(8px)', color:C.green, border:`1px solid ${C.green}35`, borderRadius:6, padding:'4px 10px', fontSize:9, fontWeight:800 }}>✦ בלעדי</span>}
         </div>
@@ -4868,6 +4922,7 @@ function PropertyCard({ prop, onContact, onSelect }) {
           <div>
             <div className="prop-card-price" style={{ color:C.cream }}>{fmt(prop.price)}</div>
             {prop.priceNegotiable && <div style={{ fontSize:9, color:C.green, fontWeight:700, marginTop:2, letterSpacing:'.04em' }}>✓ מחיר גמיש</div>}
+            {!!ppsqm && !prop.priceNegotiable && <div style={{ fontSize:10, color:`${C.cream}55`, marginTop:2, fontWeight:600 }}>₪{ppsqm.toLocaleString('he-IL')} {tt.perSqm}</div>}
           </div>
           <button
             onClick={e => { e.stopPropagation(); onSelect(prop) }}
@@ -5037,6 +5092,12 @@ export default function App() {
   const [properties,   setProperties]   = useState([])
   const [filterCat,    setFilterCat]    = useState('all')
   const [filterType,   setFilterType]   = useState('')
+  const [filterCity,   setFilterCity]   = useState('')
+  const [filterMaxPrice, setFilterMaxPrice] = useState(0)
+  const [filterRooms,  setFilterRooms]  = useState(0)
+  const [filterFavs,   setFilterFavs]   = useState(false)
+  const [propSort,     setPropSort]     = useState('recommended')
+  const favIds = useFavs()
   const [propPage,     setPropPage]     = useState(0)   // batches revealed in the property list (999 = all)
   const [mobileList,   setMobileList]   = useState(false) // mobile: swipe carousel (false) or vertical list (true)
   const [filterRegion, setFilterRegion] = useState('')
@@ -5340,11 +5401,24 @@ export default function App() {
     return () => window.removeEventListener('popstate', scrollHash)
   }, [])
 
-  const filtered = sortByOrder(properties).filter(p =>
+  const priceNum = p => Number(String(p?.price || '').replace(/[^\d]/g, '')) || 0
+  const filteredBase = sortByOrder(properties).filter(p =>
     p.published !== false &&
     (filterCat === 'all' || p.category === filterCat) &&
-    (!filterType   || p.type   === filterType)
+    (!filterType   || p.type   === filterType) &&
+    (!filterCity   || (p.location || '').trim() === filterCity) &&
+    (!filterMaxPrice || (priceNum(p) > 0 && priceNum(p) <= filterMaxPrice)) &&
+    (!filterRooms  || Number(p.rooms) >= filterRooms) &&
+    (!filterFavs   || favIds.has(String(p.id)))
   )
+  const filtered = propSort === 'newest' ? [...filteredBase].sort((a, b) => (Date.parse(b.createdAt || '') || 0) - (Date.parse(a.createdAt || '') || 0))
+    : propSort === 'priceAsc'  ? [...filteredBase].sort((a, b) => (priceNum(a) || Infinity) - (priceNum(b) || Infinity))
+    : propSort === 'priceDesc' ? [...filteredBase].sort((a, b) => priceNum(b) - priceNum(a))
+    : filteredBase
+  // City chips come from the live portfolio (top 8 cities by count)
+  const cityOptions = Object.entries(properties.filter(p => p.published !== false && p.location).reduce((m, p) => { const k = p.location.trim(); m[k] = (m[k] || 0) + 1; return m }, {})).sort((a, b) => b[1] - a[1]).slice(0, 8)
+  const hasSmartFilters = !!(filterCity || filterMaxPrice || filterRooms || filterFavs || propSort !== 'recommended')
+  const clearSmartFilters = () => { setFilterCity(''); setFilterMaxPrice(0); setFilterRooms(0); setFilterFavs(false); setPropSort('recommended'); setPropPage(0) }
   const scrollTo    = id => {
     const el = document.getElementById(id)
     if (el) {
@@ -5354,8 +5428,22 @@ export default function App() {
     setMobileOpen(false)
   }
   const openContact = (p=null) => { setContactProp(p); setShowContact(true) }
+  // Shareable links: /?p=<id> opens that property once the portfolio has loaded
+  const deepLinkDone = useRef(false)
+  useEffect(() => {
+    if (deepLinkDone.current || !properties.length) return
+    let id = null
+    try { id = new URLSearchParams(window.location.search).get('p') } catch {}
+    if (!id) { deepLinkDone.current = true; return }
+    const hit = properties.find(x => String(x.id) === String(id) && x.published !== false)
+    if (hit) { deepLinkDone.current = true; setSelectedProp(hit); trackEvent('property_view', { title: hit.title, id: hit.id, category: hit.category, location: hit.location, via: 'link' }) }
+  }, [properties])
+  const setPropInUrl = (p) => {
+    try { const u = new URL(window.location.href); if (p) u.searchParams.set('p', p.id); else u.searchParams.delete('p'); window.history.replaceState(null, '', u.pathname + (u.search || '') + (u.hash || '')) } catch {}
+  }
   const openProperty = (p) => {
     setSelectedProp(p)
+    setPropInUrl(p)
     if (p) {
       // NOTE: do NOT scroll the page here. The property modal is position:fixed and
       // covers the screen, so scrolling the page to the top is pointless — and it
@@ -5670,29 +5758,69 @@ export default function App() {
             })}
           </div>
 
-          {/* Filters row */}
-          {properties.length > 0 && (
-            <div style={{ display:'flex', flexDirection:'column', gap:12, marginBottom:32, alignItems:'center' }}>
-              {/* Type filter dropdown — shown when a category is selected */}
-              {filterCat !== 'all' && (() => {
-                const catTypes = (CATEGORIES_DATA[lang] || CATEGORIES_DATA.he).find(c => c.id === filterCat)?.types || []
-                if (!catTypes.length) return null
-                return (
-                  <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-                    <span style={{ fontSize:11, color:`${C.cream}50`, fontWeight:600, letterSpacing:'.06em', textTransform:'uppercase' }}>{TR[lang]?.typeFilter}</span>
-                    <div style={{ position:'relative' }}>
-                      <select value={filterType} onChange={e => { setFilterType(e.target.value); setPropPage(0) }}
-                        style={{ padding:'8px 36px 8px 16px', background:C.card, border:`1.5px solid ${filterType ? C.purple : 'rgba(132,144,216,.3)'}`, borderRadius:8, color:filterType ? C.purple : `${C.cream}88`, fontSize:12, fontFamily:'inherit', cursor:'pointer', outline:'none', appearance:'none', WebkitAppearance:'none', direction: lang==='he' ? 'rtl' : 'ltr', fontWeight:filterType?700:400, transition:'border-color .2s' }}>
-                        <option value="">{TR[lang]?.allTypes}</option>
-                        {catTypes.map(t => <option key={t} value={t}>{t}</option>)}
-                      </select>
-                      <FaChevronLeft size={9} style={{ position:'absolute', right:12, top:'50%', transform:'translateY(-50%) rotate(-90deg)', color:`${C.cream}55`, pointerEvents:'none' }}/>
-                    </div>
+          {/* Filters row: type (per category) · city · max price · rooms · favourites · sort */}
+          {properties.length > 0 && (() => {
+            const t = TR[lang] || TR.he
+            const chip = (on, extra = {}) => ({ padding:'7px 13px', borderRadius:20, border:`1.5px solid ${on ? C.purple : 'rgba(132,144,216,.28)'}`, background: on ? `${C.purple}22` : 'transparent', color: on ? C.purple : `${C.cream}88`, fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit', whiteSpace:'nowrap', minWidth:0, minHeight:0, transition:'all .15s', display:'inline-flex', alignItems:'center', gap:6, ...extra })
+            const sel = (on) => ({ padding:'8px 32px 8px 14px', background:C.card, border:`1.5px solid ${on ? C.purple : 'rgba(132,144,216,.3)'}`, borderRadius:20, color: on ? C.purple : `${C.cream}88`, fontSize:12, fontFamily:'inherit', fontWeight:700, cursor:'pointer', outline:'none', appearance:'none', WebkitAppearance:'none', minHeight:0 })
+            const lbl = { fontSize:11, color:`${C.cream}50`, fontWeight:700, letterSpacing:'.06em', textTransform:'uppercase', flexShrink:0 }
+            const catTypes = filterCat !== 'all' ? ((CATEGORIES_DATA[lang] || CATEGORIES_DATA.he).find(c => c.id === filterCat)?.types || []) : []
+            const showRooms = ['all', 'apartments', 'rentals', 'projects'].includes(filterCat)
+            const PRICES = [2000000, 3000000, 4000000, 5000000, 7000000, 10000000, 15000000]
+            const wrap = { position:'relative', display:'inline-flex', alignItems:'center' }
+            const caret = <FaChevronLeft size={9} style={{ position:'absolute', right:12, top:'50%', transform:'translateY(-50%) rotate(-90deg)', color:`${C.cream}55`, pointerEvents:'none' }}/>
+            return (
+              <div className="prop-filters" style={{ display:'flex', flexDirection:'column', gap:12, marginBottom:28, alignItems:'center' }}>
+                {/* City chips */}
+                {cityOptions.length > 1 && (
+                  <div className="prop-filter-row" style={{ display:'flex', gap:6, alignItems:'center', flexWrap:'wrap', justifyContent:'center', maxWidth:'100%' }}>
+                    <span style={lbl}>{t.cityLabel}</span>
+                    <button style={chip(!filterCity)} onClick={() => { setFilterCity(''); setPropPage(0) }}>{t.allCities}</button>
+                    {cityOptions.map(([city, n]) => (
+                      <button key={city} style={chip(filterCity === city)} onClick={() => { setFilterCity(filterCity === city ? '' : city); setPropPage(0) }}>
+                        {city} <span style={{ fontSize:10, opacity:.7 }}>{n}</span>
+                      </button>
+                    ))}
                   </div>
-                )
-              })()}
-            </div>
-          )}
+                )}
+                {/* Type · max price · rooms · favourites · sort */}
+                <div className="prop-filter-row" style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', justifyContent:'center' }}>
+                  {catTypes.length > 0 && (
+                    <span style={wrap}>
+                      <select value={filterType} onChange={e => { setFilterType(e.target.value); setPropPage(0) }} style={sel(!!filterType)} aria-label={t.typeFilter}>
+                        <option value="">{t.allTypes}</option>
+                        {catTypes.map(x => <option key={x} value={x}>{x}</option>)}
+                      </select>{caret}
+                    </span>
+                  )}
+                  <span style={wrap}>
+                    <select value={filterMaxPrice} onChange={e => { setFilterMaxPrice(Number(e.target.value)); setPropPage(0) }} style={sel(!!filterMaxPrice)} aria-label={t.maxPriceLabel}>
+                      <option value={0}>{t.maxPriceLabel}: {t.anyPrice}</option>
+                      {PRICES.map(v => <option key={v} value={v}>{t.maxPriceLabel}: {v >= 1000000 ? `${v / 1000000}M ₪` : v.toLocaleString()}</option>)}
+                    </select>{caret}
+                  </span>
+                  {showRooms && (
+                    <span style={{ display:'inline-flex', alignItems:'center', gap:4 }}>
+                      <span style={lbl}>{t.roomsLabel}</span>
+                      {[0, 3, 4, 5].map(r => <button key={r} style={chip(filterRooms === r, { padding:'7px 11px' })} onClick={() => { setFilterRooms(r); setPropPage(0) }}>{r ? `${r}+` : t.roomsAny}</button>)}
+                    </span>
+                  )}
+                  <button style={chip(filterFavs, { color: filterFavs ? '#FF5A6E' : undefined, borderColor: filterFavs ? 'rgba(255,90,110,.6)' : undefined, background: filterFavs ? 'rgba(255,90,110,.14)' : undefined })} onClick={() => { setFilterFavs(v => !v); setPropPage(0) }} aria-pressed={filterFavs}>
+                    <FaHeart size={11} style={{ color: favIds.size ? '#FF5A6E' : undefined }}/> {t.favorites}{favIds.size ? ` (${favIds.size})` : ''}
+                  </button>
+                  <span style={wrap}>
+                    <select value={propSort} onChange={e => { setPropSort(e.target.value); setPropPage(0) }} style={sel(propSort !== 'recommended')} aria-label={t.sortLabel}>
+                      <option value="recommended">{t.sortLabel}: {t.sortRecommended}</option>
+                      <option value="newest">{t.sortLabel}: {t.sortNewest}</option>
+                      <option value="priceAsc">{t.sortLabel}: {t.sortPriceAsc}</option>
+                      <option value="priceDesc">{t.sortLabel}: {t.sortPriceDesc}</option>
+                    </select>{caret}
+                  </span>
+                  {hasSmartFilters && <button style={chip(false, { color:`${C.cream}70`, borderStyle:'dashed' })} onClick={clearSmartFilters}>✕ {t.clearFilters}</button>}
+                </div>
+              </div>
+            )
+          })()}
 
           {/* Grid / Carousel / Empty state */}
           {properties.length === 0 ? (
@@ -5832,7 +5960,7 @@ export default function App() {
                   )
                 })()
               ) : (
-                <div style={{ textAlign:'center', padding:'60px 24px', color:`${C.cream}40`, fontSize:15 }}>{TR[lang]?.noProperties}</div>
+                <div style={{ textAlign:'center', padding:'60px 24px', color:`${C.cream}40`, fontSize:15 }}>{filterFavs && !favIds.size ? TR[lang]?.noFavs : TR[lang]?.noProperties}</div>
               )}
             </>
           )}
@@ -6099,7 +6227,7 @@ export default function App() {
       {showContact && <ContactModal  prop={contactProp} onClose={() => setShowContact(false)}/>}
       {showCalc    && <Suspense fallback={null}><RealEstateCalc onClose={() => setShowCalc(false)}/></Suspense>}
       {showPrivacy && <PrivacyModal onClose={() => setShowPrivacy(false)}/>}
-      {selectedProp && <PropertyModal key={selectedProp.id} prop={selectedProp} properties={properties} onClose={() => setSelectedProp(null)} onContact={p => { openContact(p) }} onSelect={setSelectedProp} govmapToken={govmapToken}/>}
+      {selectedProp && <PropertyModal key={selectedProp.id} prop={selectedProp} properties={properties} onClose={() => { setSelectedProp(null); setPropInUrl(null) }} onContact={p => { openContact(p) }} onSelect={p => { setSelectedProp(p); setPropInUrl(p) }} govmapToken={govmapToken}/>}
       {showWizard && <Suspense fallback={null}><PropertyWizard
           key={wizardEditId || wizardKey}
           onClose={() => { setShowWizard(false); setWizardEditData(null); setWizardEditId(null); setWizardIntakeId(null) }}
