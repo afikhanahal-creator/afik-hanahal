@@ -630,10 +630,22 @@ const makeGlobal = (C, isDark) => `
     .svc-bento > * { grid-column:span 1 !important; }
     .nav-phone       { display:none !important; }
     .nav-social-hide { display:none !important; }
-    /* Contact cards on the "פנה אלינו עכשיו" panel: center icon + text as a balanced group */
-    .contact-card-row { justify-content:center !important; gap:18px !important; }
-    .contact-card-text { flex:0 1 auto !important; text-align:center !important; }
-    .contact-card-text > div { text-align:center !important; }
+    /* Contact cards on the "פנה אלינו עכשיו" panel (phones): compact, equal-height rows,
+       icon at the start, label + value stacked and start-aligned — one tidy column */
+    .contact-panel { padding:22px 16px 18px !important; }
+    .contact-panel h3 { font-size:18px !important; margin-bottom:14px !important; }
+    .contact-panel-list { gap:8px !important; }
+    .contact-card-row { justify-content:flex-start !important; gap:12px !important; padding:10px 12px !important; border-radius:12px !important; min-height:62px; }
+    .contact-card-icon { width:38px !important; height:38px !important; box-shadow:none !important; }
+    .contact-card-icon svg { width:15px !important; height:15px !important; }
+    .contact-card-text { flex:1 1 auto !important; text-align:right !important; min-width:0; }
+    .contact-card-text > div { text-align:right !important; }
+    .contact-card-text > div:first-child { font-size:10px !important; margin-bottom:1px !important; letter-spacing:.06em !important; }
+    .contact-card-text > div:last-child { font-size:16px !important; line-height:1.25 !important; }
+    .contact-card-row.is-info { background:transparent !important; border-color:transparent !important; min-height:0; padding:6px 12px 0 !important; }
+    .contact-card-row.is-info .contact-card-icon { width:30px !important; height:30px !important; }
+    .contact-card-row.is-info .contact-card-text > div:last-child { font-size:13px !important; font-weight:600 !important; }
+    .contact-card-cta { padding:13px 0 !important; font-size:15px !important; margin-top:6px !important; border-radius:12px !important; }
     .testi-card-wrap { flex-direction:column !important; min-height:0 !important; }
     .testi-txt-col   { order:1 !important; padding:12px 14px 8px !important; gap:5px !important; justify-content:flex-start !important; }
     .testi-img-col   { order:2 !important; width:100% !important; height:clamp(180px,30vh,300px) !important; background:#06040f !important; border-top:1px solid rgba(132,144,216,.15) !important; }
@@ -1295,7 +1307,7 @@ function WaIcon() {
 }
 
 // ─── UI/UX PRO MAX: SPATIAL GLASS CARD (3D tilt + elevation) ─────────────────
-function GlassCard({ children, style, onClick }) {
+function GlassCard({ children, style, onClick, className = '' }) {
   const ref = useRef(null)
   const [tilt, setTilt] = useState({ x:0, y:0 })
   const onMove = useCallback(e => {
@@ -1304,7 +1316,7 @@ function GlassCard({ children, style, onClick }) {
   }, [])
   const onLeave = useCallback(() => setTilt({ x:0, y:0 }), [])
   return (
-    <div ref={ref} className="glass-card" onMouseMove={onMove} onMouseLeave={onLeave} onClick={onClick}
+    <div ref={ref} className={'glass-card' + (className ? ' ' + className : '')} onMouseMove={onMove} onMouseLeave={onLeave} onClick={onClick}
       style={{
         transform:`perspective(1200px) rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`,
         cursor:onClick?'pointer':'default',
@@ -6003,9 +6015,9 @@ export default function App() {
               </div>
             ))}
           </div>
-          <GlassCard style={{ padding:'32px 28px' }}>
+          <GlassCard className="contact-panel" style={{ padding:'32px 28px' }}>
             <h3 style={{ fontSize:21, fontWeight:800, color:C.cream, marginBottom:22, textAlign:'center', letterSpacing:'-.01em' }}>{TR[lang]?.contactNowBtn}</h3>
-            <div style={{ display:'flex', flexDirection:'column', gap:12, direction:'rtl' }}>
+            <div className="contact-panel-list" style={{ display:'flex', flexDirection:'column', gap:12, direction:'rtl' }}>
 
               {/* טלפון */}
               <a href="tel:0559811814" className="contact-card-row"
@@ -6036,7 +6048,7 @@ export default function App() {
               </a>
 
               {/* אזור פעילות */}
-              <div className="contact-card-row" style={{ display:'flex', flexDirection:'row', alignItems:'center', gap:14, background:`${C.purple}0D`, borderRadius:14, padding:'16px 18px', border:`1.5px solid ${C.purple}1E` }}>
+              <div className="contact-card-row is-info" style={{ display:'flex', flexDirection:'row', alignItems:'center', gap:14, background:`${C.purple}0D`, borderRadius:14, padding:'16px 18px', border:`1.5px solid ${C.purple}1E` }}>
                 <div className="contact-card-icon" style={{ width:46, height:46, borderRadius:'50%', background:`linear-gradient(135deg,${C.purple}30,${C.purple}15)`, border:`1.5px solid ${C.purple}40`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, boxShadow:`0 4px 14px ${C.purple}20` }}>
                   <FaMapMarkerAlt size={18} style={{ color:C.purple }}/>
                 </div>
@@ -6047,7 +6059,7 @@ export default function App() {
               </div>
 
               {/* CTA button */}
-              <button onClick={() => openContact()}
+              <button onClick={() => openContact()} className="contact-card-cta"
                 style={{ width:'100%', marginTop:4, padding:'17px 0', borderRadius:14, border:'none', cursor:'pointer', fontFamily:'Rubik, sans-serif', fontSize:17, fontWeight:800, color:'#fff', background:`linear-gradient(135deg,#8490D8,#6B7BE0)`, boxShadow:`0 6px 28px ${C.purple}55`, letterSpacing:'-.01em', display:'flex', alignItems:'center', justifyContent:'center', gap:8, transition:'all .22s' }}
                 onMouseEnter={e => { e.currentTarget.style.transform='translateY(-2px)'; e.currentTarget.style.boxShadow=`0 12px 40px ${C.purple}70`; e.currentTarget.style.background='linear-gradient(135deg,#9AA4E8,#7B8EF0)' }}
                 onMouseLeave={e => { e.currentTarget.style.transform=''; e.currentTarget.style.boxShadow=`0 6px 28px ${C.purple}55`; e.currentTarget.style.background='linear-gradient(135deg,#8490D8,#6B7BE0)' }}>
