@@ -84,3 +84,24 @@ the office (WhatsApp + email) and shows up in the admin panel like a new lead (s
 chime). "פרסם באתר" pushes the property into the existing property generator (`PUT /api/properties/:id`
 on the Render backend); rentals land in the `rentals` category, sales in `apartments` / `land` /
 `commercial`. Marking a published property sold/inactive hides it on the site automatically.
+
+## SEO content engine (`content/` → static pages)
+
+Crawlable bilingual pages are generated at build time (`npm run build` = `vite build && node scripts/build-content.mjs`)
+and written into `dist/` **next to** the SPA, so Vercel serves them before the SPA rewrite:
+
+| Content | File | URLs |
+|---|---|---|
+| Company facts, UI strings, CTA presets | `content/site.mjs` | – |
+| Services (money pages) | `content/services.mjs` | `/services/<slug>/`, `/en/services/<slug>/` |
+| Local pages | `content/areas.mjs` | `/areas/<slug>/` |
+| Guides | `content/guides.mjs` | `/guides/<slug>/` |
+| Glossary | `content/glossary.mjs` | `/glossary/<slug>/` |
+| Calculators | `content/tools.mjs` | `/tools/<slug>/` |
+| Company profile | `content/company.mjs` | `/company/` |
+
+Every page has `he` and `en` objects (both mandatory), JSON-LD (`@graph` sharing `https://afikhanahal.co.il/#org`),
+hreflang, OG image, a 3-step lead form posting to `/api/contacts` (source `page_<type>_<intent>`), and a related-links
+block. `related.*` slugs are validated: the build **fails on a broken internal link**. `sitemap.xml` and `llms.txt`
+are generated from the same data — do not hand-edit them. Purchase-tax brackets live in both `content/tools.mjs`
+and `src/RealEstateCalc.jsx`; update both every January.

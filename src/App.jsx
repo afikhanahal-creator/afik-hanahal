@@ -79,6 +79,7 @@ const TR = {
     teamTitle:'הצוות שלנו', teamDesc:'האנשים שמאחורי כל עסקה',
     quickNav:'ניווט מהיר', talkToUs:'דברו איתנו', sendMsg:'שלח הודעה',
     accessibility:'הצהרת נגישות', privacy:'מדיניות פרטיות',
+    knowledge:'ידע ומדריכים', hubServices:'השירותים שלנו', hubAreas:'אזורי פעילות', hubGuides:'מדריכים', hubGlossary:'מילון מונחים', hubTools:'כלים ומחשבונים', hubFaq:'שאלות ותשובות', hubCompany:'על החברה',
     copyright:'© 2026 אפיק הנחל — ייזום שיווק ותיווך. כל הזכויות שמורות.',
     calcNav:'מחשבון', waTitle:'WhatsApp',
     hoursLabel: 'שעות פעילות',
@@ -182,6 +183,7 @@ const TR = {
     teamTitle:'Our Team', teamDesc:'The people behind every deal',
     quickNav:'Quick Navigation', talkToUs:'Talk to Us', sendMsg:'Send Message',
     accessibility:'Accessibility Statement', privacy:'Privacy Policy',
+    knowledge:'Knowledge & Guides', hubServices:'Our services', hubAreas:'Areas we serve', hubGuides:'Guides', hubGlossary:'Glossary', hubTools:'Tools & calculators', hubFaq:'FAQ', hubCompany:'About the company',
     copyright:'© 2026 Afik Hanahal — Real Estate Marketing. All rights reserved.',
     calcNav:'Calc', waTitle:'WhatsApp',
     hoursLabel: 'Business Hours',
@@ -1014,6 +1016,10 @@ const makeGlobal = (C, isDark) => `
 `
 
 // ─── NAV ──────────────────────────────────────────────────────────────────────
+// Static, crawlable content hubs (built by scripts/build-content.mjs) — real links, not scroll anchors
+const HUB_LINKS = [['services','hubServices'], ['areas','hubAreas'], ['guides','hubGuides'], ['glossary','hubGlossary'], ['tools','hubTools'], ['faq','hubFaq'], ['company','hubCompany']]
+const hubHref = (lang, hub) => (lang === 'en' ? '/en/' : '/') + hub + '/'
+
 const NAV_LINKS = [
   { id:'home',       label:'ראשי' },
   { id:'ceo',        label:'המנכ״ל' },
@@ -4998,7 +5004,9 @@ export default function App() {
   const [statsVisible, setStatsVisible] = useState(false)
   const [activeNav,    setActiveNav]    = useState('home')
   const [mobileOpen,   setMobileOpen]   = useState(false)
-  const [lang,         setLang]         = useState('he')
+  // Language: ?lang=en (links from the English content pages) → remembered choice → Hebrew
+  const [lang,         setLang]         = useState(() => { try { const q = new URLSearchParams(window.location.search).get('lang'); if (q === 'en' || q === 'he') return q; return localStorage.getItem('afik_lang') === 'en' ? 'en' : 'he' } catch { return 'he' } })
+  useEffect(() => { try { localStorage.setItem('afik_lang', lang) } catch {} }, [lang])
   const [stats,        setStats]        = useState(DEFAULT_STATS)
   const [sharon,       setSharon]       = useState(DEFAULT_SHARON)
   const [govmapToken,  setGovmapToken]  = useState(() => {
@@ -5466,6 +5474,13 @@ export default function App() {
                     {TR[lang]?.nav?.[id] || id}
                     <span className="nav-item-bar"/>
                   </button>
+                ))}
+                <div role="separator" style={{ height:1, background:'rgba(132,144,216,.18)', margin:'8px 12px' }}/>
+                {HUB_LINKS.map(([hub, key]) => (
+                  <a key={hub} className="nav-panel-item" href={hubHref(lang, hub)} style={{ textDecoration:'none' }}>
+                    {TR[lang]?.[key] || hub}
+                    <span className="nav-item-bar"/>
+                  </a>
                 ))}
               </div>
               <a href="tel:0559811814" className="nav-panel-phone" style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}><FaPhone size={12}/> 055-981-1814</a>
@@ -5939,6 +5954,20 @@ export default function App() {
                     onMouseLeave={e => e.currentTarget.style.color='rgba(232,228,216,.6)'}>
                     {TR[lang]?.nav?.[id] || id}
                   </button>
+                ))}
+              </div>
+            </div>
+
+            {/* ── Col 2b: knowledge hubs (static SEO pages) ── */}
+            <div className="footer-col">
+              <h3 style={{ fontSize:17, fontWeight:700, color:'rgba(232,228,216,.85)', marginBottom:16, letterSpacing:'.02em' }}>{TR[lang]?.knowledge}</h3>
+              <div className="footer-nav-links" style={{ display:'flex', flexDirection:'column', gap:13 }}>
+                {HUB_LINKS.map(([hub, key]) => (
+                  <a key={hub} href={hubHref(lang, hub)} style={{ color:'rgba(232,228,216,.6)', fontSize:15, textDecoration:'none', textAlign: lang==='en' ? 'left' : 'right', transition:'color .2s' }}
+                    onMouseEnter={e => e.currentTarget.style.color=C.purple}
+                    onMouseLeave={e => e.currentTarget.style.color='rgba(232,228,216,.6)'}>
+                    {TR[lang]?.[key] || hub}
+                  </a>
                 ))}
               </div>
             </div>
