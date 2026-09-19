@@ -175,6 +175,10 @@ export default function SellerSubmissionsTab({ C, onChanged, onOpenWizard }) {
   const [q, setQ] = useState('')
   const [filter, setFilter] = useState('all')
   const [purpose, setPurpose] = useState('all')
+  const [funnelOpen, setFunnelOpen] = useState(false)   // the 30-day funnel is a summary line until expanded
+  const listRef = useRef(null)
+  // A filter change must never leave the list below the fold of the narrow column
+  const pickFilter = v => { setFilter(v); setTimeout(() => listRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 50) }
   const [selId, setSelId] = useState(null)
   const [detail, setDetail] = useState(null)
   const [detailLoading, setDetailLoading] = useState(false)
@@ -436,7 +440,7 @@ export default function SellerSubmissionsTab({ C, onChanged, onOpenWizard }) {
   return (
     <div style={{ display: 'flex', gap: 18, height: '100%', minHeight: 0, direction: 'rtl', color: '#E8E4D8' }}>
       {/* ── list ── */}
-      <div style={{ flex: '0 0 340px', display: 'flex', flexDirection: 'column', minHeight: 0, gap: 10 }}>
+      <div className="admin-scroll" style={{ flex: '0 0 340px', display: 'flex', flexDirection: 'column', minHeight: 0, gap: 10, overflowY: 'auto', paddingLeft: 2 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
             <div style={{ fontSize: 17, fontWeight: 700 }}>נכסים שנקלטו <span style={{ fontSize: 12, color: purple, fontWeight: 600 }}>{rows.filter(r => r.status !== 'draft').length}</span></div>
@@ -478,36 +482,56 @@ export default function SellerSubmissionsTab({ C, onChanged, onOpenWizard }) {
           </div>
         )}
         {funnel.total > 0 && (
-          <div style={{ ...card, padding: '9px 12px' }} title="30 הימים האחרונים">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10.5, color: 'rgba(232,228,216,.5)', letterSpacing: '.06em', marginBottom: 6 }}><FaRoute size={10}/> מסע הלקוח · 30 יום</div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 4, textAlign: 'center' }}>
+          <div style={{ ...card, padding: '7px 12px' }} title="30 הימים האחרונים">
+            <button onClick={() => setFunnelOpen(o => !o)} aria-expanded={funnelOpen} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 6, fontSize: 10.5, color: 'rgba(232,228,216,.6)', letterSpacing: '.06em', background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', minHeight: 0, textAlign: 'right' }}>
+              <FaRoute size={10}/> מסע הלקוח · 30 יום
+              <span style={{ marginInlineStart: 'auto', display: 'flex', gap: 8, fontSize: 10.5, letterSpacing: 0 }}>
+                <span style={{ color: '#22C55E', fontWeight: 800 }}>{funnel.submitted} שלחו</span>
+                {counts.j_stalled ? <span style={{ color: '#F5A623' }}>{counts.j_stalled} נעצרו</span> : null}
+                <span style={{ color: 'rgba(232,228,216,.45)' }}>{funnelOpen ? '▴' : '▾'}</span>
+              </span>
+            </button>
+            {funnelOpen && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 4, textAlign: 'center', marginTop: 8 }}>
               {[['הוזמנו', funnel.invited, '#9A9AA8'], ['פתחו', funnel.opened, '#F5A623'], ['התחילו', funnel.started, '#60D4F7'], ['לסיכום', funnel.review, '#C084FC'], ['שלחו', funnel.submitted, '#22C55E']].map(([l, n, c]) => (
                 <div key={l} style={{ background: 'rgba(255,255,255,.03)', borderRadius: 8, padding: '5px 2px' }}><div style={{ fontSize: 16, fontWeight: 800, color: c }}>{n}</div><div style={{ fontSize: 10, color: 'rgba(232,228,216,.55)' }}>{l}</div></div>
               ))}
-            </div>
-            {(counts.j_stalled || counts.j_opened) ? <div style={{ fontSize: 11, color: '#F5A623', marginTop: 7 }}>{[counts.j_stalled ? `${counts.j_stalled} נעצרו באמצע` : '', counts.j_opened ? `${counts.j_opened} פתחו ולא התחילו` : ''].filter(Boolean).join(' · ')} — כדאי לשלוח תזכורת.</div> : null}
+            </div>}
+            {funnelOpen && (counts.j_stalled || counts.j_opened) ? <div style={{ fontSize: 11, color: '#F5A623', marginTop: 7 }}>{[counts.j_stalled ? `${counts.j_stalled} נעצרו באמצע` : '', counts.j_opened ? `${counts.j_opened} פתחו ולא התחילו` : ''].filter(Boolean).join(' · ')} — כדאי לשלוח תזכורת.</div> : null}
           </div>
         )}
         <div style={{ position: 'relative' }}>
           <FaSearch size={12} style={{ position: 'absolute', right: 12, top: 11, color: 'rgba(232,228,216,.4)' }}/>
           <input value={q} onChange={e => setQ(e.target.value)} placeholder="חיפוש לפי שם, טלפון, עיר, מספר תיק…" style={{ ...input, padding: '9px 34px 9px 12px', borderRadius: 10 }}/>
         </div>
-        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-          {[{ v: 'all', l: 'הכל' }, ...(counts.backup ? [{ v: 'backup', l: 'גיבוי (Supabase לא זמין)', color: '#F5A623' }] : []), ...INTAKE_STATUSES.filter(s => s.v !== 'draft'), { v: 'unverified', l: 'ממתין לאימות בעלים', color: '#F5A623' },
-            { v: 'j_active', l: 'בתהליך', color: '#60D4F7' }, { v: 'j_stalled', l: 'נעצרו', color: '#E05252' }, { v: 'j_opened', l: 'פתחו ולא התחילו', color: '#F5A623' }, { v: 'j_invited', l: 'הוזמנו ולא פתחו', color: '#9A9AA8' }, { v: 'draft', l: 'כל הטיוטות', color: '#9A9AA8' }].map(s => (
-            <button key={s.v} onClick={() => setFilter(s.v)} style={{ padding: '4px 9px', borderRadius: 20, fontSize: 11, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', border: `1px solid ${filter === s.v ? (s.color || purple) : 'rgba(132,144,216,.2)'}`, background: filter === s.v ? `${s.color || purple}22` : 'transparent', color: filter === s.v ? (s.color || purple) : 'rgba(232,228,216,.6)' }}>
-              {s.l}{s.v !== 'all' && counts[s.v] ? ` · ${counts[s.v]}` : ''}
+        {/* Status chips: one horizontally scrollable row (never wraps into a wall of buttons) */}
+        <div className="admin-cat-filter" style={{ display: 'flex', gap: 5, flexWrap: 'nowrap', overflowX: 'auto', paddingBottom: 2 }}>
+          {[{ v: 'all', l: 'הכל' }, ...(counts.backup ? [{ v: 'backup', l: 'גיבוי', color: '#F5A623' }] : []), ...INTAKE_STATUSES.filter(x => x.v !== 'draft'), { v: 'unverified', l: 'ממתין לאימות', color: '#F5A623' }].map(x => (
+            <button key={x.v} onClick={() => pickFilter(x.v)} style={{ padding: '5px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', flexShrink: 0, minHeight: 0, minWidth: 0, border: `1px solid ${filter === x.v ? (x.color || purple) : 'rgba(132,144,216,.2)'}`, background: filter === x.v ? `${x.color || purple}22` : 'transparent', color: filter === x.v ? (x.color || purple) : 'rgba(232,228,216,.6)' }}>
+              {x.l}{x.v !== 'all' && counts[x.v] ? ` · ${counts[x.v]}` : ''}
             </button>
           ))}
         </div>
-        <div style={{ display: 'flex', gap: 5 }}>
-          {[{ v: 'all', l: 'מכירה והשכרה' }, { v: 'sale', l: 'למכירה' }, { v: 'rental', l: 'להשכרה' }].map(x => (
-            <button key={x.v} onClick={() => setPurpose(x.v)} style={{ padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', border: `1px solid ${purpose === x.v ? purple : 'rgba(132,144,216,.2)'}`, background: purpose === x.v ? `${purple}22` : 'transparent', color: purpose === x.v ? purple : 'rgba(232,228,216,.6)' }}>{x.l}</button>
-          ))}
+        {/* Drafts / journey + purpose: two compact selects on one row */}
+        <div style={{ display: 'flex', gap: 6 }}>
+          {(() => {
+            const J = [['j_active', 'בתהליך'], ['j_stalled', 'נעצרו'], ['j_opened', 'פתחו ולא התחילו'], ['j_invited', 'הוזמנו ולא פתחו'], ['draft', 'כל הטיוטות']]
+            const isJ = J.some(([v]) => v === filter)
+            return (
+              <select value={isJ ? filter : ''} onChange={e => pickFilter(e.target.value || 'all')} aria-label="טיוטות ומסע הלקוח"
+                style={{ ...input, flex: 1, padding: '7px 10px', fontSize: 11.5, fontWeight: 700, borderColor: isJ ? purple : 'rgba(132,144,216,.2)', color: isJ ? purple : 'rgba(232,228,216,.75)', minHeight: 0 }}>
+                <option value="">טיוטות ומסע הלקוח{counts.draft ? ` · ${counts.draft}` : ''}</option>
+                {J.map(([v, l]) => <option key={v} value={v}>{l}{counts[v] ? ` · ${counts[v]}` : ''}</option>)}
+              </select>
+            )
+          })()}
+          <select value={purpose} onChange={e => setPurpose(e.target.value)} aria-label="מכירה או השכרה"
+            style={{ ...input, flex: '0 0 auto', width: 'auto', padding: '7px 10px', fontSize: 11.5, fontWeight: 700, borderColor: purpose !== 'all' ? purple : 'rgba(132,144,216,.2)', color: purpose !== 'all' ? purple : 'rgba(232,228,216,.75)', minHeight: 0 }}>
+            <option value="all">מכירה והשכרה</option><option value="sale">למכירה</option><option value="rental">להשכרה</option>
+          </select>
         </div>
         {error && <div style={{ fontSize: 12, color: '#E05252', background: 'rgba(224,82,82,.1)', border: '1px solid rgba(224,82,82,.3)', borderRadius: 8, padding: '8px 10px' }}>{error}</div>}
         {flash && <div style={{ fontSize: 12, color: '#22C55E', background: 'rgba(34,197,94,.1)', border: '1px solid rgba(34,197,94,.3)', borderRadius: 8, padding: '8px 10px' }}>{flash}</div>}
-        <div className="admin-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, paddingLeft: 4 }}>
+        <div ref={listRef} className="admin-scroll" style={{ flex: 1, minHeight: 260, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, paddingLeft: 4 }}>
           {loading && !rows.length && <div style={{ color: 'rgba(232,228,216,.5)', fontSize: 13, padding: 20, textAlign: 'center' }}>טוען…</div>}
           {!loading && !filtered.length && <div style={{ color: 'rgba(232,228,216,.5)', fontSize: 13, padding: 20, textAlign: 'center' }}>{rows.length ? 'אין נכסים בסינון הזה' : 'עדיין לא נקלטו נכסים. שלחו למוכרים את הקישור /newproperty.'}</div>}
           {filtered.map(r => {
