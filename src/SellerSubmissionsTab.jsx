@@ -214,6 +214,12 @@ export default function SellerSubmissionsTab({ C, onChanged, onOpenWizard }) {
     finally { setLoading(false) }
   }, [])
   useEffect(() => { load() }, [load])
+  const autoOpened = useRef(false)
+  useEffect(() => {
+    if (autoOpened.current || selId || !rows.length) return
+    const fresh = rows.filter(r => r.status === 'new' && r.submitted_at).sort((a, b) => new Date(b.submitted_at) - new Date(a.submitted_at))[0]
+    if (fresh) { autoOpened.current = true; pickFilter('new'); open(fresh.id) }
+  }, [rows]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const open = useCallback(async id => {
     setSelId(id); setDetail(null); setDetailLoading(true); setTab('general')
@@ -559,7 +565,21 @@ export default function SellerSubmissionsTab({ C, onChanged, onOpenWizard }) {
 
       {/* ── property card ── */}
       <div className="admin-scroll" style={{ flex: 1, minWidth: 0, minHeight: 0, overflowY: 'auto', ...card, padding: 0 }}>
-        {!selId && <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(232,228,216,.4)', fontSize: 14, padding: 40, textAlign: 'center' }}>בחרו נכס מהרשימה כדי לפתוח את כרטיס הנכס</div>}
+        {!selId && (() => {
+          const fresh = rows.filter(r => r.status === 'new' && r.submitted_at).sort((a, b) => new Date(b.submitted_at) - new Date(a.submitted_at))
+          return (
+            <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, color: 'rgba(232,228,216,.4)', fontSize: 14, padding: 40, textAlign: 'center' }}>
+              {fresh.length > 0 && (
+                <div style={{ ...card, borderColor: 'rgba(224,82,82,.5)', background: 'rgba(224,82,82,.08)', padding: '16px 20px', maxWidth: 420, width: '100%', color: '#E8E4D8' }}>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: '#E05252', marginBottom: 4 }}>🔔 {fresh.length === 1 ? 'נכס חדש ממתין לבדיקה' : `${fresh.length} נכסים חדשים ממתינים לבדיקה`}</div>
+                  <div style={{ fontSize: 12.5, color: 'rgba(232,228,216,.75)', marginBottom: 12 }}>{[fresh[0].contact_name, fresh[0].property_type_label, fresh[0].city].filter(Boolean).join(' · ')}</div>
+                  <button onClick={() => { pickFilter('new'); open(fresh[0].id) }} style={btn({ background: 'rgba(224,82,82,.18)', borderColor: 'rgba(224,82,82,.6)', color: '#FF8A8A', padding: '9px 16px', fontSize: 13 })}>פתח את הנכס החדש ←</button>
+                </div>
+              )}
+              <div>בחרו נכס מהרשימה כדי לפתוח את כרטיס הנכס</div>
+            </div>
+          )
+        })()}
         {selId && detailLoading && <div style={{ padding: 40, textAlign: 'center', color: 'rgba(232,228,216,.5)' }}>טוען כרטיס נכס…</div>}
         {detail && !detailLoading && (
           <div style={{ padding: '20px 22px 30px' }}>
