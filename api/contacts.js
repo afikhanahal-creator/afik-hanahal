@@ -190,7 +190,14 @@ async function getContacts(since = '') {
   // Incremental sync: the admin panel remembers the newest created_at it has and asks only for
   // rows after it — a poll of an unchanged board pulls 0 rows out of Supabase instead of 500.
   const q = since ? `&created_at=gt.${encodeURIComponent(since)}` : ''
-  const r = await supaFetch(`/contacts?select=${CONTACT_COLS}&order=created_at.desc&limit=500${q}`)
+  let r = await supaFetch(`/contacts?select=${CONTACT_COLS}&order=created_at.desc&limit=500${q}`)
+  // A table created before crm_data / prop_location existed rejects the explicit column list with 400
+  // ("column contacts.crm_data does not exist") — the INSERT path already tolerates that, the list must too.
+  if (r.status === 400) {
+    const why = await r.text().catch(() => '')
+    console.warn('[contacts] column list rejected, retrying with select=* —', why.slice(0, 200))
+    r = await supaFetch(`/contacts?select=*&order=created_at.desc&limit=500${q}`)
+  }
   // 404 / 406 means the contacts table hasn't been created yet — return empty instead of 500
   if (r.status === 404 || r.status === 406) {
     console.warn('[contacts] table not found — run the SQL migration in Supabase')

@@ -58,7 +58,7 @@ async function condFetchJson(url, headers = {}, opts = {}) {
   const prev = _etagCache.get(url)
   const r = await fetch(url, { ...opts, headers: { ...headers, ...(prev?.etag ? { 'If-None-Match': prev.etag } : {}) } })
   if (r.status === 304) return prev ? { ok: true, changed: false, data: prev.data } : { ok: false, changed: false, data: null }
-  if (!r.ok) return { ok: false, changed: false, data: null, status: r.status }
+  if (!r.ok) { let error = ''; try { const d = await r.json(); error = String(d?.error || d?.message || '') } catch {} return { ok: false, changed: false, data: null, status: r.status, error } }
   const data = await r.json()
   const etag = r.headers.get('etag')
   if (etag) _etagCache.set(url, { etag, data }); else _etagCache.delete(url)
