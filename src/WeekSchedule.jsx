@@ -154,7 +154,7 @@ function DayRow({ d, t, rtl, value, isToday, nowPct, onChange, onToggle, onCopyA
   const label = value ? `${fmtHour(value[0])} – ${fmtHour(value[1])}` : t.closed
   const timeBtn = (r, h) => (
     <button ref={r} type="button" onClick={() => setOpen(o => !o)} aria-haspopup="dialog" aria-expanded={open} aria-label={`${t.timeBtn(t.days[d])}: ${label}`} className="au-hov"
-      style={{ height: h, padding: '0 10px', borderRadius: 9, border: '1px solid rgba(232,228,216,.18)', background: 'transparent', color: value ? T.text : T.text3, fontFamily: 'inherit', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', minHeight: 0, minWidth: 0, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+      style={{ height: h, padding: '0 10px', borderRadius: 9, border: '1px solid rgba(var(--ink),.18)', background: 'transparent', color: value ? T.text : T.text3, fontFamily: 'inherit', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', minHeight: 0, minWidth: 0, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
       <bdi dir="ltr">{label}</bdi>
     </button>
   )
@@ -191,7 +191,7 @@ function RangePicker({ t, d, value, onDone }) {
   const [e, setE] = useState(value[1])
   const [also, setAlso] = useState(new Set())
   const bad = e <= s
-  const sel = { height: 44, width: 104, padding: '0 8px', borderRadius: 9, border: `1px solid ${bad ? T.red : T.s3Line}`, background: '#161927', color: T.text, fontFamily: 'inherit', fontSize: 14, fontVariantNumeric: 'tabular-nums', minHeight: 0 }
+  const sel = { height: 44, width: 104, padding: '0 8px', borderRadius: 9, border: `1px solid ${bad ? T.red : T.s3Line}`, background: 'var(--au-s2)', color: T.text, fontFamily: 'inherit', fontSize: 14, fontVariantNumeric: 'tabular-nums', minHeight: 0 }
   return (
     <div style={{ padding: 8, display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={{ fontSize: 14, fontWeight: 800 }}>{t.days[d]}</div>
@@ -265,7 +265,7 @@ function WeekBar({ value, onChange, onOpen, rtl, nowPct, readOnly, height = 28, 
   )
   return (
     <div ref={ref} onPointerDown={onTrackDown} onPointerMove={onMove} onPointerUp={() => setDrag(null)} onPointerCancel={() => setDrag(null)}
-      style={{ position: 'relative', height, borderRadius: 8, background: value ? 'rgba(255,255,255,.04)' : 'repeating-linear-gradient(45deg, rgba(255,255,255,.04) 0 6px, transparent 6px 12px)', border: `1px solid ${T.s1Line}`, cursor: 'pointer', touchAction: 'none', userSelect: 'none' }}>
+      style={{ position: 'relative', height, borderRadius: 8, background: value ? 'rgba(var(--ov),.04)' : 'repeating-linear-gradient(45deg, rgba(var(--ov),.04) 0 6px, transparent 6px 12px)', border: `1px solid ${T.s1Line}`, cursor: 'pointer', touchAction: 'none', userSelect: 'none' }}>
       {[3, 6, 9, 12, 15, 18, 21].map(h => <span key={h} aria-hidden style={{ position: 'absolute', top: 3, bottom: 3, insetInlineStart: pct(h), width: 1, background: 'rgba(132,144,216,.1)' }}/>)}
       {value ? (
         <span onPointerDown={readOnly ? undefined : ev => begin('move', ev)} style={{ position: 'absolute', top: 2, bottom: 2, insetInlineStart: pct(s), width: pct(e - s), background: 'rgba(37,211,102,.22)', border: '1px solid rgba(37,211,102,.6)', borderRadius: 6, cursor: readOnly ? 'pointer' : drag?.kind === 'move' ? 'grabbing' : 'grab' }}/>

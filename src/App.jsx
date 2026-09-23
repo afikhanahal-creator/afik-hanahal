@@ -1,4 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, createContext, useContext, useMemo, lazy, Suspense } from 'react'
+import { useAdminTheme, ADMIN_DARK_C, ADMIN_LIGHT_C } from './adminTheme.js'
 import { isRealEstateArticle } from '../lib/news/classify.js'
 import { MenuToggleIcon } from './MenuToggleIcon.jsx'
 import AccessibilityWidget from './AccessibilityWidget.jsx'
@@ -952,7 +953,7 @@ const makeGlobal = (C, isDark) => `
 
   /* ─── Admin Panel — Mobile ─────────────────────────────────── */
   .admin-sidebar { transition: transform .25s cubic-bezier(.4,0,.2,1); }
-  .admin-nav-item:not([aria-current]):hover { background: rgba(132,144,216,.08) !important; color: rgba(241,238,230,.92) !important; }
+  .admin-nav-item:not([aria-current]):hover { background: rgba(132,144,216,.08) !important; color: var(--au-text) !important; }
   .admin-nav-item:focus-visible, .admin-foot-btn:focus-visible { outline: 2px solid #8490D8; outline-offset: 1px; }
   .admin-foot-btn:hover { filter: brightness(1.3); }
   .admin-mobile-topbar { display: none; }
@@ -967,13 +968,13 @@ const makeGlobal = (C, isDark) => `
       box-shadow: -12px 0 60px rgba(0,0,0,.85) !important;
     }
     .admin-sidebar.open { transform: translateX(0) !important; }
-    .admin-mobile-overlay { display: block !important; position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 1049; backdrop-filter: blur(3px); }
+    .admin-mobile-overlay { display: block !important; position: fixed; inset: 0; background: var(--au-overlay, rgba(0,0,0,.6)); z-index: 1049; backdrop-filter: blur(3px); }
     .admin-mobile-topbar {
       display: flex !important;
       height: 56px; padding: 0 16px;
       border-bottom: 1px solid rgba(132,144,216,.08);
       align-items: center; justify-content: space-between;
-      background: rgba(7,7,15,.95); flex-shrink: 0;
+      background: var(--au-topbar, rgba(7,7,15,.95)); flex-shrink: 0; backdrop-filter: blur(16px);
       direction: rtl; position: sticky; top: 0; z-index: 20;
     }
     .admin-desktop-topbar { display: none !important; }
@@ -999,7 +1000,7 @@ const makeGlobal = (C, isDark) => `
   .admin-bottom-nav {
     display: none;
     position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
-    background: rgba(7,7,15,.97); border-top: 1px solid rgba(132,144,216,.15);
+    background: var(--au-topbar, rgba(7,7,15,.97)); backdrop-filter: blur(16px); border-top: 1px solid rgba(132,144,216,.15);
     backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
     height: 58px; padding-bottom: env(safe-area-inset-bottom, 0px);
   }
@@ -5122,6 +5123,8 @@ export default function App() {
   const C      = isDark ? DARK_C : LIGHT_C
   const GLOBAL = useMemo(() => makeGlobal(C, isDark), [isDark])
   const toggleTheme = useCallback(() => setIsDark(d => !d), [])
+  // Admin has its own appearance (dark / light / system), saved separately from the public site's theme
+  const adminTheme = useAdminTheme()
 
   const [isMobile,     setIsMobile]     = useState(() => window.innerWidth < 768)
   const carouselRef = useRef(null)
@@ -5169,6 +5172,7 @@ export default function App() {
   })
   const [logoNavSize,  setLogoNavSizeRaw] = useState(() => Number(localStorage.getItem('logoNavSize')) || 70)
   const setLogoNavSize = (v) => { const n = Math.max(20, Math.min(200, Number(v))); localStorage.setItem('logoNavSize', n); setLogoNavSizeRaw(n) }
+  const adminThemeValue = { C: adminTheme.isDark ? ADMIN_DARK_C : ADMIN_LIGHT_C, isDark: adminTheme.isDark, toggleTheme: adminTheme.toggle, lang, setLang, logoNavSize, setLogoNavSize }
 
   // Always persist govmapToken — guards against the standalone mode missing the wrapper
   useEffect(() => { localStorage.setItem('govmap_token', govmapToken) }, [govmapToken])
@@ -5496,7 +5500,7 @@ export default function App() {
   // ── Standalone dashboard at /dashboard ──────────────────────────────────────
   if (DASHBOARD_MODE) {
     return (
-      <ThemeCtx.Provider value={{ C, isDark, toggleTheme, lang, setLang, logoNavSize, setLogoNavSize }}>
+      <ThemeCtx.Provider value={adminThemeValue}>
         <>
           <style>{GLOBAL}</style>
           {!adminAuth && (
@@ -6339,6 +6343,7 @@ export default function App() {
           }}
         /></Suspense>}
       {showAdmin && adminAuth && (
+        <ThemeCtx.Provider value={adminThemeValue}>
         <Suspense fallback={null}>
         <AdminPanel
           properties={properties} setProperties={setProperties}
@@ -6355,6 +6360,7 @@ export default function App() {
           }}
         />
         </Suspense>
+        </ThemeCtx.Provider>
       )}
 
       {/* ── THEME TOGGLE ────────────────────────────── */}

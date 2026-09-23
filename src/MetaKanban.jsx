@@ -14,20 +14,20 @@ import { CSS } from '@dnd-kit/utilities'
 const ADMIN_TOKEN = 'AFIKhanahal2026'
 const STAGES_LS   = 'meta_kanban_stages_v3'
 
-// ── Dark theme tokens ─────────────────────────────────────────────────────────
+// ── Theme tokens (CSS variables from src/adminTheme.js: dark + light) ─────────────────────────────────────────────────────────
 const T = {
-  bg:      '#0D1117',
-  card:    '#1A2235',
-  cardHov: '#212D42',
-  surf:    '#131B2A',
-  surfHov: '#1E2840',
-  border:  '#2A3347',
-  borderL: '#1E2A3A',
-  text:    '#E2E8F8',
-  sub:     '#8B98BC',
-  dim:     '#4A5568',
-  popup:   '#0F1825',
-  divider: '#1E2A3A',
+  bg:      'var(--mk-bg)',
+  card:    'var(--mk-card)',
+  cardHov: 'var(--mk-card-hov)',
+  surf:    'var(--mk-surf)',
+  surfHov: 'var(--mk-surf-hov)',
+  border:  'var(--mk-border)',
+  borderL: 'var(--mk-border-l)',
+  text:    'var(--mk-text)',
+  sub:     'var(--mk-sub)',
+  dim:     'var(--mk-dim)',
+  popup:   'var(--mk-popup)',
+  divider: 'var(--mk-border-l)',
   accent:  '#1877F2',
 }
 

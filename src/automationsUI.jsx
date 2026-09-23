@@ -7,26 +7,26 @@ import { WAText } from './waFormat.jsx'
 
 // ── Tokens ─────────────────────────────────────────────────────────────────────
 export const T = {
-  bg: '#09090F',
-  s1: 'rgba(255,255,255,.03)', s1Line: 'rgba(132,144,216,.14)',
-  s2: '#10121E', s2Line: 'rgba(132,144,216,.25)',
-  s3: 'rgba(255,255,255,.04)', s3Line: 'rgba(132,144,216,.22)',
-  line: 'rgba(132,144,216,.14)', line2: 'rgba(132,144,216,.25)', divider: 'rgba(132,144,216,.08)',
-  text: '#E8E4D8', text2: 'rgba(232,228,216,.72)', text3: 'rgba(232,228,216,.6)', textDis: 'rgba(232,228,216,.35)',
-  brand: '#8490D8', brandSoft: 'rgba(132,144,216,.14)', brandText: '#A3ADEB',
+  bg: 'var(--au-bg)',
+  s1: 'var(--au-s1)', s1Line: 'var(--au-s1-line)',
+  s2: 'var(--au-s2)', s2Line: 'var(--au-s2-line)',
+  s3: 'var(--au-s3)', s3Line: 'var(--au-s3-line)',
+  line: 'var(--au-line)', line2: 'var(--au-line2)', divider: 'var(--au-divider)',
+  text: 'var(--au-text)', text2: 'var(--au-text2)', text3: 'var(--au-text3)', textDis: 'var(--au-text-dis)',
+  brand: '#8490D8', brandSoft: 'var(--au-brand-soft)', brandText: 'var(--au-brand-text)',
   green: '#25D366', greenSoft: 'rgba(37,211,102,.14)', greenLine: 'rgba(37,211,102,.5)',
-  amber: '#F5A623', amberSoft: 'rgba(245,166,35,.12)', amberText: '#F5C26B',
-  red: '#E05252', redSoft: 'rgba(224,82,82,.12)', redText: '#F08A8A',
+  amber: '#F5A623', amberSoft: 'rgba(245,166,35,.12)', amberText: 'var(--au-amber-text)',
+  red: '#E05252', redSoft: 'rgba(224,82,82,.12)', redText: 'var(--au-red-text)',
   blue: '#60A5FA', grey: '#9A9AA8',
   wa: { header: '#202C33', chat: '#0B141A', out: '#005C4B', text: '#E9EDEF', meta: 'rgba(233,237,239,.6)', link: '#53BDEB' },
-  shadow2: '0 24px 70px rgba(0,0,0,.6)', shadow3: '0 12px 32px rgba(0,0,0,.45)',
+  shadow2: 'var(--au-shadow2)', shadow3: 'var(--au-shadow3)', cardShadow: 'var(--au-card-shadow)', card: 'var(--au-card)', cardGrad: 'var(--au-card-grad)', pop: 'var(--au-pop)', tooltip: 'var(--au-tooltip)',
 }
 export const MODE_COLOR = { off: T.grey, suggest: T.amber, auto: T.green }
 export const MODE_ICON = { off: FaPowerOff, suggest: FaUserCheck, auto: FaBolt }
 
 export const AUTO_CSS = `
   .au *{box-sizing:border-box}
-  .au :focus-visible{outline:none!important;box-shadow:0 0 0 2px #09090F,0 0 0 4px #8490D8!important;border-radius:9px}
+  .au :focus-visible{outline:none!important;box-shadow:0 0 0 2px var(--au-bg),0 0 0 4px #8490D8!important;border-radius:9px}
   .au-hov:hover:not(:disabled){background:rgba(132,144,216,.1)!important}
   .au-hov-lift{transition:filter .15s}.au-hov-lift:hover:not(:disabled){filter:brightness(1.12)}
   .au-card-hov{transition:border-color .15s,transform .15s}
@@ -41,7 +41,7 @@ export const AUTO_CSS = `
   @keyframes au-sheet{from{transform:translateY(100%)}to{transform:none}}
   .au-spin{animation:au-spin .8s linear infinite}
   .au-in{animation:au-in .2s ease both}
-  .au-skel{background:linear-gradient(90deg,rgba(255,255,255,.05) 0,rgba(255,255,255,.1) 40px,rgba(255,255,255,.05) 80px) no-repeat,rgba(255,255,255,.06);background-size:200px 100%;animation:au-sh 1.3s linear infinite}
+  .au-skel{background:linear-gradient(90deg,var(--au-skel) 0,var(--au-skel-hi) 40px,var(--au-skel) 80px) no-repeat,var(--au-skel);background-size:200px 100%;animation:au-sh 1.3s linear infinite}
   .au-today{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px;align-items:start}
   .au-today-aside{position:sticky;top:64px;display:flex;flex-direction:column;gap:12px}
   .au-kpi{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -83,7 +83,7 @@ export const Button = forwardRef(function Button({ children, onClick, variant = 
     solid: { bg: T.green, bd: T.green, fg: '#07130C', fw: 800 },
     'soft-green': { bg: T.greenSoft, bd: T.greenLine, fg: T.green },
     brand: { bg: T.brandSoft, bd: 'rgba(132,144,216,.3)', fg: T.brandText },
-    ghost: { bg: 'transparent', bd: 'rgba(232,228,216,.18)', fg: T.text2 },
+    ghost: { bg: 'transparent', bd: 'rgba(var(--ink),.18)', fg: T.text2 },
     danger: { bg: 'transparent', bd: 'rgba(224,82,82,.4)', fg: T.redText },
     plain: { bg: 'transparent', bd: 'transparent', fg: T.text2 },
   }[variant]
@@ -115,7 +115,7 @@ export function ModeSwitch({ value, onChange, labels, modes = ['off', 'suggest',
     onChange(modes[n]); refs.current[n]?.focus()
   }
   return (
-    <div role="radiogroup" aria-label={label} onKeyDown={onKey} style={{ display: full ? 'flex' : 'inline-flex', padding: 2, gap: 2, borderRadius: 9, background: 'rgba(255,255,255,.04)', border: '1px solid rgba(132,144,216,.2)', flexShrink: 0, width: full ? '100%' : undefined }}>
+    <div role="radiogroup" aria-label={label} onKeyDown={onKey} style={{ display: full ? 'flex' : 'inline-flex', padding: 2, gap: 2, borderRadius: 9, background: 'rgba(var(--ov),.04)', border: '1px solid rgba(132,144,216,.2)', flexShrink: 0, width: full ? '100%' : undefined }}>
       {modes.map((m, i) => {
         const on = value === m, c = colors[m] || T.brand, Ic = icons[m]
         return (
@@ -138,7 +138,7 @@ export function ModeBadge({ mode, labels }) {
 export function Toggle({ checked, onChange, label, children, disabled }) {
   const sw = (
     <button type="button" role="switch" aria-checked={!!checked} aria-label={children ? undefined : label} disabled={disabled} onClick={() => onChange(!checked)}
-      style={{ width: 40, height: 22, borderRadius: 11, border: 'none', padding: 0, position: 'relative', background: checked ? T.green : 'rgba(255,255,255,.16)', cursor: disabled ? 'not-allowed' : 'pointer', flexShrink: 0, minHeight: 0, minWidth: 0, transition: 'background .18s', opacity: disabled ? .5 : 1 }}>
+      style={{ width: 40, height: 22, borderRadius: 11, border: 'none', padding: 0, position: 'relative', background: checked ? T.green : 'rgba(var(--ov),.16)', cursor: disabled ? 'not-allowed' : 'pointer', flexShrink: 0, minHeight: 0, minWidth: 0, transition: 'background .18s', opacity: disabled ? .5 : 1 }}>
       <span style={{ position: 'absolute', top: 2, insetInlineStart: checked ? 20 : 2, width: 18, height: 18, borderRadius: '50%', background: '#fff', transition: 'inset-inline-start .18s', boxShadow: '0 1px 3px rgba(0,0,0,.35)' }}/>
     </button>
   )
@@ -151,7 +151,7 @@ export function StatTile({ value, label, tone = T.text, onClick }) {
   const Tag = onClick ? 'button' : 'div'
   return (
     <Tag type={onClick ? 'button' : undefined} onClick={onClick} className={onClick ? 'au-card-hov' : undefined}
-      style={{ minHeight: 76, padding: '12px 14px', borderRadius: 12, background: T.s1, border: `1px solid ${T.s1Line}`, textAlign: 'start', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 2, cursor: onClick ? 'pointer' : 'default', fontFamily: 'inherit', color: 'inherit', minWidth: 0 }}>
+      style={{ minHeight: 76, padding: '12px 14px', borderRadius: 12, background: T.s1, border: `1px solid ${T.s1Line}`, boxShadow: T.cardShadow, textAlign: 'start', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 2, cursor: onClick ? 'pointer' : 'default', fontFamily: 'inherit', color: 'inherit', minWidth: 0 }}>
       <span style={{ fontSize: 24, fontWeight: 900, color: tone, lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>{value}</span>
       <span style={{ fontSize: 12, fontWeight: 600, color: T.text2 }}>{label}</span>
     </Tag>
@@ -192,7 +192,7 @@ export function InlineError({ message, onRetry, retryLabel }) {
 
 // ── Card / section ─────────────────────────────────────────────────────────────
 export function Card({ children, pad = 16, style, accent, className, id }) {
-  return <div id={id} className={className} style={{ background: T.s1, border: `1px solid ${T.s1Line}`, borderRadius: 14, padding: pad, ...(accent ? { borderInlineStart: `3px solid ${accent}` } : {}), ...style }}>{children}</div>
+  return <div id={id} className={className} style={{ background: T.s1, border: `1px solid ${T.s1Line}`, boxShadow: T.cardShadow, borderRadius: 14, padding: pad, ...(accent ? { borderInlineStart: `3px solid ${accent}` } : {}), ...style }}>{children}</div>
 }
 export function SectionHead({ title, count, right, icon }) {
   return (
@@ -243,7 +243,7 @@ export function Modal({ open, onClose, title, children, footer, width = 560, ful
   useFocusTrap(open, ref, onClose, initialFocus)
   if (!open) return null
   return createPortal(
-    <div className="au" dir={dir} onMouseDown={e => { if (closeOnBackdrop && e.target === e.currentTarget) onClose() }} style={{ position: 'fixed', inset: 0, zIndex: 2500, background: 'rgba(0,0,0,.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: full ? 16 : 14 }}>
+    <div className="au" dir={dir} onMouseDown={e => { if (closeOnBackdrop && e.target === e.currentTarget) onClose() }} style={{ position: 'fixed', inset: 0, zIndex: 2500, background: 'var(--au-overlay)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: full ? 16 : 14 }}>
       <div ref={ref} role="dialog" aria-modal="true" aria-label={label || (typeof title === 'string' ? title : undefined)} className="au-in"
         style={{ width: full ? 'min(1120px, calc(100vw - 32px))' : '100%', maxWidth: full ? undefined : width, height: full ? 'min(780px, calc(100dvh - 32px))' : undefined, maxHeight: 'calc(100dvh - 28px)', display: 'flex', flexDirection: 'column', background: T.s2, border: `1px solid ${T.s2Line}`, borderRadius: 16, boxShadow: T.shadow2, overflow: 'hidden', color: T.text }}>
         {title != null && (
@@ -253,7 +253,7 @@ export function Modal({ open, onClose, title, children, footer, width = 560, ful
           </div>
         )}
         <div style={{ flex: 1, overflow: 'auto', padding: title != null ? 18 : 0, minHeight: 0 }}>{children}</div>
-        {footer && <div style={{ padding: '12px 16px', borderTop: `1px solid ${T.line}`, display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap', background: 'rgba(0,0,0,.18)' }}>{footer}</div>}
+        {footer && <div style={{ padding: '12px 16px', borderTop: `1px solid ${T.line}`, display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap', background: 'rgba(var(--shade),.06)' }}>{footer}</div>}
       </div>
     </div>, document.body)
 }
@@ -291,7 +291,7 @@ export function Drawer({ open, onClose, title, sub, children, dir }) {
   if (!open) return null
   const rtl = dir === 'rtl'
   return createPortal(
-    <div className="au" dir={dir} onMouseDown={e => e.target === e.currentTarget && onClose()} style={{ position: 'fixed', inset: 0, zIndex: 2600, background: 'rgba(0,0,0,.55)' }}>
+    <div className="au" dir={dir} onMouseDown={e => e.target === e.currentTarget && onClose()} style={{ position: 'fixed', inset: 0, zIndex: 2600, background: 'var(--au-overlay)' }}>
       <div ref={ref} role="dialog" aria-modal="true" aria-label={title}
         style={{ '--au-dx': rtl ? '-100%' : '100%', position: 'absolute', top: 0, bottom: 0, insetInlineEnd: 0, width: 'min(440px, 100vw)', background: T.s2, borderInlineStart: `1px solid ${T.s2Line}`, boxShadow: T.shadow2, display: 'flex', flexDirection: 'column', animation: 'au-drawer .22s ease both', color: T.text }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '16px 18px', borderBottom: `1px solid ${T.line}` }}>
@@ -327,9 +327,9 @@ export function Popover({ anchor, open, onClose, children, width = 260, dir, lab
   }, [open, onClose, anchor])
   if (!open) return null
   const body = mobile ? (
-    <div className="au" dir={dir} onMouseDown={e => e.target === e.currentTarget && onClose()} style={{ position: 'fixed', inset: 0, zIndex: 2700, background: 'rgba(0,0,0,.5)' }}>
+    <div className="au" dir={dir} onMouseDown={e => e.target === e.currentTarget && onClose()} style={{ position: 'fixed', inset: 0, zIndex: 2700, background: 'var(--au-overlay)' }}>
       <div ref={ref} role="dialog" aria-label={label} style={{ position: 'absolute', insetInline: 0, bottom: 0, maxHeight: '85dvh', overflow: 'auto', background: T.s2, borderRadius: '16px 16px 0 0', border: `1px solid ${T.s2Line}`, padding: '8px 12px calc(14px + env(safe-area-inset-bottom))', animation: 'au-sheet .2s ease both', color: T.text }}>
-        <div style={{ width: 40, height: 4, borderRadius: 2, background: 'rgba(255,255,255,.2)', margin: '4px auto 10px' }}/>
+        <div style={{ width: 40, height: 4, borderRadius: 2, background: 'rgba(var(--ov),.2)', margin: '4px auto 10px' }}/>
         {typeof children === 'function' ? children(onClose) : children}
       </div>
     </div>
@@ -377,7 +377,7 @@ export function SaveBar({ dirty, saving, error, onSave, onDiscard, t, justSaved 
   return (
     <div className="au-in au-savebar" role="region" aria-live="polite"
       style={{ position: 'sticky', bottom: 12, zIndex: 20, display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 12, flexWrap: 'wrap',
-        background: ok ? '#0F1E14' : error ? '#221213' : '#1A1710', border: `1px solid ${ok ? T.greenLine : error ? 'rgba(224,82,82,.5)' : 'rgba(245,166,35,.5)'}`, boxShadow: T.shadow3 }}>
+        background: ok ? 'color-mix(in srgb, #25D366 12%, var(--au-pop))' : error ? 'color-mix(in srgb, #E05252 12%, var(--au-pop))' : 'color-mix(in srgb, #F5A623 12%, var(--au-pop))', border: `1px solid ${ok ? T.greenLine : error ? 'rgba(224,82,82,.5)' : 'rgba(245,166,35,.5)'}`, boxShadow: T.shadow3 }}>
       <span style={{ width: 8, height: 8, borderRadius: '50%', background: ok ? T.green : error ? T.red : T.amber }}/>
       <span style={{ flex: 1, minWidth: 150, fontSize: 13, fontWeight: 700, color: ok ? T.green : error ? T.redText : T.amberText }}>{ok ? t.saved : error ? t.saveError(error) : t.unsaved}</span>
       {!ok && <Button onClick={onDiscard} disabled={saving}>{t.discard}</Button>}
@@ -404,7 +404,7 @@ export function useToasts() {
         const c = x.tone === 'error' ? T.red : x.tone === 'info' ? T.brand : x.tone === 'warn' ? T.amber : T.green
         const Ic = x.tone === 'error' ? FaTimesCircle : x.tone === 'info' ? FaInfoCircle : x.tone === 'warn' ? FaExclamationTriangle : FaCheckCircle
         return (
-          <div key={x.id} role={x.tone === 'error' ? 'alert' : 'status'} className="au-in" style={{ minWidth: 260, display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderRadius: 12, background: '#1B1F2E', border: `1px solid ${c}66`, boxShadow: T.shadow3, color: T.text, fontSize: 13, fontWeight: 700 }}>
+          <div key={x.id} role={x.tone === 'error' ? 'alert' : 'status'} className="au-in" style={{ minWidth: 260, display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderRadius: 12, background: 'var(--au-pop)', border: `1px solid ${c}66`, boxShadow: T.shadow3, color: T.text, fontSize: 13, fontWeight: 700 }}>
             <Ic size={14} color={c}/><span style={{ flex: 1 }}>{x.text}</span>
             {x.action && <button type="button" onClick={() => { x.action.onClick(); dismiss(x.id) }} style={{ background: 'none', border: 'none', color: T.brandText, fontWeight: 800, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', minHeight: 0, minWidth: 0, padding: 0 }}>{x.action.label}</button>}
             {x.tone === 'error' && <button type="button" aria-label="✕" onClick={() => dismiss(x.id)} style={{ background: 'none', border: 'none', color: T.text3, cursor: 'pointer', minHeight: 0, minWidth: 0, padding: 2 }}><FaTimes size={11}/></button>}
@@ -479,7 +479,7 @@ export function CopyField({ value, masked, labels }) {
 export function ProgressBar({ done, failed = 0, total, label }) {
   const p = total ? (done / total) * 100 : 0, f = total ? (failed / total) * 100 : 0
   return (
-    <div role="progressbar" aria-valuenow={done} aria-valuemin={0} aria-valuemax={total} aria-valuetext={label} style={{ height: 6, borderRadius: 3, background: 'rgba(255,255,255,.08)', overflow: 'hidden', display: 'flex' }}>
+    <div role="progressbar" aria-valuenow={done} aria-valuemin={0} aria-valuemax={total} aria-valuetext={label} style={{ height: 6, borderRadius: 3, background: 'rgba(var(--ov),.08)', overflow: 'hidden', display: 'flex' }}>
       <i style={{ width: `${p}%`, background: T.green, transition: 'width .3s' }}/><i style={{ width: `${f}%`, background: T.red }}/>
     </div>
   )

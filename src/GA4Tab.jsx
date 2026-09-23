@@ -102,7 +102,7 @@ function delta(cur, prev) {
 // ── small building blocks ─────────────────────────────────────────────────────
 function Panel({ title, sub, icon: Ic, right, children, pad = 18, style }) {
   return (
-    <section style={{ background: 'linear-gradient(180deg,rgba(255,255,255,.035),rgba(255,255,255,.015))', border: `1px solid ${T.s1Line}`, borderRadius: 16, padding: pad, minWidth: 0, ...style }}>
+    <section style={{ background: T.cardGrad, boxShadow: T.cardShadow, border: `1px solid ${T.s1Line}`, borderRadius: 16, padding: pad, minWidth: 0, ...style }}>
       {(title || right) && (
         <header style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 14 }}>
           {Ic && <span style={{ width: 30, height: 30, borderRadius: 9, background: T.brandSoft, color: T.brandText, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Ic size={13}/></span>}
@@ -145,7 +145,7 @@ function Spark({ data, color = T.brand, h = 30 }) {
 
 function Kpi({ icon: Ic, label, value, d, invert, spark, color, lang, hint }) {
   return (
-    <div style={{ background: 'linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.015))', border: `1px solid ${T.s1Line}`, borderRadius: 14, padding: '14px 14px 10px', display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }} title={hint}>
+    <div style={{ background: T.cardGrad, boxShadow: T.cardShadow, border: `1px solid ${T.s1Line}`, borderRadius: 14, padding: '14px 14px 10px', display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }} title={hint}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 7, color: T.text3, fontSize: 12, fontWeight: 700 }}>
         <Ic size={11} style={{ color, flexShrink: 0 }}/><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
       </div>
@@ -205,7 +205,7 @@ function Donut({ parts, size = 132, stroke = 16, center }) {
   return (
     <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ transform: 'rotate(-90deg)' }} aria-hidden>
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(255,255,255,.06)" strokeWidth={stroke}/>
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(var(--ov),.06)" strokeWidth={stroke}/>
         {parts.map((p, i) => {
           const len = (p.value / total) * c
           const el = <circle key={i} cx={size / 2} cy={size / 2} r={r} fill="none" stroke={p.color} strokeWidth={stroke} strokeDasharray={`${Math.max(len - 2, 0)} ${c}`} strokeDashoffset={-off}/>
@@ -245,19 +245,19 @@ function TrendChart({ cur, prev, labels, lang, fmt, color }) {
             <defs>
               <linearGradient id="ga-area" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor={color} stopOpacity=".32"/><stop offset="1" stopColor={color} stopOpacity="0"/></linearGradient>
             </defs>
-            {ticks.map((t, i) => <line key={i} x1="0" x2={W} y1={y(t)} y2={y(t)} stroke="rgba(255,255,255,.06)" vectorEffect="non-scaling-stroke"/>)}
-            {prev.length > 1 && <path d={path(prev)} fill="none" stroke="rgba(232,228,216,.35)" strokeWidth="1.5" strokeDasharray="5 5" vectorEffect="non-scaling-stroke"/>}
+            {ticks.map((t, i) => <line key={i} x1="0" x2={W} y1={y(t)} y2={y(t)} stroke="rgba(var(--ov),.06)" vectorEffect="non-scaling-stroke"/>)}
+            {prev.length > 1 && <path d={path(prev)} fill="none" stroke="rgba(var(--ink),.35)" strokeWidth="1.5" strokeDasharray="5 5" vectorEffect="non-scaling-stroke"/>}
             {n > 1 && <path d={`${path(cur)}L${W},${H}L0,${H}Z`} fill="url(#ga-area)"/>}
             <path d={path(cur)} fill="none" stroke={color} strokeWidth="2.4" strokeLinejoin="round" vectorEffect="non-scaling-stroke"/>
-            {hover !== null && <line x1={x(hover)} x2={x(hover)} y1="0" y2={H} stroke="rgba(232,228,216,.3)" vectorEffect="non-scaling-stroke"/>}
+            {hover !== null && <line x1={x(hover)} x2={x(hover)} y1="0" y2={H} stroke="rgba(var(--ink),.3)" vectorEffect="non-scaling-stroke"/>}
           </svg>
           {hover !== null && (
             <>
               <span style={{ position: 'absolute', left: `${(x(hover) / W) * 100}%`, top: y(cur[hover]), width: 10, height: 10, marginLeft: -5, marginTop: -5, borderRadius: '50%', background: color, boxShadow: `0 0 0 3px ${T.bg}` }}/>
-              <div role="status" style={{ position: 'absolute', top: 6, [hover > n / 2 ? 'right' : 'left']: `${hover > n / 2 ? 100 - (x(hover) / W) * 100 + 2 : (x(hover) / W) * 100 + 2}%`, background: '#141627', border: `1px solid ${T.s2Line}`, borderRadius: 10, padding: '8px 10px', fontSize: 12, color: T.text, boxShadow: T.shadow3, pointerEvents: 'none', whiteSpace: 'nowrap', zIndex: 2 }}>
+              <div role="status" style={{ position: 'absolute', top: 6, [hover > n / 2 ? 'right' : 'left']: `${hover > n / 2 ? 100 - (x(hover) / W) * 100 + 2 : (x(hover) / W) * 100 + 2}%`, background: T.tooltip, border: `1px solid ${T.s2Line}`, borderRadius: 10, padding: '8px 10px', fontSize: 12, color: T.text, boxShadow: T.shadow3, pointerEvents: 'none', whiteSpace: 'nowrap', zIndex: 2 }}>
                 <div style={{ color: T.text3, marginBottom: 4 }}>{labels[hover]}</div>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><i style={{ width: 8, height: 8, borderRadius: 2, background: color }}/><b style={{ fontVariantNumeric: 'tabular-nums' }}>{fmt(cur[hover])}</b></div>
-                {prev[hover] !== undefined && <div style={{ display: 'flex', gap: 8, alignItems: 'center', color: T.text2 }}><i style={{ width: 8, height: 2, background: 'rgba(232,228,216,.5)' }}/><span style={{ fontVariantNumeric: 'tabular-nums' }}>{fmt(prev[hover])}</span></div>}
+                {prev[hover] !== undefined && <div style={{ display: 'flex', gap: 8, alignItems: 'center', color: T.text2 }}><i style={{ width: 8, height: 2, background: 'rgba(var(--ink),.5)' }}/><span style={{ fontVariantNumeric: 'tabular-nums' }}>{fmt(prev[hover])}</span></div>}
               </div>
             </>
           )}
@@ -284,7 +284,7 @@ function Heatmap({ rows, t, lang }) {
         {Array.from({ length: 24 }, (_, h) => <span key={h} style={{ fontSize: 9.5, color: T.text3, textAlign: 'center' }}>{h % 3 === 0 ? String(h).padStart(2, '0') : ''}</span>)}
         {grid.map((row, d) => [
           <span key={`l${d}`} style={{ fontSize: 11, color: T.text2, textAlign: 'end', paddingInlineEnd: 4 }}>{t.dow[d]}</span>,
-          ...row.map((v, h) => <span key={`${d}-${h}`} title={`${t.dow[d]} ${String(h).padStart(2, '0')}:00 · ${fmtN(v, lang)}`} style={{ height: 18, borderRadius: 4, background: v ? `rgba(132,144,216,${0.12 + (v / max) * 0.88})` : 'rgba(255,255,255,.035)' }}/>),
+          ...row.map((v, h) => <span key={`${d}-${h}`} title={`${t.dow[d]} ${String(h).padStart(2, '0')}:00 · ${fmtN(v, lang)}`} style={{ height: 18, borderRadius: 4, background: v ? `rgba(132,144,216,${0.12 + (v / max) * 0.88})` : 'rgba(var(--ov),.035)' }}/>),
         ])}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end', marginTop: 10, fontSize: 11, color: T.text3 }}>
@@ -308,7 +308,7 @@ function Setup({ t, property }) {
       </div>
       <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
         {t.steps.map(([title, body, href, cta], i) => (
-          <li key={i} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '12px 14px', borderRadius: 12, background: 'rgba(255,255,255,.025)', border: `1px solid ${T.divider}` }}>
+          <li key={i} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '12px 14px', borderRadius: 12, background: 'rgba(var(--ov),.025)', border: `1px solid ${T.divider}` }}>
             <span style={{ width: 26, height: 26, borderRadius: '50%', background: T.brandSoft, color: T.brandText, fontSize: 12.5, fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{i + 1}</span>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 14, fontWeight: 700, color: T.text }}>{title}</div>
@@ -338,7 +338,7 @@ function ErrorState({ t, err, onRetry }) {
         <div style={{ flex: 1, minWidth: 0 }}>
           <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: T.text }}>{t.errTitle}</h3>
           <p style={{ margin: '6px 0 12px', fontSize: 13.5, color: T.text2, lineHeight: 1.6 }}>{why}</p>
-          {msg && <code dir="ltr" style={{ display: 'block', fontSize: 11.5, color: T.text3, background: 'rgba(0,0,0,.25)', borderRadius: 8, padding: '8px 10px', whiteSpace: 'pre-wrap', wordBreak: 'break-word', marginBottom: 12 }}>{msg}</code>}
+          {msg && <code dir="ltr" style={{ display: 'block', fontSize: 11.5, color: T.text3, background: 'rgba(var(--shade),.08)', borderRadius: 8, padding: '8px 10px', whiteSpace: 'pre-wrap', wordBreak: 'break-word', marginBottom: 12 }}>{msg}</code>}
           <Button variant="brand" icon={<FaSyncAlt size={11}/>} onClick={onRetry}>{t.retry}</Button>
         </div>
       </div>
@@ -381,7 +381,7 @@ function Realtime({ token, t, lang }) {
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {rt.devices.map(d => (
-            <div key={d.deviceCategory} style={{ flex: '1 1 90px', background: 'rgba(255,255,255,.03)', border: `1px solid ${T.divider}`, borderRadius: 10, padding: '8px 10px' }}>
+            <div key={d.deviceCategory} style={{ flex: '1 1 90px', background: 'rgba(var(--ov),.03)', border: `1px solid ${T.divider}`, borderRadius: 10, padding: '8px 10px' }}>
               <div style={{ fontSize: 11.5, color: T.text3 }}>{t.dev[d.deviceCategory] || d.deviceCategory}</div>
               <div style={{ fontSize: 16, fontWeight: 800, color: T.text, fontVariantNumeric: 'tabular-nums' }}>{fmtP(d.activeUsers / devTotal, lang, 0)}</div>
             </div>
@@ -455,7 +455,7 @@ export default function GA4Tab({ token, lang = 'he' }) {
         </div>
       </div>
       {data?.configured !== false && (
-        <div className="ga-seg" role="group" aria-label={t.days('')} style={{ display: 'inline-flex', background: 'rgba(255,255,255,.04)', border: `1px solid ${T.s1Line}`, borderRadius: 10, padding: 3, gap: 2 }}>
+        <div className="ga-seg" role="group" aria-label={t.days('')} style={{ display: 'inline-flex', background: 'rgba(var(--ov),.04)', border: `1px solid ${T.s1Line}`, borderRadius: 10, padding: 3, gap: 2 }}>
           {RANGES.map(n => (
             <button key={n} type="button" onClick={() => setDays(n)} aria-pressed={days === n}
               style={{ height: 30, padding: '0 12px', borderRadius: 8, border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12.5, fontWeight: 700, background: days === n ? T.brandSoft : 'transparent', color: days === n ? T.brandText : T.text3 }}>{t.days(n)}</button>
@@ -464,7 +464,7 @@ export default function GA4Tab({ token, lang = 'he' }) {
       )}
       {data?.configured !== false && <Button size="sm" icon={<FaSyncAlt size={10} className={loading ? 'au-spin' : ''}/>} onClick={() => load(true)} disabled={loading}>{t.refresh}</Button>}
       <a href={`https://analytics.google.com/analytics/web/#/p${data?.property || '536943897'}/reports/intelligenthome`} target="_blank" rel="noopener noreferrer"
-        style={{ display: 'inline-flex', alignItems: 'center', gap: 7, height: 30, padding: '0 12px', borderRadius: 9, border: '1px solid rgba(232,228,216,.18)', color: T.text2, fontSize: 12.5, fontWeight: 700, textDecoration: 'none' }}>
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 7, height: 30, padding: '0 12px', borderRadius: 9, border: '1px solid rgba(var(--ink),.18)', color: T.text2, fontSize: 12.5, fontWeight: 700, textDecoration: 'none' }}>
         {t.openGa}<FaExternalLinkAlt size={9}/>
       </a>
     </div>
@@ -524,7 +524,7 @@ export default function GA4Tab({ token, lang = 'he' }) {
           {s && <TrendChart cur={s[metric].cur} prev={s[metric].prev} labels={s.labels} lang={lang} fmt={v => fmtN(v, lang)} color={mDef.color}/>}
           <div style={{ display: 'flex', gap: 16, marginTop: 10, fontSize: 11.5, color: T.text3 }}>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><i style={{ width: 14, height: 3, borderRadius: 2, background: mDef.color }}/>{t.curLine}</span>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><i style={{ width: 14, height: 0, borderTop: '2px dashed rgba(232,228,216,.5)' }}/>{t.prevLine}</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><i style={{ width: 14, height: 0, borderTop: '2px dashed rgba(var(--ink),.5)' }}/>{t.prevLine}</span>
           </div>
         </Panel>
 
@@ -547,7 +547,7 @@ export default function GA4Tab({ token, lang = 'he' }) {
             </div>
             <div style={{ marginTop: 18, paddingTop: 14, borderTop: `1px solid ${T.divider}` }}>
               <div style={{ fontSize: 12.5, fontWeight: 700, color: T.text2, marginBottom: 8 }}>{t.audience}</div>
-              <div style={{ display: 'flex', height: 10, borderRadius: 6, overflow: 'hidden', background: 'rgba(255,255,255,.06)' }}>
+              <div style={{ display: 'flex', height: 10, borderRadius: 6, overflow: 'hidden', background: 'rgba(var(--ov),.06)' }}>
                 <span style={{ width: `${(nu / ((nu + ru) || 1)) * 100}%`, background: '#8490D8' }}/>
                 <span style={{ width: `${(ru / ((nu + ru) || 1)) * 100}%`, background: '#34D399' }}/>
               </div>

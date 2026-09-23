@@ -34,7 +34,7 @@ export default function SequenceBuilder({ steps, onChange, templates, tplName, r
 
   const Node = ({ children, tone = 'grey' }) => (
     <span style={{ width: 36, height: 36, borderRadius: '50%', flexShrink: 0, zIndex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800,
-      background: tone === 'brand' ? T.brandSoft : 'rgba(255,255,255,.08)', color: tone === 'brand' ? T.brand : T.text3, border: `1px solid ${tone === 'brand' ? 'rgba(132,144,216,.35)' : 'rgba(255,255,255,.1)'}` }}>{children}</span>
+      background: tone === 'brand' ? T.brandSoft : 'rgba(var(--ov),.08)', color: tone === 'brand' ? T.brand : T.text3, border: `1px solid ${tone === 'brand' ? 'rgba(132,144,216,.35)' : 'rgba(var(--ov),.1)'}` }}>{children}</span>
   )
   return (
     <div style={{ position: 'relative' }}>
