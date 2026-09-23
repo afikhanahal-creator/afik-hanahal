@@ -5,6 +5,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { supabase } from './lib/supabaseClient'
 import { templateList, renderTemplate, CATEGORIES } from '../lib/automations-shared.js'
+import { WAText } from './waFormat.jsx'
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 const API_BASE      = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
@@ -1069,7 +1070,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                             </div>
                           )}
                           {(!msg.file || (msg.message && msg.message !== msg.file.name)) && msg.message && (
-                            <div style={{ direction:'rtl', unicodeBidi:'plaintext', textAlign:'right', wordBreak:'break-word', whiteSpace:'pre-wrap' }}>{msg.message}</div>
+                            <div style={{ direction:'rtl', unicodeBidi:'plaintext', textAlign:'right', wordBreak:'break-word', whiteSpace:'pre-wrap' }}><WAText text={msg.message}/></div>
                           )}
                           <div style={{ position:'absolute', bottom:5, left:8, display:'flex', alignItems:'center', gap:3, direction:'ltr', userSelect:'none' }}>
                             <span style={{ fontSize:11, color: WA.subText }}>{fmtTime(msg.created_at)}</span>

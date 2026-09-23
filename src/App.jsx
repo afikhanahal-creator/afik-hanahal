@@ -1003,6 +1003,10 @@ const makeGlobal = (C, isDark) => `
     .admin-bottom-nav { display: flex; }
     .admin-content { padding-bottom: 72px !important; }
     .admin-tabs-bar { display: none !important; }
+    /* Phone: the admin modal becomes a full-screen app – every tab gets the whole width */
+    .admin-shell { padding: 0 !important; }
+    .admin-panel-modal { padding: 12px 10px 0 !important; border-radius: 0 !important; border: none !important; height: 100dvh !important; max-width: 100vw !important; }
+    .admin-content { padding-left: 6px !important; padding-right: 6px !important; }
   }
 
   /* ── Scrollbar on right for admin panel (ltr outer = scrollbar right, content restored via > *) ── */

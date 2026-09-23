@@ -115,7 +115,11 @@ Ready-made WhatsApp messages for every lead, sent through Green API (`WA_GREENAP
 | Templates (Hebrew + English), placeholders, quiet hours, reply detection — shared by server and browser | `lib/automations-shared.js` |
 | Engine: welcome on new lead, stage-change messages, no-reply sequence, reply intent, re-engagement, send log | `lib/automations.js` |
 | API (`/api/meta/auto-*`: config, run, send, skip, optout, test, log, leads, status) | `api/meta.js` → `handleAutomations` |
-| Admin tab (overview, approval queue, templates, rules, bulk send, log) | `src/AutomationsTab.jsx` (+ `src/AutomationsApi.jsx`) |
+| Admin tab shell: Today (approvals + upcoming), Rules, Log, System status drawer | `src/AutomationsTab.jsx` (+ `src/AutomationsApi.jsx` for the eager API/prompt) |
+| Templates tab (library, full-screen editor with phone preview, starters, safe delete) | `src/TemplateStudio.jsx` |
+| Sending hours tab (presets, week editor with 30-min handles) · no-reply timeline | `src/WeekSchedule.jsx` · `src/SequenceBuilder.jsx` |
+| Bulk sends (server-side jobs, 3-step wizard, schedule / send now) | `src/CampaignsTab.jsx` |
+| UI kit (tokens, buttons, dialogs, popovers, toasts) · WhatsApp formatting | `src/automationsUI.jsx` · `src/waFormat.jsx` |
 | DB tables `app_settings`, `automation_log` | `server/automations-migration.sql` |
 
 Every rule has a mode: `off` · `suggest` (waits in the approval queue, sent with one click) · `auto`. Hooks: `api/contacts.js`
@@ -124,3 +128,8 @@ POST → `onLeadCreated` (welcome), PATCH with a new `leadStatus` → `onStageCh
 optOut / intent / stageAt). Automations only touch leads, replies and stage changes after `config.installedAt`, and a lead
 who replied "no thanks" gets nothing more. Leads from the English site (`crm_data.origin.lang = 'en'`) get the English text.
 Keep every template bilingual (`he` + `en`, `he_title` + `en_title`).
+
+Scheduled bulk sends are jobs in `app_settings` (`automations_jobs`), rendered at send time, max 20 messages per run;
+`auto-jobs-tick` pushes a running job from the open panel. `auto-tick?key=` (key = `AUTOMATION_KEY`, or the admin token)
+lets an external pinger such as cron-job.org run the engine every 5 minutes, so timing is exact even with the panel closed.
+Sending hours are `[start, end)` per weekday in 0.5-hour steps (Israel time); welcome, replies and stage messages ignore them.

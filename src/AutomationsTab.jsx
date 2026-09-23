@@ -1,795 +1,902 @@
 // ─── ADMIN: WhatsApp automations ("אוטומציות") ─────────────────────────────────
-// Everything the sales team needs to message interested people without typing the same text again:
-//   סקירה      – Green API connection check, master switch, numbers, test message
-//   לאישור     – the approval queue: messages the rules prepared (no reply, "yes", "no thanks", stage…)
-//   תבניות     – the message library (Hebrew + English), editable, with placeholders
-//   כללים      – when each message goes out: off / waits for approval / automatic, quiet hours
-//   שליחה מרובה – one template to many leads, personalised, skipping people who opted out
-//   יומן       – every message the system sent or failed to send
-// Server side: lib/automations.js through /api/meta/auto-*. Shared logic: lib/automations-shared.js.
+// Redesign (spec by the design pass): header with system-status pill + master switch · sticky sub-nav
+//   היום (approvals + what goes out next) · תבניות · כללים · שעות שליחה · שליחה מרובה · יומן
+// plus the "מצב המערכת" drawer. rules / quiet / vars share one draft and one sticky save bar.
+// Server: lib/automations.js via /api/meta/auto-*. Shared logic: lib/automations-shared.js.
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { FaWhatsapp, FaRobot, FaCheck, FaTimes, FaPaperPlane, FaSyncAlt, FaCopy, FaPlus, FaTrash, FaUndo, FaSearch, FaBolt, FaClock, FaListUl, FaHistory, FaSlidersH, FaUsers, FaCommentDots, FaExclamationTriangle } from 'react-icons/fa'
-import { DEFAULT_CONFIG, DEFAULT_TEMPLATES, CATEGORIES, VARIABLES, STAGES, RULE_LABELS, templateList, renderTemplate, mergeConfig, leadLang, intlPhone, ruleKind, isSendWindow } from '../lib/automations-shared.js'
-
+import { FaRobot, FaInbox, FaCommentDots, FaProjectDiagram, FaClock, FaBullhorn, FaHistory, FaSyncAlt, FaWhatsapp, FaPaperPlane, FaTimes, FaPen, FaCheckCircle, FaCalendarCheck, FaMoon, FaEllipsisV, FaArrowLeft, FaArrowRight, FaCheck, FaTimesCircle, FaSearch, FaRedo, FaUserSlash, FaDatabase, FaPowerOff, FaHeartbeat, FaSatelliteDish, FaExternalLinkAlt, FaChevronDown, FaExclamationTriangle } from 'react-icons/fa'
+import { DEFAULT_CONFIG, STAGES, templateList, renderTemplate, mergeConfig, ruleKind, isSendWindow, nextSendWindow, nextWindows, fmtHour, israelNow, classifyReply, matchedKeyword } from '../lib/automations-shared.js'
 import { autoApi } from './AutomationsApi.jsx'
+import { T, AUTO_CSS, Button, IconButton, Card, Badge, FilterChip, Toggle, ModeSwitch, ModeBadge, StatTile, EmptyState, Skeleton, InlineError, Drawer, HealthItem, StatusPill, CopyField, SaveBar, useToasts, ConfirmProvider, useConfirm, Popover, MenuButton, MenuItem, MODE_COLOR, inputStyle, Field } from './automationsUI.jsx'
+import { WAText } from './waFormat.jsx'
+import HoursTab from './WeekSchedule.jsx'
+import SequenceBuilder from './SequenceBuilder.jsx'
+import TemplatesTab from './TemplateStudio.jsx'
+import CampaignsTab, { whenText } from './CampaignsTab.jsx'
 
 const TR = {
   he: {
-    title: 'אוטומציות וואטסאפ', subtitle: 'הודעות מוכנות לכל מתעניין · שליחה בלחיצה או אוטומטית',
-    tabs: { overview: 'סקירה', queue: 'לאישור', templates: 'תבניות', rules: 'כללים', broadcast: 'שליחה מרובה', log: 'יומן' },
-    connection: 'חיבור Green API', connected: 'מחובר ופועל', notConnected: 'לא מחובר', checking: 'בודק…', notConfigured: 'חסרים משתנים ב-Vercel',
-    notAuthorized: 'המכשיר לא מחובר – סרקו QR בלוח של Green API', blocked: 'המספר חסום', yellowCard: 'מוגבל זמנית ע״י וואטסאפ', errorState: 'שגיאה בבדיקה',
-    number: 'מספר מחובר', instance: 'Instance', recheck: 'בדוק שוב', sendTest: 'שלח הודעת בדיקה למשרד', testSent: 'הודעת הבדיקה נשלחה ✓',
-    master: 'מערכת האוטומציות', on: 'פעילה', off: 'כבויה',
-    pending: 'ממתינות לאישור', sent7: 'נשלחו ב-7 ימים', positive: 'ענו בחיוב', negative: 'ביקשו להפסיק', failed: 'נכשלו',
-    runNow: 'הרץ עכשיו', lastRun: 'ריצה אחרונה', runsEvery: 'המערכת רצה אוטומטית כל 5 דקות כשהפאנל פתוח, ופעם ביום גם בלעדיו.',
-    storageMissing: 'כדי לשמור שינויים ויומן מלא צריך להריץ פעם אחת את הקובץ server/automations-migration.sql ב-Supabase (SQL Editor). עד אז המערכת עובדת עם הגדרות ברירת המחדל.',
-    flow: 'איך זה עובד', flowSteps: ['ליד משאיר פרטים', 'הודעת פתיחה מיידית', 'לא ענה? תזכורת אחרי 24 שעות', 'עוד 48 שעות – ערך נוסף', 'עוד 96 שעות – ניסיון אחרון'],
-    flowReplies: 'כשהלקוח עונה – המעקב נעצר. "כן / מעוניין" → התראה לצוות + הודעת המשך. "לא תודה" → המערכת מפסיקה לשלוח לו.',
-    windowOpen: 'עכשיו בתוך שעות השליחה', windowClosed: 'עכשיו מחוץ לשעות השליחה – הודעות מתוזמנות ימתינו',
-    queueEmpty: 'אין הודעות שממתינות לאישור 🎉', send: 'שלח', skip: 'דלג', sendAll: 'שלח הכל', openChat: 'פתח צ׳אט', sending: 'שולח…',
-    sentOk: 'נשלח ✓', edited: 'נערך', allKinds: 'הכל',
-    templates: 'תבניות', newTemplate: 'תבנית חדשה', edit: 'עריכה', copy: 'העתק', copied: 'הועתק', duplicate: 'שכפל', del: 'מחק', reset: 'שחזר מקור', save: 'שמור', cancel: 'ביטול', saving: 'שומר…', saved: 'נשמר ✓',
-    titleHe: 'שם התבנית (עברית)', titleEn: 'שם התבנית (אנגלית)', textHe: 'טקסט בעברית', textEn: 'טקסט באנגלית (ללידים מהאתר באנגלית)', category: 'קטגוריה', vars: 'משתנים – לחצו כדי להוסיף',
-    preview: 'תצוגה מקדימה', previewFor: 'עבור', sampleLead: 'ליד לדוגמה', sendTo: 'שלח ל…', searchLead: 'חיפוש ליד לפי שם או טלפון',
-    modeOff: 'כבוי', modeSuggest: 'לאישור', modeAuto: 'אוטומטי', modeHint: 'לאישור = ההודעה מחכה בלשונית "לאישור" ונשלחת בלחיצה · אוטומטי = נשלחת לבד',
-    welcomeRule: 'הודעת פתיחה לליד חדש', welcomeTpl: 'תבנית רגילה', welcomePropTpl: 'כשהליד התעניין בנכס מסוים',
-    noReplyRule: 'לא ענה – רצף תזכורות', step: 'שלב', afterHours: 'שעות אחרי ההודעה הקודמת', addStep: 'הוסף שלב', onlyStages: 'רק ללידים בשלבים',
-    repliesRule: 'זיהוי תשובות', notifyTeam: 'התראה לצוות בוואטסאפ', negWords: 'מילים של "לא תודה"', posWords: 'מילים של "רוצה להתקדם"', commaSep: 'מופרד בפסיקים',
-    onNegative: 'כשענה "לא תודה"', onPositive: 'כשענה בחיוב', moveTo: 'העבר לשלב', noMove: 'אל תזיז',
-    stageRule: 'הודעה בשינוי שלב בלוח', stage: 'שלב', template: 'תבנית', reengageRule: 'חזרה ללקוח "ללא מענה"', afterDays: 'ימים בשלב',
-    quiet: 'שעות שליחה (שעון ישראל)', quietHint: 'תזכורות ומעקבים נשלחים רק בשעות האלה. הודעת פתיחה ותשובה ללקוח נשלחות מיד.', closed: 'סגור',
-    days: ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'],
-    varsTitle: 'פרטי המשרד בהודעות', agentHe: 'שם הנציג (עברית)', agentEn: 'שם הנציג (אנגלית)', officePhone: 'טלפון המשרד', sellLink: 'קישור לטופס קליטת נכס',
-    saveRules: 'שמור הגדרות', unsaved: 'יש שינויים שלא נשמרו',
-    bcTemplate: 'בחרו תבנית', bcStages: 'שלבים', bcPeriod: 'תקופה', bcAll: 'הכל', bcDays: d => `${d} ימים`, bcSkipSent: 'דלג על מי שכבר קיבל את התבנית הזו',
-    bcSelected: n => `${n} נבחרו`, bcSend: n => `שלח ל-${n} לידים`, bcConfirm: n => `לשלוח עכשיו ${n} הודעות וואטסאפ?`, bcDone: (ok, bad) => `נשלחו ${ok}${bad ? ` · נכשלו ${bad}` : ''}`,
-    selectAll: 'בחר הכל', clear: 'נקה', optedOut: 'ביקש להפסיק', noPhone: 'אין טלפון', progress: 'התקדמות',
-    logEmpty: 'עוד לא נשלחו הודעות', logAll: 'הכל', logOk: 'נשלחו', logFailed: 'נכשלו', by: { auto: 'אוטומטי', cron: 'אוטומטי (לילה)', manual: 'ידני' },
+    title: 'אוטומציות וואטסאפ', subtitle: 'הודעות מוכנות לכל מתעניין – בלחיצה או אוטומטית',
+    tabs: { today: 'היום', templates: 'תבניות', rules: 'כללים', hours: 'שעות שליחה', campaigns: 'שליחה מרובה', log: 'יומן' },
+    tabsM: { today: 'היום', templates: 'תבניות', rules: 'כללים', hours: 'שעות', campaigns: 'שליחה', log: 'יומן' },
+    todayAria: n => `היום, ${n} ממתינות לאישור`,
+    masterOn: 'אוטומציות פעילות', masterOff: 'אוטומציות כבויות',
+    masterOffBanner: 'האוטומציות כבויות. שום הודעה לא נשלחת לבד ושום דבר לא נכנס לתור.', turnOn: 'הפעל',
+    confirmOffTitle: 'לכבות את כל האוטומציות?', confirmOffBody: 'הודעות פתיחה, תזכורות והודעות שלב יפסיקו לצאת עד שתפעילו מחדש.', confirmOffBtn: 'כבה',
+    pillOk: 'המערכת תקינה', pillWarn: n => `דורש תשומת לב (${n})`, pillErr: 'לא שולח', pillChecking: 'בודק…',
+    storageBanner: 'השינויים לא נשמרים – חסרות טבלאות במסד הנתונים.', howToFix: 'איך מתקנים',
+    runNow: 'הרץ עכשיו', runNowTip: 'שולח את מה שהגיע זמנו ומעדכן את התור',
+    unsaved: 'יש שינויים שלא נשמרו', discard: 'בטל שינויים', saveChanges: 'שמור שינויים', saving: 'שומר…', saved: 'נשמר ✓', saveError: e => `השמירה נכשלה: ${e}`,
+    cancel: 'ביטול', close: 'סגור', undo: 'בטל', retry: 'נסה שוב', error: 'שגיאה',
+    inMin: n => `עוד ${n} דק׳`, inHours: n => `עוד ${n} שע׳`, inDays: n => `עוד ${n} ימים`, now: 'עכשיו',
+    // today
+    filterAll: 'הכל', filterApprove: 'לאישור', filterAuto: 'אוטומטי',
+    waiting: 'מחכות לאישור שלך', sendAll: n => `שלח את כולן (${n})`, sendAllConfirm: n => `לשלוח עכשיו ${n} הודעות וואטסאפ?`, send: 'שלח',
+    upcoming: 'מתוזמנות', grpHours: 'בשעות הקרובות', grpTomorrow: 'מחר', grpWeek: 'השבוע', heldQuiet: 'ממתין לשעות השליחה',
+    sendNow: 'שלח עכשיו', skip: 'דלג', openChat: 'פתח צ׳אט', editMsg: 'ערוך הודעה', revertMsg: 'שחזר נוסח', edited: 'נערך',
+    sentTo: n => `נשלח ל${n}`, skipped: n => `דילגת על ${n}`, outsideConfirm: 'עכשיו מחוץ לשעות השליחה. לשלוח בכל זאת?', outsideBtn: 'שלח בכל זאת',
+    emptyApproveT: 'אין מה לאשר כרגע', emptyApproveB: 'הודעות שדורשות אישור יופיעו כאן.',
+    emptyUpcomingT: 'אין הודעות מתוזמנות לשבוע הקרוב', emptyUpcomingB: 'תזכורות נוצרות כשליד לא עונה. אפשר לשנות את הרצף בלשונית ״כללים״.', goRules: 'לכללים',
+    loadErr: 'לא הצלחנו לטעון את התור',
+    winOpen: 'פתוח לשליחה', winOpenSub: t => `נסגר היום ב-${t}`, winClosed: 'סגור לשליחה', winClosedSub: (d, t) => `נפתח ${d} ב-${t}`, winNone: 'אין חלון שליחה קרוב', winUnlimited: 'ללא הגבלת שעות', editHours: 'ערוך שעות',
+    kpiPending: 'ממתינות לאישור', kpiSent: 'נשלחו השבוע', kpiPos: 'ענו בחיוב', kpiFail: 'נכשלו השבוע',
+    nextCampaign: 'השליחה המתוזמנת הבאה', open: 'פתח', bulkRow: n => `שליחה מרובה · ${n} לידים`,
+    howItWorks: 'ככה זה עובד', flow1: tp => `ליד חדש ← מקבל מיד את ״${tp}״`, flow2: (n, d) => `לא ענה ← עד ${n} תזכורות לאורך ${d} ימים`, flow3: 'ענה ← התזכורות נעצרות והצוות מקבל התראה',
+    days: ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'], dShort: ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'], today: 'היום', tomorrow: 'מחר',
     kind: { welcome: 'פתיחה', noreply: 'לא ענה', reply: 'תשובה', stage: 'שלב', reengage: 'חזרה', manual: 'ידני', tpl: 'שליחה מרובה', test: 'בדיקה' },
-    unoptout: 'החזר לקבלת הודעות', error: 'שגיאה',
+    modesBadge: { off: 'כבוי', suggest: 'יחכה לאישור', auto: 'יישלח אוטומטית' },
+    // rules
+    legendIntro: 'לכל כלל שלושה מצבים:', legend: { off: 'כבוי – לא נשלח כלום', suggest: 'לאישור – ההודעה מחכה לך בלשונית ״היום״', auto: 'אוטומטי – נשלח לבד' },
+    modes: { off: 'כבוי', suggest: 'לאישור', auto: 'אוטומטי' },
+    helpOff: 'הכלל כבוי – לא יישלח כלום', helpSuggest: 'ההודעות יחכו לאישור שלך בלשונית ״היום״', helpAuto: 'נשלח לבד, בתוך שעות השליחה', helpAutoNow: 'נשלח לבד, מיד',
+    wS1a: 'כשנכנס', wS1b: 'ליד חדש', wS1c: '← שלח', wS2: 'אם התעניין בנכס מסוים ← שלח במקום', welcomeHelp: 'הודעת הפתיחה יוצאת מיד, גם מחוץ לשעות השליחה.',
+    nrA: 'כשליד בשלבים', nrB: 'לא עונה', nrC: n => `← שלח עד ${n} תזכורות`, stagesPick: 'שלבים',
+    rS: ['כשליד', 'עונה', '← התזכורות נעצרות והמערכת מזהה מה הוא רוצה'], notifyTeam: 'שלח התראה לצוות בוואטסאפ',
+    negTitle: 'ענה ״לא תודה״', negNote: 'מעכשיו לא יקבל יותר הודעות אוטומטיות.', posTitle: 'רוצה להתקדם', sendLbl: 'שלח', moveTo: 'העבר לשלב', noMove: 'אל תזיז',
+    triggerWords: 'מילים שמזהות', addWord: 'הקלידו מילה ולחצו Enter', showMore: n => `הצג עוד ${n}`, removeWord: w => `הסר ${w}`,
+    tester: 'בדקו תשובה לדוגמה', testerPh: 'למשל: כן, אשמח לשמוע פרטים', detNeg: 'מזוהה כ״לא תודה״', detPos: 'מזוהה כ״רוצה להתקדם״', detReply: 'תשובה רגילה – רק עוצרת תזכורות', matchedBy: w => `זוהה לפי: ״${w}״`,
+    stS: ['כשליד', 'עובר שלב', 'בלוח ← שלח הודעה מתאימה'], stageHelp: 'במצב ״לאישור״ לוח הלידים ישאל אותך ברגע ההעברה.',
+    reA: 'כשליד נמצא', reB: 'ימים בשלב', reC: 'ללא מענה', reD: '← שלח', daysLbl: 'ימים',
+    ruleStats: (n, m) => `${n} נשלחו ב-30 יום · ${m} ממתינות`, pickTpl: 'בחרו תבנית', tplGone: 'התבנית נמחקה – בחרו אחרת',
+    rWelcome: 'הודעת פתיחה', rNoReply: 'לא ענה', rReplies: 'זיהוי תשובות', rStage: 'שינוי שלב', rRe: 'חזרה ללקוח',
+    // log
+    lAll: 'הכל', lSent: 'נשלחו', lFailed: 'נכשלו', lOpted: n => `ביקשו להפסיק (${n})`, allKinds: 'כל הסוגים', lSearch: 'חיפוש לפי שם, טלפון או טקסט',
+    by: { auto: 'אוטומטי', cron: 'אוטומטי (יומי)', external: 'פינג חיצוני', manual: 'ידני', scheduled: 'שליחה מרובה' },
+    loadMore: 'טען עוד', lEmpty: 'עוד לא נשלחו הודעות', statusSent: 'נשלח', statusFailed: 'נכשל', resent: 'נשלח שוב',
+    unopt: 'החזר לקבלת הודעות', unoptT: n => `להחזיר את ${n} לקבלת הודעות?`, unoptB: 'הלקוח ביקש להפסיק. החזירו רק אם ביקש בעצמו לשמוע מכם שוב.', unoptDone: 'הלקוח יקבל שוב הודעות', noOpted: 'אף אחד לא ביקש להפסיק',
+    // system
+    sysTitle: 'מצב המערכת', allGood: 'הכל תקין – ההודעות יוצאות כרגיל', nIssues: n => `${n} דברים דורשים טיפול`,
+    waTitle: 'חיבור לוואטסאפ (Green API)', waOk: p => `מחובר · ${p}`, waNotAuth: 'הטלפון לא מקושר – סרקו את קוד ה-QR בלוח של Green API', openGreen: 'פתח את Green API',
+    waNotConf: v => `חסרים משתני סביבה ב-Vercel: ${v}`, waErr: e => `לא מצליחים להתחבר: ${e}`, checkAgain: 'בדוק שוב',
+    dbTitle: 'מסד נתונים', dbOk: 'טבלאות ההגדרות והיומן קיימות', dbMissing: 'חסרות טבלאות – ההגדרות לא נשמרות. הריצו פעם אחת את הקובץ server/automations-migration.sql ב-Supabase ‏(SQL Editor).', copyFile: 'העתק שם קובץ', copied: 'הועתק ✓',
+    masterTitle: 'מתג ראשי', masterOnD: 'פעיל', masterOffD: 'כבוי – לא נשלח כלום', hoursTitle: 'שעות שליחה',
+    runTitle: 'ריצה אוטומטית אחרונה', runAgo: (a, s) => `${a} · ${s}`, src: { panel: 'מהפאנל', cron: 'ריצה יומית', external: 'פינג חיצוני', test: 'בדיקה' }, runStale: 'לא הייתה ריצה ב-24 השעות האחרונות', runNone: 'עדיין לא רצה',
+    pingTitle: 'תזמון מדויק (אופציונלי)', pingExplain: 'בלי זה, המערכת רצה כל 5 דקות רק כשהפאנל פתוח, ופעם ביום בלעדיו. פינג חיצוני כל 5 דקות שומר על התזכורות והשליחות המתוזמנות בזמן.',
+    pingUrl: 'כתובת לפינג', show: 'הצג', hide: 'הסתר', copy: 'העתק', pingSteps: ['פתחו חשבון חינמי ב-cron-job.org', 'צרו Cronjob חדש והדביקו את הכתובת', 'בחרו ״כל 5 דקות״ ושמרו'], pingOff: 'לא הוגדר', pingOn: n => `פעיל · פינג אחרון לפני ${n} דק׳`,
+    testTitle: 'הודעת בדיקה', testBtn: 'שלח הודעת בדיקה למשרד', testSent: 'הודעת הבדיקה נשלחה ✓', agoMin: n => `לפני ${n} דק׳`, agoH: n => `לפני ${n} שע׳`, agoD: n => `לפני ${n} ימים`, justNow: 'הרגע',
+    tone: { ok: 'תקין', warn: 'אזהרה', error: 'שגיאה', info: 'מידע', off: 'כבוי' },
   },
   en: {
-    title: 'WhatsApp automations', subtitle: 'Ready-made messages for every inquiry · one click or fully automatic',
-    tabs: { overview: 'Overview', queue: 'To approve', templates: 'Templates', rules: 'Rules', broadcast: 'Bulk send', log: 'Log' },
-    connection: 'Green API connection', connected: 'Connected and working', notConnected: 'Not connected', checking: 'Checking…', notConfigured: 'Missing Vercel variables',
-    notAuthorized: 'Phone not linked – scan the QR code in the Green API console', blocked: 'Number blocked', yellowCard: 'Temporarily limited by WhatsApp', errorState: 'Check failed',
-    number: 'Linked number', instance: 'Instance', recheck: 'Check again', sendTest: 'Send a test message to the office', testSent: 'Test message sent ✓',
-    master: 'Automation system', on: 'On', off: 'Off',
-    pending: 'Waiting for approval', sent7: 'Sent in 7 days', positive: 'Replied positively', negative: 'Asked to stop', failed: 'Failed',
-    runNow: 'Run now', lastRun: 'Last run', runsEvery: 'The system runs every 5 minutes while the panel is open, and once a day without it.',
-    storageMissing: 'To save changes and keep a full log, run server/automations-migration.sql once in Supabase (SQL Editor). Until then the system works with the default settings.',
-    flow: 'How it works', flowSteps: ['Lead leaves details', 'Instant welcome message', 'No reply? Reminder after 24h', '48h later – added value', '96h later – last try'],
-    flowReplies: 'When the lead replies, follow-ups stop. "Yes / interested" → team alert + next-step message. "No thanks" → the system stops messaging them.',
-    windowOpen: 'Inside sending hours now', windowClosed: 'Outside sending hours – scheduled messages will wait',
-    queueEmpty: 'Nothing waiting for approval 🎉', send: 'Send', skip: 'Skip', sendAll: 'Send all', openChat: 'Open chat', sending: 'Sending…',
-    sentOk: 'Sent ✓', edited: 'Edited', allKinds: 'All',
-    templates: 'Templates', newTemplate: 'New template', edit: 'Edit', copy: 'Copy', copied: 'Copied', duplicate: 'Duplicate', del: 'Delete', reset: 'Restore original', save: 'Save', cancel: 'Cancel', saving: 'Saving…', saved: 'Saved ✓',
-    titleHe: 'Template name (Hebrew)', titleEn: 'Template name (English)', textHe: 'Hebrew text', textEn: 'English text (for leads from the English site)', category: 'Category', vars: 'Placeholders – click to insert',
-    preview: 'Preview', previewFor: 'for', sampleLead: 'Sample lead', sendTo: 'Send to…', searchLead: 'Search a lead by name or phone',
-    modeOff: 'Off', modeSuggest: 'Approve', modeAuto: 'Automatic', modeHint: 'Approve = the message waits in "To approve" and goes out with one click · Automatic = sent by the system',
-    welcomeRule: 'Welcome message to a new lead', welcomeTpl: 'Default template', welcomePropTpl: 'When the lead asked about a specific property',
-    noReplyRule: 'No reply – reminder sequence', step: 'Step', afterHours: 'hours after the previous message', addStep: 'Add step', onlyStages: 'Only for leads in stages',
-    repliesRule: 'Reply detection', notifyTeam: 'WhatsApp alert to the team', negWords: '"No thanks" words', posWords: '"Wants to move forward" words', commaSep: 'comma separated',
-    onNegative: 'When they reply "no thanks"', onPositive: 'When they reply positively', moveTo: 'Move to stage', noMove: 'Do not move',
-    stageRule: 'Message on board stage change', stage: 'Stage', template: 'Template', reengageRule: 'Re-engage "no answer" leads', afterDays: 'days in stage',
-    quiet: 'Sending hours (Israel time)', quietHint: 'Reminders and follow-ups go out only during these hours. Welcome messages and replies are sent right away.', closed: 'Closed',
-    days: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
-    varsTitle: 'Office details used in messages', agentHe: 'Agent name (Hebrew)', agentEn: 'Agent name (English)', officePhone: 'Office phone', sellLink: 'Property intake form link',
-    saveRules: 'Save settings', unsaved: 'You have unsaved changes',
-    bcTemplate: 'Choose a template', bcStages: 'Stages', bcPeriod: 'Period', bcAll: 'All', bcDays: d => `${d} days`, bcSkipSent: 'Skip leads who already got this template',
-    bcSelected: n => `${n} selected`, bcSend: n => `Send to ${n} leads`, bcConfirm: n => `Send ${n} WhatsApp messages now?`, bcDone: (ok, bad) => `Sent ${ok}${bad ? ` · failed ${bad}` : ''}`,
-    selectAll: 'Select all', clear: 'Clear', optedOut: 'Opted out', noPhone: 'No phone', progress: 'Progress',
-    logEmpty: 'No messages sent yet', logAll: 'All', logOk: 'Sent', logFailed: 'Failed', by: { auto: 'Automatic', cron: 'Automatic (nightly)', manual: 'Manual' },
-    kind: { welcome: 'Welcome', noreply: 'No reply', reply: 'Reply', stage: 'Stage', reengage: 'Re-engage', manual: 'Manual', tpl: 'Bulk', test: 'Test' },
-    unoptout: 'Allow messages again', error: 'Error',
+    title: 'WhatsApp automations', subtitle: 'Ready-made messages for every inquiry – one click or fully automatic',
+    tabs: { today: 'Today', templates: 'Templates', rules: 'Rules', hours: 'Sending hours', campaigns: 'Bulk sends', log: 'Log' },
+    tabsM: { today: 'Today', templates: 'Templates', rules: 'Rules', hours: 'Hours', campaigns: 'Bulk', log: 'Log' },
+    todayAria: n => `Today, ${n} awaiting approval`,
+    masterOn: 'Automations on', masterOff: 'Automations off',
+    masterOffBanner: 'Automations are off. Nothing is sent automatically and nothing is queued.', turnOn: 'Turn on',
+    confirmOffTitle: 'Turn off all automations?', confirmOffBody: 'Welcome messages, reminders and stage messages will stop until you turn them back on.', confirmOffBtn: 'Turn off',
+    pillOk: 'All systems go', pillWarn: n => `Needs attention (${n})`, pillErr: 'Not sending', pillChecking: 'Checking…',
+    storageBanner: "Changes aren't being saved – database tables are missing.", howToFix: 'How to fix',
+    runNow: 'Run now', runNowTip: 'Sends whatever is due and refreshes the queue',
+    unsaved: 'You have unsaved changes', discard: 'Discard', saveChanges: 'Save changes', saving: 'Saving…', saved: 'Saved ✓', saveError: e => `Couldn't save: ${e}`,
+    cancel: 'Cancel', close: 'Close', undo: 'Undo', retry: 'Try again', error: 'Error',
+    inMin: n => `in ${n} min`, inHours: n => `in ${n}h`, inDays: n => `in ${n} days`, now: 'now',
+    filterAll: 'All', filterApprove: 'To approve', filterAuto: 'Automatic',
+    waiting: 'Waiting for your approval', sendAll: n => `Send all (${n})`, sendAllConfirm: n => `Send ${n} WhatsApp messages now?`, send: 'Send',
+    upcoming: 'Coming up', grpHours: 'Next few hours', grpTomorrow: 'Tomorrow', grpWeek: 'Later this week', heldQuiet: 'Waiting for sending hours',
+    sendNow: 'Send now', skip: 'Skip', openChat: 'Open chat', editMsg: 'Edit message', revertMsg: 'Revert text', edited: 'Edited',
+    sentTo: n => `Sent to ${n}`, skipped: n => `Skipped ${n}`, outsideConfirm: "It's outside sending hours. Send anyway?", outsideBtn: 'Send anyway',
+    emptyApproveT: 'Nothing to approve right now', emptyApproveB: 'Messages that need your OK will show up here.',
+    emptyUpcomingT: 'Nothing scheduled for the coming week', emptyUpcomingB: "Reminders are created when a lead doesn't reply. You can change the sequence under Rules.", goRules: 'Go to Rules',
+    loadErr: "Couldn't load the queue",
+    winOpen: 'Sending hours are open', winOpenSub: t => `Closes today at ${t}`, winClosed: 'Outside sending hours', winClosedSub: (d, t) => `Opens ${d} at ${t}`, winNone: 'No upcoming sending window', winUnlimited: 'No hour limit', editHours: 'Edit hours',
+    kpiPending: 'Awaiting approval', kpiSent: 'Sent this week', kpiPos: 'Positive replies', kpiFail: 'Failed this week',
+    nextCampaign: 'Next scheduled send', open: 'Open', bulkRow: n => `Bulk send · ${n} leads`,
+    howItWorks: 'How it works', flow1: tp => `New lead → instantly gets “${tp}”`, flow2: (n, d) => `No reply → up to ${n} reminders over ${d} days`, flow3: 'Replied → reminders stop and the team is alerted',
+    days: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], dShort: ['S', 'M', 'T', 'W', 'T', 'F', 'S'], today: 'today', tomorrow: 'tomorrow',
+    kind: { welcome: 'Welcome', noreply: 'No reply', reply: 'Reply', stage: 'Stage', reengage: 'Re-engage', manual: 'Manual', tpl: 'Bulk send', test: 'Test' },
+    modesBadge: { off: 'Off', suggest: 'Waits for approval', auto: 'Sent automatically' },
+    legendIntro: 'Every rule has three modes:', legend: { off: 'Off – nothing is sent', suggest: 'Approve – the message waits for you in Today', auto: 'Automatic – sent by the system' },
+    modes: { off: 'Off', suggest: 'Approve', auto: 'Auto' },
+    helpOff: 'This rule is off – nothing will be sent', helpSuggest: 'Messages will wait for your approval in Today', helpAuto: 'Sent automatically, within sending hours', helpAutoNow: 'Sent automatically, right away',
+    wS1a: 'When a', wS1b: 'new lead', wS1c: 'comes in → send', wS2: 'If they asked about a specific property → send instead', welcomeHelp: 'The welcome message goes out right away, even outside sending hours.',
+    nrA: 'When a lead in', nrB: "doesn't reply", nrC: n => `→ send up to ${n} reminders`, stagesPick: 'Stages',
+    rS: ['When a lead', 'replies', '→ reminders stop and the system reads their intent'], notifyTeam: 'Send the team a WhatsApp alert',
+    negTitle: 'Replied “no thanks”', negNote: "They won't get any more automated messages.", posTitle: 'Wants to move forward', sendLbl: 'Send', moveTo: 'Move to stage', noMove: "Don't move",
+    triggerWords: 'Trigger words', addWord: 'Type a word and press Enter', showMore: n => `Show ${n} more`, removeWord: w => `Remove ${w}`,
+    tester: 'Test a sample reply', testerPh: "e.g. Yes, I'd love more details", detNeg: 'Detected as “no thanks”', detPos: 'Detected as “wants to move forward”', detReply: 'Regular reply – just stops reminders', matchedBy: w => `Matched: “${w}”`,
+    stS: ['When a lead', 'moves to a new board stage', '→ send a matching message'], stageHelp: 'In Approve mode, the leads board asks you as soon as you move the card.',
+    reA: 'When a lead has been in', reB: 'days in', reC: 'No answer', reD: '→ send', daysLbl: 'days',
+    ruleStats: (n, m) => `${n} sent in the last 30 days · ${m} waiting`, pickTpl: 'Choose a template', tplGone: 'Template deleted – choose another',
+    rWelcome: 'Welcome message', rNoReply: 'No reply', rReplies: 'Reply detection', rStage: 'Stage change', rRe: 'Re-engage',
+    lAll: 'All', lSent: 'Sent', lFailed: 'Failed', lOpted: n => `Opted out (${n})`, allKinds: 'All types', lSearch: 'Search by name, phone or text',
+    by: { auto: 'Automatic', cron: 'Automatic (daily)', external: 'External ping', manual: 'Manual', scheduled: 'Bulk send' },
+    loadMore: 'Load more', lEmpty: 'No messages sent yet', statusSent: 'Sent', statusFailed: 'Failed', resent: 'Sent again',
+    unopt: 'Allow messages again', unoptT: n => `Allow messages to ${n} again?`, unoptB: 'They asked to stop. Only do this if they asked to hear from you again.', unoptDone: 'They will receive messages again', noOpted: 'Nobody has opted out',
+    sysTitle: 'System status', allGood: 'All good – messages are going out as normal', nIssues: n => `${n} things need attention`,
+    waTitle: 'WhatsApp connection (Green API)', waOk: p => `Connected · ${p}`, waNotAuth: 'Phone not linked – scan the QR code in the Green API console', openGreen: 'Open Green API',
+    waNotConf: v => `Missing Vercel environment variables: ${v}`, waErr: e => `Can't connect: ${e}`, checkAgain: 'Check again',
+    dbTitle: 'Database', dbOk: 'Settings and log tables are in place', dbMissing: "Tables missing – settings aren't being saved. Run server/automations-migration.sql once in Supabase (SQL Editor).", copyFile: 'Copy file name', copied: 'Copied ✓',
+    masterTitle: 'Master switch', masterOnD: 'On', masterOffD: 'Off – nothing is sent', hoursTitle: 'Sending hours',
+    runTitle: 'Last automatic run', runAgo: (a, s) => `${a} · ${s}`, src: { panel: 'from the panel', cron: 'daily run', external: 'external ping', test: 'test' }, runStale: 'No run in the last 24 hours', runNone: 'Has not run yet',
+    pingTitle: 'Precise timing (optional)', pingExplain: 'Without it, the system runs every 5 minutes only while the panel is open, and once a day otherwise. An external ping every 5 minutes keeps reminders and scheduled sends on time.',
+    pingUrl: 'Ping URL', show: 'Show', hide: 'Hide', copy: 'Copy', pingSteps: ['Create a free account at cron-job.org', 'Create a new cronjob and paste the URL', 'Choose “every 5 minutes” and save'], pingOff: 'Not set up', pingOn: n => `Active · last ping ${n} min ago`,
+    testTitle: 'Test message', testBtn: 'Send a test message to the office', testSent: 'Test message sent ✓', agoMin: n => `${n} min ago`, agoH: n => `${n}h ago`, agoD: n => `${n} days ago`, justNow: 'just now',
+    tone: { ok: 'OK', warn: 'Warning', error: 'Error', info: 'Info', off: 'Off' },
   },
 }
 
 const STAGE_DEFAULT = { new: { he: 'ליד חדש', en: 'New lead' }, contacted: { he: 'ניצור קשר', en: 'Contacted' }, discovery: { he: 'גילוי', en: 'Discovery' }, negotiating: { he: 'במו"מ', en: 'Negotiating' }, won: { he: 'סגירה', en: 'Closed won' }, lost: { he: 'ללא מענה', en: 'No answer' } }
-const KIND_COLOR = { welcome: '#22C55E', noreply: '#F5A623', reply: '#0073EA', stage: '#A25DDC', reengage: '#60D4F7', manual: '#8490D8', tpl: '#8490D8', test: '#9A9AA8' }
-const fmtDT = (iso, lang) => { try { return new Date(iso).toLocaleString(lang === 'en' ? 'en-GB' : 'he-IL', { timeZone: 'Asia/Jerusalem', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) } catch { return '' } }
+const STAGE_COLOR = { new: '#0073EA', contacted: '#FDAB3D', discovery: '#A25DDC', negotiating: '#FF7575', won: '#00C875', lost: '#7D7D7D' }
+const KIND_COLOR = { welcome: T.green, noreply: T.amber, reply: T.blue, stage: '#A25DDC', reengage: '#60D4F7', manual: T.brand, tpl: T.brand, test: T.grey }
 const clone = o => JSON.parse(JSON.stringify(o))
+const pick = (o, keys) => Object.fromEntries(keys.map(k => [k, o?.[k]]))
+const minsAgo = iso => Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000))
+const hhmm = (d, isEn) => new Date(d).toLocaleTimeString(isEn ? 'en-GB' : 'he-IL', { timeZone: 'Asia/Jerusalem', hour: '2-digit', minute: '2-digit' })
+const dayKey = d => new Date(d).toLocaleDateString('en-CA', { timeZone: 'Asia/Jerusalem' })
+const LEGACY = { overview: 'today', queue: 'today', broadcast: 'campaigns', bulk: 'campaigns', schedule: 'hours', flows: 'rules' }
 
-// Admin leads are flat objects (crm_data spread onto the lead). Map to the shape the renderer expects.
-const asLead = l => ({ id: l.id, name: l.name, phone: l.phone, prop_title: l.propTitle || l.prop_title, prop_location: l.propLocation || l.prop_location, crm_data: { origin: l.origin || l.crm_data?.origin || {} } })
+export default function AutomationsTab(props) {
+  return <ConfirmProvider dir={props.lang === 'en' ? 'ltr' : 'rtl'}><Automations {...props}/></ConfirmProvider>
+}
 
-export default function AutomationsTab({ C, lang = 'he', leads = [], stageLabels = {}, config, onConfigSaved, runResult, onRun, running, onOpenChat, initialSub }) {
+function Automations({ lang = 'he', leads = [], stageLabels = {}, config, onConfigSaved, runResult, onRun, running, onOpenChat, initialSub }) {
   const t = TR[lang] || TR.he
-  const purple = C?.purple || '#8490D8'
-  const cream = C?.cream || '#E8E4D8'
   const isEn = lang === 'en'
-  const card = { background: 'rgba(255,255,255,.03)', border: '1px solid rgba(132,144,216,.14)', borderRadius: 14 }
-  const btn = (extra = {}) => ({ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px 13px', borderRadius: 9, border: '1px solid rgba(132,144,216,.3)', background: 'rgba(132,144,216,.1)', color: purple, fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', minHeight: 0, minWidth: 0, whiteSpace: 'nowrap', ...extra })
-  const input = { width: '100%', padding: '9px 11px', borderRadius: 9, border: '1px solid rgba(132,144,216,.22)', background: 'rgba(255,255,255,.04)', color: cream, fontFamily: 'inherit', fontSize: 13, outline: 'none', boxSizing: 'border-box', minHeight: 0 }
-  const green = '#25D366'
-
-  const [sub, setSub] = useState(initialSub || 'overview')
+  const dir = isEn ? 'ltr' : 'rtl'
+  const confirm = useConfirm()
+  const [toast, toastNode] = useToasts()
+  const [tab, setTab] = useState(LEGACY[initialSub] || initialSub || 'today')
+  const [saved, setSaved] = useState(() => clone(config?.config || DEFAULT_CONFIG))
   const [draft, setDraft] = useState(() => clone(config?.config || DEFAULT_CONFIG))
-  const [dirty, setDirty] = useState(false)
-  const [saving, setSaving] = useState('')
-  const [status, setStatus] = useState(null)
+  const [saving, setSaving] = useState(false)
+  const [saveErr, setSaveErr] = useState('')
+  const [justSaved, setJustSaved] = useState(false)
+  const [health, setHealth] = useState(null)
   const [log, setLog] = useState(null)
+  const [logLimit, setLogLimit] = useState(100)
   const [states, setStates] = useState({})
-  const [toast, setToast] = useState('')
-  const toastT = useRef(null)
-  const flash = msg => { setToast(msg); clearTimeout(toastT.current); toastT.current = setTimeout(() => setToast(''), 3200) }
+  const [jobs, setJobs] = useState([])
+  const [jobsLoading, setJobsLoading] = useState(true)
+  const [sysOpen, setSysOpen] = useState(false)
+  const [logFilter, setLogFilter] = useState('all')
+  const [editJobId, setEditJobId] = useState(null)
+  const tabRefs = useRef({})
 
-  useEffect(() => { if (config?.config && !dirty) setDraft(clone(config.config)) }, [config]) // eslint-disable-line react-hooks/exhaustive-deps
+  const KEYS = ['rules', 'quiet', 'vars']
+  const dirtyKey = k => JSON.stringify(draft[k] ?? null) !== JSON.stringify(saved[k] ?? null)
+  const dirty = KEYS.some(dirtyKey)
+  useEffect(() => { if (config?.config && !dirty) { setDraft(clone(config.config)); setSaved(clone(config.config)) } }, [config]) // eslint-disable-line react-hooks/exhaustive-deps
   const cfg = useMemo(() => mergeConfig(draft), [draft])
   const tpls = useMemo(() => templateList(cfg), [cfg])
-  const tplName = id => { const x = tpls.find(y => y.id === id); return x ? (isEn ? x.en_title || x.he_title : x.he_title || x.en_title) : id }
+  const tplName = useCallback(id => { const x = tpls.find(y => y.id === id); return x ? (isEn ? x.en_title || x.he_title : x.he_title || x.en_title) : '' }, [tpls, isEn])
   const stageName = s => (isEn ? stageLabels?.[s]?.en : stageLabels?.[s]?.label) || STAGE_DEFAULT[s]?.[isEn ? 'en' : 'he'] || s
-  const setCfg = fn => { setDraft(d => { const n = clone(d); fn(n); return n }); setDirty(true) }
+  const setCfg = fn => setDraft(d => { const n = clone(d); fn(n); return n })
 
-  const loadStatus = useCallback(() => { setStatus(null); autoApi.get('auto-status').then(setStatus).catch(e => setStatus({ state: 'error', error: e.message })) }, [])
-  const loadLog = useCallback(() => { autoApi.get('auto-log?limit=200').then(setLog).catch(e => setLog({ rows: [], error: e.message })) }, [])
-  const loadStates = useCallback(() => { autoApi.get('auto-leads').then(arr => setStates(Object.fromEntries((arr || []).map(s => [s.leadId, s])))).catch(() => {}) }, [])
-  useEffect(() => { loadStatus(); loadLog(); loadStates() }, [loadStatus, loadLog, loadStates])
+  const loadHealth = useCallback(() => { setHealth(h => h ? { ...h, checking: true } : null); autoApi.get('auto-health').then(setHealth).catch(e => setHealth({ error: e.message, green: { state: 'error', error: e.message } })) }, [])
+  const loadLog = useCallback((limit = logLimit) => autoApi.get(`auto-log?limit=${limit}`).then(setLog).catch(e => setLog(l => ({ rows: l?.rows || [], error: e.message }))), [logLimit])
+  const loadStates = useCallback(() => autoApi.get('auto-leads').then(a => setStates(Object.fromEntries((a || []).map(s => [s.leadId, s])))).catch(() => {}), [])
+  const loadJobs = useCallback(() => autoApi.get('auto-jobs').then(d => setJobs(d.jobs || [])).catch(() => {}).finally(() => setJobsLoading(false)), [])
+  const reloadAll = useCallback(() => { loadLog(); loadStates(); loadJobs() }, [loadLog, loadStates, loadJobs])
+  useEffect(() => { loadHealth(); reloadAll() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (runResult?.at) { loadJobs(); setHealth(h => h ? { ...h, lastRun: { ...(h.lastRun || {}), at: runResult.at, source: runResult.source } } : h) } }, [runResult?.at]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Save: shared keys go from draft; everything else (templates, enabled…) from what is saved
+  const persistFull = async next => { await autoApi.post('auto-config', { config: next }); onConfigSaved?.(next) }
   const save = async () => {
-    setSaving('saving')
-    try { await autoApi.post('auto-config', { config: draft }); setDirty(false); setSaving('saved'); flash(t.saved); onConfigSaved?.(draft); setTimeout(() => setSaving(''), 1500) }
-    catch (e) { setSaving(''); flash(`${t.error}: ${e.message}`) }
+    setSaving(true); setSaveErr('')
+    const next = { ...clone(saved), ...pick(clone(draft), KEYS) }
+    try { await persistFull(next); setSaved(next); setJustSaved(true); setTimeout(() => setJustSaved(false), 1200) }
+    catch (e) { setSaveErr(e.message) } finally { setSaving(false) }
   }
-  // Template edits are saved immediately (a template is a self-contained edit)
-  const saveTemplates = async (mutate) => {
-    const next = clone(draft); mutate(next)
-    setDraft(next)
-    try { await autoApi.post('auto-config', { config: next }); onConfigSaved?.(next); flash(t.saved) }
-    catch (e) { setDirty(true); flash(`${t.error}: ${e.message}`) }
+  // instant saves (templates, master switch) keep unsaved rule edits untouched
+  const persist = async mutate => {
+    const nextSaved = clone(saved); mutate(nextSaved)
+    await persistFull(nextSaved)
+    setSaved(nextSaved)
+    setDraft(d => { const n = clone(d); mutate(n); return n })
   }
+  const setMaster = async on => {
+    if (!on && !await confirm({ title: t.confirmOffTitle, body: t.confirmOffBody, confirmLabel: t.confirmOffBtn, cancelLabel: t.cancel, tone: 'danger' })) return
+    try { await persist(c => { c.enabled = on }); toast(on ? t.masterOn : t.masterOff, { tone: on ? 'success' : 'warn' }); onRun?.() } catch (e) { toast(`${t.error}: ${e.message}`, { tone: 'error' }) }
+  }
+  useEffect(() => {
+    if (!dirty) return
+    const h = e => { e.preventDefault(); e.returnValue = '' }
+    window.addEventListener('beforeunload', h)
+    return () => window.removeEventListener('beforeunload', h)
+  }, [dirty])
+  useEffect(() => { document.documentElement.style.setProperty('--au-toast-lift', dirty ? '136px' : '0px'); return () => document.documentElement.style.removeProperty('--au-toast-lift') }, [dirty])
+
+  // system status aggregation
+  const g = health?.green
+  const greenOk = g?.state === 'authorized'
+  const last = health?.lastRun
+  const lastAgo = last?.at ? minsAgo(last.at) : null
+  const pingActive = last?.source === 'external' && lastAgo != null && lastAgo < 20
+  const issues = []
+  if (health && !greenOk) issues.push('green')
+  if (!cfg.enabled) issues.push('master')
+  const warns = []
+  if (health && health.storage !== 'ok') warns.push('db')
+  if (health && (lastAgo == null || lastAgo > 26 * 60)) warns.push('run')
+  const pill = !health || health.checking ? ['info', t.pillChecking] : issues.length ? ['error', t.pillErr] : warns.length ? ['warn', t.pillWarn(warns.length)] : ['ok', t.pillOk]
 
   const queue = runResult?.suggestions || []
+  const upcoming = runResult?.upcoming || []
   const logRows = log?.rows || []
   const weekAgo = Date.now() - 7 * 864e5
-  const stats = {
+  const failed24 = logRows.some(r => !r.ok && new Date(r.created_at).getTime() > Date.now() - 864e5)
+  const kpi = {
     pending: queue.length,
     sent7: logRows.filter(r => r.ok && new Date(r.created_at).getTime() > weekAgo && r.rule_key !== 'test').length,
     failed7: logRows.filter(r => !r.ok && new Date(r.created_at).getTime() > weekAgo).length,
     positive: Object.values(states).filter(s => s.intent === 'positive').length,
-    negative: Object.values(states).filter(s => s.optOut).length,
   }
-
-  const SUBS = [
-    { id: 'overview', Icon: FaRobot }, { id: 'queue', Icon: FaListUl, badge: queue.length }, { id: 'templates', Icon: FaCommentDots },
-    { id: 'rules', Icon: FaSlidersH, dot: dirty }, { id: 'broadcast', Icon: FaUsers }, { id: 'log', Icon: FaHistory },
+  const TABS = [
+    { id: 'today', Icon: FaInbox, badge: queue.length || null, badgeColor: T.red },
+    { id: 'templates', Icon: FaCommentDots, dot: dirtyKey('vars') },
+    { id: 'rules', Icon: FaProjectDiagram, dot: dirtyKey('rules') },
+    { id: 'hours', Icon: FaClock, dot: dirtyKey('quiet') },
+    { id: 'campaigns', Icon: FaBullhorn, badge: jobs.filter(j => j.status === 'scheduled' || j.status === 'sending').length || null, badgeColor: T.brand },
+    { id: 'log', Icon: FaHistory, dot: failed24, dotColor: T.red },
   ]
-
-  return (
-    <div dir={isEn ? 'ltr' : 'rtl'} style={{ display: 'flex', flexDirection: 'column', gap: 14, color: cream, maxWidth: 1180, margin: '0 auto', width: '100%' }}>
-      <style>{`
-        .au-tabs::-webkit-scrollbar{display:none}
-        .au-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:12px}
-        .au-stats{display:grid;grid-template-columns:repeat(5,1fr);gap:10px}
-        @media (max-width:900px){.au-stats{grid-template-columns:repeat(2,1fr)}}
-        .au-row:hover{background:rgba(132,144,216,.06)}
-        .au-bubble{white-space:pre-wrap;unicode-bidi:plaintext;line-height:1.55}
-      `}</style>
-
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-        <div style={{ width: 44, height: 44, borderRadius: 12, background: `linear-gradient(135deg, ${green}33, ${purple}33)`, display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${green}55` }}><FaRobot size={20} color={green}/></div>
-        <div style={{ flex: 1, minWidth: 200 }}>
-          <div style={{ fontSize: 19, fontWeight: 800 }}>{t.title}</div>
-          <div style={{ fontSize: 12.5, color: 'rgba(232,228,216,.55)' }}>{t.subtitle}</div>
-        </div>
-        <button onClick={() => { onRun?.(); loadLog(); loadStates() }} disabled={running} style={btn({ opacity: running ? .6 : 1 })}><FaSyncAlt size={11} className={running ? 'spin' : ''}/> {t.runNow}</button>
-      </div>
-
-      {config?.storage && config.storage !== 'ok' && (
-        <div role="alert" style={{ ...card, padding: '11px 14px', borderColor: 'rgba(245,166,35,.45)', background: 'rgba(245,166,35,.08)', color: '#F5C26B', fontSize: 12.5, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-          <FaExclamationTriangle style={{ flexShrink: 0, marginTop: 2 }}/> <span>{t.storageMissing}</span>
-        </div>
-      )}
-
-      {/* Sub tabs */}
-      <div className="au-tabs" style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }}>
-        {SUBS.map(({ id, Icon, badge, dot }) => (
-          <button key={id} onClick={() => setSub(id)} style={btn({ padding: '9px 14px', flexShrink: 0, background: sub === id ? `${purple}30` : 'transparent', borderColor: sub === id ? purple : 'rgba(132,144,216,.18)', color: sub === id ? purple : 'rgba(232,228,216,.7)' })}>
-            <Icon size={12}/> {t.tabs[id]}
-            {!!badge && <span style={{ background: '#E05252', color: '#fff', borderRadius: 20, padding: '1px 7px', fontSize: 10.5, fontWeight: 900 }}>{badge}</span>}
-            {dot && <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#F5A623' }}/>}
-          </button>
-        ))}
-      </div>
-
-      {sub === 'overview' && <Overview {...{ t, isEn, card, btn, status, loadStatus, cfg, setCfg, dirty, save, saving, stats, runResult, onGo: setSub, flash, green, purple }}/>}
-      {sub === 'queue' && <Queue {...{ t, isEn, card, btn, input, queue, stageName, tplName, onRun, onOpenChat, leads, flash, green, purple, reload: () => { loadLog(); loadStates() } }}/>}
-      {sub === 'templates' && <Templates {...{ t, isEn, card, btn, input, cfg, tpls, leads, saveTemplates, flash, green, purple, cream, onSent: () => { loadLog(); loadStates() } }}/>}
-      {sub === 'rules' && <Rules {...{ t, isEn, card, btn, input, cfg, setCfg, tpls, tplName, stageName, dirty, save, saving, purple, green }}/>}
-      {sub === 'broadcast' && <Broadcast {...{ t, isEn, card, btn, input, cfg, tpls, leads, states, stageName, flash, green, purple, onDone: () => { loadLog(); loadStates() } }}/>}
-      {sub === 'log' && <Log {...{ t, isEn, card, btn, log, loadLog, tplName, states, loadStates, leads, purple }}/>}
-
-      {toast && <div style={{ position: 'fixed', bottom: 84, left: '50%', transform: 'translateX(-50%)', zIndex: 3000, background: '#1B2330', border: `1px solid ${purple}66`, color: cream, padding: '10px 16px', borderRadius: 10, fontSize: 13, fontWeight: 700, boxShadow: '0 12px 32px rgba(0,0,0,.45)' }}>{toast}</div>}
-    </div>
-  )
-}
-
-// ── Mode switch: off / approve / automatic ─────────────────────────────────────
-function ModeSwitch({ value, onChange, t, purple, onOff = false }) {
-  const opts = onOff ? [['off', t.modeOff, '#9A9AA8'], ['auto', t.on, '#22C55E']] : [['off', t.modeOff, '#9A9AA8'], ['suggest', t.modeSuggest, '#F5A623'], ['auto', t.modeAuto, '#22C55E']]
-  return (
-    <div role="radiogroup" style={{ display: 'inline-flex', background: 'rgba(255,255,255,.04)', border: '1px solid rgba(132,144,216,.2)', borderRadius: 9, padding: 2, gap: 2 }}>
-      {opts.map(([v, l, c]) => (
-        <button key={v} role="radio" aria-checked={value === v} onClick={() => onChange(v)}
-          style={{ padding: '5px 11px', borderRadius: 7, border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 11.5, fontWeight: 800, minHeight: 0, minWidth: 0, background: value === v ? `${c}2A` : 'transparent', color: value === v ? c : 'rgba(232,228,216,.5)' }}>{l}</button>
-      ))}
-    </div>
-  )
-}
-
-function Section({ title, icon, children, card, right }) {
-  return (
-    <div style={{ ...card, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        {icon}<div style={{ fontSize: 14.5, fontWeight: 800, flex: 1 }}>{title}</div>{right}
-      </div>
-      {children}
-    </div>
-  )
-}
-
-// ── Overview ───────────────────────────────────────────────────────────────────
-function Overview({ t, isEn, card, btn, status, loadStatus, cfg, setCfg, dirty, save, saving, stats, runResult, onGo, flash, green, purple }) {
-  const [testing, setTesting] = useState(false)
-  const st = status?.state
-  const ok = st === 'authorized'
-  const label = !status ? t.checking : ok ? t.connected : st === 'notConfigured' ? t.notConfigured : st === 'notAuthorized' ? t.notAuthorized : st === 'blocked' ? t.blocked : st === 'yellowCard' ? t.yellowCard : st === 'error' ? t.errorState : `${t.notConnected} (${st})`
-  const color = !status ? '#9A9AA8' : ok ? '#22C55E' : st === 'notAuthorized' || st === 'yellowCard' ? '#F5A623' : '#E05252'
-  const phone = status?.phone ? `+${status.phone}` : ''
-  const test = async () => {
-    setTesting(true)
-    try { await autoApi.post('auto-test', {}); flash(t.testSent) } catch (e) { flash(`${t.error}: ${e.message}`) } finally { setTesting(false) }
+  const onTabKey = e => {
+    const ids = TABS.map(x => x.id), i = ids.indexOf(tab)
+    let n = null
+    if (e.key === 'ArrowLeft') n = i + (isEn ? -1 : 1)
+    if (e.key === 'ArrowRight') n = i + (isEn ? 1 : -1)
+    if (e.key === 'Home') n = 0
+    if (e.key === 'End') n = ids.length - 1
+    if (n == null) return
+    e.preventDefault()
+    const id = ids[(n + ids.length) % ids.length]
+    setTab(id); tabRefs.current[id]?.focus()
   }
-  const inWindow = isSendWindow(cfg)
-  const S = ({ n, l, c, go }) => (
-    <button onClick={go} style={{ ...card, padding: '14px 12px', textAlign: 'center', cursor: go ? 'pointer' : 'default', fontFamily: 'inherit', color: 'inherit', minHeight: 0 }}>
-      <div style={{ fontSize: 26, fontWeight: 900, color: c, lineHeight: 1.1 }}>{n}</div>
-      <div style={{ fontSize: 11.5, color: 'rgba(232,228,216,.6)', marginTop: 4 }}>{l}</div>
-    </button>
-  )
+  const goRule = rule => { setTab('rules'); setTimeout(() => document.getElementById(`au-rule-${rule}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80) }
+  const common = { t, isEn, dir, cfg, tpls, tplName, stageName, leads, toast, confirm, onOpenChat }
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 12 }}>
-        <Section card={card} title={t.connection} icon={<FaWhatsapp color={green} size={17}/>} right={<button onClick={loadStatus} style={btn({ padding: '5px 10px', fontSize: 11.5 })}><FaSyncAlt size={10}/> {t.recheck}</button>}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ width: 12, height: 12, borderRadius: '50%', background: color, boxShadow: ok ? `0 0 0 5px ${color}26` : 'none', flexShrink: 0 }}/>
-            <div style={{ fontSize: 15, fontWeight: 800, color }}>{label}</div>
-          </div>
-          <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', fontSize: 12.5, color: 'rgba(232,228,216,.7)' }}>
-            {phone && <span>{t.number}: <b dir="ltr" style={{ color: '#E8E4D8' }}>{phone}</b></span>}
-            {status?.instance && <span>{t.instance}: <b dir="ltr" style={{ color: '#E8E4D8' }}>{status.instance}</b></span>}
-            {status?.missing?.length ? <span dir="ltr" style={{ color: '#E05252' }}>{status.missing.join(', ')}</span> : null}
-            {status?.error && <span style={{ color: '#E05252' }}>{status.error}</span>}
-          </div>
-          <button onClick={test} disabled={!ok || testing} style={btn({ alignSelf: 'flex-start', opacity: ok && !testing ? 1 : .5, background: `${green}1F`, borderColor: `${green}66`, color: green })}><FaPaperPlane size={11}/> {testing ? t.sending : t.sendTest}</button>
-        </Section>
-        <Section card={card} title={t.master} icon={<FaBolt color="#F5A623" size={15}/>} right={
-          <button onClick={() => setCfg(c => { c.enabled = !c.enabled })} role="switch" aria-checked={cfg.enabled} style={{ width: 52, height: 28, borderRadius: 20, border: 'none', cursor: 'pointer', background: cfg.enabled ? '#22C55E' : 'rgba(255,255,255,.15)', position: 'relative', minHeight: 0, minWidth: 0, flexShrink: 0 }}>
-            <span style={{ position: 'absolute', top: 3, [isEn ? 'left' : 'right']: cfg.enabled ? 27 : 3, width: 22, height: 22, borderRadius: '50%', background: '#fff', transition: 'all .2s' }}/>
-          </button>}>
-          <div style={{ fontSize: 15, fontWeight: 800, color: cfg.enabled ? '#22C55E' : '#9A9AA8' }}>{cfg.enabled ? t.on : t.off}</div>
-          <div style={{ fontSize: 12, color: inWindow ? '#22C55E' : '#F5A623', display: 'flex', alignItems: 'center', gap: 6 }}><FaClock size={11}/> {inWindow ? t.windowOpen : t.windowClosed}</div>
-          <div style={{ fontSize: 11.5, color: 'rgba(232,228,216,.5)' }}>{t.runsEvery}{runResult?.at ? ` · ${t.lastRun}: ${fmtDT(runResult.at, isEn ? 'en' : 'he')}` : ''}</div>
-          {dirty && <button onClick={save} style={btn({ alignSelf: 'flex-start', background: '#F5A6231F', borderColor: '#F5A62366', color: '#F5A623' })}><FaCheck size={11}/> {saving === 'saving' ? t.saving : t.saveRules}</button>}
-        </Section>
-      </div>
+    <div className="au" dir={dir} lang={lang} style={{ display: 'flex', flexDirection: 'column', gap: 14, color: T.text, maxWidth: 1180, margin: '0 auto', width: '100%', paddingBottom: 24 }}>
+      <style>{AUTO_CSS}</style>
 
-      <div className="au-stats">
-        <S n={stats.pending} l={t.pending} c="#F5A623" go={() => onGo('queue')}/>
-        <S n={stats.sent7} l={t.sent7} c="#22C55E" go={() => onGo('log')}/>
-        <S n={stats.positive} l={t.positive} c="#0073EA"/>
-        <S n={stats.negative} l={t.negative} c="#9A9AA8"/>
-        <S n={stats.failed7} l={t.failed} c={stats.failed7 ? '#E05252' : '#9A9AA8'} go={() => onGo('log')}/>
-      </div>
-
-      <Section card={card} title={t.flow} icon={<FaRobot color={purple} size={15}/>}>
-        <div style={{ display: 'flex', alignItems: 'stretch', gap: 8, flexWrap: 'wrap' }}>
-          {t.flowSteps.map((s, i) => (
-            <div key={i} style={{ flex: '1 1 150px', padding: '10px 12px', borderRadius: 10, background: i === 0 ? 'rgba(132,144,216,.1)' : i === 1 ? 'rgba(34,197,94,.1)' : 'rgba(245,166,35,.08)', border: `1px solid ${i === 0 ? 'rgba(132,144,216,.3)' : i === 1 ? 'rgba(34,197,94,.3)' : 'rgba(245,166,35,.25)'}`, fontSize: 12.5, fontWeight: 700, display: 'flex', gap: 8, alignItems: 'center' }}>
-              <span style={{ width: 22, height: 22, borderRadius: '50%', background: 'rgba(255,255,255,.08)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, flexShrink: 0 }}>{i + 1}</span>{s}
-            </div>
-          ))}
+      {/* header */}
+      <header style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', minHeight: 56 }}>
+        <span style={{ width: 40, height: 40, borderRadius: 12, background: `linear-gradient(135deg, ${T.green}, #128C7E)`, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 6px 18px ${T.green}40`, flexShrink: 0 }}><FaRobot size={18} color="#fff"/></span>
+        <div style={{ flex: 1, minWidth: 160 }}>
+          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, lineHeight: 1.2 }}>{t.title}</h2>
+          <div className="au-hide-m" style={{ fontSize: 12.5, color: T.text3, marginTop: 2 }}>{t.subtitle}</div>
         </div>
-        <div style={{ fontSize: 12.5, color: 'rgba(232,228,216,.7)', lineHeight: 1.6 }}>{t.flowReplies}</div>
-      </Section>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', justifyContent: 'space-between' }}>
+          <StatusPill tone={pill[0]} text={pill[1]} onClick={() => setSysOpen(true)}/>
+          <Toggle checked={cfg.enabled} onChange={setMaster}>{cfg.enabled ? t.masterOn : t.masterOff}</Toggle>
+        </div>
+      </header>
+
+      {/* sub-nav */}
+      <nav style={{ position: 'sticky', top: -22, zIndex: 15, background: 'rgba(9,9,15,.94)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', borderBottom: `1px solid ${T.line}`, paddingTop: 22, marginTop: -16, paddingBottom: 8, marginInline: -2, paddingInline: 2 }}>
+        <div role="tablist" aria-label={t.title} className="au-nav" onKeyDown={onTabKey}>
+          {TABS.map(({ id, Icon, badge, badgeColor, dot, dotColor }) => {
+            const on = tab === id
+            return (
+              <button key={id} ref={el => { tabRefs.current[id] = el }} role="tab" id={`au-tab-${id}`} aria-selected={on} aria-controls={`au-panel-${id}`} tabIndex={on ? 0 : -1} onClick={() => setTab(id)}
+                aria-label={id === 'today' && queue.length ? t.todayAria(queue.length) : undefined} className="au-nav-btn"
+                style={{ border: `1px solid ${on ? T.brand : 'rgba(132,144,216,.18)'}`, background: on ? 'rgba(132,144,216,.18)' : 'transparent', color: on ? T.brandText : T.text2, fontFamily: 'inherit', fontSize: 13, fontWeight: 700, cursor: 'pointer', minHeight: 0, minWidth: 0, boxShadow: on ? `inset 0 -2px 0 ${T.brand}` : 'none' }}>
+                <Icon size={13}/><span className="au-hide-m">{t.tabs[id]}</span><span className="au-only-m" style={{ fontSize: 10.5 }}>{t.tabsM[id]}</span>
+                {badge ? <span style={{ fontSize: 10.5, fontWeight: 900, minWidth: 18, height: 18, padding: '0 5px', borderRadius: 9, background: badgeColor, color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>{badge}</span> : null}
+                {dot && <span aria-hidden style={{ width: 7, height: 7, borderRadius: '50%', background: dotColor || T.amber }}/>}
+              </button>
+            )
+          })}
+        </div>
+      </nav>
+
+      {/* one global banner at a time */}
+      {!cfg.enabled ? (
+        <div role="status" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 12, background: T.amberSoft, border: '1px solid rgba(245,166,35,.4)', color: T.amberText, fontSize: 13, fontWeight: 700, flexWrap: 'wrap' }}>
+          <FaPowerOff/><span style={{ flex: 1, minWidth: 180 }}>{t.masterOffBanner}</span><Button size="sm" variant="solid" onClick={() => setMaster(true)}>{t.turnOn}</Button>
+        </div>
+      ) : health && health.storage && health.storage !== 'ok' ? (
+        <div role="status" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 12, background: T.amberSoft, border: '1px solid rgba(245,166,35,.4)', color: T.amberText, fontSize: 13, fontWeight: 700, flexWrap: 'wrap' }}>
+          <FaDatabase/><span style={{ flex: 1, minWidth: 180 }}>{t.storageBanner}</span><Button size="sm" variant="brand" onClick={() => setSysOpen(true)}>{t.howToFix}</Button>
+        </div>
+      ) : null}
+
+      <section role="tabpanel" id={`au-panel-${tab}`} aria-labelledby={`au-tab-${tab}`} key={tab} className="au-in">
+        {tab === 'today' && <Today {...common} queue={queue} upcoming={upcoming} runResult={runResult} running={running} onRun={() => { onRun?.(); reloadAll() }} reload={reloadAll} kpi={kpi} jobs={jobs}
+          onGo={setTab} logEmpty={!!log && !logRows.length} onFailed={() => { setLogFilter('failed'); setTab('log') }} onOpenJob={j => { setEditJobId(j.status === 'scheduled' ? j.id : null); setTab('campaigns') }}/>}
+        {tab === 'templates' && <TemplatesTab lang={lang} cfg={cfg} tpls={tpls} leads={leads} states={states} setCfg={setCfg} persist={persist} toast={toast} onGoRule={goRule} stageName={stageName}/>}
+        {tab === 'rules' && <Rules {...common} setCfg={setCfg} logRows={logRows} queue={queue} onGoHours={() => setTab('hours')}/>}
+        {tab === 'hours' && <HoursTab lang={lang} cfg={cfg} setCfg={setCfg} toast={toast}/>}
+        {tab === 'campaigns' && <CampaignsTab lang={lang} cfg={cfg} tpls={tpls} leads={leads} states={states} stageName={stageName} jobs={jobs} loadJobs={loadJobs} jobsLoading={jobsLoading} toast={toast}
+          onOpenSystem={() => setSysOpen(true)} pingActive={pingActive} openEditId={editJobId} clearOpenEdit={() => setEditJobId(null)}/>}
+        {tab === 'log' && <Log {...common} log={log} loadLog={loadLog} logLimit={logLimit} setLogLimit={n => { setLogLimit(n); loadLog(n) }} states={states} loadStates={loadStates} filter={logFilter} setFilter={setLogFilter}/>}
+      </section>
+
+      <SaveBar dirty={dirty} saving={saving} error={saveErr} justSaved={justSaved} onSave={save} onDiscard={() => { setDraft(d => ({ ...d, ...pick(clone(saved), KEYS) })); setSaveErr('') }} t={t}/>
+
+      <SystemDrawer open={sysOpen} onClose={() => setSysOpen(false)} t={t} isEn={isEn} dir={dir} health={health} loadHealth={loadHealth} cfg={cfg} setMaster={setMaster} onRun={onRun} running={running}
+        pingActive={pingActive} lastAgo={lastAgo} last={last} issues={issues.length + warns.length} toast={toast} onGoHours={() => { setSysOpen(false); setTab('hours') }}/>
+      {toastNode}
     </div>
   )
 }
 
-// ── Approval queue ─────────────────────────────────────────────────────────────
-function Queue({ t, isEn, card, btn, input, queue, stageName, tplName, onRun, onOpenChat, leads, flash, green, purple, reload }) {
+// ── Relative time ──────────────────────────────────────────────────────────────
+function useTick(ms = 60000) { const [, s] = useState(0); useEffect(() => { const iv = setInterval(() => s(x => x + 1), ms); return () => clearInterval(iv) }, [ms]) }
+function rel(iso, t) {
+  const m = Math.round((new Date(iso).getTime() - Date.now()) / 60000)
+  if (Math.abs(m) < 1) return t.now
+  if (m > 0) return m < 60 ? t.inMin(m) : m < 1440 * 2 ? t.inHours(Math.round(m / 60)) : t.inDays(Math.round(m / 1440))
+  const a = -m
+  return a < 60 ? t.agoMin(a) : a < 1440 ? t.agoH(Math.round(a / 60)) : t.agoD(Math.round(a / 1440))
+}
+
+// ── Today ──────────────────────────────────────────────────────────────────────
+function Today({ t, isEn, dir, cfg, tpls, tplName, stageName, leads, toast, confirm, onOpenChat, queue, upcoming, runResult, running, onRun, reload, kpi, jobs, onGo, logEmpty, onFailed, onOpenJob }) {
+  useTick()
+  const [filter, setFilter] = useState('all')
+  const [gone, setGone] = useState({})
   const [texts, setTexts] = useState({})
+  const [editing, setEditing] = useState({})
   const [busy, setBusy] = useState({})
-  const [done, setDone] = useState({})
-  const [kind, setKind] = useState('all')
-  const items = queue.filter(q => !done[q.id]).filter(q => kind === 'all' || q.kind === kind)
-  const kinds = [...new Set(queue.map(q => q.kind))]
-  const reason = q => q.kind === 'stage' ? `${isEn ? 'Moved to' : 'עבר לשלב'} "${stageName(q.stageKey)}"` : (isEn ? q.reason?.en : q.reason?.he) || ''
-  const act = async (q, what) => {
-    setBusy(b => ({ ...b, [q.id]: what }))
+  const skipTimers = useRef({})
+  useEffect(() => () => Object.values(skipTimers.current).forEach(clearTimeout), [])
+  const approvals = queue.filter(q => !gone[q.id])
+  const ups = upcoming.filter(u => !gone[u.id]).filter(u => filter === 'all' || (filter === 'auto' ? u.mode === 'auto' : u.mode === 'suggest'))
+  const loading = !runResult
+  const inWin = isSendWindow(cfg)
+
+  const send = async (item, text) => {
+    setBusy(b => ({ ...b, [item.id]: true }))
     try {
-      if (what === 'send') {
-        const r = await autoApi.post('auto-send', { items: [{ leadId: q.leadId, phone: q.phone, text: texts[q.id] ?? q.text, ruleKey: q.ruleKey, templateId: q.templateId }] })
-        const res = r.results?.[0]
-        if (!res?.ok) throw new Error(res?.error || t.error)
-        flash(t.sentOk)
-      } else await autoApi.post('auto-skip', { leadId: q.leadId, ruleKey: q.ruleKey })
-      setDone(d => ({ ...d, [q.id]: what }))
-      reload()
-    } catch (e) { flash(`${t.error}: ${e.message}`) }
-    finally { setBusy(b => { const n = { ...b }; delete n[q.id]; return n }) }
+      const r = await autoApi.post('auto-send', { items: [{ leadId: item.leadId, phone: item.phone, text: text ?? item.text, ruleKey: item.ruleKey, templateId: item.templateId }] })
+      if (!r.results?.[0]?.ok) throw new Error(r.results?.[0]?.error || t.error)
+      setGone(g => ({ ...g, [item.id]: 1 })); toast(t.sentTo(item.name || `+${item.phone}`)); return true
+    } catch (e) { toast(`${t.error}: ${e.message}`, { tone: 'error' }); return false }
+    finally { setBusy(b => { const n = { ...b }; delete n[item.id]; return n }) }
+  }
+  const skip = item => {
+    setGone(g => ({ ...g, [item.id]: 1 }))
+    skipTimers.current[item.id] = setTimeout(() => { autoApi.post('auto-skip', { leadId: item.leadId, ruleKey: item.ruleKey }).then(reload).catch(() => {}) }, 5000)
+    toast(t.skipped(item.name || `+${item.phone}`), { action: { label: t.undo, onClick: () => { clearTimeout(skipTimers.current[item.id]); setGone(g => { const n = { ...g }; delete n[item.id]; return n }) } } })
   }
   const sendAll = async () => {
-    if (!window.confirm(t.bcConfirm(items.length))) return
-    for (const q of items) await act(q, 'send')
-    onRun?.()
+    if (!await confirm({ title: t.sendAllConfirm(approvals.length), confirmLabel: t.send, cancelLabel: t.cancel })) return
+    for (const q of approvals) await send(q, texts[q.id])
+    reload(); onRun()
   }
-  if (!queue.length || !items.length && kind === 'all') return <div style={{ ...card, padding: 40, textAlign: 'center', fontSize: 15, color: 'rgba(232,228,216,.6)' }}>{t.queueEmpty}</div>
+  const sendUpcoming = async u => {
+    if (!inWin && !await confirm({ title: t.outsideConfirm, confirmLabel: t.outsideBtn, cancelLabel: t.cancel })) return
+    await send(u)
+    reload()
+  }
+  const chat = item => onOpenChat?.(leads.find(l => String(l.id) === String(item.leadId)) || { id: `wa:${item.phone}`, name: item.name, phone: item.phone })
+
+  // groups for upcoming
+  const now = Date.now()
+  const tmrKey = dayKey(now + 864e5)
+  const groups = [[t.grpHours, []], [t.grpTomorrow, []], [t.grpWeek, []]]
+  ups.forEach(u => { const at = new Date(u.sendAt).getTime(); if (at - now <= 12 * 3600e3 && dayKey(at) !== tmrKey) groups[0][1].push(u); else if (dayKey(at) === tmrKey) groups[1][1].push(u); else if (at - now <= 7 * 864e5) groups[2][1].push(u) })
+  const soonJobs = jobs.filter(j => j.status === 'scheduled' && new Date(j.at).getTime() - now < 7 * 864e5).sort((a, b) => new Date(a.at) - new Date(b.at))
+  const nextJob = soonJobs[0]
+  const showFirstRun = !loading && !approvals.length && !ups.length && logEmpty
+  const noReplySteps = cfg.rules.noReply?.steps || []
+  const nrDays = Math.round(noReplySteps.reduce((n, s) => n + (Number(s.hours) || 0), 0) / 12) / 2
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-        {['all', ...kinds].map(k => (
-          <button key={k} onClick={() => setKind(k)} style={btn({ padding: '5px 11px', fontSize: 11.5, borderRadius: 20, background: kind === k ? `${KIND_COLOR[k] || purple}26` : 'transparent', borderColor: kind === k ? (KIND_COLOR[k] || purple) : 'rgba(132,144,216,.2)', color: kind === k ? (KIND_COLOR[k] || purple) : 'rgba(232,228,216,.65)' })}>
-            {k === 'all' ? t.allKinds : t.kind[k] || k} · {k === 'all' ? queue.filter(q => !done[q.id]).length : queue.filter(q => q.kind === k && !done[q.id]).length}
-          </button>
-        ))}
-        <div style={{ flex: 1 }}/>
-        {items.length > 1 && <button onClick={sendAll} style={btn({ background: `${green}1F`, borderColor: `${green}66`, color: green })}><FaPaperPlane size={11}/> {t.sendAll} ({items.length})</button>}
+    <div className="au-today">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <ModeSwitch value={filter} onChange={setFilter} modes={['all', 'suggest', 'auto']} icons={{}} colors={{ all: T.brand, suggest: T.amber, auto: T.green }} label={t.upcoming}
+            labels={{ all: `${t.filterAll} · ${approvals.length + upcoming.filter(u => !gone[u.id]).length}`, suggest: `${t.filterApprove} · ${approvals.length + upcoming.filter(u => !gone[u.id] && u.mode === 'suggest').length}`, auto: `${t.filterAuto} · ${upcoming.filter(u => !gone[u.id] && u.mode === 'auto').length}` }}/>
+          <div style={{ flex: 1 }}/>
+          <span className="au-hide-m"><Button icon={<FaSyncAlt size={11} className={running ? 'au-spin' : undefined}/>} onClick={onRun} disabled={running} title={t.runNowTip}>{t.runNow}</Button></span>
+          <span className="au-only-m"><IconButton icon={<FaSyncAlt size={13} className={running ? 'au-spin' : undefined}/>} label={t.runNow} size={36} variant="ghost" onClick={onRun} disabled={running}/></span>
+        </div>
+
+        {filter !== 'auto' && (
+          <section id="au-approvals" aria-label={t.waiting}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, whiteSpace: 'nowrap' }}>{t.waiting} <span style={{ color: T.text3, fontSize: 13 }}>({approvals.length})</span></h3>
+              <div style={{ flex: 1 }}/>
+              {approvals.length >= 2 && <Button size="sm" variant="soft-green" icon={<FaPaperPlane size={10}/>} onClick={sendAll}>{t.sendAll(approvals.length)}</Button>}
+            </div>
+            {loading ? <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>{[0, 1, 2].map(i => <Skeleton key={i} h={120} r={14}/>)}</div>
+              : runResult?.ok === false && !approvals.length ? <InlineError message={t.loadErr} onRetry={onRun} retryLabel={t.retry}/>
+              : !approvals.length ? <Card pad={0}><EmptyState compact icon={FaCheckCircle} title={t.emptyApproveT} body={t.emptyApproveB}/></Card>
+              : <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>{approvals.map(q => {
+                  const c = KIND_COLOR[q.kind] || T.brand
+                  const txt = texts[q.id] ?? q.text
+                  const reason = q.kind === 'stage' ? `${isEn ? 'Moved to' : 'עבר לשלב'} "${stageName(q.stageKey)}"` : (isEn ? q.reason?.en : q.reason?.he) || ''
+                  return (
+                    <Card key={q.id} pad={14} accent={c} style={{ display: 'flex', flexDirection: 'column', gap: 8, opacity: busy[q.id] ? .6 : 1, pointerEvents: busy[q.id] ? 'none' : 'auto' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <span style={{ width: 32, height: 32, borderRadius: '50%', background: `${c}2a`, color: c, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, flexShrink: 0 }}>{(q.name || '?')[0]}</span>
+                        <b style={{ fontSize: 14, fontWeight: 700 }}>{q.name || '—'}</b>
+                        <bdi dir="ltr" style={{ fontSize: 11.5, color: T.text3 }}>+{q.phone}</bdi>
+                        {q.lang === 'en' && <Badge color={T.brand}>EN</Badge>}
+                        <Badge color={c}>{t.kind[q.kind] || q.kind}</Badge>
+                        <div style={{ flex: 1 }}/>
+                        {q.created_at && <span style={{ fontSize: 11.5, color: T.text3 }}>{rel(q.created_at, t)}</span>}
+                      </div>
+                      <div style={{ fontSize: 12.5, color: T.text2 }} dir="auto">{reason}</div>
+                      {editing[q.id] ? (
+                        <div style={{ maxWidth: 560 }}>
+                          <textarea value={txt} onChange={e => setTexts(x => ({ ...x, [q.id]: e.target.value }))} dir={q.lang === 'en' ? 'ltr' : 'rtl'} rows={Math.min(10, txt.split('\n').length + 1)} aria-label={t.editMsg}
+                            style={{ ...inputStyle, height: 'auto', padding: '9px 11px', background: '#0B2A22', border: '1px solid rgba(37,211,102,.35)', color: T.wa.text, lineHeight: 1.6, resize: 'vertical' }} autoFocus/>
+                          <button type="button" onClick={() => { setTexts(x => { const n = { ...x }; delete n[q.id]; return n }); setEditing(e => ({ ...e, [q.id]: false })) }} style={{ background: 'none', border: 'none', color: T.brandText, fontSize: 12, fontWeight: 700, cursor: 'pointer', padding: '4px 0', fontFamily: 'inherit', minHeight: 0 }}>{t.revertMsg}</button>
+                        </div>
+                      ) : (
+                        <div style={{ position: 'relative', maxWidth: 560 }}>
+                          <div dir={q.lang === 'en' ? 'ltr' : 'rtl'} style={{ background: '#0B2A22', border: '1px solid rgba(37,211,102,.18)', color: T.wa.text, borderRadius: 10, padding: '9px 40px 9px 11px', paddingInlineEnd: 40, fontSize: 13, lineHeight: 1.55, whiteSpace: 'pre-wrap', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}><WAText text={txt}/></div>
+                          <IconButton icon={<FaPen size={10}/>} label={t.editMsg} size={28} onClick={() => setEditing(e => ({ ...e, [q.id]: true }))} style={{ position: 'absolute', top: 6, insetInlineEnd: 6 }}/>
+                          {texts[q.id] != null && texts[q.id] !== q.text && <Badge color={T.amber} textColor={T.amberText}>{t.edited}</Badge>}
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        <Button variant="soft-green" icon={<FaPaperPlane size={11}/>} loading={busy[q.id]} onClick={async () => { if (await send(q, texts[q.id])) reload() }} style={{ flex: '1 1 120px', maxWidth: 200 }}>{t.send}</Button>
+                        <Button icon={<FaTimes size={10}/>} onClick={() => skip(q)}>{t.skip}</Button>
+                        {onOpenChat && <><span className="au-hide-m"><Button icon={<FaWhatsapp size={12}/>} onClick={() => chat(q)}>{t.openChat}</Button></span><span className="au-only-m"><IconButton icon={<FaWhatsapp size={14}/>} label={t.openChat} size={36} variant="ghost" onClick={() => chat(q)}/></span></>}
+                      </div>
+                    </Card>
+                  )
+                })}</div>}
+          </section>
+        )}
+
+        <section aria-label={t.upcoming}>
+          <h3 style={{ margin: '0 0 10px', fontSize: 16, fontWeight: 800 }}>{t.upcoming}</h3>
+          {loading ? <Card pad={0}>{[0, 1, 2, 3, 4].map(i => <div key={i} style={{ padding: '10px 14px' }}><Skeleton h={32}/></div>)}</Card>
+            : !ups.length && !soonJobs.length ? <Card pad={0}><EmptyState compact icon={FaCalendarCheck} title={t.emptyUpcomingT} body={t.emptyUpcomingB} action={<Button size="sm" variant="brand" onClick={() => onGo('rules')}>{t.goRules}</Button>}/></Card>
+            : (
+              <Card pad={0} style={{ overflow: 'hidden' }}>
+                {groups.map(([label, list], gi) => (list.length || (gi === 2 && soonJobs.length)) ? (
+                  <div key={label}>
+                    <div style={{ padding: '8px 14px', fontSize: 12, fontWeight: 800, color: T.text3, background: 'rgba(0,0,0,.18)', borderBottom: `1px solid ${T.divider}` }}>{label} · {list.length + (gi === 2 ? soonJobs.length : 0)}</div>
+                    {list.map(u => {
+                      const lead = leads.find(l => String(l.id) === String(u.leadId))
+                      return (
+                        <div key={u.id} className="au-sched-row au-row" style={{ borderBottom: `1px solid ${T.divider}` }}>
+                          <div>
+                            <div style={{ fontSize: 13.5, fontWeight: 800, fontVariantNumeric: 'tabular-nums', color: u.heldByQuiet ? T.amberText : T.text, display: 'flex', alignItems: 'center', gap: 5 }}>{u.heldByQuiet && <FaMoon size={10}/>}{hhmm(u.sendAt, isEn)}</div>
+                            <div style={{ fontSize: 11, color: u.heldByQuiet ? T.amberText : T.text3 }}>{u.heldByQuiet ? t.heldQuiet : rel(u.sendAt, t)}</div>
+                          </div>
+                          <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <b style={{ fontSize: 13.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.name || `+${u.phone}`}</b>
+                            <Badge color={STAGE_COLOR[lead?.leadStatus || u.stage] || T.grey} textColor={T.text2}>{stageName(lead?.leadStatus || u.stage || 'new')}</Badge>
+                          </div>
+                          <div className="au-sr-kind" style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <Badge color={KIND_COLOR[u.kind] || T.brand}>{t.kind[u.kind] || u.kind}</Badge>
+                            <span style={{ fontSize: 12.5, color: T.text2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tplName(u.templateId)}</span>
+                          </div>
+                          <div className="au-sr-mode"><ModeBadge mode={u.mode} labels={t.modesBadge}/></div>
+                          <div className="au-row-actions" style={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
+                            <IconButton icon={<FaPaperPlane size={12} color={T.green}/>} label={t.sendNow} onClick={() => sendUpcoming(u)} loading={busy[u.id]}/>
+                            <IconButton icon={<FaTimes size={12}/>} label={t.skip} onClick={() => skip(u)}/>
+                            {onOpenChat && <IconButton icon={<FaWhatsapp size={13}/>} label={t.openChat} onClick={() => chat(u)}/>}
+                          </div>
+                        </div>
+                      )
+                    })}
+                    {gi === 2 && soonJobs.map(j => (
+                      <div key={j.id} className="au-sched-row" style={{ borderBottom: `1px solid ${T.divider}` }}>
+                        <div><div style={{ fontSize: 13.5, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>{hhmm(j.at, isEn)}</div><div style={{ fontSize: 11, color: T.text3 }}>{rel(j.at, t)}</div></div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}><FaBullhorn size={12} color={T.brand}/><b style={{ fontSize: 13.5 }}>{t.bulkRow(j.recipients?.length || 0)}</b></div>
+                        <div className="au-sr-kind" style={{ fontSize: 12.5, color: T.text2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tplName(j.templateId)}</div>
+                        <div className="au-sr-mode"><ModeBadge mode="auto" labels={t.modesBadge}/></div>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end' }}><Button size="sm" variant="brand" onClick={() => onOpenJob(j)}>{t.open}</Button></div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null)}
+              </Card>
+            )}
+        </section>
+
+        {showFirstRun && (
+          <Card>
+            <h3 style={{ margin: '0 0 12px', fontSize: 15, fontWeight: 800, display: 'flex', gap: 8, alignItems: 'center' }}><FaRobot color={T.brand}/>{t.howItWorks}</h3>
+            <ol style={{ margin: 0, paddingInlineStart: 20, display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13.5, lineHeight: 1.6 }}>
+              <li>{t.flow1(tplName(cfg.rules.welcome.templateId))}</li>
+              <li>{t.flow2(noReplySteps.length, nrDays)}</li>
+              <li>{t.flow3}</li>
+            </ol>
+          </Card>
+        )}
       </div>
-      {items.map(q => {
-        const lead = leads.find(l => String(l.id) === String(q.leadId))
-        const txt = texts[q.id] ?? q.text
-        const c = KIND_COLOR[q.kind] || purple
-        return (
-          <div key={q.id} style={{ ...card, padding: 14, display: 'flex', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap', borderInlineStart: `3px solid ${c}` }}>
-            <div style={{ flex: '1 1 220px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <b style={{ fontSize: 14.5 }}>{q.name || q.phone}</b>
-                <span dir="ltr" style={{ fontSize: 11.5, color: 'rgba(232,228,216,.5)' }}>+{q.phone}</span>
-                <span style={{ fontSize: 10.5, fontWeight: 800, padding: '2px 8px', borderRadius: 20, background: `${c}22`, color: c }}>{t.kind[q.kind] || q.kind}</span>
-                {q.lang === 'en' && <span style={{ fontSize: 10.5, padding: '2px 7px', borderRadius: 20, background: 'rgba(255,255,255,.07)' }}>EN</span>}
-              </div>
-              <div style={{ fontSize: 12.5, color: 'rgba(232,228,216,.7)' }}>{reason(q)} · {tplName(q.templateId)}</div>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
-                <button onClick={() => act(q, 'send')} disabled={!!busy[q.id]} style={btn({ background: `${green}22`, borderColor: `${green}77`, color: green })}><FaPaperPlane size={11}/> {busy[q.id] === 'send' ? t.sending : t.send}</button>
-                <button onClick={() => act(q, 'skip')} disabled={!!busy[q.id]} style={btn({ background: 'transparent', color: 'rgba(232,228,216,.65)', borderColor: 'rgba(232,228,216,.2)' })}><FaTimes size={11}/> {t.skip}</button>
-                {onOpenChat && <button onClick={() => onOpenChat(lead || { id: `wa:${q.phone}`, name: q.name, phone: q.phone })} style={btn({ background: 'transparent' })}><FaWhatsapp size={12}/> {t.openChat}</button>}
-              </div>
-            </div>
-            <div style={{ flex: '2 1 320px', minWidth: 0 }}>
-              <textarea value={txt} onChange={e => setTexts(x => ({ ...x, [q.id]: e.target.value }))} rows={Math.min(8, Math.max(3, txt.split('\n').length + 1))} dir="auto"
-                style={{ ...input, background: '#0B2A22', border: '1px solid rgba(37,211,102,.25)', color: '#E9EDEF', resize: 'vertical', lineHeight: 1.55, fontSize: 13.5 }}/>
-              {texts[q.id] != null && texts[q.id] !== q.text && <div style={{ fontSize: 10.5, color: '#F5A623', marginTop: 3 }}>{t.edited}</div>}
-            </div>
-          </div>
-        )
-      })}
+
+      <aside className="au-today-aside">
+        <WindowCard t={t} isEn={isEn} cfg={cfg} onEdit={() => onGo('hours')}/>
+        <div className="au-kpi">
+          <StatTile value={kpi.pending} label={t.kpiPending} tone={kpi.pending ? T.amberText : T.text} onClick={() => document.getElementById('au-approvals')?.scrollIntoView({ behavior: 'smooth' })}/>
+          <StatTile value={kpi.sent7} label={t.kpiSent} tone={T.green}/>
+          <StatTile value={kpi.positive} label={t.kpiPos} tone={T.blue}/>
+          <StatTile value={kpi.failed7} label={t.kpiFail} tone={kpi.failed7 ? T.redText : T.grey} onClick={onFailed}/>
+        </div>
+        {nextJob && (
+          <Card pad={14} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: T.text3 }}>{t.nextCampaign}</div>
+            <b style={{ fontSize: 14 }}>{tplName(nextJob.templateId) || nextJob.name}</b>
+            <div style={{ fontSize: 12.5, color: T.text2 }}>{t.bulkRow(nextJob.recipients?.length || 0)} · {whenText(nextJob.at, { today: t.today, tomorrow: t.tomorrow, at: isEn ? 'at' : 'ב-' }, isEn)}</div>
+            <div><Button size="sm" variant="brand" onClick={() => onOpenJob(nextJob)}>{t.open}</Button></div>
+          </Card>
+        )}
+      </aside>
     </div>
   )
 }
 
-// ── Templates ──────────────────────────────────────────────────────────────────
-function Templates({ t, isEn, card, btn, input, cfg, tpls, leads, saveTemplates, flash, green, purple, cream, onSent }) {
-  const [cat, setCat] = useState('all')
-  const [q, setQ] = useState('')
-  const [editing, setEditing] = useState(null)   // template object being edited (copy)
-  const [sendFor, setSendFor] = useState(null)   // template to send
-  const list = tpls.filter(x => cat === 'all' || x.cat === cat).filter(x => !q || `${x.he_title} ${x.en_title} ${x.he} ${x.en}`.toLowerCase().includes(q.toLowerCase()))
-  const sample = asLead(leads.find(l => l.name && (l.propTitle || l.prop_title)) || leads.find(l => l.name) || { name: isEn ? 'Dana Cohen' : 'דנה כהן', propTitle: isEn ? 'Plot in Tel Mond' : 'מגרש בתל מונד' })
-  const copy = async x => { try { await navigator.clipboard.writeText(renderTemplate(x, sample, cfg, isEn ? 'en' : 'he')); flash(t.copied) } catch {} }
-  const removeTpl = x => {
-    if (!window.confirm(`${t.del}: ${isEn ? x.en_title : x.he_title}?`)) return
-    saveTemplates(c => { if (x.builtIn) c.deletedTemplates = [...new Set([...(c.deletedTemplates || []), x.id])]; else { c.templates = { ...(c.templates || {}) }; delete c.templates[x.id] } })
-  }
-  const resetTpl = x => saveTemplates(c => { c.templates = { ...(c.templates || {}) }; delete c.templates[x.id] })
-  const edited = x => x.builtIn && !!cfg.templates?.[x.id]
+function WindowCard({ t, isEn, cfg, onEdit }) {
+  useTick()
+  const nw = nextWindows(cfg, new Date(), 3)
+  const { day } = israelNow()
+  const days = cfg.quiet?.days || {}
+  const unlimited = !cfg.quiet?.enabled
+  const w0 = nw.windows.find(w => !w.current)
+  const title = unlimited ? t.winUnlimited : nw.open ? t.winOpen : t.winClosed
+  const sub = unlimited ? '' : nw.open ? t.winOpenSub(fmtHour(nw.closesAt)) : w0 ? t.winClosedSub(w0.offset === 0 ? t.today : w0.offset === 1 ? t.tomorrow : t.days[w0.day], fmtHour(w0.start)) : t.winNone
+  const open = unlimited || nw.open
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-        {[{ id: 'all', he: 'הכל', en: 'All', color: purple, icon: '✨' }, ...CATEGORIES].map(c => (
-          <button key={c.id} onClick={() => setCat(c.id)} style={btn({ padding: '6px 12px', borderRadius: 20, fontSize: 12, background: cat === c.id ? `${c.color}26` : 'transparent', borderColor: cat === c.id ? c.color : 'rgba(132,144,216,.2)', color: cat === c.id ? c.color : 'rgba(232,228,216,.65)' })}>{c.icon} {isEn ? c.en : c.he}</button>
-        ))}
-        <div style={{ flex: 1 }}/>
-        <div style={{ position: 'relative', width: 200 }}>
-          <FaSearch size={11} style={{ position: 'absolute', top: 11, [isEn ? 'left' : 'right']: 10, opacity: .5 }}/>
-          <input value={q} onChange={e => setQ(e.target.value)} placeholder="…" style={{ ...input, [isEn ? 'paddingLeft' : 'paddingRight']: 28 }}/>
-        </div>
-        <button onClick={() => setEditing({ id: `c_${Date.now().toString(36)}`, cat: cat === 'all' ? 'general' : cat, he_title: '', en_title: '', he: '', en: '', builtIn: false, isNew: true })} style={btn({ background: `${green}1F`, borderColor: `${green}66`, color: green })}><FaPlus size={11}/> {t.newTemplate}</button>
+    <Card pad={14} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span style={{ width: 10, height: 10, borderRadius: '50%', background: open ? T.green : T.amber, boxShadow: open ? `0 0 0 4px ${T.green}33` : 'none' }}/>
+        <div style={{ flex: 1 }}><div style={{ fontSize: 15, fontWeight: 800 }}>{title}</div>{sub && <div style={{ fontSize: 12, color: T.text3 }}>{sub}</div>}</div>
       </div>
-      <div className="au-grid">
-        {list.map(x => {
-          const c = CATEGORIES.find(k => k.id === x.cat) || CATEGORIES[5]
-          return (
-            <div key={x.id} style={{ ...card, padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 16 }}>{c.icon}</span>
-                <b style={{ fontSize: 13.5, flex: 1, minWidth: 0 }}>{isEn ? x.en_title || x.he_title : x.he_title || x.en_title}</b>
-                {edited(x) && <span style={{ fontSize: 10, color: '#F5A623', fontWeight: 800 }}>{t.edited}</span>}
-                <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 20, background: `${c.color}22`, color: c.color }}>{isEn ? c.en : c.he}</span>
+      {!unlimited && (
+        <div aria-hidden style={{ display: 'flex', gap: 6, alignItems: 'flex-end' }}>
+          {[0, 1, 2, 3, 4, 5, 6].map(d => {
+            const w = days[d], isOn = Array.isArray(w)
+            return (
+              <div key={d} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+                <span style={{ width: 8, height: 32, borderRadius: 3, background: isOn ? 'rgba(37,211,102,.35)' : 'rgba(255,255,255,.06)', outline: d === day ? `2px solid ${T.brand}` : 'none', outlineOffset: 1 }}/>
+                <span style={{ fontSize: 9.5, color: d === day ? T.brandText : T.text3, fontWeight: 700 }}>{t.dShort[d]}</span>
               </div>
-              <div className="au-bubble" dir="auto" style={{ background: '#0B2A22', border: '1px solid rgba(37,211,102,.18)', color: '#E9EDEF', borderRadius: '10px 10px 10px 2px', padding: '9px 11px', fontSize: 12.5, maxHeight: 150, overflow: 'auto' }}>
-                {renderTemplate(x, sample, cfg, isEn ? 'en' : 'he')}
-              </div>
-              <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-                <button onClick={() => setSendFor(x)} style={btn({ padding: '6px 10px', fontSize: 11.5, background: `${green}1F`, borderColor: `${green}66`, color: green })}><FaPaperPlane size={10}/> {t.sendTo}</button>
-                <button onClick={() => setEditing({ ...x })} style={btn({ padding: '6px 10px', fontSize: 11.5 })}>{t.edit}</button>
-                <button onClick={() => copy(x)} style={btn({ padding: '6px 10px', fontSize: 11.5, background: 'transparent' })}><FaCopy size={10}/> {t.copy}</button>
-                <button onClick={() => setEditing({ ...x, id: `c_${Date.now().toString(36)}`, he_title: `${x.he_title} (2)`, en_title: `${x.en_title || ''} (2)`, builtIn: false, isNew: true })} style={btn({ padding: '6px 10px', fontSize: 11.5, background: 'transparent' })}>{t.duplicate}</button>
-                {edited(x) && <button onClick={() => resetTpl(x)} title={t.reset} style={btn({ padding: '6px 9px', fontSize: 11.5, background: 'transparent', color: '#F5A623', borderColor: 'rgba(245,166,35,.35)' })}><FaUndo size={10}/></button>}
-                <button onClick={() => removeTpl(x)} title={t.del} style={btn({ padding: '6px 9px', fontSize: 11.5, background: 'transparent', color: '#E05252', borderColor: 'rgba(224,82,82,.35)' })}><FaTrash size={10}/></button>
-              </div>
-            </div>
-          )
-        })}
-      </div>
-      {editing && <TemplateEditor {...{ t, isEn, btn, input, cfg, tpl: editing, sample, onClose: () => setEditing(null), purple, green, cream,
-        onSave: x => { const { builtIn, isNew, id, ...rest } = x; saveTemplates(c => { c.templates = { ...(c.templates || {}), [id]: rest }; c.deletedTemplates = (c.deletedTemplates || []).filter(d => d !== id) }); setEditing(null) } }}/>}
-      {sendFor && <QuickSend {...{ t, isEn, btn, input, cfg, tpl: sendFor, leads, onClose: () => setSendFor(null), flash, green, onSent }}/>}
-    </div>
-  )
-}
-
-function Modal({ children, onClose, width = 720 }) {
-  useEffect(() => { const k = e => e.key === 'Escape' && onClose(); window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k) }, [onClose])
-  return (
-    <div onMouseDown={e => e.target === e.currentTarget && onClose()} style={{ position: 'fixed', inset: 0, zIndex: 2500, background: 'rgba(0,0,0,.65)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 14 }}>
-      <div style={{ width: '100%', maxWidth: width, maxHeight: '92vh', overflow: 'auto', background: '#10121E', border: '1px solid rgba(132,144,216,.25)', borderRadius: 16, padding: 18, boxShadow: '0 24px 70px rgba(0,0,0,.6)' }}>{children}</div>
-    </div>
-  )
-}
-
-function TemplateEditor({ t, isEn, btn, input, cfg, tpl, sample, onClose, onSave, purple, green, cream }) {
-  const [x, setX] = useState(tpl)
-  const [lang, setLang] = useState(isEn ? 'en' : 'he')
-  const refs = { he: useRef(null), en: useRef(null) }
-  const insert = (field, key) => {
-    const el = refs[field].current
-    const val = x[field] || ''
-    const pos = el ? el.selectionStart : val.length
-    const next = val.slice(0, pos) + `{${key}}` + val.slice(el ? el.selectionEnd : pos)
-    setX(o => ({ ...o, [field]: next }))
-    setTimeout(() => { if (el) { el.focus(); el.selectionStart = el.selectionEnd = pos + key.length + 2 } }, 0)
-  }
-  const valid = (x.he_title || x.en_title) && (x.he || x.en)
-  const Field = ({ field, label, dir }) => (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-      <label style={{ fontSize: 12, fontWeight: 700, color: 'rgba(232,228,216,.7)' }}>{label}</label>
-      <textarea ref={refs[field]} value={x[field] || ''} onChange={e => setX(o => ({ ...o, [field]: e.target.value }))} rows={6} dir={dir} onFocus={() => setLang(field)}
-        style={{ ...input, resize: 'vertical', lineHeight: 1.55, fontSize: 13.5 }}/>
-      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-        {VARIABLES.map(v => <button key={v.key} type="button" onClick={() => insert(field, v.key)} style={btn({ padding: '3px 8px', fontSize: 10.5, borderRadius: 20, background: 'transparent' })}>{`{${v.key}}`} · {isEn ? v.en : v.he}</button>)}
-      </div>
-    </div>
-  )
-  return (
-    <Modal onClose={onClose} width={860}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-        <b style={{ fontSize: 16, flex: 1, color: cream }}>{tpl.isNew ? t.newTemplate : t.edit}</b>
-        <button onClick={onClose} aria-label={t.cancel} style={btn({ padding: 7, background: 'transparent' })}><FaTimes/></button>
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 14 }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            <input value={x.he_title || ''} onChange={e => setX(o => ({ ...o, he_title: e.target.value }))} placeholder={t.titleHe} dir="rtl" style={input}/>
-            <input value={x.en_title || ''} onChange={e => setX(o => ({ ...o, en_title: e.target.value }))} placeholder={t.titleEn} dir="ltr" style={input}/>
-          </div>
-          <select value={x.cat} onChange={e => setX(o => ({ ...o, cat: e.target.value }))} aria-label={t.category} style={input}>
-            {CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.icon} {isEn ? c.en : c.he}</option>)}
-          </select>
-          {Field({ field: 'he', label: t.textHe, dir: 'rtl' })}
-          {Field({ field: 'en', label: t.textEn, dir: 'ltr' })}
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <b style={{ fontSize: 12.5, flex: 1, color: 'rgba(232,228,216,.75)' }}>{t.preview} {t.previewFor} {sample.name}</b>
-            {['he', 'en'].map(l => <button key={l} onClick={() => setLang(l)} style={btn({ padding: '4px 9px', fontSize: 11, background: lang === l ? `${purple}30` : 'transparent' })}>{l.toUpperCase()}</button>)}
-          </div>
-          <div style={{ background: '#EFEAE2', borderRadius: 12, padding: 16, minHeight: 220 }}>
-            <div className="au-bubble" dir="auto" style={{ background: '#D9FDD3', color: '#111B21', borderRadius: '10px 2px 10px 10px', padding: '9px 12px', fontSize: 13.5, maxWidth: '92%', marginInlineStart: 'auto', boxShadow: '0 1px 1px rgba(0,0,0,.12)' }}>
-              {renderTemplate(x, sample, cfg, lang) || '…'}
-            </div>
-          </div>
-        </div>
-      </div>
-      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
-        <button onClick={onClose} style={btn({ background: 'transparent' })}>{t.cancel}</button>
-        <button onClick={() => valid && onSave(x)} disabled={!valid} style={btn({ opacity: valid ? 1 : .5, background: `${green}22`, borderColor: `${green}77`, color: green })}><FaCheck size={11}/> {t.save}</button>
-      </div>
-    </Modal>
-  )
-}
-
-// Send one template to one lead (from the template card)
-function QuickSend({ t, isEn, btn, input, cfg, tpl, leads, onClose, flash, green, onSent }) {
-  const [q, setQ] = useState('')
-  const [lead, setLead] = useState(null)
-  const [text, setText] = useState('')
-  const [busy, setBusy] = useState(false)
-  const matches = leads.filter(l => l.phone && (!q || (l.name || '').toLowerCase().includes(q.toLowerCase()) || String(l.phone).includes(q))).slice(0, 8)
-  const pick = l => { setLead(l); setText(renderTemplate(tpl, asLead(l), cfg)) }
-  const send = async () => {
-    setBusy(true)
-    try {
-      const r = await autoApi.post('auto-send', { items: [{ leadId: String(lead.id), phone: intlPhone(lead.phone), name: lead.name, text, ruleKey: `tpl:${tpl.id}`, templateId: tpl.id }] })
-      const res = r.results?.[0]; if (!res?.ok) throw new Error(res?.error || t.error)
-      flash(t.sentOk); onSent?.(); onClose()
-    } catch (e) { flash(`${t.error}: ${e.message}`) } finally { setBusy(false) }
-  }
-  return (
-    <Modal onClose={onClose} width={560}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-        <b style={{ fontSize: 15, flex: 1 }}>{t.sendTo} · {isEn ? tpl.en_title || tpl.he_title : tpl.he_title}</b>
-        <button onClick={onClose} aria-label={t.cancel} style={btn({ padding: 7, background: 'transparent' })}><FaTimes/></button>
-      </div>
-      {!lead ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder={t.searchLead} style={input}/>
-          {matches.map(l => (
-            <button key={l.id} onClick={() => pick(l)} className="au-row" style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '9px 10px', borderRadius: 9, border: '1px solid rgba(132,144,216,.12)', background: 'transparent', color: 'inherit', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'start', minHeight: 0 }}>
-              <b style={{ flex: 1 }}>{l.name || '—'}</b><span dir="ltr" style={{ fontSize: 12, opacity: .6 }}>{l.phone}</span>
-            </button>
-          ))}
-        </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={{ fontSize: 13 }}><b>{lead.name}</b> · <span dir="ltr">{lead.phone}</span> <button onClick={() => setLead(null)} style={btn({ padding: '3px 8px', fontSize: 11, background: 'transparent', marginInlineStart: 6 })}>✎</button></div>
-          <textarea value={text} onChange={e => setText(e.target.value)} rows={7} dir="auto" style={{ ...input, background: '#0B2A22', border: '1px solid rgba(37,211,102,.25)', color: '#E9EDEF', lineHeight: 1.55, fontSize: 13.5 }}/>
-          <button onClick={send} disabled={busy || !text.trim()} style={btn({ alignSelf: 'flex-end', background: `${green}22`, borderColor: `${green}77`, color: green })}><FaPaperPlane size={11}/> {busy ? t.sending : t.send}</button>
+            )
+          })}
         </div>
       )}
-    </Modal>
+      <div><Button size="sm" variant="brand" icon={<FaClock size={10}/>} onClick={onEdit}>{t.editHours}</Button></div>
+    </Card>
   )
 }
 
 // ── Rules ──────────────────────────────────────────────────────────────────────
-function Rules({ t, isEn, card, btn, input, cfg, setCfg, tpls, tplName, stageName, dirty, save, saving, purple, green }) {
-  const R = cfg.rules
-  const TplSelect = ({ value, onChange, style }) => (
-    <select value={value || ''} onChange={e => onChange(e.target.value)} style={{ ...input, width: 'auto', minWidth: 190, ...style }}>
-      {tpls.map(x => <option key={x.id} value={x.id}>{tplName(x.id)}</option>)}
-    </select>
-  )
-  const StageSelect = ({ value, onChange }) => (
-    <select value={value || ''} onChange={e => onChange(e.target.value)} style={{ ...input, width: 'auto', minWidth: 140 }}>
-      <option value="">{t.noMove}</option>
-      {STAGES.map(s => <option key={s} value={s}>{stageName(s)}</option>)}
-    </select>
-  )
-  const row = { display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }
-  const lbl = { fontSize: 12.5, color: 'rgba(232,228,216,.75)', minWidth: 150 }
-  const hours = [...Array(25).keys()]
+function TokenSelect({ value, onChange, options, label, broken, brokenLabel, minWidth = 140 }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, paddingBottom: 60 }}>
-      <div style={{ fontSize: 12, color: 'rgba(232,228,216,.6)' }}>{t.modeHint}</div>
-
-      <Section card={card} title={t.welcomeRule} icon={<span>👋</span>} right={<ModeSwitch t={t} purple={purple} value={R.welcome.mode} onChange={v => setCfg(c => { c.rules.welcome.mode = v })}/>}>
-        <div style={row}><span style={lbl}>{t.welcomeTpl}</span><TplSelect value={R.welcome.templateId} onChange={v => setCfg(c => { c.rules.welcome.templateId = v })}/></div>
-        <div style={row}><span style={lbl}>{t.welcomePropTpl}</span><TplSelect value={R.welcome.propTemplateId} onChange={v => setCfg(c => { c.rules.welcome.propTemplateId = v })}/></div>
-      </Section>
-
-      <Section card={card} title={t.noReplyRule} icon={<span>⏰</span>} right={<ModeSwitch t={t} purple={purple} value={R.noReply.mode} onChange={v => setCfg(c => { c.rules.noReply.mode = v })}/>}>
-        {(R.noReply.steps || []).map((s, i) => (
-          <div key={i} style={row}>
-            <span style={{ ...lbl, minWidth: 60, fontWeight: 800 }}>{t.step} {i + 1}</span>
-            <input type="number" min={1} max={720} value={s.hours} onChange={e => setCfg(c => { c.rules.noReply.steps[i].hours = Math.max(1, Number(e.target.value) || 1) })} style={{ ...input, width: 80 }}/>
-            <span style={{ fontSize: 12, color: 'rgba(232,228,216,.6)' }}>{t.afterHours}</span>
-            <TplSelect value={s.templateId} onChange={v => setCfg(c => { c.rules.noReply.steps[i].templateId = v })}/>
-            <button onClick={() => setCfg(c => { c.rules.noReply.steps.splice(i, 1) })} aria-label={t.del} style={btn({ padding: 7, background: 'transparent', color: '#E05252', borderColor: 'rgba(224,82,82,.3)' })}><FaTrash size={10}/></button>
-          </div>
-        ))}
-        {(R.noReply.steps || []).length < 6 && <button onClick={() => setCfg(c => { c.rules.noReply.steps.push({ hours: 72, templateId: 'nr3' }) })} style={btn({ alignSelf: 'flex-start', background: 'transparent' })}><FaPlus size={10}/> {t.addStep}</button>}
-        <div style={row}>
-          <span style={lbl}>{t.onlyStages}</span>
-          {STAGES.filter(s => s !== 'won').map(s => {
-            const on = (R.noReply.stages || []).includes(s)
-            return <button key={s} onClick={() => setCfg(c => { const set = new Set(c.rules.noReply.stages || []); on ? set.delete(s) : set.add(s); c.rules.noReply.stages = [...set] })} style={btn({ padding: '5px 10px', fontSize: 11.5, borderRadius: 20, background: on ? `${purple}30` : 'transparent', borderColor: on ? purple : 'rgba(132,144,216,.2)', color: on ? purple : 'rgba(232,228,216,.55)' })}>{on ? '✓ ' : ''}{stageName(s)}</button>
-          })}
-        </div>
-      </Section>
-
-      <Section card={card} title={t.repliesRule} icon={<span>💬</span>} right={<ModeSwitch t={t} purple={purple} onOff value={R.replies.mode === 'off' ? 'off' : 'auto'} onChange={v => setCfg(c => { c.rules.replies.mode = v === 'off' ? 'off' : 'auto' })}/>}>
-        <label style={{ ...row, cursor: 'pointer', fontSize: 13 }}><input type="checkbox" checked={!!R.replies.notifyTeam} onChange={e => setCfg(c => { c.rules.replies.notifyTeam = e.target.checked })} style={{ appearance: 'auto', width: 16, height: 16, minHeight: 0 }}/> {t.notifyTeam}</label>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 12 }}>
-          {[['negative', t.negWords, t.onNegative, '#9A9AA8'], ['positive', t.posWords, t.onPositive, '#0073EA']].map(([k, words, on, c]) => (
-            <div key={k} style={{ padding: 12, borderRadius: 11, border: `1px solid ${c}44`, background: `${c}0D`, display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <b style={{ fontSize: 13, color: c === '#9A9AA8' ? '#C9C9D2' : '#60A5FA' }}>{on}</b>
-              <div style={row}><ModeSwitch t={t} purple={purple} value={R.replies[`${k}Mode`]} onChange={v => setCfg(c2 => { c2.rules.replies[`${k}Mode`] = v })}/><TplSelect value={R.replies[`${k}TemplateId`]} onChange={v => setCfg(c2 => { c2.rules.replies[`${k}TemplateId`] = v })} style={{ minWidth: 150, flex: 1 }}/></div>
-              <div style={row}><span style={{ fontSize: 12, color: 'rgba(232,228,216,.7)' }}>{t.moveTo}</span><StageSelect value={R.replies[`${k}MoveTo`]} onChange={v => setCfg(c2 => { c2.rules.replies[`${k}MoveTo`] = v })}/></div>
-              <label style={{ fontSize: 11.5, color: 'rgba(232,228,216,.6)' }}>{words} ({t.commaSep})</label>
-              <textarea rows={3} value={(R.replies[k] || []).join(', ')} onChange={e => setCfg(c2 => { c2.rules.replies[k] = e.target.value.split(',').map(s => s.trim()).filter(Boolean) })} style={{ ...input, resize: 'vertical', fontSize: 12.5 }}/>
-            </div>
-          ))}
-        </div>
-      </Section>
-
-      <Section card={card} title={t.stageRule} icon={<span>🗂️</span>}>
-        {['contacted', 'discovery', 'negotiating', 'won', 'lost'].map(s => (
-          <div key={s} style={row}>
-            <span style={{ ...lbl, fontWeight: 700 }}>{stageName(s)}</span>
-            <ModeSwitch t={t} purple={purple} value={R.stage?.[s]?.mode || 'off'} onChange={v => setCfg(c => { c.rules.stage[s] = { ...(c.rules.stage[s] || {}), mode: v } })}/>
-            <TplSelect value={R.stage?.[s]?.templateId} onChange={v => setCfg(c => { c.rules.stage[s] = { ...(c.rules.stage[s] || {}), templateId: v } })}/>
-          </div>
-        ))}
-      </Section>
-
-      <Section card={card} title={t.reengageRule} icon={<span>🔁</span>} right={<ModeSwitch t={t} purple={purple} value={R.reengage.mode} onChange={v => setCfg(c => { c.rules.reengage.mode = v })}/>}>
-        <div style={row}>
-          <input type="number" min={7} max={365} value={R.reengage.days} onChange={e => setCfg(c => { c.rules.reengage.days = Math.max(7, Number(e.target.value) || 45) })} style={{ ...input, width: 80 }}/>
-          <span style={{ fontSize: 12, color: 'rgba(232,228,216,.6)' }}>{t.afterDays} "{stageName('lost')}"</span>
-          <TplSelect value={R.reengage.templateId} onChange={v => setCfg(c => { c.rules.reengage.templateId = v })}/>
-        </div>
-      </Section>
-
-      <Section card={card} title={t.quiet} icon={<FaClock color="#F5A623"/>} right={
-        <label style={{ ...row, cursor: 'pointer', fontSize: 12.5 }}><input type="checkbox" checked={!!cfg.quiet.enabled} onChange={e => setCfg(c => { c.quiet.enabled = e.target.checked })} style={{ appearance: 'auto', width: 16, height: 16, minHeight: 0 }}/> {t.on}</label>}>
-        <div style={{ fontSize: 12, color: 'rgba(232,228,216,.6)' }}>{t.quietHint}</div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: 8, opacity: cfg.quiet.enabled ? 1 : .45 }}>
-          {t.days.map((d, i) => {
-            const w = cfg.quiet.days?.[i]
-            return (
-              <div key={i} style={{ ...row, padding: '7px 10px', borderRadius: 9, background: 'rgba(255,255,255,.03)', border: '1px solid rgba(132,144,216,.12)' }}>
-                <b style={{ fontSize: 12.5, width: 52 }}>{d}</b>
-                {w ? (<>
-                  <select value={w[0]} onChange={e => setCfg(c => { c.quiet.days[i] = [Number(e.target.value), c.quiet.days[i][1]] })} style={{ ...input, width: 66, padding: '5px 6px' }}>{hours.slice(0, 24).map(h => <option key={h} value={h}>{String(h).padStart(2, '0')}:00</option>)}</select>
-                  <span>–</span>
-                  <select value={w[1]} onChange={e => setCfg(c => { c.quiet.days[i] = [c.quiet.days[i][0], Number(e.target.value)] })} style={{ ...input, width: 66, padding: '5px 6px' }}>{hours.slice(1).map(h => <option key={h} value={h}>{String(h).padStart(2, '0')}:00</option>)}</select>
-                  <button onClick={() => setCfg(c => { c.quiet.days[i] = null })} aria-label={t.closed} style={btn({ padding: 5, background: 'transparent', color: 'rgba(232,228,216,.5)', borderColor: 'transparent' })}><FaTimes size={10}/></button>
-                </>) : <button onClick={() => setCfg(c => { c.quiet.days[i] = [9, 18] })} style={btn({ padding: '4px 9px', fontSize: 11.5, background: 'transparent', color: 'rgba(232,228,216,.5)' })}>{t.closed} · <FaPlus size={9}/></button>}
-              </div>
-            )
-          })}
-        </div>
-      </Section>
-
-      <Section card={card} title={t.varsTitle} icon={<span>🏢</span>}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
-          {[['agent', t.agentHe, 'rtl'], ['en_agent', t.agentEn, 'ltr'], ['phone', t.officePhone, 'ltr'], ['sellLink', t.sellLink, 'ltr']].map(([k, l, dir]) => (
-            <label key={k} style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, color: 'rgba(232,228,216,.7)' }}>{l}
-              <input value={cfg.vars?.[k] || ''} dir={dir} onChange={e => setCfg(c => { c.vars = { ...(c.vars || {}), [k]: e.target.value } })} style={input}/>
-            </label>
-          ))}
-        </div>
-      </Section>
-
-      {dirty && (
-        <div style={{ position: 'sticky', bottom: 10, zIndex: 5, display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 12, background: '#1F1A0E', border: '1px solid rgba(245,166,35,.5)', boxShadow: '0 10px 30px rgba(0,0,0,.5)' }}>
-          <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: '#F5C26B' }}>{t.unsaved}</span>
-          <button onClick={save} style={btn({ background: `${green}22`, borderColor: `${green}77`, color: green })}><FaCheck size={11}/> {saving === 'saving' ? t.saving : t.saveRules}</button>
-        </div>
-      )}
-    </div>
+    <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', maxWidth: '100%' }}>
+      <select value={value || ''} onChange={e => onChange(e.target.value)} aria-label={label}
+        style={{ appearance: 'none', WebkitAppearance: 'none', height: 30, padding: '0 8px', paddingInlineEnd: 22, borderRadius: 6, border: 'none', borderBottom: `1px dashed ${broken ? T.redText : 'rgba(163,173,235,.6)'}`,
+          background: broken ? T.redSoft : T.brandSoft, color: broken ? T.redText : T.brandText, fontFamily: 'inherit', fontSize: 14, fontWeight: 700, cursor: 'pointer', minHeight: 0, minWidth, maxWidth: '100%', textOverflow: 'ellipsis' }}>
+        {broken && <option value={value}>{brokenLabel}</option>}
+        {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+      </select>
+      <FaChevronDown size={9} style={{ position: 'absolute', insetInlineEnd: 7, pointerEvents: 'none', color: broken ? T.redText : T.brandText }}/>
+    </span>
   )
 }
 
-// ── Bulk send ──────────────────────────────────────────────────────────────────
-function Broadcast({ t, isEn, card, btn, input, cfg, tpls, leads, states, stageName, flash, green, purple, onDone }) {
-  const [tplId, setTplId] = useState(tpls.find(x => x.id === 'reengage')?.id || tpls[0]?.id)
-  const [stages, setStages] = useState(new Set())
-  const [days, setDays] = useState(30)
-  const [q, setQ] = useState('')
-  const [skipSent, setSkipSent] = useState(true)
-  const [sel, setSel] = useState(new Set())
-  const [prog, setProg] = useState(null)
-  const tpl = tpls.find(x => x.id === tplId)
-  const rows = useMemo(() => leads.filter(l => {
-    if (stages.size && !stages.has(l.leadStatus || 'new')) return false
-    if (days && l.ts && Date.now() - l.ts > days * 864e5) return false
-    if (q && !`${l.name || ''} ${l.phone || ''} ${l.propTitle || ''}`.toLowerCase().includes(q.toLowerCase())) return false
-    return true
-  }).map(l => {
-    const s = states[String(l.id)]
-    const phone = intlPhone(l.phone)
-    const blocked = !phone || phone.length < 11 ? t.noPhone : s?.optOut ? t.optedOut : ''
-    const already = !!s?.sent?.[`tpl:${tplId}`]
-    return { l, phone, blocked, already }
-  }), [leads, stages, days, q, states, tplId, t])
-  const eligible = rows.filter(r => !r.blocked && !(skipSent && r.already))
-  useEffect(() => { setSel(new Set(eligible.map(r => String(r.l.id)))) }, [tplId, stages, days, q, skipSent, leads.length]) // eslint-disable-line react-hooks/exhaustive-deps
-  const chosen = eligible.filter(r => sel.has(String(r.l.id)))
-  const toggle = id => setSel(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n })
-  const send = async () => {
-    if (!tpl || !chosen.length || !window.confirm(t.bcConfirm(chosen.length))) return
-    let ok = 0, bad = 0
-    setProg({ done: 0, total: chosen.length })
-    for (let i = 0; i < chosen.length; i += 10) {
-      const batch = chosen.slice(i, i + 10).map(r => ({ leadId: String(r.l.id), phone: r.phone, name: r.l.name, text: renderTemplate(tpl, asLead(r.l), cfg), ruleKey: `tpl:${tpl.id}`, templateId: tpl.id }))
-      try { const res = await autoApi.post('auto-send', { items: batch }); (res.results || []).forEach(x => (x.ok ? ok++ : bad++)) } catch { bad += batch.length }
-      setProg({ done: Math.min(i + 10, chosen.length), total: chosen.length })
-    }
-    setProg(null); flash(t.bcDone(ok, bad)); onDone?.()
-  }
+function TplToken({ value, onChange, label, tplOpts, tpls, t }) {
+  return <TokenSelect value={value} onChange={onChange} options={tplOpts} label={label || t.pickTpl} broken={!!value && !tpls.some(x => x.id === value)} brokenLabel={t.tplGone}/>
+}
+function RuleCard({ t, stats, id, icon, accent, mode, onMode, modes, sentence, help, kind, children, toggle, broken }) {
+  const mc = MODE_COLOR[mode] || T.grey
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 12, alignItems: 'start' }}>
-      <div style={{ ...card, padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <label style={{ fontSize: 12, fontWeight: 700, color: 'rgba(232,228,216,.7)' }}>{t.bcTemplate}</label>
-        <select value={tplId} onChange={e => setTplId(e.target.value)} style={input}>{tpls.map(x => <option key={x.id} value={x.id}>{isEn ? x.en_title || x.he_title : x.he_title}</option>)}</select>
-        {tpl && <div className="au-bubble" dir="auto" style={{ background: '#0B2A22', border: '1px solid rgba(37,211,102,.18)', color: '#E9EDEF', borderRadius: 10, padding: '9px 11px', fontSize: 12.5, maxHeight: 170, overflow: 'auto' }}>{renderTemplate(tpl, asLead(chosen[0]?.l || { name: isEn ? 'Dana' : 'דנה' }), cfg)}</div>}
-        <label style={{ fontSize: 12, fontWeight: 700, color: 'rgba(232,228,216,.7)' }}>{t.bcStages}</label>
-        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-          {STAGES.map(s => { const on = stages.has(s); return <button key={s} onClick={() => setStages(x => { const n = new Set(x); on ? n.delete(s) : n.add(s); return n })} style={btn({ padding: '5px 10px', fontSize: 11.5, borderRadius: 20, background: on ? `${purple}30` : 'transparent', borderColor: on ? purple : 'rgba(132,144,216,.2)', color: on ? purple : 'rgba(232,228,216,.6)' })}>{stageName(s)}</button> })}
+    <Card id={`au-rule-${id}`} pad={16} style={{ borderInlineStart: `3px solid ${broken ? T.red : mc}`, scrollMarginTop: 72 }}>
+      <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+        <span style={{ width: 36, height: 36, borderRadius: 10, background: `${accent}1F`, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, flexShrink: 0 }}>{icon}</span>
+        <div style={{ flex: '1 1 280px', minWidth: 0 }}>
+          <div style={{ fontSize: 14.5, fontWeight: 700, lineHeight: 1.8, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2px 6px' }}>{sentence}</div>
+          <div style={{ fontSize: 12.5, color: T.text2, marginTop: 2 }}>{help}</div>
         </div>
-        <label style={{ fontSize: 12, fontWeight: 700, color: 'rgba(232,228,216,.7)' }}>{t.bcPeriod}</label>
-        <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-          {[7, 30, 90, 0].map(d => <button key={d} onClick={() => setDays(d)} style={btn({ padding: '5px 10px', fontSize: 11.5, borderRadius: 20, background: days === d ? `${purple}30` : 'transparent', borderColor: days === d ? purple : 'rgba(132,144,216,.2)', color: days === d ? purple : 'rgba(232,228,216,.6)' })}>{d ? t.bcDays(d) : t.bcAll}</button>)}
-        </div>
-        <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12.5, cursor: 'pointer' }}><input type="checkbox" checked={skipSent} onChange={e => setSkipSent(e.target.checked)} style={{ appearance: 'auto', width: 16, height: 16, minHeight: 0 }}/> {t.bcSkipSent}</label>
-        {prog ? (
-          <div>
-            <div style={{ fontSize: 12, marginBottom: 5 }}>{t.progress}: {prog.done}/{prog.total}</div>
-            <div style={{ height: 8, borderRadius: 5, background: 'rgba(255,255,255,.08)', overflow: 'hidden' }}><i style={{ display: 'block', height: '100%', width: `${(prog.done / prog.total) * 100}%`, background: green, transition: 'width .3s' }}/></div>
-          </div>
-        ) : <button onClick={send} disabled={!chosen.length} style={btn({ padding: '11px 14px', fontSize: 13.5, opacity: chosen.length ? 1 : .5, background: `${green}22`, borderColor: `${green}77`, color: green })}><FaPaperPlane size={12}/> {t.bcSend(chosen.length)}</button>}
+        <div className="au-hide-m">{toggle || (onMode && <ModeSwitch value={mode} onChange={onMode} labels={t.modes} modes={modes} label={id}/>)}</div>
+        <div className="au-only-m" style={{ width: '100%' }}>{toggle || (onMode && <ModeSwitch value={mode} onChange={onMode} labels={t.modes} modes={modes} label={id} full/>)}</div>
       </div>
-      <div style={{ ...card, padding: 12, display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 620 }}>
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-          <input value={q} onChange={e => setQ(e.target.value)} placeholder={t.searchLead} style={{ ...input, flex: 1, minWidth: 160 }}/>
-          <span style={{ fontSize: 12, color: 'rgba(232,228,216,.6)' }}>{t.bcSelected(chosen.length)}</span>
-          <button onClick={() => setSel(new Set(eligible.map(r => String(r.l.id))))} style={btn({ padding: '5px 9px', fontSize: 11.5, background: 'transparent' })}>{t.selectAll}</button>
-          <button onClick={() => setSel(new Set())} style={btn({ padding: '5px 9px', fontSize: 11.5, background: 'transparent' })}>{t.clear}</button>
+      {(children || kind) && (
+        <div style={{ marginTop: 12, opacity: mode === 'off' ? .55 : 1, display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {children}
+          {kind && <div style={{ borderTop: `1px solid ${T.divider}`, paddingTop: 10, fontSize: 12, color: T.text3 }}>{stats(kind)}</div>}
         </div>
-        <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 3 }}>
-          {rows.map(({ l, phone, blocked, already }) => {
-            const id = String(l.id), dis = !!blocked || (skipSent && already)
+      )}
+    </Card>
+  )
+}
+
+function Rules({ t, isEn, dir, cfg, setCfg, tpls, tplName, stageName, logRows, queue, onGoHours }) {
+  const R = cfg.rules
+  const tplOpts = useMemo(() => tpls.map(x => ({ value: x.id, label: tplName(x.id) })), [tpls, tplName])
+  const since = Date.now() - 30 * 864e5
+  const stats = kind => t.ruleStats(logRows.filter(r => r.ok && ruleKind(r.rule_key) === kind && new Date(r.created_at).getTime() > since).length, queue.filter(q => q.kind === kind).length)
+  const helper = (mode, now) => mode === 'off' ? t.helpOff : mode === 'suggest' ? t.helpSuggest : now ? t.helpAutoNow : t.helpAuto
+  const tplBroken = ids => ids.some(id => id && !tpls.some(x => x.id === id))
+  const cardProps = { t, stats }
+  const stagesBtn = useRef(null)
+  const [stagesOpen, setStagesOpen] = useState(false)
+  const reBtn = useRef(null)
+  const [reOpen, setReOpen] = useState(false)
+  const nrStages = R.noReply.stages || []
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <Card pad="12px 16px" style={{ display: 'flex', gap: '8px 18px', alignItems: 'center', flexWrap: 'wrap', fontSize: 12.5 }}>
+        <b style={{ color: T.text2 }}>{t.legendIntro}</b>
+        {['off', 'suggest', 'auto'].map(m => <span key={m} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: T.text2 }}><ModeBadge mode={m} labels={t.modes}/>{t.legend[m]}</span>)}
+      </Card>
+
+      <RuleCard {...cardProps} id="welcome" icon="👋" accent={T.green} mode={R.welcome.mode} onMode={v => setCfg(c => { c.rules.welcome.mode = v })} kind="welcome" broken={tplBroken([R.welcome.templateId, R.welcome.propTemplateId])}
+        help={R.welcome.mode === 'auto' ? t.welcomeHelp : helper(R.welcome.mode, true)}
+        sentence={<><span>{t.wS1a}</span><b>{t.wS1b}</b><span>{t.wS1c}</span><TplToken tplOpts={tplOpts} tpls={tpls} t={t} value={R.welcome.templateId} onChange={v => setCfg(c => { c.rules.welcome.templateId = v })}/></>}>
+        <div style={{ fontSize: 14, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, color: T.text2 }}>{t.wS2}<TplToken tplOpts={tplOpts} tpls={tpls} t={t} value={R.welcome.propTemplateId} onChange={v => setCfg(c => { c.rules.welcome.propTemplateId = v })}/></div>
+      </RuleCard>
+
+      <RuleCard {...cardProps} id="noReply" icon="⏰" accent={T.amber} mode={R.noReply.mode} onMode={v => setCfg(c => { c.rules.noReply.mode = v })} kind="noreply" help={helper(R.noReply.mode)} broken={tplBroken((R.noReply.steps || []).map(s => s.templateId))}
+        sentence={<><span>{t.nrA}</span>
+          <button ref={stagesBtn} type="button" onClick={() => setStagesOpen(true)} aria-haspopup="listbox" aria-expanded={stagesOpen}
+            style={{ height: 30, padding: '0 8px', borderRadius: 6, border: 'none', borderBottom: '1px dashed rgba(163,173,235,.6)', background: T.brandSoft, color: T.brandText, fontFamily: 'inherit', fontSize: 14, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 0, minWidth: 0 }}>
+            {nrStages.length ? nrStages.map(stageName).join(', ') : '—'}<FaChevronDown size={9}/>
+          </button>
+          <b>{t.nrB}</b><span>{t.nrC((R.noReply.steps || []).length)}</span></>}>
+        <SequenceBuilder lang={isEn ? 'en' : 'he'} steps={R.noReply.steps || []} templates={tpls} tplName={tplName} onGoHours={onGoHours}
+          renderToken={p => <TplToken tplOpts={tplOpts} tpls={tpls} t={t} {...p}/>}
+          renderPreview={id => renderTemplate(tpls.find(x => x.id === id), { name: isEn ? 'Dana' : 'דנה', prop_title: isEn ? 'Plot in Tel Mond' : 'מגרש בתל מונד' }, cfg, isEn ? 'en' : 'he')}
+          onChange={steps => setCfg(c => { c.rules.noReply.steps = steps })}/>
+      </RuleCard>
+      <Popover anchor={stagesBtn} open={stagesOpen} onClose={() => setStagesOpen(false)} width={240} dir={dir} label={t.stagesPick}>
+        <div role="listbox" aria-multiselectable="true" style={{ display: 'flex', flexDirection: 'column' }}>
+          {STAGES.filter(s => s !== 'won').map(s => {
+            const on = nrStages.includes(s)
             return (
-              <label key={id} className="au-row" style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '7px 8px', borderRadius: 8, cursor: dis ? 'not-allowed' : 'pointer', opacity: dis ? .45 : 1 }}>
-                <input type="checkbox" disabled={dis} checked={!dis && sel.has(id)} onChange={() => toggle(id)} style={{ appearance: 'auto', width: 16, height: 16, minHeight: 0, flexShrink: 0 }}/>
-                <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13 }}><b>{l.name || '—'}</b>{l.propTitle ? <span style={{ opacity: .55 }}> · {l.propTitle}</span> : null}</span>
-                <span style={{ fontSize: 10.5, padding: '1px 7px', borderRadius: 20, background: 'rgba(255,255,255,.06)' }}>{stageName(l.leadStatus || 'new')}</span>
-                {blocked ? <span style={{ fontSize: 10.5, color: '#E05252' }}>{blocked}</span> : already ? <span style={{ fontSize: 10.5, color: '#22C55E' }}>✓</span> : <span dir="ltr" style={{ fontSize: 11, opacity: .5 }}>{phone.slice(-4)}</span>}
+              <label key={s} className="au-hov" style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 40, padding: '0 10px', borderRadius: 8, cursor: 'pointer', fontSize: 13 }}>
+                <input type="checkbox" checked={on} onChange={() => setCfg(c => { const set = new Set(c.rules.noReply.stages || []); on ? set.delete(s) : set.add(s); c.rules.noReply.stages = [...set] })} style={{ appearance: 'auto', width: 18, height: 18, minHeight: 0 }}/>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: STAGE_COLOR[s] }}/>{stageName(s)}
               </label>
             )
           })}
         </div>
+      </Popover>
+
+      <RuleCard {...cardProps} id="replies" icon="💬" accent={T.blue} mode={R.replies.mode === 'off' ? 'off' : 'auto'} help={R.replies.mode === 'off' ? t.helpOff : t.helpAutoNow} kind="reply"
+        toggle={<Toggle checked={R.replies.mode !== 'off'} onChange={v => setCfg(c => { c.rules.replies.mode = v ? 'auto' : 'off' })} label={t.rReplies}/>}
+        broken={tplBroken([R.replies.negativeTemplateId, R.replies.positiveTemplateId])}
+        sentence={<><span>{t.rS[0]}</span><b>{t.rS[1]}</b><span>{t.rS[2]}</span></>}>
+        <Toggle checked={!!R.replies.notifyTeam} onChange={v => setCfg(c => { c.rules.replies.notifyTeam = v })}>{t.notifyTeam}</Toggle>
+        <div className="au-branches">
+          {[['negative', t.negTitle, T.grey, '🙏', t.negNote], ['positive', t.posTitle, T.blue, '🔥', null]].map(([k, title, col, ic, note]) => (
+            <div key={k} style={{ padding: 14, borderRadius: 12, border: `1px solid ${col}44`, borderInlineStart: `3px solid ${col}`, background: `${col}0c`, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <b style={{ fontSize: 14, flex: 1 }}>{ic} {title}</b>
+                <ModeSwitch size="sm" value={R.replies[`${k}Mode`]} onChange={v => setCfg(c => { c.rules.replies[`${k}Mode`] = v })} labels={t.modes} label={title}/>
+              </div>
+              {note && <div style={{ fontSize: 12, color: T.text3 }}>{note}</div>}
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', fontSize: 13, color: T.text2 }}>{t.sendLbl}<TplToken tplOpts={tplOpts} tpls={tpls} t={t} value={R.replies[`${k}TemplateId`]} onChange={v => setCfg(c => { c.rules.replies[`${k}TemplateId`] = v })}/></div>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', fontSize: 13, color: T.text2 }}>{t.moveTo}
+                <TokenSelect value={R.replies[`${k}MoveTo`] || ''} onChange={v => setCfg(c => { c.rules.replies[`${k}MoveTo`] = v })} label={t.moveTo} options={[{ value: '', label: t.noMove }, ...STAGES.map(s => ({ value: s, label: stageName(s) }))]} minWidth={110}/>
+              </div>
+              <Field label={t.triggerWords}><KeywordInput words={R.replies[k] || []} onChange={w => setCfg(c => { c.rules.replies[k] = w })} t={t}/></Field>
+            </div>
+          ))}
+        </div>
+        <ReplyTester t={t} cfg={cfg}/>
+      </RuleCard>
+
+      <RuleCard {...cardProps} id="stage" icon="🗂️" accent="#A25DDC" mode={Object.values(R.stage || {}).some(r => r?.mode && r.mode !== 'off') ? 'auto' : 'off'} kind="stage" help={t.stageHelp} broken={tplBroken(Object.values(R.stage || {}).map(r => r?.templateId))}
+        sentence={<><span>{t.stS[0]}</span><b>{t.stS[1]}</b><span>{t.stS[2]}</span></>}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {['contacted', 'discovery', 'negotiating', 'won', 'lost'].map(s => (
+            <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', minHeight: 48, padding: '6px 10px', borderRadius: 10, background: 'rgba(0,0,0,.14)', border: `1px solid ${T.divider}` }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minWidth: 150, fontSize: 13.5, fontWeight: 700 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: STAGE_COLOR[s] }}/>{stageName(s)}</span>
+              <span style={{ color: T.text3 }}>{isEn ? <FaArrowRight size={10}/> : <FaArrowLeft size={10}/>}</span>
+              <span style={{ flex: 1, minWidth: 160 }}><TplToken tplOpts={tplOpts} tpls={tpls} t={t} value={R.stage?.[s]?.templateId} onChange={v => setCfg(c => { c.rules.stage[s] = { ...(c.rules.stage[s] || {}), templateId: v } })}/></span>
+              <ModeSwitch size="sm" value={R.stage?.[s]?.mode || 'off'} onChange={v => setCfg(c => { c.rules.stage[s] = { ...(c.rules.stage[s] || {}), mode: v } })} labels={t.modes} label={stageName(s)}/>
+            </div>
+          ))}
+        </div>
+      </RuleCard>
+
+      <RuleCard {...cardProps} id="reengage" icon="🔁" accent="#60D4F7" mode={R.reengage.mode} onMode={v => setCfg(c => { c.rules.reengage.mode = v })} kind="reengage" help={helper(R.reengage.mode)} broken={tplBroken([R.reengage.templateId])}
+        sentence={<><span>{t.reA}</span>
+          <button ref={reBtn} type="button" onClick={() => setReOpen(true)} aria-haspopup="dialog"
+            style={{ height: 30, padding: '0 8px', borderRadius: 6, border: 'none', borderBottom: '1px dashed rgba(163,173,235,.6)', background: T.brandSoft, color: T.brandText, fontFamily: 'inherit', fontSize: 14, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 0, minWidth: 0, fontVariantNumeric: 'tabular-nums' }}>{R.reengage.days}<FaChevronDown size={9}/></button>
+          <span>{t.reB}</span><b>{t.reC}</b><span>{t.reD}</span><TplToken tplOpts={tplOpts} tpls={tpls} t={t} value={R.reengage.templateId} onChange={v => setCfg(c => { c.rules.reengage.templateId = v })}/></>}/>
+      <Popover anchor={reBtn} open={reOpen} onClose={() => setReOpen(false)} width={240} dir={dir} label={t.daysLbl}>
+        <div style={{ padding: 8, display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center' }}>
+          {[-7, -1].map(d => <Button key={d} size="sm" onClick={() => setCfg(c => { c.rules.reengage.days = Math.max(7, (c.rules.reengage.days || 45) + d) })}>{d}</Button>)}
+          <input data-autofocus inputMode="numeric" value={R.reengage.days} aria-label={t.daysLbl} onChange={e => setCfg(c => { c.rules.reengage.days = Math.min(365, Math.max(7, Number(e.target.value.replace(/\D/g, '')) || 7)) })}
+            style={{ width: 56, height: 32, textAlign: 'center', borderRadius: 8, border: `1px solid ${T.s3Line}`, background: T.s3, color: T.text, fontFamily: 'inherit', fontSize: 14, minHeight: 0 }}/>
+          {[1, 7].map(d => <Button key={d} size="sm" onClick={() => setCfg(c => { c.rules.reengage.days = Math.min(365, (c.rules.reengage.days || 45) + d) })}>+{d}</Button>)}
+        </div>
+      </Popover>
+    </div>
+  )
+}
+
+function KeywordInput({ words, onChange, t }) {
+  const [v, setV] = useState('')
+  const [all, setAll] = useState(false)
+  const input = useRef(null)
+  const chips = useRef([])
+  const add = raw => { const w = raw.trim(); if (w && !words.some(x => x.toLowerCase() === w.toLowerCase())) onChange([...words, w]); setV('') }
+  const shown = all ? words : words.slice(0, 12)
+  return (
+    <div onClick={() => input.current?.focus()} style={{ display: 'flex', flexWrap: 'wrap', gap: 6, minHeight: 44, padding: 6, borderRadius: 9, border: `1px solid ${T.s3Line}`, background: T.s3, cursor: 'text' }}>
+      {shown.map((w, i) => (
+        <span key={w} ref={el => { chips.current[i] = el }} tabIndex={0} onKeyDown={e => { if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); onChange(words.filter(x => x !== w)); input.current?.focus() } }}
+          style={{ height: 26, display: 'inline-flex', alignItems: 'center', gap: 4, padding: '0 4px 0 9px', paddingInlineStart: 9, paddingInlineEnd: 4, borderRadius: 20, border: '1px solid rgba(132,144,216,.3)', color: T.brandText, fontSize: 11.5, fontWeight: 700 }}>
+          {w}
+          <button type="button" aria-label={t.removeWord(w)} onClick={e => { e.stopPropagation(); onChange(words.filter(x => x !== w)) }} style={{ width: 16, height: 16, borderRadius: '50%', border: 'none', background: 'rgba(0,0,0,.25)', color: T.text2, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0, minHeight: 0, minWidth: 0 }}><FaTimes size={8}/></button>
+        </span>
+      ))}
+      {!all && words.length > 12 && <button type="button" onClick={e => { e.stopPropagation(); setAll(true) }} style={{ background: 'none', border: 'none', color: T.text3, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', minHeight: 0, minWidth: 0 }}>{t.showMore(words.length - 12)}</button>}
+      <input ref={input} value={v} onChange={e => setV(e.target.value)} placeholder={t.addWord} aria-label={t.addWord}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); add(v) } else if (e.key === 'Backspace' && !v && shown.length) { e.preventDefault(); chips.current[shown.length - 1]?.focus() } }} onBlur={() => v && add(v)}
+        style={{ flex: 1, minWidth: 120, height: 26, background: 'transparent', border: 'none', outline: 'none', color: T.text, fontFamily: 'inherit', fontSize: 12.5, minHeight: 0 }}/>
+    </div>
+  )
+}
+
+function ReplyTester({ t, cfg }) {
+  const [v, setV] = useState('')
+  const [d, setD] = useState('')
+  useEffect(() => { const id = setTimeout(() => setD(v), 400); return () => clearTimeout(id) }, [v])
+  const res = d.trim() ? classifyReply(d, cfg) : null
+  const kw = d.trim() ? matchedKeyword(d, cfg) : null
+  const [txt, col] = res === 'negative' ? [t.detNeg, T.grey] : res === 'positive' ? [t.detPos, T.blue] : res === 'reply' ? [t.detReply, T.brand] : [null, null]
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: 12, borderRadius: 12, border: `1px dashed ${T.line2}` }}>
+      <Field label={t.tester} htmlFor="au-tester"><input id="au-tester" value={v} onChange={e => setV(e.target.value)} placeholder={t.testerPh} dir="auto" style={inputStyle}/></Field>
+      <div aria-live="polite" style={{ minHeight: 22, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        {txt && <Badge color={col} textColor={col === T.grey ? T.text : col === T.blue ? T.blue : T.brandText}>{txt}</Badge>}
+        {kw && <span style={{ fontSize: 12, color: T.text3 }}>{t.matchedBy(kw)}</span>}
       </div>
     </div>
   )
 }
 
 // ── Log ────────────────────────────────────────────────────────────────────────
-function Log({ t, isEn, card, btn, log, loadLog, tplName, states, loadStates, leads, purple }) {
-  const [f, setF] = useState('all')
-  const rows = (log?.rows || []).filter(r => f === 'all' || (f === 'ok' ? r.ok : !r.ok))
-  const optedOut = Object.values(states).filter(s => s.optOut)
+function Log({ t, isEn, dir, tplName, leads, toast, confirm, log, loadLog, logLimit, setLogLimit, states, loadStates, filter, setFilter }) {
+  const [kind, setKind] = useState('')
+  const [q, setQ] = useState('')
+  const [open, setOpen] = useState({})
+  const [retrying, setRetrying] = useState({})
+  const all = log?.rows || []
+  const opted = Object.values(states).filter(s => s.optOut)
   const nameOf = id => leads.find(l => String(l.id) === String(id))?.name || ''
-  const unopt = async id => { try { await autoApi.post('auto-optout', { leadId: id, optOut: false }); loadStates() } catch {} }
+  const rows = all.filter(r => filter === 'all' || (filter === 'sent' ? r.ok : filter === 'failed' ? !r.ok : true))
+    .filter(r => !kind || ruleKind(r.rule_key) === kind)
+    .filter(r => !q || `${r.name || ''} ${r.phone || ''} ${r.message || ''}`.toLowerCase().includes(q.toLowerCase()))
+  const retry = async r => {
+    setRetrying(x => ({ ...x, [r.id]: true }))
+    try {
+      const res = await autoApi.post('auto-send', { items: [{ leadId: r.lead_id, phone: r.phone, text: r.message, ruleKey: r.rule_key?.startsWith('reply:negative') ? r.rule_key : 'manual', templateId: r.template_id }] })
+      if (!res.results?.[0]?.ok) throw new Error(res.results?.[0]?.error || t.error)
+      toast(t.resent); loadLog()
+    } catch (e) { toast(`${t.error}: ${e.message}`, { tone: 'error' }) } finally { setRetrying(x => { const n = { ...x }; delete n[r.id]; return n }) }
+  }
+  const unopt = async s => {
+    const n = nameOf(s.leadId) || s.leadId
+    if (!await confirm({ title: t.unoptT(n), body: t.unoptB, confirmLabel: t.unopt, cancelLabel: t.cancel })) return
+    try { await autoApi.post('auto-optout', { leadId: s.leadId, optOut: false }); toast(t.unoptDone); loadStates() } catch (e) { toast(`${t.error}: ${e.message}`, { tone: 'error' }) }
+  }
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-        {[['all', t.logAll], ['ok', t.logOk], ['bad', t.logFailed]].map(([k, l]) => <button key={k} onClick={() => setF(k)} style={btn({ padding: '5px 11px', fontSize: 11.5, borderRadius: 20, background: f === k ? `${purple}30` : 'transparent', borderColor: f === k ? purple : 'rgba(132,144,216,.2)' })}>{l}</button>)}
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <ModeSwitch value={filter} onChange={setFilter} modes={['all', 'sent', 'failed', 'opted']} icons={{}} colors={{ all: T.brand, sent: T.green, failed: T.red, opted: T.grey }} label={t.tabs.log}
+          labels={{ all: t.lAll, sent: t.lSent, failed: t.lFailed, opted: t.lOpted(opted.length) }}/>
+        {filter !== 'opted' && <>
+          <select value={kind} onChange={e => setKind(e.target.value)} aria-label={t.allKinds} style={{ ...inputStyle, width: 'auto', height: 36 }}>
+            <option value="">{t.allKinds}</option>{Object.entries(t.kind).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+          </select>
+          <div style={{ position: 'relative', flex: 1, minWidth: 180, maxWidth: 320 }}>
+            <FaSearch size={12} style={{ position: 'absolute', top: 12, insetInlineStart: 12, color: T.text3 }}/>
+            <input value={q} onChange={e => setQ(e.target.value)} placeholder={t.lSearch} aria-label={t.lSearch} style={{ ...inputStyle, height: 36, paddingInlineStart: 32 }}/>
+          </div>
+        </>}
         <div style={{ flex: 1 }}/>
-        <button onClick={loadLog} style={btn({ padding: '5px 10px', fontSize: 11.5 })}><FaSyncAlt size={10}/></button>
+        <IconButton icon={<FaSyncAlt size={12}/>} label={t.runNow} variant="ghost" onClick={() => { loadLog(); loadStates() }}/>
       </div>
-      {log?.error && <div style={{ color: '#E05252', fontSize: 12.5 }}>{log.error}</div>}
-      <div style={{ ...card, overflow: 'hidden' }}>
-        {!rows.length ? <div style={{ padding: 30, textAlign: 'center', color: 'rgba(232,228,216,.5)' }}>{log ? t.logEmpty : '…'}</div> : rows.map((r, i) => {
-          const k = ruleKind(r.rule_key)
-          return (
-            <div key={r.id || i} className="au-row" style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '10px 14px', borderTop: i ? '1px solid rgba(132,144,216,.08)' : 'none', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 15, color: r.ok ? '#22C55E' : '#E05252', width: 16 }}>{r.ok ? '✓' : '✗'}</span>
-              <span style={{ fontSize: 11.5, color: 'rgba(232,228,216,.5)', width: 84, flexShrink: 0 }}>{fmtDT(r.created_at, isEn ? 'en' : 'he')}</span>
-              <b style={{ fontSize: 13, width: 130, flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name || nameOf(r.lead_id) || (r.phone ? `+${r.phone}` : '—')}</b>
-              <span style={{ fontSize: 10.5, fontWeight: 800, padding: '2px 8px', borderRadius: 20, background: `${KIND_COLOR[k] || purple}22`, color: KIND_COLOR[k] || purple, flexShrink: 0 }}>{t.kind[k] || k}</span>
-              <span style={{ flex: 1, minWidth: 180, fontSize: 12.5, color: 'rgba(232,228,216,.75)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} dir="auto" title={r.message}>{r.template_id ? `${tplName(r.template_id)} · ` : ''}{String(r.message || '').replace(/\n/g, ' ')}</span>
-              <span style={{ fontSize: 11, color: 'rgba(232,228,216,.45)' }}>{t.by[r.by] || r.by}</span>
-              {!r.ok && r.error && <div style={{ width: '100%', fontSize: 11.5, color: '#E05252', paddingInlineStart: 26 }}>{r.error}</div>}
-            </div>
-          )
-        })}
-      </div>
-      {!!optedOut.length && (
-        <Section card={card} title={`${t.negative} (${optedOut.length})`} icon={<span>🚫</span>}>
-          {optedOut.map(s => (
-            <div key={s.leadId} style={{ display: 'flex', gap: 10, alignItems: 'center', fontSize: 12.5, flexWrap: 'wrap' }}>
-              <b>{nameOf(s.leadId) || s.leadId}</b><span dir="auto" style={{ flex: 1, color: 'rgba(232,228,216,.6)' }}>"{s.lastInboundText}"</span>
-              <button onClick={() => unopt(s.leadId)} style={btn({ padding: '4px 9px', fontSize: 11, background: 'transparent' })}>{t.unoptout}</button>
-            </div>
-          ))}
-        </Section>
+      {log?.error && <InlineError message={log.error} onRetry={() => loadLog()} retryLabel={t.retry}/>}
+
+      {filter === 'opted' ? (
+        <Card pad={0}>{!opted.length ? <EmptyState compact icon={FaUserSlash} title={t.noOpted}/> : opted.map((s, i) => (
+          <div key={s.leadId} style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '12px 14px', borderTop: i ? `1px solid ${T.divider}` : 'none', flexWrap: 'wrap' }}>
+            <b style={{ fontSize: 13.5 }}>{nameOf(s.leadId) || s.leadId}</b>
+            <span dir="auto" style={{ flex: 1, minWidth: 140, fontSize: 12.5, color: T.text3 }}>״{s.lastInboundText}״</span>
+            <Button size="sm" onClick={() => unopt(s)}>{t.unopt}</Button>
+          </div>
+        ))}</Card>
+      ) : (
+        <Card pad={0} style={{ overflow: 'hidden' }}>
+          <div role="table" aria-label={t.tabs.log}>
+            {!log ? [0, 1, 2, 3, 4, 5, 6, 7].map(i => <div key={i} style={{ padding: '10px 14px' }}><Skeleton h={26}/></div>)
+              : !rows.length ? <EmptyState compact icon={FaHistory} title={t.lEmpty}/>
+              : rows.map((r, i) => {
+                const k = ruleKind(r.rule_key)
+                const ex = open[r.id || i]
+                return (
+                  <div key={r.id || i} role="row" style={{ borderTop: i ? `1px solid ${T.divider}` : 'none' }}>
+                    <div className="au-log-row" onClick={() => setOpen(o => ({ ...o, [r.id || i]: !o[r.id || i] }))} style={{ cursor: 'pointer' }} aria-expanded={!!ex}>
+                      <span role="cell">{r.ok ? <FaCheckCircle color={T.green} aria-label={t.statusSent}/> : <FaTimesCircle color={T.red} aria-label={t.statusFailed}/>}</span>
+                      <span role="cell" className="au-hide-m" style={{ fontSize: 12, color: T.text3, fontVariantNumeric: 'tabular-nums' }}>{new Date(r.created_at).toLocaleString(isEn ? 'en-GB' : 'he-IL', { timeZone: 'Asia/Jerusalem', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+                      <b role="cell" style={{ fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name || nameOf(r.lead_id) || (r.phone ? <bdi dir="ltr">+{r.phone}</bdi> : '—')}</b>
+                      <span role="cell" className="au-lr-kind"><Badge color={KIND_COLOR[k] || T.brand}>{t.kind[k] || k}</Badge></span>
+                      <span role="cell" className="au-lr-msg" style={{ minWidth: 0, fontSize: 12.5, color: T.text2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} dir="auto">
+                        {r.template_id && <b style={{ color: T.text }}>{tplName(r.template_id)} · </b>}{String(r.message || '').replace(/\n/g, ' ')}
+                      </span>
+                      <span role="cell" className="au-lr-by" style={{ fontSize: 11.5, color: T.text3 }}>{t.by[r.by] || r.by}</span>
+                      <span role="cell" style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                        <span className="au-only-m" style={{ fontSize: 11, color: T.text3 }}>{new Date(r.created_at).toLocaleTimeString(isEn ? 'en-GB' : 'he-IL', { hour: '2-digit', minute: '2-digit' })}</span>
+                        {!r.ok && <span className="au-hide-m"><Button size="sm" icon={<FaRedo size={9}/>} loading={retrying[r.id]} onClick={e => { e.stopPropagation(); retry(r) }}>{t.retry}</Button></span>}
+                      </span>
+                    </div>
+                    {!r.ok && r.error && !ex && <div className="au-only-m" style={{ padding: '0 14px 8px 38px', paddingInlineStart: 38, fontSize: 11.5, color: T.redText }}>{r.error}</div>}
+                    {ex && (
+                      <div className="au-in" style={{ padding: '4px 14px 14px', paddingInlineStart: 52, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <div dir="auto" style={{ maxWidth: 520, background: T.wa.out, color: T.wa.text, borderRadius: 10, padding: '8px 10px', fontSize: 13.5, lineHeight: 1.55, whiteSpace: 'pre-wrap' }}><WAText text={r.message}/></div>
+                        {r.error && <div style={{ fontSize: 12.5, color: T.redText, display: 'flex', gap: 6, alignItems: 'center' }}><FaExclamationTriangle size={11}/>{r.error}</div>}
+                        {!r.ok && <div><Button size="sm" variant="soft-green" icon={<FaRedo size={9}/>} loading={retrying[r.id]} onClick={() => retry(r)}>{t.retry}</Button></div>}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+          </div>
+          {all.length >= logLimit && <div style={{ padding: 12, display: 'flex', justifyContent: 'center', borderTop: `1px solid ${T.divider}` }}><Button onClick={() => setLogLimit(logLimit + 100)}>{t.loadMore}</Button></div>}
+        </Card>
       )}
     </div>
   )
 }
 
-export { DEFAULT_TEMPLATES }
+// ── System status drawer ───────────────────────────────────────────────────────
+function SystemDrawer({ open, onClose, t, isEn, dir, health, loadHealth, cfg, setMaster, onRun, running, pingActive, lastAgo, last, issues, toast, onGoHours }) {
+  const [testing, setTesting] = useState(false)
+  const [copiedFile, setCopiedFile] = useState(false)
+  if (!open) return null
+  const g = health?.green || {}
+  const greenOk = g.state === 'authorized'
+  const nw = nextWindows(cfg, new Date(), 1)
+  const w0 = nw.windows.find(w => !w.current)
+  const hoursText = !cfg.quiet?.enabled ? t.winUnlimited : nw.open ? t.winOpenSub(fmtHour(nw.closesAt)) : w0 ? t.winClosedSub(w0.offset === 0 ? t.today : w0.offset === 1 ? t.tomorrow : t.days[w0.day], fmtHour(w0.start)) : t.winNone
+  const ago = m => m < 1 ? t.justNow : m < 60 ? t.agoMin(m) : m < 1440 ? t.agoH(Math.round(m / 60)) : t.agoD(Math.round(m / 1440))
+  const pingUrl = `${window.location.origin}/api/meta/auto-tick?key=${health?.tickKeyConfigured ? 'YOUR_AUTOMATION_KEY' : 'AFIKhanahal2026'}`
+  const waDetail = !health ? t.pillChecking : greenOk ? t.waOk(g.phone ? `+${g.phone}` : g.instance || '') : g.state === 'notConfigured' ? t.waNotConf((g.missing || []).join(', ')) : g.state === 'notAuthorized' ? t.waNotAuth : t.waErr(g.error || g.state || '—')
+  return (
+    <Drawer open onClose={onClose} title={t.sysTitle} dir={dir}
+      sub={<div style={{ fontSize: 12.5, marginTop: 4, color: issues ? T.amberText : T.green, fontWeight: 700 }}>{issues ? t.nIssues(issues) : t.allGood}</div>}>
+      <HealthItem tone={!health ? 'info' : greenOk ? 'ok' : 'error'} title={t.waTitle} detail={waDetail} toneWord={t.tone[greenOk ? 'ok' : 'error']}>
+        <Button size="sm" icon={<FaSyncAlt size={10}/>} onClick={loadHealth}>{t.checkAgain}</Button>
+        {g.state === 'notAuthorized' && <Button size="sm" variant="brand" icon={<FaExternalLinkAlt size={9}/>} onClick={() => window.open('https://console.green-api.com', '_blank', 'noopener')}>{t.openGreen}</Button>}
+      </HealthItem>
+      <HealthItem tone={!health ? 'info' : health.storage === 'ok' ? 'ok' : 'warn'} title={t.dbTitle} detail={health?.storage === 'ok' ? t.dbOk : t.dbMissing} toneWord={t.tone[health?.storage === 'ok' ? 'ok' : 'warn']}>
+        {health && health.storage !== 'ok' && <Button size="sm" icon={<FaDatabase size={10}/>} onClick={async () => { try { await navigator.clipboard.writeText('server/automations-migration.sql'); setCopiedFile(true); setTimeout(() => setCopiedFile(false), 1500) } catch {} }}>{copiedFile ? t.copied : t.copyFile}</Button>}
+      </HealthItem>
+      <HealthItem tone={cfg.enabled ? 'ok' : 'off'} title={t.masterTitle} detail={cfg.enabled ? t.masterOnD : t.masterOffD} toneWord={t.tone[cfg.enabled ? 'ok' : 'off']}>
+        <Toggle checked={cfg.enabled} onChange={setMaster} label={t.masterTitle}/>
+      </HealthItem>
+      <HealthItem tone="info" title={t.hoursTitle} detail={hoursText} toneWord={t.tone.info}><Button size="sm" onClick={onGoHours}>{t.editHours}</Button></HealthItem>
+      <HealthItem tone={lastAgo == null || lastAgo > 26 * 60 ? 'warn' : 'ok'} title={t.runTitle} toneWord={t.tone[lastAgo == null || lastAgo > 26 * 60 ? 'warn' : 'ok']}
+        detail={lastAgo == null ? t.runNone : `${t.runAgo(ago(lastAgo), t.src[last.source] || last.source)}${lastAgo > 26 * 60 ? ` · ${t.runStale}` : ''}`}>
+        <Button size="sm" icon={<FaSyncAlt size={10} className={running ? 'au-spin' : undefined}/>} onClick={() => onRun?.()} disabled={running}>{t.runNow}</Button>
+      </HealthItem>
+      <HealthItem tone={pingActive ? 'ok' : 'off'} title={t.pingTitle} detail={<><div>{t.pingExplain}</div><div style={{ marginTop: 6, fontWeight: 700, color: pingActive ? T.green : T.text3 }}>{pingActive ? t.pingOn(lastAgo) : t.pingOff}</div></>} toneWord={t.tone[pingActive ? 'ok' : 'off']}>
+        <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <CopyField value={pingUrl} masked labels={{ url: t.pingUrl, show: t.show, hide: t.hide, copy: t.copy, copied: t.copied }}/>
+          <ol style={{ margin: 0, paddingInlineStart: 18, fontSize: 12.5, color: T.text2, display: 'flex', flexDirection: 'column', gap: 4 }}>{t.pingSteps.map((s, i) => <li key={i}>{s}</li>)}</ol>
+        </div>
+      </HealthItem>
+      <HealthItem tone={greenOk ? 'info' : 'off'} title={t.testTitle} toneWord={t.tone.info}>
+        <Button size="sm" variant="soft-green" icon={<FaPaperPlane size={10}/>} disabled={!greenOk} loading={testing}
+          onClick={async () => { setTesting(true); try { await autoApi.post('auto-test', {}); toast(t.testSent) } catch (e) { toast(`${t.error}: ${e.message}`, { tone: 'error' }) } finally { setTesting(false) } }}>{t.testBtn}</Button>
+      </HealthItem>
+    </Drawer>
+  )
+}

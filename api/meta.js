@@ -635,8 +635,16 @@ async function handleSync(req, res) {
 //  POST auto-skip {leadId, ruleKey}
 //  POST auto-optout {leadId, optOut}
 //  POST auto-test {text, phone?}
-//  GET  auto-log · GET auto-leads · GET auto-status
+//  GET  auto-log · GET auto-leads · GET auto-status · GET auto-health
+//  GET  auto-jobs · POST auto-job {job} · POST auto-job-cancel {id} · POST auto-job-delete {id}
+//  GET  auto-tick?key=…       → a run triggered by an external pinger (e.g. cron-job.org every 5 minutes)
 async function handleAutomations(req, res, action) {
+  if (action === 'auto-tick') {
+    const key = req.query?.key || (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '')
+    if (!Auto.tickKeyValid(key)) return res.status(401).json({ error: 'Unauthorized' })
+    const r = await Auto.run({ source: 'external' }).catch(e => ({ ok: false, error: e.message, sent: [], errors: [], suggestions: [], jobs: {} }))
+    return res.status(200).json({ ok: r.ok !== false, at: r.at, sent: r.sent?.length || 0, errors: r.errors?.length || 0, queued: r.suggestions?.length || 0, jobs: r.jobs, notes: r.notes })
+  }
   if (!checkAuth(req)) return res.status(401).json({ error: 'Unauthorized' })
   res.setHeader('Cache-Control', 'no-store')
   const b = req.body || {}
@@ -661,6 +669,13 @@ async function handleAutomations(req, res, action) {
     if (action === 'auto-log')    return res.status(200).json(await Auto.listLog(Number(req.query?.limit) || 150))
     if (action === 'auto-leads')  return res.status(200).json(await Auto.leadStates())
     if (action === 'auto-status') return res.status(200).json(await Auto.greenStatus())
+    if (action === 'auto-health') return res.status(200).json(await Auto.health())
+    if (action === 'auto-jobs')   return res.status(200).json(await Auto.listJobs())
+    if (action === 'auto-job')    return res.status(200).json({ job: await Auto.saveJob(b.job) })
+    if (action === 'auto-job-cancel') return res.status(200).json({ ok: await Auto.cancelJob(String(b.id || '')) })
+    if (action === 'auto-job-delete') return res.status(200).json({ ok: await Auto.deleteJob(String(b.id || '')) })
+    if (action === 'auto-job-retry')  return res.status(200).json({ ok: await Auto.retryJob(String(b.id || '')) })
+    if (action === 'auto-jobs-tick')  return res.status(200).json(await Auto.jobsTick())
     return res.status(404).json({ error: `Unknown automation action: ${action}` })
   } catch (e) {
     console.error('[automations]', action, e.message)
