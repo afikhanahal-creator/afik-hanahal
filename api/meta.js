@@ -629,14 +629,56 @@ async function handleSync(req, res) {
 // endpoints (with the ADMIN_TOKEN guard); it never sees the Green API token.
 async function handleChat(req, res, action) {
   if (!checkAuth(req)) return res.status(401).json({ error: 'Unauthorized' })
-  if (!GREEN_INSTANCE || !GREEN_TOKEN) return res.status(500).json({ error: 'Green API not configured' })
+  if (!GREEN_INSTANCE || !GREEN_TOKEN) {
+    const missing = [!GREEN_INSTANCE && 'WA_GREENAPI_INSTANCE', !GREEN_TOKEN && 'WA_GREENAPI_TOKEN'].filter(Boolean)
+    // 200 for the status probe so the panel can say exactly what is missing instead of guessing
+    if (action === 'chat-status') return res.status(200).json({ state: 'notConfigured', missing })
+    return res.status(503).json({ error: `Green API לא מוגדר ב-Vercel (חסר: ${missing.join(', ')})`, notConfigured: true, missing })
+  }
+  // Green API answers with plain text / JSON errors; pass the real reason through (e.g. 466 = plan limit)
+  const greenError = async (r, what) => {
+    const t = await r.text().catch(() => '')
+    const hint = r.status === 466 ? ' — מגבלת התוכנית ב-Green API (בתוכנית DEVELOPER מספר הצ׳אטים מוגבל)' : r.status === 401 || r.status === 403 ? ' — הטוקן או מספר ה-instance שגויים' : ''
+    return { error: `Green API ${what} ${r.status}${hint}`, detail: t.slice(0, 300) }
+  }
 
   try {
     // GET /api/meta/chat-status → instance connection state
     if (action === 'chat-status') {
       const r = await fetch(greenUrl('getStateInstance'), { signal: AbortSignal.timeout(8000) })
       const d = await r.json().catch(() => ({}))
-      return res.status(r.ok ? 200 : 502).json({ state: d.stateInstance || null })
+      return res.status(r.ok ? 200 : 502).json({ state: d.stateInstance || (r.ok ? null : 'error'), instance: GREEN_INSTANCE, http: r.status })
+    }
+
+    // GET /api/meta/chat-list?days=30 → recent conversations (incoming + outgoing), newest first.
+    // Lets the panel show every WhatsApp chat, not only people who are already leads.
+    if (action === 'chat-list') {
+      const minutes = Math.min(Math.max(Number(req.query?.days) || 30, 1), 90) * 1440
+      const [ri, ro] = await Promise.all([
+        fetch(`${greenUrl('lastIncomingMessages')}?minutes=${minutes}`, { signal: AbortSignal.timeout(20000) }),
+        fetch(`${greenUrl('lastOutgoingMessages')}?minutes=${minutes}`, { signal: AbortSignal.timeout(20000) }),
+      ])
+      if (!ri.ok && !ro.ok) return res.status(502).json(await greenError(ri, 'chat-list'))
+      const inc = ri.ok ? await ri.json().catch(() => []) : []
+      const out = ro.ok ? await ro.json().catch(() => []) : []
+      const byChat = new Map()
+      for (const m of [...(Array.isArray(inc) ? inc : []), ...(Array.isArray(out) ? out : [])]) {
+        const chatId = m.chatId || ''
+        if (!chatId.endsWith('@c.us')) continue            // 1:1 chats only (no groups / status)
+        const prev = byChat.get(chatId)
+        const name = m.senderName || m.chatName || m.senderContactName || prev?.name || ''
+        if (!prev || (m.timestamp || 0) > prev.timestamp) byChat.set(chatId, { chatId, phone: chatId.split('@')[0], name, timestamp: m.timestamp || 0, type: m.type, typeMessage: m.typeMessage, text: m.textMessage || m.caption || '', incoming: (prev?.incoming || 0) + (m.type === 'incoming' ? 1 : 0) })
+        else { if (!prev.name && name) prev.name = name; if (m.type === 'incoming') prev.incoming++ }
+      }
+      return res.status(200).json([...byChat.values()].sort((a, b) => b.timestamp - a.timestamp).slice(0, 300))
+    }
+
+    // POST /api/meta/chat-read { phone } → readChat (blue ticks on the customer's side)
+    if (action === 'chat-read') {
+      const p = normalizePhone((req.body || {}).phone)
+      if (!p) return res.status(400).json({ error: 'phone required' })
+      const r = await fetch(greenUrl('readChat'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chatId: `${p}@c.us` }), signal: AbortSignal.timeout(10000) })
+      return res.status(r.ok ? 200 : 502).json(r.ok ? { ok: true } : await greenError(r, 'readChat'))
     }
 
     // POST /api/meta/chat-history { phone, count } → raw Green getChatHistory array
@@ -649,8 +691,9 @@ async function handleChat(req, res, action) {
         body: JSON.stringify({ chatId: `${p}@c.us`, count: Math.min(Number(count) || 100, 200) }),
         signal: AbortSignal.timeout(20000),
       })
+      if (!r.ok) return res.status(502).json(await greenError(r, 'getChatHistory'))
       const data = await r.json().catch(() => [])
-      return res.status(r.ok ? 200 : 502).json(Array.isArray(data) ? data : [])
+      return res.status(200).json(Array.isArray(data) ? data : [])
     }
 
     // POST /api/meta/chat-send { phone, message } → sendMessage
@@ -663,8 +706,8 @@ async function handleChat(req, res, action) {
         body: JSON.stringify({ chatId: `${p}@c.us`, message }),
         signal: AbortSignal.timeout(20000),
       })
+      if (!r.ok) return res.status(502).json(await greenError(r, 'sendMessage'))
       const d = await r.json().catch(() => ({}))
-      if (!r.ok) return res.status(502).json({ error: 'Green API send failed', detail: d })
       return res.status(200).json({ ok: true, idMessage: d.idMessage || null })
     }
 
