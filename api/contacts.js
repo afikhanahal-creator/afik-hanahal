@@ -18,6 +18,42 @@
 // crash from taking down the entire module (same fix applied to meta.js).
 
 import { sendJson } from '../lib/http.js'
+import { backupEnabled, backupPut, backupList, backupGet, backupDelete } from '../lib/backup.js'
+
+// ── Lead backup (Vercel Blob) ────────────────────────────────────────────────
+// If Supabase refuses the INSERT (quota / paused project / outage) the lead used to exist only in the
+// notification email. Now it is also written to the private Blob store under leads/, listed by GET
+// like a normal lead (id "bk:<path>"), and moved into Supabase automatically once Supabase accepts
+// writes again.
+async function backupLead(row, reason) {
+  if (!backupEnabled()) return null
+  const rec = { ...row, created_at: new Date().toISOString(), backup: true, supabase_error: String(reason || '').slice(0, 300) }
+  const bl = await backupPut(`leads/${Date.now()}.json`, rec)
+  return { ...rec, id: `bk:${bl.pathname}`, blob_url: bl.url }
+}
+async function listBackupLeads() {
+  if (!backupEnabled()) return []
+  const blobs = await backupList('leads/', 200).catch(() => [])
+  const out = []
+  for (const bl of blobs.slice(0, 100)) {
+    try { const rec = await backupGet(bl.downloadUrl || bl.url); out.push({ ...rec, id: `bk:${bl.pathname}`, blob_url: bl.url, created_at: rec.created_at || bl.uploadedAt }) }
+    catch (e) { console.warn('[contacts] backup read failed:', bl.pathname, e.message) }
+  }
+  return out
+}
+// Move backed-up leads into Supabase. The restored row keeps crm_data.backup_id so the admin panel
+// can swap its local "bk:" copy for the real row instead of showing the lead twice.
+async function restoreBackupLeads(backups) {
+  const restored = [], pending = []
+  for (const b of backups) {
+    const { id, blob_url, backup, supabase_error, ...row } = b
+    try {
+      const saved = await insertContact({ ...row, crm_data: { ...(row.crm_data || {}), backup_id: id } })
+      if (saved && saved.id) { restored.push(saved); await backupDelete([blob_url]) } else pending.push(b)
+    } catch { pending.push(b) }
+  }
+  return { restored, pending }
+}
 const SUPA_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
 const SUPA_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY
 const ADMIN_TOKEN = 'AFIKhanahal2026'
@@ -321,7 +357,7 @@ async function sendLeadEmail(lead) {
     const info = await transporter.sendMail({
       from:    `"אפיק הנחל CRM" <${user}>`,
       to,
-      subject: `🔔 ליד חדש: ${lead.name || lead.phone || 'אנונימי'} — אפיק הנחל`,
+      subject: `${lead.__storage === 'lost' ? '⚠️ לא נשמר במערכת · ' : lead.__storage === 'backup' ? '⚠️ נשמר בגיבוי · ' : ''}🔔 ליד חדש: ${lead.name || lead.phone || 'אנונימי'} — אפיק הנחל`,
       html:    buildLeadEmailHtml({
         name:      lead.name,
         phone:     lead.phone,
@@ -331,6 +367,7 @@ async function sendLeadEmail(lead) {
         source:    lead.source,
         campaign:  lead.origin?.utm?.utm_campaign || '',
         ts,
+        badge: lead.__storage === 'lost' ? 'ליד חדש — לא נשמר במערכת! הוסיפו אותו ידנית' : lead.__storage === 'backup' ? 'ליד חדש — נשמר בגיבוי (Supabase לא זמין)' : '',
       }),
     })
     console.log(`[lead-email] ✓ sent to ${to}, messageId: ${info.messageId}`)
@@ -401,10 +438,23 @@ export default async function handler(req, res) {
   try {
     // ── GET: list all contacts ───────────────────────────────────────────────
     if (req.method === 'GET') {
-      const since = String(req.query?.since || '')
-      const contacts = await getContacts(/^\d{4}-\d{2}-\d{2}T[\d:.]+Z?$/.test(since) ? since : '')
+      if (req.headers.authorization !== `Bearer ${ADMIN_TOKEN}`) return res.status(401).json({ error: 'unauthorized' })
       res.setHeader('Cache-Control', 'no-store')
-      return sendJson(req, res, contacts)
+      const sinceRaw = String(req.query?.since || '')
+      const since = /^\d{4}-\d{2}-\d{2}T[\d:.]+(Z|[+-]\d{2}:\d{2})?$/.test(sinceRaw) ? sinceRaw : ''
+      let contacts = null, supaErr = ''
+      try { contacts = await getContacts(since) } catch (e) { supaErr = e.message }
+      let backups = await listBackupLeads()
+      if (contacts && backups.length) {
+        const { restored, pending } = await restoreBackupLeads(backups)
+        if (restored.length) console.log(`[contacts] restored ${restored.length} backed-up lead(s) into Supabase`)
+        contacts = [...restored, ...contacts]
+        backups = pending
+      }
+      const extra = backups.filter(b => !since || String(b.created_at) > since)
+      if (!contacts && !extra.length) return res.status(503).json({ error: `Supabase: ${supaErr}` })
+      if (!contacts) res.setHeader('X-Leads-Degraded', encodeURIComponent(supaErr.slice(0, 180)))
+      return sendJson(req, res, [...extra, ...(contacts || [])])
     }
 
     // ── POST: create new contact ─────────────────────────────────────────────
@@ -453,6 +503,11 @@ export default async function handler(req, res) {
         insertOk = !!(inserted && inserted.id)
       } catch (dbErr) {
         console.error('[new-lead] DB insert failed (will still notify as fallback):', dbErr.message)
+        try {
+          const bk = await backupLead(row, dbErr.message)
+          if (bk) { inserted = bk; console.warn(`[new-lead] saved to backup store ${bk.id}`) }
+          else console.error('[new-lead] BLOB_READ_WRITE_TOKEN missing — lead exists only in the notification email')
+        } catch (e) { console.error('[new-lead] backup failed too:', e.message) }
       }
 
       // Originality gate: only the EARLIEST same-phone row in the 2-min window sends
@@ -478,7 +533,7 @@ export default async function handler(req, res) {
         // Fire all 3 notifications immediately, in parallel. Hard 12s cap fits the 30s maxDuration.
         const labels = ['lead-email', 'admin-wa', 'lead-autoreply']
         const work = Promise.allSettled([
-          sendLeadEmail(b),
+          sendLeadEmail({ ...b, __storage: insertOk ? 'db' : (String(inserted?.id || '').startsWith('bk:') ? 'backup' : 'lost') }),
           notifyAdmin(row),
           sendLeadAutoReply(row),
         ])
