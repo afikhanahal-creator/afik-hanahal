@@ -2134,7 +2134,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     try { since = leadsFullSynced.current ? (localStorage.getItem('afik_leads_since') || '') : '' } catch {}
     condFetchJson(`${CONTACTS_API}/api/contacts${since ? `?since=${encodeURIComponent(since)}` : ''}`, { Authorization: `Bearer ${ADMIN_TOKEN}` })
       .then(res => {
-        if (!res.ok) { setLeadsSyncError(res.status === 503 ? 'השרת לא הצליח לקרוא לידים מ-Supabase. הרשימה כאן עלולה להיות חסרה — נסו לרענן בעוד דקה.' : `סנכרון הלידים נכשל (${res.status || 'שגיאת רשת'}). הרשימה עלולה להיות חסרה.`); return Promise.reject() }
+        if (!res.ok) { setLeadsSyncError(`${res.status === 503 ? 'השרת לא הצליח לקרוא לידים מ-Supabase' : `סנכרון הלידים נכשל (${res.status || 'שגיאת רשת'})`}. הרשימה עלולה להיות חסרה.${res.error ? ` פרטי השגיאה: ${String(res.error).slice(0, 220)}` : ''}`); return Promise.reject() }
         setLeadsSyncError(''); leadsFullSynced.current = true
         return res.changed ? res.data : Promise.reject()
       })
