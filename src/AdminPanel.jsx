@@ -2122,14 +2122,22 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     document.addEventListener('mouseup', onUp)
   }
 
+  const leadsFullSynced = useRef(false)
+  const [leadsSyncError, setLeadsSyncError] = useState('')
   const syncLeadsFromServer = () => {
     if (leadsSyncing) return
     setLeadsSyncing(true)
-    // Incremental: ask only for leads newer than the newest one we already have (persisted per browser)
+    // First sync after opening the panel is a FULL sync (the newest 500 leads): a cursor saved in
+    // this browser can be ahead of what the browser actually holds (cleared storage, quota), and an
+    // incremental-only sync would then never bring those leads back. Later polls are incremental.
     let since = ''
-    try { since = localStorage.getItem('afik_leads_since') || '' } catch {}
+    try { since = leadsFullSynced.current ? (localStorage.getItem('afik_leads_since') || '') : '' } catch {}
     condFetchJson(`${CONTACTS_API}/api/contacts${since ? `?since=${encodeURIComponent(since)}` : ''}`, { Authorization: `Bearer ${ADMIN_TOKEN}` })
-      .then(res => (res.ok && res.changed ? res.data : Promise.reject()))
+      .then(res => {
+        if (!res.ok) { setLeadsSyncError(res.status === 503 ? 'השרת לא הצליח לקרוא לידים מ-Supabase. הרשימה כאן עלולה להיות חסרה — נסו לרענן בעוד דקה.' : `סנכרון הלידים נכשל (${res.status || 'שגיאת רשת'}). הרשימה עלולה להיות חסרה.`); return Promise.reject() }
+        setLeadsSyncError(''); leadsFullSynced.current = true
+        return res.changed ? res.data : Promise.reject()
+      })
       .then(serverLeads => {
         if (!Array.isArray(serverLeads)) return
         const newest = serverLeads.map(s => s.created_at).filter(Boolean).sort().pop()
@@ -2138,6 +2146,10 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
           JSON.parse(localStorage.getItem(LEADS_DELETED) || '[]').map(String)
         )
         setLeads(prev => {
+          // A lead that was saved to the backup store ("bk:…") and later moved into Supabase comes back
+          // with crm_data.backup_id — drop the local backup copy so the lead is not shown twice.
+          const restoredFrom = new Set(serverLeads.map(s => s.crm_data?.backup_id).filter(Boolean).map(String))
+          if (restoredFrom.size) prev = prev.filter(l => !restoredFrom.has(String(l.id)))
           const localById = new Map(prev.map(l => [String(l.id), l]))
           // Pull in leads that exist on server but not locally (and weren't deleted)
           const newOnes = serverLeads
@@ -2154,7 +2166,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
               ts:           new Date(s.created_at || Date.now()).getTime(),
               ...(s.crm_data || {}),   // restore leadStatus, enrichment, notes, tags
             }))
-          if (newOnes.length === 0) return prev
+          if (newOnes.length === 0) { if (restoredFrom.size) { try { localStorage.setItem(LEADS_STORE, JSON.stringify(prev)) } catch {} } return prev }
           const merged = [...newOnes, ...prev].sort((a, b) => b.ts - a.ts)
           try { localStorage.setItem(LEADS_STORE, JSON.stringify(merged)) } catch {}
           return merged
@@ -3647,6 +3659,12 @@ Return ONLY valid JSON (no markdown, no code blocks):
 
         {tab==='leads' && (
           <div className="admin-board-dark" style={{ position:'absolute', inset:0, overflow:'hidden' }}>
+            {leadsSyncError && (
+              <div role="alert" style={{ position:'absolute', top:10, left:'50%', transform:'translateX(-50%)', zIndex:30, display:'flex', alignItems:'center', gap:10, padding:'9px 14px', borderRadius:10, background:'rgba(224,82,82,.14)', border:'1px solid rgba(224,82,82,.5)', color:'#FF9A9A', fontSize:12.5, fontWeight:600, boxShadow:'0 8px 24px rgba(0,0,0,.35)', maxWidth:'92%' }}>
+                ⚠ {leadsSyncError}
+                <button onClick={() => { leadsFullSynced.current = false; syncLeadsFromServer() }} style={{ padding:'5px 10px', borderRadius:7, border:'1px solid rgba(224,82,82,.5)', background:'rgba(224,82,82,.18)', color:'#FFB3B3', cursor:'pointer', fontFamily:'inherit', fontSize:12, fontWeight:700, minHeight:0 }}>נסה שוב</button>
+              </div>
+            )}
             <Suspense fallback={<AdminTabLoader label="לידים" />}>
               <LeadsBoard
                 leads={leads}
