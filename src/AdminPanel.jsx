@@ -6,13 +6,15 @@
 import { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react'
 import { metaFormAnswers, answersToText } from './lib/leadFields.js'
 import { LAYERS_DEF as GM_LAYERS, BG_OPTIONS as GM_BG_OPTIONS, LAYER_CATS_DEF as GM_LAYER_CATS } from './govmapLayers.js'
-import { FaEnvelope, FaFacebookF, FaInstagram, FaBed, FaRulerCombined, FaBuilding, FaTools, FaMapMarkerAlt, FaPhone, FaLeaf, FaCalendarAlt, FaTimes, FaWhatsapp, FaFileAlt, FaHome, FaSearch, FaBalanceScale, FaHandshake, FaLock, FaKey, FaGlobe, FaBolt, FaChartLine, FaEye, FaPlay, FaFire, FaShareAlt, FaHeart, FaCamera, FaUser, FaUsers, FaDesktop, FaMobileAlt, FaTabletAlt, FaRobot, FaExclamationTriangle, FaChartBar, FaThumbsUp, FaImage, FaPencilAlt, FaCrown, FaMousePointer, FaDollarSign, FaVideo, FaLink, FaCheckCircle, FaTrash, FaClipboardList } from 'react-icons/fa'
+import { FaSun, FaMoon, FaPlus, FaEnvelope, FaFacebookF, FaInstagram, FaBed, FaRulerCombined, FaBuilding, FaTools, FaMapMarkerAlt, FaPhone, FaLeaf, FaCalendarAlt, FaTimes, FaWhatsapp, FaFileAlt, FaHome, FaSearch, FaBalanceScale, FaHandshake, FaLock, FaKey, FaGlobe, FaBolt, FaChartLine, FaEye, FaPlay, FaFire, FaShareAlt, FaHeart, FaCamera, FaUser, FaUsers, FaDesktop, FaMobileAlt, FaTabletAlt, FaRobot, FaExclamationTriangle, FaChartBar, FaThumbsUp, FaImage, FaPencilAlt, FaCrown, FaMousePointer, FaDollarSign, FaVideo, FaLink, FaCheckCircle, FaTrash, FaClipboardList } from 'react-icons/fa'
 // Seller intake submissions (from the public /sell form) — lazy, admin-only
 const SellerSubmissionsTab = lazy(() => import('./SellerSubmissionsTab.jsx'))
 const AutomationsTab = lazy(() => import('./AutomationsTab.jsx'))
 const GA4Tab = lazy(() => import('./GA4Tab.jsx'))
 const AdminHome = lazy(() => import('./AdminHome.jsx'))
 import { autoApi, StageSendPrompt } from './AutomationsApi.jsx'
+import { useAdminTheme, ADMIN_THEME_CSS } from './adminTheme.js'
+import CommandPalette, { useCommandHotkey } from './CommandPalette.jsx'
 import { LeadsBoard, GreenAPIChat, MetaLeadsTab, SupermetricsTab, PropertyWizard, API_BASE, CONTACTS_API, ADMIN_TOKEN, condFetchJson, DARK_C, useTheme, TEAM, G, Logo, LEADS_STORE, LEADS_DELETED, LEADS_TRASH, ANALYTICS_KEY, META_LEAD_PAGES_KEY, WA_DEFAULT_TEMPLATE, _cloudSettings, CATEGORIES, EMPTY_PROP, CONDITION_OPTIONS, ENTRY_OPTIONS, ADMIN_DRAFT_KEY, toMapsEmbed, imgFallback, thumbImg, sortByOrder, TEAM_KEY, setCloudSettings } from './App.jsx'
 
 // Tab ↔ URL deep-link mapping (module-level so both AdminPanel and main app can use it)
@@ -56,12 +58,12 @@ function LogoUpload({ logo, onChange }) {
     <div style={{ display:'flex', alignItems:'center', gap:16 }}>
       {logo ? (
         <div style={{ position:'relative', flexShrink:0 }}>
-          <img src={logo} alt="לוגו" style={{ width:80, height:80, objectFit:'contain', background:'rgba(255,255,255,.06)', borderRadius:12, border:`1px solid ${C.purple}33`, padding:6 }}/>
+          <img src={logo} alt="לוגו" style={{ width:80, height:80, objectFit:'contain', background:'rgba(var(--ov),.06)', borderRadius:12, border:`1px solid ${C.purple}33`, padding:6 }}/>
           <button onClick={() => onChange('')}
             style={{ position:'absolute', top:-8, right:-8, width:22, height:22, borderRadius:'50%', background:'#E05252', border:'none', color:'#fff', fontSize:12, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', lineHeight:1 }}>×</button>
         </div>
       ) : (
-        <div style={{ width:80, height:80, borderRadius:12, border:`2px dashed ${C.purple}44`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, background:'rgba(255,255,255,.02)' }}>
+        <div style={{ width:80, height:80, borderRadius:12, border:`2px dashed ${C.purple}44`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, background:'rgba(var(--ov),.02)' }}>
           <FaImage size={20} style={{ opacity:.25, color:C.purple }}/>
         </div>
       )}
@@ -166,7 +168,7 @@ function ImageUpload({ images, onChange }) {
     setDragIdx(null); setOverIdx(null)
   }
 
-  const cell = { position:'relative', aspectRatio:'4/3', borderRadius:10, overflow:'hidden', background:'rgba(255,255,255,.05)', userSelect:'none' }
+  const cell = { position:'relative', aspectRatio:'4/3', borderRadius:10, overflow:'hidden', background:'rgba(var(--ov),.05)', userSelect:'none' }
 
   return (
     <div>
@@ -180,7 +182,7 @@ function ImageUpload({ images, onChange }) {
           border: `2px dashed ${dragOver ? 'rgba(132,144,216,.8)' : 'rgba(132,144,216,.3)'}`,
           borderRadius: 10,
           padding: '14px 16px',
-          background: dragOver ? 'rgba(132,144,216,.08)' : 'rgba(255,255,255,.02)',
+          background: dragOver ? 'rgba(132,144,216,.08)' : 'rgba(var(--ov),.02)',
           textAlign: 'center',
           marginBottom: 10,
           transition: 'all .2s',
@@ -190,12 +192,12 @@ function ImageUpload({ images, onChange }) {
       >
         <input id="img-upload-input" type="file" accept="image/*" multiple onChange={onInputChange} style={{ display:'none' }}/>
         {loading ? (
-          <div style={{ fontSize:12, color:'rgba(232,228,216,.5)', letterSpacing:'.04em' }}>מעבד תמונות...</div>
+          <div style={{ fontSize:12, color:'rgba(var(--ink),.5)', letterSpacing:'.04em' }}>מעבד תמונות...</div>
         ) : (
           <>
-            <FaImage size={20} style={{ marginBottom:4, opacity:.3, color:'rgba(232,228,216,.6)' }}/>
-            <div style={{ fontSize:12, color:'rgba(232,228,216,.6)', fontWeight:600 }}>גרור תמונות לכאן או לחץ לבחירה</div>
-            <div style={{ fontSize:10, color:'rgba(232,228,216,.3)', marginTop:3 }}>עד {MAX_IMAGES - images.length} תמונות נוספות · JPEG/PNG/WEBP</div>
+            <FaImage size={20} style={{ marginBottom:4, opacity:.3, color:'rgba(var(--ink),.6)' }}/>
+            <div style={{ fontSize:12, color:'rgba(var(--ink),.6)', fontWeight:600 }}>גרור תמונות לכאן או לחץ לבחירה</div>
+            <div style={{ fontSize:10, color:'rgba(var(--ink),.3)', marginTop:3 }}>עד {MAX_IMAGES - images.length} תמונות נוספות · JPEG/PNG/WEBP</div>
           </>
         )}
       </div>
@@ -239,7 +241,7 @@ function ImageUpload({ images, onChange }) {
           ))}
         </div>
       )}
-      <div style={{ fontSize:10, color:'rgba(232,228,216,.3)', letterSpacing:'.03em' }}>
+      <div style={{ fontSize:10, color:'rgba(var(--ink),.3)', letterSpacing:'.03em' }}>
         גרור תמונות לשינוי סדר · תמונה ראשונה = תמונה ראשית
       </div>
     </div>
@@ -328,7 +330,7 @@ const META_TOKEN_DEFAULT = 'EAAnqYHiWM8cBRZAZCAfaykV1lMF9GXejZCKL9vcoG7g72Y5qdnv
 
 function MetaGraphLive({ tab }) {
   const { C, isDark } = useTheme()
-  const cardBg = isDark ? 'rgba(255,255,255,.03)' : 'rgba(0,0,0,.02)'
+  const cardBg = isDark ? 'rgba(var(--ov),.03)' : 'rgba(0,0,0,.02)'
 
   const [token, setToken]           = useState(() => localStorage.getItem(META_TOKEN_KEY) || META_TOKEN_DEFAULT)
   const [tokenInput, setTokenInput] = useState('')
@@ -427,7 +429,7 @@ function MetaGraphLive({ tab }) {
   const expiryColor = !tokenExpiry ? C.purple : isExpired ? '#E05252' : expiresIn < 60 ? '#F97316' : '#22C55E'
   const expiryLabel = !tokenExpiry ? 'בדיקה...' : isExpired ? 'פג תוקף — עדכן טוקן' : expiresIn > 1440 ? `תקף — ${Math.round(expiresIn/1440)} ימים` : expiresIn > 60 ? `${Math.round(expiresIn/60)} שעות` : `${expiresIn} דקות`
 
-  const inp = { width:'100%', padding:'9px 12px', background:'rgba(255,255,255,.05)', border:`1px solid ${C.purple}33`, borderRadius:8, color:C.cream, fontSize:13, fontFamily:'monospace', outline:'none', direction:'ltr', boxSizing:'border-box' }
+  const inp = { width:'100%', padding:'9px 12px', background:'rgba(var(--ov),.05)', border:`1px solid ${C.purple}33`, borderRadius:8, color:C.cream, fontSize:13, fontFamily:'monospace', outline:'none', direction:'ltr', boxSizing:'border-box' }
 
   // ── Preset queries ────────────────────────────────────────────────────
   const PRESETS = [
@@ -450,7 +452,7 @@ function MetaGraphLive({ tab }) {
     <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
 
       {/* Token bar */}
-      <div style={{ display:'flex', alignItems:'center', gap:10, background:'rgba(255,255,255,.03)', border:`1px solid ${expiryColor}33`, borderRadius:12, padding:'12px 16px' }}>
+      <div style={{ display:'flex', alignItems:'center', gap:10, background:'rgba(var(--ov),.03)', border:`1px solid ${expiryColor}33`, borderRadius:12, padding:'12px 16px' }}>
         <div style={{ width:10, height:10, borderRadius:'50%', background:expiryColor, boxShadow:`0 0 8px ${expiryColor}`, flexShrink:0 }}/>
         <div style={{ flex:1, minWidth:0 }}>
           <div style={{ fontSize:11, fontWeight:700, color:expiryColor }}>Graph API Token — {expiryLabel}</div>
@@ -468,7 +470,7 @@ function MetaGraphLive({ tab }) {
 
       {/* Token edit */}
       {editToken && (
-        <div style={{ background:'rgba(255,255,255,.03)', border:`1px solid ${C.purple}22`, borderRadius:12, padding:14, display:'flex', flexDirection:'column', gap:8 }}>
+        <div style={{ background:'rgba(var(--ov),.03)', border:`1px solid ${C.purple}22`, borderRadius:12, padding:14, display:'flex', flexDirection:'column', gap:8 }}>
           <div style={{ fontSize:11, color:`${C.cream}66`, fontWeight:600 }}>הדבק User Access Token חדש מ-<a href="https://developers.facebook.com/tools/explorer/" target="_blank" rel="noopener noreferrer" style={{ color:C.purple }}>Graph API Explorer</a></div>
           <div style={{ display:'flex', gap:8 }}>
             <input type="password" value={tokenInput} onChange={e => setTokenInput(e.target.value)} placeholder="EAAn..." style={{ ...inp, flex:1 }}/>
@@ -604,16 +606,16 @@ function MetaGraphLive({ tab }) {
           <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
             {PRESETS.map((p,i) => (
               <button key={i} onClick={() => setQueryPath(p.path)}
-                style={{ padding:'5px 11px', background:'rgba(255,255,255,.04)', border:`1px solid ${C.purple}25`, borderRadius:6, color:`${C.cream}80`, fontSize:10, fontWeight:600, cursor:'pointer', fontFamily:'inherit', transition:'all .15s' }}
+                style={{ padding:'5px 11px', background:'rgba(var(--ov),.04)', border:`1px solid ${C.purple}25`, borderRadius:6, color:`${C.cream}80`, fontSize:10, fontWeight:600, cursor:'pointer', fontFamily:'inherit', transition:'all .15s' }}
                 onMouseEnter={e=>{ e.currentTarget.style.background=`${C.purple}18`; e.currentTarget.style.color=C.purple }}
-                onMouseLeave={e=>{ e.currentTarget.style.background='rgba(255,255,255,.04)'; e.currentTarget.style.color=`${C.cream}80` }}>
+                onMouseLeave={e=>{ e.currentTarget.style.background='rgba(var(--ov),.04)'; e.currentTarget.style.color=`${C.cream}80` }}>
                 {p.label}
               </button>
             ))}
           </div>
           {/* Query input */}
           <div style={{ display:'flex', gap:8 }}>
-            <div style={{ flex:1, display:'flex', alignItems:'center', background:'rgba(255,255,255,.04)', border:`1px solid ${C.purple}30`, borderRadius:8, overflow:'hidden' }}>
+            <div style={{ flex:1, display:'flex', alignItems:'center', background:'rgba(var(--ov),.04)', border:`1px solid ${C.purple}30`, borderRadius:8, overflow:'hidden' }}>
               <span style={{ padding:'0 10px', fontSize:11, color:`${C.cream}44`, whiteSpace:'nowrap', borderRight:`1px solid ${C.purple}20` }}>GET graph.facebook.com/v25.0</span>
               <input value={queryPath} onChange={e => setQueryPath(e.target.value)}
                 onKeyDown={e => { if (e.key==='Enter') runQuery() }}
@@ -645,7 +647,7 @@ function MetaGraphLive({ tab }) {
 function PlatformSection({ tab, C, isDark }) {
   const cfg = PLATFORM_CFG[tab]
   if (!cfg) return null
-  const cardBg = isDark ? 'rgba(255,255,255,.03)' : 'rgba(0,0,0,.03)'
+  const cardBg = isDark ? 'rgba(var(--ov),.03)' : 'rgba(0,0,0,.03)'
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
@@ -719,7 +721,7 @@ const META_BUSINESS_ID = '13184732626344484'
 
 function MetaMarketingLive() {
   const { C, isDark } = useTheme()
-  const cardBg = isDark ? 'rgba(255,255,255,.03)' : 'rgba(0,0,0,.02)'
+  const cardBg = isDark ? 'rgba(var(--ov),.03)' : 'rgba(0,0,0,.02)'
   const [token]         = useState(() => localStorage.getItem(META_TOKEN_KEY) || META_TOKEN_DEFAULT)
   const [accounts, setAccounts] = useState([])
   const [insights, setInsights] = useState(null)
@@ -782,7 +784,7 @@ function MetaMarketingLive() {
           <div style={{ display:'flex', flexDirection:'column', gap:7 }}>
             {accounts.map((acc,i) => (
               <div key={i} onClick={() => { setSelAccount(acc); loadInsights(acc.id) }}
-                style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 12px', background:selAccount?.id===acc.id?`${C.purple}14`:'rgba(255,255,255,.02)', border:`1px solid ${selAccount?.id===acc.id?C.purple+'44':C.purple+'12'}`, borderRadius:9, cursor:'pointer' }}>
+                style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 12px', background:selAccount?.id===acc.id?`${C.purple}14`:'rgba(var(--ov),.02)', border:`1px solid ${selAccount?.id===acc.id?C.purple+'44':C.purple+'12'}`, borderRadius:9, cursor:'pointer' }}>
                 <div style={{ width:8, height:8, borderRadius:'50%', background:acc.account_status===1?'#22C55E':'#E05252', flexShrink:0 }}/>
                 <span style={{ fontSize:13, fontWeight:600, color:C.cream, flex:1 }}>{acc.name}</span>
                 <span style={{ fontSize:11, color:`${C.cream}44`, fontFamily:'monospace' }}>{acc.id}</span>
@@ -1062,7 +1064,7 @@ function AnalyticsDashboard({ leads }) {
       </div>
 
       {/* ── 7-day bar chart ── */}
-      <div style={{ background: isDark ? 'rgba(255,255,255,.025)' : 'rgba(0,0,0,.02)', borderRadius:18, padding:'20px 22px', border:`1px solid ${C.purple}20`, boxShadow: isDark ? '0 4px 24px rgba(0,0,0,.22)' : '0 2px 10px rgba(0,0,0,.05)' }}>
+      <div style={{ background: isDark ? 'rgba(var(--ov),.025)' : 'rgba(0,0,0,.02)', borderRadius:18, padding:'20px 22px', border:`1px solid ${C.purple}20`, boxShadow: isDark ? '0 4px 24px rgba(0,0,0,.22)' : '0 2px 10px rgba(0,0,0,.05)' }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:18 }}>
           <div>
             <div style={{ fontSize:14, fontWeight:800, color:C.cream }}>ביקורים — 7 ימים אחרונים</div>
@@ -1114,7 +1116,7 @@ function AnalyticsDashboard({ leads }) {
       <div className="admin-overview-bottom" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
 
         {/* Traffic Sources */}
-        <div style={{ background: isDark ? 'rgba(255,255,255,.025)' : 'rgba(0,0,0,.02)', borderRadius:18, padding:'20px 20px', border:`1px solid ${C.purple}20` }}>
+        <div style={{ background: isDark ? 'rgba(var(--ov),.025)' : 'rgba(0,0,0,.02)', borderRadius:18, padding:'20px 20px', border:`1px solid ${C.purple}20` }}>
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
             <div style={{ fontSize:13, fontWeight:800, color:C.cream }}>מקורות טראפיק</div>
             <span style={{ fontSize:10, color:`${C.cream}44`, background:`${C.purple}12`, borderRadius:20, padding:'2px 9px', border:`1px solid ${C.purple}20` }}>{sessions.length} סשנים</span>
@@ -1135,7 +1137,7 @@ function AnalyticsDashboard({ leads }) {
                         <span style={{ fontSize:11, fontWeight:800, color:src6Colors[i], background:`${src6Colors[i]}18`, padding:'1px 8px', borderRadius:20, border:`1px solid ${src6Colors[i]}30` }}>{pct}%</span>
                       </div>
                     </div>
-                    <div style={{ height:8, background: isDark ? 'rgba(255,255,255,.07)' : 'rgba(0,0,0,.07)', borderRadius:4 }}>
+                    <div style={{ height:8, background: isDark ? 'rgba(var(--ov),.07)' : 'rgba(0,0,0,.07)', borderRadius:4 }}>
                       <div style={{ height:8, width:`${pct}%`, background:`linear-gradient(90deg,${src6Colors[i]},${src6Colors[i]}aa)`, borderRadius:4, transition:'width 1s cubic-bezier(.34,1.56,.64,1)', boxShadow:`0 0 8px ${src6Colors[i]}55` }}/>
                     </div>
                   </div>
@@ -1152,7 +1154,7 @@ function AnalyticsDashboard({ leads }) {
         </div>
 
         {/* Devices — real GA4 data */}
-        <div style={{ background: isDark ? 'rgba(255,255,255,.025)' : 'rgba(0,0,0,.02)', borderRadius:18, padding:'20px 20px', border:`1px solid ${C.purple}20` }}>
+        <div style={{ background: isDark ? 'rgba(var(--ov),.025)' : 'rgba(0,0,0,.02)', borderRadius:18, padding:'20px 20px', border:`1px solid ${C.purple}20` }}>
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
             <div style={{ display:'flex', alignItems:'center', gap:8 }}>
               <div style={{ fontSize:13, fontWeight:800, color:C.cream }}>סוג מכשיר</div>
@@ -1217,7 +1219,7 @@ function AnalyticsDashboard({ leads }) {
                               <div style={{ fontSize:11, fontWeight:800, color:`${dc.color}99` }}>{pct}%</div>
                             </div>
                           </div>
-                          <div style={{ height:8, background: isDark ? 'rgba(255,255,255,.07)' : 'rgba(0,0,0,.07)', borderRadius:4 }}>
+                          <div style={{ height:8, background: isDark ? 'rgba(var(--ov),.07)' : 'rgba(0,0,0,.07)', borderRadius:4 }}>
                             <div style={{ height:8, width:`${pct}%`, background:`linear-gradient(90deg,${dc.color},${dc.color}88)`, borderRadius:4, transition:'width 1s ease', boxShadow:`0 0 10px ${dc.color}44` }}/>
                           </div>
                         </div>
@@ -1272,7 +1274,7 @@ function AnalyticsDashboard({ leads }) {
                         <span style={{ fontSize:11, fontWeight:800, color:d.color, background:`${d.color}18`, padding:'1px 8px', borderRadius:20 }}>{pct}%</span>
                       </div>
                     </div>
-                    <div style={{ height:8, background: isDark ? 'rgba(255,255,255,.07)' : 'rgba(0,0,0,.07)', borderRadius:4 }}>
+                    <div style={{ height:8, background: isDark ? 'rgba(var(--ov),.07)' : 'rgba(0,0,0,.07)', borderRadius:4 }}>
                       <div style={{ height:8, width:`${pct}%`, background:`linear-gradient(90deg,${d.color},${d.color}aa)`, borderRadius:4, transition:'width 1s ease', boxShadow:`0 0 8px ${d.color}44` }}/>
                     </div>
                   </div>
@@ -1301,7 +1303,7 @@ function AnalyticsDashboard({ leads }) {
 
       {/* ── Top Properties ── */}
       {topProps.length > 0 && (
-        <div style={{ background: isDark ? 'rgba(255,255,255,.025)' : 'rgba(0,0,0,.02)', borderRadius:18, padding:'20px 22px', border:`1px solid ${C.purple}20` }}>
+        <div style={{ background: isDark ? 'rgba(var(--ov),.025)' : 'rgba(0,0,0,.02)', borderRadius:18, padding:'20px 22px', border:`1px solid ${C.purple}20` }}>
           <div style={{ fontSize:13, fontWeight:800, color:C.cream, marginBottom:14 }}>נכסים שנצפו הכי הרבה</div>
           <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
             {topProps.map(([title,cnt],i) => {
@@ -1327,7 +1329,7 @@ function AnalyticsDashboard({ leads }) {
       )}
 
       {/* ── External Platforms ── */}
-      <div style={{ background: isDark ? 'rgba(255,255,255,.025)' : 'rgba(0,0,0,.02)', borderRadius:18, padding:'20px 22px', border:`1px solid ${C.purple}20` }}>
+      <div style={{ background: isDark ? 'rgba(var(--ov),.025)' : 'rgba(0,0,0,.02)', borderRadius:18, padding:'20px 22px', border:`1px solid ${C.purple}20` }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16, flexWrap:'wrap', gap:8 }}>
           <div style={{ fontSize:13, fontWeight:800, color:C.cream }}>לוחות בקרה חיצוניים</div>
           <div style={{ display:'flex', gap:7, flexWrap:'wrap' }}>
@@ -1426,7 +1428,7 @@ function TeamTab({ C, isDark }) {
     navigator.clipboard.writeText(getInviteLink(member)).then(() => { setCopied(member.id); setTimeout(() => setCopied(null), 2500) })
   }
 
-  const inp = { width:'100%', padding:'10px 14px', background:'rgba(255,255,255,.05)', border:`1px solid ${C.purple}33`, borderRadius:8, color:C.cream, fontSize:13, fontFamily:'inherit', outline:'none', direction:'rtl', boxSizing:'border-box' }
+  const inp = { width:'100%', padding:'10px 14px', background:'rgba(var(--ov),.05)', border:`1px solid ${C.purple}33`, borderRadius:8, color:C.cream, fontSize:13, fontFamily:'inherit', outline:'none', direction:'rtl', boxSizing:'border-box' }
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
@@ -1444,7 +1446,7 @@ function TeamTab({ C, isDark }) {
       </div>
 
       {/* ── Invite form ── */}
-      <div style={{ background:'rgba(255,255,255,.03)', border:`1px solid ${C.purple}22`, borderRadius:14, padding:'18px 20px' }}>
+      <div style={{ background:'rgba(var(--ov),.03)', border:`1px solid ${C.purple}22`, borderRadius:14, padding:'18px 20px' }}>
         <div style={{ fontSize:13, fontWeight:800, color:C.cream, marginBottom:14 }}>הזמנת חבר צוות חדש</div>
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:12 }}>
           <div>
@@ -1485,7 +1487,7 @@ function TeamTab({ C, isDark }) {
       </div>
 
       {/* ── Team list ── */}
-      <div style={{ background:'rgba(255,255,255,.03)', border:`1px solid ${C.purple}22`, borderRadius:14, padding:'18px 20px' }}>
+      <div style={{ background:'rgba(var(--ov),.03)', border:`1px solid ${C.purple}22`, borderRadius:14, padding:'18px 20px' }}>
         <div style={{ fontSize:13, fontWeight:800, color:C.cream, marginBottom:14 }}>
           חברי הצוות ({team.length})
         </div>
@@ -1500,7 +1502,7 @@ function TeamTab({ C, isDark }) {
               const role = TEAM_ROLES[m.role] || TEAM_ROLES.viewer
               const initials = m.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()
               return (
-                <div key={m.id} style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 14px', background:'rgba(255,255,255,.03)', borderRadius:10, border:`1px solid ${C.purple}15` }}>
+                <div key={m.id} style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 14px', background:'rgba(var(--ov),.03)', borderRadius:10, border:`1px solid ${C.purple}15` }}>
                   {/* Avatar */}
                   <div style={{ width:40, height:40, borderRadius:'50%', background:`${role.color}22`, border:`2px solid ${role.color}55`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontSize:14, fontWeight:800, color:role.color }}>
                     {initials}
@@ -1523,7 +1525,7 @@ function TeamTab({ C, isDark }) {
                   {/* Actions */}
                   <div style={{ display:'flex', gap:6, flexShrink:0 }}>
                     <select value={m.role} onChange={e => changeRole(m.id, e.target.value)}
-                      style={{ padding:'5px 8px', background:'rgba(255,255,255,.06)', border:`1px solid ${C.purple}33`, borderRadius:6, color:`${C.cream}BB`, fontSize:11, fontFamily:'inherit', cursor:'pointer', outline:'none' }}>
+                      style={{ padding:'5px 8px', background:'rgba(var(--ov),.06)', border:`1px solid ${C.purple}33`, borderRadius:6, color:`${C.cream}BB`, fontSize:11, fontFamily:'inherit', cursor:'pointer', outline:'none' }}>
                       {Object.entries(TEAM_ROLES).map(([k,r]) => <option key={k} value={k}>{r.label}</option>)}
                     </select>
                     <button onClick={() => copyLink(m)}
@@ -1547,7 +1549,7 @@ function TeamTab({ C, isDark }) {
       </div>
 
       {/* ── Security info ── */}
-      <div style={{ background:'rgba(255,255,255,.02)', border:`1px solid ${C.purple}15`, borderRadius:12, padding:'14px 18px' }}>
+      <div style={{ background:'rgba(var(--ov),.02)', border:`1px solid ${C.purple}15`, borderRadius:12, padding:'14px 18px' }}>
         <div style={{ fontSize:12, fontWeight:700, color:`${C.cream}77`, marginBottom:8 }}>אבטחה וזכויות גישה</div>
         <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
           {[
@@ -1569,7 +1571,7 @@ function TeamTab({ C, isDark }) {
 // ─── TEAM TOKEN CHECK ─────────────────────────────────────────────────────────
 function AdminTabLoader({ label = 'טוען...' }) {
   return (
-    <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:16, color:'rgba(232,228,216,.4)', minHeight:300 }}>
+    <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:16, color:'rgba(var(--ink),.4)', minHeight:300 }}>
       <div style={{ width:36, height:36, border:'3px solid rgba(132,144,216,.2)', borderTopColor:'#8490D8', borderRadius:'50%', animation:'spin 0.7s linear infinite' }}/>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
       <span style={{ fontSize:13, fontFamily:'Rubik,sans-serif' }}>טוען {label}...</span>
@@ -1610,8 +1612,8 @@ function PropertyManagerList({ C, list, publishedList, draftList, listTab, setLi
     document.addEventListener('mousedown', close); return () => document.removeEventListener('mousedown', close)
   }, [menuId])
 
-  const btn = (extra = {}) => ({ padding:'7px 12px', borderRadius:8, border:'1px solid rgba(132,144,216,.25)', background:'rgba(255,255,255,.04)', color:`${C.cream}CC`, cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:700, whiteSpace:'nowrap', display:'inline-flex', alignItems:'center', gap:6, transition:'all .15s', ...extra })
-  const iconBtn = (title, extra = {}) => ({ title, 'aria-label':title, style:{ width:28, height:22, minWidth:0, minHeight:0, borderRadius:6, border:'1px solid rgba(132,144,216,.22)', background:'rgba(255,255,255,.04)', color:`${C.cream}AA`, cursor:'pointer', fontSize:10, display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'inherit', padding:0, ...extra } })
+  const btn = (extra = {}) => ({ padding:'7px 12px', borderRadius:8, border:'1px solid rgba(132,144,216,.25)', background:'rgba(var(--ov),.04)', color:`${C.cream}CC`, cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:700, whiteSpace:'nowrap', display:'inline-flex', alignItems:'center', gap:6, transition:'all .15s', ...extra })
+  const iconBtn = (title, extra = {}) => ({ title, 'aria-label':title, style:{ width:28, height:22, minWidth:0, minHeight:0, borderRadius:6, border:'1px solid rgba(132,144,216,.22)', background:'rgba(var(--ov),.04)', color:`${C.cream}AA`, cursor:'pointer', fontSize:10, display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'inherit', padding:0, ...extra } })
 
   // ── drag & drop with a live drop line ──
   const onDragOverRow = (e, p) => {
@@ -1627,7 +1629,7 @@ function PropertyManagerList({ C, list, publishedList, draftList, listTab, setLi
     <div className="admin-pm">
       {/* Toolbar: tabs · search · category chips */}
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12, flexWrap:'wrap', gap:10 }}>
-        <div style={{ display:'flex', gap:4, background:'rgba(255,255,255,.04)', borderRadius:10, padding:4 }}>
+        <div style={{ display:'flex', gap:4, background:'rgba(var(--ov),.04)', borderRadius:10, padding:4 }}>
           {[['published', `באוויר (${publishedList.length})`, C.green], ['draft', `מוסתרים / טיוטות (${draftList.length})`, '#F7C948']].map(([id, label, color]) => (
             <button key={id} onClick={() => { setListTab(id); clearSel() }}
               style={{ display:'flex', alignItems:'center', gap:7, padding:'8px 16px', border:'none', borderRadius:7, background:listTab===id?color+'22':'transparent', color:listTab===id?color:`${C.cream}55`, cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:800, transition:'all .15s' }}>
@@ -1638,7 +1640,7 @@ function PropertyManagerList({ C, list, publishedList, draftList, listTab, setLi
         <div style={{ position:'relative', flex:'1 1 220px', maxWidth:340 }}>
           <FaSearch size={11} style={{ position:'absolute', insetInlineStart:12, top:'50%', transform:'translateY(-50%)', color:`${C.cream}44` }}/>
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="חיפוש לפי כותרת, עיר, סוג…"
-            style={{ width:'100%', padding:'9px 34px 9px 12px', background:'rgba(255,255,255,.05)', border:`1px solid ${search ? C.purple : 'rgba(132,144,216,.25)'}`, borderRadius:9, color:C.cream, fontSize:12, fontFamily:'inherit', outline:'none', boxSizing:'border-box' }}/>
+            style={{ width:'100%', padding:'9px 34px 9px 12px', background:'rgba(var(--ov),.05)', border:`1px solid ${search ? C.purple : 'rgba(132,144,216,.25)'}`, borderRadius:9, color:C.cream, fontSize:12, fontFamily:'inherit', outline:'none', boxSizing:'border-box' }}/>
         </div>
         <div className="admin-cat-filter">
           {[{id:'all',label:'הכל',Icon:null},...CATEGORIES].map(({id,label,Icon:CIcon}) => (
@@ -1696,7 +1698,7 @@ function PropertyManagerList({ C, list, publishedList, draftList, listTab, setLi
               onDragEnd={() => setDrag({ id:null, overId:null, place:'before' })}
               onDragOver={e => onDragOverRow(e, p)}
               onDrop={e => onDropRow(e, p)}
-              style={{ display:'flex', alignItems:'stretch', background: selected.has(id) ? `${C.purple}12` : live ? 'rgba(34,197,94,.035)' : 'rgba(255,255,255,.035)', borderRadius:14, border:`1.5px solid ${selected.has(id) ? C.purple+'66' : accent+'2A'}`, overflow:'visible', position:'relative', opacity: isDragging ? .35 : 1, transition:'opacity .15s, border-color .15s, box-shadow .15s', cursor: drag.id ? 'grabbing' : 'default',
+              style={{ display:'flex', alignItems:'stretch', background: selected.has(id) ? `${C.purple}12` : live ? 'rgba(34,197,94,.035)' : 'rgba(var(--ov),.035)', borderRadius:14, border:`1.5px solid ${selected.has(id) ? C.purple+'66' : accent+'2A'}`, overflow:'visible', position:'relative', opacity: isDragging ? .35 : 1, transition:'opacity .15s, border-color .15s, box-shadow .15s', cursor: drag.id ? 'grabbing' : 'default',
                 boxShadow: over === 'before' ? `0 -3px 0 0 ${C.purple}` : over === 'after' ? `0 3px 0 0 ${C.purple}` : 'none' }}>
               {/* Select + position + order controls */}
               <div className="admin-pm-order" style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:6, padding:'8px 6px', borderInlineEnd:`1px solid ${accent}22`, background:`${accent}0C`, flexShrink:0, width:76 }}>
@@ -1722,7 +1724,7 @@ function PropertyManagerList({ C, list, publishedList, draftList, listTab, setLi
                   <span style={{ fontWeight:800, fontSize:15, color:C.cream, lineHeight:1.25 }}>{p.title || 'ללא כותרת'}</span>
                   {p.exclusive && <span style={{ fontSize:10, background:`${C.green}18`, color:C.green, border:`1px solid ${C.green}35`, borderRadius:5, padding:'1px 7px', fontWeight:700 }}>✦ בלעדי</span>}
                   <span style={{ background:`${C.purple}22`, color:C.purple, borderRadius:5, padding:'1px 8px', fontSize:10, fontWeight:700 }}>{cat.label}</span>
-                  {p.type && <span style={{ background:'rgba(255,255,255,.06)', color:`${C.cream}70`, borderRadius:5, padding:'1px 8px', fontSize:10 }}>{p.type}</span>}
+                  {p.type && <span style={{ background:'rgba(var(--ov),.06)', color:`${C.cream}70`, borderRadius:5, padding:'1px 8px', fontSize:10 }}>{p.type}</span>}
                 </div>
                 <div style={{ display:'flex', gap:12, flexWrap:'wrap', fontSize:12, color:`${C.cream}75` }}>
                   {p.location && <span style={{ display:'flex', alignItems:'center', gap:4 }}><FaMapMarkerAlt size={10} style={{ color:C.purple }}/>{p.location}{p.neighborhood ? ' · '+p.neighborhood : ''}</span>}
@@ -1747,7 +1749,7 @@ function PropertyManagerList({ C, list, publishedList, draftList, listTab, setLi
                   {live ? 'באוויר' : 'מוסתר'}
                 </button>
                 {/* Status segmented */}
-                <div role="group" aria-label="סטטוס" style={{ display:'inline-flex', background:'rgba(255,255,255,.05)', border:'1px solid rgba(132,144,216,.2)', borderRadius:9, padding:3, gap:2 }}>
+                <div role="group" aria-label="סטטוס" style={{ display:'inline-flex', background:'rgba(var(--ov),.05)', border:'1px solid rgba(132,144,216,.2)', borderRadius:9, padding:3, gap:2 }}>
                   {PM_STATUS.map(s => {
                     const on = status === s.id
                     return <button key={s.id} onClick={() => !on && setStatus(p.id, s.id)} style={{ padding:'5px 10px', borderRadius:7, border:'none', background: on ? s.color : 'transparent', color: on ? '#0b0b12' : `${C.cream}80`, cursor: on ? 'default' : 'pointer', fontSize:11, fontWeight:800, fontFamily:'inherit', transition:'all .15s' }}>{s.label}</button>
@@ -1759,7 +1761,7 @@ function PropertyManagerList({ C, list, publishedList, draftList, listTab, setLi
                 <div data-pm-menu style={{ position:'relative' }}>
                   <button onClick={() => setMenuId(menuId === id ? null : id)} aria-haspopup="menu" aria-expanded={menuId === id} title="פעולות נוספות" style={btn({ padding:'8px 10px', fontSize:14, lineHeight:1 })}>⋯</button>
                   {menuId === id && (
-                    <div role="menu" style={{ position:'absolute', top:'calc(100% + 6px)', insetInlineEnd:0, zIndex:20, minWidth:190, background:'#13132A', border:`1px solid ${C.purple}44`, borderRadius:12, boxShadow:'0 16px 40px rgba(0,0,0,.5)', padding:6, display:'flex', flexDirection:'column', gap:2 }}>
+                    <div role="menu" style={{ position:'absolute', top:'calc(100% + 6px)', insetInlineEnd:0, zIndex:20, minWidth:190, background:'var(--au-pop)', border:`1px solid ${C.purple}44`, borderRadius:12, boxShadow:'0 16px 40px rgba(0,0,0,.5)', padding:6, display:'flex', flexDirection:'column', gap:2 }}>
                       {[
                         ...(idx > 0 ? [['⤒ העבר לראש הרשימה', () => onTop(p.id)]] : []),
                         ['📄 שכפל נכס', () => dup(p.id)],
@@ -1769,7 +1771,7 @@ function PropertyManagerList({ C, list, publishedList, draftList, listTab, setLi
                         <button key={label} role="menuitem" onClick={() => { setMenuId(null); fn() }} style={{ textAlign:'start', padding:'9px 12px', borderRadius:8, border:'none', background:'transparent', color:C.cream, fontSize:12, fontFamily:'inherit', cursor:'pointer', fontWeight:600 }}
                           onMouseEnter={e => e.currentTarget.style.background=`${C.purple}22`} onMouseLeave={e => e.currentTarget.style.background='transparent'}>{label}</button>
                       ))}
-                      <div style={{ height:1, background:'rgba(255,255,255,.08)', margin:'4px 6px' }}/>
+                      <div style={{ height:1, background:'rgba(var(--ov),.08)', margin:'4px 6px' }}/>
                       <button role="menuitem" onClick={() => { setMenuId(null); del(p.id) }} style={{ textAlign:'start', padding:'9px 12px', borderRadius:8, border:'none', background:'transparent', color:'#E05252', fontSize:12, fontFamily:'inherit', cursor:'pointer', fontWeight:700 }}
                         onMouseEnter={e => e.currentTarget.style.background='rgba(224,82,82,.14)'} onMouseLeave={e => e.currentTarget.style.background='transparent'}>🗑 מחק נכס</button>
                     </div>
@@ -1784,11 +1786,32 @@ function PropertyManagerList({ C, list, publishedList, draftList, listTab, setLi
   )
 }
 
+
+// ─── Appearance switch (light / dark / follow the device) ─────────────────────
+function AdminThemeSwitch({ lang, compact }) {
+  const { pref, setPref } = useAdminTheme()
+  const opts = [['light', FaSun, 'בהיר', 'Light'], ['dark', FaMoon, 'כהה', 'Dark'], ['system', FaDesktop, 'אוטומטי', 'Auto']]
+  return (
+    <div role="radiogroup" aria-label={lang === 'en' ? 'Appearance' : 'מראה המערכת'} style={{ display:'inline-flex', padding:3, gap:2, borderRadius:10, background:'rgba(var(--ov),.05)', border:'1px solid var(--au-line)', flexShrink:0 }}>
+      {opts.map(([id, Ic, he, en]) => {
+        const on = pref === id
+        return (
+          <button key={id} type="button" role="radio" aria-checked={on} title={lang === 'en' ? en : he} aria-label={lang === 'en' ? en : he} onClick={() => setPref(id)}
+            style={{ height:28, padding: compact ? '0 9px' : '0 10px', borderRadius:8, border:'none', background: on ? 'var(--au-seg-active)' : 'transparent', boxShadow: on ? '0 1px 3px rgba(var(--shade),.18)' : 'none', color: on ? 'var(--au-text)' : 'var(--au-text3)', display:'inline-flex', alignItems:'center', gap:6, fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit', minHeight:0, minWidth:0, transition:'background .15s,color .15s' }}>
+            <Ic size={11}/>{!compact && <span>{lang === 'en' ? en : he}</span>}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSharon, govmapToken, setGovmapToken, onClose, onEditInWizard, standalone = false }) {
-  const { lang, logoNavSize, setLogoNavSize } = useTheme()
-  // Admin panel is ALWAYS dark regardless of site theme
-  const isDark = true
-  const C      = DARK_C
+  // Admin appearance (dark / light / system) comes from the admin theme context — see src/adminTheme.js
+  const { lang, logoNavSize, setLogoNavSize, C, isDark } = useTheme()
+  const adminTheme = useAdminTheme()
+  const [cmdOpen, setCmdOpen] = useState(false)
+  useCommandHotkey(setCmdOpen)
   const initForm = () => {
     try { const d = JSON.parse(localStorage.getItem(ADMIN_DRAFT_KEY)); if (d) return { ...EMPTY_PROP, ...d } } catch {}
     return EMPTY_PROP
@@ -3077,8 +3100,20 @@ Return ONLY valid JSON (no markdown, no code blocks):
 
   return (
     <div className="admin-shell admin-scroll" style={standalone
-      ? { position:'fixed', inset:0, zIndex:1000, display:'flex', background:'#07070F', direction:'rtl', fontFamily:'Rubik, sans-serif' }
+      ? { position:'fixed', inset:0, zIndex:1000, display:'flex', background:'var(--au-page)', color:'var(--au-text)', direction:'rtl', fontFamily:'Rubik, sans-serif' }
       : { position:'fixed', inset:0, background:'rgba(0,0,0,.92)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:16, overflowY:'auto', overscrollBehavior:'contain' }}>
+      <style>{ADMIN_THEME_CSS}</style>
+      <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} lang={lang}
+        tabs={DASH_TABS.filter(x => standalone || x.id !== 'overview')} leads={leads} properties={properties}
+        actions={[
+          { id:'new-prop', Icon:FaPlus, label: lang === 'en' ? 'New property (wizard)' : 'נכס חדש (אשף)', run: () => { if (standalone) { try { localStorage.removeItem('afik_wizard_draft') } catch {}; setWizardOpen(true) } else { onClose(); setTimeout(() => document.dispatchEvent(new CustomEvent('afik:openWizard')), 100) } } },
+          { id:'theme', Icon: adminTheme.isDark ? FaSun : FaMoon, label: adminTheme.isDark ? (lang === 'en' ? 'Switch to light mode' : 'מעבר למצב בהיר') : (lang === 'en' ? 'Switch to dark mode' : 'מעבר למצב כהה'), run: adminTheme.toggle },
+          { id:'site', Icon:FaGlobe, label: lang === 'en' ? 'Open the website' : 'פתח את האתר', run: () => window.open('/', '_blank') },
+          { id:'share', Icon:FaShareAlt, label: lang === 'en' ? 'Copy link to the system' : 'העתק קישור למערכת', run: copyDashLink },
+        ]}
+        onTab={id => { if (id === 'live') goToLiveProps(); else setTab(id); setAdminNavOpen(false) }}
+        onLead={lead => { setInitialChatLead(lead); setTab('chats') }}
+        onProperty={p => startEdit(p)}/>
 
       {/* ── MOBILE SIDEBAR OVERLAY — standalone only ──────────────────── */}
       {standalone && adminNavOpen && (
@@ -3087,17 +3122,17 @@ Return ONLY valid JSON (no markdown, no code blocks):
 
       {/* ── SIDEBAR — standalone only ─────────────────────────────────── */}
       {standalone && (
-        <aside className={`admin-sidebar${adminNavOpen ? ' open' : ''}`} style={{ width:248, height:'100dvh', background:'linear-gradient(180deg,#0D0E1A 0%,#08080F 100%)', borderLeft:'1px solid rgba(132,144,216,.1)', display:'flex', flexDirection:'column', flexShrink:0 }}>
+        <aside className={`admin-sidebar${adminNavOpen ? ' open' : ''}`} style={{ width:248, height:'100dvh', background:'var(--au-sidebar)', borderLeft:'1px solid var(--au-line)', display:'flex', flexDirection:'column', flexShrink:0 }}>
           {/* Brand */}
           <div style={{ padding:'20px 18px 16px', display:'flex', alignItems:'center', gap:12 }}>
             <div style={{ width:40, height:40, borderRadius:12, background:'linear-gradient(135deg,rgba(132,144,216,.28),rgba(132,144,216,.08))', border:'1px solid rgba(132,144,216,.3)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-              <img src="/logo.svg" alt="" style={{ height:22, opacity:.95 }} onError={e => { e.currentTarget.style.display='none' }}/>
+              <img src={isDark ? '/logo.svg' : '/logo-black.svg'} alt="" style={{ height:22, opacity:.95 }} onError={e => { e.currentTarget.style.display='none' }}/>
             </div>
             <div style={{ minWidth:0 }}>
-              <div style={{ fontSize:14, fontWeight:800, color:'#E8E4D8', letterSpacing:'-.005em' }}>{lang === 'en' ? 'Afik Hanahal' : 'אפיק הנחל'}</div>
+              <div style={{ fontSize:14, fontWeight:800, color:'var(--au-text)', letterSpacing:'-.005em' }}>{lang === 'en' ? 'Afik Hanahal' : 'אפיק הנחל'}</div>
               <div style={{ display:'flex', alignItems:'center', gap:6, marginTop:2 }}>
                 <span style={{ width:6, height:6, borderRadius:'50%', background:'#22C55E', boxShadow:'0 0 8px rgba(34,197,94,.7)' }}/>
-                <span style={{ fontSize:11, color:'rgba(232,228,216,.5)', fontWeight:600 }}>{lang === 'en' ? 'Management system' : 'מערכת ניהול'}</span>
+                <span style={{ fontSize:11, color:'rgba(var(--ink),.5)', fontWeight:600 }}>{lang === 'en' ? 'Management system' : 'מערכת ניהול'}</span>
               </div>
             </div>
           </div>
@@ -3105,15 +3140,15 @@ Return ONLY valid JSON (no markdown, no code blocks):
           <nav aria-label={lang === 'en' ? 'Admin sections' : 'אזורי המערכת'} style={{ flex:1, overflowY:'auto', padding:'4px 12px 12px' }}>
             {DASH_GROUPS.map(g => (
               <div key={g.id} style={{ marginBottom:10 }}>
-                <div style={{ fontSize:10.5, fontWeight:800, color:'rgba(232,228,216,.34)', letterSpacing:'.06em', padding:'10px 10px 6px' }}>{lang === 'en' ? g.en : g.he}</div>
+                <div style={{ fontSize:10.5, fontWeight:800, color:'rgba(var(--ink),.34)', letterSpacing:'.06em', padding:'10px 10px 6px' }}>{lang === 'en' ? g.en : g.he}</div>
                 {DASH_TABS.filter(item => g.ids.includes(item.id)).map(item => {
                   const isLive = item.id === 'live'
                   const isActive = isLive ? (tab==='props' && listTab==='published') : tab===item.id
                   const accent = isLive ? '#22C55E' : '#8490D8'
                   return (
                     <button key={item.id} className="admin-nav-item" aria-current={isActive ? 'page' : undefined} onClick={() => { if (isLive) { goToLiveProps() } else { setTab(item.id) }; setAdminNavOpen(false) }}
-                      style={{ width:'100%', display:'flex', alignItems:'center', gap:11, height:38, padding:'0 10px', border:'none', borderRadius:10, background: isActive ? `linear-gradient(90deg,${accent}10,${accent}26)` : 'transparent', boxShadow: isActive ? `inset -2px 0 0 ${accent}` : 'none', color: isActive ? '#F1EEE6' : 'rgba(232,228,216,.62)', cursor:'pointer', fontFamily:'inherit', fontSize:13, fontWeight: isActive ? 700 : 500, marginBottom:2, textAlign:'start', transition:'background .15s,color .15s', minHeight:0 }}>
-                      <span style={{ width:26, height:26, borderRadius:8, display:'inline-flex', alignItems:'center', justifyContent:'center', flexShrink:0, background: isActive ? `${accent}26` : 'transparent', color: isActive ? accent : 'rgba(232,228,216,.5)' }}><item.Icon size={13}/></span>
+                      style={{ width:'100%', display:'flex', alignItems:'center', gap:11, height:38, padding:'0 10px', border:'none', borderRadius:10, background: isActive ? `linear-gradient(90deg,${accent}10,${accent}26)` : 'transparent', boxShadow: isActive ? `inset -2px 0 0 ${accent}` : 'none', color: isActive ? 'var(--au-text)' : 'rgba(var(--ink),.62)', cursor:'pointer', fontFamily:'inherit', fontSize:13, fontWeight: isActive ? 700 : 500, marginBottom:2, textAlign:'start', transition:'background .15s,color .15s', minHeight:0 }}>
+                      <span style={{ width:26, height:26, borderRadius:8, display:'inline-flex', alignItems:'center', justifyContent:'center', flexShrink:0, background: isActive ? `${accent}26` : 'transparent', color: isActive ? accent : 'rgba(var(--ink),.5)' }}><item.Icon size={13}/></span>
                       <span style={{ flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.label}</span>
                       {!!item.badge && <span style={{ minWidth:20, height:20, padding:'0 6px', borderRadius:10, display:'inline-flex', alignItems:'center', justifyContent:'center', fontSize:10.5, fontWeight:800, fontVariantNumeric:'tabular-nums', background: isLive ? 'rgba(34,197,94,.16)' : item.id==='chats' ? '#25D366' : item.id==='meta' || item.id==='automations' ? '#E05252' : 'rgba(132,144,216,.2)', color: isLive ? '#22C55E' : item.id==='chats' ? '#062E16' : item.id==='meta' || item.id==='automations' ? '#fff' : '#B7BEF0' }}>{item.badge}</span>}
                     </button>
@@ -3127,8 +3162,8 @@ Return ONLY valid JSON (no markdown, no code blocks):
             <div style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 8px 10px' }}>
               <div style={{ width:34, height:34, borderRadius:'50%', background:'linear-gradient(135deg,#8490D8,#5D68B8)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontSize:12, fontWeight:800, flexShrink:0 }}>AH</div>
               <div style={{ flex:1, minWidth:0 }}>
-                <div style={{ fontSize:12.5, fontWeight:700, color:'#E8E4D8' }}>{lang === 'en' ? 'Main admin' : 'מנהל ראשי'}</div>
-                <div style={{ fontSize:11, color:'rgba(232,228,216,.42)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>afikhanahal.co.il</div>
+                <div style={{ fontSize:12.5, fontWeight:700, color:'var(--au-text)' }}>{lang === 'en' ? 'Main admin' : 'מנהל ראשי'}</div>
+                <div style={{ fontSize:11, color:'rgba(var(--ink),.42)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>afikhanahal.co.il</div>
               </div>
             </div>
             <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:6 }}>
@@ -3138,7 +3173,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
                 { key:'out', Icon:FaTimes, label: lang === 'en' ? 'Log out' : 'יציאה', onClick: onClose, danger: true },
               ].map(b => (
                 <button key={b.key} onClick={b.onClick} className="admin-foot-btn" title={b.label}
-                  style={{ height:52, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:5, borderRadius:10, border:`1px solid ${b.on ? 'rgba(34,197,94,.4)' : b.danger ? 'rgba(224,82,82,.22)' : 'rgba(132,144,216,.16)'}`, background: b.on ? 'rgba(34,197,94,.1)' : b.danger ? 'rgba(224,82,82,.06)' : 'rgba(255,255,255,.02)', color: b.on ? '#22C55E' : b.danger ? 'rgba(240,138,138,.85)' : 'rgba(232,228,216,.62)', cursor:'pointer', fontFamily:'inherit', fontSize:11, fontWeight:700, transition:'all .15s', minHeight:0, minWidth:0, padding:0 }}>
+                  style={{ height:52, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:5, borderRadius:10, border:`1px solid ${b.on ? 'rgba(34,197,94,.4)' : b.danger ? 'rgba(224,82,82,.22)' : 'rgba(132,144,216,.16)'}`, background: b.on ? 'rgba(34,197,94,.1)' : b.danger ? 'rgba(224,82,82,.06)' : 'rgba(var(--ov),.02)', color: b.on ? '#22C55E' : b.danger ? 'rgba(240,138,138,.85)' : 'rgba(var(--ink),.62)', cursor:'pointer', fontFamily:'inherit', fontSize:11, fontWeight:700, transition:'all .15s', minHeight:0, minWidth:0, padding:0 }}>
                   <b.Icon size={12}/>{b.label}
                 </button>
               ))}
@@ -3159,17 +3194,25 @@ Return ONLY valid JSON (no markdown, no code blocks):
           <div className="admin-mobile-topbar">
             <div style={{ display:'flex', alignItems:'center', gap:8 }}>
               <button onClick={() => setAdminNavOpen(v => !v)}
-                style={{ background:'none', border:`1px solid rgba(132,144,216,.25)`, borderRadius:8, width:36, height:36, color:'rgba(232,228,216,.7)', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:4 }}>
+                style={{ background:'none', border:`1px solid rgba(132,144,216,.25)`, borderRadius:8, width:36, height:36, color:'rgba(var(--ink),.7)', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:4 }}>
                 <div style={{ width:16, height:1.5, background:'currentColor', borderRadius:1 }}/>
                 <div style={{ width:16, height:1.5, background:'currentColor', borderRadius:1 }}/>
                 <div style={{ width:16, height:1.5, background:'currentColor', borderRadius:1 }}/>
               </button>
             </div>
-            <div style={{ fontSize:13, fontWeight:700, color:'rgba(232,228,216,.75)' }}>
+            <div style={{ fontSize:13, fontWeight:700, color:'rgba(var(--ink),.75)' }}>
               {DASH_TABS.find(t => t.id === tab)?.label || 'ניהול'}
             </div>
             <div style={{ display:'flex', alignItems:'center', gap:6 }}>
               {saved && <span style={{ fontSize:10, color:'#22C55E', fontWeight:700, background:'rgba(34,197,94,.12)', padding:'2px 8px', borderRadius:10 }}>נשמר</span>}
+              <button onClick={() => setCmdOpen(true)} aria-label={lang === 'en' ? 'Quick search' : 'חיפוש מהיר'}
+                style={{ background:'rgba(132,144,216,.1)', border:'1px solid rgba(132,144,216,.28)', borderRadius:8, width:34, height:34, color:C.purple, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', minHeight:0, minWidth:0 }}>
+                <FaSearch size={12}/>
+              </button>
+              <button onClick={adminTheme.toggle} aria-label={adminTheme.isDark ? (lang === 'en' ? 'Light mode' : 'מצב בהיר') : (lang === 'en' ? 'Dark mode' : 'מצב כהה')} title={adminTheme.isDark ? (lang === 'en' ? 'Light mode' : 'מצב בהיר') : (lang === 'en' ? 'Dark mode' : 'מצב כהה')}
+                style={{ background:'rgba(132,144,216,.1)', border:'1px solid rgba(132,144,216,.28)', borderRadius:8, width:34, height:34, color:C.purple, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', minHeight:0, minWidth:0 }}>
+                {adminTheme.isDark ? <FaSun size={12}/> : <FaMoon size={12}/>}
+              </button>
               <button onClick={copyDashLink} title="שתף קישור למערכת"
                 style={{ background: shareCopied ? 'rgba(34,197,94,.12)' : 'rgba(132,144,216,.1)', border:`1px solid ${shareCopied ? 'rgba(34,197,94,.35)' : 'rgba(132,144,216,.28)'}`, borderRadius:8, width:34, height:34, color: shareCopied ? '#22C55E' : C.purple, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s' }}>
                 <FaShareAlt size={11}/>
@@ -3184,11 +3227,11 @@ Return ONLY valid JSON (no markdown, no code blocks):
 
         {/* Standalone desktop top-bar */}
         {standalone && (
-          <div className="admin-desktop-topbar" style={{ height:64, borderBottom:'1px solid rgba(132,144,216,.09)', display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 28px', flexShrink:0, background:'rgba(9,9,17,.86)', backdropFilter:'blur(20px)', direction:'rtl' }}>
+          <div className="admin-desktop-topbar" style={{ height:64, borderBottom:'1px solid rgba(132,144,216,.09)', display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 28px', flexShrink:0, background:'var(--au-topbar)', backdropFilter:'blur(20px)', direction:'rtl' }}>
             <div style={{ display:'flex', alignItems:'center', gap:10 }}>
               <div style={{ display:'flex', flexDirection:'column', gap:1 }}>
-                <h2 style={{ fontSize:16, fontWeight:800, color:'#EEEAE0', margin:0, letterSpacing:'-.005em' }}>{TAB_LABELS[tab] || ''}</h2>
-                <span style={{ fontSize:11.5, color:'rgba(232,228,216,.42)' }}>{new Date().toLocaleDateString(lang === 'en' ? 'en-GB' : 'he-IL', { weekday:'long', day:'numeric', month:'long' })}</span>
+                <h2 style={{ fontSize:16, fontWeight:800, color:'var(--au-text)', margin:0, letterSpacing:'-.005em' }}>{TAB_LABELS[tab] || ''}</h2>
+                <span style={{ fontSize:11.5, color:'rgba(var(--ink),.42)' }}>{new Date().toLocaleDateString(lang === 'en' ? 'en-GB' : 'he-IL', { weekday:'long', day:'numeric', month:'long' })}</span>
               </div>
               {saved && <span style={{ fontSize:11, color:'#22C55E', fontWeight:700, background:'rgba(34,197,94,.1)', padding:'3px 10px', borderRadius:20, border:'1px solid rgba(34,197,94,.2)' }}>✓ נשמר</span>}
               <div style={{ width:1, height:18, background:'rgba(132,144,216,.15)', flexShrink:0, marginRight:2 }}/>
@@ -3204,12 +3247,18 @@ Return ONLY valid JSON (no markdown, no code blocks):
                 )}
               </button>
             </div>
-            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+            <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+              <button onClick={() => setCmdOpen(true)} aria-label={lang === 'en' ? 'Quick search' : 'חיפוש מהיר'} className="admin-cmdk-btn"
+                style={{ display:'flex', alignItems:'center', gap:10, height:36, padding:'0 12px', minWidth:240, borderRadius:10, border:'1px solid var(--au-line)', background:'rgba(var(--ov),.04)', color:'var(--au-text3)', cursor:'pointer', fontFamily:'inherit', fontSize:12.5, minHeight:0 }}>
+                <FaSearch size={11}/><span style={{ flex:1, textAlign:'start' }}>{lang === 'en' ? 'Search or jump to…' : 'חיפוש או מעבר מהיר…'}</span>
+                <kbd dir="ltr" style={{ fontSize:10.5, fontFamily:'inherit', border:'1px solid var(--au-line2)', borderRadius:5, padding:'1px 5px', color:'var(--au-text3)' }}>Ctrl K</kbd>
+              </button>
+              <AdminThemeSwitch lang={lang}/>
               <div style={{ display:'flex', alignItems:'center', gap:7, background:'rgba(132,144,216,.08)', border:'1px solid rgba(132,144,216,.16)', borderRadius:24, padding:'6px 13px 6px 9px' }}>
                 <div style={{ width:26, height:26, borderRadius:'50%', background:`${C.purple}25`, border:`1.5px solid ${C.purple}44`, display:'flex', alignItems:'center', justifyContent:'center' }}>
                   <FaLock size={10} style={{ color:C.purple }}/>
                 </div>
-                <span style={{ fontSize:12, color:'rgba(232,228,216,.62)', fontWeight:600 }}>{lang === 'en' ? 'Main admin' : 'מנהל ראשי'}</span>
+                <span style={{ fontSize:12, color:'rgba(var(--ink),.62)', fontWeight:600 }}>{lang === 'en' ? 'Main admin' : 'מנהל ראשי'}</span>
               </div>
             </div>
           </div>
@@ -3228,44 +3277,47 @@ Return ONLY valid JSON (no markdown, no code blocks):
               </div>
               {saved && <span style={{ fontSize:12, color:C.green, fontWeight:700, background:`${C.green}15`, padding:'4px 12px', borderRadius:20, border:`1px solid ${C.green}30` }}>✓ נשמר בהצלחה</span>}
             </div>
-            <button onClick={onClose} style={{ background:'rgba(255,255,255,.07)', border:`1px solid rgba(132,144,216,.25)`, borderRadius:10, width:38, height:38, color:`${C.cream}80`, cursor:'pointer', fontSize:18, lineHeight:1, display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s' }}
+            <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+            <AdminThemeSwitch lang={lang} compact/>
+            <button onClick={onClose} style={{ background:'rgba(var(--ov),.07)', border:`1px solid rgba(132,144,216,.25)`, borderRadius:10, width:38, height:38, color:`${C.cream}80`, cursor:'pointer', fontSize:18, lineHeight:1, display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s' }}
               onMouseEnter={e=>{ e.currentTarget.style.background='rgba(224,82,82,.2)'; e.currentTarget.style.borderColor='#E05252'; e.currentTarget.style.color='#E05252' }}
-              onMouseLeave={e=>{ e.currentTarget.style.background='rgba(255,255,255,.07)'; e.currentTarget.style.borderColor='rgba(132,144,216,.25)'; e.currentTarget.style.color=`${C.cream}80` }}>×</button>
+              onMouseLeave={e=>{ e.currentTarget.style.background='rgba(var(--ov),.07)'; e.currentTarget.style.borderColor='rgba(132,144,216,.25)'; e.currentTarget.style.color=`${C.cream}80` }}>×</button>
+            </div>
           </div>
         )}
 
         {/* Supabase health warning banner */}
         {supabaseWarning && (
           <div role="alert" className="admin-notice" style={{ background:'linear-gradient(90deg,rgba(224,82,82,.1),rgba(224,82,82,.04))', border:'1px solid rgba(224,82,82,.28)', borderRadius:12, padding:'10px 14px', margin: standalone ? '14px 28px 0' : '0 0 14px', display:'flex', alignItems:'center', gap:10, direction:'rtl', flexShrink:0 }}>
-            <span style={{ width:28, height:28, borderRadius:8, background:'rgba(224,82,82,.16)', display:'inline-flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}><FaExclamationTriangle size={12} style={{ color:'#F08A8A' }}/></span>
-            <span style={{ fontSize:12.5, color:'#F4B4B4', fontWeight:600, lineHeight:1.5, flex:1, minWidth:0 }}>{supabaseWarning.replace(/^⚠\s*/, '')}</span>
-            <button onClick={() => setSupabaseWarning('')} aria-label="סגור" style={{ background:'none', border:'none', color:'rgba(240,138,138,.7)', cursor:'pointer', fontSize:16, lineHeight:1, padding:'0 4px', minHeight:0, minWidth:0 }}>×</button>
+            <span style={{ width:28, height:28, borderRadius:8, background:'rgba(224,82,82,.16)', display:'inline-flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}><FaExclamationTriangle size={12} style={{ color:'var(--au-red-text)' }}/></span>
+            <span style={{ fontSize:12.5, color:'var(--au-red-text)', fontWeight:600, lineHeight:1.5, flex:1, minWidth:0 }}>{supabaseWarning.replace(/^⚠\s*/, '')}</span>
+            <button onClick={() => setSupabaseWarning('')} aria-label="סגור" style={{ background:'none', border:'none', color:'var(--au-red-text)', cursor:'pointer', fontSize:16, lineHeight:1, padding:'0 4px', minHeight:0, minWidth:0 }}>×</button>
           </div>
         )}
 
         {/* Push notification permission banner */}
         {!notifBannerDismissed && notifPerm === 'default' && (
-          <div className="admin-notice" style={{ background:'rgba(255,255,255,.025)', border:'1px solid rgba(132,144,216,.16)', borderRadius:12, padding:'9px 14px', margin: standalone ? '14px 28px 0' : '0 0 14px', display:'flex', alignItems:'center', gap:10, direction:'rtl', flexWrap:'wrap', flexShrink:0 }}>
+          <div className="admin-notice" style={{ background:'rgba(var(--ov),.025)', border:'1px solid rgba(132,144,216,.16)', borderRadius:12, padding:'9px 14px', margin: standalone ? '14px 28px 0' : '0 0 14px', display:'flex', alignItems:'center', gap:10, direction:'rtl', flexWrap:'wrap', flexShrink:0 }}>
             <span style={{ width:28, height:28, borderRadius:8, background:'rgba(247,201,72,.14)', display:'inline-flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontSize:13 }}>🔔</span>
-            <div style={{ flex:1, minWidth:0, fontSize:12.5, color:'rgba(232,228,216,.78)' }}>
-              <b style={{ color:'#EEEAE0' }}>{lang === 'en' ? 'Turn on push notifications' : 'הפעלת התראות דחיפה'}</b>
-              <span style={{ color:'rgba(232,228,216,.5)' }}> · {lang === 'en' ? 'get an alert for every new lead and message' : 'קבלו התראה על כל ליד והודעה חדשים'}</span>
+            <div style={{ flex:1, minWidth:0, fontSize:12.5, color:'rgba(var(--ink),.78)' }}>
+              <b style={{ color:'var(--au-text)' }}>{lang === 'en' ? 'Turn on push notifications' : 'הפעלת התראות דחיפה'}</b>
+              <span style={{ color:'rgba(var(--ink),.5)' }}> · {lang === 'en' ? 'get an alert for every new lead and message' : 'קבלו התראה על כל ליד והודעה חדשים'}</span>
             </div>
             <button onClick={requestNotifPermission}
-              style={{ background:'rgba(247,201,72,.14)', border:'1px solid rgba(247,201,72,.4)', borderRadius:8, height:30, padding:'0 12px', color:'#F7C948', cursor:'pointer', fontFamily:'inherit', fontSize:12, fontWeight:700, flexShrink:0, whiteSpace:'nowrap', transition:'background .15s', minHeight:0 }}
+              style={{ background:'rgba(247,201,72,.14)', border:'1px solid rgba(247,201,72,.4)', borderRadius:8, height:30, padding:'0 12px', color:'var(--au-amber-text)', cursor:'pointer', fontFamily:'inherit', fontSize:12, fontWeight:700, flexShrink:0, whiteSpace:'nowrap', transition:'background .15s', minHeight:0 }}
               onMouseEnter={e=>{ e.currentTarget.style.background='rgba(247,201,72,.26)' }}
               onMouseLeave={e=>{ e.currentTarget.style.background='rgba(247,201,72,.14)' }}>
               {lang === 'en' ? 'Allow' : 'אישור'}
             </button>
-            <button onClick={() => setNotifBannerDismissed(true)} aria-label={lang === 'en' ? 'Dismiss' : 'סגור'} style={{ background:'none', border:'none', color:'rgba(232,228,216,.4)', cursor:'pointer', fontSize:16, lineHeight:1, padding:'0 4px', flexShrink:0, minHeight:0, minWidth:0 }}>×</button>
+            <button onClick={() => setNotifBannerDismissed(true)} aria-label={lang === 'en' ? 'Dismiss' : 'סגור'} style={{ background:'none', border:'none', color:'rgba(var(--ink),.4)', cursor:'pointer', fontSize:16, lineHeight:1, padding:'0 4px', flexShrink:0, minHeight:0, minWidth:0 }}>×</button>
           </div>
         )}
         {!notifBannerDismissed && notifPerm === 'denied' && (
           <div className="admin-notice" style={{ background:'rgba(156,163,175,.07)', border:'1px solid rgba(156,163,175,.25)', borderRadius:12, padding:'9px 14px', margin: standalone ? '14px 28px 0' : '0 0 14px', display:'flex', alignItems:'center', gap:10, direction:'rtl', flexWrap:'wrap', flexShrink:0 }}>
             <span style={{ fontSize:18, flexShrink:0 }}>🔕</span>
             <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontSize:13, fontWeight:700, color:'rgba(232,228,216,.7)' }}>התראות חסומות בדפדפן</div>
-              <div style={{ fontSize:11, color:'rgba(232,228,216,.4)', marginTop:2 }}>Notifications blocked — open Chrome Settings → Site Settings → Notifications → allow this site</div>
+              <div style={{ fontSize:13, fontWeight:700, color:'rgba(var(--ink),.7)' }}>התראות חסומות בדפדפן</div>
+              <div style={{ fontSize:11, color:'rgba(var(--ink),.4)', marginTop:2 }}>Notifications blocked — open Chrome Settings → Site Settings → Notifications → allow this site</div>
             </div>
             <button onClick={() => setNotifBannerDismissed(true)} style={{ background:'none', border:'none', color:'rgba(156,163,175,.45)', cursor:'pointer', fontSize:16, lineHeight:1, padding:'0 4px', flexShrink:0 }}>×</button>
           </div>
@@ -3273,11 +3325,11 @@ Return ONLY valid JSON (no markdown, no code blocks):
 
         {/* Modal tabs */}
         {!standalone && (
-          <div style={{ display:'flex', gap:4, marginBottom:12, background:'rgba(255,255,255,.04)', borderRadius:10, padding:4, flexWrap:'wrap', flexShrink:0 }}>
+          <div style={{ display:'flex', gap:4, marginBottom:12, background:'rgba(var(--ov),.04)', borderRadius:10, padding:4, flexWrap:'wrap', flexShrink:0 }}>
             {tabBtn('meta', 'Lead Center', metaNewLeads || undefined)}
             {tabBtn('props', 'ניהול נכסים')}
             <button onClick={goToLiveProps}
-              style={{ padding:'10px 16px', border:'none', background: tab==='props' && listTab==='published' ? 'rgba(34,197,94,.2)' : 'transparent', color: tab==='props' && listTab==='published' ? '#22C55E' : 'rgba(232,228,216,.65)', fontFamily:'inherit', cursor:'pointer', fontWeight:700, fontSize:14, borderRadius:9, transition:'all .15s', display:'flex', alignItems:'center', gap:6 }}>
+              style={{ padding:'10px 16px', border:'none', background: tab==='props' && listTab==='published' ? 'rgba(34,197,94,.2)' : 'transparent', color: tab==='props' && listTab==='published' ? '#22C55E' : 'rgba(var(--ink),.65)', fontFamily:'inherit', cursor:'pointer', fontWeight:700, fontSize:14, borderRadius:9, transition:'all .15s', display:'flex', alignItems:'center', gap:6 }}>
               <span style={{ width:6, height:6, borderRadius:'50%', background:'#22C55E', boxShadow:'0 0 6px rgba(34,197,94,.8)', animation:'pulse 2s infinite', display:'inline-block' }}/>
               באוויר
               <span style={{ background:'rgba(34,197,94,.2)', color:'#22C55E', borderRadius:20, padding:'2px 7px', fontSize:11, fontWeight:900, lineHeight:1.6 }}>{publishedList.length}</span>
@@ -3324,7 +3376,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
             </div>
 
             {/* Form */}
-            <div style={{ background:'rgba(255,255,255,.03)', borderRadius:12, padding:20, marginBottom:20 }}>
+            <div style={{ background:'rgba(var(--ov),.03)', borderRadius:12, padding:20, marginBottom:20 }}>
               <h3 style={{ fontSize:14, fontWeight:700, color:C.purple, marginBottom:16 }}>{editId ? 'עריכת נכס' : 'הוספת נכס חדש (טופס מהיר)'}</h3>
 
               {/* Category selector */}
@@ -3441,7 +3493,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
               {form.category !== 'land' && (
                 <div style={{ marginBottom:14 }}>
                   <div style={{ fontSize:10, color:`${C.cream}55`, marginBottom:8, fontWeight:700, letterSpacing:'.05em', textTransform:'uppercase' }}>מה יש בנכס</div>
-                  <div className="prop-chk-grid" style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(130px,1fr))', gap:8, padding:'10px 12px', background:'rgba(255,255,255,.02)', borderRadius:8, border:`1px solid ${C.purple}15` }}>
+                  <div className="prop-chk-grid" style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(130px,1fr))', gap:8, padding:'10px 12px', background:'rgba(var(--ov),.02)', borderRadius:8, border:`1px solid ${C.purple}15` }}>
                     {chk('elevator','מעלית')} {chk('accessible','גישה לנכים')}
                     {chk('tornadoAC','מזגן טורנדו')} {chk('airCon','מיזוג')}
                     {chk('balcony','מרפסת')} {chk('storage','מחסן')}
@@ -3534,7 +3586,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
               {err && <div style={{ color:'#E05252', fontSize:12, marginBottom:10 }}>{err}</div>}
 
               <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
-                <button onClick={() => save(false)} disabled={propSyncing} style={{ padding:'12px 18px', background:'rgba(255,255,255,.07)', border:`1px solid ${C.purple}33`, borderRadius:6, color:`${C.cream}BB`, fontSize:13, fontWeight:600, cursor: propSyncing ? 'not-allowed' : 'pointer', fontFamily:'inherit', transition:'all .15s', opacity: propSyncing ? .6 : 1 }}
+                <button onClick={() => save(false)} disabled={propSyncing} style={{ padding:'12px 18px', background:'rgba(var(--ov),.07)', border:`1px solid ${C.purple}33`, borderRadius:6, color:`${C.cream}BB`, fontSize:13, fontWeight:600, cursor: propSyncing ? 'not-allowed' : 'pointer', fontFamily:'inherit', transition:'all .15s', opacity: propSyncing ? .6 : 1 }}
                   onMouseEnter={e => { if (!propSyncing) e.currentTarget.style.borderColor=C.purple }}
                   onMouseLeave={e => { if (!propSyncing) e.currentTarget.style.borderColor=`${C.purple}33` }}>
                   שמור כטיוטה
@@ -3632,7 +3684,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
               <div style={{ fontSize:11, fontWeight:700, color:C.purple, letterSpacing:'2px', textTransform:'uppercase', marginBottom:14, opacity:.8 }}>מונים ראשיים — מוצגים בדף הבית</div>
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
                 {stats.map((s, i) => (
-                  <div key={s.key} style={{ background:'rgba(255,255,255,.03)', borderRadius:12, padding:'16px 18px', border:`1px solid ${C.purple}18`, transition:'border-color .2s' }}
+                  <div key={s.key} style={{ background:'rgba(var(--ov),.03)', borderRadius:12, padding:'16px 18px', border:`1px solid ${C.purple}18`, transition:'border-color .2s' }}
                     onFocus={e => e.currentTarget.style.borderColor=`${C.purple}44`}
                     onBlur={e => e.currentTarget.style.borderColor=`${C.purple}18`}>
                     {/* Preview badge */}
@@ -3645,13 +3697,13 @@ Return ONLY valid JSON (no markdown, no code blocks):
                         <div style={{ fontSize:10, color:`${C.cream}44`, marginBottom:4, fontWeight:600 }}>ערך</div>
                         <input type="number" value={s.value}
                           onChange={e => setStats(prev => prev.map((x,j) => j===i ? {...x,value:Number(e.target.value)} : x))}
-                          style={{ width:'100%', padding:'9px 10px', background:'rgba(255,255,255,.06)', border:`1px solid ${C.green}33`, borderRadius:7, color:C.green, fontSize:15, fontWeight:800, fontFamily:'monospace', outline:'none', textAlign:'center', boxSizing:'border-box' }}/>
+                          style={{ width:'100%', padding:'9px 10px', background:'rgba(var(--ov),.06)', border:`1px solid ${C.green}33`, borderRadius:7, color:C.green, fontSize:15, fontWeight:800, fontFamily:'monospace', outline:'none', textAlign:'center', boxSizing:'border-box' }}/>
                       </div>
                       <div style={{ flex:3 }}>
                         <div style={{ fontSize:10, color:`${C.cream}44`, marginBottom:4, fontWeight:600 }}>תווית</div>
                         <input type="text" value={s.label}
                           onChange={e => setStats(prev => prev.map((x,j) => j===i ? {...x,label:e.target.value} : x))}
-                          style={{ width:'100%', padding:'9px 10px', background:'rgba(255,255,255,.06)', border:`1px solid ${C.purple}22`, borderRadius:7, color:`${C.cream}CC`, fontSize:12, fontFamily:'inherit', outline:'none', textAlign:'right', boxSizing:'border-box' }}/>
+                          style={{ width:'100%', padding:'9px 10px', background:'rgba(var(--ov),.06)', border:`1px solid ${C.purple}22`, borderRadius:7, color:`${C.cream}CC`, fontSize:12, fontFamily:'inherit', outline:'none', textAlign:'right', boxSizing:'border-box' }}/>
                       </div>
                     </div>
                   </div>
@@ -3664,7 +3716,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
               <div style={{ fontSize:11, fontWeight:700, color:C.purple, letterSpacing:'2px', textTransform:'uppercase', marginBottom:14, opacity:.8 }}>בלעדיות בשרון — מוצג בסקשן הסיפור</div>
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
                 {sharon.map((s, i) => (
-                  <div key={s.city} style={{ background:'rgba(255,255,255,.03)', borderRadius:12, padding:'16px 18px', border:`1px solid ${C.purple}18` }}>
+                  <div key={s.city} style={{ background:'rgba(var(--ov),.03)', borderRadius:12, padding:'16px 18px', border:`1px solid ${C.purple}18` }}>
                     <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:12 }}>
                       <div style={{ width:7, height:7, borderRadius:'50%', background:C.green, opacity:.7 }}/>
                       <span style={{ fontSize:13, color:C.cream, fontWeight:800 }}>{s.city}</span>
@@ -3675,13 +3727,13 @@ Return ONLY valid JSON (no markdown, no code blocks):
                         <div style={{ fontSize:10, color:`${C.cream}44`, marginBottom:4, fontWeight:600 }}>כמות</div>
                         <input type="number" value={s.count}
                           onChange={e => setSharon(prev => prev.map((x,j) => j===i ? {...x,count:Number(e.target.value)} : x))}
-                          style={{ width:'100%', padding:'8px 10px', background:'rgba(255,255,255,.06)', border:`1px solid ${C.green}33`, borderRadius:7, color:C.green, fontSize:15, fontWeight:800, fontFamily:'monospace', outline:'none', textAlign:'center', boxSizing:'border-box' }}/>
+                          style={{ width:'100%', padding:'8px 10px', background:'rgba(var(--ov),.06)', border:`1px solid ${C.green}33`, borderRadius:7, color:C.green, fontSize:15, fontWeight:800, fontFamily:'monospace', outline:'none', textAlign:'center', boxSizing:'border-box' }}/>
                       </div>
                       <div style={{ flex:2 }}>
                         <div style={{ fontSize:10, color:`${C.cream}44`, marginBottom:4, fontWeight:600 }}>תווית</div>
                         <input type="text" value={s.type}
                           onChange={e => setSharon(prev => prev.map((x,j) => j===i ? {...x,type:e.target.value} : x))}
-                          style={{ width:'100%', padding:'8px 10px', background:'rgba(255,255,255,.06)', border:`1px solid ${C.purple}22`, borderRadius:7, color:`${C.cream}CC`, fontSize:12, fontFamily:'inherit', outline:'none', textAlign:'right', boxSizing:'border-box' }}/>
+                          style={{ width:'100%', padding:'8px 10px', background:'rgba(var(--ov),.06)', border:`1px solid ${C.purple}22`, borderRadius:7, color:`${C.cream}CC`, fontSize:12, fontFamily:'inherit', outline:'none', textAlign:'right', boxSizing:'border-box' }}/>
                       </div>
                     </div>
                   </div>
@@ -3728,7 +3780,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
                 restoreLead={restoreLead}
                 permanentDeleteLead={permanentDeleteLead}
                 leadsSyncing={leadsSyncing}
-                isDark={true}
+                isDark={isDark}
                 lang={lang}
                 onOpenChat={lead => { setInitialChatLead(lead); setTab('chats') }}
               />
@@ -3769,7 +3821,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
 
         {tab==='meta' && (
           <Suspense fallback={<AdminTabLoader label="מרכז מטא" />}>
-            <MetaLeadsTab C={DARK_C} lang={lang} isDark={true}
+            <MetaLeadsTab C={C} lang={lang} isDark={isDark}
               onNewLead={({ name, campaign }) => {
                 if (tab !== 'meta') setMetaNewLeads(v => v + 1)
                 addToast(
@@ -4101,7 +4153,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
             </div>
 
             {/* ── Logo Size ── */}
-            <div style={{ background:'rgba(255,255,255,.03)', borderRadius:12, padding:20 }}>
+            <div style={{ background:'rgba(var(--ov),.03)', borderRadius:12, padding:20 }}>
               <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:16 }}>
                 <span style={{ fontSize:20 }}>🖼</span>
                 <div>
@@ -4111,7 +4163,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
               </div>
               <div style={{ display:'flex', alignItems:'center', gap:20, flexWrap:'wrap' }}>
                 {/* Live preview */}
-                <div style={{ background:'rgba(6,5,14,.95)', borderRadius:10, padding:'12px 24px', display:'flex', alignItems:'center', justifyContent:'center', border:`1px solid ${C.purple}22`, minWidth:160 }}>
+                <div style={{ background:'var(--au-card-solid)', borderRadius:10, padding:'12px 24px', display:'flex', alignItems:'center', justifyContent:'center', border:`1px solid ${C.purple}22`, minWidth:160 }}>
                   <Logo size={logoNavSize}/>
                 </div>
                 {/* Controls */}
@@ -4120,7 +4172,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
                     <label style={{ fontSize:11, color:`${C.cream}70`, fontWeight:600, whiteSpace:'nowrap' }}>{lang==='en'?'Size (px):':'גודל (px):'}</label>
                     <input type="number" min={20} max={200} value={logoNavSize}
                       onChange={e => setLogoNavSize(e.target.value)}
-                      style={{ width:70, padding:'5px 8px', background:'rgba(255,255,255,.06)', border:`1px solid ${C.purple}33`, borderRadius:7, color:C.cream, fontSize:13, fontFamily:'inherit', outline:'none', textAlign:'center', direction:'ltr' }}/>
+                      style={{ width:70, padding:'5px 8px', background:'rgba(var(--ov),.06)', border:`1px solid ${C.purple}33`, borderRadius:7, color:C.cream, fontSize:13, fontFamily:'inherit', outline:'none', textAlign:'center', direction:'ltr' }}/>
                     <span style={{ fontSize:10, color:`${C.cream}40` }}>px</span>
                   </div>
                   <input type="range" min={20} max={200} value={logoNavSize}
@@ -4142,7 +4194,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
             </div>
 
             {/* GovMap API Token */}
-            <div style={{ background:'rgba(255,255,255,.03)', borderRadius:12, padding:20 }}>
+            <div style={{ background:'rgba(var(--ov),.03)', borderRadius:12, padding:20 }}>
               <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:16 }}>
                 <FaMapMarkerAlt size={18} style={{ color:C.purple }}/>
                 <div>
@@ -4195,7 +4247,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
             </div>
 
             {/* ── Email Notifications ── */}
-            <div style={{ background:'rgba(255,255,255,.03)', borderRadius:12, padding:20 }}>
+            <div style={{ background:'rgba(var(--ov),.03)', borderRadius:12, padding:20 }}>
               <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:16 }}>
                 <FaEnvelope size={18} style={{ color:'#EA4335' }}/>
                 <div>
@@ -4226,7 +4278,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
             </div>
 
             {/* WhatsApp Automation */}
-            <div style={{ background:'rgba(255,255,255,.03)', borderRadius:12, padding:20 }}>
+            <div style={{ background:'rgba(var(--ov),.03)', borderRadius:12, padding:20 }}>
               <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
                 <div style={{ display:'flex', alignItems:'center', gap:10 }}>
                   <FaWhatsapp size={18} style={{ color:'#25D366' }}/>
@@ -4239,7 +4291,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
                   <span style={{ fontSize:12, color:`${C.cream}66`, fontWeight:600 }}>{waSt.enabled ? 'פעיל' : 'כבוי'}</span>
                   <div
                     onClick={() => setWaSt(s => ({ ...s, enabled: !s.enabled }))}
-                    style={{ width:44, height:24, borderRadius:12, background: waSt.enabled ? C.green : 'rgba(255,255,255,.12)', cursor:'pointer', position:'relative', transition:'background .2s', flexShrink:0 }}>
+                    style={{ width:44, height:24, borderRadius:12, background: waSt.enabled ? C.green : 'rgba(var(--ov),.12)', cursor:'pointer', position:'relative', transition:'background .2s', flexShrink:0 }}>
                     <div style={{ position:'absolute', top:3, width:18, height:18, borderRadius:'50%', background:'#fff', left: waSt.enabled ? 23 : 3, transition:'left .2s', boxShadow:'0 1px 4px rgba(0,0,0,.4)' }}/>
                   </div>
                 </label>
@@ -4328,7 +4380,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
             </div>
 
             {/* CRM Webhook */}
-            <div style={{ background:'rgba(255,255,255,.03)', borderRadius:12, padding:20 }}>
+            <div style={{ background:'rgba(var(--ov),.03)', borderRadius:12, padding:20 }}>
               <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:16 }}>
                 <FaLink size={16} style={{ color:C.purple }}/>
                 <div>
@@ -4389,7 +4441,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
             <MetaLeadSourcesCard C={C}/>
 
             {/* ── Meta Pixel ─────────────────────────────────────────────────── */}
-            <div style={{ background:'rgba(255,255,255,.03)', borderRadius:12, padding:20 }}>
+            <div style={{ background:'rgba(var(--ov),.03)', borderRadius:12, padding:20 }}>
               <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:16 }}>
                 <div style={{ width:32, height:32, borderRadius:8, background:'rgba(24,119,242,.15)', display:'flex', alignItems:'center', justifyContent:'center' }}>
                   <FaFacebookF size={14} style={{ color:'#1877F2' }}/>
@@ -4459,7 +4511,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
 
             {/* GovMap Management Panel */}
             {govmapToken ? (
-              <div style={{ background:'rgba(255,255,255,.02)', borderRadius:12, border:`1px solid ${C.purple}22`, overflow:'hidden' }}>
+              <div style={{ background:'rgba(var(--ov),.02)', borderRadius:12, border:`1px solid ${C.purple}22`, overflow:'hidden' }}>
                 {/* Tab bar — map tab removed (not relevant in settings) */}
                 <div style={{ display:'flex', borderBottom:`1px solid ${C.purple}22` }}>
                   {[
@@ -4487,7 +4539,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
                         <div style={{ fontSize:10, fontWeight:800, color:`${C.cream}44`, letterSpacing:'.08em', textTransform:'uppercase', marginBottom:8, paddingBottom:4, borderBottom:`1px solid ${C.purple}18` }}>{cat}</div>
                         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
                           {GM_LAYERS.filter(l => l.cat === cat).map(l => (
-                            <label key={l.id} style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', padding:'8px 12px', background: gmLayers[l.id] ? `${C.purple}15` : 'rgba(255,255,255,.03)', borderRadius:8, border:`1px solid ${gmLayers[l.id] ? C.purple+'44' : C.purple+'15'}`, transition:'all .15s' }}>
+                            <label key={l.id} style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', padding:'8px 12px', background: gmLayers[l.id] ? `${C.purple}15` : 'rgba(var(--ov),.03)', borderRadius:8, border:`1px solid ${gmLayers[l.id] ? C.purple+'44' : C.purple+'15'}`, transition:'all .15s' }}>
                               <div style={{ width:16, height:16, borderRadius:4, border:`2px solid ${gmLayers[l.id] ? l.color : `${C.cream}28`}`, background: gmLayers[l.id] ? l.color : 'transparent', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, transition:'all .15s' }}>
                                 {gmLayers[l.id] && <span style={{ color:'#fff', fontSize:10, fontWeight:900, lineHeight:1 }}>✓</span>}
                               </div>
@@ -4518,7 +4570,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
                     </div>
                     <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
                       {GM_BG_OPTIONS.map(opt => (
-                        <label key={opt.v} style={{ display:'flex', alignItems:'center', gap:12, cursor:'pointer', padding:'12px 16px', background: gmBg===opt.v ? `${C.purple}18` : 'rgba(255,255,255,.03)', borderRadius:10, border:`1px solid ${gmBg===opt.v ? C.purple+'55' : C.purple+'15'}`, transition:'all .15s' }}>
+                        <label key={opt.v} style={{ display:'flex', alignItems:'center', gap:12, cursor:'pointer', padding:'12px 16px', background: gmBg===opt.v ? `${C.purple}18` : 'rgba(var(--ov),.03)', borderRadius:10, border:`1px solid ${gmBg===opt.v ? C.purple+'55' : C.purple+'15'}`, transition:'all .15s' }}>
                           <div style={{ width:18, height:18, borderRadius:'50%', border:`2px solid ${gmBg===opt.v ? C.purple : `${C.cream}33`}`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
                             {gmBg===opt.v && <div style={{ width:9, height:9, borderRadius:'50%', background:C.purple }}/>}
                           </div>
@@ -4540,7 +4592,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
                 )}
               </div>
             ) : (
-              <div style={{ background:'rgba(255,255,255,.02)', borderRadius:12, padding:20, border:`1px solid ${C.purple}15`, textAlign:'center', color:`${C.cream}55`, fontSize:13 }}>
+              <div style={{ background:'rgba(var(--ov),.02)', borderRadius:12, padding:20, border:`1px solid ${C.purple}15`, textAlign:'center', color:`${C.cream}55`, fontSize:13 }}>
                 הגדר מפתח API של GovMap למעלה כדי לנהל שכבות ומפות רקע
               </div>
             )}
@@ -4602,7 +4654,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
         <nav className="admin-bottom-nav">
           {DASH_TABS.slice(0,5).map(item => (
             <button key={item.id} onClick={() => setTab(item.id)}
-              style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:3, border:'none', background:'transparent', color: tab===item.id ? '#8490D8' : 'rgba(232,228,216,.32)', cursor:'pointer', fontFamily:'inherit', padding:'8px 4px', position:'relative', transition:'color .15s', minWidth:0 }}>
+              style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:3, border:'none', background:'transparent', color: tab===item.id ? '#8490D8' : 'rgba(var(--ink),.32)', cursor:'pointer', fontFamily:'inherit', padding:'8px 4px', position:'relative', transition:'color .15s', minWidth:0 }}>
               <item.Icon size={18}/>
               <span style={{ fontSize:9, fontWeight: tab===item.id ? 700 : 400, letterSpacing:'.02em', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:'100%' }}>{item.label}</span>
               {!!item.badge && <span style={{ position:'absolute', top:6, right:'50%', transform:'translateX(140%)', background: item.id==='chats' ? '#075E54' : '#8490D8', color:'#fff', borderRadius:8, padding:'1px 5px', fontSize:8, fontWeight:800, lineHeight:1.6 }}>{item.badge}</span>}
@@ -4662,10 +4714,10 @@ function MetaWABotCard({ C, isDark }) {
     setTesting(false)
   }
 
-  const inp = { width:'100%', padding:'10px 12px', background:'rgba(255,255,255,.05)', border:`1px solid ${C.purple}33`, borderRadius:8, color:C.cream, fontSize:13, fontFamily:'inherit', outline:'none', boxSizing:'border-box', marginBottom:10 }
+  const inp = { width:'100%', padding:'10px 12px', background:'rgba(var(--ov),.05)', border:`1px solid ${C.purple}33`, borderRadius:8, color:C.cream, fontSize:13, fontFamily:'inherit', outline:'none', boxSizing:'border-box', marginBottom:10 }
 
   return (
-    <div style={{ background:'rgba(255,255,255,.03)', borderRadius:12, padding:20 }}>
+    <div style={{ background:'rgba(var(--ov),.03)', borderRadius:12, padding:20 }}>
       {/* Header */}
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
         <div style={{ display:'flex', alignItems:'center', gap:10 }}>
@@ -4678,7 +4730,7 @@ function MetaWABotCard({ C, isDark }) {
         <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer' }}>
           <span style={{ fontSize:12, color:`${C.cream}66`, fontWeight:600 }}>{cfg.enabled ? 'פעיל' : 'כבוי'}</span>
           <div onClick={() => setCfg(s => ({ ...s, enabled: !s.enabled }))}
-            style={{ width:44, height:24, borderRadius:12, background: cfg.enabled ? C.green : 'rgba(255,255,255,.12)', cursor:'pointer', position:'relative', transition:'background .2s', flexShrink:0 }}>
+            style={{ width:44, height:24, borderRadius:12, background: cfg.enabled ? C.green : 'rgba(var(--ov),.12)', cursor:'pointer', position:'relative', transition:'background .2s', flexShrink:0 }}>
             <div style={{ position:'absolute', top:3, width:18, height:18, borderRadius:'50%', background:'#fff', left: cfg.enabled ? 23 : 3, transition:'left .2s', boxShadow:'0 1px 4px rgba(0,0,0,.4)' }}/>
           </div>
         </label>
@@ -4772,11 +4824,11 @@ function MetaLeadSourcesCard({ C }) {
     setTimeout(() => setSaved(false), 2500)
   }
 
-  const inp = { width:'100%', padding:'9px 12px', background:'rgba(255,255,255,.05)', border:`1px solid ${C.purple}33`, borderRadius:8, color:C.cream, fontSize:13, fontFamily:'inherit', outline:'none', boxSizing:'border-box' }
+  const inp = { width:'100%', padding:'9px 12px', background:'rgba(var(--ov),.05)', border:`1px solid ${C.purple}33`, borderRadius:8, color:C.cream, fontSize:13, fontFamily:'inherit', outline:'none', boxSizing:'border-box' }
   const lbl = { fontSize:10, color:`${C.cream}66`, display:'block', marginBottom:4, fontWeight:600 }
 
   return (
-    <div style={{ background:'rgba(255,255,255,.03)', borderRadius:12, padding:20 }}>
+    <div style={{ background:'rgba(var(--ov),.03)', borderRadius:12, padding:20 }}>
       {/* Header */}
       <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:16 }}>
         <div style={{ width:32, height:32, borderRadius:8, background:'rgba(24,119,242,.15)', display:'flex', alignItems:'center', justifyContent:'center' }}>
@@ -4802,11 +4854,11 @@ function MetaLeadSourcesCard({ C }) {
 
       {/* Additional sources */}
       {sources.map(s => (
-        <div key={s.id} style={{ border:`1px solid ${C.purple}22`, borderRadius:10, padding:14, marginBottom:12, background:'rgba(255,255,255,.02)' }}>
+        <div key={s.id} style={{ border:`1px solid ${C.purple}22`, borderRadius:10, padding:14, marginBottom:12, background:'rgba(var(--ov),.02)' }}>
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
             <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer' }}>
               <div onClick={() => update(s.id, { enabled: !s.enabled })}
-                style={{ width:40, height:22, borderRadius:11, background: s.enabled ? C.green : 'rgba(255,255,255,.12)', cursor:'pointer', position:'relative', transition:'background .2s', flexShrink:0 }}>
+                style={{ width:40, height:22, borderRadius:11, background: s.enabled ? C.green : 'rgba(var(--ov),.12)', cursor:'pointer', position:'relative', transition:'background .2s', flexShrink:0 }}>
                 <div style={{ position:'absolute', top:3, width:16, height:16, borderRadius:'50%', background:'#fff', left: s.enabled ? 21 : 3, transition:'left .2s', boxShadow:'0 1px 4px rgba(0,0,0,.4)' }}/>
               </div>
               <span style={{ fontSize:12, color:`${C.cream}88`, fontWeight:600 }}>{s.enabled ? (en ? 'Active' : 'פעיל') : (en ? 'Disabled' : 'כבוי')}</span>

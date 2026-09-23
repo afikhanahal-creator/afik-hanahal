@@ -216,13 +216,13 @@ function BarChart({ data, color, label }) {
   if (!data.length) return null
   const max = Math.max(...data.map(d => d.value), 1)
   return (
-    <div style={{ background: 'rgba(255,255,255,.04)', border: `1px solid ${color}22`, borderRadius: 14, padding: '18px 18px 10px' }}>
-      <div style={{ color: 'rgba(232,228,216,.45)', fontSize: 11, fontWeight: 600, marginBottom: 10 }}>{label}</div>
+    <div style={{ background: 'rgba(var(--ov),.04)', border: `1px solid ${color}22`, borderRadius: 14, padding: '18px 18px 10px' }}>
+      <div style={{ color: 'rgba(var(--ink),.45)', fontSize: 11, fontWeight: 600, marginBottom: 10 }}>{label}</div>
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 72, overflowX: 'auto', paddingBottom: 2 }}>
         {data.map((d, i) => (
           <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, flex: '1 0 auto', minWidth: 22 }}>
             <div style={{ width: '100%', background: `${color}cc`, borderRadius: '3px 3px 0 0', height: `${Math.max((d.value / max) * 60, 2)}px`, transition: 'height .3s' }}/>
-            <span style={{ color: 'rgba(232,228,216,.3)', fontSize: 8, whiteSpace: 'nowrap', letterSpacing: '-.3px' }}>{d.label}</span>
+            <span style={{ color: 'rgba(var(--ink),.3)', fontSize: 8, whiteSpace: 'nowrap', letterSpacing: '-.3px' }}>{d.label}</span>
           </div>
         ))}
       </div>
@@ -239,7 +239,7 @@ function KpiCard({ label, value, Icon, color }) {
         <div style={{ width: 28, height: 28, borderRadius: 8, background: `${color}25`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
           <Icon style={{ color, fontSize: 12 }}/>
         </div>
-        <span style={{ color: 'rgba(232,228,216,.5)', fontSize: 11, fontWeight: 600, lineHeight: 1.3 }}>{label}</span>
+        <span style={{ color: 'rgba(var(--ink),.5)', fontSize: 11, fontWeight: 600, lineHeight: 1.3 }}>{label}</span>
       </div>
       <div style={{ color, fontSize: 20, fontWeight: 900, fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
         {value}
@@ -258,7 +258,7 @@ function DataTable({ headers, rows, C }) {
   const pages = Math.ceil(total / PAGE)
 
   return (
-    <div style={{ background: 'rgba(255,255,255,.025)', border: `1px solid ${C.purple}18`, borderRadius: 14, overflow: 'hidden' }}>
+    <div style={{ background: 'rgba(var(--ov),.025)', border: `1px solid ${C.purple}18`, borderRadius: 14, overflow: 'hidden' }}>
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, direction: 'ltr' }}>
           <thead>
@@ -272,9 +272,9 @@ function DataTable({ headers, rows, C }) {
           </thead>
           <tbody>
             {visible.map((row, ri) => (
-              <tr key={ri} style={{ borderBottom: `1px solid ${C.purple}0a`, background: ri % 2 === 0 ? 'transparent' : 'rgba(255,255,255,.015)' }}>
+              <tr key={ri} style={{ borderBottom: `1px solid ${C.purple}0a`, background: ri % 2 === 0 ? 'transparent' : 'rgba(var(--ov),.015)' }}>
                 {row.map((cell, ci) => (
-                  <td key={ci} style={{ padding: '7px 13px', color: 'rgba(232,228,216,.65)', whiteSpace: 'nowrap' }}>
+                  <td key={ci} style={{ padding: '7px 13px', color: 'rgba(var(--ink),.65)', whiteSpace: 'nowrap' }}>
                     {cell ?? '—'}
                   </td>
                 ))}
@@ -388,18 +388,18 @@ export default function SupermetricsTab({ C = DARK_C, lang = 'he' }) {
 
       {/* ── Header row ── */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
-        <h2 style={{ margin: 0, fontSize: 19, color: 'rgba(232,228,216,.95)', fontWeight: 800 }}>
+        <h2 style={{ margin: 0, fontSize: 19, color: 'rgba(var(--ink),.95)', fontWeight: 800 }}>
           📊 {t.title}
         </h2>
         <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexWrap: 'wrap' }}>
           {RANGES.map(({ val, label }) => (
             <button key={val} onClick={() => setRange(val)}
-              style={{ padding: '5px 12px', border: `1px solid ${range === val ? C.purple : `${C.purple}28`}`, borderRadius: 20, background: range === val ? `${C.purple}22` : 'transparent', color: range === val ? C.purple : `rgba(232,228,216,.4)`, cursor: 'pointer', fontFamily: 'inherit', fontSize: 11, fontWeight: range === val ? 700 : 400, transition: 'all .15s' }}>
+              style={{ padding: '5px 12px', border: `1px solid ${range === val ? C.purple : `${C.purple}28`}`, borderRadius: 20, background: range === val ? `${C.purple}22` : 'transparent', color: range === val ? C.purple : `rgba(var(--ink),.4)`, cursor: 'pointer', fontFamily: 'inherit', fontSize: 11, fontWeight: range === val ? 700 : 400, transition: 'all .15s' }}>
               {label}
             </button>
           ))}
           <button onClick={() => load(source, range, true)} title={t.refresh}
-            style={{ padding: '5px 9px', border: `1px solid ${C.purple}28`, borderRadius: 20, background: 'transparent', color: `rgba(232,228,216,.4)`, cursor: 'pointer', fontSize: 13, lineHeight: 1, display: 'flex', alignItems: 'center' }}>
+            style={{ padding: '5px 9px', border: `1px solid ${C.purple}28`, borderRadius: 20, background: 'transparent', color: `rgba(var(--ink),.4)`, cursor: 'pointer', fontSize: 13, lineHeight: 1, display: 'flex', alignItems: 'center' }}>
             <FaSync style={{ fontSize: 10, animation: loading ? 'spin 1s linear infinite' : 'none' }}/>
           </button>
         </div>
@@ -409,7 +409,7 @@ export default function SupermetricsTab({ C = DARK_C, lang = 'he' }) {
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         {Object.entries(SOURCE_CFG).map(([src, cfg]) => (
           <button key={src} onClick={() => setSource(src)}
-            style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 18px', border: `1px solid ${source === src ? cfg.color + '55' : 'rgba(255,255,255,.08)'}`, borderRadius: 12, background: source === src ? cfg.bg : 'rgba(255,255,255,.04)', color: source === src ? cfg.color : 'rgba(232,228,216,.5)', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: source === src ? 700 : 400, transition: 'all .18s' }}>
+            style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 18px', border: `1px solid ${source === src ? cfg.color + '55' : 'rgba(var(--ov),.08)'}`, borderRadius: 12, background: source === src ? cfg.bg : 'rgba(var(--ov),.04)', color: source === src ? cfg.color : 'rgba(var(--ink),.5)', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, fontWeight: source === src ? 700 : 400, transition: 'all .18s' }}>
             <cfg.Icon style={{ fontSize: 13 }}/>
             {cfg.label}
           </button>
@@ -418,7 +418,7 @@ export default function SupermetricsTab({ C = DARK_C, lang = 'he' }) {
 
       {/* ── Loading ── */}
       {loading && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'rgba(232,228,216,.35)', padding: '40px 0', justifyContent: 'center', fontSize: 13 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'rgba(var(--ink),.35)', padding: '40px 0', justifyContent: 'center', fontSize: 13 }}>
           <FaSync style={{ animation: 'spin 1s linear infinite' }}/>
           {t.loading}
         </div>
@@ -433,7 +433,7 @@ export default function SupermetricsTab({ C = DARK_C, lang = 'he' }) {
             <div style={{ color: 'rgba(255,107,107,.8)', fontSize: 12 }}>{error}</div>
             {error.includes('SUPERMETRICS_API_KEY') && (
               <div style={{ marginTop: 8, fontSize: 11, color: 'rgba(255,255,255,.35)' }}>
-                הוסף <code style={{ background: 'rgba(255,255,255,.08)', padding: '1px 6px', borderRadius: 4 }}>SUPERMETRICS_API_KEY</code> ב-Vercel → Settings → Environment Variables
+                הוסף <code style={{ background: 'rgba(var(--ov),.08)', padding: '1px 6px', borderRadius: 4 }}>SUPERMETRICS_API_KEY</code> ב-Vercel → Settings → Environment Variables
               </div>
             )}
           </div>
@@ -464,7 +464,7 @@ export default function SupermetricsTab({ C = DARK_C, lang = 'he' }) {
           {rows.length > 0 ? (
             <DataTable headers={headers} rows={rows} C={C}/>
           ) : (
-            <div style={{ padding: '40px 0', textAlign: 'center', color: 'rgba(232,228,216,.3)', fontSize: 13 }}>
+            <div style={{ padding: '40px 0', textAlign: 'center', color: 'rgba(var(--ink),.3)', fontSize: 13 }}>
               {t.noData}
             </div>
           )}
@@ -473,7 +473,7 @@ export default function SupermetricsTab({ C = DARK_C, lang = 'he' }) {
 
       {/* ── Idle state (not yet loaded) ── */}
       {!loading && !error && !current && (
-        <div style={{ padding: '60px 0', textAlign: 'center', color: 'rgba(232,228,216,.25)', fontSize: 13 }}>
+        <div style={{ padding: '60px 0', textAlign: 'center', color: 'rgba(var(--ink),.25)', fontSize: 13 }}>
           {t.loading}
         </div>
       )}

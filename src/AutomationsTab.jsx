@@ -283,7 +283,7 @@ function Automations({ lang = 'he', leads = [], stageLabels = {}, config, onConf
       </header>
 
       {/* sub-nav */}
-      <nav style={{ position: 'sticky', top: -22, zIndex: 15, background: 'rgba(9,9,15,.94)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', borderBottom: `1px solid ${T.line}`, paddingTop: 22, marginTop: -16, paddingBottom: 8, marginInline: -2, paddingInline: 2 }}>
+      <nav style={{ position: 'sticky', top: -22, zIndex: 15, background: 'var(--au-sticky)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', borderBottom: `1px solid ${T.line}`, paddingTop: 22, marginTop: -16, paddingBottom: 8, marginInline: -2, paddingInline: 2 }}>
         <div role="tablist" aria-label={t.title} className="au-nav" onKeyDown={onTabKey}>
           {TABS.map(({ id, Icon, badge, badgeColor, dot, dotColor }) => {
             const on = tab === id
@@ -558,7 +558,7 @@ function WindowCard({ t, isEn, cfg, onEdit }) {
             const w = days[d], isOn = Array.isArray(w)
             return (
               <div key={d} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
-                <span style={{ width: 8, height: 32, borderRadius: 3, background: isOn ? 'rgba(37,211,102,.35)' : 'rgba(255,255,255,.06)', outline: d === day ? `2px solid ${T.brand}` : 'none', outlineOffset: 1 }}/>
+                <span style={{ width: 8, height: 32, borderRadius: 3, background: isOn ? 'rgba(37,211,102,.35)' : 'rgba(var(--ov),.06)', outline: d === day ? `2px solid ${T.brand}` : 'none', outlineOffset: 1 }}/>
                 <span style={{ fontSize: 9.5, color: d === day ? T.brandText : T.text3, fontWeight: 700 }}>{t.dShort[d]}</span>
               </div>
             )

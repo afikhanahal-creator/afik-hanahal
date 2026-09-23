@@ -361,7 +361,7 @@ function TemplateEditor({ t, lang, cfg, tpl, leads, onClose, onSave, toast, onGo
     </div>
   )
   const previewPane = (
-    <div className={pane === 'preview' ? undefined : 'au-hide-m'} style={{ background: '#0C0E18', borderInlineStart: `1px solid ${T.line}`, padding: 20, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 12, minHeight: 0 }}>
+    <div className={pane === 'preview' ? undefined : 'au-hide-m'} style={{ background: 'var(--au-pane)', borderInlineStart: `1px solid ${T.line}`, padding: 20, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 12, minHeight: 0 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{ fontSize: 12.5, fontWeight: 700, color: T.text2, whiteSpace: 'nowrap' }}>{t.previewFor}</span>
         <select value={who} onChange={e => setWho(e.target.value)} aria-label={t.previewFor} style={{ ...inputStyle, height: 32, fontSize: 12.5 }}>
@@ -393,7 +393,7 @@ function TemplateEditor({ t, lang, cfg, tpl, leads, onClose, onSave, toast, onGo
       <div className="au" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
         {header}
         <div className="au-only-m" style={{ padding: '8px 16px', borderBottom: `1px solid ${T.line}` }}>
-          <div role="radiogroup" style={{ display: 'flex', width: '100%', padding: 2, gap: 2, borderRadius: 9, background: 'rgba(255,255,255,.04)', border: '1px solid rgba(132,144,216,.2)' }}>
+          <div role="radiogroup" style={{ display: 'flex', width: '100%', padding: 2, gap: 2, borderRadius: 9, background: 'rgba(var(--ov),.04)', border: '1px solid rgba(132,144,216,.2)' }}>
             {[['edit', t.mEditTab], ['preview', t.mPreviewTab]].map(([k, l]) => <button key={k} type="button" role="radio" aria-checked={pane === k} onClick={() => setPane(k)} style={{ flex: 1, height: 36, borderRadius: 7, border: 'none', background: pane === k ? T.brandSoft : 'transparent', color: pane === k ? T.brandText : T.text3, fontWeight: 800, fontFamily: 'inherit', fontSize: 13, cursor: 'pointer', minHeight: 0 }}>{l}</button>)}
           </div>
         </div>

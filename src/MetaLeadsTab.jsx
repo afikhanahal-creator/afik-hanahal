@@ -703,11 +703,11 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
   }
 
   // ── Styles ────────────────────────────────────────────────────────────────────
-  const BG      = '#09090F'
-  const CARD    = '#0E0E1C'
+  const BG      = 'var(--au-bg)'
+  const CARD    = 'var(--au-card-solid)'
   const BORDER  = 'rgba(132,144,216,.12)'
-  const MUTED   = 'rgba(232,228,216,.35)'
-  const CREAM   = '#E8E4D8'
+  const MUTED   = 'rgba(var(--ink),.35)'
+  const CREAM   = 'var(--au-text)'
   const PURPLE  = '#8490D8'
   const GREEN   = '#82F67F'
 
@@ -759,7 +759,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
       {/* ── Premium Header: title + stats + view toggle ── */}
       <div style={{
         flexShrink: 0,
-        background: 'linear-gradient(180deg, rgba(132,144,216,.10) 0%, rgba(14,14,28,.98) 100%)',
+        background: 'linear-gradient(180deg, rgba(132,144,216,.10) 0%, var(--au-card-solid) 100%)',
         borderBottom: `1px solid ${BORDER}`,
       }}>
         {/* Top bar: toggle (RIGHT) + branding (LEFT) — RTL: first child = visual right */}
@@ -831,7 +831,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
             { label: lang==='en'?'In Progress':'בטיפול', value: contacted,   color: '#F97316', icon: 'M22 12h-4l-3 9L9 3l-3 9H2' },
             { label: lang==='en'?'WA Sent':'WA נשלח',   value: waSentCount, color: '#25D366', icon: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z' },
           ].map((s, i) => (
-            <div key={i} style={{ flex:1, display:'flex', alignItems:'center', gap:10, padding:'8px 12px', background:`rgba(255,255,255,.02)`, border:`1px solid ${BORDER}`, borderRadius: i===0?'10px 0 0 10px' : i===3?'0 10px 10px 0' : '0', borderLeft: i>0 ? 'none' : `1px solid ${BORDER}` }}>
+            <div key={i} style={{ flex:1, display:'flex', alignItems:'center', gap:10, padding:'8px 12px', background:`rgba(var(--ov),.02)`, border:`1px solid ${BORDER}`, borderRadius: i===0?'10px 0 0 10px' : i===3?'0 10px 10px 0' : '0', borderLeft: i>0 ? 'none' : `1px solid ${BORDER}` }}>
               <div style={{ width:28, height:28, borderRadius:7, background:`${s.color}18`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={s.color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d={s.icon}/>
@@ -839,7 +839,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
               </div>
               <div>
                 <div style={{ fontSize:18, fontWeight:800, color:s.color, lineHeight:1 }}>{s.value}</div>
-                <div style={{ fontSize:10, color:`${CREAM}55`, fontWeight:600, marginTop:2 }}>{s.label}</div>
+                <div style={{ fontSize:10, color:`rgba(var(--ink),.33)`, fontWeight:600, marginTop:2 }}>{s.label}</div>
               </div>
             </div>
           ))}
@@ -906,9 +906,9 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
                 </button>
               )}
               <button onClick={() => setSortOrder(v => v==='desc'?'asc':'desc')}
-                style={{ padding:'5px 9px', background:'rgba(255,255,255,.04)', border:`1px solid ${BORDER}`, borderRadius:7, color:MUTED, cursor:'pointer', fontSize:11, fontFamily:'inherit', transition:'all .15s', display:'flex', alignItems:'center', gap:2 }}
-                onMouseEnter={e=>{ e.currentTarget.style.background='rgba(255,255,255,.09)'; e.currentTarget.style.color=CREAM }}
-                onMouseLeave={e=>{ e.currentTarget.style.background='rgba(255,255,255,.04)'; e.currentTarget.style.color=MUTED }}>
+                style={{ padding:'5px 9px', background:'rgba(var(--ov),.04)', border:`1px solid ${BORDER}`, borderRadius:7, color:MUTED, cursor:'pointer', fontSize:11, fontFamily:'inherit', transition:'all .15s', display:'flex', alignItems:'center', gap:2 }}
+                onMouseEnter={e=>{ e.currentTarget.style.background='rgba(var(--ov),.09)'; e.currentTarget.style.color=CREAM }}
+                onMouseLeave={e=>{ e.currentTarget.style.background='rgba(var(--ov),.04)'; e.currentTarget.style.color=MUTED }}>
                 {sortOrder==='desc'?'↓':'↑'}
               </button>
             </div>
@@ -924,7 +924,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
               width: '100%',
               boxSizing: 'border-box',
               padding: '8px 12px',
-              background: 'rgba(255,255,255,.04)',
+              background: 'rgba(var(--ov),.04)',
               border: `1px solid ${BORDER}`,
               borderRadius: 8,
               color: CREAM,
@@ -958,7 +958,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
               >
                 {tab.label}
                 {tab.id !== 'all' && (
-                  <span style={{ marginRight: dir === 'rtl' ? 4 : 0, marginLeft: dir === 'ltr' ? 4 : 0, color: statusFilter === tab.id ? PURPLE : 'rgba(232,228,216,.25)' }}>
+                  <span style={{ marginRight: dir === 'rtl' ? 4 : 0, marginLeft: dir === 'ltr' ? 4 : 0, color: statusFilter === tab.id ? PURPLE : 'rgba(var(--ink),.25)' }}>
                     {leads.filter(l => l.status === tab.id).length || ''}
                   </span>
                 )}
@@ -978,7 +978,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
                   : `linear-gradient(135deg, rgba(132,144,216,.13) 0%, rgba(132,144,216,.06) 100%)`,
                 border: `1px solid ${campaignFilter ? PURPLE + '80' : 'rgba(132,144,216,.38)'}`,
                 borderRadius: 10,
-                color: campaignFilter ? PURPLE : 'rgba(232,228,216,.75)',
+                color: campaignFilter ? PURPLE : 'rgba(var(--ink),.75)',
                 fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
                 transition: 'all .15s',
                 boxShadow: campaignFilter ? `0 0 0 2px ${PURPLE}22` : '0 1px 6px rgba(0,0,0,.3)',
@@ -993,7 +993,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
                   ? 'linear-gradient(135deg, rgba(132,144,216,.22) 0%, rgba(132,144,216,.12) 100%)'
                   : 'linear-gradient(135deg, rgba(132,144,216,.13) 0%, rgba(132,144,216,.06) 100%)'
                 e.currentTarget.style.borderColor = campaignFilter ? PURPLE + '80' : 'rgba(132,144,216,.38)'
-                e.currentTarget.style.color = campaignFilter ? PURPLE : 'rgba(232,228,216,.75)'
+                e.currentTarget.style.color = campaignFilter ? PURPLE : 'rgba(var(--ink),.75)'
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
@@ -1020,7 +1020,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
             {campaignDropOpen && (
               <div style={{
                 position: 'absolute', top: 'calc(100% + 4px)', right: 0, left: 0, zIndex: 200,
-                background: '#0E0E1C', border: `1px solid ${BORDER}`, borderRadius: 10,
+                background: 'var(--au-card-solid)', border: `1px solid ${BORDER}`, borderRadius: 10,
                 boxShadow: '0 8px 24px rgba(0,0,0,.55)', overflow: 'hidden',
                 maxHeight: 260, overflowY: 'auto',
               }}>
@@ -1036,7 +1036,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
                     cursor: 'pointer', fontFamily: 'inherit', textAlign: 'right', direction: dir,
                     transition: 'background .1s',
                   }}
-                  onMouseEnter={e => { if (campaignFilter) e.currentTarget.style.background = 'rgba(255,255,255,.04)' }}
+                  onMouseEnter={e => { if (campaignFilter) e.currentTarget.style.background = 'rgba(var(--ov),.04)' }}
                   onMouseLeave={e => { if (campaignFilter) e.currentTarget.style.background = 'transparent' }}
                 >
                   <span>{lang === 'en' ? 'All Campaigns' : 'כל הקמפיינים'}</span>
@@ -1100,7 +1100,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
             </div>
             {deletedLeads.map(lead => (
               <div key={lead.id}
-                style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 14px', borderTop: '1px solid rgba(255,255,255,.03)', direction: dir }}>
+                style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 14px', borderTop: '1px solid rgba(var(--ov),.03)', direction: dir }}>
                 <div style={{
                   width: 30, height: 30, borderRadius: '50%', flexShrink: 0,
                   background: 'rgba(224,82,82,.12)', border: '1px solid rgba(224,82,82,.2)',
@@ -1110,10 +1110,10 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
                   {initials(lead.name)}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: 'rgba(232,228,216,.55)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: 'rgba(var(--ink),.55)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {lead.name || '—'}
                   </div>
-                  <div style={{ fontSize: 10, color: 'rgba(232,228,216,.28)', marginTop: 1 }}>
+                  <div style={{ fontSize: 10, color: 'rgba(var(--ink),.28)', marginTop: 1 }}>
                     {getCampaignLabel(lead) || lead.phone || ''}
                   </div>
                 </div>
@@ -1180,7 +1180,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
                 onClick={() => setSelectedLead(lead)}
                 style={{
                   padding: '11px 14px 11px 16px',
-                  borderBottom: `1px solid rgba(255,255,255,.04)`,
+                  borderBottom: `1px solid rgba(var(--ov),.04)`,
                   cursor: 'pointer',
                   background: isSelected ? `linear-gradient(135deg,rgba(132,144,216,.14),rgba(132,144,216,.06))` : 'transparent',
                   borderRight: isSelected ? `3px solid ${PURPLE}` : '3px solid transparent',
@@ -1207,17 +1207,17 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
                       {initials(lead.name)}
                     </div>
                     {showNewDot && (
-                      <div style={{ position:'absolute', bottom:-1, right:-1, width:10, height:10, borderRadius:'50%', background:'#22C55E', border:'2px solid #0E0E1C', boxShadow:'0 0 6px #22C55E' }} />
+                      <div style={{ position:'absolute', bottom:-1, right:-1, width:10, height:10, borderRadius:'50%', background:'#22C55E', border:'2px solid var(--au-card-solid)', boxShadow:'0 0 6px #22C55E' }} />
                     )}
                   </div>
 
                   {/* Info */}
                   <div style={{ flex:1, minWidth:0 }}>
                     <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:3 }}>
-                      <span style={{ fontSize:13, fontWeight:700, color:isSelected?CREAM:`${CREAM}cc`, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', flex:1 }}>
+                      <span style={{ fontSize:13, fontWeight:700, color:isSelected?CREAM:`rgba(var(--ink),.8)`, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', flex:1 }}>
                         {lead.name || '—'}
                       </span>
-                      <span style={{ fontSize:9.5, color:`${CREAM}40`, flexShrink:0, marginRight:4, fontFeatureSettings:'"tnum"' }}>
+                      <span style={{ fontSize:9.5, color:`rgba(var(--ink),.25)`, flexShrink:0, marginRight:4, fontFeatureSettings:'"tnum"' }}>
                         {timeAgo(lead.created_at, lang)}
                       </span>
                     </div>
@@ -1231,7 +1231,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
                         {sc.label[lang] || sc.label.he}
                       </span>
                       {lead.phone && (
-                        <span style={{ fontSize:10, color:`${CREAM}45`, fontFeatureSettings:'"tnum"' }}>{fmtPhone(lead.phone)}</span>
+                        <span style={{ fontSize:10, color:`rgba(var(--ink),.27)`, fontFeatureSettings:'"tnum"' }}>{fmtPhone(lead.phone)}</span>
                       )}
                       {lead.wa_sent && (
                         <svg width="11" height="11" viewBox="0 0 24 24" fill="#25D366" title={t.waSent}>
@@ -1269,7 +1269,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
                   <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
                 </svg>
               </div>
-              <div style={{ position:'absolute', bottom:-4, right:-4, width:24, height:24, borderRadius:'50%', background:'linear-gradient(135deg,#E05252,#C8392E)', display:'flex', alignItems:'center', justifyContent:'center', border:'2px solid #09090F' }}>
+              <div style={{ position:'absolute', bottom:-4, right:-4, width:24, height:24, borderRadius:'50%', background:'linear-gradient(135deg,#E05252,#C8392E)', display:'flex', alignItems:'center', justifyContent:'center', border:'2px solid var(--au-bg)' }}>
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round">
                   <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.63 3.36 2 2 0 0 1 3.6 1.18h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.83a16 16 0 0 0 8.26 8.26l.98-1.34a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>
                 </svg>
@@ -1277,7 +1277,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
             </div>
             <div style={{ textAlign:'center' }}>
               <div style={{ color:CREAM, fontSize:18, fontWeight:800, marginBottom:8 }}>{t.selectLead}</div>
-              <div style={{ color:`${CREAM}44`, fontSize:13, lineHeight:1.6, maxWidth:260 }}>{t.selectLeadDesc}</div>
+              <div style={{ color:`rgba(var(--ink),.27)`, fontSize:13, lineHeight:1.6, maxWidth:260 }}>{t.selectLeadDesc}</div>
             </div>
             <div style={{ display:'flex', gap:8, marginTop:4 }}>
               {[STATUS_CONFIG.new, STATUS_CONFIG.contacted, STATUS_CONFIG.scheduled].map((sc,i) => (
@@ -1321,7 +1321,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
                       </a>
                     )}
                     {selectedLead.email && (
-                      <span style={{ fontSize:11, color:MUTED, background:'rgba(255,255,255,.05)', padding:'3px 9px', borderRadius:20, border:`1px solid ${BORDER}` }}>
+                      <span style={{ fontSize:11, color:MUTED, background:'rgba(var(--ov),.05)', padding:'3px 9px', borderRadius:20, border:`1px solid ${BORDER}` }}>
                         {selectedLead.email}
                       </span>
                     )}
@@ -1333,7 +1333,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
                   </div>
                   {/* Custom form questions — everything the lead answered beyond name / phone / email */}
                   {metaFormAnswers(selectedLead.raw_fields, lang).length > 0 && (
-                    <div style={{ marginTop:8, display:'flex', flexDirection:'column', gap:3, padding:'8px 11px', background:'rgba(255,255,255,.035)', border:`1px solid ${BORDER}`, borderRadius:10 }}>
+                    <div style={{ marginTop:8, display:'flex', flexDirection:'column', gap:3, padding:'8px 11px', background:'rgba(var(--ov),.035)', border:`1px solid ${BORDER}`, borderRadius:10 }}>
                       <div style={{ fontSize:10, fontWeight:700, color:MUTED, letterSpacing:'.04em', marginBottom:2 }}>{t.formAnswers}</div>
                       {metaFormAnswers(selectedLead.raw_fields, lang).map((x, i) => (
                         <div key={i} style={{ fontSize:12, color:CREAM, lineHeight:1.5 }}><span style={{ color:MUTED }}>{x.q}:</span> {x.a}</div>
@@ -1347,7 +1347,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
                   <select value={selectedLead.status||'new'} onChange={e=>handleStatusChange(e.target.value)}
                     style={{ padding:'6px 11px', background:STATUS_CONFIG[selectedLead.status||'new']?.bg||STATUS_CONFIG.new.bg, border:`1px solid ${STATUS_CONFIG[selectedLead.status||'new']?.color||PURPLE}44`, borderRadius:8, color:STATUS_CONFIG[selectedLead.status||'new']?.color||PURPLE, fontSize:11, fontWeight:700, fontFamily:'inherit', cursor:'pointer', outline:'none', direction:dir }}>
                     {Object.entries(STATUS_CONFIG).map(([key,sc]) => (
-                      <option key={key} value={key} style={{ background:'#0E0E1C', color:sc.color }}>{sc.label[lang]||sc.label.he}</option>
+                      <option key={key} value={key} style={{ background:'var(--au-card-solid)', color:sc.color }}>{sc.label[lang]||sc.label.he}</option>
                     ))}
                   </select>
                   <button onClick={handleSaveToCRM}
@@ -1364,12 +1364,12 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
                 <div style={{ flex:2, minWidth:180 }}>
                   <label style={{ fontSize:10, color:MUTED, fontWeight:700, display:'block', marginBottom:4, letterSpacing:'.05em' }}>{t.notes}</label>
                   <textarea value={noteInput} onChange={e=>setNoteInput(e.target.value)} placeholder={t.notesPlaceholder} rows={2}
-                    style={{ width:'100%', boxSizing:'border-box', padding:'7px 10px', background:'rgba(255,255,255,.04)', border:`1px solid ${BORDER}`, borderRadius:8, resize:'none', color:CREAM, fontSize:12, fontFamily:'inherit', outline:'none', direction:dir }} />
+                    style={{ width:'100%', boxSizing:'border-box', padding:'7px 10px', background:'rgba(var(--ov),.04)', border:`1px solid ${BORDER}`, borderRadius:8, resize:'none', color:CREAM, fontSize:12, fontFamily:'inherit', outline:'none', direction:dir }} />
                 </div>
                 <div style={{ flex:1, minWidth:130 }}>
                   <label style={{ fontSize:10, color:MUTED, fontWeight:700, display:'block', marginBottom:4, letterSpacing:'.05em' }}>{t.callTime}</label>
                   <input type="text" value={callTimeInput} onChange={e=>setCallTimeInput(e.target.value)} placeholder={t.callTimePlaceholder}
-                    style={{ width:'100%', boxSizing:'border-box', padding:'7px 10px', background:'rgba(255,255,255,.04)', border:`1px solid ${BORDER}`, borderRadius:8, color:CREAM, fontSize:12, fontFamily:'inherit', outline:'none', direction:dir }} />
+                    style={{ width:'100%', boxSizing:'border-box', padding:'7px 10px', background:'rgba(var(--ov),.04)', border:`1px solid ${BORDER}`, borderRadius:8, color:CREAM, fontSize:12, fontFamily:'inherit', outline:'none', direction:dir }} />
                 </div>
                 <div style={{ display:'flex', alignItems:'flex-end' }}>
                   <button onClick={handleSaveNotes}
@@ -1405,7 +1405,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
                 if (item.type === 'date') {
                   return (
                     <div key={item.key} style={{ textAlign: 'center', margin: '8px 0' }}>
-                      <span style={{ fontSize: 11, color: MUTED, background: 'rgba(255,255,255,.05)', padding: '3px 12px', borderRadius: 20 }}>
+                      <span style={{ fontSize: 11, color: MUTED, background: 'rgba(var(--ov),.05)', padding: '3px 12px', borderRadius: 20 }}>
                         {item.label}
                       </span>
                     </div>
@@ -1425,7 +1425,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
                       borderRadius: isOut
                         ? (dir === 'rtl' ? '14px 4px 14px 14px' : '4px 14px 14px 14px')
                         : (dir === 'rtl' ? '4px 14px 14px 14px' : '14px 4px 14px 14px'),
-                      background: isOut ? 'rgba(37,211,102,.18)' : 'rgba(255,255,255,.07)',
+                      background: isOut ? 'rgba(37,211,102,.18)' : 'rgba(var(--ov),.07)',
                       border: `1px solid ${isOut ? 'rgba(37,211,102,.3)' : BORDER}`,
                     }}>
                       <div style={{ fontSize: 13, color: CREAM, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
@@ -1459,7 +1459,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
                     title={selectedLead ? applyTemplate(qr.message, selectedLead) : ''}
                     style={{
                       padding: '6px 14px',
-                      background: 'rgba(255,255,255,.04)',
+                      background: 'rgba(var(--ov),.04)',
                       border: `1px solid ${BORDER}`,
                       borderRadius: 20,
                       color: MUTED,
@@ -1471,7 +1471,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
                       opacity: !selectedLead?.phone ? 0.5 : 1,
                     }}
                     onMouseEnter={e => { if (selectedLead?.phone) { e.currentTarget.style.background = 'rgba(37,211,102,.1)'; e.currentTarget.style.color = '#25D366'; e.currentTarget.style.borderColor = 'rgba(37,211,102,.3)' }}}
-                    onMouseLeave={e => { if (selectedLead?.phone) { e.currentTarget.style.background = 'rgba(255,255,255,.04)'; e.currentTarget.style.color = MUTED; e.currentTarget.style.borderColor = BORDER }}}
+                    onMouseLeave={e => { if (selectedLead?.phone) { e.currentTarget.style.background = 'rgba(var(--ov),.04)'; e.currentTarget.style.color = MUTED; e.currentTarget.style.borderColor = BORDER }}}
                   >
                     {qr.label}
                   </button>

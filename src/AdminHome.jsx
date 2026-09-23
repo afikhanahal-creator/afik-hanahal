@@ -63,7 +63,7 @@ const srcLabel = (l, t) => {
 }
 
 function Card({ children, style, className = '' }) {
-  return <div className={`ah-card ${className}`} style={{ background: 'linear-gradient(180deg,rgba(255,255,255,.035),rgba(255,255,255,.012))', border: `1px solid ${T.s1Line}`, borderRadius: 16, padding: 18, minWidth: 0, ...style }}>{children}</div>
+  return <div className={`ah-card ${className}`} style={{ background: T.cardGrad, boxShadow: T.cardShadow, border: `1px solid ${T.s1Line}`, borderRadius: 16, padding: 18, minWidth: 0, ...style }}>{children}</div>
 }
 function Head({ title, sub, action }) {
   return (
@@ -82,7 +82,7 @@ function LinkBtn({ children, onClick, Arrow }) {
 
 function Kpi({ icon: Ic, color, label, value, sub, onClick }) {
   return (
-    <button type="button" onClick={onClick} className="ah-card" style={{ textAlign: 'start', fontFamily: 'inherit', cursor: onClick ? 'pointer' : 'default', background: 'linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.012))', border: `1px solid ${T.s1Line}`, borderRadius: 16, padding: '16px 16px 14px', display: 'flex', flexDirection: 'column', gap: 10, minWidth: 0, color: T.text }}>
+    <button type="button" onClick={onClick} className="ah-card" style={{ textAlign: 'start', fontFamily: 'inherit', cursor: onClick ? 'pointer' : 'default', background: T.cardGrad, boxShadow: T.cardShadow, border: `1px solid ${T.s1Line}`, borderRadius: 16, padding: '16px 16px 14px', display: 'flex', flexDirection: 'column', gap: 10, minWidth: 0, color: T.text }}>
       <span style={{ width: 34, height: 34, borderRadius: 10, background: `${color}1f`, color, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}><Ic size={14}/></span>
       <span style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-.02em', lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{value}</span>
       <span style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
@@ -96,8 +96,8 @@ function Kpi({ icon: Ic, color, label, value, sub, onClick }) {
 function StatusTile({ icon: Ic, label, state, detail, onClick }) {
   const tone = state === 'ok' ? '#22C55E' : state === 'warn' ? '#F5A623' : state === 'bad' ? '#E05252' : T.grey
   return (
-    <button type="button" onClick={onClick} className="ah-card" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 14, background: 'rgba(255,255,255,.025)', border: `1px solid ${T.s1Line}`, cursor: onClick ? 'pointer' : 'default', fontFamily: 'inherit', textAlign: 'start', color: T.text, minWidth: 0 }}>
-      <span style={{ width: 34, height: 34, borderRadius: 10, background: 'rgba(255,255,255,.05)', color: T.text2, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Ic size={14}/></span>
+    <button type="button" onClick={onClick} className="ah-card" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 14, background: 'rgba(var(--ov),.025)', border: `1px solid ${T.s1Line}`, cursor: onClick ? 'pointer' : 'default', fontFamily: 'inherit', textAlign: 'start', color: T.text, minWidth: 0 }}>
+      <span style={{ width: 34, height: 34, borderRadius: 10, background: 'rgba(var(--ov),.05)', color: T.text2, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Ic size={14}/></span>
       <span style={{ flex: 1, minWidth: 0 }}>
         <span style={{ display: 'block', fontSize: 13, fontWeight: 700 }}>{label}</span>
         <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: T.text3, marginTop: 2 }}>
@@ -153,7 +153,7 @@ export default function AdminHome({ properties = [], leads = [], setTab, autoCfg
           <div style={{ fontSize: 13, color: T.text2, marginTop: 4 }}>{t.sub}</div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button type="button" onClick={() => window.open('/', '_blank')} style={{ height: 36, padding: '0 14px', borderRadius: 10, border: '1px solid rgba(232,228,216,.16)', background: 'transparent', color: T.text2, fontFamily: 'inherit', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 7 }}><FaGlobe size={12}/>{t.viewSite}</button>
+          <button type="button" onClick={() => window.open('/', '_blank')} style={{ height: 36, padding: '0 14px', borderRadius: 10, border: '1px solid rgba(var(--ink),.16)', background: 'transparent', color: T.text2, fontFamily: 'inherit', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 7 }}><FaGlobe size={12}/>{t.viewSite}</button>
           {onNewProperty && <button type="button" onClick={onNewProperty} style={{ height: 36, padding: '0 16px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#8490D8,#6B77C4)', color: '#fff', fontFamily: 'inherit', fontSize: 13, fontWeight: 800, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 7, boxShadow: '0 6px 18px rgba(132,144,216,.28)' }}><FaPlus size={11}/>{t.newProp}</button>}
         </div>
       </div>
@@ -206,7 +206,7 @@ export default function AdminHome({ properties = [], leads = [], setTab, autoCfg
               {STAGES.map(s => (
                 <div key={s.id} style={{ display: 'grid', gridTemplateColumns: '84px minmax(0,1fr) 32px', alignItems: 'center', gap: 10, fontSize: 12.5 }}>
                   <span style={{ color: T.text2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s[lang] || s.he}</span>
-                  <span style={{ height: 8, borderRadius: 5, background: 'rgba(255,255,255,.05)', overflow: 'hidden' }}><span style={{ display: 'block', height: '100%', width: `${(stats.byStage[s.id] / maxStage) * 100}%`, background: s.color, borderRadius: 5, transition: 'width .4s' }}/></span>
+                  <span style={{ height: 8, borderRadius: 5, background: 'rgba(var(--ov),.05)', overflow: 'hidden' }}><span style={{ display: 'block', height: '100%', width: `${(stats.byStage[s.id] / maxStage) * 100}%`, background: s.color, borderRadius: 5, transition: 'width .4s' }}/></span>
                   <b style={{ textAlign: 'end', fontVariantNumeric: 'tabular-nums', color: T.text }}>{stats.byStage[s.id] || 0}</b>
                 </div>
               ))}
