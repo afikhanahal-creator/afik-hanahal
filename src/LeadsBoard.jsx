@@ -11,7 +11,7 @@ import { CSS } from '@dnd-kit/utilities'
 import {
   Plus, Search, Filter, SortAsc, Eye, EyeOff, ChevronDown, ChevronRight,
   MoreHorizontal, User, Calendar, Phone, Mail, FileText, Link2, Zap,
-  Settings, X, Check, GripVertical, Trash2, Copy, Download, Upload, Bell,
+  Settings, X, Check, GripVertical, Trash2, Copy, Download, Upload, Bell, Pencil,
   Star, RefreshCw, Columns, Paintbrush, Layers, ArrowUpDown, ExternalLink,
   MessageSquare, Hash, Tag, ChevronLeft, ChevronUp,
 } from 'lucide-react'
@@ -26,6 +26,48 @@ const GROUPS = [
   { id: 'won',         label: 'סגירה',     en: 'Closed Won',     color: '#00C875' },
   { id: 'lost',        label: 'ללא מענה',  en: 'No Answer',      color: '#7D7D7D' },
 ]
+// Stage names are editable by the office (double-click a column title). Overrides live in the admin's
+// settings ({ [stageId]: { label, en } }) and are applied onto GROUPS, so every place that shows a stage
+// name — board, table, status menu, drawer, mobile tabs — uses the office's wording.
+const DEFAULT_STAGE_NAMES = Object.fromEntries(GROUPS.map(g => [g.id, { label: g.label, en: g.en }]))
+function applyStageLabels(map) {
+  for (const g of GROUPS) {
+    const o = (map && map[g.id]) || {}
+    g.label = (typeof o.label === 'string' && o.label.trim()) || DEFAULT_STAGE_NAMES[g.id].label
+    g.en = (typeof o.en === 'string' && o.en.trim()) || DEFAULT_STAGE_NAMES[g.id].en
+  }
+}
+
+// Inline-editable stage title: double-click (or the pencil) → type → Enter / click away saves,
+// Esc cancels, an empty name restores the default.
+function StageTitle({ group, lang, color, onRename, size = 13 }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+  const [hover, setHover] = useState(false)
+  const label = lang === 'en' ? group.en : group.label
+  const start = e => { e?.stopPropagation?.(); if (!onRename) return; setDraft(label); setEditing(true) }
+  const commit = () => { setEditing(false); const v = draft.trim().slice(0, 40); if (v !== label) onRename(group.id, v) }
+  if (editing) return (
+    <input autoFocus value={draft} onChange={e => setDraft(e.target.value)} maxLength={40}
+      onPointerDown={e => e.stopPropagation()} onKeyDown={e => { e.stopPropagation(); if (e.key === 'Enter') commit(); if (e.key === 'Escape') setEditing(false) }}
+      onBlur={commit} aria-label={lang === 'en' ? 'Stage name' : 'שם השלב'}
+      placeholder={lang === 'en' ? DEFAULT_STAGE_NAMES[group.id]?.en : DEFAULT_STAGE_NAMES[group.id]?.label}
+      style={{ flex: 1, minWidth: 0, fontSize: size, fontWeight: 800, color, background: 'rgba(255,255,255,.06)', border: `1.5px solid ${color}`, borderRadius: 7, padding: '3px 8px', fontFamily: 'inherit', outline: 'none', minHeight: 0 }}/>
+  )
+  return (
+    <span onDoubleClick={start} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
+      title={onRename ? (lang === 'en' ? 'Double-click to rename' : 'לחיצה כפולה לשינוי השם') : undefined}
+      style={{ flex: 1, minWidth: 0, display: 'inline-flex', alignItems: 'center', gap: 6, cursor: onRename ? 'text' : 'default' }}>
+      <span style={{ fontSize: size, fontWeight: 800, color, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+      {onRename && (
+        <button onClick={start} onPointerDown={e => e.stopPropagation()} aria-label={lang === 'en' ? 'Rename stage' : 'שינוי שם השלב'}
+          style={{ opacity: hover ? .9 : .35, transition: 'opacity .15s', background: 'none', border: 'none', padding: 2, cursor: 'pointer', color, display: 'inline-flex', minWidth: 0, minHeight: 0 }}>
+          <Pencil size={11}/>
+        </button>
+      )}
+    </span>
+  )
+}
 
 const SCORE_OPTS = [
   { v: 'hot',  l: '🔥 חם',   en: '🔥 Hot',  color: '#E2445C', bg: '#FEE8EC' },
@@ -807,7 +849,7 @@ function SortableRow({ lead, cols, onUpdate, onDelete, onSelect, isSelected, lan
 
 // ─── desktop board group ──────────────────────────────────────────────────────
 
-function BoardGroup({ group, leads, cols, onUpdate, onUpdateStatus, onDelete, onSelect, lang, T, onOpenDetail, onAddRow, onStatusClick, onOpenChat, onEnrich }) {
+function BoardGroup({ group, leads, cols, onUpdate, onUpdateStatus, onDelete, onSelect, lang, T, onOpenDetail, onAddRow, onStatusClick, onOpenChat, onEnrich, onRenameStage }) {
   const [collapsed, setCollapsed] = useState(false)
   const [adding, setAdding] = useState(false)
   const [newName, setNewName] = useState('')
@@ -828,7 +870,7 @@ function BoardGroup({ group, leads, cols, onUpdate, onUpdateStatus, onDelete, on
         <button onClick={() => setCollapsed(v => !v)} style={{ background: 'none', border: 'none', cursor: 'pointer', color, display: 'flex', alignItems: 'center', padding: '0 4px 0 0' }}>
           <ChevronDown size={14} style={{ transform: collapsed ? 'rotate(-90deg)' : 'none', transition: 'transform .2s' }} />
         </button>
-        <span style={{ fontSize: 12, fontWeight: 800, color, marginRight: 7, letterSpacing: '.01em' }}>{label}</span>
+        <span style={{ marginRight: 7, display: 'inline-flex', maxWidth: 260 }}><StageTitle group={group} lang={lang} color={color} onRename={onRenameStage} size={12}/></span>
         <span style={{ fontSize: 11, background: color, color: '#fff', borderRadius: 20, padding: '1px 8px', fontWeight: 800, marginRight: 8, minWidth: 20, textAlign: 'center' }}>{leads.length}</span>
         <div style={{ flex: 1 }} />
       </div>
@@ -1228,7 +1270,7 @@ function KanbanCard({ lead, T, isDark, lang, onOpen, onDelete, onOpenChat, onEnr
 
 // ─── kanban column ────────────────────────────────────────────────────────────
 
-function KanbanColumn({ group, leads, T, isDark, lang, onOpen, onDelete, onOpenChat, onEnrich, onAddRow }) {
+function KanbanColumn({ group, leads, T, isDark, lang, onOpen, onDelete, onOpenChat, onEnrich, onAddRow, onRenameStage }) {
   const { setNodeRef, isOver } = useDroppable({
     id: group.id,
     data: { type: 'column', groupId: group.id },
@@ -1265,7 +1307,7 @@ function KanbanColumn({ group, leads, T, isDark, lang, onOpen, onDelete, onOpenC
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 17, lineHeight: 1 }}>{group.icon}</span>
-          <span style={{ fontSize: 13, fontWeight: 800, color, flex: 1 }}>{label}</span>
+          <StageTitle group={group} lang={lang} color={color} onRename={onRenameStage}/>
           <span style={{
             background: leads.length > 0 ? color : (isDark ? '#2A3347' : '#DDE3F5'),
             color: leads.length > 0 ? '#fff' : T.textDim,
@@ -1316,7 +1358,7 @@ function KanbanColumn({ group, leads, T, isDark, lang, onOpen, onDelete, onOpenC
 
 // ─── kanban board ─────────────────────────────────────────────────────────────
 
-function KanbanBoard({ leads, T, isDark, lang, updateLead, updateLeadStatus, onAddRow, onOpen, onDelete, onOpenChat, onEnrich, showToast }) {
+function KanbanBoard({ leads, T, isDark, lang, updateLead, updateLeadStatus, onAddRow, onOpen, onDelete, onOpenChat, onEnrich, showToast, onRenameStage }) {
   const [activeId, setActiveId] = useState(null)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
@@ -1385,6 +1427,7 @@ function KanbanBoard({ leads, T, isDark, lang, updateLead, updateLeadStatus, onA
             onOpenChat={onOpenChat}
             onEnrich={onEnrich}
             onAddRow={onAddRow}
+            onRenameStage={onRenameStage}
           />
         ))}
       </div>
@@ -1609,7 +1652,9 @@ export default function LeadsBoard({
   trashedLeads = [], restoreLead, permanentDeleteLead,
   leadsSyncing,
   isDark, lang, onOpenChat,
+  stageLabels, onRenameStage,
 }) {
+  applyStageLabels(stageLabels)   // before any child renders a stage name
   const T = useTheme(isDark)
   const isMobile = useIsMobile()
 
@@ -2034,6 +2079,7 @@ export default function LeadsBoard({
             onOpenChat={onOpenChat}
             onEnrich={enrichLead}
             showToast={showToast}
+            onRenameStage={onRenameStage}
           />
         </div>
       )}
@@ -2100,7 +2146,7 @@ export default function LeadsBoard({
                     onDelete={handleDelete} onSelect={handleSelect}
                     onOpenDetail={setDetailLead} onAddRow={handleAddRow}
                     onOpenChat={onOpenChat} onEnrich={enrichLead}
-                    onStatusClick={(e, lead) => setStatusTarget(lead)} />
+                    onStatusClick={(e, lead) => setStatusTarget(lead)} onRenameStage={onRenameStage} />
                 )
               })}
               <div style={{ height: 60 }} />
