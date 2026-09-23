@@ -14,6 +14,7 @@ const GA4Tab = lazy(() => import('./GA4Tab.jsx'))
 const AdminHome = lazy(() => import('./AdminHome.jsx'))
 import { autoApi, StageSendPrompt } from './AutomationsApi.jsx'
 import { useAdminTheme, ADMIN_THEME_CSS } from './adminTheme.js'
+import { mergeBrief } from '../lib/lead-intel.js'
 import CommandPalette, { useCommandHotkey } from './CommandPalette.jsx'
 import { LeadsBoard, GreenAPIChat, MetaLeadsTab, SupermetricsTab, PropertyWizard, API_BASE, CONTACTS_API, ADMIN_TOKEN, condFetchJson, DARK_C, useTheme, TEAM, G, Logo, LEADS_STORE, LEADS_DELETED, LEADS_TRASH, ANALYTICS_KEY, META_LEAD_PAGES_KEY, WA_DEFAULT_TEMPLATE, _cloudSettings, CATEGORIES, EMPTY_PROP, CONDITION_OPTIONS, ENTRY_OPTIONS, ADMIN_DRAFT_KEY, toMapsEmbed, imgFallback, thumbImg, sortByOrder, TEAM_KEY, setCloudSettings } from './App.jsx'
 
@@ -179,10 +180,10 @@ function ImageUpload({ images, onChange }) {
         onDragOver={e => { e.preventDefault(); setDragOver(true) }}
         onDragLeave={() => setDragOver(false)}
         style={{
-          border: `2px dashed ${dragOver ? 'rgba(132,144,216,.8)' : 'rgba(132,144,216,.3)'}`,
+          border: `2px dashed ${dragOver ? 'rgba(var(--brand-rgb),.8)' : 'rgba(var(--brand-rgb),.3)'}`,
           borderRadius: 10,
           padding: '14px 16px',
-          background: dragOver ? 'rgba(132,144,216,.08)' : 'rgba(var(--ov),.02)',
+          background: dragOver ? 'rgba(var(--brand-rgb),.08)' : 'rgba(var(--ov),.02)',
           textAlign: 'center',
           marginBottom: 10,
           transition: 'all .2s',
@@ -215,7 +216,7 @@ function ImageUpload({ images, onChange }) {
               onDragEnd={onDragEnd}
               style={{
                 ...cell,
-                outline: overIdx === i && dragIdx !== i ? '2px solid rgba(132,144,216,.8)' : '2px solid transparent',
+                outline: overIdx === i && dragIdx !== i ? '2px solid rgba(var(--brand-rgb),.8)' : '2px solid transparent',
                 opacity: dragIdx === i ? 0.45 : 1,
                 cursor: 'grab',
                 transition: 'opacity .15s, outline .15s',
@@ -1572,7 +1573,7 @@ function TeamTab({ C, isDark }) {
 function AdminTabLoader({ label = 'טוען...' }) {
   return (
     <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:16, color:'rgba(var(--ink),.4)', minHeight:300 }}>
-      <div style={{ width:36, height:36, border:'3px solid rgba(132,144,216,.2)', borderTopColor:'#8490D8', borderRadius:'50%', animation:'spin 0.7s linear infinite' }}/>
+      <div style={{ width:36, height:36, border:'3px solid rgba(var(--brand-rgb),.2)', borderTopColor:'var(--au-brand)', borderRadius:'50%', animation:'spin 0.7s linear infinite' }}/>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
       <span style={{ fontSize:13, fontFamily:'Rubik,sans-serif' }}>טוען {label}...</span>
     </div>
@@ -1612,8 +1613,8 @@ function PropertyManagerList({ C, list, publishedList, draftList, listTab, setLi
     document.addEventListener('mousedown', close); return () => document.removeEventListener('mousedown', close)
   }, [menuId])
 
-  const btn = (extra = {}) => ({ padding:'7px 12px', borderRadius:8, border:'1px solid rgba(132,144,216,.25)', background:'rgba(var(--ov),.04)', color:`${C.cream}CC`, cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:700, whiteSpace:'nowrap', display:'inline-flex', alignItems:'center', gap:6, transition:'all .15s', ...extra })
-  const iconBtn = (title, extra = {}) => ({ title, 'aria-label':title, style:{ width:28, height:22, minWidth:0, minHeight:0, borderRadius:6, border:'1px solid rgba(132,144,216,.22)', background:'rgba(var(--ov),.04)', color:`${C.cream}AA`, cursor:'pointer', fontSize:10, display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'inherit', padding:0, ...extra } })
+  const btn = (extra = {}) => ({ padding:'7px 12px', borderRadius:8, border:'1px solid rgba(var(--brand-rgb),.25)', background:'rgba(var(--ov),.04)', color:`${C.cream}CC`, cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:700, whiteSpace:'nowrap', display:'inline-flex', alignItems:'center', gap:6, transition:'all .15s', ...extra })
+  const iconBtn = (title, extra = {}) => ({ title, 'aria-label':title, style:{ width:28, height:22, minWidth:0, minHeight:0, borderRadius:6, border:'1px solid rgba(var(--brand-rgb),.22)', background:'rgba(var(--ov),.04)', color:`${C.cream}AA`, cursor:'pointer', fontSize:10, display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'inherit', padding:0, ...extra } })
 
   // ── drag & drop with a live drop line ──
   const onDragOverRow = (e, p) => {
@@ -1640,11 +1641,11 @@ function PropertyManagerList({ C, list, publishedList, draftList, listTab, setLi
         <div style={{ position:'relative', flex:'1 1 220px', maxWidth:340 }}>
           <FaSearch size={11} style={{ position:'absolute', insetInlineStart:12, top:'50%', transform:'translateY(-50%)', color:`${C.cream}44` }}/>
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="חיפוש לפי כותרת, עיר, סוג…"
-            style={{ width:'100%', padding:'9px 34px 9px 12px', background:'rgba(var(--ov),.05)', border:`1px solid ${search ? C.purple : 'rgba(132,144,216,.25)'}`, borderRadius:9, color:C.cream, fontSize:12, fontFamily:'inherit', outline:'none', boxSizing:'border-box' }}/>
+            style={{ width:'100%', padding:'9px 34px 9px 12px', background:'rgba(var(--ov),.05)', border:`1px solid ${search ? C.purple : 'rgba(var(--brand-rgb),.25)'}`, borderRadius:9, color:C.cream, fontSize:12, fontFamily:'inherit', outline:'none', boxSizing:'border-box' }}/>
         </div>
         <div className="admin-cat-filter">
           {[{id:'all',label:'הכל',Icon:null},...CATEGORIES].map(({id,label,Icon:CIcon}) => (
-            <button key={id} onClick={() => setListCat(id)} style={{ padding:'5px 10px', border:`1px solid ${listCat===id?C.purple:'rgba(132,144,216,.2)'}`, borderRadius:6, background:listCat===id?`${C.purple}22`:'transparent', color:listCat===id?C.purple:`${C.cream}70`, cursor:'pointer', fontSize:11, fontFamily:'inherit', fontWeight:600, whiteSpace:'nowrap', display:'flex', alignItems:'center', gap:5 }}>
+            <button key={id} onClick={() => setListCat(id)} style={{ padding:'5px 10px', border:`1px solid ${listCat===id?C.purple:'rgba(var(--brand-rgb),.2)'}`, borderRadius:6, background:listCat===id?`${C.purple}22`:'transparent', color:listCat===id?C.purple:`${C.cream}70`, cursor:'pointer', fontSize:11, fontFamily:'inherit', fontWeight:600, whiteSpace:'nowrap', display:'flex', alignItems:'center', gap:5 }}>
               {CIcon && <CIcon size={10}/>} {label}
             </button>
           ))}
@@ -1749,7 +1750,7 @@ function PropertyManagerList({ C, list, publishedList, draftList, listTab, setLi
                   {live ? 'באוויר' : 'מוסתר'}
                 </button>
                 {/* Status segmented */}
-                <div role="group" aria-label="סטטוס" style={{ display:'inline-flex', background:'rgba(var(--ov),.05)', border:'1px solid rgba(132,144,216,.2)', borderRadius:9, padding:3, gap:2 }}>
+                <div role="group" aria-label="סטטוס" style={{ display:'inline-flex', background:'rgba(var(--ov),.05)', border:'1px solid rgba(var(--brand-rgb),.2)', borderRadius:9, padding:3, gap:2 }}>
                   {PM_STATUS.map(s => {
                     const on = status === s.id
                     return <button key={s.id} onClick={() => !on && setStatus(p.id, s.id)} style={{ padding:'5px 10px', borderRadius:7, border:'none', background: on ? s.color : 'transparent', color: on ? '#0b0b12' : `${C.cream}80`, cursor: on ? 'default' : 'pointer', fontSize:11, fontWeight:800, fontFamily:'inherit', transition:'all .15s' }}>{s.label}</button>
@@ -2870,74 +2871,57 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     }).then(r => r.json()).catch(() => null)
   }
 
+  // Smart lead analysis: the server gathers the whole dossier (message, form answers, WhatsApp history,
+  // automations, repeat inquiries, the listing) → transparent rule score + Claude briefing (lib/lead-analyze.js).
+  // Without ANTHROPIC_API_KEY on Vercel the server returns the prepared dossier and the briefing runs
+  // through the existing Render AI proxy instead.
   const enrichLead = async (lead) => {
     if (lead.enrichment?.status === 'enriching') return
-    updateLead(lead.id, { enrichment: { ...(lead.enrichment || {}), status: 'enriching' } })
+    const prevEnrichment = lead.enrichment || null
+    setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, enrichment: { ...(l.enrichment || {}), status: 'enriching' } } : l))
+    const { enrichment: _e, ...clean } = lead
     try {
-      const phoneDigits = (lead.phone || '').replace(/\D/g, '')
-      const phonePrefix = phoneDigits.startsWith('972') ? phoneDigits.slice(3, 5) : phoneDigits.startsWith('0') ? phoneDigits.slice(1, 3) : phoneDigits.slice(0, 2)
-      const prompt = `You are a senior real-estate sales intelligence analyst specializing in the Israeli market.
-Analyze this lead and return comprehensive research for a pre-call briefing. Be realistic, precise, and professional.
-
-Lead data:
-- Name: ${lead.name || 'Unknown'}
-- Phone: ${lead.phone || 'N/A'} (2-digit prefix after 0: "${phonePrefix}")
-- Email: ${lead.email || 'N/A'}
-- Message: ${lead.msg || 'N/A'}
-- Property interest: ${lead.propTitle || 'General inquiry'}
-- Property location: ${lead.propLocation || 'N/A'}
-- Lead source: ${lead.source || 'website'}${lead.campaignName ? ` (campaign: ${lead.campaignName})` : ''}
-- Form answers: ${Array.isArray(lead.formAnswers) && lead.formAnswers.length ? answersToText(lead.formAnswers) : 'N/A'}
-- Landing page / UTM: ${lead.origin?.page || 'N/A'}${lead.origin?.utm && Object.keys(lead.origin.utm).length ? ' ' + JSON.stringify(lead.origin.utm) : ''}
-
-Israeli landline prefix → city (use for estimatedCity):
-02=Jerusalem, 03=Tel Aviv/Gush Dan, 04=Haifa/North, 08=South Israel, 09=Sharon region (Netanya/Ra'anana/Herzliya).
-Mobile 050-058 = nationwide — use other signals for city.
-
-Analyze name origin (Hebrew/Arabic/Russian/Ethiopian/Western) for age and background estimation.
-Analyze email domain: gmail/yahoo/hotmail=consumer; company domain=professional, extract company.
-Analyze message vocabulary and sentence structure for education level.
-
-Return ONLY valid JSON (no markdown, no code blocks):
-{
-  "score": <1-5 integer, 5=hottest>,
-  "scoreReason": "<one concise line>",
-  "intent": "<hot|warm|cold>",
-  "estimatedAge": "<age range e.g. '35-45'>",
-  "estimatedCity": "<city or region>",
-  "estimatedBudget": "<e.g. '2-4M NIS' based on property price signals>",
-  "education": "<תיכון|תואר ראשון|תואר שני|דוקטורט>",
-  "profession": "<likely profession or industry in Hebrew>",
-  "company": "<company name from email domain, else empty>",
-  "role": "<specific role if detectable, else empty>",
-  "linkedin": "<https://www.linkedin.com/search/results/people/?keywords=FIRSTNAME+LASTNAME>",
-  "linkedinDirect": "<https://www.linkedin.com/in/firstname-lastname — transliterate Hebrew name to English>",
-  "facebook": "<https://www.facebook.com/search/people/?q=FIRSTNAME+LASTNAME>",
-  "google": "<https://www.google.com/search?q=FIRSTNAME+LASTNAME+ישראל>",
-  "instagram": "<https://www.instagram.com/LIKELY_HANDLE or empty>",
-  "talkingPoints": ["<talking point 1 in Hebrew — specific to their signals>", "<talking point 2>", "<talking point 3>"],
-  "notes": "<3-4 sentence pre-call briefing in Hebrew: who this person likely is, motivation, urgency signals, best opening line>",
-  "tags": ["<tag1>", "<tag2>", "<tag3>"]
-}`
-      const res = await fetch(`${API_BASE}/api/ai/messages`, {
-        method: 'POST',
-        headers: { 'Content-Type':'application/json', 'Authorization':`Bearer ${ADMIN_TOKEN}`, 'anthropic-version':'2023-06-01' },
-        body: JSON.stringify({ model:'claude-haiku-4-5-20251001', max_tokens:1200, messages:[{ role:'user', content:prompt }] }),
+      const r = await fetch('/api/meta/lead-analyze', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+        body: JSON.stringify({ lead: clean }), signal: AbortSignal.timeout(70000),
       })
-      if (!res.ok) throw new Error(await res.text())
-      const data = await res.json()
-      const raw = data.content?.[0]?.text?.trim() || ''
-      const jsonStr = raw.startsWith('{') ? raw : raw.match(/\{[\s\S]*\}/)?.[0] || '{}'
-      const enrich = JSON.parse(jsonStr)
-      updateLead(lead.id, { enrichment: { ...enrich, status: 'done', enrichedAt: Date.now() } })
+      let a = await r.json().catch(() => ({}))
+      if (!r.ok || a.error) throw new Error(a.error || `HTTP ${r.status}`)
+      if (a.proxy && API_BASE) {
+        const ask = async (model, structured) => {
+          const res = await fetch(`${API_BASE}/api/ai/messages`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}`, 'anthropic-version': '2023-06-01' },
+            body: JSON.stringify({
+              model, max_tokens: 8000, system: a.proxy.system,
+              messages: [{ role: 'user', content: structured ? a.proxy.user : `${a.proxy.user}\n\nReturn ONLY one JSON object (no markdown) with exactly these keys: ${Object.keys(a.proxy.schema.properties).join(', ')}.` }],
+              ...(structured ? { output_config: { format: { type: 'json_schema', schema: a.proxy.schema } } } : {}),
+            }),
+            signal: AbortSignal.timeout(60000),
+          })
+          if (!res.ok) throw new Error(`AI proxy ${res.status}`)
+          const d = await res.json()
+          if (d.stop_reason === 'refusal') throw new Error('refusal')
+          const raw = (d.content || []).filter(b => b.type === 'text').map(b => b.text).join('').trim()
+          return JSON.parse(raw.startsWith('{') ? raw : raw.match(/\{[\s\S]*\}/)?.[0] || '{}')
+        }
+        let brief = null
+        // The proxy has always run the previous model; keep it as the second attempt so analysis never regresses
+        try { brief = await ask('claude-opus-5', true) } catch { try { brief = await ask('claude-haiku-4-5-20251001', false) } catch {} }
+        if (brief && brief.summary) a = mergeBrief(a.rules, brief, { context: a.context, model: 'proxy' })
+      }
+      const { rules: _r, proxy: _p, ...enrichment } = a
+      updateLead(lead.id, { enrichment })
     } catch (e) {
-      updateLead(lead.id, { enrichment: { ...(lead.enrichment || {}), status: 'error', error: e.message } })
+      updateLead(lead.id, { enrichment: { ...(prevEnrichment || {}), status: prevEnrichment?.version === 2 ? 'done' : 'error', error: e.message } })
     }
   }
 
-  const enrichAllLeads = () => {
-    leads.filter(l => !l.enrichment || l.enrichment.status === 'new' || l.enrichment.status === 'error')
-      .forEach(l => enrichLead(l))
+  // Analyze every lead that has no up-to-date analysis — two at a time, so the AI isn't flooded
+  const enrichAllLeads = async () => {
+    const queue = leads.filter(l => l.enrichment?.version !== 2 && l.enrichment?.status !== 'enriching')
+    const worker = async () => { while (queue.length) await enrichLead(queue.shift()) }
+    await Promise.all([worker(), worker()])
   }
 
   const deleteLead = id => {
@@ -3058,7 +3042,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
   }
 
   const catBtn = (id, label, CatIcon) => (
-    <button onClick={() => changeCategory(id)} style={{ flex:1, padding:'10px 8px', border:`1px solid ${form.category===id?C.purple:'rgba(132,144,216,.2)'}`, borderRadius:8, background:form.category===id?`${C.purple}20`:'transparent', color:form.category===id?C.purple:`${C.cream}80`, fontFamily:'inherit', cursor:'pointer', fontSize:11, fontWeight:600, transition:'all .15s', textAlign:'center' }}>
+    <button onClick={() => changeCategory(id)} style={{ flex:1, padding:'10px 8px', border:`1px solid ${form.category===id?C.purple:'rgba(var(--brand-rgb),.2)'}`, borderRadius:8, background:form.category===id?`${C.purple}20`:'transparent', color:form.category===id?C.purple:`${C.cream}80`, fontFamily:'inherit', cursor:'pointer', fontSize:11, fontWeight:600, transition:'all .15s', textAlign:'center' }}>
       <div style={{ marginBottom:4, display:'flex', justifyContent:'center' }}><CatIcon size={16}/></div>
       {label}
     </button>
@@ -3125,7 +3109,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
         <aside className={`admin-sidebar${adminNavOpen ? ' open' : ''}`} style={{ width:248, height:'100dvh', background:'var(--au-sidebar)', borderLeft:'1px solid var(--au-line)', display:'flex', flexDirection:'column', flexShrink:0 }}>
           {/* Brand */}
           <div style={{ padding:'20px 18px 16px', display:'flex', alignItems:'center', gap:12 }}>
-            <div style={{ width:40, height:40, borderRadius:12, background:'linear-gradient(135deg,rgba(132,144,216,.28),rgba(132,144,216,.08))', border:'1px solid rgba(132,144,216,.3)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+            <div style={{ width:40, height:40, borderRadius:12, background:'linear-gradient(135deg,rgba(var(--brand-rgb),.28),rgba(var(--brand-rgb),.08))', border:'1px solid rgba(var(--brand-rgb),.3)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
               <img src={isDark ? '/logo.svg' : '/logo-black.svg'} alt="" style={{ height:22, opacity:.95 }} onError={e => { e.currentTarget.style.display='none' }}/>
             </div>
             <div style={{ minWidth:0 }}>
@@ -3144,13 +3128,13 @@ Return ONLY valid JSON (no markdown, no code blocks):
                 {DASH_TABS.filter(item => g.ids.includes(item.id)).map(item => {
                   const isLive = item.id === 'live'
                   const isActive = isLive ? (tab==='props' && listTab==='published') : tab===item.id
-                  const accent = isLive ? '#22C55E' : '#8490D8'
+                  const accent = isLive ? '#22C55E' : C.purple
                   return (
                     <button key={item.id} className="admin-nav-item" aria-current={isActive ? 'page' : undefined} onClick={() => { if (isLive) { goToLiveProps() } else { setTab(item.id) }; setAdminNavOpen(false) }}
                       style={{ width:'100%', display:'flex', alignItems:'center', gap:11, height:38, padding:'0 10px', border:'none', borderRadius:10, background: isActive ? `linear-gradient(90deg,${accent}10,${accent}26)` : 'transparent', boxShadow: isActive ? `inset -2px 0 0 ${accent}` : 'none', color: isActive ? 'var(--au-text)' : 'rgba(var(--ink),.62)', cursor:'pointer', fontFamily:'inherit', fontSize:13, fontWeight: isActive ? 700 : 500, marginBottom:2, textAlign:'start', transition:'background .15s,color .15s', minHeight:0 }}>
                       <span style={{ width:26, height:26, borderRadius:8, display:'inline-flex', alignItems:'center', justifyContent:'center', flexShrink:0, background: isActive ? `${accent}26` : 'transparent', color: isActive ? accent : 'rgba(var(--ink),.5)' }}><item.Icon size={13}/></span>
                       <span style={{ flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.label}</span>
-                      {!!item.badge && <span style={{ minWidth:20, height:20, padding:'0 6px', borderRadius:10, display:'inline-flex', alignItems:'center', justifyContent:'center', fontSize:10.5, fontWeight:800, fontVariantNumeric:'tabular-nums', background: isLive ? 'rgba(34,197,94,.16)' : item.id==='chats' ? '#25D366' : item.id==='meta' || item.id==='automations' ? '#E05252' : 'rgba(132,144,216,.2)', color: isLive ? '#22C55E' : item.id==='chats' ? '#062E16' : item.id==='meta' || item.id==='automations' ? '#fff' : '#B7BEF0' }}>{item.badge}</span>}
+                      {!!item.badge && <span style={{ minWidth:20, height:20, padding:'0 6px', borderRadius:10, display:'inline-flex', alignItems:'center', justifyContent:'center', fontSize:10.5, fontWeight:800, fontVariantNumeric:'tabular-nums', background: isLive ? 'rgba(34,197,94,.16)' : item.id==='chats' ? '#25D366' : item.id==='meta' || item.id==='automations' ? '#E05252' : 'rgba(var(--brand-rgb),.2)', color: isLive ? '#22C55E' : item.id==='chats' ? '#062E16' : item.id==='meta' || item.id==='automations' ? '#fff' : '#B7BEF0' }}>{item.badge}</span>}
                     </button>
                   )
                 })}
@@ -3158,9 +3142,9 @@ Return ONLY valid JSON (no markdown, no code blocks):
             ))}
           </nav>
           {/* Footer — account + quick actions */}
-          <div style={{ padding:'12px 12px 16px', borderTop:'1px solid rgba(132,144,216,.08)' }}>
+          <div style={{ padding:'12px 12px 16px', borderTop:'1px solid rgba(var(--brand-rgb),.08)' }}>
             <div style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 8px 10px' }}>
-              <div style={{ width:34, height:34, borderRadius:'50%', background:'linear-gradient(135deg,#8490D8,#5D68B8)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontSize:12, fontWeight:800, flexShrink:0 }}>AH</div>
+              <div style={{ width:34, height:34, borderRadius:'50%', background:'linear-gradient(135deg,#7B86CF,#4B55B8)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontSize:12, fontWeight:800, flexShrink:0 }}>AH</div>
               <div style={{ flex:1, minWidth:0 }}>
                 <div style={{ fontSize:12.5, fontWeight:700, color:'var(--au-text)' }}>{lang === 'en' ? 'Main admin' : 'מנהל ראשי'}</div>
                 <div style={{ fontSize:11, color:'rgba(var(--ink),.42)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>afikhanahal.co.il</div>
@@ -3173,7 +3157,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
                 { key:'out', Icon:FaTimes, label: lang === 'en' ? 'Log out' : 'יציאה', onClick: onClose, danger: true },
               ].map(b => (
                 <button key={b.key} onClick={b.onClick} className="admin-foot-btn" title={b.label}
-                  style={{ height:52, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:5, borderRadius:10, border:`1px solid ${b.on ? 'rgba(34,197,94,.4)' : b.danger ? 'rgba(224,82,82,.22)' : 'rgba(132,144,216,.16)'}`, background: b.on ? 'rgba(34,197,94,.1)' : b.danger ? 'rgba(224,82,82,.06)' : 'rgba(var(--ov),.02)', color: b.on ? '#22C55E' : b.danger ? 'rgba(240,138,138,.85)' : 'rgba(var(--ink),.62)', cursor:'pointer', fontFamily:'inherit', fontSize:11, fontWeight:700, transition:'all .15s', minHeight:0, minWidth:0, padding:0 }}>
+                  style={{ height:52, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:5, borderRadius:10, border:`1px solid ${b.on ? 'rgba(34,197,94,.4)' : b.danger ? 'rgba(224,82,82,.22)' : 'rgba(var(--brand-rgb),.16)'}`, background: b.on ? 'rgba(34,197,94,.1)' : b.danger ? 'rgba(224,82,82,.06)' : 'rgba(var(--ov),.02)', color: b.on ? '#22C55E' : b.danger ? 'rgba(240,138,138,.85)' : 'rgba(var(--ink),.62)', cursor:'pointer', fontFamily:'inherit', fontSize:11, fontWeight:700, transition:'all .15s', minHeight:0, minWidth:0, padding:0 }}>
                   <b.Icon size={12}/>{b.label}
                 </button>
               ))}
@@ -3194,7 +3178,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
           <div className="admin-mobile-topbar">
             <div style={{ display:'flex', alignItems:'center', gap:8 }}>
               <button onClick={() => setAdminNavOpen(v => !v)}
-                style={{ background:'none', border:`1px solid rgba(132,144,216,.25)`, borderRadius:8, width:36, height:36, color:'rgba(var(--ink),.7)', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:4 }}>
+                style={{ background:'none', border:`1px solid rgba(var(--brand-rgb),.25)`, borderRadius:8, width:36, height:36, color:'rgba(var(--ink),.7)', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:4 }}>
                 <div style={{ width:16, height:1.5, background:'currentColor', borderRadius:1 }}/>
                 <div style={{ width:16, height:1.5, background:'currentColor', borderRadius:1 }}/>
                 <div style={{ width:16, height:1.5, background:'currentColor', borderRadius:1 }}/>
@@ -3206,15 +3190,15 @@ Return ONLY valid JSON (no markdown, no code blocks):
             <div style={{ display:'flex', alignItems:'center', gap:6 }}>
               {saved && <span style={{ fontSize:10, color:'#22C55E', fontWeight:700, background:'rgba(34,197,94,.12)', padding:'2px 8px', borderRadius:10 }}>נשמר</span>}
               <button onClick={() => setCmdOpen(true)} aria-label={lang === 'en' ? 'Quick search' : 'חיפוש מהיר'}
-                style={{ background:'rgba(132,144,216,.1)', border:'1px solid rgba(132,144,216,.28)', borderRadius:8, width:34, height:34, color:C.purple, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', minHeight:0, minWidth:0 }}>
+                style={{ background:'rgba(var(--brand-rgb),.1)', border:'1px solid rgba(var(--brand-rgb),.28)', borderRadius:8, width:34, height:34, color:C.purple, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', minHeight:0, minWidth:0 }}>
                 <FaSearch size={12}/>
               </button>
               <button onClick={adminTheme.toggle} aria-label={adminTheme.isDark ? (lang === 'en' ? 'Light mode' : 'מצב בהיר') : (lang === 'en' ? 'Dark mode' : 'מצב כהה')} title={adminTheme.isDark ? (lang === 'en' ? 'Light mode' : 'מצב בהיר') : (lang === 'en' ? 'Dark mode' : 'מצב כהה')}
-                style={{ background:'rgba(132,144,216,.1)', border:'1px solid rgba(132,144,216,.28)', borderRadius:8, width:34, height:34, color:C.purple, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', minHeight:0, minWidth:0 }}>
+                style={{ background:'rgba(var(--brand-rgb),.1)', border:'1px solid rgba(var(--brand-rgb),.28)', borderRadius:8, width:34, height:34, color:C.purple, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', minHeight:0, minWidth:0 }}>
                 {adminTheme.isDark ? <FaSun size={12}/> : <FaMoon size={12}/>}
               </button>
               <button onClick={copyDashLink} title="שתף קישור למערכת"
-                style={{ background: shareCopied ? 'rgba(34,197,94,.12)' : 'rgba(132,144,216,.1)', border:`1px solid ${shareCopied ? 'rgba(34,197,94,.35)' : 'rgba(132,144,216,.28)'}`, borderRadius:8, width:34, height:34, color: shareCopied ? '#22C55E' : C.purple, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s' }}>
+                style={{ background: shareCopied ? 'rgba(34,197,94,.12)' : 'rgba(var(--brand-rgb),.1)', border:`1px solid ${shareCopied ? 'rgba(34,197,94,.35)' : 'rgba(var(--brand-rgb),.28)'}`, borderRadius:8, width:34, height:34, color: shareCopied ? '#22C55E' : C.purple, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s' }}>
                 <FaShareAlt size={11}/>
               </button>
               <button onClick={onClose}
@@ -3227,19 +3211,19 @@ Return ONLY valid JSON (no markdown, no code blocks):
 
         {/* Standalone desktop top-bar */}
         {standalone && (
-          <div className="admin-desktop-topbar" style={{ height:64, borderBottom:'1px solid rgba(132,144,216,.09)', display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 28px', flexShrink:0, background:'var(--au-topbar)', backdropFilter:'blur(20px)', direction:'rtl' }}>
+          <div className="admin-desktop-topbar" style={{ height:64, borderBottom:'1px solid rgba(var(--brand-rgb),.09)', display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 28px', flexShrink:0, background:'var(--au-topbar)', backdropFilter:'blur(20px)', direction:'rtl' }}>
             <div style={{ display:'flex', alignItems:'center', gap:10 }}>
               <div style={{ display:'flex', flexDirection:'column', gap:1 }}>
                 <h2 style={{ fontSize:16, fontWeight:800, color:'var(--au-text)', margin:0, letterSpacing:'-.005em' }}>{TAB_LABELS[tab] || ''}</h2>
                 <span style={{ fontSize:11.5, color:'rgba(var(--ink),.42)' }}>{new Date().toLocaleDateString(lang === 'en' ? 'en-GB' : 'he-IL', { weekday:'long', day:'numeric', month:'long' })}</span>
               </div>
               {saved && <span style={{ fontSize:11, color:'#22C55E', fontWeight:700, background:'rgba(34,197,94,.1)', padding:'3px 10px', borderRadius:20, border:'1px solid rgba(34,197,94,.2)' }}>✓ נשמר</span>}
-              <div style={{ width:1, height:18, background:'rgba(132,144,216,.15)', flexShrink:0, marginRight:2 }}/>
+              <div style={{ width:1, height:18, background:'rgba(var(--brand-rgb),.15)', flexShrink:0, marginRight:2 }}/>
               <button
                 onClick={() => { setTab('meta'); setMetaNewLeads(0) }}
-                style={{ display:'flex', alignItems:'center', gap:7, padding:'6px 14px', background: tab==='meta' ? 'rgba(132,144,216,.22)' : 'rgba(132,144,216,.08)', border:`1px solid ${tab==='meta' ? 'rgba(132,144,216,.5)' : 'rgba(132,144,216,.2)'}`, borderRadius:20, color: tab==='meta' ? '#A0ACFF' : 'rgba(132,144,216,.7)', cursor:'pointer', fontFamily:'inherit', fontSize:12, fontWeight:700, transition:'all .18s', position:'relative' }}
-                onMouseEnter={e=>{ e.currentTarget.style.background='rgba(132,144,216,.18)'; e.currentTarget.style.borderColor='rgba(132,144,216,.45)'; e.currentTarget.style.color='#A0ACFF' }}
-                onMouseLeave={e=>{ if(tab!=='meta'){ e.currentTarget.style.background='rgba(132,144,216,.08)'; e.currentTarget.style.borderColor='rgba(132,144,216,.2)'; e.currentTarget.style.color='rgba(132,144,216,.7)' }}}>
+                style={{ display:'flex', alignItems:'center', gap:7, padding:'6px 14px', background: tab==='meta' ? 'rgba(var(--brand-rgb),.22)' : 'rgba(var(--brand-rgb),.08)', border:`1px solid ${tab==='meta' ? 'rgba(var(--brand-rgb),.5)' : 'rgba(var(--brand-rgb),.2)'}`, borderRadius:20, color: tab==='meta' ? '#A0ACFF' : 'rgba(var(--brand-rgb),.7)', cursor:'pointer', fontFamily:'inherit', fontSize:12, fontWeight:700, transition:'all .18s', position:'relative' }}
+                onMouseEnter={e=>{ e.currentTarget.style.background='rgba(var(--brand-rgb),.18)'; e.currentTarget.style.borderColor='rgba(var(--brand-rgb),.45)'; e.currentTarget.style.color='#A0ACFF' }}
+                onMouseLeave={e=>{ if(tab!=='meta'){ e.currentTarget.style.background='rgba(var(--brand-rgb),.08)'; e.currentTarget.style.borderColor='rgba(var(--brand-rgb),.2)'; e.currentTarget.style.color='rgba(var(--brand-rgb),.7)' }}}>
                 <FaFacebookF size={11}/>
                 <span>Lead Center</span>
                 {metaNewLeads > 0 && (
@@ -3254,7 +3238,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
                 <kbd dir="ltr" style={{ fontSize:10.5, fontFamily:'inherit', border:'1px solid var(--au-line2)', borderRadius:5, padding:'1px 5px', color:'var(--au-text3)' }}>Ctrl K</kbd>
               </button>
               <AdminThemeSwitch lang={lang}/>
-              <div style={{ display:'flex', alignItems:'center', gap:7, background:'rgba(132,144,216,.08)', border:'1px solid rgba(132,144,216,.16)', borderRadius:24, padding:'6px 13px 6px 9px' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:7, background:'rgba(var(--brand-rgb),.08)', border:'1px solid rgba(var(--brand-rgb),.16)', borderRadius:24, padding:'6px 13px 6px 9px' }}>
                 <div style={{ width:26, height:26, borderRadius:'50%', background:`${C.purple}25`, border:`1.5px solid ${C.purple}44`, display:'flex', alignItems:'center', justifyContent:'center' }}>
                   <FaLock size={10} style={{ color:C.purple }}/>
                 </div>
@@ -3279,9 +3263,9 @@ Return ONLY valid JSON (no markdown, no code blocks):
             </div>
             <div style={{ display:'flex', alignItems:'center', gap:10 }}>
             <AdminThemeSwitch lang={lang} compact/>
-            <button onClick={onClose} style={{ background:'rgba(var(--ov),.07)', border:`1px solid rgba(132,144,216,.25)`, borderRadius:10, width:38, height:38, color:`${C.cream}80`, cursor:'pointer', fontSize:18, lineHeight:1, display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s' }}
+            <button onClick={onClose} style={{ background:'rgba(var(--ov),.07)', border:`1px solid rgba(var(--brand-rgb),.25)`, borderRadius:10, width:38, height:38, color:`${C.cream}80`, cursor:'pointer', fontSize:18, lineHeight:1, display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s' }}
               onMouseEnter={e=>{ e.currentTarget.style.background='rgba(224,82,82,.2)'; e.currentTarget.style.borderColor='#E05252'; e.currentTarget.style.color='#E05252' }}
-              onMouseLeave={e=>{ e.currentTarget.style.background='rgba(var(--ov),.07)'; e.currentTarget.style.borderColor='rgba(132,144,216,.25)'; e.currentTarget.style.color=`${C.cream}80` }}>×</button>
+              onMouseLeave={e=>{ e.currentTarget.style.background='rgba(var(--ov),.07)'; e.currentTarget.style.borderColor='rgba(var(--brand-rgb),.25)'; e.currentTarget.style.color=`${C.cream}80` }}>×</button>
             </div>
           </div>
         )}
@@ -3297,7 +3281,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
 
         {/* Push notification permission banner */}
         {!notifBannerDismissed && notifPerm === 'default' && (
-          <div className="admin-notice" style={{ background:'rgba(var(--ov),.025)', border:'1px solid rgba(132,144,216,.16)', borderRadius:12, padding:'9px 14px', margin: standalone ? '14px 28px 0' : '0 0 14px', display:'flex', alignItems:'center', gap:10, direction:'rtl', flexWrap:'wrap', flexShrink:0 }}>
+          <div className="admin-notice" style={{ background:'rgba(var(--ov),.025)', border:'1px solid rgba(var(--brand-rgb),.16)', borderRadius:12, padding:'9px 14px', margin: standalone ? '14px 28px 0' : '0 0 14px', display:'flex', alignItems:'center', gap:10, direction:'rtl', flexWrap:'wrap', flexShrink:0 }}>
             <span style={{ width:28, height:28, borderRadius:8, background:'rgba(247,201,72,.14)', display:'inline-flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontSize:13 }}>🔔</span>
             <div style={{ flex:1, minWidth:0, fontSize:12.5, color:'rgba(var(--ink),.78)' }}>
               <b style={{ color:'var(--au-text)' }}>{lang === 'en' ? 'Turn on push notifications' : 'הפעלת התראות דחיפה'}</b>
@@ -3534,7 +3518,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
                 <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:4 }}>
                   <label style={{ fontSize:11, color:`${C.cream}70`, fontWeight:600 }}>תיאור הנכס</label>
                   <button onClick={rewriteWithAI} disabled={aiLoading}
-                    style={{ display:'flex', alignItems:'center', gap:5, padding:'4px 12px', background: aiLoading ? 'rgba(132,144,216,.2)' : `${C.purple}22`, border:`1px solid ${C.purple}55`, borderRadius:6, color:C.purple, fontSize:10, fontWeight:700, cursor: aiLoading ? 'not-allowed' : 'pointer', fontFamily:'inherit', transition:'all .15s', letterSpacing:'.03em' }}
+                    style={{ display:'flex', alignItems:'center', gap:5, padding:'4px 12px', background: aiLoading ? 'rgba(var(--brand-rgb),.2)' : `${C.purple}22`, border:`1px solid ${C.purple}55`, borderRadius:6, color:C.purple, fontSize:10, fontWeight:700, cursor: aiLoading ? 'not-allowed' : 'pointer', fontFamily:'inherit', transition:'all .15s', letterSpacing:'.03em' }}
                     onMouseEnter={e => { if (!aiLoading) e.currentTarget.style.background = `${C.purple}38` }}
                     onMouseLeave={e => { if (!aiLoading) e.currentTarget.style.background = `${C.purple}22` }}>
                     {aiLoading ? '✦ מייצר...' : '✦ שכתוב עם AI'}
@@ -3554,7 +3538,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
                   <label style={{ fontSize:11, color:`${C.cream}70`, display:'block', marginBottom:4, fontWeight:600 }}>לינק גוגל מאפ</label>
                   <input placeholder="https://maps.google.com/..." value={form.mapsUrl||''} onChange={set('mapsUrl')} style={inp}/>
                   {form.mapsUrl && toMapsEmbed(form.mapsUrl) && (
-                    <div style={{ marginTop:8, borderRadius:8, overflow:'hidden', height:160, border:'1px solid rgba(132,144,216,.2)' }}>
+                    <div style={{ marginTop:8, borderRadius:8, overflow:'hidden', height:160, border:'1px solid rgba(var(--brand-rgb),.2)' }}>
                       <iframe src={toMapsEmbed(form.mapsUrl)} width="100%" height="100%" style={{ border:'none', display:'block' }} allowFullScreen loading="lazy" referrerPolicy="no-referrer-when-downgrade" title="מיקום הנכס"/>
                     </div>
                   )}
@@ -3576,7 +3560,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
               </div>
 
               {/* Project Logo */}
-              <div style={{ marginBottom:14, background:'rgba(132,144,216,.06)', border:`1px solid ${C.purple}20`, borderRadius:10, padding:'14px 16px' }}>
+              <div style={{ marginBottom:14, background:'rgba(var(--brand-rgb),.06)', border:`1px solid ${C.purple}20`, borderRadius:10, padding:'14px 16px' }}>
                 <label style={{ fontSize:11, color:`${C.cream}70`, display:'block', marginBottom:10, fontWeight:600 }}>
                   לוגו הפרויקט <span style={{ color:`${C.cream}44`, fontWeight:400 }}>— יוצג מתחת לגלריית התמונות</span>
                 </label>
@@ -3605,7 +3589,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
             {/* Property list */}
             <div ref={propListRef}>
               {/* Header bar with live count */}
-              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16, padding:'12px 16px', background:'rgba(132,144,216,.06)', borderRadius:12, border:'1px solid rgba(132,144,216,.12)' }}>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16, padding:'12px 16px', background:'rgba(var(--brand-rgb),.06)', borderRadius:12, border:'1px solid rgba(var(--brand-rgb),.12)' }}>
                 <div style={{ display:'flex', alignItems:'center', gap:12 }}>
                   <div style={{ display:'flex', alignItems:'center', gap:7 }}>
                     <span style={{ width:8, height:8, borderRadius:'50%', background:C.green, boxShadow:`0 0 8px ${C.green}`, display:'inline-block', animation:'pulse 2s infinite' }}/>
@@ -3662,7 +3646,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
         {tab==='counters' && (
           <>
             {/* ── Header bar with sync status ── */}
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:24, padding:'14px 18px', background:'rgba(132,144,216,.06)', borderRadius:12, border:'1px solid rgba(132,144,216,.12)' }}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:24, padding:'14px 18px', background:'rgba(var(--brand-rgb),.06)', borderRadius:12, border:'1px solid rgba(var(--brand-rgb),.12)' }}>
               <div>
                 <div style={{ fontSize:15, fontWeight:800, color:C.cream, marginBottom:3 }}>נתוני האתר — עריכה חיה</div>
                 <div style={{ fontSize:11, color:`${C.cream}44`, display:'flex', alignItems:'center', gap:6 }}>
@@ -4634,12 +4618,12 @@ Return ONLY valid JSON (no markdown, no code blocks):
         {toasts.map(toast => (
           <div key={toast.id}
             onClick={() => { setToasts(prev => prev.filter(t => t.id !== toast.id)); if (toast.targetTab) setTab(toast.targetTab) }}
-            style={{ pointerEvents:'auto', background:'#1F2C33', border:'1px solid rgba(132,144,216,.35)', borderRadius:12, padding:'12px 14px 12px 16px', boxShadow:'0 6px 24px rgba(0,0,0,.55)', cursor:toast.targetTab?'pointer':'default', fontFamily:'Rubik,sans-serif', display:'flex', gap:10, alignItems:'flex-start', animation:'toastIn .25s ease', direction:'rtl' }}>
+            style={{ pointerEvents:'auto', background:'#1F2C33', border:'1px solid rgba(var(--brand-rgb),.35)', borderRadius:12, padding:'12px 14px 12px 16px', boxShadow:'0 6px 24px rgba(0,0,0,.55)', cursor:toast.targetTab?'pointer':'default', fontFamily:'Rubik,sans-serif', display:'flex', gap:10, alignItems:'flex-start', animation:'toastIn .25s ease', direction:'rtl' }}>
             <div style={{ fontSize:22, flexShrink:0, lineHeight:1 }}>{toast.icon || '🔔'}</div>
             <div style={{ flex:1, minWidth:0 }}>
               <div style={{ fontSize:13, fontWeight:700, color:'#E9EDEF', marginBottom:3, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{toast.title}</div>
               <div style={{ fontSize:12, color:'#8696A0', lineHeight:1.45, overflow:'hidden', display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical' }}>{toast.body}</div>
-              {toast.targetTab && <div style={{ fontSize:11, color:'#8490D8', marginTop:4, fontWeight:600 }}>{lang==='en'?'Click to open →':'לחץ לפתיחה ←'}</div>}
+              {toast.targetTab && <div style={{ fontSize:11, color:C.purple, marginTop:4, fontWeight:600 }}>{lang==='en'?'Click to open →':'לחץ לפתיחה ←'}</div>}
             </div>
             <button onClick={e => { e.stopPropagation(); setToasts(prev => prev.filter(t => t.id !== toast.id)) }}
               style={{ background:'none', border:'none', color:'#8696A0', cursor:'pointer', fontSize:15, padding:0, lineHeight:1, flexShrink:0, marginTop:1 }}>✕</button>
@@ -4654,11 +4638,11 @@ Return ONLY valid JSON (no markdown, no code blocks):
         <nav className="admin-bottom-nav">
           {DASH_TABS.slice(0,5).map(item => (
             <button key={item.id} onClick={() => setTab(item.id)}
-              style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:3, border:'none', background:'transparent', color: tab===item.id ? '#8490D8' : 'rgba(var(--ink),.32)', cursor:'pointer', fontFamily:'inherit', padding:'8px 4px', position:'relative', transition:'color .15s', minWidth:0 }}>
+              style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:3, border:'none', background:'transparent', color: tab===item.id ? C.purple : 'rgba(var(--ink),.32)', cursor:'pointer', fontFamily:'inherit', padding:'8px 4px', position:'relative', transition:'color .15s', minWidth:0 }}>
               <item.Icon size={18}/>
               <span style={{ fontSize:9, fontWeight: tab===item.id ? 700 : 400, letterSpacing:'.02em', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:'100%' }}>{item.label}</span>
-              {!!item.badge && <span style={{ position:'absolute', top:6, right:'50%', transform:'translateX(140%)', background: item.id==='chats' ? '#075E54' : '#8490D8', color:'#fff', borderRadius:8, padding:'1px 5px', fontSize:8, fontWeight:800, lineHeight:1.6 }}>{item.badge}</span>}
-              {tab===item.id && <div style={{ position:'absolute', top:0, left:'15%', right:'15%', height:2, background:'#8490D8', borderRadius:2 }}/>}
+              {!!item.badge && <span style={{ position:'absolute', top:6, right:'50%', transform:'translateX(140%)', background: item.id==='chats' ? '#075E54' : C.purple, color:'#fff', borderRadius:8, padding:'1px 5px', fontSize:8, fontWeight:800, lineHeight:1.6 }}>{item.badge}</span>}
+              {tab===item.id && <div style={{ position:'absolute', top:0, left:'15%', right:'15%', height:2, background:C.purple, borderRadius:2 }}/>}
             </button>
           ))}
         </nav>

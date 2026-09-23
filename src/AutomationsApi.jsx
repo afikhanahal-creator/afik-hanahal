@@ -45,7 +45,7 @@ export function StageSendPrompt({ prompt, lang = 'he', onClose, onSent }) {
         {err && <div style={{ color: '#E05252', fontSize: 12.5 }}>{err}</div>}
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           <button onClick={() => act('skip')} disabled={!!busy} style={b('transparent', 'rgba(var(--ink),.2)', 'rgba(var(--ink),.65)')}>{t.skip}</button>
-          <button onClick={onClose} disabled={!!busy} style={b('transparent', 'rgba(132,144,216,.3)', '#8490D8')}>{t.later}</button>
+          <button onClick={onClose} disabled={!!busy} style={b('transparent', 'rgba(var(--brand-rgb),.3)', 'var(--au-brand)')}>{t.later}</button>
           <button onClick={() => act('send')} disabled={!!busy || !text.trim()} style={b('rgba(37,211,102,.16)', 'rgba(37,211,102,.55)', '#25D366')}>{busy === 'send' ? t.sending : t.send}</button>
         </div>
       </div>

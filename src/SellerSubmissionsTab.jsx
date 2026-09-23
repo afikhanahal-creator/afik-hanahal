@@ -114,7 +114,7 @@ function AiStudio({ detail, ov, setOv, onSave, saving, copyText, say, styles }) 
   const wa = `https://wa.me/?text=${encodeURIComponent(text)}`
   const ch = AI_CHANNELS.find(c => c.v === channel)
   return (
-    <div style={{ ...card, padding: '14px 16px', marginBottom: 10, borderColor: 'rgba(132,144,216,.45)', background: 'linear-gradient(135deg, rgba(63,78,176,.12), rgba(var(--ov),.02))' }}>
+    <div style={{ ...card, padding: '14px 16px', marginBottom: 10, borderColor: 'rgba(var(--brand-rgb),.45)', background: 'linear-gradient(135deg, rgba(63,78,176,.12), rgba(var(--ov),.02))' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
         <h3 style={{ fontSize: 12, letterSpacing: '.12em', color: purple, margin: 0, fontWeight: 700 }}>✨ סטודיו AI לשיווק</h3>
         <span style={{ fontSize: 11.5, color: 'rgba(var(--ink),.55)' }}>הטקסט נבנה מהגרסה הציבורית של התיק בלבד — נתונים פנימיים לא נחשפים</span>
@@ -129,7 +129,7 @@ function AiStudio({ detail, ov, setOv, onSave, saving, copyText, say, styles }) 
       </div>
       {err && <div style={{ color: '#F87171', fontSize: 12.5, marginBottom: 8 }}>{err}</div>}
       <textarea value={text} onChange={e => setText(e.target.value)} rows={ch.v === 'website' ? 9 : 7} placeholder={`לחצו "צור ${ch.l}" — ואפשר לערוך את התוצאה כאן לפני השמירה`} dir="rtl"
-        style={{ width: '100%', boxSizing: 'border-box', background: 'var(--au-input)', color: 'var(--au-text)', border: '1px solid rgba(132,144,216,.25)', borderRadius: 10, padding: '10px 12px', fontFamily: 'inherit', fontSize: 13.5, lineHeight: 1.7, resize: 'vertical' }}/>
+        style={{ width: '100%', boxSizing: 'border-box', background: 'var(--au-input)', color: 'var(--au-text)', border: '1px solid rgba(var(--brand-rgb),.25)', borderRadius: 10, padding: '10px 12px', fontFamily: 'inherit', fontSize: 13.5, lineHeight: 1.7, resize: 'vertical' }}/>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
         <button onClick={() => text && copyText(text)} disabled={!text} style={btn()}><FaCopy size={11}/> העתקה</button>
         <a href={text ? wa : undefined} target="_blank" rel="noreferrer" onClick={e => { if (!text) e.preventDefault() }} style={{ ...btn(), textDecoration: 'none', color: '#25D366', borderColor: 'rgba(37,211,102,.4)', opacity: text ? 1 : .5 }}><FaWhatsapp size={12}/> שליחה בוואטסאפ</a>
@@ -155,7 +155,7 @@ function Yad2Card({ detail, ov, copyText, styles }) {
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 6 }}>
         {rows.map(r => (
-          <div key={r.k} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, background: 'rgba(var(--ov),.03)', border: '1px solid rgba(132,144,216,.12)', borderRadius: 8, padding: '7px 10px', gridColumn: r.k === 'תיאור' ? '1 / -1' : undefined }}>
+          <div key={r.k} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, background: 'rgba(var(--ov),.03)', border: '1px solid rgba(var(--brand-rgb),.12)', borderRadius: 8, padding: '7px 10px', gridColumn: r.k === 'תיאור' ? '1 / -1' : undefined }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 10.5, color: 'rgba(var(--ink),.5)', letterSpacing: '.04em' }}>{r.k}</div>
               <div style={{ fontSize: 13, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{r.v}</div>
@@ -391,9 +391,9 @@ export default function SellerSubmissionsTab({ C, onChanged, onOpenWizard }) {
   }, [rows])
 
   const purple = C?.purple || '#8490D8'
-  const card = { background: 'rgba(var(--ov),.03)', border: '1px solid rgba(132,144,216,.14)', borderRadius: 12 }
-  const btn = (extra = {}) => ({ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 8, border: '1px solid rgba(132,144,216,.3)', background: 'rgba(132,144,216,.1)', color: purple, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', textDecoration: 'none', ...extra })
-  const input = { width: '100%', padding: '9px 11px', borderRadius: 8, border: '1px solid rgba(132,144,216,.2)', background: 'rgba(var(--ov),.04)', color: 'var(--au-text)', fontFamily: 'inherit', fontSize: 13 }
+  const card = { background: 'rgba(var(--ov),.03)', border: '1px solid rgba(var(--brand-rgb),.14)', borderRadius: 12 }
+  const btn = (extra = {}) => ({ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 8, border: '1px solid rgba(var(--brand-rgb),.3)', background: 'rgba(var(--brand-rgb),.1)', color: purple, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', textDecoration: 'none', ...extra })
+  const input = { width: '100%', padding: '9px 11px', borderRadius: 8, border: '1px solid rgba(var(--brand-rgb),.2)', background: 'rgba(var(--ov),.04)', color: 'var(--au-text)', fontFamily: 'inherit', fontSize: 13 }
   const label = { fontSize: 11, color: 'rgba(var(--ink),.5)', letterSpacing: '.06em', marginBottom: 4, display: 'block' }
   const canPublish = detail && ['approved', 'published'].includes(detail.status) && detail.submitted_at
   // Repopulate: everything the seller filled (and uploaded) lands in the office's property wizard, ready to review and publish
@@ -419,7 +419,7 @@ export default function SellerSubmissionsTab({ C, onChanged, onOpenWizard }) {
     <div style={{ ...card, padding: '4px 16px', marginBottom: 10 }}>
       <h3 style={{ fontSize: 12, letterSpacing: '.12em', color: purple, margin: '12px 0 4px', fontWeight: 700 }}>{sec.title}</h3>
       {sec.items.map(it => (
-        <div key={it.id} style={{ display: 'flex', gap: 12, padding: '8px 0', borderTop: '1px solid rgba(132,144,216,.1)', fontSize: 13 }}>
+        <div key={it.id} style={{ display: 'flex', gap: 12, padding: '8px 0', borderTop: '1px solid rgba(var(--brand-rgb),.1)', fontSize: 13 }}>
           <span style={{ flex: '0 0 36%', color: 'rgba(var(--ink),.55)', lineHeight: 1.4 }}>{it.label}</span>
           <span style={{ flex: 1, whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: 1.45 }}>{it.value}</span>
         </div>
@@ -431,7 +431,7 @@ export default function SellerSubmissionsTab({ C, onChanged, onOpenWizard }) {
       {files.map((f, i) => (
         <div key={f.path || i} style={{ ...card, overflow: 'hidden', position: 'relative', opacity: fileBusy === `del:${f.path}` ? .4 : 1 }}>
           <a href={f.url || '#'} target="_blank" rel="noreferrer" title={f.name} style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
-            <div style={{ height: 96, background: 'rgba(132,144,216,.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: purple, overflow: 'hidden' }}>
+            <div style={{ height: 96, background: 'rgba(var(--brand-rgb),.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: purple, overflow: 'hidden' }}>
               {f.url && String(f.type || '').startsWith('image/') ? <img src={f.url} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }}/> : String(f.type || '').startsWith('video/') ? <FaVideo size={22}/> : <FaFileAlt size={22}/>}
             </div>
             <div style={{ padding: '6px 8px', fontSize: 11, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.tag ? DOC_TAG_LABEL(f.tag, 'he') : f.name}</div>
@@ -453,13 +453,13 @@ export default function SellerSubmissionsTab({ C, onChanged, onOpenWizard }) {
             <div style={{ fontSize: 11.5, color: 'rgba(var(--ink),.5)' }}>נכסים מהטופס <a href="/newproperty" target="_blank" rel="noreferrer" style={{ color: purple }}>/newproperty</a> · נפרד מהלידים · <span title={backupInfo.enabled ? 'טפסים שמגיעים כשסופאבייס לא זמין נשמרים ב-Vercel Blob ונשלחים במייל ובוואטסאפ' : 'להפעלת מאגר גיבוי: Vercel → Storage → Create → Blob'} style={{ color: backupInfo.enabled ? '#22C55E' : '#F5A623' }}>{backupInfo.enabled ? 'גיבוי פעיל ✓' : 'ללא מאגר גיבוי'}</span> · <a href={backupInfo.archive?.url || 'https://github.com/afikhanahal-creator/afik-hanahal-records'} target="_blank" rel="noreferrer" title={backupInfo.archive?.enabled ? 'כל טופס נשמר גם כקובץ במאגר GitHub פרטי של המשרד' : 'להפעלת הארכיון: צרו מאגר פרטי afik-hanahal-records והוסיפו GITHUB_ARCHIVE_TOKEN ב-Vercel'} style={{ color: backupInfo.archive?.enabled ? '#22C55E' : '#F5A623' }}>{backupInfo.archive?.enabled ? 'ארכיון GitHub פעיל ✓' : 'ארכיון GitHub לא מוגדר'}</a></div>
           </div>
           <div style={{ display: 'flex', gap: 6 }}>
-            <button onClick={() => { setInviteOpen(o => !o); setInviteResult(null) }} title="קישור אישי ללקוח: רואים אם פתח, התחיל ואיפה עצר" style={btn(inviteOpen ? { background: 'rgba(132,144,216,.25)' } : {})}><FaUserPlus size={11}/> הזמנת לקוח</button>
+            <button onClick={() => { setInviteOpen(o => !o); setInviteResult(null) }} title="קישור אישי ללקוח: רואים אם פתח, התחיל ואיפה עצר" style={btn(inviteOpen ? { background: 'rgba(var(--brand-rgb),.25)' } : {})}><FaUserPlus size={11}/> הזמנת לקוח</button>
             <button onClick={() => copyText(`${window.location.origin}/newproperty`)} title="העתקת קישור הטופס" style={btn()}><FaLink size={11}/></button>
             <button onClick={load} title="רענון" style={btn()}><FaSyncAlt size={11} style={loading ? { animation: 'spin 1s linear infinite' } : undefined}/></button>
           </div>
         </div>
         {inviteOpen && (
-          <div style={{ ...card, padding: '12px 14px', borderColor: 'rgba(132,144,216,.35)' }}>
+          <div style={{ ...card, padding: '12px 14px', borderColor: 'rgba(var(--brand-rgb),.35)' }}>
             <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 2 }}>קישור אישי ללקוח</div>
             <div style={{ fontSize: 11, color: 'rgba(var(--ink),.55)', marginBottom: 8 }}>הטופס נפתח עם השם והטלפון כבר מלאים, ותראו כאן אם הלקוח פתח, התחיל ואיפה עצר.</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
@@ -467,7 +467,7 @@ export default function SellerSubmissionsTab({ C, onChanged, onOpenWizard }) {
               <input value={invite.phone} onChange={e => setInvite(v => ({ ...v, phone: e.target.value }))} placeholder="טלפון" dir="ltr" style={{ ...input, textAlign: 'right' }}/>
             </div>
             <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 8, flexWrap: 'wrap' }}>
-              {[['sale', 'למכירה'], ['rental', 'להשכרה']].map(([v, l]) => <button key={v} onClick={() => setInvite(x => ({ ...x, purpose: v }))} style={{ padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', border: `1px solid ${invite.purpose === v ? purple : 'rgba(132,144,216,.2)'}`, background: invite.purpose === v ? 'rgba(132,144,216,.18)' : 'transparent', color: invite.purpose === v ? '#fff' : 'rgba(var(--ink),.6)' }}>{l}</button>)}
+              {[['sale', 'למכירה'], ['rental', 'להשכרה']].map(([v, l]) => <button key={v} onClick={() => setInvite(x => ({ ...x, purpose: v }))} style={{ padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', border: `1px solid ${invite.purpose === v ? purple : 'rgba(var(--brand-rgb),.2)'}`, background: invite.purpose === v ? 'rgba(var(--brand-rgb),.18)' : 'transparent', color: invite.purpose === v ? '#fff' : 'rgba(var(--ink),.6)' }}>{l}</button>)}
               <label style={{ fontSize: 11.5, display: 'inline-flex', alignItems: 'center', gap: 5, cursor: 'pointer', marginInlineStart: 'auto' }}><input type="checkbox" checked={invite.send} onChange={e => setInvite(v => ({ ...v, send: e.target.checked }))}/> לשלוח בוואטסאפ</label>
             </div>
             <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
@@ -512,7 +512,7 @@ export default function SellerSubmissionsTab({ C, onChanged, onOpenWizard }) {
         {/* Status chips: one horizontally scrollable row (never wraps into a wall of buttons) */}
         <div className="admin-cat-filter" style={{ display: 'flex', gap: 5, flexWrap: 'nowrap', overflowX: 'auto', paddingBottom: 2 }}>
           {[{ v: 'all', l: 'הכל' }, ...(counts.backup ? [{ v: 'backup', l: 'גיבוי', color: '#F5A623' }] : []), ...INTAKE_STATUSES.filter(x => x.v !== 'draft'), { v: 'unverified', l: 'ממתין לאימות', color: '#F5A623' }].map(x => (
-            <button key={x.v} onClick={() => pickFilter(x.v)} style={{ padding: '5px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', flexShrink: 0, minHeight: 0, minWidth: 0, border: `1px solid ${filter === x.v ? (x.color || purple) : 'rgba(132,144,216,.2)'}`, background: filter === x.v ? `${x.color || purple}22` : 'transparent', color: filter === x.v ? (x.color || purple) : 'rgba(var(--ink),.6)' }}>
+            <button key={x.v} onClick={() => pickFilter(x.v)} style={{ padding: '5px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', flexShrink: 0, minHeight: 0, minWidth: 0, border: `1px solid ${filter === x.v ? (x.color || purple) : 'rgba(var(--brand-rgb),.2)'}`, background: filter === x.v ? `${x.color || purple}22` : 'transparent', color: filter === x.v ? (x.color || purple) : 'rgba(var(--ink),.6)' }}>
               {x.l}{x.v !== 'all' && counts[x.v] ? ` · ${counts[x.v]}` : ''}
             </button>
           ))}
@@ -524,14 +524,14 @@ export default function SellerSubmissionsTab({ C, onChanged, onOpenWizard }) {
             const isJ = J.some(([v]) => v === filter)
             return (
               <select value={isJ ? filter : ''} onChange={e => pickFilter(e.target.value || 'all')} aria-label="טיוטות ומסע הלקוח"
-                style={{ ...input, flex: 1, padding: '7px 10px', fontSize: 11.5, fontWeight: 700, borderColor: isJ ? purple : 'rgba(132,144,216,.2)', color: isJ ? purple : 'rgba(var(--ink),.75)', minHeight: 0 }}>
+                style={{ ...input, flex: 1, padding: '7px 10px', fontSize: 11.5, fontWeight: 700, borderColor: isJ ? purple : 'rgba(var(--brand-rgb),.2)', color: isJ ? purple : 'rgba(var(--ink),.75)', minHeight: 0 }}>
                 <option value="">טיוטות ומסע הלקוח{counts.draft ? ` · ${counts.draft}` : ''}</option>
                 {J.map(([v, l]) => <option key={v} value={v}>{l}{counts[v] ? ` · ${counts[v]}` : ''}</option>)}
               </select>
             )
           })()}
           <select value={purpose} onChange={e => setPurpose(e.target.value)} aria-label="מכירה או השכרה"
-            style={{ ...input, flex: '0 0 auto', width: 'auto', padding: '7px 10px', fontSize: 11.5, fontWeight: 700, borderColor: purpose !== 'all' ? purple : 'rgba(132,144,216,.2)', color: purpose !== 'all' ? purple : 'rgba(var(--ink),.75)', minHeight: 0 }}>
+            style={{ ...input, flex: '0 0 auto', width: 'auto', padding: '7px 10px', fontSize: 11.5, fontWeight: 700, borderColor: purpose !== 'all' ? purple : 'rgba(var(--brand-rgb),.2)', color: purpose !== 'all' ? purple : 'rgba(var(--ink),.75)', minHeight: 0 }}>
             <option value="all">מכירה והשכרה</option><option value="sale">למכירה</option><option value="rental">להשכרה</option>
           </select>
         </div>
@@ -543,9 +543,9 @@ export default function SellerSubmissionsTab({ C, onChanged, onOpenWizard }) {
           {filtered.map(r => {
             const st = statusOf(r.status); const on = r.id === selId
             return (
-              <button key={r.id} onClick={() => open(r.id)} style={{ ...card, textAlign: 'right', padding: '12px 14px', cursor: 'pointer', fontFamily: 'inherit', color: 'inherit', borderColor: on ? purple : 'rgba(132,144,216,.14)', background: on ? 'rgba(132,144,216,.12)' : 'rgba(var(--ov),.03)', transition: 'all .15s' }}>
+              <button key={r.id} onClick={() => open(r.id)} style={{ ...card, textAlign: 'right', padding: '12px 14px', cursor: 'pointer', fontFamily: 'inherit', color: 'inherit', borderColor: on ? purple : 'rgba(var(--brand-rgb),.14)', background: on ? 'rgba(var(--brand-rgb),.12)' : 'rgba(var(--ov),.03)', transition: 'all .15s' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 14, fontWeight: 700 }}>{r.contact_name || (r.status === 'draft' ? 'טיוטה ללא שם' : '—')} <span style={{ fontSize: 10, fontWeight: 700, color: r.purpose === 'rental' ? '#60D4F7' : purple, background: r.purpose === 'rental' ? 'rgba(96,212,247,.12)' : 'rgba(132,144,216,.12)', borderRadius: 4, padding: '1px 6px', marginRight: 6 }}>{r.purpose === 'rental' ? 'להשכרה' : 'למכירה'}</span></span>
+                  <span style={{ fontSize: 14, fontWeight: 700 }}>{r.contact_name || (r.status === 'draft' ? 'טיוטה ללא שם' : '—')} <span style={{ fontSize: 10, fontWeight: 700, color: r.purpose === 'rental' ? '#60D4F7' : purple, background: r.purpose === 'rental' ? 'rgba(96,212,247,.12)' : 'rgba(var(--brand-rgb),.12)', borderRadius: 4, padding: '1px 6px', marginRight: 6 }}>{r.purpose === 'rental' ? 'להשכרה' : 'למכירה'}</span></span>
                   <span style={{ fontSize: 10.5, fontWeight: 700, color: st.color, background: `${st.color}1F`, border: `1px solid ${st.color}55`, borderRadius: 20, padding: '2px 8px', whiteSpace: 'nowrap' }}>{st.l}</span>
                 </div>
                 <div style={{ fontSize: 12.5, color: 'rgba(var(--ink),.75)', marginTop: 3 }}>{[r.property_type_label, [r.address, r.city].filter(Boolean).join(', ')].filter(Boolean).join(' · ') || '—'}</div>
@@ -603,11 +603,11 @@ export default function SellerSubmissionsTab({ C, onChanged, onOpenWizard }) {
                   style={{ padding: '8px 10px', borderRadius: 8, border: `1px solid ${statusOf(detail.status).color}66`, background: `${statusOf(detail.status).color}1A`, color: statusOf(detail.status).color, fontFamily: 'inherit', fontSize: 12.5, fontWeight: 700 }}>
                   {INTAKE_STATUSES.filter(s => s.v !== 'published' || detail.status === 'published').map(s => <option key={s.v} value={s.v} style={{ color: '#111' }}>{s.l}</option>)}
                 </select>}
-                {onOpenWizard && detail.submitted_at && !detail.backup && <button onClick={openInWizard} disabled={!!busy} title="כל השדות, התמונות והסרטונים נטענים לאשף הנכסים — עוברים, מאשרים ומפרסמים" style={btn({ background: 'rgba(132,144,216,.14)', borderColor: 'rgba(132,144,216,.5)', color: '#C9CEF5', fontWeight: 700 })}><FaSyncAlt size={11}/> {busy === 'prepare' ? 'מכין…' : 'פתח באשף הנכסים (ממולא)'}</button>}
+                {onOpenWizard && detail.submitted_at && !detail.backup && <button onClick={openInWizard} disabled={!!busy} title="כל השדות, התמונות והסרטונים נטענים לאשף הנכסים — עוברים, מאשרים ומפרסמים" style={btn({ background: 'rgba(var(--brand-rgb),.14)', borderColor: 'rgba(var(--brand-rgb),.5)', color: '#C9CEF5', fontWeight: 700 })}><FaSyncAlt size={11}/> {busy === 'prepare' ? 'מכין…' : 'פתח באשף הנכסים (ממולא)'}</button>}
                 {detail.status === 'published'
                   ? <><button onClick={() => act('publish')} disabled={!!busy} style={btn({ background: 'rgba(34,197,94,.12)', borderColor: 'rgba(34,197,94,.4)', color: '#22C55E' })}><FaGlobe size={11}/> {busy === 'publish' ? 'מעדכן…' : 'עדכן באתר'}</button>
                      <button onClick={() => act('unpublish')} disabled={!!busy} style={btn({ color: '#F5A623', borderColor: 'rgba(245,166,35,.4)', background: 'rgba(245,166,35,.08)' })}><FaEyeSlash size={11}/> {busy === 'unpublish' ? 'מסיר…' : 'הסר מהאתר'}</button></>
-                  : <button onClick={() => act('publish')} disabled={!canPublish || !!busy} title={canPublish ? '' : 'אפשר לפרסם רק נכס במצב "מאושר"'} style={btn({ background: canPublish ? 'rgba(34,197,94,.12)' : 'rgba(var(--ov),.04)', borderColor: canPublish ? 'rgba(34,197,94,.4)' : 'rgba(132,144,216,.15)', color: canPublish ? '#22C55E' : 'rgba(var(--ink),.35)', cursor: canPublish ? 'pointer' : 'not-allowed' })}><FaGlobe size={11}/> {busy === 'publish' ? 'מפרסם…' : 'פרסם באתר'}</button>}
+                  : <button onClick={() => act('publish')} disabled={!canPublish || !!busy} title={canPublish ? '' : 'אפשר לפרסם רק נכס במצב "מאושר"'} style={btn({ background: canPublish ? 'rgba(34,197,94,.12)' : 'rgba(var(--ov),.04)', borderColor: canPublish ? 'rgba(34,197,94,.4)' : 'rgba(var(--brand-rgb),.15)', color: canPublish ? '#22C55E' : 'rgba(var(--ink),.35)', cursor: canPublish ? 'pointer' : 'not-allowed' })}><FaGlobe size={11}/> {busy === 'publish' ? 'מפרסם…' : 'פרסם באתר'}</button>}
                 {detail.public_url && <a href={detail.public_url} target="_blank" rel="noreferrer" style={btn()}><FaLink size={11}/> דף הסיכום</a>}
                 <button onClick={copySummary} style={btn()}><FaCopy size={11}/></button>
                 <button onClick={exportJson} style={btn()}><FaDownload size={11}/></button>
@@ -668,10 +668,10 @@ export default function SellerSubmissionsTab({ C, onChanged, onOpenWizard }) {
             </div>
 
             {/* tabs */}
-            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', borderBottom: '1px solid rgba(132,144,216,.14)', marginBottom: 14 }}>
+            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', borderBottom: '1px solid rgba(var(--brand-rgb),.14)', marginBottom: 14 }}>
               {TABS.map(x => (
                 <button key={x.id} onClick={() => setTab(x.id)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '9px 12px', border: 0, borderBottom: `2px solid ${tab === x.id ? purple : 'transparent'}`, background: 'none', color: tab === x.id ? purple : 'rgba(var(--ink),.6)', fontFamily: 'inherit', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
-                  <x.Icon size={11}/>{x.l}{x.badge ? <span style={{ fontSize: 10, background: 'rgba(132,144,216,.18)', borderRadius: 10, padding: '0 6px' }}>{x.badge}</span> : null}
+                  <x.Icon size={11}/>{x.l}{x.badge ? <span style={{ fontSize: 10, background: 'rgba(var(--brand-rgb),.18)', borderRadius: 10, padding: '0 6px' }}>{x.badge}</span> : null}
                 </button>
               ))}
             </div>
@@ -751,7 +751,7 @@ export default function SellerSubmissionsTab({ C, onChanged, onOpenWizard }) {
                     <div style={{ fontSize: 11.5, color: 'rgba(var(--ink),.5)', marginBottom: 10 }}>נבנים אוטומטית מהתשובות. העתיקו, ערכו אם צריך, ופרסמו.</div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 10 }}>
                       {[['פוסט לפייסבוק / אינסטגרם', mk.post], ['הודעת וואטסאפ', mk.wa], ['שורת מודעה', mk.short]].map(([title, text]) => (
-                        <div key={title} style={{ background: 'rgba(var(--ov),.03)', border: '1px solid rgba(132,144,216,.14)', borderRadius: 10, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <div key={title} style={{ background: 'rgba(var(--ov),.03)', border: '1px solid rgba(var(--brand-rgb),.14)', borderRadius: 10, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <b style={{ fontSize: 12.5 }}>{title}</b>
                             <button onClick={() => copyText(text)} style={btn()}><FaCopy size={11}/> העתקה</button>
@@ -763,7 +763,7 @@ export default function SellerSubmissionsTab({ C, onChanged, onOpenWizard }) {
                   </div>
                 ) })()}
                 {detail.story && (
-                  <div style={{ ...card, padding: '14px 16px', marginBottom: 10, borderColor: 'rgba(132,144,216,.3)' }}>
+                  <div style={{ ...card, padding: '14px 16px', marginBottom: 10, borderColor: 'rgba(var(--brand-rgb),.3)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                       <h3 style={{ fontSize: 12, letterSpacing: '.12em', color: purple, margin: 0, fontWeight: 700 }}>סיפור הנכס</h3>
                       <button onClick={() => copyText(detail.story)} style={btn()}><FaCopy size={11}/> העתקה</button>
@@ -784,13 +784,13 @@ export default function SellerSubmissionsTab({ C, onChanged, onOpenWizard }) {
               <div style={{ ...card, padding: '6px 16px' }}>
                 {(detail.history || []).length === 0 && <div style={{ padding: 12, color: 'rgba(var(--ink),.45)', fontSize: 13 }}>אין עדיין אירועים.</div>}
                 {[...(detail.history || [])].reverse().map((h, i) => (
-                  <div key={i} style={{ display: 'flex', gap: 12, padding: '9px 0', borderTop: i ? '1px solid rgba(132,144,216,.1)' : 0, fontSize: 13 }}>
+                  <div key={i} style={{ display: 'flex', gap: 12, padding: '9px 0', borderTop: i ? '1px solid rgba(var(--brand-rgb),.1)' : 0, fontSize: 13 }}>
                     <span style={{ flex: '0 0 130px', color: 'rgba(var(--ink),.5)', fontVariantNumeric: 'tabular-nums' }}>{fmtDate(h.at)}</span>
                     <span style={{ flex: '0 0 70px', color: purple, fontWeight: 600 }}>{BY_LABEL[h.by] || h.by}</span>
                     <span style={{ flex: 1 }}>{HISTORY_LABEL[h.action] || h.action}{h.note ? <span style={{ color: 'rgba(var(--ink),.6)' }}> · {h.note}</span> : null}</span>
                   </div>
                 ))}
-                <div style={{ padding: '10px 0 8px', fontSize: 11, color: 'rgba(var(--ink),.4)', borderTop: '1px solid rgba(132,144,216,.1)' }}>
+                <div style={{ padding: '10px 0 8px', fontSize: 11, color: 'rgba(var(--ink),.4)', borderTop: '1px solid rgba(var(--brand-rgb),.1)' }}>
                   נוצר {fmtDate(detail.created_at)}{detail.submitted_at ? ` · נשלח ${fmtDate(detail.submitted_at)}` : ''}{detail.published_at ? ` · פורסם לראשונה ${fmtDate(detail.published_at)}` : ''}
                   {detail.form_url && <> · <a href={detail.form_url} target="_blank" rel="noreferrer" style={{ color: purple }}>קישור הטופס של המוכר</a></>}
                 </div>

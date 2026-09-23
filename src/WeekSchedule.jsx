@@ -160,7 +160,7 @@ function DayRow({ d, t, rtl, value, isToday, nowPct, onChange, onToggle, onCopyA
   )
   return (
     <>
-      <div className="au-day-row au-hide-m" aria-current={isToday ? 'date' : undefined} style={{ background: isToday ? 'rgba(132,144,216,.07)' : 'transparent', marginBottom: 4 }}>
+      <div className="au-day-row au-hide-m" aria-current={isToday ? 'date' : undefined} style={{ background: isToday ? 'rgba(var(--brand-rgb),.07)' : 'transparent', marginBottom: 4 }}>
         <span style={{ fontSize: 13, fontWeight: 700, color: value ? T.text : T.text3 }}>{t.days[d]}</span>
         <Toggle checked={!!value} onChange={onToggle} label={`${t.days[d]} · ${value ? t.open : t.closed}`}/>
         <WeekBar value={value} onChange={onChange} onOpen={() => onToggle(true)} rtl={rtl} nowPct={nowPct} dayName={t.days[d]} t={t} closedLabel={t.closed}/>
@@ -171,7 +171,7 @@ function DayRow({ d, t, rtl, value, isToday, nowPct, onChange, onToggle, onCopyA
           <MenuItem onClick={() => onToggle(false)} icon={<FaMoon size={11}/>}>{t.closeDay}</MenuItem>
         </MenuButton>
       </div>
-      <div className="au-only-m" aria-current={isToday ? 'date' : undefined} style={{ flexDirection: 'column', gap: 8, padding: '10px 12px', borderRadius: 12, background: isToday ? 'rgba(132,144,216,.07)' : T.s1, border: `1px solid ${T.s1Line}`, marginBottom: 8 }}>
+      <div className="au-only-m" aria-current={isToday ? 'date' : undefined} style={{ flexDirection: 'column', gap: 8, padding: '10px 12px', borderRadius: 12, background: isToday ? 'rgba(var(--brand-rgb),.07)' : T.s1, border: `1px solid ${T.s1Line}`, marginBottom: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ flex: 1, fontSize: 13.5, fontWeight: 700, color: value ? T.text : T.text3 }}>{t.days[d]}</span>
           {timeBtn(btnM, 36)}
@@ -266,7 +266,7 @@ function WeekBar({ value, onChange, onOpen, rtl, nowPct, readOnly, height = 28, 
   return (
     <div ref={ref} onPointerDown={onTrackDown} onPointerMove={onMove} onPointerUp={() => setDrag(null)} onPointerCancel={() => setDrag(null)}
       style={{ position: 'relative', height, borderRadius: 8, background: value ? 'rgba(var(--ov),.04)' : 'repeating-linear-gradient(45deg, rgba(var(--ov),.04) 0 6px, transparent 6px 12px)', border: `1px solid ${T.s1Line}`, cursor: 'pointer', touchAction: 'none', userSelect: 'none' }}>
-      {[3, 6, 9, 12, 15, 18, 21].map(h => <span key={h} aria-hidden style={{ position: 'absolute', top: 3, bottom: 3, insetInlineStart: pct(h), width: 1, background: 'rgba(132,144,216,.1)' }}/>)}
+      {[3, 6, 9, 12, 15, 18, 21].map(h => <span key={h} aria-hidden style={{ position: 'absolute', top: 3, bottom: 3, insetInlineStart: pct(h), width: 1, background: 'rgba(var(--brand-rgb),.1)' }}/>)}
       {value ? (
         <span onPointerDown={readOnly ? undefined : ev => begin('move', ev)} style={{ position: 'absolute', top: 2, bottom: 2, insetInlineStart: pct(s), width: pct(e - s), background: 'rgba(37,211,102,.22)', border: '1px solid rgba(37,211,102,.6)', borderRadius: 6, cursor: readOnly ? 'pointer' : drag?.kind === 'move' ? 'grabbing' : 'grab' }}/>
       ) : closedLabel ? <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11.5, color: T.text3, pointerEvents: 'none' }}>{closedLabel}</span> : null}

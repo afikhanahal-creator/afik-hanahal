@@ -8,7 +8,7 @@ const TR = {
   he: { ph: 'חיפוש לידים, נכסים, מסכים ופעולות…', nav: 'מסכים', act: 'פעולות', leads: 'לידים', props: 'נכסים', empty: 'לא נמצאו תוצאות', hint: 'ניווט', open: 'פתיחה', close: 'סגירה', chat: 'פתח שיחה', label: 'חיפוש מהיר' },
   en: { ph: 'Search leads, properties, screens and actions…', nav: 'Screens', act: 'Actions', leads: 'Leads', props: 'Properties', empty: 'No results', hint: 'Navigate', open: 'Open', close: 'Close', chat: 'Open chat', label: 'Quick search' },
 }
-const norm = s => String(s || '').toLowerCase().replace(/[֑-ׇ]/g, '').trim()
+const norm = s => String(s || '').toLowerCase().replace(/[\u0591-\u05C7]/g, '').trim()
 const digits = s => String(s || '').replace(/\D/g, '')
 
 export function useCommandHotkey(setOpen) {
@@ -86,7 +86,7 @@ export default function CommandPalette({ open, onClose, lang = 'he', tabs = [], 
                 return (
                   <div key={item.key} id={`cmdk-${i}`} role="option" aria-selected={on} data-active={on} onMouseMove={() => setIdx(i)} onClick={() => run(item)}
                     style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '0 10px', height: 42, borderRadius: 10, cursor: 'pointer', background: on ? T.brandSoft : 'transparent' }}>
-                    <span style={{ width: 28, height: 28, borderRadius: 8, background: on ? 'rgba(132,144,216,.22)' : 'rgba(var(--ov),.05)', color: on ? T.brandText : T.text2, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{Ic && <Ic size={12}/>}</span>
+                    <span style={{ width: 28, height: 28, borderRadius: 8, background: on ? 'rgba(var(--brand-rgb),.22)' : 'rgba(var(--ov),.05)', color: on ? T.brandText : T.text2, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{Ic && <Ic size={12}/>}</span>
                     <span style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'baseline', gap: 8 }}>
                       <span style={{ fontSize: 13.5, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}><bdi>{item.label}</bdi></span>
                       {item.sub && <span dir="ltr" style={{ fontSize: 12, color: T.text3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', unicodeBidi: 'isolate' }}>{item.sub}</span>}

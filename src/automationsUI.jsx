@@ -13,7 +13,7 @@ export const T = {
   s3: 'var(--au-s3)', s3Line: 'var(--au-s3-line)',
   line: 'var(--au-line)', line2: 'var(--au-line2)', divider: 'var(--au-divider)',
   text: 'var(--au-text)', text2: 'var(--au-text2)', text3: 'var(--au-text3)', textDis: 'var(--au-text-dis)',
-  brand: '#8490D8', brandSoft: 'var(--au-brand-soft)', brandText: 'var(--au-brand-text)',
+  brand: '#7B86CF', brandSoft: 'var(--au-brand-soft)', brandText: 'var(--au-brand-text)',
   green: '#25D366', greenSoft: 'rgba(37,211,102,.14)', greenLine: 'rgba(37,211,102,.5)',
   amber: '#F5A623', amberSoft: 'rgba(245,166,35,.12)', amberText: 'var(--au-amber-text)',
   red: '#E05252', redSoft: 'rgba(224,82,82,.12)', redText: 'var(--au-red-text)',
@@ -26,11 +26,11 @@ export const MODE_ICON = { off: FaPowerOff, suggest: FaUserCheck, auto: FaBolt }
 
 export const AUTO_CSS = `
   .au *{box-sizing:border-box}
-  .au :focus-visible{outline:none!important;box-shadow:0 0 0 2px var(--au-bg),0 0 0 4px #8490D8!important;border-radius:9px}
-  .au-hov:hover:not(:disabled){background:rgba(132,144,216,.1)!important}
+  .au :focus-visible{outline:none!important;box-shadow:0 0 0 2px var(--au-bg),0 0 0 4px var(--au-brand)!important;border-radius:9px}
+  .au-hov:hover:not(:disabled){background:rgba(var(--brand-rgb),.1)!important}
   .au-hov-lift{transition:filter .15s}.au-hov-lift:hover:not(:disabled){filter:brightness(1.12)}
   .au-card-hov{transition:border-color .15s,transform .15s}
-  .au-card-hov:hover{border-color:rgba(132,144,216,.35)!important}
+  .au-card-hov:hover{border-color:rgba(var(--brand-rgb),.35)!important}
   .au-scroll-x{overflow-x:auto;scrollbar-width:none;padding-inline-end:16px}.au-scroll-x::-webkit-scrollbar{display:none}
   .au-row-actions{opacity:1}
   @media (hover:hover) and (min-width:1000px){.au-row .au-row-actions{opacity:0;transition:opacity .15s}.au-row:hover .au-row-actions,.au-row:focus-within .au-row-actions{opacity:1}}
@@ -82,7 +82,7 @@ export const Button = forwardRef(function Button({ children, onClick, variant = 
   const V = {
     solid: { bg: T.green, bd: T.green, fg: '#07130C', fw: 800 },
     'soft-green': { bg: T.greenSoft, bd: T.greenLine, fg: T.green },
-    brand: { bg: T.brandSoft, bd: 'rgba(132,144,216,.3)', fg: T.brandText },
+    brand: { bg: T.brandSoft, bd: 'rgba(var(--brand-rgb),.3)', fg: T.brandText },
     ghost: { bg: 'transparent', bd: 'rgba(var(--ink),.18)', fg: T.text2 },
     danger: { bg: 'transparent', bd: 'rgba(224,82,82,.4)', fg: T.redText },
     plain: { bg: 'transparent', bd: 'transparent', fg: T.text2 },
@@ -115,7 +115,7 @@ export function ModeSwitch({ value, onChange, labels, modes = ['off', 'suggest',
     onChange(modes[n]); refs.current[n]?.focus()
   }
   return (
-    <div role="radiogroup" aria-label={label} onKeyDown={onKey} style={{ display: full ? 'flex' : 'inline-flex', padding: 2, gap: 2, borderRadius: 9, background: 'rgba(var(--ov),.04)', border: '1px solid rgba(132,144,216,.2)', flexShrink: 0, width: full ? '100%' : undefined }}>
+    <div role="radiogroup" aria-label={label} onKeyDown={onKey} style={{ display: full ? 'flex' : 'inline-flex', padding: 2, gap: 2, borderRadius: 9, background: 'rgba(var(--ov),.04)', border: '1px solid rgba(var(--brand-rgb),.2)', flexShrink: 0, width: full ? '100%' : undefined }}>
       {modes.map((m, i) => {
         const on = value === m, c = colors[m] || T.brand, Ic = icons[m]
         return (
@@ -161,7 +161,7 @@ export function FilterChip({ children, selected, count, color = T.brand, onClick
   return (
     <button type="button" onClick={onClick} aria-pressed={!!selected} title={title}
       style={{ height: 28, padding: '0 11px', borderRadius: 20, fontSize: 12, fontWeight: 700, fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', cursor: 'pointer', flexShrink: 0, minHeight: 0, minWidth: 0,
-        background: selected ? `${color}26` : 'transparent', border: `1px solid ${selected ? color : 'rgba(132,144,216,.2)'}`, color: selected ? color : T.text2 }}>
+        background: selected ? `${color}26` : 'transparent', border: `1px solid ${selected ? color : 'rgba(var(--brand-rgb),.2)'}`, color: selected ? color : T.text2 }}>
       {children}{count != null && <span style={{ fontSize: 11, fontWeight: 800, opacity: .8, fontVariantNumeric: 'tabular-nums' }}>{count}</span>}
     </button>
   )

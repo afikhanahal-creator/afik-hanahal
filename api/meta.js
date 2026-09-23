@@ -10,6 +10,7 @@ import { createClient } from '@supabase/supabase-js'
 import crypto from 'crypto'
 import * as Auto from '../lib/automations.js'
 import * as GA4 from '../lib/ga4.js'
+import { analyzeLead } from '../lib/lead-analyze.js'
 
 const SUPERMETRICS_API_KEY    = process.env.SUPERMETRICS_API_KEY    || ''
 // System User token (afik-api) — permanent, survives password changes. Used to
@@ -1091,6 +1092,21 @@ async function handleGA4(req, res) {
   }
 }
 
+// ── Lead analysis ─────────────────────────────────────────────────────────────
+// POST /api/meta/lead-analyze { lead, ai = true } → rule-based score + Claude briefing (see lib/lead-analyze.js)
+async function handleLeadAnalyze(req, res) {
+  if (!checkAuth(req)) return res.status(401).json({ error: 'Unauthorized' })
+  if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
+  const { lead, ai = true } = req.body || {}
+  if (!lead || (!lead.phone && !lead.name && !lead.msg)) return res.status(400).json({ error: 'lead required' })
+  try {
+    return res.status(200).json(await analyzeLead(lead, { useAI: ai !== false }))
+  } catch (e) {
+    console.error('[lead-analyze]', e.message)
+    return res.status(500).json({ error: e.message })
+  }
+}
+
 // ── main router ───────────────────────────────────────────────────────────────
 
 // Disable Vercel's automatic body parser so we can read the raw bytes.
@@ -1122,6 +1138,7 @@ export default async function handler(req, res) {
   if (path.startsWith('auto-'))  return handleAutomations(req, res, path)
   if (path === 'supermetrics')   return handleSupermetrics(req, res)
   if (path === 'ga4')            return handleGA4(req, res)
+  if (path === 'lead-analyze')   return handleLeadAnalyze(req, res)
   if (path === 'diagnostics')    return handleDiagnostics(req, res)
 
   return res.status(404).json({ error: `Unknown path: ${path}` })

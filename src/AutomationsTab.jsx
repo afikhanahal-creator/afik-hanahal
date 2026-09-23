@@ -290,7 +290,7 @@ function Automations({ lang = 'he', leads = [], stageLabels = {}, config, onConf
             return (
               <button key={id} ref={el => { tabRefs.current[id] = el }} role="tab" id={`au-tab-${id}`} aria-selected={on} aria-controls={`au-panel-${id}`} tabIndex={on ? 0 : -1} onClick={() => setTab(id)}
                 aria-label={id === 'today' && queue.length ? t.todayAria(queue.length) : undefined} className="au-nav-btn"
-                style={{ border: `1px solid ${on ? T.brand : 'rgba(132,144,216,.18)'}`, background: on ? 'rgba(132,144,216,.18)' : 'transparent', color: on ? T.brandText : T.text2, fontFamily: 'inherit', fontSize: 13, fontWeight: 700, cursor: 'pointer', minHeight: 0, minWidth: 0, boxShadow: on ? `inset 0 -2px 0 ${T.brand}` : 'none' }}>
+                style={{ border: `1px solid ${on ? T.brand : 'rgba(var(--brand-rgb),.18)'}`, background: on ? 'rgba(var(--brand-rgb),.18)' : 'transparent', color: on ? T.brandText : T.text2, fontFamily: 'inherit', fontSize: 13, fontWeight: 700, cursor: 'pointer', minHeight: 0, minWidth: 0, boxShadow: on ? `inset 0 -2px 0 ${T.brand}` : 'none' }}>
                 <Icon size={13}/><span className="au-hide-m">{t.tabs[id]}</span><span className="au-only-m" style={{ fontSize: 10.5 }}>{t.tabsM[id]}</span>
                 {badge ? <span style={{ fontSize: 10.5, fontWeight: 900, minWidth: 18, height: 18, padding: '0 5px', borderRadius: 9, background: badgeColor, color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>{badge}</span> : null}
                 {dot && <span aria-hidden style={{ width: 7, height: 7, borderRadius: '50%', background: dotColor || T.amber }}/>}
@@ -730,7 +730,7 @@ function KeywordInput({ words, onChange, t }) {
     <div onClick={() => input.current?.focus()} style={{ display: 'flex', flexWrap: 'wrap', gap: 6, minHeight: 44, padding: 6, borderRadius: 9, border: `1px solid ${T.s3Line}`, background: T.s3, cursor: 'text' }}>
       {shown.map((w, i) => (
         <span key={w} ref={el => { chips.current[i] = el }} tabIndex={0} onKeyDown={e => { if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); onChange(words.filter(x => x !== w)); input.current?.focus() } }}
-          style={{ height: 26, display: 'inline-flex', alignItems: 'center', gap: 4, padding: '0 4px 0 9px', paddingInlineStart: 9, paddingInlineEnd: 4, borderRadius: 20, border: '1px solid rgba(132,144,216,.3)', color: T.brandText, fontSize: 11.5, fontWeight: 700 }}>
+          style={{ height: 26, display: 'inline-flex', alignItems: 'center', gap: 4, padding: '0 4px 0 9px', paddingInlineStart: 9, paddingInlineEnd: 4, borderRadius: 20, border: '1px solid rgba(var(--brand-rgb),.3)', color: T.brandText, fontSize: 11.5, fontWeight: 700 }}>
           {w}
           <button type="button" aria-label={t.removeWord(w)} onClick={e => { e.stopPropagation(); onChange(words.filter(x => x !== w)) }} style={{ width: 16, height: 16, borderRadius: '50%', border: 'none', background: 'rgba(0,0,0,.25)', color: T.text2, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0, minHeight: 0, minWidth: 0 }}><FaTimes size={8}/></button>
         </span>
