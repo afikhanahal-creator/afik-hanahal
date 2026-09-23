@@ -133,3 +133,24 @@ Scheduled bulk sends are jobs in `app_settings` (`automations_jobs`), rendered a
 `auto-jobs-tick` pushes a running job from the open panel. `auto-tick?key=` (key = `AUTOMATION_KEY`, or the admin token)
 lets an external pinger such as cron-job.org run the engine every 5 minutes, so timing is exact even with the panel closed.
 Sending hours are `[start, end)` per weekday in 0.5-hour steps (Israel time); welcome, replies and stage messages ignore them.
+
+## Admin dashboard, Google Analytics & chat names
+
+A direct visit to `/admin-panel(/<tab>)` (or `/dashboard`) opens the full-screen dashboard (sidebar layout, `AdminPanel standalone`);
+the in-site modal is only used when the admin is opened from the site itself. `DASHBOARD_MODE` in `App.jsx` is decided once at load.
+
+| Piece | Where |
+|---|---|
+| Home page (greeting, KPIs, live system status, pipeline, recent activity) | `src/AdminHome.jsx` |
+| Google Analytics tab (KPIs vs previous period, trend, channels, pages, devices, cities, events, heat map, realtime) | `src/GA4Tab.jsx` |
+| GA4 Data API client (service-account JWT, batch reports, 5-min cache, realtime) | `lib/ga4.js` (+ `lib/ga4.test.mjs`) |
+| API: `GET /api/meta/ga4?days=7|28|90[&fresh=1]`, `GET /api/meta/ga4?realtime=1` | `api/meta.js` → `handleGA4` |
+
+GA4 needs `GA4_SERVICE_ACCOUNT_JSON` in Vercel (service account with Viewer on property `536943897`, Analytics Data API enabled);
+`GA4_PROPERTY_ID` defaults to `536943897`. Without it the tab shows the setup steps. The old Supermetrics route is kept as a fallback
+only (its trial ended 2026-06-16).
+
+WhatsApp chat names (`chat-list`): outgoing Green API messages carry no contact name, so names are resolved server-side from
+leads (`contacts`), `meta_leads`, the WhatsApp phone book (`getContacts`) and, for a few chats per poll, `getContactInfo` —
+all matched by the last 9 digits and cached for 10 minutes. The office's own / notification number is flagged `office` and shown
+as "המשרד · התראות מערכת"; a number without any name is shown as 05X-XXX-XXXX.

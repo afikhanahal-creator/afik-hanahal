@@ -99,6 +99,22 @@ function intlPhone(raw) {
   return d
 }
 
+const tail9 = p => String(p || '').replace(/\D/g, '').slice(-9)
+// 972541234567 → 054-123-4567 (how Israelis read a number); anything else stays as-is
+function fmtLocal(raw) {
+  const p = intlPhone(raw)
+  if (/^972\d{9}$/.test(p)) { const l = '0' + p.slice(3); return `${l.slice(0, 3)}-${l.slice(3, 6)}-${l.slice(6)}` }
+  return raw || ''
+}
+const OFFICE_LABEL = { he: 'המשרד · התראות מערכת', en: 'Office · system alerts' }
+function nameOf(c, lang = 'he') {
+  if (!c) return ''
+  if (c.name && !/^\+?\d[\d\s-]*$/.test(c.name)) return c.name
+  if (c.office || c.self) return OFFICE_LABEL[lang] || OFFICE_LABEL.he
+  return fmtLocal(c.phone || c.name)
+}
+const hasName = c => !!(c && ((c.name && !/^\+?\d[\d\s-]*$/.test(c.name)) || c.office || c.self))
+
 function avatarBg(name) {
   const C = ['#D9626E','#AA7DE0','#3A8FC7','#E08C3A','#3BAF7E','#C2497E','#5C8AE0']
   return C[(name?.charCodeAt(0) || 65) % C.length]
@@ -183,6 +199,21 @@ const ICONS = {
 
 // ─── Delivery-status ticks ────────────────────────────────────────────────────
 // sending → clock · sent → ✓ · delivered → ✓✓ gray · read → ✓✓ blue · failed → !
+// Initial on a colour for named contacts; a neutral person glyph for bare numbers
+function Avatar({ c, size = 40, lang }) {
+  const named = hasName(c)
+  const label = nameOf(c, lang)
+  const office = c?.office || c?.self
+  const bg = office ? '#8490D8' : named ? avatarBg(label) : '#8696A0'
+  return (
+    <div aria-hidden style={{ width:size, height:size, borderRadius:'50%', background:bg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:Math.round(size * .4), fontWeight:700, color:'#fff', flexShrink:0, userSelect:'none', overflow:'hidden' }}>
+      {office ? <svg width={size*.46} height={size*.46} viewBox="0 0 24 24" fill="currentColor"><path d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22Zm7-6V11a7 7 0 0 0-5.5-6.84V3.5a1.5 1.5 0 0 0-3 0v.66A7 7 0 0 0 5 11v5l-2 2v1h18v-1l-2-2Z"/></svg>
+        : named ? [...label.trim()][0]?.toUpperCase()
+        : <svg width={size*.56} height={size*.56} viewBox="0 0 24 24" fill="currentColor"><path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm0 2c-4.42 0-8 2.24-8 5v1h16v-1c0-2.76-3.58-5-8-5Z"/></svg>}
+    </div>
+  )
+}
+
 function TickMark({ status, WA, size = 14 }) {
   if (status === 'sending' || status === 'pending') {
     return (
@@ -280,6 +311,14 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
   useEffect(() => { onSentMessageRef.current = onSentMessage }, [onSentMessage])
   useEffect(() => { onReadChangeRef.current  = onReadChange  }, [onReadChange])
   useEffect(() => { leadsRef.current = leads }, [leads])
+  const greenChatsRef     = useRef([])
+  useEffect(() => { greenChatsRef.current = greenChats }, [greenChats])
+  const nameForPhone = p => {
+    const k = tail9(p)
+    const lead = leadsRef.current.find(l => tail9(l.phone) === k)
+    const g = greenChatsRef.current.find(c => tail9(c.phone) === k)
+    return nameOf({ ...(g || {}), name: (lead?.name || '').trim() || g?.name || '', phone: p }, lang)
+  }
 
   // ── Delete handlers ───────────────────────────────────────────────────────
   const handleDeleteClick = (e, lead) => {
@@ -395,8 +434,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
       )
       merged.forEach(m => { if (m.id) notifiedMsgIdsRef.current.add(m.id) })
       if (newIncoming.length > 0 && onNewMessageRef.current) {
-        const contactLead = leadsRef.current.find(l => intlPhone(l.phone) === p)
-        const contactName = contactLead?.name || p
+        const contactName = nameForPhone(p)
         const latest = newIncoming[newIncoming.length - 1]
         onNewMessageRef.current({ contactName, message: latest.message, phone: p })
       }
@@ -517,8 +555,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
               const threshold = pageLoadTimeRef.current
               if (new Date(msg.created_at).getTime() > threshold) {
                 notifiedMsgIdsRef.current.add(String(msg.id))
-                const lead = leadsRef.current.find(l => intlPhone(l.phone) === p)
-                onNewMessageRef.current?.({ contactName: lead?.name || p, message: msg.message, phone: p })
+                onNewMessageRef.current?.({ contactName: nameForPhone(p), message: msg.message, phone: p })
               }
             }
             notifiedMsgIdsRef.current.add(String(msg.id))
@@ -562,8 +599,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
         if (msg.direction === 'in' && !notifiedMsgIdsRef.current.has(String(msg.id))) {
           if (new Date(msg.created_at).getTime() > pageLoadTimeRef.current) {
             notifiedMsgIdsRef.current.add(String(msg.id))
-            const lead = leadsRef.current.find(l => intlPhone(l.phone) === p)
-            onNewMessageRef.current?.({ contactName: lead?.name || p, message: msg.message, phone: p })
+            onNewMessageRef.current?.({ contactName: nameForPhone(p), message: msg.message, phone: p })
           }
         }
       })
@@ -647,7 +683,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
       if (ok) {
         setAttached(null)
         setTimeout(() => fetchMsgs(contact.phone), file ? 3500 : 2000)
-        const contactName = contact.name || intlPhone(contact.phone)
+        const contactName = nameOf(contactView, lang)
         onSentMessageRef.current?.({ contactName, message: msg || file?.name })
       } else {
         throw new Error('שליחה נכשלה')
@@ -671,19 +707,35 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
   // ── Derived state ─────────────────────────────────────────────────────────
   const sl = search.toLowerCase()
   const contactList = useMemo(() => {
-    const leadPhones = new Set(leads.map(l => intlPhone(l.phone)).filter(Boolean))
-    const extra = greenChats.filter(c => c.phone && !leadPhones.has(c.phone)).map(c => ({ id: `wa:${c.phone}`, name: c.name || '', phone: c.phone, waOnly: true, lastTs: c.timestamp * 1000, lastText: c.text }))
-    return [...leads, ...extra]
+    // Match by the last 9 digits so 054…, +972-54… and 97254… are the same person
+    const byTail = new Map(greenChats.filter(c => c.phone).map(c => [tail9(c.phone), c]))
+    const leadTails = new Set()
+    const enriched = leads.map(l => {
+      const k = tail9(l.phone); if (!k) return l
+      leadTails.add(k)
+      const g = byTail.get(k)
+      if (!g) return l
+      return { ...l, name: (l.name || '').trim() || g.name || '', waName: g.waName, office: g.office, self: g.self, lastTs: g.timestamp * 1000, lastText: g.text }
+    })
+    const extra = greenChats.filter(c => c.phone && !leadTails.has(tail9(c.phone))).map(c => ({ id: `wa:${c.phone}`, name: c.name || '', waName: c.waName, office: c.office, self: c.self, phone: c.phone, waOnly: true, lastTs: c.timestamp * 1000, lastText: c.text }))
+    const sd = search.replace(/\D/g, '')
+    return [...enriched, ...extra]
     .filter(l => l.phone && l.id !== deletingId)
-    .filter(l => !search || (l.name||'').toLowerCase().includes(sl) || (l.phone||'').includes(search))
+    .filter(l => !search || nameOf(l, lang).toLowerCase().includes(sl) || (l.waName||'').toLowerCase().includes(sl) || (sd.length >= 3 && (intlPhone(l.phone).includes(sd) || ('0' + intlPhone(l.phone).slice(3)).includes(sd))))
     .sort((a, b) => {
       const pa = intlPhone(a.phone), pb = intlPhone(b.phone)
       const la = chats[pa]?.[chats[pa].length-1]?.created_at || a.lastTs || 0
       const lb = chats[pb]?.[chats[pb].length-1]?.created_at || b.lastTs || 0
       return new Date(lb) - new Date(la)
     })
-  }, [leads, greenChats, search, chats, sl, deletingId]) // eslint-disable-line
+  }, [leads, greenChats, search, chats, sl, deletingId, lang]) // eslint-disable-line
 
+  // The selected contact as the list sees it (with names resolved from WhatsApp / leads)
+  const contactView = useMemo(() => {
+    if (!contact) return null
+    const k = tail9(contact.phone)
+    return contactList.find(c => c.id === contact.id) || contactList.find(c => tail9(c.phone) === k) || contact
+  }, [contact, contactList])
   const chatPhone  = contact ? intlPhone(contact.phone) : null
   const msgs       = chatPhone ? (chats[chatPhone]||[]) : []
   const contactIdx = contactList.findIndex(l => l.id === contact?.id)
@@ -877,14 +929,15 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                 {/* Phone only: back to the chat list (the arrow points right in RTL, as in WhatsApp) */}
                 <button className="wa-back" onClick={()=>setContact(null)} aria-label="חזרה לרשימת השיחות" title="חזרה"
                   style={{ display:'none', width:36, height:36, borderRadius:'50%', background:'transparent', border:'none', color: WA.bodyText, cursor:'pointer', alignItems:'center', justifyContent:'center', fontSize:22, flexShrink:0, minWidth:0, minHeight:0, padding:0 }}>→</button>
-                <div style={{ width:40, height:40, borderRadius:'50%', background:avatarBg(contact.name), display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:16, color:'#fff', flexShrink:0, userSelect:'none' }}>
-                  {(contact.name||contact.phone||'?')[0].toUpperCase()}
-                </div>
+                <Avatar c={contactView} size={40} lang={lang}/>
                 <div style={{ flex:1, minWidth:0 }}>
                   <div style={{ fontWeight:600, fontSize:15, color: WA.bodyText, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                    {contact.name||contact.phone}
+                    {nameOf(contactView, lang)}
                   </div>
-                  <div style={{ fontSize:12, color: WA.subText, direction:'ltr' }}>{contact.phone}</div>
+                  <div style={{ fontSize:12, color: WA.subText, display:'flex', gap:6, alignItems:'center', minWidth:0 }}>
+                    <span dir="ltr" style={{ unicodeBidi:'isolate', flexShrink:0 }}>{fmtLocal(contact.phone)}</span>
+                    {contactView?.waName && contactView.waName !== nameOf(contactView, lang) && <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>· ~{contactView.waName}</span>}
+                  </div>
                 </div>
                 {onOpenLead && leads.find(l=>l.id===contact.id) && (
                   <button onClick={()=>onOpenLead(contact)}
@@ -1031,7 +1084,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                           )}
                           {msg.quoted && (
                             <div style={{ borderInlineStart:`4px solid ${msg.quoted.out ? WA.green : '#53BDEB'}`, background: isDark ? 'rgba(0,0,0,.22)' : 'rgba(0,0,0,.05)', borderRadius:6, padding:'5px 8px', marginBottom:5, fontSize:12.5, color: WA.subText, direction:'rtl', maxHeight:54, overflow:'hidden' }}>
-                              <div style={{ fontWeight:700, color: msg.quoted.out ? WA.green : '#53BDEB', fontSize:12 }}>{msg.quoted.out ? 'אתם' : (contact?.name || 'איש קשר')}</div>
+                              <div style={{ fontWeight:700, color: msg.quoted.out ? WA.green : '#53BDEB', fontSize:12 }}>{msg.quoted.out ? 'אתם' : (hasName(contactView) ? nameOf(contactView, lang) : 'איש קשר')}</div>
                               {msg.quoted.text}
                             </div>
                           )}
@@ -1263,13 +1316,12 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                     if (btn) btn.style.opacity = '0'
                   }}>
                   {isActive && <div style={{ position:'absolute', right:0, top:0, bottom:0, width:3, background: WA.green, borderRadius:'0 2px 2px 0' }}/>}
-                  <div style={{ width:49, height:49, borderRadius:'50%', background:avatarBg(lead.name), display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, fontWeight:700, color:'#fff', flexShrink:0, userSelect:'none' }}>
-                    {(lead.name||lead.phone||'?')[0].toUpperCase()}
-                  </div>
+                  <Avatar c={lead} size={49} lang={lang}/>
                   <div style={{ flex:1, minWidth:0 }}>
                     <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:3, gap:8 }}>
                       <span style={{ fontWeight: unread?700:600, fontSize:15, color: WA.bodyText, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', flex:1 }}>
-                        {lead.name||lead.phone}
+                        {nameOf(lead, lang)}
+                        {lead.waOnly && !lead.office && !lead.self && <span style={{ marginInlineStart:6, fontSize:10.5, fontWeight:600, color: WA.subText, border:`1px solid ${WA.border}`, borderRadius:6, padding:'0 5px', verticalAlign:'middle' }}>{lang === 'en' ? 'not a lead' : 'לא ליד'}</span>}
                       </span>
                       {lastMsg && (
                         <span style={{ fontSize:11, color: unread ? WA.green : WA.subText, fontWeight: unread?700:400, flexShrink:0, whiteSpace:'nowrap' }}>
@@ -1281,7 +1333,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                       {isRowLoading && <div className="wa-row-spinner"/>}
                       {!isRowLoading && lastMsg?.direction==='out' && <TickMark status={lastMsg.status || 'sent'} WA={WA}/>}
                       <span style={{ fontSize:13, color: unread ? WA.bodyText : WA.subText, fontWeight: unread?600:400, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', flex:1 }}>
-                        {isRowLoading ? <span style={{ opacity:.5 }}>טוען...</span> : lastMsg ? lastMsg.message : lead.phone}
+                        {isRowLoading ? <span style={{ opacity:.5 }}>טוען...</span> : lastMsg ? lastMsg.message : (lead.lastText || (hasName(lead) ? fmtLocal(lead.phone) : ''))}
                       </span>
                       {unread > 0 && (
                         <span style={{ background: WA.unread, color:'#fff', fontSize:11, fontWeight:700, minWidth:18, height:18, borderRadius:9, padding:'0 5px', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, lineHeight:1 }}>

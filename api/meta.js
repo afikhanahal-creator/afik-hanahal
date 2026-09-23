@@ -9,6 +9,7 @@
 import { createClient } from '@supabase/supabase-js'
 import crypto from 'crypto'
 import * as Auto from '../lib/automations.js'
+import * as GA4 from '../lib/ga4.js'
 
 const SUPERMETRICS_API_KEY    = process.env.SUPERMETRICS_API_KEY    || ''
 // System User token (afik-api) — permanent, survives password changes. Used to
@@ -683,6 +684,56 @@ async function handleAutomations(req, res, action) {
   }
 }
 
+// ── Chat name resolution ─────────────────────────────────────────────────────
+// Warm serverless instances keep this cache between polls (the panel polls every 30s).
+const NAME_TTL = 10 * 60 * 1000
+const nameCache = { at: 0, book: new Map(), leads: new Map(), self: '', info: new Map() }
+const tail9 = p => String(p || '').replace(/\D/g, '').slice(-9)
+
+async function chatNames(list) {
+  const now = Date.now()
+  if (now - nameCache.at > NAME_TTL) {
+    const book = new Map(), leads = new Map()
+    const [rc, rs, dbC, dbM] = await Promise.all([
+      fetch(greenUrl('getContacts'), { signal: AbortSignal.timeout(12000) }).then(r => (r.ok ? r.json() : [])).catch(() => []),
+      fetch(greenUrl('getWaSettings'), { signal: AbortSignal.timeout(8000) }).then(r => (r.ok ? r.json() : {})).catch(() => ({})),
+      SUPABASE_URL && SUPABASE_KEY ? sb().from('contacts').select('name,phone').order('created_at', { ascending: false }).limit(3000).then(r => r.data || []).catch(() => []) : [],
+      SUPABASE_URL && SUPABASE_KEY ? sb().from('meta_leads').select('name,phone').order('created_at', { ascending: false }).limit(3000).then(r => r.data || []).catch(() => []) : [],
+    ])
+    for (const c of Array.isArray(rc) ? rc : []) {
+      if (!String(c.id || '').endsWith('@c.us')) continue
+      const n = String(c.contactName || c.name || '').trim()
+      if (n) book.set(tail9(c.id.split('@')[0]), n)
+    }
+    // Leads first (newest wins), then Meta leads fill what is still missing
+    for (const row of [...dbC, ...dbM]) {
+      const k = tail9(row.phone), n = String(row.name || '').trim()
+      if (k.length === 9 && n && !leads.has(k)) leads.set(k, n)
+    }
+    Object.assign(nameCache, { at: now, book, leads, self: tail9(rs?.phone) })
+  }
+  const map = new Map()
+  for (const c of list) {
+    const k = tail9(c.phone)
+    const waName = nameCache.book.get(k) || c.name || nameCache.info.get(k) || ''
+    const leadName = nameCache.leads.get(k) || ''
+    if (waName || leadName) map.set(k, { name: leadName || waName, leadName, waName })
+  }
+  // Last resort: getContactInfo for the newest still-unnamed chats (rate-limited, so a few per poll)
+  const missing = list.filter(c => !map.has(tail9(c.phone)) && !nameCache.info.has(tail9(c.phone))).slice(0, 6)
+  await Promise.all(missing.map(async c => {
+    const k = tail9(c.phone)
+    try {
+      const r = await fetch(greenUrl('getContactInfo'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chatId: c.chatId }), signal: AbortSignal.timeout(6000) })
+      const d = r.ok ? await r.json() : {}
+      const n = String(d.contactName || d.name || '').trim()
+      nameCache.info.set(k, n)                           // cache misses too, so we never re-ask
+      if (n) map.set(k, { name: n, waName: n })
+    } catch { nameCache.info.set(k, '') }
+  }))
+  return { map, self: nameCache.self }
+}
+
 // ── Green API chat proxy ───────────────────────────────────────────────────────
 // Keeps WA_GREENAPI_TOKEN server-side. The browser only ever talks to these
 // endpoints (with the ADMIN_TOKEN guard); it never sees the Green API token.
@@ -725,11 +776,23 @@ async function handleChat(req, res, action) {
         const chatId = m.chatId || ''
         if (!chatId.endsWith('@c.us')) continue            // 1:1 chats only (no groups / status)
         const prev = byChat.get(chatId)
-        const name = m.senderName || m.chatName || m.senderContactName || prev?.name || ''
+        // senderName on an outgoing message is *our* name, so only incoming messages name the chat
+        const name = (m.type === 'incoming' ? (m.senderContactName || m.senderName || m.chatName) : m.chatName) || prev?.name || ''
         if (!prev || (m.timestamp || 0) > prev.timestamp) byChat.set(chatId, { chatId, phone: chatId.split('@')[0], name, timestamp: m.timestamp || 0, type: m.type, typeMessage: m.typeMessage, text: m.textMessage || m.caption || '', incoming: (prev?.incoming || 0) + (m.type === 'incoming' ? 1 : 0) })
         else { if (!prev.name && name) prev.name = name; if (m.type === 'incoming') prev.incoming++ }
       }
-      return res.status(200).json([...byChat.values()].sort((a, b) => b.timestamp - a.timestamp).slice(0, 300))
+      const list = [...byChat.values()].sort((a, b) => b.timestamp - a.timestamp).slice(0, 300)
+      // Outgoing messages carry no contact name and incoming ones only sometimes, so resolve
+      // names from the phone book, our leads, Meta leads and (last resort) per-chat contact info.
+      const names = await chatNames(list).catch(() => ({ map: new Map(), self: '' }))
+      for (const c of list) {
+        const k = c.phone.slice(-9)
+        const hit = names.map.get(k)
+        if (hit) { c.name = hit.name || c.name; if (hit.leadName) c.leadName = hit.leadName; if (hit.waName) c.waName = hit.waName }
+        if (names.self && c.phone.endsWith(names.self)) c.self = true
+        if (BUSINESS_NOTIFY_CHATID && c.chatId === BUSINESS_NOTIFY_CHATID) c.office = true
+      }
+      return res.status(200).json(list)
     }
 
     // POST /api/meta/chat-read { phone } → readChat (blue ticks on the customer's side)
@@ -1012,6 +1075,22 @@ async function handleSupermetrics(req, res) {
   }
 }
 
+// ── Google Analytics 4 (direct Data API) ──────────────────────────────────────
+// GET /api/meta/ga4?days=28[&fresh=1]   full report (KPIs vs previous period, trend, channels, pages, …)
+// GET /api/meta/ga4?realtime=1           active users in the last 30 minutes
+async function handleGA4(req, res) {
+  if (!checkAuth(req)) return res.status(401).json({ error: 'Unauthorized' })
+  try {
+    const q = req.query || {}
+    const data = q.realtime ? await GA4.realtime() : await GA4.report({ days: q.days, fresh: !!q.fresh })
+    res.setHeader('Cache-Control', 'no-store')
+    return res.status(200).json(data)
+  } catch (e) {
+    console.error(`[ga4] ${e.message}`)
+    return res.status(502).json({ configured: true, error: e.message, kind: e.kind || 'api', serviceAccount: GA4.ga4Credentials().email || '' })
+  }
+}
+
 // ── main router ───────────────────────────────────────────────────────────────
 
 // Disable Vercel's automatic body parser so we can read the raw bytes.
@@ -1042,6 +1121,7 @@ export default async function handler(req, res) {
   if (path.startsWith('chat-'))  return handleChat(req, res, path)
   if (path.startsWith('auto-'))  return handleAutomations(req, res, path)
   if (path === 'supermetrics')   return handleSupermetrics(req, res)
+  if (path === 'ga4')            return handleGA4(req, res)
   if (path === 'diagnostics')    return handleDiagnostics(req, res)
 
   return res.status(404).json({ error: `Unknown path: ${path}` })
