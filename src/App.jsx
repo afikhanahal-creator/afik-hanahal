@@ -952,6 +952,9 @@ const makeGlobal = (C, isDark) => `
 
   /* ─── Admin Panel — Mobile ─────────────────────────────────── */
   .admin-sidebar { transition: transform .25s cubic-bezier(.4,0,.2,1); }
+  .admin-nav-item:not([aria-current]):hover { background: rgba(132,144,216,.08) !important; color: rgba(241,238,230,.92) !important; }
+  .admin-nav-item:focus-visible, .admin-foot-btn:focus-visible { outline: 2px solid #8490D8; outline-offset: 1px; }
+  .admin-foot-btn:hover { filter: brightness(1.3); }
   .admin-mobile-topbar { display: none; }
   .admin-mobile-overlay { display: none; }
   @media (max-width: 900px) {
@@ -974,6 +977,7 @@ const makeGlobal = (C, isDark) => `
       direction: rtl; position: sticky; top: 0; z-index: 20;
     }
     .admin-desktop-topbar { display: none !important; }
+    .admin-shell .admin-notice { margin: 10px 12px 0 !important; }
     .admin-main-pane { height: 100dvh !important; }
     .admin-content { padding: 16px 14px 28px !important; }
     .admin-tabs-bar { padding: 0 12px !important; overflow-x: auto !important; flex-wrap: nowrap !important; gap: 2px !important; }
@@ -5108,6 +5112,11 @@ function NavAurora({ active }) {
 }
 
 // ─── APP ──────────────────────────────────────────────────────────────────────
+// A direct visit to /admin-panel(/<tab>) or /dashboard opens the full-screen admin dashboard
+// (sidebar layout). Decided once at load: the dashboard rewrites the URL as tabs change, so
+// re-checking the path on every render would drop back to the site.
+const DASHBOARD_MODE = typeof window !== 'undefined' && /^\/(dashboard|admin-panel)(\/|$)/.test(window.location.pathname)
+
 export default function App() {
   const [isDark,       setIsDark]       = useState(true)
   const C      = isDark ? DARK_C : LIGHT_C
@@ -5200,8 +5209,9 @@ export default function App() {
     return () => window.removeEventListener('resize', handler)
   }, [])
 
-  // ── /admin-panel URL routing ──
+  // ── /admin-panel URL routing (the modal over the site; a direct visit opens the full dashboard) ──
   useEffect(() => {
+    if (DASHBOARD_MODE) return
     if (window.location.pathname.startsWith('/admin-panel')) {
       const alreadyAuth = sessionStorage.getItem('afik_admin_session') === '1'
       if (alreadyAuth) setShowAdmin(true)
@@ -5215,6 +5225,7 @@ export default function App() {
   }, []) // eslint-disable-line
 
   useEffect(() => {
+    if (DASHBOARD_MODE) return
     if (showAdmin && adminAuth) {
       if (!window.location.pathname.startsWith('/admin-panel')) history.replaceState({}, '', '/admin-panel')
     } else {
@@ -5483,8 +5494,7 @@ export default function App() {
   }
 
   // ── Standalone dashboard at /dashboard ──────────────────────────────────────
-  const isDashboard = window.location.pathname.replace(/\/$/, '') === '/dashboard'
-  if (isDashboard) {
+  if (DASHBOARD_MODE) {
     return (
       <ThemeCtx.Provider value={{ C, isDark, toggleTheme, lang, setLang, logoNavSize, setLogoNavSize }}>
         <>

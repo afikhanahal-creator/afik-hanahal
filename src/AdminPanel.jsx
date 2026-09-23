@@ -10,6 +10,8 @@ import { FaEnvelope, FaFacebookF, FaInstagram, FaBed, FaRulerCombined, FaBuildin
 // Seller intake submissions (from the public /sell form) — lazy, admin-only
 const SellerSubmissionsTab = lazy(() => import('./SellerSubmissionsTab.jsx'))
 const AutomationsTab = lazy(() => import('./AutomationsTab.jsx'))
+const GA4Tab = lazy(() => import('./GA4Tab.jsx'))
+const AdminHome = lazy(() => import('./AdminHome.jsx'))
 import { autoApi, StageSendPrompt } from './AutomationsApi.jsx'
 import { LeadsBoard, GreenAPIChat, MetaLeadsTab, SupermetricsTab, PropertyWizard, API_BASE, CONTACTS_API, ADMIN_TOKEN, condFetchJson, DARK_C, useTheme, TEAM, G, Logo, LEADS_STORE, LEADS_DELETED, LEADS_TRASH, ANALYTICS_KEY, META_LEAD_PAGES_KEY, WA_DEFAULT_TEMPLATE, _cloudSettings, CATEGORIES, EMPTY_PROP, CONDITION_OPTIONS, ENTRY_OPTIONS, ADMIN_DRAFT_KEY, toMapsEmbed, imgFallback, thumbImg, sortByOrder, TEAM_KEY, setCloudSettings } from './App.jsx'
 
@@ -843,7 +845,7 @@ const GA4_DEVICE_VERIFIED = [
 ]
 
 function AnalyticsDashboard({ leads }) {
-  const { C, isDark } = useTheme()
+  const { C, isDark, lang } = useTheme()
   const [events, setEvents] = useState([])
   const [refreshTs, setRefreshTs] = useState(0)
   const [analyticsTab, setAnalyticsTab] = useState('site')
@@ -852,6 +854,7 @@ function AnalyticsDashboard({ leads }) {
   const [ga4Reason,  setGa4Reason]  = useState('')     // why live was unavailable (transparency)
   const [ga4UpdatedAt, setGa4UpdatedAt] = useState(null) // timestamp of last successful live pull
   const [ga4Loading, setGa4Loading] = useState(false)
+  const [ga4Via, setGa4Via] = useState('supermetrics')    // which live source answered
 
   useEffect(() => {
     const load = () => {
@@ -884,6 +887,16 @@ function AnalyticsDashboard({ leads }) {
 
     // One live fetch. Returns { ok, parsed } or { ok:false, reason }.
     const fetchOnce = async () => {
+      // 1) Direct GA4 Data API (free; the Supermetrics trial has ended)
+      try {
+        const r = await fetch(`/api/meta/ga4?days=30`, { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` } })
+        const d = await r.json().catch(() => ({}))
+        if (r.ok && d.configured && Array.isArray(d.devices) && d.devices.length) {
+          setGa4Via('ga4')
+          return { ok: true, parsed: d.devices.map(x => ({ device: String(x.deviceCategory || '').toLowerCase(), sessions: x.sessions || 0, activeUsers: x.totalUsers || 0, newUsers: x.newUsers || 0, bounceRate: x.bounceRate || 0, views: x.screenPageViews || 0, avgDuration: x.averageSessionDuration || 0 })) }
+        }
+      } catch {}
+      // 2) Legacy: Supermetrics
       try {
         const r = await fetch(`/api/meta/supermetrics?source=device&range=last_30_days`, {
           headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
@@ -998,6 +1011,8 @@ function AnalyticsDashboard({ leads }) {
           ? <MetaGraphLive tab={analyticsTab}/>
           : analyticsTab === 'marketing'
           ? <MetaMarketingLive/>
+          : analyticsTab === 'ga4'
+          ? <Suspense fallback={null}><GA4Tab token={ADMIN_TOKEN} lang={lang}/></Suspense>
           : <PlatformSection tab={analyticsTab} C={C} isDark={isDark}/>
       )}
 
@@ -1229,7 +1244,7 @@ function AnalyticsDashboard({ leads }) {
                     <div style={{ fontSize:9.5, color:`${C.cream}40`, marginTop:10, lineHeight:1.5, textAlign:'center' }}>
                       {ga4Source === 'verified'
                         ? <>מקור: GA4 · נכס "הנגר 24 הוד השרון" · snapshot מאומת {GA4_DEVICE_VERIFIED_DATE}{ga4Reason ? ` · live לא זמין כעת (${ga4Reason})` : ''}</>
-                        : <>מקור: GA4 · נכס "הנגר 24 הוד השרון" · נתונים חיים דרך Supermetrics</>}
+                        : <>מקור: GA4 · נכס "הנגר 24 הוד השרון" · {ga4Via === 'ga4' ? 'נתונים חיים ישירות מ-Google Analytics' : 'נתונים חיים דרך Supermetrics'}</>}
                     </div>
                   </div>
                 )
@@ -1783,7 +1798,8 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const [err, setErr]     = useState('')
   const [tab, setTab]     = useState(() => {
     const seg = window.location.pathname.replace(/^\/admin-panel\/?/, '')
-    return ADMIN_PATH_TO_TAB[seg] || 'props'
+    const t = ADMIN_PATH_TO_TAB[seg] || 'props'
+    return t === 'overview' && !standalone ? 'props' : t     // the modal has no overview page
   })
   const [adminNavOpen, setAdminNavOpen] = useState(false)
 
@@ -2055,7 +2071,8 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const [notifPerm, setNotifPerm]     = useState(() =>
     'Notification' in window ? Notification.permission : 'unsupported'
   )
-  const [notifBannerDismissed, setNotifBannerDismissed] = useState(false)
+  const [notifBannerDismissed, setNotifBannerDismissedRaw] = useState(() => { try { return Number(localStorage.getItem('admin_notif_banner_dismissed') || 0) > Date.now() - 14 * 864e5 } catch { return false } })
+  const setNotifBannerDismissed = v => { setNotifBannerDismissedRaw(v); try { if (v) localStorage.setItem('admin_notif_banner_dismissed', String(Date.now())) } catch {} }
   const toastIdRef = useRef(0)
 
   const requestNotifPermission = useCallback(async () => {
@@ -3050,6 +3067,12 @@ Return ONLY valid JSON (no markdown, no code blocks):
     { id:'counters', Icon:FaBalanceScale,label:'מונים' },
     { id:'settings', Icon:FaTools,       label:'הגדרות' },
   ]
+  const DASH_GROUPS = [
+    { id:'main',  he:'ראשי',            en:'MAIN',        ids:['overview','live','props','sellers'] },
+    { id:'sales', he:'מכירות ולקוחות',  en:'SALES',       ids:['leads','meta','chats','automations'] },
+    { id:'data',  he:'נתונים וביצועים', en:'INSIGHTS',    ids:['analytics','supermetrics'] },
+    { id:'admin', he:'ניהול',           en:'ADMIN',       ids:['team','counters','settings'] },
+  ]
   const TAB_LABELS = { overview:'סקירה כללית', live:'נכסים באוויר', props:'ניהול נכסים', leads:'לידים', sellers:'נכסים שנקלטו', chats:'שיחות WhatsApp', automations:'אוטומציות וואטסאפ', meta:'מרכז מטא', analytics:'אנליטיקס', supermetrics:'ביצועים', team:'צוות', counters:'מונים', settings:'הגדרות' }
 
   return (
@@ -3064,52 +3087,62 @@ Return ONLY valid JSON (no markdown, no code blocks):
 
       {/* ── SIDEBAR — standalone only ─────────────────────────────────── */}
       {standalone && (
-        <aside className={`admin-sidebar${adminNavOpen ? ' open' : ''}`} style={{ width:232, height:'100dvh', background:'linear-gradient(180deg,#0E0E1C 0%,#090910 100%)', borderLeft:'1px solid rgba(132,144,216,.1)', display:'flex', flexDirection:'column', flexShrink:0 }}>
+        <aside className={`admin-sidebar${adminNavOpen ? ' open' : ''}`} style={{ width:248, height:'100dvh', background:'linear-gradient(180deg,#0D0E1A 0%,#08080F 100%)', borderLeft:'1px solid rgba(132,144,216,.1)', display:'flex', flexDirection:'column', flexShrink:0 }}>
           {/* Brand */}
-          <div style={{ padding:'26px 20px 20px', borderBottom:'1px solid rgba(132,144,216,.07)' }}>
-            <img src="/logo.svg" alt="אפיק הנחל" style={{ height:32, opacity:.85 }} onError={e => { e.currentTarget.style.display='none' }}/>
-            <div style={{ display:'flex', alignItems:'center', gap:6, marginTop:10 }}>
-              <div style={{ width:7, height:7, borderRadius:'50%', background:'#22C55E', boxShadow:'0 0 8px rgba(34,197,94,.7)' }}/>
-              <span style={{ fontSize:10, color:'rgba(232,228,216,.28)', letterSpacing:'.1em', textTransform:'uppercase' }}>Admin · Live</span>
+          <div style={{ padding:'20px 18px 16px', display:'flex', alignItems:'center', gap:12 }}>
+            <div style={{ width:40, height:40, borderRadius:12, background:'linear-gradient(135deg,rgba(132,144,216,.28),rgba(132,144,216,.08))', border:'1px solid rgba(132,144,216,.3)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+              <img src="/logo.svg" alt="" style={{ height:22, opacity:.95 }} onError={e => { e.currentTarget.style.display='none' }}/>
+            </div>
+            <div style={{ minWidth:0 }}>
+              <div style={{ fontSize:14, fontWeight:800, color:'#E8E4D8', letterSpacing:'-.005em' }}>{lang === 'en' ? 'Afik Hanahal' : 'אפיק הנחל'}</div>
+              <div style={{ display:'flex', alignItems:'center', gap:6, marginTop:2 }}>
+                <span style={{ width:6, height:6, borderRadius:'50%', background:'#22C55E', boxShadow:'0 0 8px rgba(34,197,94,.7)' }}/>
+                <span style={{ fontSize:11, color:'rgba(232,228,216,.5)', fontWeight:600 }}>{lang === 'en' ? 'Management system' : 'מערכת ניהול'}</span>
+              </div>
             </div>
           </div>
           {/* Nav */}
-          <nav style={{ flex:1, overflowY:'auto', padding:'12px 10px' }}>
-            {DASH_TABS.map(item => {
-              const isLive = item.id === 'live'
-              const isActive = isLive ? (tab==='props' && listTab==='published') : tab===item.id
-              return (
-                <button key={item.id} onClick={() => { if (isLive) { goToLiveProps() } else { setTab(item.id) }; setAdminNavOpen(false) }}
-                  style={{ width:'100%', display:'flex', alignItems:'center', gap:10, padding:'10px 13px 10px 10px', border:'none', borderRight: isActive ? (isLive ? `2px solid #22C55E` : `2px solid ${C.purple}`) : '2px solid transparent', borderRadius:'0 8px 8px 0', background: isActive ? (isLive ? 'rgba(34,197,94,.1)' : `rgba(132,144,216,.12)`) : 'transparent', color: isActive ? (isLive ? '#22C55E' : C.purple) : 'rgba(232,228,216,.4)', cursor:'pointer', fontFamily:'inherit', fontSize:12.5, fontWeight: isActive ? 600 : 400, marginBottom:1, textAlign:'right', transition:'all .15s', letterSpacing:'.01em' }}
-                  onMouseEnter={e=>{ if(!isActive){ e.currentTarget.style.background=isLive?'rgba(34,197,94,.06)':'rgba(132,144,216,.06)'; e.currentTarget.style.color=isLive?'rgba(34,197,94,.85)':'rgba(232,228,216,.68)' }}}
-                  onMouseLeave={e=>{ if(!isActive){ e.currentTarget.style.background='transparent'; e.currentTarget.style.color='rgba(232,228,216,.4)' }}}>
-                  <item.Icon size={13} style={{ flexShrink:0, opacity: isActive ? 1 : 0.7, color: isActive && isLive ? '#22C55E' : undefined }}/>
-                  <span style={{ flex:1 }}>{item.label}</span>
-                  {!!item.badge && <span style={{ background: isLive ? 'rgba(34,197,94,.2)' : item.id==='chats' ? '#075E54' : item.id==='meta' ? 'rgba(224,82,82,.18)' : `${C.purple}25`, color: isLive ? '#22C55E' : item.id==='chats' ? '#fff' : item.id==='meta' ? '#E05252' : C.purple, borderRadius:4, padding:'1px 6px', fontSize:10, fontWeight:700 }}>{item.badge}</span>}
-                </button>
-              )
-            })}
+          <nav aria-label={lang === 'en' ? 'Admin sections' : 'אזורי המערכת'} style={{ flex:1, overflowY:'auto', padding:'4px 12px 12px' }}>
+            {DASH_GROUPS.map(g => (
+              <div key={g.id} style={{ marginBottom:10 }}>
+                <div style={{ fontSize:10.5, fontWeight:800, color:'rgba(232,228,216,.34)', letterSpacing:'.06em', padding:'10px 10px 6px' }}>{lang === 'en' ? g.en : g.he}</div>
+                {DASH_TABS.filter(item => g.ids.includes(item.id)).map(item => {
+                  const isLive = item.id === 'live'
+                  const isActive = isLive ? (tab==='props' && listTab==='published') : tab===item.id
+                  const accent = isLive ? '#22C55E' : '#8490D8'
+                  return (
+                    <button key={item.id} className="admin-nav-item" aria-current={isActive ? 'page' : undefined} onClick={() => { if (isLive) { goToLiveProps() } else { setTab(item.id) }; setAdminNavOpen(false) }}
+                      style={{ width:'100%', display:'flex', alignItems:'center', gap:11, height:38, padding:'0 10px', border:'none', borderRadius:10, background: isActive ? `linear-gradient(90deg,${accent}10,${accent}26)` : 'transparent', boxShadow: isActive ? `inset -2px 0 0 ${accent}` : 'none', color: isActive ? '#F1EEE6' : 'rgba(232,228,216,.62)', cursor:'pointer', fontFamily:'inherit', fontSize:13, fontWeight: isActive ? 700 : 500, marginBottom:2, textAlign:'start', transition:'background .15s,color .15s', minHeight:0 }}>
+                      <span style={{ width:26, height:26, borderRadius:8, display:'inline-flex', alignItems:'center', justifyContent:'center', flexShrink:0, background: isActive ? `${accent}26` : 'transparent', color: isActive ? accent : 'rgba(232,228,216,.5)' }}><item.Icon size={13}/></span>
+                      <span style={{ flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.label}</span>
+                      {!!item.badge && <span style={{ minWidth:20, height:20, padding:'0 6px', borderRadius:10, display:'inline-flex', alignItems:'center', justifyContent:'center', fontSize:10.5, fontWeight:800, fontVariantNumeric:'tabular-nums', background: isLive ? 'rgba(34,197,94,.16)' : item.id==='chats' ? '#25D366' : item.id==='meta' || item.id==='automations' ? '#E05252' : 'rgba(132,144,216,.2)', color: isLive ? '#22C55E' : item.id==='chats' ? '#062E16' : item.id==='meta' || item.id==='automations' ? '#fff' : '#B7BEF0' }}>{item.badge}</span>}
+                    </button>
+                  )
+                })}
+              </div>
+            ))}
           </nav>
-          {/* Footer */}
-          <div style={{ padding:'12px 10px 20px', borderTop:'1px solid rgba(132,144,216,.07)' }}>
-            <button onClick={copyDashLink}
-              style={{ width:'100%', padding:'10px 13px', border:`1px solid ${shareCopied ? 'rgba(34,197,94,.45)' : 'rgba(132,144,216,.28)'}`, borderRadius:8, background: shareCopied ? 'rgba(34,197,94,.1)' : `rgba(132,144,216,.1)`, color: shareCopied ? '#22C55E' : C.purple, cursor:'pointer', fontFamily:'inherit', fontSize:12, fontWeight:700, marginBottom:7, display:'flex', alignItems:'center', gap:8, transition:'all .2s' }}
-              onMouseEnter={e=>{ if(!shareCopied){ e.currentTarget.style.borderColor='rgba(132,144,216,.55)'; e.currentTarget.style.background='rgba(132,144,216,.18)' }}}
-              onMouseLeave={e=>{ if(!shareCopied){ e.currentTarget.style.borderColor='rgba(132,144,216,.28)'; e.currentTarget.style.background='rgba(132,144,216,.1)' }}}>
-              <FaShareAlt size={12}/> <span>{shareCopied ? '✓ קישור הועתק!' : 'שתף למערכת'}</span>
-            </button>
-            <button onClick={() => window.open('/', '_blank')}
-              style={{ width:'100%', padding:'10px 13px', border:'1px solid rgba(132,144,216,.14)', borderRadius:8, background:'transparent', color:'rgba(232,228,216,.38)', cursor:'pointer', fontFamily:'inherit', fontSize:12, fontWeight:600, marginBottom:7, display:'flex', alignItems:'center', gap:8, transition:'all .15s' }}
-              onMouseEnter={e=>{ e.currentTarget.style.borderColor='rgba(132,144,216,.32)'; e.currentTarget.style.color='rgba(232,228,216,.72)' }}
-              onMouseLeave={e=>{ e.currentTarget.style.borderColor='rgba(132,144,216,.14)'; e.currentTarget.style.color='rgba(232,228,216,.38)' }}>
-              <FaGlobe size={12}/> <span>צפה באתר</span>
-            </button>
-            <button onClick={onClose}
-              style={{ width:'100%', padding:'10px 13px', border:'1px solid rgba(224,82,82,.18)', borderRadius:8, background:'rgba(224,82,82,.05)', color:'rgba(224,82,82,.5)', cursor:'pointer', fontFamily:'inherit', fontSize:12, fontWeight:600, display:'flex', alignItems:'center', gap:8, transition:'all .15s' }}
-              onMouseEnter={e=>{ e.currentTarget.style.borderColor='rgba(224,82,82,.38)'; e.currentTarget.style.color='rgba(224,82,82,.88)'; e.currentTarget.style.background='rgba(224,82,82,.1)' }}
-              onMouseLeave={e=>{ e.currentTarget.style.borderColor='rgba(224,82,82,.18)'; e.currentTarget.style.color='rgba(224,82,82,.5)'; e.currentTarget.style.background='rgba(224,82,82,.05)' }}>
-              <FaTimes size={12}/> <span>יציאה</span>
-            </button>
+          {/* Footer — account + quick actions */}
+          <div style={{ padding:'12px 12px 16px', borderTop:'1px solid rgba(132,144,216,.08)' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 8px 10px' }}>
+              <div style={{ width:34, height:34, borderRadius:'50%', background:'linear-gradient(135deg,#8490D8,#5D68B8)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontSize:12, fontWeight:800, flexShrink:0 }}>AH</div>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontSize:12.5, fontWeight:700, color:'#E8E4D8' }}>{lang === 'en' ? 'Main admin' : 'מנהל ראשי'}</div>
+                <div style={{ fontSize:11, color:'rgba(232,228,216,.42)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>afikhanahal.co.il</div>
+              </div>
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:6 }}>
+              {[
+                { key:'site', Icon:FaGlobe, label: lang === 'en' ? 'Site' : 'לאתר', onClick: () => window.open('/', '_blank') },
+                { key:'share', Icon: shareCopied ? FaCheckCircle : FaShareAlt, label: shareCopied ? (lang === 'en' ? 'Copied' : 'הועתק') : (lang === 'en' ? 'Share' : 'שתף'), onClick: copyDashLink, on: shareCopied },
+                { key:'out', Icon:FaTimes, label: lang === 'en' ? 'Log out' : 'יציאה', onClick: onClose, danger: true },
+              ].map(b => (
+                <button key={b.key} onClick={b.onClick} className="admin-foot-btn" title={b.label}
+                  style={{ height:52, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:5, borderRadius:10, border:`1px solid ${b.on ? 'rgba(34,197,94,.4)' : b.danger ? 'rgba(224,82,82,.22)' : 'rgba(132,144,216,.16)'}`, background: b.on ? 'rgba(34,197,94,.1)' : b.danger ? 'rgba(224,82,82,.06)' : 'rgba(255,255,255,.02)', color: b.on ? '#22C55E' : b.danger ? 'rgba(240,138,138,.85)' : 'rgba(232,228,216,.62)', cursor:'pointer', fontFamily:'inherit', fontSize:11, fontWeight:700, transition:'all .15s', minHeight:0, minWidth:0, padding:0 }}>
+                  <b.Icon size={12}/>{b.label}
+                </button>
+              ))}
+            </div>
           </div>
         </aside>
       )}
@@ -3151,9 +3184,12 @@ Return ONLY valid JSON (no markdown, no code blocks):
 
         {/* Standalone desktop top-bar */}
         {standalone && (
-          <div className="admin-desktop-topbar" style={{ height:56, borderBottom:'1px solid rgba(132,144,216,.08)', display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 26px', flexShrink:0, background:'rgba(7,7,15,.82)', backdropFilter:'blur(20px)', direction:'rtl' }}>
+          <div className="admin-desktop-topbar" style={{ height:64, borderBottom:'1px solid rgba(132,144,216,.09)', display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 28px', flexShrink:0, background:'rgba(9,9,17,.86)', backdropFilter:'blur(20px)', direction:'rtl' }}>
             <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-              <h2 style={{ fontSize:15, fontWeight:800, color:'rgba(232,228,216,.86)', margin:0 }}>{TAB_LABELS[tab] || ''}</h2>
+              <div style={{ display:'flex', flexDirection:'column', gap:1 }}>
+                <h2 style={{ fontSize:16, fontWeight:800, color:'#EEEAE0', margin:0, letterSpacing:'-.005em' }}>{TAB_LABELS[tab] || ''}</h2>
+                <span style={{ fontSize:11.5, color:'rgba(232,228,216,.42)' }}>{new Date().toLocaleDateString(lang === 'en' ? 'en-GB' : 'he-IL', { weekday:'long', day:'numeric', month:'long' })}</span>
+              </div>
               {saved && <span style={{ fontSize:11, color:'#22C55E', fontWeight:700, background:'rgba(34,197,94,.1)', padding:'3px 10px', borderRadius:20, border:'1px solid rgba(34,197,94,.2)' }}>✓ נשמר</span>}
               <div style={{ width:1, height:18, background:'rgba(132,144,216,.15)', flexShrink:0, marginRight:2 }}/>
               <button
@@ -3169,25 +3205,12 @@ Return ONLY valid JSON (no markdown, no code blocks):
               </button>
             </div>
             <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-              <button onClick={copyDashLink}
-                style={{ display:'flex', alignItems:'center', gap:7, padding:'6px 13px', background: shareCopied ? 'rgba(34,197,94,.12)' : 'rgba(132,144,216,.1)', border:`1px solid ${shareCopied ? 'rgba(34,197,94,.4)' : 'rgba(132,144,216,.25)'}`, borderRadius:20, color: shareCopied ? '#22C55E' : C.purple, cursor:'pointer', fontFamily:'inherit', fontSize:12, fontWeight:700, transition:'all .2s' }}
-                onMouseEnter={e=>{ if(!shareCopied){ e.currentTarget.style.background='rgba(132,144,216,.2)'; e.currentTarget.style.borderColor='rgba(132,144,216,.5)' }}}
-                onMouseLeave={e=>{ if(!shareCopied){ e.currentTarget.style.background='rgba(132,144,216,.1)'; e.currentTarget.style.borderColor='rgba(132,144,216,.25)' }}}>
-                <FaShareAlt size={11}/>
-                <span>{shareCopied ? '✓ הועתק!' : 'שתף'}</span>
-              </button>
               <div style={{ display:'flex', alignItems:'center', gap:7, background:'rgba(132,144,216,.08)', border:'1px solid rgba(132,144,216,.16)', borderRadius:24, padding:'6px 13px 6px 9px' }}>
                 <div style={{ width:26, height:26, borderRadius:'50%', background:`${C.purple}25`, border:`1.5px solid ${C.purple}44`, display:'flex', alignItems:'center', justifyContent:'center' }}>
                   <FaLock size={10} style={{ color:C.purple }}/>
                 </div>
-                <span style={{ fontSize:12, color:'rgba(232,228,216,.55)', fontWeight:600 }}>מנהל ראשי</span>
+                <span style={{ fontSize:12, color:'rgba(232,228,216,.62)', fontWeight:600 }}>{lang === 'en' ? 'Main admin' : 'מנהל ראשי'}</span>
               </div>
-              <button onClick={onClose}
-                style={{ display:'flex', alignItems:'center', gap:7, padding:'7px 15px', background:'rgba(224,82,82,.08)', border:'1px solid rgba(224,82,82,.28)', borderRadius:20, color:'rgba(224,82,82,.75)', cursor:'pointer', fontFamily:'inherit', fontSize:12, fontWeight:700, transition:'all .2s' }}
-                onMouseEnter={e=>{ e.currentTarget.style.background='rgba(224,82,82,.2)'; e.currentTarget.style.borderColor='#E05252'; e.currentTarget.style.color='#E05252' }}
-                onMouseLeave={e=>{ e.currentTarget.style.background='rgba(224,82,82,.08)'; e.currentTarget.style.borderColor='rgba(224,82,82,.28)'; e.currentTarget.style.color='rgba(224,82,82,.75)' }}>
-                <FaTimes size={11}/> <span>יציאה</span>
-              </button>
             </div>
           </div>
         )}
@@ -3213,32 +3236,32 @@ Return ONLY valid JSON (no markdown, no code blocks):
 
         {/* Supabase health warning banner */}
         {supabaseWarning && (
-          <div style={{ background:'rgba(224,82,82,.12)', border:'1px solid rgba(224,82,82,.35)', borderRadius:10, padding:'10px 16px', marginBottom:16, display:'flex', alignItems:'center', gap:10, direction:'rtl', flexShrink:0 }}>
-            <FaExclamationTriangle size={15} style={{ color:'#E05252', flexShrink:0 }}/>
-            <span style={{ fontSize:13, color:'#E05252', fontWeight:600 }}>{supabaseWarning}</span>
-            <button onClick={() => setSupabaseWarning('')} style={{ marginRight:'auto', background:'none', border:'none', color:'rgba(224,82,82,.6)', cursor:'pointer', fontSize:16, lineHeight:1, padding:'0 4px' }}>×</button>
+          <div role="alert" className="admin-notice" style={{ background:'linear-gradient(90deg,rgba(224,82,82,.1),rgba(224,82,82,.04))', border:'1px solid rgba(224,82,82,.28)', borderRadius:12, padding:'10px 14px', margin: standalone ? '14px 28px 0' : '0 0 14px', display:'flex', alignItems:'center', gap:10, direction:'rtl', flexShrink:0 }}>
+            <span style={{ width:28, height:28, borderRadius:8, background:'rgba(224,82,82,.16)', display:'inline-flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}><FaExclamationTriangle size={12} style={{ color:'#F08A8A' }}/></span>
+            <span style={{ fontSize:12.5, color:'#F4B4B4', fontWeight:600, lineHeight:1.5, flex:1, minWidth:0 }}>{supabaseWarning.replace(/^⚠\s*/, '')}</span>
+            <button onClick={() => setSupabaseWarning('')} aria-label="סגור" style={{ background:'none', border:'none', color:'rgba(240,138,138,.7)', cursor:'pointer', fontSize:16, lineHeight:1, padding:'0 4px', minHeight:0, minWidth:0 }}>×</button>
           </div>
         )}
 
         {/* Push notification permission banner */}
         {!notifBannerDismissed && notifPerm === 'default' && (
-          <div style={{ background:'rgba(247,201,72,.09)', border:'1px solid rgba(247,201,72,.35)', borderRadius:10, padding:'10px 16px', marginBottom:16, display:'flex', alignItems:'center', gap:10, direction:'rtl', flexWrap:'wrap', flexShrink:0 }}>
-            <span style={{ fontSize:18, flexShrink:0 }}>🔔</span>
-            <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontSize:13, fontWeight:700, color:'#F7C948' }}>הפעל התראות דחיפה</div>
-              <div style={{ fontSize:11, color:'rgba(247,201,72,.65)', marginTop:2 }}>Enable push notifications for new leads &amp; messages</div>
+          <div className="admin-notice" style={{ background:'rgba(255,255,255,.025)', border:'1px solid rgba(132,144,216,.16)', borderRadius:12, padding:'9px 14px', margin: standalone ? '14px 28px 0' : '0 0 14px', display:'flex', alignItems:'center', gap:10, direction:'rtl', flexWrap:'wrap', flexShrink:0 }}>
+            <span style={{ width:28, height:28, borderRadius:8, background:'rgba(247,201,72,.14)', display:'inline-flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontSize:13 }}>🔔</span>
+            <div style={{ flex:1, minWidth:0, fontSize:12.5, color:'rgba(232,228,216,.78)' }}>
+              <b style={{ color:'#EEEAE0' }}>{lang === 'en' ? 'Turn on push notifications' : 'הפעלת התראות דחיפה'}</b>
+              <span style={{ color:'rgba(232,228,216,.5)' }}> · {lang === 'en' ? 'get an alert for every new lead and message' : 'קבלו התראה על כל ליד והודעה חדשים'}</span>
             </div>
             <button onClick={requestNotifPermission}
-              style={{ background:'rgba(247,201,72,.18)', border:'1px solid rgba(247,201,72,.5)', borderRadius:8, padding:'6px 14px', color:'#F7C948', cursor:'pointer', fontFamily:'inherit', fontSize:12, fontWeight:700, flexShrink:0, whiteSpace:'nowrap', transition:'background .15s' }}
-              onMouseEnter={e=>{ e.currentTarget.style.background='rgba(247,201,72,.32)' }}
-              onMouseLeave={e=>{ e.currentTarget.style.background='rgba(247,201,72,.18)' }}>
-              אשר הרשאה
+              style={{ background:'rgba(247,201,72,.14)', border:'1px solid rgba(247,201,72,.4)', borderRadius:8, height:30, padding:'0 12px', color:'#F7C948', cursor:'pointer', fontFamily:'inherit', fontSize:12, fontWeight:700, flexShrink:0, whiteSpace:'nowrap', transition:'background .15s', minHeight:0 }}
+              onMouseEnter={e=>{ e.currentTarget.style.background='rgba(247,201,72,.26)' }}
+              onMouseLeave={e=>{ e.currentTarget.style.background='rgba(247,201,72,.14)' }}>
+              {lang === 'en' ? 'Allow' : 'אישור'}
             </button>
-            <button onClick={() => setNotifBannerDismissed(true)} style={{ background:'none', border:'none', color:'rgba(247,201,72,.5)', cursor:'pointer', fontSize:16, lineHeight:1, padding:'0 4px', flexShrink:0 }}>×</button>
+            <button onClick={() => setNotifBannerDismissed(true)} aria-label={lang === 'en' ? 'Dismiss' : 'סגור'} style={{ background:'none', border:'none', color:'rgba(232,228,216,.4)', cursor:'pointer', fontSize:16, lineHeight:1, padding:'0 4px', flexShrink:0, minHeight:0, minWidth:0 }}>×</button>
           </div>
         )}
         {!notifBannerDismissed && notifPerm === 'denied' && (
-          <div style={{ background:'rgba(156,163,175,.07)', border:'1px solid rgba(156,163,175,.25)', borderRadius:10, padding:'10px 16px', marginBottom:16, display:'flex', alignItems:'center', gap:10, direction:'rtl', flexWrap:'wrap', flexShrink:0 }}>
+          <div className="admin-notice" style={{ background:'rgba(156,163,175,.07)', border:'1px solid rgba(156,163,175,.25)', borderRadius:12, padding:'9px 14px', margin: standalone ? '14px 28px 0' : '0 0 14px', display:'flex', alignItems:'center', gap:10, direction:'rtl', flexWrap:'wrap', flexShrink:0 }}>
             <span style={{ fontSize:18, flexShrink:0 }}>🔕</span>
             <div style={{ flex:1, minWidth:0 }}>
               <div style={{ fontSize:13, fontWeight:700, color:'rgba(232,228,216,.7)' }}>התראות חסומות בדפדפן</div>
@@ -3275,59 +3298,13 @@ Return ONLY valid JSON (no markdown, no code blocks):
         <div className={`admin-content${(tab==='chats'||tab==='leads'||tab==='meta') ? ' admin-content-full' : ''}`} style={(tab==='chats'||tab==='leads'||tab==='meta') ? { flex:1, minHeight:0, overflow:'hidden', position:'relative', display:'flex', flexDirection:'column' } : { flex:1, minHeight:0, overflowY:'auto', WebkitOverflowScrolling:'touch', overscrollBehavior:'contain', scrollBehavior:'smooth', padding:'22px 26px 32px', direction:'rtl' }}>
 
         {/* Overview tab — standalone only */}
-        {tab==='overview' && standalone && (<>
-          <div className="admin-overview-grid" style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(190px,1fr))', gap:14, marginBottom:24 }}>
-            {[
-              { Icon:FaBuilding,  label:'נכסים פעילים',  value: properties.filter(p=>p.published!==false).length, sub:`מתוך ${properties.length} סה"כ`,          color:'#8490D8' },
-              { Icon:FaFileAlt,   label:'טיוטות',          value: properties.filter(p=>p.published===false).length, sub:'ממתינות לפרסום',                          color:'#F7C948' },
-              { Icon:FaUsers,     label:'לידים כולל',      value: leads.length,                                      sub:leads.filter(l=>Date.now()-l.ts<7*864e5).length+' השבוע', color:'#22C55E' },
-              { Icon:FaFire,      label:'לידים חמים',      value: leads.filter(l=>l.enrichment?.intent==='hot').length, sub:'ציון AI: חם',                          color:'#F97316' },
-              { Icon:FaRobot,     label:'WhatsApp Bot',    value:'פעיל', sub:'Meta API מחובר',                                                                       color:'#25D366' },
-              { Icon:FaChartBar,  label:'Google Tag Mgr',  value:'פעיל', sub:'GTM-MZZ8QR8V',                                                                         color:'#FF6B35' },
-            ].map((card,i) => (
-              <div key={i} style={{ background:'rgba(255,255,255,.03)', border:`1px solid ${card.color}22`, borderRadius:14, padding:'20px 18px 16px' }}>
-                <div style={{ marginBottom:10 }}><card.Icon size={18} style={{ color:card.color }}/></div>
-                <div style={{ fontSize:26, fontWeight:900, color:card.color, lineHeight:1 }}>{card.value}</div>
-                <div style={{ fontSize:12, color:'rgba(232,228,216,.7)', fontWeight:700, marginTop:7 }}>{card.label}</div>
-                <div style={{ fontSize:11, color:'rgba(232,228,216,.3)', marginTop:3 }}>{card.sub}</div>
-              </div>
-            ))}
-          </div>
-          <div className="admin-overview-bottom" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
-            <div style={{ background:'rgba(255,255,255,.03)', border:'1px solid rgba(132,144,216,.1)', borderRadius:14, padding:20 }}>
-              <h3 style={{ fontSize:13, fontWeight:700, color:'rgba(232,228,216,.75)', marginBottom:14 }}>לידים אחרונים</h3>
-              {leads.slice(0,5).map((l,i) => (
-                <div key={i} style={{ display:'flex', alignItems:'center', gap:9, padding:'7px 0', borderBottom:i<4?'1px solid rgba(255,255,255,.04)':'' }}>
-                  <div style={{ width:30,height:30,borderRadius:'50%',background:'rgba(132,144,216,.14)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,color:'rgba(132,144,216,.8)',fontWeight:700,flexShrink:0 }}>{(l.name||'?')[0]}</div>
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ fontSize:12,fontWeight:600,color:'rgba(232,228,216,.78)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>{l.name||'ללא שם'}</div>
-                    <div style={{ fontSize:10,color:'rgba(232,228,216,.3)' }}>{new Date(l.ts).toLocaleDateString('he-IL')}</div>
-                  </div>
-                  {l.enrichment?.intent && <span style={{ fontSize:10,fontWeight:700,padding:'2px 6px',borderRadius:10, background:l.enrichment.intent==='hot'?'rgba(249,115,22,.18)':l.enrichment.intent==='warm'?'rgba(247,201,72,.18)':'rgba(255,255,255,.07)', color:l.enrichment.intent==='hot'?'#F97316':l.enrichment.intent==='warm'?'#F7C948':'rgba(232,228,216,.45)' }}>{l.enrichment.intent}</span>}
-                </div>
-              ))}
-              {leads.length===0 && <div style={{ fontSize:12,color:'rgba(232,228,216,.22)',textAlign:'center',padding:'18px 0' }}>אין לידים עדיין</div>}
-              <button onClick={()=>setTab('leads')} style={{ marginTop:10,fontSize:11,color:'rgba(132,144,216,.65)',background:'none',border:'none',cursor:'pointer',fontFamily:'inherit',padding:0,fontWeight:600 }}>צפה בכל הלידים ←</button>
-            </div>
-            <div style={{ background:'rgba(255,255,255,.03)', border:'1px solid rgba(132,144,216,.1)', borderRadius:14, padding:20 }}>
-              <h3 style={{ fontSize:13, fontWeight:700, color:'rgba(232,228,216,.75)', marginBottom:14 }}>נכסים אחרונים</h3>
-              {[...properties].reverse().slice(0,5).map((p,i) => (
-                <div key={i} style={{ display:'flex', alignItems:'center', gap:9, padding:'7px 0', borderBottom:i<4?'1px solid rgba(255,255,255,.04)':'' }}>
-                  <div style={{ width:30,height:30,borderRadius:6,background:'rgba(132,144,216,.1)',overflow:'hidden',flexShrink:0 }}>
-                    {p.images?.[0]?<img src={thumbImg(p.images[0])} onError={imgFallback} style={{width:'100%',height:'100%',objectFit:'cover'}} alt=""/>:<div style={{width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center'}}><FaBuilding size={12} style={{color:'rgba(132,144,216,.5)'}}/></div>}
-                  </div>
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ fontSize:12,fontWeight:600,color:'rgba(232,228,216,.78)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>{p.title||'ללא שם'}</div>
-                    <div style={{ fontSize:10,color:'rgba(232,228,216,.3)' }}>{p.location}</div>
-                  </div>
-                  <span style={{ fontSize:10,padding:'2px 6px',borderRadius:10,background:p.published!==false?'rgba(34,197,94,.14)':'rgba(247,201,72,.14)',color:p.published!==false?'#22C55E':'#F7C948',fontWeight:700 }}>{p.published!==false?'פורסם':'טיוטה'}</span>
-                </div>
-              ))}
-              {properties.length===0 && <div style={{ fontSize:12,color:'rgba(232,228,216,.22)',textAlign:'center',padding:'18px 0' }}>אין נכסים עדיין</div>}
-              <button onClick={()=>setTab('props')} style={{ marginTop:10,fontSize:11,color:'rgba(132,144,216,.65)',background:'none',border:'none',cursor:'pointer',fontFamily:'inherit',padding:0,fontWeight:600 }}>נהל נכסים ←</button>
-            </div>
-          </div>
-        </>)}
+        {tab==='overview' && standalone && (
+          <Suspense fallback={null}>
+            <AdminHome properties={properties} leads={leads} setTab={setTab} autoCfg={autoCfg} chatsUnread={chatsUnread} intakeNew={intakeStats?.new || 0}
+              token={ADMIN_TOKEN} lang={lang} thumbImg={thumbImg} imgFallback={imgFallback}
+              onNewProperty={() => { try { localStorage.removeItem('afik_wizard_draft') } catch {}; setWizardOpen(true) }}/>
+          </Suspense>
+        )}
 
         {tab==='props' && (
           <>
