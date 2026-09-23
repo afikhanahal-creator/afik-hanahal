@@ -1984,6 +1984,21 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   })
   const [dragColId, setDragColId] = useState(null)
   const [dragOverColId, setDragOverColId] = useState(null)
+  // Pipeline stage names chosen by the office: saved in this browser AND in the shared cloud settings,
+  // so every computer / phone shows the same names.
+  const [stageLabels, setStageLabels] = useState(() => { try { return JSON.parse(localStorage.getItem('afik_stage_labels') || 'null') || _cloudSettings?.stageLabels || {} } catch { return {} } })
+  useEffect(() => { if (_cloudSettings?.stageLabels && typeof _cloudSettings.stageLabels === 'object') setStageLabels(_cloudSettings.stageLabels) }, [_cloudSettings?.stageLabels]) // eslint-disable-line
+  const renameStage = (id, name) => {
+    const key = lang === 'en' ? 'en' : 'label'
+    setStageLabels(prev => {
+      const next = { ...prev, [id]: { ...(prev[id] || {}), [key]: name } }
+      if (!name) delete next[id][key]
+      try { localStorage.setItem('afik_stage_labels', JSON.stringify(next)) } catch {}
+      fetch(`${API_BASE || ''}/api/settings`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` }, body: JSON.stringify({ stageLabels: next }) })
+        .then(r => { if (r.ok) setCloudSettings({ ..._cloudSettings, stageLabels: next }) }).catch(() => {})
+      return next
+    })
+  }
   const [customCols, setCustomCols] = useState(() => {
     try { return JSON.parse(localStorage.getItem('leadsCustomCols')) || [] }
     catch { return [] }
@@ -3674,6 +3689,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
                 addLead={lead => setLeads(prev => { const next = [...prev, lead]; try { localStorage.setItem(LEADS_STORE, JSON.stringify(next)) } catch {} return next })}
                 colOrder={colOrder} setColOrder={setColOrder}
                 customCols={customCols} setCustomCols={setCustomCols}
+                stageLabels={stageLabels} onRenameStage={renameStage}
                 colWidths={colWidths} setColWidths={setColWidths}
                 exportCSV={exportCSV}
                 syncLeads={syncLeadsFromServer}
