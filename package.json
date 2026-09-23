@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build && node scripts/build-content.mjs",
     "preview": "vite preview",
-    "test": "node --test lib/news/*.test.mjs src/lib/*.test.mjs",
+    "test": "node --test lib/news/*.test.mjs lib/*.test.mjs src/lib/*.test.mjs",
     "test:intake": "node scripts/test-intake-e2e.mjs",
     "build:content": "node scripts/build-content.mjs"
   },

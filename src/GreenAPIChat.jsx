@@ -4,6 +4,7 @@
  */
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { supabase } from './lib/supabaseClient'
+import { templateList, renderTemplate, CATEGORIES } from '../lib/automations-shared.js'
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 const API_BASE      = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
@@ -19,8 +20,8 @@ const MAX_FILE_MB  = 3   // Vercel request-body cap (base64 inflates ~33%)
 // ─── Theme palettes ───────────────────────────────────────────────────────────
 const DARK = {
   bubbleOut:     '#005C4B',
-  bubbleIn:      '#202C33',
-  chatBg:        '#0B141A',
+  bubbleIn:      '#2A3942',
+  chatBg:        '#17222A',
   panelBg:       '#111B21',
   selectedRow:   '#2A3942',
   authBadgeBg:   '#1B3B2E',
@@ -71,7 +72,21 @@ const LIGHT = {
 
 // ─── Doodle backgrounds ───────────────────────────────────────────────────────
 const DOODLE_LIGHT = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='76' height='76'%3E%3Cdefs%3E%3Cpattern id='wa' x='0' y='0' width='76' height='76' patternUnits='userSpaceOnUse'%3E%3Cg fill='none' stroke='%23A09880' stroke-opacity='0.12' stroke-width='1'%3E%3Ccircle cx='38' cy='38' r='13'/%3E%3Ccircle cx='38' cy='38' r='5'/%3E%3Cline x1='38' y1='5' x2='38' y2='18'/%3E%3Cline x1='38' y1='58' x2='38' y2='71'/%3E%3Cline x1='5' y1='38' x2='18' y2='38'/%3E%3Cline x1='58' y1='38' x2='71' y2='38'/%3E%3Cline x1='13' y1='13' x2='22' y2='22'/%3E%3Cline x1='54' y1='54' x2='63' y2='63'/%3E%3Cline x1='63' y1='13' x2='54' y2='22'/%3E%3Cline x1='22' y1='54' x2='13' y2='63'/%3E%3C/g%3E%3C/pattern%3E%3C/defs%3E%3Crect width='76' height='76' fill='url(%23wa)'/%3E%3C/svg%3E")`
-const DOODLE_DARK  = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='76' height='76'%3E%3Cdefs%3E%3Cpattern id='wad' x='0' y='0' width='76' height='76' patternUnits='userSpaceOnUse'%3E%3Cg fill='none' stroke='%23FFFFFF' stroke-opacity='0.03' stroke-width='1'%3E%3Ccircle cx='38' cy='38' r='13'/%3E%3Ccircle cx='38' cy='38' r='5'/%3E%3Cline x1='38' y1='5' x2='38' y2='18'/%3E%3Cline x1='38' y1='58' x2='38' y2='71'/%3E%3Cline x1='5' y1='38' x2='18' y2='38'/%3E%3Cline x1='58' y1='38' x2='71' y2='38'/%3E%3Cline x1='13' y1='13' x2='22' y2='22'/%3E%3Cline x1='54' y1='54' x2='63' y2='63'/%3E%3Cline x1='63' y1='13' x2='54' y2='22'/%3E%3Cline x1='22' y1='54' x2='13' y2='63'/%3E%3C/g%3E%3C/pattern%3E%3C/defs%3E%3Crect width='76' height='76' fill='url(%23wad)'/%3E%3C/svg%3E")`
+const DOODLE_DARK  = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='76' height='76'%3E%3Cdefs%3E%3Cpattern id='wad' x='0' y='0' width='76' height='76' patternUnits='userSpaceOnUse'%3E%3Cg fill='none' stroke='%23FFFFFF' stroke-opacity='0.06' stroke-width='1'%3E%3Ccircle cx='38' cy='38' r='13'/%3E%3Ccircle cx='38' cy='38' r='5'/%3E%3Cline x1='38' y1='5' x2='38' y2='18'/%3E%3Cline x1='38' y1='58' x2='38' y2='71'/%3E%3Cline x1='5' y1='38' x2='18' y2='38'/%3E%3Cline x1='58' y1='38' x2='71' y2='38'/%3E%3Cline x1='13' y1='13' x2='22' y2='22'/%3E%3Cline x1='54' y1='54' x2='63' y2='63'/%3E%3Cline x1='63' y1='13' x2='54' y2='22'/%3E%3Cline x1='22' y1='54' x2='13' y2='63'/%3E%3C/g%3E%3C/pattern%3E%3C/defs%3E%3Crect width='76' height='76' fill='url(%23wad)'/%3E%3C/svg%3E")`
+
+// ─── History cache (localStorage) ─────────────────────────────────────────────
+const HIST_KEY = 'wa_hist_v1'
+const HIST_CHATS = 30, HIST_MSGS = 80
+function persistHistory(all) {
+  try {
+    const entries = Object.entries(all)
+      .map(([p, list]) => [p, (list || []).filter(m => m && !String(m.id || '').startsWith('opt-')).slice(-HIST_MSGS).map(({ file, ...m }) => (m.media?.thumb ? { ...m, media: { ...m.media, thumb: null } } : m))])   // no base64 thumbnails in storage
+      .filter(([, list]) => list.length)
+      .sort((a, b) => new Date(b[1][b[1].length - 1].created_at) - new Date(a[1][a[1].length - 1].created_at))
+      .slice(0, HIST_CHATS)
+    localStorage.setItem(HIST_KEY, JSON.stringify(Object.fromEntries(entries)))
+  } catch { /* quota: history cache is best-effort */ }
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function intlPhone(raw) {
@@ -189,21 +204,23 @@ function TickMark({ status, WA, size = 14 }) {
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
-export default function GreenAPIChat({ leads = [], lang = 'he', initialContact = null, onOpenLead, onDeleteLead, onNewMessage, onSentMessage, onReadChange }) {
+export default function GreenAPIChat({ leads = [], lang = 'he', initialContact = null, onOpenLead, onDeleteLead, onNewMessage, onSentMessage, onReadChange, autoConfig = null }) {
 
   // ── Theme ─────────────────────────────────────────────────────────────────
-  const [isDark, setIsDark] = useState(() => localStorage.getItem('whatsapp_theme') !== 'light')
+  const [isDark, setIsDark] = useState(() => { try { return localStorage.getItem('whatsapp_theme_v2') === 'dark' } catch { return false } })
   const WA     = isDark ? DARK  : LIGHT
   const DOODLE = isDark ? DOODLE_DARK : DOODLE_LIGHT
 
   const toggleTheme = () => {
     const next = !isDark
     setIsDark(next)
-    localStorage.setItem('whatsapp_theme', next ? 'dark' : 'light')
+    try { localStorage.setItem('whatsapp_theme_v2', next ? 'dark' : 'light') } catch {}
   }
 
   // ── State ─────────────────────────────────────────────────────────────────
-  const [chats,         setChats]        = useState({})
+  // History survives tab switches and reloads: the last messages of recent chats are kept in this
+  // browser and shown instantly, then refreshed from Green API in the background.
+  const [chats,         setChats]        = useState(() => { try { return JSON.parse(localStorage.getItem(HIST_KEY) || '{}') } catch { return {} } })
   const [contact,       setContact]      = useState(initialContact)
   const [search,        setSearch]       = useState('')
   const [input,         setInput]        = useState('')
@@ -220,6 +237,8 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
   const [statusMissing, setStatusMissing] = useState([])
   const [greenChats,    setGreenChats]   = useState([])   // recent WhatsApp chats from Green API (not only leads)
   const [lightbox,      setLightbox]     = useState(null)
+  const [quickOpen,     setQuickOpen]    = useState(false)
+  const [quickQ,        setQuickQ]       = useState('')
 
   // Per-conversation read tracking (persisted) → drives unread badges
   const [lastRead, setLastRead] = useState(() => {
@@ -238,6 +257,12 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
   const [deletingId,    setDeletingId]    = useState(null)  // id hidden during undo window
   const [pendingDelete, setPendingDelete] = useState(null)  // { lead, timer }
 
+  const chatsRef          = useRef(chats)
+  useEffect(() => {
+    chatsRef.current = chats
+    const id = setTimeout(() => persistHistory(chats), 800)   // debounced: polls update often
+    return () => clearTimeout(id)
+  }, [chats])
   const scrollRef         = useRef(null)
   const pollRef           = useRef(null)
   const inputRef          = useRef(null)
@@ -311,7 +336,8 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
   const fetchMsgs = useCallback(async (phone, opts = {}) => {
     const p = intlPhone(phone)
     if (!p) return
-    if (opts.showLoader) { setLoading(true); setFetchError(null) }
+    const hasCache = (chatsRef.current[p] || []).length > 0
+    if (opts.showLoader && !hasCache) { setLoading(true); setFetchError(null) }
     setLoadingPhones(prev => { const s = new Set(prev); s.add(p); return s })
 
     try {
@@ -339,6 +365,12 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
       setFetchError(greenErr || null)
       setChats(prev => {
         const existing = prev[p] || []
+        // A failed load must never erase what is already on screen
+        if (greenErr && !fromGreen.length) {
+          if (!fromBackend.length) return prev
+          const keep = new Map(existing.map(m => [m.id, m])); fromBackend.forEach(m => m.id && keep.set(m.id, m))
+          return { ...prev, [p]: [...keep.values()].sort((a, b) => new Date(a.created_at) - new Date(b.created_at)) }
+        }
         const optimistics = existing.filter(m => m.id && String(m.id).startsWith('opt-'))
         if (optimistics.length > 0) {
           const confirmedOut = new Set(merged.filter(m => m.direction === 'out').map(m => m.message))
@@ -368,7 +400,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
         onNewMessageRef.current({ contactName, message: latest.message, phone: p })
       }
     } finally {
-      if (opts.showLoader) setLoading(false)
+      setLoading(false)
       setLoadingPhones(prev => { const s = new Set(prev); s.delete(p); return s })
     }
   }, [fetchGreenHistory])
@@ -493,13 +525,22 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
           })
         })
         .subscribe()
-      return () => { supabase.removeChannel(channel) }
+      // Green API messages never reach that table, so the open chat is polled as well
+      pollRef.current = setInterval(() => { if (!document.hidden) fetchMsgs(contact.phone) }, 8000)
+      return () => { supabase.removeChannel(channel); clearInterval(pollRef.current) }
     } else {
-      // Fallback: poll every 4s when Realtime not configured
       pollRef.current = setInterval(() => { if (!document.hidden) fetchMsgs(contact.phone) }, 8000)
       return () => clearInterval(pollRef.current)
     }
   }, [contact?.id, fetchMsgs])
+
+  // Coming back to the tab/window: refresh the open chat right away instead of waiting for the next poll
+  useEffect(() => {
+    const onVis = () => { if (!document.hidden && contact?.phone) fetchMsgs(contact.phone) }
+    document.addEventListener('visibilitychange', onVis)
+    window.addEventListener('focus', onVis)
+    return () => { document.removeEventListener('visibilitychange', onVis); window.removeEventListener('focus', onVis) }
+  }, [contact?.phone, fetchMsgs])
 
   // Global Realtime: keep ALL conversations fresh (not just the open one) so the
   // unread badges update in real time. Dedup + notifiedMsgIdsRef make it safe to
@@ -590,16 +631,16 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
         // Attachment: upload straight to Green API (caption = the typed text)
         ok = await sendFileViaGreenAPI(p, file, msg)
       } else {
-        if (API_BASE) {
+        ok = await sendViaGreenAPI(p, msg).catch(() => false)
+        if (!ok && API_BASE) {
           const r = await fetch(`${API_BASE}/api/chats/send`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
             body: JSON.stringify({ phone: p, message: msg }),
             signal: AbortSignal.timeout(15000),
-          })
-          if (r.ok) ok = true
+          }).catch(() => null)
+          if (r?.ok) ok = true
         }
-        if (!ok) ok = await sendViaGreenAPI(p, msg)
       }
 
       if (ok) {
@@ -890,6 +931,12 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                   gap:0,
                   scrollBehavior:'smooth',
                 }}>
+                {fetchError && msgs.length > 0 && !loading && (
+                  <div style={{ position:'sticky', top:0, zIndex:2, alignSelf:'center', marginBottom:8, padding:'6px 12px', borderRadius:20, background: isDark ? '#3B2A1A' : '#FFF4E0', color: isDark ? '#F5C26B' : '#8A5A00', fontSize:12, fontWeight:600, direction:'rtl', boxShadow:'0 2px 6px rgba(0,0,0,.15)', display:'flex', gap:8, alignItems:'center' }}>
+                    ⚠ לא הצלחנו לרענן · מנסים שוב אוטומטית
+                    <button onClick={() => fetchMsgs(contact.phone)} style={{ background:'none', border:'none', color:'inherit', textDecoration:'underline', cursor:'pointer', fontFamily:'inherit', fontSize:12, padding:0, minHeight:0, minWidth:0 }}>עכשיו</button>
+                  </div>
+                )}
                 {loading ? (
                   <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:16, color: WA.subText, minHeight:200 }}>
                     <div style={{ width:44, height:44, borderRadius:'50%', border:`4px solid ${WA.border}`, borderTopColor: WA.green, animation:'wa-spin 0.75s linear infinite' }}/>
@@ -1056,19 +1103,23 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                   style={{ width:40, height:40, borderRadius:'50%', background:emoji?WA.green+'22':'transparent', border:'none', color:emoji?WA.green:WA.subText, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontSize:24 }}>
                   ☺
                 </button>
-                <button onClick={()=>fileRef.current?.click()}
+                <button onClick={()=>fileRef.current?.click()} title="צירוף קובץ"
                   style={{ width:40, height:40, borderRadius:'50%', background:'transparent', border:'none', color: WA.subText, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
                   <Icon path={ICONS.paperclip} size={20}/>
                 </button>
+                <button onClick={()=>{ setQuickOpen(v=>!v); setEmoji(false) }} title="תשובות מוכנות" aria-label="תשובות מוכנות"
+                  style={{ width:40, height:40, borderRadius:'50%', background:quickOpen?WA.green+'22':'transparent', border:'none', color:quickOpen?WA.green:WA.subText, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontSize:19 }}>
+                  ⚡
+                </button>
                 <input ref={fileRef} type="file" accept="image/*,.pdf" style={{ display:'none' }}
                   onChange={e=>{ if(e.target.files[0]) setAttached(e.target.files[0]); e.target.value='' }}/>
-                <input ref={inputRef}
+                <textarea ref={inputRef} rows={1}
                   value={input} onChange={e=>setInput(e.target.value)}
                   onKeyDown={e=>{ if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMsg()} }}
                   placeholder="הקלד הודעה"
                   disabled={sending}
-                  autoComplete="off"
-                  style={{ flex:1, padding:'12px 18px', background: WA.inputFieldBg, border:'none', borderRadius:8, color: WA.bodyText, fontSize:14, fontFamily:'inherit', outline:'none', direction:'rtl', minWidth:0, boxShadow:`0 1px 2px rgba(0,0,0,.${isDark?'2':'06'})` }}/>
+                  autoComplete="off" dir="auto"
+                  style={{ flex:1, padding:'11px 16px', background: WA.inputFieldBg, border:'none', borderRadius:8, color: WA.bodyText, fontSize:14, fontFamily:'inherit', outline:'none', minWidth:0, resize:'none', lineHeight:1.45, height: Math.min(6, Math.max(1, input.split('\n').length)) * 20 + 22, maxHeight:142, overflowY:'auto', boxShadow:`0 1px 2px rgba(0,0,0,.${isDark?'2':'06'})` }}/>
                 <button onClick={sendMsg}
                   disabled={sending || (!input.trim() && !attached)}
                   style={{ width:44, height:44, borderRadius:'50%', background:(input.trim()||attached)?WA.green:WA.inputBg, border:'none', color:(input.trim()||attached)?'#fff':WA.subText, cursor:(input.trim()||attached)?'pointer':'default', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, transition:'all .2s', boxShadow:(input.trim()||attached)?'0 2px 8px '+WA.green+'66':'none' }}>
@@ -1080,6 +1131,31 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                   }
                 </button>
               </div>
+
+              {/* ── Quick replies: the automation templates, personalised for this contact ── */}
+              {quickOpen && (() => {
+                const list = templateList(autoConfig || undefined).filter(x => !quickQ || `${x.he_title} ${x.he}`.includes(quickQ))
+                const leadRow = leads.find(l => intlPhone(l.phone) === chatPhone) || contact
+                const asLead = { name: leadRow?.name && !/^\d+$/.test(leadRow.name) ? leadRow.name : '', phone: contact.phone, prop_title: leadRow?.propTitle || leadRow?.prop_title, prop_location: leadRow?.propLocation, crm_data: { origin: leadRow?.origin || {} } }
+                return (
+                  <div style={{ flexShrink:0, maxHeight:260, overflowY:'auto', background: WA.panelBg, borderTop:`1px solid ${WA.border}`, padding:'8px 10px', direction:'rtl' }}>
+                    <input value={quickQ} onChange={e=>setQuickQ(e.target.value)} placeholder="חיפוש תבנית…" autoFocus
+                      style={{ width:'100%', boxSizing:'border-box', padding:'7px 11px', marginBottom:6, background: WA.inputFieldBg, border:`1px solid ${WA.border}`, borderRadius:8, color: WA.bodyText, fontFamily:'inherit', fontSize:13, outline:'none', minHeight:0 }}/>
+                    {list.map(x => {
+                      const cat = CATEGORIES.find(c => c.id === x.cat)
+                      const text = renderTemplate(x, asLead, autoConfig || undefined)
+                      return (
+                        <button key={x.id} onClick={()=>{ setInput(text); setQuickOpen(false); setQuickQ(''); setTimeout(()=>inputRef.current?.focus(), 30) }}
+                          style={{ display:'block', width:'100%', textAlign:'right', background:'transparent', border:'none', borderBottom:`1px solid ${WA.border}`, padding:'8px 6px', cursor:'pointer', fontFamily:'inherit', color: WA.bodyText, minHeight:0 }}
+                          onMouseEnter={e=>e.currentTarget.style.background=WA.hoverRow} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                          <div style={{ fontSize:13, fontWeight:700 }}>{cat?.icon} {x.he_title}</div>
+                          <div style={{ fontSize:12, color: WA.subText, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{text.replace(/\n/g, ' ')}</div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )
+              })()}
 
               {/* ── Emoji picker (flex: 0 0 auto) ── */}
               {emoji && (
