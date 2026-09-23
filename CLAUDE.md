@@ -105,3 +105,22 @@ hreflang, OG image, a 3-step lead form posting to `/api/contacts` (source `page_
 block. `related.*` slugs are validated: the build **fails on a broken internal link**. `sitemap.xml` and `llms.txt`
 are generated from the same data — do not hand-edit them. Purchase-tax brackets live in both `content/tools.mjs`
 and `src/RealEstateCalc.jsx`; update both every January.
+
+## WhatsApp automations (admin tab "אוטומציות")
+
+Ready-made WhatsApp messages for every lead, sent through Green API (`WA_GREENAPI_INSTANCE` / `WA_GREENAPI_TOKEN` in Vercel):
+
+| Piece | Where |
+|---|---|
+| Templates (Hebrew + English), placeholders, quiet hours, reply detection — shared by server and browser | `lib/automations-shared.js` |
+| Engine: welcome on new lead, stage-change messages, no-reply sequence, reply intent, re-engagement, send log | `lib/automations.js` |
+| API (`/api/meta/auto-*`: config, run, send, skip, optout, test, log, leads, status) | `api/meta.js` → `handleAutomations` |
+| Admin tab (overview, approval queue, templates, rules, bulk send, log) | `src/AutomationsTab.jsx` (+ `src/AutomationsApi.jsx`) |
+| DB tables `app_settings`, `automation_log` | `server/automations-migration.sql` |
+
+Every rule has a mode: `off` · `suggest` (waits in the approval queue, sent with one click) · `auto`. Hooks: `api/contacts.js`
+POST → `onLeadCreated` (welcome), PATCH with a new `leadStatus` → `onStageChanged`; the admin panel calls `auto-run` every
+5 minutes while open, and `api/cron/warm.js` runs it daily. Per-lead state is `contacts.crm_data.auto` (sent / skipped /
+optOut / intent / stageAt). Automations only touch leads, replies and stage changes after `config.installedAt`, and a lead
+who replied "no thanks" gets nothing more. Leads from the English site (`crm_data.origin.lang = 'en'`) get the English text.
+Keep every template bilingual (`he` + `en`, `he_title` + `en_title`).

@@ -8,6 +8,7 @@
 
 import { createClient } from '@supabase/supabase-js'
 import crypto from 'crypto'
+import * as Auto from '../lib/automations.js'
 
 const SUPERMETRICS_API_KEY    = process.env.SUPERMETRICS_API_KEY    || ''
 // System User token (afik-api) — permanent, survives password changes. Used to
@@ -329,8 +330,10 @@ async function handleWebhook(req, res) {
 
           const leadId    = inserted?.id
           const firstName = name.split(' ')[0] || name
-          if (phone) {
-            const waMsg = `היי ${firstName} 👋\nתודה שפנית לאפיק הנחל!\nראינו את הפנייה שלך\n\nמתי נוח לך לדבר? נשמח לתאם שיחה`
+          // Same welcome template and on/off switch as website leads (admin tab "אוטומציות")
+          const autoWelcome = phone ? await Auto.welcomeTextFor({ name, phone }) : null
+          if (phone && autoWelcome !== '') {
+            const waMsg = autoWelcome || `היי ${firstName} 👋\nתודה שפנית לאפיק הנחל!\nראינו את הפנייה שלך\n\nמתי נוח לך לדבר? נשמח לתאם שיחה`
             let waSent = false
 
             if (WA_META_TOKEN) {
@@ -622,6 +625,47 @@ async function handleSync(req, res) {
     page_ids: pageIds,
     errors: errors.length ? errors : undefined,
   })
+}
+
+// ── WhatsApp automations (admin tab "אוטומציות") ──────────────────────────────
+//  GET  auto-config            → { config, storage, green }
+//  POST auto-config {config}   → save
+//  POST auto-run               → execute due automatic rules, return the approval queue
+//  POST auto-send {items}      → send approved / manual messages (≤25 per call)
+//  POST auto-skip {leadId, ruleKey}
+//  POST auto-optout {leadId, optOut}
+//  POST auto-test {text, phone?}
+//  GET  auto-log · GET auto-leads · GET auto-status
+async function handleAutomations(req, res, action) {
+  if (!checkAuth(req)) return res.status(401).json({ error: 'Unauthorized' })
+  res.setHeader('Cache-Control', 'no-store')
+  const b = req.body || {}
+  try {
+    if (action === 'auto-config' && req.method === 'GET') {
+      const { cfg, storage, updatedAt, saved } = await Auto.loadConfig({ fresh: true })
+      return res.status(200).json({ config: cfg, storage, updatedAt, saved, greenConfigured: Auto.greenConfigured() })
+    }
+    if (action === 'auto-config' && req.method === 'POST') {
+      if (!b.config || typeof b.config !== 'object') return res.status(400).json({ error: 'config required' })
+      await Auto.saveConfig(b.config)
+      return res.status(200).json({ ok: true })
+    }
+    if (action === 'auto-run')    return res.status(200).json(await Auto.run({ source: 'panel' }))
+    if (action === 'auto-send')   return res.status(200).json({ results: await Auto.sendItems(Array.isArray(b.items) ? b.items : [], { by: 'manual' }) })
+    if (action === 'auto-skip')   return res.status(200).json({ ok: await Auto.skipItem(b.leadId, String(b.ruleKey || '')) })
+    if (action === 'auto-optout') return res.status(200).json({ ok: await Auto.setOptOut(b.leadId, !!b.optOut) })
+    if (action === 'auto-test') {
+      const r = await Auto.sendTest(String(b.text || 'הודעת בדיקה ממערכת האוטומציות של אפיק הנחל ✅'), b.phone)
+      return res.status(r.ok ? 200 : 502).json(r)
+    }
+    if (action === 'auto-log')    return res.status(200).json(await Auto.listLog(Number(req.query?.limit) || 150))
+    if (action === 'auto-leads')  return res.status(200).json(await Auto.leadStates())
+    if (action === 'auto-status') return res.status(200).json(await Auto.greenStatus())
+    return res.status(404).json({ error: `Unknown automation action: ${action}` })
+  } catch (e) {
+    console.error('[automations]', action, e.message)
+    return res.status(500).json({ error: e.message })
+  }
 }
 
 // ── Green API chat proxy ───────────────────────────────────────────────────────
@@ -981,6 +1025,7 @@ export default async function handler(req, res) {
   if (path === 'messages')     return handleMessages(req, res)
   if (path === 'sync')         return handleSync(req, res)
   if (path.startsWith('chat-'))  return handleChat(req, res, path)
+  if (path.startsWith('auto-'))  return handleAutomations(req, res, path)
   if (path === 'supermetrics')   return handleSupermetrics(req, res)
   if (path === 'diagnostics')    return handleDiagnostics(req, res)
 

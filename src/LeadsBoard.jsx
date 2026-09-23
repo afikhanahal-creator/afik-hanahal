@@ -1653,6 +1653,7 @@ export default function LeadsBoard({
   leadsSyncing,
   isDark, lang, onOpenChat,
   stageLabels, onRenameStage,
+  onOpenAutomations, autoPending = 0,
 }) {
   applyStageLabels(stageLabels)   // before any child renders a stage name
   const T = useTheme(isDark)
@@ -1954,10 +1955,10 @@ export default function LeadsBoard({
             onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.color = T.textSub }}>
             <Zap size={12} /> {lang === 'en' ? 'Integrations' : 'אינטגרציות'}
           </button>
-          <button onClick={() => setModal('automate')}
+          <button onClick={() => (onOpenAutomations ? onOpenAutomations() : setModal('automate'))}
             style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 14px', background: '#A25DDC14', border: '1px solid #A25DDC44', borderRadius: 8, color: '#A25DDC', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
             <Settings size={12} /> {lang === 'en' ? 'Automate' : 'אוטומציות'}
-            <span style={{ background: '#A25DDC', color: '#fff', borderRadius: 10, fontSize: 9, padding: '0 5px', fontWeight: 800 }}>2</span>
+            {autoPending > 0 && <span style={{ background: '#A25DDC', color: '#fff', borderRadius: 10, fontSize: 9, padding: '0 5px', fontWeight: 800 }}>{autoPending}</span>}
           </button>
         </div>
 

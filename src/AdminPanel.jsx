@@ -9,10 +9,12 @@ import { LAYERS_DEF as GM_LAYERS, BG_OPTIONS as GM_BG_OPTIONS, LAYER_CATS_DEF as
 import { FaEnvelope, FaFacebookF, FaInstagram, FaBed, FaRulerCombined, FaBuilding, FaTools, FaMapMarkerAlt, FaPhone, FaLeaf, FaCalendarAlt, FaTimes, FaWhatsapp, FaFileAlt, FaHome, FaSearch, FaBalanceScale, FaHandshake, FaLock, FaKey, FaGlobe, FaBolt, FaChartLine, FaEye, FaPlay, FaFire, FaShareAlt, FaHeart, FaCamera, FaUser, FaUsers, FaDesktop, FaMobileAlt, FaTabletAlt, FaRobot, FaExclamationTriangle, FaChartBar, FaThumbsUp, FaImage, FaPencilAlt, FaCrown, FaMousePointer, FaDollarSign, FaVideo, FaLink, FaCheckCircle, FaTrash, FaClipboardList } from 'react-icons/fa'
 // Seller intake submissions (from the public /sell form) — lazy, admin-only
 const SellerSubmissionsTab = lazy(() => import('./SellerSubmissionsTab.jsx'))
+const AutomationsTab = lazy(() => import('./AutomationsTab.jsx'))
+import { autoApi, StageSendPrompt } from './AutomationsApi.jsx'
 import { LeadsBoard, GreenAPIChat, MetaLeadsTab, SupermetricsTab, PropertyWizard, API_BASE, CONTACTS_API, ADMIN_TOKEN, condFetchJson, DARK_C, useTheme, TEAM, G, Logo, LEADS_STORE, LEADS_DELETED, LEADS_TRASH, ANALYTICS_KEY, META_LEAD_PAGES_KEY, WA_DEFAULT_TEMPLATE, _cloudSettings, CATEGORIES, EMPTY_PROP, CONDITION_OPTIONS, ENTRY_OPTIONS, ADMIN_DRAFT_KEY, toMapsEmbed, imgFallback, thumbImg, sortByOrder, TEAM_KEY, setCloudSettings } from './App.jsx'
 
 // Tab ↔ URL deep-link mapping (module-level so both AdminPanel and main app can use it)
-const ADMIN_TAB_TO_PATH = { overview:'', props:'properties', leads:'leads', sellers:'properties-intake', chats:'chats', meta:'lead-center', analytics:'analytics', supermetrics:'performance', team:'team', settings:'settings', counters:'counters', live:'live' }
+const ADMIN_TAB_TO_PATH = { overview:'', props:'properties', leads:'leads', sellers:'properties-intake', chats:'chats', automations:'automations', meta:'lead-center', analytics:'analytics', supermetrics:'performance', team:'team', settings:'settings', counters:'counters', live:'live' }
 const ADMIN_PATH_TO_TAB = Object.fromEntries(Object.entries(ADMIN_TAB_TO_PATH).map(([k,v])=>[v,k]))
 
 // ─── LOGO UPLOAD (single image, compressed) ──────────────────────────────────
@@ -1958,6 +1960,44 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const [chatSending, setChatSending] = useState(false)
   const [chatContact, setChatContact] = useState(null)
   const [initialChatLead, setInitialChatLead] = useState(null)
+  // ── WhatsApp automations: config + periodic run (the panel is the scheduler while it is open) ──
+  const [autoCfg, setAutoCfg]         = useState(null)    // { config, storage, greenConfigured }
+  const [autoRun, setAutoRun]         = useState(null)    // last run: suggestions, sent, moves…
+  const [autoRunning, setAutoRunning] = useState(false)
+  const [stagePrompt, setStagePrompt] = useState(null)
+  const autoRunBusy = useRef(false)
+  const loadAutoCfg = useCallback(() => autoApi.get('auto-config').then(setAutoCfg).catch(() => {}), [])
+  const runAutomations = useCallback(async () => {
+    if (autoRunBusy.current) return
+    autoRunBusy.current = true; setAutoRunning(true)
+    try {
+      const r = await autoApi.post('auto-run', {})
+      setAutoRun(prev => {
+        const before = new Set((prev?.suggestions || []).map(x => x.id))
+        const fresh = (r.suggestions || []).filter(x => !before.has(x.id))
+        if (prev && fresh.length) addToast('🤖 הודעות חדשות ממתינות לאישור', fresh.slice(0, 3).map(x => x.name || x.phone).join(', '), 'automations', '🤖')
+        return r
+      })
+      if (r.sent?.length) addToast(`🤖 נשלחו ${r.sent.length} הודעות אוטומטיות`, r.sent.slice(0, 3).map(x => x.name).filter(Boolean).join(', '), 'automations', '💬')
+      // Stage moves decided by reply detection ("לא תודה" → …): mirror them on the local board once
+      if (r.moves?.length) {
+        let applied = {}; try { applied = JSON.parse(localStorage.getItem('afik_auto_moves') || '{}') } catch {}
+        const todo = r.moves.filter(m => !applied[`${m.leadId}:${m.at}`])
+        if (todo.length) {
+          setLeads(prev => { const next = prev.map(l => { const m = todo.find(x => String(x.leadId) === String(l.id)); return m ? { ...l, leadStatus: m.stage } : l }); try { localStorage.setItem(LEADS_STORE, JSON.stringify(next)) } catch {} return next })
+          todo.forEach(m => { applied[`${m.leadId}:${m.at}`] = 1 })
+          try { localStorage.setItem('afik_auto_moves', JSON.stringify(applied)) } catch {}
+        }
+      }
+    } catch (e) { console.warn('[automations] run failed:', e.message) }
+    finally { autoRunBusy.current = false; setAutoRunning(false) }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    loadAutoCfg()
+    const first = setTimeout(runAutomations, 6000)
+    const iv = setInterval(() => { if (!document.hidden) runAutomations() }, 5 * 60 * 1000)
+    return () => { clearTimeout(first); clearInterval(iv) }
+  }, [loadAutoCfg, runAutomations])
   const [chatSearch, setChatSearch] = useState('')
   const [chatStatus, setChatStatus]   = useState(null)  // 'authorized'|'notAuthorized'|'error'
   const [newChatOpen, setNewChatOpen] = useState(false)
@@ -2336,7 +2376,15 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   }
 
   const updateLeadStatus = (lead, status) => {
-    updateLead(lead.id, { leadStatus: status })
+    // The server runs the stage automations on this PATCH: it either sent a message already, or
+    // has one ready for approval → offer it right here instead of making the team look for it.
+    const p0 = updateLead(lead.id, { leadStatus: status })
+    if (p0 && typeof p0.then === 'function') p0.then(d => {
+      const a = d?.automation
+      if (a?.sent) addToast('🤖 נשלחה הודעה אוטומטית', `${lead.name || ''}: ${String(a.text || '').slice(0, 90)}`, 'automations', '💬')
+      else if (a?.suggest) setStagePrompt({ lead, stage: status, ...a })
+      else if (a && a.ok === false && a.error) addToast('⚠ הודעת השלב לא נשלחה', a.error, 'automations', '⚠')
+    })
     const p = intlPhoneFmt(lead.phone)
     if (p && API_BASE) {
       fetch(`${API_BASE}/api/chats/status`, {
@@ -2775,11 +2823,11 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
       try { localStorage.setItem(LEADS_STORE, JSON.stringify(next)) } catch {}
       return next
     })
-    fetch(`${CONTACTS_API}/api/contacts?id=${encodeURIComponent(id)}`, {
+    return fetch(`${CONTACTS_API}/api/contacts?id=${encodeURIComponent(id)}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
       body: JSON.stringify(patch),
-    }).catch(() => {})
+    }).then(r => r.json()).catch(() => null)
   }
 
   const enrichLead = async (lead) => {
@@ -2995,13 +3043,14 @@ Return ONLY valid JSON (no markdown, no code blocks):
     { id:'leads',    Icon:FaHandshake,   label:'לידים',       badge: leads.length },
     { id:'sellers',  Icon:FaClipboardList, label:'נכסים שנקלטו', badge: intakeStats?.new || undefined },
     { id:'chats',    Icon:FaWhatsapp,    label:'צ\'אטים',     badge: chatsUnread },
+    { id:'automations', Icon:FaRobot,    label:'אוטומציות',   badge: autoRun?.suggestions?.length || undefined },
     { id:'analytics',    Icon:FaChartLine,   label:'אנליטיקס' },
     { id:'supermetrics', Icon:FaChartBar,   label:'ביצועים' },
     { id:'team',         Icon:FaKey,         label:'צוות' },
     { id:'counters', Icon:FaBalanceScale,label:'מונים' },
     { id:'settings', Icon:FaTools,       label:'הגדרות' },
   ]
-  const TAB_LABELS = { overview:'סקירה כללית', live:'נכסים באוויר', props:'ניהול נכסים', leads:'לידים', sellers:'נכסים שנקלטו', chats:'שיחות WhatsApp', meta:'מרכז מטא', analytics:'אנליטיקס', supermetrics:'ביצועים', team:'צוות', counters:'מונים', settings:'הגדרות' }
+  const TAB_LABELS = { overview:'סקירה כללית', live:'נכסים באוויר', props:'ניהול נכסים', leads:'לידים', sellers:'נכסים שנקלטו', chats:'שיחות WhatsApp', automations:'אוטומציות וואטסאפ', meta:'מרכז מטא', analytics:'אנליטיקס', supermetrics:'ביצועים', team:'צוות', counters:'מונים', settings:'הגדרות' }
 
   return (
     <div className="admin-shell admin-scroll" style={standalone
@@ -3213,6 +3262,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
             {tabBtn('leads', 'לידים', leads.length)}
             {tabBtn('sellers', 'נכסים שנקלטו', intakeStats?.new || undefined)}
             {tabBtn('chats', 'צ\'אטים')}
+            {tabBtn('automations', 'אוטומציות', autoRun?.suggestions?.length || undefined)}
             {tabBtn('analytics', 'אנליטיקס')}
             {tabBtn('supermetrics', 'ביצועים')}
             {tabBtn('team', 'צוות')}
@@ -3690,6 +3740,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
                 colOrder={colOrder} setColOrder={setColOrder}
                 customCols={customCols} setCustomCols={setCustomCols}
                 stageLabels={stageLabels} onRenameStage={renameStage}
+                onOpenAutomations={() => setTab('automations')} autoPending={autoRun?.suggestions?.length || 0}
                 colWidths={colWidths} setColWidths={setColWidths}
                 exportCSV={exportCSV}
                 syncLeads={syncLeadsFromServer}
@@ -3725,7 +3776,17 @@ Return ONLY valid JSON (no markdown, no code blocks):
                 message, 'chats', '✅', 3500
               )}
               onReadChange={handleChatsRead}
+              autoConfig={autoCfg?.config || null}
             />
+          </Suspense>
+        )}
+
+        {tab==='automations' && (
+          <Suspense fallback={<AdminTabLoader label="טוען אוטומציות…" />}>
+            <AutomationsTab C={C} lang={lang} leads={leads} stageLabels={stageLabels}
+              config={autoCfg} onConfigSaved={cfg => { setAutoCfg(c => ({ ...(c || {}), config: cfg, storage: 'ok' })); runAutomations() }}
+              runResult={autoRun} onRun={runAutomations} running={autoRunning}
+              onOpenChat={lead => { setInitialChatLead(lead); setTab('chats') }}/>
           </Suspense>
         )}
 
@@ -4556,6 +4617,8 @@ Return ONLY valid JSON (no markdown, no code blocks):
           </div>
         ))}
       </div>
+
+      {stagePrompt && <StageSendPrompt lang={lang} prompt={{ ...stagePrompt, stageName: stageLabels?.[stagePrompt.stage]?.label }} onClose={() => setStagePrompt(null)} onSent={() => { addToast('💬 ההודעה נשלחה', stagePrompt.lead?.name || '', 'chats', '✓'); runAutomations() }}/>}
 
       {/* ── Mobile bottom tab bar — standalone only ──────────────────── */}
       {standalone && (

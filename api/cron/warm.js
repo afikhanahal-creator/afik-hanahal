@@ -12,6 +12,7 @@
 import { fetchAllSources, outletKey, outletCap, titleKey, cleanTitle, isTrustedSource, fetchOGImage, mapWithBudget } from '../../lib/news/sources.js'
 import { scoreRealEstate } from '../../lib/news/classify.js'
 import { resolveGoogleNewsUrl, isGoogleNewsUrl } from '../../lib/news/gnews.js'
+import { run as runAutomations } from '../../lib/automations.js'
 
 const RENDER      = process.env.RENDER_URL   || 'https://afik-hanahal-server.onrender.com'
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN  || 'AFIKhanahal2026'
@@ -183,6 +184,9 @@ export default async function handler(req, res) {
 
   const log = []
   const out = { ok: true, ts: new Date().toISOString() }
+  // WhatsApp automations: daily safety net for when nobody has the admin panel open (the panel runs them every few minutes)
+  try { const a = await runAutomations({ source: 'cron', budgetMs: 15000, maxSends: 10 }); out.automations = { sent: a.sent.length, errors: a.errors.length, queued: a.suggestions.length, notes: a.notes } }
+  catch (e) { out.automations = { error: e.message } }
   try { out.ingest = await ingest(log) } catch (e) { out.ingest = { error: e.message }; log.push(`[ingest] ERROR ${e.message}`) }
   try { out.sweep  = await sweep(log)  } catch (e) { out.sweep  = { error: e.message }; log.push(`[sweep] ERROR ${e.message}`) }
   log.forEach(l => console.log('[warm]', l))

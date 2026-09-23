@@ -19,6 +19,7 @@
 
 import { sendJson } from '../lib/http.js'
 import { backupEnabled, backupPut, backupList, backupGet, backupDelete } from '../lib/backup.js'
+import { onLeadCreated, onStageChanged } from '../lib/automations.js'
 
 // ── Lead backup (Vercel Blob) ────────────────────────────────────────────────
 // If Supabase refuses the INSERT (quota / paused project / outage) the lead used to exist only in the
@@ -67,14 +68,8 @@ const GREEN_BASE_URL = (() => {
   return region ? `https://${region}.api.greenapi.com` : 'https://api.green-api.com'
 })()
 const greenUrl = (method) => `${GREEN_BASE_URL}/waInstance${GREEN_INSTANCE}/${method}/${GREEN_TOKEN}`
-const WA_AUTOREPLY_ENABLED  = process.env.WA_AUTOREPLY_ENABLED !== 'false'   // default on
-const WA_AUTOREPLY_TEMPLATE = process.env.WA_AUTOREPLY_TEMPLATE || `היי {name} 👋
-תודה שהשארת פרטים!
-ראינו את הפנייה שלך
-
-מתי נוח לך לדבר? נשמח לתאם שיחה
-
-צוות אפיק הנחל`
+// The lead welcome message moved to lib/automations.js (admin tab "אוטומציות"); WA_AUTOREPLY_ENABLED=false
+// and WA_AUTOREPLY_TEMPLATE are still honoured there.
 
 function toIntlPhone(raw) {
   const d = String(raw || '').replace(/\D/g, '')
@@ -119,15 +114,6 @@ async function sendGreenMessage(phone, message) {
   const p = toIntlPhone(phone)
   if (!p) return { ok: false, error: 'invalid phone' }
   return sendToChatId(`${p}@c.us`, message)
-}
-
-// Auto-reply to the lead who submitted the form.
-async function sendLeadAutoReply(lead) {
-  if (!WA_AUTOREPLY_ENABLED || !lead.phone) return
-  const firstName = String(lead.name || '').split(' ')[0] || ''
-  const msg = WA_AUTOREPLY_TEMPLATE.replace(/\{name\}/g, firstName)
-  const r = await sendGreenMessage(lead.phone, msg)
-  if (!r.ok) console.error('[lead-autoreply]', r.error)
 }
 
 // Notify the business owner (admin) about a new lead.
@@ -542,7 +528,8 @@ export default async function handler(req, res) {
         const work = Promise.allSettled([
           sendLeadEmail({ ...b, __storage: insertOk ? 'db' : (String(inserted?.id || '').startsWith('bk:') ? 'backup' : 'lost') }),
           notifyAdmin(row),
-          sendLeadAutoReply(row),
+          // Welcome message: the automations engine (template, on/off and send log in the admin tab "אוטומציות")
+          onLeadCreated({ ...row, ...(insertOk ? { id: inserted.id, created_at: inserted.created_at } : {}), crm_data: { origin: row.crm_data?.origin || {} } }),
         ])
         const results = await Promise.race([
           work,
@@ -573,7 +560,15 @@ export default async function handler(req, res) {
       const existing = await getCrmData(id)
       const merged   = { ...existing, ...patch }
       const ok       = await patchContact(id, { crm_data: merged })
-      return res.status(ok ? 200 : 404).json({ ok })
+      // Stage moved on the board → stage automations (send now, or offer it in the approval queue)
+      let automation = null
+      if (ok && typeof patch.leadStatus === 'string' && patch.leadStatus !== existing.leadStatus) {
+        automation = await Promise.race([
+          onStageChanged(id, patch.leadStatus, existing.leadStatus || 'new'),
+          new Promise(r => setTimeout(() => r({ pending: true }), 18000)),
+        ]).catch(e => ({ ok: false, error: e.message }))
+      }
+      return res.status(ok ? 200 : 404).json({ ok, automation })
     }
 
     // ── DELETE: remove contact permanently ───────────────────────────────────
