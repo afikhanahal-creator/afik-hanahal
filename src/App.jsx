@@ -1008,6 +1008,10 @@ const makeGlobal = (C, isDark) => `
   /* ── Scrollbar on right for admin panel (ltr outer = scrollbar right, content restored via > *) ── */
   .admin-content { direction: ltr !important; position: relative; -webkit-overflow-scrolling: touch !important; overscroll-behavior: contain; }
   .admin-content > * { direction: rtl; }
+  /* Full-screen tabs (chats, leads board, Meta) use the whole phone width — no side/top gutter */
+  @media (max-width: 900px) {
+    .admin-content.admin-content-full { padding-top: 0 !important; padding-left: 0 !important; padding-right: 0 !important; }
+  }
   .admin-panel-modal { direction: ltr !important; }
   .admin-panel-modal > * { direction: rtl; }
 
