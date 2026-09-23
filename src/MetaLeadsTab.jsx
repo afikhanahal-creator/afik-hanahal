@@ -134,7 +134,7 @@ const TR = {
 
 // ── Status config ─────────────────────────────────────────────────────────────
 const STATUS_CONFIG = {
-  new:          { color: '#8490D8', bg: 'rgba(132,144,216,.18)', label: { he: 'חדש',        en: 'New' } },
+  new:          { color: '#8490D8', bg: 'rgba(var(--brand-rgb),.18)', label: { he: 'חדש',        en: 'New' } },
   contacted:    { color: '#F97316', bg: 'rgba(249,115, 22,.18)', label: { he: 'נוצר קשר',   en: 'Contacted' } },
   scheduled:    { color: '#22C55E', bg: 'rgba( 34,197, 94,.18)', label: { he: 'נקבעה שיחה', en: 'Scheduled' } },
   closed:       { color: '#6B7280', bg: 'rgba(107,114,128,.18)', label: { he: 'סגור',        en: 'Closed' } },
@@ -705,10 +705,10 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
   // ── Styles ────────────────────────────────────────────────────────────────────
   const BG      = 'var(--au-bg)'
   const CARD    = 'var(--au-card-solid)'
-  const BORDER  = 'rgba(132,144,216,.12)'
+  const BORDER  = 'rgba(var(--brand-rgb),.12)'
   const MUTED   = 'rgba(var(--ink),.35)'
   const CREAM   = 'var(--au-text)'
-  const PURPLE  = '#8490D8'
+  const PURPLE  = C?.purple || '#7B86CF'
   const GREEN   = '#82F67F'
 
   const statusTabs = [
@@ -759,7 +759,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
       {/* ── Premium Header: title + stats + view toggle ── */}
       <div style={{
         flexShrink: 0,
-        background: 'linear-gradient(180deg, rgba(132,144,216,.10) 0%, var(--au-card-solid) 100%)',
+        background: 'linear-gradient(180deg, rgba(var(--brand-rgb),.10) 0%, var(--au-card-solid) 100%)',
         borderBottom: `1px solid ${BORDER}`,
       }}>
         {/* Top bar: toggle (RIGHT) + branding (LEFT) — RTL: first child = visual right */}
@@ -974,9 +974,9 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
                 width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                 padding: '9px 13px',
                 background: campaignFilter
-                  ? `linear-gradient(135deg, rgba(132,144,216,.22) 0%, rgba(132,144,216,.12) 100%)`
-                  : `linear-gradient(135deg, rgba(132,144,216,.13) 0%, rgba(132,144,216,.06) 100%)`,
-                border: `1px solid ${campaignFilter ? PURPLE + '80' : 'rgba(132,144,216,.38)'}`,
+                  ? `linear-gradient(135deg, rgba(var(--brand-rgb),.22) 0%, rgba(var(--brand-rgb),.12) 100%)`
+                  : `linear-gradient(135deg, rgba(var(--brand-rgb),.13) 0%, rgba(var(--brand-rgb),.06) 100%)`,
+                border: `1px solid ${campaignFilter ? PURPLE + '80' : 'rgba(var(--brand-rgb),.38)'}`,
                 borderRadius: 10,
                 color: campaignFilter ? PURPLE : 'rgba(var(--ink),.75)',
                 fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
@@ -984,15 +984,15 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
                 boxShadow: campaignFilter ? `0 0 0 2px ${PURPLE}22` : '0 1px 6px rgba(0,0,0,.3)',
               }}
               onMouseEnter={e => {
-                e.currentTarget.style.background = 'linear-gradient(135deg, rgba(132,144,216,.28) 0%, rgba(132,144,216,.16) 100%)'
+                e.currentTarget.style.background = 'linear-gradient(135deg, rgba(var(--brand-rgb),.28) 0%, rgba(var(--brand-rgb),.16) 100%)'
                 e.currentTarget.style.borderColor = PURPLE + 'aa'
                 e.currentTarget.style.color = PURPLE
               }}
               onMouseLeave={e => {
                 e.currentTarget.style.background = campaignFilter
-                  ? 'linear-gradient(135deg, rgba(132,144,216,.22) 0%, rgba(132,144,216,.12) 100%)'
-                  : 'linear-gradient(135deg, rgba(132,144,216,.13) 0%, rgba(132,144,216,.06) 100%)'
-                e.currentTarget.style.borderColor = campaignFilter ? PURPLE + '80' : 'rgba(132,144,216,.38)'
+                  ? 'linear-gradient(135deg, rgba(var(--brand-rgb),.22) 0%, rgba(var(--brand-rgb),.12) 100%)'
+                  : 'linear-gradient(135deg, rgba(var(--brand-rgb),.13) 0%, rgba(var(--brand-rgb),.06) 100%)'
+                e.currentTarget.style.borderColor = campaignFilter ? PURPLE + '80' : 'rgba(var(--brand-rgb),.38)'
                 e.currentTarget.style.color = campaignFilter ? PURPLE : 'rgba(var(--ink),.75)'
               }}
             >
@@ -1030,7 +1030,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
                   style={{
                     width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                     padding: '10px 14px', border: 'none', borderBottom: `1px solid ${BORDER}`,
-                    background: !campaignFilter ? 'rgba(132,144,216,.1)' : 'transparent',
+                    background: !campaignFilter ? 'rgba(var(--brand-rgb),.1)' : 'transparent',
                     color: !campaignFilter ? PURPLE : MUTED,
                     fontSize: 12, fontWeight: !campaignFilter ? 700 : 500,
                     cursor: 'pointer', fontFamily: 'inherit', textAlign: 'right', direction: dir,
@@ -1040,7 +1040,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
                   onMouseLeave={e => { if (campaignFilter) e.currentTarget.style.background = 'transparent' }}
                 >
                   <span>{lang === 'en' ? 'All Campaigns' : 'כל הקמפיינים'}</span>
-                  <span style={{ background: 'rgba(132,144,216,.15)', color: PURPLE, borderRadius: 10, padding: '1px 7px', fontSize: 10, fontWeight: 700 }}>
+                  <span style={{ background: 'rgba(var(--brand-rgb),.15)', color: PURPLE, borderRadius: 10, padding: '1px 7px', fontSize: 10, fontWeight: 700 }}>
                     {leads.length}
                   </span>
                 </button>
@@ -1182,7 +1182,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
                   padding: '11px 14px 11px 16px',
                   borderBottom: `1px solid rgba(var(--ov),.04)`,
                   cursor: 'pointer',
-                  background: isSelected ? `linear-gradient(135deg,rgba(132,144,216,.14),rgba(132,144,216,.06))` : 'transparent',
+                  background: isSelected ? `linear-gradient(135deg,rgba(var(--brand-rgb),.14),rgba(var(--brand-rgb),.06))` : 'transparent',
                   borderRight: isSelected ? `3px solid ${PURPLE}` : '3px solid transparent',
                   borderLeft: `3px solid ${sc.color}${isSelected ? 'cc' : '44'}`,
                   transition: 'all .12s',
@@ -1290,7 +1290,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
         ) : (
           <>
             {/* ── Lead Hero Header ─────────────────────────────────── */}
-            <div style={{ flexShrink:0, borderBottom:`1px solid ${BORDER}`, background:`linear-gradient(180deg,rgba(132,144,216,.08) 0%,${CARD} 100%)` }}>
+            <div style={{ flexShrink:0, borderBottom:`1px solid ${BORDER}`, background:`linear-gradient(180deg,rgba(var(--brand-rgb),.08) 0%,${CARD} 100%)` }}>
               {/* Profile row */}
               <div style={{ padding:'16px 20px 12px', display:'flex', gap:14, alignItems:'center', flexWrap:'wrap' }}>
                 {/* Avatar */}

@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { sourceLabel, sourceColor, originLines } from './lib/leadFields.js'
+import LeadCard from './LeadCard.jsx'
 import {
   DndContext, closestCenter, closestCorners, useSensor, useSensors,
   PointerSensor, DragOverlay, useDroppable,
@@ -244,7 +245,7 @@ const useTheme = isDark => useMemo(() => isDark ? {
   accentHover: '#0060CC',
   green:       '#00C875',
   orange:      '#FDAB3D',
-  purple:      '#A25DDC',
+  purple:      '#7456C2',
   red:         '#E2445C',
   pink:        '#FF5AC4',
   teal:        '#03C9D7',
@@ -269,7 +270,7 @@ const useTheme = isDark => useMemo(() => isDark ? {
   accentHover: '#0060CC',
   green:       '#00C875',
   orange:      '#FDAB3D',
-  purple:      '#A25DDC',
+  purple:      '#7456C2',
   red:         '#E2445C',
   pink:        '#FF5AC4',
   teal:        '#03C9D7',
@@ -483,7 +484,8 @@ function MobileLeadCard({ lead, lang, T, onUpdate, onDelete, onOpenDetail, onSta
   }, [menuOpen])
 
   return (
-    <div style={{
+    <div onClick={e => { if (!e.target.closest('button,a,input,textarea,select')) onOpenDetail(lead) }} style={{
+      cursor: 'pointer',
       background: T.bgCard,
       border: `1px solid ${T.border}`,
       borderRadius: 14,
@@ -811,12 +813,12 @@ function SortableRow({ lead, cols, onUpdate, onDelete, onSelect, isSelected, lan
         <div style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', display: 'flex', gap: 4, background: T.bgRow, borderRadius: 8, padding: '2px 4px', boxShadow: T.shadowSm, zIndex: 10, border: `1px solid ${T.borderLight}` }}>
           {onEnrich && (
             lead.enrichment?.status === 'enriching'
-              ? <button style={{ background: 'none', border: 'none', color: '#A25DDC', cursor: 'default', padding: '5px 6px', borderRadius: 6, display: 'flex', alignItems: 'center' }} title="AI מעבד...">
+              ? <button style={{ background: 'none', border: 'none', color: '#7456C2', cursor: 'default', padding: '5px 6px', borderRadius: 6, display: 'flex', alignItems: 'center' }} title="AI מעבד...">
                   <RefreshCw size={13} style={{ animation: 'spin 1s linear infinite' }} />
                 </button>
               : <button onClick={() => onEnrich(lead)} title="AI Enrichment"
-                  style={{ background: 'none', border: 'none', color: '#A25DDC', cursor: 'pointer', padding: '5px 6px', borderRadius: 6, display: 'flex', alignItems: 'center', fontSize: 13, fontWeight: 700 }}
-                  onMouseEnter={e => e.currentTarget.style.background = '#A25DDC18'}
+                  style={{ background: 'none', border: 'none', color: '#7456C2', cursor: 'pointer', padding: '5px 6px', borderRadius: 6, display: 'flex', alignItems: 'center', fontSize: 13, fontWeight: 700 }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#7456C218'}
                   onMouseLeave={e => e.currentTarget.style.background = 'none'}>
                   ✦
                 </button>
@@ -1043,22 +1045,22 @@ function ItemDetailDrawer({ lead, onClose, onUpdate, onUpdateStatus, lang, T, is
           {/* AI Enrichment section */}
           <div>
             <div style={{ fontSize: 11, fontWeight: 700, color: T.textSub, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ color: '#A25DDC' }}>✦</span> AI Enrichment
+              <span style={{ color: '#7456C2' }}>✦</span> AI Enrichment
               {onEnrich && (
                 lead.enrichment?.status === 'enriching'
-                  ? <span style={{ marginLeft: 'auto', fontSize: 11, color: '#A25DDC', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  ? <span style={{ marginLeft: 'auto', fontSize: 11, color: '#7456C2', display: 'flex', alignItems: 'center', gap: 4 }}>
                       <RefreshCw size={11} style={{ animation: 'spin 1s linear infinite' }} /> מעבד...
                     </span>
-                  : <button onClick={() => onEnrich(lead)} style={{ marginLeft: 'auto', background: '#A25DDC14', border: '1px solid #A25DDC44', borderRadius: 6, color: '#A25DDC', fontSize: 11, fontWeight: 700, padding: '3px 10px', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  : <button onClick={() => onEnrich(lead)} style={{ marginLeft: 'auto', background: '#7456C214', border: '1px solid #7456C244', borderRadius: 6, color: '#7456C2', fontSize: 11, fontWeight: 700, padding: '3px 10px', cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4 }}>
                       ✦ {lead.enrichment ? (lang === 'en' ? 'Re-enrich' : 'רענן AI') : (lang === 'en' ? 'Enrich' : 'נתח AI')}
                     </button>
               )}
             </div>
             {lead.enrichment && lead.enrichment.status !== 'enriching' ? (
-              <div style={{ background: T.bg, border: `1px solid #A25DDC33`, borderRadius: 10, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ background: T.bg, border: `1px solid #7456C233`, borderRadius: 10, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {lead.enrichment.notes && (
                   <div>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: '#A25DDC', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 5 }}>{lang === 'en' ? 'Pre-Call Brief' : 'תדריך לשיחה'}</div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: '#7456C2', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 5 }}>{lang === 'en' ? 'Pre-Call Brief' : 'תדריך לשיחה'}</div>
                     <div style={{ fontSize: 13, color: T.text, lineHeight: 1.6 }}>{lead.enrichment.notes}</div>
                   </div>
                 )}
@@ -1080,10 +1082,10 @@ function ItemDetailDrawer({ lead, onClose, onUpdate, onUpdateStatus, lang, T, is
                 ))}
                 {lead.enrichment.talkingPoints?.length > 0 && (
                   <div>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: '#A25DDC', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 5 }}>{lang === 'en' ? 'Talking Points' : 'נקודות שיחה'}</div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: '#7456C2', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 5 }}>{lang === 'en' ? 'Talking Points' : 'נקודות שיחה'}</div>
                     {lead.enrichment.talkingPoints.map((pt, i) => (
                       <div key={i} style={{ fontSize: 12, color: T.text, padding: '3px 0', display: 'flex', gap: 6, alignItems: 'flex-start' }}>
-                        <span style={{ color: '#A25DDC', flexShrink: 0 }}>•</span>{pt}
+                        <span style={{ color: '#7456C2', flexShrink: 0 }}>•</span>{pt}
                       </div>
                     ))}
                   </div>
@@ -1098,7 +1100,7 @@ function ItemDetailDrawer({ lead, onClose, onUpdate, onUpdateStatus, lang, T, is
                 {lead.enrichment.tags?.length > 0 && (
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                     {lead.enrichment.tags.map(tag => (
-                      <span key={tag} style={{ fontSize: 11, background: '#A25DDC14', color: '#A25DDC', borderRadius: 20, padding: '2px 9px', fontWeight: 600 }}>{tag}</span>
+                      <span key={tag} style={{ fontSize: 11, background: '#7456C214', color: '#7456C2', borderRadius: 20, padding: '2px 9px', fontWeight: 600 }}>{tag}</span>
                     ))}
                   </div>
                 )}
@@ -1165,9 +1167,18 @@ function KanbanCard({ lead, T, isDark, lang, onOpen, onDelete, onOpenChat, onEnr
   })
   const color = getGroupColor(lead.leadStatus || 'new')
   const score = getScoreOpt(lead.enrichment?.intent)
+  // A plain click opens the lead card; a drag (≥ 8px, the sensor's activation distance) only moves it
+  const downAt = useRef(null)
 
   return (
-    <div ref={setNodeRef}
+    <div ref={setNodeRef} className="lb-card"
+      onPointerDownCapture={e => { downAt.current = { x: e.clientX, y: e.clientY } }}
+      onClick={e => {
+        const d = downAt.current
+        if (e.target.closest('button,a,input,textarea,select')) return
+        if (d && Math.hypot(e.clientX - d.x, e.clientY - d.y) > 6) return
+        onOpen(lead)
+      }}
       style={{
         transform: CSS.Transform.toString(transform),
         transition: transition || 'box-shadow .15s',
@@ -1177,7 +1188,7 @@ function KanbanCard({ lead, T, isDark, lang, onOpen, onDelete, onOpenChat, onEnr
         borderRadius: 12,
         padding: '13px 13px 10px',
         marginBottom: 10,
-        cursor: isDragging ? 'grabbing' : 'grab',
+        cursor: isDragging ? 'grabbing' : 'pointer',
         boxShadow: isDragging
           ? 'none'
           : isDark
@@ -1210,6 +1221,10 @@ function KanbanCard({ lead, T, isDark, lang, onOpen, onDelete, onOpenChat, onEnr
             <div style={{ fontSize: 11, color: T.textSub, direction: 'ltr', textAlign: 'right', marginTop: 1 }}>{lead.phone}</div>
           )}
         </div>
+        {lead.enrichment?.version === 2 && (() => {
+          const g = lead.enrichment.grade, c = { hot: '#EF4444', warm: '#F59E0B', cool: '#60A5FA', cold: '#94A3B8' }[g] || '#94A3B8'
+          return <span title={lang === 'en' ? 'Lead score' : 'ציון ליד'} style={{ flexShrink: 0, minWidth: 34, height: 24, padding: '0 7px', borderRadius: 12, background: `${c}1f`, color: c, border: `1px solid ${c}55`, fontSize: 12, fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontVariantNumeric: 'tabular-nums' }}>{lead.enrichment.score100}</span>
+        })()}
       </div>
 
       {/* Property + message preview */}
@@ -1801,7 +1816,7 @@ export default function LeadsBoard({
         {/* ── Mobile Header ── */}
         <div style={{ padding: '14px 16px 10px', background: T.bgHeader, borderBottom: `1px solid ${T.border}` }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-            <div style={{ width: 34, height: 34, borderRadius: 10, background: 'linear-gradient(135deg,#A25DDC,#0073EA)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 4px 12px #0073EA44' }}>
+            <div style={{ width: 34, height: 34, borderRadius: 10, background: 'linear-gradient(135deg,#7456C2,#0073EA)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 4px 12px #0073EA44' }}>
               <User size={16} style={{ color: '#fff' }} />
             </div>
             <div style={{ flex: 1 }}>
@@ -1923,7 +1938,7 @@ export default function LeadsBoard({
 
         {/* ── Overlays ── */}
         {statusTarget && <StatusPopup lead={statusTarget} onClose={() => setStatusTarget(null)} onUpdate={updateLeadStatus} lang={lang} T={T} />}
-        {detailLead && <ItemDetailDrawer lead={leads.find(l => l.id === detailLead.id) || detailLead} onClose={() => setDetailLead(null)} onUpdate={updateLead} onUpdateStatus={updateLeadStatus} lang={lang} T={T} isDark={isDark} isMobile onEnrich={enrichLead} />}
+        {detailLead && <LeadCard lead={leads.find(l => l.id === detailLead.id) || detailLead} onClose={() => setDetailLead(null)} onUpdate={updateLead} onUpdateStatus={updateLeadStatus} onEnrich={enrichLead} onOpenChat={onOpenChat} lang={lang} stages={GROUPS} />}
         {toast && <Toast message={toast} onDismiss={() => setToast(null)} />}
         <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
       </div>
@@ -1939,7 +1954,7 @@ export default function LeadsBoard({
       {/* ── Board title bar ── */}
       <div style={{ padding: '10px 20px 0', background: isDark ? '#0D1117' : T.bgHeader, borderBottom: `1px solid ${T.border}`, flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-          <div style={{ width: 32, height: 32, borderRadius: 9, background: 'linear-gradient(135deg,#0073EA,#A25DDC)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 3px 12px #0073EA55' }}>
+          <div style={{ width: 32, height: 32, borderRadius: 9, background: 'linear-gradient(135deg,#0073EA,#7456C2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 3px 12px #0073EA55' }}>
             <User size={16} style={{ color: '#fff' }} />
           </div>
           <span style={{ fontSize: 18, fontWeight: 800, color: T.text, letterSpacing: '-.01em' }}>
@@ -1956,9 +1971,9 @@ export default function LeadsBoard({
             <Zap size={12} /> {lang === 'en' ? 'Integrations' : 'אינטגרציות'}
           </button>
           <button onClick={() => (onOpenAutomations ? onOpenAutomations() : setModal('automate'))}
-            style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 14px', background: '#A25DDC14', border: '1px solid #A25DDC44', borderRadius: 8, color: '#A25DDC', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+            style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 14px', background: '#7456C214', border: '1px solid #7456C244', borderRadius: 8, color: '#7456C2', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
             <Settings size={12} /> {lang === 'en' ? 'Automate' : 'אוטומציות'}
-            {autoPending > 0 && <span style={{ background: '#A25DDC', color: '#fff', borderRadius: 10, fontSize: 9, padding: '0 5px', fontWeight: 800 }}>{autoPending}</span>}
+            {autoPending > 0 && <span style={{ background: '#7456C2', color: '#fff', borderRadius: 10, fontSize: 9, padding: '0 5px', fontWeight: 800 }}>{autoPending}</span>}
           </button>
         </div>
 
@@ -2060,7 +2075,7 @@ export default function LeadsBoard({
 
         {enrichAll && (
           <button onClick={enrichAll}
-            style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: '#A25DDC14', border: '1px solid #A25DDC44', borderRadius: 8, color: '#A25DDC', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+            style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: '#7456C214', border: '1px solid #7456C244', borderRadius: 8, color: '#7456C2', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
             ✦ {lang === 'en' ? 'Enrich All' : 'העשר'}
           </button>
         )}
@@ -2177,7 +2192,7 @@ export default function LeadsBoard({
       )}
 
       {statusTarget && <StatusPopup lead={statusTarget} onClose={() => setStatusTarget(null)} onUpdate={updateLeadStatus} lang={lang} T={T} />}
-      {detailLead && <ItemDetailDrawer lead={leads.find(l => l.id === detailLead.id) || detailLead} onClose={() => setDetailLead(null)} onUpdate={updateLead} onUpdateStatus={updateLeadStatus} lang={lang} T={T} isDark={isDark} isMobile={false} onEnrich={enrichLead} />}
+      {detailLead && <LeadCard lead={leads.find(l => l.id === detailLead.id) || detailLead} onClose={() => setDetailLead(null)} onUpdate={updateLead} onUpdateStatus={updateLeadStatus} onEnrich={enrichLead} onOpenChat={onOpenChat} lang={lang} stages={GROUPS} />}
       {selectedIds.size > 0 && <BulkActionBar count={selectedIds.size} lang={lang} T={T} onClearSelection={() => setSelectedIds(new Set())} onDelete={handleBulkDelete} onMove={() => {}} />}
       {toast && <Toast message={toast} onDismiss={() => setToast(null)} />}
 

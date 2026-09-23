@@ -75,7 +75,7 @@ const CSS = `
   .ga-2{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:14px;align-items:start}
   .ga-2e{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start}
   .ga-rt{display:grid;grid-template-columns:220px minmax(0,1fr) minmax(0,1fr);gap:18px;align-items:center}
-  .ga-row:hover{background:rgba(132,144,216,.06)}
+  .ga-row:hover{background:rgba(var(--brand-rgb),.06)}
   .ga-seg button{min-height:0!important;min-width:0!important}
   @keyframes ga-pulse{0%{box-shadow:0 0 0 0 rgba(37,211,102,.55)}70%{box-shadow:0 0 0 9px rgba(37,211,102,0)}100%{box-shadow:0 0 0 0 rgba(37,211,102,0)}}
   .ga-live{animation:ga-pulse 2s infinite}
@@ -284,11 +284,11 @@ function Heatmap({ rows, t, lang }) {
         {Array.from({ length: 24 }, (_, h) => <span key={h} style={{ fontSize: 9.5, color: T.text3, textAlign: 'center' }}>{h % 3 === 0 ? String(h).padStart(2, '0') : ''}</span>)}
         {grid.map((row, d) => [
           <span key={`l${d}`} style={{ fontSize: 11, color: T.text2, textAlign: 'end', paddingInlineEnd: 4 }}>{t.dow[d]}</span>,
-          ...row.map((v, h) => <span key={`${d}-${h}`} title={`${t.dow[d]} ${String(h).padStart(2, '0')}:00 · ${fmtN(v, lang)}`} style={{ height: 18, borderRadius: 4, background: v ? `rgba(132,144,216,${0.12 + (v / max) * 0.88})` : 'rgba(var(--ov),.035)' }}/>),
+          ...row.map((v, h) => <span key={`${d}-${h}`} title={`${t.dow[d]} ${String(h).padStart(2, '0')}:00 · ${fmtN(v, lang)}`} style={{ height: 18, borderRadius: 4, background: v ? `rgba(var(--brand-rgb),${0.12 + (v / max) * 0.88})` : 'rgba(var(--ov),.035)' }}/>),
         ])}
       </div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end', marginTop: 10, fontSize: 11, color: T.text3 }}>
-        {t.less}{[0.15, 0.35, 0.6, 0.85, 1].map(a => <i key={a} style={{ width: 14, height: 10, borderRadius: 3, background: `rgba(132,144,216,${a})` }}/>)}{t.more}
+        {t.less}{[0.15, 0.35, 0.6, 0.85, 1].map(a => <i key={a} style={{ width: 14, height: 10, borderRadius: 3, background: `rgba(var(--brand-rgb),${a})` }}/>)}{t.more}
       </div>
     </div>
   )

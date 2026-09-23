@@ -39,8 +39,8 @@ const CSS = `
   .ah-kpi{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px}
   .ah-2{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:14px;align-items:start}
   .ah-status{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
-  .ah-row{transition:background .12s}.ah-row:hover{background:rgba(132,144,216,.07)}
-  .ah-card{transition:border-color .15s,transform .15s}.ah-card:hover{border-color:rgba(132,144,216,.32)!important}
+  .ah-row{transition:background .12s}.ah-row:hover{background:rgba(var(--brand-rgb),.07)}
+  .ah-card{transition:border-color .15s,transform .15s}.ah-card:hover{border-color:rgba(var(--brand-rgb),.32)!important}
   .ah-home button{min-height:0}
   @media (max-width:1280px){.ah-kpi{grid-template-columns:repeat(3,minmax(0,1fr))}}
   @media (max-width:1000px){.ah-2{grid-template-columns:1fr}.ah-status{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -154,7 +154,7 @@ export default function AdminHome({ properties = [], leads = [], setTab, autoCfg
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button type="button" onClick={() => window.open('/', '_blank')} style={{ height: 36, padding: '0 14px', borderRadius: 10, border: '1px solid rgba(var(--ink),.16)', background: 'transparent', color: T.text2, fontFamily: 'inherit', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 7 }}><FaGlobe size={12}/>{t.viewSite}</button>
-          {onNewProperty && <button type="button" onClick={onNewProperty} style={{ height: 36, padding: '0 16px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#8490D8,#6B77C4)', color: '#fff', fontFamily: 'inherit', fontSize: 13, fontWeight: 800, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 7, boxShadow: '0 6px 18px rgba(132,144,216,.28)' }}><FaPlus size={11}/>{t.newProp}</button>}
+          {onNewProperty && <button type="button" onClick={onNewProperty} style={{ height: 36, padding: '0 16px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#6E7AC9,#4B55B8)', color: '#fff', fontFamily: 'inherit', fontSize: 13, fontWeight: 800, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 7, boxShadow: '0 6px 18px rgba(var(--brand-rgb),.28)' }}><FaPlus size={11}/>{t.newProp}</button>}
         </div>
       </div>
 
@@ -188,7 +188,7 @@ export default function AdminHome({ properties = [], leads = [], setTab, autoCfg
             const src = srcLabel(l, t)
             return (
               <button type="button" key={l.id || i} className="ah-row" onClick={() => setTab('leads')} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '10px 8px', border: 'none', borderBottom: i < recent.length - 1 ? `1px solid ${T.divider}` : 'none', background: 'transparent', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'start', color: T.text, borderRadius: 8 }}>
-                <span style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(132,144,216,.16)', color: T.brandText, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 800, flexShrink: 0 }}>{[...(l.name || '?').trim()][0] || '?'}</span>
+                <span style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(var(--brand-rgb),.16)', color: T.brandText, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 800, flexShrink: 0 }}>{[...(l.name || '?').trim()][0] || '?'}</span>
                 <span style={{ flex: 1, minWidth: 0 }}>
                   <span style={{ display: 'block', fontSize: 13.5, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.name || t.noName}</span>
                   <span style={{ display: 'block', fontSize: 12, color: T.text3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{[src, leadTs(l) ? ago(leadTs(l), t) : ''].filter(Boolean).join(' · ')}</span>
@@ -216,7 +216,7 @@ export default function AdminHome({ properties = [], leads = [], setTab, autoCfg
             <Head title={t.recentProps} action={<LinkBtn onClick={() => setTab('props')} Arrow={Arrow}>{t.manage}</LinkBtn>}/>
             {properties.length ? [...properties].reverse().slice(0, 4).map((p, i) => (
               <div key={p.id || i} className="ah-row" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 6px', borderRadius: 8 }}>
-                <span style={{ width: 44, height: 34, borderRadius: 8, overflow: 'hidden', background: 'rgba(132,144,216,.1)', flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                <span style={{ width: 44, height: 34, borderRadius: 8, overflow: 'hidden', background: 'rgba(var(--brand-rgb),.1)', flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
                   {p.images?.[0] ? <img src={thumbImg(p.images[0])} onError={imgFallback} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }}/> : <FaBuilding size={12} style={{ color: T.brand }}/>}
                 </span>
                 <span style={{ flex: 1, minWidth: 0 }}>

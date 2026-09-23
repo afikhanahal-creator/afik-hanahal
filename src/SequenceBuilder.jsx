@@ -34,11 +34,11 @@ export default function SequenceBuilder({ steps, onChange, templates, tplName, r
 
   const Node = ({ children, tone = 'grey' }) => (
     <span style={{ width: 36, height: 36, borderRadius: '50%', flexShrink: 0, zIndex: 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800,
-      background: tone === 'brand' ? T.brandSoft : 'rgba(var(--ov),.08)', color: tone === 'brand' ? T.brand : T.text3, border: `1px solid ${tone === 'brand' ? 'rgba(132,144,216,.35)' : 'rgba(var(--ov),.1)'}` }}>{children}</span>
+      background: tone === 'brand' ? T.brandSoft : 'rgba(var(--ov),.08)', color: tone === 'brand' ? T.brand : T.text3, border: `1px solid ${tone === 'brand' ? 'rgba(var(--brand-rgb),.35)' : 'rgba(var(--ov),.1)'}` }}>{children}</span>
   )
   return (
     <div style={{ position: 'relative' }}>
-      <div aria-hidden style={{ position: 'absolute', insetInlineStart: 17, top: 18, bottom: 18, width: 2, background: 'rgba(132,144,216,.25)' }}/>
+      <div aria-hidden style={{ position: 'absolute', insetInlineStart: 17, top: 18, bottom: 18, width: 2, background: 'rgba(var(--brand-rgb),.25)' }}/>
       <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
         <li style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <Node><FaPaperPlane size={13}/></Node>

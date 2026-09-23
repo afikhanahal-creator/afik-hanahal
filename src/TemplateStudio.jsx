@@ -346,7 +346,7 @@ function TemplateEditor({ t, lang, cfg, tpl, leads, onClose, onSave, toast, onGo
         <span style={{ fontSize: 12, color: T.text2, fontWeight: 700 }}>{t.personalise}</span>
         {VARIABLES.map(v => (
           <button key={v.key} type="button" onClick={() => insert(`{${v.key}}`)} title={`{${v.key}} → ${renderTemplate({ he: `{${v.key}}`, en: `{${v.key}}` }, previewLead, cfg, tab) || '—'}`}
-            style={{ height: 26, padding: '0 9px', borderRadius: 20, border: '1px solid rgba(132,144,216,.3)', background: 'transparent', color: T.brandText, fontSize: 11.5, fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer', minHeight: 0, minWidth: 0 }}>{isEn ? v.en : v.he}</button>
+            style={{ height: 26, padding: '0 9px', borderRadius: 20, border: '1px solid rgba(var(--brand-rgb),.3)', background: 'transparent', color: T.brandText, fontSize: 11.5, fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer', minHeight: 0, minWidth: 0 }}>{isEn ? v.en : v.he}</button>
         ))}
         <button type="button" onClick={onGoOffice} style={{ background: 'none', border: 'none', color: T.text3, fontSize: 12, textDecoration: 'underline', cursor: 'pointer', fontFamily: 'inherit', padding: 0, minHeight: 0, minWidth: 0 }}>{t.editValues}</button>
       </div>
@@ -393,7 +393,7 @@ function TemplateEditor({ t, lang, cfg, tpl, leads, onClose, onSave, toast, onGo
       <div className="au" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
         {header}
         <div className="au-only-m" style={{ padding: '8px 16px', borderBottom: `1px solid ${T.line}` }}>
-          <div role="radiogroup" style={{ display: 'flex', width: '100%', padding: 2, gap: 2, borderRadius: 9, background: 'rgba(var(--ov),.04)', border: '1px solid rgba(132,144,216,.2)' }}>
+          <div role="radiogroup" style={{ display: 'flex', width: '100%', padding: 2, gap: 2, borderRadius: 9, background: 'rgba(var(--ov),.04)', border: '1px solid rgba(var(--brand-rgb),.2)' }}>
             {[['edit', t.mEditTab], ['preview', t.mPreviewTab]].map(([k, l]) => <button key={k} type="button" role="radio" aria-checked={pane === k} onClick={() => setPane(k)} style={{ flex: 1, height: 36, borderRadius: 7, border: 'none', background: pane === k ? T.brandSoft : 'transparent', color: pane === k ? T.brandText : T.text3, fontWeight: 800, fontFamily: 'inherit', fontSize: 13, cursor: 'pointer', minHeight: 0 }}>{l}</button>)}
           </div>
         </div>

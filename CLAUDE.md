@@ -164,3 +164,18 @@ admin component uses, portals included. When adding admin UI, never hardcode dar
 (now CSS variables), `C.*` from `useTheme()`, or `var(--au-*)`; for tints use `rgba(var(--ink), a)` (text) and
 `rgba(var(--ov), a)` (surfaces). WhatsApp bubbles and the phone preview stay dark on purpose.
 `src/CommandPalette.jsx` — Ctrl/⌘ + K (or the top-bar search) jumps to any screen, lead (opens the chat) or property, and runs actions.
+
+### Lead card & smart lead analysis
+
+Clicking a lead (board card, mobile card, table "open") opens `src/LeadCard.jsx` — a centered card with tabs: details
+(contact, needs: deal type / budget / timeline / financing / area, property, management: priority / owner / follow-up / tags),
+notes & activity (`crm_data.notes: [{ id, text, ts }]`), tasks (`crm_data.tasks: [{ id, text, due, done }]`) and smart analysis.
+Every field saves on its own through `updateLead` → `PATCH /api/contacts` (merged into `crm_data`).
+
+Analysis = `POST /api/meta/lead-analyze { lead }` (`api/meta.js` → `lib/lead-analyze.js`): builds a dossier (lead + crm_data,
+WhatsApp history from Green API, `automation_log`, repeat inquiries in `contacts` / `meta_leads`, the matching listing from the
+property catalog), scores it with the pure, tested rules in `lib/lead-intel.js` (0–100 with signed, explained factors, missing
+info, next best action) and asks Claude (`claude-opus-5`, structured output, server-side refusal fallback) for a briefing that
+may adjust the score by ±15. The result is stored as `lead.enrichment` (`version: 2`, `score100`, `grade`, `factors`, `brief`, plus
+the legacy `score` 1–5 / `intent`). Without `ANTHROPIC_API_KEY` in Vercel the endpoint returns the dossier and the panel runs the
+briefing through the Render AI proxy, merged with `mergeBrief()`.
