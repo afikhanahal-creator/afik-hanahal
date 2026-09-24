@@ -38,6 +38,7 @@ class SectionBoundary extends Component {
 }
 const PropertyWizard    = lazyWithRetry(() => import('./PropertyWizard.jsx'))
 import { FaChevronLeft, FaChevronRight, FaEnvelope, FaFacebookF, FaInstagram, FaBed, FaRulerCombined, FaCar, FaSwimmingPool, FaBuilding, FaBoxOpen, FaTree, FaSnowflake, FaShieldAlt, FaCouch, FaTools, FaMapMarkerAlt, FaExternalLinkAlt, FaPhone, FaCompass, FaLeaf, FaCalendarAlt, FaTimes, FaWhatsapp, FaSun, FaFileAlt, FaHome, FaMoneyBill, FaSearch, FaBalanceScale, FaHandshake, FaTrophy, FaHardHat, FaLock, FaKey, FaGlobe, FaSeedling, FaBolt, FaRocket, FaStar, FaChartLine, FaEye, FaPlay, FaWheelchair, FaFire, FaCalculator, FaShareAlt, FaHeart, FaStore, FaCamera, FaWifi, FaIndustry, FaExpand, FaUser, FaUsers, FaDesktop, FaMobileAlt, FaTabletAlt, FaCommentAlt, FaRobot, FaInbox, FaExclamationTriangle, FaChartBar, FaThumbsUp, FaImage, FaPencilAlt, FaCrown, FaMousePointer, FaDollarSign, FaVideo, FaLink, FaCheck, FaCheckCircle, FaUtensils, FaDoorOpen, FaUserShield, FaTrash } from 'react-icons/fa'
+import { notifyPropertiesChanged } from './siteRebuild.js'
 
 // ─── SERVER CONFIG ────────────────────────────────────────────────────────────
 // Set VITE_API_URL in Vercel env vars to point at your Render server.
@@ -5548,9 +5549,25 @@ export default function App() {
       }
       setSharedLoading(false)
     })
+    // Instant landing page (/p/<id>): it embedded the property as of the last deploy and is re-checking
+    // it live in the background — take the live copy as soon as it's in
+    if (early && early.fresh) early.fresh.then(fp => {
+      if (!alive || !fp || String(fp.id) !== String(id)) return
+      setProperties(prev => (prev.some(x => String(x.id) === String(fp.id)) ? prev.map(x => (String(x.id) === String(fp.id) ? { ...x, ...fp } : x)) : [...prev, fp]))
+    })
     const t = setTimeout(() => setSharedLoading(false), 10000)   // never block the site on it
     return () => { alive = false; clearTimeout(t) }
   }, [])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Instant landing page (/p/<id>, lib/share-page.js renderLanding): its plain-HTML view of the property
+  // covers the screen until the app has opened the same property (or has nothing to open), then fades out
+  useEffect(() => {
+    const pre = document.getElementById('afik-pre')
+    if (!pre || (!selectedProp && sharedLoading)) return
+    let t
+    const raf = requestAnimationFrame(() => requestAnimationFrame(() => { pre.classList.add('out'); t = setTimeout(() => pre.remove(), 320) }))
+    return () => { cancelAnimationFrame(raf); clearTimeout(t) }
+  }, [selectedProp, sharedLoading])
   const setPropInUrl = (p) => {
     try { const u = new URL(window.location.href); if (p) u.searchParams.set('p', p.id); else u.searchParams.delete('p'); window.history.replaceState(null, '', u.pathname + (u.search || '') + (u.hash || '')) } catch {}
   }
@@ -6395,6 +6412,7 @@ export default function App() {
               }).then(r => r.ok ? r.json() : Promise.reject(r.status))
                 .then(body => {
                   console.log('[wizard] saved prop', savedProp.id, '→', body.storage)
+                  notifyPropertiesChanged(ADMIN_TOKEN)   // snapshot + instant landing pages follow
                   // Re-fetch after confirmed save so UI reflects what the server actually stored
                   return fetch(`${base}/api/properties`, {
                     headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },

@@ -203,7 +203,7 @@
     <!-- ── Shared property link (/?p=<id>): fetch that one property right away, before the app bundle
          has even downloaded, so the page opens straight on it (App.jsx picks up window.__afikShared) ── -->
     <script>
-    (function(){try{var m=/[?&]p=([^&#]+)/.exec(location.search);if(!m)return;var id=decodeURIComponent(m[1]).slice(0,80);
+    (function(){try{if(window.__afikShared)return;var m=/[?&]p=([^&#]+)/.exec(location.search);if(!m)return;var id=decodeURIComponent(m[1]).slice(0,80);
       window.__afikShared={id:id,promise:fetch('/api/properties?one='+encodeURIComponent(id),{headers:{Accept:'application/json'}})
         .then(function(r){return r.ok?r.json():null}).catch(function(){return null})};}catch(e){}})();
     // First visit (no saved list): start downloading the deploy-time property list (a static file on the CDN)

@@ -202,6 +202,16 @@ open property window always follows the freshest data. So the site never waits o
 "טוען את הנכס…" overlay meanwhile. Crawlers on `/p/<id>` use the same fast lookup. The map in the property window sits in
 its own `SectionBoundary`, so a failed map chunk never takes the page down.
 
+**Instant landing pages (property visible in < 1 s on any phone):** `/p/<id>` is a real HTML page with the property already
+drawn (photo, title, price, specs, WhatsApp / call) and its own Open Graph tags, so it paints with no JavaScript; the full site
+(same `index.html` + bundle) loads underneath and takes over — `App.jsx` opens the property window with the embedded data
+(`window.__afikShared`, `fresh` = the live re-check) and then fades the `#afik-pre` layer out. Rendered by `renderLanding()` in
+`lib/share-page.js` (tested): at deploy time for every published property (`dist/p/<id>/index.html`, served by the CDN before
+the rewrite) and by `api/properties.js` for newer ones (edge-cached for everyone, `s-maxage=60, swr=1d`). Saving / deleting
+a property (admin panel, wizard, "פרסם באתר") calls `POST /api/properties?changed=1` (batched 15 s, `src/siteRebuild.js` →
+`lib/site-rebuild.js`, tested): it refreshes the snapshot at once and, when `VERCEL_DEPLOY_HOOK_URL` is set, rebuilds the site
+(max once a minute) so the static pages follow.
+
 Admin → property list → "שתף" (or ⋯ → "שיתוף ופרסום") opens `src/PropertyShare.jsx`: the link with a live preview, per-channel UTM
 links (Facebook, Instagram, WhatsApp, colleagues, Yad2, Google; `utm_campaign=prop-<id>`), a custom UTM builder, ready-made post and
 colleague texts (Hebrew / English), one-tap share buttons, a QR code generated in the browser (`qrcode`) and a Facebook debugger link.
