@@ -200,7 +200,9 @@ colleague texts (Hebrew / English), one-tap share buttons, a QR code generated i
 The property modal and the property wizard show a GovMap map zoomed to the property's gush/helka. The parcel point
 is resolved server-side by `GET /api/properties?parcel=<gush>-<helka>` (`lib/parcel-locate.js`, tested), which asks
 several GovMap sources in parallel (new-platform parcel WFS, open-data `Parcels_ITM` WFS, the new search autocomplete,
-legacy TldSearch) and returns the point in ITM, Web Mercator and WGS84; hits are cached on the CDN for a month. The
+legacy TldSearch) and answers with the first one that finds the parcel, in ITM, Web Mercator and WGS84; hits are cached on
+the CDN for a month. The widget starts that lookup on mount (in parallel with the SDK download), caches it per page and in
+`localStorage` (`afik_gm_parcel_v1:<gush>-<helka>`), and opens the map directly on the parcel (`center` / `level`) when the point is known. The
 widget zooms with `govmap.zoomToXY` (ITM, level 13), verifies the landing through the map's `EXTENT_CHANGE` events
 (switching to Web Mercator / level 10 if the SDK didn't move), and always shows a status chip (locating / shown /
 not found + "פתח ב-GovMap" + retry) instead of failing silently. The legacy `es.govmap.gov.il/TldSearch` service
