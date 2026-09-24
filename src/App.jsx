@@ -6278,7 +6278,7 @@ export default function App() {
       {/* ── MODALS ──────────────────────────────────── */}
       {showPw      && <PasswordPrompt onSuccess={() => { sessionStorage.setItem('afik_admin_session','1'); setAdminAuth(true); setShowPw(false); setShowAdmin(true) }} onClose={() => setShowPw(false)}/>}
       {showContact && <ContactModal  prop={contactProp} onClose={() => setShowContact(false)}/>}
-      {showCalc    && <Suspense fallback={null}><RealEstateCalc onClose={() => setShowCalc(false)}/></Suspense>}
+      {showCalc    && <Suspense fallback={null}><RealEstateCalc lang={lang} isDark={isDark} onClose={() => setShowCalc(false)}/></Suspense>}
       {showPrivacy && <PrivacyModal onClose={() => setShowPrivacy(false)}/>}
       {selectedProp && <PropertyModal key={selectedProp.id} prop={selectedProp} properties={properties} onClose={() => { setSelectedProp(null); setPropInUrl(null) }} onContact={p => { openContact(p) }} onSelect={p => { setSelectedProp(p); setPropInUrl(p) }} govmapToken={govmapToken}/>}
       {showWizard && <Suspense fallback={null}><PropertyWizard
