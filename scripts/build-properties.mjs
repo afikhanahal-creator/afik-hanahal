@@ -7,6 +7,8 @@
 // Runs when VERCEL is set (or PROPS_SNAPSHOT=1); local builds skip it so they stay fast offline.
 import { writeFileSync, mkdirSync } from 'fs'
 import { createFeed } from '../lib/property-feed.js'
+import { renderLanding } from '../lib/share-page.js'
+import { readFileSync } from 'fs'
 
 if (!process.env.VERCEL && process.env.PROPS_SNAPSHOT !== '1') {
   console.log('[build-properties] skipped (not a Vercel build — set PROPS_SNAPSHOT=1 to run)')
@@ -42,5 +44,19 @@ writeFileSync('dist/properties.json', body)
 const kb = Math.round(Buffer.byteLength(body) / 1024)
 const inlineImages = published.reduce((n, p) => n + (p.images || []).filter(i => String(i).startsWith('data:')).length, 0)
 console.log(`[build-properties] dist/properties.json: ${published.length} published properties, ${kb} KB (source: ${result.source}${result.at ? ', snapshot of ' + result.at : ''})`)
+// One instant landing page per property: /p/<id> is served straight from the CDN (see renderLanding)
+const ORIGIN = (process.env.SITE_ORIGIN || 'https://www.afikhanahal.co.il').replace(/\/$/, '')
+let pages = 0
+try {
+  const template = readFileSync('dist/index.html', 'utf8')
+  for (const p of published) {
+    const id = String(p.id)
+    if (!/^[\w-]{1,80}$/.test(id)) continue
+    mkdirSync(`dist/p/${id}`, { recursive: true })
+    writeFileSync(`dist/p/${id}/index.html`, renderLanding(template, p, { origin: ORIGIN }))
+    pages++
+  }
+} catch (e) { console.warn(`[build-properties] landing pages skipped: ${e.message}`) }
+console.log(`[build-properties] ${pages} instant landing pages in dist/p/`)
 if (inlineImages) console.warn(`[build-properties] ${inlineImages} photos are stored inline (base64) — re-uploading them makes the list much lighter`)
 process.exit(0)   // don't wait on Render requests that are still open

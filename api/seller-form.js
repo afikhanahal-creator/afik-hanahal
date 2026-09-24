@@ -33,6 +33,7 @@ import { createClient } from '@supabase/supabase-js'
 import { randomBytes } from 'crypto'
 import { backupEnabled, backupPut, backupList, backupGet, backupDelete } from '../lib/backup.js'
 import { archiveEnabled, archiveSubmission, archiveRepoUrl } from '../lib/archive.js'
+import { propertiesChanged } from '../lib/site-rebuild.js'
 import { buildSummary, headline, PROPERTY_TYPE_LABEL, DOC_TAG_LABEL, publicAnswers, buildStory, storyText, directionsText, STEPS, INTAKE_STATUSES, purposeOf, roomsOf, visibleSteps, stepQuestion } from '../src/sellerFormSchema.js'
 
 const SUPA_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
@@ -299,7 +300,10 @@ async function renderPut(property) {
     body: JSON.stringify(property), signal: AbortSignal.timeout(42000),
   })
   if (!r.ok) throw new Error(`property generator HTTP ${r.status}: ${(await r.text().catch(() => '')).slice(0, 200)}`)
-  return r.json().catch(() => ({}))
+  const out = await r.json().catch(() => ({}))
+  // The site's public snapshot + instant landing pages follow right away (lib/site-rebuild.js)
+  await propertiesChanged({ renderUrl: RENDER, supaUrl: String(SUPA_URL || '').replace(/\/$/, ''), supaKey: SUPA_KEY }).catch(() => {})
+  return out
 }
 async function renderGet(id) {
   const r = await fetch(`${RENDER}/api/properties`, { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` }, signal: AbortSignal.timeout(42000) })

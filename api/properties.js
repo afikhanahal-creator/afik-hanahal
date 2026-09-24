@@ -1,8 +1,9 @@
 // Vercel serverless — proxies property GET to Render backend
 import { sendJson } from '../lib/http.js'
-import { isPreviewBot, renderSharePage, targetUrl } from '../lib/share-page.js'
+import { isPreviewBot, renderSharePage, renderLanding, targetUrl } from '../lib/share-page.js'
 import { resolveParcel, govmapParcelUrl } from '../lib/parcel-locate.js'
 import { createFeed } from '../lib/property-feed.js'
+import { propertiesChanged } from '../lib/site-rebuild.js'
 const RENDER = process.env.RENDER_URL || 'https://afik-hanahal-server.onrender.com'
 const SUPA_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || ''
 
@@ -37,19 +38,42 @@ async function serveImage(req, res, rawPath) {
   }
 }
 
+// The deployed index.html (with this deploy's asset hashes) as the landing page template, cached briefly
+let templateCache = null
+async function siteTemplate(origin) {
+  if (templateCache && Date.now() - templateCache.at < 300000) return templateCache.html
+  try {
+    const r = await fetch(`${origin}/index.html`, { signal: AbortSignal.timeout(3000) })
+    const html = r.ok ? await r.text() : ''
+    if (html.includes('<div id="root">')) { templateCache = { at: Date.now(), html }; return html }
+  } catch {}
+  return templateCache ? templateCache.html : null
+}
+
 // ── /p/<id> → property share link (rich preview for social crawlers, instant redirect for people) ──
 async function serveShare(req, res) {
   const id = String(req.query.share || '').trim().slice(0, 80)
   const host = String(req.headers['x-forwarded-host'] || req.headers.host || 'afikhanahal.co.il').split(',')[0].trim()
-  const origin = `https://${host}`
+  const origin = `${String(req.headers['x-forwarded-proto'] || 'https').split(',')[0].trim()}://${host}`
   const lang = req.query.lang === 'en' ? 'en' : 'he'
-  res.setHeader('Cache-Control', 'no-store')          // the response depends on who asks (crawler vs person)
-  if (!id) return res.redirect(302, '/#properties')
+  if (!id) { res.setHeader('Cache-Control', 'no-store'); return res.redirect(302, '/#properties') }
   const target = targetUrl(id, req.query)
-  if (!isPreviewBot(req.headers['user-agent'])) return res.redirect(302, target)
   // Crawlers give up after a few seconds: the snapshot answers at once, the live list only if needed
   let prop = null
-  try { prop = (await feed.getOne(id, { staticUrl: staticListUrl(req) })).property } catch {}
+  try { prop = (await feed.getOne(id, { staticUrl: staticListUrl(req), fast: true })).property } catch {}
+  // Found → the instant landing page (the property in plain HTML + the full site underneath). It is the
+  // same for crawlers and people, so the edge caches it. (Properties that existed at the last deploy are
+  // served as static files from dist/p/<id>/ and never reach this function.)
+  if (prop) {
+    const template = await siteTemplate(origin)
+    if (template) {
+      res.setHeader('Content-Type', 'text/html; charset=utf-8')
+      res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=86400')
+      return res.status(200).send(renderLanding(template, prop, { origin, lang }))
+    }
+  }
+  res.setHeader('Cache-Control', 'no-store')          // the response depends on who asks (crawler vs person)
+  if (!isPreviewBot(req.headers['user-agent'])) return res.redirect(302, target)
   res.setHeader('Content-Type', 'text/html; charset=utf-8')
   res.setHeader('X-Robots-Tag', 'noindex')
   if (!prop) return res.status(200).send(renderSharePage({ id, title: lang === 'en' ? 'Afik Hanahal properties' : 'הנכסים של אפיק הנחל' }, { origin, lang, target: '/#properties' }))
@@ -76,6 +100,18 @@ async function serveParcel(req, res) {
   return sendJson(req, res, data, data.error === 'bad_input' ? 400 : 200)
 }
 
+// ── POST /api/properties?changed=1 (admin) → a property was saved / removed: refresh the snapshot now and
+// rebuild the instant landing pages (lib/site-rebuild.js). The admin panel calls it 15 s after the last save.
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN || 'AFIKhanahal2026'
+async function serveChanged(req, res) {
+  res.setHeader('Cache-Control', 'no-store')
+  if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
+  const key = (req.headers.authorization || '').replace(/^Bearer\s+/i, '') || String(req.query.key || '')   // ?key= for sendBeacon on tab close
+  if (key !== ADMIN_TOKEN) return res.status(401).json({ error: 'unauthorized' })
+  const out = await propertiesChanged({ renderUrl: RENDER, supaUrl: SUPA_URL, supaKey: SUPA_KEY })
+  return res.status(200).json(out)
+}
+
 // ── /api/properties?one=<id> → a single published property (the page a share link opens) ─────────
 // A few KB instead of the whole list, so a colleague opening a shared link sees the property at once.
 async function serveOne(req, res) {
@@ -98,6 +134,7 @@ export default async function handler(req, res) {
   if (req.query && req.query.share !== undefined) return serveShare(req, res)
   if (req.query && req.query.parcel !== undefined) return serveParcel(req, res)
   if (req.query && req.query.one !== undefined) return serveOne(req, res)
+  if (req.query && req.query.changed !== undefined) return serveChanged(req, res)
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization')

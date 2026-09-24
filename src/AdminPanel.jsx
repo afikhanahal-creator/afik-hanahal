@@ -17,6 +17,7 @@ import { autoApi, StageSendPrompt } from './AutomationsApi.jsx'
 import { useAdminTheme, ADMIN_THEME_CSS } from './adminTheme.js'
 import { mergeBrief } from '../lib/lead-intel.js'
 import CommandPalette, { useCommandHotkey } from './CommandPalette.jsx'
+import { notifyPropertiesChanged } from './siteRebuild.js'
 import { LeadsBoard, GreenAPIChat, MetaLeadsTab, SupermetricsTab, PropertyWizard, API_BASE, CONTACTS_API, ADMIN_TOKEN, condFetchJson, DARK_C, useTheme, TEAM, G, Logo, LEADS_STORE, LEADS_DELETED, LEADS_TRASH, ANALYTICS_KEY, META_LEAD_PAGES_KEY, WA_DEFAULT_TEMPLATE, _cloudSettings, CATEGORIES, EMPTY_PROP, CONDITION_OPTIONS, ENTRY_OPTIONS, ADMIN_DRAFT_KEY, toMapsEmbed, imgFallback, thumbImg, sortByOrder, TEAM_KEY, setCloudSettings } from './App.jsx'
 
 // Tab ↔ URL deep-link mapping (module-level so both AdminPanel and main app can use it)
@@ -2635,6 +2636,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
           setPropSyncedAt(new Date())
           setPropSyncError('')
         }
+        notifyPropertiesChanged(ADMIN_TOKEN)   // snapshot + instant landing pages follow
         setPropSyncing(false)
         return
       } catch (e) {
@@ -2658,7 +2660,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
           body:    JSON.stringify(prop),
           signal:  AbortSignal.timeout(15000),
         })
-        if (r.ok) { setPropSyncedAt(new Date()); return }
+        if (r.ok) { setPropSyncedAt(new Date()); notifyPropertiesChanged(ADMIN_TOKEN); return }
       } catch {}
     }
   }
@@ -2672,6 +2674,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
         headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
         signal:  AbortSignal.timeout(10000),
       })
+      notifyPropertiesChanged(ADMIN_TOKEN)
     } catch {}
   }
 
@@ -2693,6 +2696,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
         setPropSyncError('⚠ נשמר ב-RAM בלבד — Supabase לא זמין! הנתונים יאבדו אם השרת יתחיל מחדש')
       } else {
         setPropSyncedAt(new Date())
+        notifyPropertiesChanged(ADMIN_TOKEN)
       }
     } catch (e) {
       setPropSyncError('שגיאת סנכרון: ' + (e.message || 'בעיית תקשורת'))
