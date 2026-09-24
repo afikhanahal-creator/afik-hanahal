@@ -1,6 +1,7 @@
 // Vercel serverless — proxies property GET to Render backend
 import { sendJson } from '../lib/http.js'
 import { isPreviewBot, renderSharePage, targetUrl } from '../lib/share-page.js'
+import { resolveParcel, govmapParcelUrl } from '../lib/parcel-locate.js'
 const RENDER = process.env.RENDER_URL || 'https://afik-hanahal-server.onrender.com'
 
 // ── /media/<bucket>/<path> → image from Supabase public storage, cached on Vercel's CDN ──────
@@ -60,9 +61,30 @@ async function serveShare(req, res) {
   return res.status(200).send(renderSharePage(prop, { origin, lang, target }))
 }
 
+// ── /api/properties?parcel=<gush>-<helka> → the parcel's map point for the GovMap widget ─────────────
+// Resolved server-side from several GovMap sources (see lib/parcel-locate.js). Parcels don't move, so a
+// hit is cached on the CDN for a month; a miss only briefly, so a GovMap outage heals by itself.
+const parcelCache = new Map()
+async function serveParcel(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*')
+  const [gush, helka] = String(req.query.parcel || '').split(/[-_/,\s]+/)
+  const key = `${parseInt(gush, 10)}-${parseInt(helka, 10)}`
+  let r = parcelCache.get(key)
+  if (!r || Date.now() - r.at > (r.data.ok ? 864e5 : 6e4)) {
+    r = { at: Date.now(), data: await resolveParcel(gush, helka) }
+    if (r.data.error !== 'bad_input') parcelCache.set(key, r)
+    if (parcelCache.size > 500) parcelCache.delete(parcelCache.keys().next().value)
+  }
+  const data = { ...r.data, govmapUrl: r.data.error === 'bad_input' ? null : govmapParcelUrl(parseInt(gush, 10), parseInt(helka, 10)) }
+  if (!data.ok) console.warn('[parcel]', key, JSON.stringify(data.tried))
+  res.setHeader('Cache-Control', data.ok ? 'public, s-maxage=2592000, stale-while-revalidate=86400' : 'public, s-maxage=60')
+  return sendJson(req, res, data, data.error === 'bad_input' ? 400 : 200)
+}
+
 export default async function handler(req, res) {
   if (req.query && req.query.img !== undefined) return serveImage(req, res, req.query.img)
   if (req.query && req.query.share !== undefined) return serveShare(req, res)
+  if (req.query && req.query.parcel !== undefined) return serveParcel(req, res)
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization')

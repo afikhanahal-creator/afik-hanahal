@@ -194,3 +194,14 @@ generic preview. The site's own share button uses the same link, and the landing
 Admin → property list → "שתף" (or ⋯ → "שיתוף ופרסום") opens `src/PropertyShare.jsx`: the link with a live preview, per-channel UTM
 links (Facebook, Instagram, WhatsApp, colleagues, Yad2, Google; `utm_campaign=prop-<id>`), a custom UTM builder, ready-made post and
 colleague texts (Hebrew / English), one-tap share buttons, a QR code generated in the browser (`qrcode`) and a Facebook debugger link.
+
+## GovMap parcel map (`src/GovMapWidget.jsx`)
+
+The property modal and the property wizard show a GovMap map zoomed to the property's gush/helka. The parcel point
+is resolved server-side by `GET /api/properties?parcel=<gush>-<helka>` (`lib/parcel-locate.js`, tested), which asks
+several GovMap sources in parallel (new-platform parcel WFS, open-data `Parcels_ITM` WFS, the new search autocomplete,
+legacy TldSearch) and returns the point in ITM, Web Mercator and WGS84; hits are cached on the CDN for a month. The
+widget zooms with `govmap.zoomToXY` (ITM, level 13), verifies the landing through the map's `EXTENT_CHANGE` events
+(switching to Web Mercator / level 10 if the SDK didn't move), and always shows a status chip (locating / shown /
+not found + "פתח ב-GovMap" + retry) instead of failing silently. The legacy `es.govmap.gov.il/TldSearch` service
+alone is no longer relied on.
