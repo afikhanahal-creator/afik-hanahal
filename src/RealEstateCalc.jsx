@@ -1,10 +1,10 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useId, createContext, useContext } from 'react'
 import {
-  FaTimes, FaHome, FaBalanceScale, FaHandshake,
-  FaMoneyBill, FaExternalLinkAlt, FaChevronDown, FaChevronUp,
+  FaTimes, FaHome, FaBalanceScale, FaHandshake, FaMoneyBill,
+  FaExternalLinkAlt, FaChevronDown, FaMinus, FaPlus, FaCheck, FaExclamationTriangle, FaInfoCircle,
 } from 'react-icons/fa'
 
-// ── 2026 מדרגות מס רכישה ────────────────────────────────────────────────────
+// ── 2026 מדרגות מס רכישה (also in content/tools.mjs — update both every January) ──
 const BRACKETS_FIRST = [
   { from: 0,          to: 2_058_000,  rate: 0     },
   { from: 2_058_000,  to: 2_441_000,  rate: 0.035 },
@@ -17,18 +17,7 @@ const BRACKETS_SECOND = [
   { from: 6_108_000, to: Infinity,  rate: 0.10 },
 ]
 
-const LTV_RULES = {
-  first:       { label: 'דירה ראשונה / יחידה',             ltv: 0.75, note: 'הכלל הנפוץ ביותר — 75% מימון מקסימלי' },
-  replacement: { label: 'דירה חלופית (מוכרים את הראשונה)', ltv: 0.70, note: 'תנאי: הדירה הנוכחית תימכר תוך 18 חודש' },
-  second:      { label: 'דירה שנייה / להשקעה',              ltv: 0.50, note: 'בנק ישראל מגביל ל-50% בלבד' },
-}
-
-const TABS = [
-  { id: 'tax',    label: 'מס רכישה',    Icon: FaMoneyBill    },
-  { id: 'ltv',    label: 'משכנתא',       Icon: FaHome         },
-  { id: 'tabu',   label: 'טאבו / רמ"י', Icon: FaBalanceScale },
-  { id: 'rental', label: 'זכויות שוכר', Icon: FaHandshake    },
-]
+const LTV = { first: 0.75, replacement: 0.70, second: 0.50 }
 
 function calcTax(price, brackets) {
   let total = 0
@@ -43,20 +32,163 @@ function calcTax(price, brackets) {
   return { total: Math.round(total), details }
 }
 
-const fmt  = n => Math.round(n).toLocaleString('he-IL')
-const fmtR = r => +(r * 100).toFixed(1) + '%'
+// ── Texts (Hebrew + English) ─────────────────────────────────────────────────
+const T = {
+  he: {
+    kicker: 'כלי עזר לרוכשים ומשקיעים', title: 'מחשבון נדל״ן', close: 'סגירה',
+    tabs: { tax: 'מס רכישה', ltv: 'משכנתא', tabu: 'טאבו / רמ״י', rental: 'זכויות שוכר' },
+    price: 'מחיר הנכס', priceHint: 'הקלידו מחיר או בחרו סכום מהיר',
+    buyer: 'סוג הרוכש',
+    buyerFirst: 'דירה ראשונה / יחידה', buyerFirstSub: 'מדרגות מופחתות',
+    buyerSecond: 'דירה נוספת / משקיע', buyerSecondSub: 'מ-8% מהשקל הראשון',
+    taxIntro: 'חישוב מס רכישה לפי מדרגות 2026.',
+    taxTotal: 'סה״כ מס רכישה', effRate: 'שיעור מס אפקטיבי', exempt: 'פטור ממס',
+    brackets: 'פירוט לפי מדרגות', taxable: 'חייב במס', upTo: 'עד', above: 'מעל',
+    taxNote: 'מדרגות 2026, לצורך הערכה בלבד. יש לאמת מול רשות המסים.',
+    emptyPrice: 'הזינו מחיר נכס כדי לראות את החישוב',
+    ltvIntro: 'כמה משכנתא אפשר לקבל, כמה הון עצמי צריך ומה יהיה ההחזר החודשי — לפי כללי בנק ישראל.',
+    purchase: 'סוג הרכישה',
+    ltvFirst: 'דירה ראשונה', ltvFirstNote: 'עד 75% מימון',
+    ltvRepl: 'דירה חלופית', ltvReplNote: 'עד 70% · מכירת הדירה הקיימת תוך 18 חודשים',
+    ltvSecond: 'דירה נוספת / השקעה', ltvSecondNote: 'עד 50% מימון',
+    equity: 'הון עצמי', loanShare: 'משכנתא', equityShare: 'הון עצמי',
+    eqAtMin: '25% — המינימום הנדרש לפי בנק ישראל.',
+    eqGood: 'הון עצמי גבוה — סיכוי לריבית טובה יותר ופחות סיכון.',
+    income: 'הכנסה חודשית נטו (משק בית)', optional: 'רשות',
+    rate: 'ריבית שנתית', years: 'תקופת המשכנתא', yearsUnit: 'שנים',
+    less: 'הפחתה', more: 'הוספה',
+    loan: 'סכום המשכנתא', ofPrice: 'ממחיר הנכס', underCap: 'מתחת לתקרה',
+    equityNeeded: 'הון עצמי נדרש', extraCosts: 'בנוסף: מס רכישה, עו״ד ותיווך',
+    monthly: 'החזר חודשי משוער', ofIncome: 'מההכנסה', ratioOk: 'יחס החזר תקין', ratioHigh: 'גבוה מ-35% — הבנק עלול להגביל',
+    totalPaid: 'סה״כ תשלומים', totalInterest: 'מתוכם ריבית', estTax: 'מס רכישה משוער',
+    ltvNote: 'לפי כללי בנק ישראל ובמסלול שפיצר בריבית קבועה. התנאים בפועל נקבעים על ידי הבנק.',
+    tabuIntro: 'ההבדל בין נכס רשום בטאבו לנכס בחכירה מרשות מקרקעי ישראל — חשוב לבדוק לפני כל עסקה.',
+    tabuTitle: 'טאבו — פנקס המקרקעין',
+    tabuItems: ['בעלות פרטית מלאה, רשומה על שם הקונה', 'אפשר למכור, להוריש ולשעבד ללא הגבלה', 'אין דמי חכירה שנתיים למדינה', 'רישום בלשכת רישום המקרקעין', 'אפשר להפיק נסח טאבו מקוון'],
+    ramiTitle: 'רמ״י — חכירה מהמדינה',
+    ramiItems: ['הקרקע בבעלות מדינת ישראל', 'הרוכש מקבל זכות חכירה ל-49 או 98 שנה', 'בשינוי ייעוד עשויים לחול דמי היתר', 'מכירה עשויה לדרוש אישור רמ״י', 'חלק מהחוזים כוללים דמי חכירה שנתיים'],
+    howTitle: 'איך בודקים? נסח טאבו',
+    howText: 'נסח טאבו מראה מי הבעלים הרשום, האם יש משכנתאות, שעבודים או הערות אזהרה, ומה מצב הזכויות בנכס. אפשר להפיק אותו באתר gov.il.',
+    links: [['מאגר עסקאות נדל״ן — רשות המסים', 'https://www.gov.il/he/service/real_estate_information'], ['מחירי נדל״ן — מדלן', 'https://www.madlan.co.il'], ['הפקת נסח טאבו', 'https://www.gov.il/he/service/land_registration_extract']],
+    newTab: '(נפתח בלשונית חדשה)',
+    rentalIntro: 'חוק השכירות ההוגנת — הזכויות והחובות של שוכר ומשכיר.',
+    rental: [
+      { title: 'חובות המשכיר', tone: 'green', items: [
+        ['מסירת דירה ראויה למגורים', 'על המשכיר למסור דירה תקינה, העומדת בתקני בטיחות ובריאות.'],
+        ['תיקון ליקויים', 'ליקוי שמונע מגורים סבירים יתוקן תוך 30 יום; ליקוי דחוף — תוך 3 ימים.'],
+        ['הודעה מוקדמת', 'משכיר שלא מאריך חוזה מודיע 90 יום מראש; שוכר — 60 יום.'],
+      ] },
+      { title: 'זכויות השוכר', tone: 'brand', items: [
+        ['הגנה מפני פינוי שרירותי', 'אי אפשר לפנות שוכר ללא הליך משפטי.'],
+        ['עליית שכר דירה', 'בתקופת אופציה — לפי מה שנקבע מראש בחוזה.'],
+        ['ביטחונות מוגבלים', 'עד 3 חודשי שכירות או שליש משכר הדירה לכל התקופה — הנמוך מביניהם.'],
+      ] },
+      { title: 'לפני שחותמים', tone: 'amber', items: [
+        ['בדקו בעלות', 'בקשו נסח טאבו וודאו שהמשכיר הוא הבעלים הרשום או מורשה מטעמו.'],
+        ['מה כלול בשכר הדירה', 'ארנונה, ועד בית, מים וגז — מי משלם? שיהיה כתוב בחוזה.'],
+        ['פרוטוקול מסירה', 'צלמו כל ליקוי לפני הכניסה וחתמו יחד על פרוטוקול.'],
+      ] },
+    ],
+    summaryTax: 'מס רכישה', summaryLtv: 'החזר חודשי', toDetails: 'לפירוט',
+  },
+  en: {
+    kicker: 'Tools for buyers & investors', title: 'Real estate calculator', close: 'Close',
+    tabs: { tax: 'Purchase tax', ltv: 'Mortgage', tabu: 'Tabu / ILA', rental: 'Tenant rights' },
+    price: 'Property price', priceHint: 'Type a price or pick a quick amount',
+    buyer: 'Buyer type',
+    buyerFirst: 'First / only home', buyerFirstSub: 'Reduced brackets',
+    buyerSecond: 'Additional home / investor', buyerSecondSub: '8% from the first shekel',
+    taxIntro: 'Purchase tax by the 2026 brackets.',
+    taxTotal: 'Total purchase tax', effRate: 'Effective tax rate', exempt: 'Tax-exempt',
+    brackets: 'Breakdown by bracket', taxable: 'taxable', upTo: 'up to', above: 'above',
+    taxNote: '2026 brackets, for estimation only. Verify with the Israel Tax Authority.',
+    emptyPrice: 'Enter a property price to see the calculation',
+    ltvIntro: 'How much mortgage you can get, the equity you need and your monthly payment, by Bank of Israel rules.',
+    purchase: 'Purchase type',
+    ltvFirst: 'First home', ltvFirstNote: 'Up to 75% financing',
+    ltvRepl: 'Replacement home', ltvReplNote: 'Up to 70% · current home sold within 18 months',
+    ltvSecond: 'Additional home / investment', ltvSecondNote: 'Up to 50% financing',
+    equity: 'Equity', loanShare: 'Mortgage', equityShare: 'Equity',
+    eqAtMin: '25% — the Bank of Israel minimum.',
+    eqGood: 'Higher equity — a better rate and less risk.',
+    income: 'Net monthly household income', optional: 'optional',
+    rate: 'Annual interest rate', years: 'Mortgage term', yearsUnit: 'years',
+    less: 'Decrease', more: 'Increase',
+    loan: 'Mortgage amount', ofPrice: 'of the price', underCap: 'below the cap',
+    equityNeeded: 'Equity required', extraCosts: 'Plus: purchase tax, lawyer and agent fees',
+    monthly: 'Estimated monthly payment', ofIncome: 'of income', ratioOk: 'Healthy repayment ratio', ratioHigh: 'Above 35% — the bank may limit it',
+    totalPaid: 'Total payments', totalInterest: 'of which interest', estTax: 'Estimated purchase tax',
+    ltvNote: 'Bank of Israel rules, fixed-rate amortising (Spitzer) loan. Actual terms are set by your bank.',
+    tabuIntro: 'Tabu-registered ownership vs. a lease from the Israel Land Authority (ILA) — check before any deal.',
+    tabuTitle: 'Tabu — Land Registry',
+    tabuItems: ['Full private ownership, registered to the buyer', 'Free to sell, bequeath or mortgage', 'No annual lease fees to the state', 'Registered at the Land Registry office', 'A Tabu extract can be ordered online'],
+    ramiTitle: 'ILA — state lease',
+    ramiItems: ['The land belongs to the State of Israel', 'The buyer receives a 49- or 98-year lease', 'Change of use may carry permit fees', 'A sale may need ILA approval', 'Some contracts include annual lease fees'],
+    howTitle: 'How to check: a Tabu extract',
+    howText: 'A Tabu extract shows the registered owner, any mortgages, liens or caveats, and the state of the rights in the property. Order it on gov.il.',
+    links: [['Real estate deals database — Tax Authority', 'https://www.gov.il/he/service/real_estate_information'], ['Property prices — Madlan', 'https://www.madlan.co.il'], ['Order a Tabu extract', 'https://www.gov.il/he/service/land_registration_extract']],
+    newTab: '(opens in a new tab)',
+    rentalIntro: 'The Fair Rental Law — rights and duties of tenants and landlords.',
+    rental: [
+      { title: "Landlord's duties", tone: 'green', items: [
+        ['A habitable home', 'The landlord must hand over a sound home that meets safety and health standards.'],
+        ['Repairs', 'A defect that prevents reasonable living must be fixed within 30 days; an urgent one within 3 days.'],
+        ['Advance notice', 'A landlord not renewing gives 90 days’ notice; a tenant gives 60 days.'],
+      ] },
+      { title: "Tenant's rights", tone: 'brand', items: [
+        ['No arbitrary eviction', 'A tenant cannot be evicted without legal proceedings.'],
+        ['Rent increases', 'During an option period — only as agreed in advance in the contract.'],
+        ['Limited deposits', 'Up to 3 months’ rent or a third of the rent for the whole term, whichever is lower.'],
+      ] },
+      { title: 'Before you sign', tone: 'amber', items: [
+        ['Check ownership', 'Get a Tabu extract and make sure the landlord is the registered owner or authorised.'],
+        ['What the rent covers', 'Municipal tax, building fees, water and gas — who pays? Put it in the contract.'],
+        ['Handover protocol', 'Photograph every defect before moving in and sign a protocol together.'],
+      ] },
+    ],
+    summaryTax: 'Purchase tax', summaryLtv: 'Monthly payment', toDetails: 'Details',
+  },
+}
 
-function useCountUp(end, duration = 750) {
-  const [val, setVal] = useState(0)
+const TAB_ICONS = { tax: FaMoneyBill, ltv: FaHome, tabu: FaBalanceScale, rental: FaHandshake }
+const TAB_IDS = ['tax', 'ltv', 'tabu', 'rental']
+
+// Colors: every text/background pair here is ≥ 4.5:1 (AA), large numbers ≥ 7:1.
+const PALETTE = {
+  dark: {
+    overlay: 'rgba(4,4,12,.72)', bg: '#151624', panel: '#1C1E30', raised: '#24273C', input: '#10111C',
+    line: 'rgba(255,255,255,.14)', lineStrong: 'rgba(255,255,255,.28)',
+    text: '#F3F1EA', text2: '#CDCBD8', text3: '#A9A7BA',
+    brand: '#A5AEF5', brandFill: '#4F59BE', brandSoft: 'rgba(132,144,216,.16)', brandLine: 'rgba(165,174,245,.55)',
+    green: '#7EE2A2', greenSoft: 'rgba(126,226,162,.12)', greenLine: 'rgba(126,226,162,.45)',
+    amber: '#F5C66B', amberSoft: 'rgba(245,198,107,.12)', amberLine: 'rgba(245,198,107,.45)',
+    track: 'rgba(255,255,255,.14)', shadow: '0 30px 80px rgba(0,0,0,.6)',
+  },
+  light: {
+    overlay: 'rgba(20,22,45,.45)', bg: '#F5F5F9', panel: '#FFFFFF', raised: '#EEEFF6', input: '#FFFFFF',
+    line: 'rgba(23,26,44,.14)', lineStrong: 'rgba(23,26,44,.3)',
+    text: '#171A2C', text2: '#3C4160', text3: '#555B7A',
+    brand: '#3A44A0', brandFill: '#3F49A6', brandSoft: 'rgba(63,73,166,.09)', brandLine: 'rgba(63,73,166,.55)',
+    green: '#136B34', greenSoft: 'rgba(21,128,61,.08)', greenLine: 'rgba(21,128,61,.4)',
+    amber: '#8A4B00', amberSoft: 'rgba(180,110,0,.09)', amberLine: 'rgba(180,110,0,.4)',
+    track: 'rgba(23,26,44,.14)', shadow: '0 30px 80px rgba(20,24,60,.25)',
+  },
+}
+
+const reduceMotion = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+
+function useCountUp(end, duration = 600) {
+  const [val, setVal] = useState(end)
   const raf = useRef(null)
+  const from = useRef(end)
   useEffect(() => {
     cancelAnimationFrame(raf.current)
-    if (!end) { setVal(0); return }
-    const t0 = performance.now()
+    if (reduceMotion() || !end) { setVal(end); from.current = end; return }
+    const start = from.current, t0 = performance.now()
     const tick = now => {
-      const p    = Math.min((now - t0) / duration, 1)
-      const ease = 1 - Math.pow(1 - p, 3)
-      setVal(Math.round(end * ease))
+      const p = Math.min((now - t0) / duration, 1)
+      const v = Math.round(start + (end - start) * (1 - Math.pow(1 - p, 3)))
+      setVal(v); from.current = v
       if (p < 1) raf.current = requestAnimationFrame(tick)
     }
     raf.current = requestAnimationFrame(tick)
@@ -65,989 +197,589 @@ function useCountUp(end, duration = 750) {
   return val
 }
 
-// ── Animated gradient background (adapted from BackgroundGradientAnimation) ──
-function CalcGradientBg() {
-  const interRef = useRef(null)
-  const curX = useRef(0), curY = useRef(0)
-  const tgX  = useRef(0), tgY  = useRef(0)
-  const rafId = useRef(null)
+const digits = raw => String(raw).replace(/[^\d]/g, '').replace(/^0+(?=\d)/, '').slice(0, 11)
+const withCommas = d => d.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+// Quick-amount labels: ₪1.5M / ₪15K in English, natural Hebrew (1.5 מיליון / 15 אלף) in Hebrew
+const short = (n, en) => n >= 1_000_000 ? (en ? `₪${n / 1_000_000}M` : `${n / 1_000_000} מיליון`) : (en ? `₪${n / 1_000}K` : `${n / 1_000} אלף`)
 
-  useEffect(() => {
-    const move = () => {
-      curX.current += (tgX.current - curX.current) / 20
-      curY.current += (tgY.current - curY.current) / 20
-      if (interRef.current) {
-        interRef.current.style.transform = `translate(${Math.round(curX.current)}px, ${Math.round(curY.current)}px)`
-      }
-      rafId.current = requestAnimationFrame(move)
-    }
-    rafId.current = requestAnimationFrame(move)
-    return () => cancelAnimationFrame(rafId.current)
-  }, [])
 
-  const handleMouseMove = e => {
-    const rect = e.currentTarget.getBoundingClientRect()
-    tgX.current = e.clientX - rect.left
-    tgY.current = e.clientY - rect.top
-  }
+// ── Building blocks (module level so inputs keep focus between renders) ──
+const CalcCtx = createContext(null)
 
+function Label({ htmlFor, id, children, extra }) {
+  const { P, t, en, uid } = useContext(CalcCtx)
   return (
-    <div
-      onMouseMove={handleMouseMove}
-      style={{
-        position: 'absolute', inset: 0, zIndex: 0,
-        background: 'linear-gradient(40deg, rgb(38,29,84) 0%, rgb(24,17,60) 100%)',
-        overflow: 'hidden', borderRadius: 24,
-      }}>
+  <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
+    {htmlFor
+      ? <label htmlFor={htmlFor} id={id} style={{ fontSize: 14.5, fontWeight: 700, color: P.text }}>{children}</label>
+      : <div id={id} style={{ fontSize: 14.5, fontWeight: 700, color: P.text }}>{children}</div>}
+    {extra}
+  </div>
+)
+}
 
-      {/* Animated blobs */}
-      <div style={{
-        position: 'absolute', inset: 0,
-        filter: 'url(#rc-goo) blur(32px)',
-        width: '100%', height: '100%',
-      }}>
-        {/* blob 1 — purple */}
-        <div style={{
-          position: 'absolute',
-          width: '80%', height: '80%',
-          top: 'calc(50% - 40%)', left: 'calc(50% - 40%)',
-          background: 'radial-gradient(circle at center, rgba(132,144,216,1) 0%, rgba(132,144,216,0) 50%) no-repeat',
-          mixBlendMode: 'hard-light',
-          transformOrigin: 'center center',
-          animation: 'rcMoveVertical 30s ease infinite',
-          opacity: 1,
-        }}/>
-        {/* blob 2 — green */}
-        <div style={{
-          position: 'absolute',
-          width: '80%', height: '80%',
-          top: 'calc(50% - 40%)', left: 'calc(50% - 40%)',
-          background: 'radial-gradient(circle at center, rgba(130,246,127,0.8) 0%, rgba(130,246,127,0) 50%) no-repeat',
-          mixBlendMode: 'hard-light',
-          transformOrigin: 'calc(50% - 400px)',
-          animation: 'rcMoveInCircle 20s reverse infinite',
-          opacity: 0.75,
-        }}/>
-        {/* blob 3 — deep purple */}
-        <div style={{
-          position: 'absolute',
-          width: '80%', height: '80%',
-          top: 'calc(50% - 40%)', left: 'calc(50% - 40%)',
-          background: 'radial-gradient(circle at center, rgba(90,50,210,0.8) 0%, rgba(90,50,210,0) 50%) no-repeat',
-          mixBlendMode: 'hard-light',
-          transformOrigin: 'calc(50% + 400px)',
-          animation: 'rcMoveInCircle 40s linear infinite',
-          opacity: 0.85,
-        }}/>
-        {/* blob 4 — navy */}
-        <div style={{
-          position: 'absolute',
-          width: '80%', height: '80%',
-          top: 'calc(50% - 40%)', left: 'calc(50% - 40%)',
-          background: 'radial-gradient(circle at center, rgba(60,30,170,0.8) 0%, rgba(60,30,170,0) 50%) no-repeat',
-          mixBlendMode: 'hard-light',
-          transformOrigin: 'calc(50% - 200px)',
-          animation: 'rcMoveHorizontal 40s ease infinite',
-          opacity: 0.7,
-        }}/>
-        {/* blob 5 — violet */}
-        <div style={{
-          position: 'absolute',
-          width: '80%', height: '80%',
-          top: 'calc(50% - 40%)', left: 'calc(50% - 40%)',
-          background: 'radial-gradient(circle at center, rgba(160,100,255,0.8) 0%, rgba(160,100,255,0) 50%) no-repeat',
-          mixBlendMode: 'hard-light',
-          transformOrigin: 'calc(50% - 800px) calc(50% + 800px)',
-          animation: 'rcMoveInCircle 20s ease infinite',
-          opacity: 0.9,
-        }}/>
-        {/* Interactive pointer blob */}
-        <div
-          ref={interRef}
-          style={{
-            position: 'absolute',
-            width: '100%', height: '100%',
-            top: '-50%', left: '-50%',
-            background: 'radial-gradient(circle at center, rgba(132,144,216,0.8) 0%, rgba(132,144,216,0) 50%) no-repeat',
-            mixBlendMode: 'hard-light',
-            opacity: 0.7,
-          }}
-        />
+function MoneyField({ id, value, onChange, placeholder, describedBy }) {
+  const { P, t, en, uid } = useContext(CalcCtx)
+  return (
+  <div className="rcx-field" style={{ display: 'flex', alignItems: 'center', gap: 8, height: 56, padding: '0 16px', background: P.input, border: `1.5px solid ${P.lineStrong}`, borderRadius: 14, direction: 'ltr', transition: 'border-color .15s, box-shadow .15s' }}>
+    <span aria-hidden="true" style={{ color: P.text3, fontSize: 18, fontWeight: 600 }}>₪</span>
+    <input id={id} type="text" inputMode="numeric" autoComplete="off" enterKeyHint="done"
+      value={value ? withCommas(value) : ''} onChange={e => onChange(digits(e.target.value))}
+      placeholder={placeholder} aria-describedby={describedBy}
+      style={{ flex: 1, minWidth: 0, height: '100%', background: 'transparent', border: 'none', outline: 'none', color: P.text, fontSize: 20, fontWeight: 700, fontFamily: 'inherit', letterSpacing: '.01em' }}/>
+    {value && (
+      <button type="button" className="rcx-btn" onClick={() => onChange('')} aria-label={en ? 'Clear' : 'ניקוי'}
+        style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: 'transparent', color: P.text3, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <FaTimes size={13}/>
+      </button>
+    )}
+  </div>
+)
+}
+
+function Chips({ values, current, onPick, label }) {
+  const { P, t, en, uid } = useContext(CalcCtx)
+  return (
+  <div role="group" aria-label={label} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+    {values.map(v => {
+      const on = Number(current) === v
+      return (
+        <button key={v} type="button" className="rcx-btn rcx-chip" onClick={() => onPick(String(v))} aria-pressed={on}
+          style={{ minHeight: 40, padding: '0 14px', borderRadius: 999, border: `1.5px solid ${on ? P.brand : P.line}`, background: on ? P.brandSoft : 'transparent', color: on ? P.brand : P.text2, fontSize: 14, fontWeight: 700 }}>
+          {short(v, en)}
+        </button>
+      )
+    })}
+  </div>
+)
+
+// A choice group rendered as big radio cards
+}
+
+function Options({ name, label, value, onChange, options }) {
+  const { P, t, en, uid } = useContext(CalcCtx)
+  return (
+  <fieldset style={{ border: 'none', padding: 0, margin: '0 0 22px' }}>
+    <legend style={{ fontSize: 14.5, fontWeight: 700, color: P.text, marginBottom: 8, padding: 0 }}>{label}</legend>
+    <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fit, minmax(${options.length > 2 ? 150 : 170}px, 1fr))`, gap: 10 }}>
+      {options.map(o => {
+        const on = value === o.v
+        return (
+          <label key={o.v} className="rcx-opt" style={{ position: 'relative', display: 'flex', alignItems: 'flex-start', gap: 10, padding: '14px 14px', minHeight: 64, borderRadius: 14, cursor: 'pointer', border: `1.5px solid ${on ? P.brand : P.line}`, background: on ? P.brandSoft : P.panel }}>
+            <input type="radio" name={`${uid}-${name}`} value={o.v} checked={on} onChange={() => onChange(o.v)}
+              style={{ position: 'absolute', opacity: 0, inset: 0, margin: 0, cursor: 'pointer' }}/>
+            <span aria-hidden="true" style={{ flexShrink: 0, marginTop: 2, width: 20, height: 20, borderRadius: '50%', border: `2px solid ${on ? P.brand : P.lineStrong}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {on && <span style={{ width: 10, height: 10, borderRadius: '50%', background: P.brand }}/>}
+            </span>
+            <span style={{ minWidth: 0 }}>
+              <span style={{ display: 'block', fontSize: 15, fontWeight: 700, color: P.text, lineHeight: 1.35 }}>{o.t}</span>
+              <span style={{ display: 'block', fontSize: 13, color: on ? P.brand : P.text3, marginTop: 3, lineHeight: 1.4, fontWeight: on ? 600 : 400 }}>{o.sub}</span>
+            </span>
+          </label>
+        )
+      })}
+    </div>
+  </fieldset>
+)
+
+// Slider + −/+ steppers + a large live value. Works with touch, mouse and keyboard.
+}
+
+function Slider({ id, label, value, setValue, min, max, step, unit, color, marks, format = v => v }) {
+  const { P, t, en, uid } = useContext(CalcCtx)
+  const pct = (value - min) / (max - min) * 100
+  const clamp = v => Math.min(max, Math.max(min, Math.round(v / step) * step))
+  const fix = v => Number(clamp(v).toFixed(step < 1 ? 1 : 0))
+  const fillDir = en ? 'to right' : 'to left'
+  return (
+    <div style={{ marginBottom: 22 }}>
+      <Label htmlFor={id}>{label}</Label>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <button type="button" className="rcx-btn rcx-step" aria-label={`${t.less} — ${label}`} disabled={value <= min} onClick={() => setValue(fix(value - step))}
+          style={{ width: 44, height: 44, flexShrink: 0, borderRadius: 12, border: `1.5px solid ${P.line}`, background: P.panel, color: P.text, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <FaMinus size={12}/>
+        </button>
+        <div style={{ flex: 1, textAlign: 'center', fontSize: 26, fontWeight: 800, color, fontVariantNumeric: 'tabular-nums' }} aria-hidden="true">
+          {format(value)}<span style={{ fontSize: 15, fontWeight: 600, color: P.text2, marginInlineStart: 4 }}>{unit}</span>
+        </div>
+        <button type="button" className="rcx-btn rcx-step" aria-label={`${t.more} — ${label}`} disabled={value >= max} onClick={() => setValue(fix(value + step))}
+          style={{ width: 44, height: 44, flexShrink: 0, borderRadius: 12, border: `1.5px solid ${P.line}`, background: P.panel, color: P.text, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <FaPlus size={12}/>
+        </button>
       </div>
-
-      {/* SVG goo filter */}
-      <svg style={{ position: 'absolute', width: 0, height: 0 }}>
-        <defs>
-          <filter id="rc-goo">
-            <feGaussianBlur in="SourceGraphic" stdDeviation="10" result="blur"/>
-            <feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -8" result="goo"/>
-            <feBlend in="SourceGraphic" in2="goo"/>
-          </filter>
-        </defs>
-      </svg>
+      <input id={id} type="range" className="rcx-range" min={min} max={max} step={step} value={value}
+        onChange={e => setValue(Number(e.target.value))} aria-valuetext={`${format(value)} ${unit}`}
+        style={{ marginTop: 10, direction: en ? 'ltr' : 'rtl', '--c': color, '--fill': `linear-gradient(${fillDir}, ${color} ${pct}%, ${P.track} ${pct}%)` }}/>
+      {marks && (
+        <div role="group" aria-label={label} style={{ display: 'flex', gap: 6, marginTop: 10 }}>
+          {marks.map(m => {
+            const on = value === m
+            return (
+              <button key={m} type="button" className="rcx-btn rcx-chip" aria-pressed={on} onClick={() => setValue(m)}
+                style={{ flex: 1, minWidth: 0, minHeight: 40, borderRadius: 10, border: `1.5px solid ${on ? color : P.line}`, background: on ? P.raised : 'transparent', color: on ? P.text : P.text2, fontSize: 14, fontWeight: 700 }}>
+                {format(m)}
+              </button>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
+}
+
+function Stat({ label, value, sub, color, soft, line, big, icon }) {
+  const { P, t, en, uid } = useContext(CalcCtx)
+  return (
+  <div style={{ background: soft, border: `1.5px solid ${line}`, borderRadius: 16, padding: '16px 18px' }}>
+    <div style={{ fontSize: 14, fontWeight: 600, color: P.text2, marginBottom: 6 }}>{label}</div>
+    <div className={big ? 'rcx-big' : undefined} style={{ fontSize: big ? 40 : 30, fontWeight: 800, color, lineHeight: 1.1, direction: 'ltr', textAlign: en ? 'left' : 'right', fontVariantNumeric: 'tabular-nums' }}>{value}</div>
+    {sub && <div style={{ fontSize: 14, color: P.text2, marginTop: 8, display: 'flex', alignItems: 'center', gap: 6, lineHeight: 1.45 }}>{icon}{sub}</div>}
+  </div>
+)
+}
+
+function Note({ children }) {
+  const { P, t, en, uid } = useContext(CalcCtx)
+  return (
+  <p style={{ display: 'flex', gap: 8, alignItems: 'flex-start', fontSize: 13, color: P.text3, lineHeight: 1.55, margin: '14px 0 0' }}>
+    <FaInfoCircle size={13} style={{ flexShrink: 0, marginTop: 3 }} aria-hidden="true"/>{children}
+  </p>
+)
+}
+
+function Empty({ Icon }) {
+  const { P, t, en, uid } = useContext(CalcCtx)
+  return (
+  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, padding: '40px 16px', textAlign: 'center', border: `1.5px dashed ${P.line}`, borderRadius: 16, background: P.panel }}>
+    <div style={{ width: 60, height: 60, borderRadius: '50%', background: P.brandSoft, color: P.brand, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icon size={24} aria-hidden="true"/></div>
+    <div style={{ fontSize: 15, color: P.text2, maxWidth: 260, lineHeight: 1.5 }}>{t.emptyPrice}</div>
+  </div>
+)
+}
+
+function Intro({ children }) {
+  const { P, t, en, uid } = useContext(CalcCtx)
+  return <p style={{ fontSize: 15, color: P.text2, lineHeight: 1.65, margin: '0 0 20px' }}>{children}</p>
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-export default function RealEstateCalc({ onClose }) {
-  const P   = '#8490D8'
-  const G   = '#82F67F'
-  const Y   = '#F7C948'
-  const CRM = '#E8E4D8'
+export default function RealEstateCalc({ onClose, lang = 'he', isDark = true }) {
+  const en = lang === 'en'
+  const t = T[en ? 'en' : 'he']
+  const P = PALETTE[isDark ? 'dark' : 'light']
+  const uid = useId().replace(/:/g, '')
+  const fmt = n => Math.round(n).toLocaleString(en ? 'en-US' : 'he-IL')
+  const money = n => `₪${fmt(n)}`
+  const ctx = { P, t, en, uid, money }
 
-  const bauhausRef = useRef(null)
-  const handleBauhausMove = e => {
-    const el = bauhausRef.current
-    if (!el) return
-    const rect = el.getBoundingClientRect()
-    const x = e.clientX - rect.left - rect.width / 2
-    const y = e.clientY - rect.top - rect.height / 2
-    el.style.setProperty('--bh-rot', Math.atan2(-x, y) + 'rad')
-  }
+  const [tab,       setTab]       = useState('tax')
+  const [price,     setPrice]     = useState('')        // shared by the tax and mortgage tabs
+  const [buyer,     setBuyer]     = useState('first')
+  const [ltvType,   setLtvType]   = useState('first')
+  const [equityPct, setEquityPct] = useState(25)
+  const [income,    setIncome]    = useState('')
+  const [rate,      setRate]      = useState(4.8)
+  const [years,     setYears]     = useState(25)
+  const [openAcc,   setOpenAcc]   = useState(0)
 
-  const [tab,           setTab]           = useState('tax')
-  const [taxPrice,      setTaxPrice]      = useState('')
-  const [buyerType,     setBuyerType]     = useState('first')
-  const [ltvPrice,      setLtvPrice]      = useState('')
-  const [ltvType,       setLtvType]       = useState('first')
-  const [firstEquityPct, setFirstEquityPct] = useState(25)
-  const [equityInput,    setEquityInput]    = useState('')   // free-text override
-  const [income,        setIncome]        = useState('')
-  const [rate,          setRate]          = useState('4.8')
-  const [years,         setYears]         = useState('25')
-  const [openFaq,       setOpenFaq]       = useState(null)
+  const dialogRef  = useRef(null)
+  const bodyRef    = useRef(null)
+  const resultsRef = useRef(null)
+  const tabRefs    = useRef({})
 
-  // ── Swipe-to-close (mobile) ──
-  const [dragX,    setDragX]    = useState(0)
-  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768)
-  const touchRef   = useRef({ x0: 0, y0: 0, dragging: false, isHoriz: false })
-  const SWIPE_THRESHOLD = 55
-
+  // Body scroll lock, Escape to close, focus into the dialog and back to the opener on close.
+  // Runs once: onClose is read through a ref (the parent passes a new function on every render).
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
   useEffect(() => {
-    const h = () => setIsMobile(window.innerWidth < 768)
-    window.addEventListener('resize', h)
-    return () => window.removeEventListener('resize', h)
-  }, [])
-
-  // Lock body scroll while modal is open
-  useEffect(() => {
-    const prev = document.body.style.overflow
+    const onClose = () => onCloseRef.current()
+    const prevOverflow = document.body.style.overflow
+    const opener = document.activeElement
     document.body.style.overflow = 'hidden'
-    return () => { document.body.style.overflow = prev }
-  }, [])
-
-  const onTouchStart = useCallback(e => {
-    const tag = e.target.tagName
-    if (tag === 'INPUT' || tag === 'BUTTON' || tag === 'SELECT' || tag === 'TEXTAREA') return
-    touchRef.current = { x0: e.touches[0].clientX, y0: e.touches[0].clientY, dragging: true, isHoriz: false }
-    setDragX(0)
-  }, [])
-
-  const onTouchMove = useCallback(e => {
-    if (!touchRef.current.dragging) return
-    const dx = e.touches[0].clientX - touchRef.current.x0
-    const dy = e.touches[0].clientY - touchRef.current.y0
-    if (!touchRef.current.isHoriz && Math.abs(dy) > Math.abs(dx)) return // vertical scroll — ignore
-    if (Math.abs(dx) > 8) {
-      touchRef.current.isHoriz = true
-      setDragX(dx)
+    const onKey = e => {
+      if (e.key === 'Escape') { e.stopPropagation(); onClose() }
+      if (e.key === 'Tab' && dialogRef.current) {           // keep keyboard focus inside the dialog
+        const f = [...dialogRef.current.querySelectorAll('button, [href], input, [tabindex]:not([tabindex="-1"])')].filter(el => !el.disabled && el.offsetParent !== null)
+        if (!f.length) return
+        const first = f[0], last = f[f.length - 1]
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus() }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus() }
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    requestAnimationFrame(() => tabRefs.current.tax?.focus())
+    return () => {
+      document.body.style.overflow = prevOverflow
+      document.removeEventListener('keydown', onKey)
+      try { opener?.focus?.() } catch {}
     }
   }, [])
 
-  const onTouchEnd = useCallback(() => {
-    touchRef.current.dragging = false
-    if (Math.abs(dragX) > SWIPE_THRESHOLD) {
-      onClose()
-    } else {
-      setDragX(0)
-    }
-  }, [dragX, onClose])
+  useEffect(() => { bodyRef.current?.scrollTo?.({ top: 0 }) }, [tab])
 
-  const taxNum    = Number((taxPrice || '0').replace(/,/g, ''))
-  const ltvNum    = Number((ltvPrice || '0').replace(/,/g, ''))
-  const incomeNum = Number((income   || '0').replace(/,/g, ''))
-  const rateVal   = parseFloat(rate) || 4.8
-  const yearsVal  = parseInt(years)  || 25
+  // ── Calculations ──
+  const priceNum  = Number(price || 0)
+  const incomeNum = Number(income || 0)
+  const taxRes    = priceNum > 0 ? calcTax(priceNum, buyer === 'first' ? BRACKETS_FIRST : BRACKETS_SECOND) : null
+  const ltvRatio  = ltvType === 'first' ? Math.min(LTV.first, 1 - equityPct / 100) : LTV[ltvType]
+  const loan      = priceNum * ltvRatio
+  const equity    = priceNum - loan
+  const r         = rate / 100 / 12
+  const n         = years * 12
+  const monthly   = loan > 0 && r > 0 ? loan * r * Math.pow(1 + r, n) / (Math.pow(1 + r, n) - 1) : 0
+  const ratio     = incomeNum > 0 ? monthly / incomeNum : 0
+  const ratioHigh = ratio > 0.35
+  const estTax    = priceNum > 0 ? calcTax(priceNum, ltvType === 'second' ? BRACKETS_SECOND : BRACKETS_FIRST).total : 0
 
-  const effectiveLTV = ltvType === 'first' ? (1 - firstEquityPct / 100) : LTV_RULES[ltvType].ltv
-  const taxResult  = taxNum > 0 ? calcTax(taxNum, buyerType === 'first' ? BRACKETS_FIRST : BRACKETS_SECOND) : null
-  const ltvRule    = LTV_RULES[ltvType]
-  const maxLoan    = ltvNum * effectiveLTV
-  const minEquity  = ltvNum - maxLoan
-  const r          = rateVal / 100 / 12
-  const n          = yearsVal * 12
-  const monthly    = maxLoan > 0 && r > 0 ? (maxLoan * r * Math.pow(1+r,n)) / (Math.pow(1+r,n) - 1) : 0
-  const maxPayment = incomeNum * 0.35
-
-  const aTax     = useCountUp(taxResult?.total || 0)
-  const aLoan    = useCountUp(Math.round(maxLoan))
-  const aEquity  = useCountUp(Math.round(minEquity))
+  const aTax     = useCountUp(taxRes?.total || 0)
+  const aLoan    = useCountUp(Math.round(loan))
+  const aEquity  = useCountUp(Math.round(equity))
   const aMonthly = useCountUp(Math.round(monthly))
 
-  const parseNum = raw => raw.replace(/[^\d]/g, '').replace(/\B(?=(\d{3})+(?!\d))/g, ',')
-
-  const INP = {
-    width: '100%', padding: '16px 20px',
-    background: 'rgba(12,8,34,0.45)',
-    border: '1px solid rgba(132,144,216,0.38)',
-    borderRadius: 14, color: CRM,
-    fontSize: 11,
-    fontFamily: 'Rubik,inherit',
-    outline: 'none', boxSizing: 'border-box',
-    transition: 'border-color .2s, box-shadow .2s',
+  const onTabKey = e => {
+    const i = TAB_IDS.indexOf(tab)
+    const dir = e.key === 'ArrowLeft' ? (en ? -1 : 1) : e.key === 'ArrowRight' ? (en ? 1 : -1) : 0
+    let next = null
+    if (dir) next = TAB_IDS[(i + dir + TAB_IDS.length) % TAB_IDS.length]
+    if (e.key === 'Home') next = TAB_IDS[0]
+    if (e.key === 'End') next = TAB_IDS[TAB_IDS.length - 1]
+    if (next) { e.preventDefault(); setTab(next); tabRefs.current[next]?.focus() }
   }
 
-  const LABEL = {
-    display: 'block', fontSize: 11, color: `${CRM}70`,
-    fontWeight: 700, marginBottom: 10,
-    textTransform: 'uppercase', letterSpacing: '.07em',
-  }
+  const summary = tab === 'tax' && taxRes
+    ? { label: t.summaryTax, value: taxRes.total ? money(aTax) : t.exempt, sub: taxRes.total ? `${(taxRes.total / priceNum * 100).toFixed(2)}%` : '' }
+    : tab === 'ltv' && priceNum > 0 && monthly > 0
+      ? { label: t.summaryLtv, value: money(aMonthly), sub: `${t.loanShare} ${money(loan)}` }
+      : null
 
-  return (
-    <div
-      className="rc-overlay"
-      onClick={e => e.target === e.currentTarget && onClose()}
-      onTouchStart={onTouchStart}
-      onTouchMove={onTouchMove}
-      onTouchEnd={onTouchEnd}
-      style={{
-        position: 'fixed', inset: 0, zIndex: 9999,
-        display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
-        background: 'rgba(0,0,0,0.55)',
-        backdropFilter: 'blur(6px)',
-        padding: '24px 12px 40px',
-        overflowY: 'auto', direction: 'rtl',
-      }}
-    >
-      {/* ── Always-visible X (mobile only, fixed position) ── */}
-      <button className="rc-float-close" onClick={onClose} aria-label="סגור">
-        <FaTimes size={13}/> סגור
-      </button>
-      <style>{`
-        @keyframes rcCalcIn {
-          from { opacity:0; transform:scale(0.93) translateY(24px); }
-          to   { opacity:1; transform:scale(1) translateY(0); }
-        }
-        @keyframes rcFadeUp {
-          from { opacity:0; transform:translateY(12px); }
-          to   { opacity:1; transform:translateY(0); }
-        }
-        @keyframes rcGlow {
-          0%,100% { box-shadow:0 0 80px rgba(90,60,220,0.3), 0 40px 80px rgba(0,0,0,.8), inset 0 1px 0 rgba(255,255,255,.07); }
-          50%     { box-shadow:0 0 140px rgba(110,80,240,0.5), 0 40px 80px rgba(0,0,0,.8), 0 0 200px rgba(90,60,200,0.2), inset 0 1px 0 rgba(255,255,255,.07); }
-        }
-        @keyframes rcMoveVertical {
-          0%   { transform: translateY(-50%); }
-          50%  { transform: translateY(50%); }
-          100% { transform: translateY(-50%); }
-        }
-        @keyframes rcMoveInCircle {
-          0%   { transform: rotate(0deg); }
-          50%  { transform: rotate(180deg); }
-          100% { transform: rotate(360deg); }
-        }
-        @keyframes rcMoveHorizontal {
-          0%   { transform: translateX(-50%) translateY(-10%); }
-          50%  { transform: translateX(50%) translateY(10%); }
-          100% { transform: translateX(-50%) translateY(-10%); }
-        }
+  const css = `
+    .rcx, .rcx * { box-sizing: border-box; }
+    .rcx { font-family: Rubik, Heebo, system-ui, sans-serif; }
+    .rcx :focus { outline: none; }
+    .rcx :focus-visible { outline: 3px solid ${P.brand}; outline-offset: 2px; border-radius: 10px; }
+    .rcx-btn { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+    .rcx-tab:hover { color: ${P.text} !important; background: ${P.brandSoft} !important; }
+    .rcx-opt { transition: border-color .15s, background .15s; }
+    .rcx-opt:hover { border-color: ${P.brandLine} !important; }
+    .rcx-chip { transition: background .15s, border-color .15s, color .15s; }
+    .rcx-chip:hover { border-color: ${P.brandLine} !important; color: ${P.text} !important; }
+    .rcx-step:hover:not(:disabled) { background: ${P.brandSoft} !important; }
+    .rcx-step:disabled { opacity: .4; cursor: default; }
+    .rcx-field:focus-within { border-color: ${P.brand} !important; box-shadow: 0 0 0 3px ${P.brandSoft}; }
+    .rcx-field input::placeholder { color: ${P.text3}; opacity: .75; }
+    .rcx-close:hover { background: ${P.raised} !important; color: ${P.text} !important; }
+    .rcx-link:hover { background: ${P.brandSoft} !important; }
+    .rcx-acc:hover { background: ${P.raised} !important; }
 
-        @media (min-height: 700px) and (min-width: 601px) {
-          .rc-overlay { align-items: center !important; }
-        }
+    .rcx-range { -webkit-appearance: none; appearance: none; width: 100%; height: 28px; background: transparent; cursor: pointer; margin: 0; display: block; touch-action: pan-y; }
+    .rcx-range::-webkit-slider-runnable-track { height: 8px; border-radius: 8px; background: var(--fill); }
+    .rcx-range::-moz-range-track { height: 8px; border-radius: 8px; background: var(--fill); }
+    .rcx-range::-webkit-slider-thumb { -webkit-appearance: none; width: 26px; height: 26px; margin-top: -9px; border-radius: 50%; background: #fff; border: 3px solid var(--c); box-shadow: 0 2px 8px rgba(0,0,0,.3); }
+    .rcx-range::-moz-range-thumb { width: 20px; height: 20px; border-radius: 50%; background: #fff; border: 3px solid var(--c); box-shadow: 0 2px 8px rgba(0,0,0,.3); }
+    .rcx-range:focus-visible { outline: none; }
+    .rcx-range:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 5px ${P.brandSoft}, 0 0 0 7px var(--c); }
+    .rcx-range:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 5px ${P.brandSoft}, 0 0 0 7px var(--c); }
 
-        .rc-input:focus {
-          border-color: rgba(132,144,216,0.75) !important;
-          box-shadow: 0 0 0 4px rgba(132,144,216,0.14), 0 0 24px rgba(132,144,216,0.10) !important;
-        }
-        .rc-tab { transition: all .2s; }
-        .rc-tab:hover:not(.rc-tab-on) {
-          background: rgba(132,144,216,0.12) !important;
-          color: rgba(232,228,216,.9) !important;
-          transform: translateY(-1px);
-        }
-        .rc-tab:active { transform: scale(0.96) !important; }
-        .rc-type:hover:not(.rc-type-on) {
-          border-color: rgba(132,144,216,0.45) !important;
-          background: rgba(132,144,216,0.1) !important;
-          color: rgba(232,228,216,.9) !important;
-          transform: translateY(-2px);
-          box-shadow: 0 6px 20px rgba(132,144,216,0.12) !important;
-        }
-        .rc-type:active { transform: scale(0.97) !important; }
-        .rc-card { transition: transform .22s, border-color .22s, box-shadow .22s; }
-        .rc-card:hover { transform: translateY(-4px); }
-        .rc-card-p:hover { border-color: rgba(132,144,216,0.5) !important; box-shadow: 0 16px 40px rgba(132,144,216,0.18) !important; }
-        .rc-card-g:hover { border-color: rgba(130,246,127,0.5) !important; box-shadow: 0 16px 40px rgba(130,246,127,0.14) !important; }
-        .rc-card-y:hover { border-color: rgba(247,201,72,0.5) !important;  box-shadow: 0 16px 40px rgba(247,201,72,0.12) !important; }
-        .rc-bracket { transition: background .16s, border-color .16s, transform .16s; }
-        .rc-bracket:hover { transform: translateX(-3px); }
-        .rc-bracket-free:hover { background: rgba(130,246,127,0.08) !important; border-color: rgba(130,246,127,0.32) !important; }
-        .rc-bracket-tax:hover  { background: rgba(132,144,216,0.08) !important; border-color: rgba(132,144,216,0.32) !important; }
-        .rc-col { transition: all .22s; }
-        .rc-col:hover { transform: translateY(-5px); box-shadow: 0 18px 44px rgba(0,0,0,.35) !important; }
-        .rc-col-p:hover { background: rgba(132,144,216,0.12) !important; border-color: rgba(132,144,216,0.4) !important; }
-        .rc-col-g:hover { background: rgba(130,246,127,0.1) !important; border-color: rgba(130,246,127,0.4) !important; }
-        .rc-acc { transition: all .18s; }
-        .rc-acc:hover { background: rgba(132,144,216,0.08) !important; }
-        .rc-link { transition: all .18s; }
-        .rc-link:hover { background: rgba(132,144,216,0.25) !important; transform: translateY(-2px); box-shadow: 0 6px 18px rgba(132,144,216,0.15) !important; }
-        .rc-link-g:hover { background: rgba(130,246,127,0.2) !important; border-color: rgba(130,246,127,0.55) !important; color: #82F67F !important; }
-        .rc-close:hover { background: #8490D8 !important; color: #fff !important; border-color: #8490D8 !important; transform: scale(1.08) rotate(90deg); }
-        .rc-close { transition: all .25s !important; }
+    @keyframes rcxIn { from { opacity: 0; transform: translateY(16px) scale(.98); } to { opacity: 1; transform: none; } }
+    @keyframes rcxFade { from { opacity: 0; } to { opacity: 1; } }
+    .rcx-dialog { animation: rcxIn .28s cubic-bezier(.16,1,.3,1) both; }
+    .rcx-pane { animation: rcxFade .2s ease both; }
 
-        /* Range slider */
-        .rc-range { -webkit-appearance:none; appearance:none; height:10px; border-radius:8px; outline:none; cursor:pointer; display:block; }
-        .rc-range::-webkit-slider-runnable-track { height:10px; border-radius:8px; }
-        .rc-range::-webkit-slider-thumb {
-          -webkit-appearance:none; width:30px; height:30px; border-radius:50%;
-          background:radial-gradient(circle at 38% 32%, #bbc5f8, #8490D8);
-          cursor:grab; border:2px solid rgba(255,255,255,0.28);
-          box-shadow:0 3px 14px rgba(132,144,216,0.65), 0 0 0 5px rgba(132,144,216,0.2);
-          transition: box-shadow .18s, transform .18s;
-        }
-        .rc-range::-webkit-slider-thumb:hover {
-          box-shadow:0 3px 22px rgba(132,144,216,0.85), 0 0 0 10px rgba(132,144,216,0.24);
-          transform: scale(1.13);
-        }
-        .rc-range::-webkit-slider-thumb:active { cursor:grabbing; transform:scale(1.2); }
-        .rc-range-g::-webkit-slider-thumb {
-          background:radial-gradient(circle at 38% 32%, #c2fac0, #82F67F);
-          box-shadow:0 3px 14px rgba(130,246,127,0.65), 0 0 0 5px rgba(130,246,127,0.2);
-        }
-        .rc-range-g::-webkit-slider-thumb:hover {
-          box-shadow:0 3px 22px rgba(130,246,127,0.85), 0 0 0 10px rgba(130,246,127,0.24);
-        }
-        .rc-eq-btn { transition: all .18s cubic-bezier(.34,1.56,.64,1) !important; }
-        .rc-eq-btn:hover:not(.rc-eq-on) {
-          border-color: rgba(132,144,216,0.5) !important;
-          background: rgba(132,144,216,0.12) !important;
-          color: #8490D8 !important;
-          transform: translateY(-2px) scale(1.04) !important;
-        }
-        .rc-eq-btn:active { transform: scale(0.95) !important; }
+    .rcx-grid { display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr); gap: 28px; align-items: start; }
+    .rcx-results { position: sticky; top: 0; }
+    .rcx-two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .rcx-summary { display: none; }
+    @media (max-width: 760px) {
+      .rcx-overlay { padding: 0 !important; align-items: stretch !important; }
+      .rcx-dialog { max-width: none !important; max-height: none !important; height: 100% !important; border-radius: 0 !important; border: none !important; }
+      .rcx-grid { grid-template-columns: 1fr; gap: 20px; }
+      .rcx-results { position: static; }
+      .rcx-two { grid-template-columns: 1fr; }
+      .rcx-head { padding: 14px 16px 12px !important; }
+      .rcx-tabs { padding: 0 8px !important; }
+      .rcx-tab { min-width: 0 !important; padding: 10px 4px !important; }
+      .rcx-tab span { font-size: 12.5px !important; white-space: normal !important; line-height: 1.2; text-align: center; }
+      .rcx-body { padding: 16px 16px 84px !important; }   /* room above the site's accessibility button */
+      .rcx-summary { display: flex; }
+      .rcx-big { font-size: 34px !important; }
+    }
+    @media (prefers-reduced-motion: reduce) { .rcx-dialog, .rcx-pane { animation: none; } }
+  `
 
-        .rc-scroll::-webkit-scrollbar { width: 5px; }
-        .rc-scroll::-webkit-scrollbar-track { background: transparent; }
-        .rc-scroll::-webkit-scrollbar-thumb { background: rgba(132,144,216,0.25); border-radius: 3px; }
+  const tone = k => ({ green: [P.green, P.greenSoft, P.greenLine], brand: [P.brand, P.brandSoft, P.brandLine], amber: [P.amber, P.amberSoft, P.amberLine] }[k])
 
-        /* Always-visible floating X — mobile only */
-        .rc-float-close { display:none; }
-        @media (max-width: 768px) {
-          .rc-float-close {
-            display:flex !important;
-            position:fixed; top:14px; left:12px; z-index:10001;
-            height:44px; padding:0 18px; border-radius:22px;
-            background:rgba(30,23,68,0.97);
-            border:2px solid rgba(232,228,216,0.32);
-            color:#E8E4D8; font-size:13px; font-weight:700;
-            font-family:Rubik,sans-serif; letter-spacing:.03em;
-            cursor:pointer;
-            align-items:center; justify-content:center; gap:8px;
-            backdrop-filter:blur(18px);
-            box-shadow:0 4px 28px rgba(0,0,0,0.8), 0 0 0 1px rgba(132,144,216,0.18);
-            transition:all .18s;
-          }
-          .rc-float-close:active { transform:scale(0.93) !important; }
-        }
+  // ── Tabs content ──
+  const priceField = (
+    <div style={{ marginBottom: 22 }}>
+      <Label htmlFor={`${uid}-price`}>{t.price}</Label>
+      <MoneyField id={`${uid}-price`} value={price} onChange={setPrice} placeholder={en ? '2,000,000' : '2,000,000'} describedBy={`${uid}-price-hint`}/>
+      <div id={`${uid}-price-hint`} style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>{t.priceHint}</div>
+      <Chips values={[1_000_000, 1_500_000, 2_000_000, 3_000_000, 5_000_000]} current={price} onPick={setPrice} label={t.priceHint}/>
+    </div>
+  )
 
-        .rc-swipe-hint {
-          display:none;
-          text-align:center; padding:4px 0 8px;
-          font-size:11px; color:rgba(232,228,216,0.28);
-          align-items:center; justify-content:center; gap:10px;
-          letter-spacing:.06em;
-        }
-        @media (max-width:768px) { .rc-swipe-hint { display:flex !important; } }
-
-        @media (max-width: 768px) {
-          .rc-scroll { max-height: calc(100dvh - 88px) !important; overflow-y: auto !important; overflow-x: hidden !important; }
-          .rc-overlay { padding-top: 66px !important; padding-bottom: 8px !important; padding-left: 8px !important; padding-right: 8px !important; align-items: flex-start !important; overflow-y: hidden !important; }
-        }
-
-        @media (max-width: 600px) {
-          .rc-scroll { max-height: calc(100dvh - 84px) !important; }
-          .rc-overlay      { padding: 64px 4px 6px !important; align-items: flex-start !important; }
-          .rc-header       { padding: 11px 14px 9px !important; }
-          .rc-tabs-wrap    { padding: 3px 6px 0 !important; gap: 2px !important; }
-          .rc-modal-body   { padding: 8px 10px 10px !important; }
-          .rc-grid         { grid-template-columns: 1fr !important; gap: 10px !important; }
-          .rc-compare-grid { grid-template-columns: 1fr !important; gap: 8px !important; }
-          .rc-slider-pair  { grid-template-columns: 1fr !important; }
-          .rc-tab-label    { font-size: 9px !important; }
-          .rc-tab          { padding: 6px 3px 7px !important; min-width: 0 !important; }
-          .rc-range        { height: 10px !important; }
-          .rc-range::-webkit-slider-runnable-track { height: 10px !important; }
-          .rc-range::-webkit-slider-thumb { width: 26px !important; height: 26px !important; }
-          .rc-eq-btn       { padding: 7px 6px !important; font-size: 10px !important; }
-        }
-
-        @media (max-width: 380px) {
-          .rc-overlay { padding: 60px 2px 4px !important; }
-          .rc-scroll  { max-height: calc(100dvh - 72px) !important; }
-          .rc-tab-label { display: none !important; }
-          .rc-tab     { padding: 8px 6px !important; }
-          .rc-header  { padding: 9px 12px 8px !important; }
-          .rc-modal-body { padding: 6px 8px 8px !important; }
-        }
-      `}</style>
-
-      {/* ── MODAL with bauhaus rotating border ─────────────────────── */}
-      <div
-        ref={bauhausRef}
-        onMouseMove={handleBauhausMove}
-        style={{
-          width: '100%', maxWidth: 960,
-          borderRadius: 26,
-          padding: 2,
-          '--bh-rot': '4.2rad',
-          background: 'linear-gradient(calc(var(--bh-rot, 4.2rad)), #8490D8 0%, rgb(26,19,62) 32%, rgb(40,28,92) 65%, transparent 100%)',
-          animation: 'rcCalcIn .42s cubic-bezier(0.16,1,0.3,1) both',
-          flexShrink: 0,
-          transform: `translateX(${dragX}px)`,
-          opacity: Math.max(0.4, 1 - Math.abs(dragX) / 320),
-          transition: touchRef.current?.dragging ? 'none' : 'transform .35s cubic-bezier(.34,1.56,.64,1), opacity .35s ease',
-        }}
-      >
-      <div
-        className="rc-scroll"
-        onClick={e => e.stopPropagation()}
-        style={{
-          width: '100%',
-          position: 'relative',
-          borderRadius: 24,
-          animation: 'rcGlow 5s ease infinite .7s',
-          fontFamily: 'Rubik, Heebo, sans-serif',
-          overflow: 'hidden',
-        }}
-      >
-        {/* Animated gradient background */}
-        <CalcGradientBg />
-
-        {/* Glass overlay on top of gradient */}
-        <div style={{
-          position: 'absolute', inset: 0, zIndex: 1,
-          background: 'rgba(30,23,68,0.58)',
-          backdropFilter: 'blur(0px)',
-          borderRadius: 24,
-          pointerEvents: 'none',
-        }}/>
-
-        {/* Content layer */}
-        <div style={{ position: 'relative', zIndex: 2 }}>
-
-          {/* ── HEADER ─────────────────────────────────────────────── */}
-          <div className="rc-header" style={{ padding:'16px 28px 13px', borderBottom:'1px solid rgba(132,144,216,0.12)', display:'flex', alignItems:'center', justifyContent:'space-between', gap:14 }}>
-            <div>
-              <div style={{ fontSize:13, fontWeight:700, letterSpacing:'3.5px', color:P, opacity:.8, textTransform:'uppercase', marginBottom:8 }}>
-                כלי עזר לרוכשים ומשקיעים
-              </div>
-              <h2 style={{ margin:0, fontSize:24, fontWeight:900, color:CRM, letterSpacing:'-.3px', lineHeight:1.2 }}>
-                מחשבון נדל״ן חכם
-                <span style={{ fontSize:13, fontWeight:700, color:G, background:'rgba(130,246,127,0.14)', border:'1px solid rgba(130,246,127,0.28)', borderRadius:7, padding:'3px 10px', marginRight:12, verticalAlign:'middle', letterSpacing:'.04em' }}>2026</span>
-              </h2>
+  const taxPane = (
+    <div className="rcx-grid">
+      <div>
+        <Intro>{t.taxIntro}</Intro>
+        <Options name="buyer" label={t.buyer} value={buyer} onChange={setBuyer} options={[
+          { v: 'first', t: t.buyerFirst, sub: t.buyerFirstSub },
+          { v: 'second', t: t.buyerSecond, sub: t.buyerSecondSub },
+        ]}/>
+        {priceField}
+      </div>
+      <div className="rcx-results" ref={resultsRef} aria-live="polite">
+        {taxRes ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <Stat big label={t.taxTotal} value={taxRes.total ? money(aTax) : t.exempt}
+              color={taxRes.total ? P.brand : P.green} soft={taxRes.total ? P.brandSoft : P.greenSoft} line={taxRes.total ? P.brandLine : P.greenLine}
+              sub={taxRes.total ? `${t.effRate}: ${(taxRes.total / priceNum * 100).toFixed(2)}%` : null}/>
+            <div style={{ background: P.panel, border: `1.5px solid ${P.line}`, borderRadius: 16, padding: '14px 16px' }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: P.text, marginBottom: 10 }}>{t.brackets}</div>
+              <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {taxRes.details.map((d, i) => {
+                  const free = d.rate === 0
+                  const range = d.to === Infinity ? `${t.above} ${money(d.from)}` : `${money(d.from)} – ${money(Math.min(d.to, priceNum))}`
+                  return (
+                    <li key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 12, background: P.raised }}>
+                      <span style={{ flexShrink: 0, minWidth: 54, textAlign: 'center', padding: '5px 8px', borderRadius: 8, fontSize: 14, fontWeight: 800, color: free ? P.green : P.brand, background: free ? P.greenSoft : P.brandSoft, border: `1px solid ${free ? P.greenLine : P.brandLine}` }}>
+                        {+(d.rate * 100).toFixed(1)}%
+                      </span>
+                      <span style={{ flex: 1, minWidth: 0 }}>
+                        <span style={{ display: 'block', fontSize: 13.5, color: P.text2, direction: 'ltr', textAlign: en ? 'left' : 'right' }}>{range}</span>
+                        <span style={{ display: 'block', fontSize: 13, color: P.text3, marginTop: 2 }}>{money(d.taxable)} {t.taxable}</span>
+                      </span>
+                      <span style={{ flexShrink: 0, fontSize: 15.5, fontWeight: 800, color: free ? P.green : P.text, fontVariantNumeric: 'tabular-nums' }}>
+                        {d.amount > 0 ? money(d.amount) : <FaCheck aria-label={t.exempt} size={13}/>}
+                      </span>
+                    </li>
+                  )
+                })}
+              </ul>
             </div>
-            <button className="rc-close" onClick={onClose} aria-label="סגור"
-              style={{ width:46, height:46, borderRadius:'50%', flexShrink:0, background:'rgba(255,255,255,0.07)', border:'1px solid rgba(132,144,216,0.22)', color:`${CRM}80`, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
-              <FaTimes size={16}/>
-            </button>
+            <Note>{t.taxNote}</Note>
           </div>
+        ) : <Empty Icon={FaMoneyBill}/>}
+      </div>
+    </div>
+  )
 
-          {/* ── TABS ─────────────────────────────────────────────────── */}
-          <div className="rc-tabs-wrap" style={{ padding:'14px 28px 0', borderBottom:'1px solid rgba(132,144,216,0.12)', display:'flex', gap:3, overflowX:'auto' }}>
-            {TABS.map(({ id, label, Icon }) => {
-              const on = tab === id
-              return (
-                <button key={id}
-                  className={`rc-tab${on ? ' rc-tab-on' : ''}`}
-                  onClick={() => setTab(id)}
-                  style={{ flex:1, minWidth:90, padding:'13px 8px 16px', background: on ? 'rgba(132,144,216,0.16)' : 'transparent', border:'none', borderBottom:`3px solid ${on ? P : 'transparent'}`, color: on ? P : `${CRM}55`, fontFamily:'inherit', fontWeight: on ? 800 : 500, fontSize:14, cursor:'pointer', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:6, borderRadius:'8px 8px 0 0' }}>
-                  <Icon size={17}/>
-                  <span className="rc-tab-label" style={{ fontSize:13, whiteSpace:'nowrap' }}>{label}</span>
-                </button>
-              )
-            })}
+  const eqColor = equityPct < 25 ? P.amber : P.green
+  const ltvPane = (
+    <div className="rcx-grid">
+      <div>
+        <Intro>{t.ltvIntro}</Intro>
+        <Options name="ltv" label={t.purchase} value={ltvType} onChange={setLtvType} options={[
+          { v: 'first', t: t.ltvFirst, sub: t.ltvFirstNote },
+          { v: 'replacement', t: t.ltvRepl, sub: t.ltvReplNote },
+          { v: 'second', t: t.ltvSecond, sub: t.ltvSecondNote },
+        ]}/>
+        {priceField}
+        {ltvType === 'first' && (
+          <div>
+            <Slider id={`${uid}-eq`} label={t.equity} value={equityPct} setValue={setEquityPct} min={25} max={90} step={1} unit="%" color={eqColor}
+              marks={[25, 30, 40, 50]} format={v => v}/>
+            <div style={{ marginTop: -10, marginBottom: 22 }}>
+              <div aria-hidden="true" style={{ display: 'flex', height: 10, borderRadius: 6, overflow: 'hidden', background: P.track }}>
+                <div style={{ width: `${100 - equityPct}%`, background: P.brandFill, transition: 'width .2s' }}/>
+                <div style={{ width: `${equityPct}%`, background: eqColor, transition: 'width .2s' }}/>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 600, marginTop: 6 }}>
+                <span style={{ color: P.brand }}>{t.loanShare} {100 - equityPct}%</span>
+                <span style={{ color: eqColor }}>{t.equityShare} {equityPct}%</span>
+              </div>
+              <div style={{ fontSize: 13.5, color: P.text2, marginTop: 8, display: 'flex', gap: 6, alignItems: 'flex-start', lineHeight: 1.5 }}>
+                <FaCheck size={12} style={{ color: P.green, marginTop: 4, flexShrink: 0 }} aria-hidden="true"/>
+                {equityPct === 25 ? t.eqAtMin : t.eqGood}
+              </div>
+            </div>
           </div>
-
-          {/* ── CONTENT ─────────────────────────────────────────────── */}
-          <div className="rc-modal-body" style={{ padding:'16px 28px 22px' }}>
-
-            {/* ══ TAB: מס רכישה ═══════════════════════════════════════ */}
-            {tab === 'tax' && (
-              <div style={{ animation:'rcFadeUp .28s ease both' }}>
-                <div className="rc-grid" style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(300px,1fr))', gap:32, alignItems:'start' }}>
-
-                  {/* LEFT — inputs */}
-                  <div>
-                    <p style={{ fontSize:16, color:`${CRM}65`, margin:'0 0 24px', lineHeight:1.8 }}>
-                      חישוב מס רכישה לפי מדרגות 2026 — דירה ראשונה, שנייה, או משקיע.
-                    </p>
-
-                    {/* Buyer type */}
-                    <div style={{ marginBottom:22 }}>
-                      <label style={LABEL}>סוג הרוכש</label>
-                      <div style={{ display:'flex', gap:10 }}>
-                        {[{ v:'first', t:'דירה ראשונה', sub:'מדרגות מופחתות' }, { v:'second', t:'דירה שנייה', sub:'משקיע / מרובה דירות' }].map(({ v, t, sub }) => (
-                          <button key={v} className={`rc-type${buyerType===v?' rc-type-on':''}`} onClick={() => setBuyerType(v)}
-                            style={{ flex:1, padding:'14px 12px', border:`1.5px solid ${buyerType===v ? P : 'rgba(132,144,216,0.2)'}`, borderRadius:13, background: buyerType===v ? 'rgba(132,144,216,0.2)' : 'rgba(255,255,255,0.03)', color: buyerType===v ? P : `${CRM}60`, fontFamily:'inherit', cursor:'pointer', transition:'all .2s', boxShadow: buyerType===v ? `0 0 24px rgba(132,144,216,0.22)` : 'none', textAlign:'center', position:'relative' }}>
-                            {buyerType===v && <span style={{ position:'absolute', top:8, left:10, width:18, height:18, borderRadius:'50%', background:`${P}22`, border:`1px solid ${P}55`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:10 }}>✓</span>}
-                            <div style={{ fontWeight:800, fontSize:15, marginBottom:3 }}>{t}</div>
-                            <div style={{ fontSize:11, color: buyerType===v ? `${P}AA` : `${CRM}35`, fontWeight:500 }}>{sub}</div>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Price */}
-                    <div style={{ marginBottom:0 }}>
-                      <label style={LABEL}>מחיר הנכס</label>
-                      <div style={{ position:'relative' }}>
-                        <input className="rc-input" type="text" value={taxPrice}
-                          onChange={e => setTaxPrice(parseNum(e.target.value))}
-                          placeholder="1,500,000"
-                          style={{ ...INP, paddingLeft:44, textAlign:'left', direction:'ltr' }}/>
-                        <span style={{ position:'absolute', top:'50%', left:16, transform:'translateY(-50%)', color:`${CRM}40`, fontSize:18, pointerEvents:'none' }}>₪</span>
-                      </div>
-                      <div style={{ display:'flex', gap:5, flexWrap:'wrap', marginTop:8 }}>
-                        {[500_000,1_000_000,1_500_000,2_000_000,3_000_000,5_000_000].map(n => (
-                          <button key={n} onClick={() => setTaxPrice(parseNum(String(n)))}
-                            style={{ padding:'4px 10px', borderRadius:7, border:'1px solid rgba(132,144,216,0.2)', background:'rgba(132,144,216,0.07)', color:`${CRM}58`, fontFamily:'Rubik,monospace', fontSize:11, fontWeight:700, cursor:'pointer', letterSpacing:'.02em', transition:'all .16s' }}
-                            onMouseEnter={e => { e.currentTarget.style.background='rgba(132,144,216,0.18)'; e.currentTarget.style.color=P; e.currentTarget.style.borderColor='rgba(132,144,216,0.42)' }}
-                            onMouseLeave={e => { e.currentTarget.style.background='rgba(132,144,216,0.07)'; e.currentTarget.style.color=`${CRM}58`; e.currentTarget.style.borderColor='rgba(132,144,216,0.2)' }}>
-                            {n >= 1_000_000 ? `${n/1_000_000}M` : '500K'}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Effective rate */}
-                    {taxResult && (
-                      <div style={{ marginTop:16, background: taxResult.total===0 ? 'rgba(130,246,127,0.09)' : 'rgba(132,144,216,0.08)', border:`1px solid ${taxResult.total===0 ? 'rgba(130,246,127,0.25)' : 'rgba(132,144,216,0.2)'}`, borderRadius:12, padding:'14px 20px', display:'flex', alignItems:'center', justifyContent:'space-between', animation:'rcFadeUp .25s ease both' }}>
-                        <span style={{ fontSize:15, color:`${CRM}65` }}>שיעור מס אפקטיבי</span>
-                        <span style={{ fontSize:28, fontWeight:900, color: taxResult.total===0 ? G : P, fontFamily:'Rubik,monospace' }}>
-                          {taxResult.total===0 ? 'פטור ✓' : ((taxResult.total / taxNum) * 100).toFixed(2)+'%'}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* RIGHT — results */}
-                  <div>
-                    {taxResult ? (
-                      <div style={{ animation:'rcFadeUp .32s ease .06s both' }}>
-                        {/* Total card */}
-                        <div className="rc-card rc-card-p" style={{ background:'linear-gradient(140deg,rgba(132,144,216,0.2) 0%,rgba(132,144,216,0.06) 100%)', border:'1px solid rgba(132,144,216,0.25)', borderRadius:16, padding:'24px 26px', marginBottom:14 }}>
-                          <div style={{ fontSize:13, color:`${CRM}55`, marginBottom:8, textTransform:'uppercase', letterSpacing:'.07em' }}>סה"כ מס רכישה</div>
-                          <div style={{ fontSize:46, fontWeight:900, color:P, fontFamily:'Rubik,monospace', letterSpacing:'-.5px', lineHeight:1.1 }}>
-                            ₪{fmt(aTax)}
-                          </div>
-                        </div>
-
-                        {/* Bracket breakdown */}
-                        <div style={{ fontSize:13, color:`${CRM}45`, fontWeight:700, marginBottom:10, textTransform:'uppercase', letterSpacing:'.07em' }}>פירוט מדרגות</div>
-                        <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
-                          {taxResult.details.map((d, i) => {
-                            const free = d.rate === 0
-                            return (
-                              <div key={i} className={`rc-bracket ${free ? 'rc-bracket-free' : 'rc-bracket-tax'}`}
-                                style={{ display:'flex', alignItems:'center', gap:12, background: free ? 'rgba(130,246,127,0.05)' : 'rgba(255,255,255,0.025)', border:`1px solid ${free ? 'rgba(130,246,127,0.18)' : 'rgba(132,144,216,0.14)'}`, borderRadius:11, padding:'11px 14px' }}>
-                                <div style={{ width:46, height:46, borderRadius:'50%', flexShrink:0, background: free ? 'rgba(130,246,127,0.12)' : 'rgba(132,144,216,0.12)', border:`1px solid ${free ? 'rgba(130,246,127,0.35)' : 'rgba(132,144,216,0.3)'}`, display:'flex', alignItems:'center', justifyContent:'center' }}>
-                                  <span style={{ fontSize:13, fontWeight:900, color: free ? G : P }}>{fmtR(d.rate)}</span>
-                                </div>
-                                <div style={{ flex:1, minWidth:0 }}>
-                                  <div style={{ fontSize:13, color:`${CRM}45`, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
-                                    {d.to === Infinity ? `מעל ₪${fmt(d.from)}` : `₪${fmt(d.from)} – ₪${fmt(Math.min(d.to, taxNum))}`}
-                                  </div>
-                                  <div style={{ fontSize:14, color:`${CRM}80`, fontWeight:600, marginTop:3 }}>₪{fmt(d.taxable)} חייב</div>
-                                </div>
-                                <div style={{ fontSize:16, fontWeight:800, color: free ? G : CRM, fontFamily:'monospace', flexShrink:0, textAlign:'left', minWidth:70 }}>
-                                  {d.amount > 0 ? `₪${fmt(d.amount)}` : '✓ פטור'}
-                                </div>
-                              </div>
-                            )
-                          })}
-                        </div>
-                        <div style={{ fontSize:12, color:`${CRM}28`, marginTop:12, textAlign:'center' }}>
-                          * מדרגות 2026 — לצורך הערכה בלבד. אמת מול רשות המסים.
-                        </div>
-                      </div>
-                    ) : (
-                      <EmptyState icon={<FaMoneyBill size={26} color="rgba(132,144,216,0.22)"/>} text="הכנס מחיר נכס לחישוב"/>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* ══ TAB: משכנתא ═════════════════════════════════════════ */}
-            {tab === 'ltv' && (
-              <div style={{ animation:'rcFadeUp .28s ease both' }}>
-                <p style={{ fontSize:13, color:`${CRM}65`, margin:'0 0 6px', lineHeight:1.4 }}>
-                  חישוב מינוף מקסימלי לפי כללי בנק ישראל — גובה משכנתא, הון עצמי, והחזר חודשי.
-                </p>
-                <div className="rc-grid" style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(300px,1fr))', gap:14, alignItems:'start' }}>
-
-                  {/* LEFT */}
-                  <div>
-                    <label style={LABEL}>סוג הרכישה</label>
-                    <div style={{ display:'flex', gap:6, marginBottom:6, flexWrap:'wrap' }}>
-                      {Object.entries(LTV_RULES).map(([v, { label, ltv }]) => (
-                        <button key={v} className={`rc-type${ltvType===v?' rc-type-on':''}`} onClick={() => setLtvType(v)}
-                          style={{ flex:'1 1 120px', padding:'8px 12px', border:`1.5px solid ${ltvType===v ? P : 'rgba(132,144,216,0.18)'}`, borderRadius:11, background: ltvType===v ? 'rgba(132,144,216,0.18)' : 'rgba(255,255,255,0.025)', color: ltvType===v ? P : `${CRM}65`, fontFamily:'inherit', fontWeight:700, fontSize:13, cursor:'pointer', transition:'all .2s', display:'flex', justifyContent:'space-between', alignItems:'center', boxShadow: ltvType===v ? `0 0 18px rgba(132,144,216,0.2)` : 'none' }}>
-                          <span style={{ textAlign:'right' }}>{label}</span>
-                          <span style={{ background: ltvType===v ? P : 'rgba(255,255,255,0.08)', color: ltvType===v ? '#fff' : `${CRM}55`, borderRadius:20, padding:'2px 9px', fontSize:13, fontWeight:900, fontFamily:'monospace', flexShrink:0, marginRight:6 }}>
-                            {ltv * 100}%
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                    <div style={{ fontSize:12, color:`${P}AA`, paddingRight:2, lineHeight:1.45, marginBottom:6 }}>{LTV_RULES[ltvType].note}</div>
-
-                    {/* Equity % selector — shown only for first home */}
-                    {ltvType === 'first' && (
-                      <div style={{ marginBottom:10 }}>
-                        {/* Header: label + live badge + type-in field */}
-                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8, gap:8 }}>
-                          <label style={{ ...LABEL, marginBottom:0 }}>הון עצמי</label>
-                          <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                            <input
-                              type="text" inputMode="numeric"
-                              value={equityInput !== '' ? equityInput : String(firstEquityPct)}
-                              onChange={e => {
-                                const raw = e.target.value.replace(/[^\d]/g,'')
-                                setEquityInput(raw)
-                                const n = parseInt(raw)
-                                if (!isNaN(n) && n >= 5 && n <= 95) {
-                                  setFirstEquityPct(n)
-                                }
-                              }}
-                              onBlur={() => {
-                                const n = parseInt(equityInput)
-                                const clamped = isNaN(n) ? firstEquityPct : Math.min(95, Math.max(5, n))
-                                setFirstEquityPct(clamped)
-                                setEquityInput('')
-                              }}
-                              style={{ width:62, padding:'4px 8px', background:'rgba(255,255,255,0.08)', border:`1px solid ${firstEquityPct >= 25 ? 'rgba(130,246,127,0.45)' : 'rgba(247,201,72,0.45)'}`, borderRadius:8, color: firstEquityPct >= 25 ? G : Y, fontFamily:'Rubik,monospace', fontSize:18, fontWeight:900, outline:'none', textAlign:'center' }}
-                            />
-                            <span style={{ fontSize:16, fontWeight:700, color: firstEquityPct >= 25 ? G : Y }}>%</span>
-                          </div>
-                        </div>
-
-                        {/* Loan / Equity split bar */}
-                        <div style={{ marginBottom:8 }}>
-                          <div style={{ height:8, borderRadius:6, background:'rgba(255,255,255,0.07)', overflow:'hidden', display:'flex' }}>
-                            <div style={{ height:'100%', width:`${100-firstEquityPct}%`, background:`linear-gradient(to left,${P},${P}77)`, transition:'width .25s ease', borderRadius:'6px 0 0 6px' }}/>
-                            <div style={{ height:'100%', width:`${firstEquityPct}%`, background:`linear-gradient(to right,${firstEquityPct >= 25 ? G : Y}99,${firstEquityPct >= 25 ? G : Y})`, transition:'width .25s ease', borderRadius:'0 6px 6px 0' }}/>
-                          </div>
-                          <div style={{ display:'flex', justifyContent:'space-between', fontSize:11, marginTop:4, fontWeight:700, fontFamily:'Rubik,monospace' }}>
-                            <span style={{ color:`${P}99` }}>משכנתא {100-firstEquityPct}%</span>
-                            <span style={{ color: firstEquityPct >= 25 ? `${G}99` : `${Y}99` }}>הון {firstEquityPct}%</span>
-                          </div>
-                        </div>
-
-                        {/* Drag slider — full range 5–95% */}
-                        <input type="range" className="rc-range" min="5" max="95" step="1" value={firstEquityPct}
-                          onChange={e => { setFirstEquityPct(Number(e.target.value)); setEquityInput('') }}
-                          style={{ width:'100%', marginBottom:8, background:`linear-gradient(to left, rgba(132,144,216,0.65) ${(firstEquityPct-5)/90*100}%, rgba(255,255,255,0.1) ${(firstEquityPct-5)/90*100}%)` }}/>
-
-                        {/* Quick preset bookmarks */}
-                        <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
-                          {[{pct:25,note:'מינימום'},{pct:30,note:'מומלץ'},{pct:40,note:'בטוח'},{pct:50,note:'50%'},{pct:60,note:'60%'},{pct:70,note:'70%'}].map(({pct,note}) => {
-                            const active = firstEquityPct === pct
-                            return (
-                              <button key={pct} className={`rc-eq-btn${active ? ' rc-eq-on' : ''}`}
-                                onClick={() => { setFirstEquityPct(pct); setEquityInput('') }}
-                                style={{ flex:'1 1 52px', padding:'7px 4px', border:`1.5px solid ${active ? P : 'rgba(132,144,216,0.2)'}`, borderRadius:10, background: active ? 'rgba(132,144,216,0.2)' : 'rgba(255,255,255,0.03)', color: active ? P : `${CRM}55`, fontFamily:'inherit', cursor:'pointer', boxShadow: active ? `0 0 14px rgba(132,144,216,0.2)` : 'none', textAlign:'center' }}>
-                                <div style={{ fontWeight:900, fontSize:14, fontFamily:'monospace' }}>{pct}%</div>
-                                {pct <= 40 && <div style={{ fontSize:9, fontWeight:600, marginTop:1, opacity:.7 }}>{note}</div>}
-                              </button>
-                            )
-                          })}
-                        </div>
-
-                        {/* Status message */}
-                        <div style={{ marginTop:7, fontSize:12, lineHeight:1.55 }}>
-                          {firstEquityPct < 25
-                            ? <span style={{ color:'#f59e0bCC', display:'flex', gap:5, alignItems:'flex-start' }}><span>⚠️</span><span>בנק ישראל מחייב מינימום 25% הון עצמי לדירה ראשונה.</span></span>
-                            : firstEquityPct === 25
-                              ? <span style={{ color:`${P}99` }}>✓ 25% — מינימום הנדרש לפי בנק ישראל.</span>
-                              : firstEquityPct >= 60
-                                ? <span style={{ color:`${G}CC` }}>✓ {firstEquityPct}% — מימון עצמי גבוה, ריבית עדיפה ופחות סיכון.</span>
-                                : <span style={{ color:`${G}99` }}>✓ {firstEquityPct}% — מינוף נמוך, ביטחון גבוה.</span>
-                          }
-                        </div>
-                      </div>
-                    )}
-
-                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:8 }}>
-                      {/* Property price with quick presets */}
-                      <div>
-                        <label style={LABEL}>מחיר הנכס</label>
-                        <div style={{ position:'relative' }}>
-                          <input className="rc-input" type="text" value={ltvPrice}
-                            onChange={e => setLtvPrice(parseNum(e.target.value))}
-                            placeholder="2,000,000"
-                            style={{ ...INP, paddingLeft:34, fontSize:17, textAlign:'left', direction:'ltr' }}/>
-                          <span style={{ position:'absolute', top:'50%', left:12, transform:'translateY(-50%)', color:`${CRM}38`, fontSize:16, pointerEvents:'none' }}>₪</span>
-                        </div>
-                        <div style={{ display:'flex', gap:4, flexWrap:'wrap', marginTop:6 }}>
-                          {[1_000_000,1_500_000,2_000_000,3_000_000,5_000_000].map(n => (
-                            <button key={n} onClick={() => setLtvPrice(parseNum(String(n)))}
-                              style={{ flex:1, minWidth:0, padding:'3px 4px', borderRadius:6, border:'1px solid rgba(132,144,216,0.18)', background:'rgba(132,144,216,0.06)', color:`${CRM}52`, fontFamily:'Rubik,monospace', fontSize:10, fontWeight:700, cursor:'pointer', transition:'all .16s', whiteSpace:'nowrap' }}
-                              onMouseEnter={e => { e.currentTarget.style.background='rgba(132,144,216,0.18)'; e.currentTarget.style.color=P; e.currentTarget.style.borderColor='rgba(132,144,216,0.4)' }}
-                              onMouseLeave={e => { e.currentTarget.style.background='rgba(132,144,216,0.06)'; e.currentTarget.style.color=`${CRM}52`; e.currentTarget.style.borderColor='rgba(132,144,216,0.18)' }}>
-                              {n >= 1_000_000 ? `${n/1_000_000}M` : '500K'}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      {/* Net income */}
-                      <div>
-                        <label style={LABEL}>הכנסה נטו</label>
-                        <div style={{ position:'relative' }}>
-                          <input className="rc-input" type="text" value={income}
-                            onChange={e => setIncome(parseNum(e.target.value))}
-                            placeholder="20,000"
-                            style={{ ...INP, paddingLeft:34, fontSize:17, textAlign:'left', direction:'ltr' }}/>
-                          <span style={{ position:'absolute', top:'50%', left:12, transform:'translateY(-50%)', color:`${CRM}38`, fontSize:16, pointerEvents:'none' }}>₪</span>
-                        </div>
-                        <div style={{ display:'flex', gap:4, marginTop:6 }}>
-                          {[15_000,20_000,25_000,30_000].map(n => (
-                            <button key={n} onClick={() => setIncome(parseNum(String(n)))}
-                              style={{ flex:1, minWidth:0, padding:'3px 4px', borderRadius:6, border:'1px solid rgba(130,246,127,0.18)', background:'rgba(130,246,127,0.06)', color:`${CRM}52`, fontFamily:'Rubik,monospace', fontSize:10, fontWeight:700, cursor:'pointer', transition:'all .16s', whiteSpace:'nowrap' }}
-                              onMouseEnter={e => { e.currentTarget.style.background='rgba(130,246,127,0.16)'; e.currentTarget.style.color=G; e.currentTarget.style.borderColor='rgba(130,246,127,0.38)' }}
-                              onMouseLeave={e => { e.currentTarget.style.background='rgba(130,246,127,0.06)'; e.currentTarget.style.color=`${CRM}52`; e.currentTarget.style.borderColor='rgba(130,246,127,0.18)' }}>
-                              {n/1_000}K
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Rate + Years side by side on desktop, stacked on mobile */}
-                    <div className="rc-slider-pair" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
-                      {/* Rate slider */}
-                      <div>
-                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
-                          <label style={{ ...LABEL, marginBottom:0 }}>ריבית שנתית</label>
-                          <input type="text" inputMode="decimal" value={rate}
-                            onChange={e => { const v=e.target.value.replace(/[^\d.]/g,''); if(v===''||(/^\d*\.?\d*$/.test(v)&&parseFloat(v||0)<=12)) setRate(v) }}
-                            onBlur={() => { const n=parseFloat(rate); setRate(isNaN(n)?'4.8':String(Math.min(12,Math.max(0.1,n)))) }}
-                            style={{ width:56, padding:'3px 6px', background:'rgba(132,144,216,0.14)', border:'1px solid rgba(132,144,216,0.35)', borderRadius:7, color:P, fontFamily:'Rubik,monospace', fontSize:16, fontWeight:900, outline:'none', textAlign:'center' }}/>
-                        </div>
-                        <input type="range" className="rc-range" min="1" max="12" step="0.1" value={rateVal}
-                          onChange={e => setRate(e.target.value)}
-                          style={{ width:'100%', background:`linear-gradient(to left, rgba(132,144,216,0.68) ${(rateVal-1)/11*100}%, rgba(255,255,255,0.1) ${(rateVal-1)/11*100}%)` }}/>
-                        <div style={{ display:'flex', justifyContent:'space-between', fontSize:11, fontFamily:'Rubik,monospace', color:`${CRM}50`, marginTop:5 }}>
-                          <span>1%</span><span>12%</span>
-                        </div>
-                        <div style={{ display:'flex', gap:4, marginTop:6, flexWrap:'wrap' }}>
-                          {[3.5,4.0,4.5,5.0,5.5].map(r => (
-                            <button key={r} onClick={() => setRate(String(r))}
-                              style={{ flex:1, minWidth:0, padding:'3px 2px', borderRadius:6, border:`1px solid ${rateVal===r?'rgba(132,144,216,0.5)':'rgba(132,144,216,0.18)'}`, background:rateVal===r?'rgba(132,144,216,0.2)':'rgba(132,144,216,0.06)', color:rateVal===r?P:`${CRM}50`, fontFamily:'monospace', fontSize:10, fontWeight:700, cursor:'pointer', transition:'all .14s' }}>
-                              {r}%
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Years slider */}
-                      <div>
-                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
-                          <label style={{ ...LABEL, marginBottom:0 }}>תקופה</label>
-                          <input type="text" inputMode="numeric" value={years}
-                            onChange={e => { const v=e.target.value.replace(/\D/g,''); if(v===''||parseInt(v)<=30) setYears(v) }}
-                            onBlur={() => { const n=parseInt(years); setYears(String(isNaN(n)?25:Math.min(30,Math.max(5,n)))) }}
-                            style={{ width:52, padding:'3px 6px', background:'rgba(130,246,127,0.12)', border:'1px solid rgba(130,246,127,0.35)', borderRadius:7, color:G, fontFamily:'Rubik,monospace', fontSize:16, fontWeight:900, outline:'none', textAlign:'center' }}/>
-                        </div>
-                        <input type="range" className="rc-range rc-range-g" min="5" max="30" step="1" value={yearsVal}
-                          onChange={e => setYears(e.target.value)}
-                          style={{ width:'100%', background:`linear-gradient(to left, rgba(130,246,127,0.62) ${(yearsVal-5)/25*100}%, rgba(255,255,255,0.1) ${(yearsVal-5)/25*100}%)` }}/>
-                        <div style={{ display:'flex', justifyContent:'space-between', fontSize:11, fontFamily:'Rubik,monospace', color:`${CRM}50`, marginTop:5 }}>
-                          <span>5</span><span>30 שנ׳</span>
-                        </div>
-                        <div style={{ display:'flex', gap:4, marginTop:6, flexWrap:'wrap' }}>
-                          {[10,15,20,25,30].map(y => (
-                            <button key={y} onClick={() => setYears(String(y))}
-                              style={{ flex:1, minWidth:0, padding:'3px 2px', borderRadius:6, border:`1px solid ${yearsVal===y?'rgba(130,246,127,0.5)':'rgba(130,246,127,0.18)'}`, background:yearsVal===y?'rgba(130,246,127,0.16)':'rgba(130,246,127,0.05)', color:yearsVal===y?G:`${CRM}50`, fontFamily:'monospace', fontSize:10, fontWeight:700, cursor:'pointer', transition:'all .14s' }}>
-                              {y}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* RIGHT */}
-                  <div>
-                    {ltvNum > 0 ? (
-                      <div style={{ display:'flex', flexDirection:'column', gap:9, animation:'rcFadeUp .32s ease .06s both' }}>
-                        <div className="rc-card rc-card-p" style={{ background:'rgba(132,144,216,0.12)', border:'1px solid rgba(132,144,216,0.22)', borderRadius:14, padding:'13px 18px' }}>
-                          <div style={{ fontSize:11, color:`${CRM}55`, marginBottom:4, textTransform:'uppercase', letterSpacing:'.07em' }}>
-                            {ltvType === 'first' && firstEquityPct > 25 ? 'הלוואה מבוקשת' : 'מקסימום משכנתא'}
-                          </div>
-                          <div style={{ fontSize:34, fontWeight:900, color:P, fontFamily:'Rubik,monospace', lineHeight:1.1 }}>₪{fmt(aLoan)}</div>
-                          <div style={{ fontSize:13, color:`${P}CC`, marginTop:4, fontWeight:600 }}>
-                            {(effectiveLTV * 100).toFixed(0)}% ממחיר הנכס
-                            {ltvType === 'first' && firstEquityPct > 25 && <span style={{ color:`${G}AA`, marginRight:6 }}>· מתחת לתקרת בנק ישראל ✓</span>}
-                          </div>
-                        </div>
-
-                        <div className="rc-card rc-card-g" style={{ background:'rgba(130,246,127,0.08)', border:'1px solid rgba(130,246,127,0.2)', borderRadius:14, padding:'13px 18px' }}>
-                          <div style={{ fontSize:11, color:`${CRM}55`, marginBottom:4, textTransform:'uppercase', letterSpacing:'.07em' }}>הון עצמי</div>
-                          <div style={{ fontSize:28, fontWeight:900, color:G, fontFamily:'Rubik,monospace', lineHeight:1.1 }}>₪{fmt(aEquity)}</div>
-                          <div style={{ fontSize:13, color:`${G}BB`, marginTop:4, fontWeight:600 }}>{(100 - effectiveLTV * 100).toFixed(0)}% — כולל מס רכישה ועו"ד</div>
-                        </div>
-
-                        {monthly > 0 && (() => {
-                          const warn = incomeNum > 0 && monthly > maxPayment
-                          const c = warn ? Y : G
-                          return (
-                            <div className={`rc-card rc-card-${warn ? 'y' : 'g'}`} style={{ background:`${c}0A`, border:`1px solid ${c}25`, borderRadius:14, padding:'13px 18px' }}>
-                              <div style={{ fontSize:11, color:`${CRM}55`, marginBottom:4, textTransform:'uppercase', letterSpacing:'.07em' }}>החזר חודשי משוער</div>
-                              <div style={{ fontSize:28, fontWeight:900, color:c, fontFamily:'Rubik,monospace', lineHeight:1.1 }}>₪{fmt(aMonthly)}</div>
-                              {incomeNum > 0 && (
-                                <div style={{ fontSize:13, color:c, marginTop:4, fontWeight:700 }}>
-                                  {warn ? '⚠ ' : '✓ '}{((monthly / incomeNum) * 100).toFixed(1)}% מההכנסה {warn ? '— גבוה מ-35%' : '— תקין'}
-                                </div>
-                              )}
-                            </div>
-                          )
-                        })()}
-
-                        <div style={{ fontSize:13, color:`${CRM}30`, textAlign:'center' }}>
-                          * לפי כללי בנק ישראל. תנאים בפועל נקבעים על ידי הבנק המלווה.
-                        </div>
-                      </div>
-                    ) : (
-                      <EmptyState icon={<FaHome size={26} color="rgba(132,144,216,0.22)"/>} text="הכנס מחיר נכס לחישוב"/>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* ══ TAB: טאבו vs רמ"י ═══════════════════════════════════ */}
-            {tab === 'tabu' && (
-              <div style={{ animation:'rcFadeUp .28s ease both' }}>
-                <p style={{ fontSize:16, color:`${CRM}65`, margin:'0 0 22px', lineHeight:1.8 }}>
-                  ההבדל בין נכס הרשום בטאבו לנכס בחכירה מרמ"י — קריטי לפני כל עסקה.
-                </p>
-
-                <div className="rc-compare-grid" style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(260px,1fr))', gap:14, marginBottom:18 }}>
-                  {[
-                    { title:'טאבו — פנקס המקרקעין', color:P, cls:'rc-col rc-col-p', items:['בעלות פרטית מלאה — רשומה על שם הקונה','זכות למכור / להוריש / לשעבד ללא הגבלה','אין דמי חכירה שנתיים למדינה','רישום בלשכת רישום המקרקעין','ניתן לבדוק נסח טאבו מקוון בחינם'] },
-                    { title:'רמ"י — חכירה ממדינה',  color:G, cls:'rc-col rc-col-g', items:['הקרקע שייכת למדינת ישראל','הרוכש מקבל זכות חכירה ל-49/98 שנה','עשויים לחול דמי היתר בשינוי ייעוד','מכירה עשויה לדרוש אישור רמ"י','חלק מהחוזים כוללים דמי חכירה שנתיים'] },
-                  ].map(({ title, color, cls, items }) => (
-                    <div key={title} className={cls} style={{ background:`${color}07`, border:`1px solid ${color}20`, borderRadius:15, padding:'22px 20px' }}>
-                      <div style={{ fontSize:16, fontWeight:800, color, marginBottom:14 }}>{title}</div>
-                      {items.map((item, i) => (
-                        <div key={i} style={{ display:'flex', gap:10, fontSize:15, color:`${CRM}88`, lineHeight:1.7, marginBottom:9 }}>
-                          <span style={{ color, flexShrink:0, marginTop:2 }}>•</span>{item}
-                        </div>
-                      ))}
-                    </div>
-                  ))}
-                </div>
-
-                <div style={{ background:'rgba(247,201,72,0.07)', border:'1px solid rgba(247,201,72,0.2)', borderRadius:13, padding:'16px 22px', marginBottom:18 }}>
-                  <div style={{ fontWeight:700, color:Y, fontSize:16, marginBottom:8 }}>איך לבדוק — נסח טאבו</div>
-                  <div style={{ fontSize:15, color:`${CRM}78`, lineHeight:1.8 }}>
-                    פנה ללשכת רישום המקרקעין — בקש נסח טאבו (50 ₪). המסמך מראה: מי הבעלים הרשום,
-                    האם יש משכנתאות / שעבודים / הערות אזהרה, ומה מצב הזכויות בנכס.
-                  </div>
-                </div>
-
-                <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
-                  {[
-                    { label:'מאגר עסקאות — רשות המסים', url:'https://www.gov.il/he/service/real_estate_information',    g:false },
-                    { label:'מחירי נדל"ן — מדלן',        url:'https://www.madlan.co.il',                                g:false },
-                    { label:'הפקת נסח טאבו',             url:'https://www.gov.il/he/service/land_registration_extract', g:true },
-                  ].map(({ label, url, g }) => (
-                    <a key={label} className={`rc-link${g ? ' rc-link-g' : ''}`} href={url} target="_blank" rel="noopener noreferrer"
-                      style={{ padding:'9px 16px', background: g ? 'rgba(130,246,127,0.09)' : `${P}12`, border:`1px solid ${g ? 'rgba(130,246,127,0.25)' : `${P}28`}`, borderRadius:10, color: g ? G : P, fontSize:14, fontWeight:700, textDecoration:'none', display:'flex', alignItems:'center', gap:6 }}>
-                      {label}<FaExternalLinkAlt size={11}/>
-                    </a>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* ══ TAB: זכויות שוכר ════════════════════════════════════ */}
-            {tab === 'rental' && (
-              <div style={{ animation:'rcFadeUp .28s ease both' }}>
-                <p style={{ fontSize:16, color:`${CRM}65`, margin:'0 0 20px', lineHeight:1.8 }}>
-                  בדיקת חוזה שכירות לפי חוק השכירות ההוגנת — זכויות וחובות שוכר ומשכיר.
-                </p>
-
-                <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-                  {[
-                    { title:'חובות המשכיר לפי חוק', color:G, items:[
-                      ['מסירת הדירה במצב תקין', 'על המשכיר למסור דירה ראויה למגורים העומדת בתקני בטיחות ובריאות.'],
-                      ['תיקון ליקויים מהותיים',  'כשל בתשתיות (חשמל, אינסטלציה, גג) — חובת המשכיר לתקן על חשבונו.'],
-                      ['הודעה מוקדמת לפינוי',    'לפחות 90 יום מראש לסיום חוזה מעל שנה; 30 יום בחוזים קצרים יותר.'],
-                    ]},
-                    { title:'זכויות השוכר', color:P, items:[
-                      ['הגנה מפני פינוי שרירותי',    'המשכיר לא יכול לפנות שוכר ללא הליך משפטי ופסיקת בית משפט.'],
-                      ['הגבלת עליית שכ"ד באופציה',   'בחוזים עם אופציה — העלייה מוגבלת למדד המחירים לצרכן.'],
-                      ['ביטחונות מוגבלים',            'לפי החוק — לא יותר מ-3 חודשי שכ"ד כסכום כולל ביטחונות.'],
-                    ]},
-                    { title:'רשימת בדיקה לפני חתימה', color:Y, items:[
-                      ['בדוק בעלות',          'בקש נסח טאבו — ודא שהמשכיר הוא הבעלים הרשום (או מורשה בכתב).'],
-                      ['מה כלול בשכ"ד',       'ארנונה / ועד / מים / גז — מי משלם? הגדרה ברורה בחוזה.'],
-                      ['פרוטוקול מסירה',      'צלם כל ליקוי קיים לפני הכניסה, חתום על פרוטוקול עם המשכיר.'],
-                    ]},
-                  ].map(({ title, color, items }) => {
-                    const isOpen = openFaq === title
-                    return (
-                      <div key={title} style={{ background:`${color}06`, border:`1px solid ${color}1A`, borderRadius:13, overflow:'hidden' }}>
-                        <button className="rc-acc" onClick={() => setOpenFaq(isOpen ? null : title)}
-                          style={{ width:'100%', padding:'17px 22px', background:'transparent', border:'none', cursor:'pointer', display:'flex', justifyContent:'space-between', alignItems:'center', fontFamily:'inherit' }}>
-                          <span style={{ fontSize:16, fontWeight:800, color }}>{title}</span>
-                          {isOpen ? <FaChevronUp size={14} color={color}/> : <FaChevronDown size={14} color={color}/>}
-                        </button>
-                        {isOpen && (
-                          <div style={{ padding:'4px 22px 20px', display:'flex', flexDirection:'column', gap:14, animation:'rcFadeUp .2s ease both' }}>
-                            {items.map(([t, d], i) => (
-                              <div key={i}>
-                                <div style={{ fontSize:15, fontWeight:700, color:CRM, marginBottom:4 }}>{t}</div>
-                                <div style={{ fontSize:15, color:`${CRM}72`, lineHeight:1.7 }}>{d}</div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-
-          </div>
-
-          {/* ── Swipe hint — mobile only ── */}
-          <div className="rc-swipe-hint">
-            <span style={{ opacity:.5 }}>←</span>
-            החלק ימינה או שמאלה לסגירה
-            <span style={{ opacity:.5 }}>→</span>
-          </div>
-
+        )}
+        <div className="rcx-two">
+          <Slider id={`${uid}-rate`} label={t.rate} value={rate} setValue={setRate} min={1} max={10} step={0.1} unit="%" color={P.brand}
+            marks={[4, 4.5, 5, 5.5]} format={v => Number(v).toFixed(1)}/>
+          <Slider id={`${uid}-years`} label={t.years} value={years} setValue={setYears} min={5} max={30} step={1} unit={t.yearsUnit} color={P.green}
+            marks={[15, 20, 25, 30]}/>
+        </div>
+        <div style={{ marginBottom: 6 }}>
+          <Label htmlFor={`${uid}-inc`} extra={<span style={{ fontSize: 13, color: P.text3 }}>{t.optional}</span>}>{t.income}</Label>
+          <MoneyField id={`${uid}-inc`} value={income} onChange={setIncome} placeholder="20,000"/>
+          <Chips values={[15_000, 20_000, 25_000, 30_000]} current={income} onPick={setIncome} label={t.income}/>
         </div>
       </div>
-      </div>{/* /bauhaus wrapper */}
-    </div>
-  )
-}
 
-function EmptyState({ icon, text }) {
-  return (
-    <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:16, padding:'52px 0', textAlign:'center' }}>
-      <div style={{ width:72, height:72, borderRadius:'50%', border:'1.5px dashed rgba(132,144,216,0.18)', display:'flex', alignItems:'center', justifyContent:'center' }}>
-        {icon}
+      <div className="rcx-results" ref={resultsRef} aria-live="polite">
+        {priceNum > 0 ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <Stat big label={t.monthly} value={money(aMonthly)}
+              color={ratioHigh ? P.amber : P.brand} soft={ratioHigh ? P.amberSoft : P.brandSoft} line={ratioHigh ? P.amberLine : P.brandLine}
+              icon={incomeNum > 0 ? (ratioHigh ? <FaExclamationTriangle size={13} style={{ color: P.amber, flexShrink: 0 }} aria-hidden="true"/> : <FaCheck size={12} style={{ color: P.green, flexShrink: 0 }} aria-hidden="true"/>) : null}
+              sub={incomeNum > 0 ? `${(ratio * 100).toFixed(1)}% ${t.ofIncome} — ${ratioHigh ? t.ratioHigh : t.ratioOk}` : `${years} ${t.yearsUnit} · ${Number(rate).toFixed(1)}%`}/>
+            {incomeNum > 0 && (
+              <div aria-hidden="true" style={{ position: 'relative', height: 10, borderRadius: 6, background: P.track, overflow: 'hidden', marginTop: -4 }}>
+                <div style={{ position: 'absolute', insetBlock: 0, insetInlineStart: 0, width: `${Math.min(100, ratio / 0.5 * 100)}%`, background: ratioHigh ? P.amber : P.green, borderRadius: 6, transition: 'width .2s' }}/>
+                <div style={{ position: 'absolute', insetBlock: -2, insetInlineStart: '70%', width: 2, background: P.text2 }} title="35%"/>
+              </div>
+            )}
+            <div className="rcx-two" style={{ gap: 12 }}>
+              <Stat label={t.loan} value={money(aLoan)} color={P.text} soft={P.panel} line={P.line}
+                sub={`${Math.round(ltvRatio * 100)}% ${t.ofPrice}`}/>
+              <Stat label={t.equityNeeded} value={money(aEquity)} color={P.green} soft={P.greenSoft} line={P.greenLine}
+                sub={t.extraCosts}/>
+            </div>
+            <div style={{ background: P.panel, border: `1.5px solid ${P.line}`, borderRadius: 16, padding: '6px 16px' }}>
+              {[
+                [t.totalPaid, money(monthly * n)],
+                [t.totalInterest, money(Math.max(0, monthly * n - loan))],
+                [t.estTax, estTax ? money(estTax) : t.exempt],
+              ].map(([k, v], i) => (
+                <div key={k} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '11px 0', borderTop: i ? `1px solid ${P.line}` : 'none', fontSize: 14.5 }}>
+                  <span style={{ color: P.text2 }}>{k}</span>
+                  <span style={{ color: P.text, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{v}</span>
+                </div>
+              ))}
+            </div>
+            <Note>{t.ltvNote}</Note>
+          </div>
+        ) : <Empty Icon={FaHome}/>}
       </div>
-      <div style={{ fontSize:16, color:'rgba(232,228,216,0.3)' }}>{text}</div>
     </div>
   )
-}
 
+  const tabuPane = (
+    <div>
+      <Intro>{t.tabuIntro}</Intro>
+      <div className="rcx-two" style={{ marginBottom: 16 }}>
+        {[[t.tabuTitle, t.tabuItems, 'brand'], [t.ramiTitle, t.ramiItems, 'green']].map(([title, items, k]) => {
+          const [c, soft, line] = tone(k)
+          return (
+            <section key={title} style={{ background: soft, border: `1.5px solid ${line}`, borderRadius: 16, padding: '18px 18px' }}>
+              <h3 style={{ fontSize: 16.5, fontWeight: 800, color: c, margin: '0 0 12px' }}>{title}</h3>
+              <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {items.map(it => (
+                  <li key={it} style={{ display: 'flex', gap: 10, fontSize: 15, color: P.text, lineHeight: 1.55 }}>
+                    <FaCheck size={12} style={{ color: c, flexShrink: 0, marginTop: 5 }} aria-hidden="true"/>{it}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )
+        })}
+      </div>
+      <section style={{ background: P.amberSoft, border: `1.5px solid ${P.amberLine}`, borderRadius: 16, padding: '16px 18px', marginBottom: 16 }}>
+        <h3 style={{ fontSize: 16, fontWeight: 800, color: P.amber, margin: '0 0 6px' }}>{t.howTitle}</h3>
+        <p style={{ fontSize: 15, color: P.text, lineHeight: 1.65, margin: 0 }}>{t.howText}</p>
+      </section>
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        {t.links.map(([label, url]) => (
+          <a key={url} className="rcx-link" href={url} target="_blank" rel="noopener noreferrer"
+            style={{ minHeight: 44, padding: '0 16px', display: 'inline-flex', alignItems: 'center', gap: 8, borderRadius: 12, border: `1.5px solid ${P.brandLine}`, color: P.brand, fontSize: 14.5, fontWeight: 700, textDecoration: 'none' }}>
+            {label}<FaExternalLinkAlt size={11} aria-hidden="true"/><span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>{t.newTab}</span>
+          </a>
+        ))}
+      </div>
+    </div>
+  )
+
+  const rentalPane = (
+    <div>
+      <Intro>{t.rentalIntro}</Intro>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {t.rental.map((g, gi) => {
+          const [c, soft, line] = tone(g.tone)
+          const open = openAcc === gi
+          const panelId = `${uid}-acc-${gi}`
+          return (
+            <section key={g.title} style={{ border: `1.5px solid ${open ? line : P.line}`, borderRadius: 16, overflow: 'hidden', background: open ? soft : P.panel }}>
+              <h3 style={{ margin: 0 }}>
+                <button type="button" className="rcx-btn rcx-acc" aria-expanded={open} aria-controls={panelId} onClick={() => setOpenAcc(open ? -1 : gi)}
+                  style={{ width: '100%', minHeight: 56, padding: '0 18px', background: 'transparent', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, color: c, fontSize: 16, fontWeight: 800, textAlign: 'start' }}>
+                  {g.title}
+                  <FaChevronDown size={14} aria-hidden="true" style={{ transition: 'transform .2s', transform: open ? 'rotate(180deg)' : 'none', flexShrink: 0 }}/>
+                </button>
+              </h3>
+              {open && (
+                <div id={panelId} style={{ padding: '0 18px 18px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  {g.items.map(([h, d]) => (
+                    <div key={h}>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: P.text, marginBottom: 3 }}>{h}</div>
+                      <div style={{ fontSize: 15, color: P.text2, lineHeight: 1.65 }}>{d}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          )
+        })}
+      </div>
+    </div>
+  )
+
+  const panes = { tax: taxPane, ltv: ltvPane, tabu: tabuPane, rental: rentalPane }
+
+  return (
+    <CalcCtx.Provider value={ctx}>
+    <div className="rcx rcx-overlay" dir={en ? 'ltr' : 'rtl'} lang={en ? 'en' : 'he'}
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}
+      style={{ position: 'fixed', inset: 0, zIndex: 10600, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, background: P.overlay, backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}>
+      <style>{css}</style>
+      <div ref={dialogRef} className="rcx-dialog" role="dialog" aria-modal="true" aria-labelledby={`${uid}-title`}
+        style={{ width: '100%', maxWidth: 1000, maxHeight: 'min(92vh, 900px)', display: 'flex', flexDirection: 'column', background: P.bg, color: P.text, borderRadius: 22, border: `1px solid ${P.line}`, boxShadow: P.shadow, overflow: 'hidden' }}>
+
+        {/* Header */}
+        <header className="rcx-head" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '18px 24px 14px', background: P.panel }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: P.brand, marginBottom: 4 }}>{t.kicker}</div>
+            <h2 id={`${uid}-title`} style={{ margin: 0, fontSize: 22, fontWeight: 800, color: P.text, lineHeight: 1.2, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              {t.title}
+              <span style={{ fontSize: 12.5, fontWeight: 700, color: P.green, background: P.greenSoft, border: `1px solid ${P.greenLine}`, borderRadius: 8, padding: '2px 8px' }}>2026</span>
+            </h2>
+          </div>
+          <button type="button" className="rcx-btn rcx-close" onClick={onClose} aria-label={t.close}
+            style={{ width: 44, height: 44, flexShrink: 0, borderRadius: 12, border: `1.5px solid ${P.line}`, background: 'transparent', color: P.text2, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <FaTimes size={16}/>
+          </button>
+        </header>
+
+        {/* Tabs */}
+        <div className="rcx-tabs" role="tablist" aria-label={t.title} onKeyDown={onTabKey}
+          style={{ display: 'flex', gap: 4, padding: '0 16px', background: P.panel, borderBottom: `1px solid ${P.line}` }}>
+          {TAB_IDS.map(id => {
+            const on = tab === id
+            const Icon = TAB_ICONS[id]
+            return (
+              <button key={id} type="button" role="tab" id={`${uid}-tab-${id}`} aria-selected={on} aria-controls={`${uid}-pane`} tabIndex={on ? 0 : -1}
+                ref={el => { tabRefs.current[id] = el }} onClick={() => setTab(id)}
+                className="rcx-btn rcx-tab"
+                style={{ flex: 1, minWidth: 110, minHeight: 56, padding: '10px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 5, border: 'none', borderBottom: `3px solid ${on ? P.brand : 'transparent'}`, borderRadius: '10px 10px 0 0', background: on ? P.brandSoft : 'transparent', color: on ? P.brand : P.text2, fontWeight: on ? 800 : 600 }}>
+                <Icon size={17} aria-hidden="true"/>
+                <span style={{ fontSize: 14, whiteSpace: 'nowrap' }}>{t.tabs[id]}</span>
+              </button>
+            )
+          })}
+        </div>
+
+        {/* Content */}
+        <div ref={bodyRef} className="rcx-body" id={`${uid}-pane`} role="tabpanel" aria-labelledby={`${uid}-tab-${tab}`}
+          style={{ flex: 1, minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain', padding: '22px 24px 26px' }}>
+          <div key={tab} className="rcx-pane">{panes[tab]}</div>
+        </div>
+
+        {/* Mobile: the key result stays in view while typing */}
+        {summary && (
+          <div className="rcx-summary" style={{ alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 16px calc(12px + env(safe-area-inset-bottom))', background: P.panel, borderTop: `1px solid ${P.line}`, boxShadow: '0 -8px 24px rgba(0,0,0,.12)' }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 13, color: P.text2, fontWeight: 600 }}>{summary.label}{summary.sub ? ` · ${summary.sub}` : ''}</div>
+              <div style={{ fontSize: 22, fontWeight: 800, color: P.brand, fontVariantNumeric: 'tabular-nums' }}>{summary.value}</div>
+            </div>
+            <button type="button" className="rcx-btn" onClick={() => resultsRef.current?.scrollIntoView({ behavior: reduceMotion() ? 'auto' : 'smooth', block: 'start' })}
+              style={{ minHeight: 44, padding: '0 18px', borderRadius: 12, border: 'none', background: P.brandFill, color: '#fff', fontSize: 14.5, fontWeight: 700, flexShrink: 0 }}>
+              {t.toDetails}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+    </CalcCtx.Provider>
+  )
+}
