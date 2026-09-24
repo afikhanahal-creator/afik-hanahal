@@ -5,6 +5,7 @@
 //   4. Sweeps the last 45 days of stored rows through the same classifier and DELETES
 //      anything off-topic — so the archive is real-estate-only too
 //   5. Pings Render to keep the legacy server alive
+//   6. Refreshes the public property snapshot (lib/property-feed.js) from Render
 //
 // Requires: SUPABASE_URL + SUPABASE_SERVICE_KEY (Vercel env vars). Safe to call manually:
 //   GET https://afikhanahal.co.il/api/cron/warm   → then   GET /api/cron/rotate
@@ -13,6 +14,7 @@ import { fetchAllSources, outletKey, outletCap, titleKey, cleanTitle, isTrustedS
 import { scoreRealEstate } from '../../lib/news/classify.js'
 import { resolveGoogleNewsUrl, isGoogleNewsUrl } from '../../lib/news/gnews.js'
 import { run as runAutomations } from '../../lib/automations.js'
+import { createFeed } from '../../lib/property-feed.js'
 
 const RENDER      = process.env.RENDER_URL   || 'https://afik-hanahal-server.onrender.com'
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN  || 'AFIKhanahal2026'
@@ -182,6 +184,10 @@ export default async function handler(req, res) {
 
   if (!SUPA_URL || !SUPA_KEY) return res.status(500).json({ error: 'SUPABASE_URL / SUPABASE_SERVICE_KEY not set' })
 
+  // Property snapshot: started now so Render has the whole run to wake up, awaited at the end
+  const snapshot = createFeed({ renderUrl: RENDER, supaUrl: SUPA_URL.replace(/\/$/, ''), supaKey: SUPA_KEY, renderBudgetMs: 40000, renderTimeoutMs: 40000 })
+    .getList().then(r => ({ source: r.source, count: r.list.length, ms: r.ms }), e => ({ error: e.message }))
+
   const log = []
   const out = { ok: true, ts: new Date().toISOString() }
   // WhatsApp automations: daily safety net for when nobody has the admin panel open (the panel runs them every few minutes)
@@ -189,6 +195,7 @@ export default async function handler(req, res) {
   catch (e) { out.automations = { error: e.message } }
   try { out.ingest = await ingest(log) } catch (e) { out.ingest = { error: e.message }; log.push(`[ingest] ERROR ${e.message}`) }
   try { out.sweep  = await sweep(log)  } catch (e) { out.sweep  = { error: e.message }; log.push(`[sweep] ERROR ${e.message}`) }
+  out.propertiesSnapshot = await snapshot
   log.forEach(l => console.log('[warm]', l))
   out.log = log.filter(l => !l.startsWith('[fetch]')).concat(log.filter(l => l.startsWith('[fetch]')).slice(0, 80))
   return res.status(200).json(out)

@@ -2,7 +2,9 @@
 import { sendJson } from '../lib/http.js'
 import { isPreviewBot, renderSharePage, targetUrl } from '../lib/share-page.js'
 import { resolveParcel, govmapParcelUrl } from '../lib/parcel-locate.js'
+import { createFeed } from '../lib/property-feed.js'
 const RENDER = process.env.RENDER_URL || 'https://afik-hanahal-server.onrender.com'
+const SUPA_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || ''
 
 // ── /media/<bucket>/<path> → image from Supabase public storage, cached on Vercel's CDN ──────
 // Supabase's free tier meters every image byte a browser pulls (5 GB/month), and a listing site
@@ -10,6 +12,8 @@ const RENDER = process.env.RENDER_URL || 'https://afik-hanahal-server.onrender.c
 // photo leaves Supabase once and every later visitor is served from the CDN.
 const SUPA_URL = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').replace(/\/$/, '')
 const IMG_PATH_RE = /^[\w\-./%()~!,+ \u0590-\u05FF]{3,400}$/
+// Public list: Render when it answers within 2.5 s, otherwise the Supabase snapshot (lib/property-feed.js)
+const feed = createFeed({ renderUrl: RENDER, supaUrl: SUPA_URL, supaKey: SUPA_KEY })
 async function serveImage(req, res, rawPath) {
   const path = String(rawPath || '').replace(/^\/+/, '')
   if (!SUPA_URL || !IMG_PATH_RE.test(path) || path.includes('..')) return res.status(400).send('bad path')
@@ -41,20 +45,9 @@ async function serveShare(req, res) {
   if (!id) return res.redirect(302, '/#properties')
   const target = targetUrl(id, req.query)
   if (!isPreviewBot(req.headers['user-agent'])) return res.redirect(302, target)
+  // Crawlers give up after a few seconds: the snapshot answers at once, the live list only if needed
   let prop = null
-  try {
-    // The public list is edge-cached (s-maxage=300 + stale-while-revalidate), so this is fast even when Render sleeps
-    const r = await fetch(`${origin}/api/properties`, { signal: AbortSignal.timeout(8000) })
-    const all = r.ok ? await r.json() : []
-    prop = (Array.isArray(all) ? all : []).find(p => String(p.id) === id && p.published !== false) || null
-  } catch {}
-  if (!prop) {
-    try {
-      const r = await fetch(`${RENDER}/api/properties`, { signal: AbortSignal.timeout(9000) })
-      const all = r.ok ? await r.json() : []
-      prop = (Array.isArray(all) ? all : []).find(p => String(p.id) === id && p.published !== false) || null
-    } catch {}
-  }
+  try { prop = (await feed.getOne(id)).property } catch {}
   res.setHeader('Content-Type', 'text/html; charset=utf-8')
   res.setHeader('X-Robots-Tag', 'noindex')
   if (!prop) return res.status(200).send(renderSharePage({ id, title: lang === 'en' ? 'Afik Hanahal properties' : 'הנכסים של אפיק הנחל' }, { origin, lang, target: '/#properties' }))
@@ -81,10 +74,28 @@ async function serveParcel(req, res) {
   return sendJson(req, res, data, data.error === 'bad_input' ? 400 : 200)
 }
 
+// ── /api/properties?one=<id> → a single published property (the page a share link opens) ─────────
+// A few KB instead of the whole list, so a colleague opening a shared link sees the property at once.
+async function serveOne(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*')
+  const id = String(req.query.one || '').trim().slice(0, 80)
+  if (!id) return res.status(400).json({ error: 'missing id' })
+  try {
+    const { source, property } = await feed.getOne(id)
+    res.setHeader('X-Feed-Source', source)
+    if (!property) { res.setHeader('Cache-Control', 'public, s-maxage=30'); return res.status(404).json({ error: 'not found' }) }
+    res.setHeader('Cache-Control', 'public, s-maxage=120, stale-while-revalidate=86400')
+    return sendJson(req, res, property)
+  } catch (e) {
+    return res.status(502).json({ error: e.message })
+  }
+}
+
 export default async function handler(req, res) {
   if (req.query && req.query.img !== undefined) return serveImage(req, res, req.query.img)
   if (req.query && req.query.share !== undefined) return serveShare(req, res)
   if (req.query && req.query.parcel !== undefined) return serveParcel(req, res)
+  if (req.query && req.query.one !== undefined) return serveOne(req, res)
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization')
@@ -92,6 +103,20 @@ export default async function handler(req, res) {
 
   const authHeader = req.headers.authorization || ''
   const isAdmin    = !!authHeader   // admins send a Bearer token
+
+  // Public read: never left hanging on a sleeping Render (see lib/property-feed.js). CDN-cached;
+  // a snapshot answer is cached briefly so the edge picks up the live list once Render is awake.
+  if (!isAdmin) {
+    try {
+      const r = await feed.getList()
+      res.setHeader('X-Feed-Source', r.source)
+      res.setHeader('Cache-Control', r.source === 'render' ? 'public, s-maxage=300, stale-while-revalidate=86400' : 'public, s-maxage=30, stale-while-revalidate=86400')
+      return sendJson(req, res, r.list)
+    } catch (e) {
+      console.error('[properties vercel] public GET error:', e.message)
+      return res.status(502).json({ error: e.message })
+    }
+  }
 
   try {
     const r = await fetch(`${RENDER}/api/properties`, {
