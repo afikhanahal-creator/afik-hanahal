@@ -5292,12 +5292,27 @@ export default function App() {
     // 3. Fetch properties — show localStorage cache IMMEDIATELY, then silently update from API
     {
       // Paint cached properties on frame-0 — zero network latency
+      let hadCache = false
       try {
         const d = JSON.parse(localStorage.getItem('afik_data') || '{}')
-        if (d.properties?.length) { setProperties(d.properties); propsLoaded.current = true }
+        if (d.properties?.length) { setProperties(d.properties); propsLoaded.current = true; hadCache = true }
       } catch {}
 
       const isAdminSession = sessionStorage.getItem('afik_admin_session') === '1'
+      // First visit (e.g. someone opening a shared link): paint the grid from the list published with the
+      // last deploy — a static file on the CDN, requested by index.html before the bundle even loaded —
+      // instead of skeleton cards while the live API (and a possibly sleeping Render) answers.
+      let apiArrived = false
+      if (!hadCache && !isAdminSession) {
+        const early = window.__afikList || fetch('/properties.json', { headers: { Accept: 'application/json' } }).then(r => (r.ok ? r.json() : null)).catch(() => null)
+        early.then(list => {
+          if (apiArrived || !Array.isArray(list) || !list.length) return
+          setProperties(prev => {
+            const ids = new Set(list.map(p => String(p.id)))
+            return [...list, ...prev.filter(p => !ids.has(String(p.id)))]   // keep a shared property already added
+          })
+        })
+      }
       const headers = isAdminSession ? { Authorization: `Bearer ${ADMIN_TOKEN}` } : {}
       // Public read goes through Vercel's CDN-cached /api/properties (instant, no
       // Render cold-start). Admins read straight from Render: always fresh, and the
@@ -5306,8 +5321,9 @@ export default function App() {
         .then(r => r.ok ? r.json() : Promise.reject(r.status))
         .then(data => {
           if (Array.isArray(data) && data.length > 0) {
+            apiArrived = true
             setProperties(prev => {
-              if (!prev.length) return data  // no local cache: trust server
+              if (!prev.length || !hadCache) return data  // no local cache (maybe the static list): trust server
               if (data.length < prev.length) return prev  // server lost data (restart): keep local
               // Server has same/more: server list is authoritative for IDs, merge per-property
               const localById = new Map(prev.map(p => [String(p.id), p]))
@@ -5503,6 +5519,14 @@ export default function App() {
     const hit = properties.find(x => String(x.id) === String(id) && x.published !== false)
     if (hit) { deepLinkDone.current = true; setSharedLoading(false); setSelectedProp(hit); trackEvent('property_view', { title: hit.title, id: hit.id, category: hit.category, location: hit.location, via: 'link' }) }
   }, [properties])
+
+  // An open property window follows the freshest data: it may have opened from the deploy-time list
+  // or the single-property fetch, and the live list (e.g. a price updated since) replaces it here.
+  useEffect(() => {
+    if (!selectedProp) return
+    const fresh = properties.find(p => String(p.id) === String(selectedProp.id))
+    if (fresh && fresh !== selectedProp) setSelectedProp(fresh)
+  }, [properties])  // eslint-disable-line react-hooks/exhaustive-deps
 
   // Shared link (/?p=<id>): open the property the moment THAT ONE property arrives — index.html
   // started the request before the bundle even loaded — instead of waiting for the whole list.

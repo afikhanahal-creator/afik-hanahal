@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && node scripts/build-content.mjs",
+    "build": "vite build && node scripts/build-content.mjs && node scripts/build-properties.mjs",
     "preview": "vite preview",
     "test": "node --test lib/news/*.test.mjs lib/*.test.mjs src/lib/*.test.mjs",
     "test:intake": "node scripts/test-intake-e2e.mjs",

@@ -14,6 +14,8 @@ const SUPA_URL = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '
 const IMG_PATH_RE = /^[\w\-./%()~!,+ \u0590-\u05FF]{3,400}$/
 // Public list: Render when it answers within 2.5 s, otherwise the Supabase snapshot (lib/property-feed.js)
 const feed = createFeed({ renderUrl: RENDER, supaUrl: SUPA_URL, supaKey: SUPA_KEY })
+// Last resort for the feed: the list published with the last deploy (scripts/build-properties.mjs)
+const staticListUrl = req => `${String(req.headers['x-forwarded-proto'] || 'https').split(',')[0].trim()}://${String(req.headers['x-forwarded-host'] || req.headers.host || 'afikhanahal.co.il').split(',')[0].trim()}/properties.json`
 async function serveImage(req, res, rawPath) {
   const path = String(rawPath || '').replace(/^\/+/, '')
   if (!SUPA_URL || !IMG_PATH_RE.test(path) || path.includes('..')) return res.status(400).send('bad path')
@@ -47,7 +49,7 @@ async function serveShare(req, res) {
   if (!isPreviewBot(req.headers['user-agent'])) return res.redirect(302, target)
   // Crawlers give up after a few seconds: the snapshot answers at once, the live list only if needed
   let prop = null
-  try { prop = (await feed.getOne(id)).property } catch {}
+  try { prop = (await feed.getOne(id, { staticUrl: staticListUrl(req) })).property } catch {}
   res.setHeader('Content-Type', 'text/html; charset=utf-8')
   res.setHeader('X-Robots-Tag', 'noindex')
   if (!prop) return res.status(200).send(renderSharePage({ id, title: lang === 'en' ? 'Afik Hanahal properties' : 'הנכסים של אפיק הנחל' }, { origin, lang, target: '/#properties' }))
@@ -81,7 +83,7 @@ async function serveOne(req, res) {
   const id = String(req.query.one || '').trim().slice(0, 80)
   if (!id) return res.status(400).json({ error: 'missing id' })
   try {
-    const { source, property } = await feed.getOne(id)
+    const { source, property } = await feed.getOne(id, { staticUrl: staticListUrl(req) })
     res.setHeader('X-Feed-Source', source)
     if (!property) { res.setHeader('Cache-Control', 'public, s-maxage=30'); return res.status(404).json({ error: 'not found' }) }
     res.setHeader('Cache-Control', 'public, s-maxage=120, stale-while-revalidate=86400')
@@ -108,7 +110,7 @@ export default async function handler(req, res) {
   // a snapshot answer is cached briefly so the edge picks up the live list once Render is awake.
   if (!isAdmin) {
     try {
-      const r = await feed.getList()
+      const r = await feed.getList({ staticUrl: staticListUrl(req) })
       res.setHeader('X-Feed-Source', r.source)
       res.setHeader('Cache-Control', r.source === 'render' ? 'public, s-maxage=300, stale-while-revalidate=86400' : 'public, s-maxage=30, stale-while-revalidate=86400')
       return sendJson(req, res, r.list)

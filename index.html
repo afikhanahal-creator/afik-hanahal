@@ -206,6 +206,12 @@
     (function(){try{var m=/[?&]p=([^&#]+)/.exec(location.search);if(!m)return;var id=decodeURIComponent(m[1]).slice(0,80);
       window.__afikShared={id:id,promise:fetch('/api/properties?one='+encodeURIComponent(id),{headers:{Accept:'application/json'}})
         .then(function(r){return r.ok?r.json():null}).catch(function(){return null})};}catch(e){}})();
+    // First visit (no saved list): start downloading the deploy-time property list (a static file on the CDN)
+    // right away, so the property grid paints without waiting for the live API
+    (function(){try{if(/^\/(admin-panel|dashboard|newproperty|sell|seller-form)(\/|$)/.test(location.pathname))return;
+      var c=null;try{c=JSON.parse(localStorage.getItem('afik_data')||'null')}catch(e){}if(c&&c.properties&&c.properties.length)return;
+      window.__afikList=fetch('/properties.json',{headers:{Accept:'application/json'}})
+        .then(function(r){return r.ok?r.json():null}).catch(function(){return null});}catch(e){}})();
     </script>
 
     <!-- ── Preconnect + DNS prefetch for external assets ── -->
