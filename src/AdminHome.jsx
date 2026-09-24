@@ -154,7 +154,7 @@ export default function AdminHome({ properties = [], leads = [], setTab, autoCfg
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button type="button" onClick={() => window.open('/', '_blank')} style={{ height: 36, padding: '0 14px', borderRadius: 10, border: '1px solid rgba(var(--ink),.16)', background: 'transparent', color: T.text2, fontFamily: 'inherit', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 7 }}><FaGlobe size={12}/>{t.viewSite}</button>
-          {onNewProperty && <button type="button" onClick={onNewProperty} style={{ height: 36, padding: '0 16px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,#6E7AC9,#4B55B8)', color: '#fff', fontFamily: 'inherit', fontSize: 13, fontWeight: 800, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 7, boxShadow: '0 6px 18px rgba(var(--brand-rgb),.28)' }}><FaPlus size={11}/>{t.newProp}</button>}
+          {onNewProperty && <button type="button" onClick={onNewProperty} style={{ height: 36, padding: '0 16px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg,var(--au-brand),var(--au-brand-deep))', color: '#fff', fontFamily: 'inherit', fontSize: 13, fontWeight: 800, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 7, boxShadow: '0 6px 18px rgba(var(--brand-rgb),.3)' }}><FaPlus size={11}/>{t.newProp}</button>}
         </div>
       </div>
 

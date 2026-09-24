@@ -13,7 +13,7 @@ export const T = {
   s3: 'var(--au-s3)', s3Line: 'var(--au-s3-line)',
   line: 'var(--au-line)', line2: 'var(--au-line2)', divider: 'var(--au-divider)',
   text: 'var(--au-text)', text2: 'var(--au-text2)', text3: 'var(--au-text3)', textDis: 'var(--au-text-dis)',
-  brand: '#7B86CF', brandSoft: 'var(--au-brand-soft)', brandText: 'var(--au-brand-text)',
+  brand: '#6F7AC7', brandSoft: 'var(--au-brand-soft)', brandText: 'var(--au-brand-text)',
   green: '#25D366', greenSoft: 'rgba(37,211,102,.14)', greenLine: 'rgba(37,211,102,.5)',
   amber: '#F5A623', amberSoft: 'rgba(245,166,35,.12)', amberText: 'var(--au-amber-text)',
   red: '#E05252', redSoft: 'rgba(224,82,82,.12)', redText: 'var(--au-red-text)',
@@ -121,7 +121,7 @@ export function ModeSwitch({ value, onChange, labels, modes = ['off', 'suggest',
         return (
           <button key={m} ref={el => { refs.current[i] = el }} type="button" role="radio" aria-checked={on} tabIndex={on ? 0 : -1} onClick={() => onChange(m)}
             style={{ height: full ? 40 : size === 'sm' ? 28 : 32, padding: '0 12px', borderRadius: 7, border: 'none', fontFamily: 'inherit', fontSize: 12, fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5, cursor: 'pointer', minHeight: 0, minWidth: 0, flex: full ? 1 : undefined,
-              background: on ? `${c}29` : 'transparent', color: on ? c : T.text3, boxShadow: on ? `inset 0 0 0 1px ${c}66` : 'none' }}>
+              background: on ? `${c}29` : 'transparent', color: on ? (c === T.brand ? T.brandText : c) : T.text3, boxShadow: on ? `inset 0 0 0 1px ${c}66` : 'none' }}>
             {Ic && <Ic size={11}/>}{labels[m]}
           </button>
         )
@@ -174,7 +174,7 @@ export function Badge({ children, color = T.brand, textColor, outline, title }) 
 export function EmptyState({ icon: Ic, title, body, action, compact }) {
   return (
     <div style={{ padding: compact ? '24px 16px' : '40px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 8 }}>
-      {Ic && <span style={{ width: compact ? 40 : 56, height: compact ? 40 : 56, borderRadius: '50%', background: T.brandSoft, color: T.brand, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}><Ic size={compact ? 17 : 22}/></span>}
+      {Ic && <span style={{ width: compact ? 40 : 56, height: compact ? 40 : 56, borderRadius: '50%', background: T.brandSoft, color: T.brandText, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}><Ic size={compact ? 17 : 22}/></span>}
       <div style={{ fontSize: 15, fontWeight: 800, color: T.text }}>{title}</div>
       {body && <div style={{ fontSize: 13, color: T.text2, maxWidth: 380, lineHeight: 1.55 }}>{body}</div>}
       {action && <div style={{ marginTop: 4 }}>{action}</div>}

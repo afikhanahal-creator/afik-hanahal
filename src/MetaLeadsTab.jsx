@@ -708,7 +708,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
   const BORDER  = 'rgba(var(--brand-rgb),.12)'
   const MUTED   = 'rgba(var(--ink),.35)'
   const CREAM   = 'var(--au-text)'
-  const PURPLE  = C?.purple || '#7B86CF'
+  const PURPLE  = C?.purple || '#6F7AC7'
   const GREEN   = '#82F67F'
 
   const statusTabs = [

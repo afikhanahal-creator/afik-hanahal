@@ -1715,7 +1715,7 @@ function PropertyManagerList({ C, list, publishedList, draftList, listTab, setLi
               <div className="admin-prop-thumb" style={{ position:'relative', flexShrink:0, width:132, minHeight:104, alignSelf:'stretch', background:`${C.purple}10` }}>
                 {p.images?.[0]
                   ? <img src={thumbImg(p.images[0])} onError={imgFallback} style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover', display:'block' }} alt="" loading="lazy" decoding="async"/>
-                  : <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', color:`${C.purple}55` }}><cat.Icon size={28}/></div>}
+                  : <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', color:'var(--au-brand-text)' }}><cat.Icon size={28}/></div>}
                 <div style={{ position:'absolute', top:6, insetInlineStart:6, background: live ? `${C.green}DD` : 'rgba(247,201,72,.92)', borderRadius:5, padding:'2px 7px', fontSize:9, fontWeight:900, color:'#000', letterSpacing:'.05em' }}>{live ? '● LIVE' : 'מוסתר'}</div>
                 {(p.images?.length || 0) > 1 && <div style={{ position:'absolute', bottom:6, insetInlineEnd:6, background:'rgba(0,0,0,.6)', borderRadius:5, padding:'1px 6px', fontSize:9, color:'#fff', fontWeight:700 }}>📷 {p.images.length}</div>}
               </div>
@@ -3134,7 +3134,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
                       style={{ width:'100%', display:'flex', alignItems:'center', gap:11, height:38, padding:'0 10px', border:'none', borderRadius:10, background: isActive ? `linear-gradient(90deg,${accent}10,${accent}26)` : 'transparent', boxShadow: isActive ? `inset -2px 0 0 ${accent}` : 'none', color: isActive ? 'var(--au-text)' : 'rgba(var(--ink),.62)', cursor:'pointer', fontFamily:'inherit', fontSize:13, fontWeight: isActive ? 700 : 500, marginBottom:2, textAlign:'start', transition:'background .15s,color .15s', minHeight:0 }}>
                       <span style={{ width:26, height:26, borderRadius:8, display:'inline-flex', alignItems:'center', justifyContent:'center', flexShrink:0, background: isActive ? `${accent}26` : 'transparent', color: isActive ? accent : 'rgba(var(--ink),.5)' }}><item.Icon size={13}/></span>
                       <span style={{ flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.label}</span>
-                      {!!item.badge && <span style={{ minWidth:20, height:20, padding:'0 6px', borderRadius:10, display:'inline-flex', alignItems:'center', justifyContent:'center', fontSize:10.5, fontWeight:800, fontVariantNumeric:'tabular-nums', background: isLive ? 'rgba(34,197,94,.16)' : item.id==='chats' ? '#25D366' : item.id==='meta' || item.id==='automations' ? '#E05252' : 'rgba(var(--brand-rgb),.2)', color: isLive ? '#22C55E' : item.id==='chats' ? '#062E16' : item.id==='meta' || item.id==='automations' ? '#fff' : '#B7BEF0' }}>{item.badge}</span>}
+                      {!!item.badge && <span style={{ minWidth:20, height:20, padding:'0 6px', borderRadius:10, display:'inline-flex', alignItems:'center', justifyContent:'center', fontSize:10.5, fontWeight:800, fontVariantNumeric:'tabular-nums', background: isLive ? 'rgba(34,197,94,.16)' : item.id==='chats' ? '#25D366' : item.id==='meta' || item.id==='automations' ? '#E05252' : 'rgba(var(--brand-rgb),.2)', color: isLive ? '#22C55E' : item.id==='chats' ? '#062E16' : item.id==='meta' || item.id==='automations' ? '#fff' : 'var(--au-brand-text)' }}>{item.badge}</span>}
                     </button>
                   )
                 })}
@@ -3144,7 +3144,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
           {/* Footer — account + quick actions */}
           <div style={{ padding:'12px 12px 16px', borderTop:'1px solid rgba(var(--brand-rgb),.08)' }}>
             <div style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 8px 10px' }}>
-              <div style={{ width:34, height:34, borderRadius:'50%', background:'linear-gradient(135deg,#7B86CF,#4B55B8)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontSize:12, fontWeight:800, flexShrink:0 }}>AH</div>
+              <div style={{ width:34, height:34, borderRadius:'50%', background:'linear-gradient(135deg,var(--au-brand),var(--au-brand-deep))', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontSize:12, fontWeight:800, flexShrink:0 }}>AH</div>
               <div style={{ flex:1, minWidth:0 }}>
                 <div style={{ fontSize:12.5, fontWeight:700, color:'var(--au-text)' }}>{lang === 'en' ? 'Main admin' : 'מנהל ראשי'}</div>
                 <div style={{ fontSize:11, color:'rgba(var(--ink),.42)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>afikhanahal.co.il</div>
@@ -3221,8 +3221,8 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
               <div style={{ width:1, height:18, background:'rgba(var(--brand-rgb),.15)', flexShrink:0, marginRight:2 }}/>
               <button
                 onClick={() => { setTab('meta'); setMetaNewLeads(0) }}
-                style={{ display:'flex', alignItems:'center', gap:7, padding:'6px 14px', background: tab==='meta' ? 'rgba(var(--brand-rgb),.22)' : 'rgba(var(--brand-rgb),.08)', border:`1px solid ${tab==='meta' ? 'rgba(var(--brand-rgb),.5)' : 'rgba(var(--brand-rgb),.2)'}`, borderRadius:20, color: tab==='meta' ? '#A0ACFF' : 'rgba(var(--brand-rgb),.7)', cursor:'pointer', fontFamily:'inherit', fontSize:12, fontWeight:700, transition:'all .18s', position:'relative' }}
-                onMouseEnter={e=>{ e.currentTarget.style.background='rgba(var(--brand-rgb),.18)'; e.currentTarget.style.borderColor='rgba(var(--brand-rgb),.45)'; e.currentTarget.style.color='#A0ACFF' }}
+                style={{ display:'flex', alignItems:'center', gap:7, padding:'6px 14px', background: tab==='meta' ? 'rgba(var(--brand-rgb),.22)' : 'rgba(var(--brand-rgb),.08)', border:`1px solid ${tab==='meta' ? 'rgba(var(--brand-rgb),.5)' : 'rgba(var(--brand-rgb),.2)'}`, borderRadius:20, color: 'var(--au-brand-text)', cursor:'pointer', fontFamily:'inherit', fontSize:12, fontWeight:700, transition:'all .18s', position:'relative' }}
+                onMouseEnter={e=>{ e.currentTarget.style.background='rgba(var(--brand-rgb),.18)'; e.currentTarget.style.borderColor='rgba(var(--brand-rgb),.45)'; e.currentTarget.style.color='var(--au-brand-text)' }}
                 onMouseLeave={e=>{ if(tab!=='meta'){ e.currentTarget.style.background='rgba(var(--brand-rgb),.08)'; e.currentTarget.style.borderColor='rgba(var(--brand-rgb),.2)'; e.currentTarget.style.color='rgba(var(--brand-rgb),.7)' }}}>
                 <FaFacebookF size={11}/>
                 <span>Lead Center</span>
@@ -4475,7 +4475,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
               <div style={{ background:'rgba(24,119,242,.06)', border:'1px solid rgba(24,119,242,.2)', borderRadius:8, padding:'12px 14px', fontSize:12, color:`${C.cream}88`, lineHeight:1.8, direction:'rtl' }}>
                 <strong style={{ color:'#1877F2' }}>טיפ — URL קמפיין עם UTM:</strong><br/>
                 בקמפיין ב-Meta Ads Manager, הגדר Destination URL:
-                <code style={{ display:'block', marginTop:6, padding:'8px 10px', background:'rgba(0,0,0,.25)', borderRadius:6, fontFamily:'monospace', fontSize:11, color:'#A0ACFF', wordBreak:'break-all', direction:'ltr' }}>
+                <code style={{ display:'block', marginTop:6, padding:'8px 10px', background:'rgba(0,0,0,.25)', borderRadius:6, fontFamily:'monospace', fontSize:11, color:'var(--au-brand-text)', wordBreak:'break-all', direction:'ltr' }}>
                   https://afikhanahal.co.il/?utm_source=facebook&utm_medium=paid&utm_campaign=<span style={{ color:'#22C55E' }}>שם_קמפיין</span>
                 </code>
               </div>

@@ -162,7 +162,9 @@ The admin has its own theme, separate from the public site, saved in `localStora
 `ThemeCtx` by both admin mount points in `App.jsx`) and `ADMIN_THEME_CSS` — CSS variables on `html[data-admin-theme]` that every
 admin component uses, portals included. When adding admin UI, never hardcode dark colors: use `T.*` from `automationsUI.jsx`
 (now CSS variables), `C.*` from `useTheme()`, or `var(--au-*)`; for tints use `rgba(var(--ink), a)` (text) and
-`rgba(var(--ov), a)` (surfaces). WhatsApp bubbles and the phone preview stay dark on purpose.
+`rgba(var(--ov), a)` (surfaces). Purple has three roles, all ≥ 4.5:1 contrast: `var(--au-brand)` (fills with white text),
+`var(--au-brand-text)` / `T.brandText` (purple text) and `rgba(var(--brand-rgb), a)` (tints and lines); `C.purple` is the theme's
+balanced purple for code that appends a hex alpha. WhatsApp bubbles and the phone preview stay dark on purpose.
 `src/CommandPalette.jsx` — Ctrl/⌘ + K (or the top-bar search) jumps to any screen, lead (opens the chat) or property, and runs actions.
 
 ### Lead card & smart lead analysis

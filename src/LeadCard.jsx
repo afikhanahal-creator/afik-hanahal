@@ -65,7 +65,7 @@ const CSS = `
   .lc-grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
   .lc-grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
   .lc-in{width:100%;height:38px;padding:0 11px;border-radius:9px;border:1px solid var(--au-s3-line);background:var(--au-input);color:var(--au-text);font-family:inherit;font-size:13.5px;outline:none;transition:border-color .15s,box-shadow .15s}
-  .lc-in:focus{border-color:#7C88D2;box-shadow:0 0 0 3px rgba(124,136,210,.18)}
+  .lc-in:focus{border-color:var(--au-brand);box-shadow:0 0 0 3px rgba(var(--brand-rgb),.2)}
   textarea.lc-in{height:auto;padding:9px 11px;line-height:1.55;resize:vertical}
   select.lc-in{appearance:auto}
   .lc-tab{height:40px;padding:0 14px;border:none;background:none;cursor:pointer;font-family:inherit;font-size:13.5px;font-weight:700;display:inline-flex;align-items:center;gap:7px;border-bottom:2px solid transparent;white-space:nowrap}
@@ -116,7 +116,7 @@ function EditInput({ value, onSave, type = 'text', multiline, rows = 3, placehol
 function EditSelect({ value, options, onSave }) {
   return <select className="lc-in" value={value || ''} onChange={e => onSave(e.target.value)}>{Object.entries(options).map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select>
 }
-function Chip({ children, color = '#7C88D2', onRemove }) {
+function Chip({ children, color = '#6F7AC7', onRemove }) {
   return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 26, padding: '0 10px', borderRadius: 20, background: `${color}1c`, color: T.text, fontSize: 12, fontWeight: 700, border: `1px solid ${color}40` }}>{children}{onRemove && <button type="button" onClick={onRemove} aria-label="×" style={{ background: 'none', border: 'none', color: T.text3, cursor: 'pointer', padding: 0, display: 'inline-flex' }}><FaTimes size={9}/></button>}</span>
 }
 function ListBlock({ title, icon: Ic, items, color = T.brandText }) {
@@ -204,7 +204,7 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
         {lead.phone && <a className="lc-act" href={`tel:${lead.phone}`} style={{ background: 'rgba(0,115,234,.12)', color: '#3B8FF0', border: '1px solid rgba(0,115,234,.3)' }}><FaPhone size={11}/>{t.call}</a>}
         {lead.phone && onOpenChat && <button type="button" className="lc-act" onClick={() => { onOpenChat(lead); onClose() }} style={{ background: 'rgba(37,211,102,.12)', color: '#1FAF55', border: '1px solid rgba(37,211,102,.35)' }}><FaWhatsapp size={13}/>{t.wa}</button>}
         {lead.email && <a className="lc-act lc-hide-m" href={`mailto:${lead.email}`} style={{ background: 'rgba(226,68,92,.1)', color: '#E2445C', border: '1px solid rgba(226,68,92,.3)' }}><FaEnvelope size={11}/>{t.email}</a>}
-        {onEnrich && <button type="button" className="lc-act" disabled={enriching} onClick={() => { onEnrich(lead); setTab('analysis') }} style={{ background: 'linear-gradient(135deg,#6E7AC9,#5561B8)', color: '#fff', border: 'none', opacity: enriching ? .7 : 1 }}>
+        {onEnrich && <button type="button" className="lc-act" disabled={enriching} onClick={() => { onEnrich(lead); setTab('analysis') }} style={{ background: 'linear-gradient(135deg,var(--au-brand),var(--au-brand-deep))', color: '#fff', border: 'none', opacity: enriching ? .7 : 1 }}>
           {enriching ? <FaSyncAlt size={11} style={{ animation: 'lc-spin 1s linear infinite' }}/> : <FaMagic size={11}/>}{enriching ? t.analyzing : isV2 ? t.reanalyze : t.analyze}</button>}
         <button type="button" onClick={onClose} aria-label={t.close} style={{ width: 34, height: 34, borderRadius: 9, border: `1px solid ${T.s1Line}`, background: 'transparent', color: T.text2, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}><FaTimes size={13}/></button>
       </div>
@@ -215,7 +215,7 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
   const tabBar = (
     <div role="tablist" style={{ display: 'flex', gap: 2, padding: '0 14px', borderBottom: `1px solid ${T.line}`, overflowX: 'auto', flexShrink: 0 }}>
       {tabs.map(([id, Ic, label, badge]) => (
-        <button key={id} type="button" role="tab" aria-selected={tab === id} className="lc-tab" onClick={() => setTab(id)} style={{ color: tab === id ? T.text : T.text3, borderBottomColor: tab === id ? '#7C88D2' : 'transparent' }}>
+        <button key={id} type="button" role="tab" aria-selected={tab === id} className="lc-tab" onClick={() => setTab(id)} style={{ color: tab === id ? T.text : T.text3, borderBottomColor: tab === id ? 'var(--au-brand)' : 'transparent' }}>
           <Ic size={11}/>{label}{badge ? <span style={{ minWidth: 18, height: 18, padding: '0 5px', borderRadius: 9, background: T.brandSoft, color: T.brandText, fontSize: 10.5, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{badge}</span> : null}
         </button>
       ))}
@@ -290,7 +290,7 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
       <Section title={t.tabs.notes} icon={FaStickyNote}>
         <textarea className="lc-in" rows={3} value={noteDraft} placeholder={t.notePh} onChange={e => setNoteDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); addNote() } }}/>
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
-          <button type="button" className="lc-act" disabled={!noteDraft.trim()} onClick={addNote} style={{ background: noteDraft.trim() ? '#6E7AC9' : 'rgba(var(--ov),.06)', color: noteDraft.trim() ? '#fff' : T.text3, border: 'none' }}><FaPlus size={10}/>{t.addNote}</button>
+          <button type="button" className="lc-act" disabled={!noteDraft.trim()} onClick={addNote} style={{ background: noteDraft.trim() ? 'var(--au-brand)' : 'rgba(var(--ov),.06)', color: noteDraft.trim() ? '#fff' : T.text3, border: 'none' }}><FaPlus size={10}/>{t.addNote}</button>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
           {!notes.length && <div style={{ fontSize: 13, color: T.text3, textAlign: 'center', padding: '14px 0' }}>{t.noNotes}</div>}
@@ -342,7 +342,7 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <input className="lc-in" style={{ flex: '1 1 240px' }} value={taskDraft} placeholder={t.taskPh} onChange={e => setTaskDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addTask() }}/>
         <input className="lc-in" style={{ width: 160 }} type="date" value={taskDue} onChange={e => setTaskDue(e.target.value)} aria-label={t.due} dir="ltr"/>
-        <button type="button" className="lc-act" onClick={addTask} disabled={!taskDraft.trim()} style={{ background: taskDraft.trim() ? '#6E7AC9' : 'rgba(var(--ov),.06)', color: taskDraft.trim() ? '#fff' : T.text3, border: 'none', height: 38 }}><FaPlus size={10}/>{t.addTask}</button>
+        <button type="button" className="lc-act" onClick={addTask} disabled={!taskDraft.trim()} style={{ background: taskDraft.trim() ? 'var(--au-brand)' : 'rgba(var(--ov),.06)', color: taskDraft.trim() ? '#fff' : T.text3, border: 'none', height: 38 }}><FaPlus size={10}/>{t.addTask}</button>
       </div>
       <div style={{ marginTop: 12 }}>
         {!tasks.filter(x => !x.done).length && <div style={{ fontSize: 13, color: T.text3, textAlign: 'center', padding: '14px 0' }}>{t.noTasks}</div>}
@@ -372,7 +372,7 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
         <h3 style={{ margin: '12px 0 6px', fontSize: 16, color: T.text }}>{en.status === 'done' ? t.legacy : t.noAnalysis}</h3>
         <p style={{ margin: '0 auto 16px', maxWidth: 520, fontSize: 13, lineHeight: 1.6, color: T.text2 }}>{t.noAnalysisSub}</p>
         {en.notes && <p style={{ margin: '0 auto 16px', maxWidth: 560, fontSize: 13, lineHeight: 1.6, color: T.text, background: 'rgba(var(--ov),.03)', borderRadius: 10, padding: 12, textAlign: 'start' }}>{en.notes}</p>}
-        {onEnrich && <button type="button" className="lc-act" disabled={enriching} onClick={() => onEnrich(lead)} style={{ background: 'linear-gradient(135deg,#6E7AC9,#5561B8)', color: '#fff', border: 'none', height: 40, padding: '0 18px', fontSize: 13.5 }}>
+        {onEnrich && <button type="button" className="lc-act" disabled={enriching} onClick={() => onEnrich(lead)} style={{ background: 'linear-gradient(135deg,var(--au-brand),var(--au-brand-deep))', color: '#fff', border: 'none', height: 40, padding: '0 18px', fontSize: 13.5 }}>
           {enriching ? <FaSyncAlt size={12} style={{ animation: 'lc-spin 1s linear infinite' }}/> : <FaMagic size={12}/>}{enriching ? t.analyzing : t.analyze}</button>}
       </div>
     </Section>
@@ -461,7 +461,7 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
               </div>
             )}
             <ListBlock title={t.ask} icon={FaQuestionCircle} items={askList} color="#60A5FA"/>
-            <ListBlock title={t.points} icon={FaComments} items={b.talkingPoints} color="#7C88D2"/>
+            <ListBlock title={t.points} icon={FaComments} items={b.talkingPoints} color="var(--au-brand-text)"/>
             <ListBlock title={t.needs} icon={FaBullseye} items={b.keyNeeds} color="#22C55E"/>
             <ListBlock title={t.objections} icon={FaShieldAlt} items={b.objections} color="#F59E0B"/>
             <ListBlock title={t.risks} icon={FaExclamationTriangle} items={b.risks} color="#EF4444"/>

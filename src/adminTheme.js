@@ -40,14 +40,14 @@ export function useAdminTheme() {
 }
 
 // Theme-context colors (`C`) for the admin. Dark = the site's dark palette; light = a cool, crisp office palette.
-export const ADMIN_DARK_C  = { bg: '#09090F', purple: '#7B86CF', green: '#82F67F', cream: '#E8E4D8', card: '#0E0E1C' }
-export const ADMIN_LIGHT_C = { bg: '#F4F5F9', purple: '#4B55B8', green: '#15803D', cream: '#171A2C', card: '#FFFFFF' }
+export const ADMIN_DARK_C  = { bg: '#09090F', purple: '#6F7AC7', green: '#82F67F', cream: '#E8E4D8', card: '#0E0E1C' }
+export const ADMIN_LIGHT_C = { bg: '#F4F5F9', purple: '#3F49A6', green: '#15803D', cream: '#171A2C', card: '#FFFFFF' }
 
 // --ink / --ov are "r,g,b" triplets for rgba(var(--ink), a) — text tints and surface overlays.
 export const ADMIN_THEME_CSS = `
 :root, html[data-admin-theme="dark"] {
   color-scheme: dark;
-  --ink: 232,228,216; --ov: 255,255,255; --shade: 0,0,0; --brand-rgb: 123,134,207; --au-brand: #7B86CF;
+  --ink: 232,228,216; --ov: 255,255,255; --shade: 0,0,0; --brand-rgb: 111,122,199; --au-brand: #5A64B6; --au-brand-deep: #464F9E;
   --au-bg: #09090F; --au-page: #07070F; --au-sidebar: linear-gradient(180deg,#0D0E1A 0%,#08080F 100%); --au-topbar: rgba(9,9,17,.86);
   --au-card: rgba(255,255,255,.03); --au-card-grad: linear-gradient(180deg,rgba(255,255,255,.035),rgba(255,255,255,.015)); --au-card-shadow: none;
   --au-s1: rgba(255,255,255,.03); --au-s1-line: rgba(var(--brand-rgb),.14);
@@ -55,7 +55,7 @@ export const ADMIN_THEME_CSS = `
   --au-s3: rgba(255,255,255,.04); --au-s3-line: rgba(var(--brand-rgb),.22);
   --au-line: rgba(var(--brand-rgb),.14); --au-line2: rgba(var(--brand-rgb),.25); --au-divider: rgba(var(--brand-rgb),.08);
   --au-text: #E8E4D8; --au-text2: rgba(232,228,216,.72); --au-text3: rgba(232,228,216,.6); --au-text-dis: rgba(232,228,216,.35);
-  --au-brand-soft: rgba(var(--brand-rgb),.14); --au-brand-text: #9CA6E3; --au-amber-text: #F5C26B; --au-red-text: #F08A8A; --au-green-text: #4ADE80;
+  --au-brand-soft: rgba(var(--brand-rgb),.16); --au-brand-text: #AAB3EE; --au-amber-text: #F5C26B; --au-red-text: #F08A8A; --au-green-text: #4ADE80;
   --au-pop: #10121E; --au-tooltip: #141627; --au-overlay: rgba(0,0,0,.6);
   --au-shadow2: 0 24px 70px rgba(0,0,0,.6); --au-shadow3: 0 12px 32px rgba(0,0,0,.45);
   --au-skel: rgba(255,255,255,.06); --au-skel-hi: rgba(255,255,255,.1);
@@ -65,7 +65,7 @@ export const ADMIN_THEME_CSS = `
 }
 html[data-admin-theme="light"] {
   color-scheme: light;
-  --ink: 23,26,44; --ov: 28,36,90; --shade: 20,24,60; --brand-rgb: 75,85,184; --au-brand: #4B55B8;
+  --ink: 23,26,44; --ov: 28,36,90; --shade: 20,24,60; --brand-rgb: 63,73,166; --au-brand: #3F49A6; --au-brand-deep: #333B8C;
   --au-bg: #F4F5F9; --au-page: #F4F5F9; --au-sidebar: #FFFFFF; --au-topbar: rgba(255,255,255,.88);
   --au-card: #FFFFFF; --au-card-grad: #FFFFFF; --au-card-shadow: 0 1px 2px rgba(20,24,60,.05), 0 2px 8px rgba(20,24,60,.04);
   --au-s1: #FFFFFF; --au-s1-line: rgba(28,36,90,.1);
@@ -73,7 +73,7 @@ html[data-admin-theme="light"] {
   --au-s3: #F5F6FA; --au-s3-line: rgba(28,36,90,.16);
   --au-line: rgba(28,36,90,.1); --au-line2: rgba(28,36,90,.18); --au-divider: rgba(28,36,90,.07);
   --au-text: #171A2C; --au-text2: rgba(23,26,44,.74); --au-text3: rgba(23,26,44,.58); --au-text-dis: rgba(23,26,44,.36);
-  --au-brand-soft: rgba(75,85,184,.1); --au-brand-text: #3A44A0; --au-amber-text: #9A5B00; --au-red-text: #C0392B; --au-green-text: #15803D;
+  --au-brand-soft: rgba(63,73,166,.1); --au-brand-text: #343C92; --au-amber-text: #9A5B00; --au-red-text: #C0392B; --au-green-text: #15803D;
   --au-pop: #FFFFFF; --au-tooltip: #FFFFFF; --au-overlay: rgba(20,24,60,.32);
   --au-shadow2: 0 24px 60px rgba(20,24,60,.18); --au-shadow3: 0 12px 32px rgba(20,24,60,.14);
   --au-skel: rgba(28,36,90,.06); --au-skel-hi: rgba(28,36,90,.11);
