@@ -39,6 +39,72 @@ function loadGovMapScript(cb) {
   document.head.appendChild(s)
 }
 
+// ── Parcel lookup helpers ─────────────────────────────────────────────────────
+const govmapLink = (g, h) =>
+  `https://www.govmap.gov.il/?q=${encodeURIComponent(`גוש ${g} חלקה ${h}`)}&lay=PARCEL_ALL&lot=${g}&parcel=${h}`
+
+// Same ITM → Web Mercator maths as lib/parcel-locate.js, only needed for the in-browser fallback
+function itmToMercator(x, y) {
+  const A = 6378137, F = 1 / 298.257223563, E2 = 2 * F - F * F, EP2 = E2 / (1 - E2)
+  const LAT0 = 0.553869654637742, LON0 = 0.614434732254763, K0 = 1.0000067
+  const m = phi => A * ((1 - E2 / 4 - 3 * E2 ** 2 / 64 - 5 * E2 ** 3 / 256) * phi - (3 * E2 / 8 + 3 * E2 ** 2 / 32 + 45 * E2 ** 3 / 1024) * Math.sin(2 * phi)
+    + (15 * E2 ** 2 / 256 + 45 * E2 ** 3 / 1024) * Math.sin(4 * phi) - (35 * E2 ** 3 / 3072) * Math.sin(6 * phi))
+  const e1 = (1 - Math.sqrt(1 - E2)) / (1 + Math.sqrt(1 - E2))
+  const mu = (m(LAT0) + (y - 626907.39) / K0) / (A * (1 - E2 / 4 - 3 * E2 ** 2 / 64 - 5 * E2 ** 3 / 256))
+  const p1 = mu + (3 * e1 / 2 - 27 * e1 ** 3 / 32) * Math.sin(2 * mu) + (21 * e1 ** 2 / 16 - 55 * e1 ** 4 / 32) * Math.sin(4 * mu) + (151 * e1 ** 3 / 96) * Math.sin(6 * mu) + (1097 * e1 ** 4 / 512) * Math.sin(8 * mu)
+  const n1 = A / Math.sqrt(1 - E2 * Math.sin(p1) ** 2), t1 = Math.tan(p1) ** 2, c1 = EP2 * Math.cos(p1) ** 2
+  const r1 = A * (1 - E2) / (1 - E2 * Math.sin(p1) ** 2) ** 1.5, d = (x - 219529.584) / (n1 * K0)
+  const lat = p1 - (n1 * Math.tan(p1) / r1) * (d ** 2 / 2 - (5 + 3 * t1 + 10 * c1 - 4 * c1 ** 2 - 9 * EP2) * d ** 4 / 24 + (61 + 90 * t1 + 298 * c1 + 45 * t1 ** 2 - 252 * EP2 - 3 * c1 ** 2) * d ** 6 / 720)
+  const lon = LON0 + (d - (1 + 2 * t1 + c1) * d ** 3 / 6 + (5 - 2 * c1 + 28 * t1 - 3 * c1 ** 2 + 8 * EP2 + 24 * t1 ** 2) * d ** 5 / 120) / Math.cos(p1)
+  return { x: lon * 6378137, y: Math.log(Math.tan(Math.PI / 4 + lat / 2)) * 6378137 }
+}
+
+// { itm, mercator } for a gush/helka: the server resolver first, the legacy TldSearch service from
+// the browser as a fallback (works while it's still up and the site's API isn't, e.g. local dev).
+async function resolveParcelPoint(lot, parcel) {
+  try {
+    const r = await fetch(`/api/properties?parcel=${lot}-${parcel}`, { headers: { Accept: 'application/json' } })
+    const d = r.ok ? await r.json() : null
+    if (d && d.ok && d.itm && d.mercator) return { itm: d.itm, mercator: d.mercator }
+    if (d && !d.ok) console.warn('[GovMap] parcel not resolved on the server:', d.tried)
+  } catch (e) { console.warn('[GovMap] parcel resolver unreachable:', e && e.message) }
+  try {
+    const q = encodeURIComponent(`גוש ${lot} חלקה ${parcel}`)
+    const r = await fetch(`https://es.govmap.gov.il/TldSearch/api/DetailsByQuery?query=${q}&lyrs=276589&gid=govmap`, { headers: { Accept: 'application/json' } })
+    const body = r.ok ? await r.json() : null
+    const groups = (body && body.data) || {}
+    const item = (groups[((body && body.order) || Object.keys(groups))[0]] || [])[0]
+    const x = Number(item && item.X), y = Number(item && item.Y)
+    if (x > 100000 && x < 300000 && y > 350000 && y < 820000) return { itm: { x, y }, mercator: itmToMercator(x, y) }
+  } catch (e) { console.warn('[GovMap] TldSearch unreachable:', e && e.message) }
+  return null
+}
+
+// GovMap's own gush/helka locate (needs the parcel to have a registered address — last resort only)
+async function locateViaSdk(lot, parcel) {
+  const gm = window.govmap
+  if (!gm || typeof gm.searchAndLocate !== 'function' || !gm.locateType) return false
+  for (const type of [gm.locateType.lotParcelToAddress, gm.locateType.lotParcel].filter(v => v !== undefined)) {
+    try {
+      const r = await Promise.resolve(gm.searchAndLocate({ type, lot, parcel }))
+      const d = r && (r.data !== undefined ? r.data : r)
+      if (d && ((Array.isArray(d) && d.length) || (!Array.isArray(d) && typeof d === 'object' && (d.X || d.x || Object.keys(d).length > 1)))) return true
+    } catch {}
+  }
+  return false
+}
+
+// Normalise whatever an EXTENT_CHANGE event carries into { xmin, ymin, xmax, ymax, cx, cy }
+function readExtent(e) {
+  const src = (e && (e.extent || e.Extent || e.mapExtent)) || e
+  if (!src || typeof src !== 'object') return null
+  const get = k => { for (const key of Object.keys(src)) if (key.toLowerCase() === k) return Number(src[key]); return NaN }
+  let [xmin, ymin, xmax, ymax] = ['xmin', 'ymin', 'xmax', 'ymax'].map(get)
+  if (![xmin, ymin, xmax, ymax].every(Number.isFinite) && Array.isArray(src) && src.length === 4) [xmin, ymin, xmax, ymax] = src.map(Number)
+  if (![xmin, ymin, xmax, ymax].every(Number.isFinite)) return null
+  return { xmin, ymin, xmax, ymax, cx: (xmin + xmax) / 2, cy: (ymin + ymax) / 2 }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, compact = false }) {
@@ -98,6 +164,7 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
   const gushRef    = useRef(gush)
   const helkaRef   = useRef(helka)
   const timerIds   = useRef([])
+  const locateRun  = useRef(0)
   useEffect(() => { gushRef.current  = gush  }, [gush])
   useEffect(() => { helkaRef.current = helka }, [helka])
 
@@ -107,57 +174,72 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
   }, [])
 
   // ── 2. Zoom to parcel ────────────────────────────────────────────────────────
-  // The SDK's searchAndLocate(lotParcelToAddress) returns "no result" for parcels
-  // that have no registered street address — so it can't be relied on for zoom.
-  // Instead we resolve the gush/helka to its parcel centroid (ITM x/y) via GovMap's
-  // TldSearch service (CORS-open, works for every parcel incl. empty land), then
-  // navigate there with zoomToXY. Retries cover the window while the SDK warms up.
-  const zoomToParcel = useCallback((g, h) => {
-    const lot = Number(g), parcel = Number(h)
-    if (!lot || !parcel) return
+  // Gush/helka → point is resolved server-side (/api/properties?parcel=, lib/parcel-locate.js), which
+  // asks several GovMap sources at once. The widget used to call GovMap's legacy TldSearch service
+  // (es.govmap.gov.il) straight from the browser and swallowed every failure, so when that service
+  // stopped answering the map silently stayed on the whole country. Now every step is visible
+  // (locating → shown / not found, with a link to open the parcel on govmap.gov.il).
+  //
+  // GovMap ignores zoomToXY until the map has finished initialising, so the zoom is re-issued a few
+  // times over the first seconds. The map's own extent events tell us when it has really landed on the
+  // parcel, and in which coordinate system the SDK works (ITM, or Web Mercator on newer builds).
+  const extentRef = useRef(null)
+  const [locate, setLocate] = useState(null)   // null | { state: 'locating' | 'ok' | 'error', g, h, url? }
 
-    // Cancel any pending zoom/fetch timers from a previous call so a new search
-    // (or a different parcel) supersedes the old one cleanly.
+  const zoomToParcel = useCallback((g, h) => {
+    const lot = parseInt(g, 10), parcel = parseInt(h, 10)
+    if (!lot || !parcel) return
     timerIds.current.forEach(clearTimeout)
     timerIds.current = []
+    const url = govmapLink(lot, parcel)
+    const run = ++locateRun.current
+    const alive = () => run === locateRun.current
+    setError('')
+    setLocate({ state: 'locating', g: lot, h: parcel, url })
 
-    // GovMap SILENTLY IGNORES zoomToXY until the map has finished initialising —
-    // that's why a single call right after createMap never moved the map, and only
-    // a later "חפש" click worked. So once we have the parcel's x/y we re-issue the
-    // zoom several times over the first few seconds; whichever call lands once the
-    // map is ready wins (re-zooming to the same point is harmless). level 10 = the
-    // closest zoom the API allows, so the parcel + cadastral outlines are seen up close.
-    const zoomRepeatedly = (x, y) => {
-      ;[0, 400, 900, 1600, 2600, 4000].forEach(d => {
+    const landedOn = pt => {
+      const ex = extentRef.current
+      if (!ex) return null                         // unknown — the SDK doesn't report its extent
+      const p = pt[ex.crs]
+      const w = Math.abs(ex.xmax - ex.xmin)
+      return Math.hypot(ex.cx - p.x, ex.cy - p.y) < Math.max(250, w / 4) && w < 8000
+    }
+
+    const ticks = [0, 400, 900, 1600, 2600, 4000, 6000]
+    const STRATEGY = [['itm', 13], ['itm', 13], ['itm', 13], ['auto', 13], ['auto', 10], ['itm', 10], ['itm', 13]]
+    const zoomRepeatedly = pt => {
+      ticks.forEach((d, i) => {
         timerIds.current.push(setTimeout(() => {
-          // level 13 = ~3 zoom steps deeper than the previous 10, so the parcel is
-          // seen really up close. Fall back to 10 if GovMap rejects the higher level.
-          if (window.govmap && window.govmap.zoomToXY) {
-            try { window.govmap.zoomToXY({ x, y, level: 13, marker: true }) }
-            catch { try { window.govmap.zoomToXY({ x, y, level: 10, marker: true }) } catch {} }
+          if (!alive()) return
+          const gm = window.govmap
+          if (landedOn(pt)) { setLocate({ state: 'ok', g: lot, h: parcel, url }); timerIds.current.forEach(clearTimeout); return }
+          if (gm && gm.zoomToXY) {
+            // ITM + level 13 is the API's documented contract (and what worked so far). Only when the
+            // map reports its extent and still hasn't moved do we try its own system and level 10.
+            const ex = extentRef.current
+            const [crs, lvl] = STRATEGY[i]
+            const p = pt[crs === 'auto' && ex ? ex.crs : 'itm']
+            const level = ex ? lvl : 13
+            try { gm.zoomToXY({ x: p.x, y: p.y, level, marker: true }) }
+            catch { try { gm.zoomToXY({ x: p.x, y: p.y, level: 10, marker: true }) } catch {} }
+          }
+          if (i === ticks.length - 1) {
+            const landed = landedOn(pt)
+            if (landed === false) {
+              console.warn('[GovMap] zoomToXY did not move the map to', pt)
+              locateViaSdk(lot, parcel).then(ok => alive() && setLocate({ state: ok ? 'ok' : 'error', g: lot, h: parcel, url }))
+            } else setLocate({ state: 'ok', g: lot, h: parcel, url })
           }
         }, d))
       })
     }
 
-    const url = `https://es.govmap.gov.il/TldSearch/api/DetailsByQuery?query=${encodeURIComponent(`גוש ${lot} חלקה ${parcel}`)}&lyrs=276589&gid=govmap`
-    let fetchTries = 0
-    const resolveAndZoom = () => {
-      fetch(url, { headers: { Accept: 'application/json' } })
-        .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
-        .then(body => {
-          // Response groups results by layer (e.g. GOVMAP_PARCEL_ALL); take the first.
-          const groups = body?.data || {}
-          const item = groups[(body?.order || Object.keys(groups))[0]]?.[0]
-          const x = Number(item?.X), y = Number(item?.Y)
-          if (x && y) { setError(''); zoomRepeatedly(x, y) }
-          else setError(`לא נמצאה חלקה: גוש ${lot} חלקה ${parcel}`)
-        })
-        .catch(() => {
-          if (fetchTries++ < 4) timerIds.current.push(setTimeout(resolveAndZoom, 800))
-        })
-    }
-    resolveAndZoom()
+    resolveParcelPoint(lot, parcel).then(pt => {
+      if (!alive()) return
+      if (pt) { zoomRepeatedly(pt); return }
+      // Nothing resolved the parcel — last resort: GovMap's own locate
+      locateViaSdk(lot, parcel).then(ok => alive() && setLocate({ state: ok ? 'ok' : 'error', g: lot, h: parcel, url }))
+    })
   }, [])
 
   // ── 3. Create map (runs once when token + inView are ready) ────────────────
@@ -183,6 +265,7 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
                                // All 18 layers loaded above are listed in it.
         zoomButtons:      true,
       })
+      watchExtent()
       setMapReady(true)
       setError('')
       // The auto-zoom is driven by effect #4 below (it fires once mapReady flips
@@ -193,6 +276,28 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
     }
   }, [mapDivId, token, zoomToParcel, clearRetryTimers])  // eslint-disable-line
 
+  // Track the map's extent (center + coordinate system) so the zoom can verify it really landed.
+  // GovMap's event API is jQuery-deferred style (onEvent(e).progress(cb)); newer builds may take the
+  // callback directly — both are wired, and a missing event API just means "can't verify".
+  function watchExtent() {
+    const gm = window.govmap
+    try {
+      const ev = gm && gm.events && (gm.events.EXTENT_CHANGE || gm.events.extentChange)
+      if (!ev || typeof gm.onEvent !== 'function') return
+      // The map's coordinate system is judged once, from the first extent it reports (the opening
+      // country view) — or any Web Mercator-sized one — never from where a wrong-system zoom landed.
+      const cb = e => {
+        const ex = readExtent(e)
+        if (!ex) return
+        const prev = extentRef.current
+        const crs = Math.abs(ex.cx) > 1e6 ? 'mercator' : prev ? prev.crs : 'itm'
+        extentRef.current = { ...ex, crs }
+      }
+      const h = gm.onEvent(ev, cb)
+      if (h && typeof h.progress === 'function') h.progress(cb)
+    } catch (e) { console.warn('[GovMap] extent events unavailable:', e && e.message) }
+  }
+
   // ── Load SDK + create map once in view ────────────────────────────────────
   useEffect(() => {
     if (!token || !inView) return
@@ -201,6 +306,9 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
 
   // Cancel timers on unmount
   useEffect(() => clearRetryTimers, [])  // eslint-disable-line
+
+  // Keep the toolbar inputs in step with the property's gush/helka (e.g. typed in the wizard)
+  useEffect(() => { setGushVal(gush || ''); setHelkaVal(helka || ''); setSubHelkaVal(subHelka || '') }, [gush, helka, subHelka])
 
   // ── 4. Auto-zoom to the parcel once the map is ready (and on prop change) ───
   // zoomToParcel itself re-issues the zoom over the first few seconds, so this
@@ -251,7 +359,6 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
       setError('המפה עוד לא מוכנה — נסה שוב בעוד רגע')
       return
     }
-    setError('')
     zoomToParcel(g, h)
   }
 
@@ -452,7 +559,41 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
       )}
 
       {/* ── Map canvas ──────────────────────────────────────────────────────── */}
-      <div id={mapDivId} style={{ width:'100%', height: compact ? 340 : 500 }}/>
+      <div style={{ position:'relative' }}>
+        <div id={mapDivId} style={{ width:'100%', height: compact ? 340 : 500 }}/>
+        {mapReady && locate && (
+          <div role="status" aria-live="polite"
+            style={{ position:'absolute', top:10, left:10, zIndex:30, maxWidth:'calc(100% - 20px)',
+                     display:'flex', alignItems:'center', gap:8, flexWrap:'wrap',
+                     padding:'7px 12px', borderRadius:10, fontSize:12, fontWeight:600, direction:'rtl',
+                     background: locate.state === 'error' ? 'rgba(254,242,242,.97)' : 'rgba(255,255,255,.96)',
+                     color: locate.state === 'error' ? '#B42318' : '#1F2340',
+                     border:`1px solid ${locate.state === 'error' ? '#F4B4AE' : 'rgba(31,35,64,.14)'}`,
+                     boxShadow:'0 4px 14px rgba(0,0,0,.18)' }}>
+            {locate.state === 'locating' && (
+              <span style={{ width:12, height:12, border:'2px solid rgba(63,73,166,.25)', borderTopColor:'#3F49A6', borderRadius:'50%', animation:'gm_spin .8s linear infinite', flexShrink:0 }}/>
+            )}
+            <span>
+              {locate.state === 'locating' && `מאתר גוש ${locate.g} · חלקה ${locate.h}…`}
+              {locate.state === 'ok'       && `📍 גוש ${locate.g} · חלקה ${locate.h}`}
+              {locate.state === 'error'    && `לא הצלחנו לאתר את גוש ${locate.g} חלקה ${locate.h} במפה`}
+            </span>
+            {locate.state !== 'locating' && (
+              <a href={locate.url} target="_blank" rel="noopener noreferrer"
+                style={{ color:'#3F49A6', textDecoration:'underline', whiteSpace:'nowrap' }}>
+                פתח ב-GovMap ↗
+              </a>
+            )}
+            {locate.state === 'error' && (
+              <button type="button" onClick={() => zoomToParcel(locate.g, locate.h)}
+                style={{ background:'#3F49A6', color:'#fff', border:'none', borderRadius:7, padding:'4px 10px', fontSize:11.5, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+                נסה שוב
+              </button>
+            )}
+            <style>{`@keyframes gm_spin{to{transform:rotate(360deg)}}`}</style>
+          </div>
+        )}
+      </div>
 
       {/* ── Loading / placeholder overlay ───────────────────────────────────── */}
       {!mapReady && (
