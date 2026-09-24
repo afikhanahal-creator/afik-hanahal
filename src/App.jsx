@@ -1,10 +1,9 @@
-import { useState, useEffect, useLayoutEffect, useRef, useCallback, createContext, useContext, useMemo, lazy, Suspense, Component } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, createContext, useContext, useMemo, lazy, Suspense, Component, memo } from 'react'
 import { useAdminTheme, ADMIN_DARK_C, ADMIN_LIGHT_C } from './adminTheme.js'
 import { isRealEstateArticle } from '../lib/news/classify.js'
 import { MenuToggleIcon } from './MenuToggleIcon.jsx'
 import AccessibilityWidget from './AccessibilityWidget.jsx'
 import CookieConsent from './CookieConsent.jsx'
-import { AnimatePresence, motion } from 'framer-motion'
 // PropertyWizard (2k+ lines, admin-only) is lazy-loaded below. Its propertyToWizardData
 // helper is dynamically imported at the edit call sites so it never pulls the wizard
 // (and its GovMapWidget dependency) into the public bundle.
@@ -27,6 +26,13 @@ const SupermetricsTab   = lazyWithRetry(() => import('./SupermetricsTab.jsx'))
 // On-demand, heavy single-purpose modules — lazy so the public bundle stays lean.
 const RealEstateCalc    = lazyWithRetry(() => import('./RealEstateCalc.jsx'))
 const GovMapWidget      = lazyWithRetry(() => import('./GovMapWidget.jsx'))
+
+// A callback with a stable identity that always runs the latest version (for props of memoized children)
+function useStableFn(fn) {
+  const ref = useRef(fn)
+  ref.current = fn
+  return useCallback((...args) => ref.current(...args), [])
+}
 
 // Keeps a failing optional part (e.g. the map chunk on a flaky mobile connection) from taking the
 // whole page down with it: the property window stays open and just shows a small notice instead.
@@ -503,7 +509,7 @@ const makeGlobal = (C, isDark) => `
 
   /* ── Counter ── */
   .tc-wrap { display:inline-flex; align-items:baseline; gap:2px; }
-  .tc-num  { font-family:monospace; font-weight:700; color:${C.green}; line-height:1; text-shadow:${isDark ? `0 0 24px ${C.green}88, 0 0 48px ${C.green}44` : 'none'}; animation:counterGlow 3s ease infinite; }
+  .tc-num  { font-family:monospace; font-weight:700; color:${C.green}; line-height:1; text-shadow:${isDark ? `0 0 24px ${C.green}88, 0 0 48px ${C.green}44` : 'none'};  }
   .tc-sfx  { color:${C.green}; font-weight:700; text-shadow:${isDark ? `0 0 16px ${C.green}77` : 'none'}; }
 
   /* ── Section reveals ── */
@@ -521,8 +527,12 @@ const makeGlobal = (C, isDark) => `
     box-shadow:0 4px 20px rgba(37,211,102,.65), 0 0 0 0 rgba(37,211,102,.4); z-index:9992;
     transition:transform .25s cubic-bezier(.2,.8,.4,1), box-shadow .25s, opacity .25s;
     text-decoration:none; opacity:1;
-    animation: wa-pulse 2.8s ease-in-out infinite;
   }
+  /* The pulse is a ring that scales + fades (GPU only). Animating box-shadow repainted the page ~60×/s. */
+  .wa-float::after { content:''; position:absolute; inset:0; border-radius:50%; border:2px solid rgba(37,211,102,.6);
+    animation: wa-ring 2.8s ease-out infinite; will-change:transform,opacity; pointer-events:none; }
+  @keyframes wa-ring { 0% { transform:scale(1); opacity:.75 } 70%,100% { transform:scale(1.55); opacity:0 } }
+  .wa-float:hover::after { animation:none; opacity:0; }
   @keyframes wa-pulse {
     0%,100% { box-shadow:0 4px 20px rgba(37,211,102,.65), 0 0 0 0 rgba(37,211,102,.4); }
     50%      { box-shadow:0 6px 28px rgba(37,211,102,.85), 0 0 0 10px rgba(37,211,102,.0); }
@@ -720,7 +730,27 @@ const makeGlobal = (C, isDark) => `
   .prop-thumb-btn:hover { opacity:1 !important; transform:scale(1.05); }
   .prop-thumb-btn img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block; }
   .prop-thumb-btn .thumb-fallback { position:absolute; inset:0; width:100%; height:100%; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:4px; background:#111128; color:rgba(132,144,216,.5); font-size:20px; }
-  .prop-card { background:var(--c-card); border:1px solid rgba(132,144,216,.1); border-radius:16px; overflow:hidden; display:flex; flex-direction:column; cursor:pointer; transition:transform .3s cubic-bezier(.16,1,.3,1), box-shadow .3s, border-color .25s; }
+  /* ── Testimonials: slide-in on change + word reveal (CSS; transform/opacity only) ── */
+  .testi-in { animation-name:testiIn; animation-timing-function:cubic-bezier(.4,0,.2,1); animation-fill-mode:both; }
+  @keyframes testiIn { from { opacity:0; transform:translateX(var(--testi-x, 40px)) } to { opacity:1; transform:none } }
+  .testi-word { animation:testiWord .18s ease both; }
+  @keyframes testiWord { from { opacity:0; transform:translateY(4px) } to { opacity:1; transform:none } }
+  @media (prefers-reduced-motion: reduce) { .testi-in, .testi-word { animation:none; } }
+  /* ── Section badge (see SectionBadge) ── */
+  .sb { position:relative; display:inline-flex; align-items:center; justify-content:center; border-radius:9999px; padding:1px;
+        background:rgba(6,6,16,.72); margin-bottom:18px; cursor:default; user-select:none; contain:paint; }  /* paint containment clips the glow (and keeps layout-shift accounting at 0) */
+  .sb-glow { position:absolute; left:50%; top:50%; width:112%; aspect-ratio:1; z-index:0; pointer-events:none;
+             background:conic-gradient(from 0deg, transparent 0 60%, rgba(255,255,255,.62) 75%, transparent 90% 100%);
+             transform:translate(-50%,-50%); animation:sbSpin var(--sb-t, 7.2s) linear infinite; will-change:transform; }
+  .sb-hi { position:absolute; inset:0; z-index:0; border-radius:9999px; background:radial-gradient(75% 181% at 50% 50%, var(--sb-c) 0%, transparent 100%);
+           opacity:0; transition:opacity .2s; }
+  .sb:hover .sb-hi { opacity:.8; }
+  .sb-fill { position:absolute; inset:1.5px; z-index:1; border-radius:9999px; background:rgba(6,6,16,.9); }
+  .sb-text { position:relative; z-index:2; border-radius:9999px; padding:6px 18px; font-size:11px; font-weight:700; letter-spacing:4px;
+             text-transform:uppercase; color:var(--sb-c); line-height:1.2; white-space:nowrap; }
+  @keyframes sbSpin { from { transform:translate(-50%,-50%) rotate(0deg) } to { transform:translate(-50%,-50%) rotate(360deg) } }
+  @media (prefers-reduced-motion: reduce) { .sb-glow { animation:none; } }
+  .prop-card { content-visibility:auto; contain-intrinsic-size:auto 300px auto 460px; background:var(--c-card); border:1px solid rgba(132,144,216,.1); border-radius:16px; overflow:hidden; display:flex; flex-direction:column; cursor:pointer; transition:transform .3s cubic-bezier(.16,1,.3,1), box-shadow .3s, border-color .25s; }
   @media (hover: hover) { .prop-card:hover { transform:translateY(-6px); box-shadow:0 28px 64px rgba(0,0,0,.32), 0 0 0 1px rgba(132,144,216,.22); border-color:rgba(132,144,216,.3); } }
   .prop-card-img { position:relative; padding-bottom:67%; background:linear-gradient(135deg,rgba(132,144,216,.1),rgba(9,9,15,.5)); flex-shrink:0; overflow:hidden; }
   .prop-card-body { padding:16px 18px 18px; display:flex; flex-direction:column; flex:1; }
@@ -1205,7 +1235,7 @@ function useIntersection(threshold = 0.2) {
 const TYPEWRITER_HE = ['מגרשים וקרקעות בלעדיים','ייזום ושיווק פרויקטים','ליווי מקצועי מלא','השרון והמרכז ומעבר']
 const TYPEWRITER_EN = ['Exclusive Plots & Land','Project Development & Marketing','Full Professional Guidance','Sharon Region & Beyond']
 
-function useTypewriter(texts, speed = 50) {
+function useTypewriter(texts, speed = 50, paused = false) {
   const [idx, setIdx] = useState(0)
   const [ch, setCh]   = useState(0)
   const [del, setDel] = useState(false)
@@ -1216,6 +1246,7 @@ function useTypewriter(texts, speed = 50) {
     setIdx(0); setCh(0); setDel(false); setOut('')
   }, [texts])
   useEffect(() => {
+    if (paused) return
     const cur = textsRef.current[idx % textsRef.current.length]
     let t
     if (!del && ch < cur.length)      t = setTimeout(() => setCh(c => c+1), speed)
@@ -1224,8 +1255,24 @@ function useTypewriter(texts, speed = 50) {
     else { setDel(false); setIdx(i => (i+1)%textsRef.current.length) }
     setOut(cur.slice(0,ch))
     return () => clearTimeout(t)
-  }, [ch, del, idx, speed])
+  }, [ch, del, idx, speed, paused])
   return out
+}
+
+// The hero's typing line as its own component: it updates every ~50 ms, so only this text re-renders
+// (as a hook inside App it re-rendered the entire page 20 times a second), and it pauses off-screen.
+function Typewriter({ texts }) {
+  const ref = useRef(null)
+  const [onScreen, setOnScreen] = useState(true)
+  useEffect(() => {
+    const el = ref.current
+    if (!el || typeof IntersectionObserver === 'undefined') return
+    const obs = new IntersectionObserver(([e]) => setOnScreen(e.isIntersecting), { threshold: 0 })
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [])
+  const out = useTypewriter(texts, 50, !onScreen)
+  return <span ref={ref}>{out}</span>
 }
 
 // ─── TEXT COUNTER (power3.out) ────────────────────────────────────────────────
@@ -1295,7 +1342,7 @@ function AmbientBackdrop() {
         radial-gradient(ellipse 48% 58% at 14% 88%, ${C.green}10, transparent),
         radial-gradient(ellipse 38% 42% at 48% 52%, ${C.purple}09, transparent)
       `,
-      animation:'ambientPulse 8s ease infinite',
+      animation:'ambientPulse 8s ease infinite', willChange:'opacity', transform:'translateZ(0)',
     }}/>
   )
 }
@@ -1314,9 +1361,11 @@ function Logo({ size=52 }) {
 function BackToTop() {
   const [visible, setVisible] = useState(false)
   useEffect(() => {
-    const onScroll = () => setVisible(window.scrollY > 500)
+    let raf = 0, last = null
+    const check = () => { raf = 0; const v = window.scrollY > 500; if (v !== last) { last = v; setVisible(v) } }
+    const onScroll = () => { if (!raf) raf = requestAnimationFrame(check) }
     window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
+    return () => { window.removeEventListener('scroll', onScroll); cancelAnimationFrame(raf) }
   }, [])
   return (
     <button
@@ -1359,6 +1408,22 @@ function GlassCard({ children, style, onClick, className = '' }) {
   )
 }
 
+// SVG SMIL animations (<animate>, <animateMotion>) run on the main thread and force a full frame every vsync —
+// even off-screen, and they drag every other animation along. So each animated SVG runs only while it's visible.
+function useSvgAnimationsWhenVisible() {
+  const ref = useRef(null)
+  useEffect(() => {
+    const svg = ref.current
+    if (!svg || typeof svg.pauseAnimations !== 'function') return
+    svg.pauseAnimations()
+    if (typeof IntersectionObserver === 'undefined') { svg.unpauseAnimations(); return }
+    const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) svg.unpauseAnimations(); else svg.pauseAnimations() }, { rootMargin: '100px' })
+    obs.observe(svg)
+    return () => obs.disconnect()
+  }, [])
+  return ref
+}
+
 // ─── WAVE CONNECTOR ───────────────────────────────────────────────────────────
 function WaveConnector({ idx }) {
   const { C } = useTheme()
@@ -1366,9 +1431,10 @@ function WaveConnector({ idx }) {
   const col2 = idx%2===0 ? C.green  : C.purple
   const p1 = "M 60 0 C 20 28 100 58 60 88"
   const p2 = "M 60 0 C 100 28 20 58 60 88"
+  const svgRef = useSvgAnimationsWhenVisible()
   return (
     <div style={{ display:'flex', justifyContent:'center', margin:'-6px 0', position:'relative', zIndex:2 }}>
-      <svg width="120" height="96" viewBox="0 0 120 96">
+      <svg ref={svgRef} width="120" height="96" viewBox="0 0 120 96">
         <defs>
           <linearGradient id={`wg${idx}`} x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor={col}/><stop offset="100%" stopColor={col2}/>
@@ -1454,7 +1520,8 @@ function LangSwitch({ compact = false }) {
 
 // ─── STORY SECTION ────────────────────────────────────────────────────────────
 // ─── CITY CARD (hover-flip) ───────────────────────────────────────────────────
-const FLIP_TRANSITION = { duration: 0.7, ease: [0.4, 0.2, 0.2, 1] }
+// Card flip: a plain CSS transition (no animation library on the public page)
+const FLIP_TRANSITION = 'transform .7s cubic-bezier(.4,.2,.2,1)'
 const FACE_STYLE = {
   position: 'absolute', inset: 0,
   backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden',
@@ -1463,58 +1530,16 @@ const FACE_STYLE = {
 }
 
 // ─── SECTION BADGE — animated rotating border gradient ───────────────────────
-const _BADGE_MAP = {
-  TOP:    'radial-gradient(20.7% 50% at 50% 0%,    rgba(255,255,255,0.82) 0%, rgba(255,255,255,0) 100%)',
-  LEFT:   'radial-gradient(16.6% 43.1% at 0% 50%,  rgba(255,255,255,0.82) 0%, rgba(255,255,255,0) 100%)',
-  BOTTOM: 'radial-gradient(20.7% 50% at 50% 100%,  rgba(255,255,255,0.82) 0%, rgba(255,255,255,0) 100%)',
-  RIGHT:  'radial-gradient(16.2% 41.2% at 100% 50%, rgba(255,255,255,0.82) 0%, rgba(255,255,255,0) 100%)',
-}
-const _BADGE_DIRS = ['TOP', 'LEFT', 'BOTTOM', 'RIGHT']
-
+// Section badge with a light travelling around its border. Pure CSS: a conic gradient rotated with
+// `transform` inside the rounded badge, so the GPU animates it without touching the main thread. (It was a
+// framer-motion background animation + a timer per badge — about ten badges repainting the page every frame.)
 function SectionBadge({ children, color, style: outer = {}, duration = 1.8 }) {
-  const [hovered, setHovered] = useState(false)
-  const [dirIdx,  setDirIdx]  = useState(1)
-
-  useEffect(() => {
-    if (hovered) return
-    const id = setInterval(() => setDirIdx(i => (i + 1) % 4), duration * 1000)
-    return () => clearInterval(id)
-  }, [hovered, duration])
-
-  const highlight = `radial-gradient(75% 181% at 50% 50%, ${color}CC 0%, rgba(255,255,255,0) 100%)`
-
   return (
-    <div
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        position: 'relative', display: 'inline-flex',
-        alignItems: 'center', justifyContent: 'center',
-        borderRadius: 9999, padding: 1,
-        background: 'rgba(6,6,16,0.5)', backdropFilter: 'blur(10px)',
-        marginBottom: 18, cursor: 'default', userSelect: 'none',
-        ...outer,
-      }}
-    >
-      {/* Text — top layer */}
-      <div style={{
-        position: 'relative', zIndex: 10,
-        borderRadius: 9999, padding: '6px 18px',
-        fontSize: 11, fontWeight: 700, letterSpacing: '4px',
-        textTransform: 'uppercase', color, lineHeight: 1.2, whiteSpace: 'nowrap',
-      }}>
-        {children}
-      </div>
-
-      {/* Rotating gradient border */}
-      <motion.div
-        style={{ position: 'absolute', inset: 0, borderRadius: 9999, zIndex: 0, filter: 'blur(3px)' }}
-        animate={{ background: hovered ? highlight : _BADGE_MAP[_BADGE_DIRS[dirIdx]] }}
-        transition={{ ease: 'linear', duration: hovered ? 0.2 : duration }}
-      />
-
-      {/* Inset fill — creates the visible border gap */}
-      <div style={{ position: 'absolute', inset: '1.5px', zIndex: 1, borderRadius: 9999, background: 'rgba(6,6,16,0.9)' }}/>
+    <div className="sb" style={{ '--sb-c': color, '--sb-t': `${duration * 4}s`, ...outer }}>
+      <span className="sb-glow" aria-hidden="true"/>
+      <span className="sb-hi" aria-hidden="true"/>
+      <span className="sb-fill" aria-hidden="true"/>
+      <span className="sb-text">{children}</span>
     </div>
   )
 }
@@ -1557,11 +1582,8 @@ function FlipCityCard({ h, index }) {
       }}>
 
       {/* ── FRONT: photo card ── */}
-      <motion.div
-        initial={false}
-        animate={{ rotateY: isFlipped ? -180 : 0 }}
-        transition={FLIP_TRANSITION}
-        style={{ ...FACE_STYLE, zIndex: isFlipped ? 1 : 2, boxShadow: '0 16px 48px rgba(0,0,0,.55), 0 2px 8px rgba(0,0,0,.3)' }}>
+      <div
+        style={{ ...FACE_STYLE, transform: `rotateY(${isFlipped ? -180 : 0}deg)`, transition: FLIP_TRANSITION, zIndex: isFlipped ? 1 : 2, boxShadow: '0 16px 48px rgba(0,0,0,.55), 0 2px 8px rgba(0,0,0,.3)' }}>
 
         {/* Photo — editorial filter */}
         <img src={img} alt={cityName} loading="lazy"
@@ -1583,7 +1605,7 @@ function FlipCityCard({ h, index }) {
         <div style={{
           position: 'absolute', top: 13, right: 13,
           display: 'flex', alignItems: 'baseline', gap: 1,
-          background: 'rgba(8,8,18,0.52)', backdropFilter: 'blur(14px)',
+          background: 'rgba(8,8,18,0.7)',
           border: `1px solid ${C.green}66`,
           color: C.green,
           padding: '5px 12px', borderRadius: 20,
@@ -1603,15 +1625,12 @@ function FlipCityCard({ h, index }) {
             {cityType}
           </div>
         </div>
-      </motion.div>
+      </div>
 
       {/* ── BACK: animated stats ── */}
-      <motion.div
-        initial={false}
-        animate={{ rotateY: isFlipped ? 0 : 180 }}
-        transition={FLIP_TRANSITION}
+      <div
         style={{
-          ...FACE_STYLE, zIndex: isFlipped ? 2 : 1,
+          ...FACE_STYLE, transform: `rotateY(${isFlipped ? 0 : 180}deg)`, transition: FLIP_TRANSITION, zIndex: isFlipped ? 2 : 1,
           background: `linear-gradient(145deg, ${C.card} 0%, rgba(8,8,20,0.97) 100%)`,
           border: `1px solid ${C.purple}33`,
           boxShadow: `0 8px 36px rgba(0,0,0,.55), 0 0 0 1px ${C.purple}22`,
@@ -1632,13 +1651,15 @@ function FlipCityCard({ h, index }) {
 
         {/* Bottom shine line */}
         <div style={{ position: 'absolute', bottom: 0, left: '15%', right: '15%', height: 1, background: `linear-gradient(90deg,transparent,${C.purple}55,transparent)` }}/>
-      </motion.div>
+      </div>
 
     </div>
   )
 }
 
-function StorySection({ onContact, sharonData }) {
+// memo: the page re-renders on things like the active nav item — this section only when its own props change
+const StorySection = memo(StorySectionImpl)
+function StorySectionImpl({ onContact, sharonData }) {
   const { C, lang } = useTheme()
   const t = TR[lang] || TR.he
   const [ref, vis] = useIntersection(0.1)
@@ -1733,8 +1754,11 @@ function StorySection({ onContact, sharonData }) {
 }
 
 // ─── PROCESS SECTION ──────────────────────────────────────────────────────────
-function ProcessSection() {
-  const { C, lang } = useTheme()
+// memo: the page re-renders on things like the active nav item — this section only when its own props change
+const ProcessSection = memo(ProcessSectionImpl)
+function ProcessSectionImpl() {
+  const { C, lang, isDark } = useTheme()
+  const bgSvgRef = useSvgAnimationsWhenVisible()
   const t = TR[lang] || TR.he
   const [ref, vis] = useIntersection(0.08)
   const stepRefs = useRef([])
@@ -1754,7 +1778,7 @@ function ProcessSection() {
   return (
     <section id="process" style={{ padding:'72px 24px', position:'relative', overflow:'hidden', scrollMarginTop:80, zIndex:1 }}>
       <div style={{ position:'absolute', inset:0, overflow:'hidden', zIndex:0, pointerEvents:'none' }}>
-        <svg width="100%" height="100%" preserveAspectRatio="xMidYMid slice" style={{ opacity:.06 }}>
+        <svg ref={bgSvgRef} width="100%" height="100%" preserveAspectRatio="xMidYMid slice" style={{ opacity:.06 }}>
           {[0,1,2,3,4].map(i => (
             <path key={i} stroke={i%2===0?C.purple:C.green} strokeWidth={2-i*.15} fill="none">
               <animate attributeName="d" dur={`${5+i*1.5}s`} repeatCount="indefinite"
@@ -1778,7 +1802,7 @@ function ProcessSection() {
               style={{ opacity:stepVis[i]?1:0, transform:stepVis[i]?'none':'translateX(22px)', transition:`opacity .6s ${i*.1}s,transform .6s ${i*.1}s` }}>
               <GlassCard style={{ padding:'36px 40px', display:'flex', gap:28, alignItems:'flex-start', position:'relative' }}>
                 <div style={{ position:'absolute', top:0, right:0, bottom:0, width:3, background:`linear-gradient(180deg,transparent,${step.color}99,transparent)`, borderRadius:'0 20px 20px 0' }}/>
-                <div style={{ flexShrink:0, width:62, height:62, borderRadius:'50%', background:`linear-gradient(135deg,${step.color}33,${step.color}11)`, border:`2px solid ${step.color}66`, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:2, animation:stepVis[i]?'glowPulse 3s ease infinite':undefined, animationDelay:`${i*.5}s` }}>
+                <div style={{ flexShrink:0, width:62, height:62, borderRadius:'50%', background:`linear-gradient(135deg,${step.color}33,${step.color}11)`, border:`2px solid ${step.color}66`, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:2, boxShadow: stepVis[i] ? (isDark ? `0 0 30px ${step.color}55` : `0 2px 10px ${step.color}33`) : 'none', transition:'box-shadow .6s ease' }}>
                   <div style={{ fontSize:10, fontWeight:800, color:step.color, letterSpacing:'1px', lineHeight:1, marginBottom:4 }}>{step.num}</div>
                   <step.Icon size={20} style={{ color:step.color }}/>
                 </div>
@@ -1810,7 +1834,9 @@ function ProcessSection() {
 }
 
 // ─── TEAM SECTION (Gabay circular portrait style) ────────────────────────────
-function TeamSection() {
+// memo: the page re-renders on things like the active nav item — this section only when its own props change
+const TeamSection = memo(TeamSectionImpl)
+function TeamSectionImpl() {
   const { C, isDark, lang } = useTheme()
   const t = TR[lang] || TR.he
   const [ref, vis] = useIntersection(0.1)
@@ -1926,7 +1952,9 @@ function SignatureReveal({ isDark }) {
 }
 
 // ─── CEO SECTION ──────────────────────────────────────────────────────────────
-function CEOSection() {
+// memo: the page re-renders on things like the active nav item — this section only when its own props change
+const CEOSection = memo(CEOSectionImpl)
+function CEOSectionImpl() {
   const { C, isDark, lang } = useTheme()
   const t = TR[lang] || TR.he
   const [ref, vis] = useIntersection(0.08)
@@ -2025,7 +2053,9 @@ function CEOSection() {
 }
 
 // ─── SERVICES SECTION (UI/UX Pro Max: Bento Grid + Spatial Cards) ─────────────
-function ServicesSection({ onContact }) {
+// memo: the page re-renders on things like the active nav item — this section only when its own props change
+const ServicesSection = memo(ServicesSectionImpl)
+function ServicesSectionImpl({ onContact }) {
   const { C, lang } = useTheme()
   const t = TR[lang] || TR.he
   const [ref, vis] = useIntersection(0.08)
@@ -3306,7 +3336,9 @@ function ArchiveModal({ onClose, C, isDark }) {
   )
 }
 
-function NewsSection() {
+// memo: the page re-renders on things like the active nav item — this section only when its own props change
+const NewsSection = memo(NewsSectionImpl)
+function NewsSectionImpl() {
   const { C, isDark, lang } = useTheme()
   const t = TR[lang] || TR.he
   const { articles, loading, error, reload } = useRotatingNews()
@@ -3373,7 +3405,9 @@ function NewsSection() {
 }
 
 // ─── TESTIMONIALS ─────────────────────────────────────────────────────────────
-function TestimonialsSection() {
+// memo: the page re-renders on things like the active nav item — this section only when its own props change
+const TestimonialsSection = memo(TestimonialsSectionImpl)
+function TestimonialsSectionImpl() {
   const { C, lang } = useTheme()
   const t = TR[lang] || TR.he
   const [active, setActive]       = useState(0)
@@ -3439,12 +3473,10 @@ function TestimonialsSection() {
           }}>
           {mobile ? (
             /* ── Mobile: portrait-first card that fits the screen — photo ring, name, stars, quote, controls ── */
-            <AnimatePresence initial={false} custom={dir} mode="wait">
-              <motion.div key={active} custom={dir}
-                initial={{ opacity:0, x: dir > 0 ? 40 : -40 }} animate={{ opacity:1, x:0 }} exit={{ opacity:0, x: dir > 0 ? -40 : 40 }}
-                transition={{ duration:.32, ease:[.4,0,.2,1] }}
-                className="testi-card-m"
-                style={{ padding:'26px 20px 22px', display:'flex', flexDirection:'column', alignItems:'center', textAlign:'center', gap:12, position:'relative' }}>
+            <>
+              <div key={active}
+                className="testi-card-m testi-in"
+                style={{ '--testi-x': `${dir > 0 ? 40 : -40}px`, animationDuration:'.32s', padding:'26px 20px 22px', display:'flex', flexDirection:'column', alignItems:'center', textAlign:'center', gap:12, position:'relative' }}>
                 {/* soft glow behind the portrait */}
                 <div aria-hidden="true" style={{ position:'absolute', top:-40, left:'50%', transform:'translateX(-50%)', width:220, height:220, borderRadius:'50%', background:`radial-gradient(circle,${C.purple}33,transparent 65%)`, pointerEvents:'none' }}/>
                 <div style={{ width:112, height:112, borderRadius:'50%', padding:3, background:`linear-gradient(135deg,${C.purple},${C.green})`, boxShadow:`0 14px 34px ${C.purple}55`, position:'relative' }}>
@@ -3470,19 +3502,14 @@ function TestimonialsSection() {
                   <button onClick={goNext} style={{ ...arBtn(false), width:42, height:42 }} aria-label="הבא"><FaChevronLeft size={14}/></button>
                 </div>
                 <span style={{ fontSize:11, color:`${C.cream}55`, fontWeight:600 }}>{active + 1} / {n} · {lang === 'en' ? 'swipe for more' : 'החליקו לעדות הבאה'}</span>
-              </motion.div>
-            </AnimatePresence>
+              </div>
+            </>
           ) : (
-          <AnimatePresence initial={false} custom={dir} mode="wait">
-            <motion.div
+          <>
+            <div
               key={active}
-              custom={dir}
-              initial={{ opacity:0, x: dir > 0 ? 60 : -60 }}
-              animate={{ opacity:1, x:0 }}
-              exit={{ opacity:0, x: dir > 0 ? -60 : 60 }}
-              transition={{ duration:.42, ease:[.4,0,.2,1] }}
-              className="testi-card-wrap"
-              style={{ display:'flex', direction:'rtl', width:'100%' }}
+              className="testi-card-wrap testi-in"
+              style={{ '--testi-x': `${dir > 0 ? 60 : -60}px`, animationDuration:'.42s', display:'flex', direction:'rtl', width:'100%' }}
             >
               {/* ── Text column (RTL: appears on RIGHT) ── */}
               <div className="testi-txt-col" style={{ flex:1, padding:'52px 48px 44px', display:'flex', flexDirection:'column', justifyContent:'center', gap:22, position:'relative', zIndex:1, minWidth:0 }}>
@@ -3493,13 +3520,10 @@ function TestimonialsSection() {
                 {/* Word-by-word fade */}
                 <p style={{ fontSize:17, color:C.cream+'E8', lineHeight:1.95, margin:0 }}>
                   {tQuote.split(' ').map((word, wi) => (
-                    <motion.span key={`${active}-${wi}`}
-                      initial={{ opacity:0, filter:'blur(6px)' }}
-                      animate={{ opacity:1, filter:'blur(0px)' }}
-                      transition={{ duration:.18, delay: 0.022 * wi }}
-                      style={{ display:'inline-block', marginLeft:4 }}>
+                    <span key={`${active}-${wi}`} className="testi-word"
+                      style={{ display:'inline-block', marginLeft:4, animationDelay:`${0.022 * wi}s` }}>
                       {word}
-                    </motion.span>
+                    </span>
                   ))}
                 </p>
 
@@ -3555,8 +3579,8 @@ function TestimonialsSection() {
                 {/* Bottom gradient */}
                 <div style={{ position:'absolute', bottom:0, left:0, right:0, height:80, background:'linear-gradient(to top,rgba(8,6,20,.7),transparent)', pointerEvents:'none' }}/>
               </div>
-            </motion.div>
-          </AnimatePresence>
+            </div>
+          </>
           )}
         </div>
 
@@ -3587,7 +3611,9 @@ const FAQS = [
     en_q:'When is it worthwhile to invest in agricultural land?', en_a:"When the land is located near a built-up area with high demand pressure, when municipal rezoning plans exist for the area, and when the investment horizon is long (5–15 years). It's important to perform thorough due diligence before any such investment." },
 ]
 
-function FAQSection() {
+// memo: the page re-renders on things like the active nav item — this section only when its own props change
+const FAQSection = memo(FAQSectionImpl)
+function FAQSectionImpl() {
   const { C, lang } = useTheme()
   const t = TR[lang] || TR.he
   const [open, setOpen] = useState(null)
@@ -4806,7 +4832,9 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
 }
 
 // ─── PROPERTY CARD ────────────────────────────────────────────────────────────
-function PropertyCard({ prop, onContact, onSelect }) {
+// memo: the page re-renders on things like the active nav item — this section only when its own props change
+const PropertyCard = memo(PropertyCardImpl)
+function PropertyCardImpl({ prop, onContact, onSelect }) {
   const { C, lang } = useTheme()
   const tt = TR[lang] || TR.he
   const favs = useFavs()
@@ -4897,7 +4925,7 @@ function PropertyCard({ prop, onContact, onSelect }) {
                 onClick={e => { e.stopPropagation(); setImgIdx(i => (i-1+validImages.length)%validImages.length) }}
                 onTouchStart={e => { e.stopPropagation(); touchFromArrow.current = true }}
                 onTouchEnd={e => { e.stopPropagation(); setImgIdx(i => (i-1+validImages.length)%validImages.length) }}
-                style={{ position:'absolute', top:'50%', right:8, transform:'translateY(-50%)', background:'rgba(0,0,0,.55)', backdropFilter:'blur(8px)', border:'1px solid rgba(255,255,255,.18)', borderRadius:'50%', width:44, height:44, color:'#fff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s', zIndex:3, opacity: hovered || isTouchDevice ? 1 : 0 }}
+                style={{ position:'absolute', top:'50%', right:8, transform:'translateY(-50%)', background:'rgba(0,0,0,0.65)', border:'1px solid rgba(255,255,255,.18)', borderRadius:'50%', width:44, height:44, color:'#fff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s', zIndex:3, opacity: hovered || isTouchDevice ? 1 : 0 }}
                 onMouseEnter={e=>e.currentTarget.style.background=C.purple} onMouseLeave={e=>e.currentTarget.style.background='rgba(0,0,0,.55)'}>
                 <FaChevronRight size={12}/>
               </button>
@@ -4905,12 +4933,12 @@ function PropertyCard({ prop, onContact, onSelect }) {
                 onClick={e => { e.stopPropagation(); setImgIdx(i => (i+1)%validImages.length) }}
                 onTouchStart={e => { e.stopPropagation(); touchFromArrow.current = true }}
                 onTouchEnd={e => { e.stopPropagation(); setImgIdx(i => (i+1)%validImages.length) }}
-                style={{ position:'absolute', top:'50%', left:8, transform:'translateY(-50%)', background:'rgba(0,0,0,.55)', backdropFilter:'blur(8px)', border:'1px solid rgba(255,255,255,.18)', borderRadius:'50%', width:44, height:44, color:'#fff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s', zIndex:3, opacity: hovered || isTouchDevice ? 1 : 0 }}
+                style={{ position:'absolute', top:'50%', left:8, transform:'translateY(-50%)', background:'rgba(0,0,0,0.65)', border:'1px solid rgba(255,255,255,.18)', borderRadius:'50%', width:44, height:44, color:'#fff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s', zIndex:3, opacity: hovered || isTouchDevice ? 1 : 0 }}
                 onMouseEnter={e=>e.currentTarget.style.background=C.purple} onMouseLeave={e=>e.currentTarget.style.background='rgba(0,0,0,.55)'}>
                 <FaChevronLeft size={12}/>
               </button>
               {/* photo count — bottom right */}
-              <div style={{ position:'absolute', bottom:10, right:10, background:'rgba(0,0,0,.65)', backdropFilter:'blur(6px)', borderRadius:5, padding:'3px 8px', fontSize:10, color:'rgba(255,255,255,.88)', display:'flex', alignItems:'center', gap:4, fontWeight:600, zIndex:4 }}>
+              <div style={{ position:'absolute', bottom:10, right:10, background:'rgba(0,0,0,0.75)', borderRadius:5, padding:'3px 8px', fontSize:10, color:'rgba(255,255,255,.88)', display:'flex', alignItems:'center', gap:4, fontWeight:600, zIndex:4 }}>
                 <FaCamera size={8}/> {validImages.length}
               </div>
             </>)}
@@ -4940,13 +4968,13 @@ function PropertyCard({ prop, onContact, onSelect }) {
         {/* Top-right badges */}
         <div style={{ position:'absolute', top:10, right:10, display:'flex', flexDirection:'column', gap:4, zIndex:5 }}>
           {isNewProp(prop) && <span style={{ background:C.green, color:'#06200a', borderRadius:6, padding:'4px 10px', fontSize:9, fontWeight:900, letterSpacing:'.08em', textTransform:'uppercase', boxShadow:`0 0 14px ${C.green}66` }}>{tt.newBadge}</span>}
-          <span style={{ background:'rgba(9,9,15,.85)', backdropFilter:'blur(8px)', color:sc, border:`1px solid ${sc}35`, borderRadius:6, padding:'4px 10px', fontSize:9, fontWeight:800, letterSpacing:'.06em', textTransform:'uppercase' }}>{prop.status}</span>
-          {prop.exclusive && <span style={{ background:'rgba(9,9,15,.85)', backdropFilter:'blur(8px)', color:C.green, border:`1px solid ${C.green}35`, borderRadius:6, padding:'4px 10px', fontSize:9, fontWeight:800 }}>✦ בלעדי</span>}
+          <span style={{ background:'rgba(9,9,15,0.92)', color:sc, border:`1px solid ${sc}35`, borderRadius:6, padding:'4px 10px', fontSize:9, fontWeight:800, letterSpacing:'.06em', textTransform:'uppercase' }}>{prop.status}</span>
+          {prop.exclusive && <span style={{ background:'rgba(9,9,15,0.92)', color:C.green, border:`1px solid ${C.green}35`, borderRadius:6, padding:'4px 10px', fontSize:9, fontWeight:800 }}>✦ בלעדי</span>}
         </div>
         {/* Category badge — bottom left over scrim */}
         <div style={{ position:'absolute', bottom:12, left:10, display:'flex', gap:5, zIndex:3 }}>
-          <span style={{ background:C.purple, color:'#fff', borderRadius:5, padding:'4px 10px', fontSize:10, fontWeight:700, letterSpacing:'.03em', backdropFilter:'blur(6px)' }}>{cat.label}</span>
-          {prop.type && <span style={{ background:'rgba(0,0,0,.62)', backdropFilter:'blur(8px)', color:'rgba(255,255,255,.88)', borderRadius:5, padding:'4px 10px', fontSize:10, fontWeight:600 }}>{prop.type}</span>}
+          <span style={{ background:C.purple, color:'#fff', borderRadius:5, padding:'4px 10px', fontSize:10, fontWeight:700, letterSpacing:'.03em' }}>{cat.label}</span>
+          {prop.type && <span style={{ background:'rgba(0,0,0,0.72)', color:'rgba(255,255,255,.88)', borderRadius:5, padding:'4px 10px', fontSize:10, fontWeight:600 }}>{prop.type}</span>}
         </div>
       </div>
 
@@ -5178,7 +5206,7 @@ export default function App() {
   const [showCalc,     setShowCalc]     = useState(false)
   const [showPrivacy,  setShowPrivacy]  = useState(false)
   const [statsVisible, setStatsVisible] = useState(false)
-  const [activeNav,    setActiveNav]    = useState('home')
+  const activeNavRef = useRef('home')   // the section on screen — kept out of state so scrolling never re-renders the page
   const [mobileOpen,   setMobileOpen]   = useState(false)
   // Language: ?lang=en (links from the English content pages) → remembered choice → Hebrew
   const [lang,         setLang]         = useState(() => { try { const q = new URLSearchParams(window.location.search).get('lang'); if (q === 'en' || q === 'he') return q; return localStorage.getItem('afik_lang') === 'en' ? 'en' : 'he' } catch { return 'he' } })
@@ -5195,18 +5223,19 @@ export default function App() {
   const [logoNavSize,  setLogoNavSizeRaw] = useState(() => Number(localStorage.getItem('logoNavSize')) || 70)
   const setLogoNavSize = (v) => { const n = Math.max(20, Math.min(200, Number(v))); localStorage.setItem('logoNavSize', n); setLogoNavSizeRaw(n) }
   const adminThemeValue = { C: adminTheme.isDark ? ADMIN_DARK_C : ADMIN_LIGHT_C, isDark: adminTheme.isDark, toggleTheme: adminTheme.toggle, lang, setLang, logoNavSize, setLogoNavSize }
+  // A stable context value: consumers (every property card…) re-render only when the theme or language changes
+  const siteThemeValue = useMemo(() => ({ C, isDark, toggleTheme, lang, setLang }), [C, isDark, toggleTheme, lang])
 
   // Always persist govmapToken — guards against the standalone mode missing the wrapper
   useEffect(() => { localStorage.setItem('govmap_token', govmapToken) }, [govmapToken])
 
   // UI/UX Pro Max: parallax scroll
-  const [scrollY,      setScrollY]      = useState(0)
+  const parallaxRefs = useRef([])   // hero blobs, moved directly on scroll (no React re-render)
 
   const statsRef      = useRef(null)
   const loaded        = useRef(false)
   const propsLoaded   = useRef(false)  // guard: don't bulk-sync before initial load
   const typewriterTexts = lang === 'en' ? TYPEWRITER_EN : TYPEWRITER_HE
-  const typewriter = useTypewriter(typewriterTexts)
 
   // ── Team token check ──
   useTeamToken()
@@ -5443,10 +5472,21 @@ export default function App() {
   }, [lang])
 
   // ── UI/UX Pro Max: parallax scroll listener ──
+  // Moves the hero blobs straight through their style, once per frame and only while the hero is on
+  // screen. (It used to be React state updated on every scroll event, which re-rendered the whole page —
+  // every property card included — on each scroll frame: that was the scrolling jank.)
   useEffect(() => {
-    const onScroll = () => setScrollY(window.scrollY)
+    const SPEEDS = [0.22, -0.18, 0.12]
+    let raf = 0
+    const apply = () => {
+      raf = 0
+      const y = window.scrollY
+      if (y > window.innerHeight * 1.5) return
+      parallaxRefs.current.forEach((el, i) => { if (el) el.style.transform = `translate3d(0,${Math.round(y * SPEEDS[i])}px,0)` })
+    }
+    const onScroll = () => { if (!raf) raf = requestAnimationFrame(apply) }
     window.addEventListener('scroll', onScroll, { passive:true })
-    return () => window.removeEventListener('scroll', onScroll)
+    return () => { window.removeEventListener('scroll', onScroll); cancelAnimationFrame(raf) }
   }, [])
 
   // ── Stats intersection ──
@@ -5459,7 +5499,12 @@ export default function App() {
   // ── Active nav tracking ──
   useEffect(() => {
     const obs = new IntersectionObserver(
-      entries => entries.forEach(e => { if (e.isIntersecting) setActiveNav(e.target.id) }),
+      entries => entries.forEach(e => {
+        if (!e.isIntersecting) return
+        activeNavRef.current = e.target.id
+        // the menu panel (if it's open) follows directly on its buttons
+        document.querySelectorAll('.nav-panel-item[data-nav]').forEach(b => b.classList.toggle('active', b.dataset.nav === e.target.id))
+      }),
       { threshold:0.25, rootMargin:'-68px 0px 0px 0px' }
     )
     NAV_LINKS.forEach(({ id }) => { const el = document.getElementById(id); if (el) obs.observe(el) })
@@ -5582,6 +5627,9 @@ export default function App() {
       trackEvent('property_view', { title: p.title, id: p.id, category: p.category, location: p.location })
     }
   }
+  // Same identity on every render, so the memoized cards and sections don't re-render with the page
+  const openContactStable  = useStableFn(openContact)
+  const openPropertyStable = useStableFn(openProperty)
 
   // ── Standalone dashboard at /dashboard ──────────────────────────────────────
   if (DASHBOARD_MODE) {
@@ -5629,7 +5677,7 @@ export default function App() {
   }
 
   return (
-    <ThemeCtx.Provider value={{ C, isDark, toggleTheme, lang, setLang }}>
+    <ThemeCtx.Provider value={siteThemeValue}>
     <>
       <style>{GLOBAL}</style>
 
@@ -5642,7 +5690,6 @@ export default function App() {
         background: isDark
           ? 'linear-gradient(90deg, rgba(6,5,14,.98) 0%, rgba(10,8,22,.97) 50%, rgba(6,5,14,.98) 100%)'
           : 'linear-gradient(90deg, rgba(245,241,233,.98) 0%, rgba(253,252,248,.97) 50%, rgba(245,241,233,.98) 100%)',
-        backdropFilter:'blur(32px) saturate(200%)',
         borderBottom:`1px solid ${C.purple}18`,
         display:'flex', alignItems:'center', justifyContent:'space-between',
         padding:'0 32px',
@@ -5738,7 +5785,8 @@ export default function App() {
               <div className="nav-panel-links">
                 {NAV_LINKS.map(({ id }) => (
                   <button key={id}
-                    className={`nav-panel-item${activeNav===id?' active':''}`}
+                    data-nav={id}
+                    className={`nav-panel-item${activeNavRef.current===id?' active':''}`}
                     onClick={() => scrollTo(id)}>
                     {TR[lang]?.nav?.[id] || id}
                     <span className="nav-item-bar"/>
@@ -5762,13 +5810,13 @@ export default function App() {
       <section id="home" role="main" tabIndex={-1} aria-label="תוכן ראשי" style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', padding:'90px 24px 72px', scrollMarginTop:80, position:'relative', overflow:'hidden', textAlign:'center', zIndex:1 }}>
 
         {/* UI/UX Pro Max: Parallax blobs — outer div moves with scroll, inner animates */}
-        <div style={{ position:'absolute', top:'20%', right:'-8%', pointerEvents:'none', transform:`translateY(${scrollY * 0.22}px)`, willChange:'transform' }}>
+        <div style={{ position:'absolute', top:'20%', right:'-8%', pointerEvents:'none', transform:'translate3d(0,0,0)', willChange:'transform' }} ref={el => { parallaxRefs.current[0] = el }}>
           <div style={{ width:620, height:620, background:`radial-gradient(circle,${C.purple}1A,transparent 70%)`, animation:'blob1 9s ease infinite', willChange:'transform' }}/>
         </div>
-        <div style={{ position:'absolute', bottom:'10%', left:'-8%', pointerEvents:'none', transform:`translateY(${scrollY * -0.18}px)`, willChange:'transform' }}>
+        <div style={{ position:'absolute', bottom:'10%', left:'-8%', pointerEvents:'none', transform:'translate3d(0,0,0)', willChange:'transform' }} ref={el => { parallaxRefs.current[1] = el }}>
           <div style={{ width:520, height:520, background:`radial-gradient(circle,${C.green}14,transparent 70%)`, animation:'blob2 11s ease infinite', willChange:'transform' }}/>
         </div>
-        <div style={{ position:'absolute', top:'60%', left:'40%', pointerEvents:'none', transform:`translateY(${scrollY * 0.12}px)`, willChange:'transform' }}>
+        <div style={{ position:'absolute', top:'60%', left:'40%', pointerEvents:'none', transform:'translate3d(0,0,0)', willChange:'transform' }} ref={el => { parallaxRefs.current[2] = el }}>
           <div style={{ width:420, height:420, background:`radial-gradient(circle,${C.purple}09,transparent 70%)`, animation:'blob3 14s ease infinite', willChange:'transform' }}/>
         </div>
 
@@ -5789,7 +5837,7 @@ export default function App() {
 
           <h1 className="hero-title">{TR[lang]?.heroH1line1}<br/>{TR[lang]?.heroH1line2}</h1>
           <div className="fade-up-2" style={{ fontSize:'clamp(18px,3vw,26px)', fontWeight:600, color:C.green, marginBottom:20, minHeight:40, letterSpacing:'.3px' }}>
-            {typewriter}<span style={{ borderRight:`2px solid ${C.green}`, marginRight:2, animation:'pulse 1s ease infinite' }}>&nbsp;</span>
+            <Typewriter texts={typewriterTexts}/><span style={{ borderRight:`2px solid ${C.green}`, marginRight:2, animation:'pulse 1s ease infinite' }}>&nbsp;</span>
           </div>
           <p className="fade-up-3" style={{ fontSize:'clamp(14px,2vw,18px)', color:C.cream+'BB', lineHeight:1.9, marginBottom:40, maxWidth:660, margin:'0 auto 40px' }}>
             {TR[lang]?.heroDesc}
@@ -5839,13 +5887,13 @@ export default function App() {
       <CEOSection/>
 
       {/* ── STORY ───────────────────────────────────── */}
-      <StorySection onContact={openContact} sharonData={sharon}/>
+      <StorySection onContact={openContactStable} sharonData={sharon}/>
 
       {/* ── PROCESS ─────────────────────────────────── */}
       <ProcessSection/>
 
       {/* ── SERVICES ────────────────────────────────── */}
-      <ServicesSection onContact={openContact}/>
+      <ServicesSection onContact={openContactStable}/>
 
       {/* ── PROPERTIES ──────────────────────────────── */}
       <section id="properties" style={{ padding:'48px 24px', scrollMarginTop:80, position:'relative', zIndex:1 }}>
@@ -6024,7 +6072,7 @@ export default function App() {
                           : (!allShown && <button onClick={() => setPropPage(999)} style={{ ...ghostBtn, padding:'8px 14px', fontSize:12 }} onMouseEnter={ghostIn} onMouseLeave={ghostOut}>{fmtT(t.showAllProps, { total: filtered.length })}</button>)}
                       </div>
                       <div style={{ display:'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill,minmax(300px,1fr))', gap: isMobile ? 18 : 22, marginBottom:28 }}>
-                        {filtered.slice(0, shown).map(p => <PropertyCard key={p.id} prop={p} onContact={openContact} onSelect={openProperty}/>)}
+                        {filtered.slice(0, shown).map(p => <PropertyCard key={p.id} prop={p} onContact={openContactStable} onSelect={openPropertyStable}/>)}
                       </div>
                       {filtered.length > PER_PAGE && (
                         <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:16, marginBottom:48 }}>
@@ -6072,7 +6120,7 @@ export default function App() {
                         onScroll={e => { const el = e.currentTarget; const cardW = el.scrollWidth / filtered.length; setCarouselIdx(Math.round(el.scrollLeft / cardW)) }}>
                         {filtered.map(p => (
                           <div key={p.id} style={{ flex:'0 0 82vw', maxWidth:360, scrollSnapAlign:'start' }}>
-                            <PropertyCard prop={p} onContact={openContact} onSelect={openProperty}/>
+                            <PropertyCard prop={p} onContact={openContactStable} onSelect={openPropertyStable}/>
                           </div>
                         ))}
                       </div>
