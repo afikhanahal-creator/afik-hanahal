@@ -39,12 +39,21 @@ const CONTACTS_API = import.meta.env.PROD ? '' : API_BASE
 
 // Context captured with every website lead so the admin can see where it came from:
 // page + hash, referrer, UTM parameters and device. Stored server-side in contacts.crm_data.origin.
+// Campaign parameters of the visit's landing URL (e.g. an ad → /p/<id>?utm_source=facebook) are kept for the whole
+// session, so a lead that browses a few properties before leaving details is still credited to that ad.
+const UTM_KEYS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'fbclid', 'gclid']
+try {
+  const u0 = new URL(window.location.href), first = {}
+  for (const k of UTM_KEYS) if (u0.searchParams.get(k)) first[k] = u0.searchParams.get(k).slice(0, 120)
+  if (Object.keys(first).length) sessionStorage.setItem('afik_utm', JSON.stringify(first))
+} catch {}
 function leadOrigin() {
   try {
     const u = new URL(window.location.href)
-    const utm = {}
-    for (const k of ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'fbclid', 'gclid'])
+    let utm = {}
+    for (const k of UTM_KEYS)
       if (u.searchParams.get(k)) utm[k] = u.searchParams.get(k).slice(0, 120)
+    if (!Object.keys(utm).length) { try { utm = JSON.parse(sessionStorage.getItem('afik_utm') || '{}') || {} } catch {} }
     const ref = document.referrer && !document.referrer.includes(u.hostname) ? document.referrer.slice(0, 200) : ''
     return { page: (u.pathname + u.hash).slice(0, 160), referrer: ref, utm, device: /Mobi|Android/i.test(navigator.userAgent) ? 'mobile' : 'desktop' }
   } catch { return {} }
@@ -4004,8 +4013,9 @@ function useFavs() {
   useEffect(() => { const h = () => setFavs(loadFavs()); window.addEventListener('afik-favs', h); window.addEventListener('storage', h); return () => { window.removeEventListener('afik-favs', h); window.removeEventListener('storage', h) } }, [])
   return favs
 }
-// Shareable link for a property: /?p=<id>#properties (the SPA opens it on load)
-const propertyUrl = p => `${window.location.origin}/?p=${encodeURIComponent(p.id)}#properties`
+// Shareable link for a property: /p/<id> — a rich preview (photo, price, details) for Facebook / WhatsApp / LinkedIn,
+// and an instant redirect to /?p=<id>#properties for people (see lib/share-page.js)
+const propertyUrl = p => `${window.location.origin}/p/${encodeURIComponent(p.id)}`
 const isNewProp = p => { const t = Date.parse(p?.createdAt || '') || (typeof p?.createdAt === 'number' ? p.createdAt : 0); return t && Date.now() - t < 14 * 86400000 }
 const pricePerSqm = p => { const n = Number(String(p?.price || '').replace(/[^\d]/g, '')), s = Number(p?.size); return n > 0 && s > 0 && ['apartments', 'rentals', 'commercial', 'projects'].includes(p.category) ? Math.round(n / s) : 0 }
 // Site order = admin drag order. Properties the office has NOT placed yet (no sortOrder — every

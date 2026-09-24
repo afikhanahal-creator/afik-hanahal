@@ -1,5 +1,6 @@
 // Vercel serverless — proxies property GET to Render backend
 import { sendJson } from '../lib/http.js'
+import { isPreviewBot, renderSharePage, targetUrl } from '../lib/share-page.js'
 const RENDER = process.env.RENDER_URL || 'https://afik-hanahal-server.onrender.com'
 
 // ── /media/<bucket>/<path> → image from Supabase public storage, cached on Vercel's CDN ──────
@@ -29,8 +30,39 @@ async function serveImage(req, res, rawPath) {
   }
 }
 
+// ── /p/<id> → property share link (rich preview for social crawlers, instant redirect for people) ──
+async function serveShare(req, res) {
+  const id = String(req.query.share || '').trim().slice(0, 80)
+  const host = String(req.headers['x-forwarded-host'] || req.headers.host || 'afikhanahal.co.il').split(',')[0].trim()
+  const origin = `https://${host}`
+  const lang = req.query.lang === 'en' ? 'en' : 'he'
+  res.setHeader('Cache-Control', 'no-store')          // the response depends on who asks (crawler vs person)
+  if (!id) return res.redirect(302, '/#properties')
+  const target = targetUrl(id, req.query)
+  if (!isPreviewBot(req.headers['user-agent'])) return res.redirect(302, target)
+  let prop = null
+  try {
+    // The public list is edge-cached (s-maxage=300 + stale-while-revalidate), so this is fast even when Render sleeps
+    const r = await fetch(`${origin}/api/properties`, { signal: AbortSignal.timeout(8000) })
+    const all = r.ok ? await r.json() : []
+    prop = (Array.isArray(all) ? all : []).find(p => String(p.id) === id && p.published !== false) || null
+  } catch {}
+  if (!prop) {
+    try {
+      const r = await fetch(`${RENDER}/api/properties`, { signal: AbortSignal.timeout(9000) })
+      const all = r.ok ? await r.json() : []
+      prop = (Array.isArray(all) ? all : []).find(p => String(p.id) === id && p.published !== false) || null
+    } catch {}
+  }
+  res.setHeader('Content-Type', 'text/html; charset=utf-8')
+  res.setHeader('X-Robots-Tag', 'noindex')
+  if (!prop) return res.status(200).send(renderSharePage({ id, title: lang === 'en' ? 'Afik Hanahal properties' : 'הנכסים של אפיק הנחל' }, { origin, lang, target: '/#properties' }))
+  return res.status(200).send(renderSharePage(prop, { origin, lang, target }))
+}
+
 export default async function handler(req, res) {
   if (req.query && req.query.img !== undefined) return serveImage(req, res, req.query.img)
+  if (req.query && req.query.share !== undefined) return serveShare(req, res)
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization')
