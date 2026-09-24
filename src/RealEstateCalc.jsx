@@ -52,7 +52,14 @@ const T = {
     ltvRepl: 'דירה חלופית', ltvReplNote: 'עד 70% · מכירת הדירה הקיימת תוך 18 חודשים',
     ltvSecond: 'דירה נוספת / השקעה', ltvSecondNote: 'עד 50% מימון',
     equity: 'הון עצמי', loanShare: 'משכנתא', equityShare: 'הון עצמי',
-    eqAtMin: '25% — המינימום הנדרש לפי בנק ישראל.',
+    eqAtMin: m => `${m}% — המינימום הנדרש לסוג רכישה זה.`,
+    equityCash: 'כמה הון עצמי יש לכם?', equityCashHint: 'הקלידו סכום — או קבעו אחוז בסליידר למטה',
+    eqPct: 'הון עצמי כאחוז מהמחיר',
+    eqShort: (gap, m) => `חסרים ${gap} כדי להגיע למינימום של ${m}% הון עצמי. החישוב מוצג לפי המינימום.`,
+    eqNoLoan: 'ההון העצמי מכסה את כל המחיר — אין צורך במשכנתא.',
+    eqCanBuy: (cash, max, f) => `עם ${cash} הון עצמי אפשר לרכוש נכס עד ${max} (לפי ${f}% מימון).`,
+    maxPrice: 'מחיר נכס מקסימלי', byEquity: f => `לפי ההון העצמי ו-${f}% מימון`, byIncome: 'מוגבל לפי ההכנסה (החזר עד 35%)',
+    maxHint: 'הזינו מחיר נכס כדי לראות חישוב מלא',
     eqGood: 'הון עצמי גבוה — סיכוי לריבית טובה יותר ופחות סיכון.',
     income: 'הכנסה חודשית נטו (משק בית)', optional: 'רשות',
     rate: 'ריבית שנתית', years: 'תקופת המשכנתא', yearsUnit: 'שנים',
@@ -109,7 +116,14 @@ const T = {
     ltvRepl: 'Replacement home', ltvReplNote: 'Up to 70% · current home sold within 18 months',
     ltvSecond: 'Additional home / investment', ltvSecondNote: 'Up to 50% financing',
     equity: 'Equity', loanShare: 'Mortgage', equityShare: 'Equity',
-    eqAtMin: '25% — the Bank of Israel minimum.',
+    eqAtMin: m => `${m}% — the minimum for this purchase type.`,
+    equityCash: 'How much equity do you have?', equityCashHint: 'Type an amount — or set a percentage with the slider below',
+    eqPct: 'Equity as a share of the price',
+    eqShort: (gap, m) => `You are ${gap} short of the ${m}% minimum equity. The calculation uses the minimum.`,
+    eqNoLoan: 'Your equity covers the full price — no mortgage needed.',
+    eqCanBuy: (cash, max, f) => `With ${cash} in equity you can buy a property of up to ${max} (at ${f}% financing).`,
+    maxPrice: 'Maximum property price', byEquity: f => `By your equity at ${f}% financing`, byIncome: 'Limited by income (repayment up to 35%)',
+    maxHint: 'Enter a property price for the full calculation',
     eqGood: 'Higher equity — a better rate and less risk.',
     income: 'Net monthly household income', optional: 'optional',
     rate: 'Annual interest rate', years: 'Mortgage term', yearsUnit: 'years',
@@ -218,14 +232,14 @@ function Label({ htmlFor, id, children, extra }) {
 )
 }
 
-function MoneyField({ id, value, onChange, placeholder, describedBy }) {
+function MoneyField({ id, value, onChange, placeholder, describedBy, onFocus, onBlur }) {
   const { P, t, en, uid } = useContext(CalcCtx)
   return (
   <div className="rcx-field" style={{ display: 'flex', alignItems: 'center', gap: 8, height: 56, padding: '0 16px', background: P.input, border: `1.5px solid ${P.lineStrong}`, borderRadius: 14, direction: 'ltr', transition: 'border-color .15s, box-shadow .15s' }}>
     <span aria-hidden="true" style={{ color: P.text3, fontSize: 18, fontWeight: 600 }}>₪</span>
     <input id={id} type="text" inputMode="numeric" autoComplete="off" enterKeyHint="done"
       value={value ? withCommas(value) : ''} onChange={e => onChange(digits(e.target.value))}
-      placeholder={placeholder} aria-describedby={describedBy}
+      placeholder={placeholder} aria-describedby={describedBy} onFocus={onFocus} onBlur={onBlur}
       style={{ flex: 1, minWidth: 0, height: '100%', background: 'transparent', border: 'none', outline: 'none', color: P.text, fontSize: 20, fontWeight: 700, fontFamily: 'inherit', letterSpacing: '.01em' }}/>
     {value && (
       <button type="button" className="rcx-btn" onClick={() => onChange('')} aria-label={en ? 'Clear' : 'ניקוי'}
@@ -376,7 +390,9 @@ export default function RealEstateCalc({ onClose, lang = 'he', isDark = true }) 
   const [price,     setPrice]     = useState('')        // shared by the tax and mortgage tabs
   const [buyer,     setBuyer]     = useState('first')
   const [ltvType,   setLtvType]   = useState('first')
-  const [equityPct, setEquityPct] = useState(25)
+  const [equityPct, setEquityPct] = useState(25)        // used when the slider is the source
+  const [equityCash, setEquityCash] = useState('')       // the amount the buyer actually has (source when typed)
+  const [cashEditing, setCashEditing] = useState(false)  // while focused the field shows exactly what's typed
   const [income,    setIncome]    = useState('')
   const [rate,      setRate]      = useState(4.8)
   const [years,     setYears]     = useState(25)
@@ -421,12 +437,28 @@ export default function RealEstateCalc({ onClose, lang = 'he', isDark = true }) 
   const priceNum  = Number(price || 0)
   const incomeNum = Number(income || 0)
   const taxRes    = priceNum > 0 ? calcTax(priceNum, buyer === 'first' ? BRACKETS_FIRST : BRACKETS_SECOND) : null
-  const ltvRatio  = ltvType === 'first' ? Math.min(LTV.first, 1 - equityPct / 100) : LTV[ltvType]
-  const loan      = priceNum * ltvRatio
-  const equity    = priceNum - loan
+  // Equity: either the ₪ amount the buyer typed, or a % from the slider. Never below the Bank of
+  // Israel minimum for the purchase type (25% / 30% / 50%) — a shortfall is shown, not financed.
+  const maxLtv    = LTV[ltvType]
+  const minPct    = Math.round((1 - maxLtv) * 100)
+  const cashNum   = Number(equityCash || 0)
+  const cashMode  = cashNum > 0
+  const minEquity = priceNum * (1 - maxLtv)
+  const equity    = cashMode ? Math.max(minEquity, Math.min(cashNum, priceNum)) : priceNum * Math.max(equityPct, minPct) / 100
+  const shortfall = cashMode && priceNum > 0 ? Math.max(0, minEquity - cashNum) : 0
+  const loan      = Math.max(0, priceNum - equity)
+  const ltvRatio  = priceNum > 0 ? loan / priceNum : 0
+  const eqPctNow  = priceNum > 0 ? Math.round(equity / priceNum * 100) : (cashMode ? minPct : Math.max(equityPct, minPct))
   const r         = rate / 100 / 12
   const n         = years * 12
-  const monthly   = loan > 0 && r > 0 ? loan * r * Math.pow(1 + r, n) / (Math.pow(1 + r, n) - 1) : 0
+  const annuity   = r > 0 ? r * Math.pow(1 + r, n) / (Math.pow(1 + r, n) - 1) : 1 / n
+  const monthly   = loan > 0 ? loan * annuity : 0
+  // No price yet but equity typed: the most the buyer can buy (equity at max LTV, and — with an
+  // income — a loan whose repayment stays within 35% of it)
+  const maxByEquity = cashMode ? cashNum / (1 - maxLtv) : 0
+  const maxLoanInc  = incomeNum > 0 ? incomeNum * 0.35 / annuity : Infinity
+  const maxPrice    = cashMode ? Math.min(maxByEquity, cashNum + maxLoanInc) : 0
+  const maxByInc    = cashMode && cashNum + maxLoanInc < maxByEquity
   const ratio     = incomeNum > 0 ? monthly / incomeNum : 0
   const ratioHigh = ratio > 0.35
   const estTax    = priceNum > 0 ? calcTax(priceNum, ltvType === 'second' ? BRACKETS_SECOND : BRACKETS_FIRST).total : 0
@@ -434,6 +466,7 @@ export default function RealEstateCalc({ onClose, lang = 'he', isDark = true }) 
   const aTax     = useCountUp(taxRes?.total || 0)
   const aLoan    = useCountUp(Math.round(loan))
   const aEquity  = useCountUp(Math.round(equity))
+  const aMax     = useCountUp(Math.round(maxPrice))
   const aMonthly = useCountUp(Math.round(monthly))
 
   const onTabKey = e => {
@@ -564,7 +597,7 @@ export default function RealEstateCalc({ onClose, lang = 'he', isDark = true }) 
     </div>
   )
 
-  const eqColor = equityPct < 25 ? P.amber : P.green
+  const eqColor = shortfall > 0 ? P.amber : P.green
   const ltvPane = (
     <div className="rcx-grid">
       <div>
@@ -575,26 +608,39 @@ export default function RealEstateCalc({ onClose, lang = 'he', isDark = true }) 
           { v: 'second', t: t.ltvSecond, sub: t.ltvSecondNote },
         ]}/>
         {priceField}
-        {ltvType === 'first' && (
-          <div>
-            <Slider id={`${uid}-eq`} label={t.equity} value={equityPct} setValue={setEquityPct} min={25} max={90} step={1} unit="%" color={eqColor}
-              marks={[25, 30, 40, 50]} format={v => v}/>
-            <div style={{ marginTop: -10, marginBottom: 22 }}>
-              <div aria-hidden="true" style={{ display: 'flex', height: 10, borderRadius: 6, overflow: 'hidden', background: P.track }}>
-                <div style={{ width: `${100 - equityPct}%`, background: P.brandFill, transition: 'width .2s' }}/>
-                <div style={{ width: `${equityPct}%`, background: eqColor, transition: 'width .2s' }}/>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 600, marginTop: 6 }}>
-                <span style={{ color: P.brand }}>{t.loanShare} {100 - equityPct}%</span>
-                <span style={{ color: eqColor }}>{t.equityShare} {equityPct}%</span>
-              </div>
-              <div style={{ fontSize: 13.5, color: P.text2, marginTop: 8, display: 'flex', gap: 6, alignItems: 'flex-start', lineHeight: 1.5 }}>
-                <FaCheck size={12} style={{ color: P.green, marginTop: 4, flexShrink: 0 }} aria-hidden="true"/>
-                {equityPct === 25 ? t.eqAtMin : t.eqGood}
-              </div>
+        <div style={{ marginBottom: 22 }}>
+          <Label htmlFor={`${uid}-cash`}>{t.equityCash}</Label>
+          <MoneyField id={`${uid}-cash`} value={cashEditing || cashMode ? equityCash : (priceNum > 0 ? String(Math.round(equity)) : '')}
+            onChange={setEquityCash} placeholder="500,000" describedBy={`${uid}-cash-hint`}
+            onFocus={() => { setCashEditing(true); if (!cashMode && priceNum > 0) setEquityCash(String(Math.round(equity))) }}
+            onBlur={() => setCashEditing(false)}/>
+          <div id={`${uid}-cash-hint`} style={{ fontSize: 13, color: P.text3, marginTop: 6, lineHeight: 1.5 }}>
+            {cashMode && priceNum === 0 ? t.eqCanBuy(money(cashNum), money(maxByEquity), Math.round(maxLtv * 100)) : t.equityCashHint}
+          </div>
+        </div>
+        <div>
+          <Slider id={`${uid}-eq`} label={t.eqPct} value={eqPctNow} setValue={v => { setEquityCash(''); setEquityPct(v) }}
+            min={minPct} max={Math.max(90, minPct + 10)} step={1} unit="%" color={eqColor}
+            marks={[minPct, minPct + 5, minPct + 15, minPct + 25].filter(m => m <= 90)} format={v => v}/>
+          <div style={{ marginTop: -10, marginBottom: 22 }}>
+            <div aria-hidden="true" style={{ display: 'flex', height: 10, borderRadius: 6, overflow: 'hidden', background: P.track }}>
+              <div style={{ width: `${100 - eqPctNow}%`, background: P.brandFill, transition: 'width .2s' }}/>
+              <div style={{ width: `${eqPctNow}%`, background: eqColor, transition: 'width .2s' }}/>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 600, marginTop: 6 }}>
+              <span style={{ color: P.brand }}>{t.loanShare} {100 - eqPctNow}%</span>
+              <span style={{ color: eqColor }}>{t.equityShare} {eqPctNow}%</span>
+            </div>
+            <div role={shortfall > 0 ? 'alert' : undefined} style={{ fontSize: 13.5, color: shortfall > 0 ? P.amber : P.text2, marginTop: 8, display: 'flex', gap: 6, alignItems: 'flex-start', lineHeight: 1.5, fontWeight: shortfall > 0 ? 600 : 400 }}>
+              {shortfall > 0
+                ? <FaExclamationTriangle size={13} style={{ color: P.amber, marginTop: 3, flexShrink: 0 }} aria-hidden="true"/>
+                : <FaCheck size={12} style={{ color: P.green, marginTop: 4, flexShrink: 0 }} aria-hidden="true"/>}
+              {shortfall > 0 ? t.eqShort(money(shortfall), minPct)
+                : priceNum > 0 && loan === 0 ? t.eqNoLoan
+                : eqPctNow <= minPct ? t.eqAtMin(minPct) : t.eqGood}
             </div>
           </div>
-        )}
+        </div>
         <div className="rcx-two">
           <Slider id={`${uid}-rate`} label={t.rate} value={rate} setValue={setRate} min={1} max={10} step={0.1} unit="%" color={P.brand}
             marks={[4, 4.5, 5, 5.5]} format={v => Number(v).toFixed(1)}/>
@@ -640,6 +686,24 @@ export default function RealEstateCalc({ onClose, lang = 'he', isDark = true }) 
               ))}
             </div>
             <Note>{t.ltvNote}</Note>
+          </div>
+        ) : cashMode ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <Stat big label={t.maxPrice} value={money(aMax)} color={P.green} soft={P.greenSoft} line={P.greenLine}
+              sub={maxByInc ? t.byIncome : t.byEquity(Math.round(maxLtv * 100))}/>
+            <div style={{ background: P.panel, border: `1.5px solid ${P.line}`, borderRadius: 16, padding: '6px 16px' }}>
+              {[
+                [t.equityShare, money(cashNum)],
+                [t.loan, money(Math.max(0, maxPrice - cashNum))],
+                [t.monthly, money(Math.max(0, maxPrice - cashNum) * annuity)],
+              ].map(([k, v], i) => (
+                <div key={k} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '11px 0', borderTop: i ? `1px solid ${P.line}` : 'none', fontSize: 14.5 }}>
+                  <span style={{ color: P.text2 }}>{k}</span>
+                  <span style={{ color: P.text, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{v}</span>
+                </div>
+              ))}
+            </div>
+            <Note>{t.maxHint}. {t.extraCosts}.</Note>
           </div>
         ) : <Empty Icon={FaHome}/>}
       </div>
