@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef, useCallback, createContext, useContext, useMemo, lazy, Suspense } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, createContext, useContext, useMemo, lazy, Suspense, Component } from 'react'
 import { useAdminTheme, ADMIN_DARK_C, ADMIN_LIGHT_C } from './adminTheme.js'
 import { isRealEstateArticle } from '../lib/news/classify.js'
 import { MenuToggleIcon } from './MenuToggleIcon.jsx'
@@ -27,6 +27,15 @@ const SupermetricsTab   = lazyWithRetry(() => import('./SupermetricsTab.jsx'))
 // On-demand, heavy single-purpose modules — lazy so the public bundle stays lean.
 const RealEstateCalc    = lazyWithRetry(() => import('./RealEstateCalc.jsx'))
 const GovMapWidget      = lazyWithRetry(() => import('./GovMapWidget.jsx'))
+
+// Keeps a failing optional part (e.g. the map chunk on a flaky mobile connection) from taking the
+// whole page down with it: the property window stays open and just shows a small notice instead.
+class SectionBoundary extends Component {
+  constructor(p) { super(p); this.state = { failed: false } }
+  static getDerivedStateFromError() { return { failed: true } }
+  componentDidCatch(e) { console.warn('[section] failed to render:', e && e.message) }
+  render() { return this.state.failed ? (this.props.fallback ?? null) : this.props.children }
+}
 const PropertyWizard    = lazyWithRetry(() => import('./PropertyWizard.jsx'))
 import { FaChevronLeft, FaChevronRight, FaEnvelope, FaFacebookF, FaInstagram, FaBed, FaRulerCombined, FaCar, FaSwimmingPool, FaBuilding, FaBoxOpen, FaTree, FaSnowflake, FaShieldAlt, FaCouch, FaTools, FaMapMarkerAlt, FaExternalLinkAlt, FaPhone, FaCompass, FaLeaf, FaCalendarAlt, FaTimes, FaWhatsapp, FaSun, FaFileAlt, FaHome, FaMoneyBill, FaSearch, FaBalanceScale, FaHandshake, FaTrophy, FaHardHat, FaLock, FaKey, FaGlobe, FaSeedling, FaBolt, FaRocket, FaStar, FaChartLine, FaEye, FaPlay, FaWheelchair, FaFire, FaCalculator, FaShareAlt, FaHeart, FaStore, FaCamera, FaWifi, FaIndustry, FaExpand, FaUser, FaUsers, FaDesktop, FaMobileAlt, FaTabletAlt, FaCommentAlt, FaRobot, FaInbox, FaExclamationTriangle, FaChartBar, FaThumbsUp, FaImage, FaPencilAlt, FaCrown, FaMousePointer, FaDollarSign, FaVideo, FaLink, FaCheck, FaCheckCircle, FaUtensils, FaDoorOpen, FaUserShield, FaTrash } from 'react-icons/fa'
 
@@ -91,7 +100,7 @@ const TR = {
     accessibility:'הצהרת נגישות', privacy:'מדיניות פרטיות',
     knowledge:'ידע ומדריכים', hubServices:'השירותים שלנו', hubAreas:'אזורי פעילות', hubGuides:'מדריכים', hubGlossary:'מילון מונחים', hubTools:'כלים ומחשבונים', hubFaq:'שאלות ותשובות', hubCompany:'על החברה',
     copyright:'© 2026 אפיק הנחל — ייזום שיווק ותיווך. כל הזכויות שמורות.',
-    calcNav:'מחשבון', waTitle:'WhatsApp',
+    calcNav:'מחשבון', waTitle:'WhatsApp', sharedLoading:'טוען את הנכס…', mapUnavailable:'המפה לא נטענה כרגע — שאר פרטי הנכס זמינים.',
     hoursLabel: 'שעות פעילות',
     sunToThurs: 'ראשון–חמישי: 09:00–19:00',
     friday: 'שישי: 09:00–14:00',
@@ -200,7 +209,7 @@ const TR = {
     accessibility:'Accessibility Statement', privacy:'Privacy Policy',
     knowledge:'Knowledge & Guides', hubServices:'Our services', hubAreas:'Areas we serve', hubGuides:'Guides', hubGlossary:'Glossary', hubTools:'Tools & calculators', hubFaq:'FAQ', hubCompany:'About the company',
     copyright:'© 2026 Afik Hanahal — Real Estate Marketing. All rights reserved.',
-    calcNav:'Calc', waTitle:'WhatsApp',
+    calcNav:'Calc', waTitle:'WhatsApp', sharedLoading:'Loading the property…', mapUnavailable:'The map could not load right now — all other property details are available.',
     hoursLabel: 'Business Hours',
     sunToThurs: 'Sun–Thu: 09:00–19:00',
     friday: 'Fri: 09:00–14:00',
@@ -4717,6 +4726,7 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
                 <span style={{ fontSize:12, fontWeight:500, color:`${C.cream}33`, background:`${C.purple}08`, borderRadius:6, padding:'3px 12px' }}>הכנס גוש/חלקה לניווט לחלקה</span>
               )}
             </h3>
+            <SectionBoundary fallback={<div style={{ padding:'28px 16px', textAlign:'center', color:`${C.cream}99`, fontSize:14, border:`1px dashed ${C.purple}33`, borderRadius:12 }}>{TR[lang]?.mapUnavailable || TR.he.mapUnavailable}</div>}>
             <Suspense fallback={<div style={{ height: 360, display:'flex', alignItems:'center', justifyContent:'center', color:`${C.cream}44`, fontSize:13 }}>טוען מפה…</div>}>
               <GovMapWidget
                 gush={prop.gush}
@@ -4727,6 +4737,7 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
                 isDark={isDark}
               />
             </Suspense>
+            </SectionBoundary>
           </div>
         )}
       </div>
@@ -5490,8 +5501,32 @@ export default function App() {
     try { id = new URLSearchParams(window.location.search).get('p') } catch {}
     if (!id) { deepLinkDone.current = true; return }
     const hit = properties.find(x => String(x.id) === String(id) && x.published !== false)
-    if (hit) { deepLinkDone.current = true; setSelectedProp(hit); trackEvent('property_view', { title: hit.title, id: hit.id, category: hit.category, location: hit.location, via: 'link' }) }
+    if (hit) { deepLinkDone.current = true; setSharedLoading(false); setSelectedProp(hit); trackEvent('property_view', { title: hit.title, id: hit.id, category: hit.category, location: hit.location, via: 'link' }) }
   }, [properties])
+
+  // Shared link (/?p=<id>): open the property the moment THAT ONE property arrives — index.html
+  // started the request before the bundle even loaded — instead of waiting for the whole list.
+  const [sharedLoading, setSharedLoading] = useState(() => { try { return !!new URLSearchParams(window.location.search).get('p') && !DASHBOARD_MODE } catch { return false } })
+  useEffect(() => {
+    let id = null
+    try { id = new URLSearchParams(window.location.search).get('p') } catch {}
+    if (!id || DASHBOARD_MODE) return
+    const early = window.__afikShared && String(window.__afikShared.id) === String(id) ? window.__afikShared.promise : null
+    const pending = early || fetch(`/api/properties?one=${encodeURIComponent(id)}`, { headers: { Accept: 'application/json' } }).then(r => (r.ok ? r.json() : null)).catch(() => null)
+    let alive = true
+    pending.then(p => {
+      if (!alive) return
+      if (p && p.id != null && p.published !== false && !deepLinkDone.current) {
+        deepLinkDone.current = true
+        setProperties(prev => (prev.some(x => String(x.id) === String(p.id)) ? prev : [...prev, p]))
+        setSelectedProp(p)
+        trackEvent('property_view', { title: p.title, id: p.id, category: p.category, location: p.location, via: 'link' })
+      }
+      setSharedLoading(false)
+    })
+    const t = setTimeout(() => setSharedLoading(false), 10000)   // never block the site on it
+    return () => { alive = false; clearTimeout(t) }
+  }, [])  // eslint-disable-line react-hooks/exhaustive-deps
   const setPropInUrl = (p) => {
     try { const u = new URL(window.location.href); if (p) u.searchParams.set('p', p.id); else u.searchParams.delete('p'); window.history.replaceState(null, '', u.pathname + (u.search || '') + (u.hash || '')) } catch {}
   }
@@ -6280,6 +6315,13 @@ export default function App() {
       {showContact && <ContactModal  prop={contactProp} onClose={() => setShowContact(false)}/>}
       {showCalc    && <Suspense fallback={null}><RealEstateCalc lang={lang} isDark={isDark} onClose={() => setShowCalc(false)}/></Suspense>}
       {showPrivacy && <PrivacyModal onClose={() => setShowPrivacy(false)}/>}
+      {sharedLoading && !selectedProp && (
+        <div role="status" aria-live="polite" style={{ position:'fixed', inset:0, zIndex:9000, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:16, background: isDark ? 'rgba(9,9,15,.94)' : 'rgba(245,241,233,.95)', color:C.cream, fontFamily:'inherit' }}>
+          <style>{`@keyframes afikSpin{to{transform:rotate(360deg)}}`}</style>
+          <div aria-hidden="true" style={{ width:44, height:44, borderRadius:'50%', border:`3px solid ${C.purple}33`, borderTopColor:C.purple, animation:'afikSpin .8s linear infinite' }}/>
+          <div style={{ fontSize:16, fontWeight:600 }}>{TR[lang]?.sharedLoading || TR.he.sharedLoading}</div>
+        </div>
+      )}
       {selectedProp && <PropertyModal key={selectedProp.id} prop={selectedProp} properties={properties} onClose={() => { setSelectedProp(null); setPropInUrl(null) }} onContact={p => { openContact(p) }} onSelect={p => { setSelectedProp(p); setPropInUrl(p) }} govmapToken={govmapToken}/>}
       {showWizard && <Suspense fallback={null}><PropertyWizard
           key={wizardEditId || wizardKey}

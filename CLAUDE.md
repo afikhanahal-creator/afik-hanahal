@@ -191,6 +191,14 @@ an instant 302 to `/?p=<id>#properties`, keeping `utm_*` / `fbclid` / `gclid` / 
 generic preview. The site's own share button uses the same link, and the landing UTM is kept for the whole session
 (`sessionStorage.afik_utm`) so `crm_data.origin.utm` credits the ad even after browsing.
 
+**Speed (Render sleeps on the free tier):** the public list (`/api/properties` without a token) comes from `lib/property-feed.js`
+(tested): Render if it answers within 2.5 s, otherwise a snapshot kept in Supabase `app_settings` (key `public_properties`,
+rewritten only when the list changed; refreshed by `api/cron/warm.js` too), so the site never waits on a cold start.
+`/api/properties?one=<id>` returns a single published property (snapshot first); `index.html` starts that request for
+`/?p=<id>` before the bundle loads (`window.__afikShared`) and `App.jsx` opens the property as soon as it arrives, with a
+"טוען את הנכס…" overlay meanwhile. Crawlers on `/p/<id>` use the same fast lookup. The map in the property window sits in
+its own `SectionBoundary`, so a failed map chunk never takes the page down.
+
 Admin → property list → "שתף" (or ⋯ → "שיתוף ופרסום") opens `src/PropertyShare.jsx`: the link with a live preview, per-channel UTM
 links (Facebook, Instagram, WhatsApp, colleagues, Yad2, Google; `utm_campaign=prop-<id>`), a custom UTM builder, ready-made post and
 colleague texts (Hebrew / English), one-tap share buttons, a QR code generated in the browser (`qrcode`) and a Facebook debugger link.
