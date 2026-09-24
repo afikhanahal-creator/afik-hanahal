@@ -80,6 +80,26 @@ async function resolveParcelPoint(lot, parcel) {
   return null
 }
 
+// Cached lookup: one request per parcel per page (shared by every widget), and remembered in the
+// browser — parcels don't move, so a property opened before shows its parcel with no request at all.
+const pointCache = new Map()
+const LS_KEY = k => `afik_gm_parcel_v1:${k}`
+function getParcelPoint(lot, parcel) {
+  const key = `${lot}-${parcel}`
+  if (pointCache.has(key)) return pointCache.get(key)
+  let stored = null
+  try { stored = JSON.parse(localStorage.getItem(LS_KEY(key)) || 'null') } catch {}
+  const p = stored && stored.itm && stored.mercator
+    ? Promise.resolve(stored)
+    : resolveParcelPoint(lot, parcel).then(pt => {
+        if (pt) { try { localStorage.setItem(LS_KEY(key), JSON.stringify(pt)) } catch {} }
+        else pointCache.delete(key)          // a miss isn't cached — the next open tries again
+        return pt
+      })
+  pointCache.set(key, p)
+  return p
+}
+
 // GovMap's own gush/helka locate (needs the parcel to have a registered address — last resort only)
 async function locateViaSdk(lot, parcel) {
   const gm = window.govmap
@@ -184,7 +204,24 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
   // times over the first seconds. The map's own extent events tell us when it has really landed on the
   // parcel, and in which coordinate system the SDK works (ITM, or Web Mercator on newer builds).
   const extentRef = useRef(null)
+  const landCheck = useRef(null)               // re-checked on every extent change → instant "shown"
+  const prefetched = useRef(null)              // { key, pt } resolved while the SDK was still loading
   const [locate, setLocate] = useState(null)   // null | { state: 'locating' | 'ok' | 'error', g, h, url? }
+
+  // Start resolving the parcel the moment the widget mounts — in parallel with the ~800KB SDK
+  // download, instead of after the map exists — so the point is usually ready before the map is.
+  useEffect(() => {
+    const lot = parseInt(gush, 10), parcel = parseInt(helka, 10)
+    if (!lot || !parcel) return
+    getParcelPoint(lot, parcel).then(pt => { if (pt) prefetched.current = { key: `${lot}-${parcel}`, pt } })
+  }, [gush, helka])
+
+  // The "shown" chip gets out of the way after a few seconds (errors stay until dismissed/retried)
+  useEffect(() => {
+    if (!locate || locate.state !== 'ok') return
+    const id = setTimeout(() => setLocate(l => (l && l.state === 'ok' ? null : l)), 4000)
+    return () => clearTimeout(id)
+  }, [locate])
 
   const zoomToParcel = useCallback((g, h) => {
     const lot = parseInt(g, 10), parcel = parseInt(h, 10)
@@ -205,14 +242,19 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
       return Math.hypot(ex.cx - p.x, ex.cy - p.y) < Math.max(250, w / 4) && w < 8000
     }
 
-    const ticks = [0, 400, 900, 1600, 2600, 4000, 6000]
-    const STRATEGY = [['itm', 13], ['itm', 13], ['itm', 13], ['auto', 13], ['auto', 10], ['itm', 10], ['itm', 13]]
+    const ticks = [0, 300, 700, 1200, 1900, 2800, 4000, 5500]
+    const STRATEGY = [['itm', 13], ['itm', 13], ['itm', 13], ['itm', 13], ['auto', 13], ['auto', 10], ['itm', 10], ['itm', 13]]
     const zoomRepeatedly = pt => {
+      let shown = false, verified = false
+      const announce = () => { if (shown || !alive()) return; shown = true; setLocate({ state: 'ok', g: lot, h: parcel, url }) }
+      // Verified landing (extent events): stop the remaining attempts and say so right away
+      const done = () => { if (verified || !alive()) return; verified = true; landCheck.current = null; timerIds.current.forEach(clearTimeout); announce() }
+      landCheck.current = () => { if (landedOn(pt)) done() }
       ticks.forEach((d, i) => {
         timerIds.current.push(setTimeout(() => {
-          if (!alive()) return
+          if (!alive() || verified) return
           const gm = window.govmap
-          if (landedOn(pt)) { setLocate({ state: 'ok', g: lot, h: parcel, url }); timerIds.current.forEach(clearTimeout); return }
+          if (landedOn(pt)) { done(); return }
           if (gm && gm.zoomToXY) {
             // ITM + level 13 is the API's documented contract (and what worked so far). Only when the
             // map reports its extent and still hasn't moved do we try its own system and level 10.
@@ -222,19 +264,23 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
             const level = ex ? lvl : 13
             try { gm.zoomToXY({ x: p.x, y: p.y, level, marker: true }) }
             catch { try { gm.zoomToXY({ x: p.x, y: p.y, level: 10, marker: true }) } catch {} }
+            // Without extent events there's nothing to verify against: the zoom has been issued a
+            // few times by now, which is what always worked — say so instead of spinning for seconds.
+            // (the remaining re-issues keep running, in case the SDK was still starting up)
+            if (!extentRef.current && i >= 2) announce()
           }
           if (i === ticks.length - 1) {
             const landed = landedOn(pt)
             if (landed === false) {
               console.warn('[GovMap] zoomToXY did not move the map to', pt)
               locateViaSdk(lot, parcel).then(ok => alive() && setLocate({ state: ok ? 'ok' : 'error', g: lot, h: parcel, url }))
-            } else setLocate({ state: 'ok', g: lot, h: parcel, url })
+            } else announce()
           }
         }, d))
       })
     }
 
-    resolveParcelPoint(lot, parcel).then(pt => {
+    getParcelPoint(lot, parcel).then(pt => {
       if (!alive()) return
       if (pt) { zoomRepeatedly(pt); return }
       // Nothing resolved the parcel — last resort: GovMap's own locate
@@ -254,7 +300,12 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
       // non-default layers via setVisibleLayers, so the map opens uncluttered while
       // all layers remain available to toggle in both the GovMap control and ours.
       const allLayers = LAYERS_DEF.map(l => l.id)
-      window.govmap.createMap(mapDivId, {
+      // Point already resolved (cache / prefetch)? Open the map right on the parcel instead of on the
+      // whole country — the zoom below still runs and confirms it.
+      const key = `${parseInt(gushRef.current, 10)}-${parseInt(helkaRef.current, 10)}`
+      const pre = prefetched.current && prefetched.current.key === key ? prefetched.current.pt : null
+      const start = pre ? { center: { x: pre.itm.x, y: pre.itm.y }, level: 13 } : {}
+      const opts = {
         token:            token || '',
         layers:           allLayers,
         showXY:           false,
@@ -264,7 +315,9 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
         layersMode:       1,   // 1 = GovMap's own on-map "שכבות" button (restored).
                                // All 18 layers loaded above are listed in it.
         zoomButtons:      true,
-      })
+      }
+      try { window.govmap.createMap(mapDivId, { ...opts, ...start }) }
+      catch (e) { if (!pre) throw e; document.getElementById(mapDivId).innerHTML = ''; window.govmap.createMap(mapDivId, opts) }
       watchExtent()
       setMapReady(true)
       setError('')
@@ -292,6 +345,7 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
         const prev = extentRef.current
         const crs = Math.abs(ex.cx) > 1e6 ? 'mercator' : prev ? prev.crs : 'itm'
         extentRef.current = { ...ex, crs }
+        if (landCheck.current) landCheck.current()
       }
       const h = gm.onEvent(ev, cb)
       if (h && typeof h.progress === 'function') h.progress(cb)
@@ -563,7 +617,7 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
         <div id={mapDivId} style={{ width:'100%', height: compact ? 340 : 500 }}/>
         {mapReady && locate && (
           <div role="status" aria-live="polite"
-            style={{ position:'absolute', top:10, left:10, zIndex:30, maxWidth:'calc(100% - 20px)',
+            style={{ position:'absolute', top:10, left:'50%', transform:'translateX(-50%)', zIndex:30, maxWidth:'calc(100% - 140px)',
                      display:'flex', alignItems:'center', gap:8, flexWrap:'wrap',
                      padding:'7px 12px', borderRadius:10, fontSize:12, fontWeight:600, direction:'rtl',
                      background: locate.state === 'error' ? 'rgba(254,242,242,.97)' : 'rgba(255,255,255,.96)',
