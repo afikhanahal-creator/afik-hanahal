@@ -56,6 +56,14 @@
       "destination": "/api/properties?img=:path*"
     },
     {
+      "source": "/p/:id",
+      "destination": "/api/properties?share=:id"
+    },
+    {
+      "source": "/p/:id/:slug*",
+      "destination": "/api/properties?share=:id"
+    },
+    {
       "source": "/api/meta/:path*",
       "destination": "/api/meta?_path=:path*"
     },

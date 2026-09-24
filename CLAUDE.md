@@ -181,3 +181,16 @@ info, next best action) and asks Claude (`claude-opus-5`, structured output, ser
 may adjust the score by ±15. The result is stored as `lead.enrichment` (`version: 2`, `score100`, `grade`, `factors`, `brief`, plus
 the legacy `score` 1–5 / `intent`). Without `ANTHROPIC_API_KEY` in Vercel the endpoint returns the dossier and the panel runs the
 briefing through the Render AI proxy, merged with `mergeBrief()`.
+
+### Property share links (`/p/<id>`)
+
+Every property has a short share link `https://afikhanahal.co.il/p/<id>` (`vercel.json` rewrite → `api/properties.js?share=<id>`,
+rendered by the pure, tested `lib/share-page.js`). Link-preview crawlers (Facebook / Instagram / WhatsApp / LinkedIn / X / Telegram…)
+get an HTML page with the property's Open Graph tags (title · place, price · specs, first photo via `/media`, JSON-LD); people get
+an instant 302 to `/?p=<id>#properties`, keeping `utm_*` / `fbclid` / `gclid` / `lang`. Hidden or missing properties get the
+generic preview. The site's own share button uses the same link, and the landing UTM is kept for the whole session
+(`sessionStorage.afik_utm`) so `crm_data.origin.utm` credits the ad even after browsing.
+
+Admin → property list → "שתף" (or ⋯ → "שיתוף ופרסום") opens `src/PropertyShare.jsx`: the link with a live preview, per-channel UTM
+links (Facebook, Instagram, WhatsApp, colleagues, Yad2, Google; `utm_campaign=prop-<id>`), a custom UTM builder, ready-made post and
+colleague texts (Hebrew / English), one-tap share buttons, a QR code generated in the browser (`qrcode`) and a Facebook debugger link.

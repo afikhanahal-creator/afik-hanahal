@@ -12,6 +12,7 @@ const SellerSubmissionsTab = lazy(() => import('./SellerSubmissionsTab.jsx'))
 const AutomationsTab = lazy(() => import('./AutomationsTab.jsx'))
 const GA4Tab = lazy(() => import('./GA4Tab.jsx'))
 const AdminHome = lazy(() => import('./AdminHome.jsx'))
+const PropertyShare = lazy(() => import('./PropertyShare.jsx'))
 import { autoApi, StageSendPrompt } from './AutomationsApi.jsx'
 import { useAdminTheme, ADMIN_THEME_CSS } from './adminTheme.js'
 import { mergeBrief } from '../lib/lead-intel.js'
@@ -1596,6 +1597,8 @@ function PropertyManagerList({ C, list, publishedList, draftList, listTab, setLi
   const [search, setSearch]     = useState('')
   const [selected, setSelected] = useState(() => new Set())
   const [menuId, setMenuId]     = useState(null)
+  const [shareProp, setShareProp] = useState(null)   // property whose share & promote window is open
+  const { lang: uiLang } = useTheme()
   const [drag, setDrag]         = useState({ id:null, overId:null, place:'before' })
   const posOf = useMemo(() => { const m = new Map(); publishedList.forEach((p, i) => m.set(String(p.id), i + 1)); return m }, [publishedList])
 
@@ -1628,6 +1631,7 @@ function PropertyManagerList({ C, list, publishedList, draftList, listTab, setLi
 
   return (
     <div className="admin-pm">
+      {shareProp && <Suspense fallback={null}><PropertyShare prop={shareProp} lang={uiLang} onClose={() => setShareProp(null)}/></Suspense>}
       {/* Toolbar: tabs · search · category chips */}
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12, flexWrap:'wrap', gap:10 }}>
         <div style={{ display:'flex', gap:4, background:'rgba(var(--ov),.04)', borderRadius:10, padding:4 }}>
@@ -1757,6 +1761,9 @@ function PropertyManagerList({ C, list, publishedList, draftList, listTab, setLi
                   })}
                 </div>
                 {/* Edit */}
+                {/* Share & promote */}
+                <button onClick={() => setShareProp(p)} title={live ? 'קישור לשיתוף, למודעות ולקולגות' : 'הנכס מוסתר – פרסמו אותו כדי שהקישור יעבוד'}
+                  style={btn({ padding:'8px 14px', borderColor:'rgba(var(--brand-rgb),.4)', color:'var(--au-brand-text)', background:'rgba(var(--brand-rgb),.08)' })}><FaShareAlt size={10}/> שתף</button>
                 <button onClick={() => onEdit(p)} style={btn({ background:C.purple, borderColor:C.purple, color:'#fff', padding:'8px 16px' })}><FaPencilAlt size={10}/> ערוך</button>
                 {/* More menu */}
                 <div data-pm-menu style={{ position:'relative' }}>
@@ -1767,7 +1774,8 @@ function PropertyManagerList({ C, list, publishedList, draftList, listTab, setLi
                         ...(idx > 0 ? [['⤒ העבר לראש הרשימה', () => onTop(p.id)]] : []),
                         ['📄 שכפל נכס', () => dup(p.id)],
                         ['↻ רענן מהשרת', () => refreshOne(p)],
-                        [`🔗 פתח את האתר`, () => window.open('/#properties', '_blank')],
+                        ['📣 שיתוף ופרסום', () => setShareProp(p)],
+                        ['🔗 פתח את הנכס באתר', () => window.open(`/p/${encodeURIComponent(p.id)}`, '_blank')],
                       ].map(([label, fn]) => (
                         <button key={label} role="menuitem" onClick={() => { setMenuId(null); fn() }} style={{ textAlign:'start', padding:'9px 12px', borderRadius:8, border:'none', background:'transparent', color:C.cream, fontSize:12, fontFamily:'inherit', cursor:'pointer', fontWeight:600 }}
                           onMouseEnter={e => e.currentTarget.style.background=`${C.purple}22`} onMouseLeave={e => e.currentTarget.style.background='transparent'}>{label}</button>
