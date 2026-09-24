@@ -125,7 +125,7 @@ export default function CampaignsTab({ lang = 'he', cfg, tpls, leads, states = {
           return (
             <Card key={j.id} pad={14} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                <span style={{ width: 32, height: 32, borderRadius: 10, background: T.brandSoft, color: T.brand, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><FaBullhorn size={13}/></span>
+                <span style={{ width: 32, height: 32, borderRadius: 10, background: T.brandSoft, color: T.brandText, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><FaBullhorn size={13}/></span>
                 <b style={{ fontSize: 14, fontWeight: 700, flex: 1, minWidth: 140 }}>{j.name || tplTitle(j.templateId)}</b>
                 <Badge color={badge[1]} textColor={badge[1] === T.amber ? T.amberText : badge[1] === T.red ? T.redText : undefined}>{st.status === 'paused' && <FaMoon size={9}/>}{badge[0]}</Badge>
               </div>
