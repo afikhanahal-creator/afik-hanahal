@@ -124,7 +124,11 @@ export default defineConfig({
         manualChunks(id) {
           if (!id.includes('node_modules')) return
           if (id.includes('/react-dom/') || (id.includes('/react/') && !id.includes('/react-icons/'))) return 'vendor-react'
-          if (id.includes('/framer-motion/')) return 'vendor-framer'
+          // framer-motion + its engine (motion-dom / motion-utils): only the intake questionnaire uses it now,
+          // so it stays out of the public page's bundle
+          if (id.includes('/framer-motion/') || id.includes('/motion-dom/') || id.includes('/motion-utils/')) return 'vendor-framer'
+          // QR codes: the admin's share window only
+          if (id.includes('/qrcode/') || id.includes('/dijkstrajs/')) return 'vendor-qrcode'
           if (id.includes('/react-icons/') || id.includes('/lucide-react/')) return 'vendor-icons'
           if (id.includes('/@dnd-kit/')) return 'vendor-dnd'
           if (id.includes('/logrocket/')) return 'vendor-analytics'

@@ -228,3 +228,21 @@ widget zooms with `govmap.zoomToXY` (ITM, level 13), verifies the landing throug
 (switching to Web Mercator / level 10 if the SDK didn't move), and always shows a status chip (locating / shown /
 not found + "פתח ב-GovMap" + retry) instead of failing silently. The legacy `es.govmap.gov.il/TldSearch` service
 alone is no longer relied on.
+
+## Public site performance rules (keep scrolling smooth on slow phones)
+
+Measured on a mobile profile (CPU ×4): the homepage used to burn ~40% CPU at rest and scroll at ~12 fps. What fixed it,
+and what must not come back:
+
+- **No page-level React state that changes on scroll or on a timer.** The hero parallax moves its blobs through refs
+  (`parallaxRefs`, one rAF per frame); the active nav item is a ref (`activeNavRef`) that toggles classes directly; the
+  typewriter is its own `<Typewriter>` component (and pauses off-screen). `App` re-rendering re-creates the whole page.
+- **Heavy sections and `PropertyCard` are `memo`-ized**, the site `ThemeCtx` value is `useMemo`-ed (`siteThemeValue`) and
+  their callbacks are stable (`useStableFn`: `openContactStable`, `openPropertyStable`). Keep new props stable too.
+- **Animations: `transform` / `opacity` only** (compositor). No infinite `box-shadow` / `text-shadow` / `background` /
+  `filter` animations (the WhatsApp pulse is a `::after` ring, `SectionBadge` is a rotating conic gradient in CSS). No
+  `backdrop-filter` on things that scroll in numbers (property cards) or on the opaque navbar. SVG SMIL animations run only
+  while visible (`useSvgAnimationsWhenVisible`).
+- **framer-motion is not used on the public page** (it stays in `SellerForm`, its own chunk); `qrcode` is admin-only
+  (`vendor-qrcode`). Check `dist/index.html`'s preloaded chunks after adding a dependency.
+- `.prop-card` has `content-visibility:auto` (off-screen cards aren't laid out / painted).
