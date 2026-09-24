@@ -193,7 +193,10 @@ generic preview. The site's own share button uses the same link, and the landing
 
 **Speed (Render sleeps on the free tier):** the public list (`/api/properties` without a token) comes from `lib/property-feed.js`
 (tested): Render if it answers within 2.5 s, otherwise a snapshot kept in Supabase `app_settings` (key `public_properties`,
-rewritten only when the list changed; refreshed by `api/cron/warm.js` too), so the site never waits on a cold start.
+rewritten only when the list changed; refreshed by `api/cron/warm.js` too), and as a last resort `dist/properties.json` — the
+published list written at deploy time by `scripts/build-properties.mjs` (Vercel builds only; also seeds the snapshot). First-time
+visitors paint the grid from that static file (`index.html` starts it as `window.__afikList`) and the live list replaces it; an
+open property window always follows the freshest data. So the site never waits on a cold start.
 `/api/properties?one=<id>` returns a single published property (snapshot first); `index.html` starts that request for
 `/?p=<id>` before the bundle loads (`window.__afikShared`) and `App.jsx` opens the property as soon as it arrives, with a
 "טוען את הנכס…" overlay meanwhile. Crawlers on `/p/<id>` use the same fast lookup. The map in the property window sits in
