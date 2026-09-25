@@ -220,6 +220,15 @@ GA4 and the property list download wait until the site is up (`window.__afikLand
 GovMap SDK loads only when the map is within ~800px of the viewport, and the city photos on the homepage only when their
 cards are near.
 
+**Homepage static first screen:** `scripts/build-properties.mjs` also writes the hero and the property grid into
+`dist/index.html` as a plain-HTML layer (`#afik-pre-home`, `lib/home-page.js` `renderHome()`, tested), so a first-time
+visitor sees the real first screen with the HTML (~0.4 s) instead of after the bundle (1.1–2.1 s). Both languages are in
+the markup (`data-pre-lang`); an inline script shows the layer only on `/` (never on `/admin-panel`, `/sell`, an old
+`/?p=` link). Cards link to the instant pages `/p/<id>` and use the same cover URL as the app's cards (`cardImage()` =
+`thumbImg`), so nothing downloads twice. `App.jsx` fades the layer out once it has rendered (a reader who had scrolled the
+layer's grid lands on the real `#properties`). Keep the layer's copy in step with `TR.heroBadge/heroH1line*/heroDesc/
+heroCTA*` and `propertiesTitle/H2/Desc` when those change. The landing pages are rendered from the plain template first.
+
 Admin → property list → "שתף" (or ⋯ → "שיתוף ופרסום") opens `src/PropertyShare.jsx`: the link with a live preview, per-channel UTM
 links (Facebook, Instagram, WhatsApp, colleagues, Yad2, Google; `utm_campaign=prop-<id>`), a custom UTM builder, ready-made post and
 colleague texts (Hebrew / English), one-tap share buttons, a QR code generated in the browser (`qrcode`) and a Facebook debugger link.
