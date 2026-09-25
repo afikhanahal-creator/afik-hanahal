@@ -7,7 +7,7 @@
 // Runs when VERCEL is set (or PROPS_SNAPSHOT=1); local builds skip it so they stay fast offline.
 import { writeFileSync, mkdirSync } from 'fs'
 import { createFeed } from '../lib/property-feed.js'
-import { renderLanding } from '../lib/share-page.js'
+import { renderLanding, landingImageUrls, lqipUrl, propertyMeta } from '../lib/share-page.js'
 import { readFileSync } from 'fs'
 
 if (!process.env.VERCEL && process.env.PROPS_SNAPSHOT !== '1') {
@@ -37,7 +37,7 @@ if (!result || !Array.isArray(result.list) || !result.list.length) {
   process.exit(0)
 }
 
-const published = result.list.filter(p => p && p.published !== false)
+const published = result.list.filter(p => p && p.published !== false).map(p => ({ ...p }))
 const body = JSON.stringify(published)
 mkdirSync('dist', { recursive: true })
 writeFileSync('dist/properties.json', body)
@@ -46,6 +46,37 @@ const inlineImages = published.reduce((n, p) => n + (p.images || []).filter(i =>
 console.log(`[build-properties] dist/properties.json: ${published.length} published properties, ${kb} KB (source: ${result.source}${result.at ? ', snapshot of ' + result.at : ''})`)
 // One instant landing page per property: /p/<id> is served straight from the CDN (see renderLanding)
 const ORIGIN = (process.env.SITE_ORIGIN || 'https://www.afikhanahal.co.il').replace(/\/$/, '')
+
+// Photos: warm every size the landing pages use on the image CDN (the first request for a size makes
+// wsrv fetch and resize the original — 1-3 s the first visitor would otherwise wait), and fetch a 24px
+// version of each to inline as a blurred placeholder. Best-effort: a few at a time, capped, never fatal.
+async function prepareImages(list) {
+  if (process.env.SKIP_IMAGE_WARM === '1') return { warmed: 0, lqip: 0 }
+  const jobs = []
+  for (const p of list) {
+    const img = propertyMeta(p, { origin: ORIGIN }).image
+    if (!img || img.endsWith('/img/og-default.png')) continue
+    jobs.push(async () => {
+      for (const u of landingImageUrls(p, ORIGIN)) {
+        try {
+          const r = await fetch(u, { signal: AbortSignal.timeout(12000) })
+          if (r.ok && u === lqipUrl(img)) {
+            const buf = Buffer.from(await r.arrayBuffer())
+            if (buf.length > 0 && buf.length < 4000) p.__lqip = `data:image/jpeg;base64,${buf.toString('base64')}`
+          } else await r.arrayBuffer().catch(() => {})
+        } catch {}
+      }
+    })
+  }
+  let i = 0, done = 0
+  const t0 = Date.now()
+  const worker = async () => { while (i < jobs.length && Date.now() - t0 < 90000) { const j = jobs[i++]; await j(); done++ } }
+  await Promise.all([1, 2, 3, 4].map(worker))
+  return { warmed: done, lqip: list.filter(p => p.__lqip).length, ms: Date.now() - t0 }
+}
+const imgStats = await prepareImages(published)
+console.log(`[build-properties] image CDN warmed for ${imgStats.warmed} properties, ${imgStats.lqip} placeholders${imgStats.ms ? ` (${Math.round(imgStats.ms / 1000)}s)` : ''}`)
+
 let pages = 0
 try {
   const template = readFileSync('dist/index.html', 'utf8')
