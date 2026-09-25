@@ -5611,6 +5611,23 @@ export default function App() {
     return () => { alive = false; clearTimeout(t) }
   }, [])  // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Homepage static first screen (lib/home-page.js, written into index.html at deploy time): the hero and the
+  // property grid painted from the HTML alone. Once this app has rendered the same screen underneath, fade it out;
+  // a reader who had already scrolled down to its property grid lands on the real grid.
+  useEffect(() => {
+    const pre = document.getElementById('afik-pre-home')
+    if (!pre) return
+    if (!document.documentElement.hasAttribute('data-pre-home')) { pre.remove(); return }   // not the homepage: drop the hidden markup
+    let t
+    const raf = requestAnimationFrame(() => requestAnimationFrame(() => {
+      const scrolledToGrid = pre.scrollTop > window.innerHeight * 0.6
+      pre.classList.add('out')
+      if (scrolledToGrid) document.getElementById('properties')?.scrollIntoView({ block: 'start' })
+      t = setTimeout(() => { pre.remove(); document.documentElement.removeAttribute('data-pre-home') }, 350)
+    }))
+    return () => { cancelAnimationFrame(raf); clearTimeout(t) }
+  }, [])
+
   // Instant landing page (/p/<id>, lib/share-page.js renderLanding): its plain-HTML view of the property
   // covers the screen until the app has opened the same property (or has nothing to open), then fades out
   useEffect(() => {

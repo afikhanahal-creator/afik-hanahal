@@ -8,6 +8,7 @@
 import { writeFileSync, mkdirSync } from 'fs'
 import { createFeed } from '../lib/property-feed.js'
 import { renderLanding, landingImageUrls, lqipUrl, propertyMeta } from '../lib/share-page.js'
+import { renderHome } from '../lib/home-page.js'
 import { readFileSync } from 'fs'
 
 if (!process.env.VERCEL && process.env.PROPS_SNAPSHOT !== '1') {
@@ -89,5 +90,12 @@ try {
   }
 } catch (e) { console.warn(`[build-properties] landing pages skipped: ${e.message}`) }
 console.log(`[build-properties] ${pages} instant landing pages in dist/p/`)
+// The homepage's static first screen (hero + property grid), written into index.html itself — after the landing
+// pages, which must be rendered from the plain template (they carry their own layer)
+try {
+  const template = readFileSync('dist/index.html', 'utf8')
+  if (!template.includes('id="afik-pre-home"')) writeFileSync('dist/index.html', renderHome(template, published))
+  console.log('[build-properties] static first screen written into dist/index.html')
+} catch (e) { console.warn(`[build-properties] static first screen skipped: ${e.message}`) }
 if (inlineImages) console.warn(`[build-properties] ${inlineImages} photos are stored inline (base64) — re-uploading them makes the list much lighter`)
 process.exit(0)   // don't wait on Render requests that are still open
