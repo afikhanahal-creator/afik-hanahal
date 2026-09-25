@@ -1549,6 +1549,7 @@ function FlipCityCard({ h, index }) {
   const cityType    = lang === 'en' && h.en_type ? h.en_type : h.type
   const cityName    = lang === 'en' && h.en_city ? h.en_city : h.city
   const [vis,          setVis]          = useState(false)
+  const [near,         setNear]         = useState(false)   // photo requested only once the card is within ~400px
   const [isFlipped,    setIsFlipped]    = useState(false)
   const [counterStart, setCounterStart] = useState(false)
   const cardRef = useRef(null)
@@ -1560,7 +1561,11 @@ function FlipCityCard({ h, index }) {
       if (entry.isIntersecting) { setTimeout(() => setVis(true), index * 110 + 180); obs.disconnect() }
     }, { threshold: 0.15 })
     if (cardRef.current) obs.observe(cardRef.current)
-    return () => obs.disconnect()
+    // The photo (~100 KB each) downloads only when the card is near the viewport — never while a shared
+    // property, or the sections above, are still loading.
+    const nearObs = new IntersectionObserver(([entry]) => { if (entry.isIntersecting) { setNear(true); nearObs.disconnect() } }, { rootMargin: '400px 0px', threshold: 0 })
+    if (cardRef.current) nearObs.observe(cardRef.current)
+    return () => { obs.disconnect(); nearObs.disconnect() }
   }, [index])
 
   const handleEnter = () => { setIsFlipped(true); if (!counterStart) setCounterStart(true) }
@@ -1586,7 +1591,7 @@ function FlipCityCard({ h, index }) {
         style={{ ...FACE_STYLE, transform: `rotateY(${isFlipped ? -180 : 0}deg)`, transition: FLIP_TRANSITION, zIndex: isFlipped ? 1 : 2, boxShadow: '0 16px 48px rgba(0,0,0,.55), 0 2px 8px rgba(0,0,0,.3)' }}>
 
         {/* Photo — editorial filter */}
-        <img src={img} alt={cityName} loading="lazy"
+        <img src={near ? img : undefined} data-src={img} alt={cityName} loading="lazy"
           style={{
             position: 'absolute', inset: 0,
             width: '100%', height: '100%',
@@ -5334,7 +5339,9 @@ export default function App() {
       // instead of skeleton cards while the live API (and a possibly sleeping Render) answers.
       let apiArrived = false
       if (!hadCache && !isAdminSession) {
-        const early = window.__afikList || fetch('/properties.json', { headers: { Accept: 'application/json' } }).then(r => (r.ok ? r.json() : null)).catch(() => null)
+        // On a shared-property landing page nothing else should compete with the photo: the list comes when idle
+        const later = () => new Promise(res => ('requestIdleCallback' in window ? requestIdleCallback(res, { timeout: 2500 }) : setTimeout(res, 1500)))
+        const early = window.__afikList || (window.__afikLanding ? later() : Promise.resolve()).then(() => fetch('/properties.json', { headers: { Accept: 'application/json' } }).then(r => (r.ok ? r.json() : null)).catch(() => null))
         early.then(list => {
           if (apiArrived || !Array.isArray(list) || !list.length) return
           setProperties(prev => {

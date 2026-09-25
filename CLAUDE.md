@@ -211,6 +211,14 @@ the rewrite) and by `api/properties.js` for newer ones (edge-cached for everyone
 a property (admin panel, wizard, "פרסם באתר") calls `POST /api/properties?changed=1` (batched 15 s, `src/siteRebuild.js` →
 `lib/site-rebuild.js`, tested): it refreshes the snapshot at once and, when `VERCEL_DEPLOY_HOOK_URL` is set, rebuilds the site
 (max once a minute) so the static pages follow.
+The landing page is tuned for a slow phone: a responsive photo (`srcset` 480/900/1400 through the image CDN, preloaded
+after the viewport meta so the preload and the `<img>` pick the same size), an inline blurred placeholder (`__lqip`, a
+24px JPEG fetched at build time; `SKIP_IMAGE_WARM=1` skips the CDN warm-up + placeholders), a lean head (no org JSON-LD,
+no `#root` fallback text, no stray preconnects) and **photo-first loading**: the app's JavaScript starts (`afikBoot()`,
+inert `afik-modulepreload` links + an `afik/module` placeholder script) only after the photo has arrived or 1.2 s; GTM /
+GA4 and the property list download wait until the site is up (`window.__afikLanding`). Inside the property window the
+GovMap SDK loads only when the map is within ~800px of the viewport, and the city photos on the homepage only when their
+cards are near.
 
 Admin → property list → "שתף" (or ⋯ → "שיתוף ופרסום") opens `src/PropertyShare.jsx`: the link with a live preview, per-channel UTM
 links (Facebook, Instagram, WhatsApp, colleagues, Yad2, Google; `utm_campaign=prop-<id>`), a custom UTM builder, ready-made post and

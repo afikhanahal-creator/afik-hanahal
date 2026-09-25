@@ -134,10 +134,9 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
   const containerRef = useRef(null)
   const created      = useRef(false)   // true once window.govmap.createMap() succeeded
 
-  // Start the GovMap SDK + map loading immediately on mount (the widget only
-  // renders inside an opened property modal, so the user wants the map fast). The
-  // 786KB SDK is cached after the first load, so later maps open instantly.
-  const [inView,    setInView]    = useState(true)
+  // The SDK (~786 KB) loads once the map is near the viewport (see the observer below); it is cached
+  // after the first load, so later maps open instantly.
+  const [inView,    setInView]    = useState(false)   // set by the observer below (large rootMargin)
   const [mapReady,  setMapReady]  = useState(false)
   const [error,     setError]     = useState('')
   const [measuring, setMeasuring] = useState(false)
@@ -174,7 +173,9 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
     if (!el) return
     const obs = new IntersectionObserver(
       ([e]) => { if (e.isIntersecting) { setInView(true); obs.disconnect() } },
-      { threshold: 0.05 }
+      // The map sits below all the property details: on a slow connection the photos and text must not
+      // compete with the ~800 KB SDK, so it starts loading once the reader is within ~800px of the map.
+      { rootMargin: '800px 0px', threshold: 0 }
     )
     obs.observe(el)
     return () => obs.disconnect()
@@ -458,7 +459,7 @@ export default function GovMapWidget({ gush, helka, subHelka, token, C, isDark, 
   // ── Skeleton (not yet in viewport) ────────────────────────────────────────
   if (!inView) {
     return (
-      <div ref={containerRef} style={{ position:'relative', border:`1px solid ${C.purple}15`, borderRadius:12, overflow:'hidden', background: isDark ? '#0A0A16' : '#F5F4F0', height: compact ? 340 : 480, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:12, direction:'rtl', fontFamily:'Rubik,inherit' }}>
+      <div ref={containerRef} data-no-swipe data-govmap="skeleton" style={{ position:'relative', border:`1px solid ${C.purple}15`, borderRadius:12, overflow:'hidden', background: isDark ? '#0A0A16' : '#F5F4F0', height: compact ? 340 : 480, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:12, direction:'rtl', fontFamily:'Rubik,inherit' }}>
         <div style={{ width:48, height:48, borderRadius:'50%', background:`${C.purple}18`, display:'flex', alignItems:'center', justifyContent:'center' }}>
           <span style={{ fontSize:24 }}>🗺️</span>
         </div>

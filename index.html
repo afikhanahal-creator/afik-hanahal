@@ -209,6 +209,7 @@
     // First visit (no saved list): start downloading the deploy-time property list (a static file on the CDN)
     // right away, so the property grid paints without waiting for the live API
     (function(){try{if(/^\/(admin-panel|dashboard|newproperty|sell|seller-form)(\/|$)/.test(location.pathname))return;
+      if(window.__afikLanding)return;   // a shared property is on screen — the list can wait (App.jsx fetches it when idle)
       var c=null;try{c=JSON.parse(localStorage.getItem('afik_data')||'null')}catch(e){}if(c&&c.properties&&c.properties.length)return;
       window.__afikList=fetch('/properties.json',{headers:{Accept:'application/json'}})
         .then(function(r){return r.ok?r.json():null}).catch(function(){return null});}catch(e){}})();
@@ -517,20 +518,28 @@
     }
     </script>
 
-    <!-- ── Google Tag Manager ── -->
-    <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
-    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
-    j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-    'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-    })(window,document,'script','dataLayer','GTM-MZZ8QR8V');</script>
-
-    <!-- ── Google Analytics GA4 ── -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-X1S3XX7TRV"></script>
+    <!-- ── Google Tag Manager + GA4 ──
+         On a shared-property landing page (window.__afikLanding) the tags load once the site is up (or after 2.5 s),
+         so ~150 KB of tag scripts never compete with the property's photo on a slow connection. The page view is
+         still recorded (dataLayer / gtag calls queue until then). -->
     <script>
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
       gtag('js', new Date());
       gtag('config', 'G-X1S3XX7TRV', { send_page_view: true });
+      (function(){
+        var started=false;
+        function start(){ if(started)return; started=true;
+          (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+          j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+          })(window,document,'script','dataLayer','GTM-MZZ8QR8V');
+          var g=document.createElement('script');g.async=true;g.src='https://www.googletagmanager.com/gtag/js?id=G-X1S3XX7TRV';document.head.appendChild(g);
+        }
+        window.__afikStartAnalytics=start;
+        if(!window.__afikLanding){start();return;}
+        setTimeout(start,2500);
+        if(document.readyState==='complete')setTimeout(start,800);else window.addEventListener('load',function(){setTimeout(start,800)});
+      })();
     </script>
 
     <!-- ── Meta Pixel (deferred — loads after page paint) ── -->
