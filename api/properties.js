@@ -118,7 +118,9 @@ async function serveHealth(req, res) {
   res.setHeader('Cache-Control', 'no-store')
   res.setHeader('Access-Control-Allow-Origin', '*')
   const h = await feed.health({ staticUrl: staticListUrl(req) })
-  return res.status(200).json({ ...h, at: new Date().toISOString() })
+  // Which optional integrations this deployment can see (presence only — never values)
+  const env = { anthropic: !!process.env.ANTHROPIC_API_KEY, deployHook: !!process.env.VERCEL_DEPLOY_HOOK_URL, ga4: !!process.env.GA4_SERVICE_ACCOUNT_JSON, greenApi: !!(process.env.WA_GREENAPI_INSTANCE && process.env.WA_GREENAPI_TOKEN) }
+  return res.status(200).json({ ...h, env, at: new Date().toISOString() })
 }
 
 // ── POST /api/properties?snapshot=1 (admin) { list } → the admin panel's copy of the property list, kept as the
