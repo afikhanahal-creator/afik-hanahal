@@ -109,6 +109,15 @@ for (const [path, label] of [[`${RENDER}/api/properties`, 'Render: property list
     console.log(`      body: ${body.replace(/\s+/g, ' ').slice(0, 160)}`)
   } catch (e) { console.log(`ERR   after ${ms(performance.now() - t0)}  ${label}: ${e.message}`) }
 }
+// Does Render answer an unchanged list with 304 (what keeps its metered bandwidth near zero)?
+try {
+  const a = await fetch(`${RENDER}/api/properties`, { headers: { accept: 'application/json' }, signal: AbortSignal.timeout(70000) })
+  const etag = a.headers.get('etag'); const kb = Math.round((await a.text()).length / 1024)
+  if (a.ok && etag) {
+    const b = await fetch(`${RENDER}/api/properties`, { headers: { accept: 'application/json', 'if-none-match': etag }, signal: AbortSignal.timeout(20000) })
+    console.log(`      Render list: ${kb} KB, etag ${etag.slice(0, 20)}… → If-None-Match answers ${b.status} (${b.status === 304 ? 'good: no body' : 'FULL BODY AGAIN'})`)
+  } else console.log(`      Render list: status ${a.status}, ${kb} KB, etag ${etag || 'none'}`)
+} catch (e) { console.log(`      Render list etag check: ${e.message}`) }
 for (const [path, label] of [['/api/properties?health=1', 'Vercel: feed health'], ['/api/properties', 'Vercel: public list'], [`/api/properties?one=${PROP}`, 'Vercel: single property']]) {
   const r = await timedFetch(path, { accept: 'application/json' })
   report(r, `   (${label})`)

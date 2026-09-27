@@ -34,7 +34,9 @@ export default async function handler(req, res) {
     })
     if (r.ok) {
       const data = await r.json()
-      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
+      // Public read: served from Vercel's edge for 10 minutes (Render's bandwidth is metered — every visitor
+      // used to hit it). Admins read stats straight from Render and always see their edit at once.
+      res.setHeader('Cache-Control', authHeader ? 'no-cache, no-store, must-revalidate' : 'public, s-maxage=600, stale-while-revalidate=86400')
       return res.status(200).json(data)
     }
     console.warn('[stats vercel] Render returned', r.status)

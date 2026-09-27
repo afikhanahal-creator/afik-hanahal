@@ -5310,10 +5310,13 @@ export default function App() {
     } catch {}
     loaded.current = true
 
-    // 2. Fetch latest stats + govmap token from API
+    // 2. Fetch latest stats + govmap token. Visitors read them through Vercel's edge cache (/api/stats,
+    //    10 min); only an admin session goes to Render — Render's free tier has a 5 GB/month bandwidth cap,
+    //    so the public site must never call it directly.
     {
       const base = API_BASE || ''
-      fetch(`${base}/api/stats`)
+      const adminSession = (() => { try { return sessionStorage.getItem('afik_admin_session') === '1' } catch { return false } })()
+      fetch(adminSession && base ? `${base}/api/stats` : '/api/stats')
         .then(r => r.ok ? r.json() : Promise.reject())
         .then(data => {
           if (data.stats?.length)  setStats(data.stats)
@@ -5321,8 +5324,9 @@ export default function App() {
           if (data.govmapToken)    { setGovmapToken(data.govmapToken); localStorage.setItem('govmap_token', data.govmapToken) }
         })
         .catch(() => {})
-      // Also load admin cloud settings (WA, CRM webhook, map defaults)
-      fetch(`${base}/api/settings`, { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` } })
+      // Admin cloud settings (WA, CRM webhook, map defaults): admin sessions only. Visitors don't need
+      // them — the CRM webhook for a new lead is sent by /api/contacts on the server.
+      if (adminSession && base) fetch(`${base}/api/settings`, { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` } })
         .then(r => r.ok ? r.json() : Promise.reject())
         .then(cfg => { _cloudSettings = cfg })
         .catch(() => {})
