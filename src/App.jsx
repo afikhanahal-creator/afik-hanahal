@@ -45,6 +45,7 @@ class SectionBoundary extends Component {
 const PropertyWizard    = lazyWithRetry(() => import('./PropertyWizard.jsx'))
 import { FaChevronLeft, FaChevronRight, FaEnvelope, FaFacebookF, FaInstagram, FaBed, FaRulerCombined, FaCar, FaSwimmingPool, FaBuilding, FaBoxOpen, FaTree, FaSnowflake, FaShieldAlt, FaCouch, FaTools, FaMapMarkerAlt, FaExternalLinkAlt, FaPhone, FaCompass, FaLeaf, FaCalendarAlt, FaTimes, FaWhatsapp, FaSun, FaFileAlt, FaHome, FaMoneyBill, FaSearch, FaBalanceScale, FaHandshake, FaTrophy, FaHardHat, FaLock, FaKey, FaGlobe, FaSeedling, FaBolt, FaRocket, FaStar, FaChartLine, FaEye, FaPlay, FaWheelchair, FaFire, FaCalculator, FaShareAlt, FaHeart, FaStore, FaCamera, FaWifi, FaIndustry, FaExpand, FaUser, FaUsers, FaDesktop, FaMobileAlt, FaTabletAlt, FaCommentAlt, FaRobot, FaInbox, FaExclamationTriangle, FaChartBar, FaThumbsUp, FaImage, FaPencilAlt, FaCrown, FaMousePointer, FaDollarSign, FaVideo, FaLink, FaCheck, FaCheckCircle, FaUtensils, FaDoorOpen, FaUserShield, FaTrash } from 'react-icons/fa'
 import { notifyPropertiesChanged, pushSnapshot } from './siteRebuild.js'
+import { externalizeInlinePhotos } from './inlinePhotos.js'
 
 // ─── SERVER CONFIG ────────────────────────────────────────────────────────────
 // Set VITE_API_URL in Vercel env vars to point at your Render server.
@@ -6497,10 +6498,10 @@ export default function App() {
             // Save only the affected property — safe, atomic, never touches others
             const base = API_BASE || ''
             if (base && savedProp) {
-              fetch(`${base}/api/properties/${savedProp.id}`, {
+              externalizeInlinePhotos(savedProp, ADMIN_TOKEN).then(cleanProp => fetch(`${base}/api/properties/${savedProp.id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
-                body: JSON.stringify(savedProp),
+                body: JSON.stringify(cleanProp),
                 signal: AbortSignal.timeout(30000),
               }).then(r => r.ok ? r.json() : Promise.reject(r.status))
                 .then(body => {
@@ -6525,7 +6526,7 @@ export default function App() {
                       }
                     })
                 })
-                .catch(e => console.error('[wizard] save error:', e))
+                .catch(e => console.error('[wizard] save error:', e)))
             }
           }}
         /></Suspense>}

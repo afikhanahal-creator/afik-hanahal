@@ -1780,7 +1780,9 @@ function Step6({ d, upd, onUploadingChange }) {
             <input type="file" accept="image/*" style={{ display: 'none' }} onChange={async e => {
               const f = e.target.files[0]
               if (!f) return
-              const url = await compressImage(f)
+              // Upload the logo like any photo (never inline base64 — it would ride along in every list response)
+              let url
+              try { url = (await uploadDirect(await compressForUpload(f, { max: 600 }), 'image')).url } catch { url = await compressImage(f) }
               upd('logo', url)
               e.target.value = ''
             }} />

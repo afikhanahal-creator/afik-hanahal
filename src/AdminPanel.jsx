@@ -3,6 +3,7 @@
 // App.jsx loads it on demand: const AdminPanel = lazyWithRetry(() => import('./AdminPanel.jsx'))
 // Shared constants / helpers still live in App.jsx and are imported back from there — that is a
 // dynamic→static cycle, which is safe: by the time this chunk evaluates, App.jsx already has.
+import { externalizeInlinePhotos } from './inlinePhotos.js'
 import { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react'
 import { metaFormAnswers, answersToText } from './lib/leadFields.js'
 import { LAYERS_DEF as GM_LAYERS, BG_OPTIONS as GM_BG_OPTIONS, LAYER_CATS_DEF as GM_LAYER_CATS } from './govmapLayers.js'
@@ -2629,9 +2630,10 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   // ── Individual property save — PUT /api/properties/:id ────────────────────
   // Safe: only touches the ONE property being saved. Other properties untouched.
   // Retries up to 3 extra times (1 s → 2 s → 4 s) to survive Render cold-starts.
-  const saveProp = async (prop) => {
+  const saveProp = async (rawProp) => {
     setPropSyncing(true)
     setPropSyncError('')
+    const prop = await externalizeInlinePhotos(rawProp, ADMIN_TOKEN)   // never store a photo inline (src/inlinePhotos.js)
     const base = API_BASE || ''
     let lastErr = null
     for (let attempt = 0; attempt < 4; attempt++) {
@@ -2664,8 +2666,9 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   }
 
   // Silent background save for reorder and auto-save (no spinner, 3 retries)
-  const savePropSilent = async (prop) => {
+  const savePropSilent = async (rawProp) => {
     const base = API_BASE || ''
+    const prop = await externalizeInlinePhotos(rawProp, ADMIN_TOKEN)
     for (let attempt = 0; attempt < 3; attempt++) {
       if (attempt > 0) await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt - 1)))
       try {
@@ -2702,7 +2705,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
       const r = await fetch(`${base}/api/properties/bulk`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
-        body:    JSON.stringify(nextProps),
+        body:    JSON.stringify(await Promise.all(nextProps.map(p => externalizeInlinePhotos(p, ADMIN_TOKEN)))),
         signal:  AbortSignal.timeout(20000),
       })
       if (!r.ok) throw new Error(await r.text().catch(() => String(r.status)))
