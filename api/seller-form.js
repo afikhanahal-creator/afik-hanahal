@@ -33,6 +33,7 @@ import { createClient } from '@supabase/supabase-js'
 import { randomBytes } from 'crypto'
 import { backupEnabled, backupPut, backupList, backupGet, backupDelete } from '../lib/backup.js'
 import { archiveEnabled, archiveSubmission, archiveRepoUrl } from '../lib/archive.js'
+import { videoPack } from '../lib/videoPack.js'
 import { buildSummary, headline, PROPERTY_TYPE_LABEL, DOC_TAG_LABEL, publicAnswers, buildStory, storyText, directionsText, STEPS, INTAKE_STATUSES, purposeOf, roomsOf, visibleSteps, stepQuestion } from '../src/sellerFormSchema.js'
 
 const SUPA_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
@@ -715,6 +716,14 @@ export default async function handler(req, res) {
     // ── everything below is admin-only ──────────────────────────────────────
     if (!isAdmin(req)) return res.status(401).json({ ok: false, error: 'unauthorized' })
     res.setHeader('Cache-Control', 'no-store')
+
+    // NotebookLM video pack: source document + steering brief + narration script for one property
+    if (req.method === 'GET' && action === 'video-pack') {
+      if (!id) return res.status(400).json({ ok: false, error: 'id required' })
+      const row = await getRow(`id=eq.${encodeURIComponent(id)}`, 'id,ref,answers,story,asking_price,overrides,submitted_at')
+      if (!row) return res.status(404).json({ ok: false, error: 'not found' })
+      return res.status(200).json(videoPack(row, row.overrides || {}))
+    }
 
     // ── Backups: forms that arrived while Supabase was unavailable (Vercel Blob) ──
     if (req.method === 'GET' && action === 'backup-list') {

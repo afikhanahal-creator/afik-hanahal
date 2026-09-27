@@ -140,6 +140,58 @@ function AiStudio({ detail, ov, setOv, onSave, saving, copyText, say, styles }) 
   )
 }
 
+// ── Video summary via Google NotebookLM: one click prepares everything, the office pastes and renders ──
+function VideoCard({ detail, copyText, say, styles }) {
+  const { card, btn } = styles
+  const [pack, setPack] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const [step, setStep] = useState(0)
+  const load = async () => {
+    if (pack) return pack
+    setBusy(true)
+    try {
+      const r = await fetch(`${API}?action=video-pack&id=${encodeURIComponent(detail.id)}`, { headers: H })
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok || !d.ok) throw new Error(d.error || `HTTP ${r.status}`)
+      setPack(d); return d
+    } catch (e) { say(`לא הצלחתי להכין את חבילת הסרטון: ${e.message}`); return null }
+    finally { setBusy(false) }
+  }
+  const download = async () => {
+    const d = await load(); if (!d) return
+    const blob = new Blob([d.source], { type: 'text/markdown;charset=utf-8' })
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = d.filename; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000)
+    setStep(1); say('מסמך המקור ירד. עכשיו פתחו NotebookLM והעלו אותו.')
+  }
+  const copyBrief = async () => { const d = await load(); if (!d) return; copyText(d.brief); setStep(3) }
+  const copyScript = async () => { const d = await load(); if (!d) return; copyText(d.script) }
+  const openNlm = async () => { const d = await load(); if (!d) return; window.open(d.notebooklm, '_blank', 'noopener'); setStep(2) }
+  const steps = [
+    ['הורידו את מסמך המקור', 'קובץ אחד עם סיפור הנכס, כל הפרטים ומה משווקים. בלי מחיר מינימום, הצעות או הערות פנימיות.', download, 'הורד מסמך מקור'],
+    ['פתחו NotebookLM וצרו מחברת חדשה', 'לחצו "Create new" → "Add source" → "Upload" והעלו את הקובץ.', openNlm, 'פתח NotebookLM'],
+    ['לחצו "Video Overview" והדביקו את ההנחיות', 'בחלון של Video Overview לחצו על "Customize" והדביקו. הסרטון יופק בעברית תוך כמה דקות.', copyBrief, 'העתק הנחיות לסרטון'],
+  ]
+  return (
+    <div style={{ ...card, padding: '14px 16px', marginBottom: 10, borderColor: 'rgba(96,212,247,.35)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6, gap: 8, flexWrap: 'wrap' }}>
+        <h3 style={{ fontSize: 12, letterSpacing: '.12em', color: '#60D4F7', margin: 0, fontWeight: 700 }}>🎬 סרטון סיכום בעברית — Google NotebookLM</h3>
+        <button onClick={copyScript} disabled={busy} style={btn()} title="תסריט קריינות מוכן, אם תרצו להקליט בעצמכם או להשתמש בכלי אחר"><FaCopy size={11}/> העתק תסריט קריינות</button>
+      </div>
+      <div style={{ fontSize: 11.5, color: 'rgba(232,228,216,.55)', marginBottom: 10 }}>שלושה צעדים. הכל נבנה אוטומטית משני דפי הסיכום של הנכס; NotebookLM עושה את הקריינות והעריכה.</div>
+      <div style={{ display: 'grid', gap: 8 }}>
+        {steps.map(([t, sub, fn, label], i) => (
+          <div key={t} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(255,255,255,.03)', border: `1px solid ${step > i ? 'rgba(34,197,94,.4)' : 'rgba(132,144,216,.14)'}`, borderRadius: 10, padding: '9px 12px', flexWrap: 'wrap' }}>
+            <span style={{ width: 24, height: 24, borderRadius: '50%', background: step > i ? '#22C55E' : 'rgba(96,212,247,.18)', color: step > i ? '#0B0B0F' : '#60D4F7', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, flexShrink: 0 }}>{step > i ? '✓' : i + 1}</span>
+            <div style={{ flex: 1, minWidth: 180 }}><div style={{ fontSize: 13, fontWeight: 700 }}>{t}</div><div style={{ fontSize: 11.5, color: 'rgba(232,228,216,.55)' }}>{sub}</div></div>
+            <button onClick={fn} disabled={busy} style={btn({ background: 'rgba(96,212,247,.12)', borderColor: 'rgba(96,212,247,.4)', color: '#60D4F7' })}>{i === 1 ? <FaExternalLinkAlt size={10}/> : i === 0 ? <FaDownload size={10}/> : <FaCopy size={10}/>} {label}</button>
+          </div>
+        ))}
+      </div>
+      <div style={{ fontSize: 11, color: 'rgba(232,228,216,.45)', marginTop: 8 }}>הסרטון המוכן יורד מ-NotebookLM כקובץ MP4. אפשר להעלות אותו ללשונית "מדיה" של הנכס, לשלוח ללקוח בוואטסאפ או לפרסם ברשתות.</div>
+    </div>
+  )
+}
+
 function Yad2Card({ detail, ov, copyText, styles }) {
   const { card, btn } = styles
   const rows = yad2Fields(detail.answers || {}, ov)
@@ -694,6 +746,7 @@ export default function SellerSubmissionsTab({ C, onChanged, onOpenWizard }) {
               <>
                 <AiStudio detail={detail} ov={ov} setOv={setOv} saving={saving} copyText={copyText} say={say} styles={{ card, btn, purple }}
                   onSave={async next => { setSaving('ov'); try { await patch(detail.id, { overrides: next }); await refreshDetail(detail.id); say('הטקסט נשמר בכרטיס הנכס') } catch (e) { setError(e.message) } finally { setSaving('') } }}/>
+                {detail.submitted_at && !detail.backup && <VideoCard detail={detail} copyText={copyText} say={say} styles={{ card, btn }}/>}
                 <Yad2Card detail={detail} ov={ov} copyText={copyText} styles={{ card, btn }}/>
                 {detail.share_token && (
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
