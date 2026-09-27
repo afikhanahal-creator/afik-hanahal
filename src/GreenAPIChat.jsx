@@ -373,6 +373,10 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
     } catch (e) { throw new Error(e.name === 'TimeoutError' ? 'Green API לא ענה בזמן — נסו שוב' : e.message) }
   }, [])
 
+  // The legacy history on the Render backend (its own `chats` table) is read ONCE per contact per session:
+  // new rows there arrive through the Supabase Realtime channel below, and Render's bandwidth is metered —
+  // the 8-second poll used to download up to 300 rows from it every time. The poll only asks Green API (Vercel).
+  const backendHistoryRef = useRef({})   // phone → rows
   const fetchMsgs = useCallback(async (phone, opts = {}) => {
     const p = intlPhone(phone)
     if (!p) return
@@ -381,15 +385,15 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
     setLoadingPhones(prev => { const s = new Set(prev); s.add(p); return s })
 
     try {
-      const [backendResult, greenResult] = await Promise.allSettled([
-        API_BASE
+      const backendP = backendHistoryRef.current[p]
+        ? Promise.resolve(backendHistoryRef.current[p])
+        : API_BASE
           ? fetch(`${API_BASE}/api/chats/${p}`, {
               headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
               signal:  AbortSignal.timeout(10000),
-            }).then(r => r.ok ? r.json() : []).catch(() => [])
-          : Promise.resolve([]),
-        fetchGreenHistory(phone),
-      ])
+            }).then(r => r.ok ? r.json() : []).then(rows => { if (Array.isArray(rows)) backendHistoryRef.current[p] = rows; return rows }).catch(() => [])
+          : Promise.resolve([])
+      const [backendResult, greenResult] = await Promise.allSettled([backendP, fetchGreenHistory(phone)])
 
       const fromBackend = backendResult.status === 'fulfilled' && Array.isArray(backendResult.value) ? backendResult.value : []
       const fromGreen   = greenResult.status   === 'fulfilled' && Array.isArray(greenResult.value)   ? greenResult.value   : []

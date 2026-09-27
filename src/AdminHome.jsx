@@ -1,6 +1,6 @@
 // Admin home ("סקירה כללית"): greeting, business KPIs, live system status, pipeline and recent activity.
 import { useState, useEffect, useMemo } from 'react'
-import { FaBuilding, FaFileAlt, FaUsers, FaFire, FaWhatsapp, FaChartLine, FaRobot, FaClipboardList, FaArrowLeft, FaArrowRight, FaCircle, FaPlus, FaGlobe, FaServer } from 'react-icons/fa'
+import { FaBuilding, FaFileAlt, FaUsers, FaFire, FaWhatsapp, FaChartLine, FaRobot, FaClipboardList, FaArrowLeft, FaArrowRight, FaCircle, FaPlus, FaGlobe, FaServer, FaTachometerAlt } from 'react-icons/fa'
 import { T } from './automationsUI.jsx'
 
 const TR = {
@@ -11,6 +11,7 @@ const TR = {
     status: 'מצב המערכת', wa: 'WhatsApp (Green API)', ga: 'Google Analytics', auto: 'אוטומציות', site: 'האתר', feed: 'שרת הנכסים (Render)',
     feedOk: n => `פעיל · ${n} נכסים`, feedSnap: (n, ago) => `מושעה — האתר מגיש עותק שמור (${n} נכסים, ${ago})`, feedStatic: n => `מושעה — האתר מגיש את רשימת הפריסה האחרונה (${n})`,
     feedNone: 'מושעה ואין עותק שמור — האתר לא מציג נכסים! הפעילו את השרת ב-Render', feedSleep: 'מתעורר… (שרת חינמי)',
+    bw: 'רוחב פס Render (5 GB בחודש)', bwUse: (mb, n) => `${mb} MB נשלחו דרך האתר החודש · ${n} בקשות`, bwHeavy: kb => `רשימת הנכסים שוקלת ${kb} KB — כבדה`, bwInline: n => `${n} תמונות שמורות בתוך הנכס (base64) — העלו אותן מחדש`, bwNone: 'אין נתונים עדיין',
     ok: 'מחובר', off: 'לא מחובר', setup: 'דורש חיבור', on: 'פעילות', paused: 'מושהות', checking: 'בודק…', live: n => `${n} גולשים עכשיו`, online: 'באוויר', unread: n => `${n} הודעות שלא נקראו`,
     pipeline: 'צינור המכירות', pipelineSub: 'לידים לפי שלב', recentLeads: 'לידים אחרונים', recentProps: 'נכסים אחרונים', all: 'לכל הלידים', manage: 'לניהול נכסים',
     noLeads: 'אין לידים עדיין', noProps: 'אין נכסים עדיין', published: 'פורסם', draft: 'טיוטה', newProp: 'נכס חדש', viewSite: 'צפה באתר', noName: 'ללא שם',
@@ -24,6 +25,7 @@ const TR = {
     status: 'System status', wa: 'WhatsApp (Green API)', ga: 'Google Analytics', auto: 'Automations', site: 'Website', feed: 'Property server (Render)',
     feedOk: n => `Up · ${n} properties`, feedSnap: (n, ago) => `Down — the site serves a saved copy (${n} properties, ${ago})`, feedStatic: n => `Down — the site serves the last deploy's list (${n})`,
     feedNone: 'Down with no saved copy — the site shows no properties! Resume the server on Render', feedSleep: 'Waking up… (free tier)',
+    bw: 'Render bandwidth (5 GB / month)', bwUse: (mb, n) => `${mb} MB sent through the site this month · ${n} requests`, bwHeavy: kb => `the property list weighs ${kb} KB — heavy`, bwInline: n => `${n} photos stored inside the property (base64) — re-upload them`, bwNone: 'No data yet',
     ok: 'Connected', off: 'Not connected', setup: 'Needs setup', on: 'Running', paused: 'Paused', checking: 'Checking…', live: n => `${n} visitors now`, online: 'Online', unread: n => `${n} unread messages`,
     pipeline: 'Sales pipeline', pipelineSub: 'Leads by stage', recentLeads: 'Recent leads', recentProps: 'Recent properties', all: 'All leads', manage: 'Manage properties',
     noLeads: 'No leads yet', noProps: 'No properties yet', published: 'Published', draft: 'Draft', newProp: 'New property', viewSite: 'View site', noName: 'No name',
@@ -42,12 +44,11 @@ const STAGES = [
 const CSS = `
   .ah-kpi{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px}
   .ah-2{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:14px;align-items:start}
-  .ah-status{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+  .ah-status{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
   .ah-row{transition:background .12s}.ah-row:hover{background:rgba(var(--brand-rgb),.07)}
   .ah-card{transition:border-color .15s,transform .15s}.ah-card:hover{border-color:rgba(var(--brand-rgb),.32)!important}
   .ah-home button{min-height:0}
   @media (max-width:1280px){.ah-kpi{grid-template-columns:repeat(3,minmax(0,1fr))}}
-  @media (max-width:1300px){.ah-status{grid-template-columns:repeat(3,minmax(0,1fr))}}
   @media (max-width:1000px){.ah-2{grid-template-columns:1fr}.ah-status{grid-template-columns:repeat(2,minmax(0,1fr))}}
   @media (max-width:640px){.ah-kpi{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.ah-status{grid-template-columns:1fr}}
 `
@@ -135,6 +136,15 @@ export default function AdminHome({ properties = [], leads = [], setTab, autoCfg
     if (feed.serving === 'static') return { state: 'warn', detail: t.feedStatic(feed.static?.count ?? 0) }
     return { state: 'bad', detail: t.feedNone }
   }, [feed, t])
+  const bwTile = useMemo(() => {
+    if (!feed) return { state: 'idle', detail: t.checking }
+    if (feed.error || !feed.traffic) return { state: 'idle', detail: t.bwNone }
+    const mb = Math.round((feed.traffic.bytes || 0) / 1048576)
+    const inline = feed.list?.inlineImages || 0, kb = Math.round((feed.list?.bytes || 0) / 1024)
+    if (inline) return { state: 'warn', detail: t.bwInline(inline) }
+    if (kb > 600) return { state: 'warn', detail: t.bwHeavy(kb) }
+    return { state: mb > 3500 ? 'bad' : mb > 1500 ? 'warn' : 'ok', detail: t.bwUse(mb, feed.traffic.requests || 0) }
+  }, [feed, t])
 
   const now = new Date(), hr = now.getHours()
   const greet = hr < 5 ? t.night : hr < 12 ? t.morning : hr < 17 ? t.noon : hr < 22 ? t.evening : t.night
@@ -193,6 +203,7 @@ export default function AdminHome({ properties = [], leads = [], setTab, autoCfg
           <StatusTile icon={FaRobot} label={t.auto} onClick={() => setTab('automations')}
             state={autoOn === null ? 'idle' : autoOn ? 'ok' : 'warn'} detail={autoOn === null ? t.checking : autoOn ? t.on : t.paused}/>
           <StatusTile icon={FaServer} label={t.feed} onClick={() => window.open('https://dashboard.render.com', '_blank')} state={feedTile.state} detail={feedTile.detail}/>
+          <StatusTile icon={FaTachometerAlt} label={t.bw} onClick={() => window.open('https://dashboard.render.com/billing', '_blank')} state={bwTile.state} detail={bwTile.detail}/>
           <StatusTile icon={FaGlobe} label={t.site} onClick={() => window.open('/', '_blank')} state="ok" detail={`${t.online} · afikhanahal.co.il`}/>
         </div>
       </Card>
