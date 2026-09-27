@@ -3,7 +3,7 @@
 // Every change saves on its own (onUpdate → PATCH /api/contacts → crm_data).
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { FaTimes, FaPhone, FaWhatsapp, FaEnvelope, FaMagic, FaUser, FaStickyNote, FaTasks, FaChartPie, FaCheck, FaTrash, FaCopy, FaPlus, FaClock, FaBullseye, FaExclamationTriangle, FaLightbulb, FaQuestionCircle, FaComments, FaShieldAlt, FaSyncAlt, FaMapMarkerAlt, FaBuilding, FaCalendarAlt, FaTag, FaFlag, FaArrowUp, FaArrowDown, FaInfoCircle } from 'react-icons/fa'
+import { FaTimes, FaPhone, FaWhatsapp, FaEnvelope, FaMagic, FaUser, FaStickyNote, FaTasks, FaChartPie, FaCheck, FaTrash, FaCopy, FaPlus, FaClock, FaBullseye, FaExclamationTriangle, FaLightbulb, FaQuestionCircle, FaComments, FaShieldAlt, FaSyncAlt, FaMapMarkerAlt, FaBuilding, FaCalendarAlt, FaTag, FaFlag, FaArrowUp, FaArrowDown, FaInfoCircle, FaUserCheck, FaExternalLinkAlt, FaSearch, FaHandshake } from 'react-icons/fa'
 import { T } from './automationsUI.jsx'
 import { sourceLabel, sourceColor, originLines } from './lib/leadFields.js'
 
@@ -30,7 +30,10 @@ const TR = {
     ask: 'שאלות לשיחה', points: 'נקודות לשיחה', objections: 'התנגדויות צפויות', risks: 'סיכונים', needs: 'צרכים', persona: 'מי הלקוח', motivation: 'מוטיבציה', bestTime: 'זמן מומלץ ליצירת קשר',
     signals: { budget: 'תקציב', dealType: 'עסקה', timeline: 'זמנים', financing: 'מימון', inbound: 'הודעות ממנו', repeats: 'פניות חוזרות', listing: 'מחיר הנכס' },
     tl: { now: 'מיידי', soon: 'חודשים', later: 'לא דחוף' }, fin: { cash: 'מזומן', mortgage: 'משכנתא' }, dt: { buy: 'קנייה', sell: 'מכירה', rent: 'השכרה', invest: 'השקעה' },
-    aiOff: 'מוצג ניתוח מבוסס כללים. תדריך ה-AI לא זמין כרגע:', aiFix: { workspace: 'מפתח ה-API לא משויך ל-Workspace. צרו מפתח חדש בתוך Workspace (console.anthropic.com → Workspaces → Default → API keys), החליפו את ANTHROPIC_API_KEY ב-Vercel ופרסו מחדש.', admin_key: 'הוכנס מפתח Admin (sk-ant-admin…), שלא יכול לנתח. צרו מפתח API רגיל בתוך Workspace, החליפו ב-Vercel ופרסו מחדש.', auth: 'מפתח ה-API לא תקין. העתיקו אותו מחדש ל-Vercel ופרסו מחדש.', no_key: 'לא הוגדר מפתח ANTHROPIC_API_KEY ב-Vercel.' }, analyzedAt: t => `נותח ${t}`, legacy: 'ניתוח קודם (גרסה ישנה) – לחצו "נתח מחדש" לניתוח המדויק החדש',
+    aiOff: 'מוצג ניתוח מבוסס כללים. תדריך ה-AI לא זמין כרגע:', researching: 'מחפש מידע על הליד…', briefing: 'כותב תדריך…',
+    who: 'מי הליד — אימות ומחקר', verdict: { confirmed: 'זהות מאומתת', likely: 'זהות סבירה', unverified: 'זהות לא אומתה', mismatch: 'אי-התאמה בפרטים' }, dataQ: { rich: 'נמצא מידע רב', some: 'נמצא מידע חלקי', thin: 'נמצא מעט', none: 'לא נמצא מידע ציבורי' },
+    searches: n => `${n} חיפושים`, phoneTypes: { mobile: 'נייד', landline: 'קווי', voip: 'קו 07 (VoIP)', foreign: 'מספר זר', invalid: 'מספר לא תקין', service: 'מספר שירות', missing: 'אין מספר' }, nameQ: { full: 'שם מלא', 'first-only': 'שם פרטי בלבד', suspicious: 'שם חשוד', missing: 'אין שם' },
+    identityCheck: 'מה אומת', matchedBy: 'התאמה לפי', toConfirm: 'מה יאשר את הזהות', profiles: 'פרופילים ומקורות ציבוריים', professional: 'עיסוק', rePro: 'איש נדל״ן', publicOwner: 'המספר מופיע ציבורית אצל', hooks: 'נקודות לחימום השיחה', verify: 'שאלות לאימות עדין', flags: 'דגלים אדומים', sources: 'מקורות', opener: 'משפט פתיחה', warmup: 'תוכנית חימום', researchOff: 'המחקר לא רץ:', noResearch: 'טרם נערך מחקר על הליד — לחצו "נתח מחדש".', aiFix: { workspace: 'מפתח ה-API לא משויך ל-Workspace. צרו מפתח חדש בתוך Workspace (console.anthropic.com → Workspaces → Default → API keys), החליפו את ANTHROPIC_API_KEY ב-Vercel ופרסו מחדש.', admin_key: 'הוכנס מפתח Admin (sk-ant-admin…), שלא יכול לנתח. צרו מפתח API רגיל בתוך Workspace, החליפו ב-Vercel ופרסו מחדש.', auth: 'מפתח ה-API לא תקין. העתיקו אותו מחדש ל-Vercel ופרסו מחדש.', no_key: 'לא הוגדר מפתח ANTHROPIC_API_KEY ב-Vercel.' }, analyzedAt: t => `נותח ${t}`, legacy: 'ניתוח קודם (גרסה ישנה) – לחצו "נתח מחדש" לניתוח המדויק החדש',
   },
   en: {
     tabs: { details: 'Details', notes: 'Notes & activity', tasks: 'Tasks', analysis: 'Smart analysis' },
@@ -54,7 +57,10 @@ const TR = {
     ask: 'Questions to ask', points: 'Talking points', objections: 'Likely objections', risks: 'Risks', needs: 'Needs', persona: 'Who they are', motivation: 'Motivation', bestTime: 'Best time to reach',
     signals: { budget: 'Budget', dealType: 'Deal', timeline: 'Timeline', financing: 'Financing', inbound: 'Their messages', repeats: 'Repeat inquiries', listing: 'Listing price' },
     tl: { now: 'Now', soon: 'Months', later: 'No rush' }, fin: { cash: 'Cash', mortgage: 'Mortgage' }, dt: { buy: 'Buy', sell: 'Sell', rent: 'Rent', invest: 'Invest' },
-    aiOff: 'Showing the rule-based analysis. The AI briefing is unavailable:', aiFix: { workspace: 'The API key is not tied to a workspace. Create a new key inside a workspace (console.anthropic.com → Workspaces → Default → API keys), replace ANTHROPIC_API_KEY in Vercel and redeploy.', admin_key: 'An Admin key (sk-ant-admin…) was entered; it cannot run the analysis. Create a regular API key inside a workspace, replace it in Vercel and redeploy.', auth: 'The API key is invalid. Copy it into Vercel again and redeploy.', no_key: 'ANTHROPIC_API_KEY is not set in Vercel.' }, analyzedAt: t => `Analyzed ${t}`, legacy: 'Older analysis – press "Re-analyze" for the new, more accurate one',
+    aiOff: 'Showing the rule-based analysis. The AI briefing is unavailable:', researching: 'Researching the lead…', briefing: 'Writing the briefing…',
+    who: 'Who the lead is — verification & research', verdict: { confirmed: 'Identity confirmed', likely: 'Identity likely', unverified: 'Identity not verified', mismatch: 'Details do not match' }, dataQ: { rich: 'Rich public data', some: 'Some public data', thin: 'Little found', none: 'No public data found' },
+    searches: n => `${n} searches`, phoneTypes: { mobile: 'Mobile', landline: 'Landline', voip: '07x line (VoIP)', foreign: 'Foreign number', invalid: 'Invalid number', service: 'Service number', missing: 'No number' }, nameQ: { full: 'Full name', 'first-only': 'First name only', suspicious: 'Suspicious name', missing: 'No name' },
+    identityCheck: 'What was verified', matchedBy: 'Matched by', toConfirm: 'What would confirm it', profiles: 'Public profiles & sources', professional: 'Occupation', rePro: 'Real-estate professional', publicOwner: 'Number publicly listed under', hooks: 'Rapport hooks', verify: 'Gentle verification questions', flags: 'Red flags', sources: 'Sources', opener: 'Opening line', warmup: 'Warm-up plan', researchOff: 'Research did not run:', noResearch: 'No research yet — click "Re-analyze".', aiFix: { workspace: 'The API key is not tied to a workspace. Create a new key inside a workspace (console.anthropic.com → Workspaces → Default → API keys), replace ANTHROPIC_API_KEY in Vercel and redeploy.', admin_key: 'An Admin key (sk-ant-admin…) was entered; it cannot run the analysis. Create a regular API key inside a workspace, replace it in Vercel and redeploy.', auth: 'The API key is invalid. Copy it into Vercel again and redeploy.', no_key: 'ANTHROPIC_API_KEY is not set in Vercel.' }, analyzedAt: t => `Analyzed ${t}`, legacy: 'Older analysis – press "Re-analyze" for the new, more accurate one',
   },
 }
 const GRADE_COLOR = { hot: '#EF4444', warm: '#F59E0B', cool: '#60A5FA', cold: '#94A3B8' }
@@ -357,6 +363,7 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
 
   // ── Analysis tab ──────────────────────────────────────────────────────────
   const b = en.brief || {}
+  const rs = en.research || null   // prospect research (lib/lead-research.js): identity, phone, profiles, flags, hooks
   const sig = en.signals || {}
   const factorGroups = useMemo(() => {
     const g = {}
@@ -373,7 +380,7 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
         <p style={{ margin: '0 auto 16px', maxWidth: 520, fontSize: 13, lineHeight: 1.6, color: T.text2 }}>{t.noAnalysisSub}</p>
         {en.notes && <p style={{ margin: '0 auto 16px', maxWidth: 560, fontSize: 13, lineHeight: 1.6, color: T.text, background: 'rgba(var(--ov),.03)', borderRadius: 10, padding: 12, textAlign: 'start' }}>{en.notes}</p>}
         {onEnrich && <button type="button" className="lc-act" disabled={enriching} onClick={() => onEnrich(lead)} style={{ background: 'linear-gradient(135deg,var(--au-brand),var(--au-brand-deep))', color: '#fff', border: 'none', height: 40, padding: '0 18px', fontSize: 13.5 }}>
-          {enriching ? <FaSyncAlt size={12} style={{ animation: 'lc-spin 1s linear infinite' }}/> : <FaMagic size={12}/>}{enriching ? t.analyzing : t.analyze}</button>}
+          {enriching ? <FaSyncAlt size={12} style={{ animation: 'lc-spin 1s linear infinite' }}/> : <FaMagic size={12}/>}{enriching ? (en.stage === 'research' ? t.researching : en.stage === 'brief' ? t.briefing : t.analyzing) : t.analyze}</button>}
       </div>
     </Section>
   ) : (
@@ -414,6 +421,12 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
       {nextText && (
         <Section title={t.next} icon={FaBullseye}>
           <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: T.text, lineHeight: 1.55 }}>{nextText}</p>
+          {(b.openingLine || rs?.opener) && <div style={{ marginTop: 8, fontSize: 13, color: T.text, lineHeight: 1.55 }}><span style={{ fontSize: 12, fontWeight: 800, color: T.text3 }}>{t.opener}: </span><span dir="auto">“{b.openingLine || rs.opener}”</span></div>}
+          {b.warmUpPlan?.length > 0 && (
+            <ol style={{ margin: '10px 0 0', paddingInlineStart: 20, display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {b.warmUpPlan.map((x, i) => <li key={i} style={{ fontSize: 13, color: T.text, lineHeight: 1.5 }}>{x}</li>)}
+            </ol>
+          )}
           {(b.bestTimeToContact || en.bestHour != null) && <div style={{ fontSize: 12.5, color: T.text3, marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}><FaClock size={10}/>{t.bestTime}: {b.bestTimeToContact || `${String(en.bestHour).padStart(2, '0')}:00`}</div>}
           {b.suggestedMessage && (
             <div style={{ marginTop: 12 }}>
@@ -423,6 +436,52 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
                 <button type="button" className="lc-act" onClick={() => copyMsg(b.suggestedMessage)} style={{ background: 'rgba(var(--ov),.05)', color: T.text2, border: `1px solid ${T.s1Line}` }}><FaCopy size={10}/>{copied ? t.copied : t.copy}</button>
                 {onOpenChat && lead.phone && <button type="button" className="lc-act" onClick={() => { copyMsg(b.suggestedMessage); onOpenChat(lead); onClose() }} style={{ background: 'rgba(37,211,102,.12)', color: '#1FAF55', border: '1px solid rgba(37,211,102,.35)' }}><FaWhatsapp size={12}/>{t.openChat}</button>}
               </div>
+            </div>
+          )}
+        </Section>
+      )}
+
+      {(rs || en.version === 2) && (
+        <Section title={t.who} icon={FaUserCheck} right={rs && !rs.error ? <span style={{ fontSize: 11.5, color: T.text3 }}>{t.dataQ[rs.dataQuality] || ''}{rs.searches ? ` · ${t.searches(rs.searches)}` : ''}</span> : null}>
+          {!rs ? <p style={{ margin: 0, fontSize: 13, color: T.text3 }}>{t.noResearch}</p> : rs.error ? (
+            <div role="status" style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '9px 12px', borderRadius: 10, background: 'rgba(245,158,11,.1)', border: '1px solid rgba(245,158,11,.3)', fontSize: 12.5, color: T.amberText }}><FaInfoCircle size={12} style={{ flexShrink: 0, marginTop: 2 }}/><span>{t.researchOff} {(rs.code && t.aiFix?.[rs.code]) || rs.error}</span></div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                {(() => { const v = rs.identity?.verdict || 'unverified'; const col = v === 'confirmed' ? '#22C55E' : v === 'likely' ? '#60A5FA' : v === 'mismatch' ? '#EF4444' : '#F59E0B'; return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 11px', borderRadius: 20, fontSize: 12.5, fontWeight: 800, color: col, background: `${col}1f`, border: `1px solid ${col}55` }}><FaUserCheck size={11}/>{t.verdict[v]}{rs.identity?.confidence ? ` · ${t.conf[rs.identity.confidence]}` : ''}</span> })()}
+                {rs.phoneCheck && <span title={(rs.phoneCheck.notes || []).join(' · ')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 10px', borderRadius: 20, fontSize: 12, color: rs.phoneCheck.valid && rs.phoneCheck.type === 'mobile' && !(rs.phoneCheck.notes || []).length ? T.text2 : '#F59E0B', background: 'rgba(var(--ov),.05)', border: `1px solid ${T.divider}` }}><FaPhone size={10}/>{t.phoneTypes[rs.phoneCheck.type] || rs.phoneCheck.type}{rs.phoneCheck.carrier ? ` · ${rs.phoneCheck.carrier}` : rs.phoneCheck.area ? ` · ${rs.phoneCheck.area}` : ''}{(rs.phoneCheck.notes || []).some(n => /made up/.test(n)) ? ' · ⚠' : ''}</span>}
+                {rs.nameCheck && rs.nameCheck.quality !== 'full' && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 10px', borderRadius: 20, fontSize: 12, color: '#F59E0B', background: 'rgba(var(--ov),.05)', border: `1px solid ${T.divider}` }}><FaUser size={10}/>{t.nameQ[rs.nameCheck.quality] || rs.nameCheck.quality}</span>}
+                {rs.realEstate?.isProfessional && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 10px', borderRadius: 20, fontSize: 12, fontWeight: 700, color: '#EF4444', background: 'rgba(239,68,68,.1)', border: '1px solid rgba(239,68,68,.35)' }}><FaBuilding size={10}/>{t.rePro}{rs.realEstate.kind ? ` · ${rs.realEstate.kind}` : ''}</span>}
+              </div>
+              {(rs.identity?.who || b.identityCheck) && <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.65, color: T.text }}>{b.identityCheck || rs.identity.who}</p>}
+              {b.identityCheck && rs.identity?.who && rs.identity.who !== b.identityCheck && <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: T.text2 }}>{rs.identity.who}</p>}
+              {(rs.professional?.occupation || rs.professional?.company) && <div style={{ fontSize: 13, color: T.text }}><span style={{ fontSize: 12, fontWeight: 800, color: T.text3 }}>{t.professional}: </span>{[rs.professional.occupation, rs.professional.role, rs.professional.company, rs.professional.location].filter(Boolean).join(' · ')}{rs.professional.sourceUrl && <a href={rs.professional.sourceUrl} target="_blank" rel="noopener noreferrer" style={{ marginInlineStart: 6, color: T.brandText }}><FaExternalLinkAlt size={10}/></a>}</div>}
+              {rs.phone?.publicOwner && <div style={{ fontSize: 13, color: T.text }}><span style={{ fontSize: 12, fontWeight: 800, color: T.text3 }}>{t.publicOwner}: </span>{rs.phone.publicOwner}</div>}
+              {(rs.identity?.matchedBy?.length > 0 || rs.identity?.toConfirm?.length > 0) && (
+                <div className="lc-grid2">
+                  {rs.identity.matchedBy?.length > 0 && <div><div style={{ fontSize: 12, fontWeight: 800, color: T.text3, marginBottom: 4 }}>{t.matchedBy}</div><div style={{ fontSize: 13, color: T.text, lineHeight: 1.5 }}>{rs.identity.matchedBy.join(' · ')}</div></div>}
+                  {rs.identity.toConfirm?.length > 0 && <div><div style={{ fontSize: 12, fontWeight: 800, color: T.text3, marginBottom: 4 }}>{t.toConfirm}</div><div style={{ fontSize: 13, color: T.text, lineHeight: 1.5 }}>{rs.identity.toConfirm.join(' · ')}</div></div>}
+                </div>
+              )}
+              {rs.profiles?.length > 0 && (
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12.5, fontWeight: 800, color: T.text2, marginBottom: 8 }}><FaSearch size={11} style={{ color: T.brandText }}/>{t.profiles}</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {rs.profiles.map((pr, i) => (
+                      <a key={i} href={pr.url} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', gap: 8, alignItems: 'baseline', fontSize: 13, color: T.text, textDecoration: 'none', padding: '6px 10px', borderRadius: 8, background: 'rgba(var(--ov),.04)', border: `1px solid ${T.divider}` }}>
+                        <span style={{ fontSize: 11, fontWeight: 800, color: T.brandText, textTransform: 'uppercase', flexShrink: 0 }}>{pr.network}</span>
+                        <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{pr.title || pr.url}{pr.note ? <span style={{ color: T.text3 }}> — {pr.note}</span> : null}</span>
+                        <span style={{ fontSize: 11, color: T.text3, flexShrink: 0 }}>{t.conf[pr.confidence]}</span>
+                        <FaExternalLinkAlt size={10} style={{ color: T.text3, flexShrink: 0 }}/>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <ListBlock title={t.flags} icon={FaExclamationTriangle} items={rs.redFlags} color="#EF4444"/>
+              <ListBlock title={t.hooks} icon={FaHandshake} items={b.rapportHooks?.length ? b.rapportHooks : rs.hooks} color="#22C55E"/>
+              <ListBlock title={t.verify} icon={FaQuestionCircle} items={rs.verifyQuestions} color="#60A5FA"/>
+              {rs.sources?.length > 0 && <div style={{ fontSize: 11.5, color: T.text3, display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}><span style={{ fontWeight: 800 }}>{t.sources}:</span>{rs.sources.slice(0, 6).map((sc, i) => <a key={i} href={sc.url} target="_blank" rel="noopener noreferrer" style={{ color: T.brandText, textDecoration: 'none' }}>{sc.title || new URL(sc.url).hostname}</a>)}</div>}
             </div>
           )}
         </Section>

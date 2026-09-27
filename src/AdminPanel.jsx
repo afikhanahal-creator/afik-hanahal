@@ -2927,12 +2927,26 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const enrichLead = async (lead) => {
     if (lead.enrichment?.status === 'enriching') return
     const prevEnrichment = lead.enrichment || null
-    setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, enrichment: { ...(l.enrichment || {}), status: 'enriching' } } : l))
+    const setStage = stage => setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, enrichment: { ...(l.enrichment || {}), status: 'enriching', stage } } : l))
+    setStage('research')
     const { enrichment: _e, ...clean } = lead
     try {
+      // Step 1 — who is this person: phone + name + public profiles (lib/lead-research.js, web search). Its own time
+      // budget; a failure here never blocks the briefing, it is just reported inside it.
+      let research = null
+      try {
+        const rr = await fetch('/api/meta/lead-research', {
+          method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+          body: JSON.stringify({ lead: clean }), signal: AbortSignal.timeout(65000),
+        })
+        research = await rr.json().catch(() => null)
+        if (!rr.ok) research = { error: research?.error || `HTTP ${rr.status}` }
+      } catch (e) { research = { error: e.name === 'TimeoutError' ? 'research timed out' : e.message } }
+      // Step 2 — the briefing, with the research in the dossier
+      setStage('brief')
       const r = await fetch('/api/meta/lead-analyze', {
         method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
-        body: JSON.stringify({ lead: clean }), signal: AbortSignal.timeout(70000),
+        body: JSON.stringify({ lead: clean, research }), signal: AbortSignal.timeout(70000),
       })
       let a = await r.json().catch(() => ({}))
       if (!r.ok || a.error) throw new Error(a.error || `HTTP ${r.status}`)
