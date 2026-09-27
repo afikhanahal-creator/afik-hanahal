@@ -4,6 +4,8 @@
  */
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { supabase } from './lib/supabaseClient'
+import { templateList, renderTemplate, CATEGORIES } from '../lib/automations-shared.js'
+import { WAText } from './waFormat.jsx'
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 const API_BASE      = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
@@ -19,8 +21,8 @@ const MAX_FILE_MB  = 3   // Vercel request-body cap (base64 inflates ~33%)
 // ─── Theme palettes ───────────────────────────────────────────────────────────
 const DARK = {
   bubbleOut:     '#005C4B',
-  bubbleIn:      '#202C33',
-  chatBg:        '#0B141A',
+  bubbleIn:      '#2A3942',
+  chatBg:        '#17222A',
   panelBg:       '#111B21',
   selectedRow:   '#2A3942',
   authBadgeBg:   '#1B3B2E',
@@ -71,7 +73,21 @@ const LIGHT = {
 
 // ─── Doodle backgrounds ───────────────────────────────────────────────────────
 const DOODLE_LIGHT = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='76' height='76'%3E%3Cdefs%3E%3Cpattern id='wa' x='0' y='0' width='76' height='76' patternUnits='userSpaceOnUse'%3E%3Cg fill='none' stroke='%23A09880' stroke-opacity='0.12' stroke-width='1'%3E%3Ccircle cx='38' cy='38' r='13'/%3E%3Ccircle cx='38' cy='38' r='5'/%3E%3Cline x1='38' y1='5' x2='38' y2='18'/%3E%3Cline x1='38' y1='58' x2='38' y2='71'/%3E%3Cline x1='5' y1='38' x2='18' y2='38'/%3E%3Cline x1='58' y1='38' x2='71' y2='38'/%3E%3Cline x1='13' y1='13' x2='22' y2='22'/%3E%3Cline x1='54' y1='54' x2='63' y2='63'/%3E%3Cline x1='63' y1='13' x2='54' y2='22'/%3E%3Cline x1='22' y1='54' x2='13' y2='63'/%3E%3C/g%3E%3C/pattern%3E%3C/defs%3E%3Crect width='76' height='76' fill='url(%23wa)'/%3E%3C/svg%3E")`
-const DOODLE_DARK  = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='76' height='76'%3E%3Cdefs%3E%3Cpattern id='wad' x='0' y='0' width='76' height='76' patternUnits='userSpaceOnUse'%3E%3Cg fill='none' stroke='%23FFFFFF' stroke-opacity='0.03' stroke-width='1'%3E%3Ccircle cx='38' cy='38' r='13'/%3E%3Ccircle cx='38' cy='38' r='5'/%3E%3Cline x1='38' y1='5' x2='38' y2='18'/%3E%3Cline x1='38' y1='58' x2='38' y2='71'/%3E%3Cline x1='5' y1='38' x2='18' y2='38'/%3E%3Cline x1='58' y1='38' x2='71' y2='38'/%3E%3Cline x1='13' y1='13' x2='22' y2='22'/%3E%3Cline x1='54' y1='54' x2='63' y2='63'/%3E%3Cline x1='63' y1='13' x2='54' y2='22'/%3E%3Cline x1='22' y1='54' x2='13' y2='63'/%3E%3C/g%3E%3C/pattern%3E%3C/defs%3E%3Crect width='76' height='76' fill='url(%23wad)'/%3E%3C/svg%3E")`
+const DOODLE_DARK  = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='76' height='76'%3E%3Cdefs%3E%3Cpattern id='wad' x='0' y='0' width='76' height='76' patternUnits='userSpaceOnUse'%3E%3Cg fill='none' stroke='%23FFFFFF' stroke-opacity='0.06' stroke-width='1'%3E%3Ccircle cx='38' cy='38' r='13'/%3E%3Ccircle cx='38' cy='38' r='5'/%3E%3Cline x1='38' y1='5' x2='38' y2='18'/%3E%3Cline x1='38' y1='58' x2='38' y2='71'/%3E%3Cline x1='5' y1='38' x2='18' y2='38'/%3E%3Cline x1='58' y1='38' x2='71' y2='38'/%3E%3Cline x1='13' y1='13' x2='22' y2='22'/%3E%3Cline x1='54' y1='54' x2='63' y2='63'/%3E%3Cline x1='63' y1='13' x2='54' y2='22'/%3E%3Cline x1='22' y1='54' x2='13' y2='63'/%3E%3C/g%3E%3C/pattern%3E%3C/defs%3E%3Crect width='76' height='76' fill='url(%23wad)'/%3E%3C/svg%3E")`
+
+// ─── History cache (localStorage) ─────────────────────────────────────────────
+const HIST_KEY = 'wa_hist_v1'
+const HIST_CHATS = 30, HIST_MSGS = 80
+function persistHistory(all) {
+  try {
+    const entries = Object.entries(all)
+      .map(([p, list]) => [p, (list || []).filter(m => m && !String(m.id || '').startsWith('opt-')).slice(-HIST_MSGS).map(({ file, ...m }) => (m.media?.thumb ? { ...m, media: { ...m.media, thumb: null } } : m))])   // no base64 thumbnails in storage
+      .filter(([, list]) => list.length)
+      .sort((a, b) => new Date(b[1][b[1].length - 1].created_at) - new Date(a[1][a[1].length - 1].created_at))
+      .slice(0, HIST_CHATS)
+    localStorage.setItem(HIST_KEY, JSON.stringify(Object.fromEntries(entries)))
+  } catch { /* quota: history cache is best-effort */ }
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function intlPhone(raw) {
@@ -82,6 +98,22 @@ function intlPhone(raw) {
   if (d.startsWith('0'))   return '972' + d.slice(1)
   return d
 }
+
+const tail9 = p => String(p || '').replace(/\D/g, '').slice(-9)
+// 972541234567 → 054-123-4567 (how Israelis read a number); anything else stays as-is
+function fmtLocal(raw) {
+  const p = intlPhone(raw)
+  if (/^972\d{9}$/.test(p)) { const l = '0' + p.slice(3); return `${l.slice(0, 3)}-${l.slice(3, 6)}-${l.slice(6)}` }
+  return raw || ''
+}
+const OFFICE_LABEL = { he: 'המשרד · התראות מערכת', en: 'Office · system alerts' }
+function nameOf(c, lang = 'he') {
+  if (!c) return ''
+  if (c.name && !/^\+?\d[\d\s-]*$/.test(c.name)) return c.name
+  if (c.office || c.self) return OFFICE_LABEL[lang] || OFFICE_LABEL.he
+  return fmtLocal(c.phone || c.name)
+}
+const hasName = c => !!(c && ((c.name && !/^\+?\d[\d\s-]*$/.test(c.name)) || c.office || c.self))
 
 function avatarBg(name) {
   const C = ['#D9626E','#AA7DE0','#3A8FC7','#E08C3A','#3BAF7E','#C2497E','#5C8AE0']
@@ -124,10 +156,16 @@ function normalizeGreenMsg(m) {
       : m.typeMessage === 'contactMessage'  ? '👤 איש קשר'
       : m.typeMessage === 'locationMessage' ? '📍 מיקום'
       : m.typeMessage || '')
+  const quoted = m.quotedMessage || m.extendedTextMessageData?.quotedMessage || null
   return {
     id:         m.idMessage,
     direction:  m.type === 'outgoing' ? 'out' : 'in',
-    message:    text,
+    message:    (m.typeMessage === 'imageMessage' || m.typeMessage === 'videoMessage') && !m.caption ? '' : (m.typeMessage === 'audioMessage' ? '' : text),
+    kind:       m.typeMessage || 'textMessage',
+    media:      m.downloadUrl ? { url: m.downloadUrl, name: m.fileName || '', mime: m.mimeType || '', thumb: m.jpegThumbnail ? `data:image/jpeg;base64,${m.jpegThumbnail}` : null } : (m.jpegThumbnail ? { url: null, thumb: `data:image/jpeg;base64,${m.jpegThumbnail}` } : null),
+    location:   m.location || (m.typeMessage === 'locationMessage' ? { latitude: m.latitude, longitude: m.longitude, nameLocation: m.nameLocation, address: m.address } : null),
+    contactCard: m.contact || null,
+    quoted:     quoted ? { text: quoted.textMessage || quoted.caption || (quoted.typeMessage ? '📎' : ''), out: quoted.type === 'outgoing' } : null,
     created_at: new Date((m.timestamp || 0) * 1000).toISOString(),
     // Preserve the real delivery state for outgoing messages so the ticks can
     // show sent (✓) → delivered (✓✓ gray) → read (✓✓ blue). Incoming needs none.
@@ -161,6 +199,21 @@ const ICONS = {
 
 // ─── Delivery-status ticks ────────────────────────────────────────────────────
 // sending → clock · sent → ✓ · delivered → ✓✓ gray · read → ✓✓ blue · failed → !
+// Initial on a colour for named contacts; a neutral person glyph for bare numbers
+function Avatar({ c, size = 40, lang }) {
+  const named = hasName(c)
+  const label = nameOf(c, lang)
+  const office = c?.office || c?.self
+  const bg = office ? '#8490D8' : named ? avatarBg(label) : '#8696A0'
+  return (
+    <div aria-hidden style={{ width:size, height:size, borderRadius:'50%', background:bg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:Math.round(size * .4), fontWeight:700, color:'#fff', flexShrink:0, userSelect:'none', overflow:'hidden' }}>
+      {office ? <svg width={size*.46} height={size*.46} viewBox="0 0 24 24" fill="currentColor"><path d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22Zm7-6V11a7 7 0 0 0-5.5-6.84V3.5a1.5 1.5 0 0 0-3 0v.66A7 7 0 0 0 5 11v5l-2 2v1h18v-1l-2-2Z"/></svg>
+        : named ? [...label.trim()][0]?.toUpperCase()
+        : <svg width={size*.56} height={size*.56} viewBox="0 0 24 24" fill="currentColor"><path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm0 2c-4.42 0-8 2.24-8 5v1h16v-1c0-2.76-3.58-5-8-5Z"/></svg>}
+    </div>
+  )
+}
+
 function TickMark({ status, WA, size = 14 }) {
   if (status === 'sending' || status === 'pending') {
     return (
@@ -183,21 +236,23 @@ function TickMark({ status, WA, size = 14 }) {
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
-export default function GreenAPIChat({ leads = [], lang = 'he', initialContact = null, onOpenLead, onDeleteLead, onNewMessage, onSentMessage, onReadChange }) {
+export default function GreenAPIChat({ leads = [], lang = 'he', initialContact = null, onOpenLead, onDeleteLead, onNewMessage, onSentMessage, onReadChange, autoConfig = null }) {
 
   // ── Theme ─────────────────────────────────────────────────────────────────
-  const [isDark, setIsDark] = useState(() => localStorage.getItem('whatsapp_theme') !== 'light')
+  const [isDark, setIsDark] = useState(() => { try { return localStorage.getItem('whatsapp_theme_v2') === 'dark' } catch { return false } })
   const WA     = isDark ? DARK  : LIGHT
   const DOODLE = isDark ? DOODLE_DARK : DOODLE_LIGHT
 
   const toggleTheme = () => {
     const next = !isDark
     setIsDark(next)
-    localStorage.setItem('whatsapp_theme', next ? 'dark' : 'light')
+    try { localStorage.setItem('whatsapp_theme_v2', next ? 'dark' : 'light') } catch {}
   }
 
   // ── State ─────────────────────────────────────────────────────────────────
-  const [chats,         setChats]        = useState({})
+  // History survives tab switches and reloads: the last messages of recent chats are kept in this
+  // browser and shown instantly, then refreshed from Green API in the background.
+  const [chats,         setChats]        = useState(() => { try { return JSON.parse(localStorage.getItem(HIST_KEY) || '{}') } catch { return {} } })
   const [contact,       setContact]      = useState(initialContact)
   const [search,        setSearch]       = useState('')
   const [input,         setInput]        = useState('')
@@ -211,6 +266,11 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
   const [activeNav,     setActiveNav]    = useState('chats')
   const [emoji,         setEmoji]        = useState(false)
   const [attached,      setAttached]     = useState(null)
+  const [statusMissing, setStatusMissing] = useState([])
+  const [greenChats,    setGreenChats]   = useState([])   // recent WhatsApp chats from Green API (not only leads)
+  const [lightbox,      setLightbox]     = useState(null)
+  const [quickOpen,     setQuickOpen]    = useState(false)
+  const [quickQ,        setQuickQ]       = useState('')
 
   // Per-conversation read tracking (persisted) → drives unread badges
   const [lastRead, setLastRead] = useState(() => {
@@ -229,6 +289,12 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
   const [deletingId,    setDeletingId]    = useState(null)  // id hidden during undo window
   const [pendingDelete, setPendingDelete] = useState(null)  // { lead, timer }
 
+  const chatsRef          = useRef(chats)
+  useEffect(() => {
+    chatsRef.current = chats
+    const id = setTimeout(() => persistHistory(chats), 800)   // debounced: polls update often
+    return () => clearTimeout(id)
+  }, [chats])
   const scrollRef         = useRef(null)
   const pollRef           = useRef(null)
   const inputRef          = useRef(null)
@@ -245,6 +311,14 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
   useEffect(() => { onSentMessageRef.current = onSentMessage }, [onSentMessage])
   useEffect(() => { onReadChangeRef.current  = onReadChange  }, [onReadChange])
   useEffect(() => { leadsRef.current = leads }, [leads])
+  const greenChatsRef     = useRef([])
+  useEffect(() => { greenChatsRef.current = greenChats }, [greenChats])
+  const nameForPhone = p => {
+    const k = tail9(p)
+    const lead = leadsRef.current.find(l => tail9(l.phone) === k)
+    const g = greenChatsRef.current.find(c => tail9(c.phone) === k)
+    return nameOf({ ...(g || {}), name: (lead?.name || '').trim() || g?.name || '', phone: p }, lang)
+  }
 
   // ── Delete handlers ───────────────────────────────────────────────────────
   const handleDeleteClick = (e, lead) => {
@@ -290,31 +364,36 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
         body:    JSON.stringify({ phone: p, count: 100 }),
         signal:  AbortSignal.timeout(20000),
       })
-      if (!r.ok) return []
+      if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || `Green API ${r.status}`) }
       const data = await r.json()
       if (!Array.isArray(data)) return []
       return data
         .map(normalizeGreenMsg)
         .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
-    } catch { return [] }
+    } catch (e) { throw new Error(e.name === 'TimeoutError' ? 'Green API לא ענה בזמן — נסו שוב' : e.message) }
   }, [])
 
+  // The legacy history on the Render backend (its own `chats` table) is read ONCE per contact per session:
+  // new rows there arrive through the Supabase Realtime channel below, and Render's bandwidth is metered —
+  // the 8-second poll used to download up to 300 rows from it every time. The poll only asks Green API (Vercel).
+  const backendHistoryRef = useRef({})   // phone → rows
   const fetchMsgs = useCallback(async (phone, opts = {}) => {
     const p = intlPhone(phone)
     if (!p) return
-    if (opts.showLoader) { setLoading(true); setFetchError(null) }
+    const hasCache = (chatsRef.current[p] || []).length > 0
+    if (opts.showLoader && !hasCache) { setLoading(true); setFetchError(null) }
     setLoadingPhones(prev => { const s = new Set(prev); s.add(p); return s })
 
     try {
-      const [backendResult, greenResult] = await Promise.allSettled([
-        API_BASE
+      const backendP = backendHistoryRef.current[p]
+        ? Promise.resolve(backendHistoryRef.current[p])
+        : API_BASE
           ? fetch(`${API_BASE}/api/chats/${p}`, {
               headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
               signal:  AbortSignal.timeout(10000),
-            }).then(r => r.ok ? r.json() : []).catch(() => [])
-          : Promise.resolve([]),
-        fetchGreenHistory(phone),
-      ])
+            }).then(r => r.ok ? r.json() : []).then(rows => { if (Array.isArray(rows)) backendHistoryRef.current[p] = rows; return rows }).catch(() => [])
+          : Promise.resolve([])
+      const [backendResult, greenResult] = await Promise.allSettled([backendP, fetchGreenHistory(phone)])
 
       const fromBackend = backendResult.status === 'fulfilled' && Array.isArray(backendResult.value) ? backendResult.value : []
       const fromGreen   = greenResult.status   === 'fulfilled' && Array.isArray(greenResult.value)   ? greenResult.value   : []
@@ -327,9 +406,15 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
       const merged = [...byId.values()]
         .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
 
-      setFetchError(merged.length === 0 && greenErr ? greenErr : null)
+      setFetchError(greenErr || null)
       setChats(prev => {
         const existing = prev[p] || []
+        // A failed load must never erase what is already on screen
+        if (greenErr && !fromGreen.length) {
+          if (!fromBackend.length) return prev
+          const keep = new Map(existing.map(m => [m.id, m])); fromBackend.forEach(m => m.id && keep.set(m.id, m))
+          return { ...prev, [p]: [...keep.values()].sort((a, b) => new Date(a.created_at) - new Date(b.created_at)) }
+        }
         const optimistics = existing.filter(m => m.id && String(m.id).startsWith('opt-'))
         if (optimistics.length > 0) {
           const confirmedOut = new Set(merged.filter(m => m.direction === 'out').map(m => m.message))
@@ -353,13 +438,12 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
       )
       merged.forEach(m => { if (m.id) notifiedMsgIdsRef.current.add(m.id) })
       if (newIncoming.length > 0 && onNewMessageRef.current) {
-        const contactLead = leadsRef.current.find(l => intlPhone(l.phone) === p)
-        const contactName = contactLead?.name || p
+        const contactName = nameForPhone(p)
         const latest = newIncoming[newIncoming.length - 1]
         onNewMessageRef.current({ contactName, message: latest.message, phone: p })
       }
     } finally {
-      if (opts.showLoader) setLoading(false)
+      setLoading(false)
       setLoadingPhones(prev => { const s = new Set(prev); s.delete(p); return s })
     }
   }, [fetchGreenHistory])
@@ -395,7 +479,8 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
   const fetchStatus = useCallback(async () => {
     try {
       const r = await fetch(`${CHAT_API}/chat-status`, { headers: AUTH_HEADER, signal: AbortSignal.timeout(8000) })
-      if (r.ok) { const d = await r.json(); setStatus(d.state || null); return }
+      const d = await r.json().catch(() => ({}))
+      if (r.ok || d.state) { setStatus(d.state || 'error'); setStatusMissing(d.missing || []); return }
     } catch {}
     // Fallback to the Render backend if the Vercel proxy is unreachable (e.g. local dev)
     if (!API_BASE) { setStatus('notConfigured'); return }
@@ -420,6 +505,24 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
 
   // ── Effects ──────────────────────────────────────────────────────────────
   useEffect(() => { fetchStatus() }, [fetchStatus])
+  const fetchGreenChats = useCallback(async () => {
+    try {
+      const r = await fetch(`${CHAT_API}/chat-list?days=30`, { headers: AUTH_HEADER, signal: AbortSignal.timeout(25000) })
+      if (!r.ok) return
+      const d = await r.json()
+      if (Array.isArray(d)) setGreenChats(d)
+    } catch {}
+  }, [])
+  useEffect(() => {
+    if (status !== 'authorized') return
+    fetchGreenChats()
+    const iv = setInterval(() => { if (!document.hidden) fetchGreenChats() }, 30000)
+    return () => clearInterval(iv)
+  }, [status, fetchGreenChats])
+  useEffect(() => {
+    if (!contact?.phone || status !== 'authorized') return
+    fetch(`${CHAT_API}/chat-read`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...AUTH_HEADER }, body: JSON.stringify({ phone: intlPhone(contact.phone) }) }).catch(() => {})
+  }, [contact?.phone, status])
   useEffect(() => { leads.filter(l => l.phone).slice(0, 20).forEach(l => fetchMsgs(l.phone)) }, [leads.length, fetchMsgs]) // eslint-disable-line
 
   useEffect(() => {
@@ -456,8 +559,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
               const threshold = pageLoadTimeRef.current
               if (new Date(msg.created_at).getTime() > threshold) {
                 notifiedMsgIdsRef.current.add(String(msg.id))
-                const lead = leadsRef.current.find(l => intlPhone(l.phone) === p)
-                onNewMessageRef.current?.({ contactName: lead?.name || p, message: msg.message, phone: p })
+                onNewMessageRef.current?.({ contactName: nameForPhone(p), message: msg.message, phone: p })
               }
             }
             notifiedMsgIdsRef.current.add(String(msg.id))
@@ -465,13 +567,22 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
           })
         })
         .subscribe()
-      return () => { supabase.removeChannel(channel) }
+      // Green API messages never reach that table, so the open chat is polled as well
+      pollRef.current = setInterval(() => { if (!document.hidden) fetchMsgs(contact.phone) }, 8000)
+      return () => { supabase.removeChannel(channel); clearInterval(pollRef.current) }
     } else {
-      // Fallback: poll every 4s when Realtime not configured
-      pollRef.current = setInterval(() => { if (!document.hidden) fetchMsgs(contact.phone) }, 20000)
+      pollRef.current = setInterval(() => { if (!document.hidden) fetchMsgs(contact.phone) }, 8000)
       return () => clearInterval(pollRef.current)
     }
   }, [contact?.id, fetchMsgs])
+
+  // Coming back to the tab/window: refresh the open chat right away instead of waiting for the next poll
+  useEffect(() => {
+    const onVis = () => { if (!document.hidden && contact?.phone) fetchMsgs(contact.phone) }
+    document.addEventListener('visibilitychange', onVis)
+    window.addEventListener('focus', onVis)
+    return () => { document.removeEventListener('visibilitychange', onVis); window.removeEventListener('focus', onVis) }
+  }, [contact?.phone, fetchMsgs])
 
   // Global Realtime: keep ALL conversations fresh (not just the open one) so the
   // unread badges update in real time. Dedup + notifiedMsgIdsRef make it safe to
@@ -492,8 +603,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
         if (msg.direction === 'in' && !notifiedMsgIdsRef.current.has(String(msg.id))) {
           if (new Date(msg.created_at).getTime() > pageLoadTimeRef.current) {
             notifiedMsgIdsRef.current.add(String(msg.id))
-            const lead = leadsRef.current.find(l => intlPhone(l.phone) === p)
-            onNewMessageRef.current?.({ contactName: lead?.name || p, message: msg.message, phone: p })
+            onNewMessageRef.current?.({ contactName: nameForPhone(p), message: msg.message, phone: p })
           }
         }
       })
@@ -562,22 +672,22 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
         // Attachment: upload straight to Green API (caption = the typed text)
         ok = await sendFileViaGreenAPI(p, file, msg)
       } else {
-        if (API_BASE) {
+        ok = await sendViaGreenAPI(p, msg).catch(() => false)
+        if (!ok && API_BASE) {
           const r = await fetch(`${API_BASE}/api/chats/send`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
             body: JSON.stringify({ phone: p, message: msg }),
             signal: AbortSignal.timeout(15000),
-          })
-          if (r.ok) ok = true
+          }).catch(() => null)
+          if (r?.ok) ok = true
         }
-        if (!ok) ok = await sendViaGreenAPI(p, msg)
       }
 
       if (ok) {
         setAttached(null)
         setTimeout(() => fetchMsgs(contact.phone), file ? 3500 : 2000)
-        const contactName = contact.name || intlPhone(contact.phone)
+        const contactName = nameOf(contactView, lang)
         onSentMessageRef.current?.({ contactName, message: msg || file?.name })
       } else {
         throw new Error('שליחה נכשלה')
@@ -600,17 +710,36 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
 
   // ── Derived state ─────────────────────────────────────────────────────────
   const sl = search.toLowerCase()
-  const contactList = useMemo(() => leads
+  const contactList = useMemo(() => {
+    // Match by the last 9 digits so 054…, +972-54… and 97254… are the same person
+    const byTail = new Map(greenChats.filter(c => c.phone).map(c => [tail9(c.phone), c]))
+    const leadTails = new Set()
+    const enriched = leads.map(l => {
+      const k = tail9(l.phone); if (!k) return l
+      leadTails.add(k)
+      const g = byTail.get(k)
+      if (!g) return l
+      return { ...l, name: (l.name || '').trim() || g.name || '', waName: g.waName, office: g.office, self: g.self, lastTs: g.timestamp * 1000, lastText: g.text }
+    })
+    const extra = greenChats.filter(c => c.phone && !leadTails.has(tail9(c.phone))).map(c => ({ id: `wa:${c.phone}`, name: c.name || '', waName: c.waName, office: c.office, self: c.self, phone: c.phone, waOnly: true, lastTs: c.timestamp * 1000, lastText: c.text }))
+    const sd = search.replace(/\D/g, '')
+    return [...enriched, ...extra]
     .filter(l => l.phone && l.id !== deletingId)
-    .filter(l => !search || (l.name||'').toLowerCase().includes(sl) || (l.phone||'').includes(search))
+    .filter(l => !search || nameOf(l, lang).toLowerCase().includes(sl) || (l.waName||'').toLowerCase().includes(sl) || (sd.length >= 3 && (intlPhone(l.phone).includes(sd) || ('0' + intlPhone(l.phone).slice(3)).includes(sd))))
     .sort((a, b) => {
       const pa = intlPhone(a.phone), pb = intlPhone(b.phone)
-      const la = chats[pa]?.[chats[pa].length-1]?.created_at || 0
-      const lb = chats[pb]?.[chats[pb].length-1]?.created_at || 0
+      const la = chats[pa]?.[chats[pa].length-1]?.created_at || a.lastTs || 0
+      const lb = chats[pb]?.[chats[pb].length-1]?.created_at || b.lastTs || 0
       return new Date(lb) - new Date(la)
-    }),
-    [leads, search, chats, sl, deletingId]) // eslint-disable-line
+    })
+  }, [leads, greenChats, search, chats, sl, deletingId, lang]) // eslint-disable-line
 
+  // The selected contact as the list sees it (with names resolved from WhatsApp / leads)
+  const contactView = useMemo(() => {
+    if (!contact) return null
+    const k = tail9(contact.phone)
+    return contactList.find(c => c.id === contact.id) || contactList.find(c => tail9(c.phone) === k) || contact
+  }, [contact, contactList])
   const chatPhone  = contact ? intlPhone(contact.phone) : null
   const msgs       = chatPhone ? (chats[chatPhone]||[]) : []
   const contactIdx = contactList.findIndex(l => l.id === contact?.id)
@@ -628,11 +757,11 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
     0), [contactList, contact?.id, unreadFor])
 
   const statusColor = status==='authorized' ? '#22C55E' : status==='notAuthorized' ? '#F97316' : status==='error' ? '#E05252' : '#8696A0'
-  const statusLabel = status==='authorized' ? 'מחובר' : status==='notAuthorized' ? 'לא מחובר' : status==='error' ? 'שגיאה' : status==='notConfigured' ? 'לא מוגדר' : 'טוען...'
+  const statusLabel = status==='authorized' ? 'מחובר' : status==='notAuthorized' ? 'לא מחובר (סרקו QR ב-Green API)' : status==='error' ? 'שגיאה' : status==='notConfigured' ? 'לא מוגדר ב-Vercel' : status==='yellowCard' ? 'מוגבל זמנית' : status==='blocked' ? 'חסום' : 'טוען...'
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div style={{
+    <div className={`wa-root${contact ? ' wa-has-contact' : ''}`} style={{
       display:'flex', flexDirection:'column',
       flex:1, minHeight:0,
       overflow:'hidden',
@@ -645,6 +774,15 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
       {/* ── CSS keyframes ─────────────────────────────────────────────────── */}
       <style>{`
         @keyframes wa-spin { to { transform: rotate(360deg); } }
+        /* Phone: one pane at a time, like the WhatsApp app — the chat list, then the open chat with a back arrow */
+        @media (max-width: 760px) {
+          .wa-root .wa-rail, .wa-root .wa-acct, .wa-root .wa-nav { display: none !important; }
+          .wa-root .wa-listpane { width: 100% !important; flex: 1 1 auto !important; border-left: none !important; }
+          .wa-root.wa-has-contact .wa-listpane { display: none !important; }
+          .wa-root:not(.wa-has-contact) .wa-chatpane { display: none !important; }
+          .wa-root .wa-back { display: flex !important; }
+          .wa-root .wa-chathead { padding: 0 8px !important; gap: 8px !important; }
+        }
         @keyframes wa-toast-in { from { opacity:0; transform: translateX(-50%) translateY(16px); } to { opacity:1; transform: translateX(-50%) translateY(0); } }
         @keyframes wa-fade-in { from { opacity:0; } to { opacity:1; } }
         .wa-row-spinner { width:14px; height:14px; border-radius:50%; border:2px solid transparent; border-top-color:${WA.green}; animation:wa-spin 0.7s linear infinite; flex-shrink:0; }
@@ -666,6 +804,18 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
         }
         .wa-contacts-scroll:hover::-webkit-scrollbar-thumb { background: ${WA.green}; background-clip: padding-box; }
       `}</style>
+
+      {/* Not configured on Vercel: say exactly what to set, instead of an empty chat */}
+      {status === 'notConfigured' && (
+        <div role="alert" style={{ flexShrink:0, direction:'rtl', padding:'10px 16px', background:'rgba(224,82,82,.12)', borderBottom:'1px solid rgba(224,82,82,.4)', color:'#FF9A9A', fontSize:13, lineHeight:1.6 }}>
+          ⚠ <b>Green API לא מחובר לאתר.</b> ב-Vercel → Settings → Environment Variables חסרים: <code dir="ltr">{(statusMissing.length ? statusMissing : ['WA_GREENAPI_INSTANCE', 'WA_GREENAPI_TOKEN']).join(', ')}</code>. בלי זה אין היסטוריה, אין שליחה ואין הודעה אוטומטית ללידים.
+        </div>
+      )}
+      {lightbox && (
+        <div onClick={() => setLightbox(null)} style={{ position:'fixed', inset:0, zIndex:10000, background:'rgba(0,0,0,.88)', display:'flex', alignItems:'center', justifyContent:'center', cursor:'zoom-out' }}>
+          <img src={lightbox} alt="" style={{ maxWidth:'92vw', maxHeight:'90vh', borderRadius:8, boxShadow:'0 20px 60px rgba(0,0,0,.6)' }}/>
+        </div>
+      )}
 
       {/* ── Delete Confirmation Modal ─────────────────────────────────────── */}
       {deleteConfirm && (
@@ -757,7 +907,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
             return <line key={a} x1={12+Math.cos(rad)*6.5} y1={12+Math.sin(rad)*6.5} x2={12+Math.cos(rad)*9.5} y2={12+Math.sin(rad)*9.5} stroke={statusColor} strokeWidth="2" strokeLinecap="round"/>
           })}
         </svg>
-        <span style={{ fontSize:13.5, fontWeight:600, color: WA.bodyText }}>{ACCOUNT_EMAIL}</span>
+        <span className="wa-acct" style={{ fontSize:13.5, fontWeight:600, color: WA.bodyText }}>{ACCOUNT_EMAIL}</span>
         <div style={{ flex:1 }}/>
         <span style={{ fontSize:12, color: WA.subText }}>Green API · </span>
         <span style={{ fontSize:12, fontWeight:600, color: statusColor }}>{statusLabel}</span>
@@ -775,19 +925,23 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
         {/* ═══════════════ CHAT WINDOW (left, fills remaining space) ════════ */}
         {/* overflow:hidden isolates internal scroll from page scroll. order:3
             places it on the LEFT (names list sits on the right, RTL-correct).  */}
-        <div style={{ order:3, flex:'1 1 0', minWidth:0, display:'flex', flexDirection:'column', overflow:'hidden', background: WA.chatBg, backgroundImage: DOODLE, backgroundRepeat:'repeat', transition:'background .25s' }}>
+        <div className="wa-chatpane" style={{ order:3, flex:'1 1 0', minWidth:0, display:'flex', flexDirection:'column', overflow:'hidden', background: WA.chatBg, backgroundImage: DOODLE, backgroundRepeat:'repeat', transition:'background .25s' }}>
           {contact ? (
             <>
               {/* ── Chat Header (flex: 0 0 auto) ── */}
-              <div style={{ flexShrink:0, height:62, background: WA.inputBg, borderBottom:`1px solid ${WA.border}`, display:'flex', alignItems:'center', padding:'0 16px', gap:12, direction:'rtl', transition:'background .25s' }}>
-                <div style={{ width:40, height:40, borderRadius:'50%', background:avatarBg(contact.name), display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700, fontSize:16, color:'#fff', flexShrink:0, userSelect:'none' }}>
-                  {(contact.name||contact.phone||'?')[0].toUpperCase()}
-                </div>
+              <div className="wa-chathead" style={{ flexShrink:0, height:62, background: WA.inputBg, borderBottom:`1px solid ${WA.border}`, display:'flex', alignItems:'center', padding:'0 16px', gap:12, direction:'rtl', transition:'background .25s' }}>
+                {/* Phone only: back to the chat list (the arrow points right in RTL, as in WhatsApp) */}
+                <button className="wa-back" onClick={()=>setContact(null)} aria-label="חזרה לרשימת השיחות" title="חזרה"
+                  style={{ display:'none', width:36, height:36, borderRadius:'50%', background:'transparent', border:'none', color: WA.bodyText, cursor:'pointer', alignItems:'center', justifyContent:'center', fontSize:22, flexShrink:0, minWidth:0, minHeight:0, padding:0 }}>→</button>
+                <Avatar c={contactView} size={40} lang={lang}/>
                 <div style={{ flex:1, minWidth:0 }}>
                   <div style={{ fontWeight:600, fontSize:15, color: WA.bodyText, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                    {contact.name||contact.phone}
+                    {nameOf(contactView, lang)}
                   </div>
-                  <div style={{ fontSize:12, color: WA.subText, direction:'ltr' }}>{contact.phone}</div>
+                  <div style={{ fontSize:12, color: WA.subText, display:'flex', gap:6, alignItems:'center', minWidth:0 }}>
+                    <span dir="ltr" style={{ unicodeBidi:'isolate', flexShrink:0 }}>{fmtLocal(contact.phone)}</span>
+                    {contactView?.waName && contactView.waName !== nameOf(contactView, lang) && <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>· ~{contactView.waName}</span>}
+                  </div>
                 </div>
                 {onOpenLead && leads.find(l=>l.id===contact.id) && (
                   <button onClick={()=>onOpenLead(contact)}
@@ -801,17 +955,17 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                   { delta:-1, disabled:contactIdx<=0,                      label:'‹', title:'ליד קודם' },
                   { delta:+1, disabled:contactIdx>=contactList.length-1,    label:'›', title:'ליד הבא'  },
                 ].map(({ delta, disabled, label, title }) => (
-                  <button key={delta} title={title}
+                  <button key={delta} title={title} className="wa-nav"
                     onClick={()=>!disabled&&selectContact(contactList[contactIdx+delta])}
                     style={{ width:32, height:32, borderRadius:'50%', background:'transparent', border:'none', color:disabled?WA.border:WA.subText, cursor:disabled?'default':'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontSize:22, flexShrink:0, lineHeight:1 }}>
                     {label}
                   </button>
                 ))}
-                <button onClick={()=>fetchMsgs(contact.phone)} title="רענן"
+                <button className="wa-nav" onClick={()=>fetchMsgs(contact.phone)} title="רענן"
                   style={{ width:32, height:32, borderRadius:'50%', background:'transparent', border:'none', color: WA.subText, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0 }}
                   onMouseEnter={e=>e.currentTarget.style.background=WA.border}
                   onMouseLeave={e=>e.currentTarget.style.background='transparent'}>↻</button>
-                <button onClick={()=>setContact(null)} title="סגור"
+                <button className="wa-nav" onClick={()=>setContact(null)} title="סגור"
                   style={{ width:32, height:32, borderRadius:'50%', background:'transparent', border:'none', color: WA.subText, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0 }}
                   onMouseEnter={e=>e.currentTarget.style.background=WA.border}
                   onMouseLeave={e=>e.currentTarget.style.background='transparent'}>✕</button>
@@ -835,6 +989,12 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                   gap:0,
                   scrollBehavior:'smooth',
                 }}>
+                {fetchError && msgs.length > 0 && !loading && (
+                  <div style={{ position:'sticky', top:0, zIndex:2, alignSelf:'center', marginBottom:8, padding:'6px 12px', borderRadius:20, background: isDark ? '#3B2A1A' : '#FFF4E0', color: isDark ? '#F5C26B' : '#8A5A00', fontSize:12, fontWeight:600, direction:'rtl', boxShadow:'0 2px 6px rgba(0,0,0,.15)', display:'flex', gap:8, alignItems:'center' }}>
+                    ⚠ לא הצלחנו לרענן · מנסים שוב אוטומטית
+                    <button onClick={() => fetchMsgs(contact.phone)} style={{ background:'none', border:'none', color:'inherit', textDecoration:'underline', cursor:'pointer', fontFamily:'inherit', fontSize:12, padding:0, minHeight:0, minWidth:0 }}>עכשיו</button>
+                  </div>
+                )}
                 {loading ? (
                   <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:16, color: WA.subText, minHeight:200 }}>
                     <div style={{ width:44, height:44, borderRadius:'50%', border:`4px solid ${WA.border}`, borderTopColor: WA.green, animation:'wa-spin 0.75s linear infinite' }}/>
@@ -917,14 +1077,46 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                           transition:'opacity .3s',
                         }}>
                           {isLastInGroup && isOut && (
+                            <svg style={{ position:'absolute', bottom:0, left:-8, width:9, height:13 }} viewBox="0 0 9 13">
+                              <path d="M0 0 Q9 10 9 13 L0 13 Z" fill={bubbleColor}/>
+                            </svg>
+                          )}
+                          {isLastInGroup && !isOut && (
                             <svg style={{ position:'absolute', bottom:0, right:-8, width:9, height:13 }} viewBox="0 0 9 13">
                               <path d="M9 0 Q0 10 0 13 L9 13 Z" fill={bubbleColor}/>
                             </svg>
                           )}
-                          {isLastInGroup && !isOut && (
-                            <svg style={{ position:'absolute', bottom:0, left:-8, width:9, height:13 }} viewBox="0 0 9 13">
-                              <path d="M0 0 Q9 10 9 13 L0 13 Z" fill={bubbleColor}/>
-                            </svg>
+                          {msg.quoted && (
+                            <div style={{ borderInlineStart:`4px solid ${msg.quoted.out ? WA.green : '#53BDEB'}`, background: isDark ? 'rgba(0,0,0,.22)' : 'rgba(0,0,0,.05)', borderRadius:6, padding:'5px 8px', marginBottom:5, fontSize:12.5, color: WA.subText, direction:'rtl', maxHeight:54, overflow:'hidden' }}>
+                              <div style={{ fontWeight:700, color: msg.quoted.out ? WA.green : '#53BDEB', fontSize:12 }}>{msg.quoted.out ? 'אתם' : (hasName(contactView) ? nameOf(contactView, lang) : 'איש קשר')}</div>
+                              {msg.quoted.text}
+                            </div>
+                          )}
+                          {msg.media && (msg.kind === 'imageMessage' || msg.kind === 'stickerMessage') && (
+                            <button onClick={() => msg.media.url && setLightbox(msg.media.url)} style={{ display:'block', padding:0, border:'none', background:'none', cursor: msg.media.url ? 'zoom-in' : 'default', margin:'-2px -5px 4px', borderRadius:6, overflow:'hidden', minWidth:0, minHeight:0 }}>
+                              <img src={msg.media.url || msg.media.thumb} alt="" loading="lazy" onError={e => { if (msg.media.thumb && e.currentTarget.src !== msg.media.thumb) e.currentTarget.src = msg.media.thumb }} style={{ display:'block', maxWidth:300, width:'100%', maxHeight:320, objectFit:'cover' }}/>
+                            </button>
+                          )}
+                          {msg.media?.url && msg.kind === 'videoMessage' && (
+                            <video src={msg.media.url} poster={msg.media.thumb || undefined} controls preload="none" style={{ display:'block', maxWidth:300, width:'100%', borderRadius:6, margin:'-2px -5px 4px' }}/>
+                          )}
+                          {msg.media?.url && msg.kind === 'audioMessage' && (
+                            <audio src={msg.media.url} controls preload="none" style={{ display:'block', width:250, maxWidth:'100%', height:36, margin:'2px 0 4px' }}/>
+                          )}
+                          {msg.media?.url && msg.kind === 'documentMessage' && (
+                            <a href={msg.media.url} target="_blank" rel="noreferrer" style={{ display:'flex', alignItems:'center', gap:9, padding:'8px 10px', marginBottom:4, background: isDark ? 'rgba(0,0,0,.22)' : 'rgba(0,0,0,.05)', borderRadius:6, color: WA.bodyText, textDecoration:'none' }}>
+                              <span style={{ fontSize:26 }}>📄</span>
+                              <span style={{ fontSize:13, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:200 }}>{msg.media.name || 'מסמך'}</span>
+                              <span style={{ marginInlineStart:'auto', fontSize:12, color: WA.green, fontWeight:700 }}>הורדה</span>
+                            </a>
+                          )}
+                          {msg.location?.latitude && (
+                            <a href={`https://maps.google.com/?q=${msg.location.latitude},${msg.location.longitude}`} target="_blank" rel="noreferrer" style={{ display:'block', padding:'8px 10px', marginBottom:4, background: isDark ? 'rgba(0,0,0,.22)' : 'rgba(0,0,0,.05)', borderRadius:6, color: WA.bodyText, textDecoration:'none', fontSize:13 }}>
+                              📍 {msg.location.nameLocation || msg.location.address || 'מיקום'} <span style={{ color: WA.green, fontWeight:700 }}>· פתיחה במפה</span>
+                            </a>
+                          )}
+                          {msg.contactCard && (
+                            <div style={{ padding:'8px 10px', marginBottom:4, background: isDark ? 'rgba(0,0,0,.22)' : 'rgba(0,0,0,.05)', borderRadius:6, fontSize:13 }}>👤 {msg.contactCard.displayName || 'איש קשר'}</div>
                           )}
                           {msg.file && (
                             <div style={{ display:'flex', alignItems:'center', gap:9, padding:'7px 9px', marginBottom: (msg.message && msg.message !== msg.file.name) ? 5 : 0, background: isDark ? 'rgba(0,0,0,.20)' : 'rgba(0,0,0,.05)', borderRadius:7, direction:'rtl' }}>
@@ -934,8 +1126,8 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                               <span style={{ fontSize:12.5, color: WA.bodyText, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:180 }}>{msg.file.name}</span>
                             </div>
                           )}
-                          {(!msg.file || (msg.message && msg.message !== msg.file.name)) && (
-                            <div style={{ direction:'rtl', wordBreak:'break-word' }}>{msg.message}</div>
+                          {(!msg.file || (msg.message && msg.message !== msg.file.name)) && msg.message && (
+                            <div style={{ direction:'rtl', unicodeBidi:'plaintext', textAlign:'right', wordBreak:'break-word', whiteSpace:'pre-wrap' }}><WAText text={msg.message}/></div>
                           )}
                           <div style={{ position:'absolute', bottom:5, left:8, display:'flex', alignItems:'center', gap:3, direction:'ltr', userSelect:'none' }}>
                             <span style={{ fontSize:11, color: WA.subText }}>{fmtTime(msg.created_at)}</span>
@@ -969,19 +1161,23 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                   style={{ width:40, height:40, borderRadius:'50%', background:emoji?WA.green+'22':'transparent', border:'none', color:emoji?WA.green:WA.subText, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontSize:24 }}>
                   ☺
                 </button>
-                <button onClick={()=>fileRef.current?.click()}
+                <button onClick={()=>fileRef.current?.click()} title="צירוף קובץ"
                   style={{ width:40, height:40, borderRadius:'50%', background:'transparent', border:'none', color: WA.subText, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
                   <Icon path={ICONS.paperclip} size={20}/>
                 </button>
+                <button onClick={()=>{ setQuickOpen(v=>!v); setEmoji(false) }} title="תשובות מוכנות" aria-label="תשובות מוכנות"
+                  style={{ width:40, height:40, borderRadius:'50%', background:quickOpen?WA.green+'22':'transparent', border:'none', color:quickOpen?WA.green:WA.subText, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontSize:19 }}>
+                  ⚡
+                </button>
                 <input ref={fileRef} type="file" accept="image/*,.pdf" style={{ display:'none' }}
                   onChange={e=>{ if(e.target.files[0]) setAttached(e.target.files[0]); e.target.value='' }}/>
-                <input ref={inputRef}
+                <textarea ref={inputRef} rows={1}
                   value={input} onChange={e=>setInput(e.target.value)}
                   onKeyDown={e=>{ if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMsg()} }}
                   placeholder="הקלד הודעה"
                   disabled={sending}
-                  autoComplete="off"
-                  style={{ flex:1, padding:'12px 18px', background: WA.inputFieldBg, border:'none', borderRadius:8, color: WA.bodyText, fontSize:14, fontFamily:'inherit', outline:'none', direction:'rtl', minWidth:0, boxShadow:`0 1px 2px rgba(0,0,0,.${isDark?'2':'06'})` }}/>
+                  autoComplete="off" dir="auto"
+                  style={{ flex:1, padding:'11px 16px', background: WA.inputFieldBg, border:'none', borderRadius:8, color: WA.bodyText, fontSize:14, fontFamily:'inherit', outline:'none', minWidth:0, resize:'none', lineHeight:1.45, height: Math.min(6, Math.max(1, input.split('\n').length)) * 20 + 22, maxHeight:142, overflowY:'auto', boxShadow:`0 1px 2px rgba(0,0,0,.${isDark?'2':'06'})` }}/>
                 <button onClick={sendMsg}
                   disabled={sending || (!input.trim() && !attached)}
                   style={{ width:44, height:44, borderRadius:'50%', background:(input.trim()||attached)?WA.green:WA.inputBg, border:'none', color:(input.trim()||attached)?'#fff':WA.subText, cursor:(input.trim()||attached)?'pointer':'default', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, transition:'all .2s', boxShadow:(input.trim()||attached)?'0 2px 8px '+WA.green+'66':'none' }}>
@@ -993,6 +1189,31 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                   }
                 </button>
               </div>
+
+              {/* ── Quick replies: the automation templates, personalised for this contact ── */}
+              {quickOpen && (() => {
+                const list = templateList(autoConfig || undefined).filter(x => !quickQ || `${x.he_title} ${x.he}`.includes(quickQ))
+                const leadRow = leads.find(l => intlPhone(l.phone) === chatPhone) || contact
+                const asLead = { name: leadRow?.name && !/^\d+$/.test(leadRow.name) ? leadRow.name : '', phone: contact.phone, prop_title: leadRow?.propTitle || leadRow?.prop_title, prop_location: leadRow?.propLocation, crm_data: { origin: leadRow?.origin || {} } }
+                return (
+                  <div style={{ flexShrink:0, maxHeight:260, overflowY:'auto', background: WA.panelBg, borderTop:`1px solid ${WA.border}`, padding:'8px 10px', direction:'rtl' }}>
+                    <input value={quickQ} onChange={e=>setQuickQ(e.target.value)} placeholder="חיפוש תבנית…" autoFocus
+                      style={{ width:'100%', boxSizing:'border-box', padding:'7px 11px', marginBottom:6, background: WA.inputFieldBg, border:`1px solid ${WA.border}`, borderRadius:8, color: WA.bodyText, fontFamily:'inherit', fontSize:13, outline:'none', minHeight:0 }}/>
+                    {list.map(x => {
+                      const cat = CATEGORIES.find(c => c.id === x.cat)
+                      const text = renderTemplate(x, asLead, autoConfig || undefined)
+                      return (
+                        <button key={x.id} onClick={()=>{ setInput(text); setQuickOpen(false); setQuickQ(''); setTimeout(()=>inputRef.current?.focus(), 30) }}
+                          style={{ display:'block', width:'100%', textAlign:'right', background:'transparent', border:'none', borderBottom:`1px solid ${WA.border}`, padding:'8px 6px', cursor:'pointer', fontFamily:'inherit', color: WA.bodyText, minHeight:0 }}
+                          onMouseEnter={e=>e.currentTarget.style.background=WA.hoverRow} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                          <div style={{ fontSize:13, fontWeight:700 }}>{cat?.icon} {x.he_title}</div>
+                          <div style={{ fontSize:12, color: WA.subText, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{text.replace(/\n/g, ' ')}</div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )
+              })()}
 
               {/* ── Emoji picker (flex: 0 0 auto) ── */}
               {emoji && (
@@ -1033,7 +1254,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
 
         {/* ═══════════════ CHAT LIST — names, on the RIGHT (340px) ═════════ */}
         {/* order:2 → sits just left of the icon rail, i.e. on the right side. */}
-        <div style={{ order:2, width:340, flexShrink:0, display:'flex', flexDirection:'column', overflow:'hidden', background: WA.panelBg, borderLeft:`1px solid ${WA.border}`, transition:'background .25s' }}>
+        <div className="wa-listpane" style={{ order:2, width:340, flexShrink:0, display:'flex', flexDirection:'column', overflow:'hidden', background: WA.panelBg, borderLeft:`1px solid ${WA.border}`, transition:'background .25s' }}>
 
           {/* Panel header */}
           <div style={{ height:62, background: WA.inputBg, borderBottom:`1px solid ${WA.border}`, display:'flex', alignItems:'center', padding:'0 10px 0 10px', gap:8, flexShrink:0, direction:'rtl', transition:'background .25s' }}>
@@ -1099,13 +1320,12 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                     if (btn) btn.style.opacity = '0'
                   }}>
                   {isActive && <div style={{ position:'absolute', right:0, top:0, bottom:0, width:3, background: WA.green, borderRadius:'0 2px 2px 0' }}/>}
-                  <div style={{ width:49, height:49, borderRadius:'50%', background:avatarBg(lead.name), display:'flex', alignItems:'center', justifyContent:'center', fontSize:20, fontWeight:700, color:'#fff', flexShrink:0, userSelect:'none' }}>
-                    {(lead.name||lead.phone||'?')[0].toUpperCase()}
-                  </div>
+                  <Avatar c={lead} size={49} lang={lang}/>
                   <div style={{ flex:1, minWidth:0 }}>
                     <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:3, gap:8 }}>
                       <span style={{ fontWeight: unread?700:600, fontSize:15, color: WA.bodyText, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', flex:1 }}>
-                        {lead.name||lead.phone}
+                        {nameOf(lead, lang)}
+                        {lead.waOnly && !lead.office && !lead.self && <span style={{ marginInlineStart:6, fontSize:10.5, fontWeight:600, color: WA.subText, border:`1px solid ${WA.border}`, borderRadius:6, padding:'0 5px', verticalAlign:'middle' }}>{lang === 'en' ? 'not a lead' : 'לא ליד'}</span>}
                       </span>
                       {lastMsg && (
                         <span style={{ fontSize:11, color: unread ? WA.green : WA.subText, fontWeight: unread?700:400, flexShrink:0, whiteSpace:'nowrap' }}>
@@ -1117,7 +1337,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                       {isRowLoading && <div className="wa-row-spinner"/>}
                       {!isRowLoading && lastMsg?.direction==='out' && <TickMark status={lastMsg.status || 'sent'} WA={WA}/>}
                       <span style={{ fontSize:13, color: unread ? WA.bodyText : WA.subText, fontWeight: unread?600:400, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', flex:1 }}>
-                        {isRowLoading ? <span style={{ opacity:.5 }}>טוען...</span> : lastMsg ? lastMsg.message : lead.phone}
+                        {isRowLoading ? <span style={{ opacity:.5 }}>טוען...</span> : lastMsg ? lastMsg.message : (lead.lastText || (hasName(lead) ? fmtLocal(lead.phone) : ''))}
                       </span>
                       {unread > 0 && (
                         <span style={{ background: WA.unread, color:'#fff', fontSize:11, fontWeight:700, minWidth:18, height:18, borderRadius:9, padding:'0 5px', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, lineHeight:1 }}>
@@ -1127,7 +1347,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                     </div>
                   </div>
                   {/* Delete button — hover-reveal */}
-                  {onDeleteLead && (
+                  {onDeleteLead && !lead.waOnly && (
                     <button className="wa-del-btn"
                       onClick={e => handleDeleteClick(e, lead)}
                       style={{ opacity:0, transition:'opacity .15s', width:28, height:28, borderRadius:'50%', border:'none', background: WA.delBtn, color:'#E05252', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontSize:15, flexShrink:0 }}
@@ -1141,7 +1361,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
 
         {/* ═══════════════ ICON SIDEBAR — far RIGHT in RTL (52px) ═════════ */}
         {/* order:1 → the rightmost panel, with the names list directly beside it. */}
-        <div style={{ order:1, width:52, flexShrink:0, display:'flex', flexDirection:'column', background: WA.inputBg, borderLeft:`1px solid ${WA.border}`, alignItems:'center', padding:'8px 0', transition:'background .25s' }}>
+        <div className="wa-rail" style={{ order:1, width:52, flexShrink:0, display:'flex', flexDirection:'column', background: WA.inputBg, borderLeft:`1px solid ${WA.border}`, alignItems:'center', padding:'8px 0', transition:'background .25s' }}>
           {[
             { id:'bell',     path:ICONS.bell,     title:'התראות'     },
             { id:'chats',    path:ICONS.chat,     title:'שיחות'      },

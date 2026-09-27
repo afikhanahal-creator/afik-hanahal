@@ -3,15 +3,26 @@
 // App.jsx loads it on demand: const AdminPanel = lazyWithRetry(() => import('./AdminPanel.jsx'))
 // Shared constants / helpers still live in App.jsx and are imported back from there — that is a
 // dynamic→static cycle, which is safe: by the time this chunk evaluates, App.jsx already has.
-import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react'
+import { externalizeInlinePhotos } from './inlinePhotos.js'
+import { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react'
+import { metaFormAnswers, answersToText } from './lib/leadFields.js'
 import { LAYERS_DEF as GM_LAYERS, BG_OPTIONS as GM_BG_OPTIONS, LAYER_CATS_DEF as GM_LAYER_CATS } from './govmapLayers.js'
-import { FaEnvelope, FaFacebookF, FaInstagram, FaBed, FaRulerCombined, FaBuilding, FaTools, FaMapMarkerAlt, FaPhone, FaLeaf, FaCalendarAlt, FaTimes, FaWhatsapp, FaFileAlt, FaHome, FaSearch, FaBalanceScale, FaHandshake, FaLock, FaKey, FaGlobe, FaBolt, FaChartLine, FaEye, FaPlay, FaFire, FaShareAlt, FaHeart, FaCamera, FaUser, FaUsers, FaDesktop, FaMobileAlt, FaTabletAlt, FaRobot, FaExclamationTriangle, FaChartBar, FaThumbsUp, FaImage, FaPencilAlt, FaCrown, FaMousePointer, FaDollarSign, FaVideo, FaLink, FaCheckCircle, FaTrash, FaClipboardList } from 'react-icons/fa'
+import { FaSun, FaMoon, FaPlus, FaEnvelope, FaFacebookF, FaInstagram, FaBed, FaRulerCombined, FaBuilding, FaTools, FaMapMarkerAlt, FaPhone, FaLeaf, FaCalendarAlt, FaTimes, FaWhatsapp, FaFileAlt, FaHome, FaSearch, FaBalanceScale, FaHandshake, FaLock, FaKey, FaGlobe, FaBolt, FaChartLine, FaEye, FaPlay, FaFire, FaShareAlt, FaHeart, FaCamera, FaUser, FaUsers, FaDesktop, FaMobileAlt, FaTabletAlt, FaRobot, FaExclamationTriangle, FaChartBar, FaThumbsUp, FaImage, FaPencilAlt, FaCrown, FaMousePointer, FaDollarSign, FaVideo, FaLink, FaCheckCircle, FaTrash, FaClipboardList } from 'react-icons/fa'
 // Seller intake submissions (from the public /sell form) — lazy, admin-only
 const SellerSubmissionsTab = lazy(() => import('./SellerSubmissionsTab.jsx'))
-import { LeadsBoard, GreenAPIChat, MetaLeadsTab, SupermetricsTab, PropertyWizard, API_BASE, CONTACTS_API, ADMIN_TOKEN, condFetchJson, DARK_C, useTheme, TEAM, G, Logo, LEADS_STORE, LEADS_DELETED, LEADS_TRASH, ANALYTICS_KEY, META_LEAD_PAGES_KEY, WA_DEFAULT_TEMPLATE, _cloudSettings, CATEGORIES, EMPTY_PROP, CONDITION_OPTIONS, ENTRY_OPTIONS, ADMIN_DRAFT_KEY, toMapsEmbed, imgFallback, thumbImg, TEAM_KEY, setCloudSettings } from './App.jsx'
+const AutomationsTab = lazy(() => import('./AutomationsTab.jsx'))
+const GA4Tab = lazy(() => import('./GA4Tab.jsx'))
+const AdminHome = lazy(() => import('./AdminHome.jsx'))
+const PropertyShare = lazy(() => import('./PropertyShare.jsx'))
+import { autoApi, StageSendPrompt } from './AutomationsApi.jsx'
+import { useAdminTheme, ADMIN_THEME_CSS } from './adminTheme.js'
+import { mergeBrief } from '../lib/lead-intel.js'
+import CommandPalette, { useCommandHotkey } from './CommandPalette.jsx'
+import { notifyPropertiesChanged } from './siteRebuild.js'
+import { LeadsBoard, GreenAPIChat, MetaLeadsTab, SupermetricsTab, PropertyWizard, API_BASE, CONTACTS_API, ADMIN_TOKEN, condFetchJson, DARK_C, useTheme, TEAM, G, Logo, LEADS_STORE, LEADS_DELETED, LEADS_TRASH, ANALYTICS_KEY, META_LEAD_PAGES_KEY, WA_DEFAULT_TEMPLATE, _cloudSettings, CATEGORIES, EMPTY_PROP, CONDITION_OPTIONS, ENTRY_OPTIONS, ADMIN_DRAFT_KEY, toMapsEmbed, imgFallback, thumbImg, sortByOrder, TEAM_KEY, setCloudSettings } from './App.jsx'
 
 // Tab ↔ URL deep-link mapping (module-level so both AdminPanel and main app can use it)
-const ADMIN_TAB_TO_PATH = { overview:'', props:'properties', leads:'leads', sellers:'properties-intake', chats:'chats', meta:'lead-center', analytics:'analytics', supermetrics:'performance', team:'team', settings:'settings', counters:'counters', live:'live' }
+const ADMIN_TAB_TO_PATH = { overview:'', props:'properties', leads:'leads', sellers:'properties-intake', chats:'chats', automations:'automations', meta:'lead-center', analytics:'analytics', supermetrics:'performance', team:'team', settings:'settings', counters:'counters', live:'live' }
 const ADMIN_PATH_TO_TAB = Object.fromEntries(Object.entries(ADMIN_TAB_TO_PATH).map(([k,v])=>[v,k]))
 
 // ─── LOGO UPLOAD (single image, compressed) ──────────────────────────────────
@@ -51,12 +62,12 @@ function LogoUpload({ logo, onChange }) {
     <div style={{ display:'flex', alignItems:'center', gap:16 }}>
       {logo ? (
         <div style={{ position:'relative', flexShrink:0 }}>
-          <img src={logo} alt="לוגו" style={{ width:80, height:80, objectFit:'contain', background:'rgba(255,255,255,.06)', borderRadius:12, border:`1px solid ${C.purple}33`, padding:6 }}/>
+          <img src={logo} alt="לוגו" style={{ width:80, height:80, objectFit:'contain', background:'rgba(var(--ov),.06)', borderRadius:12, border:`1px solid ${C.purple}33`, padding:6 }}/>
           <button onClick={() => onChange('')}
             style={{ position:'absolute', top:-8, right:-8, width:22, height:22, borderRadius:'50%', background:'#E05252', border:'none', color:'#fff', fontSize:12, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', lineHeight:1 }}>×</button>
         </div>
       ) : (
-        <div style={{ width:80, height:80, borderRadius:12, border:`2px dashed ${C.purple}44`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, background:'rgba(255,255,255,.02)' }}>
+        <div style={{ width:80, height:80, borderRadius:12, border:`2px dashed ${C.purple}44`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, background:'rgba(var(--ov),.02)' }}>
           <FaImage size={20} style={{ opacity:.25, color:C.purple }}/>
         </div>
       )}
@@ -79,6 +90,7 @@ function ImageUpload({ images, onChange }) {
   const [dragIdx, setDragIdx]   = useState(null)
   const [overIdx, setOverIdx]   = useState(null)
   const [loading, setLoading]   = useState(false)
+  const [uploadError, setUploadError] = useState(false)
 
   const compress = file => new Promise(res => {
     const reader = new FileReader()
@@ -123,7 +135,19 @@ function ImageUpload({ images, onChange }) {
         }
       } catch {}
     }
-    return dataUrl // fallback — inline base64 (previous behaviour)
+    // Render unavailable: upload straight to Supabase Storage through a signed URL (the same route the
+    // property wizard uses). Never inline base64 — one inlined photo bloats every property-list response.
+    try {
+      const blob = await (await fetch(dataUrl)).blob()
+      const meta = await fetch('/api/seller-form?action=wizard-upload-url', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+        body: JSON.stringify({ name: 'photo.jpg', type: 'image/jpeg', size: blob.size, kind: 'image' }) }).then(r => (r.ok ? r.json() : null)).catch(() => null)
+      if (meta?.signedUrl && meta?.url) {
+        const put = await fetch(meta.signedUrl, { method: 'PUT', headers: { 'Content-Type': 'image/jpeg', 'x-upsert': 'true' }, body: blob })
+        if (put.ok) return meta.url
+      }
+    } catch {}
+    setUploadError(true)
+    return null
   }
 
   const MAX_IMAGES = 20
@@ -132,6 +156,7 @@ function ImageUpload({ images, onChange }) {
     const allowed = Array.from(files).filter(f => f.type.startsWith('image/')).slice(0, remaining)
     if (!allowed.length) return
     setLoading(true)
+    setUploadError(false)
     const results = (await Promise.all(allowed.map(persist))).filter(Boolean)
     onChange([...images, ...results])
     setLoading(false)
@@ -161,7 +186,7 @@ function ImageUpload({ images, onChange }) {
     setDragIdx(null); setOverIdx(null)
   }
 
-  const cell = { position:'relative', aspectRatio:'4/3', borderRadius:10, overflow:'hidden', background:'rgba(255,255,255,.05)', userSelect:'none' }
+  const cell = { position:'relative', aspectRatio:'4/3', borderRadius:10, overflow:'hidden', background:'rgba(var(--ov),.05)', userSelect:'none' }
 
   return (
     <div>
@@ -172,10 +197,10 @@ function ImageUpload({ images, onChange }) {
         onDragOver={e => { e.preventDefault(); setDragOver(true) }}
         onDragLeave={() => setDragOver(false)}
         style={{
-          border: `2px dashed ${dragOver ? 'rgba(132,144,216,.8)' : 'rgba(132,144,216,.3)'}`,
+          border: `2px dashed ${dragOver ? 'rgba(var(--brand-rgb),.8)' : 'rgba(var(--brand-rgb),.3)'}`,
           borderRadius: 10,
           padding: '14px 16px',
-          background: dragOver ? 'rgba(132,144,216,.08)' : 'rgba(255,255,255,.02)',
+          background: dragOver ? 'rgba(var(--brand-rgb),.08)' : 'rgba(var(--ov),.02)',
           textAlign: 'center',
           marginBottom: 10,
           transition: 'all .2s',
@@ -185,12 +210,13 @@ function ImageUpload({ images, onChange }) {
       >
         <input id="img-upload-input" type="file" accept="image/*" multiple onChange={onInputChange} style={{ display:'none' }}/>
         {loading ? (
-          <div style={{ fontSize:12, color:'rgba(232,228,216,.5)', letterSpacing:'.04em' }}>מעבד תמונות...</div>
+          <div style={{ fontSize:12, color:'rgba(var(--ink),.5)', letterSpacing:'.04em' }}>מעבד תמונות...</div>
         ) : (
           <>
-            <FaImage size={20} style={{ marginBottom:4, opacity:.3, color:'rgba(232,228,216,.6)' }}/>
-            <div style={{ fontSize:12, color:'rgba(232,228,216,.6)', fontWeight:600 }}>גרור תמונות לכאן או לחץ לבחירה</div>
-            <div style={{ fontSize:10, color:'rgba(232,228,216,.3)', marginTop:3 }}>עד {MAX_IMAGES - images.length} תמונות נוספות · JPEG/PNG/WEBP</div>
+            <FaImage size={20} style={{ marginBottom:4, opacity:.3, color:'rgba(var(--ink),.6)' }}/>
+            <div style={{ fontSize:12, color:'rgba(var(--ink),.6)', fontWeight:600 }}>גרור תמונות לכאן או לחץ לבחירה</div>
+            <div style={{ fontSize:10, color:'rgba(var(--ink),.3)', marginTop:3 }}>עד {MAX_IMAGES - images.length} תמונות נוספות · JPEG/PNG/WEBP</div>
+            {uploadError && <div style={{ fontSize:12, color:'#E05252', fontWeight:700, marginTop:8 }}>העלאת התמונה נכשלה — בדקו את החיבור ונסו שוב (התמונה לא נשמרה)</div>}
           </>
         )}
       </div>
@@ -208,7 +234,7 @@ function ImageUpload({ images, onChange }) {
               onDragEnd={onDragEnd}
               style={{
                 ...cell,
-                outline: overIdx === i && dragIdx !== i ? '2px solid rgba(132,144,216,.8)' : '2px solid transparent',
+                outline: overIdx === i && dragIdx !== i ? '2px solid rgba(var(--brand-rgb),.8)' : '2px solid transparent',
                 opacity: dragIdx === i ? 0.45 : 1,
                 cursor: 'grab',
                 transition: 'opacity .15s, outline .15s',
@@ -234,7 +260,7 @@ function ImageUpload({ images, onChange }) {
           ))}
         </div>
       )}
-      <div style={{ fontSize:10, color:'rgba(232,228,216,.3)', letterSpacing:'.03em' }}>
+      <div style={{ fontSize:10, color:'rgba(var(--ink),.3)', letterSpacing:'.03em' }}>
         גרור תמונות לשינוי סדר · תמונה ראשונה = תמונה ראשית
       </div>
     </div>
@@ -323,7 +349,7 @@ const META_TOKEN_DEFAULT = 'EAAnqYHiWM8cBRZAZCAfaykV1lMF9GXejZCKL9vcoG7g72Y5qdnv
 
 function MetaGraphLive({ tab }) {
   const { C, isDark } = useTheme()
-  const cardBg = isDark ? 'rgba(255,255,255,.03)' : 'rgba(0,0,0,.02)'
+  const cardBg = isDark ? 'rgba(var(--ov),.03)' : 'rgba(0,0,0,.02)'
 
   const [token, setToken]           = useState(() => localStorage.getItem(META_TOKEN_KEY) || META_TOKEN_DEFAULT)
   const [tokenInput, setTokenInput] = useState('')
@@ -422,7 +448,7 @@ function MetaGraphLive({ tab }) {
   const expiryColor = !tokenExpiry ? C.purple : isExpired ? '#E05252' : expiresIn < 60 ? '#F97316' : '#22C55E'
   const expiryLabel = !tokenExpiry ? 'בדיקה...' : isExpired ? 'פג תוקף — עדכן טוקן' : expiresIn > 1440 ? `תקף — ${Math.round(expiresIn/1440)} ימים` : expiresIn > 60 ? `${Math.round(expiresIn/60)} שעות` : `${expiresIn} דקות`
 
-  const inp = { width:'100%', padding:'9px 12px', background:'rgba(255,255,255,.05)', border:`1px solid ${C.purple}33`, borderRadius:8, color:C.cream, fontSize:13, fontFamily:'monospace', outline:'none', direction:'ltr', boxSizing:'border-box' }
+  const inp = { width:'100%', padding:'9px 12px', background:'rgba(var(--ov),.05)', border:`1px solid ${C.purple}33`, borderRadius:8, color:C.cream, fontSize:13, fontFamily:'monospace', outline:'none', direction:'ltr', boxSizing:'border-box' }
 
   // ── Preset queries ────────────────────────────────────────────────────
   const PRESETS = [
@@ -445,7 +471,7 @@ function MetaGraphLive({ tab }) {
     <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
 
       {/* Token bar */}
-      <div style={{ display:'flex', alignItems:'center', gap:10, background:'rgba(255,255,255,.03)', border:`1px solid ${expiryColor}33`, borderRadius:12, padding:'12px 16px' }}>
+      <div style={{ display:'flex', alignItems:'center', gap:10, background:'rgba(var(--ov),.03)', border:`1px solid ${expiryColor}33`, borderRadius:12, padding:'12px 16px' }}>
         <div style={{ width:10, height:10, borderRadius:'50%', background:expiryColor, boxShadow:`0 0 8px ${expiryColor}`, flexShrink:0 }}/>
         <div style={{ flex:1, minWidth:0 }}>
           <div style={{ fontSize:11, fontWeight:700, color:expiryColor }}>Graph API Token — {expiryLabel}</div>
@@ -463,7 +489,7 @@ function MetaGraphLive({ tab }) {
 
       {/* Token edit */}
       {editToken && (
-        <div style={{ background:'rgba(255,255,255,.03)', border:`1px solid ${C.purple}22`, borderRadius:12, padding:14, display:'flex', flexDirection:'column', gap:8 }}>
+        <div style={{ background:'rgba(var(--ov),.03)', border:`1px solid ${C.purple}22`, borderRadius:12, padding:14, display:'flex', flexDirection:'column', gap:8 }}>
           <div style={{ fontSize:11, color:`${C.cream}66`, fontWeight:600 }}>הדבק User Access Token חדש מ-<a href="https://developers.facebook.com/tools/explorer/" target="_blank" rel="noopener noreferrer" style={{ color:C.purple }}>Graph API Explorer</a></div>
           <div style={{ display:'flex', gap:8 }}>
             <input type="password" value={tokenInput} onChange={e => setTokenInput(e.target.value)} placeholder="EAAn..." style={{ ...inp, flex:1 }}/>
@@ -599,16 +625,16 @@ function MetaGraphLive({ tab }) {
           <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
             {PRESETS.map((p,i) => (
               <button key={i} onClick={() => setQueryPath(p.path)}
-                style={{ padding:'5px 11px', background:'rgba(255,255,255,.04)', border:`1px solid ${C.purple}25`, borderRadius:6, color:`${C.cream}80`, fontSize:10, fontWeight:600, cursor:'pointer', fontFamily:'inherit', transition:'all .15s' }}
+                style={{ padding:'5px 11px', background:'rgba(var(--ov),.04)', border:`1px solid ${C.purple}25`, borderRadius:6, color:`${C.cream}80`, fontSize:10, fontWeight:600, cursor:'pointer', fontFamily:'inherit', transition:'all .15s' }}
                 onMouseEnter={e=>{ e.currentTarget.style.background=`${C.purple}18`; e.currentTarget.style.color=C.purple }}
-                onMouseLeave={e=>{ e.currentTarget.style.background='rgba(255,255,255,.04)'; e.currentTarget.style.color=`${C.cream}80` }}>
+                onMouseLeave={e=>{ e.currentTarget.style.background='rgba(var(--ov),.04)'; e.currentTarget.style.color=`${C.cream}80` }}>
                 {p.label}
               </button>
             ))}
           </div>
           {/* Query input */}
           <div style={{ display:'flex', gap:8 }}>
-            <div style={{ flex:1, display:'flex', alignItems:'center', background:'rgba(255,255,255,.04)', border:`1px solid ${C.purple}30`, borderRadius:8, overflow:'hidden' }}>
+            <div style={{ flex:1, display:'flex', alignItems:'center', background:'rgba(var(--ov),.04)', border:`1px solid ${C.purple}30`, borderRadius:8, overflow:'hidden' }}>
               <span style={{ padding:'0 10px', fontSize:11, color:`${C.cream}44`, whiteSpace:'nowrap', borderRight:`1px solid ${C.purple}20` }}>GET graph.facebook.com/v25.0</span>
               <input value={queryPath} onChange={e => setQueryPath(e.target.value)}
                 onKeyDown={e => { if (e.key==='Enter') runQuery() }}
@@ -640,7 +666,7 @@ function MetaGraphLive({ tab }) {
 function PlatformSection({ tab, C, isDark }) {
   const cfg = PLATFORM_CFG[tab]
   if (!cfg) return null
-  const cardBg = isDark ? 'rgba(255,255,255,.03)' : 'rgba(0,0,0,.03)'
+  const cardBg = isDark ? 'rgba(var(--ov),.03)' : 'rgba(0,0,0,.03)'
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
@@ -714,7 +740,7 @@ const META_BUSINESS_ID = '13184732626344484'
 
 function MetaMarketingLive() {
   const { C, isDark } = useTheme()
-  const cardBg = isDark ? 'rgba(255,255,255,.03)' : 'rgba(0,0,0,.02)'
+  const cardBg = isDark ? 'rgba(var(--ov),.03)' : 'rgba(0,0,0,.02)'
   const [token]         = useState(() => localStorage.getItem(META_TOKEN_KEY) || META_TOKEN_DEFAULT)
   const [accounts, setAccounts] = useState([])
   const [insights, setInsights] = useState(null)
@@ -777,7 +803,7 @@ function MetaMarketingLive() {
           <div style={{ display:'flex', flexDirection:'column', gap:7 }}>
             {accounts.map((acc,i) => (
               <div key={i} onClick={() => { setSelAccount(acc); loadInsights(acc.id) }}
-                style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 12px', background:selAccount?.id===acc.id?`${C.purple}14`:'rgba(255,255,255,.02)', border:`1px solid ${selAccount?.id===acc.id?C.purple+'44':C.purple+'12'}`, borderRadius:9, cursor:'pointer' }}>
+                style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 12px', background:selAccount?.id===acc.id?`${C.purple}14`:'rgba(var(--ov),.02)', border:`1px solid ${selAccount?.id===acc.id?C.purple+'44':C.purple+'12'}`, borderRadius:9, cursor:'pointer' }}>
                 <div style={{ width:8, height:8, borderRadius:'50%', background:acc.account_status===1?'#22C55E':'#E05252', flexShrink:0 }}/>
                 <span style={{ fontSize:13, fontWeight:600, color:C.cream, flex:1 }}>{acc.name}</span>
                 <span style={{ fontSize:11, color:`${C.cream}44`, fontFamily:'monospace' }}>{acc.id}</span>
@@ -840,7 +866,7 @@ const GA4_DEVICE_VERIFIED = [
 ]
 
 function AnalyticsDashboard({ leads }) {
-  const { C, isDark } = useTheme()
+  const { C, isDark, lang } = useTheme()
   const [events, setEvents] = useState([])
   const [refreshTs, setRefreshTs] = useState(0)
   const [analyticsTab, setAnalyticsTab] = useState('site')
@@ -849,6 +875,7 @@ function AnalyticsDashboard({ leads }) {
   const [ga4Reason,  setGa4Reason]  = useState('')     // why live was unavailable (transparency)
   const [ga4UpdatedAt, setGa4UpdatedAt] = useState(null) // timestamp of last successful live pull
   const [ga4Loading, setGa4Loading] = useState(false)
+  const [ga4Via, setGa4Via] = useState('supermetrics')    // which live source answered
 
   useEffect(() => {
     const load = () => {
@@ -881,6 +908,16 @@ function AnalyticsDashboard({ leads }) {
 
     // One live fetch. Returns { ok, parsed } or { ok:false, reason }.
     const fetchOnce = async () => {
+      // 1) Direct GA4 Data API (free; the Supermetrics trial has ended)
+      try {
+        const r = await fetch(`/api/meta/ga4?days=30`, { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` } })
+        const d = await r.json().catch(() => ({}))
+        if (r.ok && d.configured && Array.isArray(d.devices) && d.devices.length) {
+          setGa4Via('ga4')
+          return { ok: true, parsed: d.devices.map(x => ({ device: String(x.deviceCategory || '').toLowerCase(), sessions: x.sessions || 0, activeUsers: x.totalUsers || 0, newUsers: x.newUsers || 0, bounceRate: x.bounceRate || 0, views: x.screenPageViews || 0, avgDuration: x.averageSessionDuration || 0 })) }
+        }
+      } catch {}
+      // 2) Legacy: Supermetrics
       try {
         const r = await fetch(`/api/meta/supermetrics?source=device&range=last_30_days`, {
           headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
@@ -995,6 +1032,8 @@ function AnalyticsDashboard({ leads }) {
           ? <MetaGraphLive tab={analyticsTab}/>
           : analyticsTab === 'marketing'
           ? <MetaMarketingLive/>
+          : analyticsTab === 'ga4'
+          ? <Suspense fallback={null}><GA4Tab token={ADMIN_TOKEN} lang={lang}/></Suspense>
           : <PlatformSection tab={analyticsTab} C={C} isDark={isDark}/>
       )}
 
@@ -1044,7 +1083,7 @@ function AnalyticsDashboard({ leads }) {
       </div>
 
       {/* ── 7-day bar chart ── */}
-      <div style={{ background: isDark ? 'rgba(255,255,255,.025)' : 'rgba(0,0,0,.02)', borderRadius:18, padding:'20px 22px', border:`1px solid ${C.purple}20`, boxShadow: isDark ? '0 4px 24px rgba(0,0,0,.22)' : '0 2px 10px rgba(0,0,0,.05)' }}>
+      <div style={{ background: isDark ? 'rgba(var(--ov),.025)' : 'rgba(0,0,0,.02)', borderRadius:18, padding:'20px 22px', border:`1px solid ${C.purple}20`, boxShadow: isDark ? '0 4px 24px rgba(0,0,0,.22)' : '0 2px 10px rgba(0,0,0,.05)' }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:18 }}>
           <div>
             <div style={{ fontSize:14, fontWeight:800, color:C.cream }}>ביקורים — 7 ימים אחרונים</div>
@@ -1096,7 +1135,7 @@ function AnalyticsDashboard({ leads }) {
       <div className="admin-overview-bottom" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
 
         {/* Traffic Sources */}
-        <div style={{ background: isDark ? 'rgba(255,255,255,.025)' : 'rgba(0,0,0,.02)', borderRadius:18, padding:'20px 20px', border:`1px solid ${C.purple}20` }}>
+        <div style={{ background: isDark ? 'rgba(var(--ov),.025)' : 'rgba(0,0,0,.02)', borderRadius:18, padding:'20px 20px', border:`1px solid ${C.purple}20` }}>
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
             <div style={{ fontSize:13, fontWeight:800, color:C.cream }}>מקורות טראפיק</div>
             <span style={{ fontSize:10, color:`${C.cream}44`, background:`${C.purple}12`, borderRadius:20, padding:'2px 9px', border:`1px solid ${C.purple}20` }}>{sessions.length} סשנים</span>
@@ -1117,7 +1156,7 @@ function AnalyticsDashboard({ leads }) {
                         <span style={{ fontSize:11, fontWeight:800, color:src6Colors[i], background:`${src6Colors[i]}18`, padding:'1px 8px', borderRadius:20, border:`1px solid ${src6Colors[i]}30` }}>{pct}%</span>
                       </div>
                     </div>
-                    <div style={{ height:8, background: isDark ? 'rgba(255,255,255,.07)' : 'rgba(0,0,0,.07)', borderRadius:4 }}>
+                    <div style={{ height:8, background: isDark ? 'rgba(var(--ov),.07)' : 'rgba(0,0,0,.07)', borderRadius:4 }}>
                       <div style={{ height:8, width:`${pct}%`, background:`linear-gradient(90deg,${src6Colors[i]},${src6Colors[i]}aa)`, borderRadius:4, transition:'width 1s cubic-bezier(.34,1.56,.64,1)', boxShadow:`0 0 8px ${src6Colors[i]}55` }}/>
                     </div>
                   </div>
@@ -1134,7 +1173,7 @@ function AnalyticsDashboard({ leads }) {
         </div>
 
         {/* Devices — real GA4 data */}
-        <div style={{ background: isDark ? 'rgba(255,255,255,.025)' : 'rgba(0,0,0,.02)', borderRadius:18, padding:'20px 20px', border:`1px solid ${C.purple}20` }}>
+        <div style={{ background: isDark ? 'rgba(var(--ov),.025)' : 'rgba(0,0,0,.02)', borderRadius:18, padding:'20px 20px', border:`1px solid ${C.purple}20` }}>
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
             <div style={{ display:'flex', alignItems:'center', gap:8 }}>
               <div style={{ fontSize:13, fontWeight:800, color:C.cream }}>סוג מכשיר</div>
@@ -1199,7 +1238,7 @@ function AnalyticsDashboard({ leads }) {
                               <div style={{ fontSize:11, fontWeight:800, color:`${dc.color}99` }}>{pct}%</div>
                             </div>
                           </div>
-                          <div style={{ height:8, background: isDark ? 'rgba(255,255,255,.07)' : 'rgba(0,0,0,.07)', borderRadius:4 }}>
+                          <div style={{ height:8, background: isDark ? 'rgba(var(--ov),.07)' : 'rgba(0,0,0,.07)', borderRadius:4 }}>
                             <div style={{ height:8, width:`${pct}%`, background:`linear-gradient(90deg,${dc.color},${dc.color}88)`, borderRadius:4, transition:'width 1s ease', boxShadow:`0 0 10px ${dc.color}44` }}/>
                           </div>
                         </div>
@@ -1226,7 +1265,7 @@ function AnalyticsDashboard({ leads }) {
                     <div style={{ fontSize:9.5, color:`${C.cream}40`, marginTop:10, lineHeight:1.5, textAlign:'center' }}>
                       {ga4Source === 'verified'
                         ? <>מקור: GA4 · נכס "הנגר 24 הוד השרון" · snapshot מאומת {GA4_DEVICE_VERIFIED_DATE}{ga4Reason ? ` · live לא זמין כעת (${ga4Reason})` : ''}</>
-                        : <>מקור: GA4 · נכס "הנגר 24 הוד השרון" · נתונים חיים דרך Supermetrics</>}
+                        : <>מקור: GA4 · נכס "הנגר 24 הוד השרון" · {ga4Via === 'ga4' ? 'נתונים חיים ישירות מ-Google Analytics' : 'נתונים חיים דרך Supermetrics'}</>}
                     </div>
                   </div>
                 )
@@ -1254,7 +1293,7 @@ function AnalyticsDashboard({ leads }) {
                         <span style={{ fontSize:11, fontWeight:800, color:d.color, background:`${d.color}18`, padding:'1px 8px', borderRadius:20 }}>{pct}%</span>
                       </div>
                     </div>
-                    <div style={{ height:8, background: isDark ? 'rgba(255,255,255,.07)' : 'rgba(0,0,0,.07)', borderRadius:4 }}>
+                    <div style={{ height:8, background: isDark ? 'rgba(var(--ov),.07)' : 'rgba(0,0,0,.07)', borderRadius:4 }}>
                       <div style={{ height:8, width:`${pct}%`, background:`linear-gradient(90deg,${d.color},${d.color}aa)`, borderRadius:4, transition:'width 1s ease', boxShadow:`0 0 8px ${d.color}44` }}/>
                     </div>
                   </div>
@@ -1283,7 +1322,7 @@ function AnalyticsDashboard({ leads }) {
 
       {/* ── Top Properties ── */}
       {topProps.length > 0 && (
-        <div style={{ background: isDark ? 'rgba(255,255,255,.025)' : 'rgba(0,0,0,.02)', borderRadius:18, padding:'20px 22px', border:`1px solid ${C.purple}20` }}>
+        <div style={{ background: isDark ? 'rgba(var(--ov),.025)' : 'rgba(0,0,0,.02)', borderRadius:18, padding:'20px 22px', border:`1px solid ${C.purple}20` }}>
           <div style={{ fontSize:13, fontWeight:800, color:C.cream, marginBottom:14 }}>נכסים שנצפו הכי הרבה</div>
           <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
             {topProps.map(([title,cnt],i) => {
@@ -1309,7 +1348,7 @@ function AnalyticsDashboard({ leads }) {
       )}
 
       {/* ── External Platforms ── */}
-      <div style={{ background: isDark ? 'rgba(255,255,255,.025)' : 'rgba(0,0,0,.02)', borderRadius:18, padding:'20px 22px', border:`1px solid ${C.purple}20` }}>
+      <div style={{ background: isDark ? 'rgba(var(--ov),.025)' : 'rgba(0,0,0,.02)', borderRadius:18, padding:'20px 22px', border:`1px solid ${C.purple}20` }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16, flexWrap:'wrap', gap:8 }}>
           <div style={{ fontSize:13, fontWeight:800, color:C.cream }}>לוחות בקרה חיצוניים</div>
           <div style={{ display:'flex', gap:7, flexWrap:'wrap' }}>
@@ -1408,7 +1447,7 @@ function TeamTab({ C, isDark }) {
     navigator.clipboard.writeText(getInviteLink(member)).then(() => { setCopied(member.id); setTimeout(() => setCopied(null), 2500) })
   }
 
-  const inp = { width:'100%', padding:'10px 14px', background:'rgba(255,255,255,.05)', border:`1px solid ${C.purple}33`, borderRadius:8, color:C.cream, fontSize:13, fontFamily:'inherit', outline:'none', direction:'rtl', boxSizing:'border-box' }
+  const inp = { width:'100%', padding:'10px 14px', background:'rgba(var(--ov),.05)', border:`1px solid ${C.purple}33`, borderRadius:8, color:C.cream, fontSize:13, fontFamily:'inherit', outline:'none', direction:'rtl', boxSizing:'border-box' }
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
@@ -1426,7 +1465,7 @@ function TeamTab({ C, isDark }) {
       </div>
 
       {/* ── Invite form ── */}
-      <div style={{ background:'rgba(255,255,255,.03)', border:`1px solid ${C.purple}22`, borderRadius:14, padding:'18px 20px' }}>
+      <div style={{ background:'rgba(var(--ov),.03)', border:`1px solid ${C.purple}22`, borderRadius:14, padding:'18px 20px' }}>
         <div style={{ fontSize:13, fontWeight:800, color:C.cream, marginBottom:14 }}>הזמנת חבר צוות חדש</div>
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:12 }}>
           <div>
@@ -1467,7 +1506,7 @@ function TeamTab({ C, isDark }) {
       </div>
 
       {/* ── Team list ── */}
-      <div style={{ background:'rgba(255,255,255,.03)', border:`1px solid ${C.purple}22`, borderRadius:14, padding:'18px 20px' }}>
+      <div style={{ background:'rgba(var(--ov),.03)', border:`1px solid ${C.purple}22`, borderRadius:14, padding:'18px 20px' }}>
         <div style={{ fontSize:13, fontWeight:800, color:C.cream, marginBottom:14 }}>
           חברי הצוות ({team.length})
         </div>
@@ -1482,7 +1521,7 @@ function TeamTab({ C, isDark }) {
               const role = TEAM_ROLES[m.role] || TEAM_ROLES.viewer
               const initials = m.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()
               return (
-                <div key={m.id} style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 14px', background:'rgba(255,255,255,.03)', borderRadius:10, border:`1px solid ${C.purple}15` }}>
+                <div key={m.id} style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 14px', background:'rgba(var(--ov),.03)', borderRadius:10, border:`1px solid ${C.purple}15` }}>
                   {/* Avatar */}
                   <div style={{ width:40, height:40, borderRadius:'50%', background:`${role.color}22`, border:`2px solid ${role.color}55`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontSize:14, fontWeight:800, color:role.color }}>
                     {initials}
@@ -1505,7 +1544,7 @@ function TeamTab({ C, isDark }) {
                   {/* Actions */}
                   <div style={{ display:'flex', gap:6, flexShrink:0 }}>
                     <select value={m.role} onChange={e => changeRole(m.id, e.target.value)}
-                      style={{ padding:'5px 8px', background:'rgba(255,255,255,.06)', border:`1px solid ${C.purple}33`, borderRadius:6, color:`${C.cream}BB`, fontSize:11, fontFamily:'inherit', cursor:'pointer', outline:'none' }}>
+                      style={{ padding:'5px 8px', background:'rgba(var(--ov),.06)', border:`1px solid ${C.purple}33`, borderRadius:6, color:`${C.cream}BB`, fontSize:11, fontFamily:'inherit', cursor:'pointer', outline:'none' }}>
                       {Object.entries(TEAM_ROLES).map(([k,r]) => <option key={k} value={k}>{r.label}</option>)}
                     </select>
                     <button onClick={() => copyLink(m)}
@@ -1529,7 +1568,7 @@ function TeamTab({ C, isDark }) {
       </div>
 
       {/* ── Security info ── */}
-      <div style={{ background:'rgba(255,255,255,.02)', border:`1px solid ${C.purple}15`, borderRadius:12, padding:'14px 18px' }}>
+      <div style={{ background:'rgba(var(--ov),.02)', border:`1px solid ${C.purple}15`, borderRadius:12, padding:'14px 18px' }}>
         <div style={{ fontSize:12, fontWeight:700, color:`${C.cream}77`, marginBottom:8 }}>אבטחה וזכויות גישה</div>
         <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
           {[
@@ -1551,19 +1590,254 @@ function TeamTab({ C, isDark }) {
 // ─── TEAM TOKEN CHECK ─────────────────────────────────────────────────────────
 function AdminTabLoader({ label = 'טוען...' }) {
   return (
-    <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:16, color:'rgba(232,228,216,.4)', minHeight:300 }}>
-      <div style={{ width:36, height:36, border:'3px solid rgba(132,144,216,.2)', borderTopColor:'#8490D8', borderRadius:'50%', animation:'spin 0.7s linear infinite' }}/>
+    <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:16, color:'rgba(var(--ink),.4)', minHeight:300 }}>
+      <div style={{ width:36, height:36, border:'3px solid rgba(var(--brand-rgb),.2)', borderTopColor:'var(--au-brand)', borderRadius:'50%', animation:'spin 0.7s linear infinite' }}/>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
       <span style={{ fontSize:13, fontFamily:'Rubik,sans-serif' }}>טוען {label}...</span>
     </div>
   )
 }
 
+// ─── PROPERTY MANAGER LIST (admin → ניהול נכסים) ─────────────────────────────
+// One row per property: site position + drag handle + ▲▼, thumbnail, details, price,
+// then three clear controls — visibility switch, status segmented control, "ערוך" —
+// and a "⋯" menu for the rarer actions (duplicate, refresh, delete). Multi-select
+// enables bulk publish / hide / status / delete. Drag-and-drop shows a live drop line
+// and saves only the rows whose position changed.
+const PM_STATUS = [
+  { id:'בשיווק', label:'בשיווק', color:'#22C55E' },
+  { id:'נמכר',   label:'נמכר',   color:'#E05252' },
+  { id:'הושכר',  label:'הושכר',  color:'#F97316' },
+]
+function PropertyManagerList({ C, list, publishedList, draftList, listTab, setListTab, listCat, setListCat,
+  onMove, onStep, onTop, publish, unpublish, setStatus, dup, del, onEdit, refreshOne, bulkPatch, bulkDelete, note }) {
+  const [search, setSearch]     = useState('')
+  const [selected, setSelected] = useState(() => new Set())
+  const [menuId, setMenuId]     = useState(null)
+  const [shareProp, setShareProp] = useState(null)   // property whose share & promote window is open
+  const { lang: uiLang } = useTheme()
+  const [drag, setDrag]         = useState({ id:null, overId:null, place:'before' })
+  const posOf = useMemo(() => { const m = new Map(); publishedList.forEach((p, i) => m.set(String(p.id), i + 1)); return m }, [publishedList])
+
+  const q = search.trim().toLowerCase()
+  const rows = q ? list.filter(p => [p.title, p.location, p.neighborhood, p.type, p.id].filter(Boolean).some(v => String(v).toLowerCase().includes(q))) : list
+  const ids = rows.map(p => String(p.id))
+  const allSel = ids.length > 0 && ids.every(id => selected.has(id))
+  const toggleSel = id => setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+  const clearSel = () => setSelected(new Set())
+  const selIds = [...selected].filter(id => ids.includes(id))
+
+  useEffect(() => {
+    if (menuId === null) return
+    const close = e => { if (!e.target.closest?.('[data-pm-menu]')) setMenuId(null) }
+    document.addEventListener('mousedown', close); return () => document.removeEventListener('mousedown', close)
+  }, [menuId])
+
+  const btn = (extra = {}) => ({ padding:'7px 12px', borderRadius:8, border:'1px solid rgba(var(--brand-rgb),.25)', background:'rgba(var(--ov),.04)', color:`${C.cream}CC`, cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:700, whiteSpace:'nowrap', display:'inline-flex', alignItems:'center', gap:6, transition:'all .15s', ...extra })
+  const iconBtn = (title, extra = {}) => ({ title, 'aria-label':title, style:{ width:28, height:22, minWidth:0, minHeight:0, borderRadius:6, border:'1px solid rgba(var(--brand-rgb),.22)', background:'rgba(var(--ov),.04)', color:`${C.cream}AA`, cursor:'pointer', fontSize:10, display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'inherit', padding:0, ...extra } })
+
+  // ── drag & drop with a live drop line ──
+  const onDragOverRow = (e, p) => {
+    e.preventDefault()
+    if (!drag.id || String(p.id) === String(drag.id)) return
+    const r = e.currentTarget.getBoundingClientRect()
+    const place = e.clientY < r.top + r.height / 2 ? 'before' : 'after'
+    if (drag.overId !== String(p.id) || drag.place !== place) setDrag(d => ({ ...d, overId:String(p.id), place }))
+  }
+  const onDropRow = (e, p) => { e.preventDefault(); if (drag.id && String(p.id) !== String(drag.id)) onMove(drag.id, p.id, drag.place); setDrag({ id:null, overId:null, place:'before' }) }
+
+  return (
+    <div className="admin-pm">
+      {shareProp && <Suspense fallback={null}><PropertyShare prop={shareProp} lang={uiLang} onClose={() => setShareProp(null)}/></Suspense>}
+      {/* Toolbar: tabs · search · category chips */}
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12, flexWrap:'wrap', gap:10 }}>
+        <div style={{ display:'flex', gap:4, background:'rgba(var(--ov),.04)', borderRadius:10, padding:4 }}>
+          {[['published', `באוויר (${publishedList.length})`, C.green], ['draft', `מוסתרים / טיוטות (${draftList.length})`, '#F7C948']].map(([id, label, color]) => (
+            <button key={id} onClick={() => { setListTab(id); clearSel() }}
+              style={{ display:'flex', alignItems:'center', gap:7, padding:'8px 16px', border:'none', borderRadius:7, background:listTab===id?color+'22':'transparent', color:listTab===id?color:`${C.cream}55`, cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:800, transition:'all .15s' }}>
+              {listTab===id && <span style={{ width:6, height:6, borderRadius:'50%', background:color, display:'inline-block' }}/>}{label}
+            </button>
+          ))}
+        </div>
+        <div style={{ position:'relative', flex:'1 1 220px', maxWidth:340 }}>
+          <FaSearch size={11} style={{ position:'absolute', insetInlineStart:12, top:'50%', transform:'translateY(-50%)', color:`${C.cream}44` }}/>
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="חיפוש לפי כותרת, עיר, סוג…"
+            style={{ width:'100%', padding:'9px 34px 9px 12px', background:'rgba(var(--ov),.05)', border:`1px solid ${search ? C.purple : 'rgba(var(--brand-rgb),.25)'}`, borderRadius:9, color:C.cream, fontSize:12, fontFamily:'inherit', outline:'none', boxSizing:'border-box' }}/>
+        </div>
+        <div className="admin-cat-filter">
+          {[{id:'all',label:'הכל',Icon:null},...CATEGORIES].map(({id,label,Icon:CIcon}) => (
+            <button key={id} onClick={() => setListCat(id)} style={{ padding:'5px 10px', border:`1px solid ${listCat===id?C.purple:'rgba(var(--brand-rgb),.2)'}`, borderRadius:6, background:listCat===id?`${C.purple}22`:'transparent', color:listCat===id?C.purple:`${C.cream}70`, cursor:'pointer', fontSize:11, fontFamily:'inherit', fontWeight:600, whiteSpace:'nowrap', display:'flex', alignItems:'center', gap:5 }}>
+              {CIcon && <CIcon size={10}/>} {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Hint + select-all + saved note */}
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:10, marginBottom:10, flexWrap:'wrap' }}>
+        <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:12, color:`${C.cream}80`, cursor:'pointer' }}>
+          <input type="checkbox" checked={allSel} onChange={() => setSelected(allSel ? new Set() : new Set(ids))} style={{ accentColor:C.purple, width:16, height:16, appearance:'auto', WebkitAppearance:'checkbox', borderRadius:4 }}/>
+          בחר הכל ({rows.length})
+        </label>
+        <span style={{ fontSize:11, color: note ? C.green : `${C.cream}50`, fontWeight: note ? 700 : 500, transition:'color .2s' }}>
+          {note || (listTab==='published' ? '⠿ גררו שורה, או השתמשו בחיצים ▲▼ כדי לקבוע את הסדר באתר. נכס חדש נכנס אוטומטית לראש הרשימה עד שתזיזו אותו.' : 'נכסים מוסתרים לא מוצגים באתר. "פרסם" מחזיר אותם לאוויר.')}
+        </span>
+      </div>
+
+      {/* Bulk action bar */}
+      {selIds.length > 0 && (
+        <div style={{ position:'sticky', top:0, zIndex:5, display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', padding:'10px 14px', marginBottom:10, background:'rgba(19,19,42,.96)', border:`1px solid ${C.purple}55`, borderRadius:12, boxShadow:`0 10px 30px rgba(0,0,0,.35)`, backdropFilter:'blur(8px)' }}>
+          <span style={{ fontSize:13, fontWeight:800, color:C.purple, marginInlineEnd:6 }}>נבחרו {selIds.length}</span>
+          {listTab==='draft'
+            ? <button onClick={() => { bulkPatch(selIds, { published:true }); clearSel() }} style={btn({ background:`${C.green}18`, borderColor:`${C.green}55`, color:C.green })}>▶ פרסם באתר</button>
+            : <button onClick={() => { bulkPatch(selIds, { published:false }); clearSel() }} style={btn({ background:'rgba(247,201,72,.1)', borderColor:'rgba(247,201,72,.4)', color:'#F7C948' })}>⏸ הסתר מהאתר</button>}
+          <button onClick={() => { bulkPatch(selIds, { status:'נמכר' }); clearSel() }} style={btn({ color:'#E05252', borderColor:'rgba(224,82,82,.35)' })}>סמן נמכר</button>
+          <button onClick={() => { bulkPatch(selIds, { status:'הושכר' }); clearSel() }} style={btn({ color:'#F97316', borderColor:'rgba(249,115,22,.35)' })}>סמן הושכר</button>
+          <button onClick={() => { bulkPatch(selIds, { status:'בשיווק' }); clearSel() }} style={btn({ color:C.green, borderColor:`${C.green}44` })}>החזר לשיווק</button>
+          <span style={{ flex:1 }}/>
+          <button onClick={() => { bulkDelete(selIds); clearSel() }} style={btn({ color:'#E05252', borderColor:'rgba(224,82,82,.45)', background:'rgba(224,82,82,.08)' })}><FaTrash size={10}/> מחק</button>
+          <button onClick={clearSel} style={btn({ color:`${C.cream}88` })}>בטל בחירה</button>
+        </div>
+      )}
+
+      {rows.length === 0 && <div style={{ textAlign:'center', padding:'32px 0', color:`${C.cream}40`, fontSize:13 }}>{q ? 'לא נמצאו נכסים לחיפוש הזה.' : listTab==='draft' ? 'אין נכסים מוסתרים או טיוטות.' : 'אין נכסים באוויר.'}</div>}
+
+      <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+        {rows.map((p, idx) => {
+          const id = String(p.id)
+          const live = p.published !== false
+          const cat = CATEGORIES.find(c => c.id === p.category) || CATEGORIES[1]
+          const price = p.price ? `₪${Number(String(p.price).replace(/[^\d]/g,'')).toLocaleString('he-IL')}` : 'מחיר בפנייה'
+          const status = ['נמכר','הושכר'].includes(p.status) ? p.status : 'בשיווק'
+          const pos = posOf.get(id)
+          const isDragging = drag.id === id
+          const over = drag.overId === id ? drag.place : null
+          const accent = live ? C.green : '#F7C948'
+          return (
+            <div key={p.id} className="admin-pm-row"
+              draggable
+              onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; try { e.dataTransfer.setData('text/plain', id) } catch {} setDrag({ id, overId:null, place:'before' }) }}
+              onDragEnd={() => setDrag({ id:null, overId:null, place:'before' })}
+              onDragOver={e => onDragOverRow(e, p)}
+              onDrop={e => onDropRow(e, p)}
+              style={{ display:'flex', alignItems:'stretch', background: selected.has(id) ? `${C.purple}12` : live ? 'rgba(34,197,94,.035)' : 'rgba(var(--ov),.035)', borderRadius:14, border:`1.5px solid ${selected.has(id) ? C.purple+'66' : accent+'2A'}`, overflow:'visible', position:'relative', opacity: isDragging ? .35 : 1, transition:'opacity .15s, border-color .15s, box-shadow .15s', cursor: drag.id ? 'grabbing' : 'default',
+                boxShadow: over === 'before' ? `0 -3px 0 0 ${C.purple}` : over === 'after' ? `0 3px 0 0 ${C.purple}` : 'none' }}>
+              {/* Select + position + order controls */}
+              <div className="admin-pm-order" style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:6, padding:'8px 6px', borderInlineEnd:`1px solid ${accent}22`, background:`${accent}0C`, flexShrink:0, width:76 }}>
+                <input type="checkbox" checked={selected.has(id)} onChange={() => toggleSel(id)} aria-label="בחר נכס" style={{ accentColor:C.purple, width:16, height:16, appearance:'auto', WebkitAppearance:'checkbox', borderRadius:4, cursor:'pointer' }}/>
+                <div title={live ? 'מיקום בעמוד הנכסים באתר' : 'לא מוצג באתר'} style={{ minWidth:30, textAlign:'center', padding:'2px 6px', borderRadius:7, background: live ? `${C.purple}22` : 'rgba(247,201,72,.15)', color: live ? C.purple : '#F7C948', fontSize:12, fontWeight:900, fontFamily:'monospace' }}>{live && pos ? `#${pos}` : '—'}</div>
+                <div title="גרור לשינוי הסדר" style={{ cursor:'grab', color:`${accent}99`, fontSize:16, lineHeight:1, userSelect:'none', letterSpacing:-2 }}>⠿</div>
+                <div style={{ display:'flex', gap:3 }}>
+                  <button {...iconBtn('העלה בסדר', { opacity: idx === 0 ? .35 : 1 })} disabled={idx === 0} onClick={() => onStep(p.id, -1)}>▲</button>
+                  <button {...iconBtn('הורד בסדר', { opacity: idx === rows.length - 1 ? .35 : 1 })} disabled={idx === rows.length - 1} onClick={() => onStep(p.id, +1)}>▼</button>
+                </div>
+              </div>
+              {/* Thumbnail */}
+              <div className="admin-prop-thumb" style={{ position:'relative', flexShrink:0, width:132, minHeight:104, alignSelf:'stretch', background:`${C.purple}10` }}>
+                {p.images?.[0]
+                  ? <img src={thumbImg(p.images[0])} onError={imgFallback} style={{ position:'absolute', inset:0, width:'100%', height:'100%', objectFit:'cover', display:'block' }} alt="" loading="lazy" decoding="async"/>
+                  : <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', color:'var(--au-brand-text)' }}><cat.Icon size={28}/></div>}
+                <div style={{ position:'absolute', top:6, insetInlineStart:6, background: live ? `${C.green}DD` : 'rgba(247,201,72,.92)', borderRadius:5, padding:'2px 7px', fontSize:9, fontWeight:900, color:'#000', letterSpacing:'.05em' }}>{live ? '● LIVE' : 'מוסתר'}</div>
+                {(p.images?.length || 0) > 1 && <div style={{ position:'absolute', bottom:6, insetInlineEnd:6, background:'rgba(0,0,0,.6)', borderRadius:5, padding:'1px 6px', fontSize:9, color:'#fff', fontWeight:700 }}>📷 {p.images.length}</div>}
+              </div>
+              {/* Info */}
+              <div style={{ flex:1, minWidth:0, padding:'10px 14px', display:'flex', flexDirection:'column', gap:5, justifyContent:'center' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
+                  <span style={{ fontWeight:800, fontSize:15, color:C.cream, lineHeight:1.25 }}>{p.title || 'ללא כותרת'}</span>
+                  {p.exclusive && <span style={{ fontSize:10, background:`${C.green}18`, color:C.green, border:`1px solid ${C.green}35`, borderRadius:5, padding:'1px 7px', fontWeight:700 }}>✦ בלעדי</span>}
+                  <span style={{ background:`${C.purple}22`, color:C.purple, borderRadius:5, padding:'1px 8px', fontSize:10, fontWeight:700 }}>{cat.label}</span>
+                  {p.type && <span style={{ background:'rgba(var(--ov),.06)', color:`${C.cream}70`, borderRadius:5, padding:'1px 8px', fontSize:10 }}>{p.type}</span>}
+                </div>
+                <div style={{ display:'flex', gap:12, flexWrap:'wrap', fontSize:12, color:`${C.cream}75` }}>
+                  {p.location && <span style={{ display:'flex', alignItems:'center', gap:4 }}><FaMapMarkerAlt size={10} style={{ color:C.purple }}/>{p.location}{p.neighborhood ? ' · '+p.neighborhood : ''}</span>}
+                  {p.rooms && <span style={{ display:'flex', alignItems:'center', gap:4 }}><FaBed size={10} style={{ color:C.purple }}/>{p.rooms} חד'</span>}
+                  {p.size && <span style={{ display:'flex', alignItems:'center', gap:4 }}><FaRulerCombined size={10} style={{ color:C.purple }}/>{p.size} מ"ר</span>}
+                  {p.floor && <span style={{ display:'flex', alignItems:'center', gap:4 }}><FaBuilding size={10} style={{ color:C.purple }}/>קומה {p.floor}{p.totalFloors?'/'+p.totalFloors:''}</span>}
+                  {p.dunams && <span style={{ display:'flex', alignItems:'center', gap:4 }}><FaLeaf size={10} style={{ color:C.purple }}/>{p.dunams} דונם</span>}
+                </div>
+                <div style={{ display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' }}>
+                  <span style={{ fontSize:15, fontWeight:900, color: p.price ? C.cream : `${C.cream}66` }}>{price}</span>
+                  {p.updatedAt && <span style={{ fontSize:10, color:`${C.cream}40` }}>עודכן {new Date(p.updatedAt).toLocaleDateString('he-IL')}</span>}
+                </div>
+              </div>
+              {/* Controls */}
+              <div className="admin-pm-actions" style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 12px', flexShrink:0, flexWrap:'wrap', justifyContent:'flex-end' }}>
+                {/* Visibility switch */}
+                <button onClick={() => live ? unpublish(p.id) : publish(p.id)} title={live ? 'לחיצה תסתיר את הנכס מהאתר' : 'לחיצה תפרסם את הנכס באתר'}
+                  style={{ display:'inline-flex', alignItems:'center', gap:8, padding:'6px 10px 6px 6px', borderRadius:20, border:`1px solid ${live ? C.green+'55' : 'rgba(247,201,72,.45)'}`, background: live ? `${C.green}14` : 'rgba(247,201,72,.1)', color: live ? C.green : '#F7C948', cursor:'pointer', fontSize:12, fontWeight:800, fontFamily:'inherit' }}>
+                  <span style={{ width:34, height:18, borderRadius:10, background: live ? C.green : 'rgba(247,201,72,.35)', position:'relative', transition:'background .2s', flexShrink:0 }}>
+                    <span style={{ position:'absolute', top:2, insetInlineStart: live ? 18 : 2, width:14, height:14, borderRadius:'50%', background:'#fff', transition:'all .2s' }}/>
+                  </span>
+                  {live ? 'באוויר' : 'מוסתר'}
+                </button>
+                {/* Status segmented */}
+                <div role="group" aria-label="סטטוס" style={{ display:'inline-flex', background:'rgba(var(--ov),.05)', border:'1px solid rgba(var(--brand-rgb),.2)', borderRadius:9, padding:3, gap:2 }}>
+                  {PM_STATUS.map(s => {
+                    const on = status === s.id
+                    return <button key={s.id} onClick={() => !on && setStatus(p.id, s.id)} style={{ padding:'5px 10px', borderRadius:7, border:'none', background: on ? s.color : 'transparent', color: on ? '#0b0b12' : `${C.cream}80`, cursor: on ? 'default' : 'pointer', fontSize:11, fontWeight:800, fontFamily:'inherit', transition:'all .15s' }}>{s.label}</button>
+                  })}
+                </div>
+                {/* Edit */}
+                {/* Share & promote */}
+                <button onClick={() => setShareProp(p)} title={live ? 'קישור לשיתוף, למודעות ולקולגות' : 'הנכס מוסתר – פרסמו אותו כדי שהקישור יעבוד'}
+                  style={btn({ padding:'8px 14px', borderColor:'rgba(var(--brand-rgb),.4)', color:'var(--au-brand-text)', background:'rgba(var(--brand-rgb),.08)' })}><FaShareAlt size={10}/> שתף</button>
+                <button onClick={() => onEdit(p)} style={btn({ background:C.purple, borderColor:C.purple, color:'#fff', padding:'8px 16px' })}><FaPencilAlt size={10}/> ערוך</button>
+                {/* More menu */}
+                <div data-pm-menu style={{ position:'relative' }}>
+                  <button onClick={() => setMenuId(menuId === id ? null : id)} aria-haspopup="menu" aria-expanded={menuId === id} title="פעולות נוספות" style={btn({ padding:'8px 10px', fontSize:14, lineHeight:1 })}>⋯</button>
+                  {menuId === id && (
+                    <div role="menu" style={{ position:'absolute', top:'calc(100% + 6px)', insetInlineEnd:0, zIndex:20, minWidth:190, background:'var(--au-pop)', border:`1px solid ${C.purple}44`, borderRadius:12, boxShadow:'0 16px 40px rgba(0,0,0,.5)', padding:6, display:'flex', flexDirection:'column', gap:2 }}>
+                      {[
+                        ...(idx > 0 ? [['⤒ העבר לראש הרשימה', () => onTop(p.id)]] : []),
+                        ['📄 שכפל נכס', () => dup(p.id)],
+                        ['↻ רענן מהשרת', () => refreshOne(p)],
+                        ['📣 שיתוף ופרסום', () => setShareProp(p)],
+                        ['🔗 פתח את הנכס באתר', () => window.open(`/p/${encodeURIComponent(p.id)}`, '_blank')],
+                      ].map(([label, fn]) => (
+                        <button key={label} role="menuitem" onClick={() => { setMenuId(null); fn() }} style={{ textAlign:'start', padding:'9px 12px', borderRadius:8, border:'none', background:'transparent', color:C.cream, fontSize:12, fontFamily:'inherit', cursor:'pointer', fontWeight:600 }}
+                          onMouseEnter={e => e.currentTarget.style.background=`${C.purple}22`} onMouseLeave={e => e.currentTarget.style.background='transparent'}>{label}</button>
+                      ))}
+                      <div style={{ height:1, background:'rgba(var(--ov),.08)', margin:'4px 6px' }}/>
+                      <button role="menuitem" onClick={() => { setMenuId(null); del(p.id) }} style={{ textAlign:'start', padding:'9px 12px', borderRadius:8, border:'none', background:'transparent', color:'#E05252', fontSize:12, fontFamily:'inherit', cursor:'pointer', fontWeight:700 }}
+                        onMouseEnter={e => e.currentTarget.style.background='rgba(224,82,82,.14)'} onMouseLeave={e => e.currentTarget.style.background='transparent'}>🗑 מחק נכס</button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+
+// ─── Appearance switch (light / dark / follow the device) ─────────────────────
+function AdminThemeSwitch({ lang, compact }) {
+  const { pref, setPref } = useAdminTheme()
+  const opts = [['light', FaSun, 'בהיר', 'Light'], ['dark', FaMoon, 'כהה', 'Dark'], ['system', FaDesktop, 'אוטומטי', 'Auto']]
+  return (
+    <div role="radiogroup" aria-label={lang === 'en' ? 'Appearance' : 'מראה המערכת'} style={{ display:'inline-flex', padding:3, gap:2, borderRadius:10, background:'rgba(var(--ov),.05)', border:'1px solid var(--au-line)', flexShrink:0 }}>
+      {opts.map(([id, Ic, he, en]) => {
+        const on = pref === id
+        return (
+          <button key={id} type="button" role="radio" aria-checked={on} title={lang === 'en' ? en : he} aria-label={lang === 'en' ? en : he} onClick={() => setPref(id)}
+            style={{ height:28, padding: compact ? '0 9px' : '0 10px', borderRadius:8, border:'none', background: on ? 'var(--au-seg-active)' : 'transparent', boxShadow: on ? '0 1px 3px rgba(var(--shade),.18)' : 'none', color: on ? 'var(--au-text)' : 'var(--au-text3)', display:'inline-flex', alignItems:'center', gap:6, fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit', minHeight:0, minWidth:0, transition:'background .15s,color .15s' }}>
+            <Ic size={11}/>{!compact && <span>{lang === 'en' ? en : he}</span>}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSharon, govmapToken, setGovmapToken, onClose, onEditInWizard, standalone = false }) {
-  const { lang, logoNavSize, setLogoNavSize } = useTheme()
-  // Admin panel is ALWAYS dark regardless of site theme
-  const isDark = true
-  const C      = DARK_C
+  // Admin appearance (dark / light / system) comes from the admin theme context — see src/adminTheme.js
+  const { lang, logoNavSize, setLogoNavSize, C, isDark } = useTheme()
+  const adminTheme = useAdminTheme()
+  const [cmdOpen, setCmdOpen] = useState(false)
+  useCommandHotkey(setCmdOpen)
   const initForm = () => {
     try { const d = JSON.parse(localStorage.getItem(ADMIN_DRAFT_KEY)); if (d) return { ...EMPTY_PROP, ...d } } catch {}
     return EMPTY_PROP
@@ -1573,7 +1847,8 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const [err, setErr]     = useState('')
   const [tab, setTab]     = useState(() => {
     const seg = window.location.pathname.replace(/^\/admin-panel\/?/, '')
-    return ADMIN_PATH_TO_TAB[seg] || 'props'
+    const t = ADMIN_PATH_TO_TAB[seg] || 'props'
+    return t === 'overview' && !standalone ? 'props' : t     // the modal has no overview page
   })
   const [adminNavOpen, setAdminNavOpen] = useState(false)
 
@@ -1586,10 +1861,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const [listTab, setListTab] = useState('published')
   const propListRef = useRef(null)
   const [listCat, setListCat] = useState('all')
-  const dragPropId       = useRef(null)
-  const dragOverId       = useRef(null)
   const autoSaveTimer    = useRef(null)
-  const [dragActive, setDragActive] = useState(false)
   const [saved, setSaved]   = useState(false)
   const [propSyncing,    setPropSyncing]    = useState(false)
   const [propSyncError,  setPropSyncError]  = useState('')
@@ -1753,6 +2025,44 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const [chatSending, setChatSending] = useState(false)
   const [chatContact, setChatContact] = useState(null)
   const [initialChatLead, setInitialChatLead] = useState(null)
+  // ── WhatsApp automations: config + periodic run (the panel is the scheduler while it is open) ──
+  const [autoCfg, setAutoCfg]         = useState(null)    // { config, storage, greenConfigured }
+  const [autoRun, setAutoRun]         = useState(null)    // last run: suggestions, sent, moves…
+  const [autoRunning, setAutoRunning] = useState(false)
+  const [stagePrompt, setStagePrompt] = useState(null)
+  const autoRunBusy = useRef(false)
+  const loadAutoCfg = useCallback(() => autoApi.get('auto-config').then(setAutoCfg).catch(() => {}), [])
+  const runAutomations = useCallback(async () => {
+    if (autoRunBusy.current) return
+    autoRunBusy.current = true; setAutoRunning(true)
+    try {
+      const r = await autoApi.post('auto-run', {})
+      setAutoRun(prev => {
+        const before = new Set((prev?.suggestions || []).map(x => x.id))
+        const fresh = (r.suggestions || []).filter(x => !before.has(x.id))
+        if (prev && fresh.length) addToast('🤖 הודעות חדשות ממתינות לאישור', fresh.slice(0, 3).map(x => x.name || x.phone).join(', '), 'automations', '🤖')
+        return r
+      })
+      if (r.sent?.length) addToast(`🤖 נשלחו ${r.sent.length} הודעות אוטומטיות`, r.sent.slice(0, 3).map(x => x.name).filter(Boolean).join(', '), 'automations', '💬')
+      // Stage moves decided by reply detection ("לא תודה" → …): mirror them on the local board once
+      if (r.moves?.length) {
+        let applied = {}; try { applied = JSON.parse(localStorage.getItem('afik_auto_moves') || '{}') } catch {}
+        const todo = r.moves.filter(m => !applied[`${m.leadId}:${m.at}`])
+        if (todo.length) {
+          setLeads(prev => { const next = prev.map(l => { const m = todo.find(x => String(x.leadId) === String(l.id)); return m ? { ...l, leadStatus: m.stage } : l }); try { localStorage.setItem(LEADS_STORE, JSON.stringify(next)) } catch {} return next })
+          todo.forEach(m => { applied[`${m.leadId}:${m.at}`] = 1 })
+          try { localStorage.setItem('afik_auto_moves', JSON.stringify(applied)) } catch {}
+        }
+      }
+    } catch (e) { console.warn('[automations] run failed:', e.message) }
+    finally { autoRunBusy.current = false; setAutoRunning(false) }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    loadAutoCfg()
+    const first = setTimeout(runAutomations, 6000)
+    const iv = setInterval(() => { if (!document.hidden) runAutomations() }, 5 * 60 * 1000)
+    return () => { clearTimeout(first); clearInterval(iv) }
+  }, [loadAutoCfg, runAutomations])
   const [chatSearch, setChatSearch] = useState('')
   const [chatStatus, setChatStatus]   = useState(null)  // 'authorized'|'notAuthorized'|'error'
   const [newChatOpen, setNewChatOpen] = useState(false)
@@ -1779,6 +2089,21 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   })
   const [dragColId, setDragColId] = useState(null)
   const [dragOverColId, setDragOverColId] = useState(null)
+  // Pipeline stage names chosen by the office: saved in this browser AND in the shared cloud settings,
+  // so every computer / phone shows the same names.
+  const [stageLabels, setStageLabels] = useState(() => { try { return JSON.parse(localStorage.getItem('afik_stage_labels') || 'null') || _cloudSettings?.stageLabels || {} } catch { return {} } })
+  useEffect(() => { if (_cloudSettings?.stageLabels && typeof _cloudSettings.stageLabels === 'object') setStageLabels(_cloudSettings.stageLabels) }, [_cloudSettings?.stageLabels]) // eslint-disable-line
+  const renameStage = (id, name) => {
+    const key = lang === 'en' ? 'en' : 'label'
+    setStageLabels(prev => {
+      const next = { ...prev, [id]: { ...(prev[id] || {}), [key]: name } }
+      if (!name) delete next[id][key]
+      try { localStorage.setItem('afik_stage_labels', JSON.stringify(next)) } catch {}
+      fetch(`${API_BASE || ''}/api/settings`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` }, body: JSON.stringify({ stageLabels: next }) })
+        .then(r => { if (r.ok) setCloudSettings({ ..._cloudSettings, stageLabels: next }) }).catch(() => {})
+      return next
+    })
+  }
   const [customCols, setCustomCols] = useState(() => {
     try { return JSON.parse(localStorage.getItem('leadsCustomCols')) || [] }
     catch { return [] }
@@ -1795,7 +2120,8 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const [notifPerm, setNotifPerm]     = useState(() =>
     'Notification' in window ? Notification.permission : 'unsupported'
   )
-  const [notifBannerDismissed, setNotifBannerDismissed] = useState(false)
+  const [notifBannerDismissed, setNotifBannerDismissedRaw] = useState(() => { try { return Number(localStorage.getItem('admin_notif_banner_dismissed') || 0) > Date.now() - 14 * 864e5 } catch { return false } })
+  const setNotifBannerDismissed = v => { setNotifBannerDismissedRaw(v); try { if (v) localStorage.setItem('admin_notif_banner_dismissed', String(Date.now())) } catch {} }
   const toastIdRef = useRef(0)
 
   const requestNotifPermission = useCallback(async () => {
@@ -1917,14 +2243,22 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     document.addEventListener('mouseup', onUp)
   }
 
+  const leadsFullSynced = useRef(false)
+  const [leadsSyncError, setLeadsSyncError] = useState('')
   const syncLeadsFromServer = () => {
     if (leadsSyncing) return
     setLeadsSyncing(true)
-    // Incremental: ask only for leads newer than the newest one we already have (persisted per browser)
+    // First sync after opening the panel is a FULL sync (the newest 500 leads): a cursor saved in
+    // this browser can be ahead of what the browser actually holds (cleared storage, quota), and an
+    // incremental-only sync would then never bring those leads back. Later polls are incremental.
     let since = ''
-    try { since = localStorage.getItem('afik_leads_since') || '' } catch {}
+    try { since = leadsFullSynced.current ? (localStorage.getItem('afik_leads_since') || '') : '' } catch {}
     condFetchJson(`${CONTACTS_API}/api/contacts${since ? `?since=${encodeURIComponent(since)}` : ''}`, { Authorization: `Bearer ${ADMIN_TOKEN}` })
-      .then(res => (res.ok && res.changed ? res.data : Promise.reject()))
+      .then(res => {
+        if (!res.ok) { setLeadsSyncError(`${res.status === 503 ? 'השרת לא הצליח לקרוא לידים מ-Supabase' : `סנכרון הלידים נכשל (${res.status || 'שגיאת רשת'})`}. הרשימה עלולה להיות חסרה.${res.error ? ` פרטי השגיאה: ${String(res.error).slice(0, 220)}` : ''}`); return Promise.reject() }
+        setLeadsSyncError(''); leadsFullSynced.current = true
+        return res.changed ? res.data : Promise.reject()
+      })
       .then(serverLeads => {
         if (!Array.isArray(serverLeads)) return
         const newest = serverLeads.map(s => s.created_at).filter(Boolean).sort().pop()
@@ -1933,6 +2267,10 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
           JSON.parse(localStorage.getItem(LEADS_DELETED) || '[]').map(String)
         )
         setLeads(prev => {
+          // A lead that was saved to the backup store ("bk:…") and later moved into Supabase comes back
+          // with crm_data.backup_id — drop the local backup copy so the lead is not shown twice.
+          const restoredFrom = new Set(serverLeads.map(s => s.crm_data?.backup_id).filter(Boolean).map(String))
+          if (restoredFrom.size) prev = prev.filter(l => !restoredFrom.has(String(l.id)))
           const localById = new Map(prev.map(l => [String(l.id), l]))
           // Pull in leads that exist on server but not locally (and weren't deleted)
           const newOnes = serverLeads
@@ -1949,7 +2287,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
               ts:           new Date(s.created_at || Date.now()).getTime(),
               ...(s.crm_data || {}),   // restore leadStatus, enrichment, notes, tags
             }))
-          if (newOnes.length === 0) return prev
+          if (newOnes.length === 0) { if (restoredFrom.size) { try { localStorage.setItem(LEADS_STORE, JSON.stringify(prev)) } catch {} } return prev }
           const merged = [...newOnes, ...prev].sort((a, b) => b.ts - a.ts)
           try { localStorage.setItem(LEADS_STORE, JSON.stringify(merged)) } catch {}
           return merged
@@ -2104,7 +2442,15 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   }
 
   const updateLeadStatus = (lead, status) => {
-    updateLead(lead.id, { leadStatus: status })
+    // The server runs the stage automations on this PATCH: it either sent a message already, or
+    // has one ready for approval → offer it right here instead of making the team look for it.
+    const p0 = updateLead(lead.id, { leadStatus: status })
+    if (p0 && typeof p0.then === 'function') p0.then(d => {
+      const a = d?.automation
+      if (a?.sent) addToast('🤖 נשלחה הודעה אוטומטית', `${lead.name || ''}: ${String(a.text || '').slice(0, 90)}`, 'automations', '💬')
+      else if (a?.suggest) setStagePrompt({ lead, stage: status, ...a })
+      else if (a && a.ok === false && a.error) addToast('⚠ הודעת השלב לא נשלחה', a.error, 'automations', '⚠')
+    })
     const p = intlPhoneFmt(lead.phone)
     if (p && API_BASE) {
       fetch(`${API_BASE}/api/chats/status`, {
@@ -2284,9 +2630,10 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   // ── Individual property save — PUT /api/properties/:id ────────────────────
   // Safe: only touches the ONE property being saved. Other properties untouched.
   // Retries up to 3 extra times (1 s → 2 s → 4 s) to survive Render cold-starts.
-  const saveProp = async (prop) => {
+  const saveProp = async (rawProp) => {
     setPropSyncing(true)
     setPropSyncError('')
+    const prop = await externalizeInlinePhotos(rawProp, ADMIN_TOKEN)   // never store a photo inline (src/inlinePhotos.js)
     const base = API_BASE || ''
     let lastErr = null
     for (let attempt = 0; attempt < 4; attempt++) {
@@ -2306,6 +2653,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
           setPropSyncedAt(new Date())
           setPropSyncError('')
         }
+        notifyPropertiesChanged(ADMIN_TOKEN)   // snapshot + instant landing pages follow
         setPropSyncing(false)
         return
       } catch (e) {
@@ -2317,9 +2665,29 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     setPropSyncing(false)
   }
 
+  // Render's own database may still hold photos inline (base64): once per session, re-save those properties —
+  // savePropSilent uploads the photos first (src/inlinePhotos.js), so Render stores plain URLs from then on.
+  // While Render is down the saves simply fail and are retried next session.
+  useEffect(() => {
+    if (!properties?.length) return
+    try { if (sessionStorage.getItem('afik_inline_resave') === '1') return } catch {}
+    const dirty = properties.filter(p => (p.images || []).some(u => String(u).startsWith('data:')) || String(p.logo || '').startsWith('data:'))
+    if (!dirty.length) return
+    try { sessionStorage.setItem('afik_inline_resave', '1') } catch {}
+    ;(async () => {
+      for (const p of dirty) {
+        const clean = await externalizeInlinePhotos(p, ADMIN_TOKEN)
+        if (clean === p) continue
+        setProperties(prev => prev.map(x => (String(x.id) === String(p.id) ? { ...x, images: clean.images, logo: clean.logo } : x)))
+        await savePropSilent(clean)
+      }
+    })()
+  }, [properties?.length])   // eslint-disable-line react-hooks/exhaustive-deps
+
   // Silent background save for reorder and auto-save (no spinner, 3 retries)
-  const savePropSilent = async (prop) => {
+  const savePropSilent = async (rawProp) => {
     const base = API_BASE || ''
+    const prop = await externalizeInlinePhotos(rawProp, ADMIN_TOKEN)
     for (let attempt = 0; attempt < 3; attempt++) {
       if (attempt > 0) await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt - 1)))
       try {
@@ -2329,7 +2697,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
           body:    JSON.stringify(prop),
           signal:  AbortSignal.timeout(15000),
         })
-        if (r.ok) { setPropSyncedAt(new Date()); return }
+        if (r.ok) { setPropSyncedAt(new Date()); notifyPropertiesChanged(ADMIN_TOKEN); return }
       } catch {}
     }
   }
@@ -2343,6 +2711,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
         headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
         signal:  AbortSignal.timeout(10000),
       })
+      notifyPropertiesChanged(ADMIN_TOKEN)
     } catch {}
   }
 
@@ -2355,7 +2724,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
       const r = await fetch(`${base}/api/properties/bulk`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
-        body:    JSON.stringify(nextProps),
+        body:    JSON.stringify(await Promise.all(nextProps.map(p => externalizeInlinePhotos(p, ADMIN_TOKEN)))),
         signal:  AbortSignal.timeout(20000),
       })
       if (!r.ok) throw new Error(await r.text().catch(() => String(r.status)))
@@ -2364,6 +2733,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
         setPropSyncError('⚠ נשמר ב-RAM בלבד — Supabase לא זמין! הנתונים יאבדו אם השרת יתחיל מחדש')
       } else {
         setPropSyncedAt(new Date())
+        notifyPropertiesChanged(ADMIN_TOKEN)
       }
     } catch (e) {
       setPropSyncError('שגיאת סנכרון: ' + (e.message || 'בעיית תקשורת'))
@@ -2451,21 +2821,80 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     saveProp(copy)
   }
 
-  // Move dragPropId above/below dragOverId in the global properties array.
-  // Uses individual PUT requests (no bulk delete risk) with sortOrder field.
-  const reorderProps = () => {
-    const fromId = dragPropId.current
-    const toId   = dragOverId.current
-    if (!fromId || !toId || fromId === toId) return
-    const next = [...properties]
-    const fi = next.findIndex(x => String(x.id) === String(fromId))
-    const ti = next.findIndex(x => String(x.id) === String(toId))
-    if (fi < 0 || ti < 0) return
-    const [removed] = next.splice(fi, 1)
-    next.splice(ti, 0, removed)
-    const withOrder = next.map((p, i) => ({ ...p, sortOrder: i }))
+  // ── Ordering (the site sorts by sortOrder; see sortByOrder in App.jsx) ─────
+  // Re-number the whole ordered list and save only the rows whose position changed.
+  const [orderNote, setOrderNote] = useState('')
+  const orderNoteTimer = useRef(null)
+  const flashNote = msg => { setOrderNote(msg); clearTimeout(orderNoteTimer.current); orderNoteTimer.current = setTimeout(() => setOrderNote(''), 2500) }
+  const commitOrder = (nextOrdered, label = 'הסדר נשמר') => {
+    const withOrder = nextOrdered.map((p, i) => ({ ...p, sortOrder: i }))
+    const before = new Map(properties.map(p => [String(p.id), p.sortOrder]))
+    const changed = withOrder.filter(p => before.get(String(p.id)) !== p.sortOrder)
     setProperties(withOrder)
-    withOrder.forEach(p => savePropSilent(p))
+    changed.forEach(p => savePropSilent({ ...p, updatedAt: Date.now() }))
+    flashNote(`✓ ${label} (${changed.length} נכסים עודכנו)`)
+  }
+  const orderedProps = sortByOrder(properties)
+  // Drop `fromId` before/after `toId`
+  const moveProp = (fromId, toId, place = 'before') => {
+    const next = [...orderedProps]
+    const fi = next.findIndex(x => String(x.id) === String(fromId))
+    if (fi < 0) return
+    const [moved] = next.splice(fi, 1)
+    let ti = next.findIndex(x => String(x.id) === String(toId))
+    if (ti < 0) return
+    if (place === 'after') ti += 1
+    next.splice(ti, 0, moved)
+    commitOrder(next)
+  }
+  // ▲ / ▼ within the same visibility group (published or hidden), so the site position moves by exactly one
+  const stepProp = (id, dir) => {
+    const me = orderedProps.find(x => String(x.id) === String(id)); if (!me) return
+    const group = orderedProps.filter(x => (x.published !== false) === (me.published !== false))
+    const gi = group.findIndex(x => String(x.id) === String(id))
+    const neighbour = group[gi + dir]; if (!neighbour) return
+    moveProp(id, neighbour.id, dir < 0 ? 'before' : 'after')
+  }
+  const topProp = id => {
+    const next = [...orderedProps]
+    const fi = next.findIndex(x => String(x.id) === String(id)); if (fi <= 0) return
+    const [moved] = next.splice(fi, 1); next.unshift(moved)
+    commitOrder(next, 'הנכס הועבר לראש')
+  }
+  // Bulk actions from the multi-select bar
+  const bulkPatch = (ids, patch) => {
+    const set = new Set(ids.map(String))
+    const stamp = Date.now()
+    const updated = properties.filter(p => set.has(String(p.id))).map(p => ({ ...p, ...patch, updatedAt: stamp }))
+    setProperties(prev => prev.map(p => set.has(String(p.id)) ? { ...p, ...patch, updatedAt: stamp } : p))
+    updated.forEach(p => savePropSilent(p))
+    flashNote(`✓ ${updated.length} נכסים עודכנו`)
+  }
+  const bulkDelete = ids => {
+    if (!ids.length || !window.confirm(`למחוק ${ids.length} נכסים לצמיתות?`)) return
+    const set = new Set(ids.map(String))
+    setProperties(prev => prev.filter(p => !set.has(String(p.id))))
+    ids.forEach(id => deleteProp(id))
+    flashNote(`✓ ${ids.length} נכסים נמחקו`)
+  }
+  const refreshOneFromServer = async p => {
+    const base = (typeof API_BASE !== 'undefined' ? API_BASE : '') || ''
+    if (!base) { alert('VITE_API_URL לא מוגדר'); return }
+    try {
+      const r = await fetch(`${base}/api/properties`, { headers:{ Authorization:`Bearer ${ADMIN_TOKEN}` } })
+      if (!r.ok) throw new Error(r.status)
+      const all = await r.json()
+      const fresh = Array.isArray(all) ? all.find(x => String(x.id)===String(p.id)) : null
+      if (!fresh) { alert('הנכס לא נמצא בשרת — השרת אולי הופעל מחדש.\nהנתונים המקומיים שמורים.'); return }
+      const localProp = properties.find(x => String(x.id)===String(p.id))
+      const localNewer = (localProp?.updatedAt || 0) > (fresh.updatedAt || 0)
+      const msg = localNewer
+        ? `⚠️ אזהרה: הנתונים בשרת ישנים יותר מהנתונים המקומיים!\n\nאם תאשר — הנתונים המקומיים העדכניים שלך יוחלפו בנתוני השרת הישנים.\n\nהאם להמשיך בכל זאת?`
+        : `רענן את "${p.title}" מהשרת?\n\nהנתונים המקומיים יוחלפו בנתוני השרת.`
+      if (!window.confirm(msg)) return
+      setProperties(prev => prev.map(x => String(x.id)===String(p.id) ? { ...x, ...fresh } : x))
+      flashNote('✓ הנכס רוענן מהשרת')
+    } catch(e) { alert('שגיאת רענון: ' + e.message) }
   }
 
   const tabBtn = (id, label, badge) => {
@@ -2484,78 +2913,78 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
       try { localStorage.setItem(LEADS_STORE, JSON.stringify(next)) } catch {}
       return next
     })
-    fetch(`${CONTACTS_API}/api/contacts?id=${encodeURIComponent(id)}`, {
+    return fetch(`${CONTACTS_API}/api/contacts?id=${encodeURIComponent(id)}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
       body: JSON.stringify(patch),
-    }).catch(() => {})
+    }).then(r => r.json()).catch(() => null)
   }
 
+  // Smart lead analysis: the server gathers the whole dossier (message, form answers, WhatsApp history,
+  // automations, repeat inquiries, the listing) → transparent rule score + Claude briefing (lib/lead-analyze.js).
+  // Without ANTHROPIC_API_KEY on Vercel the server returns the prepared dossier and the briefing runs
+  // through the existing Render AI proxy instead.
   const enrichLead = async (lead) => {
     if (lead.enrichment?.status === 'enriching') return
-    updateLead(lead.id, { enrichment: { ...(lead.enrichment || {}), status: 'enriching' } })
+    const prevEnrichment = lead.enrichment || null
+    const setStage = stage => setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, enrichment: { ...(l.enrichment || {}), status: 'enriching', stage } } : l))
+    setStage('research')
+    const { enrichment: _e, ...clean } = lead
     try {
-      const phoneDigits = (lead.phone || '').replace(/\D/g, '')
-      const phonePrefix = phoneDigits.startsWith('972') ? phoneDigits.slice(3, 5) : phoneDigits.startsWith('0') ? phoneDigits.slice(1, 3) : phoneDigits.slice(0, 2)
-      const prompt = `You are a senior real-estate sales intelligence analyst specializing in the Israeli market.
-Analyze this lead and return comprehensive research for a pre-call briefing. Be realistic, precise, and professional.
-
-Lead data:
-- Name: ${lead.name || 'Unknown'}
-- Phone: ${lead.phone || 'N/A'} (2-digit prefix after 0: "${phonePrefix}")
-- Email: ${lead.email || 'N/A'}
-- Message: ${lead.msg || 'N/A'}
-- Property interest: ${lead.propTitle || 'General inquiry'}
-- Property location: ${lead.propLocation || 'N/A'}
-
-Israeli landline prefix → city (use for estimatedCity):
-02=Jerusalem, 03=Tel Aviv/Gush Dan, 04=Haifa/North, 08=South Israel, 09=Sharon region (Netanya/Ra'anana/Herzliya).
-Mobile 050-058 = nationwide — use other signals for city.
-
-Analyze name origin (Hebrew/Arabic/Russian/Ethiopian/Western) for age and background estimation.
-Analyze email domain: gmail/yahoo/hotmail=consumer; company domain=professional, extract company.
-Analyze message vocabulary and sentence structure for education level.
-
-Return ONLY valid JSON (no markdown, no code blocks):
-{
-  "score": <1-5 integer, 5=hottest>,
-  "scoreReason": "<one concise line>",
-  "intent": "<hot|warm|cold>",
-  "estimatedAge": "<age range e.g. '35-45'>",
-  "estimatedCity": "<city or region>",
-  "estimatedBudget": "<e.g. '2-4M NIS' based on property price signals>",
-  "education": "<תיכון|תואר ראשון|תואר שני|דוקטורט>",
-  "profession": "<likely profession or industry in Hebrew>",
-  "company": "<company name from email domain, else empty>",
-  "role": "<specific role if detectable, else empty>",
-  "linkedin": "<https://www.linkedin.com/search/results/people/?keywords=FIRSTNAME+LASTNAME>",
-  "linkedinDirect": "<https://www.linkedin.com/in/firstname-lastname — transliterate Hebrew name to English>",
-  "facebook": "<https://www.facebook.com/search/people/?q=FIRSTNAME+LASTNAME>",
-  "google": "<https://www.google.com/search?q=FIRSTNAME+LASTNAME+ישראל>",
-  "instagram": "<https://www.instagram.com/LIKELY_HANDLE or empty>",
-  "talkingPoints": ["<talking point 1 in Hebrew — specific to their signals>", "<talking point 2>", "<talking point 3>"],
-  "notes": "<3-4 sentence pre-call briefing in Hebrew: who this person likely is, motivation, urgency signals, best opening line>",
-  "tags": ["<tag1>", "<tag2>", "<tag3>"]
-}`
-      const res = await fetch(`${API_BASE}/api/ai/messages`, {
-        method: 'POST',
-        headers: { 'Content-Type':'application/json', 'Authorization':`Bearer ${ADMIN_TOKEN}`, 'anthropic-version':'2023-06-01' },
-        body: JSON.stringify({ model:'claude-haiku-4-5-20251001', max_tokens:1200, messages:[{ role:'user', content:prompt }] }),
+      // Step 1 — who is this person: phone + name + public profiles (lib/lead-research.js, web search). Its own time
+      // budget; a failure here never blocks the briefing, it is just reported inside it.
+      let research = null
+      try {
+        const rr = await fetch('/api/meta/lead-research', {
+          method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+          body: JSON.stringify({ lead: clean }), signal: AbortSignal.timeout(65000),
+        })
+        research = await rr.json().catch(() => null)
+        if (!rr.ok) research = { error: research?.error || `HTTP ${rr.status}` }
+      } catch (e) { research = { error: e.name === 'TimeoutError' ? 'research timed out' : e.message } }
+      // Step 2 — the briefing, with the research in the dossier
+      setStage('brief')
+      const r = await fetch('/api/meta/lead-analyze', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+        body: JSON.stringify({ lead: clean, research }), signal: AbortSignal.timeout(70000),
       })
-      if (!res.ok) throw new Error(await res.text())
-      const data = await res.json()
-      const raw = data.content?.[0]?.text?.trim() || ''
-      const jsonStr = raw.startsWith('{') ? raw : raw.match(/\{[\s\S]*\}/)?.[0] || '{}'
-      const enrich = JSON.parse(jsonStr)
-      updateLead(lead.id, { enrichment: { ...enrich, status: 'done', enrichedAt: Date.now() } })
+      let a = await r.json().catch(() => ({}))
+      if (!r.ok || a.error) throw new Error(a.error || `HTTP ${r.status}`)
+      if (a.proxy && API_BASE) {
+        const ask = async (model, structured) => {
+          const res = await fetch(`${API_BASE}/api/ai/messages`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}`, 'anthropic-version': '2023-06-01' },
+            body: JSON.stringify({
+              model, max_tokens: 8000, system: a.proxy.system,
+              messages: [{ role: 'user', content: structured ? a.proxy.user : `${a.proxy.user}\n\nReturn ONLY one JSON object (no markdown) with exactly these keys: ${Object.keys(a.proxy.schema.properties).join(', ')}.` }],
+              ...(structured ? { output_config: { format: { type: 'json_schema', schema: a.proxy.schema } } } : {}),
+            }),
+            signal: AbortSignal.timeout(60000),
+          })
+          if (!res.ok) throw new Error(`AI proxy ${res.status}`)
+          const d = await res.json()
+          if (d.stop_reason === 'refusal') throw new Error('refusal')
+          const raw = (d.content || []).filter(b => b.type === 'text').map(b => b.text).join('').trim()
+          return JSON.parse(raw.startsWith('{') ? raw : raw.match(/\{[\s\S]*\}/)?.[0] || '{}')
+        }
+        let brief = null
+        // The proxy has always run the previous model; keep it as the second attempt so analysis never regresses
+        try { brief = await ask('claude-opus-5', true) } catch { try { brief = await ask('claude-haiku-4-5-20251001', false) } catch {} }
+        if (brief && brief.summary) a = mergeBrief(a.rules, brief, { context: a.context, model: 'proxy' })
+      }
+      const { rules: _r, proxy: _p, ...enrichment } = a
+      updateLead(lead.id, { enrichment })
     } catch (e) {
-      updateLead(lead.id, { enrichment: { ...(lead.enrichment || {}), status: 'error', error: e.message } })
+      updateLead(lead.id, { enrichment: { ...(prevEnrichment || {}), status: prevEnrichment?.version === 2 ? 'done' : 'error', error: e.message } })
     }
   }
 
-  const enrichAllLeads = () => {
-    leads.filter(l => !l.enrichment || l.enrichment.status === 'new' || l.enrichment.status === 'error')
-      .forEach(l => enrichLead(l))
+  // Analyze every lead that has no up-to-date analysis — two at a time, so the AI isn't flooded
+  const enrichAllLeads = async () => {
+    const queue = leads.filter(l => l.enrichment?.version !== 2 && l.enrichment?.status !== 'enriching')
+    const worker = async () => { while (queue.length) await enrichLead(queue.shift()) }
+    await Promise.all([worker(), worker()])
   }
 
   const deleteLead = id => {
@@ -2676,14 +3105,14 @@ Return ONLY valid JSON (no markdown, no code blocks):
   }
 
   const catBtn = (id, label, CatIcon) => (
-    <button onClick={() => changeCategory(id)} style={{ flex:1, padding:'10px 8px', border:`1px solid ${form.category===id?C.purple:'rgba(132,144,216,.2)'}`, borderRadius:8, background:form.category===id?`${C.purple}20`:'transparent', color:form.category===id?C.purple:`${C.cream}80`, fontFamily:'inherit', cursor:'pointer', fontSize:11, fontWeight:600, transition:'all .15s', textAlign:'center' }}>
+    <button onClick={() => changeCategory(id)} style={{ flex:1, padding:'10px 8px', border:`1px solid ${form.category===id?C.purple:'rgba(var(--brand-rgb),.2)'}`, borderRadius:8, background:form.category===id?`${C.purple}20`:'transparent', color:form.category===id?C.purple:`${C.cream}80`, fontFamily:'inherit', cursor:'pointer', fontSize:11, fontWeight:600, transition:'all .15s', textAlign:'center' }}>
       <div style={{ marginBottom:4, display:'flex', justifyContent:'center' }}><CatIcon size={16}/></div>
       {label}
     </button>
   )
 
-  const publishedList = properties.filter(p => p.published !== false)
-  const draftList     = properties.filter(p => p.published === false)
+  const publishedList = orderedProps.filter(p => p.published !== false)
+  const draftList     = orderedProps.filter(p => p.published === false)
   const baseList = listTab==='published' ? publishedList : draftList
   const filteredList = listCat==='all' ? baseList : baseList.filter(p => p.category===listCat)
 
@@ -2701,18 +3130,37 @@ Return ONLY valid JSON (no markdown, no code blocks):
     { id:'leads',    Icon:FaHandshake,   label:'לידים',       badge: leads.length },
     { id:'sellers',  Icon:FaClipboardList, label:'נכסים שנקלטו', badge: intakeStats?.new || undefined },
     { id:'chats',    Icon:FaWhatsapp,    label:'צ\'אטים',     badge: chatsUnread },
+    { id:'automations', Icon:FaRobot,    label:'אוטומציות',   badge: autoRun?.suggestions?.length || undefined },
     { id:'analytics',    Icon:FaChartLine,   label:'אנליטיקס' },
     { id:'supermetrics', Icon:FaChartBar,   label:'ביצועים' },
     { id:'team',         Icon:FaKey,         label:'צוות' },
     { id:'counters', Icon:FaBalanceScale,label:'מונים' },
     { id:'settings', Icon:FaTools,       label:'הגדרות' },
   ]
-  const TAB_LABELS = { overview:'סקירה כללית', live:'נכסים באוויר', props:'ניהול נכסים', leads:'לידים', sellers:'נכסים שנקלטו', chats:'שיחות WhatsApp', meta:'מרכז מטא', analytics:'אנליטיקס', supermetrics:'ביצועים', team:'צוות', counters:'מונים', settings:'הגדרות' }
+  const DASH_GROUPS = [
+    { id:'main',  he:'ראשי',            en:'MAIN',        ids:['overview','live','props','sellers'] },
+    { id:'sales', he:'מכירות ולקוחות',  en:'SALES',       ids:['leads','meta','chats','automations'] },
+    { id:'data',  he:'נתונים וביצועים', en:'INSIGHTS',    ids:['analytics','supermetrics'] },
+    { id:'admin', he:'ניהול',           en:'ADMIN',       ids:['team','counters','settings'] },
+  ]
+  const TAB_LABELS = { overview:'סקירה כללית', live:'נכסים באוויר', props:'ניהול נכסים', leads:'לידים', sellers:'נכסים שנקלטו', chats:'שיחות WhatsApp', automations:'אוטומציות וואטסאפ', meta:'מרכז מטא', analytics:'אנליטיקס', supermetrics:'ביצועים', team:'צוות', counters:'מונים', settings:'הגדרות' }
 
   return (
     <div className="admin-shell admin-scroll" style={standalone
-      ? { position:'fixed', inset:0, zIndex:1000, display:'flex', background:'#07070F', direction:'rtl', fontFamily:'Rubik, sans-serif' }
+      ? { position:'fixed', inset:0, zIndex:1000, display:'flex', background:'var(--au-page)', color:'var(--au-text)', direction:'rtl', fontFamily:'Rubik, sans-serif' }
       : { position:'fixed', inset:0, background:'rgba(0,0,0,.92)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:16, overflowY:'auto', overscrollBehavior:'contain' }}>
+      <style>{ADMIN_THEME_CSS}</style>
+      <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} lang={lang}
+        tabs={DASH_TABS.filter(x => standalone || x.id !== 'overview')} leads={leads} properties={properties}
+        actions={[
+          { id:'new-prop', Icon:FaPlus, label: lang === 'en' ? 'New property (wizard)' : 'נכס חדש (אשף)', run: () => { if (standalone) { try { localStorage.removeItem('afik_wizard_draft') } catch {}; setWizardOpen(true) } else { onClose(); setTimeout(() => document.dispatchEvent(new CustomEvent('afik:openWizard')), 100) } } },
+          { id:'theme', Icon: adminTheme.isDark ? FaSun : FaMoon, label: adminTheme.isDark ? (lang === 'en' ? 'Switch to light mode' : 'מעבר למצב בהיר') : (lang === 'en' ? 'Switch to dark mode' : 'מעבר למצב כהה'), run: adminTheme.toggle },
+          { id:'site', Icon:FaGlobe, label: lang === 'en' ? 'Open the website' : 'פתח את האתר', run: () => window.open('/', '_blank') },
+          { id:'share', Icon:FaShareAlt, label: lang === 'en' ? 'Copy link to the system' : 'העתק קישור למערכת', run: copyDashLink },
+        ]}
+        onTab={id => { if (id === 'live') goToLiveProps(); else setTab(id); setAdminNavOpen(false) }}
+        onLead={lead => { setInitialChatLead(lead); setTab('chats') }}
+        onProperty={p => startEdit(p)}/>
 
       {/* ── MOBILE SIDEBAR OVERLAY — standalone only ──────────────────── */}
       {standalone && adminNavOpen && (
@@ -2721,52 +3169,62 @@ Return ONLY valid JSON (no markdown, no code blocks):
 
       {/* ── SIDEBAR — standalone only ─────────────────────────────────── */}
       {standalone && (
-        <aside className={`admin-sidebar${adminNavOpen ? ' open' : ''}`} style={{ width:232, height:'100dvh', background:'linear-gradient(180deg,#0E0E1C 0%,#090910 100%)', borderLeft:'1px solid rgba(132,144,216,.1)', display:'flex', flexDirection:'column', flexShrink:0 }}>
+        <aside className={`admin-sidebar${adminNavOpen ? ' open' : ''}`} style={{ width:248, height:'100dvh', background:'var(--au-sidebar)', borderLeft:'1px solid var(--au-line)', display:'flex', flexDirection:'column', flexShrink:0 }}>
           {/* Brand */}
-          <div style={{ padding:'26px 20px 20px', borderBottom:'1px solid rgba(132,144,216,.07)' }}>
-            <img src="/logo.svg" alt="אפיק הנחל" style={{ height:32, opacity:.85 }} onError={e => { e.currentTarget.style.display='none' }}/>
-            <div style={{ display:'flex', alignItems:'center', gap:6, marginTop:10 }}>
-              <div style={{ width:7, height:7, borderRadius:'50%', background:'#22C55E', boxShadow:'0 0 8px rgba(34,197,94,.7)' }}/>
-              <span style={{ fontSize:10, color:'rgba(232,228,216,.28)', letterSpacing:'.1em', textTransform:'uppercase' }}>Admin · Live</span>
+          <div style={{ padding:'20px 18px 16px', display:'flex', alignItems:'center', gap:12 }}>
+            <div style={{ width:40, height:40, borderRadius:12, background:'linear-gradient(135deg,rgba(var(--brand-rgb),.28),rgba(var(--brand-rgb),.08))', border:'1px solid rgba(var(--brand-rgb),.3)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+              <img src={isDark ? '/logo.svg' : '/logo-black.svg'} alt="" style={{ height:22, opacity:.95 }} onError={e => { e.currentTarget.style.display='none' }}/>
+            </div>
+            <div style={{ minWidth:0 }}>
+              <div style={{ fontSize:14, fontWeight:800, color:'var(--au-text)', letterSpacing:'-.005em' }}>{lang === 'en' ? 'Afik Hanahal' : 'אפיק הנחל'}</div>
+              <div style={{ display:'flex', alignItems:'center', gap:6, marginTop:2 }}>
+                <span style={{ width:6, height:6, borderRadius:'50%', background:'#22C55E', boxShadow:'0 0 8px rgba(34,197,94,.7)' }}/>
+                <span style={{ fontSize:11, color:'rgba(var(--ink),.5)', fontWeight:600 }}>{lang === 'en' ? 'Management system' : 'מערכת ניהול'}</span>
+              </div>
             </div>
           </div>
           {/* Nav */}
-          <nav style={{ flex:1, overflowY:'auto', padding:'12px 10px' }}>
-            {DASH_TABS.map(item => {
-              const isLive = item.id === 'live'
-              const isActive = isLive ? (tab==='props' && listTab==='published') : tab===item.id
-              return (
-                <button key={item.id} onClick={() => { if (isLive) { goToLiveProps() } else { setTab(item.id) }; setAdminNavOpen(false) }}
-                  style={{ width:'100%', display:'flex', alignItems:'center', gap:10, padding:'10px 13px 10px 10px', border:'none', borderRight: isActive ? (isLive ? `2px solid #22C55E` : `2px solid ${C.purple}`) : '2px solid transparent', borderRadius:'0 8px 8px 0', background: isActive ? (isLive ? 'rgba(34,197,94,.1)' : `rgba(132,144,216,.12)`) : 'transparent', color: isActive ? (isLive ? '#22C55E' : C.purple) : 'rgba(232,228,216,.4)', cursor:'pointer', fontFamily:'inherit', fontSize:12.5, fontWeight: isActive ? 600 : 400, marginBottom:1, textAlign:'right', transition:'all .15s', letterSpacing:'.01em' }}
-                  onMouseEnter={e=>{ if(!isActive){ e.currentTarget.style.background=isLive?'rgba(34,197,94,.06)':'rgba(132,144,216,.06)'; e.currentTarget.style.color=isLive?'rgba(34,197,94,.85)':'rgba(232,228,216,.68)' }}}
-                  onMouseLeave={e=>{ if(!isActive){ e.currentTarget.style.background='transparent'; e.currentTarget.style.color='rgba(232,228,216,.4)' }}}>
-                  <item.Icon size={13} style={{ flexShrink:0, opacity: isActive ? 1 : 0.7, color: isActive && isLive ? '#22C55E' : undefined }}/>
-                  <span style={{ flex:1 }}>{item.label}</span>
-                  {!!item.badge && <span style={{ background: isLive ? 'rgba(34,197,94,.2)' : item.id==='chats' ? '#075E54' : item.id==='meta' ? 'rgba(224,82,82,.18)' : `${C.purple}25`, color: isLive ? '#22C55E' : item.id==='chats' ? '#fff' : item.id==='meta' ? '#E05252' : C.purple, borderRadius:4, padding:'1px 6px', fontSize:10, fontWeight:700 }}>{item.badge}</span>}
-                </button>
-              )
-            })}
+          <nav aria-label={lang === 'en' ? 'Admin sections' : 'אזורי המערכת'} style={{ flex:1, overflowY:'auto', padding:'4px 12px 12px' }}>
+            {DASH_GROUPS.map(g => (
+              <div key={g.id} style={{ marginBottom:10 }}>
+                <div style={{ fontSize:10.5, fontWeight:800, color:'rgba(var(--ink),.34)', letterSpacing:'.06em', padding:'10px 10px 6px' }}>{lang === 'en' ? g.en : g.he}</div>
+                {DASH_TABS.filter(item => g.ids.includes(item.id)).map(item => {
+                  const isLive = item.id === 'live'
+                  const isActive = isLive ? (tab==='props' && listTab==='published') : tab===item.id
+                  const accent = isLive ? '#22C55E' : C.purple
+                  return (
+                    <button key={item.id} className="admin-nav-item" aria-current={isActive ? 'page' : undefined} onClick={() => { if (isLive) { goToLiveProps() } else { setTab(item.id) }; setAdminNavOpen(false) }}
+                      style={{ width:'100%', display:'flex', alignItems:'center', gap:11, height:38, padding:'0 10px', border:'none', borderRadius:10, background: isActive ? `linear-gradient(90deg,${accent}10,${accent}26)` : 'transparent', boxShadow: isActive ? `inset -2px 0 0 ${accent}` : 'none', color: isActive ? 'var(--au-text)' : 'rgba(var(--ink),.62)', cursor:'pointer', fontFamily:'inherit', fontSize:13, fontWeight: isActive ? 700 : 500, marginBottom:2, textAlign:'start', transition:'background .15s,color .15s', minHeight:0 }}>
+                      <span style={{ width:26, height:26, borderRadius:8, display:'inline-flex', alignItems:'center', justifyContent:'center', flexShrink:0, background: isActive ? `${accent}26` : 'transparent', color: isActive ? accent : 'rgba(var(--ink),.5)' }}><item.Icon size={13}/></span>
+                      <span style={{ flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.label}</span>
+                      {!!item.badge && <span style={{ minWidth:20, height:20, padding:'0 6px', borderRadius:10, display:'inline-flex', alignItems:'center', justifyContent:'center', fontSize:10.5, fontWeight:800, fontVariantNumeric:'tabular-nums', background: isLive ? 'rgba(34,197,94,.16)' : item.id==='chats' ? '#25D366' : item.id==='meta' || item.id==='automations' ? '#E05252' : 'rgba(var(--brand-rgb),.2)', color: isLive ? '#22C55E' : item.id==='chats' ? '#062E16' : item.id==='meta' || item.id==='automations' ? '#fff' : 'var(--au-brand-text)' }}>{item.badge}</span>}
+                    </button>
+                  )
+                })}
+              </div>
+            ))}
           </nav>
-          {/* Footer */}
-          <div style={{ padding:'12px 10px 20px', borderTop:'1px solid rgba(132,144,216,.07)' }}>
-            <button onClick={copyDashLink}
-              style={{ width:'100%', padding:'10px 13px', border:`1px solid ${shareCopied ? 'rgba(34,197,94,.45)' : 'rgba(132,144,216,.28)'}`, borderRadius:8, background: shareCopied ? 'rgba(34,197,94,.1)' : `rgba(132,144,216,.1)`, color: shareCopied ? '#22C55E' : C.purple, cursor:'pointer', fontFamily:'inherit', fontSize:12, fontWeight:700, marginBottom:7, display:'flex', alignItems:'center', gap:8, transition:'all .2s' }}
-              onMouseEnter={e=>{ if(!shareCopied){ e.currentTarget.style.borderColor='rgba(132,144,216,.55)'; e.currentTarget.style.background='rgba(132,144,216,.18)' }}}
-              onMouseLeave={e=>{ if(!shareCopied){ e.currentTarget.style.borderColor='rgba(132,144,216,.28)'; e.currentTarget.style.background='rgba(132,144,216,.1)' }}}>
-              <FaShareAlt size={12}/> <span>{shareCopied ? '✓ קישור הועתק!' : 'שתף למערכת'}</span>
-            </button>
-            <button onClick={() => window.open('/', '_blank')}
-              style={{ width:'100%', padding:'10px 13px', border:'1px solid rgba(132,144,216,.14)', borderRadius:8, background:'transparent', color:'rgba(232,228,216,.38)', cursor:'pointer', fontFamily:'inherit', fontSize:12, fontWeight:600, marginBottom:7, display:'flex', alignItems:'center', gap:8, transition:'all .15s' }}
-              onMouseEnter={e=>{ e.currentTarget.style.borderColor='rgba(132,144,216,.32)'; e.currentTarget.style.color='rgba(232,228,216,.72)' }}
-              onMouseLeave={e=>{ e.currentTarget.style.borderColor='rgba(132,144,216,.14)'; e.currentTarget.style.color='rgba(232,228,216,.38)' }}>
-              <FaGlobe size={12}/> <span>צפה באתר</span>
-            </button>
-            <button onClick={onClose}
-              style={{ width:'100%', padding:'10px 13px', border:'1px solid rgba(224,82,82,.18)', borderRadius:8, background:'rgba(224,82,82,.05)', color:'rgba(224,82,82,.5)', cursor:'pointer', fontFamily:'inherit', fontSize:12, fontWeight:600, display:'flex', alignItems:'center', gap:8, transition:'all .15s' }}
-              onMouseEnter={e=>{ e.currentTarget.style.borderColor='rgba(224,82,82,.38)'; e.currentTarget.style.color='rgba(224,82,82,.88)'; e.currentTarget.style.background='rgba(224,82,82,.1)' }}
-              onMouseLeave={e=>{ e.currentTarget.style.borderColor='rgba(224,82,82,.18)'; e.currentTarget.style.color='rgba(224,82,82,.5)'; e.currentTarget.style.background='rgba(224,82,82,.05)' }}>
-              <FaTimes size={12}/> <span>יציאה</span>
-            </button>
+          {/* Footer — account + quick actions */}
+          <div style={{ padding:'12px 12px 16px', borderTop:'1px solid rgba(var(--brand-rgb),.08)' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 8px 10px' }}>
+              <div style={{ width:34, height:34, borderRadius:'50%', background:'linear-gradient(135deg,var(--au-brand),var(--au-brand-deep))', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontSize:12, fontWeight:800, flexShrink:0 }}>AH</div>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontSize:12.5, fontWeight:700, color:'var(--au-text)' }}>{lang === 'en' ? 'Main admin' : 'מנהל ראשי'}</div>
+                <div style={{ fontSize:11, color:'rgba(var(--ink),.42)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>afikhanahal.co.il</div>
+              </div>
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:6 }}>
+              {[
+                { key:'site', Icon:FaGlobe, label: lang === 'en' ? 'Site' : 'לאתר', onClick: () => window.open('/', '_blank') },
+                { key:'share', Icon: shareCopied ? FaCheckCircle : FaShareAlt, label: shareCopied ? (lang === 'en' ? 'Copied' : 'הועתק') : (lang === 'en' ? 'Share' : 'שתף'), onClick: copyDashLink, on: shareCopied },
+                { key:'out', Icon:FaTimes, label: lang === 'en' ? 'Log out' : 'יציאה', onClick: onClose, danger: true },
+              ].map(b => (
+                <button key={b.key} onClick={b.onClick} className="admin-foot-btn" title={b.label}
+                  style={{ height:52, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:5, borderRadius:10, border:`1px solid ${b.on ? 'rgba(34,197,94,.4)' : b.danger ? 'rgba(224,82,82,.22)' : 'rgba(var(--brand-rgb),.16)'}`, background: b.on ? 'rgba(34,197,94,.1)' : b.danger ? 'rgba(224,82,82,.06)' : 'rgba(var(--ov),.02)', color: b.on ? '#22C55E' : b.danger ? 'rgba(240,138,138,.85)' : 'rgba(var(--ink),.62)', cursor:'pointer', fontFamily:'inherit', fontSize:11, fontWeight:700, transition:'all .15s', minHeight:0, minWidth:0, padding:0 }}>
+                  <b.Icon size={12}/>{b.label}
+                </button>
+              ))}
+            </div>
           </div>
         </aside>
       )}
@@ -2783,19 +3241,27 @@ Return ONLY valid JSON (no markdown, no code blocks):
           <div className="admin-mobile-topbar">
             <div style={{ display:'flex', alignItems:'center', gap:8 }}>
               <button onClick={() => setAdminNavOpen(v => !v)}
-                style={{ background:'none', border:`1px solid rgba(132,144,216,.25)`, borderRadius:8, width:36, height:36, color:'rgba(232,228,216,.7)', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:4 }}>
+                style={{ background:'none', border:`1px solid rgba(var(--brand-rgb),.25)`, borderRadius:8, width:36, height:36, color:'rgba(var(--ink),.7)', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:4 }}>
                 <div style={{ width:16, height:1.5, background:'currentColor', borderRadius:1 }}/>
                 <div style={{ width:16, height:1.5, background:'currentColor', borderRadius:1 }}/>
                 <div style={{ width:16, height:1.5, background:'currentColor', borderRadius:1 }}/>
               </button>
             </div>
-            <div style={{ fontSize:13, fontWeight:700, color:'rgba(232,228,216,.75)' }}>
+            <div style={{ fontSize:13, fontWeight:700, color:'rgba(var(--ink),.75)' }}>
               {DASH_TABS.find(t => t.id === tab)?.label || 'ניהול'}
             </div>
             <div style={{ display:'flex', alignItems:'center', gap:6 }}>
               {saved && <span style={{ fontSize:10, color:'#22C55E', fontWeight:700, background:'rgba(34,197,94,.12)', padding:'2px 8px', borderRadius:10 }}>נשמר</span>}
+              <button onClick={() => setCmdOpen(true)} aria-label={lang === 'en' ? 'Quick search' : 'חיפוש מהיר'}
+                style={{ background:'rgba(var(--brand-rgb),.1)', border:'1px solid rgba(var(--brand-rgb),.28)', borderRadius:8, width:34, height:34, color:C.purple, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', minHeight:0, minWidth:0 }}>
+                <FaSearch size={12}/>
+              </button>
+              <button onClick={adminTheme.toggle} aria-label={adminTheme.isDark ? (lang === 'en' ? 'Light mode' : 'מצב בהיר') : (lang === 'en' ? 'Dark mode' : 'מצב כהה')} title={adminTheme.isDark ? (lang === 'en' ? 'Light mode' : 'מצב בהיר') : (lang === 'en' ? 'Dark mode' : 'מצב כהה')}
+                style={{ background:'rgba(var(--brand-rgb),.1)', border:'1px solid rgba(var(--brand-rgb),.28)', borderRadius:8, width:34, height:34, color:C.purple, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', minHeight:0, minWidth:0 }}>
+                {adminTheme.isDark ? <FaSun size={12}/> : <FaMoon size={12}/>}
+              </button>
               <button onClick={copyDashLink} title="שתף קישור למערכת"
-                style={{ background: shareCopied ? 'rgba(34,197,94,.12)' : 'rgba(132,144,216,.1)', border:`1px solid ${shareCopied ? 'rgba(34,197,94,.35)' : 'rgba(132,144,216,.28)'}`, borderRadius:8, width:34, height:34, color: shareCopied ? '#22C55E' : C.purple, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s' }}>
+                style={{ background: shareCopied ? 'rgba(34,197,94,.12)' : 'rgba(var(--brand-rgb),.1)', border:`1px solid ${shareCopied ? 'rgba(34,197,94,.35)' : 'rgba(var(--brand-rgb),.28)'}`, borderRadius:8, width:34, height:34, color: shareCopied ? '#22C55E' : C.purple, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s' }}>
                 <FaShareAlt size={11}/>
               </button>
               <button onClick={onClose}
@@ -2808,16 +3274,19 @@ Return ONLY valid JSON (no markdown, no code blocks):
 
         {/* Standalone desktop top-bar */}
         {standalone && (
-          <div className="admin-desktop-topbar" style={{ height:56, borderBottom:'1px solid rgba(132,144,216,.08)', display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 26px', flexShrink:0, background:'rgba(7,7,15,.82)', backdropFilter:'blur(20px)', direction:'rtl' }}>
+          <div className="admin-desktop-topbar" style={{ height:64, borderBottom:'1px solid rgba(var(--brand-rgb),.09)', display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 28px', flexShrink:0, background:'var(--au-topbar)', backdropFilter:'blur(20px)', direction:'rtl' }}>
             <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-              <h2 style={{ fontSize:15, fontWeight:800, color:'rgba(232,228,216,.86)', margin:0 }}>{TAB_LABELS[tab] || ''}</h2>
+              <div style={{ display:'flex', flexDirection:'column', gap:1 }}>
+                <h2 style={{ fontSize:16, fontWeight:800, color:'var(--au-text)', margin:0, letterSpacing:'-.005em' }}>{TAB_LABELS[tab] || ''}</h2>
+                <span style={{ fontSize:11.5, color:'rgba(var(--ink),.42)' }}>{new Date().toLocaleDateString(lang === 'en' ? 'en-GB' : 'he-IL', { weekday:'long', day:'numeric', month:'long' })}</span>
+              </div>
               {saved && <span style={{ fontSize:11, color:'#22C55E', fontWeight:700, background:'rgba(34,197,94,.1)', padding:'3px 10px', borderRadius:20, border:'1px solid rgba(34,197,94,.2)' }}>✓ נשמר</span>}
-              <div style={{ width:1, height:18, background:'rgba(132,144,216,.15)', flexShrink:0, marginRight:2 }}/>
+              <div style={{ width:1, height:18, background:'rgba(var(--brand-rgb),.15)', flexShrink:0, marginRight:2 }}/>
               <button
                 onClick={() => { setTab('meta'); setMetaNewLeads(0) }}
-                style={{ display:'flex', alignItems:'center', gap:7, padding:'6px 14px', background: tab==='meta' ? 'rgba(132,144,216,.22)' : 'rgba(132,144,216,.08)', border:`1px solid ${tab==='meta' ? 'rgba(132,144,216,.5)' : 'rgba(132,144,216,.2)'}`, borderRadius:20, color: tab==='meta' ? '#A0ACFF' : 'rgba(132,144,216,.7)', cursor:'pointer', fontFamily:'inherit', fontSize:12, fontWeight:700, transition:'all .18s', position:'relative' }}
-                onMouseEnter={e=>{ e.currentTarget.style.background='rgba(132,144,216,.18)'; e.currentTarget.style.borderColor='rgba(132,144,216,.45)'; e.currentTarget.style.color='#A0ACFF' }}
-                onMouseLeave={e=>{ if(tab!=='meta'){ e.currentTarget.style.background='rgba(132,144,216,.08)'; e.currentTarget.style.borderColor='rgba(132,144,216,.2)'; e.currentTarget.style.color='rgba(132,144,216,.7)' }}}>
+                style={{ display:'flex', alignItems:'center', gap:7, padding:'6px 14px', background: tab==='meta' ? 'rgba(var(--brand-rgb),.22)' : 'rgba(var(--brand-rgb),.08)', border:`1px solid ${tab==='meta' ? 'rgba(var(--brand-rgb),.5)' : 'rgba(var(--brand-rgb),.2)'}`, borderRadius:20, color: 'var(--au-brand-text)', cursor:'pointer', fontFamily:'inherit', fontSize:12, fontWeight:700, transition:'all .18s', position:'relative' }}
+                onMouseEnter={e=>{ e.currentTarget.style.background='rgba(var(--brand-rgb),.18)'; e.currentTarget.style.borderColor='rgba(var(--brand-rgb),.45)'; e.currentTarget.style.color='var(--au-brand-text)' }}
+                onMouseLeave={e=>{ if(tab!=='meta'){ e.currentTarget.style.background='rgba(var(--brand-rgb),.08)'; e.currentTarget.style.borderColor='rgba(var(--brand-rgb),.2)'; e.currentTarget.style.color='rgba(var(--brand-rgb),.7)' }}}>
                 <FaFacebookF size={11}/>
                 <span>Lead Center</span>
                 {metaNewLeads > 0 && (
@@ -2825,26 +3294,19 @@ Return ONLY valid JSON (no markdown, no code blocks):
                 )}
               </button>
             </div>
-            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-              <button onClick={copyDashLink}
-                style={{ display:'flex', alignItems:'center', gap:7, padding:'6px 13px', background: shareCopied ? 'rgba(34,197,94,.12)' : 'rgba(132,144,216,.1)', border:`1px solid ${shareCopied ? 'rgba(34,197,94,.4)' : 'rgba(132,144,216,.25)'}`, borderRadius:20, color: shareCopied ? '#22C55E' : C.purple, cursor:'pointer', fontFamily:'inherit', fontSize:12, fontWeight:700, transition:'all .2s' }}
-                onMouseEnter={e=>{ if(!shareCopied){ e.currentTarget.style.background='rgba(132,144,216,.2)'; e.currentTarget.style.borderColor='rgba(132,144,216,.5)' }}}
-                onMouseLeave={e=>{ if(!shareCopied){ e.currentTarget.style.background='rgba(132,144,216,.1)'; e.currentTarget.style.borderColor='rgba(132,144,216,.25)' }}}>
-                <FaShareAlt size={11}/>
-                <span>{shareCopied ? '✓ הועתק!' : 'שתף'}</span>
+            <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+              <button onClick={() => setCmdOpen(true)} aria-label={lang === 'en' ? 'Quick search' : 'חיפוש מהיר'} className="admin-cmdk-btn"
+                style={{ display:'flex', alignItems:'center', gap:10, height:36, padding:'0 12px', minWidth:240, borderRadius:10, border:'1px solid var(--au-line)', background:'rgba(var(--ov),.04)', color:'var(--au-text3)', cursor:'pointer', fontFamily:'inherit', fontSize:12.5, minHeight:0 }}>
+                <FaSearch size={11}/><span style={{ flex:1, textAlign:'start' }}>{lang === 'en' ? 'Search or jump to…' : 'חיפוש או מעבר מהיר…'}</span>
+                <kbd dir="ltr" style={{ fontSize:10.5, fontFamily:'inherit', border:'1px solid var(--au-line2)', borderRadius:5, padding:'1px 5px', color:'var(--au-text3)' }}>Ctrl K</kbd>
               </button>
-              <div style={{ display:'flex', alignItems:'center', gap:7, background:'rgba(132,144,216,.08)', border:'1px solid rgba(132,144,216,.16)', borderRadius:24, padding:'6px 13px 6px 9px' }}>
+              <AdminThemeSwitch lang={lang}/>
+              <div style={{ display:'flex', alignItems:'center', gap:7, background:'rgba(var(--brand-rgb),.08)', border:'1px solid rgba(var(--brand-rgb),.16)', borderRadius:24, padding:'6px 13px 6px 9px' }}>
                 <div style={{ width:26, height:26, borderRadius:'50%', background:`${C.purple}25`, border:`1.5px solid ${C.purple}44`, display:'flex', alignItems:'center', justifyContent:'center' }}>
                   <FaLock size={10} style={{ color:C.purple }}/>
                 </div>
-                <span style={{ fontSize:12, color:'rgba(232,228,216,.55)', fontWeight:600 }}>מנהל ראשי</span>
+                <span style={{ fontSize:12, color:'rgba(var(--ink),.62)', fontWeight:600 }}>{lang === 'en' ? 'Main admin' : 'מנהל ראשי'}</span>
               </div>
-              <button onClick={onClose}
-                style={{ display:'flex', alignItems:'center', gap:7, padding:'7px 15px', background:'rgba(224,82,82,.08)', border:'1px solid rgba(224,82,82,.28)', borderRadius:20, color:'rgba(224,82,82,.75)', cursor:'pointer', fontFamily:'inherit', fontSize:12, fontWeight:700, transition:'all .2s' }}
-                onMouseEnter={e=>{ e.currentTarget.style.background='rgba(224,82,82,.2)'; e.currentTarget.style.borderColor='#E05252'; e.currentTarget.style.color='#E05252' }}
-                onMouseLeave={e=>{ e.currentTarget.style.background='rgba(224,82,82,.08)'; e.currentTarget.style.borderColor='rgba(224,82,82,.28)'; e.currentTarget.style.color='rgba(224,82,82,.75)' }}>
-                <FaTimes size={11}/> <span>יציאה</span>
-              </button>
             </div>
           </div>
         )}
@@ -2862,44 +3324,47 @@ Return ONLY valid JSON (no markdown, no code blocks):
               </div>
               {saved && <span style={{ fontSize:12, color:C.green, fontWeight:700, background:`${C.green}15`, padding:'4px 12px', borderRadius:20, border:`1px solid ${C.green}30` }}>✓ נשמר בהצלחה</span>}
             </div>
-            <button onClick={onClose} style={{ background:'rgba(255,255,255,.07)', border:`1px solid rgba(132,144,216,.25)`, borderRadius:10, width:38, height:38, color:`${C.cream}80`, cursor:'pointer', fontSize:18, lineHeight:1, display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s' }}
+            <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+            <AdminThemeSwitch lang={lang} compact/>
+            <button onClick={onClose} style={{ background:'rgba(var(--ov),.07)', border:`1px solid rgba(var(--brand-rgb),.25)`, borderRadius:10, width:38, height:38, color:`${C.cream}80`, cursor:'pointer', fontSize:18, lineHeight:1, display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s' }}
               onMouseEnter={e=>{ e.currentTarget.style.background='rgba(224,82,82,.2)'; e.currentTarget.style.borderColor='#E05252'; e.currentTarget.style.color='#E05252' }}
-              onMouseLeave={e=>{ e.currentTarget.style.background='rgba(255,255,255,.07)'; e.currentTarget.style.borderColor='rgba(132,144,216,.25)'; e.currentTarget.style.color=`${C.cream}80` }}>×</button>
+              onMouseLeave={e=>{ e.currentTarget.style.background='rgba(var(--ov),.07)'; e.currentTarget.style.borderColor='rgba(var(--brand-rgb),.25)'; e.currentTarget.style.color=`${C.cream}80` }}>×</button>
+            </div>
           </div>
         )}
 
         {/* Supabase health warning banner */}
         {supabaseWarning && (
-          <div style={{ background:'rgba(224,82,82,.12)', border:'1px solid rgba(224,82,82,.35)', borderRadius:10, padding:'10px 16px', marginBottom:16, display:'flex', alignItems:'center', gap:10, direction:'rtl', flexShrink:0 }}>
-            <FaExclamationTriangle size={15} style={{ color:'#E05252', flexShrink:0 }}/>
-            <span style={{ fontSize:13, color:'#E05252', fontWeight:600 }}>{supabaseWarning}</span>
-            <button onClick={() => setSupabaseWarning('')} style={{ marginRight:'auto', background:'none', border:'none', color:'rgba(224,82,82,.6)', cursor:'pointer', fontSize:16, lineHeight:1, padding:'0 4px' }}>×</button>
+          <div role="alert" className="admin-notice" style={{ background:'linear-gradient(90deg,rgba(224,82,82,.1),rgba(224,82,82,.04))', border:'1px solid rgba(224,82,82,.28)', borderRadius:12, padding:'10px 14px', margin: standalone ? '14px 28px 0' : '0 0 14px', display:'flex', alignItems:'center', gap:10, direction:'rtl', flexShrink:0 }}>
+            <span style={{ width:28, height:28, borderRadius:8, background:'rgba(224,82,82,.16)', display:'inline-flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}><FaExclamationTriangle size={12} style={{ color:'var(--au-red-text)' }}/></span>
+            <span style={{ fontSize:12.5, color:'var(--au-red-text)', fontWeight:600, lineHeight:1.5, flex:1, minWidth:0 }}>{supabaseWarning.replace(/^⚠\s*/, '')}</span>
+            <button onClick={() => setSupabaseWarning('')} aria-label="סגור" style={{ background:'none', border:'none', color:'var(--au-red-text)', cursor:'pointer', fontSize:16, lineHeight:1, padding:'0 4px', minHeight:0, minWidth:0 }}>×</button>
           </div>
         )}
 
         {/* Push notification permission banner */}
         {!notifBannerDismissed && notifPerm === 'default' && (
-          <div style={{ background:'rgba(247,201,72,.09)', border:'1px solid rgba(247,201,72,.35)', borderRadius:10, padding:'10px 16px', marginBottom:16, display:'flex', alignItems:'center', gap:10, direction:'rtl', flexWrap:'wrap', flexShrink:0 }}>
-            <span style={{ fontSize:18, flexShrink:0 }}>🔔</span>
-            <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontSize:13, fontWeight:700, color:'#F7C948' }}>הפעל התראות דחיפה</div>
-              <div style={{ fontSize:11, color:'rgba(247,201,72,.65)', marginTop:2 }}>Enable push notifications for new leads &amp; messages</div>
+          <div className="admin-notice" style={{ background:'rgba(var(--ov),.025)', border:'1px solid rgba(var(--brand-rgb),.16)', borderRadius:12, padding:'9px 14px', margin: standalone ? '14px 28px 0' : '0 0 14px', display:'flex', alignItems:'center', gap:10, direction:'rtl', flexWrap:'wrap', flexShrink:0 }}>
+            <span style={{ width:28, height:28, borderRadius:8, background:'rgba(247,201,72,.14)', display:'inline-flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontSize:13 }}>🔔</span>
+            <div style={{ flex:1, minWidth:0, fontSize:12.5, color:'rgba(var(--ink),.78)' }}>
+              <b style={{ color:'var(--au-text)' }}>{lang === 'en' ? 'Turn on push notifications' : 'הפעלת התראות דחיפה'}</b>
+              <span style={{ color:'rgba(var(--ink),.5)' }}> · {lang === 'en' ? 'get an alert for every new lead and message' : 'קבלו התראה על כל ליד והודעה חדשים'}</span>
             </div>
             <button onClick={requestNotifPermission}
-              style={{ background:'rgba(247,201,72,.18)', border:'1px solid rgba(247,201,72,.5)', borderRadius:8, padding:'6px 14px', color:'#F7C948', cursor:'pointer', fontFamily:'inherit', fontSize:12, fontWeight:700, flexShrink:0, whiteSpace:'nowrap', transition:'background .15s' }}
-              onMouseEnter={e=>{ e.currentTarget.style.background='rgba(247,201,72,.32)' }}
-              onMouseLeave={e=>{ e.currentTarget.style.background='rgba(247,201,72,.18)' }}>
-              אשר הרשאה
+              style={{ background:'rgba(247,201,72,.14)', border:'1px solid rgba(247,201,72,.4)', borderRadius:8, height:30, padding:'0 12px', color:'var(--au-amber-text)', cursor:'pointer', fontFamily:'inherit', fontSize:12, fontWeight:700, flexShrink:0, whiteSpace:'nowrap', transition:'background .15s', minHeight:0 }}
+              onMouseEnter={e=>{ e.currentTarget.style.background='rgba(247,201,72,.26)' }}
+              onMouseLeave={e=>{ e.currentTarget.style.background='rgba(247,201,72,.14)' }}>
+              {lang === 'en' ? 'Allow' : 'אישור'}
             </button>
-            <button onClick={() => setNotifBannerDismissed(true)} style={{ background:'none', border:'none', color:'rgba(247,201,72,.5)', cursor:'pointer', fontSize:16, lineHeight:1, padding:'0 4px', flexShrink:0 }}>×</button>
+            <button onClick={() => setNotifBannerDismissed(true)} aria-label={lang === 'en' ? 'Dismiss' : 'סגור'} style={{ background:'none', border:'none', color:'rgba(var(--ink),.4)', cursor:'pointer', fontSize:16, lineHeight:1, padding:'0 4px', flexShrink:0, minHeight:0, minWidth:0 }}>×</button>
           </div>
         )}
         {!notifBannerDismissed && notifPerm === 'denied' && (
-          <div style={{ background:'rgba(156,163,175,.07)', border:'1px solid rgba(156,163,175,.25)', borderRadius:10, padding:'10px 16px', marginBottom:16, display:'flex', alignItems:'center', gap:10, direction:'rtl', flexWrap:'wrap', flexShrink:0 }}>
+          <div className="admin-notice" style={{ background:'rgba(156,163,175,.07)', border:'1px solid rgba(156,163,175,.25)', borderRadius:12, padding:'9px 14px', margin: standalone ? '14px 28px 0' : '0 0 14px', display:'flex', alignItems:'center', gap:10, direction:'rtl', flexWrap:'wrap', flexShrink:0 }}>
             <span style={{ fontSize:18, flexShrink:0 }}>🔕</span>
             <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontSize:13, fontWeight:700, color:'rgba(232,228,216,.7)' }}>התראות חסומות בדפדפן</div>
-              <div style={{ fontSize:11, color:'rgba(232,228,216,.4)', marginTop:2 }}>Notifications blocked — open Chrome Settings → Site Settings → Notifications → allow this site</div>
+              <div style={{ fontSize:13, fontWeight:700, color:'rgba(var(--ink),.7)' }}>התראות חסומות בדפדפן</div>
+              <div style={{ fontSize:11, color:'rgba(var(--ink),.4)', marginTop:2 }}>Notifications blocked — open Chrome Settings → Site Settings → Notifications → allow this site</div>
             </div>
             <button onClick={() => setNotifBannerDismissed(true)} style={{ background:'none', border:'none', color:'rgba(156,163,175,.45)', cursor:'pointer', fontSize:16, lineHeight:1, padding:'0 4px', flexShrink:0 }}>×</button>
           </div>
@@ -2907,11 +3372,11 @@ Return ONLY valid JSON (no markdown, no code blocks):
 
         {/* Modal tabs */}
         {!standalone && (
-          <div style={{ display:'flex', gap:4, marginBottom:12, background:'rgba(255,255,255,.04)', borderRadius:10, padding:4, flexWrap:'wrap', flexShrink:0 }}>
+          <div style={{ display:'flex', gap:4, marginBottom:12, background:'rgba(var(--ov),.04)', borderRadius:10, padding:4, flexWrap:'wrap', flexShrink:0 }}>
             {tabBtn('meta', 'Lead Center', metaNewLeads || undefined)}
             {tabBtn('props', 'ניהול נכסים')}
             <button onClick={goToLiveProps}
-              style={{ padding:'10px 16px', border:'none', background: tab==='props' && listTab==='published' ? 'rgba(34,197,94,.2)' : 'transparent', color: tab==='props' && listTab==='published' ? '#22C55E' : 'rgba(232,228,216,.65)', fontFamily:'inherit', cursor:'pointer', fontWeight:700, fontSize:14, borderRadius:9, transition:'all .15s', display:'flex', alignItems:'center', gap:6 }}>
+              style={{ padding:'10px 16px', border:'none', background: tab==='props' && listTab==='published' ? 'rgba(34,197,94,.2)' : 'transparent', color: tab==='props' && listTab==='published' ? '#22C55E' : 'rgba(var(--ink),.65)', fontFamily:'inherit', cursor:'pointer', fontWeight:700, fontSize:14, borderRadius:9, transition:'all .15s', display:'flex', alignItems:'center', gap:6 }}>
               <span style={{ width:6, height:6, borderRadius:'50%', background:'#22C55E', boxShadow:'0 0 6px rgba(34,197,94,.8)', animation:'pulse 2s infinite', display:'inline-block' }}/>
               באוויר
               <span style={{ background:'rgba(34,197,94,.2)', color:'#22C55E', borderRadius:20, padding:'2px 7px', fontSize:11, fontWeight:900, lineHeight:1.6 }}>{publishedList.length}</span>
@@ -2919,6 +3384,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
             {tabBtn('leads', 'לידים', leads.length)}
             {tabBtn('sellers', 'נכסים שנקלטו', intakeStats?.new || undefined)}
             {tabBtn('chats', 'צ\'אטים')}
+            {tabBtn('automations', 'אוטומציות', autoRun?.suggestions?.length || undefined)}
             {tabBtn('analytics', 'אנליטיקס')}
             {tabBtn('supermetrics', 'ביצועים')}
             {tabBtn('team', 'צוות')}
@@ -2928,62 +3394,16 @@ Return ONLY valid JSON (no markdown, no code blocks):
         )}
 
         {/* ── Scrollable content ─────────────────────────────────────── */}
-        <div className="admin-content" style={(tab==='chats'||tab==='leads'||tab==='meta') ? { flex:1, minHeight:0, overflow:'hidden', position:'relative', display:'flex', flexDirection:'column' } : { flex:1, minHeight:0, overflowY:'auto', WebkitOverflowScrolling:'touch', overscrollBehavior:'contain', scrollBehavior:'smooth', padding:'22px 26px 32px', direction:'rtl' }}>
+        <div className={`admin-content${(tab==='chats'||tab==='leads'||tab==='meta') ? ' admin-content-full' : ''}`} style={(tab==='chats'||tab==='leads'||tab==='meta') ? { flex:1, minHeight:0, overflow:'hidden', position:'relative', display:'flex', flexDirection:'column' } : { flex:1, minHeight:0, overflowY:'auto', WebkitOverflowScrolling:'touch', overscrollBehavior:'contain', scrollBehavior:'smooth', padding:'22px 26px 32px', direction:'rtl' }}>
 
         {/* Overview tab — standalone only */}
-        {tab==='overview' && standalone && (<>
-          <div className="admin-overview-grid" style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(190px,1fr))', gap:14, marginBottom:24 }}>
-            {[
-              { Icon:FaBuilding,  label:'נכסים פעילים',  value: properties.filter(p=>p.published!==false).length, sub:`מתוך ${properties.length} סה"כ`,          color:'#8490D8' },
-              { Icon:FaFileAlt,   label:'טיוטות',          value: properties.filter(p=>p.published===false).length, sub:'ממתינות לפרסום',                          color:'#F7C948' },
-              { Icon:FaUsers,     label:'לידים כולל',      value: leads.length,                                      sub:leads.filter(l=>Date.now()-l.ts<7*864e5).length+' השבוע', color:'#22C55E' },
-              { Icon:FaFire,      label:'לידים חמים',      value: leads.filter(l=>l.enrichment?.intent==='hot').length, sub:'ציון AI: חם',                          color:'#F97316' },
-              { Icon:FaRobot,     label:'WhatsApp Bot',    value:'פעיל', sub:'Meta API מחובר',                                                                       color:'#25D366' },
-              { Icon:FaChartBar,  label:'Google Tag Mgr',  value:'פעיל', sub:'GTM-MZZ8QR8V',                                                                         color:'#FF6B35' },
-            ].map((card,i) => (
-              <div key={i} style={{ background:'rgba(255,255,255,.03)', border:`1px solid ${card.color}22`, borderRadius:14, padding:'20px 18px 16px' }}>
-                <div style={{ marginBottom:10 }}><card.Icon size={18} style={{ color:card.color }}/></div>
-                <div style={{ fontSize:26, fontWeight:900, color:card.color, lineHeight:1 }}>{card.value}</div>
-                <div style={{ fontSize:12, color:'rgba(232,228,216,.7)', fontWeight:700, marginTop:7 }}>{card.label}</div>
-                <div style={{ fontSize:11, color:'rgba(232,228,216,.3)', marginTop:3 }}>{card.sub}</div>
-              </div>
-            ))}
-          </div>
-          <div className="admin-overview-bottom" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
-            <div style={{ background:'rgba(255,255,255,.03)', border:'1px solid rgba(132,144,216,.1)', borderRadius:14, padding:20 }}>
-              <h3 style={{ fontSize:13, fontWeight:700, color:'rgba(232,228,216,.75)', marginBottom:14 }}>לידים אחרונים</h3>
-              {leads.slice(0,5).map((l,i) => (
-                <div key={i} style={{ display:'flex', alignItems:'center', gap:9, padding:'7px 0', borderBottom:i<4?'1px solid rgba(255,255,255,.04)':'' }}>
-                  <div style={{ width:30,height:30,borderRadius:'50%',background:'rgba(132,144,216,.14)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,color:'rgba(132,144,216,.8)',fontWeight:700,flexShrink:0 }}>{(l.name||'?')[0]}</div>
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ fontSize:12,fontWeight:600,color:'rgba(232,228,216,.78)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>{l.name||'ללא שם'}</div>
-                    <div style={{ fontSize:10,color:'rgba(232,228,216,.3)' }}>{new Date(l.ts).toLocaleDateString('he-IL')}</div>
-                  </div>
-                  {l.enrichment?.intent && <span style={{ fontSize:10,fontWeight:700,padding:'2px 6px',borderRadius:10, background:l.enrichment.intent==='hot'?'rgba(249,115,22,.18)':l.enrichment.intent==='warm'?'rgba(247,201,72,.18)':'rgba(255,255,255,.07)', color:l.enrichment.intent==='hot'?'#F97316':l.enrichment.intent==='warm'?'#F7C948':'rgba(232,228,216,.45)' }}>{l.enrichment.intent}</span>}
-                </div>
-              ))}
-              {leads.length===0 && <div style={{ fontSize:12,color:'rgba(232,228,216,.22)',textAlign:'center',padding:'18px 0' }}>אין לידים עדיין</div>}
-              <button onClick={()=>setTab('leads')} style={{ marginTop:10,fontSize:11,color:'rgba(132,144,216,.65)',background:'none',border:'none',cursor:'pointer',fontFamily:'inherit',padding:0,fontWeight:600 }}>צפה בכל הלידים ←</button>
-            </div>
-            <div style={{ background:'rgba(255,255,255,.03)', border:'1px solid rgba(132,144,216,.1)', borderRadius:14, padding:20 }}>
-              <h3 style={{ fontSize:13, fontWeight:700, color:'rgba(232,228,216,.75)', marginBottom:14 }}>נכסים אחרונים</h3>
-              {[...properties].reverse().slice(0,5).map((p,i) => (
-                <div key={i} style={{ display:'flex', alignItems:'center', gap:9, padding:'7px 0', borderBottom:i<4?'1px solid rgba(255,255,255,.04)':'' }}>
-                  <div style={{ width:30,height:30,borderRadius:6,background:'rgba(132,144,216,.1)',overflow:'hidden',flexShrink:0 }}>
-                    {p.images?.[0]?<img src={thumbImg(p.images[0])} onError={imgFallback} style={{width:'100%',height:'100%',objectFit:'cover'}} alt=""/>:<div style={{width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center'}}><FaBuilding size={12} style={{color:'rgba(132,144,216,.5)'}}/></div>}
-                  </div>
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ fontSize:12,fontWeight:600,color:'rgba(232,228,216,.78)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>{p.title||'ללא שם'}</div>
-                    <div style={{ fontSize:10,color:'rgba(232,228,216,.3)' }}>{p.location}</div>
-                  </div>
-                  <span style={{ fontSize:10,padding:'2px 6px',borderRadius:10,background:p.published!==false?'rgba(34,197,94,.14)':'rgba(247,201,72,.14)',color:p.published!==false?'#22C55E':'#F7C948',fontWeight:700 }}>{p.published!==false?'פורסם':'טיוטה'}</span>
-                </div>
-              ))}
-              {properties.length===0 && <div style={{ fontSize:12,color:'rgba(232,228,216,.22)',textAlign:'center',padding:'18px 0' }}>אין נכסים עדיין</div>}
-              <button onClick={()=>setTab('props')} style={{ marginTop:10,fontSize:11,color:'rgba(132,144,216,.65)',background:'none',border:'none',cursor:'pointer',fontFamily:'inherit',padding:0,fontWeight:600 }}>נהל נכסים ←</button>
-            </div>
-          </div>
-        </>)}
+        {tab==='overview' && standalone && (
+          <Suspense fallback={null}>
+            <AdminHome properties={properties} leads={leads} setTab={setTab} autoCfg={autoCfg} chatsUnread={chatsUnread} intakeNew={intakeStats?.new || 0}
+              token={ADMIN_TOKEN} lang={lang} thumbImg={thumbImg} imgFallback={imgFallback}
+              onNewProperty={() => { try { localStorage.removeItem('afik_wizard_draft') } catch {}; setWizardOpen(true) }}/>
+          </Suspense>
+        )}
 
         {tab==='props' && (
           <>
@@ -3003,7 +3423,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
             </div>
 
             {/* Form */}
-            <div style={{ background:'rgba(255,255,255,.03)', borderRadius:12, padding:20, marginBottom:20 }}>
+            <div style={{ background:'rgba(var(--ov),.03)', borderRadius:12, padding:20, marginBottom:20 }}>
               <h3 style={{ fontSize:14, fontWeight:700, color:C.purple, marginBottom:16 }}>{editId ? 'עריכת נכס' : 'הוספת נכס חדש (טופס מהיר)'}</h3>
 
               {/* Category selector */}
@@ -3120,7 +3540,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
               {form.category !== 'land' && (
                 <div style={{ marginBottom:14 }}>
                   <div style={{ fontSize:10, color:`${C.cream}55`, marginBottom:8, fontWeight:700, letterSpacing:'.05em', textTransform:'uppercase' }}>מה יש בנכס</div>
-                  <div className="prop-chk-grid" style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(130px,1fr))', gap:8, padding:'10px 12px', background:'rgba(255,255,255,.02)', borderRadius:8, border:`1px solid ${C.purple}15` }}>
+                  <div className="prop-chk-grid" style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(130px,1fr))', gap:8, padding:'10px 12px', background:'rgba(var(--ov),.02)', borderRadius:8, border:`1px solid ${C.purple}15` }}>
                     {chk('elevator','מעלית')} {chk('accessible','גישה לנכים')}
                     {chk('tornadoAC','מזגן טורנדו')} {chk('airCon','מיזוג')}
                     {chk('balcony','מרפסת')} {chk('storage','מחסן')}
@@ -3161,7 +3581,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
                 <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:4 }}>
                   <label style={{ fontSize:11, color:`${C.cream}70`, fontWeight:600 }}>תיאור הנכס</label>
                   <button onClick={rewriteWithAI} disabled={aiLoading}
-                    style={{ display:'flex', alignItems:'center', gap:5, padding:'4px 12px', background: aiLoading ? 'rgba(132,144,216,.2)' : `${C.purple}22`, border:`1px solid ${C.purple}55`, borderRadius:6, color:C.purple, fontSize:10, fontWeight:700, cursor: aiLoading ? 'not-allowed' : 'pointer', fontFamily:'inherit', transition:'all .15s', letterSpacing:'.03em' }}
+                    style={{ display:'flex', alignItems:'center', gap:5, padding:'4px 12px', background: aiLoading ? 'rgba(var(--brand-rgb),.2)' : `${C.purple}22`, border:`1px solid ${C.purple}55`, borderRadius:6, color:C.purple, fontSize:10, fontWeight:700, cursor: aiLoading ? 'not-allowed' : 'pointer', fontFamily:'inherit', transition:'all .15s', letterSpacing:'.03em' }}
                     onMouseEnter={e => { if (!aiLoading) e.currentTarget.style.background = `${C.purple}38` }}
                     onMouseLeave={e => { if (!aiLoading) e.currentTarget.style.background = `${C.purple}22` }}>
                     {aiLoading ? '✦ מייצר...' : '✦ שכתוב עם AI'}
@@ -3181,7 +3601,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
                   <label style={{ fontSize:11, color:`${C.cream}70`, display:'block', marginBottom:4, fontWeight:600 }}>לינק גוגל מאפ</label>
                   <input placeholder="https://maps.google.com/..." value={form.mapsUrl||''} onChange={set('mapsUrl')} style={inp}/>
                   {form.mapsUrl && toMapsEmbed(form.mapsUrl) && (
-                    <div style={{ marginTop:8, borderRadius:8, overflow:'hidden', height:160, border:'1px solid rgba(132,144,216,.2)' }}>
+                    <div style={{ marginTop:8, borderRadius:8, overflow:'hidden', height:160, border:'1px solid rgba(var(--brand-rgb),.2)' }}>
                       <iframe src={toMapsEmbed(form.mapsUrl)} width="100%" height="100%" style={{ border:'none', display:'block' }} allowFullScreen loading="lazy" referrerPolicy="no-referrer-when-downgrade" title="מיקום הנכס"/>
                     </div>
                   )}
@@ -3203,7 +3623,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
               </div>
 
               {/* Project Logo */}
-              <div style={{ marginBottom:14, background:'rgba(132,144,216,.06)', border:`1px solid ${C.purple}20`, borderRadius:10, padding:'14px 16px' }}>
+              <div style={{ marginBottom:14, background:'rgba(var(--brand-rgb),.06)', border:`1px solid ${C.purple}20`, borderRadius:10, padding:'14px 16px' }}>
                 <label style={{ fontSize:11, color:`${C.cream}70`, display:'block', marginBottom:10, fontWeight:600 }}>
                   לוגו הפרויקט <span style={{ color:`${C.cream}44`, fontWeight:400 }}>— יוצג מתחת לגלריית התמונות</span>
                 </label>
@@ -3213,7 +3633,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
               {err && <div style={{ color:'#E05252', fontSize:12, marginBottom:10 }}>{err}</div>}
 
               <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
-                <button onClick={() => save(false)} disabled={propSyncing} style={{ padding:'12px 18px', background:'rgba(255,255,255,.07)', border:`1px solid ${C.purple}33`, borderRadius:6, color:`${C.cream}BB`, fontSize:13, fontWeight:600, cursor: propSyncing ? 'not-allowed' : 'pointer', fontFamily:'inherit', transition:'all .15s', opacity: propSyncing ? .6 : 1 }}
+                <button onClick={() => save(false)} disabled={propSyncing} style={{ padding:'12px 18px', background:'rgba(var(--ov),.07)', border:`1px solid ${C.purple}33`, borderRadius:6, color:`${C.cream}BB`, fontSize:13, fontWeight:600, cursor: propSyncing ? 'not-allowed' : 'pointer', fontFamily:'inherit', transition:'all .15s', opacity: propSyncing ? .6 : 1 }}
                   onMouseEnter={e => { if (!propSyncing) e.currentTarget.style.borderColor=C.purple }}
                   onMouseLeave={e => { if (!propSyncing) e.currentTarget.style.borderColor=`${C.purple}33` }}>
                   שמור כטיוטה
@@ -3232,7 +3652,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
             {/* Property list */}
             <div ref={propListRef}>
               {/* Header bar with live count */}
-              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16, padding:'12px 16px', background:'rgba(132,144,216,.06)', borderRadius:12, border:'1px solid rgba(132,144,216,.12)' }}>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16, padding:'12px 16px', background:'rgba(var(--brand-rgb),.06)', borderRadius:12, border:'1px solid rgba(var(--brand-rgb),.12)' }}>
                 <div style={{ display:'flex', alignItems:'center', gap:12 }}>
                   <div style={{ display:'flex', alignItems:'center', gap:7 }}>
                     <span style={{ width:8, height:8, borderRadius:'50%', background:C.green, boxShadow:`0 0 8px ${C.green}`, display:'inline-block', animation:'pulse 2s infinite' }}/>
@@ -3261,137 +3681,12 @@ Return ONLY valid JSON (no markdown, no code blocks):
                 </div>
               </div>
 
-              {/* Published / Drafts tabs */}
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12, flexWrap:'wrap', gap:8 }}>
-                <div style={{ display:'flex', gap:4, background:'rgba(255,255,255,.04)', borderRadius:10, padding:4 }}>
-                  <button onClick={() => setListTab('published')}
-                    style={{ display:'flex', alignItems:'center', gap:7, padding:'7px 16px', border:'none', borderRadius:7, background:listTab==='published'?C.green+'22':'transparent', color:listTab==='published'?C.green:`${C.cream}55`, cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:800, transition:'all .15s' }}>
-                    {listTab==='published' && <span style={{ width:6, height:6, borderRadius:'50%', background:C.green, display:'inline-block' }}/>}
-                    באוויר ({publishedList.length})
-                  </button>
-                  <button onClick={() => setListTab('draft')}
-                    style={{ display:'flex', alignItems:'center', gap:7, padding:'7px 16px', border:'none', borderRadius:7, background:listTab==='draft'?'rgba(247,201,72,.18)':'transparent', color:listTab==='draft'?'#F7C948':`${C.cream}55`, cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:800, transition:'all .15s' }}>
-                    {listTab==='draft' && <span style={{ width:6, height:6, borderRadius:'50%', background:'#F7C948', display:'inline-block' }}/>}
-                    טיוטות ({draftList.length})
-                  </button>
-                </div>
-                <div className="admin-cat-filter">
-                  {[{id:'all',label:'הכל',Icon:null},...CATEGORIES].map(({id,label,Icon:CIcon}) => (
-                    <button key={id} onClick={() => setListCat(id)} style={{ padding:'4px 10px', border:`1px solid ${listCat===id?C.purple:'rgba(132,144,216,.2)'}`, borderRadius:6, background:listCat===id?`${C.purple}22`:'transparent', color:listCat===id?C.purple:`${C.cream}70`, cursor:'pointer', fontSize:11, fontFamily:'inherit', display:'flex', alignItems:'center', gap:4, flexShrink:0, whiteSpace:'nowrap' }}>
-                      {CIcon && <CIcon size={10}/>} {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              {filteredList.length === 0 && <div style={{ textAlign:'center', padding:'28px 0', color:`${C.cream}40`, fontSize:13 }}>{listTab==='draft' ? 'אין טיוטות שמורות.' : 'אין נכסים פעילים באוויר.'}</div>}
-              <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-                {filteredList.map(p => {
-                  const cat = CATEGORIES.find(c => c.id === p.category) || CATEGORIES[1]
-                  const fmtPrice = p.price ? `₪${Number(String(p.price).replace(/[^\d]/g,'')).toLocaleString('he-IL')}` : 'מחיר בפנייה'
-                  const statusClr = { 'בשיווק':C.green,'זמין':C.green,'בבדיקה':'#F7C948','נמכר':'#E05252','הושכר':'#F97316' }[p.status] || C.green
-                  return (
-                    <div key={p.id}
-                      draggable
-                      onDragStart={() => { dragPropId.current = p.id; setDragActive(true) }}
-                      onDragEnter={() => { dragOverId.current = p.id }}
-                      onDragEnd={() => { reorderProps(); dragPropId.current = null; dragOverId.current = null; setDragActive(false) }}
-                      onDragOver={e => e.preventDefault()}
-                      style={{ display:'flex', gap:0, background: p.published!==false ? 'rgba(34,197,94,.04)' : 'rgba(255,255,255,.04)', borderRadius:14, border:`1.5px solid ${p.published===false ? 'rgba(247,201,72,.25)' : C.green+'28'}`, overflow:'hidden', transition:'all .2s', cursor: dragActive ? 'grabbing' : 'default' }}
-                      onMouseEnter={e => { e.currentTarget.style.boxShadow=`0 6px 28px rgba(132,144,216,.18)`; e.currentTarget.style.borderColor=p.published!==false ? C.green+'55' : 'rgba(247,201,72,.5)' }}
-                      onMouseLeave={e => { e.currentTarget.style.boxShadow=''; e.currentTarget.style.borderColor=p.published===false ? 'rgba(247,201,72,.25)' : C.green+'28' }}>
-                      {/* Drag handle strip */}
-                      <div style={{ width:18, flexShrink:0, background: p.published!==false ? C.green+'22' : 'rgba(247,201,72,.12)', display:'flex', alignItems:'center', justifyContent:'center', cursor:'grab', fontSize:11, color: p.published!==false ? C.green+'88' : 'rgba(247,201,72,.6)', userSelect:'none', letterSpacing:0 }}
-                        title="גרור לשינוי סדר">⠿</div>
-                      {/* Live indicator strip */}
-                      <div style={{ width:4, flexShrink:0, background: p.published!==false ? C.green : '#F7C948' }}/>
-                      {/* Thumbnail */}
-                      <div className="admin-prop-thumb" style={{ position:'relative', flexShrink:0, width:130, height:100 }}>
-                        {p.images?.[0] ? (
-                          <img src={thumbImg(p.images[0])} onError={imgFallback} style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }} alt="" loading="lazy" decoding="async"/>
-                        ) : (
-                          <div style={{ width:'100%', height:'100%', background:`${C.purple}10`, display:'flex', alignItems:'center', justifyContent:'center', color:`${C.purple}55` }}><cat.Icon size={28}/></div>
-                        )}
-                        {/* Live / Draft badge on thumbnail */}
-                        <div style={{ position:'absolute', top:6, right:6, background: p.published!==false ? `${C.green}CC` : 'rgba(247,201,72,.88)', borderRadius:5, padding:'2px 7px', fontSize:9, fontWeight:800, color:'#000', letterSpacing:'.04em', display:'flex', alignItems:'center', gap:4 }}>
-                          {p.published!==false && <span style={{ width:5, height:5, borderRadius:'50%', background:'#000', opacity:.7, display:'inline-block' }}/>}
-                          {p.published!==false ? 'LIVE' : 'טיוטה'}
-                        </div>
-                        <div style={{ position:'absolute', bottom:0, left:0, right:0, background:`${statusClr}CC`, padding:'2px 0', textAlign:'center', fontSize:9, fontWeight:800, color:'#000' }}>
-                          {p.status || 'זמין'}
-                        </div>
-                      </div>
-                      {/* Info */}
-                      <div style={{ flex:1, minWidth:0, padding:'10px 14px', display:'flex', flexDirection:'column', justifyContent:'space-between' }}>
-                        <div>
-                          <div style={{ display:'flex', alignItems:'flex-start', gap:8, marginBottom:5, flexWrap:'wrap' }}>
-                            <span style={{ fontWeight:800, fontSize:15, color:C.cream, lineHeight:1.25, flex:1 }}>{p.title}</span>
-                            <div style={{ display:'flex', gap:4, flexShrink:0, alignItems:'center' }}>
-                              {p.exclusive && <span style={{ fontSize:10, background:`${C.green}18`, color:C.green, border:`1px solid ${C.green}35`, borderRadius:5, padding:'2px 8px', fontWeight:700 }}>✦ בלעדי</span>}
-                            </div>
-                          </div>
-                          <div style={{ display:'flex', gap:5, flexWrap:'wrap', marginBottom:5 }}>
-                            <span style={{ background:`${C.purple}22`, color:C.purple, borderRadius:5, padding:'2px 8px', fontSize:10, fontWeight:700 }}>{cat.label}</span>
-                            {p.type && <span style={{ background:'rgba(255,255,255,.06)', color:`${C.cream}70`, borderRadius:5, padding:'2px 8px', fontSize:10 }}>{p.type}</span>}
-                          </div>
-                          <div style={{ display:'flex', gap:12, flexWrap:'wrap', fontSize:12, color:`${C.cream}75`, marginBottom:4 }}>
-                            {p.location && <span style={{ display:'flex', alignItems:'center', gap:4 }}><FaMapMarkerAlt size={10} style={{ color:C.purple }}/>{p.location}{p.neighborhood ? ' · '+p.neighborhood : ''}</span>}
-                            {p.rooms && <span style={{ display:'flex', alignItems:'center', gap:4 }}><FaBed size={10} style={{ color:C.purple }}/>{p.rooms} חד'</span>}
-                            {p.size && <span style={{ display:'flex', alignItems:'center', gap:4 }}><FaRulerCombined size={10} style={{ color:C.purple }}/>{p.size} מ"ר</span>}
-                            {p.floor && <span style={{ display:'flex', alignItems:'center', gap:4 }}><FaBuilding size={10} style={{ color:C.purple }}/>קומה {p.floor}{p.totalFloors?'/'+p.totalFloors:''}</span>}
-                            {p.dunams && <span style={{ display:'flex', alignItems:'center', gap:4 }}><FaLeaf size={10} style={{ color:C.purple }}/>{p.dunams} דונם</span>}
-                          </div>
-                        </div>
-                        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:6, borderTop:'1px solid rgba(255,255,255,.06)', paddingTop:8, marginTop:4 }}>
-                          <span style={{ fontSize:14, fontWeight:900, color: p.price ? C.cream : `${C.cream}66` }}>{fmtPrice}</span>
-                          <div className="admin-prop-list-actions" style={{ display:'flex', gap:5, flexWrap:'wrap', alignItems:'center' }}>
-                            {/* Publish toggle */}
-                            {p.published===false
-                              ? <button onClick={() => publish(p.id)} style={{ padding:'6px 12px', background:`${C.green}18`, border:`1px solid ${C.green}44`, borderRadius:7, color:C.green, cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:700, whiteSpace:'nowrap', display:'flex', alignItems:'center', gap:5 }}><span style={{ width:6, height:6, borderRadius:'50%', background:C.green, display:'inline-block' }}/>פרסם לאוויר</button>
-                              : <button onClick={() => unpublish(p.id)} style={{ padding:'6px 12px', background:'rgba(247,201,72,.08)', border:'1px solid rgba(247,201,72,.3)', borderRadius:7, color:'#F7C948', cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:600, whiteSpace:'nowrap' }}>הסתר</button>
-                            }
-                            {/* Status quick-set */}
-                            {(p.status==='נמכר' || p.status==='הושכר') && (
-                              <button onClick={() => setStatus(p.id, 'בשיווק')} style={{ padding:'6px 12px', background:`${C.green}18`, border:`1px solid ${C.green}44`, borderRadius:7, color:C.green, cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:700, whiteSpace:'nowrap' }}>החזר לשיווק</button>
-                            )}
-                            <button onClick={() => setStatus(p.id, p.status==='נמכר' ? 'בשיווק' : 'נמכר')}
-                              style={{ padding:'6px 12px', background: p.status==='נמכר' ? 'rgba(224,82,82,.22)' : 'rgba(224,82,82,.08)', border:`1px solid ${p.status==='נמכר' ? '#E05252' : 'rgba(224,82,82,.3)'}`, borderRadius:7, color:'#E05252', cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:700, whiteSpace:'nowrap' }}>
-                              {p.status==='נמכר' ? '✓ נמכר' : 'נמכר'}
-                            </button>
-                            <button onClick={() => setStatus(p.id, p.status==='הושכר' ? 'בשיווק' : 'הושכר')}
-                              style={{ padding:'6px 12px', background: p.status==='הושכר' ? 'rgba(249,115,22,.22)' : 'rgba(249,115,22,.08)', border:`1px solid ${p.status==='הושכר' ? '#F97316' : 'rgba(249,115,22,.3)'}`, borderRadius:7, color:'#F97316', cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:700, whiteSpace:'nowrap' }}>
-                              {p.status==='הושכר' ? '✓ הושכר' : 'הושכר'}
-                            </button>
-                            {onEditInWizard && (
-                              <button onClick={() => { onClose?.(); onEditInWizard(p) }} style={{ padding:'6px 12px', background:`${C.purple}22`, border:`1px solid ${C.purple}55`, borderRadius:7, color:C.purple, cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:700, whiteSpace:'nowrap' }}>ערוך באשף</button>
-                            )}
-                            <button onClick={() => dup(p.id)} title='שכפל נכס' style={{ padding:'6px 12px', background:'rgba(247,201,72,.1)', border:'1px solid rgba(247,201,72,.3)', borderRadius:7, color:'#F7C948', cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:700, whiteSpace:'nowrap' }}>שכפל</button>
-                            <button onClick={async () => {
-                              const base = (typeof API_BASE !== 'undefined' ? API_BASE : '') || ''
-                              if (!base) { alert('VITE_API_URL לא מוגדר'); return }
-                              try {
-                                const r = await fetch(`${base}/api/properties`, { headers:{ Authorization:`Bearer ${ADMIN_TOKEN}` } })
-                                if (!r.ok) throw new Error(r.status)
-                                const all = await r.json()
-                                const fresh = Array.isArray(all) ? all.find(x => String(x.id)===String(p.id)) : null
-                                if (!fresh) { alert('הנכס לא נמצא בשרת — השרת אולי הופעל מחדש.\nהנתונים המקומיים שמורים.'); return }
-                                const localProp = properties.find(x => String(x.id)===String(p.id))
-                                const localNewer = (localProp?.updatedAt || 0) > (fresh.updatedAt || 0)
-                                const msg = localNewer
-                                  ? `⚠️ אזהרה: הנתונים בשרת ישנים יותר מהנתונים המקומיים!\n\nאם תאשר — הנתונים המקומיים העדכניים שלך יוחלפו בנתוני השרת הישנים.\n\nהאם להמשיך בכל זאת?`
-                                  : `רענן את "${p.title}" מהשרת?\n\nהנתונים המקומיים יוחלפו בנתוני השרת.`
-                                if (!window.confirm(msg)) return
-                                setProperties(prev => prev.map(x => String(x.id)===String(p.id) ? { ...x, ...fresh } : x))
-                                alert('נכס רוענן בהצלחה')
-                              } catch(e) { alert('שגיאת רענון: ' + e.message) }
-                            }} title='רענן נכס מהשרת' style={{ padding:'6px 12px', background:'rgba(132,144,216,.1)', border:'1px solid rgba(132,144,216,.3)', borderRadius:7, color:C.purple, cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:700, whiteSpace:'nowrap' }}>↻ רענן</button>
-                            <button onClick={() => del(p.id)} style={{ padding:'6px 12px', background:'rgba(224,82,82,.1)', border:'1px solid rgba(224,82,82,.3)', borderRadius:7, color:'#E05252', cursor:'pointer', fontSize:12, fontFamily:'inherit', fontWeight:600, whiteSpace:'nowrap' }}>מחק</button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
+              <PropertyManagerList C={C} list={filteredList} publishedList={publishedList} draftList={draftList}
+                listTab={listTab} setListTab={setListTab} listCat={listCat} setListCat={setListCat}
+                onMove={moveProp} onStep={stepProp} onTop={topProp}
+                publish={publish} unpublish={unpublish} setStatus={setStatus} dup={dup} del={del}
+                onEdit={p => { if (onEditInWizard) { onClose?.(); onEditInWizard(p) } else startEdit(p) }}
+                refreshOne={refreshOneFromServer} bulkPatch={bulkPatch} bulkDelete={bulkDelete} note={orderNote}/>
             </div>
           </>
         )}
@@ -3414,7 +3709,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
         {tab==='counters' && (
           <>
             {/* ── Header bar with sync status ── */}
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:24, padding:'14px 18px', background:'rgba(132,144,216,.06)', borderRadius:12, border:'1px solid rgba(132,144,216,.12)' }}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:24, padding:'14px 18px', background:'rgba(var(--brand-rgb),.06)', borderRadius:12, border:'1px solid rgba(var(--brand-rgb),.12)' }}>
               <div>
                 <div style={{ fontSize:15, fontWeight:800, color:C.cream, marginBottom:3 }}>נתוני האתר — עריכה חיה</div>
                 <div style={{ fontSize:11, color:`${C.cream}44`, display:'flex', alignItems:'center', gap:6 }}>
@@ -3436,7 +3731,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
               <div style={{ fontSize:11, fontWeight:700, color:C.purple, letterSpacing:'2px', textTransform:'uppercase', marginBottom:14, opacity:.8 }}>מונים ראשיים — מוצגים בדף הבית</div>
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
                 {stats.map((s, i) => (
-                  <div key={s.key} style={{ background:'rgba(255,255,255,.03)', borderRadius:12, padding:'16px 18px', border:`1px solid ${C.purple}18`, transition:'border-color .2s' }}
+                  <div key={s.key} style={{ background:'rgba(var(--ov),.03)', borderRadius:12, padding:'16px 18px', border:`1px solid ${C.purple}18`, transition:'border-color .2s' }}
                     onFocus={e => e.currentTarget.style.borderColor=`${C.purple}44`}
                     onBlur={e => e.currentTarget.style.borderColor=`${C.purple}18`}>
                     {/* Preview badge */}
@@ -3449,13 +3744,13 @@ Return ONLY valid JSON (no markdown, no code blocks):
                         <div style={{ fontSize:10, color:`${C.cream}44`, marginBottom:4, fontWeight:600 }}>ערך</div>
                         <input type="number" value={s.value}
                           onChange={e => setStats(prev => prev.map((x,j) => j===i ? {...x,value:Number(e.target.value)} : x))}
-                          style={{ width:'100%', padding:'9px 10px', background:'rgba(255,255,255,.06)', border:`1px solid ${C.green}33`, borderRadius:7, color:C.green, fontSize:15, fontWeight:800, fontFamily:'monospace', outline:'none', textAlign:'center', boxSizing:'border-box' }}/>
+                          style={{ width:'100%', padding:'9px 10px', background:'rgba(var(--ov),.06)', border:`1px solid ${C.green}33`, borderRadius:7, color:C.green, fontSize:15, fontWeight:800, fontFamily:'monospace', outline:'none', textAlign:'center', boxSizing:'border-box' }}/>
                       </div>
                       <div style={{ flex:3 }}>
                         <div style={{ fontSize:10, color:`${C.cream}44`, marginBottom:4, fontWeight:600 }}>תווית</div>
                         <input type="text" value={s.label}
                           onChange={e => setStats(prev => prev.map((x,j) => j===i ? {...x,label:e.target.value} : x))}
-                          style={{ width:'100%', padding:'9px 10px', background:'rgba(255,255,255,.06)', border:`1px solid ${C.purple}22`, borderRadius:7, color:`${C.cream}CC`, fontSize:12, fontFamily:'inherit', outline:'none', textAlign:'right', boxSizing:'border-box' }}/>
+                          style={{ width:'100%', padding:'9px 10px', background:'rgba(var(--ov),.06)', border:`1px solid ${C.purple}22`, borderRadius:7, color:`${C.cream}CC`, fontSize:12, fontFamily:'inherit', outline:'none', textAlign:'right', boxSizing:'border-box' }}/>
                       </div>
                     </div>
                   </div>
@@ -3468,7 +3763,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
               <div style={{ fontSize:11, fontWeight:700, color:C.purple, letterSpacing:'2px', textTransform:'uppercase', marginBottom:14, opacity:.8 }}>בלעדיות בשרון — מוצג בסקשן הסיפור</div>
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
                 {sharon.map((s, i) => (
-                  <div key={s.city} style={{ background:'rgba(255,255,255,.03)', borderRadius:12, padding:'16px 18px', border:`1px solid ${C.purple}18` }}>
+                  <div key={s.city} style={{ background:'rgba(var(--ov),.03)', borderRadius:12, padding:'16px 18px', border:`1px solid ${C.purple}18` }}>
                     <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:12 }}>
                       <div style={{ width:7, height:7, borderRadius:'50%', background:C.green, opacity:.7 }}/>
                       <span style={{ fontSize:13, color:C.cream, fontWeight:800 }}>{s.city}</span>
@@ -3479,13 +3774,13 @@ Return ONLY valid JSON (no markdown, no code blocks):
                         <div style={{ fontSize:10, color:`${C.cream}44`, marginBottom:4, fontWeight:600 }}>כמות</div>
                         <input type="number" value={s.count}
                           onChange={e => setSharon(prev => prev.map((x,j) => j===i ? {...x,count:Number(e.target.value)} : x))}
-                          style={{ width:'100%', padding:'8px 10px', background:'rgba(255,255,255,.06)', border:`1px solid ${C.green}33`, borderRadius:7, color:C.green, fontSize:15, fontWeight:800, fontFamily:'monospace', outline:'none', textAlign:'center', boxSizing:'border-box' }}/>
+                          style={{ width:'100%', padding:'8px 10px', background:'rgba(var(--ov),.06)', border:`1px solid ${C.green}33`, borderRadius:7, color:C.green, fontSize:15, fontWeight:800, fontFamily:'monospace', outline:'none', textAlign:'center', boxSizing:'border-box' }}/>
                       </div>
                       <div style={{ flex:2 }}>
                         <div style={{ fontSize:10, color:`${C.cream}44`, marginBottom:4, fontWeight:600 }}>תווית</div>
                         <input type="text" value={s.type}
                           onChange={e => setSharon(prev => prev.map((x,j) => j===i ? {...x,type:e.target.value} : x))}
-                          style={{ width:'100%', padding:'8px 10px', background:'rgba(255,255,255,.06)', border:`1px solid ${C.purple}22`, borderRadius:7, color:`${C.cream}CC`, fontSize:12, fontFamily:'inherit', outline:'none', textAlign:'right', boxSizing:'border-box' }}/>
+                          style={{ width:'100%', padding:'8px 10px', background:'rgba(var(--ov),.06)', border:`1px solid ${C.purple}22`, borderRadius:7, color:`${C.cream}CC`, fontSize:12, fontFamily:'inherit', outline:'none', textAlign:'right', boxSizing:'border-box' }}/>
                       </div>
                     </div>
                   </div>
@@ -3505,6 +3800,12 @@ Return ONLY valid JSON (no markdown, no code blocks):
 
         {tab==='leads' && (
           <div className="admin-board-dark" style={{ position:'absolute', inset:0, overflow:'hidden' }}>
+            {leadsSyncError && (
+              <div role="alert" style={{ position:'absolute', top:10, left:'50%', transform:'translateX(-50%)', zIndex:30, display:'flex', alignItems:'center', gap:10, padding:'9px 14px', borderRadius:10, background:'rgba(224,82,82,.14)', border:'1px solid rgba(224,82,82,.5)', color:'#FF9A9A', fontSize:12.5, fontWeight:600, boxShadow:'0 8px 24px rgba(0,0,0,.35)', maxWidth:'92%' }}>
+                ⚠ {leadsSyncError}
+                <button onClick={() => { leadsFullSynced.current = false; syncLeadsFromServer() }} style={{ padding:'5px 10px', borderRadius:7, border:'1px solid rgba(224,82,82,.5)', background:'rgba(224,82,82,.18)', color:'#FFB3B3', cursor:'pointer', fontFamily:'inherit', fontSize:12, fontWeight:700, minHeight:0 }}>נסה שוב</button>
+              </div>
+            )}
             <Suspense fallback={<AdminTabLoader label="לידים" />}>
               <LeadsBoard
                 leads={leads}
@@ -3514,6 +3815,8 @@ Return ONLY valid JSON (no markdown, no code blocks):
                 addLead={lead => setLeads(prev => { const next = [...prev, lead]; try { localStorage.setItem(LEADS_STORE, JSON.stringify(next)) } catch {} return next })}
                 colOrder={colOrder} setColOrder={setColOrder}
                 customCols={customCols} setCustomCols={setCustomCols}
+                stageLabels={stageLabels} onRenameStage={renameStage}
+                onOpenAutomations={() => setTab('automations')} autoPending={autoRun?.suggestions?.length || 0}
                 colWidths={colWidths} setColWidths={setColWidths}
                 exportCSV={exportCSV}
                 syncLeads={syncLeadsFromServer}
@@ -3524,7 +3827,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
                 restoreLead={restoreLead}
                 permanentDeleteLead={permanentDeleteLead}
                 leadsSyncing={leadsSyncing}
-                isDark={true}
+                isDark={isDark}
                 lang={lang}
                 onOpenChat={lead => { setInitialChatLead(lead); setTab('chats') }}
               />
@@ -3549,13 +3852,23 @@ Return ONLY valid JSON (no markdown, no code blocks):
                 message, 'chats', '✅', 3500
               )}
               onReadChange={handleChatsRead}
+              autoConfig={autoCfg?.config || null}
             />
+          </Suspense>
+        )}
+
+        {tab==='automations' && (
+          <Suspense fallback={<AdminTabLoader label="טוען אוטומציות…" />}>
+            <AutomationsTab C={C} lang={lang} leads={leads} stageLabels={stageLabels}
+              config={autoCfg} onConfigSaved={cfg => { setAutoCfg(c => ({ ...(c || {}), config: cfg, storage: 'ok' })); runAutomations() }}
+              runResult={autoRun} onRun={runAutomations} running={autoRunning}
+              onOpenChat={lead => { setInitialChatLead(lead); setTab('chats') }}/>
           </Suspense>
         )}
 
         {tab==='meta' && (
           <Suspense fallback={<AdminTabLoader label="מרכז מטא" />}>
-            <MetaLeadsTab C={DARK_C} lang={lang} isDark={true}
+            <MetaLeadsTab C={C} lang={lang} isDark={isDark}
               onNewLead={({ name, campaign }) => {
                 if (tab !== 'meta') setMetaNewLeads(v => v + 1)
                 addToast(
@@ -3577,13 +3890,18 @@ Return ONLY valid JSON (no markdown, no code blocks):
                   const newId = 'meta_' + metaLead.id
                   setLeads(prev => {
                     if (prev.some(l => l.id === newId)) return prev
+                    const answers = metaFormAnswers(metaLead.raw_fields)
                     const next = [...prev, {
                       id: newId,
                       name: metaLead.name || '',
                       phone: metaLead.phone || '',
                       email: metaLead.email || '',
-                      msg: metaLead.notes || '',
+                      msg: [metaLead.notes || '', answersToText(answers)].filter(Boolean).join('\n'),
                       propTitle: metaLead.campaign_name || metaLead.form_name || 'מרכז מטא',
+                      source: 'meta',
+                      campaignName: metaLead.campaign_name || '',
+                      formName: metaLead.form_name || '',
+                      formAnswers: answers,
                       ts: new Date(metaLead.created_at).getTime() || Date.now(),
                       leadStatus: 'new',
                     }]
@@ -3882,7 +4200,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
             </div>
 
             {/* ── Logo Size ── */}
-            <div style={{ background:'rgba(255,255,255,.03)', borderRadius:12, padding:20 }}>
+            <div style={{ background:'rgba(var(--ov),.03)', borderRadius:12, padding:20 }}>
               <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:16 }}>
                 <span style={{ fontSize:20 }}>🖼</span>
                 <div>
@@ -3892,7 +4210,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
               </div>
               <div style={{ display:'flex', alignItems:'center', gap:20, flexWrap:'wrap' }}>
                 {/* Live preview */}
-                <div style={{ background:'rgba(6,5,14,.95)', borderRadius:10, padding:'12px 24px', display:'flex', alignItems:'center', justifyContent:'center', border:`1px solid ${C.purple}22`, minWidth:160 }}>
+                <div style={{ background:'var(--au-card-solid)', borderRadius:10, padding:'12px 24px', display:'flex', alignItems:'center', justifyContent:'center', border:`1px solid ${C.purple}22`, minWidth:160 }}>
                   <Logo size={logoNavSize}/>
                 </div>
                 {/* Controls */}
@@ -3901,7 +4219,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
                     <label style={{ fontSize:11, color:`${C.cream}70`, fontWeight:600, whiteSpace:'nowrap' }}>{lang==='en'?'Size (px):':'גודל (px):'}</label>
                     <input type="number" min={20} max={200} value={logoNavSize}
                       onChange={e => setLogoNavSize(e.target.value)}
-                      style={{ width:70, padding:'5px 8px', background:'rgba(255,255,255,.06)', border:`1px solid ${C.purple}33`, borderRadius:7, color:C.cream, fontSize:13, fontFamily:'inherit', outline:'none', textAlign:'center', direction:'ltr' }}/>
+                      style={{ width:70, padding:'5px 8px', background:'rgba(var(--ov),.06)', border:`1px solid ${C.purple}33`, borderRadius:7, color:C.cream, fontSize:13, fontFamily:'inherit', outline:'none', textAlign:'center', direction:'ltr' }}/>
                     <span style={{ fontSize:10, color:`${C.cream}40` }}>px</span>
                   </div>
                   <input type="range" min={20} max={200} value={logoNavSize}
@@ -3923,7 +4241,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
             </div>
 
             {/* GovMap API Token */}
-            <div style={{ background:'rgba(255,255,255,.03)', borderRadius:12, padding:20 }}>
+            <div style={{ background:'rgba(var(--ov),.03)', borderRadius:12, padding:20 }}>
               <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:16 }}>
                 <FaMapMarkerAlt size={18} style={{ color:C.purple }}/>
                 <div>
@@ -3976,7 +4294,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
             </div>
 
             {/* ── Email Notifications ── */}
-            <div style={{ background:'rgba(255,255,255,.03)', borderRadius:12, padding:20 }}>
+            <div style={{ background:'rgba(var(--ov),.03)', borderRadius:12, padding:20 }}>
               <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:16 }}>
                 <FaEnvelope size={18} style={{ color:'#EA4335' }}/>
                 <div>
@@ -4007,7 +4325,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
             </div>
 
             {/* WhatsApp Automation */}
-            <div style={{ background:'rgba(255,255,255,.03)', borderRadius:12, padding:20 }}>
+            <div style={{ background:'rgba(var(--ov),.03)', borderRadius:12, padding:20 }}>
               <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
                 <div style={{ display:'flex', alignItems:'center', gap:10 }}>
                   <FaWhatsapp size={18} style={{ color:'#25D366' }}/>
@@ -4020,7 +4338,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
                   <span style={{ fontSize:12, color:`${C.cream}66`, fontWeight:600 }}>{waSt.enabled ? 'פעיל' : 'כבוי'}</span>
                   <div
                     onClick={() => setWaSt(s => ({ ...s, enabled: !s.enabled }))}
-                    style={{ width:44, height:24, borderRadius:12, background: waSt.enabled ? C.green : 'rgba(255,255,255,.12)', cursor:'pointer', position:'relative', transition:'background .2s', flexShrink:0 }}>
+                    style={{ width:44, height:24, borderRadius:12, background: waSt.enabled ? C.green : 'rgba(var(--ov),.12)', cursor:'pointer', position:'relative', transition:'background .2s', flexShrink:0 }}>
                     <div style={{ position:'absolute', top:3, width:18, height:18, borderRadius:'50%', background:'#fff', left: waSt.enabled ? 23 : 3, transition:'left .2s', boxShadow:'0 1px 4px rgba(0,0,0,.4)' }}/>
                   </div>
                 </label>
@@ -4109,7 +4427,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
             </div>
 
             {/* CRM Webhook */}
-            <div style={{ background:'rgba(255,255,255,.03)', borderRadius:12, padding:20 }}>
+            <div style={{ background:'rgba(var(--ov),.03)', borderRadius:12, padding:20 }}>
               <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:16 }}>
                 <FaLink size={16} style={{ color:C.purple }}/>
                 <div>
@@ -4170,7 +4488,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
             <MetaLeadSourcesCard C={C}/>
 
             {/* ── Meta Pixel ─────────────────────────────────────────────────── */}
-            <div style={{ background:'rgba(255,255,255,.03)', borderRadius:12, padding:20 }}>
+            <div style={{ background:'rgba(var(--ov),.03)', borderRadius:12, padding:20 }}>
               <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:16 }}>
                 <div style={{ width:32, height:32, borderRadius:8, background:'rgba(24,119,242,.15)', display:'flex', alignItems:'center', justifyContent:'center' }}>
                   <FaFacebookF size={14} style={{ color:'#1877F2' }}/>
@@ -4220,7 +4538,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
               <div style={{ background:'rgba(24,119,242,.06)', border:'1px solid rgba(24,119,242,.2)', borderRadius:8, padding:'12px 14px', fontSize:12, color:`${C.cream}88`, lineHeight:1.8, direction:'rtl' }}>
                 <strong style={{ color:'#1877F2' }}>טיפ — URL קמפיין עם UTM:</strong><br/>
                 בקמפיין ב-Meta Ads Manager, הגדר Destination URL:
-                <code style={{ display:'block', marginTop:6, padding:'8px 10px', background:'rgba(0,0,0,.25)', borderRadius:6, fontFamily:'monospace', fontSize:11, color:'#A0ACFF', wordBreak:'break-all', direction:'ltr' }}>
+                <code style={{ display:'block', marginTop:6, padding:'8px 10px', background:'rgba(0,0,0,.25)', borderRadius:6, fontFamily:'monospace', fontSize:11, color:'var(--au-brand-text)', wordBreak:'break-all', direction:'ltr' }}>
                   https://afikhanahal.co.il/?utm_source=facebook&utm_medium=paid&utm_campaign=<span style={{ color:'#22C55E' }}>שם_קמפיין</span>
                 </code>
               </div>
@@ -4240,7 +4558,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
 
             {/* GovMap Management Panel */}
             {govmapToken ? (
-              <div style={{ background:'rgba(255,255,255,.02)', borderRadius:12, border:`1px solid ${C.purple}22`, overflow:'hidden' }}>
+              <div style={{ background:'rgba(var(--ov),.02)', borderRadius:12, border:`1px solid ${C.purple}22`, overflow:'hidden' }}>
                 {/* Tab bar — map tab removed (not relevant in settings) */}
                 <div style={{ display:'flex', borderBottom:`1px solid ${C.purple}22` }}>
                   {[
@@ -4268,7 +4586,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
                         <div style={{ fontSize:10, fontWeight:800, color:`${C.cream}44`, letterSpacing:'.08em', textTransform:'uppercase', marginBottom:8, paddingBottom:4, borderBottom:`1px solid ${C.purple}18` }}>{cat}</div>
                         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
                           {GM_LAYERS.filter(l => l.cat === cat).map(l => (
-                            <label key={l.id} style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', padding:'8px 12px', background: gmLayers[l.id] ? `${C.purple}15` : 'rgba(255,255,255,.03)', borderRadius:8, border:`1px solid ${gmLayers[l.id] ? C.purple+'44' : C.purple+'15'}`, transition:'all .15s' }}>
+                            <label key={l.id} style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', padding:'8px 12px', background: gmLayers[l.id] ? `${C.purple}15` : 'rgba(var(--ov),.03)', borderRadius:8, border:`1px solid ${gmLayers[l.id] ? C.purple+'44' : C.purple+'15'}`, transition:'all .15s' }}>
                               <div style={{ width:16, height:16, borderRadius:4, border:`2px solid ${gmLayers[l.id] ? l.color : `${C.cream}28`}`, background: gmLayers[l.id] ? l.color : 'transparent', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, transition:'all .15s' }}>
                                 {gmLayers[l.id] && <span style={{ color:'#fff', fontSize:10, fontWeight:900, lineHeight:1 }}>✓</span>}
                               </div>
@@ -4299,7 +4617,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
                     </div>
                     <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
                       {GM_BG_OPTIONS.map(opt => (
-                        <label key={opt.v} style={{ display:'flex', alignItems:'center', gap:12, cursor:'pointer', padding:'12px 16px', background: gmBg===opt.v ? `${C.purple}18` : 'rgba(255,255,255,.03)', borderRadius:10, border:`1px solid ${gmBg===opt.v ? C.purple+'55' : C.purple+'15'}`, transition:'all .15s' }}>
+                        <label key={opt.v} style={{ display:'flex', alignItems:'center', gap:12, cursor:'pointer', padding:'12px 16px', background: gmBg===opt.v ? `${C.purple}18` : 'rgba(var(--ov),.03)', borderRadius:10, border:`1px solid ${gmBg===opt.v ? C.purple+'55' : C.purple+'15'}`, transition:'all .15s' }}>
                           <div style={{ width:18, height:18, borderRadius:'50%', border:`2px solid ${gmBg===opt.v ? C.purple : `${C.cream}33`}`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
                             {gmBg===opt.v && <div style={{ width:9, height:9, borderRadius:'50%', background:C.purple }}/>}
                           </div>
@@ -4321,7 +4639,7 @@ Return ONLY valid JSON (no markdown, no code blocks):
                 )}
               </div>
             ) : (
-              <div style={{ background:'rgba(255,255,255,.02)', borderRadius:12, padding:20, border:`1px solid ${C.purple}15`, textAlign:'center', color:`${C.cream}55`, fontSize:13 }}>
+              <div style={{ background:'rgba(var(--ov),.02)', borderRadius:12, padding:20, border:`1px solid ${C.purple}15`, textAlign:'center', color:`${C.cream}55`, fontSize:13 }}>
                 הגדר מפתח API של GovMap למעלה כדי לנהל שכבות ומפות רקע
               </div>
             )}
@@ -4363,12 +4681,12 @@ Return ONLY valid JSON (no markdown, no code blocks):
         {toasts.map(toast => (
           <div key={toast.id}
             onClick={() => { setToasts(prev => prev.filter(t => t.id !== toast.id)); if (toast.targetTab) setTab(toast.targetTab) }}
-            style={{ pointerEvents:'auto', background:'#1F2C33', border:'1px solid rgba(132,144,216,.35)', borderRadius:12, padding:'12px 14px 12px 16px', boxShadow:'0 6px 24px rgba(0,0,0,.55)', cursor:toast.targetTab?'pointer':'default', fontFamily:'Rubik,sans-serif', display:'flex', gap:10, alignItems:'flex-start', animation:'toastIn .25s ease', direction:'rtl' }}>
+            style={{ pointerEvents:'auto', background:'#1F2C33', border:'1px solid rgba(var(--brand-rgb),.35)', borderRadius:12, padding:'12px 14px 12px 16px', boxShadow:'0 6px 24px rgba(0,0,0,.55)', cursor:toast.targetTab?'pointer':'default', fontFamily:'Rubik,sans-serif', display:'flex', gap:10, alignItems:'flex-start', animation:'toastIn .25s ease', direction:'rtl' }}>
             <div style={{ fontSize:22, flexShrink:0, lineHeight:1 }}>{toast.icon || '🔔'}</div>
             <div style={{ flex:1, minWidth:0 }}>
               <div style={{ fontSize:13, fontWeight:700, color:'#E9EDEF', marginBottom:3, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{toast.title}</div>
               <div style={{ fontSize:12, color:'#8696A0', lineHeight:1.45, overflow:'hidden', display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical' }}>{toast.body}</div>
-              {toast.targetTab && <div style={{ fontSize:11, color:'#8490D8', marginTop:4, fontWeight:600 }}>{lang==='en'?'Click to open →':'לחץ לפתיחה ←'}</div>}
+              {toast.targetTab && <div style={{ fontSize:11, color:C.purple, marginTop:4, fontWeight:600 }}>{lang==='en'?'Click to open →':'לחץ לפתיחה ←'}</div>}
             </div>
             <button onClick={e => { e.stopPropagation(); setToasts(prev => prev.filter(t => t.id !== toast.id)) }}
               style={{ background:'none', border:'none', color:'#8696A0', cursor:'pointer', fontSize:15, padding:0, lineHeight:1, flexShrink:0, marginTop:1 }}>✕</button>
@@ -4376,16 +4694,18 @@ Return ONLY valid JSON (no markdown, no code blocks):
         ))}
       </div>
 
+      {stagePrompt && <StageSendPrompt lang={lang} prompt={{ ...stagePrompt, stageName: stageLabels?.[stagePrompt.stage]?.label }} onClose={() => setStagePrompt(null)} onSent={() => { addToast('💬 ההודעה נשלחה', stagePrompt.lead?.name || '', 'chats', '✓'); runAutomations() }}/>}
+
       {/* ── Mobile bottom tab bar — standalone only ──────────────────── */}
       {standalone && (
         <nav className="admin-bottom-nav">
           {DASH_TABS.slice(0,5).map(item => (
             <button key={item.id} onClick={() => setTab(item.id)}
-              style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:3, border:'none', background:'transparent', color: tab===item.id ? '#8490D8' : 'rgba(232,228,216,.32)', cursor:'pointer', fontFamily:'inherit', padding:'8px 4px', position:'relative', transition:'color .15s', minWidth:0 }}>
+              style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:3, border:'none', background:'transparent', color: tab===item.id ? C.purple : 'rgba(var(--ink),.32)', cursor:'pointer', fontFamily:'inherit', padding:'8px 4px', position:'relative', transition:'color .15s', minWidth:0 }}>
               <item.Icon size={18}/>
               <span style={{ fontSize:9, fontWeight: tab===item.id ? 700 : 400, letterSpacing:'.02em', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:'100%' }}>{item.label}</span>
-              {!!item.badge && <span style={{ position:'absolute', top:6, right:'50%', transform:'translateX(140%)', background: item.id==='chats' ? '#075E54' : '#8490D8', color:'#fff', borderRadius:8, padding:'1px 5px', fontSize:8, fontWeight:800, lineHeight:1.6 }}>{item.badge}</span>}
-              {tab===item.id && <div style={{ position:'absolute', top:0, left:'15%', right:'15%', height:2, background:'#8490D8', borderRadius:2 }}/>}
+              {!!item.badge && <span style={{ position:'absolute', top:6, right:'50%', transform:'translateX(140%)', background: item.id==='chats' ? '#075E54' : C.purple, color:'#fff', borderRadius:8, padding:'1px 5px', fontSize:8, fontWeight:800, lineHeight:1.6 }}>{item.badge}</span>}
+              {tab===item.id && <div style={{ position:'absolute', top:0, left:'15%', right:'15%', height:2, background:C.purple, borderRadius:2 }}/>}
             </button>
           ))}
         </nav>
@@ -4441,10 +4761,10 @@ function MetaWABotCard({ C, isDark }) {
     setTesting(false)
   }
 
-  const inp = { width:'100%', padding:'10px 12px', background:'rgba(255,255,255,.05)', border:`1px solid ${C.purple}33`, borderRadius:8, color:C.cream, fontSize:13, fontFamily:'inherit', outline:'none', boxSizing:'border-box', marginBottom:10 }
+  const inp = { width:'100%', padding:'10px 12px', background:'rgba(var(--ov),.05)', border:`1px solid ${C.purple}33`, borderRadius:8, color:C.cream, fontSize:13, fontFamily:'inherit', outline:'none', boxSizing:'border-box', marginBottom:10 }
 
   return (
-    <div style={{ background:'rgba(255,255,255,.03)', borderRadius:12, padding:20 }}>
+    <div style={{ background:'rgba(var(--ov),.03)', borderRadius:12, padding:20 }}>
       {/* Header */}
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
         <div style={{ display:'flex', alignItems:'center', gap:10 }}>
@@ -4457,7 +4777,7 @@ function MetaWABotCard({ C, isDark }) {
         <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer' }}>
           <span style={{ fontSize:12, color:`${C.cream}66`, fontWeight:600 }}>{cfg.enabled ? 'פעיל' : 'כבוי'}</span>
           <div onClick={() => setCfg(s => ({ ...s, enabled: !s.enabled }))}
-            style={{ width:44, height:24, borderRadius:12, background: cfg.enabled ? C.green : 'rgba(255,255,255,.12)', cursor:'pointer', position:'relative', transition:'background .2s', flexShrink:0 }}>
+            style={{ width:44, height:24, borderRadius:12, background: cfg.enabled ? C.green : 'rgba(var(--ov),.12)', cursor:'pointer', position:'relative', transition:'background .2s', flexShrink:0 }}>
             <div style={{ position:'absolute', top:3, width:18, height:18, borderRadius:'50%', background:'#fff', left: cfg.enabled ? 23 : 3, transition:'left .2s', boxShadow:'0 1px 4px rgba(0,0,0,.4)' }}/>
           </div>
         </label>
@@ -4551,11 +4871,11 @@ function MetaLeadSourcesCard({ C }) {
     setTimeout(() => setSaved(false), 2500)
   }
 
-  const inp = { width:'100%', padding:'9px 12px', background:'rgba(255,255,255,.05)', border:`1px solid ${C.purple}33`, borderRadius:8, color:C.cream, fontSize:13, fontFamily:'inherit', outline:'none', boxSizing:'border-box' }
+  const inp = { width:'100%', padding:'9px 12px', background:'rgba(var(--ov),.05)', border:`1px solid ${C.purple}33`, borderRadius:8, color:C.cream, fontSize:13, fontFamily:'inherit', outline:'none', boxSizing:'border-box' }
   const lbl = { fontSize:10, color:`${C.cream}66`, display:'block', marginBottom:4, fontWeight:600 }
 
   return (
-    <div style={{ background:'rgba(255,255,255,.03)', borderRadius:12, padding:20 }}>
+    <div style={{ background:'rgba(var(--ov),.03)', borderRadius:12, padding:20 }}>
       {/* Header */}
       <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:16 }}>
         <div style={{ width:32, height:32, borderRadius:8, background:'rgba(24,119,242,.15)', display:'flex', alignItems:'center', justifyContent:'center' }}>
@@ -4581,11 +4901,11 @@ function MetaLeadSourcesCard({ C }) {
 
       {/* Additional sources */}
       {sources.map(s => (
-        <div key={s.id} style={{ border:`1px solid ${C.purple}22`, borderRadius:10, padding:14, marginBottom:12, background:'rgba(255,255,255,.02)' }}>
+        <div key={s.id} style={{ border:`1px solid ${C.purple}22`, borderRadius:10, padding:14, marginBottom:12, background:'rgba(var(--ov),.02)' }}>
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:10 }}>
             <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer' }}>
               <div onClick={() => update(s.id, { enabled: !s.enabled })}
-                style={{ width:40, height:22, borderRadius:11, background: s.enabled ? C.green : 'rgba(255,255,255,.12)', cursor:'pointer', position:'relative', transition:'background .2s', flexShrink:0 }}>
+                style={{ width:40, height:22, borderRadius:11, background: s.enabled ? C.green : 'rgba(var(--ov),.12)', cursor:'pointer', position:'relative', transition:'background .2s', flexShrink:0 }}>
                 <div style={{ position:'absolute', top:3, width:16, height:16, borderRadius:'50%', background:'#fff', left: s.enabled ? 21 : 3, transition:'left .2s', boxShadow:'0 1px 4px rgba(0,0,0,.4)' }}/>
               </div>
               <span style={{ fontSize:12, color:`${C.cream}88`, fontWeight:600 }}>{s.enabled ? (en ? 'Active' : 'פעיל') : (en ? 'Disabled' : 'כבוי')}</span>

@@ -32,7 +32,7 @@
       "maxDuration": 15
     },
     "api/properties.js": {
-      "maxDuration": 15
+      "maxDuration": 30
     },
     "api/properties/bulk.js": {
       "maxDuration": 20
@@ -44,7 +44,7 @@
       "maxDuration": 30
     },
     "api/meta.js": {
-      "maxDuration": 30
+      "maxDuration": 60
     },
     "api/seller-form.js": {
       "maxDuration": 60
@@ -54,6 +54,14 @@
     {
       "source": "/media/:path*",
       "destination": "/api/properties?img=:path*"
+    },
+    {
+      "source": "/p/:id",
+      "destination": "/api/properties?share=:id"
+    },
+    {
+      "source": "/p/:id/:slug*",
+      "destination": "/api/properties?share=:id"
     },
     {
       "source": "/api/meta/:path*",
@@ -140,6 +148,73 @@
         {
           "key": "Access-Control-Allow-Headers",
           "value": "Content-Type,Authorization"
+        }
+      ]
+    },
+    {
+      "source": "/admin-panel",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
+    },
+    {
+      "source": "/dashboard",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
+    },
+    {
+      "source": "/newproperty(.*)",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
+    },
+    {
+      "source": "/sell",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
+    },
+    {
+      "source": "/seller-form",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow"
+        }
+      ]
+    },
+    {
+      "source": "/sitemap.xml",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=3600, stale-while-revalidate=86400"
+        },
+        {
+          "key": "Content-Type",
+          "value": "application/xml; charset=utf-8"
+        }
+      ]
+    },
+    {
+      "source": "/llms.txt",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=3600"
         }
       ]
     }

@@ -1,9 +1,9 @@
-import { useState, useEffect, useLayoutEffect, useRef, useCallback, createContext, useContext, useMemo, lazy, Suspense } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, createContext, useContext, useMemo, lazy, Suspense, Component, memo } from 'react'
+import { useAdminTheme, ADMIN_DARK_C, ADMIN_LIGHT_C } from './adminTheme.js'
 import { isRealEstateArticle } from '../lib/news/classify.js'
 import { MenuToggleIcon } from './MenuToggleIcon.jsx'
 import AccessibilityWidget from './AccessibilityWidget.jsx'
 import CookieConsent from './CookieConsent.jsx'
-import { AnimatePresence, motion } from 'framer-motion'
 // PropertyWizard (2k+ lines, admin-only) is lazy-loaded below. Its propertyToWizardData
 // helper is dynamically imported at the edit call sites so it never pulls the wizard
 // (and its GovMapWidget dependency) into the public bundle.
@@ -26,8 +26,26 @@ const SupermetricsTab   = lazyWithRetry(() => import('./SupermetricsTab.jsx'))
 // On-demand, heavy single-purpose modules — lazy so the public bundle stays lean.
 const RealEstateCalc    = lazyWithRetry(() => import('./RealEstateCalc.jsx'))
 const GovMapWidget      = lazyWithRetry(() => import('./GovMapWidget.jsx'))
+
+// A callback with a stable identity that always runs the latest version (for props of memoized children)
+function useStableFn(fn) {
+  const ref = useRef(fn)
+  ref.current = fn
+  return useCallback((...args) => ref.current(...args), [])
+}
+
+// Keeps a failing optional part (e.g. the map chunk on a flaky mobile connection) from taking the
+// whole page down with it: the property window stays open and just shows a small notice instead.
+class SectionBoundary extends Component {
+  constructor(p) { super(p); this.state = { failed: false } }
+  static getDerivedStateFromError() { return { failed: true } }
+  componentDidCatch(e) { console.warn('[section] failed to render:', e && e.message) }
+  render() { return this.state.failed ? (this.props.fallback ?? null) : this.props.children }
+}
 const PropertyWizard    = lazyWithRetry(() => import('./PropertyWizard.jsx'))
 import { FaChevronLeft, FaChevronRight, FaEnvelope, FaFacebookF, FaInstagram, FaBed, FaRulerCombined, FaCar, FaSwimmingPool, FaBuilding, FaBoxOpen, FaTree, FaSnowflake, FaShieldAlt, FaCouch, FaTools, FaMapMarkerAlt, FaExternalLinkAlt, FaPhone, FaCompass, FaLeaf, FaCalendarAlt, FaTimes, FaWhatsapp, FaSun, FaFileAlt, FaHome, FaMoneyBill, FaSearch, FaBalanceScale, FaHandshake, FaTrophy, FaHardHat, FaLock, FaKey, FaGlobe, FaSeedling, FaBolt, FaRocket, FaStar, FaChartLine, FaEye, FaPlay, FaWheelchair, FaFire, FaCalculator, FaShareAlt, FaHeart, FaStore, FaCamera, FaWifi, FaIndustry, FaExpand, FaUser, FaUsers, FaDesktop, FaMobileAlt, FaTabletAlt, FaCommentAlt, FaRobot, FaInbox, FaExclamationTriangle, FaChartBar, FaThumbsUp, FaImage, FaPencilAlt, FaCrown, FaMousePointer, FaDollarSign, FaVideo, FaLink, FaCheck, FaCheckCircle, FaUtensils, FaDoorOpen, FaUserShield, FaTrash } from 'react-icons/fa'
+import { notifyPropertiesChanged, pushSnapshot } from './siteRebuild.js'
+import { externalizeInlinePhotos } from './inlinePhotos.js'
 
 // ─── SERVER CONFIG ────────────────────────────────────────────────────────────
 // Set VITE_API_URL in Vercel env vars to point at your Render server.
@@ -35,6 +53,28 @@ const API_BASE     = (import.meta.env.VITE_API_URL || 'https://afik-hanahal-serv
 // In production, contacts CRUD goes through Vercel → Supabase (never sleeps).
 // In dev, fall back to the Render server so local testing still works.
 const CONTACTS_API = import.meta.env.PROD ? '' : API_BASE
+
+// Context captured with every website lead so the admin can see where it came from:
+// page + hash, referrer, UTM parameters and device. Stored server-side in contacts.crm_data.origin.
+// Campaign parameters of the visit's landing URL (e.g. an ad → /p/<id>?utm_source=facebook) are kept for the whole
+// session, so a lead that browses a few properties before leaving details is still credited to that ad.
+const UTM_KEYS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'fbclid', 'gclid']
+try {
+  const u0 = new URL(window.location.href), first = {}
+  for (const k of UTM_KEYS) if (u0.searchParams.get(k)) first[k] = u0.searchParams.get(k).slice(0, 120)
+  if (Object.keys(first).length) sessionStorage.setItem('afik_utm', JSON.stringify(first))
+} catch {}
+function leadOrigin() {
+  try {
+    const u = new URL(window.location.href)
+    let utm = {}
+    for (const k of UTM_KEYS)
+      if (u.searchParams.get(k)) utm[k] = u.searchParams.get(k).slice(0, 120)
+    if (!Object.keys(utm).length) { try { utm = JSON.parse(sessionStorage.getItem('afik_utm') || '{}') || {} } catch {} }
+    const ref = document.referrer && !document.referrer.includes(u.hostname) ? document.referrer.slice(0, 200) : ''
+    return { page: (u.pathname + u.hash).slice(0, 160), referrer: ref, utm, device: /Mobi|Android/i.test(navigator.userAgent) ? 'mobile' : 'desktop' }
+  } catch { return {} }
+}
 const ADMIN_TOKEN  = 'AFIKhanahal2026'
 
 // Conditional GET for everything the admin panel polls. Remembers the ETag of the last body per URL
@@ -45,7 +85,7 @@ async function condFetchJson(url, headers = {}, opts = {}) {
   const prev = _etagCache.get(url)
   const r = await fetch(url, { ...opts, headers: { ...headers, ...(prev?.etag ? { 'If-None-Match': prev.etag } : {}) } })
   if (r.status === 304) return prev ? { ok: true, changed: false, data: prev.data } : { ok: false, changed: false, data: null }
-  if (!r.ok) return { ok: false, changed: false, data: null, status: r.status }
+  if (!r.ok) { let error = ''; try { const d = await r.json(); error = String(d?.error || d?.message || '') } catch {} return { ok: false, changed: false, data: null, status: r.status, error } }
   const data = await r.json()
   const etag = r.headers.get('etag')
   if (etag) _etagCache.set(url, { etag, data }); else _etagCache.delete(url)
@@ -66,8 +106,9 @@ const TR = {
     teamTitle:'הצוות שלנו', teamDesc:'האנשים שמאחורי כל עסקה',
     quickNav:'ניווט מהיר', talkToUs:'דברו איתנו', sendMsg:'שלח הודעה',
     accessibility:'הצהרת נגישות', privacy:'מדיניות פרטיות',
+    knowledge:'ידע ומדריכים', hubServices:'השירותים שלנו', hubAreas:'אזורי פעילות', hubGuides:'מדריכים', hubGlossary:'מילון מונחים', hubTools:'כלים ומחשבונים', hubFaq:'שאלות ותשובות', hubCompany:'על החברה',
     copyright:'© 2026 אפיק הנחל — ייזום שיווק ותיווך. כל הזכויות שמורות.',
-    calcNav:'מחשבון', waTitle:'WhatsApp',
+    calcNav:'מחשבון', waTitle:'WhatsApp', sharedLoading:'טוען את הנכס…', mapUnavailable:'המפה לא נטענה כרגע — שאר פרטי הנכס זמינים.',
     hoursLabel: 'שעות פעילות',
     sunToThurs: 'ראשון–חמישי: 09:00–19:00',
     friday: 'שישי: 09:00–14:00',
@@ -82,6 +123,13 @@ const TR = {
     typeFilter: 'סוג:',
     allTypes: 'כל הסוגים',
     noProperties: 'לא נמצאו נכסים התואמים את הפילטרים',
+    propsUnavailable: 'הנכסים לא נטענו כרגע — נסו שוב בעוד רגע, או כתבו לנו בוואטסאפ ונשלח את הרשימה המלאה.',
+    propsRetry: 'נסו שוב',
+    sortLabel: 'מיון', sortRecommended: 'מומלץ', sortNewest: 'חדש ביותר', sortPriceAsc: 'מחיר: מהנמוך לגבוה', sortPriceDesc: 'מחיר: מהגבוה לנמוך',
+    cityLabel: 'עיר', allCities: 'כל הערים', maxPriceLabel: 'עד מחיר', anyPrice: 'ללא הגבלה', roomsLabel: 'חדרים', roomsAny: 'הכל',
+    favorites: 'המועדפים שלי', favAdd: 'שמירה למועדפים', favRemove: 'הסרה מהמועדפים', noFavs: 'עדיין לא שמרתם נכסים. לחצו על הלב בכרטיס נכס כדי לשמור אותו כאן.',
+    clearFilters: 'נקה סינון', newBadge: 'חדש', perSqm: 'למ״ר', shareProp: 'שיתוף', linkCopied: 'הקישור הועתק!', shareWa: 'שיתוף ב-WhatsApp', copyLink: 'העתקת קישור',
+    showingOf: 'מציג {shown} מתוך {total} נכסים', loadMoreProps: 'הצג עוד נכסים', showAllProps: 'הצג את כל {total} הנכסים', allPropsShown: 'כל {total} הנכסים מוצגים', collapseProps: 'כווץ רשימה', listViewProps: 'לכל {total} הנכסים ברשימה', carouselViewProps: 'חזרה לגלילה', swipeHint: 'החליקו לנכס הבא', nextProp: 'הנכס הבא', prevProp: 'הנכס הקודם', availableCount: '{n} נכסים זמינים',
     haveProperty: 'יש לך קרקע, מגרש או נכס?',
     propertyDesc: 'בין אם שדה חקלאי, מגרש ירושה או נכס שרוצים לשווק, נבחן יחד את הפוטנציאל',
     contactUsBtn: 'פנה אלינו ←',
@@ -169,8 +217,9 @@ const TR = {
     teamTitle:'Our Team', teamDesc:'The people behind every deal',
     quickNav:'Quick Navigation', talkToUs:'Talk to Us', sendMsg:'Send Message',
     accessibility:'Accessibility Statement', privacy:'Privacy Policy',
+    knowledge:'Knowledge & Guides', hubServices:'Our services', hubAreas:'Areas we serve', hubGuides:'Guides', hubGlossary:'Glossary', hubTools:'Tools & calculators', hubFaq:'FAQ', hubCompany:'About the company',
     copyright:'© 2026 Afik Hanahal — Real Estate Marketing. All rights reserved.',
-    calcNav:'Calc', waTitle:'WhatsApp',
+    calcNav:'Calc', waTitle:'WhatsApp', sharedLoading:'Loading the property…', mapUnavailable:'The map could not load right now — all other property details are available.',
     hoursLabel: 'Business Hours',
     sunToThurs: 'Sun–Thu: 09:00–19:00',
     friday: 'Fri: 09:00–14:00',
@@ -185,6 +234,13 @@ const TR = {
     typeFilter: 'Type:',
     allTypes: 'All Types',
     noProperties: 'No properties match the selected filters',
+    propsUnavailable: 'The listings could not be loaded right now — try again in a moment, or message us on WhatsApp for the full list.',
+    propsRetry: 'Try again',
+    sortLabel: 'Sort', sortRecommended: 'Recommended', sortNewest: 'Newest', sortPriceAsc: 'Price: low to high', sortPriceDesc: 'Price: high to low',
+    cityLabel: 'City', allCities: 'All cities', maxPriceLabel: 'Max price', anyPrice: 'No limit', roomsLabel: 'Rooms', roomsAny: 'Any',
+    favorites: 'My favourites', favAdd: 'Save to favourites', favRemove: 'Remove from favourites', noFavs: 'No saved properties yet. Tap the heart on a property card to keep it here.',
+    clearFilters: 'Clear filters', newBadge: 'New', perSqm: 'per m²', shareProp: 'Share', linkCopied: 'Link copied!', shareWa: 'Share on WhatsApp', copyLink: 'Copy link',
+    showingOf: 'Showing {shown} of {total} properties', loadMoreProps: 'Show more properties', showAllProps: 'Show all {total} properties', allPropsShown: 'All {total} properties are shown', collapseProps: 'Collapse list', listViewProps: 'See all {total} properties as a list', carouselViewProps: 'Back to swipe view', swipeHint: 'Swipe for the next property', nextProp: 'Next property', prevProp: 'Previous property', availableCount: '{n} properties available',
     haveProperty: 'Have land, a plot, or a property?',
     propertyDesc: 'Whether it\'s an agricultural field, an inherited plot, or a property you want to market, let\'s look at the potential together',
     contactUsBtn: 'Contact Us →',
@@ -458,7 +514,7 @@ const makeGlobal = (C, isDark) => `
 
   /* ── Counter ── */
   .tc-wrap { display:inline-flex; align-items:baseline; gap:2px; }
-  .tc-num  { font-family:monospace; font-weight:700; color:${C.green}; line-height:1; text-shadow:${isDark ? `0 0 24px ${C.green}88, 0 0 48px ${C.green}44` : 'none'}; animation:counterGlow 3s ease infinite; }
+  .tc-num  { font-family:monospace; font-weight:700; color:${C.green}; line-height:1; text-shadow:${isDark ? `0 0 24px ${C.green}88, 0 0 48px ${C.green}44` : 'none'};  }
   .tc-sfx  { color:${C.green}; font-weight:700; text-shadow:${isDark ? `0 0 16px ${C.green}77` : 'none'}; }
 
   /* ── Section reveals ── */
@@ -476,8 +532,12 @@ const makeGlobal = (C, isDark) => `
     box-shadow:0 4px 20px rgba(37,211,102,.65), 0 0 0 0 rgba(37,211,102,.4); z-index:9992;
     transition:transform .25s cubic-bezier(.2,.8,.4,1), box-shadow .25s, opacity .25s;
     text-decoration:none; opacity:1;
-    animation: wa-pulse 2.8s ease-in-out infinite;
   }
+  /* The pulse is a ring that scales + fades (GPU only). Animating box-shadow repainted the page ~60×/s. */
+  .wa-float::after { content:''; position:absolute; inset:0; border-radius:50%; border:2px solid rgba(37,211,102,.6);
+    animation: wa-ring 2.8s ease-out infinite; will-change:transform,opacity; pointer-events:none; }
+  @keyframes wa-ring { 0% { transform:scale(1); opacity:.75 } 70%,100% { transform:scale(1.55); opacity:0 } }
+  .wa-float:hover::after { animation:none; opacity:0; }
   @keyframes wa-pulse {
     0%,100% { box-shadow:0 4px 20px rgba(37,211,102,.65), 0 0 0 0 rgba(37,211,102,.4); }
     50%      { box-shadow:0 6px 28px rgba(37,211,102,.85), 0 0 0 10px rgba(37,211,102,.0); }
@@ -605,10 +665,22 @@ const makeGlobal = (C, isDark) => `
     .svc-bento > * { grid-column:span 1 !important; }
     .nav-phone       { display:none !important; }
     .nav-social-hide { display:none !important; }
-    /* Contact cards on the "פנה אלינו עכשיו" panel: center icon + text as a balanced group */
-    .contact-card-row { justify-content:center !important; gap:18px !important; }
-    .contact-card-text { flex:0 1 auto !important; text-align:center !important; }
-    .contact-card-text > div { text-align:center !important; }
+    /* Contact cards on the "פנה אלינו עכשיו" panel (phones): compact, equal-height rows,
+       icon at the start, label + value stacked and start-aligned — one tidy column */
+    .contact-panel { padding:22px 16px 18px !important; }
+    .contact-panel h3 { font-size:18px !important; margin-bottom:14px !important; }
+    .contact-panel-list { gap:8px !important; }
+    .contact-card-row { justify-content:flex-start !important; gap:12px !important; padding:10px 12px !important; border-radius:12px !important; min-height:62px; }
+    .contact-card-icon { width:38px !important; height:38px !important; box-shadow:none !important; }
+    .contact-card-icon svg { width:15px !important; height:15px !important; }
+    .contact-card-text { flex:1 1 auto !important; text-align:right !important; min-width:0; }
+    .contact-card-text > div { text-align:right !important; }
+    .contact-card-text > div:first-child { font-size:10px !important; margin-bottom:1px !important; letter-spacing:.06em !important; }
+    .contact-card-text > div:last-child { font-size:16px !important; line-height:1.25 !important; }
+    .contact-card-row.is-info { background:transparent !important; border-color:transparent !important; min-height:0; padding:6px 12px 0 !important; }
+    .contact-card-row.is-info .contact-card-icon { width:30px !important; height:30px !important; }
+    .contact-card-row.is-info .contact-card-text > div:last-child { font-size:13px !important; font-weight:600 !important; }
+    .contact-card-cta { padding:13px 0 !important; font-size:15px !important; margin-top:6px !important; border-radius:12px !important; }
     .testi-card-wrap { flex-direction:column !important; min-height:0 !important; }
     .testi-txt-col   { order:1 !important; padding:12px 14px 8px !important; gap:5px !important; justify-content:flex-start !important; }
     .testi-img-col   { order:2 !important; width:100% !important; height:clamp(180px,30vh,300px) !important; background:#06040f !important; border-top:1px solid rgba(132,144,216,.15) !important; }
@@ -663,7 +735,27 @@ const makeGlobal = (C, isDark) => `
   .prop-thumb-btn:hover { opacity:1 !important; transform:scale(1.05); }
   .prop-thumb-btn img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block; }
   .prop-thumb-btn .thumb-fallback { position:absolute; inset:0; width:100%; height:100%; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:4px; background:#111128; color:rgba(132,144,216,.5); font-size:20px; }
-  .prop-card { background:var(--c-card); border:1px solid rgba(132,144,216,.1); border-radius:16px; overflow:hidden; display:flex; flex-direction:column; cursor:pointer; transition:transform .3s cubic-bezier(.16,1,.3,1), box-shadow .3s, border-color .25s; }
+  /* ── Testimonials: slide-in on change + word reveal (CSS; transform/opacity only) ── */
+  .testi-in { animation-name:testiIn; animation-timing-function:cubic-bezier(.4,0,.2,1); animation-fill-mode:both; }
+  @keyframes testiIn { from { opacity:0; transform:translateX(var(--testi-x, 40px)) } to { opacity:1; transform:none } }
+  .testi-word { animation:testiWord .18s ease both; }
+  @keyframes testiWord { from { opacity:0; transform:translateY(4px) } to { opacity:1; transform:none } }
+  @media (prefers-reduced-motion: reduce) { .testi-in, .testi-word { animation:none; } }
+  /* ── Section badge (see SectionBadge) ── */
+  .sb { position:relative; display:inline-flex; align-items:center; justify-content:center; border-radius:9999px; padding:1px;
+        background:rgba(6,6,16,.72); margin-bottom:18px; cursor:default; user-select:none; contain:paint; }  /* paint containment clips the glow (and keeps layout-shift accounting at 0) */
+  .sb-glow { position:absolute; left:50%; top:50%; width:112%; aspect-ratio:1; z-index:0; pointer-events:none;
+             background:conic-gradient(from 0deg, transparent 0 60%, rgba(255,255,255,.62) 75%, transparent 90% 100%);
+             transform:translate(-50%,-50%); animation:sbSpin var(--sb-t, 7.2s) linear infinite; will-change:transform; }
+  .sb-hi { position:absolute; inset:0; z-index:0; border-radius:9999px; background:radial-gradient(75% 181% at 50% 50%, var(--sb-c) 0%, transparent 100%);
+           opacity:0; transition:opacity .2s; }
+  .sb:hover .sb-hi { opacity:.8; }
+  .sb-fill { position:absolute; inset:1.5px; z-index:1; border-radius:9999px; background:rgba(6,6,16,.9); }
+  .sb-text { position:relative; z-index:2; border-radius:9999px; padding:6px 18px; font-size:11px; font-weight:700; letter-spacing:4px;
+             text-transform:uppercase; color:var(--sb-c); line-height:1.2; white-space:nowrap; }
+  @keyframes sbSpin { from { transform:translate(-50%,-50%) rotate(0deg) } to { transform:translate(-50%,-50%) rotate(360deg) } }
+  @media (prefers-reduced-motion: reduce) { .sb-glow { animation:none; } }
+  .prop-card { content-visibility:auto; contain-intrinsic-size:auto 300px auto 460px; background:var(--c-card); border:1px solid rgba(132,144,216,.1); border-radius:16px; overflow:hidden; display:flex; flex-direction:column; cursor:pointer; transition:transform .3s cubic-bezier(.16,1,.3,1), box-shadow .3s, border-color .25s; }
   @media (hover: hover) { .prop-card:hover { transform:translateY(-6px); box-shadow:0 28px 64px rgba(0,0,0,.32), 0 0 0 1px rgba(132,144,216,.22); border-color:rgba(132,144,216,.3); } }
   .prop-card-img { position:relative; padding-bottom:67%; background:linear-gradient(135deg,rgba(132,144,216,.1),rgba(9,9,15,.5)); flex-shrink:0; overflow:hidden; }
   .prop-card-body { padding:16px 18px 18px; display:flex; flex-direction:column; flex:1; }
@@ -915,6 +1007,9 @@ const makeGlobal = (C, isDark) => `
 
   /* ─── Admin Panel — Mobile ─────────────────────────────────── */
   .admin-sidebar { transition: transform .25s cubic-bezier(.4,0,.2,1); }
+  .admin-nav-item:not([aria-current]):hover { background: rgba(var(--brand-rgb, 132,144,216),.08) !important; color: var(--au-text) !important; }
+  .admin-nav-item:focus-visible, .admin-foot-btn:focus-visible { outline: 2px solid #8490D8; outline-offset: 1px; }
+  .admin-foot-btn:hover { filter: brightness(1.3); }
   .admin-mobile-topbar { display: none; }
   .admin-mobile-overlay { display: none; }
   @media (max-width: 900px) {
@@ -927,21 +1022,26 @@ const makeGlobal = (C, isDark) => `
       box-shadow: -12px 0 60px rgba(0,0,0,.85) !important;
     }
     .admin-sidebar.open { transform: translateX(0) !important; }
-    .admin-mobile-overlay { display: block !important; position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 1049; backdrop-filter: blur(3px); }
+    .admin-mobile-overlay { display: block !important; position: fixed; inset: 0; background: var(--au-overlay, rgba(0,0,0,.6)); z-index: 1049; backdrop-filter: blur(3px); }
     .admin-mobile-topbar {
       display: flex !important;
       height: 56px; padding: 0 16px;
       border-bottom: 1px solid rgba(132,144,216,.08);
       align-items: center; justify-content: space-between;
-      background: rgba(7,7,15,.95); flex-shrink: 0;
+      background: var(--au-topbar, rgba(7,7,15,.95)); flex-shrink: 0; backdrop-filter: blur(16px);
       direction: rtl; position: sticky; top: 0; z-index: 20;
     }
     .admin-desktop-topbar { display: none !important; }
+    .admin-shell .admin-notice { margin: 10px 12px 0 !important; }
     .admin-main-pane { height: 100dvh !important; }
     .admin-content { padding: 16px 14px 28px !important; }
     .admin-tabs-bar { padding: 0 12px !important; overflow-x: auto !important; flex-wrap: nowrap !important; gap: 2px !important; }
     .admin-form-grid { grid-template-columns: 1fr !important; }
     .admin-prop-list-actions { flex-wrap: wrap !important; gap: 6px !important; }
+    .admin-pm-row { flex-wrap: wrap !important; }
+    .admin-pm-order { flex-direction: row !important; width: 100% !important; justify-content: space-between !important; gap: 10px !important; padding: 6px 12px !important; border-inline-end: none !important; border-bottom: 1px solid rgba(var(--brand-rgb, 132,144,216),.12); }
+    .admin-pm-order > div:last-child { display: flex !important; gap: 6px !important; }
+    .admin-pm-actions { width: 100% !important; justify-content: flex-start !important; border-top: 1px solid rgba(var(--brand-rgb, 132,144,216),.12); }
     .admin-overview-grid { grid-template-columns: repeat(2,1fr) !important; }
     .admin-overview-bottom { grid-template-columns: 1fr !important; }
   }
@@ -954,7 +1054,7 @@ const makeGlobal = (C, isDark) => `
   .admin-bottom-nav {
     display: none;
     position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
-    background: rgba(7,7,15,.97); border-top: 1px solid rgba(132,144,216,.15);
+    background: var(--au-topbar, rgba(7,7,15,.97)); backdrop-filter: blur(16px); border-top: 1px solid rgba(132,144,216,.15);
     backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
     height: 58px; padding-bottom: env(safe-area-inset-bottom, 0px);
   }
@@ -962,11 +1062,19 @@ const makeGlobal = (C, isDark) => `
     .admin-bottom-nav { display: flex; }
     .admin-content { padding-bottom: 72px !important; }
     .admin-tabs-bar { display: none !important; }
+    /* Phone: the admin modal becomes a full-screen app – every tab gets the whole width */
+    .admin-shell { padding: 0 !important; }
+    .admin-panel-modal { padding: 12px 10px 0 !important; border-radius: 0 !important; border: none !important; height: 100dvh !important; max-width: 100vw !important; }
+    .admin-content { padding-left: 6px !important; padding-right: 6px !important; }
   }
 
   /* ── Scrollbar on right for admin panel (ltr outer = scrollbar right, content restored via > *) ── */
   .admin-content { direction: ltr !important; position: relative; -webkit-overflow-scrolling: touch !important; overscroll-behavior: contain; }
   .admin-content > * { direction: rtl; }
+  /* Full-screen tabs (chats, leads board, Meta) use the whole phone width — no side/top gutter */
+  @media (max-width: 900px) {
+    .admin-content.admin-content-full { padding-top: 0 !important; padding-left: 0 !important; padding-right: 0 !important; }
+  }
   .admin-panel-modal { direction: ltr !important; }
   .admin-panel-modal > * { direction: rtl; }
 
@@ -1001,6 +1109,13 @@ const makeGlobal = (C, isDark) => `
 `
 
 // ─── NAV ──────────────────────────────────────────────────────────────────────
+// Tiny template helper for TR strings with {placeholders}
+const fmtT = (str, vars) => String(str || '').replace(/\{(\w+)\}/g, (_, k) => (vars && vars[k] !== undefined ? vars[k] : ''))
+
+// Static, crawlable content hubs (built by scripts/build-content.mjs) — real links, not scroll anchors
+const HUB_LINKS = [['services','hubServices'], ['areas','hubAreas'], ['guides','hubGuides'], ['glossary','hubGlossary'], ['tools','hubTools'], ['faq','hubFaq'], ['company','hubCompany']]
+const hubHref = (lang, hub) => (lang === 'en' ? '/en/' : '/') + hub + '/'
+
 const NAV_LINKS = [
   { id:'home',       label:'ראשי' },
   { id:'ceo',        label:'המנכ״ל' },
@@ -1125,7 +1240,7 @@ function useIntersection(threshold = 0.2) {
 const TYPEWRITER_HE = ['מגרשים וקרקעות בלעדיים','ייזום ושיווק פרויקטים','ליווי מקצועי מלא','השרון והמרכז ומעבר']
 const TYPEWRITER_EN = ['Exclusive Plots & Land','Project Development & Marketing','Full Professional Guidance','Sharon Region & Beyond']
 
-function useTypewriter(texts, speed = 50) {
+function useTypewriter(texts, speed = 50, paused = false) {
   const [idx, setIdx] = useState(0)
   const [ch, setCh]   = useState(0)
   const [del, setDel] = useState(false)
@@ -1136,6 +1251,7 @@ function useTypewriter(texts, speed = 50) {
     setIdx(0); setCh(0); setDel(false); setOut('')
   }, [texts])
   useEffect(() => {
+    if (paused) return
     const cur = textsRef.current[idx % textsRef.current.length]
     let t
     if (!del && ch < cur.length)      t = setTimeout(() => setCh(c => c+1), speed)
@@ -1144,8 +1260,24 @@ function useTypewriter(texts, speed = 50) {
     else { setDel(false); setIdx(i => (i+1)%textsRef.current.length) }
     setOut(cur.slice(0,ch))
     return () => clearTimeout(t)
-  }, [ch, del, idx, speed])
+  }, [ch, del, idx, speed, paused])
   return out
+}
+
+// The hero's typing line as its own component: it updates every ~50 ms, so only this text re-renders
+// (as a hook inside App it re-rendered the entire page 20 times a second), and it pauses off-screen.
+function Typewriter({ texts }) {
+  const ref = useRef(null)
+  const [onScreen, setOnScreen] = useState(true)
+  useEffect(() => {
+    const el = ref.current
+    if (!el || typeof IntersectionObserver === 'undefined') return
+    const obs = new IntersectionObserver(([e]) => setOnScreen(e.isIntersecting), { threshold: 0 })
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [])
+  const out = useTypewriter(texts, 50, !onScreen)
+  return <span ref={ref}>{out}</span>
 }
 
 // ─── TEXT COUNTER (power3.out) ────────────────────────────────────────────────
@@ -1215,7 +1347,7 @@ function AmbientBackdrop() {
         radial-gradient(ellipse 48% 58% at 14% 88%, ${C.green}10, transparent),
         radial-gradient(ellipse 38% 42% at 48% 52%, ${C.purple}09, transparent)
       `,
-      animation:'ambientPulse 8s ease infinite',
+      animation:'ambientPulse 8s ease infinite', willChange:'opacity', transform:'translateZ(0)',
     }}/>
   )
 }
@@ -1234,9 +1366,11 @@ function Logo({ size=52 }) {
 function BackToTop() {
   const [visible, setVisible] = useState(false)
   useEffect(() => {
-    const onScroll = () => setVisible(window.scrollY > 500)
+    let raf = 0, last = null
+    const check = () => { raf = 0; const v = window.scrollY > 500; if (v !== last) { last = v; setVisible(v) } }
+    const onScroll = () => { if (!raf) raf = requestAnimationFrame(check) }
     window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
+    return () => { window.removeEventListener('scroll', onScroll); cancelAnimationFrame(raf) }
   }, [])
   return (
     <button
@@ -1259,7 +1393,7 @@ function WaIcon() {
 }
 
 // ─── UI/UX PRO MAX: SPATIAL GLASS CARD (3D tilt + elevation) ─────────────────
-function GlassCard({ children, style, onClick }) {
+function GlassCard({ children, style, onClick, className = '' }) {
   const ref = useRef(null)
   const [tilt, setTilt] = useState({ x:0, y:0 })
   const onMove = useCallback(e => {
@@ -1268,7 +1402,7 @@ function GlassCard({ children, style, onClick }) {
   }, [])
   const onLeave = useCallback(() => setTilt({ x:0, y:0 }), [])
   return (
-    <div ref={ref} className="glass-card" onMouseMove={onMove} onMouseLeave={onLeave} onClick={onClick}
+    <div ref={ref} className={'glass-card' + (className ? ' ' + className : '')} onMouseMove={onMove} onMouseLeave={onLeave} onClick={onClick}
       style={{
         transform:`perspective(1200px) rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`,
         cursor:onClick?'pointer':'default',
@@ -1279,6 +1413,22 @@ function GlassCard({ children, style, onClick }) {
   )
 }
 
+// SVG SMIL animations (<animate>, <animateMotion>) run on the main thread and force a full frame every vsync —
+// even off-screen, and they drag every other animation along. So each animated SVG runs only while it's visible.
+function useSvgAnimationsWhenVisible() {
+  const ref = useRef(null)
+  useEffect(() => {
+    const svg = ref.current
+    if (!svg || typeof svg.pauseAnimations !== 'function') return
+    svg.pauseAnimations()
+    if (typeof IntersectionObserver === 'undefined') { svg.unpauseAnimations(); return }
+    const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) svg.unpauseAnimations(); else svg.pauseAnimations() }, { rootMargin: '100px' })
+    obs.observe(svg)
+    return () => obs.disconnect()
+  }, [])
+  return ref
+}
+
 // ─── WAVE CONNECTOR ───────────────────────────────────────────────────────────
 function WaveConnector({ idx }) {
   const { C } = useTheme()
@@ -1286,9 +1436,10 @@ function WaveConnector({ idx }) {
   const col2 = idx%2===0 ? C.green  : C.purple
   const p1 = "M 60 0 C 20 28 100 58 60 88"
   const p2 = "M 60 0 C 100 28 20 58 60 88"
+  const svgRef = useSvgAnimationsWhenVisible()
   return (
     <div style={{ display:'flex', justifyContent:'center', margin:'-6px 0', position:'relative', zIndex:2 }}>
-      <svg width="120" height="96" viewBox="0 0 120 96">
+      <svg ref={svgRef} width="120" height="96" viewBox="0 0 120 96">
         <defs>
           <linearGradient id={`wg${idx}`} x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor={col}/><stop offset="100%" stopColor={col2}/>
@@ -1374,7 +1525,8 @@ function LangSwitch({ compact = false }) {
 
 // ─── STORY SECTION ────────────────────────────────────────────────────────────
 // ─── CITY CARD (hover-flip) ───────────────────────────────────────────────────
-const FLIP_TRANSITION = { duration: 0.7, ease: [0.4, 0.2, 0.2, 1] }
+// Card flip: a plain CSS transition (no animation library on the public page)
+const FLIP_TRANSITION = 'transform .7s cubic-bezier(.4,.2,.2,1)'
 const FACE_STYLE = {
   position: 'absolute', inset: 0,
   backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden',
@@ -1383,58 +1535,16 @@ const FACE_STYLE = {
 }
 
 // ─── SECTION BADGE — animated rotating border gradient ───────────────────────
-const _BADGE_MAP = {
-  TOP:    'radial-gradient(20.7% 50% at 50% 0%,    rgba(255,255,255,0.82) 0%, rgba(255,255,255,0) 100%)',
-  LEFT:   'radial-gradient(16.6% 43.1% at 0% 50%,  rgba(255,255,255,0.82) 0%, rgba(255,255,255,0) 100%)',
-  BOTTOM: 'radial-gradient(20.7% 50% at 50% 100%,  rgba(255,255,255,0.82) 0%, rgba(255,255,255,0) 100%)',
-  RIGHT:  'radial-gradient(16.2% 41.2% at 100% 50%, rgba(255,255,255,0.82) 0%, rgba(255,255,255,0) 100%)',
-}
-const _BADGE_DIRS = ['TOP', 'LEFT', 'BOTTOM', 'RIGHT']
-
+// Section badge with a light travelling around its border. Pure CSS: a conic gradient rotated with
+// `transform` inside the rounded badge, so the GPU animates it without touching the main thread. (It was a
+// framer-motion background animation + a timer per badge — about ten badges repainting the page every frame.)
 function SectionBadge({ children, color, style: outer = {}, duration = 1.8 }) {
-  const [hovered, setHovered] = useState(false)
-  const [dirIdx,  setDirIdx]  = useState(1)
-
-  useEffect(() => {
-    if (hovered) return
-    const id = setInterval(() => setDirIdx(i => (i + 1) % 4), duration * 1000)
-    return () => clearInterval(id)
-  }, [hovered, duration])
-
-  const highlight = `radial-gradient(75% 181% at 50% 50%, ${color}CC 0%, rgba(255,255,255,0) 100%)`
-
   return (
-    <div
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        position: 'relative', display: 'inline-flex',
-        alignItems: 'center', justifyContent: 'center',
-        borderRadius: 9999, padding: 1,
-        background: 'rgba(6,6,16,0.5)', backdropFilter: 'blur(10px)',
-        marginBottom: 18, cursor: 'default', userSelect: 'none',
-        ...outer,
-      }}
-    >
-      {/* Text — top layer */}
-      <div style={{
-        position: 'relative', zIndex: 10,
-        borderRadius: 9999, padding: '6px 18px',
-        fontSize: 11, fontWeight: 700, letterSpacing: '4px',
-        textTransform: 'uppercase', color, lineHeight: 1.2, whiteSpace: 'nowrap',
-      }}>
-        {children}
-      </div>
-
-      {/* Rotating gradient border */}
-      <motion.div
-        style={{ position: 'absolute', inset: 0, borderRadius: 9999, zIndex: 0, filter: 'blur(3px)' }}
-        animate={{ background: hovered ? highlight : _BADGE_MAP[_BADGE_DIRS[dirIdx]] }}
-        transition={{ ease: 'linear', duration: hovered ? 0.2 : duration }}
-      />
-
-      {/* Inset fill — creates the visible border gap */}
-      <div style={{ position: 'absolute', inset: '1.5px', zIndex: 1, borderRadius: 9999, background: 'rgba(6,6,16,0.9)' }}/>
+    <div className="sb" style={{ '--sb-c': color, '--sb-t': `${duration * 4}s`, ...outer }}>
+      <span className="sb-glow" aria-hidden="true"/>
+      <span className="sb-hi" aria-hidden="true"/>
+      <span className="sb-fill" aria-hidden="true"/>
+      <span className="sb-text">{children}</span>
     </div>
   )
 }
@@ -1444,6 +1554,7 @@ function FlipCityCard({ h, index }) {
   const cityType    = lang === 'en' && h.en_type ? h.en_type : h.type
   const cityName    = lang === 'en' && h.en_city ? h.en_city : h.city
   const [vis,          setVis]          = useState(false)
+  const [near,         setNear]         = useState(false)   // photo requested only once the card is within ~400px
   const [isFlipped,    setIsFlipped]    = useState(false)
   const [counterStart, setCounterStart] = useState(false)
   const cardRef = useRef(null)
@@ -1455,7 +1566,11 @@ function FlipCityCard({ h, index }) {
       if (entry.isIntersecting) { setTimeout(() => setVis(true), index * 110 + 180); obs.disconnect() }
     }, { threshold: 0.15 })
     if (cardRef.current) obs.observe(cardRef.current)
-    return () => obs.disconnect()
+    // The photo (~100 KB each) downloads only when the card is near the viewport — never while a shared
+    // property, or the sections above, are still loading.
+    const nearObs = new IntersectionObserver(([entry]) => { if (entry.isIntersecting) { setNear(true); nearObs.disconnect() } }, { rootMargin: '400px 0px', threshold: 0 })
+    if (cardRef.current) nearObs.observe(cardRef.current)
+    return () => { obs.disconnect(); nearObs.disconnect() }
   }, [index])
 
   const handleEnter = () => { setIsFlipped(true); if (!counterStart) setCounterStart(true) }
@@ -1477,14 +1592,11 @@ function FlipCityCard({ h, index }) {
       }}>
 
       {/* ── FRONT: photo card ── */}
-      <motion.div
-        initial={false}
-        animate={{ rotateY: isFlipped ? -180 : 0 }}
-        transition={FLIP_TRANSITION}
-        style={{ ...FACE_STYLE, zIndex: isFlipped ? 1 : 2, boxShadow: '0 16px 48px rgba(0,0,0,.55), 0 2px 8px rgba(0,0,0,.3)' }}>
+      <div
+        style={{ ...FACE_STYLE, transform: `rotateY(${isFlipped ? -180 : 0}deg)`, transition: FLIP_TRANSITION, zIndex: isFlipped ? 1 : 2, boxShadow: '0 16px 48px rgba(0,0,0,.55), 0 2px 8px rgba(0,0,0,.3)' }}>
 
         {/* Photo — editorial filter */}
-        <img src={img} alt={cityName} loading="lazy"
+        <img src={near ? img : undefined} data-src={img} alt={cityName} loading="lazy"
           style={{
             position: 'absolute', inset: 0,
             width: '100%', height: '100%',
@@ -1503,7 +1615,7 @@ function FlipCityCard({ h, index }) {
         <div style={{
           position: 'absolute', top: 13, right: 13,
           display: 'flex', alignItems: 'baseline', gap: 1,
-          background: 'rgba(8,8,18,0.52)', backdropFilter: 'blur(14px)',
+          background: 'rgba(8,8,18,0.7)',
           border: `1px solid ${C.green}66`,
           color: C.green,
           padding: '5px 12px', borderRadius: 20,
@@ -1523,15 +1635,12 @@ function FlipCityCard({ h, index }) {
             {cityType}
           </div>
         </div>
-      </motion.div>
+      </div>
 
       {/* ── BACK: animated stats ── */}
-      <motion.div
-        initial={false}
-        animate={{ rotateY: isFlipped ? 0 : 180 }}
-        transition={FLIP_TRANSITION}
+      <div
         style={{
-          ...FACE_STYLE, zIndex: isFlipped ? 2 : 1,
+          ...FACE_STYLE, transform: `rotateY(${isFlipped ? 0 : 180}deg)`, transition: FLIP_TRANSITION, zIndex: isFlipped ? 2 : 1,
           background: `linear-gradient(145deg, ${C.card} 0%, rgba(8,8,20,0.97) 100%)`,
           border: `1px solid ${C.purple}33`,
           boxShadow: `0 8px 36px rgba(0,0,0,.55), 0 0 0 1px ${C.purple}22`,
@@ -1552,13 +1661,15 @@ function FlipCityCard({ h, index }) {
 
         {/* Bottom shine line */}
         <div style={{ position: 'absolute', bottom: 0, left: '15%', right: '15%', height: 1, background: `linear-gradient(90deg,transparent,${C.purple}55,transparent)` }}/>
-      </motion.div>
+      </div>
 
     </div>
   )
 }
 
-function StorySection({ onContact, sharonData }) {
+// memo: the page re-renders on things like the active nav item — this section only when its own props change
+const StorySection = memo(StorySectionImpl)
+function StorySectionImpl({ onContact, sharonData }) {
   const { C, lang } = useTheme()
   const t = TR[lang] || TR.he
   const [ref, vis] = useIntersection(0.1)
@@ -1653,8 +1764,11 @@ function StorySection({ onContact, sharonData }) {
 }
 
 // ─── PROCESS SECTION ──────────────────────────────────────────────────────────
-function ProcessSection() {
-  const { C, lang } = useTheme()
+// memo: the page re-renders on things like the active nav item — this section only when its own props change
+const ProcessSection = memo(ProcessSectionImpl)
+function ProcessSectionImpl() {
+  const { C, lang, isDark } = useTheme()
+  const bgSvgRef = useSvgAnimationsWhenVisible()
   const t = TR[lang] || TR.he
   const [ref, vis] = useIntersection(0.08)
   const stepRefs = useRef([])
@@ -1674,7 +1788,7 @@ function ProcessSection() {
   return (
     <section id="process" style={{ padding:'72px 24px', position:'relative', overflow:'hidden', scrollMarginTop:80, zIndex:1 }}>
       <div style={{ position:'absolute', inset:0, overflow:'hidden', zIndex:0, pointerEvents:'none' }}>
-        <svg width="100%" height="100%" preserveAspectRatio="xMidYMid slice" style={{ opacity:.06 }}>
+        <svg ref={bgSvgRef} width="100%" height="100%" preserveAspectRatio="xMidYMid slice" style={{ opacity:.06 }}>
           {[0,1,2,3,4].map(i => (
             <path key={i} stroke={i%2===0?C.purple:C.green} strokeWidth={2-i*.15} fill="none">
               <animate attributeName="d" dur={`${5+i*1.5}s`} repeatCount="indefinite"
@@ -1698,7 +1812,7 @@ function ProcessSection() {
               style={{ opacity:stepVis[i]?1:0, transform:stepVis[i]?'none':'translateX(22px)', transition:`opacity .6s ${i*.1}s,transform .6s ${i*.1}s` }}>
               <GlassCard style={{ padding:'36px 40px', display:'flex', gap:28, alignItems:'flex-start', position:'relative' }}>
                 <div style={{ position:'absolute', top:0, right:0, bottom:0, width:3, background:`linear-gradient(180deg,transparent,${step.color}99,transparent)`, borderRadius:'0 20px 20px 0' }}/>
-                <div style={{ flexShrink:0, width:62, height:62, borderRadius:'50%', background:`linear-gradient(135deg,${step.color}33,${step.color}11)`, border:`2px solid ${step.color}66`, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:2, animation:stepVis[i]?'glowPulse 3s ease infinite':undefined, animationDelay:`${i*.5}s` }}>
+                <div style={{ flexShrink:0, width:62, height:62, borderRadius:'50%', background:`linear-gradient(135deg,${step.color}33,${step.color}11)`, border:`2px solid ${step.color}66`, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:2, boxShadow: stepVis[i] ? (isDark ? `0 0 30px ${step.color}55` : `0 2px 10px ${step.color}33`) : 'none', transition:'box-shadow .6s ease' }}>
                   <div style={{ fontSize:10, fontWeight:800, color:step.color, letterSpacing:'1px', lineHeight:1, marginBottom:4 }}>{step.num}</div>
                   <step.Icon size={20} style={{ color:step.color }}/>
                 </div>
@@ -1730,7 +1844,9 @@ function ProcessSection() {
 }
 
 // ─── TEAM SECTION (Gabay circular portrait style) ────────────────────────────
-function TeamSection() {
+// memo: the page re-renders on things like the active nav item — this section only when its own props change
+const TeamSection = memo(TeamSectionImpl)
+function TeamSectionImpl() {
   const { C, isDark, lang } = useTheme()
   const t = TR[lang] || TR.he
   const [ref, vis] = useIntersection(0.1)
@@ -1846,7 +1962,9 @@ function SignatureReveal({ isDark }) {
 }
 
 // ─── CEO SECTION ──────────────────────────────────────────────────────────────
-function CEOSection() {
+// memo: the page re-renders on things like the active nav item — this section only when its own props change
+const CEOSection = memo(CEOSectionImpl)
+function CEOSectionImpl() {
   const { C, isDark, lang } = useTheme()
   const t = TR[lang] || TR.he
   const [ref, vis] = useIntersection(0.08)
@@ -1945,7 +2063,9 @@ function CEOSection() {
 }
 
 // ─── SERVICES SECTION (UI/UX Pro Max: Bento Grid + Spatial Cards) ─────────────
-function ServicesSection({ onContact }) {
+// memo: the page re-renders on things like the active nav item — this section only when its own props change
+const ServicesSection = memo(ServicesSectionImpl)
+function ServicesSectionImpl({ onContact }) {
   const { C, lang } = useTheme()
   const t = TR[lang] || TR.he
   const [ref, vis] = useIntersection(0.08)
@@ -2153,7 +2273,7 @@ function getCookie(name) {
 function sendCAPI(metaEventName, pii = {}, customData = {}) {
   const event_id = `${metaEventName}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
   // Server-side — hashes PII, deduplicates via event_id
-  fetch(`${API_BASE}/api/capi`, {
+  fetch(`/api/capi`, {   // Vercel's own CAPI function (never Render — its bandwidth is metered)
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -2255,6 +2375,9 @@ function ContactModal({ prop, onClose }) {
               id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
               name: form.name, phone: form.phone, email: form.email, msg: form.msg,
               propTitle: prop?.title || '', propLocation: prop?.location || '',
+              source: prop ? 'property_form' : 'contact_form',
+              lang,
+              origin: leadOrigin(),
               ts: Date.now(),
             }
             try {
@@ -2468,7 +2591,6 @@ const TESTIMONIALS_DATA = [
 // ─── NEWS SECTION ─────────────────────────────────────────────────────────────
 const ARCHIVE_STORE  = 'afik_archive_v1'
 const SLOT_COUNT     = 4
-const SERVER_URL     = import.meta.env.VITE_API_URL || 'https://afik-hanahal-server.onrender.com'
 
 
 // ── Normalise any article shape (Vercel / Supabase / Render / localStorage) ──
@@ -2515,8 +2637,7 @@ async function fetchFreshArticles() {
 
   let list = merge([], clean(await get('/api/news', 20000)))
   if (list.length < SLOT_COUNT) list = merge(list, clean(await get('/api/news/archive', 8000)))
-  if (list.length < SLOT_COUNT) list = merge(list, clean(await get(`${SERVER_URL}/api/news/feed`, 10000)))
-  return list
+  return list   // (the Render feed is no longer asked from the browser — /api/news already falls back to it, edge-cached)
 }
 
 // First SLOT_COUNT cards: images first, and as many different outlets as possible
@@ -3223,7 +3344,9 @@ function ArchiveModal({ onClose, C, isDark }) {
   )
 }
 
-function NewsSection() {
+// memo: the page re-renders on things like the active nav item — this section only when its own props change
+const NewsSection = memo(NewsSectionImpl)
+function NewsSectionImpl() {
   const { C, isDark, lang } = useTheme()
   const t = TR[lang] || TR.he
   const { articles, loading, error, reload } = useRotatingNews()
@@ -3290,7 +3413,9 @@ function NewsSection() {
 }
 
 // ─── TESTIMONIALS ─────────────────────────────────────────────────────────────
-function TestimonialsSection() {
+// memo: the page re-renders on things like the active nav item — this section only when its own props change
+const TestimonialsSection = memo(TestimonialsSectionImpl)
+function TestimonialsSectionImpl() {
   const { C, lang } = useTheme()
   const t = TR[lang] || TR.he
   const [active, setActive]       = useState(0)
@@ -3300,6 +3425,9 @@ function TestimonialsSection() {
   const timerRef  = useRef(null)
   const touchX    = useRef(null)
   const n = TESTIMONIALS_DATA.length
+  // Phones get a portrait-first card (photo ring, name, stars, quote) instead of the two-column layout
+  const [mobile, setMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768)
+  useEffect(() => { const h = () => setMobile(window.innerWidth < 768); window.addEventListener('resize', h); return () => window.removeEventListener('resize', h) }, [])
 
   const startTimer = useCallback(() => {
     clearInterval(timerRef.current)
@@ -3351,16 +3479,45 @@ function TestimonialsSection() {
             if (Math.abs(diff) > 45) { diff > 0 ? goNext() : goPrev() }
             touchX.current = null
           }}>
-          <AnimatePresence initial={false} custom={dir} mode="wait">
-            <motion.div
+          {mobile ? (
+            /* ── Mobile: portrait-first card that fits the screen — photo ring, name, stars, quote, controls ── */
+            <>
+              <div key={active}
+                className="testi-card-m testi-in"
+                style={{ '--testi-x': `${dir > 0 ? 40 : -40}px`, animationDuration:'.32s', padding:'26px 20px 22px', display:'flex', flexDirection:'column', alignItems:'center', textAlign:'center', gap:12, position:'relative' }}>
+                {/* soft glow behind the portrait */}
+                <div aria-hidden="true" style={{ position:'absolute', top:-40, left:'50%', transform:'translateX(-50%)', width:220, height:220, borderRadius:'50%', background:`radial-gradient(circle,${C.purple}33,transparent 65%)`, pointerEvents:'none' }}/>
+                <div style={{ width:112, height:112, borderRadius:'50%', padding:3, background:`linear-gradient(135deg,${C.purple},${C.green})`, boxShadow:`0 14px 34px ${C.purple}55`, position:'relative' }}>
+                  <img src={item.src} alt={tName} loading="lazy" decoding="async"
+                    style={{ width:'100%', height:'100%', borderRadius:'50%', objectFit:'cover', objectPosition: item.imgPos || 'center top', display:'block', border:'3px solid #0d0d1a', background:'#0d0d1a' }}/>
+                  <span style={{ position:'absolute', bottom:2, insetInlineEnd:2, width:28, height:28, borderRadius:'50%', background:C.purple, color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Georgia,serif', fontSize:20, lineHeight:1, border:'2px solid #0d0d1a' }}>"</span>
+                </div>
+                <div>
+                  <div style={{ fontSize:19, fontWeight:800, color:C.cream, lineHeight:1.2 }}>{tName}</div>
+                  {tDesig && <div style={{ fontSize:13, color:C.purple, marginTop:4, fontWeight:600 }}>{tDesig}</div>}
+                  {tFirm && <div style={{ fontSize:12, color:`${C.cream}88`, marginTop:2 }}>{tFirm}</div>}
+                </div>
+                <div style={{ display:'flex', gap:3 }} aria-label="5 כוכבים">{[1,2,3,4,5].map(s => <span key={s} style={{ color:C.green, fontSize:17, lineHeight:1 }}>★</span>)}</div>
+                <p style={{ fontSize:15.5, color:`${C.cream}EE`, lineHeight:1.75, margin:'2px 0 0', maxWidth:440 }}>{tQuote}</p>
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:14, marginTop:6, width:'100%' }}>
+                  <button onClick={goPrev} style={{ ...arBtn(false), width:42, height:42 }} aria-label="הקודם"><FaChevronRight size={14}/></button>
+                  <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                    {TESTIMONIALS_DATA.map((_, i) => (
+                      <button key={i} onClick={() => goTo(i)} aria-label={`עדות ${i+1}`}
+                        style={{ width:i===active?22:7, height:7, minWidth:0, minHeight:0, borderRadius:4, background:i===active?C.purple:C.purple+'33', border:'none', cursor:'pointer', transition:'all .3s', padding:0 }}/>
+                    ))}
+                  </div>
+                  <button onClick={goNext} style={{ ...arBtn(false), width:42, height:42 }} aria-label="הבא"><FaChevronLeft size={14}/></button>
+                </div>
+                <span style={{ fontSize:11, color:`${C.cream}55`, fontWeight:600 }}>{active + 1} / {n} · {lang === 'en' ? 'swipe for more' : 'החליקו לעדות הבאה'}</span>
+              </div>
+            </>
+          ) : (
+          <>
+            <div
               key={active}
-              custom={dir}
-              initial={{ opacity:0, x: dir > 0 ? 60 : -60 }}
-              animate={{ opacity:1, x:0 }}
-              exit={{ opacity:0, x: dir > 0 ? -60 : 60 }}
-              transition={{ duration:.42, ease:[.4,0,.2,1] }}
-              className="testi-card-wrap"
-              style={{ display:'flex', direction:'rtl', width:'100%' }}
+              className="testi-card-wrap testi-in"
+              style={{ '--testi-x': `${dir > 0 ? 60 : -60}px`, animationDuration:'.42s', display:'flex', direction:'rtl', width:'100%' }}
             >
               {/* ── Text column (RTL: appears on RIGHT) ── */}
               <div className="testi-txt-col" style={{ flex:1, padding:'52px 48px 44px', display:'flex', flexDirection:'column', justifyContent:'center', gap:22, position:'relative', zIndex:1, minWidth:0 }}>
@@ -3371,13 +3528,10 @@ function TestimonialsSection() {
                 {/* Word-by-word fade */}
                 <p style={{ fontSize:17, color:C.cream+'E8', lineHeight:1.95, margin:0 }}>
                   {tQuote.split(' ').map((word, wi) => (
-                    <motion.span key={`${active}-${wi}`}
-                      initial={{ opacity:0, filter:'blur(6px)' }}
-                      animate={{ opacity:1, filter:'blur(0px)' }}
-                      transition={{ duration:.18, delay: 0.022 * wi }}
-                      style={{ display:'inline-block', marginLeft:4 }}>
+                    <span key={`${active}-${wi}`} className="testi-word"
+                      style={{ display:'inline-block', marginLeft:4, animationDelay:`${0.022 * wi}s` }}>
                       {word}
-                    </motion.span>
+                    </span>
                   ))}
                 </p>
 
@@ -3433,8 +3587,9 @@ function TestimonialsSection() {
                 {/* Bottom gradient */}
                 <div style={{ position:'absolute', bottom:0, left:0, right:0, height:80, background:'linear-gradient(to top,rgba(8,6,20,.7),transparent)', pointerEvents:'none' }}/>
               </div>
-            </motion.div>
-          </AnimatePresence>
+            </div>
+          </>
+          )}
         </div>
 
       </div>
@@ -3464,7 +3619,9 @@ const FAQS = [
     en_q:'When is it worthwhile to invest in agricultural land?', en_a:"When the land is located near a built-up area with high demand pressure, when municipal rezoning plans exist for the area, and when the investment horizon is long (5–15 years). It's important to perform thorough due diligence before any such investment." },
 ]
 
-function FAQSection() {
+// memo: the page re-renders on things like the active nav item — this section only when its own props change
+const FAQSection = memo(FAQSectionImpl)
+function FAQSectionImpl() {
   const { C, lang } = useTheme()
   const t = TR[lang] || TR.he
   const [open, setOpen] = useState(null)
@@ -3708,6 +3865,7 @@ function PdfLeadGate({ pdf, prop, C }) {
       propTitle: prop.title || '', propLocation: prop.location || '',
       msg: `הורדת PDF: ${pdf.name}`,
       source: 'pdf_download',
+      origin: leadOrigin(),
       ts: Date.now(),
     }
     try {
@@ -3883,6 +4041,39 @@ function cloudImg(url, width = 1200) {
 // Small thumbnail — card cover images (saves 60–80 % bandwidth vs full size)
 function thumbImg(url) { return cloudImg(url, 600) }
 
+// ── Favourites (persisted per browser) ─────────────────────────────────────
+const FAVS_KEY = 'afik_favs'
+const loadFavs = () => { try { const a = JSON.parse(localStorage.getItem(FAVS_KEY) || '[]'); return new Set(Array.isArray(a) ? a.map(String) : []) } catch { return new Set() } }
+function toggleFav(id) {
+  const next = loadFavs(); const key = String(id)
+  const on = !next.has(key); on ? next.add(key) : next.delete(key)
+  try { localStorage.setItem(FAVS_KEY, JSON.stringify([...next])) } catch {}
+  try { window.dispatchEvent(new CustomEvent('afik-favs')) } catch {}
+  trackEvent(on ? 'favorite_add' : 'favorite_remove', { id: key })
+  return on
+}
+function useFavs() {
+  const [favs, setFavs] = useState(loadFavs)
+  useEffect(() => { const h = () => setFavs(loadFavs()); window.addEventListener('afik-favs', h); window.addEventListener('storage', h); return () => { window.removeEventListener('afik-favs', h); window.removeEventListener('storage', h) } }, [])
+  return favs
+}
+// Shareable link for a property: /p/<id> — a rich preview (photo, price, details) for Facebook / WhatsApp / LinkedIn,
+// and an instant redirect to /?p=<id>#properties for people (see lib/share-page.js)
+const propertyUrl = p => `${window.location.origin}/p/${encodeURIComponent(p.id)}`
+const isNewProp = p => { const t = Date.parse(p?.createdAt || '') || (typeof p?.createdAt === 'number' ? p.createdAt : 0); return t && Date.now() - t < 14 * 86400000 }
+const pricePerSqm = p => { const n = Number(String(p?.price || '').replace(/[^\d]/g, '')), s = Number(p?.size); return n > 0 && s > 0 && ['apartments', 'rentals', 'commercial', 'projects'].includes(p.category) ? Math.round(n / s) : 0 }
+// Site order = admin drag order. Properties the office has NOT placed yet (no sortOrder — every
+// newly added property) come FIRST, newest first, so a new listing is always visible at the top
+// until it is dragged into place. Then the ordered ones by sortOrder.
+const propCreatedTs = p => Date.parse(p?.createdAt || '') || (typeof p?.createdAt === 'number' ? p.createdAt : 0) || (Number(p?.id) > 1e12 ? Number(p.id) : 0) || Number(p?.updatedAt) || 0
+function sortByOrder(arr) {
+  const ordered = [], fresh = []
+  for (const p of arr || []) (Number.isFinite(p?.sortOrder) ? ordered : fresh).push(p)
+  ordered.sort((a, b) => a.sortOrder - b.sortOrder)
+  fresh.sort((a, b) => propCreatedTs(b) - propCreatedTs(a))
+  return [...fresh, ...ordered]
+}
+
 function getVideoThumbnail(url, thumbnail) {
   if (thumbnail) return thumbnail
   if (!url) return null
@@ -3904,10 +4095,12 @@ function optimizeVideoUrl(url) {
 }
 
 function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [], onSelect }) {
-  const { C, isDark } = useTheme()
+  const { C, isDark, lang } = useTheme()
   const [confirmLeave, setConfirmLeave] = useState(false)  // "stay or go back" choice
   const [imgIdx, setImgIdx] = useState(0)
-  const [saved, setSaved] = useState(false)
+  const favsSet = useFavs()
+  const saved = favsSet.has(String(prop.id))
+  const setSaved = () => toggleFav(prop.id)
   const [shared, setShared] = useState(false)
   const [lightbox, setLightbox] = useState(false)
   const [videoPlaying, setVideoPlaying] = useState(false)
@@ -3949,14 +4142,15 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
     }
   }, [])
 
+  const shareUrl = propertyUrl(prop)
+  const shareTxt = `${prop.title} — ${[prop.location, prop.neighborhood].filter(Boolean).join(', ')}`
+  const copyLink = () => navigator.clipboard?.writeText(shareTxt + '\n' + shareUrl).then(() => { setShared(true); setTimeout(() => setShared(false), 2000) }).catch(() => {})
   const handleShare = () => {
-    const txt = `${prop.title} — ${[prop.location, prop.neighborhood].filter(Boolean).join(', ')}`
-    if (navigator.share) {
-      navigator.share({ title: prop.title, text: txt, url: window.location.href }).catch(() => {})
-    } else {
-      navigator.clipboard.writeText(txt + '\n' + window.location.href).then(() => { setShared(true); setTimeout(() => setShared(false), 2000) }).catch(() => {})
-    }
+    trackEvent('share_property', { id: prop.id, title: prop.title })
+    if (navigator.share) navigator.share({ title: prop.title, text: shareTxt, url: shareUrl }).catch(() => {})
+    else copyLink()
   }
+  const shareWa = () => { trackEvent('share_property', { id: prop.id, title: prop.title, channel: 'whatsapp' }); window.open(`https://wa.me/?text=${encodeURIComponent(shareTxt + '\n' + shareUrl)}`, '_blank', 'noopener') }
   const cat = CATEGORIES.find(c => c.id === prop.category) || CATEGORIES[1]
   const sc = { 'זמין':C.green, 'בבדיקה':'#F7C948', 'נמכר':'#E05252', 'הושכר':'#F97316' }[prop.status] || C.green
 
@@ -4215,13 +4409,21 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
             style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 18px', background:'rgba(255,255,255,.09)', border:'1px solid rgba(255,255,255,.18)', borderRadius:22, color:'rgba(255,255,255,.88)', cursor:'pointer', fontFamily:'inherit', fontSize:13, fontWeight:600, transition:'background .2s' }}
             onMouseEnter={e=>e.currentTarget.style.background='rgba(255,255,255,.18)'}
             onMouseLeave={e=>e.currentTarget.style.background='rgba(255,255,255,.09)'}>
-            <FaShareAlt size={13}/> {shared ? 'הועתק!' : 'שיתוף'}
+            <FaShareAlt size={13}/> {shared ? (TR[lang]?.linkCopied || 'הועתק!') : (TR[lang]?.shareProp || 'שיתוף')}
+          </button>
+          <button onClick={shareWa} title={TR[lang]?.shareWa} aria-label={TR[lang]?.shareWa}
+            style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 14px', background:'rgba(37,211,102,.12)', border:'1px solid rgba(37,211,102,.35)', borderRadius:22, color:'#25D366', cursor:'pointer', fontFamily:'inherit', fontSize:13, fontWeight:600 }}>
+            <FaWhatsapp size={14}/>
+          </button>
+          <button onClick={copyLink} title={TR[lang]?.copyLink} aria-label={TR[lang]?.copyLink}
+            style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 14px', background:'rgba(255,255,255,.09)', border:'1px solid rgba(255,255,255,.18)', borderRadius:22, color:'rgba(255,255,255,.88)', cursor:'pointer', fontFamily:'inherit', fontSize:13 }}>
+            <FaLink size={12}/>
           </button>
           <button onClick={() => setSaved(s => !s)}
             style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 18px', background: saved ? 'rgba(255,100,100,.18)' : 'rgba(255,255,255,.09)', border:`1px solid ${saved ? 'rgba(255,100,100,.4)' : 'rgba(255,255,255,.18)'}`, borderRadius:22, color: saved ? '#FF8888' : 'rgba(255,255,255,.88)', cursor:'pointer', fontFamily:'inherit', fontSize:13, fontWeight:600, transition:'all .2s' }}
             onMouseEnter={e=>{ if (!saved) e.currentTarget.style.background='rgba(255,255,255,.18)' }}
             onMouseLeave={e=>{ if (!saved) e.currentTarget.style.background='rgba(255,255,255,.09)' }}>
-            <FaHeart size={13}/> {saved ? 'שמור' : 'שמירה'}
+            <FaHeart size={13}/> {saved ? (TR[lang]?.favRemove || 'שמור') : (TR[lang]?.favAdd || 'שמירה')}
           </button>
         </div>
 
@@ -4559,6 +4761,7 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
                 <span style={{ fontSize:12, fontWeight:500, color:`${C.cream}33`, background:`${C.purple}08`, borderRadius:6, padding:'3px 12px' }}>הכנס גוש/חלקה לניווט לחלקה</span>
               )}
             </h3>
+            <SectionBoundary fallback={<div style={{ padding:'28px 16px', textAlign:'center', color:`${C.cream}99`, fontSize:14, border:`1px dashed ${C.purple}33`, borderRadius:12 }}>{TR[lang]?.mapUnavailable || TR.he.mapUnavailable}</div>}>
             <Suspense fallback={<div style={{ height: 360, display:'flex', alignItems:'center', justifyContent:'center', color:`${C.cream}44`, fontSize:13 }}>טוען מפה…</div>}>
               <GovMapWidget
                 gush={prop.gush}
@@ -4569,6 +4772,7 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
                 isDark={isDark}
               />
             </Suspense>
+            </SectionBoundary>
           </div>
         )}
       </div>
@@ -4636,8 +4840,14 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
 }
 
 // ─── PROPERTY CARD ────────────────────────────────────────────────────────────
-function PropertyCard({ prop, onContact, onSelect }) {
-  const { C } = useTheme()
+// memo: the page re-renders on things like the active nav item — this section only when its own props change
+const PropertyCard = memo(PropertyCardImpl)
+function PropertyCardImpl({ prop, onContact, onSelect }) {
+  const { C, lang } = useTheme()
+  const tt = TR[lang] || TR.he
+  const favs = useFavs()
+  const isFav = favs.has(String(prop.id))
+  const ppsqm = pricePerSqm(prop)
   const [imgIdx, setImgIdx] = useState(0)
   const [hovered, setHovered] = useState(false)
   const [failedImgs, setFailedImgs] = useState(new Set())
@@ -4723,7 +4933,7 @@ function PropertyCard({ prop, onContact, onSelect }) {
                 onClick={e => { e.stopPropagation(); setImgIdx(i => (i-1+validImages.length)%validImages.length) }}
                 onTouchStart={e => { e.stopPropagation(); touchFromArrow.current = true }}
                 onTouchEnd={e => { e.stopPropagation(); setImgIdx(i => (i-1+validImages.length)%validImages.length) }}
-                style={{ position:'absolute', top:'50%', right:8, transform:'translateY(-50%)', background:'rgba(0,0,0,.55)', backdropFilter:'blur(8px)', border:'1px solid rgba(255,255,255,.18)', borderRadius:'50%', width:44, height:44, color:'#fff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s', zIndex:3, opacity: hovered || isTouchDevice ? 1 : 0 }}
+                style={{ position:'absolute', top:'50%', right:8, transform:'translateY(-50%)', background:'rgba(0,0,0,0.65)', border:'1px solid rgba(255,255,255,.18)', borderRadius:'50%', width:44, height:44, color:'#fff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s', zIndex:3, opacity: hovered || isTouchDevice ? 1 : 0 }}
                 onMouseEnter={e=>e.currentTarget.style.background=C.purple} onMouseLeave={e=>e.currentTarget.style.background='rgba(0,0,0,.55)'}>
                 <FaChevronRight size={12}/>
               </button>
@@ -4731,12 +4941,12 @@ function PropertyCard({ prop, onContact, onSelect }) {
                 onClick={e => { e.stopPropagation(); setImgIdx(i => (i+1)%validImages.length) }}
                 onTouchStart={e => { e.stopPropagation(); touchFromArrow.current = true }}
                 onTouchEnd={e => { e.stopPropagation(); setImgIdx(i => (i+1)%validImages.length) }}
-                style={{ position:'absolute', top:'50%', left:8, transform:'translateY(-50%)', background:'rgba(0,0,0,.55)', backdropFilter:'blur(8px)', border:'1px solid rgba(255,255,255,.18)', borderRadius:'50%', width:44, height:44, color:'#fff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s', zIndex:3, opacity: hovered || isTouchDevice ? 1 : 0 }}
+                style={{ position:'absolute', top:'50%', left:8, transform:'translateY(-50%)', background:'rgba(0,0,0,0.65)', border:'1px solid rgba(255,255,255,.18)', borderRadius:'50%', width:44, height:44, color:'#fff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s', zIndex:3, opacity: hovered || isTouchDevice ? 1 : 0 }}
                 onMouseEnter={e=>e.currentTarget.style.background=C.purple} onMouseLeave={e=>e.currentTarget.style.background='rgba(0,0,0,.55)'}>
                 <FaChevronLeft size={12}/>
               </button>
               {/* photo count — bottom right */}
-              <div style={{ position:'absolute', bottom:10, right:10, background:'rgba(0,0,0,.65)', backdropFilter:'blur(6px)', borderRadius:5, padding:'3px 8px', fontSize:10, color:'rgba(255,255,255,.88)', display:'flex', alignItems:'center', gap:4, fontWeight:600, zIndex:4 }}>
+              <div style={{ position:'absolute', bottom:10, right:10, background:'rgba(0,0,0,0.75)', borderRadius:5, padding:'3px 8px', fontSize:10, color:'rgba(255,255,255,.88)', display:'flex', alignItems:'center', gap:4, fontWeight:600, zIndex:4 }}>
                 <FaCamera size={8}/> {validImages.length}
               </div>
             </>)}
@@ -4754,15 +4964,25 @@ function PropertyCard({ prop, onContact, onSelect }) {
               style={{ width:'72%', maxWidth:220, opacity:.9, transform:'rotate(-10deg)', filter:'drop-shadow(0 4px 18px rgba(0,0,0,.7))' }}/>
           </div>
         )}
+        {/* Favourite heart — top left */}
+        <button
+          aria-label={isFav ? tt.favRemove : tt.favAdd} aria-pressed={isFav} title={isFav ? tt.favRemove : tt.favAdd}
+          onClick={e => { e.stopPropagation(); toggleFav(prop.id) }}
+          onTouchStart={e => { e.stopPropagation(); touchFromArrow.current = true }}
+          onTouchEnd={e => { e.stopPropagation(); e.preventDefault(); toggleFav(prop.id) }}
+          style={{ position:'absolute', top:10, left:10, zIndex:6, width:36, height:36, minWidth:0, minHeight:0, borderRadius:'50%', border:`1px solid ${isFav ? 'rgba(255,90,110,.6)' : 'rgba(255,255,255,.2)'}`, background: isFav ? 'rgba(255,90,110,.22)' : 'rgba(9,9,15,.6)', backdropFilter:'blur(8px)', color: isFav ? '#FF5A6E' : 'rgba(255,255,255,.85)', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', transition:'all .2s', transform: isFav ? 'scale(1.06)' : 'scale(1)' }}>
+          <FaHeart size={14}/>
+        </button>
         {/* Top-right badges */}
         <div style={{ position:'absolute', top:10, right:10, display:'flex', flexDirection:'column', gap:4, zIndex:5 }}>
-          <span style={{ background:'rgba(9,9,15,.85)', backdropFilter:'blur(8px)', color:sc, border:`1px solid ${sc}35`, borderRadius:6, padding:'4px 10px', fontSize:9, fontWeight:800, letterSpacing:'.06em', textTransform:'uppercase' }}>{prop.status}</span>
-          {prop.exclusive && <span style={{ background:'rgba(9,9,15,.85)', backdropFilter:'blur(8px)', color:C.green, border:`1px solid ${C.green}35`, borderRadius:6, padding:'4px 10px', fontSize:9, fontWeight:800 }}>✦ בלעדי</span>}
+          {isNewProp(prop) && <span style={{ background:C.green, color:'#06200a', borderRadius:6, padding:'4px 10px', fontSize:9, fontWeight:900, letterSpacing:'.08em', textTransform:'uppercase', boxShadow:`0 0 14px ${C.green}66` }}>{tt.newBadge}</span>}
+          <span style={{ background:'rgba(9,9,15,0.92)', color:sc, border:`1px solid ${sc}35`, borderRadius:6, padding:'4px 10px', fontSize:9, fontWeight:800, letterSpacing:'.06em', textTransform:'uppercase' }}>{prop.status}</span>
+          {prop.exclusive && <span style={{ background:'rgba(9,9,15,0.92)', color:C.green, border:`1px solid ${C.green}35`, borderRadius:6, padding:'4px 10px', fontSize:9, fontWeight:800 }}>✦ בלעדי</span>}
         </div>
         {/* Category badge — bottom left over scrim */}
         <div style={{ position:'absolute', bottom:12, left:10, display:'flex', gap:5, zIndex:3 }}>
-          <span style={{ background:C.purple, color:'#fff', borderRadius:5, padding:'4px 10px', fontSize:10, fontWeight:700, letterSpacing:'.03em', backdropFilter:'blur(6px)' }}>{cat.label}</span>
-          {prop.type && <span style={{ background:'rgba(0,0,0,.62)', backdropFilter:'blur(8px)', color:'rgba(255,255,255,.88)', borderRadius:5, padding:'4px 10px', fontSize:10, fontWeight:600 }}>{prop.type}</span>}
+          <span style={{ background:C.purple, color:'#fff', borderRadius:5, padding:'4px 10px', fontSize:10, fontWeight:700, letterSpacing:'.03em' }}>{cat.label}</span>
+          {prop.type && <span style={{ background:'rgba(0,0,0,0.72)', color:'rgba(255,255,255,.88)', borderRadius:5, padding:'4px 10px', fontSize:10, fontWeight:600 }}>{prop.type}</span>}
         </div>
       </div>
 
@@ -4794,6 +5014,7 @@ function PropertyCard({ prop, onContact, onSelect }) {
           <div>
             <div className="prop-card-price" style={{ color:C.cream }}>{fmt(prop.price)}</div>
             {prop.priceNegotiable && <div style={{ fontSize:9, color:C.green, fontWeight:700, marginTop:2, letterSpacing:'.04em' }}>✓ מחיר גמיש</div>}
+            {!!ppsqm && !prop.priceNegotiable && <div style={{ fontSize:10, color:`${C.cream}55`, marginTop:2, fontWeight:600 }}>₪{ppsqm.toLocaleString('he-IL')} {tt.perSqm}</div>}
           </div>
           <button
             onClick={e => { e.stopPropagation(); onSelect(prop) }}
@@ -4950,11 +5171,18 @@ function NavAurora({ active }) {
 }
 
 // ─── APP ──────────────────────────────────────────────────────────────────────
+// A direct visit to /admin-panel(/<tab>) or /dashboard opens the full-screen admin dashboard
+// (sidebar layout). Decided once at load: the dashboard rewrites the URL as tabs change, so
+// re-checking the path on every render would drop back to the site.
+const DASHBOARD_MODE = typeof window !== 'undefined' && /^\/(dashboard|admin-panel)(\/|$)/.test(window.location.pathname)
+
 export default function App() {
   const [isDark,       setIsDark]       = useState(true)
   const C      = isDark ? DARK_C : LIGHT_C
   const GLOBAL = useMemo(() => makeGlobal(C, isDark), [isDark])
   const toggleTheme = useCallback(() => setIsDark(d => !d), [])
+  // Admin has its own appearance (dark / light / system), saved separately from the public site's theme
+  const adminTheme = useAdminTheme()
 
   const [isMobile,     setIsMobile]     = useState(() => window.innerWidth < 768)
   const carouselRef = useRef(null)
@@ -4963,7 +5191,14 @@ export default function App() {
   const [properties,   setProperties]   = useState([])
   const [filterCat,    setFilterCat]    = useState('all')
   const [filterType,   setFilterType]   = useState('')
-  const [propPage,     setPropPage]     = useState(0)
+  const [filterCity,   setFilterCity]   = useState('')
+  const [filterMaxPrice, setFilterMaxPrice] = useState(0)
+  const [filterRooms,  setFilterRooms]  = useState(0)
+  const [filterFavs,   setFilterFavs]   = useState(false)
+  const [propSort,     setPropSort]     = useState('recommended')
+  const favIds = useFavs()
+  const [propPage,     setPropPage]     = useState(0)   // batches revealed in the property list (999 = all)
+  const [mobileList,   setMobileList]   = useState(false) // mobile: swipe carousel (false) or vertical list (true)
   const [filterRegion, setFilterRegion] = useState('')
   const [selectedProp, setSelectedProp] = useState(null)
   const [showAdmin,    setShowAdmin]    = useState(false)
@@ -4979,9 +5214,11 @@ export default function App() {
   const [showCalc,     setShowCalc]     = useState(false)
   const [showPrivacy,  setShowPrivacy]  = useState(false)
   const [statsVisible, setStatsVisible] = useState(false)
-  const [activeNav,    setActiveNav]    = useState('home')
+  const activeNavRef = useRef('home')   // the section on screen — kept out of state so scrolling never re-renders the page
   const [mobileOpen,   setMobileOpen]   = useState(false)
-  const [lang,         setLang]         = useState('he')
+  // Language: ?lang=en (links from the English content pages) → remembered choice → Hebrew
+  const [lang,         setLang]         = useState(() => { try { const q = new URLSearchParams(window.location.search).get('lang'); if (q === 'en' || q === 'he') return q; return localStorage.getItem('afik_lang') === 'en' ? 'en' : 'he' } catch { return 'he' } })
+  useEffect(() => { try { localStorage.setItem('afik_lang', lang) } catch {} }, [lang])
   const [stats,        setStats]        = useState(DEFAULT_STATS)
   const [sharon,       setSharon]       = useState(DEFAULT_SHARON)
   const [govmapToken,  setGovmapToken]  = useState(() => {
@@ -4993,18 +5230,20 @@ export default function App() {
   })
   const [logoNavSize,  setLogoNavSizeRaw] = useState(() => Number(localStorage.getItem('logoNavSize')) || 70)
   const setLogoNavSize = (v) => { const n = Math.max(20, Math.min(200, Number(v))); localStorage.setItem('logoNavSize', n); setLogoNavSizeRaw(n) }
+  const adminThemeValue = { C: adminTheme.isDark ? ADMIN_DARK_C : ADMIN_LIGHT_C, isDark: adminTheme.isDark, toggleTheme: adminTheme.toggle, lang, setLang, logoNavSize, setLogoNavSize }
+  // A stable context value: consumers (every property card…) re-render only when the theme or language changes
+  const siteThemeValue = useMemo(() => ({ C, isDark, toggleTheme, lang, setLang }), [C, isDark, toggleTheme, lang])
 
   // Always persist govmapToken — guards against the standalone mode missing the wrapper
   useEffect(() => { localStorage.setItem('govmap_token', govmapToken) }, [govmapToken])
 
   // UI/UX Pro Max: parallax scroll
-  const [scrollY,      setScrollY]      = useState(0)
+  const parallaxRefs = useRef([])   // hero blobs, moved directly on scroll (no React re-render)
 
   const statsRef      = useRef(null)
   const loaded        = useRef(false)
   const propsLoaded   = useRef(false)  // guard: don't bulk-sync before initial load
   const typewriterTexts = lang === 'en' ? TYPEWRITER_EN : TYPEWRITER_HE
-  const typewriter = useTypewriter(typewriterTexts)
 
   // ── Team token check ──
   useTeamToken()
@@ -5033,8 +5272,9 @@ export default function App() {
     return () => window.removeEventListener('resize', handler)
   }, [])
 
-  // ── /admin-panel URL routing ──
+  // ── /admin-panel URL routing (the modal over the site; a direct visit opens the full dashboard) ──
   useEffect(() => {
+    if (DASHBOARD_MODE) return
     if (window.location.pathname.startsWith('/admin-panel')) {
       const alreadyAuth = sessionStorage.getItem('afik_admin_session') === '1'
       if (alreadyAuth) setShowAdmin(true)
@@ -5048,6 +5288,7 @@ export default function App() {
   }, []) // eslint-disable-line
 
   useEffect(() => {
+    if (DASHBOARD_MODE) return
     if (showAdmin && adminAuth) {
       if (!window.location.pathname.startsWith('/admin-panel')) history.replaceState({}, '', '/admin-panel')
     } else {
@@ -5068,10 +5309,13 @@ export default function App() {
     } catch {}
     loaded.current = true
 
-    // 2. Fetch latest stats + govmap token from API
+    // 2. Fetch latest stats + govmap token. Visitors read them through Vercel's edge cache (/api/stats,
+    //    10 min); only an admin session goes to Render — Render's free tier has a 5 GB/month bandwidth cap,
+    //    so the public site must never call it directly.
     {
       const base = API_BASE || ''
-      fetch(`${base}/api/stats`)
+      const adminSession = (() => { try { return sessionStorage.getItem('afik_admin_session') === '1' } catch { return false } })()
+      fetch(adminSession && base ? `${base}/api/stats` : '/api/stats')
         .then(r => r.ok ? r.json() : Promise.reject())
         .then(data => {
           if (data.stats?.length)  setStats(data.stats)
@@ -5079,8 +5323,9 @@ export default function App() {
           if (data.govmapToken)    { setGovmapToken(data.govmapToken); localStorage.setItem('govmap_token', data.govmapToken) }
         })
         .catch(() => {})
-      // Also load admin cloud settings (WA, CRM webhook, map defaults)
-      fetch(`${base}/api/settings`, { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` } })
+      // Admin cloud settings (WA, CRM webhook, map defaults): admin sessions only. Visitors don't need
+      // them — the CRM webhook for a new lead is sent by /api/contacts on the server.
+      if (adminSession && base) fetch(`${base}/api/settings`, { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` } })
         .then(r => r.ok ? r.json() : Promise.reject())
         .then(cfg => { _cloudSettings = cfg })
         .catch(() => {})
@@ -5089,12 +5334,30 @@ export default function App() {
     // 3. Fetch properties — show localStorage cache IMMEDIATELY, then silently update from API
     {
       // Paint cached properties on frame-0 — zero network latency
+      let hadCache = false
       try {
         const d = JSON.parse(localStorage.getItem('afik_data') || '{}')
-        if (d.properties?.length) { setProperties(d.properties); propsLoaded.current = true }
+        if (d.properties?.length) { setProperties(d.properties); propsLoaded.current = true; hadCache = true }
       } catch {}
 
       const isAdminSession = sessionStorage.getItem('afik_admin_session') === '1'
+      // First visit (e.g. someone opening a shared link): paint the grid from the list published with the
+      // last deploy — a static file on the CDN, requested by index.html before the bundle even loaded —
+      // instead of skeleton cards while the live API (and a possibly sleeping Render) answers.
+      let apiArrived = false
+      let early = Promise.resolve(null)
+      if (!hadCache && !isAdminSession) {
+        // On a shared-property landing page nothing else should compete with the photo: the list comes when idle
+        const later = () => new Promise(res => ('requestIdleCallback' in window ? requestIdleCallback(res, { timeout: 2500 }) : setTimeout(res, 1500)))
+        early = window.__afikList || (window.__afikLanding ? later() : Promise.resolve()).then(() => fetch('/properties.json', { headers: { Accept: 'application/json' } }).then(r => (r.ok ? r.json() : null)).catch(() => null))
+        early.then(list => {
+          if (apiArrived || !Array.isArray(list) || !list.length) return
+          setProperties(prev => {
+            const ids = new Set(list.map(p => String(p.id)))
+            return [...list, ...prev.filter(p => !ids.has(String(p.id)))]   // keep a shared property already added
+          })
+        })
+      }
       const headers = isAdminSession ? { Authorization: `Bearer ${ADMIN_TOKEN}` } : {}
       // Public read goes through Vercel's CDN-cached /api/properties (instant, no
       // Render cold-start). Admins read straight from Render: always fresh, and the
@@ -5103,8 +5366,10 @@ export default function App() {
         .then(r => r.ok ? r.json() : Promise.reject(r.status))
         .then(data => {
           if (Array.isArray(data) && data.length > 0) {
+            apiArrived = true
+            if (isAdminSession) pushSnapshot(data, ADMIN_TOKEN)   // keeps the public snapshot current (see src/siteRebuild.js)
             setProperties(prev => {
-              if (!prev.length) return data  // no local cache: trust server
+              if (!prev.length || !hadCache) return data  // no local cache (maybe the static list): trust server
               if (data.length < prev.length) return prev  // server lost data (restart): keep local
               // Server has same/more: server list is authoritative for IDs, merge per-property
               const localById = new Map(prev.map(p => [String(p.id), p]))
@@ -5118,7 +5383,12 @@ export default function App() {
           }
           propsLoaded.current = true
         })
-        .catch(() => { propsLoaded.current = true })
+        .catch(() => {
+          propsLoaded.current = true
+          // Render down: the admin's own copy keeps the public site alive; a visitor with nothing to show is told so
+          if (isAdminSession) { try { const d = JSON.parse(localStorage.getItem('afik_data') || '{}'); if (d.properties?.length) pushSnapshot(d.properties, ADMIN_TOKEN) } catch {} }
+          else if (!hadCache) early.then(list => { if (!Array.isArray(list) || !list.length) setListUnavailable(true) })
+        })
     }
   }, [])
 
@@ -5223,10 +5493,21 @@ export default function App() {
   }, [lang])
 
   // ── UI/UX Pro Max: parallax scroll listener ──
+  // Moves the hero blobs straight through their style, once per frame and only while the hero is on
+  // screen. (It used to be React state updated on every scroll event, which re-rendered the whole page —
+  // every property card included — on each scroll frame: that was the scrolling jank.)
   useEffect(() => {
-    const onScroll = () => setScrollY(window.scrollY)
+    const SPEEDS = [0.22, -0.18, 0.12]
+    let raf = 0
+    const apply = () => {
+      raf = 0
+      const y = window.scrollY
+      if (y > window.innerHeight * 1.5) return
+      parallaxRefs.current.forEach((el, i) => { if (el) el.style.transform = `translate3d(0,${Math.round(y * SPEEDS[i])}px,0)` })
+    }
+    const onScroll = () => { if (!raf) raf = requestAnimationFrame(apply) }
     window.addEventListener('scroll', onScroll, { passive:true })
-    return () => window.removeEventListener('scroll', onScroll)
+    return () => { window.removeEventListener('scroll', onScroll); cancelAnimationFrame(raf) }
   }, [])
 
   // ── Stats intersection ──
@@ -5239,7 +5520,12 @@ export default function App() {
   // ── Active nav tracking ──
   useEffect(() => {
     const obs = new IntersectionObserver(
-      entries => entries.forEach(e => { if (e.isIntersecting) setActiveNav(e.target.id) }),
+      entries => entries.forEach(e => {
+        if (!e.isIntersecting) return
+        activeNavRef.current = e.target.id
+        // the menu panel (if it's open) follows directly on its buttons
+        document.querySelectorAll('.nav-panel-item[data-nav]').forEach(b => b.classList.toggle('active', b.dataset.nav === e.target.id))
+      }),
       { threshold:0.25, rootMargin:'-68px 0px 0px 0px' }
     )
     NAV_LINKS.forEach(({ id }) => { const el = document.getElementById(id); if (el) obs.observe(el) })
@@ -5263,11 +5549,24 @@ export default function App() {
     return () => window.removeEventListener('popstate', scrollHash)
   }, [])
 
-  const filtered = properties.filter(p =>
+  const priceNum = p => Number(String(p?.price || '').replace(/[^\d]/g, '')) || 0
+  const filteredBase = sortByOrder(properties).filter(p =>
     p.published !== false &&
     (filterCat === 'all' || p.category === filterCat) &&
-    (!filterType   || p.type   === filterType)
+    (!filterType   || p.type   === filterType) &&
+    (!filterCity   || (p.location || '').trim() === filterCity) &&
+    (!filterMaxPrice || (priceNum(p) > 0 && priceNum(p) <= filterMaxPrice)) &&
+    (!filterRooms  || Number(p.rooms) >= filterRooms) &&
+    (!filterFavs   || favIds.has(String(p.id)))
   )
+  const filtered = propSort === 'newest' ? [...filteredBase].sort((a, b) => (Date.parse(b.createdAt || '') || 0) - (Date.parse(a.createdAt || '') || 0))
+    : propSort === 'priceAsc'  ? [...filteredBase].sort((a, b) => (priceNum(a) || Infinity) - (priceNum(b) || Infinity))
+    : propSort === 'priceDesc' ? [...filteredBase].sort((a, b) => priceNum(b) - priceNum(a))
+    : filteredBase
+  // City chips come from the live portfolio (top 8 cities by count)
+  const cityOptions = Object.entries(properties.filter(p => p.published !== false && p.location).reduce((m, p) => { const k = p.location.trim(); m[k] = (m[k] || 0) + 1; return m }, {})).sort((a, b) => b[1] - a[1]).slice(0, 8)
+  const hasSmartFilters = !!(filterCity || filterMaxPrice || filterRooms || filterFavs || propSort !== 'recommended')
+  const clearSmartFilters = () => { setFilterCity(''); setFilterMaxPrice(0); setFilterRooms(0); setFilterFavs(false); setPropSort('recommended'); setPropPage(0) }
   const scrollTo    = id => {
     const el = document.getElementById(id)
     if (el) {
@@ -5277,8 +5576,88 @@ export default function App() {
     setMobileOpen(false)
   }
   const openContact = (p=null) => { setContactProp(p); setShowContact(true) }
+  // Shareable links: /?p=<id> opens that property once the portfolio has loaded
+  const deepLinkDone = useRef(false)
+  useEffect(() => {
+    if (deepLinkDone.current || !properties.length) return
+    let id = null
+    try { id = new URLSearchParams(window.location.search).get('p') } catch {}
+    if (!id) { deepLinkDone.current = true; return }
+    const hit = properties.find(x => String(x.id) === String(id) && x.published !== false)
+    if (hit) { deepLinkDone.current = true; setSharedLoading(false); setSelectedProp(hit); trackEvent('property_view', { title: hit.title, id: hit.id, category: hit.category, location: hit.location, via: 'link' }) }
+  }, [properties])
+
+  // An open property window follows the freshest data: it may have opened from the deploy-time list
+  // or the single-property fetch, and the live list (e.g. a price updated since) replaces it here.
+  useEffect(() => {
+    if (!selectedProp) return
+    const fresh = properties.find(p => String(p.id) === String(selectedProp.id))
+    if (fresh && fresh !== selectedProp) setSelectedProp(fresh)
+  }, [properties])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Shared link (/?p=<id>): open the property the moment THAT ONE property arrives — index.html
+  // started the request before the bundle even loaded — instead of waiting for the whole list.
+  const [listUnavailable, setListUnavailable] = useState(false)   // the live list failed and there is nothing cached to show
+  const [sharedLoading, setSharedLoading] = useState(() => { try { return !!new URLSearchParams(window.location.search).get('p') && !DASHBOARD_MODE } catch { return false } })
+  useEffect(() => {
+    let id = null
+    try { id = new URLSearchParams(window.location.search).get('p') } catch {}
+    if (!id || DASHBOARD_MODE) return
+    const early = window.__afikShared && String(window.__afikShared.id) === String(id) ? window.__afikShared.promise : null
+    const pending = early || fetch(`/api/properties?one=${encodeURIComponent(id)}`, { headers: { Accept: 'application/json' } }).then(r => (r.ok ? r.json() : null)).catch(() => null)
+    let alive = true
+    pending.then(p => {
+      if (!alive) return
+      if (p && p.id != null && p.published !== false && !deepLinkDone.current) {
+        deepLinkDone.current = true
+        setProperties(prev => (prev.some(x => String(x.id) === String(p.id)) ? prev : [...prev, p]))
+        setSelectedProp(p)
+        trackEvent('property_view', { title: p.title, id: p.id, category: p.category, location: p.location, via: 'link' })
+      }
+      setSharedLoading(false)
+    })
+    // Instant landing page (/p/<id>): it embedded the property as of the last deploy and is re-checking
+    // it live in the background — take the live copy as soon as it's in
+    if (early && early.fresh) early.fresh.then(fp => {
+      if (!alive || !fp || String(fp.id) !== String(id)) return
+      setProperties(prev => (prev.some(x => String(x.id) === String(fp.id)) ? prev.map(x => (String(x.id) === String(fp.id) ? { ...x, ...fp } : x)) : [...prev, fp]))
+    })
+    const t = setTimeout(() => setSharedLoading(false), 10000)   // never block the site on it
+    return () => { alive = false; clearTimeout(t) }
+  }, [])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Homepage static first screen (lib/home-page.js, written into index.html at deploy time): the hero and the
+  // property grid painted from the HTML alone. Once this app has rendered the same screen underneath, fade it out;
+  // a reader who had already scrolled down to its property grid lands on the real grid.
+  useEffect(() => {
+    const pre = document.getElementById('afik-pre-home')
+    if (!pre) return
+    if (!document.documentElement.hasAttribute('data-pre-home')) { pre.remove(); return }   // not the homepage: drop the hidden markup
+    let t
+    const raf = requestAnimationFrame(() => requestAnimationFrame(() => {
+      const scrolledToGrid = pre.scrollTop > window.innerHeight * 0.6
+      pre.classList.add('out')
+      if (scrolledToGrid) document.getElementById('properties')?.scrollIntoView({ block: 'start' })
+      t = setTimeout(() => { pre.remove(); document.documentElement.removeAttribute('data-pre-home') }, 350)
+    }))
+    return () => { cancelAnimationFrame(raf); clearTimeout(t) }
+  }, [])
+
+  // Instant landing page (/p/<id>, lib/share-page.js renderLanding): its plain-HTML view of the property
+  // covers the screen until the app has opened the same property (or has nothing to open), then fades out
+  useEffect(() => {
+    const pre = document.getElementById('afik-pre')
+    if (!pre || (!selectedProp && sharedLoading)) return
+    let t
+    const raf = requestAnimationFrame(() => requestAnimationFrame(() => { pre.classList.add('out'); t = setTimeout(() => pre.remove(), 320) }))
+    return () => { cancelAnimationFrame(raf); clearTimeout(t) }
+  }, [selectedProp, sharedLoading])
+  const setPropInUrl = (p) => {
+    try { const u = new URL(window.location.href); if (p) u.searchParams.set('p', p.id); else u.searchParams.delete('p'); window.history.replaceState(null, '', u.pathname + (u.search || '') + (u.hash || '')) } catch {}
+  }
   const openProperty = (p) => {
     setSelectedProp(p)
+    setPropInUrl(p)
     if (p) {
       // NOTE: do NOT scroll the page here. The property modal is position:fixed and
       // covers the screen, so scrolling the page to the top is pointless — and it
@@ -5287,12 +5666,14 @@ export default function App() {
       trackEvent('property_view', { title: p.title, id: p.id, category: p.category, location: p.location })
     }
   }
+  // Same identity on every render, so the memoized cards and sections don't re-render with the page
+  const openContactStable  = useStableFn(openContact)
+  const openPropertyStable = useStableFn(openProperty)
 
   // ── Standalone dashboard at /dashboard ──────────────────────────────────────
-  const isDashboard = window.location.pathname.replace(/\/$/, '') === '/dashboard'
-  if (isDashboard) {
+  if (DASHBOARD_MODE) {
     return (
-      <ThemeCtx.Provider value={{ C, isDark, toggleTheme, lang, setLang, logoNavSize, setLogoNavSize }}>
+      <ThemeCtx.Provider value={adminThemeValue}>
         <>
           <style>{GLOBAL}</style>
           {!adminAuth && (
@@ -5335,7 +5716,7 @@ export default function App() {
   }
 
   return (
-    <ThemeCtx.Provider value={{ C, isDark, toggleTheme, lang, setLang }}>
+    <ThemeCtx.Provider value={siteThemeValue}>
     <>
       <style>{GLOBAL}</style>
 
@@ -5348,7 +5729,6 @@ export default function App() {
         background: isDark
           ? 'linear-gradient(90deg, rgba(6,5,14,.98) 0%, rgba(10,8,22,.97) 50%, rgba(6,5,14,.98) 100%)'
           : 'linear-gradient(90deg, rgba(245,241,233,.98) 0%, rgba(253,252,248,.97) 50%, rgba(245,241,233,.98) 100%)',
-        backdropFilter:'blur(32px) saturate(200%)',
         borderBottom:`1px solid ${C.purple}18`,
         display:'flex', alignItems:'center', justifyContent:'space-between',
         padding:'0 32px',
@@ -5444,11 +5824,19 @@ export default function App() {
               <div className="nav-panel-links">
                 {NAV_LINKS.map(({ id }) => (
                   <button key={id}
-                    className={`nav-panel-item${activeNav===id?' active':''}`}
+                    data-nav={id}
+                    className={`nav-panel-item${activeNavRef.current===id?' active':''}`}
                     onClick={() => scrollTo(id)}>
                     {TR[lang]?.nav?.[id] || id}
                     <span className="nav-item-bar"/>
                   </button>
+                ))}
+                <div role="separator" style={{ height:1, background:'rgba(132,144,216,.18)', margin:'8px 12px' }}/>
+                {HUB_LINKS.map(([hub, key]) => (
+                  <a key={hub} className="nav-panel-item" href={hubHref(lang, hub)} style={{ textDecoration:'none' }}>
+                    {TR[lang]?.[key] || hub}
+                    <span className="nav-item-bar"/>
+                  </a>
                 ))}
               </div>
               <a href="tel:0559811814" className="nav-panel-phone" style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}><FaPhone size={12}/> 055-981-1814</a>
@@ -5461,13 +5849,13 @@ export default function App() {
       <section id="home" role="main" tabIndex={-1} aria-label="תוכן ראשי" style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', padding:'90px 24px 72px', scrollMarginTop:80, position:'relative', overflow:'hidden', textAlign:'center', zIndex:1 }}>
 
         {/* UI/UX Pro Max: Parallax blobs — outer div moves with scroll, inner animates */}
-        <div style={{ position:'absolute', top:'20%', right:'-8%', pointerEvents:'none', transform:`translateY(${scrollY * 0.22}px)`, willChange:'transform' }}>
+        <div style={{ position:'absolute', top:'20%', right:'-8%', pointerEvents:'none', transform:'translate3d(0,0,0)', willChange:'transform' }} ref={el => { parallaxRefs.current[0] = el }}>
           <div style={{ width:620, height:620, background:`radial-gradient(circle,${C.purple}1A,transparent 70%)`, animation:'blob1 9s ease infinite', willChange:'transform' }}/>
         </div>
-        <div style={{ position:'absolute', bottom:'10%', left:'-8%', pointerEvents:'none', transform:`translateY(${scrollY * -0.18}px)`, willChange:'transform' }}>
+        <div style={{ position:'absolute', bottom:'10%', left:'-8%', pointerEvents:'none', transform:'translate3d(0,0,0)', willChange:'transform' }} ref={el => { parallaxRefs.current[1] = el }}>
           <div style={{ width:520, height:520, background:`radial-gradient(circle,${C.green}14,transparent 70%)`, animation:'blob2 11s ease infinite', willChange:'transform' }}/>
         </div>
-        <div style={{ position:'absolute', top:'60%', left:'40%', pointerEvents:'none', transform:`translateY(${scrollY * 0.12}px)`, willChange:'transform' }}>
+        <div style={{ position:'absolute', top:'60%', left:'40%', pointerEvents:'none', transform:'translate3d(0,0,0)', willChange:'transform' }} ref={el => { parallaxRefs.current[2] = el }}>
           <div style={{ width:420, height:420, background:`radial-gradient(circle,${C.purple}09,transparent 70%)`, animation:'blob3 14s ease infinite', willChange:'transform' }}/>
         </div>
 
@@ -5488,7 +5876,7 @@ export default function App() {
 
           <h1 className="hero-title">{TR[lang]?.heroH1line1}<br/>{TR[lang]?.heroH1line2}</h1>
           <div className="fade-up-2" style={{ fontSize:'clamp(18px,3vw,26px)', fontWeight:600, color:C.green, marginBottom:20, minHeight:40, letterSpacing:'.3px' }}>
-            {typewriter}<span style={{ borderRight:`2px solid ${C.green}`, marginRight:2, animation:'pulse 1s ease infinite' }}>&nbsp;</span>
+            <Typewriter texts={typewriterTexts}/><span style={{ borderRight:`2px solid ${C.green}`, marginRight:2, animation:'pulse 1s ease infinite' }}>&nbsp;</span>
           </div>
           <p className="fade-up-3" style={{ fontSize:'clamp(14px,2vw,18px)', color:C.cream+'BB', lineHeight:1.9, marginBottom:40, maxWidth:660, margin:'0 auto 40px' }}>
             {TR[lang]?.heroDesc}
@@ -5538,13 +5926,13 @@ export default function App() {
       <CEOSection/>
 
       {/* ── STORY ───────────────────────────────────── */}
-      <StorySection onContact={openContact} sharonData={sharon}/>
+      <StorySection onContact={openContactStable} sharonData={sharon}/>
 
       {/* ── PROCESS ─────────────────────────────────── */}
       <ProcessSection/>
 
       {/* ── SERVICES ────────────────────────────────── */}
-      <ServicesSection onContact={openContact}/>
+      <ServicesSection onContact={openContactStable}/>
 
       {/* ── PROPERTIES ──────────────────────────────── */}
       <section id="properties" style={{ padding:'48px 24px', scrollMarginTop:80, position:'relative', zIndex:1 }}>
@@ -5565,7 +5953,7 @@ export default function App() {
               <div style={{ display:'inline-flex', alignItems:'center', gap:8, marginTop:16, background:`${C.purple}14`, border:`1px solid ${C.purple}30`, borderRadius:20, padding:'6px 16px' }}>
                 <span style={{ width:7, height:7, borderRadius:'50%', background:C.green, display:'inline-block', boxShadow:`0 0 8px ${C.green}` }}/>
                 <span style={{ fontSize:13, color:`${C.cream}BB`, fontWeight:600 }}>
-                  {properties.filter(p=>p.published).length} נכסים זמינים
+                  {fmtT(TR[lang]?.availableCount, { n: properties.filter(p=>p.published).length })}
                 </span>
               </div>
             )}
@@ -5586,29 +5974,69 @@ export default function App() {
             })}
           </div>
 
-          {/* Filters row */}
-          {properties.length > 0 && (
-            <div style={{ display:'flex', flexDirection:'column', gap:12, marginBottom:32, alignItems:'center' }}>
-              {/* Type filter dropdown — shown when a category is selected */}
-              {filterCat !== 'all' && (() => {
-                const catTypes = (CATEGORIES_DATA[lang] || CATEGORIES_DATA.he).find(c => c.id === filterCat)?.types || []
-                if (!catTypes.length) return null
-                return (
-                  <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-                    <span style={{ fontSize:11, color:`${C.cream}50`, fontWeight:600, letterSpacing:'.06em', textTransform:'uppercase' }}>{TR[lang]?.typeFilter}</span>
-                    <div style={{ position:'relative' }}>
-                      <select value={filterType} onChange={e => { setFilterType(e.target.value); setPropPage(0) }}
-                        style={{ padding:'8px 36px 8px 16px', background:C.card, border:`1.5px solid ${filterType ? C.purple : 'rgba(132,144,216,.3)'}`, borderRadius:8, color:filterType ? C.purple : `${C.cream}88`, fontSize:12, fontFamily:'inherit', cursor:'pointer', outline:'none', appearance:'none', WebkitAppearance:'none', direction: lang==='he' ? 'rtl' : 'ltr', fontWeight:filterType?700:400, transition:'border-color .2s' }}>
-                        <option value="">{TR[lang]?.allTypes}</option>
-                        {catTypes.map(t => <option key={t} value={t}>{t}</option>)}
-                      </select>
-                      <FaChevronLeft size={9} style={{ position:'absolute', right:12, top:'50%', transform:'translateY(-50%) rotate(-90deg)', color:`${C.cream}55`, pointerEvents:'none' }}/>
-                    </div>
+          {/* Filters row: type (per category) · city · max price · rooms · favourites · sort */}
+          {properties.length > 0 && (() => {
+            const t = TR[lang] || TR.he
+            const chip = (on, extra = {}) => ({ padding:'7px 13px', borderRadius:20, border:`1.5px solid ${on ? C.purple : 'rgba(132,144,216,.28)'}`, background: on ? `${C.purple}22` : 'transparent', color: on ? C.purple : `${C.cream}88`, fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit', whiteSpace:'nowrap', minWidth:0, minHeight:0, transition:'all .15s', display:'inline-flex', alignItems:'center', gap:6, ...extra })
+            const sel = (on) => ({ padding:'8px 32px 8px 14px', background:C.card, border:`1.5px solid ${on ? C.purple : 'rgba(132,144,216,.3)'}`, borderRadius:20, color: on ? C.purple : `${C.cream}88`, fontSize:12, fontFamily:'inherit', fontWeight:700, cursor:'pointer', outline:'none', appearance:'none', WebkitAppearance:'none', minHeight:0 })
+            const lbl = { fontSize:11, color:`${C.cream}50`, fontWeight:700, letterSpacing:'.06em', textTransform:'uppercase', flexShrink:0 }
+            const catTypes = filterCat !== 'all' ? ((CATEGORIES_DATA[lang] || CATEGORIES_DATA.he).find(c => c.id === filterCat)?.types || []) : []
+            const showRooms = ['all', 'apartments', 'rentals', 'projects'].includes(filterCat)
+            const PRICES = [2000000, 3000000, 4000000, 5000000, 7000000, 10000000, 15000000]
+            const wrap = { position:'relative', display:'inline-flex', alignItems:'center' }
+            const caret = <FaChevronLeft size={9} style={{ position:'absolute', right:12, top:'50%', transform:'translateY(-50%) rotate(-90deg)', color:`${C.cream}55`, pointerEvents:'none' }}/>
+            return (
+              <div className="prop-filters" style={{ display:'flex', flexDirection:'column', gap:12, marginBottom:28, alignItems:'center' }}>
+                {/* City chips */}
+                {cityOptions.length > 1 && (
+                  <div className="prop-filter-row" style={{ display:'flex', gap:6, alignItems:'center', flexWrap:'wrap', justifyContent:'center', maxWidth:'100%' }}>
+                    <span style={lbl}>{t.cityLabel}</span>
+                    <button style={chip(!filterCity)} onClick={() => { setFilterCity(''); setPropPage(0) }}>{t.allCities}</button>
+                    {cityOptions.map(([city, n]) => (
+                      <button key={city} style={chip(filterCity === city)} onClick={() => { setFilterCity(filterCity === city ? '' : city); setPropPage(0) }}>
+                        {city} <span style={{ fontSize:10, opacity:.7 }}>{n}</span>
+                      </button>
+                    ))}
                   </div>
-                )
-              })()}
-            </div>
-          )}
+                )}
+                {/* Type · max price · rooms · favourites · sort */}
+                <div className="prop-filter-row" style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap', justifyContent:'center' }}>
+                  {catTypes.length > 0 && (
+                    <span style={wrap}>
+                      <select value={filterType} onChange={e => { setFilterType(e.target.value); setPropPage(0) }} style={sel(!!filterType)} aria-label={t.typeFilter}>
+                        <option value="">{t.allTypes}</option>
+                        {catTypes.map(x => <option key={x} value={x}>{x}</option>)}
+                      </select>{caret}
+                    </span>
+                  )}
+                  <span style={wrap}>
+                    <select value={filterMaxPrice} onChange={e => { setFilterMaxPrice(Number(e.target.value)); setPropPage(0) }} style={sel(!!filterMaxPrice)} aria-label={t.maxPriceLabel}>
+                      <option value={0}>{t.maxPriceLabel}: {t.anyPrice}</option>
+                      {PRICES.map(v => <option key={v} value={v}>{t.maxPriceLabel}: {v >= 1000000 ? `${v / 1000000}M ₪` : v.toLocaleString()}</option>)}
+                    </select>{caret}
+                  </span>
+                  {showRooms && (
+                    <span style={{ display:'inline-flex', alignItems:'center', gap:4 }}>
+                      <span style={lbl}>{t.roomsLabel}</span>
+                      {[0, 3, 4, 5].map(r => <button key={r} style={chip(filterRooms === r, { padding:'7px 11px' })} onClick={() => { setFilterRooms(r); setPropPage(0) }}>{r ? `${r}+` : t.roomsAny}</button>)}
+                    </span>
+                  )}
+                  <button style={chip(filterFavs, { color: filterFavs ? '#FF5A6E' : undefined, borderColor: filterFavs ? 'rgba(255,90,110,.6)' : undefined, background: filterFavs ? 'rgba(255,90,110,.14)' : undefined })} onClick={() => { setFilterFavs(v => !v); setPropPage(0) }} aria-pressed={filterFavs}>
+                    <FaHeart size={11} style={{ color: favIds.size ? '#FF5A6E' : undefined }}/> {t.favorites}{favIds.size ? ` (${favIds.size})` : ''}
+                  </button>
+                  <span style={wrap}>
+                    <select value={propSort} onChange={e => { setPropSort(e.target.value); setPropPage(0) }} style={sel(propSort !== 'recommended')} aria-label={t.sortLabel}>
+                      <option value="recommended">{t.sortLabel}: {t.sortRecommended}</option>
+                      <option value="newest">{t.sortLabel}: {t.sortNewest}</option>
+                      <option value="priceAsc">{t.sortLabel}: {t.sortPriceAsc}</option>
+                      <option value="priceDesc">{t.sortLabel}: {t.sortPriceDesc}</option>
+                    </select>{caret}
+                  </span>
+                  {hasSmartFilters && <button style={chip(false, { color:`${C.cream}70`, borderStyle:'dashed' })} onClick={clearSmartFilters}>✕ {t.clearFilters}</button>}
+                </div>
+              </div>
+            )
+          })()}
 
           {/* Grid / Carousel / Empty state */}
           {properties.length === 0 ? (
@@ -5655,104 +6083,107 @@ export default function App() {
           ) : (
             <>
               {filtered.length > 0 ? (
-                isMobile ? (
-                  /* ── Mobile swipe carousel ── */
-                  <>
-                    {/* Nav arrows row — left=prev(right in RTL) right=next(left in RTL) */}
-                    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12, paddingInline:4 }}>
-                      {/* ‹ LEFT arrow → navigate LEFT → next card in RTL (idx+1) */}
-                      <button
-                        onClick={() => {
-                          const newIdx = (carouselIdx + 1) % filtered.length
-                          setCarouselIdx(newIdx)
-                          if (carouselRef.current) {
-                            const cardW = carouselRef.current.scrollWidth / filtered.length
-                            carouselRef.current.scrollTo({ left: newIdx * cardW, behavior:'smooth' })
-                          }
-                        }}
-                        style={{ width:40, height:40, borderRadius:'50%', border:`1.5px solid ${C.purple}66`, background:`${C.purple}14`, color:C.purple, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s' }}>
-                        <FaChevronLeft size={12}/>
-                      </button>
-                      {/* › RIGHT arrow → navigate RIGHT → prev card in RTL (idx-1) */}
-                      <button
-                        onClick={() => {
-                          const newIdx = (carouselIdx - 1 + filtered.length) % filtered.length
-                          setCarouselIdx(newIdx)
-                          if (carouselRef.current) {
-                            const cardW = carouselRef.current.scrollWidth / filtered.length
-                            carouselRef.current.scrollTo({ left: newIdx * cardW, behavior:'smooth' })
-                          }
-                        }}
-                        style={{ width:40, height:40, borderRadius:'50%', border:`1.5px solid ${C.purple}66`, background:`${C.purple}14`, color:C.purple, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s' }}>
-                        <FaChevronRight size={12}/>
-                      </button>
-                    </div>
-                    <div className="prop-carousel" ref={carouselRef}
-                      style={{ display:'flex', gap:16, overflowX:'auto', scrollSnapType:'x mandatory', WebkitOverflowScrolling:'touch', paddingBottom:20, paddingInlineStart:4, paddingInlineEnd:16, marginInlineStart:-4 }}
-                      onScroll={e => {
-                        const el = e.currentTarget
-                        const cardW = el.scrollWidth / filtered.length
-                        setCarouselIdx(Math.round(el.scrollLeft / cardW))
-                      }}>
-                      {filtered.map(p => (
-                        <div key={p.id} style={{ flex:'0 0 88vw', maxWidth:360, scrollSnapAlign:'start' }}>
-                          <PropertyCard prop={p} onContact={openContact} onSelect={openProperty}/>
-                        </div>
-                      ))}
-                    </div>
-                    {/* Compact page counter */}
-                    {filtered.length > 1 && (
-                      <div style={{ display:'flex', justifyContent:'center', marginTop:4, marginBottom:16 }}>
-                        <span style={{ fontSize:11, color:`${C.cream}44`, fontWeight:600, letterSpacing:'.04em' }}>
-                          {carouselIdx + 1} / {filtered.length}
-                        </span>
+(() => {
+                  /* ── Property list: "load more" grid (desktop + mobile list view) or mobile swipe carousel ──
+                     propPage now means "batches revealed": shown = PER_PAGE × (propPage + 1); 999 = everything.
+                     Filter changes already reset propPage to 0. */
+                  const t = TR[lang] || TR.he
+                  const PER_PAGE = isMobile ? 6 : 9
+                  const shown = Math.min(filtered.length, PER_PAGE * (propPage + 1))
+                  const allShown = shown >= filtered.length
+                  const remaining = filtered.length - shown
+                  const jumpTop = () => document.getElementById('properties')?.scrollIntoView({ behavior:'smooth', block:'start' })
+                  const primaryBtn = { display:'inline-flex', alignItems:'center', justifyContent:'center', gap:10, padding:'15px 30px', borderRadius:14, border:'none', background:`linear-gradient(135deg,${C.purple},${C.purple}CC)`, color:'#fff', fontWeight:800, fontSize:15, cursor:'pointer', fontFamily:'inherit', boxShadow:`0 12px 32px ${C.purple}44`, transition:'transform .2s, box-shadow .2s', width: isMobile ? '100%' : 'auto' }
+                  const ghostBtn = { display:'inline-flex', alignItems:'center', justifyContent:'center', gap:8, padding:'13px 22px', borderRadius:14, border:`1.5px solid ${C.purple}66`, background:`${C.purple}14`, color:C.purple, fontWeight:700, fontSize:14, cursor:'pointer', fontFamily:'inherit', transition:'all .2s', width: isMobile ? '100%' : 'auto' }
+                  const countBadge = { background:'rgba(255,255,255,.2)', borderRadius:10, padding:'2px 9px', fontSize:12, fontWeight:800, letterSpacing:'.02em' }
+                  const lift = e => { e.currentTarget.style.transform='translateY(-2px)'; e.currentTarget.style.boxShadow=`0 16px 40px ${C.purple}55` }
+                  const drop = e => { e.currentTarget.style.transform=''; e.currentTarget.style.boxShadow=`0 12px 32px ${C.purple}44` }
+                  const ghostIn = e => { e.currentTarget.style.background=C.purple; e.currentTarget.style.color='#fff' }
+                  const ghostOut = e => { e.currentTarget.style.background=`${C.purple}14`; e.currentTarget.style.color=C.purple }
+
+                  const grid = (
+                    <>
+                      {/* Results bar — always tells the visitor how much there is */}
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:10, flexWrap:'wrap', marginBottom:16 }}>
+                        <span style={{ fontSize:13, fontWeight:600, color:`${C.cream}80` }}>{fmtT(t.showingOf, { shown, total: filtered.length })}</span>
+                        {isMobile
+                          ? <button onClick={() => { setMobileList(false); jumpTop() }} style={{ ...ghostBtn, width:'auto', padding:'8px 14px', fontSize:12 }}>{t.carouselViewProps}</button>
+                          : (!allShown && <button onClick={() => setPropPage(999)} style={{ ...ghostBtn, padding:'8px 14px', fontSize:12 }} onMouseEnter={ghostIn} onMouseLeave={ghostOut}>{fmtT(t.showAllProps, { total: filtered.length })}</button>)}
                       </div>
-                    )}
-                  </>
-                ) : (
-                  /* ── Desktop paginated grid ── */
-                  (() => {
-                    const PER_PAGE = 6
-                    const totalPages = Math.ceil(filtered.length / PER_PAGE)
-                    const safePage = Math.min(propPage, totalPages - 1)
-                    const visible = filtered.slice(safePage * PER_PAGE, safePage * PER_PAGE + PER_PAGE)
-                    return (
-                      <>
-                        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(320px,1fr))', gap:28, marginBottom:28 }}>
-                          {visible.map(p => <PropertyCard key={p.id} prop={p} onContact={openContact} onSelect={openProperty}/>)}
-                        </div>
-                        {totalPages > 1 && (
-                          <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:16, marginBottom:48 }}>
-                            <button
-                              onClick={() => setPropPage(p => Math.max(0, p - 1))}
-                              disabled={safePage === 0}
-                              style={{ width:44, height:44, borderRadius:'50%', border:`1.5px solid ${safePage===0 ? C.purple+'22' : C.purple+'66'}`, background:safePage===0?'transparent':`${C.purple}14`, color:safePage===0?`${C.cream}30`:C.purple, cursor:safePage===0?'default':'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s' }}
-                              onMouseEnter={e=>{ if(safePage>0){ e.currentTarget.style.background=C.purple; e.currentTarget.style.color='#fff' }}}
-                              onMouseLeave={e=>{ e.currentTarget.style.background=safePage===0?'transparent':`${C.purple}14`; e.currentTarget.style.color=safePage===0?`${C.cream}30`:C.purple }}>
-                              <FaChevronRight size={13}/>
-                            </button>
-                            <div style={{ display:'flex', gap:6 }}>
-                              {Array.from({length:totalPages},(_,i) => (
-                                <button key={i} onClick={() => setPropPage(i)}
-                                  style={{ width:i===safePage?28:8, height:8, borderRadius:4, border:'none', background:i===safePage?C.purple:`${C.purple}33`, cursor:'pointer', padding:0, transition:'all .25s' }}/>
-                              ))}
-                            </div>
-                            <button
-                              onClick={() => setPropPage(p => Math.min(totalPages - 1, p + 1))}
-                              disabled={safePage === totalPages - 1}
-                              style={{ width:44, height:44, borderRadius:'50%', border:`1.5px solid ${safePage===totalPages-1 ? C.purple+'22' : C.purple+'66'}`, background:safePage===totalPages-1?'transparent':`${C.purple}14`, color:safePage===totalPages-1?`${C.cream}30`:C.purple, cursor:safePage===totalPages-1?'default':'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s' }}
-                              onMouseEnter={e=>{ if(safePage<totalPages-1){ e.currentTarget.style.background=C.purple; e.currentTarget.style.color='#fff' }}}
-                              onMouseLeave={e=>{ e.currentTarget.style.background=safePage===totalPages-1?'transparent':`${C.purple}14`; e.currentTarget.style.color=safePage===totalPages-1?`${C.cream}30`:C.purple }}>
-                              <FaChevronLeft size={13}/>
-                            </button>
+                      <div style={{ display:'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill,minmax(300px,1fr))', gap: isMobile ? 18 : 22, marginBottom:28 }}>
+                        {filtered.slice(0, shown).map(p => <PropertyCard key={p.id} prop={p} onContact={openContactStable} onSelect={openPropertyStable}/>)}
+                      </div>
+                      {filtered.length > PER_PAGE && (
+                        <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:16, marginBottom:48 }}>
+                          <div aria-hidden="true" style={{ width:240, maxWidth:'70%', height:4, borderRadius:2, background:`${C.purple}22`, overflow:'hidden' }}>
+                            <div style={{ width:`${Math.round(shown / filtered.length * 100)}%`, height:'100%', background:`linear-gradient(90deg,${C.purple},${C.green})`, transition:'width .35s' }}/>
                           </div>
-                        )}
-                      </>
-                    )
-                  })()
-                )
+                          {!allShown ? (
+                            <div style={{ display:'flex', gap:12, flexWrap:'wrap', justifyContent:'center', width: isMobile ? '100%' : 'auto' }}>
+                              <button onClick={() => setPropPage(p => p + 1)} style={primaryBtn} onMouseEnter={lift} onMouseLeave={drop}>
+                                {t.loadMoreProps} <span style={countBadge}>+{Math.min(PER_PAGE, remaining)}</span>
+                              </button>
+                              <button onClick={() => setPropPage(999)} style={ghostBtn} onMouseEnter={ghostIn} onMouseLeave={ghostOut}>{fmtT(t.showAllProps, { total: filtered.length })}</button>
+                            </div>
+                          ) : (
+                            <div style={{ display:'flex', alignItems:'center', gap:12, flexWrap:'wrap', justifyContent:'center', fontSize:13, color:`${C.cream}70` }}>
+                              <span>{fmtT(t.allPropsShown, { total: filtered.length })}</span>
+                              <button onClick={() => { setPropPage(0); jumpTop() }} style={{ ...ghostBtn, width:'auto', padding:'8px 14px', fontSize:12 }} onMouseEnter={ghostIn} onMouseLeave={ghostOut}>{t.collapseProps}</button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )
+                  if (!isMobile || mobileList) return grid
+
+                  /* ── Mobile swipe carousel (next card peeks in from the edge) ── */
+                  const goTo = newIdx => {
+                    setCarouselIdx(newIdx)
+                    if (carouselRef.current) { const cardW = carouselRef.current.scrollWidth / filtered.length; carouselRef.current.scrollTo({ left: newIdx * cardW, behavior:'smooth' }) }
+                  }
+                  const arrow = { width:40, height:40, borderRadius:'50%', border:`1.5px solid ${C.purple}66`, background:`${C.purple}14`, color:C.purple, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s', flexShrink:0 }
+                  return (
+                    <>
+                      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12, paddingInline:4, gap:10 }}>
+                        {/* ‹ LEFT arrow → next card in RTL (idx+1) */}
+                        <button aria-label={t.nextProp} onClick={() => goTo((carouselIdx + 1) % filtered.length)} style={arrow}><FaChevronLeft size={12}/></button>
+                        <span style={{ fontSize:13, color:`${C.cream}80`, fontWeight:700, letterSpacing:'.04em' }}>
+                          <span style={{ color:C.purple }}>{carouselIdx + 1}</span> / {filtered.length} · <span style={{ fontWeight:500, color:`${C.cream}55` }}>{t.swipeHint}</span>
+                        </span>
+                        {/* › RIGHT arrow → previous card in RTL (idx-1) */}
+                        <button aria-label={t.prevProp} onClick={() => goTo((carouselIdx - 1 + filtered.length) % filtered.length)} style={arrow}><FaChevronRight size={12}/></button>
+                      </div>
+                      <div className="prop-carousel" ref={carouselRef}
+                        style={{ display:'flex', gap:14, overflowX:'auto', scrollSnapType:'x mandatory', WebkitOverflowScrolling:'touch', paddingBottom:16, paddingInlineStart:4, paddingInlineEnd:16, marginInlineStart:-4 }}
+                        onScroll={e => { const el = e.currentTarget; const cardW = el.scrollWidth / filtered.length; setCarouselIdx(Math.round(el.scrollLeft / cardW)) }}>
+                        {filtered.map(p => (
+                          <div key={p.id} style={{ flex:'0 0 82vw', maxWidth:360, scrollSnapAlign:'start' }}>
+                            <PropertyCard prop={p} onContact={openContactStable} onSelect={openPropertyStable}/>
+                          </div>
+                        ))}
+                      </div>
+                      {/* Progress dots (capped) + the clear way to see everything */}
+                      <div style={{ display:'flex', justifyContent:'center', gap:5, marginBottom:16 }}>
+                        {Array.from({ length: Math.min(filtered.length, 12) }, (_, i) => (
+                          <span key={i} style={{ width: i === Math.min(carouselIdx, 11) ? 22 : 6, height:6, borderRadius:3, background: i === Math.min(carouselIdx, 11) ? C.purple : `${C.purple}33`, transition:'all .25s' }}/>
+                        ))}
+                      </div>
+                      <button onClick={() => { setPropPage(0); setMobileList(true) }} style={{ ...primaryBtn, marginBottom:40 }}>
+                        {fmtT(t.listViewProps, { total: filtered.length })} <FaChevronLeft size={12}/>
+                      </button>
+                    </>
+                  )
+                })()
               ) : (
-                <div style={{ textAlign:'center', padding:'60px 24px', color:`${C.cream}40`, fontSize:15 }}>{TR[lang]?.noProperties}</div>
+                <div style={{ textAlign:'center', padding:'60px 24px', color:`${C.cream}40`, fontSize:15 }}>
+                  {filterFavs && !favIds.size ? TR[lang]?.noFavs : listUnavailable && !properties.length ? (
+                    <>
+                      <div style={{ color:`${C.cream}90`, fontWeight:600 }}>{(TR[lang] || TR.he).propsUnavailable}</div>
+                      <button onClick={() => window.location.reload()} style={{ display:'inline-flex', alignItems:'center', gap:8, margin:'16px auto 0', padding:'11px 22px', borderRadius:12, border:`1px solid ${C.purple}66`, background:`${C.purple}1A`, color:C.cream, fontWeight:700, fontSize:14, cursor:'pointer', fontFamily:'inherit' }}>{(TR[lang] || TR.he).propsRetry}</button>
+                    </>
+                  ) : TR[lang]?.noProperties}
+                </div>
               )}
             </>
           )}
@@ -5786,9 +6217,9 @@ export default function App() {
               </div>
             ))}
           </div>
-          <GlassCard style={{ padding:'32px 28px' }}>
+          <GlassCard className="contact-panel" style={{ padding:'32px 28px' }}>
             <h3 style={{ fontSize:21, fontWeight:800, color:C.cream, marginBottom:22, textAlign:'center', letterSpacing:'-.01em' }}>{TR[lang]?.contactNowBtn}</h3>
-            <div style={{ display:'flex', flexDirection:'column', gap:12, direction:'rtl' }}>
+            <div className="contact-panel-list" style={{ display:'flex', flexDirection:'column', gap:12, direction:'rtl' }}>
 
               {/* טלפון */}
               <a href="tel:0559811814" className="contact-card-row"
@@ -5819,7 +6250,7 @@ export default function App() {
               </a>
 
               {/* אזור פעילות */}
-              <div className="contact-card-row" style={{ display:'flex', flexDirection:'row', alignItems:'center', gap:14, background:`${C.purple}0D`, borderRadius:14, padding:'16px 18px', border:`1.5px solid ${C.purple}1E` }}>
+              <div className="contact-card-row is-info" style={{ display:'flex', flexDirection:'row', alignItems:'center', gap:14, background:`${C.purple}0D`, borderRadius:14, padding:'16px 18px', border:`1.5px solid ${C.purple}1E` }}>
                 <div className="contact-card-icon" style={{ width:46, height:46, borderRadius:'50%', background:`linear-gradient(135deg,${C.purple}30,${C.purple}15)`, border:`1.5px solid ${C.purple}40`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, boxShadow:`0 4px 14px ${C.purple}20` }}>
                   <FaMapMarkerAlt size={18} style={{ color:C.purple }}/>
                 </div>
@@ -5830,7 +6261,7 @@ export default function App() {
               </div>
 
               {/* CTA button */}
-              <button onClick={() => openContact()}
+              <button onClick={() => openContact()} className="contact-card-cta"
                 style={{ width:'100%', marginTop:4, padding:'17px 0', borderRadius:14, border:'none', cursor:'pointer', fontFamily:'Rubik, sans-serif', fontSize:17, fontWeight:800, color:'#fff', background:`linear-gradient(135deg,#8490D8,#6B7BE0)`, boxShadow:`0 6px 28px ${C.purple}55`, letterSpacing:'-.01em', display:'flex', alignItems:'center', justifyContent:'center', gap:8, transition:'all .22s' }}
                 onMouseEnter={e => { e.currentTarget.style.transform='translateY(-2px)'; e.currentTarget.style.boxShadow=`0 12px 40px ${C.purple}70`; e.currentTarget.style.background='linear-gradient(135deg,#9AA4E8,#7B8EF0)' }}
                 onMouseLeave={e => { e.currentTarget.style.transform=''; e.currentTarget.style.boxShadow=`0 6px 28px ${C.purple}55`; e.currentTarget.style.background='linear-gradient(135deg,#8490D8,#6B7BE0)' }}>
@@ -5926,6 +6357,20 @@ export default function App() {
               </div>
             </div>
 
+            {/* ── Col 2b: knowledge hubs (static SEO pages) ── */}
+            <div className="footer-col">
+              <h3 style={{ fontSize:17, fontWeight:700, color:'rgba(232,228,216,.85)', marginBottom:16, letterSpacing:'.02em' }}>{TR[lang]?.knowledge}</h3>
+              <div className="footer-nav-links" style={{ display:'flex', flexDirection:'column', gap:13 }}>
+                {HUB_LINKS.map(([hub, key]) => (
+                  <a key={hub} href={hubHref(lang, hub)} style={{ color:'rgba(232,228,216,.6)', fontSize:15, textDecoration:'none', textAlign: lang==='en' ? 'left' : 'right', transition:'color .2s' }}
+                    onMouseEnter={e => e.currentTarget.style.color=C.purple}
+                    onMouseLeave={e => e.currentTarget.style.color='rgba(232,228,216,.6)'}>
+                    {TR[lang]?.[key] || hub}
+                  </a>
+                ))}
+              </div>
+            </div>
+
             {/* ── Col 3: דברו איתנו + contact ── */}
             <div className="footer-col">
               <h3 style={{ fontSize:30, fontWeight:900, color:'rgba(232,228,216,.95)', marginBottom:22, lineHeight:1.1, letterSpacing:'-.02em' }}>{TR[lang]?.talkToUs}</h3>
@@ -6003,9 +6448,16 @@ export default function App() {
       {/* ── MODALS ──────────────────────────────────── */}
       {showPw      && <PasswordPrompt onSuccess={() => { sessionStorage.setItem('afik_admin_session','1'); setAdminAuth(true); setShowPw(false); setShowAdmin(true) }} onClose={() => setShowPw(false)}/>}
       {showContact && <ContactModal  prop={contactProp} onClose={() => setShowContact(false)}/>}
-      {showCalc    && <Suspense fallback={null}><RealEstateCalc onClose={() => setShowCalc(false)}/></Suspense>}
+      {showCalc    && <Suspense fallback={null}><RealEstateCalc lang={lang} isDark={isDark} onClose={() => setShowCalc(false)}/></Suspense>}
       {showPrivacy && <PrivacyModal onClose={() => setShowPrivacy(false)}/>}
-      {selectedProp && <PropertyModal key={selectedProp.id} prop={selectedProp} properties={properties} onClose={() => setSelectedProp(null)} onContact={p => { openContact(p) }} onSelect={setSelectedProp} govmapToken={govmapToken}/>}
+      {sharedLoading && !selectedProp && (
+        <div role="status" aria-live="polite" style={{ position:'fixed', inset:0, zIndex:9000, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:16, background: isDark ? 'rgba(9,9,15,.94)' : 'rgba(245,241,233,.95)', color:C.cream, fontFamily:'inherit' }}>
+          <style>{`@keyframes afikSpin{to{transform:rotate(360deg)}}`}</style>
+          <div aria-hidden="true" style={{ width:44, height:44, borderRadius:'50%', border:`3px solid ${C.purple}33`, borderTopColor:C.purple, animation:'afikSpin .8s linear infinite' }}/>
+          <div style={{ fontSize:16, fontWeight:600 }}>{TR[lang]?.sharedLoading || TR.he.sharedLoading}</div>
+        </div>
+      )}
+      {selectedProp && <PropertyModal key={selectedProp.id} prop={selectedProp} properties={properties} onClose={() => { setSelectedProp(null); setPropInUrl(null) }} onContact={p => { openContact(p) }} onSelect={p => { setSelectedProp(p); setPropInUrl(p) }} govmapToken={govmapToken}/>}
       {showWizard && <Suspense fallback={null}><PropertyWizard
           key={wizardEditId || wizardKey}
           onClose={() => { setShowWizard(false); setWizardEditData(null); setWizardEditId(null); setWizardIntakeId(null) }}
@@ -6046,14 +6498,15 @@ export default function App() {
             // Save only the affected property — safe, atomic, never touches others
             const base = API_BASE || ''
             if (base && savedProp) {
-              fetch(`${base}/api/properties/${savedProp.id}`, {
+              externalizeInlinePhotos(savedProp, ADMIN_TOKEN).then(cleanProp => fetch(`${base}/api/properties/${savedProp.id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
-                body: JSON.stringify(savedProp),
+                body: JSON.stringify(cleanProp),
                 signal: AbortSignal.timeout(30000),
               }).then(r => r.ok ? r.json() : Promise.reject(r.status))
                 .then(body => {
                   console.log('[wizard] saved prop', savedProp.id, '→', body.storage)
+                  notifyPropertiesChanged(ADMIN_TOKEN)   // snapshot + instant landing pages follow
                   // Re-fetch after confirmed save so UI reflects what the server actually stored
                   return fetch(`${base}/api/properties`, {
                     headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
@@ -6073,11 +6526,12 @@ export default function App() {
                       }
                     })
                 })
-                .catch(e => console.error('[wizard] save error:', e))
+                .catch(e => console.error('[wizard] save error:', e)))
             }
           }}
         /></Suspense>}
       {showAdmin && adminAuth && (
+        <ThemeCtx.Provider value={adminThemeValue}>
         <Suspense fallback={null}>
         <AdminPanel
           properties={properties} setProperties={setProperties}
@@ -6094,6 +6548,7 @@ export default function App() {
           }}
         />
         </Suspense>
+        </ThemeCtx.Provider>
       )}
 
       {/* ── THEME TOGGLE ────────────────────────────── */}
@@ -6110,4 +6565,4 @@ export default function App() {
 }
 
 // Shared with the lazily-loaded admin dashboard (src/AdminPanel.jsx)
-export { TEAM_KEY, LeadsBoard, GreenAPIChat, MetaLeadsTab, SupermetricsTab, PropertyWizard, API_BASE, CONTACTS_API, ADMIN_TOKEN, condFetchJson, DARK_C, useTheme, TEAM, G, Logo, LEADS_STORE, LEADS_DELETED, LEADS_TRASH, ANALYTICS_KEY, META_LEAD_PAGES_KEY, WA_DEFAULT_TEMPLATE, _cloudSettings, CATEGORIES, EMPTY_PROP, CONDITION_OPTIONS, ENTRY_OPTIONS, ADMIN_DRAFT_KEY, toMapsEmbed, imgFallback, thumbImg }
+export { TEAM_KEY, LeadsBoard, GreenAPIChat, MetaLeadsTab, SupermetricsTab, PropertyWizard, API_BASE, CONTACTS_API, ADMIN_TOKEN, condFetchJson, DARK_C, useTheme, TEAM, G, Logo, LEADS_STORE, LEADS_DELETED, LEADS_TRASH, ANALYTICS_KEY, META_LEAD_PAGES_KEY, WA_DEFAULT_TEMPLATE, _cloudSettings, CATEGORIES, EMPTY_PROP, CONDITION_OPTIONS, ENTRY_OPTIONS, ADMIN_DRAFT_KEY, toMapsEmbed, imgFallback, thumbImg, sortByOrder }

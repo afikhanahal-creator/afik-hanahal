@@ -18,6 +18,43 @@
 // crash from taking down the entire module (same fix applied to meta.js).
 
 import { sendJson } from '../lib/http.js'
+import { backupEnabled, backupPut, backupList, backupGet, backupDelete } from '../lib/backup.js'
+import { onLeadCreated, onStageChanged } from '../lib/automations.js'
+
+// ── Lead backup (Vercel Blob) ────────────────────────────────────────────────
+// If Supabase refuses the INSERT (quota / paused project / outage) the lead used to exist only in the
+// notification email. Now it is also written to the private Blob store under leads/, listed by GET
+// like a normal lead (id "bk:<path>"), and moved into Supabase automatically once Supabase accepts
+// writes again.
+async function backupLead(row, reason) {
+  if (!backupEnabled()) return null
+  const rec = { ...row, created_at: new Date().toISOString(), backup: true, supabase_error: String(reason || '').slice(0, 300) }
+  const bl = await backupPut(`leads/${Date.now()}.json`, rec)
+  return { ...rec, id: `bk:${bl.pathname}`, blob_url: bl.url }
+}
+async function listBackupLeads() {
+  if (!backupEnabled()) return []
+  const blobs = await backupList('leads/', 200).catch(() => [])
+  const out = []
+  for (const bl of blobs.slice(0, 100)) {
+    try { const rec = await backupGet(bl.downloadUrl || bl.url); out.push({ ...rec, id: `bk:${bl.pathname}`, blob_url: bl.url, created_at: rec.created_at || bl.uploadedAt }) }
+    catch (e) { console.warn('[contacts] backup read failed:', bl.pathname, e.message) }
+  }
+  return out
+}
+// Move backed-up leads into Supabase. The restored row keeps crm_data.backup_id so the admin panel
+// can swap its local "bk:" copy for the real row instead of showing the lead twice.
+async function restoreBackupLeads(backups) {
+  const restored = [], pending = []
+  for (const b of backups) {
+    const { id, blob_url, backup, supabase_error, ...row } = b
+    try {
+      const saved = await insertContact({ ...row, crm_data: { ...(row.crm_data || {}), backup_id: id } })
+      if (saved && saved.id) { restored.push(saved); await backupDelete([blob_url]) } else pending.push(b)
+    } catch { pending.push(b) }
+  }
+  return { restored, pending }
+}
 const SUPA_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
 const SUPA_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY
 const ADMIN_TOKEN = 'AFIKhanahal2026'
@@ -31,14 +68,8 @@ const GREEN_BASE_URL = (() => {
   return region ? `https://${region}.api.greenapi.com` : 'https://api.green-api.com'
 })()
 const greenUrl = (method) => `${GREEN_BASE_URL}/waInstance${GREEN_INSTANCE}/${method}/${GREEN_TOKEN}`
-const WA_AUTOREPLY_ENABLED  = process.env.WA_AUTOREPLY_ENABLED !== 'false'   // default on
-const WA_AUTOREPLY_TEMPLATE = process.env.WA_AUTOREPLY_TEMPLATE || `היי {name} 👋
-תודה שהשארת פרטים!
-ראינו את הפנייה שלך
-
-מתי נוח לך לדבר? נשמח לתאם שיחה
-
-צוות אפיק הנחל`
+// The lead welcome message moved to lib/automations.js (admin tab "אוטומציות"); WA_AUTOREPLY_ENABLED=false
+// and WA_AUTOREPLY_TEMPLATE are still honoured there.
 
 function toIntlPhone(raw) {
   const d = String(raw || '').replace(/\D/g, '')
@@ -83,15 +114,6 @@ async function sendGreenMessage(phone, message) {
   const p = toIntlPhone(phone)
   if (!p) return { ok: false, error: 'invalid phone' }
   return sendToChatId(`${p}@c.us`, message)
-}
-
-// Auto-reply to the lead who submitted the form.
-async function sendLeadAutoReply(lead) {
-  if (!WA_AUTOREPLY_ENABLED || !lead.phone) return
-  const firstName = String(lead.name || '').split(' ')[0] || ''
-  const msg = WA_AUTOREPLY_TEMPLATE.replace(/\{name\}/g, firstName)
-  const r = await sendGreenMessage(lead.phone, msg)
-  if (!r.ok) console.error('[lead-autoreply]', r.error)
 }
 
 // Notify the business owner (admin) about a new lead.
@@ -140,12 +162,28 @@ async function supaFetch(path, opts = {}) {
   return r
 }
 
+// Whitelist + truncate the client-supplied origin object before it lands in crm_data
+function sanitizeOrigin(o, lang) {
+  const str = (v, n = 200) => (typeof v === 'string' ? v.slice(0, n) : '')
+  if (!o || typeof o !== 'object') return lang ? { lang: str(lang, 5) } : {}
+  const utm = {}
+  for (const [k, v] of Object.entries(o.utm || {})) if (/^(utm_\w{1,20}|fbclid|gclid)$/.test(k) && typeof v === 'string') utm[k] = v.slice(0, 120)
+  return { page: str(o.page, 160), referrer: str(o.referrer), device: str(o.device, 10), lang: str(lang, 5), utm }
+}
+
 const CONTACT_COLS = 'id,name,phone,email,message,prop_title,prop_location,source,created_at,crm_data'
 async function getContacts(since = '') {
   // Incremental sync: the admin panel remembers the newest created_at it has and asks only for
   // rows after it — a poll of an unchanged board pulls 0 rows out of Supabase instead of 500.
   const q = since ? `&created_at=gt.${encodeURIComponent(since)}` : ''
-  const r = await supaFetch(`/contacts?select=${CONTACT_COLS}&order=created_at.desc&limit=500${q}`)
+  let r = await supaFetch(`/contacts?select=${CONTACT_COLS}&order=created_at.desc&limit=500${q}`)
+  // A table created before crm_data / prop_location existed rejects the explicit column list with 400
+  // ("column contacts.crm_data does not exist") — the INSERT path already tolerates that, the list must too.
+  if (r.status === 400) {
+    const why = await r.text().catch(() => '')
+    console.warn('[contacts] column list rejected, retrying with select=* —', why.slice(0, 200))
+    r = await supaFetch(`/contacts?select=*&order=created_at.desc&limit=500${q}`)
+  }
   // 404 / 406 means the contacts table hasn't been created yet — return empty instead of 500
   if (r.status === 404 || r.status === 406) {
     console.warn('[contacts] table not found — run the SQL migration in Supabase')
@@ -312,7 +350,7 @@ async function sendLeadEmail(lead) {
     const info = await transporter.sendMail({
       from:    `"אפיק הנחל CRM" <${user}>`,
       to,
-      subject: `🔔 ליד חדש: ${lead.name || lead.phone || 'אנונימי'} — אפיק הנחל`,
+      subject: `${lead.__storage === 'lost' ? '⚠️ לא נשמר במערכת · ' : lead.__storage === 'backup' ? '⚠️ נשמר בגיבוי · ' : ''}🔔 ליד חדש: ${lead.name || lead.phone || 'אנונימי'} — אפיק הנחל`,
       html:    buildLeadEmailHtml({
         name:      lead.name,
         phone:     lead.phone,
@@ -320,7 +358,9 @@ async function sendLeadEmail(lead) {
         message:   lead.msg || lead.message,
         propTitle: lead.propTitle || lead.prop_title,
         source:    lead.source,
+        campaign:  lead.origin?.utm?.utm_campaign || '',
         ts,
+        badge: lead.__storage === 'lost' ? 'ליד חדש — לא נשמר במערכת! הוסיפו אותו ידנית' : lead.__storage === 'backup' ? 'ליד חדש — נשמר בגיבוי (Supabase לא זמין)' : '',
       }),
     })
     console.log(`[lead-email] ✓ sent to ${to}, messageId: ${info.messageId}`)
@@ -332,6 +372,27 @@ async function sendLeadEmail(lead) {
 }
 
 // ── Handler ───────────────────────────────────────────────────────────────────
+
+// The office CRM webhook lives in the Render server's admin settings (Supabase site_config → admin_settings).
+// Read at most every 10 minutes per instance; a missing / invalid URL means nothing to do.
+let crmHookCache = { at: 0, url: '' }
+async function crmWebhookUrl() {
+  if (Date.now() - crmHookCache.at < 600000) return crmHookCache.url
+  let url = ''
+  try {
+    const r = await supaFetch('/site_config?key=eq.admin_settings&select=value', { signal: AbortSignal.timeout(4000) })
+    const rows = r.ok ? await r.json() : null
+    const v = Array.isArray(rows) && rows[0] && rows[0].value
+    if (v && typeof v.crmWebhook === 'string' && /^https:\/\/[^\s]+$/.test(v.crmWebhook.trim())) url = v.crmWebhook.trim()
+  } catch {}
+  crmHookCache = { at: Date.now(), url }
+  return url
+}
+async function forwardToCrmWebhook(row) {
+  const url = await crmWebhookUrl()
+  if (!url) return
+  await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(row), signal: AbortSignal.timeout(8000) })
+}
 
 export default async function handler(req, res) {
   Object.entries(CORS).forEach(([k, v]) => res.setHeader(k, v))
@@ -391,10 +452,23 @@ export default async function handler(req, res) {
   try {
     // ── GET: list all contacts ───────────────────────────────────────────────
     if (req.method === 'GET') {
-      const since = String(req.query?.since || '')
-      const contacts = await getContacts(/^\d{4}-\d{2}-\d{2}T[\d:.]+Z?$/.test(since) ? since : '')
+      if (req.headers.authorization !== `Bearer ${ADMIN_TOKEN}`) return res.status(401).json({ error: 'unauthorized' })
       res.setHeader('Cache-Control', 'no-store')
-      return sendJson(req, res, contacts)
+      const sinceRaw = String(req.query?.since || '')
+      const since = /^\d{4}-\d{2}-\d{2}T[\d:.]+(Z|[+-]\d{2}:\d{2})?$/.test(sinceRaw) ? sinceRaw : ''
+      let contacts = null, supaErr = ''
+      try { contacts = await getContacts(since) } catch (e) { supaErr = e.message }
+      let backups = await listBackupLeads()
+      if (contacts && backups.length) {
+        const { restored, pending } = await restoreBackupLeads(backups)
+        if (restored.length) console.log(`[contacts] restored ${restored.length} backed-up lead(s) into Supabase`)
+        contacts = [...restored, ...contacts]
+        backups = pending
+      }
+      const extra = backups.filter(b => !since || String(b.created_at) > since)
+      if (!contacts && !extra.length) return res.status(503).json({ error: `Supabase: ${supaErr}` })
+      if (!contacts) res.setHeader('X-Leads-Degraded', encodeURIComponent(supaErr.slice(0, 180)))
+      return sendJson(req, res, [...extra, ...(contacts || [])])
     }
 
     // ── POST: create new contact ─────────────────────────────────────────────
@@ -410,7 +484,9 @@ export default async function handler(req, res) {
         prop_title:   b.propTitle    || null,
         prop_location:b.propLocation || null,
         source:       b.source       || 'website',
-        crm_data:     {},
+        // Everything else the form knew — page, referrer, UTM, language, device — so the admin
+        // can see exactly where each lead came from (shown in the lead drawer as "מקור").
+        crm_data:     { origin: sanitizeOrigin(b.origin, b.lang) },
       }
       console.log(`[new-lead] ${row.name || '—'} | ${row.phone || '—'} | source=${row.source}`)
 
@@ -441,6 +517,11 @@ export default async function handler(req, res) {
         insertOk = !!(inserted && inserted.id)
       } catch (dbErr) {
         console.error('[new-lead] DB insert failed (will still notify as fallback):', dbErr.message)
+        try {
+          const bk = await backupLead(row, dbErr.message)
+          if (bk) { inserted = bk; console.warn(`[new-lead] saved to backup store ${bk.id}`) }
+          else console.error('[new-lead] BLOB_READ_WRITE_TOKEN missing — lead exists only in the notification email')
+        } catch (e) { console.error('[new-lead] backup failed too:', e.message) }
       }
 
       // Originality gate: only the EARLIEST same-phone row in the 2-min window sends
@@ -462,13 +543,18 @@ export default async function handler(req, res) {
         } catch { /* best-effort — on error, default to notifying */ }
       }
 
+      // CRM webhook (admin settings → crmWebhook): forwarded from here, so the public site never has to
+      // read the admin settings (that read used to go to Render on every page view)
+      forwardToCrmWebhook(row).catch(() => {})
+
       if (shouldNotify) {
         // Fire all 3 notifications immediately, in parallel. Hard 12s cap fits the 30s maxDuration.
         const labels = ['lead-email', 'admin-wa', 'lead-autoreply']
         const work = Promise.allSettled([
-          sendLeadEmail(b),
+          sendLeadEmail({ ...b, __storage: insertOk ? 'db' : (String(inserted?.id || '').startsWith('bk:') ? 'backup' : 'lost') }),
           notifyAdmin(row),
-          sendLeadAutoReply(row),
+          // Welcome message: the automations engine (template, on/off and send log in the admin tab "אוטומציות")
+          onLeadCreated({ ...row, ...(insertOk ? { id: inserted.id, created_at: inserted.created_at } : {}), crm_data: { origin: row.crm_data?.origin || {} } }),
         ])
         const results = await Promise.race([
           work,
@@ -499,7 +585,15 @@ export default async function handler(req, res) {
       const existing = await getCrmData(id)
       const merged   = { ...existing, ...patch }
       const ok       = await patchContact(id, { crm_data: merged })
-      return res.status(ok ? 200 : 404).json({ ok })
+      // Stage moved on the board → stage automations (send now, or offer it in the approval queue)
+      let automation = null
+      if (ok && typeof patch.leadStatus === 'string' && patch.leadStatus !== existing.leadStatus) {
+        automation = await Promise.race([
+          onStageChanged(id, patch.leadStatus, existing.leadStatus || 'new'),
+          new Promise(r => setTimeout(() => r({ pending: true }), 18000)),
+        ]).catch(e => ({ ok: false, error: e.message }))
+      }
+      return res.status(ok ? 200 : 404).json({ ok, automation })
     }
 
     // ── DELETE: remove contact permanently ───────────────────────────────────

@@ -4,3 +4,7 @@ Disallow: /newproperty
 Disallow: /sell
 Disallow: /seller-form
 Disallow: /admin-panel
+Disallow: /dashboard
+Disallow: /api/
+
+Sitemap: https://afikhanahal.co.il/sitemap.xml

@@ -84,3 +84,243 @@ the office (WhatsApp + email) and shows up in the admin panel like a new lead (s
 chime). "פרסם באתר" pushes the property into the existing property generator (`PUT /api/properties/:id`
 on the Render backend); rentals land in the `rentals` category, sales in `apartments` / `land` /
 `commercial`. Marking a published property sold/inactive hides it on the site automatically.
+
+## SEO content engine (`content/` → static pages)
+
+Crawlable bilingual pages are generated at build time (`npm run build` = `vite build && node scripts/build-content.mjs`)
+and written into `dist/` **next to** the SPA, so Vercel serves them before the SPA rewrite:
+
+| Content | File | URLs |
+|---|---|---|
+| Company facts, UI strings, CTA presets | `content/site.mjs` | – |
+| Services (money pages) | `content/services.mjs` | `/services/<slug>/`, `/en/services/<slug>/` |
+| Local pages | `content/areas.mjs` | `/areas/<slug>/` |
+| Guides | `content/guides.mjs` | `/guides/<slug>/` |
+| Glossary | `content/glossary.mjs` | `/glossary/<slug>/` |
+| Calculators | `content/tools.mjs` | `/tools/<slug>/` |
+| Company profile | `content/company.mjs` | `/company/` |
+
+Every page has `he` and `en` objects (both mandatory), JSON-LD (`@graph` sharing `https://afikhanahal.co.il/#org`),
+hreflang, OG image, a 3-step lead form posting to `/api/contacts` (source `page_<type>_<intent>`), and a related-links
+block. `related.*` slugs are validated: the build **fails on a broken internal link**. `sitemap.xml` and `llms.txt`
+are generated from the same data — do not hand-edit them. Purchase-tax brackets live in both `content/tools.mjs`
+and `src/RealEstateCalc.jsx`; update both every January.
+
+## WhatsApp automations (admin tab "אוטומציות")
+
+Ready-made WhatsApp messages for every lead, sent through Green API (`WA_GREENAPI_INSTANCE` / `WA_GREENAPI_TOKEN` in Vercel):
+
+| Piece | Where |
+|---|---|
+| Templates (Hebrew + English), placeholders, quiet hours, reply detection — shared by server and browser | `lib/automations-shared.js` |
+| Engine: welcome on new lead, stage-change messages, no-reply sequence, reply intent, re-engagement, send log | `lib/automations.js` |
+| API (`/api/meta/auto-*`: config, run, send, skip, optout, test, log, leads, status) | `api/meta.js` → `handleAutomations` |
+| Admin tab shell: Today (approvals + upcoming), Rules, Log, System status drawer | `src/AutomationsTab.jsx` (+ `src/AutomationsApi.jsx` for the eager API/prompt) |
+| Templates tab (library, full-screen editor with phone preview, starters, safe delete) | `src/TemplateStudio.jsx` |
+| Sending hours tab (presets, week editor with 30-min handles) · no-reply timeline | `src/WeekSchedule.jsx` · `src/SequenceBuilder.jsx` |
+| Bulk sends (server-side jobs, 3-step wizard, schedule / send now) | `src/CampaignsTab.jsx` |
+| UI kit (tokens, buttons, dialogs, popovers, toasts) · WhatsApp formatting | `src/automationsUI.jsx` · `src/waFormat.jsx` |
+| DB tables `app_settings`, `automation_log` | `server/automations-migration.sql` |
+
+Every rule has a mode: `off` · `suggest` (waits in the approval queue, sent with one click) · `auto`. Hooks: `api/contacts.js`
+POST → `onLeadCreated` (welcome), PATCH with a new `leadStatus` → `onStageChanged`; the admin panel calls `auto-run` every
+5 minutes while open, and `api/cron/warm.js` runs it daily. Per-lead state is `contacts.crm_data.auto` (sent / skipped /
+optOut / intent / stageAt). Automations only touch leads, replies and stage changes after `config.installedAt`, and a lead
+who replied "no thanks" gets nothing more. Leads from the English site (`crm_data.origin.lang = 'en'`) get the English text.
+Keep every template bilingual (`he` + `en`, `he_title` + `en_title`).
+
+Scheduled bulk sends are jobs in `app_settings` (`automations_jobs`), rendered at send time, max 20 messages per run;
+`auto-jobs-tick` pushes a running job from the open panel. `auto-tick?key=` (key = `AUTOMATION_KEY`, or the admin token)
+lets an external pinger such as cron-job.org run the engine every 5 minutes, so timing is exact even with the panel closed.
+Sending hours are `[start, end)` per weekday in 0.5-hour steps (Israel time); welcome, replies and stage messages ignore them.
+
+## Admin dashboard, Google Analytics & chat names
+
+A direct visit to `/admin-panel(/<tab>)` (or `/dashboard`) opens the full-screen dashboard (sidebar layout, `AdminPanel standalone`);
+the in-site modal is only used when the admin is opened from the site itself. `DASHBOARD_MODE` in `App.jsx` is decided once at load.
+
+| Piece | Where |
+|---|---|
+| Home page (greeting, KPIs, live system status, pipeline, recent activity) | `src/AdminHome.jsx` |
+| Google Analytics tab (KPIs vs previous period, trend, channels, pages, devices, cities, events, heat map, realtime) | `src/GA4Tab.jsx` |
+| GA4 Data API client (service-account JWT, batch reports, 5-min cache, realtime) | `lib/ga4.js` (+ `lib/ga4.test.mjs`) |
+| API: `GET /api/meta/ga4?days=7|28|90[&fresh=1]`, `GET /api/meta/ga4?realtime=1` | `api/meta.js` → `handleGA4` |
+
+GA4 needs `GA4_SERVICE_ACCOUNT_JSON` in Vercel (service account with Viewer on property `536943897`, Analytics Data API enabled);
+`GA4_PROPERTY_ID` defaults to `536943897`. Without it the tab shows the setup steps. The old Supermetrics route is kept as a fallback
+only (its trial ended 2026-06-16).
+
+WhatsApp chat names (`chat-list`): outgoing Green API messages carry no contact name, so names are resolved server-side from
+leads (`contacts`), `meta_leads`, the WhatsApp phone book (`getContacts`) and, for a few chats per poll, `getContactInfo` —
+all matched by the last 9 digits and cached for 10 minutes. The office's own / notification number is flagged `office` and shown
+as "המשרד · התראות מערכת"; a number without any name is shown as 05X-XXX-XXXX.
+
+### Admin appearance (light / dark / system) & command palette
+
+The admin has its own theme, separate from the public site, saved in `localStorage` (`afik_admin_theme`: `dark` · `light` · `system`).
+`src/adminTheme.js` holds the store (`useAdminTheme`), the admin `C` palettes (`ADMIN_DARK_C` / `ADMIN_LIGHT_C`, provided through
+`ThemeCtx` by both admin mount points in `App.jsx`) and `ADMIN_THEME_CSS` — CSS variables on `html[data-admin-theme]` that every
+admin component uses, portals included. When adding admin UI, never hardcode dark colors: use `T.*` from `automationsUI.jsx`
+(now CSS variables), `C.*` from `useTheme()`, or `var(--au-*)`; for tints use `rgba(var(--ink), a)` (text) and
+`rgba(var(--ov), a)` (surfaces). Purple has three roles, all ≥ 4.5:1 contrast: `var(--au-brand)` (fills with white text),
+`var(--au-brand-text)` / `T.brandText` (purple text) and `rgba(var(--brand-rgb), a)` (tints and lines); `C.purple` is the theme's
+balanced purple for code that appends a hex alpha. WhatsApp bubbles and the phone preview stay dark on purpose.
+`src/CommandPalette.jsx` — Ctrl/⌘ + K (or the top-bar search) jumps to any screen, lead (opens the chat) or property, and runs actions.
+
+### Lead card & smart lead analysis
+
+Clicking a lead (board card, mobile card, table "open") opens `src/LeadCard.jsx` — a centered card with tabs: details
+(contact, needs: deal type / budget / timeline / financing / area, property, management: priority / owner / follow-up / tags),
+notes & activity (`crm_data.notes: [{ id, text, ts }]`), tasks (`crm_data.tasks: [{ id, text, due, done }]`) and smart analysis.
+Every field saves on its own through `updateLead` → `PATCH /api/contacts` (merged into `crm_data`).
+
+Analysis = `POST /api/meta/lead-analyze { lead }` (`api/meta.js` → `lib/lead-analyze.js`): builds a dossier (lead + crm_data,
+WhatsApp history from Green API, `automation_log`, repeat inquiries in `contacts` / `meta_leads`, the matching listing from the
+property catalog), scores it with the pure, tested rules in `lib/lead-intel.js` (0–100 with signed, explained factors, missing
+info, next best action) and asks Claude (`claude-opus-5`, structured output, server-side refusal fallback) for a briefing that
+may adjust the score by ±15. The result is stored as `lead.enrichment` (`version: 2`, `score100`, `grade`, `factors`, `brief`, plus
+the legacy `score` 1–5 / `intent`). Without `ANTHROPIC_API_KEY` in Vercel the endpoint returns the dossier and the panel runs the
+briefing through the Render AI proxy, merged with `mergeBrief()`. A key created outside a workspace gets a 400 ("not scoped to a
+workspace"): create the key inside a workspace, or set `ANTHROPIC_WORKSPACE_ID` (sent as the `anthropic-workspace-id` header).
+
+**Prospect research (SDR step):** before the briefing the panel calls `POST /api/meta/lead-research { lead }` (`lib/lead-research.js`):
+Claude with the web search server tool checks the phone number (Israeli numbering plan: mobile / landline / VoIP, carrier, made-up
+digits — `phoneCheck`, tested), the name (`nameQuality`: full / first-only / test-looking), and who the person is from public
+sources (LinkedIn / Facebook / Instagram / company site / listings / directories), plus real-estate-professional signals, red flags,
+rapport hooks and gentle verification questions. Rules live in `RESEARCH_SYSTEM`: public information only, no sensitive categories,
+a match only when two independent signals agree, every claim with its URL (`normalizeResearch` drops the rest). The result is passed
+into `lead-analyze` (`research` in the body → `researchText` in the dossier) and stored as `enrichment.research`; the briefing schema
+carries `identityCheck`, `rapportHooks`, `openingLine`, `warmUpPlan`. The card shows it as "מי הליד — אימות ומחקר". Each step has
+its own time budget (the research loop resumes `pause_turn` up to 4 times within ~48 s, `max_uses: 8` searches).
+
+### Property share links (`/p/<id>`)
+
+Every property has a short share link `https://afikhanahal.co.il/p/<id>` (`vercel.json` rewrite → `api/properties.js?share=<id>`,
+rendered by the pure, tested `lib/share-page.js`). Link-preview crawlers (Facebook / Instagram / WhatsApp / LinkedIn / X / Telegram…)
+get an HTML page with the property's Open Graph tags (title · place, price · specs, first photo via `/media`, JSON-LD); people get
+an instant 302 to `/?p=<id>#properties`, keeping `utm_*` / `fbclid` / `gclid` / `lang`. Hidden or missing properties get the
+generic preview. The site's own share button uses the same link, and the landing UTM is kept for the whole session
+(`sessionStorage.afik_utm`) so `crm_data.origin.utm` credits the ad even after browsing.
+
+**Speed (Render sleeps on the free tier):** the public list (`/api/properties` without a token) comes from `lib/property-feed.js`
+(tested): Render if it answers within 2.5 s, otherwise a snapshot kept in Supabase `app_settings` (key `public_properties`,
+rewritten only when the list changed; refreshed by `api/cron/warm.js` too), and as a last resort `dist/properties.json` — the
+published list written at deploy time by `scripts/build-properties.mjs` (Vercel builds only; also seeds the snapshot). First-time
+visitors paint the grid from that static file (`index.html` starts it as `window.__afikList`) and the live list replaces it; an
+open property window always follows the freshest data. So the site never waits on a cold start.
+**When Render is down for real (suspended, crashed — `x-render-routing: suspend-by-user`):** the snapshot is all the site has.
+`GET /api/properties?health=1` (public, no secrets) says what is being served (`serving`: render / snapshot / static / none,
+Render's status + routing, snapshot age and size); the admin home shows it as the "שרת הנכסים (Render)" tile (red = no data
+anywhere → resume the service on Render). The admin panel offers its own copy of the list with `POST /api/properties?snapshot=1`
+(`src/siteRebuild.js` `pushSnapshot`, on every admin load; only published properties): the server stores it only while Render
+can't answer for itself (`feed.pushSnapshot`, tested), and every good admin read through Vercel refreshes the snapshot too. The
+deploy (`scripts/build-properties.mjs`) falls back to the previous deploy's `properties.json` on the live site, so a build never
+erases the static pages. The dev sandbox cannot reach the production domain: measure the live site with the "Site speed probe"
+GitHub Action (`scripts/probe-site.mjs` — timings, edge-cache headers, landing-page markers, backend health, a phone-profile
+browser visit on the real network and on Fast 3G, screenshots at 1/3/6/10 s in the run's artifact).
+`/api/properties?one=<id>` returns a single published property (snapshot first); `index.html` starts that request for
+`/?p=<id>` before the bundle loads (`window.__afikShared`) and `App.jsx` opens the property as soon as it arrives, with a
+"טוען את הנכס…" overlay meanwhile. Crawlers on `/p/<id>` use the same fast lookup. The map in the property window sits in
+its own `SectionBoundary`, so a failed map chunk never takes the page down.
+
+**Instant landing pages (property visible in < 1 s on any phone):** `/p/<id>` is a real HTML page with the property already
+drawn (photo, title, price, specs, WhatsApp / call) and its own Open Graph tags, so it paints with no JavaScript; the full site
+(same `index.html` + bundle) loads underneath and takes over — `App.jsx` opens the property window with the embedded data
+(`window.__afikShared`, `fresh` = the live re-check) and then fades the `#afik-pre` layer out. Rendered by `renderLanding()` in
+`lib/share-page.js` (tested): at deploy time for every published property (`dist/p/<id>/index.html`, served by the CDN before
+the rewrite) and by `api/properties.js` for newer ones (edge-cached for everyone, `s-maxage=60, swr=1d`). Saving / deleting
+a property (admin panel, wizard, "פרסם באתר") calls `POST /api/properties?changed=1` (batched 15 s, `src/siteRebuild.js` →
+`lib/site-rebuild.js`, tested): it refreshes the snapshot at once and, when `VERCEL_DEPLOY_HOOK_URL` is set, rebuilds the site
+(max once a minute) so the static pages follow.
+The landing page is tuned for a slow phone: a responsive photo (`srcset` 480/900/1400 through the image CDN, preloaded
+after the viewport meta so the preload and the `<img>` pick the same size), an inline blurred placeholder (`__lqip`, a
+24px JPEG fetched at build time; `SKIP_IMAGE_WARM=1` skips the CDN warm-up + placeholders), a lean head (no org JSON-LD,
+no `#root` fallback text, no stray preconnects) and **photo-first loading**: the app's JavaScript starts (`afikBoot()`,
+inert `afik-modulepreload` links + an `afik/module` placeholder script) only after the photo has arrived or 1.2 s; GTM /
+GA4 and the property list download wait until the site is up (`window.__afikLanding`). Inside the property window the
+GovMap SDK loads only when the map is within ~800px of the viewport, and the city photos on the homepage only when their
+cards are near.
+
+**Homepage static first screen:** `scripts/build-properties.mjs` also writes the hero and the property grid into
+`dist/index.html` as a plain-HTML layer (`#afik-pre-home`, `lib/home-page.js` `renderHome()`, tested), so a first-time
+visitor sees the real first screen with the HTML (~0.4 s) instead of after the bundle (1.1–2.1 s). Both languages are in
+the markup (`data-pre-lang`); an inline script shows the layer only on `/` (never on `/admin-panel`, `/sell`, an old
+`/?p=` link). Cards link to the instant pages `/p/<id>` and use the same cover URL as the app's cards (`cardImage()` =
+`thumbImg`), so nothing downloads twice. `App.jsx` fades the layer out once it has rendered (a reader who had scrolled the
+layer's grid lands on the real `#properties`). Keep the layer's copy in step with `TR.heroBadge/heroH1line*/heroDesc/
+heroCTA*` and `propertiesTitle/H2/Desc` when those change. The landing pages are rendered from the plain template first.
+
+Admin → property list → "שתף" (or ⋯ → "שיתוף ופרסום") opens `src/PropertyShare.jsx`: the link with a live preview, per-channel UTM
+links (Facebook, Instagram, WhatsApp, colleagues, Yad2, Google; `utm_campaign=prop-<id>`), a custom UTM builder, ready-made post and
+colleague texts (Hebrew / English), one-tap share buttons, a QR code generated in the browser (`qrcode`) and a Facebook debugger link.
+
+## Render bandwidth budget (free tier: 5 GB / month — the site was suspended once for exceeding it)
+
+Render meters every byte it sends. Rules that keep it near zero:
+
+- **The public site never calls Render directly.** Visitors get the property list, `/api/stats` (edge-cached 10 min)
+  and everything else through Vercel; only an admin session (`sessionStorage.afik_admin_session`) talks to Render.
+  The CRM webhook for a new lead is forwarded by `api/contacts.js` (reads `site_config.admin_settings` server-side).
+- **Vercel asks Render conditionally.** The snapshot keeps Render's `ETag`; `lib/property-feed.js` sends
+  `If-None-Match`, an unchanged list answers `304` with no body. A snapshot must therefore exist: it is stored in
+  `app_settings`, or in `site_config` when that table is missing (health `store.table` says which).
+- **Server code that needs the catalog uses the feed** (`lib/lead-analyze.js`), never a raw full-list download.
+- The admin panel polls Render with `If-None-Match` (`condFetchJson`) and pauses in hidden tabs — keep it that way.
+  The WhatsApp chat reads the legacy Render history once per contact per session (`GreenAPIChat.jsx`); its 8-second
+  poll asks only Green API through Vercel. Photos never go inline (base64) into a property: the admin uploader falls
+  back to the wizard's signed-URL upload to Supabase Storage and otherwise shows an error.
+- **Inline photos (automatic):** photos stored inside a property as base64 are the single biggest cause of the overage
+  and of slow loads (the live list was 1.9 MB for 10 properties, 17 inline photos). Four layers keep them out:
+  1. every admin save (`saveProp` / `savePropSilent` / bulk sync / the wizard) first runs `externalizeInlinePhotos`
+     (`src/inlinePhotos.js`): data-URL photos are uploaded through the wizard's signed URL (Supabase Storage, no Render)
+     and replaced by their URLs; the wizard's logo is uploaded too;
+  2. `POST ?changed=1` (after every save) runs `slimInlinePhotos` (`lib/slim-photos.js`, on top of the tested helpers in
+     `lib/inline-images.js`): anything inline left in the `properties` table moves to
+     `property-images/inline/<id>/<sha1>.<ext>`, straight through the table, so it works while Render is down;
+  3. `api/cron/warm.js` runs the same every day;
+  4. the admin home runs it by itself when `health.list.inlineImages > 0` (and `POST ?slim=1` runs it on demand).
+  The list the site serves does not always come from that table (it was Render's list / the admin's copy in the
+  snapshot, and the table Vercel reads held none of the 17), so the **list itself** is cleaned too: every feed that
+  stores a list (`createFeed({ transformList })` in `api/properties.js`, `lib/site-rebuild.js`, the cron, the build)
+  runs `slimList` (`lib/slim-photos.js`, tested — content-hashed, HEAD-checked, never uploads twice) before writing,
+  `feed.cleanSnapshot()` cleans a snapshot stored before this (hash kept, so Render isn't re-downloaded), and the
+  build cleans the deploy-time list and static pages. Render's own database is cleaned by the admin panel: once per
+  session it re-saves any property that still has inline photos (upload first, then PUT with URLs).
+  The Render server itself (`afik-hanahal-server` repo) should also stop writing base64 — none of this depends on it.
+- **Meter:** the feed counts every byte Render sends to Vercel (`render_traffic` in the store, per month) and
+  `health` reports it with the list's weight and inline-photo count; the admin home shows both as the "רוחב פס Render"
+  tile (warn > 1.5 GB, red > 3.5 GB; warn on a heavy list or inline photos). Render's own number is on
+  dashboard.render.com/billing → Included Usage; the meter sees only what goes through Vercel (not the admin panel's
+  direct reads), so treat it as a floor.
+- Check with the "Site speed probe" action: the "backends" section shows the list size and whether `If-None-Match` gets a 304.
+
+## GovMap parcel map (`src/GovMapWidget.jsx`)
+
+The property modal and the property wizard show a GovMap map zoomed to the property's gush/helka. The parcel point
+is resolved server-side by `GET /api/properties?parcel=<gush>-<helka>` (`lib/parcel-locate.js`, tested), which asks
+several GovMap sources in parallel (new-platform parcel WFS, open-data `Parcels_ITM` WFS, the new search autocomplete,
+legacy TldSearch) and answers with the first one that finds the parcel, in ITM, Web Mercator and WGS84; hits are cached on
+the CDN for a month. The widget starts that lookup on mount (in parallel with the SDK download), caches it per page and in
+`localStorage` (`afik_gm_parcel_v1:<gush>-<helka>`), and opens the map directly on the parcel (`center` / `level`) when the point is known. The
+widget zooms with `govmap.zoomToXY` (ITM, level 13), verifies the landing through the map's `EXTENT_CHANGE` events
+(switching to Web Mercator / level 10 if the SDK didn't move), and always shows a status chip (locating / shown /
+not found + "פתח ב-GovMap" + retry) instead of failing silently. The legacy `es.govmap.gov.il/TldSearch` service
+alone is no longer relied on.
+
+## Public site performance rules (keep scrolling smooth on slow phones)
+
+Measured on a mobile profile (CPU ×4): the homepage used to burn ~40% CPU at rest and scroll at ~12 fps. What fixed it,
+and what must not come back:
+
+- **No page-level React state that changes on scroll or on a timer.** The hero parallax moves its blobs through refs
+  (`parallaxRefs`, one rAF per frame); the active nav item is a ref (`activeNavRef`) that toggles classes directly; the
+  typewriter is its own `<Typewriter>` component (and pauses off-screen). `App` re-rendering re-creates the whole page.
+- **Heavy sections and `PropertyCard` are `memo`-ized**, the site `ThemeCtx` value is `useMemo`-ed (`siteThemeValue`) and
+  their callbacks are stable (`useStableFn`: `openContactStable`, `openPropertyStable`). Keep new props stable too.
+- **Animations: `transform` / `opacity` only** (compositor). No infinite `box-shadow` / `text-shadow` / `background` /
+  `filter` animations (the WhatsApp pulse is a `::after` ring, `SectionBadge` is a rotating conic gradient in CSS). No
+  `backdrop-filter` on things that scroll in numbers (property cards) or on the opaque navbar. SVG SMIL animations run only
+  while visible (`useSvgAnimationsWhenVisible`).
+- **framer-motion is not used on the public page** (it stays in `SellerForm`, its own chunk); `qrcode` is admin-only
+  (`vendor-qrcode`). Check `dist/index.html`'s preloaded chunks after adding a dependency.
+- `.prop-card` has `content-visibility:auto` (off-screen cards aren't laid out / painted).

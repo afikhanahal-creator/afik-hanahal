@@ -8,6 +8,10 @@
 
 import { createClient } from '@supabase/supabase-js'
 import crypto from 'crypto'
+import * as Auto from '../lib/automations.js'
+import * as GA4 from '../lib/ga4.js'
+import { analyzeLead, buildDossier } from '../lib/lead-analyze.js'
+import { researchLead } from '../lib/lead-research.js'
 
 const SUPERMETRICS_API_KEY    = process.env.SUPERMETRICS_API_KEY    || ''
 // System User token (afik-api) — permanent, survives password changes. Used to
@@ -154,13 +158,23 @@ function normalizePhone(raw) {
 
 function parseFieldData(fieldData) {
   const f = {}
-  for (const item of fieldData || []) {
-    const key = (item.name || '').toLowerCase().replace(/[\s_-]/g, '')
-    const val = Array.isArray(item.values) ? item.values[0] : item.value
-    if (!val) continue
-    if (key.includes('fullname') || key.includes('name'))  f.name  = f.name  || val
-    if (key.includes('email'))                              f.email = f.email || val
-    if (key.includes('phone') || key.includes('mobile'))   f.phone = f.phone || val
+  const items = (fieldData || []).map(item => ({
+    key: (item.name || '').toLowerCase().replace(/[\s_-]/g, ''),
+    val: Array.isArray(item.values) ? item.values[0] : item.value,
+  })).filter(x => x.val)
+  // Pass 1: Meta's standard keys, exact — so a custom "street_name" question can never
+  // become the lead's name just because it appears first in the form.
+  for (const { key, val } of items) {
+    if (['fullname', 'name'].includes(key))                    f.name  = f.name  || val
+    if (['email', 'workemail'].includes(key))                  f.email = f.email || val
+    if (['phonenumber', 'phone', 'mobile', 'workphone'].includes(key)) f.phone = f.phone || val
+  }
+  if (!f.name) { const fn = items.find(x => x.key === 'firstname')?.val, ln = items.find(x => x.key === 'lastname')?.val; if (fn || ln) f.name = [fn, ln].filter(Boolean).join(' ') }
+  // Pass 2: loose match, only for whatever is still missing
+  for (const { key, val } of items) {
+    if (!f.name  && key.includes('name'))                      f.name  = val
+    if (!f.email && key.includes('email'))                     f.email = val
+    if (!f.phone && (key.includes('phone') || key.includes('mobile'))) f.phone = val
   }
   return f
 }
@@ -319,8 +333,10 @@ async function handleWebhook(req, res) {
 
           const leadId    = inserted?.id
           const firstName = name.split(' ')[0] || name
-          if (phone) {
-            const waMsg = `היי ${firstName} 👋\nתודה שפנית לאפיק הנחל!\nראינו את הפנייה שלך\n\nמתי נוח לך לדבר? נשמח לתאם שיחה`
+          // Same welcome template and on/off switch as website leads (admin tab "אוטומציות")
+          const autoWelcome = phone ? await Auto.welcomeTextFor({ name, phone }) : null
+          if (phone && autoWelcome !== '') {
+            const waMsg = autoWelcome || `היי ${firstName} 👋\nתודה שפנית לאפיק הנחל!\nראינו את הפנייה שלך\n\nמתי נוח לך לדבר? נשמח לתאם שיחה`
             let waSent = false
 
             if (WA_META_TOKEN) {
@@ -614,19 +630,179 @@ async function handleSync(req, res) {
   })
 }
 
+// ── WhatsApp automations (admin tab "אוטומציות") ──────────────────────────────
+//  GET  auto-config            → { config, storage, green }
+//  POST auto-config {config}   → save
+//  POST auto-run               → execute due automatic rules, return the approval queue
+//  POST auto-send {items}      → send approved / manual messages (≤25 per call)
+//  POST auto-skip {leadId, ruleKey}
+//  POST auto-optout {leadId, optOut}
+//  POST auto-test {text, phone?}
+//  GET  auto-log · GET auto-leads · GET auto-status · GET auto-health
+//  GET  auto-jobs · POST auto-job {job} · POST auto-job-cancel {id} · POST auto-job-delete {id}
+//  GET  auto-tick?key=…       → a run triggered by an external pinger (e.g. cron-job.org every 5 minutes)
+async function handleAutomations(req, res, action) {
+  if (action === 'auto-tick') {
+    const key = req.query?.key || (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '')
+    if (!Auto.tickKeyValid(key)) return res.status(401).json({ error: 'Unauthorized' })
+    const r = await Auto.run({ source: 'external' }).catch(e => ({ ok: false, error: e.message, sent: [], errors: [], suggestions: [], jobs: {} }))
+    return res.status(200).json({ ok: r.ok !== false, at: r.at, sent: r.sent?.length || 0, errors: r.errors?.length || 0, queued: r.suggestions?.length || 0, jobs: r.jobs, notes: r.notes })
+  }
+  if (!checkAuth(req)) return res.status(401).json({ error: 'Unauthorized' })
+  res.setHeader('Cache-Control', 'no-store')
+  const b = req.body || {}
+  try {
+    if (action === 'auto-config' && req.method === 'GET') {
+      const { cfg, storage, updatedAt, saved } = await Auto.loadConfig({ fresh: true })
+      return res.status(200).json({ config: cfg, storage, updatedAt, saved, greenConfigured: Auto.greenConfigured() })
+    }
+    if (action === 'auto-config' && req.method === 'POST') {
+      if (!b.config || typeof b.config !== 'object') return res.status(400).json({ error: 'config required' })
+      await Auto.saveConfig(b.config)
+      return res.status(200).json({ ok: true })
+    }
+    if (action === 'auto-run')    return res.status(200).json(await Auto.run({ source: 'panel' }))
+    if (action === 'auto-send')   return res.status(200).json({ results: await Auto.sendItems(Array.isArray(b.items) ? b.items : [], { by: 'manual' }) })
+    if (action === 'auto-skip')   return res.status(200).json({ ok: await Auto.skipItem(b.leadId, String(b.ruleKey || '')) })
+    if (action === 'auto-optout') return res.status(200).json({ ok: await Auto.setOptOut(b.leadId, !!b.optOut) })
+    if (action === 'auto-test') {
+      const r = await Auto.sendTest(String(b.text || 'הודעת בדיקה ממערכת האוטומציות של אפיק הנחל ✅'), b.phone)
+      return res.status(r.ok ? 200 : 502).json(r)
+    }
+    if (action === 'auto-log')    return res.status(200).json(await Auto.listLog(Number(req.query?.limit) || 150))
+    if (action === 'auto-leads')  return res.status(200).json(await Auto.leadStates())
+    if (action === 'auto-status') return res.status(200).json(await Auto.greenStatus())
+    if (action === 'auto-health') return res.status(200).json(await Auto.health())
+    if (action === 'auto-jobs')   return res.status(200).json(await Auto.listJobs())
+    if (action === 'auto-job')    return res.status(200).json({ job: await Auto.saveJob(b.job) })
+    if (action === 'auto-job-cancel') return res.status(200).json({ ok: await Auto.cancelJob(String(b.id || '')) })
+    if (action === 'auto-job-delete') return res.status(200).json({ ok: await Auto.deleteJob(String(b.id || '')) })
+    if (action === 'auto-job-retry')  return res.status(200).json({ ok: await Auto.retryJob(String(b.id || '')) })
+    if (action === 'auto-jobs-tick')  return res.status(200).json(await Auto.jobsTick())
+    return res.status(404).json({ error: `Unknown automation action: ${action}` })
+  } catch (e) {
+    console.error('[automations]', action, e.message)
+    return res.status(500).json({ error: e.message })
+  }
+}
+
+// ── Chat name resolution ─────────────────────────────────────────────────────
+// Warm serverless instances keep this cache between polls (the panel polls every 30s).
+const NAME_TTL = 10 * 60 * 1000
+const nameCache = { at: 0, book: new Map(), leads: new Map(), self: '', info: new Map() }
+const tail9 = p => String(p || '').replace(/\D/g, '').slice(-9)
+
+async function chatNames(list) {
+  const now = Date.now()
+  if (now - nameCache.at > NAME_TTL) {
+    const book = new Map(), leads = new Map()
+    const [rc, rs, dbC, dbM] = await Promise.all([
+      fetch(greenUrl('getContacts'), { signal: AbortSignal.timeout(12000) }).then(r => (r.ok ? r.json() : [])).catch(() => []),
+      fetch(greenUrl('getWaSettings'), { signal: AbortSignal.timeout(8000) }).then(r => (r.ok ? r.json() : {})).catch(() => ({})),
+      SUPABASE_URL && SUPABASE_KEY ? sb().from('contacts').select('name,phone').order('created_at', { ascending: false }).limit(3000).then(r => r.data || []).catch(() => []) : [],
+      SUPABASE_URL && SUPABASE_KEY ? sb().from('meta_leads').select('name,phone').order('created_at', { ascending: false }).limit(3000).then(r => r.data || []).catch(() => []) : [],
+    ])
+    for (const c of Array.isArray(rc) ? rc : []) {
+      if (!String(c.id || '').endsWith('@c.us')) continue
+      const n = String(c.contactName || c.name || '').trim()
+      if (n) book.set(tail9(c.id.split('@')[0]), n)
+    }
+    // Leads first (newest wins), then Meta leads fill what is still missing
+    for (const row of [...dbC, ...dbM]) {
+      const k = tail9(row.phone), n = String(row.name || '').trim()
+      if (k.length === 9 && n && !leads.has(k)) leads.set(k, n)
+    }
+    Object.assign(nameCache, { at: now, book, leads, self: tail9(rs?.phone) })
+  }
+  const map = new Map()
+  for (const c of list) {
+    const k = tail9(c.phone)
+    const waName = nameCache.book.get(k) || c.name || nameCache.info.get(k) || ''
+    const leadName = nameCache.leads.get(k) || ''
+    if (waName || leadName) map.set(k, { name: leadName || waName, leadName, waName })
+  }
+  // Last resort: getContactInfo for the newest still-unnamed chats (rate-limited, so a few per poll)
+  const missing = list.filter(c => !map.has(tail9(c.phone)) && !nameCache.info.has(tail9(c.phone))).slice(0, 6)
+  await Promise.all(missing.map(async c => {
+    const k = tail9(c.phone)
+    try {
+      const r = await fetch(greenUrl('getContactInfo'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chatId: c.chatId }), signal: AbortSignal.timeout(6000) })
+      const d = r.ok ? await r.json() : {}
+      const n = String(d.contactName || d.name || '').trim()
+      nameCache.info.set(k, n)                           // cache misses too, so we never re-ask
+      if (n) map.set(k, { name: n, waName: n })
+    } catch { nameCache.info.set(k, '') }
+  }))
+  return { map, self: nameCache.self }
+}
+
 // ── Green API chat proxy ───────────────────────────────────────────────────────
 // Keeps WA_GREENAPI_TOKEN server-side. The browser only ever talks to these
 // endpoints (with the ADMIN_TOKEN guard); it never sees the Green API token.
 async function handleChat(req, res, action) {
   if (!checkAuth(req)) return res.status(401).json({ error: 'Unauthorized' })
-  if (!GREEN_INSTANCE || !GREEN_TOKEN) return res.status(500).json({ error: 'Green API not configured' })
+  if (!GREEN_INSTANCE || !GREEN_TOKEN) {
+    const missing = [!GREEN_INSTANCE && 'WA_GREENAPI_INSTANCE', !GREEN_TOKEN && 'WA_GREENAPI_TOKEN'].filter(Boolean)
+    // 200 for the status probe so the panel can say exactly what is missing instead of guessing
+    if (action === 'chat-status') return res.status(200).json({ state: 'notConfigured', missing })
+    return res.status(503).json({ error: `Green API לא מוגדר ב-Vercel (חסר: ${missing.join(', ')})`, notConfigured: true, missing })
+  }
+  // Green API answers with plain text / JSON errors; pass the real reason through (e.g. 466 = plan limit)
+  const greenError = async (r, what) => {
+    const t = await r.text().catch(() => '')
+    const hint = r.status === 466 ? ' — מגבלת התוכנית ב-Green API (בתוכנית DEVELOPER מספר הצ׳אטים מוגבל)' : r.status === 401 || r.status === 403 ? ' — הטוקן או מספר ה-instance שגויים' : ''
+    return { error: `Green API ${what} ${r.status}${hint}`, detail: t.slice(0, 300) }
+  }
 
   try {
     // GET /api/meta/chat-status → instance connection state
     if (action === 'chat-status') {
       const r = await fetch(greenUrl('getStateInstance'), { signal: AbortSignal.timeout(8000) })
       const d = await r.json().catch(() => ({}))
-      return res.status(r.ok ? 200 : 502).json({ state: d.stateInstance || null })
+      return res.status(r.ok ? 200 : 502).json({ state: d.stateInstance || (r.ok ? null : 'error'), instance: GREEN_INSTANCE, http: r.status })
+    }
+
+    // GET /api/meta/chat-list?days=30 → recent conversations (incoming + outgoing), newest first.
+    // Lets the panel show every WhatsApp chat, not only people who are already leads.
+    if (action === 'chat-list') {
+      const minutes = Math.min(Math.max(Number(req.query?.days) || 30, 1), 90) * 1440
+      const [ri, ro] = await Promise.all([
+        fetch(`${greenUrl('lastIncomingMessages')}?minutes=${minutes}`, { signal: AbortSignal.timeout(20000) }),
+        fetch(`${greenUrl('lastOutgoingMessages')}?minutes=${minutes}`, { signal: AbortSignal.timeout(20000) }),
+      ])
+      if (!ri.ok && !ro.ok) return res.status(502).json(await greenError(ri, 'chat-list'))
+      const inc = ri.ok ? await ri.json().catch(() => []) : []
+      const out = ro.ok ? await ro.json().catch(() => []) : []
+      const byChat = new Map()
+      for (const m of [...(Array.isArray(inc) ? inc : []), ...(Array.isArray(out) ? out : [])]) {
+        const chatId = m.chatId || ''
+        if (!chatId.endsWith('@c.us')) continue            // 1:1 chats only (no groups / status)
+        const prev = byChat.get(chatId)
+        // senderName on an outgoing message is *our* name, so only incoming messages name the chat
+        const name = (m.type === 'incoming' ? (m.senderContactName || m.senderName || m.chatName) : m.chatName) || prev?.name || ''
+        if (!prev || (m.timestamp || 0) > prev.timestamp) byChat.set(chatId, { chatId, phone: chatId.split('@')[0], name, timestamp: m.timestamp || 0, type: m.type, typeMessage: m.typeMessage, text: m.textMessage || m.caption || '', incoming: (prev?.incoming || 0) + (m.type === 'incoming' ? 1 : 0) })
+        else { if (!prev.name && name) prev.name = name; if (m.type === 'incoming') prev.incoming++ }
+      }
+      const list = [...byChat.values()].sort((a, b) => b.timestamp - a.timestamp).slice(0, 300)
+      // Outgoing messages carry no contact name and incoming ones only sometimes, so resolve
+      // names from the phone book, our leads, Meta leads and (last resort) per-chat contact info.
+      const names = await chatNames(list).catch(() => ({ map: new Map(), self: '' }))
+      for (const c of list) {
+        const k = c.phone.slice(-9)
+        const hit = names.map.get(k)
+        if (hit) { c.name = hit.name || c.name; if (hit.leadName) c.leadName = hit.leadName; if (hit.waName) c.waName = hit.waName }
+        if (names.self && c.phone.endsWith(names.self)) c.self = true
+        if (BUSINESS_NOTIFY_CHATID && c.chatId === BUSINESS_NOTIFY_CHATID) c.office = true
+      }
+      return res.status(200).json(list)
+    }
+
+    // POST /api/meta/chat-read { phone } → readChat (blue ticks on the customer's side)
+    if (action === 'chat-read') {
+      const p = normalizePhone((req.body || {}).phone)
+      if (!p) return res.status(400).json({ error: 'phone required' })
+      const r = await fetch(greenUrl('readChat'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chatId: `${p}@c.us` }), signal: AbortSignal.timeout(10000) })
+      return res.status(r.ok ? 200 : 502).json(r.ok ? { ok: true } : await greenError(r, 'readChat'))
     }
 
     // POST /api/meta/chat-history { phone, count } → raw Green getChatHistory array
@@ -639,8 +815,9 @@ async function handleChat(req, res, action) {
         body: JSON.stringify({ chatId: `${p}@c.us`, count: Math.min(Number(count) || 100, 200) }),
         signal: AbortSignal.timeout(20000),
       })
+      if (!r.ok) return res.status(502).json(await greenError(r, 'getChatHistory'))
       const data = await r.json().catch(() => [])
-      return res.status(r.ok ? 200 : 502).json(Array.isArray(data) ? data : [])
+      return res.status(200).json(Array.isArray(data) ? data : [])
     }
 
     // POST /api/meta/chat-send { phone, message } → sendMessage
@@ -653,8 +830,8 @@ async function handleChat(req, res, action) {
         body: JSON.stringify({ chatId: `${p}@c.us`, message }),
         signal: AbortSignal.timeout(20000),
       })
+      if (!r.ok) return res.status(502).json(await greenError(r, 'sendMessage'))
       const d = await r.json().catch(() => ({}))
-      if (!r.ok) return res.status(502).json({ error: 'Green API send failed', detail: d })
       return res.status(200).json({ ok: true, idMessage: d.idMessage || null })
     }
 
@@ -900,6 +1077,56 @@ async function handleSupermetrics(req, res) {
   }
 }
 
+// ── Google Analytics 4 (direct Data API) ──────────────────────────────────────
+// GET /api/meta/ga4?days=28[&fresh=1]   full report (KPIs vs previous period, trend, channels, pages, …)
+// GET /api/meta/ga4?realtime=1           active users in the last 30 minutes
+async function handleGA4(req, res) {
+  if (!checkAuth(req)) return res.status(401).json({ error: 'Unauthorized' })
+  try {
+    const q = req.query || {}
+    const data = q.realtime ? await GA4.realtime() : await GA4.report({ days: q.days, fresh: !!q.fresh })
+    res.setHeader('Cache-Control', 'no-store')
+    return res.status(200).json(data)
+  } catch (e) {
+    console.error(`[ga4] ${e.message}`)
+    return res.status(502).json({ configured: true, error: e.message, kind: e.kind || 'api', serviceAccount: GA4.ga4Credentials().email || '' })
+  }
+}
+
+// ── Lead analysis ─────────────────────────────────────────────────────────────
+// POST /api/meta/lead-analyze { lead, ai = true } → rule-based score + Claude briefing (see lib/lead-analyze.js)
+async function handleLeadAnalyze(req, res) {
+  if (!checkAuth(req)) return res.status(401).json({ error: 'Unauthorized' })
+  if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
+  const { lead, ai = true, research = null } = req.body || {}
+  if (!lead || (!lead.phone && !lead.name && !lead.msg)) return res.status(400).json({ error: 'lead required' })
+  try {
+    return res.status(200).json(await analyzeLead(lead, { useAI: ai !== false, research: research && typeof research === 'object' ? research : null }))
+  } catch (e) {
+    console.error('[lead-analyze]', e.message)
+    return res.status(500).json({ error: e.message })
+  }
+}
+
+// POST /api/meta/lead-research { lead } → who the person is, from public sources (lib/lead-research.js); the panel
+// runs it before lead-analyze and passes the result in, so each step has its own time budget
+async function handleLeadResearch(req, res) {
+  if (!checkAuth(req)) return res.status(401).json({ error: 'Unauthorized' })
+  if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
+  const { lead } = req.body || {}
+  if (!lead || (!lead.phone && !lead.name)) return res.status(400).json({ error: 'lead with a name or phone required' })
+  try {
+    // their own recent WhatsApp messages + repeat inquiries help the search (same dossier as the analysis)
+    // (capped at 4 s: the research has its own budget and the WhatsApp history is only a hint for it)
+    const d = await Promise.race([buildDossier(lead).catch(() => null), new Promise(r => setTimeout(() => r(null), 4000))])
+    const extras = d ? { chatSample: d.chat.filter(m => m.dir === 'in').slice(-6).map(m => m.text.slice(0, 160)), repeats: d.repeats } : {}
+    return res.status(200).json(await researchLead(lead, { extras }))
+  } catch (e) {
+    console.error('[lead-research]', e.message)
+    return res.status(500).json({ error: e.message })
+  }
+}
+
 // ── main router ───────────────────────────────────────────────────────────────
 
 // Disable Vercel's automatic body parser so we can read the raw bytes.
@@ -928,7 +1155,11 @@ export default async function handler(req, res) {
   if (path === 'messages')     return handleMessages(req, res)
   if (path === 'sync')         return handleSync(req, res)
   if (path.startsWith('chat-'))  return handleChat(req, res, path)
+  if (path.startsWith('auto-'))  return handleAutomations(req, res, path)
   if (path === 'supermetrics')   return handleSupermetrics(req, res)
+  if (path === 'ga4')            return handleGA4(req, res)
+  if (path === 'lead-analyze')   return handleLeadAnalyze(req, res)
+  if (path === 'lead-research')  return handleLeadResearch(req, res)
   if (path === 'diagnostics')    return handleDiagnostics(req, res)
 
   return res.status(404).json({ error: `Unknown path: ${path}` })

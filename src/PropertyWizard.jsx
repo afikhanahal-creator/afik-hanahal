@@ -1277,6 +1277,71 @@ function Step5({ d, upd }) {
 
 const UPLOAD_BASE = (import.meta.env.VITE_API_URL || 'https://afik-hanahal-server.onrender.com').replace(/\/$/, '')
 
+// ─── Direct upload: browser → Supabase Storage (signed URL minted by our own Vercel API) ──────
+// The old path posted the file to the Render backend from the browser; a sleeping or
+// cross-origin Render service shows up as "שגיאת רשת" before a single byte is sent.
+// Now: 1) same-origin POST for a signed URL, 2) PUT the file straight to Supabase (progress
+// events preserved), 3) store the public URL. If minting fails (e.g. Supabase env missing),
+// we fall back to the Render route so nothing regresses.
+const WIZ_UPLOAD_API = '/api/seller-form?action=wizard-upload-url'
+const NETWORK_ERR = 'שגיאת רשת — בדוק חיבור אינטרנט'
+
+const xhrSend = ({ method, url, body, headers = {}, onProgress }) => new Promise((resolve, reject) => {
+  const xhr = new XMLHttpRequest()
+  xhr.upload.addEventListener('progress', ev => { if (ev.lengthComputable && onProgress) onProgress(ev.loaded / ev.total) })
+  xhr.addEventListener('load', () => resolve(xhr))
+  xhr.addEventListener('error', () => reject(new Error(NETWORK_ERR)))
+  xhr.addEventListener('abort', () => reject(new Error('ההעלאה בוטלה')))
+  xhr.open(method, url)
+  Object.entries(headers).forEach(([k, v]) => xhr.setRequestHeader(k, v))
+  xhr.send(body)
+})
+
+const parseJson = xhr => { try { return JSON.parse(xhr.responseText) } catch { return null } }
+
+// Legacy route (Render). kind: 'image' | 'video' | 'pdf'
+async function uploadViaRender(file, kind, onProgress) {
+  const fd = new FormData(); fd.append('file', file)
+  const xhr = await xhrSend({ method: 'POST', url: `${UPLOAD_BASE}/api/upload/${kind}`, body: fd, headers: { Authorization: `Bearer ${WIZ_ADMIN_TOKEN}` }, onProgress })
+  const data = parseJson(xhr)
+  if (!data) throw new Error('תגובת שרת לא תקינה')
+  if (xhr.status === 200 && data.url) return data
+  throw new Error(data.error || `שגיאה ${xhr.status}`)
+}
+
+// Preferred route: signed direct upload to Supabase Storage. Every failure is reported with its
+// real reason (API status / storage status / network), and only then the legacy Render route is tried;
+// if that fails too, both reasons are shown so the cause is visible in the wizard itself.
+const UPLOAD_ENGINE = 'v2'
+async function uploadDirect(file, kind, onProgress) {
+  let directErr = null
+  try {
+    let r, meta
+    try {
+      r = await fetch(WIZ_UPLOAD_API, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${WIZ_ADMIN_TOKEN}` }, body: JSON.stringify({ name: file.name, type: file.type, size: file.size, kind }) })
+    } catch (e) { throw new Error(`ה-API לא נגיש (${e.message})`) }
+    meta = await r.json().catch(() => null)
+    if (r.status === 400 && meta?.error) throw Object.assign(new Error(meta.error), { fatal: true })   // our own validation (type/size) — no point retrying elsewhere
+    if (!r.ok || !meta?.signedUrl) throw new Error(`API ${r.status}${meta?.error ? ': ' + meta.error : ''}`)
+    let xhr
+    try {
+      xhr = await xhrSend({ method: 'PUT', url: meta.signedUrl, body: file, headers: { 'Content-Type': file.type || 'application/octet-stream', 'x-upsert': 'true' }, onProgress })
+    } catch (e) { throw new Error(`Supabase Storage לא נגיש (${e.message})`) }
+    if (xhr.status < 200 || xhr.status >= 300) { const d = parseJson(xhr); throw new Error(`Supabase Storage ${xhr.status}${d?.message || d?.error ? ': ' + (d.message || d.error) : ''}`) }
+    return { url: meta.url, path: meta.path, name: file.name }
+  } catch (e) {
+    if (e.fatal) throw e
+    directErr = e
+    console.error('[wizard] direct upload failed:', e)
+  }
+  try {
+    return await uploadViaRender(file, kind, onProgress)
+  } catch (e2) {
+    console.error('[wizard] Render upload failed:', e2)
+    throw new Error(`העלאה ישירה נכשלה — ${directErr.message}. גם המסלול הישן נכשל — ${e2.message} [${UPLOAD_ENGINE}]`)
+  }
+}
+
 function PdfUploader({ pdfs, onUpdate, adminToken }) {
   const [uploading, setUploading] = useState(false)
   const [progress, setProgress] = useState(0)
@@ -1297,47 +1362,15 @@ function PdfUploader({ pdfs, onUpdate, adminToken }) {
     setErr('')
     setProgress(0)
 
-    const fd = new FormData()
-    fd.append('file', file)
-
-    return new Promise((resolve) => {
-      const xhr = new XMLHttpRequest()
-      xhr.upload.addEventListener('progress', e => {
-        if (e.lengthComputable) setProgress(Math.round(e.loaded / e.total * 100))
-      })
-      xhr.addEventListener('load', () => {
-        setUploading(false)
-        setProgress(0)
-        if (xhr.status === 200) {
-          try {
-            const data = JSON.parse(xhr.responseText)
-            if (data.url) {
-              onUpdate([...pdfs, { name: data.name || file.name, url: data.url }])
-            } else {
-              setErr(data.error || 'שגיאה בהעלאה')
-            }
-          } catch {
-            setErr('שגיאה בפענוח תגובה')
-          }
-        } else {
-          try {
-            const data = JSON.parse(xhr.responseText)
-            setErr(data.error || `שגיאה ${xhr.status}`)
-          } catch {
-            setErr(`שגיאה ${xhr.status}`)
-          }
-        }
-        resolve()
-      })
-      xhr.addEventListener('error', () => {
-        setUploading(false)
-        setErr('שגיאת רשת — בדוק חיבור אינטרנט')
-        resolve()
-      })
-      xhr.open('POST', `${UPLOAD_BASE}/api/upload/pdf`)
-      xhr.setRequestHeader('Authorization', `Bearer ${adminToken}`)
-      xhr.send(fd)
-    })
+    try {
+      const data = await uploadDirect(file, 'pdf', p => setProgress(Math.round(p * 100)))
+      onUpdate([...pdfs, { name: data.name || file.name, url: data.url }])
+    } catch (err) {
+      setErr(err.message || 'שגיאה בהעלאה')
+    } finally {
+      setUploading(false)
+      setProgress(0)
+    }
   }
 
   const handleFiles = async (files) => {
@@ -1477,28 +1510,7 @@ function Step6({ d, upd, onUploadingChange }) {
         // Shrink the photo client-side first so Supabase Storage holds a small
         // optimised copy instead of the multi-MB original off the camera.
         const optimised = await compressForUpload(file)
-        const fd = new FormData()
-        fd.append('file', optimised)
-        const url = await new Promise((resolve, reject) => {
-          const xhr = new XMLHttpRequest()
-          xhr.upload.addEventListener('progress', ev => {
-            if (ev.lengthComputable) {
-              const pct = ((i * 100) + (ev.loaded / ev.total) * 100) / toAdd.length
-              setProgress(Math.round(pct))
-            }
-          })
-          xhr.addEventListener('load', () => {
-            try {
-              const data = JSON.parse(xhr.responseText)
-              if (xhr.status === 200 && data.url) resolve(data.url)
-              else reject(new Error(data.error || `שגיאה ${xhr.status}`))
-            } catch { reject(new Error('תגובת שרת לא תקינה')) }
-          })
-          xhr.addEventListener('error', () => reject(new Error('שגיאת רשת — בדוק חיבור אינטרנט')))
-          xhr.open('POST', `${UPLOAD_BASE}/api/upload/image`)
-          xhr.setRequestHeader('Authorization', `Bearer ${WIZ_ADMIN_TOKEN}`)
-          xhr.send(fd)
-        })
+        const { url } = await uploadDirect(optimised, 'image', p => setProgress(Math.round(((i + p) / toAdd.length) * 100)))
         uploaded.push({ url, name: file.name, type: 'image' })
       } catch (err) {
         setUploadErr(`שגיאה בהעלאת "${file.name}": ${err.message}`)
@@ -1542,30 +1554,7 @@ function Step6({ d, upd, onUploadingChange }) {
     for (let i = 0; i < toAdd.length; i++) {
       const file = toAdd[i]
       try {
-        const fd = new FormData()
-        fd.append('file', file)
-
-        const url = await new Promise((resolve, reject) => {
-          const xhr = new XMLHttpRequest()
-          xhr.upload.addEventListener('progress', ev => {
-            if (ev.lengthComputable) {
-              const pct = ((i * 100) + (ev.loaded / ev.total) * 100) / toAdd.length
-              setProgress(Math.round(pct))
-            }
-          })
-          xhr.addEventListener('load', () => {
-            try {
-              const data = JSON.parse(xhr.responseText)
-              if (xhr.status === 200 && data.url) resolve(data.url)
-              else reject(new Error(data.error || `שגיאה ${xhr.status}`))
-            } catch { reject(new Error('תגובת שרת לא תקינה')) }
-          })
-          xhr.addEventListener('error', () => reject(new Error('שגיאת רשת')))
-          xhr.open('POST', `${UPLOAD_BASE}/api/upload/video`)
-          xhr.setRequestHeader('Authorization', `Bearer ${WIZ_ADMIN_TOKEN}`)
-          xhr.send(fd)
-        })
-
+        const { url } = await uploadDirect(file, 'video', p => setProgress(Math.round(((i + p) / toAdd.length) * 100)))
         uploaded.push({ url, name: file.name, type: 'video', thumbnail: null })
       } catch (err) {
         setUploadErr(`שגיאה בהעלאת "${file.name}": ${err.message}`)
@@ -1672,7 +1661,7 @@ function Step6({ d, upd, onUploadingChange }) {
                   או <span style={{ color: P, fontWeight: 600 }}>לחץ לבחירת קבצים</span> &nbsp;·&nbsp; {imgCount}/20 תמונות
                 </div>
                 <div style={{ color: `${MUTED}88`, fontSize: 11, fontFamily: FONT, marginTop: 4 }}>
-                  ☁ מועלה ישירות ל-Supabase Storage
+                  ☁ מועלה ישירות ל-Supabase Storage · {UPLOAD_ENGINE}
                 </div>
               </div>
             </>
@@ -1791,7 +1780,9 @@ function Step6({ d, upd, onUploadingChange }) {
             <input type="file" accept="image/*" style={{ display: 'none' }} onChange={async e => {
               const f = e.target.files[0]
               if (!f) return
-              const url = await compressImage(f)
+              // Upload the logo like any photo (never inline base64 — it would ride along in every list response)
+              let url
+              try { url = (await uploadDirect(await compressForUpload(f, { max: 600 }), 'image')).url } catch { url = await compressImage(f) }
               upd('logo', url)
               e.target.value = ''
             }} />

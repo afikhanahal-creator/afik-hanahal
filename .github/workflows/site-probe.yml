@@ -1,0 +1,57 @@
+# Measures the live site from the outside (a real phone-profile browser on a real network):
+# the shared property link /p/<id>, the homepage, the APIs and the photo CDN. Run it from the
+# Actions tab ("Site speed probe" → Run workflow) — the log has the timings, the artifact has
+# screenshots at 1 s / 3 s / 6 s / 10 s and the request waterfalls. See scripts/probe-site.mjs.
+name: Site speed probe
+on:
+  workflow_dispatch:
+    inputs:
+      site:
+        description: Site origin
+        default: https://www.afikhanahal.co.il
+      prop:
+        description: Property id to probe (empty = the newest published one)
+        default: ''
+      profiles:
+        description: Network profiles (real, 4g, 3g)
+        default: real,4g,3g
+      actions:
+        description: 'Optional live actions: slim (move inline photos), ai (one test lead analysis), rebuild (deploy hook)'
+        default: ''
+      lead:
+        description: 'For the ai action: a JSON lead, e.g. {"name":"…","phone":"05…","msg":"…"} (default: a synthetic test lead)'
+        default: ''
+  push:
+    branches: ['claude/**']
+    paths: ['scripts/probe-site.mjs', '.github/workflows/site-probe.yml']
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install a browser
+        run: npm i --no-save --no-audit --no-fund playwright@1.49.1 && npx playwright install --with-deps chromium
+      - name: Probe
+        env:
+          SITE: ${{ inputs.site || 'https://www.afikhanahal.co.il' }}
+          PROP: ${{ inputs.prop }}
+          PROFILES: ${{ inputs.profiles || 'real,4g,3g' }}
+          OUT_DIR: probe-out
+        run: node scripts/probe-site.mjs
+      - name: Live actions
+        if: ${{ inputs.actions != '' && inputs.actions != null }}
+        env:
+          SITE: ${{ inputs.site || 'https://www.afikhanahal.co.il' }}
+          ACTIONS: ${{ inputs.actions }}
+          AI_LEAD: ${{ inputs.lead }}
+        run: node scripts/probe-actions.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: probe-${{ github.run_number }}
+          path: probe-out
+          retention-days: 7

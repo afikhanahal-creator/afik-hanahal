@@ -34,6 +34,7 @@ import { randomBytes } from 'crypto'
 import { backupEnabled, backupPut, backupList, backupGet, backupDelete } from '../lib/backup.js'
 import { archiveEnabled, archiveSubmission, archiveRepoUrl } from '../lib/archive.js'
 import { videoPack } from '../lib/videoPack.js'
+import { propertiesChanged } from '../lib/site-rebuild.js'
 import { buildSummary, headline, PROPERTY_TYPE_LABEL, DOC_TAG_LABEL, publicAnswers, buildStory, storyText, directionsText, STEPS, INTAKE_STATUSES, purposeOf, roomsOf, visibleSteps, stepQuestion } from '../src/sellerFormSchema.js'
 
 const SUPA_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
@@ -300,7 +301,10 @@ async function renderPut(property) {
     body: JSON.stringify(property), signal: AbortSignal.timeout(42000),
   })
   if (!r.ok) throw new Error(`property generator HTTP ${r.status}: ${(await r.text().catch(() => '')).slice(0, 200)}`)
-  return r.json().catch(() => ({}))
+  const out = await r.json().catch(() => ({}))
+  // The site's public snapshot + instant landing pages follow right away (lib/site-rebuild.js)
+  await propertiesChanged({ renderUrl: RENDER, supaUrl: String(SUPA_URL || '').replace(/\/$/, ''), supaKey: SUPA_KEY }).catch(() => {})
+  return out
 }
 async function renderGet(id) {
   const r = await fetch(`${RENDER}/api/properties`, { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` }, signal: AbortSignal.timeout(42000) })
@@ -723,6 +727,26 @@ export default async function handler(req, res) {
       const row = await getRow(`id=eq.${encodeURIComponent(id)}`, 'id,ref,answers,story,asking_price,overrides,submitted_at')
       if (!row) return res.status(404).json({ ok: false, error: 'not found' })
       return res.status(200).json(videoPack(row, row.overrides || {}))
+    }
+
+    // ── Property wizard media (admin): browser → Supabase Storage directly ─────
+    // Replaces the Render `/api/upload/{image,video,pdf}` round-trip (a browser POST to a
+    // sleeping / cross-origin Render service surfaced as "שגיאת רשת" in the wizard).
+    // Files land in the public bucket, so `/media/<bucket>/<path>` and the CDN proxy work unchanged.
+    if (req.method === 'POST' && action === 'wizard-upload-url') {
+      const WIZ_KINDS = { image: [t => t.startsWith('image/'), 25], video: [t => t.startsWith('video/'), 200], pdf: [t => t === 'application/pdf', 25] }
+      const b = req.body || {}
+      const kind = String(b.kind || ''), type = String(b.type || 'application/octet-stream'), size = Number(b.size || 0)
+      if (!WIZ_KINDS[kind]) return res.status(400).json({ ok: false, error: 'invalid kind' })
+      if (!WIZ_KINDS[kind][0](type)) return res.status(400).json({ ok: false, error: 'file type not allowed for this kind' })
+      if (!size || size > WIZ_KINDS[kind][1] * 1024 * 1024) return res.status(400).json({ ok: false, error: `file too large (max ${WIZ_KINDS[kind][1]}MB)` })
+      const client = sb()
+      const path = `wizard/${new Date().toISOString().slice(0, 7)}/${Date.now()}-${rand(3)}-${safeName(b.name)}`
+      let { data, error } = await client.storage.from(PUBLIC_BUCKET).createSignedUploadUrl(path)
+      if (error && /not found|does not exist/i.test(error.message || '')) { await ensureBucket(client, PUBLIC_BUCKET, true); ({ data, error } = await client.storage.from(PUBLIC_BUCKET).createSignedUploadUrl(path)) }
+      if (error) return res.status(502).json({ ok: false, error: `storage: ${error.message}` })
+      const url = client.storage.from(PUBLIC_BUCKET).getPublicUrl(path).data.publicUrl
+      return res.status(200).json({ ok: true, signedUrl: data.signedUrl, token: data.token, path: `${PUBLIC_BUCKET}/${path}`, url })
     }
 
     // ── Backups: forms that arrived while Supabase was unavailable (Vercel Blob) ──
