@@ -60,6 +60,13 @@ const ids = (Array.isArray(props) ? props : []).filter(p => p && p.id != null).m
 const PROP = process.env.PROP || ids[ids.length - 1] || '1790232349039'
 const prop = (Array.isArray(props) ? props : []).find(p => String(p.id) === PROP)
 console.log(`   properties.json: ${ids.length} properties · probing property ${PROP} ${prop ? '(' + String(prop.title).slice(0, 40) + ')' : '(not in properties.json → the function renders it)'}`)
+// What makes the list heavy: per property, the heaviest fields (this is what every full download costs)
+if (Array.isArray(props) && props.length) {
+  const size = v => Buffer.byteLength(JSON.stringify(v === undefined ? null : v))
+  const rows = props.map(p => ({ id: p.id, title: String(p.title || '').slice(0, 28), kb: Math.round(size(p) / 1024), top: Object.entries(p).map(([k, v]) => [k, size(v)]).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([k, b]) => `${k} ${Math.round(b / 1024)} KB${typeof p[k] === 'string' && p[k].startsWith('data:') ? ' (base64!)' : Array.isArray(p[k]) && p[k].some(x => String(x).startsWith('data:')) ? ' (base64!)' : ''}`).join(' · ') }))
+  console.log(`   list weight: ${Math.round(Buffer.byteLength(list.body || '') / 1024)} KB raw`)
+  for (const r of rows.sort((a, b) => b.kb - a.kb)) console.log(`     ${pad(r.kb + ' KB', 8)}  ${r.id}  ${r.title.padEnd(28)}  ${r.top}`)
+}
 
 for (const pass of [1, 2]) {
   const r = await timedFetch(`/p/${PROP}?utm_source=whatsapp`)
@@ -121,7 +128,7 @@ try {
 for (const [path, label] of [['/api/properties?health=1', 'Vercel: feed health'], ['/api/properties', 'Vercel: public list'], [`/api/properties?one=${PROP}`, 'Vercel: single property']]) {
   const r = await timedFetch(path, { accept: 'application/json' })
   report(r, `   (${label})`)
-  console.log(`      body: ${String(r.body || '').replace(/\s+/g, ' ').slice(0, 160)}`)
+  console.log(`      body: ${String(r.body || '').replace(/\s+/g, ' ').slice(0, path.includes('health') ? 1600 : 160)}`)
 }
 
 // ── 2. A real phone visit ────────────────────────────────────────────────────────────────────────
