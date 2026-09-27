@@ -13,7 +13,7 @@
 import { fetchAllSources, outletKey, outletCap, titleKey, cleanTitle, isTrustedSource, fetchOGImage, mapWithBudget } from '../../lib/news/sources.js'
 import { scoreRealEstate } from '../../lib/news/classify.js'
 import { resolveGoogleNewsUrl, isGoogleNewsUrl } from '../../lib/news/gnews.js'
-import { run as runAutomations } from '../../lib/automations.js'
+import { run as runAutomations, sendText } from '../../lib/automations.js'
 import { createFeed } from '../../lib/property-feed.js'
 
 const RENDER      = process.env.RENDER_URL   || 'https://afik-hanahal-server.onrender.com'
@@ -173,6 +173,34 @@ function authorized(req) {
   return bearer === secret || key === secret
 }
 
+const NOTIFY_PHONE = process.env.BUSINESS_NOTIFY_CHATID || '972559811814'
+const supaKV = async (key, value) => {
+  const base = `${SUPA_URL.replace(/\/$/, '')}/rest/v1/app_settings`
+  const H = { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}`, 'Content-Type': 'application/json', Accept: 'application/json' }
+  if (value === undefined) { const r = await fetch(`${base}?key=eq.${key}&select=value`, { headers: H, signal: AbortSignal.timeout(4000) }); const rows = r.ok ? await r.json() : []; return rows?.[0]?.value ?? null }
+  await fetch(`${base}?on_conflict=key`, { method: 'POST', headers: { ...H, Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify({ key, value, updated_at: new Date().toISOString() }), signal: AbortSignal.timeout(4000) }).catch(() => {})
+}
+async function bandwidthWatch() {
+  if (!SUPA_URL || !SUPA_KEY) return { skipped: 'no store' }
+  const feed = createFeed({ renderUrl: RENDER, supaUrl: SUPA_URL.replace(/\/$/, ''), supaKey: SUPA_KEY, renderBudgetMs: 8000 })
+  const h = await feed.health()
+  const mb = Math.round((h.traffic?.bytes || 0) / 1048576), kb = Math.round((h.list?.bytes || 0) / 1024), inline = h.list?.inlineImages || 0
+  const problems = []
+  if (mb >= 3000) problems.push(`נשלחו כבר ${mb} MB דרך האתר החודש (המכסה החינמית: 5 GB)`)
+  if (inline) problems.push(`${inline} תמונות שמורות בתוך הנכסים כ-base64 — כל טעינת רשימה מורידה אותן מחדש. העלו אותן מחדש בפאנל`)
+  if (kb > 600) problems.push(`רשימת הנכסים שוקלת ${kb} KB`)
+  if (h.render && !h.render.ok && h.render.routing && h.render.routing !== 'timeout') problems.push(`שרת Render לא עונה: ${h.render.error}`)
+  const out = { mb, kb, inline, serving: h.serving, problems }
+  if (!problems.length) return out
+  const today = new Date().toISOString().slice(0, 10)
+  const last = await supaKV('render_alert').catch(() => null)
+  if (last && last.day === today) return { ...out, alert: 'already sent today' }
+  const msg = ['⚠️ *רוחב הפס של Render*', '', ...problems.map(p => `• ${p}`), '', 'בדיקה: https://www.afikhanahal.co.il/admin-panel · https://dashboard.render.com/billing'].join('\n')
+  const r = await sendText(NOTIFY_PHONE, msg)
+  await supaKV('render_alert', { day: today, problems, ok: r.ok })
+  return { ...out, alert: r.ok ? 'sent' : `failed: ${r.error}` }
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
   if (req.method !== 'GET' && req.method !== 'POST') return res.status(405).end()
@@ -196,6 +224,10 @@ export default async function handler(req, res) {
   try { out.ingest = await ingest(log) } catch (e) { out.ingest = { error: e.message }; log.push(`[ingest] ERROR ${e.message}`) }
   try { out.sweep  = await sweep(log)  } catch (e) { out.sweep  = { error: e.message }; log.push(`[sweep] ERROR ${e.message}`) }
   out.propertiesSnapshot = await snapshot
+  // Render bandwidth watch (free tier: 5 GB/month): one WhatsApp to the office when the month's traffic through the
+  // site passes 3 GB, when the property list gets heavy, or when a photo is stored inline — at most once a day,
+  // remembered in the store so a suspended workspace never comes as a surprise again.
+  try { out.bandwidth = await bandwidthWatch() } catch (e) { out.bandwidth = { error: e.message } }
   log.forEach(l => console.log('[warm]', l))
   out.log = log.filter(l => !l.startsWith('[fetch]')).concat(log.filter(l => l.startsWith('[fetch]')).slice(0, 80))
   return res.status(200).json(out)
