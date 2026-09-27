@@ -373,6 +373,27 @@ async function sendLeadEmail(lead) {
 
 // ── Handler ───────────────────────────────────────────────────────────────────
 
+// The office CRM webhook lives in the Render server's admin settings (Supabase site_config → admin_settings).
+// Read at most every 10 minutes per instance; a missing / invalid URL means nothing to do.
+let crmHookCache = { at: 0, url: '' }
+async function crmWebhookUrl() {
+  if (Date.now() - crmHookCache.at < 600000) return crmHookCache.url
+  let url = ''
+  try {
+    const r = await supaFetch('/site_config?key=eq.admin_settings&select=value', { signal: AbortSignal.timeout(4000) })
+    const rows = r.ok ? await r.json() : null
+    const v = Array.isArray(rows) && rows[0] && rows[0].value
+    if (v && typeof v.crmWebhook === 'string' && /^https:\/\/[^\s]+$/.test(v.crmWebhook.trim())) url = v.crmWebhook.trim()
+  } catch {}
+  crmHookCache = { at: Date.now(), url }
+  return url
+}
+async function forwardToCrmWebhook(row) {
+  const url = await crmWebhookUrl()
+  if (!url) return
+  await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(row), signal: AbortSignal.timeout(8000) })
+}
+
 export default async function handler(req, res) {
   Object.entries(CORS).forEach(([k, v]) => res.setHeader(k, v))
   if (req.method === 'OPTIONS') return res.status(200).end()
@@ -521,6 +542,10 @@ export default async function handler(req, res) {
           }
         } catch { /* best-effort — on error, default to notifying */ }
       }
+
+      // CRM webhook (admin settings → crmWebhook): forwarded from here, so the public site never has to
+      // read the admin settings (that read used to go to Render on every page view)
+      forwardToCrmWebhook(row).catch(() => {})
 
       if (shouldNotify) {
         // Fire all 3 notifications immediately, in parallel. Hard 12s cap fits the 30s maxDuration.

@@ -243,6 +243,20 @@ Admin → property list → "שתף" (or ⋯ → "שיתוף ופרסום") open
 links (Facebook, Instagram, WhatsApp, colleagues, Yad2, Google; `utm_campaign=prop-<id>`), a custom UTM builder, ready-made post and
 colleague texts (Hebrew / English), one-tap share buttons, a QR code generated in the browser (`qrcode`) and a Facebook debugger link.
 
+## Render bandwidth budget (free tier: 5 GB / month — the site was suspended once for exceeding it)
+
+Render meters every byte it sends. Rules that keep it near zero:
+
+- **The public site never calls Render directly.** Visitors get the property list, `/api/stats` (edge-cached 10 min)
+  and everything else through Vercel; only an admin session (`sessionStorage.afik_admin_session`) talks to Render.
+  The CRM webhook for a new lead is forwarded by `api/contacts.js` (reads `site_config.admin_settings` server-side).
+- **Vercel asks Render conditionally.** The snapshot keeps Render's `ETag`; `lib/property-feed.js` sends
+  `If-None-Match`, an unchanged list answers `304` with no body. A snapshot must therefore exist: it is stored in
+  `app_settings`, or in `site_config` when that table is missing (health `store.table` says which).
+- **Server code that needs the catalog uses the feed** (`lib/lead-analyze.js`), never a raw full-list download.
+- The admin panel polls Render with `If-None-Match` (`condFetchJson`) and pauses in hidden tabs — keep it that way.
+- Check with the "Site speed probe" action: the "backends" section shows the list size and whether `If-None-Match` gets a 304.
+
 ## GovMap parcel map (`src/GovMapWidget.jsx`)
 
 The property modal and the property wizard show a GovMap map zoomed to the property's gush/helka. The parcel point
