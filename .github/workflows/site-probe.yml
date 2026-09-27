@@ -15,6 +15,9 @@ on:
       profiles:
         description: Network profiles (real, 4g, 3g)
         default: real,4g,3g
+      actions:
+        description: 'Optional live actions: slim (move inline photos), ai (one test lead analysis)'
+        default: ''
   push:
     branches: ['claude/**']
     paths: ['scripts/probe-site.mjs', '.github/workflows/site-probe.yml']
@@ -36,6 +39,12 @@ jobs:
           PROFILES: ${{ inputs.profiles || 'real,4g,3g' }}
           OUT_DIR: probe-out
         run: node scripts/probe-site.mjs
+      - name: Live actions
+        if: ${{ inputs.actions != '' && inputs.actions != null }}
+        env:
+          SITE: ${{ inputs.site || 'https://www.afikhanahal.co.il' }}
+          ACTIONS: ${{ inputs.actions }}
+        run: node scripts/probe-actions.mjs
       - uses: actions/upload-artifact@v4
         if: always()
         with:

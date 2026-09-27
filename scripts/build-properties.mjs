@@ -9,6 +9,7 @@ import { writeFileSync, mkdirSync } from 'fs'
 import { createFeed } from '../lib/property-feed.js'
 import { renderLanding, landingImageUrls, lqipUrl, propertyMeta } from '../lib/share-page.js'
 import { renderHome } from '../lib/home-page.js'
+import { slimList } from '../lib/slim-photos.js'
 import { readFileSync } from 'fs'
 
 if (!process.env.VERCEL && process.env.PROPS_SNAPSHOT !== '1') {
@@ -24,7 +25,8 @@ const ORIGIN = (process.env.SITE_ORIGIN || 'https://www.afikhanahal.co.il').repl
 // Render's free tier can take up to a minute to wake: long budget, one retry. Render down altogether (suspended,
 // crashed) → the Supabase snapshot → the list the PREVIOUS deploy published (still live on the site), so a
 // deploy never erases the static pages just because the backend is out.
-const feed = createFeed({ renderUrl: RENDER, supaUrl: SUPA_URL, supaKey: SUPA_KEY, renderBudgetMs: 70000, renderTimeoutMs: 70000 })
+// Inline (base64) photos are moved to Storage before anything is written (lib/slim-photos.js)
+const feed = createFeed({ renderUrl: RENDER, supaUrl: SUPA_URL, supaKey: SUPA_KEY, renderBudgetMs: 70000, renderTimeoutMs: 70000, transformList: list => slimList(list, { supaUrl: SUPA_URL, supaKey: SUPA_KEY }).then(r => r.list) })
 let result = null
 const t0 = Date.now()
 for (let attempt = 1; attempt <= 2 && !result; attempt++) {
@@ -41,6 +43,8 @@ if (!result || !Array.isArray(result.list) || !result.list.length) {
   process.exit(0)
 }
 
+// The list as fetched may still carry inline photos (the static fallback, a snapshot from before the cleaner)
+if (SUPA_URL && SUPA_KEY) { try { const sl = await slimList(result.list, { supaUrl: SUPA_URL, supaKey: SUPA_KEY, budgetMs: 60000 }); result.list = sl.list; if (sl.uploaded || sl.reused) console.log(`[build-properties] inline photos → Storage: ${sl.uploaded} uploaded, ${sl.reused} already there, ${sl.remaining} left`) } catch (e) { console.warn(`[build-properties] inline photo move skipped: ${e.message}`) } }
 const published = result.list.filter(p => p && p.published !== false).map(p => ({ ...p }))
 const body = JSON.stringify(published)
 mkdirSync('dist', { recursive: true })

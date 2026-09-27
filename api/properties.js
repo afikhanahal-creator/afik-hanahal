@@ -5,7 +5,7 @@ import { isPreviewBot, renderSharePage, renderLanding, targetUrl } from '../lib/
 import { resolveParcel, govmapParcelUrl } from '../lib/parcel-locate.js'
 import { createFeed } from '../lib/property-feed.js'
 import { propertiesChanged } from '../lib/site-rebuild.js'
-import { slimInlinePhotos } from '../lib/slim-photos.js'
+import { slimInlinePhotos, slimList } from '../lib/slim-photos.js'
 const RENDER = process.env.RENDER_URL || 'https://afik-hanahal-server.onrender.com'
 const SUPA_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || ''
 
@@ -16,7 +16,9 @@ const SUPA_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_K
 const SUPA_URL = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').replace(/\/$/, '')
 const IMG_PATH_RE = /^[\w\-./%()~!,+ \u0590-\u05FF]{3,400}$/
 // Public list: Render when it answers within 2.5 s, otherwise the Supabase snapshot (lib/property-feed.js)
-const feed = createFeed({ renderUrl: RENDER, supaUrl: SUPA_URL, supaKey: SUPA_KEY })
+// Every list the feed stores has its inline (base64) photos moved to Storage first (lib/slim-photos.js slimList)
+const slimTransform = list => slimList(list, { supaUrl: SUPA_URL, supaKey: SUPA_KEY }).then(r => r.list)
+const feed = createFeed({ renderUrl: RENDER, supaUrl: SUPA_URL, supaKey: SUPA_KEY, transformList: slimTransform })
 // Last resort for the feed: the list published with the last deploy (scripts/build-properties.mjs)
 const staticListUrl = req => `${String(req.headers['x-forwarded-proto'] || 'https').split(',')[0].trim()}://${String(req.headers['x-forwarded-host'] || req.headers.host || 'afikhanahal.co.il').split(',')[0].trim()}/properties.json`
 async function serveImage(req, res, rawPath) {
@@ -112,7 +114,8 @@ async function serveChanged(req, res) {
   if (key !== ADMIN_TOKEN) return res.status(401).json({ error: 'unauthorized' })
   // A save may have carried a photo inline (an old client, the Render server's own fallback): move it out first,
   // then refresh the snapshot / rebuild as usual (the rebuild is throttled, so this never doubles it)
-  const slim = await slimInlinePhotos({ supaUrl: SUPA_URL, supaKey: SUPA_KEY, budgetMs: 12000, onDone: list => feed.pushSnapshot(list) }).catch(e => ({ error: e.message }))
+  const slim = await slimInlinePhotos({ supaUrl: SUPA_URL, supaKey: SUPA_KEY, budgetMs: 8000, onDone: list => feed.pushSnapshot(list) }).catch(e => ({ error: e.message }))
+  await feed.cleanSnapshot().catch(() => {})
   const out = await propertiesChanged({ renderUrl: RENDER, supaUrl: SUPA_URL, supaKey: SUPA_KEY })
   return res.status(200).json({ ...out, slim: { uploaded: slim.uploaded || 0, remaining: slim.remaining || 0, error: slim.error } })
 }
@@ -156,8 +159,11 @@ async function serveSlim(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
   const key = (req.headers.authorization || '').replace(/^Bearer\s+/i, '') || String(req.query.key || '')
   if (key !== ADMIN_TOKEN) return res.status(401).json({ error: 'unauthorized' })
-  const report = await slimInlinePhotos({ supaUrl: SUPA_URL, supaKey: SUPA_KEY, budgetMs: Number(req.query.budget) || 20000, maxPhotos: Number(req.query.max) || 12, onDone: slimDone })
-  return res.status(report.error ? 502 : 200).json(report)
+  const report = await slimInlinePhotos({ supaUrl: SUPA_URL, supaKey: SUPA_KEY, budgetMs: Number(req.query.budget) || 12000, maxPhotos: Number(req.query.max) || 12, onDone: slimDone })
+  // The list the site actually serves (the stored snapshot — Render's list, or the admin's copy): cleaned too
+  report.snapshotClean = await feed.cleanSnapshot().catch(e => ({ changed: false, reason: e.message }))
+  if (report.snapshotClean.changed) report.rebuild = await propertiesChanged({ renderUrl: RENDER, supaUrl: SUPA_URL, supaKey: SUPA_KEY }).catch(e => ({ error: e.message }))
+  return res.status(report.error && !report.snapshotClean.changed ? 502 : 200).json(report)
 }
 
 // ── /api/properties?one=<id> → a single published property (the page a share link opens) ─────────
