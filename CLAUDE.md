@@ -180,7 +180,8 @@ property catalog), scores it with the pure, tested rules in `lib/lead-intel.js` 
 info, next best action) and asks Claude (`claude-opus-5`, structured output, server-side refusal fallback) for a briefing that
 may adjust the score by ±15. The result is stored as `lead.enrichment` (`version: 2`, `score100`, `grade`, `factors`, `brief`, plus
 the legacy `score` 1–5 / `intent`). Without `ANTHROPIC_API_KEY` in Vercel the endpoint returns the dossier and the panel runs the
-briefing through the Render AI proxy, merged with `mergeBrief()`.
+briefing through the Render AI proxy, merged with `mergeBrief()`. A key created outside a workspace gets a 400 ("not scoped to a
+workspace"): create the key inside a workspace, or set `ANTHROPIC_WORKSPACE_ID` (sent as the `anthropic-workspace-id` header).
 
 ### Property share links (`/p/<id>`)
 
@@ -258,11 +259,17 @@ Render meters every byte it sends. Rules that keep it near zero:
   The WhatsApp chat reads the legacy Render history once per contact per session (`GreenAPIChat.jsx`); its 8-second
   poll asks only Green API through Vercel. Photos never go inline (base64) into a property: the admin uploader falls
   back to the wizard's signed-URL upload to Supabase Storage and otherwise shows an error.
-- **Inline photos:** `POST /api/properties?slim=1` (admin; `lib/inline-images.js`, tested) moves photos stored inside a
-  property as base64 into Supabase Storage (`property-images/inline/<id>/<sha1>.<ext>`) straight through the
-  `properties` table — it works while Render is down, a few photos per call, and pushes the snapshot + rebuild when
-  none remain. The admin home's bandwidth tile offers it when `health.list.inlineImages > 0`. The live list was 1.9 MB
-  for 10 properties (17 inline photos) before this — the single biggest cause of the overage and of slow loads.
+- **Inline photos (automatic):** photos stored inside a property as base64 are the single biggest cause of the overage
+  and of slow loads (the live list was 1.9 MB for 10 properties, 17 inline photos). Four layers keep them out:
+  1. every admin save (`saveProp` / `savePropSilent` / bulk sync / the wizard) first runs `externalizeInlinePhotos`
+     (`src/inlinePhotos.js`): data-URL photos are uploaded through the wizard's signed URL (Supabase Storage, no Render)
+     and replaced by their URLs; the wizard's logo is uploaded too;
+  2. `POST ?changed=1` (after every save) runs `slimInlinePhotos` (`lib/slim-photos.js`, on top of the tested helpers in
+     `lib/inline-images.js`): anything inline left in the `properties` table moves to
+     `property-images/inline/<id>/<sha1>.<ext>`, straight through the table, so it works while Render is down;
+  3. `api/cron/warm.js` runs the same every day;
+  4. the admin home runs it by itself when `health.list.inlineImages > 0` (and `POST ?slim=1` runs it on demand).
+  The Render server itself (`afik-hanahal-server` repo) should also stop writing base64 — layers 1–4 don't depend on it.
 - **Meter:** the feed counts every byte Render sends to Vercel (`render_traffic` in the store, per month) and
   `health` reports it with the list's weight and inline-photo count; the admin home shows both as the "רוחב פס Render"
   tile (warn > 1.5 GB, red > 3.5 GB; warn on a heavy list or inline photos). Render's own number is on

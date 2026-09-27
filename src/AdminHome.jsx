@@ -1,5 +1,5 @@
 // Admin home ("סקירה כללית"): greeting, business KPIs, live system status, pipeline and recent activity.
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { FaBuilding, FaFileAlt, FaUsers, FaFire, FaWhatsapp, FaChartLine, FaRobot, FaClipboardList, FaArrowLeft, FaArrowRight, FaCircle, FaPlus, FaGlobe, FaServer, FaTachometerAlt } from 'react-icons/fa'
 import { T } from './automationsUI.jsx'
 
@@ -11,7 +11,7 @@ const TR = {
     status: 'מצב המערכת', wa: 'WhatsApp (Green API)', ga: 'Google Analytics', auto: 'אוטומציות', site: 'האתר', feed: 'שרת הנכסים (Render)',
     feedOk: n => `פעיל · ${n} נכסים`, feedSnap: (n, ago) => `מושעה — האתר מגיש עותק שמור (${n} נכסים, ${ago})`, feedStatic: n => `מושעה — האתר מגיש את רשימת הפריסה האחרונה (${n})`,
     feedNone: 'מושעה ואין עותק שמור — האתר לא מציג נכסים! הפעילו את השרת ב-Render', feedSleep: 'מתעורר… (שרת חינמי)',
-    bw: 'רוחב פס Render (5 GB בחודש)', bwUse: (mb, n) => `${mb} MB נשלחו דרך האתר החודש · ${n} בקשות`, bwHeavy: kb => `רשימת הנכסים שוקלת ${kb} KB — כבדה`, bwInline: n => `${n} תמונות שמורות בתוך הנכס (base64) — העלו אותן מחדש`, bwNone: 'אין נתונים עדיין', slimming: 'מעביר תמונות לאחסון…', slimConfirm: n => `${n} תמונות שמורות בתוך הנכסים ומכבידות על כל טעינה. להעביר אותן לאחסון התמונות עכשיו? (הנכסים לא משתנים, רק מקום התמונות)`, slimDone: n => `${n} תמונות הועברו לאחסון. האתר ייבנה מחדש בדקות הקרובות.`,
+    bw: 'רוחב פס Render (5 GB בחודש)', bwUse: (mb, n) => `${mb} MB נשלחו דרך האתר החודש · ${n} בקשות`, bwHeavy: kb => `רשימת הנכסים שוקלת ${kb} KB — כבדה`, bwInline: n => `${n} תמונות שמורות בתוך הנכס (base64) — העלו אותן מחדש`, bwNone: 'אין נתונים עדיין', slimming: 'מעביר תמונות לאחסון…', slimDone: n => `${n} תמונות הועברו אוטומטית לאחסון — האתר נבנה מחדש`,
     ok: 'מחובר', off: 'לא מחובר', setup: 'דורש חיבור', on: 'פעילות', paused: 'מושהות', checking: 'בודק…', live: n => `${n} גולשים עכשיו`, online: 'באוויר', unread: n => `${n} הודעות שלא נקראו`,
     pipeline: 'צינור המכירות', pipelineSub: 'לידים לפי שלב', recentLeads: 'לידים אחרונים', recentProps: 'נכסים אחרונים', all: 'לכל הלידים', manage: 'לניהול נכסים',
     noLeads: 'אין לידים עדיין', noProps: 'אין נכסים עדיין', published: 'פורסם', draft: 'טיוטה', newProp: 'נכס חדש', viewSite: 'צפה באתר', noName: 'ללא שם',
@@ -25,7 +25,7 @@ const TR = {
     status: 'System status', wa: 'WhatsApp (Green API)', ga: 'Google Analytics', auto: 'Automations', site: 'Website', feed: 'Property server (Render)',
     feedOk: n => `Up · ${n} properties`, feedSnap: (n, ago) => `Down — the site serves a saved copy (${n} properties, ${ago})`, feedStatic: n => `Down — the site serves the last deploy's list (${n})`,
     feedNone: 'Down with no saved copy — the site shows no properties! Resume the server on Render', feedSleep: 'Waking up… (free tier)',
-    bw: 'Render bandwidth (5 GB / month)', bwUse: (mb, n) => `${mb} MB sent through the site this month · ${n} requests`, bwHeavy: kb => `the property list weighs ${kb} KB — heavy`, bwInline: n => `${n} photos stored inside the property (base64) — re-upload them`, bwNone: 'No data yet', slimming: 'Moving photos to storage…', slimConfirm: n => `${n} photos are stored inside the properties and weigh down every load. Move them to photo storage now? (The properties stay the same, only where the photos live changes)`, slimDone: n => `${n} photos moved to storage. The site rebuilds in the next few minutes.`,
+    bw: 'Render bandwidth (5 GB / month)', bwUse: (mb, n) => `${mb} MB sent through the site this month · ${n} requests`, bwHeavy: kb => `the property list weighs ${kb} KB — heavy`, bwInline: n => `${n} photos stored inside the property (base64) — re-upload them`, bwNone: 'No data yet', slimming: 'Moving photos to storage…', slimDone: n => `${n} photos moved to storage automatically — the site is rebuilding`,
     ok: 'Connected', off: 'Not connected', setup: 'Needs setup', on: 'Running', paused: 'Paused', checking: 'Checking…', live: n => `${n} visitors now`, online: 'Online', unread: n => `${n} unread messages`,
     pipeline: 'Sales pipeline', pipelineSub: 'Leads by stage', recentLeads: 'Recent leads', recentProps: 'Recent properties', all: 'All leads', manage: 'Manage properties',
     noLeads: 'No leads yet', noProps: 'No properties yet', published: 'Published', draft: 'Draft', newProp: 'New property', viewSite: 'View site', noName: 'No name',
@@ -137,9 +137,17 @@ export default function AdminHome({ properties = [], leads = [], setTab, autoCfg
     return { state: 'bad', detail: t.feedNone }
   }, [feed, t])
   const [slimming, setSlimming] = useState(false)
+  const [slimResult, setSlimResult] = useState(null)
+  // Automatic: as soon as the health check shows photos stored inline, move them (once per page load)
+  const slimTried = useRef(false)
+  useEffect(() => {
+    if (!feed?.list?.inlineImages || slimTried.current) return
+    slimTried.current = true
+    slimPhotos()
+  }, [feed?.list?.inlineImages])   // eslint-disable-line react-hooks/exhaustive-deps
   // Move photos stored inline (base64) into Supabase Storage — a few per call until none remain (see api/properties.js ?slim=1)
   const slimPhotos = async () => {
-    if (slimming || !window.confirm(t.slimConfirm(feed?.list?.inlineImages || 0))) return
+    if (slimming) return
     setSlimming(true)
     let moved = 0, errors = []
     try {
@@ -150,7 +158,7 @@ export default function AdminHome({ properties = [], leads = [], setTab, autoCfg
         moved += d.uploaded || 0; errors = errors.concat(d.errors || [])
         if (!d.remaining || !d.uploaded) break
       }
-      window.alert(t.slimDone(moved) + (errors.length ? `\n${errors.slice(0, 5).join('\n')}` : ''))
+      setSlimResult({ moved, errors })
       fetch('/api/properties?health=1', { signal: AbortSignal.timeout(15000) }).then(r => r.json()).then(setFeed).catch(() => {})
     } finally { setSlimming(false) }
   }
@@ -221,7 +229,7 @@ export default function AdminHome({ properties = [], leads = [], setTab, autoCfg
           <StatusTile icon={FaRobot} label={t.auto} onClick={() => setTab('automations')}
             state={autoOn === null ? 'idle' : autoOn ? 'ok' : 'warn'} detail={autoOn === null ? t.checking : autoOn ? t.on : t.paused}/>
           <StatusTile icon={FaServer} label={t.feed} onClick={() => window.open('https://dashboard.render.com', '_blank')} state={feedTile.state} detail={feedTile.detail}/>
-          <StatusTile icon={FaTachometerAlt} label={t.bw} onClick={() => (feed?.list?.inlineImages ? slimPhotos() : window.open('https://dashboard.render.com/billing', '_blank'))} state={bwTile.state} detail={slimming ? t.slimming : bwTile.detail}/>
+          <StatusTile icon={FaTachometerAlt} label={t.bw} onClick={() => (feed?.list?.inlineImages ? slimPhotos() : window.open('https://dashboard.render.com/billing', '_blank'))} state={bwTile.state} detail={slimming ? t.slimming : slimResult && slimResult.moved ? t.slimDone(slimResult.moved) : bwTile.detail}/>
           <StatusTile icon={FaGlobe} label={t.site} onClick={() => window.open('/', '_blank')} state="ok" detail={`${t.online} · afikhanahal.co.il`}/>
         </div>
       </Card>
