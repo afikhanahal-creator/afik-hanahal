@@ -1,3 +1,4 @@
+import { createHash } from 'crypto'
 // Vercel serverless — proxies property GET to Render backend
 import { sendJson } from '../lib/http.js'
 import { isPreviewBot, renderSharePage, renderLanding, targetUrl } from '../lib/share-page.js'
@@ -123,7 +124,11 @@ async function serveHealth(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
   const h = await feed.health({ staticUrl: staticListUrl(req) })
   // Which optional integrations this deployment can see (presence only — never values)
-  const env = { anthropic: !!process.env.ANTHROPIC_API_KEY, anthropicWorkspace: !!process.env.ANTHROPIC_WORKSPACE_ID, deployHook: !!process.env.VERCEL_DEPLOY_HOOK_URL, ga4: !!process.env.GA4_SERVICE_ACCOUNT_JSON, greenApi: !!(process.env.WA_GREENAPI_INSTANCE && process.env.WA_GREENAPI_TOKEN) }
+  // The key's type (from its public prefix) and a short fingerprint, so a probe can tell whether a rotated key reached
+  // this deployment — never the key itself
+  const ak = String(process.env.ANTHROPIC_API_KEY || '').trim()
+  const anthropicKey = ak ? { type: /^sk-ant-admin/.test(ak) ? 'admin' : /^sk-ant-oat/.test(ak) ? 'oauth' : /^sk-ant-api/.test(ak) ? 'api' : 'unknown', fp: createHash('sha256').update(ak).digest('hex').slice(0, 8), trimmed: ak !== String(process.env.ANTHROPIC_API_KEY) } : null
+  const env = { anthropic: !!process.env.ANTHROPIC_API_KEY, anthropicKey, anthropicWorkspace: !!process.env.ANTHROPIC_WORKSPACE_ID, deployHook: !!process.env.VERCEL_DEPLOY_HOOK_URL, ga4: !!process.env.GA4_SERVICE_ACCOUNT_JSON, greenApi: !!(process.env.WA_GREENAPI_INSTANCE && process.env.WA_GREENAPI_TOKEN) }
   return res.status(200).json({ ...h, env, at: new Date().toISOString() })
 }
 

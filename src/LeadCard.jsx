@@ -30,7 +30,7 @@ const TR = {
     ask: 'שאלות לשיחה', points: 'נקודות לשיחה', objections: 'התנגדויות צפויות', risks: 'סיכונים', needs: 'צרכים', persona: 'מי הלקוח', motivation: 'מוטיבציה', bestTime: 'זמן מומלץ ליצירת קשר',
     signals: { budget: 'תקציב', dealType: 'עסקה', timeline: 'זמנים', financing: 'מימון', inbound: 'הודעות ממנו', repeats: 'פניות חוזרות', listing: 'מחיר הנכס' },
     tl: { now: 'מיידי', soon: 'חודשים', later: 'לא דחוף' }, fin: { cash: 'מזומן', mortgage: 'משכנתא' }, dt: { buy: 'קנייה', sell: 'מכירה', rent: 'השכרה', invest: 'השקעה' },
-    aiOff: 'מוצג ניתוח מבוסס כללים. תדריך ה-AI לא זמין כרגע:', analyzedAt: t => `נותח ${t}`, legacy: 'ניתוח קודם (גרסה ישנה) – לחצו "נתח מחדש" לניתוח המדויק החדש',
+    aiOff: 'מוצג ניתוח מבוסס כללים. תדריך ה-AI לא זמין כרגע:', aiFix: { workspace: 'מפתח ה-API לא משויך ל-Workspace. צרו מפתח חדש בתוך Workspace (console.anthropic.com → Workspaces → Default → API keys), החליפו את ANTHROPIC_API_KEY ב-Vercel ופרסו מחדש.', admin_key: 'הוכנס מפתח Admin (sk-ant-admin…), שלא יכול לנתח. צרו מפתח API רגיל בתוך Workspace, החליפו ב-Vercel ופרסו מחדש.', auth: 'מפתח ה-API לא תקין. העתיקו אותו מחדש ל-Vercel ופרסו מחדש.', no_key: 'לא הוגדר מפתח ANTHROPIC_API_KEY ב-Vercel.' }, analyzedAt: t => `נותח ${t}`, legacy: 'ניתוח קודם (גרסה ישנה) – לחצו "נתח מחדש" לניתוח המדויק החדש',
   },
   en: {
     tabs: { details: 'Details', notes: 'Notes & activity', tasks: 'Tasks', analysis: 'Smart analysis' },
@@ -54,7 +54,7 @@ const TR = {
     ask: 'Questions to ask', points: 'Talking points', objections: 'Likely objections', risks: 'Risks', needs: 'Needs', persona: 'Who they are', motivation: 'Motivation', bestTime: 'Best time to reach',
     signals: { budget: 'Budget', dealType: 'Deal', timeline: 'Timeline', financing: 'Financing', inbound: 'Their messages', repeats: 'Repeat inquiries', listing: 'Listing price' },
     tl: { now: 'Now', soon: 'Months', later: 'No rush' }, fin: { cash: 'Cash', mortgage: 'Mortgage' }, dt: { buy: 'Buy', sell: 'Sell', rent: 'Rent', invest: 'Invest' },
-    aiOff: 'Showing the rule-based analysis. The AI briefing is unavailable:', analyzedAt: t => `Analyzed ${t}`, legacy: 'Older analysis – press "Re-analyze" for the new, more accurate one',
+    aiOff: 'Showing the rule-based analysis. The AI briefing is unavailable:', aiFix: { workspace: 'The API key is not tied to a workspace. Create a new key inside a workspace (console.anthropic.com → Workspaces → Default → API keys), replace ANTHROPIC_API_KEY in Vercel and redeploy.', admin_key: 'An Admin key (sk-ant-admin…) was entered; it cannot run the analysis. Create a regular API key inside a workspace, replace it in Vercel and redeploy.', auth: 'The API key is invalid. Copy it into Vercel again and redeploy.', no_key: 'ANTHROPIC_API_KEY is not set in Vercel.' }, analyzedAt: t => `Analyzed ${t}`, legacy: 'Older analysis – press "Re-analyze" for the new, more accurate one',
   },
 }
 const GRADE_COLOR = { hot: '#EF4444', warm: '#F59E0B', cool: '#60A5FA', cold: '#94A3B8' }
@@ -393,7 +393,7 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
         </div>
         {en.aiError && (
           <div role="status" style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginTop: 12, padding: '9px 12px', borderRadius: 10, background: 'rgba(245,158,11,.1)', border: '1px solid rgba(245,158,11,.3)', fontSize: 12.5, color: T.amberText }}>
-            <FaInfoCircle size={12} style={{ flexShrink: 0, marginTop: 2 }}/><span>{t.aiOff} {en.aiError}</span>
+            <FaInfoCircle size={12} style={{ flexShrink: 0, marginTop: 2 }}/><span>{t.aiOff} {(en.aiCode && t.aiFix?.[en.aiCode]) || en.aiError}</span>
           </div>
         )}
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 14 }}>
