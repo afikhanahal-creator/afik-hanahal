@@ -16,7 +16,7 @@ on:
         description: Network profiles (real, 4g, 3g)
         default: real,4g,3g
       actions:
-        description: 'Optional live actions: slim (move inline photos), ai (one test lead analysis)'
+        description: 'Optional live actions: slim (move inline photos), ai (one test lead analysis), rebuild (deploy hook)'
         default: ''
   push:
     branches: ['claude/**']
