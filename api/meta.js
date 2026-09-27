@@ -1117,7 +1117,8 @@ async function handleLeadResearch(req, res) {
   if (!lead || (!lead.phone && !lead.name)) return res.status(400).json({ error: 'lead with a name or phone required' })
   try {
     // their own recent WhatsApp messages + repeat inquiries help the search (same dossier as the analysis)
-    const d = await buildDossier(lead).catch(() => null)
+    // (capped at 4 s: the research has its own budget and the WhatsApp history is only a hint for it)
+    const d = await Promise.race([buildDossier(lead).catch(() => null), new Promise(r => setTimeout(() => r(null), 4000))])
     const extras = d ? { chatSample: d.chat.filter(m => m.dir === 'in').slice(-6).map(m => m.text.slice(0, 160)), repeats: d.repeats } : {}
     return res.status(200).json(await researchLead(lead, { extras }))
   } catch (e) {
