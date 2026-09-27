@@ -113,6 +113,7 @@ r.jDetail = await call('GET', { id: table.find(x => x.sid === jsid)?.id }, null,
 r.invite  = await call('POST', { action: 'invite' }, { name: 'אבי מזרחי', phone: '0509876543', purpose: 'rental', send: false }, true)
 r.inviteRow = r.invite.body?.sid ? await call('GET', { action: 'draft', sid: r.invite.body.sid }) : null
 r.inviteList = await call('GET', {}, null, true)
+r.videoPack = await call('GET', { action: 'video-pack', id }, null, true)
 
 // ── Supabase down: the form must still land somewhere (Blob + email/WhatsApp) and be restorable ──
 supaDown = true
@@ -168,6 +169,11 @@ step('resume-link / find-draft answer safely without Green API', r.resumeLink.st
   step('journey: admin list + detail expose stage / progress / last question (no raw answers in list)', li?.stage === 'in_progress' && li.progress_pct > 0 && li.progress_pct < 100 && /כתובת/.test(li.last_step_label || '') && dj?.stage === 'in_progress' && ((r.jList.body || []).find(x => x.sid === jsid) || {}).answers === undefined, `stage=${li?.stage} ${li?.progress_pct}% "${li?.last_step_label}"`)
   const inv = r.invite.body, invRow = table.find(x => x.sid === inv?.sid), invJ = (r.inviteList.body || []).find(x => x.sid === inv?.sid)?.journey
   step('invite: creates a prefilled draft, personal link, stage "invited"; the link opens the draft', r.invite.statusCode === 200 && /newproperty\?d=/.test(inv?.url || '') && invRow?.answers?.c_phone === '0509876543' && invRow?.answers?.x_purpose === 'rental' && invJ?.stage === 'invited' && r.inviteRow?.body?.draft?.answers?.c_name === 'אבי מזרחי', `stage=${invJ?.stage} sent=${inv?.sent}`)
+}
+{
+  const v = r.videoPack.body || {}
+  const txt = `${v.source}\n${v.brief}\n${v.script}`
+  step('video pack (NotebookLM): source + brief + script in Hebrew, story included, internal data excluded', r.videoPack.statusCode === 200 && v.ok && /## סיפור הנכס/.test(v.source) && /## מה משווקים/.test(v.source) && /055-981-1814/.test(v.script) && /עברית תקנית/.test(v.brief) && !txt.includes('3650000') && !txt.includes('3,650,000') && !/הצעה הטובה ביותר|מחיר מינימום/.test(txt), `${v.source?.length} chars source, ${v.script?.split('\n\n').length} narration paragraphs`)
 }
 {
   const b = r.downSubmit.body || {}
