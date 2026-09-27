@@ -197,6 +197,16 @@ rewritten only when the list changed; refreshed by `api/cron/warm.js` too), and 
 published list written at deploy time by `scripts/build-properties.mjs` (Vercel builds only; also seeds the snapshot). First-time
 visitors paint the grid from that static file (`index.html` starts it as `window.__afikList`) and the live list replaces it; an
 open property window always follows the freshest data. So the site never waits on a cold start.
+**When Render is down for real (suspended, crashed — `x-render-routing: suspend-by-user`):** the snapshot is all the site has.
+`GET /api/properties?health=1` (public, no secrets) says what is being served (`serving`: render / snapshot / static / none,
+Render's status + routing, snapshot age and size); the admin home shows it as the "שרת הנכסים (Render)" tile (red = no data
+anywhere → resume the service on Render). The admin panel offers its own copy of the list with `POST /api/properties?snapshot=1`
+(`src/siteRebuild.js` `pushSnapshot`, on every admin load; only published properties): the server stores it only while Render
+can't answer for itself (`feed.pushSnapshot`, tested), and every good admin read through Vercel refreshes the snapshot too. The
+deploy (`scripts/build-properties.mjs`) falls back to the previous deploy's `properties.json` on the live site, so a build never
+erases the static pages. The dev sandbox cannot reach the production domain: measure the live site with the "Site speed probe"
+GitHub Action (`scripts/probe-site.mjs` — timings, edge-cache headers, landing-page markers, backend health, a phone-profile
+browser visit on the real network and on Fast 3G, screenshots at 1/3/6/10 s in the run's artifact).
 `/api/properties?one=<id>` returns a single published property (snapshot first); `index.html` starts that request for
 `/?p=<id>` before the bundle loads (`window.__afikShared`) and `App.jsx` opens the property as soon as it arrives, with a
 "טוען את הנכס…" overlay meanwhile. Crawlers on `/p/<id>` use the same fast lookup. The map in the property window sits in

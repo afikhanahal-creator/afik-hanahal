@@ -20,12 +20,15 @@ const RENDER = (process.env.RENDER_URL || 'https://afik-hanahal-server.onrender.
 const SUPA_URL = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').replace(/\/$/, '')
 const SUPA_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || ''
 
-// Render's free tier can take up to a minute to wake: long budget, one retry
+const ORIGIN = (process.env.SITE_ORIGIN || 'https://www.afikhanahal.co.il').replace(/\/$/, '')
+// Render's free tier can take up to a minute to wake: long budget, one retry. Render down altogether (suspended,
+// crashed) → the Supabase snapshot → the list the PREVIOUS deploy published (still live on the site), so a
+// deploy never erases the static pages just because the backend is out.
 const feed = createFeed({ renderUrl: RENDER, supaUrl: SUPA_URL, supaKey: SUPA_KEY, renderBudgetMs: 70000, renderTimeoutMs: 70000 })
 let result = null
 const t0 = Date.now()
 for (let attempt = 1; attempt <= 2 && !result; attempt++) {
-  try { result = await feed.getList() }
+  try { result = await feed.getList({ staticUrl: `${ORIGIN}/properties.json` }) }
   catch (e) {
     console.warn(`[build-properties] attempt ${attempt} failed after ${Math.round((Date.now() - t0) / 1000)}s: ${e.message}`)
     if (Date.now() - t0 > 20000) break          // a slow failure won't get better — don't hold up the deploy
@@ -46,7 +49,6 @@ const kb = Math.round(Buffer.byteLength(body) / 1024)
 const inlineImages = published.reduce((n, p) => n + (p.images || []).filter(i => String(i).startsWith('data:')).length, 0)
 console.log(`[build-properties] dist/properties.json: ${published.length} published properties, ${kb} KB (source: ${result.source}${result.at ? ', snapshot of ' + result.at : ''})`)
 // One instant landing page per property: /p/<id> is served straight from the CDN (see renderLanding)
-const ORIGIN = (process.env.SITE_ORIGIN || 'https://www.afikhanahal.co.il').replace(/\/$/, '')
 
 // Photos: warm every size the landing pages use on the image CDN (the first request for a size makes
 // wsrv fetch and resize the original — 1-3 s the first visitor would otherwise wait), and fetch a 24px
