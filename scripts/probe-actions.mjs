@@ -27,7 +27,11 @@ if (ACTIONS.includes('rebuild')) {
   show(`rebuild (HTTP ${r.status})`, await r.json().catch(() => ({})))
 }
 if (ACTIONS.includes('ai')) {
-  const r = await fetch(`${SITE}/api/meta/lead-analyze`, { method: 'POST', headers: H, body: JSON.stringify({ lead: { name: 'בדיקת מערכת', msg: 'מתעניין בדירת 4 חדרים בהוד השרון, תקציב 3 מיליון', source: 'contact_form' } }), signal: AbortSignal.timeout(60000) })
+  const lead = { name: process.env.AI_NAME || 'בדיקת מערכת', phone: process.env.AI_PHONE || '', msg: 'מתעניין בדירת 4 חדרים בהוד השרון, תקציב 3 מיליון', source: 'contact_form' }
+  const rr = await fetch(`${SITE}/api/meta/lead-research`, { method: 'POST', headers: H, body: JSON.stringify({ lead }), signal: AbortSignal.timeout(65000) })
+  const research = await rr.json().catch(() => ({}))
+  show(`lead research (HTTP ${rr.status})`, { error: research.error, code: research.code, verdict: research.identity?.verdict, confidence: research.identity?.confidence, who: research.identity?.who, phone: research.phoneCheck?.type, name: research.nameCheck?.quality, profiles: (research.profiles || []).length, redFlags: research.redFlags, hooks: research.hooks, dataQuality: research.dataQuality, searches: research.searches, ms: research.ms, truncated: research.truncated })
+  const r = await fetch(`${SITE}/api/meta/lead-analyze`, { method: 'POST', headers: H, body: JSON.stringify({ lead, research }), signal: AbortSignal.timeout(65000) })
   const d = await r.json().catch(() => ({}))
-  show(`lead analysis (HTTP ${r.status})`, { aiError: d.aiError, aiCode: d.aiCode, model: d.model, score: d.score100, hasBrief: !!d.brief, summary: d.brief && String(d.brief.summary || '').slice(0, 200) })
+  show(`lead analysis (HTTP ${r.status})`, { aiError: d.aiError, aiCode: d.aiCode, model: d.model, score: d.score100, hasBrief: !!d.brief, summary: d.brief?.summary, identityCheck: d.brief?.identityCheck, openingLine: d.brief?.openingLine, warmUpPlan: d.brief?.warmUpPlan, questions: d.brief?.questionsToAsk, message: d.brief?.suggestedMessage })
 }

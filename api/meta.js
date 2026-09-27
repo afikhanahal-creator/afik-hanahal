@@ -10,7 +10,8 @@ import { createClient } from '@supabase/supabase-js'
 import crypto from 'crypto'
 import * as Auto from '../lib/automations.js'
 import * as GA4 from '../lib/ga4.js'
-import { analyzeLead } from '../lib/lead-analyze.js'
+import { analyzeLead, buildDossier } from '../lib/lead-analyze.js'
+import { researchLead } from '../lib/lead-research.js'
 
 const SUPERMETRICS_API_KEY    = process.env.SUPERMETRICS_API_KEY    || ''
 // System User token (afik-api) — permanent, survives password changes. Used to
@@ -1097,12 +1098,30 @@ async function handleGA4(req, res) {
 async function handleLeadAnalyze(req, res) {
   if (!checkAuth(req)) return res.status(401).json({ error: 'Unauthorized' })
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
-  const { lead, ai = true } = req.body || {}
+  const { lead, ai = true, research = null } = req.body || {}
   if (!lead || (!lead.phone && !lead.name && !lead.msg)) return res.status(400).json({ error: 'lead required' })
   try {
-    return res.status(200).json(await analyzeLead(lead, { useAI: ai !== false }))
+    return res.status(200).json(await analyzeLead(lead, { useAI: ai !== false, research: research && typeof research === 'object' ? research : null }))
   } catch (e) {
     console.error('[lead-analyze]', e.message)
+    return res.status(500).json({ error: e.message })
+  }
+}
+
+// POST /api/meta/lead-research { lead } → who the person is, from public sources (lib/lead-research.js); the panel
+// runs it before lead-analyze and passes the result in, so each step has its own time budget
+async function handleLeadResearch(req, res) {
+  if (!checkAuth(req)) return res.status(401).json({ error: 'Unauthorized' })
+  if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
+  const { lead } = req.body || {}
+  if (!lead || (!lead.phone && !lead.name)) return res.status(400).json({ error: 'lead with a name or phone required' })
+  try {
+    // their own recent WhatsApp messages + repeat inquiries help the search (same dossier as the analysis)
+    const d = await buildDossier(lead).catch(() => null)
+    const extras = d ? { chatSample: d.chat.filter(m => m.dir === 'in').slice(-6).map(m => m.text.slice(0, 160)), repeats: d.repeats } : {}
+    return res.status(200).json(await researchLead(lead, { extras }))
+  } catch (e) {
+    console.error('[lead-research]', e.message)
     return res.status(500).json({ error: e.message })
   }
 }
@@ -1139,6 +1158,7 @@ export default async function handler(req, res) {
   if (path === 'supermetrics')   return handleSupermetrics(req, res)
   if (path === 'ga4')            return handleGA4(req, res)
   if (path === 'lead-analyze')   return handleLeadAnalyze(req, res)
+  if (path === 'lead-research')  return handleLeadResearch(req, res)
   if (path === 'diagnostics')    return handleDiagnostics(req, res)
 
   return res.status(404).json({ error: `Unknown path: ${path}` })

@@ -183,6 +183,16 @@ the legacy `score` 1–5 / `intent`). Without `ANTHROPIC_API_KEY` in Vercel the 
 briefing through the Render AI proxy, merged with `mergeBrief()`. A key created outside a workspace gets a 400 ("not scoped to a
 workspace"): create the key inside a workspace, or set `ANTHROPIC_WORKSPACE_ID` (sent as the `anthropic-workspace-id` header).
 
+**Prospect research (SDR step):** before the briefing the panel calls `POST /api/meta/lead-research { lead }` (`lib/lead-research.js`):
+Claude with the web search server tool checks the phone number (Israeli numbering plan: mobile / landline / VoIP, carrier, made-up
+digits — `phoneCheck`, tested), the name (`nameQuality`: full / first-only / test-looking), and who the person is from public
+sources (LinkedIn / Facebook / Instagram / company site / listings / directories), plus real-estate-professional signals, red flags,
+rapport hooks and gentle verification questions. Rules live in `RESEARCH_SYSTEM`: public information only, no sensitive categories,
+a match only when two independent signals agree, every claim with its URL (`normalizeResearch` drops the rest). The result is passed
+into `lead-analyze` (`research` in the body → `researchText` in the dossier) and stored as `enrichment.research`; the briefing schema
+carries `identityCheck`, `rapportHooks`, `openingLine`, `warmUpPlan`. The card shows it as "מי הליד — אימות ומחקר". Each step has
+its own time budget (the research loop resumes `pause_turn` up to 4 times within ~48 s, `max_uses: 8` searches).
+
 ### Property share links (`/p/<id>`)
 
 Every property has a short share link `https://afikhanahal.co.il/p/<id>` (`vercel.json` rewrite → `api/properties.js?share=<id>`,
