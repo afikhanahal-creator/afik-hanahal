@@ -12,7 +12,7 @@ const SITE = (process.env.SITE || 'https://www.afikhanahal.co.il').replace(/\/$/
 const OUT = process.env.OUT_DIR || 'probe-out'
 mkdirSync(OUT, { recursive: true })
 const UA_PHONE = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Mobile Safari/537.36'
-const HEADERS = ['x-vercel-cache', 'x-vercel-id', 'cache-control', 'content-type', 'content-length', 'content-encoding', 'age', 'location', 'x-matched-path', 'server']
+const HEADERS = ['x-feed-source', 'x-render-routing', 'rndr-id', 'x-vercel-cache', 'x-vercel-id', 'cache-control', 'content-type', 'content-length', 'content-encoding', 'age', 'location', 'x-matched-path', 'server']
 const pad = (s, n) => String(s).padStart(n)
 const ms = t => `${Math.round(t)} ms`
 
@@ -95,6 +95,25 @@ try { const j = JSON.parse(one.body); console.log(`      source=${j.source} titl
 const all = await timedFetch('/api/properties', { accept: 'application/json' })
 report(all, '   (public list API)')
 if (hm.bundle) report(await timedFetch(hm.bundle, { accept: '*/*' }), '   (main bundle)')
+
+// ── 1b. The backends behind the site ─────────────────────────────────────────────────────────────
+const RENDER = (process.env.RENDER_URL || 'https://afik-hanahal-server.onrender.com').replace(/\/$/, '')
+console.log(`\n== backends`)
+for (const [path, label] of [[`${RENDER}/api/properties`, 'Render: property list (direct, up to 70 s)'], [`${RENDER}/api/settings`, 'Render: settings'], [`${RENDER}/`, 'Render: root']]) {
+  const t0 = performance.now()
+  try {
+    const r = await fetch(path, { headers: { 'user-agent': UA_PHONE, accept: 'application/json' }, signal: AbortSignal.timeout(70000) })
+    const body = await r.text()
+    console.log(`${pad(r.status, 4)}  ttfb ${pad(ms(performance.now() - t0), 8)}  ${pad(Math.round(body.length / 1024) + ' KB', 8)}  ${label}`)
+    console.log(`      ${[...r.headers.entries()].filter(([k]) => /^(x-render-routing|rndr-id|cf-cache-status|content-type|access-control-allow-origin|server|retry-after)$/.test(k)).map(([k, v]) => `${k}=${v.slice(0, 60)}`).join(' · ')}`)
+    console.log(`      body: ${body.replace(/\s+/g, ' ').slice(0, 160)}`)
+  } catch (e) { console.log(`ERR   after ${ms(performance.now() - t0)}  ${label}: ${e.message}`) }
+}
+for (const [path, label] of [['/api/properties', 'Vercel: public list'], [`/api/properties?one=${PROP}`, 'Vercel: single property']]) {
+  const r = await timedFetch(path, { accept: 'application/json' })
+  report(r, `   (${label})`)
+  console.log(`      body: ${String(r.body || '').replace(/\s+/g, ' ').slice(0, 160)}`)
+}
 
 // ── 2. A real phone visit ────────────────────────────────────────────────────────────────────────
 let chromium = null
