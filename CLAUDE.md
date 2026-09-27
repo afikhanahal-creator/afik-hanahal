@@ -269,7 +269,14 @@ Render meters every byte it sends. Rules that keep it near zero:
      `property-images/inline/<id>/<sha1>.<ext>`, straight through the table, so it works while Render is down;
   3. `api/cron/warm.js` runs the same every day;
   4. the admin home runs it by itself when `health.list.inlineImages > 0` (and `POST ?slim=1` runs it on demand).
-  The Render server itself (`afik-hanahal-server` repo) should also stop writing base64 — layers 1–4 don't depend on it.
+  The list the site serves does not always come from that table (it was Render's list / the admin's copy in the
+  snapshot, and the table Vercel reads held none of the 17), so the **list itself** is cleaned too: every feed that
+  stores a list (`createFeed({ transformList })` in `api/properties.js`, `lib/site-rebuild.js`, the cron, the build)
+  runs `slimList` (`lib/slim-photos.js`, tested — content-hashed, HEAD-checked, never uploads twice) before writing,
+  `feed.cleanSnapshot()` cleans a snapshot stored before this (hash kept, so Render isn't re-downloaded), and the
+  build cleans the deploy-time list and static pages. Render's own database is cleaned by the admin panel: once per
+  session it re-saves any property that still has inline photos (upload first, then PUT with URLs).
+  The Render server itself (`afik-hanahal-server` repo) should also stop writing base64 — none of this depends on it.
 - **Meter:** the feed counts every byte Render sends to Vercel (`render_traffic` in the store, per month) and
   `health` reports it with the list's weight and inline-photo count; the admin home shows both as the "רוחב פס Render"
   tile (warn > 1.5 GB, red > 3.5 GB; warn on a heavy list or inline photos). Render's own number is on

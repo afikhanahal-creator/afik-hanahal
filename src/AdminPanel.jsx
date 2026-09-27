@@ -2665,6 +2665,25 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     setPropSyncing(false)
   }
 
+  // Render's own database may still hold photos inline (base64): once per session, re-save those properties —
+  // savePropSilent uploads the photos first (src/inlinePhotos.js), so Render stores plain URLs from then on.
+  // While Render is down the saves simply fail and are retried next session.
+  useEffect(() => {
+    if (!properties?.length) return
+    try { if (sessionStorage.getItem('afik_inline_resave') === '1') return } catch {}
+    const dirty = properties.filter(p => (p.images || []).some(u => String(u).startsWith('data:')) || String(p.logo || '').startsWith('data:'))
+    if (!dirty.length) return
+    try { sessionStorage.setItem('afik_inline_resave', '1') } catch {}
+    ;(async () => {
+      for (const p of dirty) {
+        const clean = await externalizeInlinePhotos(p, ADMIN_TOKEN)
+        if (clean === p) continue
+        setProperties(prev => prev.map(x => (String(x.id) === String(p.id) ? { ...x, images: clean.images, logo: clean.logo } : x)))
+        await savePropSilent(clean)
+      }
+    })()
+  }, [properties?.length])   // eslint-disable-line react-hooks/exhaustive-deps
+
   // Silent background save for reorder and auto-save (no spinner, 3 retries)
   const savePropSilent = async (rawProp) => {
     const base = API_BASE || ''

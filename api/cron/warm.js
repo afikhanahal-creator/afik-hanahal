@@ -15,7 +15,7 @@ import { scoreRealEstate } from '../../lib/news/classify.js'
 import { resolveGoogleNewsUrl, isGoogleNewsUrl } from '../../lib/news/gnews.js'
 import { run as runAutomations, sendText } from '../../lib/automations.js'
 import { createFeed } from '../../lib/property-feed.js'
-import { slimInlinePhotos } from '../../lib/slim-photos.js'
+import { slimInlinePhotos, slimList } from '../../lib/slim-photos.js'
 import { propertiesChanged } from '../../lib/site-rebuild.js'
 
 const RENDER      = process.env.RENDER_URL   || 'https://afik-hanahal-server.onrender.com'
@@ -232,9 +232,11 @@ export default async function handler(req, res) {
   // Photos stored inline (base64) in a property: moved into Storage every day, whatever put them there
   try {
     const supa = { supaUrl: SUPA_URL.replace(/\/$/, ''), supaKey: SUPA_KEY }
-    const feed = createFeed({ renderUrl: RENDER, ...supa })
-    const slim = await slimInlinePhotos({ ...supa, budgetMs: 15000, onDone: async list => ({ snapshot: await feed.pushSnapshot(list), rebuild: await propertiesChanged({ renderUrl: RENDER, ...supa }) }) })
-    out.inlinePhotos = { uploaded: slim.uploaded, remaining: slim.remaining, errors: (slim.errors || []).slice(0, 5), error: slim.error }
+    const feed = createFeed({ renderUrl: RENDER, ...supa, transformList: list => slimList(list, supa).then(r => r.list) })
+    const slim = await slimInlinePhotos({ ...supa, budgetMs: 15000, onDone: async list => ({ snapshot: await feed.pushSnapshot(list) }) })
+    const snap = await feed.cleanSnapshot().catch(e => ({ changed: false, reason: e.message }))
+    if (slim.uploaded || snap.changed) await propertiesChanged({ renderUrl: RENDER, ...supa }).catch(() => {})
+    out.inlinePhotos = { table: { scanned: slim.scanned, uploaded: slim.uploaded, remaining: slim.remaining, error: slim.error }, snapshot: snap, errors: (slim.errors || []).slice(0, 5) }
   } catch (e) { out.inlinePhotos = { error: e.message } }
   try { out.bandwidth = await bandwidthWatch() } catch (e) { out.bandwidth = { error: e.message } }
   log.forEach(l => console.log('[warm]', l))
