@@ -1,6 +1,7 @@
 // Opt-in live actions for the "Site speed probe" workflow (input `actions`, comma-separated):
 //   slim — POST /api/properties?slim=1 until no inline photos remain (what the admin home does by itself)
-//   ai   — one lead analysis for a synthetic test lead (reads only; costs one small Claude call)
+//   ai      — one lead analysis for a synthetic test lead (reads only; costs one small Claude call)
+//   rebuild — POST /api/properties?changed=1: refresh the snapshot and trigger the Vercel deploy hook
 // The admin token is the one the site's own admin bundle carries (src/App.jsx) unless ADMIN_TOKEN is set.
 import { readFileSync } from 'node:fs'
 
@@ -20,6 +21,10 @@ if (ACTIONS.includes('slim')) {
   }
   const h = await fetch(`${SITE}/api/properties?health=1`).then(r => r.json()).catch(e => ({ error: e.message }))
   show('health after slim', { list: h.list, snapshot: h.snapshot, serving: h.serving })
+}
+if (ACTIONS.includes('rebuild')) {
+  const r = await fetch(`${SITE}/api/properties?changed=1`, { method: 'POST', headers: H, signal: AbortSignal.timeout(40000) })
+  show(`rebuild (HTTP ${r.status})`, await r.json().catch(() => ({})))
 }
 if (ACTIONS.includes('ai')) {
   const r = await fetch(`${SITE}/api/meta/lead-analyze`, { method: 'POST', headers: H, body: JSON.stringify({ lead: { name: 'בדיקת מערכת', msg: 'מתעניין בדירת 4 חדרים בהוד השרון, תקציב 3 מיליון', source: 'contact_form' } }), signal: AbortSignal.timeout(60000) })
