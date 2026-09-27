@@ -4,6 +4,22 @@
 let timer = null
 let pendingToken = null
 
+// The admin panel's copy of the property list, offered to the server as the public snapshot. The server keeps
+// it only when Render can't answer for itself (suspended / down) — so even then the site, the shared links
+// and the next deploy have every property. Sent at most once per list per session.
+let lastPushed = ''
+export async function pushSnapshot(list, token) {
+  if (!token || !Array.isArray(list) || !list.length) return null
+  const pub = list.filter(p => p && p.id != null && p.published !== false)
+  const sig = pub.map(p => `${p.id}:${p.updatedAt || ''}`).join(',')
+  if (!pub.length || sig === lastPushed) return null
+  lastPushed = sig
+  try {
+    const r = await fetch('/api/properties?snapshot=1', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ list: pub }) })
+    return await r.json().catch(() => null)
+  } catch { return null }
+}
+
 async function send(token) {
   pendingToken = null
   try {

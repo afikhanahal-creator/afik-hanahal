@@ -44,7 +44,7 @@ class SectionBoundary extends Component {
 }
 const PropertyWizard    = lazyWithRetry(() => import('./PropertyWizard.jsx'))
 import { FaChevronLeft, FaChevronRight, FaEnvelope, FaFacebookF, FaInstagram, FaBed, FaRulerCombined, FaCar, FaSwimmingPool, FaBuilding, FaBoxOpen, FaTree, FaSnowflake, FaShieldAlt, FaCouch, FaTools, FaMapMarkerAlt, FaExternalLinkAlt, FaPhone, FaCompass, FaLeaf, FaCalendarAlt, FaTimes, FaWhatsapp, FaSun, FaFileAlt, FaHome, FaMoneyBill, FaSearch, FaBalanceScale, FaHandshake, FaTrophy, FaHardHat, FaLock, FaKey, FaGlobe, FaSeedling, FaBolt, FaRocket, FaStar, FaChartLine, FaEye, FaPlay, FaWheelchair, FaFire, FaCalculator, FaShareAlt, FaHeart, FaStore, FaCamera, FaWifi, FaIndustry, FaExpand, FaUser, FaUsers, FaDesktop, FaMobileAlt, FaTabletAlt, FaCommentAlt, FaRobot, FaInbox, FaExclamationTriangle, FaChartBar, FaThumbsUp, FaImage, FaPencilAlt, FaCrown, FaMousePointer, FaDollarSign, FaVideo, FaLink, FaCheck, FaCheckCircle, FaUtensils, FaDoorOpen, FaUserShield, FaTrash } from 'react-icons/fa'
-import { notifyPropertiesChanged } from './siteRebuild.js'
+import { notifyPropertiesChanged, pushSnapshot } from './siteRebuild.js'
 
 // ─── SERVER CONFIG ────────────────────────────────────────────────────────────
 // Set VITE_API_URL in Vercel env vars to point at your Render server.
@@ -122,6 +122,8 @@ const TR = {
     typeFilter: 'סוג:',
     allTypes: 'כל הסוגים',
     noProperties: 'לא נמצאו נכסים התואמים את הפילטרים',
+    propsUnavailable: 'הנכסים לא נטענו כרגע — נסו שוב בעוד רגע, או כתבו לנו בוואטסאפ ונשלח את הרשימה המלאה.',
+    propsRetry: 'נסו שוב',
     sortLabel: 'מיון', sortRecommended: 'מומלץ', sortNewest: 'חדש ביותר', sortPriceAsc: 'מחיר: מהנמוך לגבוה', sortPriceDesc: 'מחיר: מהגבוה לנמוך',
     cityLabel: 'עיר', allCities: 'כל הערים', maxPriceLabel: 'עד מחיר', anyPrice: 'ללא הגבלה', roomsLabel: 'חדרים', roomsAny: 'הכל',
     favorites: 'המועדפים שלי', favAdd: 'שמירה למועדפים', favRemove: 'הסרה מהמועדפים', noFavs: 'עדיין לא שמרתם נכסים. לחצו על הלב בכרטיס נכס כדי לשמור אותו כאן.',
@@ -231,6 +233,8 @@ const TR = {
     typeFilter: 'Type:',
     allTypes: 'All Types',
     noProperties: 'No properties match the selected filters',
+    propsUnavailable: 'The listings could not be loaded right now — try again in a moment, or message us on WhatsApp for the full list.',
+    propsRetry: 'Try again',
     sortLabel: 'Sort', sortRecommended: 'Recommended', sortNewest: 'Newest', sortPriceAsc: 'Price: low to high', sortPriceDesc: 'Price: high to low',
     cityLabel: 'City', allCities: 'All cities', maxPriceLabel: 'Max price', anyPrice: 'No limit', roomsLabel: 'Rooms', roomsAny: 'Any',
     favorites: 'My favourites', favAdd: 'Save to favourites', favRemove: 'Remove from favourites', noFavs: 'No saved properties yet. Tap the heart on a property card to keep it here.',
@@ -5338,10 +5342,11 @@ export default function App() {
       // last deploy — a static file on the CDN, requested by index.html before the bundle even loaded —
       // instead of skeleton cards while the live API (and a possibly sleeping Render) answers.
       let apiArrived = false
+      let early = Promise.resolve(null)
       if (!hadCache && !isAdminSession) {
         // On a shared-property landing page nothing else should compete with the photo: the list comes when idle
         const later = () => new Promise(res => ('requestIdleCallback' in window ? requestIdleCallback(res, { timeout: 2500 }) : setTimeout(res, 1500)))
-        const early = window.__afikList || (window.__afikLanding ? later() : Promise.resolve()).then(() => fetch('/properties.json', { headers: { Accept: 'application/json' } }).then(r => (r.ok ? r.json() : null)).catch(() => null))
+        early = window.__afikList || (window.__afikLanding ? later() : Promise.resolve()).then(() => fetch('/properties.json', { headers: { Accept: 'application/json' } }).then(r => (r.ok ? r.json() : null)).catch(() => null))
         early.then(list => {
           if (apiArrived || !Array.isArray(list) || !list.length) return
           setProperties(prev => {
@@ -5359,6 +5364,7 @@ export default function App() {
         .then(data => {
           if (Array.isArray(data) && data.length > 0) {
             apiArrived = true
+            if (isAdminSession) pushSnapshot(data, ADMIN_TOKEN)   // keeps the public snapshot current (see src/siteRebuild.js)
             setProperties(prev => {
               if (!prev.length || !hadCache) return data  // no local cache (maybe the static list): trust server
               if (data.length < prev.length) return prev  // server lost data (restart): keep local
@@ -5374,7 +5380,12 @@ export default function App() {
           }
           propsLoaded.current = true
         })
-        .catch(() => { propsLoaded.current = true })
+        .catch(() => {
+          propsLoaded.current = true
+          // Render down: the admin's own copy keeps the public site alive; a visitor with nothing to show is told so
+          if (isAdminSession) { try { const d = JSON.parse(localStorage.getItem('afik_data') || '{}'); if (d.properties?.length) pushSnapshot(d.properties, ADMIN_TOKEN) } catch {} }
+          else if (!hadCache) early.then(list => { if (!Array.isArray(list) || !list.length) setListUnavailable(true) })
+        })
     }
   }, [])
 
@@ -5583,6 +5594,7 @@ export default function App() {
 
   // Shared link (/?p=<id>): open the property the moment THAT ONE property arrives — index.html
   // started the request before the bundle even loaded — instead of waiting for the whole list.
+  const [listUnavailable, setListUnavailable] = useState(false)   // the live list failed and there is nothing cached to show
   const [sharedLoading, setSharedLoading] = useState(() => { try { return !!new URLSearchParams(window.location.search).get('p') && !DASHBOARD_MODE } catch { return false } })
   useEffect(() => {
     let id = null
@@ -6161,7 +6173,14 @@ export default function App() {
                   )
                 })()
               ) : (
-                <div style={{ textAlign:'center', padding:'60px 24px', color:`${C.cream}40`, fontSize:15 }}>{filterFavs && !favIds.size ? TR[lang]?.noFavs : TR[lang]?.noProperties}</div>
+                <div style={{ textAlign:'center', padding:'60px 24px', color:`${C.cream}40`, fontSize:15 }}>
+                  {filterFavs && !favIds.size ? TR[lang]?.noFavs : listUnavailable && !properties.length ? (
+                    <>
+                      <div style={{ color:`${C.cream}90`, fontWeight:600 }}>{(TR[lang] || TR.he).propsUnavailable}</div>
+                      <button onClick={() => window.location.reload()} style={{ display:'inline-flex', alignItems:'center', gap:8, margin:'16px auto 0', padding:'11px 22px', borderRadius:12, border:`1px solid ${C.purple}66`, background:`${C.purple}1A`, color:C.cream, fontWeight:700, fontSize:14, cursor:'pointer', fontFamily:'inherit' }}>{(TR[lang] || TR.he).propsRetry}</button>
+                    </>
+                  ) : TR[lang]?.noProperties}
+                </div>
               )}
             </>
           )}

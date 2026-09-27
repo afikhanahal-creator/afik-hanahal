@@ -112,6 +112,31 @@ async function serveChanged(req, res) {
   return res.status(200).json(out)
 }
 
+// ── GET /api/properties?health=1 → where the public list comes from right now (no secrets): Render up /
+// asleep / suspended, snapshot age and size, deploy-time list. Read by the admin home and scripts/probe-site.mjs.
+async function serveHealth(req, res) {
+  res.setHeader('Cache-Control', 'no-store')
+  res.setHeader('Access-Control-Allow-Origin', '*')
+  const h = await feed.health({ staticUrl: staticListUrl(req) })
+  return res.status(200).json({ ...h, at: new Date().toISOString() })
+}
+
+// ── POST /api/properties?snapshot=1 (admin) { list } → the admin panel's copy of the property list, kept as the
+// public snapshot when Render can't answer for itself (suspended / down) — so the site, the shared links and
+// the next deploy still have every property. While Render answers, its own list is stored instead.
+async function serveSnapshotPush(req, res) {
+  res.setHeader('Cache-Control', 'no-store')
+  if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
+  const key = (req.headers.authorization || '').replace(/^Bearer\s+/i, '') || String(req.query.key || '')
+  if (key !== ADMIN_TOKEN) return res.status(401).json({ error: 'unauthorized' })
+  let body = req.body
+  if (typeof body === 'string') { try { body = JSON.parse(body) } catch { body = null } }
+  const list = body && Array.isArray(body.list) ? body.list : Array.isArray(body) ? body : null
+  if (!list) return res.status(400).json({ error: 'expected { list: [...] }' })
+  const out = await feed.pushSnapshot(list)
+  return res.status(200).json(out)
+}
+
 // ── /api/properties?one=<id> → a single published property (the page a share link opens) ─────────
 // A few KB instead of the whole list, so a colleague opening a shared link sees the property at once.
 async function serveOne(req, res) {
@@ -135,6 +160,8 @@ export default async function handler(req, res) {
   if (req.query && req.query.parcel !== undefined) return serveParcel(req, res)
   if (req.query && req.query.one !== undefined) return serveOne(req, res)
   if (req.query && req.query.changed !== undefined) return serveChanged(req, res)
+  if (req.query && req.query.health !== undefined) return serveHealth(req, res)
+  if (req.query && req.query.snapshot !== undefined) return serveSnapshotPush(req, res)
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization')
@@ -163,16 +190,17 @@ export default async function handler(req, res) {
       signal:  AbortSignal.timeout(13000),
     })
     if (r.ok) {
-      const data = await r.json()
-      // Public reads are served from Vercel's CDN: the first request warms the
-      // cache, every later visitor gets the property list INSTANTLY from the edge
-      // (no Render free-tier cold-start), and it revalidates in the background —
-      // stale-while-revalidate means users never wait even when Render is asleep.
-      // Admin reads (with a token) always bypass the cache so edits show at once.
-      if (isAdmin) res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
-      else         res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=86400')
+      const body = await r.text()
+      const data = JSON.parse(body)
+      // Admin reads always bypass the cache so edits show at once — and every good admin read also keeps the
+      // public snapshot current (the admin panel is the one client that talks to Render all day).
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
+      if (Array.isArray(data)) await feed.saveSnapshot(data.filter(p => p && p.published !== false)).catch(() => {})
       return sendJson(req, res, data)
     }
+    // Render down (suspended / crashed): the admin still gets the last known list, marked as such
+    const fb = await feed.getList({ staticUrl: staticListUrl(req) }).catch(() => null)
+    if (fb) { res.setHeader('X-Feed-Source', fb.source); res.setHeader('Cache-Control', 'no-store'); return sendJson(req, res, fb.list) }
     console.warn('[properties vercel] Render returned', r.status)
     return res.status(r.status).json({ error: 'Backend error' })
   } catch (e) {
