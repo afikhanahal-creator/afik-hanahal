@@ -32,7 +32,7 @@
       "maxDuration": 15
     },
     "api/properties.js": {
-      "maxDuration": 15
+      "maxDuration": 30
     },
     "api/properties/bulk.js": {
       "maxDuration": 20

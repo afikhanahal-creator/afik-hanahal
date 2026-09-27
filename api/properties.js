@@ -4,6 +4,7 @@ import { isPreviewBot, renderSharePage, renderLanding, targetUrl } from '../lib/
 import { resolveParcel, govmapParcelUrl } from '../lib/parcel-locate.js'
 import { createFeed } from '../lib/property-feed.js'
 import { propertiesChanged } from '../lib/site-rebuild.js'
+import { findInlineImages, decodeDataImage, inlinePath, replaceInline, jsonBytes } from '../lib/inline-images.js'
 const RENDER = process.env.RENDER_URL || 'https://afik-hanahal-server.onrender.com'
 const SUPA_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || ''
 
@@ -139,6 +140,62 @@ async function serveSnapshotPush(req, res) {
   return res.status(200).json(out)
 }
 
+// ── POST /api/properties?slim=1 (admin) → move photos stored inline (base64) out of the properties and into
+// Supabase Storage, rewriting each property to plain URLs. Works straight against the properties table, so it
+// runs even while Render is down; Render re-reads the table within 5 minutes. A few photos per call (the
+// function has a time limit) — the response says how many remain, the admin panel calls again until 0.
+const PHOTO_BUCKET = 'property-images'
+async function serveSlim(req, res) {
+  res.setHeader('Cache-Control', 'no-store')
+  if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
+  const key = (req.headers.authorization || '').replace(/^Bearer\s+/i, '') || String(req.query.key || '')
+  if (key !== ADMIN_TOKEN) return res.status(401).json({ error: 'unauthorized' })
+  if (!SUPA_URL || !SUPA_KEY) return res.status(500).json({ error: 'SUPABASE_URL / SUPABASE_SERVICE_KEY not configured' })
+  const H = { apikey: SUPA_KEY, Authorization: `Bearer ${SUPA_KEY}` }
+  const t0 = Date.now(), budgetMs = Number(req.query.budget) || 20000, maxPhotos = Number(req.query.max) || 12
+  const r = await fetch(`${SUPA_URL}/rest/v1/properties?select=id,data&order=created_at.desc`, { headers: { ...H, Accept: 'application/json' }, signal: AbortSignal.timeout(12000) }).catch(() => null)
+  if (!r || !r.ok) return res.status(502).json({ error: `properties table: ${r ? 'HTTP ' + r.status : 'unreachable'}` })
+  const rows = await r.json()
+  const report = { properties: [], uploaded: 0, remaining: 0, bytesBefore: 0, bytesAfter: 0, errors: [] }
+  let budgetLeft = maxPhotos
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const data = row && row.data && typeof row.data === 'object' ? row.data : null
+    if (!data) continue
+    const found = findInlineImages(data)
+    if (!found.length) continue
+    if (budgetLeft <= 0 || Date.now() - t0 > budgetMs) { report.remaining += found.length; continue }
+    const urls = new Map()
+    for (const f of found) {
+      if (urls.has(f.uri)) continue                       // the same photo used twice (e.g. as the logo too)
+      if (budgetLeft <= 0 || Date.now() - t0 > budgetMs) break
+      const img = decodeDataImage(f.uri)
+      if (!img) { report.errors.push(`${row.id}: ${f.field}${f.index ?? ''} is not a raster image`); continue }
+      const path = inlinePath(row.id, img)
+      const up = await fetch(`${SUPA_URL}/storage/v1/object/${PHOTO_BUCKET}/${path}`, { method: 'POST', headers: { ...H, 'Content-Type': img.mime, 'x-upsert': 'true', 'cache-control': 'max-age=31536000' }, body: img.buf, signal: AbortSignal.timeout(15000) }).catch(e => ({ ok: false, status: 0, text: async () => e.message }))
+      if (!up.ok) { report.errors.push(`${row.id}: upload ${up.status} ${(await up.text().catch(() => '')).slice(0, 120)}`); continue }
+      urls.set(f.uri, `${SUPA_URL}/storage/v1/object/public/${PHOTO_BUCKET}/${path}`)
+      budgetLeft--; report.uploaded++
+    }
+    const left = found.filter(f => !urls.has(f.uri)).length
+    report.remaining += left
+    if (!urls.size) continue
+    const next = replaceInline(data, urls)
+    const w = await fetch(`${SUPA_URL}/rest/v1/properties?id=eq.${encodeURIComponent(row.id)}`, { method: 'PATCH', headers: { ...H, 'Content-Type': 'application/json', Prefer: 'return=minimal' }, body: JSON.stringify({ data: next }), signal: AbortSignal.timeout(10000) }).catch(() => null)
+    if (!w || !w.ok) { report.errors.push(`${row.id}: write ${w ? 'HTTP ' + w.status : 'failed'}`); report.remaining += urls.size; continue }
+    report.properties.push({ id: row.id, title: String(data.title || '').slice(0, 60), photos: urls.size, left, kbBefore: Math.round(jsonBytes(data) / 1024), kbAfter: Math.round(jsonBytes(next) / 1024) })
+    report.bytesBefore += jsonBytes(data); report.bytesAfter += jsonBytes(next)
+  }
+  // The public snapshot + the static pages follow (Render, if up, re-reads the table within 5 minutes)
+  if (report.remaining === 0) {
+    const all = await fetch(`${SUPA_URL}/rest/v1/properties?select=id,data,published&order=created_at.desc`, { headers: { ...H, Accept: 'application/json' }, signal: AbortSignal.timeout(12000) }).then(x => (x.ok ? x.json() : [])).catch(() => [])
+    const list = (Array.isArray(all) ? all : []).map(x => ({ ...x.data, id: x.id, published: x.published !== false }))
+    report.snapshot = await feed.pushSnapshot(list).catch(e => ({ error: e.message }))
+    report.rebuild = await propertiesChanged({ renderUrl: RENDER, supaUrl: SUPA_URL, supaKey: SUPA_KEY }).catch(e => ({ error: e.message }))
+  }
+  report.ms = Date.now() - t0
+  return res.status(200).json(report)
+}
+
 // ── /api/properties?one=<id> → a single published property (the page a share link opens) ─────────
 // A few KB instead of the whole list, so a colleague opening a shared link sees the property at once.
 async function serveOne(req, res) {
@@ -164,6 +221,7 @@ export default async function handler(req, res) {
   if (req.query && req.query.changed !== undefined) return serveChanged(req, res)
   if (req.query && req.query.health !== undefined) return serveHealth(req, res)
   if (req.query && req.query.snapshot !== undefined) return serveSnapshotPush(req, res)
+  if (req.query && req.query.slim !== undefined) return serveSlim(req, res)
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization')

@@ -258,6 +258,11 @@ Render meters every byte it sends. Rules that keep it near zero:
   The WhatsApp chat reads the legacy Render history once per contact per session (`GreenAPIChat.jsx`); its 8-second
   poll asks only Green API through Vercel. Photos never go inline (base64) into a property: the admin uploader falls
   back to the wizard's signed-URL upload to Supabase Storage and otherwise shows an error.
+- **Inline photos:** `POST /api/properties?slim=1` (admin; `lib/inline-images.js`, tested) moves photos stored inside a
+  property as base64 into Supabase Storage (`property-images/inline/<id>/<sha1>.<ext>`) straight through the
+  `properties` table — it works while Render is down, a few photos per call, and pushes the snapshot + rebuild when
+  none remain. The admin home's bandwidth tile offers it when `health.list.inlineImages > 0`. The live list was 1.9 MB
+  for 10 properties (17 inline photos) before this — the single biggest cause of the overage and of slow loads.
 - **Meter:** the feed counts every byte Render sends to Vercel (`render_traffic` in the store, per month) and
   `health` reports it with the list's weight and inline-photo count; the admin home shows both as the "רוחב פס Render"
   tile (warn > 1.5 GB, red > 3.5 GB; warn on a heavy list or inline photos). Render's own number is on
