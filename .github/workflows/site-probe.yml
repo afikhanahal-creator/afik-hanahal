@@ -18,6 +18,9 @@ on:
       actions:
         description: 'Optional live actions: slim (move inline photos), ai (one test lead analysis), rebuild (deploy hook)'
         default: ''
+      lead:
+        description: 'For the ai action: a JSON lead, e.g. {"name":"…","phone":"05…","msg":"…"} (default: a synthetic test lead)'
+        default: ''
   push:
     branches: ['claude/**']
     paths: ['scripts/probe-site.mjs', '.github/workflows/site-probe.yml']
@@ -44,6 +47,7 @@ jobs:
         env:
           SITE: ${{ inputs.site || 'https://www.afikhanahal.co.il' }}
           ACTIONS: ${{ inputs.actions }}
+          AI_LEAD: ${{ inputs.lead }}
         run: node scripts/probe-actions.mjs
       - uses: actions/upload-artifact@v4
         if: always()
