@@ -255,6 +255,14 @@ Render meters every byte it sends. Rules that keep it near zero:
   `app_settings`, or in `site_config` when that table is missing (health `store.table` says which).
 - **Server code that needs the catalog uses the feed** (`lib/lead-analyze.js`), never a raw full-list download.
 - The admin panel polls Render with `If-None-Match` (`condFetchJson`) and pauses in hidden tabs — keep it that way.
+  The WhatsApp chat reads the legacy Render history once per contact per session (`GreenAPIChat.jsx`); its 8-second
+  poll asks only Green API through Vercel. Photos never go inline (base64) into a property: the admin uploader falls
+  back to the wizard's signed-URL upload to Supabase Storage and otherwise shows an error.
+- **Meter:** the feed counts every byte Render sends to Vercel (`render_traffic` in the store, per month) and
+  `health` reports it with the list's weight and inline-photo count; the admin home shows both as the "רוחב פס Render"
+  tile (warn > 1.5 GB, red > 3.5 GB; warn on a heavy list or inline photos). Render's own number is on
+  dashboard.render.com/billing → Included Usage; the meter sees only what goes through Vercel (not the admin panel's
+  direct reads), so treat it as a floor.
 - Check with the "Site speed probe" action: the "backends" section shows the list size and whether `If-None-Match` gets a 304.
 
 ## GovMap parcel map (`src/GovMapWidget.jsx`)

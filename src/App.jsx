@@ -2272,7 +2272,7 @@ function getCookie(name) {
 function sendCAPI(metaEventName, pii = {}, customData = {}) {
   const event_id = `${metaEventName}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
   // Server-side — hashes PII, deduplicates via event_id
-  fetch(`${API_BASE}/api/capi`, {
+  fetch(`/api/capi`, {   // Vercel's own CAPI function (never Render — its bandwidth is metered)
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -2590,7 +2590,6 @@ const TESTIMONIALS_DATA = [
 // ─── NEWS SECTION ─────────────────────────────────────────────────────────────
 const ARCHIVE_STORE  = 'afik_archive_v1'
 const SLOT_COUNT     = 4
-const SERVER_URL     = import.meta.env.VITE_API_URL || 'https://afik-hanahal-server.onrender.com'
 
 
 // ── Normalise any article shape (Vercel / Supabase / Render / localStorage) ──
@@ -2637,8 +2636,7 @@ async function fetchFreshArticles() {
 
   let list = merge([], clean(await get('/api/news', 20000)))
   if (list.length < SLOT_COUNT) list = merge(list, clean(await get('/api/news/archive', 8000)))
-  if (list.length < SLOT_COUNT) list = merge(list, clean(await get(`${SERVER_URL}/api/news/feed`, 10000)))
-  return list
+  return list   // (the Render feed is no longer asked from the browser — /api/news already falls back to it, edge-cached)
 }
 
 // First SLOT_COUNT cards: images first, and as many different outlets as possible

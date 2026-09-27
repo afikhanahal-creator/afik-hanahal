@@ -89,6 +89,7 @@ function ImageUpload({ images, onChange }) {
   const [dragIdx, setDragIdx]   = useState(null)
   const [overIdx, setOverIdx]   = useState(null)
   const [loading, setLoading]   = useState(false)
+  const [uploadError, setUploadError] = useState(false)
 
   const compress = file => new Promise(res => {
     const reader = new FileReader()
@@ -133,7 +134,19 @@ function ImageUpload({ images, onChange }) {
         }
       } catch {}
     }
-    return dataUrl // fallback — inline base64 (previous behaviour)
+    // Render unavailable: upload straight to Supabase Storage through a signed URL (the same route the
+    // property wizard uses). Never inline base64 — one inlined photo bloats every property-list response.
+    try {
+      const blob = await (await fetch(dataUrl)).blob()
+      const meta = await fetch('/api/seller-form?action=wizard-upload-url', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+        body: JSON.stringify({ name: 'photo.jpg', type: 'image/jpeg', size: blob.size, kind: 'image' }) }).then(r => (r.ok ? r.json() : null)).catch(() => null)
+      if (meta?.signedUrl && meta?.url) {
+        const put = await fetch(meta.signedUrl, { method: 'PUT', headers: { 'Content-Type': 'image/jpeg', 'x-upsert': 'true' }, body: blob })
+        if (put.ok) return meta.url
+      }
+    } catch {}
+    setUploadError(true)
+    return null
   }
 
   const MAX_IMAGES = 20
@@ -142,6 +155,7 @@ function ImageUpload({ images, onChange }) {
     const allowed = Array.from(files).filter(f => f.type.startsWith('image/')).slice(0, remaining)
     if (!allowed.length) return
     setLoading(true)
+    setUploadError(false)
     const results = (await Promise.all(allowed.map(persist))).filter(Boolean)
     onChange([...images, ...results])
     setLoading(false)
@@ -201,6 +215,7 @@ function ImageUpload({ images, onChange }) {
             <FaImage size={20} style={{ marginBottom:4, opacity:.3, color:'rgba(var(--ink),.6)' }}/>
             <div style={{ fontSize:12, color:'rgba(var(--ink),.6)', fontWeight:600 }}>גרור תמונות לכאן או לחץ לבחירה</div>
             <div style={{ fontSize:10, color:'rgba(var(--ink),.3)', marginTop:3 }}>עד {MAX_IMAGES - images.length} תמונות נוספות · JPEG/PNG/WEBP</div>
+            {uploadError && <div style={{ fontSize:12, color:'#E05252', fontWeight:700, marginTop:8 }}>העלאת התמונה נכשלה — בדקו את החיבור ונסו שוב (התמונה לא נשמרה)</div>}
           </>
         )}
       </div>
