@@ -109,7 +109,7 @@ for (const [path, label] of [[`${RENDER}/api/properties`, 'Render: property list
     console.log(`      body: ${body.replace(/\s+/g, ' ').slice(0, 160)}`)
   } catch (e) { console.log(`ERR   after ${ms(performance.now() - t0)}  ${label}: ${e.message}`) }
 }
-for (const [path, label] of [['/api/properties', 'Vercel: public list'], [`/api/properties?one=${PROP}`, 'Vercel: single property']]) {
+for (const [path, label] of [['/api/properties?health=1', 'Vercel: feed health'], ['/api/properties', 'Vercel: public list'], [`/api/properties?one=${PROP}`, 'Vercel: single property']]) {
   const r = await timedFetch(path, { accept: 'application/json' })
   report(r, `   (${label})`)
   console.log(`      body: ${String(r.body || '').replace(/\s+/g, ' ').slice(0, 160)}`)
