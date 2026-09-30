@@ -270,6 +270,9 @@ export default async function handler(req, res) {
     console.warn('[properties vercel] Render returned', r.status)
     return res.status(r.status).json({ error: 'Backend error' })
   } catch (e) {
+    // Render unreachable / timed out: the properties table (every property, hidden ones included)
+    const all = await feed.getAll().catch(() => null)
+    if (all) { res.setHeader('X-Feed-Source', 'table'); res.setHeader('Cache-Control', 'no-store'); return sendJson(req, res, all) }
     console.error('[properties vercel] GET error:', e.message)
     return res.status(502).json({ error: e.message })
   }

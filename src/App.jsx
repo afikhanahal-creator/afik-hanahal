@@ -92,6 +92,25 @@ async function condFetchJson(url, headers = {}, opts = {}) {
   return { ok: true, changed: true, data }
 }
 
+// The admin's full property list (hidden ones included): straight from Render while it answers, otherwise through
+// Vercel — /api/properties with the admin token falls back to the Supabase properties table (the source of truth,
+// lib/property-store.js). Render sleeps / gets suspended; a publish or a save made meanwhile lives in that table, so
+// the panel must never be left with only its old local copy. → the list (array) or throws.
+async function fetchAdminProperties({ timeoutMs = 8000, skipRender = false } = {}) {
+  const headers = { Authorization: `Bearer ${ADMIN_TOKEN}` }
+  if (API_BASE && !skipRender) {
+    try {
+      const r = await fetch(`${API_BASE}/api/properties`, { headers, signal: AbortSignal.timeout(timeoutMs) })
+      if (r.ok) { const d = await r.json(); if (Array.isArray(d) && d.length) return d }
+    } catch {}
+  }
+  const r = await fetch('/api/properties', { headers, signal: AbortSignal.timeout(20000) })
+  if (!r.ok) throw new Error(`HTTP ${r.status}`)
+  const d = await r.json()
+  if (!Array.isArray(d)) throw new Error('not a list')
+  return d
+}
+
 // ─── THEME COLOURS ────────────────────────────────────────────────────────────
 const DARK_C  = { bg:'#09090F', purple:'#8490D8', green:'#82F67F', cream:'#E8E4D8', card:'#0E0E1C' }
 const LIGHT_C = { bg:'#F5F1E9', purple:'#3F4EB0', green:'#1A6818', cream:'#141420', card:'#FDFCF8' }
@@ -5362,8 +5381,7 @@ export default function App() {
       // Public read goes through Vercel's CDN-cached /api/properties (instant, no
       // Render cold-start). Admins read straight from Render: always fresh, and the
       // uncached full list never passes through Vercel's metered function transfer.
-      fetch(isAdminSession && API_BASE ? `${API_BASE}/api/properties` : `/api/properties`, { headers })
-        .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      ;(isAdminSession ? fetchAdminProperties() : fetch(`/api/properties`, { headers }).then(r => r.ok ? r.json() : Promise.reject(r.status)))
         .then(data => {
           if (Array.isArray(data) && data.length > 0) {
             apiArrived = true
@@ -5421,11 +5439,7 @@ export default function App() {
   // ── Re-fetch all properties (including unpublished) when admin logs in ──────
   useEffect(() => {
     if (!adminAuth) return
-    const base = API_BASE || ''
-    fetch(`${base}/api/properties`, {
-      headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
-    })
-      .then(r => r.ok ? r.json() : Promise.reject())
+    fetchAdminProperties()
       .then(data => {
         if (Array.isArray(data) && data.length > 0) {
           setProperties(prev => {
@@ -5454,7 +5468,8 @@ export default function App() {
       if (typeof document !== 'undefined' && document.hidden) return
       const headers = adminAuth ? { Authorization: `Bearer ${ADMIN_TOKEN}` } : {}
       condFetchJson(adminAuth && API_BASE ? `${API_BASE}/api/properties` : `/api/properties`, headers)
-        .then(res => (res.ok && res.changed ? res.data : Promise.reject()))
+        // Render down → the admin list through Vercel (the properties table)
+        .then(res => (res.ok && res.changed ? res.data : res.ok || !adminAuth ? Promise.reject() : fetchAdminProperties({ skipRender: true })))
         .then(data => {
           if (!Array.isArray(data) || !data.length) return
           // Use same merge as initial fetch — never blindly overwrite optimistic updates
@@ -6511,9 +6526,7 @@ export default function App() {
                   console.log('[wizard] saved prop', savedProp.id, '→', body.storage)
                   notifyPropertiesChanged(ADMIN_TOKEN)   // snapshot + instant landing pages follow
                   // Re-fetch after confirmed save so UI reflects what the server actually stored
-                  return fetch(`${base}/api/properties`, {
-                    headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
-                  }).then(r => r.ok ? r.json() : Promise.reject())
+                  return fetchAdminProperties()
                     .then(data => {
                       if (Array.isArray(data) && data.length > 0) {
                         setProperties(prev => {
@@ -6568,4 +6581,4 @@ export default function App() {
 }
 
 // Shared with the lazily-loaded admin dashboard (src/AdminPanel.jsx)
-export { TEAM_KEY, LeadsBoard, GreenAPIChat, MetaLeadsTab, SupermetricsTab, PropertyWizard, API_BASE, CONTACTS_API, ADMIN_TOKEN, condFetchJson, DARK_C, useTheme, TEAM, G, Logo, LEADS_STORE, LEADS_DELETED, LEADS_TRASH, ANALYTICS_KEY, META_LEAD_PAGES_KEY, WA_DEFAULT_TEMPLATE, _cloudSettings, CATEGORIES, EMPTY_PROP, CONDITION_OPTIONS, ENTRY_OPTIONS, ADMIN_DRAFT_KEY, toMapsEmbed, imgFallback, thumbImg, sortByOrder }
+export { fetchAdminProperties, TEAM_KEY, LeadsBoard, GreenAPIChat, MetaLeadsTab, SupermetricsTab, PropertyWizard, API_BASE, CONTACTS_API, ADMIN_TOKEN, condFetchJson, DARK_C, useTheme, TEAM, G, Logo, LEADS_STORE, LEADS_DELETED, LEADS_TRASH, ANALYTICS_KEY, META_LEAD_PAGES_KEY, WA_DEFAULT_TEMPLATE, _cloudSettings, CATEGORIES, EMPTY_PROP, CONDITION_OPTIONS, ENTRY_OPTIONS, ADMIN_DRAFT_KEY, toMapsEmbed, imgFallback, thumbImg, sortByOrder }
