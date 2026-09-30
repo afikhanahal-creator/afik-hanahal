@@ -16,10 +16,13 @@ on:
         description: Network profiles (real, 4g, 3g)
         default: real,4g,3g
       actions:
-        description: 'Optional live actions: slim (move inline photos), ai (one test lead analysis), rebuild (deploy hook)'
+        description: 'Optional live actions: slim (move inline photos), ai (one test lead analysis), rebuild (deploy hook), restore (properties from an older deployment)'
         default: ''
       lead:
         description: 'For the ai action: a JSON lead, e.g. {"name":"…","phone":"05…","msg":"…"} (default: a synthetic test lead)'
+        default: ''
+      restore_from:
+        description: 'For the restore action: an older deployment origin whose /properties.json is offered to the site'
         default: ''
   push:
     branches: ['claude/**']
@@ -48,6 +51,7 @@ jobs:
           SITE: ${{ inputs.site || 'https://www.afikhanahal.co.il' }}
           ACTIONS: ${{ inputs.actions }}
           AI_LEAD: ${{ inputs.lead }}
+          RESTORE_FROM: ${{ inputs.restore_from }}
         run: node scripts/probe-actions.mjs
       - uses: actions/upload-artifact@v4
         if: always()
