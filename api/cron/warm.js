@@ -225,6 +225,8 @@ export default async function handler(req, res) {
   catch (e) { out.automations = { error: e.message } }
   try { out.ingest = await ingest(log) } catch (e) { out.ingest = { error: e.message }; log.push(`[ingest] ERROR ${e.message}`) }
   try { out.sweep  = await sweep(log)  } catch (e) { out.sweep  = { error: e.message }; log.push(`[sweep] ERROR ${e.message}`) }
+  // Whatever Render (or the last snapshot) has that the properties table lacks is copied in (lib/property-store.js)
+  try { out.reconcile = await createFeed({ renderUrl: RENDER, supaUrl: SUPA_URL.replace(/\/$/, ''), supaKey: SUPA_KEY }).reconcile({ renderTimeout: 15000 }) } catch (e) { out.reconcile = { error: e.message } }
   out.propertiesSnapshot = await snapshot
   // Render bandwidth watch (free tier: 5 GB/month): one WhatsApp to the office when the month's traffic through the
   // site passes 3 GB, when the property list gets heavy, or when a photo is stored inline — at most once a day,

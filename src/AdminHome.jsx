@@ -9,6 +9,7 @@ const TR = {
     active: 'נכסים באוויר', of: n => `מתוך ${n} נכסים`, drafts: 'טיוטות', draftsSub: 'ממתינות לפרסום', leads: 'לידים', week: n => `${n} ב-7 הימים האחרונים`,
     today: 'לידים היום', yday: n => `${n} אתמול`, intake: 'נכסים שנקלטו', intakeSub: 'ממתינים לבדיקה', hot: 'לידים חמים', hotSub: 'לפי ציון AI',
     status: 'מצב המערכת', wa: 'WhatsApp (Green API)', ga: 'Google Analytics', auto: 'אוטומציות', site: 'האתר', feed: 'שרת הנכסים (Render)',
+    feedTable: (n, up) => `פעיל · ${n} נכסים מהמסד (Supabase)${up ? '' : ' · Render לא זמין — פרסום ועריכה עובדים'}`,
     feedOk: n => `פעיל · ${n} נכסים`, feedSnap: (n, ago) => `מושעה — האתר מגיש עותק שמור (${n} נכסים, ${ago})`, feedStatic: n => `מושעה — האתר מגיש את רשימת הפריסה האחרונה (${n})`,
     feedNone: 'מושעה ואין עותק שמור — האתר לא מציג נכסים! הפעילו את השרת ב-Render', feedSleep: 'מתעורר… (שרת חינמי)',
     bw: 'רוחב פס Render (5 GB בחודש)', bwUse: (mb, n) => `${mb} MB נשלחו דרך האתר החודש · ${n} בקשות`, bwHeavy: kb => `רשימת הנכסים שוקלת ${kb} KB — כבדה`, bwInline: n => `${n} תמונות שמורות בתוך הנכס (base64) — העלו אותן מחדש`, bwNone: 'אין נתונים עדיין', slimming: 'מעביר תמונות לאחסון…', slimDone: n => `${n} תמונות הועברו אוטומטית לאחסון — האתר נבנה מחדש`,
@@ -23,6 +24,7 @@ const TR = {
     active: 'Live properties', of: n => `of ${n} properties`, drafts: 'Drafts', draftsSub: 'Waiting to be published', leads: 'Leads', week: n => `${n} in the last 7 days`,
     today: 'Leads today', yday: n => `${n} yesterday`, intake: 'Submitted properties', intakeSub: 'Waiting for review', hot: 'Hot leads', hotSub: 'By AI score',
     status: 'System status', wa: 'WhatsApp (Green API)', ga: 'Google Analytics', auto: 'Automations', site: 'Website', feed: 'Property server (Render)',
+    feedTable: (n, up) => `Up · ${n} properties from the database (Supabase)${up ? '' : ' · Render down — publishing and editing still work'}`,
     feedOk: n => `Up · ${n} properties`, feedSnap: (n, ago) => `Down — the site serves a saved copy (${n} properties, ${ago})`, feedStatic: n => `Down — the site serves the last deploy's list (${n})`,
     feedNone: 'Down with no saved copy — the site shows no properties! Resume the server on Render', feedSleep: 'Waking up… (free tier)',
     bw: 'Render bandwidth (5 GB / month)', bwUse: (mb, n) => `${mb} MB sent through the site this month · ${n} requests`, bwHeavy: kb => `the property list weighs ${kb} KB — heavy`, bwInline: n => `${n} photos stored inside the property (base64) — re-upload them`, bwNone: 'No data yet', slimming: 'Moving photos to storage…', slimDone: n => `${n} photos moved to storage automatically — the site is rebuilding`,
@@ -130,6 +132,7 @@ export default function AdminHome({ properties = [], leads = [], setTab, autoCfg
   const feedTile = useMemo(() => {
     if (!feed) return { state: 'idle', detail: t.checking }
     if (feed.error) return { state: 'warn', detail: t.setup }
+    if (feed.serving === 'table') return { state: 'ok', detail: t.feedTable(feed.table?.count ?? 0, !!feed.render?.ok) }
     if (feed.serving === 'render') return { state: 'ok', detail: t.feedOk(feed.render?.count ?? 0) }
     const asleep = feed.render?.routing === 'timeout' || feed.render?.routing === 'no-server'
     if (feed.serving === 'snapshot') return { state: asleep ? 'ok' : 'warn', detail: asleep ? t.feedSleep : t.feedSnap(feed.snapshot?.count ?? 0, feed.snapshot?.at ? ago(new Date(feed.snapshot.at).getTime(), t) : '') }
