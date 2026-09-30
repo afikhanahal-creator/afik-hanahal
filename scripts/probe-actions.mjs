@@ -2,6 +2,8 @@
 //   slim — POST /api/properties?slim=1 until no inline photos remain (what the admin home does by itself)
 //   ai      — one lead analysis for a synthetic test lead (reads only; costs one small Claude call)
 //   rebuild — POST /api/properties?changed=1: refresh the snapshot and trigger the Vercel deploy hook
+//   restore — RESTORE_FROM (an older deployment's origin): its /properties.json is offered as the admin's copy
+//             (POST ?snapshot=1) — properties the table lacks are added, nothing is overwritten
 // The admin token is the one the site's own admin bundle carries (src/App.jsx) unless ADMIN_TOKEN is set.
 import { readFileSync } from 'node:fs'
 
@@ -25,6 +27,22 @@ if (ACTIONS.includes('slim')) {
 if (ACTIONS.includes('rebuild')) {
   const r = await fetch(`${SITE}/api/properties?changed=1`, { method: 'POST', headers: H, signal: AbortSignal.timeout(40000) })
   show(`rebuild (HTTP ${r.status})`, await r.json().catch(() => ({})))
+}
+if (ACTIONS.includes('restore')) {
+  const from = String(process.env.RESTORE_FROM || '').replace(/\/$/, '')
+  if (!from) console.log('restore: RESTORE_FROM is empty')
+  else {
+    const r0 = await fetch(`${from}/properties.json`, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(30000) }).catch(e => ({ ok: false, status: 0, text: async () => e.message }))
+    const list = r0.ok ? await r0.json().catch(() => null) : null
+    if (!Array.isArray(list)) show(`restore: ${from}/properties.json (HTTP ${r0.status})`, { body: (await r0.text().catch(() => '')).slice(0, 300) })
+    else {
+      show('restore: source list', list.map(p => `${p.id}:${String(p.title || '').slice(0, 40)}`))
+      const r = await fetch(`${SITE}/api/properties?snapshot=1`, { method: 'POST', headers: H, body: JSON.stringify({ list }), signal: AbortSignal.timeout(40000) })
+      show(`restore (HTTP ${r.status})`, await r.json().catch(() => ({})))
+      const h = await fetch(`${SITE}/api/properties?health=1`).then(r => r.json()).catch(e => ({ error: e.message }))
+      show('health after restore', { serving: h.serving, table: h.table, snapshot: h.snapshot })
+    }
+  }
 }
 if (ACTIONS.includes('ai')) {
   // AI_LEAD: a JSON lead to analyse (workflow input `lead`); default is a synthetic test lead
