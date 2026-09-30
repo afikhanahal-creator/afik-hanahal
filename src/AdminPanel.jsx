@@ -19,7 +19,7 @@ import { useAdminTheme, ADMIN_THEME_CSS } from './adminTheme.js'
 import { mergeBrief } from '../lib/lead-intel.js'
 import CommandPalette, { useCommandHotkey } from './CommandPalette.jsx'
 import { notifyPropertiesChanged, mirrorProperty, mirrorProperties, mirrorDelete } from './siteRebuild.js'
-import { LeadsBoard, GreenAPIChat, MetaLeadsTab, SupermetricsTab, PropertyWizard, API_BASE, CONTACTS_API, ADMIN_TOKEN, condFetchJson, DARK_C, useTheme, TEAM, G, Logo, LEADS_STORE, LEADS_DELETED, LEADS_TRASH, ANALYTICS_KEY, META_LEAD_PAGES_KEY, WA_DEFAULT_TEMPLATE, _cloudSettings, CATEGORIES, EMPTY_PROP, CONDITION_OPTIONS, ENTRY_OPTIONS, ADMIN_DRAFT_KEY, toMapsEmbed, imgFallback, thumbImg, sortByOrder, TEAM_KEY, setCloudSettings } from './App.jsx'
+import { fetchAdminProperties, LeadsBoard, GreenAPIChat, MetaLeadsTab, SupermetricsTab, PropertyWizard, API_BASE, CONTACTS_API, ADMIN_TOKEN, condFetchJson, DARK_C, useTheme, TEAM, G, Logo, LEADS_STORE, LEADS_DELETED, LEADS_TRASH, ANALYTICS_KEY, META_LEAD_PAGES_KEY, WA_DEFAULT_TEMPLATE, _cloudSettings, CATEGORIES, EMPTY_PROP, CONDITION_OPTIONS, ENTRY_OPTIONS, ADMIN_DRAFT_KEY, toMapsEmbed, imgFallback, thumbImg, sortByOrder, TEAM_KEY, setCloudSettings } from './App.jsx'
 
 // Tab ↔ URL deep-link mapping (module-level so both AdminPanel and main app can use it)
 const ADMIN_TAB_TO_PATH = { overview:'', props:'properties', leads:'leads', sellers:'properties-intake', chats:'chats', automations:'automations', meta:'lead-center', analytics:'analytics', supermetrics:'performance', team:'team', settings:'settings', counters:'counters', live:'live' }
@@ -2897,12 +2897,8 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     flashNote(`✓ ${ids.length} נכסים נמחקו`)
   }
   const refreshOneFromServer = async p => {
-    const base = (typeof API_BASE !== 'undefined' ? API_BASE : '') || ''
-    if (!base) { alert('VITE_API_URL לא מוגדר'); return }
     try {
-      const r = await fetch(`${base}/api/properties`, { headers:{ Authorization:`Bearer ${ADMIN_TOKEN}` } })
-      if (!r.ok) throw new Error(r.status)
-      const all = await r.json()
+      const all = await fetchAdminProperties()
       const fresh = Array.isArray(all) ? all.find(x => String(x.id)===String(p.id)) : null
       if (!fresh) { alert('הנכס לא נמצא בשרת — השרת אולי הופעל מחדש.\nהנתונים המקומיים שמורים.'); return }
       const localProp = properties.find(x => String(x.id)===String(p.id))
@@ -3687,7 +3683,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
                     style={{ padding:'5px 10px', background:`${C.purple}18`, border:`1px solid ${C.purple}44`, borderRadius:6, color:C.purple, cursor: propSyncing ? 'not-allowed' : 'pointer', fontSize:11, fontFamily:'inherit', fontWeight:700, whiteSpace:'nowrap', opacity: propSyncing ? .6 : 1 }}>
                     {propSyncing ? 'מסנכרן...' : '↻ סנכרן הכל'}
                   </button>
-                  <button onClick={() => { const base = API_BASE || ''; if (!base) return; const headers = { Authorization: `Bearer ${ADMIN_TOKEN}` }; fetch(`${base}/api/properties`, { headers }).then(r => r.ok ? r.json() : Promise.reject()).then(data => { if (Array.isArray(data) && data.length > 0) setProperties(data) }).catch(() => {}) }}
+                  <button onClick={() => { fetchAdminProperties().then(data => { if (Array.isArray(data) && data.length > 0) setProperties(data) }).catch(() => {}) }}
                     title="רענן נכסים מהשרת"
                     style={{ padding:'5px 10px', background:'rgba(34,197,94,.1)', border:'1px solid rgba(34,197,94,.3)', borderRadius:6, color:'#22C55E', cursor:'pointer', fontSize:11, fontFamily:'inherit', fontWeight:700, whiteSpace:'nowrap' }}>
                     ↺ רענן מהשרת
