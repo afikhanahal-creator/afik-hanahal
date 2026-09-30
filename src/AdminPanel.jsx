@@ -18,7 +18,7 @@ import { autoApi, StageSendPrompt } from './AutomationsApi.jsx'
 import { useAdminTheme, ADMIN_THEME_CSS } from './adminTheme.js'
 import { mergeBrief } from '../lib/lead-intel.js'
 import CommandPalette, { useCommandHotkey } from './CommandPalette.jsx'
-import { notifyPropertiesChanged } from './siteRebuild.js'
+import { notifyPropertiesChanged, mirrorProperty, mirrorProperties, mirrorDelete } from './siteRebuild.js'
 import { LeadsBoard, GreenAPIChat, MetaLeadsTab, SupermetricsTab, PropertyWizard, API_BASE, CONTACTS_API, ADMIN_TOKEN, condFetchJson, DARK_C, useTheme, TEAM, G, Logo, LEADS_STORE, LEADS_DELETED, LEADS_TRASH, ANALYTICS_KEY, META_LEAD_PAGES_KEY, WA_DEFAULT_TEMPLATE, _cloudSettings, CATEGORIES, EMPTY_PROP, CONDITION_OPTIONS, ENTRY_OPTIONS, ADMIN_DRAFT_KEY, toMapsEmbed, imgFallback, thumbImg, sortByOrder, TEAM_KEY, setCloudSettings } from './App.jsx'
 
 // Tab ↔ URL deep-link mapping (module-level so both AdminPanel and main app can use it)
@@ -2630,13 +2630,16 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   // ── Individual property save — PUT /api/properties/:id ────────────────────
   // Safe: only touches the ONE property being saved. Other properties untouched.
   // Retries up to 3 extra times (1 s → 2 s → 4 s) to survive Render cold-starts.
+  // Every save is also written to the properties table through Vercel (mirrorProperty): that is the copy the
+  // site reads, and while Render is down it is the save itself (Render picks it up when it is back).
   const saveProp = async (rawProp) => {
     setPropSyncing(true)
     setPropSyncError('')
     const prop = await externalizeInlinePhotos(rawProp, ADMIN_TOKEN)   // never store a photo inline (src/inlinePhotos.js)
     const base = API_BASE || ''
-    let lastErr = null
-    for (let attempt = 0; attempt < 4; attempt++) {
+    const mirrored = mirrorProperty(prop, ADMIN_TOKEN)
+    let lastErr = null, renderOk = false, memoryOnly = false
+    for (let attempt = 0; attempt < 4 && !renderOk; attempt++) {
       if (attempt > 0) await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt - 1)))
       try {
         const r = await fetch(`${base}/api/properties/${prop.id}`, {
@@ -2647,20 +2650,26 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
         })
         if (!r.ok) throw new Error(await r.text().catch(() => String(r.status)))
         const body = await r.json().catch(() => ({}))
-        if (body.storage === 'memory') {
-          setPropSyncError('⚠ נשמר ב-RAM בלבד — Supabase לא זמין! הנתונים יאבדו אם השרת יתחיל מחדש')
-        } else {
-          setPropSyncedAt(new Date())
-          setPropSyncError('')
-        }
-        notifyPropertiesChanged(ADMIN_TOKEN)   // snapshot + instant landing pages follow
-        setPropSyncing(false)
-        return
+        renderOk = true
+        memoryOnly = body.storage === 'memory'
       } catch (e) {
         lastErr = e
+        if (/Service Suspended|suspend/i.test(String(e?.message))) break   // Render is off — no point retrying
       }
     }
-    setPropSyncError('שגיאת סנכרון: ' + (lastErr?.message || 'בעיית תקשורת') + ' — נסה שוב')
+    const m = await mirrored
+    const saved = renderOk || !!(m && m.ok)
+    if (saved) {
+      setPropSyncedAt(new Date())
+      if (!renderOk) setPropSyncError('נשמר באתר (Supabase). שרת Render לא זמין כרגע — יתעדכן מהמסד כשיחזור')
+      else if (memoryOnly && !(m && m.ok)) setPropSyncError('⚠ נשמר ב-RAM בלבד — Supabase לא זמין! הנתונים יאבדו אם השרת יתחיל מחדש')
+      else setPropSyncError('')
+      if (!renderOk) setTimeout(() => setPropSyncError(''), 12000)
+      notifyPropertiesChanged(ADMIN_TOKEN)   // snapshot + instant landing pages follow
+      setPropSyncing(false)
+      return
+    }
+    setPropSyncError('שגיאת סנכרון: ' + (lastErr?.message || (m && m.errors && m.errors[0]) || 'בעיית תקשורת') + ' — נסה שוב')
     setTimeout(() => setPropSyncError(''), 12000)
     setPropSyncing(false)
   }
@@ -2688,6 +2697,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const savePropSilent = async (rawProp) => {
     const base = API_BASE || ''
     const prop = await externalizeInlinePhotos(rawProp, ADMIN_TOKEN)
+    const mirrored = mirrorProperty(prop, ADMIN_TOKEN)   // the durable copy (properties table) — the site reads this one
     for (let attempt = 0; attempt < 3; attempt++) {
       if (attempt > 0) await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt - 1)))
       try {
@@ -2700,19 +2710,23 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
         if (r.ok) { setPropSyncedAt(new Date()); notifyPropertiesChanged(ADMIN_TOKEN); return }
       } catch {}
     }
+    const m = await mirrored
+    if (m && m.ok) { setPropSyncedAt(new Date()); notifyPropertiesChanged(ADMIN_TOKEN) }
   }
 
   // ── Individual property delete — DELETE /api/properties/:id ───────────────
   const deleteProp = async (id) => {
     const base = API_BASE || ''
+    const mirrored = mirrorDelete(id, ADMIN_TOKEN)   // the properties table (what the site shows) — Render or not
     try {
       await fetch(`${base}/api/properties/${id}`, {
         method:  'DELETE',
         headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
         signal:  AbortSignal.timeout(10000),
       })
-      notifyPropertiesChanged(ADMIN_TOKEN)
     } catch {}
+    await mirrored
+    notifyPropertiesChanged(ADMIN_TOKEN)
   }
 
   // ── Bulk sync — used for reorder and manual "sync all" button ─────────────
@@ -2720,23 +2734,28 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     setPropSyncing(true)
     setPropSyncError('')
     const base = API_BASE || ''
+    const clean = await Promise.all(nextProps.map(p => externalizeInlinePhotos(p, ADMIN_TOKEN)))
+    const mirrored = mirrorProperties(clean, ADMIN_TOKEN)   // the properties table (what the site shows) — Render or not
     try {
       const r = await fetch(`${base}/api/properties/bulk`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
-        body:    JSON.stringify(await Promise.all(nextProps.map(p => externalizeInlinePhotos(p, ADMIN_TOKEN)))),
+        body:    JSON.stringify(clean),
         signal:  AbortSignal.timeout(20000),
       })
       if (!r.ok) throw new Error(await r.text().catch(() => String(r.status)))
       const body = await r.json().catch(() => ({}))
-      if (body.storage === 'memory') {
+      const m = await mirrored
+      if (body.storage === 'memory' && !(m && m.ok)) {
         setPropSyncError('⚠ נשמר ב-RAM בלבד — Supabase לא זמין! הנתונים יאבדו אם השרת יתחיל מחדש')
       } else {
         setPropSyncedAt(new Date())
         notifyPropertiesChanged(ADMIN_TOKEN)
       }
     } catch (e) {
-      setPropSyncError('שגיאת סנכרון: ' + (e.message || 'בעיית תקשורת'))
+      const m = await mirrored
+      if (m && m.ok) { setPropSyncedAt(new Date()); notifyPropertiesChanged(ADMIN_TOKEN); setPropSyncError('נשמר באתר (Supabase). שרת Render לא זמין כרגע — יתעדכן מהמסד כשיחזור') }
+      else setPropSyncError('שגיאת סנכרון: ' + (e.message || 'בעיית תקשורת'))
       setTimeout(() => setPropSyncError(''), 8000)
     } finally {
       setPropSyncing(false)

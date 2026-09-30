@@ -34,6 +34,7 @@ import { randomBytes } from 'crypto'
 import { backupEnabled, backupPut, backupList, backupGet, backupDelete } from '../lib/backup.js'
 import { archiveEnabled, archiveSubmission, archiveRepoUrl } from '../lib/archive.js'
 import { propertiesChanged } from '../lib/site-rebuild.js'
+import { createStore, numericId } from '../lib/property-store.js'
 import { buildSummary, headline, PROPERTY_TYPE_LABEL, DOC_TAG_LABEL, publicAnswers, buildStory, storyText, directionsText, STEPS, INTAKE_STATUSES, purposeOf, roomsOf, visibleSteps, stepQuestion } from '../src/sellerFormSchema.js'
 
 const SUPA_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
@@ -231,7 +232,7 @@ function buildSiteProperty(row, media) {
   const pk = Number(a.f_parking?.parking || 0)
   const rental = purposeOf(a) === 'rental'
   return {
-    id: row.published_property_id || `intake-${row.sid}`,
+    id: numericId(row.published_property_id) || Date.now(),   // the properties table's key is a BIGINT (lib/property-store.js)
     category: ov.category || CATEGORY(a.p_type, purposeOf(a) === 'rental'),
     title: ov.title || `${typeHe}${rooms ? `, ${rooms} חד׳` : ''}${size ? `, ${size} מ"ר` : ''} - ${addr.city || ''}`.trim(),
     type: typeHe,
@@ -294,20 +295,30 @@ function buildSiteProperty(row, media) {
     updatedAt: now(),
   }
 }
+// The property goes into the `properties` table first (lib/property-store.js) — durable, and independent of Render,
+// which sleeps on the free tier and was suspended once for a month. The site reads that table, so the property is
+// live at once. Render's own copy follows: a best-effort PUT now, and it re-reads the table within 5 minutes anyway.
+let _store = null
+const propertyStore = () => (_store ||= createStore({ supaUrl: String(SUPA_URL || '').replace(/\/$/, ''), supaKey: SUPA_KEY }))
 async function renderPut(property) {
-  const r = await fetch(`${RENDER}/api/properties/${encodeURIComponent(property.id)}`, {
-    method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
-    body: JSON.stringify(property), signal: AbortSignal.timeout(42000),
-  })
-  if (!r.ok) throw new Error(`property generator HTTP ${r.status}: ${(await r.text().catch(() => '')).slice(0, 200)}`)
-  const out = await r.json().catch(() => ({}))
+  const saved = await propertyStore().upsert(property)
+  let render = 'skipped'
+  try {
+    const r = await fetch(`${RENDER}/api/properties/${encodeURIComponent(property.id)}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+      body: JSON.stringify(property), signal: AbortSignal.timeout(8000),
+    })
+    render = r.ok ? 'ok' : `HTTP ${r.status}`
+  } catch (e) { render = e.name === 'TimeoutError' ? 'timeout' : e.message }
   // The site's public snapshot + instant landing pages follow right away (lib/site-rebuild.js)
   await propertiesChanged({ renderUrl: RENDER, supaUrl: String(SUPA_URL || '').replace(/\/$/, ''), supaKey: SUPA_KEY }).catch(() => {})
-  return out
+  return { ok: true, id: saved.id, storage: 'supabase', render }
 }
 async function renderGet(id) {
-  const r = await fetch(`${RENDER}/api/properties`, { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` }, signal: AbortSignal.timeout(42000) })
-  if (!r.ok) throw new Error(`property generator HTTP ${r.status}`)
+  const stored = await propertyStore().one(id).catch(() => null)
+  if (stored) return stored
+  const r = await fetch(`${RENDER}/api/properties`, { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` }, signal: AbortSignal.timeout(8000) }).catch(() => null)
+  if (!r || !r.ok) return null
   const list = await r.json().catch(() => [])
   return (Array.isArray(list) ? list : []).find(p => String(p.id) === String(id)) || null
 }

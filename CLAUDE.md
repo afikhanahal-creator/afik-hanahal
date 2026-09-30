@@ -202,14 +202,24 @@ an instant 302 to `/?p=<id>#properties`, keeping `utm_*` / `fbclid` / `gclid` / 
 generic preview. The site's own share button uses the same link, and the landing UTM is kept for the whole session
 (`sessionStorage.afik_utm`) so `crm_data.origin.utm` credits the ad even after browsing.
 
+**Source of truth = the Supabase `properties` table** (`lib/property-store.js`, tested): Render keeps the list in RAM and its own
+write to that table has been failing silently since June (properties saved since then lived in Render's memory only and would
+vanish on a restart). So the site side fills the table itself: every admin save / delete is mirrored through Vercel
+(`POST /api/properties?upsert=1` · `?remove=<id>`, `src/siteRebuild.js` `mirrorProperty` / `mirrorDelete` — while Render is
+down that *is* the save), the intake "פרסם באתר" writes the table first (Render best-effort, 8 s), and `feed.reconcile()`
+(after every change, daily, at deploy) copies into the table whatever Render or the last snapshot has that it lacks (never
+overwrites). Render re-reads the table every 5 minutes, so it follows. Property ids are numeric (`Date.now()`; the key is a
+BIGINT — never `intake-…` strings).
+
 **Speed (Render sleeps on the free tier):** the public list (`/api/properties` without a token) comes from `lib/property-feed.js`
-(tested): Render if it answers within 2.5 s, otherwise a snapshot kept in Supabase `app_settings` (key `public_properties`,
+(tested): the `properties` table first (published rows, 3 s budget, no Render bandwidth at all; the admin fallback `feed.getAll()`
+includes hidden ones), then Render if it answers within 2.5 s, otherwise a snapshot kept in Supabase `app_settings` (key `public_properties`,
 rewritten only when the list changed; refreshed by `api/cron/warm.js` too), and as a last resort `dist/properties.json` — the
 published list written at deploy time by `scripts/build-properties.mjs` (Vercel builds only; also seeds the snapshot). First-time
 visitors paint the grid from that static file (`index.html` starts it as `window.__afikList`) and the live list replaces it; an
 open property window always follows the freshest data. So the site never waits on a cold start.
 **When Render is down for real (suspended, crashed — `x-render-routing: suspend-by-user`):** the snapshot is all the site has.
-`GET /api/properties?health=1` (public, no secrets) says what is being served (`serving`: render / snapshot / static / none,
+`GET /api/properties?health=1` (public, no secrets) says what is being served (`serving`: table / render / snapshot / static / none,
 Render's status + routing, snapshot age and size); the admin home shows it as the "שרת הנכסים (Render)" tile (red = no data
 anywhere → resume the service on Render). The admin panel offers its own copy of the list with `POST /api/properties?snapshot=1`
 (`src/siteRebuild.js` `pushSnapshot`, on every admin load; only published properties): the server stores it only while Render

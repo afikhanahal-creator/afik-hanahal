@@ -20,6 +20,31 @@ export async function pushSnapshot(list, token) {
   } catch { return null }
 }
 
+// The durable copy of a property: the properties table in Supabase, written through Vercel (lib/property-store.js).
+// The site reads that table, and Render's own write to it fails silently — so every save is mirrored here, and
+// while Render is down this IS the save. → { ok, saved: [ids], errors } | null (network)
+export async function mirrorProperty(prop, token) {
+  if (!token || !prop || prop.id == null) return null
+  try {
+    const r = await fetch('/api/properties?upsert=1', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify(prop), signal: AbortSignal.timeout(20000) })
+    return await r.json().catch(() => null)
+  } catch { return null }
+}
+export async function mirrorProperties(list, token) {
+  if (!token || !Array.isArray(list) || !list.length) return null
+  try {
+    const r = await fetch('/api/properties?upsert=1', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ list }), signal: AbortSignal.timeout(25000) })
+    return await r.json().catch(() => null)
+  } catch { return null }
+}
+export async function mirrorDelete(id, token) {
+  if (!token || id == null) return null
+  try {
+    const r = await fetch(`/api/properties?remove=${encodeURIComponent(id)}`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(15000) })
+    return await r.json().catch(() => null)
+  } catch { return null }
+}
+
 async function send(token) {
   pendingToken = null
   try {

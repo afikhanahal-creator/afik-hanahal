@@ -44,7 +44,7 @@ class SectionBoundary extends Component {
 }
 const PropertyWizard    = lazyWithRetry(() => import('./PropertyWizard.jsx'))
 import { FaChevronLeft, FaChevronRight, FaEnvelope, FaFacebookF, FaInstagram, FaBed, FaRulerCombined, FaCar, FaSwimmingPool, FaBuilding, FaBoxOpen, FaTree, FaSnowflake, FaShieldAlt, FaCouch, FaTools, FaMapMarkerAlt, FaExternalLinkAlt, FaPhone, FaCompass, FaLeaf, FaCalendarAlt, FaTimes, FaWhatsapp, FaSun, FaFileAlt, FaHome, FaMoneyBill, FaSearch, FaBalanceScale, FaHandshake, FaTrophy, FaHardHat, FaLock, FaKey, FaGlobe, FaSeedling, FaBolt, FaRocket, FaStar, FaChartLine, FaEye, FaPlay, FaWheelchair, FaFire, FaCalculator, FaShareAlt, FaHeart, FaStore, FaCamera, FaWifi, FaIndustry, FaExpand, FaUser, FaUsers, FaDesktop, FaMobileAlt, FaTabletAlt, FaCommentAlt, FaRobot, FaInbox, FaExclamationTriangle, FaChartBar, FaThumbsUp, FaImage, FaPencilAlt, FaCrown, FaMousePointer, FaDollarSign, FaVideo, FaLink, FaCheck, FaCheckCircle, FaUtensils, FaDoorOpen, FaUserShield, FaTrash } from 'react-icons/fa'
-import { notifyPropertiesChanged, pushSnapshot } from './siteRebuild.js'
+import { notifyPropertiesChanged, pushSnapshot, mirrorProperty } from './siteRebuild.js'
 import { externalizeInlinePhotos } from './inlinePhotos.js'
 
 // ─── SERVER CONFIG ────────────────────────────────────────────────────────────
@@ -6498,7 +6498,10 @@ export default function App() {
             // Save only the affected property — safe, atomic, never touches others
             const base = API_BASE || ''
             if (base && savedProp) {
-              externalizeInlinePhotos(savedProp, ADMIN_TOKEN).then(cleanProp => fetch(`${base}/api/properties/${savedProp.id}`, {
+              const cleanP = externalizeInlinePhotos(savedProp, ADMIN_TOKEN)
+              // The durable copy (the properties table, through Vercel) — the site reads this one, Render up or not
+              cleanP.then(cleanProp => mirrorProperty(cleanProp, ADMIN_TOKEN)).then(m => { if (m && m.ok) notifyPropertiesChanged(ADMIN_TOKEN) })
+              cleanP.then(cleanProp => fetch(`${base}/api/properties/${savedProp.id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
                 body: JSON.stringify(cleanProp),

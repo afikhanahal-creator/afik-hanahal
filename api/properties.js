@@ -15,7 +15,7 @@ const SUPA_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_K
 // photo leaves Supabase once and every later visitor is served from the CDN.
 const SUPA_URL = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').replace(/\/$/, '')
 const IMG_PATH_RE = /^[\w\-./%()~!,+ \u0590-\u05FF]{3,400}$/
-// Public list: Render when it answers within 2.5 s, otherwise the Supabase snapshot (lib/property-feed.js)
+// Public list: the properties table first, then Render (within 2.5 s), then the Supabase snapshot (lib/property-feed.js)
 // Every list the feed stores has its inline (base64) photos moved to Storage first (lib/slim-photos.js slimList)
 const slimTransform = list => slimList(list, { supaUrl: SUPA_URL, supaKey: SUPA_KEY }).then(r => r.list)
 const feed = createFeed({ renderUrl: RENDER, supaUrl: SUPA_URL, supaKey: SUPA_KEY, transformList: slimTransform })
@@ -166,6 +166,38 @@ async function serveSlim(req, res) {
   return res.status(report.error && !report.snapshotClean.changed ? 502 : 200).json(report)
 }
 
+// ── POST /api/properties?upsert=1 (admin) { ...property } | { list: [...] } → written into the properties table
+// (lib/property-store.js): the durable copy the site reads. The admin panel calls it after every save (Render's own
+// write to that table fails silently) and instead of Render while Render is down. The snapshot follows at once.
+async function serveUpsert(req, res) {
+  res.setHeader('Cache-Control', 'no-store')
+  if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
+  const key = (req.headers.authorization || '').replace(/^Bearer\s+/i, '') || String(req.query.key || '')
+  if (key !== ADMIN_TOKEN) return res.status(401).json({ error: 'unauthorized' })
+  let body = req.body
+  if (typeof body === 'string') { try { body = JSON.parse(body) } catch { body = null } }
+  const list = body && Array.isArray(body.list) ? body.list : body && typeof body === 'object' && body.id != null ? [body] : null
+  if (!list) return res.status(400).json({ error: 'expected a property or { list: [...] }' })
+  const clean = await slimList(list, { supaUrl: SUPA_URL, supaKey: SUPA_KEY, budgetMs: 10000 }).then(r => r.list).catch(() => list)   // never store a photo inline
+  const out = await feed.store.upsertMany(clean).catch(e => ({ saved: [], errors: [e.message] }))
+  feed.invalidate()
+  const refreshed = out.saved.length ? await feed.getList().then(r => ({ source: r.source, count: r.list.length }), e => ({ error: e.message })) : null
+  return res.status(out.saved.length ? 200 : 502).json({ ok: out.saved.length > 0, ...out, storage: 'supabase', list: refreshed })
+}
+// ── POST /api/properties?remove=<id> (admin) → the property leaves the properties table (and so the site)
+async function serveRemove(req, res) {
+  res.setHeader('Cache-Control', 'no-store')
+  if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
+  const key = (req.headers.authorization || '').replace(/^Bearer\s+/i, '') || String(req.query.key || '')
+  if (key !== ADMIN_TOKEN) return res.status(401).json({ error: 'unauthorized' })
+  try {
+    const r = await feed.store.remove(req.query.remove)
+    feed.invalidate()
+    const refreshed = await feed.getList().then(x => ({ source: x.source, count: x.list.length }), e => ({ error: e.message }))
+    return res.status(200).json({ ok: true, ...r, list: refreshed })
+  } catch (e) { return res.status(/positive integer/.test(e.message) ? 400 : 502).json({ ok: false, error: e.message }) }
+}
+
 // ── /api/properties?one=<id> → a single published property (the page a share link opens) ─────────
 // A few KB instead of the whole list, so a colleague opening a shared link sees the property at once.
 async function serveOne(req, res) {
@@ -192,6 +224,8 @@ export default async function handler(req, res) {
   if (req.query && req.query.health !== undefined) return serveHealth(req, res)
   if (req.query && req.query.snapshot !== undefined) return serveSnapshotPush(req, res)
   if (req.query && req.query.slim !== undefined) return serveSlim(req, res)
+  if (req.query && req.query.upsert !== undefined) return serveUpsert(req, res)
+  if (req.query && req.query.remove !== undefined) return serveRemove(req, res)
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization')
@@ -206,7 +240,7 @@ export default async function handler(req, res) {
     try {
       const r = await feed.getList({ staticUrl: staticListUrl(req) })
       res.setHeader('X-Feed-Source', r.source)
-      res.setHeader('Cache-Control', r.source === 'render' ? 'public, s-maxage=300, stale-while-revalidate=86400' : 'public, s-maxage=30, stale-while-revalidate=86400')
+      res.setHeader('Cache-Control', r.source === 'table' ? 'public, s-maxage=120, stale-while-revalidate=86400' : r.source === 'render' ? 'public, s-maxage=300, stale-while-revalidate=86400' : 'public, s-maxage=30, stale-while-revalidate=86400')
       return sendJson(req, res, r.list)
     } catch (e) {
       console.error('[properties vercel] public GET error:', e.message)
@@ -228,7 +262,9 @@ export default async function handler(req, res) {
       if (Array.isArray(data)) await feed.saveSnapshot(data.filter(p => p && p.published !== false)).catch(() => {})
       return sendJson(req, res, data)
     }
-    // Render down (suspended / crashed): the admin still gets the last known list, marked as such
+    // Render down (suspended / crashed): the admin gets the properties table (hidden ones included), else the last known list
+    const all = await feed.getAll().catch(() => null)
+    if (all) { res.setHeader('X-Feed-Source', 'table'); res.setHeader('Cache-Control', 'no-store'); return sendJson(req, res, all) }
     const fb = await feed.getList({ staticUrl: staticListUrl(req) }).catch(() => null)
     if (fb) { res.setHeader('X-Feed-Source', fb.source); res.setHeader('Cache-Control', 'no-store'); return sendJson(req, res, fb.list) }
     console.warn('[properties vercel] Render returned', r.status)
