@@ -490,6 +490,15 @@ export default async function handler(req, res) {
       }
       console.log(`[new-lead] ${row.name || '—'} | ${row.phone || '—'} | source=${row.source}`)
 
+      // A lead with no phone and no email can't be called back: an empty form (a mis-click, a bot) used to land as
+      // "ליד חדש: אנונימי" with nothing in it. The admin panel (token) may still add such a lead by hand.
+      const digits = String(row.phone || '').replace(/\D/g, '')
+      const reachable = digits.length >= 9 || /\S+@\S+\.\S+/.test(String(row.email || ''))
+      if (!reachable && req.headers.authorization !== `Bearer ${ADMIN_TOKEN}`) {
+        console.warn(`[new-lead] rejected: no phone / email (source=${row.source}, page=${row.crm_data?.origin?.page || '—'})`)
+        return res.status(400).json({ error: 'missing_contact', message: 'phone or email is required' })
+      }
+
       // Fast-path dedup: SAME phone submitted in the last 2 minutes (double-click /
       // form retry / network retry) → skip insert AND notifications entirely.
       // Best-effort: any error here never blocks a genuine lead.
