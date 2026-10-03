@@ -2353,13 +2353,14 @@ function ContactModal({ prop, onClose }) {
   const { C, lang } = useTheme()
   const t = TR[lang] || TR.he
   const labels = {
-    he: { name:'שם מלא', phone:'טלפון', email:'אימייל', msg:'הודעה', fullName:'ישראל ישראלי', phoneEx:'05X-XXXXXXX', emailEx:'example@mail.com', contactTitle: 'פרטים ויצירת קשר', contactHeading: 'צרו קשר', messageSent: 'הודעתכם נשלחה!', willContact: 'נחזור אליכם בהקדם האפשרי', close: 'סגור', sendMsg: 'שלח הודעה' },
-    en: { name:'Full Name', phone:'Phone', email:'Email', msg:'Message', fullName:'John Smith', phoneEx:'+1-555-XXXX', emailEx:'example@mail.com', contactTitle: 'Property Details & Contact', contactHeading: 'Contact Us', messageSent: 'Message Sent!', willContact: 'We\'ll get back to you soon', close: 'Close', sendMsg: 'Send Message' }
+    he: { name:'שם מלא', phone:'טלפון', email:'אימייל', msg:'הודעה', fullName:'ישראל ישראלי', phoneEx:'05X-XXXXXXX', emailEx:'example@mail.com', contactTitle: 'פרטים ויצירת קשר', contactHeading: 'צרו קשר', messageSent: 'הודעתכם נשלחה!', willContact: 'נחזור אליכם בהקדם האפשרי', close: 'סגור', sendMsg: 'שלח הודעה', needName: 'נא למלא שם', needContact: 'נא למלא מספר טלפון תקין (או אימייל) כדי שנוכל לחזור אליכם', sendFailed: 'השליחה לא הצליחה. נסו שוב או התקשרו אלינו' },
+    en: { name:'Full Name', phone:'Phone', email:'Email', msg:'Message', fullName:'John Smith', phoneEx:'+1-555-XXXX', emailEx:'example@mail.com', contactTitle: 'Property Details & Contact', contactHeading: 'Contact Us', messageSent: 'Message Sent!', willContact: 'We\'ll get back to you soon', close: 'Close', sendMsg: 'Send Message', needName: 'Please enter your name', needContact: 'Please enter a valid phone number (or email) so we can get back to you', sendFailed: 'Sending failed. Please try again or give us a call' }
   }
   const lbl = labels[lang] || labels.he
   const [form, setForm] = useState({ name:'', phone:'', email:'', msg:prop?`${lang==='he'?'אני מעוניין בנכס':'I\'m interested in property'}: ${prop.title} – ${prop.location}`:'' })
   const [sent, setSent] = useState(false)
   const [sending, setSending] = useState(false)
+  const [formError, setFormError] = useState('')
   const set = k => e => setForm(f => ({ ...f, [k]:e.target.value }))
   const inp = { width:'100%', padding:'12px 16px', background:'rgba(255,255,255,.05)', border:`1px solid ${C.purple}33`, borderRadius:10, color:C.cream, fontSize:14, fontFamily:'inherit', outline:'none', direction: lang==='he' ? 'rtl' : 'ltr' }
   const swipe = useSwipeClose(onClose)
@@ -2386,9 +2387,15 @@ function ContactModal({ prop, onClose }) {
             <button onClick={onClose} className="primary-btn" style={{ padding:'12px 32px' }}>{lbl.close}</button>
           </div>
         ) : (
-          <form onSubmit={e => {
+          <form noValidate onSubmit={e => {
             e.preventDefault()
             if (sending) return
+            // Never send an empty lead: a name, and a phone (≥ 9 digits) or an email, or nothing goes out
+            const phoneOk = String(form.phone || '').replace(/\D/g, '').length >= 9
+            const emailOk = /\S+@\S+\.\S+/.test(String(form.email || ''))
+            if (!String(form.name || '').trim()) { setFormError(lbl.needName); return }
+            if (!phoneOk && !emailOk) { setFormError(lbl.needContact); return }
+            setFormError('')
             setSending(true)
             const lead = {
               id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
@@ -2412,7 +2419,7 @@ function ContactModal({ prop, onClose }) {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(lead),
-            }).catch(() => {})
+            }).then(r => { if (r.status === 400) { setSent(false); setFormError(lbl.sendFailed) } }).catch(() => {})
             trackEvent('contact_form', { propTitle: prop?.title || '', hasEmail: !!form.email, email: form.email, phone: form.phone, name: form.name })
             setSent(true)
             setSending(false)
@@ -2428,6 +2435,7 @@ function ContactModal({ prop, onClose }) {
               <label style={{ fontSize:12, color:C.cream+'99', marginBottom:4, display:'block' }}>{lbl.msg}</label>
               <textarea rows={3} value={form.msg} onChange={set('msg')} style={{ ...inp, resize:'vertical' }} className="contact-input"/>
             </div>
+            {formError && <div role="alert" style={{ color:'#E5484D', fontSize:13, fontWeight:600 }}>{formError}</div>}
             <button type="submit" disabled={sending} className="primary-btn" style={{ borderRadius:12, fontSize:15, opacity:sending?0.6:1 }}>{sending ? '...' : lbl.sendMsg}</button>
             <div style={{ textAlign:'center', paddingTop:6, borderTop:`1px solid ${C.purple}22` }}>
               <a href="tel:0559811814" onClick={() => trackEvent('phone_click', { src:'contact_modal' })} style={{ color:C.green, textDecoration:'none', fontWeight:700, fontSize:17, display:'inline-flex', alignItems:'center', gap:7 }}><FaPhone size={13}/> 055-981-1814</a>
