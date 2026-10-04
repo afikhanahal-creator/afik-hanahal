@@ -6,6 +6,7 @@
 //  messages → GET thread / POST send message
 //  sync     → GET historical sync from Meta
 
+import { compressJson } from '../lib/http.js'
 import { createClient } from '@supabase/supabase-js'
 import crypto from 'crypto'
 import * as Auto from '../lib/automations.js'
@@ -817,7 +818,9 @@ async function handleChat(req, res, action) {
       })
       if (!r.ok) return res.status(502).json(await greenError(r, 'getChatHistory'))
       const data = await r.json().catch(() => [])
-      return res.status(200).json(Array.isArray(data) ? data : [])
+      // Only the fields the chat shows (src/GreenAPIChat.jsx normalizeGreenMsg): Green's raw messages carry a lot more,
+      // and this answer is polled every 8 s (Vercel meters every byte a function sends). A 304 when nothing changed.
+      return res.status(200).json(Array.isArray(data) ? data.map(slimGreenMsg) : [])
     }
 
     // POST /api/meta/chat-send { phone, message } → sendMessage
@@ -1134,7 +1137,20 @@ async function handleLeadResearch(req, res) {
 // exact raw payload bytes, and JSON.stringify(parsedBody) ≠ original bytes.
 export const config = { api: { bodyParser: false } }
 
+// The fields of a Green API message the panel's chat uses (kept in step with normalizeGreenMsg in src/GreenAPIChat.jsx)
+const GREEN_MSG_FIELDS = ['idMessage', 'type', 'typeMessage', 'timestamp', 'statusMessage', 'textMessage', 'caption', 'downloadUrl', 'fileName', 'mimeType', 'jpegThumbnail', 'location', 'latitude', 'longitude', 'nameLocation', 'address', 'contact', 'chatId']
+const slimQuoted = q => (q && typeof q === 'object' ? { textMessage: q.textMessage, caption: q.caption, typeMessage: q.typeMessage, type: q.type } : undefined)
+function slimGreenMsg(m) {
+  if (!m || typeof m !== 'object') return m
+  const out = {}
+  for (const k of GREEN_MSG_FIELDS) if (m[k] !== undefined && m[k] !== null && m[k] !== '') out[k] = m[k]
+  const q = slimQuoted(m.quotedMessage || m.extendedTextMessageData?.quotedMessage)
+  if (q) out.quotedMessage = q
+  return out
+}
+
 export default async function handler(req, res) {
+  compressJson(req, res)   // gzip + ETag on every JSON answer — Vercel meters what a function sends (Fast Origin Transfer)
   if (req.method === 'OPTIONS') { cors(res); return res.status(204).end() }
   cors(res)
 

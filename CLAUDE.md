@@ -197,7 +197,7 @@ its own time budget (the research loop resumes `pause_turn` up to 4 times within
 
 Every property has a short share link `https://afikhanahal.co.il/p/<id>` (`vercel.json` rewrite → `api/properties.js?share=<id>`,
 rendered by the pure, tested `lib/share-page.js`). Link-preview crawlers (Facebook / Instagram / WhatsApp / LinkedIn / X / Telegram…)
-get an HTML page with the property's Open Graph tags (title · place, price · specs, first photo via `/media`, JSON-LD); people get
+get an HTML page with the property's Open Graph tags (title · place, price · specs, first photo as a 1200×630 JPEG from the image CDN, JSON-LD); people get
 an instant 302 to `/?p=<id>#properties`, keeping `utm_*` / `fbclid` / `gclid` / `lang`. Hidden or missing properties get the
 generic preview. The site's own share button uses the same link, and the landing UTM is kept for the whole session
 (`sessionStorage.afik_utm`) so `crm_data.origin.utm` credits the ad even after browsing.
@@ -303,6 +303,28 @@ Render meters every byte it sends. Rules that keep it near zero:
   dashboard.render.com/billing → Included Usage; the meter sees only what goes through Vercel (not the admin panel's
   direct reads), so treat it as a floor.
 - Check with the "Site speed probe" action: the "backends" section shows the list size and whether `If-None-Match` gets a 304.
+
+## Vercel Fast Origin Transfer budget (free tier: 10 GB / month — 75 % was used in the first days of October 2026)
+
+Vercel meters every byte a **function** sends to its edge (static files in `dist/` are a separate, much larger allowance).
+Rules that keep it near zero:
+
+- **Photos never go through a function.** `lib/img-url.js` (tested, shared by `src/App.jsx` `cloudImg`/`thumbImg`, the
+  static homepage layer `lib/home-page.js` `cardImage` and the landing / share pages `lib/share-page.js`) sends every
+  Supabase photo through the image CDN wsrv.nl **straight from Supabase** (`?url=<supabase public url>&w=600|1200&…webp`;
+  og:image = 1200×630 JPEG). The old `/media/<bucket>/<path>` proxy (`api/properties.js?img=`) streamed full-size
+  originals (100 KB–5 MB each) through a function on every edge miss; it is kept only for old links. Never point
+  `<img>`, wsrv or og:image at `/media` again. `.map(cloudImg)` passes the index as the width — always `.map(u => cloudImg(u))`.
+- **Every JSON answer is gzipped with an ETag**: `api/meta.js`, `api/seller-form.js`, `api/contacts.js` call
+  `compressJson(req, res)` (`lib/http.js`, tested) at the top, so `res.json()` = `sendJson()` (gzip, ETag, empty 304 on
+  `If-None-Match`, GET or POST). Other functions use `sendJson` directly.
+- **Admin polls are conditional**: `condFetchJson` (contacts, properties), the WhatsApp chat's 8-second `chat-history`
+  poll and 30-second `chat-list` poll send `If-None-Match` and get a 304 while nothing changed (`src/GreenAPIChat.jsx`).
+  New polls must do the same, pause in hidden tabs, and not be shorter than they need to be.
+- Public endpoints are edge-cached (`s-maxage`), including their error answers (`api/stats.js`), so a visitor never
+  runs a function per page view.
+- Measure with the "Site speed probe" action, `actions: traffic`: wire size, gzip and the 304 of every API answer, and
+  the photo sizes through the CDN. Usage itself: vercel.com → the team → Usage → Fast Origin Transfer.
 
 ## GovMap parcel map (`src/GovMapWidget.jsx`)
 

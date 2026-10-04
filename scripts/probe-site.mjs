@@ -175,7 +175,8 @@ async function visit(url, label, profile, { title, expectLayer = 'afik-pre' } = 
   await ctx.close()
 }
 const title = prop ? String(prop.title) : (markers((await timedFetch(`/p/${PROP}`)).body).ogTitle || '').split('|')[0].trim()
-for (const profile of (process.env.PROFILES || 'real,4g,3g').split(',')) {
+// PROFILES=none (or any unknown name) skips the browser visits — e.g. a traffic-only run that must not load the site
+for (const profile of (process.env.PROFILES || 'real,4g,3g').split(',').map(x => x.trim()).filter(x => x in PROFILES)) {
   await visit(`${SITE}/p/${PROP}?utm_source=whatsapp`, 'shared link', profile, { title })
   if (profile === 'real' || profile === '3g') await visit(`${SITE}/`, 'homepage', profile, { title: '', expectLayer: 'afik-pre-home' })
 }

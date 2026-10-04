@@ -354,22 +354,30 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
   useEffect(() => () => { if (pendingDelete) clearTimeout(pendingDelete.timer) }, []) // eslint-disable-line
 
   // ── API calls ────────────────────────────────────────────────────────────
+  // Conditional polls: the open chat is re-read every 8 s, and Vercel meters every byte a function sends
+  // (Fast Origin Transfer). The server answers 304 with no body while the chat hasn't changed.
+  const greenEtagRef = useRef({})   // phone → { etag, normalized }
   const fetchGreenHistory = useCallback(async (phone) => {
     const p = intlPhone(phone)
     if (!p) return []
     try {
+      const prev = greenEtagRef.current[p]
       const r = await fetch(`${CHAT_API}/chat-history`, {
         method:  'POST',
-        headers: { 'Content-Type': 'application/json', ...AUTH_HEADER },
+        headers: { 'Content-Type': 'application/json', ...AUTH_HEADER, ...(prev?.etag ? { 'If-None-Match': prev.etag } : {}) },
         body:    JSON.stringify({ phone: p, count: 100 }),
         signal:  AbortSignal.timeout(20000),
       })
+      if (r.status === 304 && prev) return prev.normalized
       if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || `Green API ${r.status}`) }
       const data = await r.json()
+      const etag = r.headers.get('etag')
       if (!Array.isArray(data)) return []
-      return data
+      const normalized = data
         .map(normalizeGreenMsg)
         .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+      if (etag) greenEtagRef.current[p] = { etag, normalized }
+      return normalized
     } catch (e) { throw new Error(e.name === 'TimeoutError' ? 'Green API לא ענה בזמן — נסו שוב' : e.message) }
   }, [])
 
@@ -505,11 +513,14 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
 
   // ── Effects ──────────────────────────────────────────────────────────────
   useEffect(() => { fetchStatus() }, [fetchStatus])
+  const chatListEtagRef = useRef('')
   const fetchGreenChats = useCallback(async () => {
     try {
-      const r = await fetch(`${CHAT_API}/chat-list?days=30`, { headers: AUTH_HEADER, signal: AbortSignal.timeout(25000) })
-      if (!r.ok) return
+      const prev = chatListEtagRef.current
+      const r = await fetch(`${CHAT_API}/chat-list?days=30`, { headers: { ...AUTH_HEADER, ...(prev ? { 'If-None-Match': prev } : {}) }, signal: AbortSignal.timeout(25000) })
+      if (r.status === 304 || !r.ok) return   // 304: nothing new since the last poll
       const d = await r.json()
+      chatListEtagRef.current = r.headers.get('etag') || ''
       if (Array.isArray(d)) setGreenChats(d)
     } catch {}
   }, [])

@@ -2,6 +2,8 @@
 //   slim — POST /api/properties?slim=1 until no inline photos remain (what the admin home does by itself)
 //   ai      — one lead analysis for a synthetic test lead (reads only; costs one small Claude call)
 //   rebuild — POST /api/properties?changed=1: refresh the snapshot and trigger the Vercel deploy hook
+//   traffic — what each API answer weighs on the wire (gzip?) and whether a repeat poll gets an empty 304 — the
+//             numbers behind Vercel's Fast Origin Transfer (10 GB / month on the free tier)
 //   restore — RESTORE_FROM (an older deployment's origin): its /properties.json is offered as the admin's copy
 //             (POST ?snapshot=1) — properties the table lacks are added, nothing is overwritten
 // The admin token is the one the site's own admin bundle carries (src/App.jsx) unless ADMIN_TOKEN is set.
@@ -27,6 +29,47 @@ if (ACTIONS.includes('slim')) {
 if (ACTIONS.includes('rebuild')) {
   const r = await fetch(`${SITE}/api/properties?changed=1`, { method: 'POST', headers: H, signal: AbortSignal.timeout(40000) })
   show(`rebuild (HTTP ${r.status})`, await r.json().catch(() => ({})))
+}
+if (ACTIONS.includes('traffic')) {
+  const AE = { 'Accept-Encoding': 'gzip, br' }
+  const probe = async (label, path, opts = {}) => {
+    const url = `${SITE}${path}`
+    const t0 = Date.now()
+    try {
+      const r = await fetch(url, { ...opts, headers: { ...AE, ...(opts.headers || {}) }, signal: AbortSignal.timeout(30000) })
+      const body = Buffer.from(await r.arrayBuffer())
+      const wire = Number(r.headers.get('content-length') || 0) || body.length
+      const etag = r.headers.get('etag')
+      let again = null
+      if (etag) { const r2 = await fetch(url, { ...opts, headers: { ...AE, ...(opts.headers || {}), 'If-None-Match': etag }, signal: AbortSignal.timeout(30000) }); again = r2.status; await r2.arrayBuffer().catch(() => {}) }
+      console.log(`${String(r.status).padStart(4)}  wire ${String(Math.round(wire / 102.4) / 10).padStart(7)} KB  raw ${String(Math.round(body.length / 102.4) / 10).padStart(7)} KB  ${(r.headers.get('content-encoding') || '-').padEnd(5)} repeat→${again || 'no etag'}  cache=${r.headers.get('x-vercel-cache') || '-'}  ${Date.now() - t0} ms  ${label}`)
+      return { body, r }
+    } catch (e) { console.log(`  ERR  ${label}: ${e.message}`); return {} }
+  }
+  console.log('== traffic: public')
+  const { body: listBody } = await probe('public list', '/api/properties')
+  await probe('stats', '/api/stats'); await probe('news', '/api/news'); await probe('health', '/api/properties?health=1')
+  let list = []; try { list = JSON.parse(String(listBody || '[]')) } catch {}
+  const photo = (list.find(p => (p.images || []).length) || {}).images?.[0]
+  if (photo) {
+    const { photoUrl } = await import('../lib/img-url.js')
+    console.log(`   photo source: ${photo.slice(0, 90)}`)
+    for (const [lbl, u] of [['card photo via CDN (600)', photoUrl(photo, 600)], ['gallery photo via CDN (1200)', photoUrl(photo, 1200)]]) {
+      const r = await fetch(u, { signal: AbortSignal.timeout(30000) }).catch(() => null)
+      const b = r ? Buffer.from(await r.arrayBuffer()) : Buffer.alloc(0)
+      console.log(`${String(r ? r.status : 'ERR').padStart(4)}  ${String(Math.round(b.length / 102.4) / 10).padStart(7)} KB  ${lbl} — no Vercel function`)
+    }
+  }
+  console.log('== traffic: admin polls (gzip + 304)')
+  await probe('contacts (full)', '/api/contacts', { headers: H })
+  await probe('chat-list (30 s poll)', '/api/meta/chat-list?days=30', { headers: H })
+  await probe('chat-status (60 s poll)', '/api/meta/chat-status', { headers: H })
+  await probe('intake stats (3 min poll)', '/api/seller-form?action=stats', { headers: H })
+  await probe('GA4 realtime (60 s poll)', '/api/meta/ga4?realtime=1', { headers: H })
+  await probe('Meta leads (30 s poll)', '/api/meta/leads', { headers: H })
+  const { body: chats } = await probe('chat-list again', '/api/meta/chat-list?days=30', { headers: H })
+  let first = null; try { first = (JSON.parse(String(chats || '[]')).find(c => c.office) || JSON.parse(String(chats || '[]'))[0]) } catch {}
+  if (first) await probe('chat-history of one chat (8 s poll)', '/api/meta/chat-history', { method: 'POST', headers: { ...H }, body: JSON.stringify({ phone: first.phone, count: 100 }) })
 }
 if (ACTIONS.includes('restore')) {
   const from = String(process.env.RESTORE_FROM || '').replace(/\/$/, '')
