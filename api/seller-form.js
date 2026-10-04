@@ -29,6 +29,7 @@
 // GMAIL_USER, GMAIL_APP_PASSWORD, ADMIN_NOTIFY_EMAIL, WA_GREENAPI_INSTANCE,
 // WA_GREENAPI_TOKEN, BUSINESS_NOTIFY_CHATID.
 // One-time SQL: server/seller-submissions-migration.sql
+import { compressJson } from '../lib/http.js'
 import { createClient } from '@supabase/supabase-js'
 import { randomBytes } from 'crypto'
 import { backupEnabled, backupPut, backupList, backupGet, backupDelete } from '../lib/backup.js'
@@ -523,6 +524,7 @@ async function publicView(client, row) {
 
 // ── handler ──────────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
+  compressJson(req, res)   // gzip + ETag on every JSON answer (Vercel Fast Origin Transfer)
   Object.entries(CORS).forEach(([k, v]) => res.setHeader(k, v))
   if (req.method === 'OPTIONS') return res.status(200).end()
   if (!SUPA_URL || !SUPA_KEY) return res.status(500).json({ ok: false, error: 'SUPABASE_URL / SUPABASE_SERVICE_KEY not configured in Vercel env vars' })

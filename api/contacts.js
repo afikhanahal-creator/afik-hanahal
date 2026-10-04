@@ -17,7 +17,7 @@
 // nodemailer is loaded dynamically inside sendLeadEmail to prevent a static-import
 // crash from taking down the entire module (same fix applied to meta.js).
 
-import { sendJson } from '../lib/http.js'
+import { sendJson, compressJson } from '../lib/http.js'
 import { backupEnabled, backupPut, backupList, backupGet, backupDelete } from '../lib/backup.js'
 import { onLeadCreated, onStageChanged } from '../lib/automations.js'
 
@@ -395,6 +395,7 @@ async function forwardToCrmWebhook(row) {
 }
 
 export default async function handler(req, res) {
+  compressJson(req, res)   // gzip + ETag on every JSON answer (Vercel Fast Origin Transfer)
   Object.entries(CORS).forEach(([k, v]) => res.setHeader(k, v))
   if (req.method === 'OPTIONS') return res.status(200).end()
 

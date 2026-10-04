@@ -61,8 +61,8 @@ async function prepareImages(list) {
   if (process.env.SKIP_IMAGE_WARM === '1') return { warmed: 0, lqip: 0 }
   const jobs = []
   for (const p of list) {
-    const img = propertyMeta(p, { origin: ORIGIN }).image
-    if (!img || img.endsWith('/img/og-default.png')) continue
+    const img = propertyMeta(p, { origin: ORIGIN }).source
+    if (!img) continue
     jobs.push(async () => {
       for (const u of landingImageUrls(p, ORIGIN)) {
         try {

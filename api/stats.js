@@ -44,5 +44,8 @@ export default async function handler(req, res) {
     console.error('[stats vercel] GET error:', e.message)
   }
 
+  // Cached briefly at the edge too: while Render sleeps / is down, every visitor would otherwise run this function
+  // (and wait on Render) — Vercel meters function invocations and transfer
+  if (!authHeader) res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=3600')
   return res.status(502).json({ error: 'Stats unavailable' })
 }

@@ -6,6 +6,7 @@
 //  messages → GET thread / POST send message
 //  sync     → GET historical sync from Meta
 
+import { compressJson } from '../lib/http.js'
 import { createClient } from '@supabase/supabase-js'
 import crypto from 'crypto'
 import * as Auto from '../lib/automations.js'
@@ -1135,6 +1136,7 @@ async function handleLeadResearch(req, res) {
 export const config = { api: { bodyParser: false } }
 
 export default async function handler(req, res) {
+  compressJson(req, res)   // gzip + ETag on every JSON answer — Vercel meters what a function sends (Fast Origin Transfer)
   if (req.method === 'OPTIONS') { cors(res); return res.status(204).end() }
   cors(res)
 

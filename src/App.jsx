@@ -44,6 +44,7 @@ class SectionBoundary extends Component {
 }
 const PropertyWizard    = lazyWithRetry(() => import('./PropertyWizard.jsx'))
 import { FaChevronLeft, FaChevronRight, FaEnvelope, FaFacebookF, FaInstagram, FaBed, FaRulerCombined, FaCar, FaSwimmingPool, FaBuilding, FaBoxOpen, FaTree, FaSnowflake, FaShieldAlt, FaCouch, FaTools, FaMapMarkerAlt, FaExternalLinkAlt, FaPhone, FaCompass, FaLeaf, FaCalendarAlt, FaTimes, FaWhatsapp, FaSun, FaFileAlt, FaHome, FaMoneyBill, FaSearch, FaBalanceScale, FaHandshake, FaTrophy, FaHardHat, FaLock, FaKey, FaGlobe, FaSeedling, FaBolt, FaRocket, FaStar, FaChartLine, FaEye, FaPlay, FaWheelchair, FaFire, FaCalculator, FaShareAlt, FaHeart, FaStore, FaCamera, FaWifi, FaIndustry, FaExpand, FaUser, FaUsers, FaDesktop, FaMobileAlt, FaTabletAlt, FaCommentAlt, FaRobot, FaInbox, FaExclamationTriangle, FaChartBar, FaThumbsUp, FaImage, FaPencilAlt, FaCrown, FaMousePointer, FaDollarSign, FaVideo, FaLink, FaCheck, FaCheckCircle, FaUtensils, FaDoorOpen, FaUserShield, FaTrash } from 'react-icons/fa'
+import { photoUrl } from '../lib/img-url.js'
 import { notifyPropertiesChanged, pushSnapshot, mirrorProperty } from './siteRebuild.js'
 import { externalizeInlinePhotos } from './inlinePhotos.js'
 
@@ -4013,13 +4014,6 @@ function toMapsEmbed(url) {
 // Disable or swap the proxy via VITE_IMG_CDN ('' = serve original Supabase URLs).
 const IMG_CDN = (import.meta.env.VITE_IMG_CDN ?? 'https://wsrv.nl').replace(/\/$/, '')
 
-// Route a remote image through the CDN: resize to `width`, compress to `quality`,
-// convert to WebP, and never upscale smaller originals (`we`).
-function proxyImg(url, width, quality) {
-  if (!IMG_CDN) return url
-  return `${IMG_CDN}/?url=${encodeURIComponent(url)}&w=${width}&q=${quality}&output=webp&we`
-}
-
 // Recover the original source URL from a proxied one (used as an onError fallback
 // so images stay visible even if the CDN is ever unreachable).
 const SUPA_PUBLIC = (import.meta.env.VITE_SUPABASE_URL || '').replace(/\/$/, '')
@@ -4046,23 +4040,12 @@ function imgFallback(e) {
 
 // Transform image URL: Cloudinary quality/format optimisation.
 // base64 data URLs returned as-is (legacy images uploaded before cloud storage).
+// Supabase Storage photos go through the image CDN (wsrv.nl, resized WebP) straight from Supabase — never through
+// a Vercel function (the old /media proxy sent every full-size original through Vercel's metered Fast Origin
+// Transfer). The rule is shared with the static homepage layer and the landing pages: lib/img-url.js.
 function cloudImg(url, width = 1200) {
-  if (!url || url.startsWith('data:')) return url
-
-  // Supabase Storage — public files go through /media/<bucket>/<path>, which Vercel's CDN
-  // caches for a year. Supabase then serves each photo once instead of to every visitor
-  // (its free tier meters egress; the site went dark once when that ran out).
-  const pub = url.indexOf('.supabase.co/storage/v1/object/public/')
-  if (pub > 0) return `/media/${url.slice(pub + '.supabase.co/storage/v1/object/public/'.length).split('?')[0]}`
-  if (url.includes('.supabase.co/storage/')) return url   // signed / private URLs stay as they are
-
-  // Cloudinary → add quality + format-auto params
-  if (url.includes('cloudinary.com') && url.includes('/image/upload/')) {
-    if (/\/(?:q_auto|q_\d|f_auto|fl_progressive)/.test(url)) return url
-    return url.replace('/image/upload/', `/image/upload/w_${width},q_auto:good,f_auto/`)
-  }
-
-  return url
+  if (!url || typeof url !== 'string') return url
+  return photoUrl(url, typeof width === 'number' && width >= 100 ? width : 1200, IMG_CDN ? `${IMG_CDN}/?url=` : '')
 }
 
 // Small thumbnail — card cover images (saves 60–80 % bandwidth vs full size)
@@ -4181,7 +4164,7 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
   const cat = CATEGORIES.find(c => c.id === prop.category) || CATEGORIES[1]
   const sc = { 'זמין':C.green, 'בבדיקה':'#F7C948', 'נמכר':'#E05252', 'הושכר':'#F97316' }[prop.status] || C.green
 
-  const imgs = (prop.images || []).filter(u => u && typeof u === 'string' && u.length > 4).map(cloudImg)
+  const imgs = (prop.images || []).filter(u => u && typeof u === 'string' && u.length > 4).map(u => cloudImg(u))
   // Build unified video list — skip blob: URLs (temporary local refs that die on reload)
   const isValidVideoUrl = u => u && typeof u === 'string' && u.length > 4 && !u.startsWith('blob:')
   const allVideos = [
