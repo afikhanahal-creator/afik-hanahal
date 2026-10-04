@@ -225,24 +225,29 @@ function isNewRecent(lead) {
 }
 
 // ── API calls ─────────────────────────────────────────────────────────────────
-async function fetchLeads() {
-  const res = await fetch(`/api/meta/leads`, {
-    headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
-  })
+// Both are polled (30 s / 15 s) and the leads list is ~90 KB: conditional requests, so an unchanged answer is an
+// empty 304 (Vercel meters every byte a function sends — see CLAUDE.md, Fast Origin Transfer)
+const _etags = new Map()   // url → { etag, data }
+async function condGet(url) {
+  const prev = _etags.get(url)
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${ADMIN_TOKEN}`, ...(prev ? { 'If-None-Match': prev.etag } : {}) } })
+  if (res.status === 304 && prev) return prev.data
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
     throw new Error(`HTTP ${res.status}${body.error ? ': ' + body.error : ''}`)
   }
   const data = await res.json()
+  const etag = res.headers.get('etag')
+  if (etag) _etags.set(url, { etag, data }); else _etags.delete(url)
+  return data
+}
+async function fetchLeads() {
+  const data = await condGet('/api/meta/leads')
   return data.leads || []
 }
 
 async function fetchMessages(leadId) {
-  const res = await fetch(`/api/meta/messages?lead_id=${leadId}`, {
-    headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
-  })
-  if (!res.ok) throw new Error(`HTTP ${res.status}`)
-  const data = await res.json()
+  const data = await condGet(`/api/meta/messages?lead_id=${leadId}`)
   return data.messages || []
 }
 
