@@ -14,6 +14,7 @@ import { getTemplate } from '../lib/automations-shared.js'
 import * as GA4 from '../lib/ga4.js'
 import { analyzeLead, buildDossier } from '../lib/lead-analyze.js'
 import { researchLead } from '../lib/lead-research.js'
+import { mirrorMetaLead, backfillMetaLeads } from '../lib/meta-crm.js'
 
 const SUPERMETRICS_API_KEY    = process.env.SUPERMETRICS_API_KEY    || ''
 // System User token (afik-api) — permanent, survives password changes. Used to
@@ -386,6 +387,7 @@ async function handleWebhook(req, res) {
           // Welcome: the same template, on/off switch and office WhatsApp number (Green API) as website leads
           // (admin tab "אוטומציות"), logged in automation_log — see welcomeMetaLead
           await welcomeMetaLead(client, { id: leadId, name, phone, campaign: campaignName || formName })
+          await mirrorToCRM(client, leadgen_id)
 
           // ── Admin notification via Green API ──────────────────────────────
           {
@@ -628,7 +630,7 @@ async function syncOnePage(pageId, client, errors, { sinceSec = 0, stats = {} } 
 
           }
 
-          if (isNew) newLeads++
+          if (isNew) { newLeads++; await mirrorToCRM(client, lead.id, { quiet: !fresh }) }
           totalSynced++
         } catch (e) { errors.push(`Lead ${lead.id}: ${e.message}`) }
       }
@@ -651,6 +653,17 @@ async function welcomeMetaLead(client, { id, name, phone, campaign }) {
   }
   if (!r.ok && !r.skipped) console.error(`[MetaLeads] welcome to ${phone} failed: ${r.error}`)
   return r
+}
+
+// Every Meta lead also goes into the CRM (contacts = admin "לידים" and the bulk-send audience) — lib/meta-crm.js.
+// quiet = a lead saved late (older than 24 h): no CRM follow-ups are proposed for it.
+const META_CRM_FIELDS = 'id,leadgen_id,name,email,phone,campaign_name,form_name,raw_fields,status,notes,call_time,wa_sent,created_at,deleted_at'
+async function mirrorToCRM(client, leadgenId, { quiet = false } = {}) {
+  try {
+    const { data: ml } = await client.from('meta_leads').select(META_CRM_FIELDS).eq('leadgen_id', String(leadgenId)).maybeSingle()
+    if (!ml) return { skipped: 'not saved' }
+    return await mirrorMetaLead(client, ml, { welcome: ml.wa_sent ? 'sent' : 'handled', quiet })
+  } catch (e) { console.error('[MetaLeads] CRM copy failed:', e.message); return { error: e.message } }
 }
 
 // Safety net for the webhook: the last `hours` of leads from every lead form, saved + welcomed like a webhook
@@ -808,6 +821,23 @@ async function handleLeadWelcome(req, res) {
     await client.from('meta_leads').update({ wa_sent: true }).eq('id', lead.id).then(() => {}, () => {})
   }
   return res.status(r.ok ? 200 : 502).json(r)
+}
+
+// POST /api/meta/lead-to-crm { id } (admin) → the Meta lead's CRM row (copied now if it isn't there yet)
+// POST /api/meta/crm-sync (admin) → copy every Meta lead that isn't in the CRM yet, quietly (no messages)
+async function handleMetaCRM(req, res, path) {
+  if (!checkAuth(req)) return res.status(401).json({ error: 'Unauthorized' })
+  if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
+  const client = sb()
+  try {
+    if (path === 'crm-sync') return res.status(200).json({ ok: true, ...(await backfillMetaLeads(client)) })
+    const id = (req.body || {}).id
+    if (!id) return res.status(400).json({ error: 'id required' })
+    const { data: ml } = await client.from('meta_leads').select(META_CRM_FIELDS).eq('id', id).maybeSingle()
+    if (!ml) return res.status(404).json({ error: 'lead not found' })
+    const r = await mirrorMetaLead(client, { ...ml, deleted_at: null }, { welcome: ml.wa_sent ? 'sent' : 'handled' })
+    return res.status(r.id ? 200 : 422).json(r)
+  } catch (e) { return res.status(500).json({ error: e.message }) }
 }
 
 async function handleSync(req, res) {
@@ -1394,6 +1424,7 @@ export default async function handler(req, res) {
   if (path === 'diagnostics')    return handleDiagnostics(req, res)
   if (path === 'connect')        return handleConnect(req, res)
   if (path === 'lead-welcome')   return handleLeadWelcome(req, res)
+  if (path === 'lead-to-crm' || path === 'crm-sync') return handleMetaCRM(req, res, path)
 
   return res.status(404).json({ error: `Unknown path: ${path}` })
 }

@@ -154,6 +154,12 @@ grouped by day with a "קיבל הודעה / טרם נשלחה הודעה" chip 
 (needs attention, leads by campaign, connection health) and a lead page (call / WhatsApp / CRM, status, welcome card with
 "שלח הודעת פתיחה עכשיו" = `POST /api/meta/lead-welcome {id}` → `welcomeExternalLead(…, { force: true })`, logged `by: 'manual'`,
 details, form answers, notes, conversation). Messages typed there go out from the office WhatsApp (Green API) like the welcome.
+**Every Meta lead is also in the CRM** (`lib/meta-crm.js`, tested): the webhook and every sync copy a new lead into `contacts`
+(source `meta`, `crm_data.metaLeadId`, form answers in `message` / `crm_data.formAnswers`, phone as 05X…), so it shows in "לידים" and
+in the bulk-send audience. The welcome stays with the Meta pipeline (`crm_data.auto` marks it sent / skipped, the CRM never sends a
+second one); a lead saved late (or backfilled) is also marked past the no-reply follow-ups. Test leads, archived leads and leads
+without phone or email are not copied. `POST /api/meta/crm-sync` (admin; daily cron; probe action `crm-sync`) copies whatever is
+missing; the Lead Center's CRM button calls `POST /api/meta/lead-to-crm {id}`. The admin drops its old browser-only `meta_<id>` copies.
 
 Scheduled bulk sends are jobs in `app_settings` (`automations_jobs`), rendered at send time, max 20 messages per run;
 `auto-jobs-tick` pushes a running job from the open panel. `auto-tick?key=` (key = `AUTOMATION_KEY`, or the admin token)

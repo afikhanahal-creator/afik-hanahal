@@ -5,7 +5,6 @@
 // dynamic→static cycle, which is safe: by the time this chunk evaluates, App.jsx already has.
 import { externalizeInlinePhotos } from './inlinePhotos.js'
 import { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react'
-import { metaFormAnswers, answersToText } from './lib/leadFields.js'
 import { LAYERS_DEF as GM_LAYERS, BG_OPTIONS as GM_BG_OPTIONS, LAYER_CATS_DEF as GM_LAYER_CATS } from './govmapLayers.js'
 import { FaSun, FaMoon, FaPlus, FaEnvelope, FaFacebookF, FaInstagram, FaBed, FaRulerCombined, FaBuilding, FaTools, FaMapMarkerAlt, FaPhone, FaLeaf, FaCalendarAlt, FaTimes, FaWhatsapp, FaFileAlt, FaHome, FaSearch, FaBalanceScale, FaHandshake, FaLock, FaKey, FaGlobe, FaBolt, FaChartLine, FaEye, FaPlay, FaFire, FaShareAlt, FaHeart, FaCamera, FaUser, FaUsers, FaDesktop, FaMobileAlt, FaTabletAlt, FaRobot, FaExclamationTriangle, FaChartBar, FaThumbsUp, FaImage, FaPencilAlt, FaCrown, FaMousePointer, FaDollarSign, FaVideo, FaLink, FaCheckCircle, FaTrash, FaClipboardList } from 'react-icons/fa'
 // Seller intake submissions (from the public /sell form) — lazy, admin-only
@@ -2271,6 +2270,12 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
           // with crm_data.backup_id — drop the local backup copy so the lead is not shown twice.
           const restoredFrom = new Set(serverLeads.map(s => s.crm_data?.backup_id).filter(Boolean).map(String))
           if (restoredFrom.size) prev = prev.filter(l => !restoredFrom.has(String(l.id)))
+          // A Meta lead the server copied into the CRM (crm_data.metaLeadId) replaces the old browser-only
+          // "meta_<id>" copy made by the Lead Center's "save to CRM" button
+          const mirroredMeta = new Set(serverLeads.map(s => s.crm_data?.metaLeadId).filter(Boolean).map(id => 'meta_' + id))
+          const before = prev.length
+          if (mirroredMeta.size) prev = prev.filter(l => !mirroredMeta.has(String(l.id)))
+          const dropped = prev.length !== before
           const localById = new Map(prev.map(l => [String(l.id), l]))
           // Pull in leads that exist on server but not locally (and weren't deleted)
           const newOnes = serverLeads
@@ -2287,7 +2292,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
               ts:           new Date(s.created_at || Date.now()).getTime(),
               ...(s.crm_data || {}),   // restore leadStatus, enrichment, notes, tags
             }))
-          if (newOnes.length === 0) { if (restoredFrom.size) { try { localStorage.setItem(LEADS_STORE, JSON.stringify(prev)) } catch {} } return prev }
+          if (newOnes.length === 0) { if (restoredFrom.size || dropped) { try { localStorage.setItem(LEADS_STORE, JSON.stringify(prev)) } catch {} } return prev }
           const merged = [...newOnes, ...prev].sort((a, b) => b.ts - a.ts)
           try { localStorage.setItem(LEADS_STORE, JSON.stringify(merged)) } catch {}
           return merged
@@ -3901,28 +3906,15 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
                 message, 'meta', '✅', 3500
               )}
               onSaveToCRM={metaLead => {
-                if (metaLead) {
-                  const newId = 'meta_' + metaLead.id
-                  setLeads(prev => {
-                    if (prev.some(l => l.id === newId)) return prev
-                    const answers = metaFormAnswers(metaLead.raw_fields)
-                    const next = [...prev, {
-                      id: newId,
-                      name: metaLead.name || '',
-                      phone: metaLead.phone || '',
-                      email: metaLead.email || '',
-                      msg: [metaLead.notes || '', answersToText(answers)].filter(Boolean).join('\n'),
-                      propTitle: metaLead.campaign_name || metaLead.form_name || 'מרכז מטא',
-                      source: 'meta',
-                      campaignName: metaLead.campaign_name || '',
-                      formName: metaLead.form_name || '',
-                      formAnswers: answers,
-                      ts: new Date(metaLead.created_at).getTime() || Date.now(),
-                      leadStatus: 'new',
-                    }]
-                    try { localStorage.setItem(LEADS_STORE, JSON.stringify(next)) } catch {}
-                    return next
-                  })
+                // Every Meta lead is copied into the CRM by the server (lib/meta-crm.js); the button makes sure
+                // this one is there now and opens the leads tab, which pulls it in with the next sync
+                if (metaLead?.id) {
+                  fetch('/api/meta/lead-to-crm', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` }, body: JSON.stringify({ id: metaLead.id }) })
+                    .then(r => r.json().catch(() => ({})).then(d => {
+                      if (!r.ok || !d.id) addToast(lang === 'en' ? 'Could not add to the CRM' : 'ההוספה ל-CRM נכשלה', d.error || d.skipped || `HTTP ${r.status}`, 'meta', '⚠️')
+                    }))
+                    .catch(() => {})
+                    .finally(() => { leadsFullSynced.current = false; setTimeout(syncLeadsFromServer, 300) })
                 }
                 setTab('leads')
               }}

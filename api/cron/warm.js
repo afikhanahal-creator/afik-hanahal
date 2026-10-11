@@ -246,7 +246,10 @@ export default async function handler(req, res) {
     const host = req.headers['x-forwarded-host'] || req.headers.host || 'www.afikhanahal.co.il'
     const r = await fetch(`https://${String(host).split(',')[0].trim()}/api/meta/sync?key=${encodeURIComponent(ADMIN_TOKEN)}`, { signal: AbortSignal.timeout(25000) })
     out.metaSync = await r.json().catch(() => ({ http: r.status }))
-  } catch (e) { out.metaSync = { error: e.message } }
+    // …and every Meta lead is in the CRM (copies only the missing ones, quietly — lib/meta-crm.js)
+    const c = await fetch(`https://${String(host).split(',')[0].trim()}/api/meta/crm-sync`, { method: 'POST', headers: { Authorization: `Bearer ${ADMIN_TOKEN}` }, signal: AbortSignal.timeout(25000) })
+    out.metaCrm = await c.json().catch(() => ({ http: c.status }))
+  } catch (e) { out.metaSync = { ...(out.metaSync || {}), error: e.message } }
   try { out.ingest = await ingest(log) } catch (e) { out.ingest = { error: e.message }; log.push(`[ingest] ERROR ${e.message}`) }
   try { out.sweep  = await sweep(log)  } catch (e) { out.sweep  = { error: e.message }; log.push(`[sweep] ERROR ${e.message}`) }
   // Whatever Render (or the last snapshot) has that the properties table lacks is copied in (lib/property-store.js)
