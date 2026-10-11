@@ -323,13 +323,14 @@ async function handleWebhook(req, res) {
           const pageToken = await getPageToken(page_id)
 
           let leadData, campaignName = '', formName = ''
-          // Meta sends the webhook while the lead is still being processed ("Pending" in the testing tool), so the
-          // first read can fail: retry for ~10 s. A lead that still can't be read is noted in the webhook log and
-          // picked up by the next sync (auto-tick every 5 minutes).
+          // Meta can send the webhook while the lead is still being processed ("Pending" in the testing tool), so a
+          // read is retried for ~5 s; a lead that still can't be read is noted in the webhook log and fetched through
+          // the forms right away (below). A single Lead has no page_id field — asking for it made every read fail
+          // with #100 until October 2026.
           let fetchErr = null
           for (const wait of [0, 1500, 3000]) {
             if (wait) await new Promise(r => setTimeout(r, wait))
-            try { leadData = await graphGet(`/${leadgen_id}?fields=id,created_time,field_data,campaign_id,ad_id,form_id,page_id`, pageToken); fetchErr = null; break }
+            try { leadData = await graphGet(`/${leadgen_id}?fields=id,created_time,field_data,campaign_id,ad_id,form_id`, pageToken); fetchErr = null; break }
             catch (e) { fetchErr = e }
           }
           if (!leadData) {
@@ -367,7 +368,8 @@ async function handleWebhook(req, res) {
               leadgen_id, name, email, phone,
               campaign_id: leadData.campaign_id || null, campaign_name: campaignName,
               ad_id: leadData.ad_id || null, form_id: leadData.form_id || null, form_name: formName,
-              raw_fields: leadData.field_data || [], page_id: leadData.page_id || page_id || null,
+              raw_fields: leadData.field_data || [], page_id: page_id || null,
+              ...(leadData.created_time && !isNaN(Date.parse(leadData.created_time)) ? { created_at: new Date(leadData.created_time).toISOString() } : {}),
               status: 'new',
             })
             .select('id').single()
