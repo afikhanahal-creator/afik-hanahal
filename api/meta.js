@@ -538,6 +538,8 @@ async function syncOnePage(pageId, client, errors, { sinceSec = 0, stats = {} } 
             ad_id: lead.ad_id || null,
             form_id: form.id, form_name: form.name || null,
             raw_fields: lead.field_data || [], page_id: lead.page_id || pageId, status: 'new',
+            // the time the person left the details (a lead saved late keeps its real date in the Lead Center)
+            ...(lead.created_time && !isNaN(Date.parse(lead.created_time)) ? { created_at: new Date(lead.created_time).toISOString() } : {}),
           })
           const isDuplicate = insErr && (insErr.code === '23505' || /duplicate key|already exists/i.test(insErr.message || ''))
           if (insErr && !isDuplicate) { errors.push(`Lead ${lead.id}: ${insErr.message}`); continue }
@@ -547,6 +549,11 @@ async function syncOnePage(pageId, client, errors, { sinceSec = 0, stats = {} } 
           // name filled in (only when still empty — cheap no-op once populated).
           if (isDuplicate && campaignName) {
             await client.from('meta_leads').update({ campaign_name: campaignName }).eq('leadgen_id', lead.id).is('campaign_name', null)
+          }
+          // Backfill: a lead saved long after it came in (a missed webhook) gets its real date back
+          if (isDuplicate && lead.created_time && !isNaN(Date.parse(lead.created_time))) {
+            const real = Date.parse(lead.created_time)
+            await client.from('meta_leads').update({ created_at: new Date(real).toISOString() }).eq('leadgen_id', lead.id).gt('created_at', new Date(real + 3600e3).toISOString())
           }
 
           // For genuinely new leads: send WA to customer + admin (same as webhook handler)
