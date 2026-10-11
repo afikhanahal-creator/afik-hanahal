@@ -129,6 +129,16 @@ optOut / intent / stageAt). Automations only touch leads, replies and stage chan
 who replied "no thanks" gets nothing more. Leads from the English site (`crm_data.origin.lang = 'en'`) get the English text.
 Keep every template bilingual (`he` + `en`, `he_title` + `en_title`).
 
+**Meta Lead Ads leads** (`meta_leads`, admin "Lead Center") get the same welcome: the webhook (`/api/meta/webhook`, page
+event `leadgen`) and every sync call `welcomeMetaLead` → `Auto.welcomeExternalLead` (tested in `lib/automations-welcome.test.mjs`):
+the welcome template and on/off switch, sent from the office WhatsApp through Green API, logged in `automation_log` as
+`meta:<id>`, `wa_sent` + the thread row on success (the old path tried the Meta Cloud API number first). Safety net for a missed
+webhook: `auto-run` (panel, every 5 min) and `auto-tick` sync the last 6 hours of leads, the daily cron runs a full sync — all
+idempotent (an INSERT on `leadgen_id` decides "new"). `GET /api/meta/connect[?account=<ad account>][&fix=1]` (admin) checks the
+whole chain without exposing secrets: Meta token, pages, each page's `leadgen` subscription (`fix=1` subscribes it), lead
+forms and the newest lead on Meta vs in the table, the ad account and its campaigns, Green API state + number, the welcome
+rule. Probe action `connect` / `connect-fix` (workflow input `account`). There is no SMS provider — "message" means WhatsApp.
+
 Scheduled bulk sends are jobs in `app_settings` (`automations_jobs`), rendered at send time, max 20 messages per run;
 `auto-jobs-tick` pushes a running job from the open panel. `auto-tick?key=` (key = `AUTOMATION_KEY`, or the admin token)
 lets an external pinger such as cron-job.org run the engine every 5 minutes, so timing is exact even with the panel closed.

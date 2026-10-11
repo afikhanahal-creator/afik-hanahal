@@ -4,6 +4,8 @@
 //   rebuild — POST /api/properties?changed=1: refresh the snapshot and trigger the Vercel deploy hook
 //   traffic — what each API answer weighs on the wire (gzip?) and whether a repeat poll gets an empty 304 — the
 //             numbers behind Vercel's Fast Origin Transfer (10 GB / month on the free tier)
+//   connect — GET /api/meta/connect: Meta token / pages / leadgen webhook subscription / lead forms / ad account
+//             (ACCOUNT) and campaigns, Green API state, the welcome rule; `connect-fix` also subscribes pages to leadgen
 //   restore — RESTORE_FROM (an older deployment's origin): its /properties.json is offered as the admin's copy
 //             (POST ?snapshot=1) — properties the table lacks are added, nothing is overwritten
 // The admin token is the one the site's own admin bundle carries (src/App.jsx) unless ADMIN_TOKEN is set.
@@ -70,6 +72,12 @@ if (ACTIONS.includes('traffic')) {
   const { body: chats } = await probe('chat-list again', '/api/meta/chat-list?days=30', { headers: H })
   let first = null; try { first = (JSON.parse(String(chats || '[]')).find(c => c.office) || JSON.parse(String(chats || '[]'))[0]) } catch {}
   if (first) await probe('chat-history of one chat (8 s poll)', '/api/meta/chat-history', { method: 'POST', headers: { ...H }, body: JSON.stringify({ phone: first.phone, count: 100 }) })
+}
+if (ACTIONS.includes('connect') || ACTIONS.includes('connect-fix')) {
+  const acct = String(process.env.ACCOUNT || '').replace(/\D/g, '')
+  const r = await fetch(`${SITE}/api/meta/connect?${acct ? `account=${acct}&` : ''}${ACTIONS.includes('connect-fix') ? 'fix=1' : ''}`, { headers: H, signal: AbortSignal.timeout(55000) })
+  const d = await r.json().catch(async () => ({ raw: (await r.text().catch(() => '')).slice(0, 400) }))
+  console.log(`connect (HTTP ${r.status}):\n${JSON.stringify(d, null, 1).slice(0, 9000)}`)
 }
 if (ACTIONS.includes('restore')) {
   const from = String(process.env.RESTORE_FROM || '').replace(/\/$/, '')
