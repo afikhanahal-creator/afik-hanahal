@@ -8,29 +8,7 @@ import { supabase } from './lib/supabaseClient'
 import MetaKanban from './MetaKanban'
 
 const ADMIN_TOKEN = 'AFIKhanahal2026'
-const META_PAGE_ID = '591701444021114'
-// Default lead pages always synced: the original page + afik.hanahal (999391656594390),
-// the page the אפיק הנחל ad-account campaigns and the site are connected to.
-const DEFAULT_LEAD_PAGE_IDS = ['591701444021114', '999391656594390']
-// localStorage key written by the Settings → "מקורות לידים — Meta" card.
-const META_LEAD_PAGES_KEY = 'afik_meta_lead_pages'
-
-// All Facebook Page IDs to sync: the defaults + any enabled extra ad-account pages
-// the admin registered in Settings. Leads are collected per-page, so each page must
-// be synced separately. Deduped, empties dropped.
-function getConfiguredPageIds() {
-  const ids = [...DEFAULT_LEAD_PAGE_IDS]
-  try {
-    const raw = JSON.parse(localStorage.getItem(META_LEAD_PAGES_KEY) || 'null')
-    if (Array.isArray(raw)) {
-      for (const s of raw) {
-        const pid = s && s.enabled !== false ? String(s.pageId || '').trim() : ''
-        if (pid && !ids.includes(pid)) ids.push(pid)
-      }
-    }
-  } catch {}
-  return ids
-}
+// Which Facebook pages are synced is decided on the server (META_PAGE_IDS in Vercel) — see api/meta.js resolvePageIds
 
 // ── Translations ─────────────────────────────────────────────────────────────
 const TR = {
@@ -81,6 +59,19 @@ const TR = {
     callTimePlaceholder: 'ניתן להגדיר לאחר השיחה...',
     saveToCRM: 'שמור ל-CRM →',
     savedToCRM: '✓ נשמר!',
+    // Redesigned Lead Center
+    kTotal: 'סה״כ לידים', kToday: 'היום', kWeek: '7 ימים אחרונים', kWaiting: 'ממתינים לקשר ראשון', kWelcome: 'קיבלו הודעת פתיחה',
+    connOk: 'מחובר לפייסבוק · לידים נכנסים אוטומטית', connBad: 'החיבור לפייסבוק לא תקין — לידים לא נכנסים', connChecking: 'בודק חיבור…',
+    connToken: 'הטוקן של Meta לא תקף', connPage: 'העמוד לא רשום לקבלת לידים', waOk: n => `WhatsApp מחובר · ${n}`, waBad: 'WhatsApp לא מחובר',
+    welcomeAuto: 'הודעת פתיחה אוטומטית: פעילה', welcomeOff: 'הודעת פתיחה אוטומטית: כבויה', lastLead: 'ליד אחרון',
+    welcomeSent: 'הודעת פתיחה נשלחה', welcomeNot: 'עדיין לא נשלחה הודעה', welcomeNow: 'שלח הודעת פתיחה עכשיו', welcomeNoPhone: 'אין מספר טלפון — אי אפשר לשלוח',
+    call: 'התקשר', whatsapp: 'וואטסאפ', copy: 'העתק', copied: 'הועתק', archive: 'ארכיון', back: 'חזרה לרשימה',
+    received: 'התקבל', source: 'מקור', details: 'פרטי הליד', conversation: 'שיחה', composer: 'כתוב הודעה ללקוח — נשלחת מהוואטסאפ של המשרד…',
+    sendBtn: 'שלח', sendFailed: 'השליחה נכשלה', testLead: 'ליד בדיקה', showTest: 'הצג לידי בדיקה', hideTestL: 'הסתר לידי בדיקה',
+    overview: 'סקירה', needAttention: 'ממתינים לטיפול', needAttentionDesc: 'לידים מ-14 הימים האחרונים שעדיין לא טופלו', allHandled: 'כל הלידים האחרונים טופלו 🎉',
+    byCampaign: 'לידים לפי קמפיין · 30 יום', noRecent: 'אין לידים ב-30 הימים האחרונים', health: 'מצב החיבור',
+    hToken: 'חיבור לפייסבוק (טוקן)', hPage: 'העמוד רשום לקבלת לידים', hWebhook: 'עדכון מיידי מפייסבוק (Webhook)', hWa: 'WhatsApp של המשרד', hWelcome: 'הודעת פתיחה אוטומטית',
+    never: 'עוד לא התקבל', welcomeTpl: 'הנוסח נערך בטאב אוטומציות ← תבניות',
   },
   en: {
     title: 'Meta Lead Center',
@@ -129,6 +120,19 @@ const TR = {
     callTimePlaceholder: 'Set after the call...',
     saveToCRM: 'Save to CRM →',
     savedToCRM: '✓ Saved!',
+    // Redesigned Lead Center
+    kTotal: 'Total leads', kToday: 'Today', kWeek: 'Last 7 days', kWaiting: 'Awaiting first contact', kWelcome: 'Got a welcome message',
+    connOk: 'Connected to Facebook · leads flow in automatically', connBad: 'Facebook connection broken — leads are not coming in', connChecking: 'Checking connection…',
+    connToken: 'The Meta token is not valid', connPage: 'The page is not subscribed to leads', waOk: n => `WhatsApp connected · ${n}`, waBad: 'WhatsApp not connected',
+    welcomeAuto: 'Automatic welcome: on', welcomeOff: 'Automatic welcome: off', lastLead: 'Last lead',
+    welcomeSent: 'Welcome message sent', welcomeNot: 'No message sent yet', welcomeNow: 'Send the welcome message now', welcomeNoPhone: 'No phone number — nothing to send to',
+    call: 'Call', whatsapp: 'WhatsApp', copy: 'Copy', copied: 'Copied', archive: 'Archive', back: 'Back to the list',
+    received: 'Received', source: 'Source', details: 'Lead details', conversation: 'Conversation', composer: 'Write to the lead — sent from the office WhatsApp…',
+    sendBtn: 'Send', sendFailed: 'Sending failed', testLead: 'Test lead', showTest: 'Show test leads', hideTestL: 'Hide test leads',
+    overview: 'Overview', needAttention: 'Needs attention', needAttentionDesc: 'Leads from the last 14 days not handled yet', allHandled: 'All recent leads are handled 🎉',
+    byCampaign: 'Leads by campaign · 30 days', noRecent: 'No leads in the last 30 days', health: 'Connection status',
+    hToken: 'Facebook connection (token)', hPage: 'Page subscribed to leads', hWebhook: 'Instant updates from Facebook (webhook)', hWa: 'Office WhatsApp', hWelcome: 'Automatic welcome message',
+    never: 'Not received yet', welcomeTpl: 'Edit the text in Automations → Templates',
   },
 }
 
@@ -219,6 +223,49 @@ function fmtPhone(phone) {
   return phone
 }
 
+// Meta's "Lead Ads Testing" tool fills every field with "<test lead: dummy data for …>"
+const isTestLead = l => /<test lead|dummy data for/i.test(`${l?.name || ''} ${l?.email || ''}`)
+
+// Group label for the lead list: today / yesterday / this week / month name
+function dayGroup(dateStr, lang) {
+  const d = new Date(dateStr)
+  if (Number.isNaN(d.getTime())) return ''
+  const start = new Date(); start.setHours(0, 0, 0, 0)
+  const diffDays = Math.floor((start - new Date(d).setHours(0, 0, 0, 0)) / 86400000)
+  if (diffDays <= 0) return lang === 'en' ? 'Today' : 'היום'
+  if (diffDays === 1) return lang === 'en' ? 'Yesterday' : 'אתמול'
+  if (diffDays < 7) return lang === 'en' ? 'This week' : 'השבוע'
+  return d.toLocaleDateString(lang === 'en' ? 'en-GB' : 'he-IL', { month: 'long', year: 'numeric' })
+}
+// When a lead came in: relative today, "14.7 · 09:17" this year, "14.7.25" before
+function fmtWhen(dateStr, lang) {
+  const d = new Date(dateStr)
+  if (Number.isNaN(d.getTime())) return ''
+  if (Date.now() - d < 86400000) return timeAgo(dateStr, lang)
+  const sameYear = d.getFullYear() === new Date().getFullYear()
+  const date = d.toLocaleDateString('he-IL', sameYear ? { day: 'numeric', month: 'numeric' } : { day: 'numeric', month: 'numeric', year: '2-digit' })
+  return sameYear ? `${date} · ${d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' })}` : date
+}
+function fmtFull(dateStr, lang) {
+  const d = new Date(dateStr)
+  if (Number.isNaN(d.getTime())) return ''
+  return d.toLocaleString(lang === 'en' ? 'en-GB' : 'he-IL', { weekday: 'short', day: 'numeric', month: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+
+// Narrow screens (phones): the list and the lead are separate screens
+function useNarrow(px = 900) {
+  const q = `(max-width: ${px}px)`
+  const [narrow, setNarrow] = useState(() => typeof window !== 'undefined' && window.matchMedia ? window.matchMedia(q).matches : false)
+  useEffect(() => {
+    if (!window.matchMedia) return
+    const m = window.matchMedia(q)
+    const on = () => setNarrow(m.matches)
+    m.addEventListener ? m.addEventListener('change', on) : m.addListener(on)
+    return () => { m.removeEventListener ? m.removeEventListener('change', on) : m.removeListener(on) }
+  }, [q])
+  return narrow
+}
+
 function isNewRecent(lead) {
   if (lead.status !== 'new') return false
   return (Date.now() - new Date(lead.created_at)) < 86400000
@@ -257,7 +304,7 @@ async function sendMessage(leadId, message) {
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
     body: JSON.stringify({ lead_id: leadId, message }),
   })
-  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || `HTTP ${res.status}`) }
   const data = await res.json()
   return data.message
 }
@@ -295,6 +342,8 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
   const [leadsError, setLeadsError]     = useState(null)
   const [messagesError, setMessagesError] = useState(null)
   const [savedToCRM, setSavedToCRM]     = useState(false)
+  const [sendError, setSendError]       = useState('')
+  const [hideTest, setHideTest]         = useState(true)   // Meta's "lead ads testing" leads (dummy data)
   // Hover state lives in CSS (`.lead-row:hover`) — keeping it in React caused
   // a re-render of all 100+ leads on every mouse move, which froze the scroll.
   const [deletedLeads, setDeletedLeads] = useState([])
@@ -471,20 +520,19 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
     }
   }, [selectedLead?.id, loadMessages])
 
-  // ── Auto-sync from Meta every 5 min (covers missing webhook) ────────────────
+  // ── Connection status (Meta token + page subscription + last webhook + WhatsApp + welcome rule) ──
+  // The safety-net sync runs on the server (auto-run every 5 min from the panel, the 5-minute GitHub tick, the daily
+  // cron), so the tab only reads the status — every 10 minutes and after a manual sync.
+  const [conn, setConn] = useState(null)
+  const loadConn = useCallback(() => {
+    fetch('/api/meta/connect?quick=1&green=1', { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` } })
+      .then(r => r.json()).then(setConn).catch(() => setConn({ error: true }))
+  }, [])
   useEffect(() => {
-    const run = async () => {
-      // Sync every configured page (main + extra ad-account pages). Silent failures are fine.
-      for (const pid of getConfiguredPageIds()) { try { await syncLeads(pid) } catch {} }
-      try { await fetchLeads().then(data => {
-        const visible = data.filter(l => !deletedIdsRef.current.has(l.id))
-        setLeads(visible)
-      }) } catch {}
-    }
-    const t = setTimeout(run, 20000) // first run 20s after mount
-    autoSyncRef.current = setInterval(() => { if (!document.hidden) run() }, 5 * 60 * 1000)
-    return () => { clearTimeout(t); clearInterval(autoSyncRef.current) }
-  }, []) // eslint-disable-line
+    loadConn()
+    autoSyncRef.current = setInterval(() => { if (!document.hidden) loadConn() }, 10 * 60 * 1000)
+    return () => clearInterval(autoSyncRef.current)
+  }, [loadConn])
 
   // ── Scroll to bottom when messages change ───────────────────────────────────
   useEffect(() => {
@@ -513,8 +561,11 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
     const msg = (typeof text === 'string' ? text : '').trim()
     if (!msg || !selectedLead) return
     setSending(true)
+    setSendError('')
     try {
       const newMsg = await sendMessage(selectedLead.id, msg)
+      setMsgInput('')
+      if (!selectedLead.wa_sent) { setSelectedLead(p => ({ ...p, wa_sent: true })); setLeads(prev => prev.map(l => l.id === selectedLead.id ? { ...l, wa_sent: true } : l)) }
       if (newMsg) {
         setMessages(prev => [...prev, newMsg])
         // Mark as known so it doesn't re-trigger an incoming notification
@@ -526,17 +577,33 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
       onSentMetaMsgRef.current?.({ leadName: selectedLead.name || '—', message: msg })
     } catch (e) {
       console.error('[MetaLeadsTab] send error:', e)
+      setSendError(e.message || 'error')
     } finally {
       setSending(false)
     }
   }
 
+  // ── Welcome now (one lead) — the template from the automations tab, from the office WhatsApp ──
+  const [welcomeBusy, setWelcomeBusy] = useState(false)
+  const handleWelcomeNow = async () => {
+    if (!selectedLead?.phone || welcomeBusy) return
+    setWelcomeBusy(true); setSendError('')
+    try {
+      const r = await fetch('/api/meta/lead-welcome', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` }, body: JSON.stringify({ id: selectedLead.id }) })
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok || !d.ok) throw new Error(d.error || d.skipped || `HTTP ${r.status}`)
+      setSelectedLead(p => ({ ...p, wa_sent: true }))
+      setLeads(prev => prev.map(l => l.id === selectedLead.id ? { ...l, wa_sent: true } : l))
+      loadMessages(selectedLead.id, true)
+      onSentMetaMsgRef.current?.({ leadName: selectedLead.name || '—', message: d.text || '' })
+    } catch (e) { setSendError(e.message) }
+    finally { setWelcomeBusy(false) }
+  }
+
   // ── Quick reply → open WhatsApp with pre-filled message ──────────────────────
   const handleQuickReply = (qr) => {
     if (!selectedLead?.phone) return
-    const message = applyTemplate(qr.message, selectedLead)
-    const url = `https://wa.me/${selectedLead.phone}?text=${encodeURIComponent(message)}`
-    window.open(url, '_blank', 'noopener,noreferrer')
+    setMsgInput(applyTemplate(qr.message, selectedLead))
   }
 
   // ── Sync ─────────────────────────────────────────────────────────────────────
@@ -544,13 +611,12 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
     setSyncing(true)
     setSyncResult(null)
     try {
-      // Sync each configured page and sum the results.
-      let total = 0
-      for (const pid of getConfiguredPageIds()) {
-        try { const r = await syncLeads(pid); total += r.synced || 0 } catch {}
-      }
-      setSyncResult(`${total} ${lang === 'en' ? 'leads synced' : 'לידים סונכרנו'}`)
+      // The server syncs the office's own pages (META_PAGE_IDS) and welcomes only fresh leads
+      const r = await syncLeads()
+      const fresh = r.new || 0
+      setSyncResult(fresh ? `${fresh} ${lang === 'en' ? 'new leads' : 'לידים חדשים'}` : (lang === 'en' ? 'Up to date' : 'הכל מעודכן'))
       await loadLeads(true)
+      loadConn()
     } catch (e) {
       setSyncResult(lang === 'en' ? 'Sync failed: ' + e.message : 'שגיאת סנכרון: ' + e.message)
     } finally {
@@ -688,7 +754,8 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
       const matchSearch = !search || [l.name, l.phone, l.email, l.campaign_name, l.form_name]
         .filter(Boolean).some(s => s.toLowerCase().includes(q))
       const matchCampaign = !campaignFilter || getCampaignLabel(l) === campaignFilter
-      return matchStatus && matchSearch && matchCampaign
+      const matchTest = !hideTest || !isTestLead(l)
+      return matchStatus && matchSearch && matchCampaign && matchTest
     })
     .sort((a, b) => sortOrder === 'desc'
       ? new Date(b.created_at) - new Date(a.created_at)
@@ -708,13 +775,12 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
   }
 
   // ── Styles ────────────────────────────────────────────────────────────────────
-  const BG      = 'var(--au-bg)'
-  const CARD    = 'var(--au-card-solid)'
-  const BORDER  = 'rgba(var(--brand-rgb),.12)'
-  const MUTED   = 'rgba(var(--ink),.35)'
+  const BORDER  = 'rgba(var(--brand-rgb),.14)'
+  const MUTED   = 'rgba(var(--ink),.55)'
+  const FAINT   = 'rgba(var(--ink),.38)'
   const CREAM   = 'var(--au-text)'
-  const PURPLE  = C?.purple || '#6F7AC7'
-  const GREEN   = '#82F67F'
+  const BRAND   = 'var(--au-brand-text)'
+  const WA      = '#25D366'
 
   const statusTabs = [
     { id: 'all',       label: t.filterAll },
@@ -722,17 +788,16 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
     { id: 'contacted', label: t.filterContacted },
     { id: 'scheduled', label: t.filterScheduled },
     { id: 'closed',    label: t.filterClosed },
+    { id: 'saved_to_crm', label: STATUS_CONFIG.saved_to_crm.label[lang] || STATUS_CONFIG.saved_to_crm.label.he },
   ]
 
-  // Single toggle: Pipeline (Kanban) ↔ Lead Center (Chat). The Pipeline/Table
-  // sub-toggle lives inside MetaKanban — no need to duplicate it here.
+  // Single toggle: Pipeline (Kanban) ↔ Lead Center (Chat). The Pipeline/Table sub-toggle lives inside MetaKanban.
   const inChat = metaView === 'chat'
 
-  // Red badge: count leads that landed AFTER the user's last visit to the Lead
-  // Center. Cleared the moment Afik clicks the button to enter the chat view.
+  // Red badge: leads that landed after the last visit to the Lead Center (cleared when entering the chat view)
   const unreadCount = inChat ? 0 : leads.reduce((n, l) => {
-    const t = new Date(l.created_at).getTime()
-    return Number.isFinite(t) && t > lastVisitTs ? n + 1 : n
+    const ts = new Date(l.created_at).getTime()
+    return Number.isFinite(ts) && ts > lastVisitTs ? n + 1 : n
   }, 0)
 
   function handleViewToggle() {
@@ -744,108 +809,129 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
     setMetaView(inChat ? 'pipeline' : 'chat')
   }
 
-  // ── Derived stats ────────────────────────────────────────────────────────────
-  const totalLeads    = leads.length
-  const newLeads      = leads.filter(l => l.status === 'new').length
-  const contacted     = leads.filter(l => l.status === 'contacted' || l.status === 'scheduled').length
-  const waSentCount   = leads.filter(l => l.wa_sent).length
+  // ── Derived stats (test leads excluded) ──────────────────────────────────────
+  const realLeads   = leads.filter(l => !isTestLead(l))
+  const dayStart    = new Date(); dayStart.setHours(0, 0, 0, 0)
+  const ageMs       = l => Date.now() - new Date(l.created_at).getTime()
+  const totalLeads  = realLeads.length
+  const todayLeads  = realLeads.filter(l => new Date(l.created_at) >= dayStart).length
+  const weekLeads   = realLeads.filter(l => ageMs(l) < 7 * 86400000).length
+  const waitingList = realLeads.filter(l => (l.status || 'new') === 'new')
+  const welcomed    = realLeads.filter(l => l.wa_sent).length
+  const withPhone   = realLeads.filter(l => l.phone).length
+  const testCount   = leads.length - realLeads.length
+  const attention   = realLeads.filter(l => (l.status || 'new') === 'new' && ageMs(l) < 14 * 86400000).sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 8)
+  const recentByCampaign = Object.entries(realLeads.filter(l => ageMs(l) < 30 * 86400000).reduce((m, l) => { const k = getCampaignLabel(l) || '—'; m[k] = (m[k] || 0) + 1; return m }, {})).sort((a, b) => b[1] - a[1])
+  const maxCamp = Math.max(1, ...recentByCampaign.map(x => x[1]))
+
+  // ── Connection health ────────────────────────────────────────────────────────
+  const tokenOk = !!conn?.meta?.token?.ok
+  const pageOk = tokenOk && (conn?.meta?.pageChecks || []).length > 0 && conn.meta.pageChecks.every(p => p.leadgenSubscribed)
+  const waOk = conn?.green?.state === 'authorized'
+  const welcomeOn = conn?.welcome ? (conn.welcome.enabled && conn.welcome.mode === 'auto') : null
+  const connState = !conn ? 'idle' : conn.error ? 'warn' : tokenOk && pageOk ? 'ok' : 'bad'
+  const waPhone = conn?.green?.phone ? fmtPhone(conn.green.phone) : ''
+  const lastLeadAt = realLeads.reduce((m, l) => (new Date(l.created_at) > new Date(m || 0) ? l.created_at : m), null)
+
+  // ── Mobile: the list and the lead are separate screens ───────────────────────
+  const narrow = useNarrow(900)
+  const showList = !narrow || !selectedLead
+  const showDetail = !narrow || !!selectedLead
+
+  const sc0 = STATUS_CONFIG[selectedLead?.status || 'new'] || STATUS_CONFIG.new
+  const answers = selectedLead ? metaFormAnswers(selectedLead.raw_fields, lang) : []
+  const firstOut = messages.find(m => m.direction === 'out')
+  const [copied, setCopied] = [noteSaved === 'copied', v => setNoteSaved(v ? 'copied' : false)]
+
+  // Grouped list (today / yesterday / this week / month)
+  const listItems = []
+  let lastGroup = null
+  for (const lead of filteredLeads) {
+    const g = sortOrder === 'desc' ? dayGroup(lead.created_at, lang) : null
+    if (g && g !== lastGroup) { listItems.push({ type: 'g', key: `g-${g}-${lead.id}`, label: g }); lastGroup = g }
+    listItems.push({ type: 'l', key: lead.id, lead })
+  }
+
+  const dotColor = s => (s === 'ok' ? '#22C55E' : s === 'bad' ? '#E5484D' : s === 'warn' ? '#F59E0B' : 'rgba(var(--ink),.3)')
+  const Dot = ({ s }) => <span style={{ width: 8, height: 8, borderRadius: '50%', background: dotColor(s), flexShrink: 0, boxShadow: s === 'ok' ? '0 0 0 3px rgba(34,197,94,.18)' : 'none' }}/>
 
   return (
-    <div style={{
-      display: 'flex',
-      height: '100%',
-      overflow: 'hidden',
-      direction: dir,
-      fontFamily: 'Rubik, sans-serif',
-      background: BG,
-      flexDirection: 'column',
-    }}>
+    <div className="lc" style={{ display: 'flex', height: '100%', overflow: 'hidden', direction: dir, fontFamily: 'Rubik, sans-serif', background: 'var(--au-bg)', flexDirection: 'column' }}>
+      <style>{`
+        .lc button{font-family:inherit}
+        .lc-btn{display:inline-flex;align-items:center;gap:6px;padding:7px 13px;border-radius:9px;border:1px solid ${BORDER};background:rgba(var(--ov),.04);color:${CREAM};font-size:12px;font-weight:700;cursor:pointer;transition:background .12s,border-color .12s;white-space:nowrap;text-decoration:none}
+        .lc-btn:hover:not(:disabled){background:rgba(var(--brand-rgb),.12);border-color:rgba(var(--brand-rgb),.35)}
+        .lc-btn:disabled{opacity:.5;cursor:not-allowed}
+        .lc-btn.primary{background:var(--au-brand);border-color:transparent;color:#fff}
+        .lc-btn.primary:hover:not(:disabled){filter:brightness(1.08);background:var(--au-brand)}
+        .lc-btn.wa{background:rgba(37,211,102,.12);border-color:rgba(37,211,102,.35);color:#1FAD55}
+        html[data-admin-theme="dark"] .lc-btn.wa,html:not([data-admin-theme="light"]) .lc-btn.wa{color:#5BE38E}
+        .lc-btn.danger{color:#E5484D;border-color:rgba(229,72,77,.3);background:rgba(229,72,77,.06)}
+        .lc-chip{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;white-space:nowrap}
+        .lc-row{display:flex;gap:11px;align-items:flex-start;padding:11px 14px;border-bottom:1px solid rgba(var(--ov),.05);cursor:pointer;position:relative;transition:background .1s;contain:layout style}
+        .lc-row:hover{background:rgba(var(--brand-rgb),.06)}
+        .lc-row.sel{background:rgba(var(--brand-rgb),.13)}
+        .lc-row.sel::before{content:'';position:absolute;inset-inline-start:0;top:0;bottom:0;width:3px;background:var(--au-brand)}
+        .lc-row .lc-arch{opacity:0;transition:opacity .12s}
+        .lc-row:hover .lc-arch{opacity:1}
+        @media (hover:none){.lc-row .lc-arch{opacity:.6}}
+        .lc-tabs{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+        .lc-tabs::-webkit-scrollbar{display:none}
+        .lc-tab{flex-shrink:0;padding:5px 11px;border-radius:999px;border:1px solid transparent;background:transparent;color:${MUTED};font-size:12px;font-weight:700;cursor:pointer;display:inline-flex;gap:5px;align-items:center}
+        .lc-tab.on{background:rgba(var(--brand-rgb),.14);border-color:rgba(var(--brand-rgb),.35);color:${BRAND}}
+        .lc-card{background:var(--au-card-solid);border:1px solid ${BORDER};border-radius:14px}
+        .lc-seg{display:inline-flex;border:1px solid ${BORDER};border-radius:10px;overflow:hidden;flex-wrap:wrap}
+        .lc-seg button{padding:7px 12px;border:none;background:transparent;color:${MUTED};font-size:12px;font-weight:700;cursor:pointer;border-inline-start:1px solid ${BORDER}}
+        .lc-seg button:first-child{border-inline-start:none}
+        .lc-input{width:100%;box-sizing:border-box;padding:9px 12px;background:rgba(var(--ov),.04);border:1px solid ${BORDER};border-radius:10px;color:${CREAM};font-size:13px;font-family:inherit;outline:none}
+        .lc-input:focus{border-color:rgba(var(--brand-rgb),.55);box-shadow:0 0 0 3px rgba(var(--brand-rgb),.15)}
+        .lc-scroll{overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+        .lc-label{font-size:11px;font-weight:700;color:${FAINT};letter-spacing:.02em}
+      `}</style>
 
-      {/* ── Premium Header: title + stats + view toggle ── */}
-      <div style={{
-        flexShrink: 0,
-        background: 'linear-gradient(180deg, rgba(var(--brand-rgb),.10) 0%, var(--au-card-solid) 100%)',
-        borderBottom: `1px solid ${BORDER}`,
-      }}>
-        {/* Top bar: toggle (RIGHT) + branding (LEFT) — RTL: first child = visual right */}
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 20px 8px', direction:'rtl' }}>
-          {/* LEAD CENTER toggle — first in RTL = visual RIGHT */}
-          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-            <button type="button" onClick={handleViewToggle}
-              style={{ position:'relative', display:'flex', alignItems:'center', gap:7, padding:'7px 18px', borderRadius:8, border:`1px solid ${inChat ? PURPLE : 'rgba(34,197,94,.5)'}`, background: inChat ? `linear-gradient(135deg,${PURPLE}30,${PURPLE}18)` : `linear-gradient(135deg,rgba(34,197,94,.22),rgba(34,197,94,.12))`, color: inChat ? PURPLE : '#22C55E', fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit', transition:'all .15s', userSelect:'none' }}
-              onMouseEnter={e=>{ e.currentTarget.style.opacity='.85' }}
-              onMouseLeave={e=>{ e.currentTarget.style.opacity='1' }}
-            >
-              {inChat ? (
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="3" width="4" height="18" rx="1"/><rect x="10" y="3" width="4" height="14" rx="1"/><rect x="17" y="3" width="4" height="10" rx="1"/>
-                </svg>
-              ) : (
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-                </svg>
-              )}
-              {inChat ? 'Pipeline' : 'LEAD CENTER'}
-              {unreadCount > 0 && (
-                <span style={{ position:'absolute', top:-7, right:-7, minWidth:20, height:20, padding:'0 5px', borderRadius:999, background:'linear-gradient(135deg,#E05252,#C8392E)', color:'#fff', fontSize:10, fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center', boxShadow:'0 2px 8px rgba(224,82,82,.5)', animation:'meta-lead-badge-pulse 1.6s ease-out infinite', pointerEvents:'none' }}>
-                  {unreadCount > 99 ? '99+' : unreadCount}
-                </span>
-              )}
-            </button>
-            {syncResult && (
-              <span style={{ fontSize:10, color:GREEN, fontWeight:700, background:'rgba(130,246,127,.12)', padding:'3px 10px', borderRadius:20, border:'1px solid rgba(130,246,127,.25)' }}>
-                {syncResult}
-              </span>
-            )}
-            <button onClick={handleSync} disabled={syncing}
-              style={{ padding:'6px 13px', background:syncing?`${PURPLE}12`:`${PURPLE}20`, border:`1px solid ${PURPLE}55`, borderRadius:8, color:PURPLE, fontSize:11, fontWeight:700, cursor:syncing?'not-allowed':'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', gap:5, transition:'all .15s' }}
-              onMouseEnter={e=>{ if(!syncing){e.currentTarget.style.background=`${PURPLE}38`} }}
-              onMouseLeave={e=>{ if(!syncing){e.currentTarget.style.background=`${PURPLE}20`} }}
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ animation: syncing ? 'gm_spin .7s linear infinite' : 'none' }}>
-                <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
-                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
-              </svg>
+      {/* ── Header: title, connection, actions, KPIs ── */}
+      <div style={{ flexShrink: 0, borderBottom: `1px solid ${BORDER}`, background: 'linear-gradient(180deg, rgba(var(--brand-rgb),.08), transparent)', padding: '14px 18px 12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ width: 38, height: 38, borderRadius: 11, background: 'var(--au-brand)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          </div>
+          <div style={{ minWidth: 0, flex: '1 1 260px' }}>
+            <div style={{ fontSize: 18, fontWeight: 800, color: CREAM, lineHeight: 1.2 }}>{lang === 'en' ? 'Lead Center' : 'מרכז לידים'}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4, flexWrap: 'wrap', fontSize: 12, color: MUTED }}>
+              <Dot s={connState}/>
+              <span style={{ fontWeight: 600 }}>{!conn ? t.connChecking : connState === 'ok' ? t.connOk : conn.error ? t.connChecking : !tokenOk ? t.connToken : t.connPage}</span>
+              {conn && !conn.error && <><span style={{ color: FAINT }}>·</span><Dot s={waOk ? 'ok' : 'bad'}/><span>{waOk ? t.waOk(waPhone) : t.waBad}</span></>}
+              {welcomeOn !== null && <><span style={{ color: FAINT }}>·</span><span style={{ color: welcomeOn ? '#22C55E' : '#F59E0B', fontWeight: 700 }}>{welcomeOn ? t.welcomeAuto : t.welcomeOff}</span></>}
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            {syncResult && <span className="lc-chip" style={{ color: '#22C55E', background: 'rgba(34,197,94,.12)' }}>{syncResult}</span>}
+            <button className="lc-btn" onClick={handleSync} disabled={syncing}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={{ animation: syncing ? 'gm_spin .7s linear infinite' : 'none' }}><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
               {syncing ? t.syncing : t.sync}
             </button>
-          </div>
-
-          {/* Branding — second in RTL = visual LEFT */}
-          <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-            <div style={{ width:32, height:32, borderRadius:8, background:`linear-gradient(135deg,${PURPLE},#6070C8)`, display:'flex', alignItems:'center', justifyContent:'center', boxShadow:`0 4px 12px ${PURPLE}44` }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-              </svg>
-            </div>
-            <div>
-              <div style={{ fontSize:15, fontWeight:800, color:CREAM, letterSpacing:'-.01em' }}>
-                {lang === 'en' ? 'Lead Center' : 'מרכז לידים'}
-              </div>
-              <div style={{ fontSize:10, color:`${PURPLE}99`, fontWeight:600, marginTop:1 }}>
-                Meta · Facebook · Instagram
-              </div>
-            </div>
+            <button className="lc-btn" onClick={handleViewToggle} style={{ position: 'relative' }}>
+              {inChat ? 'Pipeline' : (lang === 'en' ? 'Lead Center' : 'מרכז לידים')}
+              {unreadCount > 0 && <span style={{ position: 'absolute', top: -7, insetInlineEnd: -7, minWidth: 18, height: 18, padding: '0 5px', borderRadius: 999, background: '#E5484D', color: '#fff', fontSize: 10, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{unreadCount > 99 ? '99+' : unreadCount}</span>}
+            </button>
           </div>
         </div>
 
-        {/* Stats strip */}
-        <div style={{ display:'flex', gap:0, padding:'0 16px 12px', direction:'rtl' }}>
+        {/* KPIs */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 8, marginTop: 12 }}>
           {[
-            { label: lang==='en'?'Total':'סה"כ לידים',  value: totalLeads,  color: PURPLE,    icon: 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 7a4 4 0 1 0 0 8 4 4 0 0 0 0-8z' },
-            { label: lang==='en'?'New':'חדשים',          value: newLeads,    color: '#E05252', icon: 'M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z' },
-            { label: lang==='en'?'In Progress':'בטיפול', value: contacted,   color: '#F97316', icon: 'M22 12h-4l-3 9L9 3l-3 9H2' },
-            { label: lang==='en'?'WA Sent':'WA נשלח',   value: waSentCount, color: '#25D366', icon: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z' },
-          ].map((s, i) => (
-            <div key={i} style={{ flex:1, display:'flex', alignItems:'center', gap:10, padding:'8px 12px', background:`rgba(var(--ov),.02)`, border:`1px solid ${BORDER}`, borderRadius: i===0?'10px 0 0 10px' : i===3?'0 10px 10px 0' : '0', borderLeft: i>0 ? 'none' : `1px solid ${BORDER}` }}>
-              <div style={{ width:28, height:28, borderRadius:7, background:`${s.color}18`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={s.color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d={s.icon}/>
-                </svg>
+            { label: t.kTotal, value: totalLeads, color: BRAND },
+            { label: t.kToday, value: todayLeads, color: '#3A8FC7' },
+            { label: t.kWeek, value: weekLeads, color: '#8B5CF6' },
+            { label: t.kWaiting, value: waitingList.length, color: '#E5484D', onClick: () => { setStatusFilter('new'); setSelectedLead(null) } },
+            { label: t.kWelcome, value: `${welcomed}`, sub: withPhone ? `${Math.round(welcomed / withPhone * 100)}%` : '', color: '#22C55E' },
+          ].map((k, i) => (
+            <div key={i} className="lc-card" onClick={k.onClick} style={{ padding: '10px 12px', cursor: k.onClick ? 'pointer' : 'default' }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+                <span style={{ fontSize: 22, fontWeight: 800, color: k.color, lineHeight: 1, fontFeatureSettings: '"tnum"' }}>{k.value}</span>
+                {k.sub && <span style={{ fontSize: 12, fontWeight: 700, color: FAINT }}>{k.sub}</span>}
               </div>
-              <div>
-                <div style={{ fontSize:18, fontWeight:800, color:s.color, lineHeight:1 }}>{s.value}</div>
-                <div style={{ fontSize:10, color:`rgba(var(--ink),.33)`, fontWeight:600, marginTop:2 }}>{s.label}</div>
-              </div>
+              <div style={{ fontSize: 11.5, color: MUTED, fontWeight: 600, marginTop: 4 }}>{k.label}</div>
             </div>
           ))}
         </div>
@@ -862,657 +948,294 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
               const now = new Date().toISOString()
               setLeads(prev => prev.filter(l => l.id !== lead.id))
               setDeletedLeads(prev => [{ ...lead, deleted_at: now }, ...prev])
-              fetch('/api/meta/leads', {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
-                body: JSON.stringify({ id: lead.id, deleted_at: now }),
-              }).catch(() => {})
+              fetch('/api/meta/leads', { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` }, body: JSON.stringify({ id: lead.id, deleted_at: now }) }).catch(() => {})
             }}
           />
         </div>
       )}
 
-      {/* ── Chat view ── */}
-      {metaView === 'chat' && <div style={{
-        display: 'flex',
-        flex: 1,
-        minHeight: 0,
-        overflow: 'hidden',
-      }}>
+      {/* ── Lead Center: list + lead ── */}
+      {metaView === 'chat' && <div style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden' }}>
 
-      {/* ─────────────────── LEFT PANEL: Lead List ─────────────────────── */}
-      <div style={{
-        width: 330,
-        flexShrink: 0,
-        borderLeft: `1px solid ${BORDER}`,
-        display: 'flex',
-        flexDirection: 'column',
-        background: CARD,
-        overflow: 'hidden',
-      }}>
-
-        {/* Header */}
-        <div style={{
-          padding: '14px 14px 10px',
-          borderBottom: `1px solid ${BORDER}`,
-          flexShrink: 0,
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-              <span style={{ fontSize:13, fontWeight:800, color:CREAM }}>{filteredLeads.length}</span>
-              <span style={{ fontSize:12, color:MUTED, fontWeight:600 }}>{t.leadsCount}</span>
+        {/* ── List ── */}
+        {showList && <div style={{ width: narrow ? '100%' : 370, flexShrink: 0, borderInlineEnd: narrow ? 'none' : `1px solid ${BORDER}`, display: 'flex', flexDirection: 'column', background: 'var(--au-card-solid)', overflow: 'hidden' }}>
+          <div style={{ padding: '12px 14px 10px', borderBottom: `1px solid ${BORDER}`, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 9 }}>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input type="search" value={search} onChange={e => setSearch(e.target.value)} placeholder={t.search} className="lc-input" style={{ direction: dir }}/>
+              <button className="lc-btn" title={sortOrder === 'desc' ? (lang === 'en' ? 'Newest first' : 'החדשים קודם') : (lang === 'en' ? 'Oldest first' : 'הישנים קודם')} onClick={() => setSortOrder(v => v === 'desc' ? 'asc' : 'desc')} style={{ padding: '7px 10px' }}>{sortOrder === 'desc' ? '↓' : '↑'}</button>
+              {deletedLeads.length > 0 && <button className="lc-btn danger" title={t.archive} onClick={() => setShowRestore(v => !v)} style={{ padding: '7px 10px' }}>↩ {deletedLeads.length}</button>}
             </div>
-            <div style={{ display:'flex', gap:5 }}>
-              {deletedLeads.length > 0 && (
-                <button onClick={() => setShowRestore(!showRestore)}
-                  style={{ padding:'5px 9px', background:showRestore?'rgba(224,82,82,.2)':'rgba(224,82,82,.08)', border:`1px solid rgba(224,82,82,.${showRestore?'5':'2'})`, borderRadius:7, color:'#E05252', fontSize:10, fontWeight:700, cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', gap:3, transition:'all .15s' }}>
-                  <span>↩</span>
-                  <span style={{ background:'rgba(224,82,82,.2)', borderRadius:10, padding:'0 5px', fontSize:10 }}>{deletedLeads.length}</span>
+            <div className="lc-tabs">
+              {statusTabs.map(tab => {
+                const n = tab.id === 'all' ? null : leads.filter(l => (l.status || 'new') === tab.id && (!hideTest || !isTestLead(l))).length
+                if (tab.id === 'saved_to_crm' && !n) return null
+                return (
+                  <button key={tab.id} className={`lc-tab${statusFilter === tab.id ? ' on' : ''}`} onClick={() => setStatusFilter(tab.id)}>
+                    {tab.label}{n ? <span style={{ opacity: .75, fontFeatureSettings: '"tnum"' }}>{n}</span> : null}
+                  </button>
+                )
+              })}
+            </div>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <div ref={campaignDropRef} style={{ position: 'relative', flex: 1, minWidth: 0 }}>
+                <button className="lc-btn" onClick={() => setCampaignDropOpen(v => !v)} style={{ width: '100%', justifyContent: 'space-between', color: campaignFilter ? BRAND : CREAM }}>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{campaignFilter || (lang === 'en' ? 'All campaigns' : 'כל הקמפיינים')}</span>
+                  <span style={{ fontSize: 9, opacity: .7 }}>{campaignDropOpen ? '▲' : '▼'}</span>
                 </button>
-              )}
-              <button onClick={() => setSortOrder(v => v==='desc'?'asc':'desc')}
-                style={{ padding:'5px 9px', background:'rgba(var(--ov),.04)', border:`1px solid ${BORDER}`, borderRadius:7, color:MUTED, cursor:'pointer', fontSize:11, fontFamily:'inherit', transition:'all .15s', display:'flex', alignItems:'center', gap:2 }}
-                onMouseEnter={e=>{ e.currentTarget.style.background='rgba(var(--ov),.09)'; e.currentTarget.style.color=CREAM }}
-                onMouseLeave={e=>{ e.currentTarget.style.background='rgba(var(--ov),.04)'; e.currentTarget.style.color=MUTED }}>
-                {sortOrder==='desc'?'↓':'↑'}
-              </button>
-            </div>
-          </div>
-
-          {/* Search */}
-          <input
-            type="text"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder={t.search}
-            style={{
-              width: '100%',
-              boxSizing: 'border-box',
-              padding: '8px 12px',
-              background: 'rgba(var(--ov),.04)',
-              border: `1px solid ${BORDER}`,
-              borderRadius: 8,
-              color: CREAM,
-              fontSize: 13,
-              fontFamily: 'inherit',
-              outline: 'none',
-              direction: dir,
-              marginBottom: 10,
-            }}
-          />
-
-          {/* Status filter tabs */}
-          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-            {statusTabs.map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => setStatusFilter(tab.id)}
-                style={{
-                  padding: '4px 10px',
-                  border: 'none',
-                  borderRadius: 20,
-                  background: statusFilter === tab.id ? `${PURPLE}22` : 'transparent',
-                  color: statusFilter === tab.id ? PURPLE : MUTED,
-                  fontSize: 11,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  fontFamily: 'inherit',
-                  transition: 'all .12s',
-                  outline: statusFilter === tab.id ? `1px solid ${PURPLE}44` : 'none',
-                }}
-              >
-                {tab.label}
-                {tab.id !== 'all' && (
-                  <span style={{ marginRight: dir === 'rtl' ? 4 : 0, marginLeft: dir === 'ltr' ? 4 : 0, color: statusFilter === tab.id ? PURPLE : 'rgba(var(--ink),.25)' }}>
-                    {leads.filter(l => l.status === tab.id).length || ''}
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
-
-          {/* Campaign filter dropdown */}
-          <div ref={campaignDropRef} style={{ position: 'relative', marginTop: 10 }}>
-            <button
-              onClick={() => setCampaignDropOpen(v => !v)}
-              style={{
-                width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '9px 13px',
-                background: campaignFilter
-                  ? `linear-gradient(135deg, rgba(var(--brand-rgb),.22) 0%, rgba(var(--brand-rgb),.12) 100%)`
-                  : `linear-gradient(135deg, rgba(var(--brand-rgb),.13) 0%, rgba(var(--brand-rgb),.06) 100%)`,
-                border: `1px solid ${campaignFilter ? PURPLE + '80' : 'rgba(var(--brand-rgb),.38)'}`,
-                borderRadius: 10,
-                color: campaignFilter ? PURPLE : 'rgba(var(--ink),.75)',
-                fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
-                transition: 'all .15s',
-                boxShadow: campaignFilter ? `0 0 0 2px ${PURPLE}22` : '0 1px 6px rgba(0,0,0,.3)',
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.background = 'linear-gradient(135deg, rgba(var(--brand-rgb),.28) 0%, rgba(var(--brand-rgb),.16) 100%)'
-                e.currentTarget.style.borderColor = PURPLE + 'aa'
-                e.currentTarget.style.color = PURPLE
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.background = campaignFilter
-                  ? 'linear-gradient(135deg, rgba(var(--brand-rgb),.22) 0%, rgba(var(--brand-rgb),.12) 100%)'
-                  : 'linear-gradient(135deg, rgba(var(--brand-rgb),.13) 0%, rgba(var(--brand-rgb),.06) 100%)'
-                e.currentTarget.style.borderColor = campaignFilter ? PURPLE + '80' : 'rgba(var(--brand-rgb),.38)'
-                e.currentTarget.style.color = campaignFilter ? PURPLE : 'rgba(var(--ink),.75)'
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, opacity: 0.8 }}>
-                  <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
-                </svg>
-                {campaignFilter && (
-                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: CAMPAIGN_COLORS[campaigns.indexOf(campaignFilter) % CAMPAIGN_COLORS.length], flexShrink: 0 }}/>
-                )}
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {campaignFilter || (lang === 'en' ? 'All Campaigns' : 'כל הקמפיינים')}
-                </span>
-                {campaignFilter && (
-                  <span style={{ background: PURPLE + '30', color: PURPLE, borderRadius: 10, padding: '1px 7px', fontSize: 10, fontWeight: 800, flexShrink: 0 }}>
-                    {filteredLeads.length}
-                  </span>
+                {campaignDropOpen && (
+                  <div className="lc-card lc-scroll" style={{ position: 'absolute', top: 'calc(100% + 4px)', insetInline: 0, zIndex: 200, boxShadow: '0 12px 32px rgba(0,0,0,.35)', maxHeight: 300 }}>
+                    {[[null, lang === 'en' ? 'All campaigns' : 'כל הקמפיינים', leads.length], ...campaigns.map(c => [c, c, leads.filter(l => getCampaignLabel(l) === c).length])].map(([val, label, n], i) => (
+                      <button key={label} onClick={() => { setCampaignFilter(val); setCampaignDropOpen(false) }}
+                        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 9, padding: '9px 12px', border: 'none', borderBottom: `1px solid rgba(var(--ov),.05)`, background: campaignFilter === val ? 'rgba(var(--brand-rgb),.12)' : 'transparent', color: campaignFilter === val ? BRAND : CREAM, fontSize: 12.5, fontWeight: campaignFilter === val ? 700 : 500, cursor: 'pointer', textAlign: 'start', direction: dir }}>
+                        {val && <span style={{ width: 8, height: 8, borderRadius: '50%', background: CAMPAIGN_COLORS[(i - 1) % CAMPAIGN_COLORS.length], flexShrink: 0 }}/>}
+                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
+                        <span style={{ fontSize: 11, color: FAINT, fontWeight: 700 }}>{n}</span>
+                      </button>
+                    ))}
+                  </div>
                 )}
               </div>
-              <span style={{ fontSize: 9, flexShrink: 0, color: PURPLE, opacity: 0.7 }}>
-                {campaignDropOpen ? '▲' : '▼'}
-              </span>
-            </button>
-
-            {campaignDropOpen && (
-              <div style={{
-                position: 'absolute', top: 'calc(100% + 4px)', right: 0, left: 0, zIndex: 200,
-                background: 'var(--au-card-solid)', border: `1px solid ${BORDER}`, borderRadius: 10,
-                boxShadow: '0 8px 24px rgba(0,0,0,.55)', overflow: 'hidden',
-                maxHeight: 260, overflowY: 'auto',
-              }}>
-                {/* All campaigns option */}
-                <button
-                  onClick={() => { setCampaignFilter(null); setCampaignDropOpen(false) }}
-                  style={{
-                    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '10px 14px', border: 'none', borderBottom: `1px solid ${BORDER}`,
-                    background: !campaignFilter ? 'rgba(var(--brand-rgb),.1)' : 'transparent',
-                    color: !campaignFilter ? PURPLE : MUTED,
-                    fontSize: 12, fontWeight: !campaignFilter ? 700 : 500,
-                    cursor: 'pointer', fontFamily: 'inherit', textAlign: 'right', direction: dir,
-                    transition: 'background .1s',
-                  }}
-                  onMouseEnter={e => { if (campaignFilter) e.currentTarget.style.background = 'rgba(var(--ov),.04)' }}
-                  onMouseLeave={e => { if (campaignFilter) e.currentTarget.style.background = 'transparent' }}
-                >
-                  <span>{lang === 'en' ? 'All Campaigns' : 'כל הקמפיינים'}</span>
-                  <span style={{ background: 'rgba(var(--brand-rgb),.15)', color: PURPLE, borderRadius: 10, padding: '1px 7px', fontSize: 10, fontWeight: 700 }}>
-                    {leads.length}
-                  </span>
-                </button>
-
-                {campaigns.length === 0 && (
-                  <div style={{ padding: '12px 14px', fontSize: 12, color: MUTED, textAlign: 'center' }}>
-                    {lang === 'en' ? 'No campaigns yet' : 'אין קמפיינים עדיין'}
-                  </div>
-                )}
-
-                {campaigns.map((camp, i) => {
-                  const color = CAMPAIGN_COLORS[i % CAMPAIGN_COLORS.length]
-                  const isActive = campaignFilter === camp
-                  const count = leads.filter(l => getCampaignLabel(l) === camp).length
-                  return (
-                    <button key={camp}
-                      onClick={() => { setCampaignFilter(isActive ? null : camp); setCampaignDropOpen(false) }}
-                      style={{
-                        width: '100%', display: 'flex', alignItems: 'center', gap: 10,
-                        padding: '10px 14px', border: 'none', borderBottom: `1px solid ${BORDER}`,
-                        background: isActive ? `${color}14` : 'transparent',
-                        color: isActive ? color : MUTED,
-                        fontSize: 12, fontWeight: isActive ? 700 : 400,
-                        cursor: 'pointer', fontFamily: 'inherit', textAlign: 'right', direction: dir,
-                        transition: 'background .1s',
-                      }}
-                      onMouseEnter={e => { if (!isActive) { e.currentTarget.style.background = `${color}0D`; e.currentTarget.style.color = color } }}
-                      onMouseLeave={e => { if (!isActive) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = MUTED } }}
-                    >
-                      <span style={{ width: 9, height: 9, borderRadius: '50%', background: color, flexShrink: 0 }}/>
-                      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{camp}</span>
-                      <span style={{ background: `${color}22`, color, borderRadius: 10, padding: '1px 7px', fontSize: 10, fontWeight: 700, flexShrink: 0 }}>
-                        {count}
-                      </span>
-                      {isActive && <span style={{ fontSize: 12, flexShrink: 0 }}>✓</span>}
-                    </button>
-                  )
-                })}
-              </div>
-            )}
+              {testCount > 0 && <button className="lc-btn" onClick={() => setHideTest(v => !v)} style={{ fontSize: 11, padding: '7px 10px' }}>{hideTest ? `${t.showTest} (${testCount})` : t.hideTestL}</button>}
+            </div>
+            <div style={{ fontSize: 11.5, color: FAINT, fontWeight: 600 }}>{filteredLeads.length} {t.leadsCount}</div>
           </div>
-        </div>
 
-        {/* Restore panel */}
-        {showRestore && deletedLeads.length > 0 && (
-          <div style={{ flexShrink: 0, borderBottom: `1px solid rgba(224,82,82,.15)`, background: 'rgba(224,82,82,.04)', maxHeight: 220, overflowY: 'auto' }}>
-            <div style={{ padding: '8px 14px 6px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-              <span style={{ fontSize: 10, color: 'rgba(224,82,82,.6)', fontWeight: 700, letterSpacing: '.08em', textTransform: 'uppercase' }}>
-                {lang === 'en' ? 'Archived' : 'ארכיון'} ({deletedLeads.length})
-              </span>
-              <button onClick={handleRestoreAll}
-                style={{ padding: '4px 10px', background: 'rgba(34,197,94,.1)', border: '1px solid rgba(34,197,94,.25)', borderRadius: 7, color: '#22C55E', fontSize: 10, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4, transition: 'all .12s', whiteSpace: 'nowrap' }}
-                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(34,197,94,.2)'; e.currentTarget.style.borderColor = 'rgba(34,197,94,.5)' }}
-                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(34,197,94,.1)'; e.currentTarget.style.borderColor = 'rgba(34,197,94,.25)' }}>
-                ↩ {lang === 'en' ? 'Restore all' : 'שחזר הכל'}
-              </button>
-            </div>
-            {deletedLeads.map(lead => (
-              <div key={lead.id}
-                style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 14px', borderTop: '1px solid rgba(var(--ov),.03)', direction: dir }}>
-                <div style={{
-                  width: 30, height: 30, borderRadius: '50%', flexShrink: 0,
-                  background: 'rgba(224,82,82,.12)', border: '1px solid rgba(224,82,82,.2)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 11, fontWeight: 800, color: 'rgba(224,82,82,.6)',
-                }}>
-                  {initials(lead.name)}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: 'rgba(var(--ink),.55)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {lead.name || '—'}
-                  </div>
-                  <div style={{ fontSize: 10, color: 'rgba(var(--ink),.28)', marginTop: 1 }}>
-                    {getCampaignLabel(lead) || lead.phone || ''}
-                  </div>
-                </div>
-                <button onClick={() => handleRestoreLead(lead)}
-                  style={{
-                    flexShrink: 0, padding: '4px 10px',
-                    background: 'rgba(34,197,94,.1)', border: '1px solid rgba(34,197,94,.25)',
-                    borderRadius: 8, color: '#22C55E', fontSize: 11, fontWeight: 700,
-                    cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4,
-                    transition: 'all .12s',
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.background = 'rgba(34,197,94,.2)'; e.currentTarget.style.borderColor = 'rgba(34,197,94,.5)' }}
-                  onMouseLeave={e => { e.currentTarget.style.background = 'rgba(34,197,94,.1)'; e.currentTarget.style.borderColor = 'rgba(34,197,94,.25)' }}
-                >
-                  ↩ {lang === 'en' ? 'Restore' : 'שחזר'}
-                </button>
+          {/* Archive */}
+          {showRestore && deletedLeads.length > 0 && (
+            <div className="lc-scroll" style={{ flexShrink: 0, borderBottom: `1px solid ${BORDER}`, background: 'rgba(229,72,77,.04)', maxHeight: 220 }}>
+              <div style={{ padding: '8px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span className="lc-label">{lang === 'en' ? 'Archived' : 'ארכיון'} ({deletedLeads.length})</span>
+                <button className="lc-btn" onClick={handleRestoreAll} style={{ padding: '4px 10px', fontSize: 11 }}>↩ {lang === 'en' ? 'Restore all' : 'שחזר הכל'}</button>
               </div>
-            ))}
-          </div>
-        )}
-
-        {/* Lead list — smooth scroll (desktop wheel + mobile touch inertia).
-            CSS `contain` + GPU layer hint keep the long list paint-isolated so
-            scrolling stays at 60fps even with 100+ rows.                    */}
-        <div className="meta-leads-scroll meta-leads-list" style={{
-          flex: 1,
-          minHeight: 0,
-          overflowY: 'auto',
-          overflowX: 'hidden',
-          WebkitOverflowScrolling: 'touch',
-          overscrollBehavior: 'contain',
-          scrollbarGutter: 'stable',
-          touchAction: 'pan-y',
-          willChange: 'scroll-position',
-          transform: 'translateZ(0)',
-          paddingBottom: 16,
-        }}>
-          {loadingLeads && (
-            <div style={{ padding: 24, textAlign: 'center', color: MUTED, fontSize: 13 }}>{t.loading}</div>
-          )}
-          {leadsError && (
-            <div style={{ padding: 16, color: '#E05252', fontSize: 12 }}>{t.error}: {leadsError}</div>
-          )}
-          {!loadingLeads && filteredLeads.length === 0 && (
-            <div style={{ padding: '40px 24px', textAlign: 'center' }}>
-              <div style={{ fontSize: 32, marginBottom: 12 }}>
-                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" style={{ margin: '0 auto', display: 'block' }}>
-                  <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" stroke={PURPLE} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </div>
-              <div style={{ color: CREAM, fontSize: 14, fontWeight: 700 }}>{t.noLeads}</div>
-              <div style={{ color: MUTED, fontSize: 12, marginTop: 6 }}>{t.noLeadsDesc}</div>
-            </div>
-          )}
-          {filteredLeads.map(lead => {
-            const sc = STATUS_CONFIG[lead.status] || STATUS_CONFIG.new
-            const isSelected = selectedLead?.id === lead.id
-            const color = avatarColors(lead.name)
-            const showNewDot = isNewRecent(lead)
-            return (
-              <div
-                key={lead.id}
-                className={`lead-row${isSelected ? ' is-selected' : ''}`}
-                onClick={() => setSelectedLead(lead)}
-                style={{
-                  padding: '11px 14px 11px 16px',
-                  borderBottom: `1px solid rgba(var(--ov),.04)`,
-                  cursor: 'pointer',
-                  background: isSelected ? `linear-gradient(135deg,rgba(var(--brand-rgb),.14),rgba(var(--brand-rgb),.06))` : 'transparent',
-                  borderRight: isSelected ? `3px solid ${PURPLE}` : '3px solid transparent',
-                  borderLeft: `3px solid ${sc.color}${isSelected ? 'cc' : '44'}`,
-                  transition: 'all .12s',
-                  position: 'relative',
-                  contain: 'layout style',
-                }}
-              >
-                <button
-                  className="lead-row-archive"
-                  onClick={(e) => handleDeleteLead(lead, e)}
-                  aria-label={lang === 'en' ? 'Archive lead' : 'העבר לארכיון'}
-                  style={{ position:'absolute', top:'50%', left:dir==='rtl'?8:undefined, right:dir==='ltr'?8:undefined, width:26, height:26, background:'rgba(224,82,82,.1)', border:'1px solid rgba(224,82,82,.25)', borderRadius:'50%', color:'rgba(224,82,82,.8)', cursor:'pointer', padding:0, display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'inherit', zIndex:2, backdropFilter:'blur(6px)' }}>
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
-                  </svg>
-                </button>
-
-                <div style={{ display:'flex', gap:10, alignItems:'center' }}>
-                  {/* Avatar */}
-                  <div style={{ position:'relative', flexShrink:0 }}>
-                    <div style={{ width:38, height:38, borderRadius:10, background:`linear-gradient(135deg,${color}30,${color}15)`, border:`1.5px solid ${color}50`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:13, fontWeight:800, color }}>
-                      {initials(lead.name)}
-                    </div>
-                    {showNewDot && (
-                      <div style={{ position:'absolute', bottom:-1, right:-1, width:10, height:10, borderRadius:'50%', background:'#22C55E', border:'2px solid var(--au-card-solid)', boxShadow:'0 0 6px #22C55E' }} />
-                    )}
-                  </div>
-
-                  {/* Info */}
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:3 }}>
-                      <span style={{ fontSize:13, fontWeight:700, color:isSelected?CREAM:`rgba(var(--ink),.8)`, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', flex:1 }}>
-                        {lead.name || '—'}
-                      </span>
-                      <span style={{ fontSize:9.5, color:`rgba(var(--ink),.25)`, flexShrink:0, marginRight:4, fontFeatureSettings:'"tnum"' }}>
-                        {timeAgo(lead.created_at, lang)}
-                      </span>
-                    </div>
-
-                    <div style={{ fontSize:11, color:`${PURPLE}99`, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', marginBottom:5, fontWeight:500 }}>
-                      {lead.campaign_name || lead.form_name || '—'}
-                    </div>
-
-                    <div style={{ display:'flex', alignItems:'center', gap:5, flexWrap:'wrap' }}>
-                      <span style={{ fontSize:10, fontWeight:700, color:sc.color, background:sc.bg, padding:'2px 8px', borderRadius:20, border:`1px solid ${sc.color}30` }}>
-                        {sc.label[lang] || sc.label.he}
-                      </span>
-                      {lead.phone && (
-                        <span style={{ fontSize:10, color:`rgba(var(--ink),.27)`, fontFeatureSettings:'"tnum"' }}>{fmtPhone(lead.phone)}</span>
-                      )}
-                      {lead.wa_sent && (
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="#25D366" title={t.waSent}>
-                          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
-                        </svg>
-                      )}
-                      {lead.message_count > 0 && (
-                        <span style={{ fontSize:10, color:PURPLE, background:`${PURPLE}18`, padding:'1px 6px', borderRadius:10 }}>
-                          {lead.message_count}💬
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* ─────────────────── RIGHT PANEL: Conversation ─────────────────── */}
-      <div style={{
-        flex: 1,
-        display: 'flex',
-        flexDirection: 'column',
-        overflow: 'hidden',
-        background: BG,
-      }}>
-        {!selectedLead ? (
-          // Premium empty state
-          <div style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:16, padding:40 }}>
-            <div style={{ position:'relative' }}>
-              <div style={{ width:80, height:80, borderRadius:20, background:`linear-gradient(135deg,${PURPLE}25,${PURPLE}10)`, border:`1px solid ${PURPLE}30`, display:'flex', alignItems:'center', justifyContent:'center', boxShadow:`0 0 40px ${PURPLE}20` }}>
-                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke={PURPLE} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-                </svg>
-              </div>
-              <div style={{ position:'absolute', bottom:-4, right:-4, width:24, height:24, borderRadius:'50%', background:'linear-gradient(135deg,#E05252,#C8392E)', display:'flex', alignItems:'center', justifyContent:'center', border:'2px solid var(--au-bg)' }}>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round">
-                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.63 3.36 2 2 0 0 1 3.6 1.18h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.83a16 16 0 0 0 8.26 8.26l.98-1.34a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>
-                </svg>
-              </div>
-            </div>
-            <div style={{ textAlign:'center' }}>
-              <div style={{ color:CREAM, fontSize:18, fontWeight:800, marginBottom:8 }}>{t.selectLead}</div>
-              <div style={{ color:`rgba(var(--ink),.27)`, fontSize:13, lineHeight:1.6, maxWidth:260 }}>{t.selectLeadDesc}</div>
-            </div>
-            <div style={{ display:'flex', gap:8, marginTop:4 }}>
-              {[STATUS_CONFIG.new, STATUS_CONFIG.contacted, STATUS_CONFIG.scheduled].map((sc,i) => (
-                <div key={i} style={{ padding:'4px 12px', borderRadius:20, background:sc.bg, border:`1px solid ${sc.color}30`, fontSize:10, fontWeight:700, color:sc.color }}>
-                  {sc.label[lang] || sc.label.he}
+              {deletedLeads.map(lead => (
+                <div key={lead.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 14px', borderTop: '1px solid rgba(var(--ov),.04)' }}>
+                  <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: MUTED, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lead.name || '—'} <span style={{ color: FAINT }}>· {getCampaignLabel(lead) || fmtPhone(lead.phone)}</span></span>
+                  <button className="lc-btn" onClick={() => handleRestoreLead(lead)} style={{ padding: '4px 10px', fontSize: 11 }}>↩ {lang === 'en' ? 'Restore' : 'שחזר'}</button>
                 </div>
               ))}
             </div>
+          )}
+
+          {/* Rows */}
+          <div className="lc-scroll" style={{ flex: 1, minHeight: 0, paddingBottom: 12 }}>
+            {loadingLeads && <div style={{ padding: 24, textAlign: 'center', color: MUTED, fontSize: 13 }}>{t.loading}</div>}
+            {leadsError && <div style={{ padding: 16, color: '#E5484D', fontSize: 12 }}>{t.error}: {leadsError}</div>}
+            {!loadingLeads && filteredLeads.length === 0 && (
+              <div style={{ padding: '40px 24px', textAlign: 'center' }}>
+                <div style={{ color: CREAM, fontSize: 14, fontWeight: 700 }}>{t.noLeads}</div>
+                <div style={{ color: MUTED, fontSize: 12, marginTop: 6 }}>{t.noLeadsDesc}</div>
+              </div>
+            )}
+            {listItems.map(item => {
+              if (item.type === 'g') return <div key={item.key} style={{ position: 'sticky', top: 0, zIndex: 1, padding: '6px 14px', fontSize: 11, fontWeight: 800, color: FAINT, background: 'var(--au-card-solid)', borderBottom: `1px solid rgba(var(--ov),.05)` }}>{item.label}</div>
+              const lead = item.lead
+              const sc = STATUS_CONFIG[lead.status] || STATUS_CONFIG.new
+              const color = avatarColors(lead.name)
+              const test = isTestLead(lead)
+              return (
+                <div key={item.key} className={`lc-row${selectedLead?.id === lead.id ? ' sel' : ''}`} onClick={() => { setSelectedLead(lead); setSendError('') }}>
+                  <div style={{ position: 'relative', flexShrink: 0 }}>
+                    <div style={{ width: 40, height: 40, borderRadius: 12, background: `${color}22`, border: `1.5px solid ${color}55`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, color }}>{test ? '🧪' : initials(lead.name)}</div>
+                    {isNewRecent(lead) && <span style={{ position: 'absolute', bottom: -2, insetInlineEnd: -2, width: 11, height: 11, borderRadius: '50%', background: '#22C55E', border: '2px solid var(--au-card-solid)' }}/>}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                      <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, fontWeight: 700, color: CREAM, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{test ? t.testLead : (lead.name || '—')}</span>
+                      <span style={{ fontSize: 11, color: FAINT, flexShrink: 0, fontFeatureSettings: '"tnum"' }}>{fmtWhen(lead.created_at, lang)}</span>
+                    </div>
+                    <div style={{ fontSize: 12, color: MUTED, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {getCampaignLabel(lead) || '—'}{lead.phone ? <span style={{ color: FAINT, fontFeatureSettings: '"tnum"' }}> · {fmtPhone(lead.phone)}</span> : null}
+                    </div>
+                    <div style={{ display: 'flex', gap: 5, marginTop: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                      <span className="lc-chip" style={{ color: sc.color, background: sc.bg }}>{sc.label[lang] || sc.label.he}</span>
+                      {lead.phone && (lead.wa_sent
+                        ? <span className="lc-chip" style={{ color: '#1FA855', background: 'rgba(37,211,102,.12)' }}>✓ {lang === 'en' ? 'Welcomed' : 'קיבל הודעה'}</span>
+                        : <span className="lc-chip" style={{ color: '#D97706', background: 'rgba(245,158,11,.12)' }}>{lang === 'en' ? 'No message yet' : 'טרם נשלחה הודעה'}</span>)}
+                      {lead.message_count > 0 && <span className="lc-chip" style={{ color: BRAND, background: 'rgba(var(--brand-rgb),.1)' }}>💬 {lead.message_count}</span>}
+                    </div>
+                  </div>
+                  <button className="lc-arch lc-btn danger" onClick={e => handleDeleteLead(lead, e)} aria-label={lang === 'en' ? 'Archive lead' : 'העבר לארכיון'} title={t.archive} style={{ padding: '5px 7px', alignSelf: 'center' }}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
+                  </button>
+                </div>
+              )
+            })}
           </div>
-        ) : (
-          <>
-            {/* ── Lead Hero Header ─────────────────────────────────── */}
-            <div style={{ flexShrink:0, borderBottom:`1px solid ${BORDER}`, background:`linear-gradient(180deg,rgba(var(--brand-rgb),.08) 0%,${CARD} 100%)` }}>
-              {/* Profile row */}
-              <div style={{ padding:'16px 20px 12px', display:'flex', gap:14, alignItems:'center', flexWrap:'wrap' }}>
-                {/* Avatar */}
-                <div style={{ position:'relative', flexShrink:0 }}>
-                  <div style={{ width:52, height:52, borderRadius:14, background:`linear-gradient(135deg,${avatarColors(selectedLead.name)}35,${avatarColors(selectedLead.name)}18)`, border:`2px solid ${avatarColors(selectedLead.name)}50`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:17, fontWeight:900, color:avatarColors(selectedLead.name), boxShadow:`0 4px 16px ${avatarColors(selectedLead.name)}30` }}>
-                    {initials(selectedLead.name)}
-                  </div>
-                  {selectedLead.wa_sent && (
-                    <div style={{ position:'absolute', bottom:-3, right:-3, width:18, height:18, borderRadius:'50%', background:'#25D366', border:`2px solid ${CARD}`, display:'flex', alignItems:'center', justifyContent:'center' }}>
-                      <svg width="9" height="9" viewBox="0 0 24 24" fill="white"><path d="M20 6L9 17l-5-5"/></svg>
-                    </div>
-                  )}
-                </div>
+        </div>}
 
-                {/* Name + phone + campaign */}
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:4 }}>
-                    <span style={{ fontSize:17, fontWeight:800, color:CREAM }}>{selectedLead.name || '—'}</span>
-                    <span style={{ fontSize:10, fontWeight:700, color:(STATUS_CONFIG[selectedLead.status||'new']?.color||PURPLE), background:(STATUS_CONFIG[selectedLead.status||'new']?.bg||STATUS_CONFIG.new.bg), padding:'2px 9px', borderRadius:20, border:`1px solid ${STATUS_CONFIG[selectedLead.status||'new']?.color||PURPLE}30` }}>
-                      {STATUS_CONFIG[selectedLead.status||'new']?.label[lang] || STATUS_CONFIG.new.label.he}
-                    </span>
-                  </div>
-                  <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
-                    {selectedLead.phone && (
-                      <a href={`https://wa.me/${selectedLead.phone}`} target="_blank" rel="noopener noreferrer" style={{ fontSize:12, color:'#25D366', textDecoration:'none', display:'flex', alignItems:'center', gap:4, background:'rgba(37,211,102,.1)', border:'1px solid rgba(37,211,102,.25)', padding:'3px 9px', borderRadius:20 }}>
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="#25D366"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
-                        {fmtPhone(selectedLead.phone)}
-                      </a>
-                    )}
-                    {selectedLead.email && (
-                      <span style={{ fontSize:11, color:MUTED, background:'rgba(var(--ov),.05)', padding:'3px 9px', borderRadius:20, border:`1px solid ${BORDER}` }}>
-                        {selectedLead.email}
-                      </span>
-                    )}
-                    {(selectedLead.campaign_name || selectedLead.form_name) && (
-                      <span style={{ fontSize:11, color:PURPLE, background:`${PURPLE}12`, padding:'3px 9px', borderRadius:20, border:`1px solid ${PURPLE}30` }}>
-                        {selectedLead.campaign_name || selectedLead.form_name}
-                      </span>
-                    )}
-                  </div>
-                  {/* Custom form questions — everything the lead answered beyond name / phone / email */}
-                  {metaFormAnswers(selectedLead.raw_fields, lang).length > 0 && (
-                    <div style={{ marginTop:8, display:'flex', flexDirection:'column', gap:3, padding:'8px 11px', background:'rgba(var(--ov),.035)', border:`1px solid ${BORDER}`, borderRadius:10 }}>
-                      <div style={{ fontSize:10, fontWeight:700, color:MUTED, letterSpacing:'.04em', marginBottom:2 }}>{t.formAnswers}</div>
-                      {metaFormAnswers(selectedLead.raw_fields, lang).map((x, i) => (
-                        <div key={i} style={{ fontSize:12, color:CREAM, lineHeight:1.5 }}><span style={{ color:MUTED }}>{x.q}:</span> {x.a}</div>
-                      ))}
+        {/* ── Lead / overview ── */}
+        {showDetail && <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--au-bg)' }}>
+          {!selectedLead ? (
+            // Overview: what needs attention, where leads come from, whether everything is connected
+            <div className="lc-scroll" style={{ flex: 1, padding: 18, display: 'grid', gap: 14, gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', alignContent: 'start' }}>
+              <div className="lc-card" style={{ padding: 16 }}>
+                <div style={{ fontSize: 14, fontWeight: 800, color: CREAM }}>{t.needAttention}</div>
+                <div style={{ fontSize: 12, color: MUTED, marginTop: 2, marginBottom: 10 }}>{t.needAttentionDesc}</div>
+                {attention.length === 0 && <div style={{ fontSize: 13, color: '#22C55E', fontWeight: 700, padding: '8px 0' }}>{t.allHandled}</div>}
+                {attention.map(l => (
+                  <div key={l.id} className="lc-row" onClick={() => setSelectedLead(l)} style={{ padding: '9px 6px', borderRadius: 10 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: CREAM }}>{l.name || '—'}</div>
+                      <div style={{ fontSize: 11.5, color: MUTED }}>{getCampaignLabel(l) || '—'} · {fmtWhen(l.created_at, lang)}</div>
                     </div>
-                  )}
-                </div>
-
-                {/* Action buttons */}
-                <div style={{ display:'flex', gap:6, alignItems:'center', flexWrap:'wrap' }}>
-                  <select value={selectedLead.status||'new'} onChange={e=>handleStatusChange(e.target.value)}
-                    style={{ padding:'6px 11px', background:STATUS_CONFIG[selectedLead.status||'new']?.bg||STATUS_CONFIG.new.bg, border:`1px solid ${STATUS_CONFIG[selectedLead.status||'new']?.color||PURPLE}44`, borderRadius:8, color:STATUS_CONFIG[selectedLead.status||'new']?.color||PURPLE, fontSize:11, fontWeight:700, fontFamily:'inherit', cursor:'pointer', outline:'none', direction:dir }}>
-                    {Object.entries(STATUS_CONFIG).map(([key,sc]) => (
-                      <option key={key} value={key} style={{ background:'var(--au-card-solid)', color:sc.color }}>{sc.label[lang]||sc.label.he}</option>
-                    ))}
-                  </select>
-                  <button onClick={handleSaveToCRM}
-                    style={{ padding:'6px 13px', background:selectedLead.status==='saved_to_crm'?'rgba(34,211,238,.22)':savedToCRM?'rgba(34,211,238,.2)':'rgba(34,211,238,.1)', border:`1px solid rgba(34,211,238,.${selectedLead.status==='saved_to_crm'?'55':savedToCRM?'5':'3'})`, borderRadius:8, color:'#22D3EE', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit', transition:'all .15s', whiteSpace:'nowrap', display:'flex', alignItems:'center', gap:5 }}>
-                    {selectedLead.status==='saved_to_crm' ? (
-                      <><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M20 6L9 17l-5-5"/></svg>{lang==='en'?'In CRM · Undo':'בCRM · בטל'}</>
-                    ) : savedToCRM ? t.savedToCRM : t.saveToCRM}
-                  </button>
-                </div>
+                    {!l.wa_sent && l.phone && <span className="lc-chip" style={{ color: '#D97706', background: 'rgba(245,158,11,.12)', alignSelf: 'center' }}>{lang === 'en' ? 'No message' : 'ללא הודעה'}</span>}
+                  </div>
+                ))}
               </div>
-
-              {/* Notes + call time */}
-              <div style={{ padding:'0 20px 14px', display:'flex', gap:8, flexWrap:'wrap' }}>
-                <div style={{ flex:2, minWidth:180 }}>
-                  <label style={{ fontSize:10, color:MUTED, fontWeight:700, display:'block', marginBottom:4, letterSpacing:'.05em' }}>{t.notes}</label>
-                  <textarea value={noteInput} onChange={e=>setNoteInput(e.target.value)} placeholder={t.notesPlaceholder} rows={2}
-                    style={{ width:'100%', boxSizing:'border-box', padding:'7px 10px', background:'rgba(var(--ov),.04)', border:`1px solid ${BORDER}`, borderRadius:8, resize:'none', color:CREAM, fontSize:12, fontFamily:'inherit', outline:'none', direction:dir }} />
-                </div>
-                <div style={{ flex:1, minWidth:130 }}>
-                  <label style={{ fontSize:10, color:MUTED, fontWeight:700, display:'block', marginBottom:4, letterSpacing:'.05em' }}>{t.callTime}</label>
-                  <input type="text" value={callTimeInput} onChange={e=>setCallTimeInput(e.target.value)} placeholder={t.callTimePlaceholder}
-                    style={{ width:'100%', boxSizing:'border-box', padding:'7px 10px', background:'rgba(var(--ov),.04)', border:`1px solid ${BORDER}`, borderRadius:8, color:CREAM, fontSize:12, fontFamily:'inherit', outline:'none', direction:dir }} />
-                </div>
-                <div style={{ display:'flex', alignItems:'flex-end' }}>
-                  <button onClick={handleSaveNotes}
-                    style={{ padding:'7px 14px', background:noteSaved?'rgba(130,246,127,.14)':`${PURPLE}18`, border:`1px solid ${noteSaved?'rgba(130,246,127,.4)':PURPLE+'44'}`, borderRadius:8, color:noteSaved?GREEN:PURPLE, fontSize:12, fontWeight:700, fontFamily:'inherit', cursor:'pointer', transition:'all .15s', display:'flex', alignItems:'center', gap:5 }}>
-                    {noteSaved ? (
-                      <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M20 6L9 17l-5-5"/></svg>{t.noteSaved}</>
-                    ) : t.saveNotes}
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* ── Conversation thread ────────────────────────────── */}
-            <div style={{
-              flex: 1, overflowY: 'auto',
-              padding: '16px 20px',
-              display: 'flex', flexDirection: 'column', gap: 4,
-            }}>
-              {loadingMessages && (
-                <div style={{ textAlign: 'center', color: MUTED, fontSize: 13, padding: 24 }}>{t.loading}</div>
-              )}
-              {messagesError && (
-                <div style={{ color: '#E05252', fontSize: 12, padding: 8 }}>{t.error}: {messagesError}</div>
-              )}
-              {!loadingMessages && messages.length === 0 && (
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                  <div style={{ color: CREAM, fontSize: 14, fontWeight: 700, opacity: .4 }}>{t.noMessages}</div>
-                  <div style={{ color: MUTED, fontSize: 12, opacity: .7 }}>{t.noMessagesDesc}</div>
-                </div>
-              )}
-
-              {groupedMessages.map(item => {
-                if (item.type === 'date') {
-                  return (
-                    <div key={item.key} style={{ textAlign: 'center', margin: '8px 0' }}>
-                      <span style={{ fontSize: 11, color: MUTED, background: 'rgba(var(--ov),.05)', padding: '3px 12px', borderRadius: 20 }}>
-                        {item.label}
-                      </span>
-                    </div>
-                  )
-                }
-                const msg = item.msg
-                const isOut = msg.direction === 'out'
-                return (
-                  <div key={item.key} style={{
-                    display: 'flex',
-                    justifyContent: isOut ? (dir === 'rtl' ? 'flex-start' : 'flex-end') : (dir === 'rtl' ? 'flex-end' : 'flex-start'),
-                    marginBottom: 4,
-                  }}>
-                    <div style={{
-                      maxWidth: '72%',
-                      padding: '9px 13px',
-                      borderRadius: isOut
-                        ? (dir === 'rtl' ? '14px 4px 14px 14px' : '4px 14px 14px 14px')
-                        : (dir === 'rtl' ? '4px 14px 14px 14px' : '14px 4px 14px 14px'),
-                      background: isOut ? 'rgba(37,211,102,.18)' : 'rgba(var(--ov),.07)',
-                      border: `1px solid ${isOut ? 'rgba(37,211,102,.3)' : BORDER}`,
-                    }}>
-                      <div style={{ fontSize: 13, color: CREAM, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-                        {msg.message}
-                      </div>
-                      <div style={{ fontSize: 10, color: isOut ? 'rgba(37,211,102,.5)' : MUTED, marginTop: 4, textAlign: 'end' }}>
-                        {fmtTime(msg.created_at)}
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
-
-              <div ref={messagesEndRef}/>
-            </div>
-
-            {/* ── Message input ──────────────────────────────────── */}
-            <div style={{
-              padding: '12px 16px',
-              borderTop: `1px solid ${BORDER}`,
-              flexShrink: 0,
-              background: CARD,
-            }}>
-              {/* Quick replies + Chat button */}
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-                {(QUICK_REPLIES[lang] || QUICK_REPLIES.he).map((qr, i) => (
-                  <button
-                    key={i}
-                    onClick={() => handleQuickReply(qr)}
-                    disabled={!selectedLead?.phone}
-                    title={selectedLead ? applyTemplate(qr.message, selectedLead) : ''}
-                    style={{
-                      padding: '6px 14px',
-                      background: 'rgba(var(--ov),.04)',
-                      border: `1px solid ${BORDER}`,
-                      borderRadius: 20,
-                      color: MUTED,
-                      fontSize: 11, fontWeight: 600,
-                      cursor: !selectedLead?.phone ? 'not-allowed' : 'pointer',
-                      fontFamily: 'inherit',
-                      transition: 'all .12s',
-                      whiteSpace: 'nowrap',
-                      opacity: !selectedLead?.phone ? 0.5 : 1,
-                    }}
-                    onMouseEnter={e => { if (selectedLead?.phone) { e.currentTarget.style.background = 'rgba(37,211,102,.1)'; e.currentTarget.style.color = '#25D366'; e.currentTarget.style.borderColor = 'rgba(37,211,102,.3)' }}}
-                    onMouseLeave={e => { if (selectedLead?.phone) { e.currentTarget.style.background = 'rgba(var(--ov),.04)'; e.currentTarget.style.color = MUTED; e.currentTarget.style.borderColor = BORDER }}}
-                  >
-                    {qr.label}
+              <div className="lc-card" style={{ padding: 16 }}>
+                <div style={{ fontSize: 14, fontWeight: 800, color: CREAM, marginBottom: 12 }}>{t.byCampaign}</div>
+                {recentByCampaign.length === 0 && <div style={{ fontSize: 13, color: MUTED }}>{t.noRecent}</div>}
+                {recentByCampaign.slice(0, 8).map(([name, n], i) => (
+                  <button key={name} onClick={() => setCampaignFilter(name === '—' ? null : name)} style={{ display: 'block', width: '100%', background: 'none', border: 'none', padding: '5px 0', cursor: 'pointer', textAlign: 'start' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, color: CREAM, marginBottom: 4 }}><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span><b style={{ fontFeatureSettings: '"tnum"' }}>{n}</b></div>
+                    <div style={{ height: 6, borderRadius: 3, background: 'rgba(var(--ov),.06)', overflow: 'hidden' }}><div style={{ width: `${n / maxCamp * 100}%`, height: '100%', background: CAMPAIGN_COLORS[i % CAMPAIGN_COLORS.length], borderRadius: 3 }}/></div>
                   </button>
                 ))}
-                {onOpenChat && (
-                  <button
-                    onClick={() => onOpenChat(selectedLead)}
-                    title={lang === 'en' ? 'Open in Chat' : 'פתח בצ\'אט'}
-                    style={{
-                      padding: '6px 14px',
-                      background: 'rgba(130,246,127,.08)',
-                      border: '1px solid rgba(130,246,127,.25)',
-                      borderRadius: 20,
-                      color: '#82F67F',
-                      fontSize: 11, fontWeight: 700, fontFamily: 'inherit',
-                      cursor: 'pointer',
-                      display: 'flex', alignItems: 'center', gap: 5,
-                      transition: 'all .12s',
-                      whiteSpace: 'nowrap',
-                    }}
-                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(130,246,127,.18)'; e.currentTarget.style.borderColor = 'rgba(130,246,127,.5)' }}
-                    onMouseLeave={e => { e.currentTarget.style.background = 'rgba(130,246,127,.08)'; e.currentTarget.style.borderColor = 'rgba(130,246,127,.25)' }}
-                  >
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-                    </svg>
-                    {lang === 'en' ? 'Chat' : 'צ\'אט'}
-                  </button>
-                )}
+              </div>
+              <div className="lc-card" style={{ padding: 16 }}>
+                <div style={{ fontSize: 14, fontWeight: 800, color: CREAM, marginBottom: 10 }}>{t.health}</div>
+                {[
+                  [t.hToken, !conn ? 'idle' : tokenOk ? 'ok' : 'bad', tokenOk ? (conn.meta.token.name || '') : (conn?.meta?.token?.reason === 'invalid_token' ? t.connToken : '')],
+                  [t.hPage, !conn ? 'idle' : pageOk ? 'ok' : 'bad', ''],
+                  [t.hWebhook, !conn ? 'idle' : conn.webhook?.last ? 'ok' : 'warn', conn?.webhook?.last ? fmtFull(conn.webhook.last, lang) : t.never],
+                  [t.hWa, !conn ? 'idle' : waOk ? 'ok' : 'bad', waPhone],
+                  [t.hWelcome, welcomeOn === null ? 'idle' : welcomeOn ? 'ok' : 'warn', t.welcomeTpl],
+                  [t.lastLead, lastLeadAt ? 'ok' : 'idle', lastLeadAt ? fmtFull(lastLeadAt, lang) : '—'],
+                ].map(([label, s, sub], i) => (
+                  <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '7px 0', borderTop: i ? `1px solid rgba(var(--ov),.05)` : 'none' }}>
+                    <span style={{ marginTop: 5 }}><Dot s={s}/></span>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 12.5, fontWeight: 700, color: CREAM }}>{label}</div>
+                      {sub && <div style={{ fontSize: 11.5, color: MUTED, marginTop: 1 }}>{sub}</div>}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
-          </>
-        )}
-      </div>
-      </div>}
+          ) : (
+            <div className="lc-scroll" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+              {/* Lead header */}
+              <div style={{ padding: '16px 18px 14px', borderBottom: `1px solid ${BORDER}`, background: 'var(--au-card-solid)' }}>
+                {narrow && <button className="lc-btn" onClick={() => setSelectedLead(null)} style={{ marginBottom: 12 }}>{dir === 'rtl' ? '→' : '←'} {t.back}</button>}
+                <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
+                  <div style={{ width: 54, height: 54, borderRadius: 15, background: `${avatarColors(selectedLead.name)}22`, border: `2px solid ${avatarColors(selectedLead.name)}55`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 900, color: avatarColors(selectedLead.name), flexShrink: 0 }}>{isTestLead(selectedLead) ? '🧪' : initials(selectedLead.name)}</div>
+                  <div style={{ flex: '1 1 220px', minWidth: 0 }}>
+                    <div style={{ fontSize: 19, fontWeight: 800, color: CREAM, overflow: 'hidden', textOverflow: 'ellipsis' }}>{isTestLead(selectedLead) ? t.testLead : (selectedLead.name || '—')}</div>
+                    <div style={{ fontSize: 12.5, color: MUTED, marginTop: 3 }}>{getCampaignLabel(selectedLead) || '—'} · {t.received} {fmtFull(selectedLead.created_at, lang)}</div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {selectedLead.phone && <a className="lc-btn" href={`tel:+${String(selectedLead.phone).replace(/\D/g, '')}`}>📞 {t.call}</a>}
+                    {selectedLead.phone && onOpenChat && <button className="lc-btn wa" onClick={() => onOpenChat(selectedLead)}>💬 {t.whatsapp}</button>}
+                    <button className="lc-btn" onClick={handleSaveToCRM} style={{ color: selectedLead.status === 'saved_to_crm' ? '#0EA5B7' : CREAM }}>{selectedLead.status === 'saved_to_crm' ? (lang === 'en' ? '✓ In CRM · Undo' : '✓ ב-CRM · בטל') : savedToCRM ? t.savedToCRM : t.saveToCRM}</button>
+                  </div>
+                </div>
+                {/* Status */}
+                <div style={{ marginTop: 14, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <span className="lc-label">{t.status}</span>
+                  <div className="lc-seg">
+                    {['new', 'contacted', 'scheduled', 'closed'].map(k => {
+                      const s = STATUS_CONFIG[k]
+                      const on = (selectedLead.status || 'new') === k
+                      return <button key={k} onClick={() => handleStatusChange(k)} style={on ? { background: s.bg, color: s.color } : undefined}>{s.label[lang] || s.label.he}</button>
+                    })}
+                  </div>
+                </div>
+              </div>
 
+              <div style={{ padding: 18, display: 'grid', gap: 14, gridTemplateColumns: narrow ? '1fr' : 'minmax(0,1fr) minmax(0,1.25fr)', alignItems: 'start' }}>
+                {/* Left column: details, welcome, notes */}
+                <div style={{ display: 'grid', gap: 14 }}>
+                  {/* Welcome */}
+                  <div className="lc-card" style={{ padding: 14, borderColor: selectedLead.wa_sent ? 'rgba(37,211,102,.35)' : selectedLead.phone ? 'rgba(245,158,11,.4)' : BORDER }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{ fontSize: 20 }}>{selectedLead.wa_sent ? '✅' : selectedLead.phone ? '⏳' : '🚫'}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13.5, fontWeight: 800, color: CREAM }}>{selectedLead.wa_sent ? t.welcomeSent : selectedLead.phone ? t.welcomeNot : t.welcomeNoPhone}</div>
+                        {selectedLead.wa_sent && firstOut && <div style={{ fontSize: 11.5, color: MUTED, marginTop: 2 }}>{fmtFull(firstOut.created_at, lang)}</div>}
+                        {!selectedLead.wa_sent && selectedLead.phone && <div style={{ fontSize: 11.5, color: MUTED, marginTop: 2 }}>{t.welcomeTpl}</div>}
+                      </div>
+                    </div>
+                    {!selectedLead.wa_sent && selectedLead.phone && (
+                      <button className="lc-btn primary" onClick={handleWelcomeNow} disabled={welcomeBusy} style={{ marginTop: 12, width: '100%', justifyContent: 'center' }}>{welcomeBusy ? t.sending : t.welcomeNow}</button>
+                    )}
+                  </div>
+
+                  {/* Details */}
+                  <div className="lc-card" style={{ padding: 14 }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 800, color: CREAM, marginBottom: 8 }}>{t.details}</div>
+                    {[
+                      [t.phone, selectedLead.phone ? fmtPhone(selectedLead.phone) : '—', selectedLead.phone],
+                      [t.email, selectedLead.email || '—', selectedLead.email],
+                      [t.campaign, selectedLead.campaign_name || '—'],
+                      [t.form, selectedLead.form_name || '—'],
+                      [t.received, fmtFull(selectedLead.created_at, lang)],
+                    ].map(([k, v, copyVal]) => (
+                      <div key={k} style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '6px 0', borderTop: `1px solid rgba(var(--ov),.05)` }}>
+                        <span style={{ width: 70, flexShrink: 0, fontSize: 12, color: FAINT, fontWeight: 600 }}>{k}</span>
+                        <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: CREAM, overflow: 'hidden', textOverflow: 'ellipsis', direction: copyVal && k === t.phone ? 'ltr' : undefined, textAlign: 'start' }}>{v}</span>
+                        {copyVal && <button className="lc-btn" style={{ padding: '3px 8px', fontSize: 11 }} onClick={() => { navigator.clipboard?.writeText(String(k === t.phone ? fmtPhone(copyVal) : copyVal)).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500) }).catch(() => {}) }}>{copied ? t.copied : t.copy}</button>}
+                      </div>
+                    ))}
+                    {answers.length > 0 && (
+                      <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${BORDER}` }}>
+                        <div className="lc-label" style={{ marginBottom: 6 }}>{t.formAnswers}</div>
+                        {answers.map((x, i) => <div key={i} style={{ fontSize: 13, color: CREAM, lineHeight: 1.55, marginBottom: 4 }}><span style={{ color: MUTED }}>{x.q}:</span> <b style={{ fontWeight: 700 }}>{x.a}</b></div>)}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Notes */}
+                  <div className="lc-card" style={{ padding: 14, display: 'grid', gap: 8 }}>
+                    <label className="lc-label">{t.notes}</label>
+                    <textarea value={noteInput} onChange={e => setNoteInput(e.target.value)} placeholder={t.notesPlaceholder} rows={3} className="lc-input" style={{ resize: 'vertical', direction: dir }}/>
+                    <label className="lc-label">{t.callTime}</label>
+                    <input type="text" value={callTimeInput} onChange={e => setCallTimeInput(e.target.value)} placeholder={t.callTimePlaceholder} className="lc-input" style={{ direction: dir }}/>
+                    <button className="lc-btn" onClick={handleSaveNotes} style={{ justifySelf: 'start', color: noteSaved === true ? '#22C55E' : CREAM }}>{noteSaved === true ? `✓ ${t.noteSaved}` : t.saveNotes}</button>
+                  </div>
+                </div>
+
+                {/* Right column: conversation */}
+                <div className="lc-card" style={{ display: 'flex', flexDirection: 'column', minHeight: 420, overflow: 'hidden' }}>
+                  <div style={{ padding: '12px 14px', borderBottom: `1px solid ${BORDER}`, fontSize: 13.5, fontWeight: 800, color: CREAM }}>{t.conversation}</div>
+                  <div className="lc-scroll" style={{ flex: 1, minHeight: 240, maxHeight: narrow ? 'none' : 460, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {loadingMessages && <div style={{ textAlign: 'center', color: MUTED, fontSize: 13, padding: 24 }}>{t.loading}</div>}
+                    {messagesError && <div style={{ color: '#E5484D', fontSize: 12, padding: 8 }}>{t.error}: {messagesError}</div>}
+                    {!loadingMessages && messages.length === 0 && <div style={{ margin: 'auto', textAlign: 'center' }}><div style={{ color: MUTED, fontSize: 13, fontWeight: 700 }}>{t.noMessages}</div><div style={{ color: FAINT, fontSize: 12, marginTop: 4 }}>{t.noMessagesDesc}</div></div>}
+                    {groupedMessages.map(item => {
+                      if (item.type === 'date') return <div key={item.key} style={{ textAlign: 'center', margin: '8px 0' }}><span className="lc-chip" style={{ color: MUTED, background: 'rgba(var(--ov),.06)' }}>{item.label}</span></div>
+                      const msg = item.msg
+                      const isOut = msg.direction === 'out'
+                      return (
+                        <div key={item.key} style={{ display: 'flex', justifyContent: isOut ? 'flex-start' : 'flex-end' }}>
+                          <div style={{ maxWidth: '80%', padding: '9px 12px', borderRadius: 14, background: isOut ? 'rgba(37,211,102,.14)' : 'rgba(var(--ov),.07)', border: `1px solid ${isOut ? 'rgba(37,211,102,.3)' : BORDER}` }}>
+                            <div style={{ fontSize: 13, color: CREAM, lineHeight: 1.55, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{msg.message}</div>
+                            <div style={{ fontSize: 10.5, color: FAINT, marginTop: 4, textAlign: 'end' }}>{fmtTime(msg.created_at)}</div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                    <div ref={messagesEndRef}/>
+                  </div>
+                  {/* Composer */}
+                  <div style={{ padding: 12, borderTop: `1px solid ${BORDER}`, display: 'grid', gap: 8 }}>
+                    <div className="lc-tabs">
+                      {(QUICK_REPLIES[lang] || QUICK_REPLIES.he).map((qr, i) => (
+                        <button key={i} className="lc-tab" disabled={!selectedLead.phone} onClick={() => handleQuickReply(qr)} title={applyTemplate(qr.message, selectedLead)} style={{ border: `1px solid ${BORDER}` }}>{qr.label}</button>
+                      ))}
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+                      <textarea value={msgInput} onChange={e => setMsgInput(e.target.value)} placeholder={t.composer} rows={2} className="lc-input" disabled={!selectedLead.phone} style={{ resize: 'none', direction: dir }}
+                        onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); handleSend(msgInput) } }}/>
+                      <button className="lc-btn primary" onClick={() => handleSend(msgInput)} disabled={sending || !msgInput.trim() || !selectedLead.phone} style={{ padding: '10px 16px' }}>{sending ? t.sending : t.sendBtn}</button>
+                    </div>
+                    {sendError && <div style={{ fontSize: 12, color: '#E5484D', fontWeight: 600 }}>{t.sendFailed}: {sendError}</div>}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>}
+      </div>}
     </div>
   )
 }

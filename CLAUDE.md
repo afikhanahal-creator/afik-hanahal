@@ -145,6 +145,15 @@ the ad account assigned; scopes `leads_retrieval`, `pages_manage_metadata`, `pag
 `ads_read`); after replacing it, run `connect-fix` so the page is subscribed to `leadgen`. `fix=1` only touches the office's pages (`META_PAGE_IDS`);
 `unsub=<ids>` removes other pages from the app, and the webhook ignores leads from any page that isn't ours. A sync welcomes and
 announces only leads ≤ 24 h old; older ones the webhook missed are saved quietly (`savedQuietly`). Probe action `meta-sync`.
+Every webhook delivery is recorded in `app_settings` (`meta_webhook_log`: `last`, `count`, last 20 events) and reported by
+`/connect` (`webhook`; `?quick=1&green=1` also returns `green` state/number and the `welcome` rule), so a webhook that stopped
+arriving is visible. `.github/workflows/lead-tick.yml` calls `auto-tick` every 5 minutes (the repo is public: the log prints
+counts only), so a lead is welcomed even with the panel closed and the webhook down.
+**Lead Center** (`src/MetaLeadsTab.jsx`, admin "מרכז לידים"): connection dots (Meta / WhatsApp / welcome rule), KPIs, a list
+grouped by day with a "קיבל הודעה / טרם נשלחה הודעה" chip per lead (Meta's testing-tool leads hidden by default), an overview
+(needs attention, leads by campaign, connection health) and a lead page (call / WhatsApp / CRM, status, welcome card with
+"שלח הודעת פתיחה עכשיו" = `POST /api/meta/lead-welcome {id}` → `welcomeExternalLead(…, { force: true })`, logged `by: 'manual'`,
+details, form answers, notes, conversation). Messages typed there go out from the office WhatsApp (Green API) like the welcome.
 
 Scheduled bulk sends are jobs in `app_settings` (`automations_jobs`), rendered at send time, max 20 messages per run;
 `auto-jobs-tick` pushes a running job from the open panel. `auto-tick?key=` (key = `AUTOMATION_KEY`, or the admin token)
