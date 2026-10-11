@@ -10,6 +10,7 @@ import { compressJson } from '../lib/http.js'
 import { createClient } from '@supabase/supabase-js'
 import crypto from 'crypto'
 import * as Auto from '../lib/automations.js'
+import { getTemplate } from '../lib/automations-shared.js'
 import * as GA4 from '../lib/ga4.js'
 import { analyzeLead, buildDossier } from '../lib/lead-analyze.js'
 import { researchLead } from '../lib/lead-research.js'
@@ -618,7 +619,25 @@ async function handleConnect(req, res) {
   const g = (p, tok = META_PAGE_ACCESS_TOKEN) => graphGet(p, tok)
   // Token
   try { const me = await g('/me?fields=id,name'); out.meta.token = { ok: true, id: me.id, name: me.name } }
-  catch (e) { out.meta.token = { ok: false, error: String(e.message).replace(/access_token=[^&\s"]+/g, 'access_token=…').slice(0, 300) } }
+  catch (e) {
+    const msg = String(e.message).replace(/access_token=[^&\s"]+/g, 'access_token=…')
+    // 190 = the token itself is dead (password change, expiry, revoked) → a new token is needed, nothing else helps
+    out.meta.token = { ok: false, reason: /"code":190/.test(msg) ? 'invalid_token' : 'error', error: msg.slice(0, 300) }
+  }
+  // Quick mode (admin home tile, daily cron alert): the token and the configured pages' leadgen subscription only
+  if (req.query.quick) {
+    out.meta.configuredPages = resolvePageIds({})
+    if (out.meta.token.ok) {
+      out.meta.pageChecks = []
+      for (const pid of out.meta.configuredPages.slice(0, 3)) {
+        try { const subs = await g(`/${pid}/subscribed_apps`, await getPageToken(pid)); out.meta.pageChecks.push({ id: pid, leadgenSubscribed: (subs.data || []).some(a => (a.subscribed_fields || []).includes('leadgen')) }) }
+        catch (e) { out.meta.pageChecks.push({ id: pid, error: String(e.message).replace(/access_token=[^&\s"]+/g, '').slice(0, 200) }) }
+      }
+    }
+    try { const { data } = await sb().from('meta_leads').select('created_at').order('created_at', { ascending: false }).limit(1); out.db.newestMetaLead = data?.[0]?.created_at || null } catch {}
+    out.ok = !!out.meta.token.ok && (out.meta.pageChecks || []).every(p => p.leadgenSubscribed)
+    return res.status(200).json(out)
+  }
   // Pages the token manages + the configured ones
   const configured = resolvePageIds({})
   out.meta.configuredPages = configured
@@ -670,8 +689,8 @@ async function handleConnect(req, res) {
   try {
     const { cfg, saved } = await Auto.loadConfig({ fresh: true })
     const w = cfg.rules.welcome
-    const tpl = cfg.templates?.[w.templateId]
-    out.welcome = { enabled: !!cfg.enabled, mode: w.mode, saved, template: w.templateId, preview: String((tpl && (tpl.he || tpl.text)) || '').slice(0, 300) }
+    const tpl = getTemplate(cfg, w.templateId)
+    out.welcome = { enabled: !!cfg.enabled, mode: w.mode, saved, template: w.templateId, preview: String((tpl && tpl.he) || '').slice(0, 300) }
   } catch (e) { out.welcome = { error: e.message } }
   // Our side
   try {
