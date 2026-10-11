@@ -1,6 +1,6 @@
 // Admin home ("סקירה כללית"): greeting, business KPIs, live system status, pipeline and recent activity.
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { FaBuilding, FaFileAlt, FaUsers, FaFire, FaWhatsapp, FaChartLine, FaRobot, FaClipboardList, FaArrowLeft, FaArrowRight, FaCircle, FaPlus, FaGlobe, FaServer, FaTachometerAlt } from 'react-icons/fa'
+import { FaBuilding, FaFileAlt, FaUsers, FaFire, FaWhatsapp, FaChartLine, FaRobot, FaClipboardList, FaArrowLeft, FaArrowRight, FaCircle, FaPlus, FaGlobe, FaServer, FaTachometerAlt, FaFacebookF } from 'react-icons/fa'
 import { T } from './automationsUI.jsx'
 
 const TR = {
@@ -8,6 +8,7 @@ const TR = {
     morning: 'בוקר טוב', noon: 'צהריים טובים', evening: 'ערב טוב', night: 'לילה טוב', sub: 'זה מה שקורה היום באפיק הנחל',
     active: 'נכסים באוויר', of: n => `מתוך ${n} נכסים`, drafts: 'טיוטות', draftsSub: 'ממתינות לפרסום', leads: 'לידים', week: n => `${n} ב-7 הימים האחרונים`,
     today: 'לידים היום', yday: n => `${n} אתמול`, intake: 'נכסים שנקלטו', intakeSub: 'ממתינים לבדיקה', hot: 'לידים חמים', hotSub: 'לפי ציון AI',
+    metaT: 'לידים מפייסבוק (Meta)', metaOk: 'מחובר · לידים נכנסים למערכת', metaToken: 'הטוקן של Meta לא תקף — צריך טוקן חדש', metaSub: 'העמוד לא רשום לקבלת לידים', metaErr: 'לא ניתן לבדוק',
     status: 'מצב המערכת', wa: 'WhatsApp (Green API)', ga: 'Google Analytics', auto: 'אוטומציות', site: 'האתר', feed: 'שרת הנכסים (Render)',
     feedTable: (n, up) => `פעיל · ${n} נכסים מהמסד (Supabase)${up ? '' : ' · Render לא זמין — פרסום ועריכה עובדים'}`,
     feedOk: n => `פעיל · ${n} נכסים`, feedSnap: (n, ago) => `מושעה — האתר מגיש עותק שמור (${n} נכסים, ${ago})`, feedStatic: n => `מושעה — האתר מגיש את רשימת הפריסה האחרונה (${n})`,
@@ -23,6 +24,7 @@ const TR = {
     morning: 'Good morning', noon: 'Good afternoon', evening: 'Good evening', night: 'Good night', sub: 'Here is what is happening at Afik Hanahal today',
     active: 'Live properties', of: n => `of ${n} properties`, drafts: 'Drafts', draftsSub: 'Waiting to be published', leads: 'Leads', week: n => `${n} in the last 7 days`,
     today: 'Leads today', yday: n => `${n} yesterday`, intake: 'Submitted properties', intakeSub: 'Waiting for review', hot: 'Hot leads', hotSub: 'By AI score',
+    metaT: 'Facebook leads (Meta)', metaOk: 'Connected · leads flow into the system', metaToken: 'The Meta token is no longer valid — a new one is needed', metaSub: 'The page is not subscribed to leads', metaErr: 'Could not check',
     status: 'System status', wa: 'WhatsApp (Green API)', ga: 'Google Analytics', auto: 'Automations', site: 'Website', feed: 'Property server (Render)',
     feedTable: (n, up) => `Up · ${n} properties from the database (Supabase)${up ? '' : ' · Render down — publishing and editing still work'}`,
     feedOk: n => `Up · ${n} properties`, feedSnap: (n, ago) => `Down — the site serves a saved copy (${n} properties, ${ago})`, feedStatic: n => `Down — the site serves the last deploy's list (${n})`,
@@ -122,13 +124,20 @@ export default function AdminHome({ properties = [], leads = [], setTab, autoCfg
   const [wa, setWa] = useState(null)       // 'authorized' | other state | 'error'
   const [ga, setGa] = useState(null)       // { configured, activeUsers } | { error }
   const [feed, setFeed] = useState(null)   // /api/properties?health=1 → { serving, render, snapshot, static }
+  const [meta, setMeta] = useState(null)   // /api/meta/connect?quick=1 → { ok, meta: { token, pageChecks } }
 
   useEffect(() => {
     const H = { Authorization: `Bearer ${token}` }
     fetch('/api/meta/chat-status', { headers: H, signal: AbortSignal.timeout(12000) }).then(r => r.json()).then(d => setWa(d.state || 'error')).catch(() => setWa('error'))
     fetch('/api/meta/ga4?realtime=1', { headers: H, signal: AbortSignal.timeout(20000) }).then(r => r.json()).then(setGa).catch(() => setGa({ error: true }))
     fetch('/api/properties?health=1', { signal: AbortSignal.timeout(15000) }).then(r => r.json()).then(setFeed).catch(() => setFeed({ error: true }))
+    fetch('/api/meta/connect?quick=1', { headers: H, signal: AbortSignal.timeout(20000) }).then(r => r.json()).then(setMeta).catch(() => setMeta({ error: true }))
   }, [token])
+  const metaTile = !meta ? { state: 'idle', detail: t.checking }
+    : meta.error || !meta.meta ? { state: 'warn', detail: t.metaErr }
+    : !meta.meta.token?.ok ? { state: 'bad', detail: meta.meta.token?.reason === 'invalid_token' ? t.metaToken : t.metaErr }
+    : (meta.meta.pageChecks || []).some(p => p.leadgenSubscribed === false) ? { state: 'warn', detail: t.metaSub }
+    : { state: 'ok', detail: t.metaOk }
   const feedTile = useMemo(() => {
     if (!feed) return { state: 'idle', detail: t.checking }
     if (feed.error) return { state: 'warn', detail: t.setup }
@@ -231,6 +240,7 @@ export default function AdminHome({ properties = [], leads = [], setTab, autoCfg
             state={ga === null ? 'idle' : ga.configured && !ga.error ? 'ok' : 'warn'} detail={ga === null ? t.checking : ga.configured && !ga.error ? t.live(ga.activeUsers || 0) : t.setup}/>
           <StatusTile icon={FaRobot} label={t.auto} onClick={() => setTab('automations')}
             state={autoOn === null ? 'idle' : autoOn ? 'ok' : 'warn'} detail={autoOn === null ? t.checking : autoOn ? t.on : t.paused}/>
+          <StatusTile icon={FaFacebookF} label={t.metaT} onClick={() => (metaTile.state === 'bad' ? window.open('https://business.facebook.com/settings/system-users', '_blank') : setTab('meta'))} state={metaTile.state} detail={metaTile.detail}/>
           <StatusTile icon={FaServer} label={t.feed} onClick={() => window.open('https://dashboard.render.com', '_blank')} state={feedTile.state} detail={feedTile.detail}/>
           <StatusTile icon={FaTachometerAlt} label={t.bw} onClick={() => (feed?.list?.inlineImages ? slimPhotos() : window.open('https://dashboard.render.com/billing', '_blank'))} state={bwTile.state} detail={slimming ? t.slimming : slimResult && slimResult.moved ? t.slimDone(slimResult.moved) : bwTile.detail}/>
           <StatusTile icon={FaGlobe} label={t.site} onClick={() => window.open('/', '_blank')} state="ok" detail={`${t.online} · afikhanahal.co.il`}/>

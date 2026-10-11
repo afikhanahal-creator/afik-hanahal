@@ -138,6 +138,11 @@ idempotent (an INSERT on `leadgen_id` decides "new"). `GET /api/meta/connect[?ac
 whole chain without exposing secrets: Meta token, pages, each page's `leadgen` subscription (`fix=1` subscribes it), lead
 forms and the newest lead on Meta vs in the table, the ad account and its campaigns, Green API state + number, the welcome
 rule. Probe action `connect` / `connect-fix` (workflow input `account`). There is no SMS provider — "message" means WhatsApp.
+`?quick=1` (token + the configured pages' subscription only) feeds the admin home tile "לידים מפייסבוק (Meta)" and the daily
+cron's `metaWatch` (one WhatsApp to the office a day while the token is dead — a password change killed it silently in June 2026).
+The token is `META_SYSTEM_USER_TOKEN` in Vercel (a System User token from business.facebook.com → System users, with the page and
+the ad account assigned; scopes `leads_retrieval`, `pages_manage_metadata`, `pages_show_list`, `pages_read_engagement`,
+`ads_read`); after replacing it, run `connect-fix` so the page is subscribed to `leadgen`.
 
 Scheduled bulk sends are jobs in `app_settings` (`automations_jobs`), rendered at send time, max 20 messages per run;
 `auto-jobs-tick` pushes a running job from the open panel. `auto-tick?key=` (key = `AUTOMATION_KEY`, or the admin token)

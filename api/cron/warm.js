@@ -203,6 +203,24 @@ async function bandwidthWatch() {
   return { ...out, alert: r.ok ? 'sent' : `failed: ${r.error}` }
 }
 
+async function metaWatch(req) {
+  const host = String(req.headers['x-forwarded-host'] || req.headers.host || 'www.afikhanahal.co.il').split(',')[0].trim()
+  const r = await fetch(`https://${host}/api/meta/connect?quick=1`, { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` }, signal: AbortSignal.timeout(20000) })
+  const d = await r.json().catch(() => null)
+  if (!d || !d.meta) return { skipped: `connect HTTP ${r.status}` }
+  const problems = []
+  if (!d.meta.token?.ok) problems.push(d.meta.token?.reason === 'invalid_token' ? 'הטוקן של Meta לא תקף (שינוי סיסמה / פג תוקף) — לידים מפייסבוק לא נכנסים למערכת' : `החיבור ל-Meta נכשל: ${String(d.meta.token?.error || '').slice(0, 120)}`)
+  for (const p of d.meta.pageChecks || []) if (p.leadgenSubscribed === false) problems.push(`העמוד ${p.id} לא רשום לקבלת לידים (leadgen)`)
+  if (!problems.length) return { ok: true }
+  const today = new Date().toISOString().slice(0, 10)
+  const last = await supaKV('meta_alert').catch(() => null)
+  if (last && last.day === today) return { problems, alert: 'already sent today' }
+  const msg = ['⚠️ *חיבור Meta (לידים מפייסבוק)*', '', ...problems.map(p => `• ${p}`), '', 'בדיקה: https://www.afikhanahal.co.il/admin-panel · טוקן חדש: https://business.facebook.com/settings/system-users'].join('\n')
+  const s = await sendText(NOTIFY_PHONE, msg)
+  await supaKV('meta_alert', { day: today, problems, ok: s.ok })
+  return { problems, alert: s.ok ? 'sent' : `failed: ${s.error}` }
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
   if (req.method !== 'GET' && req.method !== 'POST') return res.status(405).end()
@@ -247,6 +265,9 @@ export default async function handler(req, res) {
     out.inlinePhotos = { table: { scanned: slim.scanned, uploaded: slim.uploaded, remaining: slim.remaining, error: slim.error }, snapshot: snap, errors: (slim.errors || []).slice(0, 5) }
   } catch (e) { out.inlinePhotos = { error: e.message } }
   try { out.bandwidth = await bandwidthWatch() } catch (e) { out.bandwidth = { error: e.message } }
+  // Meta Lead Ads connection: a dead token (password change, expiry) stopped every Facebook lead from June to October
+  // without anyone noticing — one WhatsApp to the office a day while it is broken
+  try { out.metaWatch = await metaWatch(req) } catch (e) { out.metaWatch = { error: e.message } }
   log.forEach(l => console.log('[warm]', l))
   out.log = log.filter(l => !l.startsWith('[fetch]')).concat(log.filter(l => l.startsWith('[fetch]')).slice(0, 80))
   return res.status(200).json(out)
