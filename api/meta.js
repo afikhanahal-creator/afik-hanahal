@@ -549,7 +549,8 @@ async function syncOnePage(pageId, client, errors, { sinceSec = 0, stats = {} } 
   let totalSynced = 0, newLeads = 0
   const pageToken = await getPageToken(pageId)
   let formsData
-  try { formsData = await graphGet(`/${pageId}/leadgen_forms?fields=id,name`, pageToken) }
+  // limit=200: Graph's default page is 25 forms (the page has 23) — a new campaign's form must never fall off
+  try { formsData = await graphGet(`/${pageId}/leadgen_forms?fields=id,name&limit=200`, pageToken) }
   catch (e) { errors.push(`Page ${pageId}: ${e.message}`); return 0 }
 
   for (const form of formsData.data || []) {
@@ -744,12 +745,13 @@ async function handleConnect(req, res) {
         pc.fix = r.ok ? 'subscribed' : `HTTP ${r.status}: ${(await r.text()).replace(/access_token=[^&\s"]+/g, '').slice(0, 200)}`
         if (r.ok) pc.leadgenSubscribed = true
       }
-      const forms = await g(`/${pid}/leadgen_forms?fields=id,name,status,leads_count,created_time&limit=50`, tok)
+      const forms = await g(`/${pid}/leadgen_forms?fields=id,name,status,leads_count,created_time&limit=200`, tok)
       pc.formsTotal = (forms.data || []).length
-      pc.forms = (forms.data || []).filter(f => f.leads_count > 0).map(f => ({ id: f.id, name: f.name, leads: f.leads_count, created: f.created_time }))
+      // forms with leads, plus any form created in the last 30 days (a new campaign's form shows up before its first lead)
+      pc.forms = (forms.data || []).filter(f => f.leads_count > 0 || Date.now() - Date.parse(f.created_time || 0) < 30 * 864e5).map(f => ({ id: f.id, name: f.name, status: f.status, leads: f.leads_count, created: f.created_time }))
       // Newest lead on Meta's side across the active forms
       let newest = null
-      for (const f of (forms.data || []).filter(f => f.status === 'ACTIVE').slice(0, 10)) {
+      for (const f of (forms.data || []).filter(f => f.status === 'ACTIVE').sort((a, b) => String(b.created_time).localeCompare(String(a.created_time))).slice(0, 12)) {
         try { const l = await g(`/${f.id}/leads?fields=id,created_time&limit=1`, tok); const t = l.data?.[0]?.created_time; if (t && (!newest || t > newest)) newest = t } catch {}
       }
       pc.newestLeadOnMeta = newest
