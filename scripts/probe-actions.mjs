@@ -7,6 +7,7 @@
 //   connect — GET /api/meta/connect: Meta token / pages / leadgen webhook subscription / lead forms / ad account
 //             (ACCOUNT) and campaigns, Green API state, the welcome rule; `connect-fix` also subscribes pages to leadgen
 //   meta-sync — GET /api/meta/sync: saves every Meta lead the webhook missed (UNSUB_PAGES for connect: page ids to unsubscribe)
+//   crm-sync — POST /api/meta/crm-sync: copies every Meta lead that isn't in the CRM (contacts) yet, quietly (counts only)
 //   restore — RESTORE_FROM (an older deployment's origin): its /properties.json is offered as the admin's copy
 //             (POST ?snapshot=1) — properties the table lacks are added, nothing is overwritten
 // The admin token is the one the site's own admin bundle carries (src/App.jsx) unless ADMIN_TOKEN is set.
@@ -85,6 +86,10 @@ if (ACTIONS.includes('meta-sync')) {
   // Full Meta Lead Ads sync: every lead the webhook missed is saved (only leads ≤ 24 h old are welcomed / announced)
   const r = await fetch(`${SITE}/api/meta/sync`, { headers: H, signal: AbortSignal.timeout(60000) })
   show(`meta sync (HTTP ${r.status})`, await r.json().catch(() => ({})))
+}
+if (ACTIONS.includes('crm-sync')) {
+  const r = await fetch(`${SITE}/api/meta/crm-sync`, { method: 'POST', headers: H, signal: AbortSignal.timeout(60000) })
+  show(`crm sync (HTTP ${r.status})`, await r.json().catch(() => ({})))
 }
 if (ACTIONS.includes('restore')) {
   const from = String(process.env.RESTORE_FROM || '').replace(/\/$/, '')
