@@ -288,6 +288,10 @@ async function handleWebhook(req, res) {
           if (change.field !== 'leadgen') continue
           const { leadgen_id, page_id } = change.value || {}
           if (!leadgen_id) continue
+          // Only the office's own pages (META_PAGE_IDS): the token may manage other pages too, and their leads must
+          // never get an Afik Hanahal welcome
+          const ownPages = resolvePageIds({})
+          if (ownPages.length && page_id && !ownPages.includes(String(page_id))) { console.warn(`[MetaLeads] lead ${leadgen_id} from page ${page_id} ignored (not ours)`); continue }
 
           const pageToken = await getPageToken(page_id)
 
@@ -546,7 +550,13 @@ async function syncOnePage(pageId, client, errors, { sinceSec = 0, stats = {} } 
           }
 
           // For genuinely new leads: send WA to customer + admin (same as webhook handler)
-          if (isNew && phone) {
+          // Only a fresh lead (≤ 24 h old) is welcomed and announced. An older one the webhook missed (the token was dead
+          // for months) is saved quietly — a "thanks for leaving your details" weeks later, and a burst of office
+          // notifications, would do more harm than good. It shows up in the Lead Center as usual.
+          const ageH = (Date.now() - Date.parse(lead.created_time || '')) / 36e5
+          const fresh = Number.isFinite(ageH) ? ageH <= 24 : false
+          if (isNew && !fresh) stats.quiet = (stats.quiet || 0) + 1
+          if (isNew && phone && fresh) {
             const displayPhone = phone.startsWith('972') ? '0' + phone.slice(3) : phone
             const now = new Date().toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
             const adminMsg = ['🔔 ליד חדש (sync)', `שם: ${parsed.name || '—'}`, `טלפון: ${displayPhone}`,
@@ -643,6 +653,28 @@ async function handleConnect(req, res) {
   out.meta.configuredPages = configured
   try { const acc = await g('/me/accounts?fields=id,name,tasks&limit=50'); out.meta.pages = (acc.data || []).map(p => ({ id: p.id, name: p.name })) }
   catch (e) { out.meta.pagesError = e.message.slice(0, 200) }
+  // Token details (type, expiry, scopes) — so a token that will die in 60 days is visible now
+  try {
+    const dbg = await g(`/debug_token?input_token=${encodeURIComponent(META_PAGE_ACCESS_TOKEN)}`)
+    const d = dbg.data || {}
+    out.meta.token.type = d.type; out.meta.token.app = d.application
+    out.meta.token.expires = d.expires_at ? new Date(d.expires_at * 1000).toISOString() : 'never'
+    out.meta.token.dataAccessExpires = d.data_access_expires_at ? new Date(d.data_access_expires_at * 1000).toISOString() : null
+    out.meta.token.scopes = d.scopes || []
+    out.meta.token.missing = ['leads_retrieval', 'pages_manage_metadata', 'pages_show_list', 'pages_read_engagement', 'ads_read'].filter(s => !(d.scopes || []).includes(s))
+  } catch (e) { out.meta.token.debugError = e.message.replace(/input_token=[^&\s"]+|access_token=[^&\s"]+/g, '').slice(0, 160) }
+  // Pages that aren't the office's but were subscribed to our app (?unsub=id,id): unsubscribe
+  const unsub = String(req.query.unsub || '').split(',').map(s => s.trim()).filter(id => /^\d+$/.test(id) && !configured.includes(id))
+  if (unsub.length) {
+    out.meta.unsubscribed = []
+    for (const pid of unsub) {
+      try {
+        const tok = await getPageToken(pid)
+        const r = await fetch(`https://graph.facebook.com/v20.0/${pid}/subscribed_apps?access_token=${tok}`, { method: 'DELETE', signal: AbortSignal.timeout(15000) })
+        out.meta.unsubscribed.push({ id: pid, result: r.ok ? 'removed' : `HTTP ${r.status}: ${(await r.text()).replace(/access_token=[^&\s"]+/g, '').slice(0, 160)}` })
+      } catch (e) { out.meta.unsubscribed.push({ id: pid, error: e.message.slice(0, 160) }) }
+    }
+  }
   const pageIds = [...new Set([...configured, ...(out.meta.pages || []).map(p => p.id)])]
   out.meta.pageChecks = []
   for (const pid of pageIds.slice(0, 6)) {
@@ -653,13 +685,15 @@ async function handleConnect(req, res) {
       const subs = await g(`/${pid}/subscribed_apps`, tok)
       pc.apps = (subs.data || []).map(a => ({ id: a.id, name: a.name, fields: a.subscribed_fields || [] }))
       pc.leadgenSubscribed = pc.apps.some(a => (a.fields || []).includes('leadgen'))
-      if (req.query.fix && !pc.leadgenSubscribed) {
+      pc.ours = configured.includes(pid)
+      if (req.query.fix && !pc.leadgenSubscribed && pc.ours) {   // only the office's own pages
         const r = await fetch(`https://graph.facebook.com/v20.0/${pid}/subscribed_apps?subscribed_fields=leadgen&access_token=${tok}`, { method: 'POST', signal: AbortSignal.timeout(15000) })
         pc.fix = r.ok ? 'subscribed' : `HTTP ${r.status}: ${(await r.text()).replace(/access_token=[^&\s"]+/g, '').slice(0, 200)}`
         if (r.ok) pc.leadgenSubscribed = true
       }
       const forms = await g(`/${pid}/leadgen_forms?fields=id,name,status,leads_count,created_time&limit=50`, tok)
-      pc.forms = (forms.data || []).map(f => ({ id: f.id, name: f.name, status: f.status, leads: f.leads_count, created: f.created_time }))
+      pc.formsTotal = (forms.data || []).length
+      pc.forms = (forms.data || []).filter(f => f.leads_count > 0).map(f => ({ id: f.id, name: f.name, leads: f.leads_count, created: f.created_time }))
       // Newest lead on Meta's side across the active forms
       let newest = null
       for (const f of (forms.data || []).filter(f => f.status === 'ACTIVE').slice(0, 10)) {
@@ -717,12 +751,13 @@ async function handleSync(req, res) {
   let totalSynced = 0
   const errors = []
 
+  const stats = {}
   for (const pageId of pageIds) {
-    totalSynced += await syncOnePage(pageId, client, errors)
+    totalSynced += await syncOnePage(pageId, client, errors, { stats })
   }
 
   return res.status(200).json({
-    synced: totalSynced,
+    synced: totalSynced, new: stats.new || 0, savedQuietly: stats.quiet || 0,
     pages: pageIds.length,
     page_ids: pageIds,
     errors: errors.length ? errors : undefined,
