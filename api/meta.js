@@ -333,32 +333,9 @@ async function handleWebhook(req, res) {
           }
 
           const leadId    = inserted?.id
-          const firstName = name.split(' ')[0] || name
-          // Same welcome template and on/off switch as website leads (admin tab "אוטומציות")
-          const autoWelcome = phone ? await Auto.welcomeTextFor({ name, phone }) : null
-          if (phone && autoWelcome !== '') {
-            const waMsg = autoWelcome || `היי ${firstName} 👋\nתודה שפנית לאפיק הנחל!\nראינו את הפנייה שלך\n\nמתי נוח לך לדבר? נשמח לתאם שיחה`
-            let waSent = false
-
-            if (WA_META_TOKEN) {
-              const waId = await sendWA(phone, waMsg)
-              waSent = !!waId
-              if (leadId) {
-                await client.from('meta_messages').insert({ lead_id: leadId, direction: 'out', message: waMsg, wa_message_id: waId || null })
-                await client.from('meta_leads').update({ wa_sent: true }).eq('id', leadId)
-              }
-            }
-
-            // Fallback: send via Green API when Meta token not configured or send failed
-            if (!waSent && GREEN_INSTANCE && GREEN_TOKEN) {
-              const custChatId = phone.startsWith('972') ? `${phone}@c.us` : `972${phone.replace(/^0/, '')}@c.us`
-              await sendGreenNotify(custChatId, waMsg).catch(() => {})
-              if (leadId && !WA_META_TOKEN) {
-                await client.from('meta_messages').insert({ lead_id: leadId, direction: 'out', message: waMsg, wa_message_id: null }).catch(() => {})
-                await client.from('meta_leads').update({ wa_sent: true }).eq('id', leadId).catch(() => {})
-              }
-            }
-          }
+          // Welcome: the same template, on/off switch and office WhatsApp number (Green API) as website leads
+          // (admin tab "אוטומציות"), logged in automation_log — see welcomeMetaLead
+          await welcomeMetaLead(client, { id: leadId, name, phone, campaign: campaignName || formName })
 
           // ── Admin notification via Green API ──────────────────────────────
           {
@@ -521,8 +498,8 @@ function resolvePageIds(query) {
   return []
 }
 
-async function syncOnePage(pageId, client, errors) {
-  let totalSynced = 0
+async function syncOnePage(pageId, client, errors, { sinceSec = 0, stats = {} } = {}) {
+  let totalSynced = 0, newLeads = 0
   const pageToken = await getPageToken(pageId)
   let formsData
   try { formsData = await graphGet(`/${pageId}/leadgen_forms?fields=id,name`, pageToken) }
@@ -532,6 +509,8 @@ async function syncOnePage(pageId, client, errors) {
     let cursor = null, page = 1
     do {
       let url = `/${form.id}/leads?fields=id,created_time,field_data,campaign_id,ad_id,page_id`
+      // A routine safety-net run reads only recent leads (the full history is the manual "סנכרון")
+      if (sinceSec) url += `&filtering=${encodeURIComponent(JSON.stringify([{ field: 'time_created', operator: 'GREATER_THAN', value: sinceSec }]))}`
       if (cursor) url += `&after=${cursor}`
       let leadsData
       try { leadsData = await graphGet(url, pageToken) }
@@ -567,9 +546,6 @@ async function syncOnePage(pageId, client, errors) {
 
           // For genuinely new leads: send WA to customer + admin (same as webhook handler)
           if (isNew && phone) {
-            const firstName = (parsed.name || '').split(' ')[0] || parsed.name || ''
-            const waMsg = `היי ${firstName} 👋\nתודה שפנית לאפיק הנחל!\nראינו את הפנייה שלך\n\nמתי נוח לך לדבר? נשמח לתאם שיחה`
-            const custChatId = `${phone}@c.us`
             const displayPhone = phone.startsWith('972') ? '0' + phone.slice(3) : phone
             const now = new Date().toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
             const adminMsg = ['🔔 ליד חדש (sync)', `שם: ${parsed.name || '—'}`, `טלפון: ${displayPhone}`,
@@ -578,8 +554,9 @@ async function syncOnePage(pageId, client, errors) {
 
             // AWAIT all three sends so the function isn't killed before they hit
             // the wire. Per-call timeouts inside sendGreenNotify keep total bounded.
+            const { data: saved } = await client.from('meta_leads').select('id').eq('leadgen_id', lead.id).maybeSingle()
             const rs = await Promise.allSettled([
-              sendGreenNotify(custChatId, waMsg),
+              welcomeMetaLead(client, { id: saved?.id, name: parsed.name || '', phone, campaign: campaignName || form.name }),
               sendGreenNotify(BUSINESS_NOTIFY_CHATID, adminMsg),
               sendMetaLeadEmail({ name: parsed.name, phone, email: parsed.email, campaign: form.name, ts: now }),
             ])
@@ -588,10 +565,9 @@ async function syncOnePage(pageId, client, errors) {
               if (r.status === 'rejected') console.error(`[sync/${lbl}] crashed:`, r.reason?.message || r.reason)
             })
 
-            // Mark wa_sent so we don't re-notify on subsequent syncs
-            await client.from('meta_leads').update({ wa_sent: true }).eq('leadgen_id', lead.id)
           }
 
+          if (isNew) newLeads++
           totalSynced++
         } catch (e) { errors.push(`Lead ${lead.id}: ${e.message}`) }
       }
@@ -600,7 +576,110 @@ async function syncOnePage(pageId, client, errors) {
       page++
     } while (cursor && page < 20)
   }
+  stats.new = (stats.new || 0) + newLeads
   return totalSynced
+}
+
+// Welcome a Meta lead through the automations engine and record it on the lead (wa_sent + the thread)
+async function welcomeMetaLead(client, { id, name, phone, campaign }) {
+  if (!phone) return { ok: false, skipped: 'no phone' }
+  const r = await Auto.welcomeExternalLead({ id, name, phone, prop_title: '' }, { source: 'meta' })
+  if (r.ok && id) {
+    await client.from('meta_messages').insert({ lead_id: id, direction: 'out', message: r.text, wa_message_id: r.idMessage || null }).then(() => {}, () => {})
+    await client.from('meta_leads').update({ wa_sent: true }).eq('id', id).then(() => {}, () => {})
+  }
+  if (!r.ok && !r.skipped) console.error(`[MetaLeads] welcome to ${phone} failed: ${r.error}`)
+  return r
+}
+
+// Safety net for the webhook: the last `hours` of leads from every lead form, saved + welcomed like a webhook
+// lead (idempotent — a lead already saved is skipped). Run by auto-tick (external pinger), the panel's auto-run
+// and the daily cron. → { pages, new, synced, errors? }
+async function syncRecentMetaLeads({ hours = 48 } = {}) {
+  if (!META_PAGE_ACCESS_TOKEN || !SUPABASE_URL) return { skipped: 'not configured' }
+  const pageIds = resolvePageIds({})
+  if (!pageIds.length) return { skipped: 'no page ids' }
+  const client = sb(), errors = [], stats = {}
+  let synced = 0
+  const sinceSec = Math.floor(Date.now() / 1000) - hours * 3600
+  for (const pageId of pageIds) synced += await syncOnePage(pageId, client, errors, { sinceSec, stats })
+  return { pages: pageIds.length, new: stats.new || 0, synced, ...(errors.length ? { errors: errors.slice(0, 5) } : {}) }
+}
+
+// ── GET /api/meta/connect (admin) → is everything a new lead needs connected? (no secrets in the answer)
+//   Meta: the token, the pages it manages, each page's webhook subscription for `leadgen`, its lead forms and the
+//   newest lead on Meta vs in our table; the ad accounts it sees (and whether ?account= is one of them) with their
+//   campaigns. Green API: the WhatsApp instance state and number. Automations: the welcome rule and its text.
+//   ?fix=1 subscribes every page that isn't subscribed to `leadgen` (so new leads reach the webhook).
+async function handleConnect(req, res) {
+  if (!checkAuth(req)) return res.status(401).json({ error: 'Unauthorized' })
+  res.setHeader('Cache-Control', 'no-store')
+  const out = { at: new Date().toISOString(), meta: {}, green: null, welcome: null, db: {} }
+  const g = (p, tok = META_PAGE_ACCESS_TOKEN) => graphGet(p, tok)
+  // Token
+  try { const me = await g('/me?fields=id,name'); out.meta.token = { ok: true, id: me.id, name: me.name } }
+  catch (e) { out.meta.token = { ok: false, error: String(e.message).replace(/access_token=[^&\s"]+/g, 'access_token=…').slice(0, 300) } }
+  // Pages the token manages + the configured ones
+  const configured = resolvePageIds({})
+  out.meta.configuredPages = configured
+  try { const acc = await g('/me/accounts?fields=id,name,tasks&limit=50'); out.meta.pages = (acc.data || []).map(p => ({ id: p.id, name: p.name })) }
+  catch (e) { out.meta.pagesError = e.message.slice(0, 200) }
+  const pageIds = [...new Set([...configured, ...(out.meta.pages || []).map(p => p.id)])]
+  out.meta.pageChecks = []
+  for (const pid of pageIds.slice(0, 6)) {
+    const pc = { id: pid }
+    try {
+      const tok = await getPageToken(pid)
+      try { pc.name = (await g(`/${pid}?fields=name`, tok)).name } catch {}
+      const subs = await g(`/${pid}/subscribed_apps`, tok)
+      pc.apps = (subs.data || []).map(a => ({ id: a.id, name: a.name, fields: a.subscribed_fields || [] }))
+      pc.leadgenSubscribed = pc.apps.some(a => (a.fields || []).includes('leadgen'))
+      if (req.query.fix && !pc.leadgenSubscribed) {
+        const r = await fetch(`https://graph.facebook.com/v20.0/${pid}/subscribed_apps?subscribed_fields=leadgen&access_token=${tok}`, { method: 'POST', signal: AbortSignal.timeout(15000) })
+        pc.fix = r.ok ? 'subscribed' : `HTTP ${r.status}: ${(await r.text()).replace(/access_token=[^&\s"]+/g, '').slice(0, 200)}`
+        if (r.ok) pc.leadgenSubscribed = true
+      }
+      const forms = await g(`/${pid}/leadgen_forms?fields=id,name,status,leads_count,created_time&limit=50`, tok)
+      pc.forms = (forms.data || []).map(f => ({ id: f.id, name: f.name, status: f.status, leads: f.leads_count, created: f.created_time }))
+      // Newest lead on Meta's side across the active forms
+      let newest = null
+      for (const f of (forms.data || []).filter(f => f.status === 'ACTIVE').slice(0, 10)) {
+        try { const l = await g(`/${f.id}/leads?fields=id,created_time&limit=1`, tok); const t = l.data?.[0]?.created_time; if (t && (!newest || t > newest)) newest = t } catch {}
+      }
+      pc.newestLeadOnMeta = newest
+    } catch (e) { pc.error = String(e.message).replace(/access_token=[^&\s"]+/g, '').slice(0, 300) }
+    out.meta.pageChecks.push(pc)
+  }
+  // Ad accounts + the one the office runs campaigns from
+  const want = String(req.query.account || '').replace(/\D/g, '')
+  try {
+    const ad = await g('/me/adaccounts?fields=id,account_id,name,account_status,currency&limit=50')
+    out.meta.adAccounts = (ad.data || []).map(a => ({ id: a.account_id, name: a.name, status: a.account_status }))
+    if (want) out.meta.wantedAccount = { id: want, visible: out.meta.adAccounts.some(a => a.id === want) }
+    const acct = want || out.meta.adAccounts[0]?.id
+    if (acct) {
+      try {
+        const c = await g(`/act_${acct}/campaigns?fields=name,objective,effective_status,daily_budget&limit=30`)
+        out.meta.campaigns = (c.data || []).map(x => ({ name: x.name, objective: x.objective, status: x.effective_status }))
+      } catch (e) { out.meta.campaignsError = e.message.replace(/access_token=[^&\s"]+/g, '').slice(0, 200) }
+    }
+  } catch (e) { out.meta.adAccountsError = e.message.replace(/access_token=[^&\s"]+/g, '').slice(0, 200) }
+  // Green API + the welcome rule
+  out.green = await Auto.greenStatus().catch(e => ({ state: 'error', error: e.message }))
+  if (out.green && out.green.instance) out.green.instance = String(out.green.instance).slice(0, 4) + '…'
+  try {
+    const { cfg, saved } = await Auto.loadConfig({ fresh: true })
+    const w = cfg.rules.welcome
+    const tpl = cfg.templates?.[w.templateId]
+    out.welcome = { enabled: !!cfg.enabled, mode: w.mode, saved, template: w.templateId, preview: String((tpl && (tpl.he || tpl.text)) || '').slice(0, 300) }
+  } catch (e) { out.welcome = { error: e.message } }
+  // Our side
+  try {
+    const { data } = await sb().from('meta_leads').select('created_at').order('created_at', { ascending: false }).limit(1)
+    out.db.newestMetaLead = data?.[0]?.created_at || null
+  } catch {}
+  out.webhookUrl = 'https://www.afikhanahal.co.il/api/meta/webhook'
+  return res.status(200).json(out)
 }
 
 async function handleSync(req, res) {
@@ -646,8 +725,11 @@ async function handleAutomations(req, res, action) {
   if (action === 'auto-tick') {
     const key = req.query?.key || (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '')
     if (!Auto.tickKeyValid(key)) return res.status(401).json({ error: 'Unauthorized' })
-    const r = await Auto.run({ source: 'external' }).catch(e => ({ ok: false, error: e.message, sent: [], errors: [], suggestions: [], jobs: {} }))
-    return res.status(200).json({ ok: r.ok !== false, at: r.at, sent: r.sent?.length || 0, errors: r.errors?.length || 0, queued: r.suggestions?.length || 0, jobs: r.jobs, notes: r.notes })
+    const [r, meta] = await Promise.all([
+      Auto.run({ source: 'external' }).catch(e => ({ ok: false, error: e.message, sent: [], errors: [], suggestions: [], jobs: {} })),
+      syncRecentMetaLeads({ hours: 6 }).catch(e => ({ error: e.message })),   // safety net for the Meta webhook
+    ])
+    return res.status(200).json({ ok: r.ok !== false, at: r.at, sent: r.sent?.length || 0, errors: r.errors?.length || 0, queued: r.suggestions?.length || 0, jobs: r.jobs, notes: r.notes, meta })
   }
   if (!checkAuth(req)) return res.status(401).json({ error: 'Unauthorized' })
   res.setHeader('Cache-Control', 'no-store')
@@ -662,7 +744,11 @@ async function handleAutomations(req, res, action) {
       await Auto.saveConfig(b.config)
       return res.status(200).json({ ok: true })
     }
-    if (action === 'auto-run')    return res.status(200).json(await Auto.run({ source: 'panel' }))
+    if (action === 'auto-run') {
+      // The panel calls this every 5 minutes while open: also pick up any Meta lead the webhook missed
+      const [r, meta] = await Promise.all([Auto.run({ source: 'panel' }), syncRecentMetaLeads({ hours: 6 }).catch(e => ({ error: e.message }))])
+      return res.status(200).json({ ...r, meta })
+    }
     if (action === 'auto-send')   return res.status(200).json({ results: await Auto.sendItems(Array.isArray(b.items) ? b.items : [], { by: 'manual' }) })
     if (action === 'auto-skip')   return res.status(200).json({ ok: await Auto.skipItem(b.leadId, String(b.ruleKey || '')) })
     if (action === 'auto-optout') return res.status(200).json({ ok: await Auto.setOptOut(b.leadId, !!b.optOut) })
@@ -1177,6 +1263,7 @@ export default async function handler(req, res) {
   if (path === 'lead-analyze')   return handleLeadAnalyze(req, res)
   if (path === 'lead-research')  return handleLeadResearch(req, res)
   if (path === 'diagnostics')    return handleDiagnostics(req, res)
+  if (path === 'connect')        return handleConnect(req, res)
 
   return res.status(404).json({ error: `Unknown path: ${path}` })
 }

@@ -16,13 +16,16 @@ on:
         description: Network profiles (real, 4g, 3g)
         default: real,4g,3g
       actions:
-        description: 'Optional live actions: slim (move inline photos), ai (one test lead analysis), rebuild (deploy hook), restore (properties from an older deployment), traffic (API weights, gzip, 304)'
+        description: 'Optional live actions: slim (move inline photos), ai (one test lead analysis), rebuild (deploy hook), restore (properties from an older deployment), traffic (API weights, gzip, 304), connect / connect-fix (Meta + Green API + welcome check)'
         default: ''
       lead:
         description: 'For the ai action: a JSON lead, e.g. {"name":"…","phone":"05…","msg":"…"} (default: a synthetic test lead)'
         default: ''
       restore_from:
         description: 'For the restore action: an older deployment origin whose /properties.json is offered to the site'
+        default: ''
+      account:
+        description: 'For the connect action: the Meta ad account id the campaigns run from'
         default: ''
   push:
     branches: ['claude/**']
@@ -52,6 +55,7 @@ jobs:
           ACTIONS: ${{ inputs.actions }}
           AI_LEAD: ${{ inputs.lead }}
           RESTORE_FROM: ${{ inputs.restore_from }}
+          ACCOUNT: ${{ inputs.account }}
         run: node scripts/probe-actions.mjs
       - uses: actions/upload-artifact@v4
         if: always()
