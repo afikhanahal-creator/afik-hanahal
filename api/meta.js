@@ -261,6 +261,16 @@ async function logWebhookEvent(ev) {
   const value = { last: at, count: (prev.count || 0) + 1, events: [{ at, ...ev }, ...(prev.events || [])].slice(0, 20) }
   await client.from('app_settings').upsert({ key: 'meta_webhook_log', value, updated_at: at }, { onConflict: 'key' })
 }
+async function noteWebhookError(leadgenId, error) {
+  const client = sb()
+  const { data } = await client.from('app_settings').select('value').eq('key', 'meta_webhook_log').maybeSingle()
+  const v = data?.value
+  if (!v || !Array.isArray(v.events)) return
+  const ev = v.events.find(e => (e.changes || []).some(c => c.leadgen === leadgenId))
+  if (!ev) return
+  ev.error = error
+  await client.from('app_settings').upsert({ key: 'meta_webhook_log', value: v, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+}
 async function readWebhookLog() {
   try { const { data } = await sb().from('app_settings').select('value').eq('key', 'meta_webhook_log').maybeSingle(); return data?.value || null } catch { return null }
 }
@@ -313,9 +323,25 @@ async function handleWebhook(req, res) {
           const pageToken = await getPageToken(page_id)
 
           let leadData, campaignName = '', formName = ''
-          try {
-            leadData = await graphGet(`/${leadgen_id}?fields=id,created_time,field_data,campaign_id,ad_id,form_id,page_id`, pageToken)
-          } catch (e) { console.error('[MetaLeads] fetch lead:', e.message); continue }
+          // Meta sends the webhook while the lead is still being processed ("Pending" in the testing tool), so the
+          // first read can fail: retry for ~10 s. A lead that still can't be read is noted in the webhook log and
+          // picked up by the next sync (auto-tick every 5 minutes).
+          let fetchErr = null
+          for (const wait of [0, 1500, 3000]) {
+            if (wait) await new Promise(r => setTimeout(r, wait))
+            try { leadData = await graphGet(`/${leadgen_id}?fields=id,created_time,field_data,campaign_id,ad_id,form_id,page_id`, pageToken); fetchErr = null; break }
+            catch (e) { fetchErr = e }
+          }
+          if (!leadData) {
+            const msg = String(fetchErr?.message || 'fetch failed').replace(/access_token=[^&\s"]+/g, '').slice(0, 300)
+            console.error('[MetaLeads] fetch lead:', msg)
+            // Fallback: read the page's leads of the last 15 minutes through the forms (the path the sync uses) —
+            // saves and welcomes this lead now instead of at the next tick
+            const errs = [], stats = {}
+            try { await syncOnePage(page_id || resolvePageIds({})[0], client, errs, { sinceSec: Math.floor(Date.now() / 1000) - 900, stats }) } catch (e) { errs.push(e.message) }
+            await noteWebhookError(leadgen_id, `${msg}${stats.new ? ` → saved by fallback sync (${stats.new})` : errs.length ? ` → fallback: ${String(errs[0]).replace(/access_token=[^&\s"]+/g, '').slice(0, 160)}` : ' → fallback found nothing'}`).catch(() => {})
+            continue
+          }
 
           if (leadData.campaign_id) {
             // Campaign objects are ad-account-scoped → use the System User token (has ads access).
