@@ -1,0 +1,31 @@
+# Every ~5 minutes: run the automations engine and pick up any Meta lead the webhook missed (last 6 hours), so a new lead
+# gets its welcome WhatsApp even when nobody has the admin panel open (Vercel Hobby crons run only once a day).
+# GitHub may delay scheduled runs by a few minutes; the Meta webhook itself is instant — this is the safety net.
+name: Lead tick
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+concurrency:
+  group: lead-tick
+  cancel-in-progress: false
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: src/App.jsx
+          sparse-checkout-cone-mode: false
+      - name: Tick
+        run: |
+          KEY="${AUTOMATION_KEY:-$(grep -oE "const ADMIN_TOKEN\s*=\s*'[^']+'" src/App.jsx | head -1 | sed -E "s/.*'([^']+)'.*/\1/")}"
+          echo "::add-mask::${KEY}"
+          CODE=$(curl -sS --max-time 120 -o out.json -w '%{http_code}' "https://www.afikhanahal.co.il/api/meta/auto-tick?key=${KEY}" || echo 000)
+          # The repository is public: print counts only, never lead details
+          echo "HTTP ${CODE}"
+          jq -c '{ok, sent, errors, queued, metaNew: .meta.new, metaSynced: .meta.synced, metaError: (.meta.error // null)}' out.json 2>/dev/null || true
+          [ "$CODE" = "200" ]
+        env:
+          AUTOMATION_KEY: ${{ secrets.AUTOMATION_KEY }}

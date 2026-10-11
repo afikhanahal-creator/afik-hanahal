@@ -251,6 +251,20 @@ async function sendGreenNotify(chatId, message) {
 
 // ── route handlers ────────────────────────────────────────────────────────────
 
+// The last webhook deliveries (app_settings 'meta_webhook_log'): { last, count, events: [{ at, object, changes }] }
+async function logWebhookEvent(ev) {
+  if (!SUPABASE_URL || !SUPABASE_KEY) return
+  const client = sb()
+  const { data } = await client.from('app_settings').select('value').eq('key', 'meta_webhook_log').maybeSingle()
+  const prev = data?.value && typeof data.value === 'object' ? data.value : {}
+  const at = new Date().toISOString()
+  const value = { last: at, count: (prev.count || 0) + 1, events: [{ at, ...ev }, ...(prev.events || [])].slice(0, 20) }
+  await client.from('app_settings').upsert({ key: 'meta_webhook_log', value, updated_at: at }, { onConflict: 'key' })
+}
+async function readWebhookLog() {
+  try { const { data } = await sb().from('app_settings').select('value').eq('key', 'meta_webhook_log').maybeSingle(); return data?.value || null } catch { return null }
+}
+
 async function handleWebhook(req, res) {
   if (req.method === 'GET') {
     const { 'hub.mode': mode, 'hub.verify_token': token, 'hub.challenge': challenge } = req.query
@@ -280,6 +294,9 @@ async function handleWebhook(req, res) {
       }
 
       const body = req.body
+      // Every delivery is recorded (app_settings 'meta_webhook_log', last 20): the Lead Center and /connect show when
+      // Meta last reached us — a webhook that stopped arriving is visible instead of silent
+      await logWebhookEvent({ object: body?.object || null, changes: (body?.entry || []).flatMap(e => (e.changes || []).map(c => ({ field: c.field, page: c.value?.page_id || e.id || null, leadgen: c.value?.leadgen_id || null }))) }).catch(() => {})
       if (body?.object !== 'page') return res.status(200).json({ status: 'ignored', reason: 'not a page event' })
 
       const client = sb()
@@ -469,21 +486,18 @@ async function handleMessages(req, res) {
     const { lead_id, message } = req.body || {}
     if (!lead_id || !message) return res.status(400).json({ error: 'lead_id and message required' })
 
-    const { data: lead, error: leadErr } = await client.from('meta_leads').select('id,phone').eq('id', lead_id).single()
+    const { data: lead, error: leadErr } = await client.from('meta_leads').select('id,phone,wa_sent').eq('id', lead_id).single()
     if (leadErr || !lead)  return res.status(404).json({ error: 'Lead not found' })
     if (!lead.phone)       return res.status(400).json({ error: 'Lead has no phone number' })
 
-    let waId = null
-    if (WA_META_TOKEN) {
-      waId = await sendWA(lead.phone, message)
-    } else if (GREEN_INSTANCE && GREEN_TOKEN) {
-      const cid = lead.phone.startsWith('972') ? `${lead.phone}@c.us` : `972${lead.phone.replace(/^0/, '')}@c.us`
-      await sendGreenNotify(cid, message).catch(() => {})
-    }
+    // From the office WhatsApp (Green API) — the same number as the welcome message, so the lead sees one conversation
+    const sent = await Auto.sendText(lead.phone, String(message).slice(0, 4000))
+    if (!sent.ok) return res.status(502).json({ error: sent.error || 'send failed' })
     const { data: newMsg, error: insertErr } = await client.from('meta_messages')
-      .insert({ lead_id: lead.id, direction: 'out', message, wa_message_id: waId || null })
+      .insert({ lead_id: lead.id, direction: 'out', message, wa_message_id: sent.idMessage || null })
       .select('*').single()
     if (insertErr) return res.status(500).json({ error: insertErr.message })
+    if (!lead.wa_sent) await client.from('meta_leads').update({ wa_sent: true }).eq('id', lead.id).then(() => {}, () => {})
     return res.status(201).json({ message: newMsg })
   }
 
@@ -652,6 +666,10 @@ async function handleConnect(req, res) {
       }
     }
     try { const { data } = await sb().from('meta_leads').select('created_at').order('created_at', { ascending: false }).limit(1); out.db.newestMetaLead = data?.[0]?.created_at || null } catch {}
+    const wl = await readWebhookLog()
+    out.webhook = wl ? { last: wl.last, count: wl.count || 0, lastLead: (wl.events || []).find(e => (e.changes || []).some(c => c.field === 'leadgen'))?.at || null } : { last: null, count: 0 }
+    if (req.query.green) out.green = await Auto.greenStatus().then(g => ({ state: g.state, phone: g.phone || '' })).catch(e => ({ state: 'error', error: e.message }))
+    try { const { cfg } = await Auto.loadConfig(); out.welcome = { enabled: !!cfg.enabled, mode: cfg.rules.welcome.mode } } catch {}
     out.ok = !!out.meta.token.ok && (out.meta.pageChecks || []).every(p => p.leadgenSubscribed)
     return res.status(200).json(out)
   }
@@ -739,7 +757,27 @@ async function handleConnect(req, res) {
     out.db.newestMetaLead = data?.[0]?.created_at || null
   } catch {}
   out.webhookUrl = 'https://www.afikhanahal.co.il/api/meta/webhook'
+  out.webhook = await readWebhookLog()
   return res.status(200).json(out)
+}
+
+// POST /api/meta/lead-welcome { id } (admin) → send the welcome template to one Meta lead now (the button in the Lead Center)
+async function handleLeadWelcome(req, res) {
+  if (!checkAuth(req)) return res.status(401).json({ error: 'Unauthorized' })
+  if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
+  const id = (req.body || {}).id
+  if (!id) return res.status(400).json({ error: 'id required' })
+  const client = sb()
+  const { data: lead } = await client.from('meta_leads').select('id,name,phone,campaign_name,form_name').eq('id', id).maybeSingle()
+  if (!lead) return res.status(404).json({ error: 'lead not found' })
+  if (!lead.phone) return res.status(400).json({ error: 'no phone' })
+  // The button means "send it now", whatever the automatic rule's mode
+  const r = await Auto.welcomeExternalLead({ id: lead.id, name: lead.name || '', phone: lead.phone }, { source: 'meta', force: true })
+  if (r.ok) {
+    await client.from('meta_messages').insert({ lead_id: lead.id, direction: 'out', message: r.text, wa_message_id: r.idMessage || null }).then(() => {}, () => {})
+    await client.from('meta_leads').update({ wa_sent: true }).eq('id', lead.id).then(() => {}, () => {})
+  }
+  return res.status(r.ok ? 200 : 502).json(r)
 }
 
 async function handleSync(req, res) {
@@ -1325,6 +1363,7 @@ export default async function handler(req, res) {
   if (path === 'lead-research')  return handleLeadResearch(req, res)
   if (path === 'diagnostics')    return handleDiagnostics(req, res)
   if (path === 'connect')        return handleConnect(req, res)
+  if (path === 'lead-welcome')   return handleLeadWelcome(req, res)
 
   return res.status(404).json({ error: `Unknown path: ${path}` })
 }
