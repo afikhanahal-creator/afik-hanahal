@@ -142,7 +142,9 @@ rule. Probe action `connect` / `connect-fix` (workflow input `account`). There i
 cron's `metaWatch` (one WhatsApp to the office a day while the token is dead — a password change killed it silently in June 2026).
 The token is `META_SYSTEM_USER_TOKEN` in Vercel (a System User token from business.facebook.com → System users, with the page and
 the ad account assigned; scopes `leads_retrieval`, `pages_manage_metadata`, `pages_show_list`, `pages_read_engagement`,
-`ads_read`); after replacing it, run `connect-fix` so the page is subscribed to `leadgen`.
+`ads_read`); after replacing it, run `connect-fix` so the page is subscribed to `leadgen`. `fix=1` only touches the office's pages (`META_PAGE_IDS`);
+`unsub=<ids>` removes other pages from the app, and the webhook ignores leads from any page that isn't ours. A sync welcomes and
+announces only leads ≤ 24 h old; older ones the webhook missed are saved quietly (`savedQuietly`). Probe action `meta-sync`.
 
 Scheduled bulk sends are jobs in `app_settings` (`automations_jobs`), rendered at send time, max 20 messages per run;
 `auto-jobs-tick` pushes a running job from the open panel. `auto-tick?key=` (key = `AUTOMATION_KEY`, or the admin token)

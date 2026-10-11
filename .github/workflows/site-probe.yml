@@ -27,6 +27,9 @@ on:
       account:
         description: 'For the connect action: the Meta ad account id the campaigns run from'
         default: ''
+      unsub_pages:
+        description: 'For the connect action: page ids (not the office pages) to unsubscribe from our app'
+        default: ''
   push:
     branches: ['claude/**']
     paths: ['scripts/probe-site.mjs', '.github/workflows/site-probe.yml']
@@ -56,6 +59,7 @@ jobs:
           AI_LEAD: ${{ inputs.lead }}
           RESTORE_FROM: ${{ inputs.restore_from }}
           ACCOUNT: ${{ inputs.account }}
+          UNSUB_PAGES: ${{ inputs.unsub_pages }}
         run: node scripts/probe-actions.mjs
       - uses: actions/upload-artifact@v4
         if: always()
