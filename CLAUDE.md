@@ -205,6 +205,14 @@ Clicking a lead (board card, mobile card, table "open") opens `src/LeadCard.jsx`
 (contact, needs: deal type / budget / timeline / financing / area, property, management: priority / owner / follow-up / tags),
 notes & activity (`crm_data.notes: [{ id, text, ts }]`), tasks (`crm_data.tasks: [{ id, text, due, done }]`) and smart analysis.
 Every field saves on its own through `updateLead` → `PATCH /api/contacts` (merged into `crm_data`).
+**Stages** (`GROUPS` in `src/LeadsBoard.jsx`, `STAGES` in `lib/automations-shared.js` / `src/AdminHome.jsx`): new · contacted ·
+discovery · negotiating · won · lost · **irrelevant** ("לא רלוונטי": its board column starts collapsed — a narrow drop strip,
+every column can be collapsed and the choice is kept in `localStorage.afik_kanban_collapsed`; bulk sends leave these leads out
+unless the stage is picked). **Call summary** (`CallNoteDialog`, "סיכום" on every board / mobile card, opened through `NoteCtx`):
+outcome chips (talked / no answer / call back / not relevant), free text, next follow-up (tomorrow / 2 days / a week / any date) →
+a note `{ id, text, ts, kind: 'call', outcome }` in `crm_data.notes` (the list the lead card shows) plus `followUp`, `lastCallAt`,
+`noAnswerCount`; "not relevant" moves the lead to that stage, "talked" moves a new lead to contacted. The card shows the last note
+and the follow-up (red when overdue).
 
 Analysis = `POST /api/meta/lead-analyze { lead }` (`api/meta.js` → `lib/lead-analyze.js`): builds a dossier (lead + crm_data,
 WhatsApp history from Green API, `automation_log`, repeat inquiries in `contacts` / `meta_leads`, the matching listing from the

@@ -135,8 +135,8 @@ const TR = {
   },
 }
 
-const STAGE_DEFAULT = { new: { he: 'ליד חדש', en: 'New lead' }, contacted: { he: 'ניצור קשר', en: 'Contacted' }, discovery: { he: 'גילוי', en: 'Discovery' }, negotiating: { he: 'במו"מ', en: 'Negotiating' }, won: { he: 'סגירה', en: 'Closed won' }, lost: { he: 'ללא מענה', en: 'No answer' } }
-const STAGE_COLOR = { new: '#0073EA', contacted: '#FDAB3D', discovery: '#A25DDC', negotiating: '#FF7575', won: '#00C875', lost: '#7D7D7D' }
+const STAGE_DEFAULT = { new: { he: 'ליד חדש', en: 'New lead' }, contacted: { he: 'ניצור קשר', en: 'Contacted' }, discovery: { he: 'גילוי', en: 'Discovery' }, negotiating: { he: 'במו"מ', en: 'Negotiating' }, won: { he: 'סגירה', en: 'Closed won' }, lost: { he: 'ללא מענה', en: 'No answer' }, irrelevant: { he: 'לא רלוונטי', en: 'Not relevant' } }
+const STAGE_COLOR = { new: '#0073EA', contacted: '#FDAB3D', discovery: '#A25DDC', negotiating: '#FF7575', won: '#00C875', lost: '#7D7D7D', irrelevant: '#64748B' }
 const KIND_COLOR = { welcome: T.green, noreply: T.amber, reply: T.blue, stage: '#A25DDC', reengage: '#60D4F7', manual: T.brand, tpl: T.brand, test: T.grey }
 const clone = o => JSON.parse(JSON.stringify(o))
 const pick = (o, keys) => Object.fromEntries(keys.map(k => [k, o?.[k]]))
@@ -691,7 +691,7 @@ function Rules({ t, isEn, dir, cfg, setCfg, tpls, tplName, stageName, logRows, q
       <RuleCard {...cardProps} id="stage" icon="🗂️" accent="#A25DDC" mode={Object.values(R.stage || {}).some(r => r?.mode && r.mode !== 'off') ? 'auto' : 'off'} kind="stage" help={t.stageHelp} broken={tplBroken(Object.values(R.stage || {}).map(r => r?.templateId))}
         sentence={<><span>{t.stS[0]}</span><b>{t.stS[1]}</b><span>{t.stS[2]}</span></>}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {['contacted', 'discovery', 'negotiating', 'won', 'lost'].map(s => (
+          {['contacted', 'discovery', 'negotiating', 'won', 'lost', 'irrelevant'].map(s => (
             <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', minHeight: 48, padding: '6px 10px', borderRadius: 10, background: 'rgba(0,0,0,.14)', border: `1px solid ${T.divider}` }}>
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minWidth: 150, fontSize: 13.5, fontWeight: 700 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: STAGE_COLOR[s] }}/>{stageName(s)}</span>
               <span style={{ color: T.text3 }}>{isEn ? <FaArrowRight size={10}/> : <FaArrowLeft size={10}/>}</span>
