@@ -210,7 +210,7 @@ function Wizard({ t, lang, cfg, tpls, leads, states, stageName, init, pingActive
     const s = states[String(l.id)], phone = intlPhone(l.phone)
     return { l, id: String(l.id), phone, lang: leadLang(l), stage: l.leadStatus || 'new', optOut: !!s?.optOut, noPhone: !phone || phone.length < 11, got: !!s?.sent?.[`tpl:${tplId}`] }
   }), [leads, states, tplId])
-  const filtered = rows.filter(r => (!stages.size || stages.has(r.stage)) && (!days || !r.l.ts || Date.now() - r.l.ts <= days * 864e5) && (lng === 'all' || r.lang === lng)
+  const filtered = rows.filter(r => (stages.size ? stages.has(r.stage) : r.stage !== 'irrelevant') && (!days || !r.l.ts || Date.now() - r.l.ts <= days * 864e5) && (lng === 'all' || r.lang === lng)
     && (!q || `${r.l.name || ''} ${r.l.phone || ''} ${r.l.propTitle || ''}`.toLowerCase().includes(q.toLowerCase())))
   const eligible = filtered.filter(r => !r.optOut && !r.noPhone && !(skipGot && r.got))
   useEffect(() => { if (!touched) setSel(new Set(eligible.map(r => r.id))) }, [stages, days, lng, skipGot, q, tplId]) // eslint-disable-line react-hooks/exhaustive-deps

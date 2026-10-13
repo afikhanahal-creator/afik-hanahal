@@ -44,6 +44,7 @@ const STAGES = [
   { id: 'negotiating', he: 'במו״מ', en: 'Negotiating', color: '#FF7575' },
   { id: 'won', he: 'סגירה', en: 'Won', color: '#00C875' },
   { id: 'lost', he: 'ללא מענה', en: 'No answer', color: '#7D7D7D' },
+  { id: 'irrelevant', he: 'לא רלוונטי', en: 'Not relevant', color: '#64748B' },
 ]
 const CSS = `
   .ah-kpi{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px}

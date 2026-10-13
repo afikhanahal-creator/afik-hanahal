@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
+import { useState, useRef, useCallback, useEffect, useMemo, createContext, useContext } from 'react'
 import { sourceLabel, sourceColor, originLines } from './lib/leadFields.js'
 import LeadCard from './LeadCard.jsx'
 import {
@@ -26,6 +26,8 @@ const GROUPS = [
   { id: 'negotiating', label: 'במו"מ',     en: 'In Negotiation', color: '#FF7575' },
   { id: 'won',         label: 'סגירה',     en: 'Closed Won',     color: '#00C875' },
   { id: 'lost',        label: 'ללא מענה',  en: 'No Answer',      color: '#7D7D7D' },
+  // Leads that turned out not to fit: the column starts collapsed, they're left out of bulk sends by default
+  { id: 'irrelevant',  label: 'לא רלוונטי', en: 'Not relevant',  color: '#64748B', collapsedByDefault: true },
 ]
 // Stage names are editable by the office (double-click a column title). Overrides live in the admin's
 // settings ({ [stageId]: { label, en } }) and are applied onto GROUPS, so every place that shows a stage
@@ -471,6 +473,8 @@ function ClickableScoreCell({ value, lang, T, onSave }) {
 // ─── mobile lead card ─────────────────────────────────────────────────────────
 
 function MobileLeadCard({ lead, lang, T, onUpdate, onDelete, onOpenDetail, onStatusClick, onOpenChat }) {
+  const openNote = useContext(NoteCtx)
+  const last = lastNote(lead)
   const [menuOpen, setMenuOpen] = useState(false)
   const color = getGroupColor(lead.leadStatus || 'new')
   const scoreOpt = getScoreOpt(lead.enrichment?.intent)
@@ -600,6 +604,12 @@ function MobileLeadCard({ lead, lang, T, onUpdate, onDelete, onOpenDetail, onSta
         </div>
       )}
 
+      {last && (
+        <div onClick={() => openNote?.(lead)} style={{ marginTop: 8, padding: '8px 10px', background: T.bg, borderRadius: 8, border: `1px solid ${T.borderLight}`, fontSize: 12.5, color: T.text, lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>
+          📝 {last.text}
+        </div>
+      )}
+
       {/* Action buttons */}
       <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
         {lead.phone && (
@@ -614,6 +624,12 @@ function MobileLeadCard({ lead, lang, T, onUpdate, onDelete, onOpenDetail, onSta
             <MessageSquare size={14} /> WhatsApp
           </button>
         )}
+        {openNote && (
+          <button onClick={e => { e.stopPropagation(); openNote(lead) }}
+            style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 0', background: '#A25DDC14', border: '1px solid #A25DDC33', borderRadius: 10, color: '#A25DDC', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+            <Pencil size={14} /> {lang === 'en' ? 'Note' : 'סיכום'}
+          </button>
+        )}
         <button onClick={() => onOpenDetail(lead)}
           style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 0', background: 'none', border: `1px solid ${T.border}`, borderRadius: 10, color: T.textSub, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
           <ExternalLink size={14} /> {lang === 'en' ? 'Details' : 'פרטים'}
@@ -626,7 +642,7 @@ function MobileLeadCard({ lead, lang, T, onUpdate, onDelete, onOpenDetail, onSta
 // ─── mobile group section ─────────────────────────────────────────────────────
 
 function MobileGroupSection({ group, leads, lang, T, onUpdate, onDelete, onOpenDetail, onStatusClick, onOpenChat, onAddRow }) {
-  const [collapsed, setCollapsed] = useState(false)
+  const [collapsed, setCollapsed] = useState(!!group.collapsedByDefault)
   const [adding, setAdding] = useState(false)
   const [newName, setNewName] = useState('')
   const inputRef = useRef(null)
@@ -852,7 +868,7 @@ function SortableRow({ lead, cols, onUpdate, onDelete, onSelect, isSelected, lan
 // ─── desktop board group ──────────────────────────────────────────────────────
 
 function BoardGroup({ group, leads, cols, onUpdate, onUpdateStatus, onDelete, onSelect, lang, T, onOpenDetail, onAddRow, onStatusClick, onOpenChat, onEnrich, onRenameStage }) {
-  const [collapsed, setCollapsed] = useState(false)
+  const [collapsed, setCollapsed] = useState(!!group.collapsedByDefault)
   const [adding, setAdding] = useState(false)
   const [newName, setNewName] = useState('')
   const inputRef = useRef(null)
@@ -1160,6 +1176,119 @@ function StatusPopup({ lead, onClose, onUpdate, lang, T }) {
 
 // ─── kanban card ──────────────────────────────────────────────────────────────
 
+// ─── call summary / quick note ────────────────────────────────────────────────
+// One tap from any card: what came up in the call, how it ended, when to call back. Saved into the lead's
+// notes (crm_data.notes — the same list the lead card shows) and, when it says so, moves the lead's stage.
+
+const NoteCtx = createContext(null)
+const asNoteList = n => (Array.isArray(n) ? n : typeof n === 'string' && n.trim() ? [{ id: 'legacy', text: n, ts: 0 }] : [])
+const lastNote = lead => asNoteList(lead.notes).filter(n => n.text).sort((a, b) => (b.ts || 0) - (a.ts || 0))[0] || null
+const CALL_OUTCOMES = [
+  { id: 'answered',     he: 'דיברנו',        en: 'We talked',          color: '#00C875', icon: '✅' },
+  { id: 'no_answer',    he: 'לא ענה',        en: 'No answer',          color: '#FDAB3D', icon: '📵' },
+  { id: 'callback',     he: 'ביקש שנחזור',   en: 'Call back',          color: '#0073EA', icon: '🔁' },
+  { id: 'not_relevant', he: 'לא רלוונטי',    en: 'Not relevant',       color: '#64748B', icon: '🚫' },
+]
+const localDT = d => { const z = new Date(d.getTime() - d.getTimezoneOffset() * 60000); return z.toISOString().slice(0, 16) }
+const at10 = days => { const d = new Date(); d.setDate(d.getDate() + days); d.setHours(10, 0, 0, 0); return localDT(d) }
+const fmtNoteTs = (ts, lang) => ts ? new Date(ts).toLocaleString(lang === 'en' ? 'en-GB' : 'he-IL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''
+
+function CallNoteDialog({ lead, T, isDark, lang, onClose, updateLead, updateLeadStatus }) {
+  const en = lang === 'en'
+  const [outcome, setOutcome] = useState('')
+  const [text, setText] = useState('')
+  const [followUp, setFollowUp] = useState(lead.followUp || '')
+  const [saving, setSaving] = useState(false)
+  const notes = asNoteList(lead.notes)
+  const recent = [...notes].filter(n => n.text).sort((a, b) => (b.ts || 0) - (a.ts || 0)).slice(0, 4)
+  const oc = CALL_OUTCOMES.find(o => o.id === outcome)
+  const canSave = !!(text.trim() || outcome)
+  useEffect(() => {
+    const k = e => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', k); return () => document.removeEventListener('keydown', k)
+  }, [onClose])
+
+  const save = async () => {
+    if (!canSave || saving) return
+    setSaving(true)
+    const body = [oc ? `${oc.icon} ${en ? oc.en : oc.he}` : '', text.trim()].filter(Boolean).join(' · ')
+    const note = { id: `n${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, text: body, ts: Date.now(), kind: 'call', ...(outcome ? { outcome } : {}) }
+    const patch = { notes: [...notes.filter(n => n.id !== 'legacy' || n.text), note], lastCallAt: Date.now() }
+    if (followUp !== (lead.followUp || '')) patch.followUp = followUp
+    if (outcome === 'no_answer') patch.noAnswerCount = (Number(lead.noAnswerCount) || 0) + 1
+    await updateLead(lead.id, patch)
+    const stage = lead.leadStatus || 'new'
+    if (outcome === 'not_relevant' && stage !== 'irrelevant') updateLeadStatus(lead, 'irrelevant')
+    else if (outcome === 'answered' && stage === 'new') updateLeadStatus(lead, 'contacted')
+    setSaving(false)
+    onClose(true)
+  }
+
+  const chip = (on, color) => ({ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '7px 12px', borderRadius: 20, fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', border: `1.5px solid ${on ? color : (isDark ? '#2A3347' : '#D8DCF0')}`, background: on ? `${color}22` : 'transparent', color: on ? color : T.textSub })
+  return (
+    <div onClick={() => onClose()} style={{ position: 'fixed', inset: 0, zIndex: 900, background: 'rgba(0,0,0,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div role="dialog" aria-modal="true" aria-label={en ? 'Call summary' : 'סיכום שיחה'} onClick={e => e.stopPropagation()} onPointerDown={e => e.stopPropagation()}
+        style={{ width: '100%', maxWidth: 520, maxHeight: '92vh', overflowY: 'auto', background: isDark ? '#161E2E' : '#FFFFFF', border: `1px solid ${isDark ? '#2A3347' : '#D8DCF0'}`, borderRadius: 16, boxShadow: '0 24px 64px rgba(0,0,0,.45)', direction: en ? 'ltr' : 'rtl', padding: 18 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+          <div style={{ width: 38, height: 38, borderRadius: '50%', background: `linear-gradient(135deg, ${avatarColor(lead.name)}, ${avatarColor(lead.name)}88)`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 900, flexShrink: 0 }}>{(lead.name || '?')[0].toUpperCase()}</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 15, fontWeight: 800, color: T.text }}>{en ? 'Call summary' : 'סיכום שיחה'} · {lead.name || '—'}</div>
+            <div style={{ fontSize: 12, color: T.textSub, direction: 'ltr', textAlign: en ? 'left' : 'right' }}>{lead.phone || ''}{lead.propTitle ? ` · ${lead.propTitle}` : ''}</div>
+          </div>
+          {lead.phone && <a href={`tel:${lead.phone}`} style={{ ...chip(false, T.accent), color: T.accent, textDecoration: 'none' }}><Phone size={12}/> {en ? 'Call' : 'חייג'}</a>}
+          <button onClick={() => onClose()} aria-label={en ? 'Close' : 'סגור'} style={{ background: 'none', border: 'none', color: T.textSub, cursor: 'pointer', padding: 4 }}><X size={18}/></button>
+        </div>
+
+        <div style={{ fontSize: 12, fontWeight: 700, color: T.textSub, marginBottom: 7 }}>{en ? 'How did it go?' : 'איך הסתיימה השיחה?'}</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7, marginBottom: 14 }}>
+          {CALL_OUTCOMES.map(o => (
+            <button key={o.id} type="button" onClick={() => { setOutcome(v => v === o.id ? '' : o.id); if (o.id === 'callback' && !followUp) setFollowUp(at10(1)) }} style={chip(outcome === o.id, o.color)} aria-pressed={outcome === o.id}>
+              <span>{o.icon}</span>{en ? o.en : o.he}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ fontSize: 12, fontWeight: 700, color: T.textSub, marginBottom: 7 }}>{en ? 'What came up' : 'מה עלה בשיחה'}</div>
+        <textarea autoFocus value={text} onChange={e => setText(e.target.value)} rows={5}
+          onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); save() } }}
+          placeholder={en ? 'What they are looking for, budget, area, timing, objections, next step… (Ctrl+Enter saves)' : 'מה מחפש, תקציב, אזור, לוח זמנים, התנגדויות, מה הצעד הבא… (Ctrl+Enter לשמירה)'}
+          style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical', background: isDark ? '#0F1623' : '#F6F7FC', border: `1px solid ${isDark ? '#2A3347' : '#D8DCF0'}`, borderRadius: 10, padding: '10px 12px', fontSize: 14, lineHeight: 1.6, color: T.text, fontFamily: 'inherit', outline: 'none', direction: en ? 'ltr' : 'rtl' }}/>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap', margin: '12px 0 4px' }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: T.textSub }}>{en ? 'Next follow-up' : 'לחזור אליו'}</span>
+          {[[1, en ? 'Tomorrow' : 'מחר'], [2, en ? 'In 2 days' : 'עוד יומיים'], [7, en ? 'In a week' : 'עוד שבוע']].map(([d, l]) => (
+            <button key={d} type="button" onClick={() => setFollowUp(at10(d))} style={{ ...chip(followUp === at10(d), '#0073EA'), padding: '5px 10px', fontSize: 12 }}>{l}</button>
+          ))}
+          <input type="datetime-local" value={followUp} onChange={e => setFollowUp(e.target.value)} dir="ltr"
+            style={{ background: isDark ? '#0F1623' : '#F6F7FC', border: `1px solid ${isDark ? '#2A3347' : '#D8DCF0'}`, borderRadius: 8, padding: '5px 8px', fontSize: 12, color: T.text, fontFamily: 'inherit' }}/>
+          {followUp && <button type="button" onClick={() => setFollowUp('')} style={{ background: 'none', border: 'none', color: T.textSub, cursor: 'pointer', fontSize: 12 }}>{en ? 'Clear' : 'נקה'}</button>}
+        </div>
+        {outcome === 'not_relevant' && <div style={{ fontSize: 12, color: T.textSub, marginTop: 6 }}>{en ? 'The lead moves to “Not relevant”.' : 'הליד יעבור לעמודה "לא רלוונטי".'}</div>}
+        {outcome === 'answered' && (lead.leadStatus || 'new') === 'new' && <div style={{ fontSize: 12, color: T.textSub, marginTop: 6 }}>{en ? 'The lead moves to “Contacted”.' : 'הליד יעבור לשלב הבא (נוצר קשר).'}</div>}
+
+        <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+          <button type="button" onClick={save} disabled={!canSave || saving}
+            style={{ flex: 1, padding: '11px 0', borderRadius: 10, border: 'none', background: canSave ? 'linear-gradient(135deg, #0073EA, #0060CC)' : (isDark ? '#252E42' : '#E4E7F4'), color: canSave ? '#fff' : T.textSub, fontSize: 14, fontWeight: 800, cursor: canSave ? 'pointer' : 'default', fontFamily: 'inherit' }}>
+            {saving ? (en ? 'Saving…' : 'שומר…') : (en ? 'Save summary' : 'שמור סיכום')}
+          </button>
+          <button type="button" onClick={() => onClose()} style={{ padding: '11px 18px', borderRadius: 10, border: `1px solid ${isDark ? '#2A3347' : '#D8DCF0'}`, background: 'none', color: T.textSub, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}>{en ? 'Cancel' : 'ביטול'}</button>
+        </div>
+
+        {recent.length > 0 && (
+          <div style={{ marginTop: 18, borderTop: `1px solid ${isDark ? '#2A3347' : '#E4E7F4'}`, paddingTop: 12 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: T.textSub, marginBottom: 8 }}>{en ? 'Earlier notes' : 'הערות קודמות'} ({notes.filter(n => n.text).length})</div>
+            {recent.map(n => (
+              <div key={n.id} style={{ fontSize: 13, color: T.text, lineHeight: 1.55, padding: '7px 10px', marginBottom: 6, borderRadius: 8, background: isDark ? '#0F1623' : '#F6F7FC', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                {n.ts ? <span style={{ fontSize: 11, color: T.textSub, marginInlineEnd: 8 }}>{fmtNoteTs(n.ts, lang)}</span> : null}{n.text}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function KanbanCard({ lead, T, isDark, lang, onOpen, onDelete, onOpenChat, onEnrich }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: lead.id,
@@ -1167,6 +1296,9 @@ function KanbanCard({ lead, T, isDark, lang, onOpen, onDelete, onOpenChat, onEnr
   })
   const color = getGroupColor(lead.leadStatus || 'new')
   const score = getScoreOpt(lead.enrichment?.intent)
+  const openNote = useContext(NoteCtx)
+  const last = lastNote(lead)
+  const fu = lead.followUp && Date.parse(lead.followUp)
   // A plain click opens the lead card; a drag (≥ 8px, the sensor's activation distance) only moves it
   const downAt = useRef(null)
 
@@ -1240,6 +1372,16 @@ function KanbanCard({ lead, T, isDark, lang, onOpen, onDelete, onOpenChat, onEnr
         </div>
       )}
 
+      {/* Last call summary / note + next follow-up */}
+      {(last || fu) && (
+        <div onPointerDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); openNote?.(lead) }}
+          title={last?.text || ''}
+          style={{ fontSize: 11.5, color: T.text, marginBottom: 8, padding: '6px 8px', borderRadius: 8, background: isDark ? '#141C2C' : '#F3F5FC', border: `1px solid ${isDark ? '#243046' : '#E1E5F5'}`, cursor: 'text', lineHeight: 1.45 }}>
+          {last && <div style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>📝 {last.text}</div>}
+          {fu && <div style={{ marginTop: last ? 4 : 0, fontSize: 10.5, fontWeight: 700, color: fu < Date.now() ? T.red : T.accent }}>⏰ {lang === 'en' ? 'Follow up' : 'לחזור'}: {fmtNoteTs(fu, lang)}</div>}
+        </div>
+      )}
+
       {/* Score + date row */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 9 }}>
         {score
@@ -1270,6 +1412,12 @@ function KanbanCard({ lead, T, isDark, lang, onOpen, onDelete, onOpenChat, onEnr
             <MessageSquare size={10} /> WA
           </button>
         )}
+        {openNote && (
+          <button onClick={e => { e.stopPropagation(); openNote(lead) }} title={lang === 'en' ? 'Call summary / note' : 'סיכום שיחה / הערה'}
+            style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '5px 0', background: '#A25DDC14', border: '1px solid #A25DDC33', borderRadius: 7, color: '#A25DDC', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+            <Pencil size={10} /> {lang === 'en' ? 'Note' : 'סיכום'}
+          </button>
+        )}
         <button onClick={e => { e.stopPropagation(); onOpen(lead) }}
           style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '5px 0', background: isDark ? '#252E42' : '#F0F2FA', border: `1px solid ${isDark ? '#2A3347' : '#DDE3F5'}`, borderRadius: 7, color: T.textSub, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>
           <ExternalLink size={10} /> {lang === 'en' ? 'Open' : 'פתח'}
@@ -1285,13 +1433,25 @@ function KanbanCard({ lead, T, isDark, lang, onOpen, onDelete, onOpenChat, onEnr
 
 // ─── kanban column ────────────────────────────────────────────────────────────
 
-function KanbanColumn({ group, leads, T, isDark, lang, onOpen, onDelete, onOpenChat, onEnrich, onAddRow, onRenameStage }) {
+function KanbanColumn({ group, leads, T, isDark, lang, onOpen, onDelete, onOpenChat, onEnrich, onAddRow, onRenameStage, collapsed, onToggle }) {
   const { setNodeRef, isOver } = useDroppable({
     id: group.id,
     data: { type: 'column', groupId: group.id },
   })
   const color = group.color
   const label = lang === 'en' ? group.en : group.label
+
+  // Collapsed: a narrow strip (still a drop target — drag a card onto it to move the lead there)
+  if (collapsed) return (
+    <div ref={setNodeRef} role="button" tabIndex={0} onClick={onToggle} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle() } }}
+      title={lang === 'en' ? `Show “${label}”` : `הצג "${label}"`} aria-expanded="false"
+      style={{ width: 54, flexShrink: 0, alignSelf: 'stretch', maxHeight: '100%', minHeight: 220, cursor: 'pointer', borderRadius: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '12px 0',
+        background: isOver ? `${color}22` : (isDark ? '#131B2A' : '#ECEEF8'), border: `1.5px ${isOver ? 'solid' : 'dashed'} ${isOver ? color : `${color}66`}`, transition: 'background .2s, border-color .2s' }}>
+      <ChevronLeft size={15} style={{ color, transform: lang === 'en' ? 'none' : 'rotate(180deg)' }}/>
+      <span style={{ background: leads.length ? color : (isDark ? '#2A3347' : '#DDE3F5'), color: leads.length ? '#fff' : T.textDim, borderRadius: 20, padding: '2px 8px', fontSize: 11, fontWeight: 900, minWidth: 22, textAlign: 'center' }}>{leads.length}</span>
+      <span style={{ writingMode: 'vertical-rl', fontSize: 13, fontWeight: 800, color, letterSpacing: '.02em', whiteSpace: 'nowrap' }}>{label}</span>
+    </div>
+  )
 
   return (
     <div style={{
@@ -1329,6 +1489,13 @@ function KanbanColumn({ group, leads, T, isDark, lang, onOpen, onDelete, onOpenC
             borderRadius: 20, padding: '2px 9px', fontSize: 11, fontWeight: 900,
             minWidth: 22, textAlign: 'center',
           }}>{leads.length}</span>
+          <span style={{ flex: 1 }}/>
+          {onToggle && (
+            <button type="button" onClick={onToggle} title={lang === 'en' ? 'Collapse' : 'כווץ עמודה'} aria-label={lang === 'en' ? `Collapse ${label}` : `כווץ את ${label}`} aria-expanded="true"
+              style={{ background: 'none', border: 'none', color: T.textSub, cursor: 'pointer', padding: 3, display: 'flex', borderRadius: 6 }}>
+              <ChevronRight size={15} style={{ transform: lang === 'en' ? 'rotate(180deg)' : 'none' }}/>
+            </button>
+          )}
         </div>
       </div>
 
@@ -1373,8 +1540,17 @@ function KanbanColumn({ group, leads, T, isDark, lang, onOpen, onDelete, onOpenC
 
 // ─── kanban board ─────────────────────────────────────────────────────────────
 
+const COLLAPSE_KEY = 'afik_kanban_collapsed'
+function useCollapsedStages() {
+  const [map, setMap] = useState(() => { try { return JSON.parse(localStorage.getItem(COLLAPSE_KEY) || '{}') || {} } catch { return {} } })
+  const isCollapsed = g => (g.id in map ? !!map[g.id] : !!g.collapsedByDefault)
+  const toggle = g => setMap(m => { const next = { ...m, [g.id]: !isCollapsed(g) }; try { localStorage.setItem(COLLAPSE_KEY, JSON.stringify(next)) } catch {} return next })
+  return [isCollapsed, toggle]
+}
+
 function KanbanBoard({ leads, T, isDark, lang, updateLead, updateLeadStatus, onAddRow, onOpen, onDelete, onOpenChat, onEnrich, showToast, onRenameStage }) {
   const [activeId, setActiveId] = useState(null)
+  const [isCollapsed, toggleCollapsed] = useCollapsedStages()
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
   const grouped = useMemo(() => {
@@ -1443,6 +1619,8 @@ function KanbanBoard({ leads, T, isDark, lang, updateLead, updateLeadStatus, onA
             onEnrich={onEnrich}
             onAddRow={onAddRow}
             onRenameStage={onRenameStage}
+            collapsed={isCollapsed(group)}
+            onToggle={() => toggleCollapsed(group)}
           />
         ))}
       </div>
@@ -1660,7 +1838,22 @@ function MobileStatsBar({ leads, T, lang }) {
 
 // ─── main board ───────────────────────────────────────────────────────────────
 
-export default function LeadsBoard({
+// The board + the call-summary dialog any card can open (NoteCtx), on desktop and mobile alike
+export default function LeadsBoard(props) {
+  const [noteLeadId, setNoteLeadId] = useState(null)
+  const T = useTheme(props.isDark)
+  const openNote = useCallback(lead => { if (lead?.id != null) setNoteLeadId(lead.id) }, [])
+  const noteLead = noteLeadId != null ? (props.leads || []).find(l => l.id === noteLeadId) : null
+  return (
+    <NoteCtx.Provider value={openNote}>
+      <LeadsBoardMain {...props}/>
+      {noteLead && <CallNoteDialog lead={noteLead} T={T} isDark={props.isDark} lang={props.lang}
+        updateLead={props.updateLead} updateLeadStatus={props.updateLeadStatus} onClose={() => setNoteLeadId(null)}/>}
+    </NoteCtx.Provider>
+  )
+}
+
+function LeadsBoardMain({
   leads, updateLead, updateLeadStatus, deleteLead, addLead,
   colOrder, setColOrder, customCols, setCustomCols, colWidths, setColWidths,
   exportCSV, syncLeads, enrichAll, enrichLead, clearLeads,
