@@ -222,7 +222,7 @@ they are set; an auth error shows the configured key's id (`keyId`, from `privat
 `POST /api/meta/ga4-dash` (`lib/ga4.js` `dash()` / `dashSpecs()` / `previousRange()`, tested; `type`: dashboard · realtime · page ·
 test; 5-min cache, realtime 25 s): presets 7 / 30 / 90 days / this month / last month, each vs the previous period of the same
 length; a live panel (users in the last 30 min, a per-minute views sparkline, pages now, devices now, today's channels / sources /
-totals) with "אל תספור את הביקורים שלי" (`localStorage.afik_no_track` — `index.html` then loads no GTM / GA / Pixel; the admin
+totals) with "אל תספור את הביקורים שלי" (`localStorage.afik_no_track` — `index.html` then loads no GTM / GA / Pixel; any page opened with `?notrack=1` sets it, `?notrack=0` clears it; the admin
 pages never load them); KPIs with sparklines + a secondary strip; **contacts** = CRM leads in the same Israel days (site vs
 Facebook / Instagram, from the admin's `leads`) + GA's `contact_form` / `phone_click` / `whatsapp_click` / `email_click`
 (`CONVERSION_EVENTS` — filtered reports, not GA's keyEvents switch); the main chart (metric, day / week / month, previous period,

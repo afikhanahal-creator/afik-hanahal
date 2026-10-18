@@ -530,6 +530,8 @@
       (function(){
         var started=false;
         // no tags for the office's own browsers ("אל תספור את הביקורים שלי" in the admin) or on the admin pages
+        // ?notrack=1 marks this browser as the office's own (one tap on a phone); ?notrack=0 undoes it
+        try{var nt=/[?&]notrack=([01])/.exec(location.search);if(nt){nt[1]==='1'?localStorage.setItem('afik_no_track','1'):localStorage.removeItem('afik_no_track');history.replaceState(null,'',location.pathname+location.search.replace(/[?&]notrack=[01]/,'').replace(/^&/,'?')+location.hash)}}catch(e){}
         var skip=false;try{skip=localStorage.getItem('afik_no_track')==='1'||/^\/(admin-panel|dashboard)(\/|$)/.test(location.pathname)}catch(e){}
         function start(){ if(started||skip)return; started=true;
           (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
