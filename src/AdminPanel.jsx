@@ -2447,9 +2447,13 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   }
 
   const updateLeadStatus = (lead, status) => {
+    const from = lead.leadStatus || 'new'
+    // Every stage change is kept on the lead (crm_data.stageLog) — the lead card's history shows it
+    const prevLog = Array.isArray(lead.stageLog) ? lead.stageLog : []
+    const stageLog = from === status ? prevLog : [...prevLog, { from, to: status, at: Date.now() }].slice(-50)
     // The server runs the stage automations on this PATCH: it either sent a message already, or
     // has one ready for approval → offer it right here instead of making the team look for it.
-    const p0 = updateLead(lead.id, { leadStatus: status })
+    const p0 = updateLead(lead.id, { leadStatus: status, stageLog })
     if (p0 && typeof p0.then === 'function') p0.then(d => {
       const a = d?.automation
       if (a?.sent) addToast('🤖 נשלחה הודעה אוטומטית', `${lead.name || ''}: ${String(a.text || '').slice(0, 90)}`, 'automations', '💬')

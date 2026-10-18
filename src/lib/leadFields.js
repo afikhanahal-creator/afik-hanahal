@@ -65,3 +65,24 @@ export function originLines(origin, lang = 'he') {
   if (origin.device)   rows.push({ q: L('מכשיר', 'Device'), a: origin.device })
   return rows
 }
+
+// Which campaign / channel a lead belongs to — shown in brackets next to the lead's name everywhere
+// ("ריבי שטיינהרט (זרובבל 15 - v2)"). Meta: the campaign, else the lead form. Website: utm_campaign, else
+// utm_source / the referring site ("אתר · chatgpt.com"), else the source label ("טופס צור קשר").
+const hostOf = u => { try { return new URL(u).hostname.replace(/^www\./, '') } catch { return '' } }
+export function leadCampaign(lead, lang = 'he') {
+  if (!lead || typeof lead !== 'object') return ''
+  const crm = lead.crm_data && typeof lead.crm_data === 'object' ? lead.crm_data : {}
+  const pick = (...v) => v.map(x => String(x ?? '').trim()).find(Boolean) || ''
+  const meta = pick(lead.campaignName, lead.campaign_name, crm.campaignName, lead.formName, lead.form_name, crm.formName)
+  if (meta) return meta
+  const origin = (lead.origin && typeof lead.origin === 'object' ? lead.origin : crm.origin) || {}
+  const utm = origin.utm || {}
+  if (utm.utm_campaign) return String(utm.utm_campaign)
+  const site = lang === 'en' ? 'Website' : 'אתר'
+  const via = pick(utm.utm_source, hostOf(origin.referrer))
+  // the site's own pages as a referrer say nothing about where the visitor came from
+  if (via && !/afikhanahal/i.test(via)) return `${site} · ${via}`
+  const src = lead.source || (String(lead.id || '').startsWith('meta_') ? 'meta' : '')
+  return src ? sourceLabel(src, lang) : ''
+}
