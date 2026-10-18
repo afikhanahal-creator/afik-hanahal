@@ -175,7 +175,11 @@ rule mode; sending it counts as the welcome. The no-reply sequence starts only a
 **{property}** in templates = `leadProperty()`: the short campaign name for Meta leads ("זרובבל 15", via `shortCampaign`), the
 listing title for website leads. **"היום" layout:** KPI row (sending window · awaiting approval · sent · positive · failed), the
 approval queue grouped by kind (missed welcome first, "send all N" per group, stops at the first quota refusal), compact rows
-(lead + campaign + local phone + reason · two-line message preview, click to edit · send / skip / chat), then the schedule.
+(lead + campaign + local phone + reason · the full message · send / skip / chat), then the schedule. **Wording per message:** a
+template dropdown above every message (the item's category first, the whole library below — rendered for that lead in the
+browser with `renderTemplate`), "נוסח אחר" (next template of the same category), "ערוך הודעה" (free edit), "שחזר נוסח"; the
+group header has "נוסח לכל הקבוצה…". The send carries the chosen `templateId`. The built-in library has 35 bilingual templates
+(welcome / late-welcome / investor / scheduling variants, follow-ups, visits, after-call, nurture, re-engagement).
 Probe actions `wa` / `wa-send` check the chat page's own calls (`wa-send` texts the office number).
 
 Scheduled bulk sends are jobs in `app_settings` (`automations_jobs`), rendered at send time, max 20 messages per run;
