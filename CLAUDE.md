@@ -211,6 +211,15 @@ from `leads`, so names, the campaign's short name and `leadNeeds` all apply), "�
 stage's category, the welcome category before anything was sent), category chips, search, a Hebrew / English switch (default
 `leadLang`), an editable preview, "שלח עכשיו" (`sendMsg(text)` — the panel stays open, so several go out in a row; the typed draft
 and attachment are untouched) or "לעריכה בתיבה". Templates whose distinctive line already appears in the chat are marked "נשלח".
+**Editing a template from the chat** (`src/TemplateQuickEdit.jsx`): "✏️ ערוך" on every row of the dropdown and in the ⚡ panel
+opens the template itself (placeholders kept, variable chips, a live preview for the open chat's lead, Hebrew / English) →
+"שמור במקום התבנית" (replaces it everywhere: chat, automations, bulk sends), "שמור כתבנית חדשה", or "שחזר לנוסח המקורי" for an
+edited built-in. Saving re-reads `auto-config` first, writes `config.templates[id]` (`lib/template-edit.js` `withTemplate` /
+`withoutOverride`, tested) and hands the new config up (`onAutoConfigSaved` → the admin's `autoCfg`). **From the message box:** a
+template put in the box is remembered; once its text changes a bar offers "שמור במקום התבנית" — `untemplate()` aligns the edited
+text with the render marked by `renderTemplate(…, { keys: true })` (`\uE000key\uE002value\uE001`) and turns every lead value
+that survived the edit back into its placeholder ("אמיר" → `{name}`, "זרובבל 15" → `{property}`), then opens the editor to
+confirm.
 The chat header has the same library as a dropdown, **"⚡ תבניות ▾"** (`ChatTemplateMenu`, same file, same `useTemplateData`):
 search, Hebrew / English, "מומלץ לליד הזה", the personal templates, then every category; a click puts the message in the box
 (cursor at the end) to review and send, the row's "שלח" sends it as is; ↑ / ↓ / Enter / Esc; a fixed-position popover clamped

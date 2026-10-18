@@ -6,10 +6,11 @@
 import { useState, useMemo, useEffect, useLayoutEffect, useRef } from 'react'
 import { templateList, renderTemplate, CATEGORIES, leadLang } from '../lib/automations-shared.js'
 import { bestPersonalTemplateId } from '../lib/lead-needs.js'
+import { untemplate } from '../lib/template-edit.js'
 
 const TR = {
-  he: { title: 'תבניות מוכנות', search: 'חיפוש תבנית…', all: 'הכול', rec: 'מומלץ עכשיו', send: 'שלח עכשיו', sending: 'שולח…', insert: 'לעריכה בתיבה', sent: 'נשלח', sentNow: 'נשלח ✓', reset: 'שחזר נוסח', none: 'לא נמצאו תבניות', close: 'סגירה', he: 'עברית', en: 'English', hint: 'אפשר לערוך את הנוסח לפני השליחה', count: n => `${n} תבניות` },
-  en: { title: 'Ready templates', search: 'Search templates…', all: 'All', rec: 'Recommended now', send: 'Send now', sending: 'Sending…', insert: 'Edit in the box', sent: 'Sent', sentNow: 'Sent ✓', reset: 'Restore wording', none: 'No templates found', close: 'Close', he: 'עברית', en: 'English', hint: 'You can edit the wording before sending', count: n => `${n} templates` },
+  he: { title: 'תבניות מוכנות', search: 'חיפוש תבנית…', all: 'הכול', rec: 'מומלץ עכשיו', send: 'שלח עכשיו', sending: 'שולח…', insert: 'לעריכה בתיבה', edit: 'ערוך את התבנית', editTip: 'שינוי הנוסח של התבנית עצמה, לכל הלידים', sent: 'נשלח', sentNow: 'נשלח ✓', reset: 'שחזר נוסח', none: 'לא נמצאו תבניות', close: 'סגירה', he: 'עברית', en: 'English', hint: 'אפשר לערוך את הנוסח לפני השליחה', count: n => `${n} תבניות` },
+  en: { title: 'Ready templates', search: 'Search templates…', all: 'All', rec: 'Recommended now', send: 'Send now', sending: 'Sending…', insert: 'Edit in the box', edit: 'Edit the template', editTip: 'Change the template itself, for every lead', sent: 'Sent', sentNow: 'Sent ✓', reset: 'Restore wording', none: 'No templates found', close: 'Close', he: 'עברית', en: 'English', hint: 'You can edit the wording before sending', count: n => `${n} templates` },
 }
 // the lead's stage → the category that fits it now
 const STAGE_CAT = { new: 'welcome', contacted: 'followup', discovery: 'progress', negotiating: 'progress', won: 'deal', lost: 'closing', irrelevant: 'closing', nurture: 'closing' }
@@ -34,7 +35,7 @@ function useTemplateData({ lead, msgs, autoConfig, tplLang }) {
   return { all, sentIds, recommended }
 }
 
-export default function ChatTemplatePicker({ WA, lead, msgs = [], autoConfig, lang = 'he', onSend, onInsert, onClose }) {
+export default function ChatTemplatePicker({ WA, lead, msgs = [], autoConfig, lang = 'he', onSend, onInsert, onEdit, onClose }) {
   const t = TR[lang] || TR.he
   const [tplLang, setTplLang] = useState(() => leadLang(lead))
   const [cat, setCat] = useState('all')
@@ -88,7 +89,12 @@ export default function ChatTemplatePicker({ WA, lead, msgs = [], autoConfig, la
               style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical', background: WA.inputFieldBg, color: WA.bodyText, border: `1px solid ${WA.border}`, borderRadius: 10, padding: '10px 12px', fontFamily: 'inherit', fontSize: 13.5, lineHeight: 1.55, outline: 'none' }}/>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
               <button type="button" style={btn(true)} disabled={!!busy || !textOf(x).trim()} onClick={() => send(x)}>{busy === x.id ? t.sending : t.send}</button>
-              <button type="button" style={btn(false)} onClick={() => onInsert?.(textOf(x))}>{t.insert}</button>
+              <button type="button" style={btn(false)} onClick={() => onInsert?.(textOf(x), x, tplLang)}>{t.insert}</button>
+              {onEdit && <button type="button" style={btn(false)} title={t.editTip} onClick={() => {
+                // an edit made here in the preview goes into the template with the lead's details back as variables
+                const changed = edits[key(x.id)] != null && edits[key(x.id)] !== x.text
+                onEdit(x, changed ? { [tplLang]: untemplate(textOf(x), renderTemplate(x, lead, autoConfig || undefined, tplLang, { keys: true })) } : null, tplLang, changed)
+              }}>✏️ {t.edit}</button>}
               {edits[key(x.id)] != null && edits[key(x.id)] !== x.text && <button type="button" style={{ ...btn(false), border: 'none', color: WA.subText }} onClick={() => setEdits(s => { const n = { ...s }; delete n[key(x.id)]; return n })}>{t.reset}</button>}
               <span style={{ fontSize: 11.5, color: WA.subText, marginInlineStart: 'auto' }}>{t.hint}</span>
             </div>
@@ -131,10 +137,10 @@ export default function ChatTemplatePicker({ WA, lead, msgs = [], autoConfig, la
 // ── Chat header → "תבניות ▾": every template in one dropdown (recommended, personal, then each category). A click puts
 // the message in the box to review and send; "שלח" sends it as is. Arrow keys + Enter work, Esc closes.
 const MT = {
-  he: { button: 'תבניות', search: 'חיפוש תבנית…', rec: 'מומלץ לליד הזה', send: 'שלח', sending: '…', sent: 'נשלח', all: 'כל התבניות עם תצוגה מלאה', none: 'לא נמצאו תבניות', hint: 'לחיצה מכניסה לתיבת ההודעה', sendTip: 'שליחה מיידית בלי עריכה', count: n => `${n} תבניות` },
-  en: { button: 'Templates', search: 'Search templates…', rec: 'Recommended for this lead', send: 'Send', sending: '…', sent: 'Sent', all: 'All templates with full preview', none: 'No templates found', hint: 'A click puts it in the message box', sendTip: 'Send right away, as is', count: n => `${n} templates` },
+  he: { button: 'תבניות', search: 'חיפוש תבנית…', rec: 'מומלץ לליד הזה', send: 'שלח', edit: 'ערוך', editTip: 'עריכת נוסח התבנית ושמירה במקום הקיים', sending: '…', sent: 'נשלח', all: 'כל התבניות עם תצוגה מלאה', none: 'לא נמצאו תבניות', hint: 'לחיצה מכניסה לתיבת ההודעה', sendTip: 'שליחה מיידית בלי עריכה', count: n => `${n} תבניות` },
+  en: { button: 'Templates', search: 'Search templates…', rec: 'Recommended for this lead', send: 'Send', edit: 'Edit', editTip: 'Edit the template wording and save it in place', sending: '…', sent: 'Sent', all: 'All templates with full preview', none: 'No templates found', hint: 'A click puts it in the message box', sendTip: 'Send right away, as is', count: n => `${n} templates` },
 }
-export function ChatTemplateMenu({ WA, lead, msgs = [], autoConfig, lang = 'he', onSend, onInsert, onOpenPanel }) {
+export function ChatTemplateMenu({ WA, lead, msgs = [], autoConfig, lang = 'he', onSend, onInsert, onEdit, onOpenPanel }) {
   const t = MT[lang] || MT.he
   const [open, setOpen] = useState(false)
   const [tplLang, setTplLang] = useState(() => leadLang(lead))
@@ -172,7 +178,7 @@ export function ChatTemplateMenu({ WA, lead, msgs = [], autoConfig, lang = 'he',
   useEffect(() => { setActive(0) }, [q, tplLang])
   useEffect(() => { listRef.current?.querySelector(`[data-i="${active}"]`)?.scrollIntoView({ block: 'nearest' }) }, [active])
 
-  const pick = x => { onInsert?.(x.text); setOpen(false); setQ('') }
+  const pick = x => { onInsert?.(x.text, x, tplLang); setOpen(false); setQ('') }
   const send = async x => {
     if (busy) return
     setBusy(x.id)
@@ -228,6 +234,8 @@ export function ChatTemplateMenu({ WA, lead, msgs = [], autoConfig, lang = 'he',
                         </div>
                         <div style={{ fontSize: 12, color: WA.subText, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 1 }}>{x.text.replace(/\n+/g, ' · ')}</div>
                       </div>
+                      {onEdit && <button type="button" title={t.editTip} onClick={() => { setOpen(false); onEdit(x, null, tplLang, false) }}
+                        style={{ flex: 'none', visibility: on ? 'visible' : 'hidden', border: `1px solid ${WA.border}`, background: 'transparent', color: WA.bodyText, borderRadius: 7, padding: '4px 9px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', minHeight: 0 }}>✏️ {t.edit}</button>}
                       <button type="button" title={t.sendTip} onClick={() => send(x)} disabled={!!busy}
                         style={{ flex: 'none', visibility: on ? 'visible' : 'hidden', border: 'none', background: WA.green, color: '#fff', borderRadius: 7, padding: '5px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', minHeight: 0 }}>{busy === x.id ? t.sending : t.send}</button>
                     </div>
