@@ -1,260 +1,544 @@
-// Leads overview ("תמונת מצב"): KPIs, a funnel of the pipeline stages, the exits (no answer / not relevant), leads per
-// campaign by stage, and a drill-down — click a stage (or a campaign × stage cell) and its leads open below with what
-// needs attention: days in the stage, the last note, follow-ups, quick actions.
-import { useMemo, useState } from 'react'
-import { Phone, MessageSquare, ExternalLink, AlertCircle, Clock, Users, TrendingUp, CalendarClock, Inbox } from 'lucide-react'
+// Leads overview ("תמונת מצב") — a manager's dashboard over the CRM leads.
+// One filter row (period presets / custom range, source, campaign) scopes everything below it:
+//   • "Leads created": last week / month / 3 months / 6 months / year, each against the period before it
+//   • KPIs for the period: new leads, contact rate, median first response, interested+, won + win rate, waiting now
+//   • Leads over time (stacked by source, with a hover tooltip and a table view)
+//   • The funnel: how many reached each stage (cumulative), step-to-step conversion, where they are now; exits
+//   • Campaign performance, open-lead aging + follow-ups, when leads arrive (weekday × hour)
+//   • Drill-down: click a stage / bucket / campaign and its leads open below
+// Colours: the source series use the validated categorical slots (blue / orange / aqua); the funnel is an ordinal
+// single-hue ramp (validated light + dark); status colours only where the colour means good / bad.
+import { useMemo, useState, useRef } from 'react'
+import { Phone, MessageSquare, ExternalLink, AlertCircle, Clock, CalendarClock, ArrowUpRight, ArrowDownRight, Minus, Table2, BarChart3 } from 'lucide-react'
 import { leadCampaign, prettyLeadText } from './lib/leadFields.js'
 
 const FUNNEL = ['new', 'contacted', 'discovery', 'negotiating', 'won']
-const EXITS = ['lost', 'irrelevant']
-const DAY = 864e5
+const OUTCOMES = ['lost', 'irrelevant', 'nurture']
+const OPEN = ['new', 'contacted', 'discovery', 'negotiating']
+const DAY = 864e5, HOUR = 36e5
+const PALETTE = {
+  light: { series: ['#2a78d6', '#eb6834', '#1baf7a'], ramp: ['#8db4e8', '#6198dd', '#3d7fd3', '#2667b8', '#1a4d8f'], good: '#0F8A4F', bad: '#D63B3B', warn: '#B86E00' },
+  dark: { series: ['#3987e5', '#d95926', '#199e70'], ramp: ['#1d4f8f', '#2a6cc0', '#3987e5', '#6ea7ee', '#a4c8f5'], good: '#3DCB82', bad: '#F07070', warn: '#E9A23B' },
+}
+const PRESETS = [['7', 7], ['30', 30], ['90', 90], ['180', 182], ['365', 365], ['all', 0]]
 const asNotes = n => (Array.isArray(n) ? n : typeof n === 'string' && n.trim() ? [{ text: n, ts: 0 }] : [])
 const stageOf = l => l.leadStatus || 'new'
-// when the lead entered its current stage: the last stage-log entry into it, else its arrival
+const srcKey = l => { const s = l.source || (String(l.id || '').startsWith('meta_') ? 'meta' : 'website'); return s === 'meta' ? 'meta' : ['website', 'contact_form', 'property_form', 'pdf_download'].includes(s) ? 'site' : 'other' }
+const reachedIdx = l => {
+  let m = FUNNEL.indexOf(stageOf(l))
+  for (const x of Array.isArray(l.stageLog) ? l.stageLog : []) m = Math.max(m, FUNNEL.indexOf(x?.to), FUNNEL.indexOf(x?.from))
+  if (OUTCOMES.includes(stageOf(l)) && m < 1 && firstTouch(l)) m = 1      // a lead that was answered and closed off was contacted
+  return m
+}
+// the first human touch: a note / call written by the team, or the first stage move (automatic WhatsApp doesn't count)
+const firstTouch = l => {
+  const ts = []
+  for (const n of asNotes(l.notes)) if (n?.ts && !/^🔗/.test(n.text || '')) ts.push(Number(n.ts))
+  for (const x of Array.isArray(l.stageLog) ? l.stageLog : []) if (x?.at) ts.push(Number(x.at) || Date.parse(x.at))
+  if (l.lastCallAt) ts.push(Number(l.lastCallAt))
+  const f = ts.filter(x => x && x >= (l.ts || 0) - 60e3)
+  return f.length ? Math.min(...f) : 0
+}
+const lastActivity = l => {
+  const ts = [l.ts || 0]
+  for (const n of asNotes(l.notes)) if (n?.ts) ts.push(Number(n.ts))
+  for (const x of Array.isArray(l.stageLog) ? l.stageLog : []) if (x?.at) ts.push(Number(x.at) || Date.parse(x.at))
+  return Math.max(...ts.filter(Boolean))
+}
 const enteredAt = l => {
   const log = Array.isArray(l.stageLog) ? l.stageLog : []
   for (let i = log.length - 1; i >= 0; i--) if (log[i]?.to === stageOf(l)) return Number(log[i].at) || Date.parse(log[i].at) || l.ts || 0
   return l.ts || 0
 }
-// the furthest pipeline stage a lead ever reached (a lead that ended in "no answer" may have been "interested" before)
-const reachedIdx = l => {
-  let m = FUNNEL.indexOf(stageOf(l))
-  for (const x of Array.isArray(l.stageLog) ? l.stageLog : []) m = Math.max(m, FUNNEL.indexOf(x?.to), FUNNEL.indexOf(x?.from))
-  return m
-}
 const lastNote = l => asNotes(l.notes).filter(n => n.text).sort((a, b) => (b.ts || 0) - (a.ts || 0))[0] || null
-const endOfToday = () => { const d = new Date(); d.setHours(23, 59, 59, 999); return d.getTime() }
+const median = xs => { if (!xs.length) return null; const s = [...xs].sort((a, b) => a - b), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2 }
+const pctOf = (a, b) => (b ? Math.round((a / b) * 100) : 0)
+const startOfDay = t => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime() }
+const toInput = t => { const d = new Date(t); return new Date(d.getTime() - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10) }
 
 export default function LeadsDashboard({ leads = [], stages = [], T, isDark, lang = 'he', onOpen, onOpenChat }) {
   const en = lang === 'en'
   const L = (he, e) => (en ? e : he)
+  const P = isDark ? PALETTE.dark : PALETTE.light
+  const C = isDark
+    ? { page: '#0F1420', card: '#161D2B', line: '#263042', line2: '#1E2636', text: '#E8ECF6', text2: '#A9B3CA', text3: '#7D88A3', chip: '#1E2738', hover: '#1B2333' }
+    : { page: '#F5F6FA', card: '#FFFFFF', line: '#E3E7EF', line2: '#EEF1F6', text: '#1F2433', text2: '#5A6275', text3: '#8A92A6', chip: '#F1F3F8', hover: '#F6F8FC' }
   const st = id => stages.find(g => g.id === id) || { id, label: id, en: id, color: '#7D7D7D' }
   const stName = id => (en ? st(id).en : st(id).label)
-  const [sel, setSel] = useState({ stage: 'new', campaign: '' })
-  const [sort, setSort] = useState('oldest')
   const now = Date.now()
 
-  const data = useMemo(() => {
-    const by = Object.fromEntries([...FUNNEL, ...EXITS].map(k => [k, []]))
-    for (const l of leads) (by[stageOf(l)] || (by[stageOf(l)] = [])).push(l)
-    const total = leads.length
-    const reached = FUNNEL.map((_, i) => leads.filter(l => reachedIdx(l) >= i).length)
-    const camps = {}
-    for (const l of leads) {
-      const c = leadCampaign(l, lang) || L('ללא', 'None')
-      const row = camps[c] || (camps[c] = { name: c, total: 0, by: {} })
-      row.total++; row.by[stageOf(l)] = (row.by[stageOf(l)] || 0) + 1
-    }
-    const eod = endOfToday()
-    return {
-      by, total, reached,
-      week: leads.filter(l => now - (l.ts || 0) < 7 * DAY).length,
-      waiting: (by.new || []).filter(l => !lastNote(l)).length,
-      due: leads.filter(l => { const f = Date.parse(l.followUp || ''); return f && f <= eod && !['won', 'irrelevant'].includes(stageOf(l)) }).length,
-      wonRate: total ? Math.round(((by.won || []).length / Math.max(1, total - (by.irrelevant || []).length)) * 100) : 0,
-      camps: Object.values(camps).sort((a, b) => b.total - a.total),
-    }
-  }, [leads, lang]) // eslint-disable-line
+  // ── filters (one row, above everything) ─────────────────────────────────────
+  const [preset, setPreset] = useState('30')
+  const [from, setFrom] = useState(toInput(now - 30 * DAY)), [to, setTo] = useState(toInput(now))
+  const [src, setSrc] = useState('all')
+  const [camp, setCamp] = useState('')
+  const [drill, setDrill] = useState({ kind: 'stage', key: 'new', label: '' })
+  const [sort, setSort] = useState('oldest')
+  const [trendTable, setTrendTable] = useState(false)
+  const [tip, setTip] = useState(null)
+  const drillRef = useRef(null)
 
-  const card = { background: isDark ? '#141B29' : '#FFFFFF', border: `1px solid ${isDark ? '#232E42' : '#E1E5F5'}`, borderRadius: 16, boxShadow: isDark ? '0 2px 12px rgba(0,0,0,.25)' : '0 2px 10px rgba(20,30,80,.06)' }
-  const kpis = [
-    { Ic: Users, label: L('לידים', 'Leads'), value: data.total, sub: L(`${data.week} השבוע`, `${data.week} this week`), color: '#0073EA' },
-    { Ic: Inbox, label: L('חדשים בלי טיפול', 'New, untouched'), value: data.waiting, sub: L('ללא הערה או שיחה', 'no note or call yet'), color: '#FDAB3D', go: { stage: 'new' } },
-    { Ic: CalendarClock, label: L('מעקבים להיום', 'Follow-ups due'), value: data.due, sub: L('כולל באיחור', 'including overdue'), color: data.due ? '#E2445C' : '#7D7D7D' },
-    { Ic: TrendingUp, label: L('אחוז סגירה', 'Win rate'), value: `${data.wonRate}%`, sub: L(`${(data.by.won || []).length} נסגרו`, `${(data.by.won || []).length} won`), color: '#00C875', go: { stage: 'won' } },
-  ]
+  const range = useMemo(() => {
+    if (preset === 'custom') { const a = Date.parse(from), b = Date.parse(to) + DAY - 1; return a && b && b > a ? [a, b] : [0, now] }
+    const days = (PRESETS.find(p => p[0] === preset) || [0, 30])[1]
+    return days ? [startOfDay(now - (days - 1) * DAY), now] : [0, now]
+  }, [preset, from, to]) // eslint-disable-line
+  const span = range[1] - range[0]
+  const hasPrev = range[0] > 0
 
-  // ── drill-down list
-  const list = useMemo(() => {
-    let xs = (data.by[sel.stage] || []).filter(l => !sel.campaign || (leadCampaign(l, lang) || L('ללא', 'None')) === sel.campaign)
-    xs = xs.map(l => ({ l, at: enteredAt(l), note: lastNote(l), fu: Date.parse(l.followUp || '') || 0 }))
-    if (sort === 'oldest') xs.sort((a, b) => a.at - b.at)
-    else if (sort === 'newest') xs.sort((a, b) => b.at - a.at)
-    else xs.sort((a, b) => (a.fu || Infinity) - (b.fu || Infinity))
-    return xs
-  }, [data, sel, sort, lang]) // eslint-disable-line
-  const avgDays = list.length ? Math.round(list.reduce((s, x) => s + (now - x.at) / DAY, 0) / list.length) : 0
-  const noNote = list.filter(x => !x.note).length
-  const overdue = list.filter(x => x.fu && x.fu < now).length
-  const selCamps = useMemo(() => {
+  const base = useMemo(() => leads.filter(l => (src === 'all' || srcKey(l) === src) && (!camp || (leadCampaign(l, lang) || '—') === camp)), [leads, src, camp, lang])
+  const inRange = (l, a, b) => (l.ts || 0) >= a && (l.ts || 0) <= b
+  const cur = useMemo(() => base.filter(l => inRange(l, range[0], range[1])), [base, range])
+  const prev = useMemo(() => (hasPrev ? base.filter(l => inRange(l, range[0] - span - 1, range[0] - 1)) : []), [base, range, span, hasPrev])
+  const campaigns = useMemo(() => [...new Set(leads.map(l => leadCampaign(l, lang) || '—'))].sort((a, b) => a.localeCompare(b, 'he')), [leads, lang])
+
+  // ── numbers ─────────────────────────────────────────────────────────────────
+  const stats = set => {
+    const n = set.length
+    const touched = set.filter(l => firstTouch(l) || reachedIdx(l) >= 1)
+    const resp = set.map(l => { const f = firstTouch(l); return f ? f - (l.ts || f) : null }).filter(x => x != null && x >= 0)
+    const reached = FUNNEL.map((_, i) => set.filter(l => reachedIdx(l) >= i).length)
+    const won = set.filter(l => stageOf(l) === 'won').length
+    const closedOff = set.filter(l => ['lost', 'irrelevant'].includes(stageOf(l))).length
+    return { n, contactRate: pctOf(touched.length, n), resp: median(resp), interested: pctOf(reached[2], n), won, winRate: pctOf(won, won + closedOff), reached }
+  }
+  const S = useMemo(() => stats(cur), [cur]) // eslint-disable-line
+  const SP = useMemo(() => (hasPrev ? stats(prev) : null), [prev, hasPrev]) // eslint-disable-line
+  const waiting = base.filter(l => stageOf(l) === 'new' && !firstTouch(l) && now - (l.ts || 0) > DAY).length
+
+  const created = [[7, L('בשבוע האחרון', 'Last 7 days')], [30, L('בחודש האחרון', 'Last 30 days')], [90, L('ב-3 חודשים', 'Last 3 months')], [182, L('בחצי שנה', 'Last 6 months')], [365, L('בשנה האחרונה', 'Last 12 months')]]
+    .map(([d, label]) => {
+      const a = now - d * DAY, n = base.filter(l => (l.ts || 0) >= a).length, p = base.filter(l => (l.ts || 0) >= a - d * DAY && (l.ts || 0) < a).length
+      return { d, label, n, p }
+    })
+
+  // ── over time ───────────────────────────────────────────────────────────────
+  const trend = useMemo(() => {
+    const a = range[0] || Math.min(...cur.map(l => l.ts || now), now - 90 * DAY)
+    const days = (range[1] - a) / DAY
+    const unit = days <= 31 ? 'day' : days <= 200 ? 'week' : 'month'
+    const keyOf = t => {
+      const d = new Date(t)
+      if (unit === 'day') return startOfDay(t)
+      if (unit === 'week') { const s = startOfDay(t); return s - new Date(s).getDay() * DAY }   // week starts on Sunday
+      return new Date(d.getFullYear(), d.getMonth(), 1).getTime()
+    }
+    const buckets = []
+    for (let k = keyOf(a); k <= range[1]; ) {
+      buckets.push({ k, meta: 0, site: 0, other: 0 })
+      const d = new Date(k)
+      k = unit === 'day' ? k + DAY : unit === 'week' ? k + 7 * DAY : new Date(d.getFullYear(), d.getMonth() + 1, 1).getTime()
+    }
+    const idx = new Map(buckets.map((b, i) => [b.k, i]))
+    for (const l of cur) { const i = idx.get(keyOf(l.ts || 0)); if (i != null) buckets[i][srcKey(l)]++ }
+    return { unit, buckets: buckets.slice(-60) }
+  }, [cur, range]) // eslint-disable-line
+  const tMax = Math.max(1, ...trend.buckets.map(b => b.meta + b.site + b.other))
+  const niceMax = (() => { const p = 10 ** Math.floor(Math.log10(tMax)); return Math.ceil(tMax / p) * p })()
+  const bucketLabel = k => {
+    const d = new Date(k)
+    if (trend.unit === 'month') return d.toLocaleDateString(en ? 'en-GB' : 'he-IL', { month: 'short', year: '2-digit' })
+    return `${d.getDate()}/${d.getMonth() + 1}`
+  }
+  const SRC = [['meta', L('פייסבוק / אינסטגרם', 'Facebook / Instagram'), 0], ['site', L('אתר', 'Website'), 1], ['other', L('אחר', 'Other'), 2]]
+  const srcTotals = Object.fromEntries(SRC.map(([k]) => [k, cur.filter(l => srcKey(l) === k).length]))
+
+  // ── campaigns, aging, follow-ups, arrival heat ─────────────────────────────
+  const campRows = useMemo(() => {
     const m = {}
-    for (const l of data.by[sel.stage] || []) { const c = leadCampaign(l, lang) || L('ללא', 'None'); m[c] = (m[c] || 0) + 1 }
-    return Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, 8)
-  }, [data, sel.stage, lang]) // eslint-disable-line
+    for (const l of cur) {
+      const c = leadCampaign(l, lang) || '—'
+      const r = m[c] || (m[c] = { name: c, n: 0, touched: 0, interested: 0, won: 0, waiting: 0, resp: [] })
+      r.n++
+      const f = firstTouch(l)
+      if (f || reachedIdx(l) >= 1) r.touched++
+      if (reachedIdx(l) >= 2) r.interested++
+      if (stageOf(l) === 'won') r.won++
+      if (stageOf(l) === 'new' && !f) r.waiting++
+      if (f) r.resp.push(f - (l.ts || f))
+    }
+    return Object.values(m).sort((a, b) => b.n - a.n)
+  }, [cur, lang]) // eslint-disable-line
+  const open = base.filter(l => OPEN.includes(stageOf(l)))
+  const AGE = [[0, 2, L('עד יומיים', '0–2 days')], [2, 7, L('3–7 ימים', '3–7 days')], [7, 30, L('8–30 ימים', '8–30 days')], [30, 1e9, L('מעל חודש', '30+ days')]]
+  const aging = AGE.map(([a, b, label], i) => ({ i, label, list: open.filter(l => { const d = (now - lastActivity(l)) / DAY; return d >= a && d < b }) }))
+  const eod = startOfDay(now) + DAY - 1
+  const fu = { overdue: base.filter(l => { const f = Date.parse(l.followUp || ''); return f && f < startOfDay(now) && !['won', 'irrelevant'].includes(stageOf(l)) }),
+    today: base.filter(l => { const f = Date.parse(l.followUp || ''); return f && f >= startOfDay(now) && f <= eod }),
+    week: base.filter(l => { const f = Date.parse(l.followUp || ''); return f && f > eod && f <= eod + 7 * DAY }) }
+  const HOURS = [[0, 9, '00–09'], [9, 12, '09–12'], [12, 15, '12–15'], [15, 18, '15–18'], [18, 21, '18–21'], [21, 24, '21–24']]
+  const DAYS = en ? ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] : ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳']
+  const heat = useMemo(() => {
+    const g = DAYS.map(() => HOURS.map(() => 0))
+    for (const l of cur) { const d = new Date(l.ts || 0), h = d.getHours(); const j = HOURS.findIndex(([a, b]) => h >= a && h < b); if (j >= 0) g[d.getDay()][j]++ }
+    return g
+  }, [cur]) // eslint-disable-line
+  const heatMax = Math.max(1, ...heat.flat())
 
-  const pick = (stage, campaign = '') => { setSel({ stage, campaign }); setTimeout(() => document.getElementById('ld-drill')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 30) }
-  const maxCount = Math.max(1, ...FUNNEL.map(k => (data.by[k] || []).length))
-  const fmtD = ts => new Date(ts).toLocaleDateString(en ? 'en-GB' : 'he-IL', { day: 'numeric', month: 'short' })
+  // ── drill-down ──────────────────────────────────────────────────────────────
+  const openDrill = (kind, key, label = '') => { setDrill({ kind, key, label }); setTimeout(() => drillRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 30) }
+  const drillList = useMemo(() => {
+    let xs
+    if (drill.kind === 'stage') xs = base.filter(l => stageOf(l) === drill.key)
+    else if (drill.kind === 'aging') xs = aging[drill.key]?.list || []
+    else if (drill.kind === 'fu') xs = fu[drill.key] || []
+    else if (drill.kind === 'waiting') xs = base.filter(l => stageOf(l) === 'new' && !firstTouch(l) && now - (l.ts || 0) > DAY)
+    else if (drill.kind === 'camp') xs = cur.filter(l => (leadCampaign(l, lang) || '—') === drill.key)
+    else xs = []
+    const rows = xs.map(l => ({ l, at: drill.kind === 'stage' ? enteredAt(l) : lastActivity(l), note: lastNote(l), f: Date.parse(l.followUp || '') || 0 }))
+    if (sort === 'oldest') rows.sort((a, b) => a.at - b.at)
+    else if (sort === 'newest') rows.sort((a, b) => b.at - a.at)
+    else rows.sort((a, b) => (a.f || Infinity) - (b.f || Infinity))
+    return rows
+  }, [drill, base, cur, sort, lang]) // eslint-disable-line
+  const drillTitle = drill.kind === 'stage' ? stName(drill.key) : drill.label
+  const drillColor = drill.kind === 'stage' ? st(drill.key).color : P.series[0]
+
+  // ── pieces ──────────────────────────────────────────────────────────────────
+  const fmtResp = ms => (ms == null ? '—' : ms < HOUR ? L(`${Math.max(1, Math.round(ms / 6e4))} דק׳`, `${Math.max(1, Math.round(ms / 6e4))} min`) : ms < DAY ? L(`${(ms / HOUR).toFixed(1)} שע׳`, `${(ms / HOUR).toFixed(1)} h`) : L(`${(ms / DAY).toFixed(1)} ימים`, `${(ms / DAY).toFixed(1)} days`))
+  const fmtD = t => new Date(t).toLocaleDateString(en ? 'en-GB' : 'he-IL', { day: 'numeric', month: 'short' })
   const days = ms => { const d = Math.floor(ms / DAY); return d <= 0 ? L('היום', 'today') : d === 1 ? L('יום', '1 day') : L(`${d} ימים`, `${d} days`) }
+  // a change against the previous period: arrow + word, never colour alone; `lowerIsBetter` flips the meaning
+  const Delta = ({ now: a, before: b, unit = '%', lowerIsBetter }) => {
+    if (b == null || a == null || !hasPrev) return null
+    const diff = unit === '%' ? (b ? Math.round(((a - b) / b) * 100) : a ? 100 : 0) : Math.round(a - b)
+    if (!diff) return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11.5, color: C.text3 }}><Minus size={12}/>{L('ללא שינוי', 'no change')}</span>
+    const up = diff > 0, good = lowerIsBetter ? !up : up
+    return (
+      <span title={L('לעומת התקופה הקודמת', 'vs. the previous period')} style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: 11.5, fontWeight: 700, color: good ? P.good : P.bad }}>
+        {up ? <ArrowUpRight size={13}/> : <ArrowDownRight size={13}/>}{Math.abs(diff)}{unit === '%' ? '%' : unit}
+      </span>
+    )
+  }
+  const card = { background: C.card, border: `1px solid ${C.line}`, borderRadius: 12 }
+  const H = ({ children, sub, right }) => (
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
+      <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: C.text }}>{children}</h3>
+      {sub && <span style={{ fontSize: 12, color: C.text3 }}>{sub}</span>}
+      {right && <span style={{ marginInlineStart: 'auto' }}>{right}</span>}
+    </div>
+  )
+  const seg = (on) => ({ height: 30, padding: '0 12px', border: 'none', borderRadius: 7, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12.5, fontWeight: on ? 700 : 500, background: on ? C.card : 'transparent', color: on ? C.text : C.text2, boxShadow: on ? `0 1px 2px rgba(0,0,0,${isDark ? .4 : .08}), 0 0 0 1px ${C.line}` : 'none' })
+  const kpis = [
+    { label: L('לידים חדשים', 'New leads'), value: S.n.toLocaleString(), delta: <Delta now={S.n} before={SP?.n}/>, hint: L('נכנסו בתקופה', 'created in the period') },
+    { label: L('שיעור יצירת קשר', 'Contact rate'), value: `${S.contactRate}%`, delta: <Delta now={S.contactRate} before={SP?.contactRate} unit={L(" נק׳", " pts")}/>, hint: L('לידים שדיברו איתם או התקדמו', 'leads called, noted or moved') },
+    { label: L('זמן תגובה (חציון)', 'First response (median)'), value: fmtResp(S.resp), delta: SP?.resp != null && S.resp != null ? <Delta now={S.resp} before={SP.resp} lowerIsBetter/> : null, hint: L('מהכניסה ועד הטיפול הראשון', 'from arrival to first touch') },
+    { label: L('מתעניינים ומעלה', 'Interested or further'), value: `${S.interested}%`, delta: <Delta now={S.interested} before={SP?.interested} unit={L(" נק׳", " pts")}/>, hint: L('הגיעו לשלב "מתעניין" או מעבר', 'reached "interested" or beyond') },
+    { label: L('סגירות', 'Won'), value: S.won.toLocaleString(), delta: <Delta now={S.won} before={SP?.won}/>, hint: L(`אחוז סגירה ${S.winRate}% מהעסקאות שהוכרעו`, `win rate ${S.winRate}% of decided deals`) },
+    { label: L('ממתינים לטיפול', 'Waiting for a first touch'), value: waiting.toLocaleString(), hint: L('חדשים, יותר מ-24 שעות בלי מגע', 'new, over 24 h untouched'), alert: waiting > 0, go: () => openDrill('waiting', 'waiting', L('ממתינים לטיפול', 'Waiting for a first touch')) },
+  ]
+  const periodLabel = preset === 'all' ? L('כל הזמן', 'All time') : preset === 'custom' ? `${fmtD(range[0])} – ${fmtD(range[1])}` : L(`${(PRESETS.find(p => p[0] === preset) || [])[1]} הימים האחרונים`, `Last ${(PRESETS.find(p => p[0] === preset) || [])[1]} days`)
 
   return (
-    <div style={{ padding: '18px 20px 40px', direction: en ? 'ltr' : 'rtl', background: isDark ? '#0D1117' : '#F3F5FB', minHeight: '100%' }}>
+    <div className="ld" style={{ padding: '16px 20px 48px', direction: en ? 'ltr' : 'rtl', background: C.page, minHeight: '100%', color: C.text, WebkitFontSmoothing: 'antialiased', MozOsxFontSmoothing: 'grayscale', fontFeatureSettings: '"tnum"' }}>
       <style>{`
-        .ld-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
-        .ld-main{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:14px;margin-top:14px;align-items:start}
-        .ld-btn{transition:transform .12s, box-shadow .15s, background .15s}
-        .ld-btn:hover{transform:translateY(-1px)}
-        .ld-row:hover{background:${isDark ? '#1A2335' : '#F4F6FD'}}
-        @media (max-width:1100px){.ld-main{grid-template-columns:1fr}}
-        @media (max-width:760px){.ld-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.ld-item{grid-template-columns:minmax(0,1fr) auto!important;row-gap:4px!important}.ld-note,.ld-when{grid-column:1/-1}.ld-acts{grid-row:1;grid-column:2}}
-        @media (prefers-reduced-motion:reduce){.ld-btn{transition:none}.ld-btn:hover{transform:none}}
+        .ld *{box-sizing:border-box}
+        .ld-6{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px}
+        .ld-5{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0}
+        .ld-2{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:14px;align-items:start}
+        .ld-click{cursor:pointer;transition:background .15s, box-shadow .15s}
+        .ld-click:hover{background:${C.hover}}
+        .ld-click:focus-visible,.ld button:focus-visible{outline:2px solid ${P.series[0]};outline-offset:2px}
+        .ld-row:hover{background:${C.hover}}
+        @media (max-width:1280px){.ld-6{grid-template-columns:repeat(3,minmax(0,1fr))}}
+        @media (max-width:1100px){.ld-2{grid-template-columns:1fr}}
+        @media (max-width:760px){.ld-6{grid-template-columns:repeat(2,minmax(0,1fr))}.ld-5{grid-template-columns:repeat(2,minmax(0,1fr))}.ld-item{grid-template-columns:minmax(0,1fr) auto!important;row-gap:4px!important}.ld-note,.ld-when{grid-column:1/-1}.ld-acts{grid-row:1;grid-column:2}.ld-seg{max-width:100%;overflow-x:auto;scrollbar-width:none}.ld-seg button{white-space:nowrap}.ld-fun{grid-template-columns:78px minmax(0,1fr) 58px!important;gap:6px!important}.ld-step{padding-inline-start:90px!important}.ld .ld-out{gap:6px!important}.ld-out button{padding:8px!important}}
       `}</style>
 
-      {/* KPIs */}
-      <div className="ld-grid">
+      {/* Filters — one row, scoping everything below */}
+      <div role="group" aria-label={L('סינון', 'Filters')} style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
+        <div role="radiogroup" className="ld-seg" aria-label={L('תקופה', 'Period')} style={{ display: 'inline-flex', gap: 2, padding: 3, borderRadius: 9, background: C.chip, border: `1px solid ${C.line}` }}>
+          {[['7', L('שבוע', 'Week')], ['30', L('חודש', 'Month')], ['90', L('3 חודשים', '3 months')], ['180', L('חצי שנה', '6 months')], ['365', L('שנה', 'Year')], ['all', L('הכול', 'All')], ['custom', L('טווח…', 'Range…')]].map(([k, l]) => (
+            <button key={k} type="button" role="radio" aria-checked={preset === k} onClick={() => setPreset(k)} style={seg(preset === k)}>{l}</button>
+          ))}
+        </div>
+        {preset === 'custom' && (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: C.text2 }}>
+            <input type="date" value={from} max={to} onChange={e => setFrom(e.target.value)} aria-label={L('מתאריך', 'From')} style={{ height: 32, borderRadius: 8, border: `1px solid ${C.line}`, background: C.card, color: C.text, padding: '0 8px', fontFamily: 'inherit' }}/>
+            –
+            <input type="date" value={to} min={from} onChange={e => setTo(e.target.value)} aria-label={L('עד תאריך', 'To')} style={{ height: 32, borderRadius: 8, border: `1px solid ${C.line}`, background: C.card, color: C.text, padding: '0 8px', fontFamily: 'inherit' }}/>
+          </span>
+        )}
+        <select value={src} onChange={e => setSrc(e.target.value)} aria-label={L('מקור', 'Source')} style={{ height: 36, borderRadius: 9, border: `1px solid ${C.line}`, background: C.card, color: C.text, padding: '0 10px', fontFamily: 'inherit', fontSize: 13 }}>
+          <option value="all">{L('כל המקורות', 'All sources')}</option>
+          <option value="meta">{L('פייסבוק / אינסטגרם', 'Facebook / Instagram')}</option>
+          <option value="site">{L('אתר', 'Website')}</option>
+          <option value="other">{L('אחר', 'Other')}</option>
+        </select>
+        <select value={camp} onChange={e => setCamp(e.target.value)} aria-label={L('קמפיין', 'Campaign')} style={{ height: 36, borderRadius: 9, border: `1px solid ${C.line}`, background: C.card, color: C.text, padding: '0 10px', fontFamily: 'inherit', fontSize: 13, maxWidth: 220 }}>
+          <option value="">{L('כל הקמפיינים', 'All campaigns')}</option>
+          {campaigns.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <span style={{ fontSize: 12.5, color: C.text3, marginInlineStart: 'auto' }}>{periodLabel}{hasPrev ? ` · ${L('השוואה לתקופה הקודמת', 'compared with the previous period')}` : ''}</span>
+      </div>
+
+      {/* Leads created */}
+      <section style={{ ...card, marginBottom: 14 }} aria-label={L('לידים שנוצרו', 'Leads created')}>
+        <div style={{ padding: '12px 18px 0', fontSize: 13, fontWeight: 700, color: C.text2 }}>{L('לידים שנוצרו', 'Leads created')}</div>
+        <div className="ld-5">
+          {created.map((c, i) => (
+            <div key={c.d} style={{ padding: '8px 18px 14px', borderInlineStart: i ? `1px solid ${C.line2}` : 'none' }}>
+              <div style={{ fontSize: 12, color: C.text3 }}>{c.label}</div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 2 }}>
+                <span style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-.01em' }}>{c.n.toLocaleString()}</span>
+                <Delta now={c.n} before={c.p}/>
+              </div>
+              <div style={{ fontSize: 11, color: C.text3 }}>{L(`לפני כן: ${c.p}`, `before: ${c.p}`)}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* KPIs for the period */}
+      <div className="ld-6" style={{ marginBottom: 14 }}>
         {kpis.map(k => {
           const Tag = k.go ? 'button' : 'div'
           return (
-            <Tag key={k.label} type={k.go ? 'button' : undefined} className={k.go ? 'ld-btn' : undefined} onClick={k.go ? () => pick(k.go.stage) : undefined}
-              style={{ ...card, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12, textAlign: 'start', fontFamily: 'inherit', cursor: k.go ? 'pointer' : 'default', color: T.text }}>
-              <span style={{ width: 40, height: 40, borderRadius: 12, background: `${k.color}1c`, color: k.color, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><k.Ic size={18}/></span>
-              <span style={{ minWidth: 0 }}>
-                <span style={{ display: 'block', fontSize: 24, fontWeight: 900, lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>{k.value}</span>
-                <span style={{ display: 'block', fontSize: 12.5, fontWeight: 700, color: T.text }}>{k.label}</span>
-                <span style={{ display: 'block', fontSize: 11.5, color: T.textSub }}>{k.sub}</span>
-              </span>
+            <Tag key={k.label} type={k.go ? 'button' : undefined} onClick={k.go} className={k.go ? 'ld-click' : undefined}
+              style={{ ...card, padding: '14px 16px', textAlign: 'start', fontFamily: 'inherit', color: C.text, borderTop: `3px solid ${k.alert ? P.warn : P.series[0]}` }}>
+              <div style={{ fontSize: 12.5, fontWeight: 600, color: C.text2 }}>{k.label}</div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-.01em', lineHeight: 1.15 }}>{k.value}</span>
+                {k.delta}
+              </div>
+              <div style={{ fontSize: 11.5, color: C.text3, marginTop: 2 }}>{k.hint}</div>
             </Tag>
           )
         })}
       </div>
 
-      <div className="ld-main">
+      <div className="ld-2">
         {/* Funnel */}
-        <section style={{ ...card, padding: 18 }} aria-label={L('משפך לידים', 'Lead funnel')}>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 4 }}>
-            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: T.text }}>{L('משפך הלידים', 'Lead funnel')}</h3>
-            <span style={{ fontSize: 12, color: T.textSub }}>{L('לחצו על שלב כדי לראות את הלידים שבו', 'Click a stage to see its leads')}</span>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 14 }}>
+        <section style={{ ...card, padding: 18 }} aria-label={L('משפך', 'Funnel')}>
+          <H sub={L('כמה לידים מהתקופה הגיעו לכל שלב, ואחוז המעבר משלב לשלב', 'How many of the period\'s leads reached each stage, and the step-to-step conversion')}>{L('משפך המכירה', 'Sales funnel')}</H>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             {FUNNEL.map((k, i) => {
-              const n = (data.by[k] || []).length, s = st(k), on = sel.stage === k
-              const w = 34 + 66 * (n / maxCount)
-              const pct = data.total ? Math.round((data.reached[i] / data.total) * 100) : 0
+              const n = S.reached[i], nowIn = cur.filter(l => stageOf(l) === k).length
+              const w = S.n ? Math.max(3, (n / S.n) * 84) : 3 // ≤ 84% of the track: the count always fits after the bar
+              const step = i ? pctOf(n, S.reached[i - 1]) : null
               return (
-                <button key={k} type="button" className="ld-btn" onClick={() => pick(k)} aria-pressed={on}
-                  style={{ display: 'grid', gridTemplateColumns: '110px minmax(0,1fr) 108px', alignItems: 'center', gap: 12, background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', color: T.text, textAlign: 'start' }}>
-                  <span style={{ fontSize: 13, fontWeight: 800, color: on ? s.color : T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{stName(k)}</span>
-                  <span style={{ display: 'flex', justifyContent: 'center' }}>
-                    <span style={{ width: `${w}%`, height: 40, borderRadius: 10, background: `linear-gradient(90deg, ${s.color}, ${s.color}cc)`, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 900, fontVariantNumeric: 'tabular-nums', boxShadow: on ? `0 0 0 3px ${s.color}55, 0 6px 18px ${s.color}44` : `0 2px 8px ${s.color}33`, transition: 'width .4s' }}>{n}</span>
-                  </span>
-                  <span style={{ fontSize: 11.5, color: T.textSub, lineHeight: 1.3 }} title={L('כמה מכל הלידים הגיעו לשלב הזה או מעבר לו', 'Share of all leads that reached this stage or beyond')}>
-                    <b style={{ color: T.text, fontSize: 13 }}>{pct}%</b> {L('הגיעו לכאן', 'reached')}
-                  </span>
-                </button>
+                <div key={k}>
+                  {i > 0 && <div className="ld-step" style={{ fontSize: 11, color: C.text3, padding: '0 0 2px', paddingInlineStart: 128 }}>↓ {L(`${step}% עברו הלאה`, `${step}% moved on`)}</div>}
+                  <button type="button" className="ld-click ld-fun" onClick={() => openDrill('stage', k)} aria-label={`${stName(k)}: ${n}`}
+                    style={{ display: 'grid', gridTemplateColumns: '120px minmax(0,1fr) 96px', alignItems: 'center', gap: 10, width: '100%', background: 'transparent', border: 'none', borderRadius: 8, padding: '4px 6px', fontFamily: 'inherit', color: C.text, textAlign: 'start' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13, fontWeight: 600, minWidth: 0 }}>
+                      <span style={{ width: 8, height: 8, borderRadius: 2, background: st(k).color, flexShrink: 0 }}/>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{stName(k)}</span>
+                    </span>
+                    <span style={{ position: 'relative', height: 26, background: C.line2, borderRadius: 4 }}>
+                      <span style={{ position: 'absolute', insetInlineStart: 0, top: 0, bottom: 0, width: `${w}%`, background: P.ramp[i], borderRadius: 4 }}/>
+                      <span style={{ position: 'absolute', insetInlineStart: `calc(${w}% + 8px)`, top: 0, bottom: 0, display: 'flex', alignItems: 'center', fontSize: 13, fontWeight: 800, color: C.text, whiteSpace: 'nowrap' }}>{n.toLocaleString()}</span>
+                    </span>
+                    <span style={{ fontSize: 11.5, color: C.text2, textAlign: 'end', lineHeight: 1.3 }}>
+                      <b style={{ fontSize: 13, color: C.text }}>{pctOf(n, S.n)}%</b>
+                      <span style={{ display: 'block', color: C.text3 }}>{L(`כרגע: ${nowIn}`, `now: ${nowIn}`)}</span>
+                    </span>
+                  </button>
+                </div>
               )
             })}
           </div>
-          <div style={{ display: 'flex', gap: 10, marginTop: 16, flexWrap: 'wrap' }}>
-            {EXITS.map(k => {
-              const n = (data.by[k] || []).length, s = st(k), on = sel.stage === k
+          <div className="ld-out" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,minmax(0,1fr))', gap: 8, marginTop: 14, paddingTop: 14, borderTop: `1px solid ${C.line2}` }}>
+            {OUTCOMES.map(k => {
+              const n = cur.filter(l => stageOf(l) === k).length
               return (
-                <button key={k} type="button" className="ld-btn" onClick={() => pick(k)} aria-pressed={on}
-                  style={{ flex: 1, minWidth: 150, display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 12, cursor: 'pointer', fontFamily: 'inherit', background: on ? `${s.color}22` : 'transparent', border: `1.5px ${on ? 'solid' : 'dashed'} ${s.color}88`, color: T.text }}>
-                  <span style={{ fontSize: 20, fontWeight: 900, color: s.color, fontVariantNumeric: 'tabular-nums' }}>{n}</span>
-                  <span style={{ fontSize: 12.5, fontWeight: 700 }}>{stName(k)}</span>
-                  <span style={{ fontSize: 11.5, color: T.textSub, marginInlineStart: 'auto' }}>{data.total ? Math.round((n / data.total) * 100) : 0}%</span>
+                <button key={k} type="button" className="ld-click" onClick={() => openDrill('stage', k)}
+                  style={{ textAlign: 'start', padding: '10px 12px', borderRadius: 10, border: `1px solid ${C.line}`, background: 'transparent', fontFamily: 'inherit', color: C.text }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.text2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={stName(k)}><span style={{ width: 8, height: 8, borderRadius: 2, background: st(k).color, flexShrink: 0 }}/>{k === 'nurture' ? L('לחזור בהמשך', 'Nurture') : stName(k)}</span>
+                  <span style={{ display: 'block', fontSize: 20, fontWeight: 800, marginTop: 2 }}>{n} <span style={{ fontSize: 12, fontWeight: 600, color: C.text3 }}>{pctOf(n, S.n)}%</span></span>
                 </button>
               )
             })}
           </div>
         </section>
 
-        {/* Campaign × stage */}
-        <section style={{ ...card, padding: 18, overflowX: 'auto' }} aria-label={L('לפי קמפיין', 'By campaign')}>
-          <h3 style={{ margin: '0 0 12px', fontSize: 15, fontWeight: 800, color: T.text }}>{L('לפי קמפיין', 'By campaign')}</h3>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5, color: T.text }}>
-            <thead>
-              <tr>
-                <th style={{ textAlign: 'start', padding: '6px 6px', color: T.textSub, fontWeight: 700 }}>{L('קמפיין', 'Campaign')}</th>
-                <th style={{ padding: '6px 4px', color: T.textSub, fontWeight: 700 }}>{L('סה"כ', 'Total')}</th>
-                {[...FUNNEL, ...EXITS].map(k => <th key={k} title={stName(k)} style={{ padding: '6px 4px' }}><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', background: st(k).color }}/></th>)}
+        {/* Over time */}
+        <section style={{ ...card, padding: 18 }} aria-label={L('לידים לאורך זמן', 'Leads over time')}>
+          <H sub={trend.unit === 'day' ? L('לפי יום', 'per day') : trend.unit === 'week' ? L('לפי שבוע', 'per week') : L('לפי חודש', 'per month')}
+            right={<button type="button" onClick={() => setTrendTable(v => !v)} aria-pressed={trendTable} title={trendTable ? L('תרשים', 'Chart') : L('טבלה', 'Table')} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, height: 28, padding: '0 10px', borderRadius: 7, border: `1px solid ${C.line}`, background: 'transparent', color: C.text2, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12 }}>{trendTable ? <BarChart3 size={13}/> : <Table2 size={13}/>}{trendTable ? L('תרשים', 'Chart') : L('טבלה', 'Table')}</button>}>
+            {L('לידים לאורך זמן', 'Leads over time')}
+          </H>
+          <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 10 }}>
+            {SRC.map(([k, label, i]) => <span key={k} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.text2 }}><span style={{ width: 10, height: 10, borderRadius: 2, background: P.series[i] }}/>{label} <b style={{ color: C.text }}>{srcTotals[k]}</b></span>)}
+          </div>
+          {trendTable ? (
+            <div style={{ maxHeight: 260, overflowY: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+                <thead><tr style={{ color: C.text3 }}><th style={{ textAlign: 'start', padding: 6 }}>{L('תקופה', 'Period')}</th>{SRC.map(([k, label]) => <th key={k} style={{ padding: 6 }}>{label}</th>)}<th style={{ padding: 6 }}>{L('סה"כ', 'Total')}</th></tr></thead>
+                <tbody>{[...trend.buckets].reverse().map(b => <tr key={b.k} style={{ borderTop: `1px solid ${C.line2}` }}><td style={{ padding: 6 }}>{bucketLabel(b.k)}</td>{SRC.map(([k]) => <td key={k} style={{ padding: 6, textAlign: 'center' }}>{b[k]}</td>)}<td style={{ padding: 6, textAlign: 'center', fontWeight: 700 }}>{b.meta + b.site + b.other}</td></tr>)}</tbody>
+              </table>
+            </div>
+          ) : (
+            <div style={{ position: 'relative' }} onMouseLeave={() => setTip(null)}>
+              <div style={{ position: 'relative', height: 200, display: 'flex', alignItems: 'flex-end', gap: 2, paddingInlineStart: 30, borderBottom: `1px solid ${C.line}` }}>
+                {[0.5, 1].map(f => (
+                  <div key={f} aria-hidden style={{ position: 'absolute', insetInline: 0, bottom: `${f * 100}%`, borderTop: `1px solid ${C.line2}`, pointerEvents: 'none' }}>
+                    <span style={{ position: 'absolute', insetInlineStart: 0, top: -8, fontSize: 10.5, color: C.text3 }}>{Math.round(niceMax * f)}</span>
+                  </div>
+                ))}
+                {trend.buckets.map((b, i) => {
+                  const total = b.meta + b.site + b.other
+                  return (
+                    <div key={b.k} tabIndex={0} role="img" aria-label={`${bucketLabel(b.k)}: ${total}`}
+                      onMouseEnter={() => setTip({ i, b })} onFocus={() => setTip({ i, b })} onBlur={() => setTip(null)}
+                      style={{ flex: 1, minWidth: 0, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'center', cursor: 'default', outline: 'none', background: tip?.i === i ? C.line2 : 'transparent', borderRadius: 4 }}>
+                      <div style={{ width: '100%', maxWidth: 24, display: 'flex', flexDirection: 'column-reverse', gap: total ? 2 : 0 }}>
+                        {SRC.map(([k, , si], j) => b[k] ? <div key={k} style={{ height: `${(b[k] / niceMax) * 196}px`, background: P.series[si], borderRadius: j === SRC.length - 1 || !SRC.slice(j + 1).some(([kk]) => b[kk]) ? '4px 4px 0 0' : 0 }}/> : null)}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+              <div style={{ display: 'flex', gap: 2, paddingInlineStart: 30, marginTop: 4 }}>
+                {trend.buckets.map((b, i) => {
+                  const every = Math.max(1, Math.ceil(trend.buckets.length / 8))
+                  return <div key={b.k} style={{ flex: 1, minWidth: 0, position: 'relative', height: 14 }}>
+                    {i % every === 0 && <bdi style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', fontSize: 10.5, color: C.text3, whiteSpace: 'nowrap' }}>{bucketLabel(b.k)}</bdi>}
+                  </div>
+                })}
+              </div>
+              {tip && (
+                <div role="tooltip" style={{ position: 'absolute', top: 6, insetInlineStart: `calc(30px + (100% - 30px) * ${(tip.i + 0.5) / trend.buckets.length})`, transform: en ? 'translateX(-50%)' : 'translateX(50%)', background: isDark ? '#0B0F18' : '#1F2433', color: '#fff', borderRadius: 8, padding: '8px 10px', fontSize: 12, pointerEvents: 'none', whiteSpace: 'nowrap', zIndex: 2, boxShadow: '0 6px 18px rgba(0,0,0,.25)' }}>
+                  <div style={{ fontSize: 15, fontWeight: 800 }}>{tip.b.meta + tip.b.site + tip.b.other} <span style={{ fontSize: 11, fontWeight: 500, opacity: .75 }}>{bucketLabel(tip.b.k)}</span></div>
+                  {SRC.map(([k, label, si]) => <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}><span style={{ width: 10, height: 2, background: P.series[si] }}/><b>{tip.b[k]}</b><span style={{ opacity: .75 }}>{label}</span></div>)}
+                </div>
+              )}
+            </div>
+          )}
+        </section>
+      </div>
+
+      {/* Campaign performance */}
+      <section style={{ ...card, padding: 18, marginTop: 14, overflowX: 'auto' }} aria-label={L('ביצועי קמפיינים', 'Campaign performance')}>
+        <H sub={L('לידים שנכנסו בתקופה — לחצו על שורה כדי לראות את הלידים', 'Leads created in the period — click a row to see them')}>{L('ביצועי קמפיינים ומקורות', 'Campaigns & sources')}</H>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 640 }}>
+          <thead>
+            <tr style={{ color: C.text3, fontSize: 12 }}>
+              {[L('קמפיין', 'Campaign'), L('לידים', 'Leads'), L('נוצר קשר', 'Contacted'), L('מתעניינים+', 'Interested+'), L('נסגרו', 'Won'), L('ממתינים', 'Waiting'), L('זמן תגובה', 'Response')].map((h, i) => <th key={h} style={{ textAlign: i ? 'center' : 'start', padding: '6px 8px', fontWeight: 600 }}>{h}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {campRows.slice(0, 15).map(r => (
+              <tr key={r.name} className="ld-row" onClick={() => openDrill('camp', r.name, r.name)} style={{ borderTop: `1px solid ${C.line2}`, cursor: 'pointer' }}>
+                <td style={{ padding: '9px 8px', fontWeight: 700, maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</td>
+                <td style={{ padding: '9px 8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontWeight: 800, minWidth: 28, textAlign: 'end' }}>{r.n}</span>
+                    <span style={{ flex: 1, height: 6, background: C.line2, borderRadius: 3, minWidth: 50 }}><span style={{ display: 'block', height: '100%', width: `${(r.n / (campRows[0]?.n || 1)) * 100}%`, background: P.series[0], borderRadius: 3 }}/></span>
+                  </div>
+                </td>
+                <td style={{ padding: '9px 8px', textAlign: 'center' }}>{pctOf(r.touched, r.n)}%</td>
+                <td style={{ padding: '9px 8px', textAlign: 'center' }}>{pctOf(r.interested, r.n)}%</td>
+                <td style={{ padding: '9px 8px', textAlign: 'center', fontWeight: 700 }}>{r.won}</td>
+                <td style={{ padding: '9px 8px', textAlign: 'center', color: r.waiting ? P.warn : C.text3, fontWeight: r.waiting ? 700 : 400 }}>{r.waiting}</td>
+                <td style={{ padding: '9px 8px', textAlign: 'center', color: C.text2 }}>{fmtResp(median(r.resp))}</td>
               </tr>
-            </thead>
-            <tbody>
-              {data.camps.slice(0, 12).map(c => (
-                <tr key={c.name} style={{ borderTop: `1px solid ${isDark ? '#232E42' : '#EDF0F8'}` }}>
-                  <td style={{ padding: '7px 6px', fontWeight: 700, maxWidth: 170, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={c.name}>{c.name}</td>
-                  <td style={{ padding: '7px 4px', textAlign: 'center', fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>{c.total}</td>
-                  {[...FUNNEL, ...EXITS].map(k => {
-                    const n = c.by[k] || 0, on = sel.stage === k && sel.campaign === c.name
-                    return (
-                      <td key={k} style={{ padding: 2, textAlign: 'center' }}>
-                        {n ? <button type="button" onClick={() => pick(k, c.name)} title={`${c.name} · ${stName(k)}`} aria-pressed={on}
-                          style={{ minWidth: 30, height: 26, borderRadius: 7, border: on ? `2px solid ${st(k).color}` : 'none', background: `${st(k).color}${n >= 10 ? '44' : '22'}`, color: T.text, fontWeight: 800, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontVariantNumeric: 'tabular-nums' }}>{n}</button>
-                          : <span style={{ color: T.textDim }}>·</span>}
-                      </td>
-                    )
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {!data.camps.length && <div style={{ fontSize: 13, color: T.textSub, padding: '12px 0' }}>{L('אין לידים', 'No leads')}</div>}
+            ))}
+          </tbody>
+        </table>
+        {!campRows.length && <div style={{ padding: '14px 0', color: C.text3, fontSize: 13 }}>{L('אין לידים בתקופה', 'No leads in the period')}</div>}
+      </section>
+
+      <div className="ld-2" style={{ marginTop: 14 }}>
+        {/* Aging + follow-ups */}
+        <section style={{ ...card, padding: 18 }} aria-label={L('לידים פתוחים לפי זמן מהפעילות האחרונה', 'Open leads by time since last activity')}>
+          <H sub={L(`${open.length} לידים פתוחים — זמן מהפעילות האחרונה`, `${open.length} open leads — time since last activity`)}>{L('בריאות הצנרת', 'Pipeline health')}</H>
+          <div style={{ display: 'flex', height: 14, borderRadius: 4, overflow: 'hidden', gap: 2, background: C.line2 }}>
+            {aging.map(a => a.list.length ? <div key={a.i} title={`${a.label}: ${a.list.length}`} style={{ flex: a.list.length, background: P.ramp[[0, 1, 3, 4][a.i]] }}/> : null)}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,minmax(0,1fr))', gap: 8, marginTop: 12 }}>
+            {aging.map(a => (
+              <button key={a.i} type="button" className="ld-click" onClick={() => openDrill('aging', a.i, L(`פתוחים — ${a.label} מהפעילות האחרונה`, `Open — ${a.label} since last activity`))}
+                style={{ textAlign: 'start', padding: '8px 10px', borderRadius: 8, border: `1px solid ${C.line}`, background: 'transparent', fontFamily: 'inherit', color: C.text }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, color: C.text2 }}><span style={{ width: 8, height: 8, borderRadius: 2, background: P.ramp[[0, 1, 3, 4][a.i]] }}/>{a.label}</span>
+                <span style={{ display: 'block', fontSize: 19, fontWeight: 800 }}>{a.list.length}</span>
+              </button>
+            ))}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,minmax(0,1fr))', gap: 8, marginTop: 14, paddingTop: 14, borderTop: `1px solid ${C.line2}` }}>
+            {[['overdue', L('מעקבים באיחור', 'Overdue follow-ups'), fu.overdue.length ? P.bad : C.text3, AlertCircle], ['today', L('מעקבים להיום', 'Due today'), C.text2, CalendarClock], ['week', L('ב-7 הימים הבאים', 'Next 7 days'), C.text2, Clock]].map(([k, label, color, Ic]) => (
+              <button key={k} type="button" className="ld-click" onClick={() => openDrill('fu', k, label)} style={{ textAlign: 'start', padding: '8px 10px', borderRadius: 8, border: `1px solid ${C.line}`, background: 'transparent', fontFamily: 'inherit', color: C.text }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, color }}><Ic size={13}/>{label}</span>
+                <span style={{ display: 'block', fontSize: 19, fontWeight: 800 }}>{fu[k].length}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+
+        {/* Arrival heat */}
+        <section style={{ ...card, padding: 18 }} aria-label={L('מתי נכנסים לידים', 'When leads arrive')}>
+          <H sub={L('ימים ושעות שבהם הלידים בתקופה נכנסו — כדאי שיהיה מי שעונה', 'Days and hours the period\'s leads came in — have someone answering then')}>{L('מתי נכנסים לידים', 'When leads arrive')}</H>
+          <div style={{ display: 'grid', gridTemplateColumns: `34px repeat(${HOURS.length}, minmax(0,1fr))`, gap: 3, fontSize: 11, color: C.text3 }}>
+            <span/>
+            {HOURS.map(h => <span key={h[2]} style={{ textAlign: 'center' }}>{h[2]}</span>)}
+            {DAYS.map((d, di) => [
+              <span key={d} style={{ display: 'flex', alignItems: 'center' }}>{d}</span>,
+              ...HOURS.map((h, hi) => {
+                const n = heat[di][hi], q = n ? Math.min(4, Math.floor((n / heatMax) * 4.999)) : -1
+                return <span key={d + h[2]} title={`${d} ${h[2]}: ${n}`} aria-label={`${d} ${h[2]}: ${n}`}
+                  style={{ height: 26, borderRadius: 4, background: q < 0 ? C.line2 : P.ramp[q], display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: q >= 2 ? '#fff' : (q < 0 ? 'transparent' : C.text) }}>{n || ''}</span>
+              }),
+            ])}
+          </div>
         </section>
       </div>
 
       {/* Drill-down */}
-      <section id="ld-drill" style={{ ...card, marginTop: 14, overflow: 'hidden', scrollMarginTop: 12 }} aria-label={stName(sel.stage)}>
-        <div style={{ padding: '14px 18px', borderBottom: `1px solid ${isDark ? '#232E42' : '#EDF0F8'}`, background: `linear-gradient(90deg, ${st(sel.stage).color}18, transparent)` }}>
+      <section ref={drillRef} style={{ ...card, marginTop: 14, overflow: 'hidden', scrollMarginTop: 12 }} aria-label={drillTitle}>
+        <div style={{ padding: '14px 18px', borderBottom: `1px solid ${C.line2}`, borderTop: `3px solid ${drillColor}` }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            <span style={{ width: 12, height: 12, borderRadius: '50%', background: st(sel.stage).color }}/>
-            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 900, color: T.text }}>{stName(sel.stage)}</h3>
-            <span style={{ fontSize: 13, fontWeight: 800, color: '#fff', background: st(sel.stage).color, borderRadius: 20, padding: '1px 10px' }}>{list.length}</span>
-            {sel.campaign && <button type="button" onClick={() => setSel(x => ({ ...x, campaign: '' }))} style={{ fontSize: 12, fontWeight: 700, color: T.text, background: isDark ? '#232E42' : '#E8ECF8', border: 'none', borderRadius: 20, padding: '4px 10px', cursor: 'pointer', fontFamily: 'inherit' }}>{sel.campaign} ✕</button>}
-            <span style={{ flex: 1 }}/>
-            <label style={{ fontSize: 12, color: T.textSub, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800 }}>{drillTitle}</h3>
+            <span style={{ fontSize: 12.5, fontWeight: 800, color: C.text, background: C.chip, borderRadius: 20, padding: '2px 10px' }}>{drillList.length}</span>
+            {drill.kind === 'stage' && <span style={{ fontSize: 12, color: C.text3 }}>{L('כל הלידים שנמצאים כרגע בשלב (לפי מקור וקמפיין שבחרתם)', 'Every lead currently in this stage (for the chosen source / campaign)')}</span>}
+            <label style={{ fontSize: 12, color: C.text2, display: 'flex', alignItems: 'center', gap: 6, marginInlineStart: 'auto' }}>
               {L('מיון', 'Sort')}
-              <select value={sort} onChange={e => setSort(e.target.value)} style={{ background: isDark ? '#1A2335' : '#F4F6FD', color: T.text, border: `1px solid ${isDark ? '#2A3347' : '#D8DCF0'}`, borderRadius: 8, padding: '5px 8px', fontFamily: 'inherit', fontSize: 12 }}>
-                <option value="oldest">{L('הכי הרבה זמן בשלב', 'Longest in stage')}</option>
-                <option value="newest">{L('נכנסו לשלב לאחרונה', 'Newest in stage')}</option>
+              <select value={sort} onChange={e => setSort(e.target.value)} style={{ background: C.card, color: C.text, border: `1px solid ${C.line}`, borderRadius: 8, padding: '5px 8px', fontFamily: 'inherit', fontSize: 12 }}>
+                <option value="oldest">{L('הכי הרבה זמן ללא התקדמות', 'Longest without progress')}</option>
+                <option value="newest">{L('האחרונים', 'Most recent')}</option>
                 <option value="followup">{L('לפי מעקב קרוב', 'By next follow-up')}</option>
               </select>
             </label>
           </div>
-          <div style={{ display: 'flex', gap: 16, marginTop: 10, flexWrap: 'wrap', fontSize: 12.5, color: T.textSub }}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Clock size={13}/>{L('ממוצע בשלב:', 'Avg. in stage:')} <b style={{ color: T.text }}>{L(`${avgDays} ימים`, `${avgDays} days`)}</b></span>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: noNote ? '#D97706' : T.textSub }}><AlertCircle size={13}/>{L('בלי תיעוד:', 'No notes:')} <b>{noNote}</b></span>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: overdue ? '#E2445C' : T.textSub }}><CalendarClock size={13}/>{L('מעקב באיחור:', 'Overdue follow-up:')} <b>{overdue}</b></span>
-          </div>
-          {selCamps.length > 1 && (
-            <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
-              {selCamps.map(([c, n]) => {
-                const on = sel.campaign === c
-                return <button key={c} type="button" onClick={() => setSel(x => ({ ...x, campaign: on ? '' : c }))} aria-pressed={on}
-                  style={{ fontSize: 12, fontWeight: 700, borderRadius: 20, padding: '4px 10px', cursor: 'pointer', fontFamily: 'inherit', border: `1px solid ${on ? st(sel.stage).color : (isDark ? '#2A3347' : '#D8DCF0')}`, background: on ? `${st(sel.stage).color}22` : 'transparent', color: T.text }}>{c} · {n}</button>
-              })}
-            </div>
-          )}
+          {drillList.length > 0 && (() => {
+            const avg = Math.round(drillList.reduce((s, x) => s + (now - x.at) / DAY, 0) / drillList.length)
+            const noNote = drillList.filter(x => !x.note).length, late = drillList.filter(x => x.f && x.f < now).length
+            return (
+              <div style={{ display: 'flex', gap: 18, marginTop: 8, flexWrap: 'wrap', fontSize: 12.5, color: C.text2 }}>
+                <span>{L('ממוצע:', 'Average:')} <b style={{ color: C.text }}>{L(`${avg} ימים`, `${avg} days`)}</b></span>
+                <span style={{ color: noNote ? P.warn : C.text2 }}>{L('בלי תיעוד:', 'No notes:')} <b>{noNote}</b></span>
+                <span style={{ color: late ? P.bad : C.text2 }}>{L('מעקב באיחור:', 'Overdue:')} <b>{late}</b></span>
+              </div>
+            )
+          })()}
         </div>
-        {!list.length && <div style={{ padding: '30px 18px', textAlign: 'center', color: T.textSub, fontSize: 13.5 }}>{L('אין לידים בשלב הזה', 'No leads in this stage')}</div>}
+        {!drillList.length && <div style={{ padding: '28px 18px', textAlign: 'center', color: C.text3, fontSize: 13.5 }}>{L('אין לידים כאן', 'No leads here')}</div>}
         <div role="list">
-          {list.slice(0, 200).map(({ l, at, note, fu }) => {
-            const camp = leadCampaign(l, lang), late = fu && fu < now
-            const inStage = now - at
+          {drillList.slice(0, 200).map(({ l, at, note, f }) => {
+            const c = leadCampaign(l, lang), late = f && f < now, since = now - at
             return (
               <div key={l.id} role="listitem" className="ld-row ld-item" onClick={() => onOpen?.(l)}
-                style={{ display: 'grid', gridTemplateColumns: 'minmax(170px,1.1fr) minmax(0,1.6fr) 120px auto', gap: 12, alignItems: 'center', padding: '11px 18px', borderTop: `1px solid ${isDark ? '#1C2536' : '#F0F2F9'}`, cursor: 'pointer' }}>
+                style={{ display: 'grid', gridTemplateColumns: 'minmax(170px,1.1fr) minmax(0,1.7fr) 130px auto', gap: 12, alignItems: 'center', padding: '10px 18px', borderTop: `1px solid ${C.line2}`, cursor: 'pointer' }}>
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 800, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.name || '—'}{camp && <span style={{ fontSize: 11.5, fontWeight: 500, color: T.textSub, marginInlineStart: 5 }}>(<bdi>{camp}</bdi>)</span>}</div>
-                  <div style={{ fontSize: 12, color: T.textSub, direction: 'ltr', textAlign: en ? 'left' : 'right' }}>{l.phone || ''}</div>
+                  <div style={{ fontSize: 13.5, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.name || '—'}{c && <span style={{ fontSize: 11.5, fontWeight: 500, color: C.text3, marginInlineStart: 5 }}>(<bdi>{c}</bdi>)</span>}</div>
+                  <div style={{ fontSize: 12, color: C.text3, direction: 'ltr', textAlign: en ? 'left' : 'right' }}>{l.phone || ''}</div>
                 </div>
-                <div className="ld-note" style={{ minWidth: 0, fontSize: 12.5, color: note ? T.text : T.textDim, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={note?.text || ''}>
+                <div className="ld-note" style={{ minWidth: 0, fontSize: 12.5, color: note ? C.text : C.text3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={note?.text || ''}>
                   {note ? `📝 ${note.text}` : l.msg ? prettyLeadText(l.msg, lang) : L('אין תיעוד עדיין', 'Nothing logged yet')}
                 </div>
                 <div className="ld-when" style={{ fontSize: 11.5, lineHeight: 1.45 }}>
-                  <div style={{ color: inStage > 7 * DAY && !['won', 'irrelevant'].includes(sel.stage) ? '#D97706' : T.textSub, fontWeight: 700 }}>{L('בשלב', 'In stage')} {days(inStage)}</div>
-                  {fu ? <div style={{ color: late ? '#E2445C' : '#0073EA', fontWeight: 700 }}>⏰ {fmtD(fu)}</div> : null}
+                  <div style={{ color: since > 7 * DAY && OPEN.includes(stageOf(l)) ? P.warn : C.text2, fontWeight: 600 }}>{drill.kind === 'stage' ? L('בשלב', 'In stage') : L('ללא פעילות', 'Idle')} {days(since)}</div>
+                  {f ? <div style={{ color: late ? P.bad : C.text2, fontWeight: 600 }}>⏰ {fmtD(f)}</div> : null}
                 </div>
                 <div className="ld-acts" style={{ display: 'flex', gap: 5 }} onClick={e => e.stopPropagation()}>
-                  {l.phone && <a href={`tel:${l.phone}`} aria-label={L('התקשר', 'Call')} title={L('התקשר', 'Call')} style={{ width: 30, height: 30, borderRadius: 8, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: '#0073EA14', color: '#0073EA', border: '1px solid #0073EA30' }}><Phone size={13}/></a>}
-                  {l.phone && onOpenChat && <button type="button" onClick={() => onOpenChat(l)} aria-label="WhatsApp" title="WhatsApp" style={{ width: 30, height: 30, borderRadius: 8, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: '#25D36614', color: '#25D366', border: '1px solid #25D36630', cursor: 'pointer' }}><MessageSquare size={13}/></button>}
-                  <button type="button" onClick={() => onOpen?.(l)} aria-label={L('פתח', 'Open')} title={L('פתח', 'Open')} style={{ width: 30, height: 30, borderRadius: 8, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: isDark ? '#232E42' : '#EEF1FA', color: T.textSub, border: 'none', cursor: 'pointer' }}><ExternalLink size={13}/></button>
+                  {l.phone && <a href={`tel:${l.phone}`} aria-label={L('התקשר', 'Call')} title={L('התקשר', 'Call')} style={{ width: 30, height: 30, borderRadius: 8, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: C.chip, color: P.series[0], border: `1px solid ${C.line}` }}><Phone size={13}/></a>}
+                  {l.phone && onOpenChat && <button type="button" onClick={() => onOpenChat(l)} aria-label="WhatsApp" title="WhatsApp" style={{ width: 30, height: 30, borderRadius: 8, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: C.chip, color: '#1FAF55', border: `1px solid ${C.line}`, cursor: 'pointer' }}><MessageSquare size={13}/></button>}
+                  <button type="button" onClick={() => onOpen?.(l)} aria-label={L('פתח', 'Open')} title={L('פתח', 'Open')} style={{ width: 30, height: 30, borderRadius: 8, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: C.chip, color: C.text2, border: `1px solid ${C.line}`, cursor: 'pointer' }}><ExternalLink size={13}/></button>
                 </div>
               </div>
             )
           })}
         </div>
-        {list.length > 200 && <div style={{ padding: 12, textAlign: 'center', fontSize: 12, color: T.textSub }}>{L(`מוצגים 200 מתוך ${list.length}`, `Showing 200 of ${list.length}`)}</div>}
+        {drillList.length > 200 && <div style={{ padding: 12, textAlign: 'center', fontSize: 12, color: C.text3 }}>{L(`מוצגים 200 מתוך ${drillList.length}`, `Showing 200 of ${drillList.length}`)}</div>}
       </section>
     </div>
   )
