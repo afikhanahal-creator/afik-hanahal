@@ -1,634 +1,866 @@
-// Google Analytics 4 — full property dashboard, fed by /api/meta/ga4 (GA4 Data API, server-side).
+// Google Analytics 4 — the site-traffic dashboard (admin → אנליטיקס → Google Analytics), built like the Korkos site's:
+// live panel, KPIs vs the previous period, contacts (CRM leads + form / phone / WhatsApp / email clicks), the main chart
+// (metric, day / week / month, previous period, anomalies), insights, channels, UTM campaigns, source / medium, landing
+// pages, pages with a drill-down, devices, geography, a weekday × hour heat map and site actions.
+// Data: POST /api/meta/ga4-dash (lib/ga4.js dash) — real GA4 data only, never demo numbers.
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { FaSyncAlt, FaExternalLinkAlt, FaUsers, FaUserPlus, FaMousePointer, FaEye, FaHeartbeat, FaClock, FaBullseye, FaPercent, FaDesktop, FaMobileAlt, FaTabletAlt, FaMapMarkerAlt, FaBolt, FaFileAlt, FaSignInAlt, FaRoute, FaBullhorn, FaKey, FaCheckCircle, FaArrowUp, FaArrowDown, FaChartLine } from 'react-icons/fa'
-import { T, AUTO_CSS, Button, Badge, Skeleton, CopyField } from './automationsUI.jsx'
+
+const API = '/api/meta'
+const NO_TRACK_KEY = 'afik_no_track'        // index.html skips GA / GTM / Pixel in a browser that has it
+const GA_URL = p => `https://analytics.google.com/analytics/web/#/p${p}/reports/intelligenthome`
 
 const TR = {
   he: {
-    title: 'Google Analytics 4', sub: p => `נכס ${p} · הנגר 24 הוד השרון`, days: n => `${n} ימים`, refresh: 'רענון', openGa: 'פתח ב-Google Analytics',
-    updated: m => (m < 1 ? 'עודכן עכשיו' : `עודכן לפני ${m} דק׳`), vsPrev: n => `לעומת ${n} הימים הקודמים`,
-    rtTitle: 'בזמן אמת', rtSub: 'משתמשים פעילים ב-30 הדקות האחרונות', rtPages: 'עמודים פתוחים עכשיו', rtNone: 'אין כרגע גולשים באתר',
-    k: { totalUsers: 'משתמשים', newUsers: 'משתמשים חדשים', sessions: 'ביקורים', screenPageViews: 'צפיות בדפים', engagementRate: 'שיעור מעורבות', averageSessionDuration: 'משך ביקור ממוצע', keyEvents: 'המרות (אירועי מפתח)', conv: 'שיעור המרה' },
-    trend: 'מגמה', prevLine: 'תקופה קודמת', curLine: 'התקופה הנוכחית',
-    channels: 'ערוצי הגעה', channelsSub: 'מאיפה מגיעים הגולשים', sources: 'מקור / מדיום', devices: 'מכשירים', audience: 'חדשים מול חוזרים', newU: 'חדשים', retU: 'חוזרים',
-    pages: 'העמודים הנצפים ביותר', landing: 'דפי נחיתה', cities: 'ערים', countries: 'מדינות', events: 'אירועים', heat: 'מתי מבקרים באתר', heatSub: 'ביקורים לפי יום ושעה (שעון ישראל)',
-    campaigns: 'קמפיינים (UTM)', colViews: 'צפיות', colUsers: 'משתמשים', colSessions: 'ביקורים', colTime: 'זמן ממוצע', colConv: 'המרות', colEng: 'מעורבות', colCount: 'כמות', share: 'נתח',
-    key: 'המרה', empty: 'אין נתונים בטווח הזה', loading: 'טוען נתונים מ-Google Analytics…',
-    dow: ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'], less: 'פחות', more: 'יותר',
-    setupTitle: 'חיבור ישיר ל-Google Analytics', setupSub: 'כדי להציג כאן את כל הנתונים של GA4 בזמן אמת, צריך לחבר חשבון שירות של Google (חינם, פעם אחת, כ-5 דקות).',
-    smNote: 'למה זה נדרש? עד היום הנתונים הגיעו דרך Supermetrics — תקופת הניסיון שם הסתיימה ב-16.6.2026 ולכן הנתונים הפסיקו להתעדכן. החיבור הישיר ל-Google חינמי ולא תלוי בשירות חיצוני.',
-    steps: [
-      ['הפעילו את Google Analytics Data API', 'ב-Google Cloud Console, בפרויקט קיים או חדש.', 'https://console.cloud.google.com/apis/library/analyticsdata.googleapis.com', 'פתח'],
-      ['צרו חשבון שירות והורידו מפתח JSON', 'ב-IAM & Admin פתחו Service Accounts וצרו חשבון חדש. בלשונית Keys בחרו Add key ואז JSON — הקובץ יירד למחשב.', 'https://console.cloud.google.com/iam-admin/serviceaccounts', 'פתח'],
-      ['הוסיפו את חשבון השירות לנכס ב-GA4', 'בתפריט Admin פתחו Property access management, לחצו ➕, הדביקו את כתובת ה-client_email מהקובץ ובחרו הרשאת Viewer.', 'https://analytics.google.com/analytics/web/#/a/p536943897/admin', 'פתח'],
-      ['הדביקו את קובץ ה-JSON ב-Vercel', 'ב-Settings פתחו Environment Variables, הוסיפו משתנה בשם GA4_SERVICE_ACCOUNT_JSON שהערך שלו הוא כל התוכן של הקובץ, ובצעו Redeploy.', 'https://vercel.com/dashboard', 'פתח'],
-    ],
-    envName: 'שם המשתנה', propId: 'מזהה הנכס (GA4_PROPERTY_ID, כבר מוגדר כברירת מחדל)', copy: 'העתק', copied: 'הועתק', url: 'ערך',
-    errTitle: 'Google Analytics החזיר שגיאה', retry: 'נסה שוב',
-    why: {
-      permission: e => `חשבון השירות${e ? ` ${e}` : ''} עדיין לא קיבל גישה לנכס. ב-GA4, בתפריט Admin תחת Property access management, הוסיפו אותו בהרשאת Viewer.`,
-      api: 'ה-Google Analytics Data API לא מופעל בפרויקט של חשבון השירות. הפעילו אותו ב-Google Cloud Console.',
-      auth: 'המפתח של חשבון השירות לא תקין או בוטל. צרו מפתח JSON חדש והדביקו אותו שוב ב-Vercel.',
-      property: 'מזהה הנכס שגוי. בדקו את GA4_PROPERTY_ID (מספר, לא G-XXXX).',
-      other: 'נסו שוב בעוד רגע. אם זה חוזר — פרטי השגיאה למטה.',
+    title: 'תנועת האתר', src: 'Google Analytics', vsPrev: 'השוואה לתקופה מקבילה קודמת', refresh: 'רענון', openGa: 'פתח ב-Google Analytics', csv: 'CSV',
+    presets: { '7d': '7 ימים', '30d': '30 יום', '90d': '90 יום', tm: 'החודש', lm: 'חודש שעבר' },
+    loading: 'טוען נתונים מ-Google Analytics…', last30: 'ב-30 הדקות האחרונות', noData: 'אין נתונים בטווח שנבחר',
+    live: 'פעילות ב-30 הדקות האחרונות', liveSub: 'מתעדכן כל דקה · Google Analytics מחזיק חלון של 30 דקות אחורה', liveUsers: 'גולשים ב-30 הדקות האחרונות',
+    liveViews: n => (n ? `${n} צפיות בחצי השעה האחרונה` : 'אין פעילות בחצי השעה האחרונה'), livePages: 'עמודים שנצפים כרגע', liveNone: 'אף אחד לא ביקר באתר ב-30 הדקות האחרונות',
+    liveTitlesNote: 'Google מדווח בזמן אמת לפי כותרת העמוד ולא לפי הכתובת.', liveFrom: 'מאיפה הגיעו', today: 'היום', liveNoToday: 'אין עדיין ביקורים היום',
+    liveFromNote: 'המקור הוא נתון של היום ולא של הרגע: ל-API של זמן אמת אין מימד מקור תנועה.', exactSrc: 'מקורות מדויקים', liveDevices: 'מכשירים עכשיו',
+    todayLine: (u, s, v) => `היום עד עכשיו: ${u} גולשים · ${s} ביקורים · ${v} צפיות`,
+    selfEx: 'אל תספור את הביקורים שלי', selfExTip: 'מסמן את הדפדפן הזה כ״אל תספור״: הביקורים שלך באתר לא ייכנסו ל-Google Analytics ולפיקסל, כך שהמספרים משקפים גולשים אמיתיים. נשמר בדפדפן הזה בלבד.',
+    k: { users: 'משתמשים', sessions: 'ביקורים', views: 'צפיות עמוד', eng: 'שיעור מעורבות', leads: 'לידים במערכת', newUsers: 'משתמשים חדשים', engaged: 'ביקורים מעורבים', vps: 'צפיות לביקור', dur: 'משך ביקור ממוצע', bounce: 'שיעור נטישה', events: 'אירועים', cr: 'שיעור פנייה' },
+    tips: {
+      users: 'כמה אנשים שונים ביקרו באתר בתקופה. כל אדם נספר פעם אחת גם אם חזר כמה פעמים.',
+      sessions: 'כמה כניסות היו לאתר בסך הכול. אדם שנכנס פעמיים נספר כשני ביקורים.',
+      views: 'כמה עמודים נצפו בסך הכול. מספר גבוה ביחס לביקורים אומר שגולשים ממשיכים לדפדף.',
+      eng: 'אחוז הביקורים שבהם הגולש באמת התעניין: שהה באתר, צפה בכמה עמודים או ביצע פעולה.',
+      leads: 'כמה לידים נכנסו ללוח הלידים בתקופה (אתר + פייסבוק/אינסטגרם). נספר מהמערכת שלנו ולא מגוגל, ולכן זה המספר הקובע.',
+      newUsers: 'כמה מהמבקרים הגיעו לאתר בפעם הראשונה.', engaged: 'ביקורים שבהם הגולש התעניין ולא יצא מיד.', vps: 'כמה עמודים רואה גולש ממוצע בכל ביקור.',
+      dur: 'כמה זמן שוהה גולש ממוצע באתר בביקור אחד.', bounce: 'אחוז הביקורים שהסתיימו בלי שום התעניינות. נמוך = טוב.', events: 'סך כל הפעולות שנמדדו: לחיצות, גלילות, צפיות ופניות.',
+      cr: 'מתוך כל הביקורים, כמה אחוז כללו טופס או לחיצה על טלפון, וואטסאפ או מייל. ביקור עם שתי פעולות נספר פעם אחת.',
     },
-    ch: { 'Direct': 'ישיר', 'Organic Search': 'חיפוש אורגני', 'Paid Search': 'חיפוש ממומן', 'Organic Social': 'רשתות חברתיות', 'Paid Social': 'רשתות – ממומן', 'Referral': 'הפניות מאתרים', 'Email': 'אימייל', 'Unassigned': 'לא משויך', 'Organic Maps': 'מפות', 'Display': 'באנרים', 'Cross-network': 'Performance Max', 'Organic Video': 'וידאו', 'Paid Video': 'וידאו ממומן', 'Paid Other': 'ממומן – אחר', 'SMS': 'SMS', 'Organic Shopping': 'שופינג' },
-    dev: { mobile: 'נייד', desktop: 'מחשב', tablet: 'טאבלט', 'smart tv': 'טלוויזיה' },
-    ev: { page_view: 'צפייה בדף', session_start: 'תחילת ביקור', first_visit: 'ביקור ראשון', user_engagement: 'מעורבות', scroll: 'גלילה לתחתית', click: 'קליק לאתר חיצוני', form_start: 'התחלת טופס', form_submit: 'שליחת טופס', generate_lead: 'ליד', contact_form: 'טופס יצירת קשר', whatsapp_click: 'קליק ל-WhatsApp', phone_click: 'קליק לחיוג', property_view: 'צפייה בנכס', view_search_results: 'חיפוש באתר', file_download: 'הורדת קובץ', video_start: 'צפייה בווידאו' },
+    conv: 'פניות', convSub: 'מה שהתנועה באמת מייצרת', convBig: 'לידים שנכנסו למערכת בתקופה', convBigSub: (s, m) => `${s} מהאתר · ${m} מפייסבוק / אינסטגרם · לידים שהוזנו ידנית לא נספרים. זה המספר הקובע.`,
+    convExplain: 'מתחת: טפסים ולחיצות על טלפון, וואטסאפ ומייל, כפי שגוגל מדד אותם באתר. לחיצה היא לא שיחה: גוגל לא יודע אם השיחה יצאה. אדם שלחץ פעמיים נספר פעמיים ב"פעולות" ופעם אחת ב"אנשים".',
+    convNote: 'לידים מטופס של פייסבוק/אינסטגרם לא עוברים באתר, ולכן הם נספרים במספר הגדול ולא בטפסים של גוגל. חוסמי פרסומות לא נספרים בגוגל, אבל הטופס שלהם נשמר.',
+    convTypes: { contact_form: ['טפסים שנשלחו', 'שליחת טופס פנייה באתר (חלון הפנייה ועמודי התוכן)'], phone_click: ['לחיצות טלפון', 'לחיצה על מספר הטלפון'], whatsapp_click: ['לחיצות וואטסאפ', 'כולל הכפתור הצף'], email_click: ['לחיצות מייל', 'לחיצה על כתובת המייל'] },
+    people: n => `${n} ${n === 1 ? 'אדם' : 'אנשים'}`,
+    metrics: { users: 'משתמשים', sessions: 'ביקורים', views: 'צפיות', conv: 'אנשים שפנו' }, prevPeriod: 'תקופה קודמת', gran: { day: 'יומי', week: 'שבועי', month: 'חודשי' },
+    anomalies: (n, list) => `זוהו ${n} ימים חריגים: ${list}`, spike: 'קפיצה', drop: 'ירידה',
+    insights: 'תובנות', channels: 'מקורות תנועה', channelsTip: 'מאיפה הגולשים מגיעים: חיפוש בגוגל, כניסה ישירה, רשתות חברתיות, פרסום ממומן או קישורים מאתרים אחרים.',
+    campaigns: 'קמפיינים (UTM)', campaignsTip: 'הקמפיינים לפי utm_campaign: מודעות פייסבוק/אינסטגרם, קישורי שיתוף לנכסים (prop-…) וכל קישור מתויג.',
+    sources: 'מקור / מדיום', sourcesTip: 'פירוט מדויק של מקורות התנועה, למשל google / organic או facebook / paid.',
+    landing: 'דפי נחיתה', landingTip: 'העמוד הראשון שבו נכנסו לאתר. כאן רואים איזה עמוד "פותח" את הביקור ומה הוא מייצר.',
+    pages: 'עמודים', pagesTip: 'העמודים הנצפים ביותר. לחיצה על עמוד פותחת פירוט: מגמה, מקורות ומכשירים.', pageHint: 'לחיצה על עמוד פותחת פירוט: מגמה, מקורות ומכשירים של אותו עמוד',
+    devices: 'מכשירים', newRet: 'חדשים מול חוזרים', newU: 'חדשים', retU: 'חוזרים', geo: 'מדינות וערים', heat: 'מתי מבקרים באתר', heatSub: 'ביקורים לפי יום ושעה (שעון ישראל)',
+    actions: 'פעולות באתר', actionsTip: 'רק פעולות שיש להן משמעות לעסק, כפי שהאתר עצמו מדווח.',
+    col: { channel: 'ערוץ', campaign: 'קמפיין', src: 'מקור / מדיום', page: 'עמוד', landing: 'דף נחיתה', device: 'מכשיר', users: 'משתמשים', sessions: 'ביקורים', share: 'נתח', eng: 'מעורבות', conv: 'פניות', cr: 'שיעור פנייה', views: 'צפיות', time: 'זמן ממוצע', action: 'פעולה', count: 'כמות', people: 'אנשים' },
+    quality: avg => `★ = שיעור פנייה גבוה משמעותית מהממוצע (${avg}), תנועה איכותית. פניות = ביקורים שבהם הייתה פנייה.`,
+    search: 'חיפוש…', drillLoading: 'טוען נתוני עמוד…', drillViews: 'צפיות לאורך התקופה', drillSources: 'מקורות לעמוד זה', drillDevices: 'מכשירים', few: 'מעט נתונים',
+    ev: { contact_form: ['טופס נשלח', 'שליחת טופס פנייה'], generate_lead: ['ליד (עמודי תוכן)', 'טופס בעמודי השירותים, האזורים והמדריכים'], lead_form_step: ['התקדמות בטופס', 'מעבר שלב בטופס בן 3 השלבים'], form_start: ['התחילו למלא טופס', 'נמדד אוטומטית על ידי גוגל'], phone_click: ['לחיצה על טלפון', ''], whatsapp_click: ['לחיצה על וואטסאפ', 'כולל הכפתור הצף'], email_click: ['לחיצה על מייל', ''], cta_click: ['לחיצה על כפתור פעולה', 'כפתורי "דברו איתנו" בעמודי התוכן'], property_view: ['צפייה בנכס', 'פתיחת חלון נכס'], share_property: ['שיתוף נכס', ''], favorite_add: ['שמירת נכס במועדפים', ''], tool_use: ['שימוש במחשבון', 'מחשבון מס רכישה / נטו למוכר'] },
+    ch: { 'Organic Search': 'חיפוש אורגני', Direct: 'ישיר', 'Paid Search': 'חיפוש ממומן', 'Organic Social': 'רשתות חברתיות', 'Paid Social': 'סושיאל ממומן', Referral: 'אתרים מפנים', Email: 'אימייל', Display: 'דיספליי', Unassigned: 'לא משויך', 'Cross-network': 'רב-ערוצי', 'Organic Maps': 'מפות', 'Organic Video': 'וידאו', 'Paid Video': 'וידאו ממומן', 'Paid Other': 'ממומן – אחר', SMS: 'SMS', 'Organic Shopping': 'שופינג' },
+    dev: { desktop: 'מחשב', mobile: 'נייד', tablet: 'טאבלט', 'smart tv': 'טלוויזיה' },
+    dow: ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'], less: 'פחות', more: 'יותר',
+    ins: {
+      traffic: (up, pct, a, b) => `התנועה ${up ? 'עלתה' : 'ירדה'} ב-${pct}% מול התקופה הקודמת (${a} ← ${b} משתמשים).`,
+      top: (ch, pct) => `${ch} הוא מקור התנועה הגדול ביותר: ${pct}% מהביקורים.`,
+      quality: (ch, x) => `${ch} מביא פחות תנועה אבל ממיר פי ${x} מהממוצע: תנועה איכותית.`,
+      mobile: (share, less) => `הנייד הוא ${share}% מהתנועה אבל ממיר ${less}% פחות מהמחשב. שווה לבדוק את חוויית הנייד.`,
+      lowPage: (p, t) => `"${p}" מקבל הרבה תנועה אבל זמן מעורבות נמוך במיוחד (${t}).`,
+      camp: (c, n) => `הקמפיין "${c}" הביא הכי הרבה ביקורים (${n}).`,
+      leadsGap: (crm, ga) => `נכנסו ${crm} לידים למערכת מול ${ga} טפסים שגוגל מדד. רוב ההפרש הוא לידים מטופסי פייסבוק, שלא עוברים באתר.`,
+      anomaly: (d, up, n) => `ב-${d} נרשמה ${up ? 'קפיצה' : 'ירידה'} חריגה בתנועה (${n} משתמשים).`,
+    },
+    await: 'החיבור פעיל ✓', awaitT: 'Google מעבד את הנתונים', awaitB: 'אין עדיין נתונים בטווח הזה. אם הנכס חדש, Google מעבד דוחות תוך 24–48 שעות. נתוני זמן האמת למעלה מגיעים מיד.',
+    setupT: 'חיבור Google Analytics לדשבורד', setupB: 'תג המדידה כבר פועל באתר (G-X1S3XX7TRV). כדי שהדשבורד יקרא את הנתונים צריך חשבון שירות של Google עם הרשאת צפייה. אפשר להשתמש באותו חשבון שירות של אתר קורקוס.',
+    setupKorkos: 'הדרך המהירה (אותו מפתח של קורקוס)', setupNew: 'או חשבון שירות חדש',
+    stepsKorkos: [
+      ['ב-Vercel, בפרויקט של קורקוס: Settings ← Environment Variables. העתיקו את הערכים של GA_SA_CLIENT_EMAIL ו-GA_SA_PRIVATE_KEY.', 'https://vercel.com/dashboard'],
+      ['ב-Vercel, בפרויקט של אפיק הנחל: הוסיפו את שני המשתנים באותם שמות ובאותם ערכים, ואז Redeploy.', 'https://vercel.com/dashboard'],
+      ['ב-Google Analytics, בנכס "הנגר 24 הוד השרון": Admin ← Property access management ← ➕ ← הדביקו את כתובת ה-GA_SA_CLIENT_EMAIL ← Viewer.', 'https://analytics.google.com/analytics/web/#/a/p536943897/admin'],
+    ],
+    stepsNew: [
+      ['הפעלת Google Analytics Data API בענן של Google', 'https://console.cloud.google.com/apis/library/analyticsdata.googleapis.com'],
+      ['Service Accounts ← Create ← Keys ← Add key ← JSON (יירד קובץ)', 'https://console.cloud.google.com/iam-admin/serviceaccounts'],
+      ['ב-Vercel: משתנה GA4_SERVICE_ACCOUNT_JSON עם כל תוכן הקובץ ← Redeploy', 'https://vercel.com/dashboard'],
+      ['ב-Analytics: הוסיפו את ה-client_email מהקובץ כ-Viewer לנכס', 'https://analytics.google.com/analytics/web/#/a/p536943897/admin'],
+    ],
+    open: 'פתח', settings: 'הגדרות חיבור', propId: 'מזהה הנכס (Property ID)', saveTest: 'שמירה ובדיקת חיבור', testing: 'בודק…', ok: sa => `החיבור תקין ✓${sa ? ` · ${sa}` : ''}`, failed: 'שגיאת חיבור',
+    errT: 'Google Analytics החזיר שגיאה', retry: 'נסה שוב',
+    why: { permission: sa => `חשבון השירות${sa ? ` ${sa}` : ''} עדיין לא קיבל גישה לנכס. ב-Analytics ← Admin ← Property access management הוסיפו אותו כ-Viewer.`, api: 'ה-Analytics Data API לא מופעל בפרויקט של חשבון השירות.', auth: 'המפתח של חשבון השירות לא תקין או בוטל.', property: 'מזהה הנכס שגוי (מספר, לא G-XXXX).', other: 'נסו שוב בעוד רגע.' },
   },
   en: {
-    title: 'Google Analytics 4', sub: p => `Property ${p} · Hanegar 24 Hod Hasharon`, days: n => `${n} days`, refresh: 'Refresh', openGa: 'Open Google Analytics',
-    updated: m => (m < 1 ? 'Updated just now' : `Updated ${m} min ago`), vsPrev: n => `vs. previous ${n} days`,
-    rtTitle: 'Realtime', rtSub: 'Active users in the last 30 minutes', rtPages: 'Pages open right now', rtNone: 'Nobody on the site right now',
-    k: { totalUsers: 'Users', newUsers: 'New users', sessions: 'Sessions', screenPageViews: 'Page views', engagementRate: 'Engagement rate', averageSessionDuration: 'Avg. session duration', keyEvents: 'Conversions (key events)', conv: 'Conversion rate' },
-    trend: 'Trend', prevLine: 'Previous period', curLine: 'This period',
-    channels: 'Traffic channels', channelsSub: 'Where visitors come from', sources: 'Source / medium', devices: 'Devices', audience: 'New vs returning', newU: 'New', retU: 'Returning',
-    pages: 'Top pages', landing: 'Landing pages', cities: 'Cities', countries: 'Countries', events: 'Events', heat: 'When people visit', heatSub: 'Sessions by weekday and hour (Israel time)',
-    campaigns: 'Campaigns (UTM)', colViews: 'Views', colUsers: 'Users', colSessions: 'Sessions', colTime: 'Avg. time', colConv: 'Conv.', colEng: 'Engaged', colCount: 'Count', share: 'Share',
-    key: 'Key event', empty: 'No data in this range', loading: 'Loading Google Analytics data…',
-    dow: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], less: 'Less', more: 'More',
-    setupTitle: 'Connect Google Analytics directly', setupSub: 'To show every GA4 metric here in real time, connect a Google service account (free, one-time, about 5 minutes).',
-    smNote: 'Why? Data used to come through Supermetrics — its trial ended on 16 Jun 2026, so the numbers stopped updating. The direct Google connection is free and has no third-party dependency.',
-    steps: [
-      ['Enable the Google Analytics Data API', 'In Google Cloud Console, in an existing or new project.', 'https://console.cloud.google.com/apis/library/analyticsdata.googleapis.com', 'Open'],
-      ['Create a service account and download a JSON key', 'IAM → Service Accounts → Create → Keys → Add key → JSON.', 'https://console.cloud.google.com/iam-admin/serviceaccounts', 'Open'],
-      ['Give the service account access to the GA4 property', 'Admin → Property access management → ➕ → the client_email from the file → Viewer role.', 'https://analytics.google.com/analytics/web/#/a/p536943897/admin', 'Open'],
-      ['Paste the JSON into Vercel', 'Settings → Environment Variables → name: GA4_SERVICE_ACCOUNT_JSON, value: the whole file → Redeploy.', 'https://vercel.com/dashboard', 'Open'],
-    ],
-    envName: 'Variable name', propId: 'Property ID (GA4_PROPERTY_ID, already the default)', copy: 'Copy', copied: 'Copied', url: 'Value',
-    errTitle: 'Google Analytics returned an error', retry: 'Try again',
-    why: {
-      permission: e => `The service account${e ? ` ${e}` : ''} has no access to the property yet. In GA4 → Admin → Property access management add it as Viewer.`,
-      api: 'The Google Analytics Data API is not enabled in the service account’s project. Enable it in Google Cloud Console.',
-      auth: 'The service-account key is invalid or revoked. Create a new JSON key and paste it into Vercel again.',
-      property: 'Wrong property ID. Check GA4_PROPERTY_ID (a number, not G-XXXX).',
-      other: 'Try again in a moment. If it keeps happening, the details are below.',
+    title: 'Site traffic', src: 'Google Analytics', vsPrev: 'compared with the previous period of the same length', refresh: 'Refresh', openGa: 'Open Google Analytics', csv: 'CSV',
+    presets: { '7d': '7 days', '30d': '30 days', '90d': '90 days', tm: 'This month', lm: 'Last month' },
+    loading: 'Loading Google Analytics data…', last30: 'in the last 30 minutes', noData: 'No data in this range',
+    live: 'Activity in the last 30 minutes', liveSub: 'Updates every minute · Google Analytics keeps a 30-minute realtime window', liveUsers: 'visitors in the last 30 minutes',
+    liveViews: n => (n ? `${n} page views in the last half hour` : 'No activity in the last half hour'), livePages: 'Pages being viewed now', liveNone: 'Nobody visited in the last 30 minutes',
+    liveTitlesNote: 'Google reports realtime pages by title, not by URL.', liveFrom: 'Where they came from', today: 'today', liveNoToday: 'No visits yet today',
+    liveFromNote: 'The source is today’s figure, not this minute’s: the realtime API has no traffic-source dimension.', exactSrc: 'Exact sources', liveDevices: 'Devices now',
+    todayLine: (u, s, v) => `Today so far: ${u} visitors · ${s} sessions · ${v} views`,
+    selfEx: 'Don’t count my visits', selfExTip: 'Marks this browser as “don’t count”: your own visits stay out of Google Analytics and the Pixel, so the numbers reflect real visitors. Saved in this browser only.',
+    k: { users: 'Users', sessions: 'Sessions', views: 'Page views', eng: 'Engagement rate', leads: 'Leads in the CRM', newUsers: 'New users', engaged: 'Engaged sessions', vps: 'Views per session', dur: 'Avg. session duration', bounce: 'Bounce rate', events: 'Events', cr: 'Contact rate' },
+    tips: {
+      users: 'How many different people visited in the period. Each person counts once.', sessions: 'How many visits in total. Someone who came twice counts as two sessions.',
+      views: 'How many pages were viewed in total.', eng: 'The share of sessions where the visitor was really interested: stayed, viewed several pages or took an action.',
+      leads: 'How many leads entered the leads board in the period (website + Facebook/Instagram). Counted by our system, not by Google — this is the number that matters.',
+      newUsers: 'Visitors who came for the first time.', engaged: 'Sessions where the visitor didn’t leave right away.', vps: 'Pages an average visitor sees per session.',
+      dur: 'How long an average session lasts.', bounce: 'Sessions that ended without any engagement. Lower is better.', events: 'Every measured action: clicks, scrolls, views and contacts.',
+      cr: 'The share of sessions with a form or a phone / WhatsApp / email click. A session with two actions counts once.',
     },
-    ch: {}, dev: { mobile: 'Mobile', desktop: 'Desktop', tablet: 'Tablet', 'smart tv': 'Smart TV' },
-    ev: { page_view: 'Page view', session_start: 'Session start', first_visit: 'First visit', user_engagement: 'Engagement', scroll: 'Scrolled to bottom', click: 'Outbound click', form_start: 'Form start', form_submit: 'Form submit', generate_lead: 'Lead', contact_form: 'Contact form', whatsapp_click: 'WhatsApp click', phone_click: 'Phone click', property_view: 'Property view', view_search_results: 'Site search', file_download: 'File download', video_start: 'Video start' },
+    conv: 'Contacts', convSub: 'What the traffic actually produces', convBig: 'Leads that entered the CRM in the period', convBigSub: (s, m) => `${s} from the website · ${m} from Facebook / Instagram · manual leads are not counted. This is the number that matters.`,
+    convExplain: 'Below: forms and phone, WhatsApp and email clicks as Google measured them on the site. A click is not a call: Google can’t know whether the call happened. Someone who clicked twice counts twice as actions and once as people.',
+    convNote: 'Facebook / Instagram form leads never pass through the site, so they are in the big number and not in Google’s forms. Ad blockers aren’t counted by Google, but their forms are saved.',
+    convTypes: { contact_form: ['Forms sent', 'A contact form sent on the site (the contact window and the content pages)'], phone_click: ['Phone clicks', 'A click on the phone number'], whatsapp_click: ['WhatsApp clicks', 'Including the floating button'], email_click: ['Email clicks', 'A click on the email address'] },
+    people: n => `${n} ${n === 1 ? 'person' : 'people'}`,
+    metrics: { users: 'Users', sessions: 'Sessions', views: 'Views', conv: 'People who contacted' }, prevPeriod: 'Previous period', gran: { day: 'Daily', week: 'Weekly', month: 'Monthly' },
+    anomalies: (n, list) => `${n} unusual days: ${list}`, spike: 'spike', drop: 'drop',
+    insights: 'Insights', channels: 'Traffic channels', channelsTip: 'Where visitors come from: Google search, direct, social networks, paid ads or other sites.',
+    campaigns: 'Campaigns (UTM)', campaignsTip: 'By utm_campaign: Facebook / Instagram ads, property share links (prop-…) and any tagged link.',
+    sources: 'Source / medium', sourcesTip: 'The exact traffic sources, e.g. google / organic or facebook / paid.',
+    landing: 'Landing pages', landingTip: 'The first page of the visit: which page opens sessions and what it produces.',
+    pages: 'Pages', pagesTip: 'The most viewed pages. Click a page for its trend, sources and devices.', pageHint: 'Click a page for its trend, sources and devices',
+    devices: 'Devices', newRet: 'New vs returning', newU: 'New', retU: 'Returning', geo: 'Countries and cities', heat: 'When people visit', heatSub: 'Sessions by weekday and hour (Israel time)',
+    actions: 'Site actions', actionsTip: 'Only actions that matter to the business, as reported by the site itself.',
+    col: { channel: 'Channel', campaign: 'Campaign', src: 'Source / medium', page: 'Page', landing: 'Landing page', device: 'Device', users: 'Users', sessions: 'Sessions', share: 'Share', eng: 'Engaged', conv: 'Contacts', cr: 'Contact rate', views: 'Views', time: 'Avg. time', action: 'Action', count: 'Count', people: 'People' },
+    quality: avg => `★ = a contact rate well above the average (${avg}): quality traffic. Contacts = sessions with a contact.`,
+    search: 'Search…', drillLoading: 'Loading page data…', drillViews: 'Views over the period', drillSources: 'Sources for this page', drillDevices: 'Devices', few: 'Little data',
+    ev: { contact_form: ['Form sent', 'A contact form sent'], generate_lead: ['Lead (content pages)', 'A form on the service, area and guide pages'], lead_form_step: ['Form step', 'A step in the 3-step form'], form_start: ['Started a form', 'Measured automatically by Google'], phone_click: ['Phone click', ''], whatsapp_click: ['WhatsApp click', 'Including the floating button'], email_click: ['Email click', ''], cta_click: ['Call-to-action click', '“Talk to us” buttons on the content pages'], property_view: ['Property viewed', 'A property window opened'], share_property: ['Property shared', ''], favorite_add: ['Saved to favorites', ''], tool_use: ['Calculator used', 'Purchase tax / seller net calculators'] },
+    ch: {}, dev: { desktop: 'Desktop', mobile: 'Mobile', tablet: 'Tablet', 'smart tv': 'Smart TV' },
+    dow: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], less: 'Less', more: 'More',
+    ins: {
+      traffic: (up, pct, a, b) => `Traffic ${up ? 'rose' : 'fell'} ${pct}% vs the previous period (${a} → ${b} users).`,
+      top: (ch, pct) => `${ch} is the biggest traffic source: ${pct}% of sessions.`,
+      quality: (ch, x) => `${ch} brings less traffic but converts ${x}× the average: quality traffic.`,
+      mobile: (share, less) => `Mobile is ${share}% of traffic but converts ${less}% less than desktop. Worth checking the mobile experience.`,
+      lowPage: (p, t) => `"${p}" gets a lot of traffic but very low engagement time (${t}).`,
+      camp: (c, n) => `The campaign "${c}" brought the most sessions (${n}).`,
+      leadsGap: (crm, ga) => `${crm} leads entered the CRM vs ${ga} forms Google measured. Most of the gap is Facebook form leads, which never pass through the site.`,
+      anomaly: (d, up, n) => `${d} had an unusual ${up ? 'spike' : 'drop'} in traffic (${n} users).`,
+    },
+    await: 'Connected ✓', awaitT: 'Google is processing the data', awaitB: 'No data in this range yet. For a new property Google processes reports within 24–48 hours. The realtime numbers above arrive at once.',
+    setupT: 'Connect Google Analytics to the dashboard', setupB: 'The tag already runs on the site (G-X1S3XX7TRV). To read the data the dashboard needs a Google service account with Viewer access. The Korkos site’s service account works too.',
+    setupKorkos: 'The quick way (the Korkos key)', setupNew: 'Or a new service account',
+    stepsKorkos: [
+      ['In Vercel, the Korkos project: Settings → Environment Variables. Copy the values of GA_SA_CLIENT_EMAIL and GA_SA_PRIVATE_KEY.', 'https://vercel.com/dashboard'],
+      ['In Vercel, the Afik Hanahal project: add both variables with the same names and values, then Redeploy.', 'https://vercel.com/dashboard'],
+      ['In Google Analytics, the "Hanegar 24 Hod Hasharon" property: Admin → Property access management → ➕ → the GA_SA_CLIENT_EMAIL address → Viewer.', 'https://analytics.google.com/analytics/web/#/a/p536943897/admin'],
+    ],
+    stepsNew: [
+      ['Enable the Google Analytics Data API in Google Cloud', 'https://console.cloud.google.com/apis/library/analyticsdata.googleapis.com'],
+      ['Service Accounts → Create → Keys → Add key → JSON (a file downloads)', 'https://console.cloud.google.com/iam-admin/serviceaccounts'],
+      ['In Vercel: a GA4_SERVICE_ACCOUNT_JSON variable with the whole file → Redeploy', 'https://vercel.com/dashboard'],
+      ['In Analytics: add the client_email from the file as a Viewer on the property', 'https://analytics.google.com/analytics/web/#/a/p536943897/admin'],
+    ],
+    open: 'Open', settings: 'Connection settings', propId: 'Property ID', saveTest: 'Save and test', testing: 'Testing…', ok: sa => `Connected ✓${sa ? ` · ${sa}` : ''}`, failed: 'Connection error',
+    errT: 'Google Analytics returned an error', retry: 'Try again',
+    why: { permission: sa => `The service account${sa ? ` ${sa}` : ''} has no access to the property yet. In Analytics → Admin → Property access management, add it as a Viewer.`, api: 'The Analytics Data API is not enabled in the service account’s project.', auth: 'The service account key is invalid or was revoked.', property: 'The property id is wrong (a number, not G-XXXX).', other: 'Try again in a moment.' },
   },
 }
 
-const CSS = `
-  .ga *{box-sizing:border-box}
-  .ga-kpi{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
-  .ga-2{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:14px;align-items:start}
-  .ga-2e{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start}
-  .ga-rt{display:grid;grid-template-columns:220px minmax(0,1fr) minmax(0,1fr);gap:18px;align-items:center}
-  .ga-row:hover{background:rgba(var(--brand-rgb),.06)}
-  .ga-seg button{min-height:0!important;min-width:0!important}
-  @keyframes ga-pulse{0%{box-shadow:0 0 0 0 rgba(37,211,102,.55)}70%{box-shadow:0 0 0 9px rgba(37,211,102,0)}100%{box-shadow:0 0 0 0 rgba(37,211,102,0)}}
-  .ga-live{animation:ga-pulse 2s infinite}
-  @media (max-width:1100px){.ga-kpi{grid-template-columns:repeat(2,minmax(0,1fr))}.ga-2,.ga-2e{grid-template-columns:1fr}.ga-rt{grid-template-columns:1fr}}
-  @media (max-width:640px){.ga-kpi{gap:8px}.ga-hide-m{display:none!important}}
-  @media (prefers-reduced-motion:reduce){.ga-live{animation:none}}
-`
+// ── helpers ───────────────────────────────────────────────────────────────────
+const iso = d => d.toISOString().slice(0, 10)
+function presetRange(id) {
+  const now = new Date(), today = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()))
+  if (id === 'tm') return { start: iso(new Date(Date.UTC(now.getFullYear(), now.getMonth(), 1))), end: iso(today) }
+  if (id === 'lm') return { start: iso(new Date(Date.UTC(now.getFullYear(), now.getMonth() - 1, 1))), end: iso(new Date(Date.UTC(now.getFullYear(), now.getMonth(), 0))) }
+  const days = { '7d': 7, '30d': 30, '90d': 90 }[id] || 30
+  const s = new Date(today); s.setUTCDate(s.getUTCDate() - (days - 1))
+  return { start: iso(s), end: iso(today) }
+}
+function prevRangeOf(start, end) {
+  const s = new Date(start + 'T00:00:00Z'), e = new Date(end + 'T00:00:00Z'), days = Math.round((e - s) / 864e5) + 1
+  const ps = new Date(s); ps.setUTCDate(ps.getUTCDate() - days)
+  const pe = new Date(s); pe.setUTCDate(pe.getUTCDate() - 1)
+  return { start: iso(ps), end: iso(pe) }
+}
+// the property's days are Israel days: lead counts use the same bounds (DST-safe, per date)
+function jlmOffset(isoDate, time) {
+  const probe = new Date(`${isoDate}T${time}Z`)
+  const p = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Jerusalem', hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }).formatToParts(probe).reduce((o, x) => (o[x.type] = x.value, o), {})
+  return Math.round((Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second) - probe.getTime()) / 60000)
+}
+const jlmBounds = (start, end) => [Date.parse(`${start}T00:00:00Z`) - jlmOffset(start, '00:00:00') * 60000, Date.parse(`${end}T23:59:59.999Z`) - jlmOffset(end, '23:59:59') * 60000]
+const rows = rep => (rep?.rows || []).map(r => ({ d: (r.dimensionValues || []).map(v => v.value), m: (r.metricValues || []).map(v => Number(v.value) || 0) }))
+const totalsOf = rep => rows(rep)[0]?.m || []
+const fmtNum = n => (n == null || Number.isNaN(n) ? '—' : n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e4 ? (n / 1e3).toFixed(1) + 'K' : Math.round(n).toLocaleString('he-IL'))
+const fmtPct = (n, d = 1) => (n == null || Number.isNaN(n) ? '—' : (n * 100).toFixed(d) + '%')
+const fmtDur = sec => { if (!sec) return '0:00'; const m = Math.floor(sec / 60); return `${m}:${String(Math.round(sec % 60)).padStart(2, '0')}` }
+const dLabel = d => `${d.slice(6, 8)}.${d.slice(4, 6)}`
+const leadSrc = l => (l.source === 'meta' || String(l.id || '').startsWith('meta_') ? 'meta' : 'site')
 
-// ── formatting ────────────────────────────────────────────────────────────────
-const nf = (lang, opts) => new Intl.NumberFormat(lang === 'en' ? 'en-US' : 'he-IL', opts)
-const fmtN = (v, lang) => nf(lang, { maximumFractionDigits: 0 }).format(v || 0)
-const fmtC = (v, lang) => (v >= 10000 ? nf(lang, { notation: 'compact', maximumFractionDigits: 1 }).format(v) : fmtN(v, lang))
-const fmtP = (v, lang, d = 1) => nf(lang, { style: 'percent', maximumFractionDigits: d }).format(v || 0)
-const fmtDur = s => { s = Math.round(s || 0); const m = Math.floor(s / 60); return `${m}:${String(s % 60).padStart(2, '0')}` }
-const ymd = s => new Date(Date.UTC(+s.slice(0, 4), +s.slice(4, 6) - 1, +s.slice(6, 8)))
-const dayKey = d => d.toISOString().slice(0, 10).replace(/-/g, '')
-const conv = r => (r?.sessions ? (r.keyEvents || 0) / r.sessions : 0)
+function Delta({ cur, prev, invert = false, dim = false }) {
+  if (prev == null || !prev || cur == null) return <span className="an-delta an-delta--na">—</span>
+  const d = (cur - prev) / prev
+  if (Math.abs(d) < 0.002) return <span className="an-delta an-delta--na">0%</span>
+  const up = d > 0, good = invert ? !up : up
+  return <span className={`an-delta ${dim ? '' : good ? 'is-good' : 'is-bad'}`}>{up ? '↑' : '↓'}{Math.abs(d * 100).toFixed(1)}%</span>
+}
+function Spark({ values, w = 96, h = 26 }) {
+  if (!values || values.length < 2) return null
+  const max = Math.max(...values, 1), min = Math.min(...values), span = Math.max(1, max - min)
+  const pts = values.map((v, i) => `${(i / (values.length - 1)) * w},${h - 2 - ((v - min) / span) * (h - 4)}`).join(' ')
+  return <svg className="an-spark" viewBox={`0 0 ${w} ${h}`} width={w} height={h} dir="ltr" aria-hidden><polyline points={pts} fill="none"/></svg>
+}
+function bucket(series, gran) {
+  if (gran === 'day' || !series.length) return series
+  const keyOf = d => {
+    if (gran === 'month') return d.slice(0, 6)
+    const dt = new Date(`${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}T00:00:00Z`)
+    dt.setUTCDate(dt.getUTCDate() - dt.getUTCDay())      // weeks start on Sunday
+    return iso(dt).replace(/-/g, '')
+  }
+  const map = new Map()
+  for (const r of series) { const k = keyOf(r.d[0]); const e = map.get(k) || { d: [k], m: r.m.map(() => 0) }; r.m.forEach((v, i) => { e.m[i] += v }); map.set(k, e) }
+  return [...map.values()]
+}
+function findAnomalies(series, mi = 0) {
+  if (series.length < 8) return []
+  const vals = series.map(r => r.m[mi]), mean = vals.reduce((a, b) => a + b, 0) / vals.length
+  const std = Math.sqrt(vals.reduce((a, b) => a + (b - mean) ** 2, 0) / vals.length) || 1
+  return series.map((r, i) => ({ r, i, z: (r.m[mi] - mean) / std })).filter(x => Math.abs(x.z) > 2.2 && Math.abs(x.r.m[mi] - mean) > mean * 0.25)
+}
+function exportCsv(name, head, lines) {
+  const esc = v => `"${String(v ?? '').replace(/"/g, '""')}"`
+  const csv = '﻿' + [head.map(esc).join(','), ...lines.map(l => l.map(esc).join(','))].join('\r\n')
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' })); a.download = `${name}-${iso(new Date())}.csv`; a.click(); URL.revokeObjectURL(a.href)
+}
+function useSort(def) {
+  const [sort, setSort] = useState(def)
+  return [sort, key => setSort(s => ({ key, desc: s.key === key ? !s.desc : true }))]
+}
+const Th = ({ label, k, sort, onSort }) => <th className="is-num" onClick={() => onSort(k)} role="button" aria-sort={sort.key === k ? (sort.desc ? 'descending' : 'ascending') : 'none'}>{label}{sort.key === k ? (sort.desc ? ' ↓' : ' ↑') : ''}</th>
 
-function delta(cur, prev) {
-  if (!prev) return cur ? null : 0
-  return (cur - prev) / prev
+// ── the main chart ──────────────────────────────────────────────────────────────
+function HeroChart({ t, series, prevSeries }) {
+  const [metric, setMetric] = useState(0)
+  const [gran, setGran] = useState('day')
+  const [compare, setCompare] = useState(true)
+  const [hover, setHover] = useState(null)
+  const wrapRef = useRef(null)
+  const cur = useMemo(() => bucket(series, gran), [series, gran])
+  const prev = useMemo(() => bucket(prevSeries, gran), [prevSeries, gran])
+  const anomalies = useMemo(() => (gran === 'day' ? findAnomalies(cur, metric) : []), [cur, metric, gran])
+  if (!cur.length) return <p className="an-empty">{t.noData}</p>
+  const W = 960, H = 300, PL = 46, PB = 26, PT = 14, PR = 10, n = cur.length
+  const max = Math.max(1, ...cur.map(r => r.m[metric]), ...(compare ? prev.map(r => r.m[metric]) : [0]))
+  const x = (i, len = n) => PL + (len < 2 ? (W - PL - PR) / 2 : (i / (len - 1)) * (W - PL - PR))
+  const y = v => PT + (1 - v / max) * (H - PT - PB)
+  const line = list => list.map((r, i) => `${i ? 'L' : 'M'}${x(i, list.length).toFixed(1)},${y(r.m[metric]).toFixed(1)}`).join('')
+  const area = `${line(cur)}L${x(n - 1)},${y(0)}L${x(0)},${y(0)}Z`
+  const ticks = cur.length > 12 ? cur.filter((_, i) => i % Math.ceil(cur.length / 9) === 0) : cur
+  const lbl = d => (gran === 'month' ? `${d.slice(4, 6)}/${d.slice(2, 4)}` : dLabel(d))
+  const onMove = e => {
+    const rect = wrapRef.current?.getBoundingClientRect(); if (!rect) return
+    const rel = ((e.clientX - rect.left) / rect.width) * W
+    const i = Math.round(((rel - PL) / (W - PL - PR)) * (n - 1))
+    setHover(i >= 0 && i < n ? { i, px: (x(i) / W) * rect.width } : null)
+  }
+  const hv = hover ? cur[hover.i] : null, hvPrev = hover && prev[hover.i] ? prev[hover.i] : null
+  const MET = [['users', 0], ['sessions', 1], ['views', 2], ['conv', 3]]
+  return (
+    <div className="an-hero">
+      <div className="an-hero__bar">
+        <div className="an-seg" role="radiogroup">{MET.map(([id, i]) => <button key={id} type="button" role="radio" aria-checked={metric === i} className={metric === i ? 'is-on' : ''} onClick={() => setMetric(i)}>{t.metrics[id]}</button>)}</div>
+        <div className="an-hero__bar-side">
+          <label className="an-check"><input type="checkbox" checked={compare} onChange={() => setCompare(!compare)}/> {t.prevPeriod}</label>
+          <div className="an-seg an-seg--sm" role="radiogroup">{['day', 'week', 'month'].map(g => <button key={g} type="button" role="radio" aria-checked={gran === g} className={gran === g ? 'is-on' : ''} onClick={() => { setGran(g); setHover(null) }}>{t.gran[g]}</button>)}</div>
+        </div>
+      </div>
+      <div className="an-hero__plot" ref={wrapRef} onMouseMove={onMove} onMouseLeave={() => setHover(null)}>
+        <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" dir="ltr" role="img" aria-label={t.metrics[MET[metric][0]]}>
+          {[0.25, 0.5, 0.75, 1].map(f => <g key={f}><line x1={PL} x2={W - PR} y1={y(max * f)} y2={y(max * f)} className="an-grid"/><text x={PL - 7} y={y(max * f) + 4} className="an-axis" textAnchor="end">{fmtNum(max * f)}</text></g>)}
+          {ticks.map(r => <text key={r.d[0]} x={x(cur.indexOf(r))} y={H - 7} className="an-axis" textAnchor="middle">{lbl(r.d[0])}</text>)}
+          <path d={area} className="an-area"/>
+          {compare && prev.length > 1 && <path d={line(prev)} className="an-line--prev" fill="none"/>}
+          <path d={line(cur)} className="an-line" fill="none"/>
+          {anomalies.map(a => <circle key={a.r.d[0]} cx={x(a.i)} cy={y(a.r.m[metric])} r="4.5" className={a.z > 0 ? 'an-dot--spike' : 'an-dot--drop'}/>)}
+          <circle cx={x(n - 1)} cy={y(cur[n - 1].m[metric])} r="3.5" className="an-dot--last"/>
+          {hover && <line x1={x(hover.i)} x2={x(hover.i)} y1={PT} y2={H - PB} className="an-cross"/>}
+        </svg>
+        {hv && (
+          <div className="an-tip" style={{ left: `min(max(${hover.px}px, 80px), calc(100% - 80px))` }}>
+            <b>{lbl(hv.d[0])}</b>
+            <span>{t.metrics[MET[metric][0]]}: <b>{fmtNum(hv.m[metric])}</b></span>
+            {compare && hvPrev && <span className="an-tip__prev">{t.prevPeriod}: {fmtNum(hvPrev.m[metric])}</span>}
+          </div>
+        )}
+      </div>
+      {anomalies.length > 0 && <p className="an-anom-note">{t.anomalies(anomalies.length, anomalies.map(a => `${dLabel(a.r.d[0])} (${a.z > 0 ? t.spike : t.drop} — ${fmtNum(a.r.m[metric])})`).join(' · '))}</p>}
+    </div>
+  )
 }
 
-// ── small building blocks ─────────────────────────────────────────────────────
-function Panel({ title, sub, icon: Ic, right, children, pad = 18, style }) {
+// ── live panel ──────────────────────────────────────────────────────────────────
+function SelfExclude({ t }) {
+  const [off, setOff] = useState(() => { try { return localStorage.getItem(NO_TRACK_KEY) === '1' } catch { return false } })
   return (
-    <section style={{ background: T.cardGrad, boxShadow: T.cardShadow, border: `1px solid ${T.s1Line}`, borderRadius: 16, padding: pad, minWidth: 0, ...style }}>
-      {(title || right) && (
-        <header style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 14 }}>
-          {Ic && <span style={{ width: 30, height: 30, borderRadius: 9, background: T.brandSoft, color: T.brandText, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Ic size={13}/></span>}
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <h3 style={{ margin: 0, fontSize: 14.5, fontWeight: 800, color: T.text, letterSpacing: '-.005em' }}>{title}</h3>
-            {sub && <div style={{ fontSize: 12, color: T.text3, marginTop: 2 }}>{sub}</div>}
-          </div>
-          {right}
-        </header>
-      )}
-      {children}
+    <label className="an-selfex" data-tip={t.selfExTip}>
+      <input type="checkbox" checked={off} onChange={e => { try { e.target.checked ? localStorage.setItem(NO_TRACK_KEY, '1') : localStorage.removeItem(NO_TRACK_KEY) } catch {} setOff(e.target.checked) }}/>
+      {t.selfEx}
+    </label>
+  )
+}
+function LivePanel({ t, rt, users, chName, devName }) {
+  const pages = rows(rt?.now).filter(r => r.m[0] > 0), minutes = rows(rt?.byMinute), channels = rows(rt?.todayChannels), sources = rows(rt?.todaySources), devs = rows(rt?.devices)
+  const today = totalsOf(rt?.todayTotals)
+  const buckets = Array.from({ length: 30 }, (_, i) => { const hit = minutes.find(r => Number(r.d[0]) === 29 - i); return hit ? hit.m[0] : 0 })
+  const peak = Math.max(1, ...buckets), halfHour = buckets.reduce((a, b) => a + b, 0)
+  return (
+    <section className="an-live-panel">
+      <div className="an-live-panel__head">
+        <div><h3>{t.live}</h3><span className="an-sub">{t.liveSub}</span></div>
+        <SelfExclude t={t}/>
+      </div>
+      <div className="an-live-panel__grid">
+        <div className="an-live-now">
+          <span className="an-live-now__num">{users == null ? '· · ·' : users}</span>
+          <span className="an-live-now__lbl">{t.liveUsers}</span>
+          <div className="an-live-spark" aria-hidden>{buckets.map((v, i) => <i key={i} style={{ height: `${Math.max(3, (v / peak) * 100)}%` }} className={v ? '' : 'is-empty'}/>)}</div>
+          <span className="an-live-now__foot">{t.liveViews(halfHour)}</span>
+          {devs.length > 0 && <span className="an-live-now__foot">{t.liveDevices}: {devs.map(d => `${devName(d.d[0])} ${d.m[0]}`).join(' · ')}</span>}
+        </div>
+        <div className="an-live-list">
+          <h4>{t.livePages}</h4>
+          {pages.length ? <ul>{pages.map(r => <li key={r.d[0]}><span className="an-live-list__name" title={r.d[0]}>{r.d[0] || '—'}</span><b>{r.m[0]}</b></li>)}</ul> : <p className="an-empty an-empty--sm">{t.liveNone}</p>}
+          <p className="an-live-note">{t.liveTitlesNote}</p>
+        </div>
+        <div className="an-live-list">
+          <h4>{t.liveFrom} <span className="an-live-badge">{t.today}</span></h4>
+          {channels.length ? <ul>{channels.map(r => <li key={r.d[0]}><span className="an-live-list__name">{chName(r.d[0])}</span><b>{r.m[1]}</b></li>)}</ul> : <p className="an-empty an-empty--sm">{t.liveNoToday}</p>}
+          {sources.length > 0 && <p className="an-live-note" dir="auto">{t.exactSrc}: {sources.slice(0, 4).map(r => `${r.d[0]}${r.d[1] && r.d[1] !== '(none)' ? ` / ${r.d[1]}` : ''} (${r.m[1]})`).join(' · ')}</p>}
+          {today.length > 0 && <p className="an-live-note">{t.todayLine(fmtNum(today[0]), fmtNum(today[1]), fmtNum(today[2]))}</p>}
+          <p className="an-live-note">{t.liveFromNote}</p>
+        </div>
+      </div>
     </section>
   )
 }
 
-function Delta({ v, invert, lang }) {
-  if (v === null) return <span style={{ fontSize: 11.5, fontWeight: 700, color: T.brandText }}>{lang === 'en' ? 'new' : 'חדש'}</span>
-  if (!Number.isFinite(v) || Math.abs(v) < 0.005) return <span style={{ fontSize: 11.5, fontWeight: 700, color: T.text3 }}>0%</span>
-  const good = invert ? v < 0 : v > 0
-  const c = good ? '#4ADE80' : '#F87171'
-  return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11.5, fontWeight: 800, color: c, background: `${c}14`, borderRadius: 6, padding: '2px 6px', direction: 'ltr', fontVariantNumeric: 'tabular-nums' }}>
-      {v > 0 ? <FaArrowUp size={8}/> : <FaArrowDown size={8}/>}{fmtP(Math.abs(v), lang, 0)}
-    </span>
-  )
-}
-
-function Spark({ data, color = T.brand, h = 30 }) {
-  if (!data || data.length < 2) return <div style={{ height: h }}/>
-  const max = Math.max(...data, 1), w = 100
-  const pts = data.map((v, i) => [(i / (data.length - 1)) * w, h - 2 - (v / max) * (h - 4)])
-  const line = pts.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(2)},${p[1].toFixed(2)}`).join('')
-  return (
-    <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" width="100%" height={h} aria-hidden style={{ display: 'block', direction: 'ltr' }}>
-      <path d={`${line}L${w},${h}L0,${h}Z`} fill={`${color}1f`}/>
-      <path d={line} fill="none" stroke={color} strokeWidth="1.6" vectorEffect="non-scaling-stroke" strokeLinejoin="round"/>
-    </svg>
-  )
-}
-
-function Kpi({ icon: Ic, label, value, d, invert, spark, color, lang, hint }) {
-  return (
-    <div style={{ background: T.cardGrad, boxShadow: T.cardShadow, border: `1px solid ${T.s1Line}`, borderRadius: 14, padding: '14px 14px 10px', display: 'flex', flexDirection: 'column', gap: 6, minWidth: 0 }} title={hint}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 7, color: T.text3, fontSize: 12, fontWeight: 700 }}>
-        <Ic size={11} style={{ color, flexShrink: 0 }}/><span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
-      </div>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 26, fontWeight: 800, color: T.text, letterSpacing: '-.02em', fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 }}>{value}</span>
-        <Delta v={d} invert={invert} lang={lang}/>
-      </div>
-      <Spark data={spark} color={color}/>
-    </div>
-  )
-}
-
-// Horizontal bar list (channels, cities, sources…)
-function BarList({ rows, label, value, fmt, color = T.brand, extra, lang, max: maxRows = 8, emptyText }) {
-  const list = rows.slice(0, maxRows)
-  const max = Math.max(...list.map(value), 1)
-  const total = rows.reduce((n, r) => n + value(r), 0) || 1
-  if (!list.length) return <div style={{ fontSize: 13, color: T.text3, padding: '8px 0' }}>{emptyText}</div>
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      {list.map((r, i) => (
-        <div key={i} className="ga-row" style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 10, padding: '7px 10px', borderRadius: 9, minHeight: 36 }}>
-          <div aria-hidden style={{ position: 'absolute', insetInlineStart: 0, top: 3, bottom: 3, width: `${(value(r) / max) * 100}%`, background: `${color}1c`, borderRadius: 8, transition: 'width .4s' }}/>
-          <span style={{ position: 'relative', flex: 1, minWidth: 0, fontSize: 13, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'start' }}><bdi>{label(r)}</bdi></span>
-          {extra && <span style={{ position: 'relative', fontSize: 11.5, color: T.text3, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{extra(r)}</span>}
-          <span style={{ position: 'relative', fontSize: 13, fontWeight: 800, color: T.text, fontVariantNumeric: 'tabular-nums', minWidth: 44, textAlign: 'end' }}>{fmt(value(r))}</span>
-          <span style={{ position: 'relative', fontSize: 11, color: T.text3, fontVariantNumeric: 'tabular-nums', minWidth: 38, textAlign: 'end' }}>{fmtP(value(r) / total, lang, 0)}</span>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function Table({ cols, rows, emptyText }) {
-  if (!rows.length) return <div style={{ fontSize: 13, color: T.text3, padding: '8px 0' }}>{emptyText}</div>
-  const grid = cols.map(c => c.w || 'minmax(0,1fr)').join(' ')
-  return (
-    <div role="table" style={{ display: 'flex', flexDirection: 'column', fontSize: 13 }}>
-      <div role="row" style={{ display: 'grid', gridTemplateColumns: grid, gap: 10, padding: '0 10px 8px', color: T.text3, fontSize: 11.5, fontWeight: 700, borderBottom: `1px solid ${T.divider}` }}>
-        {cols.map((c, i) => <span role="columnheader" key={i} className={c.hideM ? 'ga-hide-m' : ''} style={{ textAlign: c.num ? 'end' : 'start' }}>{c.label}</span>)}
-      </div>
-      {rows.map((r, ri) => (
-        <div role="row" key={ri} className="ga-row" style={{ display: 'grid', gridTemplateColumns: grid, gap: 10, padding: '9px 10px', borderBottom: `1px solid ${T.divider}`, alignItems: 'center', borderRadius: 8 }}>
-          {cols.map((c, i) => (
-            <span role="cell" key={i} className={c.hideM ? 'ga-hide-m' : ''} style={{ minWidth: 0, textAlign: c.num ? 'end' : 'start', fontVariantNumeric: 'tabular-nums', color: c.num ? T.text : T.text, fontWeight: c.strong ? 800 : 500, overflow: 'hidden' }}>{c.render(r, ri)}</span>
-          ))}
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function Donut({ parts, size = 132, stroke = 16, center }) {
-  const total = parts.reduce((n, p) => n + p.value, 0) || 1
-  const r = (size - stroke) / 2, c = 2 * Math.PI * r
-  let off = 0
-  return (
-    <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ transform: 'rotate(-90deg)' }} aria-hidden>
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="rgba(var(--ov),.06)" strokeWidth={stroke}/>
-        {parts.map((p, i) => {
-          const len = (p.value / total) * c
-          const el = <circle key={i} cx={size / 2} cy={size / 2} r={r} fill="none" stroke={p.color} strokeWidth={stroke} strokeDasharray={`${Math.max(len - 2, 0)} ${c}`} strokeDashoffset={-off}/>
-          off += len
-          return el
-        })}
-      </svg>
-      <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>{center}</div>
-    </div>
-  )
-}
-
-// Main trend chart: current period (solid, area) vs previous period (dashed)
-function TrendChart({ cur, prev, labels, lang, fmt, color }) {
-  const [hover, setHover] = useState(null)
-  const ref = useRef(null)
-  const H = 220, W = 1000, n = cur.length
-  const max = Math.max(...cur, ...prev, 1) * 1.12
-  const x = i => (n <= 1 ? W / 2 : (i / (n - 1)) * W)
-  const y = v => H - (v / max) * H
-  const path = arr => arr.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join('')
-  const ticks = [0, .25, .5, .75, 1].map(f => max / 1.12 * f)
-  const every = Math.max(1, Math.ceil(n / 8))
-  const onMove = e => {
-    const r = ref.current?.getBoundingClientRect(); if (!r || !n) return
-    const i = Math.round(((e.clientX - r.left) / r.width) * (n - 1))
-    setHover(Math.min(Math.max(i, 0), n - 1))
-  }
-  return (
-    <div dir="ltr" style={{ position: 'relative' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '44px minmax(0,1fr)', gap: 8 }}>
-        <div style={{ position: 'relative', height: H }}>
-          {ticks.map((t, i) => <span key={i} style={{ position: 'absolute', right: 0, top: y(t) - 7, fontSize: 10.5, color: T.text3, fontVariantNumeric: 'tabular-nums' }}>{fmtC(Math.round(t), lang)}</span>)}
-        </div>
-        <div ref={ref} onMouseMove={onMove} onMouseLeave={() => setHover(null)} style={{ position: 'relative', height: H, cursor: 'crosshair' }}>
-          <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" width="100%" height={H} style={{ display: 'block', overflow: 'visible' }} aria-hidden>
-            <defs>
-              <linearGradient id="ga-area" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor={color} stopOpacity=".32"/><stop offset="1" stopColor={color} stopOpacity="0"/></linearGradient>
-            </defs>
-            {ticks.map((t, i) => <line key={i} x1="0" x2={W} y1={y(t)} y2={y(t)} stroke="rgba(var(--ov),.06)" vectorEffect="non-scaling-stroke"/>)}
-            {prev.length > 1 && <path d={path(prev)} fill="none" stroke="rgba(var(--ink),.35)" strokeWidth="1.5" strokeDasharray="5 5" vectorEffect="non-scaling-stroke"/>}
-            {n > 1 && <path d={`${path(cur)}L${W},${H}L0,${H}Z`} fill="url(#ga-area)"/>}
-            <path d={path(cur)} fill="none" stroke={color} strokeWidth="2.4" strokeLinejoin="round" vectorEffect="non-scaling-stroke"/>
-            {hover !== null && <line x1={x(hover)} x2={x(hover)} y1="0" y2={H} stroke="rgba(var(--ink),.3)" vectorEffect="non-scaling-stroke"/>}
-          </svg>
-          {hover !== null && (
-            <>
-              <span style={{ position: 'absolute', left: `${(x(hover) / W) * 100}%`, top: y(cur[hover]), width: 10, height: 10, marginLeft: -5, marginTop: -5, borderRadius: '50%', background: color, boxShadow: `0 0 0 3px ${T.bg}` }}/>
-              <div role="status" style={{ position: 'absolute', top: 6, [hover > n / 2 ? 'right' : 'left']: `${hover > n / 2 ? 100 - (x(hover) / W) * 100 + 2 : (x(hover) / W) * 100 + 2}%`, background: T.tooltip, border: `1px solid ${T.s2Line}`, borderRadius: 10, padding: '8px 10px', fontSize: 12, color: T.text, boxShadow: T.shadow3, pointerEvents: 'none', whiteSpace: 'nowrap', zIndex: 2 }}>
-                <div style={{ color: T.text3, marginBottom: 4 }}>{labels[hover]}</div>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><i style={{ width: 8, height: 8, borderRadius: 2, background: color }}/><b style={{ fontVariantNumeric: 'tabular-nums' }}>{fmt(cur[hover])}</b></div>
-                {prev[hover] !== undefined && <div style={{ display: 'flex', gap: 8, alignItems: 'center', color: T.text2 }}><i style={{ width: 8, height: 2, background: 'rgba(var(--ink),.5)' }}/><span style={{ fontVariantNumeric: 'tabular-nums' }}>{fmt(prev[hover])}</span></div>}
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '44px minmax(0,1fr)', gap: 8, marginTop: 6 }}>
-        <span/>
-        <div style={{ position: 'relative', height: 16 }}>
-          {labels.map((l, i) => (i % every === 0 || i === n - 1) && (i === n - 1 || n - 1 - i >= every / 2) ? <span key={i} style={{ position: 'absolute', left: `${(x(i) / W) * 100}%`, transform: i === 0 ? 'none' : i === n - 1 ? 'translateX(-100%)' : 'translateX(-50%)', fontSize: 10.5, color: T.text3, whiteSpace: 'nowrap' }}>{l}</span> : null)}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function Heatmap({ rows, t, lang }) {
-  const grid = Array.from({ length: 7 }, () => Array(24).fill(0))
-  rows.forEach(r => { const d = +r.dayOfWeek, h = +r.hour; if (d >= 0 && d < 7 && h >= 0 && h < 24) grid[d][h] += r.sessions || 0 })
-  const max = Math.max(...grid.flat(), 1)
-  return (
-    <div style={{ overflowX: 'auto' }}>
-      <div dir="ltr" style={{ minWidth: 560, display: 'grid', gridTemplateColumns: '34px repeat(24,minmax(0,1fr))', gap: 3, alignItems: 'center' }}>
-        <span/>
-        {Array.from({ length: 24 }, (_, h) => <span key={h} style={{ fontSize: 9.5, color: T.text3, textAlign: 'center' }}>{h % 3 === 0 ? String(h).padStart(2, '0') : ''}</span>)}
-        {grid.map((row, d) => [
-          <span key={`l${d}`} style={{ fontSize: 11, color: T.text2, textAlign: 'end', paddingInlineEnd: 4 }}>{t.dow[d]}</span>,
-          ...row.map((v, h) => <span key={`${d}-${h}`} title={`${t.dow[d]} ${String(h).padStart(2, '0')}:00 · ${fmtN(v, lang)}`} style={{ height: 18, borderRadius: 4, background: v ? `rgba(var(--brand-rgb),${0.12 + (v / max) * 0.88})` : 'rgba(var(--ov),.035)' }}/>),
-        ])}
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end', marginTop: 10, fontSize: 11, color: T.text3 }}>
-        {t.less}{[0.15, 0.35, 0.6, 0.85, 1].map(a => <i key={a} style={{ width: 14, height: 10, borderRadius: 3, background: `rgba(var(--brand-rgb),${a})` }}/>)}{t.more}
-      </div>
-    </div>
-  )
-}
-
-// ── Setup / error states ──────────────────────────────────────────────────────
-function Setup({ t, property }) {
-  const labels = { copy: t.copy, copied: t.copied, url: t.url }
-  return (
-    <Panel pad={22} style={{ maxWidth: 860 }}>
-      <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', marginBottom: 18 }}>
-        <span style={{ width: 44, height: 44, borderRadius: 12, background: 'rgba(249,171,0,.14)', color: '#F9AB00', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><FaKey size={17}/></span>
-        <div>
-          <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: T.text }}>{t.setupTitle}</h3>
-          <p style={{ margin: '6px 0 0', fontSize: 13.5, color: T.text2, lineHeight: 1.6 }}>{t.setupSub}</p>
-        </div>
-      </div>
-      <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {t.steps.map(([title, body, href, cta], i) => (
-          <li key={i} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '12px 14px', borderRadius: 12, background: 'rgba(var(--ov),.025)', border: `1px solid ${T.divider}` }}>
-            <span style={{ width: 26, height: 26, borderRadius: '50%', background: T.brandSoft, color: T.brandText, fontSize: 12.5, fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{i + 1}</span>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 14, fontWeight: 700, color: T.text }}>{title}</div>
-              <div style={{ fontSize: 12.5, color: T.text3, marginTop: 3, lineHeight: 1.55 }}>{body}</div>
-            </div>
-            <a href={href} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 30, padding: '0 12px', borderRadius: 8, border: `1px solid ${T.s2Line}`, color: T.brandText, fontSize: 12, fontWeight: 700, textDecoration: 'none', flexShrink: 0 }}>{cta}<FaExternalLinkAlt size={9}/></a>
-          </li>
-        ))}
-      </ol>
-      <div style={{ display: 'grid', gap: 10, marginTop: 16 }}>
-        <div><div style={{ fontSize: 12, color: T.text3, marginBottom: 5 }}>{t.envName}</div><CopyField value="GA4_SERVICE_ACCOUNT_JSON" labels={labels}/></div>
-        <div><div style={{ fontSize: 12, color: T.text3, marginBottom: 5 }}>{t.propId}</div><CopyField value={property || '536943897'} labels={labels}/></div>
-      </div>
-      <p style={{ margin: '16px 0 0', fontSize: 12.5, color: T.text3, lineHeight: 1.6, paddingTop: 14, borderTop: `1px solid ${T.divider}` }}>{t.smNote}</p>
-    </Panel>
-  )
-}
-
-function ErrorState({ t, err, onRetry }) {
-  const msg = err?.error || ''
-  const kind = /has not been used|is disabled|SERVICE_DISABLED|accessNotConfigured/i.test(msg) ? 'api' : err?.kind === 'permission' ? 'permission' : err?.kind === 'auth' ? 'auth' : err?.kind === 'property' ? 'property' : 'other'
-  const why = kind === 'permission' ? t.why.permission(err?.serviceAccount) : t.why[kind]
-  return (
-    <Panel pad={22} style={{ maxWidth: 860 }}>
-      <div role="alert" style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
-        <span style={{ width: 44, height: 44, borderRadius: 12, background: T.redSoft, color: T.redText, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><FaChartLine size={17}/></span>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: T.text }}>{t.errTitle}</h3>
-          <p style={{ margin: '6px 0 12px', fontSize: 13.5, color: T.text2, lineHeight: 1.6 }}>{why}</p>
-          {msg && <code dir="ltr" style={{ display: 'block', fontSize: 11.5, color: T.text3, background: 'rgba(var(--shade),.08)', borderRadius: 8, padding: '8px 10px', whiteSpace: 'pre-wrap', wordBreak: 'break-word', marginBottom: 12 }}>{msg}</code>}
-          <Button variant="brand" icon={<FaSyncAlt size={11}/>} onClick={onRetry}>{t.retry}</Button>
-        </div>
-      </div>
-    </Panel>
-  )
-}
-
-// ── Realtime strip ────────────────────────────────────────────────────────────
-function Realtime({ token, t, lang }) {
-  const [rt, setRt] = useState(null)
+function PageDrill({ t, path, range, call, devName }) {
+  const [st, setSt] = useState({ phase: 'loading' })
   useEffect(() => {
-    let dead = false
-    const load = () => fetch('/api/meta/ga4?realtime=1', { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json()).then(d => { if (!dead && d?.configured) setRt(d) }).catch(() => {})
-    load()
-    const iv = setInterval(() => { if (!document.hidden) load() }, 60000)
-    return () => { dead = true; clearInterval(iv) }
-  }, [token])
-  if (!rt) return null
-  const devTotal = rt.devices.reduce((n, d) => n + d.activeUsers, 0) || 1
+    let on = true
+    setSt({ phase: 'loading' })
+    call({ type: 'page', path, start: range.start, end: range.end }).then(d => on && setSt({ phase: 'ready', d })).catch(e => on && setSt({ phase: 'error', message: e.message }))
+    return () => { on = false }
+  }, [path, range.start, range.end]) // eslint-disable-line react-hooks/exhaustive-deps
+  if (st.phase !== 'ready') return <div className="an-drill an-drill--loading">{st.phase === 'loading' ? t.drillLoading : st.message}</div>
+  const ts = rows(st.d.reports.timeseries), srcs = rows(st.d.reports.sources), devs = rows(st.d.reports.devices), devTotal = devs.reduce((a, d) => a + d.m[0], 0)
   return (
-    <Panel pad={16}>
-      <div className="ga-rt">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <span className="ga-live" style={{ width: 10, height: 10, borderRadius: '50%', background: T.green, flexShrink: 0 }}/>
-          <div>
-            <div style={{ fontSize: 12, fontWeight: 800, color: T.green, letterSpacing: '.02em' }}>{t.rtTitle}</div>
-            <div style={{ fontSize: 34, fontWeight: 800, color: T.text, lineHeight: 1.05, fontVariantNumeric: 'tabular-nums' }}>{fmtN(rt.activeUsers, lang)}</div>
-            <div style={{ fontSize: 11.5, color: T.text3 }}>{t.rtSub}</div>
-          </div>
-        </div>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 11.5, color: T.text3, fontWeight: 700, marginBottom: 6 }}>{t.rtPages}</div>
-          {rt.pages.length ? rt.pages.slice(0, 4).map((p, i) => (
-            <div key={i} style={{ display: 'flex', gap: 10, fontSize: 12.5, padding: '3px 0', color: T.text2, alignItems: 'baseline' }}>
-              <span style={{ flex: '0 1 auto', minWidth: 0, maxWidth: 360, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}><bdi>{p.unifiedScreenName || '—'}</bdi></span>
-              <b style={{ color: T.text, fontVariantNumeric: 'tabular-nums' }}>{fmtN(p.activeUsers, lang)}</b>
-            </div>
-          )) : <div style={{ fontSize: 12.5, color: T.text3 }}>{t.rtNone}</div>}
-        </div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {rt.devices.map(d => (
-            <div key={d.deviceCategory} style={{ flex: '1 1 90px', background: 'rgba(var(--ov),.03)', border: `1px solid ${T.divider}`, borderRadius: 10, padding: '8px 10px' }}>
-              <div style={{ fontSize: 11.5, color: T.text3 }}>{t.dev[d.deviceCategory] || d.deviceCategory}</div>
-              <div style={{ fontSize: 16, fontWeight: 800, color: T.text, fontVariantNumeric: 'tabular-nums' }}>{fmtP(d.activeUsers / devTotal, lang, 0)}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </Panel>
+    <div className="an-drill">
+      <div><span className="an-h6">{t.drillViews}</span>{ts.length > 1 ? <Spark values={ts.map(r => r.m[0])} w={260} h={54}/> : <span className="an-dim">{t.few}</span>}</div>
+      <div><span className="an-h6">{t.drillSources}</span>{srcs.length ? srcs.slice(0, 5).map(s => <div key={s.d[0]} className="an-row"><span dir="ltr">{s.d[0]}</span><b>{fmtNum(s.m[0])}</b></div>) : <span className="an-dim">—</span>}</div>
+      <div><span className="an-h6">{t.drillDevices}</span>{devs.map(d => <div key={d.d[0]} className="an-row"><span>{devName(d.d[0])}</span><b>{devTotal ? Math.round((d.m[0] / devTotal) * 100) : 0}%</b></div>)}</div>
+    </div>
   )
 }
 
-// ── Main ──────────────────────────────────────────────────────────────────────
-const RANGES = [7, 28, 90]
-const METRICS = [
-  { key: 'totalUsers', icon: FaUsers, color: '#8490D8' },
-  { key: 'sessions', icon: FaMousePointer, color: '#60A5FA' },
-  { key: 'screenPageViews', icon: FaEye, color: '#34D399' },
-  { key: 'keyEvents', icon: FaBullseye, color: '#F9AB00' },
-]
-const DEV_ICON = { mobile: FaMobileAlt, desktop: FaDesktop, tablet: FaTabletAlt }
-const DEV_COLOR = { mobile: '#8490D8', desktop: '#34D399', tablet: '#F9AB00' }
-
-export default function GA4Tab({ token, lang = 'he' }) {
+// ── the tab ─────────────────────────────────────────────────────────────────────
+export default function GA4Tab({ token, lang = 'he', leads = [] }) {
   const t = TR[lang] || TR.he
-  const dir = lang === 'en' ? 'ltr' : 'rtl'
-  const [days, setDays] = useState(() => { try { return Number(localStorage.getItem('ga4_days')) || 28 } catch { return 28 } })
-  const [data, setData] = useState(null)
-  const [err, setErr] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [metric, setMetric] = useState('totalUsers')
-  const [, tick] = useState(0)
+  const en = lang === 'en'
+  const H = useMemo(() => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }), [token])
+  const call = useCallback(async (body, path = 'ga4-dash') => {
+    const r = await fetch(`${API}/${path}`, { method: 'POST', headers: H, body: JSON.stringify(body), signal: AbortSignal.timeout(45000) })
+    const d = await r.json().catch(() => ({}))
+    if (!r.ok) { const e = new Error(d.error || `HTTP ${r.status}`); e.kind = d.kind; e.sa = d.serviceAccount; throw e }
+    return d
+  }, [H])
+  const chName = c => (en ? c : t.ch[c] || c)
+  const devName = d => t.dev[d] || d
 
-  const load = useCallback(async (fresh = false) => {
-    setLoading(true); setErr(null)
-    try {
-      const r = await fetch(`/api/meta/ga4?days=${days}${fresh ? '&fresh=1' : ''}`, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(45000) })
-      const d = await r.json().catch(() => ({ error: `HTTP ${r.status}` }))
-      if (!r.ok || d.error) { setErr({ ...d, error: d.error || `HTTP ${r.status}` }); setData(d.configured === false ? d : null) }
-      else setData(d)
-    } catch (e) { setErr({ error: e?.message || 'Network error' }) }
-    setLoading(false)
-  }, [days, token])
+  const [preset, setPreset] = useState('30d')
+  const [state, setState] = useState({ phase: 'loading' })
+  const [rt, setRt] = useState(null)
+  const [openPage, setOpenPage] = useState(null)
+  const [pageQ, setPageQ] = useState(''), [srcQ, setSrcQ] = useState('')
+  const [pSort, pToggle] = useSort({ key: 0, desc: true }), [sSort, sToggle] = useSort({ key: 1, desc: true })
+  const [propId, setPropId] = useState(''), [saveMsg, setSaveMsg] = useState('')
+  const range = useMemo(() => presetRange(preset), [preset])
+
+  const load = useCallback((fresh = false) => {
+    setState(s => (s.phase === 'ready' ? { ...s, refreshing: true } : { phase: 'loading' }))
+    call({ type: 'dashboard', start: range.start, end: range.end, fresh })
+      .then(d => setState(d.configured ? { phase: 'ready', data: d } : { phase: 'setup', missing: d.missing, sa: d.serviceAccount }))
+      .catch(e => setState({ phase: 'error', message: e.message, kind: e.kind, sa: e.sa }))
+  }, [call, range.start, range.end])
   useEffect(() => { load() }, [load])
-  useEffect(() => { try { localStorage.setItem('ga4_days', String(days)) } catch {} }, [days])
-  useEffect(() => { const iv = setInterval(() => tick(n => n + 1), 30000); return () => clearInterval(iv) }, [])
-  // Keep it fresh while the tab stays open (server caches for 5 minutes)
-  useEffect(() => { const iv = setInterval(() => { if (!document.hidden) load() }, 5 * 60000); return () => clearInterval(iv) }, [load])
+  useEffect(() => { fetch(`${API}/ga4-property`, { headers: H }).then(r => r.json()).then(d => setPropId(String(d.property || ''))).catch(() => {}) }, [H])
+  useEffect(() => {
+    if (state.phase !== 'ready') return
+    let on = true
+    const pull = () => { if (document.hidden) return; call({ type: 'realtime' }).then(d => on && setRt(d.rt)).catch(() => {}) }
+    pull()
+    const iv = setInterval(pull, 60000)
+    return () => { on = false; clearInterval(iv) }
+  }, [state.phase, call])
 
-  const series = useMemo(() => {
-    if (!data?.configured || !data.trend) return null
-    const start = new Date(`${data.range.startDate}T00:00:00Z`)
-    const n = data.days
-    const curKeys = Array.from({ length: n }, (_, i) => { const d = new Date(start); d.setUTCDate(d.getUTCDate() + i); return dayKey(d) })
-    const prevKeys = Array.from({ length: n }, (_, i) => { const d = new Date(start); d.setUTCDate(d.getUTCDate() - n + i); return dayKey(d) })
-    const idx = {}
-    data.trend.forEach(r => { idx[`${r.range || 'cur'}:${r.date}`] = r })
-    const pick = (keys, rng, m) => keys.map(k => idx[`${rng}:${k}`]?.[m] || 0)
-    const out = { labels: curKeys.map(k => ymd(k).toLocaleDateString(lang === 'en' ? 'en-GB' : 'he-IL', { day: 'numeric', month: 'short', timeZone: 'UTC' })) }
-    for (const m of ['totalUsers', 'sessions', 'screenPageViews', 'keyEvents']) out[m] = { cur: pick(curKeys, 'cur', m), prev: pick(prevKeys, 'prev', m) }
-    return out
-  }, [data, lang])
+  // CRM leads in the same Israel days (and the period before): the number that matters
+  const leadCounts = useMemo(() => {
+    const count = ({ start, end }) => {
+      const [a, b] = jlmBounds(start, end)
+      const xs = leads.filter(l => l.source !== 'manual' && (l.ts || 0) >= a && (l.ts || 0) <= b)
+      return { n: xs.length, site: xs.filter(l => leadSrc(l) === 'site').length, meta: xs.filter(l => leadSrc(l) === 'meta').length }
+    }
+    return { cur: count(range), prev: count(prevRangeOf(range.start, range.end)) }
+  }, [leads, range])
 
-  const header = (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: '1 1 260px', minWidth: 0 }}>
-        <span style={{ width: 40, height: 40, borderRadius: 11, background: 'linear-gradient(135deg,#F9AB00,#E37400)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 6px 18px rgba(227,116,0,.25)' }}>
-          <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden><rect x="16" y="3" width="5" height="18" rx="2.5" fill="#fff"/><rect x="9.5" y="9" width="5" height="12" rx="2.5" fill="#fff" opacity=".85"/><circle cx="5.5" cy="18.5" r="2.5" fill="#fff" opacity=".7"/></svg>
-        </span>
-        <div style={{ minWidth: 0 }}>
-          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: T.text, letterSpacing: '-.01em' }}>{t.title}</h2>
-          <div style={{ fontSize: 12, color: T.text3, marginTop: 2 }}>{t.sub(data?.property || '536943897')}{data?.generatedAt && ` · ${t.updated(Math.floor((Date.now() - new Date(data.generatedAt)) / 60000))}`}</div>
-        </div>
+  const saveProp = async () => {
+    setSaveMsg(t.testing)
+    try { const d = await call({ property: propId }, 'ga4-property'); setSaveMsg(d.ok ? t.ok(d.serviceAccount) : d.configured === false ? t.setupT : t.failed); load(true) }
+    catch (e) { setSaveMsg(`${t.failed}: ${e.message}`) }
+  }
+  const settingsBox = (
+    <details className="an-settings">
+      <summary>{t.settings}</summary>
+      <div className="an-inline">
+        <input dir="ltr" value={propId} onChange={e => setPropId(e.target.value)} placeholder="536943897" aria-label={t.propId}/>
+        <button type="button" onClick={saveProp}>{t.saveTest}</button>
+        {saveMsg && <span className="an-status">{saveMsg}</span>}
       </div>
-      {data?.configured !== false && (
-        <div className="ga-seg" role="group" aria-label={t.days('')} style={{ display: 'inline-flex', background: 'rgba(var(--ov),.04)', border: `1px solid ${T.s1Line}`, borderRadius: 10, padding: 3, gap: 2 }}>
-          {RANGES.map(n => (
-            <button key={n} type="button" onClick={() => setDays(n)} aria-pressed={days === n}
-              style={{ height: 30, padding: '0 12px', borderRadius: 8, border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12.5, fontWeight: 700, background: days === n ? T.brandSoft : 'transparent', color: days === n ? T.brandText : T.text3 }}>{t.days(n)}</button>
-          ))}
-        </div>
-      )}
-      {data?.configured !== false && <Button size="sm" icon={<FaSyncAlt size={10} className={loading ? 'au-spin' : ''}/>} onClick={() => load(true)} disabled={loading}>{t.refresh}</Button>}
-      <a href={`https://analytics.google.com/analytics/web/#/p${data?.property || '536943897'}/reports/intelligenthome`} target="_blank" rel="noopener noreferrer"
-        style={{ display: 'inline-flex', alignItems: 'center', gap: 7, height: 30, padding: '0 12px', borderRadius: 9, border: '1px solid rgba(var(--ink),.18)', color: T.text2, fontSize: 12.5, fontWeight: 700, textDecoration: 'none' }}>
-        {t.openGa}<FaExternalLinkAlt size={9}/>
-      </a>
-    </div>
+    </details>
   )
 
-  let body
-  if (loading && !data) {
-    body = (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }} aria-busy="true" aria-label={t.loading}>
-        <div className="ga-kpi">{Array.from({ length: 8 }, (_, i) => <Skeleton key={i} h={112} r={14}/>)}</div>
-        <Skeleton h={300} r={16}/>
-        <div className="ga-2e"><Skeleton h={260} r={16}/><Skeleton h={260} r={16}/></div>
-      </div>
-    )
-  } else if (data?.configured === false) {
-    body = <Setup t={t} property={data.property}/>
-  } else if (err && !data) {
-    body = <ErrorState t={t} err={err} onRetry={() => load(true)}/>
-  } else if (data) {
-    const c = data.totals.cur || {}, p = data.totals.prev || {}
-    const s = series
-    const mDef = METRICS.find(m => m.key === metric)
-    const devs = (data.devices || []).map(d => ({ ...d, color: DEV_COLOR[d.deviceCategory] || T.grey }))
-    const devTotal = devs.reduce((n, d) => n + d.sessions, 0) || 1
-    const aud = data.audience || []
-    const nu = aud.find(a => a.newVsReturning === 'new')?.totalUsers || 0, ru = aud.find(a => a.newVsReturning === 'returning')?.totalUsers || 0
-    const chName = n => t.ch[n] || n || '—'
-    const evName = n => t.ev[n] || n
-    const campaigns = (data.campaigns || []).filter(r => r.sessionCampaignName && !/^\((not set|direct|organic|referral)\)$/.test(r.sessionCampaignName))
-    const kpis = [
-      { key: 'totalUsers', icon: FaUsers, color: '#8490D8', v: fmtN(c.totalUsers, lang), d: delta(c.totalUsers, p.totalUsers), spark: s?.totalUsers.cur },
-      { key: 'newUsers', icon: FaUserPlus, color: '#A78BFA', v: fmtN(c.newUsers, lang), d: delta(c.newUsers, p.newUsers) },
-      { key: 'sessions', icon: FaMousePointer, color: '#60A5FA', v: fmtN(c.sessions, lang), d: delta(c.sessions, p.sessions), spark: s?.sessions.cur },
-      { key: 'screenPageViews', icon: FaEye, color: '#34D399', v: fmtN(c.screenPageViews, lang), d: delta(c.screenPageViews, p.screenPageViews), spark: s?.screenPageViews.cur },
-      { key: 'engagementRate', icon: FaHeartbeat, color: '#F472B6', v: fmtP(c.engagementRate, lang), d: delta(c.engagementRate, p.engagementRate) },
-      { key: 'averageSessionDuration', icon: FaClock, color: '#22D3EE', v: fmtDur(c.averageSessionDuration), d: delta(c.averageSessionDuration, p.averageSessionDuration) },
-      { key: 'keyEvents', icon: FaBullseye, color: '#F9AB00', v: fmtN(c.keyEvents, lang), d: delta(c.keyEvents, p.keyEvents), spark: s?.keyEvents.cur },
-      { key: 'conv', icon: FaPercent, color: '#4ADE80', v: fmtP(conv(c), lang, 2), d: delta(conv(c), conv(p)) },
-    ]
-    body = (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 14, opacity: loading ? 0.6 : 1, transition: 'opacity .2s' }}>
-        {err && <div role="alert" style={{ fontSize: 12.5, color: T.redText }}>{err.error}</div>}
-        <Realtime token={token} t={t} lang={lang}/>
-        <div>
-          <div className="ga-kpi">{kpis.map(k => <Kpi key={k.key} icon={k.icon} color={k.color} label={t.k[k.key]} value={k.v} d={k.d} spark={k.spark} lang={lang} hint={t.vsPrev(data.days)}/>)}</div>
-          <div style={{ fontSize: 11.5, color: T.text3, marginTop: 8 }}>{t.vsPrev(data.days)}</div>
-        </div>
-
-        <Panel title={t.trend} icon={FaChartLine} right={
-          <div className="ga-seg" role="group" aria-label={t.trend} style={{ display: 'inline-flex', flexWrap: 'wrap', gap: 4 }}>
-            {METRICS.map(m => (
-              <button key={m.key} type="button" onClick={() => setMetric(m.key)} aria-pressed={metric === m.key}
-                style={{ height: 28, padding: '0 10px', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 700, border: `1px solid ${metric === m.key ? m.color : T.s1Line}`, background: metric === m.key ? `${m.color}1f` : 'transparent', color: metric === m.key ? T.text : T.text3 }}>{t.k[m.key]}</button>
-            ))}
-          </div>
-        }>
-          {s && <TrendChart cur={s[metric].cur} prev={s[metric].prev} labels={s.labels} lang={lang} fmt={v => fmtN(v, lang)} color={mDef.color}/>}
-          <div style={{ display: 'flex', gap: 16, marginTop: 10, fontSize: 11.5, color: T.text3 }}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><i style={{ width: 14, height: 3, borderRadius: 2, background: mDef.color }}/>{t.curLine}</span>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><i style={{ width: 14, height: 0, borderTop: '2px dashed rgba(var(--ink),.5)' }}/>{t.prevLine}</span>
-          </div>
-        </Panel>
-
-        <div className="ga-2">
-          <Panel title={t.channels} sub={t.channelsSub} icon={FaRoute}>
-            <BarList rows={data.channels} label={r => chName(r.sessionDefaultChannelGroup)} value={r => r.sessions} fmt={v => fmtN(v, lang)} lang={lang} emptyText={t.empty}
-              extra={r => (r.keyEvents ? `${fmtN(r.keyEvents, lang)} ${t.colConv}` : fmtP(r.engagementRate, lang, 0))}/>
-          </Panel>
-          <Panel title={t.devices} icon={FaDesktop}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap' }}>
-              <Donut parts={devs.map(d => ({ value: d.sessions, color: d.color }))} center={<><b style={{ fontSize: 20, color: T.text, fontVariantNumeric: 'tabular-nums' }}>{fmtC(devTotal === 1 && !devs.length ? 0 : devTotal, lang)}</b><span style={{ fontSize: 11, color: T.text3 }}>{t.colSessions}</span></>}/>
-              <div style={{ flex: 1, minWidth: 150, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {devs.length ? devs.map(d => { const Ic = DEV_ICON[d.deviceCategory] || FaDesktop; return (
-                  <div key={d.deviceCategory} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{ width: 28, height: 28, borderRadius: 8, background: `${d.color}22`, color: d.color, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}><Ic size={12}/></span>
-                    <span style={{ flex: 1, fontSize: 13, color: T.text }}>{t.dev[d.deviceCategory] || d.deviceCategory}</span>
-                    <b style={{ fontSize: 13, color: T.text, fontVariantNumeric: 'tabular-nums' }}>{fmtP(d.sessions / devTotal, lang, 0)}</b>
-                  </div>) }) : <span style={{ fontSize: 13, color: T.text3 }}>{t.empty}</span>}
-              </div>
-            </div>
-            <div style={{ marginTop: 18, paddingTop: 14, borderTop: `1px solid ${T.divider}` }}>
-              <div style={{ fontSize: 12.5, fontWeight: 700, color: T.text2, marginBottom: 8 }}>{t.audience}</div>
-              <div style={{ display: 'flex', height: 10, borderRadius: 6, overflow: 'hidden', background: 'rgba(var(--ov),.06)' }}>
-                <span style={{ width: `${(nu / ((nu + ru) || 1)) * 100}%`, background: '#8490D8' }}/>
-                <span style={{ width: `${(ru / ((nu + ru) || 1)) * 100}%`, background: '#34D399' }}/>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 12, color: T.text2 }}>
-                <span><i style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: '#8490D8', marginInlineEnd: 6 }}/>{t.newU} · <b style={{ color: T.text }}>{fmtN(nu, lang)}</b></span>
-                <span><i style={{ display: 'inline-block', width: 8, height: 8, borderRadius: 2, background: '#34D399', marginInlineEnd: 6 }}/>{t.retU} · <b style={{ color: T.text }}>{fmtN(ru, lang)}</b></span>
-              </div>
-            </div>
-          </Panel>
-        </div>
-
-        <Panel title={t.pages} icon={FaFileAlt}>
-          <Table emptyText={t.empty} rows={(data.pages || []).slice(0, 15)} cols={[
-            { label: '#', w: '26px', render: (_, i) => <span style={{ color: T.text3 }}>{i + 1}</span> },
-            { label: t.pages, w: 'minmax(0,3fr)', render: r => (
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}><bdi>{r.pageTitle || r.pagePath}</bdi></div>
-                <div style={{ fontSize: 11.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 1 }}><a href={`https://www.afikhanahal.co.il${r.pagePath}`} target="_blank" rel="noopener noreferrer" dir="ltr" style={{ color: T.text3, textDecoration: 'none', unicodeBidi: 'isolate' }}>{decodeURIComponent(r.pagePath || '')}</a></div>
-              </div>) },
-            { label: t.colViews, num: true, strong: true, render: r => fmtN(r.screenPageViews, lang) },
-            { label: t.colUsers, num: true, render: r => fmtN(r.totalUsers, lang) },
-            { label: t.colTime, num: true, hideM: true, render: r => fmtDur(r.totalUsers ? r.userEngagementDuration / r.totalUsers : 0) },
-            { label: t.colConv, num: true, hideM: true, render: r => (r.keyEvents ? <span style={{ color: '#F9AB00', fontWeight: 800 }}>{fmtN(r.keyEvents, lang)}</span> : <span style={{ color: T.text3 }}>—</span>) },
-          ]}/>
-        </Panel>
-
-        <div className="ga-2e">
-          <Panel title={t.landing} icon={FaSignInAlt}>
-            <BarList rows={data.landing || []} label={r => decodeURIComponent(r.landingPage || '') || '/'} value={r => r.sessions} fmt={v => fmtN(v, lang)} lang={lang} emptyText={t.empty} max={10} color="#60A5FA"
-              extra={r => fmtP(r.engagementRate, lang, 0)}/>
-          </Panel>
-          <Panel title={t.sources} icon={FaRoute}>
-            <BarList rows={data.sources || []} label={r => r.sessionSourceMedium} value={r => r.sessions} fmt={v => fmtN(v, lang)} lang={lang} emptyText={t.empty} max={10} color="#34D399"
-              extra={r => (r.keyEvents ? `${fmtN(r.keyEvents, lang)} ${t.colConv}` : '')}/>
-          </Panel>
-        </div>
-
-        <div className="ga-2e">
-          <Panel title={t.cities} icon={FaMapMarkerAlt}>
-            <BarList rows={(data.cities || []).filter(r => r.city && r.city !== '(not set)')} label={r => r.city} value={r => r.totalUsers} fmt={v => fmtN(v, lang)} lang={lang} emptyText={t.empty} max={10} color="#F472B6"/>
-            {(data.countries || []).length > 1 && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 12 }}>
-                {data.countries.slice(0, 6).map(r => <Badge key={r.country} color={T.grey} textColor={T.text2}>{r.country} · {fmtN(r.totalUsers, lang)}</Badge>)}
-              </div>
-            )}
-          </Panel>
-          <Panel title={t.events} icon={FaBolt}>
-            <Table emptyText={t.empty} rows={(data.events || []).slice(0, 12)} cols={[
-              { label: t.events, w: 'minmax(0,2.2fr)', render: r => (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-                  <span style={{ flexShrink: 0, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{evName(r.eventName)}</span>
-                  {r.keyEvents > 0 && <span style={{ flexShrink: 0 }}><Badge color="#F9AB00"><FaCheckCircle size={8}/>{t.key}</Badge></span>}
-                  {t.ev[r.eventName] && <code className="ga-hide-m" dir="ltr" style={{ fontSize: 10.5, color: T.text3, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', unicodeBidi: 'isolate' }}>{r.eventName}</code>}
-                </div>) },
-              { label: t.colCount, num: true, strong: true, render: r => fmtN(r.eventCount, lang) },
-              { label: t.colUsers, num: true, render: r => fmtN(r.totalUsers, lang) },
-            ]}/>
-          </Panel>
-        </div>
-
-        <Panel title={t.heat} sub={t.heatSub} icon={FaClock}><Heatmap rows={data.heat || []} t={t} lang={lang}/></Panel>
-
-        {campaigns.length > 0 && (
-          <Panel title={t.campaigns} icon={FaBullhorn}>
-            <Table emptyText={t.empty} rows={campaigns} cols={[
-              { label: t.campaigns, w: 'minmax(0,2.5fr)', render: r => <bdi>{r.sessionCampaignName}</bdi> },
-              { label: t.colSessions, num: true, strong: true, render: r => fmtN(r.sessions, lang) },
-              { label: t.colUsers, num: true, render: r => fmtN(r.totalUsers, lang) },
-              { label: t.colConv, num: true, render: r => fmtN(r.keyEvents, lang) },
-            ]}/>
-          </Panel>
-        )}
-      </div>
-    )
+  const shell = children => <div className="an" dir={en ? 'ltr' : 'rtl'}><style>{AN_CSS}</style>{children}</div>
+  if (state.phase === 'loading') return shell(<div className="an-skeleton">{t.loading}</div>)
+  if (state.phase === 'setup' || state.phase === 'error') {
+    return shell(<>
+      <section className="an-setup">
+        <h3>{state.phase === 'error' ? t.errT : t.setupT}</h3>
+        {state.phase === 'error' ? <>
+          <p className="an-muted">{(t.why[state.kind] ? (typeof t.why[state.kind] === 'function' ? t.why[state.kind](state.sa) : t.why[state.kind]) : t.why.other)}</p>
+          <p className="an-error" dir="ltr">{state.message}</p>
+          <div><button type="button" className="an-btn" onClick={() => load(true)}>{t.retry}</button></div>
+        </> : <>
+          <p className="an-muted">{t.setupB}</p>
+          <h4>{t.setupKorkos}</h4>
+          <ol className="an-steps">{t.stepsKorkos.map(([s, u], i) => <li key={i}>{s} <a href={u} target="_blank" rel="noopener noreferrer">{t.open} ↗</a></li>)}</ol>
+          <h4>{t.setupNew}</h4>
+          <ol className="an-steps">{t.stepsNew.map(([s, u], i) => <li key={i}>{s} <a href={u} target="_blank" rel="noopener noreferrer">{t.open} ↗</a></li>)}</ol>
+        </>}
+      </section>
+      {settingsBox}
+    </>)
   }
 
-  return (
-    <div className="ga au" dir={dir} style={{ display: 'flex', flexDirection: 'column', gap: 16, color: T.text }}>
-      <style>{AUTO_CSS}{CSS}</style>
-      {header}
-      {body}
-    </div>
-  )
+  // ── data ──
+  const R = state.data.reports, tot = totalsOf(R.totals), prevTot = totalsOf(R.totalsPrev)
+  const convMap = (rep, keyOf, mi) => { const m = new Map(); rows(rep).forEach(r => m.set(keyOf(r), r.m[mi] || 0)); return m }
+  const withConv = (list, rep, idx, mi, keyOf = r => r.d.join('|')) => { const m = convMap(rep, keyOf, mi); return list.map(r => { const mm = [...r.m]; mm[idx] = m.get(keyOf(r)) || 0; return { ...r, m: mm } }) }
+  const byType = rep => Object.fromEntries(rows(rep).map(r => [r.d[0], { count: r.m[0], users: r.m[1], sessions: r.m[2] }]))
+  const ct = totalsOf(R.convTotals), ctp = totalsOf(R.convTotalsPrev)
+  const cv = { actions: ct[0] || 0, users: ct[1] || 0, sessions: ct[2] || 0, by: byType(R.conv) }, cvPrev = { sessions: ctp[2] || 0, by: byType(R.convPrev) }
+  // [users, sessions, views, people who contacted]
+  const series = withConv(rows(R.timeseries), R.convTimeseries, 3, 1), prevSeries = withConv(rows(R.timeseriesPrev), R.convTimeseriesPrev, 3, 1)
+  const channels = withConv(rows(R.channels), R.convChannels, 4, 2)
+  const sources = withConv(rows(R.sources), R.convSources, 3, 2)
+  const campaigns = withConv(rows(R.campaigns), R.convCampaigns, 3, 2).filter(c => !['(not set)', '(direct)', '(organic)', '(referral)'].includes(c.d[0]))
+  const landing = withConv(rows(R.landing), R.convLanding, 4, 2, r => r.d[0]).map(r => ({ ...r, m: [r.m[0], r.m[1], r.m[2], r.m[3], r.m[4] || 0] }))
+  const titleOf = (() => { const pick = rep => { const m = new Map(); rows(rep).forEach(r => { if (!m.has(r.d[0]) && r.d[1] && r.d[1] !== '(not set)') m.set(r.d[0], r.d[1]) }); return m }; const a = pick(R.pageTitles), b = pick(R.pageTitlesAll); return p => a.get(p) || b.get(p) || '' })()
+  const pages = withConv(rows(R.pages), R.convPages, 3, 0, r => r.d[0]).map(r => ({ ...r, d: [r.d[0], titleOf(r.d[0])] }))
+  const devices = withConv(rows(R.devices), R.convDevices, 3, 2), devTotal = devices.reduce((a, d) => a + d.m[0], 0)
+  const countries = withConv(rows(R.countries), R.convCountries, 2, 2), cities = rows(R.cities).filter(c => c.d[0] !== '(not set)')
+  const nvr = rows(R.newVsReturning), heat = rows(R.heat)
+  const eventsBy = new Map(rows(R.events).map(e => [e.d[0], e]))
+  const anomalies = findAnomalies(series, 0)
+  const overallCR = tot[2] ? cv.sessions / tot[2] : 0, prevCR = prevTot[2] ? cvPrev.sessions / prevTot[2] : null
+  const chTotal = channels.reduce((a, c) => a + c.m[2], 0)
+  const rtUsers = rt?.now ? Number(rt.now.totals?.[0]?.metricValues?.[0]?.value) || (rt.now.rows || []).reduce((a, r) => a + (Number(r.metricValues?.[0]?.value) || 0), 0) : null
+  const hasData = series.length > 0 || (tot[0] || 0) > 0 || channels.length > 0
+  const sortRows = (list, sort, get) => [...list].sort((a, b) => (get(sort.key, b) - get(sort.key, a)) * (sort.desc ? 1 : -1))
+  const pagesView = sortRows(pages.filter(p => !pageQ || `${p.d[0]} ${p.d[1]}`.toLowerCase().includes(pageQ.toLowerCase())), pSort, (k, r) => (k === 'time' ? (r.m[1] ? r.m[2] / r.m[1] : 0) : r.m[k]))
+  const sourcesView = sortRows(sources.filter(s => !srcQ || `${s.d[0]} ${s.d[1]}`.toLowerCase().includes(srcQ.toLowerCase())), sSort, (k, r) => (k === 'cr' ? (r.m[1] ? r.m[3] / r.m[1] : 0) : r.m[k]))
+
+  // insights — from the data only
+  const insights = []
+  const du = prevTot[0] ? ((tot[0] - prevTot[0]) / prevTot[0]) * 100 : null
+  if (du != null && Math.abs(du) >= 5) insights.push({ tone: du > 0 ? 'good' : 'bad', text: t.ins.traffic(du > 0, Math.abs(du).toFixed(0), fmtNum(prevTot[0]), fmtNum(tot[0])) })
+  if (channels.length) {
+    insights.push({ tone: 'info', text: t.ins.top(chName(channels[0].d[0]), ((channels[0].m[2] / Math.max(1, tot[2])) * 100).toFixed(0)) })
+    const q = channels.find(c => c.m[2] >= 10 && c.m[4] > 1 && c.m[4] / c.m[2] > overallCR * 1.5)
+    if (q) insights.push({ tone: 'good', text: t.ins.quality(chName(q.d[0]), (q.m[4] / q.m[2] / Math.max(overallCR, 1e-4)).toFixed(1)) })
+  }
+  if (campaigns.length) insights.push({ tone: 'info', text: t.ins.camp(campaigns[0].d[0], fmtNum(campaigns[0].m[1])) })
+  const mob = devices.find(d => d.d[0] === 'mobile'), desk = devices.find(d => d.d[0] === 'desktop')
+  if (mob && desk && devTotal) { const mCR = mob.m[1] ? mob.m[3] / mob.m[1] : 0, dCR = desk.m[1] ? desk.m[3] / desk.m[1] : 0; if (dCR > 0 && mCR < dCR * 0.6 && mob.m[0] / devTotal > 0.4) insights.push({ tone: 'warn', text: t.ins.mobile(Math.round((mob.m[0] / devTotal) * 100), Math.round((1 - mCR / dCR) * 100)) }) }
+  const heavy = pages.filter(p => p.m[0] >= Math.max(20, (tot[4] || 0) * 0.04)).map(p => ({ p, avg: p.m[1] ? p.m[2] / p.m[1] : 0 })).sort((a, b) => a.avg - b.avg)[0]
+  if (heavy && heavy.avg < 12) insights.push({ tone: 'warn', text: t.ins.lowPage(heavy.p.d[1] || heavy.p.d[0], fmtDur(heavy.avg)) })
+  const gaForms = cv.by.contact_form?.count || 0
+  if (leadCounts.cur.n >= 5 && leadCounts.cur.n > gaForms * 1.5) insights.push({ tone: 'info', text: t.ins.leadsGap(leadCounts.cur.n, gaForms) })
+  anomalies.slice(0, 1).forEach(a => insights.push({ tone: a.z > 0 ? 'info' : 'warn', text: t.ins.anomaly(dLabel(a.r.d[0]), a.z > 0, fmtNum(a.r.m[0])) }))
+
+  const primary = [
+    { id: 'users', v: tot[0], p: prevTot[0], sp: series.map(r => r.m[0]) },
+    { id: 'sessions', v: tot[2], p: prevTot[2], sp: series.map(r => r.m[1]) },
+    { id: 'views', v: tot[4], p: prevTot[4], sp: series.map(r => r.m[2]) },
+    { id: 'eng', v: tot[5], p: prevTot[5], fmt: fmtPct },
+    { id: 'leads', v: leadCounts.cur.n, p: leadCounts.prev.n },
+  ]
+  const secondary = [
+    ['newUsers', fmtNum(tot[1]), <Delta key="d" cur={tot[1]} prev={prevTot[1]} dim/>],
+    ['engaged', fmtNum(tot[3]), <Delta key="d" cur={tot[3]} prev={prevTot[3]} dim/>],
+    ['vps', tot[2] ? (tot[4] / tot[2]).toFixed(2) : '—', null],
+    ['dur', fmtDur(tot[9]), <Delta key="d" cur={tot[9]} prev={prevTot[9]} dim/>],
+    ['bounce', fmtPct(tot[6]), <Delta key="d" cur={tot[6]} prev={prevTot[6]} invert dim/>],
+    ['events', fmtNum(tot[7]), null],
+    ['cr', fmtPct(overallCR, 2), <Delta key="d" cur={overallCR} prev={prevCR} dim/>],
+  ]
+  const heatMax = Math.max(1, ...heat.map(h => h.m[0]))
+  const heatAt = (d, h) => heat.find(x => Number(x.d[0]) === d && Number(x.d[1]) === h)?.m[0] || 0
+  const RAMP = ['#e8f0fb', '#b9d1f3', '#8db4e8', '#6198dd', '#3d7fd3', '#2667b8', '#1a4d8f']
+  const shade = v => (v ? RAMP[Math.min(RAMP.length - 1, 1 + Math.floor((v / heatMax) * (RAMP.length - 1)))] : 'var(--an-empty)')
+  const pctTxt = (a, b) => (b ? Math.round((a / b) * 100) : 0)
+
+  return shell(<>
+    <header className="an-top">
+      <div>
+        <h3 className="an-title">{t.title}</h3>
+        <span className="an-sub" dir="ltr">{range.start} → {range.end}</span>
+        <span className="an-sub"> · {t.vsPrev} · {t.src}</span>
+      </div>
+      <div className="an-top__side">
+        <span className="an-live">{rtUsers == null ? '· · ·' : rtUsers} {t.last30}<i/></span>
+        <div className="an-seg" role="radiogroup">{Object.keys(t.presets).map(id => <button key={id} type="button" role="radio" aria-checked={preset === id} className={preset === id ? 'is-on' : ''} onClick={() => setPreset(id)}>{t.presets[id]}</button>)}</div>
+        <button type="button" className="an-csv" onClick={() => load(true)} disabled={state.refreshing}>{state.refreshing ? '…' : `↻ ${t.refresh}`}</button>
+        <a className="an-csv" href={GA_URL(state.data.property)} target="_blank" rel="noopener noreferrer">{t.openGa} ↗</a>
+      </div>
+    </header>
+
+    <LivePanel t={t} rt={rt} users={rtUsers} chName={chName} devName={devName}/>
+
+    {!hasData && <section className="an-await"><span className="an-await__badge">{t.await}</span><h4>{t.awaitT}</h4><p>{t.awaitB}</p></section>}
+
+    {hasData && <>
+      <section className="an-metrics">
+        {primary.map(m => (
+          <div key={m.id} className="an-metric" data-tip={t.tips[m.id]} tabIndex={0}>
+            <span className="an-metric__label">{t.k[m.id]}</span>
+            <span className="an-metric__value">{(m.fmt || fmtNum)(m.v)}</span>
+            <span className="an-metric__foot"><Delta cur={m.v} prev={m.p}/>{m.sp && <Spark values={m.sp}/>}</span>
+          </div>
+        ))}
+      </section>
+      <section className="an-secondary">{secondary.map(([id, v, d]) => <span key={id} className="an-secondary__item" data-tip={t.tips[id]} tabIndex={0}><i>{t.k[id]}</i><b>{v}</b>{d}</span>)}</section>
+
+      <section className="an-section an-conv">
+        <div className="an-sect-head"><h4 className="an-h5">{t.conv}</h4><span className="an-sub">{t.convSub}</span></div>
+        <div className="an-conv__head">
+          <div className="an-conv__big">
+            <span className="an-conv__big-label">{t.convBig}</span>
+            <span className="an-conv__big-value">{fmtNum(leadCounts.cur.n)} <Delta cur={leadCounts.cur.n} prev={leadCounts.prev.n}/></span>
+            <span className="an-conv__big-sub">{t.convBigSub(leadCounts.cur.site, leadCounts.cur.meta)}</span>
+          </div>
+          <p className="an-conv__explain">{t.convExplain}</p>
+        </div>
+        <div className="an-conv__tiles">
+          {Object.entries(t.convTypes).map(([ev, [label, hint]]) => {
+            const c = cv.by[ev] || { count: 0, users: 0 }, pc = cvPrev.by[ev] || { count: 0 }
+            return (
+              <div key={ev} className="an-conv__tile" data-tip={hint} tabIndex={0}>
+                <span className="an-conv__tile-label"><i/>{label}</span>
+                <span className="an-conv__tile-value">{fmtNum(c.count)} <Delta cur={c.count} prev={pc.count} dim/></span>
+                <span className="an-conv__tile-sub">{t.people(c.users)}</span>
+              </div>
+            )
+          })}
+        </div>
+        <p className="an-conv__note">{t.convNote}</p>
+      </section>
+
+      <section className="an-section"><HeroChart t={t} series={series} prevSeries={prevSeries}/></section>
+
+      {insights.length > 0 && <section className="an-section"><h4 className="an-h5">{t.insights}</h4><ul className="an-insights">{insights.map((x, i) => <li key={i} className={`is-${x.tone}`}>{x.text}</li>)}</ul></section>}
+
+      {channels.length > 0 && <section className="an-section">
+        <div className="an-sect-head">
+          <h4 className="an-h5" data-tip={t.channelsTip} tabIndex={0}>{t.channels}</h4>
+          <button type="button" className="an-csv" onClick={() => exportCsv('channels', [t.col.channel, t.col.users, t.col.sessions, t.col.share, t.col.eng, t.col.conv, t.col.cr], channels.map(c => [chName(c.d[0]), c.m[0], c.m[2], fmtPct(chTotal ? c.m[2] / chTotal : 0), fmtPct(c.m[3]), c.m[4], fmtPct(c.m[2] ? c.m[4] / c.m[2] : 0, 2)]))}>{t.csv}</button>
+        </div>
+        <div className="an-scroll"><table className="an-table">
+          <thead><tr><th>{t.col.channel}</th><th className="is-num">{t.col.users}</th><th className="is-num">{t.col.sessions}</th><th className="is-num">{t.col.share}</th><th className="is-num">{t.col.eng}</th><th className="is-num">{t.col.conv}</th><th className="is-num">{t.col.cr}</th></tr></thead>
+          <tbody>{channels.map(c => { const cr = c.m[2] ? c.m[4] / c.m[2] : 0, q = cr > overallCR * 1.4 && c.m[4] > 1; return (
+            <tr key={c.d[0]}>
+              <td className="an-td-main">{chName(c.d[0])}<span className="an-share"><i style={{ width: `${chTotal ? (c.m[2] / chTotal) * 100 : 0}%` }}/></span></td>
+              <td className="is-num">{fmtNum(c.m[0])}</td><td className="is-num">{fmtNum(c.m[2])}</td><td className="is-num an-dim">{fmtPct(chTotal ? c.m[2] / chTotal : 0, 0)}</td>
+              <td className="is-num">{fmtPct(c.m[3], 0)}</td><td className="is-num">{c.m[4] || 0}</td><td className={`is-num ${q ? 'an-quality' : ''}`}>{fmtPct(cr, 2)}{q ? ' ★' : ''}</td>
+            </tr>) })}</tbody>
+        </table></div>
+        <p className="an-footnote">{t.quality(fmtPct(overallCR, 2))}</p>
+      </section>}
+
+      {campaigns.length > 0 && <section className="an-section">
+        <div className="an-sect-head">
+          <h4 className="an-h5" data-tip={t.campaignsTip} tabIndex={0}>{t.campaigns}</h4>
+          <button type="button" className="an-csv" onClick={() => exportCsv('campaigns', [t.col.campaign, t.col.users, t.col.sessions, t.col.eng, t.col.conv, t.col.cr], campaigns.map(c => [c.d[0], c.m[0], c.m[1], fmtPct(c.m[2]), c.m[3], fmtPct(c.m[1] ? c.m[3] / c.m[1] : 0, 2)]))}>{t.csv}</button>
+        </div>
+        <div className="an-scroll"><table className="an-table">
+          <thead><tr><th>{t.col.campaign}</th><th className="is-num">{t.col.users}</th><th className="is-num">{t.col.sessions}</th><th className="is-num">{t.col.eng}</th><th className="is-num">{t.col.conv}</th><th className="is-num">{t.col.cr}</th></tr></thead>
+          <tbody>{campaigns.map(c => { const mx = campaigns[0].m[1] || 1; return (
+            <tr key={c.d[0]}><td className="an-td-main" dir="auto">{c.d[0]}<span className="an-share"><i style={{ width: `${(c.m[1] / mx) * 100}%` }}/></span></td>
+              <td className="is-num">{fmtNum(c.m[0])}</td><td className="is-num">{fmtNum(c.m[1])}</td><td className="is-num">{fmtPct(c.m[2], 0)}</td><td className="is-num">{c.m[3] || 0}</td><td className="is-num">{fmtPct(c.m[1] ? c.m[3] / c.m[1] : 0, 2)}</td></tr>) })}</tbody>
+        </table></div>
+      </section>}
+
+      {sources.length > 0 && <section className="an-section">
+        <div className="an-sect-head">
+          <h4 className="an-h5" data-tip={t.sourcesTip} tabIndex={0}>{t.sources}</h4>
+          <div className="an-sect-tools">
+            <input className="an-search" placeholder={t.search} value={srcQ} onChange={e => setSrcQ(e.target.value)} aria-label={t.sources}/>
+            <button type="button" className="an-csv" onClick={() => exportCsv('sources', ['source', 'medium', t.col.users, t.col.sessions, t.col.eng, t.col.conv], sources.map(s => [s.d[0], s.d[1], s.m[0], s.m[1], fmtPct(s.m[2]), s.m[3]]))}>{t.csv}</button>
+          </div>
+        </div>
+        <div className="an-scroll"><table className="an-table">
+          <thead><tr><th>{t.col.src}</th><Th label={t.col.users} k={0} sort={sSort} onSort={sToggle}/><Th label={t.col.sessions} k={1} sort={sSort} onSort={sToggle}/><Th label={t.col.eng} k={2} sort={sSort} onSort={sToggle}/><Th label={t.col.conv} k={3} sort={sSort} onSort={sToggle}/><Th label={t.col.cr} k="cr" sort={sSort} onSort={sToggle}/></tr></thead>
+          <tbody>{sourcesView.map((s, i) => { const cr = s.m[1] ? s.m[3] / s.m[1] : 0; return (
+            <tr key={i}><td className="an-td-main" dir="ltr" style={{ textAlign: en ? 'left' : 'right' }}>{s.d[0]} <span className="an-dim">/ {s.d[1]}</span></td>
+              <td className="is-num">{fmtNum(s.m[0])}</td><td className="is-num">{fmtNum(s.m[1])}</td><td className="is-num">{fmtPct(s.m[2], 0)}</td><td className="is-num">{s.m[3] || 0}</td><td className={`is-num ${cr > overallCR * 1.4 && s.m[3] > 1 ? 'an-quality' : ''}`}>{fmtPct(cr, 2)}</td></tr>) })}</tbody>
+        </table></div>
+      </section>}
+
+      {landing.length > 0 && <section className="an-section">
+        <div className="an-sect-head">
+          <h4 className="an-h5" data-tip={t.landingTip} tabIndex={0}>{t.landing}</h4>
+          <button type="button" className="an-csv" onClick={() => exportCsv('landing', [t.col.landing, t.col.sessions, t.col.users, t.col.eng, t.col.time, t.col.conv], landing.map(l => [l.d[0], l.m[0], l.m[1], fmtPct(l.m[2]), fmtDur(l.m[3]), l.m[4]]))}>{t.csv}</button>
+        </div>
+        <div className="an-scroll"><table className="an-table">
+          <thead><tr><th>{t.col.landing}</th><th className="is-num">{t.col.sessions}</th><th className="is-num">{t.col.users}</th><th className="is-num">{t.col.eng}</th><th className="is-num">{t.col.time}</th><th className="is-num">{t.col.conv}</th><th className="is-num">{t.col.cr}</th></tr></thead>
+          <tbody>{landing.map(l => { const mx = landing[0].m[0] || 1; return (
+            <tr key={l.d[0]}><td className="an-td-main"><span className="an-page-t">{titleOf(l.d[0]) || l.d[0]}</span><span className="an-page-p"><bdi dir="ltr">{l.d[0]}</bdi></span><span className="an-share"><i style={{ width: `${(l.m[0] / mx) * 100}%` }}/></span></td>
+              <td className="is-num">{fmtNum(l.m[0])}</td><td className="is-num">{fmtNum(l.m[1])}</td><td className="is-num">{fmtPct(l.m[2], 0)}</td><td className="is-num">{fmtDur(l.m[3])}</td><td className="is-num">{l.m[4] || 0}</td><td className="is-num">{fmtPct(l.m[0] ? (l.m[4] || 0) / l.m[0] : 0, 2)}</td></tr>) })}</tbody>
+        </table></div>
+      </section>}
+
+      {pages.length > 0 && <section className="an-section">
+        <div className="an-sect-head">
+          <h4 className="an-h5" data-tip={t.pagesTip} tabIndex={0}>{t.pages}</h4>
+          <div className="an-sect-tools">
+            <input className="an-search" placeholder={t.search} value={pageQ} onChange={e => setPageQ(e.target.value)} aria-label={t.pages}/>
+            <button type="button" className="an-csv" onClick={() => exportCsv('pages', [t.col.page, 'path', t.col.views, t.col.users, t.col.time, t.col.conv], pages.map(p => [p.d[1], p.d[0], p.m[0], p.m[1], fmtDur(p.m[1] ? p.m[2] / p.m[1] : 0), p.m[3]]))}>{t.csv}</button>
+          </div>
+        </div>
+        <div className="an-scroll"><table className="an-table an-table--click">
+          <thead><tr><th>{t.col.page}</th><Th label={t.col.views} k={0} sort={pSort} onSort={pToggle}/><Th label={t.col.users} k={1} sort={pSort} onSort={pToggle}/><Th label={t.col.time} k="time" sort={pSort} onSort={pToggle}/><Th label={t.col.conv} k={3} sort={pSort} onSort={pToggle}/></tr></thead>
+          <tbody>{pagesView.map(p => { const open = openPage === p.d[0]; return [
+            <tr key={p.d[0]} className={open ? 'is-open' : ''} onClick={() => setOpenPage(open ? null : p.d[0])} tabIndex={0} onKeyDown={e => { if (e.key === 'Enter') setOpenPage(open ? null : p.d[0]) }} aria-expanded={open}>
+              <td className="an-td-main"><span className="an-page-t">{p.d[1] || p.d[0]}</span><span className="an-page-p"><bdi dir="ltr">{p.d[0]}</bdi></span><span className="an-share"><i style={{ width: `${pages[0]?.m[0] ? (p.m[0] / pages[0].m[0]) * 100 : 0}%` }}/></span></td>
+              <td className="is-num">{fmtNum(p.m[0])}</td><td className="is-num">{fmtNum(p.m[1])}</td><td className="is-num">{fmtDur(p.m[1] ? p.m[2] / p.m[1] : 0)}</td><td className="is-num">{p.m[3] || 0}</td>
+            </tr>,
+            open && <tr key={p.d[0] + ':d'} className="an-drill-row"><td colSpan={5}><PageDrill t={t} path={p.d[0]} range={range} call={call} devName={devName}/></td></tr>,
+          ] })}</tbody>
+        </table></div>
+        <p className="an-footnote">{t.pageHint}</p>
+      </section>}
+
+      <div className="an-cols">
+        <section className="an-section">
+          <h4 className="an-h5">{t.devices}</h4>
+          <div className="an-scroll"><table className="an-table">
+            <thead><tr><th>{t.col.device}</th><th className="is-num">{t.col.share}</th><th className="is-num">{t.col.users}</th><th className="is-num">{t.col.cr}</th></tr></thead>
+            <tbody>{devices.map(d => <tr key={d.d[0]}><td className="an-td-main">{devName(d.d[0])}<span className="an-share"><i style={{ width: `${devTotal ? (d.m[0] / devTotal) * 100 : 0}%` }}/></span></td><td className="is-num">{pctTxt(d.m[0], devTotal)}%</td><td className="is-num">{fmtNum(d.m[0])}</td><td className="is-num">{fmtPct(d.m[1] ? d.m[3] / d.m[1] : 0, 2)}</td></tr>)}</tbody>
+          </table></div>
+          {nvr.length > 0 && <>
+            <span className="an-h6" style={{ marginTop: 10 }}>{t.newRet}</span>
+            {(() => { const nw = nvr.find(r => r.d[0] === 'new')?.m[0] || 0, rt2 = nvr.find(r => r.d[0] === 'returning')?.m[0] || 0, all = nw + rt2 || 1; return (
+              <div className="an-split" role="img" aria-label={`${t.newU} ${nw} · ${t.retU} ${rt2}`}>
+                <i style={{ width: `${(nw / all) * 100}%` }} className="a"/><i style={{ width: `${(rt2 / all) * 100}%` }} className="b"/>
+                <div className="an-split__legend"><span><b className="a"/>{t.newU} {fmtNum(nw)} ({pctTxt(nw, all)}%)</span><span><b className="b"/>{t.retU} {fmtNum(rt2)} ({pctTxt(rt2, all)}%)</span></div>
+              </div>) })()}
+          </>}
+        </section>
+        <section className="an-section">
+          <h4 className="an-h5">{t.geo}</h4>
+          <div className="an-geo">
+            <div>{countries.slice(0, 8).map(c => <div key={c.d[0]} className="an-row"><span>{c.d[0]}</span><span className="an-dim">{c.m[2] ? `${c.m[2]} ${t.col.conv} · ` : ''}</span><b>{fmtNum(c.m[0])}</b></div>)}</div>
+            <div>{cities.slice(0, 8).map(c => <div key={c.d[0]} className="an-row"><span>{c.d[0]}</span><b>{fmtNum(c.m[0])}</b></div>)}</div>
+          </div>
+        </section>
+      </div>
+
+      {heat.length > 0 && <section className="an-section">
+        <div className="an-sect-head"><h4 className="an-h5">{t.heat}</h4><span className="an-sub">{t.heatSub}</span></div>
+        <div className="an-scroll"><div className="an-heat" dir="ltr">
+          <span/>{Array.from({ length: 24 }, (_, h) => <span key={h} className="an-heat__h">{h % 3 === 0 ? h : ''}</span>)}
+          {[0, 1, 2, 3, 4, 5, 6].map(d => [
+            <span key={'l' + d} className="an-heat__d" dir="auto">{t.dow[d]}</span>,
+            ...Array.from({ length: 24 }, (_, h) => { const v = heatAt(d, h); return <i key={d + ':' + h} title={`${t.dow[d]} ${h}:00 · ${v}`} style={{ background: shade(v) }}/> }),
+          ])}
+        </div></div>
+        <div className="an-heat__legend"><span>{t.less}</span>{RAMP.map(c => <i key={c} style={{ background: c }}/>)}<span>{t.more}</span></div>
+      </section>}
+
+      <section className="an-section">
+        <div className="an-sect-head">
+          <h4 className="an-h5" data-tip={t.actionsTip} tabIndex={0}>{t.actions}</h4>
+          <button type="button" className="an-csv" onClick={() => exportCsv('actions', [t.col.action, t.col.count, t.col.people], Object.entries(t.ev).map(([ev, [label]]) => { const e = eventsBy.get(ev); return [label, e ? e.m[0] : 0, e ? e.m[1] : 0] }))}>{t.csv}</button>
+        </div>
+        <div className="an-scroll"><table className="an-table">
+          <thead><tr><th>{t.col.action}</th><th className="is-num">{t.col.count}</th><th className="is-num">{t.col.people}</th></tr></thead>
+          <tbody>{Object.entries(t.ev).map(([ev, [label, hint]]) => { const e = eventsBy.get(ev); return <tr key={ev}><td className="an-td-main">{label}{hint && <span className="an-dim an-ev-hint">{hint}</span>}</td><td className="is-num">{fmtNum(e ? e.m[0] : 0)}</td><td className="is-num">{fmtNum(e ? e.m[1] : 0)}</td></tr> })}</tbody>
+        </table></div>
+      </section>
+    </>}
+
+    {settingsBox}
+  </>)
 }
+
+// Admin theme tokens (var(--au-*)) so light / dark follow the admin switch; data colours from the dataviz palette.
+const AN_CSS = `
+.an{--an-accent:#2a78d6;--an-good:#15803d;--an-bad:#b42318;--an-warn:#a16207;--an-line:var(--au-line2,#e3e7ef);--an-muted:var(--au-text3,#6b7480);--an-ink:var(--au-text,#16202e);--an-surface:var(--au-s2,#fff);--an-surface-2:rgba(var(--ov,0,0,0),.035);--an-empty:rgba(var(--ov,0,0,0),.06);
+  display:flex;flex-direction:column;gap:1rem;max-width:1240px;font-variant-numeric:tabular-nums;color:var(--an-ink)}
+html[data-admin-theme="dark"] .an{--an-accent:#3987e5;--an-good:#4ADE80;--an-bad:#F08A8A;--an-warn:#F5C26B}
+.an *{box-sizing:border-box}
+.an-skeleton{padding:4rem 1rem;text-align:center;color:var(--an-muted);border:1.5px dashed var(--an-line);border-radius:13px;background:var(--an-surface)}
+.an-empty{color:var(--an-muted);text-align:center;padding:2rem 0;margin:0}
+.an-muted,.an-dim{color:var(--an-muted)}
+.an-error{color:var(--an-bad);font-size:.85rem}
+.an-status{font-size:.88rem;font-weight:600}
+.an-top{display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;background:var(--an-surface);border:1px solid var(--an-line);border-radius:13px;padding:.85rem 1.15rem}
+.an-title{margin:0 0 .15rem;font-size:1.35rem;font-weight:800}
+.an-sub{font-size:.82rem;color:var(--an-muted)}
+.an-top__side{display:flex;align-items:center;gap:.7rem;flex-wrap:wrap}
+.an-live{font-size:.85rem;font-weight:700;display:flex;align-items:center;gap:.45rem;color:var(--an-good);border:1px solid color-mix(in srgb,var(--an-good) 30%,transparent);background:color-mix(in srgb,var(--an-good) 8%,transparent);border-radius:999px;padding:.3rem .85rem;white-space:nowrap}
+.an-live i{width:8px;height:8px;border-radius:50%;background:var(--an-good);animation:an-pulse 1.8s infinite}
+@keyframes an-pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.an-seg{display:inline-flex;border:1px solid var(--an-line);border-radius:10px;background:var(--an-surface-2);padding:3px;gap:2px;max-width:100%;overflow-x:auto}
+.an-seg button{border:none;background:transparent;color:var(--an-muted);border-radius:7px;padding:.4rem .8rem;font-size:.84rem;font-weight:700;cursor:pointer;font-family:inherit;white-space:nowrap}
+.an-seg button:hover{color:var(--an-ink)}
+.an-seg button.is-on{background:var(--an-accent);color:#fff}
+.an-seg--sm button{padding:.26rem .6rem;font-size:.76rem}
+.an-check{font-size:.8rem;font-weight:600;color:var(--an-muted);display:flex;align-items:center;gap:.4rem;cursor:pointer;white-space:nowrap}
+.an-check input,.an-selfex input{accent-color:var(--an-accent);width:15px;height:15px}
+.an-metrics{display:grid;grid-template-columns:repeat(5,1fr);background:var(--an-surface);border:1px solid var(--an-line);border-radius:13px 13px 0 0;border-bottom:0;overflow:hidden}
+.an-metric{padding:.95rem 1.15rem .8rem;border-inline-start:1px solid var(--an-line);display:flex;flex-direction:column;gap:.2rem}
+.an-metric:first-child{border-inline-start:none}
+.an-metric__label{font-size:.82rem;font-weight:700;color:var(--an-muted)}
+.an-metric__value{font-size:2.05rem;font-weight:800;line-height:1.05;letter-spacing:-.02em}
+.an-metric__foot{display:flex;align-items:center;gap:.6rem;min-height:26px}
+.an-spark polyline{stroke:var(--an-accent);stroke-width:1.6}
+.an-delta{font-size:.82rem;font-weight:700;color:var(--an-muted);direction:ltr;unicode-bidi:isolate}
+.an-delta.is-good{color:var(--an-good)}.an-delta.is-bad{color:var(--an-bad)}.an-delta--na{font-weight:500}
+.an-secondary{display:flex;flex-wrap:wrap;gap:.45rem 1.7rem;padding:.7rem 1.15rem;background:var(--an-surface-2);border:1px solid var(--an-line);border-radius:0 0 13px 13px;margin-top:-1rem}
+.an-secondary__item{display:flex;align-items:baseline;gap:.45rem;font-size:.9rem}
+.an-secondary__item i{font-style:normal;color:var(--an-muted);font-size:.82rem;font-weight:600}
+.an-secondary__item b{font-weight:800}
+.an-section{display:flex;flex-direction:column;gap:.75rem;background:var(--an-surface);border:1px solid var(--an-line);border-radius:13px;padding:1rem 1.15rem 1.1rem;min-width:0}
+.an-h5{margin:0;font-size:1rem;font-weight:800;display:inline-flex;align-items:center;gap:.5rem}
+.an-h5::before{content:'';width:4px;height:16px;border-radius:3px;background:var(--an-accent);flex-shrink:0}
+.an-h6{font-size:.8rem;font-weight:700;color:var(--an-muted);display:block;margin-bottom:.3rem}
+.an-sect-head{display:flex;justify-content:space-between;align-items:center;gap:.8rem;flex-wrap:wrap}
+.an-sect-tools{display:flex;gap:.5rem;align-items:center}
+.an-cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:1rem;align-items:stretch}
+.an-csv,.an-btn{border:1px solid var(--an-line);border-radius:8px;background:var(--an-surface);color:var(--an-muted);font-size:.78rem;font-weight:700;cursor:pointer;padding:.32rem .75rem;text-decoration:none;font-family:inherit;white-space:nowrap}
+.an-csv:hover,.an-btn:hover{color:var(--an-accent);border-color:var(--an-accent)}
+.an-search{border:1px solid var(--an-line);border-radius:8px;background:var(--an-surface-2);color:inherit;padding:.35rem .7rem;font-size:.82rem;width:180px;font-family:inherit}
+.an-search:focus{outline:none;border-color:var(--an-accent)}
+.an-hero{display:flex;flex-direction:column;gap:.6rem}
+.an-hero__bar{display:flex;justify-content:space-between;align-items:center;gap:.8rem;flex-wrap:wrap}
+.an-hero__bar-side{display:flex;align-items:center;gap:.8rem}
+.an-hero__plot{position:relative}
+.an-hero__plot svg{width:100%;height:auto;display:block}
+.an-grid{stroke:var(--an-line);stroke-width:1}
+.an-axis{font-size:10px;fill:var(--an-muted)}
+.an-line{stroke:var(--an-accent);stroke-width:2.2;stroke-linejoin:round}
+.an-line--prev{stroke:var(--an-muted);stroke-width:1.5;stroke-dasharray:5 4;opacity:.65}
+.an-area{fill:color-mix(in srgb,var(--an-accent) 9%,transparent)}
+.an-cross{stroke:var(--an-muted);stroke-width:1;stroke-dasharray:3 3}
+.an-dot--spike{fill:var(--an-good);stroke:var(--an-surface);stroke-width:1.6}
+.an-dot--drop{fill:var(--an-bad);stroke:var(--an-surface);stroke-width:1.6}
+.an-dot--last{fill:var(--an-accent);stroke:var(--an-surface);stroke-width:1.6}
+.an-tip{position:absolute;top:4px;transform:translateX(-50%);background:var(--au-tooltip,#1F2433);color:#fff;border-radius:8px;padding:.4rem .65rem;font-size:.76rem;display:flex;flex-direction:column;gap:.1rem;pointer-events:none;white-space:nowrap;box-shadow:0 8px 22px -10px rgba(0,0,0,.35)}
+.an-tip__prev{opacity:.75}
+.an-anom-note{margin:0;font-size:.8rem;color:var(--an-warn)}
+.an-await{text-align:center;padding:3rem 1.5rem;background:var(--an-surface);border:1.5px dashed var(--an-line);border-radius:13px;display:flex;flex-direction:column;align-items:center;gap:.6rem}
+.an-await__badge{font-size:.78rem;font-weight:700;color:var(--an-good);border:1px solid color-mix(in srgb,var(--an-good) 30%,transparent);border-radius:999px;padding:.3rem .9rem}
+.an-await h4{margin:.2rem 0 0;font-size:1.15rem}.an-await p{margin:0;max-width:56ch;font-size:.92rem;line-height:1.7;color:var(--an-muted)}
+.an-insights{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.4rem}
+.an-insights li{padding:.6rem .95rem;font-size:.94rem;line-height:1.6;border-inline-start:3px solid var(--an-accent);border-radius:8px;background:color-mix(in srgb,var(--an-accent) 6%,transparent)}
+.an-insights li.is-good{border-color:var(--an-good);background:color-mix(in srgb,var(--an-good) 7%,transparent)}
+.an-insights li.is-bad{border-color:var(--an-bad);background:color-mix(in srgb,var(--an-bad) 7%,transparent)}
+.an-insights li.is-warn{border-color:var(--an-warn);background:color-mix(in srgb,var(--an-warn) 8%,transparent)}
+.an-scroll{overflow-x:auto}
+.an-table{width:100%;border-collapse:collapse;font-size:.9rem}
+.an-table thead th{background:var(--an-surface-2);text-align:start;font-size:.76rem;font-weight:800;color:var(--an-muted);padding:.5rem .65rem;border-bottom:1.5px solid var(--an-line);white-space:nowrap}
+.an-table thead th[role=button]{cursor:pointer;user-select:none}
+.an-table thead th[role=button]:hover{color:var(--an-accent)}
+.an-table td{text-align:start;padding:.55rem .65rem;border-bottom:1px solid color-mix(in srgb,var(--an-line) 60%,transparent);vertical-align:middle}
+.an-table td.is-num{font-weight:700;white-space:nowrap}
+.an-table tbody tr:hover td{background:color-mix(in srgb,var(--an-accent) 5%,transparent)}
+.an-table tbody tr:last-child td{border-bottom:0}
+.an-table--click tbody tr{cursor:pointer}
+.an-table tbody tr.is-open td{background:color-mix(in srgb,var(--an-accent) 8%,transparent)}
+.an-td-main{font-weight:700;max-width:360px}
+.an-quality{color:var(--an-good);font-weight:800}
+.an-footnote{margin:0;font-size:.79rem;color:var(--an-muted)}
+.an-share{display:block;height:4px;background:color-mix(in srgb,var(--an-line) 70%,transparent);border-radius:99px;margin-top:.32rem;max-width:220px}
+.an-share i{display:block;height:100%;background:var(--an-accent);border-radius:inherit;opacity:.75}
+.an-page-t{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.an-page-p{display:block;font-size:.72rem;color:var(--an-muted);font-weight:400;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.an-drill-row>td{padding:0}
+.an-drill{display:grid;grid-template-columns:auto 1fr 1fr;gap:1.6rem;padding:.95rem 1rem}
+.an-drill--loading{display:block;color:var(--an-muted);font-size:.82rem}
+.an-row{display:flex;justify-content:space-between;gap:.7rem;font-size:.88rem;padding:.22rem 0}
+.an-row b{font-weight:700}
+.an-geo{display:grid;grid-template-columns:1fr 1fr;gap:0 2rem}
+.an-split{display:flex;flex-wrap:wrap;height:auto;gap:0}
+.an-split>i{display:block;height:10px}.an-split>i.a{background:var(--an-accent);border-radius:0 4px 4px 0}.an-split>i.b{background:#eb6834;border-radius:4px 0 0 4px}
+html[data-admin-theme="dark"] .an-split>i.b{background:#d95926}
+.an .an-split>i.a:dir(rtl){border-radius:4px 0 0 4px}.an .an-split>i.b:dir(rtl){border-radius:0 4px 4px 0}
+.an-split__legend{flex-basis:100%;display:flex;gap:1.2rem;font-size:.84rem;margin-top:.45rem;color:var(--an-muted)}
+.an-split__legend b{display:inline-block;width:9px;height:9px;border-radius:2px;margin-inline-end:5px}.an-split__legend b.a{background:var(--an-accent)}.an-split__legend b.b{background:#eb6834}
+.an-heat{display:grid;grid-template-columns:34px repeat(24,minmax(16px,1fr));gap:3px;min-width:560px}
+.an-heat i{display:block;height:22px;border-radius:4px}
+.an-heat__h{font-size:10px;color:var(--an-muted);text-align:center}
+.an-heat__d{font-size:11px;color:var(--an-muted);align-self:center}
+.an-heat__legend{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--an-muted)}
+.an-heat__legend i{width:16px;height:10px;border-radius:2px;display:inline-block}
+.an-setup{max-width:780px;display:flex;flex-direction:column;gap:.7rem;background:var(--an-surface);border:1px solid var(--an-line);border-radius:13px;padding:1.3rem 1.4rem}
+.an-setup h3{margin:0}.an-setup h4{margin:.4rem 0 0;font-size:.95rem}
+.an-steps{margin:0;padding-inline-start:1.2rem;display:flex;flex-direction:column;gap:.45rem;font-size:.9rem;line-height:1.6}
+.an-steps a{color:var(--an-accent);font-weight:700}
+.an-inline{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap}
+.an-inline input{border:1px solid var(--an-line);border-radius:8px;padding:.5rem .7rem;font-size:.9rem;background:var(--an-surface-2);color:inherit;min-width:220px;font-family:inherit}
+.an-inline button{background:var(--au-brand,#3F49A6);color:#fff;border:none;border-radius:8px;padding:.55rem 1.2rem;font-weight:700;cursor:pointer;font-family:inherit}
+.an-settings{background:var(--an-surface);border:1px solid var(--an-line);border-radius:13px;padding:.85rem 1.15rem}
+.an-settings summary{font-size:.82rem;font-weight:700;color:var(--an-muted);cursor:pointer}
+.an-settings[open] summary{margin-bottom:.7rem}
+.an-live-panel{background:var(--an-surface);border:1px solid var(--an-line);border-radius:13px;padding:1.05rem 1.15rem 1.15rem}
+.an-live-panel__head{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;flex-wrap:wrap;margin-bottom:.9rem}
+.an-live-panel__head h3{margin:0 0 .15rem;font-size:1.05rem;font-weight:800}
+.an-live-panel__grid{display:grid;grid-template-columns:minmax(190px,.8fr) 1.1fr 1.1fr;gap:1rem;align-items:stretch}
+.an-live-now{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:.3rem;text-align:center;padding:.9rem .8rem;background:color-mix(in srgb,var(--an-good) 7%,transparent);border:1px solid color-mix(in srgb,var(--an-good) 25%,transparent);border-radius:11px}
+.an-live-now__num{font-size:2.6rem;font-weight:800;line-height:1;color:var(--an-good)}
+.an-live-now__lbl{font-size:.85rem;font-weight:600;color:var(--an-muted)}
+.an-live-now__foot{font-size:.76rem;color:var(--an-muted)}
+.an-live-spark{display:flex;align-items:flex-end;gap:2px;height:34px;width:100%;margin-top:.55rem;direction:ltr}
+.an-live-spark i{flex:1;background:var(--an-good);border-radius:2px 2px 0 0;min-height:3px}
+.an-live-spark i.is-empty{background:color-mix(in srgb,var(--an-muted) 22%,transparent)}
+.an-live-list{border:1px solid var(--an-line);border-radius:11px;padding:.8rem .9rem;display:flex;flex-direction:column;min-width:0}
+.an-live-list h4{margin:0 0 .55rem;font-size:.92rem;font-weight:700;display:flex;align-items:center;gap:.4rem}
+.an-live-list ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.3rem}
+.an-live-list li{display:flex;justify-content:space-between;align-items:baseline;gap:.7rem;font-size:.87rem;padding:.18rem 0;border-bottom:1px dashed color-mix(in srgb,var(--an-line) 70%,transparent)}
+.an-live-list li:last-child{border-bottom:none}
+.an-live-list__name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.an-live-list li b{font-weight:800;color:var(--an-accent);flex:none}
+.an-live-badge{font-size:.68rem;font-weight:700;color:var(--an-muted);background:color-mix(in srgb,var(--an-muted) 14%,transparent);border-radius:999px;padding:.1rem .45rem}
+.an-live-note{margin:.5rem 0 0;font-size:.73rem;line-height:1.5;color:var(--an-muted)}
+.an-empty--sm{padding:.9rem 0;font-size:.85rem}
+.an-selfex{display:flex;align-items:center;gap:.4rem;font-size:.82rem;font-weight:600;color:var(--an-muted);cursor:pointer;white-space:nowrap}
+.an-conv{gap:.9rem}
+.an-conv__head{display:grid;grid-template-columns:auto 1fr;align-items:end;gap:1.2rem 2rem}
+.an-conv__big{display:flex;flex-direction:column;gap:.15rem}
+.an-conv__big-label{font-size:.82rem;font-weight:700;color:var(--an-muted)}
+.an-conv__big-value{font-size:2.6rem;font-weight:900;line-height:1;letter-spacing:-.02em;display:flex;align-items:baseline;gap:.6rem}
+.an-conv__big-value .an-delta{font-size:.9rem}
+.an-conv__big-sub{font-size:.86rem;color:var(--an-muted)}
+.an-conv__explain{margin:0;font-size:.87rem;line-height:1.6;color:var(--an-muted);max-width:64ch}
+.an-conv__tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.6rem}
+.an-conv__tile{display:flex;flex-direction:column;gap:.15rem;padding:.8rem .95rem;border:1px solid var(--an-line);border-radius:11px;background:var(--an-surface-2)}
+.an-conv__tile-label{font-size:.8rem;font-weight:700;color:var(--an-muted);display:flex;align-items:center;gap:.4rem}
+.an-conv__tile-label i{width:8px;height:8px;border-radius:50%;background:var(--an-accent);flex:none}
+.an-conv__tile-value{font-size:1.6rem;font-weight:800;line-height:1.1;display:flex;align-items:baseline;gap:.5rem}
+.an-conv__tile-value .an-delta{font-size:.78rem}
+.an-conv__tile-sub{font-size:.78rem;color:var(--an-muted)}
+.an-conv__note{margin:0;font-size:.8rem;color:var(--an-muted);line-height:1.55}
+.an-ev-hint{display:block;font-size:.76rem;font-weight:500;margin-top:.1rem}
+.an [data-tip]{position:relative;cursor:help}
+.an [data-tip]::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 9px);inset-inline-start:0;width:max-content;max-width:280px;background:var(--au-tooltip,#141627);color:#fff;font-size:.78rem;font-weight:500;line-height:1.55;text-align:start;padding:.55rem .75rem;border-radius:9px;box-shadow:0 8px 26px rgba(0,0,0,.3);display:none;pointer-events:none;z-index:60;white-space:normal}
+.an [data-tip]:hover::after,.an [data-tip]:focus-visible::after{display:block}
+.an [data-tip]:focus-visible{outline:2px solid var(--an-accent);outline-offset:3px;border-radius:8px}
+.an-metric[data-tip] .an-metric__label,.an-secondary__item[data-tip] i,.an-h5[data-tip]{text-decoration:underline dotted color-mix(in srgb,currentColor 45%,transparent);text-underline-offset:3px}
+@media (max-width:1000px){.an-cols{grid-template-columns:minmax(0,1fr)}.an-metrics{grid-template-columns:repeat(3,1fr)}.an-metric:nth-child(3n+1){border-inline-start:none}.an-metric:nth-child(n+4){border-top:1px solid var(--an-line)}.an-cols{grid-template-columns:1fr}.an-drill{grid-template-columns:1fr 1fr}.an-live-panel__grid{grid-template-columns:1fr}.an-conv__head{grid-template-columns:1fr}.an-conv__tiles{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:680px){.an{gap:.8rem}.an-metrics{grid-template-columns:repeat(2,1fr)}.an-metric{padding:.75rem .9rem .6rem}.an-metric:nth-child(3n+1){border-inline-start:1px solid var(--an-line)}.an-metric:nth-child(2n+1){border-inline-start:none}.an-metric:nth-child(n+3){border-top:1px solid var(--an-line)}.an-metric__value{font-size:1.55rem}.an-hero__plot svg{height:230px}.an-section{padding:.85rem .9rem .95rem}.an-table{min-width:470px;font-size:.8rem}.an-geo{grid-template-columns:1fr}.an-drill{grid-template-columns:1fr;gap:.9rem}.an-search{width:130px}.an-top__side{width:100%}}
+`

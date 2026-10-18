@@ -131,7 +131,7 @@ async function serveHealth(req, res) {
   // this deployment — never the key itself
   const ak = String(process.env.ANTHROPIC_API_KEY || '').trim()
   const anthropicKey = ak ? { type: /^sk-ant-admin/.test(ak) ? 'admin' : /^sk-ant-oat/.test(ak) ? 'oauth' : /^sk-ant-api/.test(ak) ? 'api' : 'unknown', fp: createHash('sha256').update(ak).digest('hex').slice(0, 8), trimmed: ak !== String(process.env.ANTHROPIC_API_KEY) } : null
-  const env = { anthropic: !!process.env.ANTHROPIC_API_KEY, anthropicKey, anthropicWorkspace: !!process.env.ANTHROPIC_WORKSPACE_ID, deployHook: !!process.env.VERCEL_DEPLOY_HOOK_URL, ga4: !!process.env.GA4_SERVICE_ACCOUNT_JSON, greenApi: !!(process.env.WA_GREENAPI_INSTANCE && process.env.WA_GREENAPI_TOKEN) }
+  const env = { anthropic: !!process.env.ANTHROPIC_API_KEY, anthropicKey, anthropicWorkspace: !!process.env.ANTHROPIC_WORKSPACE_ID, deployHook: !!process.env.VERCEL_DEPLOY_HOOK_URL, ga4: !!(process.env.GA4_SERVICE_ACCOUNT_JSON || process.env.GOOGLE_SERVICE_ACCOUNT_JSON || ((process.env.GA4_CLIENT_EMAIL || process.env.GA_SA_CLIENT_EMAIL) && (process.env.GA4_PRIVATE_KEY || process.env.GA_SA_PRIVATE_KEY))), greenApi: !!(process.env.WA_GREENAPI_INSTANCE && process.env.WA_GREENAPI_TOKEN) }
   return res.status(200).json({ ...h, env, at: new Date().toISOString() })
 }
 
