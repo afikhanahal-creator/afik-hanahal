@@ -3,7 +3,8 @@
 // Props: { C, lang, isDark, onSaveToCRM }
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { metaFormAnswers } from './lib/leadFields.js'
+import { metaFormAnswers, shortCampaign } from './lib/leadFields.js'
+import { hebrewFirstName, isLatinName } from '../lib/hebrew-names.js'
 import { supabase } from './lib/supabaseClient'
 import MetaKanban from './MetaKanban'
 
@@ -149,25 +150,27 @@ const CAMPAIGN_COLORS = ['#8490D8','#E05252','#3BAF7E','#E08C3A','#3A8FC7','#C24
 
 const QUICK_REPLIES = {
   he: [
-    { label: 'תיאום שיחה 📞',    message: 'היי {{firstName}}, ראינו שהשארתם פרטים באתר של {{project}}. מתי זמן נוח לדבר?' },
-    { label: 'חזרה מהירה ⚡',    message: 'היי {{firstName}}, מדבר/ת מ{{project}}. ניסיתי להשיג אתכם בנוגע לפנייה שלכם — אפשר לחזור אליכם כעת או שעדיף מאוחר יותר?' },
-    { label: 'תיאום פגישה 📅',   message: 'שלום {{firstName}}, תודה על העניין ב{{project}}. אשמח לתאם פגישה קצרה ולהציג את הפרטים והתוכניות. איזה יום מתאים לכם השבוע?' },
-    { label: 'שליחת פרטים 📋',   message: 'היי {{firstName}}, כאן {{project}}. אשמח לשלוח לכם את כל הפרטים והתוכניות. מעדיפים שנעבור על זה יחד בשיחה קצרה?' },
-    { label: 'בדיקת זמינות ✅',  message: 'שלום {{firstName}}, ראינו את הפנייה שלכם ל{{project}}. יש לי כמה דקות עכשיו — נוח לכם שנדבר?' },
+    { label: 'תיאום שיחה',    message: 'שלום {{firstName}}, תודה על פנייתך לגבי {{project}}. מתי נוח לך שנדבר?' },
+    { label: 'חזרה אחרי שיחה שלא נענתה', message: 'שלום {{firstName}}, ניסינו להשיג אותך בטלפון בעניין פנייתך לגבי {{project}}. נוח לך שנחזור אליך עכשיו, או שעדיף מאוחר יותר?' },
+    { label: 'תיאום פגישה',   message: 'שלום {{firstName}}, תודה על ההתעניינות ב{{project}}. נשמח לתאם פגישה קצרה ולהציג את הפרטים והתוכניות. איזה יום מתאים לך השבוע?' },
+    { label: 'שליחת פרטים',   message: 'שלום {{firstName}}, נשמח לשלוח לך את כל הפרטים והתוכניות של {{project}}. נוח לך שנעבור עליהם יחד בשיחה קצרה?' },
+    { label: 'זמינים עכשיו',  message: 'שלום {{firstName}}, ראינו את פנייתך לגבי {{project}}. אנחנו זמינים עכשיו לשיחה קצרה – נוח לך?' },
   ],
   en: [
-    { label: 'Schedule Call 📞',      message: "Hi {{firstName}}, we saw you left your details on {{project}}'s site. When's a good time to talk?" },
-    { label: 'Quick Reply ⚡',        message: "Hi {{firstName}}, calling from {{project}}. I tried to reach you about your inquiry — can I call you now or would later be better?" },
-    { label: 'Book Meeting 📅',       message: "Hello {{firstName}}, thank you for your interest in {{project}}. I'd love to schedule a quick meeting to present the details. Which day works for you this week?" },
-    { label: 'Send Details 📋',       message: "Hi {{firstName}}, this is {{project}}. I'd be happy to send you all the details. Would you prefer to go over them together in a quick call?" },
-    { label: 'Check Availability ✅', message: "Hello {{firstName}}, we saw your inquiry about {{project}}. I have a few minutes now — is it convenient for you to talk?" },
+    { label: 'Schedule a call',     message: 'Hello {{firstName}}, thank you for your inquiry about {{project}}. When would be a good time to talk?' },
+    { label: 'After a missed call', message: 'Hello {{firstName}}, we tried to reach you by phone about your inquiry on {{project}}. Is now a good time to call back, or would later suit you better?' },
+    { label: 'Book a meeting',      message: 'Hello {{firstName}}, thank you for your interest in {{project}}. We would be glad to arrange a short meeting to present the details and plans. Which day suits you this week?' },
+    { label: 'Send the details',    message: 'Hello {{firstName}}, we would be glad to send you all the details and plans of {{project}}. Would you like to go over them together in a short call?' },
+    { label: 'Available now',       message: 'Hello {{firstName}}, we saw your inquiry about {{project}}. We are available for a short call right now – is it convenient for you?' },
   ],
 }
 
-function applyTemplate(tpl, lead) {
-  const firstName = lead?.name?.split(' ')[0] || ''
-  const project   = lead?.campaign_name || lead?.form_name || 'הפרויקט שלנו'
-  return tpl.replace(/\{\{firstName\}\}/g, firstName).replace(/\{\{project\}\}/g, project)
+// The campaign's short name ("זרובבל 15") and, in Hebrew, the first name in Hebrew (an unknown Latin name is left out)
+function applyTemplate(tpl, lead, lang = 'he') {
+  let firstName = lead?.name?.trim().split(/\s+/)[0] || ''
+  if (lang !== 'en' && isLatinName(firstName)) firstName = hebrewFirstName(firstName)
+  const project = shortCampaign(lead?.campaign_name || lead?.form_name || '') || (lang === 'en' ? 'our project' : 'הפרויקט שלנו')
+  return tpl.replace(/\{\{firstName\}\}/g, firstName).replace(/\{\{project\}\}/g, project).replace(/[ \t]+([,.!?])/g, '$1')
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -603,7 +606,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
   // ── Quick reply → open WhatsApp with pre-filled message ──────────────────────
   const handleQuickReply = (qr) => {
     if (!selectedLead?.phone) return
-    setMsgInput(applyTemplate(qr.message, selectedLead))
+    setMsgInput(applyTemplate(qr.message, selectedLead, lang))
   }
 
   // ── Sync ─────────────────────────────────────────────────────────────────────
@@ -1220,7 +1223,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
                   <div style={{ padding: 12, borderTop: `1px solid ${BORDER}`, display: 'grid', gap: 8 }}>
                     <div className="lc-tabs">
                       {(QUICK_REPLIES[lang] || QUICK_REPLIES.he).map((qr, i) => (
-                        <button key={i} className="lc-tab" disabled={!selectedLead.phone} onClick={() => handleQuickReply(qr)} title={applyTemplate(qr.message, selectedLead)} style={{ border: `1px solid ${BORDER}` }}>{qr.label}</button>
+                        <button key={i} className="lc-tab" disabled={!selectedLead.phone} onClick={() => handleQuickReply(qr)} title={applyTemplate(qr.message, selectedLead, lang)} style={{ border: `1px solid ${BORDER}` }}>{qr.label}</button>
                       ))}
                     </div>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
