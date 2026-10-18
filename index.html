@@ -208,7 +208,7 @@
         .then(function(r){return r.ok?r.json():null}).catch(function(){return null})};}catch(e){}})();
     // First visit (no saved list): start downloading the deploy-time property list (a static file on the CDN)
     // right away, so the property grid paints without waiting for the live API
-    (function(){try{if(/^\/(admin-panel|dashboard|newproperty|sell|seller-form)(\/|$)/.test(location.pathname))return;
+    (function(){try{if(/^\/(admin-panel|dashboard|newproperty|sell|seller-form|book|booking|meet)(\/|$)/.test(location.pathname))return;
       if(window.__afikLanding)return;   // a shared property is on screen — the list can wait (App.jsx fetches it when idle)
       var c=null;try{c=JSON.parse(localStorage.getItem('afik_data')||'null')}catch(e){}if(c&&c.properties&&c.properties.length)return;
       window.__afikList=fetch('/properties.json',{headers:{Accept:'application/json'}})

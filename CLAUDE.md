@@ -178,7 +178,7 @@ approval queue grouped by kind (missed welcome first, "send all N" per group, st
 (lead + campaign + local phone + reason · the full message · send / skip / chat), then the schedule. **Wording per message:** a
 template dropdown above every message (the item's category first, the whole library below — rendered for that lead in the
 browser with `renderTemplate`), "נוסח אחר" (next template of the same category), "ערוך הודעה" (free edit), "שחזר נוסח"; the
-group header has "נוסח לכל הקבוצה…". The send carries the chosen `templateId`. The built-in library has 59 bilingual templates
+group header has "נוסח לכל הקבוצה…". The send carries the chosen `templateId`. The built-in library has 61 bilingual templates
 (welcome / late-welcome / investor / scheduling variants, follow-ups, visits, after-call, nurture, re-engagement, chat-ready
 replies, deal steps), **written by people, from the Afik Hanahal page**: always plural — the office is "we" ("ראינו",
 "נשמח", "נתקשר") and the lead is addressed in plural ("השארתם", "לכם", "אתכם"), which also keeps the Hebrew gender-neutral; the
@@ -204,7 +204,7 @@ when every placeholder in it is known, so one template works with or without the
 its ה ("בנכס", never "בהנכס"). Six templates (`personal_needs` / `_budget` / `_message` / `_investor` / `_timeline` / `_followup`);
 in "היום" every row shows "מה ידוע:" and a "✍️ התאמה אישית" button (`bestPersonalTemplateId()`), and the group menu has
 "הכי אישי לכל ליד".
-**WhatsApp page → ⚡ "תבניות מוכנות"** (`src/ChatTemplatePicker.jsx`): the whole library (59 templates, incl. chat-ready ones —
+**WhatsApp page → ⚡ "תבניות מוכנות"** (`src/ChatTemplatePicker.jsx`): the whole library (61 templates, incl. chat-ready ones —
 details, viewing offer / directions / feedback, financing, similar / new listings, price update, busy-now, office hours, owner
 valuation, signing steps, contract documents, keys, review / referral requests) rendered for the open chat's lead (the lead row
 from `leads`, so names, the campaign's short name and `leadNeeds` all apply), "מומלץ עכשיו" (the most personal template + the
@@ -230,6 +230,35 @@ Scheduled bulk sends are jobs in `app_settings` (`automations_jobs`), rendered a
 `auto-jobs-tick` pushes a running job from the open panel. `auto-tick?key=` (key = `AUTOMATION_KEY`, or the admin token)
 lets an external pinger such as cron-job.org run the engine every 5 minutes, so timing is exact even with the panel closed.
 Sending hours are `[start, end)` per weekday in 0.5-hour steps (Israel time); welcome, replies and stage messages ignore them.
+
+## Booking page (`/book`) — our own Calendly
+
+`https://www.afikhanahal.co.il/book` (also `/booking`, `/meet`; `?lang=en`, `?type=<id>`, `?ref=` / `utm_campaign` is kept
+on the lead; noindex) lets clients book calls and meetings in the office Google Calendar (`afik.hanahal@gmail.com`), in the
+site's colors (dark `#09090F` / purple `#8490D8`, light `#F5F1E9` / `#3F4EB0`, follows the device theme), Hebrew / English.
+Steps: meeting type (skipped when there is one) → month calendar + free times (Israel time) → how to talk (Google Meet / Zoom
+/ phone) + name, phone, email (required for video), notes → confirmation (Meet link, add to calendar, WhatsApp to change).
+
+| Piece | Where |
+|---|---|
+| Rules (pure, tested): default settings (first type "שיחת היכרות", 30 min, Meet / Zoom / phone), office hours Sun–Thu 9–18, Fri 9–13, free slots in Israel time (DST-safe) minus busy time + buffer, min notice, horizon, daily cap, validation, the calendar event | `lib/booking.js` (+ `lib/booking.test.mjs`) |
+| Google Calendar through the office's own Google account (OAuth: signed state, refresh token in `app_settings.google_calendar`, freeBusy, events with `conferenceDataVersion=1` + `sendUpdates=all`) | `lib/google-calendar.js` |
+| Server flow: settings (`app_settings.booking_config`), slots, a booking, admin list, cancel | `lib/booking-server.js` |
+| API `/api/meta/booking-*`: public `config` · `slots` (edge 20 s) · `create` · `oauth-callback`; admin `admin` · `settings` · `connect` · `disconnect` · `cancel` | `api/meta.js` → `handleBooking` |
+| Public page (own chunk) | `src/BookingPage.jsx` (route in `src/main.jsx`) |
+| Admin tab "תיאום פגישות" (`/admin-panel/bookings`): link, calendar connection, hours & rules, Zoom link, upcoming / past meetings, cancel | `src/BookingAdminTab.jsx` |
+
+A booking: re-checks the slot against a fresh calendar read (never double-books; every booking is also in
+`app_settings.booking_log`, so it works before the calendar is connected — then the office adds it by hand), creates the
+event (Meet link + invitation to the client's email), creates / updates the lead in `contacts` (source `booking`, stage
+discovery, `crm_data.booking` / `bookings`, a 📅 note, `followUp` = the meeting; the automatic welcome is skipped — the
+confirmation is the first message), alerts the office (WhatsApp `notifyTeam` + email) and sends the client a WhatsApp
+confirmation (plural "we" voice). Limits: 2 upcoming bookings per phone, 6 attempts per IP in 10 minutes, a honeypot field.
+Templates: `{bookingLink}` (`vars.bookingLink`, `?lang=en` added for English) in `welcome_book` and `book_link`.
+**Setup:** Google Cloud project → enable "Google Calendar API" → OAuth consent screen (External, **In production** — in
+"Testing" the access expires after 7 days) → OAuth client ID (Web) with the redirect URI
+`https://www.afikhanahal.co.il/api/meta/booking-oauth-callback` → Vercel `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET`
+→ redeploy → admin "תיאום פגישות" → "חבר יומן" (log in as afik.hanahal@gmail.com). Never put the client secret or the token in code.
 
 ## Admin dashboard, Google Analytics & chat names
 
