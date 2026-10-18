@@ -328,6 +328,16 @@ stage history, the other message and `mergedFrom` are kept, then the other lead 
 fails). Pipeline cards no longer shift while dragging (`NO_SHIFT` — the order in a column isn't saved). Meta form option codes read
 as words (`prettyAnswerValue` / `prettyLeadText`: "3r" → "3 חדרים", "b34" → "3–4 מיליון").
 
+**Lead card → "שיחת וואטסאפ"** (`src/LeadChatTab.jsx`): the whole WhatsApp conversation with the lead, read-only (`chat-history`,
+200 messages, normalized by the pure `lib/chat-format.js` `normalizeChat()` — voice notes / media shown as markers), and an
+**AI summary** = `POST /api/meta/chat-summary { lead }` (`lib/chat-summary.js`, tested; Claude `claude-opus-5-5`, structured
+output, `fallbacks: 'default'`): summary, what the lead wants, topics, what was agreed, open questions, next step, suggested stage
+(one click → `onUpdateStatus`), follow-up in N days (one click → `followUp`), temperature, who wrote last ("הליד מחכה לתשובה",
+also a "!" on the tab). Stored as `crm_data.chatSummary` (with `msgCount`, so the tab says how many messages arrived since);
+"שמור כהערה" adds it to `crm_data.notes` (kind `wa`). Voice notes are counted but not transcribed (Claude reads text, not
+audio). The Claude call itself is `lib/claude-json.js` `claudeJson()` (key / admin-key / workspace handling), shared with the lead
+analysis.
+
 Analysis = `POST /api/meta/lead-analyze { lead }` (`api/meta.js` → `lib/lead-analyze.js`): builds a dossier (lead + crm_data,
 WhatsApp history from Green API, `automation_log`, repeat inquiries in `contacts` / `meta_leads`, the matching listing from the
 property catalog), scores it with the pure, tested rules in `lib/lead-intel.js` (0–100 with signed, explained factors, missing
