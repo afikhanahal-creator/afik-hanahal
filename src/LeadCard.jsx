@@ -6,10 +6,11 @@ import { createPortal } from 'react-dom'
 import { FaTimes, FaPhone, FaWhatsapp, FaEnvelope, FaMagic, FaUser, FaStickyNote, FaTasks, FaChartPie, FaCheck, FaTrash, FaCopy, FaPlus, FaClock, FaBullseye, FaExclamationTriangle, FaLightbulb, FaQuestionCircle, FaComments, FaShieldAlt, FaSyncAlt, FaMapMarkerAlt, FaBuilding, FaCalendarAlt, FaTag, FaFlag, FaArrowUp, FaArrowDown, FaInfoCircle, FaUserCheck, FaExternalLinkAlt, FaSearch, FaHandshake, FaEdit } from 'react-icons/fa'
 import { T } from './automationsUI.jsx'
 import { sourceLabel, sourceColor, originLines, leadCampaign, leadCampaignFull } from './lib/leadFields.js'
+import LeadChatTab from './LeadChatTab.jsx'
 
 const TR = {
   he: {
-    tabs: { details: 'פרטים ועריכה', notes: 'הערות ופעילות', tasks: 'משימות', analysis: 'ניתוח חכם' },
+    tabs: { details: 'פרטים ועריכה', notes: 'הערות ופעילות', chat: 'שיחת וואטסאפ', tasks: 'משימות', analysis: 'ניתוח חכם' },
     call: 'התקשר', wa: 'וואטסאפ', email: 'מייל', analyze: 'נתח ליד', reanalyze: 'נתח מחדש', analyzing: 'מנתח…', close: 'סגירה', saved: 'נשמר', saving: 'שומר…', saveFailed: 'השמירה נכשלה — בדקו חיבור ונסו שוב',
     sec: { contact: 'פרטי קשר', need: 'מה הלקוח מחפש', prop: 'הנכס שהתעניין בו', msg: 'ההודעה של הלקוח', manage: 'ניהול הליד', source: 'מקור הליד' },
     f: { name: 'שם מלא', phone: 'טלפון', email: 'אימייל', contactTime: 'זמן נוח ליצירת קשר', dealType: 'סוג עסקה', propertyType: 'סוג נכס', area: 'אזור / יישוב', rooms: 'חדרים', budget: 'תקציב (₪)', timeline: 'לוח זמנים', financing: 'מימון', propTitle: 'נכס', propLocation: 'מיקום הנכס', msg: 'הודעה', priority: 'עדיפות', owner: 'אחראי', followUp: 'מעקב הבא', tags: 'תגיות', tagPh: 'הוסף תגית ו-Enter' },
@@ -43,7 +44,7 @@ const TR = {
     identityCheck: 'מה אומת', matchedBy: 'התאמה לפי', toConfirm: 'מה יאשר את הזהות', profiles: 'פרופילים ומקורות ציבוריים', professional: 'עיסוק', rePro: 'איש נדל״ן', publicOwner: 'המספר מופיע ציבורית אצל', hooks: 'נקודות לחימום השיחה', verify: 'שאלות לאימות עדין', flags: 'דגלים אדומים', sources: 'מקורות', opener: 'משפט פתיחה', warmup: 'תוכנית חימום', researchOff: 'המחקר לא רץ:', noResearch: 'טרם נערך מחקר על הליד — לחצו "נתח מחדש".', aiFix: { workspace: 'מפתח ה-API לא משויך ל-Workspace. צרו מפתח חדש בתוך Workspace (console.anthropic.com → Workspaces → Default → API keys), החליפו את ANTHROPIC_API_KEY ב-Vercel ופרסו מחדש.', admin_key: 'הוכנס מפתח Admin (sk-ant-admin…), שלא יכול לנתח. צרו מפתח API רגיל בתוך Workspace, החליפו ב-Vercel ופרסו מחדש.', auth: 'מפתח ה-API לא תקין. העתיקו אותו מחדש ל-Vercel ופרסו מחדש.', no_key: 'לא הוגדר מפתח ANTHROPIC_API_KEY ב-Vercel.' }, analyzedAt: t => `נותח ${t}`, legacy: 'ניתוח קודם (גרסה ישנה) – לחצו "נתח מחדש" לניתוח המדויק החדש',
   },
   en: {
-    tabs: { details: 'Details', notes: 'Notes & activity', tasks: 'Tasks', analysis: 'Smart analysis' },
+    tabs: { details: 'Details', notes: 'Notes & activity', chat: 'WhatsApp chat', tasks: 'Tasks', analysis: 'Smart analysis' },
     call: 'Call', wa: 'WhatsApp', email: 'Email', analyze: 'Analyze lead', reanalyze: 'Re-analyze', analyzing: 'Analyzing…', close: 'Close', saved: 'Saved', saving: 'Saving…', saveFailed: 'Not saved — check the connection and try again',
     sec: { contact: 'Contact details', need: 'What they are looking for', prop: 'Property of interest', msg: 'Their message', manage: 'Lead management', source: 'Lead source' },
     f: { name: 'Full name', phone: 'Phone', email: 'Email', contactTime: 'Best time to reach', dealType: 'Deal type', propertyType: 'Property type', area: 'Area / town', rooms: 'Rooms', budget: 'Budget (₪)', timeline: 'Timeline', financing: 'Financing', propTitle: 'Property', propLocation: 'Property location', msg: 'Message', priority: 'Priority', owner: 'Owner', followUp: 'Next follow-up', tags: 'Tags', tagPh: 'Add a tag and press Enter' },
@@ -254,7 +255,7 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
     </div>
   )
 
-  const tabs = [['details', FaUser, t.tabs.details], ['notes', FaStickyNote, t.tabs.notes, notes.length || null], ['tasks', FaTasks, t.tabs.tasks, openTasks || null], ['analysis', FaChartPie, t.tabs.analysis]]
+  const tabs = [['details', FaUser, t.tabs.details], ['notes', FaStickyNote, t.tabs.notes, notes.length || null], ['chat', FaWhatsapp, t.tabs.chat, lead.chatSummary?.lastWord === 'lead' ? '!' : null], ['tasks', FaTasks, t.tabs.tasks, openTasks || null], ['analysis', FaChartPie, t.tabs.analysis]]
   const tabBar = (
     <div role="tablist" style={{ display: 'flex', gap: 2, padding: '0 14px', borderBottom: `1px solid ${T.line}`, overflowX: 'auto', flexShrink: 0 }}>
       {tabs.map(([id, Ic, label, badge]) => (
@@ -730,7 +731,7 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
         {tabBar}
         <div className="lc-body">
           <div className="lc-main" style={{ overflowY: 'auto', padding: 16, background: T.bg }}>
-            {tab === 'details' ? details : tab === 'notes' ? notesTab : tab === 'tasks' ? tasksTab : analysis}
+            {tab === 'details' ? details : tab === 'notes' ? notesTab : tab === 'chat' ? <LeadChatTab lead={lead} lang={lang} stages={stages} save={save} onUpdateStatus={onUpdateStatus} onOpenChat={onOpenChat} onClose={onClose}/> : tab === 'tasks' ? tasksTab : analysis}
           </div>
           {side}
         </div>

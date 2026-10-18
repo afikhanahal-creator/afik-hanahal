@@ -13,6 +13,7 @@ import * as Auto from '../lib/automations.js'
 import { getTemplate } from '../lib/automations-shared.js'
 import * as GA4 from '../lib/ga4.js'
 import { analyzeLead, buildDossier } from '../lib/lead-analyze.js'
+import { summarizeChat } from '../lib/chat-summary.js'
 import { researchLead } from '../lib/lead-research.js'
 import { mirrorMetaLead, backfillMetaLeads } from '../lib/meta-crm.js'
 
@@ -1390,6 +1391,22 @@ async function handleLeadAnalyze(req, res) {
   }
 }
 
+// POST /api/meta/chat-summary { lead } → the WhatsApp conversation with the lead, summarized for the lead card
+// (lib/chat-summary.js): what was discussed, what they want, what was agreed, open questions, next step, suggested stage
+async function handleChatSummary(req, res) {
+  if (!checkAuth(req)) return res.status(401).json({ error: 'Unauthorized' })
+  if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
+  const { lead } = req.body || {}
+  if (!lead || !lead.phone) return res.status(400).json({ error: 'lead with a phone required' })
+  try {
+    const r = await summarizeChat(lead)
+    return res.status(r.error ? (r.code === 'empty' || r.code === 'no_phone' ? 200 : 502) : 200).json(r)
+  } catch (e) {
+    console.error('[chat-summary]', e.message)
+    return res.status(500).json({ error: e.message })
+  }
+}
+
 // POST /api/meta/lead-research { lead } → who the person is, from public sources (lib/lead-research.js); the panel
 // runs it before lead-analyze and passes the result in, so each step has its own time budget
 async function handleLeadResearch(req, res) {
@@ -1456,6 +1473,7 @@ export default async function handler(req, res) {
   if (path === 'ga4-dash' || path === 'ga4-property') return handleGA4Dash(req, res, path)
   if (path === 'lead-analyze')   return handleLeadAnalyze(req, res)
   if (path === 'lead-research')  return handleLeadResearch(req, res)
+  if (path === 'chat-summary')   return handleChatSummary(req, res)
   if (path === 'diagnostics')    return handleDiagnostics(req, res)
   if (path === 'connect')        return handleConnect(req, res)
   if (path === 'lead-welcome')   return handleLeadWelcome(req, res)
