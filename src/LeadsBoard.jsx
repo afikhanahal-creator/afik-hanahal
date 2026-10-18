@@ -2250,7 +2250,7 @@ function LeadsBoardMain({
 
         {activeTab === 'dashboard' && (
           <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
-            <LeadsDashboard leads={filtered} stages={GROUPS} T={T} isDark={isDark} lang={lang} onOpen={setDetailLead} onOpenChat={onOpenChat} />
+            <LeadsDashboard leads={leads} search={search} onClearSearch={() => setSearch('')} stages={GROUPS} T={T} isDark={isDark} lang={lang} onOpen={setDetailLead} onOpenChat={onOpenChat} />
           </div>
         )}
 
@@ -2470,7 +2470,7 @@ function LeadsBoardMain({
       {/* ── Overview: funnel + stage drill-down ── */}
       {activeTab === 'dashboard' && (
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
-          <LeadsDashboard leads={filtered} stages={GROUPS} T={T} isDark={isDark} lang={lang} onOpen={setDetailLead} onOpenChat={onOpenChat} />
+          <LeadsDashboard leads={leads} search={search} onClearSearch={() => setSearch('')} stages={GROUPS} T={T} isDark={isDark} lang={lang} onOpen={setDetailLead} onOpenChat={onOpenChat} />
         </div>
       )}
 

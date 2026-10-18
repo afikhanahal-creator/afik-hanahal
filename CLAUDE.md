@@ -249,7 +249,10 @@ first human touch = a note that isn't 🔗 auto, a stage change or a call —, i
 the sales funnel (cumulative "reached" counts, step conversion, "now in stage", outcome tiles lost / irrelevant / nurture);
 leads over time stacked by source (day / week / month buckets, hover tooltip, table view); campaign performance (rows open the
 leads); pipeline health (days since last activity) and follow-ups (overdue / today / 7 days); an arrival heat map (weekday ×
-3-hour band); and a drill-down list (sortable; call / WhatsApp / open) for any stage, bucket, follow-up group or campaign.
+3-hour band); and a drill-down list (sortable; call / WhatsApp / open) for any stage, bucket, follow-up group or campaign. The dashboard always counts the whole lead
+list — the board's search box doesn't narrow it (it used to, silently: a search for one name made every number 1); a search
+shows a note with "נקה חיפוש". A comparison window that starts before the first lead in the system shows "אין נתונים לתקופה
+שלפני" (no fake "+100%"), and growth from zero reads "+N".
 Pipeline, Table. **Table selection:** the checkbox column is pinned with `insetInlineStart` (RTL-safe — a `left: 0` pin used to
 put it under the hover actions), the name column next to it; hover actions sit in a zero-width sticky slot at the inline end;
 selected rows are tinted (`SEL_BG`) with an accent bar; Shift+click selects a range; "הצג רק נבחרים" filters the table to the
