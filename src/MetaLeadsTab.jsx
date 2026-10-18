@@ -152,9 +152,9 @@ const QUICK_REPLIES = {
   he: [
     { label: 'תיאום שיחה',    message: 'היי {{firstName}}, ראיתי את הפנייה שלך על {{project}}. מתי נוח שאתקשר לכמה דקות?' },
     { label: 'חזרה אחרי שיחה שלא נענתה', message: 'היי {{firstName}}, ניסיתי להתקשר אליך לגבי {{project}} ולא תפסתי אותך. עכשיו נוח, או שעדיף מאוחר יותר?' },
-    { label: 'תיאום פגישה',   message: 'היי {{firstName}}, לגבי {{project}} – הכי טוב לשבת ולעבור על הפרטים והתוכניות יחד. איזה יום מתאים לך השבוע?' },
+    { label: 'תיאום פגישה',   message: 'היי {{firstName}}, לגבי {{project}}, הכי טוב לשבת ולעבור על הפרטים והתוכניות יחד. איזה יום מתאים לך השבוע?' },
     { label: 'שליחת פרטים',   message: 'היי {{firstName}}, יש לי את כל הפרטים והתוכניות של {{project}}. לשלוח לך כאן, או שנעבור עליהם בשיחה קצרה?' },
-    { label: 'זמינים עכשיו',  message: 'היי {{firstName}}, ראיתי עכשיו את הפנייה על {{project}}. יש לי כמה דקות פנויות ממש עכשיו – נוח שאתקשר?' },
+    { label: 'זמינים עכשיו',  message: 'היי {{firstName}}, ראיתי עכשיו את הפנייה על {{project}}. יש לי כמה דקות פנויות ממש עכשיו, נוח שאתקשר?' },
   ],
   en: [
     { label: 'Schedule a call',     message: 'Hi {{firstName}}, I saw your inquiry about {{project}}. When\'s a good time for a quick call?' },
