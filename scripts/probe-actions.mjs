@@ -115,7 +115,7 @@ if (ACTIONS.includes('ga4')) {
   const health = await fetch(`${SITE}/api/properties?health=1`).then(r => r.json()).catch(() => ({}))
   show('ga4 env configured (health)', health?.env?.ga4)
   const test = await post({ type: 'test' })
-  show(`ga4 test (HTTP ${test.http}, ${test.ms} ms)`, { configured: test.d.configured, ok: test.d.ok, property: test.d.property, missing: test.d.missing, error: test.d.error, kind: test.d.kind })
+  show(`ga4 test (HTTP ${test.http}, ${test.ms} ms)`, { configured: test.d.configured, ok: test.d.ok, property: test.d.property, missing: test.d.missing, error: test.d.error, kind: test.d.kind, keyId: test.d.keyId })
   if (test.d.ok) {
     const end = new Date().toISOString().slice(0, 10), s = new Date(Date.now() - 29 * 864e5).toISOString().slice(0, 10)
     const dash = await post({ type: 'dashboard', start: s, end, fresh: true })

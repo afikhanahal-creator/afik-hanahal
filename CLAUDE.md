@@ -185,6 +185,14 @@ a real-estate audience: "שלום {name}," openings, courteous and gender-neutra
 (`lib/hebrew-names.js` `hebrewFirstName`, a list of ~450 Israeli names; "Ronen" → "רונן"); an unknown Latin name is left out
 ("שלום,") rather than guessed. `renderTemplate` closes the gap an empty placeholder leaves ("שלום ," → "שלום,"). The Lead Center's
 quick replies use the same rules and the campaign's short name.
+**Personal templates** (category "אישי – לפי הפנייה"): `lib/lead-needs.js` `leadNeeds()` (tested) reads what the lead told us —
+the lead card's fields (budget / rooms / area / timeline / dealType / propertyType) over the Meta form answers (matched by the
+question's wording) and, for website leads only, the first sentence they typed — into `{needs}` ("4 חדרים, בכפר סבא, בתקציב של
+3–4 מיליון"), `{budget}`, `{rooms}`, `{area}`, `{timeline}`, `{purpose}`, `{message}`. A `[[ … ]]` part of a template is kept only
+when every placeholder in it is known, so one template works with or without the data; a fallback after a Hebrew prefix drops
+its ה ("בנכס", never "בהנכס"). Six templates (`personal_needs` / `_budget` / `_message` / `_investor` / `_timeline` / `_followup`);
+in "היום" every row shows "מה ידוע:" and a "✍️ התאמה אישית" button (`bestPersonalTemplateId()`), and the group menu has
+"הכי אישי לכל ליד".
 Probe actions `wa` / `wa-send` check the chat page's own calls (`wa-send` texts the office number).
 
 Scheduled bulk sends are jobs in `app_settings` (`automations_jobs`), rendered at send time, max 20 messages per run;
@@ -209,7 +217,7 @@ GA4 needs a service account with Viewer on property `536943897` (Analytics Data 
 both sites once it is a Viewer on each; `normalizePrivateKey` forgives quotes / literal `\n` / a one-line paste). The property id is
 `GA4_PROPERTY_ID`, else `app_settings.ga4_property_id` (editable in the tab's "הגדרות חיבור", `POST /api/meta/ga4-property` saves and
 tests), else `536943897`. Without credentials the tab shows the setup steps (the Korkos-key way first). Health `env.ga4` says whether
-they are set. The old Supermetrics route is kept as a fallback only (its trial ended 2026-06-16).
+they are set; an auth error shows the configured key's id (`keyId`, from `private_key_id`) to compare with Google Cloud → Keys. The old Supermetrics route is kept as a fallback only (its trial ended 2026-06-16).
 **The traffic dashboard** (`src/GA4Tab.jsx`, the first sub-tab of "אנליטיקס"; built like the Korkos site's) reads
 `POST /api/meta/ga4-dash` (`lib/ga4.js` `dash()` / `dashSpecs()` / `previousRange()`, tested; `type`: dashboard · realtime · page ·
 test; 5-min cache, realtime 25 s): presets 7 / 30 / 90 days / this month / last month, each vs the previous period of the same

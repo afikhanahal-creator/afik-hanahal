@@ -78,7 +78,8 @@ const TR = {
     ],
     open: 'פתח', settings: 'הגדרות חיבור', propId: 'מזהה הנכס (Property ID)', saveTest: 'שמירה ובדיקת חיבור', testing: 'בודק…', ok: sa => `החיבור תקין ✓${sa ? ` · ${sa}` : ''}`, failed: 'שגיאת חיבור',
     errT: 'Google Analytics החזיר שגיאה', retry: 'נסה שוב',
-    why: { permission: sa => `חשבון השירות${sa ? ` ${sa}` : ''} עדיין לא קיבל גישה לנכס. ב-Analytics ← Admin ← Property access management הוסיפו אותו כ-Viewer.`, api: 'ה-Analytics Data API לא מופעל בפרויקט של חשבון השירות.', auth: 'המפתח של חשבון השירות לא תקין או בוטל.', property: 'מזהה הנכס שגוי (מספר, לא G-XXXX).', other: 'נסו שוב בעוד רגע.' },
+    keyIdNote: (k, sa) => `מזהה המפתח שמוגדר ב-Vercel מתחיל ב-${k}${sa ? ` (${sa})` : ''}. ב-Google Cloud ← Service Accounts ← Keys בדקו שמפתח עם המזהה הזה קיים ופעיל. אם הוא נמחק, צרו מפתח חדש והדביקו את הקובץ החדש ב-Vercel.`,
+    why: { permission: sa => `חשבון השירות${sa ? ` ${sa}` : ''} עדיין לא קיבל גישה לנכס. ב-Analytics ← Admin ← Property access management הוסיפו אותו כ-Viewer.`, api: 'ה-Analytics Data API לא מופעל בפרויקט של חשבון השירות.', auth: 'Google דחה את המפתח (Invalid JWT Signature): המפתח שהודבק ב-Vercel נמחק או בוטל ב-Google Cloud, או שהודבק קובץ ישן.', property: 'מזהה הנכס שגוי (מספר, לא G-XXXX).', other: 'נסו שוב בעוד רגע.' },
   },
   en: {
     title: 'Site traffic', src: 'Google Analytics', vsPrev: 'compared with the previous period of the same length', refresh: 'Refresh', openGa: 'Open Google Analytics', csv: 'CSV',
@@ -145,7 +146,8 @@ const TR = {
     ],
     open: 'Open', settings: 'Connection settings', propId: 'Property ID', saveTest: 'Save and test', testing: 'Testing…', ok: sa => `Connected ✓${sa ? ` · ${sa}` : ''}`, failed: 'Connection error',
     errT: 'Google Analytics returned an error', retry: 'Try again',
-    why: { permission: sa => `The service account${sa ? ` ${sa}` : ''} has no access to the property yet. In Analytics → Admin → Property access management, add it as a Viewer.`, api: 'The Analytics Data API is not enabled in the service account’s project.', auth: 'The service account key is invalid or was revoked.', property: 'The property id is wrong (a number, not G-XXXX).', other: 'Try again in a moment.' },
+    keyIdNote: (k, sa) => `The key configured in Vercel has an id starting with ${k}${sa ? ` (${sa})` : ''}. In Google Cloud → Service Accounts → Keys, check that a key with this id exists and is active. If it was deleted, create a new key and paste the new file into Vercel.`,
+    why: { permission: sa => `The service account${sa ? ` ${sa}` : ''} has no access to the property yet. In Analytics → Admin → Property access management, add it as a Viewer.`, api: 'The Analytics Data API is not enabled in the service account’s project.', auth: 'Google rejected the key (Invalid JWT Signature): the key pasted into Vercel was deleted or disabled in Google Cloud, or an old file was pasted.', property: 'The property id is wrong (a number, not G-XXXX).', other: 'Try again in a moment.' },
   },
 }
 
@@ -356,7 +358,7 @@ export default function GA4Tab({ token, lang = 'he', leads = [] }) {
   const call = useCallback(async (body, path = 'ga4-dash') => {
     const r = await fetch(`${API}/${path}`, { method: 'POST', headers: H, body: JSON.stringify(body), signal: AbortSignal.timeout(45000) })
     const d = await r.json().catch(() => ({}))
-    if (!r.ok) { const e = new Error(d.error || `HTTP ${r.status}`); e.kind = d.kind; e.sa = d.serviceAccount; throw e }
+    if (!r.ok) { const e = new Error(d.error || `HTTP ${r.status}`); e.kind = d.kind; e.sa = d.serviceAccount; e.keyId = d.keyId; throw e }
     return d
   }, [H])
   const chName = c => (en ? c : t.ch[c] || c)
@@ -375,7 +377,7 @@ export default function GA4Tab({ token, lang = 'he', leads = [] }) {
     setState(s => (s.phase === 'ready' ? { ...s, refreshing: true } : { phase: 'loading' }))
     call({ type: 'dashboard', start: range.start, end: range.end, fresh })
       .then(d => setState(d.configured ? { phase: 'ready', data: d } : { phase: 'setup', missing: d.missing, sa: d.serviceAccount }))
-      .catch(e => setState({ phase: 'error', message: e.message, kind: e.kind, sa: e.sa }))
+      .catch(e => setState({ phase: 'error', message: e.message, kind: e.kind, sa: e.sa, keyId: e.keyId }))
   }, [call, range.start, range.end])
   useEffect(() => { load() }, [load])
   useEffect(() => { fetch(`${API}/ga4-property`, { headers: H }).then(r => r.json()).then(d => setPropId(String(d.property || ''))).catch(() => {}) }, [H])
@@ -423,6 +425,7 @@ export default function GA4Tab({ token, lang = 'he', leads = [] }) {
         {state.phase === 'error' ? <>
           <p className="an-muted">{(t.why[state.kind] ? (typeof t.why[state.kind] === 'function' ? t.why[state.kind](state.sa) : t.why[state.kind]) : t.why.other)}</p>
           <p className="an-error" dir="ltr">{state.message}</p>
+          {state.keyId && <p className="an-muted">{t.keyIdNote(state.keyId, state.sa)}</p>}
           <div><button type="button" className="an-btn" onClick={() => load(true)}>{t.retry}</button></div>
         </> : <>
           <p className="an-muted">{t.setupB}</p>
