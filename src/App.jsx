@@ -2234,7 +2234,10 @@ const ANALYTICS_KEY  = 'afik_analytics_v2'
 // Shape: [{ id, name, adAccountId, pageId, enabled }]. Read by MetaLeadsTab sync,
 // managed in the Settings → "מקורות לידים — Meta" card, synced to cloud as `metaLeadSources`.
 const META_LEAD_PAGES_KEY = 'afik_meta_lead_pages'
-const WA_DEFAULT_TEMPLATE = `היי {name}, כאן ישראל מאפיק הנחל.
+const WA_DEFAULT_TEMPLATE = `היי {name}, כאן אפיק הנחל.
+קיבלנו את הפרטים שהשארתם ונשמח לדבר כמה דקות.
+מתי נוח שנתקשר?`
+const _WA_V4_DEFAULT = `היי {name}, כאן ישראל מאפיק הנחל.
 קיבלתי את הפרטים שהשארת ואשמח לדבר כמה דקות.
 מתי נוח שאתקשר?`
 const _WA_V3_DEFAULT = `שלום {name},
@@ -2260,11 +2263,11 @@ const _WA_OLD_DEFAULT = `היי {name} 👋
 
 מתי נוח לך לדבר? נשמח לתאם שיחה`
 try {
-  const _waMigKey = 'afik_wa_template_v4'
+  const _waMigKey = 'afik_wa_template_v5'
   if (!localStorage.getItem(_waMigKey)) {
     const _saved = JSON.parse(localStorage.getItem(WA_KEY) || '{}')
     const _tpl = (_saved.template || '').trim()
-    if (!_tpl || [_WA_OLD_DEFAULT, _WA_PREV_DEFAULT, _WA_V3_DEFAULT].some(d => _tpl === d.trim())) {
+    if (!_tpl || [_WA_OLD_DEFAULT, _WA_PREV_DEFAULT, _WA_V3_DEFAULT, _WA_V4_DEFAULT].some(d => _tpl === d.trim())) {
       localStorage.setItem(WA_KEY, JSON.stringify({ ..._saved, template: WA_DEFAULT_TEMPLATE }))
     }
     localStorage.setItem(_waMigKey, '1')
