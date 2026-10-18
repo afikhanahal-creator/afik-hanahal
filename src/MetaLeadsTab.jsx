@@ -150,18 +150,18 @@ const CAMPAIGN_COLORS = ['#8490D8','#E05252','#3BAF7E','#E08C3A','#3A8FC7','#C24
 
 const QUICK_REPLIES = {
   he: [
-    { label: 'תיאום שיחה',    message: 'שלום {{firstName}}, תודה על פנייתך לגבי {{project}}. מתי נוח לך שנדבר?' },
-    { label: 'חזרה אחרי שיחה שלא נענתה', message: 'שלום {{firstName}}, ניסינו להשיג אותך בטלפון בעניין פנייתך לגבי {{project}}. נוח לך שנחזור אליך עכשיו, או שעדיף מאוחר יותר?' },
-    { label: 'תיאום פגישה',   message: 'שלום {{firstName}}, תודה על ההתעניינות ב{{project}}. נשמח לתאם פגישה קצרה ולהציג את הפרטים והתוכניות. איזה יום מתאים לך השבוע?' },
-    { label: 'שליחת פרטים',   message: 'שלום {{firstName}}, נשמח לשלוח לך את כל הפרטים והתוכניות של {{project}}. נוח לך שנעבור עליהם יחד בשיחה קצרה?' },
-    { label: 'זמינים עכשיו',  message: 'שלום {{firstName}}, ראינו את פנייתך לגבי {{project}}. אנחנו זמינים עכשיו לשיחה קצרה – נוח לך?' },
+    { label: 'תיאום שיחה',    message: 'היי {{firstName}}, ראיתי את הפנייה שלך על {{project}}. מתי נוח שאתקשר לכמה דקות?' },
+    { label: 'חזרה אחרי שיחה שלא נענתה', message: 'היי {{firstName}}, ניסיתי להתקשר אליך לגבי {{project}} ולא תפסתי אותך. עכשיו נוח, או שעדיף מאוחר יותר?' },
+    { label: 'תיאום פגישה',   message: 'היי {{firstName}}, לגבי {{project}} – הכי טוב לשבת ולעבור על הפרטים והתוכניות יחד. איזה יום מתאים לך השבוע?' },
+    { label: 'שליחת פרטים',   message: 'היי {{firstName}}, יש לי את כל הפרטים והתוכניות של {{project}}. לשלוח לך כאן, או שנעבור עליהם בשיחה קצרה?' },
+    { label: 'זמינים עכשיו',  message: 'היי {{firstName}}, ראיתי עכשיו את הפנייה על {{project}}. יש לי כמה דקות פנויות ממש עכשיו – נוח שאתקשר?' },
   ],
   en: [
-    { label: 'Schedule a call',     message: 'Hello {{firstName}}, thank you for your inquiry about {{project}}. When would be a good time to talk?' },
-    { label: 'After a missed call', message: 'Hello {{firstName}}, we tried to reach you by phone about your inquiry on {{project}}. Is now a good time to call back, or would later suit you better?' },
-    { label: 'Book a meeting',      message: 'Hello {{firstName}}, thank you for your interest in {{project}}. We would be glad to arrange a short meeting to present the details and plans. Which day suits you this week?' },
-    { label: 'Send the details',    message: 'Hello {{firstName}}, we would be glad to send you all the details and plans of {{project}}. Would you like to go over them together in a short call?' },
-    { label: 'Available now',       message: 'Hello {{firstName}}, we saw your inquiry about {{project}}. We are available for a short call right now – is it convenient for you?' },
+    { label: 'Schedule a call',     message: 'Hi {{firstName}}, I saw your inquiry about {{project}}. When\'s a good time for a quick call?' },
+    { label: 'After a missed call', message: 'Hi {{firstName}}, I tried calling you about {{project}} but couldn\'t reach you. Is now good, or would later suit you better?' },
+    { label: 'Book a meeting',      message: 'Hi {{firstName}}, about {{project}} – it\'s best to sit down and go over the details and plans together. Which day works for you this week?' },
+    { label: 'Send the details',    message: 'Hi {{firstName}}, I have all the details and plans for {{project}}. Shall I send them here, or go over them on a short call?' },
+    { label: 'Available now',       message: 'Hi {{firstName}}, I\'ve just seen your inquiry about {{project}}. I have a few minutes free right now – OK if I call?' },
   ],
 }
 
