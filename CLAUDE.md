@@ -229,6 +229,13 @@ Facebook / Instagram, from the admin's `leads`) + GA's `contact_form` / `phone_c
 z-score anomaly dots, tooltip); auto insights; channels / UTM campaigns / source-medium / landing pages / pages (search, sort, CSV,
 contact rate, ★ quality; a page row opens a drill-down) / devices + new vs returning / countries & cities / weekday × hour heat map
 / site actions. `trackEvent` never sends name / email / phone to GA (Google's terms).
+**Look (shared by both analytics tabs):** `src/analyticsUI.jsx` — `AN_CSS` (full page width, no max-width; a calm Apple-like
+scale: 13px body, 20px title, 24px KPI values, semibold not black; hairline separators; segmented controls), `TipLayer` (one
+fixed-position tooltip for every `[data-tip]` inside `.an`, clamped to the viewport, never clipped by a scrolling table) and
+`Lbl` (a label with a short ⓘ explanation). Every number, column header and section carries a few-word bilingual tip
+(`tips` / `colTip` / `sectTip` in `GA4Tab`'s TR). Wide screens put pairs side by side (chart + insights, channels + campaigns,
+sources + landing, pages + actions, devices + geo + heat map). "האתר שלנו (הדפדפן הזה)" is `src/SiteLocalTab.jsx` (this
+browser's own `ANALYTICS_KEY` events, same look); the old gradient cards and their 2-minute legacy GA device poll are gone.
 
 WhatsApp chat names (`chat-list`): outgoing Green API messages carry no contact name, so names are resolved server-side from
 leads (`contacts`), `meta_leads`, the WhatsApp phone book (`getContacts`) and, for a few chats per poll, `getContactInfo` —
