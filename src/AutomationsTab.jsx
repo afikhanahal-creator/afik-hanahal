@@ -4,8 +4,8 @@
 // plus the "מצב המערכת" drawer. rules / quiet / vars share one draft and one sticky save bar.
 // Server: lib/automations.js via /api/meta/auto-*. Shared logic: lib/automations-shared.js.
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { FaRobot, FaInbox, FaCommentDots, FaProjectDiagram, FaClock, FaBullhorn, FaHistory, FaSyncAlt, FaWhatsapp, FaPaperPlane, FaTimes, FaPen, FaCheckCircle, FaCalendarCheck, FaMoon, FaEllipsisV, FaArrowLeft, FaArrowRight, FaCheck, FaTimesCircle, FaSearch, FaRedo, FaUserSlash, FaDatabase, FaPowerOff, FaHeartbeat, FaSatelliteDish, FaExternalLinkAlt, FaChevronDown, FaExclamationTriangle } from 'react-icons/fa'
-import { DEFAULT_CONFIG, STAGES, templateList, renderTemplate, mergeConfig, ruleKind, isSendWindow, nextSendWindow, nextWindows, fmtHour, israelNow, classifyReply, matchedKeyword } from '../lib/automations-shared.js'
+import { FaRobot, FaInbox, FaCommentDots, FaProjectDiagram, FaClock, FaBullhorn, FaHistory, FaSyncAlt, FaWhatsapp, FaPaperPlane, FaTimes, FaPen, FaCheckCircle, FaCalendarCheck, FaMoon, FaEllipsisV, FaArrowLeft, FaArrowRight, FaCheck, FaTimesCircle, FaSearch, FaRedo, FaUserSlash, FaDatabase, FaPowerOff, FaHeartbeat, FaSatelliteDish, FaExternalLinkAlt, FaChevronDown, FaExclamationTriangle, FaRandom } from 'react-icons/fa'
+import { DEFAULT_CONFIG, STAGES, CATEGORIES, templateList, renderTemplate, mergeConfig, ruleKind, isSendWindow, nextSendWindow, nextWindows, fmtHour, israelNow, classifyReply, matchedKeyword } from '../lib/automations-shared.js'
 import { autoApi } from './AutomationsApi.jsx'
 import { T, AUTO_CSS, Button, IconButton, Card, Badge, FilterChip, Toggle, ModeSwitch, ModeBadge, StatTile, EmptyState, Skeleton, InlineError, Drawer, HealthItem, StatusPill, CopyField, SaveBar, useToasts, ConfirmProvider, useConfirm, Popover, MenuButton, MenuItem, MODE_COLOR, inputStyle, Field } from './automationsUI.jsx'
 import { WAText } from './waFormat.jsx'
@@ -43,6 +43,7 @@ const TR = {
     kpiPending: 'ממתינות לאישור', kpiSent: 'נשלחו השבוע', kpiPos: 'ענו בחיוב', kpiFail: 'נכשלו השבוע',
     grp: { missed: 'הודעת פתיחה שלא נשלחה', welcome: 'הודעת פתיחה', reply: 'תשובות של לקוחות', stage: 'שינוי שלב בלוח', noreply: 'מעקב – לא ענו', reengage: 'חזרה ללקוח אחרי תקופה', manual: 'אחר' },
     grpMissedSub: 'הלידים האלה עוד לא שמעו מאיתנו', sendGroup: n => `שלח את כל ה-${n}`,
+    pickWording: 'נוסח ההודעה', otherWording: 'נוסח אחר', doneEdit: 'סיום עריכה', groupWording: 'נוסח לכל הקבוצה…', origWording: 'הנוסח המקורי', manageTpls: 'ספריית התבניות',
     groupResult: n => `נשלחו ${n} הודעות ✓`, groupResultErr: (ok, bad) => `נשלחו ${ok} · ${bad} לא נשלחו – פרטים ביומן`,
     quotaShort: 'המכסה החודשית של Green API נגמרה – שדרגו את התוכנית כדי לשלוח',
     quotaT: 'וואטסאפ מחובר, אבל ההודעות ללקוחות לא יוצאות',
@@ -110,6 +111,7 @@ const TR = {
     kpiPending: 'Awaiting approval', kpiSent: 'Sent this week', kpiPos: 'Positive replies', kpiFail: 'Failed this week',
     grp: { missed: 'Welcome that never went out', welcome: 'Welcome', reply: 'Lead replies', stage: 'Board stage change', noreply: 'Follow-up – no reply', reengage: 'Re-engagement', manual: 'Other' },
     grpMissedSub: 'These leads have not heard from us yet', sendGroup: n => `Send all ${n}`,
+    pickWording: 'Message wording', otherWording: 'Another wording', doneEdit: 'Done editing', groupWording: 'Wording for the whole group…', origWording: 'Original wording', manageTpls: 'Template library',
     groupResult: n => `${n} messages sent ✓`, groupResultErr: (ok, bad) => `${ok} sent · ${bad} not sent – see the log`,
     quotaShort: 'The Green API monthly quota is used up – upgrade the plan to send',
     quotaT: 'WhatsApp is connected, but messages to leads are not going out',
@@ -378,6 +380,7 @@ function Today({ t, isEn, dir, cfg, tpls, tplName, stageName, leads, toast, conf
   const [texts, setTexts] = useState({})
   const [editing, setEditing] = useState({})
   const [busy, setBusy] = useState({})
+  const [tplSel, setTplSel] = useState({})          // item id → template picked instead of the suggested one
   const skipTimers = useRef({})
   useEffect(() => () => Object.values(skipTimers.current).forEach(clearTimeout), [])
   const approvals = queue.filter(q => !gone[q.id])
@@ -386,10 +389,38 @@ function Today({ t, isEn, dir, cfg, tpls, tplName, stageName, leads, toast, conf
   const inWin = isSendWindow(cfg)
   const leadOf = id => leads.find(l => String(l.id) === String(id))
 
-  const send = async (item, text, { quiet } = {}) => {
+  // ── wording: any template can replace the suggested one (rendered for this lead), then be edited by hand ──
+  const CAT_OF = { missed: 'welcome', welcome: 'welcome', noreply: 'followup', reply: 'progress', stage: 'progress', reengage: 'closing' }
+  const tplOf = id => tpls.find(x => x.id === id)
+  const leadFor = q => leadOf(q.leadId) || { name: q.name, phone: q.phone }
+  const tplIdOf = q => tplSel[q.id] || q.templateId
+  const textOf = q => texts[q.id] ?? (tplSel[q.id] && tplOf(tplSel[q.id]) ? renderTemplate(tplOf(tplSel[q.id]), leadFor(q), cfg, q.lang) : q.text)
+  const pickTpl = (q, id) => {
+    setTplSel(x => ({ ...x, [q.id]: id }))
+    setTexts(x => { const n = { ...x }; delete n[q.id]; return n })
+    setEditing(e => ({ ...e, [q.id]: false }))
+  }
+  const revert = q => { setTplSel(x => { const n = { ...x }; delete n[q.id]; return n }); setTexts(x => { const n = { ...x }; delete n[q.id]; return n }); setEditing(e => ({ ...e, [q.id]: false })) }
+  // the item's own category first, then the rest of the library
+  const tplGroups = q => {
+    const first = tplOf(tplIdOf(q))?.cat || CAT_OF[groupOf(q)] || 'welcome'
+    return [...CATEGORIES.filter(c => c.id === first), ...CATEGORIES.filter(c => c.id !== first)].map(c => [c, tpls.filter(x => (x.cat || 'general') === c.id)]).filter(([, l]) => l.length)
+  }
+  const nextVariant = q => {
+    const cur = tplOf(tplIdOf(q)), cat = cur?.cat || CAT_OF[groupOf(q)] || 'welcome'
+    const list = tpls.filter(x => (x.cat || 'general') === cat)
+    if (list.length < 2) return
+    const i = list.findIndex(x => x.id === tplIdOf(q))
+    pickTpl(q, list[(i + 1) % list.length].id)
+  }
+  const tplTitle = x => (isEn ? x.en_title || x.he_title : x.he_title || x.en_title)
+  const TplOptions = ({ q }) => tplGroups(q).map(([c, l]) => <optgroup key={c.id} label={`${c.icon} ${isEn ? c.en : c.he}`}>{l.map(x => <option key={x.id} value={x.id}>{tplTitle(x)}</option>)}</optgroup>)
+  const selStyle = { height: 30, maxWidth: '100%', minWidth: 0, borderRadius: 8, border: `1px solid ${T.line}`, background: T.s2, color: T.text, fontFamily: 'inherit', fontSize: 12.5, fontWeight: 600, padding: '0 8px', cursor: 'pointer' }
+
+  const send = async (item, text, { quiet, templateId } = {}) => {
     setBusy(b => ({ ...b, [item.id]: true }))
     try {
-      const r = await autoApi.post('auto-send', { items: [{ leadId: item.leadId, phone: item.phone, text: text ?? item.text, ruleKey: item.ruleKey, templateId: item.templateId }] })
+      const r = await autoApi.post('auto-send', { items: [{ leadId: item.leadId, phone: item.phone, text: text ?? item.text, ruleKey: item.ruleKey, templateId: templateId || item.templateId }] })
       if (!r.results?.[0]?.ok) throw new Error(r.results?.[0]?.error || t.error)
       setGone(g => ({ ...g, [item.id]: 1 })); if (!quiet) toast(t.sentTo(item.name || `+${item.phone}`)); return true
     } catch (e) { if (!quiet) toast(`${t.error}: ${/\b466\b/.test(e.message) ? t.quotaShort : e.message}`, { tone: 'error' }); return false }
@@ -405,7 +436,7 @@ function Today({ t, isEn, dir, cfg, tpls, tplName, stageName, leads, toast, conf
     if (!await confirm({ title: t.sendAllConfirm(list.length), confirmLabel: t.send, cancelLabel: t.cancel })) return
     let ok = 0, failed = 0
     for (const q of list) {
-      if (await send(q, texts[q.id], { quiet: true })) ok++
+      if (await send(q, textOf(q), { quiet: true, templateId: tplIdOf(q) })) ok++
       else { failed++; if (quotaBlocked || failed >= 3) break }
     }
     toast(failed ? t.groupResultErr(ok, list.length - ok) : t.groupResult(ok), { tone: failed ? 'error' : 'success' })
@@ -450,6 +481,7 @@ function Today({ t, isEn, dir, cfg, tpls, tplName, stageName, leads, toast, conf
           <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, whiteSpace: 'nowrap' }}>{t.waiting}</h3>
           {!loading && <span style={{ minWidth: 24, height: 22, padding: '0 8px', borderRadius: 11, background: approvals.length ? T.amberSoft : 'rgba(var(--ov),.06)', color: approvals.length ? T.amberText : T.text3, fontSize: 12, fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{approvals.length}</span>}
           <div style={{ flex: 1 }}/>
+          <span className="au-hide-m"><Button icon={<FaCommentDots size={11}/>} onClick={() => onGo('templates')}>{t.manageTpls}</Button></span>
           <span className="au-hide-m"><Button icon={<FaSyncAlt size={11} className={running ? 'au-spin' : undefined}/>} onClick={onRun} disabled={running} title={t.runNowTip}>{t.runNow}</Button></span>
           <span className="au-only-m"><IconButton icon={<FaSyncAlt size={13} className={running ? 'au-spin' : undefined}/>} label={t.runNow} size={36} variant="ghost" onClick={onRun} disabled={running}/></span>
         </div>
@@ -466,12 +498,20 @@ function Today({ t, isEn, dir, cfg, tpls, tplName, stageName, leads, toast, conf
                     <span style={{ fontSize: 12.5, color: T.text3, fontWeight: 700 }}>{list.length}</span>
                     {g === 'missed' && <span className="au-hide-m" style={{ fontSize: 12, color: T.text3 }}>· {t.grpMissedSub}</span>}
                     <div style={{ flex: 1 }}/>
+                    {list.length >= 2 && (
+                      <select value="" onChange={e => { const id = e.target.value; if (id) list.forEach(q => pickTpl(q, id)) }} aria-label={t.groupWording} style={{ ...selStyle, maxWidth: 220 }}>
+                        <option value="">{t.groupWording}</option>
+                        <TplOptions q={list[0]}/>
+                      </select>
+                    )}
                     {list.length >= 2 && <Button size="sm" variant="soft-green" icon={<FaPaperPlane size={10}/>} disabled={quotaBlocked} title={quotaBlocked ? t.quotaShort : undefined} onClick={() => sendGroup(list)}>{t.sendGroup(list.length)}</Button>}
                   </div>
                   {list.map((q, i) => {
                     const lead = leadOf(q.leadId)
                     const camp = lead ? leadCampaign(lead, isEn ? 'en' : 'he') : ''
-                    const txt = texts[q.id] ?? q.text
+                    const txt = textOf(q)
+                    const curTpl = tplOf(tplIdOf(q))
+                    const changed = !!tplSel[q.id] || (texts[q.id] != null && texts[q.id] !== q.text)
                     const stageKey = q.stageKey || (q.kind === 'stage' ? String(q.ruleKey || '').split(':')[1] : '')
                     const reason = q.kind === 'stage' && stageKey ? `${isEn ? 'Moved to' : 'עבר לשלב'} "${stageName(stageKey)}"` : (isEn ? q.reason?.en : q.reason?.he) || ''
                     return (
@@ -489,22 +529,31 @@ function Today({ t, isEn, dir, cfg, tpls, tplName, stageName, leads, toast, conf
                             {reason && <div style={{ fontSize: 12, color: T.text2, marginTop: 3, lineHeight: 1.4 }} dir="auto">{reason}</div>}
                           </div>
                         </div>
-                        {editing[q.id] ? (
-                          <div style={{ minWidth: 0 }}>
-                            <textarea value={txt} onChange={e => setTexts(x => ({ ...x, [q.id]: e.target.value }))} dir={q.lang === 'en' ? 'ltr' : 'rtl'} rows={Math.min(10, txt.split('\n').length + 1)} aria-label={t.editMsg}
-                              style={{ ...inputStyle, height: 'auto', padding: '9px 11px', background: '#0B2A22', border: '1px solid rgba(37,211,102,.35)', color: T.wa.text, lineHeight: 1.6, resize: 'vertical' }} autoFocus/>
-                            <button type="button" onClick={() => { setTexts(x => { const n = { ...x }; delete n[q.id]; return n }); setEditing(e => ({ ...e, [q.id]: false })) }} style={{ background: 'none', border: 'none', color: T.brandText, fontSize: 12, fontWeight: 700, cursor: 'pointer', padding: '4px 0', fontFamily: 'inherit', minHeight: 0 }}>{t.revertMsg}</button>
+                        <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          {/* wording: pick any template (rendered for this lead), another variant of the same kind, or edit by hand */}
+                          <div className="au-q-tools">
+                            <select value={curTpl ? curTpl.id : ''} onChange={e => e.target.value && pickTpl(q, e.target.value)} aria-label={t.pickWording} title={t.pickWording} style={{ ...selStyle, flex: '1 1 180px', maxWidth: 300 }}>
+                              {!curTpl && <option value="">{t.origWording}</option>}
+                              <TplOptions q={q}/>
+                            </select>
+                            <Button size="sm" icon={<FaRandom size={10}/>} onClick={() => nextVariant(q)} title={t.otherWording}>{t.otherWording}</Button>
+                            <Button size="sm" icon={editing[q.id] ? <FaCheck size={10}/> : <FaPen size={10}/>} onClick={() => setEditing(e => ({ ...e, [q.id]: !e[q.id] }))}>{editing[q.id] ? t.doneEdit : t.editMsg}</Button>
+                            {changed && <button type="button" onClick={() => revert(q)} style={{ background: 'none', border: 'none', color: T.brandText, fontSize: 12, fontWeight: 700, cursor: 'pointer', padding: '0 4px', fontFamily: 'inherit', minHeight: 0 }}>{t.revertMsg}</button>}
+                            {texts[q.id] != null && texts[q.id] !== q.text && <Badge color={T.amber} textColor={T.amberText}>{t.edited}</Badge>}
                           </div>
-                        ) : (
-                          <button type="button" onClick={() => setEditing(e => ({ ...e, [q.id]: true }))} title={t.editMsg} className="au-q-msg"
-                            style={{ position: 'relative', minWidth: 0, textAlign: 'start', background: '#0B2A22', border: '1px solid rgba(37,211,102,.18)', color: T.wa.text, borderRadius: 10, padding: '8px 34px 8px 11px', paddingInlineEnd: 34, fontSize: 12.5, lineHeight: 1.5, cursor: 'text', fontFamily: 'inherit' }}>
-                            <span dir={q.lang === 'en' ? 'ltr' : 'rtl'} style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', whiteSpace: 'pre-wrap' }}><WAText text={txt}/></span>
-                            <FaPen size={10} aria-hidden style={{ position: 'absolute', top: 10, insetInlineEnd: 11, opacity: .6 }}/>
-                            {texts[q.id] != null && texts[q.id] !== q.text && <span style={{ position: 'absolute', bottom: 6, insetInlineEnd: 8 }}><Badge color={T.amber} textColor={T.amberText}>{t.edited}</Badge></span>}
-                          </button>
-                        )}
+                          {editing[q.id] ? (
+                            <textarea value={txt} onChange={e => setTexts(x => ({ ...x, [q.id]: e.target.value }))} dir={q.lang === 'en' ? 'ltr' : 'rtl'} rows={Math.min(12, txt.split('\n').length + 1)} aria-label={t.editMsg}
+                              style={{ ...inputStyle, height: 'auto', padding: '9px 11px', background: '#0B2A22', border: '1px solid rgba(37,211,102,.35)', color: T.wa.text, lineHeight: 1.6, resize: 'vertical' }} autoFocus/>
+                          ) : (
+                            <button type="button" onClick={() => setEditing(e => ({ ...e, [q.id]: true }))} title={t.editMsg} className="au-q-msg"
+                              style={{ position: 'relative', minWidth: 0, textAlign: 'start', background: '#0B2A22', border: '1px solid rgba(37,211,102,.18)', color: T.wa.text, borderRadius: 10, padding: '9px 12px', paddingInlineEnd: 34, fontSize: 13, lineHeight: 1.55, cursor: 'text', fontFamily: 'inherit' }}>
+                              <span dir={q.lang === 'en' ? 'ltr' : 'rtl'} style={{ display: 'block', whiteSpace: 'pre-wrap' }}><WAText text={txt}/></span>
+                              <FaPen size={10} aria-hidden style={{ position: 'absolute', top: 11, insetInlineEnd: 11, opacity: .6 }}/>
+                            </button>
+                          )}
+                        </div>
                         <div className="au-q-acts">
-                          <Button variant="soft-green" icon={<FaPaperPlane size={11}/>} loading={busy[q.id]} onClick={async () => { if (await send(q, texts[q.id])) reload() }}>{t.send}</Button>
+                          <Button variant="soft-green" icon={<FaPaperPlane size={11}/>} loading={busy[q.id]} onClick={async () => { if (await send(q, textOf(q), { templateId: tplIdOf(q) })) reload() }}>{t.send}</Button>
                           <IconButton icon={<FaTimes size={12}/>} label={t.skip} size={34} onClick={() => skip(q)}/>
                           {onOpenChat && <IconButton icon={<FaWhatsapp size={14}/>} label={t.openChat} size={34} onClick={() => chat(q)}/>}
                         </div>

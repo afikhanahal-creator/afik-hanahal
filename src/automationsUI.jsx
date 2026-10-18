@@ -43,8 +43,9 @@ export const AUTO_CSS = `
   .au-in{animation:au-in .2s ease both}
   .au-skel{background:linear-gradient(90deg,var(--au-skel) 0,var(--au-skel-hi) 40px,var(--au-skel) 80px) no-repeat,var(--au-skel);background-size:200px 100%;animation:au-sh 1.3s linear infinite}
   .au-kpis{display:grid;grid-template-columns:minmax(0,1.4fr) repeat(4,minmax(0,1fr));gap:10px}
-  .au-q-row{display:grid;grid-template-columns:minmax(220px,300px) minmax(0,1fr) auto;gap:16px;align-items:center;padding:12px 16px}
+  .au-q-row{display:grid;grid-template-columns:minmax(200px,260px) minmax(0,1fr) auto;gap:16px;align-items:start;padding:14px 16px}
   .au-q-acts{display:flex;gap:6px;align-items:center}
+  .au-q-tools{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
   .au-q-msg:hover{border-color:rgba(37,211,102,.45)!important}
   .au-tpl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
   .au-ed-body{display:grid;grid-template-columns:minmax(0,1fr) 400px;flex:1;min-height:0}
