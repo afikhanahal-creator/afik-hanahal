@@ -66,23 +66,32 @@ export function originLines(origin, lang = 'he') {
   return rows
 }
 
-// Which campaign / channel a lead belongs to — shown in brackets next to the lead's name everywhere
-// ("ריבי שטיינהרט (זרובבל 15 - v2)"). Meta: the campaign, else the lead form. Website: utm_campaign, else
-// utm_source / the referring site ("אתר · chatgpt.com"), else the source label ("טופס צור קשר").
-const hostOf = u => { try { return new URL(u).hostname.replace(/^www\./, '') } catch { return '' } }
+// Which campaign a lead belongs to — a short name shown in brackets next to the lead's name everywhere
+// ("ריבי שטיינהרט (אתר)", "Ella Furman (זרובבל 15)"). Meta: the campaign (else the lead form) without version / audience
+// suffixes; website forms: just "אתר"; other sources: a one-word label. leadCampaignFull() keeps the whole name (tooltips).
+const SHORT_SOURCE = {
+  website: ['אתר', 'Website'], contact_form: ['אתר', 'Website'], property_form: ['אתר', 'Website'], pdf_download: ['אתר', 'Website'],
+  meta: ['פייסבוק', 'Facebook'], whatsapp: ['וואטסאפ', 'WhatsApp'], manual: ['ידני', 'Manual'],
+}
+const metaName = lead => {
+  const crm = lead.crm_data && typeof lead.crm_data === 'object' ? lead.crm_data : {}
+  return [lead.campaignName, lead.campaign_name, crm.campaignName, lead.formName, lead.form_name, crm.formName]
+    .map(x => String(x ?? '').trim()).find(Boolean) || ''
+}
+const sourceOf = lead => lead.source || (String(lead.id || '').startsWith('meta_') ? 'meta' : '')
+// "זרובבל 15 - v2 (כוונה גבוהה)" → "זרובבל 15" · "הנרייטה סאלד 22-24-copy" → "הנרייטה סאלד 22-24" · "חנקין 41 | ריטרגטינג" → "חנקין 41"
+export function shortCampaign(name) {
+  let n = String(name || '').replace(/\([^)]*\)/g, ' ').replace(/[\s_-]*copy(\s*\d+)?\s*$/i, '').replace(/\s*#\s*\d+\s*$/, '')
+  n = n.split(/\s+[-–—|·]\s+|\s*\|\s*/)[0]
+  n = n.replace(/\s+v\d+\s*$/i, '').replace(/\s+/g, ' ').trim()
+  return n || String(name || '').trim()
+}
 export function leadCampaign(lead, lang = 'he') {
   if (!lead || typeof lead !== 'object') return ''
-  const crm = lead.crm_data && typeof lead.crm_data === 'object' ? lead.crm_data : {}
-  const pick = (...v) => v.map(x => String(x ?? '').trim()).find(Boolean) || ''
-  const meta = pick(lead.campaignName, lead.campaign_name, crm.campaignName, lead.formName, lead.form_name, crm.formName)
-  if (meta) return meta
-  const origin = (lead.origin && typeof lead.origin === 'object' ? lead.origin : crm.origin) || {}
-  const utm = origin.utm || {}
-  if (utm.utm_campaign) return String(utm.utm_campaign)
-  const site = lang === 'en' ? 'Website' : 'אתר'
-  const via = pick(utm.utm_source, hostOf(origin.referrer))
-  // the site's own pages as a referrer say nothing about where the visitor came from
-  if (via && !/afikhanahal/i.test(via)) return `${site} · ${via}`
-  const src = lead.source || (String(lead.id || '').startsWith('meta_') ? 'meta' : '')
-  return src ? sourceLabel(src, lang) : ''
+  const m = metaName(lead)
+  if (m) return shortCampaign(m)
+  const src = sourceOf(lead) || ((lead.origin || lead.crm_data?.origin) ? 'website' : '')
+  const lbl = SHORT_SOURCE[src]
+  return lbl ? lbl[lang === 'en' ? 1 : 0] : (src ? sourceLabel(src, lang) : '')
 }
+export const leadCampaignFull = (lead, lang = 'he') => (lead && typeof lead === 'object' && metaName(lead)) || leadCampaign(lead, lang)
