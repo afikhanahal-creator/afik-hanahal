@@ -47,6 +47,13 @@ const GREEN_BASE_URL = (() => {
 })()
 // Build a Green API method URL. The apiToken stays server-side — never sent to the browser.
 const greenUrl = (method) => `${GREEN_BASE_URL}/waInstance${GREEN_INSTANCE}/${method}/${GREEN_TOKEN}`
+// fetch() for Green API: its per-method rate limit answers 429 when the panel asks several things at once — wait, retry
+async function greenFetch(url, init = {}, attempt = 0) {
+  const r = await globalThis.fetch(url, init)
+  if (r.status !== 429 || attempt >= 2 || init.body instanceof FormData) return r
+  await new Promise(ok => setTimeout(ok, 900 * (attempt + 1)))
+  return greenFetch(url, { ...init, signal: AbortSignal.timeout(10000) }, attempt + 1)
+}
 
 const ADMIN_PANEL_URL = 'https://www.afikhanahal.co.il/admin-panel'
 
@@ -646,7 +653,7 @@ async function syncOnePage(pageId, client, errors, { sinceSec = 0, stats = {} } 
 // Welcome a Meta lead through the automations engine and record it on the lead (wa_sent + the thread)
 async function welcomeMetaLead(client, { id, name, phone, campaign }) {
   if (!phone) return { ok: false, skipped: 'no phone' }
-  const r = await Auto.welcomeExternalLead({ id, name, phone, prop_title: '' }, { source: 'meta' })
+  const r = await Auto.welcomeExternalLead({ id, name, phone, prop_title: '', source: 'meta', campaignName: campaign || '' }, { source: 'meta' })
   if (r.ok && id) {
     await client.from('meta_messages').insert({ lead_id: id, direction: 'out', message: r.text, wa_message_id: r.idMessage || null }).then(() => {}, () => {})
     await client.from('meta_leads').update({ wa_sent: true }).eq('id', id).then(() => {}, () => {})
@@ -815,7 +822,7 @@ async function handleLeadWelcome(req, res) {
   if (!lead) return res.status(404).json({ error: 'lead not found' })
   if (!lead.phone) return res.status(400).json({ error: 'no phone' })
   // The button means "send it now", whatever the automatic rule's mode
-  const r = await Auto.welcomeExternalLead({ id: lead.id, name: lead.name || '', phone: lead.phone }, { source: 'meta', force: true })
+  const r = await Auto.welcomeExternalLead({ id: lead.id, name: lead.name || '', phone: lead.phone, source: 'meta', campaignName: lead.campaign_name || lead.form_name || '' }, { source: 'meta', force: true })
   if (r.ok) {
     await client.from('meta_messages').insert({ lead_id: lead.id, direction: 'out', message: r.text, wa_message_id: r.idMessage || null }).then(() => {}, () => {})
     await client.from('meta_leads').update({ wa_sent: true }).eq('id', lead.id).then(() => {}, () => {})
@@ -1001,11 +1008,11 @@ async function handleChat(req, res, action) {
   }
 
   try {
-    // GET /api/meta/chat-status → instance connection state
+    // GET /api/meta/chat-status → instance connection state + the plan quota (466: "connected" but sending is blocked)
     if (action === 'chat-status') {
-      const r = await fetch(greenUrl('getStateInstance'), { signal: AbortSignal.timeout(8000) })
+      const [r, quota] = await Promise.all([greenFetch(greenUrl('getStateInstance'), { signal: AbortSignal.timeout(8000) }), Auto.greenQuota().catch(() => null)])
       const d = await r.json().catch(() => ({}))
-      return res.status(r.ok ? 200 : 502).json({ state: d.stateInstance || (r.ok ? null : 'error'), instance: GREEN_INSTANCE, http: r.status })
+      return res.status(r.ok ? 200 : 502).json({ state: d.stateInstance || (r.ok ? null : 'error'), instance: GREEN_INSTANCE, http: r.status, quota: quota?.blocked ? { blocked: true, since: quota.since || quota.at, at: quota.at, used: quota.used, description: quota.description } : null })
     }
 
     // GET /api/meta/chat-list?days=30 → recent conversations (incoming + outgoing), newest first.
@@ -1013,8 +1020,8 @@ async function handleChat(req, res, action) {
     if (action === 'chat-list') {
       const minutes = Math.min(Math.max(Number(req.query?.days) || 30, 1), 90) * 1440
       const [ri, ro] = await Promise.all([
-        fetch(`${greenUrl('lastIncomingMessages')}?minutes=${minutes}`, { signal: AbortSignal.timeout(20000) }),
-        fetch(`${greenUrl('lastOutgoingMessages')}?minutes=${minutes}`, { signal: AbortSignal.timeout(20000) }),
+        greenFetch(`${greenUrl('lastIncomingMessages')}?minutes=${minutes}`, { signal: AbortSignal.timeout(20000) }),
+        greenFetch(`${greenUrl('lastOutgoingMessages')}?minutes=${minutes}`, { signal: AbortSignal.timeout(20000) }),
       ])
       if (!ri.ok && !ro.ok) return res.status(502).json(await greenError(ri, 'chat-list'))
       const inc = ri.ok ? await ri.json().catch(() => []) : []
@@ -1047,7 +1054,7 @@ async function handleChat(req, res, action) {
     if (action === 'chat-read') {
       const p = normalizePhone((req.body || {}).phone)
       if (!p) return res.status(400).json({ error: 'phone required' })
-      const r = await fetch(greenUrl('readChat'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chatId: `${p}@c.us` }), signal: AbortSignal.timeout(10000) })
+      const r = await greenFetch(greenUrl('readChat'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chatId: `${p}@c.us` }), signal: AbortSignal.timeout(10000) })
       return res.status(r.ok ? 200 : 502).json(r.ok ? { ok: true } : await greenError(r, 'readChat'))
     }
 
@@ -1056,7 +1063,7 @@ async function handleChat(req, res, action) {
       const { phone, count = 100 } = req.body || {}
       const p = normalizePhone(phone)
       if (!p) return res.status(400).json({ error: 'phone required' })
-      const r = await fetch(greenUrl('getChatHistory'), {
+      const r = await greenFetch(greenUrl('getChatHistory'), {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ chatId: `${p}@c.us`, count: Math.min(Number(count) || 100, 200) }),
         signal: AbortSignal.timeout(20000),
@@ -1073,14 +1080,10 @@ async function handleChat(req, res, action) {
       const { phone, message } = req.body || {}
       const p = normalizePhone(phone)
       if (!p || !message) return res.status(400).json({ error: 'phone and message required' })
-      const r = await fetch(greenUrl('sendMessage'), {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chatId: `${p}@c.us`, message }),
-        signal: AbortSignal.timeout(20000),
-      })
-      if (!r.ok) return res.status(502).json(await greenError(r, 'sendMessage'))
-      const d = await r.json().catch(() => ({}))
-      return res.status(200).json({ ok: true, idMessage: d.idMessage || null })
+      // The engine's sender: retries a 429, remembers a blocked plan (466) for the panels, clears it on success
+      const r = await Auto.sendText(p, message)
+      if (!r.ok) return res.status(502).json({ error: r.error, quota: !!r.quota })
+      return res.status(200).json({ ok: true, idMessage: r.idMessage || null })
     }
 
     // POST /api/meta/chat-send-file { phone, fileName, fileType, fileBase64, caption } → sendFileByUpload
@@ -1094,9 +1097,9 @@ async function handleChat(req, res, action) {
       fd.append('file', new Blob([buffer], { type: fileType || 'application/octet-stream' }), fileName)
       fd.append('fileName', fileName)
       if (caption) fd.append('caption', caption)
-      const r = await fetch(greenUrl('sendFileByUpload'), { method: 'POST', body: fd, signal: AbortSignal.timeout(60000) })
+      const r = await greenFetch(greenUrl('sendFileByUpload'), { method: 'POST', body: fd, signal: AbortSignal.timeout(60000) })
       const d = await r.json().catch(() => ({}))
-      if (!r.ok) return res.status(502).json({ error: 'Green API file send failed', detail: d })
+      if (!r.ok) return res.status(502).json({ error: r.status === 466 ? 'Green API 466 — המכסה החודשית של Green API נגמרה' : `Green API file send failed (${r.status})`, quota: r.status === 466, detail: d })
       return res.status(200).json({ ok: true, idMessage: d.idMessage || null })
     }
 

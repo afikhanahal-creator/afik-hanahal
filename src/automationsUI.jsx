@@ -42,9 +42,10 @@ export const AUTO_CSS = `
   .au-spin{animation:au-spin .8s linear infinite}
   .au-in{animation:au-in .2s ease both}
   .au-skel{background:linear-gradient(90deg,var(--au-skel) 0,var(--au-skel-hi) 40px,var(--au-skel) 80px) no-repeat,var(--au-skel);background-size:200px 100%;animation:au-sh 1.3s linear infinite}
-  .au-today{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px;align-items:start}
-  .au-today-aside{position:sticky;top:64px;display:flex;flex-direction:column;gap:12px}
-  .au-kpi{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .au-kpis{display:grid;grid-template-columns:minmax(0,1.4fr) repeat(4,minmax(0,1fr));gap:10px}
+  .au-q-row{display:grid;grid-template-columns:minmax(220px,300px) minmax(0,1fr) auto;gap:16px;align-items:center;padding:12px 16px}
+  .au-q-acts{display:flex;gap:6px;align-items:center}
+  .au-q-msg:hover{border-color:rgba(37,211,102,.45)!important}
   .au-tpl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
   .au-ed-body{display:grid;grid-template-columns:minmax(0,1fr) 400px;flex:1;min-height:0}
   .au-branches{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
@@ -57,7 +58,8 @@ export const AUTO_CSS = `
   .au-wiz{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:16px;min-height:0}
   .au-wiz2{display:grid;grid-template-columns:300px minmax(0,1fr);gap:16px;min-height:0}
   @media (max-width:1000px){
-    .au-today{grid-template-columns:1fr}.au-today-aside{position:static}
+    .au-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.au-kpis>:first-child{grid-column:1/-1}
+    .au-q-row{grid-template-columns:1fr;gap:10px}
     .au-sched-row{grid-template-columns:56px minmax(0,1fr) auto;row-gap:2px}
     .au-sched-row .au-sr-kind,.au-sched-row .au-sr-mode{display:none}
     .au-log-row{grid-template-columns:24px minmax(0,1fr) auto;row-gap:4px}

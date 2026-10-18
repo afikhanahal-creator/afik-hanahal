@@ -161,6 +161,23 @@ second one); a lead saved late (or backfilled) is also marked past the no-reply 
 without phone or email are not copied. `POST /api/meta/crm-sync` (admin; daily cron; probe action `crm-sync`) copies whatever is
 missing; the Lead Center's CRM button calls `POST /api/meta/lead-to-crm {id}`. The admin drops its old browser-only `meta_<id>` copies.
 
+**Green API plan quota (466):** the free / Developer plan answers `466 "Monthly quota has been exceeded"` to every number
+outside its few allowed chats while `getStateInstance` still says `authorized` ("connected, but nothing goes out" — every welcome
+failed from 2026-10-11 until the plan is upgraded at console.green-api.com). `sendText` (`lib/automations.js`, also used by the
+chat page's `chat-send`) remembers it in `app_settings.green_quota` (`greenQuota()` / `parseQuota()` / `quotaPaused()`, tested):
+automatic sends pause for an hour after a refusal (then one send probes again), a refusal doesn't use up one of a lead's 3 tries,
+and the first successful send clears the flag. `auto-health` and `chat-status` return `quota`; the automations header says
+"לא שולח" with an upgrade banner, the WhatsApp page shows "מחובר · השליחה חסומה (מכסה)" + a banner, and a failed send shows
+Green's real reason. A 429 (Green's per-second rate limit — the panel asks several things at once) is retried (`greenFetch`).
+**Missed welcomes:** a lead whose welcome never went out (`auto.welcomeFailed`, or a Meta lead whose `meta:<id>` welcome failed in
+`automation_log`) is offered in "היום" as `welcome:missed` ("הודעת פתיחה שלא נשלחה", `missedWelcome()`, tested) for 21 days, in any
+rule mode; sending it counts as the welcome. The no-reply sequence starts only after a message actually reached the lead.
+**{property}** in templates = `leadProperty()`: the short campaign name for Meta leads ("זרובבל 15", via `shortCampaign`), the
+listing title for website leads. **"היום" layout:** KPI row (sending window · awaiting approval · sent · positive · failed), the
+approval queue grouped by kind (missed welcome first, "send all N" per group, stops at the first quota refusal), compact rows
+(lead + campaign + local phone + reason · two-line message preview, click to edit · send / skip / chat), then the schedule.
+Probe actions `wa` / `wa-send` check the chat page's own calls (`wa-send` texts the office number).
+
 Scheduled bulk sends are jobs in `app_settings` (`automations_jobs`), rendered at send time, max 20 messages per run;
 `auto-jobs-tick` pushes a running job from the open panel. `auto-tick?key=` (key = `AUTOMATION_KEY`, or the admin token)
 lets an external pinger such as cron-job.org run the engine every 5 minutes, so timing is exact even with the panel closed.
