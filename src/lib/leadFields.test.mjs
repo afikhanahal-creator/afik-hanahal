@@ -59,3 +59,15 @@ test('leadCampaign: a short campaign name, or just "אתר" for website leads', 
   assert.equal(leadCampaignFull({ formName: 'זרובבל 15 - v2 (כוונה גבוהה)' }), 'זרובבל 15 - v2 (כוונה גבוהה)')
   assert.equal(leadCampaignFull({ source: 'contact_form' }), 'אתר')
 })
+
+test('form option codes read as words', async () => {
+  const { prettyAnswerValue, prettyLeadText, metaFormAnswers } = await import('./leadFields.js')
+  assert.equal(prettyAnswerValue('3r'), '3 חדרים')
+  assert.equal(prettyAnswerValue('b34'), '3–4 מיליון')
+  assert.equal(prettyAnswerValue('b5'), '5 מיליון ומעלה')
+  assert.equal(prettyAnswerValue('ph'), 'פנטהאוז')
+  assert.equal(prettyAnswerValue('garden', 'en'), 'Garden apartment')
+  assert.equal(prettyAnswerValue('2-3 מיליון'), '2-3 מיליון')
+  assert.equal(prettyLeadText('rooms: 3r • budget: b34'), 'חדרים: 3 חדרים • תקציב: 3–4 מיליון')
+  assert.deepEqual(metaFormAnswers([{ name: 'rooms', values: ['2r'] }, { name: 'budget', values: ['b45'] }]), [{ q: 'חדרים', a: '2 חדרים' }, { q: 'תקציב', a: '4–5 מיליון' }])
+})

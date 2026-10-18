@@ -223,6 +223,16 @@ timeline grouped by day (filters: all / notes & calls / system): notes (edit inl
 (`crm_data.auto.sent`), finished tasks, analysis, arrival, and the next follow-up on top (red when overdue). The card's
 keyboard/focus effect runs once per open (it used to re-run on every parent render and pull the focus out of the note box
 while typing); `EditInput` never overwrites a field that has focus; `save()` resolves to success/failure and shows "השמירה נכשלה".
+**Leads board tabs:** "תמונת מצב" (`src/LeadsDashboard.jsx`: KPIs, a funnel of new → won with "reached this stage" %, the exits
+lost / irrelevant, a campaign × stage table, and a drill-down list of the clicked stage / cell — days in stage from `stageLog`,
+last note, follow-up, call / WhatsApp / open; also on mobile), Pipeline, Table. **Selection & bulk:** every table row has a real
+checkbox (controlled by `selectedIds`), each stage group and the header select all; the bar offers select-all, move to a stage,
+merge (2 selected) and delete (asks once, leads go to the trash). **Merge** (`src/lib/leadMerge.js`, tested — `mergeLeads()` /
+`mergeConflicts()`): from two selected rows or by holding a dragged Pipeline card on another card for 0.65 s ("שחרר כדי למזג");
+`MergeDialog` picks the lead that stays and the values for conflicting name / phone / email; notes, tasks, tags, form answers,
+stage history, the other message and `mergedFrom` are kept, then the other lead goes to the trash (nothing is deleted if the save
+fails). Pipeline cards no longer shift while dragging (`NO_SHIFT` — the order in a column isn't saved). Meta form option codes read
+as words (`prettyAnswerValue` / `prettyLeadText`: "3r" → "3 חדרים", "b34" → "3–4 מיליון").
 
 Analysis = `POST /api/meta/lead-analyze { lead }` (`api/meta.js` → `lib/lead-analyze.js`): builds a dossier (lead + crm_data,
 WhatsApp history from Green API, `automation_log`, repeat inquiries in `contacts` / `meta_leads`, the matching listing from the

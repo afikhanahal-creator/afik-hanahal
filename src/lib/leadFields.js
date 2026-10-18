@@ -25,6 +25,22 @@ const PRETTY = {
   city: { he: 'עיר', en: 'City' }, street_address: { he: 'כתובת', en: 'Address' }, zip_code: { he: 'מיקוד', en: 'Zip' },
   state: { he: 'מחוז', en: 'State' }, country: { he: 'מדינה', en: 'Country' }, company_name: { he: 'חברה', en: 'Company' },
   job_title: { he: 'תפקיד', en: 'Job title' }, date_of_birth: { he: 'תאריך לידה', en: 'Date of birth' }, gender: { he: 'מגדר', en: 'Gender' },
+  rooms: { he: 'חדרים', en: 'Rooms' }, budget: { he: 'תקציב', en: 'Budget' },
+}
+// The office's lead forms answer with short option codes ("3r", "b34", "ph") — shown as words
+export function prettyAnswerValue(v, lang = 'he') {
+  const s = String(v ?? '').trim(), en = lang === 'en'
+  let m
+  if ((m = s.match(/^(\d+)\s*r$/i))) return en ? `${m[1]} rooms` : `${m[1]} חדרים`
+  if ((m = s.match(/^b(\d)(\d)$/i))) return en ? `₪${m[1]}–${m[2]}M` : `${m[1]}–${m[2]} מיליון`
+  if ((m = s.match(/^b(\d+)$/i))) return en ? `₪${m[1]}M+` : `${m[1]} מיליון ומעלה`
+  if (/^(ph|penthouse)$/i.test(s)) return en ? 'Penthouse' : 'פנטהאוז'
+  if (/^garden$/i.test(s)) return en ? 'Garden apartment' : 'דירת גן'
+  return s
+}
+// A stored one-line answers text ("rooms: 3r · budget: b34") → "חדרים: 3 חדרים · תקציב: 3–4 מיליון"
+export function prettyLeadText(text, lang = 'he') {
+  return String(text ?? '').replace(/\b(rooms|budget)\s*:\s*([\w+-]+)/gi, (_, k, v) => `${PRETTY[k.toLowerCase()][lang === 'en' ? 'en' : 'he']}: ${prettyAnswerValue(v, lang)}`)
 }
 
 /**
@@ -38,7 +54,7 @@ export function metaFormAnswers(rawFields, lang = 'he') {
     const key = String(f?.name || '').trim()
     if (!key || STANDARD_KEYS.test(key)) continue
     const vals = Array.isArray(f.values) ? f.values : (f.value != null ? [f.value] : [])
-    const a = vals.map(v => String(v ?? '').trim()).filter(Boolean).join(', ')
+    const a = vals.map(v => prettyAnswerValue(v, lang)).filter(Boolean).join(', ')
     if (!a) continue
     const pretty = PRETTY[key.toLowerCase()]
     const q = pretty ? (lang === 'en' ? pretty.en : pretty.he) : key.replace(/_/g, ' ')

@@ -1,5 +1,7 @@
 import { useState, useRef, useCallback, useEffect, useMemo, createContext, useContext } from 'react'
-import { sourceLabel, sourceColor, originLines, leadCampaign, leadCampaignFull } from './lib/leadFields.js'
+import { sourceLabel, sourceColor, originLines, leadCampaign, leadCampaignFull, prettyLeadText } from './lib/leadFields.js'
+import { mergeLeads, mergeConflicts } from './lib/leadMerge.js'
+import LeadsDashboard from './LeadsDashboard.jsx'
 import LeadCard from './LeadCard.jsx'
 import {
   DndContext, closestCenter, closestCorners, useSensor, useSensors,
@@ -600,7 +602,7 @@ function MobileLeadCard({ lead, lang, T, onUpdate, onDelete, onOpenDetail, onSta
       {lead.msg && (
         <div style={{ marginTop: 10, padding: '8px 10px', background: T.bg, borderRadius: 8, border: `1px solid ${T.borderLight}` }}>
           <div style={{ fontSize: 12, color: T.textSub, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.5 }}>
-            {lead.msg}
+            {prettyLeadText(lead.msg, lang)}
           </div>
         </div>
       )}
@@ -720,7 +722,6 @@ function MobileGroupSection({ group, leads, lang, T, onUpdate, onDelete, onOpenD
 function SortableRow({ lead, cols, onUpdate, onDelete, onSelect, isSelected, lang, T, onOpenDetail, onStatusClick, onOpenChat, onEnrich }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: lead.id })
   const [hovered, setHovered] = useState(false)
-  const [checked, setChecked] = useState(false)
 
   const statusColor = getGroupColor(lead.leadStatus || 'new')
   const style = {
@@ -739,6 +740,7 @@ function SortableRow({ lead, cols, onUpdate, onDelete, onSelect, isSelected, lan
   const getCellValue = (col) => {
     switch (col.id) {
       case 'name':       return lead.name || ''
+      case 'msg':        return prettyLeadText(lead.msg || '', lang)
       case 'phone':      return lead.phone || ''
       case 'email':      return lead.email || ''
       case 'leadStatus': return lead.leadStatus || 'new'
@@ -747,7 +749,6 @@ function SortableRow({ lead, cols, onUpdate, onDelete, onSelect, isSelected, lan
       case 'source':     return lead.source || (String(lead.id).startsWith('meta_') ? 'meta' : 'website')
       case 'intent':     return lead.enrichment?.intent || ''
       case 'date':       return fmtDate(lead.ts)
-      case 'msg':        return lead.msg || ''
       default:           return lead[col.id] || lead.customData?.[col.id] || ''
     }
   }
@@ -821,16 +822,14 @@ function SortableRow({ lead, cols, onUpdate, onDelete, onSelect, isSelected, lan
   return (
     <div ref={setNodeRef} style={style}
       onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
-      {/* Drag handle + checkbox */}
-      <div style={{ width: 32, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, borderRight: `1px solid ${T.borderLight}`, position: 'sticky', left: 0, zIndex: 3, background: hovered ? T.bgRowHover : T.bgRow, transition: 'background .1s' }}>
-        {hovered ? (
-          <div {...listeners} {...attributes} style={{ cursor: 'grab', color: T.textDim, display: 'flex', alignItems: 'center' }}>
-            <GripVertical size={14} />
-          </div>
-        ) : (
-          <input type="checkbox" checked={checked} onChange={e => { setChecked(e.target.checked); onSelect(lead.id, e.target.checked) }}
-            style={{ cursor: 'pointer', accentColor: '#0073EA', width: 14, height: 14 }} />
-        )}
+      {/* Checkbox (always there, so a row can be picked) + drag handle on hover */}
+      <div style={{ width: 44, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, borderRight: `1px solid ${T.borderLight}`, position: 'sticky', left: 0, zIndex: 3, background: isSelected ? (T.bg === '#111827' ? '#16233C' : '#EAF2FE') : hovered ? T.bgRowHover : T.bgRow, transition: 'background .1s' }}>
+        <div {...listeners} {...attributes} aria-label={lang === 'en' ? 'Drag' : 'גרור'} style={{ cursor: 'grab', color: T.textDim, display: 'flex', alignItems: 'center', visibility: hovered ? 'visible' : 'hidden' }}>
+          <GripVertical size={13} />
+        </div>
+        <input type="checkbox" checked={!!isSelected} onChange={e => onSelect(lead.id, e.target.checked)} onClick={e => e.stopPropagation()}
+          aria-label={(lang === 'en' ? 'Select ' : 'בחר את ') + (lead.name || '')}
+          style={{ cursor: 'pointer', accentColor: '#0073EA', width: 15, height: 15, margin: 0 }} />
       </div>
 
       {cols.map(col => renderCell(col))}
@@ -877,7 +876,9 @@ function SortableRow({ lead, cols, onUpdate, onDelete, onSelect, isSelected, lan
 
 // ─── desktop board group ──────────────────────────────────────────────────────
 
-function BoardGroup({ group, leads, cols, onUpdate, onUpdateStatus, onDelete, onSelect, lang, T, onOpenDetail, onAddRow, onStatusClick, onOpenChat, onEnrich, onRenameStage }) {
+function BoardGroup({ group, leads, cols, onUpdate, onUpdateStatus, onDelete, onSelect, selectedIds, onSelectMany, lang, T, onOpenDetail, onAddRow, onStatusClick, onOpenChat, onEnrich, onRenameStage }) {
+  const selCount = selectedIds ? leads.filter(l => selectedIds.has(l.id)).length : 0
+  const allSel = leads.length > 0 && selCount === leads.length
   const [collapsed, setCollapsed] = useState(!!group.collapsedByDefault)
   const [adding, setAdding] = useState(false)
   const [newName, setNewName] = useState('')
@@ -895,6 +896,12 @@ function BoardGroup({ group, leads, cols, onUpdate, onUpdateStatus, onDelete, on
     <div>
       <div style={{ display: 'flex', alignItems: 'center', padding: '5px 10px 5px 0', borderBottom: `2px solid ${color}22`, userSelect: 'none', background: `linear-gradient(90deg, ${color}12 0%, ${T.bgGroup} 60%)`, position: 'sticky', top: 36, zIndex: 4 }}>
         <div style={{ width: 5, alignSelf: 'stretch', background: color, borderRadius: '0 4px 4px 0', marginRight: 10, flexShrink: 0, minHeight: 28 }} />
+        {onSelectMany && leads.length > 0 && (
+          <input type="checkbox" checked={allSel} ref={el => { if (el) el.indeterminate = selCount > 0 && !allSel }}
+            onChange={e => onSelectMany(leads.map(l => l.id), e.target.checked)}
+            aria-label={(lang === 'en' ? 'Select all in ' : 'בחר את כל ') + label}
+            style={{ cursor: 'pointer', accentColor: color, width: 15, height: 15, margin: '0 4px 0 8px' }} />
+        )}
         <button onClick={() => setCollapsed(v => !v)} style={{ background: 'none', border: 'none', cursor: 'pointer', color, display: 'flex', alignItems: 'center', padding: '0 4px 0 0' }}>
           <ChevronDown size={14} style={{ transform: collapsed ? 'rotate(-90deg)' : 'none', transition: 'transform .2s' }} />
         </button>
@@ -907,7 +914,7 @@ function BoardGroup({ group, leads, cols, onUpdate, onUpdateStatus, onDelete, on
         <SortableContext items={leads.map(l => l.id)} strategy={verticalListSortingStrategy}>
           {leads.map(lead => (
             <SortableRow key={lead.id} lead={lead} cols={cols} T={T} lang={lang}
-              onUpdate={onUpdate} onDelete={onDelete} onSelect={onSelect}
+              onUpdate={onUpdate} onDelete={onDelete} onSelect={onSelect} isSelected={selectedIds?.has(lead.id)}
               onOpenDetail={onOpenDetail} onStatusClick={onStatusClick} onOpenChat={onOpenChat} onEnrich={onEnrich} />
           ))}
         </SortableContext>
@@ -940,7 +947,7 @@ function BoardGroup({ group, leads, cols, onUpdate, onUpdateStatus, onDelete, on
 
       {!collapsed && leads.length > 0 && (
         <div style={{ display: 'flex', alignItems: 'center', padding: '4px 10px 4px 0', borderBottom: `2px solid ${T.border}`, background: T.bgGroup }}>
-          <div style={{ width: 36, flexShrink: 0 }} />
+          <div style={{ width: 48, flexShrink: 0 }} />
           {cols.map(col => (
             <div key={col.id} style={{ width: col.width, flexShrink: 0, padding: '4px 10px', fontSize: 11, color: T.textSub, borderRight: `1px solid ${T.borderLight}` }}>
               {col.id === 'name' ? <span style={{ fontWeight: 700, color: T.textSub }}>{leads.length} {lang === 'en' ? 'items' : 'פריטים'}</span> : ''}
@@ -1300,7 +1307,7 @@ function CallNoteDialog({ lead, T, isDark, lang, onClose, updateLead, updateLead
   )
 }
 
-function KanbanCard({ lead, T, isDark, lang, onOpen, onDelete, onOpenChat, onEnrich }) {
+function KanbanCard({ lead, T, isDark, lang, onOpen, onDelete, onOpenChat, onEnrich, mergeHint }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: lead.id,
     data: { type: 'card', groupId: lead.leadStatus || 'new' },
@@ -1340,12 +1347,18 @@ function KanbanCard({ lead, T, isDark, lang, onOpen, onDelete, onOpenChat, onEnr
             : '0 2px 8px rgba(20,30,80,.08)',
         direction: 'rtl',
         borderRight: `3px solid ${color}`,
+        ...(mergeHint ? { outline: '2px dashed #0073EA', outlineOffset: 3, background: isDark ? '#16233C' : '#EAF2FE' } : {}),
         userSelect: 'none',
         touchAction: 'none',
         willChange: 'transform',
       }}
       {...attributes} {...listeners}>
 
+      {mergeHint && (
+        <div role="status" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 9, padding: '6px 8px', borderRadius: 8, background: '#0073EA', color: '#fff', fontSize: 12, fontWeight: 800 }}>
+          <Link2 size={12}/> {lang === 'en' ? 'Release to merge' : 'שחרר כדי למזג'}
+        </div>
+      )}
       {/* Avatar + name */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 9 }}>
         <div style={{
@@ -1380,7 +1393,7 @@ function KanbanCard({ lead, T, isDark, lang, onOpen, onDelete, onOpenChat, onEnr
       )}
       {lead.msg && !lead.propTitle && (
         <div style={{ fontSize: 11, color: T.textSub, marginBottom: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {lead.msg}
+          {prettyLeadText(lead.msg, lang)}
         </div>
       )}
 
@@ -1445,7 +1458,7 @@ function KanbanCard({ lead, T, isDark, lang, onOpen, onDelete, onOpenChat, onEnr
 
 // ─── kanban column ────────────────────────────────────────────────────────────
 
-function KanbanColumn({ group, leads, T, isDark, lang, onOpen, onDelete, onOpenChat, onEnrich, onAddRow, onRenameStage, collapsed, onToggle }) {
+function KanbanColumn({ group, leads, T, isDark, lang, onOpen, onDelete, onOpenChat, onEnrich, onAddRow, onRenameStage, collapsed, onToggle, mergeTargetId }) {
   const { setNodeRef, isOver } = useDroppable({
     id: group.id,
     data: { type: 'column', groupId: group.id },
@@ -1513,10 +1526,11 @@ function KanbanColumn({ group, leads, T, isDark, lang, onOpen, onDelete, onOpenC
 
       {/* Scrollable cards area */}
       <div ref={setNodeRef} className="kanban-col-scroll" style={{ flex: 1, padding: '10px 10px 6px', minHeight: 80, direction: 'rtl' }}>
-        <SortableContext items={leads.map(l => l.id)} strategy={verticalListSortingStrategy}>
+        {/* No shuffling while dragging: the order inside a column isn't saved, and a still target lets a card be held on another to merge */}
+        <SortableContext items={leads.map(l => l.id)} strategy={NO_SHIFT}>
           {leads.map(lead => (
             <KanbanCard key={lead.id} lead={lead} T={T} isDark={isDark} lang={lang}
-              onOpen={onOpen} onDelete={onDelete} onOpenChat={onOpenChat} onEnrich={onEnrich} />
+              onOpen={onOpen} onDelete={onDelete} onOpenChat={onOpenChat} onEnrich={onEnrich} mergeHint={mergeTargetId === lead.id} />
           ))}
         </SortableContext>
 
@@ -1560,8 +1574,22 @@ function useCollapsedStages() {
   return [isCollapsed, toggle]
 }
 
-function KanbanBoard({ leads, T, isDark, lang, updateLead, updateLeadStatus, onAddRow, onOpen, onDelete, onOpenChat, onEnrich, showToast, onRenameStage }) {
+const NO_SHIFT = () => null
+const MERGE_DWELL_MS = 650
+
+function KanbanBoard({ leads, T, isDark, lang, updateLead, updateLeadStatus, onAddRow, onOpen, onDelete, onOpenChat, onEnrich, showToast, onRenameStage, onMergeRequest }) {
   const [activeId, setActiveId] = useState(null)
+  // Holding a dragged card on another card for a moment arms a merge; moving away disarms it
+  const [mergeTargetId, setMergeTargetId] = useState(null)
+  const dwell = useRef({ id: null, timer: null })
+  const clearDwell = () => { clearTimeout(dwell.current.timer); dwell.current = { id: null, timer: null }; setMergeTargetId(null) }
+  const handleDragOver = ({ active, over }) => {
+    const overCard = over && over.data?.current?.type === 'card' && over.id !== active.id ? over.id : null
+    if (overCard === dwell.current.id) return
+    clearDwell()
+    if (overCard && onMergeRequest) dwell.current = { id: overCard, timer: setTimeout(() => setMergeTargetId(overCard), MERGE_DWELL_MS) }
+  }
+  useEffect(() => () => clearTimeout(dwell.current.timer), [])
   const [isCollapsed, toggleCollapsed] = useCollapsedStages()
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
@@ -1585,6 +1613,13 @@ function KanbanBoard({ leads, T, isDark, lang, updateLead, updateLeadStatus, onA
 
   const handleDragEnd = ({ active, over }) => {
     setActiveId(null)
+    const armed = mergeTargetId
+    clearDwell()
+    if (armed && over && over.id === armed) {
+      const a = leads.find(l => l.id === active.id), b = leads.find(l => l.id === armed)
+      if (a && b) onMergeRequest(a, b)
+      return
+    }
     if (!over || active.id === over.id) return
 
     const fromGroup = findGroupForLead(active.id)
@@ -1607,6 +1642,8 @@ function KanbanBoard({ leads, T, isDark, lang, updateLead, updateLeadStatus, onA
       sensors={sensors}
       collisionDetection={closestCorners}
       onDragStart={({ active }) => setActiveId(active.id)}
+      onDragOver={handleDragOver}
+      onDragCancel={() => { setActiveId(null); clearDwell() }}
       onDragEnd={handleDragEnd}>
 
       {/* RTL horizontal scroll — first column (ליד חדש) is on the RIGHT */}
@@ -1633,6 +1670,7 @@ function KanbanBoard({ leads, T, isDark, lang, updateLead, updateLeadStatus, onA
             onRenameStage={onRenameStage}
             collapsed={isCollapsed(group)}
             onToggle={() => toggleCollapsed(group)}
+            mergeTargetId={mergeTargetId}
           />
         ))}
       </div>
@@ -1797,18 +1835,105 @@ function AddColumnModal({ onClose, onAdd, T, lang }) {
 
 // ─── bulk action bar ──────────────────────────────────────────────────────────
 
-function BulkActionBar({ count, onClearSelection, onDelete, lang, T }) {
+function BulkActionBar({ count, total, onClearSelection, onSelectAll, onDelete, onMove, onMerge, lang, T }) {
+  const [confirmDel, setConfirmDel] = useState(false)
+  const [moveOpen, setMoveOpen] = useState(false)
+  useEffect(() => { setConfirmDel(false) }, [count])
   if (count === 0) return null
+  const en = lang === 'en'
+  const btn = { background: 'rgba(255,255,255,.14)', border: '1px solid rgba(255,255,255,.22)', borderRadius: 9, color: '#fff', cursor: 'pointer', padding: '7px 12px', fontSize: 12.5, fontWeight: 700, fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }
   return (
-    <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', background: '#0073EA', borderRadius: 14, padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 16, boxShadow: '0 8px 32px rgba(0,115,234,.5)', zIndex: 500, direction: lang === 'en' ? 'ltr' : 'rtl', whiteSpace: 'nowrap' }}>
-      <span style={{ color: '#fff', fontSize: 13, fontWeight: 700 }}>{count} {lang === 'en' ? 'selected' : 'נבחרו'}</span>
-      <div style={{ width: 1, height: 20, background: 'rgba(255,255,255,.3)' }} />
-      <button onClick={onDelete} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600, fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5 }}>
-        <Trash2 size={14} /> {lang === 'en' ? 'Delete' : 'מחק'}
+    <div role="toolbar" aria-label={en ? 'Bulk actions' : 'פעולות על הנבחרים'} style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', background: '#1E2A44', border: '1px solid #2F3D5E', borderRadius: 16, padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 16px 48px rgba(0,0,0,.45)', zIndex: 700, direction: en ? 'ltr' : 'rtl', maxWidth: 'calc(100vw - 24px)', flexWrap: 'wrap', justifyContent: 'center' }}>
+      <span style={{ background: '#0073EA', color: '#fff', borderRadius: 20, padding: '4px 11px', fontSize: 13, fontWeight: 800 }}>{count}</span>
+      <span style={{ color: '#fff', fontSize: 13, fontWeight: 700, marginInlineEnd: 4 }}>{en ? 'selected' : 'נבחרו'}</span>
+      {count < total && <button type="button" onClick={onSelectAll} style={{ ...btn, background: 'none', border: 'none', textDecoration: 'underline', padding: '7px 6px' }}>{en ? `Select all ${total}` : `בחר את כל ה-${total}`}</button>}
+      <div style={{ position: 'relative' }}>
+        <button type="button" onClick={() => setMoveOpen(v => !v)} aria-expanded={moveOpen} style={btn}><Layers size={13}/> {en ? 'Move to stage' : 'העבר לשלב'}</button>
+        {moveOpen && (
+          <div role="menu" style={{ position: 'absolute', bottom: 'calc(100% + 8px)', insetInlineStart: 0, background: T.bgHeader, border: `1px solid ${T.border}`, borderRadius: 12, padding: 6, boxShadow: T.shadow, minWidth: 170 }}>
+            {GROUPS.map(g => (
+              <button key={g.id} role="menuitem" type="button" onClick={() => { setMoveOpen(false); onMove(g.id) }}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 10px', background: 'none', border: 'none', borderRadius: 8, cursor: 'pointer', color: T.text, fontSize: 13, fontFamily: 'inherit', textAlign: 'start' }}
+                onMouseEnter={e => { e.currentTarget.style.background = T.bgRowHover }} onMouseLeave={e => { e.currentTarget.style.background = 'none' }}>
+                <span style={{ width: 9, height: 9, borderRadius: '50%', background: g.color }}/>{en ? g.en : g.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      {count === 2 && onMerge && <button type="button" onClick={onMerge} style={btn}><Link2 size={13}/> {en ? 'Merge' : 'מזג'}</button>}
+      {confirmDel
+        ? <button type="button" onClick={() => { setConfirmDel(false); onDelete() }} style={{ ...btn, background: '#E2445C', borderColor: '#E2445C' }}><Trash2 size={13}/> {en ? `Delete ${count}?` : `למחוק ${count}?`}</button>
+        : <button type="button" onClick={() => setConfirmDel(true)} style={{ ...btn, color: '#FFB3BD' }}><Trash2 size={13}/> {en ? 'Delete' : 'מחק'}</button>}
+      <button type="button" onClick={onClearSelection} aria-label={en ? 'Clear selection' : 'נקה בחירה'} style={{ ...btn, background: 'none', border: 'none', padding: 7 }}><X size={15}/></button>
+    </div>
+  )
+}
+
+// ─── merge two leads ──────────────────────────────────────────────────────────
+
+function MergeDialog({ leads: pair, onClose, onMerge, lang, T, isDark }) {
+  const en = lang === 'en'
+  const [keepIdx, setKeepIdx] = useState(0)
+  const keep = pair[keepIdx], other = pair[1 - keepIdx]
+  const conflicts = mergeConflicts(keep, other)
+  const [choose, setChoose] = useState({})
+  useEffect(() => { setChoose({}) }, [keepIdx])
+  useEffect(() => { const k = e => { if (e.key === 'Escape') onClose() }; document.addEventListener('keydown', k); return () => document.removeEventListener('keydown', k) }, [onClose])
+  const F = { name: en ? 'Name' : 'שם', phone: en ? 'Phone' : 'טלפון', email: en ? 'Email' : 'אימייל' }
+  const notesCount = l => (Array.isArray(l.notes) ? l.notes.length : l.notes ? 1 : 0)
+  const card = (l, i) => {
+    const on = i === keepIdx, camp = leadCampaign(l, lang)
+    return (
+      <button key={l.id} type="button" onClick={() => setKeepIdx(i)} aria-pressed={on}
+        style={{ flex: 1, minWidth: 0, textAlign: 'start', padding: 14, borderRadius: 14, cursor: 'pointer', fontFamily: 'inherit', background: on ? '#0073EA14' : (isDark ? '#141C2C' : '#F6F7FC'), border: `2px solid ${on ? '#0073EA' : (isDark ? '#2A3347' : '#E1E5F5')}`, color: T.text }}>
+        <div style={{ fontSize: 11, fontWeight: 800, color: on ? '#0073EA' : T.textSub, marginBottom: 6 }}>{on ? (en ? '✓ Stays' : '✓ נשאר') : (en ? 'Merged into it' : 'מתמזג לתוכו')}</div>
+        <div style={{ fontSize: 15, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.name || '—'}{camp && <span style={{ fontSize: 12, fontWeight: 500, color: T.textSub, marginInlineStart: 6 }}>(<bdi>{camp}</bdi>)</span>}</div>
+        <div style={{ fontSize: 12.5, color: T.textSub, marginTop: 4, direction: 'ltr', textAlign: en ? 'left' : 'right' }}>{l.phone || '—'}{l.email ? ` · ${l.email}` : ''}</div>
+        <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: getGroupColor(l.leadStatus || 'new'), background: getGroupColor(l.leadStatus || 'new') + '1f', borderRadius: 20, padding: '2px 8px' }}>{getGroupLabel(l.leadStatus || 'new', lang)}</span>
+          <span style={{ fontSize: 11, color: T.textSub }}>{fmtDate(l.ts)}</span>
+          {notesCount(l) > 0 && <span style={{ fontSize: 11, color: T.textSub }}>📝 {notesCount(l)}</span>}
+        </div>
       </button>
-      <button onClick={onClearSelection} style={{ background: 'rgba(255,255,255,.2)', border: 'none', borderRadius: 8, color: '#fff', cursor: 'pointer', padding: '5px 12px', fontSize: 12, fontFamily: 'inherit' }}>
-        {lang === 'en' ? 'Clear' : 'בטל'}
-      </button>
+    )
+  }
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 950, background: 'rgba(0,0,0,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div role="dialog" aria-modal="true" aria-label={en ? 'Merge leads' : 'מיזוג לידים'} onClick={e => e.stopPropagation()} onPointerDown={e => e.stopPropagation()}
+        style={{ width: '100%', maxWidth: 620, maxHeight: '92vh', overflowY: 'auto', background: isDark ? '#161E2E' : '#FFFFFF', border: `1px solid ${isDark ? '#2A3347' : '#D8DCF0'}`, borderRadius: 18, boxShadow: '0 24px 64px rgba(0,0,0,.45)', direction: en ? 'ltr' : 'rtl', padding: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+          <span style={{ width: 34, height: 34, borderRadius: 10, background: '#0073EA1f', color: '#0073EA', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}><Link2 size={16}/></span>
+          <div style={{ flex: 1, fontSize: 16, fontWeight: 800, color: T.text }}>{en ? 'Merge two leads' : 'מיזוג שני לידים'}</div>
+          <button type="button" onClick={onClose} aria-label={en ? 'Close' : 'סגור'} style={{ background: 'none', border: 'none', color: T.textSub, cursor: 'pointer', padding: 4 }}><X size={18}/></button>
+        </div>
+        <p style={{ margin: '0 0 14px', fontSize: 13, color: T.textSub, lineHeight: 1.6 }}>
+          {en ? 'Pick the lead that stays. Everything from the other one — notes, tasks, tags, form answers, stage history and its message — is added to it, and the other card moves to the trash.'
+              : 'בחרו איזה כרטיס נשאר. כל מה שיש בכרטיס השני — הערות, משימות, תגיות, תשובות לטופס, היסטוריית שלבים וההודעה — יתווסף אליו, והכרטיס השני יעבור לסל המחזור.'}
+        </p>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>{pair.map(card)}</div>
+        {conflicts.length > 0 && (
+          <div style={{ marginTop: 16 }}>
+            <div style={{ fontSize: 12.5, fontWeight: 800, color: T.text, marginBottom: 8 }}>{en ? 'Different details — which to keep?' : 'פרטים שונים — מה לשמור?'}</div>
+            {conflicts.map(k => (
+              <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+                <span style={{ width: 56, fontSize: 12, fontWeight: 700, color: T.textSub }}>{F[k]}</span>
+                {[['keep', keep[k]], ['other', other[k]]].map(([w, v]) => {
+                  const on = (choose[k] || 'keep') === w
+                  return <button key={w} type="button" aria-pressed={on} onClick={() => setChoose(c => ({ ...c, [k]: w }))}
+                    style={{ padding: '6px 12px', borderRadius: 20, border: `1.5px solid ${on ? '#0073EA' : (isDark ? '#2A3347' : '#D8DCF0')}`, background: on ? '#0073EA1a' : 'transparent', color: on ? '#0073EA' : T.text, fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', direction: k === 'name' ? undefined : 'ltr' }}>{String(v)}</button>
+                })}
+              </div>
+            ))}
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
+          <button type="button" onClick={() => onMerge(keep, other, choose)} style={{ flex: 1, padding: '12px 0', borderRadius: 11, border: 'none', background: 'linear-gradient(135deg,#0073EA,#0060CC)', color: '#fff', fontSize: 14, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+            {en ? `Merge into “${keep.name || '—'}”` : `מזג לתוך "${keep.name || '—'}"`}
+          </button>
+          <button type="button" onClick={onClose} style={{ padding: '12px 18px', borderRadius: 11, border: `1px solid ${isDark ? '#2A3347' : '#D8DCF0'}`, background: 'none', color: T.textSub, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}>{en ? 'Cancel' : 'ביטול'}</button>
+        </div>
+      </div>
     </div>
   )
 }
@@ -1947,9 +2072,10 @@ function LeadsBoardMain({
       (l.name || '').toLowerCase().includes(q) ||
       (l.phone || '').includes(q) ||
       (l.email || '').toLowerCase().includes(q) ||
-      (l.propTitle || '').toLowerCase().includes(q)
+      (l.propTitle || '').toLowerCase().includes(q) ||
+      leadCampaignFull(l, lang).toLowerCase().includes(q)
     )
-  }, [leads, search])
+  }, [leads, search, lang])
 
   const grouped = useMemo(() => {
     const map = {}
@@ -1999,14 +2125,35 @@ function LeadsBoardMain({
     showToast(lang === 'en' ? 'Lead deleted' : 'ליד נמחק')
   }
 
+  // The bar asks for the confirmation itself; deleted leads go to the trash ("אשפה") and can be restored
   const handleBulkDelete = () => {
-    if (!window.confirm(`${lang === 'en' ? 'Delete' : 'מחוק'} ${selectedIds.size} ${lang === 'en' ? 'leads?' : 'לידים?'}`)) return
+    const n = selectedIds.size
     selectedIds.forEach(id => deleteLead(id))
     setSelectedIds(new Set())
-    showToast(lang === 'en' ? 'Leads deleted' : 'לידים נמחקו')
+    showToast(lang === 'en' ? `${n} leads moved to the trash` : `${n} לידים הועברו לאשפה`)
+  }
+  const handleBulkMove = stage => {
+    let n = 0
+    selectedIds.forEach(id => { const l = leads.find(x => x.id === id); if (l && (l.leadStatus || 'new') !== stage) { updateLeadStatus(l, stage); n++ } })
+    setSelectedIds(new Set())
+    showToast(lang === 'en' ? `${n} leads moved to ${getGroupLabel(stage, lang)}` : `${n} לידים הועברו ל${getGroupLabel(stage, lang)}`)
+  }
+  // Merge: from two selected rows, or by holding a dragged card on another card in the pipeline
+  const [mergePair, setMergePair] = useState(null)
+  const openMerge = (a, b) => { if (a && b && a.id !== b.id) setMergePair([b, a]) }   // the card dropped onto stays by default
+  const doMerge = (keep, other, choose) => {
+    const { patch, removeId } = mergeLeads(keep, other, { choose, lang })
+    Promise.resolve(updateLead(keep.id, patch)).then(r => {
+      if (r === null) { showToast(lang === 'en' ? 'Merge failed (no connection) — nothing was deleted' : 'המיזוג נכשל (אין חיבור) — לא נמחק דבר'); return }
+      deleteLead(removeId)
+      setSelectedIds(prev => { const x = new Set(prev); x.delete(removeId); x.delete(keep.id); return x })
+      showToast(lang === 'en' ? `Merged into ${keep.name || ''}` : `מוזג לתוך ${keep.name || ''}`)
+    })
+    setMergePair(null)
   }
 
   const handleSelect = (id, checked) => setSelectedIds(prev => { const s = new Set(prev); checked ? s.add(id) : s.delete(id); return s })
+  const handleSelectMany = (ids, checked) => setSelectedIds(prev => { const s = new Set(prev); ids.forEach(id => (checked ? s.add(id) : s.delete(id))); return s })
   const handleAddCol = col => { const next = [...extraCols, col]; setExtraCols(next); if (setCustomCols) setCustomCols(next); showToast(lang === 'en' ? 'Column added' : 'עמודה נוספה') }
   const toggleColVisibility = id => setHiddenCols(prev => ({ ...prev, [id]: !prev[id] }))
   const hiddenCount = Object.values(hiddenCols).filter(Boolean).length
@@ -2055,6 +2202,10 @@ function LeadsBoardMain({
 
           {/* Mobile tab strip */}
           <div style={{ display: 'flex', gap: 4, overflowX: 'auto', paddingBottom: 2 }}>
+            <button onClick={() => setActiveTab(activeTab === 'dashboard' ? 'all' : 'dashboard')} aria-pressed={activeTab === 'dashboard'}
+              style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 20, border: `1px solid ${activeTab === 'dashboard' ? T.accent : T.border}`, background: activeTab === 'dashboard' ? T.accent + '1A' : 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 700, color: activeTab === 'dashboard' ? T.accent : T.textSub, whiteSpace: 'nowrap' }}>
+              📊 {lang === 'en' ? 'Overview' : 'תמונת מצב'}
+            </button>
             {GROUPS.map(g => {
               const cnt = (grouped[g.id] || []).length
               const isActive = activeTab === g.id
@@ -2074,8 +2225,14 @@ function LeadsBoardMain({
           <MobileStatsBar leads={leads} T={T} lang={lang} />
         </div>
 
+        {activeTab === 'dashboard' && (
+          <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
+            <LeadsDashboard leads={filtered} stages={GROUPS} T={T} isDark={isDark} lang={lang} onOpen={setDetailLead} onOpenChat={onOpenChat} />
+          </div>
+        )}
+
         {/* ── Lead cards ── */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '14px 12px', WebkitOverflowScrolling: 'touch' }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '14px 12px', WebkitOverflowScrolling: 'touch', display: activeTab === 'dashboard' ? 'none' : undefined }}>
           {leads.length === 0 && (
             <div style={{ textAlign: 'center', padding: '60px 24px', color: T.textSub }}>
               <div style={{ fontSize: 52, marginBottom: 16 }}>📋</div>
@@ -2184,6 +2341,7 @@ function LeadsBoardMain({
 
         <div style={{ display: 'flex', alignItems: 'center', overflowX: 'auto', borderTop: `1px solid ${T.borderLight}`, marginTop: 6, justifyContent: 'flex-start' }}>
           {[
+            { id: 'dashboard', icon: '📊', label: lang === 'en' ? 'Overview' : 'תמונת מצב' },
             { id: 'pipeline', icon: '⬛', label: 'Pipeline' },
             { id: 'table',    icon: '☰',  label: lang === 'en' ? 'Table' : 'טבלה' },
           ].map(tb => (
@@ -2286,6 +2444,13 @@ function LeadsBoardMain({
         )}
       </div>
 
+      {/* ── Overview: funnel + stage drill-down ── */}
+      {activeTab === 'dashboard' && (
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+          <LeadsDashboard leads={filtered} stages={GROUPS} T={T} isDark={isDark} lang={lang} onOpen={setDetailLead} onOpenChat={onOpenChat} />
+        </div>
+      )}
+
       {/* ── Pipeline (Kanban) view ── */}
       {activeTab === 'pipeline' && (
         <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
@@ -2301,6 +2466,7 @@ function LeadsBoardMain({
             onEnrich={enrichLead}
             showToast={showToast}
             onRenameStage={onRenameStage}
+            onMergeRequest={openMerge}
           />
         </div>
       )}
@@ -2312,12 +2478,12 @@ function LeadsBoardMain({
             <div style={{ minWidth: tableMinWidth, width: '100%' }}>
               {/* Column headers */}
               <div style={{ display: 'flex', alignItems: 'center', background: T.bgHeader, borderBottom: `2px solid ${T.border}`, position: 'sticky', top: 0, zIndex: 10, height: 36, boxShadow: '0 2px 8px rgba(0,0,0,.06)' }}>
-                <div style={{ width: 32, flexShrink: 0, borderRight: `1px solid ${T.border}`, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'sticky', left: 0, background: T.bgHeader, zIndex: 5 }}>
-                  <input type="checkbox" style={{ accentColor: T.accent, width: 14, height: 14 }}
-                    onChange={e => {
-                      if (e.target.checked) setSelectedIds(new Set(filtered.map(l => l.id)))
-                      else setSelectedIds(new Set())
-                    }} />
+                <div style={{ width: 44, flexShrink: 0, borderRight: `1px solid ${T.border}`, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'sticky', left: 0, background: T.bgHeader, zIndex: 5 }}>
+                  <input type="checkbox" style={{ accentColor: T.accent, width: 15, height: 15, cursor: 'pointer' }}
+                    aria-label={lang === 'en' ? 'Select all' : 'בחר הכול'}
+                    checked={filtered.length > 0 && selectedIds.size >= filtered.length && filtered.every(l => selectedIds.has(l.id))}
+                    ref={el => { if (el) el.indeterminate = selectedIds.size > 0 && !filtered.every(l => selectedIds.has(l.id)) }}
+                    onChange={e => setSelectedIds(e.target.checked ? new Set(filtered.map(l => l.id)) : new Set())} />
                 </div>
                 {allColsResized.map(col => (
                   <div key={col.id} style={{ width: col.width, flexShrink: 0, padding: '0 10px', fontSize: 11, fontWeight: 700, color: T.textSub, textTransform: 'uppercase', letterSpacing: '.05em', borderRight: `1px solid ${T.borderLight}`, height: '100%', display: 'flex', alignItems: 'center', userSelect: 'none', cursor: 'pointer', transition: 'color .15s, background .15s', whiteSpace: 'nowrap', overflow: 'hidden', position: 'relative', ...(col.pinned ? { position: 'sticky', left: 32, zIndex: 4, background: T.bgHeader } : {}) }}
@@ -2364,7 +2530,7 @@ function LeadsBoardMain({
                   <BoardGroup key={group.id} group={group} leads={groupLeads} cols={allColsResized}
                     T={T} lang={lang}
                     onUpdate={updateLead} onUpdateStatus={updateLeadStatus}
-                    onDelete={handleDelete} onSelect={handleSelect}
+                    onDelete={handleDelete} onSelect={handleSelect} selectedIds={selectedIds} onSelectMany={handleSelectMany}
                     onOpenDetail={setDetailLead} onAddRow={handleAddRow}
                     onOpenChat={onOpenChat} onEnrich={enrichLead}
                     onStatusClick={(e, lead) => setStatusTarget(lead)} onRenameStage={onRenameStage} />
@@ -2398,7 +2564,9 @@ function LeadsBoardMain({
 
       {statusTarget && <StatusPopup lead={statusTarget} onClose={() => setStatusTarget(null)} onUpdate={updateLeadStatus} lang={lang} T={T} />}
       {detailLead && <LeadCard key={detailLead.id} lead={leads.find(l => l.id === detailLead.id) || detailLead} onClose={() => setDetailLead(null)} onUpdate={updateLead} onUpdateStatus={updateLeadStatus} onEnrich={enrichLead} onOpenChat={onOpenChat} lang={lang} stages={GROUPS} />}
-      {selectedIds.size > 0 && <BulkActionBar count={selectedIds.size} lang={lang} T={T} onClearSelection={() => setSelectedIds(new Set())} onDelete={handleBulkDelete} onMove={() => {}} />}
+      {selectedIds.size > 0 && <BulkActionBar count={selectedIds.size} total={filtered.length} lang={lang} T={T} onClearSelection={() => setSelectedIds(new Set())} onSelectAll={() => setSelectedIds(new Set(filtered.map(l => l.id)))} onDelete={handleBulkDelete} onMove={handleBulkMove}
+        onMerge={() => { const [a, b] = [...selectedIds].map(id => leads.find(l => l.id === id)); if (a && b) setMergePair([a, b]) }} />}
+      {mergePair && <MergeDialog leads={mergePair} lang={lang} T={T} isDark={isDark} onClose={() => setMergePair(null)} onMerge={doMerge} />}
       {toast && <Toast message={toast} onDismiss={() => setToast(null)} />}
 
       {/* ── Trash Modal ── */}
