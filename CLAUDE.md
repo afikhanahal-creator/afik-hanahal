@@ -179,7 +179,12 @@ approval queue grouped by kind (missed welcome first, "send all N" per group, st
 template dropdown above every message (the item's category first, the whole library below — rendered for that lead in the
 browser with `renderTemplate`), "נוסח אחר" (next template of the same category), "ערוך הודעה" (free edit), "שחזר נוסח"; the
 group header has "נוסח לכל הקבוצה…". The send carries the chosen `templateId`. The built-in library has 35 bilingual templates
-(welcome / late-welcome / investor / scheduling variants, follow-ups, visits, after-call, nurture, re-engagement).
+(welcome / late-welcome / investor / scheduling variants, follow-ups, visits, after-call, nurture, re-engagement), written for
+a real-estate audience: "שלום {name}," openings, courteous and gender-neutral wording, no childish emoji, one signature line
+(`{agent}`) — a test fails if 👋 🙂 🙌 🎉 🙏 🔥 come back. **Names:** a Hebrew message writes an English first name in Hebrew
+(`lib/hebrew-names.js` `hebrewFirstName`, a list of ~450 Israeli names; "Ronen" → "רונן"); an unknown Latin name is left out
+("שלום,") rather than guessed. `renderTemplate` closes the gap an empty placeholder leaves ("שלום ," → "שלום,"). The Lead Center's
+quick replies use the same rules and the campaign's short name.
 Probe actions `wa` / `wa-send` check the chat page's own calls (`wa-send` texts the office number).
 
 Scheduled bulk sends are jobs in `app_settings` (`automations_jobs`), rendered at send time, max 20 messages per run;
