@@ -3,14 +3,14 @@
 // Every change saves on its own (onUpdate → PATCH /api/contacts → crm_data).
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { FaTimes, FaPhone, FaWhatsapp, FaEnvelope, FaMagic, FaUser, FaStickyNote, FaTasks, FaChartPie, FaCheck, FaTrash, FaCopy, FaPlus, FaClock, FaBullseye, FaExclamationTriangle, FaLightbulb, FaQuestionCircle, FaComments, FaShieldAlt, FaSyncAlt, FaMapMarkerAlt, FaBuilding, FaCalendarAlt, FaTag, FaFlag, FaArrowUp, FaArrowDown, FaInfoCircle, FaUserCheck, FaExternalLinkAlt, FaSearch, FaHandshake } from 'react-icons/fa'
+import { FaTimes, FaPhone, FaWhatsapp, FaEnvelope, FaMagic, FaUser, FaStickyNote, FaTasks, FaChartPie, FaCheck, FaTrash, FaCopy, FaPlus, FaClock, FaBullseye, FaExclamationTriangle, FaLightbulb, FaQuestionCircle, FaComments, FaShieldAlt, FaSyncAlt, FaMapMarkerAlt, FaBuilding, FaCalendarAlt, FaTag, FaFlag, FaArrowUp, FaArrowDown, FaInfoCircle, FaUserCheck, FaExternalLinkAlt, FaSearch, FaHandshake, FaEdit } from 'react-icons/fa'
 import { T } from './automationsUI.jsx'
-import { sourceLabel, sourceColor, originLines } from './lib/leadFields.js'
+import { sourceLabel, sourceColor, originLines, leadCampaign } from './lib/leadFields.js'
 
 const TR = {
   he: {
     tabs: { details: 'פרטים ועריכה', notes: 'הערות ופעילות', tasks: 'משימות', analysis: 'ניתוח חכם' },
-    call: 'התקשר', wa: 'וואטסאפ', email: 'מייל', analyze: 'נתח ליד', reanalyze: 'נתח מחדש', analyzing: 'מנתח…', close: 'סגירה', saved: 'נשמר', saving: 'שומר…',
+    call: 'התקשר', wa: 'וואטסאפ', email: 'מייל', analyze: 'נתח ליד', reanalyze: 'נתח מחדש', analyzing: 'מנתח…', close: 'סגירה', saved: 'נשמר', saving: 'שומר…', saveFailed: 'השמירה נכשלה — בדקו חיבור ונסו שוב',
     sec: { contact: 'פרטי קשר', need: 'מה הלקוח מחפש', prop: 'הנכס שהתעניין בו', msg: 'ההודעה של הלקוח', manage: 'ניהול הליד', source: 'מקור הליד' },
     f: { name: 'שם מלא', phone: 'טלפון', email: 'אימייל', contactTime: 'זמן נוח ליצירת קשר', dealType: 'סוג עסקה', propertyType: 'סוג נכס', area: 'אזור / יישוב', rooms: 'חדרים', budget: 'תקציב (₪)', timeline: 'לוח זמנים', financing: 'מימון', propTitle: 'נכס', propLocation: 'מיקום הנכס', msg: 'הודעה', priority: 'עדיפות', owner: 'אחראי', followUp: 'מעקב הבא', tags: 'תגיות', tagPh: 'הוסף תגית ו-Enter' },
     opt: {
@@ -20,8 +20,15 @@ const TR = {
       priority: { '': '—', low: 'נמוכה', normal: 'רגילה', high: 'גבוהה', urgent: 'דחופה' },
     },
     campaign: 'קמפיין', form: 'טופס', answers: 'תשובות מהטופס', created: 'נכנס', none: '—',
-    notePh: 'כתבו הערה, סיכום שיחה או מידע חשוב… (Ctrl+Enter לשמירה)', addNote: 'הוסף הערה', noNotes: 'אין עדיין הערות. כל מה שנכתב כאן נשמר על הליד.',
-    activity: 'ציר פעילות', evCreated: 'הליד נכנס למערכת', evAnalyzed: s => `ניתוח: ציון ${s}`, evNote: 'הערה', evFollow: 'מעקב מתוכנן',
+    evCreated: 'הליד נכנס למערכת', evAnalyzed: s => `ניתוח: ציון ${s}`,
+    history: 'היסטוריה', newEntry: 'תיעוד חדש', kinds: { note: 'הערה', call: 'שיחה', meeting: 'פגישה', wa: 'וואטסאפ' },
+    kindPh: { note: 'מה חשוב לזכור על הליד? (Ctrl+Enter לשמירה)', call: 'מה עלה בשיחה — מה מחפש, תקציב, אזור, מה הצעד הבא… (Ctrl+Enter לשמירה)', meeting: 'סיכום הפגישה — מה הוצג, איך הגיב, מה סוכם… (Ctrl+Enter לשמירה)', wa: 'מה נכתב בוואטסאפ / מה סוכם… (Ctrl+Enter לשמירה)' },
+    outcome: 'איך הסתיימה השיחה?', outcomes: { answered: 'דיברנו', no_answer: 'לא ענה', callback: 'ביקש שנחזור', not_relevant: 'לא רלוונטי' },
+    save: 'שמור', cancel: 'ביטול', edit: 'עריכה', del: 'מחיקה', delQ: 'למחוק את הרשומה?', yes: 'כן, למחוק', no: 'לא', edited: 'נערך',
+    draftKept: 'הטיוטה נשמרת אוטומטית', filters: { all: 'הכול', notes: 'הערות ושיחות', system: 'מערכת' },
+    upcoming: 'מעקב מתוכנן', overdueFu: 'מעקב באיחור', dayToday: 'היום', dayYesterday: 'אתמול', emptyHistory: 'עוד אין היסטוריה. כל הערה, שיחה ושינוי שלב יופיעו כאן.',
+    evStage: (a, b) => `שלב: ${a} ← ${b}`, evTaskDone: 'משימה הושלמה', evAuto: { welcome: 'הודעת פתיחה נשלחה בוואטסאפ', noreply: n => `הודעת מעקב ${n} נשלחה בוואטסאפ`, stage: 'הודעת שלב נשלחה בוואטסאפ', reengage: 'הודעת חזרה נשלחה בוואטסאפ', reply: 'מענה אוטומטי נשלח בוואטסאפ', other: 'הודעה אוטומטית נשלחה' },
+    via: 'דרך', moveTo: s => `הליד יעבור לשלב "${s}"`,
     taskPh: 'משימה חדשה (למשל: לשלוח תשריט)', due: 'עד', addTask: 'הוסף', noTasks: 'אין משימות פתוחות', overdue: 'באיחור', today: 'היום', done: 'הושלמו',
     gradeName: { hot: 'חם', warm: 'פושר', cool: 'קריר', cold: 'קר' }, rules: 'ציון כללים', aiAdj: 'תיקון AI', conf: { high: 'ביטחון גבוה', medium: 'ביטחון בינוני', low: 'ביטחון נמוך' },
     noAnalysis: 'עוד לא נותח', noAnalysisSub: 'הניתוח אוסף את כל מה שידוע על הליד – ההודעה, תשובות הטופס, השיחה בוואטסאפ, אוטומציות, פניות חוזרות והנכס שהתעניין בו – ומחשב ציון שקוף עם תדריך לשיחה.',
@@ -37,7 +44,7 @@ const TR = {
   },
   en: {
     tabs: { details: 'Details', notes: 'Notes & activity', tasks: 'Tasks', analysis: 'Smart analysis' },
-    call: 'Call', wa: 'WhatsApp', email: 'Email', analyze: 'Analyze lead', reanalyze: 'Re-analyze', analyzing: 'Analyzing…', close: 'Close', saved: 'Saved', saving: 'Saving…',
+    call: 'Call', wa: 'WhatsApp', email: 'Email', analyze: 'Analyze lead', reanalyze: 'Re-analyze', analyzing: 'Analyzing…', close: 'Close', saved: 'Saved', saving: 'Saving…', saveFailed: 'Not saved — check the connection and try again',
     sec: { contact: 'Contact details', need: 'What they are looking for', prop: 'Property of interest', msg: 'Their message', manage: 'Lead management', source: 'Lead source' },
     f: { name: 'Full name', phone: 'Phone', email: 'Email', contactTime: 'Best time to reach', dealType: 'Deal type', propertyType: 'Property type', area: 'Area / town', rooms: 'Rooms', budget: 'Budget (₪)', timeline: 'Timeline', financing: 'Financing', propTitle: 'Property', propLocation: 'Property location', msg: 'Message', priority: 'Priority', owner: 'Owner', followUp: 'Next follow-up', tags: 'Tags', tagPh: 'Add a tag and press Enter' },
     opt: {
@@ -47,8 +54,15 @@ const TR = {
       priority: { '': '—', low: 'Low', normal: 'Normal', high: 'High', urgent: 'Urgent' },
     },
     campaign: 'Campaign', form: 'Form', answers: 'Form answers', created: 'Created', none: '—',
-    notePh: 'Write a note, call summary or anything important… (Ctrl+Enter to save)', addNote: 'Add note', noNotes: 'No notes yet. Everything written here is saved on the lead.',
-    activity: 'Activity', evCreated: 'Lead came in', evAnalyzed: s => `Analysis: score ${s}`, evNote: 'Note', evFollow: 'Follow-up scheduled',
+    evCreated: 'Lead came in', evAnalyzed: s => `Analysis: score ${s}`,
+    history: 'History', newEntry: 'New entry', kinds: { note: 'Note', call: 'Call', meeting: 'Meeting', wa: 'WhatsApp' },
+    kindPh: { note: 'What should we remember about this lead? (Ctrl+Enter saves)', call: 'What came up in the call — what they want, budget, area, next step… (Ctrl+Enter saves)', meeting: 'Meeting summary — what was shown, how they reacted, what was agreed… (Ctrl+Enter saves)', wa: 'What was said on WhatsApp / agreed… (Ctrl+Enter saves)' },
+    outcome: 'How did the call end?', outcomes: { answered: 'We talked', no_answer: 'No answer', callback: 'Call back', not_relevant: 'Not relevant' },
+    save: 'Save', cancel: 'Cancel', edit: 'Edit', del: 'Delete', delQ: 'Delete this entry?', yes: 'Yes, delete', no: 'No', edited: 'edited',
+    draftKept: 'Your draft is kept automatically', filters: { all: 'All', notes: 'Notes & calls', system: 'System' },
+    upcoming: 'Follow-up scheduled', overdueFu: 'Follow-up overdue', dayToday: 'Today', dayYesterday: 'Yesterday', emptyHistory: 'No history yet. Every note, call and stage change shows up here.',
+    evStage: (a, b) => `Stage: ${a} → ${b}`, evTaskDone: 'Task completed', evAuto: { welcome: 'Welcome message sent on WhatsApp', noreply: n => `Follow-up ${n} sent on WhatsApp`, stage: 'Stage message sent on WhatsApp', reengage: 'Re-engagement message sent on WhatsApp', reply: 'Automatic reply sent on WhatsApp', other: 'Automatic message sent' },
+    via: 'via', moveTo: s => `The lead moves to “${s}”`,
     taskPh: 'New task (e.g. send the site plan)', due: 'Due', addTask: 'Add', noTasks: 'No open tasks', overdue: 'Overdue', today: 'Today', done: 'Done',
     gradeName: { hot: 'Hot', warm: 'Warm', cool: 'Cool', cold: 'Cold' }, rules: 'Rule score', aiAdj: 'AI adjustment', conf: { high: 'High confidence', medium: 'Medium confidence', low: 'Low confidence' },
     noAnalysis: 'Not analyzed yet', noAnalysisSub: 'The analysis gathers everything we know – the message, form answers, the WhatsApp conversation, automations, repeat inquiries and the listing – and computes a transparent score with a call briefing.',
@@ -76,6 +90,9 @@ const CSS = `
   select.lc-in{appearance:auto}
   .lc-tab{height:40px;padding:0 14px;border:none;background:none;cursor:pointer;font-family:inherit;font-size:13.5px;font-weight:700;display:inline-flex;align-items:center;gap:7px;border-bottom:2px solid transparent;white-space:nowrap}
   .lc-row:hover{background:rgba(var(--ov),.04)}
+  .lc-hist-act{opacity:.55;transition:opacity .15s}.lc-hist:hover .lc-hist-act,.lc-hist-act:focus-within{opacity:1}
+  .lc-hist-act button:hover{background:rgba(var(--ov),.08)!important;color:var(--au-text)!important}
+  @media (hover:none){.lc-hist-act{opacity:1}}
   .lc-act{height:34px;padding:0 12px;border-radius:9px;display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;text-decoration:none;white-space:nowrap;transition:filter .15s}
   .lc-act:hover{filter:brightness(1.1)}
   @keyframes lc-in{from{opacity:0;transform:translateY(10px) scale(.985)}to{opacity:1;transform:none}}
@@ -112,9 +129,11 @@ function Field({ label, children }) {
 // Text / number / date input that saves on blur (and Enter for single-line)
 function EditInput({ value, onSave, type = 'text', multiline, rows = 3, placeholder, dir }) {
   const [v, setV] = useState(value ?? '')
-  useEffect(() => { setV(value ?? '') }, [value])
-  const commit = () => { const nv = type === 'number' ? (v === '' ? '' : Number(String(v).replace(/[^\d.]/g, ''))) : v; if (String(nv ?? '') !== String(value ?? '')) onSave(nv) }
-  const common = { className: 'lc-in', value: v, placeholder, dir, onChange: e => setV(e.target.value), onBlur: commit }
+  const focused = useRef(false)
+  // a refresh of the lead from the server never overwrites what is being typed right now
+  useEffect(() => { if (!focused.current) setV(value ?? '') }, [value])
+  const commit = () => { focused.current = false; const nv = type === 'number' ? (v === '' ? '' : Number(String(v).replace(/[^\d.]/g, ''))) : v; if (String(nv ?? '') !== String(value ?? '')) onSave(nv) }
+  const common = { className: 'lc-in', value: v, placeholder, dir, onChange: e => setV(e.target.value), onFocus: () => { focused.current = true }, onBlur: commit }
   return multiline
     ? <textarea {...common} rows={rows}/>
     : <input {...common} type={type === 'number' ? 'text' : type} inputMode={type === 'number' ? 'numeric' : undefined} onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }}/>
@@ -162,18 +181,30 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
   const dialogRef = useRef(null)
   const saveTimer = useRef(null)
 
+  // Runs once per open. It used to depend on onClose — a new inline function on every parent render (polls, saves,
+  // syncs) — so it re-ran while typing and pulled the focus out of the note box mid-word.
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
   useEffect(() => {
-    const onKey = e => { if (e.key === 'Escape' && !e.defaultPrevented) onClose() }
+    const onKey = e => {
+      if (e.key !== 'Escape' || e.defaultPrevented) return
+      // Esc inside a text field leaves the field first; a second Esc closes the card
+      const a = document.activeElement
+      if (a && dialogRef.current?.contains(a) && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) { a.blur(); dialogRef.current?.focus(); return }
+      onCloseRef.current()
+    }
     window.addEventListener('keydown', onKey)
     const prev = document.activeElement
     dialogRef.current?.focus()
     return () => { window.removeEventListener('keydown', onKey); prev?.focus?.() }
-  }, [onClose])
+  }, [])
 
+  // → Promise<boolean>: false when the server did not take it (updateLead answers null on a network error)
   const save = patch => {
     setSaveState('saving')
-    Promise.resolve(onUpdate(lead.id, patch)).finally(() => {
-      setSaveState('saved'); clearTimeout(saveTimer.current); saveTimer.current = setTimeout(() => setSaveState(''), 1600)
+    return Promise.resolve(onUpdate(lead.id, patch)).then(r => r !== null && r?.ok !== false, () => false).then(ok => {
+      setSaveState(ok ? 'saved' : 'error'); clearTimeout(saveTimer.current); saveTimer.current = setTimeout(() => setSaveState(''), ok ? 1600 : 6000)
+      return ok
     })
   }
   const set = key => v => save({ [key]: v })
@@ -186,6 +217,8 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
   const tasks = Array.isArray(lead.tasks) ? lead.tasks : []
   const openTasks = tasks.filter(x => !x.done).length
   const src = lead.source || (String(lead.id).startsWith('meta_') ? 'meta' : 'website')
+  const campaign = leadCampaign(lead, lang)
+  const stageName = id => { const g = stages.find(x => x.id === id); return g ? (lang === 'en' ? g.en : g.label) : (id || '') }
 
   const copyMsg = async text => { try { await navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1500) } catch {} }
 
@@ -194,9 +227,12 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
       <span style={{ width: 48, height: 48, borderRadius: '50%', background: avatarBg(lead.name), color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 19, fontWeight: 800, flexShrink: 0, boxShadow: `0 4px 14px ${avatarBg(lead.name)}55` }}>{initials(lead.name)}</span>
       <div style={{ flex: '1 1 220px', minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          <h2 id="lc-title" style={{ margin: 0, fontSize: 19, fontWeight: 800, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lead.name || t.none}</h2>
+          <h2 id="lc-title" style={{ margin: 0, fontSize: 19, fontWeight: 800, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+            {lead.name || t.none}
+            {campaign && <span title={`${t.campaign}: ${campaign}`} style={{ fontSize: 14, fontWeight: 600, color: T.text3, marginInlineStart: 8 }}>(<bdi>{campaign}</bdi>)</span>}
+          </h2>
           {isV2 && <span title={t.why} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 24, padding: '0 10px', borderRadius: 20, background: `${GRADE_COLOR[en.grade]}1f`, color: GRADE_COLOR[en.grade], fontSize: 12, fontWeight: 800 }}>{en.score100} · {t.gradeName[en.grade]}</span>}
-          {saveState && <span style={{ fontSize: 11.5, color: saveState === 'saved' ? T.green : T.text3, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 5 }}>{saveState === 'saved' && <FaCheck size={9}/>}{saveState === 'saved' ? t.saved : t.saving}</span>}
+          {saveState && <span role="status" style={{ fontSize: 11.5, color: saveState === 'saved' ? T.green : saveState === 'error' ? '#EF4444' : T.text3, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 5 }}>{saveState === 'saved' && <FaCheck size={9}/>}{saveState === 'saved' ? t.saved : saveState === 'error' ? t.saveFailed : t.saving}</span>}
         </div>
         <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }} role="radiogroup" aria-label={t.f.dealType}>
           {stages.map(s => {
@@ -280,48 +316,158 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
     </div>
   )
 
-  // ── Notes tab ─────────────────────────────────────────────────────────────
-  const [noteDraft, setNoteDraft] = useState('')
-  const addNote = () => { const text = noteDraft.trim(); if (!text) return; save({ notes: [...notes.filter(n => n.id !== 'legacy' || n.text), { id: uid(), text, ts: Date.now() }] }); setNoteDraft('') }
+  // ── Notes & history tab ───────────────────────────────────────────────────
+  // One composer (note / call / meeting / WhatsApp, a call also gets its outcome) and one timeline of everything that
+  // happened to the lead: notes, calls, stage changes, automatic WhatsApp messages, analysis, finished tasks.
+  const draftKey = `afik_lead_note_draft:${lead.id}`
+  const [noteDraft, setNoteDraftRaw] = useState(() => { try { return localStorage.getItem(draftKey) || '' } catch { return '' } })
+  const setNoteDraft = v => { setNoteDraftRaw(v); try { v ? localStorage.setItem(draftKey, v) : localStorage.removeItem(draftKey) } catch {} }
+  const [noteKind, setNoteKind] = useState('note')
+  const [outcome, setOutcome] = useState('')
+  const [histFilter, setHistFilter] = useState('all')
+  const [editId, setEditId] = useState(null), [editText, setEditText] = useState('')
+  const [delId, setDelId] = useState(null)
+  const noteRef = useRef(null)
+  const grow = el => { if (el) { el.style.height = 'auto'; el.style.height = `${Math.min(el.scrollHeight, 320)}px` } }
+  useEffect(() => { grow(noteRef.current) }, [noteDraft, tab])
+  const OUTCOME = { answered: { icon: '✅', color: '#22C55E' }, no_answer: { icon: '📵', color: '#F59E0B' }, callback: { icon: '🔁', color: '#3B8FF0' }, not_relevant: { icon: '🚫', color: '#94A3B8' } }
+  const KIND = { note: { Ic: FaStickyNote, color: '#A25DDC' }, call: { Ic: FaPhone, color: '#3B8FF0' }, meeting: { Ic: FaHandshake, color: '#22C55E' }, wa: { Ic: FaWhatsapp, color: '#25D366' } }
+  const canAdd = !!(noteDraft.trim() || (noteKind === 'call' && outcome))
+  const addNote = () => {
+    if (!canAdd) return
+    const oc = noteKind === 'call' && outcome ? OUTCOME[outcome] : null
+    // the outcome goes into the text too, so the board card's "last note" reads the same
+    const text = [oc ? `${oc.icon} ${t.outcomes[outcome]}` : '', noteDraft.trim()].filter(Boolean).join(' · ')
+    const note = { id: uid(), text, ts: Date.now(), kind: noteKind, ...(oc ? { outcome } : {}) }
+    const patch = { notes: [...notes.filter(n => n.id !== 'legacy' || n.text), note] }
+    if (noteKind === 'call') patch.lastCallAt = note.ts
+    if (outcome === 'no_answer') patch.noAnswerCount = (Number(lead.noAnswerCount) || 0) + 1
+    const cur = lead.leadStatus || 'new'
+    const move = noteKind !== 'call' ? '' : outcome === 'not_relevant' && cur !== 'irrelevant' && stages.some(x => x.id === 'irrelevant') ? 'irrelevant'
+      : outcome === 'answered' && cur === 'new' && stages.some(x => x.id === 'contacted') ? 'contacted' : ''
+    // one PATCH after the other: the server merges each into crm_data, two at once could drop the note
+    save(patch).then(ok => { if (ok && move) onUpdateStatus ? onUpdateStatus(lead, move) : ok && move && save({ leadStatus: move }) })
+    setNoteDraft(''); setOutcome('')
+    setTimeout(() => noteRef.current?.focus(), 0)
+  }
+  const saveEdit = n => { const text = editText.trim(); if (text && text !== n.text) save({ notes: notes.map(x => (x === n ? { ...x, id: x.id && x.id !== 'legacy' ? x.id : uid(), ts: x.ts || Date.now(), text, editedAt: Date.now() } : x)) }); setEditId(null) }
+
   const events = useMemo(() => {
     const ev = []
-    if (lead.ts) ev.push({ ts: lead.ts, icon: FaFlag, text: t.evCreated })
-    if (isV2 && en.enrichedAt) ev.push({ ts: en.enrichedAt, icon: FaChartPie, text: t.evAnalyzed(en.score100) })
-    notes.forEach(n => n.ts && ev.push({ ts: n.ts, icon: FaStickyNote, text: `${t.evNote}: ${n.text.slice(0, 80)}` }))
-    if (lead.followUp) ev.push({ ts: Date.parse(lead.followUp), icon: FaCalendarAlt, text: t.evFollow, future: Date.parse(lead.followUp) > Date.now() })
+    notes.forEach((n, i) => {
+      if (!n.text) return
+      const kind = KIND[n.kind] ? n.kind : 'note'
+      const oc = OUTCOME[n.outcome]
+      // an old note without a date (a plain-text note from before) is shown at the lead's arrival, without a time
+      ev.push({ key: `n${n.id || i}`, nk: n.id || `i${i}`, ts: n.ts || lead.ts || 1, undated: !n.ts, group: 'notes', note: n, kind, Ic: KIND[kind].Ic, color: oc ? oc.color : KIND[kind].color, title: t.kinds[kind] })
+    })
+    ;(Array.isArray(lead.stageLog) ? lead.stageLog : []).forEach((x, i) => x?.at && ev.push({ key: `s${i}`, ts: Number(x.at) || Date.parse(x.at), group: 'system', Ic: FaFlag, color: (stages.find(g => g.id === x.to) || {}).color || T.brandText, title: t.evStage(stageName(x.from || 'new'), stageName(x.to)) }))
+    const sent = (lead.auto && lead.auto.sent) || {}
+    Object.entries(sent).forEach(([k, at]) => {
+      const ts = Date.parse(at) || Number(at); if (!ts) return
+      const base = k.split(':')[0], n = k.split(':')[1]
+      const title = base === 'noreply' ? t.evAuto.noreply(n) : (typeof t.evAuto[base] === 'string' ? t.evAuto[base] : t.evAuto.other)
+      ev.push({ key: `a${k}`, ts, group: 'system', Ic: FaWhatsapp, color: '#25D366', title })
+    })
+    tasks.forEach(x => x.done && x.doneAt && ev.push({ key: `t${x.id}`, ts: x.doneAt, group: 'system', Ic: FaCheck, color: '#22C55E', title: t.evTaskDone, body: x.text }))
+    if (isV2 && en.enrichedAt) ev.push({ key: 'an', ts: Date.parse(en.enrichedAt) || en.enrichedAt, group: 'system', Ic: FaChartPie, color: GRADE_COLOR[en.grade] || T.brandText, title: t.evAnalyzed(en.score100) })
+    if (lead.ts) ev.push({ key: 'c', ts: lead.ts, group: 'system', Ic: FaUserCheck, color: sourceColor(src), title: t.evCreated, body: [sourceLabel(src, lang), campaign && campaign !== sourceLabel(src, lang) ? campaign : ''].filter(Boolean).join(' · ') })
     return ev.filter(e => e.ts).sort((a, b) => b.ts - a.ts)
-  }, [lead.ts, lead.followUp, notes, en.enrichedAt, en.score100, isV2, t]) // eslint-disable-line
+  }, [lead, notes, tasks, en.enrichedAt, en.score100, isV2, t, lang, campaign]) // eslint-disable-line
+  const shown = events.filter(e => histFilter === 'all' || e.group === histFilter)
+  const dayLabel = ts => {
+    const d = new Date(ts), s = new Date(); s.setHours(0, 0, 0, 0)
+    const diff = Math.round((s - new Date(d.getFullYear(), d.getMonth(), d.getDate())) / 864e5)
+    return diff === 0 ? t.dayToday : diff === 1 ? t.dayYesterday : d.toLocaleDateString(lang === 'en' ? 'en-GB' : 'he-IL', { weekday: 'long', day: 'numeric', month: 'long' })
+  }
+  const timeOf = ts => new Date(ts).toLocaleTimeString(lang === 'en' ? 'en-GB' : 'he-IL', { hour: '2-digit', minute: '2-digit' })
+  const fuTs = lead.followUp ? Date.parse(lead.followUp) : 0
+  const pill = (on, color) => ({ display: 'inline-flex', alignItems: 'center', gap: 6, height: 30, padding: '0 12px', borderRadius: 20, border: `1px solid ${on ? color : T.s1Line}`, background: on ? `${color}1f` : 'transparent', color: on ? color : T.text2, fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' })
+
+  let lastDay = ''
   const notesTab = (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <Section title={t.tabs.notes} icon={FaStickyNote}>
-        <textarea className="lc-in" rows={3} value={noteDraft} placeholder={t.notePh} onChange={e => setNoteDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); addNote() } }}/>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
-          <button type="button" className="lc-act" disabled={!noteDraft.trim()} onClick={addNote} style={{ background: noteDraft.trim() ? 'var(--au-brand)' : 'rgba(var(--ov),.06)', color: noteDraft.trim() ? '#fff' : T.text3, border: 'none' }}><FaPlus size={10}/>{t.addNote}</button>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
-          {!notes.length && <div style={{ fontSize: 13, color: T.text3, textAlign: 'center', padding: '14px 0' }}>{t.noNotes}</div>}
-          {[...notes].reverse().map(n => (
-            <div key={n.id || n.ts} className="lc-row" style={{ display: 'flex', gap: 10, padding: '10px 12px', borderRadius: 10, border: `1px solid ${T.divider}`, background: 'rgba(var(--ov),.02)' }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13.5, color: T.text, whiteSpace: 'pre-wrap', lineHeight: 1.55, wordBreak: 'break-word' }}>{n.text}</div>
-                {!!n.ts && <div style={{ fontSize: 11.5, color: T.text3, marginTop: 4 }}>{fmtWhen(n.ts, lang)}</div>}
-              </div>
-              <button type="button" aria-label="delete" onClick={() => save({ notes: notes.filter(x => x !== n) })} style={{ background: 'none', border: 'none', color: T.text3, cursor: 'pointer', padding: 4, alignSelf: 'flex-start' }}><FaTrash size={11}/></button>
-            </div>
+      <Section title={t.newEntry} icon={FaPlus} right={noteDraft ? <span style={{ fontSize: 11, color: T.text3 }}>{t.draftKept}</span> : null}>
+        <div role="radiogroup" aria-label={t.newEntry} style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+          {Object.entries(KIND).map(([k, { Ic, color }]) => (
+            <button key={k} type="button" role="radio" aria-checked={noteKind === k} onClick={() => { setNoteKind(k); if (k !== 'call') setOutcome(''); noteRef.current?.focus() }} style={pill(noteKind === k, color)}><Ic size={11}/>{t.kinds[k]}</button>
           ))}
+        </div>
+        {noteKind === 'call' && (
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 11.5, fontWeight: 700, color: T.text3, marginBottom: 6 }}>{t.outcome}</div>
+            <div role="radiogroup" aria-label={t.outcome} style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {Object.entries(OUTCOME).map(([k, o]) => <button key={k} type="button" role="radio" aria-checked={outcome === k} onClick={() => setOutcome(v => (v === k ? '' : k))} style={pill(outcome === k, o.color)}><span aria-hidden>{o.icon}</span>{t.outcomes[k]}</button>)}
+            </div>
+          </div>
+        )}
+        <textarea ref={noteRef} className="lc-in" rows={3} value={noteDraft} placeholder={t.kindPh[noteKind]} aria-label={t.kindPh[noteKind]}
+          onChange={e => { setNoteDraft(e.target.value); grow(e.target) }} onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); addNote() } }}
+          style={{ minHeight: 84, fontSize: 14 }}/>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 8, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 11.5, color: T.text3 }}>
+            {noteKind === 'call' && outcome === 'not_relevant' && (lead.leadStatus || 'new') !== 'irrelevant' ? t.moveTo(stageName('irrelevant')) : noteKind === 'call' && outcome === 'answered' && (lead.leadStatus || 'new') === 'new' ? t.moveTo(stageName('contacted')) : ''}
+          </span>
+          <button type="button" className="lc-act" disabled={!canAdd} onClick={addNote} style={{ background: canAdd ? 'var(--au-brand)' : 'rgba(var(--ov),.06)', color: canAdd ? '#fff' : T.text3, border: 'none', cursor: canAdd ? 'pointer' : 'default' }}><FaPlus size={10}/>{t.save}</button>
         </div>
       </Section>
-      <Section title={t.activity} icon={FaClock}>
-        <ol style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 10, position: 'relative' }}>
-          {events.map((e, i) => (
-            <li key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-              <span style={{ width: 26, height: 26, borderRadius: '50%', background: e.future ? 'rgba(245,158,11,.14)' : T.brandSoft, color: e.future ? '#D97706' : T.brandText, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><e.icon size={10}/></span>
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: 13, color: T.text }}>{e.text}</div>
-                <div style={{ fontSize: 11.5, color: T.text3 }}>{fmtWhen(e.ts, lang)}</div>
-              </div>
-            </li>
-          ))}
+
+      <Section title={t.history} icon={FaClock} right={
+        <div role="tablist" style={{ display: 'flex', gap: 4 }}>
+          {Object.entries(t.filters).map(([k, l]) => <button key={k} type="button" role="tab" aria-selected={histFilter === k} onClick={() => setHistFilter(k)} style={{ height: 26, padding: '0 10px', borderRadius: 20, border: 'none', background: histFilter === k ? T.brandSoft : 'transparent', color: histFilter === k ? T.brandText : T.text3, fontSize: 11.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>{l}</button>)}
+        </div>}>
+        {fuTs > 0 && (() => { const late = fuTs < Date.now(), c = late ? '#EF4444' : '#D97706'; return (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10, background: late ? 'rgba(239,68,68,.08)' : 'rgba(245,158,11,.1)', border: `1px solid ${late ? 'rgba(239,68,68,.3)' : 'rgba(245,158,11,.3)'}`, marginBottom: 12 }}>
+            <FaCalendarAlt size={12} style={{ color: c }}/>
+            <span style={{ fontSize: 13, fontWeight: 700, color: late ? c : T.text }}>{late ? t.overdueFu : t.upcoming}: {fmtWhen(fuTs, lang)}</span>
+          </div>) })()}
+        {!shown.length && <div style={{ fontSize: 13, color: T.text3, textAlign: 'center', padding: '18px 0' }}>{t.emptyHistory}</div>}
+        <ol style={{ listStyle: 'none', margin: 0, padding: 0, position: 'relative' }}>
+          {shown.map(e => {
+            const day = dayLabel(e.ts), head = day !== lastDay
+            lastDay = day
+            const n = e.note
+            return (
+              <li key={e.key}>
+                {head && <div style={{ fontSize: 11.5, fontWeight: 800, color: T.text3, margin: '10px 0 8px', paddingInlineStart: 40 }}>{day}</div>}
+                <div className="lc-hist" style={{ display: 'flex', gap: 12, position: 'relative', paddingBottom: 12 }}>
+                  <span aria-hidden style={{ position: 'absolute', insetInlineStart: 14, top: 30, bottom: 0, width: 2, background: T.divider }}/>
+                  <span style={{ width: 30, height: 30, borderRadius: '50%', background: `${e.color}1f`, color: e.color, border: `1px solid ${e.color}55`, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, zIndex: 1 }}><e.Ic size={11}/></span>
+                  <div style={{ flex: 1, minWidth: 0, ...(n ? { background: T.card, border: `1px solid ${T.s1Line}`, borderRadius: 12, padding: '10px 12px' } : { paddingTop: 5 }) }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: n ? 12 : 13, fontWeight: n ? 800 : 600, color: n ? e.color : T.text }}>{e.title}</span>
+                      {!e.undated && <span style={{ fontSize: 11.5, color: T.text3 }}>{timeOf(e.ts)}{n?.editedAt ? ` · ${t.edited}` : ''}</span>}
+                      {n && editId !== e.nk && delId !== e.nk && (
+                        <span className="lc-hist-act" style={{ marginInlineStart: 'auto', display: 'inline-flex', gap: 2 }}>
+                          <button type="button" aria-label={t.edit} title={t.edit} onClick={() => { setEditId(e.nk); setEditText(n.text) }} style={{ background: 'none', border: 'none', color: T.text3, cursor: 'pointer', padding: 5, borderRadius: 6 }}><FaEdit size={11}/></button>
+                          <button type="button" aria-label={t.del} title={t.del} onClick={() => setDelId(e.nk)} style={{ background: 'none', border: 'none', color: T.text3, cursor: 'pointer', padding: 5, borderRadius: 6 }}><FaTrash size={11}/></button>
+                        </span>
+                      )}
+                    </div>
+                    {n && editId === e.nk ? (
+                      <div style={{ marginTop: 8 }}>
+                        <textarea autoFocus className="lc-in" value={editText} onChange={ev => { setEditText(ev.target.value); grow(ev.target) }} ref={grow}
+                          onKeyDown={ev => { if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); saveEdit(n) } if (ev.key === 'Escape') { ev.preventDefault(); setEditId(null) } }} style={{ fontSize: 13.5 }}/>
+                        <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', marginTop: 6 }}>
+                          <button type="button" className="lc-act" onClick={() => setEditId(null)} style={{ background: 'transparent', color: T.text2, border: `1px solid ${T.s1Line}` }}>{t.cancel}</button>
+                          <button type="button" className="lc-act" onClick={() => saveEdit(n)} style={{ background: 'var(--au-brand)', color: '#fff', border: 'none' }}><FaCheck size={10}/>{t.save}</button>
+                        </div>
+                      </div>
+                    ) : n ? (
+                      <div style={{ fontSize: 13.5, color: T.text, whiteSpace: 'pre-wrap', lineHeight: 1.6, wordBreak: 'break-word', marginTop: 4 }}>{n.text}</div>
+                    ) : e.body ? <div style={{ fontSize: 12.5, color: T.text2, marginTop: 2, wordBreak: 'break-word' }}>{e.body}</div> : null}
+                    {n && delId === e.nk && (
+                      <div role="alertdialog" aria-label={t.delQ} style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 12.5, fontWeight: 700, color: '#EF4444' }}>{t.delQ}</span>
+                        <button type="button" className="lc-act" onClick={() => { save({ notes: notes.filter(x => x !== n) }); setDelId(null) }} style={{ height: 28, background: '#EF4444', color: '#fff', border: 'none' }}>{t.yes}</button>
+                        <button type="button" className="lc-act" onClick={() => setDelId(null)} style={{ height: 28, background: 'transparent', color: T.text2, border: `1px solid ${T.s1Line}` }}>{t.no}</button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </li>
+            )
+          })}
         </ol>
       </Section>
     </div>

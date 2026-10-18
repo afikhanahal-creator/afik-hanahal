@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect, useMemo, createContext, useContext } from 'react'
-import { sourceLabel, sourceColor, originLines } from './lib/leadFields.js'
+import { sourceLabel, sourceColor, originLines, leadCampaign } from './lib/leadFields.js'
 import LeadCard from './LeadCard.jsx'
 import {
   DndContext, closestCenter, closestCorners, useSensor, useSensors,
@@ -474,6 +474,7 @@ function ClickableScoreCell({ value, lang, T, onSave }) {
 
 function MobileLeadCard({ lead, lang, T, onUpdate, onDelete, onOpenDetail, onStatusClick, onOpenChat }) {
   const openNote = useContext(NoteCtx)
+  const campaign = leadCampaign(lead, lang)
   const last = lastNote(lead)
   const [menuOpen, setMenuOpen] = useState(false)
   const color = getGroupColor(lead.leadStatus || 'new')
@@ -513,7 +514,7 @@ function MobileLeadCard({ lead, lang, T, onUpdate, onDelete, onOpenDetail, onSta
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 15, fontWeight: 700, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {lead.name || '—'}
+            {lead.name || '—'}{campaign && <span style={{ fontSize: 12, fontWeight: 500, color: T.textSub, marginInlineStart: 6 }}>(<bdi>{campaign}</bdi>)</span>}
           </div>
           <div style={{ marginTop: 4 }}>
             <StatusBadge value={lead.leadStatus || 'new'} lang={lang} T={T} onClick={e => { e.stopPropagation(); onStatusClick(e, lead) }} />
@@ -800,8 +801,17 @@ function SortableRow({ lead, cols, onUpdate, onDelete, onSelect, isSelected, lan
         )
       case 'text':
       default:
+        if (col.id === 'name') {
+          const camp = leadCampaign(lead, lang)
+          return (
+            <div key={col.id} style={{ ...cellStyle, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ flex: '0 1 auto', minWidth: 0 }}><EditableCell value={val} T={T} onSave={v => handleUpdate(col, v)} /></div>
+              {camp && <span title={camp} style={{ flex: '1 1 0', minWidth: 0, fontSize: 11.5, fontWeight: 500, color: T.textSub, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>(<bdi>{camp}</bdi>)</span>}
+            </div>
+          )
+        }
         return (
-          <div key={col.id} style={{ ...cellStyle, ...(col.id === 'name' ? { fontWeight: 600 } : {}) }}>
+          <div key={col.id} style={{ ...cellStyle }}>
             <EditableCell value={val} T={T} onSave={v => handleUpdate(col, v)} />
           </div>
         )
@@ -1195,6 +1205,7 @@ const fmtNoteTs = (ts, lang) => ts ? new Date(ts).toLocaleString(lang === 'en' ?
 
 function CallNoteDialog({ lead, T, isDark, lang, onClose, updateLead, updateLeadStatus }) {
   const en = lang === 'en'
+  const campaign = leadCampaign(lead, lang)
   const [outcome, setOutcome] = useState('')
   const [text, setText] = useState('')
   const [followUp, setFollowUp] = useState(lead.followUp || '')
@@ -1232,7 +1243,7 @@ function CallNoteDialog({ lead, T, isDark, lang, onClose, updateLead, updateLead
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
           <div style={{ width: 38, height: 38, borderRadius: '50%', background: `linear-gradient(135deg, ${avatarColor(lead.name)}, ${avatarColor(lead.name)}88)`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 900, flexShrink: 0 }}>{(lead.name || '?')[0].toUpperCase()}</div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 15, fontWeight: 800, color: T.text }}>{en ? 'Call summary' : 'סיכום שיחה'} · {lead.name || '—'}</div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: T.text }}>{en ? 'Call summary' : 'סיכום שיחה'} · {lead.name || '—'}{campaign && <span style={{ fontSize: 12.5, fontWeight: 500, color: T.textSub, marginInlineStart: 6 }}>(<bdi>{campaign}</bdi>)</span>}</div>
             <div style={{ fontSize: 12, color: T.textSub, direction: 'ltr', textAlign: en ? 'left' : 'right' }}>{lead.phone || ''}{lead.propTitle ? ` · ${lead.propTitle}` : ''}</div>
           </div>
           {lead.phone && <a href={`tel:${lead.phone}`} style={{ ...chip(false, T.accent), color: T.accent, textDecoration: 'none' }}><Phone size={12}/> {en ? 'Call' : 'חייג'}</a>}
@@ -1298,6 +1309,7 @@ function KanbanCard({ lead, T, isDark, lang, onOpen, onDelete, onOpenChat, onEnr
   const score = getScoreOpt(lead.enrichment?.intent)
   const openNote = useContext(NoteCtx)
   const last = lastNote(lead)
+  const campaign = leadCampaign(lead, lang)
   const fu = lead.followUp && Date.parse(lead.followUp)
   // A plain click opens the lead card; a drag (≥ 8px, the sensor's activation distance) only moves it
   const downAt = useRef(null)
@@ -1346,8 +1358,8 @@ function KanbanCard({ lead, T, isDark, lang, onOpen, onDelete, onOpenChat, onEnr
           {(lead.name || '?')[0].toUpperCase()}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {lead.name || '—'}
+          <div style={{ fontSize: 13, fontWeight: 700, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={campaign ? `${lead.name || ''} (${campaign})` : undefined}>
+            {lead.name || '—'}{campaign && <span style={{ fontSize: 11, fontWeight: 500, color: T.textSub, marginInlineStart: 5 }}>(<bdi>{campaign}</bdi>)</span>}
           </div>
           {lead.phone && (
             <div style={{ fontSize: 11, color: T.textSub, direction: 'ltr', textAlign: 'right', marginTop: 1 }}>{lead.phone}</div>
@@ -1360,7 +1372,7 @@ function KanbanCard({ lead, T, isDark, lang, onOpen, onDelete, onOpenChat, onEnr
       </div>
 
       {/* Property + message preview */}
-      {lead.propTitle && (
+      {lead.propTitle && lead.propTitle !== campaign && (
         <div style={{ fontSize: 11, color: T.textSub, marginBottom: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 4 }}>
           <span style={{ fontSize: 10 }}>🏠</span>
           <span>{lead.propTitle}</span>
@@ -2131,7 +2143,7 @@ function LeadsBoardMain({
 
         {/* ── Overlays ── */}
         {statusTarget && <StatusPopup lead={statusTarget} onClose={() => setStatusTarget(null)} onUpdate={updateLeadStatus} lang={lang} T={T} />}
-        {detailLead && <LeadCard lead={leads.find(l => l.id === detailLead.id) || detailLead} onClose={() => setDetailLead(null)} onUpdate={updateLead} onUpdateStatus={updateLeadStatus} onEnrich={enrichLead} onOpenChat={onOpenChat} lang={lang} stages={GROUPS} />}
+        {detailLead && <LeadCard key={detailLead.id} lead={leads.find(l => l.id === detailLead.id) || detailLead} onClose={() => setDetailLead(null)} onUpdate={updateLead} onUpdateStatus={updateLeadStatus} onEnrich={enrichLead} onOpenChat={onOpenChat} lang={lang} stages={GROUPS} />}
         {toast && <Toast message={toast} onDismiss={() => setToast(null)} />}
         <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
       </div>
@@ -2385,7 +2397,7 @@ function LeadsBoardMain({
       )}
 
       {statusTarget && <StatusPopup lead={statusTarget} onClose={() => setStatusTarget(null)} onUpdate={updateLeadStatus} lang={lang} T={T} />}
-      {detailLead && <LeadCard lead={leads.find(l => l.id === detailLead.id) || detailLead} onClose={() => setDetailLead(null)} onUpdate={updateLead} onUpdateStatus={updateLeadStatus} onEnrich={enrichLead} onOpenChat={onOpenChat} lang={lang} stages={GROUPS} />}
+      {detailLead && <LeadCard key={detailLead.id} lead={leads.find(l => l.id === detailLead.id) || detailLead} onClose={() => setDetailLead(null)} onUpdate={updateLead} onUpdateStatus={updateLeadStatus} onEnrich={enrichLead} onOpenChat={onOpenChat} lang={lang} stages={GROUPS} />}
       {selectedIds.size > 0 && <BulkActionBar count={selectedIds.size} lang={lang} T={T} onClearSelection={() => setSelectedIds(new Set())} onDelete={handleBulkDelete} onMove={() => {}} />}
       {toast && <Toast message={toast} onDismiss={() => setToast(null)} />}
 
