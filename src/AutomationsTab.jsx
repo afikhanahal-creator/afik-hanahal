@@ -10,6 +10,7 @@ import { autoApi } from './AutomationsApi.jsx'
 import { T, AUTO_CSS, Button, IconButton, Card, Badge, FilterChip, Toggle, ModeSwitch, ModeBadge, StatTile, EmptyState, Skeleton, InlineError, Drawer, HealthItem, StatusPill, CopyField, SaveBar, useToasts, ConfirmProvider, useConfirm, Popover, MenuButton, MenuItem, MODE_COLOR, inputStyle, Field } from './automationsUI.jsx'
 import { WAText } from './waFormat.jsx'
 import { leadCampaign } from './lib/leadFields.js'
+import { leadNeeds, bestPersonalTemplateId } from '../lib/lead-needs.js'
 import HoursTab from './WeekSchedule.jsx'
 import SequenceBuilder from './SequenceBuilder.jsx'
 import TemplatesTab from './TemplateStudio.jsx'
@@ -43,7 +44,7 @@ const TR = {
     kpiPending: 'ממתינות לאישור', kpiSent: 'נשלחו השבוע', kpiPos: 'ענו בחיוב', kpiFail: 'נכשלו השבוע',
     grp: { missed: 'הודעת פתיחה שלא נשלחה', welcome: 'הודעת פתיחה', reply: 'תשובות של לקוחות', stage: 'שינוי שלב בלוח', noreply: 'מעקב – לא ענו', reengage: 'חזרה ללקוח אחרי תקופה', manual: 'אחר' },
     grpMissedSub: 'הלידים האלה עוד לא שמעו מאיתנו', sendGroup: n => `שלח את כל ה-${n}`,
-    pickWording: 'נוסח ההודעה', otherWording: 'נוסח אחר', doneEdit: 'סיום עריכה', groupWording: 'נוסח לכל הקבוצה…', origWording: 'הנוסח המקורי', manageTpls: 'ספריית התבניות',
+    pickWording: 'נוסח ההודעה', otherWording: 'נוסח אחר', personalize: 'התאמה אישית', personalizeTip: 'בוחר את הנוסח שמתייחס הכי טוב למה שהליד כתב או סימן בטופס', noPersonal: 'אין עדיין פרטים על מה שהליד מחפש – אפשר להוסיף בכרטיס הליד', groupPersonal: 'הכי אישי לכל ליד', known: 'מה ידוע:', doneEdit: 'סיום עריכה', groupWording: 'נוסח לכל הקבוצה…', origWording: 'הנוסח המקורי', manageTpls: 'ספריית התבניות',
     groupResult: n => `נשלחו ${n} הודעות ✓`, groupResultErr: (ok, bad) => `נשלחו ${ok} · ${bad} לא נשלחו – פרטים ביומן`,
     quotaShort: 'המכסה החודשית של Green API נגמרה – שדרגו את התוכנית כדי לשלוח',
     quotaT: 'וואטסאפ מחובר, אבל ההודעות ללקוחות לא יוצאות',
@@ -111,7 +112,7 @@ const TR = {
     kpiPending: 'Awaiting approval', kpiSent: 'Sent this week', kpiPos: 'Positive replies', kpiFail: 'Failed this week',
     grp: { missed: 'Welcome that never went out', welcome: 'Welcome', reply: 'Lead replies', stage: 'Board stage change', noreply: 'Follow-up – no reply', reengage: 'Re-engagement', manual: 'Other' },
     grpMissedSub: 'These leads have not heard from us yet', sendGroup: n => `Send all ${n}`,
-    pickWording: 'Message wording', otherWording: 'Another wording', doneEdit: 'Done editing', groupWording: 'Wording for the whole group…', origWording: 'Original wording', manageTpls: 'Template library',
+    pickWording: 'Message wording', otherWording: 'Another wording', personalize: 'Personalize', personalizeTip: 'Picks the wording that best answers what the lead wrote or chose in the form', noPersonal: 'Nothing known yet about what this lead wants – add it in the lead card', groupPersonal: 'Most personal for each lead', known: 'Known:', doneEdit: 'Done editing', groupWording: 'Wording for the whole group…', origWording: 'Original wording', manageTpls: 'Template library',
     groupResult: n => `${n} messages sent ✓`, groupResultErr: (ok, bad) => `${ok} sent · ${bad} not sent – see the log`,
     quotaShort: 'The Green API monthly quota is used up – upgrade the plan to send',
     quotaT: 'WhatsApp is connected, but messages to leads are not going out',
@@ -413,6 +414,7 @@ function Today({ t, isEn, dir, cfg, tpls, tplName, stageName, leads, toast, conf
     const i = list.findIndex(x => x.id === tplIdOf(q))
     pickTpl(q, list[(i + 1) % list.length].id)
   }
+  const personalize = (q, quiet) => { const id = bestPersonalTemplateId(leadFor(q), q.lang); if (id && tplOf(id)) pickTpl(q, id); else if (!quiet) toast(t.noPersonal, { tone: 'warn' }) }
   const tplTitle = x => (isEn ? x.en_title || x.he_title : x.he_title || x.en_title)
   const TplOptions = ({ q }) => tplGroups(q).map(([c, l]) => <optgroup key={c.id} label={`${c.icon} ${isEn ? c.en : c.he}`}>{l.map(x => <option key={x.id} value={x.id}>{tplTitle(x)}</option>)}</optgroup>)
   const selStyle = { height: 30, maxWidth: '100%', minWidth: 0, borderRadius: 8, border: `1px solid ${T.line}`, background: T.s2, color: T.text, fontFamily: 'inherit', fontSize: 12.5, fontWeight: 600, padding: '0 8px', cursor: 'pointer' }
@@ -499,8 +501,9 @@ function Today({ t, isEn, dir, cfg, tpls, tplName, stageName, leads, toast, conf
                     {g === 'missed' && <span className="au-hide-m" style={{ fontSize: 12, color: T.text3 }}>· {t.grpMissedSub}</span>}
                     <div style={{ flex: 1 }}/>
                     {list.length >= 2 && (
-                      <select value="" onChange={e => { const id = e.target.value; if (id) list.forEach(q => pickTpl(q, id)) }} aria-label={t.groupWording} style={{ ...selStyle, maxWidth: 220 }}>
+                      <select value="" onChange={e => { const id = e.target.value; if (id === '__personal') list.forEach(q => personalize(q, true)); else if (id) list.forEach(q => pickTpl(q, id)) }} aria-label={t.groupWording} style={{ ...selStyle, maxWidth: 220 }}>
                         <option value="">{t.groupWording}</option>
+                        <option value="__personal">✍️ {t.groupPersonal}</option>
                         <TplOptions q={list[0]}/>
                       </select>
                     )}
@@ -527,6 +530,7 @@ function Today({ t, isEn, dir, cfg, tpls, tplName, stageName, leads, toast, conf
                               <bdi dir="ltr">{localPhone(q.phone)}</bdi>{q.created_at && <span>· {rel(q.created_at, t)}</span>}
                             </div>
                             {reason && <div style={{ fontSize: 12, color: T.text2, marginTop: 3, lineHeight: 1.4 }} dir="auto">{reason}</div>}
+                            {(() => { const n = leadNeeds(leadFor(q), q.lang), bits = [n.needs, n.purpose, n.timeline, n.message && `"${n.message}"`].filter(Boolean); return bits.length ? <div style={{ fontSize: 12, color: T.text2, marginTop: 4, lineHeight: 1.45, padding: '4px 8px', borderRadius: 6, background: 'rgba(var(--ov),.05)' }} dir="auto"><b style={{ color: T.text3, fontWeight: 700 }}>{t.known}</b> {bits.join(' · ')}</div> : null })()}
                           </div>
                         </div>
                         <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -536,6 +540,7 @@ function Today({ t, isEn, dir, cfg, tpls, tplName, stageName, leads, toast, conf
                               {!curTpl && <option value="">{t.origWording}</option>}
                               <TplOptions q={q}/>
                             </select>
+                            <Button size="sm" onClick={() => personalize(q)} title={t.personalizeTip}>✍️ {t.personalize}</Button>
                             <Button size="sm" icon={<FaRandom size={10}/>} onClick={() => nextVariant(q)} title={t.otherWording}>{t.otherWording}</Button>
                             <Button size="sm" icon={editing[q.id] ? <FaCheck size={10}/> : <FaPen size={10}/>} onClick={() => setEditing(e => ({ ...e, [q.id]: !e[q.id] }))}>{editing[q.id] ? t.doneEdit : t.editMsg}</Button>
                             {changed && <button type="button" onClick={() => revert(q)} style={{ background: 'none', border: 'none', color: T.brandText, fontSize: 12, fontWeight: 700, cursor: 'pointer', padding: '0 4px', fontFamily: 'inherit', minHeight: 0 }}>{t.revertMsg}</button>}

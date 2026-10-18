@@ -1370,7 +1370,8 @@ async function handleGA4Dash(req, res, action) {
     return res.status(200).json(await GA4.dash(b, { property: await ga4Property(), fresh: !!b.fresh }))
   } catch (e) {
     console.error(`[ga4-dash] ${e.message}`)
-    return res.status(e.kind === 'request' ? 400 : 502).json({ configured: true, error: e.message, kind: e.kind || 'api', serviceAccount: GA4.ga4Credentials().email || '' })
+    const cred = GA4.ga4Credentials()
+    return res.status(e.kind === 'request' ? 400 : 502).json({ configured: true, error: e.message, kind: e.kind || 'api', serviceAccount: cred.email || '', keyId: cred.keyId || '' })
   }
 }
 
