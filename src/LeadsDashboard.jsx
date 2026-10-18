@@ -56,7 +56,8 @@ const pctOf = (a, b) => (b ? Math.round((a / b) * 100) : 0)
 const startOfDay = t => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime() }
 const toInput = t => { const d = new Date(t); return new Date(d.getTime() - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10) }
 
-export default function LeadsDashboard({ leads = [], stages = [], T, isDark, lang = 'he', onOpen, onOpenChat }) {
+// `leads` is the whole list: the board's search box doesn't narrow the dashboard (it used to, silently — every number read 1)
+export default function LeadsDashboard({ leads = [], search = '', onClearSearch, stages = [], T, isDark, lang = 'he', onOpen, onOpenChat }) {
   const en = lang === 'en'
   const L = (he, e) => (en ? e : he)
   const P = isDark ? PALETTE.dark : PALETTE.light
@@ -84,7 +85,9 @@ export default function LeadsDashboard({ leads = [], stages = [], T, isDark, lan
     return days ? [startOfDay(now - (days - 1) * DAY), now] : [0, now]
   }, [preset, from, to]) // eslint-disable-line
   const span = range[1] - range[0]
-  const hasPrev = range[0] > 0
+  // the first lead in the system: a previous period that starts before it has no data to compare with (not "0 → +100%")
+  const oldest = useMemo(() => leads.reduce((m, l) => (l.ts && l.ts < m ? l.ts : m), now), [leads]) // eslint-disable-line
+  const hasPrev = range[0] > 0 && range[0] - span >= startOfDay(oldest)
 
   const base = useMemo(() => leads.filter(l => (src === 'all' || srcKey(l) === src) && (!camp || (leadCampaign(l, lang) || '—') === camp)), [leads, src, camp, lang])
   const inRange = (l, a, b) => (l.ts || 0) >= a && (l.ts || 0) <= b
@@ -108,7 +111,8 @@ export default function LeadsDashboard({ leads = [], stages = [], T, isDark, lan
 
   const created = [[7, L('בשבוע האחרון', 'Last 7 days')], [30, L('בחודש האחרון', 'Last 30 days')], [90, L('ב-3 חודשים', 'Last 3 months')], [182, L('בחצי שנה', 'Last 6 months')], [365, L('בשנה האחרונה', 'Last 12 months')]]
     .map(([d, label]) => {
-      const a = now - d * DAY, n = base.filter(l => (l.ts || 0) >= a).length, p = base.filter(l => (l.ts || 0) >= a - d * DAY && (l.ts || 0) < a).length
+      const a = now - d * DAY, n = base.filter(l => (l.ts || 0) >= a).length
+      const p = a - d * DAY >= startOfDay(oldest) ? base.filter(l => (l.ts || 0) >= a - d * DAY && (l.ts || 0) < a).length : null
       return { d, label, n, p }
     })
 
@@ -199,9 +203,11 @@ export default function LeadsDashboard({ leads = [], stages = [], T, isDark, lan
   const fmtD = t => new Date(t).toLocaleDateString(en ? 'en-GB' : 'he-IL', { day: 'numeric', month: 'short' })
   const days = ms => { const d = Math.floor(ms / DAY); return d <= 0 ? L('היום', 'today') : d === 1 ? L('יום', '1 day') : L(`${d} ימים`, `${d} days`) }
   // a change against the previous period: arrow + word, never colour alone; `lowerIsBetter` flips the meaning
-  const Delta = ({ now: a, before: b, unit = '%', lowerIsBetter }) => {
-    if (b == null || a == null || !hasPrev) return null
-    const diff = unit === '%' ? (b ? Math.round(((a - b) / b) * 100) : a ? 100 : 0) : Math.round(a - b)
+  const Delta = ({ now: a, before: b, unit = '%', lowerIsBetter, always }) => {
+    if (b == null || a == null || (!hasPrev && !always)) return null
+    // from nothing a percentage means nothing: say "+N" instead of "+100%"
+    if (unit === '%' && !b && a) return <span title={L('לעומת התקופה הקודמת', 'vs. the previous period')} style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: 11.5, fontWeight: 700, color: lowerIsBetter ? P.bad : P.good }}><ArrowUpRight size={13}/>+{Math.round(a).toLocaleString()}</span>
+    const diff = unit === '%' ? (b ? Math.round(((a - b) / b) * 100) : 0) : Math.round(a - b)
     if (!diff) return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11.5, color: C.text3 }}><Minus size={12}/>{L('ללא שינוי', 'no change')}</span>
     const up = diff > 0, good = lowerIsBetter ? !up : up
     return (
@@ -269,7 +275,13 @@ export default function LeadsDashboard({ leads = [], stages = [], T, isDark, lan
           <option value="">{L('כל הקמפיינים', 'All campaigns')}</option>
           {campaigns.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
-        <span style={{ fontSize: 12.5, color: C.text3, marginInlineStart: 'auto' }}>{periodLabel}{hasPrev ? ` · ${L('השוואה לתקופה הקודמת', 'compared with the previous period')}` : ''}</span>
+        {search && (
+          <span role="status" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 30, padding: '0 10px', borderRadius: 8, background: C.chip, border: `1px solid ${C.line}`, fontSize: 12, color: C.text2 }}>
+            {L(`החיפוש "${search}" חל על הטבלה וה-Pipeline, לא על תמונת המצב`, `The search "${search}" applies to the table and Pipeline, not to this dashboard`)}
+            {onClearSearch && <button type="button" onClick={onClearSearch} style={{ border: 'none', background: 'transparent', color: P.series[0], fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, padding: 0 }}>{L('נקה חיפוש', 'Clear')}</button>}
+          </span>
+        )}
+        <span style={{ fontSize: 12.5, color: C.text3, marginInlineStart: 'auto' }}>{periodLabel}{hasPrev ? ` · ${L('השוואה לתקופה הקודמת', 'compared with the previous period')}` : preset !== 'all' ? ` · ${L('אין נתונים לתקופה הקודמת', 'no data for the previous period')}` : ''}</span>
       </div>
 
       {/* Leads created */}
@@ -281,9 +293,9 @@ export default function LeadsDashboard({ leads = [], stages = [], T, isDark, lan
               <div style={{ fontSize: 12, color: C.text3 }}>{c.label}</div>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 2 }}>
                 <span style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-.01em' }}>{c.n.toLocaleString()}</span>
-                <Delta now={c.n} before={c.p}/>
+                <Delta now={c.n} before={c.p} always/>
               </div>
-              <div style={{ fontSize: 11, color: C.text3 }}>{L(`לפני כן: ${c.p}`, `before: ${c.p}`)}</div>
+              <div style={{ fontSize: 11, color: C.text3 }}>{c.p == null ? L('אין נתונים לתקופה שלפני', 'no data for the period before') : L(`ב-${c.d} הימים שלפני: ${c.p}`, `the ${c.d} days before: ${c.p}`)}</div>
             </div>
           ))}
         </div>
