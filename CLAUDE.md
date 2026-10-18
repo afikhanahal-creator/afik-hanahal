@@ -193,6 +193,13 @@ when every placeholder in it is known, so one template works with or without the
 its ה ("בנכס", never "בהנכס"). Six templates (`personal_needs` / `_budget` / `_message` / `_investor` / `_timeline` / `_followup`);
 in "היום" every row shows "מה ידוע:" and a "✍️ התאמה אישית" button (`bestPersonalTemplateId()`), and the group menu has
 "הכי אישי לכל ליד".
+**WhatsApp page → ⚡ "תבניות מוכנות"** (`src/ChatTemplatePicker.jsx`): the whole library (59 templates, incl. chat-ready ones —
+details, viewing offer / directions / feedback, financing, similar / new listings, price update, busy-now, office hours, owner
+valuation, signing steps, contract documents, keys, review / referral requests) rendered for the open chat's lead (the lead row
+from `leads`, so names, the campaign's short name and `leadNeeds` all apply), "מומלץ עכשיו" (the most personal template + the
+stage's category, the welcome category before anything was sent), category chips, search, a Hebrew / English switch (default
+`leadLang`), an editable preview, "שלח עכשיו" (`sendMsg(text)` — the panel stays open, so several go out in a row; the typed draft
+and attachment are untouched) or "לעריכה בתיבה". Templates whose distinctive line already appears in the chat are marked "נשלח".
 Probe actions `wa` / `wa-send` check the chat page's own calls (`wa-send` texts the office number).
 
 Scheduled bulk sends are jobs in `app_settings` (`automations_jobs`), rendered at send time, max 20 messages per run;

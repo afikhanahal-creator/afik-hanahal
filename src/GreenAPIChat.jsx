@@ -4,8 +4,8 @@
  */
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { supabase } from './lib/supabaseClient'
-import { templateList, renderTemplate, CATEGORIES } from '../lib/automations-shared.js'
 import { WAText } from './waFormat.jsx'
+import ChatTemplatePicker from './ChatTemplatePicker.jsx'
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 const API_BASE      = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
@@ -273,7 +273,6 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
   const [greenChats,    setGreenChats]   = useState([])   // recent WhatsApp chats from Green API (not only leads)
   const [lightbox,      setLightbox]     = useState(null)
   const [quickOpen,     setQuickOpen]    = useState(false)
-  const [quickQ,        setQuickQ]       = useState('')
 
   // Per-conversation read tracking (persisted) → drives unread badges
   const [lastRead, setLastRead] = useState(() => {
@@ -662,9 +661,11 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
     setTimeout(() => inputRef.current?.focus(), 80)
   }
 
-  const sendMsg = async () => {
-    const msg  = input.trim()
-    const file = attached
+  // override = a ready text (the template picker): sent as is, the typed draft and any attachment stay untouched
+  const sendMsg = async (override) => {
+    const fromPicker = typeof override === 'string'
+    const msg  = (fromPicker ? override : input).trim()
+    const file = fromPicker ? null : attached
     if ((!msg && !file) || !contact || sending) return
     const p = intlPhone(contact.phone)
     if (!p) { alert('מספר טלפון לא תקין'); return }
@@ -675,7 +676,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
 
     const optId = 'opt-' + Date.now()
     setSending(true)
-    setInput('')
+    if (!fromPicker) setInput('')
     setEmoji(false)
 
     setChats(prev => ({
@@ -710,7 +711,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
       }
 
       if (ok) {
-        setAttached(null)
+        if (!fromPicker) setAttached(null)
         setTimeout(() => fetchMsgs(contact.phone), file ? 3500 : 2000)
         const contactName = nameOf(contactView, lang)
         onSentMessageRef.current?.({ contactName, message: msg || file?.name })
@@ -720,10 +721,11 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
     } catch (e) {
       alert('ההודעה לא נשלחה.\n\n' + e.message)
       setChats(prev => ({ ...prev, [p]: (prev[p]||[]).filter(m => m.id !== optId) }))
-      setInput(msg)
+      if (!fromPicker) setInput(msg)
     } finally {
       setSending(false)
     }
+    return ok
   }
 
   const startNewChat = () => {
@@ -1193,6 +1195,15 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                 </div>
               )}
 
+              {/* ── Ready templates: the whole library, rendered for this lead (send now / edit in the box) ── */}
+              {quickOpen && (
+                <ChatTemplatePicker WA={WA} lang={lang} msgs={msgs} autoConfig={autoConfig}
+                    lead={(() => { const row = leads.find(l => intlPhone(l.phone) === chatPhone) || contact; return { ...row, name: row?.name && !/^[\d+\-\s]+$/.test(row.name) ? row.name : '', phone: contact.phone } })()}
+                    onSend={text => sendMsg(text)}
+                    onInsert={text => { setInput(text); setQuickOpen(false); setTimeout(() => inputRef.current?.focus(), 30) }}
+                    onClose={() => setQuickOpen(false)}/>
+              )}
+
               {/* ── Input Bar (flex: 0 0 auto — always visible, never scrolled away) ── */}
               <div style={{ flexShrink:0, padding:'10px 12px', background: WA.inputBg, display:'flex', alignItems:'center', gap:9, direction:'rtl', borderTop:`1px solid ${WA.border}`, transition:'background .25s' }}>
                 <button onClick={()=>setEmoji(v=>!v)}
@@ -1216,7 +1227,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                   disabled={sending}
                   autoComplete="off" dir="auto"
                   style={{ flex:1, padding:'11px 16px', background: WA.inputFieldBg, border:'none', borderRadius:8, color: WA.bodyText, fontSize:14, fontFamily:'inherit', outline:'none', minWidth:0, resize:'none', lineHeight:1.45, height: Math.min(6, Math.max(1, input.split('\n').length)) * 20 + 22, maxHeight:142, overflowY:'auto', boxShadow:`0 1px 2px rgba(0,0,0,.${isDark?'2':'06'})` }}/>
-                <button onClick={sendMsg}
+                <button onClick={() => sendMsg()}
                   disabled={sending || (!input.trim() && !attached)}
                   style={{ width:44, height:44, borderRadius:'50%', background:(input.trim()||attached)?WA.green:WA.inputBg, border:'none', color:(input.trim()||attached)?'#fff':WA.subText, cursor:(input.trim()||attached)?'pointer':'default', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, transition:'all .2s', boxShadow:(input.trim()||attached)?'0 2px 8px '+WA.green+'66':'none' }}>
                   {sending
@@ -1227,31 +1238,6 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                   }
                 </button>
               </div>
-
-              {/* ── Quick replies: the automation templates, personalised for this contact ── */}
-              {quickOpen && (() => {
-                const list = templateList(autoConfig || undefined).filter(x => !quickQ || `${x.he_title} ${x.he}`.includes(quickQ))
-                const leadRow = leads.find(l => intlPhone(l.phone) === chatPhone) || contact
-                const asLead = { name: leadRow?.name && !/^\d+$/.test(leadRow.name) ? leadRow.name : '', phone: contact.phone, prop_title: leadRow?.propTitle || leadRow?.prop_title, prop_location: leadRow?.propLocation, crm_data: { origin: leadRow?.origin || {} } }
-                return (
-                  <div style={{ flexShrink:0, maxHeight:260, overflowY:'auto', background: WA.panelBg, borderTop:`1px solid ${WA.border}`, padding:'8px 10px', direction:'rtl' }}>
-                    <input value={quickQ} onChange={e=>setQuickQ(e.target.value)} placeholder="חיפוש תבנית…" autoFocus
-                      style={{ width:'100%', boxSizing:'border-box', padding:'7px 11px', marginBottom:6, background: WA.inputFieldBg, border:`1px solid ${WA.border}`, borderRadius:8, color: WA.bodyText, fontFamily:'inherit', fontSize:13, outline:'none', minHeight:0 }}/>
-                    {list.map(x => {
-                      const cat = CATEGORIES.find(c => c.id === x.cat)
-                      const text = renderTemplate(x, asLead, autoConfig || undefined)
-                      return (
-                        <button key={x.id} onClick={()=>{ setInput(text); setQuickOpen(false); setQuickQ(''); setTimeout(()=>inputRef.current?.focus(), 30) }}
-                          style={{ display:'block', width:'100%', textAlign:'right', background:'transparent', border:'none', borderBottom:`1px solid ${WA.border}`, padding:'8px 6px', cursor:'pointer', fontFamily:'inherit', color: WA.bodyText, minHeight:0 }}
-                          onMouseEnter={e=>e.currentTarget.style.background=WA.hoverRow} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                          <div style={{ fontSize:13, fontWeight:700 }}>{cat?.icon} {x.he_title}</div>
-                          <div style={{ fontSize:12, color: WA.subText, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{text.replace(/\n/g, ' ')}</div>
-                        </button>
-                      )
-                    })}
-                  </div>
-                )
-              })()}
 
               {/* ── Emoji picker (flex: 0 0 auto) ── */}
               {emoji && (
