@@ -8,6 +8,8 @@
 //             (ACCOUNT) and campaigns, Green API state, the welcome rule; `connect-fix` also subscribes pages to leadgen
 //   meta-sync — GET /api/meta/sync: saves every Meta lead the webhook missed (UNSUB_PAGES for connect: page ids to unsubscribe)
 //   crm-sync — POST /api/meta/crm-sync: copies every Meta lead that isn't in the CRM (contacts) yet, quietly (counts only)
+//   wa — the WhatsApp chat page's own calls (chat-status / chat-list / chat-history): HTTP, timing, Green's error text;
+//        `wa-send` also sends one test text through chat-send to the office's own notification number
 //   restore — RESTORE_FROM (an older deployment's origin): its /properties.json is offered as the admin's copy
 //             (POST ?snapshot=1) — properties the table lacks are added, nothing is overwritten
 // The admin token is the one the site's own admin bundle carries (src/App.jsx) unless ADMIN_TOKEN is set.
@@ -81,6 +83,26 @@ if (ACTIONS.includes('connect') || ACTIONS.includes('connect-fix')) {
   const r = await fetch(`${SITE}/api/meta/connect?${acct ? `account=${acct}&` : ''}${unsub ? `unsub=${unsub}&` : ''}${ACTIONS.includes('connect-fix') ? 'fix=1' : ''}`, { headers: H, signal: AbortSignal.timeout(55000) })
   const d = await r.json().catch(async () => ({ raw: (await r.text().catch(() => '')).slice(0, 400) }))
   console.log(`connect (HTTP ${r.status}):\n${JSON.stringify(d, null, 1).slice(0, 9000)}`)
+}
+if (ACTIONS.includes('wa') || ACTIONS.includes('wa-send')) {
+  const call = async (label, path, init = {}) => {
+    const t = Date.now()
+    const r = await fetch(`${SITE}${path}`, { headers: H, ...init, signal: AbortSignal.timeout(30000) }).catch(e => ({ ok: false, status: 0, text: async () => e.message }))
+    const txt = await r.text().catch(() => '')
+    let d = null; try { d = JSON.parse(txt) } catch {}
+    const brief = Array.isArray(d) ? { items: d.length } : d ? { state: d.state, http: d.http, ok: d.ok, error: d.error, detail: typeof d.detail === 'string' ? d.detail.slice(0, 200) : d.detail } : { raw: txt.slice(0, 200) }
+    show(`wa ${label} (HTTP ${r.status}, ${Date.now() - t} ms)`, brief)
+    return d
+  }
+  await call('chat-status', '/api/meta/chat-status')
+  await call('auto-status', '/api/meta/auto-status')
+  const list = await call('chat-list', '/api/meta/chat-list?days=30')
+  const one = Array.isArray(list) ? (list.find(c => !c.office && !c.self) || list[0]) : null
+  if (one) await call('chat-history (one chat)', '/api/meta/chat-history', { method: 'POST', body: JSON.stringify({ phone: one.phone, count: 20 }) })
+  if (ACTIONS.includes('wa-send')) {
+    const office = Array.isArray(list) ? list.find(c => c.office) : null
+    await call('chat-send (to the office number)', '/api/meta/chat-send', { method: 'POST', body: JSON.stringify({ phone: office?.phone || '972559811814', message: 'בדיקת מערכת: שליחה מעמוד הווצאפ ✓' }) })
+  }
 }
 if (ACTIONS.includes('meta-sync')) {
   // Full Meta Lead Ads sync: every lead the webhook missed is saved (only leads ≤ 24 h old are welcomed / announced)
