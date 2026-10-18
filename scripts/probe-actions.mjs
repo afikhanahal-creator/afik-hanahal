@@ -10,6 +10,7 @@
 //   crm-sync — POST /api/meta/crm-sync: copies every Meta lead that isn't in the CRM (contacts) yet, quietly (counts only)
 //   wa — the WhatsApp chat page's own calls (chat-status / chat-list / chat-history): HTTP, timing, Green's error text;
 //        `wa-send` also sends one test text through chat-send to the office's own notification number
+//   ga4 — the analytics dashboard's connection: test, a 30-day dashboard (totals / row counts only) and realtime
 //   restore — RESTORE_FROM (an older deployment's origin): its /properties.json is offered as the admin's copy
 //             (POST ?snapshot=1) — properties the table lacks are added, nothing is overwritten
 // The admin token is the one the site's own admin bundle carries (src/App.jsx) unless ADMIN_TOKEN is set.
@@ -102,6 +103,27 @@ if (ACTIONS.includes('wa') || ACTIONS.includes('wa-send')) {
   if (ACTIONS.includes('wa-send')) {
     const office = Array.isArray(list) ? list.find(c => c.office) : null
     await call('chat-send (to the office number)', '/api/meta/chat-send', { method: 'POST', body: JSON.stringify({ phone: office?.phone || '972559811814', message: 'בדיקת מערכת: שליחה מעמוד הווצאפ ✓' }) })
+  }
+}
+if (ACTIONS.includes('ga4')) {
+  const post = async (body, path = 'ga4-dash') => {
+    const t = Date.now()
+    const r = await fetch(`${SITE}/api/meta/${path}`, { method: 'POST', headers: H, body: JSON.stringify(body), signal: AbortSignal.timeout(55000) }).catch(e => ({ ok: false, status: 0, json: async () => ({ error: e.message }) }))
+    const d = await r.json().catch(() => ({}))
+    return { http: r.status, ms: Date.now() - t, d }
+  }
+  const health = await fetch(`${SITE}/api/properties?health=1`).then(r => r.json()).catch(() => ({}))
+  show('ga4 env configured (health)', health?.env?.ga4)
+  const test = await post({ type: 'test' })
+  show(`ga4 test (HTTP ${test.http}, ${test.ms} ms)`, { configured: test.d.configured, ok: test.d.ok, property: test.d.property, missing: test.d.missing, error: test.d.error, kind: test.d.kind })
+  if (test.d.ok) {
+    const end = new Date().toISOString().slice(0, 10), s = new Date(Date.now() - 29 * 864e5).toISOString().slice(0, 10)
+    const dash = await post({ type: 'dashboard', start: s, end, fresh: true })
+    const R = dash.d.reports || {}
+    const tot = (R.totals?.rows?.[0]?.metricValues || []).map(v => Number(v.value))
+    show(`ga4 dashboard 30d (HTTP ${dash.http}, ${dash.ms} ms)`, { error: dash.d.error, reports: Object.keys(R).length, emptyReports: Object.entries(R).filter(([, v]) => !v?.rows?.length).map(([k]) => k), users: tot[0], sessions: tot[2], views: tot[4], contacts: Number(R.convTotals?.rows?.[0]?.metricValues?.[0]?.value || 0), days: R.timeseries?.rows?.length || 0, channels: R.channels?.rows?.length || 0 })
+    const rt = await post({ type: 'realtime' })
+    show(`ga4 realtime (HTTP ${rt.http}, ${rt.ms} ms)`, { error: rt.d.error, activeUsers: Number(rt.d.rt?.now?.totals?.[0]?.metricValues?.[0]?.value || 0), minuteRows: rt.d.rt?.byMinute?.rows?.length || 0, todayChannels: rt.d.rt?.todayChannels?.rows?.length || 0 })
   }
 }
 if (ACTIONS.includes('meta-sync')) {
