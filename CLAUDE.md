@@ -195,13 +195,27 @@ the in-site modal is only used when the admin is opened from the site itself. `D
 | Piece | Where |
 |---|---|
 | Home page (greeting, KPIs, live system status, pipeline, recent activity) | `src/AdminHome.jsx` |
-| Google Analytics tab (KPIs vs previous period, trend, channels, pages, devices, cities, events, heat map, realtime) | `src/GA4Tab.jsx` |
+| Google Analytics traffic dashboard (live panel, KPIs, contacts, chart, insights, channels, campaigns, sources, landing pages, pages + drill-down, devices, geo, heat map, actions) | `src/GA4Tab.jsx` |
 | GA4 Data API client (service-account JWT, batch reports, 5-min cache, realtime) | `lib/ga4.js` (+ `lib/ga4.test.mjs`) |
-| API: `GET /api/meta/ga4?days=7|28|90[&fresh=1]`, `GET /api/meta/ga4?realtime=1` | `api/meta.js` → `handleGA4` |
+| API: `POST /api/meta/ga4-dash`, `/ga4-property`; legacy `GET /api/meta/ga4?days=…` / `?realtime=1` (home tiles) | `api/meta.js` → `handleGA4Dash` / `handleGA4` |
 
-GA4 needs `GA4_SERVICE_ACCOUNT_JSON` in Vercel (service account with Viewer on property `536943897`, Analytics Data API enabled);
-`GA4_PROPERTY_ID` defaults to `536943897`. Without it the tab shows the setup steps. The old Supermetrics route is kept as a fallback
-only (its trial ended 2026-06-16).
+GA4 needs a service account with Viewer on property `536943897` (Analytics Data API enabled): `GA4_SERVICE_ACCOUNT_JSON`, or
+`GA4_CLIENT_EMAIL` + `GA4_PRIVATE_KEY`, or the Korkos site's names `GA_SA_CLIENT_EMAIL` + `GA_SA_PRIVATE_KEY` (the same key works for
+both sites once it is a Viewer on each; `normalizePrivateKey` forgives quotes / literal `\n` / a one-line paste). The property id is
+`GA4_PROPERTY_ID`, else `app_settings.ga4_property_id` (editable in the tab's "הגדרות חיבור", `POST /api/meta/ga4-property` saves and
+tests), else `536943897`. Without credentials the tab shows the setup steps (the Korkos-key way first). Health `env.ga4` says whether
+they are set. The old Supermetrics route is kept as a fallback only (its trial ended 2026-06-16).
+**The traffic dashboard** (`src/GA4Tab.jsx`, the first sub-tab of "אנליטיקס"; built like the Korkos site's) reads
+`POST /api/meta/ga4-dash` (`lib/ga4.js` `dash()` / `dashSpecs()` / `previousRange()`, tested; `type`: dashboard · realtime · page ·
+test; 5-min cache, realtime 25 s): presets 7 / 30 / 90 days / this month / last month, each vs the previous period of the same
+length; a live panel (users in the last 30 min, a per-minute views sparkline, pages now, devices now, today's channels / sources /
+totals) with "אל תספור את הביקורים שלי" (`localStorage.afik_no_track` — `index.html` then loads no GTM / GA / Pixel; the admin
+pages never load them); KPIs with sparklines + a secondary strip; **contacts** = CRM leads in the same Israel days (site vs
+Facebook / Instagram, from the admin's `leads`) + GA's `contact_form` / `phone_click` / `whatsapp_click` / `email_click`
+(`CONVERSION_EVENTS` — filtered reports, not GA's keyEvents switch); the main chart (metric, day / week / month, previous period,
+z-score anomaly dots, tooltip); auto insights; channels / UTM campaigns / source-medium / landing pages / pages (search, sort, CSV,
+contact rate, ★ quality; a page row opens a drill-down) / devices + new vs returning / countries & cities / weekday × hour heat map
+/ site actions. `trackEvent` never sends name / email / phone to GA (Google's terms).
 
 WhatsApp chat names (`chat-list`): outgoing Green API messages carry no contact name, so names are resolved server-side from
 leads (`contacts`), `meta_leads`, the WhatsApp phone book (`getContacts`) and, for a few chats per poll, `getContactInfo` —

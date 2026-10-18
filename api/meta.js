@@ -1344,6 +1344,36 @@ async function handleGA4(req, res) {
   }
 }
 
+// POST /api/meta/ga4-dash { type: dashboard|realtime|page|test, start, end, path, fresh } → the analytics dashboard
+// (the same reports as the Korkos site, lib/ga4.js dash). POST /api/meta/ga4-property { property } saves the property id
+// (app_settings 'ga4_property_id', used when GA4_PROPERTY_ID isn't set) and tests the connection.
+let ga4PropCache = { v: '', at: 0 }
+async function ga4Property() {
+  if (process.env.GA4_PROPERTY_ID) return ''
+  if (Date.now() - ga4PropCache.at < 10 * 60000) return ga4PropCache.v
+  try { const { data } = await sb().from('app_settings').select('value').eq('key', 'ga4_property_id').maybeSingle(); ga4PropCache = { v: String(data?.value || '').replace(/\D/g, ''), at: Date.now() } } catch { ga4PropCache = { v: '', at: Date.now() } }
+  return ga4PropCache.v
+}
+async function handleGA4Dash(req, res, action) {
+  if (!checkAuth(req)) return res.status(401).json({ error: 'Unauthorized' })
+  res.setHeader('Cache-Control', 'no-store')
+  const b = req.body || {}
+  try {
+    if (action === 'ga4-property') {
+      if (req.method !== 'POST') return res.status(200).json({ property: (await ga4Property()) || GA4.ga4Credentials().property, fromEnv: !!process.env.GA4_PROPERTY_ID })
+      const v = String(b.property || '').replace(/\D/g, '')
+      if (!v) return res.status(400).json({ error: 'property id required' })
+      await sb().from('app_settings').upsert({ key: 'ga4_property_id', value: v, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+      ga4PropCache = { v, at: Date.now() }
+      return res.status(200).json(await GA4.dash({ type: 'test' }, { property: v }))
+    }
+    return res.status(200).json(await GA4.dash(b, { property: await ga4Property(), fresh: !!b.fresh }))
+  } catch (e) {
+    console.error(`[ga4-dash] ${e.message}`)
+    return res.status(e.kind === 'request' ? 400 : 502).json({ configured: true, error: e.message, kind: e.kind || 'api', serviceAccount: GA4.ga4Credentials().email || '' })
+  }
+}
+
 // ── Lead analysis ─────────────────────────────────────────────────────────────
 // POST /api/meta/lead-analyze { lead, ai = true } → rule-based score + Claude briefing (see lib/lead-analyze.js)
 async function handleLeadAnalyze(req, res) {
@@ -1422,6 +1452,7 @@ export default async function handler(req, res) {
   if (path.startsWith('auto-'))  return handleAutomations(req, res, path)
   if (path === 'supermetrics')   return handleSupermetrics(req, res)
   if (path === 'ga4')            return handleGA4(req, res)
+  if (path === 'ga4-dash' || path === 'ga4-property') return handleGA4Dash(req, res, path)
   if (path === 'lead-analyze')   return handleLeadAnalyze(req, res)
   if (path === 'lead-research')  return handleLeadResearch(req, res)
   if (path === 'diagnostics')    return handleDiagnostics(req, res)

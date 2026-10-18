@@ -868,7 +868,7 @@ function AnalyticsDashboard({ leads }) {
   const { C, isDark, lang } = useTheme()
   const [events, setEvents] = useState([])
   const [refreshTs, setRefreshTs] = useState(0)
-  const [analyticsTab, setAnalyticsTab] = useState('site')
+  const [analyticsTab, setAnalyticsTab] = useState('ga4')   // Google Analytics first: the real traffic of every visitor
   const [ga4Devices, setGa4Devices] = useState(null)   // real GA4 device data
   const [ga4Source,  setGa4Source]  = useState(null)   // 'live' | 'verified'
   const [ga4Reason,  setGa4Reason]  = useState('')     // why live was unavailable (transparency)
@@ -1018,8 +1018,8 @@ function AnalyticsDashboard({ leads }) {
 
       {/* ── Platform sub-tabs ── */}
       <div style={{ display:'flex', gap:0, borderBottom:`1px solid ${C.purple}22`, overflowX:'auto', marginBottom:-6 }}>
-        {atBtn('site',      'האתר שלנו')}
         {atBtn('ga4',       'Google Analytics')}
+        {atBtn('site',      'האתר שלנו (הדפדפן הזה)')}
         {atBtn('meta',      'Meta / Facebook')}
         {atBtn('instagram', 'Instagram')}
         {atBtn('logrocket', 'LogRocket')}
@@ -1032,7 +1032,7 @@ function AnalyticsDashboard({ leads }) {
           : analyticsTab === 'marketing'
           ? <MetaMarketingLive/>
           : analyticsTab === 'ga4'
-          ? <Suspense fallback={null}><GA4Tab token={ADMIN_TOKEN} lang={lang}/></Suspense>
+          ? <Suspense fallback={null}><GA4Tab token={ADMIN_TOKEN} lang={lang} leads={leads}/></Suspense>
           : <PlatformSection tab={analyticsTab} C={C} isDark={isDark}/>
       )}
 

@@ -529,7 +529,9 @@
       gtag('config', 'G-X1S3XX7TRV', { send_page_view: true });
       (function(){
         var started=false;
-        function start(){ if(started)return; started=true;
+        // no tags for the office's own browsers ("אל תספור את הביקורים שלי" in the admin) or on the admin pages
+        var skip=false;try{skip=localStorage.getItem('afik_no_track')==='1'||/^\/(admin-panel|dashboard)(\/|$)/.test(location.pathname)}catch(e){}
+        function start(){ if(started||skip)return; started=true;
           (function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
           j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
           })(window,document,'script','dataLayer','GTM-MZZ8QR8V');
@@ -547,6 +549,7 @@
     <script>
       (function(){
         function initPixel(){
+          try{if(localStorage.getItem('afik_no_track')==='1'||/^\/(admin-panel|dashboard)(\/|$)/.test(location.pathname))return}catch(e){}
           !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
           fbq('init', '1341264237748951');
           fbq('init', '1311196023271539');

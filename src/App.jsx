@@ -2327,7 +2327,8 @@ function trackEvent(name, props = {}) {
     all.push({ n: name, t: Date.now(), ...props })
     localStorage.setItem(ANALYTICS_KEY, JSON.stringify(all.slice(-3000)))
   } catch {}
-  try { if (window.gtag) window.gtag('event', name, props) } catch {}
+  // Google Analytics must never receive personal data (its terms): name / email / phone stay out of the event
+  try { if (window.gtag) { const { email, phone, name: _n, ...safe } = props; window.gtag('event', name, safe) } } catch {}
   // Meta Pixel + CAPI (deduplication handled inside sendCAPI via event_id)
   if (name === 'contact_form')   sendCAPI('Lead',        { email:props.email, phone:props.phone, name:props.name }, { content_name: props.propTitle || '' })
   if (name === 'property_view')  sendCAPI('ViewContent', {}, { content_name: props.title || '' })
