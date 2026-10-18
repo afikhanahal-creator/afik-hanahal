@@ -16,6 +16,8 @@ import { analyzeLead, buildDossier } from '../lib/lead-analyze.js'
 import { summarizeChat } from '../lib/chat-summary.js'
 import { researchLead } from '../lib/lead-research.js'
 import { mirrorMetaLead, backfillMetaLeads } from '../lib/meta-crm.js'
+import * as Booking from '../lib/booking-server.js'
+import * as GCal from '../lib/google-calendar.js'
 
 const SUPERMETRICS_API_KEY    = process.env.SUPERMETRICS_API_KEY    || ''
 // System User token (afik-api) — permanent, survives password changes. Used to
@@ -1426,6 +1428,68 @@ async function handleLeadResearch(req, res) {
   }
 }
 
+// ── Booking page (our own Calendly: /book) ────────────────────────────────────
+//  public: GET booking-config · GET booking-slots?type=&from=&days= · POST booking-create
+//          GET booking-oauth-callback (Google sends the office back here after "connect the calendar")
+//  admin:  GET booking-admin · POST booking-settings {config} · POST booking-connect → {url} · POST booking-disconnect
+//          POST booking-cancel {id}
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
+function oauthPage(ok, text) {
+  return `<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>חיבור היומן</title></head>
+<body style="margin:0;min-height:100vh;display:grid;place-items:center;background:#09090F;color:#E8E4D8;font-family:Heebo,Arial,sans-serif">
+<div style="max-width:420px;padding:32px;text-align:center"><div style="font-size:44px">${ok ? '✅' : '⚠️'}</div>
+<h1 style="font-size:22px;margin:12px 0">${ok ? 'היומן חובר' : 'החיבור לא הצליח'}</h1><p style="line-height:1.7;color:#B9B5AA">${esc(text)}</p>
+<a href="/admin-panel" style="display:inline-block;margin-top:16px;background:#8490D8;color:#09090F;font-weight:700;padding:12px 28px;border-radius:999px;text-decoration:none">חזרה לפאנל</a></div></body></html>`
+}
+async function handleBooking(req, res, action) {
+  try {
+    if (action === 'booking-config') {
+      const [cfg, st] = await Promise.all([Booking.loadConfig(), GCal.status()])
+      res.setHeader('Cache-Control', 'public, s-maxage=120, stale-while-revalidate=600')
+      return res.status(200).json(Booking.publicConfig(cfg, st.connected))
+    }
+    if (action === 'booking-slots') {
+      const q = req.query || {}
+      const r = await Booking.slots({ typeId: String(q.type || ''), from: String(q.from || ''), days: Number(q.days) || 7 })
+      res.setHeader('Cache-Control', 'public, s-maxage=20, stale-while-revalidate=40')
+      return res.status(200).json(r)
+    }
+    if (action === 'booking-create') {
+      if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
+      res.setHeader('Cache-Control', 'no-store')
+      const ip = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim()
+      const r = await Booking.create(sb(), req.body || {}, { ip })
+      return res.status(r.ok ? 200 : r.status || 400).json(r)
+    }
+    if (action === 'booking-oauth-callback') {
+      res.setHeader('Content-Type', 'text/html; charset=utf-8')
+      res.setHeader('Cache-Control', 'no-store')
+      const q = req.query || {}
+      if (q.error) return res.status(200).end(oauthPage(false, q.error === 'access_denied' ? 'לא אישרתם גישה ליומן. אפשר לנסות שוב מהפאנל.' : `Google: ${q.error}`))
+      if (!GCal.stateValid(q.state)) return res.status(400).end(oauthPage(false, 'הקישור פג. לחצו שוב "חבר יומן" בפאנל.'))
+      try {
+        const { email } = await GCal.connect(String(q.code || ''))
+        return res.status(200).end(oauthPage(true, `היומן ${email || ''} מחובר. מעכשיו כל פגישה שנקבעת באתר נכנסת אליו, והשעות התפוסות בו לא יוצעו ללקוחות.`))
+      } catch (e) { return res.status(200).end(oauthPage(false, e.message)) }
+    }
+    if (!checkAuth(req)) return res.status(401).json({ error: 'Unauthorized' })
+    res.setHeader('Cache-Control', 'no-store')
+    const b = req.body || {}
+    if (action === 'booking-admin') return res.status(200).json(await Booking.adminState())
+    if (action === 'booking-settings') return res.status(200).json({ ok: true, config: await Booking.saveConfig(b.config || {}) })
+    if (action === 'booking-connect') {
+      if (!GCal.oauthReady()) return res.status(400).json({ error: 'GOOGLE_OAUTH_CLIENT_ID / GOOGLE_OAUTH_CLIENT_SECRET חסרים ב-Vercel', redirectUri: GCal.REDIRECT_URI() })
+      return res.status(200).json({ url: GCal.authUrl() })
+    }
+    if (action === 'booking-disconnect') { await GCal.disconnect(); return res.status(200).json({ ok: true }) }
+    if (action === 'booking-cancel') return res.status(200).json(await Booking.cancel(String(b.id || '')))
+    return res.status(404).json({ error: `Unknown path: ${action}` })
+  } catch (e) {
+    console.error('[booking]', action, e.message)
+    return res.status(500).json({ error: e.message })
+  }
+}
+
 // ── main router ───────────────────────────────────────────────────────────────
 
 // Disable Vercel's automatic body parser so we can read the raw bytes.
@@ -1468,6 +1532,7 @@ export default async function handler(req, res) {
   if (path === 'sync')         return handleSync(req, res)
   if (path.startsWith('chat-'))  return handleChat(req, res, path)
   if (path.startsWith('auto-'))  return handleAutomations(req, res, path)
+  if (path.startsWith('booking-')) return handleBooking(req, res, path)
   if (path === 'supermetrics')   return handleSupermetrics(req, res)
   if (path === 'ga4')            return handleGA4(req, res)
   if (path === 'ga4-dash' || path === 'ga4-property') return handleGA4Dash(req, res, path)

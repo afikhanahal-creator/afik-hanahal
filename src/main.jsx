@@ -60,8 +60,11 @@ const isAccessibilityPage = cleanPath === '/accessibility'
 const isSellerForm = ['/newproperty', '/sell', '/seller-form'].includes(cleanPath)
 const summaryToken = (cleanPath.match(/^\/newproperty\/([A-Za-z0-9]{16,64})$/) || [])[1] || null
 const SellerForm = lazy(() => import('./SellerForm.jsx'))
+// Booking page (our own Calendly) — /book, also /booking and /meet; its own chunk
+const isBooking = ['/book', '/booking', '/meet'].includes(cleanPath)
+const BookingPage = lazy(() => import('./BookingPage.jsx'))
 const PropertySummary = lazy(() => import('./PropertySummary.jsx'))
-if (isSellerForm || summaryToken) {
+if (isSellerForm || summaryToken || isBooking) {
   // Private pages: override the site-wide "index, follow" meta and drop the home-page canonical
   let m = document.querySelector('meta[name="robots"]')
   if (!m) { m = document.createElement('meta'); m.name = 'robots'; document.head.appendChild(m) }
@@ -74,6 +77,8 @@ createRoot(document.getElementById('root')).render(
     <ErrorBoundary>
       {summaryToken
         ? <Suspense fallback={<div style={{ minHeight: '100vh', background: '#EFEFF1' }}/>}><PropertySummary token={summaryToken} /></Suspense>
+        : isBooking
+        ? <Suspense fallback={<div style={{ minHeight: '100vh', background: '#09090F' }}/>}><BookingPage /></Suspense>
         : isSellerForm
           ? <Suspense fallback={<div style={{ minHeight: '100vh', background: '#EFEFF1' }}/>}><SellerForm /></Suspense>
           : isAccessibilityPage ? <AccessibilityPage /> : <App />}
