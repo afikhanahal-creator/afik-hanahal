@@ -213,8 +213,9 @@ outcome chips (talked / no answer / call back / not relevant), free text, next f
 a note `{ id, text, ts, kind: 'call', outcome }` in `crm_data.notes` (the list the lead card shows) plus `followUp`, `lastCallAt`,
 `noAnswerCount`; "not relevant" moves the lead to that stage, "talked" moves a new lead to contacted. The card shows the last note
 and the follow-up (red when overdue).
-**Campaign next to the name:** `leadCampaign(lead, lang)` (`src/lib/leadFields.js`, tested) — Meta campaign → lead form →
-`utm_campaign` → "אתר · <utm_source / referrer>" → the source label; shown in brackets (inside `<bdi>`) after the name on the
+**Campaign next to the name:** `leadCampaign(lead, lang)` (`src/lib/leadFields.js`, tested) — a short name: the Meta campaign
+(else the form) through `shortCampaign()` ("זרובבל 15 - v2 (כוונה גבוהה)" → "זרובבל 15"), "אתר" for every website form, a one-word
+label otherwise; `leadCampaignFull()` keeps the whole name for tooltips. Shown in brackets (inside `<bdi>`) after the name on the
 board, the table, mobile cards, the call summary and the lead card. **Lead card → "הערות ופעילות"**: a composer (note / call /
 meeting / WhatsApp; a call takes an outcome; the draft is kept in `localStorage.afik_lead_note_draft:<id>`) and one **history**
 timeline grouped by day (filters: all / notes & calls / system): notes (edit inline, delete with a confirm), stage changes

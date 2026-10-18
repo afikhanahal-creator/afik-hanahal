@@ -5,7 +5,7 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { FaTimes, FaPhone, FaWhatsapp, FaEnvelope, FaMagic, FaUser, FaStickyNote, FaTasks, FaChartPie, FaCheck, FaTrash, FaCopy, FaPlus, FaClock, FaBullseye, FaExclamationTriangle, FaLightbulb, FaQuestionCircle, FaComments, FaShieldAlt, FaSyncAlt, FaMapMarkerAlt, FaBuilding, FaCalendarAlt, FaTag, FaFlag, FaArrowUp, FaArrowDown, FaInfoCircle, FaUserCheck, FaExternalLinkAlt, FaSearch, FaHandshake, FaEdit } from 'react-icons/fa'
 import { T } from './automationsUI.jsx'
-import { sourceLabel, sourceColor, originLines, leadCampaign } from './lib/leadFields.js'
+import { sourceLabel, sourceColor, originLines, leadCampaign, leadCampaignFull } from './lib/leadFields.js'
 
 const TR = {
   he: {
@@ -218,6 +218,7 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
   const openTasks = tasks.filter(x => !x.done).length
   const src = lead.source || (String(lead.id).startsWith('meta_') ? 'meta' : 'website')
   const campaign = leadCampaign(lead, lang)
+  const campaignFull = leadCampaignFull(lead, lang)
   const stageName = id => { const g = stages.find(x => x.id === id); return g ? (lang === 'en' ? g.en : g.label) : (id || '') }
 
   const copyMsg = async text => { try { await navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1500) } catch {} }
@@ -229,7 +230,7 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <h2 id="lc-title" style={{ margin: 0, fontSize: 19, fontWeight: 800, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
             {lead.name || t.none}
-            {campaign && <span title={`${t.campaign}: ${campaign}`} style={{ fontSize: 14, fontWeight: 600, color: T.text3, marginInlineStart: 8 }}>(<bdi>{campaign}</bdi>)</span>}
+            {campaign && <span title={`${t.campaign}: ${campaignFull}`} style={{ fontSize: 14, fontWeight: 600, color: T.text3, marginInlineStart: 8 }}>(<bdi>{campaign}</bdi>)</span>}
           </h2>
           {isV2 && <span title={t.why} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 24, padding: '0 10px', borderRadius: 20, background: `${GRADE_COLOR[en.grade]}1f`, color: GRADE_COLOR[en.grade], fontSize: 12, fontWeight: 800 }}>{en.score100} · {t.gradeName[en.grade]}</span>}
           {saveState && <span role="status" style={{ fontSize: 11.5, color: saveState === 'saved' ? T.green : saveState === 'error' ? '#EF4444' : T.text3, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 5 }}>{saveState === 'saved' && <FaCheck size={9}/>}{saveState === 'saved' ? t.saved : saveState === 'error' ? t.saveFailed : t.saving}</span>}
@@ -371,9 +372,9 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
     })
     tasks.forEach(x => x.done && x.doneAt && ev.push({ key: `t${x.id}`, ts: x.doneAt, group: 'system', Ic: FaCheck, color: '#22C55E', title: t.evTaskDone, body: x.text }))
     if (isV2 && en.enrichedAt) ev.push({ key: 'an', ts: Date.parse(en.enrichedAt) || en.enrichedAt, group: 'system', Ic: FaChartPie, color: GRADE_COLOR[en.grade] || T.brandText, title: t.evAnalyzed(en.score100) })
-    if (lead.ts) ev.push({ key: 'c', ts: lead.ts, group: 'system', Ic: FaUserCheck, color: sourceColor(src), title: t.evCreated, body: [sourceLabel(src, lang), campaign && campaign !== sourceLabel(src, lang) ? campaign : ''].filter(Boolean).join(' · ') })
+    if (lead.ts) ev.push({ key: 'c', ts: lead.ts, group: 'system', Ic: FaUserCheck, color: sourceColor(src), title: t.evCreated, body: [sourceLabel(src, lang), campaignFull !== sourceLabel(src, lang) && !/^(אתר|Website)$/.test(campaignFull) ? campaignFull : ''].filter(Boolean).join(' · ') })
     return ev.filter(e => e.ts).sort((a, b) => b.ts - a.ts)
-  }, [lead, notes, tasks, en.enrichedAt, en.score100, isV2, t, lang, campaign]) // eslint-disable-line
+  }, [lead, notes, tasks, en.enrichedAt, en.score100, isV2, t, lang, campaignFull]) // eslint-disable-line
   const shown = events.filter(e => histFilter === 'all' || e.group === histFilter)
   const dayLabel = ts => {
     const d = new Date(ts), s = new Date(); s.setHours(0, 0, 0, 0)

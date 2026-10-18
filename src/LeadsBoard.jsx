@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect, useMemo, createContext, useContext } from 'react'
-import { sourceLabel, sourceColor, originLines, leadCampaign } from './lib/leadFields.js'
+import { sourceLabel, sourceColor, originLines, leadCampaign, leadCampaignFull } from './lib/leadFields.js'
 import LeadCard from './LeadCard.jsx'
 import {
   DndContext, closestCenter, closestCorners, useSensor, useSensors,
@@ -806,7 +806,7 @@ function SortableRow({ lead, cols, onUpdate, onDelete, onSelect, isSelected, lan
           return (
             <div key={col.id} style={{ ...cellStyle, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
               <div style={{ flex: '0 1 auto', minWidth: 0 }}><EditableCell value={val} T={T} onSave={v => handleUpdate(col, v)} /></div>
-              {camp && <span title={camp} style={{ flex: '1 1 0', minWidth: 0, fontSize: 11.5, fontWeight: 500, color: T.textSub, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>(<bdi>{camp}</bdi>)</span>}
+              {camp && <span title={leadCampaignFull(lead, lang)} style={{ flex: '1 1 0', minWidth: 0, fontSize: 11.5, fontWeight: 500, color: T.textSub, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>(<bdi>{camp}</bdi>)</span>}
             </div>
           )
         }
@@ -1358,7 +1358,7 @@ function KanbanCard({ lead, T, isDark, lang, onOpen, onDelete, onOpenChat, onEnr
           {(lead.name || '?')[0].toUpperCase()}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={campaign ? `${lead.name || ''} (${campaign})` : undefined}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={campaign ? `${lead.name || ''} (${leadCampaignFull(lead, lang)})` : undefined}>
             {lead.name || '—'}{campaign && <span style={{ fontSize: 11, fontWeight: 500, color: T.textSub, marginInlineStart: 5 }}>(<bdi>{campaign}</bdi>)</span>}
           </div>
           {lead.phone && (
@@ -1372,7 +1372,7 @@ function KanbanCard({ lead, T, isDark, lang, onOpen, onDelete, onOpenChat, onEnr
       </div>
 
       {/* Property + message preview */}
-      {lead.propTitle && lead.propTitle !== campaign && (
+      {lead.propTitle && lead.propTitle !== campaign && lead.propTitle !== leadCampaignFull(lead, lang) && (
         <div style={{ fontSize: 11, color: T.textSub, marginBottom: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 4 }}>
           <span style={{ fontSize: 10 }}>🏠</span>
           <span>{lead.propTitle}</span>
