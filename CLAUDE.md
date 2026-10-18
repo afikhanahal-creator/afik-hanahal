@@ -180,16 +180,17 @@ template dropdown above every message (the item's category first, the whole libr
 browser with `renderTemplate`), "נוסח אחר" (next template of the same category), "ערוך הודעה" (free edit), "שחזר נוסח"; the
 group header has "נוסח לכל הקבוצה…". The send carries the chosen `templateId`. The built-in library has 59 bilingual templates
 (welcome / late-welcome / investor / scheduling variants, follow-ups, visits, after-call, nurture, re-engagement, chat-ready
-replies, deal steps), **written as a person, not a system**: first person singular from the agent (`{agent}` = a first name,
-default "ישראל" / "Israel" — the office changes it in the templates tab's office details), the first message introduces them
-("היי {name}, {agent} מאפיק הנחל." inside `[[ … ]]`, so an empty agent drops the introduction), later ones carry no
-signature; "היי" (or `{greeting}`: `timeGreeting()` = בוקר טוב / צהריים טובים / ערב טוב by the Israel hour, rendered at send
+replies, deal steps), **written by people, from the Afik Hanahal page**: always plural — the office is "we" ("ראינו",
+"נשמח", "נתקשר") and the lead is addressed in plural ("השארתם", "לכם", "אתכם"), which also keeps the Hebrew gender-neutral; the
+first message introduces the office ("היי {name}, כאן אפיק הנחל."), later ones carry no signature (`{agent}`, default
+"צוות אפיק הנחל", only signs the closing / holiday messages, inside `[[ … ]]` so an empty value drops the line); "היי" (or `{greeting}`: `timeGreeting()` = בוקר טוב / צהריים טובים / ערב טוב by the Israel hour, rendered at send
 time) instead of "שלום … תודה על פנייתך"; the welcome says what a person would know — `{when}` (`leadWhen()`: היום / אתמול /
 ביום שלישי, '' after a week) and `{where}` (`leadWhere()`: במודעה for Meta leads, באתר for website forms) — "ראיתי שהשארת פרטים
 אתמול במודעה על זרובבל 15. אפשר להתקשר אליך לכמה דקות?"; 1–3 short lines, one concrete question ("היום אחר הצהריים או מחר
 בבוקר?" rather than "מתי נוח?"), everyday words ("סגור", "בא לך", "יש מצב"), commas instead of typographic dashes, sentences
-instead of bullet lists; gender-neutral Hebrew without slashes (past-tense "השארת" / "התעניינת", "לך", plural "בואו", no
-gendered present-tense "מוודא" / "צריך" or imperatives); no childish emoji. A test fails if 👋 🙂 🙌 🎉 🙏 🔥, "–" or "•", bot
+instead of bullet lists; no slashes, no
+gendered present-tense or imperatives; no childish emoji. A test fails if singular wording comes back
+("ראיתי", "אשמח", "לך", "השארת"… or "I" in English), if 👋 🙂 🙌 🎉 🙏 🔥, "–" or "•", bot
 phrases ("נשמח לעמוד לרשות", "פנייתך", "צוות אפיק הנחל", "We would be glad", "Dear "…), a team signature block or a Hebrew text
 over 420 characters come back. **Names:** a Hebrew message writes an English first name in Hebrew
 (`lib/hebrew-names.js` `hebrewFirstName`, a list of ~450 Israeli names; "Ronen" → "רונן"); an unknown Latin name is left out

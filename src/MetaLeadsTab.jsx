@@ -150,18 +150,18 @@ const CAMPAIGN_COLORS = ['#8490D8','#E05252','#3BAF7E','#E08C3A','#3A8FC7','#C24
 
 const QUICK_REPLIES = {
   he: [
-    { label: 'תיאום שיחה',    message: 'היי {{firstName}}, ראיתי את הפנייה שלך על {{project}}. מתי נוח שאתקשר לכמה דקות?' },
-    { label: 'חזרה אחרי שיחה שלא נענתה', message: 'היי {{firstName}}, ניסיתי להתקשר אליך לגבי {{project}} ולא תפסתי אותך. עכשיו נוח, או שעדיף מאוחר יותר?' },
-    { label: 'תיאום פגישה',   message: 'היי {{firstName}}, לגבי {{project}}, הכי טוב לשבת ולעבור על הפרטים והתוכניות יחד. איזה יום מתאים לך השבוע?' },
-    { label: 'שליחת פרטים',   message: 'היי {{firstName}}, יש לי את כל הפרטים והתוכניות של {{project}}. לשלוח לך כאן, או שנעבור עליהם בשיחה קצרה?' },
-    { label: 'זמינים עכשיו',  message: 'היי {{firstName}}, ראיתי עכשיו את הפנייה על {{project}}. יש לי כמה דקות פנויות ממש עכשיו, נוח שאתקשר?' },
+    { label: 'תיאום שיחה',    message: 'היי {{firstName}}, כאן אפיק הנחל. ראינו את הפנייה שלכם על {{project}}, מתי נוח שנתקשר לכמה דקות?' },
+    { label: 'חזרה אחרי שיחה שלא נענתה', message: 'היי {{firstName}}, ניסינו להתקשר אליכם לגבי {{project}} ולא תפסנו אתכם. עכשיו נוח, או שעדיף מאוחר יותר?' },
+    { label: 'תיאום פגישה',   message: 'היי {{firstName}}, לגבי {{project}}, הכי טוב לשבת ולעבור על הפרטים והתוכניות יחד. איזה יום מתאים לכם השבוע?' },
+    { label: 'שליחת פרטים',   message: 'היי {{firstName}}, יש לנו את כל הפרטים והתוכניות של {{project}}. לשלוח לכם לכאן, או שנעבור עליהם בשיחה קצרה?' },
+    { label: 'זמינים עכשיו',  message: 'היי {{firstName}}, כאן אפיק הנחל. ראינו עכשיו את הפנייה על {{project}}, אנחנו זמינים ממש עכשיו. נוח שנתקשר?' },
   ],
   en: [
-    { label: 'Schedule a call',     message: 'Hi {{firstName}}, I saw your inquiry about {{project}}. When\'s a good time for a quick call?' },
-    { label: 'After a missed call', message: 'Hi {{firstName}}, I tried calling you about {{project}} but couldn\'t reach you. Is now good, or would later suit you better?' },
-    { label: 'Book a meeting',      message: 'Hi {{firstName}}, about {{project}} – it\'s best to sit down and go over the details and plans together. Which day works for you this week?' },
-    { label: 'Send the details',    message: 'Hi {{firstName}}, I have all the details and plans for {{project}}. Shall I send them here, or go over them on a short call?' },
-    { label: 'Available now',       message: 'Hi {{firstName}}, I\'ve just seen your inquiry about {{project}}. I have a few minutes free right now – OK if I call?' },
+    { label: 'Schedule a call',     message: 'Hi {{firstName}}, it\'s Afik Hanahal here. We saw your inquiry about {{project}}. When\'s a good time for a quick call?' },
+    { label: 'After a missed call', message: 'Hi {{firstName}}, we tried calling you about {{project}} but couldn\'t reach you. Is now good, or would later suit you better?' },
+    { label: 'Book a meeting',      message: 'Hi {{firstName}}, about {{project}}, it\'s best to sit down and go over the details and plans together. Which day works for you this week?' },
+    { label: 'Send the details',    message: 'Hi {{firstName}}, we have all the details and plans for {{project}}. Shall we send them here, or go over them on a short call?' },
+    { label: 'Available now',       message: 'Hi {{firstName}}, it\'s Afik Hanahal here. We\'ve just seen your inquiry about {{project}} and we\'re free right now. OK if we call?' },
   ],
 }
 
