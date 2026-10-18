@@ -78,7 +78,8 @@ const TR = {
     open: 'פתח', settings: 'הגדרות חיבור', propId: 'מזהה הנכס (Property ID)', saveTest: 'שמירה ובדיקת חיבור', testing: 'בודק…', ok: sa => `החיבור תקין ✓${sa ? ` · ${sa}` : ''}`, failed: 'שגיאת חיבור',
     errT: 'Google Analytics החזיר שגיאה', retry: 'נסה שוב',
     keyIdNote: (k, sa) => `מזהה המפתח שמוגדר ב-Vercel מתחיל ב-${k}${sa ? ` (${sa})` : ''}. ב-Google Cloud ← Service Accounts ← Keys בדקו שמפתח עם המזהה הזה קיים ופעיל. אם הוא נמחק, צרו מפתח חדש והדביקו את הקובץ החדש ב-Vercel.`,
-    why: { permission: sa => `חשבון השירות${sa ? ` ${sa}` : ''} עדיין לא קיבל גישה לנכס. ב-Analytics ← Admin ← Property access management הוסיפו אותו כ-Viewer.`, api: 'ה-Analytics Data API לא מופעל בפרויקט של חשבון השירות.', auth: 'Google דחה את המפתח (Invalid JWT Signature): המפתח שהודבק ב-Vercel נמחק או בוטל ב-Google Cloud, או שהודבק קובץ ישן.', property: 'מזהה הנכס שגוי (מספר, לא G-XXXX).', other: 'נסו שוב בעוד רגע.' },
+    why: { permission: sa => `חשבון השירות${sa ? ` ${sa}` : ''} עדיין לא קיבל גישה לנכס. ב-Analytics ← Admin ← Property access management הוסיפו אותו כ-Viewer.`, api: 'ה-Analytics Data API לא מופעל בפרויקט של חשבון השירות.', auth: 'Google דחה את המפתח (Invalid JWT Signature): המפתח שהודבק ב-Vercel נמחק או בוטל ב-Google Cloud, או שהודבק קובץ ישן.', property: 'מזהה הנכס שגוי (מספר, לא G-XXXX).', quota: 'Google Analytics קיבל יותר מדי בקשות בבת אחת. זה זמני: הדשבורד מנסה שוב לבד בעוד כמה שניות.', other: 'נסו שוב בעוד רגע.' },
+    retrying: s => `מנסה שוב בעוד ${s} שניות…`, stale: at => `Google Analytics עמוס כרגע. מוצגים הנתונים האחרונים שנטענו (${at}).`,
   },
   en: {
     title: 'Site traffic', src: 'Google Analytics', vsPrev: 'compared with the previous period of the same length', refresh: 'Refresh', openGa: 'Open Google Analytics', csv: 'CSV',
@@ -146,7 +147,8 @@ const TR = {
     open: 'Open', settings: 'Connection settings', propId: 'Property ID', saveTest: 'Save and test', testing: 'Testing…', ok: sa => `Connected ✓${sa ? ` · ${sa}` : ''}`, failed: 'Connection error',
     errT: 'Google Analytics returned an error', retry: 'Try again',
     keyIdNote: (k, sa) => `The key configured in Vercel has an id starting with ${k}${sa ? ` (${sa})` : ''}. In Google Cloud → Service Accounts → Keys, check that a key with this id exists and is active. If it was deleted, create a new key and paste the new file into Vercel.`,
-    why: { permission: sa => `The service account${sa ? ` ${sa}` : ''} has no access to the property yet. In Analytics → Admin → Property access management, add it as a Viewer.`, api: 'The Analytics Data API is not enabled in the service account’s project.', auth: 'Google rejected the key (Invalid JWT Signature): the key pasted into Vercel was deleted or disabled in Google Cloud, or an old file was pasted.', property: 'The property id is wrong (a number, not G-XXXX).', other: 'Try again in a moment.' },
+    why: { permission: sa => `The service account${sa ? ` ${sa}` : ''} has no access to the property yet. In Analytics → Admin → Property access management, add it as a Viewer.`, api: 'The Analytics Data API is not enabled in the service account’s project.', auth: 'Google rejected the key (Invalid JWT Signature): the key pasted into Vercel was deleted or disabled in Google Cloud, or an old file was pasted.', property: 'The property id is wrong (a number, not G-XXXX).', quota: 'Google Analytics got too many requests at once. It is temporary: the dashboard retries by itself in a few seconds.', other: 'Try again in a moment.' },
+    retrying: s => `Retrying in ${s} seconds…`, stale: at => `Google Analytics is busy right now. Showing the last data that loaded (${at}).`,
   },
 }
 
@@ -398,6 +400,17 @@ export default function GA4Tab({ token, lang = 'he', leads = [] }) {
       .catch(e => setState({ phase: 'error', message: e.message, kind: e.kind, sa: e.sa, keyId: e.keyId }))
   }, [call, range.start, range.end])
   useEffect(() => { load() }, [load])
+  // "too many requests at once" is transient: retry by itself (10 s, 20 s, 30 s), with a visible countdown
+  const [retryIn, setRetryIn] = useState(0)
+  const quotaTries = useRef(0)
+  useEffect(() => {
+    if (state.phase === 'ready') quotaTries.current = 0
+    if (state.phase !== 'error' || state.kind !== 'quota' || quotaTries.current >= 3) { setRetryIn(0); return }
+    let left = 10 * ++quotaTries.current
+    setRetryIn(left)
+    const iv = setInterval(() => { left -= 1; setRetryIn(left); if (left <= 0) { clearInterval(iv); load() } }, 1000)
+    return () => clearInterval(iv)
+  }, [state.phase, state.kind, load])
   useEffect(() => { fetch(`${API}/ga4-property`, { headers: H }).then(r => r.json()).then(d => setPropId(String(d.property || ''))).catch(() => {}) }, [H])
   useEffect(() => {
     if (state.phase !== 'ready') return
@@ -444,7 +457,8 @@ export default function GA4Tab({ token, lang = 'he', leads = [] }) {
         {state.phase === 'error' ? <>
           <p className="an-muted">{(t.why[state.kind] ? (typeof t.why[state.kind] === 'function' ? t.why[state.kind](state.sa) : t.why[state.kind]) : t.why.other)}</p>
           <p className="an-error" dir="ltr">{state.message}</p>
-          {state.keyId && <p className="an-muted">{t.keyIdNote(state.keyId, state.sa)}</p>}
+          {state.keyId && state.kind === 'auth' && <p className="an-muted">{t.keyIdNote(state.keyId, state.sa)}</p>}
+          {state.kind === 'quota' && retryIn > 0 && <p className="an-status">{t.retrying(retryIn)}</p>}
           <div><button type="button" className="an-btn" onClick={() => load(true)}>{t.retry}</button></div>
         </> : <>
           <p className="an-muted">{t.setupB}</p>
@@ -672,6 +686,7 @@ export default function GA4Tab({ token, lang = 'he', leads = [] }) {
       </div>
     </header>
 
+    {state.data.stale && <p className="an-anom-note">{t.stale(new Date(state.data.generatedAt).toLocaleTimeString(en ? 'en-GB' : 'he-IL', { hour: '2-digit', minute: '2-digit' }))}</p>}
     <LivePanel t={t} rt={rt} users={rtUsers} chName={chName} devName={devName}/>
 
     {!hasData && <section className="an-await"><span className="an-await__badge">{t.await}</span><h4>{t.awaitT}</h4><p>{t.awaitB}</p></section>}

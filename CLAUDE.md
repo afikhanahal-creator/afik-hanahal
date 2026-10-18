@@ -217,7 +217,11 @@ GA4 needs a service account with Viewer on property `536943897` (Analytics Data 
 both sites once it is a Viewer on each; `normalizePrivateKey` forgives quotes / literal `\n` / a one-line paste). The property id is
 `GA4_PROPERTY_ID`, else `app_settings.ga4_property_id` (editable in the tab's "הגדרות חיבור", `POST /api/meta/ga4-property` saves and
 tests), else `536943897`. Without credentials the tab shows the setup steps (the Korkos-key way first). Health `env.ga4` says whether
-they are set; an auth error shows the configured key's id (`keyId`, from `private_key_id`) to compare with Google Cloud → Keys. The old Supermetrics route is kept as a fallback only (its trial ended 2026-06-16).
+they are set; an auth error shows the configured key's id (`keyId`, from `private_key_id`) to compare with Google Cloud → Keys. **Concurrency:** Google allows ~10 concurrent Data API
+requests per property; the dashboard + live panel + home tiles together went over it (429 "Exhausted concurrent requests quota").
+`gaPost` (`lib/ga4.js`, tested) sends at most `GA_LIMIT.max` (3) at a time per instance, retries a 429 / 503 after 1.2 / 3 / 6.5 s,
+and only then throws `kind: 'quota'`; the dashboard then serves the last good reports (`stale: true`, a note in the tab), and the tab
+itself retries a quota error after 10 / 20 / 30 s with a countdown. The key-id note shows only for `kind: 'auth'`. The old Supermetrics route is kept as a fallback only (its trial ended 2026-06-16).
 **The traffic dashboard** (`src/GA4Tab.jsx`, the first sub-tab of "אנליטיקס"; built like the Korkos site's) reads
 `POST /api/meta/ga4-dash` (`lib/ga4.js` `dash()` / `dashSpecs()` / `previousRange()`, tested; `type`: dashboard · realtime · page ·
 test; 5-min cache, realtime 25 s): presets 7 / 30 / 90 days / this month / last month, each vs the previous period of the same
