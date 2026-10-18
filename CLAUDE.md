@@ -206,6 +206,10 @@ from `leads`, so names, the campaign's short name and `leadNeeds` all apply), "�
 stage's category, the welcome category before anything was sent), category chips, search, a Hebrew / English switch (default
 `leadLang`), an editable preview, "שלח עכשיו" (`sendMsg(text)` — the panel stays open, so several go out in a row; the typed draft
 and attachment are untouched) or "לעריכה בתיבה". Templates whose distinctive line already appears in the chat are marked "נשלח".
+The chat header has the same library as a dropdown, **"⚡ תבניות ▾"** (`ChatTemplateMenu`, same file, same `useTemplateData`):
+search, Hebrew / English, "מומלץ לליד הזה", the personal templates, then every category; a click puts the message in the box
+(cursor at the end) to review and send, the row's "שלח" sends it as is; ↑ / ↓ / Enter / Esc; a fixed-position popover clamped
+to the window; the footer opens the full ⚡ panel. Both render for `chatLead` (one memoized lead row per open chat).
 Probe actions `wa` / `wa-send` check the chat page's own calls (`wa-send` texts the office number).
 
 Scheduled bulk sends are jobs in `app_settings` (`automations_jobs`), rendered at send time, max 20 messages per run;

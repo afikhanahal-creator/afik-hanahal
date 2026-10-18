@@ -5,7 +5,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { supabase } from './lib/supabaseClient'
 import { WAText } from './waFormat.jsx'
-import ChatTemplatePicker from './ChatTemplatePicker.jsx'
+import ChatTemplatePicker, { ChatTemplateMenu } from './ChatTemplatePicker.jsx'
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 const API_BASE      = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
@@ -769,6 +769,12 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
   }, [contact, contactList])
   const chatPhone  = contact ? intlPhone(contact.phone) : null
   const msgs       = chatPhone ? (chats[chatPhone]||[]) : []
+  // the open chat's lead row (names, campaign, what they told us) — the templates are rendered for it
+  const chatLead   = useMemo(() => {
+    if (!contact) return null
+    const row = leads.find(l => intlPhone(l.phone) === chatPhone) || contact
+    return { ...row, name: row?.name && !/^[\d+\-\s]+$/.test(row.name) ? row.name : '', phone: contact.phone }
+  }, [leads, contact, chatPhone])
   const contactIdx = contactList.findIndex(l => l.id === contact?.id)
 
   // Unread = incoming messages newer than the last time this chat was opened.
@@ -983,6 +989,10 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                     {contactView?.waName && contactView.waName !== nameOf(contactView, lang) && <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>· ~{contactView.waName}</span>}
                   </div>
                 </div>
+                <ChatTemplateMenu WA={WA} lang={lang} lead={chatLead} msgs={msgs} autoConfig={autoConfig}
+                  onSend={text => sendMsg(text)}
+                  onInsert={text => { setInput(text); setQuickOpen(false); setTimeout(() => { const el = inputRef.current; if (el) { el.focus(); el.setSelectionRange(text.length, text.length) } }, 30) }}
+                  onOpenPanel={() => { setQuickOpen(true); setEmoji(false) }}/>
                 {onOpenLead && leads.find(l=>l.id===contact.id) && (
                   <button onClick={()=>onOpenLead(contact)}
                     style={{ padding:'5px 12px', background: WA.inputBg, border:`1px solid ${WA.border}`, borderRadius:8, color: WA.subText, fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit', flexShrink:0, whiteSpace:'nowrap', transition:'all .15s' }}
@@ -1198,7 +1208,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
               {/* ── Ready templates: the whole library, rendered for this lead (send now / edit in the box) ── */}
               {quickOpen && (
                 <ChatTemplatePicker WA={WA} lang={lang} msgs={msgs} autoConfig={autoConfig}
-                    lead={(() => { const row = leads.find(l => intlPhone(l.phone) === chatPhone) || contact; return { ...row, name: row?.name && !/^[\d+\-\s]+$/.test(row.name) ? row.name : '', phone: contact.phone } })()}
+                    lead={chatLead}
                     onSend={text => sendMsg(text)}
                     onInsert={text => { setInput(text); setQuickOpen(false); setTimeout(() => inputRef.current?.focus(), 30) }}
                     onClose={() => setQuickOpen(false)}/>
