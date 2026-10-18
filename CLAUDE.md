@@ -178,10 +178,16 @@ approval queue grouped by kind (missed welcome first, "send all N" per group, st
 (lead + campaign + local phone + reason · the full message · send / skip / chat), then the schedule. **Wording per message:** a
 template dropdown above every message (the item's category first, the whole library below — rendered for that lead in the
 browser with `renderTemplate`), "נוסח אחר" (next template of the same category), "ערוך הודעה" (free edit), "שחזר נוסח"; the
-group header has "נוסח לכל הקבוצה…". The send carries the chosen `templateId`. The built-in library has 35 bilingual templates
-(welcome / late-welcome / investor / scheduling variants, follow-ups, visits, after-call, nurture, re-engagement), written for
-a real-estate audience: "שלום {name}," openings, courteous and gender-neutral wording, no childish emoji, one signature line
-(`{agent}`) — a test fails if 👋 🙂 🙌 🎉 🙏 🔥 come back. **Names:** a Hebrew message writes an English first name in Hebrew
+group header has "נוסח לכל הקבוצה…". The send carries the chosen `templateId`. The built-in library has 59 bilingual templates
+(welcome / late-welcome / investor / scheduling variants, follow-ups, visits, after-call, nurture, re-engagement, chat-ready
+replies, deal steps), **written as a person, not a system**: first person singular from the agent (`{agent}` = a first name,
+default "ישראל" / "Israel" — the office changes it in the templates tab's office details), the first message introduces them
+("היי {name}, כאן {agent} מאפיק הנחל." inside `[[ … ]]`, so an empty agent drops the introduction), later ones carry no
+signature; "היי" or `{greeting}` (`timeGreeting()`: בוקר טוב / צהריים טובים / ערב טוב by the Israel hour, rendered at send time)
+instead of "שלום … תודה על פנייתך"; 2–4 short lines and one question; gender-neutral Hebrew without slashes (past-tense
+"השארת" / "התעניינת", "לך", plural "בואו", no gendered present-tense "מוודא" or imperatives); no childish emoji. A test fails if
+👋 🙂 🙌 🎉 🙏 🔥, bot phrases ("נשמח לעמוד לרשות", "פנייתך", "צוות אפיק הנחל", "We would be glad", "Dear "…), a team signature
+block or a Hebrew text over 420 characters come back. **Names:** a Hebrew message writes an English first name in Hebrew
 (`lib/hebrew-names.js` `hebrewFirstName`, a list of ~450 Israeli names; "Ronen" → "רונן"); an unknown Latin name is left out
 ("שלום,") rather than guessed. `renderTemplate` closes the gap an empty placeholder leaves ("שלום ," → "שלום,"). The Lead Center's
 quick replies use the same rules and the campaign's short name.
