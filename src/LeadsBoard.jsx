@@ -30,6 +30,8 @@ const GROUPS = [
   { id: 'lost',        label: 'ללא מענה',  en: 'No Answer',      color: '#7D7D7D' },
   // Leads that turned out not to fit: the column starts collapsed, they're left out of bulk sends by default
   { id: 'irrelevant',  label: 'לא רלוונטי', en: 'Not relevant',  color: '#64748B', collapsedByDefault: true },
+  // Not now, maybe later: a follow-up date a few months ahead is set when a lead moves here (AdminPanel updateLeadStatus)
+  { id: 'nurture',     label: 'לחזור בעוד כמה חודשים', en: 'Nurture (later)', color: '#0E9AA7' },
 ]
 // Stage names are editable by the office (double-click a column title). Overrides live in the admin's
 // settings ({ [stageId]: { label, en } }) and are applied onto GROUPS, so every place that shows a stage
@@ -717,6 +719,9 @@ function MobileGroupSection({ group, leads, lang, T, onUpdate, onDelete, onOpenD
   )
 }
 
+// A selected row reads at a glance in both themes
+const SEL_BG = T => (T.bg === '#111827' ? '#16233C' : '#EAF2FE')
+
 // ─── desktop sortable row ─────────────────────────────────────────────────────
 
 function SortableRow({ lead, cols, onUpdate, onDelete, onSelect, isSelected, lang, T, onOpenDetail, onStatusClick, onOpenChat, onEnrich }) {
@@ -729,12 +734,11 @@ function SortableRow({ lead, cols, onUpdate, onDelete, onSelect, isSelected, lan
     opacity: isDragging ? 0.4 : 1,
     display: 'flex', alignItems: 'stretch',
     borderBottom: `1px solid ${T.borderLight}`,
-    background: isSelected ? '#0073EA0D' : hovered ? T.bgRowHover : T.bgRow,
+    background: isSelected ? SEL_BG(T) : hovered ? T.bgRowHover : T.bgRow,
     transition: `background .1s${transition ? ', ' + transition : ''}`,
     cursor: isDragging ? 'grabbing' : 'default',
     minHeight: 44,
     position: 'relative',
-    borderRight: `3px solid ${hovered || isSelected ? statusColor : 'transparent'}`,
   }
 
   const getCellValue = (col) => {
@@ -768,7 +772,7 @@ function SortableRow({ lead, cols, onUpdate, onDelete, onSelect, isSelected, lan
       padding: '6px 10px', borderRight: `1px solid ${T.borderLight}`,
       display: 'flex', alignItems: 'center', overflow: 'hidden',
       fontSize: 13, color: T.text,
-      ...(col.pinned ? { position: 'sticky', left: 32, zIndex: 2, background: hovered ? T.bgRowHover : T.bgRow } : {}),
+      ...(col.pinned ? { position: 'sticky', insetInlineStart: 44, zIndex: 2, background: isSelected ? SEL_BG(T) : hovered ? T.bgRowHover : T.bgRow } : {}),
     }
 
     switch (col.type) {
@@ -823,19 +827,21 @@ function SortableRow({ lead, cols, onUpdate, onDelete, onSelect, isSelected, lan
     <div ref={setNodeRef} style={style}
       onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
       {/* Checkbox (always there, so a row can be picked) + drag handle on hover */}
-      <div style={{ width: 44, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, borderRight: `1px solid ${T.borderLight}`, position: 'sticky', left: 0, zIndex: 3, background: isSelected ? (T.bg === '#111827' ? '#16233C' : '#EAF2FE') : hovered ? T.bgRowHover : T.bgRow, transition: 'background .1s' }}>
+      <div style={{ width: 44, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, borderInlineEnd: `1px solid ${T.borderLight}`, position: 'sticky', insetInlineStart: 0, zIndex: 3, background: isSelected ? SEL_BG(T) : hovered ? T.bgRowHover : T.bgRow, transition: 'background .1s', boxShadow: isSelected ? 'inset -3px 0 0 #0073EA' : 'none' }}>
         <div {...listeners} {...attributes} aria-label={lang === 'en' ? 'Drag' : 'גרור'} style={{ cursor: 'grab', color: T.textDim, display: 'flex', alignItems: 'center', visibility: hovered ? 'visible' : 'hidden' }}>
           <GripVertical size={13} />
         </div>
-        <input type="checkbox" checked={!!isSelected} onChange={e => onSelect(lead.id, e.target.checked)} onClick={e => e.stopPropagation()}
+        <input type="checkbox" checked={!!isSelected} onChange={e => onSelect(lead.id, e.target.checked, e.nativeEvent?.shiftKey)} onClick={e => e.stopPropagation()}
           aria-label={(lang === 'en' ? 'Select ' : 'בחר את ') + (lead.name || '')}
           style={{ cursor: 'pointer', accentColor: '#0073EA', width: 15, height: 15, margin: 0 }} />
       </div>
 
       {cols.map(col => renderCell(col))}
 
+      {/* Row actions: a zero-width anchor stuck to the visible far end of the row, so they never cover the checkbox or the name */}
       {hovered && (
-        <div style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', display: 'flex', gap: 4, background: T.bgRow, borderRadius: 8, padding: '2px 4px', boxShadow: T.shadowSm, zIndex: 10, border: `1px solid ${T.borderLight}` }}>
+        <div style={{ position: 'sticky', insetInlineEnd: 0, width: 0, flexShrink: 0, zIndex: 10 }}>
+        <div style={{ position: 'absolute', insetInlineEnd: 8, top: '50%', transform: 'translateY(-50%)', display: 'flex', gap: 4, background: T.bgRow, borderRadius: 8, padding: '2px 4px', boxShadow: T.shadowSm, border: `1px solid ${T.borderLight}`, whiteSpace: 'nowrap' }}>
           {onEnrich && (
             lead.enrichment?.status === 'enriching'
               ? <button style={{ background: 'none', border: 'none', color: '#7456C2', cursor: 'default', padding: '5px 6px', borderRadius: 6, display: 'flex', alignItems: 'center' }} title="AI מעבד...">
@@ -868,6 +874,7 @@ function SortableRow({ lead, cols, onUpdate, onDelete, onSelect, isSelected, lan
             onMouseLeave={e => e.currentTarget.style.background = 'none'}>
             <Trash2 size={13} />
           </button>
+        </div>
         </div>
       )}
     </div>
@@ -1835,7 +1842,7 @@ function AddColumnModal({ onClose, onAdd, T, lang }) {
 
 // ─── bulk action bar ──────────────────────────────────────────────────────────
 
-function BulkActionBar({ count, total, onClearSelection, onSelectAll, onDelete, onMove, onMerge, lang, T }) {
+function BulkActionBar({ count, total, onClearSelection, onSelectAll, onDelete, onMove, onMerge, onlySelected, onToggleOnly, lang, T }) {
   const [confirmDel, setConfirmDel] = useState(false)
   const [moveOpen, setMoveOpen] = useState(false)
   useEffect(() => { setConfirmDel(false) }, [count])
@@ -1846,7 +1853,8 @@ function BulkActionBar({ count, total, onClearSelection, onSelectAll, onDelete, 
     <div role="toolbar" aria-label={en ? 'Bulk actions' : 'פעולות על הנבחרים'} style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', background: '#1E2A44', border: '1px solid #2F3D5E', borderRadius: 16, padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 16px 48px rgba(0,0,0,.45)', zIndex: 700, direction: en ? 'ltr' : 'rtl', maxWidth: 'calc(100vw - 24px)', flexWrap: 'wrap', justifyContent: 'center' }}>
       <span style={{ background: '#0073EA', color: '#fff', borderRadius: 20, padding: '4px 11px', fontSize: 13, fontWeight: 800 }}>{count}</span>
       <span style={{ color: '#fff', fontSize: 13, fontWeight: 700, marginInlineEnd: 4 }}>{en ? 'selected' : 'נבחרו'}</span>
-      {count < total && <button type="button" onClick={onSelectAll} style={{ ...btn, background: 'none', border: 'none', textDecoration: 'underline', padding: '7px 6px' }}>{en ? `Select all ${total}` : `בחר את כל ה-${total}`}</button>}
+      {onToggleOnly && <button type="button" onClick={onToggleOnly} aria-pressed={!!onlySelected} style={{ ...btn, ...(onlySelected ? { background: '#0073EA', borderColor: '#0073EA' } : {}) }}><Eye size={13}/> {onlySelected ? (en ? 'Show all' : 'הצג הכול') : (en ? 'Show selected' : 'הצג רק נבחרים')}</button>}
+      {count < total && !onlySelected && <button type="button" onClick={onSelectAll} style={{ ...btn, background: 'none', border: 'none', textDecoration: 'underline', padding: '7px 6px' }}>{en ? `Select all ${total}` : `בחר את כל ה-${total}`}</button>}
       <div style={{ position: 'relative' }}>
         <button type="button" onClick={() => setMoveOpen(v => !v)} aria-expanded={moveOpen} style={btn}><Layers size={13}/> {en ? 'Move to stage' : 'העבר לשלב'}</button>
         {moveOpen && (
@@ -2008,6 +2016,8 @@ function LeadsBoardMain({
   const [hiddenCols, setHiddenCols]   = useState({})
   const [extraCols, setExtraCols]     = useState(customCols || [])
   const [selectedIds, setSelectedIds] = useState(new Set())
+  const [onlySelected, setOnlySelected] = useState(false)   // the table shows only the selected rows
+  useEffect(() => { if (!selectedIds.size) setOnlySelected(false) }, [selectedIds.size])
   const [detailLead, setDetailLead]   = useState(null)
   const [statusTarget, setStatusTarget] = useState(null)
   const [modal, setModal]             = useState(null)
@@ -2080,13 +2090,13 @@ function LeadsBoardMain({
   const grouped = useMemo(() => {
     const map = {}
     GROUPS.forEach(g => { map[g.id] = [] })
-    filtered.forEach(l => {
+    ;(onlySelected ? filtered.filter(l => selectedIds.has(l.id)) : filtered).forEach(l => {
       const s = l.leadStatus || 'new'
       if (!map[s]) map[s] = []
       map[s].push(l)
     })
     return map
-  }, [filtered])
+  }, [filtered, onlySelected, selectedIds])
 
   const findGroupForLead = useCallback(id => {
     for (const g of GROUPS) {
@@ -2152,7 +2162,20 @@ function LeadsBoardMain({
     setMergePair(null)
   }
 
-  const handleSelect = (id, checked) => setSelectedIds(prev => { const s = new Set(prev); checked ? s.add(id) : s.delete(id); return s })
+  // Shift + click selects every row between the last clicked one and this one (in the order the table shows them)
+  const lastSelRef = useRef(null)
+  const handleSelect = (id, checked, shift) => {
+    const order = GROUPS.flatMap(g => (grouped[g.id] || []).map(l => l.id))
+    const a = shift && lastSelRef.current != null ? order.indexOf(lastSelRef.current) : -1, b = order.indexOf(id)
+    lastSelRef.current = id
+    setSelectedIds(prev => {
+      const s = new Set(prev)
+      const ids = a >= 0 && b >= 0 ? order.slice(Math.min(a, b), Math.max(a, b) + 1) : [id]
+      ids.forEach(x => (checked ? s.add(x) : s.delete(x)))
+      return s
+    })
+  }
+
   const handleSelectMany = (ids, checked) => setSelectedIds(prev => { const s = new Set(prev); ids.forEach(id => (checked ? s.add(id) : s.delete(id))); return s })
   const handleAddCol = col => { const next = [...extraCols, col]; setExtraCols(next); if (setCustomCols) setCustomCols(next); showToast(lang === 'en' ? 'Column added' : 'עמודה נוספה') }
   const toggleColVisibility = id => setHiddenCols(prev => ({ ...prev, [id]: !prev[id] }))
@@ -2478,7 +2501,7 @@ function LeadsBoardMain({
             <div style={{ minWidth: tableMinWidth, width: '100%' }}>
               {/* Column headers */}
               <div style={{ display: 'flex', alignItems: 'center', background: T.bgHeader, borderBottom: `2px solid ${T.border}`, position: 'sticky', top: 0, zIndex: 10, height: 36, boxShadow: '0 2px 8px rgba(0,0,0,.06)' }}>
-                <div style={{ width: 44, flexShrink: 0, borderRight: `1px solid ${T.border}`, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'sticky', left: 0, background: T.bgHeader, zIndex: 5 }}>
+                <div style={{ width: 44, flexShrink: 0, borderInlineEnd: `1px solid ${T.border}`, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'sticky', insetInlineStart: 0, background: T.bgHeader, zIndex: 5 }}>
                   <input type="checkbox" style={{ accentColor: T.accent, width: 15, height: 15, cursor: 'pointer' }}
                     aria-label={lang === 'en' ? 'Select all' : 'בחר הכול'}
                     checked={filtered.length > 0 && selectedIds.size >= filtered.length && filtered.every(l => selectedIds.has(l.id))}
@@ -2486,7 +2509,7 @@ function LeadsBoardMain({
                     onChange={e => setSelectedIds(e.target.checked ? new Set(filtered.map(l => l.id)) : new Set())} />
                 </div>
                 {allColsResized.map(col => (
-                  <div key={col.id} style={{ width: col.width, flexShrink: 0, padding: '0 10px', fontSize: 11, fontWeight: 700, color: T.textSub, textTransform: 'uppercase', letterSpacing: '.05em', borderRight: `1px solid ${T.borderLight}`, height: '100%', display: 'flex', alignItems: 'center', userSelect: 'none', cursor: 'pointer', transition: 'color .15s, background .15s', whiteSpace: 'nowrap', overflow: 'hidden', position: 'relative', ...(col.pinned ? { position: 'sticky', left: 32, zIndex: 4, background: T.bgHeader } : {}) }}
+                  <div key={col.id} style={{ width: col.width, flexShrink: 0, padding: '0 10px', fontSize: 11, fontWeight: 700, color: T.textSub, textTransform: 'uppercase', letterSpacing: '.05em', borderRight: `1px solid ${T.borderLight}`, height: '100%', display: 'flex', alignItems: 'center', userSelect: 'none', cursor: 'pointer', transition: 'color .15s, background .15s', whiteSpace: 'nowrap', overflow: 'hidden', position: 'relative', ...(col.pinned ? { position: 'sticky', insetInlineStart: 44, zIndex: 4, background: T.bgHeader } : {}) }}
                     onMouseEnter={e => { e.currentTarget.style.color = T.text; e.currentTarget.style.background = T.bgRowHover }}
                     onMouseLeave={e => { e.currentTarget.style.color = T.textSub; e.currentTarget.style.background = col.pinned ? T.bgHeader : 'transparent' }}>
                     {lang === 'en' ? (col.en || col.label) : col.label}
@@ -2564,7 +2587,8 @@ function LeadsBoardMain({
 
       {statusTarget && <StatusPopup lead={statusTarget} onClose={() => setStatusTarget(null)} onUpdate={updateLeadStatus} lang={lang} T={T} />}
       {detailLead && <LeadCard key={detailLead.id} lead={leads.find(l => l.id === detailLead.id) || detailLead} onClose={() => setDetailLead(null)} onUpdate={updateLead} onUpdateStatus={updateLeadStatus} onEnrich={enrichLead} onOpenChat={onOpenChat} lang={lang} stages={GROUPS} />}
-      {selectedIds.size > 0 && <BulkActionBar count={selectedIds.size} total={filtered.length} lang={lang} T={T} onClearSelection={() => setSelectedIds(new Set())} onSelectAll={() => setSelectedIds(new Set(filtered.map(l => l.id)))} onDelete={handleBulkDelete} onMove={handleBulkMove}
+      {selectedIds.size > 0 && <BulkActionBar count={selectedIds.size} total={filtered.length} lang={lang} T={T} onClearSelection={() => setSelectedIds(new Set())} onSelectAll={() => setSelectedIds(new Set(filtered.map(l => l.id)))}
+        onlySelected={onlySelected} onToggleOnly={() => { setOnlySelected(v => !v); setActiveTab(t => (t === 'table' ? t : 'table')) }} onDelete={handleBulkDelete} onMove={handleBulkMove}
         onMerge={() => { const [a, b] = [...selectedIds].map(id => leads.find(l => l.id === id)); if (a && b) setMergePair([a, b]) }} />}
       {mergePair && <MergeDialog leads={mergePair} lang={lang} T={T} isDark={isDark} onClose={() => setMergePair(null)} onMerge={doMerge} />}
       {toast && <Toast message={toast} onDismiss={() => setToast(null)} />}

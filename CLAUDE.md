@@ -206,7 +206,8 @@ Clicking a lead (board card, mobile card, table "open") opens `src/LeadCard.jsx`
 notes & activity (`crm_data.notes: [{ id, text, ts }]`), tasks (`crm_data.tasks: [{ id, text, due, done }]`) and smart analysis.
 Every field saves on its own through `updateLead` → `PATCH /api/contacts` (merged into `crm_data`).
 **Stages** (`GROUPS` in `src/LeadsBoard.jsx`, `STAGES` in `lib/automations-shared.js` / `src/AdminHome.jsx`): new · contacted ·
-discovery · negotiating · won · lost · **irrelevant** ("לא רלוונטי": its board column starts collapsed — a narrow drop strip,
+discovery · negotiating · won · lost · **nurture** ("לחזור בעוד כמה חודשים": moving a lead there sets a follow-up 3 months
+out unless a future one exists — `updateLeadStatus`; its automation rule defaults to off) · **irrelevant** ("לא רלוונטי": its board column starts collapsed — a narrow drop strip,
 every column can be collapsed and the choice is kept in `localStorage.afik_kanban_collapsed`; bulk sends leave these leads out
 unless the stage is picked). **Call summary** (`CallNoteDialog`, "סיכום" on every board / mobile card, opened through `NoteCtx`):
 outcome chips (talked / no answer / call back / not relevant), free text, next follow-up (tomorrow / 2 days / a week / any date) →
@@ -223,9 +224,19 @@ timeline grouped by day (filters: all / notes & calls / system): notes (edit inl
 (`crm_data.auto.sent`), finished tasks, analysis, arrival, and the next follow-up on top (red when overdue). The card's
 keyboard/focus effect runs once per open (it used to re-run on every parent render and pull the focus out of the note box
 while typing); `EditInput` never overwrites a field that has focus; `save()` resolves to success/failure and shows "השמירה נכשלה".
-**Leads board tabs:** "תמונת מצב" (`src/LeadsDashboard.jsx`: KPIs, a funnel of new → won with "reached this stage" %, the exits
-lost / irrelevant, a campaign × stage table, and a drill-down list of the clicked stage / cell — days in stage from `stageLog`,
-last note, follow-up, call / WhatsApp / open; also on mobile), Pipeline, Table. **Selection & bulk:** every table row has a real
+**Leads board tabs:** "תמונת מצב" (`src/LeadsDashboard.jsx`, a manager's dashboard following the dataviz rules — flat cards,
+no gradients, one hue ramp for the funnel, blue / orange / aqua for sources): a filter row (period week / month / 3 / 6 months /
+year / all / custom range, source, campaign — everything below follows it, compared with the previous equal period); "לידים
+שנוצרו" (7 / 30 / 90 / 182 / 365 days, each vs the window before); KPIs (new leads, contact rate, median first response —
+first human touch = a note that isn't 🔗 auto, a stage change or a call —, interested+, won / win rate, waiting > 24 h untouched);
+the sales funnel (cumulative "reached" counts, step conversion, "now in stage", outcome tiles lost / irrelevant / nurture);
+leads over time stacked by source (day / week / month buckets, hover tooltip, table view); campaign performance (rows open the
+leads); pipeline health (days since last activity) and follow-ups (overdue / today / 7 days); an arrival heat map (weekday ×
+3-hour band); and a drill-down list (sortable; call / WhatsApp / open) for any stage, bucket, follow-up group or campaign.
+Pipeline, Table. **Table selection:** the checkbox column is pinned with `insetInlineStart` (RTL-safe — a `left: 0` pin used to
+put it under the hover actions), the name column next to it; hover actions sit in a zero-width sticky slot at the inline end;
+selected rows are tinted (`SEL_BG`) with an accent bar; Shift+click selects a range; "הצג רק נבחרים" filters the table to the
+selection. **Selection & bulk:** every table row has a real
 checkbox (controlled by `selectedIds`), each stage group and the header select all; the bar offers select-all, move to a stage,
 merge (2 selected) and delete (asks once, leads go to the trash). **Merge** (`src/lib/leadMerge.js`, tested — `mergeLeads()` /
 `mergeConflicts()`): from two selected rows or by holding a dragged Pipeline card on another card for 0.65 s ("שחרר כדי למזג");
