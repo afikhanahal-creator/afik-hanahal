@@ -17,6 +17,8 @@ const ACCOUNT_EMAIL = 'afik.hanahal@gmail.com'
 const CHAT_API     = '/api/meta'
 const AUTH_HEADER  = { Authorization: `Bearer ${ADMIN_TOKEN}` }
 const MAX_FILE_MB  = 3   // Vercel request-body cap (base64 inflates ~33%)
+const QUOTA_MSG    = 'המכסה החודשית של Green API נגמרה: הקו מחובר, אבל התוכנית החינמית מאפשרת לכתוב רק למספרים בודדים בחודש.\nכדי לשלוח לכולם: console.green-api.com ← ה-Instance ← שינוי תוכנית (Business).'
+const GREEN_CONSOLE = 'https://console.green-api.com'
 
 // ─── Theme palettes ───────────────────────────────────────────────────────────
 const DARK = {
@@ -267,6 +269,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
   const [emoji,         setEmoji]        = useState(false)
   const [attached,      setAttached]     = useState(null)
   const [statusMissing, setStatusMissing] = useState([])
+  const [quota,         setQuota]        = useState(null)   // Green API plan blocked (466): connected, but sends are refused
   const [greenChats,    setGreenChats]   = useState([])   // recent WhatsApp chats from Green API (not only leads)
   const [lightbox,      setLightbox]     = useState(null)
   const [quickOpen,     setQuickOpen]    = useState(false)
@@ -456,14 +459,18 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
     }
   }, [fetchGreenHistory])
 
+  // → { ok, error?, quota? } — the server passes Green API's real reason through (466 = the plan's monthly quota)
   const sendViaGreenAPI = useCallback(async (p, msg) => {
     const r = await fetch(`${CHAT_API}/chat-send`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json', ...AUTH_HEADER },
       body:    JSON.stringify({ phone: p, message: msg }),
-      signal:  AbortSignal.timeout(25000),
+      signal:  AbortSignal.timeout(30000),
     })
-    return r.ok
+    const d = await r.json().catch(() => ({}))
+    if (d.quota) setQuota(q => q || { blocked: true, at: new Date().toISOString() })
+    else if (r.ok) setQuota(null)
+    return { ok: r.ok, error: d.error || (r.ok ? '' : `HTTP ${r.status}`), quota: !!d.quota }
   }, [])
 
   // Send an image / PDF as a real WhatsApp attachment. The file is base64-encoded
@@ -481,14 +488,18 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
       body:    JSON.stringify({ phone: p, fileName: file.name, fileType: file.type, fileBase64, caption }),
       signal:  AbortSignal.timeout(90000),
     })
-    return r.ok
+    const d = await r.json().catch(() => ({}))
+    if (d.quota) setQuota(q => q || { blocked: true, at: new Date().toISOString() })
+    return { ok: r.ok, error: d.error || (r.ok ? '' : `HTTP ${r.status}`), quota: !!d.quota }
   }, [])
 
   const fetchStatus = useCallback(async () => {
     try {
-      const r = await fetch(`${CHAT_API}/chat-status`, { headers: AUTH_HEADER, signal: AbortSignal.timeout(8000) })
+      const r = await fetch(`${CHAT_API}/chat-status`, { headers: AUTH_HEADER, signal: AbortSignal.timeout(12000) })
       const d = await r.json().catch(() => ({}))
-      if (r.ok || d.state) { setStatus(d.state || 'error'); setStatusMissing(d.missing || []); return }
+      if (r.ok || (d.state && d.state !== 'error')) { setStatus(d.state || 'error'); setStatusMissing(d.missing || []); setQuota(d.quota || null); return }
+      // a passing hiccup (Green API's rate limit, a cold start) doesn't turn a connected line into "error"
+      if (d.state === 'error') { setStatus(s => (s === 'authorized' ? s : 'error')); return }
     } catch {}
     // Fallback to the Render backend if the Vercel proxy is unreachable (e.g. local dev)
     if (!API_BASE) { setStatus('notConfigured'); return }
@@ -677,14 +688,17 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
       }]
     }))
 
-    let ok = false
+    let ok = false, why = ''
     try {
       if (file) {
         // Attachment: upload straight to Green API (caption = the typed text)
-        ok = await sendFileViaGreenAPI(p, file, msg)
+        const res = await sendFileViaGreenAPI(p, file, msg)
+        ok = res.ok; why = res.error
       } else {
-        ok = await sendViaGreenAPI(p, msg).catch(() => false)
-        if (!ok && API_BASE) {
+        const res = await sendViaGreenAPI(p, msg).catch(e => ({ ok: false, error: e.name === 'TimeoutError' ? 'השרת לא ענה בזמן' : e.message }))
+        ok = res.ok; why = res.error
+        // the legacy Render route only helps when our own server is unreachable (it uses the same Green API line)
+        if (!ok && !res.quota && API_BASE) {
           const r = await fetch(`${API_BASE}/api/chats/send`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
@@ -701,10 +715,10 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
         const contactName = nameOf(contactView, lang)
         onSentMessageRef.current?.({ contactName, message: msg || file?.name })
       } else {
-        throw new Error('שליחה נכשלה')
+        throw new Error(/\b466\b|quota/i.test(why || '') ? QUOTA_MSG : (why || 'שליחה נכשלה'))
       }
     } catch (e) {
-      alert('שגיאה בשליחה: ' + e.message)
+      alert('ההודעה לא נשלחה.\n\n' + e.message)
       setChats(prev => ({ ...prev, [p]: (prev[p]||[]).filter(m => m.id !== optId) }))
       setInput(msg)
     } finally {
@@ -767,8 +781,9 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
     contact?.id === lead.id ? sum : sum + unreadFor(intlPhone(lead.phone)),
     0), [contactList, contact?.id, unreadFor])
 
-  const statusColor = status==='authorized' ? '#22C55E' : status==='notAuthorized' ? '#F97316' : status==='error' ? '#E05252' : '#8696A0'
-  const statusLabel = status==='authorized' ? 'מחובר' : status==='notAuthorized' ? 'לא מחובר (סרקו QR ב-Green API)' : status==='error' ? 'שגיאה' : status==='notConfigured' ? 'לא מוגדר ב-Vercel' : status==='yellowCard' ? 'מוגבל זמנית' : status==='blocked' ? 'חסום' : 'טוען...'
+  const blockedQuota = status === 'authorized' && quota?.blocked
+  const statusColor = blockedQuota ? '#F59E0B' : status==='authorized' ? '#22C55E' : status==='notAuthorized' ? '#F97316' : status==='error' ? '#E05252' : '#8696A0'
+  const statusLabel = blockedQuota ? 'מחובר · השליחה חסומה (מכסה)' : status==='authorized' ? 'מחובר' : status==='notAuthorized' ? 'לא מחובר (סרקו QR ב-Green API)' : status==='error' ? 'שגיאה' : status==='notConfigured' ? 'לא מוגדר ב-Vercel' : status==='yellowCard' ? 'מוגבל זמנית' : status==='blocked' ? 'חסום' : 'טוען...'
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
@@ -928,6 +943,18 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
           onMouseEnter={e=>e.currentTarget.style.borderColor=WA.green}
           onMouseLeave={e=>e.currentTarget.style.borderColor=WA.border}>↻</button>
       </div>
+
+      {blockedQuota && (
+        <div role="alert" style={{ display:'flex', alignItems:'center', gap:10, flexWrap:'wrap', padding:'10px 18px', background:'#FEF3C7', borderBottom:'1px solid #F59E0B', color:'#78350F', fontSize:13, lineHeight:1.5, direction:'rtl', flexShrink:0 }}>
+          <span style={{ fontSize:16 }} aria-hidden>⚠️</span>
+          <span style={{ flex:1, minWidth:220 }}>
+            <b>וואטסאפ מחובר, אבל אי אפשר לשלוח הודעות ללקוחות.</b> המכסה החודשית של התוכנית החינמית ב-Green API נגמרה{quota.since ? ` (מאז ${new Date(quota.since).toLocaleDateString('he-IL', { day: 'numeric', month: 'numeric' })})` : ''}, ולכן כל שליחה למספר חדש נדחית.
+            {' '}שדרגו את ה-Instance לתוכנית Business. מיד אחרי השדרוג השליחה חוזרת, והלידים שלא קיבלו הודעת פתיחה יופיעו ב"אוטומציות ← היום" לשליחה בלחיצה אחת.
+          </span>
+          <a href={GREEN_CONSOLE} target="_blank" rel="noopener noreferrer" style={{ background:'#B45309', color:'#fff', borderRadius:8, padding:'7px 14px', fontWeight:700, textDecoration:'none', whiteSpace:'nowrap' }}>לשדרוג ב-Green API ↗</a>
+          <button onClick={fetchStatus} style={{ background:'transparent', border:'1px solid #B45309', color:'#78350F', borderRadius:8, padding:'6px 12px', fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>בדוק שוב</button>
+        </div>
+      )}
 
       {/* ── Main Layout ──────────────────────────────────────────────────── */}
       {/* flex:1, minHeight:0 — critical for contained scroll in flex child */}

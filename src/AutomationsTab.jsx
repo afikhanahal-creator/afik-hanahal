@@ -9,6 +9,7 @@ import { DEFAULT_CONFIG, STAGES, templateList, renderTemplate, mergeConfig, rule
 import { autoApi } from './AutomationsApi.jsx'
 import { T, AUTO_CSS, Button, IconButton, Card, Badge, FilterChip, Toggle, ModeSwitch, ModeBadge, StatTile, EmptyState, Skeleton, InlineError, Drawer, HealthItem, StatusPill, CopyField, SaveBar, useToasts, ConfirmProvider, useConfirm, Popover, MenuButton, MenuItem, MODE_COLOR, inputStyle, Field } from './automationsUI.jsx'
 import { WAText } from './waFormat.jsx'
+import { leadCampaign } from './lib/leadFields.js'
 import HoursTab from './WeekSchedule.jsx'
 import SequenceBuilder from './SequenceBuilder.jsx'
 import TemplatesTab from './TemplateStudio.jsx'
@@ -40,6 +41,13 @@ const TR = {
     loadErr: 'לא הצלחנו לטעון את התור',
     winOpen: 'פתוח לשליחה', winOpenSub: t => `נסגר היום ב-${t}`, winClosed: 'סגור לשליחה', winClosedSub: (d, t) => `נפתח ${d} ב-${t}`, winNone: 'אין חלון שליחה קרוב', winUnlimited: 'ללא הגבלת שעות', editHours: 'ערוך שעות',
     kpiPending: 'ממתינות לאישור', kpiSent: 'נשלחו השבוע', kpiPos: 'ענו בחיוב', kpiFail: 'נכשלו השבוע',
+    grp: { missed: 'הודעת פתיחה שלא נשלחה', welcome: 'הודעת פתיחה', reply: 'תשובות של לקוחות', stage: 'שינוי שלב בלוח', noreply: 'מעקב – לא ענו', reengage: 'חזרה ללקוח אחרי תקופה', manual: 'אחר' },
+    grpMissedSub: 'הלידים האלה עוד לא שמעו מאיתנו', sendGroup: n => `שלח את כל ה-${n}`,
+    groupResult: n => `נשלחו ${n} הודעות ✓`, groupResultErr: (ok, bad) => `נשלחו ${ok} · ${bad} לא נשלחו – פרטים ביומן`,
+    quotaShort: 'המכסה החודשית של Green API נגמרה – שדרגו את התוכנית כדי לשלוח',
+    quotaT: 'וואטסאפ מחובר, אבל ההודעות ללקוחות לא יוצאות',
+    quotaB: (since, n) => `המכסה החודשית של התוכנית החינמית ב-Green API נגמרה${since ? ` (מאז ${since})` : ''}, ולכן Green API דוחה כל הודעה למספר חדש.${n ? ` ${n} לידים עוד לא קיבלו הודעת פתיחה.` : ''} שדרגו את ה-Instance לתוכנית Business: מיד אחרי השדרוג ההודעות חוזרות לצאת, ומי שפספס מחכה כאן לשליחה בלחיצה אחת.`,
+    quotaBtn: 'לשדרוג ב-Green API', quotaCheck: 'בדוק שוב',
     nextCampaign: 'השליחה המתוזמנת הבאה', open: 'פתח', bulkRow: n => `שליחה מרובה · ${n} לידים`,
     howItWorks: 'ככה זה עובד', flow1: tp => `ליד חדש ← מקבל מיד את ״${tp}״`, flow2: (n, d) => `לא ענה ← עד ${n} תזכורות לאורך ${d} ימים`, flow3: 'ענה ← התזכורות נעצרות והצוות מקבל התראה',
     days: ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'], dShort: ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'], today: 'היום', tomorrow: 'מחר',
@@ -100,6 +108,13 @@ const TR = {
     loadErr: "Couldn't load the queue",
     winOpen: 'Sending hours are open', winOpenSub: t => `Closes today at ${t}`, winClosed: 'Outside sending hours', winClosedSub: (d, t) => `Opens ${d} at ${t}`, winNone: 'No upcoming sending window', winUnlimited: 'No hour limit', editHours: 'Edit hours',
     kpiPending: 'Awaiting approval', kpiSent: 'Sent this week', kpiPos: 'Positive replies', kpiFail: 'Failed this week',
+    grp: { missed: 'Welcome that never went out', welcome: 'Welcome', reply: 'Lead replies', stage: 'Board stage change', noreply: 'Follow-up – no reply', reengage: 'Re-engagement', manual: 'Other' },
+    grpMissedSub: 'These leads have not heard from us yet', sendGroup: n => `Send all ${n}`,
+    groupResult: n => `${n} messages sent ✓`, groupResultErr: (ok, bad) => `${ok} sent · ${bad} not sent – see the log`,
+    quotaShort: 'The Green API monthly quota is used up – upgrade the plan to send',
+    quotaT: 'WhatsApp is connected, but messages to leads are not going out',
+    quotaB: (since, n) => `The free Green API plan has used up its monthly quota${since ? ` (since ${since})` : ''}, so Green API refuses every message to a new number.${n ? ` ${n} leads have not received a welcome yet.` : ''} Upgrade the instance to the Business plan: messages go out again right away, and everyone who missed one waits here to be sent with one click.`,
+    quotaBtn: 'Upgrade on Green API', quotaCheck: 'Check again',
     nextCampaign: 'Next scheduled send', open: 'Open', bulkRow: n => `Bulk send · ${n} leads`,
     howItWorks: 'How it works', flow1: tp => `New lead → instantly gets “${tp}”`, flow2: (n, d) => `No reply → up to ${n} reminders over ${d} days`, flow3: 'Replied → reminders stop and the team is alerted',
     days: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], dShort: ['S', 'M', 'T', 'W', 'T', 'F', 'S'], today: 'today', tomorrow: 'tomorrow',
@@ -225,6 +240,9 @@ function Automations({ lang = 'he', leads = [], stageLabels = {}, config, onConf
   const pingActive = last?.source === 'external' && lastAgo != null && lastAgo < 20
   const issues = []
   if (health && !greenOk) issues.push('green')
+  // "authorized" but the plan refuses every send (466): the line looks fine, nothing goes out
+  const quota = health?.quota?.blocked ? health.quota : runResult?.quota?.blocked ? runResult.quota : null
+  if (quota) issues.push('quota')
   if (!cfg.enabled) issues.push('master')
   const warns = []
   if (health && health.storage !== 'ok') warns.push('db')
@@ -305,6 +323,18 @@ function Automations({ lang = 'he', leads = [], stageLabels = {}, config, onConf
         <div role="status" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 12, background: T.amberSoft, border: '1px solid rgba(245,166,35,.4)', color: T.amberText, fontSize: 13, fontWeight: 700, flexWrap: 'wrap' }}>
           <FaPowerOff/><span style={{ flex: 1, minWidth: 180 }}>{t.masterOffBanner}</span><Button size="sm" variant="solid" onClick={() => setMaster(true)}>{t.turnOn}</Button>
         </div>
+      ) : quota ? (
+        <div role="alert" style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '14px 16px', borderRadius: 12, background: T.redSoft, border: '1px solid rgba(224,82,82,.45)', flexWrap: 'wrap' }}>
+          <FaExclamationTriangle size={18} color={T.redText} style={{ flexShrink: 0, marginTop: 2 }}/>
+          <div style={{ flex: 1, minWidth: 220 }}>
+            <div style={{ fontSize: 14.5, fontWeight: 800, color: T.text }}>{t.quotaT}</div>
+            <div style={{ fontSize: 13, color: T.text2, lineHeight: 1.6, marginTop: 3 }}>{t.quotaB(quota.since ? new Date(quota.since).toLocaleDateString(isEn ? 'en-GB' : 'he-IL', { day: 'numeric', month: 'numeric' }) : '', queue.filter(q => q.ruleKey === 'welcome:missed').length)}</div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignSelf: 'center' }}>
+            <a href="https://console.green-api.com" target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none' }}><Button variant="solid" icon={<FaExternalLinkAlt size={10}/>}>{t.quotaBtn}</Button></a>
+            <Button onClick={() => { loadHealth(); onRun?.() }}>{t.quotaCheck}</Button>
+          </div>
+        </div>
       ) : health && health.storage && health.storage !== 'ok' ? (
         <div role="status" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 12, background: T.amberSoft, border: '1px solid rgba(245,166,35,.4)', color: T.amberText, fontSize: 13, fontWeight: 700, flexWrap: 'wrap' }}>
           <FaDatabase/><span style={{ flex: 1, minWidth: 180 }}>{t.storageBanner}</span><Button size="sm" variant="brand" onClick={() => setSysOpen(true)}>{t.howToFix}</Button>
@@ -313,7 +343,7 @@ function Automations({ lang = 'he', leads = [], stageLabels = {}, config, onConf
 
       <section role="tabpanel" id={`au-panel-${tab}`} aria-labelledby={`au-tab-${tab}`} key={tab} className="au-in">
         {tab === 'today' && <Today {...common} queue={queue} upcoming={upcoming} runResult={runResult} running={running} onRun={() => { onRun?.(); reloadAll() }} reload={reloadAll} kpi={kpi} jobs={jobs}
-          onGo={setTab} logEmpty={!!log && !logRows.length} onFailed={() => { setLogFilter('failed'); setTab('log') }} onOpenJob={j => { setEditJobId(j.status === 'scheduled' ? j.id : null); setTab('campaigns') }}/>}
+          onGo={setTab} quotaBlocked={!!quota} logEmpty={!!log && !logRows.length} onFailed={() => { setLogFilter('failed'); setTab('log') }} onOpenJob={j => { setEditJobId(j.status === 'scheduled' ? j.id : null); setTab('campaigns') }}/>}
         {tab === 'templates' && <TemplatesTab lang={lang} cfg={cfg} tpls={tpls} leads={leads} states={states} setCfg={setCfg} persist={persist} toast={toast} onGoRule={goRule} stageName={stageName}/>}
         {tab === 'rules' && <Rules {...common} setCfg={setCfg} logRows={logRows} queue={queue} onGoHours={() => setTab('hours')}/>}
         {tab === 'hours' && <HoursTab lang={lang} cfg={cfg} setCfg={setCfg} toast={toast}/>}
@@ -342,9 +372,8 @@ function rel(iso, t) {
 }
 
 // ── Today ──────────────────────────────────────────────────────────────────────
-function Today({ t, isEn, dir, cfg, tpls, tplName, stageName, leads, toast, confirm, onOpenChat, queue, upcoming, runResult, running, onRun, reload, kpi, jobs, onGo, logEmpty, onFailed, onOpenJob }) {
+function Today({ t, isEn, dir, cfg, tpls, tplName, stageName, leads, toast, confirm, onOpenChat, queue, upcoming, runResult, running, onRun, reload, kpi, jobs, onGo, logEmpty, onFailed, onOpenJob, quotaBlocked }) {
   useTick()
-  const [filter, setFilter] = useState('all')
   const [gone, setGone] = useState({})
   const [texts, setTexts] = useState({})
   const [editing, setEditing] = useState({})
@@ -352,17 +381,18 @@ function Today({ t, isEn, dir, cfg, tpls, tplName, stageName, leads, toast, conf
   const skipTimers = useRef({})
   useEffect(() => () => Object.values(skipTimers.current).forEach(clearTimeout), [])
   const approvals = queue.filter(q => !gone[q.id])
-  const ups = upcoming.filter(u => !gone[u.id]).filter(u => filter === 'all' || (filter === 'auto' ? u.mode === 'auto' : u.mode === 'suggest'))
+  const ups = upcoming.filter(u => !gone[u.id])
   const loading = !runResult
   const inWin = isSendWindow(cfg)
+  const leadOf = id => leads.find(l => String(l.id) === String(id))
 
-  const send = async (item, text) => {
+  const send = async (item, text, { quiet } = {}) => {
     setBusy(b => ({ ...b, [item.id]: true }))
     try {
       const r = await autoApi.post('auto-send', { items: [{ leadId: item.leadId, phone: item.phone, text: text ?? item.text, ruleKey: item.ruleKey, templateId: item.templateId }] })
       if (!r.results?.[0]?.ok) throw new Error(r.results?.[0]?.error || t.error)
-      setGone(g => ({ ...g, [item.id]: 1 })); toast(t.sentTo(item.name || `+${item.phone}`)); return true
-    } catch (e) { toast(`${t.error}: ${e.message}`, { tone: 'error' }); return false }
+      setGone(g => ({ ...g, [item.id]: 1 })); if (!quiet) toast(t.sentTo(item.name || `+${item.phone}`)); return true
+    } catch (e) { if (!quiet) toast(`${t.error}: ${/\b466\b/.test(e.message) ? t.quotaShort : e.message}`, { tone: 'error' }); return false }
     finally { setBusy(b => { const n = { ...b }; delete n[item.id]; return n }) }
   }
   const skip = item => {
@@ -370,9 +400,15 @@ function Today({ t, isEn, dir, cfg, tpls, tplName, stageName, leads, toast, conf
     skipTimers.current[item.id] = setTimeout(() => { autoApi.post('auto-skip', { leadId: item.leadId, ruleKey: item.ruleKey }).then(reload).catch(() => {}) }, 5000)
     toast(t.skipped(item.name || `+${item.phone}`), { action: { label: t.undo, onClick: () => { clearTimeout(skipTimers.current[item.id]); setGone(g => { const n = { ...g }; delete n[item.id]; return n }) } } })
   }
-  const sendAll = async () => {
-    if (!await confirm({ title: t.sendAllConfirm(approvals.length), confirmLabel: t.send, cancelLabel: t.cancel })) return
-    for (const q of approvals) await send(q, texts[q.id])
+  // one group at a time; stops at the first refusal of a blocked plan instead of failing every item
+  const sendGroup = async list => {
+    if (!await confirm({ title: t.sendAllConfirm(list.length), confirmLabel: t.send, cancelLabel: t.cancel })) return
+    let ok = 0, failed = 0
+    for (const q of list) {
+      if (await send(q, texts[q.id], { quiet: true })) ok++
+      else { failed++; if (quotaBlocked || failed >= 3) break }
+    }
+    toast(failed ? t.groupResultErr(ok, list.length - ok) : t.groupResult(ok), { tone: failed ? 'error' : 'success' })
     reload(); onRun()
   }
   const sendUpcoming = async u => {
@@ -380,7 +416,12 @@ function Today({ t, isEn, dir, cfg, tpls, tplName, stageName, leads, toast, conf
     await send(u)
     reload()
   }
-  const chat = item => onOpenChat?.(leads.find(l => String(l.id) === String(item.leadId)) || { id: `wa:${item.phone}`, name: item.name, phone: item.phone })
+  const chat = item => onOpenChat?.(leadOf(item.leadId) || { id: `wa:${item.phone}`, name: item.name, phone: item.phone })
+
+  // approvals grouped by what they are (a missed welcome first: those leads never heard from us)
+  const groupOf = q => (q.ruleKey === 'welcome:missed' ? 'missed' : q.kind)
+  const ORDER = ['missed', 'welcome', 'reply', 'stage', 'noreply', 'reengage']
+  const qGroups = [...new Set([...ORDER, ...approvals.map(groupOf)])].map(k => [k, approvals.filter(q => groupOf(q) === k)]).filter(([, l]) => l.length)
 
   // groups for upcoming
   const now = Date.now()
@@ -394,179 +435,176 @@ function Today({ t, isEn, dir, cfg, tpls, tplName, stageName, leads, toast, conf
   const nrDays = Math.round(noReplySteps.reduce((n, s) => n + (Number(s.hours) || 0), 0) / 12) / 2
 
   return (
-    <div className="au-today">
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <ModeSwitch value={filter} onChange={setFilter} modes={['all', 'suggest', 'auto']} icons={{}} colors={{ all: T.brand, suggest: T.amber, auto: T.green }} label={t.upcoming}
-            labels={{ all: `${t.filterAll} · ${approvals.length + upcoming.filter(u => !gone[u.id]).length}`, suggest: `${t.filterApprove} · ${approvals.length + upcoming.filter(u => !gone[u.id] && u.mode === 'suggest').length}`, auto: `${t.filterAuto} · ${upcoming.filter(u => !gone[u.id] && u.mode === 'auto').length}` }}/>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 18, minWidth: 0 }}>
+      {/* the day at a glance */}
+      <div className="au-kpis">
+        <WindowCard t={t} isEn={isEn} cfg={cfg} onEdit={() => onGo('hours')}/>
+        <StatTile value={kpi.pending} label={t.kpiPending} tone={kpi.pending ? T.amberText : T.text} onClick={() => document.getElementById('au-approvals')?.scrollIntoView({ behavior: 'smooth' })}/>
+        <StatTile value={kpi.sent7} label={t.kpiSent} tone={T.text}/>
+        <StatTile value={kpi.positive} label={t.kpiPos} tone={T.text}/>
+        <StatTile value={kpi.failed7} label={t.kpiFail} tone={kpi.failed7 ? T.redText : T.text} onClick={onFailed}/>
+      </div>
+
+      <section id="au-approvals" aria-label={t.waiting}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
+          <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, whiteSpace: 'nowrap' }}>{t.waiting}</h3>
+          {!loading && <span style={{ minWidth: 24, height: 22, padding: '0 8px', borderRadius: 11, background: approvals.length ? T.amberSoft : 'rgba(var(--ov),.06)', color: approvals.length ? T.amberText : T.text3, fontSize: 12, fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{approvals.length}</span>}
           <div style={{ flex: 1 }}/>
           <span className="au-hide-m"><Button icon={<FaSyncAlt size={11} className={running ? 'au-spin' : undefined}/>} onClick={onRun} disabled={running} title={t.runNowTip}>{t.runNow}</Button></span>
           <span className="au-only-m"><IconButton icon={<FaSyncAlt size={13} className={running ? 'au-spin' : undefined}/>} label={t.runNow} size={36} variant="ghost" onClick={onRun} disabled={running}/></span>
         </div>
-
-        {filter !== 'auto' && (
-          <section id="au-approvals" aria-label={t.waiting}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
-              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, whiteSpace: 'nowrap' }}>{t.waiting} <span style={{ color: T.text3, fontSize: 13 }}>({approvals.length})</span></h3>
-              <div style={{ flex: 1 }}/>
-              {approvals.length >= 2 && <Button size="sm" variant="soft-green" icon={<FaPaperPlane size={10}/>} onClick={sendAll}>{t.sendAll(approvals.length)}</Button>}
-            </div>
-            {loading ? <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>{[0, 1, 2].map(i => <Skeleton key={i} h={120} r={14}/>)}</div>
-              : runResult?.ok === false && !approvals.length ? <InlineError message={t.loadErr} onRetry={onRun} retryLabel={t.retry}/>
-              : !approvals.length ? <Card pad={0}><EmptyState compact icon={FaCheckCircle} title={t.emptyApproveT} body={t.emptyApproveB}/></Card>
-              : <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>{approvals.map(q => {
-                  const c = KIND_COLOR[q.kind] || T.brand
-                  const txt = texts[q.id] ?? q.text
-                  const reason = q.kind === 'stage' ? `${isEn ? 'Moved to' : 'עבר לשלב'} "${stageName(q.stageKey)}"` : (isEn ? q.reason?.en : q.reason?.he) || ''
-                  return (
-                    <Card key={q.id} pad={14} accent={c} style={{ display: 'flex', flexDirection: 'column', gap: 8, opacity: busy[q.id] ? .6 : 1, pointerEvents: busy[q.id] ? 'none' : 'auto' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                        <span style={{ width: 32, height: 32, borderRadius: '50%', background: `${c}2a`, color: c, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, flexShrink: 0 }}>{(q.name || '?')[0]}</span>
-                        <b style={{ fontSize: 14, fontWeight: 700 }}>{q.name || '—'}</b>
-                        <bdi dir="ltr" style={{ fontSize: 11.5, color: T.text3 }}>+{q.phone}</bdi>
-                        {q.lang === 'en' && <Badge color={T.brand}>EN</Badge>}
-                        <Badge color={c}>{t.kind[q.kind] || q.kind}</Badge>
-                        <div style={{ flex: 1 }}/>
-                        {q.created_at && <span style={{ fontSize: 11.5, color: T.text3 }}>{rel(q.created_at, t)}</span>}
-                      </div>
-                      <div style={{ fontSize: 12.5, color: T.text2 }} dir="auto">{reason}</div>
-                      {editing[q.id] ? (
-                        <div style={{ maxWidth: 560 }}>
-                          <textarea value={txt} onChange={e => setTexts(x => ({ ...x, [q.id]: e.target.value }))} dir={q.lang === 'en' ? 'ltr' : 'rtl'} rows={Math.min(10, txt.split('\n').length + 1)} aria-label={t.editMsg}
-                            style={{ ...inputStyle, height: 'auto', padding: '9px 11px', background: '#0B2A22', border: '1px solid rgba(37,211,102,.35)', color: T.wa.text, lineHeight: 1.6, resize: 'vertical' }} autoFocus/>
-                          <button type="button" onClick={() => { setTexts(x => { const n = { ...x }; delete n[q.id]; return n }); setEditing(e => ({ ...e, [q.id]: false })) }} style={{ background: 'none', border: 'none', color: T.brandText, fontSize: 12, fontWeight: 700, cursor: 'pointer', padding: '4px 0', fontFamily: 'inherit', minHeight: 0 }}>{t.revertMsg}</button>
-                        </div>
-                      ) : (
-                        <div style={{ position: 'relative', maxWidth: 560 }}>
-                          <div dir={q.lang === 'en' ? 'ltr' : 'rtl'} style={{ background: '#0B2A22', border: '1px solid rgba(37,211,102,.18)', color: T.wa.text, borderRadius: 10, padding: '9px 40px 9px 11px', paddingInlineEnd: 40, fontSize: 13, lineHeight: 1.55, whiteSpace: 'pre-wrap', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' }}><WAText text={txt}/></div>
-                          <IconButton icon={<FaPen size={10}/>} label={t.editMsg} size={28} onClick={() => setEditing(e => ({ ...e, [q.id]: true }))} style={{ position: 'absolute', top: 6, insetInlineEnd: 6 }}/>
-                          {texts[q.id] != null && texts[q.id] !== q.text && <Badge color={T.amber} textColor={T.amberText}>{t.edited}</Badge>}
-                        </div>
-                      )}
-                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                        <Button variant="soft-green" icon={<FaPaperPlane size={11}/>} loading={busy[q.id]} onClick={async () => { if (await send(q, texts[q.id])) reload() }} style={{ flex: '1 1 120px', maxWidth: 200 }}>{t.send}</Button>
-                        <Button icon={<FaTimes size={10}/>} onClick={() => skip(q)}>{t.skip}</Button>
-                        {onOpenChat && <><span className="au-hide-m"><Button icon={<FaWhatsapp size={12}/>} onClick={() => chat(q)}>{t.openChat}</Button></span><span className="au-only-m"><IconButton icon={<FaWhatsapp size={14}/>} label={t.openChat} size={36} variant="ghost" onClick={() => chat(q)}/></span></>}
-                      </div>
-                    </Card>
-                  )
-                })}</div>}
-          </section>
-        )}
-
-        <section aria-label={t.upcoming}>
-          <h3 style={{ margin: '0 0 10px', fontSize: 16, fontWeight: 800 }}>{t.upcoming}</h3>
-          {loading ? <Card pad={0}>{[0, 1, 2, 3, 4].map(i => <div key={i} style={{ padding: '10px 14px' }}><Skeleton h={32}/></div>)}</Card>
-            : !ups.length && !soonJobs.length ? <Card pad={0}><EmptyState compact icon={FaCalendarCheck} title={t.emptyUpcomingT} body={t.emptyUpcomingB} action={<Button size="sm" variant="brand" onClick={() => onGo('rules')}>{t.goRules}</Button>}/></Card>
-            : (
-              <Card pad={0} style={{ overflow: 'hidden' }}>
-                {groups.map(([label, list], gi) => (list.length || (gi === 2 && soonJobs.length)) ? (
-                  <div key={label}>
-                    <div style={{ padding: '8px 14px', fontSize: 12, fontWeight: 800, color: T.text3, background: 'rgba(0,0,0,.18)', borderBottom: `1px solid ${T.divider}` }}>{label} · {list.length + (gi === 2 ? soonJobs.length : 0)}</div>
-                    {list.map(u => {
-                      const lead = leads.find(l => String(l.id) === String(u.leadId))
-                      return (
-                        <div key={u.id} className="au-sched-row au-row" style={{ borderBottom: `1px solid ${T.divider}` }}>
-                          <div>
-                            <div style={{ fontSize: 13.5, fontWeight: 800, fontVariantNumeric: 'tabular-nums', color: u.heldByQuiet ? T.amberText : T.text, display: 'flex', alignItems: 'center', gap: 5 }}>{u.heldByQuiet && <FaMoon size={10}/>}{hhmm(u.sendAt, isEn)}</div>
-                            <div style={{ fontSize: 11, color: u.heldByQuiet ? T.amberText : T.text3 }}>{u.heldByQuiet ? t.heldQuiet : rel(u.sendAt, t)}</div>
-                          </div>
-                          <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <b style={{ fontSize: 13.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.name || `+${u.phone}`}</b>
-                            <Badge color={STAGE_COLOR[lead?.leadStatus || u.stage] || T.grey} textColor={T.text2}>{stageName(lead?.leadStatus || u.stage || 'new')}</Badge>
-                          </div>
-                          <div className="au-sr-kind" style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <Badge color={KIND_COLOR[u.kind] || T.brand}>{t.kind[u.kind] || u.kind}</Badge>
-                            <span style={{ fontSize: 12.5, color: T.text2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tplName(u.templateId)}</span>
-                          </div>
-                          <div className="au-sr-mode"><ModeBadge mode={u.mode} labels={t.modesBadge}/></div>
-                          <div className="au-row-actions" style={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
-                            <IconButton icon={<FaPaperPlane size={12} color={T.green}/>} label={t.sendNow} onClick={() => sendUpcoming(u)} loading={busy[u.id]}/>
-                            <IconButton icon={<FaTimes size={12}/>} label={t.skip} onClick={() => skip(u)}/>
-                            {onOpenChat && <IconButton icon={<FaWhatsapp size={13}/>} label={t.openChat} onClick={() => chat(u)}/>}
-                          </div>
-                        </div>
-                      )
-                    })}
-                    {gi === 2 && soonJobs.map(j => (
-                      <div key={j.id} className="au-sched-row" style={{ borderBottom: `1px solid ${T.divider}` }}>
-                        <div><div style={{ fontSize: 13.5, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>{hhmm(j.at, isEn)}</div><div style={{ fontSize: 11, color: T.text3 }}>{rel(j.at, t)}</div></div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}><FaBullhorn size={12} color={T.brand}/><b style={{ fontSize: 13.5 }}>{t.bulkRow(j.recipients?.length || 0)}</b></div>
-                        <div className="au-sr-kind" style={{ fontSize: 12.5, color: T.text2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tplName(j.templateId)}</div>
-                        <div className="au-sr-mode"><ModeBadge mode="auto" labels={t.modesBadge}/></div>
-                        <div style={{ display: 'flex', justifyContent: 'flex-end' }}><Button size="sm" variant="brand" onClick={() => onOpenJob(j)}>{t.open}</Button></div>
-                      </div>
-                    ))}
+        {loading ? <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>{[0, 1, 2].map(i => <Skeleton key={i} h={92} r={14}/>)}</div>
+          : runResult?.ok === false && !approvals.length ? <InlineError message={t.loadErr} onRetry={onRun} retryLabel={t.retry}/>
+          : !approvals.length ? <Card pad={0}><EmptyState compact icon={FaCheckCircle} title={t.emptyApproveT} body={t.emptyApproveB}/></Card>
+          : <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>{qGroups.map(([g, list]) => {
+              const c = g === 'missed' ? T.red : KIND_COLOR[g] || T.brand
+              return (
+                <Card key={g} pad={0} style={{ overflow: 'hidden' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 16px', borderBottom: `1px solid ${T.divider}`, flexWrap: 'wrap' }}>
+                    <span aria-hidden style={{ width: 10, height: 10, borderRadius: 3, background: c, flexShrink: 0 }}/>
+                    <b style={{ fontSize: 14 }}>{t.grp[g] || t.kind[g] || g}</b>
+                    <span style={{ fontSize: 12.5, color: T.text3, fontWeight: 700 }}>{list.length}</span>
+                    {g === 'missed' && <span className="au-hide-m" style={{ fontSize: 12, color: T.text3 }}>· {t.grpMissedSub}</span>}
+                    <div style={{ flex: 1 }}/>
+                    {list.length >= 2 && <Button size="sm" variant="soft-green" icon={<FaPaperPlane size={10}/>} disabled={quotaBlocked} title={quotaBlocked ? t.quotaShort : undefined} onClick={() => sendGroup(list)}>{t.sendGroup(list.length)}</Button>}
                   </div>
-                ) : null)}
-              </Card>
-            )}
-        </section>
+                  {list.map((q, i) => {
+                    const lead = leadOf(q.leadId)
+                    const camp = lead ? leadCampaign(lead, isEn ? 'en' : 'he') : ''
+                    const txt = texts[q.id] ?? q.text
+                    const stageKey = q.stageKey || (q.kind === 'stage' ? String(q.ruleKey || '').split(':')[1] : '')
+                    const reason = q.kind === 'stage' && stageKey ? `${isEn ? 'Moved to' : 'עבר לשלב'} "${stageName(stageKey)}"` : (isEn ? q.reason?.en : q.reason?.he) || ''
+                    return (
+                      <div key={q.id} className="au-q-row" style={{ borderTop: i ? `1px solid ${T.divider}` : 'none', opacity: busy[q.id] ? .55 : 1, pointerEvents: busy[q.id] ? 'none' : 'auto' }}>
+                        <div style={{ display: 'flex', gap: 10, minWidth: 0 }}>
+                          <span style={{ width: 34, height: 34, borderRadius: '50%', background: `${c}22`, color: c, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, flexShrink: 0, fontSize: 14 }}>{(q.name || '?')[0]}</span>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontSize: 14, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {q.name || '—'}{camp && <span style={{ fontSize: 12, fontWeight: 500, color: T.text3, marginInlineStart: 5 }}>(<bdi>{camp}</bdi>)</span>}
+                              {q.lang === 'en' && <span style={{ marginInlineStart: 6 }}><Badge color={T.brand}>EN</Badge></span>}
+                            </div>
+                            <div style={{ fontSize: 12, color: T.text3, display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 1 }}>
+                              <bdi dir="ltr">{localPhone(q.phone)}</bdi>{q.created_at && <span>· {rel(q.created_at, t)}</span>}
+                            </div>
+                            {reason && <div style={{ fontSize: 12, color: T.text2, marginTop: 3, lineHeight: 1.4 }} dir="auto">{reason}</div>}
+                          </div>
+                        </div>
+                        {editing[q.id] ? (
+                          <div style={{ minWidth: 0 }}>
+                            <textarea value={txt} onChange={e => setTexts(x => ({ ...x, [q.id]: e.target.value }))} dir={q.lang === 'en' ? 'ltr' : 'rtl'} rows={Math.min(10, txt.split('\n').length + 1)} aria-label={t.editMsg}
+                              style={{ ...inputStyle, height: 'auto', padding: '9px 11px', background: '#0B2A22', border: '1px solid rgba(37,211,102,.35)', color: T.wa.text, lineHeight: 1.6, resize: 'vertical' }} autoFocus/>
+                            <button type="button" onClick={() => { setTexts(x => { const n = { ...x }; delete n[q.id]; return n }); setEditing(e => ({ ...e, [q.id]: false })) }} style={{ background: 'none', border: 'none', color: T.brandText, fontSize: 12, fontWeight: 700, cursor: 'pointer', padding: '4px 0', fontFamily: 'inherit', minHeight: 0 }}>{t.revertMsg}</button>
+                          </div>
+                        ) : (
+                          <button type="button" onClick={() => setEditing(e => ({ ...e, [q.id]: true }))} title={t.editMsg} className="au-q-msg"
+                            style={{ position: 'relative', minWidth: 0, textAlign: 'start', background: '#0B2A22', border: '1px solid rgba(37,211,102,.18)', color: T.wa.text, borderRadius: 10, padding: '8px 34px 8px 11px', paddingInlineEnd: 34, fontSize: 12.5, lineHeight: 1.5, cursor: 'text', fontFamily: 'inherit' }}>
+                            <span dir={q.lang === 'en' ? 'ltr' : 'rtl'} style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', whiteSpace: 'pre-wrap' }}><WAText text={txt}/></span>
+                            <FaPen size={10} aria-hidden style={{ position: 'absolute', top: 10, insetInlineEnd: 11, opacity: .6 }}/>
+                            {texts[q.id] != null && texts[q.id] !== q.text && <span style={{ position: 'absolute', bottom: 6, insetInlineEnd: 8 }}><Badge color={T.amber} textColor={T.amberText}>{t.edited}</Badge></span>}
+                          </button>
+                        )}
+                        <div className="au-q-acts">
+                          <Button variant="soft-green" icon={<FaPaperPlane size={11}/>} loading={busy[q.id]} onClick={async () => { if (await send(q, texts[q.id])) reload() }}>{t.send}</Button>
+                          <IconButton icon={<FaTimes size={12}/>} label={t.skip} size={34} onClick={() => skip(q)}/>
+                          {onOpenChat && <IconButton icon={<FaWhatsapp size={14}/>} label={t.openChat} size={34} onClick={() => chat(q)}/>}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </Card>
+              )
+            })}</div>}
+      </section>
 
-        {showFirstRun && (
-          <Card>
-            <h3 style={{ margin: '0 0 12px', fontSize: 15, fontWeight: 800, display: 'flex', gap: 8, alignItems: 'center' }}><FaRobot color={T.brand}/>{t.howItWorks}</h3>
-            <ol style={{ margin: 0, paddingInlineStart: 20, display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13.5, lineHeight: 1.6 }}>
-              <li>{t.flow1(tplName(cfg.rules.welcome.templateId))}</li>
-              <li>{t.flow2(noReplySteps.length, nrDays)}</li>
-              <li>{t.flow3}</li>
-            </ol>
-          </Card>
-        )}
-      </div>
-
-      <aside className="au-today-aside">
-        <WindowCard t={t} isEn={isEn} cfg={cfg} onEdit={() => onGo('hours')}/>
-        <div className="au-kpi">
-          <StatTile value={kpi.pending} label={t.kpiPending} tone={kpi.pending ? T.amberText : T.text} onClick={() => document.getElementById('au-approvals')?.scrollIntoView({ behavior: 'smooth' })}/>
-          <StatTile value={kpi.sent7} label={t.kpiSent} tone={T.green}/>
-          <StatTile value={kpi.positive} label={t.kpiPos} tone={T.blue}/>
-          <StatTile value={kpi.failed7} label={t.kpiFail} tone={kpi.failed7 ? T.redText : T.grey} onClick={onFailed}/>
+      <section aria-label={t.upcoming}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+          <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800 }}>{t.upcoming}</h3>
+          {!loading && <span style={{ fontSize: 12.5, color: T.text3, fontWeight: 700 }}>{ups.length + soonJobs.length}</span>}
         </div>
-        {nextJob && (
-          <Card pad={14} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <div style={{ fontSize: 12, fontWeight: 800, color: T.text3 }}>{t.nextCampaign}</div>
-            <b style={{ fontSize: 14 }}>{tplName(nextJob.templateId) || nextJob.name}</b>
-            <div style={{ fontSize: 12.5, color: T.text2 }}>{t.bulkRow(nextJob.recipients?.length || 0)} · {whenText(nextJob.at, { today: t.today, tomorrow: t.tomorrow, at: isEn ? 'at' : 'ב-' }, isEn)}</div>
-            <div><Button size="sm" variant="brand" onClick={() => onOpenJob(nextJob)}>{t.open}</Button></div>
-          </Card>
-        )}
-      </aside>
+        {loading ? <Card pad={0}>{[0, 1, 2, 3, 4].map(i => <div key={i} style={{ padding: '10px 14px' }}><Skeleton h={32}/></div>)}</Card>
+          : !ups.length && !soonJobs.length ? <Card pad={0}><EmptyState compact icon={FaCalendarCheck} title={t.emptyUpcomingT} body={t.emptyUpcomingB} action={<Button size="sm" variant="brand" onClick={() => onGo('rules')}>{t.goRules}</Button>}/></Card>
+          : (
+            <Card pad={0} style={{ overflow: 'hidden' }}>
+              {groups.map(([label, list], gi) => (list.length || (gi === 2 && soonJobs.length)) ? (
+                <div key={label}>
+                  <div style={{ padding: '8px 16px', fontSize: 12, fontWeight: 800, color: T.text3, background: 'rgba(var(--ov),.035)', borderBottom: `1px solid ${T.divider}` }}>{label} · {list.length + (gi === 2 ? soonJobs.length : 0)}</div>
+                  {list.map(u => {
+                    const lead = leadOf(u.leadId)
+                    return (
+                      <div key={u.id} className="au-sched-row au-row" style={{ borderBottom: `1px solid ${T.divider}` }}>
+                        <div>
+                          <div style={{ fontSize: 13.5, fontWeight: 800, fontVariantNumeric: 'tabular-nums', color: u.heldByQuiet ? T.amberText : T.text, display: 'flex', alignItems: 'center', gap: 5 }}>{u.heldByQuiet && <FaMoon size={10}/>}{hhmm(u.sendAt, isEn)}</div>
+                          <div style={{ fontSize: 11, color: u.heldByQuiet ? T.amberText : T.text3 }}>{u.heldByQuiet ? t.heldQuiet : rel(u.sendAt, t)}</div>
+                        </div>
+                        <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <b style={{ fontSize: 13.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.name || `+${u.phone}`}</b>
+                          <Badge color={STAGE_COLOR[lead?.leadStatus || u.stage] || T.grey} textColor={T.text2}>{stageName(lead?.leadStatus || u.stage || 'new')}</Badge>
+                        </div>
+                        <div className="au-sr-kind" style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <Badge color={KIND_COLOR[u.kind] || T.brand}>{t.kind[u.kind] || u.kind}</Badge>
+                          <span style={{ fontSize: 12.5, color: T.text2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tplName(u.templateId)}</span>
+                        </div>
+                        <div className="au-sr-mode"><ModeBadge mode={u.mode} labels={t.modesBadge}/></div>
+                        <div className="au-row-actions" style={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
+                          <IconButton icon={<FaPaperPlane size={12} color={T.green}/>} label={t.sendNow} onClick={() => sendUpcoming(u)} loading={busy[u.id]}/>
+                          <IconButton icon={<FaTimes size={12}/>} label={t.skip} onClick={() => skip(u)}/>
+                          {onOpenChat && <IconButton icon={<FaWhatsapp size={13}/>} label={t.openChat} onClick={() => chat(u)}/>}
+                        </div>
+                      </div>
+                    )
+                  })}
+                  {gi === 2 && soonJobs.map(j => (
+                    <div key={j.id} className="au-sched-row" style={{ borderBottom: `1px solid ${T.divider}` }}>
+                      <div><div style={{ fontSize: 13.5, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>{hhmm(j.at, isEn)}</div><div style={{ fontSize: 11, color: T.text3 }}>{rel(j.at, t)}</div></div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}><FaBullhorn size={12} color={T.brand}/><b style={{ fontSize: 13.5 }}>{t.bulkRow(j.recipients?.length || 0)}</b></div>
+                      <div className="au-sr-kind" style={{ fontSize: 12.5, color: T.text2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tplName(j.templateId)}</div>
+                      <div className="au-sr-mode"><ModeBadge mode="auto" labels={t.modesBadge}/></div>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end' }}><Button size="sm" variant="brand" onClick={() => onOpenJob(j)}>{t.open}</Button></div>
+                    </div>
+                  ))}
+                </div>
+              ) : null)}
+            </Card>
+          )}
+        {nextJob && <div style={{ marginTop: 8, fontSize: 12.5, color: T.text3 }}>{t.nextCampaign}: <b style={{ color: T.text }}>{tplName(nextJob.templateId) || nextJob.name}</b> · {whenText(nextJob.at, { today: t.today, tomorrow: t.tomorrow, at: isEn ? 'at' : 'ב-' }, isEn)}</div>}
+      </section>
+
+      {showFirstRun && (
+        <Card>
+          <h3 style={{ margin: '0 0 12px', fontSize: 15, fontWeight: 800, display: 'flex', gap: 8, alignItems: 'center' }}><FaRobot color={T.brand}/>{t.howItWorks}</h3>
+          <ol style={{ margin: 0, paddingInlineStart: 20, display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13.5, lineHeight: 1.6 }}>
+            <li>{t.flow1(tplName(cfg.rules.welcome.templateId))}</li>
+            <li>{t.flow2(noReplySteps.length, nrDays)}</li>
+            <li>{t.flow3}</li>
+          </ol>
+        </Card>
+      )}
     </div>
   )
 }
 
+// 972501234567 → 050-123-4567
+const localPhone = p => { const d = String(p || '').replace(/\D/g, ''); const l = d.startsWith('972') ? '0' + d.slice(3) : d; return l.length === 10 ? `${l.slice(0, 3)}-${l.slice(3, 6)}-${l.slice(6)}` : (l ? `+${d}` : '') }
+
+// The sending window as a compact tile (first in the KPI row)
 function WindowCard({ t, isEn, cfg, onEdit }) {
   useTick()
   const nw = nextWindows(cfg, new Date(), 3)
-  const { day } = israelNow()
-  const days = cfg.quiet?.days || {}
   const unlimited = !cfg.quiet?.enabled
   const w0 = nw.windows.find(w => !w.current)
   const title = unlimited ? t.winUnlimited : nw.open ? t.winOpen : t.winClosed
   const sub = unlimited ? '' : nw.open ? t.winOpenSub(fmtHour(nw.closesAt)) : w0 ? t.winClosedSub(w0.offset === 0 ? t.today : w0.offset === 1 ? t.tomorrow : t.days[w0.day], fmtHour(w0.start)) : t.winNone
   const open = unlimited || nw.open
   return (
-    <Card pad={14} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <span style={{ width: 10, height: 10, borderRadius: '50%', background: open ? T.green : T.amber, boxShadow: open ? `0 0 0 4px ${T.green}33` : 'none' }}/>
-        <div style={{ flex: 1 }}><div style={{ fontSize: 15, fontWeight: 800 }}>{title}</div>{sub && <div style={{ fontSize: 12, color: T.text3 }}>{sub}</div>}</div>
-      </div>
-      {!unlimited && (
-        <div aria-hidden style={{ display: 'flex', gap: 6, alignItems: 'flex-end' }}>
-          {[0, 1, 2, 3, 4, 5, 6].map(d => {
-            const w = days[d], isOn = Array.isArray(w)
-            return (
-              <div key={d} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
-                <span style={{ width: 8, height: 32, borderRadius: 3, background: isOn ? 'rgba(37,211,102,.35)' : 'rgba(var(--ov),.06)', outline: d === day ? `2px solid ${T.brand}` : 'none', outlineOffset: 1 }}/>
-                <span style={{ fontSize: 9.5, color: d === day ? T.brandText : T.text3, fontWeight: 700 }}>{t.dShort[d]}</span>
-              </div>
-            )
-          })}
-        </div>
-      )}
-      <div><Button size="sm" variant="brand" icon={<FaClock size={10}/>} onClick={onEdit}>{t.editHours}</Button></div>
-    </Card>
+    <button type="button" onClick={onEdit} title={t.editHours} className="au-card-hov"
+      style={{ minHeight: 76, padding: '12px 14px', borderRadius: 12, background: T.s1, border: `1px solid ${T.s1Line}`, boxShadow: T.cardShadow, textAlign: 'start', display: 'flex', alignItems: 'center', gap: 12, cursor: 'pointer', fontFamily: 'inherit', color: 'inherit', minWidth: 0 }}>
+      <span aria-hidden style={{ width: 10, height: 10, borderRadius: '50%', background: open ? T.green : T.amber, boxShadow: `0 0 0 4px ${open ? T.green : T.amber}2e`, flexShrink: 0 }}/>
+      <span style={{ minWidth: 0, flex: 1 }}>
+        <span style={{ display: 'block', fontSize: 15, fontWeight: 800 }}>{title}</span>
+        {sub && <span style={{ display: 'block', fontSize: 12, color: T.text3 }}>{sub}</span>}
+      </span>
+      <FaClock size={12} color={T.text3} aria-hidden/>
+    </button>
   )
 }
 
