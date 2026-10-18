@@ -3366,6 +3366,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
               )}
               onReadChange={handleChatsRead}
               autoConfig={autoCfg?.config || null}
+              onAutoConfigSaved={cfg => setAutoCfg(c => ({ ...(c || {}), config: cfg, storage: 'ok' }))}
             />
           </Suspense>
         )}

@@ -6,6 +6,9 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { supabase } from './lib/supabaseClient'
 import { WAText } from './waFormat.jsx'
 import ChatTemplatePicker, { ChatTemplateMenu } from './ChatTemplatePicker.jsx'
+import TemplateQuickEdit from './TemplateQuickEdit.jsx'
+import { renderTemplate } from '../lib/automations-shared.js'
+import { untemplate } from '../lib/template-edit.js'
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 const API_BASE      = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
@@ -238,7 +241,7 @@ function TickMark({ status, WA, size = 14 }) {
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
-export default function GreenAPIChat({ leads = [], lang = 'he', initialContact = null, onOpenLead, onDeleteLead, onNewMessage, onSentMessage, onReadChange, autoConfig = null }) {
+export default function GreenAPIChat({ leads = [], lang = 'he', initialContact = null, onOpenLead, onDeleteLead, onNewMessage, onSentMessage, onReadChange, autoConfig = null, onAutoConfigSaved }) {
 
   // ── Theme ─────────────────────────────────────────────────────────────────
   const [isDark, setIsDark] = useState(() => { try { return localStorage.getItem('whatsapp_theme_v2') === 'dark' } catch { return false } })
@@ -273,6 +276,12 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
   const [greenChats,    setGreenChats]   = useState([])   // recent WhatsApp chats from Green API (not only leads)
   const [lightbox,      setLightbox]     = useState(null)
   const [quickOpen,     setQuickOpen]    = useState(false)
+  // Templates edited from the chat: the saved config (until the parent's copy catches up), the template being edited,
+  // and the template last put in the message box (to offer "save in place of the template" once its text changed)
+  const [cfgLocal,      setCfgLocal]     = useState(null)
+  const [editTpl,       setEditTpl]      = useState(null)    // { tpl, initial, lang, fromChat }
+  const [inserted,      setInserted]     = useState(null)    // { tpl, lang, text, marked }
+  const [tplSaved,      setTplSaved]     = useState('')
 
   // Per-conversation read tracking (persisted) → drives unread badges
   const [lastRead, setLastRead] = useState(() => {
@@ -775,6 +784,17 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
     const row = leads.find(l => intlPhone(l.phone) === chatPhone) || contact
     return { ...row, name: row?.name && !/^[\d+\-\s]+$/.test(row.name) ? row.name : '', phone: contact.phone }
   }, [leads, contact, chatPhone])
+  const cfgEff = cfgLocal || autoConfig
+  const putInBox = (text, tpl, tplLang) => {
+    setInput(text); setQuickOpen(false)
+    setInserted(tpl ? { tpl, lang: tplLang, text, marked: renderTemplate(tpl, chatLead || {}, cfgEff || undefined, tplLang, { keys: true }) } : null)
+    setTimeout(() => { const el = inputRef.current; if (el) { el.focus(); el.setSelectionRange(text.length, text.length) } }, 30)
+  }
+  const openEdit = (tpl, initial, tplLang, fromChat) => setEditTpl({ tpl, initial, lang: tplLang, fromChat })
+  const boxChanged = !!(inserted && input.trim() && input.trim() !== inserted.text.trim())
+  useEffect(() => { setInserted(null) }, [chatPhone])
+  useEffect(() => { setCfgLocal(null) }, [autoConfig])   // the parent's copy caught up (or the templates tab saved)
+  useEffect(() => { if (!input.trim()) setInserted(null) }, [input])
   const contactIdx = contactList.findIndex(l => l.id === contact?.id)
 
   // Unread = incoming messages newer than the last time this chat was opened.
@@ -989,9 +1009,9 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                     {contactView?.waName && contactView.waName !== nameOf(contactView, lang) && <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>· ~{contactView.waName}</span>}
                   </div>
                 </div>
-                <ChatTemplateMenu WA={WA} lang={lang} lead={chatLead} msgs={msgs} autoConfig={autoConfig}
+                <ChatTemplateMenu WA={WA} lang={lang} lead={chatLead} msgs={msgs} autoConfig={cfgEff}
                   onSend={text => sendMsg(text)}
-                  onInsert={text => { setInput(text); setQuickOpen(false); setTimeout(() => { const el = inputRef.current; if (el) { el.focus(); el.setSelectionRange(text.length, text.length) } }, 30) }}
+                  onInsert={putInBox} onEdit={openEdit}
                   onOpenPanel={() => { setQuickOpen(true); setEmoji(false) }}/>
                 {onOpenLead && leads.find(l=>l.id===contact.id) && (
                   <button onClick={()=>onOpenLead(contact)}
@@ -1205,13 +1225,40 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                 </div>
               )}
 
+              {editTpl && (
+                <TemplateQuickEdit WA={WA} lang={lang} lead={chatLead} tpl={editTpl.tpl} initial={editTpl.initial} initialLang={editTpl.lang} fromChat={editTpl.fromChat}
+                  autoConfig={cfgEff} onClose={() => setEditTpl(null)}
+                  onSaved={(next, id) => {
+                    setCfgLocal(next); onAutoConfigSaved?.(next)
+                    // the box now holds the saved wording: no more "changed" bar for it
+                    if (editTpl.fromChat) setInserted(null)
+                    setTplSaved(lang === 'en' ? 'The template was saved' : 'התבנית נשמרה')
+                    setTimeout(() => setTplSaved(''), 3500)
+                  }}/>
+              )}
+
               {/* ── Ready templates: the whole library, rendered for this lead (send now / edit in the box) ── */}
               {quickOpen && (
-                <ChatTemplatePicker WA={WA} lang={lang} msgs={msgs} autoConfig={autoConfig}
+                <ChatTemplatePicker WA={WA} lang={lang} msgs={msgs} autoConfig={cfgEff}
                     lead={chatLead}
                     onSend={text => sendMsg(text)}
-                    onInsert={text => { setInput(text); setQuickOpen(false); setTimeout(() => inputRef.current?.focus(), 30) }}
+                    onInsert={putInBox} onEdit={openEdit}
                     onClose={() => setQuickOpen(false)}/>
+              )}
+
+              {/* ── The message in the box came from a template and was changed: save the new wording over the template ── */}
+              {(boxChanged || tplSaved) && (
+                <div dir={lang === 'en' ? 'ltr' : 'rtl'} style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '7px 14px', background: WA.panelBg, borderTop: `1px solid ${WA.border}`, fontSize: 12.5, color: WA.bodyText }}>
+                  {tplSaved ? <span style={{ color: WA.green, fontWeight: 600 }}>✓ {tplSaved}</span> : <>
+                    <span>✏️ {lang === 'en' ? 'You changed the template' : 'שיניתם את הנוסח של'} <b>{lang === 'en' ? (inserted.tpl.en_title || inserted.tpl.he_title) : inserted.tpl.he_title}</b></span>
+                    <button type="button" onClick={() => openEdit(inserted.tpl, { [inserted.lang]: untemplate(input, inserted.marked) }, inserted.lang, true)}
+                      style={{ border: 'none', background: WA.green, color: '#fff', borderRadius: 7, padding: '5px 11px', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', minHeight: 0 }}>
+                      {lang === 'en' ? 'Save in place of the template' : 'שמור במקום התבנית'}
+                    </button>
+                    <span style={{ color: WA.subText, fontSize: 11.5 }}>{lang === 'en' ? 'so the next leads get this wording' : 'כדי שהלידים הבאים יקבלו את הנוסח הזה'}</span>
+                    <button type="button" onClick={() => setInserted(null)} aria-label={lang === 'en' ? 'Dismiss' : 'סגירה'} style={{ marginInlineStart: 'auto', background: 'none', border: 'none', color: WA.subText, cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 2, minHeight: 0 }}>×</button>
+                  </>}
+                </div>
               )}
 
               {/* ── Input Bar (flex: 0 0 auto — always visible, never scrolled away) ── */}
