@@ -7,6 +7,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { metaFormAnswers, shortCampaign } from './lib/leadFields.js'
 import { templateLead } from './lib/leadConversation.js'
+import { leadHistory, crmLeadFor } from './lib/leadHistory.js'
 import { supabase } from './lib/supabaseClient'
 import MetaKanban from './MetaKanban'
 import LeadConversation from './LeadConversation.jsx'
@@ -46,6 +47,11 @@ const TR = {
     phone: 'טלפון',
     email: 'אימייל',
     formAnswers: 'תשובות מהטופס',
+    history: 'היסטוריה ופרטים שהשאירו',
+    historyEmpty: 'אין עוד פעילות',
+    historyAll: n => `הצג הכל (${n})`,
+    historyLess: 'הצג פחות',
+    historyNow: 'הפנייה הזו',
     waSent: 'WA נשלח',
     loading: 'טוען...',
     error: 'שגיאה',
@@ -109,6 +115,11 @@ const TR = {
     phone: 'Phone',
     email: 'Email',
     formAnswers: 'Form answers',
+    history: 'History & details they left',
+    historyEmpty: 'No other activity yet',
+    historyAll: n => `Show all (${n})`,
+    historyLess: 'Show less',
+    historyNow: 'This inquiry',
     waSent: 'WA sent',
     loading: 'Loading...',
     error: 'Error',
@@ -300,6 +311,8 @@ function loadLayout() {
 
 // The CRM pipeline stages (= GROUPS in LeadsBoard.jsx / STAGES in lib/automations-shared.js); the office's renamed
 // stage names arrive as the stageLabels prop
+const HISTORY_ICON = { inquiry: '📝', booking: '📅', stage: '➜', note: '🗒', auto: '💬' }
+
 const PIPELINE = [
   { id: 'new', he: 'ליד חדש', en: 'New Leads', color: '#0073EA' },
   { id: 'contacted', he: 'ניצור קשר', en: 'Contacted', color: '#FDAB3D' },
@@ -734,14 +747,15 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onLeadRenam
   const answers = useMemo(() => (selectedLead ? metaFormAnswers(selectedLead.raw_fields, lang) : []), [selectedLead, lang])
   const answersHe = useMemo(() => (selectedLead ? metaFormAnswers(selectedLead.raw_fields, 'he') : []), [selectedLead])
   // the CRM copy of this lead (lib/meta-crm.js) — what the office typed there personalises the templates
-  const crmLead = useMemo(() => {
-    if (!selectedLead) return null
-    const tail = String(selectedLead.phone || '').replace(/\D/g, '').slice(-9)
-    return crmLeads.find(l => String(l?.crm_data?.metaLeadId || '') === String(selectedLead.id))
-      || (tail.length === 9 ? crmLeads.find(l => String(l?.phone || '').replace(/\D/g, '').slice(-9) === tail) : null) || null
-  }, [crmLeads, selectedLead])
+  const crmLead = useMemo(() => crmLeadFor(selectedLead, crmLeads), [crmLeads, selectedLead])
   const tplLead = useMemo(() => templateLead(selectedLead, crmLead, answersHe), [selectedLead, crmLead, answersHe])
   const stageName = st => { const o = stageLabels?.[st.id] || {}; return (lang === 'en' ? o.en : o.label) || st[lang === 'en' ? 'en' : 'he'] }
+  const history = useMemo(() => leadHistory({
+    lead: selectedLead, metaLeads: leads, crmLead, lang,
+    stageName: id => { const st = PIPELINE.find(p => p.id === id); return st ? stageName(st) : id },
+  }), [selectedLead, leads, crmLead, lang, stageLabels]) // eslint-disable-line react-hooks/exhaustive-deps
+  const [historyOpen, setHistoryOpen] = useState(false)
+  useEffect(() => { setHistoryOpen(false) }, [selectedId])
   const moveStage = async stage => {
     setStageMenu(false)
     if (!onCrmStage || !selectedLead || (crmLead && (crmLead.leadStatus || 'new') === stage)) return
@@ -1214,6 +1228,28 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onLeadRenam
                           {answers.map((x, i) => <div key={i} style={{ fontSize: 13, color: CREAM, lineHeight: 1.55, marginBottom: 4 }}><span style={{ color: MUTED }}>{x.q}:</span> <b style={{ fontWeight: 700 }}>{x.a}</b></div>)}
                         </div>
                       )}
+                    </div>
+
+                    {/* History: every inquiry from this phone, bookings, stage changes, notes, automatic sends */}
+                    <div className="lc-card" style={{ padding: 14 }}>
+                      <h3 style={{ margin: '0 0 8px', fontSize: 13.5, fontWeight: 800, color: CREAM }}>{t.history}</h3>
+                      {history.length <= 1 && !history.some(h => h.lines?.length) && <div style={{ fontSize: 12.5, color: MUTED }}>{t.historyEmpty}</div>}
+                      <ol style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+                        {(historyOpen ? history : history.slice(0, 8)).map((h, i) => (
+                          <li key={i} style={{ display: 'flex', gap: 10, padding: '8px 0', borderTop: i ? `1px solid rgba(var(--ov),.06)` : 'none', opacity: h.cancelled ? 0.6 : 1 }}>
+                            <span aria-hidden style={{ width: 24, height: 24, flexShrink: 0, borderRadius: 8, display: 'grid', placeItems: 'center', fontSize: 12, background: 'rgba(var(--ov),.06)' }}>{HISTORY_ICON[h.kind] || '•'}</span>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: 11.5, color: FAINT, display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                                {fmtFull(new Date(h.at).toISOString(), lang)}
+                                {h.current && <span className="lc-chip" style={{ fontSize: 10.5, padding: '0 6px' }}>{t.historyNow}</span>}
+                              </div>
+                              <div style={{ fontSize: 13, color: CREAM, lineHeight: 1.5, overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' }}>{h.title}</div>
+                              {!h.current && h.lines?.map((x, j) => <div key={j} style={{ fontSize: 12.5, color: MUTED, lineHeight: 1.5, overflowWrap: 'anywhere' }}>{x}</div>)}
+                            </div>
+                          </li>
+                        ))}
+                      </ol>
+                      {history.length > 8 && <button className="lc-btn" style={{ minHeight: 28, fontSize: 12, marginTop: 6 }} onClick={() => setHistoryOpen(o => !o)}>{historyOpen ? t.historyLess : t.historyAll(history.length)}</button>}
                     </div>
 
                     {/* Notes */}
