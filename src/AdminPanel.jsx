@@ -3437,7 +3437,8 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
             <AutomationsTab C={C} lang={lang} leads={leads} stageLabels={stageLabels}
               config={autoCfg} onConfigSaved={cfg => { setAutoCfg(c => ({ ...(c || {}), config: cfg, storage: 'ok' })); runAutomations() }}
               runResult={autoRun} onRun={runAutomations} running={autoRunning}
-              onOpenChat={lead => { setInitialChatLead(lead); setTab('chats') }}/>
+              onOpenChat={lead => { setInitialChatLead(lead); setTab('chats') }}
+              onRenameLead={(id, name) => updateLead(id, { name })}/>
           </Suspense>
         )}
 

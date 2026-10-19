@@ -35,7 +35,7 @@ const TR = {
     filterAll: 'הכל', filterApprove: 'לאישור', filterAuto: 'אוטומטי',
     waiting: 'מחכות לאישור שלך', sendAll: n => `שלח את כולן (${n})`, sendAllConfirm: n => `לשלוח עכשיו ${n} הודעות וואטסאפ?`, send: 'שלח',
     upcoming: 'מתוזמנות', grpHours: 'בשעות הקרובות', grpTomorrow: 'מחר', grpWeek: 'השבוע', heldQuiet: 'ממתין לשעות השליחה',
-    sendNow: 'שלח עכשיו', skip: 'דלג', openChat: 'פתח צ׳אט', editMsg: 'ערוך הודעה', revertMsg: 'שחזר נוסח', edited: 'נערך',
+    sendNow: 'שלח עכשיו', skip: 'דלג', openChat: 'פתח צ׳אט', editMsg: 'ערוך הודעה', renameTip: 'לחצו כדי לשנות את השם (מתעדכן בכל המערכת)', renameLabel: 'שם הליד', addProject: p => `+ הוספת הפרויקט: ${p}`, save: 'שמור', renamed: n => `השם עודכן ל"${n}" בכל המערכת`, renameFail: 'שינוי השם נכשל, נסו שוב', revertMsg: 'שחזר נוסח', edited: 'נערך',
     sentTo: n => `נשלח ל${n}`, skipped: n => `דילגת על ${n}`, outsideConfirm: 'עכשיו מחוץ לשעות השליחה. לשלוח בכל זאת?', outsideBtn: 'שלח בכל זאת',
     emptyApproveT: 'אין מה לאשר כרגע', emptyApproveB: 'הודעות שדורשות אישור יופיעו כאן.',
     emptyUpcomingT: 'אין הודעות מתוזמנות לשבוע הקרוב', emptyUpcomingB: 'תזכורות נוצרות כשליד לא עונה. אפשר לשנות את הרצף בלשונית ״כללים״.', goRules: 'לכללים',
@@ -103,7 +103,7 @@ const TR = {
     filterAll: 'All', filterApprove: 'To approve', filterAuto: 'Automatic',
     waiting: 'Waiting for your approval', sendAll: n => `Send all (${n})`, sendAllConfirm: n => `Send ${n} WhatsApp messages now?`, send: 'Send',
     upcoming: 'Coming up', grpHours: 'Next few hours', grpTomorrow: 'Tomorrow', grpWeek: 'Later this week', heldQuiet: 'Waiting for sending hours',
-    sendNow: 'Send now', skip: 'Skip', openChat: 'Open chat', editMsg: 'Edit message', revertMsg: 'Revert text', edited: 'Edited',
+    sendNow: 'Send now', skip: 'Skip', openChat: 'Open chat', editMsg: 'Edit message', renameTip: 'Click to rename (updates the whole system)', renameLabel: 'Lead name', addProject: p => `+ Add the project: ${p}`, save: 'Save', renamed: n => `Renamed to "${n}" everywhere`, renameFail: 'Renaming failed, try again', revertMsg: 'Revert text', edited: 'Edited',
     sentTo: n => `Sent to ${n}`, skipped: n => `Skipped ${n}`, outsideConfirm: "It's outside sending hours. Send anyway?", outsideBtn: 'Send anyway',
     emptyApproveT: 'Nothing to approve right now', emptyApproveB: 'Messages that need your OK will show up here.',
     emptyUpcomingT: 'Nothing scheduled for the coming week', emptyUpcomingB: "Reminders are created when a lead doesn't reply. You can change the sequence under Rules.", goRules: 'Go to Rules',
@@ -167,7 +167,7 @@ export default function AutomationsTab(props) {
   return <ConfirmProvider dir={props.lang === 'en' ? 'ltr' : 'rtl'}><Automations {...props}/></ConfirmProvider>
 }
 
-function Automations({ lang = 'he', leads = [], stageLabels = {}, config, onConfigSaved, runResult, onRun, running, onOpenChat, initialSub }) {
+function Automations({ lang = 'he', leads = [], stageLabels = {}, config, onConfigSaved, runResult, onRun, running, onOpenChat, onRenameLead, initialSub }) {
   const t = TR[lang] || TR.he
   const isEn = lang === 'en'
   const dir = isEn ? 'ltr' : 'rtl'
@@ -284,7 +284,7 @@ function Automations({ lang = 'he', leads = [], stageLabels = {}, config, onConf
     setTab(id); tabRefs.current[id]?.focus()
   }
   const goRule = rule => { setTab('rules'); setTimeout(() => document.getElementById(`au-rule-${rule}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80) }
-  const common = { t, isEn, dir, cfg, tpls, tplName, stageName, leads, toast, confirm, onOpenChat }
+  const common = { t, isEn, dir, cfg, tpls, tplName, stageName, leads, toast, confirm, onOpenChat, onRenameLead }
 
   return (
     <div className="au" dir={dir} lang={lang} style={{ display: 'flex', flexDirection: 'column', gap: 14, color: T.text, maxWidth: 1180, margin: '0 auto', width: '100%', paddingBottom: 24 }}>
@@ -375,7 +375,7 @@ function rel(iso, t) {
 }
 
 // ── Today ──────────────────────────────────────────────────────────────────────
-function Today({ t, isEn, dir, cfg, tpls, tplName, stageName, leads, toast, confirm, onOpenChat, queue, upcoming, runResult, running, onRun, reload, kpi, jobs, onGo, logEmpty, onFailed, onOpenJob, quotaBlocked }) {
+function Today({ t, isEn, dir, cfg, tpls, tplName, stageName, leads, toast, confirm, onOpenChat, onRenameLead, queue, upcoming, runResult, running, onRun, reload, kpi, jobs, onGo, logEmpty, onFailed, onOpenJob, quotaBlocked }) {
   useTick()
   const [gone, setGone] = useState({})
   const [texts, setTexts] = useState({})
@@ -393,9 +393,30 @@ function Today({ t, isEn, dir, cfg, tpls, tplName, stageName, leads, toast, conf
   // ── wording: any template can replace the suggested one (rendered for this lead), then be edited by hand ──
   const CAT_OF = { missed: 'welcome', welcome: 'welcome', noreply: 'followup', reply: 'progress', stage: 'progress', reengage: 'closing' }
   const tplOf = id => tpls.find(x => x.id === id)
-  const leadFor = q => leadOf(q.leadId) || { name: q.name, phone: q.phone }
+  // a rename here is the lead's one name everywhere (PATCH /api/contacts → the CRM, the Lead Center's meta_leads row, the chats);
+  // the rows of that lead show it at once and a message that wasn't edited by hand is re-rendered with it
+  const [names, setNames] = useState({})          // leadId → the new name (until the parent's leads catch up)
+  const [renaming, setRenaming] = useState(null)  // { leadId, value }
+  const nameOf = q => names[q.leadId] ?? q.name
+  const leadFor = q => { const l = leadOf(q.leadId) || { name: q.name, phone: q.phone }; return names[q.leadId] != null ? { ...l, name: names[q.leadId] } : l }
+  const saveName = async (leadId, raw) => {
+    const name = String(raw || '').replace(/\s+/g, ' ').trim().slice(0, 80)
+    const was = queue.find(q => q.leadId === leadId)?.name || ''
+    setRenaming(null)
+    if (!name || name === (names[leadId] ?? was)) return
+    setNames(n => ({ ...n, [leadId]: name }))
+    try {
+      const r = await onRenameLead?.(leadId, name)
+      if (!r || r.ok === false) throw new Error('rename')
+      toast(t.renamed(name), { tone: 'success' })
+    } catch {
+      setNames(n => { const m = { ...n }; delete m[leadId]; return m })
+      toast(t.renameFail, { tone: 'error' })
+    }
+  }
   const tplIdOf = q => tplSel[q.id] || q.templateId
-  const textOf = q => texts[q.id] ?? (tplSel[q.id] && tplOf(tplSel[q.id]) ? renderTemplate(tplOf(tplSel[q.id]), leadFor(q), cfg, q.lang) : q.text)
+  const textOf = q => texts[q.id] ?? (tplSel[q.id] && tplOf(tplSel[q.id]) ? renderTemplate(tplOf(tplSel[q.id]), leadFor(q), cfg, q.lang)
+    : names[q.leadId] != null && tplOf(q.templateId) ? renderTemplate(tplOf(q.templateId), leadFor(q), cfg, q.lang) : q.text)   // renamed: the same wording, new name
   const pickTpl = (q, id) => {
     setTplSel(x => ({ ...x, [q.id]: id }))
     setTexts(x => { const n = { ...x }; delete n[q.id]; return n })
@@ -520,10 +541,20 @@ function Today({ t, isEn, dir, cfg, tpls, tplName, stageName, leads, toast, conf
                     return (
                       <div key={q.id} className="au-q-row" style={{ borderTop: i ? `1px solid ${T.divider}` : 'none', opacity: busy[q.id] ? .55 : 1, pointerEvents: busy[q.id] ? 'none' : 'auto' }}>
                         <div style={{ display: 'flex', gap: 10, minWidth: 0 }}>
-                          <span style={{ width: 34, height: 34, borderRadius: '50%', background: `${c}22`, color: c, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, flexShrink: 0, fontSize: 14 }}>{(q.name || '?')[0]}</span>
+                          <span style={{ width: 34, height: 34, borderRadius: '50%', background: `${c}22`, color: c, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, flexShrink: 0, fontSize: 14 }}>{(nameOf(q) || '?')[0]}</span>
                           <div style={{ minWidth: 0 }}>
                             <div style={{ fontSize: 14, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {q.name || '—'}{camp && <span style={{ fontSize: 12, fontWeight: 500, color: T.text3, marginInlineStart: 5 }}>(<bdi>{camp}</bdi>)</span>}
+                              {renaming?.leadId === q.leadId ? (
+                                <form className="au-rename" onSubmit={e => { e.preventDefault(); saveName(q.leadId, renaming.value) }} onKeyDown={e => { if (e.key === 'Escape') { e.preventDefault(); setRenaming(null) } }}>
+                                  <input autoFocus value={renaming.value} maxLength={80} aria-label={t.renameLabel} onChange={e => setRenaming(r => ({ ...r, value: e.target.value }))} dir="auto"/>
+                                  <IconButton icon={<FaCheck size={11}/>} label={t.save} size={28} onClick={() => saveName(q.leadId, renaming.value)}/>
+                                  <IconButton icon={<FaTimes size={11}/>} label={t.cancel} size={28} onClick={() => setRenaming(null)}/>
+                                  {camp && !renaming.value.includes(camp) && <button type="button" className="au-rename-add" onClick={e => { setRenaming(r => ({ ...r, value: `${r.value.trim()} · ${camp}` })); e.currentTarget.form?.querySelector('input')?.focus() }}>{t.addProject(camp)}</button>}
+                                </form>
+                              ) : (onRenameLead
+                                ? <button type="button" className="au-name-btn" title={t.renameTip} onClick={() => setRenaming({ leadId: q.leadId, value: nameOf(q) || '' })}>{nameOf(q) || '—'}<FaPen size={9} aria-hidden="true"/></button>
+                                : (nameOf(q) || '—'))}
+                              {renaming?.leadId !== q.leadId && camp && !String(nameOf(q)).includes(camp) && <span style={{ fontSize: 12, fontWeight: 500, color: T.text3, marginInlineStart: 5 }}>(<bdi>{camp}</bdi>)</span>}
                               {q.lang === 'en' && <span style={{ marginInlineStart: 6 }}><Badge color={T.brand}>EN</Badge></span>}
                             </div>
                             <div style={{ fontSize: 12, color: T.text3, display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 1 }}>
@@ -591,7 +622,7 @@ function Today({ t, isEn, dir, cfg, tpls, tplName, stageName, leads, toast, conf
                           <div style={{ fontSize: 11, color: u.heldByQuiet ? T.amberText : T.text3 }}>{u.heldByQuiet ? t.heldQuiet : rel(u.sendAt, t)}</div>
                         </div>
                         <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <b style={{ fontSize: 13.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.name || `+${u.phone}`}</b>
+                          <b style={{ fontSize: 13.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{(names[u.leadId] ?? u.name) || `+${u.phone}`}</b>
                           <Badge color={STAGE_COLOR[lead?.leadStatus || u.stage] || T.grey} textColor={T.text2}>{stageName(lead?.leadStatus || u.stage || 'new')}</Badge>
                         </div>
                         <div className="au-sr-kind" style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
