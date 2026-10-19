@@ -105,10 +105,13 @@ export const CONTENT_AREAS = [
     t('desc', 'תיאור', 'Description', { multi: true }),
     p('url', 'קישור הטמעה של ספוטיפיי (open.spotify.com/embed/…)', 'Spotify embed link (open.spotify.com/embed/…)', { ltr: true }),
   ] },
-  { id: 'booking', anchor: 'contact', he: 'קביעת פגישות (קישורים באתר)', en: 'Booking (links on the site)', note: { he: 'הקישורים לעמוד קביעת השיחה (/book) בראש הדף, בטופס יצירת הקשר, בחלון הנכס ובפוטר. את סוגי הפגישות והשעות משנים ב"תיאום פגישות".', en: 'The links to the booking page (/book) in the hero, the contact form, the property window and the footer. Meeting types and hours are set in "Bookings".' }, fields: [
+  { id: 'booking', anchor: 'contact', he: 'קביעת פגישות (קישורים באתר)', en: 'Booking (links on the site)', note: { he: 'הקישורים לעמוד קביעת השיחה (/book) בראש הדף, אחרי הנכסים, בשאלות הנפוצות, בטופס יצירת הקשר, בחלון הנכס ובפוטר. את סוגי הפגישות והשעות משנים ב"תיאום פגישות".', en: 'The links to the booking page (/book) in the hero, after the properties, in the FAQ, the contact form, the property window and the footer. Meeting types and hours are set in "Bookings".' }, fields: [
     t('cta', 'כפתור', 'Button'),
     t('line', 'משפט בראש הדף ובטופס', 'Line in the hero and the form'),
     t('after', 'אחרי שליחת טופס', 'After a form is sent'),
+    t('bandTitle', 'כותרת הפס שאחרי הנכסים', 'Band after the properties: title'),
+    t('bandDesc', 'טקסט הפס שאחרי הנכסים', 'Band after the properties: text', { multi: true }),
+    t('faq', 'משפט בסוף השאלות הנפוצות', 'Line at the end of the FAQ'),
   ] },
   { id: 'office', anchor: 'contact', he: 'פרטי המשרד (פוטר ויצירת קשר)', en: 'Office details (footer & contact)', note: { he: 'מופיעים בכל האתר, גם בעמודי התוכן.', en: 'Shown across the site, including the content pages.' }, fields: [
     p('phone', 'טלפון (כפי שמוצג)', 'Phone (as shown)', { ltr: true }),

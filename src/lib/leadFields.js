@@ -10,6 +10,7 @@ export const SOURCE_LABELS = {
   meta:          { he: 'Meta (פייסבוק)', en: 'Meta (Facebook)', color: '#1877F2' },
   whatsapp:      { he: 'וואטסאפ',        en: 'WhatsApp',       color: '#25D366' },
   manual:        { he: 'הוזן ידנית',     en: 'Added manually', color: '#9AA0B5' },
+  booking:       { he: 'קביעת שיחה באתר', en: 'Website booking', color: '#7C5CC4' },
 }
 export function sourceLabel(source, lang = 'he') {
   const s = SOURCE_LABELS[source]
@@ -87,7 +88,7 @@ export function originLines(origin, lang = 'he') {
 // suffixes; website forms: just "אתר"; other sources: a one-word label. leadCampaignFull() keeps the whole name (tooltips).
 const SHORT_SOURCE = {
   website: ['אתר', 'Website'], contact_form: ['אתר', 'Website'], property_form: ['אתר', 'Website'], pdf_download: ['אתר', 'Website'],
-  meta: ['פייסבוק', 'Facebook'], whatsapp: ['וואטסאפ', 'WhatsApp'], manual: ['ידני', 'Manual'],
+  meta: ['פייסבוק', 'Facebook'], whatsapp: ['וואטסאפ', 'WhatsApp'], manual: ['ידני', 'Manual'], booking: ['קבעו שיחה', 'Booked a call'],
 }
 const metaName = lead => {
   const crm = lead.crm_data && typeof lead.crm_data === 'object' ? lead.crm_data : {}

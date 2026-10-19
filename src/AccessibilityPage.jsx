@@ -97,6 +97,8 @@ function Badge({ text, variant = 'purple' }) {
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function AccessibilityPage() {
+  // a title of its own (WCAG 2.4.2), restored when the reader leaves
+  if (typeof document !== 'undefined') document.title = 'הצהרת נגישות | אפיק הנחל - ייזום שיווק ותיווך'
   return (
     <>
       <style>{`
@@ -132,6 +134,7 @@ export default function AccessibilityPage() {
         </div>
       </header>
 
+      <main>
       {/* ── HERO ────────────────────────────────────────────────────────── */}
       <div style={{ background:`linear-gradient(150deg,${C.bg} 0%,#12122A 100%)`,
         padding:'64px 24px 56px', textAlign:'center' }}>
@@ -147,13 +150,13 @@ export default function AccessibilityPage() {
             הצהרת נגישות
           </h1>
         </div>
-        <p style={{ fontSize:13, color:`${C.cream}50`, letterSpacing:'.06em', fontWeight:500 }}>
-          עודכן לאחרונה: 10 במאי 2026
+        <p style={{ fontSize:13, color:`${C.cream}A6`, letterSpacing:'.06em', fontWeight:500 }}>
+          עודכן לאחרונה: 19 באוקטובר 2026
         </p>
       </div>
 
       {/* ── CONTENT ─────────────────────────────────────────────────────── */}
-      <main style={{ maxWidth:920, margin:'0 auto', padding:'48px 24px 64px' }}>
+      <div style={{ maxWidth:920, margin:'0 auto', padding:'48px 24px 64px' }}>
 
         {/* ── מבוא ── */}
         <Section label="מבוא" title="מחויבות לנגישות דיגיטלית">
@@ -170,8 +173,8 @@ export default function AccessibilityPage() {
         <Section label="תקנים ורמה" title="רמת הנגישות באתר">
           <div style={{ display:'flex', gap:16, flexWrap:'wrap', marginBottom:20 }}>
             {[
-              { icon:FaShieldAlt, title:'תקן ישראלי 5568', sub:'עמידה בדרישות חובה' },
-              { icon:FaUniversalAccess, title:'WCAG 2.1 רמה AA', sub:'הנחיות נגישות בינלאומיות' },
+              { icon:FaShieldAlt, title:'תקן ישראלי 5568 חלק 1', sub:'רמה AA' },
+              { icon:FaUniversalAccess, title:'WCAG 2.0 רמה AA', sub:'ההנחיות הבינלאומיות שעליהן מבוסס התקן' },
               { icon:FaDesktop, title:'רב-פלטפורמי', sub:'דסקטופ · מובייל · טאבלט' },
             ].map(({ icon: Ic, title, sub }, i) => (
               <div key={i} style={{ flex:'1 1 200px', background:C.pageBg, borderRadius:12,
@@ -208,9 +211,18 @@ export default function AccessibilityPage() {
             'הוספת טקסט חלופי לתמונות (ALT)',
             'התאמת טפסים לשימוש נגיש',
             'סימון ברור של פוקוס בעת ניווט',
-            'עצירת אנימציות והבהובים במידת הצורך',
+            'כפתור עצירת תנועה (❚❚) ליד הטקסט המתחלף, פס השירותים וקרוסלת ההמלצות',
             'שימוש בפונט קריא וברור',
           ]}/>
+        </Section>
+
+        {/* ── איך נבדק ── */}
+        <Section label="בדיקה" title="איך נבדק האתר">
+          <p style={{ fontSize:14.5, color:C.text, lineHeight:1.75 }}>
+            האתר נבדק ב-19 באוקטובר 2026: בדיקה אוטומטית (axe-core) של כל תבניות העמודים והחלונות, מעבר מלא במקלדת בלבד, בדיקת
+            עץ הנגישות שמקבלים קוראי מסך (כותרות, אזורים, שמות של כפתורים ושדות), ניגודיות צבעים, הגדלה ל-200%, טפסים והודעות שגיאה,
+            ורכיבים דינמיים (תפריטים, חלונות, קרוסלות). הבדיקה נעשתה בדפדפן Chrome, במחשב ובמובייל.
+          </p>
         </Section>
 
         {/* ── תפריט נגישות ── */}
@@ -324,12 +336,13 @@ export default function AccessibilityPage() {
           </p>
         </div>
 
+      </div>
       </main>
 
       {/* ── FOOTER ──────────────────────────────────────────────────────── */}
       <footer style={{ background:C.bg, borderTop:`1px solid rgba(132,144,216,.12)`,
         padding:'24px', textAlign:'center' }}>
-        <p style={{ fontSize:13, color:`${C.cream}44` }}>
+        <p style={{ fontSize:13, color:`${C.cream}A6` }}>
           © 2026 אפיק הנחל — ייזום שיווק ותיווך. כל הזכויות שמורות.
         </p>
         <a href="/" style={{ display:'inline-flex', alignItems:'center', gap:6,
