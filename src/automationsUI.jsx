@@ -43,6 +43,14 @@ export const AUTO_CSS = `
   .au-in{animation:au-in .2s ease both}
   .au-skel{background:linear-gradient(90deg,var(--au-skel) 0,var(--au-skel-hi) 40px,var(--au-skel) 80px) no-repeat,var(--au-skel);background-size:200px 100%;animation:au-sh 1.3s linear infinite}
   .au-kpis{display:grid;grid-template-columns:minmax(0,1.4fr) repeat(4,minmax(0,1fr));gap:10px}
+  .au-name-btn{all:unset;cursor:text;display:inline-flex;align-items:center;gap:6px;border-radius:6px;padding:1px 4px;margin-inline-start:-4px;max-width:100%}
+  .au-name-btn svg{opacity:0;color:var(--au-text3);transition:opacity .15s;flex-shrink:0}
+  .au-name-btn:hover{background:rgba(var(--ov),.06)} .au-name-btn:hover svg,.au-name-btn:focus-visible svg{opacity:1}
+  .au-name-btn:focus-visible{outline:2px solid var(--au-brand-text);outline-offset:1px}
+  .au-rename{display:flex;flex-wrap:wrap;align-items:center;gap:4px;white-space:normal}
+  .au-rename input{flex:1 1 140px;min-width:0;height:30px;border-radius:8px;border:1px solid var(--au-brand-text);background:var(--au-s1, transparent);color:inherit;font:inherit;font-size:14px;font-weight:700;padding:0 8px;outline:none;box-shadow:0 0 0 3px rgba(var(--brand-rgb),.15)}
+  .au-rename-add{all:unset;cursor:pointer;flex-basis:100%;font-size:12px;font-weight:600;color:var(--au-brand-text);padding:2px 0}
+  .au-rename-add:hover{text-decoration:underline}
   .au-q-row{display:grid;grid-template-columns:minmax(200px,260px) minmax(0,1fr) auto;gap:16px;align-items:start;padding:14px 16px}
   .au-q-acts{display:flex;gap:6px;align-items:center}
   .au-q-tools{display:flex;gap:6px;align-items:center;flex-wrap:wrap}

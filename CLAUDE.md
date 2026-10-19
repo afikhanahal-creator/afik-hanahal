@@ -227,7 +227,7 @@ rule mode; sending it counts as the welcome. The no-reply sequence starts only a
 **{property}** in templates = `leadProperty()`: the short campaign name for Meta leads ("זרובבל 15", via `shortCampaign`), the
 listing title for website leads. **"היום" layout:** KPI row (sending window · awaiting approval · sent · positive · failed), the
 approval queue grouped by kind (missed welcome first, "send all N" per group, stops at the first quota refusal), compact rows
-(lead + campaign + local phone + reason · the full message · send / skip / chat), then the schedule. **Wording per message:** a
+(lead + campaign + local phone + reason · the full message · send / skip / chat), then the schedule. **Renaming from "היום":** a click on a row's name opens an inline editor (Enter / Esc, "+ הוספת הפרויקט: <short campaign>") → the admin's `updateLead(id, { name })` (`onRenameLead`) = the same rename as the board (CRM, `meta_leads`, the chats, the open Lead Center); every row of that lead shows the new name at once and a message not edited by hand is re-rendered with it. **Wording per message:** a
 template dropdown above every message (the item's category first, the whole library below — rendered for that lead in the
 browser with `renderTemplate`), "נוסח אחר" (next template of the same category), "ערוך הודעה" (free edit), "שחזר נוסח"; the
 group header has "נוסח לכל הקבוצה…". The send carries the chosen `templateId`. The built-in library has 61 bilingual templates
