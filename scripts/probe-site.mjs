@@ -142,6 +142,9 @@ const PROFILES = {
 const browser = await chromium.launch(process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHROMIUM } : {})
 async function visit(url, label, profile, { title, expectLayer = 'afik-pre' } = {}) {
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2, userAgent: UA_PHONE })
+  // never download videos: they come straight from Supabase Storage and count against its monthly bandwidth
+  // (each probe run used to pull a 43 MB property video, several times)
+  await ctx.route(/\.(mp4|mov|webm|m4v)(\?|$)|\/property-videos\//i, r => r.abort())
   const pg = await ctx.newPage()
   const cdp = await ctx.newCDPSession(pg)
   await cdp.send('Network.enable')

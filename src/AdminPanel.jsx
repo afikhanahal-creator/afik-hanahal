@@ -143,7 +143,7 @@ function ImageUpload({ images, onChange }) {
       const meta = await fetch('/api/seller-form?action=wizard-upload-url', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
         body: JSON.stringify({ name: 'photo.jpg', type: 'image/jpeg', size: blob.size, kind: 'image' }) }).then(r => (r.ok ? r.json() : null)).catch(() => null)
       if (meta?.signedUrl && meta?.url) {
-        const put = await fetch(meta.signedUrl, { method: 'PUT', headers: { 'Content-Type': 'image/jpeg', 'x-upsert': 'true' }, body: blob })
+        const put = await fetch(meta.signedUrl, { method: 'PUT', headers: { 'Content-Type': 'image/jpeg', 'x-upsert': 'true', 'cache-control': 'max-age=31536000' }, body: blob })
         if (put.ok) return meta.url
       }
     } catch {}

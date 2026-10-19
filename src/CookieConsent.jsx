@@ -5,23 +5,31 @@ const STORAGE_KEY = 'afik_cookies'
 const COOKIE_TYPES = [
   {
     id: 'essential',
-    title: 'עוגיות הכרחיות',
+    title: 'עוגיות הכרחיות', en_title: 'Essential cookies',
     desc: 'נדרשות לתפקוד תקין של האתר, כגון שמירת העדפות ונגישות. לא ניתן לכבותן.',
+    en_desc: 'Needed for the site to work, such as saving your preferences and accessibility settings. They can\'t be turned off.',
     alwaysOn: true,
   },
   {
     id: 'analytics',
-    title: 'עוגיות ניתוח ביצועים',
+    title: 'עוגיות ניתוח ביצועים', en_title: 'Analytics cookies',
     desc: 'מסייעות לנו להבין כיצד המשתמשים מנווטים באתר ולשפר את חווית השימוש.',
+    en_desc: 'Help us understand how visitors use the site so we can improve it.',
     alwaysOn: false,
   },
   {
     id: 'marketing',
-    title: 'עוגיות שיווקיות',
+    title: 'עוגיות שיווקיות', en_title: 'Marketing cookies',
     desc: 'מאפשרות הצגת תוכן פרסומי רלוונטי ומדידת אפקטיביות קמפיינים.',
+    en_desc: 'Let us show relevant ads and measure how well our campaigns work.',
     alwaysOn: false,
   },
 ]
+
+const TR = {
+  he: { region: 'הסכמה לעוגיות', title: 'אנחנו משתמשים בעוגיות', text: 'האתר משתמש בעוגיות לשיפור חווית הגלישה, ניתוח שימוש ומטרות שיווקיות. תוכלו לאשר הכל, לבחור רק הכרחיות, או להתאים אישית את ההעדפות שלכם. לפרטים נוספים ראו את', privacy: 'מדיניות הפרטיות', settings: 'הגדרות', essential: 'הכרחיות בלבד', all: 'אישור והמשך', modal: 'התאמת העדפות פרטיות', close: 'סגירה', alwaysOn: 'תמיד פעיל', cancel: 'ביטול', save: 'שמור העדפות' },
+  en: { region: 'Cookie consent', title: 'We use cookies', text: 'This site uses cookies to improve your browsing, understand how it is used and for marketing. You can accept all, keep only the essential ones, or choose for yourself. For more details see our', privacy: 'privacy policy', settings: 'Settings', essential: 'Essential only', all: 'Accept and continue', modal: 'Privacy preferences', close: 'Close', alwaysOn: 'Always on', cancel: 'Cancel', save: 'Save preferences' },
+}
 
 function Toggle({ on, onChange, disabled }) {
   return (
@@ -66,7 +74,8 @@ function Toggle({ on, onChange, disabled }) {
   )
 }
 
-function SettingsModal({ C, isDark, prefs, onSave, onClose }) {
+function SettingsModal({ C, isDark, prefs, onSave, onClose, lang = 'he' }) {
+  const t = TR[lang] || TR.he
   const [local, setLocal] = useState({ ...prefs })
 
   function toggle(id) {
@@ -77,7 +86,7 @@ function SettingsModal({ C, isDark, prefs, onSave, onClose }) {
     <div
       role="dialog"
       aria-modal="true"
-      aria-label="הגדרות עוגיות"
+      aria-label={t.modal}
       style={{
         position: 'fixed', inset: 0, zIndex: 9998,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -95,15 +104,15 @@ function SettingsModal({ C, isDark, prefs, onSave, onClose }) {
           padding: '28px 24px',
           width: '100%',
           maxWidth: 440,
-          direction: 'rtl',
+          direction: lang === 'en' ? 'ltr' : 'rtl',
           fontFamily: 'Rubik,Heebo,sans-serif',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-          <div style={{ fontSize: 16, fontWeight: 700, color: C.cream, letterSpacing: '.01em' }}>התאמת העדפות פרטיות</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: C.cream, letterSpacing: '.01em' }}>{t.modal}</div>
           <button
             onClick={onClose}
-            aria-label="סגור"
+            aria-label={t.close}
             style={{
               background: 'none', border: 'none', cursor: 'pointer',
               color: `${C.cream}88`, fontSize: 18, lineHeight: 1, padding: 4,
@@ -127,14 +136,14 @@ function SettingsModal({ C, isDark, prefs, onSave, onClose }) {
             >
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 14, fontWeight: 700, color: C.cream, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
-                  {ct.title}
+                  {lang === 'en' ? ct.en_title : ct.title}
                   {ct.alwaysOn && (
                     <span style={{ fontSize: 11, background: `${C.green}22`, color: C.green, borderRadius: 4, padding: '1px 6px', fontWeight: 600 }}>
-                      תמיד פעיל
+                      {t.alwaysOn}
                     </span>
                   )}
                 </div>
-                <div style={{ fontSize: 12, color: `${C.cream}88`, lineHeight: 1.5 }}>{ct.desc}</div>
+                <div style={{ fontSize: 12, color: `${C.cream}88`, lineHeight: 1.5 }}>{lang === 'en' ? ct.en_desc : ct.desc}</div>
               </div>
               <Toggle
                 on={ct.alwaysOn ? true : local[ct.id]}
@@ -159,7 +168,7 @@ function SettingsModal({ C, isDark, prefs, onSave, onClose }) {
               cursor: 'pointer',
               fontFamily: 'inherit',
             }}
-          >ביטול</button>
+          >{t.cancel}</button>
           <button
             onClick={() => onSave(local)}
             style={{
@@ -173,14 +182,15 @@ function SettingsModal({ C, isDark, prefs, onSave, onClose }) {
               cursor: 'pointer',
               fontFamily: 'inherit',
             }}
-          >שמור העדפות</button>
+          >{t.save}</button>
         </div>
       </div>
     </div>
   )
 }
 
-export default function CookieConsent({ C, isDark }) {
+export default function CookieConsent({ C, isDark, lang = 'he', onPrivacy }) {
+  const t = TR[lang] || TR.he
   const [visible, setVisible] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [prefs, setPrefs] = useState({ essential: true, analytics: false, marketing: false })
@@ -226,24 +236,26 @@ export default function CookieConsent({ C, isDark }) {
           prefs={prefs}
           onSave={saveCustom}
           onClose={() => setShowSettings(false)}
+          lang={lang}
         />
       )}
 
       <div
         role="region"
-        aria-label="הסכמה לעוגיות"
+        aria-label={t.region}
+        className="cookie-banner"
         style={{
           position: 'fixed',
           bottom: 0,
           left: 0,
           right: 0,
-          zIndex: 9990,
+          zIndex: 999995,
           background: isDark
             ? `linear-gradient(to top, ${C.card} 0%, ${C.bg}EE 100%)`
             : `linear-gradient(to top, ${C.card} 0%, ${C.bg}F5 100%)`,
           borderTop: `1px solid ${C.purple}33`,
           backdropFilter: 'blur(12px)',
-          direction: 'rtl',
+          direction: lang === 'en' ? 'ltr' : 'rtl',
           fontFamily: 'Rubik,Heebo,sans-serif',
           animation: 'cookieSlideUp .4s cubic-bezier(.22,1,.36,1) both',
         }}
@@ -253,9 +265,16 @@ export default function CookieConsent({ C, isDark }) {
             from { transform: translateY(100%); opacity: 0; }
             to   { transform: translateY(0);    opacity: 1; }
           }
+          @media (max-width: 600px) {
+            .cookie-banner .cookie-inner { padding: 12px 16px 14px !important; gap: 10px !important; }
+            .cookie-banner .cookie-icon { display: none !important; }
+            .cookie-banner .cookie-actions { width: 100%; }
+            .cookie-banner .cookie-actions button { flex: 1 1 auto; min-height: 44px; }
+          }
         `}</style>
 
         <div
+          className="cookie-inner"
           style={{
             maxWidth: 1200,
             margin: '0 auto',
@@ -269,7 +288,7 @@ export default function CookieConsent({ C, isDark }) {
           {/* Icon + text */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, flex: 1, minWidth: 240 }}>
             {/* Cookie emoji icon */}
-            <span style={{ flexShrink: 0, userSelect: 'none', display: 'flex', alignItems: 'center' }} aria-hidden="true">
+            <span className="cookie-icon" style={{ flexShrink: 0, userSelect: 'none', display: 'flex', alignItems: 'center' }} aria-hidden="true">
               <svg width="46" height="46" viewBox="0 0 46 46" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <defs>
                   <clipPath id="cookieClip">
@@ -300,17 +319,16 @@ export default function CookieConsent({ C, isDark }) {
                 fontSize: 13, fontWeight: 700, color: C.cream,
                 letterSpacing: '.02em', marginBottom: 3,
               }}>
-                אנחנו משתמשים בעוגיות
+                {t.title}
               </div>
               <div style={{ fontSize: 12, color: `${C.cream}99`, lineHeight: 1.6, maxWidth: 580 }}>
-                האתר משתמש בעוגיות לשיפור חווית הגלישה, ניתוח שימוש ומטרות שיווקיות.
-                תוכלו לאשר הכל, לבחור רק הכרחיות, או להתאים אישית את ההעדפות שלכם.
-                לפרטים נוספים ראו את{' '}
+                {t.text}{' '}
                 <a
-                  href="/accessibility"
+                  href="#privacy"
+                  onClick={e => { if (onPrivacy) { e.preventDefault(); onPrivacy() } }}
                   style={{ color: C.purple, textDecoration: 'underline', fontWeight: 600 }}
                 >
-                  מדיניות הפרטיות
+                  {t.privacy}
                 </a>
                 .
               </div>
@@ -318,7 +336,7 @@ export default function CookieConsent({ C, isDark }) {
           </div>
 
           {/* Actions */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', flexShrink: 0 }}>
+          <div className="cookie-actions" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', flexShrink: 0 }}>
             <button
               onClick={() => setShowSettings(true)}
               style={{
@@ -338,7 +356,7 @@ export default function CookieConsent({ C, isDark }) {
               onMouseEnter={e => { e.currentTarget.style.color = `${C.cream}BB` }}
               onMouseLeave={e => { e.currentTarget.style.color = `${C.cream}77` }}
             >
-              הגדרות
+              {t.settings}
             </button>
 
             <button
@@ -361,7 +379,7 @@ export default function CookieConsent({ C, isDark }) {
               onMouseEnter={e => { e.currentTarget.style.borderColor = C.purple; e.currentTarget.style.background = `${C.purple}14` }}
               onMouseLeave={e => { e.currentTarget.style.borderColor = `${C.purple}55`; e.currentTarget.style.background = 'none' }}
             >
-              הכרחיות בלבד
+              {t.essential}
             </button>
 
             <button
@@ -384,7 +402,7 @@ export default function CookieConsent({ C, isDark }) {
               onMouseEnter={e => { e.currentTarget.style.opacity = '.85' }}
               onMouseLeave={e => { e.currentTarget.style.opacity = '1' }}
             >
-              אישור והמשך
+              {t.all}
             </button>
           </div>
         </div>

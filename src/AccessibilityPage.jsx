@@ -4,7 +4,7 @@ const C = {
   bg:         '#09090F',
   card:       '#0E0E1C',
   purple:     '#8490D8',
-  purpleDeep: '#5A68C5',
+  purpleDeep: '#4A57B5',
   cream:      '#E8E4D8',
   green:      '#82F67F',
   pageBg:     '#F8F7F3',

@@ -241,7 +241,7 @@ Steps: meeting type (skipped when there is one) → month calendar + free times 
 
 | Piece | Where |
 |---|---|
-| Rules (pure, tested): default settings (first type "שיחת היכרות", 30 min, Meet / Zoom / phone), office hours Sun–Thu 9–18, Fri 9–13, free slots in Israel time (DST-safe) minus busy time + buffer, min notice, horizon, daily cap, validation, the calendar event | `lib/booking.js` (+ `lib/booking.test.mjs`) |
+| Rules (pure, tested): default settings (first type "שיחת היכרות", 30 min, Meet / Zoom / phone), office hours Sun–Thu 9–19, Fri 9–14 (= the site's hours in `content/site.mjs`), free slots in Israel time (DST-safe) minus busy time + buffer, min notice, horizon, daily cap, validation, the calendar event | `lib/booking.js` (+ `lib/booking.test.mjs`) |
 | Google Calendar through the office's own Google account (OAuth: signed state, refresh token in `app_settings.google_calendar`, freeBusy, events with `conferenceDataVersion=1` + `sendUpdates=all`) | `lib/google-calendar.js` |
 | Server flow: settings (`app_settings.booking_config`), slots, a booking, admin list, cancel | `lib/booking-server.js` |
 | API `/api/meta/booking-*`: public `config` · `slots` (edge 20 s) · `create` · `oauth-callback`; admin `admin` · `settings` · `connect` · `disconnect` · `cancel` | `api/meta.js` → `handleBooking` |
@@ -506,6 +506,28 @@ Render meters every byte it sends. Rules that keep it near zero:
   dashboard.render.com/billing → Included Usage; the meter sees only what goes through Vercel (not the admin panel's
   direct reads), so treat it as a floor.
 - Check with the "Site speed probe" action: the "backends" section shows the list size and whether `If-None-Match` gets a 304.
+
+## Supabase egress budget (free plan ~5 GB / month — the project was restricted on 2026-10-18 at 6.26 GB)
+
+While restricted, every Supabase request answers `402` until the quota resets (Nov 6): the property list falls back to
+Render / the snapshot / the static `properties.json`, new leads are kept in Vercel Blob (`lib/backup.js`) and still emailed /
+WhatsApped to the office, and photos load only where the image CDN already cached them. Upgrading to Pro lifts it at once.
+What used the bandwidth (edge logs): **videos** (a 43 MB property video downloaded again and again by our own "Site speed
+probe" phone visit, because the property window loaded every video for its thumbnail), **oversized photo originals**
+(5.5 MB PNG / 1–12 MB JPEGs that wsrv.nl fetches once per size and edge location) and Meta's crawler. Rules:
+
+- **No video byte before the visitor presses play.** The property window shows a still (the video's thumbnail, else the
+  first photo) with a play button; `playIdx` decides when the `<video>` mounts (`preload="auto"` only then). Thumbnails
+  never use `<video preload="metadata">`. Other video players use `preload="none"`.
+- **Photos are small at the source.** Uploads are compressed in the browser (1600 px JPEG) and sent with
+  `cache-control: max-age=31536000`; `lib/shrink-photos.js` (tested) re-encodes any older original over 450 KB in place
+  (same path, so every link keeps working; ≤1600 px JPEG through the CDN; 1-year cache) — daily in `api/cron/warm.js`, on
+  demand with `POST /api/properties?shrink=1`; photos that don't get smaller are remembered in `app_settings.photo_shrink`.
+- **Automated browsers never download media**: `scripts/probe-site.mjs` aborts video requests.
+- Keep server reads narrow: never `select=*` on `contacts` / `meta_leads` in a poll; the full lead list (~310 KB) is read only
+  by the automation run.
+- Measure with the Supabase edge logs (MCP `query_logs`, `source = 'edge_logs'`, sum `response.headers.content_length` by
+  `request.path` / `request.cf.asOrganization`) and Usage in the Supabase dashboard.
 
 ## Vercel Fast Origin Transfer budget (free tier: 10 GB / month — 75 % was used in the first days of October 2026)
 

@@ -13,7 +13,7 @@ async function uploadDataUrl(dataUrl, token) {
     body: JSON.stringify({ name: `photo.${ext}`, type, size: blob.size, kind: 'image' }),
   }).then(r => (r.ok ? r.json() : null)).catch(() => null)
   if (!meta?.signedUrl || !meta?.url) return null
-  const put = await fetch(meta.signedUrl, { method: 'PUT', headers: { 'Content-Type': type, 'x-upsert': 'true' }, body: blob }).catch(() => null)
+  const put = await fetch(meta.signedUrl, { method: 'PUT', headers: { 'Content-Type': type, 'x-upsert': 'true', 'cache-control': 'max-age=31536000' }, body: blob }).catch(() => null)
   return put && put.ok ? meta.url : null
 }
 

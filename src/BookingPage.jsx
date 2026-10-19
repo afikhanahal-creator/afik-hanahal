@@ -335,7 +335,7 @@ export default function BookingPage() {
                         <span>{monthName}</span>
                         <button className="bk-nav" aria-label={t.nextM} disabled={month >= lastMonth} onClick={() => setMonth(m => addMonths(m, 1))}>{lang === 'en' ? '›' : '‹'}</button>
                       </div>
-                      <div className="bk-grid" role="grid">
+                      <div className="bk-grid">
                         {t.weekdays.map(w => <div key={w} className="bk-wd">{w}</div>)}
                         {grid.map((d, i) => {
                           if (!d) return <div key={`e${i}`} />

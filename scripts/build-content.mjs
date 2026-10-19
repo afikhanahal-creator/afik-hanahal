@@ -47,20 +47,20 @@ function ref(type, slug) { const p = byKey.get(`${type}:${slug}`); if (!p) throw
 
 // ── Inline CSS (dark brand theme, mobile-first, both directions) ─────────────
 const CSS = `
-:root{--bg:#09090F;--bg2:#0F0F1A;--card:#13132A;--cream:#E8E4D8;--muted:#A9A599;--dim:#6E6B78;--purple:#8490D8;--green:#82F67F;--line:rgba(132,144,216,.18)}
+:root{--bg:#09090F;--bg2:#0F0F1A;--card:#13132A;--cream:#E8E4D8;--muted:#A9A599;--dim:#8C8996;--purple:#8490D8;--green:#82F67F;--line:rgba(132,144,216,.18)}
 *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--cream);font-family:Rubik,Heebo,Arial,sans-serif;line-height:1.7;font-size:17px;-webkit-font-smoothing:antialiased}
 a{color:var(--purple)}a:hover{color:#a9b3ee}img{max-width:100%;height:auto}
-.skip{position:absolute;top:-40px;left:0;background:var(--purple);color:#fff;padding:8px 12px;z-index:100}.skip:focus{top:0}
+.skip{position:absolute;top:-40px;left:0;background:var(--purple);color:#09090F;font-weight:700;padding:8px 12px;z-index:100}.skip:focus{top:0}
 header.top{position:sticky;top:0;z-index:50;background:rgba(9,9,15,.92);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
 .wrap{max-width:1080px;margin:0 auto;padding:0 20px}
 .topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;height:64px}
 .brand{display:flex;align-items:center;gap:10px;color:var(--cream);text-decoration:none;font-weight:800;font-size:18px}.brand img{width:34px;height:34px;border-radius:9px}
 nav.main{display:flex;gap:4px;flex-wrap:wrap}nav.main a{color:var(--muted);text-decoration:none;font-size:14px;padding:6px 10px;border-radius:8px}nav.main a:hover,nav.main a[aria-current]{color:var(--cream);background:rgba(132,144,216,.12)}
 .topcta{display:flex;gap:8px}.btn{display:inline-flex;align-items:center;gap:8px;padding:11px 20px;border-radius:12px;font-weight:700;text-decoration:none;font-size:15px;border:1px solid transparent;cursor:pointer;font-family:inherit;transition:transform .15s}
-.btn:hover{transform:translateY(-1px)}.btn-p{background:var(--purple);color:#fff}.btn-g{background:var(--green);color:#0a1a0a}.btn-o{background:transparent;border-color:var(--line);color:var(--cream)}
+.btn:hover{transform:translateY(-1px)}.btn-p{background:var(--purple);color:#09090F}.btn-g{background:var(--green);color:#0a1a0a}.btn-o{background:transparent;border-color:var(--line);color:var(--cream)}
 .btn-wa{background:#25D366;color:#062a12}.small{font-size:13px;padding:7px 12px}
 @media(max-width:820px){nav.main{display:none}.topcta .btn-o{display:none}}
-main{padding:36px 0 40px}.crumbs{font-size:13px;color:var(--dim);margin-bottom:18px}.crumbs a{color:var(--muted);text-decoration:none}.crumbs span{margin:0 6px}
+main{padding:36px 0 40px}.crumbs{font-size:13px;color:var(--dim);margin-bottom:18px}.crumbs a{color:var(--muted);text-decoration:underline;text-underline-offset:3px;display:inline-block;padding:6px 0}.crumbs span{margin:0 6px}
 h1{font-size:clamp(28px,4.4vw,44px);line-height:1.2;margin:0 0 14px;font-weight:900;letter-spacing:-.01em}
 .lead{font-size:19px;color:var(--cream);background:linear-gradient(135deg,rgba(132,144,216,.14),rgba(130,246,127,.06));border:1px solid var(--line);border-radius:16px;padding:18px 22px;margin:18px 0 26px}
 .lead b{color:var(--green)}.meta{font-size:13px;color:var(--dim);margin-bottom:10px;display:flex;gap:14px;flex-wrap:wrap}
@@ -87,7 +87,7 @@ section.cta h2{margin:0 0 6px;font-size:24px}section.cta p{color:var(--muted);ma
 footer.site{border-top:1px solid var(--line);margin-top:40px;padding:34px 0 40px;font-size:14px;color:var(--muted)}.fgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:22px}footer.site h3{color:var(--cream);font-size:15px;margin:0 0 8px}footer.site a{color:var(--muted);text-decoration:none;display:block;padding:3px 0}footer.site a:hover{color:var(--cream)}
 .disc{font-size:12px;color:var(--dim);margin-top:22px;line-height:1.6}.updated{font-size:12px;color:var(--dim)}
 .sticky-cta{display:none}@media(max-width:820px){.sticky-cta{display:flex;position:fixed;bottom:0;left:0;right:0;z-index:60;gap:8px;padding:10px 12px;background:rgba(9,9,15,.94);border-top:1px solid var(--line)}.sticky-cta .btn{flex:1;justify-content:center;padding:12px}main{padding-bottom:90px}}
-.tool{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px;margin:18px 0}.tool .field{margin:10px 0}.tool label{display:block;font-size:13px;color:var(--muted);margin:0 0 4px}.tool input[type=text]{width:100%;padding:12px 14px;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.05);color:var(--cream);font:inherit;font-size:16px}.tool input:focus{outline:2px solid var(--purple);outline-offset:1px}.tool fieldset{border:1px solid var(--line);border-radius:10px;padding:10px 14px}.tool legend{font-size:13px;color:var(--muted);padding:0 6px}.tool .radio{display:flex;align-items:center;gap:8px;font-size:15px;color:var(--cream);margin:6px 0}.tool .radio input{width:auto;accent-color:var(--purple)}.tool .btn{background:var(--purple);color:#fff;margin-top:8px}.tool-result{margin-top:16px}.tool-result .big{display:flex;flex-direction:column;gap:2px;margin-bottom:12px}.tool-result .big span{font-size:13px;color:var(--muted)}.tool-result .big b{font-size:34px;font-weight:900;color:var(--green);font-family:monospace}.tool-result .big small{color:var(--muted)}.tool table{width:100%;border-collapse:collapse;font-size:14px}.tool caption{text-align:start;color:var(--muted);font-size:13px;padding:6px 0}.tool th,.tool td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:start}.tool .note{font-size:12px;color:var(--dim);margin-top:12px}.tool .out{font-size:34px;font-weight:900;color:var(--green);font-family:monospace}.tool .sub{color:var(--muted);font-size:14px}
+.tool{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:20px;margin:18px 0}.tool .field{margin:10px 0}.tool label{display:block;font-size:13px;color:var(--muted);margin:0 0 4px}.tool input[type=text]{width:100%;padding:12px 14px;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.05);color:var(--cream);font:inherit;font-size:16px}.tool input:focus{outline:2px solid var(--purple);outline-offset:1px}.tool fieldset{border:1px solid var(--line);border-radius:10px;padding:10px 14px}.tool legend{font-size:13px;color:var(--muted);padding:0 6px}.tool .radio{display:flex;align-items:center;gap:8px;font-size:15px;color:var(--cream);margin:6px 0}.tool .radio input{width:auto;accent-color:var(--purple)}.tool .btn{background:var(--purple);color:#09090F;margin-top:8px}.tool-result{margin-top:16px}.tool-result .big{display:flex;flex-direction:column;gap:2px;margin-bottom:12px}.tool-result .big span{font-size:13px;color:var(--muted)}.tool-result .big b{font-size:34px;font-weight:900;color:var(--green);font-family:monospace}.tool-result .big small{color:var(--muted)}.tool table{width:100%;border-collapse:collapse;font-size:14px}.tool caption{text-align:start;color:var(--muted);font-size:13px;padding:6px 0}.tool th,.tool td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:start}.tool .note{font-size:12px;color:var(--dim);margin-top:12px}.tool .out{font-size:34px;font-weight:900;color:var(--green);font-family:monospace}.tool .sub{color:var(--muted);font-size:14px}
 `.trim()
 
 // ── Shared JS: tracking + multi-step lead form (no framework) ────────────────
@@ -312,7 +312,7 @@ function buildHub(type, items, extra = {}) {
     if (type === 'glossary') {
       list = `<div class="grid">${items.map(p => `<a class="card" href="${pagePath('glossary', p.slug, lang)}"><b>${esc(p[lang].h1)}</b><span>${esc(p[lang].description)}</span></a>`).join('')}</div>`
     } else if (type === 'faq') {
-      list = extra.groups[lang].map(g => `<h2>${esc(g.title)}</h2><section class="faq">${g.items.map(f => `<details><summary>${esc(f.q)}</summary><div class="a">${inline(f.a)} <a href="${f.href}">${esc(u.readMore)} →</a></div></details>`).join('')}</section>`).join('')
+      list = extra.groups[lang].map(g => `<h2>${esc(g.title)}</h2><section class="faq">${g.items.map(f => `<details><summary>${esc(f.q)}</summary><div class="a">${inline(f.a)} <a href="${f.href}" aria-label="${esc(u.readMore)}: ${esc(f.page || '')}">${esc(u.readMore)} →</a></div></details>`).join('')}</section>`).join('')
     } else {
       list = `<div class="grid">${items.map(p => card({ ...p, type }, lang)).join('')}</div>`
     }
@@ -357,7 +357,7 @@ buildHub('tool', TOOLS, { cta: 'buy' })
     groups[lang] = []
     for (const [type, items] of [['service', SERVICES], ['area', AREAS], ['guide', GUIDES], ['glossary', GLOSSARY]]) {
       const its = []
-      for (const p of items) for (const f of p[lang].faq || []) its.push({ ...f, href: pagePath(type, p.slug, lang) })
+      for (const p of items) for (const f of p[lang].faq || []) its.push({ ...f, href: pagePath(type, p.slug, lang), page: p[lang].h1 })
       if (its.length) groups[lang].push({ title: UI[lang].hubs[HUBS[type]].title, items: its })
     }
   }

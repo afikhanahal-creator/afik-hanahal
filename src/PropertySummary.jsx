@@ -176,7 +176,7 @@ export function SummaryView({ data, lang, setLang, shareUrl, mode = 'page', onVe
           <section className="ps-card">
             <h3>{t.media}</h3>
             {photos.length > 0 && <div className="ps-gallery">{photos.map((m, i) => <a key={i} href={m.url} target="_blank" rel="noreferrer"><img src={m.url} alt="" loading="lazy"/></a>)}</div>}
-            {videos.length > 0 && <div className="ps-videos">{videos.map((m, i) => <video key={i} src={m.url} controls preload="metadata" playsInline/>)}</div>}
+            {videos.length > 0 && <div className="ps-videos">{videos.map((m, i) => <video key={i} src={m.url} controls preload="none" playsInline/>)}</div>}
             {plans.length > 0 && <div className="ps-plans">{plans.map((m, i) => <a key={i} href={m.url} target="_blank" rel="noreferrer" className="ps-btn sm ghost"><IcoLink/>{t.plan} {plans.length > 1 ? i + 1 : ''}</a>)}</div>}
           </section>
         )}

@@ -6,6 +6,7 @@ import { resolveParcel, govmapParcelUrl } from '../lib/parcel-locate.js'
 import { createFeed } from '../lib/property-feed.js'
 import { propertiesChanged } from '../lib/site-rebuild.js'
 import { slimInlinePhotos, slimList } from '../lib/slim-photos.js'
+import { shrinkStoragePhotos } from '../lib/shrink-photos.js'
 const RENDER = process.env.RENDER_URL || 'https://afik-hanahal-server.onrender.com'
 const SUPA_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || ''
 
@@ -166,6 +167,16 @@ async function serveSlim(req, res) {
   return res.status(report.error && !report.snapshotClean.changed ? 502 : 200).json(report)
 }
 
+// ── POST /api/properties?shrink=1 (admin) → oversized photo originals in Storage re-encoded in place (lib/shrink-photos.js)
+async function serveShrink(req, res) {
+  res.setHeader('Cache-Control', 'no-store')
+  if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
+  const key = (req.headers.authorization || '').replace(/^Bearer\s+/i, '') || String(req.query.key || '')
+  if (key !== ADMIN_TOKEN) return res.status(401).json({ error: 'unauthorized' })
+  const report = await shrinkStoragePhotos({ supaUrl: SUPA_URL, supaKey: SUPA_KEY, budgetMs: Number(req.query.budget) || 20000, maxPhotos: Number(req.query.max) || 8 })
+  return res.status(200).json(report)
+}
+
 // ── POST /api/properties?upsert=1 (admin) { ...property } | { list: [...] } → written into the properties table
 // (lib/property-store.js): the durable copy the site reads. The admin panel calls it after every save (Render's own
 // write to that table fails silently) and instead of Render while Render is down. The snapshot follows at once.
@@ -224,6 +235,7 @@ export default async function handler(req, res) {
   if (req.query && req.query.health !== undefined) return serveHealth(req, res)
   if (req.query && req.query.snapshot !== undefined) return serveSnapshotPush(req, res)
   if (req.query && req.query.slim !== undefined) return serveSlim(req, res)
+  if (req.query && req.query.shrink !== undefined) return serveShrink(req, res)
   if (req.query && req.query.upsert !== undefined) return serveUpsert(req, res)
   if (req.query && req.query.remove !== undefined) return serveRemove(req, res)
   res.setHeader('Access-Control-Allow-Origin', '*')
