@@ -23,7 +23,7 @@ const TR = {
     quota: 'השליחה מהוואטסאפ של המשרד חסומה: המכסה החודשית של Green API נגמרה. אפשר לקרוא שיחות, אבל הודעות לא יוצאות עד שמשדרגים את התוכנית.', upgrade: 'לשדרוג',
     placeholder: 'כתבו הודעה…', send: 'שלח', sending: 'שולח…', noPhone: 'לליד הזה אין מספר טלפון, אי אפשר לשלוח הודעה',
     welcomeTitle: 'הודעת פתיחה', welcomeSub: 'בחרו נוסח מהתבניות, אפשר לערוך לפני השליחה', welcomeSend: 'שלח הודעת פתיחה', auto: 'בשימוש באוטומציה',
-    edited: 'נערך', reset: 'חזרה לנוסח', you: 'אתם', failed: 'לא נשלח', enterHint: 'Enter לשליחה · Shift+Enter לשורה חדשה',
+    maximize: 'הגדל את השיחה למסך מלא', restore: 'חזרה לתצוגה הרגילה (Esc)', edited: 'נערך', reset: 'חזרה לנוסח', you: 'אתם', failed: 'לא נשלח', enterHint: 'Enter לשליחה · Shift+Enter לשורה חדשה',
   },
   en: {
     title: 'WhatsApp conversation', from: n => `From the office WhatsApp${n ? ` · ${n}` : ''}`, refresh: 'Refresh', openChats: 'Open in chats',
@@ -32,7 +32,7 @@ const TR = {
     quota: 'Sending from the office WhatsApp is blocked: the Green API monthly quota is used up. Conversations can be read, but nothing goes out until the plan is upgraded.', upgrade: 'Upgrade',
     placeholder: 'Write a message…', send: 'Send', sending: 'Sending…', noPhone: 'This lead has no phone number, nothing can be sent',
     welcomeTitle: 'Welcome message', welcomeSub: 'Pick a wording from the templates, edit it before sending if you like', welcomeSend: 'Send the welcome', auto: 'Used by the automation',
-    edited: 'Edited', reset: 'Back to the wording', you: 'You', failed: 'Not sent', enterHint: 'Enter to send · Shift+Enter for a new line',
+    maximize: 'Expand the conversation', restore: 'Back to the normal view (Esc)', edited: 'Edited', reset: 'Back to the wording', you: 'You', failed: 'Not sent', enterHint: 'Enter to send · Shift+Enter for a new line',
   },
 }
 
@@ -62,7 +62,7 @@ function fmtDay(ds, lang) {
   return d.toLocaleDateString(lang === 'en' ? 'en-GB' : 'he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
-export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = true, localMsgs = [], needsWelcome = false, autoConfig = null, onAutoConfigSaved, onSend, onSendWelcome, onOpenChats, officePhone = '', compact = false }) {
+export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = true, localMsgs = [], needsWelcome = false, autoConfig = null, onAutoConfigSaved, onSend, onSendWelcome, onOpenChats, officePhone = '', compact = false, onActivity, maximized = false, onToggleMaximize }) {
   const t = TR[lang] || TR.he
   const WA = isDark ? DARK : LIGHT
   const phone = intl(lead?.phone)
@@ -106,6 +106,11 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
   const msgs = useMemo(() => mergeConversation(green, localMsgs, pending), [green, localMsgs, pending])
   const hasOut = msgs.some(m => m.direction === 'out' && !String(m.id).startsWith('opt-'))
   const showWelcome = !!phone && needsWelcome && !hasOut
+  // tell the Lead Center what the chat shows (our first message, wherever it was sent from)
+  const firstOutAt = msgs.find(m => m.direction === 'out' && !String(m.id).startsWith('opt-'))?.created_at || null
+  const onActivityRef = useRef(onActivity)
+  useEffect(() => { onActivityRef.current = onActivity }, [onActivity])
+  useEffect(() => { if (histState === 'ok') onActivityRef.current?.({ hasOut, firstOutAt }) }, [histState, hasOut, firstOutAt])
 
   // keep the newest message in view (unless the reader scrolled up)
   useLayoutEffect(() => { const el = scrollRef.current; if (el && nearBottom.current) el.scrollTop = el.scrollHeight }, [msgs.length, showWelcome, histState])
@@ -199,6 +204,7 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
         {phone && <ChatTemplateMenu WA={WA} lang={lang} lead={tplLead} msgs={msgs} autoConfig={cfg}
           onInsert={text => putInBox(text)} onSend={text => send(text)} onEdit={(tpl, initial, tplLang, fromChat) => setEditTpl({ tpl, initial, lang: tplLang, fromChat })}/>}
         <button type="button" className="lcv-btn" onClick={() => load()} aria-label={t.refresh} title={t.refresh}>↻</button>
+        {onToggleMaximize && <button type="button" className="lcv-btn" onClick={onToggleMaximize} aria-pressed={maximized} aria-label={maximized ? t.restore : t.maximize} title={maximized ? t.restore : t.maximize}>{maximized ? '⤡' : '⤢'}</button>}
         {onOpenChats && phone && !compact && <button type="button" className="lcv-btn" onClick={onOpenChats}>{t.openChats}</button>}
       </div>
 

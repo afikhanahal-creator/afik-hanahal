@@ -463,13 +463,16 @@ async function handleWebhook(req, res) {
 async function handleLeads(req, res) {
   if (req.method === 'PATCH') {
     if (!checkAuth(req)) return res.status(401).json({ error: 'Unauthorized' })
-    const { id, status, notes, call_time, deleted_at } = req.body || {}
+    const { id, status, notes, call_time, deleted_at, wa_sent } = req.body || {}
     if (!id) return res.status(400).json({ error: 'id required' })
     const updates = {}
+    // the Lead Center saw our messages in the lead's WhatsApp chat (sent from the chats tab, say): mark it contacted
+    if (wa_sent === true) updates.wa_sent = true
     if (status     !== undefined) updates.status     = status
     if (notes      !== undefined) updates.notes      = notes
     if (call_time  !== undefined) updates.call_time  = call_time
     if (deleted_at !== undefined) updates.deleted_at = deleted_at  // null = restore, ISO string = soft-delete
+    if (!Object.keys(updates).length) return res.status(400).json({ error: 'nothing to update' })
     const { error } = await sb().from('meta_leads').update(updates).eq('id', id)
     if (error) return res.status(500).json({ error: error.message })
     return res.status(200).json({ ok: true })

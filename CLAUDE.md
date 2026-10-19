@@ -185,7 +185,12 @@ welcome templates first — the automation's one marked — then the personal on
 welcome: `wa_sent`, `automation_log`, `by: 'manual'`), and a composer → `POST /api/meta/messages` (502 carries `quota`). A refusal
 reads as words (`sendErrorText()`; the 466 quota also shows a banner with the upgrade link), never raw JSON. Next to it: welcome
 status, details + form answers, notes (save state shown). The selection is an id (`selectedId`), so polls / Realtime keep the open
-lead fresh. A detail pane under 780 px (and every phone) shows one pane at a time ("שיחה" / "פרטים והערות"); phones get a compact
+lead fresh. **Resizable like an editor:** drag the edge between the list and the lead, and between the conversation and the
+details (`Splitter`: pointer capture, only a CSS variable changes while dragging — `--lc-list` / `--lc-aside` — committed on
+release; arrows / Shift / Home / End, double-click or Enter resets; limits keep the lead ≥ 460 px and the chat ≥ 380 px); the sizes
+and the stats strip on / off ("הסתר נתונים") are kept in `localStorage.afik_lc_layout_v1`; ⤢ in the conversation header puts it
+on the whole screen (Esc back). A lead whose WhatsApp chat already has our messages (sent from the chats tab, say) is marked
+`wa_sent` (`onActivity` → PATCH `{ wa_sent: true }`, the only value the API accepts). A detail pane too narrow for both (and every phone) shows one pane at a time ("שיחה" / "פרטים והערות"); phones get a compact
 bar (status as a dropdown, CRM in the details). Pure helpers: `src/lib/leadConversation.js` (tested).
 **Every Meta lead is also in the CRM** (`lib/meta-crm.js`, tested): the webhook and every sync copy a new lead into `contacts`
 (source `meta`, `crm_data.metaLeadId`, form answers in `message` / `crm_data.formAnswers`, phone as 05X…), so it shows in "לידים" and
