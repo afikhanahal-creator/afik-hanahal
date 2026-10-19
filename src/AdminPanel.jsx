@@ -143,7 +143,7 @@ function ImageUpload({ images, onChange }) {
       const meta = await fetch('/api/seller-form?action=wizard-upload-url', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
         body: JSON.stringify({ name: 'photo.jpg', type: 'image/jpeg', size: blob.size, kind: 'image' }) }).then(r => (r.ok ? r.json() : null)).catch(() => null)
       if (meta?.signedUrl && meta?.url) {
-        const put = await fetch(meta.signedUrl, { method: 'PUT', headers: { 'Content-Type': 'image/jpeg', 'x-upsert': 'true' }, body: blob })
+        const put = await fetch(meta.signedUrl, { method: 'PUT', headers: { 'Content-Type': 'image/jpeg', 'x-upsert': 'true', 'cache-control': 'max-age=31536000' }, body: blob })
         if (put.ok) return meta.url
       }
     } catch {}
@@ -860,14 +860,14 @@ function AnalyticsDashboard({ leads }) {
   const [analyticsTab, setAnalyticsTab] = useState('ga4')   // Google Analytics first: the real traffic of every visitor
   const atBtn = (id, label) => (
     <button key={id} onClick={() => setAnalyticsTab(id)} aria-pressed={analyticsTab===id}
-      style={{ display:'flex', alignItems:'center', gap:6, padding:'9px 14px', border:'none', borderBottom:`2px solid ${analyticsTab===id?'var(--au-brand)':'transparent'}`, marginBottom:-1, background:'transparent', color:analyticsTab===id?'var(--au-text)':'var(--au-text3)', fontFamily:'inherit', cursor:'pointer', fontSize:12.5, fontWeight:analyticsTab===id?600:500, whiteSpace:'nowrap', transition:'color .15s, border-color .15s' }}>
+      style={{ display:'flex', alignItems:'center', gap:6, flexShrink:0, whiteSpace:'nowrap', padding:'9px 14px', border:'none', borderBottom:`2px solid ${analyticsTab===id?'var(--au-brand)':'transparent'}`, marginBottom:-1, background:'transparent', color:analyticsTab===id?'var(--au-text)':'var(--au-text3)', fontFamily:'inherit', cursor:'pointer', fontSize:12.5, fontWeight:analyticsTab===id?600:500, whiteSpace:'nowrap', transition:'color .15s, border-color .15s' }}>
       {label}
     </button>
   )
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:16, width:'100%', minWidth:0 }}>
       {/* ── Platform sub-tabs ── */}
-      <div role="tablist" style={{ display:'flex', gap:0, borderBottom:'1px solid var(--au-line)', overflowX:'auto' }}>
+      <div role="tablist" style={{ display:'flex', gap:0, borderBottom:'1px solid var(--au-line)', overflowX:'auto', scrollbarWidth:'none' }}>
         {atBtn('ga4',       'Google Analytics')}
         {atBtn('site',      en ? 'Our site (this browser)' : 'האתר שלנו (הדפדפן הזה)')}
         {atBtn('meta',      'Meta / Facebook')}
@@ -1331,6 +1331,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const [tab, setTab]     = useState(() => {
     const seg = window.location.pathname.replace(/^\/admin-panel\/?/, '')
     const t = ADMIN_PATH_TO_TAB[seg] || 'props'
+    if (t === 'live') return 'props'                         // "באוויר" = the published filter of the property list
     return t === 'overview' && !standalone ? 'props' : t     // the modal has no overview page
   })
   const [adminNavOpen, setAdminNavOpen] = useState(false)
@@ -1423,8 +1424,8 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
           setSupabaseWarning('⚠ Supabase לא מוגדר — חסרים SUPABASE_URL / SUPABASE_SERVICE_KEY ב-Render. כנס ל-Render → Environment ← הוסף את המשתנים.')
         } else if (!s.supabaseReachable) {
           const err = s.supabaseError ? ` (${s.supabaseError})` : ''
-          if (/egress|quota|restricted/i.test(s.supabaseError || '')) setSupabaseWarning('⚠ Supabase חסם את הפרויקט: נגמרה מכסת התעבורה החודשית (5GB בחינם). הטופס, הפאנל והתמונות לא יעבדו עד שדרוג. כנס ל-supabase.com → Organization → Billing → Upgrade to Pro (השירות חוזר תוך דקות), או המתן לאיפוס החודשי.')
-          else setSupabaseWarning(`⚠ Supabase לא נגיש${err} — הפרויקט כנראה מושהה. כנס ל-supabase.com → הפרויקט שלך → לחץ "Restore Project" → המתן דקה ← רענן.`)
+          if (/egress|quota|restricted|402|payment/i.test(s.supabaseError || '')) setSupabaseWarning('⚠ Supabase חסם את הפרויקט: נגמרה מכסת התעבורה החודשית (5GB בחינם). הטופס, הפאנל והתמונות לא יעבדו עד שדרוג. כנס ל-supabase.com → Organization → Billing → Upgrade to Pro (השירות חוזר תוך דקות), או המתן לאיפוס החודשי.')
+          else setSupabaseWarning(`⚠ Supabase לא נגיש${err}. אם הפרויקט מושהה: supabase.com ← הפרויקט ← "Restore Project". אם נגמרה המכסה החודשית: שדרוג ל-Pro, או המתנה לחידוש המכסה.`)
         }
       })
       .catch(() => {})
@@ -2878,10 +2879,10 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
           <div className="admin-notice" style={{ background:'rgba(156,163,175,.07)', border:'1px solid rgba(156,163,175,.25)', borderRadius:12, padding:'9px 14px', margin: standalone ? '14px 28px 0' : '0 0 14px', display:'flex', alignItems:'center', gap:10, direction:'rtl', flexWrap:'wrap', flexShrink:0 }}>
             <span style={{ fontSize:18, flexShrink:0 }}>🔕</span>
             <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontSize:13, fontWeight:700, color:'rgba(var(--ink),.7)' }}>התראות חסומות בדפדפן</div>
-              <div style={{ fontSize:11, color:'rgba(var(--ink),.4)', marginTop:2 }}>Notifications blocked — open Chrome Settings → Site Settings → Notifications → allow this site</div>
+              <div style={{ fontSize:13, fontWeight:700, color:'rgba(var(--ink),.7)' }}>{lang === 'en' ? 'Notifications are blocked in this browser' : 'התראות חסומות בדפדפן'}</div>
+              <div className="admin-notice-detail" style={{ fontSize:11, color:'rgba(var(--ink),.55)', marginTop:2 }}>{lang === 'en' ? 'To allow them: browser settings → Site settings → Notifications → allow this site' : 'כדי לאפשר: הגדרות הדפדפן ← הגדרות אתר ← התראות ← לאפשר לאתר הזה'}</div>
             </div>
-            <button onClick={() => setNotifBannerDismissed(true)} style={{ background:'none', border:'none', color:'rgba(156,163,175,.45)', cursor:'pointer', fontSize:16, lineHeight:1, padding:'0 4px', flexShrink:0 }}>×</button>
+            <button onClick={() => setNotifBannerDismissed(true)} aria-label={lang === 'en' ? 'Dismiss' : 'סגירה'} style={{ background:'none', border:'none', color:'rgba(156,163,175,.45)', cursor:'pointer', fontSize:16, lineHeight:1, padding:'0 4px', flexShrink:0 }}>×</button>
           </div>
         )}
 
@@ -3201,7 +3202,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
                 listTab={listTab} setListTab={setListTab} listCat={listCat} setListCat={setListCat}
                 onMove={moveProp} onStep={stepProp} onTop={topProp}
                 publish={publish} unpublish={unpublish} setStatus={setStatus} dup={dup} del={del}
-                onEdit={p => { if (onEditInWizard) { onClose?.(); onEditInWizard(p) } else startEdit(p) }}
+                onEdit={p => { if (onEditInWizard) { if (!standalone) onClose?.(); onEditInWizard(p) } else startEdit(p) }}   // the full-screen dashboard keeps running (onClose there = log out)
                 refreshOne={refreshOneFromServer} bulkPatch={bulkPatch} bulkDelete={bulkDelete} note={orderNote}/>
             </div>
           </>
@@ -3692,9 +3693,9 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
             {/* ── Settings header with auto-save indicator + save button ── */}
             <div style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 18px', background:`${C.green}0D`, border:`1px solid ${C.green}28`, borderRadius:12, direction:'rtl', flexWrap:'wrap' }}>
               <span style={{ width:9, height:9, borderRadius:'50%', background:C.green, flexShrink:0, boxShadow:`0 0 8px ${C.green}` }}/>
-              <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ flex:'1 1 220px', minWidth:0 }}>
                 <span style={{ fontSize:13, color:C.green, fontWeight:700 }}>שמירה אוטומטית פעילה</span>
-                <span style={{ fontSize:12, color:`${C.cream}44`, marginRight:8 }}>— כל שינוי נשמר מיידית לדפדפן</span>
+                <span style={{ fontSize:12, color:`${C.cream}99`, marginRight:8 }}>— כל שינוי נשמר מיידית לדפדפן</span>
               </div>
               <button onClick={saveAllSettings}
                 style={{ display:'flex', alignItems:'center', gap:7, padding:'8px 20px', background: settingsAllSaved ? `${C.green}22` : `${C.purple}22`, border:`1px solid ${settingsAllSaved ? C.green : `${C.purple}55`}`, borderRadius:9, color: settingsAllSaved ? C.green : C.purple, fontWeight:700, fontSize:13, cursor:'pointer', fontFamily:'inherit', transition:'all .25s', flexShrink:0 }}>
@@ -4208,8 +4209,9 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
       {/* ── Mobile bottom tab bar — standalone only ──────────────────── */}
       {standalone && (
         <nav className="admin-bottom-nav">
-          {DASH_TABS.slice(0,5).map(item => (
-            <button key={item.id} onClick={() => setTab(item.id)}
+          {/* the five screens used most on a phone ("באוויר" is a filter of the property list, not a screen) */}
+          {['overview', 'leads', 'chats', 'meta', 'props'].map(id => DASH_TABS.find(t => t.id === id)).filter(Boolean).map(item => (
+            <button key={item.id} onClick={() => setTab(item.id)} aria-current={tab===item.id ? 'page' : undefined}
               style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:3, border:'none', background:'transparent', color: tab===item.id ? C.purple : 'rgba(var(--ink),.32)', cursor:'pointer', fontFamily:'inherit', padding:'8px 4px', position:'relative', transition:'color .15s', minWidth:0 }}>
               <item.Icon size={18}/>
               <span style={{ fontSize:9, fontWeight: tab===item.id ? 700 : 400, letterSpacing:'.02em', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:'100%' }}>{item.label}</span>

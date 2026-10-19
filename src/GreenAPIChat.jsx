@@ -836,6 +836,8 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
           .wa-root:not(.wa-has-contact) .wa-chatpane { display: none !important; }
           .wa-root .wa-back { display: flex !important; }
           .wa-root .wa-chathead { padding: 0 8px !important; gap: 8px !important; }
+          /* the list header already says "connected": the strip above only took height from the conversation */
+          .wa-root .wa-statusbar { display: none !important; }
         }
         @keyframes wa-toast-in { from { opacity:0; transform: translateX(-50%) translateY(16px); } to { opacity:1; transform: translateX(-50%) translateY(0); } }
         @keyframes wa-fade-in { from { opacity:0; } to { opacity:1; } }
@@ -953,7 +955,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
       )}
 
       {/* ── Top Status Bar ───────────────────────────────────────────────── */}
-      <div style={{ height:48, background: WA.inputBg, borderBottom:`1px solid ${WA.topBorder}`, display:'flex', alignItems:'center', padding:'0 18px', gap:10, flexShrink:0, direction:'rtl', transition:'background .25s' }}>
+      <div className="wa-statusbar" style={{ height:48, background: WA.inputBg, borderBottom:`1px solid ${WA.topBorder}`, display:'flex', alignItems:'center', padding:'0 18px', gap:10, flexShrink:0, direction:'rtl', transition:'background .25s' }}>
         <svg width="18" height="18" viewBox="0 0 24 24" style={{ flexShrink:0 }}>
           <circle cx="12" cy="12" r="4.5" fill={statusColor}/>
           {[0,45,90,135,180,225,270,315].map(a => {

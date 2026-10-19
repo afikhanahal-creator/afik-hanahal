@@ -665,7 +665,7 @@ export default function AccessibilityWidget() {
   const speak = useCallback(() => {
     if (!window.speechSynthesis) return
     window.speechSynthesis.cancel()
-    const main = document.getElementById('main-content') || document.body
+    const main = document.querySelector('[role=main], main') || document.body
     const text = main.innerText?.slice(0, 800) || ''
     const u = new SpeechSynthesisUtterance(text)
     u.lang = 'he-IL'; u.rate = 0.88; u.pitch = 1
@@ -678,9 +678,6 @@ export default function AccessibilityWidget() {
 
   return (
     <>
-      {/* ── Skip to content ─────────────────────────────────────────────── */}
-      <a href="#main-content" className="a11y-skip">דלג לתוכן הראשי</a>
-
       {/* ── Screen reader live region (always mounted, outside panel) ────── */}
       <div role="status" aria-live="polite" aria-atomic="true"
         style={{ position:'absolute', insetInlineStart:'-9999px', width:1, height:1, overflow:'hidden' }}>

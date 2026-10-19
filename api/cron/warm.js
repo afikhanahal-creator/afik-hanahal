@@ -16,6 +16,7 @@ import { resolveGoogleNewsUrl, isGoogleNewsUrl } from '../../lib/news/gnews.js'
 import { run as runAutomations, sendText } from '../../lib/automations.js'
 import { createFeed } from '../../lib/property-feed.js'
 import { slimInlinePhotos, slimList } from '../../lib/slim-photos.js'
+import { shrinkStoragePhotos } from '../../lib/shrink-photos.js'
 import { propertiesChanged } from '../../lib/site-rebuild.js'
 
 const RENDER      = process.env.RENDER_URL   || 'https://afik-hanahal-server.onrender.com'
@@ -267,6 +268,8 @@ export default async function handler(req, res) {
     if (slim.uploaded || snap.changed) await propertiesChanged({ renderUrl: RENDER, ...supa }).catch(() => {})
     out.inlinePhotos = { table: { scanned: slim.scanned, uploaded: slim.uploaded, remaining: slim.remaining, error: slim.error }, snapshot: snap, errors: (slim.errors || []).slice(0, 5) }
   } catch (e) { out.inlinePhotos = { error: e.message } }
+  // Supabase egress (free plan ~5 GB/month, used up in October 2026): oversized photo originals re-encoded in place
+  try { out.shrinkPhotos = await shrinkStoragePhotos({ supaUrl: SUPA_URL.replace(/\/$/, ''), supaKey: SUPA_KEY, budgetMs: 15000, maxPhotos: 6 }) } catch (e) { out.shrinkPhotos = { error: e.message } }
   try { out.bandwidth = await bandwidthWatch() } catch (e) { out.bandwidth = { error: e.message } }
   // Meta Lead Ads connection: a dead token (password change, expiry) stopped every Facebook lead from June to October
   // without anyone noticing — one WhatsApp to the office a day while it is broken

@@ -415,6 +415,8 @@ const makeGlobal = (C, isDark) => `
   .prop-carousel { scrollbar-width:none; -ms-overflow-style:none }
   .svc-carousel::-webkit-scrollbar { display:none }
   .svc-carousel { scrollbar-width:none; -ms-overflow-style:none }
+  .svc-marquee:hover > div { animation-play-state:paused !important }
+  @media (prefers-reduced-motion: reduce) { .svc-marquee > div { animation:none !important } }
 
   /* ── UI/UX Pro Max: Kinetic Typography ── */
   @keyframes letterReveal {
@@ -589,7 +591,14 @@ const makeGlobal = (C, isDark) => `
   }
   .hamburger-btn:hover { color:${C.cream}; opacity:.85; }
   .hamburger-btn.open  { color:${C.purple}; }
-  @media(max-width:600px){.desktop-logo-nav{display:none!important;}}
+  .mobile-logo-nav{display:none}
+  @media(max-width:600px){.desktop-logo-nav{display:none!important;}.mobile-logo-nav{display:flex;align-items:center;margin-inline-end:auto;margin-inline-start:2px}
+    /* room for the logo: slightly smaller icons, tighter gaps (Facebook / Instagram stay, as the mobile design wants) */
+    nav > div { gap:4px !important; }
+    nav .nav-icon-btn { width:40px !important; height:40px !important; min-width:40px !important; min-height:40px !important; }
+    nav div .social-btn.facebook, nav div .social-btn.instagram { width:32px !important; height:32px !important; min-width:32px !important; min-height:32px !important; }
+    .mobile-logo-nav img { height:36px !important; }}
+  @media(max-width:380px){ nav div .social-btn.facebook, nav div .social-btn.instagram { display:none !important; } }
 
   /* ── Nav icon buttons (GABAY style) ── */
   .nav-icon-btn {
@@ -771,6 +780,9 @@ const makeGlobal = (C, isDark) => `
            opacity:0; transition:opacity .2s; }
   .sb:hover .sb-hi { opacity:.8; }
   .sb-fill { position:absolute; inset:1.5px; z-index:1; border-radius:9999px; background:rgba(6,6,16,.9); }
+  ${isDark ? '' : '.sb { background:rgba(255,255,255,.7) } .sb-fill { background:rgba(253,252,248,.96) }'}
+  /* Hebrew is never letter-spaced wide (it breaks word shapes); a touch larger to stay readable */
+  html[lang="he"] .sb-text { letter-spacing:1.2px; font-size:12px; }
   .sb-text { position:relative; z-index:2; border-radius:9999px; padding:6px 18px; font-size:11px; font-weight:700; letter-spacing:4px;
              text-transform:uppercase; color:var(--sb-c); line-height:1.2; white-space:nowrap; }
   @keyframes sbSpin { from { transform:translate(-50%,-50%) rotate(0deg) } to { transform:translate(-50%,-50%) rotate(360deg) } }
@@ -813,8 +825,8 @@ const makeGlobal = (C, isDark) => `
     body { overflow-x:hidden; }
 
     /* Buttons: stack full-width & reduce padding */
-    .primary-btn { padding:14px 20px; font-size:12px; width:100%; text-align:center; }
-    .outline-btn  { padding:12px 18px; font-size:11px; width:100%; text-align:center; }
+    .primary-btn { padding:14px 20px; font-size:14px; width:100%; text-align:center; }
+    .outline-btn  { padding:12px 18px; font-size:14px; width:100%; text-align:center; }
 
     /* Hero: tighten spacing */
     .hero-title { font-size:clamp(28px,9vw,44px) !important; letter-spacing:-.01em; margin-bottom:16px; }
@@ -918,7 +930,7 @@ const makeGlobal = (C, isDark) => `
     #home { padding: 72px 18px 52px !important; min-height: 100svh !important; }
     .hero-title { font-size: clamp(28px, 8.5vw, 44px) !important; line-height: 1.15 !important; margin-bottom: 14px !important; }
     .hero-cta-group { flex-direction: column !important; align-items: stretch !important; gap: 10px !important; width: 100% !important; }
-    .primary-btn { width: 100% !important; text-align: center !important; padding: 16px 20px !important; font-size: 13px !important; border-radius: 10px !important; }
+    .primary-btn { width: 100% !important; text-align: center !important; padding: 16px 20px !important; font-size: 14px !important; border-radius: 10px !important; }
     .outline-btn { width: 100% !important; text-align: center !important; padding: 14px 18px !important; border-radius: 10px !important; }
     .hero-calc-btn { width: 100% !important; justify-content: center !important; padding: 14px 18px !important; border-radius: 10px !important; }
     div[style*="minmax(160px"] { grid-template-columns: repeat(2, 1fr) !important; }
@@ -1039,9 +1051,9 @@ const makeGlobal = (C, isDark) => `
       z-index: 1050 !important;
       transform: translateX(110%);
       width: min(280px, 88vw) !important;
-      box-shadow: -12px 0 60px rgba(0,0,0,.85) !important;
+      box-shadow: none !important;                 /* a shadow on the closed drawer leaked a grey band along the screen edge */
     }
-    .admin-sidebar.open { transform: translateX(0) !important; }
+    .admin-sidebar.open { transform: translateX(0) !important; box-shadow: -12px 0 60px rgba(0,0,0,.5) !important; }
     .admin-mobile-overlay { display: block !important; position: fixed; inset: 0; background: var(--au-overlay, rgba(0,0,0,.6)); z-index: 1049; backdrop-filter: blur(3px); }
     .admin-mobile-topbar {
       display: flex !important;
@@ -1052,7 +1064,8 @@ const makeGlobal = (C, isDark) => `
       direction: rtl; position: sticky; top: 0; z-index: 20;
     }
     .admin-desktop-topbar { display: none !important; }
-    .admin-shell .admin-notice { margin: 10px 12px 0 !important; }
+    .admin-shell .admin-notice { margin: 10px 12px 0 !important; padding: 8px 12px !important; }
+    .admin-shell .admin-notice .admin-notice-detail { display: none !important; }
     .admin-main-pane { height: 100dvh !important; }
     .admin-content { padding: 16px 14px 28px !important; }
     .admin-tabs-bar { padding: 0 12px !important; overflow-x: auto !important; flex-wrap: nowrap !important; gap: 2px !important; }
@@ -1080,6 +1093,8 @@ const makeGlobal = (C, isDark) => `
   }
   @media (max-width: 640px) {
     .admin-bottom-nav { display: flex; }
+    /* floating buttons sit above the bottom bar (58px + the phone's home-indicator area) */
+    .admin-shell .lb-fab { bottom: calc(70px + env(safe-area-inset-bottom, 0px)) !important; }
     .admin-content { padding-bottom: 72px !important; }
     .admin-tabs-bar { display: none !important; }
     /* Phone: the admin modal becomes a full-screen app – every tab gets the whole width */
@@ -1213,6 +1228,15 @@ const SHARON_ICON_MAP = {
   'הוד השרון': FaStar,
 }
 
+// English names of the cities that show up in listings (the listing data itself is Hebrew)
+const CITY_EN = {
+  'הוד השרון':'Hod HaSharon', 'כפר סבא':'Kfar Saba', 'רעננה':"Ra'anana", 'הרצליה':'Herzliya', 'רמת השרון':'Ramat HaSharon',
+  'באר יעקב':"Be'er Ya'akov", 'חדרה':'Hadera', 'יהוד-מונסון':'Yehud-Monosson', 'יהוד':'Yehud', 'אור ים':'Or Yam', 'נתניה':'Netanya',
+  'תל אביב':'Tel Aviv', 'תל אביב-יפו':'Tel Aviv-Yafo', 'ראש העין':'Rosh HaAyin', 'כפר יונה':'Kfar Yona', 'אבן יהודה':'Even Yehuda',
+  'פתח תקווה':'Petah Tikva', 'ראשון לציון':'Rishon LeZion', 'קיסריה':'Caesarea', 'צור יצחק':'Tzur Yitzhak', 'כוכב יאיר':'Kochav Yair',
+}
+const cityLabel = (city, lang) => (lang === 'en' && CITY_EN[String(city || '').trim()]) || city
+
 const CITY_IMAGES = {
   'הרצליה':    '/img/herzliya.webp',
   'כפר סבא':   '/img/kfar-saba.webp',
@@ -1318,12 +1342,10 @@ function TextCounter({ to, suffix='', size=42, duration=2400, start=false, lang=
     return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current) }
   }, [start, to, duration])
   const locale = lang === 'en' ? 'en-US' : 'he-IL'
-  const prefixSign = lang === 'en' && suffix === '+'
   return (
     <div className="tc-wrap" style={{ justifyContent:'center' }}>
-      {prefixSign && <span className="tc-sfx" style={{ fontSize:size*0.65 }}>{suffix}</span>}
       <span className="tc-num" style={{ fontSize:size }}>{val.toLocaleString(locale)}</span>
-      {suffix && !prefixSign && <span className="tc-sfx" style={{ fontSize:size*0.65 }}>{suffix}</span>}
+      {suffix && <span className="tc-sfx" style={{ fontSize:size*0.65 }}>{suffix}</span>}
     </div>
   )
 }
@@ -1374,9 +1396,9 @@ function AmbientBackdrop() {
 
 // ─── LOGO ─────────────────────────────────────────────────────────────────────
 function Logo({ size=52 }) {
-  const { isDark } = useTheme()
+  const { isDark, lang } = useTheme()
   return (
-    <img src="/logo.svg" alt="אפיק הנחל - ייזום שיווק ותיווך"
+    <img src="/logo.svg" alt={lang === 'en' ? 'Afik Hanahal – Real Estate Marketing & Brokerage' : 'אפיק הנחל - ייזום שיווק ותיווך'}
       style={{ height:size, width:'auto', objectFit:'contain', display:'block',
                filter: isDark ? 'none' : 'invert(1)' }}/>
   )
@@ -1512,33 +1534,34 @@ function LangSwitch({ compact = false }) {
     opacity: active ? 1 : 0.52,
     transition: 'background 0.25s, border-color 0.25s, opacity 0.25s',
     userSelect: 'none',
+    font: 'inherit', color: 'inherit', margin: 0,
   })
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: compact ? 2 : 4, direction: 'ltr' }}>
 
       {/* Israel / Hebrew */}
-      <div style={opt(!isEn)} onClick={() => setLang('he')}>
+      <button type="button" style={opt(!isEn)} onClick={() => setLang('he')} aria-pressed={!isEn} aria-label="עברית" lang="he">
         <img
-          src="https://flagcdn.com/il.svg"
-          width={flagW} height={flagH} alt="IL"
+          src="/flags/il.svg"
+          width={flagW} height={flagH} alt=""
           style={{ borderRadius: 3, display: 'block', flexShrink: 0 }}
         />
         <span className="nav-lang-text" style={{ fontSize: txtSz, fontWeight: 700, color: textColor, fontFamily: 'Rubik, sans-serif', letterSpacing: '0.04em' }}>עב</span>
-      </div>
+      </button>
 
       {/* Separator */}
       <div style={{ width: 1, height: compact ? 18 : 22, background: sepColor, flexShrink: 0 }} />
 
       {/* USA / English */}
-      <div style={opt(isEn)} onClick={() => setLang('en')}>
+      <button type="button" style={opt(isEn)} onClick={() => setLang('en')} aria-pressed={isEn} aria-label="English" lang="en">
         <img
-          src="https://flagcdn.com/us.svg"
-          width={flagW} height={flagH} alt="US"
+          src="/flags/us.svg"
+          width={flagW} height={flagH} alt=""
           style={{ borderRadius: 3, display: 'block', flexShrink: 0 }}
         />
         <span className="nav-lang-text" style={{ fontSize: txtSz, fontWeight: 700, color: textColor, fontFamily: 'Rubik, sans-serif', letterSpacing: '0.04em' }}>EN</span>
-      </div>
+      </button>
     </div>
   )
 }
@@ -1636,8 +1659,8 @@ function FlipCityCard({ h, index }) {
           position: 'absolute', top: 13, right: 13,
           display: 'flex', alignItems: 'baseline', gap: 1,
           background: 'rgba(8,8,18,0.7)',
-          border: `1px solid ${C.green}66`,
-          color: C.green,
+          border: '1px solid #82F67F66',
+          color: '#82F67F',
           padding: '5px 12px', borderRadius: 20,
           lineHeight: 1,
         }}>
@@ -1673,7 +1696,7 @@ function FlipCityCard({ h, index }) {
         <div style={{ position: 'absolute', inset: 0, background: `radial-gradient(circle at 50% 40%, ${C.purple}18, transparent 70%)`, pointerEvents: 'none' }}/>
 
         <div style={{ color: C.green, opacity: 0.85, position: 'relative' }}><CityIcon size={26}/></div>
-        <div style={{ fontSize: 11, color: C.cream + '70', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '2.5px', position: 'relative' }}>{cityName}</div>
+        <div style={{ fontSize: 11, color: C.cream + '99', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '2.5px', position: 'relative' }}>{cityName}</div>
         <div style={{ position: 'relative' }}>
           <TextCounter to={h.count} size={44} start={counterStart} duration={1400} suffix="+"/>
         </div>
@@ -1900,7 +1923,7 @@ function TeamSectionImpl() {
                   <div style={{ width:40, height:5, borderRadius:3, background: isDark ? C.purple : '#8B6144', margin:'12px auto 0', opacity:.82 }}/>
                 </div>
                 <div style={{ fontSize:18, fontWeight:800, color: isDark ? C.cream : '#1A1410', marginBottom:5, lineHeight:1.2 }}>{name}</div>
-                <div style={{ fontSize:13, color: isDark ? `${C.cream}70` : '#6B5B4E', fontWeight:500 }}>{role}</div>
+                <div style={{ fontSize:13, color: isDark ? `${C.cream}99` : '#6B5B4E', fontWeight:500 }}>{role}</div>
               </div>
             )
           })}
@@ -2072,7 +2095,7 @@ function CEOSectionImpl() {
             {/* Signature line */}
             <div style={{ paddingTop:20, borderTop:`1px solid ${C.purple}15`, marginTop:4, textAlign:'center' }}>
               <div style={{ fontSize:14, fontWeight:800, color:C.cream, marginBottom:2 }}>{t.ceoName}</div>
-              <div style={{ fontSize:11, color:`${C.cream}55`, letterSpacing:'.05em', marginBottom:8 }}>{t.ceoRole}</div>
+              <div style={{ fontSize:11, color:`${C.cream}99`, letterSpacing:'.05em', marginBottom:8 }}>{t.ceoRole}</div>
               <SignatureReveal isDark={isDark} />
             </div>
           </div>
@@ -2086,7 +2109,7 @@ function CEOSectionImpl() {
 // memo: the page re-renders on things like the active nav item — this section only when its own props change
 const ServicesSection = memo(ServicesSectionImpl)
 function ServicesSectionImpl({ onContact }) {
-  const { C, lang } = useTheme()
+  const { C, lang, isDark } = useTheme()
   const t = TR[lang] || TR.he
   const [ref, vis] = useIntersection(0.08)
   const cardRefs = useRef([])
@@ -2141,11 +2164,12 @@ function ServicesSectionImpl({ onContact }) {
         </div>
 
         {/* Marquee ticker — floating service names */}
-        <div style={{ overflow:'hidden', marginBottom:36, direction:'ltr' }}>
+        {/* decorative (the same names are in the cards below): hidden from screen readers, pauses on hover / reduced motion */}
+        <div className="svc-marquee" aria-hidden="true" style={{ overflow:'hidden', marginBottom:36, direction:'ltr' }}>
           <div style={{ display:'flex', gap:0, whiteSpace:'nowrap', animation:'marquee 30s linear infinite', willChange:'transform' }}>
             {marqItems.map((s, i) => (
-              <span key={i} style={{ fontSize:12, fontWeight:700, color:i%2===0?C.purple:C.green, letterSpacing:'2.5px', textTransform:'uppercase', padding:'0 30px', opacity:.5 }}>
-                {s.icon}&nbsp;&nbsp;{s.title}&nbsp;&nbsp;·
+              <span key={i} style={{ fontSize:12, fontWeight:700, color:i%2===0?C.purple:C.green, letterSpacing: lang === 'en' ? '2.5px' : '1px', textTransform:'uppercase', padding:'0 30px', opacity: isDark ? .6 : .85 }}>
+                {s.icon}&nbsp;&nbsp;{lang === 'en' && s.en_title ? s.en_title : s.title}&nbsp;&nbsp;·
               </span>
             ))}
           </div>
@@ -2160,6 +2184,7 @@ function ServicesSectionImpl({ onContact }) {
             marginBottom:44, scrollbarWidth:'none', msOverflowStyle:'none',
           }}
             className="svc-carousel"
+            tabIndex={0} role="region" aria-label={lang === 'en' ? 'Our services' : 'השירותים שלנו'}
           >
             {SERVICES.map((svc, i) => (
               <div key={i} style={{ flex:'0 0 82vw', maxWidth:320, scrollSnapAlign:'start' }}>
@@ -2374,6 +2399,7 @@ function ContactModal({ prop, onClose }) {
   const [sent, setSent] = useState(false)
   const [sending, setSending] = useState(false)
   const [formError, setFormError] = useState('')
+  const [errField, setErrField] = useState('')   // the field the error belongs to (shown under it)
   const set = k => e => setForm(f => ({ ...f, [k]:e.target.value }))
   const inp = { width:'100%', padding:'12px 16px', background:'rgba(255,255,255,.05)', border:`1px solid ${C.purple}33`, borderRadius:10, color:C.cream, fontSize:14, fontFamily:'inherit', outline:'none', direction: lang==='he' ? 'rtl' : 'ltr' }
   const swipe = useSwipeClose(onClose)
@@ -2381,15 +2407,15 @@ function ContactModal({ prop, onClose }) {
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.84)', backdropFilter:'blur(12px)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}
       onClick={e => { if (e.target===e.currentTarget) onClose() }}
       onTouchStart={swipe.onTouchStart} onTouchMove={swipe.onTouchMove} onTouchEnd={swipe.onTouchEnd}>
-      <div style={{ background:C.card, border:`1px solid ${C.purple}33`, borderRadius:24, padding:'28px 36px', maxWidth:480, width:'100%', maxHeight:'88vh', overflowY:'auto', direction: lang==='he' ? 'rtl' : 'ltr', boxShadow:`0 32px 80px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.1)` }}>
+      <div role="dialog" aria-modal="true" aria-labelledby="contact-modal-title" style={{ background:C.card, border:`1px solid ${C.purple}33`, borderRadius:24, padding:'28px 36px', maxWidth:480, width:'100%', maxHeight:'88vh', overflowY:'auto', direction: lang==='he' ? 'rtl' : 'ltr', boxShadow:`0 32px 80px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.1)` }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:18 }}>
-          <h2 style={{ fontSize:22, fontWeight:800, color:C.cream }}>{prop ? lbl.contactTitle : lbl.contactHeading}</h2>
-          <button onClick={onClose} style={{ background:'none', border:'none', color:C.cream+'80', cursor:'pointer', fontSize:26, lineHeight:1 }}>×</button>
+          <h2 id="contact-modal-title" style={{ fontSize:22, fontWeight:800, color:C.cream }}>{prop ? lbl.contactTitle : lbl.contactHeading}</h2>
+          <button onClick={onClose} aria-label={lbl.close} style={{ background:'none', border:'none', color:C.cream+'80', cursor:'pointer', fontSize:26, lineHeight:1, minWidth:40, minHeight:40 }}>×</button>
         </div>
         {prop && (
           <div style={{ background:`${C.purple}11`, border:`1px solid ${C.purple}22`, borderRadius:12, padding:12, marginBottom:16 }}>
             <div style={{ fontWeight:700, color:C.cream }}>{prop.title}</div>
-            <div style={{ fontSize:13, color:C.purple, marginTop:4, display:'flex', alignItems:'center', gap:5 }}><FaMapMarkerAlt size={10}/> {prop.location} · {prop.size} מ"ר · ₪{prop.price}</div>
+            <div style={{ fontSize:13, color:C.purple, marginTop:4, display:'flex', alignItems:'center', gap:5 }}><FaMapMarkerAlt size={10}/> {[prop.location, prop.size && `${prop.size} ${lang === 'en' ? 'm²' : 'מ"ר'}`, Number(String(prop.price ?? '').replace(/[^\d]/g, '')) >= 100 && `₪${Number(String(prop.price).replace(/[^\d]/g, '')).toLocaleString('en-US')}`].filter(Boolean).join(' · ')}</div>
           </div>
         )}
         {sent ? (
@@ -2406,9 +2432,9 @@ function ContactModal({ prop, onClose }) {
             // Never send an empty lead: a name, and a phone (≥ 9 digits) or an email, or nothing goes out
             const phoneOk = String(form.phone || '').replace(/\D/g, '').length >= 9
             const emailOk = /\S+@\S+\.\S+/.test(String(form.email || ''))
-            if (!String(form.name || '').trim()) { setFormError(lbl.needName); return }
-            if (!phoneOk && !emailOk) { setFormError(lbl.needContact); return }
-            setFormError('')
+            if (!String(form.name || '').trim()) { setFormError(lbl.needName); setErrField('name'); document.getElementById('cm-name')?.focus(); return }
+            if (!phoneOk && !emailOk) { setFormError(lbl.needContact); setErrField('phone'); document.getElementById('cm-phone')?.focus(); return }
+            setFormError(''); setErrField('')
             setSending(true)
             const lead = {
               id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
@@ -2440,15 +2466,18 @@ function ContactModal({ prop, onClose }) {
           }} style={{ display:'flex', flexDirection:'column', gap:12 }}>
             {[['name',lbl.name,'text',lbl.fullName],['phone',lbl.phone,'tel',lbl.phoneEx],['email',lbl.email,'email',lbl.emailEx]].map(([k,l,t,ph]) => (
               <div key={k}>
-                <label style={{ fontSize:12, color:C.cream+'99', marginBottom:4, display:'block' }}>{l}</label>
-                <input type={t} placeholder={ph} value={form[k]} onChange={set(k)} style={inp} className="contact-input"/>
+                <label htmlFor={`cm-${k}`} style={{ fontSize:12, color:C.cream+'99', marginBottom:4, display:'block' }}>{l}</label>
+                <input id={`cm-${k}`} type={t} placeholder={ph} value={form[k]} onChange={set(k)} style={{ ...inp, ...(errField === k ? { borderColor:'#E5484D' } : {}) }} className="contact-input"
+                  autoComplete={{ name:'name', phone:'tel', email:'email' }[k]} inputMode={k === 'phone' ? 'tel' : undefined} dir={k === 'name' ? undefined : 'ltr'}
+                  aria-invalid={errField === k || undefined} aria-describedby={errField === k ? 'cm-error' : undefined}/>
+                {errField === k && formError && <div id="cm-error" role="alert" style={{ color:'#E5484D', fontSize:13, fontWeight:600, marginTop:6 }}>{formError}</div>}
               </div>
             ))}
             <div>
-              <label style={{ fontSize:12, color:C.cream+'99', marginBottom:4, display:'block' }}>{lbl.msg}</label>
-              <textarea rows={3} value={form.msg} onChange={set('msg')} style={{ ...inp, resize:'vertical' }} className="contact-input"/>
+              <label htmlFor="cm-msg" style={{ fontSize:12, color:C.cream+'99', marginBottom:4, display:'block' }}>{lbl.msg}</label>
+              <textarea id="cm-msg" rows={3} value={form.msg} onChange={set('msg')} style={{ ...inp, resize:'vertical' }} className="contact-input"/>
             </div>
-            {formError && <div role="alert" style={{ color:'#E5484D', fontSize:13, fontWeight:600 }}>{formError}</div>}
+            {formError && !errField && <div role="alert" style={{ color:'#E5484D', fontSize:13, fontWeight:600 }}>{formError}</div>}
             <button type="submit" disabled={sending} className="primary-btn" style={{ borderRadius:12, fontSize:15, opacity:sending?0.6:1 }}>{sending ? '...' : lbl.sendMsg}</button>
             <div style={{ textAlign:'center', paddingTop:6, borderTop:`1px solid ${C.purple}22` }}>
               <a href="tel:0559811814" onClick={() => trackEvent('phone_click', { src:'contact_modal' })} style={{ color:C.green, textDecoration:'none', fontWeight:700, fontSize:17, display:'inline-flex', alignItems:'center', gap:7 }}><FaPhone size={13}/> 055-981-1814</a>
@@ -3540,16 +3569,16 @@ function TestimonialsSectionImpl() {
                 <div style={{ display:'flex', gap:3 }} aria-label="5 כוכבים">{[1,2,3,4,5].map(s => <span key={s} style={{ color:C.green, fontSize:17, lineHeight:1 }}>★</span>)}</div>
                 <p style={{ fontSize:15.5, color:`${C.cream}EE`, lineHeight:1.75, margin:'2px 0 0', maxWidth:440 }}>{tQuote}</p>
                 <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:14, marginTop:6, width:'100%' }}>
-                  <button onClick={goPrev} style={{ ...arBtn(false), width:42, height:42 }} aria-label="הקודם"><FaChevronRight size={14}/></button>
+                  <button onClick={goPrev} style={{ ...arBtn(false), width:42, height:42 }} aria-label={lang === 'en' ? 'Previous' : 'הקודם'}><FaChevronRight size={14}/></button>
                   <div style={{ display:'flex', alignItems:'center', gap:6 }}>
                     {TESTIMONIALS_DATA.map((_, i) => (
-                      <button key={i} onClick={() => goTo(i)} aria-label={`עדות ${i+1}`}
-                        style={{ width:i===active?22:7, height:7, minWidth:0, minHeight:0, borderRadius:4, background:i===active?C.purple:C.purple+'33', border:'none', cursor:'pointer', transition:'all .3s', padding:0 }}/>
+                      <button key={i} onClick={() => goTo(i)} aria-label={lang === 'en' ? `Testimonial ${i+1}` : `עדות ${i+1}`} aria-current={i===active || undefined}
+                        style={{ width:i===active?22:7, height:7, minWidth:0, minHeight:0, borderRadius:12, background:i===active?C.purple:C.purple+'33', backgroundClip:'content-box', boxSizing:'content-box', border:'none', cursor:'pointer', transition:'all .3s', padding:9, margin:-6 }}/>
                     ))}
                   </div>
-                  <button onClick={goNext} style={{ ...arBtn(false), width:42, height:42 }} aria-label="הבא"><FaChevronLeft size={14}/></button>
+                  <button onClick={goNext} style={{ ...arBtn(false), width:42, height:42 }} aria-label={lang === 'en' ? 'Next' : 'הבא'}><FaChevronLeft size={14}/></button>
                 </div>
-                <span style={{ fontSize:11, color:`${C.cream}55`, fontWeight:600 }}>{active + 1} / {n} · {lang === 'en' ? 'swipe for more' : 'החליקו לעדות הבאה'}</span>
+                <span style={{ fontSize:11, color:`${C.cream}99`, fontWeight:600 }}>{active + 1} / {n} · {lang === 'en' ? 'swipe for more' : 'החליקו לעדות הבאה'}</span>
               </div>
             </>
           ) : (
@@ -3602,8 +3631,8 @@ function TestimonialsSectionImpl() {
                   <span className="testi-dots" style={{ display:'contents' }}>
                   {TESTIMONIALS_DATA.map((_, i) => (
                     <button key={i} onClick={() => goTo(i)}
-                      style={{ width:i===active?26:8, height:8, borderRadius:4, background:i===active?C.purple:C.purple+'33', border:'none', cursor:'pointer', transition:'all .3s', padding:0 }}
-                      aria-label={`עדות ${i+1}`}/>
+                      style={{ width:i===active?26:8, height:8, borderRadius:12, background:i===active?C.purple:C.purple+'33', backgroundClip:'content-box', boxSizing:'content-box', border:'none', cursor:'pointer', transition:'all .3s', padding:8, margin:-4 }}
+                      aria-label={lang === 'en' ? `Testimonial ${i+1}` : `עדות ${i+1}`} aria-current={i===active || undefined}/>
                   ))}
                   </span>
                 </div>
@@ -3749,6 +3778,7 @@ function FAQSectionImpl() {
 const YAD2_ORANGE = '#FF6332'
 
 function MortgageInline({ price, C, onContact, prop }) {
+  const { lang } = useTheme()
   const pNum = Number(String(price || 0).replace(/[^\d]/g, ''))
   const minEquity = Math.round(pNum * 0.1)
   const maxEquity = Math.round(pNum * 0.8)
@@ -3777,7 +3807,7 @@ function MortgageInline({ price, C, onContact, prop }) {
         {/* Result card */}
         <div className="mortgage-result-col" style={{ padding:'24px 22px', background:'rgba(255,255,255,.03)', borderLeft:'1px solid rgba(255,255,255,.08)', display:'flex', flexDirection:'column', justifyContent:'space-between' }}>
           <div>
-            <div style={{ fontSize:11, color:`${C.cream}55`, letterSpacing:'.06em', textTransform:'uppercase', marginBottom:6 }}>החזר חודשי משוער</div>
+            <div style={{ fontSize:11, color:`${C.cream}99`, letterSpacing:'.06em', textTransform:'uppercase', marginBottom:6 }}>החזר חודשי משוער</div>
             <div className="mortgage-monthly-num" style={{ fontSize:38, fontWeight:900, color:'#fff', lineHeight:1, marginBottom:6 }}>
               ₪{fmtN(monthly)}
             </div>
@@ -3816,7 +3846,7 @@ function MortgageInline({ price, C, onContact, prop }) {
               <span style={{ fontSize:13, color:`${C.cream}88`, fontWeight:600 }}>כמה הון עצמי יש לך?</span>
               <span style={{ fontSize:15, fontWeight:900, color:C.cream, background:'rgba(255,255,255,.07)', borderRadius:8, padding:'2px 10px' }}>₪{fmtN(equity)}</span>
             </div>
-            <input type="range" min={minEquity} max={maxEquity} step={10000} value={equity} onChange={e=>setEquity(+e.target.value)}
+            <input type="range" aria-label={lang === 'en' ? 'Your equity' : 'כמה הון עצמי יש לכם'} min={minEquity} max={maxEquity} step={10000} value={equity} onChange={e=>setEquity(+e.target.value)}
               style={{ width:'100%', accentColor:YAD2_ORANGE, cursor:'pointer', height:6, borderRadius:4 }}/>
             <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, color:`${C.cream}33`, marginTop:5 }}>
               <span>₪{fmtN(minEquity)}</span><span>₪{fmtN(maxEquity)}</span>
@@ -3829,7 +3859,7 @@ function MortgageInline({ price, C, onContact, prop }) {
               <span style={{ fontSize:13, color:`${C.cream}88`, fontWeight:600 }}>לכמה שנים המשכנתה?</span>
               <span style={{ fontSize:15, fontWeight:900, color:C.cream, background:'rgba(255,255,255,.07)', borderRadius:8, padding:'2px 10px' }}>{years} שנה</span>
             </div>
-            <input type="range" min={5} max={30} value={years} onChange={e=>setYears(+e.target.value)}
+            <input type="range" aria-label={lang === 'en' ? 'Mortgage term in years' : 'לכמה שנים המשכנתה'} min={5} max={30} value={years} onChange={e=>setYears(+e.target.value)}
               style={{ width:'100%', accentColor:YAD2_ORANGE, cursor:'pointer', height:6, borderRadius:4 }}/>
             <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, color:`${C.cream}33`, marginTop:5 }}>
               <span>5 שנים</span><span>30 שנים</span>
@@ -3846,6 +3876,7 @@ function MortgageInline({ price, C, onContact, prop }) {
 }
 
 function MortgageMini({ price, C }) {
+  const { lang } = useTheme()
   const pNum = Number(String(price || 0).replace(/[^\d]/g, ''))
   const [equityPct, setEquityPct] = useState(30)
   const [years, setYears] = useState(25)
@@ -3862,21 +3893,21 @@ function MortgageMini({ price, C }) {
         <FaCalculator size={13} style={{ color:C.purple }}/> מחשבון משכנתא מהיר
       </div>
       <div style={{ marginBottom:10 }}>
-        <div style={{ display:'flex', justifyContent:'space-between', fontSize:12, color:`${C.cream}70`, marginBottom:5 }}>
+        <div style={{ display:'flex', justifyContent:'space-between', fontSize:12, color:`${C.cream}99`, marginBottom:5 }}>
           <span>הון עצמי</span><span style={{ fontWeight:700, color:C.cream }}>{equityPct}% · ₪{equityAmt.toLocaleString('he-IL')}</span>
         </div>
-        <input type="range" min={10} max={80} value={equityPct} onChange={e => setEquityPct(+e.target.value)}
+        <input type="range" aria-label={lang === 'en' ? 'Equity percentage' : 'הון עצמי באחוזים'} min={10} max={80} value={equityPct} onChange={e => setEquityPct(+e.target.value)}
           style={{ width:'100%', accentColor:C.purple, cursor:'pointer' }}/>
       </div>
       <div style={{ marginBottom:14 }}>
-        <div style={{ display:'flex', justifyContent:'space-between', fontSize:12, color:`${C.cream}70`, marginBottom:5 }}>
+        <div style={{ display:'flex', justifyContent:'space-between', fontSize:12, color:`${C.cream}99`, marginBottom:5 }}>
           <span>תקופת הלוואה</span><span style={{ fontWeight:700, color:C.cream }}>{years} שנה</span>
         </div>
-        <input type="range" min={10} max={30} value={years} onChange={e => setYears(+e.target.value)}
+        <input type="range" aria-label={lang === 'en' ? 'Loan term in years' : 'תקופת הלוואה בשנים'} min={10} max={30} value={years} onChange={e => setYears(+e.target.value)}
           style={{ width:'100%', accentColor:C.purple, cursor:'pointer' }}/>
       </div>
       <div style={{ background:`${C.purple}14`, border:`1px solid ${C.purple}30`, borderRadius:10, padding:'14px 16px', textAlign:'center', marginBottom:10 }}>
-        <div style={{ fontSize:11, color:`${C.cream}55`, marginBottom:4 }}>החזר חודשי משוער</div>
+        <div style={{ fontSize:11, color:`${C.cream}99`, marginBottom:4 }}>החזר חודשי משוער</div>
         <div style={{ fontSize:26, fontWeight:900, color:C.cream, lineHeight:1.1 }}>₪{monthly.toLocaleString('he-IL')}</div>
         <div style={{ fontSize:10, color:`${C.cream}40`, marginTop:4 }}>ריבית הנחה: 4.5% · הערכה בלבד</div>
       </div>
@@ -4126,6 +4157,10 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
   const [shared, setShared] = useState(false)
   const [lightbox, setLightbox] = useState(false)
   const [videoPlaying, setVideoPlaying] = useState(false)
+  // The gallery index whose video the visitor asked to play. A video is never downloaded before that:
+  // the frame and its thumbnail show a still photo (videos come straight from Supabase Storage, and every
+  // byte counts against its monthly bandwidth quota — a 43 MB file per visitor used it up in October 2026)
+  const [playIdx, setPlayIdx] = useState(-1)
   const [isPlaying, setIsPlaying] = useState(false)
   const slideshowRef = useRef(null)
   const videoRef = useRef(null)
@@ -4176,6 +4211,10 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
   const cat = CATEGORIES.find(c => c.id === prop.category) || CATEGORIES[1]
   const sc = { 'זמין':C.green, 'בבדיקה':'#F7C948', 'נמכר':'#E05252', 'הושכר':'#F97316' }[prop.status] || C.green
 
+  // Links typed without a scheme ("google.com/maps/…") would open as a page of this site
+  const absUrl = u => { const v = String(u || '').trim(); return !v ? '' : /^(https?:)?\/\//i.test(v) ? v : /^[\w-]+(\.[\w-]+)+/.test(v) ? `https://${v}` : '' }
+  const mapsHref = absUrl(prop.mapsUrl)
+  const landingHref = absUrl(prop.landingPageUrl)
   const imgs = (prop.images || []).filter(u => u && typeof u === 'string' && u.length > 4).map(u => cloudImg(u))
   // Build unified video list — skip blob: URLs (temporary local refs that die on reload)
   const isValidVideoUrl = u => u && typeof u === 'string' && u.length > 4 && !u.startsWith('blob:')
@@ -4199,7 +4238,7 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
 
   const isRental = prop.txType === 'rent' || prop.status === 'הושכר' || prop.status === 'להשכרה'
   const fmt = p => {
-    if (!p) return 'מחיר בפנייה'
+    if (!(Number(String(p ?? '').replace(/[^\d]/g, '')) >= 100)) return lang === 'en' ? 'Price on request' : 'מחיר בפנייה'   // ₪0 / ₪1 = a placeholder, not a price
     const n = Number(String(p).replace(/[^\d]/g,''))
     const base = n >= 1000000 ? `${(n/1000000).toFixed(2).replace(/\.?0+$/,'')} מיל׳ ₪`
                 : n >= 1000   ? `${Math.round(n/1000).toLocaleString('he-IL')} אלף ₪`
@@ -4266,7 +4305,7 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
   return (
     // Swipe-to-close was REMOVED here — on mobile it misfired while interacting with
     // the GovMap map / scrolling and bounced the user back to the home screen.
-    <div ref={modalScrollRef} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.88)', backdropFilter:'blur(14px)', zIndex:900, overflowY:'auto', WebkitOverflowScrolling:'touch', scrollBehavior:'smooth' }}
+    <div ref={modalScrollRef} role="dialog" aria-modal="true" aria-label={prop.title || (lang === 'en' ? 'Property' : 'נכס')} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.88)', backdropFilter:'blur(14px)', zIndex:900, overflowY:'auto', WebkitOverflowScrolling:'touch', scrollBehavior:'smooth' }}
       onMouseDown={e => { backdropDown.current = e.target === e.currentTarget }}
       onClick={e => { if (e.target === e.currentTarget && backdropDown.current) setConfirmLeave(true) }}>
 
@@ -4307,7 +4346,7 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
           {/* Property name */}
           <span style={{ fontSize:13, fontWeight:700, color:`${C.cream}BB`, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:'55%', textAlign:'center' }}>{prop.title}</span>
           {/* Close X */}
-          <button onClick={onClose}
+          <button onClick={onClose} aria-label={lang === 'en' ? 'Close' : 'סגירה'}
             style={{ width:36, height:36, borderRadius:'50%', background:'rgba(255,255,255,.06)', border:`1px solid rgba(132,144,216,.2)`, color:`${C.cream}AA`, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s', flexShrink:0 }}
             onMouseEnter={e=>{e.currentTarget.style.background=C.purple; e.currentTarget.style.color='#fff'}}
             onMouseLeave={e=>{e.currentTarget.style.background='rgba(255,255,255,.06)'; e.currentTarget.style.color=`${C.cream}AA`}}>
@@ -4329,7 +4368,22 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
             }
           }}>
           {isVideoFrame && currentVideo ? (
-            videoType === 'cloudinary' || (currentVideo.url && !currentVideo.url.includes('youtube') && !currentVideo.url.includes('youtu.be')) ? (
+            playIdx !== imgIdx ? (
+              <button type="button" onClick={() => { setIsPlaying(false); setPlayIdx(imgIdx) }}
+                aria-label={lang === 'en' ? 'Play the video' : 'הפעלת הסרטון'}
+                style={{ position:'relative', width:'100%', height:'100%', border:'none', padding:0, cursor:'pointer', background:'#000', display:'block' }}>
+                {(getVideoThumbnail(currentVideo.url, currentVideo.thumbnail) || imgs[0]) && (
+                  <img src={getVideoThumbnail(currentVideo.url, currentVideo.thumbnail) || imgs[0]} alt="" decoding="async" onError={imgFallback}
+                    style={{ width:'100%', height:'100%', objectFit:'contain', display:'block', opacity:.55 }}/>
+                )}
+                <span style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:12, color:'#fff' }}>
+                  <span style={{ width:76, height:76, borderRadius:'50%', background:'rgba(0,0,0,.6)', border:'2px solid rgba(255,255,255,.85)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                    <FaPlay size={26} style={{ marginRight:'-4px' }}/>
+                  </span>
+                  <span style={{ fontSize:15, fontWeight:700, textShadow:'0 1px 6px rgba(0,0,0,.8)' }}>{lang === 'en' ? 'Play the video' : 'הפעלת הסרטון'}</span>
+                </span>
+              </button>
+            ) : videoType === 'cloudinary' || (currentVideo.url && !currentVideo.url.includes('youtube') && !currentVideo.url.includes('youtu.be')) ? (
               <>
                 <video
                   ref={setVideoRef}
@@ -4341,7 +4395,7 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
                   autoPlay
                   loop={!!prop.videoAutoplay}
                   controls
-                  preload="metadata"
+                  preload="auto"
                   onLoadedMetadata={e => { if (!getVideoThumbnail(currentVideo.url, currentVideo.thumbnail)) e.target.currentTime = 0.5 }}
                   onPlay={() => setVideoPlaying(true)}
                   onPause={() => setVideoPlaying(false)}
@@ -4373,6 +4427,7 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
           {/* Arrows */}
           {totalMedia > 1 && (<>
             <button onClick={() => { setIsPlaying(false); setImgIdx(i => (i - 1 + totalMedia) % totalMedia) }}
+              aria-label={lang === 'en' ? 'Previous photo' : 'התמונה הקודמת'}
               style={{ position:'absolute', top:'50%', right:16, transform:'translateY(-50%)', background:'rgba(0,0,0,.6)', backdropFilter:'blur(6px)', border:`1px solid rgba(255,255,255,.15)`, borderRadius:'50%', width:46, height:46, color:'#fff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'background .18s, transform .18s cubic-bezier(.16,1,.3,1)', zIndex:3 }}
               onMouseEnter={e=>{ e.currentTarget.style.background=C.purple; e.currentTarget.style.transform='translateY(-50%) scale(1.12)' }}
               onMouseLeave={e=>{ e.currentTarget.style.background='rgba(0,0,0,.6)'; e.currentTarget.style.transform='translateY(-50%)' }}
@@ -4381,6 +4436,7 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
               <FaChevronRight size={16}/>
             </button>
             <button onClick={() => { setIsPlaying(false); setImgIdx(i => (i + 1) % totalMedia) }}
+              aria-label={lang === 'en' ? 'Next photo' : 'התמונה הבאה'}
               style={{ position:'absolute', top:'50%', left:16, transform:'translateY(-50%)', background:'rgba(0,0,0,.6)', backdropFilter:'blur(6px)', border:`1px solid rgba(255,255,255,.15)`, borderRadius:'50%', width:46, height:46, color:'#fff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'background .18s, transform .18s cubic-bezier(.16,1,.3,1)', zIndex:3 }}
               onMouseEnter={e=>{ e.currentTarget.style.background=C.purple; e.currentTarget.style.transform='translateY(-50%) scale(1.12)' }}
               onMouseLeave={e=>{ e.currentTarget.style.background='rgba(0,0,0,.6)'; e.currentTarget.style.transform='translateY(-50%)' }}
@@ -4454,6 +4510,7 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
           <div className="prop-gallery-thumb-strip">
             {imgs.map((src, i) => (
               <button key={i} onClick={() => { setIsPlaying(false); setImgIdx(i) }}
+                aria-label={lang === 'en' ? `Photo ${i + 1}` : `תמונה ${i + 1}`} aria-current={imgIdx === i || undefined}
                 className="prop-thumb-btn"
                 style={{ border: imgIdx===i ? `2.5px solid ${C.purple}` : '2.5px solid transparent', opacity: imgIdx===i ? 1 : 0.55 }}>
                 <img src={src} alt="" decoding="async" onError={imgFallback}/>
@@ -4464,20 +4521,14 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
               const vIdx = imgs.length + vi
               const thumb = getVideoThumbnail(v.url, v.thumbnail)
               return (
-                <button key={vIdx} onClick={() => { setIsPlaying(false); setImgIdx(vIdx) }}
+                <button key={vIdx} onClick={() => { setIsPlaying(false); setImgIdx(vIdx); setPlayIdx(vIdx) }}
+                  aria-label={lang === 'en' ? 'Play the video' : 'הפעלת הסרטון'}
                   className="prop-thumb-btn"
                   style={{ border: imgIdx===vIdx ? `2.5px solid ${C.purple}` : '2.5px solid transparent', opacity: imgIdx===vIdx ? 1 : 0.55 }}>
-                  {thumb ? (
-                    <img src={thumb} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }}/>
+                  {thumb || imgs[0] ? (
+                    <img src={thumb || imgs[0]} alt="" decoding="async" onError={imgFallback} style={{ width:'100%', height:'100%', objectFit:'cover', opacity: thumb ? 1 : .6 }}/>
                   ) : (
-                    <video
-                      src={v.url}
-                      muted
-                      playsInline
-                      preload="metadata"
-                      style={{ width:'100%', height:'100%', objectFit:'cover', display:'block', pointerEvents:'none' }}
-                      onLoadedMetadata={e => { e.target.currentTime = 0.5 }}
-                    />
+                    <div style={{ width:'100%', height:'100%', background:'#000' }}/>
                   )}
                   <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(0,0,0,.22)' }}>
                     <div style={{ width:22, height:22, borderRadius:'50%', background:'rgba(0,0,0,.55)', display:'flex', alignItems:'center', justifyContent:'center', border:'1.5px solid rgba(255,255,255,.7)' }}>
@@ -4506,7 +4557,7 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
 
             {/* Badges */}
             <div style={{ display:'flex', gap:7, flexWrap:'wrap', alignItems:'center' }}>
-              <span style={{ background:C.purple, color:'#fff', borderRadius:20, padding:'6px 16px', fontSize:13, fontWeight:700 }}>{cat.label}</span>
+              <span style={{ background:C.purple, color: isDark ? '#09090F' : '#fff', borderRadius:20, padding:'6px 16px', fontSize:13, fontWeight:700 }}>{cat.label}</span>
               {prop.type && <span style={{ background:'rgba(255,255,255,.08)', color:`${C.cream}AA`, borderRadius:20, padding:'6px 14px', fontSize:13 }}>{prop.type}</span>}
               <span style={{ background:`${sc}18`, color:sc, border:`1px solid ${sc}40`, borderRadius:20, padding:'6px 14px', fontSize:13, fontWeight:700 }}>{prop.status}</span>
               {prop.exclusive && <span style={{ background:'rgba(255,255,255,.1)', color:'#fff', border:'1px solid rgba(255,255,255,.25)', borderRadius:20, padding:'6px 14px', fontSize:13, fontWeight:700 }}>✦ בלעדי</span>}
@@ -4516,20 +4567,20 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
             <div>
               <h2 style={{ fontSize:'clamp(28px,3.5vw,42px)', fontWeight:900, color:C.cream, lineHeight:1.18, marginBottom:12 }}>{prop.title}</h2>
               {(prop.location || prop.neighborhood || prop.street) && (
-                <div style={{ display:'flex', alignItems:'center', gap:8, color:`${C.cream}77`, fontSize:16, marginBottom: prop.mapsUrl ? 14 : 0 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:8, color:`${C.cream}99`, fontSize:16, marginBottom: mapsHref ? 14 : 0 }}>
                   <FaMapMarkerAlt size={14} style={{ color:C.purple, flexShrink:0 }}/>
                   {[prop.location, prop.neighborhood, prop.street].filter(Boolean).join(' · ')}
                 </div>
               )}
               {/* Inline mini map — shown only when a valid embeddable URL exists */}
-              {prop.mapsUrl && (() => {
-                const embedSrc = toMapsEmbed(prop.mapsUrl)
+              {mapsHref && (() => {
+                const embedSrc = toMapsEmbed(mapsHref)
                 if (!embedSrc) return null
                 return (
                   <div style={{ borderRadius:12, overflow:'hidden', border:'1px solid rgba(132,144,216,.22)', marginTop:4 }}>
                     <iframe src={embedSrc} width="100%" height="200" style={{ border:'none', display:'block' }} allowFullScreen loading="lazy" referrerPolicy="no-referrer-when-downgrade" title="מיקום הנכס"/>
-                    <a href={prop.mapsUrl} target="_blank" rel="noopener noreferrer"
-                      style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 14px', background:'rgba(255,255,255,.04)', color:`${C.cream}77`, fontSize:12, textDecoration:'none', fontWeight:600 }}>
+                    <a href={mapsHref} target="_blank" rel="noopener noreferrer"
+                      style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 14px', background:'rgba(255,255,255,.04)', color:`${C.cream}99`, fontSize:12, textDecoration:'none', fontWeight:600 }}>
                       <FaExternalLinkAlt size={9}/> פתח ב-Google Maps
                     </a>
                   </div>
@@ -4545,7 +4596,7 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
                     <s.Icon size={16} style={{ color:'#fff', opacity:.7 }}/>
                     <div>
                       <div style={{ fontSize:18, fontWeight:900, color:C.cream, lineHeight:1.1 }}>{s.v}</div>
-                      <div style={{ fontSize:11, color:`${C.cream}55`, marginTop:1 }}>{s.label}</div>
+                      <div style={{ fontSize:11, color:`${C.cream}99`, marginTop:1 }}>{s.label}</div>
                     </div>
                   </div>
                 ))}
@@ -4568,7 +4619,7 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
                   <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', direction:'rtl' }}>
                     {extraSpecs.map((s, i) => (
                       <div key={i} className="prop-extra-row" style={{ borderLeft: i % 2 === 0 ? '1px solid rgba(255,255,255,.07)' : 'none' }}>
-                        <span style={{ color:`${C.cream}66`, fontSize:14, fontWeight:400 }}>{s.label}</span>
+                        <span style={{ color:`${C.cream}99`, fontSize:14, fontWeight:400 }}>{s.label}</span>
                         <span style={{ color:C.cream, fontWeight:700, fontSize:15 }}>{s.v}</span>
                       </div>
                     ))}
@@ -4598,18 +4649,18 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
             )}
 
             {/* External links */}
-            {(prop.landingPageUrl || prop.mapsUrl) && (
+            {(landingHref || mapsHref) && (
               <div style={{ display:'flex', gap:9, flexWrap:'wrap' }}>
-                {prop.landingPageUrl && (
-                  <a href={prop.landingPageUrl} target="_blank" rel="noopener noreferrer"
+                {landingHref && (
+                  <a href={landingHref} target="_blank" rel="noopener noreferrer"
                     style={{ flex:'1 1 140px', display:'flex', alignItems:'center', justifyContent:'center', gap:7, padding:'13px', background:`${C.purple}16`, border:`1px solid ${C.purple}40`, borderRadius:9, color:C.purple, textDecoration:'none', fontSize:13, fontWeight:700, transition:'background .2s', cursor:'pointer' }}
                     onMouseEnter={e=>e.currentTarget.style.background=`${C.purple}28`}
                     onMouseLeave={e=>e.currentTarget.style.background=`${C.purple}16`}>
                     <FaExternalLinkAlt size={12}/> דף נחיתה
                   </a>
                 )}
-                {prop.mapsUrl && (
-                  <a href={prop.mapsUrl} target="_blank" rel="noopener noreferrer"
+                {mapsHref && (
+                  <a href={mapsHref} target="_blank" rel="noopener noreferrer"
                     style={{ flex:'1 1 140px', display:'flex', alignItems:'center', justifyContent:'center', gap:7, padding:'13px', background:`${C.green}0E`, border:`1px solid ${C.green}33`, borderRadius:9, color:C.green, textDecoration:'none', fontSize:13, fontWeight:700, transition:'background .2s', cursor:'pointer' }}
                     onMouseEnter={e=>e.currentTarget.style.background=`${C.green}1E`}
                     onMouseLeave={e=>e.currentTarget.style.background=`${C.green}0E`}>
@@ -4669,8 +4720,8 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
             </a>
 
             {/* Map embed */}
-            {prop.mapsUrl && (() => {
-              const embedSrc = toMapsEmbed(prop.mapsUrl)
+            {mapsHref && (() => {
+              const embedSrc = toMapsEmbed(mapsHref)
               return embedSrc ? (
                 <div style={{ borderRadius:12, overflow:'hidden', border:'1px solid rgba(132,144,216,.18)' }}>
                   <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 14px', background:'rgba(255,255,255,.05)', borderBottom:'1px solid rgba(255,255,255,.07)' }}>
@@ -4678,7 +4729,7 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
                       <FaMapMarkerAlt size={14} style={{ color:C.purple }}/>
                       <span style={{ fontSize:13, fontWeight:600, color:'rgba(232,228,216,.85)' }}>{[prop.location, prop.neighborhood].filter(Boolean).join(', ')}</span>
                     </div>
-                    <a href={prop.mapsUrl} target="_blank" rel="noopener noreferrer"
+                    <a href={mapsHref} target="_blank" rel="noopener noreferrer"
                       style={{ fontSize:11, color:C.purple, textDecoration:'none', fontWeight:600, display:'flex', alignItems:'center', gap:4 }}>
                       <FaExternalLinkAlt size={9}/> פתח במפות
                     </a>
@@ -4686,7 +4737,7 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
                   <iframe src={embedSrc} width="100%" height="220" style={{ border:'none', display:'block' }} allowFullScreen loading="lazy" referrerPolicy="no-referrer-when-downgrade" title="מיקום הנכס"/>
                 </div>
               ) : (
-                <a href={prop.mapsUrl} target="_blank" rel="noopener noreferrer"
+                <a href={mapsHref} target="_blank" rel="noopener noreferrer"
                   style={{ display:'flex', alignItems:'center', gap:12, padding:'16px 18px', background:'rgba(255,255,255,.04)', border:`1px solid ${C.purple}30`, borderRadius:12, textDecoration:'none', transition:'all .2s', cursor:'pointer' }}
                   onMouseEnter={e=>{ e.currentTarget.style.background='rgba(132,144,216,.1)'; e.currentTarget.style.borderColor=C.purple }}
                   onMouseLeave={e=>{ e.currentTarget.style.background='rgba(255,255,255,.04)'; e.currentTarget.style.borderColor=`${C.purple}30` }}>
@@ -4695,7 +4746,7 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
                   </div>
                   <div style={{ flex:1 }}>
                     <div style={{ color:C.cream, fontWeight:700, fontSize:14, marginBottom:3 }}>פתח במפות Google</div>
-                    <div style={{ fontSize:12, color:`${C.cream}55` }}>{[prop.location, prop.neighborhood].filter(Boolean).join(', ') || 'לחץ לצפייה במיקום'}</div>
+                    <div style={{ fontSize:12, color:`${C.cream}99` }}>{[prop.location, prop.neighborhood].filter(Boolean).join(', ') || 'לחץ לצפייה במיקום'}</div>
                   </div>
                   <FaExternalLinkAlt size={12} style={{ color:`${C.cream}44`, flexShrink:0 }}/>
                 </a>
@@ -4709,7 +4760,7 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
           const similar = properties.filter(p => p.published !== false && p.id !== prop.id).slice(0, 6)
           if (!similar.length) return null
           const fmtP = p => {
-            if (!p) return 'מחיר בפנייה'
+            if (!(Number(String(p ?? '').replace(/[^\d]/g, '')) >= 100)) return lang === 'en' ? 'Price on request' : 'מחיר בפנייה'   // ₪0 / ₪1 = a placeholder, not a price
             const n = Number(String(p).replace(/[^\d]/g,''))
             if (n >= 1000000) return `${(n/1000000).toFixed(2).replace(/\.?0+$/,'')} מיל׳ ₪`
             if (n >= 1000) return `${Math.round(n/1000).toLocaleString('he-IL')} אלף ₪`
@@ -4738,8 +4789,9 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
                           : <div style={{ width:'100%', height:'100%', display:'flex', alignItems:'center', justifyContent:'center' }}><spCat.Icon size={36} style={{ color:'rgba(255,255,255,.15)' }}/></div>
                         }
                         {/* Heart save button */}
-                        <button onClick={e=>{e.stopPropagation()}}
-                          style={{ position:'absolute', top:10, left:10, width:32, height:32, borderRadius:'50%', background:'rgba(0,0,0,.5)', border:'1px solid rgba(255,255,255,.2)', color:'rgba(255,255,255,.7)', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', backdropFilter:'blur(8px)' }}>
+                        <button onClick={e=>{e.stopPropagation(); toggleFav(sp.id)}}
+                          aria-label={lang === 'en' ? 'Save to favourites' : 'שמירה למועדפים'} aria-pressed={favsSet.has(String(sp.id))}
+                          style={{ position:'absolute', top:10, left:10, width:32, height:32, borderRadius:'50%', background:'rgba(0,0,0,.5)', border:'1px solid rgba(255,255,255,.2)', color: favsSet.has(String(sp.id)) ? '#F87171' : 'rgba(255,255,255,.7)', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', backdropFilter:'blur(8px)' }}>
                           <FaHeart size={11}/>
                         </button>
                         {/* Status badge */}
@@ -4776,7 +4828,7 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
             <h3 style={{ fontSize:20, fontWeight:800, color:C.cream, margin:'0 0 18px', display:'flex', alignItems:'center', gap:10 }}>
               <FaMapMarkerAlt size={16} style={{ color:C.purple }}/> מפת GovMap
               {(prop.gush || prop.helka) ? (
-                <span style={{ fontSize:13, fontWeight:600, color:`${C.cream}66`, background:`${C.purple}15`, borderRadius:6, padding:'3px 12px' }}>
+                <span style={{ fontSize:13, fontWeight:600, color:`${C.cream}99`, background:`${C.purple}15`, borderRadius:6, padding:'3px 12px' }}>
                   גוש {prop.gush}{prop.helka ? ` · חלקה ${prop.helka}` : ''}{prop.subHelka ? ` · תת ${prop.subHelka}` : ''}
                 </span>
               ) : (
@@ -4865,7 +4917,7 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
 // memo: the page re-renders on things like the active nav item — this section only when its own props change
 const PropertyCard = memo(PropertyCardImpl)
 function PropertyCardImpl({ prop, onContact, onSelect }) {
-  const { C, lang } = useTheme()
+  const { C, isDark, lang } = useTheme()
   const tt = TR[lang] || TR.he
   const favs = useFavs()
   const isFav = favs.has(String(prop.id))
@@ -4881,7 +4933,7 @@ function PropertyCardImpl({ prop, onContact, onSelect }) {
 
   const cardIsRental = prop.txType === 'rent' || prop.status === 'הושכר' || prop.status === 'להשכרה'
   const fmt = p => {
-    if (!p) return 'מחיר בפנייה'
+    if (!(Number(String(p ?? '').replace(/[^\d]/g, '')) >= 100)) return lang === 'en' ? 'Price on request' : 'מחיר בפנייה'   // ₪0 / ₪1 = a placeholder, not a price
     const n = Number(String(p).replace(/[^\d]/g,''))
     const base = n >= 1000000 ? `${(n/1000000).toFixed(2).replace(/\.?0+$/,'')} מיל׳ ₪`
                 : n >= 1000   ? `${Math.round(n/1000).toLocaleString('he-IL')} אלף ₪`
@@ -5003,7 +5055,7 @@ function PropertyCardImpl({ prop, onContact, onSelect }) {
         </div>
         {/* Category badge — bottom left over scrim */}
         <div style={{ position:'absolute', bottom:12, left:10, display:'flex', gap:5, zIndex:3 }}>
-          <span style={{ background:C.purple, color:'#fff', borderRadius:5, padding:'4px 10px', fontSize:10, fontWeight:700, letterSpacing:'.03em' }}>{cat.label}</span>
+          <span style={{ background:C.purple, color: isDark ? '#09090F' : '#fff', borderRadius:5, padding:'4px 10px', fontSize:10, fontWeight:700, letterSpacing:'.03em' }}>{cat.label}</span>
           {prop.type && <span style={{ background:'rgba(0,0,0,0.72)', color:'rgba(255,255,255,.88)', borderRadius:5, padding:'4px 10px', fontSize:10, fontWeight:600 }}>{prop.type}</span>}
         </div>
       </div>
@@ -5015,7 +5067,7 @@ function PropertyCardImpl({ prop, onContact, onSelect }) {
         <h3 style={{ fontSize:17, fontWeight:800, color:C.cream, lineHeight:1.3, marginBottom:5, display:'-webkit-box', WebkitLineClamp:2, WebkitBoxOrient:'vertical', overflow:'hidden' }}>{prop.title || '—'}</h3>
 
         {/* Location */}
-        <div style={{ display:'flex', alignItems:'center', gap:5, fontSize:12, color:`${C.cream}55`, marginBottom:10 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:5, fontSize:12, color:`${C.cream}99`, marginBottom:10 }}>
           <FaMapMarkerAlt size={9} style={{ color:C.purple, flexShrink:0 }}/>
           {[prop.location, prop.neighborhood].filter(Boolean).join(' · ') || '—'}
         </div>
@@ -5036,7 +5088,7 @@ function PropertyCardImpl({ prop, onContact, onSelect }) {
           <div>
             <div className="prop-card-price" style={{ color:C.cream }}>{fmt(prop.price)}</div>
             {prop.priceNegotiable && <div style={{ fontSize:9, color:C.green, fontWeight:700, marginTop:2, letterSpacing:'.04em' }}>✓ מחיר גמיש</div>}
-            {!!ppsqm && !prop.priceNegotiable && <div style={{ fontSize:10, color:`${C.cream}55`, marginTop:2, fontWeight:600 }}>₪{ppsqm.toLocaleString('he-IL')} {tt.perSqm}</div>}
+            {!!ppsqm && !prop.priceNegotiable && <div style={{ fontSize:10, color:`${C.cream}99`, marginTop:2, fontWeight:600 }}>₪{ppsqm.toLocaleString('he-IL')} {tt.perSqm}</div>}
           </div>
           <button
             onClick={e => { e.stopPropagation(); onSelect(prop) }}
@@ -5311,6 +5363,12 @@ export default function App() {
 
   useEffect(() => {
     if (DASHBOARD_MODE) return
+    // A phone gets the full-screen dashboard (sidebar drawer + bottom bar), never the in-site window, whose
+    // wrapped tab grid and short panes don't fit a phone screen. The session survives the reload.
+    if (showAdmin && adminAuth && window.matchMedia?.('(max-width: 900px)').matches) {
+      window.location.replace('/admin-panel' + (window.location.pathname.startsWith('/admin-panel') ? window.location.pathname.slice('/admin-panel'.length) : ''))
+      return
+    }
     if (showAdmin && adminAuth) {
       if (!window.location.pathname.startsWith('/admin-panel')) history.replaceState({}, '', '/admin-panel')
     } else {
@@ -5688,6 +5746,82 @@ export default function App() {
   const openContactStable  = useStableFn(openContact)
   const openPropertyStable = useStableFn(openProperty)
 
+  // The property wizard: the site's and the full-screen dashboard's (edit from the property list)
+  const wizardEl = showWizard && <Suspense fallback={null}><PropertyWizard
+          key={wizardEditId || wizardKey}
+          onClose={() => { setShowWizard(false); setWizardEditData(null); setWizardEditId(null); setWizardIntakeId(null) }}
+          initialData={wizardEditData}
+          editId={wizardEditId}
+          govmapToken={govmapToken}
+          onPublish={(prop, isDraft) => {
+            if (wizardIntakeId) {
+              // opened from "נכסים שנקלטו": record the link + status on the intake record
+              fetch(`/api/seller-form?action=linked&id=${encodeURIComponent(wizardIntakeId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` }, body: JSON.stringify({ propertyId: wizardEditId || prop.id, published: !isDraft }) }).catch(() => {})
+              setWizardIntakeId(null)
+            }
+            let nextProps
+            if (wizardEditId) {
+              const oldProp = properties.find(x => String(x.id) === String(wizardEditId)) || {}
+              const merged = {
+                ...oldProp,                                    // keeps what the wizard doesn't edit (sortOrder, exclusive, …)
+                ...prop,
+                id: wizardEditId,                              // critical: never let wizardToProperty's Date.now() id override
+                status: oldProp.status || prop.status,
+                createdAt: oldProp.createdAt || prop.createdAt,
+                published: isDraft ? false : (prop.published ?? oldProp.published ?? true),
+              }
+              nextProps = properties.map(x => String(x.id) === String(wizardEditId) ? merged : x)
+            } else {
+              nextProps = [...properties, prop]
+            }
+            // Determine the exact property that was added/updated and save only it
+            const savedProp = wizardEditId
+              ? nextProps.find(x => String(x.id) === String(wizardEditId))
+              : nextProps[nextProps.length - 1]
+            setProperties(nextProps)
+            setWizardEditData(null)
+            setWizardEditId(null)
+            setShowWizard(false)
+            if (!isDraft && prop.published !== false) {
+              setTimeout(() => scrollTo('properties'), 350)
+            }
+            // Save only the affected property — safe, atomic, never touches others
+            const base = API_BASE || ''
+            if (base && savedProp) {
+              const cleanP = externalizeInlinePhotos(savedProp, ADMIN_TOKEN)
+              // The durable copy (the properties table, through Vercel) — the site reads this one, Render up or not
+              cleanP.then(cleanProp => mirrorProperty(cleanProp, ADMIN_TOKEN)).then(m => { if (m && m.ok) notifyPropertiesChanged(ADMIN_TOKEN) })
+              cleanP.then(cleanProp => fetch(`${base}/api/properties/${savedProp.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+                body: JSON.stringify(cleanProp),
+                signal: AbortSignal.timeout(30000),
+              }).then(r => r.ok ? r.json() : Promise.reject(r.status))
+                .then(body => {
+                  console.log('[wizard] saved prop', savedProp.id, '→', body.storage)
+                  notifyPropertiesChanged(ADMIN_TOKEN)   // snapshot + instant landing pages follow
+                  // Re-fetch after confirmed save so UI reflects what the server actually stored
+                  return fetchAdminProperties()
+                    .then(data => {
+                      if (Array.isArray(data) && data.length > 0) {
+                        setProperties(prev => {
+                          if (!prev.length) return data
+                          if (data.length < prev.length) return prev
+                          const localById = new Map(prev.map(p => [String(p.id), p]))
+                          return data.map(sp => {
+                            const lp = localById.get(String(sp.id))
+                            if (!lp) return sp
+                            return ((sp.updatedAt || 0) >= (lp.updatedAt || 0)) ? { ...lp, ...sp } : lp
+                          })
+                        })
+                      }
+                    })
+                })
+                .catch(e => console.error('[wizard] save error:', e)))
+            }
+          }}
+        /></Suspense>
+
   // ── Standalone dashboard at /dashboard ──────────────────────────────────────
   if (DASHBOARD_MODE) {
     return (
@@ -5703,6 +5837,7 @@ export default function App() {
               onClose={() => { window.location.href = '/' }}
             />
           )}
+          {wizardEl}
           {adminAuth && (
             <Suspense fallback={null}>
             <AdminPanel
@@ -5738,6 +5873,9 @@ export default function App() {
     <>
       <style>{GLOBAL}</style>
 
+      {/* Skip link: the first Tab stop on the page (styles: .a11y-skip in AccessibilityWidget's CSS) */}
+      <a href="#main-content" className="a11y-skip">{lang === 'en' ? 'Skip to main content' : 'דלג לתוכן הראשי'}</a>
+
       {/* UI/UX Pro Max: Ambient Backdrop */}
       <AmbientBackdrop/>
 
@@ -5761,14 +5899,22 @@ export default function App() {
         <button
           className={`hamburger-btn${mobileOpen?' open':''}`}
           onClick={() => setMobileOpen(o=>!o)}
-          aria-label="תפריט"
+          aria-label={lang === 'en' ? 'Menu' : 'תפריט'}
+          aria-expanded={mobileOpen}
         >
           <MenuToggleIcon open={mobileOpen} size={59} color="currentColor" duration={480}/>
         </button>
 
+        {/* ── Logo next to the menu button (phones: the centre is taken by the tools) ── */}
+        <a href="#home" className="mobile-logo-nav" aria-label={lang === 'en' ? 'Afik Hanahal, back to top' : 'אפיק הנחל, לראש העמוד'}>
+          <Logo size={44}/>
+        </a>
+
         {/* ── CENTER: Logo (desktop only) ── */}
         <div style={{ position:'absolute', left:'50%', top:'50%', transform:'translate(-50%,-50%)', pointerEvents:'none' }} className="desktop-logo-nav">
-          <Logo size={logoNavSize}/>
+          <a href="#home" aria-label={lang === 'en' ? 'Afik Hanahal, back to top' : 'אפיק הנחל, לראש העמוד'} style={{ pointerEvents:'auto', display:'block', lineHeight:0 }}>
+            <Logo size={logoNavSize}/>
+          </a>
         </div>
 
         {/* ── LEFT edge: Social icons + tools + lang ── */}
@@ -5864,7 +6010,8 @@ export default function App() {
       )}
 
       {/* ── HERO (with Parallax blobs) ────────────────── */}
-      <section id="home" role="main" tabIndex={-1} aria-label="תוכן ראשי" style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', padding:'90px 24px 72px', scrollMarginTop:80, position:'relative', overflow:'hidden', textAlign:'center', zIndex:1 }}>
+      <span id="main-content" tabIndex={-1} style={{ position:'absolute', top:82, width:1, height:1, overflow:'hidden' }}/>
+      <section id="home" role="main" tabIndex={-1} aria-label={lang === 'en' ? 'Main content' : 'תוכן ראשי'} style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', padding:'90px 24px 72px', scrollMarginTop:80, position:'relative', overflow:'hidden', textAlign:'center', zIndex:1 }}>
 
         {/* UI/UX Pro Max: Parallax blobs — outer div moves with scroll, inner animates */}
         <div style={{ position:'absolute', top:'20%', right:'-8%', pointerEvents:'none', transform:'translate3d(0,0,0)', willChange:'transform' }} ref={el => { parallaxRefs.current[0] = el }}>
@@ -5964,7 +6111,7 @@ export default function App() {
           <div style={{ textAlign:'center', marginBottom:48 }}>
             <SectionBadge color={C.purple}>{TR[lang]?.propertiesTitle}</SectionBadge>
             <h2 style={{ fontSize:'clamp(28px,4vw,52px)', fontWeight:900, color:C.cream, marginBottom:14 }}>{TR[lang]?.propertiesH2}</h2>
-            <p style={{ fontSize:15, color:`${C.cream}77`, maxWidth:520, margin:'0 auto', lineHeight:1.8 }}>
+            <p style={{ fontSize:15, color:`${C.cream}99`, maxWidth:520, margin:'0 auto', lineHeight:1.8 }}>
               {TR[lang]?.propertiesDesc}
             </p>
             {properties.length > 0 && (
@@ -5986,7 +6133,7 @@ export default function App() {
                 <button key={cat.id} onClick={() => { setFilterCat(cat.id); setFilterType(''); setPropPage(0); setCarouselIdx(0) }}
                   style={{ padding: isMobile ? '12px 16px' : '14px 28px', border:'none', borderBottom:`2px solid ${active ? C.purple : 'transparent'}`, background:'transparent', color:active ? C.purple : `${C.cream}55`, fontFamily:'inherit', cursor:'pointer', fontSize: isMobile ? 12 : 13, fontWeight:active?700:500, whiteSpace:'nowrap', transition:'all .2s', display:'flex', alignItems:'center', gap:5, flexShrink:0 }}>
                   {cat.Icon ? <cat.Icon size={12}/> : <span style={{ fontSize:12, opacity:.6 }}>≡</span>} {cat.label}
-                  {count > 0 && <span style={{ background:active?`${C.purple}28`:'rgba(255,255,255,.07)', color:active?C.purple:`${C.cream}55`, borderRadius:10, padding:'2px 7px', fontSize:10, fontWeight:700, minWidth:18, textAlign:'center' }}>{count}</span>}
+                  {count > 0 && <span style={{ background:active?`${C.purple}28`:'rgba(255,255,255,.07)', color:active?C.purple:`${C.cream}99`, borderRadius:10, padding:'2px 7px', fontSize:10, fontWeight:700, minWidth:18, textAlign:'center' }}>{count}</span>}
                 </button>
               )
             })}
@@ -6002,7 +6149,7 @@ export default function App() {
             const showRooms = ['all', 'apartments', 'rentals', 'projects'].includes(filterCat)
             const PRICES = [2000000, 3000000, 4000000, 5000000, 7000000, 10000000, 15000000]
             const wrap = { position:'relative', display:'inline-flex', alignItems:'center' }
-            const caret = <FaChevronLeft size={9} style={{ position:'absolute', right:12, top:'50%', transform:'translateY(-50%) rotate(-90deg)', color:`${C.cream}55`, pointerEvents:'none' }}/>
+            const caret = <FaChevronLeft size={9} style={{ position:'absolute', right:12, top:'50%', transform:'translateY(-50%) rotate(-90deg)', color:`${C.cream}99`, pointerEvents:'none' }}/>
             return (
               <div className="prop-filters" style={{ display:'flex', flexDirection:'column', gap:12, marginBottom:28, alignItems:'center' }}>
                 {/* City chips */}
@@ -6012,7 +6159,7 @@ export default function App() {
                     <button style={chip(!filterCity)} onClick={() => { setFilterCity(''); setPropPage(0) }}>{t.allCities}</button>
                     {cityOptions.map(([city, n]) => (
                       <button key={city} style={chip(filterCity === city)} onClick={() => { setFilterCity(filterCity === city ? '' : city); setPropPage(0) }}>
-                        {city} <span style={{ fontSize:10, opacity:.7 }}>{n}</span>
+                        {cityLabel(city, lang)} <span style={{ fontSize:10, opacity:.7 }}>{n}</span>
                       </button>
                     ))}
                   </div>
@@ -6050,7 +6197,7 @@ export default function App() {
                       <option value="priceDesc">{t.sortLabel}: {t.sortPriceDesc}</option>
                     </select>{caret}
                   </span>
-                  {hasSmartFilters && <button style={chip(false, { color:`${C.cream}70`, borderStyle:'dashed' })} onClick={clearSmartFilters}>✕ {t.clearFilters}</button>}
+                  {hasSmartFilters && <button style={chip(false, { color:`${C.cream}99`, borderStyle:'dashed' })} onClick={clearSmartFilters}>✕ {t.clearFilters}</button>}
                 </div>
               </div>
             )
@@ -6144,7 +6291,7 @@ export default function App() {
                               <button onClick={() => setPropPage(999)} style={ghostBtn} onMouseEnter={ghostIn} onMouseLeave={ghostOut}>{fmtT(t.showAllProps, { total: filtered.length })}</button>
                             </div>
                           ) : (
-                            <div style={{ display:'flex', alignItems:'center', gap:12, flexWrap:'wrap', justifyContent:'center', fontSize:13, color:`${C.cream}70` }}>
+                            <div style={{ display:'flex', alignItems:'center', gap:12, flexWrap:'wrap', justifyContent:'center', fontSize:13, color:`${C.cream}99` }}>
                               <span>{fmtT(t.allPropsShown, { total: filtered.length })}</span>
                               <button onClick={() => { setPropPage(0); jumpTop() }} style={{ ...ghostBtn, width:'auto', padding:'8px 14px', fontSize:12 }} onMouseEnter={ghostIn} onMouseLeave={ghostOut}>{t.collapseProps}</button>
                             </div>
@@ -6167,7 +6314,7 @@ export default function App() {
                         {/* ‹ LEFT arrow → next card in RTL (idx+1) */}
                         <button aria-label={t.nextProp} onClick={() => goTo((carouselIdx + 1) % filtered.length)} style={arrow}><FaChevronLeft size={12}/></button>
                         <span style={{ fontSize:13, color:`${C.cream}80`, fontWeight:700, letterSpacing:'.04em' }}>
-                          <span style={{ color:C.purple }}>{carouselIdx + 1}</span> / {filtered.length} · <span style={{ fontWeight:500, color:`${C.cream}55` }}>{t.swipeHint}</span>
+                          <span style={{ color:C.purple }}>{carouselIdx + 1}</span> / {filtered.length} · <span style={{ fontWeight:500, color:`${C.cream}99` }}>{t.swipeHint}</span>
                         </span>
                         {/* › RIGHT arrow → previous card in RTL (idx-1) */}
                         <button aria-label={t.prevProp} onClick={() => goTo((carouselIdx - 1 + filtered.length) % filtered.length)} style={arrow}><FaChevronRight size={12}/></button>
@@ -6248,7 +6395,7 @@ export default function App() {
                   <FaPhone size={18} style={{ color:C.green }}/>
                 </div>
                 <div className="contact-card-text" style={{ flex:1, textAlign:'right' }}>
-                  <div style={{ fontSize:11, fontWeight:600, color:`${C.cream}60`, marginBottom:3, letterSpacing:'.04em', textTransform:'uppercase' }}>{TR[lang]?.phoneLabel}</div>
+                  <div style={{ fontSize:11, fontWeight:600, color:`${C.cream}99`, marginBottom:3, letterSpacing:'.04em', textTransform:'uppercase' }}>{TR[lang]?.phoneLabel}</div>
                   <div style={{ fontSize:22, fontWeight:800, color:C.green, direction:'ltr', letterSpacing:'.01em' }}>055-981-1814</div>
                 </div>
               </a>
@@ -6262,7 +6409,7 @@ export default function App() {
                   <FaWhatsapp size={20} style={{ color:'#25D366' }}/>
                 </div>
                 <div className="contact-card-text" style={{ flex:1, textAlign:'right' }}>
-                  <div style={{ fontSize:11, fontWeight:600, color:`${C.cream}60`, marginBottom:3, letterSpacing:'.04em', textTransform:'uppercase' }}>WhatsApp</div>
+                  <div style={{ fontSize:11, fontWeight:600, color:`${C.cream}99`, marginBottom:3, letterSpacing:'.04em', textTransform:'uppercase' }}>WhatsApp</div>
                   <div style={{ fontSize:18, fontWeight:800, color:'#25D366' }}>{TR[lang]?.whatsappSend}</div>
                 </div>
               </a>
@@ -6273,7 +6420,7 @@ export default function App() {
                   <FaMapMarkerAlt size={18} style={{ color:C.purple }}/>
                 </div>
                 <div className="contact-card-text" style={{ flex:1, textAlign:'right' }}>
-                  <div style={{ fontSize:11, fontWeight:600, color:`${C.cream}60`, marginBottom:3, letterSpacing:'.04em', textTransform:'uppercase' }}>{TR[lang]?.operatingAreaLabel}</div>
+                  <div style={{ fontSize:11, fontWeight:600, color:`${C.cream}99`, marginBottom:3, letterSpacing:'.04em', textTransform:'uppercase' }}>{TR[lang]?.operatingAreaLabel}</div>
                   <div style={{ fontSize:15, fontWeight:700, color:C.cream }}>{TR[lang]?.areaServed}</div>
                 </div>
               </div>
@@ -6476,79 +6623,7 @@ export default function App() {
         </div>
       )}
       {selectedProp && <PropertyModal key={selectedProp.id} prop={selectedProp} properties={properties} onClose={() => { setSelectedProp(null); setPropInUrl(null) }} onContact={p => { openContact(p) }} onSelect={p => { setSelectedProp(p); setPropInUrl(p) }} govmapToken={govmapToken}/>}
-      {showWizard && <Suspense fallback={null}><PropertyWizard
-          key={wizardEditId || wizardKey}
-          onClose={() => { setShowWizard(false); setWizardEditData(null); setWizardEditId(null); setWizardIntakeId(null) }}
-          initialData={wizardEditData}
-          editId={wizardEditId}
-          govmapToken={govmapToken}
-          onPublish={(prop, isDraft) => {
-            if (wizardIntakeId) {
-              // opened from "נכסים שנקלטו": record the link + status on the intake record
-              fetch(`/api/seller-form?action=linked&id=${encodeURIComponent(wizardIntakeId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` }, body: JSON.stringify({ propertyId: wizardEditId || prop.id, published: !isDraft }) }).catch(() => {})
-              setWizardIntakeId(null)
-            }
-            let nextProps
-            if (wizardEditId) {
-              const oldProp = properties.find(x => String(x.id) === String(wizardEditId)) || {}
-              const merged = {
-                ...prop,
-                id: wizardEditId,                              // critical: never let wizardToProperty's Date.now() id override
-                status: oldProp.status || prop.status,
-                createdAt: oldProp.createdAt || prop.createdAt,
-                published: isDraft ? false : (prop.published ?? oldProp.published ?? true),
-              }
-              nextProps = properties.map(x => String(x.id) === String(wizardEditId) ? merged : x)
-            } else {
-              nextProps = [...properties, prop]
-            }
-            // Determine the exact property that was added/updated and save only it
-            const savedProp = wizardEditId
-              ? nextProps.find(x => String(x.id) === String(wizardEditId))
-              : nextProps[nextProps.length - 1]
-            setProperties(nextProps)
-            setWizardEditData(null)
-            setWizardEditId(null)
-            setShowWizard(false)
-            if (!isDraft && prop.published !== false) {
-              setTimeout(() => scrollTo('properties'), 350)
-            }
-            // Save only the affected property — safe, atomic, never touches others
-            const base = API_BASE || ''
-            if (base && savedProp) {
-              const cleanP = externalizeInlinePhotos(savedProp, ADMIN_TOKEN)
-              // The durable copy (the properties table, through Vercel) — the site reads this one, Render up or not
-              cleanP.then(cleanProp => mirrorProperty(cleanProp, ADMIN_TOKEN)).then(m => { if (m && m.ok) notifyPropertiesChanged(ADMIN_TOKEN) })
-              cleanP.then(cleanProp => fetch(`${base}/api/properties/${savedProp.id}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
-                body: JSON.stringify(cleanProp),
-                signal: AbortSignal.timeout(30000),
-              }).then(r => r.ok ? r.json() : Promise.reject(r.status))
-                .then(body => {
-                  console.log('[wizard] saved prop', savedProp.id, '→', body.storage)
-                  notifyPropertiesChanged(ADMIN_TOKEN)   // snapshot + instant landing pages follow
-                  // Re-fetch after confirmed save so UI reflects what the server actually stored
-                  return fetchAdminProperties()
-                    .then(data => {
-                      if (Array.isArray(data) && data.length > 0) {
-                        setProperties(prev => {
-                          if (!prev.length) return data
-                          if (data.length < prev.length) return prev
-                          const localById = new Map(prev.map(p => [String(p.id), p]))
-                          return data.map(sp => {
-                            const lp = localById.get(String(sp.id))
-                            if (!lp) return sp
-                            return ((sp.updatedAt || 0) >= (lp.updatedAt || 0)) ? { ...lp, ...sp } : lp
-                          })
-                        })
-                      }
-                    })
-                })
-                .catch(e => console.error('[wizard] save error:', e)))
-            }
-          }}
-        /></Suspense>}
+      {wizardEl}
       {showAdmin && adminAuth && (
         <ThemeCtx.Provider value={adminThemeValue}>
         <Suspense fallback={null}>
@@ -6577,7 +6652,7 @@ export default function App() {
       {!(showAdmin && adminAuth) && <AccessibilityWidget/>}
 
       {/* ── COOKIE CONSENT ──────────────────────────── */}
-      <CookieConsent C={C} isDark={isDark}/>
+      <CookieConsent C={C} isDark={isDark} lang={lang} onPrivacy={() => setShowPrivacy(true)}/>
     </>
     </ThemeCtx.Provider>
   )

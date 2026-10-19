@@ -1325,7 +1325,7 @@ async function uploadDirect(file, kind, onProgress) {
     if (!r.ok || !meta?.signedUrl) throw new Error(`API ${r.status}${meta?.error ? ': ' + meta.error : ''}`)
     let xhr
     try {
-      xhr = await xhrSend({ method: 'PUT', url: meta.signedUrl, body: file, headers: { 'Content-Type': file.type || 'application/octet-stream', 'x-upsert': 'true' }, onProgress })
+      xhr = await xhrSend({ method: 'PUT', url: meta.signedUrl, body: file, headers: { 'Content-Type': file.type || 'application/octet-stream', 'x-upsert': 'true', 'cache-control': 'max-age=31536000' }, onProgress })
     } catch (e) { throw new Error(`Supabase Storage לא נגיש (${e.message})`) }
     if (xhr.status < 200 || xhr.status >= 300) { const d = parseJson(xhr); throw new Error(`Supabase Storage ${xhr.status}${d?.message || d?.error ? ': ' + (d.message || d.error) : ''}`) }
     return { url: meta.url, path: meta.path, name: file.name }
