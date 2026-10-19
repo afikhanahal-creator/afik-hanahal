@@ -265,7 +265,8 @@ export default async function handler(req, res) {
     const feed = createFeed({ renderUrl: RENDER, ...supa, transformList: list => slimList(list, supa).then(r => r.list) })
     const slim = await slimInlinePhotos({ ...supa, budgetMs: 15000, onDone: async list => ({ snapshot: await feed.pushSnapshot(list) }) })
     const snap = await feed.cleanSnapshot().catch(e => ({ changed: false, reason: e.message }))
-    if (slim.uploaded || snap.changed) await propertiesChanged({ renderUrl: RENDER, ...supa }).catch(() => {})
+    // daily: also catches a change whose rebuild waited (≤ once / 2 h); an unchanged list never rebuilds (lib/site-rebuild.js)
+    out.rebuild = (await propertiesChanged({ renderUrl: RENDER, ...supa }).catch(e => ({ rebuild: `error: ${e.message}` }))).rebuild
     out.inlinePhotos = { table: { scanned: slim.scanned, uploaded: slim.uploaded, remaining: slim.remaining, error: slim.error }, snapshot: snap, errors: (slim.errors || []).slice(0, 5) }
   } catch (e) { out.inlinePhotos = { error: e.message } }
   // Supabase egress (free plan ~5 GB/month, used up in October 2026): oversized photo originals re-encoded in place

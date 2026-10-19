@@ -667,6 +667,13 @@ Rules that keep it near zero:
   branches build no preview (`vercel.json` `git.deploymentEnabled`) — on 2026-10-19 previews were 68 of the 100 and production
   deploys were refused ("Deployment rate limited — retry in 24 hours"); the probe's `rebuild` action redeploys once the
   window frees up.
+- **Deployment Storage (Hobby: 10 GB, every kept deployment counts; ~75 % on 2026-10-19 after ~210 previews + ~105 production
+  deploys in 30 days).** Hobby is never billed for it: past 10 GB Vercel deletes old unprotected deployments at once and may
+  block new deploys until space frees up. Keep the count low: no previews for `claude/*`, one production deploy per merged
+  change, and the deploy hook (`lib/site-rebuild.js`, tested) rebuilds only when the published property list's hash differs
+  from the last rebuild's, at most once every 2 hours (the daily cron catches a change that waited; the probe's `rebuild` sends
+  `force=1`). In the dashboard: project → Settings → Deployment Retention → preview / canceled / errored 1 day, production 1
+  week (the current production deployment is always kept).
 - Measure with the "Site speed probe" action, `actions: traffic`: wire size, gzip and the 304 of every API answer, and
   the photo sizes through the CDN. Usage itself: vercel.com → the team → Usage → Fast Origin Transfer.
 
