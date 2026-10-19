@@ -68,6 +68,7 @@ const TR = {
     welcomeSent: 'הודעת פתיחה נשלחה', welcomeNot: 'עדיין לא נשלחה הודעה', welcomeNow: 'שלח הודעת פתיחה עכשיו', welcomeNoPhone: 'אין מספר טלפון — אי אפשר לשלוח',
     call: 'התקשר', whatsapp: 'וואטסאפ', copy: 'העתק', copied: 'הועתק', archive: 'ארכיון', back: 'חזרה לרשימה',
     received: 'התקבל', source: 'מקור', details: 'פרטי הליד', conversation: 'שיחה', composer: 'כתוב הודעה ללקוח — נשלחת מהוואטסאפ של המשרד…',
+    renameTip: 'לחצו לעריכת השם', renameLbl: 'שם הליד', addProject: p => `+ הוספת הפרויקט: ${p}`, removeProject: 'הסרת שם הפרויקט', nameSave: 'שמירה', nameCancel: 'ביטול', nameFail: 'שמירת השם נכשלה', nameHint: 'השם מתעדכן כאן, ב-CRM ובצ׳אטים',
     sendBtn: 'שלח', sendFailed: 'השליחה נכשלה', testLead: 'ליד בדיקה', showTest: 'הצג לידי בדיקה', hideTestL: 'הסתר לידי בדיקה',
     overview: 'סקירה', needAttention: 'ממתינים לטיפול', needAttentionDesc: 'לידים מ-14 הימים האחרונים שעדיין לא טופלו', allHandled: 'כל הלידים האחרונים טופלו 🎉',
     byCampaign: 'לידים לפי קמפיין · 30 יום', noRecent: 'אין לידים ב-30 הימים האחרונים', health: 'מצב החיבור',
@@ -129,6 +130,7 @@ const TR = {
     welcomeSent: 'Welcome message sent', welcomeNot: 'No message sent yet', welcomeNow: 'Send the welcome message now', welcomeNoPhone: 'No phone number — nothing to send to',
     call: 'Call', whatsapp: 'WhatsApp', copy: 'Copy', copied: 'Copied', archive: 'Archive', back: 'Back to the list',
     received: 'Received', source: 'Source', details: 'Lead details', conversation: 'Conversation', composer: 'Write to the lead — sent from the office WhatsApp…',
+    renameTip: 'Click to edit the name', renameLbl: 'Lead name', addProject: p => `+ Add the project: ${p}`, removeProject: 'Remove the project name', nameSave: 'Save', nameCancel: 'Cancel', nameFail: 'Could not save the name', nameHint: 'Updates here, in the CRM and in the chats',
     sendBtn: 'Send', sendFailed: 'Sending failed', testLead: 'Test lead', showTest: 'Show test leads', hideTestL: 'Hide test leads',
     overview: 'Overview', needAttention: 'Needs attention', needAttentionDesc: 'Leads from the last 14 days not handled yet', allHandled: 'All recent leads are handled 🎉',
     byCampaign: 'Leads by campaign · 30 days', noRecent: 'No leads in the last 30 days', health: 'Connection status',
@@ -297,7 +299,7 @@ function loadLayout() {
 const PATCH = (body) => fetch('/api/meta/leads', { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` }, body: JSON.stringify(body) })
 
 // ── Main component ────────────────────────────────────────────────────────────
-export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat, onNewLead, onNewMetaMessage, onSentMetaMessage, crmLeads = [], autoConfig = null, onAutoConfigSaved }) {
+export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onLeadRenamed, onOpenChat, onNewLead, onNewMetaMessage, onSentMetaMessage, crmLeads = [], autoConfig = null, onAutoConfigSaved }) {
   const t = TR[lang] || TR.he
   const dir = lang === 'en' ? 'ltr' : 'rtl'
 
@@ -343,6 +345,21 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
   const selectedLead = useMemo(() => leads.find(l => l.id === selectedId) || null, [leads, selectedId])
   const patchLead = useCallback((id, changes) => setLeads(prev => prev.map(l => (l.id === id ? { ...l, ...changes } : l))), [])
   const selectLead = useCallback(id => { setSelectedId(id); setPane('chat') }, [])
+  // the name editor (click the name in the list or the header): saved to meta_leads, the CRM copy and the chats' names
+  const [nameEdit, setNameEdit] = useState(null)    // { id, value, busy, err }
+  const startNameEdit = useCallback(lead => setNameEdit({ id: lead.id, value: lead.name || '', busy: false, err: false }), [])
+  const saveName = async lead => {
+    const v = String(nameEdit?.value || '').replace(/\s+/g, ' ').trim()
+    if (!v || v === lead.name) { setNameEdit(null); return }
+    setNameEdit(e => ({ ...e, busy: true, err: false }))
+    try {
+      const r = await PATCH({ id: lead.id, name: v })
+      if (!r.ok) throw new Error(String(r.status))
+      patchLead(lead.id, { name: v })
+      onLeadRenamed?.(lead, v)
+      setNameEdit(null)
+    } catch { setNameEdit(e => (e ? { ...e, busy: false, err: true } : e)) }
+  }
 
   const leadsIntervalRef      = useRef(null)
   const messagesIntervalRef   = useRef(null)
@@ -749,6 +766,15 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
         .lc-btn.danger{color:#DC2626;border-color:rgba(229,72,77,.3);background:rgba(229,72,77,.06)}
         html[data-admin-theme="dark"] .lc-btn.danger{color:#F87171}
         .lc-btn.icon{padding:0;width:34px}
+        .lc-name{cursor:text;border-radius:5px}
+        .lc-name:hover{text-decoration:underline dotted rgba(var(--brand-rgb),.6);text-underline-offset:3px}
+        .lc-name-btn{all:unset;cursor:text;border-radius:6px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
+        .lc-name-btn:hover,.lc-name-btn:focus-visible{background:rgba(var(--brand-rgb),.08);box-shadow:0 0 0 4px rgba(var(--brand-rgb),.08)}
+        .lc-name-btn:focus-visible{outline:2px solid var(--au-brand);outline-offset:2px}
+        .lc-name-pen{font-size:13px;font-weight:400;color:${FAINT};opacity:0;transition:opacity .12s}
+        .lc-name-btn:hover .lc-name-pen,.lc-name-btn:focus-visible .lc-name-pen{opacity:1}
+        .lc-name-form{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+        .lc-name-in{flex:1 1 200px;min-width:0;min-height:34px;padding:0 11px;border-radius:9px;border:1px solid rgba(var(--brand-rgb),.5);background:var(--au-card-solid);color:${CREAM};font:inherit;font-size:14.5px;font-weight:700;outline:none;box-shadow:0 0 0 3px rgba(var(--brand-rgb),.15)}
         .lc-chip{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;white-space:nowrap;line-height:1.6}
         .lc-chip.ok{color:#15803D;background:rgba(34,197,94,.13)} html[data-admin-theme="dark"] .lc-chip.ok{color:#4ADE80}
         .lc-chip.warn{color:#B45309;background:rgba(245,158,11,.14)} html[data-admin-theme="dark"] .lc-chip.warn{color:#FBBF24}
@@ -918,7 +944,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                      <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, fontWeight: 700, color: CREAM, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{isTestLead(lead) ? t.testLead : (lead.name || '—')}</span>
+                      <span className="lc-name" title={t.renameTip} onClick={e => { e.stopPropagation(); selectLead(lead.id); startNameEdit(lead) }} style={{ flex: 1, minWidth: 0, fontSize: 13.5, fontWeight: 700, color: CREAM, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{isTestLead(lead) ? t.testLead : (lead.name || '—')}</span>
                       <span style={{ fontSize: 11, color: FAINT, flexShrink: 0, fontFeatureSettings: '"tnum"' }}>{fmtWhen(lead.created_at, lang)}</span>
                     </div>
                     <div style={{ fontSize: 12, color: MUTED, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={getCampaignLabel(lead) || ''}>
@@ -1025,7 +1051,25 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
                       {narrow && <button className="lc-btn icon" onClick={() => setSelectedId(null)} aria-label={t.back} title={t.back}>{dir === 'rtl' ? '→' : '←'}</button>}
                       <Avatar lead={selectedLead} size={narrow ? 38 : 42}/>
                       <div style={{ flex: '1 1 180px', minWidth: 0 }}>
-                        <h2 style={{ margin: 0, fontSize: narrow ? 16 : 17, fontWeight: 800, color: CREAM, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{isTestLead(selectedLead) ? t.testLead : (selectedLead.name || '—')}</h2>
+                        {nameEdit?.id === selectedLead.id ? (() => {
+                          const proj = shortLabel(selectedLead), suffix = proj ? ` · ${proj}` : ''
+                          const has = !!suffix && nameEdit.value.trim().endsWith(suffix.trim())
+                          const toggle = () => setNameEdit(e => ({ ...e, value: has ? e.value.trim().slice(0, -suffix.length).trim() : `${e.value.trim()}${suffix}` }))
+                          return (
+                            <form className="lc-name-form" onSubmit={e => { e.preventDefault(); saveName(selectedLead) }}>
+                              <input autoFocus className="lc-name-in" aria-label={t.renameLbl} maxLength={80} value={nameEdit.value}
+                                onChange={e => setNameEdit(x => ({ ...x, value: e.target.value, err: false }))} onKeyDown={e => { if (e.key === 'Escape') { e.preventDefault(); setNameEdit(null) } }}/>
+                              {proj && <button type="button" className="lc-btn" onClick={toggle}>{has ? t.removeProject : t.addProject(proj)}</button>}
+                              <button type="submit" className="lc-btn primary" disabled={nameEdit.busy || !nameEdit.value.trim()}>{nameEdit.busy ? '…' : t.nameSave}</button>
+                              <button type="button" className="lc-btn" onClick={() => setNameEdit(null)}>{t.nameCancel}</button>
+                              <span style={{ flexBasis: '100%', fontSize: 11.5, color: nameEdit.err ? '#DC2626' : FAINT }} role={nameEdit.err ? 'alert' : undefined}>{nameEdit.err ? t.nameFail : t.nameHint}</span>
+                            </form>
+                          )
+                        })() : (
+                          <h2 style={{ margin: 0, fontSize: narrow ? 16 : 17, fontWeight: 800, color: CREAM, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            <button type="button" className="lc-name-btn" title={t.renameTip} onClick={() => startNameEdit(selectedLead)}>{isTestLead(selectedLead) ? t.testLead : (selectedLead.name || '—')}<span aria-hidden="true" className="lc-name-pen">✎</span></button>
+                          </h2>
+                        )}
                         <div style={{ fontSize: 12.5, color: MUTED, marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={getCampaignLabel(selectedLead) || ''}>
                           {shortLabel(selectedLead) || '—'} · {fmtWhen(selectedLead.created_at, lang)}{selectedLead.phone && !narrow ? <> · <bdi>{fmtPhone(selectedLead.phone)}</bdi></> : null}
                         </div>
