@@ -1029,8 +1029,9 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
 
                     items.push(
                       <div key={msg.id||i}
-                        style={{ display:'flex', justifyContent:isOut?'flex-end':'flex-start', marginBottom:isLastInGroup?6:2, flexShrink:0, direction:'rtl', paddingRight:isOut?0:2, paddingLeft:isOut?2:0 }}>
+                        style={{ display:'flex', justifyContent:isOut?'flex-end':'flex-start', marginBottom:isLastInGroup?6:2, flexShrink:0, direction:'ltr', paddingRight:isOut?8:0, paddingLeft:isOut?0:8 }}>
                         <div style={{
+                          direction:'rtl',
                           maxWidth:'65%', minWidth:90,
                           padding:'6px 9px 22px 9px',
                           borderRadius: bubbleRadius,
@@ -1043,14 +1044,15 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                           opacity: isOptimistic ? 0.75 : 1,
                           transition:'opacity .3s',
                         }}>
+                          {/* our messages on the right (tail bottom-right), the contact's on the left (tail bottom-left) */}
                           {isLastInGroup && isOut && (
-                            <svg style={{ position:'absolute', bottom:0, left:-8, width:9, height:13 }} viewBox="0 0 9 13">
-                              <path d="M0 0 Q9 10 9 13 L0 13 Z" fill={bubbleColor}/>
+                            <svg style={{ position:'absolute', bottom:0, right:-8, width:9, height:13 }} viewBox="0 0 9 13" aria-hidden="true">
+                              <path d="M0 0 Q0 10 9 13 L0 13 Z" fill={bubbleColor}/>
                             </svg>
                           )}
                           {isLastInGroup && !isOut && (
-                            <svg style={{ position:'absolute', bottom:0, right:-8, width:9, height:13 }} viewBox="0 0 9 13">
-                              <path d="M9 0 Q0 10 0 13 L9 13 Z" fill={bubbleColor}/>
+                            <svg style={{ position:'absolute', bottom:0, left:-8, width:9, height:13 }} viewBox="0 0 9 13" aria-hidden="true">
+                              <path d="M9 0 Q9 10 0 13 L9 13 Z" fill={bubbleColor}/>
                             </svg>
                           )}
                           {msg.quoted && (
