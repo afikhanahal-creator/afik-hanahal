@@ -41,6 +41,7 @@ const STAGES = [
   { id: 'new', he: 'ליד חדש', en: 'New', color: '#0073EA' },
   { id: 'contacted', he: 'ניצור קשר', en: 'Contacted', color: '#FDAB3D' },
   { id: 'discovery', he: 'גילוי', en: 'Discovery', color: '#A25DDC' },
+  { id: 'meeting', he: 'נקבעה פגישה', en: 'Meeting set', color: '#4F6BED' },
   { id: 'negotiating', he: 'במו״מ', en: 'Negotiating', color: '#FF7575' },
   { id: 'won', he: 'סגירה', en: 'Won', color: '#00C875' },
   { id: 'lost', he: 'ללא מענה', en: 'No answer', color: '#7D7D7D' },

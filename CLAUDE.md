@@ -427,7 +427,7 @@ Clicking a lead (board card, mobile card, table "open") opens `src/LeadCard.jsx`
 notes & activity (`crm_data.notes: [{ id, text, ts }]`), tasks (`crm_data.tasks: [{ id, text, due, done }]`) and smart analysis.
 Every field saves on its own through `updateLead` → `PATCH /api/contacts` (merged into `crm_data`).
 **Stages** (`GROUPS` in `src/LeadsBoard.jsx`, `STAGES` in `lib/automations-shared.js` / `src/AdminHome.jsx`): new · contacted ·
-discovery · negotiating · won · lost · **nurture** ("לחזור בעוד כמה חודשים": moving a lead there sets a follow-up 3 months
+discovery · **meeting** ("נקבעה פגישה", between discovery and negotiating; its stage message defaults to `meeting_confirm`, off) · negotiating · won · lost · **nurture** ("לחזור בעוד כמה חודשים": moving a lead there sets a follow-up 3 months
 out unless a future one exists — `updateLeadStatus`; its automation rule defaults to off) · **irrelevant** ("לא רלוונטי": its board column starts collapsed — a narrow drop strip,
 every column can be collapsed and the choice is kept in `localStorage.afik_kanban_collapsed`; bulk sends leave these leads out
 unless the stage is picked). **Call summary** (`CallNoteDialog`, "סיכום" on every board / mobile card, opened through `NoteCtx`):

@@ -12,9 +12,9 @@ import { useMemo, useState, useRef } from 'react'
 import { Phone, MessageSquare, ExternalLink, AlertCircle, Clock, CalendarClock, ArrowUpRight, ArrowDownRight, Minus, Table2, BarChart3 } from 'lucide-react'
 import { leadCampaign, prettyLeadText } from './lib/leadFields.js'
 
-const FUNNEL = ['new', 'contacted', 'discovery', 'negotiating', 'won']
+const FUNNEL = ['new', 'contacted', 'discovery', 'meeting', 'negotiating', 'won']
 const OUTCOMES = ['lost', 'irrelevant', 'nurture']
-const OPEN = ['new', 'contacted', 'discovery', 'negotiating']
+const OPEN = ['new', 'contacted', 'discovery', 'meeting', 'negotiating']
 const DAY = 864e5, HOUR = 36e5
 const PALETTE = {
   light: { series: ['#2a78d6', '#eb6834', '#1baf7a'], ramp: ['#8db4e8', '#6198dd', '#3d7fd3', '#2667b8', '#1a4d8f'], good: '#0F8A4F', bad: '#D63B3B', warn: '#B86E00' },
