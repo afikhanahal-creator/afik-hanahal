@@ -110,7 +110,6 @@ html,body{background:#09090F;margin:0}
 /* it takes whatever height the panel has left (never more), so the card fits the screen on every step */
 .bk-photo{margin:0;position:relative;flex:1 1 0;min-height:170px;max-height:440px}
 .bk-photo img{position:absolute;inset:0;z-index:1;display:block;width:100%;height:100%;object-fit:contain;object-position:50% 100%}
-.bk-photo::after{content:'';position:absolute;bottom:-6px;left:50%;width:62%;height:16px;transform:translateX(-50%);border-radius:50%;background:radial-gradient(closest-side,rgba(23,23,43,.16),transparent)}
 .bk-contact.bk-ph-contact{display:none}
 .bk-contact{display:flex;flex-wrap:wrap;gap:8px}
 .bk-contact a{flex:1 1 auto;display:inline-flex;align-items:center;justify-content:center;gap:7px;height:38px;padding:0 12px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--ink)!important;text-decoration:none;font-size:13px;font-weight:500;white-space:nowrap}
