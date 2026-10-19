@@ -432,6 +432,34 @@ ${GUIDES.map(p => llmsLine(p, 'guide', 'en')).join('\n')}
 `
 fs.writeFileSync(path.join(DIST, 'llms.txt'), llms)
 
+// The admin's image library (src/MediaLibraryTab.jsx): the site's design images, their sizes and where each one is used
+{
+  const { inventory } = await import('../lib/site-images.js')
+  const PUB = path.resolve('public')
+  const files = []
+  for (const dir of ['', 'img']) {
+    const abs = path.join(PUB, dir)
+    if (!fs.existsSync(abs)) continue
+    for (const name of fs.readdirSync(abs)) {
+      const f = path.join(abs, name)
+      if (fs.statSync(f).isFile()) files.push({ path: `/${dir ? dir + '/' : ''}${name}`, bytes: fs.statSync(f).size })
+    }
+  }
+  const walk = (dir, out = []) => {
+    if (!fs.existsSync(dir)) return out
+    for (const name of fs.readdirSync(dir)) {
+      const f = path.join(dir, name)
+      if (fs.statSync(f).isDirectory()) walk(f, out)
+      else if (/\.(jsx?|mjs|json|html)$/.test(name) && !/\.test\.|site-images/.test(name)) out.push({ file: path.relative(process.cwd(), f).replace(/\\/g, '/'), text: fs.readFileSync(f, 'utf8') })
+    }
+    return out
+  }
+  const sources = [...walk(path.resolve('src')), ...walk(path.resolve('lib')), ...walk(path.resolve('content')), { file: 'index.html', text: fs.readFileSync('index.html', 'utf8') }]
+  const list = inventory(files, sources)
+  fs.writeFileSync(path.join(DIST, 'site-images.json'), JSON.stringify({ at: new Date().toISOString(), images: list }))
+  console.log(`[content] site-images.json: ${list.length} images`)
+}
+
 // Link check: every internal href in generated pages must resolve to a generated page, a public file, or an SPA route
 const known = new Set(written.map(p => p.replace(/\/$/, '') + '/'))
 const spaRoutes = new Set(['/', '/accessibility', '/privacy', '/newproperty', '/admin-panel', '/book'])

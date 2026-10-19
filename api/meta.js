@@ -1448,6 +1448,42 @@ function oauthPage(ok, text) {
 <h1 style="font-size:22px;margin:12px 0">${ok ? 'היומן חובר' : 'החיבור לא הצליח'}</h1><p style="line-height:1.7;color:#B9B5AA">${esc(text)}</p>
 <a href="/admin-panel" style="display:inline-block;margin-top:16px;background:#8490D8;color:#09090F;font-weight:700;padding:12px 28px;border-radius:999px;text-decoration:none">חזרה לפאנל</a></div></body></html>`
 }
+// ── Image library (admin "תמונות האתר", src/MediaLibraryTab.jsx) ─────────────────────────────────────────────────────
+//  GET  media-status → { canReplace, repo, branch }
+//  POST media-replace { path: '/img/ceo.webp', content: <base64>, type } → commits public<path> on the content branch
+//       (GITHUB_CONTENT_TOKEN, a fine-grained token with Contents: read & write on the repository) → Vercel redeploys
+const GH_REPO = () => process.env.GITHUB_CONTENT_REPO || 'afikhanahal-creator/afik-hanahal'
+const GH_BRANCH = () => process.env.GITHUB_CONTENT_BRANCH || 'main'
+async function handleMedia(req, res, action) {
+  if (!checkAuth(req)) return res.status(401).json({ error: 'Unauthorized' })
+  res.setHeader('Cache-Control', 'no-store')
+  const token = process.env.GITHUB_CONTENT_TOKEN || ''
+  if (action === 'media-status') return res.status(200).json({ canReplace: !!token, repo: GH_REPO(), branch: GH_BRANCH() })
+  if (action !== 'media-replace' || req.method !== 'POST') return res.status(404).json({ error: `Unknown path: ${action}` })
+  if (!token) return res.status(400).json({ ok: false, setup: true, error: 'GITHUB_CONTENT_TOKEN חסר ב-Vercel' })
+  const { REPLACEABLE, mimeFor } = await import('../lib/site-images.js')
+  const b = req.body || {}
+  const p = String(b.path || '')
+  if (!REPLACEABLE.test(p)) return res.status(400).json({ ok: false, error: 'אפשר להחליף רק תמונות מתוך /img או את הלוגו' })
+  const content = String(b.content || '').replace(/^data:[^,]*,/, '')
+  if (!content || content.length > 4_000_000 || !/^[A-Za-z0-9+/=\s]+$/.test(content)) return res.status(400).json({ ok: false, error: 'קובץ ריק או גדול מדי (עד 3MB)' })
+  const ext = p.split('.').pop()
+  if (b.type && mimeFor(ext) && b.type !== mimeFor(ext)) return res.status(400).json({ ok: false, error: `הקובץ צריך להיות ${ext.toUpperCase()} כדי לשמור על אותו שם` })
+  const api = `https://api.github.com/repos/${GH_REPO()}/contents/public${p}`
+  const H = { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'afik-hanahal-admin' }
+  try {
+    const cur = await fetch(`${api}?ref=${encodeURIComponent(GH_BRANCH())}`, { headers: H, signal: AbortSignal.timeout(10000) })
+    const sha = cur.ok ? (await cur.json()).sha : undefined
+    const put = await fetch(api, {
+      method: 'PUT', headers: { ...H, 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(20000),
+      body: JSON.stringify({ message: `Admin image library: replace ${p}`, content: content.replace(/\s+/g, ''), branch: GH_BRANCH(), ...(sha ? { sha } : {}) }),
+    })
+    const d = await put.json().catch(() => ({}))
+    if (!put.ok) return res.status(502).json({ ok: false, error: `GitHub ${put.status}: ${String(d.message || '').slice(0, 160)}` })
+    return res.status(200).json({ ok: true, commit: d.commit?.sha?.slice(0, 7) || '', path: p })
+  } catch (e) { return res.status(502).json({ ok: false, error: e.message }) }
+}
+
 async function handleBooking(req, res, action) {
   try {
     if (action === 'booking-config') {
@@ -1554,6 +1590,7 @@ export default async function handler(req, res) {
   if (path.startsWith('chat-'))  return handleChat(req, res, path)
   if (path.startsWith('auto-'))  return handleAutomations(req, res, path)
   if (path.startsWith('booking-')) return handleBooking(req, res, path)
+  if (path.startsWith('media-')) return handleMedia(req, res, path)
   if (path === 'supermetrics')   return handleSupermetrics(req, res)
   if (path === 'ga4')            return handleGA4(req, res)
   if (path === 'ga4-dash' || path === 'ga4-property') return handleGA4Dash(req, res, path)

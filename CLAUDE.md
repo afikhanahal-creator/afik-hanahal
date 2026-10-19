@@ -384,6 +384,21 @@ leads (`contacts`), `meta_leads`, the WhatsApp phone book (`getContacts`) and, f
 all matched by the last 9 digits and cached for 10 minutes. The office's own / notification number is flagged `office` and shown
 as "המשרד · התראות מערכת"; a number without any name is shown as 05X-XXX-XXXX.
 
+### Image library (admin "תמונות האתר", `/admin-panel/media`)
+
+`src/MediaLibraryTab.jsx`: every image the site shows. **Site design** = `public/img/*` and the root logos, listed at build
+time in `dist/site-images.json` (`scripts/build-content.mjs` + `lib/site-images.js` `inventory()`, tested: size and where each
+file is referenced — homepage content, website, booking page / emails, share pages, admin). **Property photos** = every
+`images[]` URL of every property (thumbnails through the CDN). Per image: download the original; "שינוי גודל והחלפה" — a
+canvas editor (width / height with the ratio kept, presets 600 / 1200 / 1600 / 2400 never upscaled — `fitSize()`, WebP / JPEG /
+PNG, quality, before / after size), a different file by picking or dropping one, download the result, or replace: a property
+photo is uploaded to Supabase Storage (the wizard's signed URL) and the property saved with the new URL in the same place
+(`replacePropertyPhoto` in `AdminPanel.jsx`); a design image keeps its name and format and is committed to the repository
+(`POST /api/meta/media-replace` → GitHub contents API, `REPLACEABLE` paths only, ≤ 3 MB) so Vercel redeploys in ~2 minutes —
+it needs `GITHUB_CONTENT_TOKEN` (fine-grained, this repository, Contents read & write; `media-status` says whether it is set,
+the tab shows the setup steps otherwise). `/img/*` is cached for a day (`vercel.json`), so a replaced file reaches returning
+visitors within a day.
+
 ### Admin appearance (light / dark / system) & command palette
 
 The admin has its own theme, separate from the public site, saved in `localStorage` (`afik_admin_theme`: `dark` · `light` · `system`).
