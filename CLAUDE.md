@@ -95,7 +95,19 @@ components already read: `App.jsx` merges its `tr` into `TR.he` / `TR.en` and bu
 `TESTIMONIALS_DATA` / `FAQS` / the typewriter from it; inline phone / email / social links use `OFFICE` (= `HOME.office`).
 `lib/home-page.js` (static first screen) and `content/site.mjs` (phone, hours, social of the content pages) read the same
 file. `scripts/build-content.mjs` fails the build when `validateHome` finds an error. Change homepage copy there, never as a
-new literal in `App.jsx`. The admin content editor (ADMIN-SPEC.md, phases 2–4) edits this file.
+new literal in `App.jsx`.
+**Content editor** (admin "תוכן האתר", `/admin-panel/content`, `src/ContentEditorTab.jsx`; the form layout is
+`src/contentEditorSchema.js` — a test fails when a key of `home.json` has no field there): an accordion per area with every
+text as Hebrew + English side by side (length counters from `fieldLimit()`), lists with add / duplicate / delete (confirm +
+undo) / reorder (drag or arrows) within `listBounds()`, icon and color pickers, and the issues list (`validateHome`, "עבור
+לשדה"). The draft autosaves in this browser (`localStorage.afik_cms_home_draft_v1`, with the hash of the version it started
+from — a newer live version asks "keep draft / start fresh"); `diffHome()` counts the changes. The live preview is the real
+homepage in an iframe, `/?cms-preview=1` (`CMS_PREVIEW` in `App.jsx`): it receives `cms-draft` / `cms-view` (lang, theme) /
+`cms-scroll` messages (same origin only), `applyHomeDraft()` writes the draft into the module-level content in place and bumps
+`contentVer` in the site context so every section re-renders; in that mode there are no analytics / pixel / CAPI events
+(`index.html`, `trackEvent`, `sendCAPI`), no cookie banner, no static first-screen layer, links and forms do nothing, and
+reveal-on-scroll items are shown at once. Desktop preview = a 1280 px frame scaled to the pane; phones get one pane at a
+time (the preview stays loaded behind the form). Publishing, history and translation are ADMIN-SPEC.md phase 3.
 
 ## SEO content engine (`content/` → static pages)
 

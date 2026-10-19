@@ -208,6 +208,28 @@ const HOME_LEGACY = homeLegacy(HOME)
 Object.assign(TR.he, HOME_LEGACY.tr.he)
 Object.assign(TR.en, HOME_LEGACY.tr.en)
 const OFFICE = HOME.office
+
+// ─── CONTENT PREVIEW (admin → "תוכן האתר") ───────────────────────────────────
+// /?cms-preview=1 inside the admin's preview frame: the editor posts its draft and the page re-renders with it at once.
+// Nothing is saved; no analytics / pixel (index.html), no cookie banner, links don't navigate away.
+const CMS_PREVIEW = typeof window !== 'undefined' && window.parent !== window && /[?&]cms-preview=1(&|$)/.test(window.location.search)
+// Puts a draft into the module-level content every section reads (TR, the data arrays, OFFICE, HOME) — in place, so
+// every reference stays valid; the caller then bumps the context so the sections re-render. → false on a broken draft.
+function applyHomeDraft(next) {
+  let L
+  try { L = homeLegacy(next) } catch { return false }
+  const swap = (arr, items) => { arr.splice(0, arr.length, ...items) }
+  for (const lang of ['he', 'en']) Object.assign(TR[lang], L.tr[lang])
+  swap(PROCESS_STEPS, L.process.map(withIcon))
+  swap(SERVICES, L.services.map(withIcon))
+  swap(TESTIMONIALS_DATA, L.testimonials)
+  swap(FAQS, L.faqs)
+  swap(TYPEWRITER_HE, L.typewriter.he)
+  swap(TYPEWRITER_EN, L.typewriter.en)
+  Object.assign(OFFICE, next.office)
+  for (const k of Object.keys(next)) if (k !== 'office') HOME[k] = next[k]
+  return true
+}
 const ThemeCtx = createContext({ C: DARK_C, isDark: true, toggleTheme: () => {}, lang: 'he', setLang: () => {}, logoNavSize: 70, setLogoNavSize: () => {} })
 const useTheme = () => useContext(ThemeCtx)
 
@@ -1698,10 +1720,10 @@ function ProcessSectionImpl() {
         {PROCESS_STEPS.map((step, i) => (
           <div key={i}>
             <div ref={el => stepRefs.current[i] = el}
-              style={{ opacity:stepVis[i]?1:0, transform:stepVis[i]?'none':'translateX(22px)', transition:`opacity .6s ${i*.1}s,transform .6s ${i*.1}s` }}>
+              style={{ opacity:(CMS_PREVIEW || stepVis[i])?1:0, transform:(CMS_PREVIEW || stepVis[i])?'none':'translateX(22px)', transition:`opacity .6s ${i*.1}s,transform .6s ${i*.1}s` }}>
               <GlassCard style={{ padding:'36px 40px', display:'flex', gap:28, alignItems:'flex-start', position:'relative' }}>
                 <div style={{ position:'absolute', top:0, right:0, bottom:0, width:3, background:`linear-gradient(180deg,transparent,${step.color}99,transparent)`, borderRadius:'0 20px 20px 0' }}/>
-                <div style={{ flexShrink:0, width:62, height:62, borderRadius:'50%', background:`linear-gradient(135deg,${step.color}33,${step.color}11)`, border:`2px solid ${step.color}66`, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:2, boxShadow: stepVis[i] ? (isDark ? `0 0 30px ${step.color}55` : `0 2px 10px ${step.color}33`) : 'none', transition:'box-shadow .6s ease' }}>
+                <div style={{ flexShrink:0, width:62, height:62, borderRadius:'50%', background:`linear-gradient(135deg,${step.color}33,${step.color}11)`, border:`2px solid ${step.color}66`, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:2, boxShadow: (CMS_PREVIEW || stepVis[i]) ? (isDark ? `0 0 30px ${step.color}55` : `0 2px 10px ${step.color}33`) : 'none', transition:'box-shadow .6s ease' }}>
                   <div style={{ fontSize:10, fontWeight:800, color:step.color, letterSpacing:'1px', lineHeight:1, marginBottom:4 }}>{step.num}</div>
                   <step.Icon size={20} style={{ color:step.color }}/>
                 </div>
@@ -1712,7 +1734,7 @@ function ProcessSectionImpl() {
               </GlassCard>
             </div>
             {i < PROCESS_STEPS.length-1 && (
-              <div style={{ opacity:stepVis[i]?1:0, transition:`opacity .5s ${i*.1+.3}s` }}>
+              <div style={{ opacity:(CMS_PREVIEW || stepVis[i])?1:0, transition:`opacity .5s ${i*.1+.3}s` }}>
                 <WaveConnector idx={i}/>
               </div>
             )}
@@ -2062,10 +2084,10 @@ function ServicesSectionImpl({ onContact }) {
             {SERVICES.map((svc, i) => (
               <div key={i} ref={el => cardRefs.current[i] = el}
                 style={{
-                  animation: cardVis[i]
+                  animation: (CMS_PREVIEW || cardVis[i])
                     ? `cardIn .78s cubic-bezier(.175,.885,.32,1.28) ${i*.11}s both, cardFloat ${4.5+i*.45}s ease-in-out ${i*.11+.78}s infinite`
                     : 'none',
-                  opacity: cardVis[i] ? undefined : 0,
+                  opacity: (CMS_PREVIEW || cardVis[i]) ? undefined : 0,
                 }}>
                 <div className="svc-card" style={{ padding:'38px 28px', height:'100%', display:'flex', flexDirection:'column' }}>
                   <div style={{ position:'absolute', top:0, right:0, left:0, height:2, background:`linear-gradient(90deg,transparent,${svc.color}AA,transparent)`, borderRadius:'20px 20px 0 0' }}/>
@@ -2173,6 +2195,7 @@ function getCookie(name) {
 }
 
 function sendCAPI(metaEventName, pii = {}, customData = {}) {
+  if (CMS_PREVIEW) return
   const event_id = `${metaEventName}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
   // Server-side — hashes PII, deduplicates via event_id
   fetch(`/api/capi`, {   // Vercel's own CAPI function (never Render — its bandwidth is metered)
@@ -2204,6 +2227,7 @@ function sendCAPI(metaEventName, pii = {}, customData = {}) {
 }
 
 function trackEvent(name, props = {}) {
+  if (CMS_PREVIEW) return   // the admin's content preview is not a visit
   try {
     const all = JSON.parse(localStorage.getItem(ANALYTICS_KEY) || '[]')
     all.push({ n: name, t: Date.now(), ...props })
@@ -5077,7 +5101,7 @@ export default function App() {
   const [mobileOpen,   setMobileOpen]   = useState(false)
   // Language: ?lang=en (links from the English content pages) → remembered choice → Hebrew
   const [lang,         setLang]         = useState(() => { try { const q = new URLSearchParams(window.location.search).get('lang'); if (q === 'en' || q === 'he') return q; return localStorage.getItem('afik_lang') === 'en' ? 'en' : 'he' } catch { return 'he' } })
-  useEffect(() => { try { localStorage.setItem('afik_lang', lang) } catch {} }, [lang])
+  useEffect(() => { if (CMS_PREVIEW) return; try { localStorage.setItem('afik_lang', lang) } catch {} }, [lang])
   const [stats,        setStats]        = useState(DEFAULT_STATS)
   const [sharon,       setSharon]       = useState(DEFAULT_SHARON)
   const [govmapToken,  setGovmapToken]  = useState(() => {
@@ -5091,7 +5115,38 @@ export default function App() {
   const setLogoNavSize = (v) => { const n = Math.max(20, Math.min(200, Number(v))); localStorage.setItem('logoNavSize', n); setLogoNavSizeRaw(n) }
   const adminThemeValue = { C: adminTheme.isDark ? ADMIN_DARK_C : ADMIN_LIGHT_C, isDark: adminTheme.isDark, toggleTheme: adminTheme.toggle, lang, setLang, logoNavSize, setLogoNavSize }
   // A stable context value: consumers (every property card…) re-render only when the theme or language changes
-  const siteThemeValue = useMemo(() => ({ C, isDark, toggleTheme, lang, setLang }), [C, isDark, toggleTheme, lang])
+  // contentVer changes only in the admin's preview frame (a new draft), so every section that reads the context re-renders
+  const [contentVer, setContentVer] = useState(0)
+  const siteThemeValue = useMemo(() => ({ C, isDark, toggleTheme, lang, setLang, contentVer }), [C, isDark, toggleTheme, lang, contentVer])
+
+  // Content preview: take the editor's draft / language / theme / section, tell the editor we're ready
+  useEffect(() => {
+    if (!CMS_PREVIEW) return
+    const onMsg = e => {
+      const d = e.data
+      if (e.origin !== window.location.origin || !d || typeof d !== 'object') return
+      if (d.type === 'cms-draft' && d.home) { if (applyHomeDraft(d.home)) setContentVer(v => v + 1) }
+      else if (d.type === 'cms-view') {
+        if (d.lang === 'he' || d.lang === 'en') setLang(d.lang)
+        if (typeof d.dark === 'boolean') setIsDark(d.dark)
+      }
+      else if (d.type === 'cms-scroll' && typeof d.section === 'string') {
+        const el = document.getElementById(d.section)
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }
+    }
+    // a preview never leaves the page or sends anything
+    const stopLinks = e => {
+      const a = e.target.closest && e.target.closest('a[href]')
+      if (a && !a.getAttribute('href').startsWith('#')) e.preventDefault()
+    }
+    const stopForms = e => e.preventDefault()
+    window.addEventListener('message', onMsg)
+    document.addEventListener('click', stopLinks, true)
+    document.addEventListener('submit', stopForms, true)
+    window.parent.postMessage({ type: 'cms-ready' }, window.location.origin)
+    return () => { window.removeEventListener('message', onMsg); document.removeEventListener('click', stopLinks, true); document.removeEventListener('submit', stopForms, true) }
+  }, [])
 
   // Always persist govmapToken — guards against the standalone mode missing the wrapper
   useEffect(() => { localStorage.setItem('govmap_token', govmapToken) }, [govmapToken])
@@ -6224,7 +6279,7 @@ export default function App() {
       </section>
 
       {/* ── SPOTIFY SECTION ──────────────────────────────────── */}
-      {HOME.playlist.visible !== false && <section style={{ padding:'64px 24px 56px', background:`linear-gradient(180deg, ${C.bg} 0%, ${C.card} 100%)`, position:'relative', zIndex:1, overflow:'hidden' }}>
+      {HOME.playlist.visible !== false && <section id="playlist" style={{ padding:'64px 24px 56px', background:`linear-gradient(180deg, ${C.bg} 0%, ${C.card} 100%)`, position:'relative', zIndex:1, overflow:'hidden' }}>
         {/* ambient blobs */}
         <div style={{ position:'absolute', top:'10%', right:'-6%', width:440, height:440, background:`radial-gradient(circle,${C.purple}12,transparent 70%)`, pointerEvents:'none' }}/>
         <div style={{ position:'absolute', bottom:'5%', left:'-6%', width:380, height:380, background:`radial-gradient(circle,${C.green}0B,transparent 70%)`, pointerEvents:'none' }}/>
@@ -6435,7 +6490,7 @@ export default function App() {
       {!(showAdmin && adminAuth) && <AccessibilityWidget/>}
 
       {/* ── COOKIE CONSENT ──────────────────────────── */}
-      <CookieConsent C={C} isDark={isDark} lang={lang} onPrivacy={() => setShowPrivacy(true)}/>
+      {!CMS_PREVIEW && <CookieConsent C={C} isDark={isDark} lang={lang} onPrivacy={() => setShowPrivacy(true)}/>}
     </>
     </ThemeCtx.Provider>
   )
