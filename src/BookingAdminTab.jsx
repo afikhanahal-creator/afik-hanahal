@@ -30,6 +30,7 @@ const TR = {
     rules: 'כללים', notice: 'הכי מוקדם', noticeU: 'שעות מראש', horizon: 'אפשר לקבוע עד', horizonU: 'ימים קדימה',
     buffer: 'מרווח סביב פגישות ביומן', perDay: 'מקסימום שיחות ביום', step: 'שיחה מתחילה כל',
     zoom: 'קישור זום אישי', zoomSub: 'לא חובה. כשמוגדר, אפשר להציע גם זום',
+    photo: 'תמונה בעמוד', photoSub: 'מופיעה בצד העמוד (ובטלפון כעיגול ליד הכותרת). קישור לתמונה, למשל /img/ceo.webp או https://…. ריק = בלי תמונה', photoReset: 'תמונת ברירת המחדל',
     dirty: 'יש שינויים שלא נשמרו', save: 'שמירה', saving: 'שומר…', saved: 'נשמר', discard: 'ביטול השינויים',
     upcoming: 'שיחות קרובות', recent: 'שיחות שעברו (30 יום)', none: 'עוד לא נקבעו שיחות דרך העמוד',
     today: 'היום', tomorrow: 'מחר',
@@ -56,6 +57,7 @@ const TR = {
     rules: 'Rules', notice: 'Earliest', noticeU: 'hours ahead', horizon: 'Bookable up to', horizonU: 'days ahead',
     buffer: 'Gap around calendar events', perDay: 'Max calls a day', step: 'A call starts every',
     zoom: 'Personal Zoom link', zoomSub: 'Optional. When set, Zoom can be offered too',
+    photo: 'Page photo', photoSub: 'Shown in the page side panel (and as a circle next to the title on phones). A link to the image, e.g. /img/ceo.webp or https://…. Empty = no photo', photoReset: 'Default photo',
     dirty: 'You have unsaved changes', save: 'Save', saving: 'Saving…', saved: 'Saved', discard: 'Discard',
     upcoming: 'Upcoming calls', recent: 'Past calls (30 days)', none: 'No calls booked through the page yet',
     today: 'Today', tomorrow: 'Tomorrow',
@@ -186,7 +188,7 @@ export default function BookingAdminTab({ lang = 'he' }) {
 
   const dirty = useMemo(() => {
     if (!state || !draft) return false
-    const pick = c => JSON.stringify([c.hours, c.zoomUrl || '', c.minNoticeMin, c.horizonDays, c.bufferMin, c.maxPerDay, c.stepMin, c.types])
+    const pick = c => JSON.stringify([c.hours, c.zoomUrl || '', c.photo ?? '', c.minNoticeMin, c.horizonDays, c.bufferMin, c.maxPerDay, c.stepMin, c.types])
     return pick(state.config) !== pick(draft)
   }, [state, draft])
 
@@ -224,7 +226,7 @@ export default function BookingAdminTab({ lang = 'he' }) {
   async function save() {
     setSaving('saving')
     try {
-      const d = await autoApi.post('booking-settings', { config: { hours: draft.hours, zoomUrl: draft.zoomUrl, minNoticeMin: draft.minNoticeMin, horizonDays: draft.horizonDays, bufferMin: draft.bufferMin, maxPerDay: draft.maxPerDay, stepMin: draft.stepMin, types: draft.types } })
+      const d = await autoApi.post('booking-settings', { config: { hours: draft.hours, zoomUrl: draft.zoomUrl, photo: draft.photo ?? '', minNoticeMin: draft.minNoticeMin, horizonDays: draft.horizonDays, bufferMin: draft.bufferMin, maxPerDay: draft.maxPerDay, stepMin: draft.stepMin, types: draft.types } })
       setDraft(d.config); setState(s => ({ ...s, config: d.config })); setSaving('saved'); setErr('')
       setTimeout(() => setSaving(''), 1800)
     } catch (e) { setErr(e.message); setSaving('') }
@@ -401,6 +403,18 @@ export default function BookingAdminTab({ lang = 'he' }) {
               <div className="bka-row"><span className="lbl">{t.buffer}</span><Stepper t={t} label={t.buffer} value={draft.bufferMin} min={0} max={60} step={5} unit={t.min} onChange={v => val('bufferMin', v)} /></div>
               <div className="bka-row"><span className="lbl">{t.perDay}</span><Stepper t={t} label={t.perDay} value={draft.maxPerDay} min={1} max={40} onChange={v => val('maxPerDay', v)} /></div>
               <div className="bka-row"><span className="lbl">{t.step}</span><Stepper t={t} label={t.step} value={draft.stepMin} min={10} max={120} step={5} unit={t.min} onChange={v => val('stepMin', v)} /></div>
+            </div>
+          </section>
+
+          <section className="bka-sec">
+            <h3>{t.photo}</h3>
+            <p className="hint">{t.photoSub}</p>
+            <div className="bka-list">
+              <div className="bka-row" style={{ alignItems: 'center' }}>
+                {draft.photo ? <img src={draft.photo} alt="" style={{ width: 56, height: 42, objectFit: 'cover', borderRadius: 8, flexShrink: 0, background: 'rgba(var(--ov),.06)' }}/> : <span style={{ width: 56, height: 42, borderRadius: 8, flexShrink: 0, border: '1px dashed var(--au-line)' }}/>}
+                <input className="bka-in" dir="ltr" placeholder="/img/ceo.webp" aria-label={t.photo} value={draft.photo ?? ''} onChange={e => val('photo', e.target.value)} />
+                {draft.photo !== '/img/ceo.webp' && <button type="button" className="bka-btn plain" onClick={() => val('photo', '/img/ceo.webp')}>{t.photoReset}</button>}
+              </div>
             </div>
           </section>
 

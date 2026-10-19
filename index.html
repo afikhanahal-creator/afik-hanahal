@@ -194,6 +194,15 @@
       var done=false;
       // The seller form (/sell) is a white page — paint the canvas white before React mounts so there is no dark flash.
       if(/^\/(sell|seller-form|newproperty)(\/|$)/.test(location.pathname)){document.documentElement.style.background='#EFEFF1';}
+      // The booking page (/book): its own background at once, and its config + free times are asked for now, in parallel
+      // with the JavaScript download (BookingPage.jsx picks up window.__bk instead of asking again)
+      if(/^\/(book|booking|meet)\/?$/.test(location.pathname)){
+        try{document.documentElement.style.background=matchMedia('(prefers-color-scheme: light)').matches?'#F5F1E9':'#09090F';}catch(e){}
+        try{if(!/[?&]m=/.test(location.search)){var bq=new URLSearchParams(location.search),bd=new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Jerusalem'}),bt=bq.get('type')||'';
+          var bj=function(u){return fetch(u).then(function(r){if(!r.ok)throw new Error(r.status);return r.json()})};
+          window.__bk={cfg:bj('/api/meta/booking-config'),slots:bj('/api/meta/booking-slots?type='+encodeURIComponent(bt)+'&from='+bd+'&days=22'),from:bd,days:22,type:bt};
+          window.__bk.cfg.catch(function(){});window.__bk.slots.catch(function(){});}}catch(e){}
+      }
       function reveal(){if(done)return;done=true;document.documentElement.style.opacity='1';}
       setTimeout(reveal,200);
       if(document.fonts&&document.fonts.ready){document.fonts.ready.then(reveal);}else{reveal();}
