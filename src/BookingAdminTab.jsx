@@ -30,7 +30,7 @@ const TR = {
     rules: 'כללים', notice: 'הכי מוקדם', noticeU: 'שעות מראש', horizon: 'אפשר לקבוע עד', horizonU: 'ימים קדימה',
     buffer: 'מרווח סביב פגישות ביומן', perDay: 'מקסימום שיחות ביום', step: 'שיחה מתחילה כל',
     zoom: 'קישור זום אישי', zoomSub: 'לא חובה. כשמוגדר, אפשר להציע גם זום',
-    photo: 'תמונה בעמוד', photoSub: 'מופיעה בצד העמוד (ובטלפון כעיגול ליד הכותרת). קישור לתמונה, למשל /img/ceo.webp או https://…. ריק = בלי תמונה', photoReset: 'תמונת ברירת המחדל',
+    photo: 'תמונה בעמוד', photoSub: 'מופיעה בצד העמוד (ובטלפון כעיגול ליד הכותרת). קישור לתמונה, למשל /img/booking-photo.webp או https://…. ריק = בלי תמונה', photoReset: 'תמונת ברירת המחדל',
     dirty: 'יש שינויים שלא נשמרו', save: 'שמירה', saving: 'שומר…', saved: 'נשמר', discard: 'ביטול השינויים',
     upcoming: 'שיחות קרובות', recent: 'שיחות שעברו (30 יום)', none: 'עוד לא נקבעו שיחות דרך העמוד',
     today: 'היום', tomorrow: 'מחר',
@@ -57,7 +57,7 @@ const TR = {
     rules: 'Rules', notice: 'Earliest', noticeU: 'hours ahead', horizon: 'Bookable up to', horizonU: 'days ahead',
     buffer: 'Gap around calendar events', perDay: 'Max calls a day', step: 'A call starts every',
     zoom: 'Personal Zoom link', zoomSub: 'Optional. When set, Zoom can be offered too',
-    photo: 'Page photo', photoSub: 'Shown in the page side panel (and as a circle next to the title on phones). A link to the image, e.g. /img/ceo.webp or https://…. Empty = no photo', photoReset: 'Default photo',
+    photo: 'Page photo', photoSub: 'Shown in the page side panel (and as a circle next to the title on phones). A link to the image, e.g. /img/booking-photo.webp or https://…. Empty = no photo', photoReset: 'Default photo',
     dirty: 'You have unsaved changes', save: 'Save', saving: 'Saving…', saved: 'Saved', discard: 'Discard',
     upcoming: 'Upcoming calls', recent: 'Past calls (30 days)', none: 'No calls booked through the page yet',
     today: 'Today', tomorrow: 'Tomorrow',
@@ -412,8 +412,8 @@ export default function BookingAdminTab({ lang = 'he' }) {
             <div className="bka-list">
               <div className="bka-row" style={{ alignItems: 'center' }}>
                 {draft.photo ? <img src={draft.photo} alt="" style={{ width: 56, height: 42, objectFit: 'cover', borderRadius: 8, flexShrink: 0, background: 'rgba(var(--ov),.06)' }}/> : <span style={{ width: 56, height: 42, borderRadius: 8, flexShrink: 0, border: '1px dashed var(--au-line)' }}/>}
-                <input className="bka-in" dir="ltr" placeholder="/img/ceo.webp" aria-label={t.photo} value={draft.photo ?? ''} onChange={e => val('photo', e.target.value)} />
-                {draft.photo !== '/img/ceo.webp' && <button type="button" className="bka-btn plain" onClick={() => val('photo', '/img/ceo.webp')}>{t.photoReset}</button>}
+                <input className="bka-in" dir="ltr" placeholder="/img/booking-photo.webp" aria-label={t.photo} value={draft.photo ?? ''} onChange={e => val('photo', e.target.value)} />
+                {draft.photo !== '/img/booking-photo.webp' && <button type="button" className="bka-btn plain" onClick={() => val('photo', '/img/booking-photo.webp')}>{t.photoReset}</button>}
               </div>
             </div>
           </section>
