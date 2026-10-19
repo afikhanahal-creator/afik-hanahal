@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mergeConversation, welcomeChoices, templateLead, sendErrorText } from './leadConversation.js'
+import { mergeConversation, templateLead, sendErrorText } from './leadConversation.js'
 
 const at = m => new Date(Date.UTC(2026, 9, 19, 8, m)).toISOString()
 
@@ -27,19 +27,6 @@ test('merge: with no WhatsApp history the log is the conversation', () => {
   assert.deepEqual(m.map(x => [x.id, x.direction]), [['log-8', 'out'], ['log-7', 'in']])
 })
 
-test('welcome choices: the automation\'s template first, then welcome, then personal; rendered for the lead', () => {
-  const lead = templateLead({ id: 5, name: 'Ronen Levi', phone: '0521234567', campaign_name: 'זרובבל 15 - v2 (כוונה גבוהה)', created_at: new Date().toISOString(), status: 'new' }, null)
-  const c = welcomeChoices(null, lead, 'he')
-  assert.equal(c[0].id, 'welcome'); assert.equal(c[0].isDefault, true)
-  assert.ok(c.some(x => x.cat === 'personal'))
-  assert.ok(c.findIndex(x => x.cat === 'personal') > c.findLastIndex(x => x.cat === 'welcome'))
-  assert.match(c[0].text, /^היי רונן, כאן אפיק הנחל\./)
-  assert.match(c[0].text, /זרובבל 15/)
-  assert.doesNotMatch(c[0].text, /v2|כוונה/)
-  const custom = welcomeChoices({ rules: { welcome: { templateId: 'welcome_prop' } } }, lead, 'en')
-  assert.equal(custom[0].id, 'welcome_prop'); assert.match(custom[0].text, /^Hi Ronen/)
-})
-
 test('template lead: a Meta lead reads as one for the templates; the CRM copy adds what the office typed', () => {
   const meta = { id: 9, name: 'דנה', phone: '0501112222', campaign_name: 'C', form_name: 'F', status: 'scheduled' }
   const a = templateLead(meta, null, [{ q: 'חדרים', a: '4' }])
@@ -57,4 +44,23 @@ test('send errors read as words, never as raw JSON', () => {
   const o = sendErrorText({ error: 'Green API 401 (טוקן או instance שגויים): {"message":"bad"}' })
   assert.equal(o, 'השליחה נכשלה: Green API 401 (טוקן או instance שגויים)')
   assert.match(sendErrorText('timeout', 'en'), /^Sending failed: timeout$/)
+})
+
+test('template dropdown: welcome first before anything was sent, sent ones marked', async () => {
+  const { templateOptions } = await import('./leadConversation.js')
+  const { CATEGORIES } = await import('../../lib/automations-shared.js')
+  const lead = templateLead({ id: 5, name: 'דנה', phone: '0521234567', campaign_name: 'זרובבל 15 - v2', status: 'new' }, null)
+  const g1 = templateOptions(null, lead, 'he', { first: true, categories: CATEGORIES })
+  assert.equal(g1[0].id, 'welcome'); assert.equal(g1[0].items[0].id, 'welcome'); assert.equal(g1[0].items[0].isDefault, true)
+  assert.equal(g1[1].id, 'personal')
+  assert.match(g1[0].items[0].text, /^היי דנה, כאן אפיק הנחל\./)
+  assert.match(g1[0].items[0].text, /זרובבל 15/); assert.doesNotMatch(g1[0].items[0].text, /v2/)
+  const en = templateOptions({ rules: { welcome: { templateId: 'welcome_prop' } } }, templateLead({ id: 6, name: 'Ronen Levi', phone: '0521234567', status: 'new' }), 'en', { first: true, categories: CATEGORIES })
+  assert.equal(en[0].items[0].id, 'welcome_prop'); assert.match(en[0].items[0].text, /^Hi Ronen/)
+  assert.ok(g1.reduce((n, g) => n + g.items.length, 0) >= 50)
+  const sentText = g1[0].items[0].text
+  const g2 = templateOptions(null, lead, 'he', { outTexts: [sentText], categories: CATEGORIES })
+  assert.equal(g2[0].id, CATEGORIES[0].id)
+  assert.equal(g2.flatMap(g => g.items).find(x => x.id === 'welcome').sent, true)
+  assert.equal(g2.flatMap(g => g.items).filter(x => x.sent).length < 5, true)
 })
