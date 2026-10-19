@@ -16,7 +16,7 @@ import {
   MoreHorizontal, User, Calendar, Phone, Mail, FileText, Link2, Zap,
   Settings, X, Check, GripVertical, Trash2, Copy, Download, Upload, Bell, Pencil,
   Star, RefreshCw, Columns, Paintbrush, Layers, ArrowUpDown, ExternalLink,
-  MessageSquare, Hash, Tag, ChevronLeft, ChevronUp,
+  MessageSquare, Hash, Tag, ChevronLeft, ChevronUp, BarChart3, Columns3, Table2, Minus, Clock, StickyNote,
 } from 'lucide-react'
 
 // ─── constants ────────────────────────────────────────────────────────────────
@@ -772,7 +772,7 @@ function SortableRow({ lead, cols, onUpdate, onDelete, onSelect, isSelected, lan
       padding: '6px 10px', borderRight: `1px solid ${T.borderLight}`,
       display: 'flex', alignItems: 'center', overflow: 'hidden',
       fontSize: 13, color: T.text,
-      ...(col.pinned ? { position: 'sticky', insetInlineStart: 44, zIndex: 2, background: isSelected ? SEL_BG(T) : hovered ? T.bgRowHover : T.bgRow } : {}),
+      ...(col.pinned ? { position: 'sticky', insetInlineStart: 60, zIndex: 2, background: isSelected ? SEL_BG(T) : hovered ? T.bgRowHover : T.bgRow } : {}),
     }
 
     switch (col.type) {
@@ -827,13 +827,12 @@ function SortableRow({ lead, cols, onUpdate, onDelete, onSelect, isSelected, lan
     <div ref={setNodeRef} style={style}
       onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
       {/* Checkbox (always there, so a row can be picked) + drag handle on hover */}
-      <div style={{ width: 44, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, borderInlineEnd: `1px solid ${T.borderLight}`, position: 'sticky', insetInlineStart: 0, zIndex: 3, background: isSelected ? SEL_BG(T) : hovered ? T.bgRowHover : T.bgRow, transition: 'background .1s', boxShadow: isSelected ? 'inset -3px 0 0 #0073EA' : 'none' }}>
+      <div style={{ width: 60, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, borderInlineEnd: `1px solid ${T.borderLight}`, position: 'sticky', insetInlineStart: 0, zIndex: 3, background: isSelected ? SEL_BG(T) : hovered ? T.bgRowHover : T.bgRow, transition: 'background .1s', boxShadow: isSelected ? 'inset -3px 0 0 #0073EA' : 'none' }}>
         <div {...listeners} {...attributes} aria-label={lang === 'en' ? 'Drag' : 'גרור'} style={{ cursor: 'grab', color: T.textDim, display: 'flex', alignItems: 'center', visibility: hovered ? 'visible' : 'hidden' }}>
           <GripVertical size={13} />
         </div>
-        <input type="checkbox" checked={!!isSelected} onChange={e => onSelect(lead.id, e.target.checked, e.nativeEvent?.shiftKey)} onClick={e => e.stopPropagation()}
-          aria-label={(lang === 'en' ? 'Select ' : 'בחר את ') + (lead.name || '')}
-          style={{ cursor: 'pointer', accentColor: '#0073EA', width: 15, height: 15, margin: 0 }} />
+        <CheckBox checked={!!isSelected} onChange={(on, shift) => onSelect(lead.id, on, shift)} size={17}
+          label={(lang === 'en' ? 'Select ' : 'בחר את ') + (lead.name || '')} />
       </div>
 
       {cols.map(col => renderCell(col))}
@@ -904,10 +903,9 @@ function BoardGroup({ group, leads, cols, onUpdate, onUpdateStatus, onDelete, on
       <div style={{ display: 'flex', alignItems: 'center', padding: '5px 10px 5px 0', borderBottom: `2px solid ${color}22`, userSelect: 'none', background: `linear-gradient(90deg, ${color}12 0%, ${T.bgGroup} 60%)`, position: 'sticky', top: 36, zIndex: 4 }}>
         <div style={{ width: 5, alignSelf: 'stretch', background: color, borderRadius: '0 4px 4px 0', marginRight: 10, flexShrink: 0, minHeight: 28 }} />
         {onSelectMany && leads.length > 0 && (
-          <input type="checkbox" checked={allSel} ref={el => { if (el) el.indeterminate = selCount > 0 && !allSel }}
-            onChange={e => onSelectMany(leads.map(l => l.id), e.target.checked)}
-            aria-label={(lang === 'en' ? 'Select all in ' : 'בחר את כל ') + label}
-            style={{ cursor: 'pointer', accentColor: color, width: 15, height: 15, margin: '0 4px 0 8px' }} />
+          <span style={{ margin: '0 2px 0 4px', display: 'inline-flex' }}><CheckBox checked={allSel} indeterminate={selCount > 0} size={17} color={color}
+            onChange={on => onSelectMany(leads.map(l => l.id), on)}
+            label={(lang === 'en' ? 'Select all in ' : 'בחר את כל ') + label} /></span>
         )}
         <button onClick={() => setCollapsed(v => !v)} style={{ background: 'none', border: 'none', cursor: 'pointer', color, display: 'flex', alignItems: 'center', padding: '0 4px 0 0' }}>
           <ChevronDown size={14} style={{ transform: collapsed ? 'rotate(-90deg)' : 'none', transition: 'transform .2s' }} />
@@ -1205,6 +1203,51 @@ function StatusPopup({ lead, onClose, onUpdate, lang, T }) {
 // notes (crm_data.notes — the same list the lead card shows) and, when it says so, moves the lead's stage.
 
 const NoteCtx = createContext(null)
+// Selection shared by the table and the Pipeline cards ({ has(id), toggle(id, on, shift) })
+const SelCtx = createContext(null)
+
+// A checkbox that is always visible (a native one is hidden by the admin's input reset): a real input for keyboard / screen
+// readers, drawn as a rounded box; indeterminate = some selected
+export function CheckBox({ checked, indeterminate = false, onChange, label, size = 18, color = '#0073EA', className = '' }) {
+  return (
+    <label className={`lb-check ${className}`} style={{ '--ck': color, '--cks': `${size}px` }} onClick={e => e.stopPropagation()} onPointerDown={e => e.stopPropagation()}>
+      <input type="checkbox" checked={!!checked} aria-label={label} ref={el => { if (el) el.indeterminate = !!indeterminate && !checked }}
+        onChange={e => onChange?.(e.target.checked, !!e.nativeEvent?.shiftKey)}/>
+      <span aria-hidden="true">{checked ? <Check size={size - 6} strokeWidth={3.2}/> : indeterminate ? <Minus size={size - 6} strokeWidth={3.2}/> : null}</span>
+    </label>
+  )
+}
+export const LB_CSS = `
+  .lb-check{position:relative;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;width:calc(var(--cks) + 10px);height:calc(var(--cks) + 10px);border-radius:8px}
+  .lb-check:hover{background:rgba(var(--ink,40,50,90),.06)}
+  .lb-check input{position:absolute;inset:0;opacity:0;margin:0;cursor:pointer;width:100%;height:100%}
+  .lb-check span{width:var(--cks);height:var(--cks);border-radius:5px;border:1.75px solid rgba(var(--ink,40,50,90),.38);background:var(--au-card,#fff);display:flex;align-items:center;justify-content:center;color:#fff;transition:background .12s,border-color .12s;pointer-events:none}
+  .lb-check:hover span{border-color:var(--ck)}
+  .lb-check input:checked+span,.lb-check input:indeterminate+span{background:var(--ck);border-color:var(--ck)}
+  .lb-check input:focus-visible+span{outline:2px solid var(--ck);outline-offset:2px}
+  .lb-seg{display:inline-flex;gap:2px;padding:3px;border-radius:10px;background:rgba(var(--ov,28,36,90),.06)}
+  .lb-seg button{display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 14px;border:none;border-radius:8px;background:transparent;color:var(--au-text2,#5E6378);font:inherit;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;transition:background .12s,color .12s;min-height:0}
+  .lb-seg button:hover{color:var(--au-text,#1F2433)}
+  .lb-seg button[aria-selected=true]{background:var(--au-card,#fff);color:var(--au-text,#1F2433);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.08),0 1px 6px rgba(0,0,0,.05)}
+  .lb-tb{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:8px;border:1px solid var(--au-line,#E2E5EF);background:var(--au-card,#fff);color:var(--au-text2,#5E6378);font:inherit;font-size:12.5px;font-weight:500;cursor:pointer;white-space:nowrap;transition:background .12s,color .12s,border-color .12s;min-height:0}
+  .lb-tb:hover:not(:disabled){color:var(--au-text,#1F2433);border-color:rgba(var(--brand-rgb,63,73,166),.45)}
+  .lb-tb:disabled{opacity:.55;cursor:default}
+  .lb-tb .n{min-width:18px;height:18px;padding:0 5px;border-radius:9px;font-size:10.5px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;background:rgba(var(--ink,40,50,90),.1);color:var(--au-text,#1F2433)}
+  .lb-tb.danger .n{background:#E2445C;color:#fff}
+  .lb-card{transition:box-shadow .15s,border-color .15s,background .15s}
+  .lb-card:hover{border-color:rgba(var(--brand-rgb,63,73,166),.35)!important;box-shadow:0 4px 14px rgba(20,30,80,.08)!important}
+  .lb-card .lb-check{opacity:.55;transition:opacity .12s}
+  .lb-card:hover .lb-check,.lb-card.sel .lb-check,.lb-card .lb-check:focus-within{opacity:1}
+  .lb-acts{display:flex;align-items:center;gap:2px}
+  .lb-act{display:inline-flex;align-items:center;justify-content:center;gap:5px;height:30px;min-width:30px;padding:0 8px;border:none;border-radius:8px;background:transparent;color:var(--au-text2,#5E6378);font:inherit;font-size:12px;font-weight:500;cursor:pointer;text-decoration:none;transition:background .12s,color .12s;min-height:0}
+  .lb-act:hover{background:rgba(var(--ov,28,36,90),.07);color:var(--au-text,#1F2433)}
+  .lb-act.call:hover{color:#0073EA;background:rgba(0,115,234,.09)}
+  .lb-act.wa:hover{color:#1FA855;background:rgba(37,211,102,.1)}
+  .lb-act.note:hover{color:#8B5CF6;background:rgba(139,92,246,.1)}
+  .lb-act.del{color:var(--au-text3,#8A90A6);opacity:0;transition:opacity .12s}
+  .lb-card:hover .lb-act.del,.lb-act.del:focus-visible{opacity:1}
+  .lb-act.del:hover{color:#E2445C;background:rgba(226,68,92,.09)}
+`
 const asNoteList = n => (Array.isArray(n) ? n : typeof n === 'string' && n.trim() ? [{ id: 'legacy', text: n, ts: 0 }] : [])
 const lastNote = lead => asNoteList(lead.notes).filter(n => n.text).sort((a, b) => (b.ts || 0) - (a.ts || 0))[0] || null
 const CALL_OUTCOMES = [
@@ -1322,38 +1365,42 @@ function KanbanCard({ lead, T, isDark, lang, onOpen, onDelete, onOpenChat, onEnr
   const color = getGroupColor(lead.leadStatus || 'new')
   const score = getScoreOpt(lead.enrichment?.intent)
   const openNote = useContext(NoteCtx)
+  const sel = useContext(SelCtx)
+  const selected = !!sel?.has(lead.id)
   const last = lastNote(lead)
   const campaign = leadCampaign(lead, lang)
   const fu = lead.followUp && Date.parse(lead.followUp)
+  const en = lang === 'en'
+  const src = lead.source || (String(lead.id).startsWith('meta_') ? 'meta' : 'website')
+  const av = avatarColor(lead.name)
+  const initials = String(lead.name || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0] || '').join('').toUpperCase() || '?'
+  const phone = (() => { const d = String(lead.phone || '').replace(/\D/g, ''); const l = d.startsWith('972') ? '0' + d.slice(3) : d; return l.length === 10 ? `${l.slice(0, 3)}-${l.slice(3, 6)}-${l.slice(6)}` : lead.phone })()
   // A plain click opens the lead card; a drag (≥ 8px, the sensor's activation distance) only moves it
   const downAt = useRef(null)
+  const line = isDark ? 'rgba(255,255,255,.08)' : 'rgba(20,30,80,.09)'
 
   return (
-    <div ref={setNodeRef} className="lb-card"
+    <div ref={setNodeRef} className={`lb-card${selected ? ' sel' : ''}`}
       onPointerDownCapture={e => { downAt.current = { x: e.clientX, y: e.clientY } }}
       onClick={e => {
         const d = downAt.current
-        if (e.target.closest('button,a,input,textarea,select')) return
+        if (e.target.closest('button,a,input,textarea,select,label')) return
         if (d && Math.hypot(e.clientX - d.x, e.clientY - d.y) > 6) return
         onOpen(lead)
       }}
       style={{
         transform: CSS.Transform.toString(transform),
-        transition: transition || 'box-shadow .15s',
+        transition: transition || undefined,
         opacity: isDragging ? 0.15 : 1,
-        background: isDark ? '#1A2235' : '#FFFFFF',
-        border: `1px solid ${isDark ? '#243046' : '#D8DCF0'}`,
+        background: selected ? (isDark ? '#16233C' : '#F2F7FF') : (isDark ? '#1A2233' : '#FFFFFF'),
+        border: `1px solid ${selected ? '#0073EA' : line}`,
         borderRadius: 12,
-        padding: '13px 13px 10px',
-        marginBottom: 10,
+        padding: '12px 12px 8px',
+        marginBottom: 8,
         cursor: isDragging ? 'grabbing' : 'pointer',
-        boxShadow: isDragging
-          ? 'none'
-          : isDark
-            ? '0 2px 12px rgba(0,0,0,.4), 0 1px 3px rgba(0,0,0,.25)'
-            : '0 2px 8px rgba(20,30,80,.08)',
-        direction: 'rtl',
-        borderRight: `3px solid ${color}`,
+        boxShadow: isDragging ? 'none' : isDark ? '0 1px 2px rgba(0,0,0,.35)' : '0 1px 2px rgba(20,30,80,.06)',
+        direction: en ? 'ltr' : 'rtl',
+        position: 'relative',
         ...(mergeHint ? { outline: '2px dashed #0073EA', outlineOffset: 3, background: isDark ? '#16233C' : '#EAF2FE' } : {}),
         userSelect: 'none',
         touchAction: 'none',
@@ -1362,102 +1409,59 @@ function KanbanCard({ lead, T, isDark, lang, onOpen, onDelete, onOpenChat, onEnr
       {...attributes} {...listeners}>
 
       {mergeHint && (
-        <div role="status" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 9, padding: '6px 8px', borderRadius: 8, background: '#0073EA', color: '#fff', fontSize: 12, fontWeight: 800 }}>
-          <Link2 size={12}/> {lang === 'en' ? 'Release to merge' : 'שחרר כדי למזג'}
+        <div role="status" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 9, padding: '6px 8px', borderRadius: 8, background: '#0073EA', color: '#fff', fontSize: 12, fontWeight: 700 }}>
+          <Link2 size={12}/> {en ? 'Release to merge' : 'שחרר כדי למזג'}
         </div>
       )}
-      {/* Avatar + name */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 9 }}>
-        <div style={{
-          width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
-          background: `linear-gradient(135deg, ${avatarColor(lead.name)}, ${avatarColor(lead.name)}88)`,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 14, fontWeight: 900, color: '#fff',
-          boxShadow: `0 2px 8px ${avatarColor(lead.name)}44`,
-        }}>
-          {(lead.name || '?')[0].toUpperCase()}
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={campaign ? `${lead.name || ''} (${leadCampaignFull(lead, lang)})` : undefined}>
-            {lead.name || '—'}{campaign && <span style={{ fontSize: 11, fontWeight: 500, color: T.textSub, marginInlineStart: 5 }}>(<bdi>{campaign}</bdi>)</span>}
-          </div>
-          {lead.phone && (
-            <div style={{ fontSize: 11, color: T.textSub, direction: 'ltr', textAlign: 'right', marginTop: 1 }}>{lead.phone}</div>
-          )}
+
+      {/* name row: avatar · name + phone · score · select */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+        <div aria-hidden="true" style={{ width: 34, height: 34, borderRadius: '50%', flexShrink: 0, background: av + (isDark ? '33' : '1F'), color: av, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12.5, fontWeight: 700, letterSpacing: '.02em' }}>{initials}</div>
+        <div style={{ flex: 1, minWidth: 0, paddingTop: 1 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.3 }} title={lead.name || ''}>{lead.name || '—'}</div>
+          {lead.phone && <div style={{ fontSize: 12, color: T.textSub, direction: 'ltr', textAlign: en ? 'left' : 'right', marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>{phone}</div>}
         </div>
         {lead.enrichment?.version === 2 && (() => {
-          const g = lead.enrichment.grade, c = { hot: '#EF4444', warm: '#F59E0B', cool: '#60A5FA', cold: '#94A3B8' }[g] || '#94A3B8'
-          return <span title={lang === 'en' ? 'Lead score' : 'ציון ליד'} style={{ flexShrink: 0, minWidth: 34, height: 24, padding: '0 7px', borderRadius: 12, background: `${c}1f`, color: c, border: `1px solid ${c}55`, fontSize: 12, fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontVariantNumeric: 'tabular-nums' }}>{lead.enrichment.score100}</span>
+          const g = lead.enrichment.grade, c = { hot: '#E5484D', warm: '#E5930A', cool: '#3B82F6', cold: '#8A90A6' }[g] || '#8A90A6'
+          return <span title={en ? 'Lead score' : 'ציון ליד'} style={{ flexShrink: 0, height: 22, padding: '0 7px', borderRadius: 6, background: `${c}18`, color: c, fontSize: 12, fontWeight: 700, display: 'inline-flex', alignItems: 'center', fontVariantNumeric: 'tabular-nums', marginTop: 2 }}>{lead.enrichment.score100}</span>
         })()}
+        {sel && <CheckBox checked={selected} onChange={(on, shift) => sel.toggle(lead.id, on, shift)} label={(en ? 'Select ' : 'בחירת ') + (lead.name || '')} size={18} className="lb-card-check"/>}
       </div>
 
-      {/* Property + message preview */}
-      {lead.propTitle && lead.propTitle !== campaign && lead.propTitle !== leadCampaignFull(lead, lang) && (
-        <div style={{ fontSize: 11, color: T.textSub, marginBottom: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 4 }}>
-          <span style={{ fontSize: 10 }}>🏠</span>
-          <span>{lead.propTitle}</span>
-        </div>
-      )}
-      {lead.msg && !lead.propTitle && (
-        <div style={{ fontSize: 11, color: T.textSub, marginBottom: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {prettyLeadText(lead.msg, lang)}
-        </div>
-      )}
+      {/* tags: campaign · source · intent */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 5, marginTop: 9 }}>
+        {campaign && <span title={leadCampaignFull(lead, lang)} style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11.5, fontWeight: 500, color: T.text, background: isDark ? 'rgba(255,255,255,.06)' : '#F1F3F9', borderRadius: 6, padding: '2px 8px' }}><bdi>{campaign}</bdi></span>}
+        {campaign !== sourceLabel(src, lang) && <span title={sourceLabel(src, lang)} style={{ fontSize: 11.5, fontWeight: 500, color: sourceColor(src), display: 'inline-flex', alignItems: 'center', gap: 5 }}><span style={{ width: 6, height: 6, borderRadius: '50%', background: sourceColor(src) }}/>{sourceLabel(src, lang)}</span>}
+        {score && <span style={{ fontSize: 11.5, fontWeight: 600, color: score.color, background: score.bg, borderRadius: 6, padding: '2px 8px' }}>{en ? score.en : score.l}</span>}
+      </div>
 
-      {/* Last call summary / note + next follow-up */}
+      {/* property (when it isn't the campaign) or the message */}
+      {lead.propTitle && lead.propTitle !== campaign && lead.propTitle !== leadCampaignFull(lead, lang) ? (
+        <div style={{ fontSize: 12.5, color: T.textSub, marginTop: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lead.propTitle}</div>
+      ) : lead.msg ? (
+        <div style={{ fontSize: 12.5, color: T.textSub, marginTop: 8, lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>{prettyLeadText(lead.msg, lang)}</div>
+      ) : null}
+
+      {/* last note + next follow-up */}
       {(last || fu) && (
-        <div onPointerDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); openNote?.(lead) }}
-          title={last?.text || ''}
-          style={{ fontSize: 11.5, color: T.text, marginBottom: 8, padding: '6px 8px', borderRadius: 8, background: isDark ? '#141C2C' : '#F3F5FC', border: `1px solid ${isDark ? '#243046' : '#E1E5F5'}`, cursor: 'text', lineHeight: 1.45 }}>
-          {last && <div style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>📝 {last.text}</div>}
-          {fu && <div style={{ marginTop: last ? 4 : 0, fontSize: 10.5, fontWeight: 700, color: fu < Date.now() ? T.red : T.accent }}>⏰ {lang === 'en' ? 'Follow up' : 'לחזור'}: {fmtNoteTs(fu, lang)}</div>}
+        <div onPointerDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); openNote?.(lead) }} title={last?.text || ''}
+          style={{ marginTop: 9, padding: '7px 9px', borderRadius: 8, background: isDark ? 'rgba(255,255,255,.04)' : '#F7F8FC', borderInlineStart: `2px solid ${isDark ? 'rgba(255,255,255,.14)' : '#D9DDEA'}`, cursor: 'text' }}>
+          {last && <div style={{ fontSize: 12.5, color: T.text, lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>{last.text}</div>}
+          {fu && <div style={{ marginTop: last ? 5 : 0, fontSize: 11.5, fontWeight: 600, color: fu < Date.now() ? '#E2445C' : T.textSub, display: 'flex', alignItems: 'center', gap: 5 }}><Clock size={12}/>{en ? 'Follow up' : 'לחזור'} · {fmtNoteTs(fu, lang)}</div>}
         </div>
       )}
 
-      {/* Score + date row */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 9 }}>
-        {score
-          ? <span style={{ fontSize: 11, fontWeight: 700, color: score.color, background: score.bg, borderRadius: 20, padding: '2px 8px', border: `1px solid ${score.color}30` }}>{lang === 'en' ? score.en : score.l}</span>
-          : <span />}
-        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          {(() => { const src = lead.source || (String(lead.id).startsWith('meta_') ? 'meta' : 'website'); return (
-            <span title={sourceLabel(src, lang)} style={{ fontSize: 9.5, fontWeight: 700, color: sourceColor(src), background: sourceColor(src) + '18', border: `1px solid ${sourceColor(src)}44`, borderRadius: 20, padding: '1px 7px', whiteSpace: 'nowrap' }}>
-              {sourceLabel(src, lang)}
-            </span>
-          ) })()}
-          <span style={{ fontSize: 10, color: T.textDim }}>{fmtDate(lead.ts)}</span>
+      {/* footer: date · quiet icon actions */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 10, paddingTop: 6, borderTop: `1px solid ${line}` }} onPointerDown={e => e.stopPropagation()}>
+        <span style={{ fontSize: 11.5, color: T.textDim, fontVariantNumeric: 'tabular-nums', flex: 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ width: 7, height: 7, borderRadius: '50%', background: color, flexShrink: 0 }} aria-hidden="true"/>{fmtDate(lead.ts)}
         </span>
-      </div>
-
-      {/* Action buttons — stop propagation so dnd doesn't interfere */}
-      <div style={{ display: 'flex', gap: 5, borderTop: `1px solid ${isDark ? '#2A3347' : '#E8EBF8'}`, paddingTop: 9 }}
-        onPointerDown={e => e.stopPropagation()}>
-        {lead.phone && (
-          <a href={`tel:${lead.phone}`} onClick={e => e.stopPropagation()}
-            style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '5px 0', background: `${T.accent}14`, border: `1px solid ${T.accent}30`, borderRadius: 7, color: T.accent, fontSize: 11, fontWeight: 700, textDecoration: 'none', cursor: 'pointer' }}>
-            <Phone size={10} /> {lang === 'en' ? 'Call' : 'שיחה'}
-          </a>
-        )}
-        {lead.phone && onOpenChat && (
-          <button onClick={e => { e.stopPropagation(); onOpenChat(lead) }}
-            style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '5px 0', background: '#25D36614', border: '1px solid #25D36630', borderRadius: 7, color: '#25D366', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-            <MessageSquare size={10} /> WA
-          </button>
-        )}
-        {openNote && (
-          <button onClick={e => { e.stopPropagation(); openNote(lead) }} title={lang === 'en' ? 'Call summary / note' : 'סיכום שיחה / הערה'}
-            style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '5px 0', background: '#A25DDC14', border: '1px solid #A25DDC33', borderRadius: 7, color: '#A25DDC', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-            <Pencil size={10} /> {lang === 'en' ? 'Note' : 'סיכום'}
-          </button>
-        )}
-        <button onClick={e => { e.stopPropagation(); onOpen(lead) }}
-          style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '5px 0', background: isDark ? '#252E42' : '#F0F2FA', border: `1px solid ${isDark ? '#2A3347' : '#DDE3F5'}`, borderRadius: 7, color: T.textSub, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>
-          <ExternalLink size={10} /> {lang === 'en' ? 'Open' : 'פתח'}
-        </button>
-        <button onClick={e => { e.stopPropagation(); onDelete(lead.id) }}
-          style={{ width: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '5px 0', background: 'none', border: `1px solid ${isDark ? '#2A3347' : '#DDE3F5'}`, borderRadius: 7, color: T.red, fontSize: 11, cursor: 'pointer', fontFamily: 'inherit' }}>
-          <Trash2 size={10} />
-        </button>
+        <div className="lb-acts">
+          {lead.phone && <a className="lb-act call" href={`tel:${lead.phone}`} onClick={e => e.stopPropagation()} title={en ? 'Call' : 'התקשרות'} aria-label={en ? 'Call' : 'התקשרות'}><Phone size={15}/></a>}
+          {lead.phone && onOpenChat && <button type="button" className="lb-act wa" onClick={e => { e.stopPropagation(); onOpenChat(lead) }} title="WhatsApp" aria-label="WhatsApp"><MessageSquare size={15}/></button>}
+          {openNote && <button type="button" className="lb-act note" onClick={e => { e.stopPropagation(); openNote(lead) }} title={en ? 'Call summary / note' : 'סיכום שיחה / הערה'} aria-label={en ? 'Call summary' : 'סיכום שיחה'}><Pencil size={15}/>{en ? 'Note' : 'סיכום'}</button>}
+          <button type="button" className="lb-act del" onClick={e => { e.stopPropagation(); onDelete(lead.id) }} title={en ? 'Delete' : 'מחיקה'} aria-label={en ? 'Delete' : 'מחיקה'}><Trash2 size={15}/></button>
+        </div>
       </div>
     </div>
   )
@@ -1491,35 +1495,28 @@ function KanbanColumn({ group, leads, T, isDark, lang, onOpen, onDelete, onOpenC
       flexShrink: 0,
       display: 'flex',
       flexDirection: 'column',
-      background: isDark
-        ? (isOver ? `${color}12` : '#131B2A')
-        : (isOver ? `${color}08` : '#ECEEF8'),
-      border: `1.5px solid ${isOver ? color : (isDark ? '#1E2A3A' : '#CDD0E8')}`,
-      borderRadius: 16,
+      background: isOver ? `${color}10` : (isDark ? '#111722' : '#F3F4F8'),
+      border: `1px solid ${isOver ? color : (isDark ? 'rgba(255,255,255,.06)' : 'rgba(20,30,80,.06)')}`,
+      borderRadius: 14,
       overflow: 'hidden',
-      transition: 'all .2s cubic-bezier(.4,0,.2,1)',
-      boxShadow: isOver
-        ? `0 0 0 3px ${color}30, 0 8px 32px rgba(0,0,0,.4)`
-        : isDark ? '0 2px 12px rgba(0,0,0,.3)' : '0 2px 8px rgba(0,0,0,.06)',
+      transition: 'background .2s, border-color .2s',
       maxHeight: '100%',
     }}>
 
       {/* Column header */}
       <div style={{
-        padding: '13px 14px 10px',
-        background: `linear-gradient(180deg, ${color}18 0%, transparent 100%)`,
-        borderBottom: `1px solid ${isDark ? '#222E42' : '#DDE3F5'}`,
+        padding: '12px 12px 8px 14px',
         flexShrink: 0,
-        direction: 'rtl',
+        direction: lang === 'en' ? 'ltr' : 'rtl',
+        borderTop: `3px solid ${color}`,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 17, lineHeight: 1 }}>{group.icon}</span>
-          <StageTitle group={group} lang={lang} color={color} onRename={onRenameStage}/>
+          <StageTitle group={group} lang={lang} color={T.text} onRename={onRenameStage}/>
           <span style={{
-            background: leads.length > 0 ? color : (isDark ? '#2A3347' : '#DDE3F5'),
-            color: leads.length > 0 ? '#fff' : T.textDim,
-            borderRadius: 20, padding: '2px 9px', fontSize: 11, fontWeight: 900,
-            minWidth: 22, textAlign: 'center',
+            background: isDark ? 'rgba(255,255,255,.08)' : 'rgba(20,30,80,.07)',
+            color: T.textSub,
+            borderRadius: 6, padding: '1px 8px', fontSize: 12, fontWeight: 600,
+            minWidth: 22, textAlign: 'center', fontVariantNumeric: 'tabular-nums',
           }}>{leads.length}</span>
           <span style={{ flex: 1 }}/>
           {onToggle && (
@@ -1532,7 +1529,7 @@ function KanbanColumn({ group, leads, T, isDark, lang, onOpen, onDelete, onOpenC
       </div>
 
       {/* Scrollable cards area */}
-      <div ref={setNodeRef} className="kanban-col-scroll" style={{ flex: 1, padding: '10px 10px 6px', minHeight: 80, direction: 'rtl' }}>
+      <div ref={setNodeRef} className="kanban-col-scroll" style={{ flex: 1, padding: '4px 8px 6px', minHeight: 80, direction: 'rtl' }}>
         {/* No shuffling while dragging: the order inside a column isn't saved, and a still target lets a card be held on another to merge */}
         <SortableContext items={leads.map(l => l.id)} strategy={NO_SHIFT}>
           {leads.map(lead => (
@@ -2071,7 +2068,7 @@ function LeadsBoardMain({
 
   // Total table width: checkbox(32) + all column widths + add-col btn(120)
   const tableMinWidth = useMemo(
-    () => allColsResized.reduce((s, c) => s + (c.width || 140), 0) + 32 + 120,
+    () => allColsResized.reduce((s, c) => s + (c.width || 140), 0) + 60 + 120,
     [allColsResized]
   )
 
@@ -2176,6 +2173,7 @@ function LeadsBoardMain({
     })
   }
 
+  const selCtx = useMemo(() => ({ has: id => selectedIds.has(id), toggle: (id, on, shift) => handleSelect(id, on, shift) }), [selectedIds, grouped]) // eslint-disable-line react-hooks/exhaustive-deps
   const handleSelectMany = (ids, checked) => setSelectedIds(prev => { const s = new Set(prev); ids.forEach(id => (checked ? s.add(id) : s.delete(id))); return s })
   const handleAddCol = col => { const next = [...extraCols, col]; setExtraCols(next); if (setCustomCols) setCustomCols(next); showToast(lang === 'en' ? 'Column added' : 'עמודה נוספה') }
   const toggleColVisibility = id => setHiddenCols(prev => ({ ...prev, [id]: !prev[id] }))
@@ -2325,7 +2323,7 @@ function LeadsBoardMain({
         {statusTarget && <StatusPopup lead={statusTarget} onClose={() => setStatusTarget(null)} onUpdate={updateLeadStatus} lang={lang} T={T} />}
         {detailLead && <LeadCard key={detailLead.id} lead={leads.find(l => l.id === detailLead.id) || detailLead} onClose={() => setDetailLead(null)} onUpdate={updateLead} onUpdateStatus={updateLeadStatus} onEnrich={enrichLead} onOpenChat={onOpenChat} lang={lang} stages={GROUPS} />}
         {toast && <Toast message={toast} onDismiss={() => setToast(null)} />}
-        <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
+        <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}` + LB_CSS}</style>
       </div>
     )
   }
@@ -2339,132 +2337,75 @@ function LeadsBoardMain({
       {/* ── Board title bar ── */}
       <div style={{ padding: '10px 20px 0', background: isDark ? '#0D1117' : T.bgHeader, borderBottom: `1px solid ${T.border}`, flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-          <div style={{ width: 32, height: 32, borderRadius: 9, background: 'linear-gradient(135deg,#0073EA,#7456C2)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 3px 12px #0073EA55' }}>
-            <User size={16} style={{ color: '#fff' }} />
-          </div>
-          <span style={{ fontSize: 18, fontWeight: 800, color: T.text, letterSpacing: '-.01em' }}>
-            {lang === 'en' ? 'Leads CRM' : 'ניהול לידים'}
+          <span style={{ fontSize: 20, fontWeight: 600, color: T.text, letterSpacing: '-.01em' }}>
+            {lang === 'en' ? 'Leads' : 'ניהול לידים'}
           </span>
-          <span style={{ fontSize: 11, color: T.accent, background: T.accent + '18', border: `1px solid ${T.accent}33`, borderRadius: 20, padding: '2px 10px', fontWeight: 800 }}>
-            {leads.length} {lang === 'en' ? 'items' : 'פריטים'}
+          <span style={{ fontSize: 13, color: T.textSub, fontVariantNumeric: 'tabular-nums' }}>
+            {leads.length} {lang === 'en' ? 'leads' : 'לידים'}
           </span>
           <div style={{ flex: 1 }} />
-          <button onClick={() => setModal('integrate')}
-            style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 14px', background: 'none', border: `1px solid ${T.border}`, borderRadius: 8, color: T.textSub, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s' }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = '#0073EA88'; e.currentTarget.style.color = T.text }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.color = T.textSub }}>
-            <Zap size={12} /> {lang === 'en' ? 'Integrations' : 'אינטגרציות'}
+          <button type="button" className="lb-tb" onClick={() => setModal('integrate')}>
+            <Zap size={14} /> {lang === 'en' ? 'Integrations' : 'אינטגרציות'}
           </button>
-          <button onClick={() => (onOpenAutomations ? onOpenAutomations() : setModal('automate'))}
-            style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 14px', background: '#7456C214', border: '1px solid #7456C244', borderRadius: 8, color: '#7456C2', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-            <Settings size={12} /> {lang === 'en' ? 'Automate' : 'אוטומציות'}
-            {autoPending > 0 && <span style={{ background: '#7456C2', color: '#fff', borderRadius: 10, fontSize: 9, padding: '0 5px', fontWeight: 800 }}>{autoPending}</span>}
+          <button type="button" className="lb-tb" onClick={() => (onOpenAutomations ? onOpenAutomations() : setModal('automate'))}>
+            <Settings size={14} /> {lang === 'en' ? 'Automations' : 'אוטומציות'}
+            {autoPending > 0 && <span className="n">{autoPending}</span>}
           </button>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', overflowX: 'auto', borderTop: `1px solid ${T.borderLight}`, marginTop: 6, justifyContent: 'flex-start' }}>
-          {[
-            { id: 'dashboard', icon: '📊', label: lang === 'en' ? 'Overview' : 'תמונת מצב' },
-            { id: 'pipeline', icon: '⬛', label: 'Pipeline' },
-            { id: 'table',    icon: '☰',  label: lang === 'en' ? 'Table' : 'טבלה' },
-          ].map(tb => (
-            <button key={tb.id} onClick={() => setActiveTab(tb.id)}
-              style={{ padding: '7px 16px', background: 'none', border: 'none', borderBottom: activeTab === tb.id ? `2px solid ${T.accent}` : '2px solid transparent', marginBottom: -1, color: activeTab === tb.id ? T.accent : T.textSub, fontSize: 12, fontWeight: activeTab === tb.id ? 700 : 500, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', transition: 'color .15s', display: 'flex', alignItems: 'center', gap: 5 }}>
-              {tb.icon} {tb.label}
-            </button>
-          ))}
+        <div style={{ display: 'flex', alignItems: 'center', padding: '2px 0 10px' }}>
+          <div className="lb-seg" role="tablist" aria-label={lang === 'en' ? 'View' : 'תצוגה'}>
+            {[
+              { id: 'dashboard', Icon: BarChart3, label: lang === 'en' ? 'Overview' : 'תמונת מצב' },
+              { id: 'pipeline', Icon: Columns3, label: lang === 'en' ? 'Pipeline' : 'פייפליין' },
+              { id: 'table', Icon: Table2, label: lang === 'en' ? 'Table' : 'טבלה' },
+            ].map(({ id, Icon, label }) => (
+              <button key={id} type="button" role="tab" aria-selected={activeTab === id} onClick={() => setActiveTab(id)}>
+                <Icon size={15} strokeWidth={2}/>{label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
-      {/* ── Toolbar ── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', background: isDark ? '#0D1117' : T.bgHeader, borderBottom: `1px solid ${T.border}`, flexShrink: 0, overflowX: 'auto', overflowY: 'visible' }}>
-        <div style={{ display: 'flex', alignItems: 'stretch', borderRadius: 8, overflow: 'hidden', boxShadow: `0 2px 8px ${T.accent}30` }}>
-          <button onClick={() => handleAddRow(GROUPS[0].id, '')}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 18px', background: T.accent, border: 'none', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', borderRight: '1px solid rgba(255,255,255,.25)' }}>
-            <Plus size={14} /> {lang === 'en' ? 'New Item' : 'פריט חדש'}
-          </button>
-          <button style={{ padding: '7px 10px', background: T.accent, border: 'none', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-            <ChevronDown size={13} />
-          </button>
-        </div>
-
-        <div style={{ width: 1, height: 22, background: T.border, margin: '0 2px' }} />
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 7, background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: 8, padding: '6px 12px', transition: 'border-color .15s', minWidth: 200 }}
-          onFocusCapture={e => e.currentTarget.style.borderColor = T.accent}
-          onBlurCapture={e => e.currentTarget.style.borderColor = T.border}>
-          <Search size={13} style={{ color: T.textSub, flexShrink: 0 }} />
-          <input value={search} onChange={e => setSearch(e.target.value)}
-            placeholder={lang === 'en' ? 'Search leads...' : 'חפש לידים...'}
-            style={{ background: 'none', border: 'none', outline: 'none', fontSize: 12, color: T.text, fontFamily: 'inherit', width: 130 }} />
-          {search && <button onClick={() => setSearch('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.textSub, padding: 0, display: 'flex', alignItems: 'center' }}><X size={12} /></button>}
-        </div>
-
-        {[
-          { label: lang === 'en' ? 'Filter' : 'סינון', icon: Filter, onClick: () => {} },
-          { label: lang === 'en' ? 'Sort' : 'מיון', icon: ArrowUpDown, onClick: () => {} },
-        ].map(btn => {
-          const Icon = btn.icon
-          return (
-            <button key={btn.label} onClick={btn.onClick}
-              style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: 'none', border: `1px solid ${T.border}`, borderRadius: 8, color: T.textSub, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s' }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = T.accent + '88'; e.currentTarget.style.color = T.text }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.color = T.textSub }}>
-              <Icon size={12} /> {btn.label}
-            </button>
-          )
-        })}
-
-        <button onClick={() => setModal('hidecols')}
-          style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: hiddenCount > 0 ? T.accent + '0A' : 'none', border: `1px solid ${hiddenCount > 0 ? T.accent + '44' : T.border}`, borderRadius: 8, color: hiddenCount > 0 ? T.accent : T.textSub, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s' }}
-          onMouseEnter={e => { e.currentTarget.style.borderColor = T.accent + '88'; e.currentTarget.style.color = T.accent }}
-          onMouseLeave={e => { e.currentTarget.style.borderColor = hiddenCount > 0 ? T.accent + '44' : T.border; e.currentTarget.style.color = hiddenCount > 0 ? T.accent : T.textSub }}>
-          {hiddenCount > 0 ? <EyeOff size={12} /> : <Eye size={12} />}
-          {lang === 'en' ? 'Hide' : 'הסתר'}
-          {hiddenCount > 0 && <span style={{ background: T.accent, color: '#fff', borderRadius: 10, fontSize: 10, padding: '0 5px', fontWeight: 700 }}>{hiddenCount}</span>}
+      {/* ── Toolbar: new lead · search · (table) columns ┊ sync · trash · CSV · (table) add column · enrich ── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px', background: isDark ? '#0D1117' : T.bgHeader, borderBottom: `1px solid ${T.border}`, flexShrink: 0, overflowX: 'auto' }}>
+        <button type="button" onClick={() => handleAddRow(GROUPS[0].id, '')}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 34, padding: '0 16px', background: T.accent, border: 'none', borderRadius: 9, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', minHeight: 0 }}>
+          <Plus size={15} strokeWidth={2.4} /> {lang === 'en' ? 'New lead' : 'ליד חדש'}
         </button>
+
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, height: 34, background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: 9, padding: '0 12px', minWidth: 240, cursor: 'text' }}>
+          <Search size={15} style={{ color: T.textSub, flexShrink: 0 }} />
+          <input value={search} onChange={e => setSearch(e.target.value)} aria-label={lang === 'en' ? 'Search leads' : 'חיפוש לידים'}
+            placeholder={lang === 'en' ? 'Search name, phone, campaign…' : 'חיפוש שם, טלפון, קמפיין…'}
+            style={{ background: 'none', border: 'none', outline: 'none', fontSize: 13, color: T.text, fontFamily: 'inherit', flex: 1, minWidth: 0, minHeight: 0 }} />
+          {search && <button type="button" onClick={() => setSearch('')} aria-label={lang === 'en' ? 'Clear search' : 'ניקוי חיפוש'} style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.textSub, padding: 0, display: 'flex', alignItems: 'center', minHeight: 0 }}><X size={14} /></button>}
+        </label>
+
+        {activeTab === 'table' && (
+          <button type="button" className="lb-tb" onClick={() => setModal('hidecols')} aria-pressed={hiddenCount > 0}>
+            {hiddenCount > 0 ? <EyeOff size={14} /> : <Eye size={14} />}
+            {lang === 'en' ? 'Columns' : 'עמודות'}
+            {hiddenCount > 0 && <span className="n">{hiddenCount}</span>}
+          </button>
+        )}
 
         <div style={{ flex: 1 }} />
 
-        <button onClick={syncLeads} disabled={leadsSyncing}
-          style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: 'none', border: `1px solid ${T.border}`, borderRadius: 8, color: leadsSyncing ? T.textDim : T.textSub, fontSize: 12, fontWeight: 600, cursor: leadsSyncing ? 'not-allowed' : 'pointer', fontFamily: 'inherit', transition: 'all .15s' }}>
-          <RefreshCw size={12} style={{ animation: leadsSyncing ? 'spin 1s linear infinite' : 'none' }} />
-          {lang === 'en' ? 'Sync' : 'סנכרן'}
+        <button type="button" className="lb-tb" onClick={syncLeads} disabled={leadsSyncing} title={lang === 'en' ? 'Sync with the server' : 'סנכרון מול השרת'}>
+          <RefreshCw size={14} style={{ animation: leadsSyncing ? 'spin 1s linear infinite' : 'none' }} />
+          {lang === 'en' ? 'Sync' : 'סנכרון'}
         </button>
-
         {restoreLead && (
-          <button onClick={() => setModal('trash')}
-            style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: trashedLeads.length > 0 ? T.red + '12' : 'none', border: `1px solid ${trashedLeads.length > 0 ? T.red + '55' : T.border}`, borderRadius: 8, color: trashedLeads.length > 0 ? T.red : T.textSub, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s' }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = T.red + '88'; e.currentTarget.style.color = T.red }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = trashedLeads.length > 0 ? T.red + '55' : T.border; e.currentTarget.style.color = trashedLeads.length > 0 ? T.red : T.textSub }}>
-            <Trash2 size={12} />
-            {lang === 'en' ? 'Trash' : 'אשפה'}
-            {trashedLeads.length > 0 && (
-              <span style={{ background: T.red, color: '#fff', borderRadius: 10, fontSize: 10, padding: '0 5px', fontWeight: 700, minWidth: 16, textAlign: 'center' }}>{trashedLeads.length}</span>
-            )}
+          <button type="button" className={`lb-tb${trashedLeads.length ? ' danger' : ''}`} onClick={() => setModal('trash')}>
+            <Trash2 size={14} /> {lang === 'en' ? 'Trash' : 'אשפה'}
+            {trashedLeads.length > 0 && <span className="n">{trashedLeads.length}</span>}
           </button>
         )}
-
-        <button onClick={exportCSV}
-          style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: 'none', border: `1px solid ${T.border}`, borderRadius: 8, color: T.textSub, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s' }}
-          onMouseEnter={e => { e.currentTarget.style.borderColor = T.green + '88'; e.currentTarget.style.color = T.green }}
-          onMouseLeave={e => { e.currentTarget.style.borderColor = T.border; e.currentTarget.style.color = T.textSub }}>
-          <Download size={12} /> CSV
-        </button>
-
-        <button onClick={() => setModal('addcol')}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', background: T.accent + '12', border: `1px solid ${T.accent}55`, borderRadius: 8, color: T.accent, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', transition: 'all .15s', whiteSpace: 'nowrap' }}
-          onMouseEnter={e => { e.currentTarget.style.background = T.accent + '22'; e.currentTarget.style.borderColor = T.accent }}
-          onMouseLeave={e => { e.currentTarget.style.background = T.accent + '12'; e.currentTarget.style.borderColor = T.accent + '55' }}>
-          <Columns size={12} /> {lang === 'en' ? '+ Add Column' : '+ יצירת עמודה חדשה'}
-        </button>
-
-        {enrichAll && (
-          <button onClick={enrichAll}
-            style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: '#7456C214', border: '1px solid #7456C244', borderRadius: 8, color: '#7456C2', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-            ✦ {lang === 'en' ? 'Enrich All' : 'העשר'}
-          </button>
-        )}
+        <button type="button" className="lb-tb" onClick={exportCSV}><Download size={14} /> CSV</button>
+        {activeTab === 'table' && <button type="button" className="lb-tb" onClick={() => setModal('addcol')}><Columns size={14} /> {lang === 'en' ? 'Add column' : 'עמודה חדשה'}</button>}
+        {enrichAll && <button type="button" className="lb-tb" onClick={enrichAll}>✦ {lang === 'en' ? 'Enrich all' : 'העשרה'}</button>}
       </div>
 
       {/* ── Overview: funnel + stage drill-down ── */}
@@ -2477,6 +2418,7 @@ function LeadsBoardMain({
       {/* ── Pipeline (Kanban) view ── */}
       {activeTab === 'pipeline' && (
         <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+          <SelCtx.Provider value={selCtx}>
           <KanbanBoard
             leads={filtered}
             T={T} isDark={isDark} lang={lang}
@@ -2491,6 +2433,7 @@ function LeadsBoardMain({
             onRenameStage={onRenameStage}
             onMergeRequest={openMerge}
           />
+          </SelCtx.Provider>
         </div>
       )}
 
@@ -2501,15 +2444,14 @@ function LeadsBoardMain({
             <div style={{ minWidth: tableMinWidth, width: '100%' }}>
               {/* Column headers */}
               <div style={{ display: 'flex', alignItems: 'center', background: T.bgHeader, borderBottom: `2px solid ${T.border}`, position: 'sticky', top: 0, zIndex: 10, height: 36, boxShadow: '0 2px 8px rgba(0,0,0,.06)' }}>
-                <div style={{ width: 44, flexShrink: 0, borderInlineEnd: `1px solid ${T.border}`, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'sticky', insetInlineStart: 0, background: T.bgHeader, zIndex: 5 }}>
-                  <input type="checkbox" style={{ accentColor: T.accent, width: 15, height: 15, cursor: 'pointer' }}
-                    aria-label={lang === 'en' ? 'Select all' : 'בחר הכול'}
+                <div style={{ width: 60, flexShrink: 0, borderInlineEnd: `1px solid ${T.border}`, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'sticky', insetInlineStart: 0, background: T.bgHeader, zIndex: 5 }}>
+                  <CheckBox label={lang === 'en' ? 'Select all' : 'בחר הכול'}
                     checked={filtered.length > 0 && selectedIds.size >= filtered.length && filtered.every(l => selectedIds.has(l.id))}
-                    ref={el => { if (el) el.indeterminate = selectedIds.size > 0 && !filtered.every(l => selectedIds.has(l.id)) }}
-                    onChange={e => setSelectedIds(e.target.checked ? new Set(filtered.map(l => l.id)) : new Set())} />
+                    indeterminate={selectedIds.size > 0}
+                    onChange={on => setSelectedIds(on ? new Set(filtered.map(l => l.id)) : new Set())} />
                 </div>
                 {allColsResized.map(col => (
-                  <div key={col.id} style={{ width: col.width, flexShrink: 0, padding: '0 10px', fontSize: 11, fontWeight: 700, color: T.textSub, textTransform: 'uppercase', letterSpacing: '.05em', borderRight: `1px solid ${T.borderLight}`, height: '100%', display: 'flex', alignItems: 'center', userSelect: 'none', cursor: 'pointer', transition: 'color .15s, background .15s', whiteSpace: 'nowrap', overflow: 'hidden', position: 'relative', ...(col.pinned ? { position: 'sticky', insetInlineStart: 44, zIndex: 4, background: T.bgHeader } : {}) }}
+                  <div key={col.id} style={{ width: col.width, flexShrink: 0, padding: '0 10px', fontSize: 11, fontWeight: 700, color: T.textSub, textTransform: 'uppercase', letterSpacing: '.05em', borderRight: `1px solid ${T.borderLight}`, height: '100%', display: 'flex', alignItems: 'center', userSelect: 'none', cursor: 'pointer', transition: 'color .15s, background .15s', whiteSpace: 'nowrap', overflow: 'hidden', position: 'relative', ...(col.pinned ? { position: 'sticky', insetInlineStart: 60, zIndex: 4, background: T.bgHeader } : {}) }}
                     onMouseEnter={e => { e.currentTarget.style.color = T.text; e.currentTarget.style.background = T.bgRowHover }}
                     onMouseLeave={e => { e.currentTarget.style.color = T.textSub; e.currentTarget.style.background = col.pinned ? T.bgHeader : 'transparent' }}>
                     {lang === 'en' ? (col.en || col.label) : col.label}
@@ -2693,7 +2635,7 @@ function LeadsBoardMain({
         </>
       )}
 
-      <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
+      <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}` + LB_CSS}</style>
     </div>
   )
 }

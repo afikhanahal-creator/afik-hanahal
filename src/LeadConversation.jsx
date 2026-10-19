@@ -27,6 +27,9 @@ const TR = {
     pick: '⚡ בחירת תבנית…', editTpl: 'עריכת התבנית עצמה (לכל הלידים)', sent: 'נשלח', auto: 'באוטומציה', firstNote: 'הודעה ראשונה · תיחשב כהודעת הפתיחה',
     maximize: 'הגדלת השיחה למסך מלא', restore: 'חזרה לתצוגה הרגילה (Esc)', resizeDock: 'גררו למעלה או למטה לשינוי גודל תיבת הכתיבה (לחיצה כפולה מחזירה)',
     enterHint: 'Enter לשליחה · Shift+Enter לשורה חדשה', clear: 'ניקוי',
+    quick: 'תשובות מוכנות', quickTip: 'תשובות מוכנות (או / בתחילת ההודעה)', search: 'חיפוש תבנית…', none: 'לא נמצאו תבניות',
+    fromTpl: 'מתבנית', edited: 'נערך', editShort: 'עריכת התבנית', clearTip: 'ניקוי ההודעה', langHe: 'עברית', langEn: 'English',
+    quickHint: '↑ ↓ לבחירה · Enter להכנסה · Esc לסגירה', count: n => `${n} תבניות`, lineOf: n => `קו המשרד ${n}`,
   },
   en: {
     title: 'WhatsApp conversation', from: n => `From the office WhatsApp${n ? ` · ${n}` : ''}`, refresh: 'Refresh the conversation', openChats: 'In chats',
@@ -37,6 +40,9 @@ const TR = {
     pick: '⚡ Pick a template…', editTpl: 'Edit the template itself (for every lead)', sent: 'sent', auto: 'automation', firstNote: 'First message · counts as the welcome',
     maximize: 'Expand the conversation', restore: 'Back to the normal view (Esc)', resizeDock: 'Drag up or down to resize the message box (double-click resets)',
     enterHint: 'Enter to send · Shift+Enter for a new line', clear: 'Clear',
+    quick: 'Quick replies', quickTip: 'Quick replies (or / at the start of a message)', search: 'Search templates…', none: 'No templates found',
+    fromTpl: 'From template', edited: 'edited', editShort: 'Edit the template', clearTip: 'Clear the message', langHe: 'עברית', langEn: 'English',
+    quickHint: '↑ ↓ to choose · Enter to insert · Esc to close', count: n => `${n} templates`, lineOf: n => `Office line ${n}`,
   },
 }
 
@@ -66,6 +72,20 @@ function fmtDay(ds, lang) {
   return d.toLocaleDateString(lang === 'en' ? 'en-GB' : 'he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 const readDock = () => { try { const v = Number(localStorage.getItem(DOCK_KEY)); return v > 0 ? v : null } catch { return null } }
+const localPhone = p => { const d = String(p || '').replace(/\D/g, ''); const l = d.startsWith('972') ? '0' + d.slice(3) : d; return l.length === 10 ? `${l.slice(0, 3)}-${l.slice(3, 6)}-${l.slice(6)}` : l }
+const initials = name => String(name || '').trim().split(/\s+/).slice(0, 2).map(w => w[0] || '').join('').toUpperCase() || '?'
+// WhatsApp Web's own icon shapes (24px, currentColor)
+const I = {
+  refresh: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg>,
+  expand: <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>,
+  shrink: <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7"/></svg>,
+  open: <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>,
+  bolt: <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13 2 4.5 13.5H11L10 22l8.5-11.5H12z"/></svg>,
+  pencil: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13.5 6.5 4 4"/></svg>,
+  close: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>,
+  send: <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>,
+  search: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>,
+}
 
 export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = true, localMsgs = [], needsWelcome = false, autoConfig = null, onAutoConfigSaved, onSend, onSendWelcome, onOpenChats, officePhone = '', compact = false, onActivity, maximized = false, onToggleMaximize }) {
   const t = TR[lang] || TR.he
@@ -84,9 +104,12 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
   const [cfgLocal, setCfgLocal] = useState(null)
   const [editTpl, setEditTpl] = useState(null)
   const [dock, setDock] = useState(readDock)              // the composer's dragged height (null = fits its text)
+  const [quick, setQuick] = useState(false)               // the quick-replies window (⚡ or "/" at the start of the box)
+  const [qq, setQq] = useState('')
+  const [qActive, setQActive] = useState(0)
   const cfg = cfgLocal || autoConfig
   useEffect(() => { setCfgLocal(null) }, [autoConfig])
-  const rootRef = useRef(null), scrollRef = useRef(null), inputRef = useRef(null), dockRef = useRef(null)
+  const rootRef = useRef(null), scrollRef = useRef(null), inputRef = useRef(null), dockRef = useRef(null), qListRef = useRef(null), qBtnRef = useRef(null)
   const etagRef = useRef({}), nearBottom = useRef(true), inserted = useRef(''), prefilled = useRef(false)
 
   // ── the WhatsApp history (conditional: an unchanged chat answers an empty 304) ──
@@ -174,36 +197,63 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
     el.style.height = 'auto'; el.style.height = Math.min(160, el.scrollHeight + 2) + 'px'
   }, [input, dock])
 
-  // ── messages ──
+  // ── quick replies (WhatsApp Business style): search, sections, keyboard ──
+  const qText = qq.trim().toLowerCase()
+  const qSections = useMemo(() => {
+    if (!qText) return groups
+    const hits = groups.flatMap(g => g.items).filter(x => `${x.title} ${x.text}`.toLowerCase().includes(qText))
+    return hits.length ? [{ id: 'q', label: '', items: hits }] : []
+  }, [groups, qText])
+  const qFlat = useMemo(() => qSections.flatMap(g => g.items), [qSections])
+  useEffect(() => { setQActive(0) }, [qText, tplLang, quick])
+  useEffect(() => { qListRef.current?.querySelector(`[data-qi="${qActive}"]`)?.scrollIntoView({ block: 'nearest' }) }, [qActive])
+  const openQuick = (q = '') => { setQq(q); setQuick(true) }
+  const closeQuick = (focusBox = true) => { setQuick(false); setQq(''); if (focusBox) setTimeout(() => inputRef.current?.focus(), 0) }
+  const pickQuick = x => { if (!x) return; setQuick(false); setQq(''); putText(x.text, x.id) }
+  const qKey = e => {
+    if (e.key === 'Escape') { e.preventDefault(); closeQuick() }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); setQActive(i => Math.min(qFlat.length - 1, i + 1)) }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setQActive(i => Math.max(0, i - 1)) }
+    else if (e.key === 'Enter') { e.preventDefault(); pickQuick(qFlat[qActive]) }
+  }
+  useEffect(() => {
+    if (!quick) return
+    const down = e => { if (!e.target.closest?.('.lcv-quick') && !qBtnRef.current?.contains(e.target)) setQuick(false) }
+    window.addEventListener('mousedown', down)
+    return () => window.removeEventListener('mousedown', down)
+  }, [quick])
+
+  // ── messages (WhatsApp Web: a tail on the first bubble of a run, the time tucked into the last line) ──
   const items = []
   let lastDay = ''
   msgs.forEach((m, i) => {
     const day = new Date(m.created_at).toDateString()
     if (day !== lastDay) {
       lastDay = day
-      items.push(<div key={`d-${day}`} style={{ display: 'flex', justifyContent: 'center', margin: '12px 0 8px' }}><span style={{ fontSize: 12, color: WA.dateSepText, background: WA.dateSepBg, borderRadius: 8, padding: '4px 14px', boxShadow: '0 1px .5px rgba(0,0,0,.18)' }}>{fmtDay(m.created_at, lang)}</span></div>)
+      items.push(<div key={`d-${day}`} className="lcv-day"><span>{fmtDay(m.created_at, lang)}</span></div>)
     }
     const out = m.direction === 'out'
-    const next = msgs[i + 1]
-    const last = !next || next.direction !== m.direction || Math.abs(new Date(next.created_at) - new Date(m.created_at)) > 60000
+    const prev = msgs[i - 1], next = msgs[i + 1]
+    const firstOfRun = !prev || prev.direction !== m.direction || new Date(prev.created_at).toDateString() !== day || Math.abs(new Date(m.created_at) - new Date(prev.created_at)) > 60000
+    const lastOfRun = !next || next.direction !== m.direction || Math.abs(new Date(next.created_at) - new Date(m.created_at)) > 60000
     const sending = String(m.id).startsWith('opt-') && m.status === 'sending'
     items.push(
-      <div key={m.id || i} style={{ display: 'flex', justifyContent: out ? 'flex-end' : 'flex-start', marginBottom: last ? 6 : 2 }}>
-        <div style={{ maxWidth: 'min(78%, 560px)', minWidth: 84, padding: '6px 9px 20px', borderRadius: out ? (last ? '8px 8px 0 8px' : '8px') : (last ? '8px 8px 8px 0' : '8px'), background: out ? WA.bubbleOut : WA.bubbleIn, color: WA.bodyText, fontSize: 14, lineHeight: 1.5, boxShadow: '0 1px .5px rgba(0,0,0,.18)', position: 'relative', opacity: sending ? .7 : 1, wordBreak: 'break-word' }}>
-          {m.quoted && <div style={{ borderInlineStart: `3px solid ${m.quoted.out ? WA.green : '#53BDEB'}`, background: isDark ? 'rgba(0,0,0,.22)' : 'rgba(0,0,0,.05)', borderRadius: 6, padding: '4px 8px', marginBottom: 5, fontSize: 12.5, color: WA.subText }}>{m.quoted.text}</div>}
+      <div key={m.id || i} className={`lcv-row ${out ? 'out' : 'in'}`} style={{ marginTop: firstOfRun ? 8 : 2, marginBottom: lastOfRun ? 2 : 0 }}>
+        <div className={`lcv-b ${out ? 'out' : 'in'}${firstOfRun ? ' tail' : ''}`} style={{ opacity: sending ? .7 : 1 }}>
+          {m.quoted && <div className="lcv-quote" style={{ borderInlineStartColor: m.quoted.out ? WA.green : '#53BDEB' }}>{m.quoted.text}</div>}
           {m.media && (m.kind === 'imageMessage' || m.kind === 'stickerMessage') && (m.media.url || m.media.thumb) && (
-            <a href={m.media.url || undefined} target="_blank" rel="noreferrer" style={{ display: 'block', margin: '-2px -5px 4px' }}>
-              <img src={m.media.url || m.media.thumb} alt="" loading="lazy" style={{ display: 'block', maxWidth: 260, width: '100%', borderRadius: 6 }}/>
+            <a href={m.media.url || undefined} target="_blank" rel="noreferrer" style={{ display: 'block', margin: '-3px -4px 4px' }}>
+              <img src={m.media.url || m.media.thumb} alt="" loading="lazy" style={{ display: 'block', maxWidth: 280, width: '100%', borderRadius: 6 }}/>
             </a>
           )}
-          {m.media?.url && m.kind === 'audioMessage' && <audio src={m.media.url} controls preload="none" style={{ display: 'block', width: 230, maxWidth: '100%', height: 34, margin: '2px 0 4px' }}/>}
-          {m.media?.url && (m.kind === 'documentMessage' || m.kind === 'videoMessage') && <a href={m.media.url} target="_blank" rel="noreferrer" style={{ display: 'block', fontSize: 13, color: WA.green, fontWeight: 700, marginBottom: 4 }}>{m.kind === 'videoMessage' ? '🎥' : '📄'} {m.media.name || (lang === 'en' ? 'Open' : 'פתיחה')}</a>}
-          {m.location?.latitude && <a href={`https://maps.google.com/?q=${m.location.latitude},${m.location.longitude}`} target="_blank" rel="noreferrer" style={{ display: 'block', fontSize: 13, color: WA.green, marginBottom: 4 }}>📍 {m.location.nameLocation || m.location.address || (lang === 'en' ? 'Location' : 'מיקום')}</a>}
-          {m.message && <div style={{ unicodeBidi: 'plaintext', textAlign: 'start', whiteSpace: 'pre-wrap' }}><WAText text={m.message}/></div>}
-          <div style={{ position: 'absolute', bottom: 4, insetInlineEnd: 8, display: 'flex', alignItems: 'center', gap: 3, direction: 'ltr' }}>
-            <span style={{ fontSize: 10.5, color: WA.subText }}>{fmtTime(m.created_at)}</span>
-            {out && <TickMark status={sending ? 'sending' : (m.status || 'sent')} WA={WA} size={13}/>}
-          </div>
+          {m.media?.url && m.kind === 'audioMessage' && <audio src={m.media.url} controls preload="none" style={{ display: 'block', width: 240, maxWidth: '100%', height: 34, margin: '2px 0 4px' }}/>}
+          {m.media?.url && (m.kind === 'documentMessage' || m.kind === 'videoMessage') && <a href={m.media.url} target="_blank" rel="noreferrer" className="lcv-file">{m.kind === 'videoMessage' ? '🎥' : '📄'} {m.media.name || (lang === 'en' ? 'Open' : 'פתיחה')}</a>}
+          {m.location?.latitude && <a href={`https://maps.google.com/?q=${m.location.latitude},${m.location.longitude}`} target="_blank" rel="noreferrer" className="lcv-file">📍 {m.location.nameLocation || m.location.address || (lang === 'en' ? 'Location' : 'מיקום')}</a>}
+          <div className="lcv-txt">{m.message ? <WAText text={m.message}/> : null}<span className={`lcv-sp${out ? ' o' : ''}`} aria-hidden="true"/></div>
+          <span className="lcv-meta">
+            <span>{fmtTime(m.created_at)}</span>
+            {out && <TickMark status={sending ? 'sending' : (m.status || 'sent')} WA={WA} size={14}/>}
+          </span>
         </div>
       </div>
     )
@@ -211,51 +261,102 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
 
   const dockMax = () => Math.max(140, (rootRef.current?.getBoundingClientRect().height || 600) - 180)
   const curTpl = tplId ? getTemplate(mergeConfig(cfg || {}), tplId) : null
+  const tplTitle = tplId && byId[tplId] ? byId[tplId].title : ''
   const canSend = !busy && !!input.trim()
+  const name = lead?.name || localPhone(lead?.phone) || ''
+  const panel = isDark ? '#202C33' : '#F0F2F5'
+  const icon = isDark ? '#AEBAC1' : '#54656F'
+  const teal = isDark ? '#00A884' : '#008069'
 
+  let qi = -1
   return (
-    <div ref={rootRef} className="lcv" dir={lang === 'en' ? 'ltr' : 'rtl'} style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, background: WA.chatBg, borderRadius: 'inherit', overflow: 'hidden' }}>
+    <div ref={rootRef} className="lcv" dir={lang === 'en' ? 'ltr' : 'rtl'} style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, background: isDark ? '#0B141A' : '#EFEAE2', borderRadius: 'inherit', overflow: 'hidden' }}>
       <style>{SPLITTER_CSS + `
-        .lcv button,.lcv select{font-family:inherit}
-        .lcv-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:32px;min-width:32px;padding:0 10px;border-radius:8px;border:1px solid ${WA.border};background:transparent;color:${WA.bodyText};font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0}
-        .lcv-btn:hover:not(:disabled){background:${WA.hoverRow}}
-        .lcv-btn:disabled{opacity:.45;cursor:not-allowed}
-        .lcv-btn[aria-pressed=true]{border-color:${WA.green};background:${WA.green}22}
-        .lcv :focus-visible{outline:2px solid ${WA.green};outline-offset:1px}
-        .lcv-sel{height:34px;min-width:0;flex:1 1 220px;max-width:420px;border-radius:8px;border:1px solid ${WA.border};background:${WA.inputFieldBg};color:${WA.bodyText};font-size:13px;padding:0 10px;cursor:pointer}
-        .lcv-seg{display:inline-flex;border:1px solid ${WA.border};border-radius:8px;overflow:hidden;flex-shrink:0}
-        .lcv-seg button{height:32px;padding:0 10px;border:none;background:transparent;color:${WA.subText};font-size:12px;font-weight:700;cursor:pointer}
-        .lcv-seg button[aria-pressed=true]{background:${WA.green}26;color:${WA.bodyText}}
+        .lcv{font-family:"Segoe UI",Helvetica,Rubik,Heebo,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+        .lcv button,.lcv input,.lcv textarea{font-family:inherit;min-height:0}
+        .lcv :focus-visible{outline:2px solid ${WA.green};outline-offset:2px}
+        .lcv-ib{width:40px;height:40px;border-radius:50%;border:none;background:transparent;color:${icon};display:inline-flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:background .15s}
+        .lcv-ib:hover:not(:disabled){background:${isDark ? 'rgba(255,255,255,.08)' : 'rgba(11,20,26,.06)'}}
+        .lcv-ib[aria-pressed=true],.lcv-ib[aria-expanded=true]{background:${isDark ? 'rgba(255,255,255,.1)' : 'rgba(11,20,26,.08)'};color:${teal}}
+        .lcv-ib:disabled{opacity:.4;cursor:default}
+        .lcv-day{display:flex;justify-content:center;margin:12px 0 6px;position:sticky;top:6px;z-index:2}
+        .lcv-day span{font-size:12.5px;color:${isDark ? '#8696A0' : '#54656F'};background:${isDark ? '#182229' : '#FFFFFF'};border-radius:7.5px;padding:5px 12px 6px;box-shadow:0 1px .5px rgba(11,20,26,.13);text-transform:none}
+        .lcv-row{display:flex;padding:0 6%}
+        .lcv-row.out{justify-content:flex-end}
+        .lcv-b{position:relative;max-width:min(65%,560px);padding:6px 7px 8px 9px;border-radius:7.5px;font-size:14.2px;line-height:19px;color:${WA.bodyText};box-shadow:0 1px .5px rgba(11,20,26,.13);word-wrap:break-word;overflow-wrap:anywhere}
+        .lcv-b.out{background:${isDark ? '#005C4B' : '#D9FDD3'}}
+        .lcv-b.in{background:${isDark ? '#202C33' : '#FFFFFF'}}
+        .lcv-b.tail.out{border-start-end-radius:0}
+        .lcv-b.tail.in{border-start-start-radius:0}
+        .lcv-b.tail::before{content:'';position:absolute;top:0;width:0;height:0;border-top:10px solid}
+        .lcv-b.tail.out::before{inset-inline-end:-8px;border-top-color:${isDark ? '#005C4B' : '#D9FDD3'};border-inline-end:8px solid transparent}
+        .lcv-b.tail.in::before{inset-inline-start:-8px;border-top-color:${isDark ? '#202C33' : '#FFFFFF'};border-inline-start:8px solid transparent}
+        .lcv-txt{unicode-bidi:plaintext;text-align:start;white-space:pre-wrap}
+        .lcv-sp{display:inline-block;width:46px;height:1px;vertical-align:middle}
+        .lcv-sp.o{width:66px}
+        .lcv-meta{position:absolute;bottom:4px;right:7px;display:flex;align-items:center;gap:3px;direction:ltr;font-size:11px;color:${isDark ? 'rgba(233,237,239,.6)' : '#667781'};line-height:15px}
+        .lcv[dir=rtl] .lcv-meta{right:auto;left:7px}
+        .lcv-quote{border-inline-start:4px solid;background:${isDark ? 'rgba(0,0,0,.2)' : 'rgba(11,20,26,.05)'};border-radius:7.5px;padding:5px 9px;margin:-2px -4px 6px;font-size:13px;color:${WA.subText}}
+        .lcv-file{display:block;font-size:13.5px;color:${teal};font-weight:600;margin-bottom:4px}
+        .lcv-in{flex:1;align-self:stretch;resize:none;box-sizing:border-box;min-height:42px;padding:10px 12px;border-radius:8px;border:none;background:${isDark ? '#2A3942' : '#FFFFFF'};color:${WA.bodyText};font-size:15px;line-height:20px;outline:none;unicode-bidi:plaintext}
+        .lcv-in::placeholder{color:${isDark ? '#8696A0' : '#667781'}}
+        .lcv-send{width:42px;height:42px;border-radius:50%;border:none;background:${WA.green};color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;transition:transform .15s,opacity .15s}
+        .lcv-send:disabled{opacity:.45;cursor:default}
+        .lcv-send:hover:not(:disabled){transform:scale(1.04)}
+        .lcv-send.wide{width:auto;padding:0 18px;border-radius:21px;font-size:14px;font-weight:600;gap:8px;white-space:nowrap}
+        .lcv-tpl{display:flex;align-items:center;gap:8px;margin:0 52px 6px 52px;padding:6px 6px 6px 12px;border-radius:8px;background:${isDark ? '#1D282F' : '#FFFFFF'};border-inline-start:4px solid ${teal};font-size:13px;color:${WA.subText};min-width:0}
+        [dir=rtl] .lcv-tpl{padding:6px 12px 6px 6px}
+        .lcv-tpl b{color:${teal};font-weight:600}
+        .lcv-seg{display:inline-flex;background:${isDark ? 'rgba(255,255,255,.06)' : 'rgba(11,20,26,.05)'};border-radius:999px;padding:2px;flex-shrink:0}
+        .lcv-seg button{border:none;background:transparent;color:${WA.subText};font-size:12px;font-weight:600;border-radius:999px;padding:3px 10px;cursor:pointer}
+        .lcv-seg button[aria-pressed=true]{background:${isDark ? '#2A3942' : '#FFFFFF'};color:${WA.bodyText};box-shadow:0 1px 2px rgba(11,20,26,.15)}
+        .lcv-quick{position:absolute;z-index:30;inset-inline:10px;bottom:calc(100% + 6px);max-width:560px;max-height:min(440px,70vh);display:flex;flex-direction:column;background:${isDark ? '#233138' : '#FFFFFF'};border-radius:10px;box-shadow:0 2px 5px rgba(11,20,26,.26),0 2px 10px rgba(11,20,26,.16);overflow:hidden;animation:lcvIn .14s ease-out}
+        @keyframes lcvIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+        @media (prefers-reduced-motion:reduce){.lcv-quick{animation:none}}
+        .lcv-qhead{display:flex;align-items:center;gap:8px;padding:10px 12px 8px;border-bottom:1px solid ${isDark ? 'rgba(134,150,160,.15)' : '#E9EDEF'}}
+        .lcv-qsearch{flex:1;display:flex;align-items:center;gap:8px;background:${isDark ? '#202C33' : '#F0F2F5'};border-radius:8px;padding:0 12px;height:36px;color:${icon}}
+        .lcv-qsearch input{flex:1;border:none;background:transparent;color:${WA.bodyText};font-size:14px;outline:none;min-width:0}
+        .lcv-qlist{overflow-y:auto;flex:1;min-height:0;padding-bottom:6px}
+        .lcv-qsec{position:sticky;top:0;z-index:1;background:${isDark ? '#233138' : '#FFFFFF'};padding:12px 16px 6px;font-size:13px;font-weight:500;color:${teal}}
+        .lcv-qi{display:flex;align-items:center;gap:10px;padding:9px 16px;cursor:pointer}
+        .lcv-qi[aria-selected=true]{background:${isDark ? '#2A3942' : '#F5F6F6'}}
+        .lcv-qi .t{display:flex;align-items:center;gap:6px;font-size:14.5px;color:${WA.bodyText};min-width:0}
+        .lcv-qi .t span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .lcv-qi .p{font-size:13px;color:${WA.subText};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px}
+        .lcv-badge{flex:none;font-size:11px;font-weight:600;border-radius:999px;padding:1px 8px;line-height:16px}
+        .lcv-qfoot{display:flex;align-items:center;gap:8px;padding:8px 14px;border-top:1px solid ${isDark ? 'rgba(134,150,160,.15)' : '#E9EDEF'};font-size:12px;color:${WA.subText}}
       `}</style>
 
-      {/* header */}
-      <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8, padding: compact ? '7px 10px' : '8px 12px', background: WA.panelBg, borderBottom: `1px solid ${WA.border}` }}>
-        <svg width="20" height="20" viewBox="0 0 24 24" fill={WA.green} aria-hidden style={{ flexShrink: 0 }}><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8s-.4-.1-.6.1-.7.8-.8 1-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.3-.4.7-1.3.1-.2 0-.3 0-.5l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.7 11.8 11.8 0 0 0 4.5 4c1.7.7 2.3.8 3.2.6a2.7 2.7 0 0 0 1.8-1.3 2.2 2.2 0 0 0 .2-1.3c-.1-.1-.3-.2-.5-.3z"/></svg>
+      {/* header: avatar, name, the office line; round icon buttons */}
+      <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 12, height: compact ? 54 : 59, padding: '0 10px 0 16px', background: panel, borderInlineStart: 'none', boxShadow: `0 1px 0 ${isDark ? 'rgba(134,150,160,.15)' : '#E9EDEF'}`, zIndex: 3 }}>
+        <div aria-hidden="true" style={{ width: 40, height: 40, borderRadius: '50%', flexShrink: 0, background: isDark ? '#6A7175' : '#DFE5E7', color: isDark ? '#E9EDEF' : '#54656F', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 600 }}>{initials(lead?.name)}</div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: WA.bodyText }}>{t.title}</div>
-          {!compact && <div style={{ fontSize: 11.5, color: WA.subText, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.from(officePhone)}</div>}
+          <div style={{ fontSize: 16, color: WA.bodyText, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}><bdi>{name || t.title}</bdi></div>
+          <div style={{ fontSize: 13, color: WA.subText, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {lead?.phone && <span dir="ltr">{localPhone(lead.phone)}</span>}{!compact && <>{lead?.phone ? ' · ' : ''}{t.from(officePhone)}</>}
+          </div>
         </div>
-        <button type="button" className="lcv-btn" onClick={() => load()} aria-label={t.refresh} title={t.refresh}>↻</button>
-        {onToggleMaximize && <button type="button" className="lcv-btn" onClick={onToggleMaximize} aria-pressed={maximized} aria-label={maximized ? t.restore : t.maximize} title={maximized ? t.restore : t.maximize}>{maximized ? '⤡' : '⤢'}</button>}
-        {onOpenChats && phone && !compact && <button type="button" className="lcv-btn" onClick={onOpenChats}>{t.openChats} ↗</button>}
+        <button type="button" className="lcv-ib" onClick={() => load()} aria-label={t.refresh} title={t.refresh}>{I.refresh}</button>
+        {onToggleMaximize && <button type="button" className="lcv-ib" onClick={onToggleMaximize} aria-pressed={maximized} aria-label={maximized ? t.restore : t.maximize} title={maximized ? t.restore : t.maximize}>{maximized ? I.shrink : I.expand}</button>}
+        {onOpenChats && phone && !compact && <button type="button" className="lcv-ib" onClick={onOpenChats} aria-label={t.openChats} title={t.openChats}>{I.open}</button>}
       </div>
 
       {quota && (
-        <div role="alert" style={{ flexShrink: 0, display: 'flex', gap: 10, alignItems: 'center', padding: '7px 12px', background: isDark ? '#3B2A12' : '#FFF4E0', color: isDark ? '#F5C77A' : '#8A5300', fontSize: 12.5, lineHeight: 1.45, borderBottom: `1px solid ${WA.border}` }}>
-          <span aria-hidden>⚠️</span><span style={{ flex: 1 }}>{t.quota}</span>
-          <a href="https://console.green-api.com" target="_blank" rel="noreferrer" className="lcv-btn" style={{ textDecoration: 'none', color: 'inherit', borderColor: 'currentColor' }}>{t.upgrade}</a>
+        <div role="alert" style={{ flexShrink: 0, display: 'flex', gap: 12, alignItems: 'center', padding: '10px 16px', background: isDark ? '#2B2717' : '#FFF8E1', color: isDark ? '#F5D27A' : '#7A5300', fontSize: 13, lineHeight: 1.45 }}>
+          <span style={{ flex: 1 }}>{t.quota}</span>
+          <a href="https://console.green-api.com" target="_blank" rel="noreferrer" style={{ flexShrink: 0, textDecoration: 'none', color: '#fff', background: teal, borderRadius: 999, padding: '6px 14px', fontWeight: 600, fontSize: 12.5 }}>{t.upgrade}</a>
         </div>
       )}
 
       {/* messages */}
-      <div ref={scrollRef} onScroll={onScroll} style={{ flex: 1, minHeight: 80, overflowY: 'auto', overscrollBehavior: 'contain', padding: '8px 14px 10px', backgroundImage: isDark ? DOODLE_DARK : DOODLE_LIGHT }}>
-        {histState === 'error' && <div style={{ textAlign: 'center', margin: '8px 0' }}><span style={{ display: 'inline-flex', gap: 8, alignItems: 'center', fontSize: 12, color: WA.subText, background: WA.dateSepBg, borderRadius: 8, padding: '5px 12px' }}>{t.histErr}<button type="button" onClick={() => load()} style={{ border: 'none', background: 'none', color: WA.green, fontWeight: 700, cursor: 'pointer', fontSize: 12 }}>{t.retry}</button></span></div>}
-        {histState === 'loading' && !msgs.length && <div style={{ textAlign: 'center', color: WA.subText, fontSize: 13, padding: 30 }}>{t.loading}</div>}
+      <div ref={scrollRef} onScroll={onScroll} style={{ flex: 1, minHeight: 80, overflowY: 'auto', overscrollBehavior: 'contain', padding: '6px 0 12px', backgroundImage: isDark ? DOODLE_DARK : DOODLE_LIGHT }}>
+        {histState === 'error' && <div className="lcv-day" style={{ position: 'static' }}><span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>{t.histErr}<button type="button" onClick={() => load()} style={{ border: 'none', background: 'none', color: teal, fontWeight: 600, cursor: 'pointer', fontSize: 12.5 }}>{t.retry}</button></span></div>}
+        {histState === 'loading' && !msgs.length && <div className="lcv-day" style={{ position: 'static', marginTop: 30 }}><span>{t.loading}</span></div>}
         {histState !== 'loading' && !msgs.length && (
-          <div style={{ textAlign: 'center', padding: '28px 16px 12px' }}>
-            <div style={{ display: 'inline-block', maxWidth: 420, background: WA.dateSepBg, borderRadius: 10, padding: '10px 16px', boxShadow: '0 1px .5px rgba(0,0,0,.18)' }}>
-              <div style={{ fontSize: 13.5, fontWeight: 600, color: WA.bodyText }}>{phone ? t.empty : t.noPhone}</div>
-              {first && <div style={{ fontSize: 12, color: WA.subText, marginTop: 4, lineHeight: 1.5 }}>{t.emptyFirst}</div>}
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '28px 16px 12px' }}>
+            <div style={{ maxWidth: 440, textAlign: 'center', background: isDark ? '#182229' : '#FFEECD', color: isDark ? '#FFD279' : '#54656F', borderRadius: 7.5, padding: '8px 14px', fontSize: 12.5, lineHeight: 1.5, boxShadow: '0 1px .5px rgba(11,20,26,.13)' }}>
+              <div style={{ fontWeight: 600 }}>{phone ? t.empty : t.noPhone}</div>
+              {first && <div style={{ marginTop: 3 }}>{t.emptyFirst}</div>}
             </div>
           </div>
         )}
@@ -264,46 +365,94 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
 
       {/* composer: drag its top edge to make it taller or shorter */}
       {phone && (
-        <Splitter axis="y" grows={-1} min={96} max={dockMax} label={t.resizeDock}
+        <Splitter axis="y" grows={-1} min={64} max={dockMax} label={t.resizeDock}
           get={() => dockRef.current?.getBoundingClientRect().height || 120}
           apply={v => { if (dockRef.current) dockRef.current.style.height = `${v}px` }}
           commit={v => { setDock(v); try { localStorage.setItem(DOCK_KEY, String(v)) } catch {} }}
           reset={() => { if (dockRef.current) dockRef.current.style.height = ''; setDock(null); try { localStorage.removeItem(DOCK_KEY) } catch {} }}/>
       )}
-      <div ref={dockRef} style={{ flexShrink: 0, height: dock || undefined, display: 'flex', flexDirection: 'column', gap: 6, background: WA.inputBg, borderTop: `1px solid ${WA.border}`, padding: '8px 10px' }}>
-        {error && <div role="alert" style={{ fontSize: 12.5, color: '#E05252', fontWeight: 600, margin: '0 2px', lineHeight: 1.45 }}>{error}</div>}
-        {phone ? <>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-            <select className="lcv-sel" value={tplId && byId[tplId] ? tplId : ''} aria-label={t.pick}
-              onChange={e => { const x = byId[e.target.value]; if (x) putText(x.text, x.id) }}>
-              <option value="">{t.pick}</option>
-              {groups.map(g => (
-                <optgroup key={g.id} label={g.label}>
-                  {g.items.map(x => <option key={x.id} value={x.id}>{x.title}{x.isDefault && first ? ` ★ ${t.auto}` : ''}{x.sent ? ` · ${t.sent} ✓` : ''}</option>)}
-                </optgroup>
+      <div ref={dockRef} style={{ position: 'relative', flexShrink: 0, height: dock || undefined, display: 'flex', flexDirection: 'column', background: panel, padding: '8px 10px 10px' }}>
+        {quick && phone && (
+          <div className="lcv-quick" role="dialog" aria-label={t.quick} onKeyDown={qKey}>
+            <div className="lcv-qhead">
+              <label className="lcv-qsearch">{I.search}<input autoFocus value={qq} onChange={e => setQq(e.target.value)} placeholder={t.search} aria-label={t.search} aria-controls="lcv-qlist" aria-activedescendant={qFlat[qActive] ? `lcv-q-${qFlat[qActive].id}` : undefined}/></label>
+              <div className="lcv-seg" role="group" aria-label="language">
+                {['he', 'en'].map(l => <button key={l} type="button" aria-pressed={tplLang === l} onClick={() => setTplLang(l)}>{l === 'he' ? 'עב' : 'EN'}</button>)}
+              </div>
+              <button type="button" className="lcv-ib" style={{ width: 34, height: 34 }} onClick={() => closeQuick()} aria-label={lang === 'en' ? 'Close' : 'סגירה'}>{I.close}</button>
+            </div>
+            <div className="lcv-qlist" id="lcv-qlist" role="listbox" ref={qListRef} aria-label={t.quick}>
+              {!qFlat.length && <div style={{ padding: 22, textAlign: 'center', color: WA.subText, fontSize: 13.5 }}>{t.none}</div>}
+              {qSections.map(g => (
+                <div key={g.id} role="group" aria-label={g.label || undefined}>
+                  {g.label && <div className="lcv-qsec">{g.label}</div>}
+                  {g.items.map(x => {
+                    qi += 1
+                    const idx = qi
+                    return (
+                      <div key={g.id + x.id} id={`lcv-q-${x.id}`} data-qi={idx} role="option" aria-selected={idx === qActive} className="lcv-qi"
+                        onMouseEnter={() => setQActive(idx)} onMouseDown={e => e.preventDefault()} onClick={() => pickQuick(x)}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div className="t"><span>{x.title}</span>
+                            {x.isDefault && first && <span className="lcv-badge" style={{ color: teal, background: teal + '1F' }}>★ {t.auto}</span>}
+                            {x.sent && <span className="lcv-badge" style={{ color: WA.subText, background: isDark ? 'rgba(255,255,255,.07)' : 'rgba(11,20,26,.06)' }}>{t.sent} ✓</span>}
+                          </div>
+                          <div className="p">{x.text.replace(/\n+/g, ' · ')}</div>
+                        </div>
+                        <button type="button" className="lcv-ib" style={{ width: 32, height: 32, visibility: idx === qActive ? 'visible' : 'hidden' }} aria-label={`${t.editTpl}: ${x.title}`} title={t.editTpl}
+                          onClick={e => { e.stopPropagation(); const tpl = getTemplate(mergeConfig(cfg || {}), x.id); if (tpl) { setQuick(false); setEditTpl({ tpl, initial: null, lang: tplLang, fromChat: false }) } }}>{I.pencil}</button>
+                      </div>
+                    )
+                  })}
+                </div>
               ))}
-            </select>
-            <button type="button" className="lcv-btn" disabled={!curTpl} onClick={() => curTpl && setEditTpl({ tpl: curTpl, initial: null, lang: tplLang, fromChat: false })} aria-label={t.editTpl} title={t.editTpl}>✏️</button>
+            </div>
+            <div className="lcv-qfoot"><span>{t.count(qFlat.length)}</span><span style={{ marginInlineStart: 'auto' }}>{t.quickHint}</span></div>
+          </div>
+        )}
+
+        {error && <div role="alert" style={{ fontSize: 13, color: isDark ? '#F15C6D' : '#C2283E', fontWeight: 500, margin: '0 52px 6px', lineHeight: 1.45 }}>{error}</div>}
+        {phone && (tplTitle || first) && (
+          <div className="lcv-tpl">
+            <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {tplTitle ? <><b>{t.fromTpl}</b> · {tplTitle}{input !== inserted.current ? ` · ${t.edited}` : ''}</> : null}
+              {first && <>{tplTitle ? ' · ' : ''}<b>{t.firstNote}</b></>}
+            </span>
             <div className="lcv-seg" role="group" aria-label="language">
               {['he', 'en'].map(l => <button key={l} type="button" aria-pressed={tplLang === l} onClick={() => setTplLang(l)}>{l === 'he' ? 'עב' : 'EN'}</button>)}
             </div>
-            {input && <button type="button" className="lcv-btn" onClick={() => { setInput(''); setTplId(''); inserted.current = ''; inputRef.current?.focus() }}>{t.clear}</button>}
-            {first && <span style={{ fontSize: 11.5, color: WA.green, fontWeight: 700, marginInlineStart: 'auto' }}>{t.firstNote}</span>}
+            {curTpl && <button type="button" className="lcv-ib" style={{ width: 30, height: 30 }} onClick={() => setEditTpl({ tpl: curTpl, initial: null, lang: tplLang, fromChat: false })} aria-label={t.editTpl} title={t.editTpl}>{I.pencil}</button>}
+            {input && <button type="button" className="lcv-ib" style={{ width: 30, height: 30 }} onClick={() => { setInput(''); setTplId(''); inserted.current = ''; inputRef.current?.focus() }} aria-label={t.clearTip} title={t.clearTip}>{I.close}</button>}
           </div>
+        )}
+        {phone ? (
           <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flex: dock ? 1 : undefined, minHeight: 0 }}>
-            <textarea ref={inputRef} value={input} rows={1} placeholder={t.placeholder} aria-label={t.placeholder} title={t.enterHint}
-              onChange={e => { setInput(e.target.value); if (!e.target.value.trim()) setTplId('') }}
-              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing && !matchMedia('(hover: none)').matches) { e.preventDefault(); submit() } }}
+            <button ref={qBtnRef} type="button" className="lcv-ib" style={{ height: 42, width: 42 }} aria-expanded={quick} aria-haspopup="dialog" aria-label={t.quickTip} title={t.quickTip}
+              onClick={() => (quick ? closeQuick() : openQuick())}>{I.bolt}</button>
+            <textarea ref={inputRef} className="lcv-in" value={input} rows={1} placeholder={t.placeholder} aria-label={t.placeholder} title={t.enterHint}
+              onChange={e => {
+                const v = e.target.value
+                setInput(v); if (!v.trim()) setTplId('')
+                // "/" at the start opens the quick replies, the rest filters them
+                if (/^\/\S*$/.test(v)) openQuick(v.slice(1)); else if (quick && v.startsWith('/') === false && qq) closeQuick(false)
+              }}
+              onKeyDown={e => {
+                if (quick && /^\//.test(input) && ['ArrowDown', 'ArrowUp', 'Enter', 'Escape'].includes(e.key)) {
+                  if (e.key === 'Enter') { e.preventDefault(); const x = qFlat[qActive]; if (x) pickQuick(x); return }
+                  if (e.key === 'Escape') { e.preventDefault(); closeQuick(); return }
+                  e.preventDefault(); setQActive(i => e.key === 'ArrowDown' ? Math.min(qFlat.length - 1, i + 1) : Math.max(0, i - 1)); return
+                }
+                if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing && !matchMedia('(hover: none)').matches) { e.preventDefault(); submit() }
+              }}
               dir={tplLang === 'en' && tplId ? 'ltr' : undefined}
-              style={{ flex: 1, alignSelf: 'stretch', resize: 'none', boxSizing: 'border-box', minHeight: 42, maxHeight: dock ? 'none' : 160, height: dock ? '100%' : undefined, padding: '10px 14px', borderRadius: 18, border: `1px solid ${first ? WA.green + '66' : 'transparent'}`, background: first ? WA.bubbleOut : WA.inputFieldBg, color: WA.bodyText, fontFamily: 'inherit', fontSize: 14, lineHeight: 1.5, outline: 'none', unicodeBidi: 'plaintext' }}/>
+              style={{ maxHeight: dock ? 'none' : 160, height: dock ? '100%' : undefined }}/>
             {first
-              ? <button type="button" onClick={submit} disabled={!canSend} style={{ height: 42, padding: '0 16px', borderRadius: 21, border: 'none', background: WA.green, color: '#fff', fontSize: 13.5, fontWeight: 700, cursor: canSend ? 'pointer' : 'not-allowed', opacity: canSend ? 1 : .55, flexShrink: 0, whiteSpace: 'nowrap' }}>{busy ? t.sending : t.sendWelcome}</button>
-              : <button type="button" onClick={submit} disabled={!canSend} aria-label={t.send} title={t.send}
-                  style={{ width: 42, height: 42, borderRadius: '50%', border: 'none', background: WA.green, color: '#fff', cursor: canSend ? 'pointer' : 'not-allowed', opacity: canSend ? 1 : .55, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  {busy ? <span style={{ fontSize: 12 }}>…</span> : <svg width="18" height="18" viewBox="0 0 24 24" fill="#fff" style={{ transform: lang === 'en' ? 'none' : 'scaleX(-1)' }}><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>}
+              ? <button type="button" className="lcv-send wide" onClick={submit} disabled={!canSend}>{busy ? t.sending : t.sendWelcome}<span style={{ display: 'inline-flex', transform: lang === 'en' ? 'none' : 'scaleX(-1)' }}>{I.send}</span></button>
+              : <button type="button" className="lcv-send" onClick={submit} disabled={!canSend} aria-label={t.send} title={t.send}>
+                  {busy ? <span style={{ fontSize: 13 }}>…</span> : <span style={{ display: 'inline-flex', transform: lang === 'en' ? 'none' : 'scaleX(-1)' }}>{I.send}</span>}
                 </button>}
           </div>
-        </> : <div style={{ fontSize: 12.5, color: WA.subText, textAlign: 'center', padding: 6 }}>{t.noPhone}</div>}
+        ) : <div style={{ fontSize: 13, color: WA.subText, textAlign: 'center', padding: 8 }}>{t.noPhone}</div>}
       </div>
 
       {editTpl && (
