@@ -327,7 +327,12 @@ Templates: `{bookingLink}` (`vars.bookingLink`, `?lang=en` added for English) in
 **The page itself:** a 48 px logo, a WhatsApp button in the header and a "write to us / call us" card in the side panel, and a
 figure there (`photo` in the booking settings, default `/img/booking-portrait.webp` — a cut-out portrait with no background, shown
 in its own proportions at the bottom of the side panel; admin "תמונה בעמוד"; never on phones, where it isn't even loaded).
-**Phones (≤ 900 px), every step:** a one-row summary on top (title, length, channel, the chosen time), the step itself (a strip of
+**Time zones (Calendly style):** under the calendar a "אזור זמן" button (the zone + its current time) opens `TzPicker` in
+`src/BookingPage.jsx`: search (Hebrew / English / IANA id / GMT offset), zones by region with their current time and offset, a
+24 h / AM-PM switch, ↑ ↓ Enter Esc, a bottom sheet on phones. The default is the visitor's device zone (Israel for most), the
+choice is kept in `localStorage.afik_bk_tz_v1`; the free times are regrouped by the visitor's own days (`regroupSlots()`), the
+chosen time also shows the Israel time ("לונדון · בישראל 09:00"); the office, the calendar and every confirmation stay in Israel
+time (`src/lib/bookingTz.js`, tested). **Phones (≤ 900 px), every step:** a one-row summary on top (title, length, channel, the chosen time), the step itself (a strip of
 days + 3-column time chips for booking and for a move, the month grid one tap away; the details' main button sticks to the bottom
 of the screen; the call page's and the move's buttons full-width and stacked), and the WhatsApp / call row at the bottom of the card. **Speed:** `index.html` starts `booking-config` + `booking-slots` (22 days, the URL's `type`) before the bundle
 loads (`window.__bk`); `BookingPage` uses them once instead of asking again, so the calendar shows with the first render.
