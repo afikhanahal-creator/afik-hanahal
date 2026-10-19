@@ -51,7 +51,7 @@ if (ACTIONS.includes('booking')) {
   show('booking-config (public)', { connected: p.connected, types: (p.types || []).map(t => `${t.id}:${t.minutes}m:${t.channels}`), error: p.error })
 }
 if (ACTIONS.includes('rebuild')) {
-  const r = await fetch(`${SITE}/api/properties?changed=1`, { method: 'POST', headers: H, signal: AbortSignal.timeout(40000) })
+  const r = await fetch(`${SITE}/api/properties?changed=1&force=1`, { method: 'POST', headers: H, signal: AbortSignal.timeout(40000) })
   show(`rebuild (HTTP ${r.status})`, await r.json().catch(() => ({})))
 }
 if (ACTIONS.includes('traffic')) {

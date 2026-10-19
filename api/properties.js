@@ -106,7 +106,8 @@ async function serveParcel(req, res) {
 }
 
 // ── POST /api/properties?changed=1 (admin) → a property was saved / removed: refresh the snapshot now and
-// rebuild the instant landing pages (lib/site-rebuild.js). The admin panel calls it 15 s after the last save.
+// rebuild the instant landing pages (lib/site-rebuild.js: only when the published list changed, ≤ once / 2 h; ?force=1
+// = the probe's manual rebuild). The admin panel calls it 15 s after the last save.
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || 'AFIKhanahal2026'
 async function serveChanged(req, res) {
   res.setHeader('Cache-Control', 'no-store')
@@ -117,7 +118,7 @@ async function serveChanged(req, res) {
   // then refresh the snapshot / rebuild as usual (the rebuild is throttled, so this never doubles it)
   const slim = await slimInlinePhotos({ supaUrl: SUPA_URL, supaKey: SUPA_KEY, budgetMs: 8000, onDone: list => feed.pushSnapshot(list) }).catch(e => ({ error: e.message }))
   await feed.cleanSnapshot().catch(() => {})
-  const out = await propertiesChanged({ renderUrl: RENDER, supaUrl: SUPA_URL, supaKey: SUPA_KEY })
+  const out = await propertiesChanged({ renderUrl: RENDER, supaUrl: SUPA_URL, supaKey: SUPA_KEY, force: req.query.force === '1' })
   return res.status(200).json({ ...out, slim: { uploaded: slim.uploaded || 0, remaining: slim.remaining || 0, error: slim.error } })
 }
 
