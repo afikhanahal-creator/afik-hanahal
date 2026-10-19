@@ -293,6 +293,12 @@ discovery, `crm_data.booking` / `bookings`, a 📅 note, `followUp` = the meetin
 confirmation is the first message), alerts the office (WhatsApp `notifyTeam` + email) and sends the client a WhatsApp
 confirmation (plural "we" voice). Limits: 2 upcoming bookings per phone, 6 attempts per IP in 10 minutes, a honeypot field.
 Templates: `{bookingLink}` (`vars.bookingLink`, `?lang=en` added for English) in `welcome_book` and `book_link`.
+**Defaults:** the page is "אפיק הנחל - ייזום שיווק ותיווך"; the first meeting is "שיחת היכרות", 30 minutes, **by phone only** (no
+email asked; with a single channel the "how" step is a one-line note) — Meet / Zoom can be added per type in the admin.
+**Traffic → meetings:** `BookLink` in `App.jsx` (`/book?ref=<where>`, `trackEvent('booking_click', { src })`) in the hero (under the
+CTAs), the contact form and its "sent" screen, the property window (`ref=prop-<id>`), the mobile menu and the footer; the content
+pages put "📅 קביעת שיחת היכרות" first in their CTA row (`ref=page_<type>_<slug>`). The texts are `content/home.json` → `booking`
+(editable in "תוכן האתר"; `content/site.mjs` `UI.ctaBook` reads the same). `/book` is a known SPA route for the build's link check.
 **Setup:** Google Cloud project → enable "Google Calendar API" → OAuth consent screen (External, **In production** — in
 "Testing" the access expires after 7 days) → OAuth client ID (Web) with the redirect URI
 `https://www.afikhanahal.co.il/api/meta/booking-oauth-callback` → Vercel `GOOGLE_OAUTH_CLIENT_ID` / `GOOGLE_OAUTH_CLIENT_SECRET`

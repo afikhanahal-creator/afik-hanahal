@@ -101,6 +101,7 @@ const JS = (lang, page) => `
     if(h.indexOf('tel:')===0){ev('phone_click');if(window.fbq)fbq('track','Contact',{method:'phone'})}
     else if(h.indexOf('wa.me')>-1){ev('whatsapp_click');if(window.fbq)fbq('track','Contact',{method:'whatsapp'})}
     else if(h.indexOf('mailto:')===0)ev('email_click');
+    else if(h.indexOf('/book')===0)ev('booking_click');
     else if(a.dataset.cta)ev('cta_click',{cta:a.dataset.cta})});
   var f=document.getElementById('lead');if(!f)return;
   var steps=f.querySelectorAll('.step'),cur=0,intent=f.dataset.intent||'consult',bar=f.querySelector('.progress i');
@@ -222,7 +223,7 @@ function ctaBlock(page, lang) {
 <label for="f-email">${esc(F.email)}</label><input id="f-email" name="email" type="email" autocomplete="email" dir="ltr"><label for="f-notes">${esc(F.notes)}</label><textarea id="f-notes" name="notes" rows="2"></textarea>
 <div class="nav"><button type="button" class="btn btn-o small" data-back>${esc(F.back)}</button><button type="submit" class="btn btn-g">${esc(F.send)}</button><span class="msg err" role="status"></span></div><p class="priv">${esc(F.privacy)}</p></div>
 </form>
-<div class="ctarow"><a class="btn btn-wa" href="${SITE.whatsapp}" target="_blank" rel="noopener">${esc(u.ctaWa)}</a><a class="btn btn-o" href="tel:${SITE.phoneIntl}">${esc(u.ctaCall)} ${SITE.phone}</a><a class="btn btn-o" href="mailto:${SITE.email}">${esc(u.ctaEmail)}</a></div></section>`
+<div class="ctarow"><a class="btn btn-p" href="/book?ref=${encodeURIComponent(`page_${page.type}_${page.slug || 'hub'}`)}${lang === 'en' ? '&amp;lang=en' : ''}">📅 ${esc(u.ctaBook)}</a><a class="btn btn-wa" href="${SITE.whatsapp}" target="_blank" rel="noopener">${esc(u.ctaWa)}</a><a class="btn btn-o" href="tel:${SITE.phoneIntl}">${esc(u.ctaCall)} ${SITE.phone}</a><a class="btn btn-o" href="mailto:${SITE.email}">${esc(u.ctaEmail)}</a></div></section>`
 }
 
 function trustBlock(lang) {
@@ -433,7 +434,7 @@ fs.writeFileSync(path.join(DIST, 'llms.txt'), llms)
 
 // Link check: every internal href in generated pages must resolve to a generated page, a public file, or an SPA route
 const known = new Set(written.map(p => p.replace(/\/$/, '') + '/'))
-const spaRoutes = new Set(['/', '/accessibility', '/newproperty', '/admin-panel'])
+const spaRoutes = new Set(['/', '/accessibility', '/newproperty', '/admin-panel', '/book'])
 let broken = 0
 for (const rel of written) {
   const html = fs.readFileSync(path.join(DIST, rel, 'index.html'), 'utf8')

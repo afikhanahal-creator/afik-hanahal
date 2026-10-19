@@ -2257,6 +2257,18 @@ let _cloudSettings = {}
 // ES module imports are read-only bindings — the admin chunk mutates this through the setter
 export function setCloudSettings(v) { _cloudSettings = v }
 
+// "Book an intro call" → the booking page (/book, src/BookingPage.jsx); ref = where the click came from (kept on the lead)
+const bookHref = (src, lang) => `/book?ref=${encodeURIComponent(src)}${lang === 'en' ? '&lang=en' : ''}`
+const bookText = (key, lang) => (lang === 'en' ? HOME.booking?.[key]?.en : HOME.booking?.[key]?.he) || ''
+function BookLink({ src, text = 'cta', children, icon = true, ...rest }) {
+  const { lang } = useTheme()
+  return (
+    <a href={bookHref(src, lang)} {...rest} onClick={e => { trackEvent('booking_click', { src }); rest.onClick?.(e) }}>
+      {icon && <FaCalendarAlt size={13} aria-hidden="true"/>} {children || bookText(text, lang)}
+    </a>
+  )
+}
+
 function ContactModal({ prop, onClose }) {
   const { C, lang } = useTheme()
   const t = TR[lang] || TR.he
@@ -2293,7 +2305,11 @@ function ContactModal({ prop, onClose }) {
             <div style={{ fontSize:52, marginBottom:16, color:C.green }}>✓</div>
             <div style={{ fontSize:20, fontWeight:700, color:C.green, marginBottom:8 }}>{lbl.messageSent}</div>
             <div style={{ fontSize:14, color:C.cream+'AA', marginBottom:24 }}>{lbl.willContact}</div>
-            <button onClick={onClose} className="primary-btn" style={{ padding:'12px 32px' }}>{lbl.close}</button>
+            <div style={{ fontSize:13.5, color:C.cream+'CC', marginBottom:12 }}>{bookText('after', lang)}</div>
+            <div style={{ display:'flex', gap:10, justifyContent:'center', flexWrap:'wrap' }}>
+              <BookLink src={prop ? `contact_sent_prop-${prop.id}` : 'contact_sent'} className="outline-btn" style={{ display:'inline-flex', alignItems:'center', gap:8, textDecoration:'none', padding:'12px 22px' }}/>
+              <button onClick={onClose} className="primary-btn" style={{ padding:'12px 32px' }}>{lbl.close}</button>
+            </div>
           </div>
         ) : (
           <form noValidate onSubmit={e => {
@@ -2352,6 +2368,7 @@ function ContactModal({ prop, onClose }) {
             <div style={{ textAlign:'center', paddingTop:6, borderTop:`1px solid ${C.purple}22` }}>
               <a href={'tel:' + OFFICE.tel} onClick={() => trackEvent('phone_click', { src:'contact_modal' })} style={{ color:C.green, textDecoration:'none', fontWeight:700, fontSize:17, display:'inline-flex', alignItems:'center', gap:7 }}><FaPhone size={13}/> {OFFICE.phone}</a>
             </div>
+            <BookLink src={prop ? `contact_form_prop-${prop.id}` : 'contact_form'} text="line" style={{ alignSelf:'center', display:'inline-flex', alignItems:'center', gap:7, color:C.cream+'CC', fontSize:13.5, fontWeight:600, textDecoration:'none', borderBottom:`1px dashed ${C.purple}88`, paddingBottom:2 }}/>
           </form>
         )}
       </div>
@@ -4521,6 +4538,8 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
               onMouseLeave={e=>e.currentTarget.style.background='rgba(37,211,102,.1)'}>
               <FaWhatsapp size={17}/> שלח WhatsApp
             </a>
+            <BookLink src={`prop-${prop.id}`}
+              style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:8, padding:'14px', background:`${C.purple}1F`, border:`1px solid ${C.purple}55`, borderRadius:10, color:C.cream, textDecoration:'none', fontSize:14.5, fontWeight:700 }}/>
             <a href={'tel:' + OFFICE.tel}
               style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:8, padding:'14px', background:'rgba(255,255,255,.05)', border:'1px solid rgba(255,255,255,.12)', borderRadius:10, color:`${C.cream}BB`, textDecoration:'none', fontSize:14, fontWeight:500, transition:'background .2s' }}
               onMouseEnter={e=>e.currentTarget.style.background='rgba(255,255,255,.1)'}
@@ -5844,6 +5863,7 @@ export default function App() {
                 ))}
               </div>
               <a href={'tel:' + OFFICE.tel} className="nav-panel-phone" style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}><FaPhone size={12}/> {OFFICE.phone}</a>
+              <BookLink src="mobile_menu" className="nav-panel-phone" style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:8, marginTop:8, textDecoration:'none' }}/>
             </div>
           </div>
         </>
@@ -5894,6 +5914,9 @@ export default function App() {
               onMouseLeave={e => { e.currentTarget.style.background='transparent'; e.currentTarget.style.borderColor=C.green+'66' }}>
               <FaCalculator size={13}/> {TR[lang]?.heroCTA3}
             </button>
+          </div>
+          <div className="fade-up-4" style={{ marginTop:-28, marginBottom:28 }}>
+            <BookLink src="home_hero" text="line" style={{ display:'inline-flex', alignItems:'center', gap:8, color:C.cream+'D9', fontSize:15, fontWeight:600, textDecoration:'none', borderBottom:`1px dashed ${C.purple}99`, paddingBottom:3 }}/>
           </div>
           <div style={{ display:'flex', gap:10, justifyContent:'center', flexWrap:'wrap', marginTop:16, paddingBottom:80 }}>
             {(TR[lang]?.heroTags || []).map(tag => (
@@ -6393,6 +6416,7 @@ export default function App() {
                   onMouseLeave={e => e.currentTarget.style.color='rgba(232,228,216,.65)'}>
                   {OFFICE.email} <FaEnvelope size={14}/>
                 </a>
+                <BookLink src="footer" style={{ color:'#A9B3EE', textDecoration:'none', fontSize:15.5, fontWeight:700, display:'flex', alignItems:'center', gap:8, direction: lang==='en' ? 'ltr' : 'rtl', justifyContent: lang==='en' ? 'flex-start' : 'flex-end' }}/>
                 <button onClick={() => openContact()} style={{ marginTop:4, padding:'13px 28px', background:'rgba(132,144,216,.18)', border:'1px solid rgba(132,144,216,.44)', borderRadius:10, color:'rgba(232,228,216,.9)', fontSize:15, fontWeight:600, cursor:'pointer', fontFamily:'inherit', width:'fit-content', transition:'background .25s, border-color .25s' }}
                   onMouseEnter={e => { e.currentTarget.style.background='rgba(132,144,216,.38)'; e.currentTarget.style.borderColor='rgba(132,144,216,.7)' }}
                   onMouseLeave={e => { e.currentTarget.style.background='rgba(132,144,216,.18)'; e.currentTarget.style.borderColor='rgba(132,144,216,.44)' }}>{TR[lang]?.sendMsg}</button>

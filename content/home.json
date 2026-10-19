@@ -705,5 +705,19 @@
       "en": "Press Play and get into the rhythm that accompanies our real-estate deals"
     },
     "url": "https://open.spotify.com/embed/playlist/7HGgXmznOBKie0g6LDQ0uN?utm_source=generator"
+  },
+  "booking": {
+    "cta": {
+      "he": "קביעת שיחת היכרות",
+      "en": "Book an intro call"
+    },
+    "line": {
+      "he": "מעדיפים זמן קבוע? בחרו שעה לשיחת היכרות",
+      "en": "Prefer a set time? Pick a slot for an intro call"
+    },
+    "after": {
+      "he": "רוצים זמן מדויק? בחרו שעה ונתקשר בדיוק אז",
+      "en": "Want an exact time? Pick a slot and we will call you then"
+    }
   }
 }
