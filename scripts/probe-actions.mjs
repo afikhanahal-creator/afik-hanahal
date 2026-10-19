@@ -11,6 +11,8 @@
 //   wa — the WhatsApp chat page's own calls (chat-status / chat-list / chat-history): HTTP, timing, Green's error text;
 //        `wa-send` also sends one test text through chat-send to the office's own notification number
 //   ga4 — the analytics dashboard's connection: test, a 30-day dashboard (totals / row counts only) and realtime
+//   booking — the booking page's calendar connection (OAuth keys set in Vercel? calendar connected? which account's domain)
+//             and the last bookings' confirmation status (counts only)
 //   restore — RESTORE_FROM (an older deployment's origin): its /properties.json is offered as the admin's copy
 //             (POST ?snapshot=1) — properties the table lacks are added, nothing is overwritten
 // The admin token is the one the site's own admin bundle carries (src/App.jsx) unless ADMIN_TOKEN is set.
@@ -32,6 +34,21 @@ if (ACTIONS.includes('slim')) {
   }
   const h = await fetch(`${SITE}/api/properties?health=1`).then(r => r.json()).catch(e => ({ error: e.message }))
   show('health after slim', { list: h.list, snapshot: h.snapshot, serving: h.serving })
+}
+if (ACTIONS.includes('booking')) {
+  const r = await fetch(`${SITE}/api/meta/booking-admin`, { headers: H, signal: AbortSignal.timeout(30000) })
+  const d = await r.json().catch(() => ({}))
+  const c = d.calendar || {}
+  const upcoming = (d.bookings || []).filter(b => b.status !== 'cancelled' && Date.parse(b.end) > Date.now())
+  show(`booking (HTTP ${r.status})`, {
+    oauthKeysInVercel: c.oauthReady, calendarConnected: c.connected, calendarError: c.error || null,
+    calendarAccountDomain: c.email ? String(c.email).replace(/^.*@/, '@') : null,
+    upcoming: upcoming.length, inCalendar: upcoming.filter(b => b.eventId).length,
+    whatsappSent: upcoming.filter(b => b.wa?.ok).length, whatsappRefused: upcoming.filter(b => b.wa && !b.wa.ok).length,
+    emailSent: upcoming.filter(b => b.mail?.ok).length, error: d.error,
+  })
+  const p = await fetch(`${SITE}/api/meta/booking-config`).then(x => x.json()).catch(e => ({ error: e.message }))
+  show('booking-config (public)', { connected: p.connected, types: (p.types || []).map(t => `${t.id}:${t.minutes}m:${t.channels}`), error: p.error })
 }
 if (ACTIONS.includes('rebuild')) {
   const r = await fetch(`${SITE}/api/properties?changed=1`, { method: 'POST', headers: H, signal: AbortSignal.timeout(40000) })

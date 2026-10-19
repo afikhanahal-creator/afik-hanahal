@@ -1439,7 +1439,7 @@ async function handleLeadResearch(req, res) {
 //          GET booking-manage?m= · POST booking-reschedule {m, start} · POST booking-cancel-self {m}  (m = the client's private key)
 //          GET booking-oauth-callback (Google sends the office back here after "connect the calendar")
 //  admin:  GET booking-admin · POST booking-settings {config} · POST booking-connect → {url} · POST booking-disconnect
-//          POST booking-cancel {id} · POST booking-resend {id}
+//          POST booking-cancel {id} · POST booking-resend {id} · POST booking-test-email
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
 function oauthPage(ok, text) {
   return `<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>חיבור היומן</title></head>
@@ -1503,6 +1503,7 @@ async function handleBooking(req, res, action) {
     if (action === 'booking-disconnect') { await GCal.disconnect(); return res.status(200).json({ ok: true }) }
     if (action === 'booking-cancel') return res.status(200).json(await Booking.cancel(String(b.id || '')))
     if (action === 'booking-resend') return res.status(200).json(await Booking.resend(String(b.id || '')))
+    if (action === 'booking-test-email') return res.status(200).json(await Booking.testEmail())
     return res.status(404).json({ error: `Unknown path: ${action}` })
   } catch (e) {
     console.error('[booking]', action, e.message)
