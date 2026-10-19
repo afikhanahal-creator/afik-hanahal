@@ -45,6 +45,7 @@ const TR = {
     prepH: 'כדי להפיק את המרב מהשיחה', prep: ['מה אתם מחפשים: דירה, בית, מגרש או השקעה', 'אזורים שמעניינים אתכם', 'תקציב משוער ומימון', 'לוח זמנים: מתי תרצו לעבור או לסגור'],
     waText: 'היי, קבעתי שיחה דרך האתר ויש לי שאלה', selfWa: (when, url) => `השיחה עם אפיק הנחל: ${when}\nלשינוי או ביטול: ${url}`,
     weekdays: ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'], prevM: 'החודש הקודם', nextM: 'החודש הבא',
+    pickDay: 'בחרו יום', monthView: 'לוח חודשי', stripView: 'ימים קרובים', freeTimes: n => `${n} שעות פנויות`,
   },
   en: {
     langBtn: 'עברית', home: 'Back to the website', wa: 'WhatsApp', waTip: 'Message us on WhatsApp', call: 'Call us', photoAlt: 'The Afik Hanahal team', pick: 'Choose a meeting type', minutes: n => `${n} minutes`,
@@ -80,6 +81,7 @@ const TR = {
     prepH: 'To get the most out of the call', prep: ['What you are looking for: an apartment, a house, a plot or an investment', 'The areas you are interested in', 'An approximate budget and financing', 'Timing: when you would like to move or close'],
     waText: 'Hi, I booked a call on your website and have a question', selfWa: (when, url) => `My call with Afik Hanahal: ${when}\nTo reschedule or cancel: ${url}`,
     weekdays: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], prevM: 'Previous month', nextM: 'Next month',
+    pickDay: 'Pick a day', monthView: 'Month view', stripView: 'Next days', freeTimes: n => `${n} free times`,
   },
 }
 
@@ -245,7 +247,31 @@ html,body{background:#09090F;margin:0}
   .bk-when-t{font-size:19px}
   .bk-manage .bk-btn{flex:1 1 auto}
   .bk-card.compact .bk-desc{display:none}
+  /* phones, the day & time step: a one-row summary, a strip of days, big time chips */
+  .bk-card.ph-time .bk-side{padding:14px 16px;gap:8px}
+  .bk-card.ph-time .bk-desc,.bk-card.ph-time .bk-org{display:none}
+  .bk-card.ph-time .bk-ava{width:44px;height:44px}
+  .bk-card.ph-time .bk-h1{font-size:19px}
+  .bk-card.ph-time .bk-meta{flex-direction:row;flex-wrap:wrap;gap:6px 14px;font-size:13.5px}
+  .bk-card.ph-time .bk-main{padding:16px 14px 20px}
+  .bk-card.ph-time .bk-steps{margin-bottom:12px}
+  .bk-card.ph-time .bk-h2{font-size:19px;margin-bottom:14px}
 }
+.bk-strip-h{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 10px}
+.bk-strip-h b{font-size:14.5px;font-weight:600}
+.bk-link{background:none;border:none;color:var(--brand-text);font:inherit;font-size:13.5px;font-weight:600;cursor:pointer;padding:8px 4px;min-height:40px}
+.bk-strip{display:flex;gap:8px;overflow-x:auto;scroll-snap-type:x mandatory;padding:2px 2px 10px;margin:0 -14px;padding-inline:14px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.bk-strip::-webkit-scrollbar{display:none}
+.bk-dchip{flex:0 0 auto;scroll-snap-align:start;width:64px;min-height:78px;border-radius:14px;border:1px solid var(--line);background:var(--card2);color:var(--ink);font:inherit;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:6px 0}
+.bk-dchip small{font-size:12px;color:var(--mute);font-weight:500}
+.bk-dchip b{font-size:21px;font-weight:700;line-height:1.15;font-variant-numeric:tabular-nums}
+.bk-dchip[aria-pressed=true]{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
+.bk-dchip[aria-pressed=true] small{color:var(--brand-ink);opacity:.85}
+.bk-ph-times{margin-top:14px}
+.bk-ph-times .bk-times-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.bk-ph-times .bk-times-h span{font-size:12.5px;color:var(--mute);font-weight:500}
+.bk-ph-times .bk-times{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.bk-ph-times .bk-time{min-height:48px;font-size:16px;border-radius:12px}
 `
 
 const Icon = {
@@ -306,6 +332,15 @@ export default function BookingPage() {
   const [askCancel, setAskCancel] = useState(params.get('do') === 'cancel')
   const [copied, setCopied] = useState(false)
   const headRef = useRef(null)
+  // phones get the app-like layout (strip of days); the month grid stays one tap away
+  const [isPhone, setIsPhone] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 900px)').matches)
+  const [monthOnPhone, setMonthOnPhone] = useState(false)
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 900px)')
+    const on = () => setIsPhone(mq.matches)
+    mq.addEventListener?.('change', on)
+    return () => mq.removeEventListener?.('change', on)
+  }, [])
   const moving = step === 'move' || step === 'moveConfirm'
 
   useEffect(() => {
@@ -492,7 +527,60 @@ export default function BookingPage() {
     </ol>
   )
 
-  const calendarEl = current => (
+  const dayChip = d => new Date(`${d}T12:00:00Z`)
+  const phoneCalendarEl = current => (
+    <div>
+      <div className="bk-strip-h">
+        <b>{monthOnPhone ? monthName : t.pickDay}</b>
+        <button type="button" className="bk-link" onClick={() => setMonthOnPhone(v => !v)} aria-pressed={monthOnPhone}>{monthOnPhone ? t.stripView : t.monthView}</button>
+      </div>
+      {monthOnPhone ? calendarEl(current, true) : (
+        <div className="bk-strip" role="group" aria-label={t.pickDay}>
+          {available.map(d => (
+            <button key={d} type="button" className="bk-dchip" aria-pressed={d === day} aria-label={dayLabel(d, lang)} onClick={() => { setDay(d); setStart('') }}>
+              <small>{d === today ? (lang === 'en' ? 'Today' : 'היום') : dayChip(d).toLocaleDateString(lang === 'en' ? 'en-GB' : 'he-IL', { timeZone: 'UTC', weekday: 'short' })}</small>
+              <b>{Number(d.slice(8))}</b>
+              <small>{dayChip(d).toLocaleDateString(lang === 'en' ? 'en-GB' : 'he-IL', { timeZone: 'UTC', month: 'short' })}</small>
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="bk-ph-times">
+        <h3 className="bk-times-h">{day ? dayLabel(day, lang) : t.times}{day && (slots[day] || []).length > 0 && <span>{t.freeTimes((slots[day] || []).length)}</span>}</h3>
+        <div className="bk-times">
+          {(slots[day] || []).map(s => {
+            const isCur = !!current && s === new Date(current).toISOString()
+            return (
+              <button key={s} className={`bk-time${s === start ? ' sel' : ''}${isCur ? ' cur' : ''}`} disabled={isCur} aria-label={isCur ? `${timeOf(s)} · ${t.current}` : undefined}
+                onClick={() => { setStart(s); setAlert(''); setStep(moving ? 'moveConfirm' : 'details') }}>{timeOf(s)}</button>
+            )
+          })}
+          {day && !(slots[day] || []).length && <div className="bk-empty">{t.noTimes}</div>}
+        </div>
+        <div className="bk-note">{t.tzNote}</div>
+      </div>
+    </div>
+  )
+  const calendarEl = (current, gridOnly = false) => gridOnly ? (
+    <div>
+      <div className="bk-month">
+        <button className="bk-nav" aria-label={t.prevM} disabled={month <= monthKey(today)} onClick={() => setMonth(m => addMonths(m, -1))}>{lang === 'en' ? '‹' : '›'}</button>
+        <span aria-live="polite">{monthName}</span>
+        <button className="bk-nav" aria-label={t.nextM} disabled={month >= lastMonth} onClick={() => setMonth(m => addMonths(m, 1))}>{lang === 'en' ? '›' : '‹'}</button>
+      </div>
+      <div className="bk-grid">
+        {t.weekdays.map(w => <div key={w} className="bk-wd" aria-hidden="true">{w}</div>)}
+        {grid.map((d, i) => {
+          if (!d) return <div key={`e${i}`} />
+          const on = !!slots[d]?.length
+          return (
+            <button key={d} className={`bk-day${on ? ' on' : ''}${d === day ? ' sel' : ''}${d === today ? ' today' : ''}`} disabled={!on}
+              aria-label={dayLabel(d, lang)} aria-pressed={d === day} onClick={() => { setDay(d); setStart('') }}>{Number(d.slice(8))}</button>
+          )
+        })}
+      </div>
+    </div>
+  ) : (
     <div className="bk-cal-wrap">
       <div>
         <div className="bk-month">
@@ -648,7 +736,7 @@ export default function BookingPage() {
       </header>
 
       <main className="bk-shell">
-        <div className={`bk-card${['details', 'call', 'moveConfirm'].includes(step) ? ' compact' : ''}`}>
+        <div className={`bk-card${['details', 'call', 'moveConfirm'].includes(step) ? ' compact' : ''}${isPhone && step === 'time' ? ' ph-time' : ''}`}>
           <aside className="bk-side">
             <div className="bk-side-head">
               {photo && <div className="bk-ava"><img src={photo} alt="" width="56" height="56" decoding="async"/></div>}
@@ -701,7 +789,7 @@ export default function BookingPage() {
                 {alert && <div className="bk-alert" role="alert" style={{ marginBottom: 14 }}>{alert}</div>}
                 {!slots && !loadErr && <div className="bk-empty">{t.loading}</div>}
                 {slots && !available.length && <div className="bk-empty">{t.nothing} <a href={waHref} target="_blank" rel="noreferrer">WhatsApp</a></div>}
-                {slots && available.length > 0 && calendarEl(step === 'move' ? call?.start : null)}
+                {slots && available.length > 0 && (isPhone && step === 'time' ? phoneCalendarEl(null) : calendarEl(step === 'move' ? call?.start : null))}
                 <div style={{ marginTop: 20 }}>
                   {step === 'move'
                     ? <button className="bk-ghost" onClick={() => { setStep('call'); setStart(''); setAlert('') }}>{lang === 'en' ? '←' : '→'} {t.back}</button>
