@@ -312,8 +312,11 @@ is stored per booking (`entry.wa`), the admin shows it and offers "שליחת ה
 `auto-run` retry it (`retryConfirmations()`, 3 tries, stops at the first quota refusal). Limits: 2 upcoming bookings per phone, 6 attempts per IP in 10 minutes, a honeypot field.
 Templates: `{bookingLink}` (`vars.bookingLink`, `?lang=en` added for English) in `welcome_book` and `book_link`.
 **The page itself:** a 48 px logo, a WhatsApp button in the header and a "write to us / call us" card in the side panel, and a
-photo there (`photo` in the booking settings, default `/img/ceo.webp`, admin "תמונה בעמוד"; on phones a 56 px circle next to
-the title). **Speed:** `index.html` starts `booking-config` + `booking-slots` (22 days, the URL's `type`) before the bundle
+figure there (`photo` in the booking settings, default `/img/booking-figure.webp` — a cut-out with no background, shown
+in its own proportions at the bottom of the side panel; admin "תמונה בעמוד"; never on phones, where it isn't even loaded).
+**Phones (≤ 900 px), every step:** a one-row summary on top (title, length, channel, the chosen time), the step itself (a strip of
+days + 3-column time chips for booking and for a move, the month grid one tap away; the details' main button sticks to the bottom
+of the screen; the call page's and the move's buttons full-width and stacked), and the WhatsApp / call row at the bottom of the card. **Speed:** `index.html` starts `booking-config` + `booking-slots` (22 days, the URL's `type`) before the bundle
 loads (`window.__bk`); `BookingPage` uses them once instead of asking again, so the calendar shows with the first render.
 **On the site:** `BookPill` (purple pill: hero, contact form, end of the FAQ), `BookBand` (after the properties grid) and
 `BookLink` (property window, mobile menu, footer, sent screen) in `App.jsx`; texts in `content/home.json` → `booking`
