@@ -1,7 +1,7 @@
 // One timeline per contact for the Lead Center: every inquiry from the same phone (Meta forms with their answers, the
 // website / booking forms of the CRM copy), booked calls, stage changes, notes and automatic WhatsApp sends —
 // newest first. Pure; tested in leadHistory.test.mjs. The admin's CRM leads carry crm_data spread on the lead itself.
-import { metaFormAnswers, shortCampaign, sourceLabel } from './leadFields.js'
+import { metaFormAnswers, shortCampaign, sourceLabel, formFullName } from './leadFields.js'
 
 const tail9 = p => String(p || '').replace(/\D/g, '').slice(-9)
 const time = v => (typeof v === 'number' ? v : Date.parse(v || ''))
@@ -55,14 +55,6 @@ export function leadHistory({ lead, metaLeads = [], crmLead = null, stageName = 
   return items.filter(x => Number.isFinite(x.at)).sort((a, b) => b.at - a.at)
 }
 
-// The name exactly as the lead typed it in the ad's form (full name, else first + last); the Meta row keeps it in raw_fields
-// even after the office renames the lead
-function formName(lead) {
-  const f = Array.isArray(lead?.raw_fields) ? lead.raw_fields : []
-  const val = re => { const x = f.find(y => re.test(String(y?.name || ''))); const v = x && (Array.isArray(x.values) ? x.values[0] : x.value); return v == null ? '' : String(v).trim() }
-  return val(/^(full_?name|name|שם( מלא)?)$/i) || [val(/^first_?name$/i), val(/^last_?name$/i)].filter(Boolean).join(' ')
-}
-
 /** What the lead left in the campaign / form, for the card on top of the WhatsApp conversation (Meta shows the same in
  *  its own inbox). Meta lead → its form answers; a CRM lead → the copied answers, else the website message.
  *  → { name (as they typed it — before any rename: raw_fields, else crm_data.originalName), campaign, form, at, email, rows: [{ q, a }] } or null when the lead left nothing beyond name and phone */
@@ -77,7 +69,7 @@ export function leadFormCard(lead, lang = 'he') {
   if (!rows.length && msg && !isMeta) rows = [{ q: lang === 'en' ? 'Message' : 'הודעה', a: msg.slice(0, 600) }]
   const campaign = lead.campaign_name || get('campaignName') || origin.campaign || ''
   const form = lead.form_name || get('formName') || origin.form || ''
-  const name = formName(lead) || String(get('originalName') || '').trim()
+  const name = formFullName(lead.raw_fields) || String(get('originalName') || '').trim()
   if (!rows.length && !campaign && !name) return null
   return {
     name,
