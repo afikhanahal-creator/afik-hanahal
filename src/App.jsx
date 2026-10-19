@@ -240,22 +240,26 @@ const makeGlobal = (C, isDark) => `
     --c-cream:${C.cream};   --c-green:${C.green};
   }
   *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
-  .book-pill { display:inline-flex; align-items:center; gap:10px; padding:7px 18px 7px 7px; border-radius:999px; background:${isDark ? 'rgba(132,144,216,.14)' : 'rgba(63,78,176,.08)'}; border:1px solid ${isDark ? 'rgba(132,144,216,.45)' : 'rgba(63,78,176,.35)'}; color:${isDark ? '#C3CAF4' : '#2F3C9E'} !important; font-size:15.5px; font-weight:700; line-height:1.35; text-decoration:none; transition:transform .2s ease, background-color .2s ease, border-color .2s ease; }
-  [dir=ltr] .book-pill { padding:7px 7px 7px 18px; }
-  .book-pill .bp-ic { width:32px; height:32px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; background:${C.purple}; color:${C.bg}; flex-shrink:0; }
-  .book-pill .bp-go { opacity:.75; transition:transform .2s ease; }
-  .book-pill:hover { transform:translateY(-1px); background:${isDark ? 'rgba(132,144,216,.22)' : 'rgba(63,78,176,.13)'}; border-color:${C.purple}; }
+  /* the booking pill: a solid purple gradient with a soft glow and a light sweep every few seconds (transform only) */
+  .book-pill { position:relative; overflow:hidden; isolation:isolate; display:inline-flex; align-items:center; gap:11px; padding:8px 22px 8px 8px; border-radius:999px; background:linear-gradient(135deg, #6672D6 0%, #4A58C2 55%, #3A47A8 100%); border:1px solid ${isDark ? 'rgba(195,202,244,.45)' : 'rgba(255,255,255,.35)'}; color:#FFFFFF !important; font-size:16px; font-weight:800; line-height:1.35; text-decoration:none; box-shadow:0 10px 28px ${isDark ? 'rgba(102,114,214,.42)' : 'rgba(63,78,176,.32)'}, inset 0 1px 0 rgba(255,255,255,.22); transition:transform .2s ease, box-shadow .2s ease; }
+  [dir=ltr] .book-pill { padding:8px 8px 8px 22px; }
+  .book-pill::after { content:''; position:absolute; z-index:-1; top:0; bottom:0; left:0; width:38%; background:linear-gradient(100deg, transparent, rgba(255,255,255,.32), transparent); transform:translateX(-120%) skewX(-18deg); animation:bpShine 5s ease-in-out 1.2s infinite; pointer-events:none; }
+  @keyframes bpShine { 0% { transform:translateX(-120%) skewX(-18deg); } 28%, 100% { transform:translateX(330%) skewX(-18deg); } }
+  .book-pill .bp-ic { width:34px; height:34px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; background:#FFFFFF; color:#3F4EB0; flex-shrink:0; box-shadow:0 2px 6px rgba(20,24,70,.25); }
+  .book-pill .bp-go { opacity:.9; transition:transform .2s ease; }
+  .book-pill:hover { transform:translateY(-2px); box-shadow:0 14px 34px ${isDark ? 'rgba(102,114,214,.55)' : 'rgba(63,78,176,.42)'}, inset 0 1px 0 rgba(255,255,255,.22); }
   .book-pill:hover .bp-go { transform:translateX(${'-3px'}); }
   [dir=ltr] .book-pill:hover .bp-go { transform:translateX(3px); }
-  .book-pill.sm { font-size:14px; padding-block:5px; }
-  .book-pill.sm .bp-ic { width:28px; height:28px; }
+  .book-pill.sm { font-size:14.5px; padding-block:6px; }
+  .book-pill.sm .bp-ic { width:30px; height:30px; }
+  @media (prefers-reduced-motion: reduce) { .book-pill::after { animation:none; display:none; } }
   .book-band { max-width:1040px; margin:56px auto 0; padding:28px 32px; border-radius:20px; border:1px solid ${isDark ? 'rgba(132,144,216,.28)' : 'rgba(63,78,176,.22)'}; background:${isDark ? 'linear-gradient(135deg, rgba(132,144,216,.12), rgba(132,144,216,.04))' : 'linear-gradient(135deg, rgba(63,78,176,.07), rgba(63,78,176,.02))'}; display:flex; align-items:center; justify-content:space-between; gap:24px; flex-wrap:wrap; }
   .book-band h3 { margin:0 0 6px; font-size:clamp(19px,2.2vw,24px); font-weight:800; color:${C.cream}; }
   .book-band p { margin:0; font-size:15px; line-height:1.7; color:${C.cream}B3; max-width:560px; }
   .book-solid { display:inline-flex; align-items:center; gap:9px; padding:14px 26px; border-radius:999px; background:${C.purple}; color:${C.bg} !important; font-size:16px; font-weight:800; text-decoration:none; white-space:nowrap; transition:transform .2s ease, filter .2s ease; }
   .book-solid:hover { transform:translateY(-1px); filter:brightness(1.07); }
   .book-pill > span:nth-child(2) { text-wrap:balance; }
-  @media (max-width:640px) { .book-band { padding:22px 20px; margin-top:40px; } .book-solid { width:100%; justify-content:center; } .book-pill { font-size:14px; } }
+  @media (max-width:640px) { .book-band { padding:22px 20px; margin-top:40px; } .book-solid { width:100%; justify-content:center; } .book-pill:not(.sm) { width:100%; max-width:440px; font-size:15.5px; text-align:start; } .book-pill:not(.sm) > span:nth-child(2) { flex:1; } .book-pill:not(.sm) .bp-q, .book-pill:not(.sm) .bp-a { display:block; } .book-pill:not(.sm) .bp-q { font-size:12.5px; font-weight:600; opacity:.85; } }
   .sr-only { position:absolute !important; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
   /* Keyboard focus is always visible (IS 5568 · WCAG 2.4.7) — every control, whatever its own styles */
   :where(a, button, select, input, textarea, summary, iframe, [tabindex]):focus-visible { outline:3px solid ${isDark ? '#A9B3EE' : '#2F3C9E'} !important; outline-offset:2px !important; }
@@ -2334,10 +2338,13 @@ function BookLink({ src, text = 'cta', children, icon = true, ...rest }) {
 // The prominent version: a purple pill with a calendar disc and an arrow (hero, contact form, FAQ)
 function BookPill({ src, text = 'line', small = false, style }) {
   const { lang } = useTheme()
+  // "מעדיפים לדבר? בחרו שעה…" — on a phone the question becomes a small line above the action
+  const label = bookText(text, lang), qi = label.indexOf('?')
+  const q = qi > 0 && qi < label.length - 1 ? label.slice(0, qi + 1) : '', rest = q ? label.slice(qi + 1).trim() : ''
   return (
     <a href={bookHref(src, lang)} className={`book-pill${small ? ' sm' : ''}`} style={style} onClick={() => trackEvent('booking_click', { src })}>
       <span className="bp-ic" aria-hidden="true"><FaCalendarAlt size={small ? 12 : 14}/></span>
-      <span>{bookText(text, lang)}</span>
+      <span>{q ? <><span className="bp-q">{q}</span> <span className="bp-a">{rest}</span></> : label}</span>
       <span className="bp-go" aria-hidden="true">{lang === 'en' ? '→' : '←'}</span>
     </a>
   )
