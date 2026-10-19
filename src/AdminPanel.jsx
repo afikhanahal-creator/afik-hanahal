@@ -10,6 +10,7 @@ import { FaSun, FaMoon, FaPlus, FaEnvelope, FaFacebookF, FaInstagram, FaBed, FaR
 // Seller intake submissions (from the public /sell form) — lazy, admin-only
 const SellerSubmissionsTab = lazy(() => import('./SellerSubmissionsTab.jsx'))
 const BookingAdminTab = lazy(() => import('./BookingAdminTab.jsx'))
+const MediaLibraryTab = lazy(() => import('./MediaLibraryTab.jsx'))
 const ContentEditorTab = lazy(() => import('./ContentEditorTab.jsx'))
 const AutomationsTab = lazy(() => import('./AutomationsTab.jsx'))
 const GA4Tab = lazy(() => import('./GA4Tab.jsx'))
@@ -24,7 +25,7 @@ import { notifyPropertiesChanged, mirrorProperty, mirrorProperties, mirrorDelete
 import { fetchAdminProperties, LeadsBoard, GreenAPIChat, MetaLeadsTab, SupermetricsTab, PropertyWizard, API_BASE, CONTACTS_API, ADMIN_TOKEN, condFetchJson, DARK_C, useTheme, TEAM, G, Logo, LEADS_STORE, LEADS_DELETED, LEADS_TRASH, ANALYTICS_KEY, META_LEAD_PAGES_KEY, WA_DEFAULT_TEMPLATE, _cloudSettings, CATEGORIES, EMPTY_PROP, CONDITION_OPTIONS, ENTRY_OPTIONS, ADMIN_DRAFT_KEY, toMapsEmbed, imgFallback, thumbImg, sortByOrder, TEAM_KEY, setCloudSettings } from './App.jsx'
 
 // Tab ↔ URL deep-link mapping (module-level so both AdminPanel and main app can use it)
-const ADMIN_TAB_TO_PATH = { overview:'overview', props:'properties', leads:'leads', sellers:'properties-intake', bookings:'bookings', content:'content', chats:'chats', automations:'automations', meta:'lead-center', analytics:'analytics', supermetrics:'performance', team:'team', settings:'settings', counters:'counters', live:'live' }
+const ADMIN_TAB_TO_PATH = { overview:'overview', props:'properties', leads:'leads', sellers:'properties-intake', bookings:'bookings', media:'media', content:'content', chats:'chats', automations:'automations', meta:'lead-center', analytics:'analytics', supermetrics:'performance', team:'team', settings:'settings', counters:'counters', live:'live' }
 const ADMIN_PATH_TO_TAB = Object.fromEntries(Object.entries(ADMIN_TAB_TO_PATH).map(([k,v])=>[v,k]))
 
 // ─── LOGO UPLOAD (single image, compressed) ──────────────────────────────────
@@ -2220,6 +2221,15 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     if (m && m.ok) { setPropSyncedAt(new Date()); notifyPropertiesChanged(ADMIN_TOKEN) }
   }
 
+  // Image library: one photo of a property replaced by a new upload (same place in the gallery), then saved
+  const replacePropertyPhoto = async (propId, oldUrl, newUrl) => {
+    const p = properties.find(x => String(x.id) === String(propId))
+    if (!p) return
+    const next = { ...p, images: (p.images || []).map(u => (u === oldUrl ? newUrl : u)), ...(p.logo === oldUrl ? { logo: newUrl } : {}), updatedAt: new Date().toISOString() }
+    setProperties(list => list.map(x => (String(x.id) === String(propId) ? next : x)))
+    await savePropSilent(next)
+  }
+
   // ── Individual property delete — DELETE /api/properties/:id ───────────────
   const deleteProp = async (id) => {
     const base = API_BASE || ''
@@ -2652,6 +2662,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     { id:'sellers',  Icon:FaClipboardList, label:'נכסים שנקלטו', badge: intakeStats?.new || undefined },
     { id:'bookings', Icon:FaCalendarAlt, label:'תיאום פגישות' },
     { id:'content',  Icon:FaFileAlt,     label:'תוכן האתר' },
+    { id:'media',    Icon:FaImage,       label:'תמונות האתר' },
     { id:'chats',    Icon:FaWhatsapp,    label:'צ\'אטים',     badge: chatsUnread },
     { id:'automations', Icon:FaRobot,    label:'אוטומציות',   badge: autoRun?.suggestions?.length || undefined },
     { id:'analytics',    Icon:FaChartLine,   label:'אנליטיקס' },
@@ -2662,12 +2673,12 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   ]
   const slimBar = !standalone && tab === 'meta' && !tabsOpen
   const DASH_GROUPS = [
-    { id:'main',  he:'ראשי',            en:'MAIN',        ids:['overview','live','props','sellers','content'] },
+    { id:'main',  he:'ראשי',            en:'MAIN',        ids:['overview','live','props','sellers','content','media'] },
     { id:'sales', he:'מכירות ולקוחות',  en:'SALES',       ids:['leads','meta','bookings','chats','automations'] },
     { id:'data',  he:'נתונים וביצועים', en:'INSIGHTS',    ids:['analytics','supermetrics'] },
     { id:'admin', he:'ניהול',           en:'ADMIN',       ids:['team','counters','settings'] },
   ]
-  const TAB_LABELS = { overview:'סקירה כללית', live:'נכסים באוויר', props:'ניהול נכסים', leads:'לידים', sellers:'נכסים שנקלטו', bookings:'תיאום פגישות', content:'תוכן האתר', chats:'שיחות WhatsApp', automations:'אוטומציות וואטסאפ', meta:'מרכז מטא', analytics:'אנליטיקס', supermetrics:'ביצועים', team:'צוות', counters:'מונים', settings:'הגדרות' }
+  const TAB_LABELS = { overview:'סקירה כללית', live:'נכסים באוויר', props:'ניהול נכסים', leads:'לידים', sellers:'נכסים שנקלטו', bookings:'תיאום פגישות', media:'תמונות האתר', content:'תוכן האתר', chats:'שיחות WhatsApp', automations:'אוטומציות וואטסאפ', meta:'מרכז מטא', analytics:'אנליטיקס', supermetrics:'ביצועים', team:'צוות', counters:'מונים', settings:'הגדרות' }
 
   return (
     <div className="admin-shell admin-scroll" style={standalone
@@ -2923,6 +2934,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
             {tabBtn('sellers', 'נכסים שנקלטו', intakeStats?.new || undefined)}
             {tabBtn('bookings', 'תיאום פגישות')}
             {tabBtn('content', 'תוכן האתר')}
+            {tabBtn('media', 'תמונות האתר')}
             {tabBtn('chats', 'צ\'אטים')}
             {tabBtn('automations', 'אוטומציות', autoRun?.suggestions?.length || undefined)}
             {tabBtn('analytics', 'אנליטיקס')}
@@ -3243,6 +3255,11 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
               <SellerSubmissionsTab C={C} onOpenWizard={openWizardFromIntake} onChanged={() => { fetch('/api/seller-form?action=stats', { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` } }).then(r => r.json()).then(d => d?.ok && setIntakeStats(d)).catch(() => {}) }}/>
             </Suspense>
           </div>
+        )}
+        {tab==='media' && (
+          <Suspense fallback={<AdminTabLoader label="טוען את תמונות האתר…"/>}>
+            <MediaLibraryTab lang={lang} properties={properties} onReplacePropertyPhoto={replacePropertyPhoto}/>
+          </Suspense>
         )}
         {tab==='bookings' && (
           <Suspense fallback={<AdminTabLoader label="טוען תיאום פגישות…"/>}>
