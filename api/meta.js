@@ -532,7 +532,7 @@ async function handleMessages(req, res) {
 
     // From the office WhatsApp (Green API) — the same number as the welcome message, so the lead sees one conversation
     const sent = await Auto.sendText(lead.phone, String(message).slice(0, 4000))
-    if (!sent.ok) return res.status(502).json({ error: sent.error || 'send failed' })
+    if (!sent.ok) return res.status(502).json({ error: sent.error || 'send failed', quota: !!sent.quota })
     const { data: newMsg, error: insertErr } = await client.from('meta_messages')
       .insert({ lead_id: lead.id, direction: 'out', message, wa_message_id: sent.idMessage || null })
       .select('*').single()
@@ -814,18 +814,20 @@ async function handleConnect(req, res) {
   return res.status(200).json(out)
 }
 
-// POST /api/meta/lead-welcome { id } (admin) → send the welcome template to one Meta lead now (the button in the Lead Center)
+// POST /api/meta/lead-welcome { id, text?, templateId? } (admin) → send the welcome to one Meta lead now (the Lead Center):
+// the configured welcome template, or the wording picked from the template library there
 async function handleLeadWelcome(req, res) {
   if (!checkAuth(req)) return res.status(401).json({ error: 'Unauthorized' })
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
-  const id = (req.body || {}).id
+  const { id, text, templateId } = req.body || {}
   if (!id) return res.status(400).json({ error: 'id required' })
+  if (text != null && (typeof text !== 'string' || !text.trim() || text.length > 4000)) return res.status(400).json({ error: 'invalid text' })
   const client = sb()
   const { data: lead } = await client.from('meta_leads').select('id,name,phone,campaign_name,form_name').eq('id', id).maybeSingle()
   if (!lead) return res.status(404).json({ error: 'lead not found' })
   if (!lead.phone) return res.status(400).json({ error: 'no phone' })
   // The button means "send it now", whatever the automatic rule's mode
-  const r = await Auto.welcomeExternalLead({ id: lead.id, name: lead.name || '', phone: lead.phone, source: 'meta', campaignName: lead.campaign_name || lead.form_name || '' }, { source: 'meta', force: true })
+  const r = await Auto.welcomeExternalLead({ id: lead.id, name: lead.name || '', phone: lead.phone, source: 'meta', campaignName: lead.campaign_name || lead.form_name || '' }, { source: 'meta', force: true, text: text || '', templateId: typeof templateId === 'string' ? templateId : '' })
   if (r.ok) {
     await client.from('meta_messages').insert({ lead_id: lead.id, direction: 'out', message: r.text, wa_message_id: r.idMessage || null }).then(() => {}, () => {})
     await client.from('meta_leads').update({ wa_sent: true }).eq('id', lead.id).then(() => {}, () => {})
