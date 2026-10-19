@@ -2440,6 +2440,12 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   }
 
   const updateLead = (id, patch) => {
+    // a rename of a Meta lead's CRM copy shows in the Lead Center at once (the server renames its row too)
+    if (typeof patch?.name === 'string' && patch.name.trim()) {
+      const cur = leads.find(l => l.id === id)
+      const metaLeadId = cur && (cur.metaLeadId || cur.crm_data?.metaLeadId)
+      if (metaLeadId) window.dispatchEvent(new CustomEvent('afik:lead-renamed', { detail: { metaLeadId: String(metaLeadId), name: patch.name.replace(/\s+/g, ' ').trim() } }))
+    }
     setLeads(prev => {
       const next = prev.map(l => l.id === id ? { ...l, ...patch } : l)
       try { localStorage.setItem(LEADS_STORE, JSON.stringify(next)) } catch {}
@@ -3470,7 +3476,11 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
               }}
               onLeadRenamed={(metaLead, name) => {
                 // the server renamed the CRM copy too; show it now instead of after the next sync
-                setLeads(prev => prev.map(l => (String(l.metaLeadId || l.crm_data?.metaLeadId || '') === String(metaLead.id) ? { ...l, name } : l)))
+                setLeads(prev => {
+                  const next = prev.map(l => (String(l.metaLeadId || l.crm_data?.metaLeadId || '') === String(metaLead.id) ? { ...l, name } : l))
+                  try { localStorage.setItem(LEADS_STORE, JSON.stringify(next)) } catch {}
+                  return next
+                })
               }}
               onSaveToCRM={metaLead => {
                 // Every Meta lead is copied into the CRM by the server (lib/meta-crm.js); the button makes sure

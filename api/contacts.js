@@ -593,8 +593,19 @@ export default async function handler(req, res) {
       const patch = req.body || {}
       // Merge patch into existing crm_data so partial updates don't wipe other fields
       const existing = await getCrmData(id)
+      // A rename is one name everywhere: the contacts column (the chats' names), crm_data (what the board reads)
+      // and, for a copy of a Meta lead, the Lead Center's own row in meta_leads.
+      const newName  = typeof patch.name === 'string' ? patch.name.replace(/\s+/g, ' ').trim().slice(0, 80) : ''
+      if (typeof patch.name === 'string') { if (!newName) return res.status(400).json({ error: 'name required' }); patch.name = newName }
       const merged   = { ...existing, ...patch }
-      const ok       = await patchContact(id, { crm_data: merged })
+      const ok       = await patchContact(id, newName ? { crm_data: merged, name: newName } : { crm_data: merged })
+      let metaRenamed = null
+      if (ok && newName && existing.metaLeadId) {
+        const r = await supaFetch(`/meta_leads?id=eq.${encodeURIComponent(existing.metaLeadId)}`, {
+          method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ name: newName }), signal: AbortSignal.timeout(8000),
+        }).catch(() => null)
+        metaRenamed = r?.ok ? { id: existing.metaLeadId } : { error: r ? `meta_leads ${r.status}` : 'meta_leads unreachable' }
+      }
       // Stage moved on the board → stage automations (send now, or offer it in the approval queue)
       let automation = null
       if (ok && typeof patch.leadStatus === 'string' && patch.leadStatus !== existing.leadStatus) {
@@ -603,7 +614,7 @@ export default async function handler(req, res) {
           new Promise(r => setTimeout(() => r({ pending: true }), 18000)),
         ]).catch(e => ({ ok: false, error: e.message }))
       }
-      return res.status(ok ? 200 : 404).json({ ok, automation })
+      return res.status(ok ? 200 : 404).json({ ok, automation, ...(metaRenamed ? { meta: metaRenamed } : {}) })
     }
 
     // ── DELETE: remove contact permanently ───────────────────────────────────

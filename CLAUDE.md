@@ -200,7 +200,7 @@ this screen folds the title and the row of tabs into one slim bar (a "מסך" dr
 row back; `localStorage.afik_admin_tabs_open`). A lead whose WhatsApp chat already has our messages (sent from the chats tab, say) is marked
 `wa_sent` (`onActivity` → PATCH `{ wa_sent: true }`, the only value the API accepts). **Renaming a lead:** a click on the name (list row or lead header) opens an inline editor with "+ הוספת הפרויקט: <short campaign>"
 (appends ` · זרובבל 15`, so the chats show where the lead belongs) → `PATCH /api/meta/leads {id, name}` renames `meta_leads`, the CRM
-copy (`findMirror`) and resets the chats' name cache; `onLeadRenamed` updates the admin's `leads` at once. The phone's own
+copy (`findMirror`) and resets the chats' name cache; `onLeadRenamed` updates the admin's `leads` at once. **The other way round is the same name too:** a rename on the leads board / lead card (`updateLead` → `PATCH /api/contacts {name}`) writes the `name` column and `crm_data.name` and, for a Meta lead's copy (`crm_data.metaLeadId`), `meta_leads.name`; the open Lead Center updates at once (`afik:lead-renamed` window event, then Realtime). A Lead Center rename also writes the copy's `crm_data.name` (the board reads crm_data over the columns, so an old one used to win). The phone's own
 WhatsApp contact book can't be edited through Green API. **Pipeline stage from the chat:** the lead header's "שלב בפייפליין" menu (`PIPELINE` in `MetaLeadsTab.jsx`,
 the office's renamed stage names through `stageLabels`) moves the lead's CRM copy through `onCrmStage` → the admin's
 `updateLeadStatus` (stage log, nurture follow-up, stage automations — the same as dragging on the board); a lead not in the CRM
