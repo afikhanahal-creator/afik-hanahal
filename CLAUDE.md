@@ -264,6 +264,15 @@ Templates: `{bookingLink}` (`vars.bookingLink`, `?lang=en` added for English) in
 
 A direct visit to `/admin-panel(/<tab>)` (or `/dashboard`) opens the full-screen dashboard (sidebar layout, `AdminPanel standalone`);
 the in-site modal is only used when the admin is opened from the site itself. `DASHBOARD_MODE` in `App.jsx` is decided once at load.
+**Phones get the dashboard, never the modal:** opening the admin from the site on a screen ≤ 900 px reloads into
+`/admin-panel` (the modal's wrapped tab grid and short panes don't fit a phone). The dashboard on a phone: a sidebar drawer
+(no shadow while closed — it used to leave a grey band on the screen edge), a bottom bar with the five most used screens
+(overview · leads · chats · Lead Center · properties; "באוויר" is the published filter of the property list, not a screen —
+`/admin-panel/live` opens the property list), one-line notices, floating buttons (`.lb-fab`) above the bottom bar, and
+one pane at a time in the chats (`.wa-has-contact`, the status strip hidden) and in "נכסים שנקלטו" (`.ss-has-sel`, a
+"לכל הנכסים" back button). The property wizard is mounted in both modes (`wizardEl` in `App.jsx`), so "ערוך" in the
+dashboard opens it (it used to log out); a wizard save merges over the stored property, keeping `sortOrder` and the
+quick-form-only fields.
 
 | Piece | Where |
 |---|---|

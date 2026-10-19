@@ -616,27 +616,27 @@ function MobileLeadCard({ lead, lang, T, onUpdate, onDelete, onOpenDetail, onSta
       )}
 
       {/* Action buttons */}
-      <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8, marginTop: 12 }}>   {/* 2 × 2 on a phone: four buttons in one row overflowed */}
         {lead.phone && (
           <a href={`tel:${lead.phone}`} onClick={e => e.stopPropagation()}
-            style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 0', background: T.accent + '14', border: `1px solid ${T.accent}30`, borderRadius: 10, color: T.accent, fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>
+            style={{ minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 0', background: T.accent + '14', border: `1px solid ${T.accent}30`, borderRadius: 10, color: T.accent, fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>
             <Phone size={14} /> {lang === 'en' ? 'Call' : 'התקשר'}
           </a>
         )}
         {lead.phone && onOpenChat && (
           <button onClick={e => { e.stopPropagation(); onOpenChat(lead) }}
-            style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 0', background: '#25D36614', border: '1px solid #25D36630', borderRadius: 10, color: '#25D366', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+            style={{ minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 0', background: '#25D36614', border: '1px solid #25D36630', borderRadius: 10, color: '#25D366', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
             <MessageSquare size={14} /> WhatsApp
           </button>
         )}
         {openNote && (
           <button onClick={e => { e.stopPropagation(); openNote(lead) }}
-            style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 0', background: '#A25DDC14', border: '1px solid #A25DDC33', borderRadius: 10, color: '#A25DDC', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+            style={{ minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 0', background: '#A25DDC14', border: '1px solid #A25DDC33', borderRadius: 10, color: '#A25DDC', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
             <Pencil size={14} /> {lang === 'en' ? 'Note' : 'סיכום'}
           </button>
         )}
         <button onClick={() => onOpenDetail(lead)}
-          style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 0', background: 'none', border: `1px solid ${T.border}`, borderRadius: 10, color: T.textSub, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+          style={{ minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 0', background: 'none', border: `1px solid ${T.border}`, borderRadius: 10, color: T.textSub, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
           <ExternalLink size={14} /> {lang === 'en' ? 'Details' : 'פרטים'}
         </button>
       </div>
@@ -1850,7 +1850,7 @@ function BulkActionBar({ count, total, onClearSelection, onSelectAll, onDelete, 
   const en = lang === 'en'
   const btn = { background: 'rgba(255,255,255,.14)', border: '1px solid rgba(255,255,255,.22)', borderRadius: 9, color: '#fff', cursor: 'pointer', padding: '7px 12px', fontSize: 12.5, fontWeight: 700, fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }
   return (
-    <div role="toolbar" aria-label={en ? 'Bulk actions' : 'פעולות על הנבחרים'} style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', background: '#1E2A44', border: '1px solid #2F3D5E', borderRadius: 16, padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 16px 48px rgba(0,0,0,.45)', zIndex: 700, direction: en ? 'ltr' : 'rtl', maxWidth: 'calc(100vw - 24px)', flexWrap: 'wrap', justifyContent: 'center' }}>
+    <div role="toolbar" className="lb-fab" aria-label={en ? 'Bulk actions' : 'פעולות על הנבחרים'} style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', background: '#1E2A44', border: '1px solid #2F3D5E', borderRadius: 16, padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 16px 48px rgba(0,0,0,.45)', zIndex: 700, direction: en ? 'ltr' : 'rtl', maxWidth: 'calc(100vw - 24px)', flexWrap: 'wrap', justifyContent: 'center' }}>
       <span style={{ background: '#0073EA', color: '#fff', borderRadius: 20, padding: '4px 11px', fontSize: 13, fontWeight: 800 }}>{count}</span>
       <span style={{ color: '#fff', fontSize: 13, fontWeight: 700, marginInlineEnd: 4 }}>{en ? 'selected' : 'נבחרו'}</span>
       {onToggleOnly && <button type="button" onClick={onToggleOnly} aria-pressed={!!onlySelected} style={{ ...btn, ...(onlySelected ? { background: '#0073EA', borderColor: '#0073EA' } : {}) }}><Eye size={13}/> {onlySelected ? (en ? 'Show all' : 'הצג הכול') : (en ? 'Show selected' : 'הצג רק נבחרים')}</button>}
@@ -2314,7 +2314,7 @@ function LeadsBoardMain({
         </div>
 
         {/* ── Floating Action Button ── */}
-        <div style={{ position: 'fixed', bottom: 24, left: lang === 'en' ? 24 : 'auto', right: lang === 'en' ? 'auto' : 24, zIndex: 400 }}>
+        <div className="lb-fab" style={{ position: 'fixed', bottom: 24, left: lang === 'en' ? 24 : 'auto', right: lang === 'en' ? 'auto' : 24, zIndex: 400 }}>
           <button onClick={() => handleAddRow(activeTab !== 'all' ? activeTab : 'new', '')}
             style={{ width: 58, height: 58, borderRadius: '50%', background: 'linear-gradient(135deg, #0073EA, #0060CC)', border: 'none', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: `0 6px 24px #0073EA55, 0 2px 8px rgba(0,0,0,.3)`, fontSize: 28, fontFamily: 'inherit' }}>
             <Plus size={26} strokeWidth={2.5} />

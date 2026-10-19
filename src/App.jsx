@@ -1051,9 +1051,9 @@ const makeGlobal = (C, isDark) => `
       z-index: 1050 !important;
       transform: translateX(110%);
       width: min(280px, 88vw) !important;
-      box-shadow: -12px 0 60px rgba(0,0,0,.85) !important;
+      box-shadow: none !important;                 /* a shadow on the closed drawer leaked a grey band along the screen edge */
     }
-    .admin-sidebar.open { transform: translateX(0) !important; }
+    .admin-sidebar.open { transform: translateX(0) !important; box-shadow: -12px 0 60px rgba(0,0,0,.5) !important; }
     .admin-mobile-overlay { display: block !important; position: fixed; inset: 0; background: var(--au-overlay, rgba(0,0,0,.6)); z-index: 1049; backdrop-filter: blur(3px); }
     .admin-mobile-topbar {
       display: flex !important;
@@ -1064,7 +1064,8 @@ const makeGlobal = (C, isDark) => `
       direction: rtl; position: sticky; top: 0; z-index: 20;
     }
     .admin-desktop-topbar { display: none !important; }
-    .admin-shell .admin-notice { margin: 10px 12px 0 !important; }
+    .admin-shell .admin-notice { margin: 10px 12px 0 !important; padding: 8px 12px !important; }
+    .admin-shell .admin-notice .admin-notice-detail { display: none !important; }
     .admin-main-pane { height: 100dvh !important; }
     .admin-content { padding: 16px 14px 28px !important; }
     .admin-tabs-bar { padding: 0 12px !important; overflow-x: auto !important; flex-wrap: nowrap !important; gap: 2px !important; }
@@ -1092,6 +1093,8 @@ const makeGlobal = (C, isDark) => `
   }
   @media (max-width: 640px) {
     .admin-bottom-nav { display: flex; }
+    /* floating buttons sit above the bottom bar (58px + the phone's home-indicator area) */
+    .admin-shell .lb-fab { bottom: calc(70px + env(safe-area-inset-bottom, 0px)) !important; }
     .admin-content { padding-bottom: 72px !important; }
     .admin-tabs-bar { display: none !important; }
     /* Phone: the admin modal becomes a full-screen app – every tab gets the whole width */
@@ -5360,6 +5363,12 @@ export default function App() {
 
   useEffect(() => {
     if (DASHBOARD_MODE) return
+    // A phone gets the full-screen dashboard (sidebar drawer + bottom bar), never the in-site window, whose
+    // wrapped tab grid and short panes don't fit a phone screen. The session survives the reload.
+    if (showAdmin && adminAuth && window.matchMedia?.('(max-width: 900px)').matches) {
+      window.location.replace('/admin-panel' + (window.location.pathname.startsWith('/admin-panel') ? window.location.pathname.slice('/admin-panel'.length) : ''))
+      return
+    }
     if (showAdmin && adminAuth) {
       if (!window.location.pathname.startsWith('/admin-panel')) history.replaceState({}, '', '/admin-panel')
     } else {
@@ -5737,6 +5746,82 @@ export default function App() {
   const openContactStable  = useStableFn(openContact)
   const openPropertyStable = useStableFn(openProperty)
 
+  // The property wizard: the site's and the full-screen dashboard's (edit from the property list)
+  const wizardEl = showWizard && <Suspense fallback={null}><PropertyWizard
+          key={wizardEditId || wizardKey}
+          onClose={() => { setShowWizard(false); setWizardEditData(null); setWizardEditId(null); setWizardIntakeId(null) }}
+          initialData={wizardEditData}
+          editId={wizardEditId}
+          govmapToken={govmapToken}
+          onPublish={(prop, isDraft) => {
+            if (wizardIntakeId) {
+              // opened from "נכסים שנקלטו": record the link + status on the intake record
+              fetch(`/api/seller-form?action=linked&id=${encodeURIComponent(wizardIntakeId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` }, body: JSON.stringify({ propertyId: wizardEditId || prop.id, published: !isDraft }) }).catch(() => {})
+              setWizardIntakeId(null)
+            }
+            let nextProps
+            if (wizardEditId) {
+              const oldProp = properties.find(x => String(x.id) === String(wizardEditId)) || {}
+              const merged = {
+                ...oldProp,                                    // keeps what the wizard doesn't edit (sortOrder, exclusive, …)
+                ...prop,
+                id: wizardEditId,                              // critical: never let wizardToProperty's Date.now() id override
+                status: oldProp.status || prop.status,
+                createdAt: oldProp.createdAt || prop.createdAt,
+                published: isDraft ? false : (prop.published ?? oldProp.published ?? true),
+              }
+              nextProps = properties.map(x => String(x.id) === String(wizardEditId) ? merged : x)
+            } else {
+              nextProps = [...properties, prop]
+            }
+            // Determine the exact property that was added/updated and save only it
+            const savedProp = wizardEditId
+              ? nextProps.find(x => String(x.id) === String(wizardEditId))
+              : nextProps[nextProps.length - 1]
+            setProperties(nextProps)
+            setWizardEditData(null)
+            setWizardEditId(null)
+            setShowWizard(false)
+            if (!isDraft && prop.published !== false) {
+              setTimeout(() => scrollTo('properties'), 350)
+            }
+            // Save only the affected property — safe, atomic, never touches others
+            const base = API_BASE || ''
+            if (base && savedProp) {
+              const cleanP = externalizeInlinePhotos(savedProp, ADMIN_TOKEN)
+              // The durable copy (the properties table, through Vercel) — the site reads this one, Render up or not
+              cleanP.then(cleanProp => mirrorProperty(cleanProp, ADMIN_TOKEN)).then(m => { if (m && m.ok) notifyPropertiesChanged(ADMIN_TOKEN) })
+              cleanP.then(cleanProp => fetch(`${base}/api/properties/${savedProp.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+                body: JSON.stringify(cleanProp),
+                signal: AbortSignal.timeout(30000),
+              }).then(r => r.ok ? r.json() : Promise.reject(r.status))
+                .then(body => {
+                  console.log('[wizard] saved prop', savedProp.id, '→', body.storage)
+                  notifyPropertiesChanged(ADMIN_TOKEN)   // snapshot + instant landing pages follow
+                  // Re-fetch after confirmed save so UI reflects what the server actually stored
+                  return fetchAdminProperties()
+                    .then(data => {
+                      if (Array.isArray(data) && data.length > 0) {
+                        setProperties(prev => {
+                          if (!prev.length) return data
+                          if (data.length < prev.length) return prev
+                          const localById = new Map(prev.map(p => [String(p.id), p]))
+                          return data.map(sp => {
+                            const lp = localById.get(String(sp.id))
+                            if (!lp) return sp
+                            return ((sp.updatedAt || 0) >= (lp.updatedAt || 0)) ? { ...lp, ...sp } : lp
+                          })
+                        })
+                      }
+                    })
+                })
+                .catch(e => console.error('[wizard] save error:', e)))
+            }
+          }}
+        /></Suspense>
+
   // ── Standalone dashboard at /dashboard ──────────────────────────────────────
   if (DASHBOARD_MODE) {
     return (
@@ -5752,6 +5837,7 @@ export default function App() {
               onClose={() => { window.location.href = '/' }}
             />
           )}
+          {wizardEl}
           {adminAuth && (
             <Suspense fallback={null}>
             <AdminPanel
@@ -6537,79 +6623,7 @@ export default function App() {
         </div>
       )}
       {selectedProp && <PropertyModal key={selectedProp.id} prop={selectedProp} properties={properties} onClose={() => { setSelectedProp(null); setPropInUrl(null) }} onContact={p => { openContact(p) }} onSelect={p => { setSelectedProp(p); setPropInUrl(p) }} govmapToken={govmapToken}/>}
-      {showWizard && <Suspense fallback={null}><PropertyWizard
-          key={wizardEditId || wizardKey}
-          onClose={() => { setShowWizard(false); setWizardEditData(null); setWizardEditId(null); setWizardIntakeId(null) }}
-          initialData={wizardEditData}
-          editId={wizardEditId}
-          govmapToken={govmapToken}
-          onPublish={(prop, isDraft) => {
-            if (wizardIntakeId) {
-              // opened from "נכסים שנקלטו": record the link + status on the intake record
-              fetch(`/api/seller-form?action=linked&id=${encodeURIComponent(wizardIntakeId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` }, body: JSON.stringify({ propertyId: wizardEditId || prop.id, published: !isDraft }) }).catch(() => {})
-              setWizardIntakeId(null)
-            }
-            let nextProps
-            if (wizardEditId) {
-              const oldProp = properties.find(x => String(x.id) === String(wizardEditId)) || {}
-              const merged = {
-                ...prop,
-                id: wizardEditId,                              // critical: never let wizardToProperty's Date.now() id override
-                status: oldProp.status || prop.status,
-                createdAt: oldProp.createdAt || prop.createdAt,
-                published: isDraft ? false : (prop.published ?? oldProp.published ?? true),
-              }
-              nextProps = properties.map(x => String(x.id) === String(wizardEditId) ? merged : x)
-            } else {
-              nextProps = [...properties, prop]
-            }
-            // Determine the exact property that was added/updated and save only it
-            const savedProp = wizardEditId
-              ? nextProps.find(x => String(x.id) === String(wizardEditId))
-              : nextProps[nextProps.length - 1]
-            setProperties(nextProps)
-            setWizardEditData(null)
-            setWizardEditId(null)
-            setShowWizard(false)
-            if (!isDraft && prop.published !== false) {
-              setTimeout(() => scrollTo('properties'), 350)
-            }
-            // Save only the affected property — safe, atomic, never touches others
-            const base = API_BASE || ''
-            if (base && savedProp) {
-              const cleanP = externalizeInlinePhotos(savedProp, ADMIN_TOKEN)
-              // The durable copy (the properties table, through Vercel) — the site reads this one, Render up or not
-              cleanP.then(cleanProp => mirrorProperty(cleanProp, ADMIN_TOKEN)).then(m => { if (m && m.ok) notifyPropertiesChanged(ADMIN_TOKEN) })
-              cleanP.then(cleanProp => fetch(`${base}/api/properties/${savedProp.id}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
-                body: JSON.stringify(cleanProp),
-                signal: AbortSignal.timeout(30000),
-              }).then(r => r.ok ? r.json() : Promise.reject(r.status))
-                .then(body => {
-                  console.log('[wizard] saved prop', savedProp.id, '→', body.storage)
-                  notifyPropertiesChanged(ADMIN_TOKEN)   // snapshot + instant landing pages follow
-                  // Re-fetch after confirmed save so UI reflects what the server actually stored
-                  return fetchAdminProperties()
-                    .then(data => {
-                      if (Array.isArray(data) && data.length > 0) {
-                        setProperties(prev => {
-                          if (!prev.length) return data
-                          if (data.length < prev.length) return prev
-                          const localById = new Map(prev.map(p => [String(p.id), p]))
-                          return data.map(sp => {
-                            const lp = localById.get(String(sp.id))
-                            if (!lp) return sp
-                            return ((sp.updatedAt || 0) >= (lp.updatedAt || 0)) ? { ...lp, ...sp } : lp
-                          })
-                        })
-                      }
-                    })
-                })
-                .catch(e => console.error('[wizard] save error:', e)))
-            }
-          }}
-        /></Suspense>}
+      {wizardEl}
       {showAdmin && adminAuth && (
         <ThemeCtx.Provider value={adminThemeValue}>
         <Suspense fallback={null}>

@@ -496,9 +496,16 @@ export default function SellerSubmissionsTab({ C, onChanged, onOpenWizard }) {
   )
 
   return (
-    <div style={{ display: 'flex', gap: 18, height: '100%', minHeight: 0, direction: 'rtl', color: 'var(--au-text)' }}>
+    <div className={`ss-root${selId ? ' ss-has-sel' : ''}`} style={{ display: 'flex', gap: 18, height: '100%', minHeight: 0, direction: 'rtl', color: 'var(--au-text)' }}>
+      {/* Phone: one pane at a time, like the chats — the list, then the open property with a back button */}
+      <style>{`@media (max-width: 760px) {
+        .ss-root .ss-list { flex: 1 1 auto !important; }
+        .ss-root:not(.ss-has-sel) .ss-detail { display: none !important; }
+        .ss-root.ss-has-sel .ss-list { display: none !important; }
+        .ss-root .ss-back { display: flex !important; }
+      }`}</style>
       {/* ── list ── */}
-      <div className="admin-scroll" style={{ flex: '0 0 340px', display: 'flex', flexDirection: 'column', minHeight: 0, gap: 10, overflowY: 'auto', paddingLeft: 2 }}>
+      <div className="admin-scroll ss-list" style={{ flex: '0 0 340px', display: 'flex', flexDirection: 'column', minHeight: 0, gap: 10, overflowY: 'auto', paddingLeft: 2 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
             <div style={{ fontSize: 17, fontWeight: 700 }}>נכסים שנקלטו <span style={{ fontSize: 12, color: purple, fontWeight: 600 }}>{rows.filter(r => r.status !== 'draft').length}</span></div>
@@ -616,7 +623,13 @@ export default function SellerSubmissionsTab({ C, onChanged, onOpenWizard }) {
       </div>
 
       {/* ── property card ── */}
-      <div className="admin-scroll" style={{ flex: 1, minWidth: 0, minHeight: 0, overflowY: 'auto', ...card, padding: 0 }}>
+      <div className="admin-scroll ss-detail" style={{ flex: 1, minWidth: 0, minHeight: 0, overflowY: 'auto', ...card, padding: 0 }}>
+        {selId && (
+          <button type="button" className="ss-back" onClick={() => { setSelId(null); setDetail(null) }}
+            style={{ display: 'none', alignItems: 'center', gap: 6, margin: '12px 14px 0', background: 'none', border: '1px solid rgba(var(--brand-rgb),.3)', borderRadius: 8, padding: '7px 12px', color: 'var(--au-text)', fontFamily: 'inherit', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+            → לכל הנכסים
+          </button>
+        )}
         {!selId && (() => {
           const fresh = rows.filter(r => r.status === 'new' && r.submitted_at).sort((a, b) => new Date(b.submitted_at) - new Date(a.submitted_at))
           return (
