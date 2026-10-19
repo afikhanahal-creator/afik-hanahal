@@ -171,7 +171,8 @@ export default function LeadChatTab({ lead, lang = 'he', stages = [], save, onUp
         {lead.phone && <button type="button" style={btn(false, { height: 28 })} onClick={load} disabled={chat.phase === 'loading' || chat.phase === 'refreshing'}><FaSyncAlt size={9} style={chat.phase === 'refreshing' ? { animation: 'lc-spin 1s linear infinite' } : undefined}/>{t.refresh}</button>}
         {lead.phone && onOpenChat && <button type="button" style={btn(false, { height: 28 })} onClick={() => { onOpenChat(lead); onClose?.() }}><FaExternalLinkAlt size={9}/>{t.openChat}</button>}
       </header>
-      <div ref={scrollRef} style={{ maxHeight: 460, minHeight: 120, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 6, background: 'rgba(var(--ov),.025)' }}>
+      {/* our messages on the right, the lead's on the left (like WhatsApp), each bubble in the reading direction */}
+      <div ref={scrollRef} style={{ maxHeight: 460, minHeight: 120, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 6, background: 'rgba(var(--ov),.025)', direction: 'ltr' }}>
         {chat.phase === 'nophone' && <p style={{ margin: 'auto', color: T.text3, fontSize: 13 }}>{t.noPhone}</p>}
         {chat.phase === 'loading' && <p style={{ margin: 'auto', color: T.text3, fontSize: 13 }}>{t.loading}</p>}
         {chat.phase === 'error' && <p style={{ margin: 'auto', color: T.text3, fontSize: 13, textAlign: 'center' }}>{t.loadErr} ({chat.error}) <button type="button" style={btn(false, { height: 26, marginInlineStart: 6 })} onClick={load}>{t.retry}</button></p>}
@@ -181,7 +182,7 @@ export default function LeadChatTab({ lead, lang = 'he', stages = [], save, onUp
           const out = m.dir === 'out'
           return [
             showDay && <div key={'d' + i} style={{ alignSelf: 'center', fontSize: 11, fontWeight: 700, color: T.text3, background: T.card, border: `1px solid ${T.s1Line}`, borderRadius: 20, padding: '2px 10px', margin: '6px 0' }}>{dayLabel(m.ts)}</div>,
-            <div key={i} style={{ alignSelf: out ? 'flex-end' : 'flex-start', maxWidth: '78%', background: out ? 'rgba(37,211,102,.14)' : T.card, border: `1px solid ${out ? 'rgba(37,211,102,.25)' : T.s1Line}`, borderRadius: 12, padding: '7px 11px', fontSize: 13, lineHeight: 1.55, color: T.text, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
+            <div key={i} style={{ alignSelf: out ? 'flex-end' : 'flex-start', direction: lang === 'en' ? 'ltr' : 'rtl', textAlign: 'start', maxWidth: '78%', background: out ? 'rgba(37,211,102,.14)' : T.card, border: `1px solid ${out ? 'rgba(37,211,102,.25)' : T.s1Line}`, borderRadius: 12, padding: '7px 11px', fontSize: 13, lineHeight: 1.55, color: T.text, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
               <div style={{ fontSize: 10.5, fontWeight: 800, color: out ? '#1FAF55' : T.text3, marginBottom: 2, display: 'flex', alignItems: 'center', gap: 4 }}>{!out && <FaUser size={8}/>}{out ? t.office : (lead.name || t.lead)}</div>
               {m.media && <div style={{ fontStyle: 'italic', color: T.text2, display: 'flex', alignItems: 'center', gap: 5 }}>{/קולית|voice/i.test(m.media) && <FaMicrophone size={10}/>}[{m.media}]</div>}
               {m.text && <div dir="auto">{m.text}</div>}
