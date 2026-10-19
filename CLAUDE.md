@@ -205,7 +205,7 @@ WhatsApp contact book can't be edited through Green API. **Pipeline stage from t
 the office's renamed stage names through `stageLabels`) moves the lead's CRM copy through `onCrmStage` → the admin's
 `updateLeadStatus` (stage log, nurture follow-up, stage automations — the same as dragging on the board); a lead not in the CRM
 yet is copied there first (`lead-to-crm`). A detail pane too narrow for both (and every phone) shows one pane at a time ("שיחה" / "פרטים והערות"); phones get a compact
-bar (status as a dropdown, CRM in the details). Pure helpers: `src/lib/leadConversation.js` (tested).
+bar (status as a dropdown, CRM in the details). Pure helpers: `src/lib/leadConversation.js` (tested). **History per contact:** the aside's "היסטוריה ופרטים שהשאירו" card (`src/lib/leadHistory.js` `leadHistory()` / `crmLeadFor()`, tested): every Meta inquiry from the same phone with its form answers, the CRM copy's website / booking inquiry, booked calls, stage changes, notes and automatic sends, newest first (8, then "הצג הכל").
 **Every Meta lead is also in the CRM** (`lib/meta-crm.js`, tested): the webhook and every sync copy a new lead into `contacts`
 (source `meta`, `crm_data.metaLeadId`, form answers in `message` / `crm_data.formAnswers`, phone as 05X…), so it shows in "לידים" and
 in the bulk-send audience. The welcome stays with the Meta pipeline (`crm_data.auto` marks it sent / skipped, the CRM never sends a
@@ -234,7 +234,8 @@ group header has "נוסח לכל הקבוצה…". The send carries the chosen 
 (welcome / late-welcome / investor / scheduling variants, follow-ups, visits, after-call, nurture, re-engagement, chat-ready
 replies, deal steps), **written by people, from the Afik Hanahal page**: always plural — the office is "we" ("ראינו",
 "נשמח", "נתקשר") and the lead is addressed in plural ("השארתם", "לכם", "אתכם"), which also keeps the Hebrew gender-neutral; the
-first message introduces the office ("היי {name}, כאן אפיק הנחל."), later ones carry no signature (`{agent}`, default
+first message names the office inside a natural sentence, never as a formula opener ("היי {name}, מה נשמע? ראינו שהשארתם לנו פרטים…, אנחנו מאפיק הנחל.",
+"מאפיק הנחל פה.", "תודה שפניתם לאפיק הנחל…" — "כאן אפיק הנחל." is gone everywhere, booking texts included), later ones carry no signature (`{agent}`, default
 "צוות אפיק הנחל", only signs the closing / holiday messages, inside `[[ … ]]` so an empty value drops the line); "היי" (or `{greeting}`: `timeGreeting()` = בוקר טוב / צהריים טובים / ערב טוב by the Israel hour, rendered at send
 time) instead of "שלום … תודה על פנייתך"; the welcome says what a person would know — `{when}` (`leadWhen()`: היום / אתמול /
 ביום שלישי, '' after a week) and `{where}` (`leadWhere()`: במודעה for Meta leads, באתר for website forms) — "ראיתי שהשארת פרטים

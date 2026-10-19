@@ -2196,9 +2196,8 @@ const ANALYTICS_KEY  = 'afik_analytics_v2'
 // Shape: [{ id, name, adAccountId, pageId, enabled }]. Read by MetaLeadsTab sync,
 // managed in the Settings → "מקורות לידים — Meta" card, synced to cloud as `metaLeadSources`.
 const META_LEAD_PAGES_KEY = 'afik_meta_lead_pages'
-const WA_DEFAULT_TEMPLATE = `היי {name}, כאן אפיק הנחל.
-קיבלנו את הפרטים שהשארתם ונשמח לדבר כמה דקות.
-מתי נוח שנתקשר?`
+const WA_DEFAULT_TEMPLATE = `היי {name}, תודה שפניתם לאפיק הנחל.
+קיבלנו את הפרטים שהשארתם ונשמח לדבר כמה דקות. מתי נוח שנתקשר?`
 const _WA_V4_DEFAULT = `היי {name}, כאן ישראל מאפיק הנחל.
 קיבלתי את הפרטים שהשארת ואשמח לדבר כמה דקות.
 מתי נוח שאתקשר?`

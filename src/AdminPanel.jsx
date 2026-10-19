@@ -3470,7 +3470,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
               }}
               onLeadRenamed={(metaLead, name) => {
                 // the server renamed the CRM copy too; show it now instead of after the next sync
-                setLeads(prev => prev.map(l => (String(l.crm_data?.metaLeadId || '') === String(metaLead.id) ? { ...l, name } : l)))
+                setLeads(prev => prev.map(l => (String(l.metaLeadId || l.crm_data?.metaLeadId || '') === String(metaLead.id) ? { ...l, name } : l)))
               }}
               onSaveToCRM={metaLead => {
                 // Every Meta lead is copied into the CRM by the server (lib/meta-crm.js); the button makes sure
