@@ -45,6 +45,8 @@ class SectionBoundary extends Component {
 const PropertyWizard    = lazyWithRetry(() => import('./PropertyWizard.jsx'))
 import { FaChevronLeft, FaChevronRight, FaEnvelope, FaFacebookF, FaInstagram, FaBed, FaRulerCombined, FaCar, FaSwimmingPool, FaBuilding, FaBoxOpen, FaTree, FaSnowflake, FaShieldAlt, FaCouch, FaTools, FaMapMarkerAlt, FaExternalLinkAlt, FaPhone, FaCompass, FaLeaf, FaCalendarAlt, FaTimes, FaWhatsapp, FaSun, FaFileAlt, FaHome, FaMoneyBill, FaSearch, FaBalanceScale, FaHandshake, FaTrophy, FaHardHat, FaLock, FaKey, FaGlobe, FaSeedling, FaBolt, FaRocket, FaStar, FaChartLine, FaEye, FaPlay, FaWheelchair, FaFire, FaCalculator, FaShareAlt, FaHeart, FaStore, FaCamera, FaWifi, FaIndustry, FaExpand, FaUser, FaUsers, FaDesktop, FaMobileAlt, FaTabletAlt, FaCommentAlt, FaRobot, FaInbox, FaExclamationTriangle, FaChartBar, FaThumbsUp, FaImage, FaPencilAlt, FaCrown, FaMousePointer, FaDollarSign, FaVideo, FaLink, FaCheck, FaCheckCircle, FaUtensils, FaDoorOpen, FaUserShield, FaTrash } from 'react-icons/fa'
 import { photoUrl } from '../lib/img-url.js'
+import HOME from '../content/home.json'
+import { homeLegacy } from '../lib/home-content.js'
 import { notifyPropertiesChanged, pushSnapshot, mirrorProperty } from './siteRebuild.js'
 import { externalizeInlinePhotos } from './inlinePhotos.js'
 
@@ -118,11 +120,6 @@ const LIGHT_C = { bg:'#F5F1E9', purple:'#3F4EB0', green:'#1A6818', cream:'#14142
 const TR = {
   he: {
     nav: { home:'ראשי', ceo:'המנכ״ל', story:'הסיפור', process:'תהליך', services:'שירותים', testimonials:'לקוחות', properties:'נכסים', news:'מה חדש', faq:'שאלות נפוצות', about:'אודות', contact:'צרו קשר' },
-    heroBadge:'מומחים בשיווק ותיווך · השרון והמרכז',
-    heroH1line1:'הבית הבא שלכם', heroH1line2:'מתחיל כאן',
-    heroDesc:'אפיק הנחל - ייזום שיווק ותיווך | חברה יזמית מובילה לאיתור, שיווק וליווי עסקאות קרקע בכל רחבי ישראל',
-    heroCTA1:'צפו בנכסים שלנו', heroCTA2:'צרו קשר עכשיו', heroCTA3:'מחשבון נדל״ן',
-    heroTags:['בנייה רוויה','צמודת קרקע','דיור מוגן','מסחר מניב','קרקעות'],
     teamTitle:'הצוות שלנו', teamDesc:'האנשים שמאחורי כל עסקה',
     quickNav:'ניווט מהיר', talkToUs:'דברו איתנו', sendMsg:'שלח הודעה',
     accessibility:'הצהרת נגישות', privacy:'מדיניות פרטיות',
@@ -130,13 +127,7 @@ const TR = {
     copyright:'© 2026 אפיק הנחל — ייזום שיווק ותיווך. כל הזכויות שמורות.',
     calcNav:'מחשבון', waTitle:'WhatsApp', sharedLoading:'טוען את הנכס…', mapUnavailable:'המפה לא נטענה כרגע — שאר פרטי הנכס זמינים.',
     hoursLabel: 'שעות פעילות',
-    sunToThurs: 'ראשון–חמישי: 09:00–19:00',
-    friday: 'שישי: 09:00–14:00',
     operatingArea: 'אזור פעילות',
-    areaServed: 'השרון, המרכז וכל ישראל',
-    propertiesTitle: 'נכסים זמינים',
-    propertiesH2: 'הנכסים שלנו',
-    propertiesDesc: 'קרקעות, מגרשים, פרוייקטים ודירות בלעדיים בכל רחבי ישראל',
     adminProperties: 'ניהול נכסים',
     allProperties: 'הכל',
     regionFilter: 'אזור:',
@@ -153,64 +144,6 @@ const TR = {
     haveProperty: 'יש לך קרקע, מגרש או נכס?',
     propertyDesc: 'בין אם שדה חקלאי, מגרש ירושה או נכס שרוצים לשווק, נבחן יחד את הפוטנציאל',
     contactUsBtn: 'פנה אלינו ←',
-    aboutTitle: 'אודות',
-    aboutH2: 'אפיק הנחל - ייזום שיווק ותיווך: שותף מהימן לקרקע שלך',
-    aboutDesc: 'חברה יזמית מובילה בתחום קרקעות ומגרשים, עם מומחיות עמוקה בשיווק ותיווך באזור השרון והמרכז. מובילים ייזום ושיווק של פרויקטים חדשים ובתי יוקרה, ממגזר הפרט ועד חברות גדולות.',
-    aboutPoints: [
-      'מומחים בשיווק ותיווך בשרון ובמרכז',
-      'מובילים ייזום פרויקטים חדשים ובתי יוקרה',
-      'משרתים אדם פרטי ועד חברה גדולה, בכל ישראל',
-      'ניסיון של מעל 30 שנה בשוק הנדל״ן'
-    ],
-    contactNowBtn: 'פנה אלינו עכשיו',
-    storyBadge: 'הסיפור שלנו',
-    storyH1line1: 'כשאדמה מדברת,',
-    storyH1line2: 'אנחנו קשובים',
-    storyDesc: 'כל קרקע בישראל נושאת היסטוריה. אנחנו נמצאים בדיוק בין ההיסטוריה לחלום.',
-    storyParas: [
-      'אם היא חקלאית, מישהו זרע בה, גידל בה תוצרת, חלם עליה בלילות. אם היא עירונית, מישהו בנה עליה, מכר אותה, עבר הלאה.',
-      'בישראל, אדמה זה לא רק נדל"ן. אדמה זה זהות. זה ירושה. זה עתיד. מגרשים שנרכשו לפני עשרות שנים ועברו מהורים לילדים. שדות חקלאיים שהחזיקו משפחות שלמות, ועכשיו עומדים בפני שינוי.',
-      'אפיק הנחל - ייזום שיווק ותיווך קמה מתוך הבנה עמוקה של המורכבות הזו. בין חקלאי שמחזיק בשדה מדורי דורות, יורש שלא יודע מה לעשות עם הנכס שקיבל, ובין יזם שמחפש את הקרקע הנכונה לפרויקט הבא. אנחנו עומדים באמצע. מגשרים. מלווים. מייצרים עסקאות שעובדות לשני הצדדים.',
-    ],
-    storyBlockquote: 'אנחנו לא מוכרים קרקעות. אנחנו מחברים אנשים לאדמה שמתאימה להם.',
-    storyContactBtn: 'דברו איתנו עכשיו',
-    sharonExclusive: 'בלעדיות בשרון',
-    nationwideTitle: 'פעילות ארצית',
-    nationwideDesc: 'השרון · המרכז · הצפון · הדרום. בכל מקום שיש קרקע עם פוטנציאל, אנחנו שם.',
-    storyFeatures: [
-      { title:'חקלאות ועיר', desc:'מלווים בעלי שדות חקלאיים ומגרשים עירוניים כאחד' },
-      { title:'בלעדיות אמיתית', desc:'גישה לנכסים ייחודיים שלא זמינים במקומות אחרים. רק אצלנו.' },
-      { title:'מהירות שוק', desc:'מגיעים לעסקאות לפני שהן עולות לשוק הפתוח' },
-      { title:'ליווי מלא', desc:'מהאיתור הראשוני ועד הרישום בטאבו' },
-    ],
-    processBadge: 'תהליך הליווי',
-    processH1: 'שישה שלבים. ליווי אחד.',
-    processDesc: 'מהאיתור הראשוני ועד הרישום בטאבו, אנחנו לצדכם בכל שלב של הדרך.',
-    processReadyTitle: 'מוכנים להתחיל?',
-    processReadyDesc: 'שיחת ייעוץ ראשונה, ללא עלות וללא התחייבות',
-    servicesBadge: 'השירותים שלנו',
-    servicesH1line1: 'כל מה שצריך,',
-    servicesH1line2: 'במקום אחד',
-    servicesDesc: 'מהאיתור הראשוני ועד הרישום בטאבו. ליווי מקצועי מלא בכל שלב בעסקת הקרקע.',
-    ceoBadge: 'המנכ״ל',
-    ceoH2: 'הדרך של ישראל בן יהודה',
-    ceoOpeningQuotePre: 'בעולם הנדל״ן, לפני עסקאות, קרקעות ותוכניות, יש ערך אחד שמוביל את הכול.',
-    ceoOpeningQuoteHighlight: 'אמינות.',
-    ceoOpeningQuotePost: 'זהו הבסיס לכל קשר, לכל עסקה ולכל הצלחה אמיתית לאורך זמן.',
-    ceoParagraphs: [
-      'עם קרוב ל-30 שנות ניסיון בתחום הנדל״ן, מביא איתו ישראל בן יהודה דרך מקצועית עשירה, שנבנתה לאחר שנים רבות של עשייה ציבורית רחבת היקף ברחבי הארץ. לאורך השנים ליווה וייצג בעלי קרקעות רבים, חלקם ממשיכים לצעוד איתו עד היום, מתוך אמון מלא בדרך, בשקיפות ובמחויבות האישית לכל תהליך.',
-      'במסגרת פעילותו, מייצג ישראל בעלי קרקע מול רוכשים פרטיים, קבוצות רכישה וחברות בנייה מהמובילות בישראל, תוך ליווי מקצועי מלא מהשלב החוזי ועד לקידום העסקאות בפועל.',
-      'מעבר לכך, מוביל ישראל קידום תוכניות נדל״ן הכוללות שינויי ייעוד, השבחת קרקעות והובלתן עד שלב העלייה לקרקע, מתוך ראייה אסטרטגית וניסיון עמוק בעולם ההתחדשות והפיתוח.',
-      'בחברת אפיק הנחל פועל צוות מקצועי של סוכנים ואנשי נדל״ן המתמחים בתיווך, שיווק פרויקטים וליווי עסקאות, עם מטרה אחת ברורה: ליצור ערך אמיתי ללקוחות ולבנות הצלחות שמחזיקות לאורך שנים.',
-    ],
-    ceoName: 'ישראל בן יהודה',
-    ceoRole: 'מייסד ומנכ״ל · אפיק הנחל',
-    testimonialsBadge: 'לקוחות מספרים',
-    testimonialsH2: 'מה אומרים עלינו',
-    testimonialsDesc: 'לקוחות שעזרנו להם למצוא קרקע ולסגור עסקאות מוצלחות',
-    faqBadge: 'שאלות נפוצות',
-    faqH2: 'כל מה שרציתם לדעת',
-    faqDesc: 'תשובות לשאלות הנפוצות ביותר בנושא קרקעות ושירותי אפיק הנחל - ייזום שיווק ותיווך',
     newsBadge: 'עדכונים שוטפים',
     newsH2: 'מה חדש בתחום הנדל"ן',
     newsArchiveBtn: 'כתבות ישנות',
@@ -229,11 +162,6 @@ const TR = {
   },
   en: {
     nav: { home:'Home', ceo:'CEO', story:'Story', process:'Process', services:'Services', testimonials:'Clients', properties:'Properties', news:'News', faq:'FAQ', about:'About', contact:'Contact' },
-    heroBadge:'Experts in Marketing & Brokerage · Sharon & Center',
-    heroH1line1:'Your Next Home', heroH1line2:'Starts Here',
-    heroDesc:'Afik Hanahal – Real estate promotion, marketing and brokerage | Leading company for locating, marketing and accompanying real estate transactions across Israel',
-    heroCTA1:'View Properties', heroCTA2:'Contact Us', heroCTA3:'Calculator',
-    heroTags:['Multi-family','Detached','Assisted living','Commercial','Land'],
     teamTitle:'Our Team', teamDesc:'The people behind every deal',
     quickNav:'Quick Navigation', talkToUs:'Talk to Us', sendMsg:'Send Message',
     accessibility:'Accessibility Statement', privacy:'Privacy Policy',
@@ -241,13 +169,7 @@ const TR = {
     copyright:'© 2026 Afik Hanahal — Real Estate Marketing. All rights reserved.',
     calcNav:'Calc', waTitle:'WhatsApp', sharedLoading:'Loading the property…', mapUnavailable:'The map could not load right now — all other property details are available.',
     hoursLabel: 'Business Hours',
-    sunToThurs: 'Sun–Thu: 09:00–19:00',
-    friday: 'Fri: 09:00–14:00',
     operatingArea: 'Service Area',
-    areaServed: 'Sharon, Center & All Israel',
-    propertiesTitle: 'Available Properties',
-    propertiesH2: 'Our Properties',
-    propertiesDesc: 'Land, plots, projects and exclusive properties throughout Israel',
     adminProperties: 'Manage Properties',
     allProperties: 'All',
     regionFilter: 'Region:',
@@ -264,64 +186,6 @@ const TR = {
     haveProperty: 'Have land, a plot, or a property?',
     propertyDesc: 'Whether it\'s an agricultural field, an inherited plot, or a property you want to market, let\'s look at the potential together',
     contactUsBtn: 'Contact Us →',
-    aboutTitle: 'About',
-    aboutH2: 'Afik Hanahal – Real Estate Marketing: Your Trusted Land Partner',
-    aboutDesc: 'Leading company in land and plot market, with deep expertise in real estate marketing and brokerage in the Sharon and Center region. We lead the marketing and development of new projects and luxury homes, from private individuals to large companies.',
-    aboutPoints: [
-      'Experts in marketing & brokerage across the Sharon and Center',
-      'Leaders in new project development & luxury homes',
-      'Serving private owners and large companies throughout Israel',
-      'Over 30 years of experience in real estate market'
-    ],
-    contactNowBtn: 'Contact Us Now',
-    storyBadge: 'Our Story',
-    storyH1line1: 'When Land Speaks,',
-    storyH1line2: 'We Listen',
-    storyDesc: 'Every plot of land in Israel carries history. We stand right between the past and the dream.',
-    storyParas: [
-      "If it's agricultural, someone sowed it, grew produce in it, dreamed about it at night. If it's urban, someone built on it, sold it, moved on.",
-      "In Israel, land is not just real estate. Land is identity. It's heritage. It's the future. Plots purchased decades ago, passed from parents to children. Agricultural fields that sustained entire families, now standing at the edge of change.",
-      "Afik Hanahal was established from a deep understanding of this complexity. Between the farmer who has held a field for generations, the heir who doesn't know what to do with inherited property, and the developer seeking the right land for their next project. We stand in the middle. Bridging. Guiding. Creating deals that work for both sides.",
-    ],
-    storyBlockquote: "We don't sell land. We connect people to the land that fits them.",
-    storyContactBtn: 'Talk to Us Now',
-    sharonExclusive: 'Sharon Exclusives',
-    nationwideTitle: 'Nationwide Activity',
-    nationwideDesc: 'Sharon · Center · North · South. Wherever there is land with potential, we are there.',
-    storyFeatures: [
-      { title:'Agriculture & Urban', desc:'Supporting owners of agricultural fields and urban plots alike' },
-      { title:'True Exclusivity', desc:"Access to unique properties not available anywhere else. Only with us." },
-      { title:'Market Speed', desc:'We reach deals before they hit the open market' },
-      { title:'Full Support', desc:'From initial search to final Tabu registration' },
-    ],
-    processBadge: 'Our Process',
-    processH1: 'Six Steps. One Partner.',
-    processDesc: 'From the first search to final registration, we are by your side at every step.',
-    processReadyTitle: 'Ready to Start?',
-    processReadyDesc: 'First consultation, no cost, no commitment',
-    servicesBadge: 'Our Services',
-    servicesH1line1: 'Everything you need,',
-    servicesH1line2: 'In one place',
-    servicesDesc: 'From the first search to final Tabu registration. Complete professional support at every stage.',
-    ceoBadge: 'The CEO',
-    ceoH2: 'The Journey of Israel Ben-Yehuda',
-    ceoOpeningQuotePre: 'In real estate, before deals, land, and plans, there is one value that leads everything.',
-    ceoOpeningQuoteHighlight: 'Trust.',
-    ceoOpeningQuotePost: 'This is the foundation of every relationship, every transaction, and every lasting success.',
-    ceoParagraphs: [
-      'With nearly 30 years of experience in real estate, Israel Ben-Yehuda brings a rich professional track record built through years of extensive public service across Israel. Over the years, he has guided and represented many land owners, some of whom continue to work with him to this day, driven by full trust in the process, transparency, and personal commitment.',
-      'In his work, Israel represents landowners before private buyers, purchasing groups, and leading construction companies in Israel, providing full professional guidance from the contractual stage through to the actual advancement of transactions.',
-      'Beyond this, Israel leads the promotion of real estate plans including zoning changes, land enhancement, and guiding them through to the groundbreaking stage, drawing on strategic vision and deep experience in the world of urban renewal and development.',
-      'At Afik Hanahal, a professional team of agents and real estate specialists works in brokerage, project marketing, and deal support, with one clear goal: to create real value for clients and build lasting successes.',
-    ],
-    ceoName: 'Israel Ben-Yehuda',
-    ceoRole: 'Founder & CEO · Afik Hanahal',
-    testimonialsBadge: 'Clients Speak',
-    testimonialsH2: 'What They Say About Us',
-    testimonialsDesc: 'Clients we helped find land and close successful deals',
-    faqBadge: 'FAQ',
-    faqH2: 'Everything You Wanted to Know',
-    faqDesc: 'Answers to the most common questions about land and Afik Hanahal services',
     newsBadge: 'Latest Updates',
     newsH2: "What's New in Real Estate",
     newsArchiveBtn: 'Archive',
@@ -339,6 +203,11 @@ const TR = {
     language: 'Language',
   }
 }
+// Homepage texts, lists and office details live in content/home.json (edited from the admin's content tab)
+const HOME_LEGACY = homeLegacy(HOME)
+Object.assign(TR.he, HOME_LEGACY.tr.he)
+Object.assign(TR.en, HOME_LEGACY.tr.en)
+const OFFICE = HOME.office
 const ThemeCtx = createContext({ C: DARK_C, isDark: true, toggleTheme: () => {}, lang: 'he', setLang: () => {}, logoNavSize: 70, setLogoNavSize: () => {} })
 const useTheme = () => useContext(ThemeCtx)
 
@@ -1176,36 +1045,13 @@ const TEAM = [
 // ─── DATA ─────────────────────────────────────────────────────────────────────
 const P = '#8490D8'  // purple accent — static for data arrays
 const G = '#82F67F'  // green accent  — static for data arrays
+const HOME_ICONS = { FaSearch, FaBalanceScale, FaMoneyBill, FaHandshake, FaFileAlt, FaTrophy, FaChartLine, FaEye, FaHardHat, FaKey }
+// icon / accent names → the component and color the sections draw (the names themselves are never rendered)
+const withIcon = ({ icon, accent, ...s }) => ({ ...s, Icon: HOME_ICONS[icon] || FaSearch, color: accent === 'green' ? G : P })
 
-const PROCESS_STEPS = [
-  { num:'01', Icon:FaSearch,       color:P, title:'איתור הקרקע המתאימה',    desc:'מיפוי שיטתי של שוק הקרקעות. אנחנו מגיעים לקרקעות לפני שהן עולות לשוק הפתוח, דרך רשת קשרים שבנינו לאורך 30 שנה.',
-    en_title:'Finding the Right Land',        en_desc:"Systematic mapping of the land market. We reach plots before they hit the open market, through a network of connections we've built over 30 years." },
-  { num:'02', Icon:FaBalanceScale, color:G, title:'בדיקת זכויות ותב"ע',     desc:'בדיקה מעמיקה של זכויות בנייה, ייעוד הקרקע ואפשרויות שינוי ייעוד. תדעו בדיוק מה מותר לבנות ובכמה.',
-    en_title:'Rights & Zoning Check',         en_desc:'In-depth review of building rights, land designation, and rezoning options. You will know exactly what can be built and how much.' },
-  { num:'03', Icon:FaMoneyBill,    color:P, title:'ייעוץ מיסוי והערכת שווי', desc:'חישוב מדויק של מס שבח, מס רכישה והיטל השבחה. הערכת שווי עצמאית לפני כל עסקה, כדי שלא תהיו מופתעים.',
-    en_title:'Tax Advisory & Valuation',      en_desc:'Precise calculation of capital gains tax, purchase tax, and betterment levy. Independent valuation before every deal. No surprises.' },
-  { num:'04', Icon:FaHandshake,    color:G, title:'ניהול משא ומתן',           desc:'ניהול מקצועי מול הצד השני. שולטים בפרטים, מבינים את המניעים ושומרים על האינטרסים שלכם לאורך כל הדרך.',
-    en_title:'Negotiation Management',        en_desc:'Professional management against the other party. We control the details, understand the motivations, and protect your interests throughout.' },
-  { num:'05', Icon:FaFileAlt,      color:P, title:'ליווי חוזי ומשפטי',        desc:'עבודה צמודה עם עורכי דין מקרקעין מובילים. בדיקת כל סעיף, הגנה על הרוכש, מניעת מוקשים שיכולים לעכב שנים.',
-    en_title:'Legal & Contractual Support',   en_desc:'Close collaboration with leading real estate lawyers. Every clause reviewed, buyer protected, pitfalls that could delay years are prevented.' },
-  { num:'06', Icon:FaTrophy,       color:G, title:'סגירת עסקה ורישום בטאבו', desc:'אנחנו לא נעלמים אחרי החתימה. ליווי עד לרישום מלא בטאבו, כי רק אז העסקה באמת הושלמה.',
-    en_title:'Deal Closure & Tabu Registration', en_desc:"We don't disappear after signing. We walk you through every step until Tabu registration is complete, because that's when the deal is truly done." },
-]
+const PROCESS_STEPS = HOME_LEGACY.process.map(withIcon)
 
-const SERVICES = [
-  { Icon:FaTrophy,    color:P, title:'ניסיון ומוניטין',        desc:'אפיק הנחל הוקמה על ידי ישראל בן־יהודה, מומחה נדל״ן בעל ניסיון, מקצועיות ומוניטין של עשרות שנים בתחום הנדל״ן בישראל ובתחום הקרקעות בפרט. החברה פועלת מתוך היכרות עמוקה עם השוק ויכולת לזהות הזדמנויות בעלות פוטנציאל אמיתי.',
-    en_title:'Experience & Reputation',      en_desc:'Afik Hanahal was founded by Israel Ben-Yehuda, a real estate expert with decades of experience, professionalism, and reputation in Israeli real estate and land in particular. The company operates from deep market knowledge and the ability to identify opportunities with real potential.' },
-  { Icon:FaChartLine, color:G, title:'השקעות עם פוטנציאל',     desc:'אנו מתמחים באיתור קרקעות פרטיות בעלות פוטנציאל השבחה והתפתחות עתידית, במטרה לאפשר ללקוחות להיכנס להשקעות נדל״ן בשלבים מוקדמים ובמחירים נגישים.',
-    en_title:'High-Potential Investments',   en_desc:'We specialize in identifying private plots with appreciation and future development potential, enabling clients to enter real estate investments early and at accessible prices.' },
-  { Icon:FaEye,       color:P, title:'שקיפות מלאה',             desc:'כל עסקה נבדקת בקפדנות ומוצגת בצורה ברורה ומסודרת. אנו מאמינים בליווי אישי, אמינות ושקיפות מלאה לאורך כל הדרך.',
-    en_title:'Full Transparency',            en_desc:'Every deal is carefully reviewed and presented clearly and orderly. We believe in personal guidance, reliability, and full transparency throughout the entire process.' },
-  { Icon:FaHardHat,   color:G, title:'קרקעות בפיתוח',          desc:'החברה מאתרת קרקעות באזורי ביקוש ובשלבי תכנון מתקדמים, מתוך הבנה כי התקדמות תכנונית עשויה להשפיע משמעותית על ערך הקרקע בעתיד.',
-    en_title:'Land Under Development',       en_desc:'We locate plots in high-demand areas at advanced planning stages, understanding that planning progress can significantly impact future land value.' },
-  { Icon:FaKey,       color:P, title:'כניסה נגישה',             desc:'אנחנו מאמינים שהשקעה בנדל״ן צריכה להיות נגישה יותר, ולכן פועלים לאיתור עסקאות עם מחירי כניסה נוחים ופוטנציאל צמיחה לטווח ארוך.',
-    en_title:'Accessible Entry',             en_desc:'We believe real estate investment should be more accessible, so we seek deals with favorable entry prices and long-term growth potential.' },
-  { Icon:FaSearch,    color:G, title:'מזהים הזדמנויות',         desc:'באמצעות ניסיון, בדיקות מקצועיות וחשיבה קדימה, אנו מזהים אזורים ופרויקטים בעלי פוטנציאל עוד לפני שהם מגיעים למרכז השוק – ומאפשרים ללקוחותינו ליהנות מהזדמנויות איכותיות להשקעה.',
-    en_title:'Spotting Opportunities',       en_desc:'Through experience, professional analysis, and forward thinking, we identify areas and projects with potential before they reach the mainstream market, and pass those opportunities on to our clients.' },
-]
+const SERVICES = HOME_LEGACY.services.map(withIcon)
 
 const DEFAULT_STATS = [
   { key:'deals',   value:150,  label:'עסקאות הושלמו', en_label:'Deals Completed', suffix:'+' },
@@ -1281,8 +1127,8 @@ function useIntersection(threshold = 0.2) {
   return [ref, vis]
 }
 
-const TYPEWRITER_HE = ['מגרשים וקרקעות בלעדיים','ייזום ושיווק פרויקטים','ליווי מקצועי מלא','השרון והמרכז ומעבר']
-const TYPEWRITER_EN = ['Exclusive Plots & Land','Project Development & Marketing','Full Professional Guidance','Sharon Region & Beyond']
+const TYPEWRITER_HE = HOME_LEGACY.typewriter.he
+const TYPEWRITER_EN = HOME_LEGACY.typewriter.en
 
 function useTypewriter(texts, speed = 50, paused = false) {
   const [idx, setIdx] = useState(0)
@@ -1756,10 +1602,10 @@ function StorySectionImpl({ onContact, sharonData }) {
             </blockquote>
             <div className="story-btns" style={{ display:'flex', gap:14, flexWrap:'wrap' }}>
               <button onClick={() => onContact()} className="primary-btn">{t.storyContactBtn}</button>
-              <a href="tel:0559811814" style={{ padding:'16px 28px', background:`${C.purple}22`, border:`1px solid ${C.purple}55`, borderRadius:14, color:C.cream, textDecoration:'none', fontSize:15, fontWeight:700, display:'flex', alignItems:'center', gap:8, cursor:'pointer', transition:'all .22s' }}
+              <a href={'tel:' + OFFICE.tel} style={{ padding:'16px 28px', background:`${C.purple}22`, border:`1px solid ${C.purple}55`, borderRadius:14, color:C.cream, textDecoration:'none', fontSize:15, fontWeight:700, display:'flex', alignItems:'center', gap:8, cursor:'pointer', transition:'all .22s' }}
                 onMouseEnter={e => { e.currentTarget.style.background=`${C.purple}44`; e.currentTarget.style.transform='translateY(-2px)'; e.currentTarget.style.boxShadow=`0 8px 24px ${C.purple}33` }}
                 onMouseLeave={e => { e.currentTarget.style.background=`${C.purple}22`; e.currentTarget.style.transform=''; e.currentTarget.style.boxShadow='' }}>
-                <FaPhone size={14}/> 055-981-1814
+                <FaPhone size={14}/> {OFFICE.phone}
               </a>
             </div>
           </div>
@@ -1878,7 +1724,7 @@ function ProcessSectionImpl() {
             <div style={{ marginBottom:14, color:C.purple, opacity:.9 }}><FaRocket size={22}/></div>
             <div style={{ fontWeight:900, color:C.cream, fontSize:20, marginBottom:10 }}>{t.processReadyTitle}</div>
             <div style={{ fontSize:14, color:C.cream+'AA', marginBottom:22, lineHeight:1.8 }}>{t.processReadyDesc}</div>
-            <a href="tel:0559811814" className="primary-btn" style={{ display:'inline-flex', alignItems:'center', gap:8, textDecoration:'none', padding:'14px 36px', borderRadius:14, fontSize:16 }}><FaPhone size={14}/> 055-981-1814</a>
+            <a href={'tel:' + OFFICE.tel} className="primary-btn" style={{ display:'inline-flex', alignItems:'center', gap:8, textDecoration:'none', padding:'14px 36px', borderRadius:14, fontSize:16 }}><FaPhone size={14}/> {OFFICE.phone}</a>
           </GlassCard>
         </div>
       </div>
@@ -2041,7 +1887,7 @@ function CEOSectionImpl() {
               <div style={{ position:'relative', paddingBottom:'110%', background:`linear-gradient(160deg,#141422,#0E0E1C)`, overflow:'hidden' }}>
                 {!imgErr ? (
                   <img
-                    src="/img/ceo.webp"
+                    src={HOME.ceo.photo}
                     alt="ישראל בן יהודה"
                     loading="lazy" decoding="async"
                     onError={() => setImgErr(true)}
@@ -2480,7 +2326,7 @@ function ContactModal({ prop, onClose }) {
             {formError && !errField && <div role="alert" style={{ color:'#E5484D', fontSize:13, fontWeight:600 }}>{formError}</div>}
             <button type="submit" disabled={sending} className="primary-btn" style={{ borderRadius:12, fontSize:15, opacity:sending?0.6:1 }}>{sending ? '...' : lbl.sendMsg}</button>
             <div style={{ textAlign:'center', paddingTop:6, borderTop:`1px solid ${C.purple}22` }}>
-              <a href="tel:0559811814" onClick={() => trackEvent('phone_click', { src:'contact_modal' })} style={{ color:C.green, textDecoration:'none', fontWeight:700, fontSize:17, display:'inline-flex', alignItems:'center', gap:7 }}><FaPhone size={13}/> 055-981-1814</a>
+              <a href={'tel:' + OFFICE.tel} onClick={() => trackEvent('phone_click', { src:'contact_modal' })} style={{ color:C.green, textDecoration:'none', fontWeight:700, fontSize:17, display:'inline-flex', alignItems:'center', gap:7 }}><FaPhone size={13}/> {OFFICE.phone}</a>
             </div>
           </form>
         )}
@@ -2613,49 +2459,7 @@ function PasswordPrompt({ onSuccess, onClose }) {
 }
 
 // ─── TESTIMONIALS ─────────────────────────────────────────────────────────────
-const TESTIMONIALS_DATA = [
-  {
-    quote: 'אפיק הנחל סייעו לנו למצוא מגרש בלעדי באזור השרון שלא היה חשוף לקהל הרחב. הליווי המקצועי, מהפנייה הראשונה ועד סגירת העסקה, היה אישי, מסור ויוצא דופן.',
-    en_quote: 'Afik Hanahal helped us find an exclusive plot in the Sharon region that was not exposed to the general public. The professional guidance, from the first inquiry to closing the deal, was personal, dedicated and exceptional.',
-    name: 'עו״ד גיא מוסרי', en_name: 'Adv. Guy Musseri', designation: 'משרד מוסרי & מורן חביב ושות׳',
-    en_designation: 'Moseri & Moran Haviv & Co. Law Office',
-    src: '/img/doron-yaffe.webp',
-    imgFit: 'cover', imgPos: 'center top',
-  },
-  {
-    quote: 'ישראל בן יהודה הוא מתווך מקצועי, אמין ומסור, עם שירות אישי וליווי ברמה גבוהה לאורך כל הדרך. שילוב נדיר של מקצוענות, יושרה והיכרות עמוקה עם שוק הנדל״ן באזור השרון. קשוב, סבלני וממוקד בתוצאות, מומלץ בחום.',
-    en_quote: 'Israel Ben-Yehuda is a professional, reliable and dedicated broker, with personal service and high-level guidance throughout. A rare combination of professionalism, integrity and deep knowledge of the Sharon real estate market. Attentive, patient and results-focused — highly recommended.',
-    name: 'פינחסי ג׳ימי', en_name: 'Jimmy Pinhasi', designation: 'שמאי מקרקעין',
-    en_designation: 'Real Estate Appraiser',
-    src: '/img/pinhasi-jimmy.webp',
-    imgFit: 'cover', imgPos: 'center top',
-  },
-  {
-    quote: 'ביצענו כמה עסקאות קרקע דרך אפיק הנחל. הם תמיד מוצאים נכסים עם פוטנציאל אמיתי, הרבה לפני שהם מגיעים לשוק הפתוח.',
-    en_quote: 'We have completed several land deals through Afik Hanahal. They always find properties with real potential, well before they reach the open market.',
-    name: 'תומר צליח', en_name: 'Tomer Tzaliah', designation: 'חברת צליח רוטשילד',
-    en_designation: 'Tzaliah Rothschild Company',
-    src: '/img/tomer-tzaliah.webp',
-    imgFit: 'cover', imgPos: 'center 18%',
-  },
-  {
-    quote: 'חיפשנו מגרש לצמודת קרקע עם תקציב מוגבל. הצוות של אפיק הנחל הבין בדיוק מה אנחנו צריכים ומצאו לנו את הפתרון המושלם.',
-    en_quote: 'We were looking for a plot for a detached house on a limited budget. The Afik Hanahal team understood exactly what we needed and found us the perfect solution.',
-    name: 'דורון יפה', en_name: 'Doron Yaffe', designation: 'יזם בתחום הנדל״ן',
-    en_designation: 'Real Estate Developer',
-    src: '/img/guy-musseri.webp',
-    imgFit: 'cover', imgPos: 'center top',
-  },
-  {
-    quote: 'במהלך כ־20 שנות עבודה משותפת עם ישראל בן יהודה, הכרתי איש מקצוע יוצא דופן בתחום הנדל״ן, הקרקעות והיזמות. ישראל משלב מקצועיות, ניסיון רב, יושרה ואמינות ללא פשרות, לצד יכולת לזהות הזדמנויות ולהוביל עסקאות באחריות וביסודיות. אני ממליץ עליו בלב שלם לכל מי שמחפש ליווי מקצועי ואמין.',
-    en_quote: 'Over nearly 20 years of working alongside Israel Ben-Yehuda, I have come to know an exceptional professional in real estate, land, and development. Israel combines professionalism, extensive experience, integrity and uncompromising reliability with the ability to identify opportunities and lead transactions with responsibility and thoroughness. I recommend him wholeheartedly to anyone seeking professional and trustworthy guidance.',
-    name: 'עו״ד אסף שובלי', en_name: 'Adv. Assaf Shovali', designation: '',
-    en_designation: '',
-    firm: 'משרד עו״ד שובלי ושות׳', en_firm: 'Shobali & Co. Law Office',
-    src: '/img/assaf-shovali.webp',
-    imgFit: 'cover', imgPos: 'center top',
-  },
-]
+const TESTIMONIALS_DATA = HOME_LEGACY.testimonials
 
 // ─── NEWS SECTION ─────────────────────────────────────────────────────────────
 const ARCHIVE_STORE  = 'afik_archive_v1'
@@ -2986,7 +2790,7 @@ function PrivacyModal({ onClose }) {
   const SITE = 'afikhanahal.co.il'
   const ADDRESS = 'הנגר 24, הוד-השרון, מגדלי Amy — מגדל A'
   const PHONE = '055-9811814'
-  const EMAIL = 'afik.hanahal@gmail.com'
+  const EMAIL = OFFICE.email
   const UPDATE_DATE = '20/05/2026'
 
   const sectionStyle = { marginBottom: 28 }
@@ -3667,26 +3471,7 @@ function TestimonialsSectionImpl() {
 }
 
 // ─── FAQ SECTION ─────────────────────────────────────────────────────────────
-const FAQS = [
-  { q:'מה מייחד את אפיק הנחל משאר חברות הנדל"ן?', a:'אפיק הנחל מתמחה בקרקעות, מגרשים ודירות למכירה, עם דגש מיוחד על נכסים בלעדיים שאינם מגיעים לפורטלים הפתוחים. הניסיון העמוק שלנו בשרון ובמרכז מאפשר לנו לאתר הזדמנויות לפני השוק, ולתת ללקוח ליווי מקצועי מרגע הזיהוי ועד הסגירה.',
-    en_q:'What sets Afik Hanahal apart from other real estate companies?', en_a:'Afik Hanahal specializes in land, plots, and properties for sale, with special emphasis on exclusive assets not listed on public portals. Our deep experience in the Sharon and Center regions lets us spot opportunities before the market, providing clients professional guidance from identification to closing.' },
-  { q:'אילו שירותים מציעה אפיק הנחל?', a:'החברה מציעה: איתור קרקעות זמינות, שיווק ותיווך מגרשים, ייזום פרויקטים חדשים, שיווק בתי יוקרה, וליווי מלא לעסקאות קרקע. מפגישת הייעוץ הראשונה ועד חתימה על החוזה.',
-    en_q:'What services does Afik Hanahal offer?', en_a:'The company offers: land search, plot marketing and brokerage, new project development, luxury home marketing, and full support for land transactions, from the first consultation all the way to signing.' },
-  { q:'באילו אזורים פועלת אפיק הנחל?', a:'אזור ההתמחות הראשי הוא השרון והמרכז, אך החברה פעילה בכל רחבי ישראל, מהצפון ועד הדרום. לקוחות מכל הארץ מוזמנים ליצור קשר.',
-    en_q:'In which areas does Afik Hanahal operate?', en_a:'The primary area of expertise is the Sharon and Center, but the company is active throughout Israel, from north to south. Clients from across the country are welcome to get in touch.' },
-  { q:'מה ההבדל בין קרקע חקלאית לקרקע לבנייה?', a:'קרקע חקלאית מיועדת לפי התוכנית המוניציפלית לשימוש חקלאי ולא ניתן לבנות עליה ללא שינוי ייעוד. קרקע לבנייה (מגורים, מסחר, תעשייה) אושרה בתוכנית בניין עיר ומאפשרת הגשת היתרי בנייה. שינוי ייעוד קרקע חקלאית הוא תהליך ארוך, אך לעיתים גם הזדמנות השקעה.',
-    en_q:'What is the difference between agricultural land and building land?', en_a:'Agricultural land is designated for agricultural use per the municipal plan and cannot be built on without rezoning. Building land (residential, commercial, industrial) has been approved in a city building plan and permits building permit applications. Rezoning agricultural land is a long process, but sometimes it\'s also an investment opportunity.' },
-  { q:'כמה עולה קרקע בשרון?', a:'מחיר הקרקעות בשרון נע בטווח רחב בהתאם לייעוד, מיקום ושטח. מגרש בנייה בשרון יכול לנוע בין כמה מאות אלפי שקלים לכמה מיליונים. לקבלת הערכת מחיר מדויקת לנכס ספציפי, פנו אלינו ישירות.',
-    en_q:'How much does land cost in the Sharon region?', en_a:'Land prices in the Sharon vary widely depending on designation, location, and area. A building plot in the Sharon can range from a few hundred thousand to several million shekels. For an accurate price estimate on a specific property, get in touch with us directly.' },
-  { q:'האם ניתן לקנות קרקע כהשקעה?', a:'כן. קרקעות בישראל, במיוחד בסמוך לאזורי ביקוש, הוכיחו עצמן כנכס השקעה סולידי לאורך זמן. קרקעות בסמוך להרחבות עירוניות מתוכננות עשויות לצמוח בערכן משמעותית. אפיק הנחל מסייעת לזהות הזדמנויות כאלה.',
-    en_q:'Can land be purchased as an investment?', en_a:'Yes. Land in Israel, especially near high-demand areas, has proven to be a solid long-term investment. Land near planned urban expansions may grow significantly in value. Afik Hanahal helps identify such opportunities.' },
-  { q:'כיצד לאתר קרקעות למכירה בישראל?', a:'ניתן לחפש בפורטלי נדל"ן (יד2, מדלן), לפנות לרשויות המקומיות, או לעבוד עם חברת תיווך מתמחה כמו אפיק הנחל, שמחזיקה ברשימות בלעדיות שאינן מפורסמות לציבור.',
-    en_q:'How do you find land for sale in Israel?', en_a:'You can search real estate portals (Yad2, Madlan), contact local authorities, or work with a specialized brokerage like Afik Hanahal, which holds exclusive listings not available to the public.' },
-  { q:'מה תהליך רכישת קרקע בישראל?', a:'התהליך כולל: איתור והתאמה לצרכי הקונה, בדיקת נסח טאבו וזכויות, בדיקת ייעוד ותכניות בנייה, משא ומתן על המחיר, חתימה על זיכרון דברים, בדיקות עורך דין ונוטריון, ורישום בטאבו. אפיק הנחל מלווה את הלקוח בכל שלב.',
-    en_q:'What is the process of purchasing land in Israel?', en_a:'The process includes: search and matching to buyer needs, Tabu extract and rights check, zoning and building plan review, price negotiation, signing a memorandum of understanding, lawyer and notary checks, and Tabu registration. Afik Hanahal accompanies clients at every stage.' },
-  { q:'מתי כדאי להשקיע בקרקע חקלאית?', a:'כאשר הקרקע ממוקמת בסמוך לאזור מבונה עם לחץ ביקוש גבוה, כאשר קיימות תכניות מוניציפליות לשינוי ייעוד באזור, וכאשר אופק ההשקעה הוא ארוך (5–15 שנה). חשוב לבצע בדיקת נאותות מקיפה לפני כל השקעה כזו.',
-    en_q:'When is it worthwhile to invest in agricultural land?', en_a:"When the land is located near a built-up area with high demand pressure, when municipal rezoning plans exist for the area, and when the investment horizon is long (5–15 years). It's important to perform thorough due diligence before any such investment." },
-]
+const FAQS = HOME_LEGACY.faqs
 
 // memo: the page re-renders on things like the active nav item — this section only when its own props change
 const FAQSection = memo(FAQSectionImpl)
@@ -4706,17 +4491,17 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
               onMouseLeave={e=>{ e.currentTarget.style.opacity='1'; e.currentTarget.style.transform='' }}>
               <FaPhone size={14}/> שיחה עם הנציג שלנו
             </button>
-            <a href="https://wa.me/972559811814" target="_blank" rel="noopener noreferrer"
+            <a href={'https://wa.me/' + OFFICE.whatsapp} target="_blank" rel="noopener noreferrer"
               style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:8, padding:'15px', background:'rgba(37,211,102,.1)', border:'1px solid rgba(37,211,102,.3)', borderRadius:10, color:'#25D366', textDecoration:'none', fontSize:14, fontWeight:700, transition:'background .2s' }}
               onMouseEnter={e=>e.currentTarget.style.background='rgba(37,211,102,.2)'}
               onMouseLeave={e=>e.currentTarget.style.background='rgba(37,211,102,.1)'}>
               <FaWhatsapp size={17}/> שלח WhatsApp
             </a>
-            <a href="tel:0559811814"
+            <a href={'tel:' + OFFICE.tel}
               style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:8, padding:'14px', background:'rgba(255,255,255,.05)', border:'1px solid rgba(255,255,255,.12)', borderRadius:10, color:`${C.cream}BB`, textDecoration:'none', fontSize:14, fontWeight:500, transition:'background .2s' }}
               onMouseEnter={e=>e.currentTarget.style.background='rgba(255,255,255,.1)'}
               onMouseLeave={e=>e.currentTarget.style.background='rgba(255,255,255,.05)'}>
-              <FaPhone size={13}/> 055-981-1814
+              <FaPhone size={13}/> {OFFICE.phone}
             </a>
 
             {/* Map embed */}
@@ -5921,16 +5706,16 @@ export default function App() {
         <div style={{ display:'flex', alignItems:'center', gap:8, direction:'ltr' }}>
 
           {/* Social neon glow icons */}
-          <a href="mailto:afik.hanahal@gmail.com"
-            className="social-btn email" title="afik.hanahal@gmail.com">
+          <a href={'mailto:' + OFFICE.email}
+            className="social-btn email" title={OFFICE.email}>
             <FaEnvelope size={18}/>
           </a>
-          <a href="https://www.facebook.com/profile.php?id=61573376818745"
+          <a href={OFFICE.facebook}
             target="_blank" rel="noopener noreferrer"
             className="social-btn facebook" title="פייסבוק">
             <FaFacebookF size={18}/>
           </a>
-          <a href="https://www.instagram.com/afik.hanahal/"
+          <a href={OFFICE.instagram}
             target="_blank" rel="noopener noreferrer"
             className="social-btn instagram" title="אינסטגרם">
             <FaInstagram size={18}/>
@@ -5943,7 +5728,7 @@ export default function App() {
           <button onClick={() => setShowCalc(true)} className="nav-icon-btn" title={TR[lang]?.calcNav || 'מחשבון'}>
             <FaCalculator size={17}/>
           </button>
-          <a href="tel:0559811814" className="nav-icon-btn" title="055-981-1814">
+          <a href={'tel:' + OFFICE.tel} className="nav-icon-btn" title={OFFICE.phone}>
             <FaPhone size={17}/>
           </a>
 
@@ -6003,7 +5788,7 @@ export default function App() {
                   </a>
                 ))}
               </div>
-              <a href="tel:0559811814" className="nav-panel-phone" style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}><FaPhone size={12}/> 055-981-1814</a>
+              <a href={'tel:' + OFFICE.tel} className="nav-panel-phone" style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}><FaPhone size={12}/> {OFFICE.phone}</a>
             </div>
           </div>
         </>
@@ -6387,7 +6172,7 @@ export default function App() {
             <div className="contact-panel-list" style={{ display:'flex', flexDirection:'column', gap:12, direction:'rtl' }}>
 
               {/* טלפון */}
-              <a href="tel:0559811814" className="contact-card-row"
+              <a href={'tel:' + OFFICE.tel} className="contact-card-row"
                 style={{ display:'flex', flexDirection:'row', alignItems:'center', gap:14, background:`${C.green}12`, borderRadius:14, padding:'16px 18px', border:`1.5px solid ${C.green}28`, textDecoration:'none', color:'inherit', transition:'all .2s', cursor:'pointer' }}
                 onMouseEnter={e => { e.currentTarget.style.background=`${C.green}22`; e.currentTarget.style.borderColor=`${C.green}55`; e.currentTarget.style.transform='translateY(-1px)' }}
                 onMouseLeave={e => { e.currentTarget.style.background=`${C.green}12`; e.currentTarget.style.borderColor=`${C.green}28`; e.currentTarget.style.transform='' }}>
@@ -6396,12 +6181,12 @@ export default function App() {
                 </div>
                 <div className="contact-card-text" style={{ flex:1, textAlign:'right' }}>
                   <div style={{ fontSize:11, fontWeight:600, color:`${C.cream}99`, marginBottom:3, letterSpacing:'.04em', textTransform:'uppercase' }}>{TR[lang]?.phoneLabel}</div>
-                  <div style={{ fontSize:22, fontWeight:800, color:C.green, direction:'ltr', letterSpacing:'.01em' }}>055-981-1814</div>
+                  <div style={{ fontSize:22, fontWeight:800, color:C.green, direction:'ltr', letterSpacing:'.01em' }}>{OFFICE.phone}</div>
                 </div>
               </a>
 
               {/* WhatsApp */}
-              <a href="https://wa.me/972559811814" target="_blank" rel="noopener noreferrer" className="contact-card-row"
+              <a href={'https://wa.me/' + OFFICE.whatsapp} target="_blank" rel="noopener noreferrer" className="contact-card-row"
                 style={{ display:'flex', flexDirection:'row', alignItems:'center', gap:14, background:'rgba(37,211,102,.09)', borderRadius:14, padding:'16px 18px', border:'1.5px solid rgba(37,211,102,.22)', textDecoration:'none', color:'inherit', transition:'all .2s', cursor:'pointer' }}
                 onMouseEnter={e => { e.currentTarget.style.background='rgba(37,211,102,.2)'; e.currentTarget.style.borderColor='rgba(37,211,102,.5)'; e.currentTarget.style.transform='translateY(-1px)' }}
                 onMouseLeave={e => { e.currentTarget.style.background='rgba(37,211,102,.09)'; e.currentTarget.style.borderColor='rgba(37,211,102,.22)'; e.currentTarget.style.transform='' }}>
@@ -6439,7 +6224,7 @@ export default function App() {
       </section>
 
       {/* ── SPOTIFY SECTION ──────────────────────────────────── */}
-      <section style={{ padding:'64px 24px 56px', background:`linear-gradient(180deg, ${C.bg} 0%, ${C.card} 100%)`, position:'relative', zIndex:1, overflow:'hidden' }}>
+      {HOME.playlist.visible !== false && <section style={{ padding:'64px 24px 56px', background:`linear-gradient(180deg, ${C.bg} 0%, ${C.card} 100%)`, position:'relative', zIndex:1, overflow:'hidden' }}>
         {/* ambient blobs */}
         <div style={{ position:'absolute', top:'10%', right:'-6%', width:440, height:440, background:`radial-gradient(circle,${C.purple}12,transparent 70%)`, pointerEvents:'none' }}/>
         <div style={{ position:'absolute', bottom:'5%', left:'-6%', width:380, height:380, background:`radial-gradient(circle,${C.green}0B,transparent 70%)`, pointerEvents:'none' }}/>
@@ -6447,22 +6232,20 @@ export default function App() {
         <div style={{ maxWidth:760, margin:'0 auto', position:'relative', zIndex:1, textAlign:'center' }}>
           {/* Title */}
           <p style={{ margin:'0 0 10px', fontSize:'clamp(12px,1.4vw,14px)', fontWeight:700, letterSpacing:'.18em', textTransform:'uppercase', color:C.green, fontFamily:"'Rubik',sans-serif" }}>
-            {lang === 'en' ? 'The Soundtrack' : 'הפסקול שלנו'}
+            {lang === 'en' ? HOME.playlist.label.en : HOME.playlist.label.he}
           </p>
           <h2 style={{ margin:'0 0 14px', fontSize:'clamp(22px,4vw,36px)', fontWeight:800, color:C.cream, fontFamily:"'Rubik',sans-serif", lineHeight:1.25 }}>
-            {lang === 'en' ? 'Afik Hanahal — Between Close & Close' : 'הפסקול של אפיק הנחל, בין סגירה לסגירה'}
+            {lang === 'en' ? HOME.playlist.title.en : HOME.playlist.title.he}
           </h2>
           <p style={{ margin:'0 0 36px', fontSize:'clamp(14px,1.6vw,17px)', color:`${C.cream}99`, fontFamily:"'Rubik',sans-serif", lineHeight:1.6 }}>
-            {lang === 'en'
-              ? 'Press Play and get into the rhythm that accompanies our real-estate deals'
-              : 'לחצו Play והיכנסו לקצב שמלווה את עסקאות הנדל"ן שלנו'}
+            {lang === 'en' ? HOME.playlist.desc.en : HOME.playlist.desc.he}
           </p>
 
           {/* Spotify embed */}
           <div style={{ borderRadius:16, overflow:'hidden', boxShadow:`0 8px 48px rgba(0,0,0,.45), 0 0 0 1px ${C.purple}22` }}>
             <iframe
               style={{ borderRadius:12, display:'block' }}
-              src="https://open.spotify.com/embed/playlist/7HGgXmznOBKie0g6LDQ0uN?utm_source=generator"
+              src={HOME.playlist.url}
               width="100%"
               height="152"
               frameBorder="0"
@@ -6473,7 +6256,7 @@ export default function App() {
             />
           </div>
         </div>
-      </section>
+      </section>}
 
       {/* ── FOOTER ──────────────────────────────────── */}
       <footer id="contact" style={{ position:'relative', overflow:'hidden', scrollMarginTop:80, zIndex:1 }}>
@@ -6492,13 +6275,13 @@ export default function App() {
               <div className="footer-logo-wrap" style={{ marginBottom:16 }}><Logo size={88}/></div>
               <p style={{ fontSize:15, color:'rgba(232,228,216,.7)', lineHeight:1.8, marginBottom:16 }}>{TR[lang]?.footerDesc}</p>
               <div className="footer-social" style={{ display:'flex', gap:11, marginBottom:16 }}>
-                <a href="mailto:afik.hanahal@gmail.com" className="social-btn email" title="שלח מייל" aria-label="אימייל">
+                <a href={'mailto:' + OFFICE.email} className="social-btn email" title="שלח מייל" aria-label="אימייל">
                   <FaEnvelope size={18}/>
                 </a>
-                <a href="https://www.facebook.com/profile.php?id=61573376818745" target="_blank" rel="noopener noreferrer" className="social-btn facebook" title="פייסבוק" aria-label="פייסבוק">
+                <a href={OFFICE.facebook} target="_blank" rel="noopener noreferrer" className="social-btn facebook" title="פייסבוק" aria-label="פייסבוק">
                   <FaFacebookF size={18}/>
                 </a>
-                <a href="https://www.instagram.com/afik.hanahal/" target="_blank" rel="noopener noreferrer" className="social-btn instagram" title="אינסטגרם" aria-label="אינסטגרם">
+                <a href={OFFICE.instagram} target="_blank" rel="noopener noreferrer" className="social-btn instagram" title="אינסטגרם" aria-label="אינסטגרם">
                   <FaInstagram size={18}/>
                 </a>
               </div>
@@ -6540,20 +6323,20 @@ export default function App() {
             <div className="footer-col">
               <h3 style={{ fontSize:30, fontWeight:900, color:'rgba(232,228,216,.95)', marginBottom:22, lineHeight:1.1, letterSpacing:'-.02em' }}>{TR[lang]?.talkToUs}</h3>
               <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
-                <a href="tel:0559811814" style={{ color:'#82F67F', textDecoration:'none', fontSize:27, fontWeight:800, display:'flex', alignItems:'center', gap:10, transition:'all .22s', letterSpacing:'-.5px', direction:'ltr', justifyContent: lang==='en' ? 'flex-start' : 'flex-end' }}
+                <a href={'tel:' + OFFICE.tel} style={{ color:'#82F67F', textDecoration:'none', fontSize:27, fontWeight:800, display:'flex', alignItems:'center', gap:10, transition:'all .22s', letterSpacing:'-.5px', direction:'ltr', justifyContent: lang==='en' ? 'flex-start' : 'flex-end' }}
                   onMouseEnter={e => { e.currentTarget.style.textShadow='0 0 28px rgba(130,246,127,.7)'; e.currentTarget.style.transform='translateY(-2px)' }}
                   onMouseLeave={e => { e.currentTarget.style.textShadow=''; e.currentTarget.style.transform='' }}>
-                  055-981-1814 <FaPhone size={18}/>
+                  {OFFICE.phone} <FaPhone size={18}/>
                 </a>
-                <a href="https://wa.me/972559811814" target="_blank" rel="noopener noreferrer" style={{ color:'#25D366', textDecoration:'none', fontSize:17, fontWeight:600, display:'flex', alignItems:'center', gap:9, transition:'all .2s', direction:'ltr', justifyContent: lang==='en' ? 'flex-start' : 'flex-end' }}
+                <a href={'https://wa.me/' + OFFICE.whatsapp} target="_blank" rel="noopener noreferrer" style={{ color:'#25D366', textDecoration:'none', fontSize:17, fontWeight:600, display:'flex', alignItems:'center', gap:9, transition:'all .2s', direction:'ltr', justifyContent: lang==='en' ? 'flex-start' : 'flex-end' }}
                   onMouseEnter={e => { e.currentTarget.style.textShadow='0 0 18px rgba(37,211,102,.65)'; e.currentTarget.style.transform='translateY(-1px)' }}
                   onMouseLeave={e => { e.currentTarget.style.textShadow=''; e.currentTarget.style.transform='' }}>
                   {TR[lang]?.waTitle} <FaWhatsapp size={20}/>
                 </a>
-                <a href="mailto:afik.hanahal@gmail.com" style={{ color:'rgba(232,228,216,.65)', textDecoration:'none', fontSize:15, display:'flex', alignItems:'center', gap:8, transition:'color .2s', direction:'ltr', justifyContent: lang==='en' ? 'flex-start' : 'flex-end' }}
+                <a href={'mailto:' + OFFICE.email} style={{ color:'rgba(232,228,216,.65)', textDecoration:'none', fontSize:15, display:'flex', alignItems:'center', gap:8, transition:'color .2s', direction:'ltr', justifyContent: lang==='en' ? 'flex-start' : 'flex-end' }}
                   onMouseEnter={e => e.currentTarget.style.color='rgba(232,228,216,.95)'}
                   onMouseLeave={e => e.currentTarget.style.color='rgba(232,228,216,.65)'}>
-                  afik.hanahal@gmail.com <FaEnvelope size={14}/>
+                  {OFFICE.email} <FaEnvelope size={14}/>
                 </a>
                 <button onClick={() => openContact()} style={{ marginTop:4, padding:'13px 28px', background:'rgba(132,144,216,.18)', border:'1px solid rgba(132,144,216,.44)', borderRadius:10, color:'rgba(232,228,216,.9)', fontSize:15, fontWeight:600, cursor:'pointer', fontFamily:'inherit', width:'fit-content', transition:'background .25s, border-color .25s' }}
                   onMouseEnter={e => { e.currentTarget.style.background='rgba(132,144,216,.38)'; e.currentTarget.style.borderColor='rgba(132,144,216,.7)' }}
@@ -6602,7 +6385,7 @@ export default function App() {
 
       {/* ── WHATSAPP FLOAT ───────────────────────────── */}
       {!(showAdmin && adminAuth) && (
-        <a href="https://wa.me/972559811814" target="_blank" rel="noopener noreferrer" className="wa-float" title="שלח הודעה ב-WhatsApp" onClick={() => trackEvent('whatsapp_click', { src:'float_btn' })}>
+        <a href={'https://wa.me/' + OFFICE.whatsapp} target="_blank" rel="noopener noreferrer" className="wa-float" title="שלח הודעה ב-WhatsApp" onClick={() => trackEvent('whatsapp_click', { src:'float_btn' })}>
           <WaIcon/>
         </a>
       )}

@@ -1,5 +1,13 @@
 // Single source of truth for entity facts used by every generated page (schema, footer, trust layer).
 // Every value here is taken from what the site already states (index.html, App.jsx, PrivacyModal). Nothing invented.
+// Phone, email, hours and social links come from content/home.json — the same office details the homepage shows
+// and the admin's content tab edits.
+import { readFileSync } from 'fs'
+import { hoursText } from '../lib/home-content.js'
+
+const HOME = JSON.parse(readFileSync(new URL('./home.json', import.meta.url), 'utf8'))
+const OFFICE = HOME.office
+
 export const SITE = {
   origin: 'https://afikhanahal.co.il',
   brand: { he: 'אפיק הנחל', en: 'Afik Hanahal' },
@@ -8,12 +16,12 @@ export const SITE = {
   tagline: { he: 'ייזום · שיווק · תיווך · קרקעות', en: 'Development · Marketing · Brokerage · Land' },
   regNumber: '517082038',
   founder: { he: 'ישראל בן יהודה', en: 'Israel Ben-Yehuda', role: { he: 'מייסד ומנכ"ל', en: 'Founder & CEO' } },
-  phone: '055-981-1814', phoneIntl: '+972559811814', whatsapp: 'https://wa.me/972559811814',
-  email: 'afik.hanahal@gmail.com',
+  phone: OFFICE.phone, phoneIntl: '+' + OFFICE.whatsapp, whatsapp: 'https://wa.me/' + OFFICE.whatsapp,
+  email: OFFICE.email,
   address: { street: 'הנגר 24', extra: 'מגדלי Amy, מגדל A', city: { he: 'הוד השרון', en: 'Hod Hasharon' }, region: { he: 'השרון', en: 'Sharon' }, country: 'IL',
              streetEn: '24 HaNagar St., Amy Towers, Tower A' },
-  hours: { he: 'ראשון–חמישי 09:00–19:00 · שישי 09:00–14:00', en: 'Sun–Thu 09:00–19:00 · Fri 09:00–14:00' },
-  social: { instagram: 'https://www.instagram.com/afik.hanahal/', facebook: 'https://www.facebook.com/profile.php?id=61573376818745' },
+  hours: { he: hoursText(HOME, 'he'), en: hoursText(HOME, 'en') },
+  social: { instagram: OFFICE.instagram, facebook: OFFICE.facebook },
   logo: '/img/icon-512.png',
   ogImage: '/img/og-default.png',
   // Where the company actually works (site copy: "השרון והמרכז", active nationwide)

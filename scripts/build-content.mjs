@@ -17,6 +17,7 @@ import { GUIDES } from '../content/guides.mjs'
 import { GLOSSARY } from '../content/glossary.mjs'
 import { COMPANY } from '../content/company.mjs'
 import { TOOLS } from '../content/tools.mjs'
+import { validateHome } from '../lib/home-content.js'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const DIST = path.join(ROOT, 'dist')
@@ -326,6 +327,16 @@ function buildHub(type, items, extra = {}) {
 
 // ── Run ──────────────────────────────────────────────────────────────────────
 if (!fs.existsSync(path.join(DIST, 'index.html'))) { console.error('dist/index.html missing — run `vite build` first'); process.exit(1) }
+
+// The homepage content (content/home.json, edited from the admin) must be complete and bilingual — never deploy a broken one
+{
+  const homeErrors = validateHome(JSON.parse(fs.readFileSync(path.join(ROOT, 'content/home.json'), 'utf8')))
+  if (homeErrors.length) {
+    console.error(`content/home.json: ${homeErrors.length} error(s)`)
+    for (const e of homeErrors.slice(0, 30)) console.error(`  ${e.path}: ${e.msg}`)
+    process.exit(1)
+  }
+}
 
 // Company profile is a single page at /company/ (both languages)
 {
