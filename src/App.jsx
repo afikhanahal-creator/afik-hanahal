@@ -2001,6 +2001,8 @@ function CEOSectionImpl() {
                 <div style={{ fontSize:12, color:C.purple, fontWeight:600, letterSpacing:'.06em' }}>{t.ceoRole}</div>
               </div>
             </div>
+            {/* a small purple booking pill under the photo */}
+            <div style={{ display:'flex', justifyContent:'center', marginTop:16 }}><BookPill src="ceo" text="cta" small/></div>
           </div>
 
           {/* ── Text column (LEFT in RTL) ── */}
