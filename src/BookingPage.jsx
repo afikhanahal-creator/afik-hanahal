@@ -46,7 +46,7 @@ const TR = {
     prepH: 'כדי להפיק את המרב מהשיחה', prep: ['מה אתם מחפשים: דירה, בית, מגרש או השקעה', 'אזורים שמעניינים אתכם', 'תקציב משוער ומימון', 'לוח זמנים: מתי תרצו לעבור או לסגור'],
     waText: 'היי, קבעתי שיחה דרך האתר ויש לי שאלה', selfWa: (when, url) => `השיחה עם אפיק הנחל: ${when}\nלשינוי או ביטול: ${url}`,
     weekdays: ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'], prevM: 'החודש הקודם', nextM: 'החודש הבא',
-    pickDay: 'בחרו יום', monthView: 'לוח חודשי', stripView: 'ימים קרובים', freeTimes: n => `${n} שעות פנויות`,
+    pickDay: 'בחרו יום', monthView: 'לוח חודשי', stripView: 'ימים קרובים', moreDays: n => `עוד ${n} ימים`, lessDays: 'פחות ימים', freeTimes: n => `${n} שעות פנויות`,
   },
   en: {
     howPhone: "We'll call you at the time you picked, on the number you leave here.", howVideo: "The call link will be sent to the email you leave here.",
@@ -83,7 +83,7 @@ const TR = {
     prepH: 'To get the most out of the call', prep: ['What you are looking for: an apartment, a house, a plot or an investment', 'The areas you are interested in', 'An approximate budget and financing', 'Timing: when you would like to move or close'],
     waText: 'Hi, I booked a call on your website and have a question', selfWa: (when, url) => `My call with Afik Hanahal: ${when}\nTo reschedule or cancel: ${url}`,
     weekdays: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], prevM: 'Previous month', nextM: 'Next month',
-    pickDay: 'Pick a day', monthView: 'Month view', stripView: 'Next days', freeTimes: n => `${n} free times`,
+    pickDay: 'Pick a day', monthView: 'Month view', stripView: 'Next days', moreDays: n => `${n} more days`, lessDays: 'Fewer days', freeTimes: n => `${n} free times`,
   },
 }
 
@@ -266,8 +266,25 @@ html,body{background:#09090F;margin:0}
   .bk-main{padding:16px 14px 20px}
   .bk-steps{margin-bottom:12px}
   .bk-h2{font-size:19px;margin-bottom:14px}
-  .bk-contact.bk-ph-contact{display:flex;padding:12px 14px calc(12px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--side)}
-  .bk-contact.bk-ph-contact a{height:44px}
+  .bk-contact.bk-ph-contact{display:flex;flex-wrap:nowrap;position:fixed;z-index:30;left:0;right:0;bottom:0;padding:10px 14px calc(10px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--side);box-shadow:0 -8px 24px rgba(0,0,0,.12)}
+  .bk-contact.bk-ph-contact a{flex:1 1 0;height:46px;font-size:14px}
+  .bk{padding-bottom:calc(76px + env(safe-area-inset-bottom))}
+  /* everything centered on a phone */
+  .bk-side,.bk-main{text-align:center}
+  .bk-side-head{justify-content:center}
+  .bk-meta,.bk-steps,.bk-actions,.bk-done-head{justify-content:center;align-items:center}
+  .bk-done-head{align-items:center}
+  .bk-chosen{justify-content:center;text-align:start}
+  .bk-strip-h{justify-content:center;flex-direction:column;gap:0}
+  .bk-ph-times .bk-times-h{flex-direction:column;align-items:center;gap:2px}
+  .bk-ph-times .bk-times{display:flex;flex-wrap:wrap;justify-content:center}
+  .bk-ph-times .bk-time{flex:0 0 calc((100% - 16px) / 3)}
+  .bk-type{justify-content:center;text-align:center}
+  .bk-ok{justify-content:center;text-align:center}
+  .bk-when{justify-content:center;text-align:start}
+  .bk-sent span{justify-content:center}
+  .bk-keep{align-items:stretch;text-align:center}
+  .bk-prep ul{list-style:none;padding:0}
   .bk-ghost{min-height:44px}
   /* meeting type */
   .bk-type{padding:16px;border-radius:14px;min-height:64px}
@@ -296,6 +313,9 @@ html,body{background:#09090F;margin:0}
   .bk-keep .bk-pill{flex:1;justify-content:center;min-height:44px}
   .bk-prep{margin-top:22px}
 }
+.bk-more{display:flex;justify-content:center;margin-top:4px}
+.bk-dgrid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+.bk-dgrid .bk-dchip{width:auto;min-height:74px}
 .bk-strip-h{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 10px}
 .bk-strip-h b{font-size:14.5px;font-weight:600}
 .bk-link{background:none;border:none;color:var(--brand-text);font:inherit;font-size:13.5px;font-weight:600;cursor:pointer;padding:8px 4px;min-height:40px}
@@ -375,6 +395,7 @@ export default function BookingPage() {
   // phones get the app-like layout (strip of days); the month grid stays one tap away
   const [isPhone, setIsPhone] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 900px)').matches)
   const [monthOnPhone, setMonthOnPhone] = useState(false)
+  const [moreDays, setMoreDays] = useState(false)
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 900px)')
     const on = () => setIsPhone(mq.matches)
@@ -568,15 +589,16 @@ export default function BookingPage() {
   )
 
   const dayChip = d => new Date(`${d}T12:00:00Z`)
+  const DAYS_SHOWN = 10   // two rows of five on a phone
   const phoneCalendarEl = current => (
     <div>
       <div className="bk-strip-h">
         <b>{monthOnPhone ? monthName : t.pickDay}</b>
         <button type="button" className="bk-link" onClick={() => setMonthOnPhone(v => !v)} aria-pressed={monthOnPhone}>{monthOnPhone ? t.stripView : t.monthView}</button>
       </div>
-      {monthOnPhone ? calendarEl(current, true) : (
-        <div className="bk-strip" role="group" aria-label={t.pickDay}>
-          {available.map(d => (
+      {monthOnPhone ? calendarEl(current, true) : (<>
+        <div className="bk-dgrid" role="group" aria-label={t.pickDay}>
+          {(moreDays || available.indexOf(day) >= DAYS_SHOWN ? available : available.slice(0, DAYS_SHOWN)).map(d => (
             <button key={d} type="button" className={`bk-dchip${current && d === israelDay(current) ? ' cur' : ''}`} aria-pressed={d === day} aria-label={dayLabel(d, lang)} onClick={() => { setDay(d); setStart('') }}>
               <small>{d === today ? (lang === 'en' ? 'Today' : 'היום') : dayChip(d).toLocaleDateString(lang === 'en' ? 'en-GB' : 'he-IL', { timeZone: 'UTC', weekday: 'short' })}</small>
               <b>{Number(d.slice(8))}</b>
@@ -584,7 +606,10 @@ export default function BookingPage() {
             </button>
           ))}
         </div>
-      )}
+        {available.length > DAYS_SHOWN && available.indexOf(day) < DAYS_SHOWN && (
+          <div className="bk-more"><button type="button" className="bk-link" aria-expanded={moreDays} onClick={() => setMoreDays(v => !v)}>{moreDays ? t.lessDays : t.moreDays(available.length - DAYS_SHOWN)}</button></div>
+        )}
+      </>)}
       <div className="bk-ph-times">
         <h3 className="bk-times-h">{day ? dayLabel(day, lang) : t.times}{day && (slots[day] || []).length > 0 && <span>{t.freeTimes((slots[day] || []).length)}</span>}</h3>
         <div className="bk-times">
@@ -900,13 +925,15 @@ export default function BookingPage() {
 
             {step === 'call' && callPageEl()}
           </section>
-          <div className="bk-contact bk-ph-contact">
-            <a className="wa" href={waHref} target="_blank" rel="noreferrer" aria-label={t.waTip}><span className="ic">{Icon.wa}</span>{t.wa}</a>
-            <a href={`tel:0${OFFICE_WA.slice(3)}`} aria-label={`${t.call} 055-981-1814`}><span className="ic" style={{ color: 'var(--brand-text)' }}>{Icon.phone}</span><bdi dir="ltr">055-981-1814</bdi></a>
-          </div>
         </div>
         <div className="bk-foot">{orgName} · <a href={homeHref} style={{ color: 'inherit' }}>afikhanahal.co.il</a></div>
       </main>
+      {step !== 'details' && (
+        <div className="bk-contact bk-ph-contact">
+          <a className="wa" href={waHref} target="_blank" rel="noreferrer" aria-label={t.waTip}><span className="ic">{Icon.wa}</span>{t.wa}</a>
+          <a href={`tel:0${OFFICE_WA.slice(3)}`} aria-label={`${t.call} 055-981-1814`}><span className="ic" style={{ color: 'var(--brand-text)' }}>{Icon.phone}</span><bdi dir="ltr">055-981-1814</bdi></a>
+        </div>
+      )}
     </div>
   )
 }
