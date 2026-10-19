@@ -178,9 +178,12 @@ grouped by day (campaigns by their short name, a "קיבלו הודעה / טרם
 search matches a phone typed any way), an overview (needs attention, leads by campaign, connection health) and a lead page: a bar
 (call / chats tab / CRM, status) over **the WhatsApp conversation** (`src/LeadConversation.jsx`, the chats tab's look from
 `src/waShared.jsx`): the number's real history (`chat-history`, conditional, every 8 s while visible) merged with the
-`meta_messages` log (`mergeConversation()`), and a composer whose **template dropdown** (a native `<select>` with a group per
-category, `templateOptions()`, rendered for `templateLead()` = the Meta lead, or its CRM copy from the admin's `leads`; "✏️"
-edits the chosen template with `TemplateQuickEdit`; עב / EN) fills the box. While nothing was sent the welcome group comes first
+`meta_messages` log (`mergeConversation()`), drawn like WhatsApp Web (header with the lead's avatar and round icon buttons,
+tailed bubbles with the time tucked into the last line, the 59 px header / 62 px footer, WhatsApp's own colors in light and
+dark), and a composer whose **quick replies** (⚡, or "/" at the start of the box — WhatsApp Business style: a window above the
+composer with search, a section per category, ↑ / ↓ / Enter / Esc, "★ automation" and "sent ✓" badges, ✏️ per row; groups from
+`templateOptions()`, rendered for `templateLead()` = the Meta lead, or its CRM copy from the admin's `leads`; עב / EN) fill the
+box; a reply-style bar above the box names the template it came from (edited?), with ✏️ and ✕. While nothing was sent the welcome group comes first
 and the box **starts with the automation's welcome** (★), the button reads "שלח הודעת פתיחה" and that first send goes
 → `POST /api/meta/lead-welcome {id, text, templateId}` → `welcomeExternalLead(…, { force: true, text, templateId })` (counts as the
 welcome: `wa_sent`, `automation_log`, `by: 'manual'`), and a composer → `POST /api/meta/messages` (502 carries `quota`). A refusal
@@ -414,6 +417,12 @@ timeline grouped by day (filters: all / notes & calls / system): notes (edit inl
 (`crm_data.auto.sent`), finished tasks, analysis, arrival, and the next follow-up on top (red when overdue). The card's
 keyboard/focus effect runs once per open (it used to re-run on every parent render and pull the focus out of the note box
 while typing); `EditInput` never overwrites a field that has focus; `save()` resolves to success/failure and shows "השמירה נכשלה".
+**Leads board look:** the view switch is a segmented control (תמונת מצב · פייפליין · טבלה, line icons); the toolbar is
+"ליד חדש", search, then quiet `.lb-tb` buttons (sync, trash, CSV; columns / add column in the table only — the old dead
+"סינון" / "מיון" buttons are gone). Pipeline cards are calm (initials avatar, name + phone, campaign / source / intent tags,
+the message or property, the last note + follow-up, a footer with the date and icon actions; delete shows on hover) and every
+card has a checkbox (`SelCtx`) that feeds the same selection and bulk bar as the table. Checkboxes are `CheckBox` (a real input
+drawn as a rounded box — the admin's input reset hid the native ones), 60 px column in the table.
 **Leads board tabs:** "תמונת מצב" (`src/LeadsDashboard.jsx`, a manager's dashboard following the dataviz rules — flat cards,
 no gradients, one hue ramp for the funnel, blue / orange / aqua for sources): a filter row (period week / month / 3 / 6 months /
 year / all / custom range, source, campaign — everything below follows it, compared with the previous equal period); "לידים
