@@ -43,7 +43,7 @@ export const UI = {
       'ליווי מלא: מאיתור ובדיקת זכויות ועד רישום בטאבו',
       'ייצוג בעלי קרקע מול רוכשים, קבוצות רכישה וחברות בנייה',
     ],
-    ctaCall: 'התקשרו', ctaWa: 'וואטסאפ', ctaEmail: 'מייל', form: {
+    ctaCall: 'התקשרו', ctaWa: 'וואטסאפ', ctaEmail: 'מייל', ctaBook: HOME.booking.cta.he, form: {
       step1: 'מה מעניין אתכם?', step2: 'כמה פרטים על הנכס', step3: 'איך נחזור אליכם?', next: 'המשך', back: 'חזרה', send: 'שלחו ונחזור אליכם',
       name: 'שם מלא', phone: 'טלפון', email: 'אימייל (לא חובה)', city: 'עיר / אזור', type: 'סוג הנכס', size: 'שטח (מ"ר / דונם)', when: 'מתי?', notes: 'משהו שכדאי שנדע?',
       sending: 'שולח…', done: 'קיבלנו! נחזור אליכם בהקדם.', doneSub: 'אפשר גם להתקשר עכשיו:', error: 'משהו השתבש. אפשר להתקשר או לשלוח וואטסאפ.',
@@ -73,7 +73,7 @@ export const UI = {
       'End-to-end support: from sourcing and rights checks to Tabu registration',
       'Representing landowners opposite buyers, purchase groups and construction companies',
     ],
-    ctaCall: 'Call', ctaWa: 'WhatsApp', ctaEmail: 'Email', form: {
+    ctaCall: 'Call', ctaWa: 'WhatsApp', ctaEmail: 'Email', ctaBook: HOME.booking.cta.en, form: {
       step1: 'What are you looking for?', step2: 'A few details about the property', step3: 'How should we reach you?', next: 'Continue', back: 'Back', send: 'Send — we will get back to you',
       name: 'Full name', phone: 'Phone', email: 'Email (optional)', city: 'City / area', type: 'Property type', size: 'Size (sqm / dunam)', when: 'When?', notes: 'Anything we should know?',
       sending: 'Sending…', done: 'Got it! We will be in touch shortly.', doneSub: 'You can also call now:', error: 'Something went wrong. Please call or WhatsApp us.',

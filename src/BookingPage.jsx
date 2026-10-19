@@ -282,7 +282,7 @@ export default function BookingPage() {
             <source srcSet="/logo-black.svg" media="(prefers-color-scheme: light)" />
             <img src="/logo.svg" alt="" />
           </picture>
-          <span>{lang === 'en' ? 'Afik Hanahal' : 'אפיק הנחל'}</span>
+          <span>{orgName}</span>
         </a>
         <button className="bk-lang" onClick={() => setLang(l => (l === 'en' ? 'he' : 'en'))}>{t.langBtn}</button>
       </header>
@@ -367,14 +367,16 @@ export default function BookingPage() {
 
             {cfg && step === 'details' && (
               <form className="bk-form" onSubmit={submit} noValidate>
-                <h2 className="bk-h2" style={{ margin: 0 }}>{t.how}</h2>
-                <div className="bk-chs" role="radiogroup">
-                  {channels.map(c => (
-                    <button type="button" key={c} role="radio" aria-checked={form.channel === c} className={`bk-ch${form.channel === c ? ' sel' : ''}`} onClick={() => setForm(f => ({ ...f, channel: c }))}>
-                      <b>{chLabel(c)}</b><small>{chDesc(c)}</small>
-                    </button>
-                  ))}
-                </div>
+                {channels.length > 1 ? <>
+                  <h2 className="bk-h2" style={{ margin: 0 }}>{t.how}</h2>
+                  <div className="bk-chs" role="radiogroup">
+                    {channels.map(c => (
+                      <button type="button" key={c} role="radio" aria-checked={form.channel === c} className={`bk-ch${form.channel === c ? ' sel' : ''}`} onClick={() => setForm(f => ({ ...f, channel: c }))}>
+                        <b>{chLabel(c)}</b><small>{chDesc(c)}</small>
+                      </button>
+                    ))}
+                  </div>
+                </> : channels[0] && <div className="bk-chosen" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>{channels[0] === 'phone' ? Icon.phone : Icon.video}<span><b>{chLabel(channels[0])}</b> · {chDesc(channels[0])}</span></div>}
                 <h2 className="bk-h2" style={{ margin: '6px 0 0' }}>{t.details}</h2>
                 <div className="bk-f">
                   <label htmlFor="bk-name">{t.name}</label>
