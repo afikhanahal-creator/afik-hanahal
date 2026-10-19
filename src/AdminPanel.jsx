@@ -3433,6 +3433,9 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
                 setInitialChatLead({ id: 'meta_' + metaLead.id, name: metaLead.name || '', phone: metaLead.phone || '', email: metaLead.email || '' })
                 setTab('chats')
               }}
+              crmLeads={leads}
+              autoConfig={autoCfg?.config || null}
+              onAutoConfigSaved={cfg => setAutoCfg(c => ({ ...(c || {}), config: cfg, storage: 'ok' }))}
             />
           </Suspense>
         )}

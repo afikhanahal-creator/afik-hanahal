@@ -174,10 +174,19 @@ Every webhook delivery is recorded in `app_settings` (`meta_webhook_log`: `last`
 arriving is visible. `.github/workflows/lead-tick.yml` calls `auto-tick` every 5 minutes (the repo is public: the log prints
 counts only), so a lead is welcomed even with the panel closed and the webhook down.
 **Lead Center** (`src/MetaLeadsTab.jsx`, admin "מרכז לידים"): connection dots (Meta / WhatsApp / welcome rule), KPIs, a list
-grouped by day with a "קיבל הודעה / טרם נשלחה הודעה" chip per lead (Meta's testing-tool leads hidden by default), an overview
-(needs attention, leads by campaign, connection health) and a lead page (call / WhatsApp / CRM, status, welcome card with
-"שלח הודעת פתיחה עכשיו" = `POST /api/meta/lead-welcome {id}` → `welcomeExternalLead(…, { force: true })`, logged `by: 'manual'`,
-details, form answers, notes, conversation). Messages typed there go out from the office WhatsApp (Green API) like the welcome.
+grouped by day (campaigns by their short name, a "קיבלו הודעה / טרם נשלחה הודעה" chip; Meta's testing-tool leads hidden by default;
+search matches a phone typed any way), an overview (needs attention, leads by campaign, connection health) and a lead page: a bar
+(call / chats tab / CRM, status) over **the WhatsApp conversation** (`src/LeadConversation.jsx`, the chats tab's look from
+`src/waShared.jsx`): the number's real history (`chat-history`, conditional, every 8 s while visible) merged with the
+`meta_messages` log (`mergeConversation()`), "⚡ תבניות ▾" (`ChatTemplateMenu` + `TemplateQuickEdit`, rendered for
+`templateLead()` = the Meta lead, or its CRM copy from the admin's `leads`), a **welcome picker** while nothing was sent (the
+welcome templates first — the automation's one marked — then the personal ones, `welcomeChoices()`; Hebrew / English; editable)
+→ `POST /api/meta/lead-welcome {id, text, templateId}` → `welcomeExternalLead(…, { force: true, text, templateId })` (counts as the
+welcome: `wa_sent`, `automation_log`, `by: 'manual'`), and a composer → `POST /api/meta/messages` (502 carries `quota`). A refusal
+reads as words (`sendErrorText()`; the 466 quota also shows a banner with the upgrade link), never raw JSON. Next to it: welcome
+status, details + form answers, notes (save state shown). The selection is an id (`selectedId`), so polls / Realtime keep the open
+lead fresh. A detail pane under 780 px (and every phone) shows one pane at a time ("שיחה" / "פרטים והערות"); phones get a compact
+bar (status as a dropdown, CRM in the details). Pure helpers: `src/lib/leadConversation.js` (tested).
 **Every Meta lead is also in the CRM** (`lib/meta-crm.js`, tested): the webhook and every sync copy a new lead into `contacts`
 (source `meta`, `crm_data.metaLeadId`, form answers in `message` / `crm_data.formAnswers`, phone as 05X…), so it shows in "לידים" and
 in the bulk-send audience. The welcome stays with the Meta pipeline (`crm_data.auto` marks it sent / skipped, the CRM never sends a
