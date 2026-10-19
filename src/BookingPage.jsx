@@ -4,7 +4,10 @@
 // client move the call to another free time or cancel it (?do=cancel opens the cancel question right away).
 // Slots: /api/meta/booking-slots (office hours minus what is busy in the office Google Calendar; with m= the call's own
 // time counts as free). A booking: booking-create; the page: booking-manage; a move: booking-reschedule; booking-cancel-self.
+// Times are shown in the zone the visitor picks (Calendly style: their device's zone by default, src/lib/bookingTz.js); the
+// office, the calendar and every confirmation stay in Israel time.
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { OFFICE_TZ, deviceTz, validTz, zoneLabel, gmtOffset, timeIn, todayIn, dayIn, regroupSlots, zoneOptions } from './lib/bookingTz.js'
 
 const API = import.meta.env.PROD ? '' : (import.meta.env.VITE_SELLER_API_BASE || '')
 const TZ = 'Asia/Jerusalem'
@@ -15,7 +18,7 @@ const TR = {
     howPhone: 'נתקשר אליכם בשעה שבחרתם, למספר שתשאירו כאן.', howVideo: 'הקישור לשיחה יישלח למייל שתשאירו כאן.',
     langBtn: 'English', home: 'חזרה לאתר', wa: 'וואטסאפ', waTip: 'כתבו לנו בוואטסאפ', call: 'חייגו אלינו', photoAlt: 'צוות אפיק הנחל', pick: 'בחרו סוג פגישה', minutes: n => `${n} דקות`,
     stepTime: 'מועד', stepDetails: 'פרטים', stepDone: 'אישור', stepOf: (i, n) => `שלב ${i} מתוך ${n}`,
-    chooseDay: 'בחרו יום ושעה', times: 'שעות פנויות', noTimes: 'אין שעות פנויות ביום הזה', tzNote: 'לפי שעון ישראל',
+    chooseDay: 'בחרו יום ושעה', times: 'שעות פנויות', noTimes: 'אין שעות פנויות ביום הזה', tzNote: 'לפי שעון ישראל', tzTitle: 'אזור זמן', tzSearch: 'חיפוש עיר או אזור…', tzNone: 'לא מצאנו אזור זמן כזה', tzNow: 'עכשיו', tzShown: 'השעות מוצגות לפי', inIsrael: 'בישראל', h24: '24 שעות', h12: 'AM/PM', close: 'סגירה',
     loading: 'טוען שעות פנויות…', loadErr: 'לא הצלחנו לטעון את השעות. נסו לרענן את העמוד.',
     nothing: 'כרגע אין שעות פנויות בשבועות הקרובים. כתבו לנו בוואטסאפ ונמצא זמן.',
     back: 'חזרה', details: 'הפרטים שלכם', how: 'איך נדבר?',
@@ -52,7 +55,7 @@ const TR = {
     howPhone: "We'll call you at the time you picked, on the number you leave here.", howVideo: "The call link will be sent to the email you leave here.",
     langBtn: 'עברית', home: 'Back to the website', wa: 'WhatsApp', waTip: 'Message us on WhatsApp', call: 'Call us', photoAlt: 'The Afik Hanahal team', pick: 'Choose a meeting type', minutes: n => `${n} minutes`,
     stepTime: 'Time', stepDetails: 'Details', stepDone: 'Confirmed', stepOf: (i, n) => `Step ${i} of ${n}`,
-    chooseDay: 'Pick a day and time', times: 'Available times', noTimes: 'No free times on this day', tzNote: 'Israel time',
+    chooseDay: 'Pick a day and time', times: 'Available times', noTimes: 'No free times on this day', tzNote: 'Israel time', tzTitle: 'Time zone', tzSearch: 'Search a city or region…', tzNone: 'No matching time zone', tzNow: 'now', tzShown: 'Times shown in', inIsrael: 'in Israel', h24: '24h', h12: 'am/pm', close: 'Close',
     loading: 'Loading available times…', loadErr: 'We couldn\'t load the times. Please refresh the page.',
     nothing: 'There are no free times in the next few weeks. Message us on WhatsApp and we\'ll find one.',
     back: 'Back', details: 'Your details', how: 'How shall we talk?',
@@ -165,6 +168,41 @@ html,body{background:#09090F;margin:0}
 .bk-time.cur{border-style:dashed;opacity:.6;cursor:default}
 .bk-time.cur:hover{background:none;color:var(--brand-text)}
 .bk-note{font-size:12.5px;color:var(--mute);margin-top:14px}
+.bk-tz{position:relative;margin-top:16px}
+.bk-tz-l{font-size:12px;font-weight:600;color:var(--mute);margin-bottom:6px;letter-spacing:.02em}
+.bk-tz-btn{display:inline-flex;align-items:center;gap:8px;max-width:100%;height:40px;padding:0 12px 0 14px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--ink);font:inherit;font-size:14px;font-weight:500;cursor:pointer;transition:border-color .15s,background .15s}
+.bk-tz-btn:hover,.bk-tz-btn[aria-expanded=true]{border-color:var(--brand);background:var(--brand-soft)}
+.bk-tz-btn>svg:first-child{color:var(--brand-text);flex-shrink:0}
+.bk-tz-btn>span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bk-tz-now{color:var(--mute);font-weight:400}
+.bk-tz-chev{color:var(--mute);flex-shrink:0;transition:transform .18s}
+.bk-tz-btn[aria-expanded=true] .bk-tz-chev{transform:rotate(180deg)}
+.bk-tz-pop{position:absolute;bottom:calc(100% + 8px);inset-inline-start:0;z-index:30;width:min(380px,calc(100vw - 32px));max-height:min(440px,62vh);display:flex;flex-direction:column;background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:0 24px 60px rgba(0,0,0,.28),0 2px 8px rgba(0,0,0,.12);overflow:hidden;animation:bkTzIn .16s ease-out}
+@keyframes bkTzIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.bk-tz-pop.sheet{position:fixed;inset:auto 0 0 0;z-index:61;width:100%;max-height:78vh;border-radius:20px 20px 0 0;padding-bottom:env(safe-area-inset-bottom);animation:bkTzUp .2s ease-out}
+@keyframes bkTzUp{from{transform:translateY(30px);opacity:.6}to{transform:none;opacity:1}}
+.bk-tz-dim{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.4)}
+.bk-tz-head{display:flex;gap:8px;align-items:center;padding:12px;border-bottom:1px solid var(--line)}
+.bk-tz-search{flex:1;min-width:0;display:flex;align-items:center;gap:8px;height:38px;padding:0 12px;border-radius:10px;background:var(--card2);border:1px solid var(--line);color:var(--mute)}
+.bk-tz-search:focus-within{border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-soft)}
+.bk-tz-search input:focus-visible{outline:none}
+.bk-tz-search input{flex:1;min-width:0;border:none;outline:none;background:none;color:var(--ink);font:inherit;font-size:14px}
+.bk-seg{display:inline-flex;padding:3px;border-radius:10px;background:var(--card2);border:1px solid var(--line);flex-shrink:0}
+.bk-seg button{border:none;background:none;color:var(--mute);font:inherit;font-size:12px;font-weight:600;padding:0 9px;height:30px;border-radius:7px;cursor:pointer;white-space:nowrap}
+.bk-seg button[aria-pressed=true]{background:var(--brand);color:var(--brand-ink)}
+.bk-tz-x{border:none;background:var(--card2);color:var(--ink);width:34px;height:34px;border-radius:50%;cursor:pointer;font-size:14px;flex-shrink:0}
+.bk-tz-list{overflow-y:auto;overscroll-behavior:contain;padding:4px 6px 8px}
+.bk-tz-g{position:sticky;top:0;z-index:1;background:var(--card);padding:10px 10px 4px;font-size:11.5px;font-weight:700;color:var(--mute);letter-spacing:.04em;text-transform:uppercase}
+.bk-tz-o{display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:10px;cursor:pointer;font-size:14px;scroll-margin-top:34px}
+.bk-tz-o.act{background:var(--brand-soft)}
+.bk-tz-o.sel{font-weight:600}
+.bk-tz-ck{width:16px;color:var(--brand-text);font-weight:700;text-align:center;flex-shrink:0}
+.bk-tz-n{flex:1;min-width:0;display:flex;align-items:baseline;gap:8px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.bk-tz-n small{color:var(--mute);font-size:11.5px;font-weight:400}
+.bk-tz-t{color:var(--mute);font-variant-numeric:tabular-nums;font-size:13px;flex-shrink:0}
+.bk-tz-o.sel .bk-tz-t{color:var(--brand-text)}
+.bk-tz-none{padding:22px 10px;text-align:center;color:var(--mute);font-size:13.5px}
+.bk-il{display:block!important;margin:4px 0 0!important;font-weight:500}
 .bk-empty{color:var(--mute);font-size:14px}
 .bk-form{display:grid;gap:12px;max-width:560px}
 .bk-chs{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
@@ -344,12 +382,14 @@ const Icon = {
   back: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>,
 }
 
-const fmt = (iso, lang, o) => new Date(iso).toLocaleString(lang === 'en' ? 'en-GB' : 'he-IL', { timeZone: TZ, ...o })
-const timeOf = iso => new Date(iso).toLocaleTimeString('en-GB', { timeZone: TZ, hour: '2-digit', minute: '2-digit' })
+// the zone (and 12 / 24 h) the visitor reads the times in — set by the page on every render (see `tz` below)
+let VIEW = { tz: TZ, h12: false }
+const fmt = (iso, lang, o) => new Date(iso).toLocaleString(lang === 'en' ? 'en-GB' : 'he-IL', { timeZone: VIEW.tz, ...o })
+const timeOf = iso => timeIn(iso, VIEW.tz, VIEW.h12)
+const viewDay = iso => dayIn(iso, VIEW.tz)
 const longWhen = (iso, lang) => `${fmt(iso, lang, { weekday: 'long', day: 'numeric', month: 'long' })}${lang === 'en' ? ' at ' : ' בשעה '}${timeOf(iso)}`
 const dayLabel = (date, lang) => new Date(`${date}T12:00:00Z`).toLocaleDateString(lang === 'en' ? 'en-GB' : 'he-IL', { timeZone: 'UTC', weekday: 'long', day: 'numeric', month: 'long' })
 const israelToday = () => new Date().toLocaleDateString('en-CA', { timeZone: TZ })
-const israelDay = iso => new Date(iso).toLocaleDateString('en-CA', { timeZone: TZ })
 const monthKey = d => d.slice(0, 7)
 const addMonths = (ym, n) => { const [y, m] = ym.split('-').map(Number); const d = new Date(Date.UTC(y, m - 1 + n, 1)); return d.toISOString().slice(0, 7) }
 const normPhone = raw => { const d = String(raw || '').replace(/\D/g, ''); return d.startsWith('972') ? '0' + d.slice(3) : d }
@@ -362,13 +402,99 @@ function track(name, params = {}) {
 }
 const calLink = (b, title, details) => {
   const f = iso => new Date(iso).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '')
-  return `https://calendar.google.com/calendar/render?${new URLSearchParams({ action: 'TEMPLATE', text: title, dates: `${f(b.start)}/${f(b.end)}`, details, location: b.meetLink || b.zoomUrl || '', ctz: TZ })}`
+  return `https://calendar.google.com/calendar/render?${new URLSearchParams({ action: 'TEMPLATE', text: title, dates: `${f(b.start)}/${f(b.end)}`, details, location: b.meetLink || b.zoomUrl || '', ctz: VIEW.tz })}`
 }
-const dayDiff = iso => Math.round((Date.parse(`${israelDay(iso)}T00:00:00Z`) - Date.parse(`${israelToday()}T00:00:00Z`)) / 864e5)
+const dayDiff = iso => Math.round((Date.parse(`${viewDay(iso)}T00:00:00Z`) - Date.parse(`${todayIn(VIEW.tz)}T00:00:00Z`)) / 864e5)
+const TZ_KEY = 'afik_bk_tz_v1'
+const readTz = () => { try { const v = JSON.parse(localStorage.getItem(TZ_KEY) || 'null'); if (v && validTz(v.tz)) return v } catch {} return null }
+
+// The time zone picker (Calendly style): the zone and its current time on a button; a window with search, the zones by
+// region (each with its current time and GMT offset) and a 24 h / am-pm switch. Keyboard: ↑ ↓ Enter Esc. Phones: a bottom sheet.
+function TzPicker({ tz, setTz, h12, setH12, lang, t, isPhone }) {
+  const [open, setOpen] = useState(false)
+  const [q, setQ] = useState('')
+  const [active, setActive] = useState(0)
+  const [now, setNow] = useState(() => new Date())
+  const btnRef = useRef(null), boxRef = useRef(null), listRef = useRef(null)
+  useEffect(() => {                                        // the clocks tick while the button is on screen
+    const id = setInterval(() => setNow(new Date()), 30000)
+    return () => clearInterval(id)
+  }, [])
+  const groups = useMemo(() => zoneOptions({ lang, q, at: now }), [lang, q, now])
+  const flat = groups.flatMap(g => g.zones)
+  useEffect(() => { if (open) { setQ(''); setActive(Math.max(0, zoneOptions({ lang, at: new Date() }).flatMap(g => g.zones).findIndex(z => z.id === tz))) } }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (q) setActive(0) }, [q])
+  useEffect(() => {
+    if (!open) return
+    const off = e => { if (!boxRef.current?.contains(e.target) && !btnRef.current?.contains(e.target)) setOpen(false) }
+    document.addEventListener('pointerdown', off)
+    return () => document.removeEventListener('pointerdown', off)
+  }, [open])
+  useEffect(() => { if (open) listRef.current?.querySelector(`[data-i="${active}"]`)?.scrollIntoView({ block: 'nearest' }) }, [active, open])
+  const close = () => { setOpen(false); btnRef.current?.focus() }
+  const pick = id => { setTz(id); close() }
+  const onKey = e => {
+    if (e.key === 'Escape') { e.preventDefault(); close() }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); setActive(i => Math.min(flat.length - 1, i + 1)) }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(i => Math.max(0, i - 1)) }
+    else if (e.key === 'Enter' && flat[active]) { e.preventDefault(); pick(flat[active].id) }
+  }
+  let i = -1
+  return (
+    <div className="bk-tz">
+      <div className="bk-tz-l" id="bk-tz-l">{t.tzTitle}</div>
+      <button ref={btnRef} type="button" className="bk-tz-btn" aria-haspopup="dialog" aria-expanded={open} aria-labelledby="bk-tz-l bk-tz-v" onClick={() => setOpen(v => !v)}>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M2.5 12h19M12 2.5c2.6 2.8 3.9 6 3.9 9.5s-1.3 6.7-3.9 9.5c-2.6-2.8-3.9-6-3.9-9.5S9.4 5.3 12 2.5z"/></svg>
+        <span id="bk-tz-v">{tz === OFFICE_TZ && lang !== 'en' ? 'שעון ישראל' : zoneLabel(tz, lang)} <span className="bk-tz-now"><bdi dir="ltr">({timeIn(now, tz, h12)})</bdi></span></span>
+        <svg className="bk-tz-chev" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+      {open && <>
+        {isPhone && <div className="bk-tz-dim" aria-hidden="true" />}
+        <div ref={boxRef} className={`bk-tz-pop${isPhone ? ' sheet' : ''}`} role="dialog" aria-label={t.tzTitle} onKeyDown={onKey}>
+          <div className="bk-tz-head">
+            <label className="bk-tz-search">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+              <input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder={t.tzSearch} aria-label={t.tzSearch} aria-controls="bk-tz-list"
+                role="combobox" aria-expanded="true" aria-activedescendant={flat[active] ? `bk-tz-${active}` : undefined} />
+            </label>
+            <div className="bk-seg" role="group" aria-label="12 / 24">
+              <button type="button" aria-pressed={!h12} onClick={() => setH12(false)}>{t.h24}</button>
+              <button type="button" aria-pressed={h12} onClick={() => setH12(true)}>{t.h12}</button>
+            </div>
+            {isPhone && <button type="button" className="bk-tz-x" onClick={close} aria-label={t.close}>✕</button>}
+          </div>
+          <div className="bk-tz-list" id="bk-tz-list" role="listbox" ref={listRef} aria-label={t.tzTitle}>
+            {!flat.length && <div className="bk-tz-none">{t.tzNone}</div>}
+            {groups.map(g => (
+              <div key={g.group.id} role="group" aria-label={lang === 'en' ? g.group.en : g.group.he}>
+                <div className="bk-tz-g">{lang === 'en' ? g.group.en : g.group.he}</div>
+                {g.zones.map(z => { i += 1; const idx = i; const sel = z.id === tz; return (
+                  <div key={z.id} id={`bk-tz-${idx}`} data-i={idx} role="option" aria-selected={sel} className={`bk-tz-o${idx === active ? ' act' : ''}${sel ? ' sel' : ''}`}
+                    onPointerMove={() => setActive(idx)} onClick={() => pick(z.id)}>
+                    <span className="bk-tz-ck" aria-hidden="true">{sel ? '✓' : ''}</span>
+                    <span className="bk-tz-n">{z.label}<small dir="ltr">{z.offset}</small></span>
+                    <bdi className="bk-tz-t" dir="ltr">{timeIn(now, z.id, h12)}</bdi>
+                  </div>
+                ) })}
+              </div>
+            ))}
+          </div>
+        </div>
+      </>}
+    </div>
+  )
+}
 
 export default function BookingPage() {
   const params = useMemo(() => new URLSearchParams(window.location.search), [])
   const [lang, setLang] = useState(() => (params.get('lang') === 'en' ? 'en' : 'he'))
+  // the zone the times are shown in: the visitor's last choice, else their device's zone (Israel for most)
+  const [tz, setTzState] = useState(() => readTz()?.tz || deviceTz())
+  const [h12, setH12State] = useState(() => readTz()?.h12 ?? /^America\//.test(readTz()?.tz || deviceTz()))
+  const saveTz = (z, h) => { try { localStorage.setItem(TZ_KEY, JSON.stringify({ tz: z, h12: h })) } catch {} }
+  const setTz = z => { setTzState(z); saveTz(z, h12); track('booking_tz', { tz: z }) }
+  const setH12 = h => { setH12State(h); saveTz(tz, h) }
+  VIEW = { tz, h12 }
   const t = TR[lang]
   const [cfg, setCfg] = useState(null)
   const [type, setType] = useState(null)
@@ -465,8 +591,15 @@ export default function BookingPage() {
     document.querySelector('.bk-main')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, [step]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const today = israelToday()
-  const available = slots ? Object.keys(slots).filter(k => slots[k].length).sort() : []
+  const today = todayIn(tz)
+  const vslots = useMemo(() => regroupSlots(slots, tz), [slots, tz])   // the free times by the visitor's own days
+  const available = vslots ? Object.keys(vslots).filter(k => vslots[k].length && k >= today).sort() : []
+  // another zone moves times across midnight: keep a day that still has free times, else the first one that does
+  useEffect(() => {
+    if (!vslots || (day && vslots[day]?.length)) return
+    const f = Object.keys(vslots).filter(k => vslots[k].length).sort()[0]
+    if (f) { setDay(f); setMonth(monthKey(f)); setStart('') }
+  }, [vslots]) // eslint-disable-line react-hooks/exhaustive-deps
   const lastMonth = available.length ? monthKey(available[available.length - 1]) : month
   const grid = useMemo(() => {
     const [y, m] = month.split('-').map(Number)
@@ -535,7 +668,7 @@ export default function BookingPage() {
 
   function startMove() {
     setAlert(''); setBanner(''); setStart(''); setAskCancel(false)
-    setType(callType); setDay(israelDay(call.start)); setMonth(monthKey(israelDay(call.start)))
+    setType(callType); setDay(viewDay(call.start)); setMonth(monthKey(viewDay(call.start)))
     setStep('move')
     loadSlots(callType, mkey)
     track('booking_reschedule_open')
@@ -587,6 +720,7 @@ export default function BookingPage() {
     </ol>
   )
 
+  const tzEl = () => <TzPicker tz={tz} setTz={setTz} h12={h12} setH12={setH12} lang={lang} t={t} isPhone={isPhone} />
   const dayChip = d => new Date(`${d}T12:00:00Z`)
   const DAYS_SHOWN = 10   // two rows of five on a phone
   const phoneCalendarEl = current => (
@@ -598,7 +732,7 @@ export default function BookingPage() {
       {monthOnPhone ? calendarEl(current, true) : (<>
         <div className="bk-dgrid" role="group" aria-label={t.pickDay}>
           {(moreDays || available.indexOf(day) >= DAYS_SHOWN ? available : available.slice(0, DAYS_SHOWN)).map(d => (
-            <button key={d} type="button" className={`bk-dchip${current && d === israelDay(current) ? ' cur' : ''}`} aria-pressed={d === day} aria-label={dayLabel(d, lang)} onClick={() => { setDay(d); setStart('') }}>
+            <button key={d} type="button" className={`bk-dchip${current && d === viewDay(current) ? ' cur' : ''}`} aria-pressed={d === day} aria-label={dayLabel(d, lang)} onClick={() => { setDay(d); setStart('') }}>
               <small>{d === today ? (lang === 'en' ? 'Today' : 'היום') : dayChip(d).toLocaleDateString(lang === 'en' ? 'en-GB' : 'he-IL', { timeZone: 'UTC', weekday: 'short' })}</small>
               <b>{Number(d.slice(8))}</b>
               <small>{dayChip(d).toLocaleDateString(lang === 'en' ? 'en-GB' : 'he-IL', { timeZone: 'UTC', month: 'short' })}</small>
@@ -610,18 +744,18 @@ export default function BookingPage() {
         )}
       </>)}
       <div className="bk-ph-times">
-        <h3 className="bk-times-h">{day ? dayLabel(day, lang) : t.times}{day && (slots[day] || []).length > 0 && <span>{t.freeTimes((slots[day] || []).length)}</span>}</h3>
+        <h3 className="bk-times-h">{day ? dayLabel(day, lang) : t.times}{day && (vslots[day] || []).length > 0 && <span>{t.freeTimes((vslots[day] || []).length)}</span>}</h3>
         <div className="bk-times">
-          {(slots[day] || []).map(s => {
+          {(vslots[day] || []).map(s => {
             const isCur = !!current && s === new Date(current).toISOString()
             return (
               <button key={s} className={`bk-time${s === start ? ' sel' : ''}${isCur ? ' cur' : ''}`} disabled={isCur} aria-label={isCur ? `${timeOf(s)} · ${t.current}` : undefined}
                 onClick={() => { setStart(s); setAlert(''); setStep(moving ? 'moveConfirm' : 'details') }}>{timeOf(s)}</button>
             )
           })}
-          {day && !(slots[day] || []).length && <div className="bk-empty">{t.noTimes}</div>}
+          {day && !(vslots[day] || []).length && <div className="bk-empty">{t.noTimes}</div>}
         </div>
-        <div className="bk-note">{t.tzNote}</div>
+        {tzEl()}
       </div>
     </div>
   )
@@ -636,7 +770,7 @@ export default function BookingPage() {
         {t.weekdays.map(w => <div key={w} className="bk-wd" aria-hidden="true">{w}</div>)}
         {grid.map((d, i) => {
           if (!d) return <div key={`e${i}`} />
-          const on = !!slots[d]?.length
+          const on = !!vslots[d]?.length
           return (
             <button key={d} className={`bk-day${on ? ' on' : ''}${d === day ? ' sel' : ''}${d === today ? ' today' : ''}`} disabled={!on}
               aria-label={dayLabel(d, lang)} aria-pressed={d === day} onClick={() => { setDay(d); setStart('') }}>{Number(d.slice(8))}</button>
@@ -656,8 +790,8 @@ export default function BookingPage() {
           {t.weekdays.map(w => <div key={w} className="bk-wd" aria-hidden="true">{w}</div>)}
           {grid.map((d, i) => {
             if (!d) return <div key={`e${i}`} />
-            const on = !!slots[d]?.length
-            const cur = current && d === israelDay(current)
+            const on = !!vslots[d]?.length
+            const cur = current && d === viewDay(current)
             return (
               <button key={d} className={`bk-day${on ? ' on' : ''}${d === day ? ' sel' : ''}${d === today ? ' today' : ''}${cur ? ' cur' : ''}`} disabled={!on}
                 aria-label={dayLabel(d, lang)} aria-pressed={d === day} onClick={() => { setDay(d); setStart('') }}>
@@ -666,19 +800,19 @@ export default function BookingPage() {
             )
           })}
         </div>
-        <div className="bk-note">{t.tzNote}</div>
+        {tzEl()}
       </div>
       <div>
         <h3 className="bk-times-h">{day ? dayLabel(day, lang) : t.times}</h3>
         <div className="bk-times">
-          {(slots[day] || []).map(s => {
+          {(vslots[day] || []).map(s => {
             const isCur = !!current && s === new Date(current).toISOString()
             return (
               <button key={s} className={`bk-time${s === start ? ' sel' : ''}${isCur ? ' cur' : ''}`} disabled={isCur} aria-label={isCur ? `${timeOf(s)} · ${t.current}` : undefined}
                 onClick={() => { setStart(s); setAlert(''); setStep(moving ? 'moveConfirm' : 'details') }}>{timeOf(s)}</button>
             )
           })}
-          {day && !(slots[day] || []).length && <div className="bk-empty">{t.noTimes}</div>}
+          {day && !(vslots[day] || []).length && <div className="bk-empty">{t.noTimes}</div>}
         </div>
       </div>
     </div>
@@ -718,7 +852,7 @@ export default function BookingPage() {
           </div>
           <div>
             <div className="bk-when-t" style={cancelled ? { textDecoration: 'line-through' } : undefined}>{fmt(call.start, lang, { weekday: 'long', day: 'numeric', month: 'long' })}</div>
-            <div className="bk-when-s"><span dir="ltr">{timeOf(call.start)}–{timeOf(call.end)}</span>{rel && <> · <b>{rel}</b></>} · {t.tzNote}</div>
+            <div className="bk-when-s"><span dir="ltr">{timeOf(call.start)}–{timeOf(call.end)}</span>{rel && <> · <b>{rel}</b></>} · {zoneLabel(tz, lang)}</div>
           </div>
         </div>
 
@@ -816,7 +950,7 @@ export default function BookingPage() {
             )}
             {typeDesc && <p className="bk-desc">{typeDesc}</p>}
             {moving && call && <div className="bk-chosen old">{Icon.cal}<span><small>{t.current}</small>{longWhen(call.start, lang)}</span></div>}
-            {start && (step === 'details' || step === 'moveConfirm') && <div className="bk-chosen">{Icon.cal}<span>{moving && <small>{t.newTime}</small>}{longWhen(start, lang)}</span></div>}
+            {start && (step === 'details' || step === 'moveConfirm') && <div className="bk-chosen">{Icon.cal}<span>{moving && <small>{t.newTime}</small>}{longWhen(start, lang)}{tz !== OFFICE_TZ && <small className="bk-il">{zoneLabel(tz, lang)} · {t.inIsrael} <bdi dir="ltr">{timeIn(start, OFFICE_TZ)}</bdi></small>}</span></div>}
             <div className="bk-side-foot">
               {photo && !isPhone && <figure className="bk-photo"><img src={photo} alt={t.photoAlt} decoding="async" width="454" height="1100"/></figure>}
               <div className="bk-contact">
