@@ -10,7 +10,7 @@ import { templateLead } from './lib/leadConversation.js'
 import { leadHistory, crmLeadFor } from './lib/leadHistory.js'
 import { supabase } from './lib/supabaseClient'
 import MetaKanban from './MetaKanban'
-import LeadConversation from './LeadConversation.jsx'
+import LeadConversation, { prefetchHistory } from './LeadConversation.jsx'
 import Splitter, { SPLITTER_CSS } from './Splitter.jsx'
 
 const ADMIN_TOKEN = 'AFIKhanahal2026'
@@ -253,6 +253,9 @@ function isNewRecent(lead) {
 // Both are polled (30 s / 15 s) and the leads list is ~90 KB: conditional requests, so an unchanged answer is an
 // empty 304 (Vercel meters every byte a function sends — see CLAUDE.md, Fast Origin Transfer)
 const _etags = new Map()   // url → { etag, data }
+// The lead list is kept for the session too: the screen draws it at once and the read only refreshes it (a 304 when unchanged)
+const LEADS_URL = '/api/meta/leads', LEADS_SS = 'afik_lc_leads_v1'
+try { const v = JSON.parse(sessionStorage.getItem(LEADS_SS) || 'null'); if (v?.etag && Array.isArray(v.data?.leads)) _etags.set(LEADS_URL, v) } catch {}
 async function condGet(url) {
   const prev = _etags.get(url)
   const res = await fetch(url, { headers: { Authorization: `Bearer ${ADMIN_TOKEN}`, ...(prev ? { 'If-None-Match': prev.etag } : {}) } })
@@ -264,10 +267,11 @@ async function condGet(url) {
   const data = await res.json()
   const etag = res.headers.get('etag')
   if (etag) _etags.set(url, { etag, data }); else _etags.delete(url)
+  if (url === LEADS_URL && etag) { try { sessionStorage.setItem(LEADS_SS, JSON.stringify({ etag, data })) } catch {} }
   return data
 }
 async function fetchLeads() {
-  const data = await condGet('/api/meta/leads')
+  const data = await condGet(LEADS_URL)
   return data.leads || []
 }
 
@@ -334,7 +338,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onLeadRenam
   const t = TR[lang] || TR.he
   const dir = lang === 'en' ? 'ltr' : 'rtl'
 
-  const [leads, setLeads]               = useState([])
+  const [leads, setLeads]               = useState(() => _etags.get(LEADS_URL)?.data?.leads || [])
   const [messages, setMessages]         = useState([])        // the Lead Center's own log (meta_messages) of the open lead
   const [selectedId, setSelectedId]     = useState(null)
   const [statusFilter, setStatusFilter] = useState('all')
@@ -342,7 +346,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onLeadRenam
   const [search, setSearch]             = useState('')
   const [noteInput, setNoteInput]       = useState('')
   const [callTimeInput, setCallTimeInput] = useState('')
-  const [loadingLeads, setLoadingLeads] = useState(true)
+  const [loadingLeads, setLoadingLeads] = useState(() => !_etags.get(LEADS_URL))
   const [syncing, setSyncing]           = useState(false)
   const [syncResult, setSyncResult]     = useState(null)
   const [noteState, setNoteState]       = useState('')        // '' | 'saving' | 'saved' | 'failed'
@@ -423,8 +427,12 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onLeadRenam
   useEffect(() => { deletedIdsRef.current = new Set(deletedLeads.map(l => l.id)) }, [deletedLeads])
 
   // ── Load leads ──────────────────────────────────────────────────────────────
+  // hovering a row for a moment starts reading its WhatsApp history, so a click opens the conversation at once
+  const warmRef = useRef(null)
+  const warmLead = useCallback(lead => { clearTimeout(warmRef.current); if (lead?.phone) warmRef.current = setTimeout(() => prefetchHistory(lead.phone), 220) }, [])
+  const coolLead = useCallback(() => clearTimeout(warmRef.current), [])
   const loadLeads = useCallback(async (silent = false) => {
-    if (!silent) setLoadingLeads(true)
+    if (!silent && !_etags.get(LEADS_URL)) setLoadingLeads(true)   // a list from earlier in the session stays on screen
     setLeadsError(null)
     try {
       const data = await fetchLeads()
@@ -1007,6 +1015,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onLeadRenam
               const sel = selectedId === lead.id
               return (
                 <div key={item.key} className={`lc-row${sel ? ' sel' : ''}`} role="button" tabIndex={0} aria-current={sel || undefined}
+                  onPointerEnter={() => warmLead(lead)} onPointerLeave={coolLead} onFocus={() => warmLead(lead)}
                   onClick={() => selectLead(lead.id)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectLead(lead.id) } }}>
                   <div style={{ position: 'relative', flexShrink: 0 }}>
                     <Avatar lead={lead}/>

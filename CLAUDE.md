@@ -189,7 +189,7 @@ and the box **starts with the automation's welcome** (★), the button reads "ש
 welcome: `wa_sent`, `automation_log`, `by: 'manual'`), and a composer → `POST /api/meta/messages` (502 carries `quota`). A refusal
 reads as words (`sendErrorText()`; the 466 quota also shows a banner with the upgrade link), never raw JSON. Next to it: welcome
 status, details + form answers, notes (save state shown). The selection is an id (`selectedId`), so polls / Realtime keep the open
-lead fresh. **Resizable like an editor** (`src/Splitter.jsx`, axis x / y: pointer capture, only a DOM style changes while dragging,
+lead fresh. **Speed:** the lead list is kept for the session (`sessionStorage.afik_lc_leads_v1` with its ETag) and drawn at once, the read only refreshes it; the WhatsApp history of every chat opened in the session (Green's `getChatHistory` takes ~4 s) is kept in `LeadConversation.jsx` (`HIST`, `sessionStorage.afik_lc_hist_v1`, newest 30) so a lead opened again shows its conversation at once (re-checked conditionally in the background), and hovering a list row for 220 ms prefetches it (`prefetchHistory`) — a hovered lead opens in ~0.1 s. **Resizable like an editor** (`src/Splitter.jsx`, axis x / y: pointer capture, only a DOM style changes while dragging,
 committed on release; arrows / Shift / Home / End, double-click or Enter resets): the edge between the list and the lead and
 between the conversation and the details (`--lc-list` / `--lc-aside`; the lead keeps ≥ 460 px, the chat ≥ 380 px), the header's
 bottom edge (one compact row — title, connection pills, KPI chips, sync, Pipeline — dragged up it folds away and the
