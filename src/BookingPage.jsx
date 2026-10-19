@@ -107,8 +107,9 @@ html,body{background:#09090F;margin:0}
 .bk-wa{display:inline-flex;align-items:center;justify-content:center;gap:7px;height:38px;padding:0 14px;border-radius:999px;background:#25D366;color:#06301A!important;font-size:13.5px;font-weight:600;text-decoration:none;white-space:nowrap}
 .bk-wa:hover{filter:brightness(1.05)}
 /* the figure stands at the bottom of the side panel: a cut-out (no frame, no background), its own proportions */
-.bk-photo{margin:0;position:relative;display:flex;justify-content:center;align-items:flex-end}
-.bk-photo img{position:relative;z-index:1;display:block;height:clamp(300px,calc(100vh - 470px),430px);width:auto;max-width:100%;object-fit:contain}
+/* it takes whatever height the panel has left (never more), so the card fits the screen on every step */
+.bk-photo{margin:0;position:relative;flex:1 1 0;min-height:170px;max-height:440px}
+.bk-photo img{position:absolute;inset:0;z-index:1;display:block;width:100%;height:100%;object-fit:contain;object-position:50% 100%}
 .bk-photo::after{content:'';position:absolute;bottom:-6px;left:50%;width:62%;height:16px;transform:translateX(-50%);border-radius:50%;background:radial-gradient(closest-side,rgba(23,23,43,.16),transparent)}
 .bk-contact.bk-ph-contact{display:none}
 .bk-contact{display:flex;flex-wrap:wrap;gap:8px}
@@ -117,9 +118,9 @@ html,body{background:#09090F;margin:0}
 .bk-contact a.wa{border-color:transparent;background:#25D366;color:#06301A!important;font-weight:600}
 .bk-contact .ic{display:inline-flex}
 .bk-lead{margin:-10px 0 4px;color:var(--mute);font-size:14px}
-.bk-shell{flex:1;width:100%;max-width:1240px;margin:0 auto;padding:22px 20px 18px;display:flex;flex-direction:column;justify-content:center}
-.bk-card{background:var(--card);border:1px solid var(--line);border-radius:24px;overflow:hidden;display:grid;grid-template-columns:380px 1fr;min-height:min(680px,calc(100vh - 150px));box-shadow:var(--shadow)}
-.bk-side{padding:34px 32px;background:var(--side);border-inline-end:1px solid var(--line);display:flex;flex-direction:column;gap:16px}
+.bk-shell{flex:1;width:100%;max-width:1240px;margin:0 auto;padding:16px 20px 14px;display:flex;flex-direction:column;justify-content:center}
+.bk-card{background:var(--card);border:1px solid var(--line);border-radius:24px;overflow:hidden;display:grid;grid-template-columns:380px 1fr;min-height:min(720px,calc(100vh - 140px));box-shadow:var(--shadow)}
+.bk-side{padding:28px 30px;background:var(--side);border-inline-end:1px solid var(--line);display:flex;flex-direction:column;gap:16px}
 .bk-org{font-size:12.5px;color:var(--mute);font-weight:500;letter-spacing:.02em}
 .bk-h1{font-size:28px;font-weight:700;margin:0;letter-spacing:-.01em;line-height:1.25}
 .bk-meta{display:flex;flex-direction:column;gap:9px;color:var(--mute);font-size:14.5px}
@@ -130,8 +131,8 @@ html,body{background:#09090F;margin:0}
 .bk-chosen svg{color:var(--brand-text);margin-top:3px;flex-shrink:0}
 .bk-chosen small{display:block;font-weight:500;color:var(--mute);font-size:12px;margin-bottom:2px}
 .bk-chosen.old{background:none;border:1px dashed var(--line);font-weight:500}
-.bk-side-foot{margin-top:auto;display:flex;flex-direction:column;gap:14px}
-.bk-main{padding:34px 40px 36px;min-width:0;display:flex;flex-direction:column}
+.bk-side-foot{margin-top:auto;flex:1 1 0;min-height:0;display:flex;flex-direction:column;justify-content:flex-end;gap:14px}
+.bk-main{padding:28px 40px 28px;min-width:0;display:flex;flex-direction:column}
 .bk-steps{display:flex;gap:6px;align-items:center;margin:0 0 22px;padding:0;list-style:none;font-size:13px;color:var(--mute);flex-wrap:wrap}
 .bk-steps li{display:flex;align-items:center;gap:7px}
 .bk-steps li+li::before{content:'';width:22px;height:1px;background:var(--line);margin-inline-end:6px}
@@ -166,16 +167,16 @@ html,body{background:#09090F;margin:0}
 .bk-time.cur:hover{background:none;color:var(--brand-text)}
 .bk-note{font-size:12.5px;color:var(--mute);margin-top:14px}
 .bk-empty{color:var(--mute);font-size:14px}
-.bk-form{display:grid;gap:16px;max-width:560px}
+.bk-form{display:grid;gap:12px;max-width:560px}
 .bk-chs{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
 .bk-ch{border:1px solid var(--line);background:var(--card2);color:inherit;border-radius:12px;padding:12px;text-align:start;font:inherit;cursor:pointer}
 .bk-ch b{display:block;font-size:14px}
 .bk-ch small{color:var(--mute);font-size:12px}
 .bk-ch.sel{border-color:var(--brand);box-shadow:inset 0 0 0 1px var(--brand);background:var(--brand-soft)}
-.bk-f label{display:block;font-size:13.5px;font-weight:500;margin-bottom:6px}
-.bk-f input,.bk-f textarea{width:100%;background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:13px 14px;color:var(--ink);font:inherit;font-size:16px}
+.bk-f label{display:block;font-size:13.5px;font-weight:500;margin-bottom:5px}
+.bk-f input,.bk-f textarea{width:100%;background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:11px 14px;color:var(--ink);font:inherit;font-size:16px}
 .bk-f input:focus,.bk-f textarea:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-soft)}
-.bk-f textarea{min-height:90px;resize:vertical}
+.bk-f textarea{min-height:72px;resize:vertical}
 .bk-f .hint{font-size:12px;color:var(--mute);margin-top:4px}
 .bk-f .err{font-size:12.5px;color:var(--err);margin-top:4px}
 .bk-hp{position:absolute;inset-inline-start:-9999px;width:1px;height:1px;overflow:hidden}
@@ -227,6 +228,25 @@ html,body{background:#09090F;margin:0}
 .bk-skel{height:14px;border-radius:7px;background:var(--line);margin:10px 0;animation:bkp 1.2s ease-in-out infinite}
 @keyframes bkp{50%{opacity:.4}}
 @media (prefers-reduced-motion: reduce){.bk-skel{animation:none}}
+/* short laptop screens: a tighter rhythm, so the card and its buttons still fit without scrolling */
+@media (min-width:901px) and (max-height:820px){
+  .bk-top{padding-top:10px}
+  .bk-brand img{height:52px}
+  .bk-shell{padding-top:10px;padding-bottom:8px}
+  .bk-card{min-height:calc(100vh - 118px)}
+  .bk-side{padding:22px 28px;gap:12px}
+  .bk-main{padding:22px 36px 22px}
+  .bk-steps{margin-bottom:14px}
+  .bk-h2{margin-bottom:12px}
+  .bk-lead{margin-top:-6px}
+  .bk-form{gap:9px}
+  .bk-f input,.bk-f textarea{padding:9px 13px}
+  .bk-f textarea{min-height:56px}
+  .bk-f .hint{margin-top:2px}
+  .bk-btn{padding:11px 24px}
+  .bk-foot{margin-top:8px}
+  .bk-photo{min-height:140px}
+}
 @media (max-width:900px){
   .bk-top{padding:12px 14px 0}
   .bk-brand span{display:none}
