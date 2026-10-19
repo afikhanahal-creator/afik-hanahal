@@ -650,6 +650,10 @@ Rules that keep it near zero:
   New polls must do the same, pause in hidden tabs, and not be shorter than they need to be.
 - Public endpoints are edge-cached (`s-maxage`), including their error answers (`api/stats.js`), so a visitor never
   runs a function per page view.
+- **Deployments:** Hobby allows 100 deployments a day (preview + production + deploy hook). Pushes to the `claude/*` work
+  branches build no preview (`vercel.json` `git.deploymentEnabled`) — on 2026-10-19 previews were 68 of the 100 and production
+  deploys were refused ("Deployment rate limited — retry in 24 hours"); the probe's `rebuild` action redeploys once the
+  window frees up.
 - Measure with the "Site speed probe" action, `actions: traffic`: wire size, gzip and the 304 of every API answer, and
   the photo sizes through the CDN. Usage itself: vercel.com → the team → Usage → Fast Origin Transfer.
 
