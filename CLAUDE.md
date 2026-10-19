@@ -587,6 +587,8 @@ Admin → property list → "שתף" (or ⋯ → "שיתוף ופרסום") open
 links (Facebook, Instagram, WhatsApp, colleagues, Yad2, Google; `utm_campaign=prop-<id>`), a custom UTM builder, ready-made post and
 colleague texts (Hebrew / English), one-tap share buttons, a QR code generated in the browser (`qrcode`) and a Facebook debugger link.
 
+**The office's new-lead email** (website forms in `api/contacts.js`, Meta leads in `api/meta.js`) is one shared template, `lib/lead-email.js` (tested): a 680 px card, contact details as short rows, then the message in its own full-width block — a form's "question: answer · question: answer" text becomes one line per answer (`messageParts()`), long answers in regular weight; everything the visitor typed is HTML-escaped and `dir="auto"` (an English message reads left-to-right); `page_<type>_<slug>` sources read as "עמוד באתר · …".
+
 ## Render bandwidth budget (free tier: 5 GB / month — the site was suspended once for exceeding it)
 
 Render meters every byte it sends. Rules that keep it near zero:

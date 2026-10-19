@@ -20,6 +20,7 @@
 import { sendJson, compressJson } from '../lib/http.js'
 import { backupEnabled, backupPut, backupList, backupGet, backupDelete } from '../lib/backup.js'
 import { onLeadCreated, onStageChanged } from '../lib/automations.js'
+import { buildLeadEmailHtml } from '../lib/lead-email.js'
 
 // ── Lead backup (Vercel Blob) ────────────────────────────────────────────────
 // If Supabase refuses the INSERT (quota / paused project / outage) the lead used to exist only in the
@@ -266,69 +267,8 @@ async function deleteContact(id) {
 
 // ── Email notification ────────────────────────────────────────────────────────
 
-const ADMIN_PANEL_URL = 'https://www.afikhanahal.co.il/admin-panel'
 
-function buildLeadEmailHtml({ name, phone, email, message, propTitle, source, campaign, ts, badge }) {
-  const phoneIntl = phone ? toIntlPhone(phone) : ''
-  const phoneDisplay = phone ? (phoneIntl.startsWith('972') ? '0' + phoneIntl.slice(3) : phone) : ''
-  const rows = [
-    name      && { label: 'שם',       value: `<strong style="color:#1a1a2e">${name}</strong>` },
-    phone     && { label: 'טלפון',    value: `<a href="https://wa.me/${phoneIntl}" style="color:#25D366;font-weight:700;text-decoration:none">📱 ${phoneDisplay}</a>&nbsp;&nbsp;<a href="tel:${phone}" style="color:#0073EA;font-size:13px;text-decoration:none">חייג</a>` },
-    email     && { label: 'אימייל',   value: `<a href="mailto:${email}" style="color:#0073EA;text-decoration:none">${email}</a>` },
-    message   && { label: 'הודעה',    value: `<span style="color:#333;line-height:1.6">${message}</span>` },
-    propTitle && { label: 'נכס',      value: `<span style="color:#555">${propTitle}</span>` },
-    campaign  && { label: 'קמפיין',   value: `<span style="color:#8490D8;font-weight:600">${campaign}</span>` },
-    source    && { label: 'מקור',     value: `<span style="color:#555">${source}</span>` },
-    ts        && { label: 'תאריך',    value: `<span style="color:#888">${ts}</span>` },
-  ].filter(Boolean)
-
-  const tableRows = rows.map(r => `
-    <tr>
-      <td style="padding:11px 18px;border-bottom:1px solid #eef0f5;color:#888;font-size:13px;white-space:nowrap;width:110px;text-align:right">${r.label}</td>
-      <td style="padding:11px 18px;border-bottom:1px solid #eef0f5;font-size:14px;text-align:right">${r.value}</td>
-    </tr>`).join('')
-
-  return `<!DOCTYPE html>
-<html dir="rtl" lang="he">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#f0f2f7;font-family:Arial,'Helvetica Neue',sans-serif;direction:rtl">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f0f2f7;padding:32px 16px">
-    <tr><td align="center">
-      <table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%">
-
-        <!-- Header -->
-        <tr><td style="background:linear-gradient(135deg,#1a1a2e 0%,#2d2d5e 100%);border-radius:14px 14px 0 0;padding:28px 32px;text-align:right">
-          <div style="color:#8490D8;font-size:13px;font-weight:600;letter-spacing:1px;margin-bottom:6px">אפיק הנחל — ייזום שיווק ותיווך</div>
-          <div style="color:#fff;font-size:22px;font-weight:800;margin-bottom:4px">🔔 ${badge || 'ליד חדש התקבל'}</div>
-          <div style="color:#a0a8c8;font-size:13px">${ts || ''}</div>
-        </td></tr>
-
-        <!-- Card -->
-        <tr><td style="background:#fff;border-radius:0 0 14px 14px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.10)">
-          <table width="100%" cellpadding="0" cellspacing="0">
-            ${tableRows}
-          </table>
-
-          <!-- CTA button -->
-          <div style="padding:24px 32px 28px;text-align:center">
-            <a href="${ADMIN_PANEL_URL}"
-               style="display:inline-block;background:linear-gradient(135deg,#8490D8,#6070c8);color:#fff;font-size:15px;font-weight:700;text-decoration:none;padding:13px 36px;border-radius:50px;box-shadow:0 4px 16px rgba(132,144,216,.4);letter-spacing:.3px">
-              כניסה למערכת הניהול ←
-            </a>
-          </div>
-        </td></tr>
-
-        <!-- Footer -->
-        <tr><td style="padding:18px 0 0;text-align:center">
-          <p style="margin:0;font-size:12px;color:#aaa">מייל זה נשלח אוטומטית ממערכת CRM · <a href="${ADMIN_PANEL_URL}" style="color:#8490D8;text-decoration:none">אפיק הנחל</a></p>
-        </td></tr>
-
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`
-}
+// buildLeadEmailHtml: lib/lead-email.js (shared with the other lead email)
 
 async function sendLeadEmail(lead) {
   const user = process.env.GMAIL_USER
