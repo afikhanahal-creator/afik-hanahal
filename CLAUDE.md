@@ -287,17 +287,30 @@ Steps: meeting type (skipped when there is one) → month calendar + free times 
 | Rules (pure, tested): default settings (first type "שיחת היכרות", 30 min, Meet / Zoom / phone), office hours Sun–Thu 9–19, Fri 9–14 (= the site's hours in `content/site.mjs`), free slots in Israel time (DST-safe) minus busy time + buffer, min notice, horizon, daily cap, validation, the calendar event | `lib/booking.js` (+ `lib/booking.test.mjs`) |
 | Google Calendar through the office's own Google account (OAuth: signed state, refresh token in `app_settings.google_calendar`, freeBusy, events with `conferenceDataVersion=1` + `sendUpdates=all`) | `lib/google-calendar.js` |
 | Server flow: settings (`app_settings.booking_config`), slots, a booking, admin list, cancel | `lib/booking-server.js` |
-| API `/api/meta/booking-*`: public `config` · `slots` (edge 20 s) · `create` · `oauth-callback`; admin `admin` · `settings` · `connect` · `disconnect` · `cancel` | `api/meta.js` → `handleBooking` |
+| API `/api/meta/booking-*`: public `config` · `slots` (edge 20 s; `m=` → no-store) · `create` · `manage` · `reschedule` · `cancel-self` · `oauth-callback`; admin `admin` · `settings` · `connect` · `disconnect` · `cancel` · `resend` | `api/meta.js` → `handleBooking` |
 | Public page (own chunk) | `src/BookingPage.jsx` (route in `src/main.jsx`) |
-| Admin tab "תיאום פגישות" (`/admin-panel/bookings`): link, calendar connection, hours & rules, Zoom link, upcoming / past meetings, cancel | `src/BookingAdminTab.jsx` |
+| Admin tab "תיאום פגישות" (`/admin-panel/bookings`, Apple-like grouped lists: day switches, time pills, steppers, a save bar): link, KPIs, upcoming / past calls (client link, reschedule, resend, cancel; calendar / WhatsApp / email chips), hours, call type, rules, calendar connection, Zoom link | `src/BookingAdminTab.jsx` |
 
 A booking: re-checks the slot against a fresh calendar read (never double-books; every booking is also in
 `app_settings.booking_log`, so it works before the calendar is connected — then the office adds it by hand), creates the
-event (Meet link + invitation to the client's email), creates / updates the lead in `contacts` (source `booking`, stage
-discovery, `crm_data.booking` / `bookings`, a 📅 note, `followUp` = the meeting; the automatic welcome is skipped — the
-confirmation is the first message), alerts the office (WhatsApp `notifyTeam` + email) and sends the client a WhatsApp
-confirmation (plural "we" voice). Limits: 2 upcoming bookings per phone, 6 attempts per IP in 10 minutes, a honeypot field.
+event (Meet link + invitation to the client's email), creates / updates the lead in `contacts` (source `booking` =
+"קביעת שיחה באתר", stage **new** — an existing lead keeps its stage unless it was lost / irrelevant / nurture —,
+`crm_data.booking` / `bookings`, `formAnswers` with the booking's answers, the needs the client wrote parsed by
+`notesToNeeds()` (deal / property type / town from `src/data/israelCities.json` / budget / rooms; tested), a 📅 note,
+`followUp` = the meeting; the automatic welcome is skipped — the confirmation is the first message), sends the client a
+WhatsApp + a formal email confirmation and then alerts the office (WhatsApp `notifyTeam` + email, both saying whether the
+client's confirmations went out). Messages and emails are `lib/booking-messages.js` (tested: table-based HTML, no emoji,
+time ranges kept LTR in Hebrew). **The client's own page** `/book?m=<id>.<token>` (the private link in every confirmation;
+`entry.token`, compared in constant time): every detail of the call, "שינוי מועד" (the calendar with the call's own time
+freed — `subtractInterval()`; `booking-reschedule` patches the Google event, updates the lead and tells both sides, max
+`MAX_RESCHEDULES`), "ביטול השיחה" (`booking-cancel-self`; `?do=cancel` opens the question), add to Google Calendar, copy /
+WhatsApp-to-self the link. After a booking the address becomes this page. **Green API refused** (quota 466): the result
+is stored per booking (`entry.wa`), the admin shows it and offers "שליחת האישור שוב" (`booking-resend`), and `auto-tick` /
+`auto-run` retry it (`retryConfirmations()`, 3 tries, stops at the first quota refusal). Limits: 2 upcoming bookings per phone, 6 attempts per IP in 10 minutes, a honeypot field.
 Templates: `{bookingLink}` (`vars.bookingLink`, `?lang=en` added for English) in `welcome_book` and `book_link`.
+**On the site:** `BookPill` (purple pill: hero, contact form, end of the FAQ), `BookBand` (after the properties grid) and
+`BookLink` (property window, mobile menu, footer, sent screen) in `App.jsx`; texts in `content/home.json` → `booking`
+(`cta`, `line`, `after`, `bandTitle`, `bandDesc`, `faq`).
 **Defaults:** the page is "אפיק הנחל - ייזום שיווק ותיווך"; the first meeting is "שיחת היכרות", 30 minutes, **by phone only** (no
 email asked; with a single channel the "how" step is a one-line note) — Meet / Zoom can be added per type in the admin.
 **Traffic → meetings:** `BookLink` in `App.jsx` (`/book?ref=<where>`, `trackEvent('booking_click', { src })`) in the hero (under the

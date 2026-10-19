@@ -240,6 +240,31 @@ const makeGlobal = (C, isDark) => `
     --c-cream:${C.cream};   --c-green:${C.green};
   }
   *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+  .book-pill { display:inline-flex; align-items:center; gap:10px; padding:7px 18px 7px 7px; border-radius:999px; background:${isDark ? 'rgba(132,144,216,.14)' : 'rgba(63,78,176,.08)'}; border:1px solid ${isDark ? 'rgba(132,144,216,.45)' : 'rgba(63,78,176,.35)'}; color:${isDark ? '#C3CAF4' : '#2F3C9E'} !important; font-size:15.5px; font-weight:700; line-height:1.35; text-decoration:none; transition:transform .2s ease, background-color .2s ease, border-color .2s ease; }
+  [dir=ltr] .book-pill { padding:7px 7px 7px 18px; }
+  .book-pill .bp-ic { width:32px; height:32px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; background:${C.purple}; color:${C.bg}; flex-shrink:0; }
+  .book-pill .bp-go { opacity:.75; transition:transform .2s ease; }
+  .book-pill:hover { transform:translateY(-1px); background:${isDark ? 'rgba(132,144,216,.22)' : 'rgba(63,78,176,.13)'}; border-color:${C.purple}; }
+  .book-pill:hover .bp-go { transform:translateX(${'-3px'}); }
+  [dir=ltr] .book-pill:hover .bp-go { transform:translateX(3px); }
+  .book-pill.sm { font-size:14px; padding-block:5px; }
+  .book-pill.sm .bp-ic { width:28px; height:28px; }
+  .book-band { max-width:1040px; margin:56px auto 0; padding:28px 32px; border-radius:20px; border:1px solid ${isDark ? 'rgba(132,144,216,.28)' : 'rgba(63,78,176,.22)'}; background:${isDark ? 'linear-gradient(135deg, rgba(132,144,216,.12), rgba(132,144,216,.04))' : 'linear-gradient(135deg, rgba(63,78,176,.07), rgba(63,78,176,.02))'}; display:flex; align-items:center; justify-content:space-between; gap:24px; flex-wrap:wrap; }
+  .book-band h3 { margin:0 0 6px; font-size:clamp(19px,2.2vw,24px); font-weight:800; color:${C.cream}; }
+  .book-band p { margin:0; font-size:15px; line-height:1.7; color:${C.cream}B3; max-width:560px; }
+  .book-solid { display:inline-flex; align-items:center; gap:9px; padding:14px 26px; border-radius:999px; background:${C.purple}; color:${C.bg} !important; font-size:16px; font-weight:800; text-decoration:none; white-space:nowrap; transition:transform .2s ease, filter .2s ease; }
+  .book-solid:hover { transform:translateY(-1px); filter:brightness(1.07); }
+  .book-pill > span:nth-child(2) { text-wrap:balance; }
+  @media (max-width:640px) { .book-band { padding:22px 20px; margin-top:40px; } .book-solid { width:100%; justify-content:center; } .book-pill { font-size:14px; } }
+  .sr-only { position:absolute !important; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+  /* Keyboard focus is always visible (IS 5568 · WCAG 2.4.7) — every control, whatever its own styles */
+  :where(a, button, select, input, textarea, summary, iframe, [tabindex]):focus-visible { outline:3px solid ${isDark ? '#A9B3EE' : '#2F3C9E'} !important; outline-offset:2px !important; }
+  main:focus, #main-content:focus { outline:none; }
+  iframe:focus { outline:3px solid ${isDark ? '#A9B3EE' : '#2F3C9E'} !important; outline-offset:2px; }
+  /* "עצירת תנועה" (WCAG 2.2.2): every animation on the page holds still */
+  html.motion-paused *, html.motion-paused *::before, html.motion-paused *::after { animation-play-state:paused !important; }
+  .motion-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; min-width:32px; height:32px; padding:0 10px; border-radius:999px; border:1px solid ${C.purple}55; background:${C.bg}CC; color:${C.cream}; font:inherit; font-size:12px; font-weight:700; cursor:pointer; vertical-align:middle; }
+  .motion-btn:hover { border-color:${C.purple}; }
   html { scroll-behavior:smooth; font-size:16px; -webkit-text-size-adjust:100%; }
   body { background:${C.bg}; color:${C.cream}; font-family:'Rubik','Heebo','Segoe UI',sans-serif; direction:rtl; text-align:right; overflow-x:hidden; font-size:15px; line-height:1.6; -webkit-overflow-scrolling:touch; overscroll-behavior:auto; }
   * { scroll-behavior:smooth; }
@@ -1149,6 +1174,37 @@ function useIntersection(threshold = 0.2) {
   return [ref, vis]
 }
 
+// ─── MOVING CONTENT CAN BE PAUSED (IS 5568 · WCAG 2.2.2) ──────────────────────
+// One switch for the typewriter, the services ticker, the testimonials carousel and the decorative animations;
+// remembered in this browser, and on by itself for people who asked their device for reduced motion
+const MOTION_KEY = 'afik_motion_paused'
+const motionStore = {
+  paused: (() => { try { const v = localStorage.getItem(MOTION_KEY); if (v != null) return v === '1'; return window.matchMedia('(prefers-reduced-motion: reduce)').matches } catch { return false } })(),
+  subs: new Set(),
+}
+if (typeof document !== 'undefined') document.documentElement.classList.toggle('motion-paused', motionStore.paused)
+function setMotionPaused(v) {
+  motionStore.paused = v
+  try { localStorage.setItem(MOTION_KEY, v ? '1' : '0') } catch {}
+  document.documentElement.classList.toggle('motion-paused', v)
+  motionStore.subs.forEach(f => f(v))
+}
+function useMotionPaused() {
+  const [p, setP] = useState(motionStore.paused)
+  useEffect(() => { motionStore.subs.add(setP); return () => { motionStore.subs.delete(setP) } }, [])
+  return p
+}
+function MotionToggle({ style }) {
+  const { lang } = useTheme()
+  const paused = useMotionPaused()
+  const label = paused ? (lang === 'en' ? 'Play the animations' : 'הפעלת התנועה בדף') : (lang === 'en' ? 'Pause the animations' : 'עצירת התנועה בדף')
+  return (
+    <button type="button" className="motion-btn" onClick={() => setMotionPaused(!paused)} aria-pressed={paused} aria-label={label} title={label} style={style}>
+      <span aria-hidden="true">{paused ? '▶' : '❚❚'}</span>
+    </button>
+  )
+}
+
 const TYPEWRITER_HE = HOME_LEGACY.typewriter.he
 const TYPEWRITER_EN = HOME_LEGACY.typewriter.en
 
@@ -1188,8 +1244,9 @@ function Typewriter({ texts }) {
     obs.observe(el)
     return () => obs.disconnect()
   }, [])
-  const out = useTypewriter(texts, 50, !onScreen)
-  return <span ref={ref}>{out}</span>
+  const paused = useMotionPaused()
+  const out = useTypewriter(texts, 50, !onScreen || paused)
+  return <><span ref={ref} aria-hidden="true">{paused ? texts[0] : out}</span><span className="sr-only">{texts.join(' · ')}</span></>
 }
 
 // ─── TEXT COUNTER (power3.out) ────────────────────────────────────────────────
@@ -1219,11 +1276,15 @@ function TextCounter({ to, suffix='', size=42, duration=2400, start=false, lang=
 }
 
 // ─── UI/UX PRO MAX: KINETIC HEADING ──────────────────────────────────────────
-function KineticHeading({ lines, vis, delay=0, style, tag='h2' }) {
-  const Tag = tag
+// The letters animate one by one, so assistive tech gets the whole text once (srText — a heading split over two
+// KineticHeadings passes both lines on the first and renders the second as decoration, `decor`)
+function KineticHeading({ lines, vis, delay=0, style, tag='h2', srText, decor = false }) {
+  const Tag = decor ? 'div' : tag
   let letterIndex = 0
   return (
-    <Tag style={style}>
+    <Tag style={style} aria-hidden={decor || undefined}>
+      {!decor && <span className="sr-only">{srText || lines.join(' ')}</span>}
+      <span aria-hidden="true">
       {lines.map((line, li) => (
         <span key={li} style={{ display:'block' }}>
           {li > 0 && <br style={{ display:'none' }}/>}
@@ -1242,6 +1303,7 @@ function KineticHeading({ lines, vis, delay=0, style, tag='h2' }) {
           })}
         </span>
       ))}
+      </span>
     </Tag>
   )
 }
@@ -1594,12 +1656,12 @@ function StorySectionImpl({ onContact, sharonData }) {
         <div className={`story-reveal${vis?' visible':''}`} style={{ textAlign:'center', marginBottom:44 }}>
           <SectionBadge color={C.green}>{t.storyBadge}</SectionBadge>
           <KineticHeading
-            lines={[t.storyH1line1]}
+            lines={[t.storyH1line1]} srText={`${t.storyH1line1} ${t.storyH1line2}`}
             vis={vis} delay={0.1}
             style={{ fontSize:'clamp(30px,4.5vw,56px)', fontWeight:900, color:C.cream, marginBottom:12, lineHeight:1.2 }}
           />
           <div style={{ marginBottom:20 }}>
-            <KineticHeading
+            <KineticHeading decor
               lines={[t.storyH1line2]}
               vis={vis} delay={0.5}
               style={{
@@ -1643,7 +1705,7 @@ function StorySectionImpl({ onContact, sharonData }) {
               <div style={{ color:C.purple, opacity:.85 }}><FaGlobe size={28}/></div>
               <div>
                 <div style={{ fontWeight:800, color:C.cream, fontSize:15 }}>{t.nationwideTitle}</div>
-                <div style={{ fontSize:13, color:C.cream+'80', marginTop:6, lineHeight:1.7 }}>
+                <div style={{ fontSize:13, color:C.cream+'A6', marginTop:6, lineHeight:1.7 }}>
                   {t.nationwideDesc}
                 </div>
               </div>
@@ -1663,7 +1725,7 @@ function StorySectionImpl({ onContact, sharonData }) {
                 <div key={i}>
                   <div style={{ marginBottom:12, display:'flex', justifyContent:'center' }}><t.Icon size={26} style={{ color:t.color, opacity:.9 }}/></div>
                   <div style={{ fontWeight:800, color:C.cream, fontSize:15, marginBottom:8 }}>{t.title}</div>
-                  <div style={{ fontSize:13, color:C.cream+'80', lineHeight:1.7 }}>{t.desc}</div>
+                  <div style={{ fontSize:13, color:C.cream+'A6', lineHeight:1.7 }}>{t.desc}</div>
                 </div>
               ))}
             </div>
@@ -1921,7 +1983,7 @@ function CEOSectionImpl() {
                     <div style={{ width:100, height:100, borderRadius:'50%', background:`${C.purple}1A`, border:`2px solid ${C.purple}30`, display:'flex', alignItems:'center', justifyContent:'center' }}>
                       <span style={{ fontSize:36, fontWeight:900, color:`${C.purple}80` }}>יב</span>
                     </div>
-                    <p style={{ fontSize:12, color:`${C.cream}30`, margin:0, textAlign:'center', padding:'0 20px' }}>
+                    <p style={{ fontSize:12, color:`${C.cream}A6`, margin:0, textAlign:'center', padding:'0 20px' }}>
                       שמור את תמונת המנכ״ל בתור<br/>
                       <code style={{ color:`${C.purple}70`, fontSize:11 }}>public/img/ceo.webp</code>
                     </p>
@@ -2017,10 +2079,10 @@ function ServicesSectionImpl({ onContact }) {
         <div style={{ textAlign:'center', marginBottom:36 }}>
           <SectionBadge color={C.green} style={{ opacity:vis?1:0, transition:'opacity .5s' }}>{t.servicesBadge}</SectionBadge>
           <div style={{ marginBottom:8 }}>
-            <KineticHeading lines={[t.servicesH1line1]} vis={vis} delay={0.15}
+            <KineticHeading lines={[t.servicesH1line1]} srText={`${t.servicesH1line1} ${t.servicesH1line2}`} vis={vis} delay={0.15}
               style={{ fontSize:'clamp(28px,4vw,54px)', fontWeight:900, color:C.cream, lineHeight:1.15 }}/>
           </div>
-          <KineticHeading lines={[t.servicesH1line2]} vis={vis} delay={0.45}
+          <KineticHeading decor lines={[t.servicesH1line2]} vis={vis} delay={0.45}
             style={{
               fontSize:'clamp(28px,4vw,54px)', fontWeight:900,
               color:C.green,
@@ -2042,6 +2104,7 @@ function ServicesSectionImpl({ onContact }) {
             ))}
           </div>
         </div>
+        <div style={{ display:'flex', justifyContent:'center', marginTop:-26, marginBottom:22 }}><MotionToggle/></div>
 
         {/* ── Service cards — swipe carousel on mobile, grid on desktop ── */}
         {isMobile ? (
@@ -2268,6 +2331,32 @@ function BookLink({ src, text = 'cta', children, icon = true, ...rest }) {
     </a>
   )
 }
+// The prominent version: a purple pill with a calendar disc and an arrow (hero, contact form, FAQ)
+function BookPill({ src, text = 'line', small = false, style }) {
+  const { lang } = useTheme()
+  return (
+    <a href={bookHref(src, lang)} className={`book-pill${small ? ' sm' : ''}`} style={style} onClick={() => trackEvent('booking_click', { src })}>
+      <span className="bp-ic" aria-hidden="true"><FaCalendarAlt size={small ? 12 : 14}/></span>
+      <span>{bookText(text, lang)}</span>
+      <span className="bp-go" aria-hidden="true">{lang === 'en' ? '→' : '←'}</span>
+    </a>
+  )
+}
+// A band with a title, a line and a solid button (after the properties grid)
+function BookBand({ src }) {
+  const { lang } = useTheme()
+  return (
+    <div className="book-band">
+      <div>
+        <h3>{bookText('bandTitle', lang)}</h3>
+        <p>{bookText('bandDesc', lang)}</p>
+      </div>
+      <a href={bookHref(src, lang)} className="book-solid" onClick={() => trackEvent('booking_click', { src })}>
+        <FaCalendarAlt size={15} aria-hidden="true"/>{bookText('cta', lang)}
+      </a>
+    </div>
+  )
+}
 
 function ContactModal({ prop, onClose }) {
   const { C, lang } = useTheme()
@@ -2292,7 +2381,7 @@ function ContactModal({ prop, onClose }) {
       <div role="dialog" aria-modal="true" aria-labelledby="contact-modal-title" style={{ background:C.card, border:`1px solid ${C.purple}33`, borderRadius:24, padding:'28px 36px', maxWidth:480, width:'100%', maxHeight:'88vh', overflowY:'auto', direction: lang==='he' ? 'rtl' : 'ltr', boxShadow:`0 32px 80px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.1)` }}>
         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:18 }}>
           <h2 id="contact-modal-title" style={{ fontSize:22, fontWeight:800, color:C.cream }}>{prop ? lbl.contactTitle : lbl.contactHeading}</h2>
-          <button onClick={onClose} aria-label={lbl.close} style={{ background:'none', border:'none', color:C.cream+'80', cursor:'pointer', fontSize:26, lineHeight:1, minWidth:40, minHeight:40 }}>×</button>
+          <button onClick={onClose} aria-label={lbl.close} style={{ background:'none', border:'none', color:C.cream+'A6', cursor:'pointer', fontSize:26, lineHeight:1, minWidth:40, minHeight:40 }}>×</button>
         </div>
         {prop && (
           <div style={{ background:`${C.purple}11`, border:`1px solid ${C.purple}22`, borderRadius:12, padding:12, marginBottom:16 }}>
@@ -2355,7 +2444,7 @@ function ContactModal({ prop, onClose }) {
                 <label htmlFor={`cm-${k}`} style={{ fontSize:12, color:C.cream+'99', marginBottom:4, display:'block' }}>{l}</label>
                 <input id={`cm-${k}`} type={t} placeholder={ph} value={form[k]} onChange={set(k)} style={{ ...inp, ...(errField === k ? { borderColor:'#E5484D' } : {}) }} className="contact-input"
                   autoComplete={{ name:'name', phone:'tel', email:'email' }[k]} inputMode={k === 'phone' ? 'tel' : undefined} dir={k === 'name' ? undefined : 'ltr'}
-                  aria-invalid={errField === k || undefined} aria-describedby={errField === k ? 'cm-error' : undefined}/>
+                  aria-invalid={errField === k || undefined} aria-required={k !== 'email' || undefined} aria-describedby={errField === k ? 'cm-error' : undefined}/>
                 {errField === k && formError && <div id="cm-error" role="alert" style={{ color:'#E5484D', fontSize:13, fontWeight:600, marginTop:6 }}>{formError}</div>}
               </div>
             ))}
@@ -2368,7 +2457,7 @@ function ContactModal({ prop, onClose }) {
             <div style={{ textAlign:'center', paddingTop:6, borderTop:`1px solid ${C.purple}22` }}>
               <a href={'tel:' + OFFICE.tel} onClick={() => trackEvent('phone_click', { src:'contact_modal' })} style={{ color:C.green, textDecoration:'none', fontWeight:700, fontSize:17, display:'inline-flex', alignItems:'center', gap:7 }}><FaPhone size={13}/> {OFFICE.phone}</a>
             </div>
-            <BookLink src={prop ? `contact_form_prop-${prop.id}` : 'contact_form'} text="line" style={{ alignSelf:'center', display:'inline-flex', alignItems:'center', gap:7, color:C.cream+'CC', fontSize:13.5, fontWeight:600, textDecoration:'none', borderBottom:`1px dashed ${C.purple}88`, paddingBottom:2 }}/>
+            <BookPill src={prop ? `contact_form_prop-${prop.id}` : 'contact_form'} small style={{ alignSelf:'center' }}/>
           </form>
         )}
       </div>
@@ -2697,7 +2786,7 @@ function NewsCard({ article, C, cardIndex = 0 }) {
           {article.title}
         </h3>
         {article.desc && (
-          <p style={{ fontSize:12, color:'rgba(232,228,216,.52)', lineHeight:1.65, margin:0, display:'-webkit-box', WebkitLineClamp:3, WebkitBoxOrient:'vertical', overflow:'hidden' }}>
+          <p style={{ fontSize:12, color:'rgba(232,228,216,.65)', lineHeight:1.65, margin:0, display:'-webkit-box', WebkitLineClamp:3, WebkitBoxOrient:'vertical', overflow:'hidden' }}>
             {article.desc}
           </p>
         )}
@@ -3245,10 +3334,10 @@ function ArchiveModal({ onClose, C, isDark }) {
         )}
 
         {!fetching && items.length === 0 && (
-          <div style={{ textAlign:'center', padding:'80px 24px', color:`${C.cream}44` }}>
+          <div style={{ textAlign:'center', padding:'80px 24px', color:`${C.cream}A6` }}>
             <FaFileAlt size={40} style={{ marginBottom:16, color:`${C.cream}33` }}/>
             <div style={{ fontSize:16, fontWeight:700, color:C.cream, marginBottom:8 }}>לא נמצאו כתבות</div>
-            <button onClick={prefill} style={{ marginTop:16, padding:'10px 24px', background:C.purple, border:'none', borderRadius:8, color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+            <button onClick={prefill} style={{ marginTop:16, padding:'10px 24px', background:C.purple, border:'none', borderRadius:8, color:C.bg, fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
               נסה שוב
             </button>
           </div>
@@ -3299,11 +3388,11 @@ function NewsSectionImpl() {
 
         {/* Error */}
         {error && !loading && (
-          <div style={{ textAlign:'center', padding:'60px 24px', color:`${C.cream}50` }}>
+          <div style={{ textAlign:'center', padding:'60px 24px', color:`${C.cream}A6` }}>
             <FaWifi size={36} style={{ marginBottom:16, color:`${C.cream}33` }}/>
             <div style={{ fontSize:15, fontWeight:700, color:C.cream, marginBottom:6 }}>{t.newsErrorMsg}</div>
             <div style={{ fontSize:13, marginBottom:22 }}>{t.newsErrorSub}</div>
-            <button onClick={reload} style={{ padding:'11px 26px', background:C.purple, border:'none', borderRadius:8, color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>{t.newsRetry}</button>
+            <button onClick={reload} style={{ padding:'11px 26px', background:C.purple, border:'none', borderRadius:8, color:C.bg, fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>{t.newsRetry}</button>
           </div>
         )}
 
@@ -3316,7 +3405,7 @@ function NewsSectionImpl() {
 
         {/* Disclaimer */}
         {!loading && !error && articles.length > 0 && (
-          <div style={{ textAlign:'center', marginTop:28, fontSize:11, color:`${C.cream}28` }}>
+          <div style={{ textAlign:'center', marginTop:28, fontSize:11, color:`${C.cream}A6` }}>
             {t.newsDisclaimer}
           </div>
         )}
@@ -3343,12 +3432,15 @@ function TestimonialsSectionImpl() {
   const [mobile, setMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768)
   useEffect(() => { const h = () => setMobile(window.innerWidth < 768); window.addEventListener('resize', h); return () => window.removeEventListener('resize', h) }, [])
 
+  const motionPaused = useMotionPaused()
+  const holdRef = useRef(false)   // the pointer or the keyboard is on the carousel
   const startTimer = useCallback(() => {
     clearInterval(timerRef.current)
-    timerRef.current = setInterval(() => { setDir(1); setActive(p => (p + 1) % n) }, 6500)
+    if (motionStore.paused) return
+    timerRef.current = setInterval(() => { if (!holdRef.current) { setDir(1); setActive(p => (p + 1) % n) } }, 6500)
   }, [n])
 
-  useEffect(() => { startTimer(); return () => clearInterval(timerRef.current) }, [startTimer])
+  useEffect(() => { startTimer(); return () => clearInterval(timerRef.current) }, [startTimer, motionPaused])
 
   const goTo = useCallback((idx) => {
     setDir(idx > active ? 1 : -1)
@@ -3374,7 +3466,9 @@ function TestimonialsSectionImpl() {
   })
 
   return (
-    <section id="testimonials" style={{ padding:'80px 24px', scrollMarginTop:80, position:'relative', zIndex:1 }}>
+    <section id="testimonials" style={{ padding:'80px 24px', scrollMarginTop:80, position:'relative', zIndex:1 }}
+      onMouseEnter={() => { holdRef.current = true }} onMouseLeave={() => { holdRef.current = false }}
+      onFocus={() => { holdRef.current = true }} onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget)) holdRef.current = false }}>
       <div style={{ maxWidth:1000, margin:'0 auto' }}>
 
         {/* Heading */}
@@ -3404,12 +3498,12 @@ function TestimonialsSectionImpl() {
                 <div style={{ width:112, height:112, borderRadius:'50%', padding:3, background:`linear-gradient(135deg,${C.purple},${C.green})`, boxShadow:`0 14px 34px ${C.purple}55`, position:'relative' }}>
                   <img src={item.src} alt={tName} loading="lazy" decoding="async"
                     style={{ width:'100%', height:'100%', borderRadius:'50%', objectFit:'cover', objectPosition: item.imgPos || 'center top', display:'block', border:'3px solid #0d0d1a', background:'#0d0d1a' }}/>
-                  <span style={{ position:'absolute', bottom:2, insetInlineEnd:2, width:28, height:28, borderRadius:'50%', background:C.purple, color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Georgia,serif', fontSize:20, lineHeight:1, border:'2px solid #0d0d1a' }}>"</span>
+                  <span style={{ position:'absolute', bottom:2, insetInlineEnd:2, width:28, height:28, borderRadius:'50%', background:C.purple, color:C.bg, display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Georgia,serif', fontSize:20, lineHeight:1, border:'2px solid #0d0d1a' }}>"</span>
                 </div>
                 <div>
                   <div style={{ fontSize:19, fontWeight:800, color:C.cream, lineHeight:1.2 }}>{tName}</div>
                   {tDesig && <div style={{ fontSize:13, color:C.purple, marginTop:4, fontWeight:600 }}>{tDesig}</div>}
-                  {tFirm && <div style={{ fontSize:12, color:`${C.cream}88`, marginTop:2 }}>{tFirm}</div>}
+                  {tFirm && <div style={{ fontSize:12, color:`${C.cream}A6`, marginTop:2 }}>{tFirm}</div>}
                 </div>
                 <div style={{ display:'flex', gap:3 }} aria-label="5 כוכבים">{[1,2,3,4,5].map(s => <span key={s} style={{ color:C.green, fontSize:17, lineHeight:1 }}>★</span>)}</div>
                 <p style={{ fontSize:15.5, color:`${C.cream}EE`, lineHeight:1.75, margin:'2px 0 0', maxWidth:440 }}>{tQuote}</p>
@@ -3418,10 +3512,11 @@ function TestimonialsSectionImpl() {
                   <div style={{ display:'flex', alignItems:'center', gap:6 }}>
                     {TESTIMONIALS_DATA.map((_, i) => (
                       <button key={i} onClick={() => goTo(i)} aria-label={lang === 'en' ? `Testimonial ${i+1}` : `עדות ${i+1}`} aria-current={i===active || undefined}
-                        style={{ width:i===active?22:7, height:7, minWidth:0, minHeight:0, borderRadius:12, background:i===active?C.purple:C.purple+'33', backgroundClip:'content-box', boxSizing:'content-box', border:'none', cursor:'pointer', transition:'all .3s', padding:9, margin:-6 }}/>
+                        style={{ width:i===active?22:7, height:7, minWidth:0, minHeight:0, borderRadius:12, background:i===active?C.purple:C.purple+'33', backgroundClip:'content-box', boxSizing:'content-box', border:'none', cursor:'pointer', transition:'all .3s', padding:9, margin:-3 }}/>
                     ))}
                   </div>
                   <button onClick={goNext} style={{ ...arBtn(false), width:42, height:42 }} aria-label={lang === 'en' ? 'Next' : 'הבא'}><FaChevronLeft size={14}/></button>
+                  <MotionToggle/>
                 </div>
                 <span style={{ fontSize:11, color:`${C.cream}99`, fontWeight:600 }}>{active + 1} / {n} · {lang === 'en' ? 'swipe for more' : 'החליקו לעדות הבאה'}</span>
               </div>
@@ -3480,6 +3575,7 @@ function TestimonialsSectionImpl() {
                       aria-label={lang === 'en' ? `Testimonial ${i+1}` : `עדות ${i+1}`} aria-current={i===active || undefined}/>
                   ))}
                   </span>
+                  <MotionToggle style={{ marginInlineStart:8 }}/>
                 </div>
               </div>
 
@@ -3546,7 +3642,7 @@ function FAQSectionImpl() {
                 transform: visible ? 'translateY(0)' : 'translateY(20px)',
                 transition: `opacity .5s ease ${i * 0.06}s, transform .5s ease ${i * 0.06}s`,
               }}>
-              <div
+              <button type="button" id={`faq-q-${i}`} aria-expanded={open === i} aria-controls={`faq-a-${i}`}
                 onClick={() => setOpen(open === i ? null : i)}
                 onMouseEnter={e => { if (open !== i) { e.currentTarget.style.background='rgba(132,144,216,.08)'; e.currentTarget.style.borderColor=`${C.purple}44`; e.currentTarget.style.boxShadow=`0 6px 28px rgba(132,144,216,.10)` } }}
                 onMouseLeave={e => { if (open !== i) { e.currentTarget.style.background='rgba(255,255,255,.04)'; e.currentTarget.style.borderColor='rgba(132,144,216,.18)'; e.currentTarget.style.boxShadow='' } }}
@@ -3564,8 +3660,9 @@ function FAQSectionImpl() {
                   transition: 'background .25s, border-color .25s, box-shadow .25s',
                   position: 'relative',
                   overflow: 'hidden',
+                  width: '100%', textAlign: 'start', font: 'inherit', color: 'inherit',
                 }}>
-                <div style={{ position:'absolute', top:0, left:'10%', right:'10%', height:1, background:'linear-gradient(90deg,transparent,rgba(255,255,255,.2) 50%,transparent)', pointerEvents:'none' }}/>
+                <span aria-hidden="true" style={{ position:'absolute', top:0, left:'10%', right:'10%', height:1, background:'linear-gradient(90deg,transparent,rgba(255,255,255,.2) 50%,transparent)', pointerEvents:'none' }}/>
                 <span style={{ fontSize:15, fontWeight:600, color:C.cream, lineHeight:1.5 }}>{lang === 'en' && faq.en_q ? faq.en_q : faq.q}</span>
                 <span style={{
                   width:28, height:28, borderRadius:'50%',
@@ -3575,10 +3672,10 @@ function FAQSectionImpl() {
                   fontSize:16, color: open === i ? C.purple : C.cream+'88',
                   transition: 'transform .3s, background .25s, color .25s',
                   transform: open === i ? 'rotate(45deg)' : 'rotate(0deg)',
-                }}>+</span>
-              </div>
+                }} aria-hidden="true">+</span>
+              </button>
               {open === i && (
-                <div style={{
+                <div id={`faq-a-${i}`} role="region" aria-labelledby={`faq-q-${i}`} style={{
                   background: 'rgba(132,144,216,.06)',
                   border: `1px solid ${C.purple+'33'}`,
                   borderTop: 'none',
@@ -3594,6 +3691,7 @@ function FAQSectionImpl() {
             </div>
           ))}
         </div>
+        <div style={{ display:'flex', justifyContent:'center', marginTop:32 }}><BookPill src="faq" text="faq"/></div>
       </div>
     </section>
   )
@@ -3624,7 +3722,7 @@ function MortgageInline({ price, C, onContact, prop }) {
       {/* Top label bar */}
       <div style={{ background:'rgba(255,255,255,.05)', borderBottom:'1px solid rgba(255,255,255,.08)', padding:'12px 22px', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
         <span style={{ fontSize:13, fontWeight:700, color:C.cream }}>מחשבון משכנתא</span>
-        <span style={{ fontSize:11, color:`${C.cream}44`, background:'rgba(255,255,255,.06)', borderRadius:20, padding:'3px 10px' }}>הערכה בלבד</span>
+        <span style={{ fontSize:11, color:`${C.cream}A6`, background:'rgba(255,255,255,.06)', borderRadius:20, padding:'3px 10px' }}>הערכה בלבד</span>
       </div>
 
       {/* Two-column → single-column on mobile */}
@@ -3652,7 +3750,7 @@ function MortgageInline({ price, C, onContact, prop }) {
           </div>
           <button onClick={() => onContact(prop)}
             className="mortgage-cta-btn"
-            style={{ marginTop:20, width:'100%', padding:'13px', background:YAD2_ORANGE, border:'none', borderRadius:10, color:'#fff', fontSize:14, fontWeight:800, cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', justifyContent:'center', gap:8, transition:'opacity .15s' }}
+            style={{ marginTop:20, width:'100%', padding:'13px', background:YAD2_ORANGE, border:'none', borderRadius:10, color:'#1A0E08', fontSize:14, fontWeight:800, cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', justifyContent:'center', gap:8, transition:'opacity .15s' }}
             onMouseEnter={e=>e.currentTarget.style.opacity='.88'}
             onMouseLeave={e=>e.currentTarget.style.opacity='1'}>
             <FaPhone size={13}/> לשיחה עם נציג שלנו
@@ -3663,18 +3761,18 @@ function MortgageInline({ price, C, onContact, prop }) {
         <div className="mortgage-controls-col" style={{ padding:'24px 22px', display:'flex', flexDirection:'column', gap:20 }}>
           <div>
             <div style={{ fontSize:14, fontWeight:800, color:C.cream, marginBottom:2 }}>הדרך לבית שלכם מתחילה כאן</div>
-            <div style={{ fontSize:11, color:`${C.cream}44` }}>מחשב מיידי — ללא התחייבות</div>
+            <div style={{ fontSize:11, color:`${C.cream}A6` }}>מחשב מיידי — ללא התחייבות</div>
           </div>
 
           {/* Equity slider */}
           <div>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
-              <span style={{ fontSize:13, color:`${C.cream}88`, fontWeight:600 }}>כמה הון עצמי יש לך?</span>
+              <span style={{ fontSize:13, color:`${C.cream}A6`, fontWeight:600 }}>כמה הון עצמי יש לך?</span>
               <span style={{ fontSize:15, fontWeight:900, color:C.cream, background:'rgba(255,255,255,.07)', borderRadius:8, padding:'2px 10px' }}>₪{fmtN(equity)}</span>
             </div>
             <input type="range" aria-label={lang === 'en' ? 'Your equity' : 'כמה הון עצמי יש לכם'} min={minEquity} max={maxEquity} step={10000} value={equity} onChange={e=>setEquity(+e.target.value)}
               style={{ width:'100%', accentColor:YAD2_ORANGE, cursor:'pointer', height:6, borderRadius:4 }}/>
-            <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, color:`${C.cream}33`, marginTop:5 }}>
+            <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, color:`${C.cream}A6`, marginTop:5 }}>
               <span>₪{fmtN(minEquity)}</span><span>₪{fmtN(maxEquity)}</span>
             </div>
           </div>
@@ -3682,17 +3780,17 @@ function MortgageInline({ price, C, onContact, prop }) {
           {/* Years slider */}
           <div>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
-              <span style={{ fontSize:13, color:`${C.cream}88`, fontWeight:600 }}>לכמה שנים המשכנתה?</span>
+              <span style={{ fontSize:13, color:`${C.cream}A6`, fontWeight:600 }}>לכמה שנים המשכנתה?</span>
               <span style={{ fontSize:15, fontWeight:900, color:C.cream, background:'rgba(255,255,255,.07)', borderRadius:8, padding:'2px 10px' }}>{years} שנה</span>
             </div>
             <input type="range" aria-label={lang === 'en' ? 'Mortgage term in years' : 'לכמה שנים המשכנתה'} min={5} max={30} value={years} onChange={e=>setYears(+e.target.value)}
               style={{ width:'100%', accentColor:YAD2_ORANGE, cursor:'pointer', height:6, borderRadius:4 }}/>
-            <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, color:`${C.cream}33`, marginTop:5 }}>
+            <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, color:`${C.cream}A6`, marginTop:5 }}>
               <span>5 שנים</span><span>30 שנים</span>
             </div>
           </div>
 
-          <div style={{ fontSize:11, color:`${C.cream}28`, lineHeight:1.7 }}>
+          <div style={{ fontSize:11, color:`${C.cream}A6`, lineHeight:1.7 }}>
             החישובים מבוססים על ריבית קבועה {rate}%. הנתונים הם הערכה בלבד ואינם מהווים ייעוץ פיננסי.
           </div>
         </div>
@@ -3735,9 +3833,9 @@ function MortgageMini({ price, C }) {
       <div style={{ background:`${C.purple}14`, border:`1px solid ${C.purple}30`, borderRadius:10, padding:'14px 16px', textAlign:'center', marginBottom:10 }}>
         <div style={{ fontSize:11, color:`${C.cream}99`, marginBottom:4 }}>החזר חודשי משוער</div>
         <div style={{ fontSize:26, fontWeight:900, color:C.cream, lineHeight:1.1 }}>₪{monthly.toLocaleString('he-IL')}</div>
-        <div style={{ fontSize:10, color:`${C.cream}40`, marginTop:4 }}>ריבית הנחה: 4.5% · הערכה בלבד</div>
+        <div style={{ fontSize:10, color:`${C.cream}A6`, marginTop:4 }}>ריבית הנחה: 4.5% · הערכה בלבד</div>
       </div>
-      <div style={{ fontSize:11, color:`${C.cream}40`, textAlign:'center' }}>ה"ה: ₪{equityAmt.toLocaleString('he-IL')} · הלוואה: ₪{loan.toLocaleString('he-IL')}</div>
+      <div style={{ fontSize:11, color:`${C.cream}A6`, textAlign:'center' }}>ה"ה: ₪{equityAmt.toLocaleString('he-IL')} · הלוואה: ₪{loan.toLocaleString('he-IL')}</div>
     </div>
   )
 }
@@ -3973,7 +4071,14 @@ function optimizeVideoUrl(url) {
   return url
 }
 
-function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [], onSelect }) {
+// The property window is drawn dark in both site themes (its gallery, header and panels are dark by design), so its
+// text always takes the dark palette — under the light theme it used to get dark ink on a dark panel (contrast 1:1)
+function PropertyModal(props) {
+  const ctx = useTheme()
+  const value = useMemo(() => ({ ...ctx, C: DARK_C, isDark: true }), [ctx])
+  return <ThemeCtx.Provider value={value}><PropertyModalInner {...props}/></ThemeCtx.Provider>
+}
+function PropertyModalInner({ prop, onClose, onContact, govmapToken, properties = [], onSelect }) {
   const { C, isDark, lang } = useTheme()
   const [confirmLeave, setConfirmLeave] = useState(false)  // "stay or go back" choice
   const [imgIdx, setImgIdx] = useState(0)
@@ -4142,10 +4247,10 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
           <div onClick={e => e.stopPropagation()}
             style={{ background:'#14141f', border:`1px solid ${C.purple}44`, borderRadius:18, padding:'26px 24px', maxWidth:360, width:'100%', boxShadow:'0 24px 70px rgba(0,0,0,.6)', textAlign:'center' }}>
             <div style={{ fontSize:18, fontWeight:800, color:C.cream, marginBottom:8 }}>לחזור לרשימת הנכסים?</div>
-            <div style={{ fontSize:13.5, color:`${C.cream}88`, marginBottom:22, lineHeight:1.6 }}>אתה בעמוד הנכס. רוצה להישאר כאן או לחזור לרשימה?</div>
+            <div style={{ fontSize:13.5, color:`${C.cream}A6`, marginBottom:22, lineHeight:1.6 }}>אתה בעמוד הנכס. רוצה להישאר כאן או לחזור לרשימה?</div>
             <div style={{ display:'flex', gap:10 }}>
               <button type="button" onClick={() => setConfirmLeave(false)}
-                style={{ flex:1, padding:'13px 0', borderRadius:11, border:'none', background:C.purple, color:'#fff', fontSize:14.5, fontWeight:800, cursor:'pointer', fontFamily:'inherit' }}>
+                style={{ flex:1, padding:'13px 0', borderRadius:11, border:'none', background:C.purple, color:C.bg, fontSize:14.5, fontWeight:800, cursor:'pointer', fontFamily:'inherit' }}>
                 להישאר בנכס
               </button>
               <button type="button" onClick={() => { setConfirmLeave(false); onClose() }}
@@ -4163,7 +4268,7 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
         <div style={{ position:'sticky', top:0, zIndex:20, background:'rgba(11,11,20,.97)', backdropFilter:'blur(12px)', borderBottom:'1px solid rgba(132,144,216,.12)', display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 18px', height:52, direction:'rtl' }}>
           {/* Back / breadcrumb */}
           <button onClick={onClose}
-            style={{ display:'flex', alignItems:'center', gap:7, background:'none', border:'none', color:`${C.cream}88`, cursor:'pointer', fontSize:13, fontFamily:'inherit', padding:'6px 4px', direction:'ltr' }}
+            style={{ display:'flex', alignItems:'center', gap:7, background:'none', border:'none', color:`${C.cream}A6`, cursor:'pointer', fontSize:13, fontFamily:'inherit', padding:'6px 4px', direction:'ltr' }}
             onMouseEnter={e=>e.currentTarget.style.color=C.cream}
             onMouseLeave={e=>e.currentTarget.style.color=`${C.cream}88`}>
             <FaChevronLeft size={11}/>
@@ -4247,7 +4352,7 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
           ) : (
             <div style={{ width:'100%', height:'100%', display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:12 }}>
               <FaBuilding size={64} style={{ color:`${C.purple}30` }}/>
-              <span style={{ fontSize:11, color:`${C.cream}20`, letterSpacing:'.1em' }}>אין תמונות</span>
+              <span style={{ fontSize:11, color:`${C.cream}A6`, letterSpacing:'.1em' }}>אין תמונות</span>
             </div>
           )}
           {/* Arrows */}
@@ -4516,7 +4621,7 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
 
             {/* Price box */}
             <div style={{ background:'rgba(255,255,255,.05)', border:'1px solid rgba(255,255,255,.12)', borderRadius:14, padding:'22px 20px' }}>
-              <div style={{ fontSize:11, color:`${C.cream}44`, letterSpacing:'.1em', textTransform:'uppercase', marginBottom:8 }}>מחיר הנכס</div>
+              <div style={{ fontSize:11, color:`${C.cream}A6`, letterSpacing:'.1em', textTransform:'uppercase', marginBottom:8 }}>מחיר הנכס</div>
               <div style={{ fontSize:32, fontWeight:900, color:'#fff', lineHeight:1.1 }}>{fmt(prop.price)}</div>
               {prop.priceNegotiable && (
                 <div style={{ display:'flex', alignItems:'center', gap:6, fontSize:13, color:'rgba(255,255,255,.7)', fontWeight:600, marginTop:8 }}>
@@ -4527,7 +4632,7 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
 
             {/* CTA buttons */}
             <button onClick={() => onContact(prop)}
-              style={{ width:'100%', padding:'17px', fontSize:15, borderRadius:12, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:9, background:C.purple, border:'none', color:'#fff', fontFamily:'inherit', fontWeight:800, boxShadow:`0 8px 28px ${C.purple}44`, transition:'all .22s' }}
+              style={{ width:'100%', padding:'17px', fontSize:15, borderRadius:12, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:9, background:C.purple, border:'none', color:C.bg, fontFamily:'inherit', fontWeight:800, boxShadow:`0 8px 28px ${C.purple}44`, transition:'all .22s' }}
               onMouseEnter={e=>{ e.currentTarget.style.opacity='.88'; e.currentTarget.style.transform='translateY(-2px)' }}
               onMouseLeave={e=>{ e.currentTarget.style.opacity='1'; e.currentTarget.style.transform='' }}>
               <FaPhone size={14}/> שיחה עם הנציג שלנו
@@ -4660,11 +4765,11 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
                   גוש {prop.gush}{prop.helka ? ` · חלקה ${prop.helka}` : ''}{prop.subHelka ? ` · תת ${prop.subHelka}` : ''}
                 </span>
               ) : (
-                <span style={{ fontSize:12, fontWeight:500, color:`${C.cream}33`, background:`${C.purple}08`, borderRadius:6, padding:'3px 12px' }}>הכנס גוש/חלקה לניווט לחלקה</span>
+                <span style={{ fontSize:12, fontWeight:500, color:`${C.cream}A6`, background:`${C.purple}08`, borderRadius:6, padding:'3px 12px' }}>הכנס גוש/חלקה לניווט לחלקה</span>
               )}
             </h3>
             <SectionBoundary fallback={<div style={{ padding:'28px 16px', textAlign:'center', color:`${C.cream}99`, fontSize:14, border:`1px dashed ${C.purple}33`, borderRadius:12 }}>{TR[lang]?.mapUnavailable || TR.he.mapUnavailable}</div>}>
-            <Suspense fallback={<div style={{ height: 360, display:'flex', alignItems:'center', justifyContent:'center', color:`${C.cream}44`, fontSize:13 }}>טוען מפה…</div>}>
+            <Suspense fallback={<div style={{ height: 360, display:'flex', alignItems:'center', justifyContent:'center', color:`${C.cream}A6`, fontSize:13 }}>טוען מפה…</div>}>
               <GovMapWidget
                 gush={prop.gush}
                 helka={prop.helka}
@@ -4856,7 +4961,7 @@ function PropertyCardImpl({ prop, onContact, onSelect }) {
         ) : (
           <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:10, background:`linear-gradient(135deg,${C.purple}14,${C.bg}66)` }}>
             <PlaceholderIcon size={40} style={{ color:`${C.purple}55` }}/>
-            <span style={{ fontSize:9, color:`${C.cream}30`, letterSpacing:'.1em', textTransform:'uppercase', fontWeight:700 }}>אין תמונה</span>
+            <span style={{ fontSize:9, color:`${C.cream}A6`, letterSpacing:'.1em', textTransform:'uppercase', fontWeight:700 }}>אין תמונה</span>
           </div>
         )}
         {/* SOLD / RENTED stamp */}
@@ -4877,7 +4982,7 @@ function PropertyCardImpl({ prop, onContact, onSelect }) {
         </button>
         {/* Top-right badges */}
         <div style={{ position:'absolute', top:10, right:10, display:'flex', flexDirection:'column', gap:4, zIndex:5 }}>
-          {isNewProp(prop) && <span style={{ background:C.green, color:'#06200a', borderRadius:6, padding:'4px 10px', fontSize:9, fontWeight:900, letterSpacing:'.08em', textTransform:'uppercase', boxShadow:`0 0 14px ${C.green}66` }}>{tt.newBadge}</span>}
+          {isNewProp(prop) && <span style={{ background:C.green, color:C.bg, borderRadius:6, padding:'4px 10px', fontSize:9, fontWeight:900, letterSpacing:'.08em', textTransform:'uppercase', boxShadow:`0 0 14px ${C.green}66` }}>{tt.newBadge}</span>}
           <span style={{ background:'rgba(9,9,15,0.92)', color:sc, border:`1px solid ${sc}35`, borderRadius:6, padding:'4px 10px', fontSize:9, fontWeight:800, letterSpacing:'.06em', textTransform:'uppercase' }}>{prop.status}</span>
           {prop.exclusive && <span style={{ background:'rgba(9,9,15,0.92)', color:C.green, border:`1px solid ${C.green}35`, borderRadius:6, padding:'4px 10px', fontSize:9, fontWeight:800 }}>✦ בלעדי</span>}
         </div>
@@ -5134,6 +5239,18 @@ export default function App() {
   const setLogoNavSize = (v) => { const n = Math.max(20, Math.min(200, Number(v))); localStorage.setItem('logoNavSize', n); setLogoNavSizeRaw(n) }
   const adminThemeValue = { C: adminTheme.isDark ? ADMIN_DARK_C : ADMIN_LIGHT_C, isDark: adminTheme.isDark, toggleTheme: adminTheme.toggle, lang, setLang, logoNavSize, setLogoNavSize }
   // A stable context value: consumers (every property card…) re-render only when the theme or language changes
+  // A keyboard user never lands on something still invisible (a section that fades in on scroll): show its faded
+  // ancestors at once (WCAG 2.4.7)
+  useEffect(() => {
+    const onFocus = e => {
+      for (let a = e.target; a && a !== document.body; a = a.parentElement) {
+        if (a.style && parseFloat(getComputedStyle(a).opacity) < 0.1) { a.style.transition = 'none'; a.style.opacity = '1'; a.style.transform = 'none' }
+      }
+    }
+    document.addEventListener('focusin', onFocus)
+    return () => document.removeEventListener('focusin', onFocus)
+  }, [])
+
   // contentVer changes only in the admin's preview frame (a new draft), so every section that reads the context re-renders
   const [contentVer, setContentVer] = useState(0)
   const siteThemeValue = useMemo(() => ({ C, isDark, toggleTheme, lang, setLang, contentVer }), [C, isDark, toggleTheme, lang, contentVer])
@@ -5815,7 +5932,7 @@ export default function App() {
       {mobileOpen && (
         <>
           <div className="nav-overlay" onClick={() => setMobileOpen(false)}/>
-          <div className="nav-panel">
+          <nav className="nav-panel" aria-label={lang === 'en' ? 'Site menu' : 'תפריט האתר'}>
             <NavAurora active={mobileOpen}/>
             <div style={{ position:'relative', zIndex:1, display:'flex', flexDirection:'column', flex:1, minHeight:0 }}>
               <div className="nav-panel-header">
@@ -5865,13 +5982,13 @@ export default function App() {
               <a href={'tel:' + OFFICE.tel} className="nav-panel-phone" style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}><FaPhone size={12}/> {OFFICE.phone}</a>
               <BookLink src="mobile_menu" className="nav-panel-phone" style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:8, marginTop:8, textDecoration:'none' }}/>
             </div>
-          </div>
+          </nav>
         </>
       )}
 
       {/* ── HERO (with Parallax blobs) ────────────────── */}
-      <span id="main-content" tabIndex={-1} style={{ position:'absolute', top:82, width:1, height:1, overflow:'hidden' }}/>
-      <section id="home" role="main" tabIndex={-1} aria-label={lang === 'en' ? 'Main content' : 'תוכן ראשי'} style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', padding:'90px 24px 72px', scrollMarginTop:80, position:'relative', overflow:'hidden', textAlign:'center', zIndex:1 }}>
+      <main id="main-content" tabIndex={-1}>
+      <section id="home" aria-label={lang === 'en' ? 'Opening' : 'פתיחה'} style={{ minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', padding:'90px 24px 72px', scrollMarginTop:80, position:'relative', overflow:'hidden', textAlign:'center', zIndex:1 }}>
 
         {/* UI/UX Pro Max: Parallax blobs — outer div moves with scroll, inner animates */}
         <div style={{ position:'absolute', top:'20%', right:'-8%', pointerEvents:'none', transform:'translate3d(0,0,0)', willChange:'transform' }} ref={el => { parallaxRefs.current[0] = el }}>
@@ -5899,9 +6016,10 @@ export default function App() {
             </SectionBadge>
           </div>
 
-          <h1 className="hero-title">{TR[lang]?.heroH1line1}<br/>{TR[lang]?.heroH1line2}</h1>
+          <h1 className="hero-title">{TR[lang]?.heroH1line1}{' '}<br/>{TR[lang]?.heroH1line2}</h1>
           <div className="fade-up-2" style={{ fontSize:'clamp(18px,3vw,26px)', fontWeight:600, color:C.green, marginBottom:20, minHeight:40, letterSpacing:'.3px' }}>
-            <Typewriter texts={typewriterTexts}/><span style={{ borderRight:`2px solid ${C.green}`, marginRight:2, animation:'pulse 1s ease infinite' }}>&nbsp;</span>
+            <Typewriter texts={typewriterTexts}/><span aria-hidden="true" style={{ borderRight:`2px solid ${C.green}`, marginRight:2, animation:'pulse 1s ease infinite' }}>&nbsp;</span>
+            <MotionToggle style={{ marginInlineStart:12, height:28, minWidth:28, padding:'0 8px', fontSize:11 }}/>
           </div>
           <p className="fade-up-3" style={{ fontSize:'clamp(14px,2vw,18px)', color:C.cream+'BB', lineHeight:1.9, marginBottom:40, maxWidth:660, margin:'0 auto 40px' }}>
             {TR[lang]?.heroDesc}
@@ -5916,7 +6034,7 @@ export default function App() {
             </button>
           </div>
           <div className="fade-up-4" style={{ marginTop:-28, marginBottom:28 }}>
-            <BookLink src="home_hero" text="line" style={{ display:'inline-flex', alignItems:'center', gap:8, color:C.cream+'D9', fontSize:15, fontWeight:600, textDecoration:'none', borderBottom:`1px dashed ${C.purple}99`, paddingBottom:3 }}/>
+            <BookPill src="home_hero"/>
           </div>
           <div style={{ display:'flex', gap:10, justifyContent:'center', flexWrap:'wrap', marginTop:16, paddingBottom:80 }}>
             {(TR[lang]?.heroTags || []).map(tag => (
@@ -5994,7 +6112,7 @@ export default function App() {
               const active = filterCat === cat.id
               return (
                 <button key={cat.id} onClick={() => { setFilterCat(cat.id); setFilterType(''); setPropPage(0); setCarouselIdx(0) }}
-                  style={{ padding: isMobile ? '12px 16px' : '14px 28px', border:'none', borderBottom:`2px solid ${active ? C.purple : 'transparent'}`, background:'transparent', color:active ? C.purple : `${C.cream}55`, fontFamily:'inherit', cursor:'pointer', fontSize: isMobile ? 12 : 13, fontWeight:active?700:500, whiteSpace:'nowrap', transition:'all .2s', display:'flex', alignItems:'center', gap:5, flexShrink:0 }}>
+                  style={{ padding: isMobile ? '12px 16px' : '14px 28px', border:'none', borderBottom:`2px solid ${active ? C.purple : 'transparent'}`, background:'transparent', color:active ? C.purple : `${C.cream}A6`, fontFamily:'inherit', cursor:'pointer', fontSize: isMobile ? 12 : 13, fontWeight:active?700:500, whiteSpace:'nowrap', transition:'all .2s', display:'flex', alignItems:'center', gap:5, flexShrink:0 }}>
                   {cat.Icon ? <cat.Icon size={12}/> : <span style={{ fontSize:12, opacity:.6 }}>≡</span>} {cat.label}
                   {count > 0 && <span style={{ background:active?`${C.purple}28`:'rgba(255,255,255,.07)', color:active?C.purple:`${C.cream}99`, borderRadius:10, padding:'2px 7px', fontSize:10, fontWeight:700, minWidth:18, textAlign:'center' }}>{count}</span>}
                 </button>
@@ -6005,9 +6123,9 @@ export default function App() {
           {/* Filters row: type (per category) · city · max price · rooms · favourites · sort */}
           {properties.length > 0 && (() => {
             const t = TR[lang] || TR.he
-            const chip = (on, extra = {}) => ({ padding:'7px 13px', borderRadius:20, border:`1.5px solid ${on ? C.purple : 'rgba(132,144,216,.28)'}`, background: on ? `${C.purple}22` : 'transparent', color: on ? C.purple : `${C.cream}88`, fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit', whiteSpace:'nowrap', minWidth:0, minHeight:0, transition:'all .15s', display:'inline-flex', alignItems:'center', gap:6, ...extra })
-            const sel = (on) => ({ padding:'8px 32px 8px 14px', background:C.card, border:`1.5px solid ${on ? C.purple : 'rgba(132,144,216,.3)'}`, borderRadius:20, color: on ? C.purple : `${C.cream}88`, fontSize:12, fontFamily:'inherit', fontWeight:700, cursor:'pointer', outline:'none', appearance:'none', WebkitAppearance:'none', minHeight:0 })
-            const lbl = { fontSize:11, color:`${C.cream}50`, fontWeight:700, letterSpacing:'.06em', textTransform:'uppercase', flexShrink:0 }
+            const chip = (on, extra = {}) => ({ padding:'7px 13px', borderRadius:20, border:`1.5px solid ${on ? C.purple : 'rgba(132,144,216,.28)'}`, background: on ? `${C.purple}22` : 'transparent', color: on ? C.purple : `${C.cream}A6`, fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'inherit', whiteSpace:'nowrap', minWidth:0, minHeight:0, transition:'all .15s', display:'inline-flex', alignItems:'center', gap:6, ...extra })
+            const sel = (on) => ({ padding:'8px 32px 8px 14px', background:C.card, border:`1.5px solid ${on ? C.purple : 'rgba(132,144,216,.3)'}`, borderRadius:20, color: on ? C.purple : `${C.cream}A6`, fontSize:12, fontFamily:'inherit', fontWeight:700, cursor:'pointer', outline:'none', appearance:'none', WebkitAppearance:'none', minHeight:0 })
+            const lbl = { fontSize:11, color:`${C.cream}A6`, fontWeight:700, letterSpacing:'.06em', textTransform:'uppercase', flexShrink:0 }
             const catTypes = filterCat !== 'all' ? ((CATEGORIES_DATA[lang] || CATEGORIES_DATA.he).find(c => c.id === filterCat)?.types || []) : []
             const showRooms = ['all', 'apartments', 'rentals', 'projects'].includes(filterCat)
             const PRICES = [2000000, 3000000, 4000000, 5000000, 7000000, 10000000, 15000000]
@@ -6089,7 +6207,7 @@ export default function App() {
                   <div style={{ height:200, background:`linear-gradient(135deg, ${C.purple}12 0%, ${C.green}0C 100%)`, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:12, borderBottom:`1px solid rgba(132,144,216,.08)`, position:'relative', overflow:'hidden' }}>
                     <div style={{ position:'absolute', inset:0, background:`radial-gradient(circle at 50% 60%, ${C.purple}18, transparent 70%)`, pointerEvents:'none' }}/>
                     <cat.Icon size={48} style={{ color:C.purple, opacity:.4, position:'relative', zIndex:1 }}/>
-                    <span style={{ fontSize:11, color:`${C.cream}45`, letterSpacing:'.12em', textTransform:'uppercase', fontWeight:700, position:'relative', zIndex:1 }}>{cat.label}</span>
+                    <span style={{ fontSize:11, color:`${C.cream}A6`, letterSpacing:'.12em', textTransform:'uppercase', fontWeight:700, position:'relative', zIndex:1 }}>{cat.label}</span>
                   </div>
                   <div style={{ padding:'18px 20px' }}>
                     <div style={{ height:14, background:'rgba(255,255,255,.06)', borderRadius:3, marginBottom:10, width:'70%' }}/>
@@ -6133,7 +6251,7 @@ export default function App() {
                     <>
                       {/* Results bar — always tells the visitor how much there is */}
                       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', gap:10, flexWrap:'wrap', marginBottom:16 }}>
-                        <span style={{ fontSize:13, fontWeight:600, color:`${C.cream}80` }}>{fmtT(t.showingOf, { shown, total: filtered.length })}</span>
+                        <span style={{ fontSize:13, fontWeight:600, color:`${C.cream}A6` }}>{fmtT(t.showingOf, { shown, total: filtered.length })}</span>
                         {isMobile
                           ? <button onClick={() => { setMobileList(false); jumpTop() }} style={{ ...ghostBtn, width:'auto', padding:'8px 14px', fontSize:12 }}>{t.carouselViewProps}</button>
                           : (!allShown && <button onClick={() => setPropPage(999)} style={{ ...ghostBtn, padding:'8px 14px', fontSize:12 }} onMouseEnter={ghostIn} onMouseLeave={ghostOut}>{fmtT(t.showAllProps, { total: filtered.length })}</button>)}
@@ -6176,7 +6294,7 @@ export default function App() {
                       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:12, paddingInline:4, gap:10 }}>
                         {/* ‹ LEFT arrow → next card in RTL (idx+1) */}
                         <button aria-label={t.nextProp} onClick={() => goTo((carouselIdx + 1) % filtered.length)} style={arrow}><FaChevronLeft size={12}/></button>
-                        <span style={{ fontSize:13, color:`${C.cream}80`, fontWeight:700, letterSpacing:'.04em' }}>
+                        <span style={{ fontSize:13, color:`${C.cream}A6`, fontWeight:700, letterSpacing:'.04em' }}>
                           <span style={{ color:C.purple }}>{carouselIdx + 1}</span> / {filtered.length} · <span style={{ fontWeight:500, color:`${C.cream}99` }}>{t.swipeHint}</span>
                         </span>
                         {/* › RIGHT arrow → previous card in RTL (idx-1) */}
@@ -6204,10 +6322,10 @@ export default function App() {
                   )
                 })()
               ) : (
-                <div style={{ textAlign:'center', padding:'60px 24px', color:`${C.cream}40`, fontSize:15 }}>
+                <div style={{ textAlign:'center', padding:'60px 24px', color:`${C.cream}A6`, fontSize:15 }}>
                   {filterFavs && !favIds.size ? TR[lang]?.noFavs : listUnavailable && !properties.length ? (
                     <>
-                      <div style={{ color:`${C.cream}90`, fontWeight:600 }}>{(TR[lang] || TR.he).propsUnavailable}</div>
+                      <div style={{ color:`${C.cream}B3`, fontWeight:600 }}>{(TR[lang] || TR.he).propsUnavailable}</div>
                       <button onClick={() => window.location.reload()} style={{ display:'inline-flex', alignItems:'center', gap:8, margin:'16px auto 0', padding:'11px 22px', borderRadius:12, border:`1px solid ${C.purple}66`, background:`${C.purple}1A`, color:C.cream, fontWeight:700, fontSize:14, cursor:'pointer', fontFamily:'inherit' }}>{(TR[lang] || TR.he).propsRetry}</button>
                     </>
                   ) : TR[lang]?.noProperties}
@@ -6216,6 +6334,7 @@ export default function App() {
             </>
           )}
 
+          <BookBand src="properties_end"/>
         </div>
       </section>
 
@@ -6273,7 +6392,7 @@ export default function App() {
                 </div>
                 <div className="contact-card-text" style={{ flex:1, textAlign:'right' }}>
                   <div style={{ fontSize:11, fontWeight:600, color:`${C.cream}99`, marginBottom:3, letterSpacing:'.04em', textTransform:'uppercase' }}>WhatsApp</div>
-                  <div style={{ fontSize:18, fontWeight:800, color:'#25D366' }}>{TR[lang]?.whatsappSend}</div>
+                  <div style={{ fontSize:18, fontWeight:800, color: isDark ? '#25D366' : '#0B7A3E' }}>{TR[lang]?.whatsappSend}</div>
                 </div>
               </a>
 
@@ -6335,6 +6454,7 @@ export default function App() {
           </div>
         </div>
       </section>}
+      </main>
 
       {/* ── FOOTER ──────────────────────────────────── */}
       <footer id="contact" style={{ position:'relative', overflow:'hidden', scrollMarginTop:80, zIndex:1 }}>
@@ -6363,7 +6483,7 @@ export default function App() {
                   <FaInstagram size={18}/>
                 </a>
               </div>
-              <div className="footer-hours" style={{ fontSize:13, color:'rgba(232,228,216,.45)', lineHeight:1.7 }}>
+              <div className="footer-hours" style={{ fontSize:13, color:'rgba(232,228,216,.65)', lineHeight:1.7 }}>
                 <div>{TR[lang]?.sunToThurs}</div>
                 <div>{TR[lang]?.friday}</div>
               </div>

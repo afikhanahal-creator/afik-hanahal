@@ -718,6 +718,18 @@
     "after": {
       "he": "רוצים זמן מדויק? בחרו שעה ונתקשר בדיוק אז",
       "en": "Want an exact time? Pick a slot and we will call you then"
+    },
+    "bandTitle": {
+      "he": "לא מצאתם בדיוק את מה שחיפשתם?",
+      "en": "Didn't find exactly what you're looking for?"
+    },
+    "bandDesc": {
+      "he": "קבעו שיחת היכרות של חצי שעה בטלפון. נבין מה אתם מחפשים ונחזור עם הצעות שמתאימות לכם.",
+      "en": "Book a 30-minute intro call. We'll learn what you're after and come back with options that fit."
+    },
+    "faq": {
+      "he": "יש לכם שאלה שלא מופיעה כאן? בחרו שעה ונדבר",
+      "en": "Have a question that isn't here? Pick a time and let's talk"
     }
   }
 }

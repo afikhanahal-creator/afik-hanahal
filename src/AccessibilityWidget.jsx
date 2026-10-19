@@ -691,7 +691,7 @@ export default function AccessibilityWidget() {
         onClick={() => setOpen(o => !o)}
         aria-label="פתח תפריט נגישות"
         aria-expanded={open}
-        aria-controls="a11y-panel"
+        aria-controls={open ? 'a11y-panel' : undefined}
         aria-haspopup="dialog"
         aria-keyshortcuts="Alt+A"
         title="תפריט נגישות – לחץ לפתיחה (Alt+A)">

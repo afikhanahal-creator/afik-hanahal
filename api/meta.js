@@ -902,6 +902,7 @@ async function handleAutomations(req, res, action) {
     const [r, meta] = await Promise.all([
       Auto.run({ source: 'external' }).catch(e => ({ ok: false, error: e.message, sent: [], errors: [], suggestions: [], jobs: {} })),
       syncRecentMetaLeads({ hours: 6 }).catch(e => ({ error: e.message })),   // safety net for the Meta webhook
+      Booking.retryConfirmations().catch(() => null),                          // booking confirmations Green API refused
     ])
     return res.status(200).json({ ok: r.ok !== false, at: r.at, sent: r.sent?.length || 0, errors: r.errors?.length || 0, queued: r.suggestions?.length || 0, jobs: r.jobs, notes: r.notes, meta })
   }
@@ -920,7 +921,7 @@ async function handleAutomations(req, res, action) {
     }
     if (action === 'auto-run') {
       // The panel calls this every 5 minutes while open: also pick up any Meta lead the webhook missed
-      const [r, meta] = await Promise.all([Auto.run({ source: 'panel' }), syncRecentMetaLeads({ hours: 6 }).catch(e => ({ error: e.message }))])
+      const [r, meta] = await Promise.all([Auto.run({ source: 'panel' }), syncRecentMetaLeads({ hours: 6 }).catch(e => ({ error: e.message })), Booking.retryConfirmations().catch(() => null)])
       return res.status(200).json({ ...r, meta })
     }
     if (action === 'auto-send')   return res.status(200).json({ results: await Auto.sendItems(Array.isArray(b.items) ? b.items : [], { by: 'manual' }) })
@@ -1434,10 +1435,11 @@ async function handleLeadResearch(req, res) {
 }
 
 // ── Booking page (our own Calendly: /book) ────────────────────────────────────
-//  public: GET booking-config · GET booking-slots?type=&from=&days= · POST booking-create
+//  public: GET booking-config · GET booking-slots?type=&from=&days=[&m=] · POST booking-create
+//          GET booking-manage?m= · POST booking-reschedule {m, start} · POST booking-cancel-self {m}  (m = the client's private key)
 //          GET booking-oauth-callback (Google sends the office back here after "connect the calendar")
 //  admin:  GET booking-admin · POST booking-settings {config} · POST booking-connect → {url} · POST booking-disconnect
-//          POST booking-cancel {id}
+//          POST booking-cancel {id} · POST booking-resend {id}
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
 function oauthPage(ok, text) {
   return `<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>חיבור היומן</title></head>
@@ -1455,9 +1457,21 @@ async function handleBooking(req, res, action) {
     }
     if (action === 'booking-slots') {
       const q = req.query || {}
-      const r = await Booking.slots({ typeId: String(q.type || ''), from: String(q.from || ''), days: Number(q.days) || 7 })
-      res.setHeader('Cache-Control', 'public, s-maxage=20, stale-while-revalidate=40')
+      const m = String(q.m || '')
+      const r = await Booking.slots({ typeId: String(q.type || ''), from: String(q.from || ''), days: Number(q.days) || 7, m })
+      res.setHeader('Cache-Control', m ? 'no-store' : 'public, s-maxage=20, stale-while-revalidate=40')
       return res.status(200).json(r)
+    }
+    if (['booking-manage', 'booking-reschedule', 'booking-cancel-self'].includes(action)) {
+      res.setHeader('Cache-Control', 'no-store')
+      res.setHeader('X-Robots-Tag', 'noindex')
+      const ip = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim()
+      const body = req.body || {}
+      if (action !== 'booking-manage' && req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
+      const r = action === 'booking-manage' ? await Booking.manage(String(req.query?.m || ''), { ip })
+        : action === 'booking-reschedule' ? await Booking.reschedule(sb(), String(body.m || ''), String(body.start || ''), { ip })
+        : await Booking.cancelByClient(sb(), String(body.m || ''), { ip })
+      return res.status(r.ok ? 200 : r.status || 400).json(r)
     }
     if (action === 'booking-create') {
       if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
@@ -1480,7 +1494,7 @@ async function handleBooking(req, res, action) {
     if (!checkAuth(req)) return res.status(401).json({ error: 'Unauthorized' })
     res.setHeader('Cache-Control', 'no-store')
     const b = req.body || {}
-    if (action === 'booking-admin') return res.status(200).json(await Booking.adminState())
+    if (action === 'booking-admin') return res.status(200).json(await Booking.adminState(sb()))
     if (action === 'booking-settings') return res.status(200).json({ ok: true, config: await Booking.saveConfig(b.config || {}) })
     if (action === 'booking-connect') {
       if (!GCal.oauthReady()) return res.status(400).json({ error: 'GOOGLE_OAUTH_CLIENT_ID / GOOGLE_OAUTH_CLIENT_SECRET חסרים ב-Vercel', redirectUri: GCal.REDIRECT_URI() })
@@ -1488,6 +1502,7 @@ async function handleBooking(req, res, action) {
     }
     if (action === 'booking-disconnect') { await GCal.disconnect(); return res.status(200).json({ ok: true }) }
     if (action === 'booking-cancel') return res.status(200).json(await Booking.cancel(String(b.id || '')))
+    if (action === 'booking-resend') return res.status(200).json(await Booking.resend(String(b.id || '')))
     return res.status(404).json({ error: `Unknown path: ${action}` })
   } catch (e) {
     console.error('[booking]', action, e.message)
