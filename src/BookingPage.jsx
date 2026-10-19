@@ -12,6 +12,7 @@ const OFFICE_WA = '972559811814'
 
 const TR = {
   he: {
+    howPhone: 'נתקשר אליכם בשעה שבחרתם, למספר שתשאירו כאן.', howVideo: 'הקישור לשיחה יישלח למייל שתשאירו כאן.',
     langBtn: 'English', home: 'חזרה לאתר', wa: 'וואטסאפ', waTip: 'כתבו לנו בוואטסאפ', call: 'חייגו אלינו', photoAlt: 'צוות אפיק הנחל', pick: 'בחרו סוג פגישה', minutes: n => `${n} דקות`,
     stepTime: 'מועד', stepDetails: 'פרטים', stepDone: 'אישור', stepOf: (i, n) => `שלב ${i} מתוך ${n}`,
     chooseDay: 'בחרו יום ושעה', times: 'שעות פנויות', noTimes: 'אין שעות פנויות ביום הזה', tzNote: 'לפי שעון ישראל',
@@ -48,6 +49,7 @@ const TR = {
     pickDay: 'בחרו יום', monthView: 'לוח חודשי', stripView: 'ימים קרובים', freeTimes: n => `${n} שעות פנויות`,
   },
   en: {
+    howPhone: "We'll call you at the time you picked, on the number you leave here.", howVideo: "The call link will be sent to the email you leave here.",
     langBtn: 'עברית', home: 'Back to the website', wa: 'WhatsApp', waTip: 'Message us on WhatsApp', call: 'Call us', photoAlt: 'The Afik Hanahal team', pick: 'Choose a meeting type', minutes: n => `${n} minutes`,
     stepTime: 'Time', stepDetails: 'Details', stepDone: 'Confirmed', stepOf: (i, n) => `Step ${i} of ${n}`,
     chooseDay: 'Pick a day and time', times: 'Available times', noTimes: 'No free times on this day', tzNote: 'Israel time',
@@ -97,20 +99,22 @@ html,body{background:#09090F;margin:0}
 .bk [tabindex="-1"]:focus,.bk [tabindex="-1"]:focus-visible{outline:none}
 .bk-top{width:100%;max-width:1240px;margin:0 auto;padding:16px 20px 0;display:flex;align-items:center;justify-content:space-between;gap:12px}
 .bk-brand{display:flex;align-items:center;gap:10px;color:inherit!important;text-decoration:none;font-weight:600;font-size:15px;min-width:0}
-.bk-brand img{height:48px;width:auto;flex-shrink:0}
+.bk-brand img{height:64px;width:auto;flex-shrink:0}
 .bk-brand span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bk-top-act{display:flex;gap:8px;align-items:center;flex-shrink:0}
 .bk-pill{display:inline-flex;align-items:center;gap:7px;background:var(--card);border:1px solid var(--line);color:var(--ink)!important;border-radius:999px;padding:8px 16px;font:inherit;font-size:13.5px;font-weight:500;cursor:pointer;text-decoration:none;white-space:nowrap}
 .bk-pill:hover{border-color:var(--brand)}
 .bk-wa{display:inline-flex;align-items:center;justify-content:center;gap:7px;height:38px;padding:0 14px;border-radius:999px;background:#25D366;color:#06301A!important;font-size:13.5px;font-weight:600;text-decoration:none;white-space:nowrap}
 .bk-wa:hover{filter:brightness(1.05)}
-.bk-photo{margin:4px 0 0;border-radius:16px;overflow:hidden;aspect-ratio:4/3;background:var(--brand-soft)}
-.bk-photo img{display:block;width:100%;height:100%;object-fit:cover}
+.bk-photo{margin:4px 0 0;border-radius:16px;overflow:hidden;aspect-ratio:1/1;background:#fff;border:1px solid var(--line)}
+.bk-photo img{display:block;width:100%;height:100%;object-fit:contain}
 .bk-ava{display:none}
-.bk-contact{display:flex;flex-direction:column;gap:8px}
-.bk-contact a{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--ink)!important;text-decoration:none;font-size:14px;font-weight:500}
+.bk-contact{display:flex;flex-wrap:wrap;gap:8px}
+.bk-contact a{flex:1 1 auto;display:inline-flex;align-items:center;justify-content:center;gap:7px;height:38px;padding:0 12px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--ink)!important;text-decoration:none;font-size:13px;font-weight:500;white-space:nowrap}
 .bk-contact a:hover{border-color:var(--brand)}
-.bk-contact .ic{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;flex-shrink:0}
+.bk-contact a.wa{border-color:transparent;background:#25D366;color:#06301A!important;font-weight:600}
+.bk-contact .ic{display:inline-flex}
+.bk-lead{margin:-10px 0 4px;color:var(--mute);font-size:14px}
 .bk-shell{flex:1;width:100%;max-width:1240px;margin:0 auto;padding:22px 20px 18px;display:flex;flex-direction:column;justify-content:center}
 .bk-card{background:var(--card);border:1px solid var(--line);border-radius:24px;overflow:hidden;display:grid;grid-template-columns:380px 1fr;min-height:min(680px,calc(100vh - 150px));box-shadow:var(--shadow)}
 .bk-side{padding:34px 32px;background:var(--side);border-inline-end:1px solid var(--line);display:flex;flex-direction:column;gap:16px}
@@ -224,18 +228,21 @@ html,body{background:#09090F;margin:0}
 @media (max-width:900px){
   .bk-top{padding:12px 14px 0}
   .bk-brand span{display:none}
-  .bk-brand img{height:40px}
+  .bk-brand img{height:50px}
   .bk-top-act .bk-pill{padding:0 13px;height:38px}
   .bk-top-act .bk-home-t{display:none}
   .bk-wa{width:38px;padding:0}
   .bk-wa span{display:none}
   .bk-side-head{display:flex;align-items:center;gap:12px}
   .bk-ava{display:block;width:56px;height:56px;border-radius:50%;overflow:hidden;flex-shrink:0;background:var(--brand-soft)}
-  .bk-ava img{width:100%;height:100%;object-fit:cover;display:block}
+  .bk-ava{background:#fff;border:1px solid var(--line)}
+  .bk-ava img{width:100%;height:100%;object-fit:contain;display:block}
   .bk-shell{padding:14px 12px 16px;justify-content:flex-start}
   .bk-card{grid-template-columns:1fr;min-height:0;border-radius:20px}
   .bk-side{border-inline-end:none;border-bottom:1px solid var(--line);padding:22px 20px;gap:12px}
-  .bk-side-foot{display:none}
+  .bk-side-foot{margin-top:4px}
+  .bk-side-foot .bk-photo{display:none}
+  .bk-card.ph-time .bk-side-foot{display:none}
   .bk-time{min-height:46px}
   .bk-day{max-height:none}
   .bk-steps{margin-bottom:16px}
@@ -757,8 +764,8 @@ export default function BookingPage() {
             <div className="bk-side-foot">
               {photo && <figure className="bk-photo"><img src={photo} alt={t.photoAlt} loading="lazy" decoding="async" width="316" height="237"/></figure>}
               <div className="bk-contact">
-                <a href={waHref} target="_blank" rel="noreferrer"><span className="ic" style={{ background: '#25D366', color: '#fff' }}>{Icon.wa}</span>{t.waTip}</a>
-                <a href={`tel:0${OFFICE_WA.slice(3)}`}><span className="ic" style={{ background: 'var(--brand-soft)', color: 'var(--brand-text)' }}>{Icon.phone}</span><span>{t.call} · <bdi dir="ltr">055-981-1814</bdi></span></a>
+                <a className="wa" href={waHref} target="_blank" rel="noreferrer" aria-label={t.waTip}><span className="ic">{Icon.wa}</span>{t.wa}</a>
+                <a href={`tel:0${OFFICE_WA.slice(3)}`} aria-label={`${t.call} 055-981-1814`}><span className="ic" style={{ color: 'var(--brand-text)' }}>{Icon.phone}</span><bdi dir="ltr">055-981-1814</bdi></a>
               </div>
             </div>
           </aside>
@@ -828,7 +835,7 @@ export default function BookingPage() {
                   <h2 className="bk-h2" style={{ margin: '6px 0 0' }}>{t.details}</h2>
                 </> : <>
                   <h2 className="bk-h2" style={{ margin: 0 }} ref={headRef} tabIndex={-1}>{t.details}</h2>
-                  {channels[0] && <div className="bk-chosen" style={{ alignItems: 'center' }}>{channels[0] === 'phone' ? Icon.phone : Icon.video}<span><b>{chLabel(channels[0])}</b> · {chDesc(channels[0])}</span></div>}
+                  {channels[0] && <p className="bk-lead">{channels[0] === 'phone' ? t.howPhone : t.howVideo}</p>}
                 </>}
                 <div className="bk-f">
                   <label htmlFor="bk-name">{t.name}</label>
