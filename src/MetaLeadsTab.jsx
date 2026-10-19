@@ -468,6 +468,16 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onLeadRenam
     } catch {}
   }, [])
 
+  // a rename in the leads tab (the CRM copy) — same name here at once; the server renamed meta_leads too
+  useEffect(() => {
+    const on = e => {
+      const { metaLeadId, name } = e.detail || {}
+      if (metaLeadId && name) setLeads(prev => prev.map(l => (String(l.id) === String(metaLeadId) ? { ...l, name } : l)))
+    }
+    window.addEventListener('afik:lead-renamed', on)
+    return () => window.removeEventListener('afik:lead-renamed', on)
+  }, [])
+
   // ── Initial load + Realtime subscription for leads ──────────────────────────
   useEffect(() => {
     localStorage.removeItem('meta_deleted_leads')   // one-time: the old browser-only archive

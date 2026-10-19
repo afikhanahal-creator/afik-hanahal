@@ -484,7 +484,9 @@ async function handleLeads(req, res) {
       nameCache.at = 0                                   // the chats tab reads names from the leads: refresh on the next poll
       const mirror = await findMirror(sb(), id).catch(() => null)
       if (mirror) {
-        const r = await sb().from('contacts').update({ name: newName }).eq('id', mirror.id)
+        // the board reads crm_data over the columns, so an older crm_data.name would hide the new one
+        const { data: row } = await sb().from('contacts').select('crm_data').eq('id', mirror.id).single()
+        const r = await sb().from('contacts').update({ name: newName, crm_data: { ...(row?.crm_data || {}), name: newName } }).eq('id', mirror.id)
         crm = r.error ? { error: r.error.message } : { id: mirror.id }
       }
     }
