@@ -39,6 +39,12 @@ const TR = {
     clientLink: 'העתקת הקישור של הלקוח', linkCopied: 'הקישור הועתק', move: 'שינוי מועד', resend: 'שליחת האישור שוב', resending: 'שולח…', resent: 'נשלח', cancel: 'ביטול',
     cancelQ: 'לבטל את השיחה? אם יש הזמנה ביומן, הלקוח יקבל הודעת ביטול.', loading: 'טוען…', err: 'שגיאה',
     days: ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'], dec: 'הפחתה', inc: 'הוספה',
+    synced: 'מסונכרן עם היומן', syncing: 'מסנכרן…', refresh: 'רענון מהיומן', cancelledN: n => `בוטלו (${n})`,
+    moveBtn: 'הזזה', delBtn: 'מחיקה', copyLinkTip: 'העתקת הקישור האישי של הלקוח', resendShort: 'שליחה שוב',
+    st: { cal: 'ביומן Google', noCal: 'לא נכנס ליומן', wa: 'וואטסאפ נשלח ללקוח', waBad: 'הוואטסאפ ללקוח לא יצא', mail: 'מייל נשלח ללקוח', noMail: 'בלי מייל' },
+    moveH: name => `הזזת השיחה עם ${name}`, pickDay: 'יום', pickTime: 'שעה פנויה', noSlots: 'אין שעות פנויות בימים הקרובים',
+    notifyClient: 'לעדכן את הלקוח (וואטסאפ, מייל והזמנה ביומן)', moveTo: w => `העברה ל${w}`, moving: 'מעביר…', back: 'חזרה', taken: 'השעה הזו כבר נתפסה, בחרו שעה אחרת',
+    delQ: (name, w) => `למחוק את השיחה עם ${name} (${w})? היא תימחק גם מיומן Google.`, delNotify: 'מחיקה ועדכון הלקוח', delQuiet: 'מחיקה בלי הודעה', deleting: 'מוחק…',
     testMail: 'מייל לדוגמה', testMailTip: 'שולח למייל המשרד את שני המיילים: מה שהלקוח מקבל ומה שהמשרד מקבל', testSending: 'שולח…', testSent: to => `נשלח ל-${to}`,
   },
   en: {
@@ -66,6 +72,12 @@ const TR = {
     clientLink: 'Copy the client link', linkCopied: 'Link copied', move: 'Reschedule', resend: 'Resend confirmation', resending: 'Sending…', resent: 'Sent', cancel: 'Cancel',
     cancelQ: 'Cancel this call? If there is a calendar invitation, the client gets a cancellation.', loading: 'Loading…', err: 'Error',
     days: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], dec: 'Decrease', inc: 'Increase',
+    synced: 'In sync with the calendar', syncing: 'Syncing…', refresh: 'Refresh from the calendar', cancelledN: n => `Cancelled (${n})`,
+    moveBtn: 'Move', delBtn: 'Delete', copyLinkTip: "Copy the client's private link", resendShort: 'Send again',
+    st: { cal: 'In Google Calendar', noCal: 'Not in the calendar', wa: 'WhatsApp sent to the client', waBad: "The client's WhatsApp didn't go out", mail: 'Email sent to the client', noMail: 'No email' },
+    moveH: name => `Move the call with ${name}`, pickDay: 'Day', pickTime: 'Free time', noSlots: 'No free times in the coming days',
+    notifyClient: 'Tell the client (WhatsApp, email and calendar invitation)', moveTo: w => `Move to ${w}`, moving: 'Moving…', back: 'Back', taken: 'That time was just taken, pick another',
+    delQ: (name, w) => `Delete the call with ${name} (${w})? It is removed from Google Calendar too.`, delNotify: 'Delete and tell the client', delQuiet: 'Delete quietly', deleting: 'Deleting…',
     testMail: 'Sample email', testMailTip: 'Sends both emails to the office address: what the client gets and what the office gets', testSending: 'Sending…', testSent: to => `Sent to ${to}`,
   },
 }
@@ -139,6 +151,47 @@ const CSS = `
 .bka-chip.warn{background:rgba(245,166,35,.15);color:var(--au-amber-text)}
 .bka-chip.bad{background:rgba(224,82,82,.12);color:var(--au-red-text)}
 .bka-acts{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:4px;max-width:360px}
+.bka-mh{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.bka-sync{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--au-text2)}
+.bka-sync button{border:none;background:rgba(var(--ov),.06);color:var(--au-text);width:30px;height:30px;border-radius:50%;cursor:pointer;font-size:14px}
+.bka-sync button:hover{background:rgba(var(--brand-rgb),.12)}
+.bka-day{padding:9px 16px 7px;font-size:12px;font-weight:600;color:var(--au-text2);background:rgba(var(--ov),.03);border-top:1px solid var(--au-divider)}
+.bka-day:first-child{border-top:none}
+.bka-day b{color:var(--au-text);font-weight:600}
+.bka-m{display:grid;grid-template-columns:62px minmax(0,1fr) auto auto;gap:14px;align-items:center;padding:11px 16px;border-top:1px solid var(--au-divider);position:relative}
+.bka-day+.bka-m{border-top:none}
+.bka-m::before{content:'';position:absolute;inset-inline-start:0;top:10px;bottom:10px;width:3px;border-radius:3px;background:var(--st,var(--au-brand))}
+.bka-m.gone{opacity:.5}
+.bka-m .tm{font-variant-numeric:tabular-nums;line-height:1.2}
+.bka-m .tm b{display:block;font-size:16px;font-weight:600}
+.bka-m .tm small{color:var(--au-text3);font-size:11.5px}
+.bka-m .who{font-size:14px;font-weight:600;display:flex;gap:8px;align-items:baseline;min-width:0}
+.bka-m .who bdi{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bka-m .who span{font-size:12px;font-weight:400;color:var(--au-text2);white-space:nowrap}
+.bka-m .sub2{display:flex;gap:8px;align-items:baseline;font-size:12.5px;color:var(--au-text2);margin-top:2px;min-width:0}
+.bka-m .sub2 a{color:var(--au-brand-text);text-decoration:none;white-space:nowrap}
+.bka-m .sub2 .nt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.bka-ic{display:inline-flex;gap:4px}
+.bka-ic span{width:26px;height:26px;border-radius:8px;display:inline-grid;place-items:center;background:rgba(var(--ov),.06);color:var(--au-text3)}
+.bka-ic span.ok{background:rgba(52,199,89,.14);color:#1E8E4A}
+.bka-ic span.bad{background:rgba(224,82,82,.14);color:var(--au-red-text)}
+.bka-ic span.warn{background:rgba(245,166,35,.16);color:var(--au-amber-text)}
+html[data-admin-theme="dark"] .bka-ic span.ok{color:#4ADE80}
+.bka-m .acts{display:flex;gap:4px;align-items:center}
+.bka-ib{border:none;background:none;width:32px;height:32px;border-radius:9px;display:inline-grid;place-items:center;color:var(--au-text2);cursor:pointer}
+.bka-ib:hover{background:rgba(var(--brand-rgb),.1);color:var(--au-brand-text)}
+.bka-ib.del:hover{background:rgba(224,82,82,.1);color:var(--au-red-text)}
+.bka-panel{grid-column:1/-1;margin-top:4px;padding:14px;border-radius:12px;background:rgba(var(--ov),.04);border:1px solid var(--au-divider);display:grid;gap:12px}
+.bka-panel h4{margin:0;font-size:13.5px;font-weight:600}
+.bka-panel .row{display:flex;gap:6px;flex-wrap:wrap}
+.bka-chipbtn{border:1px solid var(--au-s1-line);background:var(--au-card);color:var(--au-text);border-radius:10px;padding:6px 10px;font:inherit;font-size:12.5px;font-weight:500;cursor:pointer;font-variant-numeric:tabular-nums;line-height:1.25;text-align:center}
+.bka-chipbtn small{display:block;font-size:10.5px;color:var(--au-text2)}
+.bka-chipbtn[aria-pressed=true]{background:var(--au-brand);border-color:var(--au-brand);color:#fff}
+.bka-chipbtn[aria-pressed=true] small{color:#fff;opacity:.85}
+.bka-check{display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer}
+.bka-check input{width:16px;height:16px;accent-color:var(--au-brand);appearance:auto;-webkit-appearance:checkbox;opacity:1;position:static}
+.bka-panel .foot{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.bka-btn.dsolid{background:var(--au-red-text);color:#fff}
 .bka-bar{position:sticky;bottom:12px;z-index:20;display:flex;align-items:center;gap:10px;justify-content:space-between;background:var(--au-pop);border:1px solid var(--au-s1-line);border-radius:999px;padding:8px 8px 8px 18px;box-shadow:var(--au-shadow3);max-width:560px;margin:0 auto;width:100%}
 [dir=rtl] .bka-bar{padding:8px 18px 8px 8px}
 .bka-err{background:rgba(224,82,82,.1);color:var(--au-red-text);border-radius:12px;padding:10px 14px}
@@ -148,6 +201,9 @@ const CSS = `
 @media (max-width:640px){
   .bka-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
   .bka-mtg{grid-template-columns:auto minmax(0,1fr)}
+  .bka-m{grid-template-columns:54px minmax(0,1fr) auto}
+  .bka-m .bka-ic{grid-column:2;grid-row:2}
+  .bka-m .acts{grid-row:1/3;grid-column:3}
   .bka-acts{grid-column:1/-1;justify-content:flex-start;max-width:none}
   .bka-head .bka-link{width:100%;flex-wrap:wrap;border-radius:16px;padding:10px!important}
   .bka-head .bka-link code{flex:1 1 100%;padding:0 4px 4px}
@@ -182,9 +238,23 @@ export default function BookingAdminTab({ lang = 'he' }) {
   const [resending, setResending] = useState({})
   const [testMail, setTestMail] = useState('')
   const [copied, copy] = useCopy()
+  const [panel, setPanel] = useState(null)       // { id, kind: 'move' | 'del', slots, day, start, notify, busy, err }
+  const [syncedAt, setSyncedAt] = useState(0)
+  const [syncing, setSyncing] = useState(false)
 
-  const load = () => autoApi.get('booking-admin').then(d => { setState(d); setDraft(d.config); setErr('') }).catch(e => setErr(e.message))
+  // the list is re-read from the server, which re-checks every upcoming event against Google Calendar first
+  const load = (quiet = false) => {
+    if (!quiet) setSyncing(true)
+    return autoApi.get('booking-admin').then(d => {
+      setState(d); setDraft(cur => (cur && quiet ? cur : d.config)); setErr(''); setSyncedAt(Date.now())
+    }).catch(e => setErr(e.message)).finally(() => setSyncing(false))
+  }
   useEffect(() => { load() }, [])
+  // keep it in step with the calendar while the screen is open (every minute, only when visible, never mid-edit)
+  useEffect(() => {
+    const id = setInterval(() => { if (document.visibilityState === 'visible' && !panel) load(true) }, 60000)
+    return () => clearInterval(id)
+  }, [panel])
 
   const dirty = useMemo(() => {
     if (!state || !draft) return false
@@ -231,10 +301,32 @@ export default function BookingAdminTab({ lang = 'he' }) {
       setTimeout(() => setSaving(''), 1800)
     } catch (e) { setErr(e.message); setSaving('') }
   }
-  async function cancel(id) {
-    if (!window.confirm(t.cancelQ)) return
-    await autoApi.post('booking-cancel', { id }).catch(e => setErr(e.message))
-    load()
+  async function openMove(b) {
+    setPanel({ id: b.id, kind: 'move', slots: null, day: '', start: '', notify: true })
+    const m = new URL(b.manageUrl || 'x:/', 'https://x').searchParams.get('m') || ''
+    const from = new Date().toLocaleDateString('en-CA', { timeZone: TZ })
+    try {
+      const d = await autoApi.get(`booking-slots?type=${encodeURIComponent(b.type)}&from=${from}&days=${Math.min(31, (state.config.horizonDays || 21) + 1)}${m ? `&m=${encodeURIComponent(m)}` : ''}`)
+      const slots = d.slots || {}
+      const first = Object.keys(slots).sort().find(k => slots[k].length) || ''
+      setPanel(p => (p?.id === b.id ? { ...p, slots, day: first } : p))
+    } catch (e) { setPanel(p => (p?.id === b.id ? { ...p, slots: {}, err: e.message } : p)) }
+  }
+  async function doMove(b) {
+    setPanel(p => ({ ...p, busy: true, err: '' }))
+    try {
+      const d = await autoApi.post('booking-move', { id: b.id, start: panel.start, notify: panel.notify })
+      if (!d.ok) throw new Error(d.error === 'taken' ? t.taken : d.error || t.err)
+      setPanel(null); load()
+    } catch (e) { setPanel(p => ({ ...p, busy: false, err: e.message })) }
+  }
+  async function doDelete(b, notify) {
+    setPanel(p => ({ ...p, busy: notify ? 'notify' : 'quiet', err: '' }))
+    try {
+      const d = await autoApi.post('booking-cancel', { id: b.id, notify })
+      if (!d.ok) throw new Error(d.error || t.err)
+      setPanel(null); load()
+    } catch (e) { setPanel(p => ({ ...p, busy: false, err: e.message })) }
   }
   async function resend(id) {
     setResending(r => ({ ...r, [id]: 'busy' }))
@@ -256,39 +348,99 @@ export default function BookingAdminTab({ lang = 'he' }) {
   const setType = patch => setDraft(c => ({ ...c, types: [{ ...c.types[0], ...patch }, ...c.types.slice(1)] }))
   const toggleCh = ch => { const cur = type0.channels || []; const next = cur.includes(ch) ? cur.filter(x => x !== ch) : [...cur, ch]; if (next.length) setType({ channels: CH_KEYS.filter(k => next.includes(k)) }) }
 
+  const Ic = {
+    cal: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>,
+    wa: <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 00-8.6 15.1L2 22l5-1.3A10 10 0 1012 2zm0 18.2a8.2 8.2 0 01-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1112 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8s-.4-.1-.6.1-.7.8-.8 1-.3.2-.5.1a6.7 6.7 0 01-3.3-2.9c-.2-.4.2-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 00-.7.3 3 3 0 00-.9 2.2 5.2 5.2 0 001.1 2.7 11.8 11.8 0 004.5 4c1.7.7 2.3.8 3.2.6a2.7 2.7 0 001.8-1.3 2.2 2.2 0 00.1-1.3c0-.1-.2-.2-.4-.3z"/></svg>,
+    mail: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>,
+    move: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M10 15h5m-2-2l2 2-2 2"/></svg>,
+    link: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M10 14a4 4 0 005.7 0l3-3a4 4 0 00-5.7-5.7l-1 1M14 10a4 4 0 00-5.7 0l-3 3a4 4 0 005.7 5.7l1-1"/></svg>,
+    del: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14a2 2 0 002 2h6a2 2 0 002-2l1-14"/></svg>,
+  }
+  const longWhen = iso => `${fmt(iso, { weekday: 'long', day: 'numeric', month: 'long' })}, ${time(iso)}`
   const meeting = b => {
     const gone = b.status === 'cancelled'
-    const upcomingLive = !gone && Date.parse(b.end) > now
+    const live = !gone && Date.parse(b.end) > now
     const moved = (b.history || []).filter(h => h.kind === 'moved').length
+    const color = gone ? T.grey : !b.eventId || (b.wa && !b.wa.ok) ? T.amber : '#34C759'
+    const p = panel?.id === b.id ? panel : null
+    const days = p?.slots ? Object.keys(p.slots).sort().filter(k => p.slots[k].length) : []
     return (
-      <div key={b.id} className={`bka-mtg${gone ? ' gone' : ''}`}>
-        <div className="bka-tile" aria-hidden="true"><i>{fmt(b.start, { month: 'short' })}</i><b>{fmt(b.start, { day: 'numeric' })}</b></div>
+      <div key={b.id} className={`bka-m${gone ? ' gone' : ''}`} style={{ '--st': color }}>
+        <div className="tm"><b dir="ltr">{time(b.start)}</b><small dir="ltr">{time(b.end)}</small></div>
         <div style={{ minWidth: 0 }}>
-          <div className="who"><bdi>{b.name}</bdi></div>
-          <div className="meta">
-            {rel(b.start)} · <span dir="ltr">{time(b.start)}–{time(b.end)}</span> · {b.typeName || b.type} · {chName(b.channel)}
-            {' · '}<a href={`tel:${b.phone}`} style={{ color: T.brandText, whiteSpace: 'nowrap' }} dir="ltr">{prettyPhone(b.phone)}</a>
-            {b.meetLink && <> · <a href={b.meetLink} target="_blank" rel="noreferrer" style={{ color: T.brandText }}>Meet</a></>}
+          <div className="who"><bdi>{b.name}</bdi><span>{b.typeName || b.type} · {chName(b.channel)}{moved > 0 ? ` · ${t.moved(moved)}` : ''}</span></div>
+          <div className="sub2">
+            <a href={`tel:${b.phone}`} dir="ltr">{prettyPhone(b.phone)}</a>
+            {b.meetLink && <a href={b.meetLink} target="_blank" rel="noreferrer">Meet</a>}
+            {gone ? <span style={{ color: 'var(--au-red-text)' }}>{t.cancelledBy[b.cancelledBy] || t.cancelled}</span> : b.notes ? <span className="nt" title={b.notes}>“{b.notes}”</span> : null}
           </div>
-          {b.notes && <div className="note">{b.notes}</div>}
-          <div className="bka-chips">
-            {gone ? <span className="bka-chip bad">{t.cancelledBy[b.cancelledBy] || t.cancelled}</span> : <>
-              <span className={`bka-chip ${b.eventId ? 'ok' : 'warn'}`}>{b.eventId ? t.inCal : t.notInCal}</span>
-              {b.wa && <span className={`bka-chip ${b.wa.ok ? 'ok' : 'bad'}`} title={b.wa.ok ? '' : b.wa.error || ''}>{b.wa.ok ? t.waOk : b.wa.quota ? t.waQuota : t.waNo}</span>}
-              {b.mail?.ok && <span className="bka-chip ok">{t.mailOk}</span>}
-              {moved > 0 && <span className="bka-chip">{t.moved(moved)}</span>}
+        </div>
+        {!gone ? (
+          <div className="bka-ic">
+            <span className={b.eventId ? 'ok' : 'warn'} title={b.eventId ? t.st.cal : t.st.noCal}>{Ic.cal}</span>
+            {b.wa && <span className={b.wa.ok ? 'ok' : 'bad'} title={b.wa.ok ? t.st.wa : `${b.wa.quota ? t.waQuota : t.st.waBad}${b.wa.error ? ` · ${b.wa.error}` : ''}`}>{Ic.wa}</span>}
+            <span className={b.mail?.ok ? 'ok' : ''} title={b.mail?.ok ? t.st.mail : t.st.noMail}>{Ic.mail}</span>
+          </div>
+        ) : <span />}
+        <div className="acts">
+          {live && b.wa && !b.wa.ok && <button className="bka-btn sec" style={{ padding: '5px 10px', fontSize: 12 }} disabled={resending[b.id] === 'busy'} onClick={() => resend(b.id)}>{resending[b.id] === 'busy' ? t.resending : resending[b.id] === 'done' ? t.resent : t.resendShort}</button>}
+          {live && b.manageUrl && <button className="bka-ib" title={copied === b.id ? t.linkCopied : t.copyLinkTip} aria-label={t.copyLinkTip} onClick={() => copy(b.manageUrl, b.id)}>{copied === b.id ? '✓' : Ic.link}</button>}
+          {live && <button className="bka-ib" title={t.moveBtn} aria-label={t.moveBtn} aria-expanded={p?.kind === 'move'} onClick={() => (p?.kind === 'move' ? setPanel(null) : openMove(b))}>{Ic.move}</button>}
+          {live && <button className="bka-ib del" title={t.delBtn} aria-label={t.delBtn} aria-expanded={p?.kind === 'del'} onClick={() => setPanel(p?.kind === 'del' ? null : { id: b.id, kind: 'del' })}>{Ic.del}</button>}
+        </div>
+
+        {p?.kind === 'move' && (
+          <div className="bka-panel">
+            <h4>{t.moveH(b.name)}</h4>
+            {!p.slots ? <div style={{ color: T.text2 }}>{t.loading}</div> : !days.length ? <div style={{ color: T.text2 }}>{t.noSlots}</div> : <>
+              <div className="row" role="group" aria-label={t.pickDay}>
+                {days.map(d => (
+                  <button key={d} type="button" className="bka-chipbtn" aria-pressed={p.day === d} onClick={() => setPanel(x => ({ ...x, day: d, start: '' }))}>
+                    <small>{rel(`${d}T12:00:00Z`)}</small>{fmt(`${d}T12:00:00Z`, { day: 'numeric', month: 'short' })}
+                  </button>
+                ))}
+              </div>
+              <div className="row" role="group" aria-label={t.pickTime}>
+                {(p.slots[p.day] || []).map(st => {
+                  const cur = st === new Date(b.start).toISOString()
+                  return <button key={st} type="button" className="bka-chipbtn" disabled={cur} style={cur ? { opacity: .45 } : undefined} aria-pressed={p.start === st} onClick={() => setPanel(x => ({ ...x, start: st }))} dir="ltr">{time(st)}</button>
+                })}
+              </div>
             </>}
+            <label className="bka-check"><input type="checkbox" checked={p.notify !== false} onChange={e => setPanel(x => ({ ...x, notify: e.target.checked }))}/>{t.notifyClient}</label>
+            {p.err && <div className="bka-err" role="alert">{p.err}</div>}
+            <div className="foot">
+              <button className="bka-btn pri" disabled={!p.start || p.busy} onClick={() => doMove(b)}>{p.busy ? t.moving : p.start ? t.moveTo(longWhen(p.start)) : t.moveBtn}</button>
+              <button className="bka-btn plain" onClick={() => setPanel(null)}>{t.back}</button>
+            </div>
           </div>
-        </div>
-        <div className="bka-acts">
-          {upcomingLive && b.manageUrl && <button className="bka-btn plain" onClick={() => copy(b.manageUrl, b.id)}>{copied === b.id ? t.linkCopied : t.clientLink}</button>}
-          {upcomingLive && b.manageUrl && <a className="bka-btn plain" href={b.manageUrl} target="_blank" rel="noreferrer">{t.move}</a>}
-          {upcomingLive && b.wa && !b.wa.ok && <button className="bka-btn sec" disabled={resending[b.id] === 'busy'} onClick={() => resend(b.id)}>{resending[b.id] === 'busy' ? t.resending : resending[b.id] === 'done' ? t.resent : t.resend}</button>}
-          {upcomingLive && <button className="bka-btn danger" onClick={() => cancel(b.id)}>{t.cancel}</button>}
-        </div>
+        )}
+        {p?.kind === 'del' && (
+          <div className="bka-panel" role="alertdialog" aria-label={t.delBtn}>
+            <h4>{t.delQ(b.name, longWhen(b.start))}</h4>
+            {p.err && <div className="bka-err" role="alert">{p.err}</div>}
+            <div className="foot">
+              <button className="bka-btn dsolid" disabled={!!p.busy} onClick={() => doDelete(b, true)}>{p.busy === 'notify' ? t.deleting : t.delNotify}</button>
+              <button className="bka-btn danger" disabled={!!p.busy} onClick={() => doDelete(b, false)}>{p.busy === 'quiet' ? t.deleting : t.delQuiet}</button>
+              <button className="bka-btn plain" onClick={() => setPanel(null)}>{t.back}</button>
+            </div>
+          </div>
+        )}
       </div>
     )
   }
+  // rows grouped by day, under a quiet day header
+  const byDay = list => {
+    const out = []; let last = ''
+    for (const b of list) {
+      const d = dayOf(b.start)
+      if (d !== last) { out.push(<div key={`d-${d}`} className="bka-day"><b>{rel(b.start)}</b> · {fmt(b.start, { day: 'numeric', month: 'long' })}</div>); last = d }
+      out.push(meeting(b))
+    }
+    return out
+  }
+  const upcomingLive = upcoming.filter(b => b.status !== 'cancelled')
+  const upcomingGone = upcoming.filter(b => b.status === 'cancelled')
 
   return (
     <div className="bka" dir={lang === 'en' ? 'ltr' : 'rtl'}>
@@ -316,13 +468,26 @@ export default function BookingAdminTab({ lang = 'he' }) {
       </div>
 
       <section className="bka-sec">
-        <h3>{t.upcoming} ({upcoming.filter(b => b.status !== 'cancelled').length})</h3>
+        <div className="bka-mh">
+          <h3>{t.upcoming} ({upcomingLive.length})</h3>
+          <span className="bka-sync" aria-live="polite">
+            <span className="bka-dot" style={{ background: calStatus === 'on' ? '#34C759' : T.amber }}/>
+            {syncing ? t.syncing : `${t.synced} · ${new Date(syncedAt || now).toLocaleTimeString('en-GB', { timeZone: TZ, hour: '2-digit', minute: '2-digit' })}`}
+            <button type="button" title={t.refresh} aria-label={t.refresh} disabled={syncing} onClick={() => load()}>↻</button>
+          </span>
+        </div>
         <div className="bka-list" style={{ marginTop: 8 }}>
-          {upcoming.length ? upcoming.map(meeting) : <div className="bka-row" style={{ color: T.text2 }}>{t.none}</div>}
+          {upcomingLive.length ? byDay(upcomingLive) : <div className="bka-row" style={{ color: T.text2 }}>{t.none}</div>}
+          {upcomingGone.length > 0 && (
+            <details style={{ borderTop: `1px solid ${T.divider}` }}>
+              <summary>{t.cancelledN(upcomingGone.length)}</summary>
+              {byDay(upcomingGone)}
+            </details>
+          )}
           {past.length > 0 && (
             <details style={{ borderTop: `1px solid ${T.divider}` }}>
               <summary>{t.recent} ({past.length})</summary>
-              {past.map(meeting)}
+              {byDay([...past].sort((a, b) => Date.parse(b.start) - Date.parse(a.start)))}
             </details>
           )}
         </div>
