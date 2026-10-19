@@ -3453,6 +3453,20 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
                 lang === 'en' ? `Sent to ${leadName}` : `נשלח ל-${leadName}`,
                 message, 'meta', '✅', 3500
               )}
+              stageLabels={stageLabels}
+              onCrmStage={async (metaLead, crmLead, stage) => {
+                // the Lead Center's pipeline menu: the same move as the leads board (stage log, nurture follow-up,
+                // stage automations); a lead not in the CRM yet is copied there first
+                let target = crmLead
+                if (!target) {
+                  const r = await fetch('/api/meta/lead-to-crm', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` }, body: JSON.stringify({ id: metaLead.id }) })
+                  const d = await r.json().catch(() => ({}))
+                  if (!r.ok || !d.id) throw new Error(d.error || d.skipped || `HTTP ${r.status}`)
+                  target = { id: d.id, name: metaLead.name, phone: metaLead.phone, leadStatus: 'new', stageLog: [], crm_data: { metaLeadId: String(metaLead.id) } }
+                  setLeads(prev => (prev.some(l => l.id === d.id) ? prev : [target, ...prev]))
+                }
+                updateLeadStatus(target, stage)
+              }}
               onLeadRenamed={(metaLead, name) => {
                 // the server renamed the CRM copy too; show it now instead of after the next sync
                 setLeads(prev => prev.map(l => (String(l.crm_data?.metaLeadId || '') === String(metaLead.id) ? { ...l, name } : l)))

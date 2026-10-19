@@ -68,6 +68,7 @@ const TR = {
     welcomeSent: 'הודעת פתיחה נשלחה', welcomeNot: 'עדיין לא נשלחה הודעה', welcomeNow: 'שלח הודעת פתיחה עכשיו', welcomeNoPhone: 'אין מספר טלפון — אי אפשר לשלוח',
     call: 'התקשר', whatsapp: 'וואטסאפ', copy: 'העתק', copied: 'הועתק', archive: 'ארכיון', back: 'חזרה לרשימה',
     received: 'התקבל', source: 'מקור', details: 'פרטי הליד', conversation: 'שיחה', composer: 'כתוב הודעה ללקוח — נשלחת מהוואטסאפ של המשרד…',
+    stageLbl: 'שלב בפייפליין', stageTip: 'העברת הליד לשלב אחר בפייפליין של ה-CRM', stageNoCrm: 'ייכנס ל-CRM בבחירת שלב', stageMoving: 'מעביר…', stageFail: 'העברת השלב נכשלה',
     renameTip: 'לחצו לעריכת השם', renameLbl: 'שם הליד', addProject: p => `+ הוספת הפרויקט: ${p}`, removeProject: 'הסרת שם הפרויקט', nameSave: 'שמירה', nameCancel: 'ביטול', nameFail: 'שמירת השם נכשלה', nameHint: 'השם מתעדכן כאן, ב-CRM ובצ׳אטים',
     sendBtn: 'שלח', sendFailed: 'השליחה נכשלה', testLead: 'ליד בדיקה', showTest: 'הצג לידי בדיקה', hideTestL: 'הסתר לידי בדיקה',
     overview: 'סקירה', needAttention: 'ממתינים לטיפול', needAttentionDesc: 'לידים מ-14 הימים האחרונים שעדיין לא טופלו', allHandled: 'כל הלידים האחרונים טופלו 🎉',
@@ -130,6 +131,7 @@ const TR = {
     welcomeSent: 'Welcome message sent', welcomeNot: 'No message sent yet', welcomeNow: 'Send the welcome message now', welcomeNoPhone: 'No phone number — nothing to send to',
     call: 'Call', whatsapp: 'WhatsApp', copy: 'Copy', copied: 'Copied', archive: 'Archive', back: 'Back to the list',
     received: 'Received', source: 'Source', details: 'Lead details', conversation: 'Conversation', composer: 'Write to the lead — sent from the office WhatsApp…',
+    stageLbl: 'Pipeline stage', stageTip: 'Move the lead to another stage of the CRM pipeline', stageNoCrm: 'Added to the CRM when you pick a stage', stageMoving: 'Moving…', stageFail: 'Could not move the stage',
     renameTip: 'Click to edit the name', renameLbl: 'Lead name', addProject: p => `+ Add the project: ${p}`, removeProject: 'Remove the project name', nameSave: 'Save', nameCancel: 'Cancel', nameFail: 'Could not save the name', nameHint: 'Updates here, in the CRM and in the chats',
     sendBtn: 'Send', sendFailed: 'Sending failed', testLead: 'Test lead', showTest: 'Show test leads', hideTestL: 'Hide test leads',
     overview: 'Overview', needAttention: 'Needs attention', needAttentionDesc: 'Leads from the last 14 days not handled yet', allHandled: 'All recent leads are handled 🎉',
@@ -296,10 +298,23 @@ function loadLayout() {
   try { return { ...LAYOUT_DEFAULT, ...JSON.parse(localStorage.getItem(LAYOUT_KEY) || '{}') } } catch { return { ...LAYOUT_DEFAULT } }
 }
 
+// The CRM pipeline stages (= GROUPS in LeadsBoard.jsx / STAGES in lib/automations-shared.js); the office's renamed
+// stage names arrive as the stageLabels prop
+const PIPELINE = [
+  { id: 'new', he: 'ליד חדש', en: 'New Leads', color: '#0073EA' },
+  { id: 'contacted', he: 'ניצור קשר', en: 'Contacted', color: '#FDAB3D' },
+  { id: 'discovery', he: 'גילוי', en: 'Discovery', color: '#A25DDC' },
+  { id: 'negotiating', he: 'במו"מ', en: 'In Negotiation', color: '#FF7575' },
+  { id: 'won', he: 'סגירה', en: 'Closed Won', color: '#00C875' },
+  { id: 'lost', he: 'ללא מענה', en: 'No Answer', color: '#7D7D7D' },
+  { id: 'irrelevant', he: 'לא רלוונטי', en: 'Not relevant', color: '#64748B' },
+  { id: 'nurture', he: 'לחזור בעוד כמה חודשים', en: 'Nurture (later)', color: '#0E9AA7' },
+]
+
 const PATCH = (body) => fetch('/api/meta/leads', { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` }, body: JSON.stringify(body) })
 
 // ── Main component ────────────────────────────────────────────────────────────
-export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onLeadRenamed, onOpenChat, onNewLead, onNewMetaMessage, onSentMetaMessage, crmLeads = [], autoConfig = null, onAutoConfigSaved }) {
+export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onLeadRenamed, onCrmStage, stageLabels = null, onOpenChat, onNewLead, onNewMetaMessage, onSentMetaMessage, crmLeads = [], autoConfig = null, onAutoConfigSaved }) {
   const t = TR[lang] || TR.he
   const dir = lang === 'en' ? 'ltr' : 'rtl'
 
@@ -348,6 +363,17 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onLeadRenam
   // the name editor (click the name in the list or the header): saved to meta_leads, the CRM copy and the chats' names
   const [nameEdit, setNameEdit] = useState(null)    // { id, value, busy, err }
   const startNameEdit = useCallback(lead => setNameEdit({ id: lead.id, value: lead.name || '', busy: false, err: false }), [])
+  // the pipeline stage menu (the lead's CRM copy; a lead not in the CRM yet is added first)
+  const [stageMenu, setStageMenu] = useState(false)
+  const [stageBusy, setStageBusy] = useState(null)   // { stage } while moving, { err } after a failure
+  const stageRef = useRef(null)
+  useEffect(() => {
+    if (!stageMenu) return
+    const off = e => { if (!stageRef.current?.contains(e.target)) setStageMenu(false) }
+    const esc = e => { if (e.key === 'Escape') setStageMenu(false) }
+    document.addEventListener('pointerdown', off); document.addEventListener('keydown', esc)
+    return () => { document.removeEventListener('pointerdown', off); document.removeEventListener('keydown', esc) }
+  }, [stageMenu])
   const saveName = async lead => {
     const v = String(nameEdit?.value || '').replace(/\s+/g, ' ').trim()
     if (!v || v === lead.name) { setNameEdit(null); return }
@@ -714,6 +740,13 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onLeadRenam
       || (tail.length === 9 ? crmLeads.find(l => String(l?.phone || '').replace(/\D/g, '').slice(-9) === tail) : null) || null
   }, [crmLeads, selectedLead])
   const tplLead = useMemo(() => templateLead(selectedLead, crmLead, answersHe), [selectedLead, crmLead, answersHe])
+  const stageName = st => { const o = stageLabels?.[st.id] || {}; return (lang === 'en' ? o.en : o.label) || st[lang === 'en' ? 'en' : 'he'] }
+  const moveStage = async stage => {
+    setStageMenu(false)
+    if (!onCrmStage || !selectedLead || (crmLead && (crmLead.leadStatus || 'new') === stage)) return
+    setStageBusy({ stage })
+    try { await onCrmStage(selectedLead, crmLead, stage); setStageBusy(null) } catch { setStageBusy({ err: true }) }
+  }
   const firstOutAt = chatFirstOut || messages.find(m => m.direction === 'out')?.created_at || null
   // What the conversation shows: our messages are there (sent from the chats tab, say) → the lead was contacted
   const onActivity = useCallback(({ hasOut, firstOutAt: at }) => {
@@ -767,6 +800,16 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onLeadRenam
         html[data-admin-theme="dark"] .lc-btn.danger{color:#F87171}
         .lc-btn.icon{padding:0;width:34px}
         .lc-name{cursor:text;border-radius:5px}
+        .lc-stage{position:relative}
+        .lc-stage-btn{gap:7px;border-color:color-mix(in srgb,var(--st) 45%,transparent);background:color-mix(in srgb,var(--st) 10%,transparent)}
+        .lc-stage-k{font-weight:500;color:${MUTED}}
+        .lc-stage-dot{width:9px;height:9px;border-radius:50%;background:var(--st);flex-shrink:0}
+        .lc-stage-menu{position:absolute;top:calc(100% + 6px);inset-inline-start:0;z-index:40;min-width:230px;padding:6px;border-radius:12px;border:1px solid ${BORDER};background:var(--au-card-solid);box-shadow:0 14px 40px rgba(0,0,0,.18);display:flex;flex-direction:column;gap:2px}
+        .lc-stage-opt{all:unset;box-sizing:border-box;display:flex;align-items:center;gap:9px;min-height:36px;padding:0 10px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;color:${CREAM}}
+        .lc-stage-opt:hover,.lc-stage-opt:focus-visible{background:rgba(var(--brand-rgb),.08)}
+        .lc-stage-opt.on{background:color-mix(in srgb,var(--st) 12%,transparent)}
+        .lc-stage-note{font-size:11.5px;color:${MUTED};padding:4px 10px 6px}
+        .lc-stage-err{position:absolute;top:calc(100% + 4px);inset-inline-start:0;font-size:11.5px;color:#DC2626;white-space:nowrap}
         .lc-name:hover{text-decoration:underline dotted rgba(var(--brand-rgb),.6);text-underline-offset:3px}
         .lc-name-btn{all:unset;cursor:text;border-radius:6px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
         .lc-name-btn:hover,.lc-name-btn:focus-visible{background:rgba(var(--brand-rgb),.08);box-shadow:0 0 0 4px rgba(var(--brand-rgb),.08)}
@@ -1026,6 +1069,32 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onLeadRenam
               {/* Lead bar: who, from which campaign, status, actions — one row on a wide screen */}
               {(() => {
                 const telHref = `tel:+${String(selectedLead.phone || '').replace(/\D/g, '').replace(/^0/, '972')}`
+                const curStage = PIPELINE.find(p => p.id === (stageBusy?.stage || crmLead?.leadStatus || 'new')) || PIPELINE[0]
+                const stageCtl = onCrmStage && (
+                  <div className="lc-stage" ref={stageRef}>
+                    <button type="button" className="lc-btn lc-stage-btn" aria-haspopup="listbox" aria-expanded={stageMenu} title={t.stageTip}
+                      onClick={() => setStageMenu(v => !v)} style={{ '--st': curStage.color }}>
+                      <span className="lc-stage-dot" aria-hidden="true"/>
+                      <span className="lc-stage-k">{t.stageLbl}:</span>
+                      <span>{stageBusy?.stage ? t.stageMoving : (crmLead ? stageName(curStage) : '—')}</span>
+                      <span aria-hidden="true" style={{ opacity: .6, fontSize: 10 }}>▾</span>
+                    </button>
+                    {stageBusy?.err && <span role="alert" className="lc-stage-err">{t.stageFail}</span>}
+                    {stageMenu && (
+                      <div className="lc-stage-menu" role="listbox" aria-label={t.stageLbl}>
+                        {!crmLead && <div className="lc-stage-note">{t.stageNoCrm}</div>}
+                        {PIPELINE.map(st => {
+                          const on = !!crmLead && (crmLead.leadStatus || 'new') === st.id
+                          return (
+                            <button key={st.id} type="button" role="option" aria-selected={on} className={`lc-stage-opt${on ? ' on' : ''}`} onClick={() => moveStage(st.id)} style={{ '--st': st.color }}>
+                              <span className="lc-stage-dot" aria-hidden="true"/>{stageName(st)}{on && <span aria-hidden="true" style={{ marginInlineStart: 'auto' }}>✓</span>}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )
                 const statusCtl = narrow ? (
                   <select value={STATUS_CONFIG[selectedLead.status] && selectedLead.status !== 'saved_to_crm' ? selectedLead.status : 'new'} onChange={e => handleStatusChange(e.target.value)} aria-label={t.status} className="lc-input" style={{ width: 'auto', minHeight: 34, padding: '0 10px', fontWeight: 700, color: (STATUS_CONFIG[selectedLead.status] || STATUS_CONFIG.new).color }}>
                     {['new', 'contacted', 'scheduled', 'closed'].map(k => <option key={k} value={k}>{STATUS_CONFIG[k].label[lang] || STATUS_CONFIG[k].label.he}</option>)}
@@ -1075,6 +1144,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onLeadRenam
                         </div>
                       </div>
                       {!narrow && statusCtl}
+                      {!narrow && stageCtl}
                       {!narrow && tabs}
                       {narrow
                         ? selectedLead.phone && <a className="lc-btn icon" href={telHref} aria-label={t.call} title={t.call}>📞</a>
@@ -1084,7 +1154,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onLeadRenam
                             {crmButton}
                           </div>}
                     </div>
-                    {narrow && !focusChat && <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'space-between' }}>{statusCtl}{tabs}</div>}
+                    {narrow && !focusChat && <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'space-between', flexWrap: 'wrap' }}>{statusCtl}{stageCtl}{tabs}</div>}
                   </div>
                 )
               })()}
