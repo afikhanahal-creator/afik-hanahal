@@ -132,10 +132,16 @@ export function LeadFormCard({ card, WA, isDark, lang = 'he' }) {
             </div>
           </div>
         </div>
-        {rows.length > 0 && (
+        {(rows.length > 0 || card.name) && (
           <dl style={{ margin: 0, padding: '6px 12px 8px' }}>
+            {card.name && (
+              <div style={{ padding: '4px 0' }}>
+                <dt style={{ fontSize: 12, color: WA.subText }}>{he ? 'השם שהשאירו בטופס' : 'Name as they entered it'}</dt>
+                <dd style={{ margin: 0, fontWeight: 600, overflowWrap: 'anywhere' }}><bdi>{card.name}</bdi></dd>
+              </div>
+            )}
             {rows.map((r, i) => (
-              <div key={i} style={{ padding: '4px 0', borderTop: i ? `1px solid ${isDark ? 'rgba(255,255,255,.05)' : 'rgba(11,20,26,.05)'}` : 'none' }}>
+              <div key={i} style={{ padding: '4px 0', borderTop: i || card.name ? `1px solid ${isDark ? 'rgba(255,255,255,.05)' : 'rgba(11,20,26,.05)'}` : 'none' }}>
                 <dt style={{ fontSize: 12, color: WA.subText }}>{r.q}</dt>
                 <dd style={{ margin: 0, fontWeight: 600, overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' }}>{r.a}</dd>
               </div>

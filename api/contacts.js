@@ -598,6 +598,11 @@ export default async function handler(req, res) {
       const newName  = typeof patch.name === 'string' ? patch.name.replace(/\s+/g, ' ').trim().slice(0, 80) : ''
       if (typeof patch.name === 'string') { if (!newName) return res.status(400).json({ error: 'name required' }); patch.name = newName }
       const merged   = { ...existing, ...patch }
+      if (newName && !existing.originalName) {           // the name the lead typed stays visible after a rename
+        const r0 = await supaFetch(`/contacts?id=eq.${encodeURIComponent(id)}&select=name`, { signal: AbortSignal.timeout(5000) }).catch(() => null)
+        const was = r0?.ok ? String((await r0.json().catch(() => []))?.[0]?.name || '').trim() : ''
+        if (was && was !== newName) merged.originalName = was
+      }
       const ok       = await patchContact(id, newName ? { crm_data: merged, name: newName } : { crm_data: merged })
       let metaRenamed = null
       if (ok && newName && existing.metaLeadId) {
