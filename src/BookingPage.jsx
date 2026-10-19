@@ -12,7 +12,7 @@ const OFFICE_WA = '972559811814'
 
 const TR = {
   he: {
-    langBtn: 'English', home: 'חזרה לאתר', pick: 'בחרו סוג פגישה', minutes: n => `${n} דקות`,
+    langBtn: 'English', home: 'חזרה לאתר', wa: 'וואטסאפ', waTip: 'כתבו לנו בוואטסאפ', call: 'חייגו אלינו', photoAlt: 'צוות אפיק הנחל', pick: 'בחרו סוג פגישה', minutes: n => `${n} דקות`,
     stepTime: 'מועד', stepDetails: 'פרטים', stepDone: 'אישור', stepOf: (i, n) => `שלב ${i} מתוך ${n}`,
     chooseDay: 'בחרו יום ושעה', times: 'שעות פנויות', noTimes: 'אין שעות פנויות ביום הזה', tzNote: 'לפי שעון ישראל',
     loading: 'טוען שעות פנויות…', loadErr: 'לא הצלחנו לטעון את השעות. נסו לרענן את העמוד.',
@@ -47,7 +47,7 @@ const TR = {
     weekdays: ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'], prevM: 'החודש הקודם', nextM: 'החודש הבא',
   },
   en: {
-    langBtn: 'עברית', home: 'Back to the website', pick: 'Choose a meeting type', minutes: n => `${n} minutes`,
+    langBtn: 'עברית', home: 'Back to the website', wa: 'WhatsApp', waTip: 'Message us on WhatsApp', call: 'Call us', photoAlt: 'The Afik Hanahal team', pick: 'Choose a meeting type', minutes: n => `${n} minutes`,
     stepTime: 'Time', stepDetails: 'Details', stepDone: 'Confirmed', stepOf: (i, n) => `Step ${i} of ${n}`,
     chooseDay: 'Pick a day and time', times: 'Available times', noTimes: 'No free times on this day', tzNote: 'Israel time',
     loading: 'Loading available times…', loadErr: 'We couldn\'t load the times. Please refresh the page.',
@@ -95,11 +95,20 @@ html,body{background:#09090F;margin:0}
 .bk [tabindex="-1"]:focus,.bk [tabindex="-1"]:focus-visible{outline:none}
 .bk-top{width:100%;max-width:1240px;margin:0 auto;padding:16px 20px 0;display:flex;align-items:center;justify-content:space-between;gap:12px}
 .bk-brand{display:flex;align-items:center;gap:10px;color:inherit!important;text-decoration:none;font-weight:600;font-size:15px;min-width:0}
-.bk-brand img{height:32px;width:auto;flex-shrink:0}
+.bk-brand img{height:48px;width:auto;flex-shrink:0}
 .bk-brand span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bk-top-act{display:flex;gap:8px;align-items:center;flex-shrink:0}
 .bk-pill{display:inline-flex;align-items:center;gap:7px;background:var(--card);border:1px solid var(--line);color:var(--ink)!important;border-radius:999px;padding:8px 16px;font:inherit;font-size:13.5px;font-weight:500;cursor:pointer;text-decoration:none;white-space:nowrap}
 .bk-pill:hover{border-color:var(--brand)}
+.bk-wa{display:inline-flex;align-items:center;justify-content:center;gap:7px;height:38px;padding:0 14px;border-radius:999px;background:#25D366;color:#06301A!important;font-size:13.5px;font-weight:600;text-decoration:none;white-space:nowrap}
+.bk-wa:hover{filter:brightness(1.05)}
+.bk-photo{margin:4px 0 0;border-radius:16px;overflow:hidden;aspect-ratio:4/3;background:var(--brand-soft)}
+.bk-photo img{display:block;width:100%;height:100%;object-fit:cover}
+.bk-ava{display:none}
+.bk-contact{display:flex;flex-direction:column;gap:8px}
+.bk-contact a{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--ink)!important;text-decoration:none;font-size:14px;font-weight:500}
+.bk-contact a:hover{border-color:var(--brand)}
+.bk-contact .ic{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;flex-shrink:0}
 .bk-shell{flex:1;width:100%;max-width:1240px;margin:0 auto;padding:22px 20px 18px;display:flex;flex-direction:column;justify-content:center}
 .bk-card{background:var(--card);border:1px solid var(--line);border-radius:24px;overflow:hidden;display:grid;grid-template-columns:380px 1fr;min-height:min(680px,calc(100vh - 150px));box-shadow:var(--shadow)}
 .bk-side{padding:34px 32px;background:var(--side);border-inline-end:1px solid var(--line);display:flex;flex-direction:column;gap:16px}
@@ -113,8 +122,7 @@ html,body{background:#09090F;margin:0}
 .bk-chosen svg{color:var(--brand-text);margin-top:3px;flex-shrink:0}
 .bk-chosen small{display:block;font-weight:500;color:var(--mute);font-size:12px;margin-bottom:2px}
 .bk-chosen.old{background:none;border:1px dashed var(--line);font-weight:500}
-.bk-side-foot{margin-top:auto;font-size:13px;color:var(--mute);display:flex;gap:14px;flex-wrap:wrap}
-.bk-side-foot a{color:inherit}
+.bk-side-foot{margin-top:auto;display:flex;flex-direction:column;gap:14px}
 .bk-main{padding:34px 40px 36px;min-width:0;display:flex;flex-direction:column}
 .bk-steps{display:flex;gap:6px;align-items:center;margin:0 0 22px;padding:0;list-style:none;font-size:13px;color:var(--mute);flex-wrap:wrap}
 .bk-steps li{display:flex;align-items:center;gap:7px}
@@ -214,10 +222,21 @@ html,body{background:#09090F;margin:0}
 @media (max-width:900px){
   .bk-top{padding:12px 14px 0}
   .bk-brand span{display:none}
+  .bk-brand img{height:40px}
+  .bk-top-act .bk-pill{padding:0 13px;height:38px}
+  .bk-top-act .bk-home-t{display:none}
+  .bk-wa{width:38px;padding:0}
+  .bk-wa span{display:none}
+  .bk-side-head{display:flex;align-items:center;gap:12px}
+  .bk-ava{display:block;width:56px;height:56px;border-radius:50%;overflow:hidden;flex-shrink:0;background:var(--brand-soft)}
+  .bk-ava img{width:100%;height:100%;object-fit:cover;display:block}
   .bk-shell{padding:14px 12px 16px;justify-content:flex-start}
   .bk-card{grid-template-columns:1fr;min-height:0;border-radius:20px}
   .bk-side{border-inline-end:none;border-bottom:1px solid var(--line);padding:22px 20px;gap:12px}
   .bk-side-foot{display:none}
+  .bk-time{min-height:46px}
+  .bk-day{max-height:none}
+  .bk-steps{margin-bottom:16px}
   .bk-main{padding:22px 18px 26px}
   .bk-cal-wrap{grid-template-columns:1fr;gap:22px}
   .bk-times{max-height:none;display:grid;grid-template-columns:repeat(3,1fr)}
@@ -236,6 +255,7 @@ const Icon = {
   cal: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>,
   check: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M7.5 12.5l3 3 6-6.5"/></svg>,
   tick: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"/></svg>,
+  wa: <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8s-.4-.1-.6.1-.7.8-.8 1-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.3-.4.7-1.3.1-.2 0-.3 0-.5l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.7 11.8 11.8 0 0 0 4.5 4c1.7.7 2.3.8 3.2.6a2.7 2.7 0 0 0 1.8-1.3 2.2 2.2 0 0 0 .2-1.3c-.1-.1-.3-.2-.5-.3z"/></svg>,
   back: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>,
 }
 
@@ -295,7 +315,8 @@ export default function BookingPage() {
   }, [lang, step])
 
   useEffect(() => {
-    fetch(`${API}/api/meta/booking-config`).then(r => r.json()).then(c => {
+    const pre = window.__bk?.cfg
+    ;(pre ? pre.catch(() => fetch(`${API}/api/meta/booking-config`).then(r => r.json())) : fetch(`${API}/api/meta/booking-config`).then(r => r.json())).then(c => {
       setCfg(c)
       if (params.get('m')) return
       const want = c.types?.find(x => x.id === params.get('type')) || (c.types?.length === 1 ? c.types[0] : null)
@@ -315,8 +336,13 @@ export default function BookingPage() {
     if (!ty || !cfg) return
     setSlots(null)
     const days = Math.min(31, (cfg.horizonDays || 21) + 1)
-    fetch(`${API}/api/meta/booking-slots?type=${encodeURIComponent(ty.id)}&from=${israelToday()}&days=${days}${own ? `&m=${encodeURIComponent(own)}` : ''}`)
-      .then(r => r.json()).then(d => {
+    // the first list may already be on its way (started by index.html before the bundle loaded)
+    const pre = window.__bk
+    const usePre = pre?.slots && !own && pre.days === days && pre.from === israelToday() && (pre.type === ty.id || (!pre.type && cfg.types?.[0]?.id === ty.id))
+    if (pre) window.__bk = null
+    ;(usePre ? pre.slots.catch(() => null) : Promise.resolve(null))
+      .then(d => d || fetch(`${API}/api/meta/booking-slots?type=${encodeURIComponent(ty.id)}&from=${israelToday()}&days=${days}${own ? `&m=${encodeURIComponent(own)}` : ''}`).then(r => r.json()))
+      .then(d => {
         setSlots(d.slots || {})
         const first = Object.keys(d.slots || {}).sort().find(k => d.slots[k].length)
         setDay(cur => {
@@ -359,6 +385,7 @@ export default function BookingPage() {
 
   const typeName = shownType ? (lang === 'en' ? shownType.en : shownType.he) : ''
   const typeDesc = shownType ? (lang === 'en' ? shownType.en_desc : shownType.he_desc) : ''
+  const photo = cfg?.photo || ''
   const orgName = cfg ? (lang === 'en' ? cfg.title?.en : cfg.title?.he) : (lang === 'en' ? 'Afik Hanahal' : 'אפיק הנחל')
   const chLabel = c => ({ meet: t.chMeet, zoom: t.chZoom, phone: t.chPhone }[c])
   const chDesc = c => ({ meet: t.chMeetD, zoom: t.chZoomD, phone: t.chPhoneD }[c])
@@ -614,7 +641,8 @@ export default function BookingPage() {
           <span>{orgName}</span>
         </a>
         <div className="bk-top-act">
-          <a className="bk-pill" href={homeHref}><span aria-hidden="true" style={{ display: 'inline-flex', transform: lang === 'en' ? 'none' : 'scaleX(-1)' }}>{Icon.back}</span>{t.home}</a>
+          <a className="bk-wa" href={waHref} target="_blank" rel="noreferrer" aria-label={t.waTip} title={t.waTip}>{Icon.wa}<span>{t.wa}</span></a>
+          <a className="bk-pill" href={homeHref} aria-label={t.home}><span aria-hidden="true" style={{ display: 'inline-flex', transform: lang === 'en' ? 'none' : 'scaleX(-1)' }}>{Icon.back}</span><span className="bk-home-t">{t.home}</span></a>
           <button className="bk-pill" lang={lang === 'en' ? 'he' : 'en'} onClick={() => setLang(l => (l === 'en' ? 'he' : 'en'))}>{t.langBtn}</button>
         </div>
       </header>
@@ -622,8 +650,13 @@ export default function BookingPage() {
       <main className="bk-shell">
         <div className={`bk-card${['details', 'call', 'moveConfirm'].includes(step) ? ' compact' : ''}`}>
           <aside className="bk-side">
-            <div className="bk-org">{orgName}</div>
-            <h1 className="bk-h1">{typeName || (mkey ? t.callPage : t.pick)}</h1>
+            <div className="bk-side-head">
+              {photo && <div className="bk-ava"><img src={photo} alt="" width="56" height="56" decoding="async"/></div>}
+              <div>
+                <div className="bk-org">{orgName}</div>
+                <h1 className="bk-h1">{typeName || (mkey ? t.callPage : t.pick)}</h1>
+              </div>
+            </div>
             {shownType && (
               <div className="bk-meta">
                 <span>{Icon.clock}{t.minutes(shownType.minutes)}</span>
@@ -634,8 +667,11 @@ export default function BookingPage() {
             {moving && call && <div className="bk-chosen old">{Icon.cal}<span><small>{t.current}</small>{longWhen(call.start, lang)}</span></div>}
             {start && (step === 'details' || step === 'moveConfirm') && <div className="bk-chosen">{Icon.cal}<span>{moving && <small>{t.newTime}</small>}{longWhen(start, lang)}</span></div>}
             <div className="bk-side-foot">
-              <a href={`tel:0${OFFICE_WA.slice(3)}`} dir="ltr">055-981-1814</a>
-              <a href={waHref} target="_blank" rel="noreferrer">WhatsApp</a>
+              {photo && <figure className="bk-photo"><img src={photo} alt={t.photoAlt} loading="lazy" decoding="async" width="316" height="237"/></figure>}
+              <div className="bk-contact">
+                <a href={waHref} target="_blank" rel="noreferrer"><span className="ic" style={{ background: '#25D366', color: '#fff' }}>{Icon.wa}</span>{t.waTip}</a>
+                <a href={`tel:0${OFFICE_WA.slice(3)}`}><span className="ic" style={{ background: 'var(--brand-soft)', color: 'var(--brand-text)' }}>{Icon.phone}</span><span>{t.call} · <bdi dir="ltr">055-981-1814</bdi></span></a>
+              </div>
             </div>
           </aside>
 
