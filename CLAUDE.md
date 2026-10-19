@@ -85,6 +85,18 @@ chime). "פרסם באתר" pushes the property into the existing property gener
 on the Render backend); rentals land in the `rentals` category, sales in `apartments` / `land` /
 `commercial`. Marking a published property sold/inactive hides it on the site automatically.
 
+## Homepage content (`content/home.json`) — the CMS source of truth
+
+Every homepage text, list and office detail lives in `content/home.json` (every text is a `{ he, en }` pair): hero (+ typewriter
+lines, tags), CEO, story, process steps, services, properties header, testimonials, FAQ, about, office (phone / `tel` /
+`whatsapp` / email / facebook / instagram / hours / area) and the playlist. `lib/home-content.js` (tested) holds the rules
+(`validateHome` — lengths, list sizes, icons from `HOME_ICONS`, both languages required) and `homeLegacy()` — the shapes the
+components already read: `App.jsx` merges its `tr` into `TR.he` / `TR.en` and builds `PROCESS_STEPS` / `SERVICES` /
+`TESTIMONIALS_DATA` / `FAQS` / the typewriter from it; inline phone / email / social links use `OFFICE` (= `HOME.office`).
+`lib/home-page.js` (static first screen) and `content/site.mjs` (phone, hours, social of the content pages) read the same
+file. `scripts/build-content.mjs` fails the build when `validateHome` finds an error. Change homepage copy there, never as a
+new literal in `App.jsx`. The admin content editor (ADMIN-SPEC.md, phases 2–4) edits this file.
+
 ## SEO content engine (`content/` → static pages)
 
 Crawlable bilingual pages are generated at build time (`npm run build` = `vite build && node scripts/build-content.mjs`)
@@ -469,8 +481,8 @@ visitor sees the real first screen with the HTML (~0.4 s) instead of after the b
 the markup (`data-pre-lang`); an inline script shows the layer only on `/` (never on `/admin-panel`, `/sell`, an old
 `/?p=` link). Cards link to the instant pages `/p/<id>` and use the same cover URL as the app's cards (`cardImage()` =
 `thumbImg`), so nothing downloads twice. `App.jsx` fades the layer out once it has rendered (a reader who had scrolled the
-layer's grid lands on the real `#properties`). Keep the layer's copy in step with `TR.heroBadge/heroH1line*/heroDesc/
-heroCTA*` and `propertiesTitle/H2/Desc` when those change. The landing pages are rendered from the plain template first.
+layer's grid lands on the real `#properties`). The layer's hero / properties texts come from `content/home.json`, the
+same source as the app (see "Homepage content"). The landing pages are rendered from the plain template first.
 
 Admin → property list → "שתף" (or ⋯ → "שיתוף ופרסום") opens `src/PropertyShare.jsx`: the link with a live preview, per-channel UTM
 links (Facebook, Instagram, WhatsApp, colleagues, Yad2, Google; `utm_campaign=prop-<id>`), a custom UTM builder, ready-made post and

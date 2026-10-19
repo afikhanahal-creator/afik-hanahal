@@ -1,0 +1,709 @@
+{
+  "version": 1,
+  "office": {
+    "phone": "055-981-1814",
+    "tel": "0559811814",
+    "whatsapp": "972559811814",
+    "email": "afik.hanahal@gmail.com",
+    "facebook": "https://www.facebook.com/profile.php?id=61573376818745",
+    "instagram": "https://www.instagram.com/afik.hanahal/",
+    "hours": [
+      {
+        "days": {
+          "he": "ראשון–חמישי",
+          "en": "Sun–Thu"
+        },
+        "time": "09:00–19:00"
+      },
+      {
+        "days": {
+          "he": "שישי",
+          "en": "Fri"
+        },
+        "time": "09:00–14:00"
+      }
+    ],
+    "area": {
+      "he": "השרון, המרכז וכל ישראל",
+      "en": "Sharon, Center & All Israel"
+    }
+  },
+  "hero": {
+    "badge": {
+      "he": "מומחים בשיווק ותיווך · השרון והמרכז",
+      "en": "Experts in Marketing & Brokerage · Sharon & Center"
+    },
+    "line1": {
+      "he": "הבית הבא שלכם",
+      "en": "Your Next Home"
+    },
+    "line2": {
+      "he": "מתחיל כאן",
+      "en": "Starts Here"
+    },
+    "typewriter": [
+      {
+        "he": "מגרשים וקרקעות בלעדיים",
+        "en": "Exclusive Plots & Land"
+      },
+      {
+        "he": "ייזום ושיווק פרויקטים",
+        "en": "Project Development & Marketing"
+      },
+      {
+        "he": "ליווי מקצועי מלא",
+        "en": "Full Professional Guidance"
+      },
+      {
+        "he": "השרון והמרכז ומעבר",
+        "en": "Sharon Region & Beyond"
+      }
+    ],
+    "desc": {
+      "he": "אפיק הנחל - ייזום שיווק ותיווך | חברה יזמית מובילה לאיתור, שיווק וליווי עסקאות קרקע בכל רחבי ישראל",
+      "en": "Afik Hanahal – Real estate promotion, marketing and brokerage | Leading company for locating, marketing and accompanying real estate transactions across Israel"
+    },
+    "cta1": {
+      "he": "צפו בנכסים שלנו",
+      "en": "View Properties"
+    },
+    "cta2": {
+      "he": "צרו קשר עכשיו",
+      "en": "Contact Us"
+    },
+    "cta3": {
+      "he": "מחשבון נדל״ן",
+      "en": "Calculator"
+    },
+    "tags": [
+      {
+        "he": "בנייה רוויה",
+        "en": "Multi-family"
+      },
+      {
+        "he": "צמודת קרקע",
+        "en": "Detached"
+      },
+      {
+        "he": "דיור מוגן",
+        "en": "Assisted living"
+      },
+      {
+        "he": "מסחר מניב",
+        "en": "Commercial"
+      },
+      {
+        "he": "קרקעות",
+        "en": "Land"
+      }
+    ]
+  },
+  "ceo": {
+    "badge": {
+      "he": "המנכ״ל",
+      "en": "The CEO"
+    },
+    "title": {
+      "he": "הדרך של ישראל בן יהודה",
+      "en": "The Journey of Israel Ben-Yehuda"
+    },
+    "quotePre": {
+      "he": "בעולם הנדל״ן, לפני עסקאות, קרקעות ותוכניות, יש ערך אחד שמוביל את הכול.",
+      "en": "In real estate, before deals, land, and plans, there is one value that leads everything."
+    },
+    "quoteHighlight": {
+      "he": "אמינות.",
+      "en": "Trust."
+    },
+    "quotePost": {
+      "he": "זהו הבסיס לכל קשר, לכל עסקה ולכל הצלחה אמיתית לאורך זמן.",
+      "en": "This is the foundation of every relationship, every transaction, and every lasting success."
+    },
+    "paragraphs": [
+      {
+        "he": "עם קרוב ל-30 שנות ניסיון בתחום הנדל״ן, מביא איתו ישראל בן יהודה דרך מקצועית עשירה, שנבנתה לאחר שנים רבות של עשייה ציבורית רחבת היקף ברחבי הארץ. לאורך השנים ליווה וייצג בעלי קרקעות רבים, חלקם ממשיכים לצעוד איתו עד היום, מתוך אמון מלא בדרך, בשקיפות ובמחויבות האישית לכל תהליך.",
+        "en": "With nearly 30 years of experience in real estate, Israel Ben-Yehuda brings a rich professional track record built through years of extensive public service across Israel. Over the years, he has guided and represented many land owners, some of whom continue to work with him to this day, driven by full trust in the process, transparency, and personal commitment."
+      },
+      {
+        "he": "במסגרת פעילותו, מייצג ישראל בעלי קרקע מול רוכשים פרטיים, קבוצות רכישה וחברות בנייה מהמובילות בישראל, תוך ליווי מקצועי מלא מהשלב החוזי ועד לקידום העסקאות בפועל.",
+        "en": "In his work, Israel represents landowners before private buyers, purchasing groups, and leading construction companies in Israel, providing full professional guidance from the contractual stage through to the actual advancement of transactions."
+      },
+      {
+        "he": "מעבר לכך, מוביל ישראל קידום תוכניות נדל״ן הכוללות שינויי ייעוד, השבחת קרקעות והובלתן עד שלב העלייה לקרקע, מתוך ראייה אסטרטגית וניסיון עמוק בעולם ההתחדשות והפיתוח.",
+        "en": "Beyond this, Israel leads the promotion of real estate plans including zoning changes, land enhancement, and guiding them through to the groundbreaking stage, drawing on strategic vision and deep experience in the world of urban renewal and development."
+      },
+      {
+        "he": "בחברת אפיק הנחל פועל צוות מקצועי של סוכנים ואנשי נדל״ן המתמחים בתיווך, שיווק פרויקטים וליווי עסקאות, עם מטרה אחת ברורה: ליצור ערך אמיתי ללקוחות ולבנות הצלחות שמחזיקות לאורך שנים.",
+        "en": "At Afik Hanahal, a professional team of agents and real estate specialists works in brokerage, project marketing, and deal support, with one clear goal: to create real value for clients and build lasting successes."
+      }
+    ],
+    "name": {
+      "he": "ישראל בן יהודה",
+      "en": "Israel Ben-Yehuda"
+    },
+    "role": {
+      "he": "מייסד ומנכ״ל · אפיק הנחל",
+      "en": "Founder & CEO · Afik Hanahal"
+    },
+    "photo": "/img/ceo.webp"
+  },
+  "story": {
+    "badge": {
+      "he": "הסיפור שלנו",
+      "en": "Our Story"
+    },
+    "line1": {
+      "he": "כשאדמה מדברת,",
+      "en": "When Land Speaks,"
+    },
+    "line2": {
+      "he": "אנחנו קשובים",
+      "en": "We Listen"
+    },
+    "desc": {
+      "he": "כל קרקע בישראל נושאת היסטוריה. אנחנו נמצאים בדיוק בין ההיסטוריה לחלום.",
+      "en": "Every plot of land in Israel carries history. We stand right between the past and the dream."
+    },
+    "paragraphs": [
+      {
+        "he": "אם היא חקלאית, מישהו זרע בה, גידל בה תוצרת, חלם עליה בלילות. אם היא עירונית, מישהו בנה עליה, מכר אותה, עבר הלאה.",
+        "en": "If it's agricultural, someone sowed it, grew produce in it, dreamed about it at night. If it's urban, someone built on it, sold it, moved on."
+      },
+      {
+        "he": "בישראל, אדמה זה לא רק נדל\"ן. אדמה זה זהות. זה ירושה. זה עתיד. מגרשים שנרכשו לפני עשרות שנים ועברו מהורים לילדים. שדות חקלאיים שהחזיקו משפחות שלמות, ועכשיו עומדים בפני שינוי.",
+        "en": "In Israel, land is not just real estate. Land is identity. It's heritage. It's the future. Plots purchased decades ago, passed from parents to children. Agricultural fields that sustained entire families, now standing at the edge of change."
+      },
+      {
+        "he": "אפיק הנחל - ייזום שיווק ותיווך קמה מתוך הבנה עמוקה של המורכבות הזו. בין חקלאי שמחזיק בשדה מדורי דורות, יורש שלא יודע מה לעשות עם הנכס שקיבל, ובין יזם שמחפש את הקרקע הנכונה לפרויקט הבא. אנחנו עומדים באמצע. מגשרים. מלווים. מייצרים עסקאות שעובדות לשני הצדדים.",
+        "en": "Afik Hanahal was established from a deep understanding of this complexity. Between the farmer who has held a field for generations, the heir who doesn't know what to do with inherited property, and the developer seeking the right land for their next project. We stand in the middle. Bridging. Guiding. Creating deals that work for both sides."
+      }
+    ],
+    "blockquote": {
+      "he": "אנחנו לא מוכרים קרקעות. אנחנו מחברים אנשים לאדמה שמתאימה להם.",
+      "en": "We don't sell land. We connect people to the land that fits them."
+    },
+    "cta": {
+      "he": "דברו איתנו עכשיו",
+      "en": "Talk to Us Now"
+    },
+    "sharonTitle": {
+      "he": "בלעדיות בשרון",
+      "en": "Sharon Exclusives"
+    },
+    "nationwideTitle": {
+      "he": "פעילות ארצית",
+      "en": "Nationwide Activity"
+    },
+    "nationwideDesc": {
+      "he": "השרון · המרכז · הצפון · הדרום. בכל מקום שיש קרקע עם פוטנציאל, אנחנו שם.",
+      "en": "Sharon · Center · North · South. Wherever there is land with potential, we are there."
+    },
+    "features": [
+      {
+        "title": {
+          "he": "חקלאות ועיר",
+          "en": "Agriculture & Urban"
+        },
+        "desc": {
+          "he": "מלווים בעלי שדות חקלאיים ומגרשים עירוניים כאחד",
+          "en": "Supporting owners of agricultural fields and urban plots alike"
+        }
+      },
+      {
+        "title": {
+          "he": "בלעדיות אמיתית",
+          "en": "True Exclusivity"
+        },
+        "desc": {
+          "he": "גישה לנכסים ייחודיים שלא זמינים במקומות אחרים. רק אצלנו.",
+          "en": "Access to unique properties not available anywhere else. Only with us."
+        }
+      },
+      {
+        "title": {
+          "he": "מהירות שוק",
+          "en": "Market Speed"
+        },
+        "desc": {
+          "he": "מגיעים לעסקאות לפני שהן עולות לשוק הפתוח",
+          "en": "We reach deals before they hit the open market"
+        }
+      },
+      {
+        "title": {
+          "he": "ליווי מלא",
+          "en": "Full Support"
+        },
+        "desc": {
+          "he": "מהאיתור הראשוני ועד הרישום בטאבו",
+          "en": "From initial search to final Tabu registration"
+        }
+      }
+    ]
+  },
+  "process": {
+    "badge": {
+      "he": "תהליך הליווי",
+      "en": "Our Process"
+    },
+    "title": {
+      "he": "שישה שלבים. ליווי אחד.",
+      "en": "Six Steps. One Partner."
+    },
+    "desc": {
+      "he": "מהאיתור הראשוני ועד הרישום בטאבו, אנחנו לצדכם בכל שלב של הדרך.",
+      "en": "From the first search to final registration, we are by your side at every step."
+    },
+    "readyTitle": {
+      "he": "מוכנים להתחיל?",
+      "en": "Ready to Start?"
+    },
+    "readyDesc": {
+      "he": "שיחת ייעוץ ראשונה, ללא עלות וללא התחייבות",
+      "en": "First consultation, no cost, no commitment"
+    },
+    "steps": [
+      {
+        "icon": "FaSearch",
+        "accent": "purple",
+        "title": {
+          "he": "איתור הקרקע המתאימה",
+          "en": "Finding the Right Land"
+        },
+        "desc": {
+          "he": "מיפוי שיטתי של שוק הקרקעות. אנחנו מגיעים לקרקעות לפני שהן עולות לשוק הפתוח, דרך רשת קשרים שבנינו לאורך 30 שנה.",
+          "en": "Systematic mapping of the land market. We reach plots before they hit the open market, through a network of connections we've built over 30 years."
+        }
+      },
+      {
+        "icon": "FaBalanceScale",
+        "accent": "green",
+        "title": {
+          "he": "בדיקת זכויות ותב\"ע",
+          "en": "Rights & Zoning Check"
+        },
+        "desc": {
+          "he": "בדיקה מעמיקה של זכויות בנייה, ייעוד הקרקע ואפשרויות שינוי ייעוד. תדעו בדיוק מה מותר לבנות ובכמה.",
+          "en": "In-depth review of building rights, land designation, and rezoning options. You will know exactly what can be built and how much."
+        }
+      },
+      {
+        "icon": "FaMoneyBill",
+        "accent": "purple",
+        "title": {
+          "he": "ייעוץ מיסוי והערכת שווי",
+          "en": "Tax Advisory & Valuation"
+        },
+        "desc": {
+          "he": "חישוב מדויק של מס שבח, מס רכישה והיטל השבחה. הערכת שווי עצמאית לפני כל עסקה, כדי שלא תהיו מופתעים.",
+          "en": "Precise calculation of capital gains tax, purchase tax, and betterment levy. Independent valuation before every deal. No surprises."
+        }
+      },
+      {
+        "icon": "FaHandshake",
+        "accent": "green",
+        "title": {
+          "he": "ניהול משא ומתן",
+          "en": "Negotiation Management"
+        },
+        "desc": {
+          "he": "ניהול מקצועי מול הצד השני. שולטים בפרטים, מבינים את המניעים ושומרים על האינטרסים שלכם לאורך כל הדרך.",
+          "en": "Professional management against the other party. We control the details, understand the motivations, and protect your interests throughout."
+        }
+      },
+      {
+        "icon": "FaFileAlt",
+        "accent": "purple",
+        "title": {
+          "he": "ליווי חוזי ומשפטי",
+          "en": "Legal & Contractual Support"
+        },
+        "desc": {
+          "he": "עבודה צמודה עם עורכי דין מקרקעין מובילים. בדיקת כל סעיף, הגנה על הרוכש, מניעת מוקשים שיכולים לעכב שנים.",
+          "en": "Close collaboration with leading real estate lawyers. Every clause reviewed, buyer protected, pitfalls that could delay years are prevented."
+        }
+      },
+      {
+        "icon": "FaTrophy",
+        "accent": "green",
+        "title": {
+          "he": "סגירת עסקה ורישום בטאבו",
+          "en": "Deal Closure & Tabu Registration"
+        },
+        "desc": {
+          "he": "אנחנו לא נעלמים אחרי החתימה. ליווי עד לרישום מלא בטאבו, כי רק אז העסקה באמת הושלמה.",
+          "en": "We don't disappear after signing. We walk you through every step until Tabu registration is complete, because that's when the deal is truly done."
+        }
+      }
+    ]
+  },
+  "services": {
+    "badge": {
+      "he": "השירותים שלנו",
+      "en": "Our Services"
+    },
+    "line1": {
+      "he": "כל מה שצריך,",
+      "en": "Everything you need,"
+    },
+    "line2": {
+      "he": "במקום אחד",
+      "en": "In one place"
+    },
+    "desc": {
+      "he": "מהאיתור הראשוני ועד הרישום בטאבו. ליווי מקצועי מלא בכל שלב בעסקת הקרקע.",
+      "en": "From the first search to final Tabu registration. Complete professional support at every stage."
+    },
+    "items": [
+      {
+        "icon": "FaTrophy",
+        "accent": "purple",
+        "title": {
+          "he": "ניסיון ומוניטין",
+          "en": "Experience & Reputation"
+        },
+        "desc": {
+          "he": "אפיק הנחל הוקמה על ידי ישראל בן־יהודה, מומחה נדל״ן בעל ניסיון, מקצועיות ומוניטין של עשרות שנים בתחום הנדל״ן בישראל ובתחום הקרקעות בפרט. החברה פועלת מתוך היכרות עמוקה עם השוק ויכולת לזהות הזדמנויות בעלות פוטנציאל אמיתי.",
+          "en": "Afik Hanahal was founded by Israel Ben-Yehuda, a real estate expert with decades of experience, professionalism, and reputation in Israeli real estate and land in particular. The company operates from deep market knowledge and the ability to identify opportunities with real potential."
+        }
+      },
+      {
+        "icon": "FaChartLine",
+        "accent": "green",
+        "title": {
+          "he": "השקעות עם פוטנציאל",
+          "en": "High-Potential Investments"
+        },
+        "desc": {
+          "he": "אנו מתמחים באיתור קרקעות פרטיות בעלות פוטנציאל השבחה והתפתחות עתידית, במטרה לאפשר ללקוחות להיכנס להשקעות נדל״ן בשלבים מוקדמים ובמחירים נגישים.",
+          "en": "We specialize in identifying private plots with appreciation and future development potential, enabling clients to enter real estate investments early and at accessible prices."
+        }
+      },
+      {
+        "icon": "FaEye",
+        "accent": "purple",
+        "title": {
+          "he": "שקיפות מלאה",
+          "en": "Full Transparency"
+        },
+        "desc": {
+          "he": "כל עסקה נבדקת בקפדנות ומוצגת בצורה ברורה ומסודרת. אנו מאמינים בליווי אישי, אמינות ושקיפות מלאה לאורך כל הדרך.",
+          "en": "Every deal is carefully reviewed and presented clearly and orderly. We believe in personal guidance, reliability, and full transparency throughout the entire process."
+        }
+      },
+      {
+        "icon": "FaHardHat",
+        "accent": "green",
+        "title": {
+          "he": "קרקעות בפיתוח",
+          "en": "Land Under Development"
+        },
+        "desc": {
+          "he": "החברה מאתרת קרקעות באזורי ביקוש ובשלבי תכנון מתקדמים, מתוך הבנה כי התקדמות תכנונית עשויה להשפיע משמעותית על ערך הקרקע בעתיד.",
+          "en": "We locate plots in high-demand areas at advanced planning stages, understanding that planning progress can significantly impact future land value."
+        }
+      },
+      {
+        "icon": "FaKey",
+        "accent": "purple",
+        "title": {
+          "he": "כניסה נגישה",
+          "en": "Accessible Entry"
+        },
+        "desc": {
+          "he": "אנחנו מאמינים שהשקעה בנדל״ן צריכה להיות נגישה יותר, ולכן פועלים לאיתור עסקאות עם מחירי כניסה נוחים ופוטנציאל צמיחה לטווח ארוך.",
+          "en": "We believe real estate investment should be more accessible, so we seek deals with favorable entry prices and long-term growth potential."
+        }
+      },
+      {
+        "icon": "FaSearch",
+        "accent": "green",
+        "title": {
+          "he": "מזהים הזדמנויות",
+          "en": "Spotting Opportunities"
+        },
+        "desc": {
+          "he": "באמצעות ניסיון, בדיקות מקצועיות וחשיבה קדימה, אנו מזהים אזורים ופרויקטים בעלי פוטנציאל עוד לפני שהם מגיעים למרכז השוק – ומאפשרים ללקוחותינו ליהנות מהזדמנויות איכותיות להשקעה.",
+          "en": "Through experience, professional analysis, and forward thinking, we identify areas and projects with potential before they reach the mainstream market, and pass those opportunities on to our clients."
+        }
+      }
+    ]
+  },
+  "properties": {
+    "badge": {
+      "he": "נכסים זמינים",
+      "en": "Available Properties"
+    },
+    "title": {
+      "he": "הנכסים שלנו",
+      "en": "Our Properties"
+    },
+    "desc": {
+      "he": "קרקעות, מגרשים, פרוייקטים ודירות בלעדיים בכל רחבי ישראל",
+      "en": "Land, plots, projects and exclusive properties throughout Israel"
+    }
+  },
+  "testimonials": {
+    "badge": {
+      "he": "לקוחות מספרים",
+      "en": "Clients Speak"
+    },
+    "title": {
+      "he": "מה אומרים עלינו",
+      "en": "What They Say About Us"
+    },
+    "desc": {
+      "he": "לקוחות שעזרנו להם למצוא קרקע ולסגור עסקאות מוצלחות",
+      "en": "Clients we helped find land and close successful deals"
+    },
+    "items": [
+      {
+        "quote": {
+          "he": "אפיק הנחל סייעו לנו למצוא מגרש בלעדי באזור השרון שלא היה חשוף לקהל הרחב. הליווי המקצועי, מהפנייה הראשונה ועד סגירת העסקה, היה אישי, מסור ויוצא דופן.",
+          "en": "Afik Hanahal helped us find an exclusive plot in the Sharon region that was not exposed to the general public. The professional guidance, from the first inquiry to closing the deal, was personal, dedicated and exceptional."
+        },
+        "name": {
+          "he": "עו״ד גיא מוסרי",
+          "en": "Adv. Guy Musseri"
+        },
+        "designation": {
+          "he": "משרד מוסרי & מורן חביב ושות׳",
+          "en": "Moseri & Moran Haviv & Co. Law Office"
+        },
+        "photo": "/img/doron-yaffe.webp",
+        "imgFit": "cover",
+        "imgPos": "center top"
+      },
+      {
+        "quote": {
+          "he": "ישראל בן יהודה הוא מתווך מקצועי, אמין ומסור, עם שירות אישי וליווי ברמה גבוהה לאורך כל הדרך. שילוב נדיר של מקצוענות, יושרה והיכרות עמוקה עם שוק הנדל״ן באזור השרון. קשוב, סבלני וממוקד בתוצאות, מומלץ בחום.",
+          "en": "Israel Ben-Yehuda is a professional, reliable and dedicated broker, with personal service and high-level guidance throughout. A rare combination of professionalism, integrity and deep knowledge of the Sharon real estate market. Attentive, patient and results-focused — highly recommended."
+        },
+        "name": {
+          "he": "פינחסי ג׳ימי",
+          "en": "Jimmy Pinhasi"
+        },
+        "designation": {
+          "he": "שמאי מקרקעין",
+          "en": "Real Estate Appraiser"
+        },
+        "photo": "/img/pinhasi-jimmy.webp",
+        "imgFit": "cover",
+        "imgPos": "center top"
+      },
+      {
+        "quote": {
+          "he": "ביצענו כמה עסקאות קרקע דרך אפיק הנחל. הם תמיד מוצאים נכסים עם פוטנציאל אמיתי, הרבה לפני שהם מגיעים לשוק הפתוח.",
+          "en": "We have completed several land deals through Afik Hanahal. They always find properties with real potential, well before they reach the open market."
+        },
+        "name": {
+          "he": "תומר צליח",
+          "en": "Tomer Tzaliah"
+        },
+        "designation": {
+          "he": "חברת צליח רוטשילד",
+          "en": "Tzaliah Rothschild Company"
+        },
+        "photo": "/img/tomer-tzaliah.webp",
+        "imgFit": "cover",
+        "imgPos": "center 18%"
+      },
+      {
+        "quote": {
+          "he": "חיפשנו מגרש לצמודת קרקע עם תקציב מוגבל. הצוות של אפיק הנחל הבין בדיוק מה אנחנו צריכים ומצאו לנו את הפתרון המושלם.",
+          "en": "We were looking for a plot for a detached house on a limited budget. The Afik Hanahal team understood exactly what we needed and found us the perfect solution."
+        },
+        "name": {
+          "he": "דורון יפה",
+          "en": "Doron Yaffe"
+        },
+        "designation": {
+          "he": "יזם בתחום הנדל״ן",
+          "en": "Real Estate Developer"
+        },
+        "photo": "/img/guy-musseri.webp",
+        "imgFit": "cover",
+        "imgPos": "center top"
+      },
+      {
+        "quote": {
+          "he": "במהלך כ־20 שנות עבודה משותפת עם ישראל בן יהודה, הכרתי איש מקצוע יוצא דופן בתחום הנדל״ן, הקרקעות והיזמות. ישראל משלב מקצועיות, ניסיון רב, יושרה ואמינות ללא פשרות, לצד יכולת לזהות הזדמנויות ולהוביל עסקאות באחריות וביסודיות. אני ממליץ עליו בלב שלם לכל מי שמחפש ליווי מקצועי ואמין.",
+          "en": "Over nearly 20 years of working alongside Israel Ben-Yehuda, I have come to know an exceptional professional in real estate, land, and development. Israel combines professionalism, extensive experience, integrity and uncompromising reliability with the ability to identify opportunities and lead transactions with responsibility and thoroughness. I recommend him wholeheartedly to anyone seeking professional and trustworthy guidance."
+        },
+        "name": {
+          "he": "עו״ד אסף שובלי",
+          "en": "Adv. Assaf Shovali"
+        },
+        "designation": {
+          "he": "",
+          "en": ""
+        },
+        "photo": "/img/assaf-shovali.webp",
+        "firm": {
+          "he": "משרד עו״ד שובלי ושות׳",
+          "en": "Shobali & Co. Law Office"
+        },
+        "imgFit": "cover",
+        "imgPos": "center top"
+      }
+    ]
+  },
+  "faq": {
+    "badge": {
+      "he": "שאלות נפוצות",
+      "en": "FAQ"
+    },
+    "title": {
+      "he": "כל מה שרציתם לדעת",
+      "en": "Everything You Wanted to Know"
+    },
+    "desc": {
+      "he": "תשובות לשאלות הנפוצות ביותר בנושא קרקעות ושירותי אפיק הנחל - ייזום שיווק ותיווך",
+      "en": "Answers to the most common questions about land and Afik Hanahal services"
+    },
+    "items": [
+      {
+        "q": {
+          "he": "מה מייחד את אפיק הנחל משאר חברות הנדל\"ן?",
+          "en": "What sets Afik Hanahal apart from other real estate companies?"
+        },
+        "a": {
+          "he": "אפיק הנחל מתמחה בקרקעות, מגרשים ודירות למכירה, עם דגש מיוחד על נכסים בלעדיים שאינם מגיעים לפורטלים הפתוחים. הניסיון העמוק שלנו בשרון ובמרכז מאפשר לנו לאתר הזדמנויות לפני השוק, ולתת ללקוח ליווי מקצועי מרגע הזיהוי ועד הסגירה.",
+          "en": "Afik Hanahal specializes in land, plots, and properties for sale, with special emphasis on exclusive assets not listed on public portals. Our deep experience in the Sharon and Center regions lets us spot opportunities before the market, providing clients professional guidance from identification to closing."
+        }
+      },
+      {
+        "q": {
+          "he": "אילו שירותים מציעה אפיק הנחל?",
+          "en": "What services does Afik Hanahal offer?"
+        },
+        "a": {
+          "he": "החברה מציעה: איתור קרקעות זמינות, שיווק ותיווך מגרשים, ייזום פרויקטים חדשים, שיווק בתי יוקרה, וליווי מלא לעסקאות קרקע. מפגישת הייעוץ הראשונה ועד חתימה על החוזה.",
+          "en": "The company offers: land search, plot marketing and brokerage, new project development, luxury home marketing, and full support for land transactions, from the first consultation all the way to signing."
+        }
+      },
+      {
+        "q": {
+          "he": "באילו אזורים פועלת אפיק הנחל?",
+          "en": "In which areas does Afik Hanahal operate?"
+        },
+        "a": {
+          "he": "אזור ההתמחות הראשי הוא השרון והמרכז, אך החברה פעילה בכל רחבי ישראל, מהצפון ועד הדרום. לקוחות מכל הארץ מוזמנים ליצור קשר.",
+          "en": "The primary area of expertise is the Sharon and Center, but the company is active throughout Israel, from north to south. Clients from across the country are welcome to get in touch."
+        }
+      },
+      {
+        "q": {
+          "he": "מה ההבדל בין קרקע חקלאית לקרקע לבנייה?",
+          "en": "What is the difference between agricultural land and building land?"
+        },
+        "a": {
+          "he": "קרקע חקלאית מיועדת לפי התוכנית המוניציפלית לשימוש חקלאי ולא ניתן לבנות עליה ללא שינוי ייעוד. קרקע לבנייה (מגורים, מסחר, תעשייה) אושרה בתוכנית בניין עיר ומאפשרת הגשת היתרי בנייה. שינוי ייעוד קרקע חקלאית הוא תהליך ארוך, אך לעיתים גם הזדמנות השקעה.",
+          "en": "Agricultural land is designated for agricultural use per the municipal plan and cannot be built on without rezoning. Building land (residential, commercial, industrial) has been approved in a city building plan and permits building permit applications. Rezoning agricultural land is a long process, but sometimes it's also an investment opportunity."
+        }
+      },
+      {
+        "q": {
+          "he": "כמה עולה קרקע בשרון?",
+          "en": "How much does land cost in the Sharon region?"
+        },
+        "a": {
+          "he": "מחיר הקרקעות בשרון נע בטווח רחב בהתאם לייעוד, מיקום ושטח. מגרש בנייה בשרון יכול לנוע בין כמה מאות אלפי שקלים לכמה מיליונים. לקבלת הערכת מחיר מדויקת לנכס ספציפי, פנו אלינו ישירות.",
+          "en": "Land prices in the Sharon vary widely depending on designation, location, and area. A building plot in the Sharon can range from a few hundred thousand to several million shekels. For an accurate price estimate on a specific property, get in touch with us directly."
+        }
+      },
+      {
+        "q": {
+          "he": "האם ניתן לקנות קרקע כהשקעה?",
+          "en": "Can land be purchased as an investment?"
+        },
+        "a": {
+          "he": "כן. קרקעות בישראל, במיוחד בסמוך לאזורי ביקוש, הוכיחו עצמן כנכס השקעה סולידי לאורך זמן. קרקעות בסמוך להרחבות עירוניות מתוכננות עשויות לצמוח בערכן משמעותית. אפיק הנחל מסייעת לזהות הזדמנויות כאלה.",
+          "en": "Yes. Land in Israel, especially near high-demand areas, has proven to be a solid long-term investment. Land near planned urban expansions may grow significantly in value. Afik Hanahal helps identify such opportunities."
+        }
+      },
+      {
+        "q": {
+          "he": "כיצד לאתר קרקעות למכירה בישראל?",
+          "en": "How do you find land for sale in Israel?"
+        },
+        "a": {
+          "he": "ניתן לחפש בפורטלי נדל\"ן (יד2, מדלן), לפנות לרשויות המקומיות, או לעבוד עם חברת תיווך מתמחה כמו אפיק הנחל, שמחזיקה ברשימות בלעדיות שאינן מפורסמות לציבור.",
+          "en": "You can search real estate portals (Yad2, Madlan), contact local authorities, or work with a specialized brokerage like Afik Hanahal, which holds exclusive listings not available to the public."
+        }
+      },
+      {
+        "q": {
+          "he": "מה תהליך רכישת קרקע בישראל?",
+          "en": "What is the process of purchasing land in Israel?"
+        },
+        "a": {
+          "he": "התהליך כולל: איתור והתאמה לצרכי הקונה, בדיקת נסח טאבו וזכויות, בדיקת ייעוד ותכניות בנייה, משא ומתן על המחיר, חתימה על זיכרון דברים, בדיקות עורך דין ונוטריון, ורישום בטאבו. אפיק הנחל מלווה את הלקוח בכל שלב.",
+          "en": "The process includes: search and matching to buyer needs, Tabu extract and rights check, zoning and building plan review, price negotiation, signing a memorandum of understanding, lawyer and notary checks, and Tabu registration. Afik Hanahal accompanies clients at every stage."
+        }
+      },
+      {
+        "q": {
+          "he": "מתי כדאי להשקיע בקרקע חקלאית?",
+          "en": "When is it worthwhile to invest in agricultural land?"
+        },
+        "a": {
+          "he": "כאשר הקרקע ממוקמת בסמוך לאזור מבונה עם לחץ ביקוש גבוה, כאשר קיימות תכניות מוניציפליות לשינוי ייעוד באזור, וכאשר אופק ההשקעה הוא ארוך (5–15 שנה). חשוב לבצע בדיקת נאותות מקיפה לפני כל השקעה כזו.",
+          "en": "When the land is located near a built-up area with high demand pressure, when municipal rezoning plans exist for the area, and when the investment horizon is long (5–15 years). It's important to perform thorough due diligence before any such investment."
+        }
+      }
+    ]
+  },
+  "about": {
+    "badge": {
+      "he": "אודות",
+      "en": "About"
+    },
+    "title": {
+      "he": "אפיק הנחל - ייזום שיווק ותיווך: שותף מהימן לקרקע שלך",
+      "en": "Afik Hanahal – Real Estate Marketing: Your Trusted Land Partner"
+    },
+    "desc": {
+      "he": "חברה יזמית מובילה בתחום קרקעות ומגרשים, עם מומחיות עמוקה בשיווק ותיווך באזור השרון והמרכז. מובילים ייזום ושיווק של פרויקטים חדשים ובתי יוקרה, ממגזר הפרט ועד חברות גדולות.",
+      "en": "Leading company in land and plot market, with deep expertise in real estate marketing and brokerage in the Sharon and Center region. We lead the marketing and development of new projects and luxury homes, from private individuals to large companies."
+    },
+    "points": [
+      {
+        "he": "מומחים בשיווק ותיווך בשרון ובמרכז",
+        "en": "Experts in marketing & brokerage across the Sharon and Center"
+      },
+      {
+        "he": "מובילים ייזום פרויקטים חדשים ובתי יוקרה",
+        "en": "Leaders in new project development & luxury homes"
+      },
+      {
+        "he": "משרתים אדם פרטי ועד חברה גדולה, בכל ישראל",
+        "en": "Serving private owners and large companies throughout Israel"
+      },
+      {
+        "he": "ניסיון של מעל 30 שנה בשוק הנדל״ן",
+        "en": "Over 30 years of experience in real estate market"
+      }
+    ],
+    "cta": {
+      "he": "פנה אלינו עכשיו",
+      "en": "Contact Us Now"
+    }
+  },
+  "playlist": {
+    "visible": true,
+    "label": {
+      "he": "הפסקול שלנו",
+      "en": "The Soundtrack"
+    },
+    "title": {
+      "he": "הפסקול של אפיק הנחל, בין סגירה לסגירה",
+      "en": "Afik Hanahal — Between Close & Close"
+    },
+    "desc": {
+      "he": "לחצו Play והיכנסו לקצב שמלווה את עסקאות הנדל\"ן שלנו",
+      "en": "Press Play and get into the rhythm that accompanies our real-estate deals"
+    },
+    "url": "https://open.spotify.com/embed/playlist/7HGgXmznOBKie0g6LDQ0uN?utm_source=generator"
+  }
+}
