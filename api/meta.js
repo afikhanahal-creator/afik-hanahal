@@ -1550,7 +1550,8 @@ async function handleBooking(req, res, action) {
       return res.status(200).json({ url: GCal.authUrl() })
     }
     if (action === 'booking-disconnect') { await GCal.disconnect(); return res.status(200).json({ ok: true }) }
-    if (action === 'booking-cancel') return res.status(200).json(await Booking.cancel(String(b.id || '')))
+    if (action === 'booking-cancel') return res.status(200).json(await Booking.cancel(String(b.id || ''), { notify: b.notify !== false, client: sb() }))
+    if (action === 'booking-move') return res.status(200).json(await Booking.moveByOffice(sb(), String(b.id || ''), String(b.start || ''), { notify: b.notify !== false }))
     if (action === 'booking-resend') return res.status(200).json(await Booking.resend(String(b.id || '')))
     if (action === 'booking-test-email') return res.status(200).json(await Booking.testEmail())
     return res.status(404).json({ error: `Unknown path: ${action}` })
