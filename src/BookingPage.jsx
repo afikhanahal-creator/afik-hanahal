@@ -106,9 +106,11 @@ html,body{background:#09090F;margin:0}
 .bk-pill:hover{border-color:var(--brand)}
 .bk-wa{display:inline-flex;align-items:center;justify-content:center;gap:7px;height:38px;padding:0 14px;border-radius:999px;background:#25D366;color:#06301A!important;font-size:13.5px;font-weight:600;text-decoration:none;white-space:nowrap}
 .bk-wa:hover{filter:brightness(1.05)}
-.bk-photo{margin:4px 0 0;border-radius:16px;overflow:hidden;aspect-ratio:1/1;background:#fff;border:1px solid var(--line)}
-.bk-photo img{display:block;width:100%;height:100%;object-fit:contain}
-.bk-ava{display:none}
+/* the figure stands at the bottom of the side panel: a cut-out (no frame, no background), its own proportions */
+.bk-photo{margin:0;position:relative;display:flex;justify-content:center;align-items:flex-end}
+.bk-photo img{position:relative;z-index:1;display:block;height:clamp(300px,calc(100vh - 470px),430px);width:auto;max-width:100%;object-fit:contain}
+.bk-photo::after{content:'';position:absolute;bottom:-6px;left:50%;width:62%;height:16px;transform:translateX(-50%);border-radius:50%;background:radial-gradient(closest-side,rgba(23,23,43,.16),transparent)}
+.bk-contact.bk-ph-contact{display:none}
 .bk-contact{display:flex;flex-wrap:wrap;gap:8px}
 .bk-contact a{flex:1 1 auto;display:inline-flex;align-items:center;justify-content:center;gap:7px;height:38px;padding:0 12px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--ink)!important;text-decoration:none;font-size:13px;font-weight:500;white-space:nowrap}
 .bk-contact a:hover{border-color:var(--brand)}
@@ -233,36 +235,46 @@ html,body{background:#09090F;margin:0}
   .bk-top-act .bk-home-t{display:none}
   .bk-wa{width:38px;padding:0}
   .bk-wa span{display:none}
-  .bk-side-head{display:flex;align-items:center;gap:12px}
-  .bk-ava{display:block;width:56px;height:56px;border-radius:50%;overflow:hidden;flex-shrink:0;background:var(--brand-soft)}
-  .bk-ava{background:#fff;border:1px solid var(--line)}
-  .bk-ava img{width:100%;height:100%;object-fit:contain;display:block}
-  .bk-shell{padding:14px 12px 16px;justify-content:flex-start}
-  .bk-card{grid-template-columns:1fr;min-height:0;border-radius:20px}
-  .bk-side{border-inline-end:none;border-bottom:1px solid var(--line);padding:22px 20px;gap:12px}
-  .bk-side-foot{margin-top:4px}
-  .bk-side-foot .bk-photo{display:none}
-  .bk-card.ph-time .bk-side-foot{display:none}
+  /* phones: the app-like layout on every step — a one-row summary on top, the task, help at the bottom; no figure */
+  .bk-shell{padding:12px 10px 16px;justify-content:flex-start}
+  .bk-card{grid-template-columns:1fr;min-height:0;border-radius:20px;overflow:clip}
+  .bk-side{border-inline-end:none;border-bottom:1px solid var(--line);padding:14px 16px;gap:8px}
+  .bk-side-foot,.bk-desc,.bk-org{display:none}
+  .bk-h1{font-size:19px}
+  .bk-meta{flex-direction:row;flex-wrap:wrap;gap:6px 14px;font-size:13.5px}
+  .bk-chosen{padding:10px 12px;font-size:14px;border-radius:12px;margin-top:2px}
+  .bk-main{padding:16px 14px 20px}
+  .bk-steps{margin-bottom:12px}
+  .bk-h2{font-size:19px;margin-bottom:14px}
+  .bk-contact.bk-ph-contact{display:flex;padding:12px 14px calc(12px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--side)}
+  .bk-contact.bk-ph-contact a{height:44px}
+  .bk-ghost{min-height:44px}
+  /* meeting type */
+  .bk-type{padding:16px;border-radius:14px;min-height:64px}
+  /* calendar (the month view on a phone) and times */
   .bk-time{min-height:46px}
   .bk-day{max-height:none}
-  .bk-steps{margin-bottom:16px}
-  .bk-main{padding:22px 18px 26px}
   .bk-cal-wrap{grid-template-columns:1fr;gap:22px}
   .bk-times{max-height:none;display:grid;grid-template-columns:repeat(3,1fr)}
-  .bk-h1{font-size:23px}
+  /* details: the main button stays at the bottom of the screen while typing */
+  .bk-form{gap:14px}
+  .bk-chs{grid-template-columns:1fr}
+  .bk-ch{min-height:56px}
+  .bk-actions{position:sticky;bottom:0;z-index:2;background:var(--card);margin:0 -14px;padding:10px 14px calc(10px + env(safe-area-inset-bottom));border-top:1px solid var(--line);flex-wrap:nowrap}
+  .bk-actions .bk-btn{flex:1;min-height:50px}
+  /* the call's page and the move confirmation: stacked, full-width buttons */
+  .bk-when{gap:14px;margin:16px 0 18px}
+  .bk-tile{width:64px}
+  .bk-tile .d{font-size:25px}
+  .bk-when-t{font-size:18px}
   .bk-dl{grid-template-columns:1fr}
-  .bk-when-t{font-size:19px}
-  .bk-manage .bk-btn{flex:1 1 auto}
-  .bk-card.compact .bk-desc{display:none}
-  /* phones, the day & time step: a one-row summary, a strip of days, big time chips */
-  .bk-card.ph-time .bk-side{padding:14px 16px;gap:8px}
-  .bk-card.ph-time .bk-desc,.bk-card.ph-time .bk-org{display:none}
-  .bk-card.ph-time .bk-ava{width:44px;height:44px}
-  .bk-card.ph-time .bk-h1{font-size:19px}
-  .bk-card.ph-time .bk-meta{flex-direction:row;flex-wrap:wrap;gap:6px 14px;font-size:13.5px}
-  .bk-card.ph-time .bk-main{padding:16px 14px 20px}
-  .bk-card.ph-time .bk-steps{margin-bottom:12px}
-  .bk-card.ph-time .bk-h2{font-size:19px;margin-bottom:14px}
+  .bk-dl div{padding:11px 0}
+  .bk-manage{flex-direction:column;align-items:stretch;gap:10px;margin-top:20px}
+  .bk-manage .bk-btn{width:100%;min-height:50px}
+  .bk-manage>a:not(.bk-btn){text-align:center;min-height:44px;display:flex;align-items:center;justify-content:center}
+  .bk-confirm .bk-actions{position:static;margin:0;padding:0;border:0;background:none;flex-direction:column;align-items:stretch}
+  .bk-keep .bk-pill{flex:1;justify-content:center;min-height:44px}
+  .bk-prep{margin-top:22px}
 }
 .bk-strip-h{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 10px}
 .bk-strip-h b{font-size:14.5px;font-weight:600}
@@ -274,6 +286,7 @@ html,body{background:#09090F;margin:0}
 .bk-dchip b{font-size:21px;font-weight:700;line-height:1.15;font-variant-numeric:tabular-nums}
 .bk-dchip[aria-pressed=true]{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
 .bk-dchip[aria-pressed=true] small{color:var(--brand-ink);opacity:.85}
+.bk-dchip.cur:not([aria-pressed=true]){border:2px dashed var(--brand)}
 .bk-ph-times{margin-top:14px}
 .bk-ph-times .bk-times-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
 .bk-ph-times .bk-times-h span{font-size:12.5px;color:var(--mute);font-weight:500}
@@ -544,7 +557,7 @@ export default function BookingPage() {
       {monthOnPhone ? calendarEl(current, true) : (
         <div className="bk-strip" role="group" aria-label={t.pickDay}>
           {available.map(d => (
-            <button key={d} type="button" className="bk-dchip" aria-pressed={d === day} aria-label={dayLabel(d, lang)} onClick={() => { setDay(d); setStart('') }}>
+            <button key={d} type="button" className={`bk-dchip${current && d === israelDay(current) ? ' cur' : ''}`} aria-pressed={d === day} aria-label={dayLabel(d, lang)} onClick={() => { setDay(d); setStart('') }}>
               <small>{d === today ? (lang === 'en' ? 'Today' : 'היום') : dayChip(d).toLocaleDateString(lang === 'en' ? 'en-GB' : 'he-IL', { timeZone: 'UTC', weekday: 'short' })}</small>
               <b>{Number(d.slice(8))}</b>
               <small>{dayChip(d).toLocaleDateString(lang === 'en' ? 'en-GB' : 'he-IL', { timeZone: 'UTC', month: 'short' })}</small>
@@ -743,10 +756,9 @@ export default function BookingPage() {
       </header>
 
       <main className="bk-shell">
-        <div className={`bk-card${['details', 'call', 'moveConfirm'].includes(step) ? ' compact' : ''}${isPhone && step === 'time' ? ' ph-time' : ''}`}>
+        <div className="bk-card">
           <aside className="bk-side">
             <div className="bk-side-head">
-              {photo && <div className="bk-ava"><img src={photo} alt="" width="56" height="56" decoding="async"/></div>}
               <div>
                 <div className="bk-org">{orgName}</div>
                 <h1 className="bk-h1">{typeName || (mkey ? t.callPage : t.pick)}</h1>
@@ -762,7 +774,7 @@ export default function BookingPage() {
             {moving && call && <div className="bk-chosen old">{Icon.cal}<span><small>{t.current}</small>{longWhen(call.start, lang)}</span></div>}
             {start && (step === 'details' || step === 'moveConfirm') && <div className="bk-chosen">{Icon.cal}<span>{moving && <small>{t.newTime}</small>}{longWhen(start, lang)}</span></div>}
             <div className="bk-side-foot">
-              {photo && <figure className="bk-photo"><img src={photo} alt={t.photoAlt} loading="lazy" decoding="async" width="316" height="237"/></figure>}
+              {photo && !isPhone && <figure className="bk-photo"><img src={photo} alt={t.photoAlt} decoding="async" width="454" height="1100"/></figure>}
               <div className="bk-contact">
                 <a className="wa" href={waHref} target="_blank" rel="noreferrer" aria-label={t.waTip}><span className="ic">{Icon.wa}</span>{t.wa}</a>
                 <a href={`tel:0${OFFICE_WA.slice(3)}`} aria-label={`${t.call} 055-981-1814`}><span className="ic" style={{ color: 'var(--brand-text)' }}>{Icon.phone}</span><bdi dir="ltr">055-981-1814</bdi></a>
@@ -796,7 +808,7 @@ export default function BookingPage() {
                 {alert && <div className="bk-alert" role="alert" style={{ marginBottom: 14 }}>{alert}</div>}
                 {!slots && !loadErr && <div className="bk-empty">{t.loading}</div>}
                 {slots && !available.length && <div className="bk-empty">{t.nothing} <a href={waHref} target="_blank" rel="noreferrer">WhatsApp</a></div>}
-                {slots && available.length > 0 && (isPhone && step === 'time' ? phoneCalendarEl(null) : calendarEl(step === 'move' ? call?.start : null))}
+                {slots && available.length > 0 && (isPhone ? phoneCalendarEl(step === 'move' ? call?.start : null) : calendarEl(step === 'move' ? call?.start : null))}
                 <div style={{ marginTop: 20 }}>
                   {step === 'move'
                     ? <button className="bk-ghost" onClick={() => { setStep('call'); setStart(''); setAlert('') }}>{lang === 'en' ? '←' : '→'} {t.back}</button>
@@ -868,6 +880,10 @@ export default function BookingPage() {
 
             {step === 'call' && callPageEl()}
           </section>
+          <div className="bk-contact bk-ph-contact">
+            <a className="wa" href={waHref} target="_blank" rel="noreferrer" aria-label={t.waTip}><span className="ic">{Icon.wa}</span>{t.wa}</a>
+            <a href={`tel:0${OFFICE_WA.slice(3)}`} aria-label={`${t.call} 055-981-1814`}><span className="ic" style={{ color: 'var(--brand-text)' }}>{Icon.phone}</span><bdi dir="ltr">055-981-1814</bdi></a>
+          </div>
         </div>
         <div className="bk-foot">{orgName} · <a href={homeHref} style={{ color: 'inherit' }}>afikhanahal.co.il</a></div>
       </main>
