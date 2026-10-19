@@ -1933,6 +1933,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     new:         { label: 'ליד חדש',   en: 'New Lead',    color: C.purple },
     contacted:   { label: 'ניצור קשר', en: 'Contacted',   color: '#579BFC' },
     discovery:   { label: 'גילוי',     en: 'Discovery',   color: '#A25DDC' },
+    meeting:     { label: 'נקבעה פגישה', en: 'Meeting set', color: '#4F6BED' },
     negotiating: { label: 'במו"מ',     en: 'Negotiating', color: '#FDBC64' },
     won:         { label: '✓ סגירה',   en: 'Won',         color: '#00C875' },
     lost:        { label: 'ללא מענה',  en: 'Lost',        color: '#7D7D7D' },

@@ -25,6 +25,7 @@ const GROUPS = [
   { id: 'new',         label: 'ליד חדש',   en: 'New Leads',      color: '#0073EA' },
   { id: 'contacted',   label: 'ניצור קשר', en: 'Contacted',      color: '#FDAB3D' },
   { id: 'discovery',   label: 'גילוי',     en: 'Discovery',      color: '#A25DDC' },
+  { id: 'meeting',     label: 'נקבעה פגישה', en: 'Meeting set',  color: '#4F6BED' },
   { id: 'negotiating', label: 'במו"מ',     en: 'In Negotiation', color: '#FF7575' },
   { id: 'won',         label: 'סגירה',     en: 'Closed Won',     color: '#00C875' },
   { id: 'lost',        label: 'ללא מענה',  en: 'No Answer',      color: '#7D7D7D' },

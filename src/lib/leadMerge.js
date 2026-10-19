@@ -6,7 +6,7 @@ const asList = v => (Array.isArray(v) ? v : [])
 const asNotes = n => (Array.isArray(n) ? n : typeof n === 'string' && n.trim() ? [{ id: 'legacy', text: n, ts: 0 }] : [])
 const blank = v => v == null || String(v).trim() === ''
 // stage order: the merged lead keeps the one that is further along (won / lost / irrelevant are end states, kept as is)
-const ORDER = ['new', 'contacted', 'discovery', 'negotiating', 'won']
+const ORDER = ['new', 'contacted', 'discovery', 'meeting', 'negotiating', 'won']
 
 export const CONTACT_FIELDS = ['name', 'phone', 'email', 'contactTime', 'dealType', 'propertyType', 'area', 'rooms', 'budget', 'timeline', 'financing', 'propTitle', 'propLocation', 'owner', 'priority', 'followUp', 'campaignName', 'formName']
 
