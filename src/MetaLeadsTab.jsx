@@ -74,6 +74,7 @@ const TR = {
     never: 'עוד לא התקבל', welcomeTpl: 'הנוסח נערך בטאב אוטומציות ← תבניות',
     tabChat: 'שיחה', tabInfo: 'פרטים והערות', pickWelcome: 'לבחירת הודעת פתיחה', archiveLead: 'העבר לארכיון',
     welcomeHint: 'בחרו נוסח בשיחה ושלחו מהוואטסאפ של המשרד', noteSaveFailed: 'השמירה נכשלה', kWelcomeShort: 'קיבלו הודעה',
+    hideKpis: 'הסתר נתונים ▴', showKpis: 'הצג נתונים ▾', resizeList: 'גררו לשינוי רוחב הרשימה (לחיצה כפולה מחזירה)', resizeAside: 'גררו לשינוי רוחב הפרטים (לחיצה כפולה מחזירה)',
   },
   en: {
     title: 'Meta Lead Center',
@@ -133,6 +134,7 @@ const TR = {
     never: 'Not received yet', welcomeTpl: 'Edit the text in Automations → Templates',
     tabChat: 'Conversation', tabInfo: 'Details & notes', pickWelcome: 'Pick a welcome message', archiveLead: 'Archive',
     welcomeHint: 'Pick a wording in the conversation and send it from the office WhatsApp', noteSaveFailed: 'Saving failed', kWelcomeShort: 'Got a message',
+    hideKpis: 'Hide stats ▴', showKpis: 'Show stats ▾', resizeList: 'Drag to resize the list (double-click resets)', resizeAside: 'Drag to resize the details (double-click resets)',
   },
 }
 
@@ -263,18 +265,67 @@ async function syncLeads(pageId) {
   return res.json()
 }
 
-// The detail pane's width decides between side by side (conversation + details) and one pane with tabs
-function useWidth() {
-  const [w, setW] = useState(0)
-  const ro = useRef(null)
-  const ref = useCallback(el => {
-    ro.current?.disconnect()
-    if (!el) return
-    ro.current = new ResizeObserver(([e]) => setW(Math.round(e.contentRect.width)))
-    ro.current.observe(el)
-  }, [])
+// Is an element narrower than a limit? (state changes only when the answer does — a drag doesn't re-render per pixel)
+function useNarrowerThan(limit) {
+  const [narrow, setNarrow] = useState(false)
+  const limitRef = useRef(limit)
+  limitRef.current = limit
+  const el = useRef(null), ro = useRef(null)
+  const check = useCallback(() => { if (el.current) { const w = el.current.getBoundingClientRect().width; setNarrow(w > 0 && w < limitRef.current) } }, [])
+  const ref = useCallback(node => {
+    ro.current?.disconnect(); el.current = node
+    if (!node) return
+    ro.current = new ResizeObserver(check)
+    ro.current.observe(node)
+  }, [check])
+  useEffect(() => { check() }, [limit, check])
   useEffect(() => () => ro.current?.disconnect(), [])
-  return [ref, w]
+  return [ref, narrow]
+}
+
+// The Lead Center's pane sizes (dragged by the user), kept in this browser
+const LAYOUT_KEY = 'afik_lc_layout_v1'
+const LAYOUT_DEFAULT = { list: 360, aside: 320, kpis: true }
+const LIMITS = { list: [260, 640], aside: [260, 560] }
+function loadLayout() {
+  try { return { ...LAYOUT_DEFAULT, ...JSON.parse(localStorage.getItem(LAYOUT_KEY) || '{}') } } catch { return { ...LAYOUT_DEFAULT } }
+}
+
+// A draggable edge between two panes, like an editor's: drag with the mouse / finger, arrows (Shift = bigger steps),
+// Home / End, double-click or Enter to reset. While dragging only a CSS variable changes (no React render per pixel);
+// the size is committed when the drag ends.
+function Splitter({ value, min, max, grows, varName, hostRef, onCommit, onReset, label, wide = false }) {
+  const drag = useRef(null)
+  const clamp = v => Math.round(Math.min(max(), Math.max(min, v)))
+  const set = v => hostRef.current?.style.setProperty(varName, `${v}px`)
+  const end = e => {
+    if (!drag.current) return
+    const v = drag.current.last
+    drag.current = null
+    document.body.classList.remove('lc-resizing')
+    try { e.currentTarget.releasePointerCapture(e.pointerId) } catch {}
+    onCommit(v)
+  }
+  const key = e => {
+    const step = e.shiftKey ? 64 : 16
+    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); const v = clamp(value + (e.key === 'ArrowRight' ? 1 : -1) * grows * step); set(v); onCommit(v) }
+    else if (e.key === 'Home') { e.preventDefault(); set(min); onCommit(min) }
+    else if (e.key === 'End') { e.preventDefault(); const v = clamp(Infinity); set(v); onCommit(v) }
+    else if (e.key === 'Enter') { e.preventDefault(); onReset() }
+  }
+  return (
+    <div role="separator" aria-orientation="vertical" aria-label={label} title={label} aria-valuenow={value} aria-valuemin={min} aria-valuemax={Math.round(max())} tabIndex={0}
+      className={`lc-split${wide ? ' wide' : ''}`}
+      onPointerDown={e => {
+        if (e.button !== 0) return
+        e.preventDefault()
+        drag.current = { x: e.clientX, v: value, last: value }
+        e.currentTarget.setPointerCapture(e.pointerId)
+        document.body.classList.add('lc-resizing')
+      }}
+      onPointerMove={e => { if (!drag.current) return; const v = clamp(drag.current.v + (e.clientX - drag.current.x) * grows); drag.current.last = v; set(v) }}
+      onPointerUp={end} onPointerCancel={end} onDoubleClick={onReset} onKeyDown={key}/>
+  )
 }
 
 const PATCH = (body) => fetch('/api/meta/leads', { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` }, body: JSON.stringify(body) })
@@ -306,6 +357,18 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
   const [sortOrder, setSortOrder]       = useState('desc')     // 'desc' = newest first
   const [metaView, setMetaView]         = useState('chat')     // 'chat' (the Lead Center) | 'pipeline'
   const [pane, setPane]                 = useState('chat')     // one-pane layout: 'chat' | 'info'
+  const [layout, setLayout]             = useState(loadLayout)   // dragged pane sizes + the KPI strip on / off
+  const [focusChat, setFocusChat]       = useState(false)    // the conversation on the whole screen
+  const [chatFirstOut, setChatFirstOut] = useState(null)     // our first message in the WhatsApp chat (any source)
+  const saveLayout = useCallback(patch => setLayout(prev => { const next = { ...prev, ...patch }; try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(next)) } catch {} return next }), [])
+  const rootRef = useRef(null), bodyRef = useRef(null), detailBoxRef = useRef(null)
+  useEffect(() => {
+    if (!focusChat) return
+    const k = e => { if (e.key === 'Escape') setFocusChat(false) }
+    window.addEventListener('keydown', k)
+    return () => window.removeEventListener('keydown', k)
+  }, [focusChat])
+  useEffect(() => { setChatFirstOut(null); if (!selectedId) setFocusChat(false) }, [selectedId])
   // "Last time the user opened the Lead Center" — used to badge new leads on the toggle button.
   const [lastVisitTs, setLastVisitTs] = useState(() => {
     try { return Number(localStorage.getItem('meta_chat_last_visit_v1')) || Date.now() } catch { return Date.now() }
@@ -653,8 +716,9 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
   const narrow = useNarrow(900)
   const showList = !narrow || !selectedLead
   const showDetail = !narrow || !!selectedLead
-  const [detailRef, detailW] = useWidth()
-  const onePane = narrow || (detailW > 0 && detailW < 780)
+  // side by side while the conversation keeps at least 380 px next to the details
+  const [detailRef, detailNarrow] = useNarrowerThan(layout.aside + 14 + 380 + 28)
+  const onePane = narrow || detailNarrow
 
   const answers = useMemo(() => (selectedLead ? metaFormAnswers(selectedLead.raw_fields, lang) : []), [selectedLead, lang])
   const answersHe = useMemo(() => (selectedLead ? metaFormAnswers(selectedLead.raw_fields, 'he') : []), [selectedLead])
@@ -666,7 +730,13 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
       || (tail.length === 9 ? crmLeads.find(l => String(l?.phone || '').replace(/\D/g, '').slice(-9) === tail) : null) || null
   }, [crmLeads, selectedLead])
   const tplLead = useMemo(() => templateLead(selectedLead, crmLead, answersHe), [selectedLead, crmLead, answersHe])
-  const firstOut = messages.find(m => m.direction === 'out')
+  const firstOutAt = chatFirstOut || messages.find(m => m.direction === 'out')?.created_at || null
+  // What the conversation shows: our messages are there (sent from the chats tab, say) → the lead was contacted
+  const onActivity = useCallback(({ hasOut, firstOutAt: at }) => {
+    setChatFirstOut(at || null)
+    const lead = leadsRef.current.find(l => l.id === selectedId)
+    if (hasOut && lead && !lead.wa_sent) { patchLead(lead.id, { wa_sent: true }); PATCH({ id: lead.id, wa_sent: true }).catch(() => {}) }
+  }, [selectedId, patchLead])
   const crmButton = selectedLead && (
     <button className="lc-btn" onClick={handleSaveToCRM} style={{ color: selectedLead.status === 'saved_to_crm' ? '#0E9AA7' : CREAM }}>{selectedLead.status === 'saved_to_crm' ? (lang === 'en' ? '✓ In CRM · Undo' : '✓ ב-CRM · בטל') : savedToCRM ? t.savedToCRM : t.saveToCRM}</button>
   )
@@ -698,7 +768,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
   ]
 
   return (
-    <div className="lc" style={{ display: 'flex', height: '100%', overflow: 'hidden', direction: dir, fontFamily: 'Rubik, sans-serif', background: 'var(--au-bg)', flexDirection: 'column' }}>
+    <div ref={rootRef} className="lc" style={{ display: 'flex', height: '100%', overflow: 'hidden', direction: dir, fontFamily: 'Rubik, sans-serif', background: 'var(--au-bg)', flexDirection: 'column', '--lc-list': `${layout.list}px`, '--lc-aside': `${layout.aside}px` }}>
       <style>{`
         .lc button{font-family:inherit}
         .lc :focus-visible{outline:2px solid var(--au-brand);outline-offset:2px}
@@ -737,10 +807,18 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
         .lc-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-top:12px}
         .lc-kpi{padding:9px 12px;text-align:start;font:inherit;color:inherit}
         @media (max-width:900px){.lc-kpis{display:flex;overflow-x:auto;scrollbar-width:none}.lc-kpis::-webkit-scrollbar{display:none}.lc-kpi{flex:0 0 auto;min-width:118px}}
+        .lc-split{flex:0 0 8px;margin-inline:-4px;cursor:col-resize;position:relative;z-index:6;touch-action:none;outline:none}
+        .lc-split.wide{flex-basis:14px;margin-inline:0}
+        .lc-split::before{content:'';position:absolute;top:0;bottom:0;left:50%;width:2px;transform:translateX(-50%);border-radius:2px;background:transparent;transition:background .15s}
+        .lc-split::after{content:'';position:absolute;top:50%;left:50%;width:4px;height:28px;transform:translate(-50%,-50%);border-radius:3px;background:rgba(var(--ink),.18);opacity:0;transition:opacity .15s}
+        .lc-split:hover::before,.lc-split:focus-visible::before{background:rgba(var(--brand-rgb),.55)}
+        .lc-split:hover::after,.lc-split:focus-visible::after,.lc-split.wide::after{opacity:1}
+        body.lc-resizing,body.lc-resizing *{cursor:col-resize!important;user-select:none!important}
+        body.lc-resizing iframe{pointer-events:none}
       `}</style>
 
       {/* ── Header: title, connection, actions, KPIs (on a phone only above the list) ── */}
-      {(!narrow || !selectedLead) && (
+      {(!narrow || !selectedLead) && !(focusChat && selectedLead) && (
         <div style={{ flexShrink: 0, borderBottom: `1px solid ${BORDER}`, padding: narrow ? '12px 14px 10px' : '14px 18px 12px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             <div style={{ minWidth: 0, flex: '1 1 260px' }}>
@@ -758,13 +836,14 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={{ animation: syncing ? 'gm_spin .7s linear infinite' : 'none' }} aria-hidden><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
                 {syncing ? t.syncing : t.sync}
               </button>
+              <button className="lc-btn" onClick={() => saveLayout({ kpis: !layout.kpis })} aria-expanded={layout.kpis}>{layout.kpis ? t.hideKpis : t.showKpis}</button>
               <button className="lc-btn" onClick={handleViewToggle} style={{ position: 'relative' }}>
                 {inChat ? 'Pipeline' : (lang === 'en' ? 'Lead Center' : 'מרכז לידים')}
                 {unreadCount > 0 && <span style={{ position: 'absolute', top: -7, insetInlineEnd: -7, minWidth: 18, height: 18, padding: '0 5px', borderRadius: 999, background: '#E5484D', color: '#fff', fontSize: 10, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{unreadCount > 99 ? '99+' : unreadCount}</span>}
               </button>
             </div>
           </div>
-          <div className="lc-kpis">
+          {layout.kpis && <div className="lc-kpis">
             {kpis.map((k, i) => {
               const Tag = k.onClick ? 'button' : 'div'
               return (
@@ -777,7 +856,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
                 </Tag>
               )
             })}
-          </div>
+          </div>}
         </div>
       )}
 
@@ -791,10 +870,10 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
       )}
 
       {/* ── Lead Center: list + lead ── */}
-      {inChat && <div style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+      {inChat && <div ref={bodyRef} style={{ display: 'flex', flex: 1, minHeight: 0, overflow: 'hidden' }}>
 
         {/* ── List ── */}
-        {showList && <div style={{ width: narrow ? '100%' : 360, flexShrink: 0, borderInlineEnd: narrow ? 'none' : `1px solid ${BORDER}`, display: 'flex', flexDirection: 'column', background: 'var(--au-card-solid)', overflow: 'hidden' }}>
+        {showList && !(focusChat && selectedLead) && <div style={{ width: narrow ? '100%' : 'var(--lc-list)', flexShrink: 0, borderInlineEnd: narrow ? 'none' : `1px solid ${BORDER}`, display: 'flex', flexDirection: 'column', background: 'var(--au-card-solid)', overflow: 'hidden' }}>
           <div style={{ padding: '12px 14px 10px', borderBottom: `1px solid ${BORDER}`, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 9 }}>
             <div style={{ display: 'flex', gap: 6 }}>
               <input type="search" value={search} onChange={e => setSearch(e.target.value)} placeholder={t.search} aria-label={t.search} className="lc-input" style={{ direction: dir }}/>
@@ -895,6 +974,12 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
           </div>
         </div>}
 
+        {showList && showDetail && !(focusChat && selectedLead) && (
+          <Splitter value={layout.list} min={LIMITS.list[0]} grows={dir === 'rtl' ? -1 : 1} varName="--lc-list" hostRef={rootRef} label={t.resizeList}
+            max={() => Math.min(LIMITS.list[1], (bodyRef.current?.getBoundingClientRect().width || 1200) - 460)}
+            onCommit={v => saveLayout({ list: v })} onReset={() => { rootRef.current?.style.setProperty('--lc-list', `${LAYOUT_DEFAULT.list}px`); saveLayout({ list: LAYOUT_DEFAULT.list }) }}/>
+        )}
+
         {/* ── Lead / overview ── */}
         {showDetail && <div ref={detailRef} style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--au-bg)' }}>
           {!selectedLead ? (
@@ -962,7 +1047,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
                     {crmButton}
                   </div>}
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                {!(focusChat && narrow) && <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                   {narrow ? (
                     <select value={STATUS_CONFIG[selectedLead.status] && selectedLead.status !== 'saved_to_crm' ? selectedLead.status : 'new'} onChange={e => handleStatusChange(e.target.value)} aria-label={t.status} className="lc-input" style={{ width: 'auto', minHeight: 34, padding: '0 10px', fontWeight: 700, color: (STATUS_CONFIG[selectedLead.status] || STATUS_CONFIG.new).color }}>
                       {['new', 'contacted', 'scheduled', 'closed'].map(k => <option key={k} value={k}>{STATUS_CONFIG[k].label[lang] || STATUS_CONFIG[k].label.he}</option>)}
@@ -983,28 +1068,34 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
                       <button role="tab" aria-selected={pane === 'info'} onClick={() => setPane('info')} style={pane === 'info' ? { background: 'rgba(var(--brand-rgb),.14)', color: BRAND } : undefined}>{t.tabInfo}</button>
                     </div>
                   )}
-                </div>
+                </div>}
               </div>
 
               {/* Conversation + details */}
-              <div style={{ flex: 1, minHeight: 0, display: 'flex', gap: onePane ? 0 : 14, padding: onePane ? 0 : 14, overflow: 'hidden' }}>
-                {(!onePane || pane === 'chat') && (
+              <div ref={detailBoxRef} style={{ flex: 1, minHeight: 0, display: 'flex', padding: onePane ? 0 : 14, overflow: 'hidden' }}>
+                {(!onePane || pane === 'chat' || focusChat) && (
                   <div className={onePane ? '' : 'lc-card'} style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', paddingBottom: narrow ? 'calc(64px + env(safe-area-inset-bottom))' : 0 }}>
                     <LeadConversation key={selectedLead.id} lead={selectedLead} tplLead={tplLead} lang={lang} isDark={isDark}
                       localMsgs={messages} needsWelcome={!selectedLead.wa_sent} autoConfig={autoConfig} onAutoConfigSaved={onAutoConfigSaved}
                       onSend={handleSend} onSendWelcome={handleWelcome} officePhone={waPhone}
-                      onOpenChats={onOpenChat ? () => onOpenChat(selectedLead) : undefined} compact={narrow}/>
+                      onOpenChats={onOpenChat ? () => onOpenChat(selectedLead) : undefined} compact={narrow}
+                      onActivity={onActivity} maximized={focusChat} onToggleMaximize={() => setFocusChat(v => !v)}/>
                   </div>
                 )}
-                {(!onePane || pane === 'info') && (
-                  <aside className="lc-scroll" style={{ width: onePane ? '100%' : 320, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 12, padding: onePane ? 12 : 0, paddingBottom: narrow ? 96 : 0 }}>
+                {!onePane && !focusChat && (
+                  <Splitter wide value={layout.aside} min={LIMITS.aside[0]} grows={dir === 'rtl' ? 1 : -1} varName="--lc-aside" hostRef={rootRef} label={t.resizeAside}
+                    max={() => Math.min(LIMITS.aside[1], (detailBoxRef.current?.getBoundingClientRect().width || 900) - 28 - 14 - 380)}
+                    onCommit={v => saveLayout({ aside: v })} onReset={() => { rootRef.current?.style.setProperty('--lc-aside', `${LAYOUT_DEFAULT.aside}px`); saveLayout({ aside: LAYOUT_DEFAULT.aside }) }}/>
+                )}
+                {(onePane ? pane === 'info' : !focusChat) && (
+                  <aside className="lc-scroll" style={{ width: onePane ? '100%' : 'var(--lc-aside)', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 12, padding: onePane ? 12 : 0, paddingBottom: narrow ? 96 : 0 }}>
                     {/* Welcome status */}
                     <div className="lc-card" style={{ padding: 14, borderColor: selectedLead.wa_sent ? 'rgba(34,197,94,.4)' : selectedLead.phone ? 'rgba(245,158,11,.45)' : BORDER }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         <span aria-hidden style={{ fontSize: 18 }}>{selectedLead.wa_sent ? '✅' : selectedLead.phone ? '⏳' : '🚫'}</span>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: 13.5, fontWeight: 800, color: CREAM }}>{selectedLead.wa_sent ? t.welcomeSent : selectedLead.phone ? t.welcomeNot : t.welcomeNoPhone}</div>
-                          {selectedLead.wa_sent && firstOut && <div style={{ fontSize: 11.5, color: MUTED, marginTop: 2 }}>{fmtFull(firstOut.created_at, lang)}</div>}
+                          {selectedLead.wa_sent && firstOutAt && <div style={{ fontSize: 11.5, color: MUTED, marginTop: 2 }}>{fmtFull(firstOutAt, lang)}</div>}
                           {!selectedLead.wa_sent && selectedLead.phone && <div style={{ fontSize: 11.5, color: MUTED, marginTop: 2 }}>{t.welcomeHint}</div>}
                         </div>
                       </div>
