@@ -5,7 +5,7 @@
 // Props: { C, lang, isDark, onSaveToCRM, onOpenChat, onNew*, crmLeads, autoConfig, onAutoConfigSaved }
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { metaFormAnswers, shortCampaign } from './lib/leadFields.js'
+import { metaFormAnswers, shortCampaign, formFullName } from './lib/leadFields.js'
 import { templateLead } from './lib/leadConversation.js'
 import { leadHistory, crmLeadFor } from './lib/leadHistory.js'
 import { supabase } from './lib/supabaseClient'
@@ -47,6 +47,7 @@ const TR = {
     phone: 'טלפון',
     email: 'אימייל',
     formAnswers: 'תשובות מהטופס',
+    formNameLbl: 'שם בטופס',
     history: 'היסטוריה ופרטים שהשאירו',
     historyEmpty: 'אין עוד פעילות',
     historyAll: n => `הצג הכל (${n})`,
@@ -115,6 +116,7 @@ const TR = {
     phone: 'Phone',
     email: 'Email',
     formAnswers: 'Form answers',
+    formNameLbl: 'Name on form',
     history: 'History & details they left',
     historyEmpty: 'No other activity yet',
     historyAll: n => `Show all (${n})`,
@@ -1220,6 +1222,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onLeadRenam
                     <div className="lc-card" style={{ padding: 14 }}>
                       <h3 style={{ margin: '0 0 6px', fontSize: 13.5, fontWeight: 800, color: CREAM }}>{t.details}</h3>
                       {[
+                        ...(formFullName(selectedLead.raw_fields) ? [['formName', t.formNameLbl, formFullName(selectedLead.raw_fields), formFullName(selectedLead.raw_fields)]] : []),
                         ['phone', t.phone, selectedLead.phone ? fmtPhone(selectedLead.phone) : '—', selectedLead.phone ? fmtPhone(selectedLead.phone) : ''],
                         ['email', t.email, selectedLead.email || '—', selectedLead.email || ''],
                         ['campaign', t.campaign, selectedLead.campaign_name || '—'],
@@ -1228,7 +1231,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onLeadRenam
                       ].map(([key, k, v, copyVal]) => (
                         <div key={key} style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '6px 0', borderTop: `1px solid rgba(var(--ov),.06)` }}>
                           <span style={{ width: 64, flexShrink: 0, fontSize: 12, color: FAINT, fontWeight: 600 }}>{k}</span>
-                          <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: CREAM, overflowWrap: 'anywhere', textAlign: 'start' }}>{key === 'phone' ? <bdi>{v}</bdi> : v}</span>
+                          <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: CREAM, overflowWrap: 'anywhere', textAlign: 'start', fontWeight: key === 'formName' ? 700 : undefined }}>{key === 'phone' || key === 'formName' ? <bdi>{v}</bdi> : v}</span>
                           {copyVal && <button className="lc-btn" style={{ minHeight: 26, padding: '0 8px', fontSize: 11 }} onClick={() => copy(key, copyVal)}>{copiedKey === key ? t.copied : t.copy}</button>}
                         </div>
                       ))}

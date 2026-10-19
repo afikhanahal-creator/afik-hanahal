@@ -273,7 +273,7 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <Section title={t.sec.contact} icon={FaUser}>
         <div className="lc-grid2">
-          <Field label={t.f.name}><EditInput value={lead.name} onSave={set('name')}/></Field>
+          <Field label={t.f.name}><EditInput value={lead.name} onSave={set('name')}/>{lead.originalName && lead.originalName !== lead.name && <div style={{ fontSize: 12, color: 'var(--au-text3)', marginTop: 4 }}>{lang === 'en' ? 'Name on the form' : 'השם בטופס'}: <b style={{ color: 'var(--au-text2)' }}><bdi>{lead.originalName}</bdi></b></div>}</Field>
           <Field label={t.f.phone}><EditInput value={lead.phone} onSave={set('phone')} dir="ltr"/></Field>
           <Field label={t.f.email}><EditInput value={lead.email} onSave={set('email')} type="email" dir="ltr"/></Field>
           <Field label={t.f.contactTime}><EditInput value={lead.contactTime} onSave={set('contactTime')} placeholder={lang === 'en' ? 'e.g. mornings, after 17:00' : 'למשל: בבקרים, אחרי 17:00'}/></Field>

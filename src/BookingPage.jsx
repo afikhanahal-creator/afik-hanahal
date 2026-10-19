@@ -168,7 +168,7 @@ html,body{background:#09090F;margin:0}
 .bk-time.cur{border-style:dashed;opacity:.6;cursor:default}
 .bk-time.cur:hover{background:none;color:var(--brand-text)}
 .bk-note{font-size:12.5px;color:var(--mute);margin-top:14px}
-.bk-tz{position:relative;margin-top:16px}
+.bk-tz{position:relative;margin-top:30px;padding-top:18px;border-top:1px solid var(--line)}
 .bk-tz-l{font-size:12px;font-weight:600;color:var(--mute);margin-bottom:6px;letter-spacing:.02em}
 .bk-tz-btn{display:inline-flex;align-items:center;gap:8px;max-width:100%;height:40px;padding:0 12px 0 14px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--ink);font:inherit;font-size:14px;font-weight:500;cursor:pointer;transition:border-color .15s,background .15s}
 .bk-tz-btn:hover,.bk-tz-btn[aria-expanded=true]{border-color:var(--brand);background:var(--brand-soft)}

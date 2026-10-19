@@ -1767,12 +1767,9 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
           const mirroredMeta = new Set(serverLeads.map(s => s.crm_data?.metaLeadId).filter(Boolean).map(id => 'meta_' + id))
           const before = prev.length
           if (mirroredMeta.size) prev = prev.filter(l => !mirroredMeta.has(String(l.id)))
-          const dropped = prev.length !== before
+          let dropped = prev.length !== before
           const localById = new Map(prev.map(l => [String(l.id), l]))
-          // Pull in leads that exist on server but not locally (and weren't deleted)
-          const newOnes = serverLeads
-            .filter(s => !localById.has(String(s.id)) && !deletedIds.has(String(s.id)))
-            .map(s => ({
+          const fromServer = s => ({
               id:           String(s.id),
               name:         s.name         || '',
               phone:        s.phone        || '',
@@ -1783,7 +1780,17 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
               source:       s.source       || 'website',
               ts:           new Date(s.created_at || Date.now()).getTime(),
               ...(s.crm_data || {}),   // restore leadStatus, enrichment, notes, tags
-            }))
+            })
+          // The full sync (on opening the panel) also refreshes the leads this browser already holds: a rename in the
+          // Lead Center, the automations' state or a fix made on the server reach the board (it used to add new leads only)
+          if (!since) {
+            const byId = new Map(serverLeads.map(s => [String(s.id), s]))
+            let refreshed = false
+            prev = prev.map(l => { const s = byId.get(String(l.id)); if (!s) return l; refreshed = true; return { ...l, ...fromServer(s), id: l.id } })
+            if (refreshed) dropped = true
+          }
+          // Pull in leads that exist on server but not locally (and weren't deleted)
+          const newOnes = serverLeads.filter(s => !localById.has(String(s.id)) && !deletedIds.has(String(s.id))).map(fromServer)
           if (newOnes.length === 0) { if (restoredFrom.size || dropped) { try { localStorage.setItem(LEADS_STORE, JSON.stringify(prev)) } catch {} } return prev }
           const merged = [...newOnes, ...prev].sort((a, b) => b.ts - a.ts)
           try { localStorage.setItem(LEADS_STORE, JSON.stringify(merged)) } catch {}

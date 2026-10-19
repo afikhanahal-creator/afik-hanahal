@@ -48,6 +48,13 @@ export function prettyLeadText(text, lang = 'he') {
  * Meta `raw_fields` ([{ name, values }]) → [{ q, a }] for the custom questions.
  * Question keys are Meta's slug of the question text ("מה_התקציב_שלך?") — underscores become spaces.
  */
+/** The name exactly as the lead typed it in a Meta form (full name, else first + last) — kept in raw_fields after a rename */
+export function formFullName(rawFields) {
+  const f = Array.isArray(rawFields) ? rawFields : []
+  const val = re => { const x = f.find(y => re.test(String(y?.name || ''))); const v = x && (Array.isArray(x.values) ? x.values[0] : x.value); return v == null ? '' : String(v).trim() }
+  return val(/^(full_?name|name|שם( מלא)?)$/i) || [val(/^first_?name$/i), val(/^last_?name$/i)].filter(Boolean).join(' ')
+}
+
 export function metaFormAnswers(rawFields, lang = 'he') {
   if (!Array.isArray(rawFields)) return []
   const out = []
