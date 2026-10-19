@@ -325,7 +325,7 @@ refuses it; a note on the lead), an event dragged to another time moves it. Goog
 itself once the event is deleted.
 Templates: `{bookingLink}` (`vars.bookingLink`, `?lang=en` added for English) in `welcome_book` and `book_link`.
 **The page itself:** a 48 px logo, a WhatsApp button in the header and a "write to us / call us" card in the side panel, and a
-figure there (`photo` in the booking settings, default `/img/booking-portrait.webp` — a cut-out portrait with no background, shown
+figure there (`photo` in the booking settings, default `/img/booking-portrait-2.webp` — a cut-out portrait with no background, shown
 in its own proportions at the bottom of the side panel; admin "תמונה בעמוד"; never on phones, where it isn't even loaded).
 **Time zones (Calendly style):** under the calendar a "אזור זמן" button (the zone + its current time) opens `TzPicker` in
 `src/BookingPage.jsx`: search (Hebrew / English / IANA id / GMT offset), zones by region with their current time and offset, a
