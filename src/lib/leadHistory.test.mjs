@@ -28,3 +28,15 @@ test('the CRM copy is found by its metaLeadId (flattened or in crm_data), else b
   assert.equal(crmLeadFor(meta, [{ id: 'z', phone: '972503531102' }]).id, 'z')
   assert.equal(crmLeadFor(meta, [{ id: 'w', phone: '0520000000' }]), null)
 })
+
+test('leadFormCard: Meta answers, CRM copy, website message, nothing left', async () => {
+  const { leadFormCard } = await import('./leadHistory.js')
+  const meta = leadFormCard({ id: 1, campaign_name: 'זרובבל 15 - v2 (כוונה גבוהה)', form_name: 'טופס', created_at: '2026-10-19T08:00:00Z', raw_fields: [{ name: 'full_name', values: ['גדי'] }, { name: 'מה התקציב?', values: ['b34'] }] })
+  assert.equal(meta.campaign, 'זרובבל 15'); assert.equal(meta.where, 'ad')
+  assert.deepEqual(meta.rows.map(r => r.q), ['מה התקציב?'])
+  const crm = leadFormCard({ id: 7, source: 'meta', crm_data: { campaignName: 'הרצל 8', formAnswers: [{ q: 'חדרים', a: '4' }] }, message: 'חדרים: 4' })
+  assert.deepEqual(crm.rows, [{ q: 'חדרים', a: '4' }]); assert.equal(crm.campaign, 'הרצל 8')
+  const site = leadFormCard({ id: 8, source: 'contact_form', msg: 'מחפשים מגרש בכפר סבא' })
+  assert.equal(site.where, 'site'); assert.equal(site.rows[0].a, 'מחפשים מגרש בכפר סבא')
+  assert.equal(leadFormCard({ id: 9, name: 'x', phone: '050' }), null)
+})

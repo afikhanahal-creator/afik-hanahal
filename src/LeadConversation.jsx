@@ -6,7 +6,8 @@
 // through the parent (POST /api/meta/messages or /api/meta/lead-welcome), so the Lead Center keeps marking who got a message.
 import { useState, useEffect, useRef, useMemo, useCallback, useLayoutEffect } from 'react'
 import { WAText } from './waFormat.jsx'
-import { DARK, LIGHT, DOODLE_DARK, DOODLE_LIGHT, normalizeGreenMsg, TickMark } from './waShared.jsx'
+import { DARK, LIGHT, DOODLE_DARK, DOODLE_LIGHT, normalizeGreenMsg, TickMark, LeadFormCard } from './waShared.jsx'
+import { leadFormCard } from './lib/leadHistory.js'
 import TemplateQuickEdit from './TemplateQuickEdit.jsx'
 import Splitter, { SPLITTER_CSS } from './Splitter.jsx'
 import { CATEGORIES, getTemplate, mergeConfig, leadLang } from '../lib/automations-shared.js'
@@ -90,6 +91,7 @@ const I = {
 export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = true, localMsgs = [], needsWelcome = false, autoConfig = null, onAutoConfigSaved, onSend, onSendWelcome, onOpenChats, officePhone = '', compact = false, onActivity, maximized = false, onToggleMaximize }) {
   const t = TR[lang] || TR.he
   const WA = isDark ? DARK : LIGHT
+  const formCard = useMemo(() => leadFormCard(lead, lang), [lead, lang])
   const phone = intl(lead?.phone)
   const [line, setLine] = useLineStatus()
   const quota = line?.quota?.blocked
@@ -349,6 +351,7 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
 
       {/* messages */}
       <div ref={scrollRef} onScroll={onScroll} style={{ flex: 1, minHeight: 80, overflowY: 'auto', overscrollBehavior: 'contain', padding: '6px 0 12px', backgroundImage: isDark ? DOODLE_DARK : DOODLE_LIGHT }}>
+        <LeadFormCard card={formCard} WA={WA} isDark={isDark} lang={lang}/>
         {histState === 'error' && <div className="lcv-day" style={{ position: 'static' }}><span style={{ display: 'inline-flex', gap: 8, alignItems: 'center' }}>{t.histErr}<button type="button" onClick={() => load()} style={{ border: 'none', background: 'none', color: teal, fontWeight: 600, cursor: 'pointer', fontSize: 12.5 }}>{t.retry}</button></span></div>}
         {histState === 'loading' && !msgs.length && <div className="lcv-day" style={{ position: 'static', marginTop: 30 }}><span>{t.loading}</span></div>}
         {histState !== 'loading' && !msgs.length && (
