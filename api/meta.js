@@ -1551,6 +1551,7 @@ async function handleBooking(req, res, action) {
     }
     if (action === 'booking-disconnect') { await GCal.disconnect(); return res.status(200).json({ ok: true }) }
     if (action === 'booking-cancel') return res.status(200).json(await Booking.cancel(String(b.id || ''), { notify: b.notify !== false, client: sb() }))
+    if (action === 'booking-guests') return res.status(200).json(await Booking.setGuests(sb(), String(b.id || ''), b.guests))
     if (action === 'booking-move') return res.status(200).json(await Booking.moveByOffice(sb(), String(b.id || ''), String(b.start || ''), { notify: b.notify !== false }))
     if (action === 'booking-resend') return res.status(200).json(await Booking.resend(String(b.id || '')))
     if (action === 'booking-test-email') return res.status(200).json(await Booking.testEmail())
