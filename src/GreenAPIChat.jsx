@@ -9,7 +9,8 @@ import ChatTemplatePicker, { ChatTemplateMenu } from './ChatTemplatePicker.jsx'
 import TemplateQuickEdit from './TemplateQuickEdit.jsx'
 import { renderTemplate } from '../lib/automations-shared.js'
 import { untemplate } from '../lib/template-edit.js'
-import { DARK, LIGHT, DOODLE_DARK, DOODLE_LIGHT, normalizeGreenMsg, TickMark } from './waShared.jsx'
+import { DARK, LIGHT, DOODLE_DARK, DOODLE_LIGHT, normalizeGreenMsg, TickMark, LeadFormCard } from './waShared.jsx'
+import { leadFormCard } from './lib/leadHistory.js'
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 const API_BASE      = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
@@ -679,6 +680,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
     const row = leads.find(l => intlPhone(l.phone) === chatPhone) || contact
     return { ...row, name: row?.name && !/^[\d+\-\s]+$/.test(row.name) ? row.name : '', phone: contact.phone }
   }, [leads, contact, chatPhone])
+  const formCard = useMemo(() => leadFormCard(chatLead, lang), [chatLead, lang])
   const cfgEff = cfgLocal || autoConfig
   const putInBox = (text, tpl, tplLang) => {
     setInput(text); setQuickOpen(false)
@@ -962,6 +964,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                     <button onClick={() => fetchMsgs(contact.phone)} style={{ background:'none', border:'none', color:'inherit', textDecoration:'underline', cursor:'pointer', fontFamily:'inherit', fontSize:12, padding:0, minHeight:0, minWidth:0 }}>עכשיו</button>
                   </div>
                 )}
+                {!loading && <LeadFormCard card={formCard} WA={WA} isDark={isDark} lang={lang}/>}
                 {loading ? (
                   <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', flexDirection:'column', gap:16, color: WA.subText, minHeight:200 }}>
                     <div style={{ width:44, height:44, borderRadius:'50%', border:`4px solid ${WA.border}`, borderTopColor: WA.green, animation:'wa-spin 0.75s linear infinite' }}/>

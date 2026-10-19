@@ -54,3 +54,26 @@ export function leadHistory({ lead, metaLeads = [], crmLead = null, stageName = 
   }
   return items.filter(x => Number.isFinite(x.at)).sort((a, b) => b.at - a.at)
 }
+
+/** What the lead left in the campaign / form, for the card on top of the WhatsApp conversation (Meta shows the same in
+ *  its own inbox). Meta lead → its form answers; a CRM lead → the copied answers, else the website message.
+ *  → { campaign, form, at, email, rows: [{ q, a }] } or null when the lead left nothing beyond name and phone */
+export function leadFormCard(lead, lang = 'he') {
+  if (!lead) return null
+  const get = key => lead[key] ?? lead.crm_data?.[key]
+  const origin = get('origin') || {}
+  let rows = Array.isArray(lead.raw_fields) ? metaFormAnswers(lead.raw_fields, lang) : []
+  if (!rows.length) rows = (get('formAnswers') || []).filter(x => x && x.q && x.a).map(x => ({ q: String(x.q), a: String(x.a) }))
+  const msg = String(lead.msg || lead.message || '').trim()
+  const isMeta = Array.isArray(lead.raw_fields) || lead.source === 'meta' || origin.channel === 'meta'
+  if (!rows.length && msg && !isMeta) rows = [{ q: lang === 'en' ? 'Message' : 'הודעה', a: msg.slice(0, 600) }]
+  const campaign = lead.campaign_name || get('campaignName') || origin.campaign || ''
+  const form = lead.form_name || get('formName') || origin.form || ''
+  if (!rows.length && !campaign) return null
+  return {
+    campaign: campaign ? shortCampaign(campaign) || campaign : (isMeta ? '' : (lead.propTitle || lead.prop_title || '')),
+    campaignFull: campaign, form, email: lead.email || '',
+    at: lead.created_at || (lead.ts ? new Date(lead.ts).toISOString() : ''),
+    where: isMeta ? 'ad' : 'site', rows,
+  }
+}

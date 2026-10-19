@@ -1,6 +1,8 @@
 // The WhatsApp look shared by the chats tab (GreenAPIChat.jsx) and the Lead Center's conversation (LeadConversation.jsx):
 // the two palettes, the doodle backgrounds, Green API message → { id, direction, message, … }, and the delivery ticks.
 
+import { useState } from 'react'
+
 // ─── Theme palettes ───────────────────────────────────────────────────────────
 export const DARK = {
   bubbleOut:     '#005C4B',
@@ -108,3 +110,44 @@ export function TickMark({ status, WA, size = 14 }) {
   )
 }
 
+
+// What the lead left in the ad's form (or the website form), pinned on top of the conversation like Meta's own inbox
+// shows it. `card` = leadFormCard() (src/lib/leadHistory.js).
+export function LeadFormCard({ card, WA, isDark, lang = 'he' }) {
+  const [all, setAll] = useState(false)
+  if (!card) return null
+  const he = lang !== 'en'
+  const rows = all ? card.rows : card.rows.slice(0, 8)
+  const when = card.at ? new Date(card.at).toLocaleString(he ? 'he-IL' : 'en-GB', { timeZone: 'Asia/Jerusalem', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''
+  const title = card.where === 'ad' ? (he ? 'הפרטים שהשאירו במודעה' : 'Details they left on the ad') : (he ? 'הפרטים שהשאירו באתר' : 'Details they left on the website')
+  return (
+    <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 12px 6px' }}>
+      <section aria-label={title} dir={he ? 'rtl' : 'ltr'} style={{ width: '100%', maxWidth: 460, background: WA.bubbleIn, color: WA.bodyText, borderRadius: 10, boxShadow: '0 1px .5px rgba(11,20,26,.13)', overflow: 'hidden', fontSize: 13.5, lineHeight: 1.5 }}>
+        <div style={{ padding: '9px 12px 8px', borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,.07)' : 'rgba(11,20,26,.07)'}`, display: 'flex', gap: 10, alignItems: 'center' }}>
+          <span aria-hidden style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 8, display: 'grid', placeItems: 'center', background: WA.green + '22', color: WA.green, fontSize: 15 }}>📋</span>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontWeight: 700, fontSize: 13.5 }}>{title}</div>
+            <div style={{ fontSize: 12, color: WA.subText, overflowWrap: 'anywhere' }} title={card.campaignFull || undefined}>
+              {[card.campaign && <bdi key="c">{card.campaign}</bdi>, card.form && card.form !== card.campaignFull && <bdi key="f">{card.form}</bdi>, when].filter(Boolean).reduce((a, x, i) => (i ? [...a, ' · ', x] : [x]), [])}
+            </div>
+          </div>
+        </div>
+        {rows.length > 0 && (
+          <dl style={{ margin: 0, padding: '6px 12px 8px' }}>
+            {rows.map((r, i) => (
+              <div key={i} style={{ padding: '4px 0', borderTop: i ? `1px solid ${isDark ? 'rgba(255,255,255,.05)' : 'rgba(11,20,26,.05)'}` : 'none' }}>
+                <dt style={{ fontSize: 12, color: WA.subText }}>{r.q}</dt>
+                <dd style={{ margin: 0, fontWeight: 600, overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' }}>{r.a}</dd>
+              </div>
+            ))}
+          </dl>
+        )}
+        {card.rows.length > 8 && (
+          <button type="button" onClick={() => setAll(v => !v)} style={{ width: '100%', border: 'none', borderTop: `1px solid ${isDark ? 'rgba(255,255,255,.07)' : 'rgba(11,20,26,.07)'}`, background: 'none', color: WA.green, fontWeight: 600, fontSize: 12.5, padding: '8px 0', cursor: 'pointer', fontFamily: 'inherit' }}>
+            {all ? (he ? 'הצג פחות' : 'Show less') : (he ? `הצג הכל (${card.rows.length})` : `Show all (${card.rows.length})`)}
+          </button>
+        )}
+      </section>
+    </div>
+  )
+}
