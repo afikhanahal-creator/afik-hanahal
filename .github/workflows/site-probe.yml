@@ -16,7 +16,7 @@ on:
         description: Network profiles (real, 4g, 3g)
         default: real,4g,3g
       actions:
-        description: 'Optional live actions: slim (move inline photos), ai (one test lead analysis), rebuild (deploy hook), restore (properties from an older deployment), traffic (API weights, gzip, 304), connect / connect-fix (Meta + Green API + welcome check), wa / wa-send (WhatsApp chat page check, wa-send texts the office number), meta-sync, crm-sync (copy Meta leads into the CRM)'
+        description: 'Optional live actions: slim (move inline photos), ai (one test lead analysis), rebuild (deploy hook), restore (properties from an older deployment), traffic (API weights, gzip, 304), connect / connect-fix (Meta + Green API + welcome check), wa / wa-send (WhatsApp chat page check, wa-send texts the office number), meta-sync, crm-sync (copy Meta leads into the CRM), booking (calendar connection + confirmation status)'
         default: ''
       lead:
         description: 'For the ai action: a JSON lead, e.g. {"name":"…","phone":"05…","msg":"…"} (default: a synthetic test lead)'

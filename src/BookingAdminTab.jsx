@@ -38,6 +38,7 @@ const TR = {
     clientLink: 'העתקת הקישור של הלקוח', linkCopied: 'הקישור הועתק', move: 'שינוי מועד', resend: 'שליחת האישור שוב', resending: 'שולח…', resent: 'נשלח', cancel: 'ביטול',
     cancelQ: 'לבטל את השיחה? אם יש הזמנה ביומן, הלקוח יקבל הודעת ביטול.', loading: 'טוען…', err: 'שגיאה',
     days: ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'], dec: 'הפחתה', inc: 'הוספה',
+    testMail: 'מייל לדוגמה', testMailTip: 'שולח למייל המשרד את שני המיילים: מה שהלקוח מקבל ומה שהמשרד מקבל', testSending: 'שולח…', testSent: to => `נשלח ל-${to}`,
   },
   en: {
     title: 'Bookings', sub: 'A page for booking calls in the office calendar, instead of Calendly',
@@ -63,6 +64,7 @@ const TR = {
     clientLink: 'Copy the client link', linkCopied: 'Link copied', move: 'Reschedule', resend: 'Resend confirmation', resending: 'Sending…', resent: 'Sent', cancel: 'Cancel',
     cancelQ: 'Cancel this call? If there is a calendar invitation, the client gets a cancellation.', loading: 'Loading…', err: 'Error',
     days: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], dec: 'Decrease', inc: 'Increase',
+    testMail: 'Sample email', testMailTip: 'Sends both emails to the office address: what the client gets and what the office gets', testSending: 'Sending…', testSent: to => `Sent to ${to}`,
   },
 }
 
@@ -176,6 +178,7 @@ export default function BookingAdminTab({ lang = 'he' }) {
   const [saving, setSaving] = useState('')
   const [connecting, setConnecting] = useState(false)
   const [resending, setResending] = useState({})
+  const [testMail, setTestMail] = useState('')
   const [copied, copy] = useCopy()
 
   const load = () => autoApi.get('booking-admin').then(d => { setState(d); setDraft(d.config); setErr('') }).catch(e => setErr(e.message))
@@ -240,6 +243,10 @@ export default function BookingAdminTab({ lang = 'he' }) {
       load()
     } catch (e) { setErr(e.message); setResending(r => ({ ...r, [id]: '' })) }
   }
+  async function sendTestMail() {
+    setTestMail('busy')
+    try { const d = await autoApi.post('booking-test-email'); if (!d.ok) throw new Error(d.error); setTestMail(t.testSent(d.to)) } catch (e) { setErr(e.message); setTestMail('') }
+  }
   const setHour = (d, i, v) => setDraft(c => { const h = { ...c.hours }; const n = [...(h[d] || [9, 18])]; n[i] = +v; if (n[1] <= n[0]) n[1] = Math.min(22, n[0] + 0.5); h[d] = n; return { ...c, hours: h } })
   const toggleDay = (d, on) => setDraft(c => ({ ...c, hours: { ...c.hours, [d]: on ? (c.hours[d] || [9, 18]) : null } }))
   const val = (k, v) => setDraft(c => ({ ...c, [k]: v }))
@@ -294,6 +301,7 @@ export default function BookingAdminTab({ lang = 'he' }) {
           <button className="bka-btn pri" onClick={() => copy(`${SITE}/book`, 'link')}>{copied === 'link' ? t.copied : t.copy}</button>
           <a className="bka-btn sec" href="/book" target="_blank" rel="noreferrer">{t.open}</a>
           <button className="bka-btn plain" onClick={() => copy(`${SITE}/book?lang=en`, 'en')}>{copied === 'en' ? t.copied : t.linkEn}</button>
+          <button className="bka-btn plain" title={t.testMailTip} disabled={testMail === 'busy'} onClick={sendTestMail}>{testMail === 'busy' ? t.testSending : testMail || t.testMail}</button>
         </div>
       </div>
       {err && <div className="bka-err" role="alert">{err}</div>}
