@@ -316,6 +316,12 @@ freed — `subtractInterval()`; `booking-reschedule` patches the Google event, u
 WhatsApp-to-self the link. After a booking the address becomes this page. **Green API refused** (quota 466): the result
 is stored per booking (`entry.wa`), the admin shows it and offers "שליחת האישור שוב" (`booking-resend`), and `auto-tick` /
 `auto-run` retry it (`retryConfirmations()`, 3 tries, stops at the first quota refusal). Limits: 2 upcoming bookings per phone, 6 attempts per IP in 10 minutes, a honeypot field.
+**The office's own calendar changes win:** `syncCalendar()` / `syncEntry()` (`lib/booking-server.js`, rule `calendarChange()` in
+`lib/booking.js`, tested) re-reads every upcoming booking's event (`GCal.getEvent`) when the admin list loads, when the client opens
+the private page and before every confirmation retry (auto-tick / auto-run, throttled to 3 minutes): an event deleted or cancelled
+in Google Calendar cancels the booking **quietly** (`cancelledBy: 'calendar'`, no WhatsApp, no email, no more retries, `resend`
+refuses it; a note on the lead), an event dragged to another time moves it. Google's own reminder email (60 min before) stops by
+itself once the event is deleted.
 Templates: `{bookingLink}` (`vars.bookingLink`, `?lang=en` added for English) in `welcome_book` and `book_link`.
 **The page itself:** a 48 px logo, a WhatsApp button in the header and a "write to us / call us" card in the side panel, and a
 figure there (`photo` in the booking settings, default `/img/booking-portrait.webp` — a cut-out portrait with no background, shown

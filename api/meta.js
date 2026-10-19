@@ -915,7 +915,7 @@ async function handleAutomations(req, res, action) {
     const [r, meta] = await Promise.all([
       Auto.run({ source: 'external' }).catch(e => ({ ok: false, error: e.message, sent: [], errors: [], suggestions: [], jobs: {} })),
       syncRecentMetaLeads({ hours: 6 }).catch(e => ({ error: e.message })),   // safety net for the Meta webhook
-      Booking.retryConfirmations().catch(() => null),                          // booking confirmations Green API refused
+      Booking.retryConfirmations({ client: SUPABASE_URL && SUPABASE_KEY ? sb() : null }).catch(() => null),  // calendar sync + confirmations Green API refused
     ])
     return res.status(200).json({ ok: r.ok !== false, at: r.at, sent: r.sent?.length || 0, errors: r.errors?.length || 0, queued: r.suggestions?.length || 0, jobs: r.jobs, notes: r.notes, meta })
   }
@@ -934,7 +934,7 @@ async function handleAutomations(req, res, action) {
     }
     if (action === 'auto-run') {
       // The panel calls this every 5 minutes while open: also pick up any Meta lead the webhook missed
-      const [r, meta] = await Promise.all([Auto.run({ source: 'panel' }), syncRecentMetaLeads({ hours: 6 }).catch(e => ({ error: e.message })), Booking.retryConfirmations().catch(() => null)])
+      const [r, meta] = await Promise.all([Auto.run({ source: 'panel' }), syncRecentMetaLeads({ hours: 6 }).catch(e => ({ error: e.message })), Booking.retryConfirmations({ client: SUPABASE_URL && SUPABASE_KEY ? sb() : null }).catch(() => null)])
       return res.status(200).json({ ...r, meta })
     }
     if (action === 'auto-send')   return res.status(200).json({ results: await Auto.sendItems(Array.isArray(b.items) ? b.items : [], { by: 'manual' }) })
@@ -1517,7 +1517,7 @@ async function handleBooking(req, res, action) {
       const ip = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim()
       const body = req.body || {}
       if (action !== 'booking-manage' && req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
-      const r = action === 'booking-manage' ? await Booking.manage(String(req.query?.m || ''), { ip })
+      const r = action === 'booking-manage' ? await Booking.manage(String(req.query?.m || ''), { ip, client: SUPABASE_URL && SUPABASE_KEY ? sb() : null })
         : action === 'booking-reschedule' ? await Booking.reschedule(sb(), String(body.m || ''), String(body.start || ''), { ip })
         : await Booking.cancelByClient(sb(), String(body.m || ''), { ip })
       return res.status(r.ok ? 200 : r.status || 400).json(r)
