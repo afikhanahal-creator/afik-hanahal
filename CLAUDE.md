@@ -178,18 +178,23 @@ grouped by day (campaigns by their short name, a "קיבלו הודעה / טרם
 search matches a phone typed any way), an overview (needs attention, leads by campaign, connection health) and a lead page: a bar
 (call / chats tab / CRM, status) over **the WhatsApp conversation** (`src/LeadConversation.jsx`, the chats tab's look from
 `src/waShared.jsx`): the number's real history (`chat-history`, conditional, every 8 s while visible) merged with the
-`meta_messages` log (`mergeConversation()`), "⚡ תבניות ▾" (`ChatTemplateMenu` + `TemplateQuickEdit`, rendered for
-`templateLead()` = the Meta lead, or its CRM copy from the admin's `leads`), a **welcome picker** while nothing was sent (the
-welcome templates first — the automation's one marked — then the personal ones, `welcomeChoices()`; Hebrew / English; editable)
+`meta_messages` log (`mergeConversation()`), and a composer whose **template dropdown** (a native `<select>` with a group per
+category, `templateOptions()`, rendered for `templateLead()` = the Meta lead, or its CRM copy from the admin's `leads`; "✏️"
+edits the chosen template with `TemplateQuickEdit`; עב / EN) fills the box. While nothing was sent the welcome group comes first
+and the box **starts with the automation's welcome** (★), the button reads "שלח הודעת פתיחה" and that first send goes
 → `POST /api/meta/lead-welcome {id, text, templateId}` → `welcomeExternalLead(…, { force: true, text, templateId })` (counts as the
 welcome: `wa_sent`, `automation_log`, `by: 'manual'`), and a composer → `POST /api/meta/messages` (502 carries `quota`). A refusal
 reads as words (`sendErrorText()`; the 466 quota also shows a banner with the upgrade link), never raw JSON. Next to it: welcome
 status, details + form answers, notes (save state shown). The selection is an id (`selectedId`), so polls / Realtime keep the open
-lead fresh. **Resizable like an editor:** drag the edge between the list and the lead, and between the conversation and the
-details (`Splitter`: pointer capture, only a CSS variable changes while dragging — `--lc-list` / `--lc-aside` — committed on
-release; arrows / Shift / Home / End, double-click or Enter resets; limits keep the lead ≥ 460 px and the chat ≥ 380 px); the sizes
-and the stats strip on / off ("הסתר נתונים") are kept in `localStorage.afik_lc_layout_v1`; ⤢ in the conversation header puts it
-on the whole screen (Esc back). A lead whose WhatsApp chat already has our messages (sent from the chats tab, say) is marked
+lead fresh. **Resizable like an editor** (`src/Splitter.jsx`, axis x / y: pointer capture, only a DOM style changes while dragging,
+committed on release; arrows / Shift / Home / End, double-click or Enter resets): the edge between the list and the lead and
+between the conversation and the details (`--lc-list` / `--lc-aside`; the lead keeps ≥ 460 px, the chat ≥ 380 px), the header's
+bottom edge (one compact row — title, connection pills, KPI chips, sync, Pipeline — dragged up it folds away and the
+conversation grows), and the composer's top edge (a taller writing box, `localStorage.afik_lcv_dock_v1`). Sizes are kept in
+`localStorage.afik_lc_layout_v1` (`list`, `aside`, `head`); ⤢ in the conversation header puts it on the whole screen (Esc back).
+**The admin opens on the Lead Center** (the default tab; `/admin-panel/overview` is the dashboard home). In the in-site modal
+this screen folds the title and the row of tabs into one slim bar (a "מסך" dropdown, "כל המסכים ▾", theme, close; ▴ folds the
+row back; `localStorage.afik_admin_tabs_open`). A lead whose WhatsApp chat already has our messages (sent from the chats tab, say) is marked
 `wa_sent` (`onActivity` → PATCH `{ wa_sent: true }`, the only value the API accepts). A detail pane too narrow for both (and every phone) shows one pane at a time ("שיחה" / "פרטים והערות"); phones get a compact
 bar (status as a dropdown, CRM in the details). Pure helpers: `src/lib/leadConversation.js` (tested).
 **Every Meta lead is also in the CRM** (`lib/meta-crm.js`, tested): the webhook and every sync copy a new lead into `contacts`

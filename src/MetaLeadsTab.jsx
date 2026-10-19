@@ -10,6 +10,7 @@ import { templateLead } from './lib/leadConversation.js'
 import { supabase } from './lib/supabaseClient'
 import MetaKanban from './MetaKanban'
 import LeadConversation from './LeadConversation.jsx'
+import Splitter, { SPLITTER_CSS } from './Splitter.jsx'
 
 const ADMIN_TOKEN = 'AFIKhanahal2026'
 // Which Facebook pages are synced is decided on the server (META_PAGE_IDS in Vercel) — see api/meta.js resolvePageIds
@@ -74,7 +75,8 @@ const TR = {
     never: 'עוד לא התקבל', welcomeTpl: 'הנוסח נערך בטאב אוטומציות ← תבניות',
     tabChat: 'שיחה', tabInfo: 'פרטים והערות', pickWelcome: 'לבחירת הודעת פתיחה', archiveLead: 'העבר לארכיון',
     welcomeHint: 'בחרו נוסח בשיחה ושלחו מהוואטסאפ של המשרד', noteSaveFailed: 'השמירה נכשלה', kWelcomeShort: 'קיבלו הודעה',
-    hideKpis: 'הסתר נתונים ▴', showKpis: 'הצג נתונים ▾', resizeList: 'גררו לשינוי רוחב הרשימה (לחיצה כפולה מחזירה)', resizeAside: 'גררו לשינוי רוחב הפרטים (לחיצה כפולה מחזירה)',
+    pillMeta: 'פייסבוק', pillWa: 'וואטסאפ', pillWelcome: 'פתיחה אוטומטית', showWaiting: 'הצגת הלידים שממתינים לקשר ראשון',
+    resizeHead: 'גררו למעלה כדי לקפל את הכותרת ולהגדיל את השיחה, למטה כדי להחזיר (לחיצה כפולה מחזירה)', resizeList: 'גררו לשינוי רוחב הרשימה (לחיצה כפולה מחזירה)', resizeAside: 'גררו לשינוי רוחב הפרטים (לחיצה כפולה מחזירה)',
   },
   en: {
     title: 'Meta Lead Center',
@@ -134,7 +136,8 @@ const TR = {
     never: 'Not received yet', welcomeTpl: 'Edit the text in Automations → Templates',
     tabChat: 'Conversation', tabInfo: 'Details & notes', pickWelcome: 'Pick a welcome message', archiveLead: 'Archive',
     welcomeHint: 'Pick a wording in the conversation and send it from the office WhatsApp', noteSaveFailed: 'Saving failed', kWelcomeShort: 'Got a message',
-    hideKpis: 'Hide stats ▴', showKpis: 'Show stats ▾', resizeList: 'Drag to resize the list (double-click resets)', resizeAside: 'Drag to resize the details (double-click resets)',
+    pillMeta: 'Facebook', pillWa: 'WhatsApp', pillWelcome: 'Auto welcome', showWaiting: 'Show the leads awaiting first contact',
+    resizeHead: 'Drag up to fold the header and enlarge the conversation, down to bring it back (double-click resets)', resizeList: 'Drag to resize the list (double-click resets)', resizeAside: 'Drag to resize the details (double-click resets)',
   },
 }
 
@@ -285,47 +288,10 @@ function useNarrowerThan(limit) {
 
 // The Lead Center's pane sizes (dragged by the user), kept in this browser
 const LAYOUT_KEY = 'afik_lc_layout_v1'
-const LAYOUT_DEFAULT = { list: 360, aside: 320, kpis: true }
+const LAYOUT_DEFAULT = { list: 360, aside: 320, head: null }   // head: the header's dragged height (null = all of it, 0 = folded)
 const LIMITS = { list: [260, 640], aside: [260, 560] }
 function loadLayout() {
   try { return { ...LAYOUT_DEFAULT, ...JSON.parse(localStorage.getItem(LAYOUT_KEY) || '{}') } } catch { return { ...LAYOUT_DEFAULT } }
-}
-
-// A draggable edge between two panes, like an editor's: drag with the mouse / finger, arrows (Shift = bigger steps),
-// Home / End, double-click or Enter to reset. While dragging only a CSS variable changes (no React render per pixel);
-// the size is committed when the drag ends.
-function Splitter({ value, min, max, grows, varName, hostRef, onCommit, onReset, label, wide = false }) {
-  const drag = useRef(null)
-  const clamp = v => Math.round(Math.min(max(), Math.max(min, v)))
-  const set = v => hostRef.current?.style.setProperty(varName, `${v}px`)
-  const end = e => {
-    if (!drag.current) return
-    const v = drag.current.last
-    drag.current = null
-    document.body.classList.remove('lc-resizing')
-    try { e.currentTarget.releasePointerCapture(e.pointerId) } catch {}
-    onCommit(v)
-  }
-  const key = e => {
-    const step = e.shiftKey ? 64 : 16
-    if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); const v = clamp(value + (e.key === 'ArrowRight' ? 1 : -1) * grows * step); set(v); onCommit(v) }
-    else if (e.key === 'Home') { e.preventDefault(); set(min); onCommit(min) }
-    else if (e.key === 'End') { e.preventDefault(); const v = clamp(Infinity); set(v); onCommit(v) }
-    else if (e.key === 'Enter') { e.preventDefault(); onReset() }
-  }
-  return (
-    <div role="separator" aria-orientation="vertical" aria-label={label} title={label} aria-valuenow={value} aria-valuemin={min} aria-valuemax={Math.round(max())} tabIndex={0}
-      className={`lc-split${wide ? ' wide' : ''}`}
-      onPointerDown={e => {
-        if (e.button !== 0) return
-        e.preventDefault()
-        drag.current = { x: e.clientX, v: value, last: value }
-        e.currentTarget.setPointerCapture(e.pointerId)
-        document.body.classList.add('lc-resizing')
-      }}
-      onPointerMove={e => { if (!drag.current) return; const v = clamp(drag.current.v + (e.clientX - drag.current.x) * grows); drag.current.last = v; set(v) }}
-      onPointerUp={end} onPointerCancel={end} onDoubleClick={onReset} onKeyDown={key}/>
-  )
 }
 
 const PATCH = (body) => fetch('/api/meta/leads', { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` }, body: JSON.stringify(body) })
@@ -361,7 +327,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
   const [focusChat, setFocusChat]       = useState(false)    // the conversation on the whole screen
   const [chatFirstOut, setChatFirstOut] = useState(null)     // our first message in the WhatsApp chat (any source)
   const saveLayout = useCallback(patch => setLayout(prev => { const next = { ...prev, ...patch }; try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(next)) } catch {} return next }), [])
-  const rootRef = useRef(null), bodyRef = useRef(null), detailBoxRef = useRef(null)
+  const rootRef = useRef(null), bodyRef = useRef(null), detailBoxRef = useRef(null), headRef = useRef(null)
   useEffect(() => {
     if (!focusChat) return
     const k = e => { if (e.key === 'Escape') setFocusChat(false) }
@@ -719,6 +685,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
   // side by side while the conversation keeps at least 380 px next to the details
   const [detailRef, detailNarrow] = useNarrowerThan(layout.aside + 14 + 380 + 28)
   const onePane = narrow || detailNarrow
+  const showHead = (!narrow || !selectedLead) && !(focusChat && selectedLead)
 
   const answers = useMemo(() => (selectedLead ? metaFormAnswers(selectedLead.raw_fields, lang) : []), [selectedLead, lang])
   const answersHe = useMemo(() => (selectedLead ? metaFormAnswers(selectedLead.raw_fields, 'he') : []), [selectedLead])
@@ -804,60 +771,58 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
         .lc-input:focus{border-color:rgba(var(--brand-rgb),.55);box-shadow:0 0 0 3px rgba(var(--brand-rgb),.15)}
         .lc-scroll{overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
         .lc-label{font-size:11.5px;font-weight:700;color:${FAINT};letter-spacing:.02em}
-        .lc-kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-top:12px}
-        .lc-kpi{padding:9px 12px;text-align:start;font:inherit;color:inherit}
-        @media (max-width:900px){.lc-kpis{display:flex;overflow-x:auto;scrollbar-width:none}.lc-kpis::-webkit-scrollbar{display:none}.lc-kpi{flex:0 0 auto;min-width:118px}}
-        .lc-split{flex:0 0 8px;margin-inline:-4px;cursor:col-resize;position:relative;z-index:6;touch-action:none;outline:none}
-        .lc-split.wide{flex-basis:14px;margin-inline:0}
-        .lc-split::before{content:'';position:absolute;top:0;bottom:0;left:50%;width:2px;transform:translateX(-50%);border-radius:2px;background:transparent;transition:background .15s}
-        .lc-split::after{content:'';position:absolute;top:50%;left:50%;width:4px;height:28px;transform:translate(-50%,-50%);border-radius:3px;background:rgba(var(--ink),.18);opacity:0;transition:opacity .15s}
-        .lc-split:hover::before,.lc-split:focus-visible::before{background:rgba(var(--brand-rgb),.55)}
-        .lc-split:hover::after,.lc-split:focus-visible::after,.lc-split.wide::after{opacity:1}
-        body.lc-resizing,body.lc-resizing *{cursor:col-resize!important;user-select:none!important}
-        body.lc-resizing iframe{pointer-events:none}
-      `}</style>
+        .lc-head-in{display:flex;align-items:center;gap:10px 14px;flex-wrap:wrap;padding:10px 16px}
+        .lc-pill{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;border:1px solid ${BORDER};font-size:11.5px;font-weight:700;color:${MUTED};white-space:nowrap}
+        .lc-kpis{display:flex;gap:6px;flex:1 1 380px;min-width:0;overflow-x:auto;scrollbar-width:none}
+        .lc-kpis::-webkit-scrollbar{display:none}
+        .lc-kpi{display:inline-flex;align-items:baseline;gap:6px;flex:0 0 auto;padding:6px 12px;border-radius:10px;border:1px solid ${BORDER};background:var(--au-card-solid);font:inherit;color:inherit;text-align:start}
+        button.lc-kpi{cursor:pointer}button.lc-kpi:hover{border-color:rgba(var(--brand-rgb),.4)}
+        .lc-kpi b{font-size:17px;font-weight:800;line-height:1;font-feature-settings:'tnum'}
+        .lc-kpi span{font-size:12px;color:${MUTED};font-weight:600;white-space:nowrap}
+        .lc-kpi em{font-style:normal;font-size:11px;color:${FAINT};font-weight:700}
+      ` + SPLITTER_CSS}</style>
 
-      {/* ── Header: title, connection, actions, KPIs (on a phone only above the list) ── */}
-      {(!narrow || !selectedLead) && !(focusChat && selectedLead) && (
-        <div style={{ flexShrink: 0, borderBottom: `1px solid ${BORDER}`, padding: narrow ? '12px 14px 10px' : '14px 18px 12px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-            <div style={{ minWidth: 0, flex: '1 1 260px' }}>
-              <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: CREAM, lineHeight: 1.2 }}>{lang === 'en' ? 'Lead Center' : 'מרכז לידים'}</h2>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginTop: 5, flexWrap: 'wrap', fontSize: 12, color: MUTED }}>
-                <Dot s={connState}/>
-                <span style={{ fontWeight: 600 }}>{!conn ? t.connChecking : connState === 'ok' ? t.connOk : conn.error ? t.connChecking : !tokenOk ? t.connToken : t.connPage}</span>
-                {conn && !conn.error && <><span style={{ color: FAINT }}>·</span><Dot s={waOk ? 'ok' : 'bad'}/><span>{waOk ? t.waOk(waPhone) : t.waBad}</span></>}
-                {welcomeOn !== null && <><span style={{ color: FAINT }}>·</span><span style={{ color: welcomeOn ? '#16A34A' : '#D97706', fontWeight: 700 }}>{welcomeOn ? t.welcomeAuto : t.welcomeOff}</span></>}
-              </div>
+      {/* ── Header: title, connection, KPIs, actions in one row — drag its bottom edge up to fold it away ── */}
+      {showHead && (
+        <div ref={headRef} style={{ flexShrink: 0, overflow: 'hidden', height: !narrow && layout.head != null ? layout.head : undefined, borderBottom: `1px solid ${BORDER}` }}>
+          <div className="lc-head-in" style={narrow ? { padding: '10px 12px' } : undefined}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', minWidth: 0 }}>
+              <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: CREAM, whiteSpace: 'nowrap' }}>{lang === 'en' ? 'Lead Center' : 'מרכז לידים'}</h2>
+              <span className="lc-pill" title={!conn ? t.connChecking : connState === 'ok' ? t.connOk : !tokenOk ? t.connToken : t.connPage}><Dot s={connState}/>{t.pillMeta}</span>
+              {conn && !conn.error && <span className="lc-pill" title={waOk ? t.waOk(waPhone) : t.waBad}><Dot s={waOk ? 'ok' : 'bad'}/>{t.pillWa}</span>}
+              {welcomeOn !== null && <span className="lc-pill" title={welcomeOn ? t.welcomeAuto : t.welcomeOff}><Dot s={welcomeOn ? 'ok' : 'warn'}/>{t.pillWelcome}</span>}
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <div className="lc-kpis" role="list">
+              {kpis.map((k, i) => {
+                const Tag = k.onClick ? 'button' : 'div'
+                return (
+                  <Tag key={i} role="listitem" className="lc-kpi" onClick={k.onClick} type={k.onClick ? 'button' : undefined} title={k.onClick ? t.showWaiting : undefined}>
+                    <b style={{ color: k.color }}>{k.value}</b><span>{k.label}</span>{k.sub && <em>{k.sub}</em>}
+                  </Tag>
+                )
+              })}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
               {syncResult && <span role="status" className={`lc-chip ${syncResult.ok ? 'ok' : 'warn'}`}>{syncResult.text}</span>}
               <button className="lc-btn" onClick={handleSync} disabled={syncing}>
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" style={{ animation: syncing ? 'gm_spin .7s linear infinite' : 'none' }} aria-hidden><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
                 {syncing ? t.syncing : t.sync}
               </button>
-              <button className="lc-btn" onClick={() => saveLayout({ kpis: !layout.kpis })} aria-expanded={layout.kpis}>{layout.kpis ? t.hideKpis : t.showKpis}</button>
               <button className="lc-btn" onClick={handleViewToggle} style={{ position: 'relative' }}>
                 {inChat ? 'Pipeline' : (lang === 'en' ? 'Lead Center' : 'מרכז לידים')}
                 {unreadCount > 0 && <span style={{ position: 'absolute', top: -7, insetInlineEnd: -7, minWidth: 18, height: 18, padding: '0 5px', borderRadius: 999, background: '#E5484D', color: '#fff', fontSize: 10, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{unreadCount > 99 ? '99+' : unreadCount}</span>}
               </button>
             </div>
           </div>
-          {layout.kpis && <div className="lc-kpis">
-            {kpis.map((k, i) => {
-              const Tag = k.onClick ? 'button' : 'div'
-              return (
-                <Tag key={i} className="lc-card lc-kpi" onClick={k.onClick} type={k.onClick ? 'button' : undefined} style={{ cursor: k.onClick ? 'pointer' : 'default' }}>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-                    <span style={{ fontSize: 20, fontWeight: 800, color: k.color, lineHeight: 1, fontFeatureSettings: '"tnum"' }}>{k.value}</span>
-                    {k.sub && <span style={{ fontSize: 11.5, fontWeight: 700, color: FAINT }}>{k.sub}</span>}
-                  </div>
-                  <div style={{ fontSize: 11.5, color: MUTED, fontWeight: 600, marginTop: 4, whiteSpace: 'nowrap' }}>{k.label}</div>
-                </Tag>
-              )
-            })}
-          </div>}
         </div>
+      )}
+      {showHead && !narrow && (
+        <Splitter axis="y" gap grows={1} min={0} label={t.resizeHead}
+          max={() => headRef.current?.scrollHeight || 200}
+          get={() => headRef.current?.getBoundingClientRect().height || 0}
+          apply={v => { if (headRef.current) headRef.current.style.height = `${v}px` }}
+          commit={v => { const full = headRef.current?.scrollHeight || 0; saveLayout({ head: v < 24 ? 0 : v >= full - 2 ? null : v }) }}
+          reset={() => { if (headRef.current) headRef.current.style.height = ''; saveLayout({ head: null }) }}/>
       )}
 
       {/* ── Pipeline view ── */}
@@ -975,9 +940,10 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
         </div>}
 
         {showList && showDetail && !(focusChat && selectedLead) && (
-          <Splitter value={layout.list} min={LIMITS.list[0]} grows={dir === 'rtl' ? -1 : 1} varName="--lc-list" hostRef={rootRef} label={t.resizeList}
+          <Splitter axis="x" min={LIMITS.list[0]} grows={dir === 'rtl' ? -1 : 1} label={t.resizeList}
             max={() => Math.min(LIMITS.list[1], (bodyRef.current?.getBoundingClientRect().width || 1200) - 460)}
-            onCommit={v => saveLayout({ list: v })} onReset={() => { rootRef.current?.style.setProperty('--lc-list', `${LAYOUT_DEFAULT.list}px`); saveLayout({ list: LAYOUT_DEFAULT.list }) }}/>
+            get={() => layout.list} apply={v => rootRef.current?.style.setProperty('--lc-list', `${v}px`)}
+            commit={v => saveLayout({ list: v })} reset={() => { rootRef.current?.style.setProperty('--lc-list', `${LAYOUT_DEFAULT.list}px`); saveLayout({ list: LAYOUT_DEFAULT.list }) }}/>
         )}
 
         {/* ── Lead / overview ── */}
@@ -1031,45 +997,53 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
             </div>
           ) : (
             <>
-              {/* Lead bar: who, from which campaign, actions, status */}
-              <div style={{ flexShrink: 0, padding: narrow ? '10px 12px' : '12px 16px', borderBottom: `1px solid ${BORDER}`, background: 'var(--au-card-solid)', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-                  {narrow && <button className="lc-btn icon" onClick={() => setSelectedId(null)} aria-label={t.back} title={t.back}>{dir === 'rtl' ? '→' : '←'}</button>}
-                  <Avatar lead={selectedLead} size={narrow ? 40 : 46}/>
-                  <div style={{ flex: '1 1 200px', minWidth: 0 }}>
-                    <h2 style={{ margin: 0, fontSize: narrow ? 16 : 18, fontWeight: 800, color: CREAM, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{isTestLead(selectedLead) ? t.testLead : (selectedLead.name || '—')}</h2>
-                    <div style={{ fontSize: 12.5, color: MUTED, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={getCampaignLabel(selectedLead) || ''}>{shortLabel(selectedLead) || '—'} · {fmtWhen(selectedLead.created_at, lang)}</div>
+              {/* Lead bar: who, from which campaign, status, actions — one row on a wide screen */}
+              {(() => {
+                const telHref = `tel:+${String(selectedLead.phone || '').replace(/\D/g, '').replace(/^0/, '972')}`
+                const statusCtl = narrow ? (
+                  <select value={STATUS_CONFIG[selectedLead.status] && selectedLead.status !== 'saved_to_crm' ? selectedLead.status : 'new'} onChange={e => handleStatusChange(e.target.value)} aria-label={t.status} className="lc-input" style={{ width: 'auto', minHeight: 34, padding: '0 10px', fontWeight: 700, color: (STATUS_CONFIG[selectedLead.status] || STATUS_CONFIG.new).color }}>
+                    {['new', 'contacted', 'scheduled', 'closed'].map(k => <option key={k} value={k}>{STATUS_CONFIG[k].label[lang] || STATUS_CONFIG[k].label.he}</option>)}
+                  </select>
+                ) : (
+                  <div className="lc-seg" role="radiogroup" aria-label={t.status}>
+                    {['new', 'contacted', 'scheduled', 'closed'].map(k => {
+                      const s = STATUS_CONFIG[k]
+                      const on = (selectedLead.status || 'new') === k
+                      return <button key={k} role="radio" aria-checked={on} onClick={() => handleStatusChange(k)} style={on ? { background: s.bg, color: s.color } : undefined}>{s.label[lang] || s.label.he}</button>
+                    })}
                   </div>
-                  {narrow && selectedLead.phone && <a className="lc-btn icon" href={`tel:+${String(selectedLead.phone).replace(/\D/g, '').replace(/^0/, '972')}`} aria-label={t.call} title={t.call}>📞</a>}
-                  {!narrow && <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                    {selectedLead.phone && <a className="lc-btn" href={`tel:+${String(selectedLead.phone).replace(/\D/g, '').replace(/^0/, '972')}`}>📞 {t.call}</a>}
-                    {selectedLead.phone && onOpenChat && !narrow && <button className="lc-btn wa" onClick={() => onOpenChat(selectedLead)}>💬 {t.whatsapp}</button>}
-                    {crmButton}
-                  </div>}
-                </div>
-                {!(focusChat && narrow) && <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                  {narrow ? (
-                    <select value={STATUS_CONFIG[selectedLead.status] && selectedLead.status !== 'saved_to_crm' ? selectedLead.status : 'new'} onChange={e => handleStatusChange(e.target.value)} aria-label={t.status} className="lc-input" style={{ width: 'auto', minHeight: 34, padding: '0 10px', fontWeight: 700, color: (STATUS_CONFIG[selectedLead.status] || STATUS_CONFIG.new).color }}>
-                      {['new', 'contacted', 'scheduled', 'closed'].map(k => <option key={k} value={k}>{STATUS_CONFIG[k].label[lang] || STATUS_CONFIG[k].label.he}</option>)}
-                    </select>
-                  ) : <>
-                    <span className="lc-label">{t.status}</span>
-                    <div className="lc-seg" role="radiogroup" aria-label={t.status}>
-                      {['new', 'contacted', 'scheduled', 'closed'].map(k => {
-                        const s = STATUS_CONFIG[k]
-                        const on = (selectedLead.status || 'new') === k
-                        return <button key={k} role="radio" aria-checked={on} onClick={() => handleStatusChange(k)} style={on ? { background: s.bg, color: s.color } : undefined}>{s.label[lang] || s.label.he}</button>
-                      })}
+                )
+                const tabs = onePane && (
+                  <div className="lc-seg" role="tablist">
+                    <button role="tab" aria-selected={pane === 'chat'} onClick={() => setPane('chat')} style={pane === 'chat' ? { background: 'rgba(var(--brand-rgb),.14)', color: BRAND } : undefined}>💬 {t.tabChat}</button>
+                    <button role="tab" aria-selected={pane === 'info'} onClick={() => setPane('info')} style={pane === 'info' ? { background: 'rgba(var(--brand-rgb),.14)', color: BRAND } : undefined}>{t.tabInfo}</button>
+                  </div>
+                )
+                return (
+                  <div style={{ flexShrink: 0, padding: narrow ? '10px 12px' : '10px 16px', borderBottom: `1px solid ${BORDER}`, background: 'var(--au-card-solid)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                      {narrow && <button className="lc-btn icon" onClick={() => setSelectedId(null)} aria-label={t.back} title={t.back}>{dir === 'rtl' ? '→' : '←'}</button>}
+                      <Avatar lead={selectedLead} size={narrow ? 38 : 42}/>
+                      <div style={{ flex: '1 1 180px', minWidth: 0 }}>
+                        <h2 style={{ margin: 0, fontSize: narrow ? 16 : 17, fontWeight: 800, color: CREAM, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{isTestLead(selectedLead) ? t.testLead : (selectedLead.name || '—')}</h2>
+                        <div style={{ fontSize: 12.5, color: MUTED, marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={getCampaignLabel(selectedLead) || ''}>
+                          {shortLabel(selectedLead) || '—'} · {fmtWhen(selectedLead.created_at, lang)}{selectedLead.phone && !narrow ? <> · <bdi>{fmtPhone(selectedLead.phone)}</bdi></> : null}
+                        </div>
+                      </div>
+                      {!narrow && statusCtl}
+                      {!narrow && tabs}
+                      {narrow
+                        ? selectedLead.phone && <a className="lc-btn icon" href={telHref} aria-label={t.call} title={t.call}>📞</a>
+                        : <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                            {selectedLead.phone && <a className="lc-btn" href={telHref}>📞 {t.call}</a>}
+                            {selectedLead.phone && onOpenChat && <button className="lc-btn wa" onClick={() => onOpenChat(selectedLead)}>💬 {t.whatsapp}</button>}
+                            {crmButton}
+                          </div>}
                     </div>
-                  </>}
-                  {onePane && (
-                    <div className="lc-seg" role="tablist" style={{ marginInlineStart: 'auto' }}>
-                      <button role="tab" aria-selected={pane === 'chat'} onClick={() => setPane('chat')} style={pane === 'chat' ? { background: 'rgba(var(--brand-rgb),.14)', color: BRAND } : undefined}>💬 {t.tabChat}</button>
-                      <button role="tab" aria-selected={pane === 'info'} onClick={() => setPane('info')} style={pane === 'info' ? { background: 'rgba(var(--brand-rgb),.14)', color: BRAND } : undefined}>{t.tabInfo}</button>
-                    </div>
-                  )}
-                </div>}
-              </div>
+                    {narrow && !focusChat && <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'space-between' }}>{statusCtl}{tabs}</div>}
+                  </div>
+                )
+              })()}
 
               {/* Conversation + details */}
               <div ref={detailBoxRef} style={{ flex: 1, minHeight: 0, display: 'flex', padding: onePane ? 0 : 14, overflow: 'hidden' }}>
@@ -1083,9 +1057,10 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onOpenChat,
                   </div>
                 )}
                 {!onePane && !focusChat && (
-                  <Splitter wide value={layout.aside} min={LIMITS.aside[0]} grows={dir === 'rtl' ? 1 : -1} varName="--lc-aside" hostRef={rootRef} label={t.resizeAside}
+                  <Splitter axis="x" gap min={LIMITS.aside[0]} grows={dir === 'rtl' ? 1 : -1} label={t.resizeAside}
                     max={() => Math.min(LIMITS.aside[1], (detailBoxRef.current?.getBoundingClientRect().width || 900) - 28 - 14 - 380)}
-                    onCommit={v => saveLayout({ aside: v })} onReset={() => { rootRef.current?.style.setProperty('--lc-aside', `${LAYOUT_DEFAULT.aside}px`); saveLayout({ aside: LAYOUT_DEFAULT.aside }) }}/>
+                    get={() => layout.aside} apply={v => rootRef.current?.style.setProperty('--lc-aside', `${v}px`)}
+                    commit={v => saveLayout({ aside: v })} reset={() => { rootRef.current?.style.setProperty('--lc-aside', `${LAYOUT_DEFAULT.aside}px`); saveLayout({ aside: LAYOUT_DEFAULT.aside }) }}/>
                 )}
                 {(onePane ? pane === 'info' : !focusChat) && (
                   <aside className="lc-scroll" style={{ width: onePane ? '100%' : 'var(--lc-aside)', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 12, padding: onePane ? 12 : 0, paddingBottom: narrow ? 96 : 0 }}>

@@ -24,7 +24,7 @@ import { notifyPropertiesChanged, mirrorProperty, mirrorProperties, mirrorDelete
 import { fetchAdminProperties, LeadsBoard, GreenAPIChat, MetaLeadsTab, SupermetricsTab, PropertyWizard, API_BASE, CONTACTS_API, ADMIN_TOKEN, condFetchJson, DARK_C, useTheme, TEAM, G, Logo, LEADS_STORE, LEADS_DELETED, LEADS_TRASH, ANALYTICS_KEY, META_LEAD_PAGES_KEY, WA_DEFAULT_TEMPLATE, _cloudSettings, CATEGORIES, EMPTY_PROP, CONDITION_OPTIONS, ENTRY_OPTIONS, ADMIN_DRAFT_KEY, toMapsEmbed, imgFallback, thumbImg, sortByOrder, TEAM_KEY, setCloudSettings } from './App.jsx'
 
 // Tab ↔ URL deep-link mapping (module-level so both AdminPanel and main app can use it)
-const ADMIN_TAB_TO_PATH = { overview:'', props:'properties', leads:'leads', sellers:'properties-intake', bookings:'bookings', content:'content', chats:'chats', automations:'automations', meta:'lead-center', analytics:'analytics', supermetrics:'performance', team:'team', settings:'settings', counters:'counters', live:'live' }
+const ADMIN_TAB_TO_PATH = { overview:'overview', props:'properties', leads:'leads', sellers:'properties-intake', bookings:'bookings', content:'content', chats:'chats', automations:'automations', meta:'lead-center', analytics:'analytics', supermetrics:'performance', team:'team', settings:'settings', counters:'counters', live:'live' }
 const ADMIN_PATH_TO_TAB = Object.fromEntries(Object.entries(ADMIN_TAB_TO_PATH).map(([k,v])=>[v,k]))
 
 // ─── LOGO UPLOAD (single image, compressed) ──────────────────────────────────
@@ -1331,11 +1331,16 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const [err, setErr]     = useState('')
   const [tab, setTab]     = useState(() => {
     const seg = window.location.pathname.replace(/^\/admin-panel\/?/, '')
-    const t = ADMIN_PATH_TO_TAB[seg] || 'props'
+    // The Lead Center is the first screen (the admin's default); /admin-panel/overview is the dashboard home
+    const t = ADMIN_PATH_TO_TAB[seg] || 'meta'
     if (t === 'live') return 'props'                         // "באוויר" = the published filter of the property list
-    return t === 'overview' && !standalone ? 'props' : t     // the modal has no overview page
+    return t === 'overview' && !standalone ? 'meta' : t      // the modal has no overview page
   })
   const [adminNavOpen, setAdminNavOpen] = useState(false)
+  // In the modal, the Lead Center gets the whole height: the title and the row of tabs fold into one slim bar with a
+  // screen dropdown ("כל המסכים" opens the full row again; the choice is kept)
+  const [tabsOpen, setTabsOpen] = useState(() => { try { return localStorage.getItem('afik_admin_tabs_open') === '1' } catch { return false } })
+  const setTabsOpenSaved = v => { setTabsOpen(v); try { localStorage.setItem('afik_admin_tabs_open', v ? '1' : '0') } catch {} }
 
   // Sync URL when tab changes (deep-link routing)
   useEffect(() => {
@@ -2655,6 +2660,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     { id:'counters', Icon:FaBalanceScale,label:'מונים' },
     { id:'settings', Icon:FaTools,       label:'הגדרות' },
   ]
+  const slimBar = !standalone && tab === 'meta' && !tabsOpen
   const DASH_GROUPS = [
     { id:'main',  he:'ראשי',            en:'MAIN',        ids:['overview','live','props','sellers','content'] },
     { id:'sales', he:'מכירות ולקוחות',  en:'SALES',       ids:['leads','meta','bookings','chats','automations'] },
@@ -2830,7 +2836,20 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
         )}
 
         {/* Modal header */}
-        {!standalone && (
+        {slimBar && (
+          <div style={{ display:'flex', alignItems:'center', gap:8, padding:'10px 12px', borderBottom:`1px solid ${C.purple}22`, flexShrink:0, flexWrap:'wrap' }}>
+            <label htmlFor="admin-screen" style={{ fontSize:12, fontWeight:700, color:`${C.cream}88` }}>{lang === 'en' ? 'Screen' : 'מסך'}</label>
+            <select id="admin-screen" value={tab} onChange={e => { const v = e.target.value; if (v === 'live') goToLiveProps(); else setTab(v) }}
+              style={{ height:34, borderRadius:9, border:`1px solid ${C.purple}44`, background:'rgba(var(--ov),.05)', color:C.cream, fontFamily:'inherit', fontSize:13, fontWeight:700, padding:'0 10px', cursor:'pointer' }}>
+              {DASH_TABS.filter(x => x.id !== 'overview').map(x => <option key={x.id} value={x.id}>{x.label}{x.badge ? ` (${x.badge})` : ''}</option>)}
+            </select>
+            <button onClick={() => setTabsOpenSaved(true)} style={{ height:34, padding:'0 12px', borderRadius:9, border:`1px solid ${C.purple}33`, background:'transparent', color:`${C.cream}AA`, fontFamily:'inherit', fontSize:12.5, fontWeight:700, cursor:'pointer' }}>{lang === 'en' ? 'All screens ▾' : 'כל המסכים ▾'}</button>
+            <span style={{ flex:1 }}/>
+            <AdminThemeSwitch lang={lang} compact/>
+            <button onClick={onClose} aria-label={lang === 'en' ? 'Close' : 'סגירה'} style={{ background:'rgba(var(--ov),.07)', border:`1px solid rgba(var(--brand-rgb),.25)`, borderRadius:10, width:36, height:36, color:`${C.cream}80`, cursor:'pointer', fontSize:18, lineHeight:1 }}>×</button>
+          </div>
+        )}
+        {!standalone && !slimBar && (
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16, paddingBottom:14, borderBottom:`1px solid ${C.purple}22`, flexShrink:0 }}>
             <div style={{ display:'flex', alignItems:'center', gap:12 }}>
               <div style={{ width:42, height:42, borderRadius:12, background:`${C.purple}22`, border:`1.5px solid ${C.purple}44`, display:'flex', alignItems:'center', justifyContent:'center' }}>
@@ -2889,8 +2908,9 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
         )}
 
         {/* Modal tabs */}
-        {!standalone && (
+        {!standalone && !slimBar && (
           <div style={{ display:'flex', gap:4, marginBottom:12, background:'rgba(var(--ov),.04)', borderRadius:10, padding:4, flexWrap:'wrap', flexShrink:0 }}>
+            {tab === 'meta' && <button onClick={() => setTabsOpenSaved(false)} title={lang === 'en' ? 'Fold the tabs into one bar' : 'קיפול הטאבים לשורה אחת'} style={{ padding:'10px 12px', border:'none', background:'transparent', color:`${C.cream}88`, fontFamily:'inherit', fontSize:13, fontWeight:700, cursor:'pointer', borderRadius:8 }}>▴</button>}
             {tabBtn('meta', 'Lead Center', metaNewLeads || undefined)}
             {tabBtn('props', 'ניהול נכסים')}
             <button onClick={goToLiveProps}

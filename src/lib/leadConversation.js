@@ -23,21 +23,6 @@ export function mergeConversation(green = [], local = [], pending = []) {
   return [...green, ...logged, ...waiting].sort((a, b) => ts(a) - ts(b))
 }
 
-/**
- * The wordings offered for the welcome message: the welcome templates first (the one the automation uses on top),
- * then the personal ones — each rendered for this lead. → [{ id, title, text, isDefault }]
- */
-export function welcomeChoices(autoConfig, lead, lang = 'he') {
-  const cfg = mergeConfig(autoConfig || {})
-  const defId = cfg.rules?.welcome?.templateId || 'welcome'
-  const list = templateList(cfg).filter(t => t.cat === 'welcome' || t.cat === 'personal')
-  const rank = t => (t.id === defId ? 0 : t.cat === 'welcome' ? 1 : 2)
-  return list
-    .sort((a, b) => rank(a) - rank(b))
-    .map(t => ({ id: t.id, cat: t.cat, title: lang === 'en' ? (t.en_title || t.he_title) : (t.he_title || t.en_title), text: renderTemplate(t, lead || {}, cfg, lang), isDefault: t.id === defId }))
-    .filter(x => x.text.trim())
-}
-
 // the Lead Center's statuses → the CRM stages the templates recommend by
 const META_STAGE = { new: 'new', contacted: 'contacted', scheduled: 'discovery', closed: 'lost', saved_to_crm: 'contacted' }
 
@@ -64,4 +49,31 @@ export function sendErrorText(err, lang = 'he') {
   const raw = String(err?.error || err || '').replace(/\{[\s\S]*\}/, '').replace(/\s+/g, ' ').trim().replace(/[:\s]+$/, '')
   const short = raw.length > 140 ? raw.slice(0, 140) + '…' : raw
   return (he ? 'השליחה נכשלה' : 'Sending failed') + (short ? `: ${short}` : '')
+}
+
+const sigOf = text => norm(String(text || '').split('\n').filter(l => !/^(שלום|היי|hello|hi)\b/i.test(l.trim())).sort((a, b) => b.length - a.length)[0] || '').slice(0, 36)
+
+/**
+ * The template dropdown of the composer: groups of { id, title, text, sent, isDefault }, rendered for the lead.
+ * Before anything was sent the welcome wordings come first (the automation's one on top), then the personal ones and the
+ * rest of the library by category; afterwards the categories in their usual order. `sent` = its distinctive line is
+ * already in one of our messages.
+ */
+export function templateOptions(autoConfig, lead, lang = 'he', { outTexts = [], first = false, categories = [] } = {}) {
+  const cfg = mergeConfig(autoConfig || {})
+  const defId = cfg.rules?.welcome?.templateId || 'welcome'
+  const out = outTexts.map(norm).join('\n')
+  const all = templateList(cfg).map(t => {
+    const text = renderTemplate(t, lead || {}, cfg, lang)
+    const sig = sigOf(text)
+    return { id: t.id, cat: t.cat || 'general', title: lang === 'en' ? (t.en_title || t.he_title) : (t.he_title || t.en_title), text, isDefault: t.id === defId, sent: sig.length > 12 && out.includes(sig) }
+  }).filter(x => x.text.trim())
+  const order = categories.map(c => c.id)
+  const catOrder = first ? ['welcome', 'personal', ...order.filter(id => id !== 'welcome' && id !== 'personal')] : order
+  for (const x of all) if (!catOrder.includes(x.cat)) catOrder.push(x.cat)
+  return catOrder.map(id => {
+    const items = all.filter(x => x.cat === id).sort((a, b) => (b.isDefault - a.isDefault))
+    const c = categories.find(k => k.id === id)
+    return { id, label: c ? (lang === 'en' ? c.en : c.he) : id, items }
+  }).filter(g => g.items.length)
 }
