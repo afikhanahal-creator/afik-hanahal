@@ -4557,7 +4557,7 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
 
             {/* Badges */}
             <div style={{ display:'flex', gap:7, flexWrap:'wrap', alignItems:'center' }}>
-              <span style={{ background:C.purple, color:'#fff', borderRadius:20, padding:'6px 16px', fontSize:13, fontWeight:700 }}>{cat.label}</span>
+              <span style={{ background:C.purple, color: isDark ? '#09090F' : '#fff', borderRadius:20, padding:'6px 16px', fontSize:13, fontWeight:700 }}>{cat.label}</span>
               {prop.type && <span style={{ background:'rgba(255,255,255,.08)', color:`${C.cream}AA`, borderRadius:20, padding:'6px 14px', fontSize:13 }}>{prop.type}</span>}
               <span style={{ background:`${sc}18`, color:sc, border:`1px solid ${sc}40`, borderRadius:20, padding:'6px 14px', fontSize:13, fontWeight:700 }}>{prop.status}</span>
               {prop.exclusive && <span style={{ background:'rgba(255,255,255,.1)', color:'#fff', border:'1px solid rgba(255,255,255,.25)', borderRadius:20, padding:'6px 14px', fontSize:13, fontWeight:700 }}>✦ בלעדי</span>}
@@ -4917,7 +4917,7 @@ function PropertyModal({ prop, onClose, onContact, govmapToken, properties = [],
 // memo: the page re-renders on things like the active nav item — this section only when its own props change
 const PropertyCard = memo(PropertyCardImpl)
 function PropertyCardImpl({ prop, onContact, onSelect }) {
-  const { C, lang } = useTheme()
+  const { C, isDark, lang } = useTheme()
   const tt = TR[lang] || TR.he
   const favs = useFavs()
   const isFav = favs.has(String(prop.id))
@@ -5055,7 +5055,7 @@ function PropertyCardImpl({ prop, onContact, onSelect }) {
         </div>
         {/* Category badge — bottom left over scrim */}
         <div style={{ position:'absolute', bottom:12, left:10, display:'flex', gap:5, zIndex:3 }}>
-          <span style={{ background:C.purple, color:'#fff', borderRadius:5, padding:'4px 10px', fontSize:10, fontWeight:700, letterSpacing:'.03em' }}>{cat.label}</span>
+          <span style={{ background:C.purple, color: isDark ? '#09090F' : '#fff', borderRadius:5, padding:'4px 10px', fontSize:10, fontWeight:700, letterSpacing:'.03em' }}>{cat.label}</span>
           {prop.type && <span style={{ background:'rgba(0,0,0,0.72)', color:'rgba(255,255,255,.88)', borderRadius:5, padding:'4px 10px', fontSize:10, fontWeight:600 }}>{prop.type}</span>}
         </div>
       </div>

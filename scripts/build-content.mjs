@@ -50,7 +50,7 @@ const CSS = `
 :root{--bg:#09090F;--bg2:#0F0F1A;--card:#13132A;--cream:#E8E4D8;--muted:#A9A599;--dim:#8C8996;--purple:#8490D8;--green:#82F67F;--line:rgba(132,144,216,.18)}
 *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--cream);font-family:Rubik,Heebo,Arial,sans-serif;line-height:1.7;font-size:17px;-webkit-font-smoothing:antialiased}
 a{color:var(--purple)}a:hover{color:#a9b3ee}img{max-width:100%;height:auto}
-.skip{position:absolute;top:-40px;left:0;background:var(--purple);color:#09090F;font-weight:700;padding:8px 12px;z-index:100}.skip:focus{top:0}
+.skip{position:absolute;top:-40px;left:0;background:var(--purple);color:#09090F;font-weight:700;padding:8px 12px;z-index:100}.skip:focus{top:0}.skip:hover,.skip:visited{color:#09090F}
 header.top{position:sticky;top:0;z-index:50;background:rgba(9,9,15,.92);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
 .wrap{max-width:1080px;margin:0 auto;padding:0 20px}
 .topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;height:64px}
