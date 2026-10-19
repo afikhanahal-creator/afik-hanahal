@@ -18,6 +18,44 @@ const AUTH = { Authorization: `Bearer ${ADMIN_TOKEN}` }
 const intl = raw => { const d = String(raw || '').replace(/\D/g, ''); return !d ? '' : d.startsWith('972') ? d : d.startsWith('0') ? '972' + d.slice(1) : d }
 const DOCK_KEY = 'afik_lcv_dock_v1'
 
+// The WhatsApp history of the chats opened in this session (Green's getChatHistory takes ~4 s): a lead opened again shows
+// its conversation at once and is re-checked in the background (conditional: an unchanged chat answers an empty 304).
+// Hovering a lead in the list prefetches it (prefetchHistory). Kept in sessionStorage, newest 30 chats.
+const HIST_KEY = 'afik_lc_hist_v1', HIST_MAX = 30
+const HIST = new Map(), inflight = new Map()
+try { for (const [k, v] of Object.entries(JSON.parse(sessionStorage.getItem(HIST_KEY) || '{}'))) if (v?.list) HIST.set(k, v) } catch {}
+let saveT = null
+const saveHist = () => {
+  clearTimeout(saveT)
+  saveT = setTimeout(() => {
+    try {
+      const keep = [...HIST.entries()].sort((a, b) => (b[1].at || 0) - (a[1].at || 0)).slice(0, HIST_MAX)
+      sessionStorage.setItem(HIST_KEY, JSON.stringify(Object.fromEntries(keep)))
+    } catch {}
+  }, 400)
+}
+async function fetchHistory(phone) {
+  if (inflight.has(phone)) return inflight.get(phone)
+  const p = (async () => {
+    const prev = HIST.get(phone)
+    const r = await fetch('/api/meta/chat-history', { method: 'POST', headers: { 'Content-Type': 'application/json', ...AUTH, ...(prev?.etag ? { 'If-None-Match': prev.etag } : {}) }, body: JSON.stringify({ phone, count: 100 }), signal: AbortSignal.timeout(20000) })
+    if (r.status === 304 && prev) { prev.at = Date.now(); saveHist(); return prev.list }
+    if (!r.ok) throw new Error(`HTTP ${r.status}`)
+    const data = await r.json()
+    const list = (Array.isArray(data) ? data : []).map(normalizeGreenMsg).sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+    HIST.set(phone, { etag: r.headers.get('etag') || '', list, at: Date.now() }); saveHist()
+    return list
+  })().finally(() => inflight.delete(phone))
+  inflight.set(phone, p)
+  return p
+}
+/** Warm a lead's conversation before it is opened (the list's hover); a chat read in the last minute is left alone */
+export function prefetchHistory(rawPhone) {
+  const phone = intl(rawPhone)
+  if (!phone || Date.now() - (HIST.get(phone)?.at || 0) < 60000) return
+  fetchHistory(phone).catch(() => {})
+}
+
 const TR = {
   he: {
     title: 'שיחת וואטסאפ', from: n => `מהוואטסאפ של המשרד${n ? ` · ${n}` : ''}`, refresh: 'רענון השיחה', openChats: 'בצ׳אטים',
@@ -112,28 +150,21 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
   const cfg = cfgLocal || autoConfig
   useEffect(() => { setCfgLocal(null) }, [autoConfig])
   const rootRef = useRef(null), scrollRef = useRef(null), inputRef = useRef(null), dockRef = useRef(null), qListRef = useRef(null), qBtnRef = useRef(null)
-  const etagRef = useRef({}), nearBottom = useRef(true), inserted = useRef(''), prefilled = useRef(false)
+  const nearBottom = useRef(true), inserted = useRef(''), prefilled = useRef(false)
 
   // ── the WhatsApp history (conditional: an unchanged chat answers an empty 304) ──
   const load = useCallback(async (quiet = false) => {
     if (!phone) { setHistState('ok'); return }
     if (!quiet) setHistState(s => (s === 'ok' ? s : 'loading'))
-    try {
-      const prev = etagRef.current[phone]
-      const r = await fetch('/api/meta/chat-history', { method: 'POST', headers: { 'Content-Type': 'application/json', ...AUTH, ...(prev ? { 'If-None-Match': prev.etag } : {}) }, body: JSON.stringify({ phone, count: 100 }), signal: AbortSignal.timeout(20000) })
-      if (r.status === 304 && prev) { setGreen(prev.list); setHistState('ok'); return }
-      if (!r.ok) throw new Error(`HTTP ${r.status}`)
-      const data = await r.json()
-      const list = (Array.isArray(data) ? data : []).map(normalizeGreenMsg).sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
-      const etag = r.headers.get('etag')
-      if (etag) etagRef.current[phone] = { etag, list }
-      setGreen(list); setHistState('ok')
-    } catch { setHistState(s => (s === 'ok' && quiet ? s : 'error')) }
+    try { setGreen(await fetchHistory(phone)); setHistState('ok') }
+    catch { setHistState(s => (s === 'ok' && quiet ? s : 'error')) }
   }, [phone])
   useEffect(() => {
-    setGreen([]); setPending([]); setError(''); setInput(''); setTplId(''); setHistState('loading')
+    // a chat seen in this session shows at once; the read below only refreshes it
+    const cached = phone ? HIST.get(phone) : null
+    setGreen(cached?.list || []); setPending([]); setError(''); setInput(''); setTplId(''); setHistState(cached ? 'ok' : 'loading')
     nearBottom.current = true; inserted.current = ''; prefilled.current = false
-    load()
+    load(!!cached)
     const iv = setInterval(() => { if (!document.hidden) load(true) }, 8000)
     return () => clearInterval(iv)
   }, [load])
