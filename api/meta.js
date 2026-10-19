@@ -485,8 +485,10 @@ async function handleLeads(req, res) {
       const mirror = await findMirror(sb(), id).catch(() => null)
       if (mirror) {
         // the board reads crm_data over the columns, so an older crm_data.name would hide the new one
-        const { data: row } = await sb().from('contacts').select('crm_data').eq('id', mirror.id).single()
-        const r = await sb().from('contacts').update({ name: newName, crm_data: { ...(row?.crm_data || {}), name: newName } }).eq('id', mirror.id)
+        const { data: row } = await sb().from('contacts').select('crm_data,name').eq('id', mirror.id).single()
+        const cd = row?.crm_data || {}
+        const originalName = cd.originalName || (row?.name && row.name !== newName ? row.name : undefined)   // what the lead typed
+        const r = await sb().from('contacts').update({ name: newName, crm_data: { ...cd, name: newName, ...(originalName ? { originalName } : {}) } }).eq('id', mirror.id)
         crm = r.error ? { error: r.error.message } : { id: mirror.id }
       }
     }
