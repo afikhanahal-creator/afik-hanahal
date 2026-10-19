@@ -198,7 +198,10 @@ conversation grows), and the composer's top edge (a taller writing box, `localSt
 **The admin opens on the Lead Center** (the default tab; `/admin-panel/overview` is the dashboard home). In the in-site modal
 this screen folds the title and the row of tabs into one slim bar (a "מסך" dropdown, "כל המסכים ▾", theme, close; ▴ folds the
 row back; `localStorage.afik_admin_tabs_open`). A lead whose WhatsApp chat already has our messages (sent from the chats tab, say) is marked
-`wa_sent` (`onActivity` → PATCH `{ wa_sent: true }`, the only value the API accepts). A detail pane too narrow for both (and every phone) shows one pane at a time ("שיחה" / "פרטים והערות"); phones get a compact
+`wa_sent` (`onActivity` → PATCH `{ wa_sent: true }`, the only value the API accepts). **Renaming a lead:** a click on the name (list row or lead header) opens an inline editor with "+ הוספת הפרויקט: <short campaign>"
+(appends ` · זרובבל 15`, so the chats show where the lead belongs) → `PATCH /api/meta/leads {id, name}` renames `meta_leads`, the CRM
+copy (`findMirror`) and resets the chats' name cache; `onLeadRenamed` updates the admin's `leads` at once. The phone's own
+WhatsApp contact book can't be edited through Green API. A detail pane too narrow for both (and every phone) shows one pane at a time ("שיחה" / "פרטים והערות"); phones get a compact
 bar (status as a dropdown, CRM in the details). Pure helpers: `src/lib/leadConversation.js` (tested).
 **Every Meta lead is also in the CRM** (`lib/meta-crm.js`, tested): the webhook and every sync copy a new lead into `contacts`
 (source `meta`, `crm_data.metaLeadId`, form answers in `message` / `crm_data.formAnswers`, phone as 05X…), so it shows in "לידים" and
