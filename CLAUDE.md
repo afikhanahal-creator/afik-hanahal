@@ -312,7 +312,7 @@ is stored per booking (`entry.wa`), the admin shows it and offers "שליחת ה
 `auto-run` retry it (`retryConfirmations()`, 3 tries, stops at the first quota refusal). Limits: 2 upcoming bookings per phone, 6 attempts per IP in 10 minutes, a honeypot field.
 Templates: `{bookingLink}` (`vars.bookingLink`, `?lang=en` added for English) in `welcome_book` and `book_link`.
 **The page itself:** a 48 px logo, a WhatsApp button in the header and a "write to us / call us" card in the side panel, and a
-figure there (`photo` in the booking settings, default `/img/booking-figure.webp` — a cut-out with no background, shown
+figure there (`photo` in the booking settings, default `/img/booking-portrait.webp` — a cut-out portrait with no background, shown
 in its own proportions at the bottom of the side panel; admin "תמונה בעמוד"; never on phones, where it isn't even loaded).
 **Phones (≤ 900 px), every step:** a one-row summary on top (title, length, channel, the chosen time), the step itself (a strip of
 days + 3-column time chips for booking and for a move, the month grid one tap away; the details' main button sticks to the bottom
