@@ -45,6 +45,13 @@ const TR = {
     moveH: name => `הזזת השיחה עם ${name}`, pickDay: 'יום', pickTime: 'שעה פנויה', noSlots: 'אין שעות פנויות בימים הקרובים',
     notifyClient: 'לעדכן את הלקוח (וואטסאפ, מייל והזמנה ביומן)', moveTo: w => `העברה ל${w}`, moving: 'מעביר…', back: 'חזרה', taken: 'השעה הזו כבר נתפסה, בחרו שעה אחרת',
     delQ: (name, w) => `למחוק את השיחה עם ${name} (${w})? היא תימחק גם מיומן Google.`, delNotify: 'מחיקה ועדכון הלקוח', delQuiet: 'מחיקה בלי הודעה', deleting: 'מוחק…',
+    guestsBtn: 'משתתפים בזימון', guestsH: name => `משתתפים בזימון לשיחה עם ${name}`, guestsSub: 'כל מי שברשימה מקבל הזמנה ביומן Google. מי שמוסר מהרשימה מקבל הודעת ביטול.',
+    guestPh: 'כתובת מייל (אפשר כמה, מופרדות בפסיק)', guestAdd: 'הוספה', guestsSave: 'שמירה ושליחת הזמנות', guestsSaving: 'מעדכן את היומן…', clientChip: 'הלקוח', noClientMail: 'הלקוח לא השאיר מייל',
+    openCal: 'פתיחה ביומן Google', guestsN: n => `${n} משתתפים`,
+    okMoved: (name, w) => `השיחה עם ${name} הועברה ל${w} ועודכנה ביומן Google ✓`, badMoved: (name, e) => `השיחה עם ${name} הועברה באתר, אבל היומן לא התעדכן: ${e}`,
+    okDeleted: name => `השיחה עם ${name} נמחקה, גם מיומן Google ✓`, okGuests: n => `עודכן ביומן Google ✓ · ${n} משתתפים קיבלו זימון`,
+    gErr: { invalid: b => `כתובות לא תקינות: ${b.join(', ')}`, no_event: 'השיחה לא נמצאת ביומן (היומן לא היה מחובר כשנקבעה)', event_gone: 'האירוע נמחק מיומן Google', not_saved: m => `היומן לא שמר את: ${m.join(', ')}`, no_calendar: 'היומן לא מחובר', cancelled: 'השיחה בוטלה' },
+    calErrTip: e => `היומן לא התעדכן: ${e}`, noEvent: 'לא ביומן',
     testMail: 'מייל לדוגמה', testMailTip: 'שולח למייל המשרד את שני המיילים: מה שהלקוח מקבל ומה שהמשרד מקבל', testSending: 'שולח…', testSent: to => `נשלח ל-${to}`,
   },
   en: {
@@ -78,6 +85,13 @@ const TR = {
     moveH: name => `Move the call with ${name}`, pickDay: 'Day', pickTime: 'Free time', noSlots: 'No free times in the coming days',
     notifyClient: 'Tell the client (WhatsApp, email and calendar invitation)', moveTo: w => `Move to ${w}`, moving: 'Moving…', back: 'Back', taken: 'That time was just taken, pick another',
     delQ: (name, w) => `Delete the call with ${name} (${w})? It is removed from Google Calendar too.`, delNotify: 'Delete and tell the client', delQuiet: 'Delete quietly', deleting: 'Deleting…',
+    guestsBtn: 'Invitees', guestsH: name => `Invitees for the call with ${name}`, guestsSub: 'Everyone on the list gets a Google Calendar invitation. Anyone removed gets a cancellation.',
+    guestPh: 'Email address (several allowed, comma separated)', guestAdd: 'Add', guestsSave: 'Save and send invitations', guestsSaving: 'Updating the calendar…', clientChip: 'Client', noClientMail: 'The client left no email',
+    openCal: 'Open in Google Calendar', guestsN: n => `${n} invitees`,
+    okMoved: (name, w) => `The call with ${name} moved to ${w} and Google Calendar was updated ✓`, badMoved: (name, e) => `The call with ${name} moved on the site, but the calendar wasn't updated: ${e}`,
+    okDeleted: name => `The call with ${name} was deleted, also from Google Calendar ✓`, okGuests: n => `Google Calendar updated ✓ · ${n} invitees got the invitation`,
+    gErr: { invalid: b => `Invalid addresses: ${b.join(', ')}`, no_event: "This call isn't in the calendar (it wasn't connected when the call was booked)", event_gone: 'The event was deleted from Google Calendar', not_saved: m => `The calendar didn't keep: ${m.join(', ')}`, no_calendar: 'The calendar is not connected', cancelled: 'The call was cancelled' },
+    calErrTip: e => `The calendar wasn't updated: ${e}`, noEvent: 'Not in the calendar',
     testMail: 'Sample email', testMailTip: 'Sends both emails to the office address: what the client gets and what the office gets', testSending: 'Sending…', testSent: to => `Sent to ${to}`,
   },
 }
@@ -192,6 +206,21 @@ html[data-admin-theme="dark"] .bka-ic span.ok{color:#4ADE80}
 .bka-check input{width:16px;height:16px;accent-color:var(--au-brand);appearance:auto;-webkit-appearance:checkbox;opacity:1;position:static}
 .bka-panel .foot{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .bka-btn.dsolid{background:var(--au-red-text);color:#fff}
+.bka-note{display:flex;gap:10px;align-items:center;border-radius:12px;padding:10px 14px;font-size:13px;font-weight:500}
+.bka-note.ok{background:rgba(52,199,89,.12);color:var(--au-text)}
+.bka-note.bad{background:rgba(224,82,82,.1);color:var(--au-red-text)}
+.bka-note button{margin-inline-start:auto;border:none;background:none;color:inherit;cursor:pointer;font-size:15px}
+.bka-gl{display:flex;flex-wrap:wrap;gap:6px}
+.bka-g{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:4px 6px 4px 10px;background:var(--au-card);border:1px solid var(--au-s1-line);font-size:12.5px}
+[dir=rtl] .bka-g{padding:4px 10px 4px 6px}
+.bka-g em{font-style:normal;font-size:11px;color:var(--au-text2)}
+.bka-g button{border:none;background:rgba(var(--ov),.08);width:20px;height:20px;border-radius:50%;cursor:pointer;color:var(--au-text2);line-height:1;font-size:12px}
+.bka-g button:hover{background:rgba(224,82,82,.15);color:var(--au-red-text)}
+.bka-gin{display:flex;gap:8px;align-items:center}
+.bka-gin input{flex:1;min-width:0;border:1px solid var(--au-s1-line);background:var(--au-card);color:var(--au-text);border-radius:10px;padding:8px 12px;font:inherit;font-size:13px;outline:none}
+.bka-gin input:focus{border-color:var(--au-brand)}
+.bka-ib .n{position:absolute;top:2px;inset-inline-end:1px;min-width:15px;height:15px;border-radius:8px;background:var(--au-brand);color:#fff;font-size:9.5px;font-weight:700;display:grid;place-items:center;padding:0 3px}
+.bka-ib{position:relative}
 .bka-bar{position:sticky;bottom:12px;z-index:20;display:flex;align-items:center;gap:10px;justify-content:space-between;background:var(--au-pop);border:1px solid var(--au-s1-line);border-radius:999px;padding:8px 8px 8px 18px;box-shadow:var(--au-shadow3);max-width:560px;margin:0 auto;width:100%}
 [dir=rtl] .bka-bar{padding:8px 18px 8px 8px}
 .bka-err{background:rgba(224,82,82,.1);color:var(--au-red-text);border-radius:12px;padding:10px 14px}
@@ -241,6 +270,8 @@ export default function BookingAdminTab({ lang = 'he' }) {
   const [panel, setPanel] = useState(null)       // { id, kind: 'move' | 'del', slots, day, start, notify, busy, err }
   const [syncedAt, setSyncedAt] = useState(0)
   const [syncing, setSyncing] = useState(false)
+  const [notice, setNotice] = useState(null)     // { kind: 'ok' | 'bad', text } after a move / delete / invitees change
+  useEffect(() => { if (!notice || notice.kind === 'bad') return; const id = setTimeout(() => setNotice(null), 7000); return () => clearTimeout(id) }, [notice])
 
   // the list is re-read from the server, which re-checks every upcoming event against Google Calendar first
   const load = (quiet = false) => {
@@ -315,8 +346,31 @@ export default function BookingAdminTab({ lang = 'he' }) {
   async function doMove(b) {
     setPanel(p => ({ ...p, busy: true, err: '' }))
     try {
-      const d = await autoApi.post('booking-move', { id: b.id, start: panel.start, notify: panel.notify })
+      const to = panel.start
+      const d = await autoApi.post('booking-move', { id: b.id, start: to, notify: panel.notify })
       if (!d.ok) throw new Error(d.error === 'taken' ? t.taken : d.error || t.err)
+      setNotice(d.calendar?.ok ? { kind: 'ok', text: t.okMoved(b.name, longWhen(to)) } : { kind: 'bad', text: t.badMoved(b.name, d.calendar?.error === 'no_event' ? t.gErr.no_event : d.calendar?.error || t.err) })
+      setPanel(null); load()
+    } catch (e) { setPanel(p => ({ ...p, busy: false, err: e.message })) }
+  }
+  const openGuests = b => setPanel({ id: b.id, kind: 'guests', list: [...(b.guests || [])], input: '' })
+  const addTyped = () => setPanel(p => {
+    const parts = String(p.input || '').split(/[\s,;]+/).map(x => x.trim().toLowerCase()).filter(Boolean)
+    const bad = parts.filter(x => !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(x))
+    const ok = parts.filter(x => !bad.includes(x) && !p.list.includes(x))
+    return { ...p, list: [...p.list, ...ok], input: bad.join(', '), err: bad.length ? t.gErr.invalid(bad) : '' }
+  })
+  async function saveGuests(b) {
+    const typed = String(panel.input || '').trim()
+    const list = typed ? [...panel.list, ...typed.split(/[\s,;]+/).filter(Boolean)] : panel.list
+    setPanel(p => ({ ...p, busy: true, err: '' }))
+    try {
+      const d = await autoApi.post('booking-guests', { id: b.id, guests: list })
+      if (!d.ok) {
+        const f = t.gErr[d.error]
+        throw new Error(typeof f === 'function' ? f(d.bad || d.missing || []) : f || d.error || t.err)
+      }
+      setNotice({ kind: 'ok', text: t.okGuests(d.guests.length + (b.email ? 1 : 0)) })
       setPanel(null); load()
     } catch (e) { setPanel(p => ({ ...p, busy: false, err: e.message })) }
   }
@@ -325,6 +379,7 @@ export default function BookingAdminTab({ lang = 'he' }) {
     try {
       const d = await autoApi.post('booking-cancel', { id: b.id, notify })
       if (!d.ok) throw new Error(d.error || t.err)
+      setNotice({ kind: 'ok', text: t.okDeleted(b.name) })
       setPanel(null); load()
     } catch (e) { setPanel(p => ({ ...p, busy: false, err: e.message })) }
   }
@@ -354,6 +409,8 @@ export default function BookingAdminTab({ lang = 'he' }) {
     mail: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg>,
     move: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M10 15h5m-2-2l2 2-2 2"/></svg>,
     link: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M10 14a4 4 0 005.7 0l3-3a4 4 0 00-5.7-5.7l-1 1M14 10a4 4 0 00-5.7 0l-3 3a4 4 0 005.7 5.7l1-1"/></svg>,
+    people: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0113 0M16 4.5a3.5 3.5 0 010 7M21.5 20a6.5 6.5 0 00-4-6"/></svg>,
+    ext: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5"/></svg>,
     del: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14a2 2 0 002 2h6a2 2 0 002-2l1-14"/></svg>,
   }
   const longWhen = iso => `${fmt(iso, { weekday: 'long', day: 'numeric', month: 'long' })}, ${time(iso)}`
@@ -368,7 +425,7 @@ export default function BookingAdminTab({ lang = 'he' }) {
       <div key={b.id} className={`bka-m${gone ? ' gone' : ''}`} style={{ '--st': color }}>
         <div className="tm"><b dir="ltr">{time(b.start)}</b><small dir="ltr">{time(b.end)}</small></div>
         <div style={{ minWidth: 0 }}>
-          <div className="who"><bdi>{b.name}</bdi><span>{b.typeName || b.type} · {chName(b.channel)}{moved > 0 ? ` · ${t.moved(moved)}` : ''}</span></div>
+          <div className="who"><bdi>{b.name}</bdi><span>{b.typeName || b.type} · {chName(b.channel)}{b.guests?.length ? ` · ${t.guestsN(b.guests.length + (b.email ? 1 : 0))}` : ''}{moved > 0 ? ` · ${t.moved(moved)}` : ''}</span></div>
           <div className="sub2">
             <a href={`tel:${b.phone}`} dir="ltr">{prettyPhone(b.phone)}</a>
             {b.meetLink && <a href={b.meetLink} target="_blank" rel="noreferrer">Meet</a>}
@@ -377,7 +434,7 @@ export default function BookingAdminTab({ lang = 'he' }) {
         </div>
         {!gone ? (
           <div className="bka-ic">
-            <span className={b.eventId ? 'ok' : 'warn'} title={b.eventId ? t.st.cal : t.st.noCal}>{Ic.cal}</span>
+            <span className={b.calendar === 'error' ? 'bad' : b.eventId ? 'ok' : 'warn'} title={b.calendar === 'error' ? t.calErrTip(b.calendarError || '') : b.eventId ? t.st.cal : t.st.noCal}>{Ic.cal}</span>
             {b.wa && <span className={b.wa.ok ? 'ok' : 'bad'} title={b.wa.ok ? t.st.wa : `${b.wa.quota ? t.waQuota : t.st.waBad}${b.wa.error ? ` · ${b.wa.error}` : ''}`}>{Ic.wa}</span>}
             <span className={b.mail?.ok ? 'ok' : ''} title={b.mail?.ok ? t.st.mail : t.st.noMail}>{Ic.mail}</span>
           </div>
@@ -385,6 +442,8 @@ export default function BookingAdminTab({ lang = 'he' }) {
         <div className="acts">
           {live && b.wa && !b.wa.ok && <button className="bka-btn sec" style={{ padding: '5px 10px', fontSize: 12 }} disabled={resending[b.id] === 'busy'} onClick={() => resend(b.id)}>{resending[b.id] === 'busy' ? t.resending : resending[b.id] === 'done' ? t.resent : t.resendShort}</button>}
           {live && b.manageUrl && <button className="bka-ib" title={copied === b.id ? t.linkCopied : t.copyLinkTip} aria-label={t.copyLinkTip} onClick={() => copy(b.manageUrl, b.id)}>{copied === b.id ? '✓' : Ic.link}</button>}
+          {live && b.eventId && <button className="bka-ib" title={t.guestsBtn} aria-label={t.guestsBtn} aria-expanded={p?.kind === 'guests'} onClick={() => (p?.kind === 'guests' ? setPanel(null) : openGuests(b))}>{Ic.people}{b.guests?.length ? <span className="n">{b.guests.length}</span> : null}</button>}
+          {b.htmlLink && !gone && <a className="bka-ib" href={b.htmlLink} target="_blank" rel="noreferrer" title={t.openCal} aria-label={t.openCal}>{Ic.ext}</a>}
           {live && <button className="bka-ib" title={t.moveBtn} aria-label={t.moveBtn} aria-expanded={p?.kind === 'move'} onClick={() => (p?.kind === 'move' ? setPanel(null) : openMove(b))}>{Ic.move}</button>}
           {live && <button className="bka-ib del" title={t.delBtn} aria-label={t.delBtn} aria-expanded={p?.kind === 'del'} onClick={() => setPanel(p?.kind === 'del' ? null : { id: b.id, kind: 'del' })}>{Ic.del}</button>}
         </div>
@@ -411,6 +470,25 @@ export default function BookingAdminTab({ lang = 'he' }) {
             {p.err && <div className="bka-err" role="alert">{p.err}</div>}
             <div className="foot">
               <button className="bka-btn pri" disabled={!p.start || p.busy} onClick={() => doMove(b)}>{p.busy ? t.moving : p.start ? t.moveTo(longWhen(p.start)) : t.moveBtn}</button>
+              <button className="bka-btn plain" onClick={() => setPanel(null)}>{t.back}</button>
+            </div>
+          </div>
+        )}
+        {p?.kind === 'guests' && (
+          <div className="bka-panel">
+            <h4>{t.guestsH(b.name)}</h4>
+            <div style={{ color: T.text2, fontSize: 12.5, marginTop: -6 }}>{t.guestsSub}</div>
+            <div className="bka-gl">
+              {b.email ? <span className="bka-g"><em>{t.clientChip}</em><bdi dir="ltr">{b.email}</bdi></span> : <span className="bka-g"><em>{t.noClientMail}</em></span>}
+              {p.list.map(g => <span key={g} className="bka-g"><bdi dir="ltr">{g}</bdi><button type="button" aria-label={`✕ ${g}`} onClick={() => setPanel(x => ({ ...x, list: x.list.filter(y => y !== g) }))}>✕</button></span>)}
+            </div>
+            <div className="bka-gin">
+              <input type="email" dir="ltr" inputMode="email" placeholder={t.guestPh} value={p.input} onChange={e => setPanel(x => ({ ...x, input: e.target.value, err: '' }))} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTyped() } }} aria-label={t.guestPh}/>
+              <button className="bka-btn sec" type="button" onClick={addTyped} disabled={!String(p.input || '').trim()}>{t.guestAdd}</button>
+            </div>
+            {p.err && <div className="bka-err" role="alert">{p.err}</div>}
+            <div className="foot">
+              <button className="bka-btn pri" disabled={p.busy} onClick={() => saveGuests(b)}>{p.busy ? t.guestsSaving : t.guestsSave}</button>
               <button className="bka-btn plain" onClick={() => setPanel(null)}>{t.back}</button>
             </div>
           </div>
@@ -476,6 +554,7 @@ export default function BookingAdminTab({ lang = 'he' }) {
             <button type="button" title={t.refresh} aria-label={t.refresh} disabled={syncing} onClick={() => load()}>↻</button>
           </span>
         </div>
+        {notice && <div className={`bka-note ${notice.kind}`} role={notice.kind === 'bad' ? 'alert' : 'status'} style={{ marginTop: 8 }}>{notice.text}<button type="button" aria-label="✕" onClick={() => setNotice(null)}>✕</button></div>}
         <div className="bka-list" style={{ marginTop: 8 }}>
           {upcomingLive.length ? byDay(upcomingLive) : <div className="bka-row" style={{ color: T.text2 }}>{t.none}</div>}
           {upcomingGone.length > 0 && (
