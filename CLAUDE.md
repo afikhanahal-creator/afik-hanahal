@@ -201,7 +201,10 @@ row back; `localStorage.afik_admin_tabs_open`). A lead whose WhatsApp chat alrea
 `wa_sent` (`onActivity` → PATCH `{ wa_sent: true }`, the only value the API accepts). **Renaming a lead:** a click on the name (list row or lead header) opens an inline editor with "+ הוספת הפרויקט: <short campaign>"
 (appends ` · זרובבל 15`, so the chats show where the lead belongs) → `PATCH /api/meta/leads {id, name}` renames `meta_leads`, the CRM
 copy (`findMirror`) and resets the chats' name cache; `onLeadRenamed` updates the admin's `leads` at once. The phone's own
-WhatsApp contact book can't be edited through Green API. A detail pane too narrow for both (and every phone) shows one pane at a time ("שיחה" / "פרטים והערות"); phones get a compact
+WhatsApp contact book can't be edited through Green API. **Pipeline stage from the chat:** the lead header's "שלב בפייפליין" menu (`PIPELINE` in `MetaLeadsTab.jsx`,
+the office's renamed stage names through `stageLabels`) moves the lead's CRM copy through `onCrmStage` → the admin's
+`updateLeadStatus` (stage log, nurture follow-up, stage automations — the same as dragging on the board); a lead not in the CRM
+yet is copied there first (`lead-to-crm`). A detail pane too narrow for both (and every phone) shows one pane at a time ("שיחה" / "פרטים והערות"); phones get a compact
 bar (status as a dropdown, CRM in the details). Pure helpers: `src/lib/leadConversation.js` (tested).
 **Every Meta lead is also in the CRM** (`lib/meta-crm.js`, tested): the webhook and every sync copy a new lead into `contacts`
 (source `meta`, `crm_data.metaLeadId`, form answers in `message` / `crm_data.formAnswers`, phone as 05X…), so it shows in "לידים" and
