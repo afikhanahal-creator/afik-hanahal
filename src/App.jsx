@@ -5219,7 +5219,8 @@ export default function App() {
   const [contactProp,  setContactProp]  = useState(null)
   const [showContact,  setShowContact]  = useState(false)
   const [showCalc,     setShowCalc]     = useState(false)
-  const [showPrivacy,  setShowPrivacy]  = useState(false)
+  // /privacy (and #privacy) opens the privacy policy at once — a stable address for Google's OAuth consent screen and links
+  const [showPrivacy,  setShowPrivacy]  = useState(() => typeof window !== 'undefined' && (window.location.pathname.replace(/\/+$/, '') === '/privacy' || window.location.hash === '#privacy'))
   const [statsVisible, setStatsVisible] = useState(false)
   const activeNavRef = useRef('home')   // the section on screen — kept out of state so scrolling never re-renders the page
   const [mobileOpen,   setMobileOpen]   = useState(false)
@@ -6596,7 +6597,10 @@ export default function App() {
       {showPw      && <PasswordPrompt onSuccess={() => { sessionStorage.setItem('afik_admin_session','1'); setAdminAuth(true); setShowPw(false); setShowAdmin(true) }} onClose={() => setShowPw(false)}/>}
       {showContact && <ContactModal  prop={contactProp} onClose={() => setShowContact(false)}/>}
       {showCalc    && <Suspense fallback={null}><RealEstateCalc lang={lang} isDark={isDark} onClose={() => setShowCalc(false)}/></Suspense>}
-      {showPrivacy && <PrivacyModal onClose={() => setShowPrivacy(false)}/>}
+      {showPrivacy && <PrivacyModal onClose={() => {
+        setShowPrivacy(false)
+        if (/^\/privacy\/?$/.test(window.location.pathname) || window.location.hash === '#privacy') { try { window.history.replaceState(null, '', '/') } catch {} }
+      }}/>}
       {sharedLoading && !selectedProp && (
         <div role="status" aria-live="polite" style={{ position:'fixed', inset:0, zIndex:9000, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:16, background: isDark ? 'rgba(9,9,15,.94)' : 'rgba(245,241,233,.95)', color:C.cream, fontFamily:'inherit' }}>
           <style>{`@keyframes afikSpin{to{transform:rotate(360deg)}}`}</style>

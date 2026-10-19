@@ -434,7 +434,7 @@ fs.writeFileSync(path.join(DIST, 'llms.txt'), llms)
 
 // Link check: every internal href in generated pages must resolve to a generated page, a public file, or an SPA route
 const known = new Set(written.map(p => p.replace(/\/$/, '') + '/'))
-const spaRoutes = new Set(['/', '/accessibility', '/newproperty', '/admin-panel', '/book'])
+const spaRoutes = new Set(['/', '/accessibility', '/privacy', '/newproperty', '/admin-panel', '/book'])
 let broken = 0
 for (const rel of written) {
   const html = fs.readFileSync(path.join(DIST, rel, 'index.html'), 'utf8')
