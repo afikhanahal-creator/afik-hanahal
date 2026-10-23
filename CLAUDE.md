@@ -322,7 +322,15 @@ is stored per booking (`entry.wa`), the admin shows it and offers "שליחת ה
 the private page and before every confirmation retry (auto-tick / auto-run, throttled to 3 minutes): an event deleted or cancelled
 in Google Calendar cancels the booking **quietly** (`cancelledBy: 'calendar'`, no WhatsApp, no email, no more retries, `resend`
 refuses it; a note on the lead), an event dragged to another time moves it. Google's own reminder email (60 min before) stops by
-itself once the event is deleted.
+itself once the event is deleted. **The client declining / removing the invitation in their own calendar** (their attendee row
+`responseStatus: 'declined'`, matched by the booking's email — Google keeps the event in the office calendar and would still send
+the reminder) cancels the booking too (`cancelledBy: 'guest'`, `calendarChange()` → `{ cancel: true, by: 'guest' }`): the event
+is deleted from the office calendar, the office gets a WhatsApp + email ("הלקוח דחה את הזימון ביומן", `officeText` /
+`officeEmail('declined')`), the client gets nothing, a note on the lead. **Every cancel verifies the calendar:** `removeEvent()`
+deletes the event and reads it back; when it is still there the booking keeps `calendarPending` (+ `calendar: 'error'`,
+`calendarError`) and every `syncCalendar()` (auto-tick every 5 min) tries again until the call's time passes; the admin's
+delete says so instead of "deleted ✓" and the cancelled row shows "עוד ביומן Google". auto-tick runs `syncCalendar()` through
+`retryConfirmations()`.
 Templates: `{bookingLink}` (`vars.bookingLink`, `?lang=en` added for English) in `welcome_book` and `book_link`.
 **The page itself:** a 48 px logo, a WhatsApp button in the header and a "write to us / call us" card in the side panel, and a
 figure there (`photo` in the booking settings, default `/img/booking-portrait-2.webp` — a cut-out portrait with no background, shown
