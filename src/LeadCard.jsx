@@ -7,6 +7,9 @@ import { FaTimes, FaPhone, FaWhatsapp, FaEnvelope, FaMagic, FaUser, FaStickyNote
 import { T } from './automationsUI.jsx'
 import { sourceLabel, sourceColor, originLines, leadCampaign, leadCampaignFull } from './lib/leadFields.js'
 import LeadChatTab from './LeadChatTab.jsx'
+import DateTimePicker from './DateTimePicker.jsx'
+import { FollowUpComposer, FollowUpList, FollowUpButton } from './FollowUpTask.jsx'
+import { followUpPresets, setNextFollowUp } from '../lib/follow-up.js'
 
 const TR = {
   he: {
@@ -30,7 +33,7 @@ const TR = {
     upcoming: 'מעקב מתוכנן', overdueFu: 'מעקב באיחור', dayToday: 'היום', dayYesterday: 'אתמול', emptyHistory: 'עוד אין היסטוריה. כל הערה, שיחה ושינוי שלב יופיעו כאן.',
     evStage: (a, b) => `שלב: ${a} ← ${b}`, evTaskDone: 'משימה הושלמה', evAuto: { welcome: 'הודעת פתיחה נשלחה בוואטסאפ', noreply: n => `הודעת מעקב ${n} נשלחה בוואטסאפ`, stage: 'הודעת שלב נשלחה בוואטסאפ', reengage: 'הודעת חזרה נשלחה בוואטסאפ', reply: 'מענה אוטומטי נשלח בוואטסאפ', other: 'הודעה אוטומטית נשלחה' },
     via: 'דרך', moveTo: s => `הליד יעבור לשלב "${s}"`,
-    taskPh: 'משימה חדשה (למשל: לשלוח תשריט)', due: 'עד', addTask: 'הוסף', noTasks: 'אין משימות פתוחות', overdue: 'באיחור', today: 'היום', done: 'הושלמו',
+    fuTitle: 'פולו אפ – לחזור אליהם', fuSub: 'בחרו מתי לחזור לליד. כשמגיע הזמן נשלחת תזכורת בוואטסאפ למספר המשרד, עם השם, הטלפון וקישור לכרטיס.', taskPh: 'משימה חדשה (למשל: לשלוח תשריט)', due: 'עד', addTask: 'הוסף', noTasks: 'אין משימות פתוחות', overdue: 'באיחור', today: 'היום', done: 'הושלמו',
     gradeName: { hot: 'חם', warm: 'פושר', cool: 'קריר', cold: 'קר' }, rules: 'ציון כללים', aiAdj: 'תיקון AI', conf: { high: 'ביטחון גבוה', medium: 'ביטחון בינוני', low: 'ביטחון נמוך' },
     noAnalysis: 'עוד לא נותח', noAnalysisSub: 'הניתוח אוסף את כל מה שידוע על הליד – ההודעה, תשובות הטופס, השיחה בוואטסאפ, אוטומציות, פניות חוזרות והנכס שהתעניין בו – ומחשב ציון שקוף עם תדריך לשיחה.',
     brief: 'תדריך לשיחה', next: 'הצעד הבא', msgSuggest: 'הודעה מוצעת', copy: 'העתק', copied: 'הועתק', openChat: 'פתח שיחה',
@@ -64,7 +67,7 @@ const TR = {
     upcoming: 'Follow-up scheduled', overdueFu: 'Follow-up overdue', dayToday: 'Today', dayYesterday: 'Yesterday', emptyHistory: 'No history yet. Every note, call and stage change shows up here.',
     evStage: (a, b) => `Stage: ${a} → ${b}`, evTaskDone: 'Task completed', evAuto: { welcome: 'Welcome message sent on WhatsApp', noreply: n => `Follow-up ${n} sent on WhatsApp`, stage: 'Stage message sent on WhatsApp', reengage: 'Re-engagement message sent on WhatsApp', reply: 'Automatic reply sent on WhatsApp', other: 'Automatic message sent' },
     via: 'via', moveTo: s => `The lead moves to “${s}”`,
-    taskPh: 'New task (e.g. send the site plan)', due: 'Due', addTask: 'Add', noTasks: 'No open tasks', overdue: 'Overdue', today: 'Today', done: 'Done',
+    fuTitle: 'Follow-up – get back to them', fuSub: 'Pick when to get back to the lead. When it is due, the office number gets a WhatsApp reminder with the name, phone and a link to the card.', taskPh: 'New task (e.g. send the site plan)', due: 'Due', addTask: 'Add', noTasks: 'No open tasks', overdue: 'Overdue', today: 'Today', done: 'Done',
     gradeName: { hot: 'Hot', warm: 'Warm', cool: 'Cool', cold: 'Cold' }, rules: 'Rule score', aiAdj: 'AI adjustment', conf: { high: 'High confidence', medium: 'Medium confidence', low: 'Low confidence' },
     noAnalysis: 'Not analyzed yet', noAnalysisSub: 'The analysis gathers everything we know – the message, form answers, the WhatsApp conversation, automations, repeat inquiries and the listing – and computes a transparent score with a call briefing.',
     brief: 'Call briefing', next: 'Next step', msgSuggest: 'Suggested message', copy: 'Copy', copied: 'Copied', openChat: 'Open chat',
@@ -247,6 +250,7 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         {lead.phone && <a className="lc-act" href={`tel:${lead.phone}`} style={{ background: 'rgba(0,115,234,.12)', color: '#3B8FF0', border: '1px solid rgba(0,115,234,.3)' }}><FaPhone size={11}/>{t.call}</a>}
         {lead.phone && onOpenChat && <button type="button" className="lc-act" onClick={() => { onOpenChat(lead); onClose() }} style={{ background: 'rgba(37,211,102,.12)', color: '#1FAF55', border: '1px solid rgba(37,211,102,.35)' }}><FaWhatsapp size={13}/>{t.wa}</button>}
+        <FollowUpButton lead={lead} lang={lang} onSave={save}/>
         {lead.email && <a className="lc-act lc-hide-m" href={`mailto:${lead.email}`} style={{ background: 'rgba(226,68,92,.1)', color: '#E2445C', border: '1px solid rgba(226,68,92,.3)' }}><FaEnvelope size={11}/>{t.email}</a>}
         {onEnrich && <button type="button" className="lc-act" disabled={enriching} onClick={() => { onEnrich(lead); setTab('analysis') }} style={{ background: 'linear-gradient(135deg,var(--au-brand),var(--au-brand-deep))', color: '#fff', border: 'none', opacity: enriching ? .7 : 1 }}>
           {enriching ? <FaSyncAlt size={11} style={{ animation: 'lc-spin 1s linear infinite' }}/> : <FaMagic size={11}/>}{enriching ? t.analyzing : isV2 ? t.reanalyze : t.analyze}</button>}
@@ -303,7 +307,7 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
         <div className="lc-grid3">
           <Field label={t.f.priority}><EditSelect value={lead.priority} options={t.opt.priority} onSave={set('priority')}/></Field>
           <Field label={t.f.owner}><EditInput value={lead.owner} onSave={set('owner')}/></Field>
-          <Field label={t.f.followUp}><EditInput value={lead.followUp} onSave={set('followUp')} type="datetime-local" dir="ltr"/></Field>
+          <Field label={t.f.followUp}><DateTimePicker value={lead.followUp || ''} onChange={v => save(setNextFollowUp(lead, v))} format="local" lang={lang} presets={followUpPresets(Date.now(), lang)} label={t.f.followUp} style={{ width: '100%' }}/></Field>
         </div>
         <div style={{ marginTop: 12 }}>
           <Field label={t.f.tags}>
@@ -478,6 +482,7 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
   // ── Tasks tab ─────────────────────────────────────────────────────────────
   const [taskDraft, setTaskDraft] = useState(''), [taskDue, setTaskDue] = useState('')
   const addTask = () => { const text = taskDraft.trim(); if (!text) return; save({ tasks: [...tasks, { id: uid(), text, due: taskDue || '', done: false, createdAt: Date.now() }] }); setTaskDraft(''); setTaskDue('') }
+  const plainTasks = tasks.filter(x => x.kind !== 'followup' || x.done)   // open follow-ups have their own list above
   const dueTone = d => { if (!d) return null; const x = Date.parse(d), s = new Date(); s.setHours(0, 0, 0, 0); if (x < s.getTime()) return ['#EF4444', t.overdue]; if (x < s.getTime() + 864e5) return ['#F59E0B', t.today]; return [T.text3, new Date(x).toLocaleDateString(lang === 'en' ? 'en-GB' : 'he-IL', { day: 'numeric', month: 'short' })] }
   const taskRow = x => {
     const tone = dueTone(x.due)
@@ -492,21 +497,28 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
     )
   }
   const tasksTab = (
+    <>
+    <Section title={t.fuTitle} icon={FaClock}>
+      <p style={{ margin: '0 0 12px', fontSize: 12.5, color: T.text2, lineHeight: 1.6 }}>{t.fuSub}</p>
+      <FollowUpComposer lead={lead} lang={lang} onSave={save}/>
+      <div style={{ marginTop: 12 }}><FollowUpList lead={lead} lang={lang} onSave={save}/></div>
+    </Section>
     <Section title={t.tabs.tasks} icon={FaTasks}>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <input className="lc-in" style={{ flex: '1 1 240px' }} value={taskDraft} placeholder={t.taskPh} onChange={e => setTaskDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addTask() }}/>
-        <input className="lc-in" style={{ width: 160 }} type="date" value={taskDue} onChange={e => setTaskDue(e.target.value)} aria-label={t.due} dir="ltr"/>
+        <DateTimePicker value={taskDue} onChange={setTaskDue} format="date" lang={lang} label={t.due} placeholder={t.due}/>
         <button type="button" className="lc-act" onClick={addTask} disabled={!taskDraft.trim()} style={{ background: taskDraft.trim() ? 'var(--au-brand)' : 'rgba(var(--ov),.06)', color: taskDraft.trim() ? '#fff' : T.text3, border: 'none', height: 38 }}><FaPlus size={10}/>{t.addTask}</button>
       </div>
       <div style={{ marginTop: 12 }}>
-        {!tasks.filter(x => !x.done).length && <div style={{ fontSize: 13, color: T.text3, textAlign: 'center', padding: '14px 0' }}>{t.noTasks}</div>}
-        {tasks.filter(x => !x.done).sort((a, b) => (Date.parse(a.due) || 9e15) - (Date.parse(b.due) || 9e15)).map(taskRow)}
-        {tasks.some(x => x.done) && <>
+        {!plainTasks.filter(x => !x.done).length && <div style={{ fontSize: 13, color: T.text3, textAlign: 'center', padding: '14px 0' }}>{t.noTasks}</div>}
+        {plainTasks.filter(x => !x.done).sort((a, b) => (Date.parse(a.due) || 9e15) - (Date.parse(b.due) || 9e15)).map(taskRow)}
+        {plainTasks.some(x => x.done) && <>
           <div style={{ fontSize: 11.5, fontWeight: 800, color: T.text3, margin: '12px 10px 4px' }}>{t.done}</div>
-          {tasks.filter(x => x.done).map(taskRow)}
+          {plainTasks.filter(x => x.done).map(taskRow)}
         </>}
       </div>
     </Section>
+    </>
   )
 
   // ── Analysis tab ──────────────────────────────────────────────────────────

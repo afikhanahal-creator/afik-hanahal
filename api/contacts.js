@@ -172,11 +172,14 @@ function sanitizeOrigin(o, lang) {
   return { page: str(o.page, 160), referrer: str(o.referrer), device: str(o.device, 10), lang: str(lang, 5), utm }
 }
 
-const CONTACT_COLS = 'id,name,phone,email,message,prop_title,prop_location,source,created_at,crm_data'
-async function getContacts(since = '') {
+const CONTACT_COLS = 'id,name,phone,email,message,prop_title,prop_location,source,created_at,updated_at,crm_data'
+async function getContacts(since = '', changed = '') {
   // Incremental sync: the admin panel remembers the newest created_at it has and asks only for
   // rows after it — a poll of an unchanged board pulls 0 rows out of Supabase instead of 500.
-  const q = since ? `&created_at=gt.${encodeURIComponent(since)}` : ''
+  // With `changed` (the newest updated_at it has seen) it also gets the leads edited since — a note, a rename, a task
+  // written on another screen or device (server/contacts-updated-at-migration.sql).
+  const q = since && changed ? `&or=(created_at.gt.${encodeURIComponent(since)},updated_at.gt.${encodeURIComponent(changed)})`
+    : since ? `&created_at=gt.${encodeURIComponent(since)}` : ''
   let r = await supaFetch(`/contacts?select=${CONTACT_COLS}&order=created_at.desc&limit=500${q}`)
   // A table created before crm_data / prop_location existed rejects the explicit column list with 400
   // ("column contacts.crm_data does not exist") — the INSERT path already tolerates that, the list must too.
@@ -397,8 +400,13 @@ export default async function handler(req, res) {
       res.setHeader('Cache-Control', 'no-store')
       const sinceRaw = String(req.query?.since || '')
       const since = /^\d{4}-\d{2}-\d{2}T[\d:.]+(Z|[+-]\d{2}:\d{2})?$/.test(sinceRaw) ? sinceRaw : ''
+      const changedRaw = String(req.query?.changed || '')
+      const changed = since && /^\d{4}-\d{2}-\d{2}T[\d:.]+(Z|[+-]\d{2}:\d{2})?$/.test(changedRaw) ? changedRaw : ''
       let contacts = null, supaErr = ''
-      try { contacts = await getContacts(since) } catch (e) { supaErr = e.message }
+      try { contacts = await getContacts(since, changed) } catch (e) {
+        // a table without updated_at (before the migration) rejects the or=(…updated_at…) filter: new leads only then
+        if (changed) { try { contacts = await getContacts(since) } catch (e2) { supaErr = e2.message } } else supaErr = e.message
+      }
       let backups = await listBackupLeads()
       if (contacts && backups.length) {
         const { restored, pending } = await restoreBackupLeads(backups)

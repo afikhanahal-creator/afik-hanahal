@@ -12,6 +12,8 @@ import { supabase } from './lib/supabaseClient'
 import MetaKanban from './MetaKanban'
 import LeadConversation, { prefetchHistory } from './LeadConversation.jsx'
 import Splitter, { SPLITTER_CSS } from './Splitter.jsx'
+import { leadNotes, addNote } from './lib/leadNotes.js'
+import { FollowUpButton, FollowUpComposer, FollowUpList } from './FollowUpTask.jsx'
 
 const ADMIN_TOKEN = 'AFIKhanahal2026'
 // Which Facebook pages are synced is decided on the server (META_PAGE_IDS in Vercel) — see api/meta.js resolvePageIds
@@ -61,7 +63,8 @@ const TR = {
     statusScheduled: 'נקבעה שיחה',
     statusClosed: 'סגור',
     leadsCount: 'לידים',
-    saveNotes: 'שמור הערות',
+    saveNotes: 'שמור',
+    addNote: 'הוספת הערה', notesShared: 'ההערות משותפות לכרטיס הליד, ללוח הלידים ולצ׳אטים.', notesNone: 'עדיין אין הערות.', notesAll: n => `כל ההערות (${n})`, notesLess: 'פחות', fuCard: 'פולו אפ', fuCardSub: 'כשמגיע הזמן נשלחת תזכורת בוואטסאפ למספר המשרד.',
     noteSaved: 'נשמר',
     callTime: 'זמן שיחה',
     callTimePlaceholder: 'ניתן להגדיר לאחר השיחה...',
@@ -130,7 +133,8 @@ const TR = {
     statusScheduled: 'Scheduled',
     statusClosed: 'Closed',
     leadsCount: 'leads',
-    saveNotes: 'Save notes',
+    saveNotes: 'Save',
+    addNote: 'Add note', notesShared: 'Notes are shared with the lead card, the leads board and the chats.', notesNone: 'No notes yet.', notesAll: n => `All notes (${n})`, notesLess: 'Less', fuCard: 'Follow-up', fuCardSub: 'When it is due, the office number gets a WhatsApp reminder.',
     noteSaved: 'Saved',
     callTime: 'Call time',
     callTimePlaceholder: 'Set after the call...',
@@ -334,7 +338,7 @@ const PIPELINE = [
 const PATCH = (body) => fetch('/api/meta/leads', { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` }, body: JSON.stringify(body) })
 
 // ── Main component ────────────────────────────────────────────────────────────
-export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onLeadRenamed, onCrmStage, stageLabels = null, onOpenChat, onNewLead, onNewMetaMessage, onSentMetaMessage, crmLeads = [], autoConfig = null, onAutoConfigSaved }) {
+export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onLeadRenamed, onCrmStage, onCrmPatch, stageLabels = null, onOpenChat, onNewLead, onNewMetaMessage, onSentMetaMessage, crmLeads = [], autoConfig = null, onAutoConfigSaved }) {
   const t = TR[lang] || TR.he
   const dir = lang === 'en' ? 'ltr' : 'rtl'
 
@@ -350,6 +354,8 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onLeadRenam
   const [syncing, setSyncing]           = useState(false)
   const [syncResult, setSyncResult]     = useState(null)
   const [noteState, setNoteState]       = useState('')        // '' | 'saving' | 'saved' | 'failed'
+  const [notesOpen, setNotesOpen]       = useState(false)
+  const [callState, setCallState]       = useState('')
   const [copiedKey, setCopiedKey]       = useState('')
   const [leadsError, setLeadsError]     = useState(null)
   const [savedToCRM, setSavedToCRM]     = useState(false)
@@ -563,8 +569,9 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onLeadRenam
   // ── The open lead's notes ───────────────────────────────────────────────────
   useEffect(() => {
     if (!selectedLead) return
-    setNoteInput(selectedLead.notes || '')
+    setNoteInput('')
     setCallTimeInput(selectedLead.call_time || '')
+    setNotesOpen(false)
     setSavedToCRM(false); setNoteState('')
   }, [selectedId]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -634,15 +641,29 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onLeadRenam
     patchLead(selectedLead.id, { status })
     PATCH({ id: selectedLead.id, status }).catch(() => {})
   }
+  // the convenient call time stays on the Meta lead; notes go to the CRM copy (one list everywhere — src/lib/leadNotes.js)
   const handleSaveNotes = async () => {
     if (!selectedLead) return
     const id = selectedLead.id
-    setNoteState('saving')
-    patchLead(id, { notes: noteInput, call_time: callTimeInput })
+    setCallState('saving')
+    patchLead(id, { call_time: callTimeInput })
     try {
-      const r = await PATCH({ id, notes: noteInput, call_time: callTimeInput })
-      setNoteState(r.ok ? 'saved' : 'failed')
-    } catch { setNoteState('failed') }
+      const r = await PATCH({ id, call_time: callTimeInput })
+      setCallState(r.ok ? 'saved' : 'failed')
+    } catch { setCallState('failed') }
+    setTimeout(() => setCallState(s => (s === 'saved' ? '' : s)), 2000)
+  }
+  const crmPatch = async patch => {
+    if (!onCrmPatch || !selectedLead) return false
+    try { return (await onCrmPatch(selectedLead, crmLead, patch)) !== false } catch { return false }
+  }
+  const handleAddNote = async () => {
+    const r = addNote(crmLead, selectedLead, noteInput, { by: 'lead-center' })
+    if (!r) return
+    setNoteState('saving')
+    const ok = await crmPatch(r.patch)
+    setNoteState(ok ? 'saved' : 'failed')
+    if (ok) setNoteInput('')
     setTimeout(() => setNoteState(s => (s === 'saved' ? '' : s)), 2000)
   }
   const handleSaveToCRM = () => {
@@ -1181,6 +1202,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onLeadRenam
                       </div>
                       {!narrow && statusCtl}
                       {!narrow && stageCtl}
+                      {!narrow && onCrmPatch && <FollowUpButton lead={crmLead || { name: selectedLead.name, tasks: [] }} lang={lang} onSave={crmPatch}/>}
                       {!narrow && tabs}
                       {narrow
                         ? selectedLead.phone && <a className="lc-btn icon" href={telHref} aria-label={t.call} title={t.call}>📞</a>
@@ -1274,18 +1296,50 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onLeadRenam
                       {history.length > 8 && <button className="lc-btn" style={{ minHeight: 28, fontSize: 12, marginTop: 6 }} onClick={() => setHistoryOpen(o => !o)}>{historyOpen ? t.historyLess : t.historyAll(history.length)}</button>}
                     </div>
 
-                    {/* Notes */}
-                    <div className="lc-card" style={{ padding: 14, display: 'grid', gap: 8 }}>
-                      <label className="lc-label" htmlFor="lc-notes">{t.notes}</label>
-                      <textarea id="lc-notes" value={noteInput} onChange={e => setNoteInput(e.target.value)} placeholder={t.notesPlaceholder} rows={3} className="lc-input" style={{ resize: 'vertical', direction: dir }}/>
-                      <label className="lc-label" htmlFor="lc-calltime">{t.callTime}</label>
-                      <input id="lc-calltime" type="text" value={callTimeInput} onChange={e => setCallTimeInput(e.target.value)} placeholder={t.callTimePlaceholder} className="lc-input" style={{ direction: dir }}/>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <button className="lc-btn" onClick={handleSaveNotes} disabled={noteState === 'saving'}>{t.saveNotes}</button>
-                        {noteState === 'saved' && <span role="status" className="lc-chip ok">✓ {t.noteSaved}</span>}
-                        {noteState === 'failed' && <span role="alert" className="lc-chip warn">{t.noteSaveFailed}</span>}
+                    {/* Follow-up with a WhatsApp reminder (lib/follow-up.js) — on the lead's CRM copy, like the board */}
+                    {onCrmPatch && (
+                      <div className="lc-card" style={{ padding: 14, display: 'grid', gap: 10 }}>
+                        <div>
+                          <h3 style={{ margin: 0, fontSize: 13.5, fontWeight: 800, color: CREAM }}>{t.fuCard}</h3>
+                          <div style={{ fontSize: 12, color: MUTED, marginTop: 2 }}>{t.fuCardSub}</div>
+                        </div>
+                        <FollowUpComposer lead={crmLead || { name: selectedLead.name, tasks: [] }} lang={lang} onSave={crmPatch}/>
+                        <FollowUpList lead={crmLead || { tasks: [] }} lang={lang} onSave={crmPatch}/>
                       </div>
-                    </div>
+                    )}
+
+                    {/* Notes — the CRM lead's notes: the same list as the lead card, the board and the chats */}
+                    {(() => {
+                      const notes = leadNotes(crmLead, selectedLead)
+                      return (
+                        <div className="lc-card" style={{ padding: 14, display: 'grid', gap: 8 }}>
+                          <label className="lc-label" htmlFor="lc-notes">{t.notes}</label>
+                          <textarea id="lc-notes" value={noteInput} onChange={e => setNoteInput(e.target.value)} placeholder={t.notesPlaceholder} rows={3} className="lc-input" style={{ resize: 'vertical', direction: dir }}
+                            onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); handleAddNote() } }}/>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                            <button className="lc-btn primary" onClick={handleAddNote} disabled={noteState === 'saving' || !noteInput.trim() || !onCrmPatch}>{noteState === 'saving' ? '…' : t.addNote}</button>
+                            {noteState === 'saved' && <span role="status" className="lc-chip ok">✓ {t.noteSaved}</span>}
+                            {noteState === 'failed' && <span role="alert" className="lc-chip warn">{t.noteSaveFailed}</span>}
+                            <span style={{ fontSize: 11.5, color: FAINT }}>{t.notesShared}</span>
+                          </div>
+                          {!notes.length && <div style={{ fontSize: 12.5, color: MUTED }}>{t.notesNone}</div>}
+                          {(notesOpen ? notes : notes.slice(0, 4)).map(n => (
+                            <div key={n.id} style={{ padding: '8px 10px', borderRadius: 10, background: 'rgba(var(--ov),.04)' }}>
+                              <div style={{ fontSize: 11, color: FAINT }}>{n.ts ? fmtFull(new Date(n.ts).toISOString(), lang) : ''}</div>
+                              <div style={{ fontSize: 13, color: CREAM, lineHeight: 1.55, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{n.text}</div>
+                            </div>
+                          ))}
+                          {notes.length > 4 && <button className="lc-btn" style={{ minHeight: 28, fontSize: 12, justifySelf: 'start' }} onClick={() => setNotesOpen(o => !o)}>{notesOpen ? t.notesLess : t.notesAll(notes.length)}</button>}
+                          <label className="lc-label" htmlFor="lc-calltime" style={{ marginTop: 6 }}>{t.callTime}</label>
+                          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                            <input id="lc-calltime" type="text" value={callTimeInput} onChange={e => setCallTimeInput(e.target.value)} placeholder={t.callTimePlaceholder} className="lc-input" style={{ direction: dir, flex: 1 }}/>
+                            <button className="lc-btn" onClick={handleSaveNotes} disabled={callState === 'saving' || callTimeInput === (selectedLead.call_time || '')}>{t.saveNotes}</button>
+                            {callState === 'saved' && <span role="status" className="lc-chip ok">✓</span>}
+                            {callState === 'failed' && <span role="alert" className="lc-chip warn">{t.noteSaveFailed}</span>}
+                          </div>
+                        </div>
+                      )
+                    })()}
 
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                       {narrow && crmButton}

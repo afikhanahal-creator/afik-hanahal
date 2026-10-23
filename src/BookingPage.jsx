@@ -149,24 +149,33 @@ html,body{background:#09090F;margin:0}
 .bk-type b{display:block;font-size:16px;margin-bottom:2px}
 .bk-type small{color:var(--mute);font-size:13px}
 .bk-cal-wrap{display:grid;grid-template-columns:minmax(0,1fr) 250px;gap:34px}
-.bk-month{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;font-weight:600;font-size:16px}
-.bk-nav{width:38px;height:38px;border-radius:50%;border:1px solid var(--line);background:none;color:var(--ink);cursor:pointer;font-size:18px;line-height:1}
-.bk-nav:hover:not(:disabled){border-color:var(--brand)}
+.bk-month{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;font-weight:700;font-size:17px;letter-spacing:-.01em}
+.bk-nav{width:38px;height:38px;border-radius:12px;border:1px solid var(--line);background:var(--card2);color:var(--ink);cursor:pointer;font-size:18px;line-height:1;display:inline-flex;align-items:center;justify-content:center;transition:border-color .15s,background .15s,transform .15s}
+.bk-nav:hover:not(:disabled){border-color:var(--brand);background:var(--brand-soft);color:var(--brand-text)}
+.bk-nav:active:not(:disabled){transform:scale(.94)}
 .bk-nav:disabled{opacity:.3;cursor:default}
-.bk-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;text-align:center}
-.bk-wd{font-size:12px;color:var(--mute);padding:4px 0;font-weight:500}
-.bk-day{aspect-ratio:1;max-height:54px;width:100%;border-radius:50%;border:none;background:none;color:var(--mute);font:inherit;font-size:15px;opacity:.45;cursor:default}
-.bk-day.on{opacity:1;color:var(--brand-text);background:var(--brand-soft);font-weight:600;cursor:pointer}
-.bk-day.on:hover{outline:2px solid var(--brand)}
-.bk-day.sel{background:var(--brand);color:var(--brand-ink)}
-.bk-day.today{text-decoration:underline;text-underline-offset:4px}
+.bk-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;text-align:center;animation:bk-month-in .22s ease both}
+@keyframes bk-month-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.bk-wd{font-size:11.5px;color:var(--mute);padding:2px 0 8px;font-weight:600;letter-spacing:.04em}
+.bk-day{position:relative;aspect-ratio:1;max-height:56px;width:100%;border-radius:14px;border:1px solid transparent;background:none;color:var(--mute);font:inherit;font-size:15px;font-variant-numeric:tabular-nums;opacity:.38;cursor:default;transition:background .15s,border-color .15s,transform .15s,box-shadow .15s,color .15s}
+.bk-day.on{opacity:1;color:var(--brand-text);background:var(--brand-soft);font-weight:650;cursor:pointer}
+.bk-day.on::after{content:"";position:absolute;bottom:7px;left:50%;width:4px;height:4px;margin-left:-2px;border-radius:50%;background:currentColor;opacity:.55}
+.bk-day.on:hover{border-color:var(--brand);transform:translateY(-1px);box-shadow:0 6px 16px var(--brand-soft)}
+.bk-day:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.bk-day.sel{background:var(--brand);color:var(--brand-ink);border-color:var(--brand);box-shadow:0 8px 22px color-mix(in srgb,var(--brand) 38%,transparent)}
+.bk-day.sel::after{opacity:.9}
+.bk-day.today:not(.sel){box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--brand) 55%,transparent)}
 .bk-day.cur{box-shadow:inset 0 0 0 2px var(--brand)}
-.bk-times{display:flex;flex-direction:column;gap:9px;max-height:430px;overflow:auto;padding-inline-end:4px}
-.bk-times-h{font-size:14.5px;font-weight:600;margin:0 0 12px}
-.bk-time{border:1px solid var(--brand);color:var(--brand-text);background:none;border-radius:12px;padding:12px 8px;font:inherit;font-weight:600;cursor:pointer;font-variant-numeric:tabular-nums}
-.bk-time:hover,.bk-time.sel{background:var(--brand);color:var(--brand-ink)}
-.bk-time.cur{border-style:dashed;opacity:.6;cursor:default}
-.bk-time.cur:hover{background:none;color:var(--brand-text)}
+.bk-times{display:flex;flex-direction:column;gap:8px;max-height:430px;overflow:auto;padding-inline-end:4px;scrollbar-width:thin}
+.bk-times-h{font-size:14.5px;font-weight:700;margin:0 0 12px;display:flex;flex-direction:column;gap:2px}
+.bk-times-h small{font-size:12.5px;font-weight:500;color:var(--mute)}
+.bk-time{border:1px solid var(--line);color:var(--ink);background:var(--card2);border-radius:12px;padding:12px 8px;font:inherit;font-size:15px;font-weight:600;cursor:pointer;font-variant-numeric:tabular-nums;transition:background .15s,border-color .15s,color .15s,transform .12s;animation:bk-month-in .2s ease both}
+.bk-time:hover{border-color:var(--brand);background:var(--brand-soft);color:var(--brand-text)}
+.bk-time:active{transform:scale(.98)}
+.bk-time.sel{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
+.bk-time:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+.bk-time.cur{border-style:dashed;border-color:var(--brand);opacity:.6;cursor:default}
+.bk-time.cur:hover{background:var(--card2);color:var(--ink)}
 .bk-note{font-size:12.5px;color:var(--mute);margin-top:14px}
 .bk-tz{position:relative;margin-top:30px;padding-top:18px;border-top:1px solid var(--line)}
 .bk-tz-l{font-size:12px;font-weight:600;color:var(--mute);margin-bottom:6px;letter-spacing:.02em}
@@ -358,14 +367,15 @@ html,body{background:#09090F;margin:0}
 .bk-link{background:none;border:none;color:var(--brand-text);font:inherit;font-size:13.5px;font-weight:600;cursor:pointer;padding:8px 4px;min-height:40px}
 .bk-strip{display:flex;gap:8px;overflow-x:auto;scroll-snap-type:x mandatory;padding:2px 2px 10px;margin:0 -14px;padding-inline:14px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
 .bk-strip::-webkit-scrollbar{display:none}
-.bk-dchip{flex:0 0 auto;scroll-snap-align:start;width:64px;min-height:78px;border-radius:14px;border:1px solid var(--line);background:var(--card2);color:var(--ink);font:inherit;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:6px 0}
+.bk-dchip{flex:0 0 auto;scroll-snap-align:start;width:64px;min-height:78px;border-radius:16px;border:1px solid var(--line);background:var(--card2);color:var(--ink);font:inherit;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:6px 0;transition:background .15s,border-color .15s,box-shadow .15s,transform .12s}
+.bk-dchip:active{transform:scale(.96)}
 .bk-dchip small{font-size:12px;color:var(--mute);font-weight:500}
 .bk-dchip b{font-size:21px;font-weight:700;line-height:1.15;font-variant-numeric:tabular-nums}
-.bk-dchip[aria-pressed=true]{background:var(--brand);border-color:var(--brand);color:var(--brand-ink)}
+.bk-dchip[aria-pressed=true]{background:var(--brand);border-color:var(--brand);color:var(--brand-ink);box-shadow:0 8px 20px color-mix(in srgb,var(--brand) 35%,transparent)}
 .bk-dchip[aria-pressed=true] small{color:var(--brand-ink);opacity:.85}
 .bk-dchip.cur:not([aria-pressed=true]){border:2px dashed var(--brand)}
 .bk-ph-times{margin-top:14px}
-.bk-ph-times .bk-times-h{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.bk-ph-times .bk-times-h{display:flex;flex-direction:row;justify-content:space-between;align-items:baseline;gap:8px}
 .bk-ph-times .bk-times-h span{font-size:12.5px;color:var(--mute);font-weight:500}
 .bk-ph-times .bk-times{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .bk-ph-times .bk-time{min-height:48px;font-size:16px;border-radius:12px}
@@ -766,7 +776,7 @@ export default function BookingPage() {
         <span aria-live="polite">{monthName}</span>
         <button className="bk-nav" aria-label={t.nextM} disabled={month >= lastMonth} onClick={() => setMonth(m => addMonths(m, 1))}>{lang === 'en' ? '›' : '‹'}</button>
       </div>
-      <div className="bk-grid">
+      <div className="bk-grid" key={month}>
         {t.weekdays.map(w => <div key={w} className="bk-wd" aria-hidden="true">{w}</div>)}
         {grid.map((d, i) => {
           if (!d) return <div key={`e${i}`} />
@@ -786,7 +796,7 @@ export default function BookingPage() {
           <span aria-live="polite">{monthName}</span>
           <button className="bk-nav" aria-label={t.nextM} disabled={month >= lastMonth} onClick={() => setMonth(m => addMonths(m, 1))}>{lang === 'en' ? '›' : '‹'}</button>
         </div>
-        <div className="bk-grid">
+        <div className="bk-grid" key={month}>
           {t.weekdays.map(w => <div key={w} className="bk-wd" aria-hidden="true">{w}</div>)}
           {grid.map((d, i) => {
             if (!d) return <div key={`e${i}`} />
@@ -803,8 +813,8 @@ export default function BookingPage() {
         {tzEl()}
       </div>
       <div>
-        <h3 className="bk-times-h">{day ? dayLabel(day, lang) : t.times}</h3>
-        <div className="bk-times">
+        <h3 className="bk-times-h">{day ? dayLabel(day, lang) : t.times}{day && (vslots[day] || []).length > 0 && <small>{t.freeTimes((vslots[day] || []).length)}</small>}</h3>
+        <div className="bk-times" key={day}>
           {(vslots[day] || []).map(s => {
             const isCur = !!current && s === new Date(current).toISOString()
             return (

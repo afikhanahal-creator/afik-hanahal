@@ -1,4 +1,7 @@
 import { useState, useRef, useCallback, useEffect, useMemo, createContext, useContext } from 'react'
+import DateTimePicker from './DateTimePicker.jsx'
+import { ensureFuCss } from './FollowUpTask.jsx'
+import { followUpPresets, setNextFollowUp } from '../lib/follow-up.js'
 import { sourceLabel, sourceColor, originLines, leadCampaign, leadCampaignFull, prettyLeadText } from './lib/leadFields.js'
 import { mergeLeads, mergeConflicts } from './lib/leadMerge.js'
 import LeadsDashboard from './LeadsDashboard.jsx'
@@ -1262,11 +1265,13 @@ const at10 = days => { const d = new Date(); d.setDate(d.getDate() + days); d.se
 const fmtNoteTs = (ts, lang) => ts ? new Date(ts).toLocaleString(lang === 'en' ? 'en-GB' : 'he-IL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''
 
 function CallNoteDialog({ lead, T, isDark, lang, onClose, updateLead, updateLeadStatus }) {
+  ensureFuCss()
   const en = lang === 'en'
   const campaign = leadCampaign(lead, lang)
   const [outcome, setOutcome] = useState('')
   const [text, setText] = useState('')
   const [followUp, setFollowUp] = useState(lead.followUp || '')
+  const [remind, setRemind] = useState(true)   // a WhatsApp reminder to the office when the follow-up is due (lib/follow-up.js)
   const [saving, setSaving] = useState(false)
   const notes = asNoteList(lead.notes)
   const recent = [...notes].filter(n => n.text).sort((a, b) => (b.ts || 0) - (a.ts || 0)).slice(0, 4)
@@ -1283,7 +1288,7 @@ function CallNoteDialog({ lead, T, isDark, lang, onClose, updateLead, updateLead
     const body = [oc ? `${oc.icon} ${en ? oc.en : oc.he}` : '', text.trim()].filter(Boolean).join(' · ')
     const note = { id: `n${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, text: body, ts: Date.now(), kind: 'call', ...(outcome ? { outcome } : {}) }
     const patch = { notes: [...notes.filter(n => n.id !== 'legacy' || n.text), note], lastCallAt: Date.now() }
-    if (followUp !== (lead.followUp || '')) patch.followUp = followUp
+    if (followUp !== (lead.followUp || '')) Object.assign(patch, remind || !followUp ? setNextFollowUp(lead, followUp) : { followUp })
     if (outcome === 'no_answer') patch.noAnswerCount = (Number(lead.noAnswerCount) || 0) + 1
     await updateLead(lead.id, patch)
     const stage = lead.leadStatus || 'new'
@@ -1328,10 +1333,15 @@ function CallNoteDialog({ lead, T, isDark, lang, onClose, updateLead, updateLead
           {[[1, en ? 'Tomorrow' : 'מחר'], [2, en ? 'In 2 days' : 'עוד יומיים'], [7, en ? 'In a week' : 'עוד שבוע']].map(([d, l]) => (
             <button key={d} type="button" onClick={() => setFollowUp(at10(d))} style={{ ...chip(followUp === at10(d), '#0073EA'), padding: '5px 10px', fontSize: 12 }}>{l}</button>
           ))}
-          <input type="datetime-local" value={followUp} onChange={e => setFollowUp(e.target.value)} dir="ltr"
-            style={{ background: isDark ? '#0F1623' : '#F6F7FC', border: `1px solid ${isDark ? '#2A3347' : '#D8DCF0'}`, borderRadius: 8, padding: '5px 8px', fontSize: 12, color: T.text, fontFamily: 'inherit' }}/>
-          {followUp && <button type="button" onClick={() => setFollowUp('')} style={{ background: 'none', border: 'none', color: T.textSub, cursor: 'pointer', fontSize: 12 }}>{en ? 'Clear' : 'נקה'}</button>}
+          <DateTimePicker value={followUp} onChange={setFollowUp} format="local" lang={lang} presets={followUpPresets(Date.now(), lang)} size="sm" label={en ? 'Next follow-up' : 'לחזור אליו'} placeholder={en ? 'Other date…' : 'תאריך אחר…'}/>
         </div>
+        {followUp && (
+          <label className="fu-bell" style={{ marginTop: 6 }}>
+            <input type="checkbox" checked={remind} onChange={e => setRemind(e.target.checked)}/>
+            <span className="fu-sw" aria-hidden="true"/>
+            {en ? 'Remind me on WhatsApp when it is due' : 'תזכורת בוואטסאפ כשמגיע הזמן'}
+          </label>
+        )}
         {outcome === 'not_relevant' && <div style={{ fontSize: 12, color: T.textSub, marginTop: 6 }}>{en ? 'The lead moves to “Not relevant”.' : 'הליד יעבור לעמודה "לא רלוונטי".'}</div>}
         {outcome === 'answered' && (lead.leadStatus || 'new') === 'new' && <div style={{ fontSize: 12, color: T.textSub, marginTop: 6 }}>{en ? 'The lead moves to “Contacted”.' : 'הליד יעבור לשלב הבא (נוצר קשר).'}</div>}
 
@@ -2020,6 +2030,16 @@ function LeadsBoardMain({
   const [statusTarget, setStatusTarget] = useState(null)
   const [modal, setModal]             = useState(null)
   const [activeTab, setActiveTab]     = useState('pipeline')
+  // /admin-panel/leads?lead=<id> (the link in a follow-up reminder) opens that lead's card once the list has it
+  useEffect(() => {
+    let id = ''
+    try { id = new URLSearchParams(window.location.search).get('lead') || '' } catch {}
+    if (!id) return
+    const l = leads.find(x => String(x.id) === id)
+    if (!l) return
+    setDetailLead(l)
+    try { const u = new URL(window.location.href); u.searchParams.delete('lead'); window.history.replaceState(window.history.state, '', u) } catch {}
+  }, [leads])
   const [toast, setToast]             = useState(null)
   const [activeDragId, setActiveDragId] = useState(null)
   const [mobileSearch, setMobileSearch] = useState(false)

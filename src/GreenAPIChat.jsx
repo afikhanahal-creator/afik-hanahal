@@ -10,6 +10,7 @@ import TemplateQuickEdit from './TemplateQuickEdit.jsx'
 import { renderTemplate } from '../lib/automations-shared.js'
 import { untemplate } from '../lib/template-edit.js'
 import { DARK, LIGHT, DOODLE_DARK, DOODLE_LIGHT, normalizeGreenMsg, TickMark, LeadFormCard } from './waShared.jsx'
+import { NotesButton, FollowUpButton } from './FollowUpTask.jsx'
 import { leadFormCard } from './lib/leadHistory.js'
 
 // ─── Config ───────────────────────────────────────────────────────────────────
@@ -137,7 +138,7 @@ function Avatar({ c, size = 40, lang }) {
 
 
 // ─── Component ────────────────────────────────────────────────────────────────
-export default function GreenAPIChat({ leads = [], lang = 'he', initialContact = null, onOpenLead, onDeleteLead, onNewMessage, onSentMessage, onReadChange, autoConfig = null, onAutoConfigSaved }) {
+export default function GreenAPIChat({ leads = [], lang = 'he', initialContact = null, onOpenLead, onUpdateLead, onDeleteLead, onNewMessage, onSentMessage, onReadChange, autoConfig = null, onAutoConfigSaved }) {
 
   // ── Theme ─────────────────────────────────────────────────────────────────
   const [isDark, setIsDark] = useState(() => { try { return localStorage.getItem('whatsapp_theme_v2') === 'dark' } catch { return false } })
@@ -681,6 +682,8 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
     return { ...row, name: row?.name && !/^[\d+\-\s]+$/.test(row.name) ? row.name : '', phone: contact.phone }
   }, [leads, contact, chatPhone])
   const formCard = useMemo(() => leadFormCard(chatLead, lang), [chatLead, lang])
+  // the CRM row itself: notes and follow-ups written here are the lead card's (src/FollowUpTask.jsx)
+  const crmRow = useMemo(() => (contact ? leads.find(l => intlPhone(l.phone) === chatPhone) || null : null), [leads, contact, chatPhone])
   const cfgEff = cfgLocal || autoConfig
   const putInBox = (text, tpl, tplLang) => {
     setInput(text); setQuickOpen(false)
@@ -912,6 +915,10 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                   onSend={text => sendMsg(text)}
                   onInsert={putInBox} onEdit={openEdit}
                   onOpenPanel={() => { setQuickOpen(true); setEmoji(false) }}/>
+                {crmRow && onUpdateLead && <span style={{ display:'inline-flex', gap:6, flexShrink:0 }}>
+                  <NotesButton lead={crmRow} lang={lang} size="sm" onSave={p => onUpdateLead(crmRow.id, p)}/>
+                  <FollowUpButton lead={crmRow} lang={lang} size="sm" onSave={p => onUpdateLead(crmRow.id, p)}/>
+                </span>}
                 {onOpenLead && leads.find(l=>l.id===contact.id) && (
                   <button onClick={()=>onOpenLead(contact)}
                     style={{ padding:'5px 12px', background: WA.inputBg, border:`1px solid ${WA.border}`, borderRadius:8, color: WA.subText, fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit', flexShrink:0, whiteSpace:'nowrap', transition:'all .15s' }}

@@ -25,7 +25,7 @@ jobs:
           CODE=$(curl -sS --max-time 120 -o out.json -w '%{http_code}' "https://www.afikhanahal.co.il/api/meta/auto-tick?key=${KEY}" || echo 000)
           # The repository is public: print counts only, never lead details
           echo "HTTP ${CODE}"
-          jq -c '{ok, sent, errors, queued, metaNew: .meta.new, metaSynced: .meta.synced, metaError: (.meta.error // null)}' out.json 2>/dev/null || true
+          jq -c '{ok, sent, errors, queued, metaNew: .meta.new, metaSynced: .meta.synced, metaError: (.meta.error // null), reminders}' out.json 2>/dev/null || true
           [ "$CODE" = "200" ]
         env:
           AUTOMATION_KEY: ${{ secrets.AUTOMATION_KEY }}
