@@ -6,6 +6,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { supabase } from './lib/supabaseClient'
 import { WAText } from './waFormat.jsx'
 import ChatTemplatePicker, { ChatTemplateMenu, ChatQuickChips } from './ChatTemplatePicker.jsx'
+import ChatComposer from './ChatComposer.jsx'
 import { imageThumb } from './lib/templateImage.js'
 import TemplateQuickEdit from './TemplateQuickEdit.jsx'
 import { renderTemplate } from '../lib/automations-shared.js'
@@ -741,6 +742,8 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
           .wa-root:not(.wa-has-contact) .wa-chatpane { display: none !important; }
           .wa-root .wa-back { display: flex !important; }
           .wa-root .wa-chathead { padding: 0 8px !important; gap: 8px !important; }
+          .wa-root .wa-cname { min-width: 72px !important; }
+          .wa-root .wa-chathead { overflow-x: auto; scrollbar-width: none; }
           /* the list header already says "connected": the strip above only took height from the conversation */
           .wa-root .wa-statusbar { display: none !important; }
         }
@@ -907,12 +910,12 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                 <button className="wa-back" onClick={()=>setContact(null)} aria-label="חזרה לרשימת השיחות" title="חזרה"
                   style={{ display:'none', width:36, height:36, borderRadius:'50%', background:'transparent', border:'none', color: WA.bodyText, cursor:'pointer', alignItems:'center', justifyContent:'center', fontSize:22, flexShrink:0, minWidth:0, minHeight:0, padding:0 }}>→</button>
                 <Avatar c={contactView} size={40} lang={lang}/>
-                <div style={{ flex:1, minWidth:0 }}>
+                <div className="wa-cname" style={{ flex:1, minWidth:96, overflow:'hidden' }}>
                   <div style={{ fontWeight:600, fontSize:15, color: WA.bodyText, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                     {nameOf(contactView, lang)}
                   </div>
                   <div style={{ fontSize:12, color: WA.subText, display:'flex', gap:6, alignItems:'center', minWidth:0 }}>
-                    <span dir="ltr" style={{ unicodeBidi:'isolate', flexShrink:0 }}>{fmtLocal(contact.phone)}</span>
+                    <span dir="ltr" style={{ unicodeBidi:'isolate', flexShrink:0, whiteSpace:'nowrap' }}>{fmtLocal(contact.phone)}</span>
                     {contactView?.waName && contactView.waName !== nameOf(contactView, lang) && <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>· ~{contactView.waName}</span>}
                   </div>
                 </div>
@@ -1125,124 +1128,47 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                 })()}
               </div>
 
-              {/* ── Attachment preview (flex: 0 0 auto) ── */}
-              {attached && (
-                <div style={{ flexShrink:0, padding:'8px 16px', background: WA.inputBg, borderTop:`1px solid ${WA.border}`, display:'flex', alignItems:'center', gap:10, direction:'rtl' }}>
-                  {attachedPreview
-                    ? <img src={attachedPreview} alt="" style={{ width:38, height:38, borderRadius:6, objectFit:'cover', flexShrink:0 }}/>
-                    : <span style={{ fontSize:22 }}>📎</span>}
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ fontSize:13, color: WA.bodyText, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{attached.name}</div>
-                    <div style={{ fontSize:11, color: WA.subText }}>{(attached.size/1024).toFixed(0)} KB · {attached.type?.startsWith('image/') ? 'תמונה' : 'מסמך'}</div>
-                  </div>
-                  <button onClick={()=>setAttached(null)} style={{ background:'none', border:'none', cursor:'pointer', color: WA.subText, fontSize:18, padding:'0 4px' }}>✕</button>
-                </div>
-              )}
-
-              {/* ── A template's picture in the box: it goes out with the text as its caption ── */}
-              {tplImg && !attached && (
-                <div style={{ flexShrink:0, padding:'8px 16px', background: WA.inputBg, borderTop:`1px solid ${WA.border}`, display:'flex', alignItems:'center', gap:10, direction: lang === 'en' ? 'ltr' : 'rtl' }}>
-                  <img src={imageThumb(tplImg.url, 96)} alt="" style={{ width:42, height:42, borderRadius:7, objectFit:'cover', flexShrink:0 }}/>
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ fontSize:13, color: WA.bodyText, fontWeight:600 }}>{lang === 'en' ? 'Picture from the template' : 'תמונה מהתבנית'}</div>
-                    <div style={{ fontSize:11.5, color: WA.subText, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{tplImg.title} · {lang === 'en' ? 'the text goes under it' : 'הטקסט יופיע מתחתיה'}</div>
-                  </div>
-                  <button onClick={()=>setTplImg(null)} aria-label={lang === 'en' ? 'Send without the picture' : 'שליחה בלי התמונה'} title={lang === 'en' ? 'Send without the picture' : 'שליחה בלי התמונה'} style={{ background:'none', border:'none', cursor:'pointer', color: WA.subText, fontSize:18, padding:'0 4px' }}>✕</button>
-                </div>
-              )}
-
               {editTpl && (
                 <TemplateQuickEdit WA={WA} lang={lang} lead={chatLead} tpl={editTpl.tpl} initial={editTpl.initial} initialLang={editTpl.lang} fromChat={editTpl.fromChat}
                   autoConfig={cfgEff} onClose={() => setEditTpl(null)}
                   onSaved={(next, id) => {
                     setCfgLocal(next); onAutoConfigSaved?.(next)
-                    // the box now holds the saved wording: no more "changed" bar for it
+                    // the box now holds the saved wording: no more "changed" note for it
                     if (editTpl.fromChat) setInserted(null)
                     setTplSaved(lang === 'en' ? 'The template was saved' : 'התבנית נשמרה')
                     setTimeout(() => setTplSaved(''), 3500)
                   }}/>
               )}
 
-              {/* ── Ready templates: the whole library, rendered for this lead (send now / edit in the box) ── */}
+              {/* ── The templates window: categories · list · a preview of the message for this lead (send now / to the box) ── */}
               {quickOpen && (
                 <ChatTemplatePicker WA={WA} lang={lang} msgs={msgs} autoConfig={cfgEff}
                     lead={chatLead}
                     onSend={(text, o) => sendMsg(text, o)}
                     onInsert={putInBox} onEdit={openEdit}
-                    onClose={() => setQuickOpen(false)}/>
+                    onClose={() => { setQuickOpen(false); setTimeout(() => inputRef.current?.focus(), 0) }}/>
               )}
 
-              {/* ── The message in the box came from a template and was changed: save the new wording over the template ── */}
-              {(boxChanged || tplSaved) && (
-                <div dir={lang === 'en' ? 'ltr' : 'rtl'} style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '7px 14px', background: WA.panelBg, borderTop: `1px solid ${WA.border}`, fontSize: 12.5, color: WA.bodyText }}>
-                  {tplSaved ? <span style={{ color: WA.green, fontWeight: 600 }}>✓ {tplSaved}</span> : <>
-                    <span>✏️ {lang === 'en' ? 'You changed the template' : 'שיניתם את הנוסח של'} <b>{lang === 'en' ? (inserted.tpl.en_title || inserted.tpl.he_title) : inserted.tpl.he_title}</b></span>
-                    <button type="button" onClick={() => openEdit(inserted.tpl, { [inserted.lang]: untemplate(input, inserted.marked) }, inserted.lang, true)}
-                      style={{ border: 'none', background: WA.green, color: '#fff', borderRadius: 7, padding: '5px 11px', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', minHeight: 0 }}>
-                      {lang === 'en' ? 'Save in place of the template' : 'שמור במקום התבנית'}
-                    </button>
-                    <span style={{ color: WA.subText, fontSize: 11.5 }}>{lang === 'en' ? 'so the next leads get this wording' : 'כדי שהלידים הבאים יקבלו את הנוסח הזה'}</span>
-                    <button type="button" onClick={() => setInserted(null)} aria-label={lang === 'en' ? 'Dismiss' : 'סגירה'} style={{ marginInlineStart: 'auto', background: 'none', border: 'none', color: WA.subText, cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 2, minHeight: 0 }}>×</button>
-                  </>}
-                </div>
-              )}
-
-              {/* ── The messages that fit this lead now: one click into the box, ➤ sends ── */}
+              {/* ── Suggestions over the empty box: one click into the box, the round button sends ── */}
               {!quickOpen && !input.trim() && !attached && !tplImg && !editTpl && (
                 <ChatQuickChips WA={WA} lang={lang} lead={chatLead} msgs={msgs} autoConfig={cfgEff}
                   onSend={(text, o) => sendMsg(text, o)} onInsert={putInBox} onMore={() => { setQuickOpen(true); setEmoji(false) }}/>
               )}
 
-              {/* ── Input Bar (flex: 0 0 auto — always visible, never scrolled away) ── */}
-              <div style={{ flexShrink:0, padding:'10px 12px', background: WA.inputBg, display:'flex', alignItems:'center', gap:9, direction:'rtl', borderTop:`1px solid ${WA.border}`, transition:'background .25s' }}>
-                <button onClick={()=>setEmoji(v=>!v)}
-                  style={{ width:40, height:40, borderRadius:'50%', background:emoji?WA.green+'22':'transparent', border:'none', color:emoji?WA.green:WA.subText, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontSize:24 }}>
-                  ☺
-                </button>
-                <button onClick={()=>fileRef.current?.click()} title="צירוף קובץ"
-                  style={{ width:40, height:40, borderRadius:'50%', background:'transparent', border:'none', color: WA.subText, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                  <Icon path={ICONS.paperclip} size={20}/>
-                </button>
-                <button onClick={()=>{ setQuickOpen(v=>!v); setEmoji(false) }} title="תשובות מוכנות" aria-label="תשובות מוכנות"
-                  style={{ width:40, height:40, borderRadius:'50%', background:quickOpen?WA.green+'22':'transparent', border:'none', color:quickOpen?WA.green:WA.subText, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontSize:19 }}>
-                  ⚡
-                </button>
-                <input ref={fileRef} type="file" accept="image/*,.pdf" style={{ display:'none' }}
-                  onChange={e=>{ if(e.target.files[0]) { setAttached(e.target.files[0]); setTplImg(null) } e.target.value='' }}/>
-                <textarea ref={inputRef} rows={1}
-                  value={input} onChange={e=>setInput(e.target.value)}
-                  onKeyDown={e=>{ if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMsg()} }}
-                  placeholder="הקלד הודעה"
-                  disabled={sending}
-                  autoComplete="off" dir="auto"
-                  style={{ flex:1, padding:'11px 16px', background: WA.inputFieldBg, border:'none', borderRadius:8, color: WA.bodyText, fontSize:14, fontFamily:'inherit', outline:'none', minWidth:0, resize:'none', lineHeight:1.45, height: Math.min(6, Math.max(1, input.split('\n').length)) * 20 + 22, maxHeight:142, overflowY:'auto', boxShadow:`0 1px 2px rgba(0,0,0,.${isDark?'2':'06'})` }}/>
-                <button onClick={() => sendMsg()}
-                  disabled={sending || (!input.trim() && !attached && !tplImg)}
-                  style={{ width:44, height:44, borderRadius:'50%', background:(input.trim()||attached||tplImg)?WA.green:WA.inputBg, border:'none', color:(input.trim()||attached||tplImg)?'#fff':WA.subText, cursor:(input.trim()||attached||tplImg)?'pointer':'default', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, transition:'all .2s', boxShadow:(input.trim()||attached||tplImg)?'0 2px 8px '+WA.green+'66':'none' }}>
-                  {sending
-                    ? <span style={{ fontSize:11, fontWeight:700 }}>···</span>
-                    : (input.trim()||attached||tplImg)
-                      ? <Icon path={ICONS.send} size={19}/>
-                      : <Icon path={ICONS.mic}  size={21}/>
-                  }
-                </button>
-              </div>
-
-              {/* ── Emoji picker (flex: 0 0 auto) ── */}
-              {emoji && (
-                <div style={{ flexShrink:0, background: WA.inputBg, borderTop:`1px solid ${WA.border}`, padding:'10px 14px' }}>
-                  <div style={{ display:'flex', flexWrap:'wrap', gap:6, direction:'rtl' }}>
-                    {['😊','😂','❤️','👍','🙏','🔥','✅','💪','😍','🎉','😢','😡','👏','🤔','💯','🙌','😁','🥰','👋','🎁','📞','📅','📍','💰','🏠'].map(em => (
-                      <button key={em} onClick={()=>{ setInput(v=>v+em); setEmoji(false); inputRef.current?.focus() }}
-                        style={{ background:'none', border:'none', cursor:'pointer', fontSize:24, padding:'4px 6px', borderRadius:6, lineHeight:1 }}
-                        onMouseEnter={e=>e.currentTarget.style.background=WA.border}
-                        onMouseLeave={e=>e.currentTarget.style.background='none'}>
-                        {em}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
+              {/* ── The message box (always visible, never scrolled away) ── */}
+              <input ref={fileRef} type="file" accept="image/*,.pdf" style={{ display:'none' }}
+                onChange={e=>{ if(e.target.files[0]) { setAttached(e.target.files[0]); setTplImg(null) } e.target.value='' }}/>
+              <ChatComposer WA={WA} lang={lang} leadName={hasName(contactView) && !contactView?.office && !contactView?.self ? String(nameOf(contactView, lang)).split(/\s+/)[0] : ''}
+                input={input} setInput={setInput} inputRef={inputRef} onSend={() => sendMsg()} sending={sending}
+                canSend={!!(input.trim() || attached || tplImg)}
+                attached={attached} attachedPreview={attachedPreview} onRemoveAttached={() => setAttached(null)}
+                tplImg={tplImg && !attached ? tplImg : null} onRemoveTplImg={() => setTplImg(null)}
+                inserted={inserted ? { title: inserted.lang === 'en' ? (inserted.tpl.en_title || inserted.tpl.he_title) : (inserted.tpl.he_title || inserted.tpl.en_title) } : null}
+                changed={boxChanged} onSaveTemplate={() => openEdit(inserted.tpl, { [inserted.lang]: untemplate(input, inserted.marked) }, inserted.lang, true)}
+                onClear={() => { setInput(''); setInserted(null); setTplImg(null); inputRef.current?.focus() }}
+                savedNote={tplSaved}
+                emojiOpen={emoji} onToggleEmoji={() => setEmoji(v => !v)} onPickFile={() => fileRef.current?.click()}
+                templatesOpen={quickOpen} onToggleTemplates={() => { setQuickOpen(v => !v); setEmoji(false) }}/>
             </>
           ) : (
             /* ── Empty state ── */

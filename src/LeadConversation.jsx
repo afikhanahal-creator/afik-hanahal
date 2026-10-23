@@ -13,6 +13,7 @@ import Splitter, { SPLITTER_CSS } from './Splitter.jsx'
 import { CATEGORIES, getTemplate, mergeConfig, leadLang } from '../lib/automations-shared.js'
 import { mergeConversation, templateOptions, sendErrorText } from './lib/leadConversation.js'
 import { imageThumb } from './lib/templateImage.js'
+import { Icon, CatTile } from './uiIcons.jsx'
 
 const ADMIN_TOKEN = 'AFIKhanahal2026'
 const AUTH = { Authorization: `Bearer ${ADMIN_TOKEN}` }
@@ -64,10 +65,10 @@ const TR = {
     histErr: 'לא הצלחנו לקרוא את ההיסטוריה מוואטסאפ, מוצגות ההודעות שנשלחו מכאן', retry: 'נסו שוב',
     quota: 'השליחה חסומה: המכסה החודשית של Green API נגמרה. אפשר לקרוא שיחות, אבל הודעות לא יוצאות עד שמשדרגים את התוכנית.', upgrade: 'לשדרוג',
     placeholder: 'כתבו הודעה…', send: 'שלח', sendWelcome: 'שלח הודעת פתיחה', sending: 'שולח…', noPhone: 'לליד הזה אין מספר טלפון, אי אפשר לשלוח הודעה',
-    pick: '⚡ בחירת תבנית…', editTpl: 'עריכת התבנית עצמה (לכל הלידים)', sent: 'נשלח', auto: 'באוטומציה', firstNote: 'הודעה ראשונה · תיחשב כהודעת הפתיחה',
+    pick: 'בחירת תבנית…', editTpl: 'עריכת התבנית עצמה (לכל הלידים)', sent: 'נשלח', auto: 'באוטומציה', firstNote: 'הודעה ראשונה · תיחשב כהודעת הפתיחה',
     maximize: 'הגדלת השיחה למסך מלא', restore: 'חזרה לתצוגה הרגילה (Esc)', resizeDock: 'גררו למעלה או למטה לשינוי גודל תיבת הכתיבה (לחיצה כפולה מחזירה)',
     enterHint: 'Enter לשליחה · Shift+Enter לשורה חדשה', clear: 'ניקוי',
-    quick: 'תשובות מוכנות', quickTip: 'תשובות מוכנות (או / בתחילת ההודעה)', search: 'חיפוש תבנית…', none: 'לא נמצאו תבניות',
+    templatesBtn: 'תבניות', quick: 'תשובות מוכנות', quickTip: 'תשובות מוכנות (או / בתחילת ההודעה)', search: 'חיפוש תבנית…', none: 'לא נמצאו תבניות',
     imgTitle: 'תמונה מהתבנית', imgHint: 'הטקסט יופיע מתחתיה', imgRemove: 'שליחה בלי התמונה',
     fromTpl: 'מתבנית', edited: 'נערך', editShort: 'עריכת התבנית', clearTip: 'ניקוי ההודעה', langHe: 'עברית', langEn: 'English',
     quickHint: '↑ ↓ לבחירה · Enter להכנסה · Esc לסגירה', count: n => `${n} תבניות`, lineOf: n => `קו המשרד ${n}`,
@@ -78,10 +79,10 @@ const TR = {
     histErr: 'Couldn\'t read the WhatsApp history, showing the messages sent from here', retry: 'Try again',
     quota: 'Sending is blocked: the Green API monthly quota is used up. Conversations can be read, but nothing goes out until the plan is upgraded.', upgrade: 'Upgrade',
     placeholder: 'Write a message…', send: 'Send', sendWelcome: 'Send the welcome', sending: 'Sending…', noPhone: 'This lead has no phone number, nothing can be sent',
-    pick: '⚡ Pick a template…', editTpl: 'Edit the template itself (for every lead)', sent: 'sent', auto: 'automation', firstNote: 'First message · counts as the welcome',
+    pick: 'Pick a template…', editTpl: 'Edit the template itself (for every lead)', sent: 'sent', auto: 'automation', firstNote: 'First message · counts as the welcome',
     maximize: 'Expand the conversation', restore: 'Back to the normal view (Esc)', resizeDock: 'Drag up or down to resize the message box (double-click resets)',
     enterHint: 'Enter to send · Shift+Enter for a new line', clear: 'Clear',
-    quick: 'Quick replies', quickTip: 'Quick replies (or / at the start of a message)', search: 'Search templates…', none: 'No templates found',
+    templatesBtn: 'Templates', quick: 'Quick replies', quickTip: 'Quick replies (or / at the start of a message)', search: 'Search templates…', none: 'No templates found',
     imgTitle: 'Picture from the template', imgHint: 'The text goes under it', imgRemove: 'Send without the picture',
     fromTpl: 'From template', edited: 'edited', editShort: 'Edit the template', clearTip: 'Clear the message', langHe: 'עברית', langEn: 'English',
     quickHint: '↑ ↓ to choose · Enter to insert · Esc to close', count: n => `${n} templates`, lineOf: n => `Office line ${n}`,
@@ -334,19 +335,28 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
         .lcv-meta{position:absolute;bottom:4px;left:7px;display:flex;align-items:center;gap:3px;direction:ltr;font-size:11px;color:${isDark ? 'rgba(233,237,239,.6)' : '#667781'};line-height:15px}
         .lcv-quote{border-inline-start:4px solid;background:${isDark ? 'rgba(0,0,0,.2)' : 'rgba(11,20,26,.05)'};border-radius:7.5px;padding:5px 9px;margin:-2px -4px 6px;font-size:13px;color:${WA.subText}}
         .lcv-file{display:block;font-size:13.5px;color:${teal};font-weight:600;margin-bottom:4px}
-        .lcv-in{flex:1;align-self:stretch;resize:none;box-sizing:border-box;min-height:42px;padding:10px 12px;border-radius:8px;border:none;background:${isDark ? '#2A3942' : '#FFFFFF'};color:${WA.bodyText};font-size:15px;line-height:20px;outline:none;unicode-bidi:plaintext}
+        .lcv-card{display:flex;flex-direction:column;background:${isDark ? '#2A3942' : '#FFFFFF'};border:1px solid ${isDark ? 'rgba(255,255,255,.08)' : 'rgba(11,20,26,.10)'};border-radius:14px;overflow:hidden;box-shadow:0 1px 2px rgba(11,20,26,.06);transition:border-color .15s,box-shadow .15s}
+        .lcv-card:focus-within{border-color:${WA.green};box-shadow:0 0 0 3px rgba(0,168,132,.14)}
+        .lcv-in{display:block;width:100%;resize:none;box-sizing:border-box;min-height:44px;padding:12px 14px 4px;border:none;background:transparent;color:${WA.bodyText};font-size:15px;line-height:20px;outline:none;unicode-bidi:plaintext}
+        .lcv-in:focus,.lcv-in:focus-visible{outline:none!important;box-shadow:none!important}
         .lcv-in::placeholder{color:${isDark ? '#8696A0' : '#667781'}}
-        .lcv-send{width:42px;height:42px;border-radius:50%;border:none;background:${WA.green};color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;transition:transform .15s,opacity .15s}
-        .lcv-send:disabled{opacity:.45;cursor:default}
-        .lcv-send:hover:not(:disabled){transform:scale(1.04)}
-        .lcv-send.wide{width:auto;padding:0 18px;border-radius:21px;font-size:14px;font-weight:600;gap:8px;white-space:nowrap}
-        .lcv-tpl{display:flex;align-items:center;gap:8px;margin:0 52px 6px 52px;padding:6px 6px 6px 12px;border-radius:8px;background:${isDark ? '#1D282F' : '#FFFFFF'};border-inline-start:4px solid ${teal};font-size:13px;color:${WA.subText};min-width:0}
-        [dir=rtl] .lcv-tpl{padding:6px 12px 6px 6px}
+        .lcv-bar{display:flex;align-items:center;gap:6px;padding:4px 6px 6px}
+        .lcv-tplbtn{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 11px;border-radius:999px;border:1px solid ${isDark ? 'rgba(255,255,255,.12)' : 'rgba(11,20,26,.12)'};background:transparent;color:${WA.bodyText};font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;flex:none;transition:border-color .15s,color .15s}
+        .lcv-tplbtn:hover,.lcv-tplbtn[aria-expanded=true]{border-color:${WA.green};color:${WA.green}}
+        .lcv-hint{margin-inline-start:auto;font-size:11.5px;color:${WA.subText};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+        .lcv-send{display:inline-flex;align-items:center;gap:8px;height:38px;padding:0 18px;border-radius:999px;border:none;background:${WA.green};color:#fff;font:inherit;font-size:13.5px;font-weight:700;white-space:nowrap;flex:none;cursor:pointer;box-shadow:0 2px 6px rgba(0,168,132,.32);transition:background .15s,opacity .15s}
+        .lcv-send:disabled{opacity:.45;cursor:default;box-shadow:none}
+        .lcv-send:hover:not(:disabled){background:#019574}
+        .lcv-send:focus-visible,.lcv-tplbtn:focus-visible{outline:2px solid ${WA.green};outline-offset:2px}
+        @media (max-width:520px){.lcv-hint{display:none}.lcv-send{margin-inline-start:auto}}
+        .lcv-tpl{display:flex;align-items:center;gap:8px;padding:6px 8px 6px 12px;border-bottom:1px solid ${isDark ? 'rgba(255,255,255,.07)' : 'rgba(11,20,26,.07)'};background:${isDark ? 'rgba(255,255,255,.03)' : '#F7F8FA'};font-size:12.5px;color:${WA.subText};min-width:0}
+        .lcv-tpl b{color:${WA.bodyText};font-weight:600}
+        [dir=rtl] .lcv-tpl{padding:6px 12px 6px 8px}
         .lcv-tpl b{color:${teal};font-weight:600}
         .lcv-seg{display:inline-flex;background:${isDark ? 'rgba(255,255,255,.06)' : 'rgba(11,20,26,.05)'};border-radius:999px;padding:2px;flex-shrink:0}
         .lcv-seg button{border:none;background:transparent;color:${WA.subText};font-size:12px;font-weight:600;border-radius:999px;padding:3px 10px;cursor:pointer}
         .lcv-seg button[aria-pressed=true]{background:${isDark ? '#2A3942' : '#FFFFFF'};color:${WA.bodyText};box-shadow:0 1px 2px rgba(11,20,26,.15)}
-        .lcv-img{display:flex;align-items:center;gap:10px;margin:0 0 6px;padding:6px 8px;border-radius:10px;font-size:12.5px;line-height:1.35;background:${isDark ? 'rgba(255,255,255,.05)' : 'rgba(11,20,26,.04)'};color:${WA.bodyText}}
+        .lcv-img{display:flex;align-items:center;gap:10px;margin:8px 8px 0;padding:6px 8px;border-radius:11px;font-size:12.5px;line-height:1.35;background:${isDark ? 'rgba(255,255,255,.05)' : 'rgba(11,20,26,.04)'};color:${WA.bodyText}}
         .lcv-img>img{border-radius:7px;object-fit:cover;flex:none}
         .lcv-quick{position:absolute;z-index:30;inset-inline:10px;bottom:calc(100% + 6px);max-width:560px;max-height:min(440px,70vh);display:flex;flex-direction:column;background:${isDark ? '#233138' : '#FFFFFF'};border-radius:10px;box-shadow:0 2px 5px rgba(11,20,26,.26),0 2px 10px rgba(11,20,26,.16);overflow:hidden;animation:lcvIn .14s ease-out}
         @keyframes lcvIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
@@ -431,10 +441,10 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
                     return (
                       <div key={g.id + x.id} id={`lcv-q-${x.id}`} data-qi={idx} role="option" aria-selected={idx === qActive} className="lcv-qi"
                         onMouseEnter={() => setQActive(idx)} onMouseDown={e => e.preventDefault()} onClick={() => pickQuick(x)}>
-                        {x.image && <img src={imageThumb(x.image, 80)} alt="" width={36} height={36} style={{ flex: 'none', borderRadius: 7, objectFit: 'cover' }}/>}
+                        {x.image ? <img src={imageThumb(x.image, 80)} alt="" width={36} height={36} style={{ flex: 'none', borderRadius: 9, objectFit: 'cover' }}/> : <CatTile cat={x.cat} color={CATEGORIES.find(c => c.id === x.cat)?.color} size={36}/>}
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div className="t"><span>{x.title}</span>
-                            {x.isDefault && first && <span className="lcv-badge" style={{ color: teal, background: teal + '1F' }}>★ {t.auto}</span>}
+                            {x.isDefault && first && <span className="lcv-badge" style={{ color: teal, background: teal + '1F', display: 'inline-flex', alignItems: 'center', gap: 3 }}><Icon name="star" size={10} sw={2.4}/>{t.auto}</span>}
                             {x.sent && <span className="lcv-badge" style={{ color: WA.subText, background: isDark ? 'rgba(255,255,255,.07)' : 'rgba(11,20,26,.06)' }}>{t.sent} ✓</span>}
                           </div>
                           <div className="p">{x.text.replace(/\n+/g, ' · ')}</div>
@@ -451,31 +461,30 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
           </div>
         )}
 
-        {error && <div role="alert" style={{ fontSize: 13, color: isDark ? '#F15C6D' : '#C2283E', fontWeight: 500, margin: '0 52px 6px', lineHeight: 1.45 }}>{error}</div>}
-        {phone && (tplTitle || first) && (
-          <div className="lcv-tpl">
-            <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {tplTitle ? <><b>{t.fromTpl}</b> · {tplTitle}{input !== inserted.current ? ` · ${t.edited}` : ''}</> : null}
-              {first && <>{tplTitle ? ' · ' : ''}<b>{t.firstNote}</b></>}
-            </span>
-            <div className="lcv-seg" role="group" aria-label="language">
-              {['he', 'en'].map(l => <button key={l} type="button" aria-pressed={tplLang === l} onClick={() => setTplLang(l)}>{l === 'he' ? 'עב' : 'EN'}</button>)}
-            </div>
-            {curTpl && <button type="button" className="lcv-ib" style={{ width: 30, height: 30 }} onClick={() => setEditTpl({ tpl: curTpl, initial: null, lang: tplLang, fromChat: false })} aria-label={t.editTpl} title={t.editTpl}>{I.pencil}</button>}
-            {input && <button type="button" className="lcv-ib" style={{ width: 30, height: 30 }} onClick={() => { setInput(''); setTplId(''); setImg(''); inserted.current = ''; inputRef.current?.focus() }} aria-label={t.clearTip} title={t.clearTip}>{I.close}</button>}
-          </div>
-        )}
-        {phone && img && (
-          <div className="lcv-img">
-            <img src={imageThumb(img, 96)} alt="" width={40} height={40}/>
-            <span style={{ flex: 1, minWidth: 0 }}><b>{t.imgTitle}</b><br/><span style={{ color: WA.subText }}>{t.imgHint}</span></span>
-            <button type="button" className="lcv-ib" style={{ width: 30, height: 30 }} onClick={() => setImg('')} aria-label={t.imgRemove} title={t.imgRemove}>{I.close}</button>
-          </div>
-        )}
+        {error && <div role="alert" style={{ fontSize: 13, color: isDark ? '#F15C6D' : '#C2283E', fontWeight: 500, margin: '0 4px 6px', lineHeight: 1.45 }}>{error}</div>}
         {phone ? (
-          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flex: dock ? 1 : undefined, minHeight: 0 }}>
-            <button ref={qBtnRef} type="button" className="lcv-ib" style={{ height: 42, width: 42 }} aria-expanded={quick} aria-haspopup="dialog" aria-label={t.quickTip} title={t.quickTip}
-              onClick={() => (quick ? closeQuick() : openQuick())}>{I.bolt}</button>
+          <div className="lcv-card" style={{ flex: dock ? 1 : undefined, minHeight: 0 }}>
+            {(tplTitle || first) && (
+              <div className="lcv-tpl">
+                <Icon name="file" size={14}/>
+                <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {tplTitle ? <>{t.fromTpl} · <b>{tplTitle}</b>{input !== inserted.current ? ` · ${t.edited}` : ''}</> : null}
+                  {first && <>{tplTitle ? ' · ' : ''}<b style={{ color: teal }}>{t.firstNote}</b></>}
+                </span>
+                <div className="lcv-seg" role="group" aria-label="language">
+                  {['he', 'en'].map(l => <button key={l} type="button" aria-pressed={tplLang === l} onClick={() => setTplLang(l)}>{l === 'he' ? 'עב' : 'EN'}</button>)}
+                </div>
+                {curTpl && <button type="button" className="lcv-ib" style={{ width: 30, height: 30 }} onClick={() => setEditTpl({ tpl: curTpl, initial: null, lang: tplLang, fromChat: false })} aria-label={t.editTpl} title={t.editTpl}>{I.pencil}</button>}
+                {input && <button type="button" className="lcv-ib" style={{ width: 30, height: 30 }} onClick={() => { setInput(''); setTplId(''); setImg(''); inserted.current = ''; inputRef.current?.focus() }} aria-label={t.clearTip} title={t.clearTip}>{I.close}</button>}
+              </div>
+            )}
+            {img && (
+              <div className="lcv-img">
+                <img src={imageThumb(img, 96)} alt="" width={42} height={42}/>
+                <span style={{ flex: 1, minWidth: 0 }}><b>{t.imgTitle}</b><br/><span style={{ color: WA.subText }}>{t.imgHint}</span></span>
+                <button type="button" className="lcv-ib" style={{ width: 30, height: 30 }} onClick={() => setImg('')} aria-label={t.imgRemove} title={t.imgRemove}>{I.close}</button>
+              </div>
+            )}
             <textarea ref={inputRef} className="lcv-in" value={input} rows={1} placeholder={t.placeholder} aria-label={t.placeholder} title={t.enterHint}
               onChange={e => {
                 const v = e.target.value
@@ -492,12 +501,15 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
                 if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing && !matchMedia('(hover: none)').matches) { e.preventDefault(); submit() }
               }}
               dir={tplLang === 'en' && tplId ? 'ltr' : undefined}
-              style={{ maxHeight: dock ? 'none' : 160, height: dock ? '100%' : undefined }}/>
-            {first
-              ? <button type="button" className="lcv-send wide" onClick={submit} disabled={!canSend}>{busy ? t.sending : t.sendWelcome}<span style={{ display: 'inline-flex', transform: lang === 'en' ? 'none' : 'scaleX(-1)' }}>{I.send}</span></button>
-              : <button type="button" className="lcv-send" onClick={submit} disabled={!canSend} aria-label={t.send} title={t.send}>
-                  {busy ? <span style={{ fontSize: 13 }}>…</span> : <span style={{ display: 'inline-flex', transform: lang === 'en' ? 'none' : 'scaleX(-1)' }}>{I.send}</span>}
-                </button>}
+              style={{ maxHeight: dock ? 'none' : 160, flex: dock ? 1 : undefined }}/>
+            <div className="lcv-bar">
+              <button ref={qBtnRef} type="button" className="lcv-tplbtn" aria-expanded={quick} aria-haspopup="dialog" title={t.quickTip}
+                onClick={() => (quick ? closeQuick() : openQuick())}><Icon name="file" size={15}/>{t.templatesBtn}</button>
+              <span className="lcv-hint">{t.enterHint}</span>
+              <button type="button" className="lcv-send" onClick={submit} disabled={!canSend} aria-label={first ? t.sendWelcome : t.send}>
+                {busy ? t.sending : <>{first ? t.sendWelcome : t.send}<Icon name="send" size={16} flip={lang !== 'en'}/></>}
+              </button>
+            </div>
           </div>
         ) : <div style={{ fontSize: 13, color: WA.subText, textAlign: 'center', padding: 8 }}>{t.noPhone}</div>}
       </div>

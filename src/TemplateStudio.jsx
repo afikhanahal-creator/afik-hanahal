@@ -8,6 +8,7 @@ import { CATEGORIES, VARIABLES, DEFAULT_TEMPLATES, renderTemplate, templateUsage
 import { autoApi } from './AutomationsApi.jsx'
 import TemplateImageField from './TemplateImageField.jsx'
 import { imageThumb } from './lib/templateImage.js'
+import { Icon, CatTile } from './uiIcons.jsx'
 
 const TR = {
   he: {
@@ -18,7 +19,7 @@ const TR = {
     officeTitle: 'פרטי המשרד בהודעות', officeHelp: 'הערכים האלה ממלאים את {agent}, {phone} ו-{sellLink} בכל התבניות.',
     agentHe: 'שם הנציג (עברית)', agentEn: 'שם הנציג (אנגלית)', officePhone: 'טלפון המשרד', sellLink: 'קישור לטופס קליטת נכס',
     startTitle: 'איך להתחיל?', stDupe: 'שכפל תבנית קיימת', copySuffix: ' (עותק)', pick: 'בחרו תבנית…',
-    starters: [['blank', '✨', 'תבנית ריקה', 'מתחילים מאפס'], ['welcome', '👋', 'הודעת פתיחה', 'ברוכים הבאים לליד חדש'], ['nr1', '⏰', 'תזכורת ללא מענה', 'תזכורת עדינה'], ['positive', '🚀', 'תיאום שיחה או סיור', 'לקבוע פגישה'], ['docs', '📎', 'בקשת מסמכים', 'רשימת מסמכים להמשך'], ['listing', '🏡', 'נכס חדש שמתאים לך', 'עדכון על נכס חדש'], ['holiday', '🌼', 'ברכת חג', 'ברכה חמה ללקוחות']],
+    starters: [['blank', 'plus', 'תבנית ריקה', 'מתחילים מאפס'], ['welcome', 'welcome', 'הודעת פתיחה', 'ברוכים הבאים לליד חדש'], ['nr1', 'followup', 'תזכורת ללא מענה', 'תזכורת עדינה'], ['positive', 'progress', 'תיאום שיחה או סיור', 'לקבוע פגישה'], ['docs', 'file', 'בקשת מסמכים', 'רשימת מסמכים להמשך'], ['listing', 'image', 'נכס חדש שמתאים לך', 'עדכון על נכס חדש'], ['holiday', 'star', 'ברכת חג', 'ברכה חמה ללקוחות']],
     listingTitle: 'נכס חדש שמתאים לך', listingHe: 'היי {name}, נכנס אלינו נכס חדש ב{location} שנראה ממש בכיוון של מה שחיפשתם.\nלשלוח לכם פרטים ותמונות?', listingEn: "Hi {name}, a new property just came in near {location} that looks right in line with what you were after.\nShall we send you the details and photos?",
     edNew: 'תבנית חדשה', edEdit: 'עריכת תבנית', tplName: 'שם התבנית', category: 'קטגוריה', tabHe: 'עברית', tabEn: 'English', missing: 'חסר',
     textPh: 'כתבו כאן את ההודעה…', tBold: 'מודגש (Ctrl+B)', tItalic: 'נטוי (Ctrl+I)', tStrike: 'קו חוצה (Ctrl+Shift+X)', tEmoji: 'אימוג׳י', tVar: 'משתנה',
@@ -45,7 +46,7 @@ const TR = {
     officeTitle: 'Office details used in messages', officeHelp: 'These values fill in {agent}, {phone} and {sellLink} in every template.',
     agentHe: 'Agent name (Hebrew)', agentEn: 'Agent name (English)', officePhone: 'Office phone', sellLink: 'Property intake form link',
     startTitle: 'How would you like to start?', stDupe: 'Duplicate an existing template', copySuffix: ' (copy)', pick: 'Choose a template…',
-    starters: [['blank', '✨', 'Blank template', 'Start from scratch'], ['welcome', '👋', 'Welcome', 'Greet a new lead'], ['nr1', '⏰', 'No-reply reminder', 'A gentle nudge'], ['positive', '🚀', 'Book a call or viewing', 'Set a meeting'], ['docs', '📎', 'Request documents', 'What we need next'], ['listing', '🏡', 'New listing that fits', 'Share a new property'], ['holiday', '🌼', 'Holiday greeting', 'A warm note to clients']],
+    starters: [['blank', 'plus', 'Blank template', 'Start from scratch'], ['welcome', 'welcome', 'Welcome', 'Greet a new lead'], ['nr1', 'followup', 'No-reply reminder', 'A gentle nudge'], ['positive', 'progress', 'Book a call or viewing', 'Set a meeting'], ['docs', 'file', 'Request documents', 'What we need next'], ['listing', 'image', 'New listing that fits', 'Share a new property'], ['holiday', 'star', 'Holiday greeting', 'A warm note to clients']],
     listingTitle: 'New listing that fits', listingHe: 'היי {name}, נכנס אלינו נכס חדש ב{location} שנראה ממש בכיוון של מה שחיפשתם.\nלשלוח לכם פרטים ותמונות?', listingEn: "Hi {name}, a new property just came in near {location} that looks right in line with what you were after.\nShall we send you the details and photos?",
     edNew: 'New template', edEdit: 'Edit template', tplName: 'Template name', category: 'Category', tabHe: 'עברית', tabEn: 'English', missing: 'Missing',
     textPh: 'Write your message here…', tBold: 'Bold (Ctrl+B)', tItalic: 'Italic (Ctrl+I)', tStrike: 'Strikethrough (Ctrl+Shift+X)', tEmoji: 'Emoji', tVar: 'Placeholder',
@@ -144,19 +145,19 @@ export default function TemplatesTab({ lang = 'he', cfg, tpls, leads, states = {
       </div>
       <div className="au-scroll-x" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
         <FilterChip selected={cat === 'all'} count={tpls.length} onClick={() => setCat('all')}>{t.all}</FilterChip>
-        {CATEGORIES.map(c => { const n = tpls.filter(x => x.cat === c.id).length; return n ? <FilterChip key={c.id} selected={cat === c.id} color={c.color} count={n} onClick={() => setCat(c.id)}>{c.icon} {isEn ? c.en : c.he}</FilterChip> : null })}
+        {CATEGORIES.map(c => { const n = tpls.filter(x => x.cat === c.id).length; return n ? <FilterChip key={c.id} selected={cat === c.id} color={c.color} count={n} onClick={() => setCat(c.id)}>{isEn ? c.en : c.he}</FilterChip> : null })}
       </div>
 
       {!list.length ? <Card><EmptyState icon={FaSearch} title={t.noResultsT} body={t.noResultsB} action={<Button onClick={() => { setQ(''); setCat('all') }}>{t.clear}</Button>}/></Card> : groups.map(([c, l]) => (
         <section key={c?.id || 'list'}>
-          {c && <h3 style={{ margin: '20px 0 8px', fontSize: 14, fontWeight: 800, display: 'flex', gap: 6, alignItems: 'center' }}>{c.icon} {isEn ? c.en : c.he} <span style={{ color: T.text3, fontWeight: 700, fontSize: 12 }}>{l.length}</span></h3>}
+          {c && <h3 style={{ margin: '20px 0 8px', fontSize: 14, fontWeight: 800, display: 'flex', gap: 6, alignItems: 'center' }}><CatTile cat={c.id} color={c.color} size={24} radius={7}/> {isEn ? c.en : c.he} <span style={{ color: T.text3, fontWeight: 700, fontSize: 12 }}>{l.length}</span></h3>}
           <div className="au-tpl-grid">
             {l.map(x => {
               const cc = catOf(x.cat), uses = templateUsage(cfg, x.id), edited = x.builtIn && !!cfg.templates?.[x.id]
               return (
                 <div key={x.id} className="au-tpl-card" style={{ background: T.s1, border: `1px solid ${T.s1Line}`, borderRadius: 14, padding: 12, display: 'flex', flexDirection: 'column', gap: 9 }}>
                   <button type="button" onClick={() => setEditing({ ...x })} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', padding: 0, color: T.text, fontFamily: 'inherit', cursor: 'pointer', textAlign: 'start', minHeight: 0, minWidth: 0 }}>
-                    <span style={{ fontSize: 17 }}>{cc.icon}</span><b style={{ flex: 1, fontSize: 14, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{titleOf(x, isEn)}</b>
+                    <CatTile cat={cc.id} color={cc.color} size={28} radius={8}/><b style={{ flex: 1, fontSize: 14, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{titleOf(x, isEn)}</b>
                   </button>
                   <div dir={isEn ? 'ltr' : 'rtl'} onClick={() => setEditing({ ...x })} className="au-wa-bub" style={{ cursor: 'pointer', borderRadius: '10px 10px 3px 10px', padding: x.image ? 3 : '8px 11px', fontSize: 12.5, lineHeight: 1.55 }}>
                     {x.image && <img src={imageThumb(x.image, 360)} alt="" loading="lazy" style={{ display: 'block', width: '100%', height: 110, objectFit: 'cover', borderRadius: 8 }}/>}
@@ -167,7 +168,7 @@ export default function TemplatesTab({ lang = 'he', cfg, tpls, leads, states = {
                     <Badge color={T.grey} textColor={T.text2}>HE</Badge>
                     {x.en ? <Badge color={T.grey} textColor={T.text2}>EN</Badge> : <Badge outline color={T.amber} textColor={T.amberText} title={t.noEn}>EN</Badge>}
                     {edited && <Badge color={T.amber} textColor={T.amberText}>{t.edited}</Badge>}
-                    {x.image && <Badge color={T.green} textColor={T.text2}>🖼 {t.withImage}</Badge>}
+                    {x.image && <Badge color={T.green} textColor={T.text2}><Icon name="image" size={11} sw={2}/> {t.withImage}</Badge>}
                     <div style={{ flex: 1 }}/>
                     <IconButton icon={<FaPaperPlane size={12}/>} label={t.mSend} variant="soft-green" onClick={() => setSendTpl(x)}/>
                     <MenuButton icon={<FaEllipsisV size={12}/>} label={`${t.more} · ${titleOf(x, isEn)}`} dir={dir}>
@@ -207,14 +208,14 @@ export default function TemplatesTab({ lang = 'he', cfg, tpls, leads, states = {
           {t.starters.map(([k, ic, title, sub]) => (
             <button key={k} type="button" onClick={() => startFrom(k)} className="au-card-hov"
               style={{ minHeight: 72, padding: '12px 14px', borderRadius: 12, background: T.s1, border: `1px solid ${T.s1Line}`, color: T.text, textAlign: 'start', display: 'flex', gap: 12, alignItems: 'center', cursor: 'pointer', fontFamily: 'inherit' }}>
-              <span style={{ fontSize: 22 }}>{ic}</span><span><b style={{ fontSize: 14, fontWeight: 700, display: 'block' }}>{title}</b><span style={{ fontSize: 12, color: T.text3 }}>{sub}</span></span>
+              <span style={{ width: 40, height: 40, borderRadius: 11, flex: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(var(--brand-rgb),.12)', color: 'var(--au-brand-text)' }}><Icon name={ic} size={19}/></span><span><b style={{ fontSize: 14, fontWeight: 700, display: 'block' }}>{title}</b><span style={{ fontSize: 12, color: T.text3 }}>{sub}</span></span>
             </button>
           ))}
         </div>
         <div style={{ marginTop: 16 }}>
           <Field label={t.stDupe}>
             <select defaultValue="" onChange={e => { const b = tpls.find(x => x.id === e.target.value); if (b) { setStarter(false); setEditing({ ...b, id: `c_${Date.now().toString(36)}`, builtIn: false, isNew: true, he_title: `${b.he_title || ''}${TR.he.copySuffix}`, en_title: b.en_title ? `${b.en_title}${TR.en.copySuffix}` : '' }) } }} style={inputStyle}>
-              <option value="">{t.pick}</option>{tpls.map(x => <option key={x.id} value={x.id}>{catOf(x.cat).icon} {titleOf(x, isEn)}</option>)}
+              <option value="">{t.pick}</option>{tpls.map(x => <option key={x.id} value={x.id}>{titleOf(x, isEn)}</option>)}
             </select>
           </Field>
         </div>
@@ -299,11 +300,11 @@ function TemplateEditor({ t, lang, cfg, tpl, leads, onClose, onSave, toast, onGo
 
   const header = (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 16px', height: 60, borderBottom: `1px solid ${T.line}`, flexShrink: 0 }}>
-      <IconButton icon={<FaTimes/>} label="✕" size={36} onClick={tryClose}/>
+      <IconButton icon={<FaTimes/>} label={t.cancel} size={36} onClick={tryClose}/>
       <b style={{ fontSize: 16, fontWeight: 800, whiteSpace: 'nowrap' }}>{tpl.isNew ? t.edNew : t.edEdit}</b>
       <select value={x.cat} onChange={e => set({ cat: e.target.value })} aria-label={t.category} className="au-hide-m"
         style={{ height: 32, padding: '0 10px', borderRadius: 20, border: `1px solid ${cat.color}66`, background: `${cat.color}1f`, color: T.text, fontFamily: 'inherit', fontSize: 12.5, fontWeight: 700, minHeight: 0 }}>
-        {CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.icon} {isEn ? c.en : c.he}</option>)}
+        {CATEGORIES.map(c => <option key={c.id} value={c.id}>{isEn ? c.en : c.he}</option>)}
       </select>
       <div style={{ flex: 1 }}/>
       {dirty && <span style={{ fontSize: 12, fontWeight: 700, color: T.amberText, display: 'inline-flex', alignItems: 'center', gap: 6 }}><span style={{ width: 6, height: 6, borderRadius: '50%', background: T.amber }}/><span className="au-hide-m">{t.unsavedShort}</span></span>}
@@ -327,7 +328,7 @@ function TemplateEditor({ t, lang, cfg, tpl, leads, onClose, onSave, toast, onGo
         })}
       </div>
       <select value={x.cat} onChange={e => set({ cat: e.target.value })} aria-label={t.category} className="au-only-m" style={{ ...inputStyle }}>
-        {CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.icon} {isEn ? c.en : c.he}</option>)}
+        {CATEGORIES.map(c => <option key={c.id} value={c.id}>{isEn ? c.en : c.he}</option>)}
       </select>
       <Field label={t.tplName} htmlFor="au-tpl-name">
         <input id="au-tpl-name" dir={tab === 'he' ? 'rtl' : 'ltr'} lang={tab} value={x[`${tab}_title`] || ''} onChange={e => set({ [`${tab}_title`]: e.target.value })} style={inputStyle}/>

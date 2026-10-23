@@ -3,6 +3,7 @@
 // Used by the templates tab's editor (admin tokens) and the chat's quick editor (WhatsApp colors) — `pal` holds the colors.
 import { useState, useRef } from 'react'
 import { uploadTemplateImage, imageThumb, TEMPLATE_IMAGE_TYPES } from './lib/templateImage.js'
+import { Icon } from './uiIcons.jsx'
 
 const TR = {
   he: { label: 'תמונה להודעה', optional: 'לא חובה', add: 'הוספת תמונה', drop: 'גררו לכאן תמונה, הדביקו (Ctrl+V) או לחצו לבחירה', hint: 'ההודעה תישלח כתמונה, והטקסט יופיע מתחתיה', change: 'החלפה', remove: 'הסרה', uploading: 'מעלה ודוחס…', open: 'פתיחה בגודל מלא' },
@@ -27,7 +28,7 @@ export default function TemplateImageField({ value = '', onChange, lang = 'he', 
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }} onPaste={onPaste}>
-      <div style={{ fontSize: 12, fontWeight: 700, color: P.sub }}>🖼 {t.label} <span style={{ fontWeight: 500 }}>· {t.optional}</span></div>
+      <div style={{ fontSize: 12, fontWeight: 700, color: P.sub, display: 'flex', alignItems: 'center', gap: 6 }}><Icon name="image" size={14}/>{t.label} <span style={{ fontWeight: 500 }}>· {t.optional}</span></div>
       {value ? (
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 8, border: `1px solid ${P.line}`, borderRadius: 12, background: P.bg }}>
           <a href={value} target="_blank" rel="noreferrer" title={t.open} style={{ flex: 'none', lineHeight: 0 }}>
@@ -46,7 +47,7 @@ export default function TemplateImageField({ value = '', onChange, lang = 'he', 
           onDragOver={e => { e.preventDefault(); setOver(true) }} onDragLeave={() => setOver(false)}
           onDrop={e => { e.preventDefault(); setOver(false); take([...(e.dataTransfer?.files || [])].find(x => /^image\//.test(x.type))) }}
           style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: compact ? '9px 12px' : '12px 14px', border: `1.5px dashed ${over ? P.accent : P.line}`, borderRadius: 12, background: over ? 'rgba(37,211,102,.08)' : P.bg, color: P.text, cursor: busy ? 'progress' : 'pointer', fontFamily: 'inherit', textAlign: 'start', minHeight: 0 }}>
-          <span aria-hidden style={{ width: 34, height: 34, borderRadius: 9, flex: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: P.line, fontSize: 17 }}>{busy ? '⏳' : '＋'}</span>
+          <span aria-hidden style={{ width: 34, height: 34, borderRadius: 9, flex: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: P.line, fontSize: 17, color: P.accent }}><Icon name={busy ? 'clock' : 'plus'} size={18} sw={2}/></span>
           <span style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
             <b style={{ fontSize: 13 }}>{busy ? t.uploading : t.add}</b>
             {!busy && <span style={{ fontSize: 11.5, color: P.sub }}>{t.drop}</span>}

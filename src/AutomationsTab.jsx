@@ -7,6 +7,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { FaRobot, FaInbox, FaCommentDots, FaProjectDiagram, FaClock, FaBullhorn, FaHistory, FaSyncAlt, FaWhatsapp, FaPaperPlane, FaTimes, FaPen, FaCheckCircle, FaCalendarCheck, FaMoon, FaEllipsisV, FaArrowLeft, FaArrowRight, FaCheck, FaTimesCircle, FaSearch, FaRedo, FaUserSlash, FaDatabase, FaPowerOff, FaHeartbeat, FaSatelliteDish, FaExternalLinkAlt, FaChevronDown, FaExclamationTriangle, FaRandom } from 'react-icons/fa'
 import { DEFAULT_CONFIG, STAGES, CATEGORIES, templateList, renderTemplate, mergeConfig, ruleKind, isSendWindow, nextSendWindow, nextWindows, fmtHour, israelNow, classifyReply, matchedKeyword, templateImage } from '../lib/automations-shared.js'
 import { imageThumb } from './lib/templateImage.js'
+import { Icon } from './uiIcons.jsx'
 import { autoApi } from './AutomationsApi.jsx'
 import { T, AUTO_CSS, Button, IconButton, Card, Badge, FilterChip, Toggle, ModeSwitch, ModeBadge, StatTile, EmptyState, Skeleton, InlineError, Drawer, HealthItem, StatusPill, CopyField, SaveBar, useToasts, ConfirmProvider, useConfirm, Popover, MenuButton, MenuItem, MODE_COLOR, inputStyle, Field } from './automationsUI.jsx'
 import { WAText } from './waFormat.jsx'
@@ -442,7 +443,7 @@ function Today({ t, isEn, dir, cfg, tpls, tplName, stageName, leads, toast, conf
   }
   const personalize = (q, quiet) => { const id = bestPersonalTemplateId(leadFor(q), q.lang); if (id && tplOf(id)) pickTpl(q, id); else if (!quiet) toast(t.noPersonal, { tone: 'warn' }) }
   const tplTitle = x => (isEn ? x.en_title || x.he_title : x.he_title || x.en_title)
-  const TplOptions = ({ q }) => tplGroups(q).map(([c, l]) => <optgroup key={c.id} label={`${c.icon} ${isEn ? c.en : c.he}`}>{l.map(x => <option key={x.id} value={x.id}>{tplTitle(x)}</option>)}</optgroup>)
+  const TplOptions = ({ q }) => tplGroups(q).map(([c, l]) => <optgroup key={c.id} label={isEn ? c.en : c.he}>{l.map(x => <option key={x.id} value={x.id}>{tplTitle(x)}</option>)}</optgroup>)
   const selStyle = { height: 30, maxWidth: '100%', minWidth: 0, borderRadius: 8, border: `1px solid ${T.line}`, background: T.s2, color: T.text, fontFamily: 'inherit', fontSize: 12.5, fontWeight: 600, padding: '0 8px', cursor: 'pointer' }
 
   const send = async (item, text, { quiet, templateId } = {}) => {
@@ -529,7 +530,7 @@ function Today({ t, isEn, dir, cfg, tpls, tplName, stageName, leads, toast, conf
                     {list.length >= 2 && (
                       <select value="" onChange={e => { const id = e.target.value; if (id === '__personal') list.forEach(q => personalize(q, true)); else if (id) list.forEach(q => pickTpl(q, id)) }} aria-label={t.groupWording} style={{ ...selStyle, maxWidth: 220 }}>
                         <option value="">{t.groupWording}</option>
-                        <option value="__personal">✍️ {t.groupPersonal}</option>
+                        <option value="__personal">{t.groupPersonal}</option>
                         <TplOptions q={list[0]}/>
                       </select>
                     )}
@@ -576,7 +577,7 @@ function Today({ t, isEn, dir, cfg, tpls, tplName, stageName, leads, toast, conf
                               {!curTpl && <option value="">{t.origWording}</option>}
                               <TplOptions q={q}/>
                             </select>
-                            <Button size="sm" onClick={() => personalize(q)} title={t.personalizeTip}>✍️ {t.personalize}</Button>
+                            <Button size="sm" onClick={() => personalize(q)} title={t.personalizeTip} icon={<Icon name="personal" size={12} sw={2}/>}>{t.personalize}</Button>
                             <Button size="sm" icon={<FaRandom size={10}/>} onClick={() => nextVariant(q)} title={t.otherWording}>{t.otherWording}</Button>
                             <Button size="sm" icon={editing[q.id] ? <FaCheck size={10}/> : <FaPen size={10}/>} onClick={() => setEditing(e => ({ ...e, [q.id]: !e[q.id] }))}>{editing[q.id] ? t.doneEdit : t.editMsg}</Button>
                             {changed && <button type="button" onClick={() => revert(q)} style={{ background: 'none', border: 'none', color: T.brandText, fontSize: 12, fontWeight: 700, cursor: 'pointer', padding: '0 4px', fontFamily: 'inherit', minHeight: 0 }}>{t.revertMsg}</button>}
@@ -722,7 +723,7 @@ function RuleCard({ t, stats, id, icon, accent, mode, onMode, modes, sentence, h
   return (
     <Card id={`au-rule-${id}`} pad={16} style={{ borderInlineStart: `3px solid ${broken ? T.red : mc}`, scrollMarginTop: 72 }}>
       <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-        <span style={{ width: 36, height: 36, borderRadius: 10, background: `${accent}1F`, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, flexShrink: 0 }}>{icon}</span>
+        <span style={{ width: 36, height: 36, borderRadius: 10, background: `${accent}1F`, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, flexShrink: 0, color: accent }}><Icon name={icon} size={18} sw={1.9}/></span>
         <div style={{ flex: '1 1 280px', minWidth: 0 }}>
           <div style={{ fontSize: 14.5, fontWeight: 700, lineHeight: 1.8, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2px 6px' }}>{sentence}</div>
           <div style={{ fontSize: 12.5, color: T.text2, marginTop: 2 }}>{help}</div>
@@ -761,13 +762,13 @@ function Rules({ t, isEn, dir, cfg, setCfg, tpls, tplName, stageName, logRows, q
         {['off', 'suggest', 'auto'].map(m => <span key={m} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: T.text2 }}><ModeBadge mode={m} labels={t.modes}/>{t.legend[m]}</span>)}
       </Card>
 
-      <RuleCard {...cardProps} id="welcome" icon="👋" accent={T.green} mode={R.welcome.mode} onMode={v => setCfg(c => { c.rules.welcome.mode = v })} kind="welcome" broken={tplBroken([R.welcome.templateId, R.welcome.propTemplateId])}
+      <RuleCard {...cardProps} id="welcome" icon="welcome" accent={T.green} mode={R.welcome.mode} onMode={v => setCfg(c => { c.rules.welcome.mode = v })} kind="welcome" broken={tplBroken([R.welcome.templateId, R.welcome.propTemplateId])}
         help={R.welcome.mode === 'auto' ? t.welcomeHelp : helper(R.welcome.mode, true)}
         sentence={<><span>{t.wS1a}</span><b>{t.wS1b}</b><span>{t.wS1c}</span><TplToken tplOpts={tplOpts} tpls={tpls} t={t} value={R.welcome.templateId} onChange={v => setCfg(c => { c.rules.welcome.templateId = v })}/></>}>
         <div style={{ fontSize: 14, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, color: T.text2 }}>{t.wS2}<TplToken tplOpts={tplOpts} tpls={tpls} t={t} value={R.welcome.propTemplateId} onChange={v => setCfg(c => { c.rules.welcome.propTemplateId = v })}/></div>
       </RuleCard>
 
-      <RuleCard {...cardProps} id="noReply" icon="⏰" accent={T.amber} mode={R.noReply.mode} onMode={v => setCfg(c => { c.rules.noReply.mode = v })} kind="noreply" help={helper(R.noReply.mode)} broken={tplBroken((R.noReply.steps || []).map(s => s.templateId))}
+      <RuleCard {...cardProps} id="noReply" icon="clock" accent={T.amber} mode={R.noReply.mode} onMode={v => setCfg(c => { c.rules.noReply.mode = v })} kind="noreply" help={helper(R.noReply.mode)} broken={tplBroken((R.noReply.steps || []).map(s => s.templateId))}
         sentence={<><span>{t.nrA}</span>
           <button ref={stagesBtn} type="button" onClick={() => setStagesOpen(true)} aria-haspopup="listbox" aria-expanded={stagesOpen}
             style={{ height: 30, padding: '0 8px', borderRadius: 6, border: 'none', borderBottom: '1px dashed rgba(163,173,235,.6)', background: T.brandSoft, color: T.brandText, fontFamily: 'inherit', fontSize: 14, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 0, minWidth: 0 }}>
@@ -793,16 +794,16 @@ function Rules({ t, isEn, dir, cfg, setCfg, tpls, tplName, stageName, logRows, q
         </div>
       </Popover>
 
-      <RuleCard {...cardProps} id="replies" icon="💬" accent={T.blue} mode={R.replies.mode === 'off' ? 'off' : 'auto'} help={R.replies.mode === 'off' ? t.helpOff : t.helpAutoNow} kind="reply"
+      <RuleCard {...cardProps} id="replies" icon="general" accent={T.blue} mode={R.replies.mode === 'off' ? 'off' : 'auto'} help={R.replies.mode === 'off' ? t.helpOff : t.helpAutoNow} kind="reply"
         toggle={<Toggle checked={R.replies.mode !== 'off'} onChange={v => setCfg(c => { c.rules.replies.mode = v ? 'auto' : 'off' })} label={t.rReplies}/>}
         broken={tplBroken([R.replies.negativeTemplateId, R.replies.positiveTemplateId])}
         sentence={<><span>{t.rS[0]}</span><b>{t.rS[1]}</b><span>{t.rS[2]}</span></>}>
         <Toggle checked={!!R.replies.notifyTeam} onChange={v => setCfg(c => { c.rules.replies.notifyTeam = v })}>{t.notifyTeam}</Toggle>
         <div className="au-branches">
-          {[['negative', t.negTitle, T.grey, '🙏', t.negNote], ['positive', t.posTitle, T.blue, '🔥', null]].map(([k, title, col, ic, note]) => (
+          {[['negative', t.negTitle, T.grey, 'closing', t.negNote], ['positive', t.posTitle, T.blue, 'progress', null]].map(([k, title, col, ic, note]) => (
             <div key={k} style={{ padding: 14, borderRadius: 12, border: `1px solid ${col}44`, borderInlineStart: `3px solid ${col}`, background: `${col}0c`, display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <b style={{ fontSize: 14, flex: 1 }}>{ic} {title}</b>
+                <b style={{ fontSize: 14, flex: 1, display: 'inline-flex', alignItems: 'center', gap: 7 }}><span style={{ color: col }}><Icon name={ic} size={16}/></span>{title}</b>
                 <ModeSwitch size="sm" value={R.replies[`${k}Mode`]} onChange={v => setCfg(c => { c.rules.replies[`${k}Mode`] = v })} labels={t.modes} label={title}/>
               </div>
               {note && <div style={{ fontSize: 12, color: T.text3 }}>{note}</div>}
@@ -817,7 +818,7 @@ function Rules({ t, isEn, dir, cfg, setCfg, tpls, tplName, stageName, logRows, q
         <ReplyTester t={t} cfg={cfg}/>
       </RuleCard>
 
-      <RuleCard {...cardProps} id="stage" icon="🗂️" accent="#A25DDC" mode={Object.values(R.stage || {}).some(r => r?.mode && r.mode !== 'off') ? 'auto' : 'off'} kind="stage" help={t.stageHelp} broken={tplBroken(Object.values(R.stage || {}).map(r => r?.templateId))}
+      <RuleCard {...cardProps} id="stage" icon="progress" accent="#A25DDC" mode={Object.values(R.stage || {}).some(r => r?.mode && r.mode !== 'off') ? 'auto' : 'off'} kind="stage" help={t.stageHelp} broken={tplBroken(Object.values(R.stage || {}).map(r => r?.templateId))}
         sentence={<><span>{t.stS[0]}</span><b>{t.stS[1]}</b><span>{t.stS[2]}</span></>}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {['contacted', 'discovery', 'meeting', 'negotiating', 'won', 'lost', 'irrelevant', 'nurture'].map(s => (
@@ -831,7 +832,7 @@ function Rules({ t, isEn, dir, cfg, setCfg, tpls, tplName, stageName, logRows, q
         </div>
       </RuleCard>
 
-      <RuleCard {...cardProps} id="reengage" icon="🔁" accent="#60D4F7" mode={R.reengage.mode} onMode={v => setCfg(c => { c.rules.reengage.mode = v })} kind="reengage" help={helper(R.reengage.mode)} broken={tplBroken([R.reengage.templateId])}
+      <RuleCard {...cardProps} id="reengage" icon="followup" accent="#60D4F7" mode={R.reengage.mode} onMode={v => setCfg(c => { c.rules.reengage.mode = v })} kind="reengage" help={helper(R.reengage.mode)} broken={tplBroken([R.reengage.templateId])}
         sentence={<><span>{t.reA}</span>
           <button ref={reBtn} type="button" onClick={() => setReOpen(true)} aria-haspopup="dialog"
             style={{ height: 30, padding: '0 8px', borderRadius: 6, border: 'none', borderBottom: '1px dashed rgba(163,173,235,.6)', background: T.brandSoft, color: T.brandText, fontFamily: 'inherit', fontSize: 14, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 0, minWidth: 0, fontVariantNumeric: 'tabular-nums' }}>{R.reengage.days}<FaChevronDown size={9}/></button>
