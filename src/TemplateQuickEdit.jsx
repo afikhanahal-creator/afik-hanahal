@@ -7,6 +7,8 @@ import { createPortal } from 'react-dom'
 import { renderTemplate, VARIABLES, unknownPlaceholders } from '../lib/automations-shared.js'
 import { withTemplate, withoutOverride, newTemplateId } from '../lib/template-edit.js'
 import { autoApi } from './AutomationsApi.jsx'
+import TemplateImageField from './TemplateImageField.jsx'
+import { imageThumb } from './lib/templateImage.js'
 
 const TR = {
   he: {
@@ -29,6 +31,7 @@ export default function TemplateQuickEdit({ WA, lang = 'he', lead, tpl, initial 
   const [tab, setTab] = useState(initialLang || (lang === 'en' ? 'en' : 'he'))
   const [text, setText] = useState({ he: initial?.he ?? tpl.he ?? '', en: initial?.en ?? tpl.en ?? '' })
   const [title, setTitle] = useState({ he: tpl.he_title || '', en: tpl.en_title || '' })
+  const [image, setImage] = useState(tpl.image || '')
   const [state, setState] = useState({ phase: 'idle' })
   const areaRef = useRef(null)
   useEffect(() => { const k = e => { if (e.key === 'Escape') onClose?.() }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k) }, [onClose])
@@ -48,15 +51,15 @@ export default function TemplateQuickEdit({ WA, lang = 'he', lead, tpl, initial 
   }
 
   const persist = async (mode) => {
-    if (mode !== 'restore' && !text.he.trim() && !text.en.trim()) { setState({ phase: 'error', msg: t.empty }); return }
+    if (mode !== 'restore' && !text.he.trim() && !text.en.trim() && !image) { setState({ phase: 'error', msg: t.empty }); return }
     setState({ phase: 'saving', mode })
     try {
       // the freshest saved config, so a change made meanwhile in the automations tab is not overwritten
       const fresh = await autoApi.get('auto-config').then(d => d.config).catch(() => cfg) || cfg || {}
       let next, id = tpl.id
       if (mode === 'restore') next = withoutOverride(fresh, tpl.id)
-      else if (mode === 'new') { id = newTemplateId(); next = withTemplate(fresh, tpl, { id, he: text.he, en: text.en, he_title: `${title.he || tpl.he_title || ''} (עותק)`, en_title: `${title.en || tpl.en_title || ''} (copy)` }) }
-      else next = withTemplate(fresh, tpl, { he: text.he, en: text.en, he_title: title.he || tpl.he_title, en_title: title.en || tpl.en_title })
+      else if (mode === 'new') { id = newTemplateId(); next = withTemplate(fresh, tpl, { id, he: text.he, en: text.en, he_title: `${title.he || tpl.he_title || ''} (עותק)`, en_title: `${title.en || tpl.en_title || ''} (copy)`, image }) }
+      else next = withTemplate(fresh, tpl, { he: text.he, en: text.en, he_title: title.he || tpl.he_title, en_title: title.en || tpl.en_title, image })
       await autoApi.post('auto-config', { config: next })
       setState({ phase: 'saved' })
       onSaved?.(next, id)
@@ -95,13 +98,17 @@ export default function TemplateQuickEdit({ WA, lang = 'he', lead, tpl, initial 
               <span>{t.vars}</span>
               {QUICK_VARS.map(k => { const v = VARIABLES.find(x => x.key === k); return v && <button key={k} type="button" onClick={() => insertVar(k)} title={`{${k}}`} style={{ border: `1px solid ${WA.border}`, background: WA.inputBg, color: WA.bodyText, borderRadius: 999, padding: '3px 9px', fontSize: 11.5, cursor: 'pointer', fontFamily: 'inherit', minHeight: 0 }}>{lang === 'en' ? v.en : v.he}</button> })}
             </div>
+            <TemplateImageField value={image} onChange={setImage} lang={lang} compact pal={{ text: WA.bodyText, sub: WA.subText, line: WA.border, bg: WA.inputBg, accent: WA.green }}/>
             {/\[\[/.test(text[tab]) && <div style={{ fontSize: 11.5, color: WA.subText }}>{t.cond}</div>}
             {unknown.map(x => <div key={x} style={{ fontSize: 12, color: '#B45309' }}>⚠ {t.unknown(x)}</div>)}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: WA.subText }}>{t.preview} {lead?.name || t.previewLead}</div>
             <div style={{ background: WA.chatBg || WA.inputBg, borderRadius: 12, padding: 14, flex: 1, minHeight: 160 }}>
-              <div dir="auto" style={{ background: WA.bubbleOut || '#D9FDD3', color: WA.bodyText, borderRadius: 10, padding: '9px 12px', fontSize: 14, lineHeight: 1.6, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', maxWidth: '92%', marginInlineStart: 'auto', boxShadow: '0 1px 1px rgba(0,0,0,.08)' }}>{preview || '—'}</div>
+              <div dir="auto" style={{ background: WA.bubbleOut || '#D9FDD3', color: WA.bodyText, borderRadius: 10, padding: image ? '3px 3px 9px' : '9px 12px', fontSize: 14, lineHeight: 1.6, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', maxWidth: image ? '80%' : '92%', marginInlineStart: 'auto', boxShadow: '0 1px 1px rgba(0,0,0,.08)' }}>
+                {image && <img src={imageThumb(image, 520).replace('&h=520&fit=cover', '')} alt="" style={{ display: 'block', width: '100%', maxHeight: 260, objectFit: 'cover', borderRadius: 8, marginBottom: preview ? 6 : 0 }}/>}
+                {preview ? <span style={image ? { display: 'block', padding: '0 9px' } : undefined}>{preview}</span> : !image && '—'}
+              </div>
             </div>
           </div>
         </div>

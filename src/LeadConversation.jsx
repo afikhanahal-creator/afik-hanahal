@@ -12,6 +12,7 @@ import TemplateQuickEdit from './TemplateQuickEdit.jsx'
 import Splitter, { SPLITTER_CSS } from './Splitter.jsx'
 import { CATEGORIES, getTemplate, mergeConfig, leadLang } from '../lib/automations-shared.js'
 import { mergeConversation, templateOptions, sendErrorText } from './lib/leadConversation.js'
+import { imageThumb } from './lib/templateImage.js'
 
 const ADMIN_TOKEN = 'AFIKhanahal2026'
 const AUTH = { Authorization: `Bearer ${ADMIN_TOKEN}` }
@@ -67,6 +68,7 @@ const TR = {
     maximize: 'הגדלת השיחה למסך מלא', restore: 'חזרה לתצוגה הרגילה (Esc)', resizeDock: 'גררו למעלה או למטה לשינוי גודל תיבת הכתיבה (לחיצה כפולה מחזירה)',
     enterHint: 'Enter לשליחה · Shift+Enter לשורה חדשה', clear: 'ניקוי',
     quick: 'תשובות מוכנות', quickTip: 'תשובות מוכנות (או / בתחילת ההודעה)', search: 'חיפוש תבנית…', none: 'לא נמצאו תבניות',
+    imgTitle: 'תמונה מהתבנית', imgHint: 'הטקסט יופיע מתחתיה', imgRemove: 'שליחה בלי התמונה',
     fromTpl: 'מתבנית', edited: 'נערך', editShort: 'עריכת התבנית', clearTip: 'ניקוי ההודעה', langHe: 'עברית', langEn: 'English',
     quickHint: '↑ ↓ לבחירה · Enter להכנסה · Esc לסגירה', count: n => `${n} תבניות`, lineOf: n => `קו המשרד ${n}`,
   },
@@ -80,6 +82,7 @@ const TR = {
     maximize: 'Expand the conversation', restore: 'Back to the normal view (Esc)', resizeDock: 'Drag up or down to resize the message box (double-click resets)',
     enterHint: 'Enter to send · Shift+Enter for a new line', clear: 'Clear',
     quick: 'Quick replies', quickTip: 'Quick replies (or / at the start of a message)', search: 'Search templates…', none: 'No templates found',
+    imgTitle: 'Picture from the template', imgHint: 'The text goes under it', imgRemove: 'Send without the picture',
     fromTpl: 'From template', edited: 'edited', editShort: 'Edit the template', clearTip: 'Clear the message', langHe: 'עברית', langEn: 'English',
     quickHint: '↑ ↓ to choose · Enter to insert · Esc to close', count: n => `${n} templates`, lineOf: n => `Office line ${n}`,
   },
@@ -138,6 +141,7 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
   const [pending, setPending] = useState([])
   const [input, setInput] = useState('')
   const [tplId, setTplId] = useState('')                 // the template the box started from
+  const [img, setImg] = useState('')                     // its picture (sent with the text as its caption; ✕ leaves it out)
   const [tplLang, setTplLang] = useState(() => leadLang(tplLead))
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -162,7 +166,7 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
   useEffect(() => {
     // a chat seen in this session shows at once; the read below only refreshes it
     const cached = phone ? HIST.get(phone) : null
-    setGreen(cached?.list || []); setPending([]); setError(''); setInput(''); setTplId(''); setHistState(cached ? 'ok' : 'loading')
+    setGreen(cached?.list || []); setPending([]); setError(''); setInput(''); setTplId(''); setImg(''); setHistState(cached ? 'ok' : 'loading')
     nearBottom.current = true; inserted.current = ''; prefilled.current = false
     load(!!cached)
     const iv = setInterval(() => { if (!document.hidden) load(true) }, 8000)
@@ -181,15 +185,15 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
   const outTexts = useMemo(() => msgs.filter(m => m.direction === 'out').map(m => m.message), [msgs])
   const groups = useMemo(() => templateOptions(cfg, tplLead, tplLang, { outTexts, first, categories: CATEGORIES }), [cfg, tplLead, tplLang, outTexts, first])
   const byId = useMemo(() => Object.fromEntries(groups.flatMap(g => g.items).map(x => [x.id, x])), [groups])
-  const putText = useCallback((text, id) => {
-    setInput(text); setTplId(id || ''); inserted.current = text
+  const putText = useCallback((text, id, image = '') => {
+    setInput(text); setTplId(id || ''); setImg(image || ''); inserted.current = text
     setTimeout(() => { const el = inputRef.current; if (el) { el.focus(); el.setSelectionRange(text.length, text.length) } }, 30)
   }, [])
   // nothing sent yet: the box starts with the automation's welcome (once per lead; an emptied box stays empty)
   useEffect(() => {
     if (!first || prefilled.current || input) return
     const def = groups[0]?.items.find(x => x.isDefault) || groups[0]?.items[0]
-    if (def) { prefilled.current = true; setInput(def.text); setTplId(def.id); inserted.current = def.text }
+    if (def) { prefilled.current = true; setInput(def.text); setTplId(def.id); setImg(def.image || ''); inserted.current = def.text }
   }, [first, groups, input])
   // switching the language re-renders a wording that wasn't edited
   useEffect(() => {
@@ -203,12 +207,12 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
   // ── sending ──
   const send = async (text) => {
     const msg = String(text || '').trim()
-    if (!msg || busy || !phone) return false
+    if ((!msg && !img) || busy || !phone) return false
     const id = `opt-${Date.now()}`
     const asWelcome = first
     setBusy(true); setError(''); nearBottom.current = true
-    setPending(p => [...p, { id, direction: 'out', message: msg, created_at: new Date().toISOString(), status: 'sending' }])
-    const r = asWelcome ? await onSendWelcome?.(msg, tplId || 'manual') : await onSend?.(msg)
+    setPending(p => [...p, { id, direction: 'out', message: img ? `📷 ${msg}`.trim() : msg, created_at: new Date().toISOString(), status: 'sending' }])
+    const r = asWelcome ? await onSendWelcome?.(msg, tplId || 'manual', { image: img }) : await onSend?.(msg, { image: img })
     setBusy(false)
     if (r?.ok) {
       setPending(p => p.map(m => (m.id === id ? { ...m, status: 'sent' } : m)))
@@ -221,7 +225,7 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
     setError(sendErrorText(r || {}, lang))
     return false
   }
-  const submit = async () => { if (await send(input)) { setInput(''); setTplId(''); inserted.current = '' } }
+  const submit = async () => { if (await send(input)) { setInput(''); setTplId(''); setImg(''); inserted.current = '' } }
 
   // the box grows with its text while the composer has no dragged height
   useLayoutEffect(() => {
@@ -242,7 +246,7 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
   useEffect(() => { qListRef.current?.querySelector(`[data-qi="${qActive}"]`)?.scrollIntoView({ block: 'nearest' }) }, [qActive])
   const openQuick = (q = '') => { setQq(q); setQuick(true) }
   const closeQuick = (focusBox = true) => { setQuick(false); setQq(''); if (focusBox) setTimeout(() => inputRef.current?.focus(), 0) }
-  const pickQuick = x => { if (!x) return; setQuick(false); setQq(''); putText(x.text, x.id) }
+  const pickQuick = x => { if (!x) return; setQuick(false); setQq(''); putText(x.text, x.id, x.image) }
   const qKey = e => {
     if (e.key === 'Escape') { e.preventDefault(); closeQuick() }
     else if (e.key === 'ArrowDown') { e.preventDefault(); setQActive(i => Math.min(qFlat.length - 1, i + 1)) }
@@ -295,7 +299,7 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
   const dockMax = () => Math.max(140, (rootRef.current?.getBoundingClientRect().height || 600) - 180)
   const curTpl = tplId ? getTemplate(mergeConfig(cfg || {}), tplId) : null
   const tplTitle = tplId && byId[tplId] ? byId[tplId].title : ''
-  const canSend = !busy && !!input.trim()
+  const canSend = !busy && (!!input.trim() || !!img)
   const name = lead?.name || localPhone(lead?.phone) || ''
   const panel = isDark ? '#202C33' : '#F0F2F5'
   const icon = isDark ? '#AEBAC1' : '#54656F'
@@ -342,6 +346,8 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
         .lcv-seg{display:inline-flex;background:${isDark ? 'rgba(255,255,255,.06)' : 'rgba(11,20,26,.05)'};border-radius:999px;padding:2px;flex-shrink:0}
         .lcv-seg button{border:none;background:transparent;color:${WA.subText};font-size:12px;font-weight:600;border-radius:999px;padding:3px 10px;cursor:pointer}
         .lcv-seg button[aria-pressed=true]{background:${isDark ? '#2A3942' : '#FFFFFF'};color:${WA.bodyText};box-shadow:0 1px 2px rgba(11,20,26,.15)}
+        .lcv-img{display:flex;align-items:center;gap:10px;margin:0 0 6px;padding:6px 8px;border-radius:10px;font-size:12.5px;line-height:1.35;background:${isDark ? 'rgba(255,255,255,.05)' : 'rgba(11,20,26,.04)'};color:${WA.bodyText}}
+        .lcv-img>img{border-radius:7px;object-fit:cover;flex:none}
         .lcv-quick{position:absolute;z-index:30;inset-inline:10px;bottom:calc(100% + 6px);max-width:560px;max-height:min(440px,70vh);display:flex;flex-direction:column;background:${isDark ? '#233138' : '#FFFFFF'};border-radius:10px;box-shadow:0 2px 5px rgba(11,20,26,.26),0 2px 10px rgba(11,20,26,.16);overflow:hidden;animation:lcvIn .14s ease-out}
         @keyframes lcvIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
         @media (prefers-reduced-motion:reduce){.lcv-quick{animation:none}}
@@ -425,6 +431,7 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
                     return (
                       <div key={g.id + x.id} id={`lcv-q-${x.id}`} data-qi={idx} role="option" aria-selected={idx === qActive} className="lcv-qi"
                         onMouseEnter={() => setQActive(idx)} onMouseDown={e => e.preventDefault()} onClick={() => pickQuick(x)}>
+                        {x.image && <img src={imageThumb(x.image, 80)} alt="" width={36} height={36} style={{ flex: 'none', borderRadius: 7, objectFit: 'cover' }}/>}
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div className="t"><span>{x.title}</span>
                             {x.isDefault && first && <span className="lcv-badge" style={{ color: teal, background: teal + '1F' }}>★ {t.auto}</span>}
@@ -455,7 +462,14 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
               {['he', 'en'].map(l => <button key={l} type="button" aria-pressed={tplLang === l} onClick={() => setTplLang(l)}>{l === 'he' ? 'עב' : 'EN'}</button>)}
             </div>
             {curTpl && <button type="button" className="lcv-ib" style={{ width: 30, height: 30 }} onClick={() => setEditTpl({ tpl: curTpl, initial: null, lang: tplLang, fromChat: false })} aria-label={t.editTpl} title={t.editTpl}>{I.pencil}</button>}
-            {input && <button type="button" className="lcv-ib" style={{ width: 30, height: 30 }} onClick={() => { setInput(''); setTplId(''); inserted.current = ''; inputRef.current?.focus() }} aria-label={t.clearTip} title={t.clearTip}>{I.close}</button>}
+            {input && <button type="button" className="lcv-ib" style={{ width: 30, height: 30 }} onClick={() => { setInput(''); setTplId(''); setImg(''); inserted.current = ''; inputRef.current?.focus() }} aria-label={t.clearTip} title={t.clearTip}>{I.close}</button>}
+          </div>
+        )}
+        {phone && img && (
+          <div className="lcv-img">
+            <img src={imageThumb(img, 96)} alt="" width={40} height={40}/>
+            <span style={{ flex: 1, minWidth: 0 }}><b>{t.imgTitle}</b><br/><span style={{ color: WA.subText }}>{t.imgHint}</span></span>
+            <button type="button" className="lcv-ib" style={{ width: 30, height: 30 }} onClick={() => setImg('')} aria-label={t.imgRemove} title={t.imgRemove}>{I.close}</button>
           </div>
         )}
         {phone ? (

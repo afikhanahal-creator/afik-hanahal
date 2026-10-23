@@ -253,10 +253,27 @@ instead of bullet lists; no slashes, no
 gendered present-tense or imperatives; no childish emoji. A test fails if singular wording comes back
 ("ראיתי", "אשמח", "לך", "השארת"… or "I" in English), if 👋 🙂 🙌 🎉 🙏 🔥, "–" or "•", bot
 phrases ("נשמח לעמוד לרשות", "פנייתך", "צוות אפיק הנחל", "We would be glad", "Dear "…), a team signature block or a Hebrew text
-over 420 characters come back. **Names:** a Hebrew message writes an English first name in Hebrew
+over 160 characters (or more than 3 lines) come back — the library was cut down to short messages on 2026-10-23 (median ~80 characters). **Names:** a Hebrew message writes an English first name in Hebrew
 (`lib/hebrew-names.js` `hebrewFirstName`, a list of ~450 Israeli names; "Ronen" → "רונן"); an unknown Latin name is left out
 ("שלום,") rather than guessed. `renderTemplate` closes the gap an empty placeholder leaves ("שלום ," → "שלום,"). The Lead Center's
 quick replies use the same rules and the campaign's short name.
+**A picture per template** (optional): a template's `image` (an https URL; `templateImage()` / `isImageUrl()` in
+`lib/automations-shared.js`) is sent as a WhatsApp image with the text as its caption — `sendText(phone, text, { image })`
+(`lib/automations.js`) switches to Green's `sendFileByUrl` (`urlFile`, `fileName` from the URL, `caption`). Every path carries
+it: the automatic welcome (`welcomeFor` → `image`), stage / no-reply / re-engagement sends, the approval queue (`suggestions` /
+`upcoming` items have `image`; `sendItems` takes `it.image`, else the template's own by `templateId`), bulk jobs, the
+templates tab's test send (`auto-test {image}`), the chat (`chat-send {image}`) and the Lead Center (`messages {image}`,
+`lead-welcome {image}` — `''` = without it). The picture is picked, dropped or pasted in `src/TemplateImageField.jsx` (the
+templates tab's editor and the chat's quick editor), compressed in the browser to ≤ 1280 px JPEG and uploaded through
+`wizard-upload-url` with `folder: 'templates'` (`property-media/templates/…`, 1-year cache; `src/lib/templateImage.js`, previews
+always through wsrv.nl `imageThumb()`); `withTemplate()` keeps it. The phone preview, the library cards ("עם תמונה"), the "היום"
+rows, the ⚡ panel, the header menu and the Lead Center's quick replies show it; a template put in the box brings its picture
+as a chip ("תמונה מהתבנית", ✕ = send without it).
+**Fast sending in the chat** (`src/ChatTemplatePicker.jsx`): over the empty message box a strip "⚡ מתאים עכשיו:"
+(`ChatQuickChips`: the 3–4 templates that fit this lead now — the most personal one + the stage's category) — a click puts one in
+the box, ➤ sends it as is; the ⚡ panel's rows have "לתיבה" and "שלח" always visible (Enter = to the box, Ctrl+Enter = send, ↑ / ↓),
+a click on a row opens the editable preview with the picture (which can be left out); the header's "⚡ תבניות ▾" has "שלח" on
+every row. Library cards in the templates tab are WhatsApp bubbles (light `#D9FDD3` in the light admin theme — `.au-wa-bub`).
 **Personal templates** (category "אישי – לפי הפנייה"): `lib/lead-needs.js` `leadNeeds()` (tested) reads what the lead told us —
 the lead card's fields (budget / rooms / area / timeline / dealType / propertyType) over the Meta form answers (matched by the
 question's wording) and, for website leads only, the first sentence they typed — into `{needs}` ("4 חדרים, בכפר סבא, בתקציב של

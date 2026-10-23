@@ -5,7 +5,8 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { supabase } from './lib/supabaseClient'
 import { WAText } from './waFormat.jsx'
-import ChatTemplatePicker, { ChatTemplateMenu } from './ChatTemplatePicker.jsx'
+import ChatTemplatePicker, { ChatTemplateMenu, ChatQuickChips } from './ChatTemplatePicker.jsx'
+import { imageThumb } from './lib/templateImage.js'
 import TemplateQuickEdit from './TemplateQuickEdit.jsx'
 import { renderTemplate } from '../lib/automations-shared.js'
 import { untemplate } from '../lib/template-edit.js'
@@ -168,6 +169,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
   const [activeNav,     setActiveNav]    = useState('chats')
   const [emoji,         setEmoji]        = useState(false)
   const [attached,      setAttached]     = useState(null)
+  const [tplImg,        setTplImg]       = useState(null)   // a template's picture riding with the text in the box { url, title }
   const [statusMissing, setStatusMissing] = useState([])
   const [quota,         setQuota]        = useState(null)   // Green API plan blocked (466): connected, but sends are refused
   const [greenChats,    setGreenChats]   = useState([])   // recent WhatsApp chats from Green API (not only leads)
@@ -365,11 +367,11 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
   }, [fetchGreenHistory])
 
   // → { ok, error?, quota? } — the server passes Green API's real reason through (466 = the plan's monthly quota)
-  const sendViaGreenAPI = useCallback(async (p, msg) => {
+  const sendViaGreenAPI = useCallback(async (p, msg, image = '') => {
     const r = await fetch(`${CHAT_API}/chat-send`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json', ...AUTH_HEADER },
-      body:    JSON.stringify({ phone: p, message: msg }),
+      body:    JSON.stringify({ phone: p, message: msg, ...(image ? { image } : {}) }),
       signal:  AbortSignal.timeout(30000),
     })
     const d = await r.json().catch(() => ({}))
@@ -568,11 +570,13 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
   }
 
   // override = a ready text (the template picker): sent as is, the typed draft and any attachment stay untouched
-  const sendMsg = async (override) => {
+  // opts.image = the template's picture (sent with the text as its caption); the box's own picture is tplImg
+  const sendMsg = async (override, opts = {}) => {
     const fromPicker = typeof override === 'string'
     const msg  = (fromPicker ? override : input).trim()
     const file = fromPicker ? null : attached
-    if ((!msg && !file) || !contact || sending) return
+    const image = fromPicker ? (opts.image || '') : (file ? '' : (tplImg?.url || ''))
+    if ((!msg && !file && !image) || !contact || sending) return
     const p = intlPhone(contact.phone)
     if (!p) { alert('מספר טלפון לא תקין'); return }
     if (file && file.size > MAX_FILE_MB * 1024 * 1024) {
@@ -590,7 +594,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
       [p]: [...(prev[p]||[]), {
         id: optId, direction: 'out',
         message: msg || (file?.name || ''),
-        file: file ? { name: file.name, type: file.type, preview: attachedPreview } : null,
+        file: file ? { name: file.name, type: file.type, preview: attachedPreview } : image ? { name: lang === 'en' ? 'Picture' : 'תמונה', type: 'image/jpeg', preview: imageThumb(image, 120) } : null,
         created_at: new Date().toISOString(), status: 'sending',
       }]
     }))
@@ -602,10 +606,10 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
         const res = await sendFileViaGreenAPI(p, file, msg)
         ok = res.ok; why = res.error
       } else {
-        const res = await sendViaGreenAPI(p, msg).catch(e => ({ ok: false, error: e.name === 'TimeoutError' ? 'השרת לא ענה בזמן' : e.message }))
+        const res = await sendViaGreenAPI(p, msg, image).catch(e => ({ ok: false, error: e.name === 'TimeoutError' ? 'השרת לא ענה בזמן' : e.message }))
         ok = res.ok; why = res.error
         // the legacy Render route only helps when our own server is unreachable (it uses the same Green API line)
-        if (!ok && !res.quota && API_BASE) {
+        if (!ok && !res.quota && API_BASE && !image) {
           const r = await fetch(`${API_BASE}/api/chats/send`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
@@ -617,10 +621,10 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
       }
 
       if (ok) {
-        if (!fromPicker) setAttached(null)
+        if (!fromPicker) { setAttached(null); setTplImg(null) }
         setTimeout(() => fetchMsgs(contact.phone), file ? 3500 : 2000)
         const contactName = nameOf(contactView, lang)
-        onSentMessageRef.current?.({ contactName, message: msg || file?.name })
+        onSentMessageRef.current?.({ contactName, message: msg || file?.name || (lang === 'en' ? 'Picture' : 'תמונה') })
       } else {
         throw new Error(/\b466\b|quota/i.test(why || '') ? QUOTA_MSG : (why || 'שליחה נכשלה'))
       }
@@ -687,12 +691,13 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
   const cfgEff = cfgLocal || autoConfig
   const putInBox = (text, tpl, tplLang) => {
     setInput(text); setQuickOpen(false)
+    setTplImg(tpl?.image ? { url: tpl.image, title: tplLang === 'en' ? (tpl.en_title || tpl.he_title) : (tpl.he_title || tpl.en_title) } : null)
     setInserted(tpl ? { tpl, lang: tplLang, text, marked: renderTemplate(tpl, chatLead || {}, cfgEff || undefined, tplLang, { keys: true }) } : null)
     setTimeout(() => { const el = inputRef.current; if (el) { el.focus(); el.setSelectionRange(text.length, text.length) } }, 30)
   }
   const openEdit = (tpl, initial, tplLang, fromChat) => setEditTpl({ tpl, initial, lang: tplLang, fromChat })
   const boxChanged = !!(inserted && input.trim() && input.trim() !== inserted.text.trim())
-  useEffect(() => { setInserted(null) }, [chatPhone])
+  useEffect(() => { setInserted(null); setTplImg(null) }, [chatPhone])
   useEffect(() => { setCfgLocal(null) }, [autoConfig])   // the parent's copy caught up (or the templates tab saved)
   useEffect(() => { if (!input.trim()) setInserted(null) }, [input])
   const contactIdx = contactList.findIndex(l => l.id === contact?.id)
@@ -912,7 +917,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                   </div>
                 </div>
                 <ChatTemplateMenu WA={WA} lang={lang} lead={chatLead} msgs={msgs} autoConfig={cfgEff}
-                  onSend={text => sendMsg(text)}
+                  onSend={(text, o) => sendMsg(text, o)}
                   onInsert={putInBox} onEdit={openEdit}
                   onOpenPanel={() => { setQuickOpen(true); setEmoji(false) }}/>
                 {crmRow && onUpdateLead && <span style={{ display:'inline-flex', gap:6, flexShrink:0 }}>
@@ -1134,6 +1139,18 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                 </div>
               )}
 
+              {/* ── A template's picture in the box: it goes out with the text as its caption ── */}
+              {tplImg && !attached && (
+                <div style={{ flexShrink:0, padding:'8px 16px', background: WA.inputBg, borderTop:`1px solid ${WA.border}`, display:'flex', alignItems:'center', gap:10, direction: lang === 'en' ? 'ltr' : 'rtl' }}>
+                  <img src={imageThumb(tplImg.url, 96)} alt="" style={{ width:42, height:42, borderRadius:7, objectFit:'cover', flexShrink:0 }}/>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontSize:13, color: WA.bodyText, fontWeight:600 }}>{lang === 'en' ? 'Picture from the template' : 'תמונה מהתבנית'}</div>
+                    <div style={{ fontSize:11.5, color: WA.subText, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{tplImg.title} · {lang === 'en' ? 'the text goes under it' : 'הטקסט יופיע מתחתיה'}</div>
+                  </div>
+                  <button onClick={()=>setTplImg(null)} aria-label={lang === 'en' ? 'Send without the picture' : 'שליחה בלי התמונה'} title={lang === 'en' ? 'Send without the picture' : 'שליחה בלי התמונה'} style={{ background:'none', border:'none', cursor:'pointer', color: WA.subText, fontSize:18, padding:'0 4px' }}>✕</button>
+                </div>
+              )}
+
               {editTpl && (
                 <TemplateQuickEdit WA={WA} lang={lang} lead={chatLead} tpl={editTpl.tpl} initial={editTpl.initial} initialLang={editTpl.lang} fromChat={editTpl.fromChat}
                   autoConfig={cfgEff} onClose={() => setEditTpl(null)}
@@ -1150,7 +1167,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
               {quickOpen && (
                 <ChatTemplatePicker WA={WA} lang={lang} msgs={msgs} autoConfig={cfgEff}
                     lead={chatLead}
-                    onSend={text => sendMsg(text)}
+                    onSend={(text, o) => sendMsg(text, o)}
                     onInsert={putInBox} onEdit={openEdit}
                     onClose={() => setQuickOpen(false)}/>
               )}
@@ -1170,6 +1187,12 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                 </div>
               )}
 
+              {/* ── The messages that fit this lead now: one click into the box, ➤ sends ── */}
+              {!quickOpen && !input.trim() && !attached && !tplImg && !editTpl && (
+                <ChatQuickChips WA={WA} lang={lang} lead={chatLead} msgs={msgs} autoConfig={cfgEff}
+                  onSend={(text, o) => sendMsg(text, o)} onInsert={putInBox} onMore={() => { setQuickOpen(true); setEmoji(false) }}/>
+              )}
+
               {/* ── Input Bar (flex: 0 0 auto — always visible, never scrolled away) ── */}
               <div style={{ flexShrink:0, padding:'10px 12px', background: WA.inputBg, display:'flex', alignItems:'center', gap:9, direction:'rtl', borderTop:`1px solid ${WA.border}`, transition:'background .25s' }}>
                 <button onClick={()=>setEmoji(v=>!v)}
@@ -1185,7 +1208,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                   ⚡
                 </button>
                 <input ref={fileRef} type="file" accept="image/*,.pdf" style={{ display:'none' }}
-                  onChange={e=>{ if(e.target.files[0]) setAttached(e.target.files[0]); e.target.value='' }}/>
+                  onChange={e=>{ if(e.target.files[0]) { setAttached(e.target.files[0]); setTplImg(null) } e.target.value='' }}/>
                 <textarea ref={inputRef} rows={1}
                   value={input} onChange={e=>setInput(e.target.value)}
                   onKeyDown={e=>{ if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMsg()} }}
@@ -1194,11 +1217,11 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                   autoComplete="off" dir="auto"
                   style={{ flex:1, padding:'11px 16px', background: WA.inputFieldBg, border:'none', borderRadius:8, color: WA.bodyText, fontSize:14, fontFamily:'inherit', outline:'none', minWidth:0, resize:'none', lineHeight:1.45, height: Math.min(6, Math.max(1, input.split('\n').length)) * 20 + 22, maxHeight:142, overflowY:'auto', boxShadow:`0 1px 2px rgba(0,0,0,.${isDark?'2':'06'})` }}/>
                 <button onClick={() => sendMsg()}
-                  disabled={sending || (!input.trim() && !attached)}
-                  style={{ width:44, height:44, borderRadius:'50%', background:(input.trim()||attached)?WA.green:WA.inputBg, border:'none', color:(input.trim()||attached)?'#fff':WA.subText, cursor:(input.trim()||attached)?'pointer':'default', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, transition:'all .2s', boxShadow:(input.trim()||attached)?'0 2px 8px '+WA.green+'66':'none' }}>
+                  disabled={sending || (!input.trim() && !attached && !tplImg)}
+                  style={{ width:44, height:44, borderRadius:'50%', background:(input.trim()||attached||tplImg)?WA.green:WA.inputBg, border:'none', color:(input.trim()||attached||tplImg)?'#fff':WA.subText, cursor:(input.trim()||attached||tplImg)?'pointer':'default', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, transition:'all .2s', boxShadow:(input.trim()||attached||tplImg)?'0 2px 8px '+WA.green+'66':'none' }}>
                   {sending
                     ? <span style={{ fontSize:11, fontWeight:700 }}>···</span>
-                    : (input.trim()||attached)
+                    : (input.trim()||attached||tplImg)
                       ? <Icon path={ICONS.send} size={19}/>
                       : <Icon path={ICONS.mic}  size={21}/>
                   }

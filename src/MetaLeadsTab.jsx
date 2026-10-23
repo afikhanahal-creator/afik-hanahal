@@ -592,11 +592,12 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onLeadRenam
   }, [campaignDropOpen])
 
   // ── Send (from the conversation) → { ok, error?, quota? } ────────────────────
-  const handleSend = useCallback(async (text) => {
+  // opts.image = a template's picture (sent with the text as its caption)
+  const handleSend = useCallback(async (text, opts = {}) => {
     const lead = leadsRef.current.find(l => l.id === selectedId)
     if (!lead) return { ok: false }
     try {
-      const res = await fetch('/api/meta/messages', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` }, body: JSON.stringify({ lead_id: lead.id, message: text }) })
+      const res = await fetch('/api/meta/messages', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` }, body: JSON.stringify({ lead_id: lead.id, message: text, ...(opts.image ? { image: opts.image } : {}) }) })
       const d = await res.json().catch(() => ({}))
       if (!res.ok) return { ok: false, error: d.error || `HTTP ${res.status}`, quota: !!d.quota }
       if (!lead.wa_sent) patchLead(lead.id, { wa_sent: true })
@@ -610,11 +611,11 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onLeadRenam
   }, [selectedId, patchLead])
 
   // ── The welcome, in the wording picked in the conversation (counts as the welcome: wa_sent + the automation log) ──
-  const handleWelcome = useCallback(async (text, templateId) => {
+  const handleWelcome = useCallback(async (text, templateId, opts = {}) => {
     const lead = leadsRef.current.find(l => l.id === selectedId)
     if (!lead?.phone) return { ok: false }
     try {
-      const r = await fetch('/api/meta/lead-welcome', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` }, body: JSON.stringify({ id: lead.id, text, templateId }) })
+      const r = await fetch('/api/meta/lead-welcome', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` }, body: JSON.stringify({ id: lead.id, text, templateId, image: opts.image || '' }) })
       const d = await r.json().catch(() => ({}))
       if (!r.ok || !d.ok) return { ok: false, error: d.error || d.skipped || `HTTP ${r.status}`, quota: !!d.quota }
       patchLead(lead.id, { wa_sent: true })

@@ -6,6 +6,8 @@ import { T, Button, IconButton, FilterChip, Badge, Card, EmptyState, Modal, Popo
 import { WAText, toggleMarker, EMOJI_POPULAR, recentEmoji, pushRecentEmoji } from './waFormat.jsx'
 import { CATEGORIES, VARIABLES, DEFAULT_TEMPLATES, renderTemplate, templateUsage, replaceTemplateRefs, unknownPlaceholders, intlPhone } from '../lib/automations-shared.js'
 import { autoApi } from './AutomationsApi.jsx'
+import TemplateImageField from './TemplateImageField.jsx'
+import { imageThumb } from './lib/templateImage.js'
 
 const TR = {
   he: {
@@ -33,7 +35,7 @@ const TR = {
     delT: n => `למחוק את ״${n}״?`, delB: 'התבנית תוסר מהספרייה.', deleted: 'התבנית נמחקה', undo: 'בטל', cancel: 'ביטול', del: 'מחק',
     copied: 'הטקסט הועתק', restored: 'הנוסח המקורי שוחזר',
     qsTitle: n => `שליחה ללקוח · ${n}`, qsSearch: 'חיפוש ליד לפי שם או טלפון', qsSend: 'שלח', qsSent: n => `נשלח ל${n}`, qsOpt: 'ביקש להפסיק', change: 'החלף', error: 'שגיאה',
-    modes: { off: 'כבוי', suggest: 'יחכה לאישור', auto: 'יישלח אוטומטית' }, stageNames: {},
+    modes: { off: 'כבוי', suggest: 'יחכה לאישור', auto: 'יישלח אוטומטית' }, stageNames: {}, withImage: 'עם תמונה',
   },
   en: {
     search: 'Search by name or text', newTemplate: 'New template', all: 'All',
@@ -60,11 +62,11 @@ const TR = {
     delT: n => `Delete “${n}”?`, delB: 'The template will be removed from the library.', deleted: 'Template deleted', undo: 'Undo', cancel: 'Cancel', del: 'Delete',
     copied: 'Text copied', restored: 'Original wording restored',
     qsTitle: n => `Send to a lead · ${n}`, qsSearch: 'Search a lead by name or phone', qsSend: 'Send', qsSent: n => `Sent to ${n}`, qsOpt: 'Opted out', change: 'Change', error: 'Error',
-    modes: { off: 'Off', suggest: 'Waits for approval', auto: 'Sent automatically' }, stageNames: {},
+    modes: { off: 'Off', suggest: 'Waits for approval', auto: 'Sent automatically' }, stageNames: {}, withImage: 'With picture',
   },
 }
 const catOf = id => CATEGORIES.find(c => c.id === id) || CATEGORIES[5]
-const snap = x => x ? { cat: x.cat, he: x.he || '', en: x.en || '', he_title: x.he_title || '', en_title: x.en_title || '' } : null
+const snap = x => x ? { cat: x.cat, he: x.he || '', en: x.en || '', he_title: x.he_title || '', en_title: x.en_title || '', image: x.image || '' } : null
 const titleOf = (x, isEn) => (isEn ? x.en_title || x.he_title : x.he_title || x.en_title) || ''
 const SAMPLE = isEn => ({ id: '__sample', name: isEn ? 'Dana Cohen' : 'דנה כהן', prop_title: isEn ? 'Plot in Tel Mond' : 'מגרש בתל מונד', prop_location: isEn ? 'Tel Mond' : 'תל מונד', crm_data: {} })
 const NOPROP = isEn => ({ id: '__noprop', name: isEn ? 'Yossi Levi' : 'יוסי לוי', crm_data: {} })
@@ -87,7 +89,7 @@ export default function TemplatesTab({ lang = 'he', cfg, tpls, leads, states = {
 
   const saveTpl = async x => {
     const { builtIn, isNew, id, ...rest } = x
-    await persist(c => { c.templates = { ...(c.templates || {}), [id]: { cat: rest.cat, he: rest.he, en: rest.en, he_title: rest.he_title, en_title: rest.en_title } }; c.deletedTemplates = (c.deletedTemplates || []).filter(d => d !== id) })
+    await persist(c => { c.templates = { ...(c.templates || {}), [id]: { cat: rest.cat, he: rest.he, en: rest.en, he_title: rest.he_title, en_title: rest.en_title, ...(rest.image ? { image: rest.image } : {}) } }; c.deletedTemplates = (c.deletedTemplates || []).filter(d => d !== id) })
   }
   const restore = async x => { await persist(c => { c.templates = { ...(c.templates || {}) }; delete c.templates[x.id] }); toast(t.restored) }
   const copyText = async x => { try { await navigator.clipboard.writeText(renderTemplate(x, sample, cfg, isEn ? 'en' : 'he')); toast(t.copied) } catch {} }
@@ -119,7 +121,7 @@ export default function TemplatesTab({ lang = 'he', cfg, tpls, leads, states = {
     if (!await confirm({ title: t.delT(name), body: t.delB, confirmLabel: t.del, cancelLabel: t.cancel, tone: 'danger' })) return
     const before = cfg.templates?.[x.id] ? JSON.parse(JSON.stringify(cfg.templates[x.id])) : null
     await persist(c => { if (x.builtIn) c.deletedTemplates = [...new Set([...(c.deletedTemplates || []), x.id])]; c.templates = { ...(c.templates || {}) }; delete c.templates[x.id] })
-    toast(t.deleted, { action: { label: t.undo, onClick: () => persist(c => { c.deletedTemplates = (c.deletedTemplates || []).filter(d => d !== x.id); if (before || !x.builtIn) c.templates = { ...(c.templates || {}), [x.id]: before || { cat: x.cat, he: x.he, en: x.en, he_title: x.he_title, en_title: x.en_title } } }) } })
+    toast(t.deleted, { action: { label: t.undo, onClick: () => persist(c => { c.deletedTemplates = (c.deletedTemplates || []).filter(d => d !== x.id); if (before || !x.builtIn) c.templates = { ...(c.templates || {}), [x.id]: before || { cat: x.cat, he: x.he, en: x.en, he_title: x.he_title, en_title: x.en_title, ...(x.image ? { image: x.image } : {}) } } }) } })
   }
   const startFrom = key => {
     setStarter(false)
@@ -152,18 +154,20 @@ export default function TemplatesTab({ lang = 'he', cfg, tpls, leads, states = {
             {l.map(x => {
               const cc = catOf(x.cat), uses = templateUsage(cfg, x.id), edited = x.builtIn && !!cfg.templates?.[x.id]
               return (
-                <div key={x.id} className="au-card-hov" style={{ background: T.s1, border: `1px solid ${T.s1Line}`, borderRadius: 14, padding: 14, display: 'flex', flexDirection: 'column', gap: 10, minHeight: 232 }}>
+                <div key={x.id} className="au-tpl-card" style={{ background: T.s1, border: `1px solid ${T.s1Line}`, borderRadius: 14, padding: 12, display: 'flex', flexDirection: 'column', gap: 9 }}>
                   <button type="button" onClick={() => setEditing({ ...x })} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', padding: 0, color: T.text, fontFamily: 'inherit', cursor: 'pointer', textAlign: 'start', minHeight: 0, minWidth: 0 }}>
                     <span style={{ fontSize: 17 }}>{cc.icon}</span><b style={{ flex: 1, fontSize: 14, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{titleOf(x, isEn)}</b>
                   </button>
-                  <div dir={isEn ? 'ltr' : 'rtl'} onClick={() => setEditing({ ...x })} style={{ flex: 1, cursor: 'pointer', background: '#0B2A22', border: '1px solid rgba(37,211,102,.18)', color: T.wa.text, borderRadius: 10, padding: '9px 11px', fontSize: 12.5, lineHeight: 1.55, whiteSpace: 'pre-wrap', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 5, WebkitBoxOrient: 'vertical' }}>
-                    <WAText text={renderTemplate(x, sample, cfg, isEn ? 'en' : 'he')}/>
+                  <div dir={isEn ? 'ltr' : 'rtl'} onClick={() => setEditing({ ...x })} className="au-wa-bub" style={{ cursor: 'pointer', borderRadius: '10px 10px 3px 10px', padding: x.image ? 3 : '8px 11px', fontSize: 12.5, lineHeight: 1.55 }}>
+                    {x.image && <img src={imageThumb(x.image, 360)} alt="" loading="lazy" style={{ display: 'block', width: '100%', height: 110, objectFit: 'cover', borderRadius: 8 }}/>}
+                    <div style={{ padding: x.image ? '6px 8px 4px' : 0, whiteSpace: 'pre-wrap', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical' }}><WAText text={renderTemplate(x, sample, cfg, isEn ? 'en' : 'he')}/></div>
                   </div>
                   <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
                     <Badge color={uses.length ? T.brand : T.grey} textColor={uses.length ? T.brandText : T.text3} title={uses.map(u => isEn ? u.en : u.he).join(' · ')}><FaLink size={9}/> {uses.length ? t.usedByN(uses.length) : t.notUsed}</Badge>
                     <Badge color={T.grey} textColor={T.text2}>HE</Badge>
                     {x.en ? <Badge color={T.grey} textColor={T.text2}>EN</Badge> : <Badge outline color={T.amber} textColor={T.amberText} title={t.noEn}>EN</Badge>}
                     {edited && <Badge color={T.amber} textColor={T.amberText}>{t.edited}</Badge>}
+                    {x.image && <Badge color={T.green} textColor={T.text2}>🖼 {t.withImage}</Badge>}
                     <div style={{ flex: 1 }}/>
                     <IconButton icon={<FaPaperPlane size={12}/>} label={t.mSend} variant="soft-green" onClick={() => setSendTpl(x)}/>
                     <MenuButton icon={<FaEllipsisV size={12}/>} label={`${t.more} · ${titleOf(x, isEn)}`} dir={dir}>
@@ -238,7 +242,7 @@ function TemplateEditor({ t, lang, cfg, tpl, leads, onClose, onSave, toast, onGo
   const [varOpen, setVarOpen] = useState(false)
   const [testOpen, setTestOpen] = useState(false)
   const ta = useRef(null), emojiBtn = useRef(null), varBtn = useRef(null), testBtn = useRef(null), testBtnM = useRef(null)
-  const dirty = tpl.isNew ? !!(x.he || x.en || x.he_title || x.en_title) : JSON.stringify(snap(x)) !== JSON.stringify(origin)
+  const dirty = tpl.isNew ? !!(x.he || x.en || x.he_title || x.en_title || x.image) : JSON.stringify(snap(x)) !== JSON.stringify(origin)
   const text = x[tab] || ''
   const leadsOpts = leads.filter(l => l.name).slice(0, 30)
   const previewLead = who === '__sample' ? SAMPLE(isEn) : who === '__noprop' ? NOPROP(isEn) : asLead(leadsOpts.find(l => String(l.id) === who) || {})
@@ -277,7 +281,7 @@ function TemplateEditor({ t, lang, cfg, tpl, leads, onClose, onSave, toast, onGo
   }
   const save = async () => {
     if (!(x.he_title || x.en_title)) { toast(t.needName, { tone: 'warn' }); return }
-    if (!x.he?.trim()) { setTab('he'); toast(t.needText, { tone: 'warn' }); return }
+    if (!x.he?.trim() && !x.image) { setTab('he'); toast(t.needText, { tone: 'warn' }); return }
     if ((x.he || '').length > 4000 || (x.en || '').length > 4000) return
     setSaving(true)
     try { await onSave(x) } catch (e) { toast(`${t.error}: ${e.message}`, { tone: 'error' }) } finally { setSaving(false) }
@@ -328,6 +332,7 @@ function TemplateEditor({ t, lang, cfg, tpl, leads, onClose, onSave, toast, onGo
       <Field label={t.tplName} htmlFor="au-tpl-name">
         <input id="au-tpl-name" dir={tab === 'he' ? 'rtl' : 'ltr'} lang={tab} value={x[`${tab}_title`] || ''} onChange={e => set({ [`${tab}_title`]: e.target.value })} style={inputStyle}/>
       </Field>
+      <TemplateImageField value={x.image || ''} onChange={v => set({ image: v })} lang={lang}/>
       <div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 2, height: 40, padding: '0 4px', background: T.s3, border: `1px solid ${T.s3Line}`, borderBottom: 'none', borderRadius: '9px 9px 0 0' }}>
           <IconButton icon={<FaBold size={11}/>} label={t.tBold} onClick={() => fmt('*')}/>
@@ -337,7 +342,7 @@ function TemplateEditor({ t, lang, cfg, tpl, leads, onClose, onSave, toast, onGo
           <IconButton ref={emojiBtn} icon={<FaRegSmile size={13}/>} label={t.tEmoji} onClick={() => setEmojiOpen(true)} aria-haspopup="dialog"/>
           <Button ref={varBtn} variant="plain" size="sm" icon={<FaTag size={10}/>} onClick={() => setVarOpen(true)} aria-haspopup="menu">{t.tVar}</Button>
           <div style={{ flex: 1 }}/>
-          <span aria-live="polite" style={{ fontSize: 11.5, paddingInline: 8, fontVariantNumeric: 'tabular-nums', color: tooLong ? T.redText : text.length > 700 ? T.amberText : T.text3 }}>{t.chars(text.length)}</span>
+          <span aria-live="polite" style={{ fontSize: 11.5, paddingInline: 8, fontVariantNumeric: 'tabular-nums', color: tooLong ? T.redText : text.length > 220 ? T.amberText : T.text3 }}>{t.chars(text.length)}</span>
         </div>
         <textarea ref={ta} value={text} onChange={e => setText(e.target.value)} onKeyDown={onKey} dir={tab === 'he' ? 'rtl' : 'ltr'} lang={tab} placeholder={t.textPh} aria-label={tab === 'he' ? t.tabHe : t.tabEn}
           style={{ ...inputStyle, height: 200, padding: '10px 12px', borderRadius: '0 0 9px 9px', resize: 'none', lineHeight: 1.6, fontSize: 14, display: 'block' }}/>
@@ -356,7 +361,7 @@ function TemplateEditor({ t, lang, cfg, tpl, leads, onClose, onSave, toast, onGo
           <div style={{ color: T.amberText, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}><FaExclamationTriangle size={11}/>{t.enMissing}
             <Button size="sm" variant="brand" onClick={() => set({ en: x.he || '' })}>{t.copyHe}</Button></div>
         )}
-        {tooLong ? <div style={{ color: T.redText }}>{t.tooLong}</div> : text.length > 700 ? <div style={{ color: T.amberText }}>{t.longHint}</div> : null}
+        {tooLong ? <div style={{ color: T.redText }}>{t.tooLong}</div> : text.length > 220 ? <div style={{ color: T.amberText }}>{t.longHint}</div> : null}
       </div>
     </div>
   )
@@ -372,7 +377,7 @@ function TemplateEditor({ t, lang, cfg, tpl, leads, onClose, onSave, toast, onGo
       <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: T.text2, cursor: 'pointer' }}>
         <input type="checkbox" checked={hl} onChange={e => setHl(e.target.checked)} style={{ appearance: 'auto', width: 18, height: 18, minHeight: 0 }}/>{t.highlight}
       </label>
-      <PhonePreview text={rendered} lang={tab} highlight={hl} online={t.online} title={t.brand} fill/>
+      <PhonePreview text={rendered} image={x.image || ''} lang={tab} highlight={hl} online={t.online} title={t.brand} fill/>
       <div>
         <div style={{ fontSize: 12, fontWeight: 700, color: T.text2, marginBottom: 6 }}>{t.usedByLbl}</div>
         {uses.length ? (
@@ -410,7 +415,7 @@ function TemplateEditor({ t, lang, cfg, tpl, leads, onClose, onSave, toast, onGo
         {close => <div role="menu">{VARIABLES.map(v => <MenuItem key={v.key} onClick={() => { insert(`{${v.key}}`); close() }}><span style={{ flex: 1 }}>{isEn ? v.en : v.he}</span><code dir="ltr" style={{ fontSize: 11, color: T.text3 }}>{`{${v.key}}`}</code></MenuItem>)}</div>}
       </Popover>
       <Popover anchor={window.innerWidth <= 640 ? testBtnM : testBtn} open={testOpen} onClose={() => setTestOpen(false)} width={280} dir={dir} label={t.testMe}>
-        {close => <TestSend t={t} cfg={cfg} text={renderTemplate(x, previewLead, cfg, tab)} onDone={p => { toast(t.testSent(p)); close() }} onError={m => toast(`${t.error}: ${m}`, { tone: 'error' })}/>}
+        {close => <TestSend t={t} cfg={cfg} text={renderTemplate(x, previewLead, cfg, tab)} image={x.image || ''} onDone={p => { toast(t.testSent(p)); close() }} onError={m => toast(`${t.error}: ${m}`, { tone: 'error' })}/>}
       </Popover>
     </Modal>
   )
@@ -444,12 +449,12 @@ function EmojiGrid({ t, recent, onPick }) {
   )
 }
 
-function TestSend({ t, cfg, text, onDone, onError }) {
+function TestSend({ t, cfg, text, image = '', onDone, onError }) {
   const [p, setP] = useState(() => { try { return localStorage.getItem('afik_auto_test_phone') || cfg.vars?.phone || '' } catch { return cfg.vars?.phone || '' } })
   const [busy, setBusy] = useState(false)
   const go = async () => {
     setBusy(true)
-    try { await autoApi.post('auto-test', { text, phone: intlPhone(p) }); try { localStorage.setItem('afik_auto_test_phone', p) } catch {} onDone(p) }
+    try { await autoApi.post('auto-test', { text, image, phone: intlPhone(p) }); try { localStorage.setItem('afik_auto_test_phone', p) } catch {} onDone(p) }
     catch (e) { onError(e.message) } finally { setBusy(false) }
   }
   return (
@@ -498,7 +503,8 @@ function QuickSend({ t, lang, cfg, tpl, leads, states, onClose, toast }) {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}><b>{lead.name}</b><bdi dir="ltr" style={{ color: T.text3 }}>{lead.phone}</bdi><Button size="sm" onClick={() => setLead(null)}>{t.change}</Button></div>
-          <textarea value={text} onChange={e => setText(e.target.value)} rows={7} dir={lead.origin?.lang === 'en' ? 'ltr' : 'rtl'} style={{ ...inputStyle, height: 'auto', padding: '10px 12px', background: '#0B2A22', border: '1px solid rgba(37,211,102,.25)', color: T.wa.text, lineHeight: 1.6, fontSize: 13.5, resize: 'vertical' }}/>
+          {tpl.image && <img src={imageThumb(tpl.image, 320)} alt="" style={{ width: 120, height: 120, objectFit: 'cover', borderRadius: 10 }}/>}
+          <textarea value={text} onChange={e => setText(e.target.value)} rows={5} dir={lead.origin?.lang === 'en' ? 'ltr' : 'rtl'} style={{ ...inputStyle, height: 'auto', padding: '10px 12px', background: '#0B2A22', border: '1px solid rgba(37,211,102,.25)', color: T.wa.text, lineHeight: 1.6, fontSize: 13.5, resize: 'vertical' }}/>
         </div>
       )}
     </Modal>

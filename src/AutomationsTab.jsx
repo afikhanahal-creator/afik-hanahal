@@ -5,7 +5,8 @@
 // Server: lib/automations.js via /api/meta/auto-*. Shared logic: lib/automations-shared.js.
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { FaRobot, FaInbox, FaCommentDots, FaProjectDiagram, FaClock, FaBullhorn, FaHistory, FaSyncAlt, FaWhatsapp, FaPaperPlane, FaTimes, FaPen, FaCheckCircle, FaCalendarCheck, FaMoon, FaEllipsisV, FaArrowLeft, FaArrowRight, FaCheck, FaTimesCircle, FaSearch, FaRedo, FaUserSlash, FaDatabase, FaPowerOff, FaHeartbeat, FaSatelliteDish, FaExternalLinkAlt, FaChevronDown, FaExclamationTriangle, FaRandom } from 'react-icons/fa'
-import { DEFAULT_CONFIG, STAGES, CATEGORIES, templateList, renderTemplate, mergeConfig, ruleKind, isSendWindow, nextSendWindow, nextWindows, fmtHour, israelNow, classifyReply, matchedKeyword } from '../lib/automations-shared.js'
+import { DEFAULT_CONFIG, STAGES, CATEGORIES, templateList, renderTemplate, mergeConfig, ruleKind, isSendWindow, nextSendWindow, nextWindows, fmtHour, israelNow, classifyReply, matchedKeyword, templateImage } from '../lib/automations-shared.js'
+import { imageThumb } from './lib/templateImage.js'
 import { autoApi } from './AutomationsApi.jsx'
 import { T, AUTO_CSS, Button, IconButton, Card, Badge, FilterChip, Toggle, ModeSwitch, ModeBadge, StatTile, EmptyState, Skeleton, InlineError, Drawer, HealthItem, StatusPill, CopyField, SaveBar, useToasts, ConfirmProvider, useConfirm, Popover, MenuButton, MenuItem, MODE_COLOR, inputStyle, Field } from './automationsUI.jsx'
 import { WAText } from './waFormat.jsx'
@@ -587,6 +588,7 @@ function Today({ t, isEn, dir, cfg, tpls, tplName, stageName, leads, toast, conf
                           ) : (
                             <button type="button" onClick={() => setEditing(e => ({ ...e, [q.id]: true }))} title={t.editMsg} className="au-q-msg"
                               style={{ position: 'relative', minWidth: 0, textAlign: 'start', background: '#0B2A22', border: '1px solid rgba(37,211,102,.18)', color: T.wa.text, borderRadius: 10, padding: '9px 12px', paddingInlineEnd: 34, fontSize: 13, lineHeight: 1.55, cursor: 'text', fontFamily: 'inherit' }}>
+                              {(() => { const im = templateImage(tplOf(tplIdOf(q))); return im ? <img src={imageThumb(im, 200)} alt="" style={{ display: 'block', width: 84, height: 84, objectFit: 'cover', borderRadius: 7, marginBottom: 6 }}/> : null })()}
                               <span dir={q.lang === 'en' ? 'ltr' : 'rtl'} style={{ display: 'block', whiteSpace: 'pre-wrap' }}><WAText text={txt}/></span>
                               <FaPen size={10} aria-hidden style={{ position: 'absolute', top: 11, insetInlineEnd: 11, opacity: .6 }}/>
                             </button>
