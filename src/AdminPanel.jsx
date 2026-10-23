@@ -4,6 +4,7 @@
 // Shared constants / helpers still live in App.jsx and are imported back from there — that is a
 // dynamic→static cycle, which is safe: by the time this chunk evaluates, App.jsx already has.
 import { externalizeInlinePhotos } from './inlinePhotos.js'
+import { onSync, busUp, debounce } from './lib/syncBus.js'
 import { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react'
 import { LAYERS_DEF as GM_LAYERS, BG_OPTIONS as GM_BG_OPTIONS, LAYER_CATS_DEF as GM_LAYER_CATS } from './govmapLayers.js'
 import { FaSun, FaMoon, FaPlus, FaEnvelope, FaFacebookF, FaInstagram, FaBed, FaRulerCombined, FaBuilding, FaTools, FaMapMarkerAlt, FaPhone, FaLeaf, FaCalendarAlt, FaTimes, FaWhatsapp, FaFileAlt, FaHome, FaSearch, FaBalanceScale, FaHandshake, FaLock, FaKey, FaGlobe, FaBolt, FaChartLine, FaEye, FaPlay, FaFire, FaShareAlt, FaHeart, FaCamera, FaUser, FaUsers, FaDesktop, FaMobileAlt, FaTabletAlt, FaRobot, FaExclamationTriangle, FaChartBar, FaThumbsUp, FaImage, FaPencilAlt, FaCrown, FaMousePointer, FaDollarSign, FaVideo, FaLink, FaCheckCircle, FaTrash, FaClipboardList } from 'react-icons/fa'
@@ -1551,7 +1552,8 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   useEffect(() => {
     loadAutoCfg()
     const first = setTimeout(runAutomations, 6000)
-    const iv = setInterval(() => { if (!document.hidden) runAutomations() }, 5 * 60 * 1000)
+    // the server's own tick runs the engine too; the open panel refreshes its approval queue every 15 minutes (it was 5)
+    const iv = setInterval(() => { if (!document.hidden) runAutomations() }, 15 * 60 * 1000)
     return () => { clearTimeout(first); clearInterval(iv) }
   }, [loadAutoCfg, runAutomations])
   const [chatSearch, setChatSearch] = useState('')
@@ -1698,10 +1700,13 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
       } catch {}
     }
     poll()
-    const t = setInterval(poll, 180000)
-    const onFocus = () => poll()
+    // a new intake property is announced by the database (src/lib/syncBus.js); the 3-minute check runs only while that is down
+    const soon = debounce(poll, 1500)
+    const off = onSync(m => { if (m.t === 'seller_submissions' || m.t === '*') soon() })
+    const t = setInterval(() => { if (!busUp() && !document.hidden) poll() }, 180000)
+    const onFocus = () => { if (!busUp()) poll() }
     window.addEventListener('focus', onFocus)
-    return () => { stop = true; clearInterval(t); window.removeEventListener('focus', onFocus) }
+    return () => { stop = true; off(); clearInterval(t); window.removeEventListener('focus', onFocus) }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const addToast = useCallback((title, body, targetTab, icon = '🔔', durationMs = 6000) => {
@@ -1810,16 +1815,26 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
       .finally(() => setLeadsSyncing(false))
   }
 
-  // Sync on admin mount + every 60 s while visible, and at once when the window comes back (a note written on the
-  // phone shows on the computer) — cloud is always source of truth
+  // Sync on admin mount, then only when something changed: the database announces every change to a lead (src/lib/syncBus.js —
+  // a note, a rename, a task written on another screen, device or by the server) and only the changed leads are fetched.
+  // No timer while the bus is up; a slow 3-minute check only while it is down. Also at once when the window comes back.
+  const syncLeadsRef = useRef(syncLeadsFromServer)
+  syncLeadsRef.current = syncLeadsFromServer
   useEffect(() => {
-    syncLeadsFromServer()
-    const iv = setInterval(() => { if (!document.hidden) syncLeadsFromServer() }, 60000)
+    syncLeadsRef.current()
+    const soon = debounce(() => { if (!document.hidden) syncLeadsRef.current() }, 800)
+    let missed = false   // a change announced while the window was hidden is fetched when it comes back
+    const off = onSync(m => {
+      if (m.t !== 'contacts' && m.t !== '*') return
+      if (document.hidden) { missed = true; return }
+      soon()
+    })
+    const iv = setInterval(() => { if (!busUp() && !document.hidden) syncLeadsRef.current() }, 180000)
     let last = Date.now()
-    const back = () => { if (!document.hidden && Date.now() - last > 5000) { last = Date.now(); syncLeadsFromServer() } }
+    const back = () => { if (!document.hidden && (missed || !busUp()) && Date.now() - last > 5000) { missed = false; last = Date.now(); syncLeadsRef.current() } }
     document.addEventListener('visibilitychange', back); window.addEventListener('focus', back)
-    return () => { clearInterval(iv); document.removeEventListener('visibilitychange', back); window.removeEventListener('focus', back) }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+    return () => { off(); clearInterval(iv); document.removeEventListener('visibilitychange', back); window.removeEventListener('focus', back) }
+  }, [])
 
   // ── WhatsApp CRM helpers ──────────────────────────────────────────────────
   const intlPhoneFmt = p => {
