@@ -495,18 +495,18 @@ async function handleMessages(req, res) {
   }
 
   if (req.method === 'POST') {
-    const { lead_id, message } = req.body || {}
-    if (!lead_id || !message) return res.status(400).json({ error: 'lead_id and message required' })
+    const { lead_id, message, image } = req.body || {}
+    if (!lead_id || (!message && !image)) return res.status(400).json({ error: 'lead_id and message required' })
 
     const { data: lead, error: leadErr } = await client.from('meta_leads').select('id,phone,wa_sent').eq('id', lead_id).single()
     if (leadErr || !lead)  return res.status(404).json({ error: 'Lead not found' })
     if (!lead.phone)       return res.status(400).json({ error: 'Lead has no phone number' })
 
     // From the office WhatsApp (Green API) — the same number as the welcome message, so the lead sees one conversation
-    const sent = await Auto.sendText(lead.phone, String(message).slice(0, 4000))
+    const sent = await Auto.sendText(lead.phone, String(message || '').slice(0, 4000), { image })
     if (!sent.ok) return res.status(502).json({ error: sent.error || 'send failed', quota: !!sent.quota })
     const { data: newMsg, error: insertErr } = await client.from('meta_messages')
-      .insert({ lead_id: lead.id, direction: 'out', message, wa_message_id: sent.idMessage || null })
+      .insert({ lead_id: lead.id, direction: 'out', message: message || '📷', wa_message_id: sent.idMessage || null })
       .select('*').single()
     if (insertErr) return res.status(500).json({ error: insertErr.message })
     if (!lead.wa_sent) await client.from('meta_leads').update({ wa_sent: true }).eq('id', lead.id).then(() => {}, () => {})
@@ -791,7 +791,7 @@ async function handleConnect(req, res) {
 async function handleLeadWelcome(req, res) {
   if (!checkAuth(req)) return res.status(401).json({ error: 'Unauthorized' })
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
-  const { id, text, templateId } = req.body || {}
+  const { id, text, templateId, image } = req.body || {}
   if (!id) return res.status(400).json({ error: 'id required' })
   if (text != null && (typeof text !== 'string' || !text.trim() || text.length > 4000)) return res.status(400).json({ error: 'invalid text' })
   const client = sb()
@@ -799,7 +799,7 @@ async function handleLeadWelcome(req, res) {
   if (!lead) return res.status(404).json({ error: 'lead not found' })
   if (!lead.phone) return res.status(400).json({ error: 'no phone' })
   // The button means "send it now", whatever the automatic rule's mode
-  const r = await Auto.welcomeExternalLead({ id: lead.id, name: lead.name || '', phone: lead.phone, source: 'meta', campaignName: lead.campaign_name || lead.form_name || '' }, { source: 'meta', force: true, text: text || '', templateId: typeof templateId === 'string' ? templateId : '' })
+  const r = await Auto.welcomeExternalLead({ id: lead.id, name: lead.name || '', phone: lead.phone, source: 'meta', campaignName: lead.campaign_name || lead.form_name || '' }, { source: 'meta', force: true, text: text || '', templateId: typeof templateId === 'string' ? templateId : '', ...(typeof image === 'string' ? { image } : {}) })
   if (r.ok) {
     await client.from('meta_messages').insert({ lead_id: lead.id, direction: 'out', message: r.text, wa_message_id: r.idMessage || null }).then(() => {}, () => {})
     await client.from('meta_leads').update({ wa_sent: true }).eq('id', lead.id).then(() => {}, () => {})
@@ -916,7 +916,7 @@ async function handleAutomations(req, res, action) {
     if (action === 'auto-skip')   return res.status(200).json({ ok: await Auto.skipItem(b.leadId, String(b.ruleKey || '')) })
     if (action === 'auto-optout') return res.status(200).json({ ok: await Auto.setOptOut(b.leadId, !!b.optOut) })
     if (action === 'auto-test') {
-      const r = await Auto.sendTest(String(b.text || 'הודעת בדיקה ממערכת האוטומציות של אפיק הנחל ✅'), b.phone)
+      const r = await Auto.sendTest(String(b.text || 'הודעת בדיקה ממערכת האוטומציות של אפיק הנחל ✅'), b.phone, typeof b.image === 'string' ? b.image : '')
       return res.status(r.ok ? 200 : 502).json(r)
     }
     if (action === 'auto-log')    return res.status(200).json(await Auto.listLog(Number(req.query?.limit) || 150))
@@ -1072,13 +1072,13 @@ async function handleChat(req, res, action) {
       return res.status(200).json(Array.isArray(data) ? data.map(slimGreenMsg) : [])
     }
 
-    // POST /api/meta/chat-send { phone, message } → sendMessage
+    // POST /api/meta/chat-send { phone, message, image? } → sendMessage (or sendFileByUrl: a template's picture + caption)
     if (action === 'chat-send') {
-      const { phone, message } = req.body || {}
+      const { phone, message, image } = req.body || {}
       const p = normalizePhone(phone)
-      if (!p || !message) return res.status(400).json({ error: 'phone and message required' })
+      if (!p || (!message && !image)) return res.status(400).json({ error: 'phone and message required' })
       // The engine's sender: retries a 429, remembers a blocked plan (466) for the panels, clears it on success
-      const r = await Auto.sendText(p, message)
+      const r = await Auto.sendText(p, message || '', { image })
       if (!r.ok) return res.status(502).json({ error: r.error, quota: !!r.quota })
       return res.status(200).json({ ok: true, idMessage: r.idMessage || null })
     }

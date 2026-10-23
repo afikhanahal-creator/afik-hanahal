@@ -55,7 +55,11 @@ export const AUTO_CSS = `
   .au-q-acts{display:flex;gap:6px;align-items:center}
   .au-q-tools{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
   .au-q-msg:hover{border-color:rgba(37,211,102,.45)!important}
-  .au-tpl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+  .au-tpl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;align-items:start}
+  .au-wa-bub{background:#0B2A22;border:1px solid rgba(37,211,102,.18);color:#E9EDEF}
+  html[data-admin-theme="light"] .au-wa-bub{background:#D9FDD3;border-color:rgba(11,20,26,.06);color:#111B21}
+  .au-tpl-card{transition:border-color .15s ease,box-shadow .15s ease}
+  .au-tpl-card:hover{border-color:rgba(var(--brand-rgb),.35)!important;box-shadow:0 4px 18px rgba(0,0,0,.08)}
   .au-ed-body{display:grid;grid-template-columns:minmax(0,1fr) 400px;flex:1;min-height:0}
   .au-branches{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
   .au-nav{display:flex;gap:6px}
@@ -429,7 +433,7 @@ export function useToasts() {
 }
 
 // ── C16 Phone preview (WhatsApp dark) ──────────────────────────────────────────
-export function PhonePreview({ text, lang = 'he', online = 'מחובר/ת', title = 'אפיק הנחל', time = '14:32', fill, highlight }) {
+export function PhonePreview({ text, image = '', lang = 'he', online = 'מחובר/ת', title = 'אפיק הנחל', time = '14:32', fill, highlight }) {
   return (
     <div style={{ width: fill ? '100%' : 340, maxWidth: '100%', margin: '0 auto', borderRadius: 28, border: '6px solid #1A1D29', overflow: 'hidden', background: T.wa.chat, boxShadow: '0 12px 36px rgba(0,0,0,.45)' }}>
       <div dir={lang === 'en' ? 'ltr' : 'rtl'} style={{ height: 52, background: T.wa.header, display: 'flex', alignItems: 'center', gap: 10, padding: '0 12px' }}>
@@ -438,8 +442,10 @@ export function PhonePreview({ text, lang = 'he', online = 'מחובר/ת', titl
       </div>
       <div style={{ padding: 14, minHeight: fill ? 360 : 300, backgroundImage: 'radial-gradient(rgba(255,255,255,.035) 1px, transparent 1px)', backgroundSize: '16px 16px' }}>
         <div dir={lang === 'en' ? 'ltr' : 'rtl'} lang={lang}
-          style={{ position: 'relative', background: T.wa.out, color: T.wa.text, borderRadius: '10px 10px 2px 10px', padding: '7px 10px 18px', maxWidth: '88%', marginInlineStart: 'auto', fontSize: 14.2, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word', boxShadow: '0 1px 1px rgba(0,0,0,.2)' }}>
-          {text ? <WAText text={text} highlight={highlight}/> : <span style={{ opacity: .45 }}>…</span>}
+          style={{ position: 'relative', background: T.wa.out, color: T.wa.text, borderRadius: '10px 10px 2px 10px', padding: image ? '3px 3px 18px' : '7px 10px 18px', maxWidth: image ? '78%' : '88%', marginInlineStart: 'auto', fontSize: 14.2, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word', boxShadow: '0 1px 1px rgba(0,0,0,.2)' }}>
+          {/* a template's picture: WhatsApp shows it on top of the bubble, the text is its caption */}
+          {image && <img src={`https://wsrv.nl/?url=${encodeURIComponent(image)}&w=520&output=webp&q=75`} alt="" style={{ display: 'block', width: '100%', maxHeight: 300, objectFit: 'cover', borderRadius: 8, marginBottom: text ? 4 : 0 }}/>}
+          {text ? <span style={image ? { display: 'block', padding: '2px 7px 0' } : undefined}><WAText text={text} highlight={highlight}/></span> : !image && <span style={{ opacity: .45 }}>…</span>}
           <span style={{ position: 'absolute', bottom: 4, insetInlineEnd: 8, fontSize: 11, color: T.wa.meta, direction: 'ltr' }}>{time} <span style={{ color: T.wa.link }}>✓✓</span></span>
         </div>
       </div>

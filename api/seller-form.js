@@ -754,7 +754,8 @@ export default async function handler(req, res) {
       if (!WIZ_KINDS[kind][0](type)) return res.status(400).json({ ok: false, error: 'file type not allowed for this kind' })
       if (!size || size > WIZ_KINDS[kind][1] * 1024 * 1024) return res.status(400).json({ ok: false, error: `file too large (max ${WIZ_KINDS[kind][1]}MB)` })
       const client = sb()
-      const path = `wizard/${new Date().toISOString().slice(0, 7)}/${Date.now()}-${rand(3)}-${safeName(b.name)}`
+      // folder 'templates' = a WhatsApp template's picture (src/lib/templateImage.js); everything else is the property wizard's
+      const path = `${b.folder === 'templates' ? 'templates' : 'wizard'}/${new Date().toISOString().slice(0, 7)}/${Date.now()}-${rand(3)}-${safeName(b.name)}`
       let { data, error } = await client.storage.from(PUBLIC_BUCKET).createSignedUploadUrl(path)
       if (error && /not found|does not exist/i.test(error.message || '')) { await ensureBucket(client, PUBLIC_BUCKET, true); ({ data, error } = await client.storage.from(PUBLIC_BUCKET).createSignedUploadUrl(path)) }
       if (error) return res.status(502).json({ ok: false, error: `storage: ${error.message}` })
