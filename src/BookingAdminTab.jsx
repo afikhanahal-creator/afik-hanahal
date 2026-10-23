@@ -257,7 +257,7 @@ function useCopy() {
   return [k, (text, key) => navigator.clipboard?.writeText(text).then(() => { setK(key); setTimeout(() => setK(''), 1600) })]
 }
 
-export default function BookingAdminTab({ lang = 'he' }) {
+export default function BookingAdminTab({ lang = 'he', leads = [] }) {
   const t = TR[lang] || TR.he
   const [state, setState] = useState(null)
   const [err, setErr] = useState('')
@@ -300,9 +300,12 @@ export default function BookingAdminTab({ lang = 'he' }) {
   const calStatus = cal.connected ? (cal.error ? 'err' : 'on') : 'off'
   const dot = { on: '#34C759', off: T.grey, err: T.amber }[calStatus]
   const now = Date.now()
-  const live = state.bookings.filter(b => b.status !== 'cancelled')
-  const upcoming = state.bookings.filter(b => Date.parse(b.end) > now).sort((a, b) => Date.parse(a.start) - Date.parse(b.start))
-  const past = state.bookings.filter(b => Date.parse(b.end) <= now)
+  // a call shows its lead's current name (renamed on the board, the card, the Lead Center or another device), not the one typed at booking
+  const leadName = id => { const l = id != null && leads.find(x => String(x.id) === String(id)); return (l?.name || '').trim() }
+  const bookings = state.bookings.map(b => { const n = leadName(b.leadId); return n && n !== b.name ? { ...b, name: n } : b })
+  const live = bookings.filter(b => b.status !== 'cancelled')
+  const upcoming = bookings.filter(b => Date.parse(b.end) > now).sort((a, b) => Date.parse(a.start) - Date.parse(b.start))
+  const past = bookings.filter(b => Date.parse(b.end) <= now)
   const weekEnd = now + 7 * 864e5
   const kUpcoming = live.filter(b => Date.parse(b.end) > now).length
   const kWeek = live.filter(b => Date.parse(b.start) > now && Date.parse(b.start) < weekEnd).length

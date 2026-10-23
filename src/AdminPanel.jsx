@@ -3317,7 +3317,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
         )}
         {tab==='bookings' && (
           <Suspense fallback={<AdminTabLoader label="טוען תיאום פגישות…"/>}>
-            <BookingAdminTab lang={lang}/>
+            <BookingAdminTab lang={lang} leads={leads}/>
           </Suspense>
         )}
         {tab==='content' && (
