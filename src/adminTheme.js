@@ -89,4 +89,14 @@ html[data-admin-theme] .admin-shell { transition: background-color .25s ease, co
 .admin-cmdk-btn:hover { border-color: rgba(var(--brand-rgb),.45) !important; color: var(--au-text2) !important; }
 @media (max-width: 1250px) { .admin-cmdk-btn { min-width: 0 !important; } .admin-cmdk-btn span, .admin-cmdk-btn kbd { display: none; } }
 @media (prefers-reduced-motion: reduce) { html[data-admin-theme] .admin-shell { transition: none; } }
+/* CRM 2.0 — shared page pieces: a section card, the settings layout with a sticky index */
+.crm-sec { background: var(--au-card-solid, var(--au-s2)); border: 1px solid var(--au-s2-line); border-radius: 16px; padding: 22px; scroll-margin-top: 12px; box-shadow: var(--au-card-shadow); }
+.crm-anchor { scroll-margin-top: 12px; }
+.crm-settings { display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 24px; align-items: start; }
+.crm-set-nav { position: sticky; top: 0; z-index: 2; display: flex; flex-direction: column; gap: 2px; padding: 12px; border: 1px solid var(--au-s2-line); border-radius: 16px; background: var(--au-card-solid, var(--au-s2)); box-shadow: var(--au-card-shadow); }
+.crm-set-nav-h { font-size: 12px; font-weight: 700; color: var(--au-text3); padding: 4px 10px 8px; letter-spacing: .02em; }
+.crm-set-nav a { padding: 9px 10px; border-radius: 9px; color: var(--au-text2); text-decoration: none; font-size: 13px; font-weight: 600; }
+.crm-set-nav a:hover { background: rgba(var(--brand-rgb), .08); color: var(--au-text); }
+.crm-set-nav a:focus-visible { outline: 2px solid var(--au-brand); outline-offset: 1px; }
+@media (max-width: 1000px) { .crm-settings { grid-template-columns: 1fr; } .crm-set-nav { position: static; flex-direction: row; flex-wrap: wrap; } .crm-set-nav-h { width: 100%; } }
 `

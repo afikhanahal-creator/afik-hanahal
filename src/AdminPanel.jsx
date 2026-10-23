@@ -2969,11 +2969,11 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
           </div>
         )}
         {!notifBannerDismissed && notifPerm === 'denied' && (
-          <div className="admin-notice" style={{ background:'rgba(156,163,175,.07)', border:'1px solid rgba(156,163,175,.25)', borderRadius:12, padding:'9px 14px', margin: standalone ? '14px 28px 0' : '0 0 14px', display:'flex', alignItems:'center', gap:10, direction:'rtl', flexWrap:'wrap', flexShrink:0 }}>
-            <span style={{ fontSize:18, flexShrink:0 }}>🔕</span>
-            <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontSize:13, fontWeight:700, color:'rgba(var(--ink),.7)' }}>{lang === 'en' ? 'Notifications are blocked in this browser' : 'התראות חסומות בדפדפן'}</div>
-              <div className="admin-notice-detail" style={{ fontSize:11, color:'rgba(var(--ink),.55)', marginTop:2 }}>{lang === 'en' ? 'To allow them: browser settings → Site settings → Notifications → allow this site' : 'כדי לאפשר: הגדרות הדפדפן ← הגדרות אתר ← התראות ← לאפשר לאתר הזה'}</div>
+          <div className="admin-notice" style={{ background:'rgba(156,163,175,.07)', border:'1px solid rgba(156,163,175,.25)', borderRadius:12, padding:'7px 14px', margin: standalone ? '14px 28px 0' : '0 0 14px', display:'flex', alignItems:'center', gap:10, direction:'rtl', flexWrap:'wrap', flexShrink:0 }}>
+            <span style={{ fontSize:14, flexShrink:0 }}>🔕</span>
+            <div style={{ flex:1, minWidth:0, display:'flex', gap:8, alignItems:'baseline', flexWrap:'wrap' }}>
+              <div style={{ fontSize:12.5, fontWeight:700, color:'rgba(var(--ink),.7)' }}>{lang === 'en' ? 'Notifications are blocked in this browser' : 'התראות חסומות בדפדפן'}</div>
+              <div className="admin-notice-detail" style={{ fontSize:11.5, color:'rgba(var(--ink),.55)' }}>{lang === 'en' ? 'To allow them: browser settings → Site settings → Notifications → allow this site' : 'כדי לאפשר: הגדרות הדפדפן ← הגדרות אתר ← התראות ← לאפשר לאתר הזה'}</div>
             </div>
             <button onClick={() => setNotifBannerDismissed(true)} aria-label={lang === 'en' ? 'Dismiss' : 'סגירה'} style={{ background:'none', border:'none', color:'rgba(156,163,175,.45)', cursor:'pointer', fontSize:16, lineHeight:1, padding:'0 4px', flexShrink:0 }}>×</button>
           </div>
@@ -3823,7 +3823,14 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
         })()}
 
         {tab==='settings' && (
-          <div style={{ display:'flex', flexDirection:'column', gap:24 }}>
+          <div className="crm-settings">
+          <nav className="crm-set-nav" aria-label="סעיפי ההגדרות">
+            <div className="crm-set-nav-h">הגדרות</div>
+            {[['logo', 'לוגו האתר'], ['govmap', 'מפתח GovMap'], ['email', 'התראות במייל'], ['whatsapp', 'וואטסאפ ללידים'], ['webhook', 'Webhook ל-CRM'], ['metabot', 'בוט וואטסאפ של Meta'], ['metasources', 'חשבונות Meta ומקורות לידים'], ['pixel', 'פיקסל Meta'], ['layers', 'שכבות ומפות GovMap']].map(([id, label]) => (
+              <a key={id} href={`#set-${id}`} onClick={e => { e.preventDefault(); document.getElementById(`set-${id}`)?.scrollIntoView({ behavior:'smooth', block:'start' }) }}>{label}</a>
+            ))}
+          </nav>
+          <div style={{ display:'flex', flexDirection:'column', gap:20, minWidth:0 }}>
 
             {/* ── Settings header with auto-save indicator + save button ── */}
             <div style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 18px', background:`${C.green}0D`, border:`1px solid ${C.green}28`, borderRadius:12, direction:'rtl', flexWrap:'wrap' }}>
@@ -3845,7 +3852,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
             </div>
 
             {/* ── Logo Size ── */}
-            <div style={{ background:'rgba(var(--ov),.03)', borderRadius:12, padding:20 }}>
+            <div className="crm-sec" id="set-logo">
               <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:16 }}>
                 <span style={{ fontSize:20 }}>🖼</span>
                 <div>
@@ -3886,7 +3893,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
             </div>
 
             {/* GovMap API Token */}
-            <div style={{ background:'rgba(var(--ov),.03)', borderRadius:12, padding:20 }}>
+            <div className="crm-sec" id="set-govmap">
               <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:16 }}>
                 <FaMapMarkerAlt size={18} style={{ color:C.purple }}/>
                 <div>
@@ -3939,7 +3946,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
             </div>
 
             {/* ── Email Notifications ── */}
-            <div style={{ background:'rgba(var(--ov),.03)', borderRadius:12, padding:20 }}>
+            <div className="crm-sec" id="set-email">
               <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:16 }}>
                 <FaEnvelope size={18} style={{ color:'#EA4335' }}/>
                 <div>
@@ -3970,7 +3977,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
             </div>
 
             {/* WhatsApp Automation */}
-            <div style={{ background:'rgba(var(--ov),.03)', borderRadius:12, padding:20 }}>
+            <div className="crm-sec" id="set-whatsapp">
               <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
                 <div style={{ display:'flex', alignItems:'center', gap:10 }}>
                   <FaWhatsapp size={18} style={{ color:'#25D366' }}/>
@@ -4072,7 +4079,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
             </div>
 
             {/* CRM Webhook */}
-            <div style={{ background:'rgba(var(--ov),.03)', borderRadius:12, padding:20 }}>
+            <div className="crm-sec" id="set-webhook">
               <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:16 }}>
                 <FaLink size={16} style={{ color:C.purple }}/>
                 <div>
@@ -4127,13 +4134,13 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
             </div>
 
             {/* ── Meta WhatsApp Business API Bot ─────────────────────────── */}
-            <MetaWABotCard C={C} isDark={isDark}/>
+            <div id="set-metabot" className="crm-anchor"><MetaWABotCard C={C} isDark={isDark}/></div>
 
             {/* ── Meta Accounts → Lead Sources ───────────────────────────── */}
-            <MetaLeadSourcesCard C={C}/>
+            <div id="set-metasources" className="crm-anchor"><MetaLeadSourcesCard C={C}/></div>
 
             {/* ── Meta Pixel ─────────────────────────────────────────────────── */}
-            <div style={{ background:'rgba(var(--ov),.03)', borderRadius:12, padding:20 }}>
+            <div className="crm-sec" id="set-pixel">
               <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:16 }}>
                 <div style={{ width:32, height:32, borderRadius:8, background:'rgba(24,119,242,.15)', display:'flex', alignItems:'center', justifyContent:'center' }}>
                   <FaFacebookF size={14} style={{ color:'#1877F2' }}/>
@@ -4201,6 +4208,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
               </a>
             </div>
 
+            <div id="set-layers" className="crm-anchor"/>
             {/* GovMap Management Panel */}
             {govmapToken ? (
               <div style={{ background:'rgba(var(--ov),.02)', borderRadius:12, border:`1px solid ${C.purple}22`, overflow:'hidden' }}>
@@ -4288,6 +4296,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
                 הגדר מפתח API של GovMap למעלה כדי לנהל שכבות ומפות רקע
               </div>
             )}
+          </div>
           </div>
         )}
         </div>

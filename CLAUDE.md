@@ -450,7 +450,9 @@ the leading 0 plus a `+972…` column, dates in Israel time, budget as a number;
 customer list** (`metaAudienceCsv`: CSV with Meta's identifiers `email, phone (972…), fn, ln, ct, country`, one row per person —
 duplicates by phone / email merged, rows with neither left out, people who opted out left out unless ticked; no BOM; cells
 that could start a formula are prefixed; `meta_audience_YYYY-MM-DD.csv`) for a Custom Audience and a Lookalike in Ads Manager.
-Built in the browser from the loaded leads; nothing is uploaded anywhere. Desktop pages use the whole width (the automations,
+Built in the browser from the loaded leads; nothing is uploaded anywhere. **Settings** (`/admin-panel/settings`) has a sticky
+index of its sections (`.crm-settings` / `.crm-set-nav`, each section a `.crm-sec` card with an `id="set-…"` anchor — shared CSS
+at the end of `ADMIN_THEME_CSS`). Desktop pages use the whole width (the automations,
 bulk sends and the in-site admin window lost their max-widths).
 
 ### Image library (admin "תמונות האתר", `/admin-panel/media`)
