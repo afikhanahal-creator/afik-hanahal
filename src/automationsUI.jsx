@@ -315,7 +315,7 @@ export function Drawer({ open, onClose, title, sub, children, dir }) {
 }
 
 // Anchored popover (bottom sheet under 640px). Children receive a close() fn.
-export function Popover({ anchor, open, onClose, children, width = 260, dir, label }) {
+export function Popover({ anchor, open, onClose, children, width = 260, dir, label, maxHeight = 340 }) {
   const ref = useRef(null)
   const [pos, setPos] = useState(null)
   const mobile = typeof window !== 'undefined' && window.innerWidth <= 640
@@ -330,8 +330,9 @@ export function Popover({ anchor, open, onClose, children, width = 260, dir, lab
   }, [open, anchor, width, dir, mobile])
   useEffect(() => {
     if (!open) return
-    const onDown = e => { if (ref.current && !ref.current.contains(e.target) && !anchor?.current?.contains(e.target)) onClose() }
-    const onKey = e => { if (e.key === 'Escape') { onClose(); anchor?.current?.focus?.() } }
+    // a date picker opened from inside the popover lives in its own portal (DateTimePicker): a click there isn't "outside"
+    const onDown = e => { if (e.target?.closest?.('.dtp-pop,.dtp-sheet-bg')) return; if (ref.current && !ref.current.contains(e.target) && !anchor?.current?.contains(e.target)) onClose() }
+    const onKey = e => { if (e.key === 'Escape') { e.preventDefault(); onClose(); anchor?.current?.focus?.() } }   // preventDefault: a card under it stays open
     document.addEventListener('mousedown', onDown); document.addEventListener('keydown', onKey)
     setTimeout(() => ref.current?.querySelector('[data-autofocus],input,button')?.focus(), 20)
     return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey) }
@@ -346,7 +347,7 @@ export function Popover({ anchor, open, onClose, children, width = 260, dir, lab
     </div>
   ) : pos && (
     <div className="au" dir={dir}>
-      <div ref={ref} role="dialog" aria-label={label} className="au-in" style={{ position: 'fixed', zIndex: 2700, left: pos.left, top: pos.top, bottom: pos.bottom, width, maxHeight: 340, overflow: 'auto', background: T.s2, border: `1px solid ${T.s2Line}`, borderRadius: 12, padding: 6, boxShadow: T.shadow3, color: T.text }}>
+      <div ref={ref} role="dialog" aria-label={label} className="au-in" style={{ position: 'fixed', zIndex: 2700, left: pos.left, top: pos.top, bottom: pos.bottom, width, maxHeight, overflow: 'auto', background: T.s2, border: `1px solid ${T.s2Line}`, borderRadius: 12, padding: 6, boxShadow: T.shadow3, color: T.text }}>
         {typeof children === 'function' ? children(onClose) : children}
       </div>
     </div>

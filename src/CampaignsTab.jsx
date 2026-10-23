@@ -6,6 +6,7 @@ import { FaBullhorn, FaPlus, FaCalendarAlt, FaUsers, FaPaperPlane, FaMoon, FaChe
 import { T, Button, IconButton, Card, Badge, FilterChip, EmptyState, Skeleton, Modal, MenuButton, MenuItem, ProgressBar, PhonePreview, ModeSwitch, Field, inputStyle, useConfirm } from './automationsUI.jsx'
 import { STAGES, renderTemplate, leadLang, intlPhone, isSendWindow, nextSendWindow, CATEGORIES } from '../lib/automations-shared.js'
 import { autoApi } from './AutomationsApi.jsx'
+import DateTimePicker from './DateTimePicker.jsx'
 
 const TR = {
   he: {
@@ -377,8 +378,10 @@ function Wizard({ t, lang, cfg, tpls, leads, states, stageName, init, pingActive
               {when === 'later' && (
                 <div className="au-in" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                    <Field label={t.date} htmlFor="au-date"><input id="au-date" type="date" dir="ltr" value={date} min={dateStr(new Date())} onChange={e => setDate(e.target.value)} style={{ ...inputStyle, width: 180, colorScheme: 'dark' }}/></Field>
-                    <Field label={t.time} htmlFor="au-time"><input id="au-time" type="time" step="1800" dir="ltr" value={time} onChange={e => setTime(e.target.value)} style={{ ...inputStyle, width: 130, colorScheme: 'dark' }}/></Field>
+                    <Field label={`${t.date} · ${t.time}`} htmlFor="au-date">
+                      <DateTimePicker id="au-date" value={date ? `${date}T${time || '10:00'}` : ''} format="local" lang={lang} min={dateStr(new Date())} clearable={false} label={t.date} style={{ minWidth: 260 }}
+                        onChange={v => { if (!v) return; setDate(v.slice(0, 10)); setTime(v.slice(11, 16)) }}/>
+                    </Field>
                   </div>
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                     <FilterChip onClick={() => quick('hour')}>{t.qHour}</FilterChip><FilterChip onClick={() => quick('tmr')}>{t.qTomorrow}</FilterChip><FilterChip onClick={() => quick('sun')}>{t.qSunday}</FilterChip>

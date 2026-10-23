@@ -11,6 +11,7 @@
 import { useMemo, useState, useRef } from 'react'
 import { Phone, MessageSquare, ExternalLink, AlertCircle, Clock, CalendarClock, ArrowUpRight, ArrowDownRight, Minus, Table2, BarChart3 } from 'lucide-react'
 import { leadCampaign, prettyLeadText } from './lib/leadFields.js'
+import DateTimePicker from './DateTimePicker.jsx'
 
 const FUNNEL = ['new', 'contacted', 'discovery', 'meeting', 'negotiating', 'won']
 const OUTCOMES = ['lost', 'irrelevant', 'nurture']
@@ -260,9 +261,9 @@ export default function LeadsDashboard({ leads = [], search = '', onClearSearch,
         </div>
         {preset === 'custom' && (
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: C.text2 }}>
-            <input type="date" value={from} max={to} onChange={e => setFrom(e.target.value)} aria-label={L('מתאריך', 'From')} style={{ height: 32, borderRadius: 8, border: `1px solid ${C.line}`, background: C.card, color: C.text, padding: '0 8px', fontFamily: 'inherit' }}/>
+            <DateTimePicker value={from} onChange={v => v && setFrom(v)} format="date" max={to} lang={lang} size="sm" clearable={false} label={L('מתאריך', 'From')}/>
             –
-            <input type="date" value={to} min={from} onChange={e => setTo(e.target.value)} aria-label={L('עד תאריך', 'To')} style={{ height: 32, borderRadius: 8, border: `1px solid ${C.line}`, background: C.card, color: C.text, padding: '0 8px', fontFamily: 'inherit' }}/>
+            <DateTimePicker value={to} onChange={v => v && setTo(v)} format="date" min={from} lang={lang} size="sm" clearable={false} label={L('עד תאריך', 'To')}/>
           </span>
         )}
         <select value={src} onChange={e => setSrc(e.target.value)} aria-label={L('מקור', 'Source')} style={{ height: 36, borderRadius: 9, border: `1px solid ${C.line}`, background: C.card, color: C.text, padding: '0 10px', fontFamily: 'inherit', fontSize: 13 }}>

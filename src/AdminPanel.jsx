@@ -1735,6 +1735,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   }
 
   const leadsFullSynced = useRef(false)
+  const localEdits = useRef({})   // lead id → when it was last edited on this screen (see syncLeadsFromServer)
   const [leadsSyncError, setLeadsSyncError] = useState('')
   const syncLeadsFromServer = () => {
     if (leadsSyncing) return
@@ -1742,9 +1743,12 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     // First sync after opening the panel is a FULL sync (the newest 500 leads): a cursor saved in
     // this browser can be ahead of what the browser actually holds (cleared storage, quota), and an
     // incremental-only sync would then never bring those leads back. Later polls are incremental.
-    let since = ''
+    let since = '', changed = ''
     try { since = leadsFullSynced.current ? (localStorage.getItem('afik_leads_since') || '') : '' } catch {}
-    condFetchJson(`${CONTACTS_API}/api/contacts${since ? `?since=${encodeURIComponent(since)}` : ''}`, { Authorization: `Bearer ${ADMIN_TOKEN}` })
+    // `changed` = the newest updated_at seen: later polls also bring the leads edited elsewhere (a note, a rename, a
+    // follow-up task written on another screen, device or by the server), not only the new ones
+    try { changed = since ? (localStorage.getItem('afik_leads_changed') || '') : '' } catch {}
+    condFetchJson(`${CONTACTS_API}/api/contacts${since ? `?since=${encodeURIComponent(since)}${changed ? `&changed=${encodeURIComponent(changed)}` : ''}` : ''}`, { Authorization: `Bearer ${ADMIN_TOKEN}` })
       .then(res => {
         if (!res.ok) { setLeadsSyncError(`${res.status === 503 ? 'השרת לא הצליח לקרוא לידים מ-Supabase' : `סנכרון הלידים נכשל (${res.status || 'שגיאת רשת'})`}. הרשימה עלולה להיות חסרה.${res.error ? ` פרטי השגיאה: ${String(res.error).slice(0, 220)}` : ''}`); return Promise.reject() }
         setLeadsSyncError(''); leadsFullSynced.current = true
@@ -1754,6 +1758,8 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
         if (!Array.isArray(serverLeads)) return
         const newest = serverLeads.map(s => s.created_at).filter(Boolean).sort().pop()
         if (newest && newest > since) { try { localStorage.setItem('afik_leads_since', newest) } catch {} }
+        const newestChange = serverLeads.map(s => s.updated_at).filter(Boolean).sort((a, b) => Date.parse(a) - Date.parse(b)).pop()
+        if (newestChange && (!changed || Date.parse(newestChange) > Date.parse(changed))) { try { localStorage.setItem('afik_leads_changed', newestChange) } catch {} }
         const deletedIds = new Set(
           JSON.parse(localStorage.getItem(LEADS_DELETED) || '[]').map(String)
         )
@@ -1783,10 +1789,13 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
             })
           // The full sync (on opening the panel) also refreshes the leads this browser already holds: a rename in the
           // Lead Center, the automations' state or a fix made on the server reach the board (it used to add new leads only)
-          if (!since) {
+          // Later polls refresh the leads edited since (`changed`) the same way — except one edited here in the last
+          // 20 s, whose own save may still be on its way (the server copy could be older than what the screen shows)
+          {
             const byId = new Map(serverLeads.map(s => [String(s.id), s]))
             let refreshed = false
-            prev = prev.map(l => { const s = byId.get(String(l.id)); if (!s) return l; refreshed = true; return { ...l, ...fromServer(s), id: l.id } })
+            const editedHere = id => Date.now() - (localEdits.current[String(id)] || 0) < 20000
+            prev = prev.map(l => { const s = byId.get(String(l.id)); if (!s || (since && editedHere(l.id))) return l; refreshed = true; return { ...l, ...fromServer(s), id: l.id } })
             if (refreshed) dropped = true
           }
           // Pull in leads that exist on server but not locally (and weren't deleted)
@@ -1801,11 +1810,15 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
       .finally(() => setLeadsSyncing(false))
   }
 
-  // Sync on admin mount + auto-sync every 60 s — cloud is always source of truth
+  // Sync on admin mount + every 60 s while visible, and at once when the window comes back (a note written on the
+  // phone shows on the computer) — cloud is always source of truth
   useEffect(() => {
     syncLeadsFromServer()
-    const iv = setInterval(() => { if (!document.hidden) syncLeadsFromServer() }, 90000)
-    return () => clearInterval(iv)
+    const iv = setInterval(() => { if (!document.hidden) syncLeadsFromServer() }, 60000)
+    let last = Date.now()
+    const back = () => { if (!document.hidden && Date.now() - last > 5000) { last = Date.now(); syncLeadsFromServer() } }
+    document.addEventListener('visibilitychange', back); window.addEventListener('focus', back)
+    return () => { clearInterval(iv); document.removeEventListener('visibilitychange', back); window.removeEventListener('focus', back) }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── WhatsApp CRM helpers ──────────────────────────────────────────────────
@@ -2446,7 +2459,19 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     )
   }
 
+  // A Meta lead's CRM copy (the server makes one for every Meta lead; this makes sure it exists now)
+  const ensureCrmCopy = async (metaLead, crmLead) => {
+    if (crmLead) return crmLead
+    const r = await fetch('/api/meta/lead-to-crm', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` }, body: JSON.stringify({ id: metaLead.id }) })
+    const d = await r.json().catch(() => ({}))
+    if (!r.ok || !d.id) throw new Error(d.error || d.skipped || `HTTP ${r.status}`)
+    const target = { id: String(d.id), name: metaLead.name, phone: metaLead.phone, leadStatus: 'new', stageLog: [], metaLeadId: String(metaLead.id), crm_data: { metaLeadId: String(metaLead.id) } }
+    setLeads(prev => (prev.some(l => String(l.id) === String(d.id)) ? prev : [target, ...prev]))
+    return target
+  }
+
   const updateLead = (id, patch) => {
+    localEdits.current[String(id)] = Date.now()
     // a rename of a Meta lead's CRM copy shows in the Lead Center at once (the server renames its row too)
     if (typeof patch?.name === 'string' && patch.name.trim()) {
       const cur = leads.find(l => l.id === id)
@@ -3422,7 +3447,12 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
               leads={leads}
               lang={lang}
               initialContact={initialChatLead}
-              onOpenLead={lead => { setInitialChatLead(null); setTab('leads') }}
+              onOpenLead={lead => {
+                // opens the lead's card on the board (LeadsBoard reads ?lead=)
+                try { const u = new URL(window.location.href); u.searchParams.set('lead', String(lead.id)); window.history.replaceState(window.history.state, '', u) } catch {}
+                setInitialChatLead(null); setTab('leads')
+              }}
+              onUpdateLead={updateLead}
               onDeleteLead={id => deleteLead(id)}
               onNewMessage={({ contactName, message }) => addToast(
                 lang === 'en' ? `New message from ${contactName}` : `הודעה חדשה מ-${contactName}`,
@@ -3472,15 +3502,14 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
               onCrmStage={async (metaLead, crmLead, stage) => {
                 // the Lead Center's pipeline menu: the same move as the leads board (stage log, nurture follow-up,
                 // stage automations); a lead not in the CRM yet is copied there first
-                let target = crmLead
-                if (!target) {
-                  const r = await fetch('/api/meta/lead-to-crm', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` }, body: JSON.stringify({ id: metaLead.id }) })
-                  const d = await r.json().catch(() => ({}))
-                  if (!r.ok || !d.id) throw new Error(d.error || d.skipped || `HTTP ${r.status}`)
-                  target = { id: d.id, name: metaLead.name, phone: metaLead.phone, leadStatus: 'new', stageLog: [], crm_data: { metaLeadId: String(metaLead.id) } }
-                  setLeads(prev => (prev.some(l => l.id === d.id) ? prev : [target, ...prev]))
-                }
-                updateLeadStatus(target, stage)
+                updateLeadStatus(await ensureCrmCopy(metaLead, crmLead), stage)
+              }}
+              onCrmPatch={async (metaLead, crmLead, patch) => {
+                // notes and follow-ups written in the Lead Center go to the CRM copy, through the same updateLead as the
+                // lead card — so the board, the card and the chats show them at once
+                const target = await ensureCrmCopy(metaLead, crmLead)
+                const r = await updateLead(target.id, patch)
+                return r !== null && r?.ok !== false
               }}
               onLeadRenamed={(metaLead, name) => {
                 // the server renamed the CRM copy too; show it now instead of after the next sync

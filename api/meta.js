@@ -873,7 +873,8 @@ async function handleAutomations(req, res, action) {
       syncRecentMetaLeads({ hours: 6 }).catch(e => ({ error: e.message })),   // safety net for the Meta webhook
       Booking.retryConfirmations({ client: SUPABASE_URL && SUPABASE_KEY ? sb() : null }).catch(() => null),  // calendar sync + confirmations Green API refused
     ])
-    return res.status(200).json({ ok: r.ok !== false, at: r.at, sent: r.sent?.length || 0, errors: r.errors?.length || 0, queued: r.suggestions?.length || 0, jobs: r.jobs, notes: r.notes, meta })
+    const reminders = await Auto.remindTasks().catch(e => ({ error: e.message }))   // follow-up tasks that are due → WhatsApp to the office
+    return res.status(200).json({ ok: r.ok !== false, at: r.at, sent: r.sent?.length || 0, errors: r.errors?.length || 0, queued: r.suggestions?.length || 0, jobs: r.jobs, notes: r.notes, meta, reminders: { due: reminders?.due || 0, sent: reminders?.sent || 0, failed: reminders?.failed || 0 } })
   }
   if (!checkAuth(req)) return res.status(401).json({ error: 'Unauthorized' })
   res.setHeader('Cache-Control', 'no-store')
@@ -891,7 +892,8 @@ async function handleAutomations(req, res, action) {
     if (action === 'auto-run') {
       // The panel calls this every 5 minutes while open: also pick up any Meta lead the webhook missed
       const [r, meta] = await Promise.all([Auto.run({ source: 'panel' }), syncRecentMetaLeads({ hours: 6 }).catch(e => ({ error: e.message })), Booking.retryConfirmations({ client: SUPABASE_URL && SUPABASE_KEY ? sb() : null }).catch(() => null)])
-      return res.status(200).json({ ...r, meta })
+      const reminders = await Auto.remindTasks().catch(e => ({ error: e.message }))
+      return res.status(200).json({ ...r, meta, reminders })
     }
     if (action === 'auto-send')   return res.status(200).json({ results: await Auto.sendItems(Array.isArray(b.items) ? b.items : [], { by: 'manual' }) })
     if (action === 'auto-skip')   return res.status(200).json({ ok: await Auto.skipItem(b.leadId, String(b.ruleKey || '')) })
