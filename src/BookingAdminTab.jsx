@@ -35,7 +35,7 @@ const TR = {
     upcoming: 'שיחות קרובות', recent: 'שיחות שעברו (30 יום)', none: 'עוד לא נקבעו שיחות דרך העמוד',
     today: 'היום', tomorrow: 'מחר',
     inCal: 'ביומן', notInCal: 'לא ביומן', waOk: 'אישור וואטסאפ נשלח', waNo: 'אישור וואטסאפ לא נשלח', waQuota: 'וואטסאפ חסום (מכסת Green API)', mailOk: 'אישור במייל נשלח', moved: n => `הוזז ${n === 1 ? 'פעם אחת' : `${n} פעמים`}`,
-    cancelledBy: { client: 'בוטלה על ידי הלקוח', office: 'בוטלה על ידי המשרד', calendar: 'נמחקה מהיומן' }, cancelled: 'בוטלה',
+    cancelledBy: { client: 'בוטלה על ידי הלקוח', office: 'בוטלה על ידי המשרד', calendar: 'נמחקה מהיומן', guest: 'הלקוח דחה את הזימון ביומן' }, cancelled: 'בוטלה',
     clientLink: 'העתקת הקישור של הלקוח', linkCopied: 'הקישור הועתק', move: 'שינוי מועד', resend: 'שליחת האישור שוב', resending: 'שולח…', resent: 'נשלח', cancel: 'ביטול',
     cancelQ: 'לבטל את השיחה? אם יש הזמנה ביומן, הלקוח יקבל הודעת ביטול.', loading: 'טוען…', err: 'שגיאה',
     days: ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'], dec: 'הפחתה', inc: 'הוספה',
@@ -49,9 +49,9 @@ const TR = {
     guestPh: 'כתובת מייל (אפשר כמה, מופרדות בפסיק)', guestAdd: 'הוספה', guestsSave: 'שמירה ושליחת הזמנות', guestsSaving: 'מעדכן את היומן…', clientChip: 'הלקוח', noClientMail: 'הלקוח לא השאיר מייל',
     openCal: 'פתיחה ביומן Google', guestsN: n => `${n} משתתפים`,
     okMoved: (name, w) => `השיחה עם ${name} הועברה ל${w} ועודכנה ביומן Google ✓`, badMoved: (name, e) => `השיחה עם ${name} הועברה באתר, אבל היומן לא התעדכן: ${e}`,
-    okDeleted: name => `השיחה עם ${name} נמחקה, גם מיומן Google ✓`, okGuests: n => `עודכן ביומן Google ✓ · ${n} משתתפים קיבלו זימון`,
+    okDeleted: name => `השיחה עם ${name} נמחקה, גם מיומן Google ✓`, delCalErr: (name, e) => `השיחה עם ${name} בוטלה, אבל האירוע עוד לא נמחק מיומן Google (${e}). המערכת תנסה שוב כל כמה דקות, ואפשר גם למחוק אותו ביומן ידנית.`, okGuests: n => `עודכן ביומן Google ✓ · ${n} משתתפים קיבלו זימון`,
     gErr: { invalid: b => `כתובות לא תקינות: ${b.join(', ')}`, no_event: 'השיחה לא נמצאת ביומן (היומן לא היה מחובר כשנקבעה)', event_gone: 'האירוע נמחק מיומן Google', not_saved: m => `היומן לא שמר את: ${m.join(', ')}`, no_calendar: 'היומן לא מחובר', cancelled: 'השיחה בוטלה' },
-    calErrTip: e => `היומן לא התעדכן: ${e}`, noEvent: 'לא ביומן',
+    calErrTip: e => `היומן לא התעדכן: ${e}`, stillInCal: 'עוד ביומן Google, המערכת מוחקת', noEvent: 'לא ביומן',
     testMail: 'מייל לדוגמה', testMailTip: 'שולח למייל המשרד את שני המיילים: מה שהלקוח מקבל ומה שהמשרד מקבל', testSending: 'שולח…', testSent: to => `נשלח ל-${to}`,
   },
   en: {
@@ -75,7 +75,7 @@ const TR = {
     upcoming: 'Upcoming calls', recent: 'Past calls (30 days)', none: 'No calls booked through the page yet',
     today: 'Today', tomorrow: 'Tomorrow',
     inCal: 'In calendar', notInCal: 'Not in calendar', waOk: 'WhatsApp confirmation sent', waNo: 'WhatsApp confirmation not sent', waQuota: 'WhatsApp blocked (Green API quota)', mailOk: 'Email confirmation sent', moved: n => `Moved ${n === 1 ? 'once' : `${n} times`}`,
-    cancelledBy: { client: 'Cancelled by the client', office: 'Cancelled by the office', calendar: 'Deleted from the calendar' }, cancelled: 'Cancelled',
+    cancelledBy: { client: 'Cancelled by the client', office: 'Cancelled by the office', calendar: 'Deleted from the calendar', guest: 'The client declined the invitation' }, cancelled: 'Cancelled',
     clientLink: 'Copy the client link', linkCopied: 'Link copied', move: 'Reschedule', resend: 'Resend confirmation', resending: 'Sending…', resent: 'Sent', cancel: 'Cancel',
     cancelQ: 'Cancel this call? If there is a calendar invitation, the client gets a cancellation.', loading: 'Loading…', err: 'Error',
     days: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], dec: 'Decrease', inc: 'Increase',
@@ -89,9 +89,9 @@ const TR = {
     guestPh: 'Email address (several allowed, comma separated)', guestAdd: 'Add', guestsSave: 'Save and send invitations', guestsSaving: 'Updating the calendar…', clientChip: 'Client', noClientMail: 'The client left no email',
     openCal: 'Open in Google Calendar', guestsN: n => `${n} invitees`,
     okMoved: (name, w) => `The call with ${name} moved to ${w} and Google Calendar was updated ✓`, badMoved: (name, e) => `The call with ${name} moved on the site, but the calendar wasn't updated: ${e}`,
-    okDeleted: name => `The call with ${name} was deleted, also from Google Calendar ✓`, okGuests: n => `Google Calendar updated ✓ · ${n} invitees got the invitation`,
+    okDeleted: name => `The call with ${name} was deleted, also from Google Calendar ✓`, delCalErr: (name, e) => `The call with ${name} is cancelled, but the event isn't out of Google Calendar yet (${e}). The system retries every few minutes; you can also delete it in the calendar.`, okGuests: n => `Google Calendar updated ✓ · ${n} invitees got the invitation`,
     gErr: { invalid: b => `Invalid addresses: ${b.join(', ')}`, no_event: "This call isn't in the calendar (it wasn't connected when the call was booked)", event_gone: 'The event was deleted from Google Calendar', not_saved: m => `The calendar didn't keep: ${m.join(', ')}`, no_calendar: 'The calendar is not connected', cancelled: 'The call was cancelled' },
-    calErrTip: e => `The calendar wasn't updated: ${e}`, noEvent: 'Not in the calendar',
+    calErrTip: e => `The calendar wasn't updated: ${e}`, stillInCal: 'Still in Google Calendar, being removed', noEvent: 'Not in the calendar',
     testMail: 'Sample email', testMailTip: 'Sends both emails to the office address: what the client gets and what the office gets', testSending: 'Sending…', testSent: to => `Sent to ${to}`,
   },
 }
@@ -379,7 +379,7 @@ export default function BookingAdminTab({ lang = 'he' }) {
     try {
       const d = await autoApi.post('booking-cancel', { id: b.id, notify })
       if (!d.ok) throw new Error(d.error || t.err)
-      setNotice({ kind: 'ok', text: t.okDeleted(b.name) })
+      setNotice(d.calendar === 'error' ? { kind: 'bad', text: t.delCalErr(b.name, d.calendarError || '') } : { kind: 'ok', text: t.okDeleted(b.name) })
       setPanel(null); load()
     } catch (e) { setPanel(p => ({ ...p, busy: false, err: e.message })) }
   }
@@ -429,7 +429,7 @@ export default function BookingAdminTab({ lang = 'he' }) {
           <div className="sub2">
             <a href={`tel:${b.phone}`} dir="ltr">{prettyPhone(b.phone)}</a>
             {b.meetLink && <a href={b.meetLink} target="_blank" rel="noreferrer">Meet</a>}
-            {gone ? <span style={{ color: 'var(--au-red-text)' }}>{t.cancelledBy[b.cancelledBy] || t.cancelled}</span> : b.notes ? <span className="nt" title={b.notes}>“{b.notes}”</span> : null}
+            {gone ? <span style={{ color: 'var(--au-red-text)' }}>{t.cancelledBy[b.cancelledBy] || t.cancelled}{b.calendarPending ? <span title={b.calendarError || ''}> · {t.stillInCal}</span> : null}</span> : b.notes ? <span className="nt" title={b.notes}>“{b.notes}”</span> : null}
           </div>
         </div>
         {!gone ? (
