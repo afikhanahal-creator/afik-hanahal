@@ -1,5 +1,5 @@
 // Pure helpers for the Lead Center's conversation (src/LeadConversation.jsx), tested in leadConversation.test.mjs.
-import { templateList, renderTemplate, mergeConfig } from '../../lib/automations-shared.js'
+import { templateList, renderTemplate, mergeConfig, welcomeTemplateId } from '../../lib/automations-shared.js'
 
 const norm = s => String(s || '').replace(/\s+/g, ' ').trim()
 const ts = m => Date.parse(m?.created_at || '') || 0
@@ -61,7 +61,7 @@ const sigOf = text => norm(String(text || '').split('\n').filter(l => !/^(שלו
  */
 export function templateOptions(autoConfig, lead, lang = 'he', { outTexts = [], first = false, categories = [] } = {}) {
   const cfg = mergeConfig(autoConfig || {})
-  const defId = cfg.rules?.welcome?.templateId || 'welcome'
+  const defId = welcomeTemplateId(cfg, lead || {})
   const out = outTexts.map(norm).join('\n')
   const all = templateList(cfg).map(t => {
     const text = renderTemplate(t, lead || {}, cfg, lang)
