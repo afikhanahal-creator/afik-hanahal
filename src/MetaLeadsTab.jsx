@@ -13,6 +13,7 @@ import MetaKanban from './MetaKanban'
 import LeadConversation, { prefetchHistory } from './LeadConversation.jsx'
 import Splitter, { SPLITTER_CSS } from './Splitter.jsx'
 import { leadNotes, addNote } from './lib/leadNotes.js'
+import { onSync, debounce } from './lib/syncBus.js'
 import { FollowUpButton, FollowUpComposer, FollowUpList } from './FollowUpTask.jsx'
 
 const ADMIN_TOKEN = 'AFIKhanahal2026'
@@ -523,7 +524,14 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onLeadRenam
         }
       })
       .subscribe()
-    return () => { supabase.removeChannel(channel) }
+    // postgres_changes needs the table in the Realtime publication (it isn't); the database's own announcements
+    // (src/lib/syncBus.js: table + id only) say a Meta lead changed, and the list is re-read conditionally (ETag)
+    let missed = false
+    const soon = debounce(() => { if (document.hidden) missed = true; else loadLeads(true) }, 900)
+    const off = onSync(m => { if (m.t === 'meta_leads' || m.t === '*') soon() })
+    const back = () => { if (missed && !document.hidden) { missed = false; loadLeads(true) } }
+    document.addEventListener('visibilitychange', back)
+    return () => { off(); document.removeEventListener('visibilitychange', back); supabase.removeChannel(channel) }
   }, [loadLeads, loadDeletedLeads])
 
   // ── The open lead's log: Realtime, or a poll when Realtime isn't configured ──

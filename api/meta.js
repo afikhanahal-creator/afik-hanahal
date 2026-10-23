@@ -864,6 +864,16 @@ async function handleSync(req, res) {
 //  GET  auto-log · GET auto-leads · GET auto-status · GET auto-health
 //  GET  auto-jobs · POST auto-job {job} · POST auto-job-cancel {id} · POST auto-job-delete {id}
 //  GET  auto-tick?key=…       → a run triggered by an external pinger (e.g. cron-job.org every 5 minutes)
+// the database scheduler's key (app_settings.remind_key); re-read at most once a minute, so a wrong key can't make us read it
+let remindKey = { v: '', at: 0 }
+async function remindKeyValid(key) {
+  if (!key || key.length < 32) return false
+  if (key !== remindKey.v && Date.now() - remindKey.at > 60e3) {
+    remindKey = { v: String((await Auto.getSetting('remind_key').catch(() => ({ value: '' }))).value || ''), at: Date.now() }
+  }
+  if (!remindKey.v || key.length !== remindKey.v.length) return false
+  return crypto.timingSafeEqual(Buffer.from(key), Buffer.from(remindKey.v))
+}
 async function handleAutomations(req, res, action) {
   if (action === 'auto-tick') {
     const key = req.query?.key || (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '')
@@ -873,8 +883,16 @@ async function handleAutomations(req, res, action) {
       syncRecentMetaLeads({ hours: 6 }).catch(e => ({ error: e.message })),   // safety net for the Meta webhook
       Booking.retryConfirmations({ client: SUPABASE_URL && SUPABASE_KEY ? sb() : null }).catch(() => null),  // calendar sync + confirmations Green API refused
     ])
-    const reminders = await Auto.remindTasks().catch(e => ({ error: e.message }))   // follow-up tasks that are due → WhatsApp to the office
-    return res.status(200).json({ ok: r.ok !== false, at: r.at, sent: r.sent?.length || 0, errors: r.errors?.length || 0, queued: r.suggestions?.length || 0, jobs: r.jobs, notes: r.notes, meta, reminders: { due: reminders?.due || 0, sent: reminders?.sent || 0, failed: reminders?.failed || 0 } })
+    return res.status(200).json({ ok: r.ok !== false, at: r.at, sent: r.sent?.length || 0, errors: r.errors?.length || 0, queued: r.suggestions?.length || 0, jobs: r.jobs, notes: r.notes, meta })
+  }
+  // Follow-up reminders are not polled: the database's own scheduler (pg_cron, every minute, inside Postgres — no transfer)
+  // counts the due ones (public.afik_due_reminders()) and calls this only when there is one, with the key it keeps in
+  // app_settings.remind_key (made in the database, never in the code). server/sync-bus-migration.sql.
+  if (action === 'auto-remind') {
+    const key = String(req.body?.key || req.query?.key || '')
+    if (!(await remindKeyValid(key))) return res.status(401).json({ error: 'Unauthorized' })
+    const r = await Auto.remindTasks().catch(e => ({ error: e.message }))
+    return res.status(200).json({ ok: !r.error, due: r.due || 0, sent: r.sent || 0, failed: r.failed || 0 })
   }
   if (!checkAuth(req)) return res.status(401).json({ error: 'Unauthorized' })
   res.setHeader('Cache-Control', 'no-store')
@@ -892,8 +910,7 @@ async function handleAutomations(req, res, action) {
     if (action === 'auto-run') {
       // The panel calls this every 5 minutes while open: also pick up any Meta lead the webhook missed
       const [r, meta] = await Promise.all([Auto.run({ source: 'panel' }), syncRecentMetaLeads({ hours: 6 }).catch(e => ({ error: e.message })), Booking.retryConfirmations({ client: SUPABASE_URL && SUPABASE_KEY ? sb() : null }).catch(() => null)])
-      const reminders = await Auto.remindTasks().catch(e => ({ error: e.message }))
-      return res.status(200).json({ ...r, meta, reminders })
+      return res.status(200).json({ ...r, meta })
     }
     if (action === 'auto-send')   return res.status(200).json({ results: await Auto.sendItems(Array.isArray(b.items) ? b.items : [], { by: 'manual' }) })
     if (action === 'auto-skip')   return res.status(200).json({ ok: await Auto.skipItem(b.leadId, String(b.ruleKey || '')) })

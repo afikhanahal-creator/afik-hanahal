@@ -1,10 +1,12 @@
-# Every ~5 minutes: run the automations engine and pick up any Meta lead the webhook missed (last 6 hours), so a new lead
+# Every ~15 minutes: run the automations engine and pick up any Meta lead the webhook missed (last 6 hours), so a new lead
 # gets its welcome WhatsApp even when nobody has the admin panel open (Vercel Hobby crons run only once a day).
-# GitHub may delay scheduled runs by a few minutes; the Meta webhook itself is instant — this is the safety net.
+# The Meta webhook and the site's form welcome a lead at once — this is only the safety net and the clock for the
+# no-reply follow-ups, so 15 minutes is plenty (it used to be 5: three times the reads of the whole lead list).
+# Follow-up reminders don't depend on it: the database's own scheduler calls auto-remind when one is due.
 name: Lead tick
 on:
   schedule:
-    - cron: '*/5 * * * *'
+    - cron: '*/15 * * * *'
   workflow_dispatch:
 concurrency:
   group: lead-tick
@@ -25,7 +27,7 @@ jobs:
           CODE=$(curl -sS --max-time 120 -o out.json -w '%{http_code}' "https://www.afikhanahal.co.il/api/meta/auto-tick?key=${KEY}" || echo 000)
           # The repository is public: print counts only, never lead details
           echo "HTTP ${CODE}"
-          jq -c '{ok, sent, errors, queued, metaNew: .meta.new, metaSynced: .meta.synced, metaError: (.meta.error // null), reminders}' out.json 2>/dev/null || true
+          jq -c '{ok, sent, errors, queued, metaNew: .meta.new, metaSynced: .meta.synced, metaError: (.meta.error // null)}' out.json 2>/dev/null || true
           [ "$CODE" = "200" ]
         env:
           AUTOMATION_KEY: ${{ secrets.AUTOMATION_KEY }}
