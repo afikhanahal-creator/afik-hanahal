@@ -397,8 +397,12 @@ function Today({ t, isEn, dir, cfg, tpls, tplName, stageName, leads, toast, conf
   // the rows of that lead show it at once and a message that wasn't edited by hand is re-rendered with it
   const [names, setNames] = useState({})          // leadId → the new name (until the parent's leads catch up)
   const [renaming, setRenaming] = useState(null)  // { leadId, value }
-  const nameOf = q => names[q.leadId] ?? q.name
+  // the lead's current name wins over the one the last run saw: a rename anywhere (board, card, Lead Center, another device —
+  // the change bus) shows here at once
+  const curName = id => names[id] ?? ((leadOf(id)?.name || '').trim() || null)
+  const nameOf = q => curName(q.leadId) ?? q.name
   const leadFor = q => { const l = leadOf(q.leadId) || { name: q.name, phone: q.phone }; return names[q.leadId] != null ? { ...l, name: names[q.leadId] } : l }
+  const renamedSinceRun = q => { const n = curName(q.leadId); return n != null && n !== q.name }
   const saveName = async (leadId, raw) => {
     const name = String(raw || '').replace(/\s+/g, ' ').trim().slice(0, 80)
     const was = queue.find(q => q.leadId === leadId)?.name || ''
@@ -416,7 +420,7 @@ function Today({ t, isEn, dir, cfg, tpls, tplName, stageName, leads, toast, conf
   }
   const tplIdOf = q => tplSel[q.id] || q.templateId
   const textOf = q => texts[q.id] ?? (tplSel[q.id] && tplOf(tplSel[q.id]) ? renderTemplate(tplOf(tplSel[q.id]), leadFor(q), cfg, q.lang)
-    : names[q.leadId] != null && tplOf(q.templateId) ? renderTemplate(tplOf(q.templateId), leadFor(q), cfg, q.lang) : q.text)   // renamed: the same wording, new name
+    : renamedSinceRun(q) && tplOf(q.templateId) ? renderTemplate(tplOf(q.templateId), leadFor(q), cfg, q.lang) : q.text)   // renamed: the same wording, new name
   const pickTpl = (q, id) => {
     setTplSel(x => ({ ...x, [q.id]: id }))
     setTexts(x => { const n = { ...x }; delete n[q.id]; return n })
@@ -622,7 +626,7 @@ function Today({ t, isEn, dir, cfg, tpls, tplName, stageName, leads, toast, conf
                           <div style={{ fontSize: 11, color: u.heldByQuiet ? T.amberText : T.text3 }}>{u.heldByQuiet ? t.heldQuiet : rel(u.sendAt, t)}</div>
                         </div>
                         <div style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <b style={{ fontSize: 13.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{(names[u.leadId] ?? u.name) || `+${u.phone}`}</b>
+                          <b style={{ fontSize: 13.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{(names[u.leadId] ?? ((leadOf(u.leadId)?.name || '').trim() || u.name)) || `+${u.phone}`}</b>
                           <Badge color={STAGE_COLOR[lead?.leadStatus || u.stage] || T.grey} textColor={T.text2}>{stageName(lead?.leadStatus || u.stage || 'new')}</Badge>
                         </div>
                         <div className="au-sr-kind" style={{ minWidth: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -949,7 +953,7 @@ function Log({ t, isEn, dir, tplName, leads, toast, confirm, log, loadLog, logLi
                     <div className="au-log-row" onClick={() => setOpen(o => ({ ...o, [r.id || i]: !o[r.id || i] }))} style={{ cursor: 'pointer' }} aria-expanded={!!ex}>
                       <span role="cell">{r.ok ? <FaCheckCircle color={T.green} aria-label={t.statusSent}/> : <FaTimesCircle color={T.red} aria-label={t.statusFailed}/>}</span>
                       <span role="cell" className="au-hide-m" style={{ fontSize: 12, color: T.text3, fontVariantNumeric: 'tabular-nums' }}>{new Date(r.created_at).toLocaleString(isEn ? 'en-GB' : 'he-IL', { timeZone: 'Asia/Jerusalem', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
-                      <b role="cell" style={{ fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name || nameOf(r.lead_id) || (r.phone ? <bdi dir="ltr">+{r.phone}</bdi> : '—')}</b>
+                      <b role="cell" style={{ fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nameOf(r.lead_id) || r.name || (r.phone ? <bdi dir="ltr">+{r.phone}</bdi> : '—')}</b>
                       <span role="cell" className="au-lr-kind"><Badge color={KIND_COLOR[k] || T.brand}>{t.kind[k] || k}</Badge></span>
                       <span role="cell" className="au-lr-msg" style={{ minWidth: 0, fontSize: 12.5, color: T.text2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} dir="auto">
                         {r.template_id && <b style={{ color: T.text }}>{tplName(r.template_id)} · </b>}{String(r.message || '').replace(/\n/g, ' ')}

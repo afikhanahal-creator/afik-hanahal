@@ -111,8 +111,8 @@ html,body{background:#09090F;margin:0}
 .bk-wa:hover{filter:brightness(1.05)}
 /* the figure stands at the bottom of the side panel: a cut-out (no frame, no background), its own proportions */
 /* it takes whatever height the panel has left (never more), so the card fits the screen on every step */
-.bk-photo{margin:0;position:relative;flex:1 1 0;min-height:170px;max-height:440px}
-.bk-photo img{position:absolute;inset:0;z-index:1;display:block;width:100%;height:100%;object-fit:contain;object-position:50% 100%}
+.bk-photo{margin:2px calc(-1 * var(--side-px)) calc(-1 * var(--side-pb));flex:0 0 auto;line-height:0;overflow:hidden;border-end-start-radius:inherit}
+.bk-photo img{display:block;width:100%;height:auto;max-height:min(58vh,560px);object-fit:contain;object-position:50% 100%}
 .bk-contact.bk-ph-contact{display:none}
 .bk-contact{display:flex;flex-wrap:wrap;gap:8px}
 .bk-contact a{flex:1 1 auto;display:inline-flex;align-items:center;justify-content:center;gap:7px;height:38px;padding:0 12px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--ink)!important;text-decoration:none;font-size:13px;font-weight:500;white-space:nowrap}
@@ -122,7 +122,7 @@ html,body{background:#09090F;margin:0}
 .bk-lead{margin:-10px 0 4px;color:var(--mute);font-size:14px}
 .bk-shell{flex:1;width:100%;max-width:1240px;margin:0 auto;padding:16px 20px 14px;display:flex;flex-direction:column;justify-content:center}
 .bk-card{background:var(--card);border:1px solid var(--line);border-radius:24px;overflow:hidden;display:grid;grid-template-columns:380px 1fr;min-height:min(720px,calc(100vh - 140px));box-shadow:var(--shadow)}
-.bk-side{padding:28px 30px;background:var(--side);border-inline-end:1px solid var(--line);display:flex;flex-direction:column;gap:16px}
+.bk-side{--side-px:30px;--side-pb:28px;padding:var(--side-pb) var(--side-px);background:var(--side);border-inline-end:1px solid var(--line);display:flex;flex-direction:column;gap:16px}
 .bk-org{font-size:12.5px;color:var(--mute);font-weight:500;letter-spacing:.02em}
 .bk-h1{font-size:28px;font-weight:700;margin:0;letter-spacing:-.01em;line-height:1.25}
 .bk-meta{display:flex;flex-direction:column;gap:9px;color:var(--mute);font-size:14.5px}
@@ -133,7 +133,7 @@ html,body{background:#09090F;margin:0}
 .bk-chosen svg{color:var(--brand-text);margin-top:3px;flex-shrink:0}
 .bk-chosen small{display:block;font-weight:500;color:var(--mute);font-size:12px;margin-bottom:2px}
 .bk-chosen.old{background:none;border:1px dashed var(--line);font-weight:500}
-.bk-side-foot{margin-top:auto;flex:1 1 0;min-height:0;display:flex;flex-direction:column;justify-content:flex-end;gap:14px}
+.bk-side-foot{margin-top:auto;flex:0 0 auto;display:flex;flex-direction:column;justify-content:flex-end;gap:14px}
 .bk-main{padding:28px 40px 28px;min-width:0;display:flex;flex-direction:column}
 .bk-steps{display:flex;gap:6px;align-items:center;margin:0 0 22px;padding:0;list-style:none;font-size:13px;color:var(--mute);flex-wrap:wrap}
 .bk-steps li{display:flex;align-items:center;gap:7px}
@@ -280,7 +280,7 @@ html,body{background:#09090F;margin:0}
   .bk-brand img{height:52px}
   .bk-shell{padding-top:10px;padding-bottom:8px}
   .bk-card{min-height:calc(100vh - 118px)}
-  .bk-side{padding:22px 28px;gap:12px}
+  .bk-side{--side-px:28px;--side-pb:22px;gap:12px}
   .bk-main{padding:22px 36px 22px}
   .bk-steps{margin-bottom:14px}
   .bk-h2{margin-bottom:12px}
@@ -291,7 +291,6 @@ html,body{background:#09090F;margin:0}
   .bk-f .hint{margin-top:2px}
   .bk-btn{padding:11px 24px}
   .bk-foot{margin-top:8px}
-  .bk-photo{min-height:140px}
 }
 @media (max-width:900px){
   .bk-top{padding:12px 14px 0}
@@ -962,11 +961,12 @@ export default function BookingPage() {
             {moving && call && <div className="bk-chosen old">{Icon.cal}<span><small>{t.current}</small>{longWhen(call.start, lang)}</span></div>}
             {start && (step === 'details' || step === 'moveConfirm') && <div className="bk-chosen">{Icon.cal}<span>{moving && <small>{t.newTime}</small>}{longWhen(start, lang)}{tz !== OFFICE_TZ && <small className="bk-il">{zoneLabel(tz, lang)} · {t.inIsrael} <bdi dir="ltr">{timeIn(start, OFFICE_TZ)}</bdi></small>}</span></div>}
             <div className="bk-side-foot">
-              {photo && !isPhone && <figure className="bk-photo"><img src={photo} alt={t.photoAlt} decoding="async" width="454" height="1100"/></figure>}
               <div className="bk-contact">
                 <a className="wa" href={waHref} target="_blank" rel="noreferrer" aria-label={t.waTip}><span className="ic">{Icon.wa}</span>{t.wa}</a>
                 <a href={`tel:0${OFFICE_WA.slice(3)}`} aria-label={`${t.call} 055-981-1814`}><span className="ic" style={{ color: 'var(--brand-text)' }}>{Icon.phone}</span><bdi dir="ltr">055-981-1814</bdi></a>
               </div>
+              {/* the portrait fills the side panel to its edges and its bottom (a cut-out, no background) */}
+              {photo && !isPhone && <figure className="bk-photo"><img src={photo} alt={t.photoAlt} decoding="async" width="900" height="874"/></figure>}
             </div>
           </aside>
 
