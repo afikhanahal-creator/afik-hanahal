@@ -423,6 +423,36 @@ leads (`contacts`), `meta_leads`, the WhatsApp phone book (`getContacts`) and, f
 all matched by the last 9 digits and cached for 10 minutes. The office's own / notification number is flagged `office` and shown
 as "המשרד · התראות מערכת"; a number without any name is shown as 05X-XXX-XXXX.
 
+### Properties page (admin "נכסים", `/admin-panel/properties`) — gallery first
+
+`src/PropertyGallery.jsx`: the page opens on the properties themselves — a compact header (`PropertiesHeader`: title, live /
+hidden / total counts, a gallery · "סדר באתר" switch, "טופס מהיר", "עוד ▾" = refresh from the server / sync all / JSON backup,
+and the one primary action **"+ נכס חדש" = the property wizard**), a sticky toolbar (search by name / town / street / type /
+gush, live · hidden, category, status, sort: site order / recently updated / name / price; kept in `sessionStorage.afik_props_view_v1`,
+so coming back from an edit lands on the same view) and the gallery (`auto-fill minmax(250px, 1fr)` — the whole width; 4:3
+cover, live / hidden, sold / rented, exclusive and "#position on the site" pills, photo count, category · type, name,
+place, specs, price, updated). **A click on a card edits that same record in the wizard** (`editProp` → `onEditInWizard`,
+never a copy); per card: the live switch, share (`PropertyShare`), "⋯" (wizard / quick edit, duplicate, to the top of the
+site list, sold / rented / back on the market, open on the site, refresh, delete) and a checkbox for the bulk bar (publish /
+hide / status / delete). "סדר באתר" shows the old `PropertyManagerList` (drag to reorder, ▲▼). **The quick form is closed by
+default**: "טופס מהיר" / "עריכה מהירה" open it in a side window (`QuickFormDrawer`) with every field in sections
+(`FormSection`: general, property details, amenities, price & status, description, links / map / videos, photos & logo) —
+all open, each can be folded (folded = hidden, never unmounted, so an upload keeps going), "פתיחת / סגירת כל הסעיפים", the save
+buttons in a fixed footer; a successful save closes it, Esc / ✕ closes without losing the form.
+
+### Contact export (leads board → "ייצוא לאקסל")
+
+`src/ExportDialog.jsx` + `lib/contacts-export.js` (tested) + `lib/xlsx-writer.js` (a dependency-free .xlsx writer: stored zip,
+inline strings — nothing is ever evaluated as a formula —, RTL sheet, bold frozen header, auto-filter; tested): which contacts
+(only the selected · the list on screen · everyone · one pipeline stage · one campaign), which file — **Excel** (`EXPORT_COLUMNS`:
+31 columns with Hebrew headers, picked by the office and remembered in `localStorage.afik_export_cols_v1`; phones as text with
+the leading 0 plus a `+972…` column, dates in Israel time, budget as a number; `contacts_export_YYYY-MM-DD.xlsx`) or **a Meta
+customer list** (`metaAudienceCsv`: CSV with Meta's identifiers `email, phone (972…), fn, ln, ct, country`, one row per person —
+duplicates by phone / email merged, rows with neither left out, people who opted out left out unless ticked; no BOM; cells
+that could start a formula are prefixed; `meta_audience_YYYY-MM-DD.csv`) for a Custom Audience and a Lookalike in Ads Manager.
+Built in the browser from the loaded leads; nothing is uploaded anywhere. Desktop pages use the whole width (the automations,
+bulk sends and the in-site admin window lost their max-widths).
+
 ### Image library (admin "תמונות האתר", `/admin-panel/media`)
 
 `src/MediaLibraryTab.jsx`: every image the site shows. **Site design** = `public/img/*` and the root logos, listed at build

@@ -18,6 +18,7 @@ const GA4Tab = lazy(() => import('./GA4Tab.jsx'))
 const SiteLocalTab = lazy(() => import('./SiteLocalTab.jsx'))
 const AdminHome = lazy(() => import('./AdminHome.jsx'))
 const PropertyShare = lazy(() => import('./PropertyShare.jsx'))
+import PropertyGallery, { PropertiesHeader, QuickFormDrawer, FormSection } from './PropertyGallery.jsx'
 import { autoApi, StageSendPrompt } from './AutomationsApi.jsx'
 import { useAdminTheme, ADMIN_THEME_CSS } from './adminTheme.js'
 import { mergeBrief } from '../lib/lead-intel.js'
@@ -1790,6 +1791,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
               propLocation: s.prop_location|| s.propLocation|| '',
               source:       s.source       || 'website',
               ts:           new Date(s.created_at || Date.now()).getTime(),
+              ...(s.updated_at ? { updatedAt: Date.parse(s.updated_at) } : {}),
               ...(s.crm_data || {}),   // restore leadStatus, enrichment, notes, tags
             })
           // The full sync (on opening the panel) also refreshes the leads this browser already holds: a rename in the
@@ -2359,6 +2361,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     }
     localStorage.removeItem(ADMIN_DRAFT_KEY)
     setForm(EMPTY_PROP)
+    setQuickOpen(false)
     setSaved(true)
     setTimeout(() => setSaved(false), 2500)
   }
@@ -2378,6 +2381,10 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     saveProp(updated)
   }
   const startEdit = p => { setForm({...EMPTY_PROP, ...p}); setEditId(p.id); setTab('props') }
+  // a click on a property = edit that same record in the wizard (the full-screen dashboard keeps running — onClose there = log out)
+  const editProp = p => { if (onEditInWizard) { if (!standalone) onClose?.(); onEditInWizard(p) } else startEdit(p) }
+  const [propView, setPropView] = useState(() => { try { return sessionStorage.getItem('afik_props_mode') || 'gallery' } catch { return 'gallery' } })
+  const [quickOpen, setQuickOpen] = useState(false)
   const del = id => {
     if (!window.confirm('למחוק נכס זה?')) return
     setProperties(prev => prev.filter(x => x.id !== id))
@@ -2823,7 +2830,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
         ? { flex:1, display:'flex', flexDirection:'column', height:'100dvh', overflow:'hidden' }
         : (tab==='chats'||tab==='leads'||tab==='meta'||tab==='content')
           ? { background:C.card, border:`1px solid ${C.purple}33`, borderRadius:16, padding:0, width:'100%', maxWidth:'98vw', height:'94vh', overflow:'hidden', direction:'rtl', boxShadow:'0 32px 80px rgba(0,0,0,.7)', display:'flex', flexDirection:'column' }
-          : { background:C.card, border:`1px solid ${C.purple}33`, borderRadius:16, padding:'28px 28px 0', width:'100%', maxWidth:1200, height:'94vh', overflow:'hidden', direction:'rtl', boxShadow:'0 32px 80px rgba(0,0,0,.7)', display:'flex', flexDirection:'column' }}>
+          : { background:C.card, border:`1px solid ${C.purple}33`, borderRadius:16, padding:'28px 28px 0', width:'100%', maxWidth:'calc(100vw - 24px)', height:'94vh', overflow:'hidden', direction:'rtl', boxShadow:'0 32px 80px rgba(0,0,0,.7)', display:'flex', flexDirection:'column' }}>
 
         {/* ── MOBILE TOP BAR — inside main pane ──────────────────────── */}
         {standalone && (
@@ -3013,25 +3020,42 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
 
         {tab==='props' && (
           <>
-            {/* Wizard quick-launch banner */}
-            <div style={{ background:`linear-gradient(135deg,${C.purple}22,${C.purple}0A)`, border:`1px solid ${C.purple}44`, borderRadius:12, padding:'18px 18px 16px', marginBottom:16, display:'flex', flexDirection:'column', alignItems:'center', gap:12, textAlign:'center' }}>
-              <div style={{ fontSize:14, fontWeight:800, color:C.cream }}>אשף העלאת נכס</div>
-              <div style={{ fontSize:11, color:`${C.cream}70` }}>הדרך המהירה להוסיף נכס חדש עם כל הפרטים</div>
-              <button onClick={() => {
+            {/* Gallery-first: the header, then the properties at once; the quick form opens in a side window (PropertyGallery.jsx) */}
+            <PropertiesHeader total={properties.length} live={publishedList.length} hidden={draftList.length}
+              view={propView} setView={v => { setPropView(v); try { sessionStorage.setItem('afik_props_mode', v) } catch {} }}
+              syncing={propSyncing}
+              onNew={() => {
                 if (standalone) { try { localStorage.removeItem('afik_wizard_draft') } catch {}; setWizardOpen(true) }
                 else { onClose(); setTimeout(() => document.dispatchEvent(new CustomEvent('afik:openWizard')), 100) }
               }}
-                style={{ padding:'11px 32px', background:C.purple, border:'none', borderRadius:8, color:'#fff', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'inherit', transition:'background .15s', whiteSpace:'nowrap', letterSpacing:'.02em' }}
-                onMouseEnter={e=>e.currentTarget.style.background='#6b77c4'}
-                onMouseLeave={e=>e.currentTarget.style.background=C.purple}>
-                פתח אשף ←
-              </button>
-            </div>
+              onQuickNew={() => { setEditId(null); setQuickOpen(true) }}
+              onSyncAll={() => { if (!window.confirm('לסנכרן את כל הנכסים לשרת עכשיו?')) return; syncProps(properties) }}
+              onRefresh={() => { fetchAdminProperties().then(data => { if (Array.isArray(data) && data.length > 0) setProperties(data) }).catch(() => {}) }}
+              onBackup={exportProps}/>
 
-            {/* Form */}
-            <div style={{ background:'rgba(var(--ov),.03)', borderRadius:12, padding:20, marginBottom:20 }}>
-              <h3 style={{ fontSize:14, fontWeight:700, color:C.purple, marginBottom:16 }}>{editId ? 'עריכת נכס' : 'הוספת נכס חדש (טופס מהיר)'}</h3>
+            <QuickFormDrawer open={quickOpen || editId !== null} title={editId !== null ? `עריכה מהירה · ${form.title || 'נכס'}` : 'נכס חדש · טופס מהיר'}
+              onClose={() => { setQuickOpen(false); if (editId !== null) { setEditId(null); setForm(EMPTY_PROP); try { localStorage.removeItem(ADMIN_DRAFT_KEY) } catch {} } }}
+              footer={<>
+              {err && <div style={{ color:'#E05252', fontSize:12, marginBottom:10 }}>{err}</div>}
 
+              <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
+                <button onClick={() => save(false)} disabled={propSyncing} style={{ padding:'12px 18px', background:'rgba(var(--ov),.07)', border:`1px solid ${C.purple}33`, borderRadius:6, color:`${C.cream}BB`, fontSize:13, fontWeight:600, cursor: propSyncing ? 'not-allowed' : 'pointer', fontFamily:'inherit', transition:'all .15s', opacity: propSyncing ? .6 : 1 }}
+                  onMouseEnter={e => { if (!propSyncing) e.currentTarget.style.borderColor=C.purple }}
+                  onMouseLeave={e => { if (!propSyncing) e.currentTarget.style.borderColor=`${C.purple}33` }}>
+                  שמור כטיוטה
+                </button>
+                <button onClick={() => save(true)} disabled={propSyncing} style={{ flex:1, padding:'12px', background: propSyncing ? `${C.purple}88` : C.purple, border:'none', borderRadius:6, color:'#fff', fontSize:13, fontWeight:700, cursor: propSyncing ? 'not-allowed' : 'pointer', fontFamily:'inherit', transition:'background .15s' }}
+                  onMouseEnter={e => { if (!propSyncing) e.currentTarget.style.background='#6b77c4' }}
+                  onMouseLeave={e => { if (!propSyncing) e.currentTarget.style.background=C.purple }}>
+                  {propSyncing ? 'שומר...' : editId ? 'עדכן ופרסם' : 'פרסם לאוויר'}
+                </button>
+                {editId && <button onClick={() => { setEditId(null); setForm(EMPTY_PROP); localStorage.removeItem(ADMIN_DRAFT_KEY) }} style={{ padding:'12px 18px', background:'transparent', border:`1px solid ${C.purple}33`, borderRadius:6, color:`${C.cream}AA`, cursor:'pointer', fontFamily:'inherit', fontSize:13 }}>ביטול</button>}
+              </div>
+              {propSyncError && <div style={{ fontSize:11, color:'#E05252', marginTop:8, display:'flex', alignItems:'center', gap:5 }}>⚠ {propSyncError}</div>}
+              {propSyncedAt && !propSyncing && !propSyncError && <div style={{ fontSize:11, color:C.green, marginTop:8, display:'flex', alignItems:'center', gap:5 }}>✓ סונכרן בהצלחה בשעה {propSyncedAt.toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'})}</div>}
+                          </>}>
+
+              <FormSection id="general" title="פרטים כלליים">
               {/* Category selector */}
               <div style={{ marginBottom:16 }}>
                 <div style={{ fontSize:11, color:`${C.cream}70`, marginBottom:8, fontWeight:600, letterSpacing:'.04em', textTransform:'uppercase' }}>קטגוריה</div>
@@ -3060,6 +3084,9 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
                 </div>
               </div>
 
+              </FormSection>
+
+              <FormSection id="specs" title="מאפייני הנכס">
               {/* Category-specific fields */}
               <div className="admin-form-grid" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0 14px' }}>
                 {['apartments','rentals'].includes(form.category) && <>
@@ -3142,6 +3169,9 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
                 </>}
               </div>
 
+              </FormSection>
+
+              <FormSection id="amenities" title="מתקנים ותוספות">
               {/* Amenities */}
               {form.category !== 'land' && (
                 <div style={{ marginBottom:14 }}>
@@ -3165,6 +3195,9 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
                 </div>
               )}
 
+              </FormSection>
+
+              <FormSection id="price" title="מחיר וסטטוס">
               {/* Price + status */}
               <div className="admin-form-grid" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0 14px' }}>
                 <div>
@@ -3182,6 +3215,9 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
                 {chk('exclusive','בלעדיות')} {chk('priceNegotiable','מחיר גמיש')}
               </div>
 
+              </FormSection>
+
+              <FormSection id="desc" title="תיאור שיווקי">
               {/* Description */}
               <div style={{ marginBottom:14 }}>
                 <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:4 }}>
@@ -3197,6 +3233,9 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
                 {aiError && <div style={{ color:'#E05252', fontSize:11, marginTop:4 }}>{aiError}</div>}
               </div>
 
+              </FormSection>
+
+              <FormSection id="links" title="קישורים, מפה וסרטונים">
               {/* Links row */}
               <div className="admin-form-grid" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'0 14px', marginBottom:0 }}>
                 <div style={{ marginBottom:14 }}>
@@ -3222,6 +3261,9 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
                 </div>
               </div>
 
+              </FormSection>
+
+              <FormSection id="media" title="תמונות ולוגו">
               {/* Images */}
               <div style={{ marginBottom:14 }}>
                 <label style={{ fontSize:11, color:`${C.cream}70`, display:'block', marginBottom:8, fontWeight:600 }}>תמונות</label>
@@ -3236,63 +3278,27 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
                 <LogoUpload logo={form.logo || ''} onChange={v => setForm(f => ({ ...f, logo: v }))}/>
               </div>
 
-              {err && <div style={{ color:'#E05252', fontSize:12, marginBottom:10 }}>{err}</div>}
+              </FormSection>
 
-              <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
-                <button onClick={() => save(false)} disabled={propSyncing} style={{ padding:'12px 18px', background:'rgba(var(--ov),.07)', border:`1px solid ${C.purple}33`, borderRadius:6, color:`${C.cream}BB`, fontSize:13, fontWeight:600, cursor: propSyncing ? 'not-allowed' : 'pointer', fontFamily:'inherit', transition:'all .15s', opacity: propSyncing ? .6 : 1 }}
-                  onMouseEnter={e => { if (!propSyncing) e.currentTarget.style.borderColor=C.purple }}
-                  onMouseLeave={e => { if (!propSyncing) e.currentTarget.style.borderColor=`${C.purple}33` }}>
-                  שמור כטיוטה
-                </button>
-                <button onClick={() => save(true)} disabled={propSyncing} style={{ flex:1, padding:'12px', background: propSyncing ? `${C.purple}88` : C.purple, border:'none', borderRadius:6, color:'#fff', fontSize:13, fontWeight:700, cursor: propSyncing ? 'not-allowed' : 'pointer', fontFamily:'inherit', transition:'background .15s' }}
-                  onMouseEnter={e => { if (!propSyncing) e.currentTarget.style.background='#6b77c4' }}
-                  onMouseLeave={e => { if (!propSyncing) e.currentTarget.style.background=C.purple }}>
-                  {propSyncing ? 'שומר...' : editId ? 'עדכן ופרסם' : 'פרסם לאוויר'}
-                </button>
-                {editId && <button onClick={() => { setEditId(null); setForm(EMPTY_PROP); localStorage.removeItem(ADMIN_DRAFT_KEY) }} style={{ padding:'12px 18px', background:'transparent', border:`1px solid ${C.purple}33`, borderRadius:6, color:`${C.cream}AA`, cursor:'pointer', fontFamily:'inherit', fontSize:13 }}>ביטול</button>}
-              </div>
-              {propSyncError && <div style={{ fontSize:11, color:'#E05252', marginTop:8, display:'flex', alignItems:'center', gap:5 }}>⚠ {propSyncError}</div>}
-              {propSyncedAt && !propSyncing && !propSyncError && <div style={{ fontSize:11, color:C.green, marginTop:8, display:'flex', alignItems:'center', gap:5 }}>✓ סונכרן בהצלחה בשעה {propSyncedAt.toLocaleTimeString('he-IL',{hour:'2-digit',minute:'2-digit'})}</div>}
-            </div>
+            </QuickFormDrawer>
 
-            {/* Property list */}
+            {/* The properties: a gallery (a click opens the property for editing), or the site-order list (drag to reorder) */}
             <div ref={propListRef}>
-              {/* Header bar with live count */}
-              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16, padding:'12px 16px', background:'rgba(var(--brand-rgb),.06)', borderRadius:12, border:'1px solid rgba(var(--brand-rgb),.12)' }}>
-                <div style={{ display:'flex', alignItems:'center', gap:12 }}>
-                  <div style={{ display:'flex', alignItems:'center', gap:7 }}>
-                    <span style={{ width:8, height:8, borderRadius:'50%', background:C.green, boxShadow:`0 0 8px ${C.green}`, display:'inline-block', animation:'pulse 2s infinite' }}/>
-                    <span style={{ fontSize:14, fontWeight:800, color:C.cream }}>{publishedList.length} נכסים באוויר</span>
-                  </div>
-                  {draftList.length > 0 && <span style={{ fontSize:12, color:'#F7C948', fontWeight:600 }}>· {draftList.length} טיוטות</span>}
-                </div>
-                <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                  <span style={{ fontSize:11, color:`${C.cream}44` }}>סה"כ {properties.length} נכסים</span>
-                  <button onClick={() => { if (!window.confirm('סנכרן את כל הנכסים לשרת עכשיו?')) return; syncProps(properties) }}
-                    disabled={propSyncing}
-                    title="סנכרן הכל לשרת"
-                    style={{ padding:'5px 10px', background:`${C.purple}18`, border:`1px solid ${C.purple}44`, borderRadius:6, color:C.purple, cursor: propSyncing ? 'not-allowed' : 'pointer', fontSize:11, fontFamily:'inherit', fontWeight:700, whiteSpace:'nowrap', opacity: propSyncing ? .6 : 1 }}>
-                    {propSyncing ? 'מסנכרן...' : '↻ סנכרן הכל'}
-                  </button>
-                  <button onClick={() => { fetchAdminProperties().then(data => { if (Array.isArray(data) && data.length > 0) setProperties(data) }).catch(() => {}) }}
-                    title="רענן נכסים מהשרת"
-                    style={{ padding:'5px 10px', background:'rgba(34,197,94,.1)', border:'1px solid rgba(34,197,94,.3)', borderRadius:6, color:'#22C55E', cursor:'pointer', fontSize:11, fontFamily:'inherit', fontWeight:700, whiteSpace:'nowrap' }}>
-                    ↺ רענן מהשרת
-                  </button>
-                  <button onClick={exportProps}
-                    title="הורד גיבוי JSON של כל הנכסים"
-                    style={{ padding:'5px 10px', background:'rgba(247,201,72,.1)', border:'1px solid rgba(247,201,72,.3)', borderRadius:6, color:'#F7C948', cursor:'pointer', fontSize:11, fontFamily:'inherit', fontWeight:700, whiteSpace:'nowrap' }}>
-                    ⬇ גיבוי JSON
-                  </button>
-                </div>
-              </div>
-
+              {propView === 'gallery' ? (
+                <PropertyGallery list={orderedProps} publishedList={publishedList} categories={CATEGORIES} statuses={PM_STATUS}
+                  thumbImg={thumbImg} imgFallback={imgFallback} lang={lang}
+                  onEdit={editProp} onQuickEdit={startEdit}
+                  publish={publish} unpublish={unpublish} setStatus={setStatus} dup={dup} del={del} onTop={topProp}
+                  refreshOne={refreshOneFromServer} bulkPatch={bulkPatch} bulkDelete={bulkDelete}
+                  onNew={() => { if (standalone) { try { localStorage.removeItem('afik_wizard_draft') } catch {}; setWizardOpen(true) } else { onClose(); setTimeout(() => document.dispatchEvent(new CustomEvent('afik:openWizard')), 100) } }}/>
+              ) : (
               <PropertyManagerList C={C} list={filteredList} publishedList={publishedList} draftList={draftList}
                 listTab={listTab} setListTab={setListTab} listCat={listCat} setListCat={setListCat}
                 onMove={moveProp} onStep={stepProp} onTop={topProp}
                 publish={publish} unpublish={unpublish} setStatus={setStatus} dup={dup} del={del}
-                onEdit={p => { if (onEditInWizard) { if (!standalone) onClose?.(); onEditInWizard(p) } else startEdit(p) }}   // the full-screen dashboard keeps running (onClose there = log out)
+                onEdit={editProp}
                 refreshOne={refreshOneFromServer} bulkPatch={bulkPatch} bulkDelete={bulkDelete} note={orderNote}/>
+              )}
             </div>
           </>
         )}
