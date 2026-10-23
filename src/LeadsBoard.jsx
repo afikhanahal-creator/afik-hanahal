@@ -6,6 +6,7 @@ import { sourceLabel, sourceColor, originLines, leadCampaign, leadCampaignFull, 
 import { mergeLeads, mergeConflicts } from './lib/leadMerge.js'
 import LeadsDashboard from './LeadsDashboard.jsx'
 import LeadCard from './LeadCard.jsx'
+import ExportDialog from './ExportDialog.jsx'
 import {
   DndContext, closestCenter, closestCorners, useSensor, useSensors,
   PointerSensor, DragOverlay, useDroppable,
@@ -2424,7 +2425,7 @@ function LeadsBoardMain({
             {trashedLeads.length > 0 && <span className="n">{trashedLeads.length}</span>}
           </button>
         )}
-        <button type="button" className="lb-tb" onClick={exportCSV}><Download size={14} /> CSV</button>
+        <button type="button" className="lb-tb" onClick={() => setModal('export')}><Download size={14} /> {lang === 'en' ? 'Export to Excel' : 'ייצוא לאקסל'}</button>
         {activeTab === 'table' && <button type="button" className="lb-tb" onClick={() => setModal('addcol')}><Columns size={14} /> {lang === 'en' ? 'Add column' : 'עמודה חדשה'}</button>}
         {enrichAll && <button type="button" className="lb-tb" onClick={enrichAll}>✦ {lang === 'en' ? 'Enrich all' : 'העשרה'}</button>}
       </div>
@@ -2557,6 +2558,8 @@ function LeadsBoardMain({
       {toast && <Toast message={toast} onDismiss={() => setToast(null)} />}
 
       {/* ── Trash Modal ── */}
+      <ExportDialog open={modal === 'export'} onClose={() => setModal(null)} leads={leads} filtered={filtered} selectedIds={selectedIds}
+        stages={GROUPS} stageName={id => { const g = GROUPS.find(x => x.id === id); return g ? (lang === 'en' ? g.en : g.label) : id }} searching={!!search} lang={lang}/>
       {modal === 'trash' && (
         <>
           <div onClick={() => setModal(null)} style={{ position: 'fixed', inset: 0, zIndex: 900, background: 'rgba(0,0,0,.45)' }} />

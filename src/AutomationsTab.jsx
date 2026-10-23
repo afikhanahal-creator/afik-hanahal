@@ -287,7 +287,7 @@ function Automations({ lang = 'he', leads = [], stageLabels = {}, config, onConf
   const common = { t, isEn, dir, cfg, tpls, tplName, stageName, leads, toast, confirm, onOpenChat, onRenameLead }
 
   return (
-    <div className="au" dir={dir} lang={lang} style={{ display: 'flex', flexDirection: 'column', gap: 14, color: T.text, maxWidth: 1180, margin: '0 auto', width: '100%', paddingBottom: 24 }}>
+    <div className="au" dir={dir} lang={lang} style={{ display: 'flex', flexDirection: 'column', gap: 14, color: T.text, width: '100%', paddingBottom: 24 }}>
       <style>{AUTO_CSS}</style>
 
       {/* header */}

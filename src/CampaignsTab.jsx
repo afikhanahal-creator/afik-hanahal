@@ -109,7 +109,7 @@ export default function CampaignsTab({ lang = 'he', cfg, tpls, leads, states = {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 920 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
         <ModeSwitch value={seg} onChange={setSeg} modes={['scheduled', 'sending', 'done']} icons={{}} colors={{ scheduled: T.brand, sending: T.amber, done: T.green }}
           labels={{ scheduled: `${t.segScheduled} · ${counts.scheduled}`, sending: `${t.segSending} · ${counts.sending}`, done: `${t.segDone} · ${counts.done}` }} label={t.newSend}/>
