@@ -271,7 +271,13 @@ instead of bullet lists; no slashes, no
 gendered present-tense or imperatives; no childish emoji. A test fails if singular wording comes back
 ("ראיתי", "אשמח", "לך", "השארת"… or "I" in English), if 👋 🙂 🙌 🎉 🙏 🔥, "–" or "•", bot
 phrases ("נשמח לעמוד לרשות", "פנייתך", "צוות אפיק הנחל", "We would be glad", "Dear "…), a team signature block or a Hebrew text
-over 160 characters (or more than 3 lines) come back — the library was cut down to short messages on 2026-10-23 (median ~80 characters). **Names:** a Hebrew message writes an English first name in Hebrew
+over 160 characters (or more than 3 lines) come back — the library was cut down to short messages on 2026-10-23 (median ~80 characters). **English messages** (rewritten 2026-10-24 in natural, professional English — "thanks for leaving your details", "Would you
+like us to send…", "Tabu registration", "the Sharon region") **never carry a Hebrew word**: `lib/english-values.js` (tested — a test
+renders all 61 templates in English for a Hebrew lead and fails on any Hebrew letter) writes the project in English
+(`englishProject`: "זרובבל 15 - v2" → "15 Zerubavel Street", from a street / town list — add a new project's street there), the
+form answers (`englishValue`: "5 מיליון ומעלה" → "₪5 million+", "3 חדרים" → "3 rooms", "פנטהאוז" → "a penthouse", towns), and
+the name (the one typed in the form, else the Hebrew first name in English — `latinFirstName()` — else "Hi there"); a value it
+can't write in English is left out (its `[[ … ]]` part drops). **Names:** a Hebrew message writes an English first name in Hebrew
 (`lib/hebrew-names.js` `hebrewFirstName`, a list of ~450 Israeli names; "Ronen" → "רונן"); an unknown Latin name is left out
 ("שלום,") rather than guessed. `renderTemplate` closes the gap an empty placeholder leaves ("שלום ," → "שלום,"). The Lead Center's
 quick replies use the same rules and the campaign's short name.
