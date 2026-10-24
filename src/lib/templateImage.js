@@ -13,13 +13,13 @@ export function fitWithin(w, h, max = TEMPLATE_IMAGE_MAX) {
   return { w: Math.round(w * k), h: Math.round(h * k) }
 }
 
-async function compress(file) {
+export async function compress(file, max = TEMPLATE_IMAGE_MAX) {
   // a small GIF keeps its animation; everything else becomes a JPEG on a white background (no black PNG transparency)
   if (file.type === 'image/gif' && file.size < 900 * 1024) return file
   const url = URL.createObjectURL(file)
   try {
     const img = await new Promise((resolve, reject) => { const i = new Image(); i.onload = () => resolve(i); i.onerror = () => reject(new Error('התמונה לא נפתחה – נסו קובץ JPG או PNG')); i.src = url })
-    const { w, h } = fitWithin(img.naturalWidth, img.naturalHeight)
+    const { w, h } = fitWithin(img.naturalWidth, img.naturalHeight, max)
     if (!w) throw new Error('התמונה ריקה')
     const c = document.createElement('canvas'); c.width = w; c.height = h
     const ctx = c.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h); ctx.drawImage(img, 0, 0, w, h)

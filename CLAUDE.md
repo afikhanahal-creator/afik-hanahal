@@ -281,6 +281,16 @@ can't write in English is left out (its `[[ … ]]` part drops). **Names:** a He
 (`lib/hebrew-names.js` `hebrewFirstName`, a list of ~450 Israeli names; "Ronen" → "רונן"); an unknown Latin name is left out
 ("שלום,") rather than guessed. `renderTemplate` closes the gap an empty placeholder leaves ("שלום ," → "שלום,"). The Lead Center's
 quick replies use the same rules and the campaign's short name.
+**Files in every chat, like WhatsApp** (2026-10-24): the chats tab (`ChatComposer` / `GreenAPIChat`), the Lead Center and the
+lead card (`LeadConversation`) take photos, videos, PDF, Word / Excel and more — several at once (up to 10, 50 MB each), from
+the paperclip ("צירוף"), dragged onto the conversation ("שחררו כאן") or pasted into the box. `src/ChatAttachments.jsx`
+(`useAttachments`, `AttachTray` — thumbnails / file icons, size, ✕, per-file status —, `useFileDrop`, `DropOverlay`,
+`pasteFiles`) + `src/lib/chatFiles.js` (tested: `acceptFiles`, `fileProblem`, `sendFiles`): every file is uploaded by the
+browser straight to Supabase Storage (`wizard-upload-url`, `folder: 'chat'`, kinds image / video / pdf / doc → `property-media/
+chat/<month>/…`; photos compressed to ≤ 1600 px JPEG first) — never through a Vercel function, so no 3 MB cap — and sent by URL:
+`chat-send` / `messages` take `{ file, fileName }` → `sendText(…, { file, fileName })` → Green's `sendFileByUrl` with the original
+name (`mediaFileName()`); the text is the first file's caption, then the rest; a failure keeps the unsent files in the tray. In
+the Lead Center the very first message (the welcome) goes as text first, then the files.
 **A picture per template** (optional): a template's `image` (an https URL; `templateImage()` / `isImageUrl()` in
 `lib/automations-shared.js`) is sent as a WhatsApp image with the text as its caption — `sendText(phone, text, { image })`
 (`lib/automations.js`) switches to Green's `sendFileByUrl` (`urlFile`, `fileName` from the URL, `caption`). Every path carries
@@ -576,7 +586,10 @@ leads); pipeline health (days since last activity) and follow-ups (overdue / tod
 list — the board's search box doesn't narrow it (it used to, silently: a search for one name made every number 1); a search
 shows a note with "נקה חיפוש". A comparison window that starts before the first lead in the system shows "אין נתונים לתקופה
 שלפני" (no fake "+100%"), and growth from zero reads "+N".
-Pipeline, Table. **Table selection:** the checkbox column is pinned with `insetInlineStart` (RTL-safe — a `left: 0` pin used to
+Pipeline, Table. **A click on a lead's name in the table opens the lead card** (`.lb-name-link`; ✎ on hover renames in place). The checkbox
+column is one 60 px `.lb-selcol` for the header, every stage group's header (its color bar on the edge) and every row, the
+checkbox centred in it (the drag handle sits on its edge), 18 px with a 2 px border; table links have `minHeight: 0` (the
+global 44 px touch-target rule pushed the phone / email to the top of the row). **Table selection:** the checkbox column is pinned with `insetInlineStart` (RTL-safe — a `left: 0` pin used to
 put it under the hover actions), the name column next to it; hover actions sit in a zero-width sticky slot at the inline end;
 selected rows are tinted (`SEL_BG`) with an accent bar; Shift+click selects a range; "הצג רק נבחרים" filters the table to the
 selection. **Selection & bulk:** every table row has a real

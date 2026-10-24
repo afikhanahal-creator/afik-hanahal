@@ -498,18 +498,18 @@ async function handleMessages(req, res) {
   }
 
   if (req.method === 'POST') {
-    const { lead_id, message, image } = req.body || {}
-    if (!lead_id || (!message && !image)) return res.status(400).json({ error: 'lead_id and message required' })
+    const { lead_id, message, image, file, fileName } = req.body || {}
+    if (!lead_id || (!message && !image && !file)) return res.status(400).json({ error: 'lead_id and message required' })
 
     const { data: lead, error: leadErr } = await client.from('meta_leads').select('id,phone,wa_sent').eq('id', lead_id).single()
     if (leadErr || !lead)  return res.status(404).json({ error: 'Lead not found' })
     if (!lead.phone)       return res.status(400).json({ error: 'Lead has no phone number' })
 
     // From the office WhatsApp (Green API) — the same number as the welcome message, so the lead sees one conversation
-    const sent = await Auto.sendText(lead.phone, String(message || '').slice(0, 4000), { image })
+    const sent = await Auto.sendText(lead.phone, String(message || '').slice(0, 4000), { image, file, fileName })
     if (!sent.ok) return res.status(502).json({ error: sent.error || 'send failed', quota: !!sent.quota })
     const { data: newMsg, error: insertErr } = await client.from('meta_messages')
-      .insert({ lead_id: lead.id, direction: 'out', message: message || '📷', wa_message_id: sent.idMessage || null })
+      .insert({ lead_id: lead.id, direction: 'out', message: [file ? `📎 ${String(fileName || 'קובץ').slice(0, 120)}` : '', message].filter(Boolean).join('\n') || '📷', wa_message_id: sent.idMessage || null })
       .select('*').single()
     if (insertErr) return res.status(500).json({ error: insertErr.message })
     if (!lead.wa_sent) await client.from('meta_leads').update({ wa_sent: true }).eq('id', lead.id).then(() => {}, () => {})
@@ -1078,11 +1078,12 @@ async function handleChat(req, res, action) {
 
     // POST /api/meta/chat-send { phone, message, image? } → sendMessage (or sendFileByUrl: a template's picture + caption)
     if (action === 'chat-send') {
-      const { phone, message, image } = req.body || {}
+      const { phone, message, image, file, fileName } = req.body || {}
       const p = normalizePhone(phone)
-      if (!p || (!message && !image)) return res.status(400).json({ error: 'phone and message required' })
-      // The engine's sender: retries a 429, remembers a blocked plan (466) for the panels, clears it on success
-      const r = await Auto.sendText(p, message || '', { image })
+      if (!p || (!message && !image && !file)) return res.status(400).json({ error: 'phone and message required' })
+      // The engine's sender: retries a 429, remembers a blocked plan (466) for the panels, clears it on success;
+      // file + fileName = a file attached in the chat (uploaded to storage by the browser, src/lib/chatFiles.js)
+      const r = await Auto.sendText(p, message || '', { image, file, fileName })
       if (!r.ok) return res.status(502).json({ error: r.error, quota: !!r.quota })
       return res.status(200).json({ ok: true, idMessage: r.idMessage || null })
     }

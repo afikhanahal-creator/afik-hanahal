@@ -604,7 +604,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onOpenCard, onSaveToCRM,
     const lead = leadsRef.current.find(l => l.id === selectedId)
     if (!lead) return { ok: false }
     try {
-      const res = await fetch('/api/meta/messages', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` }, body: JSON.stringify({ lead_id: lead.id, message: text, ...(opts.image ? { image: opts.image } : {}) }) })
+      const res = await fetch('/api/meta/messages', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` }, body: JSON.stringify({ lead_id: lead.id, message: text, ...(opts.image ? { image: opts.image } : {}), ...(opts.file ? { file: opts.file, fileName: opts.fileName || '' } : {}) }) })
       const d = await res.json().catch(() => ({}))
       if (!res.ok) return { ok: false, error: d.error || `HTTP ${res.status}`, quota: !!d.quota }
       if (!lead.wa_sent) patchLead(lead.id, { wa_sent: true })

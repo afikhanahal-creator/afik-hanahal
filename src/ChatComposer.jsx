@@ -7,16 +7,17 @@
 import { useLayoutEffect } from 'react'
 import { Icon } from './uiIcons.jsx'
 import { insertBooking } from './lib/bookingLink.js'
+import { AttachTray, pasteFiles } from './ChatAttachments.jsx'
 import { imageThumb } from './lib/templateImage.js'
 
 const TR = {
   he: {
-    ph: n => (n ? `הודעה ל${n}…` : 'כתבו הודעה…'), send: 'שלח', sendImg: 'שלח עם תמונה', sending: 'שולח…', emoji: 'אימוג׳י', book: 'קישור לקביעת שיחה', bookTip: 'הוספת קישור לעמוד קביעת השיחה עם אפיק הנחל', attach: 'צירוף תמונה או PDF', templates: 'תבניות',
+    ph: n => (n ? `הודעה ל${n}…` : 'כתבו הודעה…'), send: 'שלח', sendImg: 'שלח עם תמונה', sendFiles: n => (n === 1 ? 'שלח קובץ' : `שלח ${n} קבצים`), sending: 'שולח…', emoji: 'אימוג׳י', book: 'קישור לקביעת שיחה', bookTip: 'הוספת קישור לעמוד קביעת השיחה עם אפיק הנחל', attach: 'צירוף קבצים: תמונות, סרטונים, PDF, Word, Excel (אפשר גם לגרור או להדביק)', templates: 'תבניות',
     hint: 'Enter שליחה · Shift+Enter שורה חדשה', from: 'מתבנית', edited: 'נערך', saveTpl: 'שמירה בתבנית', saveTip: 'שמירת הנוסח הזה במקום התבנית, כדי שהלידים הבאים יקבלו אותו',
     clear: 'ניקוי ההודעה', remove: 'הסרה', tplPic: 'תמונה מהתבנית', caption: 'הטקסט יופיע מתחתיה', image: 'תמונה', doc: 'מסמך',
   },
   en: {
-    ph: n => (n ? `Message ${n}…` : 'Write a message…'), send: 'Send', sendImg: 'Send with picture', sending: 'Sending…', emoji: 'Emoji', book: 'Booking link', bookTip: 'Add the link to book a call with Afik Hanahal', attach: 'Attach a picture or PDF', templates: 'Templates',
+    ph: n => (n ? `Message ${n}…` : 'Write a message…'), send: 'Send', sendImg: 'Send with picture', sendFiles: n => (n === 1 ? 'Send file' : `Send ${n} files`), sending: 'Sending…', emoji: 'Emoji', book: 'Booking link', bookTip: 'Add the link to book a call with Afik Hanahal', attach: 'Attach files: photos, videos, PDF, Word, Excel (or drag / paste them)', templates: 'Templates',
     hint: 'Enter to send · Shift+Enter new line', from: 'From template', edited: 'edited', saveTpl: 'Save to template', saveTip: 'Save this wording in place of the template, so the next leads get it',
     clear: 'Clear the message', remove: 'Remove', tplPic: 'Picture from the template', caption: 'The text goes under it', image: 'Picture', doc: 'Document',
   },
@@ -60,7 +61,7 @@ let cssDone = false
 
 export default function ChatComposer({
   WA, lang = 'he', leadName = '', input, setInput, inputRef, onSend, sending, canSend,
-  attached, attachedPreview, onRemoveAttached, tplImg, onRemoveTplImg,
+  attachments, onAddFiles, isDark = false, tplImg, onRemoveTplImg,
   inserted, changed, onSaveTemplate, onClear, savedNote,
   emojiOpen, onToggleEmoji, onPickFile, templatesOpen, onToggleTemplates, msgLang, bookingBase,
 }) {
@@ -79,8 +80,9 @@ export default function ChatComposer({
   // the box grows with its text (up to its max height)
   useLayoutEffect(() => { const el = inputRef?.current; if (el) { el.style.height = 'auto'; el.style.height = `${Math.min(180, el.scrollHeight)}px` } }, [input, inputRef])
   const v = { '--ccm-green': WA.green, '--ccm-line': WA.border, '--ccm-sub': WA.subText, '--ccm-text': WA.bodyText, '--ccm-hover': WA.hoverRow, '--ccm-field': WA.inputFieldBg, '--ccm-soft': WA.inputBg, '--ccm-tint': WA.panelBg }
-  const pic = attached ? (attachedPreview || null) : tplImg ? imageThumb(tplImg.url, 96) : null
-  const withPic = !!(tplImg && !attached) || !!(attached && attached.type?.startsWith('image/'))
+  const files = attachments?.items || []
+  const pic = tplImg ? imageThumb(tplImg.url, 96) : null
+  const withPic = !!tplImg && !files.length
 
   return (
     <div className="ccm" dir={rtl ? 'rtl' : 'ltr'} style={v}>
@@ -97,20 +99,19 @@ export default function ChatComposer({
             <button type="button" className="ccm-ib" style={{ width: 28, height: 28 }} onClick={onClear} aria-label={t.clear} title={t.clear}><Icon name="x" size={15}/></button>
           </div>
         )}
-        {(attached || tplImg) && (
+        <AttachTray items={files} onRemove={attachments?.remove} lang={lang} WA={WA} isDark={isDark} notice={attachments?.notice} onDismissNotice={() => attachments?.setNotice('')}/>
+        {tplImg && !files.length && (
           <div className="ccm-att">
-            {pic ? <img src={pic} alt=""/> : <span className="doc"><Icon name="file" size={20}/></span>}
+            <img src={pic} alt=""/>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--ccm-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{attached ? attached.name : t.tplPic}</div>
-              <div style={{ fontSize: 11.5, color: 'var(--ccm-sub)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {attached ? `${(attached.size / 1024).toFixed(0)} KB · ${attached.type?.startsWith('image/') ? t.image : t.doc}` : `${tplImg.title} · ${t.caption}`}
-              </div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--ccm-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.tplPic}</div>
+              <div style={{ fontSize: 11.5, color: 'var(--ccm-sub)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{`${tplImg.title} · ${t.caption}`}</div>
             </div>
-            <button type="button" className="ccm-ib" onClick={attached ? onRemoveAttached : onRemoveTplImg} aria-label={t.remove} title={t.remove}><Icon name="x" size={16}/></button>
+            <button type="button" className="ccm-ib" onClick={onRemoveTplImg} aria-label={t.remove} title={t.remove}><Icon name="x" size={16}/></button>
           </div>
         )}
         <textarea ref={inputRef} rows={1} value={input} onChange={e => setInput(e.target.value)} dir="auto" autoComplete="off"
-          placeholder={t.ph(leadName)} aria-label={t.ph(leadName)} disabled={sending}
+          placeholder={t.ph(leadName)} aria-label={t.ph(leadName)} disabled={sending} onPaste={onAddFiles ? pasteFiles(onAddFiles) : undefined}
           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); onSend() } }}/>
         <div className="ccm-bar">
           <button type="button" className="ccm-ib" aria-pressed={!!emojiOpen} onClick={onToggleEmoji} aria-label={t.emoji} title={t.emoji}><Icon name="smile" size={20}/></button>
@@ -118,8 +119,8 @@ export default function ChatComposer({
           <button type="button" className="ccm-ib" onClick={addBooking} aria-label={t.book} title={t.bookTip}><Icon name="calendar" size={19}/></button>
           <button type="button" className="ccm-tpl" aria-pressed={!!templatesOpen} onClick={onToggleTemplates}><Icon name="file" size={15}/>{t.templates}</button>
           <span className="ccm-hint">{t.hint}</span>
-          <button type="button" className="ccm-send" onClick={() => onSend()} disabled={!canSend || sending} aria-label={withPic ? t.sendImg : t.send}>
-            {sending ? <span className="lbl">{t.sending}</span> : <><span className="lbl">{withPic ? t.sendImg : t.send}</span><Icon name="send" size={17} flip={rtl}/></>}
+          <button type="button" className="ccm-send" onClick={() => onSend()} disabled={!canSend || sending} aria-label={files.length ? t.sendFiles(files.length) : withPic ? t.sendImg : t.send}>
+            {sending ? <span className="lbl">{t.sending}</span> : <><span className="lbl">{files.length ? t.sendFiles(files.length) : withPic ? t.sendImg : t.send}</span><Icon name="send" size={17} flip={rtl}/></>}
           </button>
         </div>
       </div>

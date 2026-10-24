@@ -194,7 +194,7 @@ const loadCfg = () => (cfgP ||= autoApi.get('auto-config').then(d => (CFG = d?.c
 // a message from the card's conversation goes out like the chats tab's (Green API through /api/meta/chat-send)
 const sendWa = async (phone, text, opts = {}) => {
   try {
-    const r = await fetch('/api/meta/chat-send', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer AFIKhanahal2026' }, body: JSON.stringify({ phone, message: text, ...(opts.image ? { image: opts.image } : {}) }) })
+    const r = await fetch('/api/meta/chat-send', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer AFIKhanahal2026' }, body: JSON.stringify({ phone, message: text, ...(opts.image ? { image: opts.image } : {}), ...(opts.file ? { file: opts.file, fileName: opts.fileName || '' } : {}) }) })
     const d = await r.json().catch(() => ({}))
     return r.ok && d.ok ? { ok: true } : { ok: false, error: d.error || `HTTP ${r.status}`, quota: !!d.quota }
   } catch (e) { return { ok: false, error: e.message } }
