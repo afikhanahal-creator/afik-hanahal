@@ -19,6 +19,7 @@ import { mirrorMetaLead, backfillMetaLeads, findMirror } from '../lib/meta-crm.j
 import * as Booking from '../lib/booking-server.js'
 import * as GCal from '../lib/google-calendar.js'
 import { buildLeadEmailHtml } from '../lib/lead-email.js'
+import { hebrewFullName } from '../lib/hebrew-names.js'
 
 const SUPERMETRICS_API_KEY    = process.env.SUPERMETRICS_API_KEY    || ''
 // System User token (afik-api) — permanent, survives password changes. Used to
@@ -317,7 +318,8 @@ async function handleWebhook(req, res) {
 
           const parsed = parseFieldData(leadData.field_data)
           const phone  = normalizePhone(parsed.phone)
-          const name   = parsed.name  || ''
+          // a Latin name is saved in Hebrew ("Ronen Cohen" → "רונן כהן"); raw_fields keep it as typed
+          const name   = hebrewFullName(parsed.name || '')
           const email  = parsed.email || ''
 
           // Atomic claim: plain INSERT (not upsert). If this leadgen_id already
@@ -559,7 +561,7 @@ async function syncOnePage(pageId, client, errors, { sinceSec = 0, stats = {} } 
           // the webhook got it first) → skip notify. This replaces the old racy
           // "pre-query existingIds" that double-notified when two syncs overlapped.
           const { error: insErr } = await client.from('meta_leads').insert({
-            leadgen_id: lead.id, name: parsed.name || null, email: parsed.email || null,
+            leadgen_id: lead.id, name: hebrewFullName(parsed.name || '') || null, email: parsed.email || null,
             phone: phone || null,
             campaign_id: lead.campaign_id || null, campaign_name: campaignName || null,
             ad_id: lead.ad_id || null,

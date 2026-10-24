@@ -7,12 +7,16 @@ import { FaTimes, FaPhone, FaWhatsapp, FaEnvelope, FaMagic, FaUser, FaStickyNote
 import { T } from './automationsUI.jsx'
 import { sourceLabel, sourceColor, originLines, leadCampaign, leadCampaignFull } from './lib/leadFields.js'
 import LeadChatTab from './LeadChatTab.jsx'
+import LeadConversation from './LeadConversation.jsx'
+import { useAdminTheme } from './adminTheme.js'
+import { autoApi } from './AutomationsApi.jsx'
 import DateTimePicker from './DateTimePicker.jsx'
 import { FollowUpComposer, FollowUpList, FollowUpButton } from './FollowUpTask.jsx'
-import { followUpPresets, setNextFollowUp } from '../lib/follow-up.js'
+import { followUpPresets, setNextFollowUp, dueIso, describeDue } from '../lib/follow-up.js'
 
 const TR = {
   he: {
+    convShow: 'הצג שיחה', convHide: 'הסתר שיחה', convTip: 'כל ההתכתבות בוואטסאפ עם הליד, לצד הפרטים',
     tabs: { details: 'פרטים ועריכה', notes: 'הערות ופעילות', chat: 'שיחת וואטסאפ', tasks: 'משימות', analysis: 'ניתוח חכם' },
     call: 'התקשר', wa: 'וואטסאפ', email: 'מייל', analyze: 'נתח ליד', reanalyze: 'נתח מחדש', analyzing: 'מנתח…', close: 'סגירה', saved: 'נשמר', saving: 'שומר…', saveFailed: 'השמירה נכשלה — בדקו חיבור ונסו שוב',
     sec: { contact: 'פרטי קשר', need: 'מה הלקוח מחפש', prop: 'הנכס שהתעניין בו', msg: 'ההודעה של הלקוח', manage: 'ניהול הליד', source: 'מקור הליד' },
@@ -33,7 +37,7 @@ const TR = {
     upcoming: 'מעקב מתוכנן', overdueFu: 'מעקב באיחור', dayToday: 'היום', dayYesterday: 'אתמול', emptyHistory: 'עוד אין היסטוריה. כל הערה, שיחה ושינוי שלב יופיעו כאן.',
     evStage: (a, b) => `שלב: ${a} ← ${b}`, evTaskDone: 'משימה הושלמה', evAuto: { welcome: 'הודעת פתיחה נשלחה בוואטסאפ', noreply: n => `הודעת מעקב ${n} נשלחה בוואטסאפ`, stage: 'הודעת שלב נשלחה בוואטסאפ', reengage: 'הודעת חזרה נשלחה בוואטסאפ', reply: 'מענה אוטומטי נשלח בוואטסאפ', other: 'הודעה אוטומטית נשלחה' },
     via: 'דרך', moveTo: s => `הליד יעבור לשלב "${s}"`,
-    fuTitle: 'פולו אפ – לחזור אליהם', fuSub: 'בחרו מתי לחזור לליד. כשמגיע הזמן נשלחת תזכורת בוואטסאפ למספר המשרד, עם השם, הטלפון וקישור לכרטיס.', taskPh: 'משימה חדשה (למשל: לשלוח תשריט)', due: 'עד', addTask: 'הוסף', noTasks: 'אין משימות פתוחות', overdue: 'באיחור', today: 'היום', done: 'הושלמו',
+    fuTitle: 'פולו אפ – לחזור אליהם', fuSub: 'בחרו מתי לחזור לליד. כשמגיע הזמן נשלחת תזכורת בוואטסאפ למספר המשרד, עם השם, הטלפון וקישור לכרטיס.', taskPh: 'משימה חדשה (למשל: לשלוח תשריט)', taskRemind: 'תזכורת בוואטסאפ', taskRemindTip: 'כשמגיע הזמן נשלחת למשרד הודעה עם שם הליד, הטלפון, המשימה וקישור לכרטיס', taskRemindOn: 'תישלח תזכורת בוואטסאפ', taskReminded: 'התזכורת נשלחה', due: 'עד', addTask: 'הוסף', noTasks: 'אין משימות פתוחות', overdue: 'באיחור', today: 'היום', done: 'הושלמו',
     gradeName: { hot: 'חם', warm: 'פושר', cool: 'קריר', cold: 'קר' }, rules: 'ציון כללים', aiAdj: 'תיקון AI', conf: { high: 'ביטחון גבוה', medium: 'ביטחון בינוני', low: 'ביטחון נמוך' },
     noAnalysis: 'עוד לא נותח', noAnalysisSub: 'הניתוח אוסף את כל מה שידוע על הליד – ההודעה, תשובות הטופס, השיחה בוואטסאפ, אוטומציות, פניות חוזרות והנכס שהתעניין בו – ומחשב ציון שקוף עם תדריך לשיחה.',
     brief: 'תדריך לשיחה', next: 'הצעד הבא', msgSuggest: 'הודעה מוצעת', copy: 'העתק', copied: 'הועתק', openChat: 'פתח שיחה',
@@ -47,6 +51,7 @@ const TR = {
     identityCheck: 'מה אומת', matchedBy: 'התאמה לפי', toConfirm: 'מה יאשר את הזהות', profiles: 'פרופילים ומקורות ציבוריים', professional: 'עיסוק', rePro: 'איש נדל״ן', publicOwner: 'המספר מופיע ציבורית אצל', hooks: 'נקודות לחימום השיחה', verify: 'שאלות לאימות עדין', flags: 'דגלים אדומים', sources: 'מקורות', opener: 'משפט פתיחה', warmup: 'תוכנית חימום', researchOff: 'המחקר לא רץ:', noResearch: 'טרם נערך מחקר על הליד — לחצו "נתח מחדש".', aiFix: { workspace: 'מפתח ה-API לא משויך ל-Workspace. צרו מפתח חדש בתוך Workspace (console.anthropic.com → Workspaces → Default → API keys), החליפו את ANTHROPIC_API_KEY ב-Vercel ופרסו מחדש.', admin_key: 'הוכנס מפתח Admin (sk-ant-admin…), שלא יכול לנתח. צרו מפתח API רגיל בתוך Workspace, החליפו ב-Vercel ופרסו מחדש.', auth: 'מפתח ה-API לא תקין. העתיקו אותו מחדש ל-Vercel ופרסו מחדש.', no_key: 'לא הוגדר מפתח ANTHROPIC_API_KEY ב-Vercel.' }, analyzedAt: t => `נותח ${t}`, legacy: 'ניתוח קודם (גרסה ישנה) – לחצו "נתח מחדש" לניתוח המדויק החדש',
   },
   en: {
+    convShow: 'Show chat', convHide: 'Hide chat', convTip: 'The whole WhatsApp conversation with the lead, next to the details',
     tabs: { details: 'Details', notes: 'Notes & activity', chat: 'WhatsApp chat', tasks: 'Tasks', analysis: 'Smart analysis' },
     call: 'Call', wa: 'WhatsApp', email: 'Email', analyze: 'Analyze lead', reanalyze: 'Re-analyze', analyzing: 'Analyzing…', close: 'Close', saved: 'Saved', saving: 'Saving…', saveFailed: 'Not saved — check the connection and try again',
     sec: { contact: 'Contact details', need: 'What they are looking for', prop: 'Property of interest', msg: 'Their message', manage: 'Lead management', source: 'Lead source' },
@@ -67,7 +72,7 @@ const TR = {
     upcoming: 'Follow-up scheduled', overdueFu: 'Follow-up overdue', dayToday: 'Today', dayYesterday: 'Yesterday', emptyHistory: 'No history yet. Every note, call and stage change shows up here.',
     evStage: (a, b) => `Stage: ${a} → ${b}`, evTaskDone: 'Task completed', evAuto: { welcome: 'Welcome message sent on WhatsApp', noreply: n => `Follow-up ${n} sent on WhatsApp`, stage: 'Stage message sent on WhatsApp', reengage: 'Re-engagement message sent on WhatsApp', reply: 'Automatic reply sent on WhatsApp', other: 'Automatic message sent' },
     via: 'via', moveTo: s => `The lead moves to “${s}”`,
-    fuTitle: 'Follow-up – get back to them', fuSub: 'Pick when to get back to the lead. When it is due, the office number gets a WhatsApp reminder with the name, phone and a link to the card.', taskPh: 'New task (e.g. send the site plan)', due: 'Due', addTask: 'Add', noTasks: 'No open tasks', overdue: 'Overdue', today: 'Today', done: 'Done',
+    fuTitle: 'Follow-up – get back to them', fuSub: 'Pick when to get back to the lead. When it is due, the office number gets a WhatsApp reminder with the name, phone and a link to the card.', taskPh: 'New task (e.g. send the site plan)', taskRemind: 'WhatsApp reminder', taskRemindTip: 'When it is due, the office gets a message with the lead name, phone, the task and a link to the card', taskRemindOn: 'A WhatsApp reminder will be sent', taskReminded: 'Reminder sent', due: 'Due', addTask: 'Add', noTasks: 'No open tasks', overdue: 'Overdue', today: 'Today', done: 'Done',
     gradeName: { hot: 'Hot', warm: 'Warm', cool: 'Cool', cold: 'Cold' }, rules: 'Rule score', aiAdj: 'AI adjustment', conf: { high: 'High confidence', medium: 'Medium confidence', low: 'Low confidence' },
     noAnalysis: 'Not analyzed yet', noAnalysisSub: 'The analysis gathers everything we know – the message, form answers, the WhatsApp conversation, automations, repeat inquiries and the listing – and computes a transparent score with a call briefing.',
     brief: 'Call briefing', next: 'Next step', msgSuggest: 'Suggested message', copy: 'Copy', copied: 'Copied', openChat: 'Open chat',
@@ -86,6 +91,9 @@ const CSS = `
   .lc *{box-sizing:border-box}
   .lc button{min-height:0;min-width:0}
   .lc-body{display:grid;grid-template-columns:minmax(0,1fr) 320px;flex:1;min-height:0}
+  .lc-body.conv{grid-template-columns:minmax(0,1fr) 290px minmax(400px,40%)}
+  .lc-conv{min-height:0;min-width:0;display:flex;flex-direction:column;overflow:hidden;border-inline-start:1px solid var(--au-line)}
+  .lc-conv-tab{height:min(640px,72vh);border-radius:14px;overflow:hidden;border:1px solid var(--au-line);margin-top:14px}
   .lc-grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
   .lc-grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
   .lc-in{width:100%;height:38px;padding:0 11px;border-radius:9px;border:1px solid var(--au-s3-line);background:var(--au-input);color:var(--au-text);font-family:inherit;font-size:13.5px;outline:none;transition:border-color .15s,box-shadow .15s}
@@ -93,7 +101,7 @@ const CSS = `
   textarea.lc-in{height:auto;padding:9px 11px;line-height:1.55;resize:vertical}
   select.lc-in{appearance:auto}
   .lc-tab{height:40px;padding:0 14px;border:none;background:none;cursor:pointer;font-family:inherit;font-size:13.5px;font-weight:700;display:inline-flex;align-items:center;gap:7px;border-bottom:2px solid transparent;white-space:nowrap}
-  .lc-row:hover{background:rgba(var(--ov),.04)}
+  .lcd-row:hover{background:rgba(var(--ov),.04)}
   .lc-hist-act{opacity:.55;transition:opacity .15s}.lc-hist:hover .lc-hist-act,.lc-hist-act:focus-within{opacity:1}
   .lc-hist-act button:hover{background:rgba(var(--ov),.08)!important;color:var(--au-text)!important}
   @media (hover:none){.lc-hist-act{opacity:1}}
@@ -103,7 +111,7 @@ const CSS = `
   @keyframes lc-spin{to{transform:rotate(360deg)}}
   @media (max-width:980px){.lc-body{grid-template-columns:1fr;overflow-y:auto}.lc-side{border-inline-start:none!important;border-top:1px solid var(--au-line)}.lc-main{overflow:visible!important}}
   @media (max-width:640px){.lc-grid2,.lc-grid3{grid-template-columns:1fr}.lc-hide-m{display:none!important}}
-  @media (max-width:640px){.lc{padding:0!important}.lc-dialog{border-radius:0!important;height:100%!important;border:none!important}}
+  @media (max-width:640px){.lcd{padding:0!important}.lc-dialog{border-radius:0!important;height:100%!important;border:none!important}}
   @media (prefers-reduced-motion:reduce){.lc-dialog{animation:none!important}}
 `
 const initials = n => [...String(n || '?').trim()][0] || '?'
@@ -176,10 +184,33 @@ function ScoreRing({ score, grade, size = 96 }) {
 }
 
 // ── main ───────────────────────────────────────────────────────────────────────
+const WIDE_Q = '(min-width: 1100px)'
+const CONV_KEY = 'afik_lead_card_conv'
+// the automations config (the template library for the composer), read once per session
+let CFG = null, cfgP = null
+const loadCfg = () => (cfgP ||= autoApi.get('auto-config').then(d => (CFG = d?.config || null)).catch(() => { cfgP = null; return null }))
+// a message from the card's conversation goes out like the chats tab's (Green API through /api/meta/chat-send)
+const sendWa = async (phone, text, opts = {}) => {
+  try {
+    const r = await fetch('/api/meta/chat-send', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer AFIKhanahal2026' }, body: JSON.stringify({ phone, message: text, ...(opts.image ? { image: opts.image } : {}) }) })
+    const d = await r.json().catch(() => ({}))
+    return r.ok && d.ok ? { ok: true } : { ok: false, error: d.error || `HTTP ${r.status}`, quota: !!d.quota }
+  } catch (e) { return { ok: false, error: e.message } }
+}
+
 export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEnrich, onOpenChat, lang = 'he', stages = [], initialTab = 'details' }) {
   const t = TR[lang] || TR.he
   const dir = lang === 'en' ? 'ltr' : 'rtl'
   const [tab, setTab] = useState(initialTab)
+  const { isDark } = useAdminTheme()
+  // the whole WhatsApp conversation sits next to the details on a wide screen (hidden by choice, remembered)
+  const [wide, setWide] = useState(() => typeof window !== 'undefined' && !!window.matchMedia?.(WIDE_Q).matches)
+  useEffect(() => { const m = window.matchMedia?.(WIDE_Q); if (!m) return; const f = () => setWide(m.matches); m.addEventListener('change', f); return () => m.removeEventListener('change', f) }, [])
+  const [convOn, setConvOn] = useState(() => { try { return localStorage.getItem(CONV_KEY) !== '0' } catch { return true } })
+  const toggleConv = () => setConvOn(v => { try { localStorage.setItem(CONV_KEY, v ? '0' : '1') } catch {} return !v })
+  const showConv = wide && convOn && !!lead.phone
+  const [cfg, setCfg] = useState(CFG)
+  useEffect(() => { if (lead.phone && !CFG) loadCfg().then(c => c && setCfg(c)) }, [lead.phone])
   const [saveState, setSaveState] = useState('')
   const [copied, setCopied] = useState(false)
   const dialogRef = useRef(null)
@@ -254,6 +285,7 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
         {lead.email && <a className="lc-act lc-hide-m" href={`mailto:${lead.email}`} style={{ background: 'rgba(226,68,92,.1)', color: '#E2445C', border: '1px solid rgba(226,68,92,.3)' }}><FaEnvelope size={11}/>{t.email}</a>}
         {onEnrich && <button type="button" className="lc-act" disabled={enriching} onClick={() => { onEnrich(lead); setTab('analysis') }} style={{ background: 'linear-gradient(135deg,var(--au-brand),var(--au-brand-deep))', color: '#fff', border: 'none', opacity: enriching ? .7 : 1 }}>
           {enriching ? <FaSyncAlt size={11} style={{ animation: 'lc-spin 1s linear infinite' }}/> : <FaMagic size={11}/>}{enriching ? t.analyzing : isV2 ? t.reanalyze : t.analyze}</button>}
+        {wide && lead.phone && <button type="button" className="lc-act" aria-pressed={convOn} title={t.convTip} onClick={toggleConv} style={{ background: convOn ? 'rgba(37,211,102,.12)' : 'transparent', color: convOn ? '#1FAF55' : T.text2, border: `1px solid ${convOn ? 'rgba(37,211,102,.35)' : T.s1Line}` }}><FaComments size={12}/>{convOn ? t.convHide : t.convShow}</button>}
         <button type="button" onClick={onClose} aria-label={t.close} style={{ width: 34, height: 34, borderRadius: 9, border: `1px solid ${T.s1Line}`, background: 'transparent', color: T.text2, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}><FaTimes size={13}/></button>
       </div>
     </div>
@@ -480,18 +512,24 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
   )
 
   // ── Tasks tab ─────────────────────────────────────────────────────────────
-  const [taskDraft, setTaskDraft] = useState(''), [taskDue, setTaskDue] = useState('')
-  const addTask = () => { const text = taskDraft.trim(); if (!text) return; save({ tasks: [...tasks, { id: uid(), text, due: taskDue || '', done: false, createdAt: Date.now() }] }); setTaskDraft(''); setTaskDue('') }
+  const [taskDraft, setTaskDraft] = useState(''), [taskDue, setTaskDue] = useState(''), [taskRemind, setTaskRemind] = useState(true)
+  // a task with a time sends the office a WhatsApp reminder when it is due (lib/follow-up.js reminderText, like a follow-up)
+  const addTask = () => {
+    const text = taskDraft.trim(); if (!text) return
+    const due = dueIso(taskDue)
+    save({ tasks: [...tasks, { id: uid(), text, due, done: false, createdAt: Date.now(), kind: 'task', remind: !!due && taskRemind }] }); setTaskDraft(''); setTaskDue('')
+  }
   const plainTasks = tasks.filter(x => x.kind !== 'followup' || x.done)   // open follow-ups have their own list above
   const dueTone = d => { if (!d) return null; const x = Date.parse(d), s = new Date(); s.setHours(0, 0, 0, 0); if (x < s.getTime()) return ['#EF4444', t.overdue]; if (x < s.getTime() + 864e5) return ['#F59E0B', t.today]; return [T.text3, new Date(x).toLocaleDateString(lang === 'en' ? 'en-GB' : 'he-IL', { day: 'numeric', month: 'short' })] }
   const taskRow = x => {
     const tone = dueTone(x.due)
     return (
-      <div key={x.id} className="lc-row" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 10px', borderRadius: 10 }}>
+      <div key={x.id} className="lcd-row" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 10px', borderRadius: 10 }}>
         <button type="button" role="checkbox" aria-checked={!!x.done} onClick={() => save({ tasks: tasks.map(y => (y.id === x.id ? { ...y, done: !y.done, doneAt: !y.done ? Date.now() : null } : y)) })}
           style={{ width: 20, height: 20, borderRadius: 6, border: `2px solid ${x.done ? '#22C55E' : T.s3Line}`, background: x.done ? '#22C55E' : 'transparent', color: '#fff', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{x.done && <FaCheck size={9}/>}</button>
         <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, color: x.done ? T.text3 : T.text, textDecoration: x.done ? 'line-through' : 'none' }}>{x.text}</span>
-        {tone && !x.done && <span style={{ fontSize: 11.5, fontWeight: 700, color: tone[0], whiteSpace: 'nowrap' }}>{tone[1]}</span>}
+        {tone && !x.done && <span title={x.due ? describeDue(x.due, { lang }) : undefined} style={{ fontSize: 11.5, fontWeight: 700, color: tone[0], whiteSpace: 'nowrap' }}>{tone[1]}{/T\d/.test(String(x.due)) ? ` · ${new Date(x.due).toLocaleTimeString(lang === 'en' ? 'en-GB' : 'he-IL', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem' })}` : ''}</span>}
+        {!x.done && x.remind && <span title={x.remindedAt ? t.taskReminded : t.taskRemindOn} style={{ display: 'inline-flex', color: x.remindedAt ? T.green : '#1FAF55' }}><FaWhatsapp size={12}/></span>}
         <button type="button" aria-label="delete" onClick={() => save({ tasks: tasks.filter(y => y.id !== x.id) })} style={{ background: 'none', border: 'none', color: T.text3, cursor: 'pointer', padding: 4 }}><FaTrash size={11}/></button>
       </div>
     )
@@ -506,7 +544,12 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
     <Section title={t.tabs.tasks} icon={FaTasks}>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <input className="lc-in" style={{ flex: '1 1 240px' }} value={taskDraft} placeholder={t.taskPh} onChange={e => setTaskDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addTask() }}/>
-        <DateTimePicker value={taskDue} onChange={setTaskDue} format="date" lang={lang} label={t.due} placeholder={t.due}/>
+        <DateTimePicker value={taskDue} onChange={setTaskDue} format="iso" lang={lang} label={t.due} placeholder={t.due} presets={followUpPresets(Date.now(), lang)}/>
+        <label className="fu-bell" title={t.taskRemindTip} style={{ opacity: taskDue ? 1 : .55 }}>
+          <input type="checkbox" checked={taskRemind} onChange={e => setTaskRemind(e.target.checked)}/>
+          <span className="fu-sw" aria-hidden="true"/>
+          <FaWhatsapp size={12} style={{ color: '#1FAF55' }}/>{t.taskRemind}
+        </label>
         <button type="button" className="lc-act" onClick={addTask} disabled={!taskDraft.trim()} style={{ background: taskDraft.trim() ? 'var(--au-brand)' : 'rgba(var(--ov),.06)', color: taskDraft.trim() ? '#fff' : T.text3, border: 'none', height: 38 }}><FaPlus size={10}/>{t.addTask}</button>
       </div>
       <div style={{ marginTop: 12 }}>
@@ -732,20 +775,27 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
     </aside>
   )
 
+  const conversation = lead.phone ? (
+    <LeadConversation key={lead.id} lead={lead} tplLead={lead} lang={lang} isDark={isDark} autoConfig={cfg}
+      onAutoConfigSaved={c => { CFG = c; setCfg(c) }} onSend={(text, opts) => sendWa(lead.phone, text, opts)}
+      onOpenChats={onOpenChat ? () => { onOpenChat(lead); onClose() } : undefined}/>
+  ) : null
+
   return createPortal(
-    <div className="lc" dir={dir} onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}
+    <div className="lc lcd" dir={dir} onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}
       style={{ position: 'fixed', inset: 0, zIndex: 2400, background: 'var(--au-overlay)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'min(3vh,24px) 12px' }}>
       <style>{CSS}</style>
       <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="lc-title" className="lc-dialog"
-        style={{ width: 'min(1180px,100%)', height: 'min(880px,100%)', background: T.s2, border: `1px solid ${T.s2Line}`, borderRadius: 18, boxShadow: T.shadow2, color: T.text, display: 'flex', flexDirection: 'column', overflow: 'hidden', outline: 'none', animation: 'lc-in .22s cubic-bezier(.2,.8,.2,1) both' }}>
+        style={{ width: showConv ? 'min(1640px,100%)' : 'min(1180px,100%)', height: showConv ? 'min(960px,100%)' : 'min(880px,100%)', background: T.s2, border: `1px solid ${T.s2Line}`, borderRadius: 18, boxShadow: T.shadow2, color: T.text, display: 'flex', flexDirection: 'column', overflow: 'hidden', outline: 'none', animation: 'lc-in .22s cubic-bezier(.2,.8,.2,1) both' }}>
         <div style={{ height: 4, background: `linear-gradient(90deg, ${stage.color}, ${stage.color}88)`, flexShrink: 0 }}/>
         {header}
         {tabBar}
-        <div className="lc-body">
+        <div className={`lc-body${showConv ? ' conv' : ''}`}>
           <div className="lc-main" style={{ overflowY: 'auto', padding: 16, background: T.bg }}>
-            {tab === 'details' ? details : tab === 'notes' ? notesTab : tab === 'chat' ? <LeadChatTab lead={lead} lang={lang} stages={stages} save={save} onUpdateStatus={onUpdateStatus} onOpenChat={onOpenChat} onClose={onClose}/> : tab === 'tasks' ? tasksTab : analysis}
+            {tab === 'details' ? details : tab === 'notes' ? notesTab : tab === 'chat' ? <><LeadChatTab lead={lead} lang={lang} stages={stages} save={save} onUpdateStatus={onUpdateStatus} onOpenChat={onOpenChat} onClose={onClose} hideConversation={!!lead.phone}/>{!showConv && lead.phone && <div className="lc-conv-tab">{conversation}</div>}</> : tab === 'tasks' ? tasksTab : analysis}
           </div>
           {side}
+          {showConv && <section className="lc-conv" aria-label={t.tabs.chat}>{conversation}</section>}
         </div>
       </div>
     </div>,

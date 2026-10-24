@@ -2,6 +2,7 @@
 // the two palettes, the doodle backgrounds, Green API message → { id, direction, message, … }, and the delivery ticks.
 
 import { useState } from 'react'
+import { Icon } from './uiIcons.jsx'
 
 // ─── Theme palettes ───────────────────────────────────────────────────────────
 export const DARK = {
@@ -113,26 +114,33 @@ export function TickMark({ status, WA, size = 14 }) {
 
 // What the lead left in the ad's form (or the website form), pinned on top of the conversation like Meta's own inbox
 // shows it. `card` = leadFormCard() (src/lib/leadHistory.js).
+// Folded by default to one line (the answers in short), so the conversation keeps the room; the choice is remembered
+const FORM_OPEN_KEY = 'afik_formcard_open'
 export function LeadFormCard({ card, WA, isDark, lang = 'he' }) {
   const [all, setAll] = useState(false)
+  const [open, setOpen] = useState(() => { try { return localStorage.getItem(FORM_OPEN_KEY) === '1' } catch { return false } })
   if (!card) return null
+  const toggle = () => setOpen(v => { try { localStorage.setItem(FORM_OPEN_KEY, v ? '0' : '1') } catch {} return !v })
   const he = lang !== 'en'
   const rows = all ? card.rows : card.rows.slice(0, 8)
   const when = card.at ? new Date(card.at).toLocaleString(he ? 'he-IL' : 'en-GB', { timeZone: 'Asia/Jerusalem', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''
   const title = card.where === 'ad' ? (he ? 'הפרטים שהשאירו במודעה' : 'Details they left on the ad') : (he ? 'הפרטים שהשאירו באתר' : 'Details they left on the website')
+  const short = card.rows.map(r => String(r.a || '').split('\n')[0]).filter(a => a && a.length <= 40).slice(0, 4).join(' · ')
   return (
     <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 12px 6px' }}>
       <section aria-label={title} dir={he ? 'rtl' : 'ltr'} style={{ width: '100%', maxWidth: 460, background: WA.bubbleIn, color: WA.bodyText, borderRadius: 10, boxShadow: '0 1px .5px rgba(11,20,26,.13)', overflow: 'hidden', fontSize: 13.5, lineHeight: 1.5 }}>
-        <div style={{ padding: '9px 12px 8px', borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,.07)' : 'rgba(11,20,26,.07)'}`, display: 'flex', gap: 10, alignItems: 'center' }}>
-          <span aria-hidden style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 8, display: 'grid', placeItems: 'center', background: WA.green + '22', color: WA.green, fontSize: 15 }}>📋</span>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontWeight: 700, fontSize: 13.5 }}>{title}</div>
-            <div style={{ fontSize: 12, color: WA.subText, overflowWrap: 'anywhere' }} title={card.campaignFull || undefined}>
-              {[card.campaign && <bdi key="c">{card.campaign}</bdi>, card.form && card.form !== card.campaignFull && <bdi key="f">{card.form}</bdi>, when].filter(Boolean).reduce((a, x, i) => (i ? [...a, ' · ', x] : [x]), [])}
-            </div>
-          </div>
-        </div>
-        {(rows.length > 0 || card.name) && (
+        <button type="button" onClick={toggle} aria-expanded={open} style={{ width: '100%', padding: '9px 12px 8px', border: 'none', borderBottom: open ? `1px solid ${isDark ? 'rgba(255,255,255,.07)' : 'rgba(11,20,26,.07)'}` : 'none', background: 'none', color: 'inherit', font: 'inherit', textAlign: 'start', cursor: 'pointer', display: 'flex', gap: 10, alignItems: 'center', minHeight: 0 }}>
+          <span aria-hidden style={{ width: 30, height: 30, flexShrink: 0, borderRadius: 8, display: 'grid', placeItems: 'center', background: WA.green + '22', color: WA.green }}><Icon name="file" size={16}/></span>
+          <span style={{ minWidth: 0, flex: 1 }}>
+            <span style={{ display: 'block', fontWeight: 700, fontSize: 13.5 }}>{title}</span>
+            <span style={{ display: 'block', fontSize: 12, color: WA.subText, overflowWrap: 'anywhere' }} title={card.campaignFull || undefined}>
+              {[card.campaign && <bdi key="c">{card.campaign}</bdi>, open && card.form && card.form !== card.campaignFull && <bdi key="f">{card.form}</bdi>, when].filter(Boolean).reduce((a, x, i) => (i ? [...a, ' · ', x] : [x]), [])}
+            </span>
+            {!open && short && <span style={{ display: 'block', fontSize: 12.5, fontWeight: 600, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{short}</span>}
+          </span>
+          <span aria-hidden style={{ color: WA.subText, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }}><Icon name="chevronDown" size={18}/></span>
+        </button>
+        {open && (rows.length > 0 || card.name) && (
           <dl style={{ margin: 0, padding: '6px 12px 8px' }}>
             {card.name && (
               <div style={{ padding: '4px 0' }}>
@@ -148,7 +156,7 @@ export function LeadFormCard({ card, WA, isDark, lang = 'he' }) {
             ))}
           </dl>
         )}
-        {card.rows.length > 8 && (
+        {open && card.rows.length > 8 && (
           <button type="button" onClick={() => setAll(v => !v)} style={{ width: '100%', border: 'none', borderTop: `1px solid ${isDark ? 'rgba(255,255,255,.07)' : 'rgba(11,20,26,.07)'}`, background: 'none', color: WA.green, fontWeight: 600, fontSize: 12.5, padding: '8px 0', cursor: 'pointer', fontFamily: 'inherit' }}>
             {all ? (he ? 'הצג פחות' : 'Show less') : (he ? `הצג הכל (${card.rows.length})` : `Show all (${card.rows.length})`)}
           </button>

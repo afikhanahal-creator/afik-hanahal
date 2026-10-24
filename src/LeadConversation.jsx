@@ -14,6 +14,7 @@ import { CATEGORIES, getTemplate, mergeConfig, leadLang } from '../lib/automatio
 import { mergeConversation, templateOptions, sendErrorText } from './lib/leadConversation.js'
 import { imageThumb } from './lib/templateImage.js'
 import { Icon, CatTile } from './uiIcons.jsx'
+import { insertBooking } from './lib/bookingLink.js'
 
 const ADMIN_TOKEN = 'AFIKhanahal2026'
 const AUTH = { Authorization: `Bearer ${ADMIN_TOKEN}` }
@@ -60,7 +61,7 @@ export function prefetchHistory(rawPhone) {
 
 const TR = {
   he: {
-    title: 'שיחת וואטסאפ', from: n => `מהוואטסאפ של המשרד${n ? ` · ${n}` : ''}`, refresh: 'רענון השיחה', openChats: 'בצ׳אטים',
+    title: 'שיחת וואטסאפ', from: n => `מהוואטסאפ של המשרד${n ? ` · ${n}` : ''}`, refresh: 'רענון השיחה', card: 'כרטיס ליד — עדכון פרטים', book: 'קישור לשיחה', bookTip: 'הוספת קישור לעמוד קביעת השיחה עם אפיק הנחל', openChats: 'בצ׳אטים',
     loading: 'טוען את השיחה…', empty: 'עוד אין הודעות בשיחה הזו', emptyFirst: 'הודעת הפתיחה מוכנה למטה. אפשר לבחור נוסח אחר מהרשימה ולערוך לפני השליחה',
     histErr: 'לא הצלחנו לקרוא את ההיסטוריה מוואטסאפ, מוצגות ההודעות שנשלחו מכאן', retry: 'נסו שוב',
     quota: 'השליחה חסומה: המכסה החודשית של Green API נגמרה. אפשר לקרוא שיחות, אבל הודעות לא יוצאות עד שמשדרגים את התוכנית.', upgrade: 'לשדרוג',
@@ -74,7 +75,7 @@ const TR = {
     quickHint: '↑ ↓ לבחירה · Enter להכנסה · Esc לסגירה', count: n => `${n} תבניות`, lineOf: n => `קו המשרד ${n}`,
   },
   en: {
-    title: 'WhatsApp conversation', from: n => `From the office WhatsApp${n ? ` · ${n}` : ''}`, refresh: 'Refresh the conversation', openChats: 'In chats',
+    title: 'WhatsApp conversation', from: n => `From the office WhatsApp${n ? ` · ${n}` : ''}`, refresh: 'Refresh the conversation', card: 'Lead card — update details', book: 'Booking link', bookTip: 'Add the link to book a call with Afik Hanahal', openChats: 'In chats',
     loading: 'Loading the conversation…', empty: 'No messages in this conversation yet', emptyFirst: 'The welcome message is ready below. Pick another wording from the list and edit it before sending',
     histErr: 'Couldn\'t read the WhatsApp history, showing the messages sent from here', retry: 'Try again',
     quota: 'Sending is blocked: the Green API monthly quota is used up. Conversations can be read, but nothing goes out until the plan is upgraded.', upgrade: 'Upgrade',
@@ -130,7 +131,7 @@ const I = {
   search: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>,
 }
 
-export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = true, localMsgs = [], needsWelcome = false, autoConfig = null, onAutoConfigSaved, onSend, onSendWelcome, onOpenChats, officePhone = '', compact = false, onActivity, maximized = false, onToggleMaximize }) {
+export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = true, localMsgs = [], needsWelcome = false, autoConfig = null, onAutoConfigSaved, onSend, onSendWelcome, onOpenChats, officePhone = '', compact = false, onActivity, maximized = false, onToggleMaximize, onOpenCard }) {
   const t = TR[lang] || TR.he
   const WA = isDark ? DARK : LIGHT
   const formCard = useMemo(() => leadFormCard(lead, lang), [lead, lang])
@@ -225,6 +226,13 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
     if (r?.quota) setLine({ ...(line || {}), quota: { blocked: true, at: new Date().toISOString() } })
     setError(sendErrorText(r || {}, lang))
     return false
+  }
+  // the booking page link at the cursor, in the language of what is in the box (else the template language)
+  const addBooking = () => {
+    const el = inputRef.current
+    const r = insertBooking(input, el?.selectionStart ?? input.length, el?.selectionEnd, tplLang, cfg?.vars?.bookingLink)
+    setInput(r.text)
+    setTimeout(() => { const x = inputRef.current; if (x) { x.focus(); x.setSelectionRange(r.cursor, r.cursor) } }, 20)
   }
   const submit = async () => { if (await send(input)) { setInput(''); setTplId(''); setImg(''); inserted.current = '' } }
 
@@ -384,6 +392,7 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
             {lead?.phone && <span dir="ltr">{localPhone(lead.phone)}</span>}{!compact && <>{lead?.phone ? ' · ' : ''}{t.from(officePhone)}</>}
           </div>
         </div>
+        {onOpenCard && <button type="button" className="lcv-ib" onClick={onOpenCard} aria-label={t.card} title={t.card}><Icon name="personal" size={20} sw={1.8}/></button>}
         <button type="button" className="lcv-ib" onClick={() => load()} aria-label={t.refresh} title={t.refresh}>{I.refresh}</button>
         {onToggleMaximize && <button type="button" className="lcv-ib" onClick={onToggleMaximize} aria-pressed={maximized} aria-label={maximized ? t.restore : t.maximize} title={maximized ? t.restore : t.maximize}>{maximized ? I.shrink : I.expand}</button>}
         {onOpenChats && phone && !compact && <button type="button" className="lcv-ib" onClick={onOpenChats} aria-label={t.openChats} title={t.openChats}>{I.open}</button>}
@@ -505,6 +514,7 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
             <div className="lcv-bar">
               <button ref={qBtnRef} type="button" className="lcv-tplbtn" aria-expanded={quick} aria-haspopup="dialog" title={t.quickTip}
                 onClick={() => (quick ? closeQuick() : openQuick())}><Icon name="file" size={15}/>{t.templatesBtn}</button>
+              <button type="button" className="lcv-tplbtn" title={t.bookTip} onClick={addBooking}><Icon name="calendar" size={15}/>{t.book}</button>
               <span className="lcv-hint">{t.enterHint}</span>
               <button type="button" className="lcv-send" onClick={submit} disabled={!canSend} aria-label={first ? t.sendWelcome : t.send}>
                 {busy ? t.sending : <>{first ? t.sendWelcome : t.send}<Icon name="send" size={16} flip={lang !== 'en'}/></>}

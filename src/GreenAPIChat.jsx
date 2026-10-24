@@ -9,7 +9,7 @@ import ChatTemplatePicker, { ChatTemplateMenu, ChatQuickChips } from './ChatTemp
 import ChatComposer from './ChatComposer.jsx'
 import { imageThumb } from './lib/templateImage.js'
 import TemplateQuickEdit from './TemplateQuickEdit.jsx'
-import { renderTemplate } from '../lib/automations-shared.js'
+import { renderTemplate, leadLang as leadLangOf } from '../lib/automations-shared.js'
 import { untemplate } from '../lib/template-edit.js'
 import { DARK, LIGHT, DOODLE_DARK, DOODLE_LIGHT, normalizeGreenMsg, TickMark, LeadFormCard } from './waShared.jsx'
 import { NotesButton, FollowUpButton } from './FollowUpTask.jsx'
@@ -1167,6 +1167,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                 changed={boxChanged} onSaveTemplate={() => openEdit(inserted.tpl, { [inserted.lang]: untemplate(input, inserted.marked) }, inserted.lang, true)}
                 onClear={() => { setInput(''); setInserted(null); setTplImg(null); inputRef.current?.focus() }}
                 savedNote={tplSaved}
+                msgLang={chatLead ? leadLangOf(chatLead) : undefined} bookingBase={cfgEff?.vars?.bookingLink}
                 emojiOpen={emoji} onToggleEmoji={() => setEmoji(v => !v)} onPickFile={() => fileRef.current?.click()}
                 templatesOpen={quickOpen} onToggleTemplates={() => { setQuickOpen(v => !v); setEmoji(false) }}/>
             </>

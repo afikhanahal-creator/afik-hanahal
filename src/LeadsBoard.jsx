@@ -1993,6 +1993,12 @@ function MobileStatsBar({ leads, T, lang }) {
 // ─── main board ───────────────────────────────────────────────────────────────
 
 // The board + the call-summary dialog any card can open (NoteCtx), on desktop and mobile alike
+// The lead card opened from another screen (the Lead Center's "כרטיס ליד"), with the office's stage names
+export function LeadCardWithStages({ stageLabels, ...props }) {
+  applyStageLabels(stageLabels)
+  return <LeadCard {...props} stages={GROUPS}/>
+}
+
 export default function LeadsBoard(props) {
   const [noteLeadId, setNoteLeadId] = useState(null)
   const T = useTheme(props.isDark)
