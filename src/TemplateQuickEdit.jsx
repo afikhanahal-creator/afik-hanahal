@@ -9,18 +9,19 @@ import { withTemplate, withoutOverride, newTemplateId } from '../lib/template-ed
 import { autoApi } from './AutomationsApi.jsx'
 import TemplateImageField from './TemplateImageField.jsx'
 import { imageThumb } from './lib/templateImage.js'
+import { Icon } from './uiIcons.jsx'
 
 const TR = {
   he: {
     title: 'עריכת תבנית', fromChat: 'הנוסח מהתיבה הוכנס לתבנית. השם, הפרויקט ושאר הפרטים של הליד חזרו להיות משתנים, כדי שהתבנית תתאים לכל ליד.',
     name: 'שם התבנית', text: 'נוסח ההודעה', vars: 'הוספת משתנה:', preview: 'כך זה ייראה אצל', previewLead: 'הליד הזה', cond: 'חלק בתוך [[ ]] יופיע רק כשיש ללייד את הנתון.',
-    save: 'שמור במקום התבנית', saveNew: 'שמור כתבנית חדשה', restore: 'שחזר לנוסח המקורי', cancel: 'ביטול', saving: 'שומר…', saved: 'נשמר ✓',
+    save: 'שמור במקום התבנית', saveNew: 'שמור כתבנית חדשה', restore: 'שחזר לנוסח המקורי', cancel: 'ביטול', saving: 'שומר…', saved: 'נשמר',
     everywhere: 'השינוי יחול בכל מקום שהתבנית משמשת: בצ׳אט, באוטומציות ובשליחות קבוצתיות.', unknown: x => `{${x}} אינו משתנה מוכר ויישלח כמו שהוא`, empty: 'הנוסח ריק', err: 'השמירה נכשלה',
   },
   en: {
     title: 'Edit template', fromChat: 'The wording from the message box went into the template. The lead\'s name, project and other details became variables again, so the template fits every lead.',
     name: 'Template name', text: 'Message text', vars: 'Insert a variable:', preview: 'How it looks for', previewLead: 'this lead', cond: 'A part inside [[ ]] shows only when the lead has that detail.',
-    save: 'Save in place of the template', saveNew: 'Save as a new template', restore: 'Restore the original wording', cancel: 'Cancel', saving: 'Saving…', saved: 'Saved ✓',
+    save: 'Save in place of the template', saveNew: 'Save as a new template', restore: 'Restore the original wording', cancel: 'Cancel', saving: 'Saving…', saved: 'Saved',
     everywhere: 'The change applies everywhere the template is used: chat, automations and bulk sends.', unknown: x => `{${x}} is not a known variable and will be sent as typed`, empty: 'The text is empty', err: 'Saving failed',
   },
 }
@@ -77,7 +78,7 @@ export default function TemplateQuickEdit({ WA, lang = 'he', lead, tpl, initial 
       <div role="dialog" aria-modal="true" aria-label={t.title} dir={lang === 'en' ? 'ltr' : 'rtl'}
         style={{ width: 'min(860px, 100%)', maxHeight: 'calc(100vh - 32px)', overflowY: 'auto', background: WA.panelBg, color: WA.bodyText, borderRadius: 14, boxShadow: '0 24px 70px rgba(0,0,0,.35)', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 18px', borderBottom: `1px solid ${WA.border}` }}>
-          <b style={{ fontSize: 15 }}>✏️ {t.title}</b>
+          <b style={{ fontSize: 15, display: 'inline-flex', alignItems: 'center', gap: 7 }}><Icon name="pencil" size={16}/>{t.title}</b>
           <span style={{ fontSize: 13, color: WA.subText, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{lang === 'en' ? (tpl.en_title || tpl.he_title) : tpl.he_title}</span>
           <button type="button" onClick={onClose} aria-label={t.cancel} style={{ marginInlineStart: 'auto', background: 'none', border: 'none', color: WA.subText, fontSize: 20, cursor: 'pointer', lineHeight: 1, padding: 4, minHeight: 0 }}>×</button>
         </div>
@@ -100,7 +101,7 @@ export default function TemplateQuickEdit({ WA, lang = 'he', lead, tpl, initial 
             </div>
             <TemplateImageField value={image} onChange={setImage} lang={lang} compact pal={{ text: WA.bodyText, sub: WA.subText, line: WA.border, bg: WA.inputBg, accent: WA.green }}/>
             {/\[\[/.test(text[tab]) && <div style={{ fontSize: 11.5, color: WA.subText }}>{t.cond}</div>}
-            {unknown.map(x => <div key={x} style={{ fontSize: 12, color: '#B45309' }}>⚠ {t.unknown(x)}</div>)}
+            {unknown.map(x => <div key={x} style={{ fontSize: 12, color: '#B45309' }}>{t.unknown(x)}</div>)}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: WA.subText }}>{t.preview} {lead?.name || t.previewLead}</div>

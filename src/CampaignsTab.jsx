@@ -7,6 +7,7 @@ import { T, Button, IconButton, Card, Badge, FilterChip, EmptyState, Skeleton, M
 import { STAGES, renderTemplate, leadLang, intlPhone, isSendWindow, nextSendWindow, CATEGORIES } from '../lib/automations-shared.js'
 import { autoApi } from './AutomationsApi.jsx'
 import DateTimePicker from './DateTimePicker.jsx'
+import { CatTile } from './uiIcons.jsx'
 
 const TR = {
   he: {
@@ -296,7 +297,7 @@ function Wizard({ t, lang, cfg, tpls, leads, states, stageName, init, pingActive
                     return (
                       <button key={x.id} type="button" role="option" aria-selected={on} onClick={() => { setTplId(x.id); setCt(null); setCustom(false) }} className={on ? undefined : 'au-hov'}
                         style={{ minHeight: 48, display: 'flex', alignItems: 'center', gap: 10, padding: '0 12px', borderRadius: 9, border: 'none', borderInlineStart: `3px solid ${on ? T.brand : 'transparent'}`, background: on ? T.brandSoft : 'transparent', color: T.text, fontFamily: 'inherit', textAlign: 'start', cursor: 'pointer' }}>
-                        <span style={{ fontSize: 16 }}>{c.icon}</span><span style={{ flex: 1, fontSize: 13.5, fontWeight: 700 }}>{isEn ? x.en_title || x.he_title : x.he_title}</span>
+                        <CatTile cat={c.id} color={c.color} size={26} radius={7}/><span style={{ flex: 1, fontSize: 13.5, fontWeight: 700 }}>{isEn ? x.en_title || x.he_title : x.he_title}</span>
                         <Badge color={c.color}>{isEn ? c.en : c.he}</Badge>
                       </button>
                     )

@@ -269,11 +269,19 @@ templates tab's editor and the chat's quick editor), compressed in the browser t
 always through wsrv.nl `imageThumb()`); `withTemplate()` keeps it. The phone preview, the library cards ("עם תמונה"), the "היום"
 rows, the ⚡ panel, the header menu and the Lead Center's quick replies show it; a template put in the box brings its picture
 as a chip ("תמונה מהתבנית", ✕ = send without it).
-**Fast sending in the chat** (`src/ChatTemplatePicker.jsx`): over the empty message box a strip "⚡ מתאים עכשיו:"
-(`ChatQuickChips`: the 3–4 templates that fit this lead now — the most personal one + the stage's category) — a click puts one in
-the box, ➤ sends it as is; the ⚡ panel's rows have "לתיבה" and "שלח" always visible (Enter = to the box, Ctrl+Enter = send, ↑ / ↓),
-a click on a row opens the editable preview with the picture (which can be left out); the header's "⚡ תבניות ▾" has "שלח" on
-every row. Library cards in the templates tab are WhatsApp bubbles (light `#D9FDD3` in the light admin theme — `.au-wa-bub`).
+**Sending in the chat** (messaging UI v2, 2026-10-23 — line icons from `src/uiIcons.jsx` (`Icon`, `CatTile` per template
+category), never emoji in the UI chrome): **the message box** is `src/ChatComposer.jsx` (GreenAPIChat keeps the state) — one card
+with the "מתבנית · <title>" line (changed → "שמירה בתבנית", ✕ clears the box), the attachment or the template's picture, the
+text (grows; Enter sends, Shift+Enter = new line; the placeholder names the lead) and a toolbar: emoji · attach · "תבניות" … a
+labelled green "שלח" / "שלח עם תמונה" (icon-only on phones). **"הצעות"** over the empty box (`ChatQuickChips` in
+`src/ChatTemplatePicker.jsx`: the 3–4 templates that fit this lead now — the most personal one + the stage's category): a click
+puts one in the box, the round button sends it. **The templates window** (`ChatTemplatePicker`): categories (a side column when
+≥ 860 px wide, chips otherwise) · the list · a WhatsApp preview of the selected message for this lead (editable in the bubble, its
+picture can be left out) with "שלח עכשיו" and "הכנס לתיבה"; it opens on the best message for the lead, ↑ / ↓ move, Enter = to the
+box, Ctrl+Enter = send, Esc; narrow screens show the list, then the preview with a back button. The header's "תבניות ▾"
+(`ChatTemplateMenu`, hidden on phones — the composer has the button) has "שלח" on the active row. The Lead Center's composer
+(`LeadConversation.jsx`) is the same card: template line, picture, full-width text, toolbar with "תבניות" and a labelled send
+("שלח הודעת פתיחה" before the first message). Library cards in the templates tab are WhatsApp bubbles (light `#D9FDD3` in the light admin theme — `.au-wa-bub`).
 **Personal templates** (category "אישי – לפי הפנייה"): `lib/lead-needs.js` `leadNeeds()` (tested) reads what the lead told us —
 the lead card's fields (budget / rooms / area / timeline / dealType / propertyType) over the Meta form answers (matched by the
 question's wording) and, for website leads only, the first sentence they typed — into `{needs}` ("4 חדרים, בכפר סבא, בתקציב של

@@ -4,6 +4,7 @@
 // details, form answers and notes. Phones get one screen at a time (list → lead → conversation / details).
 // Props: { C, lang, isDark, onSaveToCRM, onOpenChat, onNew*, crmLeads, autoConfig, onAutoConfigSaved }
 
+import { Icon } from './uiIcons.jsx'
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { metaFormAnswers, shortCampaign, formFullName } from './lib/leadFields.js'
 import { templateLead } from './lib/leadConversation.js'
@@ -1248,7 +1249,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onLeadRenam
                     {/* Welcome status */}
                     <div className="lc-card" style={{ padding: 14, borderColor: selectedLead.wa_sent ? 'rgba(34,197,94,.4)' : selectedLead.phone ? 'rgba(245,158,11,.45)' : BORDER }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <span aria-hidden style={{ fontSize: 18 }}>{selectedLead.wa_sent ? '✅' : selectedLead.phone ? '⏳' : '🚫'}</span>
+                        <span aria-hidden style={{ width: 34, height: 34, borderRadius: 10, flex: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: selectedLead.wa_sent ? 'rgba(0,168,132,.14)' : selectedLead.phone ? 'rgba(245,166,35,.16)' : 'rgba(224,82,82,.14)', color: selectedLead.wa_sent ? '#00A884' : selectedLead.phone ? '#B7791F' : '#D64545' }}><Icon name={selectedLead.wa_sent ? 'check' : selectedLead.phone ? 'clock' : 'x'} size={17} sw={2.2}/></span>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: 13.5, fontWeight: 800, color: CREAM }}>{selectedLead.wa_sent ? t.welcomeSent : selectedLead.phone ? t.welcomeNot : t.welcomeNoPhone}</div>
                           {selectedLead.wa_sent && firstOutAt && <div style={{ fontSize: 11.5, color: MUTED, marginTop: 2 }}>{fmtFull(firstOutAt, lang)}</div>}
