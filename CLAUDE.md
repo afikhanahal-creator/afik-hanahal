@@ -225,7 +225,7 @@ missing; the Lead Center's CRM button calls `POST /api/meta/lead-to-crm {id}`. T
 arrives — the Meta webhook and sync (`meta_leads.name`), website forms (`api/contacts.js`) and bookings — by `hebrewFullName()`
 (`lib/hebrew-names.js`, tested: ~450 first names, Israeli surnames, then transliteration with final letters; an email, a test
 lead or junk stays as typed). The name as typed stays in `raw_fields` / `crm_data.originalName`, and an English message greets
-with it (`renderTemplate`). The existing leads were converted on 2026-10-24 (164 contacts, 178 Meta leads). every screen shows the lead's current name from the admin's `leads` (kept fresh by the change bus) over a
+with it (`renderTemplate`). The existing leads were converted on 2026-10-24 (164 contacts, 178 Meta leads). **Safety net:** `auto-tick` (every 15 min) and the panel's `auto-run` also convert any lead of the last 72 h still named in Latin, in both tables (`lib/hebrew-lead-names.js` `hebrewizeRecentNames()`, tested — `crm_data.originalName` keeps the typed name). every screen shows the lead's current name from the admin's `leads` (kept fresh by the change bus) over a
 copy it got earlier — "היום" in the automations (queue rows and the schedule; a message not edited by hand is re-rendered with the
 new name), the automations log, the meetings tab (`BookingAdminTab` gets `leads`, a call shows its lead's name via `leadId`), the
 chats (lead name over the WhatsApp name) and the Lead Center (the server renames `meta_leads` too).

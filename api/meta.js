@@ -20,6 +20,7 @@ import * as Booking from '../lib/booking-server.js'
 import * as GCal from '../lib/google-calendar.js'
 import { buildLeadEmailHtml } from '../lib/lead-email.js'
 import { hebrewFullName } from '../lib/hebrew-names.js'
+import { hebrewizeRecentNames } from '../lib/hebrew-lead-names.js'
 
 const SUPERMETRICS_API_KEY    = process.env.SUPERMETRICS_API_KEY    || ''
 // System User token (afik-api) — permanent, survives password changes. Used to
@@ -884,6 +885,7 @@ async function handleAutomations(req, res, action) {
       Auto.run({ source: 'external' }).catch(e => ({ ok: false, error: e.message, sent: [], errors: [], suggestions: [], jobs: {} })),
       syncRecentMetaLeads({ hours: 6 }).catch(e => ({ error: e.message })),   // safety net for the Meta webhook
       Booking.retryConfirmations({ client: SUPABASE_URL && SUPABASE_KEY ? sb() : null }).catch(() => null),  // calendar sync + confirmations Green API refused
+      hebrewizeRecentNames(SUPABASE_URL && SUPABASE_KEY ? sb() : null).catch(() => null),   // any recent lead still named in Latin → Hebrew
     ])
     return res.status(200).json({ ok: r.ok !== false, at: r.at, sent: r.sent?.length || 0, errors: r.errors?.length || 0, queued: r.suggestions?.length || 0, jobs: r.jobs, notes: r.notes, meta })
   }
@@ -911,7 +913,7 @@ async function handleAutomations(req, res, action) {
     }
     if (action === 'auto-run') {
       // The panel calls this every 5 minutes while open: also pick up any Meta lead the webhook missed
-      const [r, meta] = await Promise.all([Auto.run({ source: 'panel' }), syncRecentMetaLeads({ hours: 6 }).catch(e => ({ error: e.message })), Booking.retryConfirmations({ client: SUPABASE_URL && SUPABASE_KEY ? sb() : null }).catch(() => null)])
+      const [r, meta] = await Promise.all([Auto.run({ source: 'panel' }), syncRecentMetaLeads({ hours: 6 }).catch(e => ({ error: e.message })), Booking.retryConfirmations({ client: SUPABASE_URL && SUPABASE_KEY ? sb() : null }).catch(() => null), hebrewizeRecentNames(SUPABASE_URL && SUPABASE_KEY ? sb() : null).catch(() => null)])
       return res.status(200).json({ ...r, meta })
     }
     if (action === 'auto-send')   return res.status(200).json({ results: await Auto.sendItems(Array.isArray(b.items) ? b.items : [], { by: 'manual' }) })
