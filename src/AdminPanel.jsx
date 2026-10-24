@@ -17,6 +17,7 @@ const AutomationsTab = lazy(() => import('./AutomationsTab.jsx'))
 const GA4Tab = lazy(() => import('./GA4Tab.jsx'))
 const SiteLocalTab = lazy(() => import('./SiteLocalTab.jsx'))
 const AdminHome = lazy(() => import('./AdminHome.jsx'))
+const LeadCardLazy = lazy(() => import('./LeadsBoard.jsx').then(m => ({ default: m.LeadCardWithStages })))
 const PropertyShare = lazy(() => import('./PropertyShare.jsx'))
 import PropertyGallery, { PropertiesHeader, QuickFormDrawer, FormSection } from './PropertyGallery.jsx'
 import { autoApi, StageSendPrompt } from './AutomationsApi.jsx'
@@ -1520,6 +1521,8 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const [initialChatLead, setInitialChatLead] = useState(null)
   // ── WhatsApp automations: config + periodic run (the panel is the scheduler while it is open) ──
   const [autoCfg, setAutoCfg]         = useState(null)    // { config, storage, greenConfigured }
+  const [cardLeadId, setCardLeadId]   = useState(null)    // the lead card opened over the Lead Center
+  const cardFallback = useRef(null)
   const [autoRun, setAutoRun]         = useState(null)    // last run: suggestions, sent, moves…
   const [autoRunning, setAutoRunning] = useState(false)
   const [stagePrompt, setStagePrompt] = useState(null)
@@ -3560,7 +3563,17 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
               crmLeads={leads}
               autoConfig={autoCfg?.config || null}
               onAutoConfigSaved={cfg => setAutoCfg(c => ({ ...(c || {}), config: cfg, storage: 'ok' }))}
+              onOpenCard={async (metaLead, crmLead) => {
+                // "כרטיס ליד": the CRM lead card over the Lead Center (a lead not in the CRM yet is copied there first)
+                const target = await ensureCrmCopy(metaLead, crmLead)
+                setCardLeadId(String(target.id)); cardFallback.current = target
+              }}
             />
+            {cardLeadId && (
+              <LeadCardLazy key={cardLeadId} lead={leads.find(l => String(l.id) === cardLeadId) || cardFallback.current}
+                onClose={() => setCardLeadId(null)} onUpdate={updateLead} onUpdateStatus={updateLeadStatus} onEnrich={enrichLead}
+                onOpenChat={lead => { setCardLeadId(null); setInitialChatLead(lead); setTab('chats') }} lang={lang} stageLabels={stageLabels}/>
+            )}
           </Suspense>
         )}
 

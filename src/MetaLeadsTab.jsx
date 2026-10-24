@@ -90,6 +90,8 @@ const TR = {
     tabChat: 'שיחה', tabInfo: 'פרטים והערות', pickWelcome: 'לבחירת הודעת פתיחה', archiveLead: 'העבר לארכיון',
     welcomeHint: 'בחרו נוסח בשיחה ושלחו מהוואטסאפ של המשרד', noteSaveFailed: 'השמירה נכשלה', kWelcomeShort: 'קיבלו הודעה',
     pillMeta: 'פייסבוק', pillWa: 'וואטסאפ', pillWelcome: 'פתיחה אוטומטית', showWaiting: 'הצגת הלידים שממתינים לקשר ראשון',
+    openCard: 'כרטיס ליד', openCardTip: 'פתיחת כרטיס הליד לעדכון פרטים, משימות והערות', cardFail: 'לא הצלחנו לפתוח את הכרטיס',
+    resizeBar: 'גררו למעלה כדי להגדיל את השיחה (פס הליד מתקפל), למטה כדי להחזיר (לחיצה כפולה מחזירה)',
     resizeHead: 'גררו למעלה כדי לקפל את הכותרת ולהגדיל את השיחה, למטה כדי להחזיר (לחיצה כפולה מחזירה)', resizeList: 'גררו לשינוי רוחב הרשימה (לחיצה כפולה מחזירה)', resizeAside: 'גררו לשינוי רוחב הפרטים (לחיצה כפולה מחזירה)',
   },
   en: {
@@ -160,6 +162,8 @@ const TR = {
     tabChat: 'Conversation', tabInfo: 'Details & notes', pickWelcome: 'Pick a welcome message', archiveLead: 'Archive',
     welcomeHint: 'Pick a wording in the conversation and send it from the office WhatsApp', noteSaveFailed: 'Saving failed', kWelcomeShort: 'Got a message',
     pillMeta: 'Facebook', pillWa: 'WhatsApp', pillWelcome: 'Auto welcome', showWaiting: 'Show the leads awaiting first contact',
+    openCard: 'Lead card', openCardTip: 'Open the lead card to update details, tasks and notes', cardFail: 'Could not open the card',
+    resizeBar: 'Drag up to enlarge the conversation (the lead bar folds), down to bring it back (double-click resets)',
     resizeHead: 'Drag up to fold the header and enlarge the conversation, down to bring it back (double-click resets)', resizeList: 'Drag to resize the list (double-click resets)', resizeAside: 'Drag to resize the details (double-click resets)',
   },
 }
@@ -314,8 +318,10 @@ function useNarrowerThan(limit) {
 }
 
 // The Lead Center's pane sizes (dragged by the user), kept in this browser
-const LAYOUT_KEY = 'afik_lc_layout_v1'
-const LAYOUT_DEFAULT = { list: 360, aside: 320, head: null }   // head: the header's dragged height (null = all of it, 0 = folded)
+// v2 (2026-10): a narrower list and details by default, so the conversation opens bigger
+const LAYOUT_KEY = 'afik_lc_layout_v2'
+// head / bar: the header's / the lead bar's dragged height (null = all of it, 0 = folded — the chat moves up)
+const LAYOUT_DEFAULT = { list: 320, aside: 290, head: null, bar: null }
 const LIMITS = { list: [260, 640], aside: [260, 560] }
 function loadLayout() {
   try { return { ...LAYOUT_DEFAULT, ...JSON.parse(localStorage.getItem(LAYOUT_KEY) || '{}') } } catch { return { ...LAYOUT_DEFAULT } }
@@ -340,7 +346,7 @@ const PIPELINE = [
 const PATCH = (body) => fetch('/api/meta/leads', { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` }, body: JSON.stringify(body) })
 
 // ── Main component ────────────────────────────────────────────────────────────
-export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onLeadRenamed, onCrmStage, onCrmPatch, stageLabels = null, onOpenChat, onNewLead, onNewMetaMessage, onSentMetaMessage, crmLeads = [], autoConfig = null, onAutoConfigSaved }) {
+export default function MetaLeadsTab({ C, lang, isDark, onOpenCard, onSaveToCRM, onLeadRenamed, onCrmStage, onCrmPatch, stageLabels = null, onOpenChat, onNewLead, onNewMetaMessage, onSentMetaMessage, crmLeads = [], autoConfig = null, onAutoConfigSaved }) {
   const t = TR[lang] || TR.he
   const dir = lang === 'en' ? 'ltr' : 'rtl'
 
@@ -372,7 +378,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onLeadRenam
   const [focusChat, setFocusChat]       = useState(false)    // the conversation on the whole screen
   const [chatFirstOut, setChatFirstOut] = useState(null)     // our first message in the WhatsApp chat (any source)
   const saveLayout = useCallback(patch => setLayout(prev => { const next = { ...prev, ...patch }; try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(next)) } catch {} return next }), [])
-  const rootRef = useRef(null), bodyRef = useRef(null), detailBoxRef = useRef(null), headRef = useRef(null)
+  const rootRef = useRef(null), bodyRef = useRef(null), detailBoxRef = useRef(null), headRef = useRef(null), barRef = useRef(null)
   useEffect(() => {
     if (!focusChat) return
     const k = e => { if (e.key === 'Escape') setFocusChat(false) }
@@ -820,6 +826,17 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onLeadRenam
     const lead = leadsRef.current.find(l => l.id === selectedId)
     if (hasOut && lead && !lead.wa_sent) { patchLead(lead.id, { wa_sent: true }); PATCH({ id: lead.id, wa_sent: true }).catch(() => {}) }
   }, [selectedId, patchLead])
+  const [cardBusy, setCardBusy] = useState('')
+  const openCard = async () => {
+    if (!onOpenCard || !selectedLead || cardBusy === 'busy') return
+    setCardBusy('busy')
+    try { await onOpenCard(selectedLead, crmLead); setCardBusy('') } catch { setCardBusy('err'); setTimeout(() => setCardBusy(''), 4000) }
+  }
+  const cardButton = onOpenCard && selectedLead && (
+    <button type="button" className="lc-btn primary" onClick={openCard} disabled={cardBusy === 'busy'} title={cardBusy === 'err' ? t.cardFail : t.openCardTip} aria-label={narrow ? t.openCard : undefined}>
+      <Icon name="personal" size={14} sw={2}/>{!narrow && (cardBusy === 'busy' ? '…' : t.openCard)}
+    </button>
+  )
   const crmButton = selectedLead && (
     <button className="lc-btn" onClick={handleSaveToCRM} style={{ color: selectedLead.status === 'saved_to_crm' ? '#0E9AA7' : CREAM }}>{selectedLead.status === 'saved_to_crm' ? (lang === 'en' ? '✓ In CRM · Undo' : '✓ ב-CRM · בטל') : savedToCRM ? t.savedToCRM : t.saveToCRM}</button>
   )
@@ -1181,8 +1198,11 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onLeadRenam
                     <button role="tab" aria-selected={pane === 'info'} onClick={() => setPane('info')} style={pane === 'info' ? { background: 'rgba(var(--brand-rgb),.14)', color: BRAND } : undefined}>{t.tabInfo}</button>
                   </div>
                 )
+                const barH = !narrow && !focusChat && layout.bar != null ? layout.bar : undefined
                 return (
-                  <div style={{ flexShrink: 0, padding: narrow ? '10px 12px' : '10px 16px', borderBottom: `1px solid ${BORDER}`, background: 'var(--au-card-solid)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <>
+                  <div ref={barRef} style={{ flexShrink: 0, overflow: 'hidden', height: barH, borderBottom: barH === 0 ? 'none' : `1px solid ${BORDER}`, background: 'var(--au-card-solid)' }}>
+                  <div style={{ padding: narrow ? '10px 12px' : '10px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
                     <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
                       {narrow && <button className="lc-btn icon" onClick={() => setSelectedId(null)} aria-label={t.back} title={t.back}>{dir === 'rtl' ? '→' : '←'}</button>}
                       <Avatar lead={selectedLead} size={narrow ? 38 : 42}/>
@@ -1214,9 +1234,11 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onLeadRenam
                       {!narrow && stageCtl}
                       {!narrow && onCrmPatch && <FollowUpButton lead={crmLead || { name: selectedLead.name, tasks: [] }} lang={lang} onSave={crmPatch}/>}
                       {!narrow && tabs}
+                      {narrow && cardButton}
                       {narrow
                         ? selectedLead.phone && <a className="lc-btn icon" href={telHref} aria-label={t.call} title={t.call}>📞</a>
                         : <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                            {cardButton}
                             {selectedLead.phone && <a className="lc-btn" href={telHref}>📞 {t.call}</a>}
                             {selectedLead.phone && onOpenChat && <button className="lc-btn wa" onClick={() => onOpenChat(selectedLead)}>💬 {t.whatsapp}</button>}
                             {crmButton}
@@ -1224,6 +1246,17 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onLeadRenam
                     </div>
                     {narrow && !focusChat && <div style={{ display: 'flex', alignItems: 'center', gap: 8, justifyContent: 'space-between', flexWrap: 'wrap' }}>{statusCtl}{stageCtl}{tabs}</div>}
                   </div>
+                  </div>
+                  {/* drag the conversation up over the lead bar (folds it; the chat header keeps the name and the card button) */}
+                  {!narrow && !focusChat && (
+                    <Splitter axis="y" grows={1} min={0} label={t.resizeBar}
+                      max={() => barRef.current?.scrollHeight || 160}
+                      get={() => barRef.current?.getBoundingClientRect().height || 0}
+                      apply={v => { if (barRef.current) barRef.current.style.height = `${v}px` }}
+                      commit={v => { const full = barRef.current?.scrollHeight || 0; saveLayout({ bar: v < 28 ? 0 : v >= full - 2 ? null : v }) }}
+                      reset={() => { if (barRef.current) barRef.current.style.height = ''; saveLayout({ bar: null }) }}/>
+                  )}
+                  </>
                 )
               })()}
 
@@ -1235,7 +1268,8 @@ export default function MetaLeadsTab({ C, lang, isDark, onSaveToCRM, onLeadRenam
                       localMsgs={messages} needsWelcome={!selectedLead.wa_sent} autoConfig={autoConfig} onAutoConfigSaved={onAutoConfigSaved}
                       onSend={handleSend} onSendWelcome={handleWelcome} officePhone={waPhone}
                       onOpenChats={onOpenChat ? () => onOpenChat(selectedLead) : undefined} compact={narrow}
-                      onActivity={onActivity} maximized={focusChat} onToggleMaximize={() => setFocusChat(v => !v)}/>
+                      onActivity={onActivity} maximized={focusChat} onToggleMaximize={() => setFocusChat(v => !v)}
+                      onOpenCard={onOpenCard ? openCard : undefined}/>
                   </div>
                 )}
                 {!onePane && !focusChat && (

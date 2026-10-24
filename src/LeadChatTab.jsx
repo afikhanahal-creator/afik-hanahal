@@ -55,7 +55,7 @@ const Lines = ({ items, color }) => (
   </ul>
 )
 
-export default function LeadChatTab({ lead, lang = 'he', stages = [], save, onUpdateStatus, onOpenChat, onClose }) {
+export default function LeadChatTab({ lead, lang = 'he', stages = [], save, onUpdateStatus, onOpenChat, onClose, hideConversation = false }) {
   const t = TR[lang] || TR.he
   const [chat, setChat] = useState({ phase: lead.phone ? 'loading' : 'nophone', msgs: [] })
   const [busy, setBusy] = useState(false)
@@ -194,5 +194,6 @@ export default function LeadChatTab({ lead, lang = 'he', stages = [], save, onUp
     </section>
   )
 
-  return <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>{summaryCard}{conversation}</div>
+  // the card shows the live conversation itself (src/LeadConversation.jsx); this tab then keeps only the summary
+  return <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>{summaryCard}{!hideConversation && conversation}</div>
 }

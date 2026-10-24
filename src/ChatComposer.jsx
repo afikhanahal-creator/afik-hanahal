@@ -6,16 +6,17 @@
 // Line icons from src/uiIcons.jsx; the colors are the chat's WhatsApp palette.
 import { useLayoutEffect } from 'react'
 import { Icon } from './uiIcons.jsx'
+import { insertBooking } from './lib/bookingLink.js'
 import { imageThumb } from './lib/templateImage.js'
 
 const TR = {
   he: {
-    ph: n => (n ? `הודעה ל${n}…` : 'כתבו הודעה…'), send: 'שלח', sendImg: 'שלח עם תמונה', sending: 'שולח…', emoji: 'אימוג׳י', attach: 'צירוף תמונה או PDF', templates: 'תבניות',
+    ph: n => (n ? `הודעה ל${n}…` : 'כתבו הודעה…'), send: 'שלח', sendImg: 'שלח עם תמונה', sending: 'שולח…', emoji: 'אימוג׳י', book: 'קישור לקביעת שיחה', bookTip: 'הוספת קישור לעמוד קביעת השיחה עם אפיק הנחל', attach: 'צירוף תמונה או PDF', templates: 'תבניות',
     hint: 'Enter שליחה · Shift+Enter שורה חדשה', from: 'מתבנית', edited: 'נערך', saveTpl: 'שמירה בתבנית', saveTip: 'שמירת הנוסח הזה במקום התבנית, כדי שהלידים הבאים יקבלו אותו',
     clear: 'ניקוי ההודעה', remove: 'הסרה', tplPic: 'תמונה מהתבנית', caption: 'הטקסט יופיע מתחתיה', image: 'תמונה', doc: 'מסמך',
   },
   en: {
-    ph: n => (n ? `Message ${n}…` : 'Write a message…'), send: 'Send', sendImg: 'Send with picture', sending: 'Sending…', emoji: 'Emoji', attach: 'Attach a picture or PDF', templates: 'Templates',
+    ph: n => (n ? `Message ${n}…` : 'Write a message…'), send: 'Send', sendImg: 'Send with picture', sending: 'Sending…', emoji: 'Emoji', book: 'Booking link', bookTip: 'Add the link to book a call with Afik Hanahal', attach: 'Attach a picture or PDF', templates: 'Templates',
     hint: 'Enter to send · Shift+Enter new line', from: 'From template', edited: 'edited', saveTpl: 'Save to template', saveTip: 'Save this wording in place of the template, so the next leads get it',
     clear: 'Clear the message', remove: 'Remove', tplPic: 'Picture from the template', caption: 'The text goes under it', image: 'Picture', doc: 'Document',
   },
@@ -61,10 +62,17 @@ export default function ChatComposer({
   WA, lang = 'he', leadName = '', input, setInput, inputRef, onSend, sending, canSend,
   attached, attachedPreview, onRemoveAttached, tplImg, onRemoveTplImg,
   inserted, changed, onSaveTemplate, onClear, savedNote,
-  emojiOpen, onToggleEmoji, onPickFile, templatesOpen, onToggleTemplates,
+  emojiOpen, onToggleEmoji, onPickFile, templatesOpen, onToggleTemplates, msgLang, bookingBase,
 }) {
   const t = TR[lang] || TR.he
   const rtl = lang !== 'en'
+  // the booking page link, at the cursor (src/lib/bookingLink.js)
+  const addBooking = () => {
+    const el = inputRef?.current
+    const r = insertBooking(input || '', el?.selectionStart ?? (input || '').length, el?.selectionEnd, msgLang || lang, bookingBase)
+    setInput(r.text)
+    setTimeout(() => { const x = inputRef?.current; if (x) { x.focus(); x.setSelectionRange(r.cursor, r.cursor) } }, 20)
+  }
   useLayoutEffect(() => {
     if (!cssDone && typeof document !== 'undefined') { const el = document.createElement('style'); el.id = 'ccm-css'; el.textContent = CSS; document.head.appendChild(el); cssDone = true }
   }, [])
@@ -107,6 +115,7 @@ export default function ChatComposer({
         <div className="ccm-bar">
           <button type="button" className="ccm-ib" aria-pressed={!!emojiOpen} onClick={onToggleEmoji} aria-label={t.emoji} title={t.emoji}><Icon name="smile" size={20}/></button>
           <button type="button" className="ccm-ib" onClick={onPickFile} aria-label={t.attach} title={t.attach}><Icon name="paperclip" size={19}/></button>
+          <button type="button" className="ccm-ib" onClick={addBooking} aria-label={t.book} title={t.bookTip}><Icon name="calendar" size={19}/></button>
           <button type="button" className="ccm-tpl" aria-pressed={!!templatesOpen} onClick={onToggleTemplates}><Icon name="file" size={15}/>{t.templates}</button>
           <span className="ccm-hint">{t.hint}</span>
           <button type="button" className="ccm-send" onClick={() => onSend()} disabled={!canSend || sending} aria-label={withPic ? t.sendImg : t.send}>

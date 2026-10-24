@@ -21,6 +21,7 @@ import { sendJson, compressJson } from '../lib/http.js'
 import { backupEnabled, backupPut, backupList, backupGet, backupDelete } from '../lib/backup.js'
 import { onLeadCreated, onStageChanged } from '../lib/automations.js'
 import { buildLeadEmailHtml } from '../lib/lead-email.js'
+import { hebrewFullName } from '../lib/hebrew-names.js'
 
 // ── Lead backup (Vercel Blob) ────────────────────────────────────────────────
 // If Supabase refuses the INSERT (quota / paused project / outage) the lead used to exist only in the
@@ -426,7 +427,8 @@ export default async function handler(req, res) {
       const row = {
         // No custom id — let Supabase auto-generate it.
         // The contacts table uses bigint (serial), so sending a text id causes a 400.
-        name:         b.name         || null,
+        // a Latin name is saved in Hebrew; the name as typed stays in crm_data.originalName
+        name:         hebrewFullName(b.name || '') || null,
         phone:        b.phone        || null,
         email:        b.email        || null,
         message:      b.msg          || b.message || null,
@@ -435,7 +437,7 @@ export default async function handler(req, res) {
         source:       b.source       || 'website',
         // Everything else the form knew — page, referrer, UTM, language, device — so the admin
         // can see exactly where each lead came from (shown in the lead drawer as "מקור").
-        crm_data:     { origin: sanitizeOrigin(b.origin, b.lang) },
+        crm_data:     { origin: sanitizeOrigin(b.origin, b.lang), ...(b.name && hebrewFullName(b.name) !== String(b.name).trim() ? { originalName: String(b.name).trim().slice(0, 120) } : {}) },
       }
       console.log(`[new-lead] ${row.name || '—'} | ${row.phone || '—'} | source=${row.source}`)
 
