@@ -18,7 +18,8 @@ import { researchLead } from '../lib/lead-research.js'
 import { mirrorMetaLead, backfillMetaLeads, findMirror } from '../lib/meta-crm.js'
 import * as Booking from '../lib/booking-server.js'
 import * as GCal from '../lib/google-calendar.js'
-import { buildLeadEmailHtml } from '../lib/lead-email.js'
+import { buildLeadEmailHtml, cleanAnswers } from '../lib/lead-email.js'
+import { metaFormAnswers, shortCampaign } from '../src/lib/leadFields.js'
 import { hebrewFullName } from '../lib/hebrew-names.js'
 import { hebrewizeRecentNames } from '../lib/hebrew-lead-names.js'
 
@@ -66,7 +67,7 @@ async function greenFetch(url, init = {}, attempt = 0) {
 
 // buildLeadEmailHtml: lib/lead-email.js (shared with the other lead email)
 
-async function sendMetaLeadEmail({ name, phone, email, campaign, message, ts }) {
+async function sendMetaLeadEmail({ name, phone, email, campaign, message, ts, fields }) {
   const user = process.env.GMAIL_USER
   const pass = process.env.GMAIL_APP_PASSWORD
   const to   = process.env.ADMIN_NOTIFY_EMAIL || user
@@ -90,7 +91,9 @@ async function sendMetaLeadEmail({ name, phone, email, campaign, message, ts }) 
       from:    `"אפיק הנחל CRM" <${user}>`,
       to,
       subject: `🔔 ליד Meta חדש: ${name || phone || 'אנונימי'} — אפיק הנחל`,
-      html:    buildLeadEmailHtml({ name, phone, email, campaign, message, ts: timestamp, badge: 'ליד חדש ממטא' }),
+      // what they asked about (the campaign's short name) and every answer they left in the form
+      html:    buildLeadEmailHtml({ name, phone, email, campaign, message, ts: timestamp, badge: 'ליד חדש ממטא',
+        interest: shortCampaign(campaign || '') || '', answers: metaFormAnswers(fields || [], 'he').filter(x => !message || x.a !== message) }),
     })
     console.log(`[meta-lead-email] ✓ sent to ${to}, messageId: ${info.messageId}`)
   } catch (e) {
@@ -372,13 +375,14 @@ async function handleWebhook(req, res) {
               email ? `אימייל: ${email}` : null,
               `קמפיין: ${campaignName || formName || '—'}`,
               msgText ? `הודעה: ${msgText}` : null,
+              ...cleanAnswers(metaFormAnswers(leadData.field_data || [], 'he')).filter(x => x.a !== msgText).map(x => `${x.q}: ${x.a}`),
               `התקבל: ${now}`,
             ].filter(Boolean).join('\n')
             // AWAIT both — fire-and-forget here was being killed by Vercel as
             // soon as the response was flushed, so the admin never got pinged.
             await Promise.allSettled([
               sendGreenNotify(BUSINESS_NOTIFY_CHATID, notifyLines),
-              sendMetaLeadEmail({ name, phone, email, campaign: campaignName || formName, message: msgText, ts: now }),
+              sendMetaLeadEmail({ name, phone, email, campaign: campaignName || formName, message: msgText, ts: now, fields: leadData.field_data }),
             ]).then(rs => rs.forEach((r, i) => {
               const lbl = i === 0 ? 'admin-wa' : 'admin-email'
               if (r.status === 'rejected') console.error(`[${lbl}] crashed:`, r.reason?.message || r.reason)
@@ -596,9 +600,11 @@ async function syncOnePage(pageId, client, errors, { sinceSec = 0, stats = {} } 
           if (isNew && phone && fresh) {
             const displayPhone = phone.startsWith('972') ? '0' + phone.slice(3) : phone
             const now = new Date().toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-            const adminMsg = ['🔔 ליד חדש (sync)', `שם: ${parsed.name || '—'}`, `טלפון: ${displayPhone}`,
+            const adminMsg = ['🔔 ליד חדש (sync)', `שם: ${hebrewFullName(parsed.name || '') || '—'}`, `טלפון: ${displayPhone}`,
               parsed.email ? `אימייל: ${parsed.email}` : null,
-              `קמפיין: ${form.name || '—'}`, `התקבל: ${now}`].filter(Boolean).join('\n')
+              `קמפיין: ${campaignName || form.name || '—'}`,
+              ...cleanAnswers(metaFormAnswers(lead.field_data || [], 'he')).map(x => `${x.q}: ${x.a}`),
+              `התקבל: ${now}`].filter(Boolean).join('\n')
 
             // AWAIT all three sends so the function isn't killed before they hit
             // the wire. Per-call timeouts inside sendGreenNotify keep total bounded.
@@ -606,7 +612,7 @@ async function syncOnePage(pageId, client, errors, { sinceSec = 0, stats = {} } 
             const rs = await Promise.allSettled([
               welcomeMetaLead(client, { id: saved?.id, name: parsed.name || '', phone, campaign: campaignName || form.name }),
               sendGreenNotify(BUSINESS_NOTIFY_CHATID, adminMsg),
-              sendMetaLeadEmail({ name: parsed.name, phone, email: parsed.email, campaign: form.name, ts: now }),
+              sendMetaLeadEmail({ name: hebrewFullName(parsed.name || '') || parsed.name, phone, email: parsed.email, campaign: campaignName || form.name, ts: now, fields: lead.field_data }),
             ])
             rs.forEach((r, i) => {
               const lbl = ['lead-wa', 'admin-wa', 'admin-email'][i]
