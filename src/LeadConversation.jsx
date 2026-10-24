@@ -15,6 +15,8 @@ import { mergeConversation, templateOptions, sendErrorText } from './lib/leadCon
 import { imageThumb } from './lib/templateImage.js'
 import { Icon, CatTile } from './uiIcons.jsx'
 import { insertBooking } from './lib/bookingLink.js'
+import { useAttachments, useFileDrop, pasteFiles, DropOverlay, AttachTray } from './ChatAttachments.jsx'
+import { CHAT_ACCEPT, sendFiles } from './lib/chatFiles.js'
 
 const ADMIN_TOKEN = 'AFIKhanahal2026'
 const AUTH = { Authorization: `Bearer ${ADMIN_TOKEN}` }
@@ -61,7 +63,7 @@ export function prefetchHistory(rawPhone) {
 
 const TR = {
   he: {
-    title: 'שיחת וואטסאפ', from: n => `מהוואטסאפ של המשרד${n ? ` · ${n}` : ''}`, refresh: 'רענון השיחה', card: 'כרטיס ליד — עדכון פרטים', book: 'קישור לשיחה', bookTip: 'הוספת קישור לעמוד קביעת השיחה עם אפיק הנחל', openChats: 'בצ׳אטים',
+    title: 'שיחת וואטסאפ', from: n => `מהוואטסאפ של המשרד${n ? ` · ${n}` : ''}`, refresh: 'רענון השיחה', card: 'כרטיס ליד — עדכון פרטים', attach: 'צירוף', attachTip: 'צירוף קבצים: תמונות, סרטונים, PDF, Word, Excel (אפשר גם לגרור לכאן או להדביק)', book: 'קישור לשיחה', bookTip: 'הוספת קישור לעמוד קביעת השיחה עם אפיק הנחל', openChats: 'בצ׳אטים',
     loading: 'טוען את השיחה…', empty: 'עוד אין הודעות בשיחה הזו', emptyFirst: 'הודעת הפתיחה מוכנה למטה. אפשר לבחור נוסח אחר מהרשימה ולערוך לפני השליחה',
     histErr: 'לא הצלחנו לקרוא את ההיסטוריה מוואטסאפ, מוצגות ההודעות שנשלחו מכאן', retry: 'נסו שוב',
     quota: 'השליחה חסומה: המכסה החודשית של Green API נגמרה. אפשר לקרוא שיחות, אבל הודעות לא יוצאות עד שמשדרגים את התוכנית.', upgrade: 'לשדרוג',
@@ -75,7 +77,7 @@ const TR = {
     quickHint: '↑ ↓ לבחירה · Enter להכנסה · Esc לסגירה', count: n => `${n} תבניות`, lineOf: n => `קו המשרד ${n}`,
   },
   en: {
-    title: 'WhatsApp conversation', from: n => `From the office WhatsApp${n ? ` · ${n}` : ''}`, refresh: 'Refresh the conversation', card: 'Lead card — update details', book: 'Booking link', bookTip: 'Add the link to book a call with Afik Hanahal', openChats: 'In chats',
+    title: 'WhatsApp conversation', from: n => `From the office WhatsApp${n ? ` · ${n}` : ''}`, refresh: 'Refresh the conversation', card: 'Lead card — update details', attach: 'Attach', attachTip: 'Attach files: photos, videos, PDF, Word, Excel (you can also drag them here or paste)', book: 'Booking link', bookTip: 'Add the link to book a call with Afik Hanahal', openChats: 'In chats',
     loading: 'Loading the conversation…', empty: 'No messages in this conversation yet', emptyFirst: 'The welcome message is ready below. Pick another wording from the list and edit it before sending',
     histErr: 'Couldn\'t read the WhatsApp history, showing the messages sent from here', retry: 'Try again',
     quota: 'Sending is blocked: the Green API monthly quota is used up. Conversations can be read, but nothing goes out until the plan is upgraded.', upgrade: 'Upgrade',
@@ -144,6 +146,10 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
   const [input, setInput] = useState('')
   const [tplId, setTplId] = useState('')                 // the template the box started from
   const [img, setImg] = useState('')                     // its picture (sent with the text as its caption; ✕ leaves it out)
+  const att = useAttachments(lang)                       // files attached to the next message (src/ChatAttachments.jsx)
+  const fileRef = useRef(null)
+  const addFiles = list => { if (att.add(list)) { setImg(''); setTimeout(() => inputRef.current?.focus(), 30) } }
+  const drop = useFileDrop(addFiles)
   const [tplLang, setTplLang] = useState(() => leadLang(tplLead))
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -209,6 +215,7 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
   // ── sending ──
   const send = async (text) => {
     const msg = String(text || '').trim()
+    if (att.items.length) return sendWithFiles(msg)
     if ((!msg && !img) || busy || !phone) return false
     const id = `opt-${Date.now()}`
     const asWelcome = first
@@ -225,6 +232,34 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
     setPending(p => p.filter(m => m.id !== id))
     if (r?.quota) setLine({ ...(line || {}), quota: { blocked: true, at: new Date().toISOString() } })
     setError(sendErrorText(r || {}, lang))
+    return false
+  }
+  // files, like WhatsApp: the text goes as the first file's caption (the very first message — the welcome — goes as text
+  // first, so it still counts as the welcome), then the rest; each file is a bubble of its own
+  const sendWithFiles = async msg => {
+    if (busy || !phone) return false
+    const files = att.files
+    setBusy(true); setError(''); nearBottom.current = true
+    const ids = files.map((f, i) => `opt-${Date.now()}-${i}`)
+    const firstText = first && msg
+    setPending(p => [...p, ...(firstText ? [{ id: `${ids[0]}-t`, direction: 'out', message: msg, created_at: new Date().toISOString(), status: 'sending' }] : []),
+      ...files.map((f, i) => ({ id: ids[i], direction: 'out', message: `📎 ${f.name}${i === 0 && msg && !firstText ? `\n${msg}` : ''}`, created_at: new Date().toISOString(), status: 'sending' }))])
+    if (firstText) {
+      const w = await onSendWelcome?.(msg, tplId || 'manual', {})
+      if (!w?.ok) { setBusy(false); setPending(p => p.filter(m => !String(m.id).startsWith(ids[0].slice(0, -2)))); if (w?.quota) setLine({ ...(line || {}), quota: { blocked: true, at: new Date().toISOString() } }); setError(sendErrorText(w || {}, lang)); return false }
+    }
+    const r = await sendFiles(files, firstText ? '' : msg, (text, f) => onSend?.(text, f), (i, st) => {
+      att.setStatus(i, st)
+      if (st === 'sent') setPending(p => p.map(m => (m.id === ids[i] ? { ...m, status: 'sent' } : m)))
+    })
+    setBusy(false)
+    if (r.ok) { att.clear(); if (line?.quota) setLine({ ...line, quota: null }); setTimeout(() => load(true), 2500); return true }
+    // what went out stays; the rest stays in the tray to try again
+    setPending(p => p.filter(m => !ids.slice(r.sent).includes(m.id)))
+    files.slice(0, r.sent).forEach((f, i) => att.remove(att.items[i].id))
+    att.items.slice(r.sent).forEach((x, k) => att.setStatus(r.sent + k, ''))
+    if (r.quota) setLine({ ...(line || {}), quota: { blocked: true, at: new Date().toISOString() } })
+    setError(sendErrorText(r, lang))
     return false
   }
   // the booking page link at the cursor, in the language of what is in the box (else the template language)
@@ -308,7 +343,7 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
   const dockMax = () => Math.max(140, (rootRef.current?.getBoundingClientRect().height || 600) - 180)
   const curTpl = tplId ? getTemplate(mergeConfig(cfg || {}), tplId) : null
   const tplTitle = tplId && byId[tplId] ? byId[tplId].title : ''
-  const canSend = !busy && (!!input.trim() || !!img)
+  const canSend = !busy && (!!input.trim() || !!img || att.items.length > 0)
   const name = lead?.name || localPhone(lead?.phone) || ''
   const panel = isDark ? '#202C33' : '#F0F2F5'
   const icon = isDark ? '#AEBAC1' : '#54656F'
@@ -316,7 +351,8 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
 
   let qi = -1
   return (
-    <div ref={rootRef} className="lcv" dir={lang === 'en' ? 'ltr' : 'rtl'} style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, background: isDark ? '#0B141A' : '#EFEAE2', borderRadius: 'inherit', overflow: 'hidden' }}>
+    <div ref={rootRef} className="lcv" dir={lang === 'en' ? 'ltr' : 'rtl'} {...(phone ? drop.bind : {})} style={{ position: 'relative', display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, background: isDark ? '#0B141A' : '#EFEAE2', borderRadius: 'inherit', overflow: 'hidden' }}>
+      <DropOverlay show={drop.dragging} lang={lang} WA={WA}/>
       <style>{SPLITTER_CSS + `
         .lcv{font-family:"Segoe UI",Helvetica,Rubik,Heebo,Arial,sans-serif;-webkit-font-smoothing:antialiased}
         .lcv button,.lcv input,.lcv textarea{font-family:inherit;min-height:0}
@@ -494,7 +530,9 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
                 <button type="button" className="lcv-ib" style={{ width: 30, height: 30 }} onClick={() => setImg('')} aria-label={t.imgRemove} title={t.imgRemove}>{I.close}</button>
               </div>
             )}
-            <textarea ref={inputRef} className="lcv-in" value={input} rows={1} placeholder={t.placeholder} aria-label={t.placeholder} title={t.enterHint}
+            <AttachTray items={att.items} onRemove={att.remove} lang={lang} WA={WA} isDark={isDark} notice={att.notice} onDismissNotice={() => att.setNotice('')}/>
+            <input ref={fileRef} type="file" multiple accept={CHAT_ACCEPT} hidden onChange={e => { addFiles(e.target.files); e.target.value = '' }}/>
+            <textarea ref={inputRef} className="lcv-in" value={input} rows={1} placeholder={t.placeholder} aria-label={t.placeholder} title={t.enterHint} onPaste={pasteFiles(addFiles)}
               onChange={e => {
                 const v = e.target.value
                 setInput(v); if (!v.trim()) setTplId('')
@@ -514,10 +552,11 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
             <div className="lcv-bar">
               <button ref={qBtnRef} type="button" className="lcv-tplbtn" aria-expanded={quick} aria-haspopup="dialog" title={t.quickTip}
                 onClick={() => (quick ? closeQuick() : openQuick())}><Icon name="file" size={15}/>{t.templatesBtn}</button>
+              <button type="button" className="lcv-tplbtn" title={t.attachTip} aria-label={t.attachTip} onClick={() => fileRef.current?.click()}><Icon name="paperclip" size={15}/>{t.attach}</button>
               <button type="button" className="lcv-tplbtn" title={t.bookTip} onClick={addBooking}><Icon name="calendar" size={15}/>{t.book}</button>
               <span className="lcv-hint">{t.enterHint}</span>
               <button type="button" className="lcv-send" onClick={submit} disabled={!canSend} aria-label={first ? t.sendWelcome : t.send}>
-                {busy ? t.sending : <>{first ? t.sendWelcome : t.send}<Icon name="send" size={16} flip={lang !== 'en'}/></>}
+                {busy ? t.sending : <>{att.items.length && !first ? (lang === 'en' ? (att.items.length === 1 ? 'Send file' : `Send ${att.items.length} files`) : (att.items.length === 1 ? 'שלח קובץ' : `שלח ${att.items.length} קבצים`)) : first ? t.sendWelcome : t.send}<Icon name="send" size={16} flip={lang !== 'en'}/></>}
               </button>
             </div>
           </div>

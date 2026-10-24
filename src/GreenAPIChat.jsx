@@ -7,6 +7,8 @@ import { supabase } from './lib/supabaseClient'
 import { WAText } from './waFormat.jsx'
 import ChatTemplatePicker, { ChatTemplateMenu, ChatQuickChips } from './ChatTemplatePicker.jsx'
 import ChatComposer from './ChatComposer.jsx'
+import { useAttachments, useFileDrop, DropOverlay } from './ChatAttachments.jsx'
+import { CHAT_ACCEPT, sendFiles } from './lib/chatFiles.js'
 import { imageThumb } from './lib/templateImage.js'
 import TemplateQuickEdit from './TemplateQuickEdit.jsx'
 import { renderTemplate, leadLang as leadLangOf } from '../lib/automations-shared.js'
@@ -24,7 +26,6 @@ const ACCOUNT_EMAIL = 'afik.hanahal@gmail.com'
 // holds the apiToken in WA_GREENAPI_TOKEN. The token is never shipped to the browser.
 const CHAT_API     = '/api/meta'
 const AUTH_HEADER  = { Authorization: `Bearer ${ADMIN_TOKEN}` }
-const MAX_FILE_MB  = 3   // Vercel request-body cap (base64 inflates ~33%)
 const QUOTA_MSG    = 'המכסה החודשית של Green API נגמרה: הקו מחובר, אבל התוכנית החינמית מאפשרת לכתוב רק למספרים בודדים בחודש.\nכדי לשלוח לכולם: console.green-api.com ← ה-Instance ← שינוי תוכנית (Business).'
 const GREEN_CONSOLE = 'https://console.green-api.com'
 
@@ -169,7 +170,9 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
   const [newPhone,      setNewPhone]     = useState('')
   const [activeNav,     setActiveNav]    = useState('chats')
   const [emoji,         setEmoji]        = useState(false)
-  const [attached,      setAttached]     = useState(null)
+  const att = useAttachments(lang)       // files attached to the next message (several, like WhatsApp: src/ChatAttachments.jsx)
+  const addFiles = list => { if (att.add(list)) { setTplImg(null); setTimeout(() => inputRef.current?.focus(), 30) } }
+  const drop = useFileDrop(addFiles)
   const [tplImg,        setTplImg]       = useState(null)   // a template's picture riding with the text in the box { url, title }
   const [statusMissing, setStatusMissing] = useState([])
   const [quota,         setQuota]        = useState(null)   // Green API plan blocked (466): connected, but sends are refused
@@ -188,12 +191,6 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
     try { return JSON.parse(localStorage.getItem('wa_last_read') || '{}') } catch { return {} }
   })
 
-  // Local object-URL preview for an attached image (revoked on change/unmount)
-  const attachedPreview = useMemo(
-    () => (attached && attached.type?.startsWith('image/') ? URL.createObjectURL(attached) : null),
-    [attached]
-  )
-  useEffect(() => () => { if (attachedPreview) URL.revokeObjectURL(attachedPreview) }, [attachedPreview])
 
   // delete flow
   const [deleteConfirm, setDeleteConfirm] = useState(null)  // lead object to confirm
@@ -368,12 +365,12 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
   }, [fetchGreenHistory])
 
   // → { ok, error?, quota? } — the server passes Green API's real reason through (466 = the plan's monthly quota)
-  const sendViaGreenAPI = useCallback(async (p, msg, image = '') => {
+  const sendViaGreenAPI = useCallback(async (p, msg, image = '', file = null) => {
     const r = await fetch(`${CHAT_API}/chat-send`, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json', ...AUTH_HEADER },
-      body:    JSON.stringify({ phone: p, message: msg, ...(image ? { image } : {}) }),
-      signal:  AbortSignal.timeout(30000),
+      body:    JSON.stringify({ phone: p, message: msg, ...(image ? { image } : {}), ...(file?.file ? { file: file.file, fileName: file.fileName || '' } : {}) }),
+      signal:  AbortSignal.timeout(file ? 60000 : 30000),
     })
     const d = await r.json().catch(() => ({}))
     if (d.quota) setQuota(q => q || { blocked: true, at: new Date().toISOString() })
@@ -381,25 +378,6 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
     return { ok: r.ok, error: d.error || (r.ok ? '' : `HTTP ${r.status}`), quota: !!d.quota }
   }, [])
 
-  // Send an image / PDF as a real WhatsApp attachment. The file is base64-encoded
-  // and the server rebuilds the multipart upload to Green API (token stays server-side).
-  const sendFileViaGreenAPI = useCallback(async (p, file, caption) => {
-    const fileBase64 = await new Promise((resolve, reject) => {
-      const reader = new FileReader()
-      reader.onload  = () => resolve(String(reader.result).split(',')[1] || '')
-      reader.onerror = reject
-      reader.readAsDataURL(file)
-    })
-    const r = await fetch(`${CHAT_API}/chat-send-file`, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json', ...AUTH_HEADER },
-      body:    JSON.stringify({ phone: p, fileName: file.name, fileType: file.type, fileBase64, caption }),
-      signal:  AbortSignal.timeout(90000),
-    })
-    const d = await r.json().catch(() => ({}))
-    if (d.quota) setQuota(q => q || { blocked: true, at: new Date().toISOString() })
-    return { ok: r.ok, error: d.error || (r.ok ? '' : `HTTP ${r.status}`), quota: !!d.quota }
-  }, [])
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -571,19 +549,45 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
   }
 
   // override = a ready text (the template picker): sent as is, the typed draft and any attachment stay untouched
+  // Files, like WhatsApp: each one uploaded to storage by the browser and sent by URL (src/lib/chatFiles.js — no size cap
+  // from Vercel), the text as the first file's caption; a bubble per file; what failed stays in the tray to try again
+  const sendFilesMsg = async (p, msg, files) => {
+    const base = Date.now()
+    setSending(true); setInput(''); setEmoji(false)
+    setChats(prev => ({ ...prev, [p]: [...(prev[p] || []), ...files.map((f, i) => ({
+      id: `opt-${base}-${i}`, direction: 'out', message: i === 0 ? msg : '',
+      file: { name: f.name, type: f.type, preview: f.type?.startsWith('image/') ? URL.createObjectURL(f) : null },
+      created_at: new Date().toISOString(), status: 'sending',
+    }))] }))
+    const r = await sendFiles(files, msg, (text, f) => sendViaGreenAPI(p, text, '', f).catch(e => ({ ok: false, error: e.message })), (i, st) => {
+      att.setStatus(i, st)
+      if (st === 'sent') setChats(prev => ({ ...prev, [p]: (prev[p] || []).map(m => (m.id === `opt-${base}-${i}` ? { ...m, status: 'sent' } : m)) }))
+    })
+    setSending(false)
+    if (r.ok) {
+      att.clear(); setTplImg(null)
+      setTimeout(() => fetchMsgs(contact.phone), 3500)
+      onSentMessageRef.current?.({ contactName: nameOf(contactView, lang), message: msg || files.map(f => f.name).join(', ') })
+      return true
+    }
+    setChats(prev => ({ ...prev, [p]: (prev[p] || []).filter(m => !files.slice(r.sent).some((f, k) => m.id === `opt-${base}-${r.sent + k}`)) }))
+    att.items.slice(0, r.sent).forEach(x => att.remove(x.id))
+    att.items.slice(r.sent).forEach((x, k) => att.setStatus(r.sent + k, ''))
+    if (r.sent === 0) setInput(msg)
+    alert('הקובץ לא נשלח.\n\n' + (/\b466\b|quota/i.test(r.error || '') ? QUOTA_MSG : (r.error || 'שליחה נכשלה')))
+    return false
+  }
+
   // opts.image = the template's picture (sent with the text as its caption); the box's own picture is tplImg
   const sendMsg = async (override, opts = {}) => {
     const fromPicker = typeof override === 'string'
     const msg  = (fromPicker ? override : input).trim()
-    const file = fromPicker ? null : attached
-    const image = fromPicker ? (opts.image || '') : (file ? '' : (tplImg?.url || ''))
-    if ((!msg && !file && !image) || !contact || sending) return
+    const files = fromPicker ? [] : att.files
+    const image = fromPicker ? (opts.image || '') : (files.length ? '' : (tplImg?.url || ''))
+    if ((!msg && !files.length && !image) || !contact || sending) return
     const p = intlPhone(contact.phone)
     if (!p) { alert('מספר טלפון לא תקין'); return }
-    if (file && file.size > MAX_FILE_MB * 1024 * 1024) {
-      alert(lang === 'en' ? `File too large (max ${MAX_FILE_MB}MB)` : `הקובץ גדול מדי (מקסימום ${MAX_FILE_MB}MB)`)
-      return
-    }
+    if (files.length) return sendFilesMsg(p, msg, files)
 
     const optId = 'opt-' + Date.now()
     setSending(true)
@@ -594,19 +598,15 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
       ...prev,
       [p]: [...(prev[p]||[]), {
         id: optId, direction: 'out',
-        message: msg || (file?.name || ''),
-        file: file ? { name: file.name, type: file.type, preview: attachedPreview } : image ? { name: lang === 'en' ? 'Picture' : 'תמונה', type: 'image/jpeg', preview: imageThumb(image, 120) } : null,
+        message: msg,
+        file: image ? { name: lang === 'en' ? 'Picture' : 'תמונה', type: 'image/jpeg', preview: imageThumb(image, 120) } : null,
         created_at: new Date().toISOString(), status: 'sending',
       }]
     }))
 
     let ok = false, why = ''
     try {
-      if (file) {
-        // Attachment: upload straight to Green API (caption = the typed text)
-        const res = await sendFileViaGreenAPI(p, file, msg)
-        ok = res.ok; why = res.error
-      } else {
+      {
         const res = await sendViaGreenAPI(p, msg, image).catch(e => ({ ok: false, error: e.name === 'TimeoutError' ? 'השרת לא ענה בזמן' : e.message }))
         ok = res.ok; why = res.error
         // the legacy Render route only helps when our own server is unreachable (it uses the same Green API line)
@@ -622,10 +622,10 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
       }
 
       if (ok) {
-        if (!fromPicker) { setAttached(null); setTplImg(null) }
-        setTimeout(() => fetchMsgs(contact.phone), file ? 3500 : 2000)
+        if (!fromPicker) setTplImg(null)
+        setTimeout(() => fetchMsgs(contact.phone), 2000)
         const contactName = nameOf(contactView, lang)
-        onSentMessageRef.current?.({ contactName, message: msg || file?.name || (lang === 'en' ? 'Picture' : 'תמונה') })
+        onSentMessageRef.current?.({ contactName, message: msg || (lang === 'en' ? 'Picture' : 'תמונה') })
       } else {
         throw new Error(/\b466\b|quota/i.test(why || '') ? QUOTA_MSG : (why || 'שליחה נכשלה'))
       }
@@ -901,7 +901,8 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
         {/* ═══════════════ CHAT WINDOW (left, fills remaining space) ════════ */}
         {/* overflow:hidden isolates internal scroll from page scroll. order:3
             places it on the LEFT (names list sits on the right, RTL-correct).  */}
-        <div className="wa-chatpane" style={{ order:3, flex:'1 1 0', minWidth:0, display:'flex', flexDirection:'column', overflow:'hidden', background: WA.chatBg, backgroundImage: DOODLE, backgroundRepeat:'repeat', transition:'background .25s' }}>
+        <div className="wa-chatpane" {...(contact ? drop.bind : {})} style={{ order:3, flex:'1 1 0', minWidth:0, display:'flex', flexDirection:'column', overflow:'hidden', background: WA.chatBg, backgroundImage: DOODLE, backgroundRepeat:'repeat', transition:'background .25s', position:'relative' }}>
+          <DropOverlay show={drop.dragging} lang={lang} WA={WA}/>
           {contact ? (
             <>
               {/* ── Chat Header (flex: 0 0 auto) ── */}
@@ -1150,19 +1151,19 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
               )}
 
               {/* ── Suggestions over the empty box: one click into the box, the round button sends ── */}
-              {!quickOpen && !input.trim() && !attached && !tplImg && !editTpl && (
+              {!quickOpen && !input.trim() && !att.items.length && !tplImg && !editTpl && (
                 <ChatQuickChips WA={WA} lang={lang} lead={chatLead} msgs={msgs} autoConfig={cfgEff}
                   onSend={(text, o) => sendMsg(text, o)} onInsert={putInBox} onMore={() => { setQuickOpen(true); setEmoji(false) }}/>
               )}
 
               {/* ── The message box (always visible, never scrolled away) ── */}
-              <input ref={fileRef} type="file" accept="image/*,.pdf" style={{ display:'none' }}
-                onChange={e=>{ if(e.target.files[0]) { setAttached(e.target.files[0]); setTplImg(null) } e.target.value='' }}/>
+              <input ref={fileRef} type="file" multiple accept={CHAT_ACCEPT} style={{ display:'none' }}
+                onChange={e=>{ addFiles(e.target.files); e.target.value='' }}/>
               <ChatComposer WA={WA} lang={lang} leadName={hasName(contactView) && !contactView?.office && !contactView?.self ? String(nameOf(contactView, lang)).split(/\s+/)[0] : ''}
                 input={input} setInput={setInput} inputRef={inputRef} onSend={() => sendMsg()} sending={sending}
-                canSend={!!(input.trim() || attached || tplImg)}
-                attached={attached} attachedPreview={attachedPreview} onRemoveAttached={() => setAttached(null)}
-                tplImg={tplImg && !attached ? tplImg : null} onRemoveTplImg={() => setTplImg(null)}
+                canSend={!!(input.trim() || att.items.length || tplImg)}
+                attachments={att} onAddFiles={addFiles} isDark={isDark}
+                tplImg={tplImg && !att.items.length ? tplImg : null} onRemoveTplImg={() => setTplImg(null)}
                 inserted={inserted ? { title: inserted.lang === 'en' ? (inserted.tpl.en_title || inserted.tpl.he_title) : (inserted.tpl.he_title || inserted.tpl.en_title) } : null}
                 changed={boxChanged} onSaveTemplate={() => openEdit(inserted.tpl, { [inserted.lang]: untemplate(input, inserted.marked) }, inserted.lang, true)}
                 onClear={() => { setInput(''); setInserted(null); setTplImg(null); inputRef.current?.focus() }}

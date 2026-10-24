@@ -747,15 +747,18 @@ export default async function handler(req, res) {
     // sleeping / cross-origin Render service surfaced as "שגיאת רשת" in the wizard).
     // Files land in the public bucket, so `/media/<bucket>/<path>` and the CDN proxy work unchanged.
     if (req.method === 'POST' && action === 'wizard-upload-url') {
-      const WIZ_KINDS = { image: [t => t.startsWith('image/'), 25], video: [t => t.startsWith('video/'), 200], pdf: [t => t === 'application/pdf', 25] }
+      // doc = any other file attached in a WhatsApp chat (Word, Excel, a zip, audio…); never a page or a script
+      const WIZ_KINDS = { image: [t => t.startsWith('image/'), 25], video: [t => t.startsWith('video/'), 200], pdf: [t => t === 'application/pdf', 25],
+        doc: [t => !/^(text\/html|application\/(xhtml|javascript|x-msdownload|x-msdos|x-sh)|image\/svg)/i.test(t), 50] }
       const b = req.body || {}
       const kind = String(b.kind || ''), type = String(b.type || 'application/octet-stream'), size = Number(b.size || 0)
       if (!WIZ_KINDS[kind]) return res.status(400).json({ ok: false, error: 'invalid kind' })
       if (!WIZ_KINDS[kind][0](type)) return res.status(400).json({ ok: false, error: 'file type not allowed for this kind' })
       if (!size || size > WIZ_KINDS[kind][1] * 1024 * 1024) return res.status(400).json({ ok: false, error: `file too large (max ${WIZ_KINDS[kind][1]}MB)` })
       const client = sb()
-      // folder 'templates' = a WhatsApp template's picture (src/lib/templateImage.js); everything else is the property wizard's
-      const path = `${b.folder === 'templates' ? 'templates' : 'wizard'}/${new Date().toISOString().slice(0, 7)}/${Date.now()}-${rand(3)}-${safeName(b.name)}`
+      // folder 'templates' = a WhatsApp template's picture (src/lib/templateImage.js), 'chat' = a file sent in a chat
+      // (src/lib/chatFiles.js); everything else is the property wizard's
+      const path = `${b.folder === 'templates' ? 'templates' : b.folder === 'chat' ? 'chat' : 'wizard'}/${new Date().toISOString().slice(0, 7)}/${Date.now()}-${rand(3)}-${safeName(b.name)}`
       let { data, error } = await client.storage.from(PUBLIC_BUCKET).createSignedUploadUrl(path)
       if (error && /not found|does not exist/i.test(error.message || '')) { await ensureBucket(client, PUBLIC_BUCKET, true); ({ data, error } = await client.storage.from(PUBLIC_BUCKET).createSignedUploadUrl(path)) }
       if (error) return res.status(502).json({ ok: false, error: `storage: ${error.message}` })

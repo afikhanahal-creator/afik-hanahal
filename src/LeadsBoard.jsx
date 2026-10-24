@@ -338,7 +338,7 @@ function PhoneCell({ value }) {
 function EmailCell({ value }) {
   if (!value) return <span style={{ color: '#9699A6', fontSize: 12 }}>—</span>
   return (
-    <a href={`mailto:${value}`} style={{ color: '#0073EA', fontSize: 12, textDecoration: 'none', fontFamily: 'inherit', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block', maxWidth: '100%' }}
+    <a href={`mailto:${value}`} style={{ minHeight: 0, lineHeight: '20px', color: '#0073EA', fontSize: 12, textDecoration: 'none', fontFamily: 'inherit', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block', maxWidth: '100%' }}
       onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'}
       onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}>
       {value}
@@ -346,8 +346,9 @@ function EmailCell({ value }) {
   )
 }
 
-function EditableCell({ value, onSave, T, multiline = false, type = 'text' }) {
-  const [editing, setEditing] = useState(false)
+function EditableCell({ value, onSave, T, multiline = false, type = 'text', startEditing = false, onDone }) {
+  const [editing, setEditingRaw] = useState(startEditing)
+  const setEditing = v => { setEditingRaw(v); if (!v) onDone?.() }
   const [val, setVal] = useState(value || '')
   const inputRef = useRef(null)
 
@@ -405,7 +406,7 @@ function EditablePhoneCell({ value, T, onSave }) {
   return (
     <div onClick={() => setEditing(true)} style={{ display: 'flex', alignItems: 'center', width: '100%', minHeight: 20, cursor: 'text', overflow: 'hidden' }}>
       {value
-        ? <a href={`tel:${value}`} onClick={e => e.stopPropagation()} style={{ color: '#0073EA', fontSize: 12, textDecoration: 'none', fontWeight: 600, direction: 'ltr', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+        ? <a href={`tel:${value}`} onClick={e => e.stopPropagation()} style={{ color: '#0073EA', fontSize: 12, textDecoration: 'none', fontWeight: 600, direction: 'ltr', minHeight: 0, lineHeight: '20px', display: 'inline-block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
             onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'}
             onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}>{value}</a>
         : <span style={{ opacity: .45, fontStyle: 'italic', fontSize: 12, color: T.textDim }}>—</span>
@@ -435,7 +436,7 @@ function EditableEmailCell({ value, T, onSave }) {
   return (
     <div onClick={() => setEditing(true)} style={{ display: 'flex', alignItems: 'center', width: '100%', minHeight: 20, cursor: 'text', overflow: 'hidden' }}>
       {value
-        ? <a href={`mailto:${value}`} onClick={e => e.stopPropagation()} style={{ color: '#0073EA', fontSize: 12, textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}
+        ? <a href={`mailto:${value}`} onClick={e => e.stopPropagation()} style={{ color: '#0073EA', fontSize: 12, textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block', minHeight: 0, lineHeight: '20px' }}
             onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'}
             onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}>{value}</a>
         : <span style={{ opacity: .45, fontStyle: 'italic', fontSize: 12, color: T.textDim }}>—</span>
@@ -730,6 +731,7 @@ const SEL_BG = T => (T.bg === '#111827' ? '#16233C' : '#EAF2FE')
 // ─── desktop sortable row ─────────────────────────────────────────────────────
 
 function SortableRow({ lead, cols, onUpdate, onDelete, onSelect, isSelected, lang, T, onOpenDetail, onStatusClick, onOpenChat, onEnrich }) {
+  const [renaming, setRenaming] = useState(false)
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: lead.id })
   const [hovered, setHovered] = useState(false)
 
@@ -813,9 +815,15 @@ function SortableRow({ lead, cols, onUpdate, onDelete, onSelect, isSelected, lan
       default:
         if (col.id === 'name') {
           const camp = leadCampaignTag(lead, lang)
+          // a click on the name opens the lead card (details, notes, tasks, the chat, every action); ✎ renames in place
           return (
             <div key={col.id} style={{ ...cellStyle, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <div style={{ flex: '0 1 auto', minWidth: 0 }}><EditableCell value={val} T={T} onSave={v => handleUpdate(col, v)} /></div>
+              <div style={{ flex: '0 1 auto', minWidth: 0 }}>
+                {renaming
+                  ? <EditableCell value={val} T={T} startEditing onDone={() => setRenaming(false)} onSave={v => handleUpdate(col, v)} />
+                  : <button type="button" className="lb-name-link" onClick={() => onOpenDetail(lead)} title={lang === 'en' ? 'Open the lead card' : 'פתיחת כרטיס הליד'}>{val || '—'}</button>}
+              </div>
+              {!renaming && hovered && <button type="button" className="lb-name-pen" onClick={() => setRenaming(true)} aria-label={lang === 'en' ? 'Rename' : 'שינוי שם'} title={lang === 'en' ? 'Rename' : 'שינוי שם'}><Pencil size={12}/></button>}
               {camp && <span title={leadCampaignFull(lead, lang)} style={{ flex: '1 1 0', minWidth: 0, fontSize: 11.5, fontWeight: 500, color: T.textSub, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>(<bdi>{camp}</bdi>)</span>}
             </div>
           )
@@ -832,11 +840,11 @@ function SortableRow({ lead, cols, onUpdate, onDelete, onSelect, isSelected, lan
     <div ref={setNodeRef} style={style}
       onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
       {/* Checkbox (always there, so a row can be picked) + drag handle on hover */}
-      <div style={{ width: 60, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, borderInlineEnd: `1px solid ${T.borderLight}`, position: 'sticky', insetInlineStart: 0, zIndex: 3, background: isSelected ? SEL_BG(T) : hovered ? T.bgRowHover : T.bgRow, transition: 'background .1s', boxShadow: isSelected ? 'inset -3px 0 0 #0073EA' : 'none' }}>
-        <div {...listeners} {...attributes} aria-label={lang === 'en' ? 'Drag' : 'גרור'} style={{ cursor: 'grab', color: T.textDim, display: 'flex', alignItems: 'center', visibility: hovered ? 'visible' : 'hidden' }}>
+      <div className="lb-selcol" style={{ background: isSelected ? SEL_BG(T) : hovered ? T.bgRowHover : T.bgRow, borderInlineEnd: `1px solid ${T.borderLight}`, boxShadow: isSelected ? 'inset -3px 0 0 #0073EA' : 'none' }}>
+        <div {...listeners} {...attributes} className="lb-grip" aria-label={lang === 'en' ? 'Drag' : 'גרור'} style={{ color: T.textDim, visibility: hovered ? 'visible' : 'hidden' }}>
           <GripVertical size={13} />
         </div>
-        <CheckBox checked={!!isSelected} onChange={(on, shift) => onSelect(lead.id, on, shift)} size={17}
+        <CheckBox checked={!!isSelected} onChange={(on, shift) => onSelect(lead.id, on, shift)} size={18}
           label={(lang === 'en' ? 'Select ' : 'בחר את ') + (lead.name || '')} />
       </div>
 
@@ -905,13 +913,14 @@ function BoardGroup({ group, leads, cols, onUpdate, onUpdateStatus, onDelete, on
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', padding: '5px 10px 5px 0', borderBottom: `2px solid ${color}22`, userSelect: 'none', background: `linear-gradient(90deg, ${color}12 0%, ${T.bgGroup} 60%)`, position: 'sticky', top: 36, zIndex: 4 }}>
-        <div style={{ width: 5, alignSelf: 'stretch', background: color, borderRadius: '0 4px 4px 0', marginRight: 10, flexShrink: 0, minHeight: 28 }} />
-        {onSelectMany && leads.length > 0 && (
-          <span style={{ margin: '0 2px 0 4px', display: 'inline-flex' }}><CheckBox checked={allSel} indeterminate={selCount > 0} size={17} color={color}
+      <div style={{ display: 'flex', alignItems: 'center', minHeight: 44, paddingInlineEnd: 10, borderBottom: `2px solid ${color}22`, userSelect: 'none', background: `linear-gradient(90deg, ${color}12 0%, ${T.bgGroup} 60%)`, position: 'sticky', top: 36, zIndex: 4 }}>
+        {/* the same 60 px column as the rows' checkboxes, so every checkbox sits on one line */}
+        <div className="lb-selcol lb-selcol-group">
+          <span aria-hidden="true" style={{ position: 'absolute', insetInlineStart: 0, top: 6, bottom: 6, width: 4, borderRadius: 4, background: color }}/>
+          {onSelectMany && leads.length > 0 && <CheckBox checked={allSel} indeterminate={selCount > 0} size={18} color={color}
             onChange={on => onSelectMany(leads.map(l => l.id), on)}
-            label={(lang === 'en' ? 'Select all in ' : 'בחר את כל ') + label} /></span>
-        )}
+            label={(lang === 'en' ? 'Select all in ' : 'בחר את כל ') + label} />}
+        </div>
         <button onClick={() => setCollapsed(v => !v)} style={{ background: 'none', border: 'none', cursor: 'pointer', color, display: 'flex', alignItems: 'center', padding: '0 4px 0 0' }}>
           <ChevronDown size={14} style={{ transform: collapsed ? 'rotate(-90deg)' : 'none', transition: 'transform .2s' }} />
         </button>
@@ -1223,10 +1232,18 @@ export function CheckBox({ checked, indeterminate = false, onChange, label, size
   )
 }
 export const LB_CSS = `
+  .lb-selcol{width:60px;flex-shrink:0;align-self:stretch;display:flex;align-items:center;justify-content:center;position:sticky;inset-inline-start:0;z-index:3;transition:background .1s}
+  .lb-selcol-group{background:transparent;z-index:1}
+  .lb-grip{position:absolute;inset-inline-end:3px;top:50%;transform:translateY(-50%);cursor:grab;display:flex;align-items:center}
+  .lb-name-link{border:none;background:none;padding:2px 0;margin:0;font:inherit;font-size:13.5px;font-weight:700;color:var(--au-text,#1b1f3b);cursor:pointer;text-align:start;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;border-radius:4px;min-height:0}
+  .lb-name-link:hover{color:var(--au-brand-text,#3F4EB0);text-decoration:underline;text-underline-offset:3px}
+  .lb-name-link:focus-visible{outline:2px solid var(--au-brand,#3F4EB0);outline-offset:2px}
+  .lb-name-pen{flex:none;border:none;background:rgba(var(--ov,0,0,0),.06);color:var(--au-text3,#667);width:24px;height:24px;min-height:0;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
+  .lb-name-pen:hover{color:var(--au-brand-text,#3F4EB0);background:rgba(var(--brand-rgb,63,78,176),.12)}
   .lb-check{position:relative;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;width:calc(var(--cks) + 10px);height:calc(var(--cks) + 10px);border-radius:8px}
   .lb-check:hover{background:rgba(var(--ink,40,50,90),.06)}
   .lb-check input{position:absolute;inset:0;opacity:0;margin:0;cursor:pointer;width:100%;height:100%}
-  .lb-check span{width:var(--cks);height:var(--cks);border-radius:5px;border:1.75px solid rgba(var(--ink,40,50,90),.38);background:var(--au-card,#fff);display:flex;align-items:center;justify-content:center;color:#fff;transition:background .12s,border-color .12s;pointer-events:none}
+  .lb-check span{width:var(--cks);height:var(--cks);border-radius:6px;border:2px solid rgba(var(--ink,40,50,90),.42);box-shadow:0 1px 2px rgba(0,0,0,.06);background:var(--au-card,#fff);display:flex;align-items:center;justify-content:center;color:#fff;transition:background .12s,border-color .12s;pointer-events:none}
   .lb-check:hover span{border-color:var(--ck)}
   .lb-check input:checked+span,.lb-check input:indeterminate+span{background:var(--ck);border-color:var(--ck)}
   .lb-check input:focus-visible+span{outline:2px solid var(--ck);outline-offset:2px}
@@ -2473,8 +2490,8 @@ function LeadsBoardMain({
             <div style={{ minWidth: tableMinWidth, width: '100%' }}>
               {/* Column headers */}
               <div style={{ display: 'flex', alignItems: 'center', background: T.bgHeader, borderBottom: `2px solid ${T.border}`, position: 'sticky', top: 0, zIndex: 10, height: 36, boxShadow: '0 2px 8px rgba(0,0,0,.06)' }}>
-                <div style={{ width: 60, flexShrink: 0, borderInlineEnd: `1px solid ${T.border}`, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'sticky', insetInlineStart: 0, background: T.bgHeader, zIndex: 5 }}>
-                  <CheckBox label={lang === 'en' ? 'Select all' : 'בחר הכול'}
+                <div className="lb-selcol" style={{ borderInlineEnd: `1px solid ${T.border}`, height: '100%', background: T.bgHeader, zIndex: 5 }}>
+                  <CheckBox size={18} label={lang === 'en' ? 'Select all' : 'בחר הכול'}
                     checked={filtered.length > 0 && selectedIds.size >= filtered.length && filtered.every(l => selectedIds.has(l.id))}
                     indeterminate={selectedIds.size > 0}
                     onChange={on => setSelectedIds(on ? new Set(filtered.map(l => l.id)) : new Set())} />
