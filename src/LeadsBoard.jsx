@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect, useMemo, createContext, useCo
 import DateTimePicker from './DateTimePicker.jsx'
 import { ensureFuCss } from './FollowUpTask.jsx'
 import { followUpPresets, setNextFollowUp } from '../lib/follow-up.js'
-import { sourceLabel, sourceColor, originLines, leadCampaign, leadCampaignFull, prettyLeadText } from './lib/leadFields.js'
+import { sourceLabel, sourceColor, originLines, leadCampaign, leadCampaignTag, leadCampaignFull, prettyLeadText, leadProject, toggleProjectInName } from './lib/leadFields.js'
 import { mergeLeads, mergeConflicts } from './lib/leadMerge.js'
 import LeadsDashboard from './LeadsDashboard.jsx'
 import LeadCard from './LeadCard.jsx'
@@ -483,7 +483,7 @@ function ClickableScoreCell({ value, lang, T, onSave }) {
 
 function MobileLeadCard({ lead, lang, T, onUpdate, onDelete, onOpenDetail, onStatusClick, onOpenChat }) {
   const openNote = useContext(NoteCtx)
-  const campaign = leadCampaign(lead, lang)
+  const campaign = leadCampaignTag(lead, lang)
   const last = lastNote(lead)
   const [menuOpen, setMenuOpen] = useState(false)
   const color = getGroupColor(lead.leadStatus || 'new')
@@ -812,7 +812,7 @@ function SortableRow({ lead, cols, onUpdate, onDelete, onSelect, isSelected, lan
       case 'text':
       default:
         if (col.id === 'name') {
-          const camp = leadCampaign(lead, lang)
+          const camp = leadCampaignTag(lead, lang)
           return (
             <div key={col.id} style={{ ...cellStyle, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
               <div style={{ flex: '0 1 auto', minWidth: 0 }}><EditableCell value={val} T={T} onSave={v => handleUpdate(col, v)} /></div>
@@ -1268,7 +1268,7 @@ const fmtNoteTs = (ts, lang) => ts ? new Date(ts).toLocaleString(lang === 'en' ?
 function CallNoteDialog({ lead, T, isDark, lang, onClose, updateLead, updateLeadStatus }) {
   ensureFuCss()
   const en = lang === 'en'
-  const campaign = leadCampaign(lead, lang)
+  const campaign = leadCampaignTag(lead, lang)
   const [outcome, setOutcome] = useState('')
   const [text, setText] = useState('')
   const [followUp, setFollowUp] = useState(lead.followUp || '')
@@ -1380,7 +1380,7 @@ function KanbanCard({ lead, T, isDark, lang, onOpen, onDelete, onOpenChat, onEnr
   const sel = useContext(SelCtx)
   const selected = !!sel?.has(lead.id)
   const last = lastNote(lead)
-  const campaign = leadCampaign(lead, lang)
+  const campaign = leadCampaignTag(lead, lang)
   const fu = lead.followUp && Date.parse(lead.followUp)
   const en = lang === 'en'
   const src = lead.source || (String(lead.id).startsWith('meta_') ? 'meta' : 'website')
@@ -1851,7 +1851,7 @@ function AddColumnModal({ onClose, onAdd, T, lang }) {
 
 // ─── bulk action bar ──────────────────────────────────────────────────────────
 
-function BulkActionBar({ count, total, onClearSelection, onSelectAll, onDelete, onMove, onMerge, onlySelected, onToggleOnly, lang, T }) {
+function BulkActionBar({ count, total, onClearSelection, onSelectAll, onDelete, onMove, onMerge, onAddProject, onlySelected, onToggleOnly, lang, T }) {
   const [confirmDel, setConfirmDel] = useState(false)
   const [moveOpen, setMoveOpen] = useState(false)
   useEffect(() => { setConfirmDel(false) }, [count])
@@ -1879,6 +1879,7 @@ function BulkActionBar({ count, total, onClearSelection, onSelectAll, onDelete, 
         )}
       </div>
       {count === 2 && onMerge && <button type="button" onClick={onMerge} style={btn}><Link2 size={13}/> {en ? 'Merge' : 'מזג'}</button>}
+      {onAddProject && <button type="button" onClick={onAddProject} style={btn} title={en ? 'Adds " · <project>" after each selected lead\'s name (Meta campaign or listing)' : 'מוסיף " · <פרויקט>" אחרי השם של כל ליד נבחר (הקמפיין או הנכס)'}>{en ? '+ Project in the name' : '+ הפרויקט בשם'}</button>}
       {confirmDel
         ? <button type="button" onClick={() => { setConfirmDel(false); onDelete() }} style={{ ...btn, background: '#E2445C', borderColor: '#E2445C' }}><Trash2 size={13}/> {en ? `Delete ${count}?` : `למחוק ${count}?`}</button>
         : <button type="button" onClick={() => setConfirmDel(true)} style={{ ...btn, color: '#FFB3BD' }}><Trash2 size={13}/> {en ? 'Delete' : 'מחק'}</button>}
@@ -2559,7 +2560,18 @@ function LeadsBoardMain({
       {detailLead && <LeadCard key={detailLead.id} lead={leads.find(l => l.id === detailLead.id) || detailLead} onClose={() => setDetailLead(null)} onUpdate={updateLead} onUpdateStatus={updateLeadStatus} onEnrich={enrichLead} onOpenChat={onOpenChat} lang={lang} stages={GROUPS} />}
       {selectedIds.size > 0 && <BulkActionBar count={selectedIds.size} total={filtered.length} lang={lang} T={T} onClearSelection={() => setSelectedIds(new Set())} onSelectAll={() => setSelectedIds(new Set(filtered.map(l => l.id)))}
         onlySelected={onlySelected} onToggleOnly={() => { setOnlySelected(v => !v); setActiveTab(t => (t === 'table' ? t : 'table')) }} onDelete={handleBulkDelete} onMove={handleBulkMove}
-        onMerge={() => { const [a, b] = [...selectedIds].map(id => leads.find(l => l.id === id)); if (a && b) setMergePair([a, b]) }} />}
+        onMerge={() => { const [a, b] = [...selectedIds].map(id => leads.find(l => l.id === id)); if (a && b) setMergePair([a, b]) }}
+        onAddProject={() => {
+          // " · <project>" after the name of every selected lead that has a project and doesn't show it yet (the same rename as the card)
+          let n = 0
+          for (const id of selectedIds) {
+            const l = leads.find(x => x.id === id), p = leadProject(l)
+            if (!l?.name || !p) continue
+            const { has, next } = toggleProjectInName(l.name, p)
+            if (!has) { updateLead(l.id, { name: next }); n++ }
+          }
+          setToast(lang === 'en' ? `Project added to ${n} names` : `הפרויקט נוסף ל-${n} שמות`)
+        }} />}
       {mergePair && <MergeDialog leads={mergePair} lang={lang} T={T} isDark={isDark} onClose={() => setMergePair(null)} onMerge={doMerge} />}
       {toast && <Toast message={toast} onDismiss={() => setToast(null)} />}
 

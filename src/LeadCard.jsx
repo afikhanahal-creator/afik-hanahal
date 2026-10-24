@@ -5,7 +5,7 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { FaTimes, FaPhone, FaWhatsapp, FaEnvelope, FaMagic, FaUser, FaStickyNote, FaTasks, FaChartPie, FaCheck, FaTrash, FaCopy, FaPlus, FaClock, FaBullseye, FaExclamationTriangle, FaLightbulb, FaQuestionCircle, FaComments, FaShieldAlt, FaSyncAlt, FaMapMarkerAlt, FaBuilding, FaCalendarAlt, FaTag, FaFlag, FaArrowUp, FaArrowDown, FaInfoCircle, FaUserCheck, FaExternalLinkAlt, FaSearch, FaHandshake, FaEdit } from 'react-icons/fa'
 import { T } from './automationsUI.jsx'
-import { sourceLabel, sourceColor, originLines, leadCampaign, leadCampaignFull } from './lib/leadFields.js'
+import { sourceLabel, sourceColor, originLines, leadCampaign, leadCampaignTag, leadCampaignFull, leadProject, toggleProjectInName } from './lib/leadFields.js'
 import LeadChatTab from './LeadChatTab.jsx'
 import LeadConversation from './LeadConversation.jsx'
 import { useAdminTheme } from './adminTheme.js'
@@ -16,7 +16,7 @@ import { followUpPresets, setNextFollowUp, dueIso, describeDue } from '../lib/fo
 
 const TR = {
   he: {
-    convShow: 'הצג שיחה', convHide: 'הסתר שיחה', convTip: 'כל ההתכתבות בוואטסאפ עם הליד, לצד הפרטים',
+    addProject: p => `+ הוספת הפרויקט: ${p}`, removeProject: 'הסרת שם הפרויקט', projectTip: 'השם מתעדכן גם במרכז הלידים ובצ׳אטים', convShow: 'הצג שיחה', convHide: 'הסתר שיחה', convTip: 'כל ההתכתבות בוואטסאפ עם הליד, לצד הפרטים',
     tabs: { details: 'פרטים ועריכה', notes: 'הערות ופעילות', chat: 'שיחת וואטסאפ', tasks: 'משימות', analysis: 'ניתוח חכם' },
     call: 'התקשר', wa: 'וואטסאפ', email: 'מייל', analyze: 'נתח ליד', reanalyze: 'נתח מחדש', analyzing: 'מנתח…', close: 'סגירה', saved: 'נשמר', saving: 'שומר…', saveFailed: 'השמירה נכשלה — בדקו חיבור ונסו שוב',
     sec: { contact: 'פרטי קשר', need: 'מה הלקוח מחפש', prop: 'הנכס שהתעניין בו', msg: 'ההודעה של הלקוח', manage: 'ניהול הליד', source: 'מקור הליד' },
@@ -51,7 +51,7 @@ const TR = {
     identityCheck: 'מה אומת', matchedBy: 'התאמה לפי', toConfirm: 'מה יאשר את הזהות', profiles: 'פרופילים ומקורות ציבוריים', professional: 'עיסוק', rePro: 'איש נדל״ן', publicOwner: 'המספר מופיע ציבורית אצל', hooks: 'נקודות לחימום השיחה', verify: 'שאלות לאימות עדין', flags: 'דגלים אדומים', sources: 'מקורות', opener: 'משפט פתיחה', warmup: 'תוכנית חימום', researchOff: 'המחקר לא רץ:', noResearch: 'טרם נערך מחקר על הליד — לחצו "נתח מחדש".', aiFix: { workspace: 'מפתח ה-API לא משויך ל-Workspace. צרו מפתח חדש בתוך Workspace (console.anthropic.com → Workspaces → Default → API keys), החליפו את ANTHROPIC_API_KEY ב-Vercel ופרסו מחדש.', admin_key: 'הוכנס מפתח Admin (sk-ant-admin…), שלא יכול לנתח. צרו מפתח API רגיל בתוך Workspace, החליפו ב-Vercel ופרסו מחדש.', auth: 'מפתח ה-API לא תקין. העתיקו אותו מחדש ל-Vercel ופרסו מחדש.', no_key: 'לא הוגדר מפתח ANTHROPIC_API_KEY ב-Vercel.' }, analyzedAt: t => `נותח ${t}`, legacy: 'ניתוח קודם (גרסה ישנה) – לחצו "נתח מחדש" לניתוח המדויק החדש',
   },
   en: {
-    convShow: 'Show chat', convHide: 'Hide chat', convTip: 'The whole WhatsApp conversation with the lead, next to the details',
+    addProject: p => `+ Add the project: ${p}`, removeProject: 'Remove the project name', projectTip: 'The name updates in the Lead Center and the chats too', convShow: 'Show chat', convHide: 'Hide chat', convTip: 'The whole WhatsApp conversation with the lead, next to the details',
     tabs: { details: 'Details', notes: 'Notes & activity', chat: 'WhatsApp chat', tasks: 'Tasks', analysis: 'Smart analysis' },
     call: 'Call', wa: 'WhatsApp', email: 'Email', analyze: 'Analyze lead', reanalyze: 'Re-analyze', analyzing: 'Analyzing…', close: 'Close', saved: 'Saved', saving: 'Saving…', saveFailed: 'Not saved — check the connection and try again',
     sec: { contact: 'Contact details', need: 'What they are looking for', prop: 'Property of interest', msg: 'Their message', manage: 'Lead management', source: 'Lead source' },
@@ -92,6 +92,8 @@ const CSS = `
   .lc button{min-height:0;min-width:0}
   .lc-body{display:grid;grid-template-columns:minmax(0,1fr) 320px;flex:1;min-height:0}
   .lc-body.conv{grid-template-columns:minmax(0,1fr) 290px minmax(400px,40%)}
+  .lcd-proj{margin-top:6px;border:1px dashed rgba(var(--brand-rgb),.45);background:rgba(var(--brand-rgb),.06);color:var(--au-brand-text);border-radius:999px;padding:3px 11px;font:inherit;font-size:12px;font-weight:700;cursor:pointer}
+  .lcd-proj:hover{background:rgba(var(--brand-rgb),.12)}
   .lc-conv{min-height:0;min-width:0;display:flex;flex-direction:column;overflow:hidden;border-inline-start:1px solid var(--au-line)}
   .lc-conv-tab{height:min(640px,72vh);border-radius:14px;overflow:hidden;border:1px solid var(--au-line);margin-top:14px}
   .lc-grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
@@ -252,9 +254,18 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
   const tasks = Array.isArray(lead.tasks) ? lead.tasks : []
   const openTasks = tasks.filter(x => !x.done).length
   const src = lead.source || (String(lead.id).startsWith('meta_') ? 'meta' : 'website')
-  const campaign = leadCampaign(lead, lang)
+  const campaign = leadCampaignTag(lead, lang)
   const campaignFull = leadCampaignFull(lead, lang)
   const stageName = id => { const g = stages.find(x => x.id === id); return g ? (lang === 'en' ? g.en : g.label) : (id || '') }
+
+  // "+ הוספת הפרויקט": the project after the name ("סוזנה · זרובבל 15"), the same rename as everywhere (CRM, Lead Center, chats)
+  const project = leadProject(lead)
+  const projToggle = toggleProjectInName(lead.name, project)
+  const projectBtn = project && lead.name ? (
+    <button type="button" className="lcd-proj" onClick={() => save({ name: projToggle.next })} title={t.projectTip}>
+      {projToggle.has ? t.removeProject : t.addProject(project)}
+    </button>
+  ) : null
 
   const copyMsg = async text => { try { await navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1500) } catch {} }
 
@@ -309,7 +320,7 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <Section title={t.sec.contact} icon={FaUser}>
         <div className="lc-grid2">
-          <Field label={t.f.name}><EditInput value={lead.name} onSave={set('name')}/>{lead.originalName && lead.originalName !== lead.name && <div style={{ fontSize: 12, color: 'var(--au-text3)', marginTop: 4 }}>{lang === 'en' ? 'Name on the form' : 'השם בטופס'}: <b style={{ color: 'var(--au-text2)' }}><bdi>{lead.originalName}</bdi></b></div>}</Field>
+          <Field label={t.f.name}><EditInput value={lead.name} onSave={set('name')}/>{projectBtn}{lead.originalName && lead.originalName !== lead.name && <div style={{ fontSize: 12, color: 'var(--au-text3)', marginTop: 4 }}>{lang === 'en' ? 'Name on the form' : 'השם בטופס'}: <b style={{ color: 'var(--au-text2)' }}><bdi>{lead.originalName}</bdi></b></div>}</Field>
           <Field label={t.f.phone}><EditInput value={lead.phone} onSave={set('phone')} dir="ltr"/></Field>
           <Field label={t.f.email}><EditInput value={lead.email} onSave={set('email')} type="email" dir="ltr"/></Field>
           <Field label={t.f.contactTime}><EditInput value={lead.contactTime} onSave={set('contactTime')} placeholder={lang === 'en' ? 'e.g. mornings, after 17:00' : 'למשל: בבקרים, אחרי 17:00'}/></Field>

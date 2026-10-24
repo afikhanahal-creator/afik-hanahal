@@ -71,3 +71,13 @@ test('form option codes read as words', async () => {
   assert.equal(prettyLeadText('rooms: 3r • budget: b34'), 'חדרים: 3 חדרים • תקציב: 3–4 מיליון')
   assert.deepEqual(metaFormAnswers([{ name: 'rooms', values: ['2r'] }, { name: 'budget', values: ['b45'] }]), [{ q: 'חדרים', a: '2 חדרים' }, { q: 'תקציב', a: '4–5 מיליון' }])
 })
+
+test('the project in a lead name: add, remove, never twice', async () => {
+  const { leadProject, toggleProjectInName } = await import('./leadFields.js')
+  assert.equal(leadProject({ campaignName: 'זרובבל 15 - v2 (כוונה גבוהה)' }), 'זרובבל 15')
+  assert.equal(leadProject({ source: 'website', propTitle: 'דירת 4 חדרים בכפר סבא' }), 'דירת 4 חדרים בכפר סבא')
+  assert.equal(leadProject({ source: 'website' }), '')
+  assert.deepEqual(toggleProjectInName('סוזנה', 'זרובבל 15'), { has: false, next: 'סוזנה · זרובבל 15' })
+  assert.deepEqual(toggleProjectInName('סוזנה · זרובבל 15', 'זרובבל 15'), { has: true, next: 'סוזנה' })
+  assert.deepEqual(toggleProjectInName('סוזנה · פרויקט ישן', 'זרובבל 15'), { has: false, next: 'סוזנה · זרובבל 15' })
+})

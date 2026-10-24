@@ -118,4 +118,26 @@ export function leadCampaign(lead, lang = 'he') {
   const lbl = SHORT_SOURCE[src]
   return lbl ? lbl[lang === 'en' ? 1 : 0] : (src ? sourceLabel(src, lang) : '')
 }
+/** The project a lead belongs to, for its name ("סוזנה · זרובבל 15"): the Meta campaign's short name, else the listing
+ *  the lead asked about; '' when there is none (a plain website form is not a project) */
+export function leadProject(lead) {
+  if (!lead || typeof lead !== 'object') return ''
+  const m = metaName(lead)
+  if (m) return shortCampaign(m)
+  const crm = lead.crm_data && typeof lead.crm_data === 'object' ? lead.crm_data : {}
+  return String(lead.propTitle || lead.prop_title || crm.propTitle || '').trim().slice(0, 40)
+}
+/** The name with / without " · <project>" → { has, next } */
+export function toggleProjectInName(name, project) {
+  const n = String(name || '').trim(), p = String(project || '').trim()
+  if (!p) return { has: false, next: n }
+  const suffix = ` · ${p}`
+  const has = n.endsWith(suffix) || n === p
+  return { has, next: has ? n.slice(0, -suffix.length).trim() : `${n.split(' · ')[0].trim()}${suffix}` }
+}
+/** leadCampaign for the "(…)" after a name — '' when the name already carries it ("סוזנה · זרובבל 15") */
+export function leadCampaignTag(lead, lang = 'he') {
+  const c = leadCampaign(lead, lang)
+  return c && String(lead?.name || '').includes(c) ? '' : c
+}
 export const leadCampaignFull = (lead, lang = 'he') => (lead && typeof lead === 'object' && metaName(lead)) || leadCampaign(lead, lang)
