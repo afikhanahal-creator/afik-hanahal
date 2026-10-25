@@ -17,6 +17,7 @@ import { Icon, CatTile } from './uiIcons.jsx'
 import { insertBooking } from './lib/bookingLink.js'
 import { useAttachments, useFileDrop, pasteFiles, DropOverlay, AttachTray } from './ChatAttachments.jsx'
 import { CHAT_ACCEPT, sendFiles } from './lib/chatFiles.js'
+import { onWaLive, waLiveUp, mergeLive } from './lib/waLive.js'
 
 const ADMIN_TOKEN = 'AFIKhanahal2026'
 const AUTH = { Authorization: `Bearer ${ADMIN_TOKEN}` }
@@ -177,8 +178,21 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
     setGreen(cached?.list || []); setPending([]); setError(''); setInput(''); setTplId(''); setImg(''); setHistState(cached ? 'ok' : 'loading')
     nearBottom.current = true; inserted.current = ''; prefilled.current = false
     load(!!cached)
-    const iv = setInterval(() => { if (!document.hidden) load(true) }, 8000)
-    return () => clearInterval(iv)
+    // live: Green delivers every message to us and the bus announces it (src/lib/waLive.js) — a reply shows in about a
+    // second; the history is re-read every 8 s only while the bus is down, otherwise once a minute as a safety net
+    const iv = setInterval(() => { if (!document.hidden && !waLiveUp()) load(true) }, 8000)
+    const slow = setInterval(() => { if (!document.hidden && waLiveUp()) load(true) }, 60000)
+    const off = onWaLive(items => {
+      const mine = items.filter(m => m.phone === phone)
+      if (!mine.length) return
+      setGreen(g => {
+        const next = mergeLive(g, mine, normalizeGreenMsg)
+        if (next !== g) { const h = HIST.get(phone); if (h) { h.list = next; h.at = Date.now(); saveHist() } }
+        return next
+      })
+      setHistState('ok')
+    })
+    return () => { clearInterval(iv); clearInterval(slow); off() }
   }, [load])
 
   const msgs = useMemo(() => mergeConversation(green, localMsgs, pending), [green, localMsgs, pending])

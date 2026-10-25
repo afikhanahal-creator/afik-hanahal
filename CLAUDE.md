@@ -240,6 +240,22 @@ wa.me and the card link `/admin-panel/leads?lead=<id>`. `public.afik_due_reminde
 count follow-ups only) and reads an old Israel-local due in Israel time (`server/sync-bus-migration.sql`).
 **Date / time picker** (`src/DateTimePicker.jsx`): every admin date field (lead card follow-up and task due, call summary, the leads dashboard's custom range, bulk-send scheduling) — quick picks, a month calendar (Sunday first, RTL, today marked, arrows / PageUp / PageDown / Home), time chips 07:00–21:00 + any time typed, formats `date` / `local` / `iso` (Israel time); a bottom sheet on phones. `Popover` (automationsUI) ignores clicks inside the picker's portal, and both call `preventDefault` on Esc so the lead card under them stays open.
 
+**Live WhatsApp engine** (2026-10-25 — a lead's reply used to be missing: Green's incoming journal was off, so `getChatHistory`
+had none of their messages): Green API delivers every message and status of the line to `POST /api/meta/green-hook`
+(`handleGreenHook`; the key is `app_settings.green_hook_key`, made in the database and handed to Green as `webhookUrlToken`,
+compared in constant time — never in code or chat) → `wa_messages` (`server/wa-messages-migration.sql`: id = Green's idMessage,
+phone, in / out, type, body, file, quoted, status that only moves forward; RLS on, service key only; parsed by the pure, tested
+`lib/green-hook.js` `parseGreenHook()`). The insert / update is announced on the change bus (`afik-sync`, `{t:'wa_messages', id}` —
+never the text), and `src/lib/waLive.js` (`onWaLive`, `waLiveUp`; merge helpers in `src/lib/waMerge.js`, tested) fetches only what
+is new (`GET /api/meta/chat-updates?since=<cursor>`) and hands it to every open screen: the chats tab (`GreenAPIChat`: the message
+lands in its chat, a sent one replaces its optimistic bubble, the chat jumps to the top, a new chat is added), the Lead Center /
+lead card (`LeadConversation`) and the admin (sidebar badge + a toast naming the lead outside the chats tab). The 8-second
+history polls run only while the bus is down (once a minute otherwise); `chat-history` merges the stored rows over Green's
+history (`mergeHistory()`), so a message is never lost even if Green's journal is. **Green's settings are checked by themselves:**
+`greenSettingsCheck()` (10-min cache) re-enables the journals (`incomingWebhook`, `outgoingWebhook`, `outgoingMessageWebhook`,
+`outgoingAPIMessageWebhook`) and points `webhookUrl` at us when either drifted (at most once an hour); `GET /api/meta/chat-settings`
+reports it (`POST {fix:true}` fixes), `chat-status` returns `settings`; probe action `wa-fix`. The chatbot's hook point is
+`handleGreenHook` (an incoming row = a question to answer until a person takes over).
 **Green API plan quota (466):** the free / Developer plan answers `466 "Monthly quota has been exceeded"` to every number
 outside its few allowed chats while `getStateInstance` still says `authorized` ("connected, but nothing goes out" — every welcome
 failed from 2026-10-11 until the plan is upgraded at console.green-api.com). `sendText` (`lib/automations.js`, also used by the
