@@ -23,6 +23,7 @@ import { onLeadCreated, onStageChanged } from '../lib/automations.js'
 import { buildLeadEmailHtml } from '../lib/lead-email.js'
 import { hebrewFullName } from '../lib/hebrew-names.js'
 import { restoreRow } from '../lib/lead-restore.js'
+import { properHebrewName } from '../lib/name-proof.js'
 
 // ── Lead backup (Vercel Blob) ────────────────────────────────────────────────
 // If Supabase refuses the INSERT (quota / paused project / outage) the lead used to exist only in the
@@ -465,11 +466,12 @@ export default async function handler(req, res) {
     // ── POST: create new contact ─────────────────────────────────────────────
     if (req.method === 'POST') {
       const b = req.body || {}
+      const heName = await properHebrewName(b.name || '')   // lists first, Claude for a name they don't know (lib/name-proof.js)
       const row = {
         // No custom id — let Supabase auto-generate it.
         // The contacts table uses bigint (serial), so sending a text id causes a 400.
         // a Latin name is saved in Hebrew; the name as typed stays in crm_data.originalName
-        name:         hebrewFullName(b.name || '') || null,
+        name:         heName || null,
         phone:        b.phone        || null,
         email:        b.email        || null,
         message:      b.msg          || b.message || null,
@@ -478,7 +480,7 @@ export default async function handler(req, res) {
         source:       b.source       || 'website',
         // Everything else the form knew — page, referrer, UTM, language, device — so the admin
         // can see exactly where each lead came from (shown in the lead drawer as "מקור").
-        crm_data:     { origin: sanitizeOrigin(b.origin, b.lang), ...(b.name && hebrewFullName(b.name) !== String(b.name).trim() ? { originalName: String(b.name).trim().slice(0, 120) } : {}) },
+        crm_data:     { origin: sanitizeOrigin(b.origin, b.lang), ...(b.name && heName !== String(b.name).trim() ? { originalName: String(b.name).trim().slice(0, 120) } : {}) },
       }
       console.log(`[new-lead] ${row.name || '—'} | ${row.phone || '—'} | source=${row.source}`)
 

@@ -53,7 +53,7 @@ test('template dropdown: welcome first before anything was sent, sent ones marke
   const g1 = templateOptions(null, lead, 'he', { first: true, categories: CATEGORIES })
   assert.equal(g1[0].id, 'welcome'); assert.equal(g1[0].items[0].id, 'welcome_prop'); assert.equal(g1[0].items[0].isDefault, true)   // a lead from a project's ad gets the project's welcome
   assert.equal(g1[1].id, 'personal')
-  assert.match(g1[0].items[0].text, /^היי דנה, ראינו שהשארתם פרטים/); assert.doesNotMatch(g1[0].items[0].text, /אפיק הנחל/)
+  assert.match(g1[0].items[0].text, /^היי דנה, ראינו את הפנייה/); assert.doesNotMatch(g1[0].items[0].text, /אפיק הנחל/)
   assert.match(g1[0].items[0].text, /זרובבל 15/); assert.doesNotMatch(g1[0].items[0].text, /v2/)
   const en = templateOptions({ rules: { welcome: { templateId: 'welcome_prop' } } }, templateLead({ id: 6, name: 'Ronen Levi', phone: '0521234567', status: 'new' }), 'en', { first: true, categories: CATEGORIES })
   assert.equal(en[0].items[0].id, 'welcome_prop'); assert.match(en[0].items[0].text, /^Hi Ronen/)
