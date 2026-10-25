@@ -16,7 +16,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import WaFace from './WaFace.jsx'
-import FollowUpsPanel, { FollowUpsButton } from './FollowUpsPanel.jsx'
+import FollowUpsView, { FollowUpsButton } from './FollowUpsView.jsx'
 import {
   Plus, Search, Filter, SortAsc, Eye, EyeOff, ChevronDown, ChevronRight,
   MoreHorizontal, User, Calendar, Phone, Mail, FileText, Link2, Zap,
@@ -2068,9 +2068,6 @@ function LeadsBoardMain({
   const [statusTarget, setStatusTarget] = useState(null)
   const [modal, setModal]             = useState(null)
   const [activeTab, setActiveTab]     = useState('pipeline')
-  // the follow-ups column next to the pipeline / table, opened by the "פולו אפים" button next to the view switch (remembered)
-  const [fuOpen, setFuOpenState] = useState(() => { try { return localStorage.getItem('afik_fu_panel_v2') === '1' } catch { return false } })
-  const setFuOpen = v => { setFuOpenState(v); try { localStorage.setItem('afik_fu_panel_v2', v ? '1' : '0') } catch {} }
   // /admin-panel/leads?lead=<id> (the link in a follow-up reminder) opens that lead's card once the list has it
   useEffect(() => {
     let id = ''
@@ -2320,7 +2317,7 @@ function LeadsBoardMain({
 
         {activeTab === 'followups' && (
           <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-            <FollowUpsPanel leads={leads} lang={lang} onUpdate={updateLead} onOpen={setDetailLead} mobile/>
+            <FollowUpsView leads={leads} lang={lang} stages={GROUPS} onUpdate={updateLead} onOpen={setDetailLead} onOpenChat={onOpenChat}/>
           </div>
         )}
 
@@ -2438,14 +2435,13 @@ function LeadsBoardMain({
             ))}
           </div>
           <div style={{ marginInlineStart: 10 }}>
-            <FollowUpsButton leads={leads} lang={lang} open={fuOpen && activeTab !== 'dashboard'}
-              onToggle={() => { if (activeTab === 'dashboard') { setActiveTab('pipeline'); setFuOpen(true) } else setFuOpen(!fuOpen) }}/>
+            <FollowUpsButton leads={leads} lang={lang} active={activeTab === 'followups'} onClick={() => setActiveTab('followups')}/>
           </div>
         </div>
       </div>
 
       {/* ── Toolbar: new lead · search · (table) columns ┊ sync · trash · CSV · (table) add column · enrich ── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px', background: isDark ? '#0D1117' : T.bgHeader, borderBottom: `1px solid ${T.border}`, flexShrink: 0, overflowX: 'auto' }}>
+      <div style={{ display: activeTab === 'followups' ? 'none' : 'flex', alignItems: 'center', gap: 8, padding: '10px 20px', background: isDark ? '#0D1117' : T.bgHeader, borderBottom: `1px solid ${T.border}`, flexShrink: 0, overflowX: 'auto' }}>
         <button type="button" onClick={() => handleAddRow(GROUPS[0].id, '')}
           style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 34, padding: '0 16px', background: T.accent, border: 'none', borderRadius: 9, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', minHeight: 0 }}>
           <Plus size={15} strokeWidth={2.4} /> {lang === 'en' ? 'New lead' : 'ליד חדש'}
@@ -2491,7 +2487,14 @@ function LeadsBoardMain({
         </div>
       )}
 
-      {/* ── Pipeline / table + the follow-ups column (on the left in Hebrew; src/FollowUpsPanel.jsx) ── */}
+      {/* ── Follow-ups & tasks: a screen of its own (src/FollowUpsView.jsx) ── */}
+      {activeTab === 'followups' && (
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+          <FollowUpsView leads={leads} lang={lang} stages={GROUPS} onUpdate={updateLead} onOpen={setDetailLead} onOpenChat={onOpenChat}/>
+        </div>
+      )}
+
+      {/* ── Pipeline / table ── */}
       {(activeTab === 'pipeline' || activeTab === 'table') && (
         <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
           <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
@@ -2587,7 +2590,6 @@ function LeadsBoardMain({
               </div>
             )}
           </div>
-          {fuOpen && <FollowUpsPanel leads={leads} lang={lang} onUpdate={updateLead} onOpen={setDetailLead} onCollapse={() => setFuOpen(false)}/>}
         </div>
       )}
 
