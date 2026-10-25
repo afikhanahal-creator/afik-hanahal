@@ -22,6 +22,7 @@ import { backupEnabled, backupPut, backupList, backupGet, backupDelete } from '.
 import { onLeadCreated, onStageChanged } from '../lib/automations.js'
 import { buildLeadEmailHtml } from '../lib/lead-email.js'
 import { hebrewFullName } from '../lib/hebrew-names.js'
+import { restoreRow } from '../lib/lead-restore.js'
 
 // ── Lead backup (Vercel Blob) ────────────────────────────────────────────────
 // If Supabase refuses the INSERT (quota / paused project / outage) the lead used to exist only in the
@@ -419,6 +420,46 @@ export default async function handler(req, res) {
       if (!contacts && !extra.length) return res.status(503).json({ error: `Supabase: ${supaErr}` })
       if (!contacts) res.setHeader('X-Leads-Degraded', encodeURIComponent(supaErr.slice(0, 180)))
       return sendJson(req, res, [...extra, ...(contacts || [])])
+    }
+
+    // ── POST ?restore=1: put deleted leads back exactly as they were (admin) ────
+    // The board's trash / "בטל" sends the leads it kept; each becomes the very same row (id, created_at, stage, notes, tasks —
+    // lib/lead-restore.js). An upsert on id, so a lead that is still there is just refreshed. Not a new lead: no email, no
+    // WhatsApp, no automations.
+    if (req.method === 'POST' && req.query.restore) {
+      if (req.headers.authorization !== `Bearer ${ADMIN_TOKEN}`) return res.status(401).json({ error: 'unauthorized' })
+      const list = Array.isArray(req.body?.leads) ? req.body.leads.slice(0, 500) : []
+      let rows = list.map(restoreRow).filter(Boolean)
+      if (!rows.length) return res.status(400).json({ error: 'nothing_to_restore', skipped: list.length })
+      // A Meta lead's CRM copy that the daily crm-sync already copied again (a new row, same metaLeadId) isn't restored a
+      // second time: the client drops its old id and keeps the new copy
+      const existing = []
+      const mids = [...new Set(rows.map(r => r.crm_data?.metaLeadId).filter(Boolean).map(String))].filter(x => /^[\w-]{1,40}$/.test(x))
+      if (mids.length) {
+        const q = await supaFetch(`/contacts?select=id,mid:crm_data->>metaLeadId&crm_data->>metaLeadId=in.(${mids.map(encodeURIComponent).join(',')})`).catch(() => null)
+        const have = q && q.ok ? await q.json().catch(() => []) : []
+        const byMid = new Map(have.map(h => [String(h.mid), String(h.id)]))
+        rows = rows.filter(r => {
+          const now = byMid.get(String(r.crm_data?.metaLeadId || ''))
+          if (now && now !== String(r.id)) { existing.push({ id: String(r.id), now }); return false }
+          return true
+        })
+      }
+      if (!rows.length) return res.status(200).json({ ok: true, restored: [], existing, skipped: list.length - existing.length })
+      const r = await supaFetch('/contacts?on_conflict=id', {
+        method: 'POST',
+        headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
+        body: JSON.stringify(rows),
+        signal: AbortSignal.timeout(15000),
+      })
+      if (!r.ok) {
+        const msg = await r.text().catch(() => '')
+        console.error(`[contacts] restore failed: ${r.status} — ${msg.slice(0, 200)}`)
+        return res.status(502).json({ error: 'restore_failed', status: r.status })
+      }
+      const saved = await r.json().catch(() => [])
+      console.log(`[contacts] restored ${saved.length} lead(s)`)
+      return res.status(200).json({ ok: true, restored: saved.map(x => String(x.id)), existing, skipped: list.length - rows.length - existing.length })
     }
 
     // ── POST: create new contact ─────────────────────────────────────────────

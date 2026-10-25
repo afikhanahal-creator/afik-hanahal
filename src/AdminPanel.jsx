@@ -1619,6 +1619,9 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const resizeStartXRef = useRef(0)
   const resizeStartWRef = useRef(0)
   const pendingDeletes  = useRef(new Set()) // IDs deleted locally, awaiting server confirmation
+  const deleteReqs      = useRef({})        // id → the DELETE request (a restore waits for it)
+  const [undoDel, setUndoDel] = useState(null) // the last deletion: { ids, names, done: 0 · 1 restoring · 2 restored · 3 failed }
+  const undoTimer       = useRef(null)
 
   // ── Push notification system ────────────────────────────────────────────────
   const [toasts, setToasts]           = useState([])
@@ -2687,10 +2690,16 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
         setTrashedLeads(trash.slice(0, 200))
       } catch {}
     }
-    fetch(`${CONTACTS_API}/api/contacts?id=${encodeURIComponent(id)}`, {
+    deleteReqs.current[String(id)] = fetch(`${CONTACTS_API}/api/contacts?id=${encodeURIComponent(id)}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
     }).catch(() => {})
+    // "בטל": every lead deleted while the bar is up joins the same batch (a bulk delete = one undo)
+    if (lead) {
+      setUndoDel(u => ({ ids: [...(u && !u.done ? u.ids : []), String(id)], names: [...(u && !u.done ? u.names : []), lead.name || lead.phone || ''], done: 0, at: Date.now() }))
+      clearTimeout(undoTimer.current)
+      undoTimer.current = setTimeout(() => setUndoDel(null), 20000)
+    }
   }
   const clearLeads = () => {
     if (!window.confirm('למחוק את כל הלידים לצמיתות?')) return
@@ -2720,36 +2729,70 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     })
       .catch(() => {})
   }
-  const restoreLead = id => {
+  // Restore = the very same lead again (id, stage, notes, tasks, form answers — lib/lead-restore.js, POST ?restore=1): never a
+  // new lead, so no new-lead email, WhatsApp welcome or automations (it used to re-POST the lead as a new website lead)
+  const restoreLeads = async ids => {
+    const want = new Set((ids || []).map(String))
+    let trash = []
+    try { trash = JSON.parse(localStorage.getItem(LEADS_TRASH) || '[]') } catch {}
+    const items = trash.filter(l => want.has(String(l.id)))
+    if (!items.length) return { ok: false, count: 0 }
+    const rest = trash.filter(l => !want.has(String(l.id)))
+    try { localStorage.setItem(LEADS_TRASH, JSON.stringify(rest)) } catch {}
+    setTrashedLeads(rest)
     try {
-      const trash = JSON.parse(localStorage.getItem(LEADS_TRASH) || '[]')
-      const lead = trash.find(l => String(l.id) === String(id))
-      if (!lead) return
-      // Remove from trash
-      const newTrash = trash.filter(l => String(l.id) !== String(id))
-      localStorage.setItem(LEADS_TRASH, JSON.stringify(newTrash))
-      setTrashedLeads(newTrash)
-      // Remove from deleted set
-      const deleted = new Set(JSON.parse(localStorage.getItem(LEADS_DELETED) || '[]'))
-      deleted.delete(String(id))
+      const deleted = new Set(JSON.parse(localStorage.getItem(LEADS_DELETED) || '[]').map(String))
+      want.forEach(id => deleted.delete(id))
       localStorage.setItem(LEADS_DELETED, JSON.stringify([...deleted]))
-      // Restore to active leads (without deletedAt)
-      // eslint-disable-next-line no-unused-vars
-      const { deletedAt, ...leadData } = lead
-      setLeads(prev => {
-        const next = [leadData, ...prev.filter(l => String(l.id) !== String(id))]
-          .sort((a, b) => b.ts - a.ts)
-        try { localStorage.setItem(LEADS_STORE, JSON.stringify(next)) } catch {}
-        return next
-      })
-      // Re-sync to server
-      fetch(`${CONTACTS_API}/api/contacts`, {
+    } catch {}
+    // eslint-disable-next-line no-unused-vars
+    const clean = items.map(({ deletedAt, ...l }) => l)
+    setLeads(prev => {
+      const next = [...clean, ...prev.filter(l => !want.has(String(l.id)))].sort((a, b) => (b.ts || 0) - (a.ts || 0))
+      try { localStorage.setItem(LEADS_STORE, JSON.stringify(next)) } catch {}
+      return next
+    })
+    // a delete still on its way would remove the row again after the restore
+    await Promise.all([...want].map(id => deleteReqs.current[id]).filter(Boolean))
+    try {
+      const r = await fetch(`${CONTACTS_API}/api/contacts?restore=1`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
-        body: JSON.stringify(leadData),
-      }).catch(() => {})
-    } catch {}
+        body: JSON.stringify({ leads: clean }),
+      })
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) throw new Error(d.error || r.status)
+      // already copied back by the Meta sync under a new id: drop the old one here (the new copy comes with the next sync)
+      const gone = new Set((d.existing || []).map(x => String(x.id)))
+      if (gone.size) {
+        setLeads(prev => { const next = prev.filter(l => !gone.has(String(l.id))); try { localStorage.setItem(LEADS_STORE, JSON.stringify(next)) } catch {} return next })
+        syncLeadsFromServer?.()
+      }
+      return { ok: true, count: clean.length }
+    } catch (e) {
+      addToast('⚠ השחזור לא נשמר בשרת', 'הלידים חזרו למסך, אבל השמירה בשרת נכשלה. נסו "סנכרון" ושחזור שוב מהאשפה.', 'leads', '⚠', 9000)
+      return { ok: false, count: clean.length, error: String(e?.message || e) }
+    }
   }
+  const restoreLead = id => restoreLeads([id])
+  const undoDelete = async () => {
+    const u = undoDel
+    if (!u || u.done) return
+    clearTimeout(undoTimer.current)
+    setUndoDel({ ...u, done: 1 })
+    const r = await restoreLeads(u.ids)
+    setUndoDel({ ...u, done: r.ok ? 2 : 3 })
+    undoTimer.current = setTimeout(() => setUndoDel(null), 4000)
+  }
+  useEffect(() => {
+    if (!undoDel || undoDel.done) return
+    const onKey = e => {
+      const tag = (e.target?.tagName || '').toLowerCase()
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z' && tag !== 'input' && tag !== 'textarea' && !e.target?.isContentEditable) { e.preventDefault(); undoDelete() }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }) // eslint-disable-line react-hooks/exhaustive-deps
   const permanentDeleteLead = id => {
     try {
       const trash = JSON.parse(localStorage.getItem(LEADS_TRASH) || '[]')
@@ -3539,6 +3582,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
                 clearLeads={clearLeads}
                 trashedLeads={trashedLeads}
                 restoreLead={restoreLead}
+                restoreLeads={restoreLeads}
                 permanentDeleteLead={permanentDeleteLead}
                 leadsSyncing={leadsSyncing}
                 isDark={isDark}
@@ -4415,6 +4459,29 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
 
       </div>
 
+      {/* ── "בטל" after deleting leads: brings back the same leads (restoreLeads), Ctrl/⌘+Z too, 20 s ── */}
+      {undoDel && (
+        <div className="undo-bar" role="status" aria-live="polite" dir={lang === 'en' ? 'ltr' : 'rtl'}>
+          <span className="undo-txt">
+            {undoDel.done === 1 ? (lang === 'en' ? 'Restoring…' : 'משחזר…')
+              : undoDel.done === 2 ? (lang === 'en' ? `${undoDel.ids.length} restored` : (undoDel.ids.length === 1 ? `✓ ${undoDel.names[0] || 'הליד'} שוחזר` : `✓ ${undoDel.ids.length} לידים שוחזרו`))
+              : undoDel.done === 3 ? (lang === 'en' ? 'Restore failed — try the trash' : 'השחזור נכשל, נסו שוב מהאשפה')
+              : (lang === 'en' ? (undoDel.ids.length === 1 ? `Deleted ${undoDel.names[0] || 'a lead'}` : `${undoDel.ids.length} leads deleted`)
+                : (undoDel.ids.length === 1 ? <>נמחק: <bdi>{undoDel.names[0] || 'ליד'}</bdi></> : `נמחקו ${undoDel.ids.length} לידים`))}
+          </span>
+          {!undoDel.done && <button type="button" className="undo-btn" onClick={undoDelete} title="Ctrl+Z">{lang === 'en' ? 'Undo' : 'בטל'}</button>}
+          <button type="button" className="undo-x" aria-label={lang === 'en' ? 'Close' : 'סגירה'} onClick={() => { clearTimeout(undoTimer.current); setUndoDel(null) }}>✕</button>
+          <style>{`.undo-bar{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);z-index:99990;display:flex;align-items:center;gap:12px;background:#1F2433;color:#fff;border-radius:12px;padding:10px 12px 10px 18px;box-shadow:0 12px 36px rgba(0,0,0,.35);font:500 14px Rubik,sans-serif;max-width:calc(100vw - 24px);animation:undoIn .22s ease}
+            [dir=rtl].undo-bar{padding:10px 18px 10px 12px}
+            @keyframes undoIn{from{opacity:0;transform:translate(-50%,10px)}to{opacity:1;transform:translate(-50%,0)}}
+            .undo-txt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+            .undo-btn{border:none;background:#8490D8;color:#0D1020;border-radius:8px;padding:6px 16px;font:700 14px Rubik,sans-serif;cursor:pointer;min-height:0}
+            .undo-btn:hover{background:#9AA5E6}
+            .undo-x{border:none;background:none;color:rgba(255,255,255,.6);cursor:pointer;font-size:13px;padding:4px;min-height:0}
+            @media (max-width:900px){.undo-bar{bottom:calc(84px + env(safe-area-inset-bottom,0px))}}
+            @media (prefers-reduced-motion:reduce){.undo-bar{animation:none}}`}</style>
+        </div>
+      )}
       {/* ── Follow-up / task reminders: a card at the top that waits to be handled (src/TaskAlerts.jsx) ── */}
       <TaskAlerts leads={leads} lang={lang}
         onDone={(lead, taskId) => updateLead(lead.id, updateTasks(lead, (lead.tasks || []).map(x => (x.id === taskId ? { ...x, done: true, doneAt: Date.now() } : x))))}
