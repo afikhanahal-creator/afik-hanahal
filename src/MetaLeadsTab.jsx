@@ -6,6 +6,7 @@
 
 import { Icon } from './uiIcons.jsx'
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import { metaFormAnswers, shortCampaign, formFullName } from './lib/leadFields.js'
 import { templateLead } from './lib/leadConversation.js'
 import { leadHistory, crmLeadFor } from './lib/leadHistory.js'
@@ -401,14 +402,31 @@ export default function MetaLeadsTab({ C, lang, isDark, onOpenCard, onSaveToCRM,
   // the pipeline stage menu (the lead's CRM copy; a lead not in the CRM yet is added first)
   const [stageMenu, setStageMenu] = useState(false)
   const [stageBusy, setStageBusy] = useState(null)   // { stage } while moving, { err } after a failure
-  const stageRef = useRef(null)
+  const stageRef = useRef(null), stageMenuRef = useRef(null)
+  // the menu is drawn in a layer of its own (a portal, fixed to the button): the lead bar clips what overflows it
+  // (it folds when the conversation is dragged up), and a menu inside it used to open as a thin cut strip
+  const [stagePos, setStagePos] = useState(null)
   useEffect(() => {
-    if (!stageMenu) return
-    const off = e => { if (!stageRef.current?.contains(e.target)) setStageMenu(false) }
-    const esc = e => { if (e.key === 'Escape') setStageMenu(false) }
+    if (!stageMenu) { setStagePos(null); return }
+    const place = () => {
+      const r = stageRef.current?.getBoundingClientRect()
+      if (!r) return
+      const w = 240, rtl = dir === 'rtl'
+      let left = rtl ? r.right - w : r.left
+      left = Math.max(8, Math.min(left, window.innerWidth - w - 8))
+      const below = window.innerHeight - r.bottom > 300
+      setStagePos({ left, width: w, top: below ? r.bottom + 6 : undefined, bottom: below ? undefined : window.innerHeight - r.top + 6 })
+    }
+    place()
+    const off = e => { if (!stageRef.current?.contains(e.target) && !stageMenuRef.current?.contains(e.target)) setStageMenu(false) }
+    const esc = e => { if (e.key === 'Escape') { e.preventDefault(); setStageMenu(false) } }
     document.addEventListener('pointerdown', off); document.addEventListener('keydown', esc)
-    return () => { document.removeEventListener('pointerdown', off); document.removeEventListener('keydown', esc) }
-  }, [stageMenu])
+    window.addEventListener('resize', place); window.addEventListener('scroll', place, true)
+    return () => {
+      document.removeEventListener('pointerdown', off); document.removeEventListener('keydown', esc)
+      window.removeEventListener('resize', place); window.removeEventListener('scroll', place, true)
+    }
+  }, [stageMenu, dir])
   const saveName = async lead => {
     const v = String(nameEdit?.value || '').replace(/\s+/g, ' ').trim()
     if (!v || v === lead.name) { setNameEdit(null); return }
@@ -891,11 +909,12 @@ export default function MetaLeadsTab({ C, lang, isDark, onOpenCard, onSaveToCRM,
         .lc-stage-k{font-weight:500;color:${MUTED}}
         .lc-stage-dot{width:9px;height:9px;border-radius:50%;background:var(--st);flex-shrink:0}
         .lc-stage-menu{position:absolute;top:calc(100% + 6px);inset-inline-start:0;z-index:40;min-width:230px;padding:6px;border-radius:12px;border:1px solid ${BORDER};background:var(--au-card-solid);box-shadow:0 14px 40px rgba(0,0,0,.18);display:flex;flex-direction:column;gap:2px}
+        .lc-stage-menu--float{position:fixed;top:auto;inset-inline-start:auto;z-index:3000;font-family:Rubik,sans-serif;max-height:min(70vh,460px);overflow:auto;color:var(--au-text)}
         .lc-stage-opt{all:unset;box-sizing:border-box;display:flex;align-items:center;gap:9px;min-height:36px;padding:0 10px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;color:${CREAM}}
         .lc-stage-opt:hover,.lc-stage-opt:focus-visible{background:rgba(var(--brand-rgb),.08)}
         .lc-stage-opt.on{background:color-mix(in srgb,var(--st) 12%,transparent)}
         .lc-stage-note{font-size:11.5px;color:${MUTED};padding:4px 10px 6px}
-        .lc-stage-err{position:absolute;top:calc(100% + 4px);inset-inline-start:0;font-size:11.5px;color:#DC2626;white-space:nowrap}
+        .lc-stage-err{font-size:11.5px;color:#DC2626;white-space:nowrap;margin-inline-start:6px}
         .lc-name:hover{text-decoration:underline dotted rgba(var(--brand-rgb),.6);text-underline-offset:3px}
         .lc-name-btn{all:unset;cursor:text;border-radius:6px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
         .lc-name-btn:hover,.lc-name-btn:focus-visible{background:rgba(var(--brand-rgb),.08);box-shadow:0 0 0 4px rgba(var(--brand-rgb),.08)}
@@ -1167,8 +1186,9 @@ export default function MetaLeadsTab({ C, lang, isDark, onOpenCard, onSaveToCRM,
                       <span aria-hidden="true" style={{ opacity: .6, fontSize: 10 }}>▾</span>
                     </button>
                     {stageBusy?.err && <span role="alert" className="lc-stage-err">{t.stageFail}</span>}
-                    {stageMenu && (
-                      <div className="lc-stage-menu" role="listbox" aria-label={t.stageLbl}>
+                    {stageMenu && stagePos && createPortal(
+                      <div ref={stageMenuRef} className="lc-stage-menu lc-stage-menu--float" role="listbox" aria-label={t.stageLbl} dir={dir}
+                        style={{ left: stagePos.left, top: stagePos.top, bottom: stagePos.bottom, width: stagePos.width }}>
                         {!crmLead && <div className="lc-stage-note">{t.stageNoCrm}</div>}
                         {PIPELINE.map(st => {
                           const on = !!crmLead && (crmLead.leadStatus || 'new') === st.id
@@ -1178,7 +1198,8 @@ export default function MetaLeadsTab({ C, lang, isDark, onOpenCard, onSaveToCRM,
                             </button>
                           )
                         })}
-                      </div>
+                      </div>,
+                      document.body,
                     )}
                   </div>
                 )

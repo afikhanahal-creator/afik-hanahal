@@ -163,11 +163,19 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
   const [editTpl, setEditTpl] = useState(null)
   const [dock, setDock] = useState(readDock)              // the composer's dragged height (null = fits its text)
   const [quick, setQuick] = useState(false)               // the quick-replies window (⚡ or "/" at the start of the box)
+  const [qMax, setQMax] = useState(null)                  // its height: never taller than the conversation above the box (it was cut at the top)
   const [qq, setQq] = useState('')
   const [qActive, setQActive] = useState(0)
   const cfg = cfgLocal || autoConfig
   useEffect(() => { setCfgLocal(null) }, [autoConfig])
   const rootRef = useRef(null), scrollRef = useRef(null), inputRef = useRef(null), dockRef = useRef(null), qListRef = useRef(null), qBtnRef = useRef(null)
+  useLayoutEffect(() => {
+    if (!quick) return undefined
+    const fit = () => { const h = scrollRef.current?.clientHeight; setQMax(h ? Math.max(180, Math.min(440, h - 6)) : null) }
+    fit()
+    window.addEventListener('resize', fit)
+    return () => window.removeEventListener('resize', fit)
+  }, [quick])
   const nearBottom = useRef(true), inserted = useRef(''), prefilled = useRef(false)
 
   // ── the WhatsApp history (conditional: an unchanged chat answers an empty 304) ──
@@ -488,7 +496,7 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
       )}
       <div ref={dockRef} style={{ position: 'relative', flexShrink: 0, height: dock || undefined, display: 'flex', flexDirection: 'column', background: panel, padding: '8px 10px 10px' }}>
         {quick && phone && (
-          <div className="lcv-quick" role="dialog" aria-label={t.quick} onKeyDown={qKey}>
+          <div className="lcv-quick" role="dialog" aria-label={t.quick} onKeyDown={qKey} style={qMax ? { maxHeight: qMax } : undefined}>
             <div className="lcv-qhead">
               <label className="lcv-qsearch">{I.search}<input autoFocus value={qq} onChange={e => setQq(e.target.value)} placeholder={t.search} aria-label={t.search} aria-controls="lcv-qlist" aria-activedescendant={qFlat[qActive] ? `lcv-q-${qFlat[qActive].id}` : undefined}/></label>
               <div className="lcv-seg" role="group" aria-label="language">
