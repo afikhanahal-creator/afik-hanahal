@@ -17,6 +17,7 @@ import HoursTab from './WeekSchedule.jsx'
 import SequenceBuilder from './SequenceBuilder.jsx'
 import TemplatesTab from './TemplateStudio.jsx'
 import CampaignsTab, { whenText } from './CampaignsTab.jsx'
+import WaFace from './WaFace.jsx'
 
 const TR = {
   he: {
@@ -547,7 +548,9 @@ function Today({ t, isEn, dir, cfg, tpls, tplName, stageName, leads, toast, conf
                     return (
                       <div key={q.id} className="au-q-row" style={{ borderTop: i ? `1px solid ${T.divider}` : 'none', opacity: busy[q.id] ? .55 : 1, pointerEvents: busy[q.id] ? 'none' : 'auto' }}>
                         <div style={{ display: 'flex', gap: 10, minWidth: 0 }}>
+                          <WaFace phone={q.phone} name={nameOf(q)} size={34} lang={isEn ? 'en' : 'he'}>
                           <span style={{ width: 34, height: 34, borderRadius: '50%', background: `${c}22`, color: c, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, flexShrink: 0, fontSize: 14 }}>{(nameOf(q) || '?')[0]}</span>
+                          </WaFace>
                           <div style={{ minWidth: 0 }}>
                             <div style={{ fontSize: 14, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {renaming?.leadId === q.leadId ? (

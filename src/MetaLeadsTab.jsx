@@ -856,7 +856,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onOpenCard, onSaveToCRM,
     const color = avatarColors(lead?.name)
     const face = <div aria-hidden style={{ width: size, height: size, borderRadius: Math.round(size * .3), background: `${color}22`, border: `1.5px solid ${color}55`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: Math.round(size * .33), fontWeight: 800, color, flexShrink: 0, boxSizing: 'border-box' }}>{isTestLead(lead) ? '🧪' : initials(lead?.name)}</div>
     // the lead's WhatsApp profile picture over the initials (src/WaFace.jsx)
-    return isTestLead(lead) || !lead?.phone ? face : <WaFace phone={lead.phone} size={size} radius={Math.round(size * .3)}>{face}</WaFace>
+    return isTestLead(lead) || !lead?.phone ? face : <WaFace phone={lead.phone} name={lead.name} size={size} radius={Math.round(size * .3)} lang={lang}>{face}</WaFace>
   }
   const welcomeChip = lead => !lead.phone ? null : lead.wa_sent
     ? <span className="lc-chip ok">✓ {t.kWelcomeShort}</span>

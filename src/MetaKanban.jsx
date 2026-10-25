@@ -10,6 +10,7 @@ import {
   horizontalListSortingStrategy, verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import WaFace from './WaFace.jsx'
 
 const ADMIN_TOKEN = 'AFIKhanahal2026'
 const STAGES_LS   = 'meta_kanban_stages_v3'
@@ -134,9 +135,11 @@ function SortableCard({ lead, stages, onClick, onDelete, onMoveStage, bulkMode, 
             style={{ marginTop: 3, width: 15, height: 15, accentColor: '#1877F2', cursor: 'pointer', flexShrink: 0 }}
           />
         )}
+        <WaFace phone={lead.phone} name={lead.name} size={34}>
         <div style={{ width: 34, height: 34, borderRadius: '50%', flexShrink: 0, background: avatarBg(lead.name), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: '#fff' }}>
           {initials(lead.name)}
         </div>
+        </WaFace>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', direction: 'rtl' }}>
             {lead.name || '—'}
@@ -491,9 +494,11 @@ function TableView({ leads, stages, onMoveStage, onDelete, onOpenLead }) {
                 </td>
                 <td style={{ padding: '9px 12px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <WaFace phone={lead.phone} name={lead.name} size={28}>
                     <div style={{ width: 28, height: 28, borderRadius: '50%', background: avatarBg(lead.name), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800, color: '#fff', flexShrink: 0 }}>
                       {initials(lead.name)}
                     </div>
+                    </WaFace>
                     <span style={{ fontWeight: 600, color: T.text, direction: 'rtl', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>{lead.name || '—'}</span>
                   </div>
                 </td>
@@ -530,9 +535,11 @@ function LeadDrawer({ lead, stages, onClose, onMoveStage, onDelete }) {
       <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: 380, background: T.popup, boxShadow: '-8px 0 48px rgba(0,0,0,.7)', zIndex: 500, display: 'flex', flexDirection: 'column', fontFamily: 'Rubik,Helvetica Neue,Arial,sans-serif' }}>
         {/* Header */}
         <div style={{ padding: '16px 20px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', gap: 12 }}>
+          <WaFace phone={lead.phone} name={lead.name} size={44}>
           <div style={{ width: 44, height: 44, borderRadius: '50%', background: avatarBg(lead.name), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 800, color: '#fff', flexShrink: 0 }}>
             {initials(lead.name)}
           </div>
+          </WaFace>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 16, fontWeight: 700, color: T.text, direction: 'rtl' }}>{lead.name}</div>
             {stg && <span style={{ marginTop: 4, display: 'inline-block', padding: '2px 8px', borderRadius: 10, background: stg.color + '22', color: stg.color, fontSize: 11, fontWeight: 700 }}>{stg.label}</span>}
@@ -939,9 +946,11 @@ export default function MetaKanban({ leads: propLeads = [], onUpdateLead, onDele
               {activeLead && (
                 <div style={{ background: T.card, borderRadius: 8, border: `2px solid ${T.accent}`, padding: '10px 12px', width: 240, boxShadow: '0 24px 64px rgba(0,0,0,.75)', opacity: 1, transform: 'rotate(2deg) scale(1.04)', cursor: 'grabbing', pointerEvents: 'none' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <WaFace phone={activeLead.phone} name={activeLead.name} size={34}>
                     <div style={{ width: 34, height: 34, borderRadius: '50%', background: avatarBg(activeLead.name), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: '#fff', flexShrink: 0 }}>
                       {initials(activeLead.name)}
                     </div>
+                    </WaFace>
                     <div style={{ minWidth: 0 }}>
                       <div style={{ fontSize: 13, fontWeight: 600, color: T.text, direction: 'rtl', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{activeLead.name}</div>
                       <div style={{ fontSize: 11, color: T.sub, marginTop: 3 }}>{activeLead.campaign_name || activeLead.form_name || 'Lead'}</div>

@@ -2,6 +2,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { FaBuilding, FaFileAlt, FaUsers, FaFire, FaWhatsapp, FaChartLine, FaRobot, FaClipboardList, FaArrowLeft, FaArrowRight, FaCircle, FaPlus, FaGlobe, FaServer, FaTachometerAlt, FaFacebookF } from 'react-icons/fa'
 import { T } from './automationsUI.jsx'
+import WaFace from './WaFace.jsx'
 
 const TR = {
   he: {
@@ -258,7 +259,9 @@ export default function AdminHome({ properties = [], leads = [], setTab, autoCfg
             const src = srcLabel(l, t)
             return (
               <button type="button" key={l.id || i} className="ah-row" onClick={() => setTab('leads')} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '10px 8px', border: 'none', borderBottom: i < recent.length - 1 ? `1px solid ${T.divider}` : 'none', background: 'transparent', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'start', color: T.text, borderRadius: 8 }}>
+                <WaFace phone={l.phone} name={l.name} size={36} lang={lang} zoom={false}>
                 <span style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(var(--brand-rgb),.16)', color: T.brandText, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 800, flexShrink: 0 }}>{[...(l.name || '?').trim()][0] || '?'}</span>
+                </WaFace>
                 <span style={{ flex: 1, minWidth: 0 }}>
                   <span style={{ display: 'block', fontSize: 13.5, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.name || t.noName}</span>
                   <span style={{ display: 'block', fontSize: 12, color: T.text3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{[src, leadTs(l) ? ago(leadTs(l), t) : ''].filter(Boolean).join(' · ')}</span>

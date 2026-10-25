@@ -15,6 +15,7 @@ import {
   SortableContext, verticalListSortingStrategy, useSortable, arrayMove,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import WaFace from './WaFace.jsx'
 import {
   Plus, Search, Filter, SortAsc, Eye, EyeOff, ChevronDown, ChevronRight,
   MoreHorizontal, User, Calendar, Phone, Mail, FileText, Link2, Zap,
@@ -513,6 +514,7 @@ function MobileLeadCard({ lead, lang, T, onUpdate, onDelete, onOpenDetail, onSta
     }}>
       {/* Top row: avatar + name + menu */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+        <WaFace phone={lead.phone} name={lead.name} size={40} lang={lang}>
         <div style={{
           width: 40, height: 40, borderRadius: '50%',
           background: `linear-gradient(135deg, ${avatarColor(lead.name)}, ${avatarColor(lead.name)}AA)`,
@@ -522,6 +524,7 @@ function MobileLeadCard({ lead, lang, T, onUpdate, onDelete, onOpenDetail, onSta
         }}>
           {(lead.name || '?')[0].toUpperCase()}
         </div>
+        </WaFace>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 15, fontWeight: 700, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {lead.name || '—'}{campaign && <span style={{ fontSize: 12, fontWeight: 500, color: T.textSub, marginInlineStart: 6 }}>(<bdi>{campaign}</bdi>)</span>}
@@ -817,7 +820,10 @@ function SortableRow({ lead, cols, onUpdate, onDelete, onSelect, isSelected, lan
           const camp = leadCampaignTag(lead, lang)
           // a click on the name opens the lead card (details, notes, tasks, the chat, every action); ✎ renames in place
           return (
-            <div key={col.id} style={{ ...cellStyle, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div key={col.id} style={{ ...cellStyle, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <WaFace phone={lead.phone} name={lead.name} size={28} lang={lang}>
+                <span aria-hidden="true" style={{ width: 28, height: 28, borderRadius: '50%', background: avatarColor(lead.name) + '26', color: avatarColor(lead.name), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700 }}>{[...(lead.name || '?').trim()][0] || '?'}</span>
+              </WaFace>
               <div style={{ flex: '0 1 auto', minWidth: 0 }}>
                 {renaming
                   ? <EditableCell value={val} T={T} startEditing onDone={() => setRenaming(false)} onSave={v => handleUpdate(col, v)} />
@@ -1002,9 +1008,11 @@ function ItemDetailDrawer({ lead, onClose, onUpdate, onUpdateStatus, lang, T, is
 
         {/* Header */}
         <div style={{ padding: isMobile ? '16px 20px 14px' : '18px 22px 16px', borderBottom: `1px solid ${T.border}`, display: 'flex', alignItems: 'center', gap: 12 }}>
+          <WaFace phone={lead.phone} name={lead.name} size={44} lang={lang}>
           <div style={{ width: 44, height: 44, borderRadius: '50%', background: `linear-gradient(135deg, ${avatarColor(lead.name)}, ${avatarColor(lead.name)}BB)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 800, color: '#fff', flexShrink: 0, boxShadow: `0 3px 12px ${avatarColor(lead.name)}44` }}>
             {(lead.name || '?')[0].toUpperCase()}
           </div>
+          </WaFace>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 17, fontWeight: 700, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lead.name || '—'}</div>
             <div style={{ marginTop: 5 }}>
@@ -1322,7 +1330,9 @@ function CallNoteDialog({ lead, T, isDark, lang, onClose, updateLead, updateLead
       <div role="dialog" aria-modal="true" aria-label={en ? 'Call summary' : 'סיכום שיחה'} onClick={e => e.stopPropagation()} onPointerDown={e => e.stopPropagation()}
         style={{ width: '100%', maxWidth: 520, maxHeight: '92vh', overflowY: 'auto', background: isDark ? '#161E2E' : '#FFFFFF', border: `1px solid ${isDark ? '#2A3347' : '#D8DCF0'}`, borderRadius: 16, boxShadow: '0 24px 64px rgba(0,0,0,.45)', direction: en ? 'ltr' : 'rtl', padding: 18 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+          <WaFace phone={lead.phone} name={lead.name} size={38} lang={lang}>
           <div style={{ width: 38, height: 38, borderRadius: '50%', background: `linear-gradient(135deg, ${avatarColor(lead.name)}, ${avatarColor(lead.name)}88)`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 900, flexShrink: 0 }}>{(lead.name || '?')[0].toUpperCase()}</div>
+          </WaFace>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 15, fontWeight: 800, color: T.text }}>{en ? 'Call summary' : 'סיכום שיחה'} · {lead.name || '—'}{campaign && <span style={{ fontSize: 12.5, fontWeight: 500, color: T.textSub, marginInlineStart: 6 }}>(<bdi>{campaign}</bdi>)</span>}</div>
             <div style={{ fontSize: 12, color: T.textSub, direction: 'ltr', textAlign: en ? 'left' : 'right' }}>{lead.phone || ''}{lead.propTitle ? ` · ${lead.propTitle}` : ''}</div>
@@ -1445,7 +1455,9 @@ function KanbanCard({ lead, T, isDark, lang, onOpen, onDelete, onOpenChat, onEnr
 
       {/* name row: avatar · name + phone · score · select */}
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+        <WaFace phone={lead.phone} name={lead.name} size={34} lang={lang}>
         <div aria-hidden="true" style={{ width: 34, height: 34, borderRadius: '50%', flexShrink: 0, background: av + (isDark ? '33' : '1F'), color: av, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12.5, fontWeight: 700, letterSpacing: '.02em' }}>{initials}</div>
+        </WaFace>
         <div style={{ flex: 1, minWidth: 0, paddingTop: 1 }}>
           <div style={{ fontSize: 14, fontWeight: 600, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.3 }} title={lead.name || ''}>{lead.name || '—'}</div>
           {lead.phone && <div style={{ fontSize: 12, color: T.textSub, direction: 'ltr', textAlign: en ? 'left' : 'right', marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>{phone}</div>}
@@ -2646,9 +2658,11 @@ function LeadsBoardMain({
                     onMouseEnter={e => e.currentTarget.style.background = T.bgRowHover}
                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                     {/* Avatar */}
+                    <WaFace phone={lead.phone} name={lead.name} size={38} lang={lang}>
                     <div style={{ width: 38, height: 38, borderRadius: '50%', background: avatarColor(lead.name) + '22', border: `1.5px solid ${avatarColor(lead.name)}55`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 15, color: avatarColor(lead.name), flexShrink: 0 }}>
                       {(lead.name || lead.phone || '?')[0]?.toUpperCase()}
                     </div>
+                    </WaFace>
                     {/* Info */}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>

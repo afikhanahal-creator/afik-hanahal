@@ -4424,7 +4424,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
             <div key={a.id} className="msg-alert" dir="rtl"
               onMouseEnter={() => holdAlert(a.phone, 0)} onMouseLeave={() => holdAlert(a.phone, 12000)}>
               <div className="msg-alert-av" aria-hidden="true">
-                <WaFace phone={a.phone === 'test' ? '' : a.phone} size={42}><span className="msg-alert-ini">{String(a.name || '?').trim().charAt(0)}</span></WaFace>
+                <WaFace phone={a.phone === 'test' ? '' : a.phone} name={a.name} size={42} lang={lang}><span className="msg-alert-ini">{String(a.name || '?').trim().charAt(0)}</span></WaFace>
                 <span className="msg-alert-wa"/>
               </div>
               <div className="msg-alert-body">
