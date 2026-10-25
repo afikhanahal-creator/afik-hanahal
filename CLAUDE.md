@@ -212,7 +212,7 @@ copy (`findMirror`) and resets the chats' name cache; `onLeadRenamed` updates th
 tested) and the board's bulk bar has "+ הפרויקט בשם" for every selected lead — both go through `updateLead`, so the Lead Center, the
 chats and `meta_leads` follow. A name that already carries the project drops the "(campaign)" after it (`leadCampaignTag()`). The phone's own
 WhatsApp contact book can't be edited through Green API. **Pipeline stage from the chat:** the lead header's "שלב בפייפליין" menu (`PIPELINE` in `MetaLeadsTab.jsx`,
-the office's renamed stage names through `stageLabels`) moves the lead's CRM copy through `onCrmStage` → the admin's
+the office's renamed stage names through `stageLabels`; the menu is a portal with a fixed position (`.lc-stage-menu--float`) — the lead bar is `overflow:hidden` and used to clip it, and the quick-replies window is capped to the conversation's height, `qMax`) moves the lead's CRM copy through `onCrmStage` → the admin's
 `updateLeadStatus` (stage log, nurture follow-up, stage automations — the same as dragging on the board); a lead not in the CRM
 yet is copied there first (`lead-to-crm`). A detail pane too narrow for both (and every phone) shows one pane at a time ("שיחה" / "פרטים והערות"); phones get a compact
 bar (status as a dropdown, CRM in the details). Pure helpers: `src/lib/leadConversation.js` (tested). **Booking link button:** both message boxes (`ChatComposer` in the chats, `LeadConversation` in the Lead Center / lead card)
