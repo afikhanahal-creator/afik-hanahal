@@ -25,6 +25,9 @@ import { useAdminTheme, ADMIN_THEME_CSS } from './adminTheme.js'
 import { mergeBrief } from '../lib/lead-intel.js'
 import CommandPalette, { useCommandHotkey } from './CommandPalette.jsx'
 import { onWaLive } from './lib/waLive.js'
+import { notifyPrefs, isViewing, playMessageSound, desktopNotify, bumpTab } from './lib/waNotify.js'
+import { alertText, mergeAlert } from './lib/waInbox.js'
+import { leadCampaign } from './lib/leadFields.js'
 import { notifyPropertiesChanged, mirrorProperty, mirrorProperties, mirrorDelete } from './siteRebuild.js'
 import { fetchAdminProperties, LeadsBoard, GreenAPIChat, MetaLeadsTab, SupermetricsTab, PropertyWizard, API_BASE, CONTACTS_API, ADMIN_TOKEN, condFetchJson, DARK_C, useTheme, TEAM, G, Logo, LEADS_STORE, LEADS_DELETED, LEADS_TRASH, ANALYTICS_KEY, META_LEAD_PAGES_KEY, WA_DEFAULT_TEMPLATE, _cloudSettings, CATEGORIES, EMPTY_PROP, CONDITION_OPTIONS, ENTRY_OPTIONS, ADMIN_DRAFT_KEY, toMapsEmbed, imgFallback, thumbImg, sortByOrder, TEAM_KEY, setCloudSettings } from './App.jsx'
 
@@ -1943,10 +1946,65 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     return () => { cancelled = true; if (sb && channel) sb.removeChannel(channel) }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Live WhatsApp (src/lib/waLive.js): a lead's reply reaches the admin in about a second wherever it is open — the sidebar
-  // badge counts it and, away from the chats tab (which rings by itself), a toast names the lead.
+  // ── Incoming WhatsApp messages: one alert system for the whole admin (src/lib/waNotify.js, src/lib/waInbox.js) ──
+  // Live (src/lib/waLive.js) a lead's reply reaches the admin in about a second wherever it is open: the sidebar badge counts
+  // it and, unless that very chat is on screen, it gets a card (one per chat — "3 new messages" — with "open chat"), a short
+  // sound, an OS notification while the window is in the background and the count + a red dot on the browser tab.
   const liveCtx = useRef({ tab, leads, lang })
   liveCtx.current = { tab, leads, lang }
+  const [msgAlerts, setMsgAlerts] = useState([])
+  const alertTimers = useRef({})
+  const seenMsgIds = useRef(new Set())
+  const closeAlert = useCallback(phone => {
+    clearTimeout(alertTimers.current[phone]); delete alertTimers.current[phone]
+    setMsgAlerts(l => l.filter(x => x.phone !== phone))
+  }, [])
+  const holdAlert = useCallback((phone, ms) => {
+    clearTimeout(alertTimers.current[phone])
+    if (ms) alertTimers.current[phone] = setTimeout(() => closeAlert(phone), ms)
+  }, [closeAlert])
+  const openChatFromAlert = useCallback(a => {
+    closeAlert(a.phone)
+    if (a.phone === 'test') return
+    setInitialChatLead({ id: a.leadId || `wa:${a.phone}`, name: a.name, phone: a.phone })
+    setTab('chats')
+  }, [closeAlert]) // eslint-disable-line react-hooks/exhaustive-deps
+  const notifyIncoming = useCallback(({ id, phone, text, senderName, ts }) => {
+    if (!phone) return
+    const key = String(id || `${phone}:${text}`)
+    if (seenMsgIds.current.has(key)) return
+    seenMsgIds.current.add(key)
+    if (ts && Date.now() - ts > 15 * 60e3) return            // an old message caught up after a reconnect: no alarm
+    const prefs = notifyPrefs()
+    const { leads: ls, lang: lg } = liveCtx.current
+    const k = String(phone).replace(/\D/g, '').slice(-9)
+    const lead = (ls || []).find(l => String(l.phone || '').replace(/\D/g, '').slice(-9) === k)
+    if (prefs.leadsOnly && !lead) return
+    if (isViewing(phone)) { if (prefs.sound) playMessageSound({ soft: true }); return }
+    const name = (lead?.name || '').trim() || (senderName || '').trim() || ('0' + k)
+    const campaign = lead ? leadCampaign(lead, lg) : ''
+    const away = document.hidden || !document.hasFocus()
+    if (prefs.sound) playMessageSound()
+    if (prefs.toast) {
+      setMsgAlerts(l => mergeAlert(l, { id: key, ids: [key], phone: String(phone).replace(/\D/g, ''), leadId: lead ? String(lead.id) : '', name, campaign, text, at: ts || Date.now() }).slice(-4))
+      holdAlert(String(phone).replace(/\D/g, ''), away ? 0 : 25000)   // in the background it waits for you
+    }
+    if (away) {
+      bumpTab(`${name}: ${text}`)
+      if (prefs.desktop) desktopNotify({ phone, title: campaign ? `${name} · ${campaign}` : name, body: text,
+        onClick: () => openChatFromAlert({ phone: String(phone).replace(/\D/g, ''), leadId: lead ? String(lead.id) : '', name }) })
+    }
+  }, [holdAlert, openChatFromAlert])
+  // the bell's "send a test alert" (src/WaNotifySettings.jsx): the same card as a real message, never to a real chat
+  useEffect(() => {
+    const onTest = e => {
+      const { name, text } = e.detail || {}
+      setMsgAlerts(l => mergeAlert(l.filter(x => x.phone !== 'test'), { id: 'test-' + Date.now(), ids: ['test-' + Date.now()], phone: 'test', name, campaign: '', text, at: Date.now() }).slice(-4))
+      holdAlert('test', 12000)
+    }
+    window.addEventListener('afik:wa-test-alert', onTest)
+    return () => window.removeEventListener('afik:wa-test-alert', onTest)
+  }, [holdAlert])
   useEffect(() => onWaLive(items => {
     const inc = items.filter(it => it.type === 'incoming' && it.idMessage && it.phone)
     if (!inc.length) return
@@ -1961,14 +2019,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
       }
       return next
     })
-    const { tab: t, leads: ls, lang: lg } = liveCtx.current
-    if (t === 'chats') return
-    for (const it of inc.slice(-3)) {
-      const k = String(it.phone).replace(/\D/g, '').slice(-9)
-      const lead = (ls || []).find(l => String(l.phone || '').replace(/\D/g, '').slice(-9) === k)
-      const who = (lead?.name || '').trim() || it.senderName || ('0' + String(it.phone).replace(/\D/g, '').slice(-9))
-      addToast(lg === 'en' ? `New message from ${who}` : `הודעה חדשה מ-${who}`, it.textMessage || it.caption || '📎', 'chats', '💬')
-    }
+    for (const it of inc) notifyIncoming({ id: it.idMessage, phone: it.phone, text: alertText(it, liveCtx.current.lang), senderName: it.senderName, ts: (it.timestamp || 0) * 1000 })
   }), []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const sendChatMsg = async (lead) => {
@@ -3507,10 +3558,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
               }}
               onUpdateLead={updateLead}
               onDeleteLead={id => deleteLead(id)}
-              onNewMessage={({ contactName, message }) => addToast(
-                lang === 'en' ? `New message from ${contactName}` : `הודעה חדשה מ-${contactName}`,
-                message, 'chats', '💬'
-              )}
+              onNewMessage={({ contactName, message, phone, id, ts }) => notifyIncoming({ id, phone, text: message || '📎', senderName: contactName, ts })}
               onSentMessage={({ contactName, message }) => addToast(
                 lang === 'en' ? `Sent to ${contactName}` : `נשלח ל-${contactName}`,
                 message, 'chats', '✅', 3500
@@ -4370,6 +4418,62 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
         )}
 
       </div>
+
+      {/* ── Incoming WhatsApp messages: one card per chat, newest at the bottom (notifyIncoming) ── */}
+      {msgAlerts.length > 0 && (
+        <div className="msg-alerts" role="log" aria-live="polite" aria-label={lang === 'en' ? 'New messages' : 'הודעות חדשות'}>
+          {msgAlerts.length > 1 && (
+            <button type="button" className="msg-alerts-clear" onClick={() => msgAlerts.forEach(a => closeAlert(a.phone))}>
+              {lang === 'en' ? `Dismiss all (${msgAlerts.length})` : `סגירת הכל (${msgAlerts.length})`}
+            </button>
+          )}
+          {msgAlerts.map(a => (
+            <div key={a.id} className="msg-alert" dir="rtl"
+              onMouseEnter={() => holdAlert(a.phone, 0)} onMouseLeave={() => holdAlert(a.phone, 12000)}>
+              <div className="msg-alert-av" aria-hidden="true">{String(a.name || '?').trim().charAt(0)}<span className="msg-alert-wa"/></div>
+              <div className="msg-alert-body">
+                <div className="msg-alert-top">
+                  <bdi className="msg-alert-name">{a.name}</bdi>
+                  {a.campaign && <span className="msg-alert-camp">{a.campaign}</span>}
+                  <span className="msg-alert-time">{new Date(a.at).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem' })}</span>
+                </div>
+                <div className="msg-alert-text" dir="auto">{a.text}</div>
+                <div className="msg-alert-actions">
+                  <button type="button" className="msg-alert-open" onClick={() => openChatFromAlert(a)}>
+                    {lang === 'en' ? 'Open chat' : 'לפתיחת השיחה'}
+                    {a.count > 1 && <span className="msg-alert-count">{lang === 'en' ? `${a.count} new` : `${a.count} חדשות`}</span>}
+                  </button>
+                  <button type="button" className="msg-alert-later" onClick={() => closeAlert(a.phone)}>{lang === 'en' ? 'Later' : 'אחר כך'}</button>
+                </div>
+              </div>
+              <button type="button" className="msg-alert-x" aria-label={lang === 'en' ? 'Close' : 'סגירה'} onClick={() => closeAlert(a.phone)}>✕</button>
+            </div>
+          ))}
+        </div>
+      )}
+      <style>{`
+        .msg-alerts{position:fixed;bottom:112px;left:20px;z-index:99998;display:flex;flex-direction:column;align-items:stretch;gap:10px;width:min(380px,calc(100vw - 32px));font-family:Rubik,sans-serif}
+        .msg-alerts-clear{align-self:flex-start;border:1px solid var(--au-line);background:var(--au-pop);color:var(--au-text2);border-radius:999px;padding:5px 12px;font:600 12px Rubik,sans-serif;cursor:pointer;box-shadow:var(--au-shadow2)}
+        .msg-alert{position:relative;display:flex;gap:12px;align-items:flex-start;background:var(--au-pop);color:var(--au-text);border:1px solid var(--au-line);border-inline-start:4px solid #25D366;border-radius:14px;padding:12px 14px 12px 12px;box-shadow:var(--au-shadow3);animation:msgAlertIn .28s cubic-bezier(.2,.9,.3,1.2)}
+        @keyframes msgAlertIn{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
+        .msg-alert-av{position:relative;flex-shrink:0;width:42px;height:42px;border-radius:50%;background:#25D366;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px}
+        .msg-alert-wa{position:absolute;bottom:-2px;inset-inline-start:-2px;width:14px;height:14px;border-radius:50%;background:#E5484D;border:2px solid var(--au-pop);animation:msgAlertDot 1.6s ease-in-out infinite}
+        @keyframes msgAlertDot{50%{transform:scale(.7)}}
+        .msg-alert-body{flex:1;min-width:0}
+        .msg-alert-top{display:flex;align-items:baseline;gap:6px;min-width:0;padding-inline-end:24px}
+        .msg-alert-name{font-weight:700;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+        .msg-alert-camp{flex-shrink:0;font-size:11.5px;font-weight:600;color:var(--au-brand-text);background:rgba(var(--brand-rgb),.1);border-radius:6px;padding:1px 6px}
+        .msg-alert-time{margin-inline-start:auto;flex-shrink:0;font-size:11.5px;color:var(--au-text3)}
+        .msg-alert-text{margin-top:4px;font-size:13.5px;line-height:1.45;color:var(--au-text);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word}
+        .msg-alert-actions{display:flex;gap:8px;margin-top:10px}
+        .msg-alert-open{display:inline-flex;align-items:center;gap:8px;min-height:36px;border:none;background:#1DA851;color:#fff;border-radius:9px;padding:7px 14px;font:700 13px Rubik,sans-serif;cursor:pointer}
+        .msg-alert-open:hover{background:#178F45}
+        .msg-alert-count{background:rgba(255,255,255,.22);border-radius:999px;padding:1px 7px;font-size:11.5px}
+        .msg-alert-later{min-height:36px;border:1px solid var(--au-line);background:transparent;color:var(--au-text2);border-radius:9px;padding:7px 12px;font:600 13px Rubik,sans-serif;cursor:pointer}
+        .msg-alert-x{position:absolute;top:8px;inset-inline-end:8px;border:none;background:none;color:var(--au-text3);cursor:pointer;font-size:13px;line-height:1;padding:4px;min-height:0}
+        @media (max-width:900px){.msg-alerts{left:16px;right:16px;width:auto;bottom:calc(76px + env(safe-area-inset-bottom,0px))}}
+        @media (prefers-reduced-motion:reduce){.msg-alert,.msg-alert-wa{animation:none}}
+      `}</style>
 
       {/* ── Push notification toasts — bottom-right ──────────────────── */}
       <style>{`@keyframes toastIn{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:translateX(0)}}`}</style>
