@@ -54,6 +54,24 @@ if (typeof window !== 'undefined') {
   window.addEventListener('pointerdown', unlock, { once: true, capture: true })
 }
 
+/** a task reminder: three rising notes, longer and louder than a message (src/TaskAlerts.jsx) */
+export function playReminderSound() {
+  try {
+    if (!ctx) { const C = window.AudioContext || window.webkitAudioContext; if (!C) return; ctx = new C() }
+    if (ctx.state === 'suspended') ctx.resume().catch(() => {})
+    const now = ctx.currentTime
+    for (const [f, at] of [[523, 0], [659, 0.16], [784, 0.32], [1047, 0.5]]) {
+      const o = ctx.createOscillator(), g = ctx.createGain()
+      o.type = 'sine'; o.frequency.value = f
+      g.gain.setValueAtTime(0.0001, now + at)
+      g.gain.exponentialRampToValueAtTime(0.22, now + at + 0.02)
+      g.gain.exponentialRampToValueAtTime(0.0001, now + at + 0.42)
+      o.connect(g).connect(ctx.destination)
+      o.start(now + at); o.stop(now + at + 0.45)
+    }
+  } catch {}
+}
+
 // ── OS notification ──
 export const desktopPermission = () => (typeof Notification === 'undefined' ? 'unsupported' : Notification.permission)
 export async function askDesktopPermission() {
@@ -64,6 +82,16 @@ export function desktopNotify({ phone, title, body, onClick }) {
   if (desktopPermission() !== 'granted') return null
   try {
     const n = new Notification(title, { body, icon: '/img/icon-192.png', badge: '/img/icon-192.png', tag: `wa-${tail9(phone)}`, renotify: true, dir: 'auto', lang: 'he' })
+    n.onclick = () => { try { window.focus() } catch {} onClick?.(); n.close() }
+    return n
+  } catch { return null }
+}
+
+/** a task reminder's OS notification: stays on screen until it is clicked or closed */
+export function reminderNotify({ key, title, body, onClick }) {
+  if (desktopPermission() !== 'granted') return null
+  try {
+    const n = new Notification(title, { body, icon: '/img/icon-192.png', badge: '/img/icon-192.png', tag: `task-${key}`, renotify: true, requireInteraction: true, dir: 'auto', lang: 'he' })
     n.onclick = () => { try { window.focus() } catch {} onClick?.(); n.close() }
     return n
   } catch { return null }
@@ -97,7 +125,7 @@ function paint(alt) {
 export function bumpTab(text) {
   if (typeof document === 'undefined') return
   if (baseTitle === null) baseTitle = document.title
-  count += 1; flash = text ? `💬 ${text}`.slice(0, 60) : ''
+  count += 1; flash = text ? (/^\p{Extended_Pictographic}/u.test(text) ? text : `💬 ${text}`).slice(0, 60) : ''
   drawIcon(count); paint(false)
   if (!flashTimer && (document.hidden || !document.hasFocus())) {
     let alt = false

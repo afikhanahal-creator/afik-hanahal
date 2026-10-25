@@ -29,6 +29,8 @@ import { notifyPrefs, isViewing, playMessageSound, desktopNotify, bumpTab } from
 import { alertText, mergeAlert } from './lib/waInbox.js'
 import { leadCampaign } from './lib/leadFields.js'
 import WaFace from './WaFace.jsx'
+import TaskAlerts from './TaskAlerts.jsx'
+import { updateTasks } from '../lib/follow-up.js'
 import { notifyPropertiesChanged, mirrorProperty, mirrorProperties, mirrorDelete } from './siteRebuild.js'
 import { fetchAdminProperties, LeadsBoard, GreenAPIChat, MetaLeadsTab, SupermetricsTab, PropertyWizard, API_BASE, CONTACTS_API, ADMIN_TOKEN, condFetchJson, DARK_C, useTheme, TEAM, G, Logo, LEADS_STORE, LEADS_DELETED, LEADS_TRASH, ANALYTICS_KEY, META_LEAD_PAGES_KEY, WA_DEFAULT_TEMPLATE, _cloudSettings, CATEGORIES, EMPTY_PROP, CONDITION_OPTIONS, ENTRY_OPTIONS, ADMIN_DRAFT_KEY, toMapsEmbed, imgFallback, thumbImg, sortByOrder, TEAM_KEY, setCloudSettings } from './App.jsx'
 
@@ -1527,6 +1529,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   // ── WhatsApp automations: config + periodic run (the panel is the scheduler while it is open) ──
   const [autoCfg, setAutoCfg]         = useState(null)    // { config, storage, greenConfigured }
   const [cardLeadId, setCardLeadId]   = useState(null)    // the lead card opened over the Lead Center
+  const [reminderCardId, setReminderCardId] = useState(null)   // the lead card opened from a reminder (any screen)
   const cardFallback = useRef(null)
   const [autoRun, setAutoRun]         = useState(null)    // last run: suggestions, sent, moves…
   const [autoRunning, setAutoRunning] = useState(false)
@@ -4412,6 +4415,18 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
 
       </div>
 
+      {/* ── Follow-up / task reminders: a card at the top that waits to be handled (src/TaskAlerts.jsx) ── */}
+      <TaskAlerts leads={leads} lang={lang}
+        onDone={(lead, taskId) => updateLead(lead.id, updateTasks(lead, (lead.tasks || []).map(x => (x.id === taskId ? { ...x, done: true, doneAt: Date.now() } : x))))}
+        onOpenChat={lead => { setReminderCardId(null); setInitialChatLead(lead); setTab('chats') }}
+        onOpenCard={lead => setReminderCardId(String(lead.id))}/>
+      {reminderCardId && leads.some(l => String(l.id) === reminderCardId) && (
+        <Suspense fallback={null}>
+          <LeadCardLazy key={'rem-' + reminderCardId} lead={leads.find(l => String(l.id) === reminderCardId)}
+            onClose={() => setReminderCardId(null)} onUpdate={updateLead} onUpdateStatus={updateLeadStatus} onEnrich={enrichLead}
+            onOpenChat={lead => { setReminderCardId(null); setInitialChatLead(lead); setTab('chats') }} lang={lang} stageLabels={stageLabels}/>
+        </Suspense>
+      )}
       {/* ── Incoming WhatsApp messages: one card per chat, newest at the bottom (notifyIncoming) ── */}
       {msgAlerts.length > 0 && (
         <div className="msg-alerts" role="log" aria-live="polite" aria-label={lang === 'en' ? 'New messages' : 'הודעות חדשות'}>

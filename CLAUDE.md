@@ -238,6 +238,15 @@ chats (lead name over the WhatsApp name) and the Lead Center (the server renames
 task, the project (`על:`), what they look for (`מחפשים:` — `leadNeeds()` from the lead card's fields / form answers), the phone,
 wa.me and the card link `/admin-panel/leads?lead=<id>`. `public.afik_due_reminders()` counts every task with `remind` (it used to
 count follow-ups only) and reads an old Israel-local due in Israel time (`server/sync-bus-migration.sql`).
+**On-screen reminders** (2026-10-25, `src/TaskAlerts.jsx`, mounted once in `AdminPanel.jsx`): the same tasks (`remind`, not done,
+due, ≤ 12 h late — `screenReminders()` in `lib/follow-up.js`, tested; the WhatsApp having gone out doesn't matter) pop up in the open
+admin on any screen: a card at the top centre (amber, red once more than 2 min late — `lateText()`: "באיחור 26 דק׳") with the lead's
+face, name, campaign, phone, time and the task, and **התקשר** (`tel:`) · **וואטסאפ** (the chats tab) · **כרטיס ליד** (the lead card
+over the current screen, `reminderCardId`) · **בוצע** (`updateTasks`, done + `doneAt`) · **הזכר לי שוב** (10 min / an hour / tomorrow
+9:00). It never closes by itself. A chime (`playReminderSound`, louder than a message), an OS notification that stays until clicked
+(`reminderNotify`, `requireInteraction`, tag `task-<key>`) and the tab's badge ("⏰ …") while the window is in the background (the
+bell's sound / desktop switches apply). What was shown / snoozed / handled is `localStorage.afik_task_alerts_v1`, shared by every
+open tab (a reminder handled in one tab leaves the others); checked every 15 s and whenever the leads change.
 **Date / time picker** (`src/DateTimePicker.jsx`): every admin date field (lead card follow-up and task due, call summary, the leads dashboard's custom range, bulk-send scheduling) — quick picks, a month calendar (Sunday first, RTL, today marked, arrows / PageUp / PageDown / Home), time chips 07:00–21:00 + any time typed, formats `date` / `local` / `iso` (Israel time); a bottom sheet on phones. `Popover` (automationsUI) ignores clicks inside the picker's portal, and both call `preventDefault` on Esc so the lead card under them stays open.
 
 **Live WhatsApp engine** (2026-10-25 — a lead's reply used to be missing: Green's incoming journal was off, so `getChatHistory`
