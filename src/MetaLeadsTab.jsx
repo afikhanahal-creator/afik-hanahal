@@ -16,6 +16,7 @@ import Splitter, { SPLITTER_CSS } from './Splitter.jsx'
 import { leadNotes, addNote } from './lib/leadNotes.js'
 import { onSync, debounce } from './lib/syncBus.js'
 import { FollowUpButton, FollowUpComposer, FollowUpList } from './FollowUpTask.jsx'
+import WaFace from './WaFace.jsx'
 
 const ADMIN_TOKEN = 'AFIKhanahal2026'
 // Which Facebook pages are synced is decided on the server (META_PAGE_IDS in Vercel) — see api/meta.js resolvePageIds
@@ -853,7 +854,9 @@ export default function MetaLeadsTab({ C, lang, isDark, onOpenCard, onSaveToCRM,
   const Dot = ({ s }) => <span aria-hidden style={{ width: 8, height: 8, borderRadius: '50%', background: dotColor(s), flexShrink: 0, boxShadow: s === 'ok' ? '0 0 0 3px rgba(34,197,94,.18)' : 'none' }}/>
   const Avatar = ({ lead, size = 40 }) => {
     const color = avatarColors(lead?.name)
-    return <div aria-hidden style={{ width: size, height: size, borderRadius: Math.round(size * .3), background: `${color}22`, border: `1.5px solid ${color}55`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: Math.round(size * .33), fontWeight: 800, color, flexShrink: 0 }}>{isTestLead(lead) ? '🧪' : initials(lead?.name)}</div>
+    const face = <div aria-hidden style={{ width: size, height: size, borderRadius: Math.round(size * .3), background: `${color}22`, border: `1.5px solid ${color}55`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: Math.round(size * .33), fontWeight: 800, color, flexShrink: 0, boxSizing: 'border-box' }}>{isTestLead(lead) ? '🧪' : initials(lead?.name)}</div>
+    // the lead's WhatsApp profile picture over the initials (src/WaFace.jsx)
+    return isTestLead(lead) || !lead?.phone ? face : <WaFace phone={lead.phone} size={size} radius={Math.round(size * .3)}>{face}</WaFace>
   }
   const welcomeChip = lead => !lead.phone ? null : lead.wa_sent
     ? <span className="lc-chip ok">✓ {t.kWelcomeShort}</span>

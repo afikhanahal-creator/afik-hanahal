@@ -271,6 +271,15 @@ the bell while desktop notifications are off. **The chat list** has filters "ה�
 `sessionStorage.afik_wa_filter`), unread rows tinted with a green count, and a chip on every chat whose last word is the lead's
 ("ממתין 25 דק׳" — green < 10 min ≤ amber < 60 min ≤ red; the waiting filter puts the longest wait first) — pure helpers
 `lastOfChat()` / `waitingState()` / `fmtWait()` / `alertText()` / `mergeAlert()` in `src/lib/waInbox.js` (tested).
+**Profile pictures** (2026-10-25): every face in the chats list and header, the Lead Center (list and lead header), the lead
+card's conversation and the message alert card shows the person's WhatsApp profile picture over the initials (`src/WaFace.jsx`:
+asked for only once on screen — IntersectionObserver; the initials stay when there is none or it fails to load). `src/lib/waAvatars.js`
+gathers the asks for 120 ms → `POST /api/meta/chat-avatars {phones}` (≤ 40, Green `getAvatar` 3 at a time within ~18 s; a number
+not answered in time is asked again a minute later) and keeps the answers in memory + `localStorage.afik_wa_avatars_v1` until the
+link expires. The server caches them in `wa_avatars` (`server/wa-avatars-migration.sql`: phone, url, available, expires_at from
+WhatsApp's `oe` link parameter, checked_at; RLS on) — a picture until an hour before its link expires (≤ 3 days), "no picture" for
+a day (`lib/wa-avatar.js` `avatarExpiry` / `avatarFresh` / `avatarPhone`, tested). The images load straight from WhatsApp's CDN
+(`referrerPolicy="no-referrer"`), never through a function. The probe's `wa` action reports counts only.
 **Green API plan quota (466):** the free / Developer plan answers `466 "Monthly quota has been exceeded"` to every number
 outside its few allowed chats while `getStateInstance` still says `authorized` ("connected, but nothing goes out" — every welcome
 failed from 2026-10-11 until the plan is upgraded at console.green-api.com). `sendText` (`lib/automations.js`, also used by the

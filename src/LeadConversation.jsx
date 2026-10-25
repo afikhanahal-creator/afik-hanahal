@@ -19,6 +19,7 @@ import { useAttachments, useFileDrop, pasteFiles, DropOverlay, AttachTray } from
 import { CHAT_ACCEPT, sendFiles } from './lib/chatFiles.js'
 import { onWaLive, waLiveUp, mergeLive } from './lib/waLive.js'
 import { setViewing } from './lib/waNotify.js'
+import WaFace from './WaFace.jsx'
 
 const ADMIN_TOKEN = 'AFIKhanahal2026'
 const AUTH = { Authorization: `Bearer ${ADMIN_TOKEN}` }
@@ -439,7 +440,9 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
 
       {/* header: avatar, name, the office line; round icon buttons */}
       <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 12, height: compact ? 54 : 59, padding: '0 10px 0 16px', background: panel, borderInlineStart: 'none', boxShadow: `0 1px 0 ${isDark ? 'rgba(134,150,160,.15)' : '#E9EDEF'}`, zIndex: 3 }}>
-        <div aria-hidden="true" style={{ width: 40, height: 40, borderRadius: '50%', flexShrink: 0, background: isDark ? '#6A7175' : '#DFE5E7', color: isDark ? '#E9EDEF' : '#54656F', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 600 }}>{initials(lead?.name)}</div>
+        <WaFace phone={lead?.phone} size={40}>
+          <div aria-hidden="true" style={{ width: 40, height: 40, borderRadius: '50%', flexShrink: 0, background: isDark ? '#6A7175' : '#DFE5E7', color: isDark ? '#E9EDEF' : '#54656F', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 600 }}>{initials(lead?.name)}</div>
+        </WaFace>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 16, color: WA.bodyText, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}><bdi>{name || t.title}</bdi></div>
           <div style={{ fontSize: 13, color: WA.subText, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>

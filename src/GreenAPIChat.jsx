@@ -20,6 +20,7 @@ import { onWaLive, waLiveUp, mergeLive } from './lib/waLive.js'
 import { setViewing, desktopPermission } from './lib/waNotify.js'
 import { lastOfChat, waitingState, fmtWait } from './lib/waInbox.js'
 import WaNotifySettings from './WaNotifySettings.jsx'
+import WaFace from './WaFace.jsx'
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 const API_BASE      = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
@@ -134,12 +135,15 @@ function Avatar({ c, size = 40, lang }) {
   const label = nameOf(c, lang)
   const office = c?.office || c?.self
   const bg = office ? '#8490D8' : named ? avatarBg(label) : '#8696A0'
+  // the person's WhatsApp profile picture (src/WaFace.jsx) over the initials, like WhatsApp itself
   return (
+    <WaFace phone={c?.phone} size={size}>
     <div aria-hidden style={{ width:size, height:size, borderRadius:'50%', background:bg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:Math.round(size * .4), fontWeight:700, color:'#fff', flexShrink:0, userSelect:'none', overflow:'hidden' }}>
       {office ? <svg width={size*.46} height={size*.46} viewBox="0 0 24 24" fill="currentColor"><path d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22Zm7-6V11a7 7 0 0 0-5.5-6.84V3.5a1.5 1.5 0 0 0-3 0v.66A7 7 0 0 0 5 11v5l-2 2v1h18v-1l-2-2Z"/></svg>
         : named ? [...label.trim()][0]?.toUpperCase()
         : <svg width={size*.56} height={size*.56} viewBox="0 0 24 24" fill="currentColor"><path d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm0 2c-4.42 0-8 2.24-8 5v1h16v-1c0-2.76-3.58-5-8-5Z"/></svg>}
     </div>
+    </WaFace>
   )
 }
 

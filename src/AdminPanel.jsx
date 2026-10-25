@@ -28,6 +28,7 @@ import { onWaLive } from './lib/waLive.js'
 import { notifyPrefs, isViewing, playMessageSound, desktopNotify, bumpTab } from './lib/waNotify.js'
 import { alertText, mergeAlert } from './lib/waInbox.js'
 import { leadCampaign } from './lib/leadFields.js'
+import WaFace from './WaFace.jsx'
 import { notifyPropertiesChanged, mirrorProperty, mirrorProperties, mirrorDelete } from './siteRebuild.js'
 import { fetchAdminProperties, LeadsBoard, GreenAPIChat, MetaLeadsTab, SupermetricsTab, PropertyWizard, API_BASE, CONTACTS_API, ADMIN_TOKEN, condFetchJson, DARK_C, useTheme, TEAM, G, Logo, LEADS_STORE, LEADS_DELETED, LEADS_TRASH, ANALYTICS_KEY, META_LEAD_PAGES_KEY, WA_DEFAULT_TEMPLATE, _cloudSettings, CATEGORIES, EMPTY_PROP, CONDITION_OPTIONS, ENTRY_OPTIONS, ADMIN_DRAFT_KEY, toMapsEmbed, imgFallback, thumbImg, sortByOrder, TEAM_KEY, setCloudSettings } from './App.jsx'
 
@@ -4422,7 +4423,10 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
           {msgAlerts.map(a => (
             <div key={a.id} className="msg-alert" dir="rtl"
               onMouseEnter={() => holdAlert(a.phone, 0)} onMouseLeave={() => holdAlert(a.phone, 12000)}>
-              <div className="msg-alert-av" aria-hidden="true">{String(a.name || '?').trim().charAt(0)}<span className="msg-alert-wa"/></div>
+              <div className="msg-alert-av" aria-hidden="true">
+                <WaFace phone={a.phone === 'test' ? '' : a.phone} size={42}><span className="msg-alert-ini">{String(a.name || '?').trim().charAt(0)}</span></WaFace>
+                <span className="msg-alert-wa"/>
+              </div>
               <div className="msg-alert-body">
                 <div className="msg-alert-top">
                   <bdi className="msg-alert-name">{a.name}</bdi>
@@ -4448,7 +4452,8 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
         .msg-alerts-clear{align-self:flex-start;border:1px solid var(--au-line);background:var(--au-pop);color:var(--au-text2);border-radius:999px;padding:5px 12px;font:600 12px Rubik,sans-serif;cursor:pointer;box-shadow:var(--au-shadow2)}
         .msg-alert{position:relative;display:flex;gap:12px;align-items:flex-start;background:var(--au-pop);color:var(--au-text);border:1px solid var(--au-line);border-inline-start:4px solid #25D366;border-radius:14px;padding:12px 14px 12px 12px;box-shadow:var(--au-shadow3);animation:msgAlertIn .28s cubic-bezier(.2,.9,.3,1.2)}
         @keyframes msgAlertIn{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
-        .msg-alert-av{position:relative;flex-shrink:0;width:42px;height:42px;border-radius:50%;background:#25D366;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px}
+        .msg-alert-av{position:relative;flex-shrink:0;width:42px;height:42px;border-radius:50%;background:#25D366;color:#fff;font-weight:700;font-size:18px}
+        .msg-alert-ini{width:42px;height:42px;display:flex;align-items:center;justify-content:center}
         .msg-alert-wa{position:absolute;bottom:-2px;inset-inline-start:-2px;width:14px;height:14px;border-radius:50%;background:#E5484D;border:2px solid var(--au-pop);animation:msgAlertDot 1.6s ease-in-out infinite}
         @keyframes msgAlertDot{50%{transform:scale(.7)}}
         .msg-alert-body{flex:1;min-width:0}
