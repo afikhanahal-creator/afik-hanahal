@@ -256,6 +256,21 @@ history (`mergeHistory()`), so a message is never lost even if Green's journal i
 `outgoingAPIMessageWebhook`) and points `webhookUrl` at us when either drifted (at most once an hour); `GET /api/meta/chat-settings`
 reports it (`POST {fix:true}` fixes), `chat-status` returns `settings`; probe action `wa-fix`. The chatbot's hook point is
 `handleGreenHook` (an incoming row = a question to answer until a person takes over).
+**Message alerts** (2026-10-25): only messages that come in raise an alert — a message we send (by hand, a template, an automation, a stage message) never pops a card, a sound or a notification (the old "נשלח ל-…" / "נשלחה הודעה אוטומטית" toasts are gone; a failed send still shows). One place decides how the office hears about an incoming message, `notifyIncoming` in
+`AdminPanel.jsx` (fed by the live feed and by the chats tab's fallback polls, deduped by message id; nothing for a message
+older than 15 min or for a chat that is on screen in a focused window — `setViewing()` / `isViewing()` in `src/lib/waNotify.js`,
+set by `GreenAPIChat` and every `LeadConversation`; that chat only gets a soft sound): a card per chat at the bottom-left
+(`.msg-alert`: avatar, name, campaign, time, the message, "לפתיחת השיחה" (opens that exact chat — `setInitialChatLead`) /
+"אחר כך"; more messages from the same lead merge into it, "N חדשות" — `mergeAlert()`; it stays while the window is in the
+background, 25 s otherwise, paused on hover; "סגירת הכל"), a short WhatsApp-like sound (`playMessageSound`, not the new-lead chime),
+an OS notification while the window is in the background (one per chat, tag `wa-<phone>`, a click opens the chat) and the browser
+tab (`bumpTab`: "(N)" in the title, a red count on the icon, the title flashing "💬 name: message" until the window is back).
+The chats tab's bell (`src/WaNotifySettings.jsx`) sets them (`localStorage.afik_wa_notify_v1`: sound / desktop / in-app card /
+leads only), shows the browser's permission (ask / how to unblock) and sends a test alert (`afik:wa-test-alert`); an amber dot on
+the bell while desktop notifications are off. **The chat list** has filters "הכל · לא נקראו · ממתינים לתשובה" (counts;
+`sessionStorage.afik_wa_filter`), unread rows tinted with a green count, and a chip on every chat whose last word is the lead's
+("ממתין 25 דק׳" — green < 10 min ≤ amber < 60 min ≤ red; the waiting filter puts the longest wait first) — pure helpers
+`lastOfChat()` / `waitingState()` / `fmtWait()` / `alertText()` / `mergeAlert()` in `src/lib/waInbox.js` (tested).
 **Green API plan quota (466):** the free / Developer plan answers `466 "Monthly quota has been exceeded"` to every number
 outside its few allowed chats while `getStateInstance` still says `authorized` ("connected, but nothing goes out" — every welcome
 failed from 2026-10-11 until the plan is upgraded at console.green-api.com). `sendText` (`lib/automations.js`, also used by the

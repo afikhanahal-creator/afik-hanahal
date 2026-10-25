@@ -18,6 +18,7 @@ import { insertBooking } from './lib/bookingLink.js'
 import { useAttachments, useFileDrop, pasteFiles, DropOverlay, AttachTray } from './ChatAttachments.jsx'
 import { CHAT_ACCEPT, sendFiles } from './lib/chatFiles.js'
 import { onWaLive, waLiveUp, mergeLive } from './lib/waLive.js'
+import { setViewing } from './lib/waNotify.js'
 
 const ADMIN_TOKEN = 'AFIKhanahal2026'
 const AUTH = { Authorization: `Bearer ${ADMIN_TOKEN}` }
@@ -139,6 +140,9 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
   const WA = isDark ? DARK : LIGHT
   const formCard = useMemo(() => leadFormCard(lead, lang), [lead, lang])
   const phone = intl(lead?.phone)
+  // this conversation is on screen: no alert card for its own messages (src/lib/waNotify.js)
+  const viewKey = useRef('lc-' + Math.random().toString(36).slice(2))
+  useEffect(() => { setViewing(viewKey.current, phone); return () => setViewing(viewKey.current, '') }, [phone])
   const [line, setLine] = useLineStatus()
   const quota = line?.quota?.blocked
   const [green, setGreen] = useState([])

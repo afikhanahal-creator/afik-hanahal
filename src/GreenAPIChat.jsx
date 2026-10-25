@@ -17,6 +17,9 @@ import { DARK, LIGHT, DOODLE_DARK, DOODLE_LIGHT, normalizeGreenMsg, TickMark, Le
 import { NotesButton, FollowUpButton } from './FollowUpTask.jsx'
 import { leadFormCard } from './lib/leadHistory.js'
 import { onWaLive, waLiveUp, mergeLive } from './lib/waLive.js'
+import { setViewing, desktopPermission } from './lib/waNotify.js'
+import { lastOfChat, waitingState, fmtWait } from './lib/waInbox.js'
+import WaNotifySettings from './WaNotifySettings.jsx'
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 const API_BASE      = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
@@ -170,6 +173,11 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
   const [newChatOpen,   setNewChat]      = useState(false)
   const [newPhone,      setNewPhone]     = useState('')
   const [activeNav,     setActiveNav]    = useState('chats')
+  // the list's filter: all · unread · waiting for our answer (the last word is the lead's) — kept for the session
+  const [listFilter,    setListFilterRaw] = useState(() => { try { return sessionStorage.getItem('afik_wa_filter') || 'all' } catch { return 'all' } })
+  const setListFilter = v => { setListFilterRaw(v); try { sessionStorage.setItem('afik_wa_filter', v) } catch {} }
+  const [now,           setNow]          = useState(Date.now())   // ticks every 30 s, so "waiting 12 min" stays true
+  useEffect(() => { const iv = setInterval(() => { if (!document.hidden) setNow(Date.now()) }, 30000); return () => clearInterval(iv) }, [])
   const [emoji,         setEmoji]        = useState(false)
   const att = useAttachments(lang)       // files attached to the next message (several, like WhatsApp: src/ChatAttachments.jsx)
   const addFiles = list => { if (att.add(list)) { setTplImg(null); setTimeout(() => inputRef.current?.focus(), 30) } }
@@ -358,7 +366,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
       if (newIncoming.length > 0 && onNewMessageRef.current) {
         const contactName = nameForPhone(p)
         const latest = newIncoming[newIncoming.length - 1]
-        onNewMessageRef.current({ contactName, message: latest.message, phone: p })
+        onNewMessageRef.current({ contactName, message: latest.message, phone: p, id: latest.id, ts: Date.parse(latest.created_at) })
       }
     } finally {
       setLoading(false)
@@ -470,7 +478,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
               const threshold = pageLoadTimeRef.current
               if (new Date(msg.created_at).getTime() > threshold) {
                 notifiedMsgIdsRef.current.add(String(msg.id))
-                onNewMessageRef.current?.({ contactName: nameForPhone(p), message: msg.message, phone: p })
+                onNewMessageRef.current?.({ contactName: nameForPhone(p), message: msg.message, phone: p, id: String(msg.id), ts: Date.parse(msg.created_at) })
               }
             }
             notifiedMsgIdsRef.current.add(String(msg.id))
@@ -514,7 +522,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
         if (msg.direction === 'in' && !notifiedMsgIdsRef.current.has(String(msg.id))) {
           if (new Date(msg.created_at).getTime() > pageLoadTimeRef.current) {
             notifiedMsgIdsRef.current.add(String(msg.id))
-            onNewMessageRef.current?.({ contactName: nameForPhone(p), message: msg.message, phone: p })
+            onNewMessageRef.current?.({ contactName: nameForPhone(p), message: msg.message, phone: p, id: String(msg.id), ts: Date.parse(msg.created_at) })
           }
         }
       })
@@ -523,8 +531,8 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
   }, [])
 
   // Live WhatsApp (src/lib/waLive.js): every message / status Green API delivers to /api/meta/green-hook reaches every chat
-  // here in about a second — no poll. A sent message replaces its optimistic bubble; an incoming one rings and lifts its
-  // chat to the top of the list (a chat that wasn't in the list yet is added).
+  // here in about a second — no poll. A sent message replaces its optimistic bubble; an incoming one lifts its
+  // chat to the top (the alert itself — card, sound, OS notification — is the admin's, src/AdminPanel.jsx notifyIncoming) of the list (a chat that wasn't in the list yet is added).
   useEffect(() => onWaLive(items => {
     const byPhone = new Map()
     for (const it of items) { const p = intlPhone(it.phone); if (p) byPhone.set(p, [...(byPhone.get(p) || []), it]) }
@@ -542,8 +550,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
     for (const [p, list] of byPhone) {
       for (const it of list) {
         if (it.type !== 'incoming' || !it.idMessage || notifiedMsgIdsRef.current.has(it.idMessage)) continue
-        notifiedMsgIdsRef.current.add(it.idMessage)
-        if ((it.timestamp || 0) * 1000 > pageLoadTimeRef.current - 60e3) onNewMessageRef.current?.({ contactName: nameForPhone(p), message: normalizeGreenMsg(it).message || it.textMessage || it.caption || '📎', phone: p })
+        notifiedMsgIdsRef.current.add(it.idMessage)   // the admin alerts it (AdminPanel listens to the same live feed)
       }
     }
     setGreenChats(prev => {
@@ -559,6 +566,9 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
       return next
     })
   }), []) // eslint-disable-line
+
+  // The chat on screen gets no alert card for its own messages (src/lib/waNotify.js isViewing)
+  useEffect(() => { setViewing('chats', contact?.phone || ''); return () => setViewing('chats', '') }, [contact?.phone])
 
   // Keep the currently-open chat marked read as new messages stream in
   useEffect(() => {
@@ -755,6 +765,29 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
   const totalUnread = useMemo(() => contactList.reduce((sum, lead) =>
     contact?.id === lead.id ? sum : sum + unreadFor(intlPhone(lead.phone)),
     0), [contactList, contact?.id, unreadFor])
+
+  // Who waits for our answer: the last word in the chat is theirs (loaded messages or the chat list's last row)
+  const gByTail = useMemo(() => new Map(greenChats.filter(c => c.phone).map(c => [tail9(c.phone), c])), [greenChats])
+  const waitOf = useCallback(lead => {
+    if (lead.office || lead.self) return { waiting: false }
+    const p = intlPhone(lead.phone)
+    return waitingState(lastOfChat(chats[p] || [], gByTail.get(tail9(p)) || null), now)
+  }, [chats, gByTail, now])
+  const counts = useMemo(() => {
+    let unread = 0, waiting = 0
+    for (const l of contactList) {
+      if (contact?.id !== l.id && unreadFor(intlPhone(l.phone)) > 0) unread++
+      if (waitOf(l).waiting) waiting++
+    }
+    return { unread, waiting }
+  }, [contactList, contact?.id, unreadFor, waitOf])
+  const shownList = useMemo(() => {
+    if (listFilter === 'unread') return contactList.filter(l => l.id === contact?.id || unreadFor(intlPhone(l.phone)) > 0)
+    if (listFilter === 'waiting') return contactList.map(l => [l, waitOf(l)]).filter(([, w]) => w.waiting).sort((a, b) => b[1].mins - a[1].mins).map(([l]) => l)
+    return contactList
+  }, [listFilter, contactList, contact?.id, unreadFor, waitOf])
+  const [deskPerm, setDeskPerm] = useState(desktopPermission)
+  useEffect(() => { const on = () => setDeskPerm(desktopPermission()); window.addEventListener('focus', on); return () => window.removeEventListener('focus', on) }, [])
 
   const blockedQuota = status === 'authorized' && quota?.blocked
   const statusColor = blockedQuota ? '#F59E0B' : status==='authorized' ? '#22C55E' : status==='notAuthorized' ? '#F97316' : status==='error' ? '#E05252' : '#8696A0'
@@ -1258,6 +1291,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
               onMouseLeave={e=>{ e.currentTarget.style.borderColor=WA.border; e.currentTarget.style.color=WA.subText }}>+</button>
           </div>
 
+          {activeNav === 'bell' ? <WaNotifySettings WA={WA} lang={lang} onBack={() => { setActiveNav('chats'); setDeskPerm(desktopPermission()) }}/> : <>
           {/* Search */}
           <div style={{ padding:'8px 10px', background: WA.panelBg, borderBottom:`1px solid ${WA.border}`, flexShrink:0 }}>
             <div style={{ display:'flex', alignItems:'center', gap:8, background: WA.inputBg, borderRadius:9, padding:'8px 14px', direction:'rtl' }}>
@@ -1272,32 +1306,51 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
             </div>
           </div>
 
+          {/* Filters: all · unread · waiting for our answer (oldest wait first) */}
+          <div role="tablist" aria-label="סינון שיחות" style={{ display:'flex', gap:6, padding:'8px 10px', borderBottom:`1px solid ${WA.border}`, flexShrink:0, direction:'rtl', overflowX:'auto' }}>
+            {[['all', 'הכל', 0], ['unread', 'לא נקראו', counts.unread], ['waiting', 'ממתינים לתשובה', counts.waiting]].map(([id, label, n]) => {
+              const on = listFilter === id
+              return (
+                <button key={id} type="button" role="tab" aria-selected={on} onClick={() => setListFilter(id)}
+                  style={{ flexShrink:0, display:'inline-flex', alignItems:'center', gap:6, minHeight:0, padding:'5px 12px', borderRadius:999, border:'none', cursor:'pointer', fontFamily:'inherit', fontSize:13, fontWeight: on ? 700 : 500,
+                    background: on ? (isDark ? '#0A332C' : '#D9FDD3') : WA.inputBg, color: on ? (isDark ? '#25D366' : '#0B6B3A') : WA.subText }}>
+                  {label}
+                  {n > 0 && <span style={{ minWidth:18, height:18, padding:'0 5px', borderRadius:9, display:'inline-flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:700, lineHeight:1, color:'#fff', background: id === 'waiting' ? '#D97706' : '#1DA851' }}>{n > 99 ? '99+' : n}</span>}
+                </button>
+              )
+            })}
+          </div>
+
           {/* Contact list — isolated, smooth scroll */}
           <div className="wa-contacts-scroll" style={{ flex:1, minHeight:0, overflowY:'auto' }}>
-            {contactList.length === 0 ? (
+            {shownList.length === 0 ? (
               <div style={{ padding:28, textAlign:'center', color: WA.subText, fontSize:13, direction:'rtl', lineHeight:1.7 }}>
-                {leads.filter(l=>l.phone).length === 0
+                {listFilter === 'waiting' && contactList.length ? 'אין מי שמחכה לתשובה. כל השיחות נענו'
+                  : listFilter === 'unread' && contactList.length ? 'אין הודעות שלא נקראו'
+                  : leads.filter(l=>l.phone).length === 0
                   ? <>אין לידים עם מספר טלפון<br/><span style={{ fontSize:11, opacity:.6 }}>הוסף ליד עם טלפון בלוח הלידים</span></>
                   : 'אין תוצאות לחיפוש'}
               </div>
-            ) : contactList.map(lead => {
+            ) : shownList.map(lead => {
               const p        = intlPhone(lead.phone)
               const leadMsgs = chats[p] || []
               const lastMsg  = leadMsgs[leadMsgs.length-1]
               const isActive = contact?.id === lead.id
               const isRowLoading = loadingPhones.has(p) && !lastMsg
               const unread   = isActive ? 0 : unreadFor(p)
+              const wait     = waitOf(lead)
+              const rowBg    = isActive ? WA.selectedRow : unread ? (isDark ? 'rgba(37,211,102,.07)' : 'rgba(37,211,102,.06)') : WA.panelBg
               return (
                 <div key={lead.id}
                   onClick={() => selectContact(lead)}
-                  style={{ padding:'12px 14px', display:'flex', gap:12, cursor:'pointer', background: isActive ? WA.selectedRow : WA.panelBg, borderBottom:`1px solid ${WA.border}`, transition:'background .1s', alignItems:'center', direction:'rtl', position:'relative' }}
+                  style={{ padding:'12px 14px', display:'flex', gap:12, cursor:'pointer', background: rowBg, borderBottom:`1px solid ${WA.border}`, transition:'background .1s', alignItems:'center', direction:'rtl', position:'relative' }}
                   onMouseEnter={e => {
                     if (!isActive) e.currentTarget.style.background = WA.hoverRow
                     const btn = e.currentTarget.querySelector('.wa-del-btn')
                     if (btn) btn.style.opacity = '1'
                   }}
                   onMouseLeave={e => {
-                    if (!isActive) e.currentTarget.style.background = WA.panelBg
+                    if (!isActive) e.currentTarget.style.background = rowBg
                     const btn = e.currentTarget.querySelector('.wa-del-btn')
                     if (btn) btn.style.opacity = '0'
                   }}>
@@ -1321,8 +1374,15 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                       <span style={{ fontSize:13, color: unread ? WA.bodyText : WA.subText, fontWeight: unread?600:400, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', flex:1 }}>
                         {isRowLoading ? <span style={{ opacity:.5 }}>טוען...</span> : lastMsg ? lastMsg.message : (lead.lastText || (hasName(lead) ? fmtLocal(lead.phone) : ''))}
                       </span>
+                      {wait.waiting && (
+                        <span title="הליד כתב אחרון ומחכה לתשובה" style={{ flexShrink:0, fontSize:11, fontWeight:700, lineHeight:1, padding:'3px 7px', borderRadius:999, whiteSpace:'nowrap',
+                          color: wait.level === 'late' ? '#fff' : wait.level === 'warn' ? (isDark ? '#FBBF24' : '#92400E') : (isDark ? '#25D366' : '#0B6B3A'),
+                          background: wait.level === 'late' ? '#DC2626' : wait.level === 'warn' ? (isDark ? 'rgba(251,191,36,.16)' : '#FEF3C7') : (isDark ? 'rgba(37,211,102,.14)' : '#DCFCE7') }}>
+                          {fmtWait(wait.mins)}
+                        </span>
+                      )}
                       {unread > 0 && (
-                        <span style={{ background: WA.unread, color:'#fff', fontSize:11, fontWeight:700, minWidth:18, height:18, borderRadius:9, padding:'0 5px', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, lineHeight:1 }}>
+                        <span style={{ background: '#1DA851', color:'#fff', fontSize:11, fontWeight:700, minWidth:18, height:18, borderRadius:9, padding:'0 5px', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, lineHeight:1 }}>
                           {unread > 99 ? '99+' : unread}
                         </span>
                       )}
@@ -1339,13 +1399,14 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
               )
             })}
           </div>
+          </>}
         </div>
 
         {/* ═══════════════ ICON SIDEBAR — far RIGHT in RTL (52px) ═════════ */}
         {/* order:1 → the rightmost panel, with the names list directly beside it. */}
         <div className="wa-rail" style={{ order:1, width:52, flexShrink:0, display:'flex', flexDirection:'column', background: WA.inputBg, borderLeft:`1px solid ${WA.border}`, alignItems:'center', padding:'8px 0', transition:'background .25s' }}>
           {[
-            { id:'bell',     path:ICONS.bell,     title:'התראות'     },
+            { id:'bell',     path:ICONS.bell,     title:'הגדרות התראות על הודעות' },
             { id:'chats',    path:ICONS.chat,     title:'שיחות'      },
             { id:'contacts', path:ICONS.contacts, title:'אנשי קשר'   },
             { id:'phone',    path:ICONS.phone,    title:'שיחות קול'  },
@@ -1357,6 +1418,9 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                 onMouseEnter={e=>{ if(!active){ e.currentTarget.style.background=WA.border; e.currentTarget.style.color=WA.bodyText } }}
                 onMouseLeave={e=>{ e.currentTarget.style.background=active?WA.green+'18':'transparent'; e.currentTarget.style.color=active?WA.green:WA.subText }}>
                 <Icon path={path} size={22}/>
+                {id==='bell' && deskPerm !== 'granted' && deskPerm !== 'unsupported' && (
+                  <span aria-label="התראות דסקטופ כבויות" style={{ position:'absolute', top:8, left:9, width:9, height:9, borderRadius:'50%', background:'#D97706', border:`2px solid ${WA.inputBg}` }}/>
+                )}
                 {id==='chats' && totalUnread>0 && (
                   <span style={{ position:'absolute', top:3, left:3, minWidth:16, height:16, padding:'0 4px', borderRadius:8, background:'#E05252', color:'#fff', fontSize:10, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', lineHeight:1, border:`2px solid ${WA.inputBg}` }}>
                     {totalUnread>99?'99+':totalUnread}
