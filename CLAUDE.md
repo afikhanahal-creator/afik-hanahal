@@ -256,7 +256,7 @@ history (`mergeHistory()`), so a message is never lost even if Green's journal i
 `outgoingAPIMessageWebhook`) and points `webhookUrl` at us when either drifted (at most once an hour); `GET /api/meta/chat-settings`
 reports it (`POST {fix:true}` fixes), `chat-status` returns `settings`; probe action `wa-fix`. The chatbot's hook point is
 `handleGreenHook` (an incoming row = a question to answer until a person takes over).
-**Message alerts** (2026-10-25): one place decides how the office hears about an incoming message, `notifyIncoming` in
+**Message alerts** (2026-10-25): only messages that come in raise an alert — a message we send (by hand, a template, an automation, a stage message) never pops a card, a sound or a notification (the old "נשלח ל-…" / "נשלחה הודעה אוטומטית" toasts are gone; a failed send still shows). One place decides how the office hears about an incoming message, `notifyIncoming` in
 `AdminPanel.jsx` (fed by the live feed and by the chats tab's fallback polls, deduped by message id; nothing for a message
 older than 15 min or for a chat that is on screen in a focused window — `setViewing()` / `isViewing()` in `src/lib/waNotify.js`,
 set by `GreenAPIChat` and every `LeadConversation`; that chat only gets a soft sound): a card per chat at the bottom-left

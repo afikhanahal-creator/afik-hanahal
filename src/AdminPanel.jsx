@@ -1543,7 +1543,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
         if (prev && fresh.length) addToast('🤖 הודעות חדשות ממתינות לאישור', fresh.slice(0, 3).map(x => x.name || x.phone).join(', '), 'automations', '🤖')
         return r
       })
-      if (r.sent?.length) addToast(`🤖 נשלחו ${r.sent.length} הודעות אוטומטיות`, r.sent.slice(0, 3).map(x => x.name).filter(Boolean).join(', '), 'automations', '💬')
+      // messages we sent (automatic or by hand) raise no alert — only incoming ones and failures do
       // Stage moves decided by reply detection ("לא תודה" → …): mirror them on the local board once
       if (r.moves?.length) {
         let applied = {}; try { applied = JSON.parse(localStorage.getItem('afik_auto_moves') || '{}') } catch {}
@@ -2075,8 +2075,8 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     const p0 = updateLead(lead.id, { leadStatus: status, stageLog, ...extra })
     if (p0 && typeof p0.then === 'function') p0.then(d => {
       const a = d?.automation
-      if (a?.sent) addToast('🤖 נשלחה הודעה אוטומטית', `${lead.name || ''}: ${String(a.text || '').slice(0, 90)}`, 'automations', '💬')
-      else if (a?.suggest) setStagePrompt({ lead, stage: status, ...a })
+      if (a?.sent) return   // a message we sent raises no alert
+      if (a?.suggest) setStagePrompt({ lead, stage: status, ...a })
       else if (a && a.ok === false && a.error) addToast('⚠ הודעת השלב לא נשלחה', a.error, 'automations', '⚠')
     })
     const p = intlPhoneFmt(lead.phone)
@@ -3559,10 +3559,6 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
               onUpdateLead={updateLead}
               onDeleteLead={id => deleteLead(id)}
               onNewMessage={({ contactName, message, phone, id, ts }) => notifyIncoming({ id, phone, text: message || '📎', senderName: contactName, ts })}
-              onSentMessage={({ contactName, message }) => addToast(
-                lang === 'en' ? `Sent to ${contactName}` : `נשלח ל-${contactName}`,
-                message, 'chats', '✅', 3500
-              )}
               onReadChange={handleChatsRead}
               autoConfig={autoCfg?.config || null}
               onAutoConfigSaved={cfg => setAutoCfg(c => ({ ...(c || {}), config: cfg, storage: 'ok' }))}
@@ -3594,10 +3590,6 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
               onNewMetaMessage={({ leadName, message }) => addToast(
                 lang === 'en' ? `Message from ${leadName}` : `הודעה מ-${leadName}`,
                 message, 'meta', '💬'
-              )}
-              onSentMetaMessage={({ leadName, message }) => addToast(
-                lang === 'en' ? `Sent to ${leadName}` : `נשלח ל-${leadName}`,
-                message, 'meta', '✅', 3500
               )}
               stageLabels={stageLabels}
               onCrmStage={async (metaLead, crmLead, stage) => {
@@ -4494,7 +4486,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
         ))}
       </div>
 
-      {stagePrompt && <StageSendPrompt lang={lang} prompt={{ ...stagePrompt, stageName: stageLabels?.[stagePrompt.stage]?.label }} onClose={() => setStagePrompt(null)} onSent={() => { addToast('💬 ההודעה נשלחה', stagePrompt.lead?.name || '', 'chats', '✓'); runAutomations() }}/>}
+      {stagePrompt && <StageSendPrompt lang={lang} prompt={{ ...stagePrompt, stageName: stageLabels?.[stagePrompt.stage]?.label }} onClose={() => setStagePrompt(null)} onSent={() => runAutomations()}/>}
 
       {/* ── Mobile bottom tab bar — standalone only ──────────────────── */}
       {standalone && (
