@@ -21,6 +21,7 @@ import * as GCal from '../lib/google-calendar.js'
 import { buildLeadEmailHtml, cleanAnswers } from '../lib/lead-email.js'
 import { metaFormAnswers, shortCampaign } from '../src/lib/leadFields.js'
 import { hebrewFullName } from '../lib/hebrew-names.js'
+import { properHebrewName } from '../lib/name-proof.js'
 import { hebrewizeRecentNames } from '../lib/hebrew-lead-names.js'
 import { parseGreenHook, rowToGreen, mergeHistory } from '../lib/green-hook.js'
 import { avatarExpiry, avatarFresh, avatarPhone } from '../lib/wa-avatar.js'
@@ -411,8 +412,9 @@ async function handleWebhook(req, res) {
 
           const parsed = parseFieldData(leadData.field_data)
           const phone  = normalizePhone(parsed.phone)
-          // a Latin name is saved in Hebrew ("Ronen Cohen" → "רונן כהן"); raw_fields keep it as typed
-          const name   = hebrewFullName(parsed.name || '')
+          // a Latin name is saved in Hebrew ("Ronen Cohen" → "רונן כהן", "Bechar Eddie" → "אדי בכר"); a name no list knows is
+          // proofread by Claude first (lib/name-proof.js, ≤ 8 s); raw_fields keep it as typed
+          const name   = await properHebrewName(parsed.name || '')
           const email  = parsed.email || ''
 
           // Atomic claim: plain INSERT (not upsert). If this leadgen_id already
@@ -667,6 +669,12 @@ async function syncOnePage(pageId, client, errors, { sinceSec = 0, stats = {} } 
           const isDuplicate = insErr && (insErr.code === '23505' || /duplicate key|already exists/i.test(insErr.message || ''))
           if (insErr && !isDuplicate) { errors.push(`Lead ${lead.id}: ${insErr.message}`); continue }
           const isNew = !insErr
+          // a new lead's name that no list knows: proofread once (the welcome below reads the saved name)
+          let properName = hebrewFullName(parsed.name || '')
+          if (isNew) {
+            const proofed = await properHebrewName(parsed.name || '')
+            if (proofed && proofed !== properName) { properName = proofed; await client.from('meta_leads').update({ name: proofed }).eq('leadgen_id', lead.id) }
+          }
 
           // Backfill: existing leads saved before campaign capture get their campaign
           // name filled in (only when still empty — cheap no-op once populated).
@@ -689,7 +697,7 @@ async function syncOnePage(pageId, client, errors, { sinceSec = 0, stats = {} } 
           if (isNew && phone && fresh) {
             const displayPhone = phone.startsWith('972') ? '0' + phone.slice(3) : phone
             const now = new Date().toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-            const adminMsg = ['🔔 ליד חדש (sync)', `שם: ${hebrewFullName(parsed.name || '') || '—'}`, `טלפון: ${displayPhone}`,
+            const adminMsg = ['🔔 ליד חדש (sync)', `שם: ${properName || '—'}`, `טלפון: ${displayPhone}`,
               parsed.email ? `אימייל: ${parsed.email}` : null,
               `קמפיין: ${campaignName || form.name || '—'}`,
               ...cleanAnswers(metaFormAnswers(lead.field_data || [], 'he')).map(x => `${x.q}: ${x.a}`),
@@ -701,7 +709,7 @@ async function syncOnePage(pageId, client, errors, { sinceSec = 0, stats = {} } 
             const rs = await Promise.allSettled([
               welcomeMetaLead(client, { id: saved?.id, name: parsed.name || '', phone, campaign: campaignName || form.name }),
               sendGreenNotify(BUSINESS_NOTIFY_CHATID, adminMsg),
-              sendMetaLeadEmail({ name: hebrewFullName(parsed.name || '') || parsed.name, phone, email: parsed.email, campaign: campaignName || form.name, ts: now, fields: lead.field_data }),
+              sendMetaLeadEmail({ name: properName || parsed.name, phone, email: parsed.email, campaign: campaignName || form.name, ts: now, fields: lead.field_data }),
             ])
             rs.forEach((r, i) => {
               const lbl = ['lead-wa', 'admin-wa', 'admin-email'][i]
