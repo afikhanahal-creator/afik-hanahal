@@ -16,6 +16,7 @@ import { untemplate } from '../lib/template-edit.js'
 import { DARK, LIGHT, DOODLE_DARK, DOODLE_LIGHT, normalizeGreenMsg, TickMark, LeadFormCard } from './waShared.jsx'
 import { NotesButton, FollowUpButton } from './FollowUpTask.jsx'
 import { leadFormCard } from './lib/leadHistory.js'
+import { onWaLive, waLiveUp, mergeLive } from './lib/waLive.js'
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 const API_BASE      = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
@@ -205,6 +206,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
   }, [chats])
   const scrollRef         = useRef(null)
   const pollRef           = useRef(null)
+  const pollTick          = useRef(0)   // while the live bus is up the open chat is re-read once a minute only (8 s × 8)
   const inputRef          = useRef(null)
   const isNearBottom      = useRef(true)
   const prevMsgCount      = useRef(0)
@@ -424,7 +426,8 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
   useEffect(() => {
     if (status !== 'authorized') return
     fetchGreenChats()
-    const iv = setInterval(() => { if (!document.hidden) fetchGreenChats() }, 30000)
+    let n = 0
+    const iv = setInterval(() => { if (!document.hidden && (!waLiveUp() || ++n % 4 === 0)) fetchGreenChats() }, 30000)   // live: names / order refresh every 2 min
     return () => clearInterval(iv)
   }, [status, fetchGreenChats])
   useEffect(() => {
@@ -476,10 +479,10 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
         })
         .subscribe()
       // Green API messages never reach that table, so the open chat is polled as well
-      pollRef.current = setInterval(() => { if (!document.hidden) fetchMsgs(contact.phone) }, 8000)
+      pollRef.current = setInterval(() => { if (!document.hidden && (!waLiveUp() || ++pollTick.current % 8 === 0)) fetchMsgs(contact.phone) }, 8000)
       return () => { supabase.removeChannel(channel); clearInterval(pollRef.current) }
     } else {
-      pollRef.current = setInterval(() => { if (!document.hidden) fetchMsgs(contact.phone) }, 8000)
+      pollRef.current = setInterval(() => { if (!document.hidden && (!waLiveUp() || ++pollTick.current % 8 === 0)) fetchMsgs(contact.phone) }, 8000)
       return () => clearInterval(pollRef.current)
     }
   }, [contact?.id, fetchMsgs])
@@ -518,6 +521,44 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
       .subscribe()
     return () => { supabase.removeChannel(channel) }
   }, [])
+
+  // Live WhatsApp (src/lib/waLive.js): every message / status Green API delivers to /api/meta/green-hook reaches every chat
+  // here in about a second — no poll. A sent message replaces its optimistic bubble; an incoming one rings and lifts its
+  // chat to the top of the list (a chat that wasn't in the list yet is added).
+  useEffect(() => onWaLive(items => {
+    const byPhone = new Map()
+    for (const it of items) { const p = intlPhone(it.phone); if (p) byPhone.set(p, [...(byPhone.get(p) || []), it]) }
+    setChats(prev => {
+      let next = prev
+      for (const [p, list] of byPhone) {
+        const have = prev[p] || []
+        const outTexts = new Set(list.filter(x => x.type === 'outgoing').map(x => (x.textMessage || x.caption || '').trim()).filter(Boolean))
+        const base = outTexts.size ? have.filter(m => !(String(m.id).startsWith('opt-') && outTexts.has(String(m.message || '').trim()))) : have
+        const merged = mergeLive(base, list, normalizeGreenMsg)
+        if (merged !== have) next = { ...next, [p]: merged }
+      }
+      return next
+    })
+    for (const [p, list] of byPhone) {
+      for (const it of list) {
+        if (it.type !== 'incoming' || !it.idMessage || notifiedMsgIdsRef.current.has(it.idMessage)) continue
+        notifiedMsgIdsRef.current.add(it.idMessage)
+        if ((it.timestamp || 0) * 1000 > pageLoadTimeRef.current - 60e3) onNewMessageRef.current?.({ contactName: nameForPhone(p), message: normalizeGreenMsg(it).message || it.textMessage || it.caption || '📎', phone: p })
+      }
+    }
+    setGreenChats(prev => {
+      let next = prev
+      for (const [p, list] of byPhone) {
+        const last = list.reduce((a, b) => ((b.timestamp || 0) >= (a.timestamp || 0) ? b : a))
+        const k = tail9(p)
+        const i = next.findIndex(c => tail9(c.phone) === k)
+        const row = { chatId: `${p}@c.us`, phone: p, name: (i >= 0 ? next[i].name : '') || (last.type === 'incoming' ? last.senderName || '' : ''), timestamp: last.timestamp || 0, type: last.type, typeMessage: last.typeMessage, text: last.textMessage || last.caption || '' }
+        if (i >= 0 && (next[i].timestamp || 0) > row.timestamp) continue
+        next = i >= 0 ? next.map((c, j) => (j === i ? { ...c, ...row, name: c.name || row.name } : c)) : [row, ...next]
+      }
+      return next
+    })
+  }), []) // eslint-disable-line
 
   // Keep the currently-open chat marked read as new messages stream in
   useEffect(() => {

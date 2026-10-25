@@ -24,6 +24,7 @@ import { autoApi, StageSendPrompt } from './AutomationsApi.jsx'
 import { useAdminTheme, ADMIN_THEME_CSS } from './adminTheme.js'
 import { mergeBrief } from '../lib/lead-intel.js'
 import CommandPalette, { useCommandHotkey } from './CommandPalette.jsx'
+import { onWaLive } from './lib/waLive.js'
 import { notifyPropertiesChanged, mirrorProperty, mirrorProperties, mirrorDelete } from './siteRebuild.js'
 import { fetchAdminProperties, LeadsBoard, GreenAPIChat, MetaLeadsTab, SupermetricsTab, PropertyWizard, API_BASE, CONTACTS_API, ADMIN_TOKEN, condFetchJson, DARK_C, useTheme, TEAM, G, Logo, LEADS_STORE, LEADS_DELETED, LEADS_TRASH, ANALYTICS_KEY, META_LEAD_PAGES_KEY, WA_DEFAULT_TEMPLATE, _cloudSettings, CATEGORIES, EMPTY_PROP, CONDITION_OPTIONS, ENTRY_OPTIONS, ADMIN_DRAFT_KEY, toMapsEmbed, imgFallback, thumbImg, sortByOrder, TEAM_KEY, setCloudSettings } from './App.jsx'
 
@@ -1941,6 +1942,34 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     }).catch(() => {})
     return () => { cancelled = true; if (sb && channel) sb.removeChannel(channel) }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Live WhatsApp (src/lib/waLive.js): a lead's reply reaches the admin in about a second wherever it is open — the sidebar
+  // badge counts it and, away from the chats tab (which rings by itself), a toast names the lead.
+  const liveCtx = useRef({ tab, leads, lang })
+  liveCtx.current = { tab, leads, lang }
+  useEffect(() => onWaLive(items => {
+    const inc = items.filter(it => it.type === 'incoming' && it.idMessage && it.phone)
+    if (!inc.length) return
+    setChats(prev => {
+      let next = prev
+      for (const it of inc) {
+        const p = intlPhoneFmt(it.phone)
+        const have = next[p] || []
+        if (have.some(m => String(m.id) === it.idMessage)) continue
+        const m = { id: it.idMessage, phone: p, direction: 'in', message: it.textMessage || it.caption || '', created_at: new Date((it.timestamp || 0) * 1000).toISOString() }
+        next = { ...next, [p]: [...have, m].sort((a, b) => new Date(a.created_at) - new Date(b.created_at)) }
+      }
+      return next
+    })
+    const { tab: t, leads: ls, lang: lg } = liveCtx.current
+    if (t === 'chats') return
+    for (const it of inc.slice(-3)) {
+      const k = String(it.phone).replace(/\D/g, '').slice(-9)
+      const lead = (ls || []).find(l => String(l.phone || '').replace(/\D/g, '').slice(-9) === k)
+      const who = (lead?.name || '').trim() || it.senderName || ('0' + String(it.phone).replace(/\D/g, '').slice(-9))
+      addToast(lg === 'en' ? `New message from ${who}` : `הודעה חדשה מ-${who}`, it.textMessage || it.caption || '📎', 'chats', '💬')
+    }
+  }), []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const sendChatMsg = async (lead) => {
     const msg = chatInput.trim()

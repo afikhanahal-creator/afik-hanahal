@@ -22,6 +22,7 @@ import { buildLeadEmailHtml, cleanAnswers } from '../lib/lead-email.js'
 import { metaFormAnswers, shortCampaign } from '../src/lib/leadFields.js'
 import { hebrewFullName } from '../lib/hebrew-names.js'
 import { hebrewizeRecentNames } from '../lib/hebrew-lead-names.js'
+import { parseGreenHook, rowToGreen, mergeHistory } from '../lib/green-hook.js'
 
 const SUPERMETRICS_API_KEY    = process.env.SUPERMETRICS_API_KEY    || ''
 // System User token (afik-api) — permanent, survives password changes. Used to
@@ -67,6 +68,47 @@ async function greenFetch(url, init = {}, attempt = 0) {
 
 // buildLeadEmailHtml: lib/lead-email.js (shared with the other lead email)
 
+// ── Green API → us: every message of the line as it happens (server/wa-messages-migration.sql, lib/green-hook.js) ──
+// Green signs each delivery with the key the database made (app_settings.green_hook_key, sent as webhookUrlToken →
+// "Authorization: Bearer <key>"); a delivery is stored in wa_messages and the change bus tells every open chat at once.
+let greenHookKey = { v: '', at: 0 }
+async function getGreenHookKey(force = false) {
+  if (force || !greenHookKey.v || Date.now() - greenHookKey.at > 10 * 60e3) {
+    greenHookKey = { v: String((await Auto.getSetting('green_hook_key').catch(() => ({ value: '' }))).value || ''), at: Date.now() }
+  }
+  return greenHookKey.v
+}
+async function greenHookKeyValid(key) {
+  if (!key || key.length < 32) return false
+  let v = await getGreenHookKey()
+  if (key !== v) v = await getGreenHookKey(true)
+  const a = Buffer.from(key), b = Buffer.from(v || '')
+  return !!v && a.length === b.length && crypto.timingSafeEqual(a, b)
+}
+const GREEN_HOOK_URL = 'https://www.afikhanahal.co.il/api/meta/green-hook'
+async function handleGreenHook(req, res) {
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
+  const key = String((req.headers['authorization'] || '').replace(/^Bearer\s+/i, '') || req.query?.k || '')
+  if (!(await greenHookKeyValid(key))) return res.status(401).json({ error: 'Unauthorized' })
+  const ev = parseGreenHook(req.body)
+  if (!SUPABASE_URL || !SUPABASE_KEY || (ev.kind !== 'message' && ev.kind !== 'status')) return res.status(200).json({ ok: true, kind: ev.kind })
+  const client = sb()
+  try {
+    if (ev.kind === 'message') {
+      const { error } = await client.from('wa_messages').upsert({ ...ev.row, updated_at: new Date().toISOString() }, { onConflict: 'id', ignoreDuplicates: true })   // a repeat delivery never rolls a status back
+      if (error) console.error('[green-hook] store', error.message)
+      // (the chatbot will answer here: ev.row.direction === 'in' → a reply suggestion / an automatic answer)
+    } else {
+      const RANK = { failed: -1, sent: 1, delivered: 2, read: 3, played: 4 }
+      const { data: cur } = await client.from('wa_messages').select('status').eq('id', ev.id).maybeSingle()
+      if (cur && (RANK[ev.status] ?? 0) > (RANK[cur.status] ?? 0) || (cur && ev.status === 'failed')) {
+        await client.from('wa_messages').update({ status: ev.status, updated_at: new Date().toISOString() }).eq('id', ev.id)
+      }
+    }
+  } catch (e) { console.error('[green-hook]', e.message) }
+  return res.status(200).json({ ok: true })
+}
+
 // ── Green API instance settings: the journals that keep the lead's replies ──────────────────────────────────────────
 const JOURNAL_FLAGS = ['incomingWebhook', 'outgoingWebhook', 'outgoingMessageWebhook', 'outgoingAPIMessageWebhook']
 async function readGreenSettings() {
@@ -77,7 +119,7 @@ async function readGreenSettings() {
 async function greenSettingsReport({ count = false } = {}) {
   const st = await readGreenSettings()
   const flags = Object.fromEntries(JOURNAL_FLAGS.map(k => [k, st[k] === 'yes']))
-  const out = { ok: true, ...flags, stateWebhook: st.stateWebhook === 'yes', hasWebhookUrl: !!st.webhookUrl, incomingOff: !flags.incomingWebhook }
+  const out = { ok: true, ...flags, stateWebhook: st.stateWebhook === 'yes', hasWebhookUrl: !!st.webhookUrl, webhookOurs: String(st.webhookUrl || '').startsWith(GREEN_HOOK_URL), incomingOff: !flags.incomingWebhook }
   if (count) {
     const [ri, ro] = await Promise.all([
       greenFetch(`${greenUrl('lastIncomingMessages')}?minutes=1440`, { signal: AbortSignal.timeout(20000) }),
@@ -90,6 +132,9 @@ async function greenSettingsReport({ count = false } = {}) {
 }
 async function fixGreenSettings() {
   const body = Object.fromEntries(JOURNAL_FLAGS.map(k => [k, 'yes']))
+  // and the deliveries to us, signed with the database's key (only when the key exists — the migration makes it)
+  const hookKey = await getGreenHookKey(true)
+  if (hookKey) Object.assign(body, { webhookUrl: GREEN_HOOK_URL, webhookUrlToken: hookKey, stateWebhook: 'yes' })
   const r = await greenFetch(greenUrl('setSettings'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(15000) })
   if (!r.ok) return { ok: false, error: `setSettings ${r.status}: ${(await r.text().catch(() => '')).replace(/\s+/g, ' ').slice(0, 160)}` }
   settingsCache.at = 0
@@ -101,7 +146,7 @@ const settingsCache = { at: 0, value: null, fixedAt: 0 }
 async function greenSettingsCheck() {
   if (Date.now() - settingsCache.at < 10 * 60e3 && settingsCache.value) return settingsCache.value
   let v = await greenSettingsReport()
-  if (v.incomingOff && Date.now() - settingsCache.fixedAt > 60 * 60e3) {
+  if ((v.incomingOff || !v.webhookOurs) && Date.now() - settingsCache.fixedAt > 60 * 60e3) {
     settingsCache.fixedAt = Date.now()
     const fx = await fixGreenSettings().catch(e => ({ ok: false, error: e.message }))
     v = fx.ok ? { ...(await greenSettingsReport().catch(() => v)), autoFixed: true } : { ...v, fixError: fx.error || 'setSettings failed' }
@@ -1120,6 +1165,17 @@ async function handleChat(req, res, action) {
       return res.status(r.ok ? 200 : 502).json(r.ok ? { ok: true } : await greenError(r, 'readChat'))
     }
 
+    // GET /api/meta/chat-updates?since=<ISO> → the messages and delivery statuses that reached us since the cursor (the
+    // change bus says when; src/lib/waLive.js asks). Each item = Green's history shape + phone; cursor = the newest updated_at.
+    if (action === 'chat-updates') {
+      if (!SUPABASE_URL || !SUPABASE_KEY) return res.status(200).json({ messages: [], cursor: null })
+      const since = Date.parse(String(req.query?.since || '')) ? new Date(String(req.query.since)).toISOString() : new Date(Date.now() - 10 * 60e3).toISOString()
+      const { data, error } = await sb().from('wa_messages').select('id,phone,direction,type,body,file_url,file_name,mime,quoted,status,sender_name,ts,updated_at').gt('updated_at', since).order('updated_at', { ascending: true }).limit(300)
+      if (error) return res.status(502).json({ error: error.message })
+      const rows = data || []
+      return res.status(200).json({ messages: rows.map(r => ({ ...slimGreenMsg(rowToGreen(r)), phone: r.phone, senderName: r.sender_name || undefined })), cursor: rows.length ? rows[rows.length - 1].updated_at : since })
+    }
+
     // POST /api/meta/chat-history { phone, count } → raw Green getChatHistory array
     if (action === 'chat-history') {
       const { phone, count = 100 } = req.body || {}
@@ -1132,9 +1188,14 @@ async function handleChat(req, res, action) {
       })
       if (!r.ok) return res.status(502).json(await greenError(r, 'getChatHistory'))
       const data = await r.json().catch(() => [])
+      // + what Green delivered to us (wa_messages): a reply Green's history misses still shows, and the furthest status wins
+      const { data: stored } = SUPABASE_URL && SUPABASE_KEY
+        ? await sb().from('wa_messages').select('id,phone,direction,type,body,file_url,file_name,mime,quoted,status,ts').eq('phone', p).order('ts', { ascending: false }).limit(Math.min(Number(count) || 100, 200))
+        : { data: [] }
       // Only the fields the chat shows (src/GreenAPIChat.jsx normalizeGreenMsg): Green's raw messages carry a lot more,
-      // and this answer is polled every 8 s (Vercel meters every byte a function sends). A 304 when nothing changed.
-      return res.status(200).json(Array.isArray(data) ? data.map(slimGreenMsg) : [])
+      // and this answer is polled (Vercel meters every byte a function sends). A 304 when nothing changed.
+      const merged = mergeHistory(Array.isArray(data) ? [...data].reverse() : [], stored || []).reverse()
+      return res.status(200).json(merged.map(slimGreenMsg))
     }
 
     // POST /api/meta/chat-send { phone, message, image? } → sendMessage (or sendFileByUrl: a template's picture + caption)
@@ -1640,6 +1701,7 @@ export default async function handler(req, res) {
   const path = (req.query._path || '').replace(/^\/+/, '')
 
   if (path === 'webhook')      return handleWebhook(req, res)
+  if (path === 'green-hook')   return handleGreenHook(req, res)
   if (path === 'leads')        return handleLeads(req, res)
   if (path === 'messages')     return handleMessages(req, res)
   if (path === 'sync')         return handleSync(req, res)
