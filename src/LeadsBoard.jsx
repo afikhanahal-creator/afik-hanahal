@@ -16,7 +16,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import WaFace from './WaFace.jsx'
-import FollowUpsPanel, { FollowUpsStrip } from './FollowUpsPanel.jsx'
+import FollowUpsPanel, { FollowUpsButton } from './FollowUpsPanel.jsx'
 import {
   Plus, Search, Filter, SortAsc, Eye, EyeOff, ChevronDown, ChevronRight,
   MoreHorizontal, User, Calendar, Phone, Mail, FileText, Link2, Zap,
@@ -2068,9 +2068,9 @@ function LeadsBoardMain({
   const [statusTarget, setStatusTarget] = useState(null)
   const [modal, setModal]             = useState(null)
   const [activeTab, setActiveTab]     = useState('pipeline')
-  // the follow-ups column next to the pipeline / table (open by default on a wide screen; the choice is remembered)
-  const [fuOpen, setFuOpenState] = useState(() => { try { const v = localStorage.getItem('afik_fu_panel_v1'); return v ? v === '1' : window.innerWidth >= 1200 } catch { return true } })
-  const setFuOpen = v => { setFuOpenState(v); try { localStorage.setItem('afik_fu_panel_v1', v ? '1' : '0') } catch {} }
+  // the follow-ups column next to the pipeline / table, opened by the "פולו אפים" button next to the view switch (remembered)
+  const [fuOpen, setFuOpenState] = useState(() => { try { return localStorage.getItem('afik_fu_panel_v2') === '1' } catch { return false } })
+  const setFuOpen = v => { setFuOpenState(v); try { localStorage.setItem('afik_fu_panel_v2', v ? '1' : '0') } catch {} }
   // /admin-panel/leads?lead=<id> (the link in a follow-up reminder) opens that lead's card once the list has it
   useEffect(() => {
     let id = ''
@@ -2437,6 +2437,10 @@ function LeadsBoardMain({
               </button>
             ))}
           </div>
+          <div style={{ marginInlineStart: 10 }}>
+            <FollowUpsButton leads={leads} lang={lang} open={fuOpen && activeTab !== 'dashboard'}
+              onToggle={() => { if (activeTab === 'dashboard') { setActiveTab('pipeline'); setFuOpen(true) } else setFuOpen(!fuOpen) }}/>
+          </div>
         </div>
       </div>
 
@@ -2583,9 +2587,7 @@ function LeadsBoardMain({
               </div>
             )}
           </div>
-          {fuOpen
-            ? <FollowUpsPanel leads={leads} lang={lang} onUpdate={updateLead} onOpen={setDetailLead} onCollapse={() => setFuOpen(false)}/>
-            : <FollowUpsStrip leads={leads} lang={lang} onExpand={() => setFuOpen(true)}/>}
+          {fuOpen && <FollowUpsPanel leads={leads} lang={lang} onUpdate={updateLead} onOpen={setDetailLead} onCollapse={() => setFuOpen(false)}/>}
         </div>
       )}
 

@@ -171,18 +171,19 @@ export default function FollowUpsPanel({ leads, lang = 'he', onUpdate, onOpen, o
   )
 }
 
-/** the folded column: a narrow strip with the late count */
-export function FollowUpsStrip({ leads, lang = 'he', onExpand }) {
+/** the button next to the board's view switch that opens / closes the column (with today's + late count) */
+export function FollowUpsButton({ leads, lang = 'he', open, onToggle }) {
   const t = TXT[lang === 'en' ? 'en' : 'he']
   const now = Date.now()
   const ag = useMemo(() => taskAgenda(leads, { now }), [leads]) // eslint-disable-line react-hooks/exhaustive-deps
   const today = dayKey(now)
-  const n = ag.overdue.length + ag.upcoming.filter(x => dayKey(x.due) === today).length
+  const late = ag.overdue.length
+  const n = late + ag.upcoming.filter(x => dayKey(x.due) === today).length
   return (
-    <button type="button" className="fu-strip" onClick={onExpand} title={t.expand} aria-label={`${t.expand} (${n})`}>
-      <Bell size={15}/>
-      {n > 0 && <span className={`fu-strip-n${ag.overdue.length ? ' is-late' : ''}`}>{n}</span>}
-      <span className="fu-strip-l">{t.expand}</span>
+    <button type="button" className={`fu-btn${open ? ' is-open' : ''}`} onClick={onToggle} aria-pressed={!!open}
+      title={late ? `${t.expand} · ${late} ${t.late}` : t.expand}>
+      <Bell size={15} strokeWidth={2}/>{t.expand}
+      {n > 0 && <span className={`fu-btn-n${late ? ' is-late' : ''}`}>{n}</span>}
       <style>{FU_CSS}</style>
     </button>
   )
@@ -253,9 +254,9 @@ const FU_CSS = `
 .fu-more{display:block;margin:8px auto 0;border:1px solid var(--au-line);background:none;color:var(--au-text2);border-radius:999px;padding:4px 14px;font:600 12px Rubik,sans-serif;cursor:pointer;min-height:0}
 .fu-empty{display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;padding:40px 24px;color:var(--au-text3);font-size:12.5px;line-height:1.5}
 .fu-empty b{color:var(--au-text2);font-size:13.5px}
-.fu-strip{width:44px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:8px;padding:14px 0;border:none;border-inline-start:1px solid var(--au-line);background:var(--au-surface,var(--au-pop));color:var(--au-text2);cursor:pointer;font-family:Rubik,sans-serif;min-height:0}
-.fu-strip:hover{color:var(--au-text);background:rgba(var(--ov),.04)}
-.fu-strip-n{min-width:20px;height:20px;border-radius:999px;background:var(--au-brand);color:#fff;font-size:11px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;padding:0 5px}
-.fu-strip-n.is-late{background:#DC2626}
-.fu-strip-l{writing-mode:vertical-rl;font-size:12.5px;font-weight:600;letter-spacing:.02em}
+.fu-btn{display:inline-flex;align-items:center;gap:7px;height:36px;padding:0 14px;border:1px solid var(--au-line);border-radius:10px;background:var(--au-pop);color:var(--au-text2);font:500 13px Rubik,sans-serif;cursor:pointer;white-space:nowrap;min-height:0;transition:background .12s,color .12s,border-color .12s}
+.fu-btn:hover{color:var(--au-text);background:rgba(var(--ov),.05)}
+.fu-btn.is-open{color:var(--au-brand-text);border-color:rgba(var(--brand-rgb),.45);background:rgba(var(--brand-rgb),.08);font-weight:600}
+.fu-btn-n{min-width:20px;height:20px;border-radius:999px;background:var(--au-brand);color:#fff;font-size:11px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;padding:0 6px}
+.fu-btn-n.is-late{background:#DC2626}
 `
