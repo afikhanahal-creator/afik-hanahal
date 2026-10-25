@@ -16,6 +16,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import WaFace from './WaFace.jsx'
+import FollowUpsPanel, { FollowUpsStrip } from './FollowUpsPanel.jsx'
 import {
   Plus, Search, Filter, SortAsc, Eye, EyeOff, ChevronDown, ChevronRight,
   MoreHorizontal, User, Calendar, Phone, Mail, FileText, Link2, Zap,
@@ -2067,6 +2068,9 @@ function LeadsBoardMain({
   const [statusTarget, setStatusTarget] = useState(null)
   const [modal, setModal]             = useState(null)
   const [activeTab, setActiveTab]     = useState('pipeline')
+  // the follow-ups column next to the pipeline / table (open by default on a wide screen; the choice is remembered)
+  const [fuOpen, setFuOpenState] = useState(() => { try { const v = localStorage.getItem('afik_fu_panel_v1'); return v ? v === '1' : window.innerWidth >= 1200 } catch { return true } })
+  const setFuOpen = v => { setFuOpenState(v); try { localStorage.setItem('afik_fu_panel_v1', v ? '1' : '0') } catch {} }
   // /admin-panel/leads?lead=<id> (the link in a follow-up reminder) opens that lead's card once the list has it
   useEffect(() => {
     let id = ''
@@ -2285,6 +2289,10 @@ function LeadsBoardMain({
               style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 20, border: `1px solid ${activeTab === 'dashboard' ? T.accent : T.border}`, background: activeTab === 'dashboard' ? T.accent + '1A' : 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 700, color: activeTab === 'dashboard' ? T.accent : T.textSub, whiteSpace: 'nowrap' }}>
               📊 {lang === 'en' ? 'Overview' : 'תמונת מצב'}
             </button>
+            <button onClick={() => setActiveTab(activeTab === 'followups' ? 'all' : 'followups')} aria-pressed={activeTab === 'followups'}
+              style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 20, border: `1px solid ${activeTab === 'followups' ? T.accent : T.border}`, background: activeTab === 'followups' ? T.accent + '1A' : 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 700, color: activeTab === 'followups' ? T.accent : T.textSub, whiteSpace: 'nowrap' }}>
+              <Bell size={12}/> {lang === 'en' ? 'Follow-ups' : 'פולו אפים'}
+            </button>
             {GROUPS.map(g => {
               const cnt = (grouped[g.id] || []).length
               const isActive = activeTab === g.id
@@ -2300,7 +2308,7 @@ function LeadsBoardMain({
         </div>
 
         {/* ── Stats bar ── */}
-        <div style={{ background: T.bgHeader, borderBottom: `1px solid ${T.border}`, paddingTop: 10 }}>
+        <div style={{ background: T.bgHeader, borderBottom: `1px solid ${T.border}`, paddingTop: 10, display: activeTab === 'followups' ? 'none' : undefined }}>
           <MobileStatsBar leads={leads} T={T} lang={lang} />
         </div>
 
@@ -2310,8 +2318,14 @@ function LeadsBoardMain({
           </div>
         )}
 
+        {activeTab === 'followups' && (
+          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+            <FollowUpsPanel leads={leads} lang={lang} onUpdate={updateLead} onOpen={setDetailLead} mobile/>
+          </div>
+        )}
+
         {/* ── Lead cards ── */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '14px 12px', WebkitOverflowScrolling: 'touch', display: activeTab === 'dashboard' ? 'none' : undefined }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '14px 12px', WebkitOverflowScrolling: 'touch', display: activeTab === 'dashboard' || activeTab === 'followups' ? 'none' : undefined }}>
           {leads.length === 0 && (
             <div style={{ textAlign: 'center', padding: '60px 24px', color: T.textSub }}>
               <div style={{ fontSize: 52, marginBottom: 16 }}>📋</div>
@@ -2473,95 +2487,105 @@ function LeadsBoardMain({
         </div>
       )}
 
-      {/* ── Pipeline (Kanban) view ── */}
-      {activeTab === 'pipeline' && (
-        <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
-          <SelCtx.Provider value={selCtx}>
-          <KanbanBoard
-            leads={filtered}
-            T={T} isDark={isDark} lang={lang}
-            updateLead={updateLead}
-            updateLeadStatus={updateLeadStatus}
-            onAddRow={handleAddRow}
-            onOpen={setDetailLead}
-            onDelete={handleDelete}
-            onOpenChat={onOpenChat}
-            onEnrich={enrichLead}
-            showToast={showToast}
-            onRenameStage={onRenameStage}
-            onMergeRequest={openMerge}
-          />
-          </SelCtx.Provider>
-        </div>
-      )}
-
-      {/* ── Table view ── */}
-      {activeTab === 'table' && (
-        <div className="leads-table-scroll" style={{ flex: 1, minHeight: 0, position: 'relative' }}>
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-            <div style={{ minWidth: tableMinWidth, width: '100%' }}>
-              {/* Column headers */}
-              <div style={{ display: 'flex', alignItems: 'center', background: T.bgHeader, borderBottom: `2px solid ${T.border}`, position: 'sticky', top: 0, zIndex: 10, height: 36, boxShadow: '0 2px 8px rgba(0,0,0,.06)' }}>
-                <div className="lb-selcol" style={{ borderInlineEnd: `1px solid ${T.border}`, height: '100%', background: T.bgHeader, zIndex: 5 }}>
-                  <CheckBox size={18} label={lang === 'en' ? 'Select all' : 'בחר הכול'}
-                    checked={filtered.length > 0 && selectedIds.size >= filtered.length && filtered.every(l => selectedIds.has(l.id))}
-                    indeterminate={selectedIds.size > 0}
-                    onChange={on => setSelectedIds(on ? new Set(filtered.map(l => l.id)) : new Set())} />
-                </div>
-                {allColsResized.map(col => (
-                  <div key={col.id} style={{ width: col.width, flexShrink: 0, padding: '0 10px', fontSize: 11, fontWeight: 700, color: T.textSub, textTransform: 'uppercase', letterSpacing: '.05em', borderRight: `1px solid ${T.borderLight}`, height: '100%', display: 'flex', alignItems: 'center', userSelect: 'none', cursor: 'pointer', transition: 'color .15s, background .15s', whiteSpace: 'nowrap', overflow: 'hidden', position: 'relative', ...(col.pinned ? { position: 'sticky', insetInlineStart: 60, zIndex: 4, background: T.bgHeader } : {}) }}
-                    onMouseEnter={e => { e.currentTarget.style.color = T.text; e.currentTarget.style.background = T.bgRowHover }}
-                    onMouseLeave={e => { e.currentTarget.style.color = T.textSub; e.currentTarget.style.background = col.pinned ? T.bgHeader : 'transparent' }}>
-                    {lang === 'en' ? (col.en || col.label) : col.label}
-                    <span
-                      onMouseDown={e => startColResize(e, col.id, col.width)}
-                      onClick={e => e.stopPropagation()}
-                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(0,115,234,.55)'}
-                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                      style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 5, cursor: 'col-resize', background: 'transparent', zIndex: 5, flexShrink: 0 }}
-                    />
-                  </div>
-                ))}
-                <button onClick={() => setModal('addcol')}
-                  style={{ width: 120, flexShrink: 0, height: '100%', background: 'none', border: 'none', borderRight: `1px solid ${T.borderLight}`, color: T.textDim, cursor: 'pointer', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, transition: 'all .15s', fontFamily: 'inherit', whiteSpace: 'nowrap', padding: '0 12px' }}
-                  onMouseEnter={e => { e.currentTarget.style.background = T.bgRowHover; e.currentTarget.style.color = T.accent }}
-                  onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = T.textDim }}>
-                  <Plus size={13} /> {lang === 'en' ? 'Add Column' : 'עמודה חדשה'}
-                </button>
+      {/* ── Pipeline / table + the follow-ups column (on the left in Hebrew; src/FollowUpsPanel.jsx) ── */}
+      {(activeTab === 'pipeline' || activeTab === 'table') && (
+        <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
+          <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+            {/* ── Pipeline (Kanban) view ── */}
+            {activeTab === 'pipeline' && (
+              <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+                <SelCtx.Provider value={selCtx}>
+                <KanbanBoard
+                  leads={filtered}
+                  T={T} isDark={isDark} lang={lang}
+                  updateLead={updateLead}
+                  updateLeadStatus={updateLeadStatus}
+                  onAddRow={handleAddRow}
+                  onOpen={setDetailLead}
+                  onDelete={handleDelete}
+                  onOpenChat={onOpenChat}
+                  onEnrich={enrichLead}
+                  showToast={showToast}
+                  onRenameStage={onRenameStage}
+                  onMergeRequest={openMerge}
+                />
+                </SelCtx.Provider>
               </div>
+            )}
 
-              {leads.length === 0 && (
-                <div style={{ textAlign: 'center', padding: '80px 24px', color: T.textSub }}>
-                  <div style={{ fontSize: 52, marginBottom: 16 }}>📋</div>
-                  <div style={{ fontSize: 18, fontWeight: 700, color: T.text, marginBottom: 8 }}>
-                    {lang === 'en' ? 'No leads yet!' : 'עוד אין לידים!'}
-                  </div>
-                  <div style={{ fontSize: 14, lineHeight: 1.7, marginBottom: 24 }}>
-                    {lang === 'en' ? 'Click + New Item to add your first lead.' : 'לחץ על פריט חדש+ להוספת הליד הראשון.'}
-                  </div>
-                  <button onClick={() => handleAddRow('new', 'New Lead')}
-                    style={{ padding: '11px 26px', background: T.accent, border: 'none', borderRadius: 10, color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', boxShadow: `0 4px 16px ${T.accent}44` }}>
-                    <Plus size={14} style={{ display: 'inline', marginRight: 6 }} />
-                    {lang === 'en' ? 'Add First Lead' : 'הוסף ליד ראשון'}
-                  </button>
-                </div>
-              )}
+            {/* ── Table view ── */}
+            {activeTab === 'table' && (
+              <div className="leads-table-scroll" style={{ flex: 1, minHeight: 0, position: 'relative' }}>
+                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+                  <div style={{ minWidth: tableMinWidth, width: '100%' }}>
+                    {/* Column headers */}
+                    <div style={{ display: 'flex', alignItems: 'center', background: T.bgHeader, borderBottom: `2px solid ${T.border}`, position: 'sticky', top: 0, zIndex: 10, height: 36, boxShadow: '0 2px 8px rgba(0,0,0,.06)' }}>
+                      <div className="lb-selcol" style={{ borderInlineEnd: `1px solid ${T.border}`, height: '100%', background: T.bgHeader, zIndex: 5 }}>
+                        <CheckBox size={18} label={lang === 'en' ? 'Select all' : 'בחר הכול'}
+                          checked={filtered.length > 0 && selectedIds.size >= filtered.length && filtered.every(l => selectedIds.has(l.id))}
+                          indeterminate={selectedIds.size > 0}
+                          onChange={on => setSelectedIds(on ? new Set(filtered.map(l => l.id)) : new Set())} />
+                      </div>
+                      {allColsResized.map(col => (
+                        <div key={col.id} style={{ width: col.width, flexShrink: 0, padding: '0 10px', fontSize: 11, fontWeight: 700, color: T.textSub, textTransform: 'uppercase', letterSpacing: '.05em', borderRight: `1px solid ${T.borderLight}`, height: '100%', display: 'flex', alignItems: 'center', userSelect: 'none', cursor: 'pointer', transition: 'color .15s, background .15s', whiteSpace: 'nowrap', overflow: 'hidden', position: 'relative', ...(col.pinned ? { position: 'sticky', insetInlineStart: 60, zIndex: 4, background: T.bgHeader } : {}) }}
+                          onMouseEnter={e => { e.currentTarget.style.color = T.text; e.currentTarget.style.background = T.bgRowHover }}
+                          onMouseLeave={e => { e.currentTarget.style.color = T.textSub; e.currentTarget.style.background = col.pinned ? T.bgHeader : 'transparent' }}>
+                          {lang === 'en' ? (col.en || col.label) : col.label}
+                          <span
+                            onMouseDown={e => startColResize(e, col.id, col.width)}
+                            onClick={e => e.stopPropagation()}
+                            onMouseEnter={e => e.currentTarget.style.background = 'rgba(0,115,234,.55)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                            style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 5, cursor: 'col-resize', background: 'transparent', zIndex: 5, flexShrink: 0 }}
+                          />
+                        </div>
+                      ))}
+                      <button onClick={() => setModal('addcol')}
+                        style={{ width: 120, flexShrink: 0, height: '100%', background: 'none', border: 'none', borderRight: `1px solid ${T.borderLight}`, color: T.textDim, cursor: 'pointer', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, transition: 'all .15s', fontFamily: 'inherit', whiteSpace: 'nowrap', padding: '0 12px' }}
+                        onMouseEnter={e => { e.currentTarget.style.background = T.bgRowHover; e.currentTarget.style.color = T.accent }}
+                        onMouseLeave={e => { e.currentTarget.style.background = 'none'; e.currentTarget.style.color = T.textDim }}>
+                        <Plus size={13} /> {lang === 'en' ? 'Add Column' : 'עמודה חדשה'}
+                      </button>
+                    </div>
 
-              {GROUPS.map(group => {
-                const groupLeads = grouped[group.id] || []
-                return (
-                  <BoardGroup key={group.id} group={group} leads={groupLeads} cols={allColsResized}
-                    T={T} lang={lang}
-                    onUpdate={updateLead} onUpdateStatus={updateLeadStatus}
-                    onDelete={handleDelete} onSelect={handleSelect} selectedIds={selectedIds} onSelectMany={handleSelectMany}
-                    onOpenDetail={setDetailLead} onAddRow={handleAddRow}
-                    onOpenChat={onOpenChat} onEnrich={enrichLead}
-                    onStatusClick={(e, lead) => setStatusTarget(lead)} onRenameStage={onRenameStage} />
-                )
-              })}
-              <div style={{ height: 60 }} />
-            </div>
-          </DndContext>
+                    {leads.length === 0 && (
+                      <div style={{ textAlign: 'center', padding: '80px 24px', color: T.textSub }}>
+                        <div style={{ fontSize: 52, marginBottom: 16 }}>📋</div>
+                        <div style={{ fontSize: 18, fontWeight: 700, color: T.text, marginBottom: 8 }}>
+                          {lang === 'en' ? 'No leads yet!' : 'עוד אין לידים!'}
+                        </div>
+                        <div style={{ fontSize: 14, lineHeight: 1.7, marginBottom: 24 }}>
+                          {lang === 'en' ? 'Click + New Item to add your first lead.' : 'לחץ על פריט חדש+ להוספת הליד הראשון.'}
+                        </div>
+                        <button onClick={() => handleAddRow('new', 'New Lead')}
+                          style={{ padding: '11px 26px', background: T.accent, border: 'none', borderRadius: 10, color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', boxShadow: `0 4px 16px ${T.accent}44` }}>
+                          <Plus size={14} style={{ display: 'inline', marginRight: 6 }} />
+                          {lang === 'en' ? 'Add First Lead' : 'הוסף ליד ראשון'}
+                        </button>
+                      </div>
+                    )}
+
+                    {GROUPS.map(group => {
+                      const groupLeads = grouped[group.id] || []
+                      return (
+                        <BoardGroup key={group.id} group={group} leads={groupLeads} cols={allColsResized}
+                          T={T} lang={lang}
+                          onUpdate={updateLead} onUpdateStatus={updateLeadStatus}
+                          onDelete={handleDelete} onSelect={handleSelect} selectedIds={selectedIds} onSelectMany={handleSelectMany}
+                          onOpenDetail={setDetailLead} onAddRow={handleAddRow}
+                          onOpenChat={onOpenChat} onEnrich={enrichLead}
+                          onStatusClick={(e, lead) => setStatusTarget(lead)} onRenameStage={onRenameStage} />
+                      )
+                    })}
+                    <div style={{ height: 60 }} />
+                  </div>
+                </DndContext>
+              </div>
+            )}
+          </div>
+          {fuOpen
+            ? <FollowUpsPanel leads={leads} lang={lang} onUpdate={updateLead} onOpen={setDetailLead} onCollapse={() => setFuOpen(false)}/>
+            : <FollowUpsStrip leads={leads} lang={lang} onExpand={() => setFuOpen(true)}/>}
         </div>
       )}
 

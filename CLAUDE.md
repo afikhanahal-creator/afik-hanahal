@@ -247,6 +247,13 @@ over the current screen, `reminderCardId`) · **בוצע** (`updateTasks`, done 
 (`reminderNotify`, `requireInteraction`, tag `task-<key>`) and the tab's badge ("⏰ …") while the window is in the background (the
 bell's sound / desktop switches apply). What was shown / snoozed / handled is `localStorage.afik_task_alerts_v1`, shared by every
 open tab (a reminder handled in one tab leaves the others); checked every 15 s and whenever the leads change.
+**Follow-ups column** (2026-10-25, `src/FollowUpsPanel.jsx`): on the leads board's pipeline and table, a 340 px column on the left (in
+Hebrew; "»" folds it to a 44 px strip with today's + late count, `localStorage.afik_fu_panel_v1`, open by default ≥ 1200 px), and a
+"פולו אפים" tab on phones. Every dated task of every lead (`taskAgenda()` in `lib/follow-up.js`, tested) in sections: late and not
+done (red edge, "לא בוצע") · today · later · what already happened (done, struck through; "כולל מה שבוצע"). Past rows turn grey. A row:
+a checkbox (done / not done → `updateTasks`, the lead's `followUp` follows), the full name (opens the lead card), time + day · date,
+phone (`tel:`), campaign, the task's text, the lead's last note, and "הערה" — a note written there is added to `crm_data.notes`
+(`addNote()`, the lead card's notes list). Filters: all · follow-ups · tasks (`sessionStorage.afik_fu_kind`).
 **Date / time picker** (`src/DateTimePicker.jsx`): every admin date field (lead card follow-up and task due, call summary, the leads dashboard's custom range, bulk-send scheduling) — quick picks, a month calendar (Sunday first, RTL, today marked, arrows / PageUp / PageDown / Home), time chips 07:00–21:00 + any time typed, formats `date` / `local` / `iso` (Israel time); a bottom sheet on phones. `Popover` (automationsUI) ignores clicks inside the picker's portal, and both call `preventDefault` on Esc so the lead card under them stays open.
 
 **Live WhatsApp engine** (2026-10-25 — a lead's reply used to be missing: Green's incoming journal was off, so `getChatHistory`
