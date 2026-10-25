@@ -4,6 +4,7 @@ import { ensureFuCss } from './FollowUpTask.jsx'
 import { followUpPresets, setNextFollowUp } from '../lib/follow-up.js'
 import { sourceLabel, sourceColor, originLines, leadCampaign, leadCampaignTag, leadCampaignFull, prettyLeadText, leadProject, toggleProjectInName } from './lib/leadFields.js'
 import { mergeLeads, mergeConflicts } from './lib/leadMerge.js'
+import { trashBatches } from '../lib/lead-restore.js'
 import LeadsDashboard from './LeadsDashboard.jsx'
 import LeadCard from './LeadCard.jsx'
 import ExportDialog from './ExportDialog.jsx'
@@ -2048,7 +2049,7 @@ function LeadsBoardMain({
   leads, updateLead, updateLeadStatus, deleteLead, addLead,
   colOrder, setColOrder, customCols, setCustomCols, colWidths, setColWidths,
   exportCSV, syncLeads, enrichAll, enrichLead, clearLeads,
-  trashedLeads = [], restoreLead, permanentDeleteLead,
+  trashedLeads = [], restoreLead, restoreLeads, permanentDeleteLead,
   leadsSyncing,
   isDark, lang, onOpenChat,
   stageLabels, onRenameStage,
@@ -2669,7 +2670,23 @@ function LeadsBoardMain({
                   <div style={{ fontSize: 14, fontWeight: 600, color: T.text, marginBottom: 6 }}>{lang === 'en' ? 'Trash is empty' : 'האשפה ריקה'}</div>
                   <div style={{ fontSize: 12 }}>{lang === 'en' ? 'Deleted leads will appear here' : 'לידים שנמחקו יופיעו כאן לשחזור'}</div>
                 </div>
-              ) : trashedLeads.map(lead => {
+              ) : trashBatches(trashedLeads).map(batch => (
+                <div key={`b${batch.at}-${batch.leads[0]?.id}`}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 20px 6px', position: 'sticky', top: -8, background: T.bgHeader, zIndex: 1, borderBottom: `1px solid ${T.borderLight}` }}>
+                    <span style={{ flex: 1, fontSize: 12, fontWeight: 700, color: T.textSub }}>
+                      {batch.at
+                        ? (lang === 'en' ? 'Deleted ' : 'נמחקו ') + new Date(batch.at).toLocaleString(lang === 'en' ? 'en-GB' : 'he-IL', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jerusalem' })
+                        : (lang === 'en' ? 'Deleted earlier' : 'נמחקו בעבר')}
+                      {' · '}{lang === 'en' ? `${batch.leads.length} lead${batch.leads.length === 1 ? '' : 's'}` : (batch.leads.length === 1 ? 'ליד אחד' : `${batch.leads.length} לידים`)}
+                    </span>
+                    {batch.leads.length > 1 && (
+                      <button type="button" onClick={() => (restoreLeads ? restoreLeads(batch.leads.map(l => l.id)) : batch.leads.forEach(l => restoreLead(l.id)))}
+                        style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', background: T.green, border: 'none', borderRadius: 8, color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', minHeight: 0 }}>
+                        ↩ {lang === 'en' ? `Restore all ${batch.leads.length}` : `שחזר את כל ה-${batch.leads.length}`}
+                      </button>
+                    )}
+                  </div>
+                  {batch.leads.map(lead => {
                 const deletedAgo = lead.deletedAt
                   ? (() => {
                       const diff = Date.now() - lead.deletedAt
@@ -2731,6 +2748,8 @@ function LeadsBoardMain({
                   </div>
                 )
               })}
+                </div>
+              ))}
             </div>
           </div>
         </>

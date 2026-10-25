@@ -661,7 +661,14 @@ put it under the hover actions), the name column next to it; hover actions sit i
 selected rows are tinted (`SEL_BG`) with an accent bar; Shift+click selects a range; "הצג רק נבחרים" filters the table to the
 selection. **Selection & bulk:** every table row has a real
 checkbox (controlled by `selectedIds`), each stage group and the header select all; the bar offers select-all, move to a stage,
-merge (2 selected) and delete (asks once, leads go to the trash). **Merge** (`src/lib/leadMerge.js`, tested — `mergeLeads()` /
+merge (2 selected) and delete (asks once, leads go to the trash). **Undo & restore** (2026-10-25): a delete removes the row from `contacts`; the
+admin keeps the whole lead in this browser's trash (`LEADS_TRASH`). Right after a delete (one or a bulk) a bar at the bottom says
+"נמחקו N לידים · **בטל**" for 20 s (Ctrl / ⌘ + Z too; `undoDel` in `AdminPanel.jsx`). Undo and the trash's "שחזר" / "שחזר את כל ה-N"
+(the trash is grouped by deletion — `trashBatches()`) go through `restoreLeads(ids)` → `POST /api/contacts?restore=1 { leads }` (admin):
+`restoreRow()` (`lib/lead-restore.js`, tested) rebuilds **the same row** — id, `created_at`, stage, notes, tasks, form answers — as an
+upsert on id, so a restore is never a new lead (no new-lead email, no WhatsApp welcome, no automations; the old restore re-POSTed it as
+a new website lead and lost everything in `crm_data`). It waits for a DELETE still on its way, and a Meta lead's copy that the daily
+`crm-sync` already copied again (same `metaLeadId`, new id) isn't restored twice (`existing` in the answer; the old id is dropped). **Merge** (`src/lib/leadMerge.js`, tested — `mergeLeads()` /
 `mergeConflicts()`): from two selected rows or by holding a dragged Pipeline card on another card for 0.65 s ("שחרר כדי למזג");
 `MergeDialog` picks the lead that stays and the values for conflicting name / phone / email; notes, tasks, tags, form answers,
 stage history, the other message and `mergedFrom` are kept, then the other lead goes to the trash (nothing is deleted if the save
