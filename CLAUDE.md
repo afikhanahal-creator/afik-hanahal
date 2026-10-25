@@ -248,8 +248,9 @@ over the current screen, `reminderCardId`) · **בוצע** (`updateTasks`, done 
 bell's sound / desktop switches apply). What was shown / snoozed / handled is `localStorage.afik_task_alerts_v1`, shared by every
 open tab (a reminder handled in one tab leaves the others); checked every 15 s and whenever the leads change.
 **Follow-ups column** (2026-10-25, `src/FollowUpsPanel.jsx`): on the leads board's pipeline and table, a 340 px column on the left (in
-Hebrew; "»" folds it to a 44 px strip with today's + late count, `localStorage.afik_fu_panel_v1`, open by default ≥ 1200 px), and a
-"פולו אפים" tab on phones. Every dated task of every lead (`taskAgenda()` in `lib/follow-up.js`, tested) in sections: late and not
+Hebrew), opened and closed by the "פולו אפים" button next to the view switch (`FollowUpsButton`, with today's + late count — red when
+something is late; from "תמונת מצב" it switches to the pipeline; closed by default, `localStorage.afik_fu_panel_v2`; "»" in the
+column closes it too), and a "פולו אפים" tab on phones. Every dated task of every lead (`taskAgenda()` in `lib/follow-up.js`, tested) in sections: late and not
 done (red edge, "לא בוצע") · today · later · what already happened (done, struck through; "כולל מה שבוצע"). Past rows turn grey. A row:
 a checkbox (done / not done → `updateTasks`, the lead's `followUp` follows), the full name (opens the lead card), time + day · date,
 phone (`tel:`), campaign, the task's text, the lead's last note, and "הערה" — a note written there is added to `crm_data.notes`
