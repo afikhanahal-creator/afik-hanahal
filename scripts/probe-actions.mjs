@@ -119,6 +119,14 @@ if (ACTIONS.includes('wa') || ACTIONS.includes('wa-send') || ACTIONS.includes('w
   const list = await call('chat-list', '/api/meta/chat-list?days=30')
   const one = Array.isArray(list) ? (list.find(c => !c.office && !c.self) || list[0]) : null
   if (one) await call('chat-history (one chat)', '/api/meta/chat-history', { method: 'POST', body: JSON.stringify({ phone: one.phone, count: 20 }) })
+  if (Array.isArray(list) && list.length) {
+    // profile pictures of the 10 newest chats — counts only (the log is public: never a link or a number)
+    const t = Date.now()
+    const r = await fetch(`${SITE}/api/meta/chat-avatars`, { method: 'POST', headers: H, body: JSON.stringify({ phones: list.slice(0, 10).map(c => c.phone) }), signal: AbortSignal.timeout(40000) }).catch(() => null)
+    const d = r ? await r.json().catch(() => null) : null
+    const v = Object.values(d?.avatars || {})
+    show(`wa chat-avatars (HTTP ${r?.status}, ${Date.now() - t} ms)`, { asked: Math.min(10, list.length), answered: v.length, withPicture: v.filter(Boolean).length, error: d?.error })
+  }
   if (ACTIONS.includes('wa-send')) {
     const office = Array.isArray(list) ? list.find(c => c.office) : null
     await call('chat-send (to the office number)', '/api/meta/chat-send', { method: 'POST', body: JSON.stringify({ phone: office?.phone || '972559811814', message: 'בדיקת מערכת: שליחה מעמוד הווצאפ ✓' }) })

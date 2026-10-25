@@ -23,6 +23,7 @@ import { metaFormAnswers, shortCampaign } from '../src/lib/leadFields.js'
 import { hebrewFullName } from '../lib/hebrew-names.js'
 import { hebrewizeRecentNames } from '../lib/hebrew-lead-names.js'
 import { parseGreenHook, rowToGreen, mergeHistory } from '../lib/green-hook.js'
+import { avatarExpiry, avatarFresh, avatarPhone } from '../lib/wa-avatar.js'
 
 const SUPERMETRICS_API_KEY    = process.env.SUPERMETRICS_API_KEY    || ''
 // System User token (afik-api) — permanent, survives password changes. Used to
@@ -1158,6 +1159,42 @@ async function handleChat(req, res, action) {
     }
 
     // POST /api/meta/chat-read { phone } → readChat (blue ticks on the customer's side)
+    // POST /api/meta/chat-avatars { phones: [...] } → { avatars: { 972…: url | '' } } — the WhatsApp profile picture of every chat
+    // on screen (Green getAvatar), cached in wa_avatars until WhatsApp's link expires; a number Green didn't answer for in time
+    // is left out (the browser asks again later). Up to 40 numbers, 3 at a time.
+    if (action === 'chat-avatars') {
+      const list = [...new Set(((req.body || {}).phones || []).map(avatarPhone).filter(Boolean))].slice(0, 40)
+      if (!list.length) return res.status(200).json({ avatars: {} })
+      const now = Date.now()
+      const have = new Map()
+      if (SUPABASE_URL && SUPABASE_KEY) {
+        const { data } = await sb().from('wa_avatars').select('phone,url,available,expires_at,checked_at').in('phone', list)
+        for (const r of data || []) have.set(r.phone, r)
+      }
+      const need = list.filter(p => !avatarFresh(have.get(p), now))
+      const fresh = [], deadline = now + 18000
+      let i = 0
+      const worker = async () => {
+        while (i < need.length && Date.now() < deadline) {
+          const p = need[i++]
+          try {
+            const r = await greenFetch(greenUrl('getAvatar'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chatId: `${p}@c.us` }), signal: AbortSignal.timeout(8000) })
+            if (!r.ok) continue
+            const d = await r.json().catch(() => null)
+            if (!d) continue
+            const url = d.available !== false && /^https:\/\//.test(d.urlAvatar || '') ? d.urlAvatar : null
+            const row = { phone: p, url, available: !!url, expires_at: url ? new Date(avatarExpiry(url)).toISOString() : null, checked_at: new Date().toISOString() }
+            have.set(p, row); fresh.push(row)
+          } catch { /* asked again on the next screen */ }
+        }
+      }
+      await Promise.all([worker(), worker(), worker()])
+      if (fresh.length && SUPABASE_URL && SUPABASE_KEY) await sb().from('wa_avatars').upsert(fresh, { onConflict: 'phone' }).then(() => {}, () => {})
+      const avatars = {}
+      for (const p of list) { const r = have.get(p); if (r && (avatarFresh(r) || fresh.includes(r))) avatars[p] = r.url || '' }
+      return res.status(200).json({ avatars })
+    }
+
     if (action === 'chat-read') {
       const p = normalizePhone((req.body || {}).phone)
       if (!p) return res.status(400).json({ error: 'phone required' })
