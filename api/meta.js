@@ -67,6 +67,49 @@ async function greenFetch(url, init = {}, attempt = 0) {
 
 // buildLeadEmailHtml: lib/lead-email.js (shared with the other lead email)
 
+// ── Green API instance settings: the journals that keep the lead's replies ──────────────────────────────────────────
+const JOURNAL_FLAGS = ['incomingWebhook', 'outgoingWebhook', 'outgoingMessageWebhook', 'outgoingAPIMessageWebhook']
+async function readGreenSettings() {
+  const r = await greenFetch(greenUrl('getSettings'), { signal: AbortSignal.timeout(10000) })
+  if (!r.ok) throw new Error(`getSettings ${r.status}`)
+  return r.json()
+}
+async function greenSettingsReport({ count = false } = {}) {
+  const st = await readGreenSettings()
+  const flags = Object.fromEntries(JOURNAL_FLAGS.map(k => [k, st[k] === 'yes']))
+  const out = { ok: true, ...flags, stateWebhook: st.stateWebhook === 'yes', hasWebhookUrl: !!st.webhookUrl, incomingOff: !flags.incomingWebhook }
+  if (count) {
+    const [ri, ro] = await Promise.all([
+      greenFetch(`${greenUrl('lastIncomingMessages')}?minutes=1440`, { signal: AbortSignal.timeout(20000) }),
+      greenFetch(`${greenUrl('lastOutgoingMessages')}?minutes=1440`, { signal: AbortSignal.timeout(20000) }),
+    ])
+    const n = async r => (r.ok ? ((await r.json().catch(() => [])) || []).length : null)
+    out.last24h = { incoming: await n(ri), outgoing: await n(ro) }
+  }
+  return out
+}
+async function fixGreenSettings() {
+  const body = Object.fromEntries(JOURNAL_FLAGS.map(k => [k, 'yes']))
+  const r = await greenFetch(greenUrl('setSettings'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(15000) })
+  if (!r.ok) return { ok: false, error: `setSettings ${r.status}: ${(await r.text().catch(() => '')).replace(/\s+/g, ' ').slice(0, 160)}` }
+  settingsCache.at = 0
+  return { ok: true }
+}
+// chat-status asks at most every 10 minutes and turns the incoming journal back on by itself when it finds it off (a plan
+// change reset it once — the chats then showed only our side)
+const settingsCache = { at: 0, value: null, fixedAt: 0 }
+async function greenSettingsCheck() {
+  if (Date.now() - settingsCache.at < 10 * 60e3 && settingsCache.value) return settingsCache.value
+  let v = await greenSettingsReport()
+  if (v.incomingOff && Date.now() - settingsCache.fixedAt > 60 * 60e3) {
+    settingsCache.fixedAt = Date.now()
+    const fx = await fixGreenSettings().catch(e => ({ ok: false, error: e.message }))
+    v = fx.ok ? { ...(await greenSettingsReport().catch(() => v)), autoFixed: true } : { ...v, fixError: fx.error || 'setSettings failed' }
+  }
+  settingsCache.at = Date.now(); settingsCache.value = v
+  return v
+}
+
 async function sendMetaLeadEmail({ name, phone, email, campaign, message, ts, fields }) {
   const user = process.env.GMAIL_USER
   const pass = process.env.GMAIL_APP_PASSWORD
@@ -1017,9 +1060,21 @@ async function handleChat(req, res, action) {
   try {
     // GET /api/meta/chat-status → instance connection state + the plan quota (466: "connected" but sending is blocked)
     if (action === 'chat-status') {
-      const [r, quota] = await Promise.all([greenFetch(greenUrl('getStateInstance'), { signal: AbortSignal.timeout(8000) }), Auto.greenQuota().catch(() => null)])
+      const [r, quota, settings] = await Promise.all([greenFetch(greenUrl('getStateInstance'), { signal: AbortSignal.timeout(8000) }), Auto.greenQuota().catch(() => null), greenSettingsCheck().catch(() => null)])
       const d = await r.json().catch(() => ({}))
-      return res.status(r.ok ? 200 : 502).json({ state: d.stateInstance || (r.ok ? null : 'error'), instance: GREEN_INSTANCE, http: r.status, quota: quota?.blocked ? { blocked: true, since: quota.since || quota.at, at: quota.at, used: quota.used, description: quota.description } : null })
+      return res.status(r.ok ? 200 : 502).json({ state: d.stateInstance || (r.ok ? null : 'error'), instance: GREEN_INSTANCE, http: r.status, quota: quota?.blocked ? { blocked: true, since: quota.since || quota.at, at: quota.at, used: quota.used, description: quota.description } : null, settings })
+    }
+
+    // GET /api/meta/chat-settings → the instance's settings that decide whether the lead's replies are kept: Green saves
+    // incoming messages (getChatHistory / lastIncomingMessages) only while incomingWebhook = 'yes' — a plan change can reset
+    // it, and then a chat shows only our own messages. POST { fix: true } turns the journals on (setSettings). Only yes / no
+    // flags and counts come back, never the webhook URL or a token.
+    if (action === 'chat-settings') {
+      if (req.method === 'POST' && (req.body || {}).fix) {
+        const fx = await fixGreenSettings()
+        if (!fx.ok) return res.status(502).json(fx)
+      }
+      return res.status(200).json(await greenSettingsReport({ count: true }))
     }
 
     // GET /api/meta/chat-list?days=30 → recent conversations (incoming + outgoing), newest first.

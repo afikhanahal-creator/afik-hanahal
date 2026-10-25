@@ -14,13 +14,32 @@ export function mergeConversation(green = [], local = [], pending = []) {
   const ids = new Set(green.map(m => m.id).filter(Boolean))
   const texts = { in: new Set(), out: new Set() }
   for (const m of green) texts[m.direction === 'out' ? 'out' : 'in'].add(norm(m.message))
+  // a picture / file we sent is written "📷 text" or "📎 name\ncaption" here, while WhatsApp keeps only the caption: it is the
+  // same message when WhatsApp has one with media from us within 10 minutes with that caption (or none, for a bare file)
+  const greenMedia = green.filter(m => m.direction === 'out' && (m.media || (m.kind && m.kind !== 'textMessage' && m.kind !== 'extendedTextMessage')))
+  const seen = (m, dir) => {
+    if (texts[dir].has(norm(m.message))) return true
+    const p = mediaParts(m.message)
+    if (!p || dir !== 'out') return false
+    return greenMedia.some(g => Math.abs(ts(g) - ts(m)) < 10 * 60e3 && (p.text ? norm(g.message) === p.text : true))
+  }
   const logged = local
-    .filter(m => m && norm(m.message) && !(m.wa_message_id && ids.has(m.wa_message_id)) && !texts[m.direction === 'out' ? 'out' : 'in'].has(norm(m.message)))
+    .filter(m => m && norm(m.message) && !(m.wa_message_id && ids.has(m.wa_message_id)) && !seen(m, m.direction === 'out' ? 'out' : 'in'))
     .map(m => ({ id: `log-${m.id}`, direction: m.direction === 'out' ? 'out' : 'in', message: m.message, created_at: m.created_at, kind: 'textMessage', status: m.direction === 'out' ? 'sent' : 'read', logged: true }))
   for (const m of logged) texts[m.direction].add(norm(m.message))
   // a message being sent disappears once the history has it
-  const waiting = pending.filter(m => !texts.out.has(norm(m.message)))
+  const waiting = pending.filter(m => !seen(m, 'out'))
   return [...green, ...logged, ...waiting].sort((a, b) => ts(a) - ts(b))
+}
+
+/** "📷 text" → { text }, "📎 name\ncaption" → { name, text }; null for a plain text message */
+export function mediaParts(message) {
+  const s = String(message || '')
+  const m = s.match(/^(📷|📎|🎥)\s*/u)
+  if (!m) return null
+  const rest = s.slice(m[0].length)
+  if (m[1] === '📎') { const nl = rest.indexOf('\n'); return { name: norm(nl >= 0 ? rest.slice(0, nl) : rest), text: norm(nl >= 0 ? rest.slice(nl + 1) : '') } }
+  return { text: norm(rest) }
 }
 
 // the Lead Center's statuses → the CRM stages the templates recommend by
