@@ -102,7 +102,7 @@ if (ACTIONS.includes('connect') || ACTIONS.includes('connect-fix')) {
   const d = await r.json().catch(async () => ({ raw: (await r.text().catch(() => '')).slice(0, 400) }))
   console.log(`connect (HTTP ${r.status}):\n${JSON.stringify(d, null, 1).slice(0, 9000)}`)
 }
-if (ACTIONS.includes('wa') || ACTIONS.includes('wa-send')) {
+if (ACTIONS.includes('wa') || ACTIONS.includes('wa-send') || ACTIONS.includes('wa-fix')) {
   const call = async (label, path, init = {}) => {
     const t = Date.now()
     const r = await fetch(`${SITE}${path}`, { headers: H, ...init, signal: AbortSignal.timeout(30000) }).catch(e => ({ ok: false, status: 0, text: async () => e.message }))
@@ -113,6 +113,8 @@ if (ACTIONS.includes('wa') || ACTIONS.includes('wa-send')) {
     return d
   }
   await call('chat-status', '/api/meta/chat-status')
+  if (ACTIONS.includes('wa-fix')) await call('chat-settings FIX (turn the journals on)', '/api/meta/chat-settings', { method: 'POST', body: JSON.stringify({ fix: true }) })
+  { const t = Date.now(); const r = await fetch(`${SITE}/api/meta/chat-settings`, { headers: H, signal: AbortSignal.timeout(30000) }).catch(() => null); show(`wa chat-settings (HTTP ${r?.status}, ${Date.now() - t} ms)`, r ? await r.json().catch(() => null) : null) }
   await call('auto-status', '/api/meta/auto-status')
   const list = await call('chat-list', '/api/meta/chat-list?days=30')
   const one = Array.isArray(list) ? (list.find(c => !c.office && !c.self) || list[0]) : null

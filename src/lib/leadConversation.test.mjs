@@ -64,3 +64,17 @@ test('template dropdown: welcome first before anything was sent, sent ones marke
   assert.equal(g2.flatMap(g => g.items).find(x => x.id === 'welcome_prop').sent, true)
   assert.equal(g2.flatMap(g => g.items).filter(x => x.sent).length < 5, true)
 })
+
+test('a picture or a file we sent shows once, not as our "📷 …" bubble and WhatsApp\'s copy', async () => {
+  const { mergeConversation } = await import('./leadConversation.js')
+  const at = '2026-10-25T08:32:00.000Z', later = '2026-10-25T08:32:20.000Z'
+  const green = [{ id: 'G1', direction: 'out', message: 'היי מיכל, קיבלנו את הפרטים על זרובבל 15. נוח שנתקשר היום?', kind: 'imageMessage', media: { url: 'x' }, created_at: later },
+    { id: 'G2', direction: 'out', message: '📎 מסמך', kind: 'documentMessage', media: { url: 'y', name: 'plan.pdf' }, created_at: later }]
+  const pending = [{ id: 'opt-1', direction: 'out', message: '📷 היי מיכל, קיבלנו את הפרטים על זרובבל 15. נוח שנתקשר היום?', created_at: at, status: 'sent' },
+    { id: 'opt-2', direction: 'out', message: '📎 plan.pdf', created_at: at, status: 'sent' }]
+  const local = [{ id: 9, direction: 'out', message: '📷 היי מיכל, קיבלנו את הפרטים על זרובבל 15. נוח שנתקשר היום?', created_at: at }]
+  const out = mergeConversation(green, local, pending)
+  assert.deepEqual(out.map(m => m.id), ['G1', 'G2'])
+  // a picture WhatsApp doesn't have (yet) still shows
+  assert.equal(mergeConversation([], [], pending.slice(0, 1)).length, 1)
+})
