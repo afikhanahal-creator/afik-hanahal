@@ -271,8 +271,10 @@ the bell while desktop notifications are off. **The chat list** has filters "ה�
 `sessionStorage.afik_wa_filter`), unread rows tinted with a green count, and a chip on every chat whose last word is the lead's
 ("ממתין 25 דק׳" — green < 10 min ≤ amber < 60 min ≤ red; the waiting filter puts the longest wait first) — pure helpers
 `lastOfChat()` / `waitingState()` / `fmtWait()` / `alertText()` / `mergeAlert()` in `src/lib/waInbox.js` (tested).
-**Profile pictures** (2026-10-25): every face in the chats list and header, the Lead Center (list and lead header), the lead
-card's conversation and the message alert card shows the person's WhatsApp profile picture over the initials (`src/WaFace.jsx`:
+**Profile pictures** (2026-10-25): every face in the chats list and header, the Lead Center (list, lead header and its Pipeline /
+table / drawer — `MetaKanban`), the leads board (pipeline cards, table name column, mobile cards, drawer, call summary, trash list),
+the lead card's header and conversation, the automations' "היום" rows, the admin home's recent leads (no zoom there — the row is a
+button) and the message alert card shows the person's WhatsApp profile picture over the initials (`src/WaFace.jsx`:
 asked for only once on screen — IntersectionObserver; the initials stay when there is none or it fails to load). `src/lib/waAvatars.js`
 gathers the asks for 120 ms → `POST /api/meta/chat-avatars {phones}` (≤ 40, Green `getAvatar` 3 at a time within ~18 s; a number
 not answered in time is asked again a minute later) and keeps the answers in memory + `localStorage.afik_wa_avatars_v1` until the
@@ -280,6 +282,10 @@ link expires. The server caches them in `wa_avatars` (`server/wa-avatars-migrati
 WhatsApp's `oe` link parameter, checked_at; RLS on) — a picture until an hour before its link expires (≤ 3 days), "no picture" for
 a day (`lib/wa-avatar.js` `avatarExpiry` / `avatarFresh` / `avatarPhone`, tested). The images load straight from WhatsApp's CDN
 (`referrerPolicy="no-referrer"`), never through a function. The probe's `wa` action reports counts only.
+**A click on a face that has a picture opens it big** (`FaceViewer` in `src/WaFace.jsx`, a portal): the original file WhatsApp keeps
+(usually 640×640, its size shown), as big as the screen allows but never more than twice its own size, with the name, the phone,
+"פתיחת המקור" (a new tab) and ✕ / Esc / a click outside; the face is a `role="button"` (Enter / Space) and its click never reaches the
+row, card or drag under it.
 **Green API plan quota (466):** the free / Developer plan answers `466 "Monthly quota has been exceeded"` to every number
 outside its few allowed chats while `getStateInstance` still says `authorized` ("connected, but nothing goes out" — every welcome
 failed from 2026-10-11 until the plan is upgraded at console.green-api.com). `sendText` (`lib/automations.js`, also used by the

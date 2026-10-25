@@ -13,6 +13,7 @@ import { autoApi } from './AutomationsApi.jsx'
 import DateTimePicker from './DateTimePicker.jsx'
 import { FollowUpComposer, FollowUpList, FollowUpButton } from './FollowUpTask.jsx'
 import { followUpPresets, setNextFollowUp, dueIso, describeDue } from '../lib/follow-up.js'
+import WaFace from './WaFace.jsx'
 
 const TR = {
   he: {
@@ -271,7 +272,9 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
 
   const header = (
     <div style={{ padding: '16px 20px', borderBottom: `1px solid ${T.line}`, display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+      <WaFace phone={lead.phone} name={lead.name} size={48} lang={lang}>
       <span style={{ width: 48, height: 48, borderRadius: '50%', background: avatarBg(lead.name), color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 19, fontWeight: 800, flexShrink: 0, boxShadow: `0 4px 14px ${avatarBg(lead.name)}55` }}>{initials(lead.name)}</span>
+      </WaFace>
       <div style={{ flex: '1 1 220px', minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <h2 id="lc-title" style={{ margin: 0, fontSize: 19, fontWeight: 800, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>

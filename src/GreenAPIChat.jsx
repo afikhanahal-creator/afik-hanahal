@@ -137,7 +137,7 @@ function Avatar({ c, size = 40, lang }) {
   const bg = office ? '#8490D8' : named ? avatarBg(label) : '#8696A0'
   // the person's WhatsApp profile picture (src/WaFace.jsx) over the initials, like WhatsApp itself
   return (
-    <WaFace phone={c?.phone} size={size}>
+    <WaFace phone={c?.phone} name={label} size={size} lang={lang}>
     <div aria-hidden style={{ width:size, height:size, borderRadius:'50%', background:bg, display:'flex', alignItems:'center', justifyContent:'center', fontSize:Math.round(size * .4), fontWeight:700, color:'#fff', flexShrink:0, userSelect:'none', overflow:'hidden' }}>
       {office ? <svg width={size*.46} height={size*.46} viewBox="0 0 24 24" fill="currentColor"><path d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22Zm7-6V11a7 7 0 0 0-5.5-6.84V3.5a1.5 1.5 0 0 0-3 0v.66A7 7 0 0 0 5 11v5l-2 2v1h18v-1l-2-2Z"/></svg>
         : named ? [...label.trim()][0]?.toUpperCase()
