@@ -199,7 +199,7 @@ export function MonthCalendar({ value, onPick, min = '', max = '', lang = 'he', 
  * where `at` is ISO), min ("YYYY-MM-DD", default none), placeholder, clearable, size ('sm'), label (aria), commit ('apply' =
  * an "OK" button; 'pick' = a date-only picker closes on the first click), style.
  */
-export default function DateTimePicker({ value, onChange, format = 'local', lang = 'he', presets = null, min = '', max = '', placeholder, clearable = true, size, label, style, id, disabled }) {
+export default function DateTimePicker({ value, onChange, format = 'local', lang = 'he', presets = null, min = '', max = '', placeholder, clearable = true, size, label, style, id, disabled, text }) {
   useCss()
   const en = lang === 'en'
   const withTime = format !== 'date'
@@ -281,7 +281,7 @@ export default function DateTimePicker({ value, onChange, format = 'local', lang
         aria-haspopup="dialog" aria-expanded={open} aria-label={label ? `${label}${shown ? `: ${shown}` : ''}` : undefined}
         onClick={() => setOpen(o => !o)}>
         <CalIcon size={size === 'sm' ? 13 : 15}/>
-        {shown ? <span className="val">{shown}</span> : <span className="ph">{placeholder || (withTime ? (en ? 'Pick a date and time' : 'בחירת תאריך ושעה') : (en ? 'Pick a date' : 'בחירת תאריך'))}</span>}
+        {text ? <span className="val">{text}</span> : shown ? <span className="val">{shown}</span> : <span className="ph">{placeholder || (withTime ? (en ? 'Pick a date and time' : 'בחירת תאריך ושעה') : (en ? 'Pick a date' : 'בחירת תאריך'))}</span>}
         {clearable && value && !withTime && (
           <span role="button" tabIndex={-1} className="dtp-x" aria-label={en ? 'Clear' : 'נקה'} onClick={e => { e.stopPropagation(); onChange('') }}>✕</span>
         )}
