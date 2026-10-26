@@ -8,6 +8,7 @@ import { T } from './automationsUI.jsx'
 import { sourceLabel, sourceColor, originLines, leadCampaign, leadCampaignTag, leadCampaignFull, leadProject, toggleProjectInName, lastContact, lastContactText } from './lib/leadFields.js'
 import LeadChatTab from './LeadChatTab.jsx'
 import LeadConversation from './LeadConversation.jsx'
+import Splitter, { SPLITTER_CSS } from './Splitter.jsx'
 import { useAdminTheme } from './adminTheme.js'
 import { autoApi } from './AutomationsApi.jsx'
 import DateTimePicker from './DateTimePicker.jsx'
@@ -18,7 +19,7 @@ import WaFace from './WaFace.jsx'
 const TR = {
   he: {
     addProject: p => `+ הוספת הפרויקט: ${p}`, removeProject: 'הסרת שם הפרויקט', projectTip: 'השם מתעדכן גם במרכז הלידים ובצ׳אטים', convShow: 'הצג שיחה', convHide: 'הסתר שיחה', convTip: 'כל ההתכתבות בוואטסאפ עם הליד, לצד הפרטים',
-    lastContact: 'קשר אחרון',
+    lastContact: 'קשר אחרון', convResize: 'גרירה לשינוי רוחב השיחה (לחיצה כפולה מחזירה)',
     tabs: { details: 'פרטים ועריכה', notes: 'הערות ופעילות', chat: 'שיחת וואטסאפ', tasks: 'משימות', analysis: 'ניתוח חכם' },
     call: 'התקשר', wa: 'וואטסאפ', email: 'מייל', analyze: 'נתח ליד', reanalyze: 'נתח מחדש', analyzing: 'מנתח…', close: 'סגירה', saved: 'נשמר', saving: 'שומר…', saveFailed: 'השמירה נכשלה — בדקו חיבור ונסו שוב',
     sec: { contact: 'פרטי קשר', need: 'מה הלקוח מחפש', prop: 'הנכס שהתעניין בו', msg: 'ההודעה של הלקוח', manage: 'ניהול הליד', source: 'מקור הליד' },
@@ -54,7 +55,7 @@ const TR = {
   },
   en: {
     addProject: p => `+ Add the project: ${p}`, removeProject: 'Remove the project name', projectTip: 'The name updates in the Lead Center and the chats too', convShow: 'Show chat', convHide: 'Hide chat', convTip: 'The whole WhatsApp conversation with the lead, next to the details',
-    lastContact: 'Last contact',
+    lastContact: 'Last contact', convResize: 'Drag to resize the conversation (double-click resets)',
     tabs: { details: 'Details', notes: 'Notes & activity', chat: 'WhatsApp chat', tasks: 'Tasks', analysis: 'Smart analysis' },
     call: 'Call', wa: 'WhatsApp', email: 'Email', analyze: 'Analyze lead', reanalyze: 'Re-analyze', analyzing: 'Analyzing…', close: 'Close', saved: 'Saved', saving: 'Saving…', saveFailed: 'Not saved — check the connection and try again',
     sec: { contact: 'Contact details', need: 'What they are looking for', prop: 'Property of interest', msg: 'Their message', manage: 'Lead management', source: 'Lead source' },
@@ -90,14 +91,17 @@ const TR = {
   },
 }
 const GRADE_COLOR = { hot: '#EF4444', warm: '#F59E0B', cool: '#60A5FA', cold: '#94A3B8' }
+// the conversation column's width (dragged), kept in this browser
+const CONV_W_KEY = 'afik_lead_card_conv_w', CONV_W = [360, 1100]
+
 const CSS = `
   .lc *{box-sizing:border-box}
   .lc button{min-height:0;min-width:0}
   .lc-body{display:grid;grid-template-columns:minmax(0,1fr) 320px;flex:1;min-height:0}
-  .lc-body.conv{grid-template-columns:minmax(0,1fr) 290px minmax(400px,40%)}
+  .lc-body.conv{grid-template-columns:minmax(0,1fr) 290px var(--lc-conv,minmax(400px,40%))}
   .lcd-proj{margin-top:6px;border:1px dashed rgba(var(--brand-rgb),.45);background:rgba(var(--brand-rgb),.06);color:var(--au-brand-text);border-radius:999px;padding:3px 11px;font:inherit;font-size:12px;font-weight:700;cursor:pointer}
   .lcd-proj:hover{background:rgba(var(--brand-rgb),.12)}
-  .lc-conv{min-height:0;min-width:0;display:flex;flex-direction:column;overflow:hidden;border-inline-start:1px solid var(--au-line)}
+  .lc-conv{position:relative;min-height:0;min-width:0;display:flex;flex-direction:column;overflow:hidden;border-inline-start:1px solid var(--au-line)}
   .lc-conv-tab{height:min(640px,72vh);border-radius:14px;overflow:hidden;border:1px solid var(--au-line);margin-top:14px}
   .lc-grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
   .lc-grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
@@ -217,6 +221,8 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
   const t = TR[lang] || TR.he
   const dir = lang === 'en' ? 'ltr' : 'rtl'
   const [tab, setTab] = useState(initialTab)
+  const bodyRef = useRef(null)
+  const [convW] = useState(() => { try { const v = Number(localStorage.getItem(CONV_W_KEY)); return v >= CONV_W[0] && v <= CONV_W[1] ? v : 0 } catch { return 0 } })
   const [chatLast, setChatLast] = useState(null)       // the open conversation's newest message { at, dir }
   useEffect(() => { setChatLast(null) }, [lead.id])
   const { isDark } = useAdminTheme()
@@ -320,7 +326,7 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
   )
 
   // "קשר אחרון": the newest touch — the open conversation's last message, calls, meetings, WhatsApp notes, automatic sends
-  const lastTouch = useMemo(() => lastContactText(lastContact(lead, chatLast), lang), [lead, chatLast, lang])
+  const lastTouch = useMemo(() => lastContactText(lastContact(lead, chatLast), lang, Date.now(), lead.ts || lead.created_at), [lead, chatLast, lang])
   const tabs = [['details', FaUser, t.tabs.details], ['notes', FaStickyNote, t.tabs.notes, notes.length || null], ['chat', FaWhatsapp, t.tabs.chat, lead.chatSummary?.lastWord === 'lead' ? '!' : null], ['tasks', FaTasks, t.tabs.tasks, openTasks || null], ['analysis', FaChartPie, t.tabs.analysis]]
   const tabBar = (
     <div role="tablist" style={{ display: 'flex', gap: 2, padding: '0 14px', borderBottom: `1px solid ${T.line}`, overflowX: 'auto', flexShrink: 0 }}>
@@ -330,8 +336,10 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
         </button>
       ))}
       {lastTouch && (
-        <span className={`lc-last lc-last--${lastTouch.level}`} title={`${t.lastContact}: ${lastTouch.full}`} role="status">
-          <FaClock size={11}/><span className="k">{t.lastContact}:</span><b>{lastTouch.when}</b><span className="h">· {lastTouch.how}</span>
+        <span className={`lc-last lc-last--${lastTouch.level}`} title={lastTouch.full ? `${t.lastContact}: ${lastTouch.full}` : undefined} role="status">
+          <FaClock size={11}/><span className="k">{t.lastContact}:</span>
+          {lastTouch.none ? <b>{lastTouch.when}</b> : <><b>{lastTouch.date}</b><span className="h">({lastTouch.ago})</span></>}
+          {lastTouch.how && <span className="h">· {lastTouch.how}</span>}
         </span>
       )}
     </div>
@@ -820,18 +828,28 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
   return createPortal(
     <div className="lc lcd" dir={dir} onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}
       style={{ position: 'fixed', inset: 0, zIndex: 2400, background: 'var(--au-overlay)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'min(3vh,24px) 12px' }}>
-      <style>{CSS}</style>
+      <style>{CSS + SPLITTER_CSS}</style>
       <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="lc-title" className="lc-dialog"
         style={{ width: showConv ? 'min(1640px,100%)' : 'min(1180px,100%)', height: showConv ? 'min(960px,100%)' : 'min(880px,100%)', background: T.s2, border: `1px solid ${T.s2Line}`, borderRadius: 18, boxShadow: T.shadow2, color: T.text, display: 'flex', flexDirection: 'column', overflow: 'hidden', outline: 'none', animation: 'lc-in .22s cubic-bezier(.2,.8,.2,1) both' }}>
         <div style={{ height: 4, background: `linear-gradient(90deg, ${stage.color}, ${stage.color}88)`, flexShrink: 0 }}/>
         {header}
         {tabBar}
-        <div className={`lc-body${showConv ? ' conv' : ''}`}>
+        <div ref={bodyRef} className={`lc-body${showConv ? ' conv' : ''}`} style={convW && showConv ? { '--lc-conv': `${convW}px` } : undefined}>
           <div className="lc-main" style={{ overflowY: 'auto', padding: 16, background: T.bg }}>
             {tab === 'details' ? details : tab === 'notes' ? notesTab : tab === 'chat' ? <><LeadChatTab lead={lead} lang={lang} stages={stages} save={save} onUpdateStatus={onUpdateStatus} onOpenChat={onOpenChat} onClose={onClose} hideConversation={!!lead.phone}/>{!showConv && lead.phone && <div className="lc-conv-tab">{conversation}</div>}</> : tab === 'tasks' ? tasksTab : analysis}
           </div>
           {side}
-          {showConv && <section className="lc-conv" aria-label={t.tabs.chat}>{conversation}</section>}
+          {showConv && <section className="lc-conv" aria-label={t.tabs.chat}>
+            {/* drag the conversation's edge: a wider or narrower chat (kept per browser; double-click resets) */}
+            <Splitter axis="x" grows={dir === 'rtl' ? 1 : -1} min={CONV_W[0]} label={t.convResize}
+              style={{ position: 'absolute', top: 0, bottom: 0, insetInlineStart: 0, width: 8, margin: 0, zIndex: 8 }}
+              max={() => Math.min(CONV_W[1], (bodyRef.current?.getBoundingClientRect().width || 1400) - 290 - 420)}
+              get={() => bodyRef.current?.querySelector('.lc-conv')?.getBoundingClientRect().width || 560}
+              apply={v => bodyRef.current?.style.setProperty('--lc-conv', `${v}px`)}
+              commit={v => { try { localStorage.setItem(CONV_W_KEY, String(v)) } catch {} }}
+              reset={() => { bodyRef.current?.style.removeProperty('--lc-conv'); try { localStorage.removeItem(CONV_W_KEY) } catch {} }}/>
+            {conversation}
+          </section>}
         </div>
       </div>
     </div>,

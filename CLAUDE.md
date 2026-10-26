@@ -420,8 +420,10 @@ always looks through the whole library.
 **"קשר אחרון" on the lead card** (2026-10-26): at the end of the card's tab row, a pill with the last time we were in touch —
 `lastContact(lead, chat)` / `lastContactText()` (`src/lib/leadFields.js`, tested): the open conversation's newest message
 (`LeadConversation` `onActivity` now also reports `lastAt` / `lastDir`), call / meeting / WhatsApp notes and their outcome
-("ניסינו להתקשר"), `lastCallAt`, automatic sends and the lead's reply — "קשר אחרון: היום 11:52 · שלחנו בוואטסאפ"; green under 3
-days, amber under 7, red after; the full date in the tooltip. A plain note doesn't count as contact.
+("ניסינו להתקשר"), `lastCallAt`, automatic sends and the lead's reply — "קשר אחרון: 26 באוק׳, 11:52 (היום) · שלחנו בוואטסאפ" (always
+the date, then how long ago); with no contact at all "קשר אחרון: עוד לא נוצר קשר · הליד נכנס לפני 4 ימים"; green under 3 days, amber
+under 7, red after; the full date in the tooltip. A plain note doesn't count as contact. **The card's conversation column drags**
+(its inner edge, `Splitter` → `--lc-conv`, 360–1100 px, `localStorage.afik_lead_card_conv_w`; double-click resets to 40 %).
 **Sending in the chat** (messaging UI v2, 2026-10-23 — line icons from `src/uiIcons.jsx` (`Icon`, `CatTile` per template
 category), never emoji in the UI chrome): **the message box** is `src/ChatComposer.jsx` (GreenAPIChat keeps the state) — one card
 with the "מתבנית · <title>" line (changed → "שמירה בתבנית", ✕ clears the box), the attachment or the template's picture, the

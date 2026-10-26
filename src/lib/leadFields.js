@@ -176,10 +176,18 @@ export function lastContact(lead, chat = null, now = Date.now()) {
   return best || null
 }
 
-/** "היום 11:52 · שלחנו בוואטסאפ" / "לפני 3 ימים · שיחה" — and how fresh it is: 'ok' (< 3 days), 'warn' (< 7), 'old' */
-export function lastContactText(lc, lang = 'he', now = Date.now()) {
-  if (!lc) return null
+/**
+ * → { date: "26 באוק׳, 11:52", when: "היום 11:52" / "לפני 3 ימים", how: "שלחנו בוואטסאפ", level: 'ok' (< 3 days) | 'warn' (< 7) |
+ *   'old', full } — or, with no contact at all, { none: true, when: "עוד לא נוצר קשר", how: "הליד נכנס לפני 4 ימים", level }
+ */
+export function lastContactText(lc, lang = 'he', now = Date.now(), createdAt = null) {
   const he = lang !== 'en'
+  if (!lc) {
+    const c = (typeof createdAt === 'number' ? createdAt : Date.parse(createdAt)) || 0
+    const d = c ? Math.floor((now - c) / 864e5) : null
+    const how = d == null ? '' : d < 1 ? (he ? 'הליד נכנס היום' : 'the lead came in today') : he ? `הליד נכנס לפני ${d} ${d === 1 ? 'יום' : 'ימים'}` : `the lead came in ${d} day${d === 1 ? '' : 's'} ago`
+    return { none: true, date: '', when: he ? 'עוד לא נוצר קשר' : 'no contact yet', how, level: d != null && d < 1 ? 'warn' : 'old', full: '' }
+  }
   const d = new Date(lc.at), tz = 'Asia/Jerusalem'
   const day = x => new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(x)
   const hm = new Intl.DateTimeFormat('he-IL', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false }).format(d)
@@ -195,5 +203,7 @@ export function lastContactText(lc, lang = 'he', now = Date.now()) {
     call: lc.outcome === 'no_answer' ? (he ? 'ניסינו להתקשר' : 'we tried calling') : (he ? 'שיחה' : 'a call'),
     meeting: he ? 'פגישה' : 'a meeting', auto: he ? 'הודעה אוטומטית' : 'an automatic message',
   }[lc.kind] || ''
-  return { when, how, level: days < 3 ? 'ok' : days < 7 ? 'warn' : 'old', full: new Intl.DateTimeFormat(he ? 'he-IL' : 'en-GB', { timeZone: tz, dateStyle: 'full', timeStyle: 'short' }).format(d) }
+  const date = new Intl.DateTimeFormat(he ? 'he-IL' : 'en-GB', { timeZone: tz, day: 'numeric', month: 'short' }).format(d) + `, ${hm}`
+  const ago = mins < 60 ? when : days === 0 ? (he ? 'היום' : 'today') : days === 1 ? (he ? 'אתמול' : 'yesterday') : he ? `לפני ${days} ימים` : `${days} days ago`
+  return { date, ago, when, how, level: days < 3 ? 'ok' : days < 7 ? 'warn' : 'old', full: new Intl.DateTimeFormat(he ? 'he-IL' : 'en-GB', { timeZone: tz, dateStyle: 'full', timeStyle: 'short' }).format(d) }
 }
