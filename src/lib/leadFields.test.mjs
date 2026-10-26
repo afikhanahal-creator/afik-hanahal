@@ -102,4 +102,7 @@ test('last contact: the newest touch from the chat, calls, notes and automatic s
   assert.equal(t.how, 'ניסינו להתקשר'); assert.equal(t.level, 'warn'); assert.match(t.when, /לפני 5 ימים/)
   assert.match(lastContactText({ at: now - 20 * 60e3, kind: 'out' }, 'he', now).when, /לפני 20 דק׳/)
   assert.equal(lastContactText({ at: now - 9 * 864e5, kind: 'meeting' }, 'he', now).level, 'old')
+  assert.match(t.date, /21 באוק׳, \d\d:\d\d/); assert.equal(t.ago, 'לפני 5 ימים')   // the date itself, always
+  const none = lastContactText(null, 'he', now, now - 4 * 864e5)
+  assert.equal(none.none, true); assert.equal(none.when, 'עוד לא נוצר קשר'); assert.equal(none.how, 'הליד נכנס לפני 4 ימים'); assert.equal(none.level, 'old')
 })
