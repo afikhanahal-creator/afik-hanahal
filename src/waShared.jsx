@@ -112,12 +112,18 @@ export function TickMark({ status, WA, size = 14 }) {
   if (status === 'failed' || status === 'noAccount') {
     return <span style={{ fontSize: size - 1, color: '#E05252', fontWeight: 800, lineHeight: 1, flexShrink: 0 }}>!</span>
   }
-  const read = status === 'read'
+  // WhatsApp's own ticks (the shapes WhatsApp Web draws): one = sent, two = delivered, two blue (#53BDEB) = read
+  const read = status === 'read' || status === 'played'
   const single = status === 'sent'
-  return (
-    <span style={{ fontSize: size, lineHeight: 1, color: read ? WA.tick : WA.tickGray, flexShrink: 0, letterSpacing: '-1px' }}>
-      {single ? '✓' : '✓✓'}
-    </span>
+  const h = Math.round(size * 0.78)
+  return single ? (
+    <svg width={Math.round(h * 12 / 11)} height={h} viewBox="0 0 12 11" fill="none" aria-hidden="true" style={{ flexShrink: 0, display: 'block', color: WA.tickGray }}>
+      <path d="M11.155.653a.457.457 0 0 0-.304-.102.493.493 0 0 0-.381.178l-6.19 7.636-2.405-2.272a.463.463 0 0 0-.336-.146.47.47 0 0 0-.343.146l-.311.31a.445.445 0 0 0-.14.337c0 .136.047.25.14.343l2.996 2.996a.724.724 0 0 0 .501.203.697.697 0 0 0 .546-.266l6.646-8.417a.497.497 0 0 0 .108-.299.441.441 0 0 0-.19-.374L11.155.653Z" fill="currentColor"/>
+    </svg>
+  ) : (
+    <svg width={Math.round(h * 16 / 11)} height={h} viewBox="0 0 16 11" fill="none" aria-hidden="true" style={{ flexShrink: 0, display: 'block', color: read ? WA.tick : WA.tickGray }}>
+      <path d="M11.071.653a.457.457 0 0 0-.304-.102.493.493 0 0 0-.381.178l-6.19 7.636-2.405-2.272a.463.463 0 0 0-.336-.146.47.47 0 0 0-.343.146l-.311.31a.445.445 0 0 0-.14.337c0 .136.047.25.14.343l2.996 2.996a.724.724 0 0 0 .501.203.697.697 0 0 0 .546-.266l6.646-8.417a.497.497 0 0 0 .108-.299.441.441 0 0 0-.19-.374L11.07.653Zm-2.45 7.674a15.31 15.31 0 0 1-.546-.355.43.43 0 0 0-.317-.12.46.46 0 0 0-.362.158l-.292.33a.453.453 0 0 0-.127.325c0 .13.047.245.14.342l1.08 1.073a.72.72 0 0 0 .495.203.697.697 0 0 0 .552-.267l6.62-8.391a.468.468 0 0 0 .109-.298.436.436 0 0 0-.178-.375l-.355-.273a.454.454 0 0 0-.298-.101.493.493 0 0 0-.375.178L8.62 8.327Z" fill="currentColor"/>
+    </svg>
   )
 }
 

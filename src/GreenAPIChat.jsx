@@ -22,6 +22,7 @@ import { setViewing, desktopPermission } from './lib/waNotify.js'
 import { lastOfChat, waitingState, fmtWait } from './lib/waInbox.js'
 import WaNotifySettings from './WaNotifySettings.jsx'
 import WaFace from './WaFace.jsx'
+import Splitter, { SPLITTER_CSS } from './Splitter.jsx'
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 const API_BASE      = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
@@ -212,6 +213,11 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
   const [pendingDelete, setPendingDelete] = useState(null)  // { lead, timer }
 
   const chatsRef          = useRef(chats)
+  // the chat list's width: drag the edge between the list and the conversation (or arrows / Home / End; double-click resets)
+  const LIST_W = [260, 640], LIST_DEFAULT = 340
+  const listPaneRef = useRef(null)
+  const [listW, setListW] = useState(() => { try { const v = Number(localStorage.getItem('afik_wa_list_w')); return v >= LIST_W[0] && v <= LIST_W[1] ? v : LIST_DEFAULT } catch { return LIST_DEFAULT } })
+  const saveListW = v => { setListW(v); try { localStorage.setItem('afik_wa_list_w', String(v)) } catch {} }
   useEffect(() => {
     chatsRef.current = chats
     const id = setTimeout(() => persistHistory(chats), 800)   // debounced: polls update often
@@ -834,9 +840,10 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
       {/* ── CSS keyframes ─────────────────────────────────────────────────── */}
       <style>{`
         @keyframes wa-spin { to { transform: rotate(360deg); } }
+        ${SPLITTER_CSS}
         /* Phone: one pane at a time, like the WhatsApp app — the chat list, then the open chat with a back arrow */
         @media (max-width: 760px) {
-          .wa-root .wa-rail, .wa-root .wa-acct, .wa-root .wa-nav { display: none !important; }
+          .wa-root .wa-rail, .wa-root .wa-acct, .wa-root .wa-nav, .wa-root .wa-spl { display: none !important; }
           .wa-root .wa-listpane { width: 100% !important; flex: 1 1 auto !important; border-left: none !important; }
           .wa-root.wa-has-contact .wa-listpane { display: none !important; }
           .wa-root:not(.wa-has-contact) .wa-chatpane { display: none !important; }
@@ -1001,6 +1008,11 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
         {/* ═══════════════ CHAT WINDOW (left, fills remaining space) ════════ */}
         {/* overflow:hidden isolates internal scroll from page scroll. order:3
             places it on the LEFT (names list sits on the right, RTL-correct).  */}
+        <Splitter axis="x" className="wa-spl" style={{ order: 3 }} min={LIST_W[0]} grows={-1} label="גרירה לשינוי רוחב רשימת השיחות"
+          max={() => Math.min(LIST_W[1], (listPaneRef.current?.parentElement?.getBoundingClientRect().width || 1200) - 420)}
+          get={() => listPaneRef.current?.getBoundingClientRect().width || listW}
+          apply={v => { if (listPaneRef.current) listPaneRef.current.style.width = `${v}px` }}
+          commit={saveListW} reset={() => { if (listPaneRef.current) listPaneRef.current.style.width = `${LIST_DEFAULT}px`; saveListW(LIST_DEFAULT) }}/>
         <div className="wa-chatpane" {...(contact ? drop.bind : {})} style={{ order:3, flex:'1 1 0', minWidth:0, display:'flex', flexDirection:'column', overflow:'hidden', background: WA.chatBg, backgroundImage: DOODLE, backgroundRepeat:'repeat', transition:'background .25s', position:'relative' }}>
           <DropOverlay show={drop.dragging} lang={lang} WA={WA}/>
           {contact ? (
@@ -1314,7 +1326,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
 
         {/* ═══════════════ CHAT LIST — names, on the RIGHT (340px) ═════════ */}
         {/* order:2 → sits just left of the icon rail, i.e. on the right side. */}
-        <div className="wa-listpane" style={{ order:2, width:340, flexShrink:0, display:'flex', flexDirection:'column', overflow:'hidden', background: WA.panelBg, borderLeft:`1px solid ${WA.border}`, transition:'background .25s' }}>
+        <div className="wa-listpane" ref={listPaneRef} style={{ order:2, width:listW, flexShrink:0, display:'flex', flexDirection:'column', overflow:'hidden', background: WA.panelBg, borderLeft:`1px solid ${WA.border}`, transition:'background .25s' }}>
 
           {/* Panel header */}
           <div style={{ height:62, background: WA.inputBg, borderBottom:`1px solid ${WA.border}`, display:'flex', alignItems:'center', padding:'0 10px 0 10px', gap:8, flexShrink:0, direction:'rtl', transition:'background .25s' }}>
