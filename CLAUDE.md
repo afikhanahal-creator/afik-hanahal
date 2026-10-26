@@ -347,12 +347,14 @@ approval queue grouped by kind (missed welcome first, "send all N" per group, st
 (lead + campaign + local phone + reason · the full message · send / skip / chat), then the schedule. **Renaming from "היום":** a click on a row's name opens an inline editor (Enter / Esc, "+ הוספת הפרויקט: <short campaign>") → the admin's `updateLead(id, { name })` (`onRenameLead`) = the same rename as the board (CRM, `meta_leads`, the chats, the open Lead Center); every row of that lead shows the new name at once and a message not edited by hand is re-rendered with it. **Wording per message:** a
 template dropdown above every message (the item's category first, the whole library below — rendered for that lead in the
 browser with `renderTemplate`), "נוסח אחר" (next template of the same category), "ערוך הודעה" (free edit), "שחזר נוסח"; the
-group header has "נוסח לכל הקבוצה…". The send carries the chosen `templateId`. The built-in library has 71 bilingual templates
+group header has "נוסח לכל הקבוצה…". The send carries the chosen `templateId`. The built-in library has 75 bilingual templates
 (welcome / late-welcome / investor / scheduling variants, follow-ups, visits, after-call, nurture, re-engagement, chat-ready
 replies, deal steps; **"מתעניין – אחרי שיחה וחומרים"** (`cat: 'interested'`, 10 `int_*` templates, 2026-10-26): a lead who got the
 materials after a good call — did you go over them, is there a direction or not ("גם "לא" זו תשובה טובה"), a call with the
 developer, a meeting at our office, which of the two, what is still open, a few days later, who else decides, things are moving,
-pick a time; the stage "מתעניין" (`discovery`) recommends them first and its stage message defaults to `int_checkin`), **written by people, from the Afik Hanahal page**: always plural — the office is "we" ("ראינו",
+pick a time; the stage "מתעניין" (`discovery`) recommends them first and its stage message defaults to `int_checkin`; **"נוצר קשר"**
+(`cat: 'contacted'`: `after_call`, `send_details` + 4 `ct_*` — the materials as discussed, narrowing down what they need, picking
+up the conversation, thanks for the call)), **written by people, from the Afik Hanahal page**: always plural — the office is "we" ("ראינו",
 "נשמח", "נתקשר") and the lead is addressed in plural ("השארתם", "לכם", "אתכם"), which also keeps the Hebrew gender-neutral; the
 message opens with **why we write and what the lead asked about** — the project / listing (`{property}`; `{when}` / `{where}` and what they look for, `{needs}`, live in the longer templates — the welcome stays one short line) — not with the office: "היי רונן, ראינו את הפנייה על זרובבל 15.\nלשלוח תוכניות ומחירים, או שנדבר בטלפון?" (a lead whose project / listing we know — a Meta lead's campaign counts — gets the rule's project welcome, `welcome_prop`, through `welcomeTemplateId()` in `lib/automations-shared.js`: the automatic send, the Lead Center's first text and the missed-welcome queue; it never names the office — the project says who we are). "אפיק הנחל" appears in at most 4 templates (a first message without a project, a late one, the months-later re-engagement, the review request), once, never as the opening words (test "every message is about the lead"); `{property}` / `{needs}` sit inside `[[ … ]]` wherever the sentence reads fine without them, so a lead with no project gets no generic "הנכס"; the lead analysis' suggested message (`lib/lead-analyze.js`) follows the same rules; later ones carry no signature (`{agent}`, default
 "צוות אפיק הנחל", only signs the closing / holiday messages, inside `[[ … ]]` so an empty value drops the line); "היי" (or `{greeting}`: `timeGreeting()` = בוקר טוב / צהריים טובים / ערב טוב by the Israel hour, rendered at send
@@ -368,7 +370,7 @@ over 110 characters (a first message: 100), or more than 2 lines, come back — 
 (the welcome is one short line + one question: "היי אדי, ראינו את הפנייה על זרובבל 15.\nלשלוח תוכניות ומחירים, או שנדבר בטלפון?"; what the lead looks for
 waits for the personal templates). **English messages** (rewritten 2026-10-24 in natural, professional English — "thanks for leaving your details", "Would you
 like us to send…", "Tabu registration", "the Sharon region") **never carry a Hebrew word**: `lib/english-values.js` (tested — a test
-renders all 71 templates in English for a Hebrew lead and fails on any Hebrew letter) writes the project in English
+renders all 75 templates in English for a Hebrew lead and fails on any Hebrew letter) writes the project in English
 (`englishProject`: "זרובבל 15 - v2" → "15 Zerubavel Street", from a street / town list — add a new project's street there), the
 form answers (`englishValue`: "5 מיליון ומעלה" → "₪5 million+", "3 חדרים" → "3 rooms", "פנטהאוז" → "a penthouse", towns), and
 the name (the one typed in the form, else the Hebrew first name in English — `latinFirstName()` — else "Hi there"); a value it
@@ -398,6 +400,20 @@ templates tab's editor and the chat's quick editor), compressed in the browser t
 always through wsrv.nl `imageThumb()`); `withTemplate()` keeps it. The phone preview, the library cards ("עם תמונה"), the "היום"
 rows, the ⚡ panel, the header menu and the Lead Center's quick replies show it; a template put in the box brings its picture
 as a chip ("תמונה מהתבנית", ✕ = send without it).
+**Categories in the pipeline's order, opened on the lead's stage** (2026-10-26): `CATEGORIES` (`lib/automations-shared.js`) runs
+פתיחה · נוצר קשר · מתעניין · רוצה להתקדם · לא ענה · אישי · עסקה · לא מעוניין · כללי (`short` / `en_short` = the button labels), and
+`stageCategory(lead, { hasOut, hasIn })` (tested) says which one fits now: nothing sent → פתיחה; a new lead who got our message and
+never answered → לא ענה; new + replied → נוצר קשר; contacted → נוצר קשר; discovery → מתעניין; meeting / negotiating → רוצה להתקדם;
+won → עסקה; lost ("ללא מענה") → לא ענה; irrelevant / nurture → לא מעוניין. Every templates window has a button per category (with
+counts, wrapped — never a hidden scroll; the stage's button is marked "השלב") and **opens on the stage's category**: the Lead
+Center / lead card quick window (`.lcv-qcats`, then "הכל"), the chats tab's window (`ChatTemplatePicker`, chips / side column,
+then "מומלץ" and "הכל"); the header menu puts the stage's category right after "מומלץ", then the pipeline's order. The search
+always looks through the whole library.
+**"קשר אחרון" on the lead card** (2026-10-26): at the end of the card's tab row, a pill with the last time we were in touch —
+`lastContact(lead, chat)` / `lastContactText()` (`src/lib/leadFields.js`, tested): the open conversation's newest message
+(`LeadConversation` `onActivity` now also reports `lastAt` / `lastDir`), call / meeting / WhatsApp notes and their outcome
+("ניסינו להתקשר"), `lastCallAt`, automatic sends and the lead's reply — "קשר אחרון: היום 11:52 · שלחנו בוואטסאפ"; green under 3
+days, amber under 7, red after; the full date in the tooltip. A plain note doesn't count as contact.
 **Sending in the chat** (messaging UI v2, 2026-10-23 — line icons from `src/uiIcons.jsx` (`Icon`, `CatTile` per template
 category), never emoji in the UI chrome): **the message box** is `src/ChatComposer.jsx` (GreenAPIChat keeps the state) — one card
 with the "מתבנית · <title>" line (changed → "שמירה בתבנית", ✕ clears the box), the attachment or the template's picture, the
@@ -419,7 +435,7 @@ when every placeholder in it is known, so one template works with or without the
 its ה ("בנכס", never "בהנכס"). Six templates (`personal_needs` / `_budget` / `_message` / `_investor` / `_timeline` / `_followup`);
 in "היום" every row shows "מה ידוע:" and a "✍️ התאמה אישית" button (`bestPersonalTemplateId()`), and the group menu has
 "הכי אישי לכל ליד".
-**WhatsApp page → ⚡ "תבניות מוכנות"** (`src/ChatTemplatePicker.jsx`): the whole library (71 templates, incl. chat-ready ones —
+**WhatsApp page → ⚡ "תבניות מוכנות"** (`src/ChatTemplatePicker.jsx`): the whole library (75 templates, incl. chat-ready ones —
 details, viewing offer / directions / feedback, financing, similar / new listings, price update, busy-now, office hours, owner
 valuation, signing steps, contract documents, keys, review / referral requests) rendered for the open chat's lead (the lead row
 from `leads`, so names, the campaign's short name and `leadNeeds` all apply), "מומלץ עכשיו" (the most personal template + the

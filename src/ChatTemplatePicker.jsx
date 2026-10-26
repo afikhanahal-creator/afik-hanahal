@@ -9,7 +9,7 @@
 // A template's picture (`image`) is sent with the text as its caption: onSend(text, { image }) / onInsert(text, tpl, lang).
 // Templates already sent in this chat are marked. Icons are line icons (src/uiIcons.jsx), never emoji.
 import { useState, useMemo, useEffect, useLayoutEffect, useRef } from 'react'
-import { templateList, renderTemplate, templateImage, CATEGORIES, leadLang } from '../lib/automations-shared.js'
+import { templateList, renderTemplate, templateImage, CATEGORIES, leadLang, stageCategory } from '../lib/automations-shared.js'
 import { bestPersonalTemplateId } from '../lib/lead-needs.js'
 import { untemplate } from '../lib/template-edit.js'
 import { imageThumb } from './lib/templateImage.js'
@@ -31,8 +31,6 @@ const TR = {
     he: 'עב', en: 'EN', langLabel: 'Message language',
   },
 }
-// the lead's stage → the category that fits it now
-const STAGE_CAT = { new: 'welcome', contacted: 'followup', discovery: 'interested', meeting: 'progress', negotiating: 'progress', won: 'deal', lost: 'closing', irrelevant: 'closing', nurture: 'closing' }
 const norm = s => String(s || '').replace(/\s+/g, ' ').trim()
 // a line that identifies a sent template: the longest line that isn't the greeting or the signature
 const signature = text => norm(text.split('\n').filter(l => !/^(שלום|hello|hi)\b/i.test(l.trim())).sort((a, b) => b.length - a.length)[0] || '').slice(0, 36)
@@ -46,15 +44,15 @@ function useTemplateData({ lead, msgs, autoConfig, tplLang }) {
   const all = useMemo(() => templateList(cfg).map(x => ({ ...x, image: templateImage(x), text: renderTemplate(x, lead, cfg, tplLang) })), [cfg, lead, tplLang])
   const outText = useMemo(() => msgs.filter(m => m.direction === 'out').map(m => norm(m.message)).join('\n'), [msgs])
   const sentIds = useMemo(() => new Set(all.filter(x => { const sig = signature(x.text); return sig.length > 12 && outText.includes(sig) }).map(x => x.id)), [all, outText])
+  // the lead's stage → the category that fits it now (lib/automations-shared.js stageCategory)
+  const stageCat = useMemo(() => stageCategory(lead || {}, { hasOut: msgs.some(m => m.direction === 'out'), hasIn: msgs.some(m => m.direction === 'in') }), [lead, msgs])
   const recommended = useMemo(() => {
     const ids = []
     const best = bestPersonalTemplateId(lead, tplLang); if (best) ids.push(best)
-    const hasOut = msgs.some(m => m.direction === 'out')
-    const stageCat = !hasOut ? 'welcome' : STAGE_CAT[lead?.leadStatus || lead?.status] || 'followup'
     all.filter(x => x.cat === stageCat && !sentIds.has(x.id)).slice(0, 3).forEach(x => ids.push(x.id))
     return [...new Set(ids)].map(id => all.find(x => x.id === id)).filter(Boolean).slice(0, 4)
-  }, [all, lead, msgs, sentIds, tplLang])
-  return { all, sentIds, recommended }
+  }, [all, lead, sentIds, tplLang, stageCat])
+  return { all, sentIds, recommended, stageCat }
 }
 
 // ── shared look: CSS variables from the WhatsApp palette, classes for hover / focus / selected states ──
@@ -81,10 +79,11 @@ const CSS = `
 .ctp-seg{display:inline-flex;padding:2px;border-radius:9px;background:var(--ctp-soft);border:1px solid var(--ctp-line);flex:none}
 .ctp-seg button{height:28px;min-width:38px;padding:0 9px;border:none;border-radius:7px;background:transparent;color:var(--ctp-sub);font:inherit;font-size:12px;font-weight:600;cursor:pointer;min-height:0}
 .ctp-seg button[aria-pressed=true]{background:var(--ctp-panel);color:var(--ctp-text);box-shadow:0 1px 2px rgba(0,0,0,.12)}
-.ctp-chips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:0 14px 10px}
+.ctp-chips{display:flex;flex-wrap:wrap;gap:6px;padding:0 14px 10px}
 .ctp-chips::-webkit-scrollbar{display:none}
 .ctp-chips button{flex:none;height:30px;padding:0 12px;border-radius:999px;border:1px solid var(--ctp-line);background:transparent;color:var(--ctp-sub);font:inherit;font-size:12.5px;font-weight:500;cursor:pointer;min-height:0;display:inline-flex;align-items:center;gap:6px}
 .ctp-chips button[aria-pressed=true]{border-color:var(--ctp-green);background:rgba(0,168,132,.10);color:var(--ctp-text);font-weight:600}
+.ctp-stage{flex:none;font-size:10.5px;font-weight:600;padding:0 6px;line-height:16px;border-radius:999px;background:rgba(0,168,132,.14);color:var(--ctp-green)}
 .ctp-nav{display:flex;flex-direction:column;gap:2px;padding:10px 8px;overflow-y:auto;border-inline-end:1px solid var(--ctp-line)}
 .ctp-nav button{display:flex;align-items:center;gap:9px;height:36px;padding:0 9px;border:none;border-radius:9px;background:transparent;color:var(--ctp-text);font:inherit;font-size:13px;cursor:pointer;text-align:start;min-height:0}
 .ctp-nav button:hover{background:var(--ctp-hover)}
@@ -165,7 +164,7 @@ export default function ChatTemplatePicker({ WA, lead, msgs = [], autoConfig, la
   const width = useWidth(rootRef)
   const wide = width >= 860, split = width >= 600
   const [tplLang, setTplLang] = useState(() => leadLang(lead))
-  const [view, setView] = useState('all')
+  const [viewPick, setView] = useState('')            // '' = the category of the lead's stage
   const [q, setQ] = useState('')
   const [selKey, setSelKey] = useState('')
   const [showPv, setShowPv] = useState(false)         // narrow screens: the preview instead of the list
@@ -174,8 +173,9 @@ export default function ChatTemplatePicker({ WA, lead, msgs = [], autoConfig, la
   const [busy, setBusy] = useState(null)
   const [justSent, setJustSent] = useState({})
 
-  const { all, sentIds, recommended } = useTemplateData({ lead, msgs, autoConfig, tplLang })
+  const { all, sentIds, recommended, stageCat } = useTemplateData({ lead, msgs, autoConfig, tplLang })
   const ql = q.trim().toLowerCase()
+  const view = viewPick || (all.some(x => x.cat === stageCat) ? stageCat : 'all')
   const counts = useMemo(() => Object.fromEntries(CATEGORIES.map(c => [c.id, all.filter(x => x.cat === c.id).length])), [all])
   const sections = useMemo(() => {
     if (ql) return [{ id: 'q', items: all.filter(x => `${x.he_title} ${x.en_title} ${x.text}`.toLowerCase().includes(ql)) }]
@@ -186,6 +186,7 @@ export default function ChatTemplatePicker({ WA, lead, msgs = [], autoConfig, la
       ...CATEGORIES.map(c => ({ id: c.id, label: lang === 'en' ? c.en : c.he, color: c.color, items: all.filter(x => x.cat === c.id) })),
     ].filter(s => s.items.length)
   }, [all, recommended, ql, view, lang, t.rec])
+  useEffect(() => { listRef.current && (listRef.current.scrollTop = 0) }, [view])
   const flat = useMemo(() => sections.flatMap(s => s.items.map(x => ({ x, key: `${s.id}:${x.id}` }))), [sections])
   const cur = flat.find(r => r.key === selKey) || flat[0] || null
   const sel = cur?.x || null
@@ -221,7 +222,9 @@ export default function ChatTemplatePicker({ WA, lead, msgs = [], autoConfig, la
   }
   const pickView = v => { setView(v); setQ('') }
 
-  const views = [{ id: 'rec', label: t.rec, n: recommended.length, icon: 'star' }, { id: 'all', label: t.all, n: all.length, icon: 'file' }, ...CATEGORIES.filter(c => counts[c.id]).map(c => ({ id: c.id, label: lang === 'en' ? c.en : c.he, n: counts[c.id], cat: c }))].filter(v => v.n)
+  // a button per category in the pipeline's order (פתיחה · נוצר קשר · מתעניין · רוצה להתקדם · לא ענה …), then recommended and all
+  const views = [...CATEGORIES.filter(c => counts[c.id]).map(c => ({ id: c.id, label: lang === 'en' ? c.en_short : c.short, full: lang === 'en' ? c.en : c.he, n: counts[c.id], cat: c, stage: c.id === stageCat })), { id: 'rec', label: t.rec, n: recommended.length, icon: 'star' }, { id: 'all', label: t.all, n: all.length, icon: 'file' }].filter(v => v.n)
+  const stageTag = <span className="ctp-stage">{lang === 'en' ? 'stage' : 'השלב'}</span>
 
   const header = (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px 10px' }}>
@@ -309,16 +312,16 @@ export default function ChatTemplatePicker({ WA, lead, msgs = [], autoConfig, la
       {header}
       {!wide && (
         <div className="ctp-chips" role="group" aria-label={t.title}>
-          {views.map(v => <button key={v.id} type="button" aria-pressed={!ql && view === v.id} onClick={() => pickView(v.id)}>{v.icon === 'star' && <span style={{ color: 'var(--ctp-green)' }}><Icon name="star" size={13} sw={2}/></span>}{v.label} <span style={{ opacity: .7 }}>{v.n}</span></button>)}
+          {views.map(v => <button key={v.id} type="button" aria-pressed={!ql && view === v.id} title={v.full} onClick={() => pickView(v.id)}>{v.icon === 'star' ? <span style={{ color: 'var(--ctp-green)' }}><Icon name="star" size={13} sw={2}/></span> : v.cat ? <span style={{ width: 7, height: 7, borderRadius: '50%', background: v.cat.color, flex: 'none' }}/> : null}{v.label} <span style={{ opacity: .7 }}>{v.n}</span>{v.stage && stageTag}</button>)}
         </div>
       )}
       <div style={{ flex: 1, minHeight: 0, display: 'grid', gridTemplateColumns: wide ? '196px minmax(0,1fr) minmax(320px,1.08fr)' : split ? 'minmax(0,1fr) minmax(280px,1fr)' : 'minmax(0,1fr)', borderTop: '1px solid var(--ctp-line)' }}>
         {wide && (
           <nav className="ctp-nav" aria-label={t.title}>
             {views.map(v => (
-              <button key={v.id} type="button" aria-pressed={!ql && view === v.id} onClick={() => pickView(v.id)}>
+              <button key={v.id} type="button" aria-pressed={!ql && view === v.id} title={v.full} onClick={() => pickView(v.id)}>
                 {v.cat ? <CatTile cat={v.cat.id} color={v.cat.color} size={24} radius={7}/> : <span style={{ display: 'inline-flex', width: 24, height: 24, alignItems: 'center', justifyContent: 'center', borderRadius: 7, background: 'rgba(0,168,132,.12)', color: 'var(--ctp-green)' }}><Icon name={v.icon} size={13} sw={2}/></span>}
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.label}</span><span className="n">{v.n}</span>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.label}</span>{v.stage && stageTag}<span className="n">{v.n}</span>
               </button>
             ))}
           </nav>
@@ -379,16 +382,17 @@ export function ChatTemplateMenu({ WA, lead, msgs = [], autoConfig, lang = 'he',
   const [busy, setBusy] = useState(null)
   const [pos, setPos] = useState(null)
   const btnRef = useRef(null), menuRef = useRef(null), listRef = useRef(null)
-  const { all, sentIds, recommended } = useTemplateData({ lead, msgs, autoConfig, tplLang })
+  const { all, sentIds, recommended, stageCat } = useTemplateData({ lead, msgs, autoConfig, tplLang })
   useEffect(() => { setTplLang(leadLang(lead)) }, [lead?.phone]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // sections: recommended, then personal, then every other category (search = one flat list)
   const ql = q.trim().toLowerCase()
   const sections = useMemo(() => {
     if (ql) return [{ id: 'q', items: all.filter(x => `${x.he_title} ${x.en_title} ${x.text}`.toLowerCase().includes(ql)) }]
-    const order = ['personal', ...CATEGORIES.map(c => c.id).filter(id => id !== 'personal')]
+    // the lead's stage first (what fits now), then the pipeline's order
+    const order = [stageCat, ...CATEGORIES.map(c => c.id).filter(id => id !== stageCat)]
     return [{ id: 'rec', label: t.rec, star: true, items: recommended }, ...order.map(id => { const c = catOf(id); return { id, label: c ? (lang === 'en' ? c.en : c.he) : id, color: c?.color, items: all.filter(x => x.cat === id) } })].filter(sc => sc.items.length)
-  }, [all, recommended, ql, lang, t.rec])
+  }, [all, recommended, ql, lang, t.rec, stageCat])
   const flat = sections.flatMap(sc => sc.items.map(x => ({ x, key: `${sc.id}:${x.id}` })))
 
   const place = () => {

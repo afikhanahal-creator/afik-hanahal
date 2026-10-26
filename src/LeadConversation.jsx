@@ -10,7 +10,7 @@ import { DARK, LIGHT, DOODLE_DARK, DOODLE_LIGHT, normalizeGreenMsg, TickMark, Le
 import { leadFormCard } from './lib/leadHistory.js'
 import TemplateQuickEdit from './TemplateQuickEdit.jsx'
 import Splitter, { SPLITTER_CSS } from './Splitter.jsx'
-import { CATEGORIES, getTemplate, mergeConfig, leadLang } from '../lib/automations-shared.js'
+import { CATEGORIES, getTemplate, mergeConfig, leadLang, stageCategory } from '../lib/automations-shared.js'
 import { mergeConversation, templateOptions, sendErrorText } from './lib/leadConversation.js'
 import { imageThumb } from './lib/templateImage.js'
 import { Icon, CatTile } from './uiIcons.jsx'
@@ -234,7 +234,10 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
   const firstOutAt = msgs.find(m => m.direction === 'out' && !String(m.id).startsWith('opt-'))?.created_at || null
   const onActivityRef = useRef(onActivity)
   useEffect(() => { onActivityRef.current = onActivity }, [onActivity])
-  useEffect(() => { if (histState === 'ok') onActivityRef.current?.({ hasOut, firstOutAt }) }, [histState, hasOut, firstOutAt])
+  // the newest real message (not a reaction, not one still on its way) — the lead card's "קשר אחרון"
+  const lastMsg = useMemo(() => { for (let i = msgs.length - 1; i >= 0; i--) { const m = msgs[i]; if (m.kind !== 'reactionMessage' && !String(m.id).startsWith('opt-')) return m } return null }, [msgs])
+  const lastAt = lastMsg?.created_at || null, lastDir = lastMsg?.direction || null
+  useEffect(() => { if (histState === 'ok') onActivityRef.current?.({ hasOut, firstOutAt, lastAt, lastDir }) }, [histState, hasOut, firstOutAt, lastAt, lastDir])
 
   // ── the template dropdown (rendered for this lead) ──
   const outTexts = useMemo(() => msgs.filter(m => m.direction === 'out').map(m => m.message), [msgs])
@@ -340,15 +343,22 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
 
   // ── quick replies (WhatsApp Business style): search, sections, keyboard ──
   const qText = qq.trim().toLowerCase()
+  // a button per category, in the pipeline's order; the window opens on the lead's stage ("מתעניין" → its templates,
+  // a lead who never answered → "לא ענה"); the search looks through all of them
+  const hasIn = msgs.some(m => m.direction === 'in')
+  const stageCat = stageCategory(tplLead || {}, { hasOut, hasIn })
+  const [qCat, setQCat] = useState('')
+  const qCats = useMemo(() => groups.map(g => ({ id: g.id, n: g.items.length, c: CATEGORIES.find(c => c.id === g.id) })), [groups])
+  const curCat = qCat || (qCats.some(c => c.id === stageCat) ? stageCat : 'all')
   const qSections = useMemo(() => {
-    if (!qText) return groups
+    if (!qText) return curCat === 'all' ? groups : groups.filter(g => g.id === curCat).map(g => ({ ...g, label: '' }))
     const hits = groups.flatMap(g => g.items).filter(x => `${x.title} ${x.text}`.toLowerCase().includes(qText))
     return hits.length ? [{ id: 'q', label: '', items: hits }] : []
-  }, [groups, qText])
+  }, [groups, qText, curCat])
   const qFlat = useMemo(() => qSections.flatMap(g => g.items), [qSections])
-  useEffect(() => { setQActive(0) }, [qText, tplLang, quick])
+  useEffect(() => { setQActive(0); if (qListRef.current) qListRef.current.scrollTop = 0 }, [qText, tplLang, quick, curCat])
   useEffect(() => { qListRef.current?.querySelector(`[data-qi="${qActive}"]`)?.scrollIntoView({ block: 'nearest' }) }, [qActive])
-  const openQuick = (q = '') => { setQq(q); setQuick(true) }
+  const openQuick = (q = '') => { setQq(q); setQCat(''); setQuick(true) }
   const closeQuick = (focusBox = true) => { setQuick(false); setQq(''); if (focusBox) setTimeout(() => inputRef.current?.focus(), 0) }
   const pickQuick = x => { if (!x) return; setQuick(false); setQq(''); putText(x.text, x.id, x.image) }
   const qKey = e => {
@@ -479,12 +489,20 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
         .lcv-seg button[aria-pressed=true]{background:${isDark ? '#2A3942' : '#FFFFFF'};color:${WA.bodyText};box-shadow:0 1px 2px rgba(11,20,26,.15)}
         .lcv-img{display:flex;align-items:center;gap:10px;margin:8px 8px 0;padding:6px 8px;border-radius:11px;font-size:12.5px;line-height:1.35;background:${isDark ? 'rgba(255,255,255,.05)' : 'rgba(11,20,26,.04)'};color:${WA.bodyText}}
         .lcv-img>img{border-radius:7px;object-fit:cover;flex:none}
-        .lcv-quick{position:absolute;z-index:30;inset-inline:10px;bottom:calc(100% + 6px);max-width:560px;max-height:min(440px,70vh);display:flex;flex-direction:column;background:${isDark ? '#233138' : '#FFFFFF'};border-radius:10px;box-shadow:0 2px 5px rgba(11,20,26,.26),0 2px 10px rgba(11,20,26,.16);overflow:hidden;animation:lcvIn .14s ease-out}
+        .lcv-quick{position:absolute;z-index:30;inset-inline:10px;bottom:calc(100% + 6px);max-width:640px;max-height:min(440px,70vh);display:flex;flex-direction:column;background:${isDark ? '#233138' : '#FFFFFF'};border-radius:10px;box-shadow:0 2px 5px rgba(11,20,26,.26),0 2px 10px rgba(11,20,26,.16);overflow:hidden;animation:lcvIn .14s ease-out}
         @keyframes lcvIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
         @media (prefers-reduced-motion:reduce){.lcv-quick{animation:none}}
         .lcv-qhead{display:flex;align-items:center;gap:8px;padding:10px 12px 8px;border-bottom:1px solid ${isDark ? 'rgba(134,150,160,.15)' : '#E9EDEF'}}
         .lcv-qsearch{flex:1;display:flex;align-items:center;gap:8px;background:${isDark ? '#202C33' : '#F0F2F5'};border-radius:8px;padding:0 12px;height:36px;color:${icon}}
         .lcv-qsearch input{flex:1;border:none;background:transparent;color:${WA.bodyText};font-size:14px;outline:none;min-width:0}
+        .lcv-qcats{display:flex;flex-wrap:wrap;gap:6px;padding:8px 12px;border-bottom:1px solid ${isDark ? 'rgba(134,150,160,.15)' : '#E9EDEF'};scrollbar-width:thin;flex:none}
+        .lcv-qcat{flex:none;display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 11px;border-radius:999px;border:1px solid ${isDark ? 'rgba(134,150,160,.3)' : '#D1D7DB'};background:transparent;color:${WA.bodyText};font:inherit;font-size:13px;font-weight:500;cursor:pointer;min-height:0;min-width:0;white-space:nowrap;transition:background .12s,border-color .12s}
+        .lcv-qcat:hover{border-color:${teal}}
+        .lcv-qcat:focus-visible{outline:2px solid ${teal};outline-offset:2px}
+        .lcv-qcat i{width:7px;height:7px;border-radius:50%;flex:none}
+        .lcv-qcat .n{font-size:11.5px;opacity:.7}
+        .lcv-qcat .st{font-size:10.5px;font-weight:600;padding:0 6px;border-radius:999px;line-height:16px;background:rgba(255,255,255,.25)}
+        .lcv-qcat[aria-pressed=false] .st{background:${teal}1F;color:${teal}}
         .lcv-qlist{overflow-y:auto;flex:1;min-height:0;padding-bottom:6px}
         .lcv-qsec{position:sticky;top:0;z-index:1;background:${isDark ? '#233138' : '#FFFFFF'};padding:12px 16px 6px;font-size:13px;font-weight:500;color:${teal}}
         .lcv-qi{display:flex;align-items:center;gap:10px;padding:9px 16px;cursor:pointer}
@@ -553,6 +571,20 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
                 {['he', 'en'].map(l => <button key={l} type="button" aria-pressed={tplLang === l} onClick={() => setTplLang(l)}>{l === 'he' ? 'עב' : 'EN'}</button>)}
               </div>
               <button type="button" className="lcv-ib" style={{ width: 34, height: 34 }} onClick={() => closeQuick()} aria-label={lang === 'en' ? 'Close' : 'סגירה'}>{I.close}</button>
+            </div>
+            <div className="lcv-qcats" role="group" aria-label={lang === 'en' ? 'Categories' : 'קטגוריות'}>
+              {[...qCats, { id: 'all', n: qCats.reduce((a, c) => a + c.n, 0) }].map(c => {
+                const on = !qText && curCat === c.id
+                const label = c.id === 'all' ? (lang === 'en' ? 'All' : 'הכל') : c.c ? (lang === 'en' ? c.c.en_short : c.c.short) : c.id
+                return (
+                  <button key={c.id} type="button" className="lcv-qcat" aria-pressed={on} onClick={() => { setQCat(c.id); setQq('') }}
+                    title={c.id === stageCat ? (lang === 'en' ? 'Fits the lead\'s stage' : 'מתאים לשלב של הליד') : undefined}
+                    style={on ? { background: c.c?.color || teal, borderColor: c.c?.color || teal, color: '#fff' } : undefined}>
+                    {c.c && <i style={{ background: on ? '#fff' : c.c.color }}/>}{label}<span className="n">{c.n}</span>
+                    {c.id === stageCat && <span className="st">{lang === 'en' ? 'stage' : 'השלב'}</span>}
+                  </button>
+                )
+              })}
             </div>
             <div className="lcv-qlist" id="lcv-qlist" role="listbox" ref={qListRef} aria-label={t.quick}>
               {!qFlat.length && <div style={{ padding: 22, textAlign: 'center', color: WA.subText, fontSize: 13.5 }}>{t.none}</div>}

@@ -90,3 +90,16 @@ test('welcome mark: sent (also through the missed-welcome queue), failed, or not
   assert.equal(welcomeState({ auto: { welcomeFailed: 'x', sent: { welcome: '2026-10-25T10:00:00Z' } } }).state, 'sent')
   assert.equal(welcomeState({}), null)
 })
+
+test('last contact: the newest touch from the chat, calls, notes and automatic sends', async () => {
+  const { lastContact, lastContactText } = await import('./leadFields.js')
+  const now = Date.parse('2026-10-26T12:00:00Z')
+  const lead = { crm_data: { notes: [{ ts: now - 5 * 864e5, kind: 'call', outcome: 'no_answer' }, { ts: now - 864e5, kind: 'note' }], auto: { sent: { welcome: new Date(now - 6 * 864e5).toISOString() } } } }
+  assert.deepEqual(lastContact(lead, null, now), { at: now - 5 * 864e5, kind: 'call', outcome: 'no_answer' })   // a plain note isn't contact
+  assert.equal(lastContact(lead, { at: now - 3600e3 * 2, dir: 'in' }, now).kind, 'in')
+  assert.equal(lastContact({}), null)
+  const t = lastContactText(lastContact(lead, null, now), 'he', now)
+  assert.equal(t.how, 'ניסינו להתקשר'); assert.equal(t.level, 'warn'); assert.match(t.when, /לפני 5 ימים/)
+  assert.match(lastContactText({ at: now - 20 * 60e3, kind: 'out' }, 'he', now).when, /לפני 20 דק׳/)
+  assert.equal(lastContactText({ at: now - 9 * 864e5, kind: 'meeting' }, 'he', now).level, 'old')
+})

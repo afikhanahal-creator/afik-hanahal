@@ -5,7 +5,7 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { FaTimes, FaPhone, FaWhatsapp, FaEnvelope, FaMagic, FaUser, FaStickyNote, FaTasks, FaChartPie, FaCheck, FaTrash, FaCopy, FaPlus, FaClock, FaBullseye, FaExclamationTriangle, FaLightbulb, FaQuestionCircle, FaComments, FaShieldAlt, FaSyncAlt, FaMapMarkerAlt, FaBuilding, FaCalendarAlt, FaTag, FaFlag, FaArrowUp, FaArrowDown, FaInfoCircle, FaUserCheck, FaExternalLinkAlt, FaSearch, FaHandshake, FaEdit } from 'react-icons/fa'
 import { T } from './automationsUI.jsx'
-import { sourceLabel, sourceColor, originLines, leadCampaign, leadCampaignTag, leadCampaignFull, leadProject, toggleProjectInName } from './lib/leadFields.js'
+import { sourceLabel, sourceColor, originLines, leadCampaign, leadCampaignTag, leadCampaignFull, leadProject, toggleProjectInName, lastContact, lastContactText } from './lib/leadFields.js'
 import LeadChatTab from './LeadChatTab.jsx'
 import LeadConversation from './LeadConversation.jsx'
 import { useAdminTheme } from './adminTheme.js'
@@ -18,6 +18,7 @@ import WaFace from './WaFace.jsx'
 const TR = {
   he: {
     addProject: p => `+ הוספת הפרויקט: ${p}`, removeProject: 'הסרת שם הפרויקט', projectTip: 'השם מתעדכן גם במרכז הלידים ובצ׳אטים', convShow: 'הצג שיחה', convHide: 'הסתר שיחה', convTip: 'כל ההתכתבות בוואטסאפ עם הליד, לצד הפרטים',
+    lastContact: 'קשר אחרון',
     tabs: { details: 'פרטים ועריכה', notes: 'הערות ופעילות', chat: 'שיחת וואטסאפ', tasks: 'משימות', analysis: 'ניתוח חכם' },
     call: 'התקשר', wa: 'וואטסאפ', email: 'מייל', analyze: 'נתח ליד', reanalyze: 'נתח מחדש', analyzing: 'מנתח…', close: 'סגירה', saved: 'נשמר', saving: 'שומר…', saveFailed: 'השמירה נכשלה — בדקו חיבור ונסו שוב',
     sec: { contact: 'פרטי קשר', need: 'מה הלקוח מחפש', prop: 'הנכס שהתעניין בו', msg: 'ההודעה של הלקוח', manage: 'ניהול הליד', source: 'מקור הליד' },
@@ -53,6 +54,7 @@ const TR = {
   },
   en: {
     addProject: p => `+ Add the project: ${p}`, removeProject: 'Remove the project name', projectTip: 'The name updates in the Lead Center and the chats too', convShow: 'Show chat', convHide: 'Hide chat', convTip: 'The whole WhatsApp conversation with the lead, next to the details',
+    lastContact: 'Last contact',
     tabs: { details: 'Details', notes: 'Notes & activity', chat: 'WhatsApp chat', tasks: 'Tasks', analysis: 'Smart analysis' },
     call: 'Call', wa: 'WhatsApp', email: 'Email', analyze: 'Analyze lead', reanalyze: 'Re-analyze', analyzing: 'Analyzing…', close: 'Close', saved: 'Saved', saving: 'Saving…', saveFailed: 'Not saved — check the connection and try again',
     sec: { contact: 'Contact details', need: 'What they are looking for', prop: 'Property of interest', msg: 'Their message', manage: 'Lead management', source: 'Lead source' },
@@ -104,6 +106,16 @@ const CSS = `
   textarea.lc-in{height:auto;padding:9px 11px;line-height:1.55;resize:vertical}
   select.lc-in{appearance:auto}
   .lc-tab{height:40px;padding:0 14px;border:none;background:none;cursor:pointer;font-family:inherit;font-size:13.5px;font-weight:700;display:inline-flex;align-items:center;gap:7px;border-bottom:2px solid transparent;white-space:nowrap}
+  .lc-last{margin-inline-start:auto;align-self:center;flex:none;display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 11px;border-radius:999px;font-size:12.5px;white-space:nowrap;border:1px solid transparent}
+  .lc-last .k{color:var(--au-text2)}
+  .lc-last b{font-weight:700}
+  .lc-last .h{color:var(--au-text2)}
+  .lc-last--ok{background:rgba(0,200,117,.10);color:#0E8A57;border-color:rgba(0,200,117,.28)}
+  .lc-last--warn{background:rgba(245,166,35,.12);color:#A66300;border-color:rgba(245,166,35,.34)}
+  .lc-last--old{background:rgba(226,68,92,.10);color:#C2283E;border-color:rgba(226,68,92,.3)}
+  html[data-admin-theme=dark] .lc-last--ok{color:#3DDC97}
+  html[data-admin-theme=dark] .lc-last--warn{color:#FDBA4D}
+  html[data-admin-theme=dark] .lc-last--old{color:#F87287}
   .lcd-row:hover{background:rgba(var(--ov),.04)}
   .lc-hist-act{opacity:.55;transition:opacity .15s}.lc-hist:hover .lc-hist-act,.lc-hist-act:focus-within{opacity:1}
   .lc-hist-act button:hover{background:rgba(var(--ov),.08)!important;color:var(--au-text)!important}
@@ -205,6 +217,8 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
   const t = TR[lang] || TR.he
   const dir = lang === 'en' ? 'ltr' : 'rtl'
   const [tab, setTab] = useState(initialTab)
+  const [chatLast, setChatLast] = useState(null)       // the open conversation's newest message { at, dir }
+  useEffect(() => { setChatLast(null) }, [lead.id])
   const { isDark } = useAdminTheme()
   // the whole WhatsApp conversation sits next to the details on a wide screen (hidden by choice, remembered)
   const [wide, setWide] = useState(() => typeof window !== 'undefined' && !!window.matchMedia?.(WIDE_Q).matches)
@@ -305,6 +319,8 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
     </div>
   )
 
+  // "קשר אחרון": the newest touch — the open conversation's last message, calls, meetings, WhatsApp notes, automatic sends
+  const lastTouch = useMemo(() => lastContactText(lastContact(lead, chatLast), lang), [lead, chatLast, lang])
   const tabs = [['details', FaUser, t.tabs.details], ['notes', FaStickyNote, t.tabs.notes, notes.length || null], ['chat', FaWhatsapp, t.tabs.chat, lead.chatSummary?.lastWord === 'lead' ? '!' : null], ['tasks', FaTasks, t.tabs.tasks, openTasks || null], ['analysis', FaChartPie, t.tabs.analysis]]
   const tabBar = (
     <div role="tablist" style={{ display: 'flex', gap: 2, padding: '0 14px', borderBottom: `1px solid ${T.line}`, overflowX: 'auto', flexShrink: 0 }}>
@@ -313,6 +329,11 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
           <Ic size={11}/>{label}{badge ? <span style={{ minWidth: 18, height: 18, padding: '0 5px', borderRadius: 9, background: T.brandSoft, color: T.brandText, fontSize: 10.5, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{badge}</span> : null}
         </button>
       ))}
+      {lastTouch && (
+        <span className={`lc-last lc-last--${lastTouch.level}`} title={`${t.lastContact}: ${lastTouch.full}`} role="status">
+          <FaClock size={11}/><span className="k">{t.lastContact}:</span><b>{lastTouch.when}</b><span className="h">· {lastTouch.how}</span>
+        </span>
+      )}
     </div>
   )
 
@@ -792,7 +813,8 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
   const conversation = lead.phone ? (
     <LeadConversation key={lead.id} lead={lead} tplLead={lead} lang={lang} isDark={isDark} autoConfig={cfg}
       onAutoConfigSaved={c => { CFG = c; setCfg(c) }} onSend={(text, opts) => sendWa(lead.phone, text, opts)}
-      onOpenChats={onOpenChat ? () => { onOpenChat(lead); onClose() } : undefined}/>
+      onOpenChats={onOpenChat ? () => { onOpenChat(lead); onClose() } : undefined}
+      onActivity={a => setChatLast(a.lastAt ? { at: a.lastAt, dir: a.lastDir } : null)}/>
   ) : null
 
   return createPortal(
