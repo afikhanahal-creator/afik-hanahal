@@ -5,6 +5,7 @@
 // dynamic→static cycle, which is safe: by the time this chunk evaluates, App.jsx already has.
 import { externalizeInlinePhotos } from './inlinePhotos.js'
 import { onSync, busUp, debounce } from './lib/syncBus.js'
+import { setSharedAutoConfig, onSharedAutoConfig } from './lib/autoConfigStore.js'
 import { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react'
 import { LAYERS_DEF as GM_LAYERS, BG_OPTIONS as GM_BG_OPTIONS, LAYER_CATS_DEF as GM_LAYER_CATS } from './govmapLayers.js'
 import { FaSun, FaMoon, FaPlus, FaEnvelope, FaFacebookF, FaInstagram, FaBed, FaRulerCombined, FaBuilding, FaTools, FaMapMarkerAlt, FaPhone, FaLeaf, FaCalendarAlt, FaTimes, FaWhatsapp, FaFileAlt, FaHome, FaSearch, FaBalanceScale, FaHandshake, FaLock, FaKey, FaGlobe, FaBolt, FaChartLine, FaEye, FaPlay, FaFire, FaShareAlt, FaHeart, FaCamera, FaUser, FaUsers, FaDesktop, FaMobileAlt, FaTabletAlt, FaRobot, FaExclamationTriangle, FaChartBar, FaThumbsUp, FaImage, FaPencilAlt, FaCrown, FaMousePointer, FaDollarSign, FaVideo, FaLink, FaCheckCircle, FaTrash, FaClipboardList } from 'react-icons/fa'
@@ -1535,7 +1536,18 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const [autoRunning, setAutoRunning] = useState(false)
   const [stagePrompt, setStagePrompt] = useState(null)
   const autoRunBusy = useRef(false)
-  const loadAutoCfg = useCallback(() => autoApi.get('auto-config').then(setAutoCfg).catch(() => {}), [])
+  const cfgReadAt = useRef(0)
+  const loadAutoCfg = useCallback(() => { cfgReadAt.current = Date.now(); return autoApi.get('auto-config').then(setAutoCfg).catch(() => {}) }, [])
+  // one template library for every screen (src/lib/autoConfigStore.js): what this admin holds is published, and a save made
+  // anywhere (the lead card's conversation, the chat's quick editor) comes back here, so the automations tab and the chats
+  // follow; an edit made on another device arrives when this window is back in focus (at most every 30 s)
+  useEffect(() => { if (autoCfg?.config) setSharedAutoConfig(autoCfg.config) }, [autoCfg])
+  useEffect(() => onSharedAutoConfig(c => setAutoCfg(a => (a?.config === c ? a : { ...(a || {}), config: c, storage: 'ok' }))), [])
+  useEffect(() => {
+    const back = () => { if (!document.hidden && Date.now() - cfgReadAt.current > 30000) loadAutoCfg() }
+    document.addEventListener('visibilitychange', back); window.addEventListener('focus', back)
+    return () => { document.removeEventListener('visibilitychange', back); window.removeEventListener('focus', back) }
+  }, [loadAutoCfg])
   const runAutomations = useCallback(async () => {
     if (autoRunBusy.current) return
     autoRunBusy.current = true; setAutoRunning(true)
@@ -1561,6 +1573,16 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     } catch (e) { console.warn('[automations] run failed:', e.message) }
     finally { autoRunBusy.current = false; setAutoRunning(false) }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  // a template edited anywhere (the automations tab, a chat, the lead card, another device): the approval queue ("היום") is
+  // rendered again on the server with the new wording right away, instead of at the next 15-minute run
+  const tplSig = useRef(''), rerunT = useRef(null)
+  useEffect(() => {
+    const c = autoCfg?.config
+    if (!c) return
+    const sig = JSON.stringify([c.templates || {}, c.deletedTemplates || []])
+    if (tplSig.current && sig !== tplSig.current) { clearTimeout(rerunT.current); rerunT.current = setTimeout(runAutomations, 1500) }
+    tplSig.current = sig
+  }, [autoCfg, runAutomations])
   useEffect(() => {
     loadAutoCfg()
     const first = setTimeout(runAutomations, 6000)

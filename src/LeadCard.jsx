@@ -9,6 +9,7 @@ import { sourceLabel, sourceColor, originLines, leadCampaign, leadCampaignTag, l
 import LeadChatTab from './LeadChatTab.jsx'
 import LeadConversation from './LeadConversation.jsx'
 import Splitter, { SPLITTER_CSS } from './Splitter.jsx'
+import { useSharedAutoConfig, getSharedAutoConfig, setSharedAutoConfig } from './lib/autoConfigStore.js'
 import { useAdminTheme } from './adminTheme.js'
 import { autoApi } from './AutomationsApi.jsx'
 import DateTimePicker from './DateTimePicker.jsx'
@@ -205,9 +206,10 @@ function ScoreRing({ score, grade, size = 96 }) {
 // ── main ───────────────────────────────────────────────────────────────────────
 const WIDE_Q = '(min-width: 1100px)'
 const CONV_KEY = 'afik_lead_card_conv'
-// the automations config (the template library for the composer), read once per session
-let CFG = null, cfgP = null
-const loadCfg = () => (cfgP ||= autoApi.get('auto-config').then(d => (CFG = d?.config || null)).catch(() => { cfgP = null; return null }))
+// the automations config (the template library for the composer): the admin's shared copy (src/lib/autoConfigStore.js), so an
+// edit in "אוטומציות" or from any chat shows here at once; read here only when the card opens before the admin has it
+let cfgP = null
+const loadCfg = () => (cfgP ||= autoApi.get('auto-config').then(d => { if (d?.config) setSharedAutoConfig(d.config); return d?.config || null }).catch(() => { cfgP = null; return null }))
 // a message from the card's conversation goes out like the chats tab's (Green API through /api/meta/chat-send)
 const sendWa = async (phone, text, opts = {}) => {
   try {
@@ -232,8 +234,8 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
   const [convOn, setConvOn] = useState(() => { try { return localStorage.getItem(CONV_KEY) !== '0' } catch { return true } })
   const toggleConv = () => setConvOn(v => { try { localStorage.setItem(CONV_KEY, v ? '0' : '1') } catch {} return !v })
   const showConv = wide && convOn && !!lead.phone
-  const [cfg, setCfg] = useState(CFG)
-  useEffect(() => { if (lead.phone && !CFG) loadCfg().then(c => c && setCfg(c)) }, [lead.phone])
+  const cfg = useSharedAutoConfig()
+  useEffect(() => { if (lead.phone && !getSharedAutoConfig()) loadCfg() }, [lead.phone])
   const [saveState, setSaveState] = useState('')
   const [copied, setCopied] = useState(false)
   const dialogRef = useRef(null)
@@ -820,7 +822,7 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
 
   const conversation = lead.phone ? (
     <LeadConversation key={lead.id} lead={lead} tplLead={lead} lang={lang} isDark={isDark} autoConfig={cfg}
-      onAutoConfigSaved={c => { CFG = c; setCfg(c) }} onSend={(text, opts) => sendWa(lead.phone, text, opts)}
+      onAutoConfigSaved={setSharedAutoConfig} onSend={(text, opts) => sendWa(lead.phone, text, opts)}
       onOpenChats={onOpenChat ? () => { onOpenChat(lead); onClose() } : undefined}
       onActivity={a => setChatLast(a.lastAt ? { at: a.lastAt, dir: a.lastDir } : null)}/>
   ) : null
