@@ -348,6 +348,8 @@ export function ChatQuickChips({ WA, lead, msgs = [], autoConfig, lang = 'he', o
   return (
     <div className="ctp ctp-chipsrow" dir={rtl ? 'rtl' : 'ltr'} style={{ ...vars(WA), flexShrink: 0, background: 'var(--ctp-soft)', borderTop: '1px solid var(--ctp-line)' }}>
       <span style={{ flex: 'none', display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, color: 'var(--ctp-sub)' }}><Icon name="bolt" size={14}/>{t.label}</span>
+      {/* "כל התבניות" first, right next to the label (on the right in Hebrew) — always in reach, never pushed to the far end */}
+      {onMore && <button type="button" className="ctp-btn ghost sm" style={{ flex: 'none', color: 'var(--ctp-green)', fontWeight: 700, border: '1px solid rgba(0,168,132,.35)', background: 'rgba(0,168,132,.08)' }} onClick={onMore}><Icon name="file" size={14}/>{t.more}<Icon name={rtl ? 'chevronLeft' : 'chevronRight'} size={14}/></button>}
       {recommended.map(x => (
         <span key={x.id} className="ctp-chip">
           <button type="button" className="pick" title={`${t.putTip}\n\n${x.text}`} onClick={() => onInsert?.(x.text, x, tplLang)}>
@@ -360,7 +362,6 @@ export function ChatQuickChips({ WA, lead, msgs = [], autoConfig, lang = 'he', o
           </button>
         </span>
       ))}
-      {onMore && <button type="button" className="ctp-btn ghost sm" style={{ flex: 'none', color: 'var(--ctp-green)' }} onClick={onMore}>{t.more}<Icon name={rtl ? 'chevronLeft' : 'chevronRight'} size={14}/></button>}
     </div>
   )
 }

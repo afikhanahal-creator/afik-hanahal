@@ -428,7 +428,7 @@ with the "מתבנית · <title>" line (changed → "שמירה בתבנית", 
 text (grows; Enter sends, Shift+Enter = new line; the placeholder names the lead) and a toolbar: emoji · attach · "תבניות" … a
 labelled green "שלח" / "שלח עם תמונה" (icon-only on phones). **"הצעות"** over the empty box (`ChatQuickChips` in
 `src/ChatTemplatePicker.jsx`: the 3–4 templates that fit this lead now — the most personal one + the stage's category): a click
-puts one in the box, the round button sends it. **The templates window** (`ChatTemplatePicker`): categories (a side column when
+puts one in the box, the round button sends it. "כל התבניות" sits first, right after the label (on the right in Hebrew). **The templates window** (`ChatTemplatePicker`): categories (a side column when
 ≥ 860 px wide, chips otherwise) · the list · a WhatsApp preview of the selected message for this lead (editable in the bubble, its
 picture can be left out) with "שלח עכשיו" and "הכנס לתיבה"; it opens on the best message for the lead, ↑ / ↓ move, Enter = to the
 box, Ctrl+Enter = send, Esc; narrow screens show the list, then the preview with a back button. The header's "תבניות ▾"
