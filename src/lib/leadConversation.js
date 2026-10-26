@@ -87,8 +87,8 @@ export function templateOptions(autoConfig, lead, lang = 'he', { outTexts = [], 
     const sig = sigOf(text)
     return { id: t.id, cat: t.cat || 'general', title: lang === 'en' ? (t.en_title || t.he_title) : (t.he_title || t.en_title), text, image: templateImage(t), isDefault: t.id === defId, sent: sig.length > 12 && out.includes(sig) }
   }).filter(x => x.text.trim() || x.image)
-  const order = categories.map(c => c.id)
-  const catOrder = first ? ['welcome', 'personal', ...order.filter(id => id !== 'welcome' && id !== 'personal')] : order
+  // the pipeline's order (lib/automations-shared.js CATEGORIES); the window opens on the lead's stage (stageCategory)
+  const catOrder = categories.map(c => c.id)
   for (const x of all) if (!catOrder.includes(x.cat)) catOrder.push(x.cat)
   return catOrder.map(id => {
     const items = all.filter(x => x.cat === id).sort((a, b) => (b.isDefault - a.isDefault))

@@ -154,3 +154,46 @@ export function welcomeState(lead) {
   if (auto.welcomeFailed) return { state: 'failed', at: Date.parse(auto.welcomeFailed) || null }
   return null
 }
+
+/**
+ * The last time we were in touch with the lead, from everything we know: the WhatsApp chat (`chat` = { at, dir } of its newest
+ * message, when a conversation is open), call / meeting / WhatsApp notes, the last call, automatic sends and the lead's reply.
+ * → { at (ms), kind: 'in' | 'out' | 'call' | 'meeting' | 'auto', outcome? } or null.
+ */
+export function lastContact(lead, chat = null, now = Date.now()) {
+  const c = lead?.crm_data ? { ...lead.crm_data, ...lead } : (lead || {})
+  const ms = v => (typeof v === 'number' ? v : Date.parse(v)) || 0
+  const cands = []
+  if (chat?.at) cands.push({ at: ms(chat.at), kind: chat.dir === 'in' ? 'in' : 'out' })
+  for (const n of Array.isArray(c.notes) ? c.notes : []) {
+    if (n && ['call', 'meeting', 'wa'].includes(n.kind)) cands.push({ at: ms(n.ts), kind: n.kind === 'wa' ? 'out' : n.kind, ...(n.outcome ? { outcome: n.outcome } : {}) })
+  }
+  if (c.lastCallAt) cands.push({ at: ms(c.lastCallAt), kind: 'call' })
+  const auto = c.auto || {}
+  for (const v of Object.values(auto.sent || {})) cands.push({ at: ms(v), kind: 'auto' })
+  if (auto.replied) cands.push({ at: ms(auto.replied), kind: 'in' })
+  const best = cands.filter(x => x.at > 0 && x.at <= now + 60e3).sort((a, b) => b.at - a.at)[0]
+  return best || null
+}
+
+/** "היום 11:52 · שלחנו בוואטסאפ" / "לפני 3 ימים · שיחה" — and how fresh it is: 'ok' (< 3 days), 'warn' (< 7), 'old' */
+export function lastContactText(lc, lang = 'he', now = Date.now()) {
+  if (!lc) return null
+  const he = lang !== 'en'
+  const d = new Date(lc.at), tz = 'Asia/Jerusalem'
+  const day = x => new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(x)
+  const hm = new Intl.DateTimeFormat('he-IL', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false }).format(d)
+  const days = Math.round((Date.parse(day(new Date(now))) - Date.parse(day(d))) / 864e5)
+  const mins = Math.round((now - lc.at) / 60e3)
+  const when = mins < 60 ? (he ? `לפני ${Math.max(1, mins)} דק׳` : `${Math.max(1, mins)} min ago`)
+    : days === 0 ? (he ? `היום ${hm}` : `today ${hm}`)
+    : days === 1 ? (he ? `אתמול ${hm}` : `yesterday ${hm}`)
+    : days < 7 ? (he ? `לפני ${days} ימים` : `${days} days ago`)
+    : new Intl.DateTimeFormat(he ? 'he-IL' : 'en-GB', { timeZone: tz, day: 'numeric', month: 'short' }).format(d) + (he ? ` (לפני ${days} ימים)` : ` (${days} days ago)`)
+  const how = {
+    in: he ? 'הם כתבו לנו' : 'they wrote to us', out: he ? 'שלחנו בוואטסאפ' : 'we sent a WhatsApp',
+    call: lc.outcome === 'no_answer' ? (he ? 'ניסינו להתקשר' : 'we tried calling') : (he ? 'שיחה' : 'a call'),
+    meeting: he ? 'פגישה' : 'a meeting', auto: he ? 'הודעה אוטומטית' : 'an automatic message',
+  }[lc.kind] || ''
+  return { when, how, level: days < 3 ? 'ok' : days < 7 ? 'warn' : 'old', full: new Intl.DateTimeFormat(he ? 'he-IL' : 'en-GB', { timeZone: tz, dateStyle: 'full', timeStyle: 'short' }).format(d) }
+}
