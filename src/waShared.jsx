@@ -63,6 +63,16 @@ export const DOODLE_DARK  = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3
 
 // ─── Green API message normalizer ────────────────────────────────────────────
 export function normalizeGreenMsg(m) {
+  // a reaction: the emoji (empty = taken back) and the message it reacts to; drawn on that message (foldReactions)
+  if (m.typeMessage === 'reactionMessage') {
+    return {
+      id: m.idMessage, direction: m.type === 'outgoing' ? 'out' : 'in', kind: 'reactionMessage',
+      message: m.textMessage || m.extendedTextMessage?.text || m.extendedTextMessageData?.text || m.reaction?.text || '',
+      reactedTo: m.reactedTo || m.quotedMessage?.stanzaId || m.extendedTextMessage?.stanzaId || m.extendedTextMessageData?.stanzaId || null,
+      media: null, location: null, contactCard: null, quoted: null,
+      created_at: new Date((m.timestamp || 0) * 1000).toISOString(), status: m.type === 'outgoing' ? (m.statusMessage || 'sent') : 'read',
+    }
+  }
   const text = m.textMessage
     || m.caption
     || (m.typeMessage === 'imageMessage'    ? '📷 תמונה'

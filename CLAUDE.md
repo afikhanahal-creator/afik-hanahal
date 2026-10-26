@@ -281,6 +281,14 @@ history (`mergeHistory()`), so a message is never lost even if Green's journal i
 `outgoingAPIMessageWebhook`) and points `webhookUrl` at us when either drifted (at most once an hour); `GET /api/meta/chat-settings`
 reports it (`POST {fix:true}` fixes), `chat-status` returns `settings`; probe action `wa-fix`. The chatbot's hook point is
 `handleGreenHook` (an incoming row = a question to answer until a person takes over).
+**Reactions, like WhatsApp** (2026-10-26): a `reactionMessage` used to show as its own bubble with the word "reactionMessage" —
+Green's history keeps the emoji in `extendedTextMessage.text` and the target in `quotedMessage.stanzaId`, which `slimGreenMsg`
+dropped. Now `slimGreenMsg` (`api/meta.js`) and `rowToGreen()` / `mergeHistory()` (`lib/green-hook.js`; a stored row fills an empty
+Green reaction) give `{ typeMessage: 'reactionMessage', textMessage: emoji, reactedTo }`, `normalizeGreenMsg` reads any of those
+shapes, and `foldReactions()` (`src/lib/waMerge.js`, tested) puts each side's newest reaction on the message it reacts to (an empty
+one takes it back): a small round chip under the bubble's corner in the chats tab (`GreenAPIChat`) and in the Lead Center / lead card
+(`LeadConversation`, `.lcv-reacts`), the tooltip naming who reacted; a reaction to a message that isn't loaded shows as a quiet line
+("תגובה 👍 · 03:21"). Alerts read "תגובה: 🙏" (`alertText()`).
 **Message alerts** (2026-10-25): only messages that come in raise an alert — a message we send (by hand, a template, an automation, a stage message) never pops a card, a sound or a notification (the old "נשלח ל-…" / "נשלחה הודעה אוטומטית" toasts are gone; a failed send still shows). One place decides how the office hears about an incoming message, `notifyIncoming` in
 `AdminPanel.jsx` (fed by the live feed and by the chats tab's fallback polls, deduped by message id; nothing for a message
 older than 15 min or for a chat that is on screen in a focused window — `setViewing()` / `isViewing()` in `src/lib/waNotify.js`,
