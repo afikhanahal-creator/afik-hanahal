@@ -34,8 +34,9 @@ export function fmtWait(mins, lang = 'he') {
 /** A message as one line for an alert: text, or what was sent ("📷 תמונה") */
 export function alertText(it = {}, lang = 'he') {
   const t = String(it.textMessage || it.caption || it.message || '').replace(/\s+/g, ' ').trim()
-  if (t) return t.length > 140 ? t.slice(0, 139) + '…' : t
   const en = lang === 'en'
+  if ((it.typeMessage || it.kind) === 'reactionMessage') return t ? (en ? `Reacted ${t}` : `תגובה: ${t}`) : (en ? 'Reaction removed' : 'הסירו תגובה')
+  if (t) return t.length > 140 ? t.slice(0, 139) + '…' : t
   const kind = it.typeMessage || ''
   if (kind === 'imageMessage') return en ? '📷 Photo' : '📷 תמונה'
   if (kind === 'videoMessage') return en ? '🎥 Video' : '🎥 סרטון'

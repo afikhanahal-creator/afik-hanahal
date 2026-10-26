@@ -1717,12 +1717,21 @@ async function handleBooking(req, res, action) {
 export const config = { api: { bodyParser: false } }
 
 // The fields of a Green API message the panel's chat uses (kept in step with normalizeGreenMsg in src/GreenAPIChat.jsx)
-const GREEN_MSG_FIELDS = ['idMessage', 'type', 'typeMessage', 'timestamp', 'statusMessage', 'textMessage', 'caption', 'downloadUrl', 'fileName', 'mimeType', 'jpegThumbnail', 'location', 'latitude', 'longitude', 'nameLocation', 'address', 'contact', 'chatId']
+const GREEN_MSG_FIELDS = ['idMessage', 'type', 'typeMessage', 'timestamp', 'statusMessage', 'textMessage', 'caption', 'downloadUrl', 'fileName', 'mimeType', 'jpegThumbnail', 'location', 'latitude', 'longitude', 'nameLocation', 'address', 'contact', 'chatId', 'reactedTo']
 const slimQuoted = q => (q && typeof q === 'object' ? { textMessage: q.textMessage, caption: q.caption, typeMessage: q.typeMessage, type: q.type } : undefined)
 function slimGreenMsg(m) {
   if (!m || typeof m !== 'object') return m
   const out = {}
   for (const k of GREEN_MSG_FIELDS) if (m[k] !== undefined && m[k] !== null && m[k] !== '') out[k] = m[k]
+  // a reaction: its emoji and the message it reacts to (Green keeps them in extendedTextMessage / quotedMessage.stanzaId)
+  if (m.typeMessage === 'reactionMessage') {
+    const ext = m.extendedTextMessage || m.extendedTextMessageData || m.reaction || {}
+    const emoji = m.textMessage || ext.text || ''
+    const to = m.reactedTo || m.quotedMessage?.stanzaId || ext.stanzaId || ''
+    if (emoji) out.textMessage = emoji
+    if (to) out.reactedTo = to
+    return out
+  }
   const q = slimQuoted(m.quotedMessage || m.extendedTextMessageData?.quotedMessage)
   if (q) out.quotedMessage = q
   return out

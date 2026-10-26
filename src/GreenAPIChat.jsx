@@ -14,6 +14,7 @@ import TemplateQuickEdit from './TemplateQuickEdit.jsx'
 import { renderTemplate, leadLang as leadLangOf } from '../lib/automations-shared.js'
 import { untemplate } from '../lib/template-edit.js'
 import { DARK, LIGHT, DOODLE_DARK, DOODLE_LIGHT, normalizeGreenMsg, TickMark, LeadFormCard } from './waShared.jsx'
+import { foldReactions } from './lib/waMerge.js'
 import { NotesButton, FollowUpButton } from './FollowUpTask.jsx'
 import { leadFormCard } from './lib/leadHistory.js'
 import { onWaLive, waLiveUp, mergeLive } from './lib/waLive.js'
@@ -1102,7 +1103,8 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                 ) : (() => {
                   const items = []
                   let lastDate = null
-                  msgs.forEach((msg, i) => {
+                  const view = foldReactions(msgs)   // reactions drawn on the message they react to, like WhatsApp
+                  view.forEach((msg, i) => {
                     const isOut      = msg.direction === 'out'
                     const msgDateStr = new Date(msg.created_at).toDateString()
                     if (msgDateStr !== lastDate) {
@@ -1115,18 +1117,29 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                         </div>
                       )
                     }
-                    const isLastInGroup = i === msgs.length-1
-                      || msgs[i+1]?.direction !== msg.direction
-                      || Math.abs(new Date(msgs[i+1]?.created_at) - new Date(msg.created_at)) > 60000
+                    const isLastInGroup = i === view.length-1
+                      || view[i+1]?.direction !== msg.direction
+                      || Math.abs(new Date(view[i+1]?.created_at) - new Date(msg.created_at)) > 60000
                     const isOptimistic  = msg.id?.startsWith?.('opt-')
                     const bubbleRadius  = isOut
                       ? (isLastInGroup ? '7.5px 7.5px 0 7.5px' : '7.5px')
                       : (isLastInGroup ? '7.5px 7.5px 7.5px 0' : '7.5px')
                     const bubbleColor   = isOut ? WA.bubbleOut : WA.bubbleIn
+                    if (msg.orphan) {
+                      items.push(
+                        <div key={msg.id||i} style={{ display:'flex', justifyContent:isOut?'flex-end':'flex-start', margin:'2px 8px 6px', flexShrink:0, direction:'ltr' }}>
+                          <span title={fmtTime(msg.created_at)} style={{ direction:'rtl', fontSize:12.5, color: WA.subText, background: isDark ? 'rgba(255,255,255,.06)' : 'rgba(255,255,255,.85)', borderRadius:12, padding:'3px 10px', boxShadow:'0 1px 0.5px rgba(0,0,0,.12)' }}>
+                            {isOut ? 'הגבתם' : 'תגובה'} <span style={{ fontSize:16, verticalAlign:'-2px' }}>{msg.message}</span> · {fmtTime(msg.created_at)}
+                          </span>
+                        </div>
+                      )
+                      return
+                    }
+                    const hasReacts = msg.reactions?.length > 0
 
                     items.push(
                       <div key={msg.id||i}
-                        style={{ display:'flex', justifyContent:isOut?'flex-end':'flex-start', marginBottom:isLastInGroup?6:2, flexShrink:0, direction:'ltr', paddingRight:isOut?8:0, paddingLeft:isOut?0:8 }}>
+                        style={{ display:'flex', justifyContent:isOut?'flex-end':'flex-start', marginBottom:(isLastInGroup?6:2) + (hasReacts ? 16 : 0), flexShrink:0, direction:'ltr', paddingRight:isOut?8:0, paddingLeft:isOut?0:8 }}>
                         <div style={{
                           direction:'rtl',
                           maxWidth:'65%', minWidth:90,
@@ -1199,6 +1212,13 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                             <span style={{ fontSize:11, color: WA.subText }}>{fmtTime(msg.created_at)}</span>
                             {isOut && <TickMark status={isOptimistic ? 'sending' : (msg.status || 'sent')} WA={WA}/>}
                           </div>
+                          {hasReacts && (
+                            <div aria-label={`תגובות: ${msg.reactions.map(r => r.emoji).join(' ')}`} title={msg.reactions.map(r => `${r.dir === 'out' ? 'אתם' : (hasName(contactView) ? nameOf(contactView, lang) : 'איש קשר')}: ${r.emoji}`).join('\n')}
+                              style={{ position:'absolute', bottom:-17, [isOut ? 'right' : 'left']:10, display:'flex', alignItems:'center', gap:1, padding:'1px 6px', height:24, borderRadius:12, background: isDark ? '#202C33' : '#FFFFFF', border:`1px solid ${isDark ? '#0B141A' : '#E9EDEF'}`, boxShadow:'0 1px 3px rgba(11,20,26,.18)', fontSize:15, lineHeight:1, direction:'ltr', userSelect:'none' }}>
+                              {msg.reactions.map(r => <span key={r.dir}>{r.emoji}</span>)}
+                              {msg.reactions.length > 1 && <span style={{ fontSize:11.5, color: WA.subText, marginInlineStart:3 }}>{msg.reactions.length}</span>}
+                            </div>
+                          )}
                         </div>
                       </div>
                     )

@@ -18,6 +18,7 @@ import { insertBooking } from './lib/bookingLink.js'
 import { useAttachments, useFileDrop, pasteFiles, DropOverlay, AttachTray } from './ChatAttachments.jsx'
 import { CHAT_ACCEPT, sendFiles } from './lib/chatFiles.js'
 import { onWaLive, waLiveUp, mergeLive } from './lib/waLive.js'
+import { foldReactions } from './lib/waMerge.js'
 import { setViewing } from './lib/waNotify.js'
 import WaFace from './WaFace.jsx'
 
@@ -334,19 +335,25 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
   // ── messages (WhatsApp Web: a tail on the first bubble of a run, the time tucked into the last line) ──
   const items = []
   let lastDay = ''
-  msgs.forEach((m, i) => {
+  const view = foldReactions(msgs)   // reactions drawn on the message they react to, like WhatsApp
+  view.forEach((m, i) => {
     const day = new Date(m.created_at).toDateString()
     if (day !== lastDay) {
       lastDay = day
       items.push(<div key={`d-${day}`} className="lcv-day"><span>{fmtDay(m.created_at, lang)}</span></div>)
     }
     const out = m.direction === 'out'
-    const prev = msgs[i - 1], next = msgs[i + 1]
+    const prev = view[i - 1], next = view[i + 1]
     const firstOfRun = !prev || prev.direction !== m.direction || new Date(prev.created_at).toDateString() !== day || Math.abs(new Date(m.created_at) - new Date(prev.created_at)) > 60000
     const lastOfRun = !next || next.direction !== m.direction || Math.abs(new Date(next.created_at) - new Date(m.created_at)) > 60000
     const sending = String(m.id).startsWith('opt-') && m.status === 'sending'
+    if (m.orphan) {
+      items.push(<div key={m.id || i} className={`lcv-row ${out ? 'out' : 'in'}`} style={{ marginTop: 4 }}><span className="lcv-react-line">{out ? (lang === 'en' ? 'You reacted' : 'הגבתם') : (lang === 'en' ? 'Reaction' : 'תגובה')} <b>{m.message}</b> · {fmtTime(m.created_at)}</span></div>)
+      return
+    }
+    const reacts = m.reactions || []
     items.push(
-      <div key={m.id || i} className={`lcv-row ${out ? 'out' : 'in'}`} style={{ marginTop: firstOfRun ? 8 : 2, marginBottom: lastOfRun ? 2 : 0 }}>
+      <div key={m.id || i} className={`lcv-row ${out ? 'out' : 'in'}`} style={{ marginTop: firstOfRun ? 8 : 2, marginBottom: (lastOfRun ? 2 : 0) + (reacts.length ? 16 : 0) }}>
         <div className={`lcv-b ${out ? 'out' : 'in'}${firstOfRun ? ' tail' : ''}`} style={{ opacity: sending ? .7 : 1 }}>
           {m.quoted && <div className="lcv-quote" style={{ borderInlineStartColor: m.quoted.out ? WA.green : '#53BDEB' }}>{m.quoted.text}</div>}
           {m.media && (m.kind === 'imageMessage' || m.kind === 'stickerMessage') && (m.media.url || m.media.thumb) && (
@@ -362,6 +369,12 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
             <span>{fmtTime(m.created_at)}</span>
             {out && <TickMark status={sending ? 'sending' : (m.status || 'sent')} WA={WA} size={14}/>}
           </span>
+          {reacts.length > 0 && (
+            <span className={`lcv-reacts ${out ? 'o' : 'i'}`} aria-label={`${lang === 'en' ? 'Reactions' : 'תגובות'}: ${reacts.map(r => r.emoji).join(' ')}`}
+              title={reacts.map(r => `${r.dir === 'out' ? (lang === 'en' ? 'You' : 'אתם') : (lead?.name || (lang === 'en' ? 'Contact' : 'איש קשר'))}: ${r.emoji}`).join('\n')}>
+              {reacts.map(r => <span key={r.dir}>{r.emoji}</span>)}{reacts.length > 1 && <em>{reacts.length}</em>}
+            </span>
+          )}
         </div>
       </div>
     )
@@ -393,6 +406,11 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
         .lcv-row{display:flex;padding:0 6%;direction:ltr}
         .lcv-row.out{justify-content:flex-end}
         .lcv-b{position:relative;direction:rtl;max-width:min(65%,560px);padding:6px 7px 8px 9px;border-radius:7.5px;font-size:14.2px;line-height:19px;color:${WA.bodyText};box-shadow:0 1px .5px rgba(11,20,26,.13);word-wrap:break-word;overflow-wrap:anywhere}
+        .lcv-reacts{position:absolute;bottom:-17px;display:inline-flex;align-items:center;gap:1px;height:24px;padding:1px 6px;border-radius:12px;background:${isDark ? '#202C33' : '#FFFFFF'};border:1px solid ${isDark ? '#0B141A' : '#E9EDEF'};box-shadow:0 1px 3px rgba(11,20,26,.18);font-size:15px;line-height:1;direction:ltr;user-select:none}
+        .lcv-reacts.o{right:10px}.lcv-reacts.i{left:10px}
+        .lcv-reacts em{font-style:normal;font-size:11.5px;color:${WA.subText};margin-inline-start:3px}
+        .lcv-react-line{font-size:12.5px;color:${WA.subText};background:${isDark ? 'rgba(255,255,255,.06)' : 'rgba(255,255,255,.85)'};border-radius:12px;padding:3px 10px;box-shadow:0 1px .5px rgba(0,0,0,.12)}
+        .lcv-react-line b{font-size:16px;font-weight:400}
         .lcv-b.out{background:${isDark ? '#005C4B' : '#D9FDD3'}}
         .lcv-b.in{background:${isDark ? '#202C33' : '#FFFFFF'}}
         .lcv-b.tail.out{border-top-right-radius:0}
