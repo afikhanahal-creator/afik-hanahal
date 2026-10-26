@@ -32,7 +32,7 @@ const TR = {
   },
 }
 // the lead's stage → the category that fits it now
-const STAGE_CAT = { new: 'welcome', contacted: 'followup', discovery: 'progress', meeting: 'progress', negotiating: 'progress', won: 'deal', lost: 'closing', irrelevant: 'closing', nurture: 'closing' }
+const STAGE_CAT = { new: 'welcome', contacted: 'followup', discovery: 'interested', meeting: 'progress', negotiating: 'progress', won: 'deal', lost: 'closing', irrelevant: 'closing', nurture: 'closing' }
 const norm = s => String(s || '').replace(/\s+/g, ' ').trim()
 // a line that identifies a sent template: the longest line that isn't the greeting or the signature
 const signature = text => norm(text.split('\n').filter(l => !/^(שלום|hello|hi)\b/i.test(l.trim())).sort((a, b) => b.length - a.length)[0] || '').slice(0, 36)

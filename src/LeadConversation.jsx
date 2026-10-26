@@ -58,6 +58,14 @@ async function fetchHistory(phone) {
   inflight.set(phone, p)
   return p
 }
+// What our own table holds for the chat (POST chat-history {stored:true}, ~0.1 s): a chat not opened in this session paints
+// at once, like WhatsApp, while Green's full history (~4 s) is read behind it
+async function fetchStored(phone) {
+  const r = await fetch('/api/meta/chat-history', { method: 'POST', headers: { 'Content-Type': 'application/json', ...AUTH }, body: JSON.stringify({ phone, count: 100, stored: true }), signal: AbortSignal.timeout(8000) })
+  if (!r.ok) return []
+  const data = await r.json().catch(() => [])
+  return (Array.isArray(data) ? data : []).map(normalizeGreenMsg).sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+}
 /** Warm a lead's conversation before it is opened (the list's hover); a chat read in the last minute is left alone */
 export function prefetchHistory(rawPhone) {
   const phone = intl(rawPhone)
@@ -180,11 +188,22 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
   const nearBottom = useRef(true), inserted = useRef(''), prefilled = useRef(false)
 
   // ── the WhatsApp history (conditional: an unchanged chat answers an empty 304) ──
+  const phoneRef = useRef(phone)
+  phoneRef.current = phone
   const load = useCallback(async (quiet = false) => {
     if (!phone) { setHistState('ok'); return }
+    const mine = () => phoneRef.current === phone   // another lead opened meanwhile: its answer isn't this chat's
     if (!quiet) setHistState(s => (s === 'ok' ? s : 'loading'))
-    try { setGreen(await fetchHistory(phone)); setHistState('ok') }
-    catch { setHistState(s => (s === 'ok' && quiet ? s : 'error')) }
+    let full = false
+    // not in this session's cache: our own table first (the chat shows in a blink), Green's full history replaces it
+    if (!quiet && !HIST.has(phone)) {
+      fetchStored(phone).then(list => {
+        if (full || !list.length || !mine()) return
+        setGreen(g => (g.length ? g : list)); setHistState('ok')
+      }).catch(() => {})
+    }
+    try { const list = await fetchHistory(phone); full = true; if (mine()) { setGreen(list); setHistState('ok') } }
+    catch { full = true; if (mine()) setHistState(s => (s === 'ok' ? s : 'error')) }
   }, [phone])
   useEffect(() => {
     // a chat seen in this session shows at once; the read below only refreshes it
@@ -245,16 +264,20 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
     const msg = String(text || '').trim()
     if (att.items.length) return sendWithFiles(msg)
     if ((!msg && !img) || busy || !phone) return false
-    const id = `opt-${Date.now()}`
+    const id = `opt-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
     const asWelcome = first
-    setBusy(true); setError(''); nearBottom.current = true
+    // like WhatsApp: the next message can go while this one is on its way — only the welcome (it decides "first") waits
+    if (asWelcome) setBusy(true)
+    setError(''); nearBottom.current = true
     setPending(p => [...p, { id, direction: 'out', message: img ? `📷 ${msg}`.trim() : msg, created_at: new Date().toISOString(), status: 'sending' }])
     const r = asWelcome ? await onSendWelcome?.(msg, tplId || 'manual', { image: img }) : await onSend?.(msg, { image: img })
-    setBusy(false)
+    if (asWelcome) setBusy(false)
     if (r?.ok) {
+      // ✓ at once; the real bubble (✓✓, blue) arrives live through green-hook → waLive and takes this one's place.
+      // Green's history is re-read only while the live feed is down.
       setPending(p => p.map(m => (m.id === id ? { ...m, status: 'sent' } : m)))
       if (line?.quota) setLine({ ...line, quota: null })   // a message went out: the plan isn't blocking any more
-      setTimeout(() => load(true), 1500)
+      if (!waLiveUp()) setTimeout(() => load(true), 1500)
       return true
     }
     setPending(p => p.filter(m => m.id !== id))
@@ -281,7 +304,7 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
       if (st === 'sent') setPending(p => p.map(m => (m.id === ids[i] ? { ...m, status: 'sent' } : m)))
     })
     setBusy(false)
-    if (r.ok) { att.clear(); if (line?.quota) setLine({ ...line, quota: null }); setTimeout(() => load(true), 2500); return true }
+    if (r.ok) { att.clear(); if (line?.quota) setLine({ ...line, quota: null }); if (!waLiveUp()) setTimeout(() => load(true), 2500); return true }
     // what went out stays; the rest stays in the tray to try again
     setPending(p => p.filter(m => !ids.slice(r.sent).includes(m.id)))
     files.slice(0, r.sent).forEach((f, i) => att.remove(att.items[i].id))
@@ -297,7 +320,16 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
     setInput(r.text)
     setTimeout(() => { const x = inputRef.current; if (x) { x.focus(); x.setSelectionRange(r.cursor, r.cursor) } }, 20)
   }
-  const submit = async () => { if (await send(input)) { setInput(''); setTplId(''); setImg(''); inserted.current = '' } }
+  // the box clears the moment a text goes (like WhatsApp) and gets it back only if the send failed and nothing new was typed;
+  // files and the welcome keep the box until they went out
+  const submit = async () => {
+    if (att.items.length || first) { if (await send(input)) { setInput(''); setTplId(''); setImg(''); inserted.current = '' } return }
+    const was = { input, tplId, img }
+    const p = send(input)
+    if (!was.input.trim() && !was.img) return
+    setInput(''); setTplId(''); setImg(''); inserted.current = ''
+    if (!(await p)) { setInput(cur => cur || was.input); setTplId(cur => cur || was.tplId); setImg(cur => cur || was.img) }
+  }
 
   // the box grows with its text while the composer has no dragged height
   useLayoutEffect(() => {
