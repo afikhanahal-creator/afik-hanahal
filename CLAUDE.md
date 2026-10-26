@@ -641,6 +641,13 @@ timeline grouped by day (filters: all / notes & calls / system): notes (edit inl
 (`crm_data.auto.sent`), finished tasks, analysis, arrival, and the next follow-up on top (red when overdue). The card's
 keyboard/focus effect runs once per open (it used to re-run on every parent render and pull the focus out of the note box
 while typing); `EditInput` never overwrites a field that has focus; `save()` resolves to success/failure and shows "השמירה נכשלה".
+**Welcome mark** (2026-10-26): every lead on the board shows whether the WhatsApp welcome went out — `WelcomeMark` in
+`src/LeadsBoard.jsx` from `welcomeState()` (`src/lib/leadFields.js`, tested: `auto.sent.welcome` / `auto.sent['welcome:missed']` →
+a green double check, `auto.welcomeFailed` → an amber "!", else nothing; the tooltip says when): an icon next to the date on a
+pipeline card and after the name in the table, "✓✓ נשלחה" next to the stage on a phone card. A Meta lead's CRM copy gets the
+welcome from the database: a trigger on `meta_leads.wa_sent` (`server/meta-welcome-crm-migration.sql`, applied 2026-10-26, which
+also back-filled 37 copies from `automation_log`) writes `crm_data.auto.sent.welcome` — the copy used to keep the state it had
+when it was made, so 13 welcomed leads showed nothing.
 **Leads board look:** the view switch is a segmented control (תמונת מצב · פייפליין · טבלה, line icons); the toolbar is
 "ליד חדש", search, then quiet `.lb-tb` buttons (sync, trash, CSV; columns / add column in the table only — the old dead
 "סינון" / "מיון" buttons are gone). Pipeline cards are calm (initials avatar, name + phone, campaign / source / intent tags,
