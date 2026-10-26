@@ -81,3 +81,12 @@ test('the project in a lead name: add, remove, never twice', async () => {
   assert.deepEqual(toggleProjectInName('סוזנה · זרובבל 15', 'זרובבל 15'), { has: true, next: 'סוזנה' })
   assert.deepEqual(toggleProjectInName('סוזנה · פרויקט ישן', 'זרובבל 15'), { has: false, next: 'סוזנה · זרובבל 15' })
 })
+
+test('welcome mark: sent (also through the missed-welcome queue), failed, or nothing', async () => {
+  const { welcomeState } = await import('./leadFields.js')
+  assert.deepEqual(welcomeState({ auto: { sent: { welcome: '2026-10-25T10:00:00Z' } } }), { state: 'sent', at: Date.parse('2026-10-25T10:00:00Z') })
+  assert.equal(welcomeState({ crm_data: { auto: { sent: { 'welcome:missed': '2026-10-25T10:00:00Z' } } } }).state, 'sent')
+  assert.equal(welcomeState({ auto: { welcomeFailed: '2026-10-25T10:00:00Z' } }).state, 'failed')
+  assert.equal(welcomeState({ auto: { welcomeFailed: 'x', sent: { welcome: '2026-10-25T10:00:00Z' } } }).state, 'sent')
+  assert.equal(welcomeState({}), null)
+})

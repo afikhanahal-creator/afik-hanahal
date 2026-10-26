@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect, useMemo, createContext, useCo
 import DateTimePicker from './DateTimePicker.jsx'
 import { ensureFuCss } from './FollowUpTask.jsx'
 import { followUpPresets, setNextFollowUp } from '../lib/follow-up.js'
-import { sourceLabel, sourceColor, originLines, leadCampaign, leadCampaignTag, leadCampaignFull, prettyLeadText, leadProject, toggleProjectInName } from './lib/leadFields.js'
+import { sourceLabel, sourceColor, originLines, leadCampaign, leadCampaignTag, leadCampaignFull, prettyLeadText, leadProject, toggleProjectInName, welcomeState } from './lib/leadFields.js'
 import { mergeLeads, mergeConflicts } from './lib/leadMerge.js'
 import { trashBatches } from '../lib/lead-restore.js'
 import LeadsDashboard from './LeadsDashboard.jsx'
@@ -23,7 +23,7 @@ import {
   MoreHorizontal, User, Calendar, Phone, Mail, FileText, Link2, Zap,
   Settings, X, Check, GripVertical, Trash2, Copy, Download, Upload, Bell, Pencil,
   Star, RefreshCw, Columns, Paintbrush, Layers, ArrowUpDown, ExternalLink,
-  MessageSquare, Hash, Tag, ChevronLeft, ChevronUp, BarChart3, Columns3, Table2, Minus, Clock, StickyNote,
+  MessageSquare, Hash, Tag, ChevronLeft, ChevronUp, BarChart3, Columns3, Table2, Minus, Clock, StickyNote, CheckCheck, AlertCircle,
 } from 'lucide-react'
 
 // ─── constants ────────────────────────────────────────────────────────────────
@@ -531,8 +531,9 @@ function MobileLeadCard({ lead, lang, T, onUpdate, onDelete, onOpenDetail, onSta
           <div style={{ fontSize: 15, fontWeight: 700, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {lead.name || '—'}{campaign && <span style={{ fontSize: 12, fontWeight: 500, color: T.textSub, marginInlineStart: 6 }}>(<bdi>{campaign}</bdi>)</span>}
           </div>
-          <div style={{ marginTop: 4 }}>
+          <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
             <StatusBadge value={lead.leadStatus || 'new'} lang={lang} T={T} onClick={e => { e.stopPropagation(); onStatusClick(e, lead) }} />
+            <WelcomeMark lead={lead} lang={lang}/>
           </div>
         </div>
         {/* ⋯ menu */}
@@ -832,6 +833,7 @@ function SortableRow({ lead, cols, onUpdate, onDelete, onSelect, isSelected, lan
                   : <button type="button" className="lb-name-link" onClick={() => onOpenDetail(lead)} title={lang === 'en' ? 'Open the lead card' : 'פתיחת כרטיס הליד'}>{val || '—'}</button>}
               </div>
               {!renaming && hovered && <button type="button" className="lb-name-pen" onClick={() => setRenaming(true)} aria-label={lang === 'en' ? 'Rename' : 'שינוי שם'} title={lang === 'en' ? 'Rename' : 'שינוי שם'}><Pencil size={12}/></button>}
+              {!renaming && <WelcomeMark lead={lead} lang={lang} compact/>}
               {camp && <span title={leadCampaignFull(lead, lang)} style={{ flex: '1 1 0', minWidth: 0, fontSize: 11.5, fontWeight: 500, color: T.textSub, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>(<bdi>{camp}</bdi>)</span>}
             </div>
           )
@@ -1271,6 +1273,12 @@ export const LB_CSS = `
   .lb-card .lb-check{opacity:.55;transition:opacity .12s}
   .lb-card:hover .lb-check,.lb-card.sel .lb-check,.lb-card .lb-check:focus-within{opacity:1}
   .lb-acts{display:flex;align-items:center;gap:2px}
+  .lb-wl{display:inline-flex;align-items:center;gap:4px;flex-shrink:0;height:24px;padding:0 9px 0 7px;border-radius:999px;font-size:11.5px;font-weight:700;line-height:1;white-space:nowrap;cursor:default}
+  .lb-wl.ok{color:#12804A;background:rgba(37,211,102,.14);box-shadow:inset 0 0 0 1px rgba(37,211,102,.38)}
+  .lb-wl.bad{color:#B45309;background:rgba(245,158,11,.13);box-shadow:inset 0 0 0 1px rgba(245,158,11,.4)}
+  .lb-wl.compact{width:24px;height:24px;padding:0;justify-content:center}
+  html[data-admin-theme=dark] .lb-wl.ok{color:#4ADE80}
+  html[data-admin-theme=dark] .lb-wl.bad{color:#FBBF24}
   .lb-act{display:inline-flex;align-items:center;justify-content:center;gap:5px;height:30px;min-width:30px;padding:0 8px;border:none;border-radius:8px;background:transparent;color:var(--au-text2,#5E6378);font:inherit;font-size:12px;font-weight:500;cursor:pointer;text-decoration:none;transition:background .12s,color .12s;min-height:0}
   .lb-act:hover{background:rgba(var(--ov,28,36,90),.07);color:var(--au-text,#1F2433)}
   .lb-act.call:hover{color:#0073EA;background:rgba(0,115,234,.09)}
@@ -1291,6 +1299,24 @@ const CALL_OUTCOMES = [
 const localDT = d => { const z = new Date(d.getTime() - d.getTimezoneOffset() * 60000); return z.toISOString().slice(0, 16) }
 const at10 = days => { const d = new Date(); d.setDate(d.getDate() + days); d.setHours(10, 0, 0, 0); return localDT(d) }
 const fmtNoteTs = (ts, lang) => ts ? new Date(ts).toLocaleString(lang === 'en' ? 'en-GB' : 'he-IL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''
+
+// The WhatsApp welcome mark on every lead (pipeline card, table, phone card): a green double check once the opening message
+// went out (the automation, the Lead Center's first send, the missed-welcome queue — welcomeState()), an amber one when it
+// failed — so a glance says whether to call or to write before anyone does either.
+function WelcomeMark({ lead, lang, compact = false }) {
+  const w = welcomeState(lead)
+  if (!w) return null
+  const en = lang === 'en', ok = w.state === 'sent'
+  const when = w.at ? fmtNoteTs(w.at, lang) : ''
+  const tip = ok ? (en ? `WhatsApp welcome sent${when ? ` · ${when}` : ''}` : `נשלחה הודעת פתיחה בוואטסאפ${when ? ` · ${when}` : ''}`)
+    : (en ? 'The WhatsApp welcome did not go out' : 'הודעת הפתיחה בוואטסאפ לא נשלחה')
+  return (
+    <span className={`lb-wl ${ok ? 'ok' : 'bad'}${compact ? ' compact' : ''}`} title={tip} aria-label={tip} role="img">
+      {ok ? <CheckCheck size={14} strokeWidth={2.6}/> : <AlertCircle size={13} strokeWidth={2.4}/>}
+      {!compact && <span>{ok ? (en ? 'Sent' : 'נשלחה') : (en ? 'Not sent' : 'לא נשלחה')}</span>}
+    </span>
+  )
+}
 
 function CallNoteDialog({ lead, T, isDark, lang, onClose, updateLead, updateLeadStatus }) {
   ensureFuCss()
@@ -1498,6 +1524,7 @@ function KanbanCard({ lead, T, isDark, lang, onOpen, onDelete, onOpenChat, onEnr
       <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 10, paddingTop: 6, borderTop: `1px solid ${line}` }} onPointerDown={e => e.stopPropagation()}>
         <span style={{ fontSize: 11.5, color: T.textDim, fontVariantNumeric: 'tabular-nums', flex: 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
           <span style={{ width: 7, height: 7, borderRadius: '50%', background: color, flexShrink: 0 }} aria-hidden="true"/>{fmtDate(lead.ts)}
+          <WelcomeMark lead={lead} lang={lang} compact/>
         </span>
         <div className="lb-acts">
           {lead.phone && <a className="lb-act call" href={`tel:${lead.phone}`} onClick={e => e.stopPropagation()} title={en ? 'Call' : 'התקשרות'} aria-label={en ? 'Call' : 'התקשרות'}><Phone size={15}/></a>}

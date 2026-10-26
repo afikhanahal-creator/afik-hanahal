@@ -141,3 +141,16 @@ export function leadCampaignTag(lead, lang = 'he') {
   return c && String(lead?.name || '').includes(c) ? '' : c
 }
 export const leadCampaignFull = (lead, lang = 'he') => (lead && typeof lead === 'object' && metaName(lead)) || leadCampaign(lead, lang)
+
+/**
+ * Did the WhatsApp welcome reach this lead? (crm_data.auto — the CRM's own welcome, the missed-welcome queue, and for a Meta lead
+ * the Lead Center / webhook welcome copied over by the database: server/meta-welcome-crm-migration.sql)
+ * → { state: 'sent', at } · { state: 'failed', at } · null (nothing known yet)
+ */
+export function welcomeState(lead) {
+  const auto = (lead && (lead.auto || lead.crm_data?.auto)) || {}
+  const sent = auto.sent?.welcome || auto.sent?.['welcome:missed']
+  if (sent) return { state: 'sent', at: Date.parse(sent) || null }
+  if (auto.welcomeFailed) return { state: 'failed', at: Date.parse(auto.welcomeFailed) || null }
+  return null
+}
