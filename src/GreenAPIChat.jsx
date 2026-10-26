@@ -304,6 +304,13 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
     } catch (e) { throw new Error(e.name === 'TimeoutError' ? 'Green API לא ענה בזמן — נסו שוב' : e.message) }
   }, [])
 
+  const fetchStoredHistory = async p => {
+    const r = await fetch(`${CHAT_API}/chat-history`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...AUTH_HEADER }, body: JSON.stringify({ phone: p, count: 100, stored: true }), signal: AbortSignal.timeout(8000) })
+    if (!r.ok) return []
+    const data = await r.json().catch(() => [])
+    return (Array.isArray(data) ? data : []).map(normalizeGreenMsg).sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+  }
+
   // The legacy history on the Render backend (its own `chats` table) is read ONCE per contact per session:
   // new rows there arrive through the Supabase Realtime channel below, and Render's bandwidth is metered —
   // the 8-second poll used to download up to 300 rows from it every time. The poll only asks Green API (Vercel).
@@ -314,6 +321,16 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
     const hasCache = (chatsRef.current[p] || []).length > 0
     if (opts.showLoader && !hasCache) { setLoading(true); setFetchError(null) }
     setLoadingPhones(prev => { const s = new Set(prev); s.add(p); return s })
+    // a chat not on screen yet paints at once from our own table (~0.1 s), like WhatsApp; Green's full history (~4 s) follows
+    let full = false
+    if (!hasCache && opts.showLoader) {
+      fetchStoredHistory(p).then(list => {
+        if (full || !list.length) return
+        setChats(prev => ((prev[p] || []).length ? prev : { ...prev, [p]: list }))
+        list.forEach(m => { if (m.id) notifiedMsgIdsRef.current.add(m.id) })
+        setLoading(false)
+      }).catch(() => {})
+    }
 
     try {
       const backendP = backendHistoryRef.current[p]
@@ -325,6 +342,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
             }).then(r => r.ok ? r.json() : []).then(rows => { if (Array.isArray(rows)) backendHistoryRef.current[p] = rows; return rows }).catch(() => [])
           : Promise.resolve([])
       const [backendResult, greenResult] = await Promise.allSettled([backendP, fetchGreenHistory(phone)])
+      full = true
 
       const fromBackend = backendResult.status === 'fulfilled' && Array.isArray(backendResult.value) ? backendResult.value : []
       const fromGreen   = greenResult.status   === 'fulfilled' && Array.isArray(greenResult.value)   ? greenResult.value   : []
@@ -390,7 +408,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
     const d = await r.json().catch(() => ({}))
     if (d.quota) setQuota(q => q || { blocked: true, at: new Date().toISOString() })
     else if (r.ok) setQuota(null)
-    return { ok: r.ok, error: d.error || (r.ok ? '' : `HTTP ${r.status}`), quota: !!d.quota }
+    return { ok: r.ok, error: d.error || (r.ok ? '' : `HTTP ${r.status}`), quota: !!d.quota, idMessage: d.idMessage || null }
   }, [])
 
 
@@ -622,7 +640,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
     setSending(false)
     if (r.ok) {
       att.clear(); setTplImg(null)
-      setTimeout(() => fetchMsgs(contact.phone), 3500)
+      if (!waLiveUp()) setTimeout(() => fetchMsgs(p), 3500)
       onSentMessageRef.current?.({ contactName: nameOf(contactView, lang), message: msg || files.map(f => f.name).join(', ') })
       return true
     }
@@ -640,14 +658,17 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
     const msg  = (fromPicker ? override : input).trim()
     const files = fromPicker ? [] : att.files
     const image = fromPicker ? (opts.image || '') : (files.length ? '' : (tplImg?.url || ''))
-    if ((!msg && !files.length && !image) || !contact || sending) return
+    // like WhatsApp: the box clears at once and stays open — the next message can go while this one is on its way
+    // (only files lock it, while they upload)
+    if ((!msg && !files.length && !image) || !contact || (files.length && sending)) return
     const p = intlPhone(contact.phone)
     if (!p) { alert('מספר טלפון לא תקין'); return }
     if (files.length) return sendFilesMsg(p, msg, files)
 
-    const optId = 'opt-' + Date.now()
-    setSending(true)
-    if (!fromPicker) setInput('')
+    const optId = 'opt-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6)
+    isNearBottom.current = true
+    const boxImg = tplImg
+    if (!fromPicker) { setInput(''); setTplImg(null) }
     setEmoji(false)
 
     setChats(prev => ({
@@ -678,8 +699,10 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
       }
 
       if (ok) {
-        if (!fromPicker) setTplImg(null)
-        setTimeout(() => fetchMsgs(contact.phone), 2000)
+        // ✓ at once; ✓✓ / blue come live (green-hook → waLive), the bubble is swapped for the real one when it arrives.
+        // Green's history is re-read only while the live feed is down.
+        setChats(prev => ({ ...prev, [p]: (prev[p] || []).map(m => (m.id === optId ? { ...m, status: 'sent' } : m)) }))
+        if (!waLiveUp()) setTimeout(() => fetchMsgs(p), 2000)
         const contactName = nameOf(contactView, lang)
         onSentMessageRef.current?.({ contactName, message: msg || (lang === 'en' ? 'Picture' : 'תמונה') })
       } else {
@@ -688,9 +711,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
     } catch (e) {
       alert('ההודעה לא נשלחה.\n\n' + e.message)
       setChats(prev => ({ ...prev, [p]: (prev[p]||[]).filter(m => m.id !== optId) }))
-      if (!fromPicker) setInput(msg)
-    } finally {
-      setSending(false)
+      if (!fromPicker) { setInput(cur => cur || msg); if (boxImg) setTplImg(cur => cur || boxImg) }
     }
     return ok
   }
@@ -1210,7 +1231,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                           )}
                           <div style={{ position:'absolute', bottom:5, left:8, display:'flex', alignItems:'center', gap:3, direction:'ltr', userSelect:'none' }}>
                             <span style={{ fontSize:11, color: WA.subText }}>{fmtTime(msg.created_at)}</span>
-                            {isOut && <TickMark status={isOptimistic ? 'sending' : (msg.status || 'sent')} WA={WA}/>}
+                            {isOut && <TickMark status={isOptimistic ? (msg.status === 'sent' ? 'sent' : 'sending') : (msg.status || 'sent')} WA={WA}/>}
                           </div>
                           {hasReacts && (
                             <div aria-label={`תגובות: ${msg.reactions.map(r => r.emoji).join(' ')}`} title={msg.reactions.map(r => `${r.dir === 'out' ? 'אתם' : (hasName(contactView) ? nameOf(contactView, lang) : 'איש קשר')}: ${r.emoji}`).join('\n')}

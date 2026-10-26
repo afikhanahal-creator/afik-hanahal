@@ -227,7 +227,11 @@ missing; the Lead Center's CRM button calls `POST /api/meta/lead-to-crm {id}`. T
 **One name everywhere:** **Lead names are saved in Hebrew** (2026-10-24): a Latin name ("Ronen Cohen") is written in Hebrew when the lead
 arrives — the Meta webhook and sync (`meta_leads.name`), website forms (`api/contacts.js`) and bookings — by `hebrewFullName()`
 (`lib/hebrew-names.js`, tested: ~450 first names, Israeli surnames, then transliteration with final letters; an email, a test
-lead or junk stays as typed; a surname typed first is put after the first name — `nameOrder()`: "Bechar Eddie" → "אדי בכר"). **A name
+lead or junk stays as typed; a surname typed first is put after the first name — `nameOrder()`: "Bechar Eddie" → "אדי בכר"; a
+Hebrew name too, when it is clear — `heNameOrder()`: the first word reads as a surname (a known one or -וביץ / -סקי / -שטיין /
+-ברג / -מן / -גר …) and the last is a known first name: "ליבוביץ סופי" → "סופי ליבוביץ" (the typed order stays in
+`originalName`; the 3 existing ones were fixed on 2026-10-26); "אידית מאיר" stays — many surnames are first names too). Every
+template greets with `givenName()` (`lib/hebrew-names.js`, tested), so "{name}" is the first name either way. **A name
 no list knows is proofread by Claude before it is saved** (2026-10-25, `lib/name-proof.js` `properHebrewName()`, tested: the Meta
 webhook, a new lead in the sync, website forms; `claude-opus-5-5`, effort low, structured output, 8 s cap; only a confident,
 Hebrew-letters-only answer is taken — anything else keeps the list-based spelling, so a lead is never held up; "Bechar" used to become
@@ -276,7 +280,14 @@ is new (`GET /api/meta/chat-updates?since=<cursor>`) and hands it to every open 
 lands in its chat, a sent one replaces its optimistic bubble, the chat jumps to the top, a new chat is added), the Lead Center /
 lead card (`LeadConversation`) and the admin (sidebar badge + a toast naming the lead outside the chats tab). The 8-second
 history polls run only while the bus is down (once a minute otherwise); `chat-history` merges the stored rows over Green's
-history (`mergeHistory()`), so a message is never lost even if Green's journal is. **Green's settings are checked by themselves:**
+history (`mergeHistory()`), so a message is never lost even if Green's journal is. **As fast as WhatsApp** (2026-10-26):
+a chat not opened in this session paints from our own table first (`chat-history {stored:true}` — `wa_messages` only, ~0.1 s)
+while Green's full history (~4 s) is read behind it, and every Green read saves what the table missed (`historyToRow()` in
+`lib/green-hook.js`, tested → `afik_wa_backfill(rows)`, `server/wa-backfill-migration.sql`: quiet — the change bus isn't told,
+`updated_at` = the message's time, so the live feed never re-sends old messages), so the next open of that chat anywhere is
+complete at once. Sending: the box clears the moment a text goes and stays open (the next message can go while the first is on
+its way — only files and the very first welcome wait; a failure puts the text back), the bubble turns ✓ as soon as Green
+accepts it and ✓✓ / blue arrive live; Green's history is re-read after a send only while the live feed is down. **Green's settings are checked by themselves:**
 `greenSettingsCheck()` (10-min cache) re-enables the journals (`incomingWebhook`, `outgoingWebhook`, `outgoingMessageWebhook`,
 `outgoingAPIMessageWebhook`) and points `webhookUrl` at us when either drifted (at most once an hour); `GET /api/meta/chat-settings`
 reports it (`POST {fix:true}` fixes), `chat-status` returns `settings`; probe action `wa-fix`. The chatbot's hook point is
@@ -336,9 +347,12 @@ approval queue grouped by kind (missed welcome first, "send all N" per group, st
 (lead + campaign + local phone + reason · the full message · send / skip / chat), then the schedule. **Renaming from "היום":** a click on a row's name opens an inline editor (Enter / Esc, "+ הוספת הפרויקט: <short campaign>") → the admin's `updateLead(id, { name })` (`onRenameLead`) = the same rename as the board (CRM, `meta_leads`, the chats, the open Lead Center); every row of that lead shows the new name at once and a message not edited by hand is re-rendered with it. **Wording per message:** a
 template dropdown above every message (the item's category first, the whole library below — rendered for that lead in the
 browser with `renderTemplate`), "נוסח אחר" (next template of the same category), "ערוך הודעה" (free edit), "שחזר נוסח"; the
-group header has "נוסח לכל הקבוצה…". The send carries the chosen `templateId`. The built-in library has 61 bilingual templates
+group header has "נוסח לכל הקבוצה…". The send carries the chosen `templateId`. The built-in library has 71 bilingual templates
 (welcome / late-welcome / investor / scheduling variants, follow-ups, visits, after-call, nurture, re-engagement, chat-ready
-replies, deal steps), **written by people, from the Afik Hanahal page**: always plural — the office is "we" ("ראינו",
+replies, deal steps; **"מתעניין – אחרי שיחה וחומרים"** (`cat: 'interested'`, 10 `int_*` templates, 2026-10-26): a lead who got the
+materials after a good call — did you go over them, is there a direction or not ("גם "לא" זו תשובה טובה"), a call with the
+developer, a meeting at our office, which of the two, what is still open, a few days later, who else decides, things are moving,
+pick a time; the stage "מתעניין" (`discovery`) recommends them first and its stage message defaults to `int_checkin`), **written by people, from the Afik Hanahal page**: always plural — the office is "we" ("ראינו",
 "נשמח", "נתקשר") and the lead is addressed in plural ("השארתם", "לכם", "אתכם"), which also keeps the Hebrew gender-neutral; the
 message opens with **why we write and what the lead asked about** — the project / listing (`{property}`; `{when}` / `{where}` and what they look for, `{needs}`, live in the longer templates — the welcome stays one short line) — not with the office: "היי רונן, ראינו את הפנייה על זרובבל 15.\nלשלוח תוכניות ומחירים, או שנדבר בטלפון?" (a lead whose project / listing we know — a Meta lead's campaign counts — gets the rule's project welcome, `welcome_prop`, through `welcomeTemplateId()` in `lib/automations-shared.js`: the automatic send, the Lead Center's first text and the missed-welcome queue; it never names the office — the project says who we are). "אפיק הנחל" appears in at most 4 templates (a first message without a project, a late one, the months-later re-engagement, the review request), once, never as the opening words (test "every message is about the lead"); `{property}` / `{needs}` sit inside `[[ … ]]` wherever the sentence reads fine without them, so a lead with no project gets no generic "הנכס"; the lead analysis' suggested message (`lib/lead-analyze.js`) follows the same rules; later ones carry no signature (`{agent}`, default
 "צוות אפיק הנחל", only signs the closing / holiday messages, inside `[[ … ]]` so an empty value drops the line); "היי" (or `{greeting}`: `timeGreeting()` = בוקר טוב / צהריים טובים / ערב טוב by the Israel hour, rendered at send
@@ -354,7 +368,7 @@ over 110 characters (a first message: 100), or more than 2 lines, come back — 
 (the welcome is one short line + one question: "היי אדי, ראינו את הפנייה על זרובבל 15.\nלשלוח תוכניות ומחירים, או שנדבר בטלפון?"; what the lead looks for
 waits for the personal templates). **English messages** (rewritten 2026-10-24 in natural, professional English — "thanks for leaving your details", "Would you
 like us to send…", "Tabu registration", "the Sharon region") **never carry a Hebrew word**: `lib/english-values.js` (tested — a test
-renders all 61 templates in English for a Hebrew lead and fails on any Hebrew letter) writes the project in English
+renders all 71 templates in English for a Hebrew lead and fails on any Hebrew letter) writes the project in English
 (`englishProject`: "זרובבל 15 - v2" → "15 Zerubavel Street", from a street / town list — add a new project's street there), the
 form answers (`englishValue`: "5 מיליון ומעלה" → "₪5 million+", "3 חדרים" → "3 rooms", "פנטהאוז" → "a penthouse", towns), and
 the name (the one typed in the form, else the Hebrew first name in English — `latinFirstName()` — else "Hi there"); a value it
@@ -405,7 +419,7 @@ when every placeholder in it is known, so one template works with or without the
 its ה ("בנכס", never "בהנכס"). Six templates (`personal_needs` / `_budget` / `_message` / `_investor` / `_timeline` / `_followup`);
 in "היום" every row shows "מה ידוע:" and a "✍️ התאמה אישית" button (`bestPersonalTemplateId()`), and the group menu has
 "הכי אישי לכל ליד".
-**WhatsApp page → ⚡ "תבניות מוכנות"** (`src/ChatTemplatePicker.jsx`): the whole library (61 templates, incl. chat-ready ones —
+**WhatsApp page → ⚡ "תבניות מוכנות"** (`src/ChatTemplatePicker.jsx`): the whole library (71 templates, incl. chat-ready ones —
 details, viewing offer / directions / feedback, financing, similar / new listings, price update, busy-now, office hours, owner
 valuation, signing steps, contract documents, keys, review / referral requests) rendered for the open chat's lead (the lead row
 from `leads`, so names, the campaign's short name and `leadNeeds` all apply), "מומלץ עכשיו" (the most personal template + the

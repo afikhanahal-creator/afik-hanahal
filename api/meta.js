@@ -23,7 +23,7 @@ import { metaFormAnswers, shortCampaign } from '../src/lib/leadFields.js'
 import { hebrewFullName } from '../lib/hebrew-names.js'
 import { properHebrewName } from '../lib/name-proof.js'
 import { hebrewizeRecentNames } from '../lib/hebrew-lead-names.js'
-import { parseGreenHook, rowToGreen, mergeHistory } from '../lib/green-hook.js'
+import { parseGreenHook, rowToGreen, mergeHistory, historyToRow } from '../lib/green-hook.js'
 import { avatarExpiry, avatarFresh, avatarPhone } from '../lib/wa-avatar.js'
 
 const SUPERMETRICS_API_KEY    = process.env.SUPERMETRICS_API_KEY    || ''
@@ -1221,11 +1221,23 @@ async function handleChat(req, res, action) {
       return res.status(200).json({ messages: rows.map(r => ({ ...slimGreenMsg(rowToGreen(r)), phone: r.phone, senderName: r.sender_name || undefined })), cursor: rows.length ? rows[rows.length - 1].updated_at : since })
     }
 
-    // POST /api/meta/chat-history { phone, count } → raw Green getChatHistory array
+    // POST /api/meta/chat-history { phone, count, stored? } → the chat in Green's history shape. stored:true = only what our
+    // own table holds (~0.1 s — the chat paints at once, like WhatsApp); without it Green's getChatHistory (~4 s) is merged
+    // in, and whatever our table missed is saved quietly (afik_wa_backfill), so the next open of this chat is complete.
     if (action === 'chat-history') {
-      const { phone, count = 100 } = req.body || {}
+      const { phone, count = 100, stored: storedOnly } = req.body || {}
       const p = normalizePhone(phone)
       if (!p) return res.status(400).json({ error: 'phone required' })
+      const lim = Math.min(Number(count) || 100, 200)
+      const readStored = () => (SUPABASE_URL && SUPABASE_KEY
+        ? sb().from('wa_messages').select('id,phone,direction,type,body,file_url,file_name,mime,quoted,status,ts').eq('phone', p).order('ts', { ascending: false }).limit(lim)
+        : Promise.resolve({ data: [] }))
+      if (storedOnly) {
+        const { data: rows, error } = await readStored()
+        if (error) return res.status(502).json({ error: error.message })
+        return res.status(200).json(mergeHistory([], rows || []).reverse().map(slimGreenMsg))
+      }
+      const storedP = Promise.resolve(readStored())   // starts now, side by side with Green
       const r = await greenFetch(greenUrl('getChatHistory'), {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ chatId: `${p}@c.us`, count: Math.min(Number(count) || 100, 200) }),
@@ -1234,9 +1246,12 @@ async function handleChat(req, res, action) {
       if (!r.ok) return res.status(502).json(await greenError(r, 'getChatHistory'))
       const data = await r.json().catch(() => [])
       // + what Green delivered to us (wa_messages): a reply Green's history misses still shows, and the furthest status wins
-      const { data: stored } = SUPABASE_URL && SUPABASE_KEY
-        ? await sb().from('wa_messages').select('id,phone,direction,type,body,file_url,file_name,mime,quoted,status,ts').eq('phone', p).order('ts', { ascending: false }).limit(Math.min(Number(count) || 100, 200))
-        : { data: [] }
+      const { data: stored } = await storedP
+      if (SUPABASE_URL && SUPABASE_KEY && Array.isArray(data) && data.length) {
+        const have = new Set((stored || []).map(x => x.id))
+        const missing = data.filter(m => m?.idMessage && !have.has(String(m.idMessage))).map(m => historyToRow(m, p)).filter(Boolean)
+        if (missing.length) await sb().rpc('afik_wa_backfill', { rows: missing }).then(() => {}, () => {})
+      }
       // Only the fields the chat shows (src/GreenAPIChat.jsx normalizeGreenMsg): Green's raw messages carry a lot more,
       // and this answer is polled (Vercel meters every byte a function sends). A 304 when nothing changed.
       const merged = mergeHistory(Array.isArray(data) ? [...data].reverse() : [], stored || []).reverse()
