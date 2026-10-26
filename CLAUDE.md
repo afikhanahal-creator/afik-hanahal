@@ -424,6 +424,14 @@ always looks through the whole library.
 the date, then how long ago); with no contact at all "קשר אחרון: עוד לא נוצר קשר · הליד נכנס לפני 4 ימים"; green under 3 days, amber
 under 7, red after; the full date in the tooltip. A plain note doesn't count as contact. **The card's conversation column drags**
 (its inner edge, `Splitter` → `--lc-conv`, 360–1100 px, `localStorage.afik_lead_card_conv_w`; double-click resets to 40 %).
+**One template library everywhere** (2026-10-26, `src/lib/autoConfigStore.js`): the admin's `autoCfg` is published to every screen
+(`setSharedAutoConfig` / `useSharedAutoConfig`) and any save comes back to it — the automations tab, the chats (window, menu,
+"הצעות", quick editor), the Lead Center and the lead card (it used to keep its own copy, read once per session) all show the same
+wording at once. The admin re-reads the config when its window is back in focus (≥ 30 s apart), so an edit from another device
+arrives too. The automations tab re-syncs whatever is saved (unsaved rule edits stay in the draft) and every save there starts from
+the server's current config (`fresh()`), so it never overwrites a template saved from a chat a moment ago. A template change
+re-renders the "היום" queue on the server right away (`runAutomations` 1.5 s later), and the server's config cache is 5 s
+(`loadConfig`), so the next automatic send uses the new wording.
 **Sending in the chat** (messaging UI v2, 2026-10-23 — line icons from `src/uiIcons.jsx` (`Icon`, `CatTile` per template
 category), never emoji in the UI chrome): **the message box** is `src/ChatComposer.jsx` (GreenAPIChat keeps the state) — one card
 with the "מתבנית · <title>" line (changed → "שמירה בתבנית", ✕ clears the box), the attachment or the template's picture, the

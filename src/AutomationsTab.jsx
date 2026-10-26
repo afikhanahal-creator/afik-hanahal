@@ -196,7 +196,15 @@ function Automations({ lang = 'he', leads = [], stageLabels = {}, config, onConf
   const KEYS = ['rules', 'quiet', 'vars']
   const dirtyKey = k => JSON.stringify(draft[k] ?? null) !== JSON.stringify(saved[k] ?? null)
   const dirty = KEYS.some(dirtyKey)
-  useEffect(() => { if (config?.config && !dirty) { setDraft(clone(config.config)); setSaved(clone(config.config)) } }, [config]) // eslint-disable-line react-hooks/exhaustive-deps
+  // a newer config (a template edited from a chat or the lead card, another device after a focus) always replaces what is
+  // saved here; rule edits not saved yet stay in the draft
+  useEffect(() => {
+    if (!config?.config) return
+    const fresh = clone(config.config)
+    const keep = KEYS.filter(dirtyKey)
+    setSaved(fresh)
+    setDraft(d => ({ ...clone(fresh), ...pick(clone(d), keep) }))
+  }, [config]) // eslint-disable-line react-hooks/exhaustive-deps
   const cfg = useMemo(() => mergeConfig(draft), [draft])
   const tpls = useMemo(() => templateList(cfg), [cfg])
   const tplName = useCallback(id => { const x = tpls.find(y => y.id === id); return x ? (isEn ? x.en_title || x.he_title : x.he_title || x.en_title) : '' }, [tpls, isEn])
@@ -213,18 +221,21 @@ function Automations({ lang = 'he', leads = [], stageLabels = {}, config, onConf
 
   // Save: shared keys go from draft; everything else (templates, enabled…) from what is saved
   const persistFull = async next => { await autoApi.post('auto-config', { config: next }); onConfigSaved?.(next) }
+  // every save starts from the config as it is on the server now, so a template saved from a chat, the lead card or another
+  // device a moment ago is never overwritten by this screen's older copy
+  const fresh = async () => { try { const d = await autoApi.get('auto-config'); return clone(d?.config || saved) } catch { return clone(saved) } }
   const save = async () => {
     setSaving(true); setSaveErr('')
-    const next = { ...clone(saved), ...pick(clone(draft), KEYS) }
+    const next = { ...(await fresh()), ...pick(clone(draft), KEYS) }
     try { await persistFull(next); setSaved(next); setJustSaved(true); setTimeout(() => setJustSaved(false), 1200) }
     catch (e) { setSaveErr(e.message) } finally { setSaving(false) }
   }
   // instant saves (templates, master switch) keep unsaved rule edits untouched
   const persist = async mutate => {
-    const nextSaved = clone(saved); mutate(nextSaved)
+    const nextSaved = await fresh(); mutate(nextSaved)
     await persistFull(nextSaved)
     setSaved(nextSaved)
-    setDraft(d => { const n = clone(d); mutate(n); return n })
+    setDraft(d => { const n = clone(d); mutate(n); return { ...clone(nextSaved), ...pick(n, KEYS) } })
   }
   const setMaster = async on => {
     if (!on && !await confirm({ title: t.confirmOffTitle, body: t.confirmOffBody, confirmLabel: t.confirmOffBtn, cancelLabel: t.cancel, tone: 'danger' })) return
