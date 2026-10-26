@@ -25,7 +25,7 @@ export const SPLITTER_CSS = `
   body.spl-x iframe,body.spl-y iframe{pointer-events:none}
 `
 
-export default function Splitter({ axis = 'x', get, apply, commit, reset, min = 0, max, grows = 1, label, gap = false, className = '' }) {
+export default function Splitter({ axis = 'x', get, apply, commit, reset, min = 0, max, grows = 1, label, gap = false, className = '', style }) {
   const drag = useRef(null)
   const hi = () => (typeof max === 'function' ? max() : max ?? Infinity)
   const clamp = v => Math.round(Math.min(hi(), Math.max(min, v)))
@@ -50,7 +50,7 @@ export default function Splitter({ axis = 'x', get, apply, commit, reset, min = 
   const now = (() => { try { return Math.round(get()) } catch { return undefined } })()
   return (
     <div role="separator" aria-orientation={axis === 'y' ? 'horizontal' : 'vertical'} aria-label={label} title={label}
-      aria-valuenow={now} aria-valuemin={min} tabIndex={0} className={`spl ${axis}${gap ? ' gap' : ''} ${className}`}
+      aria-valuenow={now} aria-valuemin={min} tabIndex={0} className={`spl ${axis}${gap ? ' gap' : ''} ${className}`} style={style}
       onPointerDown={e => {
         if (e.button !== 0) return
         e.preventDefault()

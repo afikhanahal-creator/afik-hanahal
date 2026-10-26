@@ -311,7 +311,11 @@ an OS notification while the window is in the background (one per chat, tag `wa-
 tab (`bumpTab`: "(N)" in the title, a red count on the icon, the title flashing "💬 name: message" until the window is back).
 The chats tab's bell (`src/WaNotifySettings.jsx`) sets them (`localStorage.afik_wa_notify_v1`: sound / desktop / in-app card /
 leads only), shows the browser's permission (ask / how to unblock) and sends a test alert (`afik:wa-test-alert`); an amber dot on
-the bell while desktop notifications are off. **The chat list** has filters "הכל · לא נקראו · ממתינים לתשובה" (counts;
+the bell while desktop notifications are off. **Resizable chats tab** (2026-10-26): the edge between the chat list and the conversation drags (`Splitter` axis x, the list
+260–640 px, kept in `localStorage.afik_wa_list_w`; arrows / Home / End, double-click resets to 340; hidden on phones).
+**WhatsApp's own ticks** (`TickMark` in `src/waShared.jsx`): the SVG shapes WhatsApp Web draws — one check = sent, two = delivered,
+two in `#53BDEB` = read (or played) — in the chats tab, its list and the Lead Center / lead card; a clock while sending, "!" failed.
+**The chat list** has filters "הכל · לא נקראו · ממתינים לתשובה" (counts;
 `sessionStorage.afik_wa_filter`), unread rows tinted with a green count, and a chip on every chat whose last word is the lead's
 ("ממתין 25 דק׳" — green < 10 min ≤ amber < 60 min ≤ red; the waiting filter puts the longest wait first) — pure helpers
 `lastOfChat()` / `waitingState()` / `fmtWait()` / `alertText()` / `mergeAlert()` in `src/lib/waInbox.js` (tested).
