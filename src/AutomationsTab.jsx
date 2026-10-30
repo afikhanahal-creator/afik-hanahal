@@ -5,7 +5,7 @@
 // Server: lib/automations.js via /api/meta/auto-*. Shared logic: lib/automations-shared.js.
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { FaRobot, FaInbox, FaCommentDots, FaProjectDiagram, FaClock, FaBullhorn, FaHistory, FaSyncAlt, FaWhatsapp, FaPaperPlane, FaTimes, FaPen, FaCheckCircle, FaCalendarCheck, FaMoon, FaEllipsisV, FaArrowLeft, FaArrowRight, FaCheck, FaTimesCircle, FaSearch, FaRedo, FaUserSlash, FaDatabase, FaPowerOff, FaHeartbeat, FaSatelliteDish, FaExternalLinkAlt, FaChevronDown, FaExclamationTriangle, FaRandom } from 'react-icons/fa'
-import { DEFAULT_CONFIG, STAGES, CATEGORIES, templateList, renderTemplate, mergeConfig, ruleKind, isSendWindow, nextSendWindow, nextWindows, fmtHour, israelNow, classifyReply, matchedKeyword, templateImage } from '../lib/automations-shared.js'
+import { DEFAULT_CONFIG, STAGES, CATEGORIES, templateList, renderTemplate, mergeConfig, ruleKind, isSendWindow, nextSendWindow, nextWindows, fmtHour, israelNow, classifyReply, matchedKeyword, templateImage, leadProperty, sameProject } from '../lib/automations-shared.js'
 import { imageThumb } from './lib/templateImage.js'
 import { Icon } from './uiIcons.jsx'
 import { autoApi } from './AutomationsApi.jsx'
@@ -62,7 +62,7 @@ const TR = {
     legendIntro: 'לכל כלל שלושה מצבים:', legend: { off: 'כבוי – לא נשלח כלום', suggest: 'לאישור – ההודעה מחכה לך בלשונית ״היום״', auto: 'אוטומטי – נשלח לבד' },
     modes: { off: 'כבוי', suggest: 'לאישור', auto: 'אוטומטי' },
     helpOff: 'הכלל כבוי – לא יישלח כלום', helpSuggest: 'ההודעות יחכו לאישור שלך בלשונית ״היום״', helpAuto: 'נשלח לבד, בתוך שעות השליחה', helpAutoNow: 'נשלח לבד, מיד',
-    wS1a: 'כשנכנס', wS1b: 'ליד חדש', wS1c: '← שלח', wS2: 'אם התעניין בנכס מסוים ← שלח במקום', welcomeHelp: 'הודעת הפתיחה יוצאת מיד, גם מחוץ לשעות השליחה.',
+    wS1a: 'כשנכנס', wS1b: 'ליד חדש', wS1c: '← שלח', wS2: 'אם התעניין בנכס מסוים ← שלח במקום', wS3: 'ליד של הפרויקט', wS3b: '← שלח', addProj: '+ הודעת פתיחה משלו לפרויקט…', removeProj: 'הסרת ההודעה של הפרויקט', projTip: 'לליד של הפרויקט הזה תצא ההודעה הזו (עם התמונה שלה, אם יש). לידים של פרויקטים אחרים לא יקבלו אותה.', welcomeHelp: 'הודעת הפתיחה יוצאת מיד, גם מחוץ לשעות השליחה.',
     nrA: 'כשליד בשלבים', nrB: 'לא עונה', nrC: n => `← שלח עד ${n} תזכורות`, stagesPick: 'שלבים',
     rS: ['כשליד', 'עונה', '← התזכורות נעצרות והמערכת מזהה מה הוא רוצה'], notifyTeam: 'שלח התראה לצוות בוואטסאפ',
     negTitle: 'ענה ״לא תודה״', negNote: 'מעכשיו לא יקבל יותר הודעות אוטומטיות.', posTitle: 'רוצה להתקדם', sendLbl: 'שלח', moveTo: 'העבר לשלב', noMove: 'אל תזיז',
@@ -129,7 +129,7 @@ const TR = {
     legendIntro: 'Every rule has three modes:', legend: { off: 'Off – nothing is sent', suggest: 'Approve – the message waits for you in Today', auto: 'Automatic – sent by the system' },
     modes: { off: 'Off', suggest: 'Approve', auto: 'Auto' },
     helpOff: 'This rule is off – nothing will be sent', helpSuggest: 'Messages will wait for your approval in Today', helpAuto: 'Sent automatically, within sending hours', helpAutoNow: 'Sent automatically, right away',
-    wS1a: 'When a', wS1b: 'new lead', wS1c: 'comes in → send', wS2: 'If they asked about a specific property → send instead', welcomeHelp: 'The welcome message goes out right away, even outside sending hours.',
+    wS1a: 'When a', wS1b: 'new lead', wS1c: 'comes in → send', wS2: 'If they asked about a specific property → send instead', wS3: 'A lead of the project', wS3b: '→ send', addProj: '+ A welcome of its own for a project…', removeProj: 'Remove the project\'s message', projTip: 'Leads of this project get this message (with its picture, if it has one). Leads of other projects never do.', welcomeHelp: 'The welcome message goes out right away, even outside sending hours.',
     nrA: 'When a lead in', nrB: "doesn't reply", nrC: n => `→ send up to ${n} reminders`, stagesPick: 'Stages',
     rS: ['When a lead', 'replies', '→ reminders stop and the system reads their intent'], notifyTeam: 'Send the team a WhatsApp alert',
     negTitle: 'Replied “no thanks”', negNote: "They won't get any more automated messages.", posTitle: 'Wants to move forward', sendLbl: 'Send', moveTo: 'Move to stage', noMove: "Don't move",
@@ -755,7 +755,7 @@ function RuleCard({ t, stats, id, icon, accent, mode, onMode, modes, sentence, h
   )
 }
 
-function Rules({ t, isEn, dir, cfg, setCfg, tpls, tplName, stageName, logRows, queue, onGoHours }) {
+function Rules({ t, isEn, dir, cfg, setCfg, tpls, tplName, stageName, logRows, queue, onGoHours, leads = [] }) {
   const R = cfg.rules
   const tplOpts = useMemo(() => tpls.map(x => ({ value: x.id, label: tplName(x.id) })), [tpls, tplName])
   const since = Date.now() - 30 * 864e5
@@ -768,6 +768,13 @@ function Rules({ t, isEn, dir, cfg, setCfg, tpls, tplName, stageName, logRows, q
   const reBtn = useRef(null)
   const [reOpen, setReOpen] = useState(false)
   const nrStages = R.noReply.stages || []
+  // the projects the leads came from (the campaign's short name), the busiest first — for "a welcome of its own per project"
+  const byProject = R.welcome.byProject || {}
+  const projects = useMemo(() => {
+    const n = new Map()
+    for (const l of leads) { const p = leadProperty(l); if (p) n.set(p, (n.get(p) || 0) + 1) }
+    return [...n.entries()].sort((a, b) => b[1] - a[1]).map(([p]) => p).filter(p => !Object.keys(byProject).some(k => sameProject(k, p)))
+  }, [leads, byProject])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -776,10 +783,24 @@ function Rules({ t, isEn, dir, cfg, setCfg, tpls, tplName, stageName, logRows, q
         {['off', 'suggest', 'auto'].map(m => <span key={m} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: T.text2 }}><ModeBadge mode={m} labels={t.modes}/>{t.legend[m]}</span>)}
       </Card>
 
-      <RuleCard {...cardProps} id="welcome" icon="welcome" accent={T.green} mode={R.welcome.mode} onMode={v => setCfg(c => { c.rules.welcome.mode = v })} kind="welcome" broken={tplBroken([R.welcome.templateId, R.welcome.propTemplateId])}
+      <RuleCard {...cardProps} id="welcome" icon="welcome" accent={T.green} mode={R.welcome.mode} onMode={v => setCfg(c => { c.rules.welcome.mode = v })} kind="welcome" broken={tplBroken([R.welcome.templateId, R.welcome.propTemplateId, ...Object.values(R.welcome.byProject || {})])}
         help={R.welcome.mode === 'auto' ? t.welcomeHelp : helper(R.welcome.mode, true)}
         sentence={<><span>{t.wS1a}</span><b>{t.wS1b}</b><span>{t.wS1c}</span><TplToken tplOpts={tplOpts} tpls={tpls} t={t} value={R.welcome.templateId} onChange={v => setCfg(c => { c.rules.welcome.templateId = v })}/></>}>
         <div style={{ fontSize: 14, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, color: T.text2 }}>{t.wS2}<TplToken tplOpts={tplOpts} tpls={tpls} t={t} value={R.welcome.propTemplateId} onChange={v => setCfg(c => { c.rules.welcome.propTemplateId = v })}/></div>
+        {Object.entries(byProject).map(([p, id]) => (
+          <div key={p} title={t.projTip} style={{ fontSize: 14, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, color: T.text2, marginTop: 8 }}>
+            {t.wS3} <b style={{ color: T.text }}><bdi>{p}</bdi></b> {t.wS3b}
+            <TplToken tplOpts={tplOpts} tpls={tpls} t={t} value={id} onChange={v => setCfg(c => { c.rules.welcome.byProject = { ...(c.rules.welcome.byProject || {}), [p]: v } })}/>
+            {templateImage(tpls.find(x => x.id === id)) && <img src={imageThumb(templateImage(tpls.find(x => x.id === id)), 80)} alt="" width={28} height={28} style={{ borderRadius: 6, objectFit: 'cover' }}/>}
+            <Button size="sm" variant="ghost" aria-label={`${t.removeProj}: ${p}`} title={t.removeProj} onClick={() => setCfg(c => { const b = { ...(c.rules.welcome.byProject || {}) }; delete b[p]; c.rules.welcome.byProject = b })}>✕</Button>
+          </div>
+        ))}
+        {projects.length > 0 && (
+          <div style={{ marginTop: 8 }}>
+            <TokenSelect value="" label={t.addProj} options={[{ value: '', label: t.addProj }, ...projects.map(p => ({ value: p, label: p }))]}
+              onChange={p => { if (p) setCfg(c => { c.rules.welcome.byProject = { ...(c.rules.welcome.byProject || {}), [p]: c.rules.welcome.propTemplateId || 'welcome_prop' } }) }} minWidth={220}/>
+          </div>
+        )}
       </RuleCard>
 
       <RuleCard {...cardProps} id="noReply" icon="clock" accent={T.amber} mode={R.noReply.mode} onMode={v => setCfg(c => { c.rules.noReply.mode = v })} kind="noreply" help={helper(R.noReply.mode)} broken={tplBroken((R.noReply.steps || []).map(s => s.templateId))}
