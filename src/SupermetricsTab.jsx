@@ -444,7 +444,7 @@ export default function SupermetricsTab({ C = DARK_C, lang = 'he' }) {
       {!loading && !error && current && (
         <>
           {/* KPI cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(148px, 1fr))', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(148px, 1fr))', gap: 10 }}>
             {kpis.map(({ key: k, label, Icon, color }) => (
               <KpiCard key={k} label={label} color={color} Icon={Icon}
                 value={agg[k] !== undefined ? fmtVal(k, agg[k]) : '—'}/>

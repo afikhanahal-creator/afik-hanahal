@@ -81,6 +81,15 @@ html[data-admin-theme="light"] {
   --au-sticky: rgba(244,245,249,.94); --au-input: #FFFFFF; --au-card-solid: #FFFFFF; --au-pane: #EEF0F6;
   --mk-bg: #F4F5F9; --mk-card: #FFFFFF; --mk-card-hov: #F7F8FC; --mk-surf: #EEF0F6; --mk-surf-hov: #E6E9F2; --mk-border: #DDE1EC; --mk-border-l: #E8EBF3; --mk-text: #171A2C; --mk-sub: #5B6380; --mk-dim: #9AA1B8; --mk-popup: #FFFFFF;
 }
+/* Every browser: full-screen height (100vh first — browsers without dvh, Safari < 15.4 / Firefox < 101, keep it) */
+.admin-vh { height: 100vh; height: 100dvh; }
+/* Apple-like text rendering (macOS Safari / Chrome / Firefox) */
+.admin-shell { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+/* Safari draws its own search-field chrome and rounded inputs; keep ours */
+.admin-shell input[type="search"] { -webkit-appearance: none; appearance: none; }
+.admin-shell input[type="search"]::-webkit-search-decoration, .admin-shell input[type="search"]::-webkit-search-cancel-button { -webkit-appearance: none; }
+/* Keyboard focus is always visible, never for a mouse click */
+.admin-shell button:focus-visible, .admin-shell a:focus-visible, .admin-shell [role="button"]:focus-visible, .admin-shell [role="tab"]:focus-visible { outline: 2px solid var(--au-brand); outline-offset: 2px; }
 html[data-admin-theme] .admin-shell { transition: background-color .25s ease, color .25s ease; }
 /* Board cards: focus ring for keyboard users only */
 .lb-card:focus:not(:focus-visible) { outline: none; }

@@ -38,8 +38,6 @@
         scrollbar-width: thin;
         scrollbar-color: rgba(132,144,216,.45) transparent;
       }
-      .admin-main-pane,
-      .admin-panel-modal,
       .admin-sidebar nav,
       .admin-content,
       .admin-scroll,
@@ -48,6 +46,8 @@
         overscroll-behavior: contain;
         scrollbar-gutter: stable;
       }
+      /* The frame itself never scrolls: no reserved gutter (it left an empty 10px strip on every screen) */
+      .admin-shell.admin-scroll { scrollbar-gutter: auto; }
 
       /* Webkit scrollbar — visible on dark backgrounds (Chrome/Edge/Safari) */
       .admin-main-pane::-webkit-scrollbar,

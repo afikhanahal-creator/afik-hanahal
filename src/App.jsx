@@ -492,7 +492,7 @@ const makeGlobal = (C, isDark) => `
     border-radius:50%; background:rgba(132,144,216,.32); border:1px solid rgba(132,144,216,.28);
     color:rgba(255,255,255,.85); font-size:17px; line-height:1; cursor:pointer; z-index:9991;
     display:flex; align-items:center; justify-content:center;
-    box-shadow:0 2px 12px rgba(132,144,216,.2); backdrop-filter:blur(8px);
+    box-shadow:0 2px 12px rgba(132,144,216,.2); -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px);
     transition:opacity .25s, transform .25s, background .2s; opacity:0; pointer-events:none;
   }
   .back-to-top.visible { opacity:1; pointer-events:auto; }
@@ -543,7 +543,7 @@ const makeGlobal = (C, isDark) => `
   @keyframes overlayFadeIn { from { opacity:0 } to { opacity:1 } }
   .nav-overlay {
     position:fixed; inset:0; background:rgba(0,0,0,.55);
-    backdrop-filter:blur(4px); z-index:150;
+    -webkit-backdrop-filter:blur(4px); backdrop-filter:blur(4px); z-index:150;
     animation:overlayFadeIn .2s ease forwards;
   }
   .nav-panel {
@@ -953,7 +953,7 @@ const makeGlobal = (C, isDark) => `
 
   @media(min-width:769px) {
     .testi-card-wrap { min-height: 500px; }
-    .testi-card-outer { background: transparent !important; border-color: transparent !important; box-shadow: none !important; backdrop-filter: none !important; }
+    .testi-card-outer { background: transparent !important; border-color: transparent !important; box-shadow: none !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
     .testi-dots { display: none !important; }
   }
 
@@ -974,13 +974,13 @@ const makeGlobal = (C, isDark) => `
       box-shadow: none !important;                 /* a shadow on the closed drawer leaked a grey band along the screen edge */
     }
     .admin-sidebar.open { transform: translateX(0) !important; box-shadow: -12px 0 60px rgba(0,0,0,.5) !important; }
-    .admin-mobile-overlay { display: block !important; position: fixed; inset: 0; background: var(--au-overlay, rgba(0,0,0,.6)); z-index: 1049; backdrop-filter: blur(3px); }
+    .admin-mobile-overlay { display: block !important; position: fixed; inset: 0; background: var(--au-overlay, rgba(0,0,0,.6)); z-index: 1049; -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); }
     .admin-mobile-topbar {
       display: flex !important;
       height: 56px; padding: 0 16px;
       border-bottom: 1px solid rgba(132,144,216,.08);
       align-items: center; justify-content: space-between;
-      background: var(--au-topbar, rgba(7,7,15,.95)); flex-shrink: 0; backdrop-filter: blur(16px);
+      background: var(--au-topbar, rgba(7,7,15,.95)); flex-shrink: 0; -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
       direction: rtl; position: sticky; top: 0; z-index: 20;
     }
     .admin-desktop-topbar { display: none !important; }
@@ -1007,7 +1007,7 @@ const makeGlobal = (C, isDark) => `
   .admin-bottom-nav {
     display: none;
     position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
-    background: var(--au-topbar, rgba(7,7,15,.97)); backdrop-filter: blur(16px); border-top: 1px solid rgba(132,144,216,.15);
+    background: var(--au-topbar, rgba(7,7,15,.97)); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); border-top: 1px solid rgba(132,144,216,.15);
     backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
     height: 58px; padding-bottom: env(safe-area-inset-bottom, 0px);
   }
@@ -2383,7 +2383,7 @@ function ContactModal({ prop, onClose }) {
   const inp = { width:'100%', padding:'12px 16px', background:'rgba(255,255,255,.05)', border:`1px solid ${C.purple}33`, borderRadius:10, color:C.cream, fontSize:14, fontFamily:'inherit', outline:'none', direction: lang==='he' ? 'rtl' : 'ltr' }
   const swipe = useSwipeClose(onClose)
   return (
-    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.84)', backdropFilter:'blur(12px)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.84)', backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}
       onClick={e => { if (e.target===e.currentTarget) onClose() }}
       onTouchStart={swipe.onTouchStart} onTouchMove={swipe.onTouchMove} onTouchEnd={swipe.onTouchEnd}>
       <div role="dialog" aria-modal="true" aria-labelledby="contact-modal-title" style={{ background:C.card, border:`1px solid ${C.purple}33`, borderRadius:24, padding:'28px 36px', maxWidth:480, width:'100%', maxHeight:'88vh', overflowY:'auto', direction: lang==='he' ? 'rtl' : 'ltr', boxShadow:`0 32px 80px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.1)` }}>
@@ -2580,7 +2580,7 @@ function PasswordPrompt({ onSuccess, onClose }) {
   const CORRECT = 'AFIKhanahal2026'
   const attempt = () => { if (pw === CORRECT) { setErr(false); onSuccess() } else setErr(true) }
   return (
-    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.9)', backdropFilter:'blur(12px)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center' }}>
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.9)', backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center' }}>
       <div style={{ background:C.card, border:`1px solid ${C.purple}33`, borderRadius:20, padding:40, maxWidth:360, width:'90%', direction:'rtl', boxShadow:`0 32px 80px rgba(0,0,0,.7), inset 0 1px 0 rgba(255,255,255,.1)` }}>
         <h3 style={{ fontSize:18, fontWeight:700, color:C.cream, marginBottom:20, textAlign:'center', display:'flex', alignItems:'center', justifyContent:'center', gap:8 }}><FaLock size={15} style={{ color:C.purple }}/> כניסת מנהל</h3>
         <input type="password" value={pw} onChange={e => { setPw(e.target.value); setErr(false) }} onKeyDown={e => { if (e.key==='Enter') attempt() }}
@@ -2778,12 +2778,12 @@ function NewsCard({ article, C, cardIndex = 0 }) {
           </div>
         ) : null}
         {article.source && (
-          <span style={{ position:'absolute', top:10, right:10, background:'rgba(0,0,0,.82)', backdropFilter:'blur(6px)', color:'rgba(232,228,216,.9)', borderRadius:4, padding:'3px 9px', fontSize:10, fontWeight:700, zIndex:2 }}>
+          <span style={{ position:'absolute', top:10, right:10, background:'rgba(0,0,0,.82)', backdropFilter:'blur(6px)', WebkitBackdropFilter:'blur(6px)', color:'rgba(232,228,216,.9)', borderRadius:4, padding:'3px 9px', fontSize:10, fontWeight:700, zIndex:2 }}>
             {article.source}
           </span>
         )}
         {dateStr && (
-          <span style={{ position:'absolute', bottom:10, left:10, background:'rgba(0,0,0,.82)', backdropFilter:'blur(6px)', color:'rgba(232,228,216,.92)', borderRadius:5, padding:'5px 11px', fontSize:11, fontWeight:700, display:'flex', alignItems:'center', gap:6, zIndex:2, letterSpacing:'.01em' }}>
+          <span style={{ position:'absolute', bottom:10, left:10, background:'rgba(0,0,0,.82)', backdropFilter:'blur(6px)', WebkitBackdropFilter:'blur(6px)', color:'rgba(232,228,216,.92)', borderRadius:5, padding:'5px 11px', fontSize:11, fontWeight:700, display:'flex', alignItems:'center', gap:6, zIndex:2, letterSpacing:'.01em' }}>
             <FaCalendarAlt size={9}/>{dateStr}
           </span>
         )}
@@ -2888,12 +2888,12 @@ function ArchiveCard({ a, C, isDark, cardIndex = 0 }) {
         }
         {/* Publication date — bottom left */}
         {dateStr && (
-          <span style={{ position:'absolute', bottom:10, left:10, background:'rgba(0,0,0,.82)', backdropFilter:'blur(6px)', color:'rgba(232,228,216,.92)', borderRadius:5, padding:'5px 11px', fontSize:11, fontWeight:700, zIndex:2, display:'flex', alignItems:'center', gap:6 }}>
+          <span style={{ position:'absolute', bottom:10, left:10, background:'rgba(0,0,0,.82)', backdropFilter:'blur(6px)', WebkitBackdropFilter:'blur(6px)', color:'rgba(232,228,216,.92)', borderRadius:5, padding:'5px 11px', fontSize:11, fontWeight:700, zIndex:2, display:'flex', alignItems:'center', gap:6 }}>
             <FaCalendarAlt size={9}/>{dateStr}
           </span>
         )}
         {a.source && (
-          <span style={{ position:'absolute', top:10, right:10, background:'rgba(0,0,0,.82)', backdropFilter:'blur(6px)', color:'rgba(232,228,216,.9)', borderRadius:4, padding:'3px 9px', fontSize:10, fontWeight:700, zIndex:2 }}>
+          <span style={{ position:'absolute', top:10, right:10, background:'rgba(0,0,0,.82)', backdropFilter:'blur(6px)', WebkitBackdropFilter:'blur(6px)', color:'rgba(232,228,216,.9)', borderRadius:4, padding:'3px 9px', fontSize:10, fontWeight:700, zIndex:2 }}>
             {a.source}
           </span>
         )}
@@ -2947,7 +2947,7 @@ function PrivacyModal({ onClose }) {
       style={{
         position: 'fixed', inset: 0, zIndex: 10500,
         background: 'rgba(0,0,0,.6)',
-        backdropFilter: 'blur(6px)',
+        backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         padding: '16px',
       }}
@@ -3281,7 +3281,7 @@ function ArchiveModal({ onClose, C, isDark }) {
   }
 
   return (
-    <div ref={scrollRef} style={{ position:'fixed', inset:0, zIndex:9000, background:'rgba(0,0,0,.78)', backdropFilter:'blur(10px)', overflowY:'auto', overscrollBehavior:'contain', direction:'rtl' }}
+    <div ref={scrollRef} style={{ position:'fixed', inset:0, zIndex:9000, background:'rgba(0,0,0,.78)', backdropFilter:'blur(10px)', WebkitBackdropFilter:'blur(10px)', overflowY:'auto', overscrollBehavior:'contain', direction:'rtl' }}
       onClick={e => e.target === e.currentTarget && onClose()}>
 
       {/* ── Floating back button (appears after scrolling down) ── */}
@@ -3294,7 +3294,7 @@ function ArchiveModal({ onClose, C, isDark }) {
             border: `1px solid ${C.purple}55`, borderRadius: 30,
             color: C.cream, fontSize: 13, fontWeight: 700, cursor: 'pointer',
             fontFamily: 'inherit', boxShadow: `0 4px 24px rgba(0,0,0,.6), 0 0 0 1px ${C.purple}22`,
-            backdropFilter: 'blur(14px)', whiteSpace: 'nowrap',
+            backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)', whiteSpace: 'nowrap',
             transition: 'all .2s', letterSpacing: '.01em',
           }}
           onMouseEnter={e => { e.currentTarget.style.background=`${C.purple}BB`; e.currentTarget.style.borderColor=C.purple }}
@@ -3487,7 +3487,7 @@ function TestimonialsSectionImpl() {
         </div>
 
         {/* ── Card ── */}
-        <div className="testi-card-outer" style={{ position:'relative', borderRadius:24, overflow:'hidden', background:'rgba(255,255,255,.04)', border:`1px solid rgba(132,144,216,.18)`, boxShadow:'0 32px 80px rgba(0,0,0,.45)', backdropFilter:'blur(20px)', touchAction:'pan-y' }}
+        <div className="testi-card-outer" style={{ position:'relative', borderRadius:24, overflow:'hidden', background:'rgba(255,255,255,.04)', border:`1px solid rgba(132,144,216,.18)`, boxShadow:'0 32px 80px rgba(0,0,0,.45)', backdropFilter:'blur(20px)', WebkitBackdropFilter:'blur(20px)', touchAction:'pan-y' }}
           onTouchStart={e => { touchX.current = e.touches[0].clientX }}
           onTouchEnd={e => {
             if (touchX.current === null) return
@@ -3656,7 +3656,7 @@ function FAQSectionImpl() {
                 onMouseLeave={e => { if (open !== i) { e.currentTarget.style.background='rgba(255,255,255,.04)'; e.currentTarget.style.borderColor='rgba(132,144,216,.18)'; e.currentTarget.style.boxShadow='' } }}
                 style={{
                   background: open === i ? 'rgba(132,144,216,.1)' : 'rgba(255,255,255,.04)',
-                  backdropFilter: 'blur(20px) saturate(180%)',
+                  backdropFilter: 'blur(20px) saturate(180%)', WebkitBackdropFilter: 'blur(20px) saturate(180%)',
                   border: `1px solid ${open === i ? C.purple+'55' : 'rgba(132,144,216,.18)'}`,
                   borderRadius: open === i && FAQS[i] ? '16px 16px 0 0' : 16,
                   padding: '20px 24px',
@@ -4244,7 +4244,7 @@ function PropertyModalInner({ prop, onClose, onContact, govmapToken, properties 
   return (
     // Swipe-to-close was REMOVED here — on mobile it misfired while interacting with
     // the GovMap map / scrolling and bounced the user back to the home screen.
-    <div ref={modalScrollRef} role="dialog" aria-modal="true" aria-label={prop.title || (lang === 'en' ? 'Property' : 'נכס')} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.88)', backdropFilter:'blur(14px)', zIndex:900, overflowY:'auto', WebkitOverflowScrolling:'touch', scrollBehavior:'smooth' }}
+    <div ref={modalScrollRef} role="dialog" aria-modal="true" aria-label={prop.title || (lang === 'en' ? 'Property' : 'נכס')} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.88)', backdropFilter:'blur(14px)', WebkitBackdropFilter:'blur(14px)', zIndex:900, overflowY:'auto', WebkitOverflowScrolling:'touch', scrollBehavior:'smooth' }}
       onMouseDown={e => { backdropDown.current = e.target === e.currentTarget }}
       onClick={e => { if (e.target === e.currentTarget && backdropDown.current) setConfirmLeave(true) }}>
 
@@ -4273,7 +4273,7 @@ function PropertyModalInner({ prop, onClose, onContact, govmapToken, properties 
       <div style={{ background:'#0B0B14', maxWidth:1100, margin:'0 auto', minHeight:'100dvh', direction:'rtl', position:'relative' }}>
 
         {/* ══ STICKY HEADER BAR ══ */}
-        <div style={{ position:'sticky', top:0, zIndex:20, background:'rgba(11,11,20,.97)', backdropFilter:'blur(12px)', borderBottom:'1px solid rgba(132,144,216,.12)', display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 18px', height:52, direction:'rtl' }}>
+        <div style={{ position:'sticky', top:0, zIndex:20, background:'rgba(11,11,20,.97)', backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)', borderBottom:'1px solid rgba(132,144,216,.12)', display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 18px', height:52, direction:'rtl' }}>
           {/* Back / breadcrumb */}
           <button onClick={onClose}
             style={{ display:'flex', alignItems:'center', gap:7, background:'none', border:'none', color:`${C.cream}A6`, cursor:'pointer', fontSize:13, fontFamily:'inherit', padding:'6px 4px', direction:'ltr' }}
@@ -4367,7 +4367,7 @@ function PropertyModalInner({ prop, onClose, onContact, govmapToken, properties 
           {totalMedia > 1 && (<>
             <button onClick={() => { setIsPlaying(false); setImgIdx(i => (i - 1 + totalMedia) % totalMedia) }}
               aria-label={lang === 'en' ? 'Previous photo' : 'התמונה הקודמת'}
-              style={{ position:'absolute', top:'50%', right:16, transform:'translateY(-50%)', background:'rgba(0,0,0,.6)', backdropFilter:'blur(6px)', border:`1px solid rgba(255,255,255,.15)`, borderRadius:'50%', width:46, height:46, color:'#fff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'background .18s, transform .18s cubic-bezier(.16,1,.3,1)', zIndex:3 }}
+              style={{ position:'absolute', top:'50%', right:16, transform:'translateY(-50%)', background:'rgba(0,0,0,.6)', backdropFilter:'blur(6px)', WebkitBackdropFilter:'blur(6px)', border:`1px solid rgba(255,255,255,.15)`, borderRadius:'50%', width:46, height:46, color:'#fff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'background .18s, transform .18s cubic-bezier(.16,1,.3,1)', zIndex:3 }}
               onMouseEnter={e=>{ e.currentTarget.style.background=C.purple; e.currentTarget.style.transform='translateY(-50%) scale(1.12)' }}
               onMouseLeave={e=>{ e.currentTarget.style.background='rgba(0,0,0,.6)'; e.currentTarget.style.transform='translateY(-50%)' }}
               onMouseDown={e=>e.currentTarget.style.transform='translateY(-50%) scale(0.93)'}
@@ -4376,7 +4376,7 @@ function PropertyModalInner({ prop, onClose, onContact, govmapToken, properties 
             </button>
             <button onClick={() => { setIsPlaying(false); setImgIdx(i => (i + 1) % totalMedia) }}
               aria-label={lang === 'en' ? 'Next photo' : 'התמונה הבאה'}
-              style={{ position:'absolute', top:'50%', left:16, transform:'translateY(-50%)', background:'rgba(0,0,0,.6)', backdropFilter:'blur(6px)', border:`1px solid rgba(255,255,255,.15)`, borderRadius:'50%', width:46, height:46, color:'#fff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'background .18s, transform .18s cubic-bezier(.16,1,.3,1)', zIndex:3 }}
+              style={{ position:'absolute', top:'50%', left:16, transform:'translateY(-50%)', background:'rgba(0,0,0,.6)', backdropFilter:'blur(6px)', WebkitBackdropFilter:'blur(6px)', border:`1px solid rgba(255,255,255,.15)`, borderRadius:'50%', width:46, height:46, color:'#fff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'background .18s, transform .18s cubic-bezier(.16,1,.3,1)', zIndex:3 }}
               onMouseEnter={e=>{ e.currentTarget.style.background=C.purple; e.currentTarget.style.transform='translateY(-50%) scale(1.12)' }}
               onMouseLeave={e=>{ e.currentTarget.style.background='rgba(0,0,0,.6)'; e.currentTarget.style.transform='translateY(-50%)' }}
               onMouseDown={e=>e.currentTarget.style.transform='translateY(-50%) scale(0.93)'}
@@ -4389,14 +4389,14 @@ function PropertyModalInner({ prop, onClose, onContact, govmapToken, properties 
                 {/* Play / Pause button — only when there are multiple images */}
                 {imgs.length > 1 && (
                   <button onClick={() => setIsPlaying(p => !p)}
-                    style={{ width:34, height:34, borderRadius:'50%', background: isPlaying ? C.purple : 'rgba(0,0,0,.72)', backdropFilter:'blur(6px)', border:`1.5px solid ${isPlaying ? C.purple : 'rgba(255,255,255,.25)'}`, color:'#fff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s', flexShrink:0 }}
+                    style={{ width:34, height:34, borderRadius:'50%', background: isPlaying ? C.purple : 'rgba(0,0,0,.72)', backdropFilter:'blur(6px)', WebkitBackdropFilter:'blur(6px)', border:`1.5px solid ${isPlaying ? C.purple : 'rgba(255,255,255,.25)'}`, color:'#fff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s', flexShrink:0 }}
                     title={isPlaying ? 'עצור סליידשואו' : 'הפעל סליידשואו'}>
                     {isPlaying
                       ? <span style={{ display:'flex', gap:3 }}><span style={{ width:3, height:13, background:'#fff', borderRadius:2 }}/><span style={{ width:3, height:13, background:'#fff', borderRadius:2 }}/></span>
                       : <FaPlay size={11} style={{ marginRight:'-1px' }}/>}
                   </button>
                 )}
-                <div style={{ background:'rgba(0,0,0,.65)', backdropFilter:'blur(4px)', borderRadius:6, padding:'5px 12px', fontSize:13, color:'rgba(255,255,255,.92)', direction:'ltr', fontWeight:600 }}>
+                <div style={{ background:'rgba(0,0,0,.65)', backdropFilter:'blur(4px)', WebkitBackdropFilter:'blur(4px)', borderRadius:6, padding:'5px 12px', fontSize:13, color:'rgba(255,255,255,.92)', direction:'ltr', fontWeight:600 }}>
                   {imgIdx + 1} / {totalMedia}
                 </div>
               </div>
@@ -4404,7 +4404,7 @@ function PropertyModalInner({ prop, onClose, onContact, govmapToken, properties 
             {/* Photo count badge — hidden on video frame so it doesn't overlap native controls */}
             {imgs.length > 0 && !isVideoFrame && (
               <button onClick={() => setLightbox(true)}
-                style={{ position:'absolute', bottom:14, right:16, background:'rgba(0,0,0,.72)', backdropFilter:'blur(8px)', border:`1px solid rgba(255,255,255,.18)`, borderRadius:8, padding:'7px 14px', fontSize:13, color:'rgba(255,255,255,.92)', cursor:'pointer', fontFamily:'inherit', zIndex:3, display:'flex', alignItems:'center', gap:7, fontWeight:600 }}
+                style={{ position:'absolute', bottom:14, right:16, background:'rgba(0,0,0,.72)', backdropFilter:'blur(8px)', WebkitBackdropFilter:'blur(8px)', border:`1px solid rgba(255,255,255,.18)`, borderRadius:8, padding:'7px 14px', fontSize:13, color:'rgba(255,255,255,.92)', cursor:'pointer', fontFamily:'inherit', zIndex:3, display:'flex', alignItems:'center', gap:7, fontWeight:600 }}
                 onMouseEnter={e=>e.currentTarget.style.background='rgba(0,0,0,.9)'}
                 onMouseLeave={e=>e.currentTarget.style.background='rgba(0,0,0,.72)'}>
                 <FaExpand size={12}/> {imgs.length > 1 ? `הצגת ${imgs.length} תמונות` : 'הצגה מלאה'}
@@ -4732,12 +4732,12 @@ function PropertyModalInner({ prop, onClose, onContact, govmapToken, properties 
                         {/* Heart save button */}
                         <button onClick={e=>{e.stopPropagation(); toggleFav(sp.id)}}
                           aria-label={lang === 'en' ? 'Save to favourites' : 'שמירה למועדפים'} aria-pressed={favsSet.has(String(sp.id))}
-                          style={{ position:'absolute', top:10, left:10, width:32, height:32, borderRadius:'50%', background:'rgba(0,0,0,.5)', border:'1px solid rgba(255,255,255,.2)', color: favsSet.has(String(sp.id)) ? '#F87171' : 'rgba(255,255,255,.7)', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', backdropFilter:'blur(8px)' }}>
+                          style={{ position:'absolute', top:10, left:10, width:32, height:32, borderRadius:'50%', background:'rgba(0,0,0,.5)', border:'1px solid rgba(255,255,255,.2)', color: favsSet.has(String(sp.id)) ? '#F87171' : 'rgba(255,255,255,.7)', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', backdropFilter:'blur(8px)', WebkitBackdropFilter:'blur(8px)' }}>
                           <FaHeart size={11}/>
                         </button>
                         {/* Status badge */}
-                        <span style={{ position:'absolute', top:10, right:10, background:'rgba(0,0,0,.75)', color:sc2, fontSize:10, fontWeight:700, padding:'3px 9px', borderRadius:20, backdropFilter:'blur(6px)' }}>{sp.status}</span>
-                        {sp.exclusive && <span style={{ position:'absolute', bottom:10, right:10, background:'rgba(0,0,0,.75)', color:'#fff', fontSize:10, fontWeight:700, padding:'3px 9px', borderRadius:20, backdropFilter:'blur(6px)' }}>✦ בלעדי</span>}
+                        <span style={{ position:'absolute', top:10, right:10, background:'rgba(0,0,0,.75)', color:sc2, fontSize:10, fontWeight:700, padding:'3px 9px', borderRadius:20, backdropFilter:'blur(6px)', WebkitBackdropFilter:'blur(6px)' }}>{sp.status}</span>
+                        {sp.exclusive && <span style={{ position:'absolute', bottom:10, right:10, background:'rgba(0,0,0,.75)', color:'#fff', fontSize:10, fontWeight:700, padding:'3px 9px', borderRadius:20, backdropFilter:'blur(6px)', WebkitBackdropFilter:'blur(6px)' }}>✦ בלעדי</span>}
                       </div>
                       {/* Body */}
                       <div style={{ padding:'14px 16px' }}>
@@ -4985,7 +4985,7 @@ function PropertyCardImpl({ prop, onContact, onSelect }) {
           onClick={e => { e.stopPropagation(); toggleFav(prop.id) }}
           onTouchStart={e => { e.stopPropagation(); touchFromArrow.current = true }}
           onTouchEnd={e => { e.stopPropagation(); e.preventDefault(); toggleFav(prop.id) }}
-          style={{ position:'absolute', top:10, left:10, zIndex:6, width:36, height:36, minWidth:0, minHeight:0, borderRadius:'50%', border:`1px solid ${isFav ? 'rgba(255,90,110,.6)' : 'rgba(255,255,255,.2)'}`, background: isFav ? 'rgba(255,90,110,.22)' : 'rgba(9,9,15,.6)', backdropFilter:'blur(8px)', color: isFav ? '#FF5A6E' : 'rgba(255,255,255,.85)', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', transition:'all .2s', transform: isFav ? 'scale(1.06)' : 'scale(1)' }}>
+          style={{ position:'absolute', top:10, left:10, zIndex:6, width:36, height:36, minWidth:0, minHeight:0, borderRadius:'50%', border:`1px solid ${isFav ? 'rgba(255,90,110,.6)' : 'rgba(255,255,255,.2)'}`, background: isFav ? 'rgba(255,90,110,.22)' : 'rgba(9,9,15,.6)', backdropFilter:'blur(8px)', WebkitBackdropFilter:'blur(8px)', color: isFav ? '#FF5A6E' : 'rgba(255,255,255,.85)', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', transition:'all .2s', transform: isFav ? 'scale(1.06)' : 'scale(1)' }}>
           <FaHeart size={14}/>
         </button>
         {/* Top-right badges */}
@@ -6047,7 +6047,7 @@ export default function App() {
           </div>
           <div style={{ display:'flex', gap:10, justifyContent:'center', flexWrap:'wrap', marginTop:16, paddingBottom:80 }}>
             {(TR[lang]?.heroTags || []).map(tag => (
-              <span key={tag} style={{ background:'rgba(255,255,255,.05)', border:`1px solid ${C.purple}33`, borderRadius:20, padding:'6px 14px', fontSize:12, color:C.cream+'AA', backdropFilter:'blur(8px)', transition:'all .2s', cursor:'default' }}
+              <span key={tag} style={{ background:'rgba(255,255,255,.05)', border:`1px solid ${C.purple}33`, borderRadius:20, padding:'6px 14px', fontSize:12, color:C.cream+'AA', backdropFilter:'blur(8px)', WebkitBackdropFilter:'blur(8px)', transition:'all .2s', cursor:'default' }}
                 onMouseEnter={e => { e.currentTarget.style.background=`${C.purple}18`; e.currentTarget.style.borderColor=`${C.purple}77`; e.currentTarget.style.color=C.cream; e.currentTarget.style.transform='translateY(-2px)' }}
                 onMouseLeave={e => { e.currentTarget.style.background='rgba(255,255,255,.05)'; e.currentTarget.style.borderColor=`${C.purple}33`; e.currentTarget.style.color=C.cream+'AA'; e.currentTarget.style.transform='' }}>
                 {tag}

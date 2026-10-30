@@ -65,7 +65,7 @@ export default function CommandPalette({ open, onClose, lang = 'he', tabs = [], 
   let n = -1
   return createPortal(
     <div dir={dir} onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}
-      style={{ position: 'fixed', inset: 0, zIndex: 3000, background: 'var(--au-overlay)', backdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'flex-start', padding: '12vh 14px 14px' }}>
+      style={{ position: 'fixed', inset: 0, zIndex: 3000, background: 'var(--au-overlay)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)', display: 'flex', justifyContent: 'center', alignItems: 'flex-start', padding: '12vh 14px 14px' }}>
       <div role="dialog" aria-modal="true" aria-label={t.label} onKeyDown={onKey}
         style={{ width: 'min(620px,100%)', background: T.s2, border: `1px solid ${T.s2Line}`, borderRadius: 16, boxShadow: T.shadow2, overflow: 'hidden', color: T.text, fontFamily: 'inherit', animation: 'au-in .16s ease both' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '0 16px', height: 56, borderBottom: `1px solid ${T.line}` }}>

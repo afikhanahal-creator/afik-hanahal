@@ -255,7 +255,7 @@ html[data-admin-theme="dark"] .an{--an-accent:#3987e5;--an-accent-2:#d95926;--an
 .an-await{text-align:center;padding:2.4rem 1.5rem;background:var(--an-surface);border:1px dashed var(--an-line-2);border-radius:var(--an-r);display:flex;flex-direction:column;align-items:center;gap:6px}
 .an-await__badge{font-size:11.5px;font-weight:500;color:var(--an-good);border:1px solid var(--an-line-2);border-radius:999px;padding:3px 10px}
 .an-await h4{margin:4px 0 0;font-size:15px}.an-await p{margin:0;max-width:56ch;font-size:12.5px;line-height:1.6;color:var(--an-muted)}
-.an-setup{max-width:780px;display:flex;flex-direction:column;gap:10px;background:var(--an-surface);border:1px solid var(--an-line);border-radius:var(--an-r);padding:18px 20px}
+.an-setup{max-width:none;display:flex;flex-direction:column;gap:10px;background:var(--an-surface);border:1px solid var(--an-line);border-radius:var(--an-r);padding:18px 20px}
 .an-setup p{margin:0;line-height:1.6}
 .an-setup h3{margin:0;font-size:16px}.an-setup h4{margin:6px 0 0;font-size:13px}
 .an-steps{margin:0;padding-inline-start:1.2rem;display:flex;flex-direction:column;gap:6px;font-size:12.5px;line-height:1.6}

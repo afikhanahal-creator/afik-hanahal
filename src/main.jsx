@@ -3,6 +3,11 @@ import { createRoot } from 'react-dom/client'
 import App from './App.jsx'
 import AccessibilityPage from './AccessibilityPage.jsx'
 
+// Older browsers (Safari < 16, iOS 15): every admin fetch uses AbortSignal.timeout — give it to them
+if (typeof AbortSignal !== 'undefined' && !AbortSignal.timeout) {
+  AbortSignal.timeout = ms => { const c = new AbortController(); setTimeout(() => c.abort(new DOMException('The operation timed out.', 'TimeoutError')), ms); return c.signal }
+}
+
 // LogRocket (session recording) is heavy — ~18KB gzip plus significant main-thread
 // instrumentation at init. Load and start it lazily, off the critical path, so it
 // never delays first paint or interactivity. Dynamic import() also splits it into

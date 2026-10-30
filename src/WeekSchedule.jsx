@@ -76,7 +76,7 @@ export default function HoursTab({ lang = 'he', cfg, setCfg, toast }) {
   const nowPct = (now.hour / 24) * 100
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 920 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <Card style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
         <span style={{ width: 12, height: 12, borderRadius: '50%', flexShrink: 0, background: quiet.enabled && nw.open ? T.green : T.amber, boxShadow: quiet.enabled && nw.open ? `0 0 0 5px ${T.green}33` : 'none' }}/>
         <div style={{ flex: 1, minWidth: 200 }}>

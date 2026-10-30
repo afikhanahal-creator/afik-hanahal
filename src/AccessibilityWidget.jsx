@@ -133,7 +133,7 @@ const A11Y_CSS = `
 #a11y-ovl {
   position: fixed; inset: 0;
   background: rgba(0,0,0,.52);
-  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
   z-index: 999994;
   animation: a11yFadeIn .22s ease;
 }
@@ -321,7 +321,7 @@ const A11Y_CSS = `
 /* ═══ Declaration modal ═════════════════════════════════════════════════════ */
 #a11y-decl-wrap {
   position: fixed; inset: 0; background: rgba(0,0,0,.72);
-  backdrop-filter: blur(4px); z-index: 999999;
+  -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px); z-index: 999999;
   display: flex; align-items: center; justify-content: center;
   padding: 20px; animation: a11yFadeIn .2s ease;
 }

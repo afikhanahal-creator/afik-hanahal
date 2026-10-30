@@ -249,7 +249,7 @@ const CSS = `
 .sf-nav button:hover:not(:disabled) { background:#2A2030; }
 .sf-nav button:active:not(:disabled) { transform:translateY(1px); }
 .sf-nav button:disabled { background:#CFCFD4; color:#EFEFF2; box-shadow:none; cursor:default; }
-.sf-count { font-size:13px; color:var(--ink2); font-variant-numeric:tabular-nums; background:rgba(255,255,255,.85); backdrop-filter:blur(6px); border:1px solid var(--line); border-radius:20px; padding:6px 12px; }
+.sf-count { font-size:13px; color:var(--ink2); font-variant-numeric:tabular-nums; background:rgba(255,255,255,.85); -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px); border:1px solid var(--line); border-radius:20px; padding:6px 12px; }
 
 /* ── inputs ────────────────────────────────────────────────────────────── */
 .sf-input { width:100%; font-size:clamp(20px, 2.6vw, 30px); font-weight:400; padding:8px 0; border:0; border-bottom:1px solid var(--line2); background:transparent; color:var(--ink); border-radius:0; transition:border-color .2s, box-shadow .2s; text-align:center; }
@@ -361,7 +361,7 @@ textarea.sf-input { resize:none; line-height:1.5; font-size:clamp(17px,2vw,22px)
 .sf-later-btn { border:1px solid transparent; background:transparent; color:var(--muted); font-family:inherit; font-size:13px; font-weight:600; padding:6px 10px; min-height:40px; border-radius:8px; cursor:pointer; }
 .sf-later-btn:hover { color:var(--deep); background:var(--tint2); }
 .sf-later-inline { display:none; margin:14px auto 0; border:0; background:none; color:var(--muted); font-family:inherit; font-size:13.5px; font-weight:600; padding:8px 12px; min-height:40px; cursor:pointer; text-decoration:underline; text-underline-offset:3px; }
-.sf-later { position:fixed; inset:0; z-index:200; background:rgba(38,36,43,.45); backdrop-filter:blur(3px); display:flex; align-items:center; justify-content:center; padding:18px; }
+.sf-later { position:fixed; inset:0; z-index:200; background:rgba(38,36,43,.45); -webkit-backdrop-filter:blur(3px); backdrop-filter:blur(3px); display:flex; align-items:center; justify-content:center; padding:18px; }
 .sf-later-card { width:min(100%, 480px); background:var(--paper); border-radius:16px; padding:26px 22px 18px; text-align:center; box-shadow:0 30px 80px rgba(0,0,0,.25); }
 .sf-later-ok { width:48px; height:48px; border-radius:50%; background:var(--tint2); color:var(--deep); display:inline-flex; align-items:center; justify-content:center; margin-bottom:10px; }
 .sf-later-card h3 { margin:0 0 6px; font-size:22px; }

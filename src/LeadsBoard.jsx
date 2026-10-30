@@ -996,7 +996,7 @@ function ItemDetailDrawer({ lead, onClose, onUpdate, onUpdateStatus, lang, T, is
 
   return (
     <>
-      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 800, backdropFilter: 'blur(2px)' }} />
+      <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 800, backdropFilter: 'blur(2px)', WebkitBackdropFilter: 'blur(2px)' }} />
       <div style={{
         position: 'fixed',
         top: isMobile ? 0 : 0,
