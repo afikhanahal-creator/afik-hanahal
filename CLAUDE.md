@@ -667,6 +667,16 @@ admin component uses, portals included. When adding admin UI, never hardcode dar
 `rgba(var(--ov), a)` (surfaces). Purple has three roles, all ≥ 4.5:1 contrast: `var(--au-brand)` (fills with white text),
 `var(--au-brand-text)` / `T.brandText` (purple text) and `rgba(var(--brand-rgb), a)` (tints and lines); `C.purple` is the theme's
 balanced purple for code that appends a hex alpha. WhatsApp bubbles and the phone preview stay dark on purpose.
+**Full width, every browser** (2026-10-30): every admin screen fills the window — the in-site admin window is full-screen too
+(it was 98 % × 94 %, a dark frame around it), the frame reserves no scrollbar gutter (`.admin-shell.admin-scroll
+{ scrollbar-gutter: auto }` in `index.html` — it left an empty 10 px strip), the sending-hours editor, the GA setup card and
+the performance KPI row (`auto-fit`) lost their caps. Cross-browser rules: screen heights use the class `.admin-vh`
+(`100vh`, then `100dvh`), never an inline `'100dvh'` alone (Safari < 15.4 / Firefox < 101 drop it and the layout collapses);
+every `backdropFilter` has its `WebkitBackdropFilter` twin (and `backdrop-filter` its `-webkit-` twin in CSS strings —
+React and Vite add no prefixes, Safari < 18 needs it); `AbortSignal.timeout` is polyfilled at the top of `src/main.jsx`
+(Safari < 16 threw on every admin fetch); scrollbars are styled in `index.html` for both `::-webkit-scrollbar` (Safari) and
+`scrollbar-width` / `scrollbar-color` (Firefox, Chrome ≥ 121). Check new JS against Safari 15.4 before using it
+(`Object.groupBy`, `Promise.withResolvers`, `toSorted`, `Set` methods need a guard).
 `src/CommandPalette.jsx` — Ctrl/⌘ + K (or the top-bar search) jumps to any screen, lead (opens the chat) or property, and runs actions.
 
 ### Lead card & smart lead analysis

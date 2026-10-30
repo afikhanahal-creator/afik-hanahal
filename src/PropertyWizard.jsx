@@ -749,7 +749,7 @@ function PublishModal({ onPublish, onDraft, onCancel }) {
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 20000,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)',
+      background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)',
       padding: 20, direction: 'rtl' }}>
       <div style={{ width: '100%', maxWidth: 440, background: 'linear-gradient(160deg,#0d0b1f,#0a0818)',
         border: `1.5px solid ${BORDER}`, borderRadius: 22,
@@ -1835,7 +1835,7 @@ function Step6({ d, upd, onUploadingChange }) {
                     <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center',
                       justifyContent: 'center', background: 'rgba(0,0,0,0.35)' }}>
                       <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(255,255,255,.2)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)' }}>
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}>
                         <FaPlay size={14} style={{ color: '#fff', marginRight: -2 }} />
                       </div>
                     </div>
@@ -2053,7 +2053,7 @@ export default function PropertyWizard({ onClose, onPublish, initialData, editId
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 10000,
         display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
-        background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(8px)',
+        background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
         padding: '20px 12px 40px', overflowY: 'auto', direction: 'rtl' }}>
 
       <style>{`

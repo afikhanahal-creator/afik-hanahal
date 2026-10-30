@@ -154,7 +154,7 @@ export default function PropertyShare({ prop, onClose, lang = 'he' }) {
 
   return createPortal(
     <div className="ps ps-wrap" dir={dir} onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}
-      style={{ position: 'fixed', inset: 0, zIndex: 2500, background: 'var(--au-overlay)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'min(3vh,24px) 12px' }}>
+      style={{ position: 'fixed', inset: 0, zIndex: 2500, background: 'var(--au-overlay)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'min(3vh,24px) 12px' }}>
       <style>{CSS}</style>
       <div ref={ref} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="ps-title" className="ps-dialog"
         style={{ width: 'min(1080px,100%)', maxHeight: '100%', display: 'flex', flexDirection: 'column', background: T.s2, border: `1px solid ${T.s2Line}`, borderRadius: 18, boxShadow: T.shadow2, color: T.text, overflow: 'hidden', outline: 'none', animation: 'ps-in .2s cubic-bezier(.2,.8,.2,1) both' }}>

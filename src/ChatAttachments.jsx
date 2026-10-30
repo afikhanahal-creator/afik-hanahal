@@ -53,7 +53,7 @@ export function DropOverlay({ show, lang = 'he', WA = {} }) {
   if (!show) return null
   const t = TR[lang] || TR.he
   return (
-    <div aria-hidden="true" style={{ position: 'absolute', inset: 8, zIndex: 30, borderRadius: 14, border: `2px dashed ${WA.green || '#00A884'}`, background: 'rgba(0,168,132,.10)', backdropFilter: 'blur(2px)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, color: WA.bodyText || '#111B21', pointerEvents: 'none' }}>
+    <div aria-hidden="true" style={{ position: 'absolute', inset: 8, zIndex: 30, borderRadius: 14, border: `2px dashed ${WA.green || '#00A884'}`, background: 'rgba(0,168,132,.10)', backdropFilter: 'blur(2px)', WebkitBackdropFilter: 'blur(2px)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, color: WA.bodyText || '#111B21', pointerEvents: 'none' }}>
       <span style={{ width: 56, height: 56, borderRadius: '50%', background: WA.green || '#00A884', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icon name="upload" size={26} sw={2}/></span>
       <b style={{ fontSize: 16 }}>{t.drop}</b>
       <span style={{ fontSize: 13, opacity: .75 }}>{t.dropSub}</span>

@@ -92,7 +92,7 @@ function SettingsModal({ C, isDark, prefs, onSave, onClose, lang = 'he' }) {
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         padding: 16,
         background: 'rgba(0,0,0,.55)',
-        backdropFilter: 'blur(4px)',
+        backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)',
       }}
       onClick={e => e.target === e.currentTarget && onClose()}
     >
@@ -254,7 +254,7 @@ export default function CookieConsent({ C, isDark, lang = 'he', onPrivacy }) {
             ? `linear-gradient(to top, ${C.card} 0%, ${C.bg}EE 100%)`
             : `linear-gradient(to top, ${C.card} 0%, ${C.bg}F5 100%)`,
           borderTop: `1px solid ${C.purple}33`,
-          backdropFilter: 'blur(12px)',
+          backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
           direction: lang === 'en' ? 'ltr' : 'rtl',
           fontFamily: 'Rubik,Heebo,sans-serif',
           animation: 'cookieSlideUp .4s cubic-bezier(.22,1,.36,1) both',

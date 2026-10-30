@@ -829,7 +829,7 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
 
   return createPortal(
     <div className="lc lcd" dir={dir} onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}
-      style={{ position: 'fixed', inset: 0, zIndex: 2400, background: 'var(--au-overlay)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'min(3vh,24px) 12px' }}>
+      style={{ position: 'fixed', inset: 0, zIndex: 2400, background: 'var(--au-overlay)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'min(3vh,24px) 12px' }}>
       <style>{CSS + SPLITTER_CSS}</style>
       <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="lc-title" className="lc-dialog"
         style={{ width: showConv ? 'min(1640px,100%)' : 'min(1180px,100%)', height: showConv ? 'min(960px,100%)' : 'min(880px,100%)', background: T.s2, border: `1px solid ${T.s2Line}`, borderRadius: 18, boxShadow: T.shadow2, color: T.text, display: 'flex', flexDirection: 'column', overflow: 'hidden', outline: 'none', animation: 'lc-in .22s cubic-bezier(.2,.8,.2,1) both' }}>

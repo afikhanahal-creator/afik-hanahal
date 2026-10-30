@@ -50,7 +50,7 @@ export const PG_CSS = `
 .pg-card:hover .pg-img img{transform:scale(1.03)}
 .pg-noimg{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--au-brand-text);font-size:12px}
 .pg-badges{position:absolute;top:10px;inset-inline-start:10px;inset-inline-end:10px;display:flex;gap:6px;align-items:center;pointer-events:none}
-.pg-pill{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 9px;border-radius:999px;font-size:11px;font-weight:700;background:rgba(10,10,20,.72);color:#fff;backdrop-filter:blur(4px)}
+.pg-pill{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 9px;border-radius:999px;font-size:11px;font-weight:700;background:rgba(10,10,20,.72);color:#fff;-webkit-backdrop-filter:blur(4px); backdrop-filter:blur(4px)}
 .pg-pill .d{width:6px;height:6px;border-radius:50%}
 .pg-pos{margin-inline-start:auto}
 .pg-count{position:absolute;bottom:10px;inset-inline-end:10px}

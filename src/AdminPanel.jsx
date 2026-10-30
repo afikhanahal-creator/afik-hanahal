@@ -1182,7 +1182,7 @@ function PropertyManagerList({ C, list, publishedList, draftList, listTab, setLi
 
       {/* Bulk action bar */}
       {selIds.length > 0 && (
-        <div style={{ position:'sticky', top:0, zIndex:5, display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', padding:'10px 14px', marginBottom:10, background:'rgba(19,19,42,.96)', border:`1px solid ${C.purple}55`, borderRadius:12, boxShadow:`0 10px 30px rgba(0,0,0,.35)`, backdropFilter:'blur(8px)' }}>
+        <div style={{ position:'sticky', top:0, zIndex:5, display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', padding:'10px 14px', marginBottom:10, background:'rgba(19,19,42,.96)', border:`1px solid ${C.purple}55`, borderRadius:12, boxShadow:`0 10px 30px rgba(0,0,0,.35)`, backdropFilter:'blur(8px)', WebkitBackdropFilter:'blur(8px)' }}>
           <span style={{ fontSize:13, fontWeight:800, color:C.purple, marginInlineEnd:6 }}>נבחרו {selIds.length}</span>
           {listTab==='draft'
             ? <button onClick={() => { bulkPatch(selIds, { published:true }); clearSel() }} style={btn({ background:`${C.green}18`, borderColor:`${C.green}55`, color:C.green })}>▶ פרסם באתר</button>
@@ -2896,7 +2896,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   return (
     <div className="admin-shell admin-scroll" style={standalone
       ? { position:'fixed', inset:0, zIndex:1000, display:'flex', background:'var(--au-page)', color:'var(--au-text)', direction:'rtl', fontFamily:'Rubik, sans-serif' }
-      : { position:'fixed', inset:0, background:'rgba(0,0,0,.92)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:16, overflowY:'auto', overscrollBehavior:'contain' }}>
+      : { position:'fixed', inset:0, background:'var(--au-page)', zIndex:1000, display:'flex', alignItems:'stretch', justifyContent:'center', padding:0, overflow:'hidden', overscrollBehavior:'contain' }}>
       <style>{ADMIN_THEME_CSS}</style>
       <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} lang={lang}
         tabs={DASH_TABS.filter(x => standalone || x.id !== 'overview')} leads={leads} properties={properties}
@@ -2917,7 +2917,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
 
       {/* ── SIDEBAR — standalone only ─────────────────────────────────── */}
       {standalone && (
-        <aside className={`admin-sidebar${adminNavOpen ? ' open' : ''}`} style={{ width:248, height:'100dvh', background:'var(--au-sidebar)', borderLeft:'1px solid var(--au-line)', display:'flex', flexDirection:'column', flexShrink:0 }}>
+        <aside className={`admin-sidebar admin-vh${adminNavOpen ? ' open' : ''}`} style={{ width:248, background:'var(--au-sidebar)', borderLeft:'1px solid var(--au-line)', display:'flex', flexDirection:'column', flexShrink:0 }}>
           {/* Brand */}
           <div style={{ padding:'20px 18px 16px', display:'flex', alignItems:'center', gap:12 }}>
             <div style={{ width:40, height:40, borderRadius:12, background:'linear-gradient(135deg,rgba(var(--brand-rgb),.28),rgba(var(--brand-rgb),.08))', border:'1px solid rgba(var(--brand-rgb),.3)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
@@ -2978,11 +2978,10 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
       )}
 
       {/* ── MAIN PANE ─────────────────────────────────────────────────── */}
-      <div className={`admin-main-pane${standalone ? '' : ' admin-panel-modal'}`} style={standalone
-        ? { flex:1, display:'flex', flexDirection:'column', height:'100dvh', overflow:'hidden' }
-        : (tab==='chats'||tab==='leads'||tab==='meta'||tab==='content')
-          ? { background:C.card, border:`1px solid ${C.purple}33`, borderRadius:16, padding:0, width:'100%', maxWidth:'98vw', height:'94vh', overflow:'hidden', direction:'rtl', boxShadow:'0 32px 80px rgba(0,0,0,.7)', display:'flex', flexDirection:'column' }
-          : { background:C.card, border:`1px solid ${C.purple}33`, borderRadius:16, padding:'28px 28px 0', width:'100%', maxWidth:'calc(100vw - 24px)', height:'94vh', overflow:'hidden', direction:'rtl', boxShadow:'0 32px 80px rgba(0,0,0,.7)', display:'flex', flexDirection:'column' }}>
+      <div className={`admin-main-pane admin-vh${standalone ? '' : ' admin-panel-modal'}`} style={standalone
+        ? { flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }
+        // The in-site window fills the whole screen too (it used to be 94% of the height, 98% of the width)
+        : { background:C.card, padding: (tab==='chats'||tab==='leads'||tab==='meta'||tab==='content') ? 0 : '22px 28px 0', width:'100%', maxWidth:'100vw', overflow:'hidden', direction:'rtl', display:'flex', flexDirection:'column' }}>
 
         {/* ── MOBILE TOP BAR — inside main pane ──────────────────────── */}
         {standalone && (
@@ -3022,7 +3021,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
 
         {/* Standalone desktop top-bar */}
         {standalone && (
-          <div className="admin-desktop-topbar" style={{ height:64, borderBottom:'1px solid rgba(var(--brand-rgb),.09)', display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 28px', flexShrink:0, background:'var(--au-topbar)', backdropFilter:'blur(20px)', direction:'rtl' }}>
+          <div className="admin-desktop-topbar" style={{ height:64, borderBottom:'1px solid rgba(var(--brand-rgb),.09)', display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 28px', flexShrink:0, background:'var(--au-topbar)', backdropFilter:'blur(20px)', WebkitBackdropFilter:'blur(20px)', direction:'rtl' }}>
             <div style={{ display:'flex', alignItems:'center', gap:10 }}>
               <div style={{ display:'flex', flexDirection:'column', gap:1 }}>
                 <h2 style={{ fontSize:16, fontWeight:800, color:'var(--au-text)', margin:0, letterSpacing:'-.005em' }}>{TAB_LABELS[tab] || ''}</h2>
@@ -4455,7 +4454,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
 
         {/* ── Wizard overlay — standalone mode only ───────────────────── */}
         {standalone && wizardOpen && (
-          <div style={{ position:'fixed', inset:0, zIndex:2000, background:'rgba(0,0,0,.97)', backdropFilter:'blur(4px)' }}>
+          <div style={{ position:'fixed', inset:0, zIndex:2000, background:'rgba(0,0,0,.97)', backdropFilter:'blur(4px)', WebkitBackdropFilter:'blur(4px)' }}>
             <Suspense fallback={null}>
               <PropertyWizard
                 key={wizardSeed?.editId || 'new'}
