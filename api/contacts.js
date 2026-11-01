@@ -34,7 +34,17 @@ async function backupLead(row, reason) {
   if (!backupEnabled()) return null
   const rec = { ...row, created_at: new Date().toISOString(), backup: true, supabase_error: String(reason || '').slice(0, 300) }
   const bl = await backupPut(`leads/${Date.now()}.json`, rec)
+  wroteBackup = true
   return { ...rec, id: `bk:${bl.pathname}`, blob_url: bl.url }
+}
+// Listing the Blob store is a paid "advanced operation" (2,000 a month on Hobby), and every refresh of the leads board
+// used to list it. Backups exist only after Supabase refused a write, so a warm instance looks at most every 30 minutes
+// while Supabase answers, and on every call while it doesn't (or right after this instance wrote a backup).
+let lastBlobList = 0, wroteBackup = false
+const BLOB_LIST_EVERY = 30 * 60 * 1000
+function shouldListBackups(supabaseOk) {
+  if (!supabaseOk || wroteBackup || Date.now() - lastBlobList > BLOB_LIST_EVERY) { lastBlobList = Date.now(); wroteBackup = false; return true }
+  return false
 }
 async function listBackupLeads() {
   if (!backupEnabled()) return []
@@ -410,7 +420,7 @@ export default async function handler(req, res) {
         // a table without updated_at (before the migration) rejects the or=(…updated_at…) filter: new leads only then
         if (changed) { try { contacts = await getContacts(since) } catch (e2) { supaErr = e2.message } } else supaErr = e.message
       }
-      let backups = await listBackupLeads()
+      let backups = shouldListBackups(!!contacts) ? await listBackupLeads() : []
       if (contacts && backups.length) {
         const { restored, pending } = await restoreBackupLeads(backups)
         if (restored.length) console.log(`[contacts] restored ${restored.length} backed-up lead(s) into Supabase`)
