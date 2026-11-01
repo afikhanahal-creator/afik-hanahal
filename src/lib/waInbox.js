@@ -57,3 +57,24 @@ export function mergeAlert(list = [], a) {
   const next = { ...cur, ...a, count: (cur.count || 1) + 1, ids: [...(cur.ids || []), ...(a.ids || [])].slice(-20), id: cur.id }
   return [...list.slice(0, i), ...list.slice(i + 1), next]
 }
+
+/** Fold live messages (Green's shape + phone) into the "waiting for us" map (tail9 → { phone, ts, text, type }): a message that
+ *  comes in marks its chat, one we send clears it; an older message never overrides a newer one, reactions don't count. Returns
+ *  the same map when nothing changed. */
+export function applyWaiting(map, msgs = []) {
+  let next = map
+  const t9 = p => String(p || '').replace(/\D/g, '').slice(-9)
+  for (const m of [...msgs].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0))) {
+    if (!m || m.typeMessage === 'reactionMessage') continue
+    const k = t9(m.phone || m.chatId)
+    if (k.length !== 9) continue
+    const ts = (Number(m.timestamp) || 0) * 1000
+    const cur = next.get(k)
+    if (m.type === 'incoming') {
+      if (!cur || ts > cur.ts) { if (next === map) next = new Map(map); next.set(k, { phone: m.phone, ts, text: String(m.textMessage || m.caption || '').slice(0, 140), type: m.typeMessage || '' }) }
+    } else if (m.type === 'outgoing') {
+      if (cur && ts >= cur.ts) { if (next === map) next = new Map(map); next.delete(k) }
+    }
+  }
+  return next
+}

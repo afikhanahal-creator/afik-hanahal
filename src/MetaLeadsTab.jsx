@@ -4,6 +4,7 @@
 // details, form answers and notes. Phones get one screen at a time (list → lead → conversation / details).
 // Props: { C, lang, isDark, onSaveToCRM, onOpenChat, onNew*, crmLeads, autoConfig, onAutoConfigSaved }
 
+import WaitingChip from './WaitingChip.jsx'
 import { Icon } from './uiIcons.jsx'
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
@@ -1101,6 +1102,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onOpenCard, onSaveToCRM,
                     </div>
                     <div style={{ display: 'flex', gap: 5, marginTop: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                       <span className="lc-chip" style={{ color: sc.color, background: sc.bg }}>{sc.label[lang] || sc.label.he}</span>
+                      <WaitingChip phone={lead.phone} lang={lang} size="xs"/>
                       {welcomeChip(lead)}
                       {lead.message_count > 0 && <span className="lc-chip" style={{ color: BRAND, background: 'rgba(var(--brand-rgb),.1)' }}>💬 {lead.message_count}</span>}
                     </div>
