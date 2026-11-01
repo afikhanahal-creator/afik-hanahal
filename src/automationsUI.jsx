@@ -68,7 +68,9 @@ export const AUTO_CSS = `
   .au-sched-row{display:grid;grid-template-columns:88px minmax(0,1.2fr) minmax(0,1fr) 150px 112px;align-items:center;gap:10px;min-height:52px;padding:6px 14px}
   .au-log-row{display:grid;grid-template-columns:28px 96px 170px 110px minmax(0,1fr) 110px 88px;align-items:center;gap:10px;min-height:48px;padding:6px 14px}
   .au-day-row{display:grid;grid-template-columns:72px 52px minmax(0,1fr) 132px 36px;align-items:center;gap:10px;min-height:44px;padding:0 8px;border-radius:8px}
-  .au-wiz{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:16px;min-height:0}
+  .au-wiz{display:grid;grid-template-columns:minmax(0,1fr) minmax(360px,440px);gap:20px;min-height:0;height:100%}
+  .au-wiz>*{min-height:0;overflow:auto}
+  .au-wiz-prev{display:flex;flex-direction:column;gap:10px}
   .au-wiz2{display:grid;grid-template-columns:300px minmax(0,1fr);gap:16px;min-height:0}
   @media (max-width:1000px){
     .au-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.au-kpis>:first-child{grid-column:1/-1}
@@ -81,6 +83,7 @@ export const AUTO_CSS = `
   @media (max-width:760px){
     .au-ed-body{grid-template-columns:1fr}
     .au-wiz,.au-wiz2{grid-template-columns:1fr}
+    .au-wiz{height:auto}.au-wiz>*{overflow:visible}.au-wiz-body{overflow:auto!important}
   }
   @media (max-width:640px){
     .au-hide-m{display:none!important}.au-only-m{display:flex!important}
@@ -253,14 +256,14 @@ function useFocusTrap(open, ref, onEsc, initialSel) {
     return () => { document.removeEventListener('keydown', onKey, true); prev?.focus?.() }
   }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
 }
-export function Modal({ open, onClose, title, children, footer, width = 560, full, dir, closeOnBackdrop = true, initialFocus, label }) {
+export function Modal({ open, onClose, title, children, footer, width = 560, full, xl, dir, closeOnBackdrop = true, initialFocus, label }) {
   const ref = useRef(null)
   useFocusTrap(open, ref, onClose, initialFocus)
   if (!open) return null
   return createPortal(
     <div className="au" dir={dir} onMouseDown={e => { if (closeOnBackdrop && e.target === e.currentTarget) onClose() }} style={{ position: 'fixed', inset: 0, zIndex: 2500, background: 'var(--au-overlay)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: full ? 16 : 14 }}>
       <div ref={ref} role="dialog" aria-modal="true" aria-label={label || (typeof title === 'string' ? title : undefined)} className="au-in"
-        style={{ width: full ? 'min(1120px, calc(100vw - 32px))' : '100%', maxWidth: full ? undefined : width, height: full ? 'min(780px, calc(100dvh - 32px))' : undefined, maxHeight: 'calc(100dvh - 28px)', display: 'flex', flexDirection: 'column', background: T.s2, border: `1px solid ${T.s2Line}`, borderRadius: 16, boxShadow: T.shadow2, overflow: 'hidden', color: T.text }}>
+        style={{ width: xl ? 'min(1560px, calc(100vw - 24px))' : full ? 'min(1120px, calc(100vw - 32px))' : '100%', maxWidth: full || xl ? undefined : width, height: xl ? 'calc(100vh - 24px)' : full ? 'min(780px, calc(100dvh - 32px))' : undefined, maxHeight: 'calc(100dvh - 28px)', display: 'flex', flexDirection: 'column', background: T.s2, border: `1px solid ${T.s2Line}`, borderRadius: 16, boxShadow: T.shadow2, overflow: 'hidden', color: T.text }}>
         {title != null && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px', borderBottom: `1px solid ${T.line}`, minHeight: 56 }}>
             <IconButton icon={<FaTimes/>} label="✕" onClick={onClose} size={36}/>
