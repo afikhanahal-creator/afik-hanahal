@@ -25,7 +25,7 @@ import { properHebrewName } from '../lib/name-proof.js'
 import { hebrewizeRecentNames } from '../lib/hebrew-lead-names.js'
 import { parseGreenHook, rowToGreen, mergeHistory, historyToRow } from '../lib/green-hook.js'
 import { avatarExpiry, avatarFresh, avatarPhone } from '../lib/wa-avatar.js'
-import { forwardRequest, cleanMsgId, cleanReaction } from '../lib/wa-actions.js'
+import { forwardRequest, cleanMsgId, cleanReaction, isHandled, withHandled, withoutHandled } from '../lib/wa-actions.js'
 
 const SUPERMETRICS_API_KEY    = process.env.SUPERMETRICS_API_KEY    || ''
 // System User token (afik-api) — permanent, survives password changes. Used to
@@ -1233,7 +1233,18 @@ async function handleChat(req, res, action) {
       const { data, error } = await sb().rpc('afik_wa_waiting', { days })
       if (error) return res.status(502).json({ error: error.message })
       const office = String(process.env.BUSINESS_NOTIFY_CHATID || '972559811814').replace(/@.*/, '').replace(/\D/g, '')
-      return res.status(200).json({ waiting: (data || []).filter(r => r.phone !== office).map(r => ({ phone: r.phone, ts: r.ts, type: r.type, text: r.body || '' })) })
+      // chats marked "handled" leave the list until the lead writes again (lib/wa-actions.js)
+      const done = (await Auto.getSetting('wa_waiting_done')).value || {}
+      return res.status(200).json({ done, waiting: (data || []).filter(r => r.phone !== office && !isHandled(done, r.phone, r.ts)).map(r => ({ phone: r.phone, ts: r.ts, type: r.type, text: r.body || '' })) })
+    }
+    // POST /api/meta/chat-waiting-done { items: [{ phone, ts }] } → off "ממתינים לתשובה" (ts = the lead's last message);
+    // { undo: [phones] } → back on. → { ok, done }
+    if (action === 'chat-waiting-done') {
+      const b = req.body || {}
+      const cur = (await Auto.getSetting('wa_waiting_done')).value || {}
+      const next = Array.isArray(b.undo) ? withoutHandled(cur, b.undo) : withHandled(cur, b.items)
+      await Auto.putSetting('wa_waiting_done', next)
+      return res.status(200).json({ ok: true, done: next })
     }
 
     // GET /api/meta/chat-updates?since=<ISO> → the messages and delivery statuses that reached us since the cursor (the

@@ -2,10 +2,10 @@
 // template" after changing an inserted message). The text keeps its placeholders ({name}, {property}…) so it stays right
 // for every lead; the preview shows it for the lead of the open chat. Saving replaces the template everywhere it is used
 // (chat, automations, bulk sends) — the same config the templates tab writes (app_settings.automations → templates).
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { renderTemplate, VARIABLES, unknownPlaceholders, CATEGORIES } from '../lib/automations-shared.js'
-import { withTemplate, withoutOverride, newTemplateId } from '../lib/template-edit.js'
+import { renderTemplate, VARIABLES, unknownPlaceholders, CATEGORIES, templateList, sameProject } from '../lib/automations-shared.js'
+import { withTemplate, withoutOverride, newTemplateId, autoTitle, titleIdeas, knownProjects } from '../lib/template-edit.js'
 import { autoApi } from './AutomationsApi.jsx'
 import TemplateImageField from './TemplateImageField.jsx'
 import TemplateFilesField from './TemplateFilesField.jsx'
@@ -15,7 +15,7 @@ import { Icon } from './uiIcons.jsx'
 const TR = {
   he: {
     createTitle: 'תבנית חדשה מהודעה', fromMsg: 'ההודעה הפכה לתבנית: השם של הליד והפרויקט הוחלפו במשתנים ({name}, {property}), כך שהתבנית תתאים לכל ליד. בדקו את הנוסח ושמרו.',
-    cat: 'קטגוריה', project: 'פרויקט / נכס (לא חובה)', projectPh: 'למשל זרובבל 15', projWelcome: p => `להשתמש בה כהודעת הפתיחה הקבועה של ${p}`, create: 'שמירה כתבנית', enHint: 'אפשר להוסיף נוסח באנגלית בלשונית English, למי שמגיע מהאתר באנגלית.',
+    cat: 'קטגוריה', ideas: 'הצעות לשם:', project: 'פרויקט / קבוצה (לא חובה)', projectPh: 'למשל זרובבל 15', projWelcome: p => `להשתמש בה כהודעת הפתיחה הקבועה של ${p}`, create: 'שמירה כתבנית', enHint: 'אפשר להוסיף נוסח באנגלית בלשונית English, למי שמגיע מהאתר באנגלית.',
     title: 'עריכת תבנית', fromChat: 'הנוסח מהתיבה הוכנס לתבנית. השם, הפרויקט ושאר הפרטים של הליד חזרו להיות משתנים, כדי שהתבנית תתאים לכל ליד.',
     name: 'שם התבנית', text: 'נוסח ההודעה', vars: 'הוספת משתנה:', preview: 'כך זה ייראה אצל', previewLead: 'הליד הזה', cond: 'חלק בתוך [[ ]] יופיע רק כשיש ללייד את הנתון.',
     save: 'שמור במקום התבנית', saveNew: 'שמור כתבנית חדשה', restore: 'שחזר לנוסח המקורי', cancel: 'ביטול', saving: 'שומר…', saved: 'נשמר',
@@ -23,7 +23,7 @@ const TR = {
   },
   en: {
     createTitle: 'New template from a message', fromMsg: 'The message became a template: the lead\'s name and project were replaced with variables ({name}, {property}), so it fits every lead. Check the wording and save.',
-    cat: 'Category', project: 'Project / property (optional)', projectPh: 'e.g. 15 Zerubavel', projWelcome: p => `Use it as the fixed welcome message of ${p}`, create: 'Save as a template', enHint: 'You can add an English version in the English tab, for leads from the English site.',
+    cat: 'Category', ideas: 'Name ideas:', project: 'Project / group (optional)', projectPh: 'e.g. 15 Zerubavel', projWelcome: p => `Use it as the fixed welcome message of ${p}`, create: 'Save as a template', enHint: 'You can add an English version in the English tab, for leads from the English site.',
     title: 'Edit template', fromChat: 'The wording from the message box went into the template. The lead\'s name, project and other details became variables again, so the template fits every lead.',
     name: 'Template name', text: 'Message text', vars: 'Insert a variable:', preview: 'How it looks for', previewLead: 'this lead', cond: 'A part inside [[ ]] shows only when the lead has that detail.',
     save: 'Save in place of the template', saveNew: 'Save as a new template', restore: 'Restore the original wording', cancel: 'Cancel', saving: 'Saving…', saved: 'Saved',
@@ -31,12 +31,7 @@ const TR = {
   },
 }
 // A name for a template made from a message: the project, then the message's first words without the greeting and variables
-export function autoTitle(project = '', text = '') {
-  let x = String(text || '').replace(/\{property\}/g, String(project || '').trim()).replace(/\{[a-z]+\}/g, '').replace(/^\s*(היי|שלום|הי|hi|hello|hey)(?=[\s,.!?]|$)/i, '')
-    .replace(/^[\s,.!?:;\-–]+/, '').replace(/\s+([,.!?;:])/g, '$1').replace(/\s+/g, ' ').trim()
-  if (x.length > 34) x = `${x.slice(0, 34).replace(/\s+\S*$/, '')}…`
-  return [String(project || '').trim(), x].filter(Boolean).join(' · ')
-}
+export { autoTitle }   // lib/template-edit.js (kept here for the chat's imports)
 const QUICK_VARS = ['name', 'property', 'when', 'where', 'greeting', 'needs', 'budget', 'phone', 'agent']
 
 export default function TemplateQuickEdit({ WA, lang = 'he', lead, tpl, initial = null, fromChat = false, create = false, initialLang, autoConfig, onSaved, onClose }) {
@@ -55,6 +50,9 @@ export default function TemplateQuickEdit({ WA, lang = 'he', lead, tpl, initial 
   useEffect(() => { areaRef.current?.focus() }, [tab])
 
   const cfg = autoConfig || undefined
+  const allTpls = useMemo(() => templateList(cfg), [cfg])
+  const projects = useMemo(() => knownProjects(allTpls, lead ? [lead] : []), [allTpls, lead])
+  const ideas = titleIdeas({ project, cat, text: text[tab] || text.he, lang: tab, taken: allTpls.flatMap(o => [o.he_title, o.en_title]) })
   const draft = { ...tpl, he: text.he, en: text.en }
   const preview = renderTemplate(draft, lead || {}, cfg, tab)
   const unknown = unknownPlaceholders(text[tab])
@@ -79,7 +77,7 @@ export default function TemplateQuickEdit({ WA, lang = 'he', lead, tpl, initial 
         // a message from the chat → a new template of its own; optionally the project's fixed welcome (rules.welcome.byProject)
         id = newTemplateId()
         const p = project.trim()
-        const he_title = title.he.trim() || autoTitle(p, text.he || text.en)
+        const he_title = title.he.trim() || ideas[0] || autoTitle(p, text.he || text.en)
         next = withTemplate(fresh, tpl, { id, cat, he: text.he, en: text.en, he_title, en_title: title.en.trim() || he_title, image, project: p, files })
         if (projWelcome && p) next = { ...next, rules: { ...(next.rules || {}), welcome: { ...(next.rules?.welcome || {}), byProject: { ...(next.rules?.welcome?.byProject || {}), [p]: id } } } }
       }
@@ -113,8 +111,13 @@ export default function TemplateQuickEdit({ WA, lang = 'he', lead, tpl, initial 
               {['he', 'en'].map(l => <button key={l} type="button" style={tabBtn(tab === l)} onClick={() => setTab(l)}>{l === 'he' ? 'עברית' : 'English'}</button>)}
             </div>
             <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 600, color: WA.subText }}>{t.name}
-              <input value={title[tab]} onChange={e => setTitle(s => ({ ...s, [tab]: e.target.value }))} placeholder={create ? autoTitle(project, text[tab] || text.he) : undefined} dir={tab === 'en' ? 'ltr' : 'rtl'} style={input}/>
+              <input value={title[tab]} onChange={e => setTitle(s => ({ ...s, [tab]: e.target.value }))} placeholder={create ? (ideas[0] || autoTitle(project, text[tab] || text.he)) : undefined} dir={tab === 'en' ? 'ltr' : 'rtl'} style={input}/>
             </label>
+            {create && ideas.length > 0 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', fontSize: 12, color: WA.subText }}>
+              <span>{t.ideas}</span>
+              {ideas.map(n => <button key={n} type="button" onClick={() => setTitle(s => ({ ...s, [tab]: n }))}
+                style={{ height: 26, padding: '0 10px', borderRadius: 999, border: `1px solid ${title[tab] === n ? WA.green : WA.border}`, background: title[tab] === n ? `${WA.green}22` : 'transparent', color: WA.bodyText, fontFamily: 'inherit', fontSize: 12, fontWeight: 600, cursor: 'pointer', minHeight: 0 }}><bdi>{n}</bdi></button>)}
+            </div>}
             {/* the property this message belongs to — its messages come first in "הצעות" for that property's leads */}
             {<div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
               {create && <label style={{ flex: '1 1 160px', display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 600, color: WA.subText }}>{t.cat}
@@ -125,6 +128,12 @@ export default function TemplateQuickEdit({ WA, lang = 'he', lead, tpl, initial 
               <label style={{ flex: '1 1 160px', display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 600, color: WA.subText }}>{t.project}
                 <input value={project} onChange={e => setProject(e.target.value)} placeholder={t.projectPh} style={input}/>
               </label>
+              {projects.length > 0 && <div style={{ flexBasis: '100%', display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {projects.slice(0, 8).map(pr => { const on = sameProject(pr.name, project); return (
+                  <button key={pr.name} type="button" aria-pressed={on} onClick={() => setProject(on ? '' : pr.name)}
+                    style={{ height: 28, padding: '0 11px', borderRadius: 999, border: `1px solid ${on ? WA.green : WA.border}`, background: on ? `${WA.green}22` : 'transparent', color: WA.bodyText, fontFamily: 'inherit', fontSize: 12, fontWeight: on ? 800 : 600, cursor: 'pointer', minHeight: 0 }}>{pr.name}</button>
+                ) })}
+              </div>}
               {create && project.trim() && <label style={{ flexBasis: '100%', display: 'flex', gap: 8, alignItems: 'center', fontSize: 12.5, color: WA.bodyText, cursor: 'pointer' }}>
                 <input type="checkbox" checked={projWelcome} onChange={e => setProjWelcome(e.target.checked)} style={{ appearance: 'auto', width: 16, height: 16, minHeight: 0 }}/>{t.projWelcome(project.trim())}
               </label>}

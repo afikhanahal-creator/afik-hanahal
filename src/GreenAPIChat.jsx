@@ -25,6 +25,7 @@ import { leadFormCard } from './lib/leadHistory.js'
 import { onWaLive, waLiveUp, mergeLive } from './lib/waLive.js'
 import { setViewing, desktopPermission } from './lib/waNotify.js'
 import { lastOfChat, waitingState, fmtWait } from './lib/waInbox.js'
+import { useWaiting, markHandled, unmarkHandled, handledAt } from './lib/waWaiting.js'
 import WaNotifySettings from './WaNotifySettings.jsx'
 import WaFace from './WaFace.jsx'
 import Splitter, { SPLITTER_CSS } from './Splitter.jsx'
@@ -839,11 +840,27 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
 
   // Who waits for our answer: the last word in the chat is theirs (loaded messages or the chat list's last row)
   const gByTail = useMemo(() => new Map(greenChats.filter(c => c.phone).map(c => [tail9(c.phone), c])), [greenChats])
+  // a chat marked "handled" (✓ — answered by phone, nothing to answer…) stays off the list until the lead writes again
+  const waitStore = useWaiting()
   const waitOf = useCallback(lead => {
     if (lead.office || lead.self) return { waiting: false }
     const p = intlPhone(lead.phone)
-    return waitingState(lastOfChat(chats[p] || [], gByTail.get(tail9(p)) || null), now)
-  }, [chats, gByTail, now])
+    const last = lastOfChat(chats[p] || [], gByTail.get(tail9(p)) || null)
+    const st = waitingState(last, now)
+    if (st.waiting && handledAt(waitStore, p, last.ts)) return { waiting: false, handled: true }
+    return st.waiting ? { ...st, ts: last.ts } : st
+  }, [chats, gByTail, now, waitStore])
+  const [waitSel, setWaitSel]   = useState(null)    // null = not selecting; Set of lead ids being marked handled
+  const [handledUndo, setHandledUndo] = useState(null)   // { phones, n } — the undo bar after marking
+  useEffect(() => { if (!handledUndo) return; const x = setTimeout(() => setHandledUndo(null), 9000); return () => clearTimeout(x) }, [handledUndo])
+  useEffect(() => { if (listFilter !== 'waiting') setWaitSel(null) }, [listFilter])
+  const markDone = async leadsList => {
+    const items = leadsList.map(l => ({ phone: intlPhone(l.phone), ts: waitOf(l).ts })).filter(x => x.phone && x.ts)
+    if (!items.length) return
+    setWaitSel(null)
+    setHandledUndo({ phones: items.map(x => x.phone), n: items.length })
+    if (!(await markHandled(items))) { setHandledUndo(null); alert('השמירה נכשלה, נסו שוב') }
+  }
   const counts = useMemo(() => {
     let unread = 0, waiting = 0
     for (const l of contactList) {
@@ -884,6 +901,14 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
         .wa-bubble:hover .wa-bub-btn, .wa-bub-btn[aria-expanded="true"], .wa-bub-btn:focus-visible { opacity: 1; }
         @media (hover: none) { .wa-bubble .wa-bub-btn { opacity: .55; } }
         .wa-bub-item:hover { background: rgba(127,127,127,.12) !important; }
+        .wa-done-btn { flex-shrink:0; width:24px; height:24px; min-height:0; min-width:0; padding:0; border-radius:50%; border:1px solid ${WA.border}; background:${WA.panelBg}; color:${WA.green}; font-size:13px; font-weight:800; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; opacity:0; transition:opacity .12s, background .12s, transform .12s; }
+        .wa-row:hover .wa-done-btn, .wa-done-btn:focus-visible { opacity:1; }
+        .wa-done-btn:hover { background:${WA.green}; color:#fff; border-color:${WA.green}; transform:scale(1.08); }
+        @media (hover: none) { .wa-done-btn { opacity:.85; } }
+        .wa-wb-btn { height:28px; min-height:0; padding:0 12px; border-radius:999px; border:1px solid ${WA.border}; background:transparent; color:${WA.bodyText}; font:inherit; font-size:12.5px; font-weight:700; cursor:pointer; white-space:nowrap; }
+        .wa-wb-btn:hover:not(:disabled) { background:${WA.hoverRow}; }
+        .wa-wb-btn.pri { background:${WA.green}; border-color:${WA.green}; color:#fff; }
+        .wa-wb-btn:disabled { opacity:.45; cursor:default; }
         .wa-bub-emo { transition: transform .12s; } .wa-bub-emo:hover { transform: scale(1.22); }
         ${SPLITTER_CSS}
         /* Phone: one pane at a time, like the WhatsApp app — the chat list, then the open chat with a back arrow */
@@ -1089,6 +1114,10 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                   onSend={(text, o) => sendMsg(text, o)}
                   onInsert={putInBox} onEdit={openEdit}
                   onOpenPanel={() => { setQuickOpen(true); setEmoji(false) }}/>
+                {(() => { const w = waitOf(contactView || contact); return w.waiting ? (
+                  <button type="button" className="wa-wb-btn" onClick={() => markDone([contactView || contact])} title="להוריד מ״ממתינים לתשובה״ (יחזור אם יכתבו שוב)"
+                    style={{ height:32, flexShrink:0, color: WA.green, borderColor: `${WA.green}66` }}>✓ טופל · {fmtWait(w.mins)}</button>
+                ) : null })()}
                 {crmRow && onUpdateLead && <span style={{ display:'inline-flex', gap:6, flexShrink:0, alignItems:'center' }}>
                   {onUpdateStatus && <StageMenu lead={crmRow} lang={lang} stageLabels={stageLabels} WA={WA} onChange={st => onUpdateStatus(crmRow, st)}/>}
                   <AiNoteButton lead={crmRow} lang={lang} stageLabels={stageLabels} WA={WA} onUpdateLead={onUpdateLead} onStage={st => onUpdateStatus?.(crmRow, st)}/>
@@ -1473,8 +1502,27 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
             })}
           </div>
 
+          {/* "ממתינים לתשובה": mark the ones that don't need an answer (one by one with ✓, or several at once) */}
+          {listFilter === 'waiting' && shownList.length > 0 && (
+            <div className="wa-waitbar" style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 12px', borderBottom:`1px solid ${WA.border}`, flexShrink:0, direction:'rtl', background: WA.panelBg, fontSize:12.5 }}>
+              {waitSel ? <>
+                <label style={{ display:'inline-flex', alignItems:'center', gap:7, cursor:'pointer', color: WA.bodyText, fontWeight:600 }}>
+                  <input type="checkbox" checked={waitSel.size === shownList.length} ref={el => { if (el) el.indeterminate = waitSel.size > 0 && waitSel.size < shownList.length }}
+                    onChange={e => setWaitSel(e.target.checked ? new Set(shownList.map(l => l.id)) : new Set())} style={{ appearance:'auto', width:17, height:17, minHeight:0, accentColor: WA.green, margin:0 }}/>
+                  {waitSel.size ? `נבחרו ${waitSel.size}` : 'בחירת הכל'}
+                </label>
+                <span style={{ flex:1 }}/>
+                <button type="button" onClick={() => setWaitSel(null)} className="wa-wb-btn">ביטול</button>
+                <button type="button" disabled={!waitSel.size} onClick={() => markDone(shownList.filter(l => waitSel.has(l.id)))} className="wa-wb-btn pri">✓ טופל{waitSel.size ? ` (${waitSel.size})` : ''}</button>
+              </> : <>
+                <span style={{ color: WA.subText, flex:1, minWidth:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>מי שלא צריך תשובה, ✓ מוריד מהרשימה</span>
+                <button type="button" onClick={() => setWaitSel(new Set())} className="wa-wb-btn">בחירה</button>
+              </>}
+            </div>
+          )}
+
           {/* Contact list — isolated, smooth scroll */}
-          <div className="wa-contacts-scroll" style={{ flex:1, minHeight:0, overflowY:'auto' }}>
+          <div className="wa-contacts-scroll" style={{ flex:1, minHeight:0, overflowY:'auto', position:'relative' }}>
             {shownList.length === 0 ? (
               <div style={{ padding:28, textAlign:'center', color: WA.subText, fontSize:13, direction:'rtl', lineHeight:1.7 }}>
                 {listFilter === 'waiting' && contactList.length ? 'אין מי שמחכה לתשובה. כל השיחות נענו'
@@ -1494,7 +1542,8 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
               const rowBg    = isActive ? WA.selectedRow : unread ? (isDark ? 'rgba(37,211,102,.07)' : 'rgba(37,211,102,.06)') : WA.panelBg
               return (
                 <div key={lead.id}
-                  onClick={() => selectContact(lead)}
+                  className="wa-row"
+                  onClick={() => { if (waitSel) setWaitSel(cur => { const n = new Set(cur); if (n.has(lead.id)) n.delete(lead.id); else n.add(lead.id); return n }); else selectContact(lead) }}
                   style={{ padding:'12px 14px', display:'flex', gap:12, cursor:'pointer', background: rowBg, borderBottom:`1px solid ${WA.border}`, transition:'background .1s', alignItems:'center', direction:'rtl', position:'relative' }}
                   onMouseEnter={e => {
                     if (!isActive) e.currentTarget.style.background = WA.hoverRow
@@ -1507,6 +1556,8 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                     if (btn) btn.style.opacity = '0'
                   }}>
                   {isActive && <div style={{ position:'absolute', right:0, top:0, bottom:0, width:3, background: WA.green, borderRadius:'0 2px 2px 0' }}/>}
+                  {waitSel && <input type="checkbox" readOnly checked={waitSel.has(lead.id)} aria-label={`בחירה: ${nameOf(lead, lang)}`} tabIndex={-1}
+                    style={{ appearance:'auto', width:18, height:18, minHeight:0, flexShrink:0, margin:0, accentColor: WA.green, pointerEvents:'none' }}/>}
                   <Avatar c={lead} size={49} lang={lang}/>
                   <div style={{ flex:1, minWidth:0 }}>
                     <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:3, gap:8 }}>
@@ -1533,6 +1584,10 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                           {fmtWait(wait.mins)}
                         </span>
                       )}
+                      {wait.waiting && !waitSel && (
+                        <button type="button" className="wa-done-btn" title="טופל — להוריד מ״ממתינים לתשובה״ (יחזור אם יכתבו שוב)" aria-label={`טופל: ${nameOf(lead, lang)}`}
+                          onClick={e => { e.stopPropagation(); markDone([lead]) }}>✓</button>
+                      )}
                       {unread > 0 && (
                         <span style={{ background: '#1DA851', color:'#fff', fontSize:11, fontWeight:700, minWidth:18, height:18, borderRadius:9, padding:'0 5px', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, lineHeight:1 }}>
                           {unread > 99 ? '99+' : unread}
@@ -1550,6 +1605,13 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                 </div>
               )
             })}
+            {handledUndo && (
+              <div role="status" style={{ position:'sticky', bottom:10, margin:'10px 10px 0', display:'flex', alignItems:'center', gap:10, padding:'10px 14px', borderRadius:12, background: isDark ? '#E9EDEF' : '#1F2C34', color: isDark ? '#111B21' : '#fff', fontSize:13, fontWeight:600, boxShadow:'0 8px 24px rgba(0,0,0,.25)', direction:'rtl', zIndex:2 }}>
+                <span style={{ flex:1 }}>{handledUndo.n === 1 ? 'הוסר מהממתינים לתשובה' : `${handledUndo.n} הוסרו מהממתינים לתשובה`}</span>
+                <button type="button" onClick={() => { unmarkHandled(handledUndo.phones); setHandledUndo(null) }}
+                  style={{ border:'none', background:'transparent', color: isDark ? '#008069' : '#25D366', fontWeight:800, fontSize:13, cursor:'pointer', fontFamily:'inherit', minHeight:0, padding:'2px 6px' }}>בטל</button>
+              </div>
+            )}
           </div>
           </>}
         </div>
