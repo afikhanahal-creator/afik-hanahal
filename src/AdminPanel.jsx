@@ -1529,6 +1529,13 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const [initialChatLead, setInitialChatLead] = useState(null)
   // ── WhatsApp automations: config + periodic run (the panel is the scheduler while it is open) ──
   const [autoCfg, setAutoCfg]         = useState(null)    // { config, storage, greenConfigured }
+  // The leads board's "שליחה מרובה בוואטסאפ": the selected leads open the bulk-send wizard (paced, see lib/automations-shared.js)
+  const [bulkIds, setBulkIds] = useState(null)
+  useEffect(() => {
+    const h = e => { const ids = (e.detail?.ids || []).map(String); if (ids.length) { setBulkIds(ids); setTab('automations') } }
+    window.addEventListener('afik:bulk-send', h)
+    return () => window.removeEventListener('afik:bulk-send', h)
+  }, [])
   const [cardLeadId, setCardLeadId]   = useState(null)    // the lead card opened over the Lead Center
   const [reminderCardId, setReminderCardId] = useState(null)   // the lead card opened from a reminder (any screen)
   const cardFallback = useRef(null)
@@ -3641,7 +3648,8 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
               config={autoCfg} onConfigSaved={cfg => { setAutoCfg(c => ({ ...(c || {}), config: cfg, storage: 'ok' })); runAutomations() }}
               runResult={autoRun} onRun={runAutomations} running={autoRunning}
               onOpenChat={lead => { setInitialChatLead(lead); setTab('chats') }}
-              onRenameLead={(id, name) => updateLead(id, { name })}/>
+              onRenameLead={(id, name) => updateLead(id, { name })}
+              bulkIds={bulkIds} onBulkConsumed={() => setBulkIds(null)}/>
           </Suspense>
         )}
 

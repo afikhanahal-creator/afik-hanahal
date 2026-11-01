@@ -1909,7 +1909,7 @@ function AddColumnModal({ onClose, onAdd, T, lang }) {
 
 // ─── bulk action bar ──────────────────────────────────────────────────────────
 
-function BulkActionBar({ count, total, onClearSelection, onSelectAll, onDelete, onMove, onMerge, onAddProject, onlySelected, onToggleOnly, lang, T }) {
+function BulkActionBar({ count, total, onClearSelection, onSelectAll, onDelete, onMove, onMerge, onAddProject, onBulkSend, onlySelected, onToggleOnly, lang, T }) {
   const [confirmDel, setConfirmDel] = useState(false)
   const [moveOpen, setMoveOpen] = useState(false)
   useEffect(() => { setConfirmDel(false) }, [count])
@@ -1937,6 +1937,7 @@ function BulkActionBar({ count, total, onClearSelection, onSelectAll, onDelete, 
         )}
       </div>
       {count === 2 && onMerge && <button type="button" onClick={onMerge} style={btn}><Link2 size={13}/> {en ? 'Merge' : 'מזג'}</button>}
+      {onBulkSend && <button type="button" onClick={onBulkSend} style={{ ...btn, background: '#1FA855', borderColor: '#1FA855' }} title={en ? 'One WhatsApp message to each selected lead, sent gradually (about one a minute) so the number is not blocked' : 'הודעת וואטסאפ לכל ליד שנבחר, בהדרגה (בערך אחת לדקה) כדי שהמספר לא ייחסם'}>{en ? 'WhatsApp bulk send' : 'שליחה מרובה בוואטסאפ'}</button>}
       {onAddProject && <button type="button" onClick={onAddProject} style={btn} title={en ? 'Adds " · <project>" after each selected lead\'s name (Meta campaign or listing)' : 'מוסיף " · <פרויקט>" אחרי השם של כל ליד נבחר (הקמפיין או הנכס)'}>{en ? '+ Project in the name' : '+ הפרויקט בשם'}</button>}
       {confirmDel
         ? <button type="button" onClick={() => { setConfirmDel(false); onDelete() }} style={{ ...btn, background: '#E2445C', borderColor: '#E2445C' }}><Trash2 size={13}/> {en ? `Delete ${count}?` : `למחוק ${count}?`}</button>
@@ -2646,6 +2647,7 @@ function LeadsBoardMain({
       {selectedIds.size > 0 && <BulkActionBar count={selectedIds.size} total={filtered.length} lang={lang} T={T} onClearSelection={() => setSelectedIds(new Set())} onSelectAll={() => setSelectedIds(new Set(filtered.map(l => l.id)))}
         onlySelected={onlySelected} onToggleOnly={() => { setOnlySelected(v => !v); setActiveTab(t => (t === 'table' ? t : 'table')) }} onDelete={handleBulkDelete} onMove={handleBulkMove}
         onMerge={() => { const [a, b] = [...selectedIds].map(id => leads.find(l => l.id === id)); if (a && b) setMergePair([a, b]) }}
+        onBulkSend={() => window.dispatchEvent(new CustomEvent('afik:bulk-send', { detail: { ids: [...selectedIds] } }))}
         onAddProject={() => {
           // " · <project>" after the name of every selected lead that has a project and doesn't show it yet (the same rename as the card)
           let n = 0

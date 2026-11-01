@@ -1,10 +1,10 @@
 // Bulk sends (spec §3.6): job list + 3-step wizard (message → recipients → when). Sending runs on the
-// server (lib/automations.js jobs); while this tab is open it nudges the server every 5s so a send in
-// progress keeps moving even between the panel's regular runs.
+// server (lib/automations.js jobs), paced: one message at a time with a random gap and a daily cap, so WhatsApp doesn't block the
+// number. The database's scheduler calls the server every minute while a job is due; this tab only nudges it every 30 s.
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { FaBullhorn, FaPlus, FaCalendarAlt, FaUsers, FaPaperPlane, FaMoon, FaCheck, FaTimes, FaSearch, FaEllipsisV, FaCopy, FaBan, FaPen, FaRedo, FaEye, FaChevronDown, FaChevronUp, FaInfoCircle, FaExclamationTriangle, FaArrowLeft, FaArrowRight } from 'react-icons/fa'
 import { T, Button, IconButton, Card, Badge, FilterChip, EmptyState, Skeleton, Modal, MenuButton, MenuItem, ProgressBar, PhonePreview, ModeSwitch, Field, inputStyle, useConfirm } from './automationsUI.jsx'
-import { STAGES, renderTemplate, leadLang, intlPhone, isSendWindow, nextSendWindow, CATEGORIES } from '../lib/automations-shared.js'
+import { STAGES, renderTemplate, leadLang, intlPhone, isSendWindow, nextSendWindow, CATEGORIES, PACE_GAPS, PACE_CAPS, DEFAULT_PACE, jobPace, paceEstimate, sentTodayCount } from '../lib/automations-shared.js'
 import { autoApi } from './AutomationsApi.jsx'
 import DateTimePicker from './DateTimePicker.jsx'
 import { CatTile } from './uiIcons.jsx'
@@ -29,6 +29,11 @@ const TR = {
     cancelT: 'לבטל את השליחה המתוזמנת?', cancelB: n => `${n} לידים לא יקבלו את ההודעה.`, keep: 'השאר', stopT: 'לעצור את השליחה?', stopB: (a, b) => `${a} כבר נשלחו. ${b} הנותרים לא יקבלו את ההודעה.`,
     leaveT: 'לצאת בלי לשמור?', leaveB: 'השליחה לא תישמר.', keepEditing: 'המשך לערוך', leave: 'צא', today: 'היום', tomorrow: 'מחר', at: 'ב-', error: 'שגיאה',
     rSent: 'נשלח', rFailed: 'נכשל', rSkipped: 'דולג', rPending: 'ממתין', summary: (n, tp) => `${n} נמענים · ${tp}`, heTab: 'עברית', enTab: 'English',
+    noReply: 'רק מי שעוד לא ענה לנו', noReplyHint: 'לידים שלא כתבו לנו אף פעם בוואטסאפ', replied: 'ענה לנו',
+    paceT: 'קצב שליחה', paceGap: 'הודעה כל', paceCap: 'עד ביום', gapL: s => s < 60 ? `${s} שנ׳` : s === 60 ? 'דקה' : `${s / 60} דק׳`, recommended: 'מומלץ',
+    skipReplied: 'לדלג על מי שענה לנו מאז שהשליחה נוצרה', eta: (n, e) => e.days > 1 ? `${n} הודעות · כ-${e.days} ימים` : `${n} הודעות · כ-${e.minutes < 60 ? `${e.minutes} דקות` : `${Math.round(e.minutes / 6) / 10} שעות`}`,
+    safeT: 'כדי שוואטסאפ לא יחסום את המספר', safe1: 'הודעה אחת בכל פעם, עם רווח משתנה, ורק בשעות השליחה', safe2: 'הודעה קצרה ואישית עם השם, ובלי קישור בהודעה הראשונה', safe3: 'ממספר חדש: לא יותר מ-60 ביום בשבועות הראשונים', safe4: 'מי שענה או ביקש להפסיק לא יקבל עוד הודעה',
+    paceLine: (g, c) => `הודעה כל ~${g} · עד ${c} ביום`, nextMsg: w => `ההודעה הבאה ${w}`, capWait: 'הגיע למכסה היומית, ממשיך מחר', skippedReplied: n => `${n} דולגו כי ענו לנו`,
   },
   en: {
     segScheduled: 'Scheduled', segSending: 'Sending', segDone: 'Finished', newSend: 'New bulk send', wizTitle: 'New bulk send', wizEdit: 'Edit scheduled send',
@@ -49,6 +54,11 @@ const TR = {
     cancelT: 'Cancel this scheduled send?', cancelB: n => `${n} leads won't receive the message.`, keep: 'Keep it', stopT: 'Stop sending?', stopB: (a, b) => `${a} already sent. The remaining ${b} won't get it.`,
     leaveT: 'Leave without saving?', leaveB: "The send won't be saved.", keepEditing: 'Keep editing', leave: 'Leave', today: 'today', tomorrow: 'tomorrow', at: 'at', error: 'Error',
     rSent: 'Sent', rFailed: 'Failed', rSkipped: 'Skipped', rPending: 'Pending', summary: (n, tp) => `${n} recipients · ${tp}`, heTab: 'עברית', enTab: 'English',
+    noReply: "Only leads who haven't replied", noReplyHint: 'Leads who never wrote to us on WhatsApp', replied: 'Replied',
+    paceT: 'Sending pace', paceGap: 'One message every', paceCap: 'Up to a day', gapL: s => s < 60 ? `${s} s` : s === 60 ? 'minute' : `${s / 60} min`, recommended: 'recommended',
+    skipReplied: 'Skip leads who replied after this send was created', eta: (n, e) => e.days > 1 ? `${n} messages · about ${e.days} days` : `${n} messages · about ${e.minutes < 60 ? `${e.minutes} minutes` : `${Math.round(e.minutes / 6) / 10} hours`}`,
+    safeT: "So WhatsApp doesn't block the number", safe1: 'One message at a time, with a varying gap, only in sending hours', safe2: 'A short, personal message with the name, no link in the first message', safe3: 'From a new number: no more than 60 a day in the first weeks', safe4: 'Anyone who replied or opted out gets nothing more',
+    paceLine: (g, c) => `One every ~${g} · up to ${c} a day`, nextMsg: w => `Next message ${w}`, capWait: "Daily cap reached, continues tomorrow", skippedReplied: n => `${n} skipped because they replied`,
   },
 }
 const pad2 = n => String(n).padStart(2, '0')
@@ -70,10 +80,13 @@ export function jobState(j, cfg) {
   const due = new Date(j.at).getTime() <= Date.now()
   const paused = ['scheduled', 'sending'].includes(j.status) && due && j.respectQuiet !== false && !isSendWindow(cfg)
   const status = j.status === 'done' ? (failed ? 'doneErr' : 'done') : paused ? 'paused' : j.status
-  return { total, sent, failed, skipped, status, done: sent + failed + skipped }
+  const pace = jobPace(j), nextAt = j.nextAt ? new Date(j.nextAt) : null
+  const capped = ['scheduled', 'sending'].includes(j.status) && sentTodayCount(j) >= pace.dailyCap
+  const repliedSkips = (j.recipients || []).filter(r => r.status === 'skipped' && /ענו לנו/.test(r.error || '')).length
+  return { total, sent, failed, skipped, status, done: sent + failed + skipped, pace, nextAt, capped, repliedSkips }
 }
 
-export default function CampaignsTab({ lang = 'he', cfg, tpls, leads, states = {}, stageName, jobs, loadJobs, jobsLoading, toast, onOpenSystem, pingActive, openEditId, clearOpenEdit }) {
+export default function CampaignsTab({ lang = 'he', cfg, tpls, leads, states = {}, stageName, jobs, loadJobs, jobsLoading, toast, onOpenSystem, pingActive, openEditId, clearOpenEdit, preselect, clearPreselect }) {
   const t = TR[lang] || TR.he
   const isEn = lang === 'en'
   const confirm = useConfirm()
@@ -84,6 +97,8 @@ export default function CampaignsTab({ lang = 'he', cfg, tpls, leads, states = {
   const counts = { scheduled: jobs.filter(j => segOf(j) === 'scheduled').length, sending: jobs.filter(j => segOf(j) === 'sending').length, done: jobs.filter(j => segOf(j) === 'done').length }
   useEffect(() => { if (counts.sending && !counts.scheduled) setSeg('sending') }, [counts.sending]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (openEditId) { const j = jobs.find(x => x.id === openEditId); if (j) setWizard({ job: j }); clearOpenEdit?.() } }, [openEditId, jobs]) // eslint-disable-line react-hooks/exhaustive-deps
+  // leads selected on the board ("שליחה מרובה בוואטסאפ") open a new send with them already picked
+  useEffect(() => { if (preselect?.length) { setWizard({ preselect }); clearPreselect?.() } }, [preselect]) // eslint-disable-line react-hooks/exhaustive-deps
   // keep a running send moving while this tab is open
   const active = jobs.some(j => j.status === 'sending' || (j.status === 'scheduled' && new Date(j.at).getTime() <= Date.now() && (j.respectQuiet === false || isSendWindow(cfg))))
   const busy = useRef(false)
@@ -93,7 +108,7 @@ export default function CampaignsTab({ lang = 'he', cfg, tpls, leads, states = {
       if (busy.current || document.hidden) return
       busy.current = true
       try { await autoApi.post('auto-jobs-tick', {}); await loadJobs() } catch {} finally { busy.current = false }
-    }, 5000)
+    }, 30000)
     return () => clearInterval(iv)
   }, [active, loadJobs])
   const list = jobs.filter(j => segOf(j) === seg).sort((a, b) => seg === 'done' ? new Date(b.updatedAt || b.at) - new Date(a.updatedAt || a.at) : new Date(a.at) - new Date(b.at))
@@ -134,6 +149,10 @@ export default function CampaignsTab({ lang = 'he', cfg, tpls, leads, states = {
               <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', fontSize: 12.5, color: T.text2 }}>
                 <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}><FaCalendarAlt size={11}/>{whenText(j.at, t, isEn)}</span>
                 <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}><FaUsers size={11}/>{t.recipients(st.total)}</span>
+                <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>{t.paceLine(t.gapL(st.pace.gapSec), st.pace.dailyCap)}</span>
+                {['scheduled', 'sending'].includes(j.status) && st.capped && <span style={{ color: T.amberText, fontWeight: 700 }}>{t.capWait}</span>}
+                {['scheduled', 'sending'].includes(j.status) && !st.capped && st.nextAt && st.nextAt > Date.now() && st.status !== 'paused' && <span>{t.nextMsg(whenText(st.nextAt, t, isEn))}</span>}
+                {st.repliedSkips > 0 && <span style={{ color: T.greenText || T.green }}>{t.skippedReplied(st.repliedSkips)}</span>}
                 <span>HE {st.total - enCount} · EN {enCount}</span>
                 {j.customText && <span style={{ color: T.amberText }}>✎</span>}
               </div>
@@ -196,26 +215,33 @@ function Wizard({ t, lang, cfg, tpls, leads, states, stageName, init, pingActive
   const [lng, setLng] = useState('all')
   const [skipGot, setSkipGot] = useState(!base)
   const [q, setQ] = useState('')
-  const [sel, setSel] = useState(() => new Set((base?.recipients || []).map(r => String(r.leadId || r.phone))))
-  const [touched, setTouched] = useState(!!base)
+  const [sel, setSel] = useState(() => new Set(init.preselect ? init.preselect.map(String) : (base?.recipients || []).map(r => String(r.leadId || r.phone))))
+  const [touched, setTouched] = useState(!!base || !!init.preselect?.length)
   const [filtersOpen, setFiltersOpen] = useState(false)
+  const [touchedFilters, setTouchedFilters] = useState(false)   // a board selection shows only those leads until a filter is used
   const [when, setWhen] = useState(editing ? 'later' : 'now')
   const d0 = new Date(editing ? base.at : Date.now() + 3600e3)
   const [date, setDate] = useState(dateStr(d0))
   const [time, setTime] = useState(timeStr(d0))
   const [inHours, setInHours] = useState(base ? base.respectQuiet !== false : true)
+  const [gapSec, setGapSec] = useState(jobPace(base || {}).gapSec)
+  const [dailyCap, setDailyCap] = useState(jobPace(base || {}).dailyCap)
+  const [skipReplied, setSkipReplied] = useState(base ? base.skipReplied !== false : true)
+  const [noReply, setNoReply] = useState(false)
   const [busy, setBusy] = useState(false)
   const tpl = tpls.find(x => x.id === tplId)
   const effTpl = tpl && custom && ct ? { ...tpl, he: ct.he || tpl.he, en: ct.en || ct.he || tpl.en } : tpl
 
   const rows = useMemo(() => leads.map(l => {
     const s = states[String(l.id)], phone = intlPhone(l.phone)
-    return { l, id: String(l.id), phone, lang: leadLang(l), stage: l.leadStatus || 'new', optOut: !!s?.optOut, noPhone: !phone || phone.length < 11, got: !!s?.sent?.[`tpl:${tplId}`] }
+    return { l, id: String(l.id), phone, lang: leadLang(l), stage: l.leadStatus || 'new', optOut: !!s?.optOut, replied: !!s?.replied, noPhone: !phone || phone.length < 11, got: !!s?.sent?.[`tpl:${tplId}`] }
   }), [leads, states, tplId])
-  const filtered = rows.filter(r => (stages.size ? stages.has(r.stage) : r.stage !== 'irrelevant') && (!days || !r.l.ts || Date.now() - r.l.ts <= days * 864e5) && (lng === 'all' || r.lang === lng)
+  const preIds = init.preselect ? new Set(init.preselect.map(String)) : null
+  const filtered = rows.filter(r => (preIds && !touchedFilters ? preIds.has(r.id) : stages.size ? stages.has(r.stage) : r.stage !== 'irrelevant') && (!noReply || !r.replied) && (!days || !r.l.ts || Date.now() - r.l.ts <= days * 864e5) && (lng === 'all' || r.lang === lng)
     && (!q || `${r.l.name || ''} ${r.l.phone || ''} ${r.l.propTitle || ''}`.toLowerCase().includes(q.toLowerCase())))
   const eligible = filtered.filter(r => !r.optOut && !r.noPhone && !(skipGot && r.got))
-  useEffect(() => { if (!touched) setSel(new Set(eligible.map(r => r.id))) }, [stages, days, lng, skipGot, q, tplId]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!touched) setSel(new Set(eligible.map(r => r.id))) }, [stages, days, lng, skipGot, q, tplId, noReply]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (stages.size || days || lng !== 'all' || noReply) setTouchedFilters(true) }, [stages, days, lng, noReply])
   const chosen = eligible.filter(r => sel.has(r.id))
   const exOpt = filtered.filter(r => r.optOut).length, exPhone = filtered.filter(r => r.noPhone && !r.optOut).length
   const stageCount = s => rows.filter(r => r.stage === s).length
@@ -239,7 +265,7 @@ function Wizard({ t, lang, cfg, tpls, leads, states, stageName, init, pingActive
     if (when === 'later' && !atOk) { toast(t.pastTime, { tone: 'warn' }); return }
     const job = {
       id: editing ? base.id : undefined, name: isEn ? tpl.en_title || tpl.he_title : tpl.he_title, templateId: tpl.id,
-      at: when === 'now' ? new Date().toISOString() : at.toISOString(), respectQuiet: when === 'now' ? false : inHours,
+      at: when === 'now' ? new Date().toISOString() : at.toISOString(), respectQuiet: inHours, gapSec, dailyCap, skipReplied,
       customText: custom && ct && (ct.he || ct.en) ? ct : null,
       recipients: chosen.map(r => ({ leadId: r.id, phone: r.phone, name: r.l.name })),
     }
@@ -330,6 +356,7 @@ function Wizard({ t, lang, cfg, tpls, leads, states, stageName, init, pingActive
                 </button>
                 <div className={filtersOpen ? undefined : 'au-hide-m'} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                   <Field label={t.fStage}><div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>{STAGES.map(s => <FilterChip key={s} selected={stages.has(s)} count={stageCount(s)} onClick={() => { setTouched(false); setStages(x => { const n = new Set(x); n.has(s) ? n.delete(s) : n.add(s); return n }) }}>{stageName(s)}</FilterChip>)}</div></Field>
+                  <label title={t.noReplyHint} style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, cursor: 'pointer', fontWeight: 700 }}><input type="checkbox" checked={noReply} onChange={e => { setTouched(false); setNoReply(e.target.checked) }} style={{ appearance: 'auto', width: 18, height: 18, minHeight: 0 }}/>{t.noReply} <span style={{ fontWeight: 400, color: T.text3 }}>({rows.filter(r => !r.replied && !r.optOut && !r.noPhone).length})</span></label>
                   <Field label={t.fJoined}><div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>{[7, 30, 90, 0].map(d => <FilterChip key={d} selected={days === d} onClick={() => { setTouched(false); setDays(d) }}>{d ? t.fDays(d) : t.fAny}</FilterChip>)}</div></Field>
                   <Field label={t.fLang}><div style={{ display: 'flex', gap: 5 }}>{[['all', t.fAny], ['he', t.fHe], ['en', t.fEn]].map(([k, l]) => <FilterChip key={k} selected={lng === k} onClick={() => { setTouched(false); setLng(k) }}>{l}</FilterChip>)}</div></Field>
                   <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, cursor: 'pointer' }}><input type="checkbox" checked={skipGot} onChange={e => { setTouched(false); setSkipGot(e.target.checked) }} style={{ appearance: 'auto', width: 18, height: 18, minHeight: 0 }}/>{t.skipGot}</label>
@@ -356,6 +383,7 @@ function Wizard({ t, lang, cfg, tpls, leads, states, stageName, init, pingActive
                         <input type="checkbox" disabled={dis} checked={!dis && sel.has(r.id)} onChange={() => { setTouched(true); setSel(s => { const n = new Set(s); n.has(r.id) ? n.delete(r.id) : n.add(r.id); return n }) }} style={{ appearance: 'auto', width: 18, height: 18, minHeight: 0, flexShrink: 0 }}/>
                         <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}><b style={{ fontSize: 13.5 }}>{r.l.name || '—'}</b>{r.l.propTitle && <span style={{ color: T.text3, fontSize: 12 }}> · {r.l.propTitle}</span>}</span>
                         <Badge color={T.grey} textColor={T.text2}>{stageName(r.stage)}</Badge>
+                        {r.replied && <Badge color={T.green}>{t.replied}</Badge>}
                         {r.lang === 'en' && <Badge color={T.brand}>EN</Badge>}
                         {why ? <span style={{ fontSize: 11, color: T.redText, whiteSpace: 'nowrap' }}>{why}</span> : <bdi dir="ltr" style={{ fontSize: 11.5, color: T.text3, fontVariantNumeric: 'tabular-nums' }}>…{r.phone.slice(-4)}</bdi>}
                       </label>
@@ -367,7 +395,7 @@ function Wizard({ t, lang, cfg, tpls, leads, states, stageName, init, pingActive
           )}
 
           {step === 3 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 620 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 760 }}>
               <div role="radiogroup" aria-label={t.step3} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
                 {[['now', FaPaperPlane, t.whenNow, t.whenNowSub], ['later', FaCalendarAlt, t.whenSched, t.whenSchedSub]].map(([k, Ic, l, sub]) => (
                   <button key={k} type="button" role="radio" aria-checked={when === k} disabled={editing && k === 'now'} onClick={() => setWhen(k)}
@@ -388,12 +416,23 @@ function Wizard({ t, lang, cfg, tpls, leads, states, stageName, init, pingActive
                     <FilterChip onClick={() => quick('hour')}>{t.qHour}</FilterChip><FilterChip onClick={() => quick('tmr')}>{t.qTomorrow}</FilterChip><FilterChip onClick={() => quick('sun')}>{t.qSunday}</FilterChip>
                   </div>
                   {!atOk && <div style={{ fontSize: 12.5, color: T.redText }}>{t.pastTime}</div>}
-                  <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, cursor: 'pointer' }}><input type="checkbox" checked={inHours} onChange={e => setInHours(e.target.checked)} style={{ appearance: 'auto', width: 18, height: 18, minHeight: 0 }}/>{t.inHoursOnly}</label>
                   {outside && <div style={{ fontSize: 12.5, color: T.amberText, display: 'flex', gap: 6, alignItems: 'flex-start' }}><FaMoon size={11} style={{ marginTop: 3 }}/>{t.outsideWarn(whenText(startAt, t, isEn))}</div>}
                   {!pingActive && <div style={{ fontSize: 12.5, color: T.brandText, background: T.brandSoft, borderRadius: 9, padding: '8px 10px', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}><FaInfoCircle/>{t.precision}<Button size="sm" variant="brand" onClick={onOpenSystem}>{t.setupPrecise}</Button></div>}
                 </div>
               )}
-              <div style={{ fontSize: 12.5, color: T.text3, display: 'flex', flexDirection: 'column', gap: 4 }}><span>{t.pacing}</span><span>{t.optoutNote}</span></div>
+              <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, cursor: 'pointer' }}><input type="checkbox" checked={inHours} onChange={e => setInHours(e.target.checked)} style={{ appearance: 'auto', width: 18, height: 18, minHeight: 0 }}/>{t.inHoursOnly}</label>
+              {when === 'now' && inHours && !isSendWindow(cfg) && nextSendWindow(cfg) && <div style={{ fontSize: 12.5, color: T.amberText, display: 'flex', gap: 6, alignItems: 'flex-start' }}><FaMoon size={11} style={{ marginTop: 3 }}/>{t.outsideWarn(whenText(nextSendWindow(cfg), t, isEn))}</div>}
+              <div style={{ border: `1px solid ${T.s1Line}`, borderRadius: 12, padding: 14, display: 'flex', flexDirection: 'column', gap: 12, background: T.s1 }}>
+                <b style={{ fontSize: 14 }}>{t.paceT}</b>
+                <Field label={t.paceGap}><div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>{PACE_GAPS.map(g => <FilterChip key={g} selected={gapSec === g} onClick={() => setGapSec(g)}>{t.gapL(g)}{g === DEFAULT_PACE.gapSec ? ` · ${t.recommended}` : ''}</FilterChip>)}</div></Field>
+                <Field label={t.paceCap}><div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>{PACE_CAPS.map(c => <FilterChip key={c} selected={dailyCap === c} onClick={() => setDailyCap(c)}>{c}{c === DEFAULT_PACE.dailyCap ? ` · ${t.recommended}` : ''}</FilterChip>)}</div></Field>
+                <div aria-live="polite" style={{ fontSize: 13, fontWeight: 700, color: T.text2 }}>{t.eta(chosen.length, paceEstimate(chosen.length, { gapSec, dailyCap }))}</div>
+                <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, cursor: 'pointer' }}><input type="checkbox" checked={skipReplied} onChange={e => setSkipReplied(e.target.checked)} style={{ appearance: 'auto', width: 18, height: 18, minHeight: 0 }}/>{t.skipReplied}</label>
+              </div>
+              <div style={{ fontSize: 12.5, color: T.text2, background: T.brandSoft, borderRadius: 10, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <b style={{ color: T.brandText, display: 'flex', gap: 6, alignItems: 'center' }}><FaInfoCircle/>{t.safeT}</b>
+                <span>· {t.safe1}</span><span>· {t.safe2}</span><span>· {t.safe3}</span><span>· {t.safe4}</span>
+              </div>
             </div>
           )}
         </div>
