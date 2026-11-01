@@ -4,7 +4,7 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { FaBullhorn, FaPlus, FaCalendarAlt, FaUsers, FaPaperPlane, FaMoon, FaCheck, FaTimes, FaSearch, FaEllipsisV, FaCopy, FaBan, FaPen, FaRedo, FaEye, FaChevronDown, FaChevronUp, FaInfoCircle, FaExclamationTriangle, FaArrowLeft, FaArrowRight } from 'react-icons/fa'
 import { T, Button, IconButton, Card, Badge, FilterChip, EmptyState, Skeleton, Modal, MenuButton, MenuItem, ProgressBar, PhonePreview, ModeSwitch, Field, inputStyle, useConfirm } from './automationsUI.jsx'
-import { STAGES, renderTemplate, leadLang, intlPhone, isSendWindow, nextSendWindow, CATEGORIES, PACE_GAPS, PACE_CAPS, DEFAULT_PACE, jobPace, paceEstimate, sentTodayCount } from '../lib/automations-shared.js'
+import { STAGES, renderTemplate, leadLang, intlPhone, isSendWindow, nextSendWindow, CATEGORIES, templateImage, abSplit, abResults, AB_MAX, AB_MIN_SAMPLE, PACE_GAPS, PACE_CAPS, DEFAULT_PACE, jobPace, paceEstimate, sentTodayCount } from '../lib/automations-shared.js'
 import { autoApi } from './AutomationsApi.jsx'
 import DateTimePicker from './DateTimePicker.jsx'
 import { CatTile } from './uiIcons.jsx'
@@ -33,6 +33,10 @@ const TR = {
     paceT: 'קצב שליחה', paceGap: 'הודעה כל', paceCap: 'עד ביום', gapL: s => s < 60 ? `${s} שנ׳` : s === 60 ? 'דקה' : `${s / 60} דק׳`, recommended: 'מומלץ',
     skipReplied: 'לדלג על מי שענה לנו מאז שהשליחה נוצרה', eta: (n, e) => e.days > 1 ? `${n} הודעות · כ-${e.days} ימים` : `${n} הודעות · כ-${e.minutes < 60 ? `${e.minutes} דקות` : `${Math.round(e.minutes / 6) / 10} שעות`}`,
     safeT: 'כדי שוואטסאפ לא יחסום את המספר', safe1: 'הודעה אחת בכל פעם, עם רווח משתנה, ורק בשעות השליחה', safe2: 'הודעה קצרה ואישית עם השם, ובלי קישור בהודעה הראשונה', safe3: 'ממספר חדש: לא יותר מ-60 ביום בשבועות הראשונים', safe4: 'מי שענה או ביקש להפסיק לא יקבל עוד הודעה',
+    abMode: 'A/B טסט: כמה נוסחים', abHint: n => `בחרו עד ${n} נוסחים. הנמענים מתחלקים ביניהם באקראי ובמספרים שווים, ובכרטיס השליחה רואים איזה נוסח הביא הכי הרבה תשובות.`,
+    abPicked: (n, m) => `נבחרו ${n} מתוך ${m}`, abSplitLine: (n, k) => `${n} נמענים · כ-${Math.ceil(n / Math.max(1, k))} לכל נוסח`, abOneEdit: 'עריכת נוסח לשליחה אחת זמינה רק עם נוסח אחד',
+    allCats: 'הכל', abT: 'תוצאות A/B', resT: 'תוצאות', colSent: 'נשלחו', colReplied: 'ענו', colPos: 'חיוביות', colOut: 'ביקשו להפסיק', colRate: 'שיעור תשובה',
+    leading: 'מוביל', tooEarly: n => `מוקדם לקבוע מנצח: צריך לפחות ${n} הודעות לכל נוסח`, winnerNote: 'ההבדל קטן, כדאי לחכות לעוד תשובות',
     paceLine: (g, c) => `הודעה כל ~${g} · עד ${c} ביום`, nextMsg: w => `ההודעה הבאה ${w}`, capWait: 'הגיע למכסה היומית, ממשיך מחר', skippedReplied: n => `${n} דולגו כי ענו לנו`,
   },
   en: {
@@ -58,6 +62,10 @@ const TR = {
     paceT: 'Sending pace', paceGap: 'One message every', paceCap: 'Up to a day', gapL: s => s < 60 ? `${s} s` : s === 60 ? 'minute' : `${s / 60} min`, recommended: 'recommended',
     skipReplied: 'Skip leads who replied after this send was created', eta: (n, e) => e.days > 1 ? `${n} messages · about ${e.days} days` : `${n} messages · about ${e.minutes < 60 ? `${e.minutes} minutes` : `${Math.round(e.minutes / 6) / 10} hours`}`,
     safeT: "So WhatsApp doesn't block the number", safe1: 'One message at a time, with a varying gap, only in sending hours', safe2: 'A short, personal message with the name, no link in the first message', safe3: 'From a new number: no more than 60 a day in the first weeks', safe4: 'Anyone who replied or opted out gets nothing more',
+    abMode: 'A/B test: several versions', abHint: n => `Pick up to ${n} versions. Recipients are split between them at random, in equal numbers, and the send's card shows which version got the most replies.`,
+    abPicked: (n, m) => `${n} of ${m} picked`, abSplitLine: (n, k) => `${n} recipients · about ${Math.ceil(n / Math.max(1, k))} per version`, abOneEdit: 'Editing the text for one send works with a single version only',
+    allCats: 'All', abT: 'A/B results', resT: 'Results', colSent: 'Sent', colReplied: 'Replied', colPos: 'Positive', colOut: 'Opted out', colRate: 'Reply rate',
+    leading: 'Leading', tooEarly: n => `Too early to call a winner: at least ${n} messages per version are needed`, winnerNote: 'The gap is small, wait for more replies',
     paceLine: (g, c) => `One every ~${g} · up to ${c} a day`, nextMsg: w => `Next message ${w}`, capWait: "Daily cap reached, continues tomorrow", skippedReplied: n => `${n} skipped because they replied`,
   },
 }
@@ -164,6 +172,7 @@ export default function CampaignsTab({ lang = 'he', cfg, tpls, leads, states = {
                   </div>
                 </div>
               )}
+              {st.sent > 0 && <AbResults job={j} states={states} tpls={tpls} t={t} isEn={isEn}/>}
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                 {j.status === 'scheduled' && <Button size="sm" variant="brand" icon={<FaPen size={9}/>} onClick={() => setWizard({ job: j })}>{t.aEdit}</Button>}
                 {st.status === 'doneErr' && <Button size="sm" variant="soft-green" icon={<FaRedo size={9}/>} onClick={() => act(j, 'retry')}>{t.aRetry}</Button>}
@@ -198,6 +207,43 @@ export default function CampaignsTab({ lang = 'he', cfg, tpls, leads, states = {
 }
 
 // ── Wizard ─────────────────────────────────────────────────────────────────────
+// Who wrote back after their message, per version (A/B) or for the single version — abResults() in lib/automations-shared.js
+function AbResults({ job, states, tpls, t, isEn }) {
+  const { rows, ready, leader, close } = abResults(job, states)
+  const ab = rows.length > 1
+  const title = id => { const x = tpls.find(y => y.id === id); return x ? (isEn ? x.en_title || x.he_title : x.he_title) : id }
+  const pct = v => `${Math.round(v * 100)}%`
+  const max = Math.max(0.0001, ...rows.map(r => r.rate))
+  return (
+    <div style={{ border: `1px solid ${T.line}`, borderRadius: 12, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <b style={{ fontSize: 13 }}>{ab ? t.abT : t.resT}</b>
+      <div role="table" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div role="row" className="au-hide-m" style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1.6fr) repeat(4, minmax(56px,.5fr)) minmax(120px,1fr)', gap: 10, fontSize: 11.5, color: T.text3, fontWeight: 700 }}>
+          <span role="columnheader"/>{[t.colSent, t.colReplied, t.colPos, t.colOut, t.colRate].map(h => <span key={h} role="columnheader">{h}</span>)}
+        </div>
+        {rows.map((r, i) => {
+          const lead = ab && r.id === leader
+          return (
+            <div role="row" key={r.id} style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1.6fr) repeat(4, minmax(56px,.5fr)) minmax(120px,1fr)', gap: 10, alignItems: 'center', fontSize: 13, fontVariantNumeric: 'tabular-nums' }}>
+              <span role="cell" style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                {ab && <span style={{ width: 22, height: 22, borderRadius: 6, flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, background: lead ? T.brand : T.s3, color: lead ? '#fff' : T.text2 }}>{'ABCD'[i]}</span>}
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 700 }}>{title(r.id)}</span>
+                {lead && ready && <Badge color={T.green}>{t.leading}</Badge>}
+              </span>
+              <span role="cell">{r.sent}</span><span role="cell">{r.replied}</span><span role="cell">{r.positive}</span><span role="cell">{r.optOut}</span>
+              <span role="cell" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span aria-hidden="true" style={{ flex: 1, height: 8, borderRadius: 4, background: T.s3, overflow: 'hidden' }}><span style={{ display: 'block', height: '100%', width: `${(r.rate / max) * 100}%`, borderRadius: 4, background: lead ? T.brand : 'rgba(var(--brand-rgb),.45)' }}/></span>
+                <b style={{ minWidth: 36, textAlign: 'end' }}>{pct(r.rate)}</b>
+              </span>
+            </div>
+          )
+        })}
+      </div>
+      {ab && <div style={{ fontSize: 12, color: T.text3 }}>{!ready ? t.tooEarly(AB_MIN_SAMPLE) : close ? t.winnerNote : ''}</div>}
+    </div>
+  )
+}
+
 function Wizard({ t, lang, cfg, tpls, leads, states, stageName, init, pingActive, onOpenSystem, toast, onClose, onDone }) {
   const isEn = lang === 'en'
   const dir = isEn ? 'ltr' : 'rtl'
@@ -205,7 +251,17 @@ function Wizard({ t, lang, cfg, tpls, leads, states, stageName, init, pingActive
   const base = init.job || init.dup || null
   const editing = !!init.job
   const [step, setStep] = useState(editing ? 3 : 1)
-  const [tplId, setTplId] = useState(base?.templateId || '')
+  const [variants, setVariants] = useState(() => base?.templateIds?.length > 1 ? base.templateIds : base?.templateId ? [base.templateId] : [])
+  const [abMode, setAbMode] = useState(base?.templateIds?.length > 1)
+  const [pv, setPv] = useState(0)                 // which version the preview shows
+  const [cat, setCat] = useState('all')
+  const tplId = variants[0] || ''
+  const setTplId = id => { setVariants([id]); setPv(0) }
+  const toggleVariant = id => setVariants(v => {
+    if (v.includes(id)) { const n = v.filter(x => x !== id); setPv(i => Math.min(i, Math.max(0, n.length - 1))); return n }
+    if (v.length >= AB_MAX) return v
+    setPv(v.length); return [...v, id]
+  })
   const [tq, setTq] = useState('')
   const [custom, setCustom] = useState(!!base?.customText)
   const [ct, setCt] = useState(base?.customText || null)
@@ -234,8 +290,8 @@ function Wizard({ t, lang, cfg, tpls, leads, states, stageName, init, pingActive
 
   const rows = useMemo(() => leads.map(l => {
     const s = states[String(l.id)], phone = intlPhone(l.phone)
-    return { l, id: String(l.id), phone, lang: leadLang(l), stage: l.leadStatus || 'new', optOut: !!s?.optOut, replied: !!s?.replied, noPhone: !phone || phone.length < 11, got: !!s?.sent?.[`tpl:${tplId}`] }
-  }), [leads, states, tplId])
+    return { l, id: String(l.id), phone, lang: leadLang(l), stage: l.leadStatus || 'new', optOut: !!s?.optOut, replied: !!s?.replied, noPhone: !phone || phone.length < 11, got: variants.some(id => !!s?.sent?.[`tpl:${id}`]) }
+  }), [leads, states, variants])
   const preIds = init.preselect ? new Set(init.preselect.map(String)) : null
   const filtered = rows.filter(r => (preIds && !touchedFilters ? preIds.has(r.id) : stages.size ? stages.has(r.stage) : r.stage !== 'irrelevant') && (!noReply || !r.replied) && (!days || !r.l.ts || Date.now() - r.l.ts <= days * 864e5) && (lng === 'all' || r.lang === lng)
     && (!q || `${r.l.name || ''} ${r.l.phone || ''} ${r.l.propTitle || ''}`.toLowerCase().includes(q.toLowerCase())))
@@ -264,10 +320,12 @@ function Wizard({ t, lang, cfg, tpls, leads, states, stageName, init, pingActive
     if (!tpl || !chosen.length) return
     if (when === 'later' && !atOk) { toast(t.pastTime, { tone: 'warn' }); return }
     const job = {
-      id: editing ? base.id : undefined, name: isEn ? tpl.en_title || tpl.he_title : tpl.he_title, templateId: tpl.id,
+      id: editing ? base.id : undefined, templateId: tpl.id,
+      name: variants.length > 1 ? `A/B · ${variants.map(id => { const x = tpls.find(y => y.id === id); return x ? (isEn ? x.en_title || x.he_title : x.he_title) : id }).join(' / ')}`.slice(0, 80) : (isEn ? tpl.en_title || tpl.he_title : tpl.he_title),
+      templateIds: variants.length > 1 ? variants : undefined,
       at: when === 'now' ? new Date().toISOString() : at.toISOString(), respectQuiet: inHours, gapSec, dailyCap, skipReplied,
-      customText: custom && ct && (ct.he || ct.en) ? ct : null,
-      recipients: chosen.map(r => ({ leadId: r.id, phone: r.phone, name: r.l.name })),
+      customText: variants.length === 1 && custom && ct && (ct.he || ct.en) ? ct : null,
+      recipients: abSplit(chosen.map(r => ({ leadId: r.id, phone: r.phone, name: r.l.name })), variants),
     }
     if (when === 'now' && !await confirm({ title: t.confirmNow(chosen.length), body: t.pacing, confirmLabel: t.confirmBtn, cancelLabel: t.cancel })) return
     setBusy(true)
@@ -296,12 +354,12 @@ function Wizard({ t, lang, cfg, tpls, leads, states, stageName, init, pingActive
     </ol>
   )
   const tplsFiltered = tpls.filter(x => !tq || `${x.he_title} ${x.en_title} ${x.he}`.toLowerCase().includes(tq.toLowerCase()))
-  const primary = step === 1 ? <Button variant="solid" disabled={!tpl} onClick={() => setStep(2)} icon={isEn ? <FaArrowRight size={10}/> : <FaArrowLeft size={10}/>}>{t.next}</Button>
+  const primary = step === 1 ? <Button variant="solid" disabled={!tpl || (abMode && variants.length < 2)} onClick={() => setStep(2)} icon={isEn ? <FaArrowRight size={10}/> : <FaArrowLeft size={10}/>}>{t.next}</Button>
     : step === 2 ? <Button variant="solid" disabled={!chosen.length} onClick={() => setStep(3)} icon={isEn ? <FaArrowRight size={10}/> : <FaArrowLeft size={10}/>}>{t.nextN(chosen.length)}</Button>
     : <Button variant="solid" loading={busy} disabled={!tpl || !chosen.length || !atOk} onClick={submit} icon={when === 'now' ? <FaPaperPlane size={11}/> : <FaCalendarAlt size={11}/>}>{editing ? t.ctaUpdate : when === 'now' ? t.ctaNow(chosen.length) : t.ctaSched(chosen.length, whenText(startAt || at, t, isEn))}</Button>
 
   return (
-    <Modal open onClose={tryClose} full closeOnBackdrop={false} dir={dir} label={editing ? t.wizEdit : t.wizTitle}>
+    <Modal open onClose={tryClose} xl closeOnBackdrop={false} dir={dir} label={editing ? t.wizEdit : t.wizTitle}>
       <div className="au" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '0 16px', height: 60, borderBottom: `1px solid ${T.line}`, flexShrink: 0 }}>
           <IconButton icon={<FaTimes/>} label="✕" size={36} onClick={tryClose}/>
@@ -309,41 +367,72 @@ function Wizard({ t, lang, cfg, tpls, leads, states, stageName, init, pingActive
           <div style={{ flex: 1 }}/>{Stepper}<span className="au-only-m" style={{ fontSize: 12, color: T.text3 }}>{t.stepOf(step)} · {[t.step1, t.step2, t.step3][step - 1]}</span>
         </div>
 
-        <div style={{ flex: 1, overflow: 'auto', padding: 16, minHeight: 0 }}>
+        <div className={step === 1 ? 'au-wiz-body' : undefined} style={{ flex: 1, overflow: step === 1 ? 'hidden' : 'auto', padding: 16, minHeight: 0 }}>
           {step === 1 && (
             <div className="au-wiz">
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
-                <div style={{ position: 'relative' }}>
-                  <FaSearch size={12} style={{ position: 'absolute', top: 12, insetInlineStart: 12, color: T.text3 }}/>
-                  <input value={tq} onChange={e => setTq(e.target.value)} placeholder={t.search} aria-label={t.search} style={{ ...inputStyle, height: 36, paddingInlineStart: 32 }} data-autofocus/>
+                <div style={{ position: 'sticky', top: 0, zIndex: 1, background: T.s2, display: 'flex', flexDirection: 'column', gap: 8, paddingBottom: 6 }}>
+                  <div style={{ position: 'relative' }}>
+                    <FaSearch size={12} style={{ position: 'absolute', top: 12, insetInlineStart: 12, color: T.text3 }}/>
+                    <input value={tq} onChange={e => setTq(e.target.value)} placeholder={t.search} aria-label={t.search} style={{ ...inputStyle, height: 36, paddingInlineStart: 32 }} data-autofocus/>
+                  </div>
+                  <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                    <FilterChip selected={cat === 'all'} count={tpls.length} onClick={() => setCat('all')}>{t.allCats}</FilterChip>
+                    {CATEGORIES.map(c => { const n = tpls.filter(x => x.cat === c.id).length; return n ? <FilterChip key={c.id} selected={cat === c.id} count={n} onClick={() => setCat(c.id)}>{isEn ? c.en_short || c.en : c.short || c.he}</FilterChip> : null })}
+                  </div>
+                  <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, fontWeight: 700, cursor: 'pointer', padding: '8px 10px', borderRadius: 10, background: abMode ? T.brandSoft : T.s1, border: `1px solid ${abMode ? T.brand : T.s1Line}` }}>
+                    <input type="checkbox" checked={abMode} onChange={e => { const on = e.target.checked; setAbMode(on); if (!on) { setVariants(v => v.slice(0, 1)); setPv(0) } else { setCustom(false) } }} style={{ appearance: 'auto', width: 18, height: 18, minHeight: 0 }}/>
+                    {t.abMode}{abMode && <span style={{ fontWeight: 600, color: T.text3, marginInlineStart: 'auto' }}>{t.abPicked(variants.length, AB_MAX)}</span>}
+                  </label>
+                  {abMode && <div style={{ fontSize: 12, color: T.text3 }}>{t.abHint(AB_MAX)}</div>}
                 </div>
-                <div role="listbox" aria-label={t.chooseTpl} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                  {tplsFiltered.map(x => {
-                    const on = x.id === tplId, c = CATEGORIES.find(k => k.id === x.cat) || CATEGORIES[5]
+                <div role="listbox" aria-label={t.chooseTpl} aria-multiselectable={abMode || undefined} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  {tplsFiltered.filter(x => cat === 'all' || x.cat === cat).map(x => {
+                    const vi = variants.indexOf(x.id), on = vi >= 0, c = CATEGORIES.find(k => k.id === x.cat) || CATEGORIES[5]
+                    const full = abMode && !on && variants.length >= AB_MAX
                     return (
-                      <button key={x.id} type="button" role="option" aria-selected={on} onClick={() => { setTplId(x.id); setCt(null); setCustom(false) }} className={on ? undefined : 'au-hov'}
-                        style={{ minHeight: 48, display: 'flex', alignItems: 'center', gap: 10, padding: '0 12px', borderRadius: 9, border: 'none', borderInlineStart: `3px solid ${on ? T.brand : 'transparent'}`, background: on ? T.brandSoft : 'transparent', color: T.text, fontFamily: 'inherit', textAlign: 'start', cursor: 'pointer' }}>
-                        <CatTile cat={c.id} color={c.color} size={26} radius={7}/><span style={{ flex: 1, fontSize: 13.5, fontWeight: 700 }}>{isEn ? x.en_title || x.he_title : x.he_title}</span>
-                        <Badge color={c.color}>{isEn ? c.en : c.he}</Badge>
+                      <button key={x.id} type="button" role="option" aria-selected={on} disabled={full} onClick={() => { if (abMode) toggleVariant(x.id); else setTplId(x.id); setCt(null); setCustom(false) }} onMouseEnter={() => { if (on) setPv(vi) }} className={on ? undefined : 'au-hov'}
+                        style={{ minHeight: 48, display: 'flex', alignItems: 'center', gap: 10, padding: '0 12px', borderRadius: 9, border: 'none', borderInlineStart: `3px solid ${on ? T.brand : 'transparent'}`, background: on ? T.brandSoft : 'transparent', color: T.text, fontFamily: 'inherit', textAlign: 'start', cursor: full ? 'not-allowed' : 'pointer', opacity: full ? .45 : 1 }}>
+                        {abMode ? <span aria-hidden="true" style={{ width: 26, height: 26, borderRadius: 7, flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12.5, fontWeight: 800, background: on ? T.brand : 'transparent', color: on ? '#fff' : T.text3, border: on ? 'none' : `1.5px solid ${T.line2}` }}>{on ? 'ABCD'[vi] : ''}</span>
+                          : <CatTile cat={c.id} color={c.color} size={26} radius={7}/>}
+                        <span style={{ flex: 1, minWidth: 0 }}>
+                          <span style={{ display: 'block', fontSize: 13.5, fontWeight: 700 }}>{isEn ? x.en_title || x.he_title : x.he_title}</span>
+                          <span style={{ display: 'block', fontSize: 12, color: T.text3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{String((isEn ? x.en : x.he) || '').replace(/\[\[|\]\]/g, '').replace(/\n/g, ' ')}</span>
+                        </span>
+                        <Badge color={c.color}>{isEn ? c.en_short || c.en : c.short || c.he}</Badge>
                       </button>
                     )
                   })}
                 </div>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {tpl ? <>
-                  <div style={{ fontSize: 12, color: T.text3 }}>{t.previewFor(firstLead?.name || (isEn ? 'Dana' : 'דנה'))}</div>
-                  <PhonePreview text={renderTemplate(effTpl, asLead(firstLead || { name: isEn ? 'Dana' : 'דנה' }), cfg, custom ? ctTab : undefined)} lang={custom ? ctTab : firstLead ? leadLang(firstLead) : 'he'} fill/>
-                  <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, cursor: 'pointer' }}>
-                    <input type="checkbox" checked={custom} onChange={e => { setCustom(e.target.checked); if (e.target.checked && !ct) setCt({ he: tpl.he || '', en: tpl.en || '' }) }} style={{ appearance: 'auto', width: 18, height: 18, minHeight: 0 }}/>{t.editOnce}
-                  </label>
-                  {custom && ct && (
-                    <div className="au-in" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      <div role="tablist" style={{ display: 'flex', gap: 4 }}>{['he', 'en'].map(l => <FilterChip key={l} selected={ctTab === l} onClick={() => setCtTab(l)}>{l === 'he' ? t.heTab : t.enTab}</FilterChip>)}</div>
-                      <textarea value={ct[ctTab] || ''} onChange={e => setCt(c => ({ ...c, [ctTab]: e.target.value }))} dir={ctTab === 'he' ? 'rtl' : 'ltr'} lang={ctTab} rows={6} style={{ ...inputStyle, height: 'auto', padding: '10px 12px', lineHeight: 1.6, resize: 'vertical' }}/>
-                    </div>
-                  )}
-                </> : <EmptyState compact icon={FaBullhorn} title={t.chooseTpl}/>}
+              <div className="au-wiz-prev">
+                {tpl ? (() => {
+                  const vt = tpls.find(x => x.id === variants[Math.min(pv, variants.length - 1)]) || tpl
+                  const showTpl = variants.length === 1 ? effTpl : vt
+                  const pl = custom && variants.length === 1 ? ctTab : firstLead ? leadLang(firstLead) : 'he'
+                  return <>
+                    {variants.length > 1 && (
+                      <div role="tablist" aria-label={t.abT} style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                        {variants.map((id, i) => { const x = tpls.find(y => y.id === id); return (
+                          <FilterChip key={id} selected={i === pv} onClick={() => setPv(i)}><b>{'ABCD'[i]}</b>&nbsp;{x ? (isEn ? x.en_title || x.he_title : x.he_title) : id}</FilterChip>
+                        ) })}
+                      </div>
+                    )}
+                    <div style={{ fontSize: 12, color: T.text3 }}>{t.previewFor(firstLead?.name || (isEn ? 'Dana' : 'דנה'))}{variants.length > 1 ? ` · ${'ABCD'[pv]}` : ''}</div>
+                    <PhonePreview text={renderTemplate(showTpl, asLead(firstLead || { name: isEn ? 'Dana' : 'דנה' }), cfg, custom && variants.length === 1 ? ctTab : undefined)} image={templateImage(showTpl)} lang={pl} fill/>
+                    {variants.length > 1 ? <div style={{ fontSize: 12.5, color: T.text3 }}>{t.abOneEdit}</div> : <>
+                      <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, cursor: 'pointer' }}>
+                        <input type="checkbox" checked={custom} onChange={e => { setCustom(e.target.checked); if (e.target.checked && !ct) setCt({ he: tpl.he || '', en: tpl.en || '' }) }} style={{ appearance: 'auto', width: 18, height: 18, minHeight: 0 }}/>{t.editOnce}
+                      </label>
+                      {custom && ct && (
+                        <div className="au-in" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          <div role="tablist" style={{ display: 'flex', gap: 4 }}>{['he', 'en'].map(l => <FilterChip key={l} selected={ctTab === l} onClick={() => setCtTab(l)}>{l === 'he' ? t.heTab : t.enTab}</FilterChip>)}</div>
+                          <textarea value={ct[ctTab] || ''} onChange={e => setCt(c => ({ ...c, [ctTab]: e.target.value }))} dir={ctTab === 'he' ? 'rtl' : 'ltr'} lang={ctTab} rows={6} style={{ ...inputStyle, height: 'auto', padding: '10px 12px', lineHeight: 1.6, resize: 'vertical' }}/>
+                        </div>
+                      )}
+                    </>}
+                  </>
+                })() : <EmptyState compact icon={FaBullhorn} title={t.chooseTpl}/>}
               </div>
             </div>
           )}
@@ -426,7 +515,7 @@ function Wizard({ t, lang, cfg, tpls, leads, states, stageName, init, pingActive
                 <b style={{ fontSize: 14 }}>{t.paceT}</b>
                 <Field label={t.paceGap}><div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>{PACE_GAPS.map(g => <FilterChip key={g} selected={gapSec === g} onClick={() => setGapSec(g)}>{t.gapL(g)}{g === DEFAULT_PACE.gapSec ? ` · ${t.recommended}` : ''}</FilterChip>)}</div></Field>
                 <Field label={t.paceCap}><div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>{PACE_CAPS.map(c => <FilterChip key={c} selected={dailyCap === c} onClick={() => setDailyCap(c)}>{c}{c === DEFAULT_PACE.dailyCap ? ` · ${t.recommended}` : ''}</FilterChip>)}</div></Field>
-                <div aria-live="polite" style={{ fontSize: 13, fontWeight: 700, color: T.text2 }}>{t.eta(chosen.length, paceEstimate(chosen.length, { gapSec, dailyCap }))}</div>
+                <div aria-live="polite" style={{ fontSize: 13, fontWeight: 700, color: T.text2 }}>{t.eta(chosen.length, paceEstimate(chosen.length, { gapSec, dailyCap }))}{variants.length > 1 ? ` · ${t.abSplitLine(chosen.length, variants.length)}` : ''}</div>
                 <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, cursor: 'pointer' }}><input type="checkbox" checked={skipReplied} onChange={e => setSkipReplied(e.target.checked)} style={{ appearance: 'auto', width: 18, height: 18, minHeight: 0 }}/>{t.skipReplied}</label>
               </div>
               <div style={{ fontSize: 12.5, color: T.text2, background: T.brandSoft, borderRadius: 10, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 4 }}>

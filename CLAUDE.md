@@ -488,6 +488,14 @@ send keeps going with the panel closed and nothing is called at night or after t
 The wizard (`src/CampaignsTab.jsx`): stage chips with counts ("ללא מענה" included), "רק מי שעוד לא ענה לנו" (`states[id].replied`;
 a "ענה לנו" badge per row), then "קצב שליחה" (gap, daily cap, an estimate — `paceEstimate()`), the skip-replied switch and the
 safety tips; the job card shows the pace, "ההודעה הבאה …", "הגיע למכסה היומית" and how many were skipped because they replied.
+**A/B test** (2026-11-01): the wizard's first step is a full-window screen (`Modal xl`) — the template list scrolls on its own
+(search, category chips with counts, each row shows its opening words) and the WhatsApp preview stays in view; "A/B טסט: כמה
+נוסחים" picks 2–4 versions (A–D tiles, preview tabs per version; editing the text for one send works with one version only).
+The recipients are shuffled and dealt out in turn (`abSplit()`), each keeps its `variant`, the job carries `templateIds`, and
+the engine sends every recipient its own version (`ruleKey tpl:<version>`). Every job card shows **results** (`AbResults`,
+`abResults()`: sent · replied after their message — `lastInboundTs` > the send · positive · opted out / negative · reply rate as
+a bar), per version for an A/B; "מוביל" only once every version has ≥ `AB_MIN_SAMPLE` (15) sends, and a note when the gap is
+under 5 points. Tested in `lib/bulk-pace.test.mjs` / `lib/bulk-jobs.test.mjs`.
 **From the leads board:** select leads (cards or table) → "שליחה מרובה בוואטסאפ" in the bulk bar (`afik:bulk-send` window event →
 `AdminPanel` `bulkIds` → the automations tab's bulk sends, a new wizard with them already picked — only them are listed until a
 filter is used). `auto-tick?key=` (key = `AUTOMATION_KEY`, or the admin token)
