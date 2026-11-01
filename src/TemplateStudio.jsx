@@ -6,7 +6,9 @@ import { T, Button, IconButton, FilterChip, Badge, Card, EmptyState, Modal, Popo
 import { WAText, toggleMarker, EMOJI_POPULAR, recentEmoji, pushRecentEmoji } from './waFormat.jsx'
 import { CATEGORIES, VARIABLES, DEFAULT_TEMPLATES, renderTemplate, templateUsage, replaceTemplateRefs, unknownPlaceholders, intlPhone } from '../lib/automations-shared.js'
 import { autoApi } from './AutomationsApi.jsx'
+import { withTemplate } from '../lib/template-edit.js'
 import TemplateImageField from './TemplateImageField.jsx'
+import TemplateFilesField from './TemplateFilesField.jsx'
 import { imageThumb } from './lib/templateImage.js'
 import { Icon, CatTile } from './uiIcons.jsx'
 
@@ -67,7 +69,7 @@ const TR = {
   },
 }
 const catOf = id => CATEGORIES.find(c => c.id === id) || CATEGORIES[5]
-const snap = x => x ? { cat: x.cat, he: x.he || '', en: x.en || '', he_title: x.he_title || '', en_title: x.en_title || '', image: x.image || '' } : null
+const snap = x => x ? { cat: x.cat, he: x.he || '', en: x.en || '', he_title: x.he_title || '', en_title: x.en_title || '', image: x.image || '', project: x.project || '', files: (x.files || []).map(f => f.url).join('|') } : null
 const titleOf = (x, isEn) => (isEn ? x.en_title || x.he_title : x.he_title || x.en_title) || ''
 const SAMPLE = isEn => ({ id: '__sample', name: isEn ? 'Dana Cohen' : 'דנה כהן', prop_title: isEn ? 'Plot in Tel Mond' : 'מגרש בתל מונד', prop_location: isEn ? 'Tel Mond' : 'תל מונד', crm_data: {} })
 const NOPROP = isEn => ({ id: '__noprop', name: isEn ? 'Yossi Levi' : 'יוסי לוי', crm_data: {} })
@@ -90,7 +92,8 @@ export default function TemplatesTab({ lang = 'he', cfg, tpls, leads, states = {
 
   const saveTpl = async x => {
     const { builtIn, isNew, id, ...rest } = x
-    await persist(c => { c.templates = { ...(c.templates || {}), [id]: { cat: rest.cat, he: rest.he, en: rest.en, he_title: rest.he_title, en_title: rest.en_title, ...(rest.image ? { image: rest.image } : {}) } }; c.deletedTemplates = (c.deletedTemplates || []).filter(d => d !== id) })
+    // withTemplate keeps the picture, the property (`project`) and the files, and drops a template from the deleted list
+    await persist(c => Object.assign(c, withTemplate(c, { id }, { cat: rest.cat, he: rest.he, en: rest.en, he_title: rest.he_title, en_title: rest.en_title, image: rest.image || '', project: rest.project || '', files: rest.files || [] })))
   }
   const restore = async x => { await persist(c => { c.templates = { ...(c.templates || {}) }; delete c.templates[x.id] }); toast(t.restored) }
   const copyText = async x => { try { await navigator.clipboard.writeText(renderTemplate(x, sample, cfg, isEn ? 'en' : 'he')); toast(t.copied) } catch {} }
@@ -333,7 +336,11 @@ function TemplateEditor({ t, lang, cfg, tpl, leads, onClose, onSave, toast, onGo
       <Field label={t.tplName} htmlFor="au-tpl-name">
         <input id="au-tpl-name" dir={tab === 'he' ? 'rtl' : 'ltr'} lang={tab} value={x[`${tab}_title`] || ''} onChange={e => set({ [`${tab}_title`]: e.target.value })} style={inputStyle}/>
       </Field>
+      <Field label={isEn ? 'Property / project (optional)' : 'נכס / פרויקט (לא חובה)'} htmlFor="au-tpl-proj">
+        <input id="au-tpl-proj" value={x.project || ''} onChange={e => set({ project: e.target.value })} placeholder={isEn ? 'e.g. 15 Zerubavel — its leads see this message first' : 'למשל זרובבל 15 — הלידים שלו יראו את ההודעה ראשונה'} style={inputStyle}/>
+      </Field>
       <TemplateImageField value={x.image || ''} onChange={v => set({ image: v })} lang={lang}/>
+      <TemplateFilesField value={x.files || []} onChange={v => set({ files: v })} lang={lang}/>
       <div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 2, height: 40, padding: '0 4px', background: T.s3, border: `1px solid ${T.s3Line}`, borderBottom: 'none', borderRadius: '9px 9px 0 0' }}>
           <IconButton icon={<FaBold size={11}/>} label={t.tBold} onClick={() => fmt('*')}/>

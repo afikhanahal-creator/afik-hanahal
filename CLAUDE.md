@@ -210,8 +210,14 @@ on top of every conversation (`LeadFormCard`, `src/waShared.jsx`) is folded to o
 copy (`findMirror`) and resets the chats' name cache; `onLeadRenamed` updates the admin's `leads` at once. **The other way round is the same name too:** a rename on the leads board / lead card (`updateLead` → `PATCH /api/contacts {name}`) writes the `name` column and `crm_data.name` and, for a Meta lead's copy (`crm_data.metaLeadId`), `meta_leads.name`; the open Lead Center updates at once (`afik:lead-renamed` window event, then Realtime). A Lead Center rename also writes the copy's `crm_data.name` (the board reads crm_data over the columns, so an old one used to win). **The project in the name from the leads tab too:** the lead card's name field has "+ הוספת הפרויקט: <project>" / "הסרת שם
 הפרויקט" (`leadProject()` = the Meta campaign's short name, else the listing; `toggleProjectInName()` in `src/lib/leadFields.js`,
 tested) and the board's bulk bar has "+ הפרויקט בשם" for every selected lead — both go through `updateLead`, so the Lead Center, the
-chats and `meta_leads` follow. A name that already carries the project drops the "(campaign)" after it (`leadCampaignTag()`). The phone's own
-WhatsApp contact book can't be edited through Green API. **Pipeline stage from the chat:** the lead header's "שלב בפייפליין" menu (`PIPELINE` in `MetaLeadsTab.jsx`,
+chats and `meta_leads` follow. A name that already carries the project drops the "(campaign)" after it (`leadCampaignTag()`). **The office
+phone's WhatsApp contacts follow, both ways** (2026-11-01, `lib/wa-book.js`, tested): every rename (board / lead card →
+`PATCH /api/contacts`, the Lead Center → `PATCH /api/meta/leads`, the chats header's `ChatNameEdit` in `src/ChatLeadTools.jsx`
+— a click on the name, "+ הוספת הפרויקט", a chat that isn't a lead → `chat-contact-name`) writes the contact with Green's
+`editContact` (else `addContact`, `saveInAddressbook`), and `syncBookNames()` (`lib/automations.js`, in `auto-tick` /
+`auto-run`, or `POST chat-book-sync`) compares the phone's `getContacts` names with the last ones seen
+(`app_settings.wa_book_names`, by the last 9 digits): a name changed on the phone renames the lead (`contacts` name +
+`crm_data.name`, `meta_leads`); the first look only records, our own writes update the baseline so they never bounce. **Pipeline stage from the chat:** the lead header's "שלב בפייפליין" menu (`PIPELINE` in `MetaLeadsTab.jsx`,
 the office's renamed stage names through `stageLabels`; the menu is a portal with a fixed position (`.lc-stage-menu--float`) — the lead bar is `overflow:hidden` and used to clip it, and the quick-replies window is capped to the conversation's height, `qMax`) moves the lead's CRM copy through `onCrmStage` → the admin's
 `updateLeadStatus` (stage log, nurture follow-up, stage automations — the same as dragging on the board); a lead not in the CRM
 yet is copied there first (`lead-to-crm`). A detail pane too narrow for both (and every phone) shows one pane at a time ("שיחה" / "פרטים והערות"); phones get a compact
@@ -326,6 +332,21 @@ lead's project and first name back into `{property}` / `{name}` (whole words onl
 name (empty = `autoTitle()`: the project · the first words), category (default "אישי"), project (prefilled from `leadProperty()`,
 kept on the template as `project`) and "להשתמש בה כהודעת הפתיחה הקבועה של <project>" (`rules.welcome.byProject`), saved as a new
 template everywhere (chat, automations, bulk sends).
+**Reply, react, forward, several at once** (2026-11-01, same menu; `lib/wa-actions.js`, tested): the menu opens with a row of
+quick reactions (`chat-react` → Green `sendReaction`; the same emoji again takes it back, an optimistic chip at once), "השב" (a
+quote bar above the box; `chat-send` / `messages` take `quotedMessageId` → `sendText(…, { quotedMessageId })`; with files only the
+first one quotes), "העברה" and "בחירת הודעות" (checkboxes on the bubbles, a bar "N נבחרו · העברה", up to 10) → `ChatForward`
+(`src/ChatForward.jsx`: every chat / lead with search, a typed number too, up to 10 chats → `POST /api/meta/chat-forward
+{ from, to, ids }` = Green `forwardMessages` per chat, 0.7 s apart, a result per chat, stops at a 466). The Lead Center / lead
+card list the admin's leads through `src/lib/leadsStore.js` (`setSharedLeads` / `useSharedLeads`).
+**Property messages with files** (2026-11-01): a template can carry `project` (its property — set when saving a message as a
+template, in the chat's quick editor or in the templates tab) and `files` (`[{ url, name, type, size }]`, ≤ 10, `templateFiles()`
+in `lib/automations-shared.js`; picked / dropped / pasted in `src/TemplateFilesField.jsx`, uploaded by the browser to
+`property-media/templates/…`). "הצעות" puts the lead's property's templates first (with a 📎 count) and has "הודעות נכסים" — every
+property's templates grouped by property, "לתיבה" / "שלח". A template with files puts them in the tray (`useAttachments().addRemote`,
+already in storage — no upload, no video byte before sending; its picture joins them first, `templateAttachments()`); sent as is
+from the chips / menu / window they go after the text (`sendFiles` takes `{ url, name }` items). Automatic sends still carry only
+the picture.
 **WhatsApp's own ticks** (`TickMark` in `src/waShared.jsx`): the SVG shapes WhatsApp Web draws — one check = sent, two = delivered,
 two in `#53BDEB` = read (or played) — in the chats tab, its list and the Lead Center / lead card; a clock while sending, "!" failed.
 **The chat list** has filters "הכל · לא נקראו · ממתינים לתשובה" (counts;

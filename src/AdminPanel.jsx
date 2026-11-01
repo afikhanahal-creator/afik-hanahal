@@ -7,6 +7,7 @@ import { useWaiting } from './lib/waWaiting.js'
 import { externalizeInlinePhotos } from './inlinePhotos.js'
 import { onSync, busUp, debounce } from './lib/syncBus.js'
 import { setSharedAutoConfig, onSharedAutoConfig } from './lib/autoConfigStore.js'
+import { setSharedLeads } from './lib/leadsStore.js'
 import { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react'
 import { LAYERS_DEF as GM_LAYERS, BG_OPTIONS as GM_BG_OPTIONS, LAYER_CATS_DEF as GM_LAYER_CATS } from './govmapLayers.js'
 import { FaSun, FaMoon, FaPlus, FaEnvelope, FaFacebookF, FaInstagram, FaBed, FaRulerCombined, FaBuilding, FaTools, FaMapMarkerAlt, FaPhone, FaLeaf, FaCalendarAlt, FaTimes, FaWhatsapp, FaFileAlt, FaHome, FaSearch, FaBalanceScale, FaHandshake, FaLock, FaKey, FaGlobe, FaBolt, FaChartLine, FaEye, FaPlay, FaFire, FaShareAlt, FaHeart, FaCamera, FaUser, FaUsers, FaDesktop, FaMobileAlt, FaTabletAlt, FaRobot, FaExclamationTriangle, FaChartBar, FaThumbsUp, FaImage, FaPencilAlt, FaCrown, FaMousePointer, FaDollarSign, FaVideo, FaLink, FaCheckCircle, FaTrash, FaClipboardList } from 'react-icons/fa'
@@ -1551,6 +1552,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   // anywhere (the lead card's conversation, the chat's quick editor) comes back here, so the automations tab and the chats
   // follow; an edit made on another device arrives when this window is back in focus (at most every 30 s)
   useEffect(() => { if (autoCfg?.config) setSharedAutoConfig(autoCfg.config) }, [autoCfg])
+  useEffect(() => { setSharedLeads(leads) }, [leads])
   useEffect(() => onSharedAutoConfig(c => setAutoCfg(a => (a?.config === c ? a : { ...(a || {}), config: c, storage: 'ok' }))), [])
   useEffect(() => {
     const back = () => { if (!document.hidden && Date.now() - cfgReadAt.current > 30000) loadAutoCfg() }

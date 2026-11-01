@@ -6,10 +6,14 @@
 //  · ChatTemplatePicker — the templates window over the composer: categories · the list · a WhatsApp preview of the selected
 //    message (editable, its picture can be left out) with "שלח עכשיו" and "הכנס לתיבה". It opens on the best message for the
 //    lead, ↑ / ↓ move, Enter = to the box, Ctrl+Enter = send. Narrow screens show the list, then the preview.
-// A template's picture (`image`) is sent with the text as its caption: onSend(text, { image }) / onInsert(text, tpl, lang).
+// A template's picture (`image`) is sent with the text as its caption, its files (`files` — a property's brochure, plans,
+// photos) after it: onSend(text, { image, files }) / onInsert(text, tpl, lang). A property's templates (`project`) come first
+// for that property's leads, and "הודעות נכסים" next to the suggestions lists every property's templates.
 // Templates already sent in this chat are marked. Icons are line icons (src/uiIcons.jsx), never emoji.
 import { useState, useMemo, useEffect, useLayoutEffect, useRef } from 'react'
-import { templateList, renderTemplate, templateImage, CATEGORIES, leadLang, stageCategory } from '../lib/automations-shared.js'
+import { createPortal } from 'react-dom'
+import { templateList, renderTemplate, templateImage, templateFiles, CATEGORIES, leadLang, stageCategory, leadProperty, sameProject } from '../lib/automations-shared.js'
+import { templateAttachments } from './lib/chatFiles.js'
 import { bestPersonalTemplateId } from '../lib/lead-needs.js'
 import { untemplate } from '../lib/template-edit.js'
 import { imageThumb } from './lib/templateImage.js'
@@ -41,18 +45,24 @@ const firstName = lead => String(lead?.name || '').trim().split(/\s+/)[0] || ''
 // The library rendered for one lead + what was already sent + what fits now (shared by the window, the menu and the chips)
 function useTemplateData({ lead, msgs, autoConfig, tplLang }) {
   const cfg = autoConfig || undefined
-  const all = useMemo(() => templateList(cfg).map(x => ({ ...x, image: templateImage(x), text: renderTemplate(x, lead, cfg, tplLang) })), [cfg, lead, tplLang])
+  const all = useMemo(() => templateList(cfg).map(x => ({ ...x, image: templateImage(x), files: templateFiles(x), text: renderTemplate(x, lead, cfg, tplLang) })), [cfg, lead, tplLang])
+  // the templates saved for a property (their `project`), the lead's own property first
+  const leadProp = leadProperty(lead || {})
+  const propTpls = useMemo(() => all.filter(x => String(x.project || '').trim())
+    .sort((a, b) => (sameProject(b.project, leadProp) ? 1 : 0) - (sameProject(a.project, leadProp) ? 1 : 0) || String(a.project).localeCompare(String(b.project), 'he')), [all, leadProp])
   const outText = useMemo(() => msgs.filter(m => m.direction === 'out').map(m => norm(m.message)).join('\n'), [msgs])
   const sentIds = useMemo(() => new Set(all.filter(x => { const sig = signature(x.text); return sig.length > 12 && outText.includes(sig) }).map(x => x.id)), [all, outText])
   // the lead's stage → the category that fits it now (lib/automations-shared.js stageCategory)
   const stageCat = useMemo(() => stageCategory(lead || {}, { hasOut: msgs.some(m => m.direction === 'out'), hasIn: msgs.some(m => m.direction === 'in') }), [lead, msgs])
   const recommended = useMemo(() => {
     const ids = []
+    // the property's own messages (details, prices, the brochure) first, for a lead who asked about that property
+    propTpls.filter(x => sameProject(x.project, leadProp)).slice(0, 3).forEach(x => ids.push(x.id))
     const best = bestPersonalTemplateId(lead, tplLang); if (best) ids.push(best)
     all.filter(x => x.cat === stageCat && !sentIds.has(x.id)).slice(0, 3).forEach(x => ids.push(x.id))
-    return [...new Set(ids)].map(id => all.find(x => x.id === id)).filter(Boolean).slice(0, 4)
-  }, [all, lead, sentIds, tplLang, stageCat])
-  return { all, sentIds, recommended, stageCat }
+    return [...new Set(ids)].map(id => all.find(x => x.id === id)).filter(Boolean).slice(0, 5)
+  }, [all, lead, sentIds, tplLang, stageCat, propTpls, leadProp])
+  return { all, sentIds, recommended, stageCat, propTpls, leadProp }
 }
 
 // ── shared look: CSS variables from the WhatsApp palette, classes for hover / focus / selected states ──
@@ -202,7 +212,7 @@ export default function ChatTemplatePicker({ WA, lead, msgs = [], autoConfig, la
   const send = async x => {
     if (!x || busy || (!textOf(x).trim() && !imgOf(x))) return
     setBusy(x.id)
-    const ok = await onSend?.(textOf(x), { image: imgOf(x) })
+    const ok = await onSend?.(textOf(x), { image: imgOf(x), files: templateAttachments({ ...x, image: imgOf(x) }) })
     setBusy(null)
     if (ok) setJustSent(s => ({ ...s, [x.id]: true }))
   }
@@ -334,34 +344,81 @@ export default function ChatTemplatePicker({ WA, lead, msgs = [], autoConfig, la
 
 // ── Over the empty message box: the messages that fit this lead now — a click puts one in the box, the arrow sends ──
 const QT = {
-  he: { label: 'הצעות', more: 'כל התבניות', sendTip: 'שליחה מיידית', putTip: 'להכניס לתיבה' },
-  en: { label: 'Suggested', more: 'All templates', sendTip: 'Send now', putTip: 'Put in the box' },
+  he: { label: 'הצעות', more: 'כל התבניות', sendTip: 'שליחה מיידית', putTip: 'להכניס לתיבה', props: 'הודעות נכסים', propsTip: 'ההודעות ששמרתם לכל נכס, עם הקבצים והתמונות שלהן',
+    files: n => (n === 1 ? 'קובץ אחד' : `${n} קבצים`), thisLead: 'הנכס של הליד', noProps: 'עוד אין הודעות לנכסים. שומרים הודעה כתבנית (▾ על הודעה → "שמירה כתבנית") ובוחרים לה נכס.', put: 'לתיבה', send: 'שלח' },
+  en: { label: 'Suggested', more: 'All templates', sendTip: 'Send now', putTip: 'Put in the box', props: 'Property messages', propsTip: 'The messages saved for each property, with their files and pictures',
+    files: n => (n === 1 ? '1 file' : `${n} files`), thisLead: "The lead's property", noProps: 'No property messages yet. Save a message as a template (▾ on a message → "Save as a template") and pick its property.', put: 'To the box', send: 'Send' },
 }
+const PaperClip = ({ n }) => n ? <span className="ctp-badge" style={{ gap: 3 }}><Icon name="paperclip" size={11}/>{n}</span> : null
 export function ChatQuickChips({ WA, lead, msgs = [], autoConfig, lang = 'he', onSend, onInsert, onMore }) {
   useCtpCss()
   const t = QT[lang] || QT.he
   const rtl = lang !== 'en'
   const tplLang = leadLang(lead)
-  const { recommended } = useTemplateData({ lead, msgs, autoConfig, tplLang })
+  const { recommended, propTpls, leadProp } = useTemplateData({ lead, msgs, autoConfig, tplLang })
   const [busy, setBusy] = useState(null)
-  if (!recommended.length) return null
+  const [open, setOpen] = useState(false)
+  const [pos, setPos] = useState(null)
+  const btnRef = useRef(null), popRef = useRef(null)
+  useLayoutEffect(() => {
+    if (!open) return
+    const place = () => { const r = btnRef.current?.getBoundingClientRect(); if (!r) return; const w = Math.min(460, window.innerWidth - 16); setPos({ w, left: Math.max(8, Math.min(window.innerWidth - w - 8, rtl ? r.right - w : r.left)), bottom: window.innerHeight - r.top + 6 }) }
+    place(); window.addEventListener('resize', place); return () => window.removeEventListener('resize', place)
+  }, [open, rtl])
+  useEffect(() => {
+    if (!open) return
+    const down = e => { if (!btnRef.current?.contains(e.target) && !popRef.current?.contains(e.target)) setOpen(false) }
+    const key = e => { if (e.key === 'Escape') { e.preventDefault(); setOpen(false) } }
+    document.addEventListener('pointerdown', down, true); document.addEventListener('keydown', key)
+    return () => { document.removeEventListener('pointerdown', down, true); document.removeEventListener('keydown', key) }
+  }, [open])
+  const send = async x => { setBusy(x.id); await onSend?.(x.text, { image: x.image, files: templateAttachments(x) }); setBusy(null) }
+  if (!recommended.length && !propTpls.length) return null
+  const groups = []
+  for (const x of propTpls) { const g = groups.find(g => sameProject(g.project, x.project)); if (g) g.items.push(x); else groups.push({ project: String(x.project).trim(), items: [x] }) }
+  const thumb = x => x.image ? <img className="ctp-thumb" src={imageThumb(x.image, 56)} alt="" width={26} height={26} style={{ borderRadius: '50%' }}/> : <CatTile cat={x.cat} color={catOf(x.cat)?.color} size={26} radius={13}/>
   return (
     <div className="ctp ctp-chipsrow" dir={rtl ? 'rtl' : 'ltr'} style={{ ...vars(WA), flexShrink: 0, background: 'var(--ctp-soft)', borderTop: '1px solid var(--ctp-line)' }}>
       <span style={{ flex: 'none', display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, color: 'var(--ctp-sub)' }}><Icon name="bolt" size={14}/>{t.label}</span>
       {/* "כל התבניות" first, right next to the label (on the right in Hebrew) — always in reach, never pushed to the far end */}
       {onMore && <button type="button" className="ctp-btn ghost sm" style={{ flex: 'none', color: 'var(--ctp-green)', fontWeight: 700, border: '1px solid rgba(0,168,132,.35)', background: 'rgba(0,168,132,.08)' }} onClick={onMore}><Icon name="file" size={14}/>{t.more}<Icon name={rtl ? 'chevronLeft' : 'chevronRight'} size={14}/></button>}
+      <button ref={btnRef} type="button" className="ctp-btn ghost sm" aria-haspopup="dialog" aria-expanded={open} title={t.propsTip} onClick={() => setOpen(o => !o)}
+        style={{ flex: 'none', fontWeight: 700, color: 'var(--ctp-text)', border: '1px solid var(--ctp-line)', background: open ? 'var(--ctp-hover)' : 'var(--ctp-panel)' }}>
+        <Icon name="home" size={14}/>{t.props}{propTpls.length > 0 && <span className="ctp-badge">{propTpls.length}</span>}<span aria-hidden="true" style={{ fontSize: 9, opacity: .6 }}>▲</span>
+      </button>
       {recommended.map(x => (
         <span key={x.id} className="ctp-chip">
-          <button type="button" className="pick" title={`${t.putTip}\n\n${x.text}`} onClick={() => onInsert?.(x.text, x, tplLang)}>
-            {x.image ? <img className="ctp-thumb" src={imageThumb(x.image, 56)} alt="" width={26} height={26} style={{ borderRadius: '50%' }}/> : <CatTile cat={x.cat} color={catOf(x.cat)?.color} size={26} radius={13}/>}
+          <button type="button" className="pick" title={`${t.putTip}\n\n${x.text}${x.files?.length ? `\n\n📎 ${x.files.map(f => f.name).join(', ')}` : ''}`} onClick={() => onInsert?.(x.text, x, tplLang)}>
+            {thumb(x)}
             <span>{titleOf(x, lang)}</span>
+            <PaperClip n={x.files?.length}/>
           </button>
-          <button type="button" className="go" aria-label={`${t.sendTip}: ${titleOf(x, lang)}`} title={t.sendTip} disabled={!!busy}
-            onClick={async () => { setBusy(x.id); await onSend?.(x.text, { image: x.image }); setBusy(null) }}>
+          <button type="button" className="go" aria-label={`${t.sendTip}: ${titleOf(x, lang)}`} title={t.sendTip} disabled={!!busy} onClick={() => send(x)}>
             {busy === x.id ? <span style={{ fontSize: 12 }}>…</span> : <Icon name="send" size={14} flip={rtl}/>}
           </button>
         </span>
       ))}
+      {open && pos && createPortal(
+        <div ref={popRef} role="dialog" aria-label={t.props} className="ctp" dir={rtl ? 'rtl' : 'ltr'}
+          style={{ ...vars(WA), position: 'fixed', left: pos.left, bottom: pos.bottom, width: pos.w, maxHeight: 'min(460px, 60vh)', overflowY: 'auto', zIndex: 3000, background: 'var(--ctp-panel)', border: '1px solid var(--ctp-line)', borderRadius: 12, boxShadow: '0 16px 40px rgba(0,0,0,.25)', padding: '4px 0' }}>
+          {!groups.length && <div style={{ padding: 16, fontSize: 13, color: 'var(--ctp-sub)', lineHeight: 1.6 }}>{t.noProps}</div>}
+          {groups.map(g => (
+            <div key={g.project}>
+              <div className="ctp-sec" style={{ background: 'var(--ctp-panel)' }}><Icon name="home" size={12}/>{g.project}{sameProject(g.project, leadProp) && <span className="ctp-stage">{t.thisLead}</span>}</div>
+              {g.items.map(x => (
+                <div key={x.id} className="ctp-row" style={{ cursor: 'default' }}>
+                  {thumb(x)}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="t"><span>{titleOf(x, lang)}</span>{x.files?.length > 0 && <span className="ctp-badge" title={x.files.map(f => f.name).join('\n')}><Icon name="paperclip" size={11}/>{t.files(x.files.length)}</span>}</div>
+                    <div className="p" dir="auto">{x.text.replace(/\s+/g, ' ')}</div>
+                  </div>
+                  <button type="button" className="ctp-btn sec sm" onClick={() => { setOpen(false); onInsert?.(x.text, x, tplLang) }}>{t.put}</button>
+                  <button type="button" className="ctp-btn pri sm" disabled={!!busy} onClick={async () => { await send(x); setOpen(false) }}>{busy === x.id ? '…' : t.send}</button>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>, document.body)}
     </div>
   )
 }
@@ -417,7 +474,7 @@ export function ChatTemplateMenu({ WA, lead, msgs = [], autoConfig, lang = 'he',
   const send = async x => {
     if (busy) return
     setBusy(x.id)
-    const ok = await onSend?.(x.text, { image: x.image })
+    const ok = await onSend?.(x.text, { image: x.image, files: templateAttachments(x) })
     setBusy(null)
     if (ok) { setOpen(false); setQ('') }
   }
