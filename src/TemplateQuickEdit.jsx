@@ -4,7 +4,7 @@
 // (chat, automations, bulk sends) — the same config the templates tab writes (app_settings.automations → templates).
 import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { renderTemplate, VARIABLES, unknownPlaceholders } from '../lib/automations-shared.js'
+import { renderTemplate, VARIABLES, unknownPlaceholders, CATEGORIES } from '../lib/automations-shared.js'
 import { withTemplate, withoutOverride, newTemplateId } from '../lib/template-edit.js'
 import { autoApi } from './AutomationsApi.jsx'
 import TemplateImageField from './TemplateImageField.jsx'
@@ -13,26 +13,40 @@ import { Icon } from './uiIcons.jsx'
 
 const TR = {
   he: {
+    createTitle: 'תבנית חדשה מהודעה', fromMsg: 'ההודעה הפכה לתבנית: השם של הליד והפרויקט הוחלפו במשתנים ({name}, {property}), כך שהתבנית תתאים לכל ליד. בדקו את הנוסח ושמרו.',
+    cat: 'קטגוריה', project: 'פרויקט / נכס (לא חובה)', projectPh: 'למשל זרובבל 15', projWelcome: p => `להשתמש בה כהודעת הפתיחה הקבועה של ${p}`, create: 'שמירה כתבנית', enHint: 'אפשר להוסיף נוסח באנגלית בלשונית English, למי שמגיע מהאתר באנגלית.',
     title: 'עריכת תבנית', fromChat: 'הנוסח מהתיבה הוכנס לתבנית. השם, הפרויקט ושאר הפרטים של הליד חזרו להיות משתנים, כדי שהתבנית תתאים לכל ליד.',
     name: 'שם התבנית', text: 'נוסח ההודעה', vars: 'הוספת משתנה:', preview: 'כך זה ייראה אצל', previewLead: 'הליד הזה', cond: 'חלק בתוך [[ ]] יופיע רק כשיש ללייד את הנתון.',
     save: 'שמור במקום התבנית', saveNew: 'שמור כתבנית חדשה', restore: 'שחזר לנוסח המקורי', cancel: 'ביטול', saving: 'שומר…', saved: 'נשמר',
     everywhere: 'השינוי יחול בכל מקום שהתבנית משמשת: בצ׳אט, באוטומציות ובשליחות קבוצתיות.', unknown: x => `{${x}} אינו משתנה מוכר ויישלח כמו שהוא`, empty: 'הנוסח ריק', err: 'השמירה נכשלה',
   },
   en: {
+    createTitle: 'New template from a message', fromMsg: 'The message became a template: the lead\'s name and project were replaced with variables ({name}, {property}), so it fits every lead. Check the wording and save.',
+    cat: 'Category', project: 'Project / property (optional)', projectPh: 'e.g. 15 Zerubavel', projWelcome: p => `Use it as the fixed welcome message of ${p}`, create: 'Save as a template', enHint: 'You can add an English version in the English tab, for leads from the English site.',
     title: 'Edit template', fromChat: 'The wording from the message box went into the template. The lead\'s name, project and other details became variables again, so the template fits every lead.',
     name: 'Template name', text: 'Message text', vars: 'Insert a variable:', preview: 'How it looks for', previewLead: 'this lead', cond: 'A part inside [[ ]] shows only when the lead has that detail.',
     save: 'Save in place of the template', saveNew: 'Save as a new template', restore: 'Restore the original wording', cancel: 'Cancel', saving: 'Saving…', saved: 'Saved',
     everywhere: 'The change applies everywhere the template is used: chat, automations and bulk sends.', unknown: x => `{${x}} is not a known variable and will be sent as typed`, empty: 'The text is empty', err: 'Saving failed',
   },
 }
+// A name for a template made from a message: the project, then the message's first words without the greeting and variables
+export function autoTitle(project = '', text = '') {
+  let x = String(text || '').replace(/\{property\}/g, String(project || '').trim()).replace(/\{[a-z]+\}/g, '').replace(/^\s*(היי|שלום|הי|hi|hello|hey)(?=[\s,.!?]|$)/i, '')
+    .replace(/^[\s,.!?:;\-–]+/, '').replace(/\s+([,.!?;:])/g, '$1').replace(/\s+/g, ' ').trim()
+  if (x.length > 34) x = `${x.slice(0, 34).replace(/\s+\S*$/, '')}…`
+  return [String(project || '').trim(), x].filter(Boolean).join(' · ')
+}
 const QUICK_VARS = ['name', 'property', 'when', 'where', 'greeting', 'needs', 'budget', 'phone', 'agent']
 
-export default function TemplateQuickEdit({ WA, lang = 'he', lead, tpl, initial = null, fromChat = false, initialLang, autoConfig, onSaved, onClose }) {
+export default function TemplateQuickEdit({ WA, lang = 'he', lead, tpl, initial = null, fromChat = false, create = false, initialLang, autoConfig, onSaved, onClose }) {
   const t = TR[lang] || TR.he
   const [tab, setTab] = useState(initialLang || (lang === 'en' ? 'en' : 'he'))
   const [text, setText] = useState({ he: initial?.he ?? tpl.he ?? '', en: initial?.en ?? tpl.en ?? '' })
   const [title, setTitle] = useState({ he: tpl.he_title || '', en: tpl.en_title || '' })
   const [image, setImage] = useState(tpl.image || '')
+  const [cat, setCat] = useState(tpl.cat || 'personal')
+  const [project, setProject] = useState(tpl.project || '')
+  const [projWelcome, setProjWelcome] = useState(false)
   const [state, setState] = useState({ phase: 'idle' })
   const areaRef = useRef(null)
   useEffect(() => { const k = e => { if (e.key === 'Escape') onClose?.() }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k) }, [onClose])
@@ -59,6 +73,14 @@ export default function TemplateQuickEdit({ WA, lang = 'he', lead, tpl, initial 
       const fresh = await autoApi.get('auto-config').then(d => d.config).catch(() => cfg) || cfg || {}
       let next, id = tpl.id
       if (mode === 'restore') next = withoutOverride(fresh, tpl.id)
+      else if (mode === 'create') {
+        // a message from the chat → a new template of its own; optionally the project's fixed welcome (rules.welcome.byProject)
+        id = newTemplateId()
+        const p = project.trim()
+        const he_title = title.he.trim() || autoTitle(p, text.he || text.en)
+        next = withTemplate(fresh, tpl, { id, cat, he: text.he, en: text.en, he_title, en_title: title.en.trim() || he_title, image, project: p })
+        if (projWelcome && p) next = { ...next, rules: { ...(next.rules || {}), welcome: { ...(next.rules?.welcome || {}), byProject: { ...(next.rules?.welcome?.byProject || {}), [p]: id } } } }
+      }
       else if (mode === 'new') { id = newTemplateId(); next = withTemplate(fresh, tpl, { id, he: text.he, en: text.en, he_title: `${title.he || tpl.he_title || ''} (עותק)`, en_title: `${title.en || tpl.en_title || ''} (copy)`, image }) }
       else next = withTemplate(fresh, tpl, { he: text.he, en: text.en, he_title: title.he || tpl.he_title, en_title: title.en || tpl.en_title, image })
       await autoApi.post('auto-config', { config: next })
@@ -78,19 +100,32 @@ export default function TemplateQuickEdit({ WA, lang = 'he', lead, tpl, initial 
       <div role="dialog" aria-modal="true" aria-label={t.title} dir={lang === 'en' ? 'ltr' : 'rtl'}
         style={{ width: 'min(860px, 100%)', maxHeight: 'calc(100vh - 32px)', overflowY: 'auto', background: WA.panelBg, color: WA.bodyText, borderRadius: 14, boxShadow: '0 24px 70px rgba(0,0,0,.35)', display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 18px', borderBottom: `1px solid ${WA.border}` }}>
-          <b style={{ fontSize: 15, display: 'inline-flex', alignItems: 'center', gap: 7 }}><Icon name="pencil" size={16}/>{t.title}</b>
+          <b style={{ fontSize: 15, display: 'inline-flex', alignItems: 'center', gap: 7 }}><Icon name="pencil" size={16}/>{create ? t.createTitle : t.title}</b>
           <span style={{ fontSize: 13, color: WA.subText, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{lang === 'en' ? (tpl.en_title || tpl.he_title) : tpl.he_title}</span>
           <button type="button" onClick={onClose} aria-label={t.cancel} style={{ marginInlineStart: 'auto', background: 'none', border: 'none', color: WA.subText, fontSize: 20, cursor: 'pointer', lineHeight: 1, padding: 4, minHeight: 0 }}>×</button>
         </div>
-        {fromChat && <div style={{ margin: '12px 18px 0', fontSize: 12.5, lineHeight: 1.6, color: WA.bodyText, background: WA.green + '14', border: `1px solid ${WA.green}40`, borderRadius: 8, padding: '8px 12px' }}>{t.fromChat}</div>}
+        {(fromChat || create) && <div style={{ margin: '12px 18px 0', fontSize: 12.5, lineHeight: 1.6, color: WA.bodyText, background: WA.green + '14', border: `1px solid ${WA.green}40`, borderRadius: 8, padding: '8px 12px' }}>{create ? t.fromMsg : t.fromChat}</div>}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16, padding: 18 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, minWidth: 0 }}>
             <div style={{ display: 'flex', gap: 4, borderBottom: `1px solid ${WA.border}` }}>
               {['he', 'en'].map(l => <button key={l} type="button" style={tabBtn(tab === l)} onClick={() => setTab(l)}>{l === 'he' ? 'עברית' : 'English'}</button>)}
             </div>
             <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 600, color: WA.subText }}>{t.name}
-              <input value={title[tab]} onChange={e => setTitle(s => ({ ...s, [tab]: e.target.value }))} dir={tab === 'en' ? 'ltr' : 'rtl'} style={input}/>
+              <input value={title[tab]} onChange={e => setTitle(s => ({ ...s, [tab]: e.target.value }))} placeholder={create ? autoTitle(project, text[tab] || text.he) : undefined} dir={tab === 'en' ? 'ltr' : 'rtl'} style={input}/>
             </label>
+            {create && <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <label style={{ flex: '1 1 160px', display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 600, color: WA.subText }}>{t.cat}
+                <select value={cat} onChange={e => setCat(e.target.value)} style={{ ...input, appearance: 'auto' }}>
+                  {CATEGORIES.map(c => <option key={c.id} value={c.id}>{lang === 'en' ? c.en : c.he}</option>)}
+                </select>
+              </label>
+              <label style={{ flex: '1 1 160px', display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 600, color: WA.subText }}>{t.project}
+                <input value={project} onChange={e => setProject(e.target.value)} placeholder={t.projectPh} style={input}/>
+              </label>
+              {project.trim() && <label style={{ flexBasis: '100%', display: 'flex', gap: 8, alignItems: 'center', fontSize: 12.5, color: WA.bodyText, cursor: 'pointer' }}>
+                <input type="checkbox" checked={projWelcome} onChange={e => setProjWelcome(e.target.checked)} style={{ appearance: 'auto', width: 16, height: 16, minHeight: 0 }}/>{t.projWelcome(project.trim())}
+              </label>}
+            </div>}
             <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 600, color: WA.subText }}>{t.text}
               <textarea ref={areaRef} value={text[tab]} onChange={e => setText(s => ({ ...s, [tab]: e.target.value }))} dir={tab === 'en' ? 'ltr' : 'rtl'}
                 rows={Math.min(14, Math.max(6, text[tab].split('\n').length + 2))} style={{ ...input, resize: 'vertical', lineHeight: 1.6, fontSize: 14 }}/>
@@ -100,6 +135,7 @@ export default function TemplateQuickEdit({ WA, lang = 'he', lead, tpl, initial 
               {QUICK_VARS.map(k => { const v = VARIABLES.find(x => x.key === k); return v && <button key={k} type="button" onClick={() => insertVar(k)} title={`{${k}}`} style={{ border: `1px solid ${WA.border}`, background: WA.inputBg, color: WA.bodyText, borderRadius: 999, padding: '3px 9px', fontSize: 11.5, cursor: 'pointer', fontFamily: 'inherit', minHeight: 0 }}>{lang === 'en' ? v.en : v.he}</button> })}
             </div>
             <TemplateImageField value={image} onChange={setImage} lang={lang} compact pal={{ text: WA.bodyText, sub: WA.subText, line: WA.border, bg: WA.inputBg, accent: WA.green }}/>
+            {create && tab === 'en' && !text.en.trim() && <div style={{ fontSize: 11.5, color: WA.subText }}>{t.enHint}</div>}
             {/\[\[/.test(text[tab]) && <div style={{ fontSize: 11.5, color: WA.subText }}>{t.cond}</div>}
             {unknown.map(x => <div key={x} style={{ fontSize: 12, color: '#B45309' }}>{t.unknown(x)}</div>)}
           </div>
@@ -114,12 +150,13 @@ export default function TemplateQuickEdit({ WA, lang = 'he', lead, tpl, initial 
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '12px 18px 16px', borderTop: `1px solid ${WA.border}` }}>
+          {create ? <button type="button" style={btn(true)} disabled={busy} onClick={() => persist('create')}>{busy ? t.saving : t.create}</button> : <>
           <button type="button" style={btn(true)} disabled={busy} onClick={() => persist('replace')}>{busy && state.mode === 'replace' ? t.saving : t.save}</button>
-          <button type="button" style={btn(false)} disabled={busy} onClick={() => persist('new')}>{busy && state.mode === 'new' ? t.saving : t.saveNew}</button>
+          <button type="button" style={btn(false)} disabled={busy} onClick={() => persist('new')}>{busy && state.mode === 'new' ? t.saving : t.saveNew}</button></>}
           {overridden && <button type="button" style={btn(false, { border: 'none', color: WA.subText })} disabled={busy} onClick={() => persist('restore')}>{t.restore}</button>}
           <button type="button" style={btn(false, { border: 'none', color: WA.subText })} onClick={onClose}>{t.cancel}</button>
           <span style={{ marginInlineStart: 'auto', fontSize: 12, color: state.phase === 'error' ? '#DC2626' : state.phase === 'saved' ? WA.green : WA.subText }}>
-            {state.phase === 'error' ? state.msg : state.phase === 'saved' ? t.saved : t.everywhere}
+            {state.phase === 'error' ? state.msg : state.phase === 'saved' ? t.saved : create ? '' : t.everywhere}
           </span>
         </div>
       </div>

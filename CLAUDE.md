@@ -319,6 +319,13 @@ The chats tab's bell (`src/WaNotifySettings.jsx`) sets them (`localStorage.afik_
 leads only), shows the browser's permission (ask / how to unblock) and sends a test alert (`afik:wa-test-alert`); an amber dot on
 the bell while desktop notifications are off. **Resizable chats tab** (2026-10-26): the edge between the chat list and the conversation drags (`Splitter` axis x, the list
 260–640 px, kept in `localStorage.afik_wa_list_w`; arrows / Home / End, double-click resets to 340; hidden on phones).
+**A message's menu, like WhatsApp Web** (2026-11-01, `src/ChatMsgMenu.jsx`): every text bubble in the chats tab and in the Lead
+Center / lead card (`LeadConversation`) has a ▾ at its top corner on hover (always faintly visible on touch screens): "העתקה" (the
+clipboard, with an `execCommand` fallback) and "שמירה כתבנית" — `messageToTemplate()` (`lib/template-edit.js`, tested) turns the
+lead's project and first name back into `{property}` / `{name}` (whole words only), and `TemplateQuickEdit` opens in `create` mode:
+name (empty = `autoTitle()`: the project · the first words), category (default "אישי"), project (prefilled from `leadProperty()`,
+kept on the template as `project`) and "להשתמש בה כהודעת הפתיחה הקבועה של <project>" (`rules.welcome.byProject`), saved as a new
+template everywhere (chat, automations, bulk sends).
 **WhatsApp's own ticks** (`TickMark` in `src/waShared.jsx`): the SVG shapes WhatsApp Web draws — one check = sent, two = delivered,
 two in `#53BDEB` = read (or played) — in the chats tab, its list and the Lead Center / lead card; a clock while sending, "!" failed.
 **The chat list** has filters "הכל · לא נקראו · ממתינים לתשובה" (counts;
