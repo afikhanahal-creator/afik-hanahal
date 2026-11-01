@@ -4,9 +4,9 @@ import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { FaPlus, FaSearch, FaBold, FaItalic, FaStrikethrough, FaRegSmile, FaTag, FaPaperPlane, FaEllipsisV, FaCopy, FaUndo, FaTrash, FaLink, FaCheck, FaTimes, FaInfoCircle, FaExclamationTriangle, FaChevronDown, FaChevronUp, FaBuilding } from 'react-icons/fa'
 import { T, Button, IconButton, FilterChip, Badge, Card, EmptyState, Modal, Popover, MenuButton, MenuItem, ModeBadge, PhonePreview, Field, inputStyle, useConfirm } from './automationsUI.jsx'
 import { WAText, toggleMarker, EMOJI_POPULAR, recentEmoji, pushRecentEmoji } from './waFormat.jsx'
-import { CATEGORIES, VARIABLES, DEFAULT_TEMPLATES, renderTemplate, templateUsage, replaceTemplateRefs, unknownPlaceholders, intlPhone } from '../lib/automations-shared.js'
+import { CATEGORIES, VARIABLES, DEFAULT_TEMPLATES, renderTemplate, templateUsage, replaceTemplateRefs, unknownPlaceholders, intlPhone, sameProject } from '../lib/automations-shared.js'
 import { autoApi } from './AutomationsApi.jsx'
-import { withTemplate } from '../lib/template-edit.js'
+import { withTemplate, knownProjects, titleIdeas } from '../lib/template-edit.js'
 import TemplateImageField from './TemplateImageField.jsx'
 import TemplateFilesField from './TemplateFilesField.jsx'
 import { imageThumb } from './lib/templateImage.js'
@@ -23,6 +23,8 @@ const TR = {
     startTitle: 'איך להתחיל?', stDupe: 'שכפל תבנית קיימת', copySuffix: ' (עותק)', pick: 'בחרו תבנית…',
     starters: [['blank', 'plus', 'תבנית ריקה', 'מתחילים מאפס'], ['welcome', 'welcome', 'הודעת פתיחה', 'ברוכים הבאים לליד חדש'], ['nr1', 'followup', 'תזכורת ללא מענה', 'תזכורת עדינה'], ['positive', 'progress', 'תיאום שיחה או סיור', 'לקבוע פגישה'], ['docs', 'file', 'בקשת מסמכים', 'רשימת מסמכים להמשך'], ['listing', 'image', 'נכס חדש שמתאים לך', 'עדכון על נכס חדש'], ['holiday', 'star', 'ברכת חג', 'ברכה חמה ללקוחות']],
     listingTitle: 'נכס חדש שמתאים לך', listingHe: 'היי {name}, נכנס אלינו נכס חדש ב{location} שנראה ממש בכיוון של מה שחיפשתם.\nלשלוח לכם פרטים ותמונות?', listingEn: "Hi {name}, a new property just came in near {location} that looks right in line with what you were after.\nShall we send you the details and photos?",
+    details: 'פרטי התבנית', projectLbl: 'פרויקט / קבוצה', projectHint: 'הלידים של הפרויקט יראו אותה ראשונה ב"הצעות"', projectPh: 'בחרו פרויקט למטה או כתבו שם חדש',
+    projTpls: n => `${n} תבניות בפרויקט`, projLeads: n => `${n} לידים מהפרויקט`, namePh: 'שם התבנית', nameIdeas: 'הצעות לשם:', byProject: 'פרויקטים:', noProject: 'בלי פרויקט',
     edNew: 'תבנית חדשה', edEdit: 'עריכת תבנית', tplName: 'שם התבנית', category: 'קטגוריה', tabHe: 'עברית', tabEn: 'English', missing: 'חסר',
     textPh: 'כתבו כאן את ההודעה…', tBold: 'מודגש (Ctrl+B)', tItalic: 'נטוי (Ctrl+I)', tStrike: 'קו חוצה (Ctrl+Shift+X)', tEmoji: 'אימוג׳י', tVar: 'משתנה',
     emojiRecent: 'בשימוש לאחרונה', emojiPopular: 'נפוצים', personalise: 'הוסיפו פרטים אישיים:', editValues: 'ערוך ערכים',
@@ -50,6 +52,8 @@ const TR = {
     startTitle: 'How would you like to start?', stDupe: 'Duplicate an existing template', copySuffix: ' (copy)', pick: 'Choose a template…',
     starters: [['blank', 'plus', 'Blank template', 'Start from scratch'], ['welcome', 'welcome', 'Welcome', 'Greet a new lead'], ['nr1', 'followup', 'No-reply reminder', 'A gentle nudge'], ['positive', 'progress', 'Book a call or viewing', 'Set a meeting'], ['docs', 'file', 'Request documents', 'What we need next'], ['listing', 'image', 'New listing that fits', 'Share a new property'], ['holiday', 'star', 'Holiday greeting', 'A warm note to clients']],
     listingTitle: 'New listing that fits', listingHe: 'היי {name}, נכנס אלינו נכס חדש ב{location} שנראה ממש בכיוון של מה שחיפשתם.\nלשלוח לכם פרטים ותמונות?', listingEn: "Hi {name}, a new property just came in near {location} that looks right in line with what you were after.\nShall we send you the details and photos?",
+    details: 'Template details', projectLbl: 'Project / group', projectHint: "the project's leads see it first in Suggested", projectPh: 'Pick a project below or type a new name',
+    projTpls: n => `${n} templates in this project`, projLeads: n => `${n} leads from this project`, namePh: 'Template name', nameIdeas: 'Name ideas:', byProject: 'Projects:', noProject: 'No project',
     edNew: 'New template', edEdit: 'Edit template', tplName: 'Template name', category: 'Category', tabHe: 'עברית', tabEn: 'English', missing: 'Missing',
     textPh: 'Write your message here…', tBold: 'Bold (Ctrl+B)', tItalic: 'Italic (Ctrl+I)', tStrike: 'Strikethrough (Ctrl+Shift+X)', tEmoji: 'Emoji', tVar: 'Placeholder',
     emojiRecent: 'Recently used', emojiPopular: 'Popular', personalise: 'Personalise with:', editValues: 'Edit values',
@@ -82,11 +86,15 @@ export default function TemplatesTab({ lang = 'he', cfg, tpls, leads, states = {
   const confirm = useConfirm()
   const [q, setQ] = useState('')
   const [cat, setCat] = useState('all')
+  const [proj, setProj] = useState('all')            // 'all' | a project / group name
   const [editing, setEditing] = useState(null)       // template object (copy) or null
   const [starter, setStarter] = useState(false)
   const [sendTpl, setSendTpl] = useState(null)
   const [officeOpen, setOfficeOpen] = useState(false)
-  const list = useMemo(() => tpls.filter(x => cat === 'all' || x.cat === cat).filter(x => !q || `${x.he_title} ${x.en_title} ${x.he} ${x.en}`.toLowerCase().includes(q.toLowerCase())), [tpls, cat, q])
+  // the projects / groups the templates belong to (a template's `project`), most templates first
+  const tplProjects = useMemo(() => knownProjects(tpls, []).filter(p => p.templates > 0), [tpls])
+  const list = useMemo(() => tpls.filter(x => cat === 'all' || x.cat === cat).filter(x => proj === 'all' || sameProject(x.project, proj))
+    .filter(x => !q || `${x.he_title} ${x.en_title} ${x.he} ${x.en} ${x.project || ''}`.toLowerCase().includes(q.toLowerCase())), [tpls, cat, proj, q])
   const groups = cat === 'all' && !q ? CATEGORIES.map(c => [c, list.filter(x => x.cat === c.id)]).filter(([, l]) => l.length) : [[null, list]]
   const sample = asLead(leads.find(l => l.name && (l.propTitle || l.prop_title)) || leads.find(l => l.name) || SAMPLE(isEn))
 
@@ -130,7 +138,7 @@ export default function TemplatesTab({ lang = 'he', cfg, tpls, leads, states = {
   const startFrom = key => {
     setStarter(false)
     const id = `c_${Date.now().toString(36)}`
-    if (key === 'blank') return setEditing({ id, cat: cat === 'all' ? 'general' : cat, he: '', en: '', he_title: '', en_title: '', isNew: true })
+    if (key === 'blank') return setEditing({ id, cat: cat === 'all' ? (proj === 'all' ? 'general' : 'personal') : cat, he: '', en: '', he_title: '', en_title: '', project: proj === 'all' ? '' : proj, isNew: true })
     if (key === 'listing') return setEditing({ id, cat: 'progress', he: t.listingHe, en: t.listingEn, he_title: isEn ? 'נכס חדש שמתאים לך' : t.listingTitle, en_title: 'New listing that fits', isNew: true })
     const base = tpls.find(x => x.id === key) || DEFAULT_TEMPLATES.find(x => x.id === key)
     if (base) setEditing({ ...base, id, builtIn: false, isNew: true, he_title: `${base.he_title || ''}${TR.he.copySuffix}`, en_title: base.en_title ? `${base.en_title}${TR.en.copySuffix}` : '' })
@@ -150,8 +158,15 @@ export default function TemplatesTab({ lang = 'he', cfg, tpls, leads, states = {
         <FilterChip selected={cat === 'all'} count={tpls.length} onClick={() => setCat('all')}>{t.all}</FilterChip>
         {CATEGORIES.map(c => { const n = tpls.filter(x => x.cat === c.id).length; return n ? <FilterChip key={c.id} selected={cat === c.id} color={c.color} count={n} onClick={() => setCat(c.id)}>{isEn ? c.en : c.he}</FilterChip> : null })}
       </div>
+      {tplProjects.length > 0 && (
+        <div className="au-scroll-x" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ fontSize: 12, fontWeight: 800, color: T.text3, display: 'inline-flex', alignItems: 'center', gap: 5 }}><Icon name="home" size={13}/>{t.byProject}</span>
+          <FilterChip selected={proj === 'all'} onClick={() => setProj('all')}>{t.all}</FilterChip>
+          {tplProjects.map(p => <FilterChip key={p.name} selected={proj !== 'all' && sameProject(proj, p.name)} count={p.templates} onClick={() => setProj(p.name)}>{p.name}</FilterChip>)}
+        </div>
+      )}
 
-      {!list.length ? <Card><EmptyState icon={FaSearch} title={t.noResultsT} body={t.noResultsB} action={<Button onClick={() => { setQ(''); setCat('all') }}>{t.clear}</Button>}/></Card> : groups.map(([c, l]) => (
+      {!list.length ? <Card><EmptyState icon={FaSearch} title={t.noResultsT} body={t.noResultsB} action={<Button onClick={() => { setQ(''); setCat('all'); setProj('all') }}>{t.clear}</Button>}/></Card> : groups.map(([c, l]) => (
         <section key={c?.id || 'list'}>
           {c && <h3 style={{ margin: '20px 0 8px', fontSize: 14, fontWeight: 800, display: 'flex', gap: 6, alignItems: 'center' }}><CatTile cat={c.id} color={c.color} size={24} radius={7}/> {isEn ? c.en : c.he} <span style={{ color: T.text3, fontWeight: 700, fontSize: 12 }}>{l.length}</span></h3>}
           <div className="au-tpl-grid">
@@ -171,7 +186,9 @@ export default function TemplatesTab({ lang = 'he', cfg, tpls, leads, states = {
                     <Badge color={T.grey} textColor={T.text2}>HE</Badge>
                     {x.en ? <Badge color={T.grey} textColor={T.text2}>EN</Badge> : <Badge outline color={T.amber} textColor={T.amberText} title={t.noEn}>EN</Badge>}
                     {edited && <Badge color={T.amber} textColor={T.amberText}>{t.edited}</Badge>}
+                    {x.project && <Badge color={T.brand} textColor={T.brandText} title={t.projectLbl}><Icon name="home" size={11} sw={2}/> {x.project}</Badge>}
                     {x.image && <Badge color={T.green} textColor={T.text2}><Icon name="image" size={11} sw={2}/> {t.withImage}</Badge>}
+                    {x.files?.length > 0 && <Badge color={T.green} textColor={T.text2} title={x.files.map(f => f.name).join('\n')}><Icon name="paperclip" size={11} sw={2}/> {x.files.length}</Badge>}
                     <div style={{ flex: 1 }}/>
                     <IconButton icon={<FaPaperPlane size={12}/>} label={t.mSend} variant="soft-green" onClick={() => setSendTpl(x)}/>
                     <MenuButton icon={<FaEllipsisV size={12}/>} label={`${t.more} · ${titleOf(x, isEn)}`} dir={dir}>
@@ -224,14 +241,14 @@ export default function TemplatesTab({ lang = 'he', cfg, tpls, leads, states = {
         </div>
       </Modal>
 
-      {editing && <TemplateEditor key={editing.id} t={t} lang={lang} cfg={cfg} tpl={editing} leads={leads} onClose={() => setEditing(null)} onSave={async x => { await saveTpl(x); toast(t.saved); setEditing(null) }} toast={toast} onGoRule={onGoRule} onGoOffice={() => { setEditing(null); setOfficeOpen(true); setTimeout(() => document.getElementById('au-office')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 60) }}/>}
+      {editing && <TemplateEditor key={editing.id} t={t} lang={lang} cfg={cfg} tpl={editing} tpls={tpls} leads={leads} onClose={() => setEditing(null)} onSave={async x => { await saveTpl(x); toast(t.saved); setEditing(null) }} toast={toast} onGoRule={onGoRule} onGoOffice={() => { setEditing(null); setOfficeOpen(true); setTimeout(() => document.getElementById('au-office')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 60) }}/>}
       {sendTpl && <QuickSend t={t} lang={lang} cfg={cfg} tpl={sendTpl} leads={leads} states={states} onClose={() => setSendTpl(null)} toast={toast}/>}
     </div>
   )
 }
 
 // ── Editor (full screen) ───────────────────────────────────────────────────────
-function TemplateEditor({ t, lang, cfg, tpl, leads, onClose, onSave, toast, onGoRule, onGoOffice }) {
+function TemplateEditor({ t, lang, cfg, tpl, tpls = [], leads, onClose, onSave, toast, onGoRule, onGoOffice }) {
   const isEn = lang === 'en'
   const dir = isEn ? 'ltr' : 'rtl'
   const confirm = useConfirm()
@@ -284,11 +301,13 @@ function TemplateEditor({ t, lang, cfg, tpl, leads, onClose, onSave, toast, onGo
     setTimeout(() => { if (el) { el.focus(); el.selectionStart = el.selectionEnd = a + str.length } }, 0)
   }
   const save = async () => {
-    if (!(x.he_title || x.en_title)) { toast(t.needName, { tone: 'warn' }); return }
-    if (!x.he?.trim() && !x.image) { setTab('he'); toast(t.needText, { tone: 'warn' }); return }
+    if (!x.he?.trim() && !x.image && !(x.files || []).length) { setTab('he'); toast(t.needText, { tone: 'warn' }); return }
     if ((x.he || '').length > 4000 || (x.en || '').length > 4000) return
-    setSaving(true)
-    try { await onSave(x) } catch (e) { toast(`${t.error}: ${e.message}`, { tone: 'error' }) } finally { setSaving(false) }
+    // no name typed → the first idea (the category · the project, else the message's first words)
+    const he_title = (x.he_title || '').trim() || (x.en_title || '').trim() || ideas[0] || t.edNew
+    const named = { ...x, he_title, en_title: (x.en_title || '').trim() || ideasEn[0] || '' }
+    setX(named); setSaving(true)
+    try { await onSave(named) } catch (e) { toast(`${t.error}: ${e.message}`, { tone: 'error' }) } finally { setSaving(false) }
   }
   const onKey = e => {
     if (!(e.ctrlKey || e.metaKey)) return
@@ -299,16 +318,15 @@ function TemplateEditor({ t, lang, cfg, tpl, leads, onClose, onSave, toast, onGo
     else if (k === 's') { e.preventDefault(); save() }
   }
   const recent = recentEmoji()
-  const cat = catOf(x.cat)
+  const projects = useMemo(() => knownProjects(tpls, leads), [tpls, leads])
+  const taken = useMemo(() => tpls.filter(o => o.id !== x.id).flatMap(o => [o.he_title, o.en_title]), [tpls, x.id])
+  const ideas = titleIdeas({ project: x.project, cat: x.cat, text: x.he || x.en, lang: 'he', taken })
+  const ideasEn = titleIdeas({ project: x.project, cat: x.cat, text: x.en, lang: 'en', taken })
 
   const header = (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 16px', height: 60, borderBottom: `1px solid ${T.line}`, flexShrink: 0 }}>
       <IconButton icon={<FaTimes/>} label={t.cancel} size={36} onClick={tryClose}/>
       <b style={{ fontSize: 16, fontWeight: 800, whiteSpace: 'nowrap' }}>{tpl.isNew ? t.edNew : t.edEdit}</b>
-      <select value={x.cat} onChange={e => set({ cat: e.target.value })} aria-label={t.category} className="au-hide-m"
-        style={{ height: 32, padding: '0 10px', borderRadius: 20, border: `1px solid ${cat.color}66`, background: `${cat.color}1f`, color: T.text, fontFamily: 'inherit', fontSize: 12.5, fontWeight: 700, minHeight: 0 }}>
-        {CATEGORIES.map(c => <option key={c.id} value={c.id}>{isEn ? c.en : c.he}</option>)}
-      </select>
       <div style={{ flex: 1 }}/>
       {dirty && <span style={{ fontSize: 12, fontWeight: 700, color: T.amberText, display: 'inline-flex', alignItems: 'center', gap: 6 }}><span style={{ width: 6, height: 6, borderRadius: '50%', background: T.amber }}/><span className="au-hide-m">{t.unsavedShort}</span></span>}
       <span className="au-hide-m" style={{ display: 'contents' }}>
@@ -317,8 +335,49 @@ function TemplateEditor({ t, lang, cfg, tpl, leads, onClose, onSave, toast, onGo
       </span>
     </div>
   )
+  // ── what the template is: its category, its property / group and its name (ideas from both, or any name) ──
+  const chip = (on, color) => ({ display: 'inline-flex', alignItems: 'center', gap: 6, height: 30, padding: '0 12px', borderRadius: 999, minHeight: 0, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12.5, fontWeight: on ? 800 : 600,
+    border: `1px solid ${on ? (color || 'var(--au-brand)') : T.line2}`, background: on ? `${color || '#8490D8'}24` : 'transparent', color: T.text, whiteSpace: 'nowrap' })
+  const details = (
+    <section aria-label={t.details} style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: 14, borderRadius: 14, background: T.s1, border: `1px solid ${T.s1Line}` }}>
+      <div role="radiogroup" aria-label={t.category} style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+        <span style={{ fontSize: 12, fontWeight: 800, color: T.text2 }}>{t.category}</span>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {CATEGORIES.map(c => { const on = x.cat === c.id; return (
+            <button key={c.id} type="button" role="radio" aria-checked={on} onClick={() => set({ cat: c.id })} style={chip(on, c.color)} title={isEn ? c.en : c.he}>
+              <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: '50%', background: c.color }}/>{isEn ? c.en_short : c.short}
+            </button>
+          ) })}
+        </div>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+        <label htmlFor="au-tpl-proj" style={{ fontSize: 12, fontWeight: 800, color: T.text2 }}>{t.projectLbl} <span style={{ fontWeight: 500, color: T.text3 }}>· {t.projectHint}</span></label>
+        <input id="au-tpl-proj" value={x.project || ''} onChange={e => set({ project: e.target.value })} placeholder={t.projectPh} maxLength={80} style={inputStyle}/>
+        {projects.length > 0 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {projects.slice(0, 10).map(pr => { const on = sameProject(pr.name, x.project); return (
+            <button key={pr.name} type="button" aria-pressed={on} onClick={() => set({ project: on ? '' : pr.name })} style={chip(on)} title={pr.templates ? t.projTpls(pr.templates) : t.projLeads(pr.leads)}>
+              <Icon name="home" size={12}/>{pr.name}{pr.templates > 0 && <span style={{ fontSize: 11, color: T.text3, fontWeight: 700 }}>{pr.templates}</span>}
+            </button>
+          ) })}
+        </div>}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
+        <Field label={`${t.tplName} · ${t.tabHe}`} htmlFor="au-tpl-name">
+          <input id="au-tpl-name" dir="rtl" lang="he" value={x.he_title || ''} onChange={e => set({ he_title: e.target.value })} placeholder={ideas[0] || t.namePh} maxLength={80} style={inputStyle}/>
+        </Field>
+        <Field label={`${t.tplName} · English`} htmlFor="au-tpl-name-en">
+          <input id="au-tpl-name-en" dir="ltr" lang="en" value={x.en_title || ''} onChange={e => set({ en_title: e.target.value })} placeholder={ideasEn[0] || 'Template name'} maxLength={80} style={inputStyle}/>
+        </Field>
+      </div>
+      {ideas.length > 0 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: T.text3 }}>{t.nameIdeas}</span>
+        {ideas.map((n, i) => <button key={n} type="button" aria-pressed={x.he_title === n} onClick={() => set({ he_title: n, ...(x.en_title ? {} : { en_title: ideasEn[i] || ideasEn[0] || '' }) })} style={chip(x.he_title === n)}><bdi>{n}</bdi></button>)}
+      </div>}
+    </section>
+  )
   const editorPane = (
     <div style={{ overflow: 'auto', padding: 20, display: pane === 'edit' ? 'flex' : undefined, flexDirection: 'column', gap: 12, minHeight: 0 }} className={pane === 'edit' ? undefined : 'au-hide-m'}>
+      {details}
       <div role="tablist" aria-label={t.tplName} style={{ display: 'flex', gap: 4, borderBottom: `1px solid ${T.line}` }}>
         {['he', 'en'].map(l => {
           const has = !!(x[l] || '').trim()
@@ -330,17 +389,6 @@ function TemplateEditor({ t, lang, cfg, tpl, leads, onClose, onSave, toast, onGo
           )
         })}
       </div>
-      <select value={x.cat} onChange={e => set({ cat: e.target.value })} aria-label={t.category} className="au-only-m" style={{ ...inputStyle }}>
-        {CATEGORIES.map(c => <option key={c.id} value={c.id}>{isEn ? c.en : c.he}</option>)}
-      </select>
-      <Field label={t.tplName} htmlFor="au-tpl-name">
-        <input id="au-tpl-name" dir={tab === 'he' ? 'rtl' : 'ltr'} lang={tab} value={x[`${tab}_title`] || ''} onChange={e => set({ [`${tab}_title`]: e.target.value })} style={inputStyle}/>
-      </Field>
-      <Field label={isEn ? 'Property / project (optional)' : 'נכס / פרויקט (לא חובה)'} htmlFor="au-tpl-proj">
-        <input id="au-tpl-proj" value={x.project || ''} onChange={e => set({ project: e.target.value })} placeholder={isEn ? 'e.g. 15 Zerubavel — its leads see this message first' : 'למשל זרובבל 15 — הלידים שלו יראו את ההודעה ראשונה'} style={inputStyle}/>
-      </Field>
-      <TemplateImageField value={x.image || ''} onChange={v => set({ image: v })} lang={lang}/>
-      <TemplateFilesField value={x.files || []} onChange={v => set({ files: v })} lang={lang}/>
       <div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 2, height: 40, padding: '0 4px', background: T.s3, border: `1px solid ${T.s3Line}`, borderBottom: 'none', borderRadius: '9px 9px 0 0' }}>
           <IconButton icon={<FaBold size={11}/>} label={t.tBold} onClick={() => fmt('*')}/>
@@ -371,6 +419,8 @@ function TemplateEditor({ t, lang, cfg, tpl, leads, onClose, onSave, toast, onGo
         )}
         {tooLong ? <div style={{ color: T.redText }}>{t.tooLong}</div> : text.length > 220 ? <div style={{ color: T.amberText }}>{t.longHint}</div> : null}
       </div>
+      <TemplateImageField value={x.image || ''} onChange={v => set({ image: v })} lang={lang}/>
+      <TemplateFilesField value={x.files || []} onChange={v => set({ files: v })} lang={lang}/>
     </div>
   )
   const previewPane = (

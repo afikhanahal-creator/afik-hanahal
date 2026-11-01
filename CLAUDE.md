@@ -347,6 +347,19 @@ property's templates grouped by property, "לתיבה" / "שלח". A template wi
 already in storage — no upload, no video byte before sending; its picture joins them first, `templateAttachments()`); sent as is
 from the chips / menu / window they go after the text (`sendFiles` takes `{ url, name }` items). Automatic sends still carry only
 the picture.
+**Template names and projects** (2026-11-01, `lib/template-edit.js` `knownProjects()` / `titleIdeas()` / `autoTitle()`, tested): the
+templates tab's editor opens with "פרטי התבנית" — the category as colored chips (no native select), "פרויקט / קבוצה" (any name typed,
+or a chip of the projects the templates and leads already have) and the name in Hebrew + English with "הצעות לשם" (`<category> ·
+<project>`, `<project> · <first words>`, the first words — never a name already taken, a number added); saving without a name takes
+the first idea. The library has a "פרויקטים:" filter row and a project / 📎 badge per card; a new template from a project filter
+starts in that project. The chat's quick editor has the same chips and ideas.
+**"Handled" — off "ממתינים לתשובה" by hand** (2026-11-01, `lib/wa-actions.js` `isHandled` / `withHandled` / `withoutHandled`, tested):
+a ✓ on every waiting row in the chats list (on hover; always faint on touch), "✓ טופל · ממתין N" in the open chat's header, and in
+the waiting filter "בחירה" → checkboxes, "בחירת הכל", "✓ טופל (N)"; an undo bar "הוסרו N · בטל" for 9 s. `markHandled()` /
+`unmarkHandled()` (`src/lib/waWaiting.js`) drop it at once on every screen (board chips, Lead Center, the sidebar count) and save
+`POST /api/meta/chat-waiting-done { items: [{ phone, ts }] | undo: [phones] }` → `app_settings.wa_waiting_done` (last 9 digits →
+the lead's last message time; 60 days); `chat-waiting` leaves those out and returns `done`. The chat waits again as soon as the lead
+writes something newer.
 **WhatsApp's own ticks** (`TickMark` in `src/waShared.jsx`): the SVG shapes WhatsApp Web draws — one check = sent, two = delivered,
 two in `#53BDEB` = read (or played) — in the chats tab, its list and the Lead Center / lead card; a clock while sending, "!" failed.
 **The chat list** has filters "הכל · לא נקראו · ממתינים לתשובה" (counts;
