@@ -310,6 +310,14 @@ accepts it and ✓✓ / blue arrive live; Green's history is re-read after a sen
 `outgoingAPIMessageWebhook`) and points `webhookUrl` at us when either drifted (at most once an hour); `GET /api/meta/chat-settings`
 reports it (`POST {fix:true}` fixes), `chat-status` returns `settings`; probe action `wa-fix`. The chatbot's hook point is
 `handleGreenHook` (an incoming row = a question to answer until a person takes over).
+**Messages written on the office phone are always in the history** (2026-11-01, `server/wa-catchup-migration.sql`, applied):
+Green's webhook brings them as `outgoingMessageReceived` (`by_api = false`, ~2 s; 338 in the week before), and `auto-tick` /
+`auto-run` also run `catchUpMessages()` (`lib/automations.js`): Green's `lastIncomingMessages` + `lastOutgoingMessages` of the last
+3 hours → `afik_wa_catchup(rows)` inserts whatever a missed delivery left out — **announced** on the change bus (unlike the quiet
+backfill), so open chats, the waiting list and the alerts get it like a live message. The automations count such a conversation:
+`afik_wa_last(days)` (the newest message each way per phone) → `chatClock()` (`lib/automations-shared.js`, tested): the no-reply
+step waits from our latest message wherever it was written (phone, panel or an automatic send), a reply Green's journal missed
+stops the sequence, and a lead we already wrote to is never offered a "missed welcome".
 **Reactions, like WhatsApp** (2026-10-26): a `reactionMessage` used to show as its own bubble with the word "reactionMessage" —
 Green's history keeps the emoji in `extendedTextMessage.text` and the target in `quotedMessage.stanzaId`, which `slimGreenMsg`
 dropped. Now `slimGreenMsg` (`api/meta.js`) and `rowToGreen()` / `mergeHistory()` (`lib/green-hook.js`; a stored row fills an empty
