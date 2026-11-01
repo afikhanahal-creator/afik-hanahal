@@ -16,6 +16,7 @@ import { untemplate } from '../lib/template-edit.js'
 import { DARK, LIGHT, DOODLE_DARK, DOODLE_LIGHT, normalizeGreenMsg, TickMark, LeadFormCard } from './waShared.jsx'
 import { foldReactions } from './lib/waMerge.js'
 import { NotesButton, FollowUpButton } from './FollowUpTask.jsx'
+import { StageMenu, AiNoteButton } from './ChatLeadTools.jsx'
 import { leadFormCard } from './lib/leadHistory.js'
 import { onWaLive, waLiveUp, mergeLive } from './lib/waLive.js'
 import { setViewing, desktopPermission } from './lib/waNotify.js'
@@ -151,7 +152,7 @@ function Avatar({ c, size = 40, lang }) {
 
 
 // ─── Component ────────────────────────────────────────────────────────────────
-export default function GreenAPIChat({ leads = [], lang = 'he', initialContact = null, onOpenLead, onUpdateLead, onDeleteLead, onNewMessage, onSentMessage, onReadChange, autoConfig = null, onAutoConfigSaved }) {
+export default function GreenAPIChat({ leads = [], lang = 'he', initialContact = null, onOpenLead, onUpdateLead, onUpdateStatus, stageLabels = {}, onDeleteLead, onNewMessage, onSentMessage, onReadChange, autoConfig = null, onAutoConfigSaved }) {
 
   // ── Theme ─────────────────────────────────────────────────────────────────
   const [isDark, setIsDark] = useState(() => { try { return localStorage.getItem('whatsapp_theme_v2') === 'dark' } catch { return false } })
@@ -1036,7 +1037,9 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                   onSend={(text, o) => sendMsg(text, o)}
                   onInsert={putInBox} onEdit={openEdit}
                   onOpenPanel={() => { setQuickOpen(true); setEmoji(false) }}/>
-                {crmRow && onUpdateLead && <span style={{ display:'inline-flex', gap:6, flexShrink:0 }}>
+                {crmRow && onUpdateLead && <span style={{ display:'inline-flex', gap:6, flexShrink:0, alignItems:'center' }}>
+                  {onUpdateStatus && <StageMenu lead={crmRow} lang={lang} stageLabels={stageLabels} WA={WA} onChange={st => onUpdateStatus(crmRow, st)}/>}
+                  <AiNoteButton lead={crmRow} lang={lang} stageLabels={stageLabels} WA={WA} onUpdateLead={onUpdateLead} onStage={st => onUpdateStatus?.(crmRow, st)}/>
                   <NotesButton lead={crmRow} lang={lang} size="sm" onSave={p => onUpdateLead(crmRow.id, p)}/>
                   <FollowUpButton lead={crmRow} lang={lang} size="sm" onSave={p => onUpdateLead(crmRow.id, p)}/>
                 </span>}

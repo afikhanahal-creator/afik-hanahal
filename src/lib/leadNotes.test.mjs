@@ -15,3 +15,9 @@ test('one list of notes, the Lead Center old note included once', () => {
   assert.equal(addNote(crm, meta, '   '), null)
   assert.equal(addNote(null, null, 'x', { now: 5 }).patch.notes.length, 1)
 })
+
+import { summaryNote } from './pipelineStages.js'
+test('summaryNote: one readable note from a chat summary', () => {
+  const n = summaryNote({ summary: 'שאלו על המפתח.', leadWants: 'דירת 4 חדרים', agreed: ['נשלח תוכניות'], openQuestions: [], nextStep: 'להתקשר מחר' })
+  assert.equal(n, 'סיכום שיחה (AI): שאלו על המפתח.\nמה רוצים: דירת 4 חדרים\nסוכם: נשלח תוכניות\nהצעד הבא: להתקשר מחר')
+})
