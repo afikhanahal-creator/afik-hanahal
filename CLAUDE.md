@@ -279,6 +279,12 @@ the lead card's notes list), "הזזה" (the date / time picker with the quick p
 reminder goes out again at the new time: `remindedAt` cleared) and delete. Past rows are grey, done ones struck through. "משימה
 חדשה": pick a lead (name / phone search), follow-up or task, what, when, reminder (on). A container query turns rows into cards
 under 1060 px.
+**Ready-made tasks** (2026-11-01, `lib/task-presets.js`, tested; `src/TaskPresetInput.jsx`): the task boxes — the lead card's
+follow-up ("פולו אפ – לחזור אליהם") and tasks fields, and the follow-ups screen's "משימה חדשה" — are a combobox: a click or ▾
+opens ~45 common CRM tasks in 8 groups (calls · send on WhatsApp · meetings & viewings · qualifying · financing · deal & signing ·
+retention & referrals · housekeeping; follow-ups list calls first), typing filters them (Hebrew or English), ↑ / ↓ / Enter / Esc;
+a pick fills the text and, when "when" is still empty, its suggested time (`presetDue()`: days ahead at an Israel hour, never in the
+past, Saturday → Sunday). Texts the office typed itself come first ("בשימוש לאחרונה", `localStorage.afik_task_recent_v1`, 8).
 **Date / time picker** (`src/DateTimePicker.jsx`): every admin date field (lead card follow-up and task due, call summary, the leads dashboard's custom range, bulk-send scheduling) — quick picks, a month calendar (Sunday first, RTL, today marked, arrows / PageUp / PageDown / Home), time chips 07:00–21:00 + any time typed, formats `date` / `local` / `iso` (Israel time); a bottom sheet on phones. `Popover` (automationsUI) ignores clicks inside the picker's portal, and both call `preventDefault` on Esc so the lead card under them stays open.
 
 **Live WhatsApp engine** (2026-10-25 — a lead's reply used to be missing: Green's incoming journal was off, so `getChatHistory`

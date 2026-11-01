@@ -16,6 +16,7 @@ import DateTimePicker from './DateTimePicker.jsx'
 import { FollowUpComposer, FollowUpList, FollowUpButton } from './FollowUpTask.jsx'
 import { followUpPresets, setNextFollowUp, dueIso, describeDue } from '../lib/follow-up.js'
 import WaFace from './WaFace.jsx'
+import TaskPresetInput, { rememberTaskText } from './TaskPresetInput.jsx'
 
 const TR = {
   he: {
@@ -562,6 +563,7 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
   const addTask = () => {
     const text = taskDraft.trim(); if (!text) return
     const due = dueIso(taskDue)
+    rememberTaskText(text)
     save({ tasks: [...tasks, { id: uid(), text, due, done: false, createdAt: Date.now(), kind: 'task', remind: !!due && taskRemind }] }); setTaskDraft(''); setTaskDue('')
   }
   const plainTasks = tasks.filter(x => x.kind !== 'followup' || x.done)   // open follow-ups have their own list above
@@ -588,7 +590,8 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
     </Section>
     <Section title={t.tabs.tasks} icon={FaTasks}>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <input className="lc-in" style={{ flex: '1 1 240px' }} value={taskDraft} placeholder={t.taskPh} onChange={e => setTaskDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') addTask() }}/>
+        <TaskPresetInput style={{ flex: '1 1 240px' }} value={taskDraft} placeholder={t.taskPh} onChange={setTaskDraft} onEnter={addTask} lang={lang}
+          onPick={(p, d) => { if (!taskDue && d) setTaskDue(d) }}/>
         <DateTimePicker value={taskDue} onChange={setTaskDue} format="iso" lang={lang} label={t.due} placeholder={t.due} presets={followUpPresets(Date.now(), lang)}/>
         <label className="fu-bell" title={t.taskRemindTip} style={{ opacity: taskDue ? 1 : .55 }}>
           <input type="checkbox" checked={taskRemind} onChange={e => setTaskRemind(e.target.checked)}/>

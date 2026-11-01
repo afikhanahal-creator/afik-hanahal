@@ -7,6 +7,7 @@ import DateTimePicker from './DateTimePicker.jsx'
 import { Popover } from './automationsUI.jsx'
 import { addFollowUp, followUpPresets, defaultFollowUpText, describeDue, dueIso, updateTasks, openFollowUps } from '../lib/follow-up.js'
 import { leadNotes, addNote } from './lib/leadNotes.js'
+import TaskPresetInput, { rememberTaskText } from './TaskPresetInput.jsx'
 
 const L = (lang, he, en) => (lang === 'en' ? en : he)
 
@@ -68,6 +69,7 @@ export function FollowUpComposer({ lead, lang = 'he', onSave, onDone, autoFocus 
     try {
       const res = await onSave(r.patch, r.task)
       if (res === false) throw new Error('save')
+      rememberTaskText(text)
       setText(''); setDue('')
       onDone?.(r.task)
     } catch { setErr(L(lang, 'השמירה נכשלה, נסו שוב', 'Could not save, try again')) }
@@ -75,8 +77,8 @@ export function FollowUpComposer({ lead, lang = 'he', onSave, onDone, autoFocus 
   }
   return (
     <div className="fu" dir={lang === 'en' ? 'ltr' : 'rtl'}>
-      <input className="fu-in" value={text} autoFocus={autoFocus} onChange={e => setText(e.target.value)} placeholder={defaultFollowUpText(lead, lang)}
-        aria-label={L(lang, 'מה לעשות', 'What to do')} onKeyDown={e => { if (e.key === 'Enter') save() }}/>
+      <TaskPresetInput value={text} onChange={setText} autoFocus={autoFocus} lang={lang} kind="followup" placeholder={defaultFollowUpText(lead, lang)}
+        ariaLabel={L(lang, 'מה לעשות', 'What to do')} onEnter={save} onPick={(p, d) => { if (!due && d) setDue(d) }} inputStyle={{ height: 40 }}/>
       <div className="fu-row">
         <DateTimePicker value={due} onChange={setDue} format="iso" lang={lang} presets={presets} min={new Date().toISOString().slice(0, 10)}
           placeholder={L(lang, 'מתי לחזור אליהם?', 'When to get back?')} label={L(lang, 'מתי', 'When')} clearable={false} style={{ flex: '1 1 210px' }}/>

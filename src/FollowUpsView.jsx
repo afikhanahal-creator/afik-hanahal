@@ -11,6 +11,7 @@ import WaFace from './WaFace.jsx'
 import { taskAgenda, agendaBucket, updateTasks, addFollowUp, followUpPresets, defaultFollowUpText, israelParts, dueIso } from '../lib/follow-up.js'
 import { addNote, asNotes } from './lib/leadNotes.js'
 import { leadCampaign } from './lib/leadFields.js'
+import TaskPresetInput, { rememberTaskText } from './TaskPresetInput.jsx'
 
 const pad = n => String(n).padStart(2, '0')
 const local = p => { const d = String(p || '').replace(/\D/g, ''); const l = d.startsWith('972') ? '0' + d.slice(3) : d; return l.length === 10 ? `${l.slice(0, 3)}-${l.slice(3, 6)}-${l.slice(6)}` : l }
@@ -173,6 +174,7 @@ function NewTaskDialog({ leads, t, en, lang, onClose, onUpdate }) {
   }, [q, leads])
   const save = () => {
     if (!lead || !dueIso(due)) return
+    rememberTaskText(text)
     if (kind === 'followup') { const r = addFollowUp(lead, { text, due, remind }); if (r) onUpdate(lead.id, r.patch) }
     else onUpdate(lead.id, updateTasks(lead, [...(lead.tasks || []), { id: uid(), text: text.trim() || t.task, due: dueIso(due), done: false, createdAt: Date.now(), kind: 'task', remind }]))
     onClose()
@@ -208,7 +210,8 @@ function NewTaskDialog({ leads, t, en, lang, onClose, onUpdate }) {
           {[['followup', t.fu], ['task', t.task]].map(([id, l]) => <button key={id} type="button" aria-pressed={kind === id} onClick={() => setKind(id)}>{l}</button>)}
         </div>
         <label className="fv-lbl" htmlFor="fv-what">{t.what}</label>
-        <input id="fv-what" className="fv-input" value={text} onChange={e => setText(e.target.value)} placeholder={kind === 'followup' && lead ? defaultFollowUpText(lead, lang) : t.whatPh} dir="auto"/>
+        <TaskPresetInput id="fv-what" value={text} onChange={setText} lang={lang} kind={kind} placeholder={kind === 'followup' && lead ? defaultFollowUpText(lead, lang) : t.whatPh}
+          onPick={(p, d) => { if (!due && d) setDue(d) }} inputStyle={{ height: 42 }}/>
         <label className="fv-lbl">{t.when}</label>
         <DateTimePicker value={due} onChange={setDue} format="iso" lang={lang} presets={followUpPresets(Date.now(), lang)} label={t.when} style={{ width: '100%' }}/>
         <button type="button" role="checkbox" aria-checked={remind} className="fv-remind" onClick={() => setRemind(r => !r)}>
