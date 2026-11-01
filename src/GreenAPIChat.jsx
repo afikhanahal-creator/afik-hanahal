@@ -11,7 +11,9 @@ import { useAttachments, useFileDrop, DropOverlay } from './ChatAttachments.jsx'
 import { CHAT_ACCEPT, sendFiles } from './lib/chatFiles.js'
 import { imageThumb } from './lib/templateImage.js'
 import TemplateQuickEdit from './TemplateQuickEdit.jsx'
-import { renderTemplate, leadLang as leadLangOf } from '../lib/automations-shared.js'
+import { renderTemplate, leadLang as leadLangOf, leadProperty } from '../lib/automations-shared.js'
+import { messageToTemplate } from '../lib/template-edit.js'
+import ChatMsgMenu from './ChatMsgMenu.jsx'
 import { untemplate } from '../lib/template-edit.js'
 import { DARK, LIGHT, DOODLE_DARK, DOODLE_LIGHT, normalizeGreenMsg, TickMark, LeadFormCard } from './waShared.jsx'
 import { foldReactions } from './lib/waMerge.js'
@@ -841,6 +843,11 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
       {/* ── CSS keyframes ─────────────────────────────────────────────────── */}
       <style>{`
         @keyframes wa-spin { to { transform: rotate(360deg); } }
+        /* a bubble's ▾ menu (copy · save as a template) shows on hover, like WhatsApp Web */
+        .wa-bubble .wa-bub-btn { opacity: 0; transition: opacity .12s; }
+        .wa-bubble:hover .wa-bub-btn, .wa-bub-btn[aria-expanded="true"], .wa-bub-btn:focus-visible { opacity: 1; }
+        @media (hover: none) { .wa-bubble .wa-bub-btn { opacity: .55; } }
+        .wa-bub-item:hover { background: rgba(127,127,127,.12) !important; }
         ${SPLITTER_CSS}
         /* Phone: one pane at a time, like the WhatsApp app — the chat list, then the open chat with a back arrow */
         @media (max-width: 760px) {
@@ -1176,7 +1183,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                     items.push(
                       <div key={msg.id||i}
                         style={{ display:'flex', justifyContent:isOut?'flex-end':'flex-start', marginBottom:(isLastInGroup?6:2) + (hasReacts ? 16 : 0), flexShrink:0, direction:'ltr', paddingRight:isOut?8:0, paddingLeft:isOut?0:8 }}>
-                        <div style={{
+                        <div className="wa-bubble" style={{
                           direction:'rtl',
                           maxWidth:'65%', minWidth:90,
                           padding:'6px 9px 22px 9px',
@@ -1190,6 +1197,11 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                           opacity: isOptimistic ? 0.75 : 1,
                           transition:'opacity .3s',
                         }}>
+                          {!isOptimistic && <ChatMsgMenu text={msg.message} isOut={isOut} WA={WA} lang={lang} onSaveTemplate={text => {
+                            const he = /[\u0590-\u05FF]/.test(text)
+                            const body = messageToTemplate(text, chatLead || {})
+                            setEditTpl({ tpl: { cat: 'personal', he: '', en: '', he_title: '', en_title: '', project: leadProperty(chatLead || {}) || '' }, initial: he ? { he: body, en: '' } : { he: '', en: body }, lang: he ? 'he' : 'en', create: true })
+                          }}/>}
                           {/* our messages on the right (tail bottom-right), the contact's on the left (tail bottom-left) */}
                           {isLastInGroup && isOut && (
                             <svg style={{ position:'absolute', bottom:0, right:-8, width:9, height:13 }} viewBox="0 0 9 13" aria-hidden="true">
@@ -1264,7 +1276,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
               </div>
 
               {editTpl && (
-                <TemplateQuickEdit WA={WA} lang={lang} lead={chatLead} tpl={editTpl.tpl} initial={editTpl.initial} initialLang={editTpl.lang} fromChat={editTpl.fromChat}
+                <TemplateQuickEdit WA={WA} lang={lang} lead={chatLead} tpl={editTpl.tpl} initial={editTpl.initial} initialLang={editTpl.lang} fromChat={editTpl.fromChat} create={!!editTpl.create}
                   autoConfig={cfgEff} onClose={() => setEditTpl(null)}
                   onSaved={(next, id) => {
                     setCfgLocal(next); onAutoConfigSaved?.(next)

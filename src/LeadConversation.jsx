@@ -10,7 +10,9 @@ import { DARK, LIGHT, DOODLE_DARK, DOODLE_LIGHT, normalizeGreenMsg, TickMark, Le
 import { leadFormCard } from './lib/leadHistory.js'
 import TemplateQuickEdit from './TemplateQuickEdit.jsx'
 import Splitter, { SPLITTER_CSS } from './Splitter.jsx'
-import { CATEGORIES, getTemplate, mergeConfig, leadLang, stageCategory } from '../lib/automations-shared.js'
+import { CATEGORIES, getTemplate, mergeConfig, leadLang, stageCategory, leadProperty } from '../lib/automations-shared.js'
+import { messageToTemplate } from '../lib/template-edit.js'
+import ChatMsgMenu from './ChatMsgMenu.jsx'
 import { mergeConversation, templateOptions, sendErrorText } from './lib/leadConversation.js'
 import { imageThumb } from './lib/templateImage.js'
 import { Icon, CatTile } from './uiIcons.jsx'
@@ -396,7 +398,11 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
     const reacts = m.reactions || []
     items.push(
       <div key={m.id || i} className={`lcv-row ${out ? 'out' : 'in'}`} style={{ marginTop: firstOfRun ? 8 : 2, marginBottom: (lastOfRun ? 2 : 0) + (reacts.length ? 16 : 0) }}>
-        <div className={`lcv-b ${out ? 'out' : 'in'}${firstOfRun ? ' tail' : ''}`} style={{ opacity: sending ? .7 : 1 }}>
+        <div className={`lcv-b wa-bubble ${out ? 'out' : 'in'}${firstOfRun ? ' tail' : ''}`} style={{ opacity: sending ? .7 : 1, position: 'relative' }}>
+          {!String(m.id).startsWith('opt-') && <ChatMsgMenu text={m.message} isOut={out} WA={WA} lang={lang} onSaveTemplate={text => {
+            const he = /[\u0590-\u05FF]/.test(text), body = messageToTemplate(text, tplLead || {})
+            setEditTpl({ tpl: { cat: 'personal', he: '', en: '', he_title: '', en_title: '', project: leadProperty(tplLead || {}) || '' }, initial: he ? { he: body, en: '' } : { he: '', en: body }, lang: he ? 'he' : 'en', create: true })
+          }}/>}
           {m.quoted && <div className="lcv-quote" style={{ borderInlineStartColor: m.quoted.out ? WA.green : '#53BDEB' }}>{m.quoted.text}</div>}
           {m.media && (m.kind === 'imageMessage' || m.kind === 'stickerMessage') && (m.media.url || m.media.thumb) && (
             <a href={m.media.url || undefined} target="_blank" rel="noreferrer" style={{ display: 'block', margin: '-3px -4px 4px' }}>
@@ -461,6 +467,7 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
         .lcv-b.tail.out::before{right:-8px;border-top-color:${isDark ? '#005C4B' : '#D9FDD3'};border-right:8px solid transparent}
         .lcv-b.tail.in::before{left:-8px;border-top-color:${isDark ? '#202C33' : '#FFFFFF'};border-left:8px solid transparent}
         .lcv-txt{unicode-bidi:plaintext;text-align:right;white-space:pre-wrap}
+        .wa-bubble .wa-bub-btn{opacity:0;transition:opacity .12s}.wa-bubble:hover .wa-bub-btn,.wa-bub-btn[aria-expanded="true"],.wa-bub-btn:focus-visible{opacity:1}@media (hover:none){.wa-bubble .wa-bub-btn{opacity:.55}}.wa-bub-item:hover{background:rgba(127,127,127,.12)!important}
         .lcv-sp{display:inline-block;width:46px;height:1px;vertical-align:middle}
         .lcv-sp.o{width:66px}
         .lcv-meta{position:absolute;bottom:4px;left:7px;display:flex;align-items:center;gap:3px;direction:ltr;font-size:11px;color:${isDark ? 'rgba(233,237,239,.6)' : '#667781'};line-height:15px}
@@ -675,7 +682,7 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
       </div>
 
       {editTpl && (
-        <TemplateQuickEdit WA={WA} lang={lang} lead={tplLead} tpl={editTpl.tpl} initial={editTpl.initial} initialLang={editTpl.lang} fromChat={editTpl.fromChat}
+        <TemplateQuickEdit WA={WA} lang={lang} lead={tplLead} tpl={editTpl.tpl} initial={editTpl.initial} initialLang={editTpl.lang} fromChat={editTpl.fromChat} create={!!editTpl.create}
           autoConfig={cfg} onClose={() => setEditTpl(null)} onSaved={next => { setCfgLocal(next); onAutoConfigSaved?.(next) }}/>
       )}
     </div>
