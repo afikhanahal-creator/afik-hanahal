@@ -5,6 +5,7 @@
 // Props: { C, lang, isDark, onSaveToCRM, onOpenChat, onNew*, crmLeads, autoConfig, onAutoConfigSaved }
 
 import WaitingChip from './WaitingChip.jsx'
+import { PIPELINE } from './lib/pipelineStages.js'
 import { Icon } from './uiIcons.jsx'
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
@@ -334,17 +335,6 @@ function loadLayout() {
 // stage names arrive as the stageLabels prop
 const HISTORY_ICON = { inquiry: '📝', booking: '📅', stage: '➜', note: '🗒', auto: '💬' }
 
-const PIPELINE = [
-  { id: 'new', he: 'ליד חדש', en: 'New Leads', color: '#0073EA' },
-  { id: 'contacted', he: 'ניצור קשר', en: 'Contacted', color: '#FDAB3D' },
-  { id: 'discovery', he: 'גילוי', en: 'Discovery', color: '#A25DDC' },
-  { id: 'meeting', he: 'נקבעה פגישה', en: 'Meeting set', color: '#4F6BED' },
-  { id: 'negotiating', he: 'במו"מ', en: 'In Negotiation', color: '#FF7575' },
-  { id: 'won', he: 'סגירה', en: 'Closed Won', color: '#00C875' },
-  { id: 'lost', he: 'ללא מענה', en: 'No Answer', color: '#7D7D7D' },
-  { id: 'irrelevant', he: 'לא רלוונטי', en: 'Not relevant', color: '#64748B' },
-  { id: 'nurture', he: 'לחזור בעוד כמה חודשים', en: 'Nurture (later)', color: '#0E9AA7' },
-]
 
 const PATCH = (body) => fetch('/api/meta/leads', { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` }, body: JSON.stringify(body) })
 

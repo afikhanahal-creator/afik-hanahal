@@ -3636,6 +3636,8 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
                 setInitialChatLead(null); setTab('leads')
               }}
               onUpdateLead={updateLead}
+              onUpdateStatus={updateLeadStatus}
+              stageLabels={stageLabels}
               onDeleteLead={id => deleteLead(id)}
               onNewMessage={({ contactName, message, phone, id, ts }) => notifyIncoming({ id, phone, text: message || '📎', senderName: contactName, ts })}
               onReadChange={handleChatsRead}
