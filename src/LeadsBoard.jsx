@@ -1,3 +1,5 @@
+import WaitingChip from './WaitingChip.jsx'
+import { useWaiting, waitingOf } from './lib/waWaiting.js'
 import { useState, useRef, useCallback, useEffect, useMemo, createContext, useContext } from 'react'
 import DateTimePicker from './DateTimePicker.jsx'
 import { ensureFuCss } from './FollowUpTask.jsx'
@@ -534,6 +536,7 @@ function MobileLeadCard({ lead, lang, T, onUpdate, onDelete, onOpenDetail, onSta
           <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
             <StatusBadge value={lead.leadStatus || 'new'} lang={lang} T={T} onClick={e => { e.stopPropagation(); onStatusClick(e, lead) }} />
             <WelcomeMark lead={lead} lang={lang}/>
+            <WaitingChip phone={lead.phone} lang={lang} onOpen={onOpenChat ? () => onOpenChat(lead) : undefined}/>
           </div>
         </div>
         {/* ⋯ menu */}
@@ -834,6 +837,7 @@ function SortableRow({ lead, cols, onUpdate, onDelete, onSelect, isSelected, lan
               </div>
               {!renaming && hovered && <button type="button" className="lb-name-pen" onClick={() => setRenaming(true)} aria-label={lang === 'en' ? 'Rename' : 'שינוי שם'} title={lang === 'en' ? 'Rename' : 'שינוי שם'}><Pencil size={12}/></button>}
               {!renaming && <WelcomeMark lead={lead} lang={lang} compact/>}
+              {!renaming && <WaitingChip phone={lead.phone} lang={lang} size="xs" onOpen={onOpenChat ? () => onOpenChat(lead) : undefined}/>}
               {camp && <span title={leadCampaignFull(lead, lang)} style={{ flex: '1 1 0', minWidth: 0, fontSize: 11.5, fontWeight: 500, color: T.textSub, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>(<bdi>{camp}</bdi>)</span>}
             </div>
           )
@@ -1497,8 +1501,9 @@ function KanbanCard({ lead, T, isDark, lang, onOpen, onDelete, onOpenChat, onEnr
         {sel && <CheckBox checked={selected} onChange={(on, shift) => sel.toggle(lead.id, on, shift)} label={(en ? 'Select ' : 'בחירת ') + (lead.name || '')} size={18} className="lb-card-check"/>}
       </div>
 
-      {/* tags: campaign · source · intent */}
+      {/* tags: waiting for our reply · campaign · source · intent */}
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 5, marginTop: 9 }}>
+        <WaitingChip phone={lead.phone} lang={lang} onOpen={onOpenChat ? () => onOpenChat(lead) : undefined}/>
         {campaign && <span title={leadCampaignFull(lead, lang)} style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11.5, fontWeight: 500, color: T.text, background: isDark ? 'rgba(255,255,255,.06)' : '#F1F3F9', borderRadius: 6, padding: '2px 8px' }}><bdi>{campaign}</bdi></span>}
         {campaign !== sourceLabel(src, lang) && <span title={sourceLabel(src, lang)} style={{ fontSize: 11.5, fontWeight: 500, color: sourceColor(src), display: 'inline-flex', alignItems: 'center', gap: 5 }}><span style={{ width: 6, height: 6, borderRadius: '50%', background: sourceColor(src) }}/>{sourceLabel(src, lang)}</span>}
         {score && <span style={{ fontSize: 11.5, fontWeight: 600, color: score.color, background: score.bg, borderRadius: 6, padding: '2px 8px' }}>{en ? score.en : score.l}</span>}
@@ -2160,17 +2165,23 @@ function LeadsBoardMain({
     [allColsResized]
   )
 
+  // "ממתינים לתשובה": leads whose WhatsApp chat ends with their message (src/lib/waWaiting.js, live)
+  const waiting = useWaiting()
+  const [onlyWaiting, setOnlyWaiting] = useState(false)
+  const waitingCount = useMemo(() => leads.filter(l => waitingOf(waiting, l.phone)).length, [leads, waiting])
+  useEffect(() => { if (!waitingCount) setOnlyWaiting(false) }, [waitingCount])
   const filtered = useMemo(() => {
-    if (!search) return leads
+    const base = onlyWaiting ? leads.filter(l => waitingOf(waiting, l.phone)) : leads
+    if (!search) return base
     const q = search.toLowerCase()
-    return leads.filter(l =>
+    return base.filter(l =>
       (l.name || '').toLowerCase().includes(q) ||
       (l.phone || '').includes(q) ||
       (l.email || '').toLowerCase().includes(q) ||
       (l.propTitle || '').toLowerCase().includes(q) ||
       leadCampaignFull(l, lang).toLowerCase().includes(q)
     )
-  }, [leads, search, lang])
+  }, [leads, search, lang, onlyWaiting, waiting])
 
   const grouped = useMemo(() => {
     const map = {}
@@ -2466,6 +2477,13 @@ function LeadsBoardMain({
           <div style={{ marginInlineStart: 10 }}>
             <FollowUpsButton leads={leads} lang={lang} active={activeTab === 'followups'} onClick={() => setActiveTab('followups')}/>
           </div>
+          {waitingCount > 0 && (
+            <button type="button" className={`fv-btn lb-waiting-btn${onlyWaiting ? ' is-open' : ''}`} aria-pressed={onlyWaiting} style={{ marginInlineStart: 8 }}
+              title={lang === 'en' ? 'Leads who wrote to us on WhatsApp and are waiting for a reply — show only them' : 'לידים שכתבו לנו בוואטסאפ ועוד לא ענינו להם — להציג רק אותם'}
+              onClick={() => { setOnlyWaiting(v => !v); if (activeTab === 'dashboard' || activeTab === 'followups') setActiveTab('pipeline') }}>
+              {lang === 'en' ? 'Waiting for a reply' : 'ממתינים לתשובה'}<span className="fv-btn-n is-late">{waitingCount}</span>
+            </button>
+          )}
         </div>
       </div>
 

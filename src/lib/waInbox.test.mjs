@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { lastOfChat, waitingState, fmtWait, alertText, mergeAlert } from './waInbox.js'
+import { lastOfChat, waitingState, fmtWait, alertText, mergeAlert, applyWaiting } from './waInbox.js'
 
 test('lastOfChat takes the newer of the loaded messages and the list row', () => {
   const msgs = [{ direction: 'out', created_at: '2026-10-25T10:00:00Z', message: 'היי' }]
@@ -43,4 +43,17 @@ test('mergeAlert: one alert per chat, the count grows, a repeat is ignored', () 
   assert.equal(l[1].text, 'ג')
   assert.equal(l[1].id, 1)
   assert.equal(mergeAlert(l, { id: 4, phone: '972501', ids: ['m3'] }), l)
+})
+
+test('applyWaiting: incoming marks the chat, our reply clears it, older messages and reactions change nothing', () => {
+  const m0 = new Map()
+  const inMsg = { type: 'incoming', typeMessage: 'textMessage', textMessage: 'מתי יש מפתח?', timestamp: 1000, phone: '972521234567' }
+  const m1 = applyWaiting(m0, [inMsg])
+  assert.notEqual(m1, m0); assert.equal(m1.get('521234567').text, 'מתי יש מפתח?')
+  assert.equal(applyWaiting(m1, [{ type: 'outgoing', typeMessage: 'textMessage', timestamp: 900, phone: '972521234567' }]), m1)   // an old status update
+  assert.equal(applyWaiting(m1, [{ type: 'outgoing', typeMessage: 'reactionMessage', timestamp: 2000, phone: '972521234567' }]), m1)
+  const m2 = applyWaiting(m1, [{ type: 'outgoing', typeMessage: 'textMessage', timestamp: 1100, phone: '0521234567' }])
+  assert.equal(m2.has('521234567'), false)
+  const m3 = applyWaiting(m2, [{ ...inMsg, timestamp: 1200 }, { type: 'outgoing', typeMessage: 'textMessage', timestamp: 1150, phone: '972521234567' }])
+  assert.equal(m3.get('521234567').ts, 1200000)       // sorted by time: our 1150 reply came before their 1200 message
 })

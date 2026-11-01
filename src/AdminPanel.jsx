@@ -3,6 +3,7 @@
 // App.jsx loads it on demand: const AdminPanel = lazyWithRetry(() => import('./AdminPanel.jsx'))
 // Shared constants / helpers still live in App.jsx and are imported back from there — that is a
 // dynamic→static cycle, which is safe: by the time this chunk evaluates, App.jsx already has.
+import { useWaiting } from './lib/waWaiting.js'
 import { externalizeInlinePhotos } from './inlinePhotos.js'
 import { onSync, busUp, debounce } from './lib/syncBus.js'
 import { setSharedAutoConfig, onSharedAutoConfig } from './lib/autoConfigStore.js'
@@ -1518,6 +1519,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const [leadsSyncing, setLeadsSyncing] = useState(false)
   const [chats, setChats] = useState({})
   const [chatsUnread, setChatsUnread] = useState(0)   // total unread WhatsApp msgs (for tab badge)
+  const waiting = useWaiting()                         // chats whose last word is the lead's (src/lib/waWaiting.js)
   const [metaNewLeads, setMetaNewLeads] = useState(0) // unseen new Meta leads (for tab badge)
   const [intakeStats, setIntakeStats] = useState(null) // /newproperty submissions: counts + latest (for tab badge + "new property" alert)
   const intakeSeenRef = useRef(null)                  // latest submitted_at we have already alerted on
@@ -2883,7 +2885,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     { id:'bookings', Icon:FaCalendarAlt, label:'תיאום פגישות' },
     { id:'content',  Icon:FaFileAlt,     label:'תוכן האתר' },
     { id:'media',    Icon:FaImage,       label:'תמונות האתר' },
-    { id:'chats',    Icon:FaWhatsapp,    label:'צ\'אטים',     badge: chatsUnread },
+    { id:'chats',    Icon:FaWhatsapp,    label:'צ\'אטים',     badge: chatsUnread, waiting: waiting.count },
     { id:'automations', Icon:FaRobot,    label:'אוטומציות',   badge: autoRun?.suggestions?.length || undefined },
     { id:'analytics',    Icon:FaChartLine,   label:'אנליטיקס' },
     { id:'supermetrics', Icon:FaChartBar,   label:'ביצועים' },
@@ -2952,6 +2954,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
                       style={{ width:'100%', display:'flex', alignItems:'center', gap:11, height:38, padding:'0 10px', border:'none', borderRadius:10, background: isActive ? `linear-gradient(90deg,${accent}10,${accent}26)` : 'transparent', boxShadow: isActive ? `inset -2px 0 0 ${accent}` : 'none', color: isActive ? 'var(--au-text)' : 'rgba(var(--ink),.62)', cursor:'pointer', fontFamily:'inherit', fontSize:13, fontWeight: isActive ? 700 : 500, marginBottom:2, textAlign:'start', transition:'background .15s,color .15s', minHeight:0 }}>
                       <span style={{ width:26, height:26, borderRadius:8, display:'inline-flex', alignItems:'center', justifyContent:'center', flexShrink:0, background: isActive ? `${accent}26` : 'transparent', color: isActive ? accent : 'rgba(var(--ink),.5)' }}><item.Icon size={13}/></span>
                       <span style={{ flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.label}</span>
+                      {!!item.waiting && <span title={`${item.waiting} ממתינים לתשובה`} aria-label={`${item.waiting} ממתינים לתשובה`} style={{ minWidth:20, height:20, padding:'0 6px', borderRadius:10, display:'inline-flex', alignItems:'center', justifyContent:'center', fontSize:10.5, fontWeight:800, fontVariantNumeric:'tabular-nums', background:'rgba(245,158,11,.18)', color:'var(--au-amber-text)' }}>⏱ {item.waiting}</span>}
                       {!!item.badge && <span style={{ minWidth:20, height:20, padding:'0 6px', borderRadius:10, display:'inline-flex', alignItems:'center', justifyContent:'center', fontSize:10.5, fontWeight:800, fontVariantNumeric:'tabular-nums', background: isLive ? 'rgba(34,197,94,.16)' : item.id==='chats' ? '#25D366' : item.id==='meta' || item.id==='automations' ? '#E05252' : 'rgba(var(--brand-rgb),.2)', color: isLive ? '#22C55E' : item.id==='chats' ? '#062E16' : item.id==='meta' || item.id==='automations' ? '#fff' : 'var(--au-brand-text)' }}>{item.badge}</span>}
                     </button>
                   )

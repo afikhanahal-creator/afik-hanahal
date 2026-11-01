@@ -319,6 +319,14 @@ two in `#53BDEB` = read (or played) — in the chats tab, its list and the Lead 
 `sessionStorage.afik_wa_filter`), unread rows tinted with a green count, and a chip on every chat whose last word is the lead's
 ("ממתין 25 דק׳" — green < 10 min ≤ amber < 60 min ≤ red; the waiting filter puts the longest wait first) — pure helpers
 `lastOfChat()` / `waitingState()` / `fmtWait()` / `alertText()` / `mergeAlert()` in `src/lib/waInbox.js` (tested).
+**"ממתינים לתשובה" everywhere** (2026-11-01): a lead whose WhatsApp chat ends with their message (reactions don't count) is marked
+on the leads board — a chip on the pipeline card, after the name in the table and on the phone card ("ממתין 5 דק׳", green < 10 min ≤
+amber < 60 min ≤ red; a click opens the chat; the tooltip quotes their message) — and on the Lead Center's list rows (`src/WaitingChip.jsx`);
+the board's header has "ממתינים לתשובה N" (shows only them, `onlyWaiting`) and the sidebar's chats item an amber "⏱ N". One source:
+`public.afik_wa_waiting(days)` (`server/wa-waiting-migration.sql`, applied 2026-11-01: the newest message per phone in `wa_messages`
+is incoming) → `GET /api/meta/chat-waiting` (the office's own number left out) → `src/lib/waWaiting.js` (`useWaiting()` /
+`waitingOf()`): read once, then kept fresh by the live feed (`applyWaiting()` in `src/lib/waInbox.js`, tested: a message in marks
+the chat, ours clears it) and re-read when the window comes back after a minute.
 **Profile pictures** (2026-10-25): every face in the chats list and header, the Lead Center (list, lead header and its Pipeline /
 table / drawer — `MetaKanban`), the leads board (pipeline cards, table name column, mobile cards, drawer, call summary, trash list),
 the lead card's header and conversation, the automations' "היום" rows, the admin home's recent leads (no zoom there — the row is a

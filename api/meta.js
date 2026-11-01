@@ -1217,6 +1217,17 @@ async function handleChat(req, res, action) {
       return res.status(r.ok ? 200 : 502).json(r.ok ? { ok: true } : await greenError(r, 'readChat'))
     }
 
+    // GET /api/meta/chat-waiting → every chat whose last word is the lead's (public.afik_wa_waiting(), server/wa-waiting-migration.sql):
+    // [{ phone, ts, type, text }], newest first, the office's own number left out. The admin keeps it fresh from the live feed.
+    if (action === 'chat-waiting') {
+      if (!SUPABASE_URL || !SUPABASE_KEY) return res.status(200).json({ waiting: [] })
+      const days = Math.min(60, Math.max(1, Number(req.query?.days) || 14))
+      const { data, error } = await sb().rpc('afik_wa_waiting', { days })
+      if (error) return res.status(502).json({ error: error.message })
+      const office = String(process.env.BUSINESS_NOTIFY_CHATID || '972559811814').replace(/@.*/, '').replace(/\D/g, '')
+      return res.status(200).json({ waiting: (data || []).filter(r => r.phone !== office).map(r => ({ phone: r.phone, ts: r.ts, type: r.type, text: r.body || '' })) })
+    }
+
     // GET /api/meta/chat-updates?since=<ISO> → the messages and delivery statuses that reached us since the cursor (the
     // change bus says when; src/lib/waLive.js asks). Each item = Green's history shape + phone; cursor = the newest updated_at.
     if (action === 'chat-updates') {
