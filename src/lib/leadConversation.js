@@ -1,5 +1,5 @@
 // Pure helpers for the Lead Center's conversation (src/LeadConversation.jsx), tested in leadConversation.test.mjs.
-import { templateList, renderTemplate, mergeConfig, welcomeTemplateId, templateImage } from '../../lib/automations-shared.js'
+import { templateList, renderTemplate, mergeConfig, welcomeTemplateId, templateImage, templateFiles } from '../../lib/automations-shared.js'
 
 const norm = s => String(s || '').replace(/\s+/g, ' ').trim()
 const ts = m => Date.parse(m?.created_at || '') || 0
@@ -85,7 +85,7 @@ export function templateOptions(autoConfig, lead, lang = 'he', { outTexts = [], 
   const all = templateList(cfg).map(t => {
     const text = renderTemplate(t, lead || {}, cfg, lang)
     const sig = sigOf(text)
-    return { id: t.id, cat: t.cat || 'general', title: lang === 'en' ? (t.en_title || t.he_title) : (t.he_title || t.en_title), text, image: templateImage(t), isDefault: t.id === defId, sent: sig.length > 12 && out.includes(sig) }
+    return { id: t.id, cat: t.cat || 'general', title: lang === 'en' ? (t.en_title || t.he_title) : (t.he_title || t.en_title), text, image: templateImage(t), files: templateFiles(t), project: t.project || '', isDefault: t.id === defId, sent: sig.length > 12 && out.includes(sig) }
   }).filter(x => x.text.trim() || x.image)
   // the pipeline's order (lib/automations-shared.js CATEGORIES); the window opens on the lead's stage (stageCategory)
   const catOrder = categories.map(c => c.id)

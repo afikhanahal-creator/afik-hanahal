@@ -13,12 +13,14 @@ import Splitter, { SPLITTER_CSS } from './Splitter.jsx'
 import { CATEGORIES, getTemplate, mergeConfig, leadLang, stageCategory, leadProperty } from '../lib/automations-shared.js'
 import { messageToTemplate } from '../lib/template-edit.js'
 import ChatMsgMenu from './ChatMsgMenu.jsx'
+import ChatForward from './ChatForward.jsx'
+import { useSharedLeads } from './lib/leadsStore.js'
 import { mergeConversation, templateOptions, sendErrorText } from './lib/leadConversation.js'
 import { imageThumb } from './lib/templateImage.js'
 import { Icon, CatTile } from './uiIcons.jsx'
 import { insertBooking } from './lib/bookingLink.js'
 import { useAttachments, useFileDrop, pasteFiles, DropOverlay, AttachTray } from './ChatAttachments.jsx'
-import { CHAT_ACCEPT, sendFiles } from './lib/chatFiles.js'
+import { CHAT_ACCEPT, sendFiles, templateAttachments } from './lib/chatFiles.js'
 import { onWaLive, waLiveUp, mergeLive } from './lib/waLive.js'
 import { foldReactions } from './lib/waMerge.js'
 import { setViewing } from './lib/waNotify.js'
@@ -172,6 +174,11 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
   const [error, setError] = useState('')
   const [cfgLocal, setCfgLocal] = useState(null)
   const [editTpl, setEditTpl] = useState(null)
+  const [replyTo, setReplyTo] = useState(null)           // the message this one answers { id, text, isOut } (WhatsApp's quote)
+  const [selMode, setSelMode] = useState(false)          // picking messages to forward
+  const [selIds, setSelIds] = useState([])               // [{ id, text }]
+  const [fwd, setFwd] = useState(null)                   // the forward window: [{ id, text }]
+  const allLeads = useSharedLeads()
   const [dock, setDock] = useState(readDock)              // the composer's dragged height (null = fits its text)
   const [quick, setQuick] = useState(false)               // the quick-replies window (⚡ or "/" at the start of the box)
   const [qMax, setQMax] = useState(null)                  // its height: never taller than the conversation above the box (it was cut at the top)
@@ -245,15 +252,19 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
   const outTexts = useMemo(() => msgs.filter(m => m.direction === 'out').map(m => m.message), [msgs])
   const groups = useMemo(() => templateOptions(cfg, tplLead, tplLang, { outTexts, first, categories: CATEGORIES }), [cfg, tplLead, tplLang, outTexts, first])
   const byId = useMemo(() => Object.fromEntries(groups.flatMap(g => g.items).map(x => [x.id, x])), [groups])
+  const byIdRef = useRef(byId); byIdRef.current = byId
   const putText = useCallback((text, id, image = '') => {
-    setInput(text); setTplId(id || ''); setImg(image || ''); inserted.current = text
+    // a template with files (a property's brochure, plans, photos) puts them in the tray, its picture first
+    const extra = templateAttachments({ image, files: byIdRef.current[id]?.files })
+    if (extra.length) att.addRemote(extra)
+    setInput(text); setTplId(id || ''); setImg(extra.length ? '' : (image || '')); inserted.current = text
     setTimeout(() => { const el = inputRef.current; if (el) { el.focus(); el.setSelectionRange(text.length, text.length) } }, 30)
   }, [])
   // nothing sent yet: the box starts with the automation's welcome (once per lead; an emptied box stays empty)
   useEffect(() => {
     if (!first || prefilled.current || input) return
     const def = groups[0]?.items.find(x => x.isDefault) || groups[0]?.items[0]
-    if (def) { prefilled.current = true; setInput(def.text); setTplId(def.id); setImg(def.image || ''); inserted.current = def.text }
+    if (def) { prefilled.current = true; const extra = templateAttachments(def); if (extra.length) att.addRemote(extra); setInput(def.text); setTplId(def.id); setImg(extra.length ? '' : (def.image || '')); inserted.current = def.text }
   }, [first, groups, input])
   // switching the language re-renders a wording that wasn't edited
   useEffect(() => {
@@ -275,7 +286,10 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
     if (asWelcome) setBusy(true)
     setError(''); nearBottom.current = true
     setPending(p => [...p, { id, direction: 'out', message: img ? `📷 ${msg}`.trim() : msg, created_at: new Date().toISOString(), status: 'sending' }])
-    const r = asWelcome ? await onSendWelcome?.(msg, tplId || 'manual', { image: img }) : await onSend?.(msg, { image: img })
+    const quoted = asWelcome ? null : replyTo
+    if (quoted) setReplyTo(null)
+    const r = asWelcome ? await onSendWelcome?.(msg, tplId || 'manual', { image: img }) : await onSend?.(msg, { image: img, ...(quoted ? { quotedMessageId: quoted.id } : {}) })
+    if (!r?.ok && quoted) setReplyTo(cur => cur || quoted)
     if (asWelcome) setBusy(false)
     if (r?.ok) {
       // ✓ at once; the real bubble (✓✓, blue) arrives live through green-hook → waLive and takes this one's place.
@@ -304,7 +318,9 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
       const w = await onSendWelcome?.(msg, tplId || 'manual', {})
       if (!w?.ok) { setBusy(false); setPending(p => p.filter(m => !String(m.id).startsWith(ids[0].slice(0, -2)))); if (w?.quota) setLine({ ...(line || {}), quota: { blocked: true, at: new Date().toISOString() } }); setError(sendErrorText(w || {}, lang)); return false }
     }
-    const r = await sendFiles(files, firstText ? '' : msg, (text, f) => onSend?.(text, f), (i, st) => {
+    let q = !firstText && replyTo ? replyTo.id : ''   // a reply quotes the first file
+    if (q) setReplyTo(null)
+    const r = await sendFiles(files, firstText ? '' : msg, (text, f) => { const one = q; q = ''; return onSend?.(text, { ...f, ...(one ? { quotedMessageId: one } : {}) }) }, (i, st) => {
       att.setStatus(i, st)
       if (st === 'sent') setPending(p => p.map(m => (m.id === ids[i] ? { ...m, status: 'sent' } : m)))
     })
@@ -318,6 +334,22 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
     setError(sendErrorText(r, lang))
     return false
   }
+  // ── reply / forward / react / select, like WhatsApp (src/ChatMsgMenu.jsx, src/ChatForward.jsx) ──
+  const msgRef = m => ({ id: m.id, isOut: m.direction === 'out', text: String(m.message || '').trim() || (m.media?.name ? `📎 ${m.media.name}` : (lang === 'en' ? 'Attachment' : 'קובץ מצורף')) })
+  const toggleSel = m => setSelIds(cur => cur.some(x => x.id === m.id) ? cur.filter(x => x.id !== m.id) : cur.length >= 10 ? cur : [...cur, msgRef(m)])
+  useEffect(() => { setReplyTo(null); setSelMode(false); setSelIds([]) }, [phone])
+  const reactTo = async (m, emoji) => {
+    if (!phone || !m?.id) return
+    const id = `opt-r-${Date.now()}`
+    setPending(p => [...p, { id, kind: 'reactionMessage', direction: 'out', message: emoji, reactedTo: m.id, created_at: new Date().toISOString(), status: 'sent' }])
+    const r = await fetch('/api/meta/chat-react', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer AFIKhanahal2026' }, body: JSON.stringify({ phone, id: m.id, reaction: emoji }), signal: AbortSignal.timeout(20000) }).catch(() => null)
+    if (!r?.ok) {
+      const d = await r?.json().catch(() => ({})) || {}
+      setPending(p => p.filter(x => x.id !== id))
+      setError(sendErrorText({ error: d.error || (lang === 'en' ? 'The reaction was not sent' : 'התגובה לא נשלחה'), quota: d.quota }, lang))
+    }
+  }
+
   // the booking page link at the cursor, in the language of what is in the box (else the template language)
   const addBooking = () => {
     const el = inputRef.current
@@ -396,10 +428,22 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
       return
     }
     const reacts = m.reactions || []
+    const selectable = selMode && !String(m.id).startsWith('opt-') && !String(m.id).startsWith('log-')
+    const selOn = selectable && selIds.some(x => x.id === m.id)
     items.push(
-      <div key={m.id || i} className={`lcv-row ${out ? 'out' : 'in'}`} style={{ marginTop: firstOfRun ? 8 : 2, marginBottom: (lastOfRun ? 2 : 0) + (reacts.length ? 16 : 0) }}>
+      <div key={m.id || i} className={`lcv-row ${out ? 'out' : 'in'}${selectable ? ' sel' : ''}${selOn ? ' on' : ''}`} style={{ marginTop: firstOfRun ? 8 : 2, marginBottom: (lastOfRun ? 2 : 0) + (reacts.length ? 16 : 0) }}
+        {...(selectable ? { role: 'checkbox', 'aria-checked': selOn, tabIndex: 0, onClick: () => toggleSel(m), onKeyDown: e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); toggleSel(m) } } } : {})}>
+        {selectable && <span className="lcv-selbox" aria-hidden="true">{selOn ? '✓' : ''}</span>}
         <div className={`lcv-b wa-bubble ${out ? 'out' : 'in'}${firstOfRun ? ' tail' : ''}`} style={{ opacity: sending ? .7 : 1, position: 'relative' }}>
-          {!String(m.id).startsWith('opt-') && <ChatMsgMenu text={m.message} isOut={out} WA={WA} lang={lang} onSaveTemplate={text => {
+          {!String(m.id).startsWith('opt-') && !selMode && <ChatMsgMenu text={m.message} isOut={out} WA={WA} lang={lang}
+            {...(String(m.id).startsWith('log-') ? {} : {
+              myReaction: reacts.find(r => r.dir === 'out')?.emoji || '',
+              onReact: emo => reactTo(m, emo),
+              onReply: () => { setReplyTo(msgRef(m)); setTimeout(() => inputRef.current?.focus(), 30) },
+              onForward: () => setFwd([msgRef(m)]),
+              onSelect: () => { setSelMode(true); setSelIds([msgRef(m)]) },
+            })}
+            onSaveTemplate={text => {
             const he = /[\u0590-\u05FF]/.test(text), body = messageToTemplate(text, tplLead || {})
             setEditTpl({ tpl: { cat: 'personal', he: '', en: '', he_title: '', en_title: '', project: leadProperty(tplLead || {}) || '' }, initial: he ? { he: body, en: '' } : { he: '', en: body }, lang: he ? 'he' : 'en', create: true })
           }}/>}
@@ -484,6 +528,12 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
         .lcv-hint{margin-inline-start:auto;font-size:11.5px;color:${WA.subText};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
         .lcv-send{display:inline-flex;align-items:center;gap:8px;height:38px;padding:0 18px;border-radius:999px;border:none;background:${WA.green};color:#fff;font:inherit;font-size:13.5px;font-weight:700;white-space:nowrap;flex:none;cursor:pointer;box-shadow:0 2px 6px rgba(0,168,132,.32);transition:background .15s,opacity .15s}
         .lcv-send:disabled{opacity:.45;cursor:default;box-shadow:none}
+        .lcv-reply{display:flex;align-items:center;gap:8px;padding:8px 8px 0}
+        .lcv-row.sel{cursor:pointer;position:relative;padding-inline-start:40px;border-radius:6px}
+        .lcv-row.sel.on{background:rgba(0,168,132,.14)}
+        .lcv-selbox{position:absolute;inset-inline-start:10px;top:50%;transform:translateY(-50%);width:20px;height:20px;border-radius:5px;border:2px solid ${WA.subText};display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px;font-weight:800}
+        .lcv-row.sel.on .lcv-selbox{background:${WA.green};border-color:${WA.green}}
+        .wa-bub-emo{transition:transform .12s}.wa-bub-emo:hover{transform:scale(1.22)}
         .lcv-send:hover:not(:disabled){background:#019574}
         .lcv-send:focus-visible,.lcv-tplbtn:focus-visible{outline:2px solid ${WA.green};outline-offset:2px}
         @media (max-width:520px){.lcv-hint{display:none}.lcv-send{margin-inline-start:auto}}
@@ -625,8 +675,23 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
         )}
 
         {error && <div role="alert" style={{ fontSize: 13, color: isDark ? '#F15C6D' : '#C2283E', fontWeight: 500, margin: '0 4px 6px', lineHeight: 1.45 }}>{error}</div>}
-        {phone ? (
+        {phone && selMode ? (
+          <div className="lcv-card" role="toolbar" aria-label={lang === 'en' ? 'Selected messages' : 'הודעות שנבחרו'} style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10, padding: '10px 12px' }}>
+            <button type="button" className="lcv-ib" onClick={() => { setSelMode(false); setSelIds([]) }} aria-label={lang === 'en' ? 'Cancel' : 'ביטול'}>{I.close}</button>
+            <b style={{ flex: 1, fontSize: 13.5 }}>{lang === 'en' ? `${selIds.length} selected` : `${selIds.length} נבחרו`}<span style={{ fontWeight: 400, fontSize: 12, color: WA.subText, marginInlineStart: 8 }}>{lang === 'en' ? 'up to 10' : 'עד 10'}</span></b>
+            <button type="button" className="lcv-send" disabled={!selIds.length} onClick={() => { const order = new Map(msgs.map((x, k) => [x.id, k])); setFwd([...selIds].sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0))) }}>{lang === 'en' ? 'Forward' : 'העברה'}</button>
+          </div>
+        ) : phone ? (
           <div className="lcv-card" style={{ flex: dock ? 1 : undefined, minHeight: 0 }}>
+            {replyTo && (
+              <div className="lcv-reply">
+                <div style={{ flex: 1, minWidth: 0, borderInlineStart: `4px solid ${replyTo.isOut ? WA.green : '#53BDEB'}`, background: isDark ? 'rgba(0,0,0,.22)' : 'rgba(0,0,0,.05)', borderRadius: 7, padding: '5px 10px' }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: replyTo.isOut ? WA.green : '#53BDEB' }}>{replyTo.isOut ? (lang === 'en' ? 'You' : 'אתם') : (lead?.name || (lang === 'en' ? 'Contact' : 'איש קשר'))}</div>
+                  <div dir="auto" style={{ fontSize: 12.5, color: WA.subText, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{replyTo.text}</div>
+                </div>
+                <button type="button" className="lcv-ib" style={{ width: 30, height: 30 }} onClick={() => setReplyTo(null)} aria-label={lang === 'en' ? 'Cancel the reply' : 'ביטול התשובה'}>{I.close}</button>
+              </div>
+            )}
             {(tplTitle || first) && (
               <div className="lcv-tpl">
                 <Icon name="file" size={14}/>
@@ -681,6 +746,9 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
         ) : <div style={{ fontSize: 13, color: WA.subText, textAlign: 'center', padding: 8 }}>{t.noPhone}</div>}
       </div>
 
+      {fwd && <ChatForward WA={WA} lang={lang} messages={fwd} fromPhone={phone} authHeader={{ Authorization: 'Bearer AFIKhanahal2026' }}
+        contacts={allLeads.filter(l => l.phone).sort((a, b) => new Date(b.updated_at || b.createdAt || b.created_at || 0) - new Date(a.updated_at || a.createdAt || a.created_at || 0)).map(l => ({ phone: l.phone, name: l.name || '' }))}
+        onClose={() => setFwd(null)} onDone={() => { setSelMode(false); setSelIds([]) }}/>}
       {editTpl && (
         <TemplateQuickEdit WA={WA} lang={lang} lead={tplLead} tpl={editTpl.tpl} initial={editTpl.initial} initialLang={editTpl.lang} fromChat={editTpl.fromChat} create={!!editTpl.create}
           autoConfig={cfg} onClose={() => setEditTpl(null)} onSaved={next => { setCfgLocal(next); onAutoConfigSaved?.(next) }}/>

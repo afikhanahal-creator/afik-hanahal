@@ -8,6 +8,7 @@ import { renderTemplate, VARIABLES, unknownPlaceholders, CATEGORIES } from '../l
 import { withTemplate, withoutOverride, newTemplateId } from '../lib/template-edit.js'
 import { autoApi } from './AutomationsApi.jsx'
 import TemplateImageField from './TemplateImageField.jsx'
+import TemplateFilesField from './TemplateFilesField.jsx'
 import { imageThumb } from './lib/templateImage.js'
 import { Icon } from './uiIcons.jsx'
 
@@ -44,6 +45,7 @@ export default function TemplateQuickEdit({ WA, lang = 'he', lead, tpl, initial 
   const [text, setText] = useState({ he: initial?.he ?? tpl.he ?? '', en: initial?.en ?? tpl.en ?? '' })
   const [title, setTitle] = useState({ he: tpl.he_title || '', en: tpl.en_title || '' })
   const [image, setImage] = useState(tpl.image || '')
+  const [files, setFiles] = useState(() => (Array.isArray(tpl.files) ? tpl.files : []))
   const [cat, setCat] = useState(tpl.cat || 'personal')
   const [project, setProject] = useState(tpl.project || '')
   const [projWelcome, setProjWelcome] = useState(false)
@@ -66,7 +68,7 @@ export default function TemplateQuickEdit({ WA, lang = 'he', lead, tpl, initial 
   }
 
   const persist = async (mode) => {
-    if (mode !== 'restore' && !text.he.trim() && !text.en.trim() && !image) { setState({ phase: 'error', msg: t.empty }); return }
+    if (mode !== 'restore' && !text.he.trim() && !text.en.trim() && !image && !files.length) { setState({ phase: 'error', msg: t.empty }); return }
     setState({ phase: 'saving', mode })
     try {
       // the freshest saved config, so a change made meanwhile in the automations tab is not overwritten
@@ -78,11 +80,11 @@ export default function TemplateQuickEdit({ WA, lang = 'he', lead, tpl, initial 
         id = newTemplateId()
         const p = project.trim()
         const he_title = title.he.trim() || autoTitle(p, text.he || text.en)
-        next = withTemplate(fresh, tpl, { id, cat, he: text.he, en: text.en, he_title, en_title: title.en.trim() || he_title, image, project: p })
+        next = withTemplate(fresh, tpl, { id, cat, he: text.he, en: text.en, he_title, en_title: title.en.trim() || he_title, image, project: p, files })
         if (projWelcome && p) next = { ...next, rules: { ...(next.rules || {}), welcome: { ...(next.rules?.welcome || {}), byProject: { ...(next.rules?.welcome?.byProject || {}), [p]: id } } } }
       }
-      else if (mode === 'new') { id = newTemplateId(); next = withTemplate(fresh, tpl, { id, he: text.he, en: text.en, he_title: `${title.he || tpl.he_title || ''} (עותק)`, en_title: `${title.en || tpl.en_title || ''} (copy)`, image }) }
-      else next = withTemplate(fresh, tpl, { he: text.he, en: text.en, he_title: title.he || tpl.he_title, en_title: title.en || tpl.en_title, image })
+      else if (mode === 'new') { id = newTemplateId(); next = withTemplate(fresh, tpl, { id, he: text.he, en: text.en, he_title: `${title.he || tpl.he_title || ''} (עותק)`, en_title: `${title.en || tpl.en_title || ''} (copy)`, image, project: project.trim(), files }) }
+      else next = withTemplate(fresh, tpl, { he: text.he, en: text.en, he_title: title.he || tpl.he_title, en_title: title.en || tpl.en_title, image, project: project.trim(), files })
       await autoApi.post('auto-config', { config: next })
       setState({ phase: 'saved' })
       onSaved?.(next, id)
@@ -113,16 +115,17 @@ export default function TemplateQuickEdit({ WA, lang = 'he', lead, tpl, initial 
             <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 600, color: WA.subText }}>{t.name}
               <input value={title[tab]} onChange={e => setTitle(s => ({ ...s, [tab]: e.target.value }))} placeholder={create ? autoTitle(project, text[tab] || text.he) : undefined} dir={tab === 'en' ? 'ltr' : 'rtl'} style={input}/>
             </label>
-            {create && <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              <label style={{ flex: '1 1 160px', display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 600, color: WA.subText }}>{t.cat}
+            {/* the property this message belongs to — its messages come first in "הצעות" for that property's leads */}
+            {<div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              {create && <label style={{ flex: '1 1 160px', display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 600, color: WA.subText }}>{t.cat}
                 <select value={cat} onChange={e => setCat(e.target.value)} style={{ ...input, appearance: 'auto' }}>
                   {CATEGORIES.map(c => <option key={c.id} value={c.id}>{lang === 'en' ? c.en : c.he}</option>)}
                 </select>
-              </label>
+              </label>}
               <label style={{ flex: '1 1 160px', display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 600, color: WA.subText }}>{t.project}
                 <input value={project} onChange={e => setProject(e.target.value)} placeholder={t.projectPh} style={input}/>
               </label>
-              {project.trim() && <label style={{ flexBasis: '100%', display: 'flex', gap: 8, alignItems: 'center', fontSize: 12.5, color: WA.bodyText, cursor: 'pointer' }}>
+              {create && project.trim() && <label style={{ flexBasis: '100%', display: 'flex', gap: 8, alignItems: 'center', fontSize: 12.5, color: WA.bodyText, cursor: 'pointer' }}>
                 <input type="checkbox" checked={projWelcome} onChange={e => setProjWelcome(e.target.checked)} style={{ appearance: 'auto', width: 16, height: 16, minHeight: 0 }}/>{t.projWelcome(project.trim())}
               </label>}
             </div>}
@@ -135,6 +138,7 @@ export default function TemplateQuickEdit({ WA, lang = 'he', lead, tpl, initial 
               {QUICK_VARS.map(k => { const v = VARIABLES.find(x => x.key === k); return v && <button key={k} type="button" onClick={() => insertVar(k)} title={`{${k}}`} style={{ border: `1px solid ${WA.border}`, background: WA.inputBg, color: WA.bodyText, borderRadius: 999, padding: '3px 9px', fontSize: 11.5, cursor: 'pointer', fontFamily: 'inherit', minHeight: 0 }}>{lang === 'en' ? v.en : v.he}</button> })}
             </div>
             <TemplateImageField value={image} onChange={setImage} lang={lang} compact pal={{ text: WA.bodyText, sub: WA.subText, line: WA.border, bg: WA.inputBg, accent: WA.green }}/>
+            <TemplateFilesField value={files} onChange={setFiles} lang={lang} compact pal={{ text: WA.bodyText, sub: WA.subText, line: WA.border, bg: WA.inputBg, accent: WA.green }}/>
             {create && tab === 'en' && !text.en.trim() && <div style={{ fontSize: 11.5, color: WA.subText }}>{t.enHint}</div>}
             {/\[\[/.test(text[tab]) && <div style={{ fontSize: 11.5, color: WA.subText }}>{t.cond}</div>}
             {unknown.map(x => <div key={x} style={{ fontSize: 12, color: '#B45309' }}>{t.unknown(x)}</div>)}
@@ -146,6 +150,7 @@ export default function TemplateQuickEdit({ WA, lang = 'he', lead, tpl, initial 
                 {image && <img src={imageThumb(image, 520).replace('&h=520&fit=cover', '')} alt="" style={{ display: 'block', width: '100%', maxHeight: 260, objectFit: 'cover', borderRadius: 8, marginBottom: preview ? 6 : 0 }}/>}
                 {preview ? <span style={image ? { display: 'block', padding: '0 9px' } : undefined}>{preview}</span> : !image && '—'}
               </div>
+              {files.map(f => <div key={f.url} dir="auto" style={{ marginTop: 4, background: WA.bubbleOut || '#D9FDD3', color: WA.bodyText, borderRadius: 10, padding: '7px 11px', fontSize: 12.5, display: 'flex', gap: 6, alignItems: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}><Icon name="paperclip" size={13}/>{f.name}</div>)}
             </div>
           </div>
         </div>

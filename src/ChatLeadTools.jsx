@@ -7,6 +7,7 @@ import { createPortal } from 'react-dom'
 import { PIPELINE, stageLabel, summaryNote } from './lib/pipelineStages.js'
 import { addNote } from './lib/leadNotes.js'
 import { addFollowUp } from '../lib/follow-up.js'
+import { toggleProjectInName } from './lib/leadFields.js'
 
 const H = { 'Content-Type': 'application/json', Authorization: 'Bearer AFIKhanahal2026' }
 const TXT = {
@@ -112,6 +113,67 @@ export function AiNoteButton({ lead, lang = 'he', stageLabels = {}, onUpdateLead
           </div>
         </>}
         <button type="button" onClick={() => setRes(null)} style={{ alignSelf: 'flex-end', background: 'none', border: 'none', color: 'inherit', opacity: .7, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, minHeight: 0 }}>{t.close}</button>
+      </div>, document.body)}
+  </>)
+}
+
+// The chat header's name, editable like the Lead Center's: a click opens a box with "+ הוספת הפרויקט: <project>" (or "הסרת
+// שם הפרויקט"); Enter saves, Esc cancels. A lead's rename goes through the admin's updateLead (PATCH /api/contacts: the CRM,
+// the Lead Center and the office phone's WhatsApp contacts — lib/wa-book.js); a chat that isn't a lead saves the name in the
+// phone's contacts only (POST /api/meta/chat-contact-name). A name changed in the phone's WhatsApp comes back by itself
+// (auto-tick / auto-run → syncBookNames).
+const NT = {
+  he: { edit: 'שינוי שם (מתעדכן גם באנשי הקשר של הוואטסאפ בטלפון)', save: 'שמירה', cancel: 'ביטול', add: p => `+ הוספת הפרויקט: ${p}`, remove: 'הסרת שם הפרויקט', saving: 'שומר…', saved: 'נשמר גם בוואטסאפ ✓', savedLead: 'נשמר ✓', err: 'השמירה נכשלה' },
+  en: { edit: "Rename (the office phone's WhatsApp contacts follow)", save: 'Save', cancel: 'Cancel', add: p => `+ Add the project: ${p}`, remove: 'Remove the project', saving: 'Saving…', saved: 'Saved in WhatsApp too ✓', savedLead: 'Saved ✓', err: 'Saving failed' },
+}
+export function ChatNameEdit({ name = '', project = '', lead = null, phone, lang = 'he', WA, onUpdateLead, onSaved, children }) {
+  const t = NT[lang === 'en' ? 'en' : 'he']
+  const [edit, setEdit] = useState(false)
+  const [val, setVal] = useState(name)
+  const [st, setSt] = useState(null)          // null | 'saving' | { ok, msg }
+  const inp = useRef(null), anchor = useRef(null), pop = useRef(null)
+  const pos = usePop(edit, anchor, 360)
+  useOutside(edit, [anchor, pop], () => setEdit(false))
+  useEffect(() => { setEdit(false); setSt(null) }, [phone])
+  useEffect(() => { if (edit) setTimeout(() => { inp.current?.focus(); inp.current?.select() }, 20) }, [edit])
+  useEffect(() => { if (st && st !== 'saving' && st.ok) { const x = setTimeout(() => setSt(null), 2600); return () => clearTimeout(x) } }, [st])
+  const p = String(project || '').trim()
+  const tg = toggleProjectInName(val, p)
+  const save = async () => {
+    const next = val.replace(/\s+/g, ' ').trim()
+    if (!next || next === name) { setEdit(false); return }
+    setSt('saving')
+    try {
+      if (lead?.id && onUpdateLead) { await onUpdateLead(lead.id, { name: next }); setSt({ ok: true, msg: t.saved }) }
+      else {
+        const r = await fetch('/api/meta/chat-contact-name', { method: 'POST', headers: H, body: JSON.stringify({ phone, name: next }), signal: AbortSignal.timeout(20000) })
+        const d = await r.json().catch(() => ({}))
+        if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`)
+        setSt({ ok: true, msg: t.saved })
+      }
+      onSaved?.(next); setEdit(false)
+    } catch (e) { setSt({ ok: false, msg: `${t.err}: ${e.message}` }) }
+  }
+  return (<>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+      <button ref={anchor} type="button" onClick={() => { setVal(name); setSt(null); setEdit(e => !e) }} title={t.edit} aria-label={t.edit} aria-expanded={edit} className="wa-name-btn"
+        style={{ border: 'none', background: 'transparent', padding: 0, margin: 0, font: 'inherit', color: 'inherit', cursor: 'text', minHeight: 0, minWidth: 0, textAlign: 'start', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>
+        {children || name}
+      </button>
+      {!edit && st && st !== 'saving' && <span role="status" style={{ fontSize: 11.5, fontWeight: 600, color: st.ok ? '#128C4A' : '#E5484D', whiteSpace: 'nowrap' }}>{st.msg}</span>}
+    </div>
+    {edit && pos && createPortal(
+      <div ref={pop} role="dialog" aria-label={t.edit} dir={lang === 'en' ? 'ltr' : 'rtl'} style={{ ...panel(WA), top: pos.top, left: pos.left, width: 360, padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: WA.subText }}>{t.edit}</div>
+        <input ref={inp} value={val} onChange={e => setVal(e.target.value)} maxLength={80} aria-label={t.edit} dir="auto"
+          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); save() } else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setEdit(false) } }}
+          style={{ width: '100%', boxSizing: 'border-box', height: 38, borderRadius: 9, border: `1px solid ${WA.green}`, background: WA.inputFieldBg || WA.panelBg, color: WA.bodyText, padding: '0 11px', font: 'inherit', fontSize: 15, fontWeight: 600, outline: 'none' }}/>
+        {p && <button type="button" onClick={() => setVal(tg.next)} style={{ alignSelf: 'flex-start', border: 'none', background: 'transparent', color: WA.green, font: 'inherit', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', padding: 0, minHeight: 0 }}>{tg.has ? t.remove : t.add(p)}</button>}
+        {st && st !== 'saving' && !st.ok && <span role="alert" style={{ fontSize: 12, color: '#E5484D' }}>{st.msg}</span>}
+        <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+          <button type="button" onClick={() => setEdit(false)} style={pill(WA)}>{t.cancel}</button>
+          <button type="button" onClick={save} disabled={st === 'saving'} style={pill(WA, { background: WA.green, color: '#fff', borderColor: WA.green })}>{st === 'saving' ? t.saving : t.save}</button>
+        </div>
       </div>, document.body)}
   </>)
 }

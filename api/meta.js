@@ -25,6 +25,7 @@ import { properHebrewName } from '../lib/name-proof.js'
 import { hebrewizeRecentNames } from '../lib/hebrew-lead-names.js'
 import { parseGreenHook, rowToGreen, mergeHistory, historyToRow } from '../lib/green-hook.js'
 import { avatarExpiry, avatarFresh, avatarPhone } from '../lib/wa-avatar.js'
+import { forwardRequest, cleanMsgId, cleanReaction } from '../lib/wa-actions.js'
 
 const SUPERMETRICS_API_KEY    = process.env.SUPERMETRICS_API_KEY    || ''
 // System User token (afik-api) — permanent, survives password changes. Used to
@@ -542,7 +543,13 @@ async function handleLeads(req, res) {
         crm = r.error ? { error: r.error.message } : { id: mirror.id }
       }
     }
-    return res.status(200).json({ ok: true, crm })
+    // …and the office phone's WhatsApp contacts (lib/wa-book.js)
+    let wa = null
+    if (newName) {
+      const { data: ml } = await sb().from('meta_leads').select('phone').eq('id', id).single()
+      if (ml?.phone) wa = await Auto.saveWaContact(ml.phone, newName).catch(e => ({ ok: false, error: e.message }))
+    }
+    return res.status(200).json({ ok: true, crm, wa })
   }
 
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' })
@@ -593,7 +600,7 @@ async function handleMessages(req, res) {
   }
 
   if (req.method === 'POST') {
-    const { lead_id, message, image, file, fileName } = req.body || {}
+    const { lead_id, message, image, file, fileName, quotedMessageId } = req.body || {}
     if (!lead_id || (!message && !image && !file)) return res.status(400).json({ error: 'lead_id and message required' })
 
     const { data: lead, error: leadErr } = await client.from('meta_leads').select('id,phone,wa_sent').eq('id', lead_id).single()
@@ -601,7 +608,7 @@ async function handleMessages(req, res) {
     if (!lead.phone)       return res.status(400).json({ error: 'Lead has no phone number' })
 
     // From the office WhatsApp (Green API) — the same number as the welcome message, so the lead sees one conversation
-    const sent = await Auto.sendText(lead.phone, String(message || '').slice(0, 4000), { image, file, fileName })
+    const sent = await Auto.sendText(lead.phone, String(message || '').slice(0, 4000), { image, file, fileName, quotedMessageId })
     if (!sent.ok) return res.status(502).json({ error: sent.error || 'send failed', quota: !!sent.quota })
     const { data: newMsg, error: insertErr } = await client.from('meta_messages')
       .insert({ lead_id: lead.id, direction: 'out', message: [file ? `📎 ${String(fileName || 'קובץ').slice(0, 120)}` : '', message].filter(Boolean).join('\n') || '📷', wa_message_id: sent.idMessage || null })
@@ -989,6 +996,7 @@ async function handleAutomations(req, res, action) {
       syncRecentMetaLeads({ hours: 6 }).catch(e => ({ error: e.message })),   // safety net for the Meta webhook
       Booking.retryConfirmations({ client: SUPABASE_URL && SUPABASE_KEY ? sb() : null }).catch(() => null),  // calendar sync + confirmations Green API refused
       hebrewizeRecentNames(SUPABASE_URL && SUPABASE_KEY ? sb() : null).catch(() => null),   // any recent lead still named in Latin → Hebrew
+      Auto.syncBookNames().catch(() => null),            // a name changed in the phone's WhatsApp contacts → the lead's name
     ])
     return res.status(200).json({ ok: r.ok !== false, at: r.at, sent: r.sent?.length || 0, errors: r.errors?.length || 0, queued: r.suggestions?.length || 0, jobs: r.jobs, notes: r.notes, meta })
   }
@@ -1023,7 +1031,7 @@ async function handleAutomations(req, res, action) {
     }
     if (action === 'auto-run') {
       // The panel calls this every 5 minutes while open: also pick up any Meta lead the webhook missed
-      const [r, meta] = await Promise.all([Auto.run({ source: 'panel' }), syncRecentMetaLeads({ hours: 6 }).catch(e => ({ error: e.message })), Booking.retryConfirmations({ client: SUPABASE_URL && SUPABASE_KEY ? sb() : null }).catch(() => null), hebrewizeRecentNames(SUPABASE_URL && SUPABASE_KEY ? sb() : null).catch(() => null)])
+      const [r, meta] = await Promise.all([Auto.run({ source: 'panel' }), syncRecentMetaLeads({ hours: 6 }).catch(e => ({ error: e.message })), Auto.syncBookNames().catch(() => null), Booking.retryConfirmations({ client: SUPABASE_URL && SUPABASE_KEY ? sb() : null }).catch(() => null), hebrewizeRecentNames(SUPABASE_URL && SUPABASE_KEY ? sb() : null).catch(() => null)])
       return res.status(200).json({ ...r, meta })
     }
     if (action === 'auto-send')   return res.status(200).json({ results: await Auto.sendItems(Array.isArray(b.items) ? b.items : [], { by: 'manual' }) })
@@ -1278,14 +1286,61 @@ async function handleChat(req, res, action) {
 
     // POST /api/meta/chat-send { phone, message, image? } → sendMessage (or sendFileByUrl: a template's picture + caption)
     if (action === 'chat-send') {
-      const { phone, message, image, file, fileName } = req.body || {}
+      const { phone, message, image, file, fileName, quotedMessageId } = req.body || {}
       const p = normalizePhone(phone)
       if (!p || (!message && !image && !file)) return res.status(400).json({ error: 'phone and message required' })
       // The engine's sender: retries a 429, remembers a blocked plan (466) for the panels, clears it on success;
-      // file + fileName = a file attached in the chat (uploaded to storage by the browser, src/lib/chatFiles.js)
-      const r = await Auto.sendText(p, message || '', { image, file, fileName })
+      // file + fileName = a file attached in the chat (uploaded to storage by the browser, src/lib/chatFiles.js);
+      // quotedMessageId = a reply to that message (WhatsApp shows the quote above the text)
+      const r = await Auto.sendText(p, message || '', { image, file, fileName, quotedMessageId })
       if (!r.ok) return res.status(502).json({ error: r.error, quota: !!r.quota })
       return res.status(200).json({ ok: true, idMessage: r.idMessage || null })
+    }
+
+    // POST /api/meta/chat-contact-name { phone, name } → the name in the office phone's WhatsApp contacts (a chat that isn't a
+    // lead; a lead's rename goes through PATCH /api/contacts, which does the same)
+    if (action === 'chat-contact-name') {
+      const { phone, name } = req.body || {}
+      const r = await Auto.saveWaContact(normalizePhone(phone), String(name || ''))
+      if (r.ok) nameCache.at = 0
+      return res.status(r.ok ? 200 : 502).json(r)
+    }
+    // POST /api/meta/chat-book-sync → read the phone's contacts now (names changed on the phone rename the leads)
+    if (action === 'chat-book-sync') return res.status(200).json(await Auto.syncBookNames().catch(e => ({ error: e.message })))
+
+    // POST /api/meta/chat-forward { from, to: [phones], ids: [idMessage] } → Green forwardMessages, one call per chat (a
+    // short gap between them, stops at a quota refusal) → { ok, results: [{ phone, ok, error? }] }
+    if (action === 'chat-forward') {
+      const fr = forwardRequest(req.body || {}, normalizePhone)
+      if (fr.error) return res.status(400).json({ error: fr.error })
+      const results = []
+      for (const [i, to] of fr.to.entries()) {
+        if (i) await new Promise(ok => setTimeout(ok, 700))
+        try {
+          const r = await greenFetch(greenUrl('forwardMessages'), { method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chatId: `${to}@c.us`, chatIdFrom: `${fr.from}@c.us`, messages: fr.ids }), signal: AbortSignal.timeout(15000) })
+          const t = await r.text()
+          if (r.ok) { results.push({ phone: to, ok: true }); continue }
+          const quota = r.status === 466
+          results.push({ phone: to, ok: false, quota, error: quota ? 'המכסה החודשית של Green API נגמרה' : `Green API ${r.status}: ${t.slice(0, 140)}` })
+          if (quota) break
+        } catch (e) { results.push({ phone: to, ok: false, error: e.name === 'TimeoutError' ? 'Green API לא ענה בזמן' : e.message }) }
+      }
+      const sent = results.filter(x => x.ok).length
+      return res.status(sent ? 200 : 502).json({ ok: sent === fr.to.length, sent, total: fr.to.length, results, quota: results.some(x => x.quota) })
+    }
+
+    // POST /api/meta/chat-react { phone, id, reaction } → Green sendReaction (an empty reaction takes ours back)
+    if (action === 'chat-react') {
+      const { phone, id, reaction } = req.body || {}
+      const p = normalizePhone(phone), mid = cleanMsgId(id), emo = cleanReaction(reaction)
+      if (!p || !mid || emo === null) return res.status(400).json({ error: 'phone, id and one emoji required' })
+      const r = await greenFetch(greenUrl('sendReaction'), { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chatId: `${p}@c.us`, idMessage: mid, reaction: emo }), signal: AbortSignal.timeout(15000) }).catch(e => ({ ok: false, status: 0, text: async () => e.message }))
+      const t = await r.text().catch(() => '')
+      if (!r.ok) return res.status(502).json({ error: r.status === 466 ? 'המכסה החודשית של Green API נגמרה' : `Green API ${r.status || ''}: ${String(t).slice(0, 140)}`, quota: r.status === 466 })
+      let d = {}; try { d = JSON.parse(t) } catch {}
+      return res.status(200).json({ ok: true, idMessage: d.idMessage || null })
     }
 
     // POST /api/meta/chat-send-file { phone, fileName, fileType, fileBase64, caption } → sendFileByUpload

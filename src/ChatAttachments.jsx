@@ -4,11 +4,12 @@
 // sending: src/lib/chatFiles.js.
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Icon } from './uiIcons.jsx'
-import { acceptFiles, fileKind, formatSize } from './lib/chatFiles.js'
+import { acceptFiles, fileKind, formatSize, MAX_FILES } from './lib/chatFiles.js'
+import { imageThumb } from './lib/templateImage.js'
 
 const TR = {
-  he: { remove: 'הסרה', drop: 'שחררו כאן כדי לצרף', dropSub: 'תמונות, סרטונים, PDF, Word, Excel ועוד', uploading: 'מעלה…', sending: 'שולח…', sent: 'נשלח', error: 'נכשל', files: n => `${n} קבצים` },
-  en: { remove: 'Remove', drop: 'Drop here to attach', dropSub: 'Photos, videos, PDF, Word, Excel and more', uploading: 'Uploading…', sending: 'Sending…', sent: 'Sent', error: 'Failed', files: n => `${n} files` },
+  he: { remove: 'הסרה', drop: 'שחררו כאן כדי לצרף', dropSub: 'תמונות, סרטונים, PDF, Word, Excel ועוד', uploading: 'מעלה…', fromTpl: 'מהתבנית', sending: 'שולח…', sent: 'נשלח', error: 'נכשל', files: n => `${n} קבצים` },
+  en: { remove: 'Remove', drop: 'Drop here to attach', dropSub: 'Photos, videos, PDF, Word, Excel and more', uploading: 'Uploading…', fromTpl: 'from the template', sending: 'Sending…', sent: 'Sent', error: 'Failed', files: n => `${n} files` },
 }
 let uid = 0
 
@@ -17,17 +18,26 @@ export function useAttachments(lang = 'he') {
   const [items, setItems] = useState([])
   const [notice, setNotice] = useState('')
   const itemsRef = useRef(items); itemsRef.current = items
-  useEffect(() => () => itemsRef.current.forEach(x => x.preview && URL.revokeObjectURL(x.preview)), [])
+  const revoke = x => { if (x?.preview?.startsWith('blob:')) URL.revokeObjectURL(x.preview) }
+  useEffect(() => () => itemsRef.current.forEach(revoke), [])
   const add = useCallback(list => {
     const { ok, bad } = acceptFiles(list, itemsRef.current.length, lang)
     if (ok.length) setItems(prev => [...prev, ...ok.map(file => ({ id: `f${++uid}`, file, status: '', preview: /^(image|video)$/.test(fileKind(file)) ? URL.createObjectURL(file) : '' }))])
     setNotice(bad.length ? bad.map(b => `${b.name}: ${b.why}`).join(' · ') : '')
     return ok.length
   }, [lang])
-  const remove = useCallback(id => setItems(prev => { const x = prev.find(i => i.id === id); if (x?.preview) URL.revokeObjectURL(x.preview); return prev.filter(i => i.id !== id) }), [])
-  const clear = useCallback(() => setItems(prev => { prev.forEach(x => x.preview && URL.revokeObjectURL(x.preview)); return [] }), [])
+  // files already in storage (a template's files: { url, name, type, size }) — no upload, a CDN thumbnail for photos and
+  // never a video byte before it is sent (Supabase egress)
+  const addRemote = useCallback(list => {
+    const have = new Set(itemsRef.current.map(x => x.file?.url).filter(Boolean))
+    const add = (list || []).filter(f => f?.url && !have.has(f.url)).slice(0, Math.max(0, MAX_FILES - itemsRef.current.length))
+    if (add.length) setItems(prev => [...prev, ...add.map(f => ({ id: `f${++uid}`, file: { url: f.url, name: f.name || 'file', type: f.type || '', size: f.size || 0 }, remote: true, status: '', preview: fileKind(f) === 'image' ? imageThumb(f.url, 120) : '' }))])
+    return add.length
+  }, [])
+  const remove = useCallback(id => setItems(prev => { revoke(prev.find(i => i.id === id)); return prev.filter(i => i.id !== id) }), [])
+  const clear = useCallback(() => setItems(prev => { prev.forEach(revoke); return [] }), [])
   const setStatus = useCallback((i, status) => setItems(prev => prev.map((x, k) => (k === i ? { ...x, status } : x))), [])
-  return { items, files: items.map(x => x.file), add, remove, clear, setStatus, notice, setNotice }
+  return { items, files: items.map(x => x.file), add, addRemote, remove, clear, setStatus, notice, setNotice }
 }
 
 /** Drag files over an area → { dragging, bind } (bind = the area's handlers) */
@@ -85,7 +95,7 @@ export function AttachTray({ items, onRemove, lang = 'he', WA = {}, isDark = fal
                     : <span style={{ flex: 'none', width: 42, height: 42, borderRadius: 7, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1, background: kind === 'pdf' ? 'rgba(229,72,77,.12)' : 'rgba(0,168,132,.12)', color: kind === 'pdf' ? '#E5484D' : (WA.green || '#00A884') }}><Icon name={KIND_ICON[kind]} size={17}/><span style={{ fontSize: 8.5, fontWeight: 700 }}>{ext(x.file.name)}</span></span>}
                 <span style={{ minWidth: 0, flex: 1 }}>
                   <span style={{ display: 'block', fontSize: 12, fontWeight: 600, color: WA.bodyText, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} dir="auto">{x.file.name}</span>
-                  <span style={{ display: 'block', fontSize: 11, color: st === 'error' ? '#E5484D' : WA.subText }}>{st ? t[st] : formatSize(x.file.size, lang)}</span>
+                  <span style={{ display: 'block', fontSize: 11, color: st === 'error' ? '#E5484D' : WA.subText }}>{st ? t[st] : x.remote && !x.file.size ? t.fromTpl : `${formatSize(x.file.size, lang)}${x.remote ? ` · ${t.fromTpl}` : ''}`}</span>
                 </span>
                 {!st && <button type="button" onClick={() => onRemove(x.id)} aria-label={`${t.remove}: ${x.file.name}`} title={t.remove}
                   style={{ position: 'absolute', top: -7, insetInlineEnd: -7, width: 22, height: 22, minHeight: 0, borderRadius: '50%', border: `1px solid ${line}`, background: isDark ? '#2A3942' : '#fff', color: WA.subText, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}><Icon name="x" size={12} sw={2.2}/></button>}

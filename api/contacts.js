@@ -19,7 +19,7 @@
 
 import { sendJson, compressJson } from '../lib/http.js'
 import { backupEnabled, backupPut, backupList, backupGet, backupDelete } from '../lib/backup.js'
-import { onLeadCreated, onStageChanged } from '../lib/automations.js'
+import { onLeadCreated, onStageChanged, saveWaContact } from '../lib/automations.js'
 import { buildLeadEmailHtml } from '../lib/lead-email.js'
 import { hebrewFullName } from '../lib/hebrew-names.js'
 import { restoreRow } from '../lib/lead-restore.js'
@@ -614,6 +614,13 @@ export default async function handler(req, res) {
         }).catch(() => null)
         metaRenamed = r?.ok ? { id: existing.metaLeadId } : { error: r ? `meta_leads ${r.status}` : 'meta_leads unreachable' }
       }
+      // …and the office phone's WhatsApp contacts (lib/wa-book.js): the same name in the official app
+      let wa = null
+      if (ok && newName) {
+        const r1 = await supaFetch(`/contacts?id=eq.${encodeURIComponent(id)}&select=phone`, { signal: AbortSignal.timeout(5000) }).catch(() => null)
+        const phone = r1?.ok ? String((await r1.json().catch(() => []))?.[0]?.phone || '') : ''
+        if (phone) wa = await Promise.race([saveWaContact(phone, newName), new Promise(r => setTimeout(() => r({ ok: false, error: 'timeout' }), 12000))]).catch(e => ({ ok: false, error: e.message }))
+      }
       // Stage moved on the board → stage automations (send now, or offer it in the approval queue)
       let automation = null
       if (ok && typeof patch.leadStatus === 'string' && patch.leadStatus !== existing.leadStatus) {
@@ -622,7 +629,7 @@ export default async function handler(req, res) {
           new Promise(r => setTimeout(() => r({ pending: true }), 18000)),
         ]).catch(e => ({ ok: false, error: e.message }))
       }
-      return res.status(ok ? 200 : 404).json({ ok, automation, ...(metaRenamed ? { meta: metaRenamed } : {}) })
+      return res.status(ok ? 200 : 404).json({ ok, automation, ...(metaRenamed ? { meta: metaRenamed } : {}), ...(wa ? { wa } : {}) })
     }
 
     // ── DELETE: remove contact permanently ───────────────────────────────────

@@ -4,6 +4,7 @@
 // the server sends it by URL (Green API sendFileByUrl: the lead gets a real attachment, its original name, the text as the
 // caption). Photos are compressed first (≤ 1600 px JPEG, like WhatsApp does). Pure helpers are tested.
 import { compress } from './templateImage.js'
+import { templateFiles, templateImage } from '../../lib/automations-shared.js'
 
 const ADMIN_TOKEN = 'AFIKhanahal2026'
 export const CHAT_FILE_MAX_MB = 50
@@ -45,7 +46,7 @@ export function acceptFiles(list, have = 0, lang = 'he') {
 }
 
 /** Upload one file → { url, fileName, type } (throws a readable error) */
-export async function uploadChatFile(file) {
+export async function uploadChatFile(file, folder = 'chat') {
   const kind = fileKind(file)
   let body = file, name = file.name || 'file'
   if (kind === 'image' && !/gif/.test(file.type)) {
@@ -54,12 +55,12 @@ export async function uploadChatFile(file) {
   const type = body.type || file.type || 'application/octet-stream'
   const meta = await fetch('/api/seller-form?action=wizard-upload-url', {
     method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
-    body: JSON.stringify({ name, type, size: body.size, kind, folder: 'chat' }),
+    body: JSON.stringify({ name, type, size: body.size, kind, folder }),
   }).then(r => r.json().catch(() => ({}))).catch(() => ({}))
   if (!meta?.signedUrl || !meta?.url) throw new Error(meta?.error ? `ההעלאה נכשלה: ${meta.error}` : 'ההעלאה נכשלה, נסו שוב')
   const put = await fetch(meta.signedUrl, { method: 'PUT', headers: { 'Content-Type': type, 'x-upsert': 'true', 'cache-control': 'max-age=31536000' }, body }).catch(() => null)
   if (!put?.ok) throw new Error('ההעלאה נכשלה, נסו שוב')
-  return { url: meta.url, fileName: name, type }
+  return { url: meta.url, fileName: name, type, size: body.size }
 }
 
 /**
@@ -70,12 +71,22 @@ export async function sendFiles(files, caption, sendOne, onProgress) {
   let sent = 0
   for (const [i, f] of files.entries()) {
     onProgress?.(i, 'uploading')
+    // a file already in storage (a template's file: { url, name }) goes as is; a picked / dropped one is uploaded first
     let up
-    try { up = await uploadChatFile(f) } catch (e) { onProgress?.(i, 'error'); return { ok: false, sent, error: e.message } }
+    try { up = f?.url && !(typeof File !== 'undefined' && f instanceof File) ? { url: f.url, fileName: f.name || 'file' } : await uploadChatFile(f) } catch (e) { onProgress?.(i, 'error'); return { ok: false, sent, error: e.message } }
     onProgress?.(i, 'sending')
     const r = await sendOne(i === 0 ? caption : '', { file: up.url, fileName: up.fileName })
     if (!r?.ok) { onProgress?.(i, 'error'); return { ok: false, sent, error: r?.error || 'השליחה נכשלה', quota: !!r?.quota } }
     onProgress?.(i, 'sent'); sent++
   }
   return { ok: true, sent }
+}
+
+/** A template's attachments for the box / a direct send: its files, with its picture first when it has files too (a
+ *  picture alone stays the text's own image, sent with the text as its caption) */
+export function templateAttachments(tpl) {
+  const files = templateFiles(tpl)
+  if (!files.length) return []
+  const img = templateImage(tpl)
+  return img && !files.some(f => f.url === img) ? [{ url: img, name: (img.split(/[?#]/)[0].split('/').pop() || 'image.jpg').slice(-80), type: 'image/jpeg', size: 0 }, ...files] : files
 }
