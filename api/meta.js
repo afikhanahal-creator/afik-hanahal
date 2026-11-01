@@ -997,6 +997,7 @@ async function handleAutomations(req, res, action) {
       Booking.retryConfirmations({ client: SUPABASE_URL && SUPABASE_KEY ? sb() : null }).catch(() => null),  // calendar sync + confirmations Green API refused
       hebrewizeRecentNames(SUPABASE_URL && SUPABASE_KEY ? sb() : null).catch(() => null),   // any recent lead still named in Latin → Hebrew
       Auto.syncBookNames().catch(() => null),            // a name changed in the phone's WhatsApp contacts → the lead's name
+      Auto.catchUpMessages().catch(() => null),          // phone messages a missed webhook left out → wa_messages
     ])
     return res.status(200).json({ ok: r.ok !== false, at: r.at, sent: r.sent?.length || 0, errors: r.errors?.length || 0, queued: r.suggestions?.length || 0, jobs: r.jobs, notes: r.notes, meta })
   }
@@ -1031,7 +1032,7 @@ async function handleAutomations(req, res, action) {
     }
     if (action === 'auto-run') {
       // The panel calls this every 5 minutes while open: also pick up any Meta lead the webhook missed
-      const [r, meta] = await Promise.all([Auto.run({ source: 'panel' }), syncRecentMetaLeads({ hours: 6 }).catch(e => ({ error: e.message })), Auto.syncBookNames().catch(() => null), Booking.retryConfirmations({ client: SUPABASE_URL && SUPABASE_KEY ? sb() : null }).catch(() => null), hebrewizeRecentNames(SUPABASE_URL && SUPABASE_KEY ? sb() : null).catch(() => null)])
+      const [r, meta] = await Promise.all([Auto.run({ source: 'panel' }), syncRecentMetaLeads({ hours: 6 }).catch(e => ({ error: e.message })), Auto.syncBookNames().catch(() => null), Auto.catchUpMessages().catch(() => null), Booking.retryConfirmations({ client: SUPABASE_URL && SUPABASE_KEY ? sb() : null }).catch(() => null), hebrewizeRecentNames(SUPABASE_URL && SUPABASE_KEY ? sb() : null).catch(() => null)])
       return res.status(200).json({ ...r, meta })
     }
     if (action === 'auto-send')   return res.status(200).json({ results: await Auto.sendItems(Array.isArray(b.items) ? b.items : [], { by: 'manual' }) })
