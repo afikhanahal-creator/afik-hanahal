@@ -475,8 +475,22 @@ search, Hebrew / English, "מומלץ לליד הזה", the personal templates, 
 to the window; the footer opens the full ⚡ panel. Both render for `chatLead` (one memoized lead row per open chat).
 Probe actions `wa` / `wa-send` check the chat page's own calls (`wa-send` texts the office number).
 
-Scheduled bulk sends are jobs in `app_settings` (`automations_jobs`), rendered at send time, max 20 messages per run;
-`auto-jobs-tick` pushes a running job from the open panel. `auto-tick?key=` (key = `AUTOMATION_KEY`, or the admin token)
+Scheduled bulk sends are jobs in `app_settings` (`automations_jobs`), rendered at send time. **Paced so WhatsApp doesn't block the
+number** (2026-11-01 — it used to send 20 at once, 0.5 s apart): one message per tick for the whole line, then `nextAt` = a random
+gap (`gapSec` 45 s / 1 min / 2 min / 5 min ±25 %, `paceGapMs()`), at most `dailyCap` (30 / 60 / 100 / 200) a day (`sentTodayCount()`,
+then `nextAt` = the next day's sending window), only in sending hours (`respectQuiet`, now on for "send now" too), a lead who wrote to
+us after the job was created is skipped ("ענו לנו בינתיים", `repliedSince()`, `skipReplied`), a 466 quota refusal leaves the
+recipient pending and waits an hour; each recipient's lead is read on its own (`getLead`), never the whole list. Pure rules in
+`lib/automations-shared.js` (tested, `lib/bulk-pace.test.mjs`; the engine end to end in `lib/bulk-jobs.test.mjs`). **The database
+drives it:** pg_cron `afik-bulk-jobs` (every minute, `server/bulk-pace-migration.sql`) counts the due jobs (`public.afik_due_jobs()`:
+status scheduled / sending, `at` and `nextAt` passed) and only then calls `auto-jobs-tick` with the database-made `remind_key`, so a
+send keeps going with the panel closed and nothing is called at night or after the cap; the open bulk-sends tab nudges every 30 s.
+The wizard (`src/CampaignsTab.jsx`): stage chips with counts ("ללא מענה" included), "רק מי שעוד לא ענה לנו" (`states[id].replied`;
+a "ענה לנו" badge per row), then "קצב שליחה" (gap, daily cap, an estimate — `paceEstimate()`), the skip-replied switch and the
+safety tips; the job card shows the pace, "ההודעה הבאה …", "הגיע למכסה היומית" and how many were skipped because they replied.
+**From the leads board:** select leads (cards or table) → "שליחה מרובה בוואטסאפ" in the bulk bar (`afik:bulk-send` window event →
+`AdminPanel` `bulkIds` → the automations tab's bulk sends, a new wizard with them already picked — only them are listed until a
+filter is used). `auto-tick?key=` (key = `AUTOMATION_KEY`, or the admin token)
 lets an external pinger such as cron-job.org run the engine every 5 minutes, so timing is exact even with the panel closed.
 Sending hours are `[start, end)` per weekday in 0.5-hour steps (Israel time); welcome, replies and stage messages ignore them.
 

@@ -1001,6 +1001,13 @@ async function handleAutomations(req, res, action) {
     const r = await Auto.remindTasks().catch(e => ({ error: e.message }))
     return res.status(200).json({ ok: !r.error, due: r.due || 0, sent: r.sent || 0, failed: r.failed || 0 })
   }
+  // Paced bulk sends: the database's scheduler (pg_cron, every minute) calls this only while a job is due
+  // (public.afik_due_jobs(), server/bulk-pace-migration.sql), with the same database-made key as auto-remind
+  if (action === 'auto-jobs-tick' && (req.body?.key || req.query?.key) && !checkAuth(req)) {
+    if (!(await remindKeyValid(String(req.body?.key || req.query?.key)))) return res.status(401).json({ error: 'Unauthorized' })
+    const r = await Auto.jobsTick().catch(e => ({ error: e.message }))
+    return res.status(200).json({ ok: !r.error, busy: !!r.busy, sent: r.jobs?.sent || 0, failed: r.jobs?.failed || 0 })
+  }
   if (!checkAuth(req)) return res.status(401).json({ error: 'Unauthorized' })
   res.setHeader('Cache-Control', 'no-store')
   const b = req.body || {}

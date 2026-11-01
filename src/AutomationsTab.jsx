@@ -170,7 +170,7 @@ export default function AutomationsTab(props) {
   return <ConfirmProvider dir={props.lang === 'en' ? 'ltr' : 'rtl'}><Automations {...props}/></ConfirmProvider>
 }
 
-function Automations({ lang = 'he', leads = [], stageLabels = {}, config, onConfigSaved, runResult, onRun, running, onOpenChat, onRenameLead, initialSub }) {
+function Automations({ lang = 'he', leads = [], stageLabels = {}, config, onConfigSaved, runResult, onRun, running, onOpenChat, onRenameLead, initialSub, bulkIds, onBulkConsumed }) {
   const t = TR[lang] || TR.he
   const isEn = lang === 'en'
   const dir = isEn ? 'ltr' : 'rtl'
@@ -191,6 +191,7 @@ function Automations({ lang = 'he', leads = [], stageLabels = {}, config, onConf
   const [sysOpen, setSysOpen] = useState(false)
   const [logFilter, setLogFilter] = useState('all')
   const [editJobId, setEditJobId] = useState(null)
+  useEffect(() => { if (bulkIds?.length) setTab('campaigns') }, [bulkIds])
   const tabRefs = useRef({})
 
   const KEYS = ['rules', 'quiet', 'vars']
@@ -365,7 +366,7 @@ function Automations({ lang = 'he', leads = [], stageLabels = {}, config, onConf
         {tab === 'rules' && <Rules {...common} setCfg={setCfg} logRows={logRows} queue={queue} onGoHours={() => setTab('hours')}/>}
         {tab === 'hours' && <HoursTab lang={lang} cfg={cfg} setCfg={setCfg} toast={toast}/>}
         {tab === 'campaigns' && <CampaignsTab lang={lang} cfg={cfg} tpls={tpls} leads={leads} states={states} stageName={stageName} jobs={jobs} loadJobs={loadJobs} jobsLoading={jobsLoading} toast={toast}
-          onOpenSystem={() => setSysOpen(true)} pingActive={pingActive} openEditId={editJobId} clearOpenEdit={() => setEditJobId(null)}/>}
+          onOpenSystem={() => setSysOpen(true)} pingActive={pingActive} openEditId={editJobId} clearOpenEdit={() => setEditJobId(null)} preselect={bulkIds} clearPreselect={onBulkConsumed}/>}
         {tab === 'log' && <Log {...common} log={log} loadLog={loadLog} logLimit={logLimit} setLogLimit={n => { setLogLimit(n); loadLog(n) }} states={states} loadStates={loadStates} filter={logFilter} setFilter={setLogFilter}/>}
       </section>
 
