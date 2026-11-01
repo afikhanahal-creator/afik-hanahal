@@ -7,6 +7,7 @@
       "claude/*": false
     }
   },
+  "ignoreCommand": "git diff --quiet HEAD^ HEAD -- . ':(exclude)docs' ':(exclude)supabase' ':(exclude).github' ':(exclude).claude' ':(exclude)*.md' ':(exclude)**/*.md'",
   "crons": [
     {
       "path": "/api/cron/warm",
