@@ -61,6 +61,7 @@ export function dictationError(code, lang = 'he') {
     'language-not-supported': 'הדפדפן הזה לא מזהה עברית. עדיף Chrome או Safari.',
     unsupported: 'בדפדפן הזה אין הקלטה. עובד ב-Chrome, Edge ו-Safari. בטלפון אפשר גם ללחוץ על המיקרופון שבמקלדת.',
     busy: 'המיקרופון תפוס בתוכנה או בלשונית אחרת. סוגרים אותה ומנסים שוב.',
+    dismissed: 'חלון השאלה של הדפדפן נסגר בלי תשובה. לוחצים שוב על המיקרופון ובוחרים "אישור" (Allow).',
     offline: 'אין חיבור לאינטרנט. ההקלטה נשמרה כאן, ואפשר לנסות שוב כשהחיבור חוזר.',
     transcribe: 'התמלול נכשל. ההקלטה נשמרה כאן, אפשר לנסות שוב.',
     'too-long': 'הגעתם למשך ההקלטה המרבי (15 דקות), ההקלטה נעצרה ומתומללת.',
@@ -77,6 +78,7 @@ export function dictationError(code, lang = 'he') {
     'language-not-supported': 'This browser can\'t recognize this language. Chrome or Safari work best.',
     unsupported: 'This browser can\'t record. It works in Chrome, Edge and Safari; on a phone the keyboard\'s mic works too.',
     busy: 'The microphone is in use by another app or tab. Close it and try again.',
+    dismissed: 'The browser\'s question was closed without an answer. Tap the mic again and choose "Allow".',
     offline: 'No internet connection. The recording is kept here; try again when you\'re back online.',
     transcribe: 'Transcription failed. The recording is kept here; you can try again.',
     'too-long': 'The maximum length (15 minutes) was reached; the recording stopped and is being transcribed.',
@@ -103,6 +105,7 @@ export function micErrorCode(e, perm = '') {
     // Chrome says "Permission denied by system" when Windows / macOS keeps the mic from the browser; a site the browser
     // already allows but still refused is the same case
     if (/system/i.test(String(e?.message || '')) || perm === 'granted') return 'os-blocked'
+    if (/dismiss/i.test(String(e?.message || ''))) return 'dismissed'
     return 'not-allowed'
   }
   if (n === 'NotFoundError' || n === 'DevicesNotFoundError' || n === 'OverconstrainedError') return 'audio-capture'

@@ -312,6 +312,7 @@ export default function SmartVoiceInput({ value, onChange, contextType = 'note',
           {phase === 'error' && (
             <>
               <div className="svi-err" role="alert">{dictationError(s.error?.code, lang)}</div>
+              {s.micDetail && <div className="svi-sub" dir="ltr" style={{ textAlign: 'start' }}>{s.micDetail}</div>}
               <div className="svi-row">
                 {s.error?.canRetry && <button type="button" className="svi-pri" onClick={() => s.retry()}>{t.retry}</button>}
                 <button type="button" className="svi-link" onClick={again}>{t.record}</button>

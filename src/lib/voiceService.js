@@ -20,6 +20,8 @@ export async function micPermission() {
   try { return (await navigator.permissions?.query({ name: 'microphone' }))?.state || '' } catch { return '' }
 }
 
+export const MIC = { audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }
+
 let statusP = null, statusAt = 0
 /** { provider: 'openai' | 'elevenlabs' | '', ai } — read once per 5 minutes */
 export function voiceStatus() {
@@ -88,8 +90,8 @@ function createRecorder({ segmentSec = SEGMENT_SEC, onSegment, onLevel }) {
   }
   const api = {
     get peak() { return peak },
-    async start() {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } })
+    async start(given) {
+      stream = given || await navigator.mediaDevices.getUserMedia(MIC)
       mime = pickMime()
       try {
         const AC = window.AudioContext || window.webkitAudioContext
@@ -188,9 +190,15 @@ export class VoiceSession {
   set(patch) { Object.assign(this, patch); this.emit() }
 
   async start() {
+    // Ask for the mic FIRST, in the same tap (before anything is awaited): the browser shows its permission question only for
+    // a request it can tie to the click, and its answer says exactly why when it refuses (the site, the computer, a closed prompt)
+    const micP = canRecord() ? navigator.mediaDevices.getUserMedia(MIC).then(s => ({ s }), e => ({ e })) : Promise.resolve({})
+    const statusP = voiceStatus()
     if (ACTIVE && ACTIVE !== this && (ACTIVE.phase === 'rec' || ACTIVE.phase === 'paused')) await ACTIVE.finish()
     ACTIVE = this
-    const st = await voiceStatus()
+    const mic = await micP
+    if (mic.e) { this.micDetail = `${mic.e.name || ''}: ${mic.e.message || ''}`.slice(0, 140); return this.fail(micErrorCode(mic.e, await micPermission())) }
+    const st = await statusP
     this.ai = st.ai
     if (st.provider && canRecord()) {
       this.engine = 'server'
@@ -198,8 +206,9 @@ export class VoiceSession {
         onSegment: (blob, i) => { this.segments[i] = { blob, text: '', status: 'pending' }; this.transcribe(i) },
         onLevel: v => { this.level = v; this.levelSubs?.forEach(f => f(v)) },
       })
-      try { await this.rec.start() } catch (e) { this.rec = null; return this.fail(micErrorCode(e, await micPermission())) }
+      try { await this.rec.start(mic.s) } catch (e) { this.rec = null; mic.s?.getTracks().forEach(t => t.stop()); return this.fail(micErrorCode(e, await micPermission())) }
     } else {
+      mic.s?.getTracks().forEach(t => t.stop())   // permission is granted now; the browser's recognition opens the mic itself
       this.engine = 'browser'
       this.live = createBrowserEngine({ lang: this.lang, onText: t => this.onLive?.(t), onError: async c => this.fail(c === 'not-allowed' && (await micPermission()) === 'granted' ? 'os-blocked' : c) })
       if (!this.live) return this.fail('unsupported')
