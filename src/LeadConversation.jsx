@@ -435,7 +435,7 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
         {...(selectable ? { role: 'checkbox', 'aria-checked': selOn, tabIndex: 0, onClick: () => toggleSel(m), onKeyDown: e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); toggleSel(m) } } } : {})}>
         {selectable && <span className="lcv-selbox" aria-hidden="true">{selOn ? '✓' : ''}</span>}
         <div className={`lcv-b wa-bubble ${out ? 'out' : 'in'}${firstOfRun ? ' tail' : ''}`} style={{ opacity: sending ? .7 : 1, position: 'relative' }}>
-          {!String(m.id).startsWith('opt-') && !selMode && <ChatMsgMenu text={m.message} isOut={out} WA={WA} lang={lang}
+          {!String(m.id).startsWith('opt-') && !selMode && <ChatMsgMenu text={m.message} isOut={out} WA={WA} lang={lang} bg={out ? WA.bubbleOut : WA.bubbleIn}
             {...(String(m.id).startsWith('log-') ? {} : {
               myReaction: reacts.find(r => r.dir === 'out')?.emoji || '',
               onReact: emo => reactTo(m, emo),
