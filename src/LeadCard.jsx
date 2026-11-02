@@ -14,10 +14,10 @@ import { useAdminTheme } from './adminTheme.js'
 import { autoApi } from './AutomationsApi.jsx'
 import DateTimePicker from './DateTimePicker.jsx'
 import { FollowUpComposer, FollowUpList, FollowUpButton } from './FollowUpTask.jsx'
-import { followUpPresets, setNextFollowUp, dueIso, describeDue } from '../lib/follow-up.js'
+import { followUpPresets, setNextFollowUp, dueIso, describeDue, updateTasks } from '../lib/follow-up.js'
 import WaFace from './WaFace.jsx'
 import TaskPresetInput, { rememberTaskText } from './TaskPresetInput.jsx'
-import VoiceDictate from './VoiceDictate.jsx'
+import SmartVoiceInput from './SmartVoiceInput.jsx'
 
 const TR = {
   he: {
@@ -496,7 +496,8 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
             {noteKind === 'call' && outcome === 'not_relevant' && (lead.leadStatus || 'new') !== 'irrelevant' ? t.moveTo(stageName('irrelevant')) : noteKind === 'call' && outcome === 'answered' && (lead.leadStatus || 'new') === 'new' ? t.moveTo(stageName('contacted')) : ''}
           </span>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginInlineStart: 'auto' }}>
-          <VoiceDictate value={noteDraft} onChange={v => { setNoteDraft(v); if (noteRef.current) setTimeout(() => grow(noteRef.current), 0) }} kind="note" lang={lang} inputRef={noteRef}/>
+          <SmartVoiceInput value={noteDraft} onChange={v => { setNoteDraft(v); if (noteRef.current) setTimeout(() => grow(noteRef.current), 0) }} contextType={noteKind === 'call' || noteKind === 'meeting' ? noteKind : 'note'} recordId={lead.id} lang={lang} inputRef={noteRef} hint={[lead?.name, lead?.campaignName].filter(Boolean).join(', ')}
+            onCreateTasks={items => Promise.resolve(save(updateTasks(lead, [...tasks, ...items]))).then(x => x !== false)}/>
           <button type="button" className="lc-act" disabled={!canAdd} onClick={addNote} style={{ background: canAdd ? 'var(--au-brand)' : 'rgba(var(--ov),.06)', color: canAdd ? '#fff' : T.text3, border: 'none', cursor: canAdd ? 'pointer' : 'default' }}><FaPlus size={10}/>{t.save}</button>
           </span>
         </div>
@@ -538,7 +539,8 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
                       <div style={{ marginTop: 8 }}>
                         <textarea autoFocus className="lc-in" value={editText} onChange={ev => { setEditText(ev.target.value); grow(ev.target) }} ref={grow}
                           onKeyDown={ev => { if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); saveEdit(n) } if (ev.key === 'Escape') { ev.preventDefault(); setEditId(null) } }} style={{ fontSize: 13.5 }}/>
-                        <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', marginTop: 6 }}>
+                        <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', alignItems: 'center', marginTop: 6 }}>
+                          <SmartVoiceInput value={editText} onChange={setEditText} contextType="note" recordId={lead.id} lang={lang} size="sm" style={{ marginInlineEnd: 'auto' }}/>
                           <button type="button" className="lc-act" onClick={() => setEditId(null)} style={{ background: 'transparent', color: T.text2, border: `1px solid ${T.s1Line}` }}>{t.cancel}</button>
                           <button type="button" className="lc-act" onClick={() => saveEdit(n)} style={{ background: 'var(--au-brand)', color: '#fff', border: 'none' }}><FaCheck size={10}/>{t.save}</button>
                         </div>

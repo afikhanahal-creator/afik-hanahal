@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { dictationMode, collectResults, joinText, liveText, polishedNote, fmtClock, dictationError } from './dictation.js'
+import { dictationMode, collectResults, joinText, liveText, polishedNote, fmtClock, dictationError, pickMime, micErrorCode, joinSegments, modesFor, voiceTaskItem } from './dictation.js'
 
 const res = (...xs) => Object.assign(xs.map(([t, f]) => Object.assign([{ transcript: t }], { isFinal: f })), {})
 
@@ -36,4 +36,28 @@ test('polished note, clock and errors', () => {
   assert.match(dictationError('not-allowed'), /מיקרופון/)
   assert.match(dictationError('unsupported', 'en'), /Chrome/)
   assert.match(dictationError('weird'), /נעצרה/)
+})
+
+test('recording format, mic errors, segments, modes', () => {
+  assert.equal(pickMime(t => t === 'audio/mp4'), 'audio/mp4')                       // Safari
+  assert.equal(pickMime(t => t.startsWith('audio/webm')), 'audio/webm;codecs=opus')  // Chrome
+  assert.equal(pickMime(() => { throw new Error('x') }), '')
+  assert.equal(micErrorCode({ name: 'NotAllowedError' }), 'not-allowed')
+  assert.equal(micErrorCode({ name: 'NotFoundError' }), 'audio-capture')
+  assert.equal(micErrorCode({ name: 'NotReadableError' }), 'busy')
+  assert.equal(micErrorCode(null), 'unsupported')
+  assert.equal(joinSegments([{ text: ' דיברנו ' }, { text: '' }, { text: 'עם רונן' }]), 'דיברנו עם רונן')
+  assert.deepEqual(modesFor('task'), { modes: ['task'], def: 'task' })
+  assert.equal(modesFor('call').def, 'call'); assert.equal(modesFor('note').def, 'exact'); assert.deepEqual(modesFor('property').modes, ['exact', 'smart'])
+  assert.match(dictationError('offline'), /נשמרה/)
+})
+
+test('voice task → lead task', () => {
+  const toIso = (d, hm) => `${d}T${hm}:00+02:00`
+  const a = voiceTaskItem({ title: 'להתקשר לרונן', description: 'לגבי זרובבל 15', due: '2026-11-03T09:00', owner: 'יוגב' }, { now: 1, toIso, id: 'x' })
+  assert.deepEqual(a, { id: 'x', text: 'להתקשר לרונן · לגבי זרובבל 15', done: false, createdAt: 1, by: 'voice', kind: 'followup', remind: true, due: '2026-11-03T09:00:00+02:00', owner: 'יוגב' })
+  assert.equal(voiceTaskItem({ title: 'לבדוק', due: '2026-11-08' }, { toIso, id: 'y' }).due, '2026-11-08T10:00:00+02:00')
+  const plain = voiceTaskItem({ title: 'לשלוח הצעת מחיר', due: '' }, { toIso, id: 'z' })
+  assert.equal(plain.kind, 'task'); assert.equal(plain.due, undefined); assert.equal(plain.remind, false)
+  assert.equal(voiceTaskItem({ title: ' ' }), null)
 })

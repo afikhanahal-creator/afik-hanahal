@@ -3,8 +3,8 @@ import { useWaiting, waitingOf } from './lib/waWaiting.js'
 import { useState, useRef, useCallback, useEffect, useMemo, createContext, useContext } from 'react'
 import DateTimePicker from './DateTimePicker.jsx'
 import { ensureFuCss } from './FollowUpTask.jsx'
-import VoiceDictate from './VoiceDictate.jsx'
-import { followUpPresets, setNextFollowUp } from '../lib/follow-up.js'
+import SmartVoiceInput from './SmartVoiceInput.jsx'
+import { followUpPresets, setNextFollowUp, updateTasks } from '../lib/follow-up.js'
 import { sourceLabel, sourceColor, originLines, leadCampaign, leadCampaignTag, leadCampaignFull, prettyLeadText, leadProject, toggleProjectInName, welcomeState } from './lib/leadFields.js'
 import { mergeLeads, mergeConflicts } from './lib/leadMerge.js'
 import { trashBatches } from '../lib/lead-restore.js'
@@ -1386,7 +1386,8 @@ function CallNoteDialog({ lead, T, isDark, lang, onClose, updateLead, updateLead
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 7 }}>
           <span style={{ fontSize: 12, fontWeight: 700, color: T.textSub }}>{en ? 'What came up' : 'מה עלה בשיחה'}</span>
-          <VoiceDictate value={text} onChange={setText} kind="note" lang={lang} inputRef={callTextRef}/>
+          <SmartVoiceInput value={text} onChange={setText} contextType="call" recordId={lead.id} lang={lang} inputRef={callTextRef} hint={[lead?.name, lead?.campaignName].filter(Boolean).join(', ')}
+            onCreateTasks={items => Promise.resolve(updateLead(lead.id, updateTasks(lead, [...(Array.isArray(lead.tasks) ? lead.tasks : []), ...items]))).then(x => x !== false)}/>
         </div>
         <textarea ref={callTextRef} autoFocus value={text} onChange={e => setText(e.target.value)} rows={5}
           onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); save() } }}

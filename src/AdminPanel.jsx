@@ -15,6 +15,7 @@ import { FaSun, FaMoon, FaPlus, FaEnvelope, FaFacebookF, FaInstagram, FaBed, FaR
 const SellerSubmissionsTab = lazy(() => import('./SellerSubmissionsTab.jsx'))
 const BookingAdminTab = lazy(() => import('./BookingAdminTab.jsx'))
 const MediaLibraryTab = lazy(() => import('./MediaLibraryTab.jsx'))
+import SmartVoiceInput, { VoiceHost } from './SmartVoiceInput.jsx'
 const VideoStudioTab = lazy(() => import('./VideoStudioTab.jsx'))
 const ContentEditorTab = lazy(() => import('./ContentEditorTab.jsx'))
 const AutomationsTab = lazy(() => import('./AutomationsTab.jsx'))
@@ -3390,12 +3391,15 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
               <div style={{ marginBottom:14 }}>
                 <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:4 }}>
                   <label style={{ fontSize:11, color:`${C.cream}70`, fontWeight:600 }}>תיאור הנכס</label>
+                  <span style={{ display:'inline-flex', alignItems:'center', gap:8 }}>
+                  <SmartVoiceInput value={form.description || ''} onChange={v => setForm(f => ({ ...f, description: v }))} contextType="property" lang={lang} size="sm" hint={[form.title, form.location].filter(Boolean).join(', ')}/>
                   <button onClick={rewriteWithAI} disabled={aiLoading}
                     style={{ display:'flex', alignItems:'center', gap:5, padding:'4px 12px', background: aiLoading ? 'rgba(var(--brand-rgb),.2)' : `${C.purple}22`, border:`1px solid ${C.purple}55`, borderRadius:6, color:C.purple, fontSize:10, fontWeight:700, cursor: aiLoading ? 'not-allowed' : 'pointer', fontFamily:'inherit', transition:'all .15s', letterSpacing:'.03em' }}
                     onMouseEnter={e => { if (!aiLoading) e.currentTarget.style.background = `${C.purple}38` }}
                     onMouseLeave={e => { if (!aiLoading) e.currentTarget.style.background = `${C.purple}22` }}>
                     {aiLoading ? '✦ מייצר...' : '✦ שכתוב עם AI'}
                   </button>
+                  </span>
                 </div>
                 <textarea rows={4} value={form.description} onChange={set('description')} style={{ ...inp, resize:'vertical', marginBottom:0 }} placeholder="תיאור מלא של הנכס, יתרונות, מאפיינים..."/>
                 {aiError && <div style={{ color:'#E05252', fontSize:11, marginTop:4 }}>{aiError}</div>}
@@ -4529,6 +4533,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
         </div>
       )}
       {/* ── Follow-up / task reminders: a card at the top that waits to be handled (src/TaskAlerts.jsx) ── */}
+      <VoiceHost lang={lang}/>
       <TaskAlerts leads={leads} lang={lang}
         onDone={(lead, taskId) => updateLead(lead.id, updateTasks(lead, (lead.tasks || []).map(x => (x.id === taskId ? { ...x, done: true, doneAt: Date.now() } : x))))}
         onOpenChat={lead => { setReminderCardId(null); setInitialChatLead(lead); setTab('chats') }}

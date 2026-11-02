@@ -15,6 +15,7 @@ import {
   FaSwimmingPool, FaWifi, FaUsers, FaBriefcase,
   FaFire, FaDumbbell, FaTruck, FaBath,
 } from 'react-icons/fa'
+import SmartVoiceInput from './SmartVoiceInput.jsx'
 
 // ─── Cloudinary config ── fill in your own cloud name + unsigned preset ───────
 const CLOUDINARY_CLOUD  = 'your-cloud-name'    // e.g. 'dxyz123abc'
@@ -1235,11 +1236,14 @@ function Step5({ d, upd }) {
           <div style={{ fontSize: 13, color: MUTED, fontFamily: FONT }}>
             תאר את הנכס, בלטי את יתרונותיו, מיקומו, קרבה לתחבורה, מוסדות חינוך וכו׳
           </div>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+          <SmartVoiceInput value={d.description || ''} onChange={v => upd('description', v)} contextType="property" lang="he" hint={[d.city, d.street].filter(Boolean).join(', ')}/>
           <button onClick={handleAI} disabled={generating}
             style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '8px 16px', background: generating ? `${P}33` : `linear-gradient(135deg,${P},#8b5cf6)`, border: 'none', borderRadius: 8, color: '#fff', fontSize: 12.5, fontWeight: 700, cursor: generating ? 'default' : 'pointer', fontFamily: FONT, whiteSpace: 'nowrap', flexShrink: 0, transition: 'opacity .2s', opacity: generating ? .7 : 1 }}>
             {generating ? <FaCircleNotch size={12} style={{ animation: 'spin 1s linear infinite' }}/> : <FaMagic size={12}/>}
             {generating ? 'כותב...' : 'AI שכתוב'}
           </button>
+          </span>
         </div>
         <textarea value={d.description} onChange={e => upd('description', e.target.value)}
           placeholder="זה המקום לתאר את הפרטים הבולטים. למשל: האם נערך שיפוץ? מה שופץ? מה מצב הבניין? כיווני האוויר ברחוב? האם יש גינה / חצר? וכו׳"

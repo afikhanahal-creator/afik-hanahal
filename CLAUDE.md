@@ -797,18 +797,32 @@ React and Vite add no prefixes, Safari < 18 needs it); `AbortSignal.timeout` is 
 (Safari < 16 threw on every admin fetch); scrollbars are styled in `index.html` for both `::-webkit-scrollbar` (Safari) and
 `scrollbar-width` / `scrollbar-color` (Firefox, Chrome ≥ 121). Check new JS against Safari 15.4 before using it
 (`Object.groupBy`, `Promise.withResolvers`, `toSorted`, `Set` methods need a guard).
-**Voice dictation in every note / task box** (2026-11-02, `src/VoiceDictate.jsx`): a mic button — the chats tab's "הערות" and
-"פולו אפ", every task box (`TaskPresetInput`, so the lead card's tasks / follow-up and the follow-ups screen's "משימה חדשה"), the
-lead card's note composer, the call summary (`CallNoteDialog`), the follow-ups screen's note cell and the Lead Center's notes
-card. Tap, speak, tap again: the browser's own speech recognition (`he-IL`; Chrome / Edge on a computer and Android, Safari on Mac
-and iPhone — on Android every phrase is a short session that restarts itself, continuous mode repeats words there) writes the words
-into the box live (`src/lib/dictation.js`, tested: `collectResults()` / `liveText()` never repeat a phrase); on stop
-`POST /api/meta/dictation-polish {text, kind, lang}` (`lib/dictation-polish.js`, tested; `claude-opus-5-5`, effort low) rewrites it
-in correct Hebrew — punctuation, digits, misheard real-estate words fixed, nothing dropped or invented (an answer much longer than
-what was said is refused), a task as one short line, a long note with "סיכום: …" on top. A bubble offers "לטקסט כפי שנאמר" (and
-back); without Claude (no key / no credit) the text stays as heard. One box records at a time, leaving the screen stops it, 10
-minutes max; errors read as words (`dictationError()`: blocked mic, Siri off on iPhone, no recognition in Firefox → the phone
-keyboard's mic). `npm run qa:dictation` (`scripts/qa-dictation.cjs`, a fake speech engine) checks it end to end.
+**Smart voice input — one mic for the whole admin** (2026-11-02, `src/SmartVoiceInput.jsx` + the service `src/lib/voiceService.js`):
+in the chats tab's notes and follow-up, every task box (`TaskPresetInput`), the lead card's note composer and inline note edit,
+the call summary (`CallNoteDialog`), the follow-ups screen's notes, the Lead Center's notes, the property description (quick form
+and wizard) and the intake property's notes / description. Props: `value` / `onChange` (the target field), `contextType`
+(`note` · `call` · `meeting` · `task` · `property`), `recordId`, `lang`, `hint` (names that may be said), `transcriptionMode`,
+`inputRef`, `onCreateTasks(items)` (boxes that belong to a lead). **Recording:** a floating panel (no layout shift; on a phone at the
+bottom, above the keyboard — `visualViewport`; 44 px buttons) with a timer, a live waveform (AnalyserNode), pause / resume, cancel
+and finish; MediaRecorder (webm-opus, Safari mp4-aac, 32 kbps) cut into 2-minute pieces (each a whole file, ≤ 4 MB, transcribed
+while you still talk), 15 minutes max. **Transcription** on the server, nothing stored: `POST /api/meta/voice-transcribe?mime=&lang=&hint=`
+(raw bytes — the handler now reads every body as bytes; `lib/transcribe.js`, tested: `OPENAI_API_KEY` → gpt-4o-transcribe, else
+`ELEVENLABS_API_KEY` → Scribe, Hebrew + a vocabulary hint of towns / projects / trade words / the lead) — `GET voice-status` says which;
+without a key the browser's own recognition writes live as before (Chrome / Edge / Safari). One automatic retry; a failed piece keeps
+its audio in the tab for "נסו שוב". **AI layer:** `POST /api/meta/voice-process {transcript, mode, contextType, lang, hint}`
+(`lib/voice-process.js`, tested; `claude-opus-5-5`, effort low): `exact` (what was said, punctuated, stutters and false starts out),
+`smart` (a professional summary that keeps every detail), `call` (titled sections in a fixed order — topic, client, needs, key
+details, prices, decisions, open questions, commitments, next steps, follow-up date — only those said), `task` (one line); never
+invents, marks what wasn't clear "(לבדיקה)" and lists it; and lists the **tasks that were said** with a due computed from "now" in
+Israel time (validated, never in the past). The result goes into the box (still editable; the box's own button saves); the panel
+switches modes (cached), "כפי שנאמר", "הקלטה חדשה", never overwrites a manual edit without asking, closes when the box is saved and
+cleared; on a phone the result moves to the top. Detected tasks are offered with checkboxes, editable title / time → `voiceTaskItem()`
+(`src/lib/dictation.js`, tested: a time = a follow-up with a WhatsApp reminder, a day = 10:00, none = a plain task) → `onCreateTasks`
+(the lead's `updateTasks`). If the box closes mid-way (a popover), the session goes on in `VoiceHost` (mounted in `AdminPanel`), which
+offers the text to copy. Errors read as words (`dictationError()`: blocked mic, mic in use, offline, failed, too long, format, no
+speech). `npm run qa:dictation` (`scripts/qa-dictation.cjs`, Chromium's fake microphone — a real MediaRecorder recording) checks the
+whole flow; `lib/voice-route.test.mjs` checks the bytes reach the provider unchanged. Real devices (iPhone Safari, Android Chrome)
+still need a check by hand.
 **Popovers keep the focus where the user types** (2026-11-02): `Popover` (`src/automationsUI.jsx`) keeps the latest `onClose` in a
 ref and runs its listeners / autofocus only when it opens (`[open, anchor]`) — callers pass an inline arrow, and re-running on
 every render moved the focus to the first button on every keystroke (the chats tab's "הערות" box took one letter; its selector
