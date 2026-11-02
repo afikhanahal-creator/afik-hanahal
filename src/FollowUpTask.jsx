@@ -56,11 +56,16 @@ const BellIcon = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="non
 export function FollowUpComposer({ lead, lang = 'he', onSave, onDone, autoFocus = false, saveLabel }) {
   useCss()
   const [text, setText] = useState('')
-  const [due, setDue] = useState('')
+  const presets = followUpPresets(Date.now(), lang)
+  // "when" starts on tomorrow 9:00, so a typed task can be saved at once (the button used to stay grey until a time was
+  // picked, with no hint why); a ready-made task brings its own time until the office picks one by hand
+  const defDue = () => presets.find(p => p.id === 'tom9')?.at || ''
+  const [due, setDueRaw] = useState(defDue)
+  const [dueSet, setDueSet] = useState(false)
+  const setDue = v => { setDueRaw(v); setDueSet(true) }
   const [remind, setRemind] = useState(true)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
-  const presets = followUpPresets(Date.now(), lang)
   const save = async () => {
     if (!due || busy) return
     const r = addFollowUp(lead, { text, due, remind })
@@ -70,7 +75,7 @@ export function FollowUpComposer({ lead, lang = 'he', onSave, onDone, autoFocus 
       const res = await onSave(r.patch, r.task)
       if (res === false) throw new Error('save')
       rememberTaskText(text)
-      setText(''); setDue('')
+      setText(''); setDueRaw(defDue()); setDueSet(false)
       onDone?.(r.task)
     } catch { setErr(L(lang, 'השמירה נכשלה, נסו שוב', 'Could not save, try again')) }
     setBusy(false)
@@ -78,7 +83,7 @@ export function FollowUpComposer({ lead, lang = 'he', onSave, onDone, autoFocus 
   return (
     <div className="fu" dir={lang === 'en' ? 'ltr' : 'rtl'}>
       <TaskPresetInput value={text} onChange={setText} autoFocus={autoFocus} lang={lang} kind="followup" placeholder={defaultFollowUpText(lead, lang)}
-        ariaLabel={L(lang, 'מה לעשות', 'What to do')} onEnter={save} onPick={(p, d) => { if (!due && d) setDue(d) }} inputStyle={{ height: 40 }}/>
+        ariaLabel={L(lang, 'מה לעשות', 'What to do')} onEnter={save} onPick={(p, d) => { if (!dueSet && d) setDueRaw(d) }} inputStyle={{ height: 40 }}/>
       <div className="fu-row">
         <DateTimePicker value={due} onChange={setDue} format="iso" lang={lang} presets={presets} min={new Date().toISOString().slice(0, 10)}
           placeholder={L(lang, 'מתי לחזור אליהם?', 'When to get back?')} label={L(lang, 'מתי', 'When')} clearable={false} style={{ flex: '1 1 210px' }}/>

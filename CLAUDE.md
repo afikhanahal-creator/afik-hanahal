@@ -797,6 +797,15 @@ React and Vite add no prefixes, Safari < 18 needs it); `AbortSignal.timeout` is 
 (Safari < 16 threw on every admin fetch); scrollbars are styled in `index.html` for both `::-webkit-scrollbar` (Safari) and
 `scrollbar-width` / `scrollbar-color` (Firefox, Chrome ≥ 121). Check new JS against Safari 15.4 before using it
 (`Object.groupBy`, `Promise.withResolvers`, `toSorted`, `Set` methods need a guard).
+**Popovers keep the focus where the user types** (2026-11-02): `Popover` (`src/automationsUI.jsx`) keeps the latest `onClose` in a
+ref and runs its listeners / autofocus only when it opens (`[open, anchor]`) — callers pass an inline arrow, and re-running on
+every render moved the focus to the first button on every keystroke (the chats tab's "הערות" box took one letter; its selector
+also skipped `textarea`). It never refocuses while the focus is already inside, and a click in the task presets list (`.tpi-pop`)
+isn't "outside". Never put a callback prop in the deps of an effect that moves focus — use a ref (`PropertyShare` had the same).
+**QA of the chats screen:** `npm run build && npm run qa:chats` (`scripts/qa-chats.cjs`, Playwright, every API answered locally):
+every header / composer button — notes, follow-up (its "when" starts on tomorrow 9:00, so a typed task saves at once), stage,
+AI summary, the templates menu / window / chips, "✓ טופל", emoji, attach, booking link, send, rename, next / previous (disabled
+when there is nowhere to go) / refresh / close, the list filters — PASS / FAIL per check, exit 1 on a failure.
 `src/CommandPalette.jsx` — Ctrl/⌘ + K (or the top-bar search) jumps to any screen, lead (opens the chat) or property, and runs actions.
 
 ### Lead card & smart lead analysis

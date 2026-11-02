@@ -1133,20 +1133,22 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                   </button>
                 )}
                 {[
-                  { delta:-1, disabled:contactIdx<=0,                      label:'‹', title:'ליד קודם' },
-                  { delta:+1, disabled:contactIdx>=contactList.length-1,    label:'›', title:'ליד הבא'  },
+                  // a chat that isn't in the list (or the only one) has nowhere to go — the arrows used to look live and do nothing;
+                  // in Hebrew "previous" points right
+                  { delta:-1, disabled:contactIdx<=0,                                       label: lang === 'en' ? '‹' : '›', title:'ליד קודם' },
+                  { delta:+1, disabled:contactIdx<0 || contactIdx>=contactList.length-1,    label: lang === 'en' ? '›' : '‹', title:'ליד הבא'  },
                 ].map(({ delta, disabled, label, title }) => (
-                  <button key={delta} title={title} className="wa-nav"
+                  <button key={delta} type="button" title={title} aria-label={title} disabled={disabled} className="wa-nav"
                     onClick={()=>!disabled&&selectContact(contactList[contactIdx+delta])}
                     style={{ width:32, height:32, borderRadius:'50%', background:'transparent', border:'none', color:disabled?WA.border:WA.subText, cursor:disabled?'default':'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontSize:22, flexShrink:0, lineHeight:1 }}>
                     {label}
                   </button>
                 ))}
-                <button className="wa-nav" onClick={()=>fetchMsgs(contact.phone)} title="רענן"
+                <button type="button" className="wa-nav" onClick={()=>fetchMsgs(contact.phone)} title="רענן" aria-label="רענון השיחה"
                   style={{ width:32, height:32, borderRadius:'50%', background:'transparent', border:'none', color: WA.subText, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0 }}
                   onMouseEnter={e=>e.currentTarget.style.background=WA.border}
                   onMouseLeave={e=>e.currentTarget.style.background='transparent'}>↻</button>
-                <button className="wa-nav" onClick={()=>setContact(null)} title="סגור"
+                <button type="button" className="wa-nav" onClick={()=>setContact(null)} title="סגור" aria-label="סגירת השיחה"
                   style={{ width:32, height:32, borderRadius:'50%', background:'transparent', border:'none', color: WA.subText, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0 }}
                   onMouseEnter={e=>e.currentTarget.style.background=WA.border}
                   onMouseLeave={e=>e.currentTarget.style.background='transparent'}>✕</button>
