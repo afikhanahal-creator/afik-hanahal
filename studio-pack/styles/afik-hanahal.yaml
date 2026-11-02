@@ -1,0 +1,122 @@
+identity:
+  name: "Afik Hanahal Real Estate"
+  category: custom
+  mood: premium, warm, trustworthy, aspirational
+  pace: deliberate
+  best_for: "Property reels (Instagram / Facebook / TikTok), YouTube property tours, project launches, investor briefs and agent brand films for Afik Hanahal, a real-estate office in the Sharon region of Israel"
+
+taste_profile:
+  design_read: "Boutique real-estate film: the property is the hero, the brand is a quiet signature. Calm authority, golden light, honest space."
+  visual_variance: 4
+  motion_intensity: 4
+  information_density: 4
+  palette_discipline: "Near-black night field (#09090F) or warm sand (#F5F1E9), one restrained purple accent (#8490D8 on dark, #3F4EB0 on light), white text. No rainbow overlays, no stock-template gradients."
+  layout_variation: "Alternate full-bleed property shots, slow push-ins on details, a clean spec card, a map / location frame, and one closing brand card."
+  reference_strategy: "Use the property's own photos and footage first; generate only to fill gaps, and label generated or simulated visuals as 'הדמיה' on screen."
+  anti_patterns:
+    - "fake luxury clichés (gold glitter, champagne, lens flares on every shot)"
+    - "showing features the property does not have"
+    - "fast TikTok whip-pans on every cut"
+    - "text over busy parts of the frame"
+    - "English-only captions on a Hebrew video"
+  quality_gates:
+    - "The first 2 seconds say what and where: property type + town / street, or price."
+    - "Every number on screen (price, rooms, sqm, floor) matches the brief exactly."
+    - "Hebrew text reads right-to-left and is never mirrored or broken."
+    - "Generated visuals carry a visible 'הדמיה' label."
+
+visual_language:
+  color_palette:
+    primary: ["#09090F", "#151521"]
+    accent: ["#8490D8", "#3F4EB0"]
+    background: "#09090F"
+    text: "#F5F1E9"
+    muted: "#9CA0B8"
+  composition: property-first framing, wide establishing shots then detail push-ins, rule of thirds, text kept in calm negative space (sky, walls, floor)
+  texture: clean photographic grade with warm highlights, soft natural light, no heavy grain or vignettes
+
+typography:
+  headings:
+    font: "Rubik"
+    weight: 700
+    tracking: "0em"
+  body:
+    font: "Rubik"
+    weight: 400
+    line_height: 1.5
+  code:
+    font: "JetBrains Mono"
+    weight: 400
+  stat_card:
+    font: "Rubik"
+    weight: 800
+    size_multiplier: 3.0
+  scale_system: "major_third"
+  weight_matrix:
+    title: 800
+    heading: 700
+    body: 400
+    caption: 500
+
+motion:
+  transitions: [fade, dissolve, slide-left]
+  animation_style: "smooth ease-in-out, slow camera drift and push-in on stills, no bounce, no shake"
+  pacing_rules:
+    min_scene_hold_seconds: 1.8
+    max_scene_hold_seconds: 6
+    text_card_hold_seconds: 2.5
+    stat_card_hold_seconds: 2.8
+    transition_duration_seconds: 0.5
+  entrance: "fade-up 10px with opacity ramp (Hebrew text enters from the right)"
+  exit: "soft fade"
+
+audio:
+  voice_style: "warm, confident Israeli-Hebrew narrator, natural pace, plural address (אתם), never salesy shouting"
+  music_mood: "modern warm piano or soft house pulse, uplifting, premium, no lyrics under narration"
+  music_volume: 0.12
+  sfx_style: "subtle whooshes on transitions, a soft door / keys sound on the closing card only"
+  ducking_threshold_db: -4
+
+asset_generation:
+  image_prompt_prefix: "professional real estate photography, natural daylight, bright airy interior, wide angle, straight verticals, Israeli Mediterranean architecture, "
+  image_negative_prompt: "people, text, watermark, distorted walls, curved verticals, fisheye, oversaturated, fake luxury, clutter, low quality"
+  diagram_style: "clean map pin and distance lines, purple accent #8490D8, Rubik labels in Hebrew"
+  consistency_anchors:
+    - "Night field #09090F with warm off-white #F5F1E9 text"
+    - "One purple accent #8490D8 for prices, highlights and the brand mark"
+    - "Rubik for all Hebrew and English text"
+    - "Closing card: Afik Hanahal logo, phone, and the booking link"
+
+overlays:
+  stat_card:
+    bg: "#151521"
+    border: "#8490D8"
+    radius: 14
+    shadow: "0 10px 30px rgba(0,0,0,0.35)"
+  key_term:
+    bg: "#8490D8"
+    text: "#09090F"
+    radius: 8
+  code_block:
+    bg: "#151521"
+    text: "#F5F1E9"
+    highlight: "#8490D8"
+
+quality_rules:
+  - "Minimum contrast ratio 4.5:1 for all text"
+  - "Hebrew captions right-aligned, RTL, max 2 lines, max ~32 characters per line"
+  - "Price, rooms, size and location exactly as in the brief"
+  - "Label generated or simulated visuals 'הדמיה'"
+  - "Logo and phone on the last 2-3 seconds, never covering the property"
+  - "Vertical 9:16 keeps text inside the safe area (top 12% and bottom 18% free for app UI)"
+
+chart_palette:
+  - "#8490D8"
+  - "#F5F1E9"
+  - "#3F4EB0"
+  - "#9CA0B8"
+
+color_rules:
+  harmony_type: "analogous"
+  contrast_validation: true
+  colorblind_safe: true
