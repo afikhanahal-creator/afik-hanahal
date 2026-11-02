@@ -43,6 +43,10 @@ test('recording format, mic errors, segments, modes', () => {
   assert.equal(pickMime(t => t.startsWith('audio/webm')), 'audio/webm;codecs=opus')  // Chrome
   assert.equal(pickMime(() => { throw new Error('x') }), '')
   assert.equal(micErrorCode({ name: 'NotAllowedError' }), 'not-allowed')
+  assert.equal(micErrorCode({ name: 'NotAllowedError', message: 'Permission denied by system' }), 'os-blocked')
+  assert.equal(micErrorCode({ name: 'NotAllowedError', message: 'Permission denied' }, 'granted'), 'os-blocked')
+  assert.equal(micErrorCode({ name: 'NotAllowedError' }, 'denied'), 'not-allowed')
+  assert.match(dictationError('os-blocked'), /Windows/)
   assert.equal(micErrorCode({ name: 'NotFoundError' }), 'audio-capture')
   assert.equal(micErrorCode({ name: 'NotReadableError' }), 'busy')
   assert.equal(micErrorCode(null), 'unsupported')

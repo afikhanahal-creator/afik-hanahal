@@ -53,7 +53,8 @@ export const fmtClock = sec => `${Math.floor(sec / 60)}:${String(Math.floor(sec 
 /** The browser's error, in words the office understands */
 export function dictationError(code, lang = 'he') {
   const he = {
-    'not-allowed': 'הדפדפן חסם את המיקרופון. לוחצים על סמל המנעול ליד כתובת האתר ← מיקרופון ← לאפשר, ומנסים שוב.',
+    'not-allowed': 'הדפדפן חסם את המיקרופון לאתר הזה. לוחצים על הסמל שמשמאל לכתובת האתר ← "איפוס ההרשאה" (או מיקרופון ← לאפשר) ← מרעננים את הדף ← לוחצים שוב על המיקרופון ובוחרים "אישור".',
+    'os-blocked': 'המחשב עצמו חוסם את המיקרופון לדפדפן. ב-Windows: הגדרות ← פרטיות ואבטחה ← מיקרופון ← להפעיל את "גישה למיקרופון" ואת "אפשר לאפליקציות שולחן עבודה לגשת למיקרופון". ב-Mac: הגדרות מערכת ← פרטיות ואבטחה ← מיקרופון ← לסמן את Chrome. אחר כך סוגרים את הדפדפן לגמרי ופותחים מחדש.',
     'service-not-allowed': 'הדפדפן חסם את זיהוי הדיבור. ב-iPhone: הגדרות ← Siri ← להפעיל, ובהגדרות Safari לאפשר מיקרופון.',
     'audio-capture': 'לא נמצא מיקרופון. בודקים שהוא מחובר ולא תפוס בתוכנה אחרת.',
     network: 'אין חיבור לשירות זיהוי הדיבור. בודקים את האינטרנט ומנסים שוב.',
@@ -68,7 +69,8 @@ export function dictationError(code, lang = 'he') {
     process: 'העיבוד לעברית תקינה לא הצליח, הטקסט נשאר כפי שתומלל.',
   }
   const en = {
-    'not-allowed': 'The browser blocked the microphone. Click the lock next to the address → Microphone → Allow, then try again.',
+    'not-allowed': 'The browser blocked the microphone for this site. Click the icon left of the address → "Reset permission" (or Microphone → Allow) → reload the page → tap the mic again and choose "Allow".',
+    'os-blocked': 'The computer itself blocks the microphone for the browser. Windows: Settings → Privacy & security → Microphone → turn on "Microphone access" and "Let desktop apps access your microphone". Mac: System Settings → Privacy & Security → Microphone → tick Chrome. Then quit the browser completely and reopen it.',
     'service-not-allowed': 'The browser blocked speech recognition. On iPhone: Settings → Siri → turn it on, and allow the microphone for Safari.',
     'audio-capture': 'No microphone was found. Check it is connected and not in use by another app.',
     network: 'The speech service can\'t be reached. Check the internet and try again.',
@@ -95,9 +97,14 @@ export function pickMime(isSupported = t => (typeof MediaRecorder !== 'undefined
 }
 
 /** getUserMedia's error → our code */
-export function micErrorCode(e) {
+export function micErrorCode(e, perm = '') {
   const n = String(e?.name || '')
-  if (n === 'NotAllowedError' || n === 'SecurityError' || n === 'PermissionDeniedError') return 'not-allowed'
+  if (n === 'NotAllowedError' || n === 'SecurityError' || n === 'PermissionDeniedError') {
+    // Chrome says "Permission denied by system" when Windows / macOS keeps the mic from the browser; a site the browser
+    // already allows but still refused is the same case
+    if (/system/i.test(String(e?.message || '')) || perm === 'granted') return 'os-blocked'
+    return 'not-allowed'
+  }
   if (n === 'NotFoundError' || n === 'DevicesNotFoundError' || n === 'OverconstrainedError') return 'audio-capture'
   if (n === 'NotReadableError' || n === 'TrackStartError' || n === 'AbortError') return 'busy'
   return 'unsupported'

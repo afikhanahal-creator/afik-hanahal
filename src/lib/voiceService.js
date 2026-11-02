@@ -15,6 +15,11 @@ const AUTH = { Authorization: 'Bearer AFIKhanahal2026' }
 export const SEGMENT_SEC = 120
 export const MAX_SEC = 900
 
+/** The browser's own word on the mic for this site: 'granted' | 'denied' | 'prompt' | '' (unknown — Safari / Firefox) */
+export async function micPermission() {
+  try { return (await navigator.permissions?.query({ name: 'microphone' }))?.state || '' } catch { return '' }
+}
+
 let statusP = null, statusAt = 0
 /** { provider: 'openai' | 'elevenlabs' | '', ai } — read once per 5 minutes */
 export function voiceStatus() {
@@ -193,10 +198,10 @@ export class VoiceSession {
         onSegment: (blob, i) => { this.segments[i] = { blob, text: '', status: 'pending' }; this.transcribe(i) },
         onLevel: v => { this.level = v; this.levelSubs?.forEach(f => f(v)) },
       })
-      try { await this.rec.start() } catch (e) { this.rec = null; return this.fail(micErrorCode(e)) }
+      try { await this.rec.start() } catch (e) { this.rec = null; return this.fail(micErrorCode(e, await micPermission())) }
     } else {
       this.engine = 'browser'
-      this.live = createBrowserEngine({ lang: this.lang, onText: t => this.onLive?.(t), onError: c => this.fail(c) })
+      this.live = createBrowserEngine({ lang: this.lang, onText: t => this.onLive?.(t), onError: async c => this.fail(c === 'not-allowed' && (await micPermission()) === 'granted' ? 'os-blocked' : c) })
       if (!this.live) return this.fail('unsupported')
       try { this.live.start() } catch { return this.fail('unsupported') }
     }
