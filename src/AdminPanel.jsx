@@ -33,7 +33,7 @@ import { alertText, mergeAlert } from './lib/waInbox.js'
 import { leadCampaign } from './lib/leadFields.js'
 import WaFace from './WaFace.jsx'
 import TaskAlerts from './TaskAlerts.jsx'
-import { updateTasks } from '../lib/follow-up.js'
+import { closeForStage, updateTasks } from '../lib/follow-up.js'
 import { notifyPropertiesChanged, mirrorProperty, mirrorProperties, mirrorDelete } from './siteRebuild.js'
 import { fetchAdminProperties, LeadsBoard, GreenAPIChat, MetaLeadsTab, SupermetricsTab, PropertyWizard, API_BASE, CONTACTS_API, ADMIN_TOKEN, condFetchJson, DARK_C, useTheme, TEAM, G, Logo, LEADS_STORE, LEADS_DELETED, LEADS_TRASH, ANALYTICS_KEY, META_LEAD_PAGES_KEY, WA_DEFAULT_TEMPLATE, _cloudSettings, CATEGORIES, EMPTY_PROP, CONDITION_OPTIONS, ENTRY_OPTIONS, ADMIN_DRAFT_KEY, toMapsEmbed, imgFallback, thumbImg, sortByOrder, TEAM_KEY, setCloudSettings } from './App.jsx'
 
@@ -2112,7 +2112,9 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     }
     // The server runs the stage automations on this PATCH: it either sent a message already, or
     // has one ready for approval → offer it right here instead of making the team look for it.
-    const p0 = updateLead(lead.id, { leadStatus: status, stageLog, ...extra })
+    // "לא רלוונטי" closes the lead's open follow-ups and tasks, a closed deal its follow-ups — no reminder for them any more
+    const closed = from === status ? null : closeForStage(lead, status)
+    const p0 = updateLead(lead.id, { leadStatus: status, stageLog, ...extra, ...(closed || {}) })
     if (p0 && typeof p0.then === 'function') p0.then(d => {
       const a = d?.automation
       if (a?.sent) return   // a message we sent raises no alert
