@@ -819,7 +819,7 @@ switches modes (cached), "כפי שנאמר", "הקלטה חדשה", never overw
 cleared; on a phone the result moves to the top. Detected tasks are offered with checkboxes, editable title / time → `voiceTaskItem()`
 (`src/lib/dictation.js`, tested: a time = a follow-up with a WhatsApp reminder, a day = 10:00, none = a plain task) → `onCreateTasks`
 (the lead's `updateTasks`). If the box closes mid-way (a popover), the session goes on in `VoiceHost` (mounted in `AdminPanel`), which
-offers the text to copy. Errors read as words (`dictationError()`: blocked mic, mic in use, offline, failed, too long, format, no
+offers the text to copy. Errors read as words (`dictationError()`: the site blocked in the browser vs the computer blocking the browser — `micErrorCode(e, micPermission())`: Chrome's "Permission denied by system" or a site already granted → `os-blocked` with the Windows / Mac steps; mic in use, offline, failed, too long, format, no
 speech). `npm run qa:dictation` (`scripts/qa-dictation.cjs`, Chromium's fake microphone — a real MediaRecorder recording) checks the
 whole flow; `lib/voice-route.test.mjs` checks the bytes reach the provider unchanged. Real devices (iPhone Safari, Android Chrome)
 still need a check by hand.
