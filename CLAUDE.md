@@ -1072,6 +1072,13 @@ Rules that keep it near zero:
   from the last rebuild's, at most once every 2 hours (the daily cron catches a change that waited; the probe's `rebuild` sends
   `force=1`). In the dashboard: project → Settings → Deployment Retention → preview / canceled / errored 1 day, production 1
   week (the current production deployment is always kept).
+  **75 % again on 2026-11-02 (team `afik-hanahal-s-projects`, ~4 production deploys a day, nothing deleted).** Two guards since:
+  `.github/workflows/vercel-cleanup.yml` (daily, `scripts/vercel-cleanup.mjs` + the tested rules in `lib/vercel-cleanup.js`
+  `pickDeletions()`: keep the 5 newest ready production deployments and everything from the last 7 days, previews / errored /
+  canceled go after a day, never one still building; counts only in the log) — it needs the `VERCEL_TOKEN` secret (vercel.com →
+  Account Settings → Tokens, scope = that team; optional variables `VERCEL_TEAM_ID` / `VERCEL_PROJECT`) and does nothing without it;
+  and `ignoreCommand` in `vercel.json` skips a deploy for commits that only touch docs / `*.md`, `server/*.sql`, `studio-pack/`,
+  tests and the probe / cleanup scripts. Batch small changes into one PR when you can — every merge is a kept deployment.
 - Measure with the "Site speed probe" action, `actions: traffic`: wire size, gzip and the 304 of every API answer, and
   the photo sizes through the CDN. Usage itself: vercel.com → the team → Usage → Fast Origin Transfer.
 
