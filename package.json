@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "test": "node --test lib/news/*.test.mjs lib/*.test.mjs src/lib/*.test.mjs",
     "test:intake": "node scripts/test-intake-e2e.mjs",
-    "build:content": "node scripts/build-content.mjs"
+    "build:content": "node scripts/build-content.mjs",
+    "qa:chats": "node scripts/qa-chats.cjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.128.0",

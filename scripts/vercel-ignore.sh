@@ -8,4 +8,4 @@ git diff --quiet HEAD^ HEAD -- . \
   ':(exclude)*.md' ':(exclude)**/*.md' \
   ':(exclude)server' ':(exclude)studio-pack' ':(exclude)**/*.test.mjs' \
   ':(exclude)scripts/probe-site.mjs' ':(exclude)scripts/probe-actions.mjs' ':(exclude)scripts/test-intake-e2e.mjs' \
-  ':(exclude)scripts/vercel-cleanup.mjs' ':(exclude)lib/vercel-cleanup.js'
+  ':(exclude)scripts/vercel-cleanup.mjs' ':(exclude)scripts/qa-chats.cjs' ':(exclude)lib/vercel-cleanup.js'

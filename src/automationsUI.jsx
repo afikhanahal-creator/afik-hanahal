@@ -335,15 +335,21 @@ export function Popover({ anchor, open, onClose, children, width = 260, dir, lab
     const below = window.innerHeight - r.bottom > 280
     setPos({ left, top: below ? r.bottom + 6 : undefined, bottom: below ? undefined : window.innerHeight - r.top + 6 })
   }, [open, anchor, width, dir, mobile])
+  // The latest onClose without re-running the effect: callers pass an inline arrow, and re-running it on every render (every
+  // keystroke in a field inside) used to move the focus to the first button — the chats tab's notes box took one letter.
+  const closeRef = useRef(onClose)
+  closeRef.current = onClose
   useEffect(() => {
     if (!open) return
+    const close = () => closeRef.current?.()
     // a date picker opened from inside the popover lives in its own portal (DateTimePicker): a click there isn't "outside"
-    const onDown = e => { if (e.target?.closest?.('.dtp-pop,.dtp-sheet-bg')) return; if (ref.current && !ref.current.contains(e.target) && !anchor?.current?.contains(e.target)) onClose() }
-    const onKey = e => { if (e.key === 'Escape') { e.preventDefault(); onClose(); anchor?.current?.focus?.() } }   // preventDefault: a card under it stays open
+    const onDown = e => { if (e.target?.closest?.('.dtp-pop,.dtp-sheet-bg,.tpi-pop')) return; if (ref.current && !ref.current.contains(e.target) && !anchor?.current?.contains(e.target)) close() }
+    const onKey = e => { if (e.key === 'Escape') { e.preventDefault(); close(); anchor?.current?.focus?.() } }   // preventDefault: a card under it stays open
     document.addEventListener('mousedown', onDown); document.addEventListener('keydown', onKey)
-    setTimeout(() => ref.current?.querySelector('[data-autofocus],input,button')?.focus(), 20)
-    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey) }
-  }, [open, onClose, anchor])
+    // focus the first field once, when it opens — never while someone is already typing inside
+    const t = setTimeout(() => { const el = ref.current; if (el && !el.contains(document.activeElement)) el.querySelector('[data-autofocus],textarea,input,select,button')?.focus() }, 20)
+    return () => { clearTimeout(t); document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey) }
+  }, [open, anchor])
   if (!open) return null
   const body = mobile ? (
     <div className="au" dir={dir} onMouseDown={e => e.target === e.currentTarget && onClose()} style={{ position: 'fixed', inset: 0, zIndex: 2700, background: 'var(--au-overlay)' }}>

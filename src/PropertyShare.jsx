@@ -128,12 +128,14 @@ export default function PropertyShare({ prop, onClose, lang = 'he' }) {
   const [textLang, setTextLang] = useState('he')
   const ref = useRef(null)
 
-  useEffect(() => {
-    const onKey = e => { if (e.key === 'Escape') onClose() }
+  const closeRef = useRef(onClose)
+  closeRef.current = onClose
+  useEffect(() => {   // once: re-running on a new onClose pulled the focus out of the UTM fields while typing
+    const onKey = e => { if (e.key === 'Escape') closeRef.current?.() }
     window.addEventListener('keydown', onKey)
     ref.current?.focus()
     return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
+  }, [])
 
   const channelUrl = ch => withUtm(base, { ...ch.utm, utm_campaign: slug(prop) })
   const customUrl = withUtm(base, custom)
