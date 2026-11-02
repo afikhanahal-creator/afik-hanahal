@@ -1,12 +1,15 @@
-// QA of voice dictation (src/VoiceDictate.jsx) with a fake speech engine (two sessions of Hebrew phrases, then silence): in the
-// chats tab's notes box and a follow-up task box — the words appear live, every phrase reaches the polish once, the polished
-// Hebrew replaces them, "לטקסט כפי שנאמר" puts the raw text back, the note saves, a task comes back as one short line.
-// No network: every API is answered locally. Run after `npm run build`:  npm run qa:dictation  (exit 1 on any FAIL)
+// QA of the voice input (src/SmartVoiceInput.jsx + src/lib/voiceService.js), end to end in Chromium with its fake microphone
+// (a real MediaRecorder recording of a test tone) and every API answered locally:
+//   server transcription: timer + waveform, pause / resume, finish → "מתמלל" → the exact text in the box, "סיכום שיחה" replaces
+//   it, the tasks that were said are offered and created on the lead, "כפי שנאמר"; cancel leaves the box as it was; a failed
+//   transcription keeps the audio and "נסו שוב" succeeds; a task box gives one line; a closed popover keeps recording in
+//   VoiceHost; the browser's own recognition (no key) writes live; a phone gets the panel at the bottom.
+// Run after `npm run build`:  npm run qa:dictation   (exit 1 on any FAIL; screenshots in $QA_OUT, default /tmp/qa-dictation)
 const http = require('http'), fs = require('fs'), path = require('path')
 const { chromium } = require('playwright')
 const DIST = path.join(__dirname, '..', 'dist')
 const S = process.env.QA_OUT || '/tmp/qa-dictation'
-fs.mkdirSync(path.join(S, 'bk'), { recursive: true })
+fs.mkdirSync(S, { recursive: true })
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.webp': 'image/webp', '.woff2': 'font/woff2' }
 const server = http.createServer((req, res) => {
   let f = path.join(DIST, decodeURIComponent(new URL(req.url, 'http://x').pathname))
@@ -15,109 +18,180 @@ const server = http.createServer((req, res) => {
 }).listen(0)
 const BASE = `http://127.0.0.1:${server.address().port}`
 let fails = 0
+const log = (ok, what, extra = '') => { if (!ok) fails++; console.log(`${ok ? 'PASS' : 'FAIL'}  ${what}${extra ? '  — ' + String(extra).slice(0, 160) : ''}`) }
+
 const now = Date.now()
 const PHONE = '972528017218'
-const lead = { id: 'L1', name: 'אנילה ניסימוב · זרובבל 15', phone: '0528017218', email: '', source: 'meta', created_at: new Date(now - 3 * 864e5).toISOString(), updated_at: new Date(now - 3600e3).toISOString(),
-  crm_data: { leadStatus: 'discovery', notes: [], metaLeadId: 'm1', campaignName: 'זרובבל 15 - v2' } }
-const hist = [
-  { idMessage: 'a1', type: 'outgoing', typeMessage: 'textMessage', textMessage: 'היי אנילה, קיבלנו את הפרטים על זרובבל 15. נוח שנתקשר היום?', timestamp: Math.floor(now / 1000) - 90000, statusMessage: 'read', chatId: PHONE + '@c.us' },
-  { idMessage: 'a2', type: 'incoming', typeMessage: 'textMessage', textMessage: 'לא', timestamp: Math.floor(now / 1000) - 86000, chatId: PHONE + '@c.us' },
-  { idMessage: 'a3', type: 'outgoing', typeMessage: 'textMessage', textMessage: 'היי אנילה, מתי זה זמן נוח לדבר?', timestamp: Math.floor(now / 1000) - 7200, statusMessage: 'delivered', chatId: PHONE + '@c.us' },
-  { idMessage: 'a4', type: 'incoming', typeMessage: 'textMessage', textMessage: 'אחרי שלוש', timestamp: Math.floor(now / 1000) - 3600, chatId: PHONE + '@c.us' },
-]
-const calls = []
-const log = (ok, what, extra = '') => { if (!ok) fails++; console.log(`${ok ? 'PASS' : 'FAIL'}  ${what}${extra ? '  — ' + extra : ''}`) }
-;(async () => {
-  const b = await chromium.launch()
-  const ctx = await b.newContext({ viewport: { width: 1600, height: 950 }, locale: 'he-IL' })
-  await ctx.addInitScript(() => {
-    // a fake speech engine: speaks two phrases per session, the second session ends the talk
-    let n = 0
-    window.webkitSpeechRecognition = function () {
-      const me = this; n++
-      const phrases = (n % 3) === 1 ? ['דיברנו עם רונן ', 'הוא מחפש ארבעה חדרים בכפר סבא'] : (n % 3) === 2 ? ['תקציב שלוש וחצי מיליון'] : []
-      me.start = () => {
-        if (!phrases.length) return   // silence: waits for the stop
-        let i = 0
-        const step = () => {
-          if (me._stopped) return
-          if (i < phrases.length) {
-            const res = phrases.slice(0, i + 1).map((t, k) => Object.assign([{ transcript: t }], { isFinal: k < i }))
-            me.onresult?.({ results: res, resultIndex: i }); i++; setTimeout(step, 120)
-          } else {
-            const res = phrases.map(t => Object.assign([{ transcript: t }], { isFinal: true }))
-            me.onresult?.({ results: res, resultIndex: 0 }); setTimeout(() => me.onend?.(), 80)
-          }
-        }
-        setTimeout(step, 100)
+const lead = { id: 'L1', name: 'אנילה ניסימוב', phone: '0528017218', source: 'meta', created_at: new Date(now - 3 * 864e5).toISOString(), updated_at: new Date(now - 3600e3).toISOString(), crm_data: { leadStatus: 'discovery', notes: [], tasks: [] } }
+const hist = [{ idMessage: 'a1', type: 'incoming', typeMessage: 'textMessage', textMessage: 'שלום', timestamp: Math.floor(now / 1000) - 3600, chatId: PHONE + '@c.us' }]
+const EXACT = 'דיברנו עם רונן. הוא מחפש 4 חדרים בכפר סבא, תקציב 3.5 מיליון ₪. צריך להתקשר אליו מחר בבוקר.'
+const CALL = 'נושא השיחה:\n• דירת 4 חדרים בכפר סבא\n\nמחירים ותקציבים:\n• 3.5 מיליון ₪\n\nפעולות המשך:\n• להתקשר אליו מחר בבוקר'
+const TASK = { title: 'להתקשר לרונן', description: 'לגבי 4 חדרים בכפר סבא', due: '2026-12-01T09:00', dueSaid: 'מחר בבוקר', owner: '', uncertain: false }
+
+async function page(b, { provider = 'openai', viewport = { width: 1500, height: 950 }, failFirst = false, mobile = false } = {}) {
+  const ctx = await b.newContext({ viewport, locale: 'he-IL', permissions: ['microphone'], ...(mobile ? { isMobile: true, hasTouch: true } : {}) })
+  await ctx.addInitScript(([prov]) => {
+    sessionStorage.setItem('afik_admin_session', '1'); localStorage.setItem('afik_admin_theme', 'light'); localStorage.setItem('afik_no_track', '1')
+    if (!prov) {   // no server key: a fake browser recognition that "hears" two phrases
+      window.SpeechRecognition = window.webkitSpeechRecognition = function () {
+        const me = this; me.start = () => { setTimeout(() => me.onresult?.({ results: [Object.assign([{ transcript: 'דיברנו עם רונן' }], { isFinal: true }), Object.assign([{ transcript: ' הוא מחפש' }], { isFinal: false })] }), 150) }
+        me.stop = () => setTimeout(() => me.onend?.(), 20); me.abort = me.stop
       }
-      me.stop = () => { me._stopped = true; setTimeout(() => me.onend?.(), 30) }
-      me.abort = me.stop
     }
-    window.SpeechRecognition = window.webkitSpeechRecognition
- sessionStorage.setItem('afik_admin_session', '1'); localStorage.setItem('afik_admin_theme', 'light'); localStorage.setItem('afik_no_track', '1') })
+  }, [provider])
+  const calls = []
+  let transcribeN = 0
   await ctx.route(/onrender\.com|supabase\.co/, r => r.fulfill({ json: [] }))
   await ctx.route(/\/api\/properties/, r => r.fulfill({ json: [] }))
   await ctx.route(/\/api\/contacts/, async r => {
-    const m = r.request().method()
-    if (m === 'GET') return r.fulfill({ json: [lead] })
-    calls.push({ api: 'contacts', m, body: r.request().postData() })
-    return r.fulfill({ json: { ok: true } })
+    if (r.request().method() === 'GET') return r.fulfill({ json: [lead] })
+    calls.push({ api: 'contacts', body: r.request().postData() }); return r.fulfill({ json: { ok: true } })
   })
   await ctx.route(/\/api\/(meta|seller-form|stats)/, async r => {
-    const u = new URL(r.request().url()); const a = u.pathname.replace(/^\/api\/meta\/?/, '') || u.searchParams.get('action') || ''
-    calls.push({ api: a, m: r.request().method(), body: r.request().postData() })
+    const u = new URL(r.request().url()); const a = u.pathname.replace(/^\/api\/meta\/?/, '')
+    const req = r.request()
+    calls.push({ api: a, size: (req.postDataBuffer() || Buffer.alloc(0)).length, type: req.headers()['content-type'], q: u.search, body: a === 'voice-process' ? req.postData() : '' })
+    if (a === 'voice-status') return r.fulfill({ json: { provider, ai: true } })
+    if (a === 'voice-transcribe') { transcribeN++; if (failFirst && transcribeN <= 2) return r.fulfill({ status: 502, json: { error: 'openai: down', code: 'api' } }); return r.fulfill({ json: { text: 'דיברנו עם רונן הוא מחפש ארבעה חדרים בכפר סבא תקציב שלוש וחצי מיליון צריך להתקשר אליו מחר בבוקר', provider } }) }
+    if (a === 'voice-process') {
+      const b = JSON.parse(req.postData() || '{}')
+      if (b.mode === 'task') return r.fulfill({ json: { mode: 'task', text: 'להתקשר לרונן לגבי 4 חדרים בכפר סבא', summary: '', tasks: [], review: [] } })
+      if (b.mode === 'call') return r.fulfill({ json: { mode: 'call', text: CALL, summary: '', tasks: [TASK], review: [] } })
+      return r.fulfill({ json: { mode: b.mode, text: b.mode === 'smart' ? 'רונן מחפש 4 חדרים בכפר סבא בתקציב 3.5 מיליון ₪; לחזור אליו מחר בבוקר.' : EXACT, summary: '', tasks: [TASK], review: ['רונן'] } })
+    }
     if (a === 'chat-status') return r.fulfill({ json: { state: 'authorized' } })
-    if (a.startsWith('chat-list')) return r.fulfill({ json: [{ chatId: PHONE + '@c.us', phone: PHONE, name: 'אנילה ניסימוב · זרובבל 15', timestamp: Math.floor(now / 1000) - 3600, type: 'incoming', text: 'אחרי שלוש', incoming: 2 }] })
+    if (a.startsWith('chat-list')) return r.fulfill({ json: [{ chatId: PHONE + '@c.us', phone: PHONE, name: lead.name, timestamp: Math.floor(now / 1000) - 3600, type: 'incoming', text: 'שלום', incoming: 1 }] })
     if (a === 'chat-history') return r.fulfill({ json: hist })
     if (a === 'chat-avatars') return r.fulfill({ json: { avatars: {} } })
-    if (a === 'chat-summary') return r.fulfill({ json: { ok: true, summary: { summary: 'סיכום בדיקה', stage: 'meeting', followUpDays: 1, temperature: 'warm' } } })
-    if (a === 'chat-waiting-done') { const b = JSON.parse(r.request().postData() || '{}'); const done = {}; for (const it of b.items || []) done[String(it.phone).replace(/\D/g, '').slice(-9)] = it.ts; return r.fulfill({ json: { ok: true, done } }) }
-    if (a === 'dictation-polish') { const b = JSON.parse(r.request().postData() || '{}'); calls.push({ api: 'polish-in', body: b.text }); return r.fulfill({ json: b.kind === 'task' ? { text: 'להתקשר לרונן לגבי 4 חדרים בכפר סבא', summary: '' } : { text: 'דיברנו עם רונן. הוא מחפש 4 חדרים בכפר סבא, תקציב 3.5 מיליון.', summary: '' } }) }
-    if (a === 'chat-send') return r.fulfill({ json: { ok: true, idMessage: 'n' + Date.now() } })
     return r.fulfill({ json: {} })
   })
   const p = await ctx.newPage()
   const errs = []
   p.on('pageerror', e => errs.push(String(e.message)))
-  p.on('console', m => { if (m.type() === 'error' && !/Failed to load resource|net::/.test(m.text())) errs.push(m.text().slice(0, 200)) })
   await p.goto(`${BASE}/admin-panel/chats`, { waitUntil: 'domcontentloaded' })
-  await p.waitForTimeout(2500)
-  const row = p.getByText('אנילה ניסימוב', { exact: false }).first()
-  await row.click(); await p.waitForTimeout(1200)
-  // notes popover
-  await p.getByRole('button', { name: 'הערות' }).first().click(); await p.waitForTimeout(300)
-  const ta = p.getByRole('textbox', { name: 'הערה חדשה' })
-  const mic = p.locator('.vd-btn').first()
-  await mic.click(); await p.waitForTimeout(250)
-  log(await mic.evaluate(b => b.classList.contains('rec')), 'Mic: recording state shown')
-  await p.waitForTimeout(500)
-  const live = await ta.inputValue()
-  log(/דיברנו עם רונן/.test(live), 'Mic: words appear live in the box', live)
-  await p.screenshot({ path: `${S}/bk/dict-1-live.png` })
-  await p.waitForTimeout(700)
-  await mic.click(); await p.waitForTimeout(1200)
-  const fin = await ta.inputValue()
-  const sent = calls.find(c => c.api === 'polish-in')
-  log(!!sent && !/(דיברנו עם רונן).*\1/.test(sent.body), 'Mic: polish gets every phrase once', sent && sent.body)
-  log(fin === 'דיברנו עם רונן. הוא מחפש 4 חדרים בכפר סבא, תקציב 3.5 מיליון.', 'Mic: box shows the polished Hebrew', fin)
-  await p.screenshot({ path: `${S}/bk/dict-2-polished.png` })
-  const undo = p.locator('.vd-tip button').first()
-  await undo.click(); await p.waitForTimeout(200)
-  log(/דיברנו עם רונן הוא מחפש/.test(await ta.inputValue()), '"כפי שנאמר" restores the raw text', await ta.inputValue())
-  log(await ta.isVisible(), 'Notes popover stays open after the undo')
-  await p.locator('.vd-tip button').first().click(); await p.waitForTimeout(200)
-  await p.getByRole('button', { name: 'הוספת הערה' }).click(); await p.waitForTimeout(500)
-  log(calls.some(c => c.api === 'contacts' && /3\.5 מיליון/.test(c.body || '')), 'The dictated note is saved')
-  await p.keyboard.press('Escape'); await p.waitForTimeout(300)
-  // follow-up (task box)
-  await p.getByRole('button', { name: /פולו אפ/ }).first().click(); await p.waitForTimeout(400)
-  const tmic = p.locator('.tpi .vd-btn').first()
-  log(await tmic.isVisible(), 'Task box has a mic')
-  await tmic.click(); await p.waitForTimeout(1300); await tmic.click(); await p.waitForTimeout(1200)
-  const tv = await p.locator('.tpi input').first().inputValue()
-  log(tv === 'להתקשר לרונן לגבי 4 חדרים בכפר סבא', 'Task: polished as one short line', tv)
-  await p.screenshot({ path: `${S}/bk/dict-3-task.png` })
-  console.log('ERRORS:', errs.length ? errs.slice(0, 8).join(' | ') : 'none')
-  await b.close(); server.close(); process.exit(fails || errs.length ? 1 : 0)
+  await p.waitForTimeout(2200)
+  await p.getByText(lead.name, { exact: false }).first().click()
+  await p.waitForTimeout(1000)
+  return { p, ctx, calls, errs }
+}
+const openNotes = async p => { await p.getByRole('button', { name: 'הערות' }).first().click(); await p.waitForTimeout(300); return p.getByRole('textbox', { name: 'הערה חדשה' }) }
+
+;(async () => {
+  const b = await chromium.launch({ args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'] })
+  // ── A. server transcription, full flow ──
+  {
+    const { p, calls, errs } = await page(b)
+    const ta = await openNotes(p)
+    await ta.fill('הערה קיימת.')
+    const mic = p.locator('.svi-mic').first()
+    await mic.click(); await p.waitForTimeout(1600)
+    const panel = p.locator('.svi-panel')
+    log(await panel.isVisible(), 'Panel opens while recording')
+    log(await p.locator('.svi-wave').isVisible(), 'Waveform is drawn')
+    log(/0:0[1-9]/.test(await p.locator('.svi-time').innerText()), 'Timer runs', await p.locator('.svi-time').innerText())
+    await p.screenshot({ path: `${S}/a1-recording.png` })
+    await p.getByRole('button', { name: 'השהיה' }).click(); await p.waitForTimeout(1300)
+    const t1 = await p.locator('.svi-time').innerText(); await p.waitForTimeout(1200)
+    log(t1 === await p.locator('.svi-time').innerText(), 'Pause stops the timer', t1)
+    await p.getByRole('button', { name: 'המשך' }).click(); await p.waitForTimeout(1200)
+    await p.getByRole('button', { name: 'סיום ותמלול' }).first().click()
+    await p.waitForSelector('text=הטקסט בתיבה', { timeout: 15000 })
+    const tr = calls.find(c => c.api === 'voice-transcribe')
+    log(!!tr && tr.size > 1000 && tr.type === 'application/octet-stream' && /mime=audio/.test(tr.q), 'The audio is uploaded as raw bytes', tr && `${tr.size} bytes ${tr.q.slice(0, 60)}`)
+    log((await ta.inputValue()) === `הערה קיימת. ${EXACT}`, 'Exact text lands after what was in the box', await ta.inputValue())
+    log(await p.getByText('לבדיקה:').isVisible(), 'Unclear words are listed for review')
+    await p.screenshot({ path: `${S}/a2-result.png` })
+    await p.getByRole('button', { name: 'סיכום שיחה' }).click(); await p.waitForTimeout(600)
+    log((await ta.inputValue()) === `הערה קיימת.\n\n${CALL}`, 'Call summary replaces it (structured, on its own lines)')
+    log(await p.getByText('זוהתה משימה אחת שנאמרה').isVisible(), 'The task that was said is offered')
+    await p.screenshot({ path: `${S}/a3-call.png` })
+    await p.getByRole('button', { name: 'יצירת המשימה' }).click(); await p.waitForTimeout(600)
+    const tk = calls.find(c => c.api === 'contacts' && /להתקשר לרונן/.test(c.body || ''))
+    log(!!tk && /"kind":"followup"/.test(tk.body) && /"remind":true/.test(tk.body), 'Creating it saves a follow-up with a reminder on the lead')
+    log(await p.getByText('המשימה נוצרה ✓').isVisible(), '"created" shown')
+    await p.getByRole('button', { name: 'כפי שנאמר' }).click(); await p.waitForTimeout(300)
+    log(/דיברנו עם רונן הוא מחפש ארבעה/.test(await ta.inputValue()), '"כפי שנאמר" puts the raw transcript back')
+    await ta.fill('ערכתי בעצמי'); await p.getByRole('button', { name: 'תמלול מדויק' }).click(); await p.waitForTimeout(400)
+    log(await p.getByText('ערכתם את הטקסט').isVisible() && (await ta.inputValue()) === 'ערכתי בעצמי', 'An edit is never overwritten without asking')
+    await p.getByRole('button', { name: 'להחליף', exact: true }).click(); await p.waitForTimeout(200)
+    log((await ta.inputValue()).includes(EXACT), '"להחליף" applies it')
+    await p.getByRole('button', { name: 'הוספת הערה' }).click(); await p.waitForTimeout(600)
+    log(!(await panel.isVisible().catch(() => false)), 'Saving the note (box cleared) closes the panel')
+    // B. cancel
+    await ta.fill('לא לגעת'); const before = calls.filter(c => c.api === 'voice-transcribe').length
+    await p.locator('.svi-mic').first().click(); await p.waitForTimeout(1200)
+    await p.getByRole('button', { name: 'ביטול ההקלטה' }).click(); await p.waitForTimeout(800)
+    log((await ta.inputValue()) === 'לא לגעת' && calls.filter(c => c.api === 'voice-transcribe').length === before && !(await panel.isVisible().catch(() => false)), 'Cancel discards the recording and leaves the box')
+    // G. the popover closes mid-recording → VoiceHost keeps it
+    await p.locator('.svi-mic').first().click(); await p.waitForTimeout(1200)
+    await p.mouse.click(700, 600); await p.waitForTimeout(500)
+    log(await p.getByText('הקלטה ממשיכה ברקע').isVisible().catch(() => false), 'Closing the popover keeps recording (VoiceHost)')
+    await p.getByRole('button', { name: 'סיום ותמלול' }).first().click()
+    await p.waitForSelector('text=הטקסט מההקלטה מוכן', { timeout: 15000 }).catch(() => {})
+    log(await p.getByText('הטקסט מההקלטה מוכן').isVisible().catch(() => false), 'Its text is offered to copy')
+    await p.screenshot({ path: `${S}/a4-host.png` })
+    log(!errs.length, 'No page errors (A)', errs.join(' | '))
+    await p.context().close()
+  }
+  // ── C. a failed transcription keeps the audio; retry ──
+  {
+    const { p, calls, errs } = await page(b, { failFirst: true })
+    const ta = await openNotes(p)
+    await p.locator('.svi-mic').first().click(); await p.waitForTimeout(1300)
+    await p.getByRole('button', { name: 'סיום ותמלול' }).first().click()
+    await p.waitForSelector('text=התמלול נכשל', { timeout: 15000 }).catch(() => {})
+    log(await p.getByText('התמלול נכשל').isVisible().catch(() => false), 'A failure is explained')
+    await p.screenshot({ path: `${S}/c1-failed.png` })
+    await p.getByRole('button', { name: 'נסו שוב' }).click()
+    await p.waitForSelector('text=הטקסט בתיבה', { timeout: 15000 }).catch(() => {})
+    const ups = calls.filter(c => c.api === 'voice-transcribe')
+    log(ups.length === 3 && ups[0].size === ups[2].size && (await ta.inputValue()).includes(EXACT), 'One automatic retry, then "נסו שוב" re-sends the same audio and succeeds', `${ups.length} uploads`)
+    // E. a task box: one line, no mode switch
+    await p.keyboard.press('Escape'); await p.mouse.click(700, 600); await p.waitForTimeout(300)
+    await p.getByRole('button', { name: /פולו אפ/ }).first().click(); await p.waitForTimeout(400)
+    await p.locator('.tpi .svi-mic').first().click(); await p.waitForTimeout(1300)
+    await p.getByRole('button', { name: 'סיום ותמלול' }).first().click()
+    await p.waitForSelector('text=הטקסט בתיבה', { timeout: 15000 }).catch(() => {})
+    log((await p.locator('.tpi input').first().inputValue()) === 'להתקשר לרונן לגבי 4 חדרים בכפר סבא', 'Task box gets one short line')
+    log(!(await p.locator('.svi-seg').isVisible().catch(() => false)), 'Task box has no mode switch')
+    log(!errs.length, 'No page errors (C)', errs.join(' | '))
+    await p.context().close()
+  }
+  // ── F. no server key: the browser's recognition writes live ──
+  {
+    const { p, errs } = await page(b, { provider: '' })
+    const ta = await openNotes(p)
+    await p.locator('.svi-mic').first().click(); await p.waitForTimeout(800)
+    log(/דיברנו עם רונן/.test(await ta.inputValue()), 'Without a key the words appear live (browser engine)', await ta.inputValue())
+    log(await p.getByText('המילים נכתבות בתיבה תוך כדי').isVisible(), 'The panel says so')
+    await p.getByRole('button', { name: 'סיום ותמלול' }).first().click()
+    await p.waitForSelector('text=הטקסט בתיבה', { timeout: 15000 }).catch(() => {})
+    log((await ta.inputValue()).includes(EXACT), 'Then the AI layer cleans it')
+    log(!errs.length, 'No page errors (F)', errs.join(' | '))
+    await p.context().close()
+  }
+  // ── H. phone ──
+  {
+    const { p, errs } = await page(b, { viewport: { width: 390, height: 844 }, mobile: true })
+    await p.locator('.svi-mic').first().click().catch(() => {})
+    const ta = await openNotes(p).catch(() => null)
+    if (ta) {
+      await p.locator('.svi-mic').first().click(); await p.waitForTimeout(1200)
+      const box = await p.locator('.svi-panel').boundingBox()
+      log(!!box && box.width >= 380 && Math.abs(box.y + box.height - 844) < 4, 'Phone: the panel sits at the bottom, full width', box && JSON.stringify(box))
+      const btn = await p.getByRole('button', { name: 'סיום ותמלול' }).first().boundingBox()
+      log(!!btn && btn.width >= 44 && btn.height >= 44, 'Phone: buttons are thumb-sized', btn && `${btn.width}×${btn.height}`)
+      await p.screenshot({ path: `${S}/h1-phone.png` })
+      await p.getByRole('button', { name: 'סיום ותמלול' }).last().click()
+      await p.waitForSelector('text=הטקסט בתיבה', { timeout: 15000 }).catch(() => {})
+      const rb = await p.locator('.svi-panel').boundingBox()
+      const save = await p.getByRole('button', { name: 'הוספת הערה' }).boundingBox()
+      log(!!rb && !!save && rb.y < 5 && save.y > rb.y + rb.height, 'Phone: the result moves to the top, the save button stays visible', rb && save && `${Math.round(rb.y + rb.height)} < ${Math.round(save.y)}`)
+      await p.screenshot({ path: `${S}/h2-phone-result.png` })
+    } else log(false, 'Phone: notes not reachable')
+    log(!errs.length, 'No page errors (H)', errs.join(' | '))
+    await p.context().close()
+  }
+  await b.close(); server.close()
+  process.exit(fails ? 1 : 0)
 })().catch(e => { console.error(e); server.close(); process.exit(1) })

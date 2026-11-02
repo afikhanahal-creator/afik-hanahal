@@ -8,7 +8,7 @@ import { Popover } from './automationsUI.jsx'
 import { addFollowUp, followUpPresets, defaultFollowUpText, describeDue, dueIso, updateTasks, openFollowUps } from '../lib/follow-up.js'
 import { leadNotes, addNote } from './lib/leadNotes.js'
 import TaskPresetInput, { rememberTaskText } from './TaskPresetInput.jsx'
-import VoiceDictate from './VoiceDictate.jsx'
+import SmartVoiceInput from './SmartVoiceInput.jsx'
 
 const L = (lang, he, en) => (lang === 'en' ? en : he)
 
@@ -192,7 +192,8 @@ export function NotesButton({ lead, lang = 'he', onSave, size }) {
             onChange={e => { setText(e.target.value); setState('') }} placeholder={L(lang, 'מה עלה בשיחה, מה הצעד הבא… (Ctrl+Enter לשמירה)', 'What came up, the next step… (Ctrl+Enter saves)')}
             onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); add() } }} aria-label={L(lang, 'הערה חדשה', 'New note')}/>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <VoiceDictate value={text} onChange={v => { setText(v); setState('') }} kind="note" lang={lang} inputRef={taRef}/>
+            <SmartVoiceInput value={text} onChange={v => { setText(v); setState('') }} contextType="note" recordId={lead?.id} lang={lang} inputRef={taRef} hint={[lead?.name, lead?.campaignName].filter(Boolean).join(', ')}
+              onCreateTasks={items => Promise.resolve(onSave(updateTasks(lead, [...(Array.isArray(lead?.tasks) ? lead.tasks : []), ...items]))).then(x => x !== false)}/>
             <button type="button" className="fu-save" style={{ height: 34 }} disabled={!text.trim() || state === 'saving'} onClick={add}>{state === 'saving' ? '…' : L(lang, 'הוספת הערה', 'Add note')}</button>
             {state === 'saved' && <span role="status" style={{ fontSize: 12, color: 'var(--au-green-text)' }}>✓ {L(lang, 'נשמר בכל המסכים', 'Saved everywhere')}</span>}
             {state === 'failed' && <span role="alert" style={{ fontSize: 12, color: 'var(--au-red-text)' }}>{L(lang, 'השמירה נכשלה', 'Could not save')}</span>}

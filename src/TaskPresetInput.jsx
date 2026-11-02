@@ -5,7 +5,7 @@
 import { useState, useRef, useEffect, useLayoutEffect, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { filterPresets, presetText, presetDue, pushRecent } from '../lib/task-presets.js'
-import VoiceDictate from './VoiceDictate.jsx'
+import SmartVoiceInput from './SmartVoiceInput.jsx'
 
 const KEY = 'afik_task_recent_v1'
 const readRecent = () => { try { const v = JSON.parse(localStorage.getItem(KEY) || '[]'); return Array.isArray(v) ? v : [] } catch { return [] } }
@@ -113,7 +113,7 @@ export default function TaskPresetInput({ value, onChange, onPick, onEnter, lang
         <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" d="m6 9 6 6 6-6"/></svg>
       </button>
      </div>
-      {dictate && <VoiceDictate value={value} onChange={v => { onChange(v); setOpen(false) }} kind="task" lang={lang} inputRef={input}/>}
+      {dictate && <SmartVoiceInput value={value} onChange={v => { onChange(v); setOpen(false) }} contextType="task" lang={lang} inputRef={input}/>}
       {open && pos && createPortal(
         <div ref={pop} className="tpi-pop" dir={lang === 'en' ? 'ltr' : 'rtl'} style={{ left: pos.left, width: pos.w, top: pos.top, bottom: pos.bottom, maxHeight: pos.maxH }}>
           <div ref={listRef} id={listId} role="listbox" aria-label={t.open} className="tpi-list">

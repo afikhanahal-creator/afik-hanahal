@@ -14,7 +14,8 @@ import { getTemplate } from '../lib/automations-shared.js'
 import * as GA4 from '../lib/ga4.js'
 import { analyzeLead, buildDossier } from '../lib/lead-analyze.js'
 import { summarizeChat } from '../lib/chat-summary.js'
-import { polishDictation } from '../lib/dictation-polish.js'
+import { processVoice } from '../lib/voice-process.js'
+import { transcribeAudio, voiceProvider, vocabHint, MAX_SEGMENT_BYTES } from '../lib/transcribe.js'
 import { claudeJson } from '../lib/claude-json.js'
 import { researchLead } from '../lib/lead-research.js'
 import { mirrorMetaLead, backfillMetaLeads, findMirror } from '../lib/meta-crm.js'
@@ -356,7 +357,7 @@ async function handleWebhook(req, res) {
       if (META_APP_SECRET) {
         const sig      = req.headers['x-hub-signature-256'] || ''
         // Must use raw bytes — Meta signs the original payload, not re-serialised JSON
-        const expected = 'sha256=' + crypto.createHmac('sha256', META_APP_SECRET).update(req.rawBody || '').digest('hex')
+        const expected = 'sha256=' + crypto.createHmac('sha256', META_APP_SECRET).update(req.rawBuffer?.length ? req.rawBuffer : (req.rawBody || '')).digest('hex')
         // WARN-but-PROCESS: a stale/wrong META_APP_SECRET must never silently drop a
         // real lead (zero-delay email/WA is the priority). We log the mismatch for
         // visibility but still process the event. Forged page-leadgen events are low
@@ -1677,17 +1678,35 @@ async function handleChatSummary(req, res) {
   }
 }
 
-// POST /api/meta/dictation-polish { text, kind: 'note' | 'task', lang } → { text, summary } — a dictated note / task rewritten in
-// correct Hebrew by Claude (lib/dictation-polish.js); on any error the browser keeps the text as it was heard
-async function handleDictationPolish(req, res) {
+// The admin's mic (src/SmartVoiceInput.jsx, src/lib/voiceService.js) — nothing is stored, the audio goes straight to the provider:
+//   GET  voice-status → { provider: 'openai' | 'elevenlabs' | '', ai } — is server transcription set up (else the browser hears)
+//   POST voice-transcribe?mime=&lang=&hint=  (body: the raw audio of one ≤ 4 MB segment) → { text } (lib/transcribe.js)
+//   POST voice-process { transcript, mode: exact|smart|call|task, contextType, lang, hint } → { text, summary, tasks, review }
+//        (lib/voice-process.js); dictation-polish (the first version's call) = exact mode
+async function readRaw(req, limit) {   // the handler already read the bytes (bodyParser is off)
+  const buf = req.rawBuffer || Buffer.alloc(0)
+  if (buf.length > limit) throw Object.assign(new Error('too large'), { code: 'too_large' })
+  return buf
+}
+async function handleVoice(req, res, path) {
   if (!checkAuth(req)) return res.status(401).json({ error: 'Unauthorized' })
+  if (path === 'voice-status') return res.status(200).json({ provider: voiceProvider(), ai: !!String(process.env.ANTHROPIC_API_KEY || '').trim() })
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
-  const { text, kind, lang } = req.body || {}
   try {
-    const r = await polishDictation({ text, kind, lang }, { ask: claudeJson })
+    if (path === 'voice-transcribe') {
+      let buf
+      try { buf = await readRaw(req, MAX_SEGMENT_BYTES + 1024) } catch (e) { return res.status(413).json({ error: 'audio segment too large', code: 'too_large' }) }
+      const q = req.query || {}
+      const r = await transcribeAudio(buf, { mime: q.mime, lang: q.lang, hint: vocabHint(String(q.hint || '').split(',').slice(0, 12)) })
+      const status = !r.error ? 200 : r.code === 'no_provider' ? 501 : r.code === 'too_large' ? 413 : r.code === 'format' || r.code === 'empty' ? 400 : 502
+      return res.status(status).json(r)
+    }
+    const b = req.body || {}
+    const legacy = path === 'dictation-polish'
+    const r = await processVoice({ transcript: legacy ? b.text : b.transcript, mode: legacy ? (b.kind === 'task' ? 'task' : 'exact') : b.mode, contextType: b.contextType || b.kind, lang: b.lang, hint: b.hint }, { ask: claudeJson })
     return res.status(r.error ? (r.code === 'empty' ? 400 : 502) : 200).json(r)
   } catch (e) {
-    console.error('[dictation-polish]', e.message)
+    console.error('[voice]', path, e.message)
     return res.status(500).json({ error: e.message, code: 'server' })
   }
 }
@@ -1860,12 +1879,16 @@ export default async function handler(req, res) {
   cors(res)
 
   // Read raw body — needed for signature verification and JSON parsing
-  let rawBody = ''
+  // (bytes first, then text: a voice recording is binary, and a multi-byte letter split between two chunks stays whole)
+  const chunks = []
   await new Promise((resolve, reject) => {
-    req.on('data', chunk => { rawBody += chunk })
+    req.on('data', chunk => { chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)) })
     req.on('end', resolve)
     req.on('error', reject)
   })
+  req.rawBuffer = Buffer.concat(chunks)
+  const isAudio = /^(audio\/|application\/octet-stream)/i.test(String(req.headers?.['content-type'] || ''))
+  const rawBody = isAudio ? '' : req.rawBuffer.toString('utf8')
   try { req.body = rawBody ? JSON.parse(rawBody) : {} } catch { req.body = {} }
   req.rawBody = rawBody
 
@@ -1885,7 +1908,7 @@ export default async function handler(req, res) {
   if (path === 'ga4-dash' || path === 'ga4-property') return handleGA4Dash(req, res, path)
   if (path === 'lead-analyze')   return handleLeadAnalyze(req, res)
   if (path === 'lead-research')  return handleLeadResearch(req, res)
-  if (path === 'dictation-polish') return handleDictationPolish(req, res)
+  if (path === 'dictation-polish' || path.startsWith('voice-')) return handleVoice(req, res, path)
   if (path === 'chat-summary')   return handleChatSummary(req, res)
   if (path === 'diagnostics')    return handleDiagnostics(req, res)
   if (path === 'connect')        return handleConnect(req, res)

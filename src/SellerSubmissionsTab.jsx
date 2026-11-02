@@ -9,6 +9,7 @@
 // side) and it appears on the live site; "הסר מהאתר" hides it without deleting.
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { FaWhatsapp, FaPhone, FaEnvelope, FaTrash, FaSearch, FaCopy, FaDownload, FaFileAlt, FaVideo, FaSyncAlt, FaExternalLinkAlt, FaCheck, FaGlobe, FaEyeSlash, FaLink, FaShieldAlt, FaHistory, FaImage, FaBullhorn, FaBalanceScale, FaMoneyBill, FaInfoCircle, FaSave, FaPlus, FaTimes, FaExclamationTriangle, FaUserPlus, FaMobileAlt, FaDesktop, FaBell, FaRoute } from 'react-icons/fa'
+import SmartVoiceInput from './SmartVoiceInput.jsx'
 import { buildSummary, headline, PROPERTY_TYPE_LABEL, DOC_TAG_LABEL, fmtNum, INTAKE_STATUSES, marketingTexts, AI_CHANNELS, AI_TONES, AI_SYSTEM, aiBrief, yad2Fields } from './sellerFormSchema.js'
 
 const ADMIN_TOKEN = 'AFIKhanahal2026'
@@ -771,7 +772,10 @@ export default function SellerSubmissionsTab({ C, onChanged, onOpenWizard }) {
                 <div style={{ ...card, padding: 14, marginTop: 10 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                     <h3 style={{ fontSize: 12, letterSpacing: '.12em', color: purple, margin: 0, fontWeight: 700 }}>הערות פנימיות</h3>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                    <SmartVoiceInput value={notes} onChange={setNotes} contextType="call" lang="he"/>
                     <button onClick={saveNotes} disabled={saving === 'notes'} style={btn()}>{saving === 'notes' ? 'שומר…' : <><FaSave size={11}/> שמירת הערות</>}</button>
+                    </span>
                   </div>
                   <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={5} placeholder="סיכום שיחה, הערכת שווי, משימות פתוחות…" style={{ ...input, resize: 'vertical' }}/>
                 </div>
@@ -839,7 +843,10 @@ export default function SellerSubmissionsTab({ C, onChanged, onOpenWizard }) {
                 )}
                 {summary.filter(s => SECTION_GROUPS.marketing.includes(s.section)).map(sec => <Section key={sec.section} sec={sec}/>)}
                 <div style={{ ...card, padding: 14 }}>
-                  <span style={label}>תיאור לפרסום באתר (ריק = נבנה אוטומטית מהיתרונות ומהסיפור)</span>
+                  <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                    <span style={label}>תיאור לפרסום באתר (ריק = נבנה אוטומטית מהיתרונות ומהסיפור)</span>
+                    <SmartVoiceInput value={ov.description || ''} onChange={v => setOv(o => ({ ...o, description: v }))} contextType="property" lang="he" size="sm"/>
+                  </span>
                   <textarea value={ov.description || ''} onChange={e => setOv({ ...ov, description: e.target.value })} rows={6} style={{ ...input, resize: 'vertical' }} placeholder={[detail.answers?.m_pros, detail.answers?.m_unique, detail.answers?.m_love, detail.answers?.m_story].filter(Boolean).join('\n\n')}/>
                   <div style={{ marginTop: 10 }}><button onClick={saveOverrides} disabled={saving === 'ov'} style={btn()}><FaSave size={11}/> {saving === 'ov' ? 'שומר…' : 'שמירת התיאור'}</button></div>
                 </div>

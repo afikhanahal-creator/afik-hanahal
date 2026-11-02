@@ -19,7 +19,8 @@ import Splitter, { SPLITTER_CSS } from './Splitter.jsx'
 import { leadNotes, addNote } from './lib/leadNotes.js'
 import { onSync, debounce } from './lib/syncBus.js'
 import { FollowUpButton, FollowUpComposer, FollowUpList } from './FollowUpTask.jsx'
-import VoiceDictate from './VoiceDictate.jsx'
+import SmartVoiceInput from './SmartVoiceInput.jsx'
+import { updateTasks } from '../lib/follow-up.js'
 import WaFace from './WaFace.jsx'
 
 const ADMIN_TOKEN = 'AFIKhanahal2026'
@@ -1379,7 +1380,9 @@ export default function MetaLeadsTab({ C, lang, isDark, onOpenCard, onSaveToCRM,
                           <textarea id="lc-notes" ref={lcNoteRef} value={noteInput} onChange={e => setNoteInput(e.target.value)} placeholder={t.notesPlaceholder} rows={3} className="lc-input" style={{ resize: 'vertical', direction: dir }}
                             onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); handleAddNote() } }}/>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                            <VoiceDictate value={noteInput} onChange={setNoteInput} kind="note" lang={lang} inputRef={lcNoteRef}/>
+                            <SmartVoiceInput value={noteInput} onChange={setNoteInput} contextType="note" recordId={selectedLead?.id} lang={lang} inputRef={lcNoteRef}
+                              hint={[selectedLead?.name, selectedLead?.campaign_name].filter(Boolean).join(', ')}
+                              onCreateTasks={items => crmPatch(updateTasks(crmLead || {}, [...(Array.isArray(crmLead?.tasks) ? crmLead.tasks : []), ...items]))}/>
                             <button className="lc-btn primary" onClick={handleAddNote} disabled={noteState === 'saving' || !noteInput.trim() || !onCrmPatch}>{noteState === 'saving' ? '…' : t.addNote}</button>
                             {noteState === 'saved' && <span role="status" className="lc-chip ok">✓ {t.noteSaved}</span>}
                             {noteState === 'failed' && <span role="alert" className="lc-chip warn">{t.noteSaveFailed}</span>}

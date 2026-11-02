@@ -13,7 +13,7 @@ import { addNote, asNotes } from './lib/leadNotes.js'
 import { leadCampaign } from './lib/leadFields.js'
 import { leadNeeds } from '../lib/lead-needs.js'
 import TaskPresetInput, { rememberTaskText } from './TaskPresetInput.jsx'
-import VoiceDictate from './VoiceDictate.jsx'
+import SmartVoiceInput from './SmartVoiceInput.jsx'
 
 const pad = n => String(n).padStart(2, '0')
 const local = p => { const d = String(p || '').replace(/\D/g, ''); const l = d.startsWith('972') ? '0' + d.slice(3) : d; return l.length === 10 ? `${l.slice(0, 3)}-${l.slice(3, 6)}-${l.slice(6)}` : l }
@@ -98,7 +98,8 @@ function NoteCell({ lead, t, lang = 'he', onUpdate }) {
         onChange={e => setDraft(e.target.value)}
         onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); save() } if (e.key === 'Escape') { e.stopPropagation(); setOpen(false) } }}/>
       <div className="fv-note-bar">
-        <VoiceDictate value={draft} onChange={setDraft} kind="note" lang={lang} inputRef={ref} size="sm"/>
+        <SmartVoiceInput value={draft} onChange={setDraft} contextType="note" recordId={lead.id} lang={lang} inputRef={ref} size="sm" hint={[lead?.name, lead?.campaignName].filter(Boolean).join(', ')}
+          onCreateTasks={items => { onUpdate(lead.id, updateTasks(lead, [...(Array.isArray(lead.tasks) ? lead.tasks : []), ...items])); return true }}/>
         <button type="button" className="fv-save" disabled={!draft.trim()} onClick={save}>{t.save}</button>
         <button type="button" className="fv-ghost" onClick={() => { setOpen(false); setDraft('') }} aria-label={t.cancel}><X size={13}/></button>
       </div>
