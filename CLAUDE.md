@@ -797,6 +797,18 @@ React and Vite add no prefixes, Safari < 18 needs it); `AbortSignal.timeout` is 
 (Safari < 16 threw on every admin fetch); scrollbars are styled in `index.html` for both `::-webkit-scrollbar` (Safari) and
 `scrollbar-width` / `scrollbar-color` (Firefox, Chrome ≥ 121). Check new JS against Safari 15.4 before using it
 (`Object.groupBy`, `Promise.withResolvers`, `toSorted`, `Set` methods need a guard).
+**Voice dictation in every note / task box** (2026-11-02, `src/VoiceDictate.jsx`): a mic button — the chats tab's "הערות" and
+"פולו אפ", every task box (`TaskPresetInput`, so the lead card's tasks / follow-up and the follow-ups screen's "משימה חדשה"), the
+lead card's note composer, the call summary (`CallNoteDialog`), the follow-ups screen's note cell and the Lead Center's notes
+card. Tap, speak, tap again: the browser's own speech recognition (`he-IL`; Chrome / Edge on a computer and Android, Safari on Mac
+and iPhone — on Android every phrase is a short session that restarts itself, continuous mode repeats words there) writes the words
+into the box live (`src/lib/dictation.js`, tested: `collectResults()` / `liveText()` never repeat a phrase); on stop
+`POST /api/meta/dictation-polish {text, kind, lang}` (`lib/dictation-polish.js`, tested; `claude-opus-5-5`, effort low) rewrites it
+in correct Hebrew — punctuation, digits, misheard real-estate words fixed, nothing dropped or invented (an answer much longer than
+what was said is refused), a task as one short line, a long note with "סיכום: …" on top. A bubble offers "לטקסט כפי שנאמר" (and
+back); without Claude (no key / no credit) the text stays as heard. One box records at a time, leaving the screen stops it, 10
+minutes max; errors read as words (`dictationError()`: blocked mic, Siri off on iPhone, no recognition in Firefox → the phone
+keyboard's mic). `npm run qa:dictation` (`scripts/qa-dictation.cjs`, a fake speech engine) checks it end to end.
 **Popovers keep the focus where the user types** (2026-11-02): `Popover` (`src/automationsUI.jsx`) keeps the latest `onClose` in a
 ref and runs its listeners / autofocus only when it opens (`[open, anchor]`) — callers pass an inline arrow, and re-running on
 every render moved the focus to the first button on every keystroke (the chats tab's "הערות" box took one letter; its selector

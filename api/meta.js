@@ -14,6 +14,8 @@ import { getTemplate } from '../lib/automations-shared.js'
 import * as GA4 from '../lib/ga4.js'
 import { analyzeLead, buildDossier } from '../lib/lead-analyze.js'
 import { summarizeChat } from '../lib/chat-summary.js'
+import { polishDictation } from '../lib/dictation-polish.js'
+import { claudeJson } from '../lib/claude-json.js'
 import { researchLead } from '../lib/lead-research.js'
 import { mirrorMetaLead, backfillMetaLeads, findMirror } from '../lib/meta-crm.js'
 import * as Booking from '../lib/booking-server.js'
@@ -1675,6 +1677,21 @@ async function handleChatSummary(req, res) {
   }
 }
 
+// POST /api/meta/dictation-polish { text, kind: 'note' | 'task', lang } → { text, summary } — a dictated note / task rewritten in
+// correct Hebrew by Claude (lib/dictation-polish.js); on any error the browser keeps the text as it was heard
+async function handleDictationPolish(req, res) {
+  if (!checkAuth(req)) return res.status(401).json({ error: 'Unauthorized' })
+  if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
+  const { text, kind, lang } = req.body || {}
+  try {
+    const r = await polishDictation({ text, kind, lang }, { ask: claudeJson })
+    return res.status(r.error ? (r.code === 'empty' ? 400 : 502) : 200).json(r)
+  } catch (e) {
+    console.error('[dictation-polish]', e.message)
+    return res.status(500).json({ error: e.message, code: 'server' })
+  }
+}
+
 // POST /api/meta/lead-research { lead } → who the person is, from public sources (lib/lead-research.js); the panel
 // runs it before lead-analyze and passes the result in, so each step has its own time budget
 async function handleLeadResearch(req, res) {
@@ -1868,6 +1885,7 @@ export default async function handler(req, res) {
   if (path === 'ga4-dash' || path === 'ga4-property') return handleGA4Dash(req, res, path)
   if (path === 'lead-analyze')   return handleLeadAnalyze(req, res)
   if (path === 'lead-research')  return handleLeadResearch(req, res)
+  if (path === 'dictation-polish') return handleDictationPolish(req, res)
   if (path === 'chat-summary')   return handleChatSummary(req, res)
   if (path === 'diagnostics')    return handleDiagnostics(req, res)
   if (path === 'connect')        return handleConnect(req, res)

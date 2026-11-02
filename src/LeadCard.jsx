@@ -17,6 +17,7 @@ import { FollowUpComposer, FollowUpList, FollowUpButton } from './FollowUpTask.j
 import { followUpPresets, setNextFollowUp, dueIso, describeDue } from '../lib/follow-up.js'
 import WaFace from './WaFace.jsx'
 import TaskPresetInput, { rememberTaskText } from './TaskPresetInput.jsx'
+import VoiceDictate from './VoiceDictate.jsx'
 
 const TR = {
   he: {
@@ -114,6 +115,8 @@ const CSS = `
   .lc-tab{height:40px;padding:0 14px;border:none;background:none;cursor:pointer;font-family:inherit;font-size:13.5px;font-weight:700;display:inline-flex;align-items:center;gap:7px;border-bottom:2px solid transparent;white-space:nowrap}
   .lc-last{margin-inline-start:auto;align-self:center;flex:none;display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 11px;border-radius:999px;font-size:12.5px;white-space:nowrap;border:1px solid transparent}
   .lc-last .k{color:var(--au-text2)}
+  .lc-tab{flex:none}
+  @media (max-width:640px){.lc-last .h,.lc-last .k{display:none}}
   .lc-last b{font-weight:700}
   .lc-last .h{color:var(--au-text2)}
   .lc-last--ok{background:rgba(0,200,117,.10);color:#0E8A57;border-color:rgba(0,200,117,.28)}
@@ -492,7 +495,10 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
           <span style={{ fontSize: 11.5, color: T.text3 }}>
             {noteKind === 'call' && outcome === 'not_relevant' && (lead.leadStatus || 'new') !== 'irrelevant' ? t.moveTo(stageName('irrelevant')) : noteKind === 'call' && outcome === 'answered' && (lead.leadStatus || 'new') === 'new' ? t.moveTo(stageName('contacted')) : ''}
           </span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginInlineStart: 'auto' }}>
+          <VoiceDictate value={noteDraft} onChange={v => { setNoteDraft(v); if (noteRef.current) setTimeout(() => grow(noteRef.current), 0) }} kind="note" lang={lang} inputRef={noteRef}/>
           <button type="button" className="lc-act" disabled={!canAdd} onClick={addNote} style={{ background: canAdd ? 'var(--au-brand)' : 'rgba(var(--ov),.06)', color: canAdd ? '#fff' : T.text3, border: 'none', cursor: canAdd ? 'pointer' : 'default' }}><FaPlus size={10}/>{t.save}</button>
+          </span>
         </div>
       </Section>
 

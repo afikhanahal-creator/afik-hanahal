@@ -19,6 +19,7 @@ import Splitter, { SPLITTER_CSS } from './Splitter.jsx'
 import { leadNotes, addNote } from './lib/leadNotes.js'
 import { onSync, debounce } from './lib/syncBus.js'
 import { FollowUpButton, FollowUpComposer, FollowUpList } from './FollowUpTask.jsx'
+import VoiceDictate from './VoiceDictate.jsx'
 import WaFace from './WaFace.jsx'
 
 const ADMIN_TOKEN = 'AFIKhanahal2026'
@@ -350,6 +351,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onOpenCard, onSaveToCRM,
   const [campaignFilter, setCampaignFilter] = useState(null)
   const [search, setSearch]             = useState('')
   const [noteInput, setNoteInput]       = useState('')
+  const lcNoteRef = useRef(null)
   const [callTimeInput, setCallTimeInput] = useState('')
   const [loadingLeads, setLoadingLeads] = useState(() => !_etags.get(LEADS_URL))
   const [syncing, setSyncing]           = useState(false)
@@ -1374,9 +1376,10 @@ export default function MetaLeadsTab({ C, lang, isDark, onOpenCard, onSaveToCRM,
                       return (
                         <div className="lc-card" style={{ padding: 14, display: 'grid', gap: 8 }}>
                           <label className="lc-label" htmlFor="lc-notes">{t.notes}</label>
-                          <textarea id="lc-notes" value={noteInput} onChange={e => setNoteInput(e.target.value)} placeholder={t.notesPlaceholder} rows={3} className="lc-input" style={{ resize: 'vertical', direction: dir }}
+                          <textarea id="lc-notes" ref={lcNoteRef} value={noteInput} onChange={e => setNoteInput(e.target.value)} placeholder={t.notesPlaceholder} rows={3} className="lc-input" style={{ resize: 'vertical', direction: dir }}
                             onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); handleAddNote() } }}/>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                            <VoiceDictate value={noteInput} onChange={setNoteInput} kind="note" lang={lang} inputRef={lcNoteRef}/>
                             <button className="lc-btn primary" onClick={handleAddNote} disabled={noteState === 'saving' || !noteInput.trim() || !onCrmPatch}>{noteState === 'saving' ? '…' : t.addNote}</button>
                             {noteState === 'saved' && <span role="status" className="lc-chip ok">✓ {t.noteSaved}</span>}
                             {noteState === 'failed' && <span role="alert" className="lc-chip warn">{t.noteSaveFailed}</span>}

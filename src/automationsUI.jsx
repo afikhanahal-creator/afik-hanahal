@@ -343,7 +343,7 @@ export function Popover({ anchor, open, onClose, children, width = 260, dir, lab
     if (!open) return
     const close = () => closeRef.current?.()
     // a date picker opened from inside the popover lives in its own portal (DateTimePicker): a click there isn't "outside"
-    const onDown = e => { if (e.target?.closest?.('.dtp-pop,.dtp-sheet-bg,.tpi-pop')) return; if (ref.current && !ref.current.contains(e.target) && !anchor?.current?.contains(e.target)) close() }
+    const onDown = e => { if (e.target?.closest?.('.dtp-pop,.dtp-sheet-bg,.tpi-pop,.vd-tip')) return; if (ref.current && !ref.current.contains(e.target) && !anchor?.current?.contains(e.target)) close() }
     const onKey = e => { if (e.key === 'Escape') { e.preventDefault(); close(); anchor?.current?.focus?.() } }   // preventDefault: a card under it stays open
     document.addEventListener('mousedown', onDown); document.addEventListener('keydown', onKey)
     // focus the first field once, when it opens — never while someone is already typing inside
