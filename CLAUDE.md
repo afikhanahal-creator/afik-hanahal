@@ -267,7 +267,17 @@ over the current screen, `reminderCardId`) · **בוצע** (`updateTasks`, done 
 (`reminderNotify`, `requireInteraction`, tag `task-<key>`) and the tab's badge ("⏰ …") while the window is in the background (the
 bell's sound / desktop switches apply). What was shown / snoozed / handled is `localStorage.afik_task_alerts_v1`, shared by every
 open tab (a reminder handled in one tab leaves the others); checked every 15 s and whenever the leads change.
-**Follow-ups screen** (2026-10-25, `src/FollowUpsView.jsx`): the leads board's "פולו אפים" button next to the view switch
+**Reminders that make sense** (2026-11-02, `lib/follow-up.js` `reminderAllowed()` / `closeForStage()` / `lastTouch()`, tested): a lead
+marked "לא רלוונטי" gets no reminder at all and a closed deal ("won") no "get back to them" follow-up (its plain tasks stay) —
+moving a lead there closes those tasks (`updateLeadStatus` → `closed`, `closedBy: 'stage:<stage>'`, the lead's `followUp` cleared),
+and every path checks the same rule: the WhatsApp reminder (`dueReminders`, `remindTasks` reads `stage`), the screen card and the
+database's due count (`afik_due_reminders()`, applied). The on-screen card pops up only for what is due now — at most 2 h late
+(`SCREEN_WINDOW_MS`; older ones wait in the follow-ups screen) — and not for a lead someone already called / noted / moved after the
+due time.
+**Follow-ups screen** (2026-10-25, `src/FollowUpsView.jsx`; **a call list since 2026-11-02**: a "הכי דחוף עכשיו / הבא בתור" card on
+top — the oldest late task, else today's next —, rows of when (time, day, and "באיחור 40 דק׳" / "בעוד שעתיים" as a colored pill), who
+(face, name → the lead card, phone, project, stage), what to do (the task in bold, "מחפשים:" from `leadNeeds()`, the last note +
+"הערה") and big actions: a green "התקשרות" (`tel:`), WhatsApp, "בוצע", "הזזה", delete): the leads board's "פולו אפים" button next to the view switch
 (`FollowUpsButton`, today's + late count — red when something is late; a tab on phones) opens a screen of its own (`activeTab
 'followups'`; the board's toolbar is hidden there): a CRM task list of every dated task of every lead (`taskAgenda()` +
 `agendaBucket()` in `lib/follow-up.js`, tested) grouped late · today · tomorrow · this week · later · done; KPI tiles (a click filters),

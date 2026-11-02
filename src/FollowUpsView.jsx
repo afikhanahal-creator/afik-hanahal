@@ -11,6 +11,7 @@ import WaFace from './WaFace.jsx'
 import { taskAgenda, agendaBucket, updateTasks, addFollowUp, followUpPresets, defaultFollowUpText, israelParts, dueIso } from '../lib/follow-up.js'
 import { addNote, asNotes } from './lib/leadNotes.js'
 import { leadCampaign } from './lib/leadFields.js'
+import { leadNeeds } from '../lib/lead-needs.js'
 import TaskPresetInput, { rememberTaskText } from './TaskPresetInput.jsx'
 
 const pad = n => String(n).padStart(2, '0')
@@ -28,7 +29,7 @@ const TXT = {
     groups: { late: 'באיחור', today: 'היום', tomorrow: 'מחר', week: 'השבוע', later: 'בהמשך', done: 'בוצעו' },
     ranges: { open: 'פתוחות', late: 'באיחור', today: 'היום', week: 'השבוע', done: 'בוצעו', all: 'הכל' },
     kinds: { all: 'הכל', followup: 'פולו אפים', task: 'משימות' },
-    cols: { done: 'בוצע', when: 'מועד', name: 'שם מלא', phone: 'טלפון', task: 'משימה', project: 'פרויקט', notes: 'הערות', actions: 'פעולות' },
+    cols: { done: 'בוצע', when: 'מתי', name: 'למי לחזור', task: 'מה לעשות', actions: '' },
     fu: 'פולו אפ', task: 'משימה', notDone: 'לא בוצע', markDone: 'סימון כבוצע', markOpen: 'סימון כלא בוצע',
     notePh: 'מה היה? Enter לשמירה', addNote: 'הערה', saved: 'נשמר בהערות הליד', move: 'הזזה', del: 'מחיקה',
     delAsk: 'למחוק את המשימה?', open: 'פתיחת כרטיס הליד', wa: 'וואטסאפ', call: 'התקשרות',
@@ -37,6 +38,8 @@ const TXT = {
     newTitle: 'משימה חדשה', lead: 'ליד', leadPh: 'חיפוש ליד לפי שם או טלפון', what: 'מה צריך לעשות', whatPh: 'למשל: לחזור עם הצעת מחיר',
     when: 'מתי', kind: 'סוג', remind: 'תזכורת בוואטסאפ ועל המסך', save: 'שמירה', cancel: 'ביטול', pickLead: 'בחרו ליד', change: 'החלפה',
     noLead: 'לא נמצא ליד', notes: n => (n === 1 ? 'הערה אחת' : `${n} הערות`),
+    next: 'הבא בתור לחזור אליו', nextLate: 'הכי דחוף עכשיו', done: 'בוצע', callNow: 'התקשרות', wants: 'מחפשים:',
+    lateBy: x => `באיחור ${x}`, inT: x => `בעוד ${x}`, now: 'עכשיו', min: n => `${n} דק׳`, hr: n => (n === 1 ? 'שעה' : n === 2 ? 'שעתיים' : `${n} שע׳`), days: n => (n === 1 ? 'יום' : n === 2 ? 'יומיים' : `${n} ימים`),
   },
   en: {
     title: 'Follow-ups & tasks', sub: 'Every task of every lead, by time. A click on a name opens the lead card.',
@@ -44,7 +47,7 @@ const TXT = {
     groups: { late: 'Late', today: 'Today', tomorrow: 'Tomorrow', week: 'This week', later: 'Later', done: 'Done' },
     ranges: { open: 'Open', late: 'Late', today: 'Today', week: 'This week', done: 'Done', all: 'All' },
     kinds: { all: 'All', followup: 'Follow-ups', task: 'Tasks' },
-    cols: { done: 'Done', when: 'When', name: 'Full name', phone: 'Phone', task: 'Task', project: 'Project', notes: 'Notes', actions: 'Actions' },
+    cols: { done: 'Done', when: 'When', name: 'Who', task: 'What to do', actions: '' },
     fu: 'Follow-up', task: 'Task', notDone: 'Not done', markDone: 'Mark as done', markOpen: 'Mark as not done',
     notePh: 'What happened? Enter to save', addNote: 'Note', saved: 'Saved to the lead\'s notes', move: 'Move', del: 'Delete',
     delAsk: 'Delete this task?', open: 'Open the lead card', wa: 'WhatsApp', call: 'Call',
@@ -53,6 +56,8 @@ const TXT = {
     newTitle: 'New task', lead: 'Lead', leadPh: 'Find a lead by name or phone', what: 'What to do', whatPh: 'e.g. call back with a price offer',
     when: 'When', kind: 'Type', remind: 'WhatsApp and on-screen reminder', save: 'Save', cancel: 'Cancel', pickLead: 'Pick a lead', change: 'Change',
     noLead: 'No lead found', notes: n => (n === 1 ? '1 note' : `${n} notes`),
+    next: 'Next to get back to', nextLate: 'Most urgent now', done: 'Done', callNow: 'Call', wants: 'Looking for:',
+    lateBy: x => `${x} late`, inT: x => `in ${x}`, now: 'now', min: n => `${n} min`, hr: n => `${n} h`, days: n => (n === 1 ? '1 day' : `${n} days`),
   },
 }
 const GROUP_ORDER = ['late', 'today', 'tomorrow', 'week', 'later', 'done']
@@ -62,6 +67,14 @@ function whenText(at, now, t, en) {
   const p = israelParts(at), k = dayKey(at)
   const rel = k === dayKey(now) ? t.today : k === dayKey(now + 864e5) ? t.tomorrow : k === dayKey(now - 864e5) ? t.yesterday : t.day(en ? EN_DAYS[p.wd] : HE_DAYS[p.wd])
   return { time: `${pad(p.h)}:${pad(p.min)}`, date: `${rel} · ${p.d}.${p.m}${p.y !== israelParts(now).y ? `.${String(p.y).slice(2)}` : ''}` }
+}
+
+// "באיחור 40 דק׳" / "בעוד שעתיים" / "עכשיו" — how far the task is from now, in words
+function relText(due, now, t) {
+  const d = due - now, a = Math.abs(d), m = Math.round(a / 60e3)
+  if (m < 2) return { text: t.now, tone: 'now' }
+  const span = m < 60 ? t.min(m) : m < 24 * 60 ? t.hr(Math.round(m / 60)) : t.days(Math.round(m / 1440))
+  return d < 0 ? { text: t.lateBy(span), tone: 'late' } : { text: t.inT(span), tone: m <= 120 ? 'soon' : 'later' }
 }
 
 function NoteCell({ lead, t, onUpdate }) {
@@ -99,20 +112,23 @@ function NoteCell({ lead, t, onUpdate }) {
   )
 }
 
-function Row({ it, now, t, en, lang, stages, onUpdate, onOpen, onOpenChat }) {
+function Row({ it, now, t, en, lang, stages, onUpdate, onOpen, onOpenChat, hero = false }) {
   const { lead, task } = it
   const name = String(lead.name || '').trim() || local(lead.phone)
   const w = whenText(it.due, now, t, en)
+  const rel = it.done ? null : relText(it.due, now, t)
   const stage = (stages || []).find(g => g.id === (lead.leadStatus || 'new'))
   const camp = leadCampaign(lead, lang)
-  const extra = task.text && task.text !== defaultFollowUpText(lead) ? task.text : (task.text || '')
+  const needs = (() => { try { return leadNeeds(lead, lang).needs || '' } catch { return '' } })()
+  const text = String(task.text || '').trim() || defaultFollowUpText(lead, lang)
   const late = it.bucket === 'late'
   const setTasks = next => onUpdate(lead.id, updateTasks(lead, next))
   const toggle = () => setTasks((lead.tasks || []).map(x => (x.id === task.id ? { ...x, done: !x.done, doneAt: !x.done ? Date.now() : null } : x)))
   const move = v => { const iso = dueIso(v); if (iso) setTasks((lead.tasks || []).map(x => (x.id === task.id ? { ...x, due: iso, remindedAt: null, remindGaveUp: false } : x))) }
   const del = () => { if (window.confirm(t.delAsk)) setTasks((lead.tasks || []).filter(x => x.id !== task.id)) }
+  const tel = lead.phone ? digits(local(lead.phone)) : ''
   return (
-    <div role="row" className={`fv-row${it.past ? ' is-past' : ''}${it.done ? ' is-done' : ''}${late ? ' is-late' : ''}`}>
+    <div role="row" className={`fv-row${it.past ? ' is-past' : ''}${it.done ? ' is-done' : ''}${late ? ' is-late' : ''}${hero ? ' is-hero' : ''}`}>
       <div role="cell" className="fv-c fv-c-done">
         <button type="button" role="checkbox" aria-checked={it.done} className="fv-check" onClick={toggle}
           aria-label={`${it.done ? t.markOpen : t.markDone}: ${name}`} title={it.done ? t.markOpen : t.markDone}>
@@ -121,33 +137,36 @@ function Row({ it, now, t, en, lang, stages, onUpdate, onOpen, onOpenChat }) {
       </div>
       <div role="cell" className="fv-c fv-c-when">
         <b dir="ltr">{w.time}</b><span>{w.date}</span>
-        {late && <em>{t.notDone}</em>}
+        {rel && <em className={`fv-rel is-${rel.tone}`}>{rel.text}</em>}
       </div>
       <div role="cell" className="fv-c fv-c-name">
-        <WaFace phone={lead.phone} name={name} size={34} lang={lang} style={{ background: (stage?.color || '#6366F1') + '22' }}>
+        <WaFace phone={lead.phone} name={name} size={hero ? 48 : 40} lang={lang} style={{ background: (stage?.color || '#6366F1') + '22' }}>
           <span className="fv-ini" style={{ color: stage?.color || 'var(--au-brand-text)' }}>{name.charAt(0)}</span>
         </WaFace>
         <div className="fv-namebox">
           <button type="button" className="fv-name" onClick={() => onOpen(lead)} title={t.open}><bdi>{name}</bdi></button>
-          {stage && <span className="fv-stage" style={{ color: stage.color, background: stage.color + '1A' }}>{en ? stage.en : stage.label}</span>}
+          <div className="fv-meta">
+            {lead.phone && <a href={`tel:${tel}`} dir="ltr" className="fv-tel" title={t.call}>{local(lead.phone)}</a>}
+            {camp && <span className="fv-camp">{camp}</span>}
+            {stage && <span className="fv-stage" style={{ color: stage.color, background: stage.color + '1A' }}>{en ? stage.en : stage.label}</span>}
+          </div>
         </div>
       </div>
-      <div role="cell" className="fv-c fv-c-phone">
-        {lead.phone && <>
-          <a href={`tel:${digits(local(lead.phone))}`} dir="ltr" className="fv-tel" title={t.call}><Phone size={12}/>{local(lead.phone)}</a>
-          {onOpenChat && <button type="button" className="fv-wa" onClick={() => onOpenChat(lead)} aria-label={`${t.wa}: ${name}`} title={t.wa}><MessageCircle size={14}/></button>}
-        </>}
-      </div>
       <div role="cell" className="fv-c fv-c-task">
-        <span className={`fv-kind${task.kind === 'followup' ? ' is-fu' : ''}`}>{task.kind === 'followup' ? t.fu : t.task}</span>
-        <span className="fv-text" dir="auto">{extra}</span>
+        <div className="fv-taskline">
+          <span className={`fv-kind${task.kind === 'followup' ? ' is-fu' : ''}`}>{task.kind === 'followup' ? t.fu : t.task}</span>
+          <span className="fv-text" dir="auto">{text}</span>
+        </div>
+        {needs && <div className="fv-needs" dir="auto"><b>{t.wants}</b> {needs}</div>}
+        <NoteCell lead={lead} t={t} onUpdate={onUpdate}/>
       </div>
-      <div role="cell" className="fv-c fv-c-proj">{camp && <span className="fv-camp">{camp}</span>}</div>
-      <div role="cell" className="fv-c fv-c-notes"><NoteCell lead={lead} t={t} onUpdate={onUpdate}/></div>
       <div role="cell" className="fv-c fv-c-act">
+        {!it.done && tel && <a href={`tel:${tel}`} className="fv-call" title={`${t.callNow}: ${name}`}><Phone size={14}/>{t.callNow}</a>}
+        {onOpenChat && lead.phone && <button type="button" className="fv-wa" onClick={() => onOpenChat(lead)} aria-label={`${t.wa}: ${name}`} title={t.wa}><MessageCircle size={15}/></button>}
+        {!it.done && <button type="button" className="fv-donebtn" onClick={toggle} title={t.markDone}><Check size={14} strokeWidth={2.6}/>{t.done}</button>}
         <DateTimePicker value={dueIso(task.due)} onChange={move} format="iso" lang={lang} presets={followUpPresets(Date.now(), lang)}
           clearable={false} label={t.move} text={t.move} size="sm"/>
-        <button type="button" className="fv-del" onClick={del} aria-label={`${t.del}: ${extra || name}`} title={t.del}><Trash2 size={14}/></button>
+        <button type="button" className="fv-del" onClick={del} aria-label={`${t.del}: ${text}`} title={t.del}><Trash2 size={14}/></button>
       </div>
     </div>
   )
@@ -263,6 +282,12 @@ export default function FollowUpsView({ leads, lang = 'he', stages, onUpdate, on
     return [g, list]
   }).filter(([, l]) => l.length)
 
+  // the one to call first: the most urgent late task (the oldest), else the next one today
+  const heroIt = useMemo(() => {
+    const open = items.filter(x => !x.done && (x.bucket === 'late' || x.bucket === 'today'))
+    const late = open.filter(x => x.bucket === 'late').sort((a, b) => a.due - b.due)
+    return late[0] || open.sort((a, b) => a.due - b.due)[0] || null
+  }, [items])
   const kpis = [['late', counts.late, 'late'], ['today', counts.today, 'today'], ['tomorrow', counts.tomorrow, ''], ['week', counts.week, ''], ['later', counts.later, ''], ['done', counts.done, 'done']]
   const rangeOf = g => (g === 'tomorrow' || g === 'week' ? 'week' : g === 'later' ? 'open' : g)
 
@@ -275,6 +300,12 @@ export default function FollowUpsView({ leads, lang = 'he', stages, onUpdate, on
         </div>
         <button type="button" className="fv-primary" onClick={() => setAdding(true)}><Plus size={15}/>{t.add}</button>
       </div>
+      {heroIt && (
+        <section className={`fv-hero${heroIt.bucket === 'late' ? ' is-late' : ''}`} aria-label={heroIt.bucket === 'late' ? t.nextLate : t.next}>
+          <div className="fv-hero-h">{heroIt.bucket === 'late' ? t.nextLate : t.next}</div>
+          <div className="fv-table fv-table--hero" role="table"><Row it={heroIt} now={now} t={t} en={en} lang={lang} stages={stages} onUpdate={onUpdate} onOpen={onOpen} onOpenChat={onOpenChat} hero/></div>
+        </section>
+      )}
       <div className="fv-kpis">
         {kpis.map(([g, n, tone]) => (
           <button key={g} type="button" className={`fv-kpi${tone ? ` is-${tone}` : ''}${groups.length === 1 && groups[0] === g ? ' is-on' : ''}`} onClick={() => setRange(rangeOf(g))}>
@@ -293,7 +324,7 @@ export default function FollowUpsView({ leads, lang = 'he', stages, onUpdate, on
       </div>
       <div className="fv-table" role="table" aria-label={t.title}>
         <div role="row" className="fv-row fv-head">
-          {['done', 'when', 'name', 'phone', 'task', 'project', 'notes', 'actions'].map(c => <div key={c} role="columnheader" className={`fv-c fv-c-${c === 'project' ? 'proj' : c === 'actions' ? 'act' : c}`}>{t.cols[c]}</div>)}
+          {['done', 'when', 'name', 'task', 'actions'].map(c => <div key={c} role="columnheader" className={`fv-c fv-c-${c === 'actions' ? 'act' : c}`}>{t.cols[c]}</div>)}
         </div>
         {!byGroup.length && <div className="fv-empty"><Bell size={24}/><b>{t.empty}</b><span>{t.emptySub}</span></div>}
         {byGroup.map(([g, list]) => {
@@ -370,7 +401,30 @@ const FV_CSS = `
 .fv-search input{flex:1;min-width:0;border:none;outline:none;background:none;font:13px Rubik,sans-serif;color:var(--au-text);min-height:0}
 .fv-search--bar{margin-inline-start:auto;min-width:240px}
 .fv-table{border:1px solid var(--au-line);border-radius:14px;background:var(--au-pop);overflow:hidden}
-.fv-row{display:grid;grid-template-columns:48px 104px minmax(170px,1.3fr) 178px minmax(150px,1.3fr) 112px minmax(150px,1.2fr) 168px;align-items:center;border-top:1px solid var(--au-line)}
+.fv-row{display:grid;grid-template-columns:48px 118px minmax(230px,1.2fr) minmax(240px,1.6fr) auto;align-items:center;border-top:1px solid var(--au-line)}
+.fv-meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.fv-rel{font-style:normal;margin-top:4px;align-self:flex-start;font-size:11px;font-weight:700;border-radius:999px;padding:1px 8px;white-space:nowrap}
+.fv-rel.is-late{color:#fff;background:#DC2626}
+.fv-rel.is-now,.fv-rel.is-soon{color:#92400E;background:#FEF3C7}
+.fv-rel.is-later{color:var(--au-text2);background:rgba(var(--ov),.07)}
+.fv-taskline{display:flex;align-items:flex-start;gap:7px}
+.fv-taskline .fv-text{font-size:14px;font-weight:600}
+.fv-needs{font-size:12px;color:var(--au-text2);margin-top:3px;line-height:1.45}
+.fv-needs b{font-weight:600;color:var(--au-text3)}
+.fv-c-task{flex-direction:column;align-items:stretch!important;gap:4px}
+.fv-call{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 14px;border-radius:9px;background:#16A34A;color:#fff;text-decoration:none;font:600 13px Rubik,sans-serif;white-space:nowrap;min-height:0}
+.fv-call:hover{background:#15803D}
+.fv-donebtn{display:inline-flex;align-items:center;gap:5px;height:34px;padding:0 12px;border-radius:9px;border:1px solid rgba(22,163,74,.4);background:none;color:#15803D;font:600 12.5px Rubik,sans-serif;cursor:pointer;white-space:nowrap;min-height:0}
+.fv-donebtn:hover{background:rgba(22,163,74,.08)}
+.fv-c-act .fv-wa{width:34px;height:34px}
+.fv-hero{margin-bottom:14px;border:1px solid rgba(var(--brand-rgb),.35);border-radius:16px;background:rgba(var(--brand-rgb),.05);padding:10px 10px 8px}
+.fv-hero.is-late{border-color:rgba(220,38,38,.4);background:rgba(220,38,38,.05)}
+.fv-hero-h{font-size:12px;font-weight:800;color:var(--au-brand-text);padding:0 6px 8px}
+.fv-hero.is-late .fv-hero-h{color:#DC2626}
+.fv-table--hero{border:none;background:transparent}
+.fv-table--hero .fv-row{border-top:none}
+.fv-row.is-hero .fv-name{font-size:17px}
+.fv-row.is-hero .fv-taskline .fv-text{font-size:15px}
 .fv-head{border-top:none;background:rgba(var(--ov),.04);position:sticky;top:0;z-index:2}
 .fv-head .fv-c{font-size:11.5px;font-weight:700;color:var(--au-text2);padding-top:10px;padding-bottom:10px}
 .fv-c{padding:10px 10px;min-width:0}
@@ -387,17 +441,17 @@ const FV_CSS = `
 .fv-row.is-past .fv-name,.fv-row.is-past .fv-c-when b,.fv-row.is-past .fv-text{color:var(--au-text2)}
 .fv-row.is-done .fv-text,.fv-row.is-done .fv-name bdi{text-decoration:line-through;text-decoration-color:rgba(var(--ink),.35)}
 .fv-c-done{display:flex;justify-content:center}
+.fv-row.is-done .fv-call,.fv-row.is-past .fv-camp{opacity:.8}
 .fv-check{width:22px!important;min-width:0!important;height:22px;box-sizing:border-box;border-radius:7px;border:2px solid rgba(var(--ink),.3);background:var(--au-pop);color:#fff;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0;min-height:0}
 .fv-check:hover{border-color:#16A34A}
 .fv-check[aria-checked=true]{background:#16A34A;border-color:#16A34A}
 .fv-c-when{display:flex;flex-direction:column;line-height:1.25}
 .fv-c-when b{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums}
 .fv-c-when span{font-size:11.5px;color:var(--au-text3);white-space:nowrap}
-.fv-c-when em{font-style:normal;margin-top:3px;align-self:flex-start;font-size:10.5px;font-weight:700;border-radius:5px;padding:0 5px;color:#DC2626;background:rgba(220,38,38,.1)}
 .fv-c-name{display:flex;align-items:center;gap:10px}
 .fv-ini{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px}
 .fv-namebox{min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:3px}
-.fv-name{max-width:100%;border:none;background:none;padding:0;font:700 14px Rubik,sans-serif;color:var(--au-text);cursor:pointer;text-align:start;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-height:0}
+.fv-name{max-width:100%;border:none;background:none;padding:0;font:700 15px Rubik,sans-serif;color:var(--au-text);cursor:pointer;text-align:start;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-height:0}
 .fv-name:hover{color:var(--au-brand-text);text-decoration:underline}
 .fv-stage{font-size:11px;font-weight:600;border-radius:6px;padding:1px 7px;white-space:nowrap}
 .fv-c-phone{display:flex;align-items:center;gap:6px}
@@ -450,11 +504,10 @@ const FV_CSS = `
 @container (max-width:900px){.fv-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @container (max-width:1060px){
   .fv-head{display:none}
-  .fv-row{grid-template-columns:44px 1fr;grid-template-areas:"done name" "done when" "done phone" "done task" "done proj" "done notes" "done act";align-items:start;padding:6px 4px}
+  .fv-row{grid-template-columns:44px 1fr;grid-template-areas:"done name" "done when" "done task" "done act";align-items:start;padding:6px 4px}
   .fv-c{padding:4px 8px}
-  .fv-c-done{grid-area:done;padding-top:10px}.fv-c-name{grid-area:name}.fv-c-when{grid-area:when;flex-direction:row;align-items:baseline;gap:8px}
-  .fv-c-phone{grid-area:phone}.fv-c-task{grid-area:task}.fv-c-proj{grid-area:proj}.fv-c-notes{grid-area:notes}.fv-c-act{grid-area:act}
-  .fv-c-proj:empty{display:none}
+  .fv-c-done{grid-area:done;padding-top:10px}.fv-c-name{grid-area:name}.fv-c-when{grid-area:when;flex-direction:row;align-items:baseline;gap:8px;flex-wrap:wrap}
+  .fv-c-task{grid-area:task}.fv-c-act{grid-area:act;flex-wrap:wrap}
   .fv-search--bar{margin-inline-start:0;flex:1}
 }
 @container (max-width:640px){.fv-top,.fv-kpis,.fv-bar,.fv-table{margin-inline:-2px}}

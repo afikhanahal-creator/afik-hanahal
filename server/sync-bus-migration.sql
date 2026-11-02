@@ -32,6 +32,10 @@ where coalesce(t->>'remind', 'false') = 'true'
   and coalesce(t->>'remindedAt', '') = ''
   and coalesce(t->>'remindGaveUp', 'false') <> 'true'
   and d.due between now() - interval '24 hours' and now()
+  -- reminders that still make sense (lib/follow-up.js reminderAllowed): none for a lead marked "לא רלוונטי", no follow-up call
+  -- for a closed deal
+  and coalesce(c.crm_data->>'leadStatus', 'new') <> 'irrelevant'
+  and not (coalesce(c.crm_data->>'leadStatus', 'new') = 'won' and coalesce(t->>'kind', 'followup') = 'followup')
 $fn$;
 revoke all on function public.afik_due_reminders() from public, anon, authenticated;
 select cron.unschedule(jobid) from cron.job where jobname in ('afik-reminders', 'afik-cron-cleanup');
