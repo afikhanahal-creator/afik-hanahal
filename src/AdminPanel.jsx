@@ -15,6 +15,7 @@ import { FaSun, FaMoon, FaPlus, FaEnvelope, FaFacebookF, FaInstagram, FaBed, FaR
 const SellerSubmissionsTab = lazy(() => import('./SellerSubmissionsTab.jsx'))
 const BookingAdminTab = lazy(() => import('./BookingAdminTab.jsx'))
 const MediaLibraryTab = lazy(() => import('./MediaLibraryTab.jsx'))
+const VideoStudioTab = lazy(() => import('./VideoStudioTab.jsx'))
 const ContentEditorTab = lazy(() => import('./ContentEditorTab.jsx'))
 const AutomationsTab = lazy(() => import('./AutomationsTab.jsx'))
 const GA4Tab = lazy(() => import('./GA4Tab.jsx'))
@@ -38,7 +39,7 @@ import { notifyPropertiesChanged, mirrorProperty, mirrorProperties, mirrorDelete
 import { fetchAdminProperties, LeadsBoard, GreenAPIChat, MetaLeadsTab, SupermetricsTab, PropertyWizard, API_BASE, CONTACTS_API, ADMIN_TOKEN, condFetchJson, DARK_C, useTheme, TEAM, G, Logo, LEADS_STORE, LEADS_DELETED, LEADS_TRASH, ANALYTICS_KEY, META_LEAD_PAGES_KEY, WA_DEFAULT_TEMPLATE, _cloudSettings, CATEGORIES, EMPTY_PROP, CONDITION_OPTIONS, ENTRY_OPTIONS, ADMIN_DRAFT_KEY, toMapsEmbed, imgFallback, thumbImg, sortByOrder, TEAM_KEY, setCloudSettings } from './App.jsx'
 
 // Tab ↔ URL deep-link mapping (module-level so both AdminPanel and main app can use it)
-const ADMIN_TAB_TO_PATH = { overview:'overview', props:'properties', leads:'leads', sellers:'properties-intake', bookings:'bookings', media:'media', content:'content', chats:'chats', automations:'automations', meta:'lead-center', analytics:'analytics', supermetrics:'performance', team:'team', settings:'settings', counters:'counters', live:'live' }
+const ADMIN_TAB_TO_PATH = { overview:'overview', props:'properties', leads:'leads', sellers:'properties-intake', bookings:'bookings', media:'media', studio:'studio', content:'content', chats:'chats', automations:'automations', meta:'lead-center', analytics:'analytics', supermetrics:'performance', team:'team', settings:'settings', counters:'counters', live:'live' }
 const ADMIN_PATH_TO_TAB = Object.fromEntries(Object.entries(ADMIN_TAB_TO_PATH).map(([k,v])=>[v,k]))
 
 // ─── LOGO UPLOAD (single image, compressed) ──────────────────────────────────
@@ -2889,6 +2890,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     { id:'bookings', Icon:FaCalendarAlt, label:'תיאום פגישות' },
     { id:'content',  Icon:FaFileAlt,     label:'תוכן האתר' },
     { id:'media',    Icon:FaImage,       label:'תמונות האתר' },
+    { id:'studio',   Icon:FaVideo,       label:'סטודיו וידאו' },
     { id:'chats',    Icon:FaWhatsapp,    label:'צ\'אטים',     badge: chatsUnread, waiting: waiting.count },
     { id:'automations', Icon:FaRobot,    label:'אוטומציות',   badge: autoRun?.suggestions?.length || undefined },
     { id:'analytics',    Icon:FaChartLine,   label:'אנליטיקס' },
@@ -2899,12 +2901,12 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   ]
   const slimBar = !standalone && tab === 'meta' && !tabsOpen
   const DASH_GROUPS = [
-    { id:'main',  he:'ראשי',            en:'MAIN',        ids:['overview','live','props','sellers','content','media'] },
+    { id:'main',  he:'ראשי',            en:'MAIN',        ids:['overview','live','props','sellers','content','media','studio'] },
     { id:'sales', he:'מכירות ולקוחות',  en:'SALES',       ids:['leads','meta','bookings','chats','automations'] },
     { id:'data',  he:'נתונים וביצועים', en:'INSIGHTS',    ids:['analytics','supermetrics'] },
     { id:'admin', he:'ניהול',           en:'ADMIN',       ids:['team','counters','settings'] },
   ]
-  const TAB_LABELS = { overview:'סקירה כללית', live:'נכסים באוויר', props:'ניהול נכסים', leads:'לידים', sellers:'נכסים שנקלטו', bookings:'תיאום פגישות', media:'תמונות האתר', content:'תוכן האתר', chats:'שיחות WhatsApp', automations:'אוטומציות וואטסאפ', meta:'מרכז מטא', analytics:'אנליטיקס', supermetrics:'ביצועים', team:'צוות', counters:'מונים', settings:'הגדרות' }
+  const TAB_LABELS = { overview:'סקירה כללית', live:'נכסים באוויר', props:'ניהול נכסים', leads:'לידים', sellers:'נכסים שנקלטו', bookings:'תיאום פגישות', media:'תמונות האתר', studio:'סטודיו וידאו', content:'תוכן האתר', chats:'שיחות WhatsApp', automations:'אוטומציות וואטסאפ', meta:'מרכז מטא', analytics:'אנליטיקס', supermetrics:'ביצועים', team:'צוות', counters:'מונים', settings:'הגדרות' }
 
   return (
     <div className="admin-shell admin-scroll" style={standalone
@@ -3161,6 +3163,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
             {tabBtn('bookings', 'תיאום פגישות')}
             {tabBtn('content', 'תוכן האתר')}
             {tabBtn('media', 'תמונות האתר')}
+            {tabBtn('studio', 'סטודיו וידאו')}
             {tabBtn('chats', 'צ\'אטים')}
             {tabBtn('automations', 'אוטומציות', autoRun?.suggestions?.length || undefined)}
             {tabBtn('analytics', 'אנליטיקס')}
@@ -3484,6 +3487,11 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
         {tab==='media' && (
           <Suspense fallback={<AdminTabLoader label="טוען את תמונות האתר…"/>}>
             <MediaLibraryTab lang={lang} properties={properties} onReplacePropertyPhoto={replacePropertyPhoto}/>
+          </Suspense>
+        )}
+        {tab==='studio' && (
+          <Suspense fallback={<AdminTabLoader label="טוען את סטודיו הווידאו…"/>}>
+            <VideoStudioTab lang={lang} properties={properties}/>
           </Suspense>
         )}
         {tab==='bookings' && (

@@ -758,6 +758,25 @@ it needs `GITHUB_CONTENT_TOKEN` (fine-grained, this repository, Contents read & 
 the tab shows the setup steps otherwise). `/img/*` is cached for a day (`vercel.json`), so a replaced file reaches returning
 visitors within a day.
 
+### Video studio (admin "סטודיו וידאו", `/admin-panel/studio`)
+
+The office edits real-estate videos with **OpenMontage** (github.com/calesthio/OpenMontage, AGPLv3: agentic video production —
+Python, FFmpeg, Remotion, optional AI providers) driven by **Claude Code on the office PC** (`C:\Users\HP\Desktop\Downloads\
+OpenMontage-main`). It can't run on Vercel and the site never runs or calls it. `src/VideoStudioTab.jsx`: pick properties (live /
+all, search) and the look (format 9:16 / 4:5 / 16:9 / all, length, mood, voice, language, real material vs AI "הדמיה", music, a
+footage folder, notes, an AI budget) → **the instruction for Claude Code** (`lib/video-brief.js` `buildBrief()`, tested: the
+facts only from the record, the property's `?one=` / `/p/` links, its photos inline when it isn't published, batch = one for
+approval then the rest), copied with one click; **the production board** (OpenMontage's Backlot, `http://127.0.0.1:4750` on the
+same PC — a no-cors ping, only after it answered once so a first visit never triggers the browser's local-network prompt; a frame
+or a new tab); **the one-time install** (`/studio/afik-studio-pack.zip` + the PowerShell lines for the chosen folder). The pack's
+source is `studio-pack/` — `install-openmontage.ps1` (winget Python / Node / FFmpeg if missing, venv, pip, `npm install` with the
+`npx --yes npm install` fallback, `.env` from the example, copies the style + skill, points OpenMontage's `CLAUDE.md` at them),
+`styles/afik-hanahal.yaml` (the site's colors, Rubik, Hebrew RTL captions; valid against OpenMontage's
+`schemas/styles/playbook.schema.json`), `skills/creative/real-estate-afik.md` (reel structure, truth in every number, "הדמיה" on
+generated visuals, phone + `/book` at the end, plural Hebrew) and `README-he.md`. After editing it rebuild the zip:
+`cd studio-pack && zip -qr -X ../public/studio/afik-studio-pack.zip README-he.md install-openmontage.ps1 styles skills`.
+API keys live only in OpenMontage's `.env` on the PC. Settings: `localStorage.afik_studio_v1`.
+
 ### Admin appearance (light / dark / system) & command palette
 
 The admin has its own theme, separate from the public site, saved in `localStorage` (`afik_admin_theme`: `dark` · `light` · `system`).
