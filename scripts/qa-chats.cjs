@@ -33,7 +33,8 @@ const log = (ok, what, extra = '') => { if (!ok) fails++; console.log(`${ok ? 'P
   const b = await chromium.launch()
   const ctx = await b.newContext({ viewport: { width: 1600, height: 950 }, locale: 'he-IL' })
   await ctx.addInitScript(() => { sessionStorage.setItem('afik_admin_session', '1'); localStorage.setItem('afik_admin_theme', 'light'); localStorage.setItem('afik_no_track', '1') })
-  await ctx.route(/onrender\.com|supabase\.co/, r => r.fulfill({ json: [] }))
+  // storage uploads (signed URLs) are cross-origin PUTs: answer the preflight like Supabase does
+  await ctx.route(/onrender\.com|supabase\.co/, r => r.fulfill({ json: [], headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': 'GET,POST,PUT,OPTIONS' } }))
   await ctx.route(/\/api\/properties/, r => r.fulfill({ json: [] }))
   await ctx.route(/\/api\/contacts/, async r => {
     const m = r.request().method()
@@ -42,7 +43,7 @@ const log = (ok, what, extra = '') => { if (!ok) fails++; console.log(`${ok ? 'P
     return r.fulfill({ json: { ok: true } })
   })
   await ctx.route(/\/api\/(meta|seller-form|stats)/, async r => {
-    const u = new URL(r.request().url()); const a = u.pathname.replace(/^\/api\/meta\/?/, '') || u.searchParams.get('action') || ''
+    const u = new URL(r.request().url()); const a = u.searchParams.get('action') || u.pathname.replace(/^\/api\/meta\/?/, '') || ''
     calls.push({ api: a, m: r.request().method(), body: r.request().postData() })
     if (a === 'chat-status') return r.fulfill({ json: { state: 'authorized' } })
     if (a.startsWith('chat-list')) return r.fulfill({ json: [{ chatId: PHONE + '@c.us', phone: PHONE, name: 'אנילה ניסימוב · זרובבל 15', timestamp: Math.floor(now / 1000) - 3600, type: 'incoming', text: 'אחרי שלוש', incoming: 2 }] })
@@ -51,6 +52,9 @@ const log = (ok, what, extra = '') => { if (!ok) fails++; console.log(`${ok ? 'P
     if (a === 'chat-summary') return r.fulfill({ json: { ok: true, summary: { summary: 'סיכום בדיקה', stage: 'meeting', followUpDays: 1, temperature: 'warm' } } })
     if (a === 'chat-waiting-done') { const b = JSON.parse(r.request().postData() || '{}'); const done = {}; for (const it of b.items || []) done[String(it.phone).replace(/\D/g, '').slice(-9)] = it.ts; return r.fulfill({ json: { ok: true, done } }) }
     if (a === 'chat-send') return r.fulfill({ json: { ok: true, idMessage: 'n' + Date.now() } })
+    if (a === 'wizard-upload-url') { const b = JSON.parse(r.request().postData() || '{}'); return r.fulfill({ json: { signedUrl: `https://x.supabase.co/put/${b.name}`, url: `https://x.supabase.co/pub/${b.folder}/${b.name}` } }) }
+    if (a === 'chat-send-files') { const b = JSON.parse(r.request().postData() || '{}'); return r.fulfill({ json: { ok: true, sent: (b.items || []).length, total: (b.items || []).length } }) }
+    if (a === 'auto-config') return r.fulfill({ json: r.request().method() === 'GET' ? { config: { templates: {} } } : { ok: true } })
     return r.fulfill({ json: {} })
   })
   const p = await ctx.newPage()
@@ -159,6 +163,41 @@ const log = (ok, what, extra = '') => { if (!ok) fails++; console.log(`${ok ? 'P
     await p.keyboard.press('Escape'); await p.waitForTimeout(300)
     log(!(await dlg.isVisible().catch(() => false)), 'Templates window closes with Esc')
   } catch (e) { log(false, 'Composer', e.message.split('\n')[0]) }
+  // files: several at once, photos first, saved to a template, sent as one group
+  try {
+    const box = p.locator('textarea').last()
+    const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64')
+    const [fc] = await Promise.all([p.waitForEvent('filechooser', { timeout: 3000 }), p.locator('button[aria-label^="צירוף קבצים"]').first().click()])
+    await fc.setFiles([{ name: 'מחירון.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 test') }, { name: 'a.png', mimeType: 'image/png', buffer: png }, { name: 'b.png', mimeType: 'image/png', buffer: png }])
+    await p.waitForTimeout(500)
+    const names = await p.locator('[role=listitem][title]').evaluateAll(xs => xs.map(x => x.getAttribute('title')))
+    log(JSON.stringify(names) === JSON.stringify(['a.png', 'b.png', 'מחירון.pdf']), 'Tray puts the photos first (one album)', JSON.stringify(names))
+    log(await p.getByText(/3 קבצים · יישלחו יחד/).first().isVisible().catch(() => false), 'Tray says the files go together')
+    await p.screenshot({ path: `${S}/bk/qa-7b-tray.png` })
+    await p.getByRole('button', { name: 'שמירה לתבנית' }).first().click(); await p.waitForTimeout(400)
+    const dlg = p.getByRole('dialog', { name: 'שמירת הקבצים בתבנית' })
+    log(await dlg.isVisible().catch(() => false), '"שמירה לתבנית" opens the window')
+    await typeCheck(dlg.locator('input').first(), 'פגישה', 'Save-to-template search')
+    await p.screenshot({ path: `${S}/bk/qa-7c-savetpl.png` })
+    const before = calls.length
+    await dlg.getByRole('button', { name: /הוספה/ }).first().click(); await p.waitForTimeout(1500)
+    await p.screenshot({ path: `${S}/bk/qa-7d-saved.png` })
+    const status = await dlg.locator('[role=status]').textContent().catch(() => '')
+    const post = calls.slice(before).find(c => c.api === 'auto-config' && c.m === 'POST')
+    const saved = post ? Object.values(JSON.parse(post.body).config.templates || {}).flatMap(t => t.files || []) : []
+    log(saved.length === 3 && saved.every(f => /^https:\/\/x\.supabase\.co\/pub\/templates\//.test(f.url)), 'Files saved on the template (uploaded to templates/)', JSON.stringify(saved.map(f => f.name)) + ' ' + status)
+    await p.waitForTimeout(1200)
+    log(!(await dlg.isVisible().catch(() => false)), 'The window closes after saving')
+    if (await dlg.isVisible().catch(() => false)) await p.keyboard.press('Escape')
+    await box.fill('התמונות של הדירה')
+    const b2 = calls.length
+    await p.locator('.ccm-send').click(); await p.waitForTimeout(1500)
+    const sends = calls.slice(b2).filter(c => c.api === 'chat-send-files')
+    const body = sends[0] ? JSON.parse(sends[0].body) : {}
+    log(sends.length === 1 && body.items?.length === 3 && body.caption === 'התמונות של הדירה', 'The files go in one group request with the text as caption', JSON.stringify({ n: sends.length, items: body.items?.map(x => x.fileName) }))
+    log(!calls.slice(b2).some(c => c.api === 'chat-send'), 'No file goes one by one')
+    log((await p.locator('[role=listitem][title]').count()) === 0, 'The tray clears after sending')
+  } catch (e) { log(false, 'Files', e.message.split('\n')[0]) }
   // chips over the box
   try {
     const all = p.getByRole('button', { name: /כל התבניות/ }).first()

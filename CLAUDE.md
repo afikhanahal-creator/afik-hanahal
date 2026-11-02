@@ -359,12 +359,12 @@ template everywhere (chat, automations, bulk sends).
 **Reply, react, forward, several at once** (2026-11-01, same menu; `lib/wa-actions.js`, tested): the menu opens with a row of
 quick reactions (`chat-react` → Green `sendReaction`; the same emoji again takes it back, an optimistic chip at once), "השב" (a
 quote bar above the box; `chat-send` / `messages` take `quotedMessageId` → `sendText(…, { quotedMessageId })`; with files only the
-first one quotes), "העברה" and "בחירת הודעות" (checkboxes on the bubbles, a bar "N נבחרו · העברה", up to 10) → `ChatForward`
+first one quotes), "העברה" and "בחירת הודעות" (checkboxes on the bubbles, a bar "N נבחרו · העברה", up to 30 messages — `FORWARD_MAX_MSGS`; 10 chats) → `ChatForward`
 (`src/ChatForward.jsx`: every chat / lead with search, a typed number too, up to 10 chats → `POST /api/meta/chat-forward
 { from, to, ids }` = Green `forwardMessages` per chat, 0.7 s apart, a result per chat, stops at a 466). The Lead Center / lead
 card list the admin's leads through `src/lib/leadsStore.js` (`setSharedLeads` / `useSharedLeads`).
 **Property messages with files** (2026-11-01): a template can carry `project` (its property — set when saving a message as a
-template, in the chat's quick editor or in the templates tab) and `files` (`[{ url, name, type, size }]`, ≤ 10, `templateFiles()`
+template, in the chat's quick editor or in the templates tab) and `files` (`[{ url, name, type, size }]`, ≤ 30, `templateFiles()`
 in `lib/automations-shared.js`; picked / dropped / pasted in `src/TemplateFilesField.jsx`, uploaded by the browser to
 `property-media/templates/…`). "הצעות" puts the lead's property's templates first (with a 📎 count) and has "הודעות נכסים" — every
 property's templates grouped by property, "לתיבה" / "שלח". A template with files puts them in the tray (`useAttachments().addRemote`,
@@ -466,7 +466,7 @@ can't write in English is left out (its `[[ … ]]` part drops). **Names:** a He
 ("שלום,") rather than guessed. `renderTemplate` closes the gap an empty placeholder leaves ("שלום ," → "שלום,"). The Lead Center's
 quick replies use the same rules and the campaign's short name.
 **Files in every chat, like WhatsApp** (2026-10-24): the chats tab (`ChatComposer` / `GreenAPIChat`), the Lead Center and the
-lead card (`LeadConversation`) take photos, videos, PDF, Word / Excel and more — several at once (up to 10, 50 MB each), from
+lead card (`LeadConversation`) take photos, videos, PDF, Word / Excel and more — several at once (up to 30, 50 MB each — `MAX_FILES`), from
 the paperclip ("צירוף"), dragged onto the conversation ("שחררו כאן") or pasted into the box. `src/ChatAttachments.jsx`
 (`useAttachments`, `AttachTray` — thumbnails / file icons, size, ✕, per-file status —, `useFileDrop`, `DropOverlay`,
 `pasteFiles`) + `src/lib/chatFiles.js` (tested: `acceptFiles`, `fileProblem`, `sendFiles`): every file is uploaded by the
@@ -475,6 +475,15 @@ chat/<month>/…`; photos compressed to ≤ 1600 px JPEG first) — never throug
 `chat-send` / `messages` take `{ file, fileName }` → `sendText(…, { file, fileName })` → Green's `sendFileByUrl` with the original
 name (`mediaFileName()`); the text is the first file's caption, then the rest; a failure keeps the unsent files in the tray. In
 the Lead Center the very first message (the welcome) goes as text first, then the files.
+**One group, like a WhatsApp album** (2026-11-02): the tray puts photos and videos first (`mediaFirst()`), every file is uploaded
+first, 3 at a time (`uploadAll()`), then **one** request sends them back to back — `POST /api/meta/chat-send-files { phone, caption,
+items: [{ file, fileName }], quotedMessageId? }` (`fileGroupRequest()` in `lib/wa-actions.js`, tested: https links only, ≤ 30) →
+`sendText` per file, the text as the first one's caption, stops at the first failure / 466; near the function's time limit it answers
+`partial` and `sendGroupRequest()` (`src/lib/chatFiles.js`, tested) sends the rest. The tray's header says "N קבצים · יישלחו יחד ·
+M תמונות וסרטונים כאלבום אחד". **"שמירה לתבנית"** (the tray's header, `src/SaveFilesToTemplate.jsx`): the attached files are
+uploaded to `property-media/templates/…` and added to a template the office picks (the lead's project's templates first, search;
+`addFilesToTemplate()` in `lib/template-edit.js`, tested: after its own, no link twice, ≤ 30) or open a new template in the quick
+editor with them and the box's text — so a property's regular set of photos / price list goes out again in one click.
 **A picture per template** (optional): a template's `image` (an https URL; `templateImage()` / `isImageUrl()` in
 `lib/automations-shared.js`) is sent as a WhatsApp image with the text as its caption — `sendText(phone, text, { image })`
 (`lib/automations.js`) switches to Green's `sendFileByUrl` (`urlFile`, `fileName` from the URL, `caption`). Every path carries

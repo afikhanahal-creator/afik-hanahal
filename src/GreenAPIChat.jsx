@@ -8,9 +8,11 @@ import { WAText } from './waFormat.jsx'
 import ChatTemplatePicker, { ChatTemplateMenu, ChatQuickChips } from './ChatTemplatePicker.jsx'
 import ChatComposer from './ChatComposer.jsx'
 import { useAttachments, useFileDrop, DropOverlay } from './ChatAttachments.jsx'
-import { CHAT_ACCEPT, sendFiles, templateAttachments, fileKind } from './lib/chatFiles.js'
+import { CHAT_ACCEPT, sendFiles, sendGroupRequest, mediaFirst, templateAttachments, fileKind } from './lib/chatFiles.js'
 import { imageThumb } from './lib/templateImage.js'
 import TemplateQuickEdit from './TemplateQuickEdit.jsx'
+import SaveFilesToTemplate from './SaveFilesToTemplate.jsx'
+import { FORWARD_MAX_MSGS } from '../lib/wa-actions.js'
 import { renderTemplate, leadLang as leadLangOf, leadProperty } from '../lib/automations-shared.js'
 import { messageToTemplate } from '../lib/template-edit.js'
 import ChatMsgMenu from './ChatMsgMenu.jsx'
@@ -204,6 +206,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
   // and the template last put in the message box (to offer "save in place of the template" once its text changed)
   const [cfgLocal,      setCfgLocal]     = useState(null)
   const [editTpl,       setEditTpl]      = useState(null)    // { tpl, initial, lang, fromChat }
+  const [saveFiles,     setSaveFiles]    = useState(false)   // "שמירה לתבנית" from the files tray (SaveFilesToTemplate)
   const [inserted,      setInserted]     = useState(null)    // { tpl, lang, text, marked }
   const [replyTo,       setReplyTo]      = useState(null)    // the message this one answers { id, text, isOut } (WhatsApp's quote)
   const [selMode,       setSelMode]      = useState(false)   // picking messages to forward (checkboxes on every bubble)
@@ -652,11 +655,12 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
       file: { name: f.name, type: f.type, preview: f.url ? (fileKind(f) === 'image' ? imageThumb(f.url, 240) : null) : f.type?.startsWith('image/') ? URL.createObjectURL(f) : null },
       created_at: new Date().toISOString(), status: 'sending',
     }))] }))
-    let q = quotedMessageId   // the reply quotes the first file only
-    const r = await sendFiles(files, msg, (text, f) => { const one = q; q = undefined; return sendViaGreenAPI(p, text, '', f, one).catch(e => ({ ok: false, error: e.message })) }, (i, st) => {
+    // all uploaded first (3 at a time), then one request sends them back to back — the photos land as one album; the reply
+    // quotes the first file only
+    const r = await sendFiles(files, msg, null, (i, st) => {
       if (fromTray) att.setStatus(i, st)
       if (st === 'sent') setChats(prev => ({ ...prev, [p]: (prev[p] || []).map(m => (m.id === `opt-${base}-${i}` ? { ...m, status: 'sent' } : m)) }))
-    })
+    }, { sendGroup: (items, caption) => sendGroupRequest(p, items, caption, { quotedMessageId }).then(x => { if (x.quota) setQuota(q => q || { blocked: true, at: new Date().toISOString() }); else if (x.ok) setQuota(null); return x }) })
     setSending(false)
     if (r.ok) {
       if (fromTray) { att.clear(); setTplImg(null) }
@@ -687,7 +691,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
     if ((!msg && !files.length && !image) || !contact || (files.length && sending)) return
     const p = intlPhone(contact.phone)
     if (!p) { alert('מספר טלפון לא תקין'); return }
-    if (files.length) { if (quoted) setReplyTo(null); return sendFilesMsg(p, msg, files, { fromTray: !fromPicker, quotedMessageId: quoted?.id }) }
+    if (files.length) { if (quoted) setReplyTo(null); return sendFilesMsg(p, msg, fromPicker ? mediaFirst(files) : files, { fromTray: !fromPicker, quotedMessageId: quoted?.id }) }
 
     const optId = 'opt-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6)
     isNearBottom.current = true
@@ -797,7 +801,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
   const cfgEff = cfgLocal || autoConfig
   // ── Reply / forward / react / select, like WhatsApp (src/ChatMsgMenu.jsx, src/ChatForward.jsx, lib/wa-actions.js) ──
   const msgRef = m => ({ id: m.id, isOut: m.direction === 'out', text: String(m.message || '').trim() || (m.file?.name ? `📎 ${m.file.name}` : (lang === 'en' ? 'Attachment' : 'קובץ מצורף')) })
-  const toggleSel = m => setSelIds(cur => cur.some(x => x.id === m.id) ? cur.filter(x => x.id !== m.id) : cur.length >= 10 ? cur : [...cur, msgRef(m)])
+  const toggleSel = m => setSelIds(cur => cur.some(x => x.id === m.id) ? cur.filter(x => x.id !== m.id) : cur.length >= FORWARD_MAX_MSGS ? cur : [...cur, msgRef(m)])
   const reactTo = async (m, emoji) => {
     const p = intlPhone(contact?.phone); if (!p || !m?.id) return
     const optId = 'opt-r-' + Date.now()
@@ -1362,6 +1366,13 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                 })()}
               </div>
 
+              {saveFiles && att.items.length > 0 && (
+                <SaveFilesToTemplate WA={WA} lang={lang} items={att.items} text={input} autoConfig={cfgEff}
+                  project={(crmRow && leadProject(crmRow)) || leadProperty(chatLead || {}) || ''}
+                  onClose={() => setSaveFiles(false)}
+                  onSaved={next => { setCfgLocal(next); onAutoConfigSaved?.(next) }}
+                  onNewTemplate={x => { setSaveFiles(false); setEditTpl(x) }}/>
+              )}
               {editTpl && (
                 <TemplateQuickEdit WA={WA} lang={lang} lead={chatLead} tpl={editTpl.tpl} initial={editTpl.initial} initialLang={editTpl.lang} fromChat={editTpl.fromChat} create={!!editTpl.create}
                   autoConfig={cfgEff} onClose={() => setEditTpl(null)}
@@ -1395,7 +1406,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
               {selMode ? (
                 <div role="toolbar" aria-label={lang === 'en' ? 'Selected messages' : 'הודעות שנבחרו'} style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 16px', background: WA.inputBg, borderTop:`1px solid ${WA.border}`, flexShrink:0 }}>
                   <button type="button" onClick={() => { setSelMode(false); setSelIds([]) }} aria-label={lang === 'en' ? 'Cancel' : 'ביטול'} style={{ width:36, height:36, minHeight:0, borderRadius:'50%', border:'none', background:'transparent', color: WA.subText, cursor:'pointer', fontSize:18 }}>✕</button>
-                  <b style={{ flex:1, fontSize:14, color: WA.bodyText }}>{lang === 'en' ? `${selIds.length} selected` : `${selIds.length} נבחרו`}<span style={{ fontWeight:400, fontSize:12, color: WA.subText, marginInlineStart:8 }}>{lang === 'en' ? 'up to 10 · click messages to pick them' : 'עד 10 · לחיצה על הודעה בוחרת אותה'}</span></b>
+                  <b style={{ flex:1, fontSize:14, color: WA.bodyText }}>{lang === 'en' ? `${selIds.length} selected` : `${selIds.length} נבחרו`}<span style={{ fontWeight:400, fontSize:12, color: WA.subText, marginInlineStart:8 }}>{lang === 'en' ? `up to ${FORWARD_MAX_MSGS} · click messages to pick them` : `עד ${FORWARD_MAX_MSGS} · לחיצה על הודעה בוחרת אותה`}</span></b>
                   <button type="button" disabled={!selIds.length} onClick={() => { const order = new Map(msgs.map((m, k) => [m.id, k])); setFwd([...selIds].sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0))) }}
                     style={{ display:'inline-flex', alignItems:'center', gap:8, height:40, padding:'0 18px', borderRadius:999, border:'none', background: WA.green, color:'#fff', fontFamily:'inherit', fontSize:14, fontWeight:700, cursor:'pointer', opacity: selIds.length ? 1 : .5, minHeight:0 }}>
                     <svg width="17" height="17" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M14 9V5l7 7-7 7v-4.1c-5 0-8.5 1.6-11 5.1 1-5 4-10 11-11Z"/></svg>
@@ -1415,7 +1426,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
               <ChatComposer WA={WA} lang={lang} leadName={hasName(contactView) && !contactView?.office && !contactView?.self ? String(nameOf(contactView, lang)).split(/\s+/)[0] : ''}
                 input={input} setInput={setInput} inputRef={inputRef} onSend={() => sendMsg()} sending={sending}
                 canSend={!!(input.trim() || att.items.length || tplImg)}
-                attachments={att} onAddFiles={addFiles} isDark={isDark}
+                attachments={att} onAddFiles={addFiles} isDark={isDark} onSaveFilesToTemplate={() => setSaveFiles(true)}
                 tplImg={tplImg && !att.items.length ? tplImg : null} onRemoveTplImg={() => setTplImg(null)}
                 inserted={inserted ? { title: inserted.lang === 'en' ? (inserted.tpl.en_title || inserted.tpl.he_title) : (inserted.tpl.he_title || inserted.tpl.en_title) } : null}
                 changed={boxChanged} onSaveTemplate={() => openEdit(inserted.tpl, { [inserted.lang]: untemplate(input, inserted.marked) }, inserted.lang, true)}
