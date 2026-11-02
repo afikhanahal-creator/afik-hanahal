@@ -13,6 +13,7 @@ import { addNote, asNotes } from './lib/leadNotes.js'
 import { leadCampaign } from './lib/leadFields.js'
 import { leadNeeds } from '../lib/lead-needs.js'
 import TaskPresetInput, { rememberTaskText } from './TaskPresetInput.jsx'
+import VoiceDictate from './VoiceDictate.jsx'
 
 const pad = n => String(n).padStart(2, '0')
 const local = p => { const d = String(p || '').replace(/\D/g, ''); const l = d.startsWith('972') ? '0' + d.slice(3) : d; return l.length === 10 ? `${l.slice(0, 3)}-${l.slice(3, 6)}-${l.slice(6)}` : l }
@@ -77,7 +78,7 @@ function relText(due, now, t) {
   return d < 0 ? { text: t.lateBy(span), tone: 'late' } : { text: t.inT(span), tone: m <= 120 ? 'soon' : 'later' }
 }
 
-function NoteCell({ lead, t, onUpdate }) {
+function NoteCell({ lead, t, lang = 'he', onUpdate }) {
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState('')
   const [saved, setSaved] = useState(false)
@@ -97,6 +98,7 @@ function NoteCell({ lead, t, onUpdate }) {
         onChange={e => setDraft(e.target.value)}
         onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); save() } if (e.key === 'Escape') { e.stopPropagation(); setOpen(false) } }}/>
       <div className="fv-note-bar">
+        <VoiceDictate value={draft} onChange={setDraft} kind="note" lang={lang} inputRef={ref} size="sm"/>
         <button type="button" className="fv-save" disabled={!draft.trim()} onClick={save}>{t.save}</button>
         <button type="button" className="fv-ghost" onClick={() => { setOpen(false); setDraft('') }} aria-label={t.cancel}><X size={13}/></button>
       </div>
@@ -158,7 +160,7 @@ function Row({ it, now, t, en, lang, stages, onUpdate, onOpen, onOpenChat, hero 
           <span className="fv-text" dir="auto">{text}</span>
         </div>
         {needs && <div className="fv-needs" dir="auto"><b>{t.wants}</b> {needs}</div>}
-        <NoteCell lead={lead} t={t} onUpdate={onUpdate}/>
+        <NoteCell lead={lead} t={t} lang={lang} onUpdate={onUpdate}/>
       </div>
       <div role="cell" className="fv-c fv-c-act">
         {!it.done && tel && <a href={`tel:${tel}`} className="fv-call" title={`${t.callNow}: ${name}`}><Phone size={14}/>{t.callNow}</a>}

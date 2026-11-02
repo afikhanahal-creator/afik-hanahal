@@ -5,6 +5,7 @@
 import { useState, useRef, useEffect, useLayoutEffect, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { filterPresets, presetText, presetDue, pushRecent } from '../lib/task-presets.js'
+import VoiceDictate from './VoiceDictate.jsx'
 
 const KEY = 'afik_task_recent_v1'
 const readRecent = () => { try { const v = JSON.parse(localStorage.getItem(KEY) || '[]'); return Array.isArray(v) ? v : [] } catch { return [] } }
@@ -16,7 +17,8 @@ const TR = {
   en: { open: 'Ready-made tasks', recent: 'Recently used', none: 'No ready-made task like that. Enter saves what you typed', hint: '↑ ↓ choose · Enter add · Esc close', due: d => `Suggested: ${d}` },
 }
 const CSS = `
-.tpi{position:relative;display:flex;align-items:stretch;min-width:0}
+.tpi{position:relative;display:flex;align-items:center;gap:6px;min-width:0}
+.tpi-box{position:relative;flex:1;min-width:0;display:flex;align-items:stretch}
 .tpi input{flex:1;min-width:0;padding-inline-end:40px!important}
 .tpi-tgl{position:absolute;inset-inline-end:4px;top:50%;transform:translateY(-50%);width:32px;height:30px;min-height:0;min-width:0;padding:0;border:none;border-radius:8px;background:transparent;color:var(--au-text3);cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
 .tpi-tgl:hover,.tpi-tgl[aria-expanded=true]{background:rgba(var(--ov),.07);color:var(--au-text)}
@@ -44,7 +46,7 @@ const whenLabel = (p, lang) => {
   return lang === 'en' ? `in ${p.days} days` : `בעוד ${p.days} ימים`
 }
 
-export default function TaskPresetInput({ value, onChange, onPick, onEnter, lang = 'he', kind = 'task', placeholder, className, style, inputStyle, id, autoFocus, ariaLabel }) {
+export default function TaskPresetInput({ value, onChange, onPick, onEnter, lang = 'he', kind = 'task', placeholder, className, style, inputStyle, id, autoFocus, ariaLabel, dictate = true }) {
   useCss()
   const t = TR[lang === 'en' ? 'en' : 'he']
   const [open, setOpen] = useState(false)
@@ -101,7 +103,8 @@ export default function TaskPresetInput({ value, onChange, onPick, onEnter, lang
   ) }
   const listId = `${id || 'tpi'}-list`
   return (
-    <div ref={wrap} className={`tpi ${className || ''}`} style={style}>
+    <div className={`tpi ${className || ''}`} style={style}>
+     <div ref={wrap} className="tpi-box">
       <input ref={input} id={id} className="lc-in" value={value} autoFocus={autoFocus} dir={value ? 'auto' : (lang === 'en' ? 'ltr' : 'rtl')} placeholder={placeholder} aria-label={ariaLabel || placeholder}
         role="combobox" aria-expanded={open} aria-controls={listId} aria-autocomplete="list"
         onChange={e => { onChange(e.target.value); setOpen(true) }} onClick={() => setOpen(true)} onKeyDown={onKey}
@@ -109,6 +112,8 @@ export default function TaskPresetInput({ value, onChange, onPick, onEnter, lang
       <button type="button" className="tpi-tgl" aria-label={t.open} title={t.open} aria-expanded={open} tabIndex={-1} onClick={() => { setOpen(o => !o); input.current?.focus() }}>
         <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" d="m6 9 6 6 6-6"/></svg>
       </button>
+     </div>
+      {dictate && <VoiceDictate value={value} onChange={v => { onChange(v); setOpen(false) }} kind="task" lang={lang} inputRef={input}/>}
       {open && pos && createPortal(
         <div ref={pop} className="tpi-pop" dir={lang === 'en' ? 'ltr' : 'rtl'} style={{ left: pos.left, width: pos.w, top: pos.top, bottom: pos.bottom, maxHeight: pos.maxH }}>
           <div ref={listRef} id={listId} role="listbox" aria-label={t.open} className="tpi-list">

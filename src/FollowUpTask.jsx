@@ -8,6 +8,7 @@ import { Popover } from './automationsUI.jsx'
 import { addFollowUp, followUpPresets, defaultFollowUpText, describeDue, dueIso, updateTasks, openFollowUps } from '../lib/follow-up.js'
 import { leadNotes, addNote } from './lib/leadNotes.js'
 import TaskPresetInput, { rememberTaskText } from './TaskPresetInput.jsx'
+import VoiceDictate from './VoiceDictate.jsx'
 
 const L = (lang, he, en) => (lang === 'en' ? en : he)
 
@@ -167,6 +168,7 @@ export function NotesButton({ lead, lang = 'he', onSave, size }) {
   const [open, setOpen] = useState(false)
   const [text, setText] = useState('')
   const [state, setState] = useState('')
+  const taRef = useRef(null)
   const notes = leadNotes(lead)
   const add = async () => {
     const r = addNote(lead, null, text, { by: 'chat' })
@@ -186,10 +188,11 @@ export function NotesButton({ lead, lang = 'he', onSave, size }) {
       <Popover anchor={ref} open={open} onClose={() => { setOpen(false); setState('') }} width={400} maxHeight={520} dir={lang === 'en' ? 'ltr' : 'rtl'} label={L(lang, 'הערות', 'Notes')}>
         <div style={{ padding: 8, display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div style={{ fontSize: 13.5, fontWeight: 700 }}>{L(lang, `הערות על ${lead?.name || 'הליד'}`, `Notes on ${lead?.name || 'the lead'}`)}</div>
-          <textarea className="fu-in" style={{ height: 'auto', minHeight: 72, padding: '8px 12px', resize: 'vertical', lineHeight: 1.5 }} rows={3} value={text} autoFocus
+          <textarea ref={taRef} className="fu-in" style={{ height: 'auto', minHeight: 72, padding: '8px 12px', resize: 'vertical', lineHeight: 1.5 }} rows={3} value={text} autoFocus
             onChange={e => { setText(e.target.value); setState('') }} placeholder={L(lang, 'מה עלה בשיחה, מה הצעד הבא… (Ctrl+Enter לשמירה)', 'What came up, the next step… (Ctrl+Enter saves)')}
             onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); add() } }} aria-label={L(lang, 'הערה חדשה', 'New note')}/>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <VoiceDictate value={text} onChange={v => { setText(v); setState('') }} kind="note" lang={lang} inputRef={taRef}/>
             <button type="button" className="fu-save" style={{ height: 34 }} disabled={!text.trim() || state === 'saving'} onClick={add}>{state === 'saving' ? '…' : L(lang, 'הוספת הערה', 'Add note')}</button>
             {state === 'saved' && <span role="status" style={{ fontSize: 12, color: 'var(--au-green-text)' }}>✓ {L(lang, 'נשמר בכל המסכים', 'Saved everywhere')}</span>}
             {state === 'failed' && <span role="alert" style={{ fontSize: 12, color: 'var(--au-red-text)' }}>{L(lang, 'השמירה נכשלה', 'Could not save')}</span>}

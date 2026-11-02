@@ -3,6 +3,7 @@ import { useWaiting, waitingOf } from './lib/waWaiting.js'
 import { useState, useRef, useCallback, useEffect, useMemo, createContext, useContext } from 'react'
 import DateTimePicker from './DateTimePicker.jsx'
 import { ensureFuCss } from './FollowUpTask.jsx'
+import VoiceDictate from './VoiceDictate.jsx'
 import { followUpPresets, setNextFollowUp } from '../lib/follow-up.js'
 import { sourceLabel, sourceColor, originLines, leadCampaign, leadCampaignTag, leadCampaignFull, prettyLeadText, leadProject, toggleProjectInName, welcomeState } from './lib/leadFields.js'
 import { mergeLeads, mergeConflicts } from './lib/leadMerge.js'
@@ -1324,6 +1325,7 @@ function WelcomeMark({ lead, lang, compact = false }) {
 
 function CallNoteDialog({ lead, T, isDark, lang, onClose, updateLead, updateLeadStatus }) {
   ensureFuCss()
+  const callTextRef = useRef(null)
   const en = lang === 'en'
   const campaign = leadCampaignTag(lead, lang)
   const [outcome, setOutcome] = useState('')
@@ -1382,8 +1384,11 @@ function CallNoteDialog({ lead, T, isDark, lang, onClose, updateLead, updateLead
           ))}
         </div>
 
-        <div style={{ fontSize: 12, fontWeight: 700, color: T.textSub, marginBottom: 7 }}>{en ? 'What came up' : 'מה עלה בשיחה'}</div>
-        <textarea autoFocus value={text} onChange={e => setText(e.target.value)} rows={5}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 7 }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: T.textSub }}>{en ? 'What came up' : 'מה עלה בשיחה'}</span>
+          <VoiceDictate value={text} onChange={setText} kind="note" lang={lang} inputRef={callTextRef}/>
+        </div>
+        <textarea ref={callTextRef} autoFocus value={text} onChange={e => setText(e.target.value)} rows={5}
           onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); save() } }}
           placeholder={en ? 'What they are looking for, budget, area, timing, objections, next step… (Ctrl+Enter saves)' : 'מה מחפש, תקציב, אזור, לוח זמנים, התנגדויות, מה הצעד הבא… (Ctrl+Enter לשמירה)'}
           style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical', background: isDark ? '#0F1623' : '#F6F7FC', border: `1px solid ${isDark ? '#2A3347' : '#D8DCF0'}`, borderRadius: 10, padding: '10px 12px', fontSize: 14, lineHeight: 1.6, color: T.text, fontFamily: 'inherit', outline: 'none', direction: en ? 'ltr' : 'rtl' }}/>
