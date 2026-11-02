@@ -192,6 +192,25 @@ const openNotes = async p => { await p.getByRole('button', { name: 'הערות' 
     log(!errs.length, 'No page errors (H)', errs.join(' | '))
     await p.context().close()
   }
+  // ── I. the browser refuses the mic: the panel says why, with the browser's own reason ──
+  {
+    const b2 = await chromium.launch({ args: ['--use-fake-device-for-media-stream'] })
+    const ctx = await b2.newContext({ viewport: { width: 1500, height: 950 }, locale: 'he-IL' })
+    await ctx.addInitScript(() => { sessionStorage.setItem('afik_admin_session', '1'); localStorage.setItem('afik_no_track', '1') })
+    await ctx.route(/onrender\.com|supabase\.co|\/api\/properties/, r => r.fulfill({ json: [] }))
+    await ctx.route(/\/api\/contacts/, r => r.fulfill({ json: r.request().method() === 'GET' ? [lead] : { ok: true } }))
+    await ctx.route(/\/api\/(meta|seller-form|stats)/, r => { const a = new URL(r.request().url()).pathname.replace(/^\/api\/meta\/?/, ''); return r.fulfill({ json: a === 'voice-status' ? { provider: '', ai: true } : a === 'chat-status' ? { state: 'authorized' } : a.startsWith('chat-list') ? [{ chatId: PHONE + '@c.us', phone: PHONE, name: lead.name, timestamp: Math.floor(now / 1000), type: 'incoming', text: 'שלום', incoming: 1 }] : a === 'chat-history' ? hist : {} }) })
+    const p = await ctx.newPage()
+    await p.goto(`${BASE}/admin-panel/chats`, { waitUntil: 'domcontentloaded' }); await p.waitForTimeout(2200)
+    await p.getByText(lead.name, { exact: false }).first().click(); await p.waitForTimeout(800)
+    await openNotes(p)
+    await p.locator('.svi-mic').first().click(); await p.waitForTimeout(1500)
+    const err = await p.locator('.svi-err').innerText().catch(() => '')
+    const detail = await p.locator('.svi-panel .svi-sub').first().innerText().catch(() => '')
+    log(err.length > 20 && /Error/.test(detail), 'A refused mic is explained, with the browser\'s reason', `${err.slice(0, 60)} | ${detail}`)
+    await p.screenshot({ path: `${S}/i1-denied.png` })
+    await b2.close()
+  }
   await b.close(); server.close()
   process.exit(fails ? 1 : 0)
 })().catch(e => { console.error(e); server.close(); process.exit(1) })

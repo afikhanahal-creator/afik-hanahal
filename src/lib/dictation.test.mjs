@@ -46,6 +46,7 @@ test('recording format, mic errors, segments, modes', () => {
   assert.equal(micErrorCode({ name: 'NotAllowedError', message: 'Permission denied by system' }), 'os-blocked')
   assert.equal(micErrorCode({ name: 'NotAllowedError', message: 'Permission denied' }, 'granted'), 'os-blocked')
   assert.equal(micErrorCode({ name: 'NotAllowedError' }, 'denied'), 'not-allowed')
+  assert.equal(micErrorCode({ name: 'NotAllowedError', message: 'Permission dismissed' }, 'prompt'), 'dismissed')
   assert.match(dictationError('os-blocked'), /Windows/)
   assert.equal(micErrorCode({ name: 'NotFoundError' }), 'audio-capture')
   assert.equal(micErrorCode({ name: 'NotReadableError' }), 'busy')
