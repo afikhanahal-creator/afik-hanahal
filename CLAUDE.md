@@ -1077,7 +1077,7 @@ Rules that keep it near zero:
   `pickDeletions()`: keep the 5 newest ready production deployments and everything from the last 7 days, previews / errored /
   canceled go after a day, never one still building; counts only in the log) — it needs the `VERCEL_TOKEN` secret (vercel.com →
   Account Settings → Tokens, scope = that team; optional variables `VERCEL_TEAM_ID` / `VERCEL_PROJECT`) and does nothing without it;
-  and `ignoreCommand` in `vercel.json` skips a deploy for commits that only touch docs / `*.md`, `server/*.sql`, `studio-pack/`,
+  and `ignoreCommand` in `vercel.json` (`scripts/vercel-ignore.sh` — Vercel caps the command at 256 characters; a longer one failed the deploy) skips a deploy for commits that only touch docs / `*.md`, `server/*.sql`, `studio-pack/`,
   tests and the probe / cleanup scripts. Batch small changes into one PR when you can — every merge is a kept deployment.
 - Measure with the "Site speed probe" action, `actions: traffic`: wire size, gzip and the 304 of every API answer, and
   the photo sizes through the CDN. Usage itself: vercel.com → the team → Usage → Fast Origin Transfer.
