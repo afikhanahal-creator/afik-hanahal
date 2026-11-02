@@ -27,7 +27,7 @@ export async function copyText(text) {
   } catch { return false }
 }
 
-export default function ChatMsgMenu({ text, isOut, WA, lang = 'he', onSaveTemplate, onReply, onForward, onSelect, onReact, myReaction = '' }) {
+export default function ChatMsgMenu({ text, isOut, WA, lang = 'he', bg, onSaveTemplate, onReply, onForward, onSelect, onReact, myReaction = '' }) {
   const t = TXT[lang === 'en' ? 'en' : 'he']
   const [open, setOpen] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -37,7 +37,7 @@ export default function ChatMsgMenu({ text, isOut, WA, lang = 'he', onSaveTempla
     if (!open || !btn.current) return
     const r = btn.current.getBoundingClientRect(), w = onReact ? 236 : 190
     const h = 16 + (onReact ? 46 : 0) + 38 * [onReply, onForward, onSelect, text, text && onSaveTemplate].filter(Boolean).length
-    const left = Math.max(8, Math.min(window.innerWidth - w - 8, isOut ? r.right - w : r.left))
+    const left = Math.max(8, Math.min(window.innerWidth - w - 8, r.left))   // opens from the bubble's left corner, like the button
     const top = r.bottom + h + 8 > window.innerHeight ? Math.max(8, r.top - h - 4) : r.bottom + 4
     setPos({ top, left, w })
   }, [open, isOut])
@@ -55,8 +55,8 @@ export default function ChatMsgMenu({ text, isOut, WA, lang = 'he', onSaveTempla
   return (<>
     <button ref={btn} type="button" className="wa-bub-btn" aria-label={t.menu} aria-haspopup="menu" aria-expanded={open}
       onClick={e => { e.stopPropagation(); setOpen(o => !o) }}
-      style={{ position: 'absolute', top: 2, [isOut ? 'right' : 'left']: 2, width: 26, height: 22, border: 'none', borderRadius: 6, cursor: 'pointer', minHeight: 0, minWidth: 0, padding: 0,
-        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: WA.subText, background: 'transparent', zIndex: 1 }}>
+      style={{ position: 'absolute', top: 1, left: 1, width: 34, height: 22, border: 'none', borderRadius: 6, cursor: 'pointer', minHeight: 0, minWidth: 0, padding: '0 8px 0 0',
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: WA.subText, background: bg ? `linear-gradient(to right, ${bg} 62%, transparent)` : 'inherit', zIndex: 1 }}>
       <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 10l5 5 5-5z"/></svg>
     </button>
     {open && pos && createPortal(

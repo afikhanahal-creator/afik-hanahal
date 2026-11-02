@@ -1276,7 +1276,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                           opacity: isOptimistic ? 0.75 : 1,
                           transition:'opacity .3s',
                         }}>
-                          {!isOptimistic && !selMode && <ChatMsgMenu text={msg.message} isOut={isOut} WA={WA} lang={lang}
+                          {!isOptimistic && !selMode && <ChatMsgMenu text={msg.message} isOut={isOut} WA={WA} lang={lang} bg={bubbleColor}
                             myReaction={msg.reactions?.find(r => r.dir === 'out')?.emoji || ''}
                             onReact={emo => reactTo(msg, emo)}
                             onReply={() => { setReplyTo(msgRef(msg)); setTimeout(() => inputRef.current?.focus(), 30) }}
