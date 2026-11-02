@@ -9,6 +9,8 @@ import { WAText } from './waFormat.jsx'
 import { DARK, LIGHT, DOODLE_DARK, DOODLE_LIGHT, normalizeGreenMsg, TickMark, LeadFormCard } from './waShared.jsx'
 import { leadFormCard } from './lib/leadHistory.js'
 import TemplateQuickEdit from './TemplateQuickEdit.jsx'
+import SaveFilesToTemplate from './SaveFilesToTemplate.jsx'
+import { FORWARD_MAX_MSGS } from '../lib/wa-actions.js'
 import Splitter, { SPLITTER_CSS } from './Splitter.jsx'
 import { CATEGORIES, getTemplate, mergeConfig, leadLang, stageCategory, leadProperty } from '../lib/automations-shared.js'
 import { messageToTemplate } from '../lib/template-edit.js'
@@ -20,7 +22,7 @@ import { imageThumb } from './lib/templateImage.js'
 import { Icon, CatTile } from './uiIcons.jsx'
 import { insertBooking } from './lib/bookingLink.js'
 import { useAttachments, useFileDrop, pasteFiles, DropOverlay, AttachTray } from './ChatAttachments.jsx'
-import { CHAT_ACCEPT, sendFiles, templateAttachments } from './lib/chatFiles.js'
+import { CHAT_ACCEPT, sendFiles, sendGroupRequest, templateAttachments } from './lib/chatFiles.js'
 import { onWaLive, waLiveUp, mergeLive } from './lib/waLive.js'
 import { foldReactions } from './lib/waMerge.js'
 import { setViewing } from './lib/waNotify.js'
@@ -174,6 +176,7 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
   const [error, setError] = useState('')
   const [cfgLocal, setCfgLocal] = useState(null)
   const [editTpl, setEditTpl] = useState(null)
+  const [saveFiles, setSaveFiles] = useState(false)   // "שמירה לתבנית" from the files tray (SaveFilesToTemplate)
   const [replyTo, setReplyTo] = useState(null)           // the message this one answers { id, text, isOut } (WhatsApp's quote)
   const [selMode, setSelMode] = useState(false)          // picking messages to forward
   const [selIds, setSelIds] = useState([])               // [{ id, text }]
@@ -318,12 +321,13 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
       const w = await onSendWelcome?.(msg, tplId || 'manual', {})
       if (!w?.ok) { setBusy(false); setPending(p => p.filter(m => !String(m.id).startsWith(ids[0].slice(0, -2)))); if (w?.quota) setLine({ ...(line || {}), quota: { blocked: true, at: new Date().toISOString() } }); setError(sendErrorText(w || {}, lang)); return false }
     }
-    let q = !firstText && replyTo ? replyTo.id : ''   // a reply quotes the first file
+    const q = !firstText && replyTo ? replyTo.id : ''   // a reply quotes the first file
     if (q) setReplyTo(null)
-    const r = await sendFiles(files, firstText ? '' : msg, (text, f) => { const one = q; q = ''; return onSend?.(text, { ...f, ...(one ? { quotedMessageId: one } : {}) }) }, (i, st) => {
+    // all uploaded first (3 at a time), then one request sends them back to back — the photos land as one album
+    const r = await sendFiles(files, firstText ? '' : msg, null, (i, st) => {
       att.setStatus(i, st)
       if (st === 'sent') setPending(p => p.map(m => (m.id === ids[i] ? { ...m, status: 'sent' } : m)))
-    })
+    }, { sendGroup: (items, caption) => sendGroupRequest(phone, items, caption, { quotedMessageId: q || undefined }) })
     setBusy(false)
     if (r.ok) { att.clear(); if (line?.quota) setLine({ ...line, quota: null }); if (!waLiveUp()) setTimeout(() => load(true), 2500); return true }
     // what went out stays; the rest stays in the tray to try again
@@ -336,7 +340,7 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
   }
   // ── reply / forward / react / select, like WhatsApp (src/ChatMsgMenu.jsx, src/ChatForward.jsx) ──
   const msgRef = m => ({ id: m.id, isOut: m.direction === 'out', text: String(m.message || '').trim() || (m.media?.name ? `📎 ${m.media.name}` : (lang === 'en' ? 'Attachment' : 'קובץ מצורף')) })
-  const toggleSel = m => setSelIds(cur => cur.some(x => x.id === m.id) ? cur.filter(x => x.id !== m.id) : cur.length >= 10 ? cur : [...cur, msgRef(m)])
+  const toggleSel = m => setSelIds(cur => cur.some(x => x.id === m.id) ? cur.filter(x => x.id !== m.id) : cur.length >= FORWARD_MAX_MSGS ? cur : [...cur, msgRef(m)])
   useEffect(() => { setReplyTo(null); setSelMode(false); setSelIds([]) }, [phone])
   const reactTo = async (m, emoji) => {
     if (!phone || !m?.id) return
@@ -678,7 +682,7 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
         {phone && selMode ? (
           <div className="lcv-card" role="toolbar" aria-label={lang === 'en' ? 'Selected messages' : 'הודעות שנבחרו'} style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10, padding: '10px 12px' }}>
             <button type="button" className="lcv-ib" onClick={() => { setSelMode(false); setSelIds([]) }} aria-label={lang === 'en' ? 'Cancel' : 'ביטול'}>{I.close}</button>
-            <b style={{ flex: 1, fontSize: 13.5 }}>{lang === 'en' ? `${selIds.length} selected` : `${selIds.length} נבחרו`}<span style={{ fontWeight: 400, fontSize: 12, color: WA.subText, marginInlineStart: 8 }}>{lang === 'en' ? 'up to 10' : 'עד 10'}</span></b>
+            <b style={{ flex: 1, fontSize: 13.5 }}>{lang === 'en' ? `${selIds.length} selected` : `${selIds.length} נבחרו`}<span style={{ fontWeight: 400, fontSize: 12, color: WA.subText, marginInlineStart: 8 }}>{lang === 'en' ? `up to ${FORWARD_MAX_MSGS}` : `עד ${FORWARD_MAX_MSGS}`}</span></b>
             <button type="button" className="lcv-send" disabled={!selIds.length} onClick={() => { const order = new Map(msgs.map((x, k) => [x.id, k])); setFwd([...selIds].sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0))) }}>{lang === 'en' ? 'Forward' : 'העברה'}</button>
           </div>
         ) : phone ? (
@@ -713,7 +717,7 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
                 <button type="button" className="lcv-ib" style={{ width: 30, height: 30 }} onClick={() => setImg('')} aria-label={t.imgRemove} title={t.imgRemove}>{I.close}</button>
               </div>
             )}
-            <AttachTray items={att.items} onRemove={att.remove} lang={lang} WA={WA} isDark={isDark} notice={att.notice} onDismissNotice={() => att.setNotice('')}/>
+            <AttachTray items={att.items} onRemove={att.remove} lang={lang} WA={WA} isDark={isDark} notice={att.notice} onDismissNotice={() => att.setNotice('')} onSaveToTemplate={() => setSaveFiles(true)}/>
             <input ref={fileRef} type="file" multiple accept={CHAT_ACCEPT} hidden onChange={e => { addFiles(e.target.files); e.target.value = '' }}/>
             <textarea ref={inputRef} className="lcv-in" value={input} rows={1} placeholder={t.placeholder} aria-label={t.placeholder} title={t.enterHint} onPaste={pasteFiles(addFiles)}
               onChange={e => {
@@ -749,6 +753,11 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
       {fwd && <ChatForward WA={WA} lang={lang} messages={fwd} fromPhone={phone} authHeader={{ Authorization: 'Bearer AFIKhanahal2026' }}
         contacts={allLeads.filter(l => l.phone).sort((a, b) => new Date(b.updated_at || b.createdAt || b.created_at || 0) - new Date(a.updated_at || a.createdAt || a.created_at || 0)).map(l => ({ phone: l.phone, name: l.name || '' }))}
         onClose={() => setFwd(null)} onDone={() => { setSelMode(false); setSelIds([]) }}/>}
+      {saveFiles && att.items.length > 0 && (
+        <SaveFilesToTemplate WA={WA} lang={lang} items={att.items} text={input} autoConfig={cfg} project={leadProperty(tplLead || lead || {}) || ''}
+          onClose={() => setSaveFiles(false)} onSaved={next => { setCfgLocal(next); onAutoConfigSaved?.(next) }}
+          onNewTemplate={x => { setSaveFiles(false); setEditTpl(x) }}/>
+      )}
       {editTpl && (
         <TemplateQuickEdit WA={WA} lang={lang} lead={tplLead} tpl={editTpl.tpl} initial={editTpl.initial} initialLang={editTpl.lang} fromChat={editTpl.fromChat} create={!!editTpl.create}
           autoConfig={cfg} onClose={() => setEditTpl(null)} onSaved={next => { setCfgLocal(next); onAutoConfigSaved?.(next) }}/>

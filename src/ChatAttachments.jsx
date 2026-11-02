@@ -4,12 +4,14 @@
 // sending: src/lib/chatFiles.js.
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Icon } from './uiIcons.jsx'
-import { acceptFiles, fileKind, formatSize, MAX_FILES } from './lib/chatFiles.js'
+import { acceptFiles, fileKind, formatSize, mediaFirst, MAX_FILES } from './lib/chatFiles.js'
 import { imageThumb } from './lib/templateImage.js'
 
 const TR = {
-  he: { remove: 'הסרה', drop: 'שחררו כאן כדי לצרף', dropSub: 'תמונות, סרטונים, PDF, Word, Excel ועוד', uploading: 'מעלה…', fromTpl: 'מהתבנית', sending: 'שולח…', sent: 'נשלח', error: 'נכשל', files: n => `${n} קבצים` },
-  en: { remove: 'Remove', drop: 'Drop here to attach', dropSub: 'Photos, videos, PDF, Word, Excel and more', uploading: 'Uploading…', fromTpl: 'from the template', sending: 'Sending…', sent: 'Sent', error: 'Failed', files: n => `${n} files` },
+  he: { remove: 'הסרה', drop: 'שחררו כאן כדי לצרף', dropSub: 'תמונות, סרטונים, PDF, Word, Excel ועוד', uploading: 'מעלה…', ready: 'הועלה', fromTpl: 'מהתבנית', sending: 'שולח…', sent: 'נשלח', error: 'נכשל', files: n => `${n} קבצים`,
+    group: (n, m) => `${n} קבצים · יישלחו יחד${m > 1 ? ` · ${m} תמונות וסרטונים כאלבום אחד` : ''}`, max: n => `עד ${n}`, saveTpl: 'שמירה לתבנית', saveTplTip: 'לשמור את הקבצים האלה בתבנית, כדי לשלוח אותם שוב בלחיצה' },
+  en: { remove: 'Remove', drop: 'Drop here to attach', dropSub: 'Photos, videos, PDF, Word, Excel and more', uploading: 'Uploading…', ready: 'Uploaded', fromTpl: 'from the template', sending: 'Sending…', sent: 'Sent', error: 'Failed', files: n => `${n} files`,
+    group: (n, m) => `${n} files · sent together${m > 1 ? ` · the ${m} photos and videos as one album` : ''}`, max: n => `up to ${n}`, saveTpl: 'Save to a template', saveTplTip: 'Keep these files in a template, to send them again in one click' },
 }
 let uid = 0
 
@@ -22,7 +24,8 @@ export function useAttachments(lang = 'he') {
   useEffect(() => () => itemsRef.current.forEach(revoke), [])
   const add = useCallback(list => {
     const { ok, bad } = acceptFiles(list, itemsRef.current.length, lang)
-    if (ok.length) setItems(prev => [...prev, ...ok.map(file => ({ id: `f${++uid}`, file, status: '', preview: /^(image|video)$/.test(fileKind(file)) ? URL.createObjectURL(file) : '' }))])
+    // photos and videos first (WhatsApp shows media that arrive back to back as one album), each group in its own order
+    if (ok.length) setItems(prev => mediaFirst([...prev, ...ok.map(file => ({ id: `f${++uid}`, file, status: '', preview: /^(image|video)$/.test(fileKind(file)) ? URL.createObjectURL(file) : '' }))], x => x.file))
     setNotice(bad.length ? bad.map(b => `${b.name}: ${b.why}`).join(' · ') : '')
     return ok.length
   }, [lang])
@@ -31,7 +34,7 @@ export function useAttachments(lang = 'he') {
   const addRemote = useCallback(list => {
     const have = new Set(itemsRef.current.map(x => x.file?.url).filter(Boolean))
     const add = (list || []).filter(f => f?.url && !have.has(f.url)).slice(0, Math.max(0, MAX_FILES - itemsRef.current.length))
-    if (add.length) setItems(prev => [...prev, ...add.map(f => ({ id: `f${++uid}`, file: { url: f.url, name: f.name || 'file', type: f.type || '', size: f.size || 0 }, remote: true, status: '', preview: fileKind(f) === 'image' ? imageThumb(f.url, 120) : '' }))])
+    if (add.length) setItems(prev => mediaFirst([...prev, ...add.map(f => ({ id: `f${++uid}`, file: { url: f.url, name: f.name || 'file', type: f.type || '', size: f.size || 0 }, remote: true, status: '', preview: fileKind(f) === 'image' ? imageThumb(f.url, 120) : '' }))], x => x.file))
     return add.length
   }, [])
   const remove = useCallback(id => setItems(prev => { revoke(prev.find(i => i.id === id)); return prev.filter(i => i.id !== id) }), [])
@@ -75,12 +78,24 @@ const KIND_ICON = { image: 'image', video: 'video', pdf: 'file', doc: 'file' }
 const ext = n => (String(n || '').match(/\.([a-z0-9]{1,5})$/i) || [])[1]?.toUpperCase() || ''
 
 /** The strip of attached files above the text box */
-export function AttachTray({ items, onRemove, lang = 'he', WA = {}, isDark = false, notice = '', onDismissNotice }) {
+export function AttachTray({ items, onRemove, lang = 'he', WA = {}, isDark = false, notice = '', onDismissNotice, onSaveToTemplate }) {
   if (!items.length && !notice) return null
   const t = TR[lang] || TR.he
   const line = isDark ? 'rgba(255,255,255,.10)' : 'rgba(11,20,26,.10)'
   return (
     <div dir={lang === 'en' ? 'ltr' : 'rtl'} style={{ padding: '8px 8px 0' }}>
+      {items.length > 0 && (items.length > 1 || onSaveToTemplate) && (() => {
+        const media = items.filter(x => /^(image|video)$/.test(fileKind(x.file))).length
+        const busy = items.some(x => x.status && x.status !== 'error')
+        return (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, fontSize: 11.5, color: WA.subText }}>
+            <span style={{ flex: 1, minWidth: 0 }}>{items.length > 1 ? t.group(items.length, media) : ''}{items.length >= MAX_FILES - 5 ? ` (${t.max(MAX_FILES)})` : ''}</span>
+            {onSaveToTemplate && <button type="button" disabled={busy} onClick={onSaveToTemplate} title={t.saveTplTip}
+              style={{ flex: 'none', display: 'inline-flex', alignItems: 'center', gap: 5, minHeight: 0, padding: '4px 10px', borderRadius: 999, border: `1px solid ${line}`, background: 'transparent', color: WA.green || '#00A884', fontSize: 12, fontWeight: 600, cursor: busy ? 'default' : 'pointer', opacity: busy ? .5 : 1, fontFamily: 'inherit' }}>
+              <Icon name="bookmark" size={13}/>{t.saveTpl}</button>}
+          </div>
+        )
+      })()}
       {items.length > 0 && (
         <div role="list" aria-label={t.files(items.length)} style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 2, scrollbarWidth: 'thin' }}>
           {items.map(x => {

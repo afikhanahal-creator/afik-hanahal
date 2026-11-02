@@ -28,7 +28,7 @@ import { properHebrewName } from '../lib/name-proof.js'
 import { hebrewizeRecentNames } from '../lib/hebrew-lead-names.js'
 import { parseGreenHook, rowToGreen, mergeHistory, historyToRow } from '../lib/green-hook.js'
 import { avatarExpiry, avatarFresh, avatarPhone } from '../lib/wa-avatar.js'
-import { forwardRequest, cleanMsgId, cleanReaction, isHandled, withHandled, withoutHandled } from '../lib/wa-actions.js'
+import { forwardRequest, fileGroupRequest, cleanMsgId, cleanReaction, isHandled, withHandled, withoutHandled } from '../lib/wa-actions.js'
 
 const SUPERMETRICS_API_KEY    = process.env.SUPERMETRICS_API_KEY    || ''
 // System User token (afik-api) — permanent, survives password changes. Used to
@@ -1310,6 +1310,24 @@ async function handleChat(req, res, action) {
       const r = await Auto.sendText(p, message || '', { image, file, fileName, quotedMessageId })
       if (!r.ok) return res.status(502).json({ error: r.error, quota: !!r.quota })
       return res.status(200).json({ ok: true, idMessage: r.idMessage || null })
+    }
+
+    // POST /api/meta/chat-send-files { phone, caption, items: [{ file, fileName }], quotedMessageId? } → the files one after
+    // another (already in storage — the browser uploaded them all first), so WhatsApp shows the photos as one album; the text
+    // is the first file's caption. Stops at the first failure / a quota refusal; near the time limit it answers `partial` with
+    // how many went, and the browser sends the rest (src/lib/chatFiles.js sendGroupRequest) → { ok, sent, total, partial? }
+    if (action === 'chat-send-files') {
+      const g = fileGroupRequest(req.body || {}, normalizePhone)
+      if (g.error) return res.status(400).json({ error: g.error })
+      const started = Date.now()
+      let sent = 0
+      for (const [i, it] of g.items.entries()) {
+        if (i && Date.now() - started > 45000) return res.status(200).json({ ok: false, partial: true, sent, total: g.items.length })
+        const r = await Auto.sendText(g.phone, i === 0 ? g.caption : '', { file: it.file, fileName: it.fileName, ...(i === 0 && g.quotedMessageId ? { quotedMessageId: g.quotedMessageId } : {}) })
+        if (!r.ok) return res.status(502).json({ ok: false, sent, total: g.items.length, error: r.error, quota: !!r.quota })
+        sent++
+      }
+      return res.status(200).json({ ok: true, sent, total: g.items.length })
     }
 
     // POST /api/meta/chat-contact-name { phone, name } → the name in the office phone's WhatsApp contacts (a chat that isn't a

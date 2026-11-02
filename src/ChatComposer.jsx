@@ -63,7 +63,7 @@ export default function ChatComposer({
   WA, lang = 'he', leadName = '', input, setInput, inputRef, onSend, sending, canSend,
   attachments, onAddFiles, isDark = false, tplImg, onRemoveTplImg,
   inserted, changed, onSaveTemplate, onClear, savedNote,
-  emojiOpen, onToggleEmoji, onPickFile, templatesOpen, onToggleTemplates, msgLang, bookingBase,
+  emojiOpen, onToggleEmoji, onPickFile, templatesOpen, onToggleTemplates, msgLang, bookingBase, onSaveFilesToTemplate,
 }) {
   const t = TR[lang] || TR.he
   const rtl = lang !== 'en'
@@ -99,7 +99,7 @@ export default function ChatComposer({
             <button type="button" className="ccm-ib" style={{ width: 28, height: 28 }} onClick={onClear} aria-label={t.clear} title={t.clear}><Icon name="x" size={15}/></button>
           </div>
         )}
-        <AttachTray items={files} onRemove={attachments?.remove} lang={lang} WA={WA} isDark={isDark} notice={attachments?.notice} onDismissNotice={() => attachments?.setNotice('')}/>
+        <AttachTray items={files} onRemove={attachments?.remove} lang={lang} WA={WA} isDark={isDark} notice={attachments?.notice} onDismissNotice={() => attachments?.setNotice('')} onSaveToTemplate={onSaveFilesToTemplate}/>
         {tplImg && !files.length && (
           <div className="ccm-att">
             <img src={pic} alt=""/>
