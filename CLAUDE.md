@@ -807,6 +807,16 @@ IP, browser and the hash chain are recorded as before. `verifyLabel(sig, long)` 
 the admin drawer; an older signature still reads "קוד חד-פעמי…". The phone's top card is a plain document header (מסמך לחתימה ·
 number, the title, for whom · address · valid until) with no button; the document's client box is a signature line with a quiet
 "לחתימה" link; the bottom bar reads "המשך לחתימה". `sign-otp` stays for old links only.
+**The broker's signature (2026-11-04):** settings → כללי → "חתימת המתווך" (`AgentSignatureField` in `src/DocumentsTab.jsx`): an
+uploaded photo / scan is cleaned in the browser (`cleanSignatureImage()`: the paper goes, the ink keeps its darkness as alpha,
+cropped, ≤ 600 px PNG) → `POST docs-agent-signature { name, png }` (admin; `GET` reads it, `{ remove: true }` clears) →
+`app_settings.doc_agent_signature` `{ name, png: base64, updatedAt }` (private, never in the repo; only a whole PNG — header + IEND —
+is used). When the LAST signer signs, `submitSignature` checks `agentSigns(doc, sig)` (`lib/documents.js`, tested: the document's
+broker is that person by name, or names none), copies the image next to the document (`<id>/<number>-agent.png`), writes
+`data.agentSignature { name, at, path }` and the `agent_signed` event, and the signed PDF draws it in the "המתווך" box (name ·
+licence, "נחתם <time>", the company) plus a "חתימת המתווך" block on the certificate page; the signed Word file has it too
+(`agentPng`), and the signing page's done state shows it (`publicView` → `agentSigned`, `sign-file?kind=agent`). A document
+signed before the image was set stays without it. The PDF's signature boxes keep each image's proportions and three short lines.
 **Flow:** `docs-create` cleans the input (`cleanDocInput`), links the CRM lead (the given id, else the newest lead with that phone /
 email — never a new lead), numbers the document and writes `created` on the lead. `docs-send {id, via}` makes the private token
 (kept only as a hash), freezes the clauses on the row, renders the PDF the client signs (stored, its SHA-256 on the row), and
