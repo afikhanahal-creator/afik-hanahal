@@ -8,7 +8,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Bell, Phone, Check, StickyNote, Plus, Search, Trash2, X, MessageCircle } from 'lucide-react'
 import DateTimePicker from './DateTimePicker.jsx'
 import WaFace from './WaFace.jsx'
-import { taskAgenda, agendaBucket, updateTasks, addFollowUp, followUpPresets, defaultFollowUpText, israelParts, dueIso } from '../lib/follow-up.js'
+import { taskAgenda, agendaBucket, updateTasks, addFollowUp, followUpPresets, defaultFollowUpText, israelParts, dueIso, callQueue, taskStatus } from '../lib/follow-up.js'
 import { addNote, asNotes } from './lib/leadNotes.js'
 import { leadCampaign } from './lib/leadFields.js'
 import { leadNeeds } from '../lib/lead-needs.js'
@@ -25,12 +25,17 @@ const uid = () => `t${Date.now().toString(36)}${Math.random().toString(36).slice
 
 const TXT = {
   he: {
-    title: 'פולו אפים ומשימות', sub: 'כל המשימות של כל הלידים, לפי שעה. לחיצה על שם פותחת את כרטיס הליד.',
+    title: 'פולו אפים ומשימות', sub: 'למי להתקשר עכשיו, מה עבר הזמן ולא בוצע, ומה מחכה בהמשך. לחיצה על שם פותחת את כרטיס הליד.',
+    queue: 'להתקשר עכשיו', queueSub: 'מה שעבר הזמן ולא בוצע (עד יומיים אחורה), ומה שמגיע בשעתיים הקרובות', queueEmpty: 'אין כרגע שיחות שמחכות',
+    nextUp: (n, w) => `הבא בתור: ${n} · ${w}`, lateNote: 'הזמן שנקבע עבר והמשימה לא סומנה כבוצעה. להתקשר, לסמן "בוצע" או להזיז למועד אחר.',
+    st: { late: x => `לא בוצע · עבר לפני ${x}`, now: 'הזמן עכשיו', soon: x => `בעוד ${x}`, later: x => `בעוד ${x}`, done: 'בוצע' },
+    kp: { late: 'לא בוצעו בזמן', today: 'עוד היום', tomorrow: 'מחר', week: 'השבוע', later: 'בהמשך', done: 'בוצעו היום' },
+    planned: 'נקבע ל', more2: n => `ועוד ${n}`,
     btn: 'פולו אפים', add: 'משימה חדשה', search: 'חיפוש שם, טלפון, משימה…',
-    groups: { late: 'באיחור', today: 'היום', tomorrow: 'מחר', week: 'השבוע', later: 'בהמשך', done: 'בוצעו' },
-    ranges: { open: 'פתוחות', late: 'באיחור', today: 'היום', week: 'השבוע', done: 'בוצעו', all: 'הכל' },
+    groups: { late: 'עבר הזמן ולא בוצע', today: 'עוד היום', tomorrow: 'מחר', week: 'השבוע', later: 'בהמשך', done: 'בוצעו' },
+    ranges: { open: 'פתוחות', late: 'לא בוצעו בזמן', today: 'היום', week: 'השבוע', done: 'בוצעו', all: 'הכל' },
     kinds: { all: 'הכל', followup: 'פולו אפים', task: 'משימות' },
-    cols: { done: 'בוצע', when: 'מתי', name: 'למי לחזור', task: 'מה לעשות', actions: '' },
+    cols: { done: 'בוצע', when: 'מתי ומה המצב', name: 'למי לחזור', task: 'מה לעשות', actions: '' },
     fu: 'פולו אפ', task: 'משימה', fromWa: 'נוצר מהוואטסאפ', fromWaTip: q => `הליד כתב: "${q}"`, notDone: 'לא בוצע', markDone: 'סימון כבוצע', markOpen: 'סימון כלא בוצע',
     notePh: 'מה היה? Enter לשמירה', addNote: 'הערה', saved: 'נשמר בהערות הליד', move: 'הזזה', del: 'מחיקה',
     delAsk: 'למחוק את המשימה?', open: 'פתיחת כרטיס הליד', wa: 'וואטסאפ', call: 'התקשרות',
@@ -43,12 +48,17 @@ const TXT = {
     lateBy: x => `באיחור ${x}`, inT: x => `בעוד ${x}`, now: 'עכשיו', min: n => `${n} דק׳`, hr: n => (n === 1 ? 'שעה' : n === 2 ? 'שעתיים' : `${n} שע׳`), days: n => (n === 1 ? 'יום' : n === 2 ? 'יומיים' : `${n} ימים`),
   },
   en: {
-    title: 'Follow-ups & tasks', sub: 'Every task of every lead, by time. A click on a name opens the lead card.',
+    title: 'Follow-ups & tasks', sub: 'Who to call now, what was missed, and what is coming up. A click on a name opens the lead card.',
+    queue: 'Call now', queueSub: 'Missed and not done yet (up to two days back), and what is due in the next two hours', queueEmpty: 'No calls waiting right now',
+    nextUp: (n, w) => `Next: ${n} · ${w}`, lateNote: 'The time passed and the task wasn\'t marked done. Call, mark it done or move it.',
+    st: { late: x => `Not done · ${x} ago`, now: 'Due now', soon: x => `in ${x}`, later: x => `in ${x}`, done: 'Done' },
+    kp: { late: 'Missed', today: 'Later today', tomorrow: 'Tomorrow', week: 'This week', later: 'Later', done: 'Done today' },
+    planned: 'Set for ', more2: n => `+${n} more`,
     btn: 'Follow-ups', add: 'New task', search: 'Search name, phone, task…',
-    groups: { late: 'Late', today: 'Today', tomorrow: 'Tomorrow', week: 'This week', later: 'Later', done: 'Done' },
-    ranges: { open: 'Open', late: 'Late', today: 'Today', week: 'This week', done: 'Done', all: 'All' },
+    groups: { late: 'Missed — not done yet', today: 'Later today', tomorrow: 'Tomorrow', week: 'This week', later: 'Later', done: 'Done' },
+    ranges: { open: 'Open', late: 'Missed', today: 'Today', week: 'This week', done: 'Done', all: 'All' },
     kinds: { all: 'All', followup: 'Follow-ups', task: 'Tasks' },
-    cols: { done: 'Done', when: 'When', name: 'Who', task: 'What to do', actions: '' },
+    cols: { done: 'Done', when: 'When & status', name: 'Who', task: 'What to do', actions: '' },
     fu: 'Follow-up', task: 'Task', fromWa: 'From WhatsApp', fromWaTip: q => `The lead wrote: "${q}"`, notDone: 'Not done', markDone: 'Mark as done', markOpen: 'Mark as not done',
     notePh: 'What happened? Enter to save', addNote: 'Note', saved: 'Saved to the lead\'s notes', move: 'Move', del: 'Delete',
     delAsk: 'Delete this task?', open: 'Open the lead card', wa: 'WhatsApp', call: 'Call',
@@ -70,12 +80,54 @@ function whenText(at, now, t, en) {
   return { time: `${pad(p.h)}:${pad(p.min)}`, date: `${rel} · ${p.d}.${p.m}${p.y !== israelParts(now).y ? `.${String(p.y).slice(2)}` : ''}` }
 }
 
-// "באיחור 40 דק׳" / "בעוד שעתיים" / "עכשיו" — how far the task is from now, in words
-function relText(due, now, t) {
-  const d = due - now, a = Math.abs(d), m = Math.round(a / 60e3)
-  if (m < 2) return { text: t.now, tone: 'now' }
-  const span = m < 60 ? t.min(m) : m < 24 * 60 ? t.hr(Math.round(m / 60)) : t.days(Math.round(m / 1440))
-  return d < 0 ? { text: t.lateBy(span), tone: 'late' } : { text: t.inT(span), tone: m <= 120 ? 'soon' : 'later' }
+// how far the task is from now in words, and its status: "לא בוצע · עבר לפני 40 דק׳" / "הזמן עכשיו" / "בעוד שעתיים" / "בוצע"
+function spanText(ms, t) {
+  const m = Math.round(Math.abs(ms) / 60e3)
+  return m < 60 ? t.min(Math.max(1, m)) : m < 24 * 60 ? t.hr(Math.round(m / 60)) : t.days(Math.round(m / 1440))
+}
+function statusOf(it, now, t) {
+  const tone = taskStatus(it, now)
+  const text = tone === 'done' ? t.st.done : tone === 'now' ? t.st.now : t.st[tone](spanText(it.due - now, t))
+  return { tone, text }
+}
+
+// One card of the "להתקשר עכשיו" strip: who, why now, what to do, and the call
+function QueueCard({ it, now, t, en, lang, stages, onUpdate, onOpen, onOpenChat }) {
+  const { lead, task } = it
+  const name = String(lead.name || '').trim() || local(lead.phone)
+  const st = statusOf(it, now, t)
+  const stage = (stages || []).find(g => g.id === (lead.leadStatus || 'new'))
+  const camp = leadCampaign(lead, lang)
+  const text = String(task.text || '').trim() || defaultFollowUpText(lead, lang)
+  const tel = digits(local(lead.phone))
+  const w = whenText(it.due, now, t, en)
+  const done = () => onUpdate(lead.id, updateTasks(lead, (lead.tasks || []).map(x => (x.id === task.id ? { ...x, done: true, doneAt: Date.now() } : x))))
+  return (
+    <div className={`fv-qcard is-${st.tone}`}>
+      <div className="fv-qtop">
+        <span className={`fv-st is-${st.tone}`}>{st.text}</span>
+        <span className="fv-qwhen">{t.planned}<b dir="ltr">{w.time}</b> · {w.date.split(' · ')[0]}</span>
+      </div>
+      <div className="fv-qwho">
+        <WaFace phone={lead.phone} name={name} size={40} lang={lang} style={{ background: (stage?.color || '#6366F1') + '22' }}>
+          <span className="fv-ini" style={{ color: stage?.color || 'var(--au-brand-text)' }}>{name.charAt(0)}</span>
+        </WaFace>
+        <div className="fv-namebox">
+          <button type="button" className="fv-name" onClick={() => onOpen(lead)} title={t.open}><bdi>{name}</bdi></button>
+          <div className="fv-meta">
+            <a href={`tel:${tel}`} dir="ltr" className="fv-tel">{local(lead.phone)}</a>
+            {camp && <span className="fv-camp">{camp}</span>}
+          </div>
+        </div>
+      </div>
+      <div className="fv-qtask" dir="auto">{task.auto === 'wa' && <span className="fv-kind is-wa" title={task.quote ? t.fromWaTip(task.quote) : undefined}>{t.fromWa}</span>}{text}</div>
+      <div className="fv-qact">
+        <a href={`tel:${tel}`} className="fv-call fv-call--big"><Phone size={15}/>{t.callNow}</a>
+        {onOpenChat && <button type="button" className="fv-wa" onClick={() => onOpenChat(lead)} aria-label={`${t.wa}: ${name}`} title={t.wa}><MessageCircle size={15}/></button>}
+        <button type="button" className="fv-donebtn" onClick={done} title={t.markDone}><Check size={14} strokeWidth={2.6}/>{t.done}</button>
+      </div>
+    </div>
+  )
 }
 
 function NoteCell({ lead, t, lang = 'he', onUpdate }) {
@@ -119,7 +171,7 @@ function Row({ it, now, t, en, lang, stages, onUpdate, onOpen, onOpenChat, hero 
   const { lead, task } = it
   const name = String(lead.name || '').trim() || local(lead.phone)
   const w = whenText(it.due, now, t, en)
-  const rel = it.done ? null : relText(it.due, now, t)
+  const st = statusOf(it, now, t)
   const stage = (stages || []).find(g => g.id === (lead.leadStatus || 'new'))
   const camp = leadCampaign(lead, lang)
   const needs = (() => { try { return leadNeeds(lead, lang).needs || '' } catch { return '' } })()
@@ -131,7 +183,7 @@ function Row({ it, now, t, en, lang, stages, onUpdate, onOpen, onOpenChat, hero 
   const del = () => { if (window.confirm(t.delAsk)) setTasks((lead.tasks || []).filter(x => x.id !== task.id)) }
   const tel = lead.phone ? digits(local(lead.phone)) : ''
   return (
-    <div role="row" className={`fv-row${it.past ? ' is-past' : ''}${it.done ? ' is-done' : ''}${late ? ' is-late' : ''}${hero ? ' is-hero' : ''}`}>
+    <div role="row" className={`fv-row${it.done ? ' is-done' : ''}${late ? ' is-late' : ''}${st.tone === 'now' || st.tone === 'soon' ? ' is-soon' : ''}${hero ? ' is-hero' : ''}`}>
       <div role="cell" className="fv-c fv-c-done">
         <button type="button" role="checkbox" aria-checked={it.done} className="fv-check" onClick={toggle}
           aria-label={`${it.done ? t.markOpen : t.markDone}: ${name}`} title={it.done ? t.markOpen : t.markDone}>
@@ -140,7 +192,7 @@ function Row({ it, now, t, en, lang, stages, onUpdate, onOpen, onOpenChat, hero 
       </div>
       <div role="cell" className="fv-c fv-c-when">
         <b dir="ltr">{w.time}</b><span>{w.date}</span>
-        {rel && <em className={`fv-rel is-${rel.tone}`}>{rel.text}</em>}
+        <em className={`fv-st is-${st.tone}`}>{st.text}</em>
       </div>
       <div role="cell" className="fv-c fv-c-name">
         <WaFace phone={lead.phone} name={name} size={hero ? 48 : 40} lang={lang} style={{ background: (stage?.color || '#6366F1') + '22' }}>
@@ -157,8 +209,8 @@ function Row({ it, now, t, en, lang, stages, onUpdate, onOpen, onOpenChat, hero 
       </div>
       <div role="cell" className="fv-c fv-c-task">
         <div className="fv-taskline">
-          <span className={`fv-kind${task.kind === 'followup' ? ' is-fu' : ''}`}>{task.kind === 'followup' ? t.fu : t.task}</span>
-          {task.auto === 'wa' && <span className="fv-kind is-fu" title={task.quote ? t.fromWaTip(task.quote) : undefined}>{t.fromWa}</span>}
+          {task.kind !== 'followup' && <span className="fv-kind">{t.task}</span>}
+          {task.auto === 'wa' && <span className="fv-kind is-wa" title={task.quote ? t.fromWaTip(task.quote) : undefined}>{t.fromWa}</span>}
           <span className="fv-text" dir="auto">{text}</span>
         </div>
         {needs && <div className="fv-needs" dir="auto"><b>{t.wants}</b> {needs}</div>}
@@ -267,9 +319,13 @@ export default function FollowUpsView({ leads, lang = 'he', stages, onUpdate, on
   }, [leads, now])
   const counts = useMemo(() => {
     const c = { late: 0, today: 0, tomorrow: 0, week: 0, later: 0, done: 0 }
-    for (const x of items) c[x.bucket]++
+    const today = dayKey(now)
+    for (const x of items) {
+      if (x.bucket !== 'done') c[x.bucket]++
+      else if (dayKey(Number(x.task.doneAt) || x.due) === today) c.done++   // "בוצעו היום"
+    }
     return c
-  }, [items])
+  }, [items, now])
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase(), d = digits(q).replace(/^972/, '0')
     return items.filter(x => {
@@ -286,12 +342,10 @@ export default function FollowUpsView({ leads, lang = 'he', stages, onUpdate, on
     return [g, list]
   }).filter(([, l]) => l.length)
 
-  // the one to call first: the most urgent late task (the oldest), else the next one today
-  const heroIt = useMemo(() => {
-    const open = items.filter(x => !x.done && (x.bucket === 'late' || x.bucket === 'today'))
-    const late = open.filter(x => x.bucket === 'late').sort((a, b) => a.due - b.due)
-    return late[0] || open.sort((a, b) => a.due - b.due)[0] || null
-  }, [items])
+  // who to call now: missed (≤ 48 h) and what is due within two hours, one card per lead (lib/follow-up.js callQueue)
+  const queueAll = useMemo(() => callQueue(items, now, { max: 50 }), [items, now])
+  const queue = queueAll.slice(0, 6)
+  const nextUp = useMemo(() => items.filter(x => !x.done && x.due > now).sort((a, b) => a.due - b.due)[0] || null, [items, now])
   const kpis = [['late', counts.late, 'late'], ['today', counts.today, 'today'], ['tomorrow', counts.tomorrow, ''], ['week', counts.week, ''], ['later', counts.later, ''], ['done', counts.done, 'done']]
   const rangeOf = g => (g === 'tomorrow' || g === 'week' ? 'week' : g === 'later' ? 'open' : g)
 
@@ -304,19 +358,27 @@ export default function FollowUpsView({ leads, lang = 'he', stages, onUpdate, on
         </div>
         <button type="button" className="fv-primary" onClick={() => setAdding(true)}><Plus size={15}/>{t.add}</button>
       </div>
-      {heroIt && (
-        <section className={`fv-hero${heroIt.bucket === 'late' ? ' is-late' : ''}`} aria-label={heroIt.bucket === 'late' ? t.nextLate : t.next}>
-          <div className="fv-hero-h">{heroIt.bucket === 'late' ? t.nextLate : t.next}</div>
-          <div className="fv-table fv-table--hero" role="table"><Row it={heroIt} now={now} t={t} en={en} lang={lang} stages={stages} onUpdate={onUpdate} onOpen={onOpen} onOpenChat={onOpenChat} hero/></div>
-        </section>
-      )}
       <div className="fv-kpis">
         {kpis.map(([g, n, tone]) => (
-          <button key={g} type="button" className={`fv-kpi${tone ? ` is-${tone}` : ''}${groups.length === 1 && groups[0] === g ? ' is-on' : ''}`} onClick={() => setRange(rangeOf(g))}>
-            <b>{n}</b><span>{t.groups[g]}</span>
+          <button key={g} type="button" className={`fv-kpi${tone ? ` is-${tone}` : ''}${g === 'late' && n > 0 ? ' is-alert' : ''}${groups.length === 1 && groups[0] === g ? ' is-on' : ''}`} onClick={() => setRange(rangeOf(g))}>
+            <b>{n}</b><span>{t.kp[g]}</span>
           </button>
         ))}
       </div>
+      <section className="fv-queue" aria-label={t.queue}>
+        <div className="fv-queue-h">
+          <h3><Phone size={15}/>{t.queue}{queueAll.length > 0 && <em>{queueAll.length}</em>}</h3>
+          <span>{t.queueSub}</span>
+        </div>
+        {queue.length ? (
+          <div className="fv-qgrid">
+            {queue.map(it => <QueueCard key={it.key} it={it} now={now} t={t} en={en} lang={lang} stages={stages} onUpdate={onUpdate} onOpen={onOpen} onOpenChat={onOpenChat}/>)}
+          </div>
+        ) : (
+          <div className="fv-qempty"><Check size={16}/><b>{t.queueEmpty}</b>{nextUp && <span>{t.nextUp(String(nextUp.lead.name || '').trim() || local(nextUp.lead.phone), (() => { const w = whenText(nextUp.due, now, t, en); return `${w.date.split(' · ')[0]} ${w.time}` })())}</span>}</div>
+        )}
+        {queueAll.length > queue.length && <div className="fv-qmore">{t.more2(queueAll.length - queue.length)}</div>}
+      </section>
       <div className="fv-bar">
         <div className="fv-seg" role="tablist" aria-label={t.title}>
           {Object.entries(t.ranges).map(([id, l]) => <button key={id} type="button" role="tab" aria-selected={range === id} onClick={() => setRange(id)}>{l}</button>)}
@@ -335,7 +397,7 @@ export default function FollowUpsView({ leads, lang = 'he', stages, onUpdate, on
           const shown = g === 'done' ? list.slice(0, doneShown) : list
           return (
             <div key={g} role="rowgroup" className={`fv-group fv-group--${g}`}>
-              <div className="fv-gh"><span>{t.groups[g]}</span><em>{list.length}</em></div>
+              <div className="fv-gh"><span>{t.groups[g]}</span><em>{list.length}</em>{g === 'late' && <small>{t.lateNote}</small>}</div>
               {shown.map(it => <Row key={it.key} it={it} now={now} t={t} en={en} lang={lang} stages={stages} onUpdate={onUpdate} onOpen={onOpen} onOpenChat={onOpenChat}/>)}
               {g === 'done' && list.length > doneShown && <button type="button" className="fv-more" onClick={() => setDoneShown(n => n + 60)}>{t.more(list.length - doneShown)}</button>}
             </div>
@@ -405,7 +467,7 @@ const FV_CSS = `
 .fv-search input{flex:1;min-width:0;border:none;outline:none;background:none;font:13px Rubik,sans-serif;color:var(--au-text);min-height:0}
 .fv-search--bar{margin-inline-start:auto;min-width:240px}
 .fv-table{border:1px solid var(--au-line);border-radius:14px;background:var(--au-pop);overflow:hidden}
-.fv-row{display:grid;grid-template-columns:48px 118px minmax(230px,1.2fr) minmax(240px,1.6fr) auto;align-items:center;border-top:1px solid var(--au-line)}
+.fv-row{display:grid;grid-template-columns:48px 168px minmax(220px,1.1fr) minmax(240px,1.6fr) auto;align-items:center;border-top:1px solid var(--au-line)}
 .fv-meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
 .fv-rel{font-style:normal;margin-top:4px;align-self:flex-start;font-size:11px;font-weight:700;border-radius:999px;padding:1px 8px;white-space:nowrap}
 .fv-rel.is-late{color:#fff;background:#DC2626}
@@ -505,6 +567,50 @@ const FV_CSS = `
 .fv-remind{display:flex;align-items:center;gap:9px;margin-top:14px;border:none;background:none;padding:0;font:13px Rubik,sans-serif;color:var(--au-text);cursor:pointer;min-height:0}
 .fv-remind[aria-checked=true] .fv-check{background:#16A34A;border-color:#16A34A}
 .fv-modal-foot{display:flex;gap:8px;margin-top:18px}
+.fv-st{font-style:normal;display:inline-flex;align-items:center;margin-top:5px;align-self:flex-start;font-size:11.5px;font-weight:700;border-radius:999px;padding:2px 9px;white-space:nowrap;line-height:1.5}
+.fv-st.is-late{color:#fff;background:#DC2626}
+.fv-st.is-now{color:#fff;background:#D97706}
+.fv-st.is-soon{color:#92400E;background:#FEF3C7}
+.fv-st.is-later{color:var(--au-text2);background:rgba(var(--ov),.07)}
+.fv-st.is-done{color:#15803D;background:rgba(22,163,74,.12)}
+.fv-row.is-late{background:rgba(220,38,38,.045)}
+.fv-row.is-late:hover{background:rgba(220,38,38,.07)!important}
+.fv-row.is-late .fv-c-when b{color:#DC2626}
+.fv-row.is-soon{box-shadow:inset -3px 0 0 #D97706}
+[dir=ltr] .fv-row.is-soon{box-shadow:inset 3px 0 0 #D97706}
+.fv-row.is-done{color:var(--au-text3)}
+.fv-row.is-done .fv-name,.fv-row.is-done .fv-c-when b{color:var(--au-text2)}
+.fv-kind.is-wa{background:rgba(29,168,81,.12);color:#15803D}
+.fv-gh{flex-wrap:wrap}
+.fv-gh small{flex-basis:100%;font-size:12px;font-weight:500;color:var(--au-text2)}
+.fv-group--late .fv-gh{background:rgba(220,38,38,.08);font-size:13.5px}
+.fv-kpi.is-alert{background:#DC2626;border-color:#DC2626}
+.fv-kpi.is-alert b,.fv-kpi.is-alert span{color:#fff}
+.fv-queue{margin-bottom:16px;border:1px solid rgba(22,163,74,.3);border-radius:16px;background:rgba(22,163,74,.04);padding:12px 12px 12px}
+.fv-queue-h{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 12px;padding:0 4px 10px}
+.fv-queue-h h3{margin:0;display:inline-flex;align-items:center;gap:7px;font-size:15.5px;font-weight:700;color:#15803D}
+.fv-queue-h h3 em{font-style:normal;font-size:12px;border-radius:999px;padding:1px 9px;background:#16A34A;color:#fff}
+.fv-queue-h span{font-size:12.5px;color:var(--au-text2)}
+.fv-qgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px}
+.fv-qcard{display:flex;flex-direction:column;gap:9px;padding:12px;border-radius:13px;background:var(--au-pop);border:1px solid var(--au-line);border-top:4px solid var(--au-line)}
+.fv-qcard.is-late{border-top-color:#DC2626}
+.fv-qcard.is-now{border-top-color:#D97706}
+.fv-qcard.is-soon{border-top-color:#F59E0B}
+.fv-qtop{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.fv-qtop .fv-st{margin-top:0}
+.fv-qwhen{font-size:12px;color:var(--au-text3)}
+.fv-qwhen b{color:var(--au-text);font-weight:700;font-variant-numeric:tabular-nums}
+.fv-qwho{display:flex;align-items:center;gap:10px;min-width:0}
+.fv-qtask{font-size:13.5px;font-weight:600;line-height:1.45;display:flex;flex-wrap:wrap;align-items:flex-start;gap:6px;word-break:break-word}
+.fv-qtask .fv-kind{margin-top:1px}
+.fv-qact{display:flex;align-items:center;gap:6px;margin-top:auto}
+.fv-call--big{flex:1;justify-content:center;height:38px;font-size:14px}
+.fv-qact .fv-wa{width:38px;height:38px}
+.fv-qact .fv-donebtn{height:38px}
+.fv-qempty{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:6px 6px 2px;font-size:13px;color:#15803D}
+.fv-qempty span{color:var(--au-text2)}
+.fv-c-when .fv-st{white-space:normal;max-width:100%}
+.fv-qmore{padding:8px 6px 0;font-size:12px;color:var(--au-text2)}
 @container (max-width:900px){.fv-kpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @container (max-width:1060px){
   .fv-head{display:none}

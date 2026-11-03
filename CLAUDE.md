@@ -306,6 +306,13 @@ the lead card's notes list), "הזזה" (the date / time picker with the quick p
 reminder goes out again at the new time: `remindedAt` cleared) and delete. Past rows are grey, done ones struck through. "משימה
 חדשה": pick a lead (name / phone search), follow-up or task, what, when, reminder (on). A container query turns rows into cards
 under 1060 px.
+**Who to call, what was missed** (2026-11-03, the same screen): the status tiles read "לא בוצעו בזמן" (red, filled when > 0) · עוד
+היום · מחר · השבוע · בהמשך · בוצעו היום; under them **"להתקשר עכשיו"** — cards for what passed in the last 48 h and wasn't done (the
+one waiting longest first) and what is due within two hours, one per lead (`callQueue()` in `lib/follow-up.js`, tested), each with
+its status, when it was set for, who, the task and a big green call button, WhatsApp, "בוצע"; nothing waiting → "אין כרגע שיחות
+שמחכות · הבא בתור: …". Every row says its status in words (`taskStatus()`: "לא בוצע · עבר לפני 2 שע׳" red, "הזמן עכשיו",
+"בעוד 40 דק׳", "בוצע"); missed rows are tinted red under a "עבר הזמן ולא בוצע" banner that says what to do (call, mark done, or
+move), rows due within two hours carry an amber bar; the kind chip shows only for a plain "משימה" and for "נוצר מהוואטסאפ".
 **Ready-made tasks** (2026-11-01, `lib/task-presets.js`, tested; `src/TaskPresetInput.jsx`): the task boxes — the lead card's
 follow-up ("פולו אפ – לחזור אליהם") and tasks fields, and the follow-ups screen's "משימה חדשה" — are a combobox: a click or ▾
 opens ~45 common CRM tasks in 8 groups (calls · send on WhatsApp · meetings & viewings · qualifying · financing · deal & signing ·
