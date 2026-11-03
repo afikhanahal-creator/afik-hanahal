@@ -12,7 +12,7 @@ import { T, Button, StatTile, FilterChip, Badge, EmptyState, Field, inputStyle, 
 import { autoApi } from './AutomationsApi.jsx'
 import DocSheet, { DOC_CSS } from './DocPreview.jsx'
 import { onSync } from './lib/syncBus.js'
-import { computeFees, renderClauses, cleanDocInput, DEFAULT_CLAUSES, DOC_TYPES, CLIENT_ROLES, DEAL_TYPES, FEE_MODES, STATUS_HE, EVENT_HE, DEFAULT_VAT, docStats, effectiveStatus, fmtMoney, fmtPct, whenHe, todayHe, placeholderValues, PLACEHOLDERS, SIGNER_ROLES, MAX_SIGNERS, signerProgressText, signerInfo, DEFAULT_REMINDERS, DEFAULT_NOTIFY_ON, propertyToDoc } from '../lib/documents.js'
+import { verifyLabel, computeFees, renderClauses, cleanDocInput, DEFAULT_CLAUSES, DOC_TYPES, CLIENT_ROLES, DEAL_TYPES, FEE_MODES, STATUS_HE, EVENT_HE, DEFAULT_VAT, docStats, effectiveStatus, fmtMoney, fmtPct, whenHe, todayHe, placeholderValues, PLACEHOLDERS, SIGNER_ROLES, MAX_SIGNERS, signerProgressText, signerInfo, DEFAULT_REMINDERS, DEFAULT_NOTIFY_ON, propertyToDoc } from '../lib/documents.js'
 import { leadProperty } from '../lib/automations-shared.js'
 import { useProjects } from './lib/projectsStore.js'
 import { projectOfLead } from '../lib/projects.js'
@@ -948,7 +948,7 @@ function DocDrawer({ t, doc, onClose, onChanged, push, onOpenLead, leads, onEdit
         {doc.signature && <div className="dd-sec"><SectionHead title={t.drawer.signature}/><div className="dd-rows">
           <span>שם</span><b>{doc.signature.name}{doc.signature.idNumber ? ` · ת.ז. ${doc.signature.idNumber}` : ''}</b>
           <span>מועד</span><b>{whenHe(doc.signature.at)}</b>
-          <span>אימות</span><b>{doc.signature.via === 'email' ? 'קוד לאימייל' : 'קוד לוואטסאפ'} {doc.signature.to}</b>
+          <span>אימות</span><b>{verifyLabel(doc.signature, true)}</b>
           <span>IP</span><b dir="ltr" style={{ textAlign: 'right' }}>{doc.signature.ip || '—'}</b>
           <span>{t.drawer.hash}</span><b style={{ fontSize: 11, direction: 'ltr', textAlign: 'right' }}>{doc.signed_hash || '—'}</b>
         </div></div>}

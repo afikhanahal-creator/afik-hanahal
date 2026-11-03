@@ -1,11 +1,11 @@
 // The client's signing page — /sign/<token> (noindex, no account): the document as it was sent (src/DocPreview.jsx), zoom,
-// then the signature step: a one-time code to the client's WhatsApp or email (POST sign-otp), full name, ID number, the
-// consent box, a drawn signature (finger / mouse / typed name turned into a drawn one) and "אני מאשר/ת וחותם/ת" → POST
-// sign-submit. After signing: a confirmation with the signed copy to download (sign-file?kind=signed). A link that expired,
+// then the signature step: full name, ID number, a drawn signature (finger / mouse / typed name turned into a drawn one), the
+// consent box and "אני מאשר/ת וחותם/ת" → POST sign-submit. The personal link is the verification (no one-time code since
+// 2026-11-04); the time, IP and browser are recorded. After signing: a confirmation with the signed copy to download (sign-file?kind=signed). A link that expired,
 // a cancelled or an already-signed document reads so in words. Mobile first, the site's light look.
 import { useEffect, useRef, useState } from 'react'
 import DocSheet, { DOC_CSS } from './DocPreview.jsx'
-import { OTP_MINUTES, signTokenFromPath } from '../lib/documents.js'
+import { signTokenFromPath } from '../lib/documents.js'
 
 const CSS = `
 *{box-sizing:border-box}
@@ -33,29 +33,18 @@ html,body{margin:0;background:#EFEBE3;color:#17172B;font-family:Rubik,Heebo,Aria
 .sg-in:focus{outline:none;border-color:#3F4EB0;box-shadow:0 0 0 3px rgba(63,78,176,.18)}
 .sg-btn{min-height:52px;border-radius:14px;border:none;background:#3F4EB0;color:#fff;font:inherit;font-size:16px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:0 16px;text-decoration:none;-webkit-tap-highlight-color:transparent}
 .sg-btn:disabled{opacity:.5;cursor:not-allowed}.sg-btn.ghost{background:#fff;color:#3F4EB0;border:1.5px solid #C7CCEB}.sg-btn.sm{min-height:44px;font-size:14px;width:auto;padding:0 16px;border-radius:12px}
-.sg-btn:focus-visible,.sg-dl:focus-visible,.sg-chip:focus-visible{outline:3px solid rgba(63,78,176,.45);outline-offset:2px}
-.sg-chips{display:grid;grid-template-columns:1fr 1fr;gap:8px}.sg-chip{border:1.5px solid #D9D3C7;background:#fff;border-radius:12px;min-height:48px;padding:6px 10px;font:inherit;font-size:14px;cursor:pointer;color:#17172B;line-height:1.3}
-.sg-chip small{display:block;color:#5E5B6E;font-size:12px;direction:ltr}.sg-chip.on{border-color:#3F4EB0;background:#EEF0FA;color:#3F4EB0;font-weight:600}
-.sg-otp input{letter-spacing:10px;text-align:center;font-size:24px;font-weight:700;direction:ltr;height:58px}
-.sg-link{background:none;border:none;color:#3F4EB0;font:inherit;font-size:13.5px;font-weight:600;cursor:pointer;padding:6px 0;text-decoration:underline;text-underline-offset:3px;align-self:flex-start}
-.sg-link:disabled{color:#8A8798;text-decoration:none;cursor:default}
-.sg-pad{position:relative;border:2px dashed #3F4EB0;border-radius:16px;background:#FFFFFF;height:200px;touch-action:none;overflow:hidden;box-shadow:0 0 0 4px rgba(63,78,176,.10)}
-.sg-pad::after{content:"";position:absolute;inset:-2px;border-radius:16px;border:2px solid #3F4EB0;opacity:0;animation:sg-ping 2.4s ease-out infinite;pointer-events:none}
-@keyframes sg-ping{0%{opacity:.55;transform:scale(1)}80%,100%{opacity:0;transform:scale(1.025)}}
-.sg-pad.has{border-style:solid;border-color:#128C4A;box-shadow:0 0 0 4px rgba(18,140,74,.10)}.sg-pad.has::after{display:none}
-@media (prefers-reduced-motion:reduce){.sg-pad::after{display:none}}
+.sg-btn:focus-visible,.sg-dl:focus-visible{outline:3px solid rgba(63,78,176,.45);outline-offset:2px}
+.sg-pad{position:relative;border:1.5px dashed #8E97CF;border-radius:12px;background:#FFFFFF;height:200px;touch-action:none;overflow:hidden}
+.sg-pad.has{border-style:solid;border-color:#9CC9AE}
 .sg-pad canvas{width:100%;height:100%;display:block;cursor:crosshair;background:#FFFFFF}
 .sg-pad .hint{position:absolute;inset:0 0 44px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;pointer-events:none;text-align:center;padding:0 16px}
-.sg-pad .hint b{color:#3F4EB0;font-size:19px;font-weight:700;display:flex;align-items:center;gap:8px}.sg-pad .hint span{color:#5E5B6E;font-size:13.5px}
+.sg-pad .hint b{color:#3C3A4A;font-size:17px;font-weight:600}.sg-pad .hint span{color:#8A8798;font-size:13px}
 .sg-pad .who{position:absolute;left:18px;right:18px;bottom:14px;display:flex;justify-content:space-between;font-size:12px;color:#8A8798;pointer-events:none}
 .sg-pad-ok{display:inline-flex;align-items:center;gap:6px;color:#128C4A;font-size:13.5px;font-weight:600}
-.sg-step.sign{background:#F4F5FC;border:1px solid #DDE0F3;border-radius:16px;padding:14px;margin-inline:-6px}
-.sg-step.sign .sg-step-h{font-size:17px}
 .sg-need{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:13px;color:#5E5B6E}
 .sg-need span{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:4px 10px;background:#F5F1E9}
 .sg-need span.ok{background:#E8F7EE;color:#0E7A3B}
-.sg-pad .line{position:absolute;left:18px;right:18px;bottom:44px;border-bottom:1.5px solid #C7CCEB;pointer-events:none}
-.sg-pad .x{position:absolute;right:18px;bottom:48px;color:#3F4EB0;font-size:18px;font-weight:700;pointer-events:none;opacity:.7}
+.sg-pad .line{position:absolute;left:18px;right:18px;bottom:44px;border-bottom:1px solid #B9B4A8;pointer-events:none}
 .sg-pad-acts{display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap}
 .sg-chk{display:flex;gap:12px;align-items:flex-start;font-size:14px;line-height:1.55;cursor:pointer;padding:12px;border:1.5px solid #E1DBD0;border-radius:12px;background:#FBFAF7}
 .sg-chk.on{border-color:#3F4EB0;background:#F4F5FC}
@@ -74,9 +63,9 @@ html,body{margin:0;background:#EFEBE3;color:#17172B;font-family:Rubik,Heebo,Aria
   .sg-top{padding:8px 12px;padding-top:max(8px,env(safe-area-inset-top))}.sg-brand img{height:28px}.sg-brand b{font-size:13.5px}.sg-brand small{font-size:11.5px}
   .sg-dl{height:38px;padding:0 10px}.sg-dl span{display:none}.sg-dl::after{content:attr(data-short);font-size:12.5px}
   .sg-zoom{display:none}
-  .sg-intro{display:flex;flex-direction:column;gap:10px;margin:12px 12px 0;background:#fff;border:1px solid #E1DBD0;border-radius:18px;padding:16px}
-  .sg-intro h1{margin:0;font-size:19px;font-weight:600;line-height:1.35}.sg-intro p{margin:0;color:#5E5B6E;font-size:14px;line-height:1.6}
-  .sg-steps{display:flex;gap:6px;flex-wrap:wrap}.sg-steps span{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#3C3A4A;background:#F5F1E9;border-radius:999px;padding:6px 10px}
+  .sg-intro{display:flex;flex-direction:column;gap:4px;margin:14px 14px 0;padding:0 2px 12px;border-bottom:1px solid #DDD6C9}
+  .sg-intro small{font-size:11.5px;letter-spacing:.04em;color:#8A8798;font-weight:600}
+  .sg-intro h1{margin:0;font-size:18px;font-weight:600;line-height:1.35}.sg-intro p{margin:0;color:#5E5B6E;font-size:13.5px;line-height:1.6}
   .sg-wrap{grid-template-columns:1fr;padding:12px 0 0;gap:12px}
   .sg-doc{padding:0 12px}.sg-doc-in{transform:none!important;width:100%!important}
   .sg-doc .dsh{border-radius:16px;border:1px solid #E1DBD0}
@@ -86,14 +75,13 @@ html,body{margin:0;background:#EFEBE3;color:#17172B;font-family:Rubik,Heebo,Aria
   .sg-mob-cta.hide{transform:translateY(110%)}
   .sg-foot{padding-bottom:calc(90px + env(safe-area-inset-bottom))}
 }
-@media (max-width:380px){.sg-chips,.sg-done-dl{grid-template-columns:1fr}}
+@media (max-width:380px){.sg-done-dl{grid-template-columns:1fr}}
 `
 const api = (a, q = '', opts = {}) => fetch(`/api/meta/${a}${q}`, { signal: AbortSignal.timeout(30000), ...opts, headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) } }).then(async r => { const d = await r.json().catch(() => ({})); return { status: r.status, ...d } })
 
 const DlIcon = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
 const LockIcon = () => <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
 
-const PenIcon = () => <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
 function SignaturePad({ onChange, name }) {
   const ref = useRef(null), drawing = useRef(false), last = useRef(null), has = useRef(false)
   const [empty, setEmpty] = useState(true)
@@ -116,8 +104,8 @@ function SignaturePad({ onChange, name }) {
   const typed = () => { if (!name) return; clear(); const { c, k } = ctx(); const r = c.getBoundingClientRect(); k.save(); k.font = `italic 600 ${Math.min(44, Math.max(26, r.width / Math.max(6, name.length) * 1.4))}px "Rubik", "Heebo", cursive`; k.fillStyle = '#1A2A6C'; k.textAlign = 'center'; k.textBaseline = 'middle'; k.direction = 'rtl'; k.fillText(name, r.width / 2, r.height / 2 - 12); k.restore(); has.current = true; setEmpty(false); onChange(c.toDataURL('image/png')) }
   return (
     <div className="sg-f">
-      <div className={`sg-pad${empty ? '' : ' has'}`}><canvas ref={ref} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onPointerLeave={up} role="img" aria-label="תיבת חתימה — חתמו כאן באצבע או בעכבר"/>{empty && <div className="hint"><b><PenIcon/> חתמו כאן</b><span>ציירו את החתימה באצבע (או בעכבר) בתוך המסגרת</span></div>}<span className="x" aria-hidden="true">✕</span><div className="line"/><div className="who"><span>{name ? `חתימת ${name}` : 'החתימה שלכם'}</span><span>{new Date().toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' })}</span></div></div>
-      <div className="sg-pad-acts">{empty ? <button type="button" className="sg-btn ghost sm" onClick={typed} disabled={!name}>במקום לצייר: חתימה מהשם</button> : <span className="sg-pad-ok">✓ החתימה נקלטה</span>}<button type="button" className="sg-btn ghost sm" onClick={clear} disabled={empty}>ניקוי וחתימה מחדש</button></div>
+      <div className={`sg-pad${empty ? '' : ' has'}`}><canvas ref={ref} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onPointerLeave={up} role="img" aria-label="תיבת חתימה — חתמו כאן באצבע או בעכבר"/>{empty && <div className="hint"><b>חתמו כאן</b><span>באצבע או בעכבר, בתוך המסגרת</span></div>}<div className="line"/><div className="who"><span>{name ? `חתימת ${name}` : 'החתימה שלכם'}</span><span>{new Date().toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' })}</span></div></div>
+      <div className="sg-pad-acts">{empty ? <button type="button" className="sg-btn ghost sm" onClick={typed} disabled={!name}>במקום לצייר: חתימה מהשם</button> : <span className="sg-pad-ok">החתימה נקלטה</span>}<button type="button" className="sg-btn ghost sm" onClick={clear} disabled={empty}>ניקוי וחתימה מחדש</button></div>
     </div>
   )
 }
@@ -126,22 +114,19 @@ export default function SignPage() {
   const token = signTokenFromPath(window.location.pathname)
   const [st, setSt] = useState({ loading: true })
   const [zoom, setZoom] = useState(1)
-  const [form, setForm] = useState({ name: '', idNumber: '', code: '', agree: false, signature: '' })
-  const [otp, setOtp] = useState(null)        // { via, to, minutes, at }
-  const [via, setVia] = useState('')
+  const [form, setForm] = useState({ name: '', idNumber: '', agree: false, signature: '' })
   const [busy, setBusy] = useState('')
   const [err, setErr] = useState('')
   const [done, setDone] = useState(null)
   const [sideSeen, setSideSeen] = useState(false)
-  const [now, setNow] = useState(Date.now())
-  const docRef = useRef(null), sideRef = useRef(null), codeRef = useRef(null)
+  const docRef = useRef(null), sideRef = useRef(null)
   const [scale, setScale] = useState(1)
   useEffect(() => { document.title = 'חתימה על מסמך · אפיק הנחל' }, [])
   useEffect(() => {
     if (!token) { setSt({ blocked: 'הקישור לא תקין' }); return }
     api('sign-open', `?t=${encodeURIComponent(token)}`).then(r => {
       if (r.error) setSt({ blocked: r.error })
-      else { setSt({ view: r.view, blocked: r.blocked, signed: r.signed, expired: r.expired }); setForm(f => ({ ...f, name: r.view?.signer?.name || r.view?.client?.name || '' })); setVia(r.view?.channels?.whatsapp ? 'whatsapp' : 'email') }
+      else { setSt({ view: r.view, blocked: r.blocked, signed: r.signed, expired: r.expired }); setForm(f => ({ ...f, name: r.view?.signer?.name || r.view?.client?.name || '' })) }
     }).catch(() => setSt({ blocked: 'לא הצלחנו לטעון את המסמך. נסו שוב בעוד רגע.' }))
   }, [token])
   useEffect(() => {
@@ -155,22 +140,14 @@ export default function SignPage() {
     const io = new IntersectionObserver(([e]) => setSideSeen(e.isIntersecting), { rootMargin: '0px 0px -30% 0px' })
     io.observe(el); return () => io.disconnect()
   }, [st.view])
-  // "send the code again" waits a minute
-  useEffect(() => { if (!otp) return; const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t) }, [otp])
-  const sendOtp = async () => {
-    setBusy('otp'); setErr('')
-    try { const r = await api('sign-otp', '', { method: 'POST', body: JSON.stringify({ t: token, via }) }); if (r.error) setErr(r.error); else { setOtp({ ...r, at: Date.now() }); setTimeout(() => codeRef.current?.focus(), 50) } } catch { setErr('הקוד לא נשלח. נסו שוב.') } finally { setBusy('') }
-  }
   const submit = async () => {
     setErr('')
-    if (!otp) { setErr('קודם מקבלים קוד אימות'); return }
-    if (form.code.replace(/\D/g, '').length !== 6) { setErr('הקלידו את 6 ספרות הקוד'); return }
     if (form.name.trim().length < 2) { setErr('כתבו את שמכם המלא'); return }
     if (!form.signature) { setErr('ציירו את החתימה בתיבה'); return }
     if (!form.agree) { setErr('צריך לאשר שקראתם את המסמך ומסכימים לחתום עליו'); return }
     setBusy('sign')
     try {
-      const r = await api('sign-submit', '', { method: 'POST', body: JSON.stringify({ t: token, code: form.code, name: form.name, idNumber: form.idNumber, agree: form.agree, signature: form.signature }), signal: AbortSignal.timeout(60000) })
+      const r = await api('sign-submit', '', { method: 'POST', body: JSON.stringify({ t: token, name: form.name, idNumber: form.idNumber, agree: form.agree, signature: form.signature }), signal: AbortSignal.timeout(60000) })
       if (r.error) { setErr(r.error); return }
       setDone(r); setSt(s => ({ ...s, view: r.view }))
       setTimeout(() => sideRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60)
@@ -182,7 +159,6 @@ export default function SignPage() {
   const pdfKind = isSigned ? 'signed' : 'original'
   const sgI = v?.signer
   const first = String(form.name || v?.client?.name || '').trim().split(/\s+/)[0] || ''
-  const wait = otp ? Math.max(0, 60 - Math.floor((now - otp.at) / 1000)) : 0
   const downloads = (
     <div className="sg-done-dl">
       <a className="sg-btn" href={file(pdfKind)} download>הורדת PDF{isSigned ? ' חתום' : ''}</a>
@@ -208,40 +184,27 @@ export default function SignPage() {
     <div className="sg-done"><h2>{st.expired ? 'תוקף הקישור פג' : 'אי אפשר לחתום על המסמך'}</h2><p>{st.blocked}</p><a className="sg-btn ghost" href="https://wa.me/972559811814">לפנות למשרד בוואטסאפ</a></div>
   ) : (
     <>
-      <div><h2>חתימה על המסמך</h2><p style={{ marginTop: 4 }}>שלושה צעדים קצרים, פחות מדקה.</p></div>
+      <div><h2>חתימה על המסמך</h2><p style={{ marginTop: 4 }}>יש לקרוא את המסמך, למלא את הפרטים ולחתום בתיבה.</p></div>
       {sgI?.total > 1 && <div className="sg-signers" aria-label="סדר החותמים"><b>חותם {sgI.index + 1} מתוך {sgI.total}: {sgI.name}</b>{sgI.list.map((x, i) => <span key={i} className={x.status === 'signed' ? 'ok' : i === sgI.index ? 'cur' : ''}>{x.status === 'signed' ? '✓ ' : ''}{x.name}</span>)}</div>}
-      <section className="sg-step" aria-labelledby="st1">
-        <div className="sg-step-h" id="st1"><span className={`sg-num${otp ? ' ok' : ''}`}>{otp ? '✓' : 1}</span>אימות בקוד חד-פעמי</div>
-        {v?.channels?.whatsapp && v?.channels?.email && !otp && <div className="sg-chips" role="radiogroup" aria-label="לאן לשלוח את הקוד">
-          <button type="button" role="radio" aria-checked={via === 'whatsapp'} className={`sg-chip${via === 'whatsapp' ? ' on' : ''}`} onClick={() => setVia('whatsapp')}>בוואטסאפ<small>{v.client.phoneMasked}</small></button>
-          <button type="button" role="radio" aria-checked={via === 'email'} className={`sg-chip${via === 'email' ? ' on' : ''}`} onClick={() => setVia('email')}>באימייל<small>{v.client.emailMasked}</small></button>
-        </div>}
-        {!otp ? <button type="button" className="sg-btn ghost" disabled={busy === 'otp'} onClick={sendOtp}>{busy === 'otp' ? 'שולח…' : <>שליחת קוד {via === 'email' ? 'לאימייל' : 'לוואטסאפ'} <span dir="ltr">{via === 'email' ? v?.client?.emailMasked : v?.client?.phoneMasked}</span></>}</button>
-          : <>
-            <div className="sg-ok" role="status">הקוד נשלח {otp.via === 'email' ? 'לאימייל' : 'לוואטסאפ'} <span dir="ltr">{otp.to}</span>. תקף ל-{otp.minutes || OTP_MINUTES} דקות.</div>
-            <div className="sg-f sg-otp"><label htmlFor="sg-code">הקוד שקיבלתם</label><input id="sg-code" ref={codeRef} className="sg-in" inputMode="numeric" pattern="[0-9]*" autoComplete="one-time-code" maxLength={6} placeholder="••••••" value={form.code} onChange={e => setForm(f => ({ ...f, code: e.target.value.replace(/\D/g, '').slice(0, 6) }))}/></div>
-            <button type="button" className="sg-link" disabled={wait > 0 || busy === 'otp'} onClick={sendOtp}>{wait > 0 ? `אפשר לבקש קוד חדש בעוד ${wait} שנ׳` : 'לא הגיע? שליחת קוד חדש'}</button>
-          </>}
-      </section>
       <section className="sg-step" aria-labelledby="st2">
-        <div className="sg-step-h" id="st2"><span className={`sg-num${form.name.trim().length > 1 ? ' ok' : ''}`}>{form.name.trim().length > 1 ? '✓' : 2}</span>הפרטים שלכם</div>
+        <div className="sg-step-h" id="st2"><span className="sg-num">1</span>פרטי החותם</div>
         <div className="sg-f"><label htmlFor="sg-name">שם מלא</label><input id="sg-name" className="sg-in" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} autoComplete="name" enterKeyHint="next"/></div>
         <div className="sg-f"><label htmlFor="sg-id">תעודת זהות{v?.client?.idNumber ? '' : ' (לא חובה)'}</label><input id="sg-id" className="sg-in" dir="ltr" inputMode="numeric" pattern="[0-9]*" maxLength={9} value={form.idNumber} onChange={e => setForm(f => ({ ...f, idNumber: e.target.value.replace(/\D/g, '').slice(0, 9) }))} style={{ textAlign: 'right' }}/></div>
       </section>
-      <section className="sg-step sign" aria-labelledby="st3" id="sign-pad">
-        <div className="sg-step-h" id="st3"><span className={`sg-num${form.signature ? ' ok' : ''}`}>{form.signature ? '✓' : 3}</span>חתמו על המסמך</div>
-        <p style={{ margin: '-2px 0 2px', fontSize: 13.5 }}>החתימה תופיע במסמך במקום המסומן "הלקוח", יחד עם השם, התאריך ואמצעי האימות.</p>
+      <section className="sg-step" aria-labelledby="st3" id="sign-pad">
+        <div className="sg-step-h" id="st3"><span className="sg-num">2</span>חתימה</div>
+        <p style={{ margin: '-2px 0 2px', fontSize: 13.5 }}>החתימה תופיע במסמך במקום המסומן "הלקוח", יחד עם השם והתאריך.</p>
         <SignaturePad name={form.name} onChange={s => setForm(f => ({ ...f, signature: s }))}/>
       </section>
-      <label className={`sg-chk${form.agree ? ' on' : ''}`}><input type="checkbox" checked={form.agree} onChange={e => setForm(f => ({ ...f, agree: e.target.checked }))}/><span>קראתי את המסמך, הבנתי את תוכנו ואני מסכים/ה לחתום עליו בחתימה אלקטרונית. מועד החתימה, אמצעי האימות וכתובת ה-IP יתועדו כחלק מהמסמך.</span></label>
+      <label className={`sg-chk${form.agree ? ' on' : ''}`}><input type="checkbox" checked={form.agree} onChange={e => setForm(f => ({ ...f, agree: e.target.checked }))}/><span>קראתי את המסמך, הבנתי את תוכנו ואני מסכים/ה לחתום עליו בחתימה אלקטרונית. מועד החתימה וכתובת ה-IP יתועדו כחלק מהמסמך.</span></label>
       {err && <div className="sg-err" role="alert">{err}</div>}
-      {!(otp && form.code.length === 6 && form.signature && form.agree) && <div className="sg-need" aria-live="polite"><b style={{ fontWeight: 600 }}>לפני החתימה:</b>
-        <span className={otp && form.code.length === 6 ? 'ok' : ''}>{otp && form.code.length === 6 ? '✓' : '○'} קוד אימות</span>
+      {!(form.name.trim().length > 1 && form.signature && form.agree) && <div className="sg-need" aria-live="polite"><b style={{ fontWeight: 600 }}>לפני החתימה:</b>
+        <span className={form.name.trim().length > 1 ? 'ok' : ''}>{form.name.trim().length > 1 ? '✓' : '○'} שם מלא</span>
         <span className={form.signature ? 'ok' : ''}>{form.signature ? '✓' : '○'} חתימה</span>
         <span className={form.agree ? 'ok' : ''}>{form.agree ? '✓' : '○'} אישור</span>
       </div>}
       <button type="button" className="sg-btn" disabled={busy === 'sign'} onClick={submit}>{busy === 'sign' ? 'חותם…' : 'אני מאשר/ת וחותם/ת על המסמך'}</button>
-      <div className="sg-sec"><LockIcon/> הקישור אישי ומאובטח · החתימה מתועדת ונשמרת במסמך</div>
+      <div className="sg-sec"><LockIcon/> קישור אישי ומאובטח · החתימה מתועדת ונשמרת במסמך</div>
     </>
   )
   return (
@@ -257,17 +220,16 @@ export default function SignPage() {
       </header>
       {st.loading ? <div className="sg-blocked">טוען את המסמך…</div> : !v ? <div className="sg-blocked"><h2>{st.blocked}</h2><a className="sg-btn ghost" href="https://wa.me/972559811814" style={{ marginTop: 12 }}>לפנות למשרד בוואטסאפ</a></div> : (<>
         {!isSigned && !st.blocked && !done && <div className="sg-intro">
-          <h1>{first ? `שלום ${first}, ` : ''}המסמך מחכה לחתימה שלכם</h1>
-          <p>{v.title}{v.property?.address ? ` · ${[v.property.address, v.property.city].filter(Boolean).join(', ')}` : ''}{v.expires_at ? ` · בתוקף עד ${new Date(v.expires_at).toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' })}` : ''}</p>
-          <div className="sg-steps"><span>1. קוראים</span><span>2. קוד אימות</span><span>3. חותמים</span></div>
-          <button type="button" className="sg-btn" onClick={() => sideRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>מעבר ישיר לחתימה</button>
+          <small>מסמך לחתימה{v.number ? <> · <span dir="ltr">{v.number}</span></> : null}</small>
+          <h1>{v.title}</h1>
+          <p>{[first ? `עבור ${String(form.name || v.client?.name || '').trim()}` : '', v.property?.address ? [v.property.address, v.property.city].filter(Boolean).join(', ') : '', v.expires_at ? `בתוקף עד ${new Date(v.expires_at).toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' })}` : ''].filter(Boolean).join(' · ')}</p>
         </div>}
         <div className="sg-wrap">
           <div className="sg-doc" ref={docRef}><div className="sg-doc-in" style={{ transform: `scale(${scale * zoom})`, width: 794 }}><DocSheet view={v} signatureUrl={isSigned ? file('signature', false) : ''} onSignHere={!isSigned && !st.blocked && !done ? () => document.getElementById('sign-pad')?.scrollIntoView({ behavior: 'smooth', block: 'center' }) : null}/></div></div>
           <aside className="sg-side" ref={sideRef} id="sign">{side}</aside>
         </div>
       </>)}
-      {v && !done && !isSigned && !st.blocked && <div className={`sg-mob-cta${sideSeen ? ' hide' : ''}`}><button type="button" className="sg-btn" onClick={() => sideRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>לחתימה על המסמך ↓</button></div>}
+      {v && !done && !isSigned && !st.blocked && <div className={`sg-mob-cta${sideSeen ? ' hide' : ''}`}><button type="button" className="sg-btn" onClick={() => sideRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>המשך לחתימה</button></div>}
       <footer className="sg-foot">אפיק הנחל יזום, שיווק, תיווך נדל"ן בע"מ · ח.פ. 517082038 · <a href="tel:0559811814" style={{ color: 'inherit', whiteSpace: 'nowrap' }} dir="ltr">055-981-1814</a><br/>הקישור אישי ומיועד לנמען בלבד</footer>
     </div>
   )

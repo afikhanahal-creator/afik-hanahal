@@ -33,8 +33,8 @@ export const DOC_CSS = `
 .dsh-box small{color:var(--dsh-mute);font-size:8.5pt;display:block;line-height:1.4}
 .dsh-foot span{white-space:nowrap}.dsh-foot{flex-wrap:wrap;gap:2px 12px;position:absolute;left:17mm;right:17mm;bottom:9mm;border-top:1px solid var(--dsh-line);padding-top:6px;display:flex;justify-content:space-between;color:var(--dsh-mute);font-size:8pt}
 .dsh-draft{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:140px;font-weight:700;color:rgba(23,23,43,.05);transform:rotate(-30deg);pointer-events:none;user-select:none;letter-spacing:.05em}
-.dsh-box.ask{border:2px dashed #3F4EB0;background:#F4F5FC}
-.dsh-ask{margin:8px auto 4px;border:none;border-radius:999px;background:#3F4EB0;color:#fff;font:inherit;font-size:10.5pt;font-weight:700;padding:8px 18px;cursor:pointer;min-height:0}
+.dsh-box.ask{border-color:#9AA3D8}
+.dsh-ask{display:block;margin:0 auto;border:none;background:none;color:#3F4EB0;font:inherit;font-size:9pt;font-weight:600;padding:2px 6px;cursor:pointer;min-height:0;text-decoration:underline;text-underline-offset:3px}
 .dsh-stamp{position:absolute;top:14mm;left:17mm;border:2px solid #128C4A;color:#128C4A;border-radius:6px;padding:3px 10px;font-weight:700;font-size:10pt;transform:rotate(-6deg);background:rgba(255,255,255,.9)}
 @media (max-width:640px){.dsh{padding:16px 14px 50px;min-height:0;font-size:14px;width:100%;box-shadow:none;border-radius:0}.dsh-sig{grid-template-columns:1fr}.dsh-rows td:first-child{width:96px}.dsh h1{font-size:21px}.dsh-foot{position:static;margin-top:16px}.dsh-head{flex-wrap:wrap}.dsh-logo.m{height:48px}.dsh-logo.l{height:64px}}
 @media print{.dsh{box-shadow:none;margin:0;width:auto;min-height:0}}
@@ -82,7 +82,7 @@ export default function DocSheet({ view, signatureUrl = '', logoSrc = '/logo-bla
       {view.terms && <><h2>תנאים נוספים</h2><p style={{ margin: '0 0 8px', whiteSpace: 'pre-wrap' }}>{view.terms}</p></>}</>}
       <h2>חתימות</h2>
       <div className="dsh-sig">
-        <div className={`dsh-box${onSignHere && !signed ? ' ask' : ''}`}><b>הלקוח</b>{signed && signatureUrl ? <img src={signatureUrl} alt="חתימת הלקוח"/> : onSignHere ? <button type="button" className="dsh-ask" onClick={onSignHere}>✍️ חתמו כאן</button> : <div className="ln"/>}<small>{signed ? <>{view.signature.name}<br/>נחתם דיגיטלית {whenHe(view.signature.at)}</> : <>{c.name}<br/>שם, חתימה ותאריך</>}</small></div>
+        <div className={`dsh-box${onSignHere && !signed ? ' ask' : ''}`}><b>הלקוח</b>{signed && signatureUrl ? <img src={signatureUrl} alt="חתימת הלקוח"/> : onSignHere ? <><div className="ln"/><button type="button" className="dsh-ask" onClick={onSignHere}>לחתימה</button></> : <div className="ln"/>}<small>{signed ? <>{view.signature.name}<br/>נחתם דיגיטלית {whenHe(view.signature.at)}</> : <>{c.name}<br/>שם, חתימה ותאריך</>}</small></div>
         <div className="dsh-box"><b>המתווך</b><div className="ln"/><small>{a.name ? `${a.name}${a.license ? ` · רישיון ${a.license}` : ''}` : COMPANY.name}<br/>{COMPANY.name} · {COMPANY.idLabel} {COMPANY.id}</small></div>
       </div>
       {(view.signer?.list || []).length > 1 && <div className="dsh-sig">{view.signer.list.slice(1).map((sg, i) => <div key={i} className="dsh-box"><b>{{ spouse: 'בן/בת זוג', partner: 'שותף/ה', guarantor: 'ערב/ה' }[sg.role] || 'חותם נוסף'}</b><div className="ln"/><small>{sg.name}<br/>{sg.status === 'signed' ? `נחתם דיגיטלית ${whenHe(sg.signed_at)}` : 'שם, חתימה ותאריך'}</small></div>)}</div>}

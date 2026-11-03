@@ -798,6 +798,15 @@ pulse (none with reduced motion), "✍ חתמו כאן · ציירו את החת
 the date under it, green + "✓ החתימה נקלטה" once drawn, "ניקוי וחתימה מחדש"; the document's own client box is a dashed "✍️ חתמו
 כאן" button that scrolls to the pad (`onSignHere` on `DocSheet`), and a "לפני החתימה: קוד אימות · חתימה · אישור" checklist sits over
 the button until all three are done.
+**Signing without a code, a formal page (2026-11-04):** the personal link is the verification — the signing page has no
+one-time code step any more: "פרטי החותם" (name, ID) → "חתימה" (a calm dashed frame, "חתמו כאן", no icon / emoji / ✕ / pulse) →
+consent → "אני מאשר/ת וחותם/ת". `submitSignature` checks a code only when one is sent (older pages); otherwise the signature is
+`{ method: 'link', via: <the channel the link last went out on — linkChannel() from the send log>, to: masked }`, and the time,
+IP, browser and the hash chain are recorded as before. `verifyLabel(sig, long)` (`lib/documents.js`, tested) writes it everywhere
+— the PDF box ("אומת באמצעות קישור אישי לוואטסאפ"), the certificate and the Word file ("קישור אישי שנשלח לוואטסאפ 054-***-*491"),
+the admin drawer; an older signature still reads "קוד חד-פעמי…". The phone's top card is a plain document header (מסמך לחתימה ·
+number, the title, for whom · address · valid until) with no button; the document's client box is a signature line with a quiet
+"לחתימה" link; the bottom bar reads "המשך לחתימה". `sign-otp` stays for old links only.
 **Flow:** `docs-create` cleans the input (`cleanDocInput`), links the CRM lead (the given id, else the newest lead with that phone /
 email — never a new lead), numbers the document and writes `created` on the lead. `docs-send {id, via}` makes the private token
 (kept only as a hash), freezes the clauses on the row, renders the PDF the client signs (stored, its SHA-256 on the row), and
