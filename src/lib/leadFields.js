@@ -11,6 +11,13 @@ export const SOURCE_LABELS = {
   whatsapp:      { he: 'וואטסאפ',        en: 'WhatsApp',       color: '#25D366' },
   manual:        { he: 'הוזן ידנית',     en: 'Added manually', color: '#9AA0B5' },
   booking:       { he: 'קביעת שיחה באתר', en: 'Website booking', color: '#7C5CC4' },
+  // added by hand on the board ("ליד חדש", lib/manual-lead.js)
+  manual_phone:    { he: 'שיחת טלפון',   en: 'Phone call',     color: '#0EA5E9' },
+  manual_referral: { he: 'הפניה',        en: 'Referral',       color: '#16A34A' },
+  'manual_walk-in':{ he: 'הגיע למשרד',   en: 'Walk-in',        color: '#A16207' },
+  manual_meta:     { he: 'פייסבוק / אינסטגרם', en: 'Facebook / Instagram', color: '#1877F2' },
+  manual_yad2:     { he: 'יד2',          en: 'Yad2',           color: '#F97316' },
+  manual_other:    { he: 'הוזן ידנית',   en: 'Added manually', color: '#9AA0B5' },
 }
 export function sourceLabel(source, lang = 'he') {
   const s = SOURCE_LABELS[source]
@@ -122,6 +129,9 @@ export function leadCampaign(lead, lang = 'he') {
  *  the lead asked about; '' when there is none (a plain website form is not a project) */
 export function leadProject(lead) {
   if (!lead || typeof lead !== 'object') return ''
+  // a project the office put the lead in by hand (lib/projects.js) wins
+  const pn = String(lead.projectName || lead.crm_data?.projectName || '').trim()
+  if (pn) return pn.slice(0, 40)
   const m = metaName(lead)
   if (m) return shortCampaign(m)
   const crm = lead.crm_data && typeof lead.crm_data === 'object' ? lead.crm_data : {}

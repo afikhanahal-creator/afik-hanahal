@@ -21,6 +21,9 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import WaFace from './WaFace.jsx'
 import FollowUpsView, { FollowUpsButton } from './FollowUpsView.jsx'
+import { ProjectsBar, ProjectsManager, ProjectChip, ProjectPicker, NewLeadDialog } from './LeadProjects.jsx'
+import { useProjects } from './lib/projectsStore.js'
+import { filterByProject, projectOfLead } from '../lib/projects.js'
 import {
   Plus, Search, Filter, SortAsc, Eye, EyeOff, ChevronDown, ChevronRight,
   MoreHorizontal, User, Calendar, Phone, Mail, FileText, Link2, Zap,
@@ -98,6 +101,7 @@ const BUILT_IN_COLS = [
   { id: 'phone',      label: 'טלפון',        en: 'Phone',        type: 'phone',  width: 148 },
   { id: 'email',      label: 'אימייל',       en: 'Email',        type: 'email',  width: 200 },
   { id: 'leadStatus', label: 'סטטוס',        en: 'Status',       type: 'status', width: 140 },
+  { id: 'project',    label: 'פרויקט',       en: 'Project',      type: 'project', width: 160 },
   { id: 'property',   label: 'נכס',          en: 'Property',     type: 'text',   width: 170 },
   { id: 'location',   label: 'מיקום',        en: 'Location',     type: 'text',   width: 150 },
   { id: 'source',     label: 'מקור',         en: 'Source',       type: 'source', width: 130 },
@@ -490,6 +494,7 @@ function ClickableScoreCell({ value, lang, T, onSave }) {
 
 function MobileLeadCard({ lead, lang, T, onUpdate, onDelete, onOpenDetail, onStatusClick, onOpenChat }) {
   const openNote = useContext(NoteCtx)
+  const proj = useContext(ProjCtx)
   const campaign = leadCampaignTag(lead, lang)
   const last = lastNote(lead)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -538,6 +543,7 @@ function MobileLeadCard({ lead, lang, T, onUpdate, onDelete, onOpenDetail, onSta
             <StatusBadge value={lead.leadStatus || 'new'} lang={lang} T={T} onClick={e => { e.stopPropagation(); onStatusClick(e, lead) }} />
             <WelcomeMark lead={lead} lang={lang}/>
             <WaitingChip phone={lead.phone} lang={lang} onOpen={onOpenChat ? () => onOpenChat(lead) : undefined}/>
+            {proj && <ProjectChip lead={lead} projects={proj.projects} lang={lang} onAssign={patch => proj.assign(lead, patch)}/>}
           </div>
         </div>
         {/* ⋯ menu */}
@@ -742,6 +748,7 @@ const SEL_BG = T => (T.bg === '#111827' ? '#16233C' : '#EAF2FE')
 
 function SortableRow({ lead, cols, onUpdate, onDelete, onSelect, isSelected, lang, T, onOpenDetail, onStatusClick, onOpenChat, onEnrich }) {
   const [renaming, setRenaming] = useState(false)
+  const proj = useContext(ProjCtx)
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: lead.id })
   const [hovered, setHovered] = useState(false)
 
@@ -807,6 +814,8 @@ function SortableRow({ lead, cols, onUpdate, onDelete, onSelect, isSelected, lan
         return <div key={col.id} style={cellStyle}><EditableEmailCell value={val} T={T} onSave={v => handleUpdate(col, v)} /></div>
       case 'date':
         return <div key={col.id} style={cellStyle}><span style={{ fontSize: 12, color: T.textSub }}>{val || '—'}</span></div>
+      case 'project':
+        return <div key={col.id} style={cellStyle}>{proj ? <ProjectChip lead={lead} projects={proj.projects} lang={lang} onAssign={patch => proj.assign(lead, patch)}/> : null}</div>
       case 'source':
         return (
           <div key={col.id} style={cellStyle}>
@@ -1236,6 +1245,8 @@ function StatusPopup({ lead, onClose, onUpdate, lang, T }) {
 const NoteCtx = createContext(null)
 // Selection shared by the table and the Pipeline cards ({ has(id), toggle(id, on, shift) })
 const SelCtx = createContext(null)
+// the projects list + "put this lead in a project" for every card / row (src/LeadProjects.jsx)
+const ProjCtx = createContext(null)
 
 // A checkbox that is always visible (a native one is hidden by the admin's input reset): a real input for keyboard / screen
 // readers, drawn as a rounded box; indeterminate = some selected
@@ -1443,6 +1454,8 @@ function KanbanCard({ lead, T, isDark, lang, onOpen, onDelete, onOpenChat, onEnr
   const score = getScoreOpt(lead.enrichment?.intent)
   const openNote = useContext(NoteCtx)
   const sel = useContext(SelCtx)
+  const proj = useContext(ProjCtx)
+  const pr = proj ? projectOfLead(lead, proj.projects) : null
   const selected = !!sel?.has(lead.id)
   const last = lastNote(lead)
   const campaign = leadCampaignTag(lead, lang)
@@ -1510,7 +1523,8 @@ function KanbanCard({ lead, T, isDark, lang, onOpen, onDelete, onOpenChat, onEnr
       {/* tags: waiting for our reply · campaign · source · intent */}
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 5, marginTop: 9 }}>
         <WaitingChip phone={lead.phone} lang={lang} onOpen={onOpenChat ? () => onOpenChat(lead) : undefined}/>
-        {campaign && <span title={leadCampaignFull(lead, lang)} style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11.5, fontWeight: 500, color: T.text, background: isDark ? 'rgba(255,255,255,.06)' : '#F1F3F9', borderRadius: 6, padding: '2px 8px' }}><bdi>{campaign}</bdi></span>}
+        {proj && <ProjectChip lead={lead} projects={proj.projects} lang={lang} onAssign={patch => proj.assign(lead, patch)}/>}
+        {campaign && (!pr || pr.name !== campaign) && <span title={leadCampaignFull(lead, lang)} style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11.5, fontWeight: 500, color: T.text, background: isDark ? 'rgba(255,255,255,.06)' : '#F1F3F9', borderRadius: 6, padding: '2px 8px' }}><bdi>{campaign}</bdi></span>}
         {campaign !== sourceLabel(src, lang) && <span title={sourceLabel(src, lang)} style={{ fontSize: 11.5, fontWeight: 500, color: sourceColor(src), display: 'inline-flex', alignItems: 'center', gap: 5 }}><span style={{ width: 6, height: 6, borderRadius: '50%', background: sourceColor(src) }}/>{sourceLabel(src, lang)}</span>}
         {score && <span style={{ fontSize: 11.5, fontWeight: 600, color: score.color, background: score.bg, borderRadius: 6, padding: '2px 8px' }}>{en ? score.en : score.l}</span>}
       </div>
@@ -1920,7 +1934,7 @@ function AddColumnModal({ onClose, onAdd, T, lang }) {
 
 // ─── bulk action bar ──────────────────────────────────────────────────────────
 
-function BulkActionBar({ count, total, onClearSelection, onSelectAll, onDelete, onMove, onMerge, onAddProject, onBulkSend, onlySelected, onToggleOnly, lang, T }) {
+function BulkActionBar({ count, total, onClearSelection, onSelectAll, onDelete, onMove, onMerge, onAddProject, onAssignProject, onBulkSend, onlySelected, onToggleOnly, lang, T }) {
   const [confirmDel, setConfirmDel] = useState(false)
   const [moveOpen, setMoveOpen] = useState(false)
   useEffect(() => { setConfirmDel(false) }, [count])
@@ -1947,6 +1961,7 @@ function BulkActionBar({ count, total, onClearSelection, onSelectAll, onDelete, 
           </div>
         )}
       </div>
+      {onAssignProject && <button type="button" onClick={e => onAssignProject(e.currentTarget.getBoundingClientRect())} style={{ ...btn, background: '#4F46E5', borderColor: '#4F46E5' }}><Layers size={13}/> {en ? 'Assign to a project' : 'שיוך לפרויקט'}</button>}
       {count === 2 && onMerge && <button type="button" onClick={onMerge} style={btn}><Link2 size={13}/> {en ? 'Merge' : 'מזג'}</button>}
       {onBulkSend && <button type="button" onClick={onBulkSend} style={{ ...btn, background: '#1FA855', borderColor: '#1FA855' }} title={en ? 'One WhatsApp message to each selected lead, sent gradually (about one a minute) so the number is not blocked' : 'הודעת וואטסאפ לכל ליד שנבחר, בהדרגה (בערך אחת לדקה) כדי שהמספר לא ייחסם'}>{en ? 'WhatsApp bulk send' : 'שליחה מרובה בוואטסאפ'}</button>}
       {onAddProject && <button type="button" onClick={onAddProject} style={btn} title={en ? 'Adds " · <project>" after each selected lead\'s name (Meta campaign or listing)' : 'מוסיף " · <פרויקט>" אחרי השם של כל ליד נבחר (הקמפיין או הנכס)'}>{en ? '+ Project in the name' : '+ הפרויקט בשם'}</button>}
@@ -2176,8 +2191,18 @@ function LeadsBoardMain({
   const [onlyWaiting, setOnlyWaiting] = useState(false)
   const waitingCount = useMemo(() => leads.filter(l => waitingOf(waiting, l.phone)).length, [leads, waiting])
   useEffect(() => { if (!waitingCount) setOnlyWaiting(false) }, [waitingCount])
+  // Projects (deals): the bar above the board filters every view by one project (lib/projects.js, src/LeadProjects.jsx)
+  const projects = useProjects()
+  const [projectFilter, setProjectFilterRaw] = useState(() => { try { return localStorage.getItem('afik_lead_project_filter') || '' } catch { return '' } })
+  const setProjectFilter = v => { setProjectFilterRaw(v); try { localStorage.setItem('afik_lead_project_filter', v || '') } catch {} }
+  useEffect(() => { if (projectFilter && projectFilter !== '__none' && projects.length && !projects.some(p => p.id === projectFilter)) setProjectFilter('') }, [projects, projectFilter]) // eslint-disable-line react-hooks/exhaustive-deps
+  const projLeads = useMemo(() => filterByProject(leads, projects, projectFilter), [leads, projects, projectFilter])
+  const [projModal, setProjModal] = useState(null)       // 'manage' | 'new'
+  const [newLead, setNewLead] = useState(null)           // { stage } — the "ליד חדש" dialog
+  const [bulkProj, setBulkProj] = useState(null)         // the bulk bar's project picker (anchor rect)
+  const projCtx = useMemo(() => ({ projects, assign: (lead, patch) => updateLead(lead.id, patch) }), [projects, updateLead])
   const filtered = useMemo(() => {
-    const base = onlyWaiting ? leads.filter(l => waitingOf(waiting, l.phone)) : leads
+    const base = onlyWaiting ? projLeads.filter(l => waitingOf(waiting, l.phone)) : projLeads
     if (!search) return base
     const q = search.toLowerCase()
     return base.filter(l =>
@@ -2187,7 +2212,7 @@ function LeadsBoardMain({
       (l.propTitle || '').toLowerCase().includes(q) ||
       leadCampaignFull(l, lang).toLowerCase().includes(q)
     )
-  }, [leads, search, lang, onlyWaiting, waiting])
+  }, [projLeads, search, lang, onlyWaiting, waiting])
 
   const grouped = useMemo(() => {
     const map = {}
@@ -2225,10 +2250,13 @@ function LeadsBoardMain({
 
   const showToast = msg => setToast(msg)
 
-  const handleAddRow = (groupId, name) => {
-    const lead = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), name, phone: '', email: '', msg: '', propTitle: '', ts: Date.now(), leadStatus: groupId }
-    addLead(lead)
-    showToast(lang === 'en' ? 'Lead added' : 'ליד נוסף')
+  // "ליד חדש" / "+ הוסף ליד" in a column → the dialog (saved on the server with its project and stage; it used to add a
+  // row in this browser only, lost on the next device)
+  const handleAddRow = (groupId) => setNewLead({ stage: groupId && groupId !== 'all' ? groupId : 'new' })
+  const onLeadCreated = d => {
+    addLead({ id: String(d.id), name: d.name || '', phone: d.phone || '', email: d.email || '', msg: d.message || '', propTitle: d.prop_title || '', propLocation: '',
+      source: d.source || 'manual_other', ts: Date.parse(d.created_at || '') || Date.now(), ...(d.crm_data || {}) })
+    showToast(lang === 'en' ? 'Lead added' : 'הליד נוסף')
   }
 
   const handleDelete = id => {
@@ -2284,11 +2312,27 @@ function LeadsBoardMain({
   const toggleColVisibility = id => setHiddenCols(prev => ({ ...prev, [id]: !prev[id] }))
   const hiddenCount = Object.values(hiddenCols).filter(Boolean).length
 
+  // the projects' windows (both layouts): manage / new project, the new-lead dialog, the bulk bar's project picker
+  const projModals = (
+    <>
+      {projModal && <ProjectsManager leads={leads} projects={projects} lang={lang} startNew={projModal === 'new'} onClose={() => setProjModal(null)}
+        onShow={id => { setProjectFilter(id); setProjModal(null); if (activeTab === 'followups') setActiveTab('pipeline') }}/>}
+      {newLead && <NewLeadDialog projects={projects} defaultProjectId={projectFilter} defaultStage={newLead.stage} lang={lang} onClose={() => setNewLead(null)} onCreated={onLeadCreated}/>}
+      {bulkProj && <ProjectPicker rect={bulkProj} projects={projects} lang={lang} onClose={() => setBulkProj(null)} onPick={p => {
+        const n = selectedIds.size
+        for (const id of selectedIds) { const l = leads.find(x => x.id === id); if (l) updateLead(l.id, p ? { projectId: p.id, projectName: p.name } : { projectId: '__none', projectName: '' }) }
+        setBulkProj(null); setSelectedIds(new Set())
+        showToast(p ? (lang === 'en' ? `${n} leads moved to ${p.name}` : `${n} לידים שויכו ל${p.name}`) : (lang === 'en' ? `${n} leads taken out of their project` : `${n} לידים הוצאו מהפרויקט`))
+      }}/>}
+    </>
+  )
+  const projBar = <ProjectsBar leads={leads} projects={projects} value={projectFilter} onChange={setProjectFilter} onManage={() => setProjModal('manage')} onNewProject={() => setProjModal('new')} lang={lang}/>
+
   // ────────────────────────────────────────────────────────────────────────────
   // MOBILE LAYOUT
   // ────────────────────────────────────────────────────────────────────────────
   if (isMobile) {
-    return (
+    return (<ProjCtx.Provider value={projCtx}>
       <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', background: T.bg, fontFamily: "Rubik,'Inter','Segoe UI',system-ui,sans-serif", direction: lang === 'en' ? 'ltr' : 'rtl', overflow: 'hidden' }}>
 
         {/* ── Mobile Header ── */}
@@ -2314,6 +2358,7 @@ function LeadsBoardMain({
               <RefreshCw size={18} style={{ animation: leadsSyncing ? 'spin 1s linear infinite' : 'none' }} />
             </button>
           </div>
+          {projBar}
 
           {/* Mobile search */}
           {mobileSearch && (
@@ -2357,13 +2402,13 @@ function LeadsBoardMain({
 
         {activeTab === 'dashboard' && (
           <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
-            <LeadsDashboard leads={leads} search={search} onClearSearch={() => setSearch('')} stages={GROUPS} T={T} isDark={isDark} lang={lang} onOpen={setDetailLead} onOpenChat={onOpenChat} />
+            <LeadsDashboard leads={projLeads} search={search} onClearSearch={() => setSearch('')} stages={GROUPS} T={T} isDark={isDark} lang={lang} onOpen={setDetailLead} onOpenChat={onOpenChat} />
           </div>
         )}
 
         {activeTab === 'followups' && (
           <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-            <FollowUpsView leads={leads} lang={lang} stages={GROUPS} onUpdate={updateLead} onOpen={setDetailLead} onOpenChat={onOpenChat}/>
+            <FollowUpsView leads={projLeads} lang={lang} stages={GROUPS} onUpdate={updateLead} onOpen={setDetailLead} onOpenChat={onOpenChat}/>
           </div>
         )}
 
@@ -2440,13 +2485,14 @@ function LeadsBoardMain({
         {toast && <Toast message={toast} onDismiss={() => setToast(null)} />}
         <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}` + LB_CSS}</style>
       </div>
-    )
+      {projModals}
+    </ProjCtx.Provider>)
   }
 
   // ────────────────────────────────────────────────────────────────────────────
   // DESKTOP LAYOUT
   // ────────────────────────────────────────────────────────────────────────────
-  return (
+  return (<ProjCtx.Provider value={projCtx}>
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', background: T.bg, fontFamily: "Rubik,'Inter','Segoe UI',system-ui,sans-serif", direction: lang === 'en' ? 'ltr' : 'rtl', overflow: 'hidden' }}>
 
       {/* ── Board title bar ── */}
@@ -2481,7 +2527,7 @@ function LeadsBoardMain({
             ))}
           </div>
           <div style={{ marginInlineStart: 10 }}>
-            <FollowUpsButton leads={leads} lang={lang} active={activeTab === 'followups'} onClick={() => setActiveTab('followups')}/>
+            <FollowUpsButton leads={projLeads} lang={lang} active={activeTab === 'followups'} onClick={() => setActiveTab('followups')}/>
           </div>
           {waitingCount > 0 && (
             <button type="button" className={`fv-btn lb-waiting-btn${onlyWaiting ? ' is-open' : ''}`} aria-pressed={onlyWaiting} style={{ marginInlineStart: 8 }}
@@ -2491,6 +2537,7 @@ function LeadsBoardMain({
             </button>
           )}
         </div>
+        {projBar}
       </div>
 
       {/* ── Toolbar: new lead · search · (table) columns ┊ sync · trash · CSV · (table) add column · enrich ── */}
@@ -2536,14 +2583,14 @@ function LeadsBoardMain({
       {/* ── Overview: funnel + stage drill-down ── */}
       {activeTab === 'dashboard' && (
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
-          <LeadsDashboard leads={leads} search={search} onClearSearch={() => setSearch('')} stages={GROUPS} T={T} isDark={isDark} lang={lang} onOpen={setDetailLead} onOpenChat={onOpenChat} />
+          <LeadsDashboard leads={projLeads} search={search} onClearSearch={() => setSearch('')} stages={GROUPS} T={T} isDark={isDark} lang={lang} onOpen={setDetailLead} onOpenChat={onOpenChat} />
         </div>
       )}
 
       {/* ── Follow-ups & tasks: a screen of its own (src/FollowUpsView.jsx) ── */}
       {activeTab === 'followups' && (
         <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-          <FollowUpsView leads={leads} lang={lang} stages={GROUPS} onUpdate={updateLead} onOpen={setDetailLead} onOpenChat={onOpenChat}/>
+          <FollowUpsView leads={projLeads} lang={lang} stages={GROUPS} onUpdate={updateLead} onOpen={setDetailLead} onOpenChat={onOpenChat}/>
         </div>
       )}
 
@@ -2669,7 +2716,7 @@ function LeadsBoardMain({
       {statusTarget && <StatusPopup lead={statusTarget} onClose={() => setStatusTarget(null)} onUpdate={updateLeadStatus} lang={lang} T={T} />}
       {detailLead && <LeadCard key={detailLead.id} lead={leads.find(l => l.id === detailLead.id) || detailLead} onClose={() => setDetailLead(null)} onUpdate={updateLead} onUpdateStatus={updateLeadStatus} onEnrich={enrichLead} onOpenChat={onOpenChat} lang={lang} stages={GROUPS} />}
       {selectedIds.size > 0 && <BulkActionBar count={selectedIds.size} total={filtered.length} lang={lang} T={T} onClearSelection={() => setSelectedIds(new Set())} onSelectAll={() => setSelectedIds(new Set(filtered.map(l => l.id)))}
-        onlySelected={onlySelected} onToggleOnly={() => { setOnlySelected(v => !v); setActiveTab(t => (t === 'table' ? t : 'table')) }} onDelete={handleBulkDelete} onMove={handleBulkMove}
+        onlySelected={onlySelected} onToggleOnly={() => { setOnlySelected(v => !v); setActiveTab(t => (t === 'table' ? t : 'table')) }} onDelete={handleBulkDelete} onMove={handleBulkMove} onAssignProject={rect => setBulkProj(rect)}
         onMerge={() => { const [a, b] = [...selectedIds].map(id => leads.find(l => l.id === id)); if (a && b) setMergePair([a, b]) }}
         onBulkSend={() => window.dispatchEvent(new CustomEvent('afik:bulk-send', { detail: { ids: [...selectedIds] } }))}
         onAddProject={() => {
@@ -2810,5 +2857,6 @@ function LeadsBoardMain({
 
       <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}` + LB_CSS}</style>
     </div>
-  )
+    {projModals}
+  </ProjCtx.Provider>)
 }

@@ -24,6 +24,7 @@ import { buildLeadEmailHtml } from '../lib/lead-email.js'
 import { hebrewFullName } from '../lib/hebrew-names.js'
 import { restoreRow } from '../lib/lead-restore.js'
 import { properHebrewName } from '../lib/name-proof.js'
+import { manualLeadRow } from '../lib/manual-lead.js'
 
 // ── Lead backup (Vercel Blob) ────────────────────────────────────────────────
 // If Supabase refuses the INSERT (quota / paused project / outage) the lead used to exist only in the
@@ -471,6 +472,23 @@ export default async function handler(req, res) {
       const saved = await r.json().catch(() => [])
       console.log(`[contacts] restored ${saved.length} lead(s)`)
       return res.status(200).json({ ok: true, restored: saved.map(x => String(x.id)), existing, skipped: list.length - rows.length - existing.length })
+    }
+
+    // ── POST ?manual=1: a lead the office adds by hand (the board's "ליד חדש", admin only) ─────────────────────
+    // Saved like any lead, with its stage, project, first note and source; no new-lead email / WhatsApp to the office (we
+    // typed it), and the WhatsApp welcome only when the office ticked it (welcome: true)
+    if (req.method === 'POST' && req.query.manual) {
+      if (req.headers.authorization !== `Bearer ${ADMIN_TOKEN}`) return res.status(401).json({ error: 'unauthorized' })
+      const b = req.body || {}
+      const r = manualLeadRow(b, await properHebrewName(b.name || ''))
+      if (r.error) return res.status(400).json({ error: r.error })
+      const saved = await insertContact(r.row).catch(e => ({ error: e.message }))
+      if (!saved || saved.error || !saved.id) return res.status(502).json({ error: saved?.error || 'insert failed' })
+      let welcome = null
+      if (b.welcome && saved.phone) {
+        welcome = await Promise.race([onLeadCreated({ ...saved }), new Promise(ok => setTimeout(() => ok({ pending: true }), 12000))]).catch(e => ({ ok: false, error: e.message }))
+      }
+      return res.status(201).json({ ...saved, welcome })
     }
 
     // ── POST: create new contact ─────────────────────────────────────────────

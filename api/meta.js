@@ -29,6 +29,7 @@ import { hebrewizeRecentNames } from '../lib/hebrew-lead-names.js'
 import { parseGreenHook, rowToGreen, mergeHistory, historyToRow } from '../lib/green-hook.js'
 import { avatarExpiry, avatarFresh, avatarPhone } from '../lib/wa-avatar.js'
 import { forwardRequest, fileGroupRequest, cleanMsgId, cleanReaction, isHandled, withHandled, withoutHandled } from '../lib/wa-actions.js'
+import { cleanProjects } from '../lib/projects.js'
 
 const SUPERMETRICS_API_KEY    = process.env.SUPERMETRICS_API_KEY    || ''
 // System User token (afik-api) — permanent, survives password changes. Used to
@@ -117,6 +118,25 @@ async function handleGreenHook(req, res) {
     }
   } catch (e) { console.error('[green-hook]', e.message) }
   return res.status(200).json({ ok: true })
+}
+
+// ── Projects (deals) the leads belong to (lib/projects.js) — the list lives in app_settings 'lead_projects' ──────────────
+// GET → { projects } · POST { projects } → the cleaned list saved (the board sends the whole list; a project is never lost by a
+// stale tab: the server merges by id, a missing id stays unless `removed` names it)
+async function handleProjects(req, res) {
+  if (!checkAuth(req)) return res.status(401).json({ error: 'Unauthorized' })
+  res.setHeader('Cache-Control', 'no-store')
+  const cur = cleanProjects((await Auto.getSetting('lead_projects').catch(() => ({ value: null }))).value || [])
+  if (req.method === 'GET') return res.status(200).json({ projects: cur })
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
+  const b = req.body || {}
+  const removed = new Set((Array.isArray(b.removed) ? b.removed : []).map(String))
+  const incoming = cleanProjects(b.projects)
+  const byId = new Map(cur.filter(p => !removed.has(p.id)).map(p => [p.id, p]))
+  for (const p of incoming) if (!removed.has(p.id)) byId.set(p.id, p)
+  const next = cleanProjects([...incoming.filter(p => byId.has(p.id)), ...[...byId.values()].filter(p => !incoming.some(x => x.id === p.id))])
+  try { await Auto.putSetting('lead_projects', next) } catch (e) { return res.status(502).json({ error: e.message }) }
+  return res.status(200).json({ ok: true, projects: next })
 }
 
 // ── Green API instance settings: the journals that keep the lead's replies ──────────────────────────────────────────
@@ -1918,6 +1938,7 @@ export default async function handler(req, res) {
 
   if (path === 'webhook')      return handleWebhook(req, res)
   if (path === 'green-hook')   return handleGreenHook(req, res)
+  if (path === 'projects')     return handleProjects(req, res)
   if (path === 'leads')        return handleLeads(req, res)
   if (path === 'messages')     return handleMessages(req, res)
   if (path === 'sync')         return handleSync(req, res)
