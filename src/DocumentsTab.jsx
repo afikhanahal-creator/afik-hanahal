@@ -7,8 +7,8 @@
 // Everything here uses the admin tokens (T.* / var(--au-*)) and works in light / dark, RTL and on a phone.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { FileSignature, Plus, Search, Send, RefreshCw, Download, Link2, XCircle, Settings, Eye, Copy, Check, AlertTriangle, ChevronLeft, ChevronRight, FileText, Trash2, Upload, Clock, CheckCircle2, PenLine, Mail, MessageCircle, FolderKanban, Cloud, Bell, Users, ExternalLink, Building2, Zap } from 'lucide-react'
-import { T, Button, StatTile, FilterChip, Badge, EmptyState, Field, inputStyle, Modal, Drawer, useToasts, SectionHead } from './automationsUI.jsx'
+import { X, FileSignature, Plus, Search, Send, RefreshCw, Download, Link2, XCircle, Settings, Eye, Copy, Check, AlertTriangle, ChevronLeft, ChevronRight, FileText, Trash2, Upload, Clock, CheckCircle2, PenLine, Mail, MessageCircle, FolderKanban, Cloud, Bell, Users, ExternalLink, Building2, Zap } from 'lucide-react'
+import { T, Button, IconButton, StatTile, FilterChip, Badge, EmptyState, Field, inputStyle, Modal, Drawer, useToasts, SectionHead } from './automationsUI.jsx'
 import { autoApi } from './AutomationsApi.jsx'
 import DocSheet, { DOC_CSS } from './DocPreview.jsx'
 import { onSync } from './lib/syncBus.js'
@@ -88,10 +88,11 @@ export const DOCS_CSS = `
 .dt-ib:hover{border-color:var(--au-line);color:var(--au-text);background:rgba(var(--ov),.05)}
 .dt-cards{display:none}
 .dw{display:grid;grid-template-columns:minmax(360px,460px) minmax(0,1fr);gap:0;height:100%;min-height:0}
-.dw-form{display:flex;flex-direction:column;min-height:0;min-width:0;border-inline-end:1px solid var(--au-line)}
+.dw-form{display:flex;flex-direction:column;min-height:0;min-width:0;border-inline-end:1px solid var(--au-line);container-type:inline-size}
+@container (max-width:560px){.dw-step:not(.on){flex:0 0 auto}.dw-step:not(.on) .lbl{display:none}.dw-steps{gap:8px}}
 .dw>*{min-width:0}.dw-body>*{min-width:0}.qd-sec .dw-chips input{min-width:0}
-.dw-steps{display:flex;gap:4px;padding:12px 16px 10px;border-bottom:1px solid var(--au-line);overflow-x:auto}
-.dw-step{flex:1;display:flex;align-items:center;gap:6px;font-size:12px;color:var(--au-text3);white-space:nowrap;min-width:0}
+.dw-steps{display:flex;gap:6px;padding:12px 16px 10px;border-bottom:1px solid var(--au-line);overflow-x:auto}
+.dw-step{flex:1;display:flex;align-items:center;gap:6px;font-size:12px;color:var(--au-text3);white-space:nowrap;min-width:0;overflow:hidden}.dw-step .lbl{overflow:hidden;text-overflow:ellipsis}
 .dw-step i{width:20px;height:20px;border-radius:50%;border:1px solid var(--au-line);display:inline-flex;align-items:center;justify-content:center;font-style:normal;font-size:11px;font-weight:600;flex-shrink:0}
 .dw-step.on{color:var(--au-text);font-weight:600}.dw-step.on i{background:var(--au-brand);border-color:var(--au-brand);color:#fff}
 .dw-step.done i{background:rgba(37,211,102,.16);border-color:rgba(37,211,102,.5);color:var(--au-green-text)}
@@ -206,6 +207,25 @@ select.dt-input{appearance:auto}
 .dt-fun-table td.ok{color:var(--au-green-text);font-weight:600}.dt-fun-table tfoot td{font-weight:600;border-bottom:none;border-top:1px solid var(--au-line)}
 .dt-fun-bar{display:inline-block;width:46px;height:4px;border-radius:2px;background:rgba(var(--ov),.08);margin-inline-start:8px;vertical-align:middle;overflow:hidden}.dt-fun-bar i{display:block;height:100%;background:var(--au-brand)}
 @media (max-width:640px){.dt-fun-table .hide-sm{display:none}.dt-fun-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.dt-fun-bar{display:none}.dw-msg-sel{flex-direction:column;align-items:stretch}}
+.dw-mhead{display:flex;gap:10px;align-items:center;padding:10px 12px 10px 14px;border-bottom:1px solid var(--au-line);min-height:52px}
+.dw-mhead-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}.dw-mhead-t b{font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.dw-mhead-t small{font-size:12px;color:var(--au-text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dw-mhead-r{display:flex;gap:6px;align-items:center;flex-shrink:0}
+.dw-prog{height:3px;background:rgba(var(--ov),.08);display:none}.dw-prog i{display:block;height:100%;background:var(--au-brand);transition:width .25s}
+.dw-prev-bar{display:none;gap:10px;align-items:center;padding:8px 12px;background:var(--au-card);border-bottom:1px solid var(--au-line);position:sticky;top:0;z-index:2;width:100%}
+.dw-prev-bar b{flex:1;font-size:14px;font-weight:600}
+.dw-foot .dw-close-btn{}
+.qd-modes{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0 18px 12px}
+.qd-mode{display:flex;gap:12px;align-items:center;text-align:start;border:1px solid var(--au-line);border-radius:14px;padding:12px 14px;background:var(--au-card);font:inherit;color:var(--au-text);cursor:pointer;min-height:0}
+.qd-mode:hover{border-color:rgba(var(--brand-rgb),.5)}.qd-mode.on{border-color:var(--au-brand);box-shadow:0 0 0 3px rgba(var(--brand-rgb),.12)}
+.qd-mode i{width:38px;height:38px;border-radius:11px;background:rgba(var(--brand-rgb),.1);color:var(--au-brand-text);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.qd-mode b{display:block;font-size:14px;font-weight:600}.qd-mode small{display:block;font-size:12px;color:var(--au-text3);line-height:1.4}
+@media (max-width:1020px){.dw-prev-bar{display:flex}.dw.show-prev .dw-prev{flex-direction:column;align-items:stretch;justify-content:flex-start}}
+@media (max-width:760px){.dw,.qd{height:100%!important;max-height:none!important}.dw{grid-template-columns:minmax(0,1fr)}.dw-form{border-inline-end:none}.dw-steps{display:none}.dw-prog{display:block}
+.dw-body{padding:14px 14px 18px;overflow-x:hidden}.dw-grid{grid-template-columns:1fr}.dw-body input[style*="width"],.dw-body .dt-input[style*="width"]{max-width:100%}
+.dw-foot{display:grid;grid-template-columns:auto auto minmax(0,1fr);gap:8px;padding:10px 12px;padding-bottom:max(10px,env(safe-area-inset-bottom))}.dw-foot>div{display:contents!important}
+.dw-foot .dw-close-btn,.dw-foot .dw-draft-btn{display:none!important}.dw-foot .dw-prev-btn{width:40px;height:40px;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:0}.dw-foot .dw-prev-btn svg{font-size:14px}
+.dw-foot .dw-next{grid-column:3;width:100%;justify-content:center}.dw-foot .dw-back{grid-column:1}
+.qd-modes{grid-template-columns:1fr;padding:0 12px 10px}.qd-prop{padding:10px 12px}.qd-prop .dw-chip{white-space:nowrap}}
 @media (max-width:1020px){.dw{grid-template-columns:1fr}.dw-prev{display:none}.dw.show-prev .dw-form{display:none}.dw.show-prev .dw-prev{display:flex;padding:0;background:#fff}.dw-prev-in{transform:none!important;width:100%}}
 @media (max-width:760px){.dt-tiles{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.dt-areas{overflow-x:auto;scrollbar-width:none}.dt-areas::-webkit-scrollbar{display:none}.dt-area{white-space:nowrap;padding:8px 10px}.dt-table{display:none}.dt-cards{display:flex;flex-direction:column;gap:8px}.dt-card{background:var(--au-card);border:1px solid var(--au-line);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:6px;cursor:pointer}.dt-card .r{display:flex;justify-content:space-between;align-items:center;gap:8px}.dw-grid{grid-template-columns:1fr}}
 `
@@ -303,7 +323,7 @@ export default function DocumentsTab({ lang = 'he', leads = [], properties = [],
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <Button variant="ghost" icon={<RefreshCw size={14}/>} onClick={() => { load(); loadTemplates() }} title={t.refresh}>{t.refresh}</Button>
           <Button variant="ghost" icon={<Upload size={14}/>} onClick={() => { setArea('templates'); setTplEditor({ upload: true }) }} className="dt-upload">{t.uploadTpl}</Button>
-          <Button variant="soft-green" icon={<Building2 size={15}/>} onClick={() => setQuick({})} className="dt-quick">מסמך מהיר מנכס</Button>
+          <Button variant="soft-green" icon={<Building2 size={15}/>} onClick={() => setQuick({})} className="dt-quick">מסמך מהיר</Button>
           <Button variant="solid" icon={<Plus size={15}/>} onClick={() => setWizard({ projectId: project || '' })} className="dt-new">{t.newDoc}</Button>
         </div>
       </div>
@@ -389,8 +409,8 @@ export default function DocumentsTab({ lang = 'he', leads = [], properties = [],
         </>
       ))}
       <p style={{ fontSize: 12, color: 'var(--au-text3)', margin: 0 }}>{t.legal}</p>
-      {quick && <QuickDoc t={t} leads={leads} properties={properties} projects={projects} templates={templates} settings={settings} initPropertyId={quick.propertyId || ''} initLeadId={quick.leadId || ''} onClose={() => setQuick(null)} onDone={msg => { setQuick(null); if (msg) push(msg); load() }} onFull={prefill => { setQuick(null); setWizard(prefill && prefill.property ? { prefill } : { projectId: project || '' }) }} push={push} onPresetSaved={s => setSettings(s)}/>}
-      {wizard && <DocWizard t={t} leads={leads} properties={properties} projects={projects} templates={templates} settings={settings} init={wizard} onClose={() => setWizard(null)} onDone={(msg) => { setWizard(null); if (msg) push(msg); load() }} push={push}/>}
+      {quick && <QuickDoc t={t} leads={leads} properties={properties} projects={projects} templates={templates} settings={settings} initPropertyId={quick.propertyId || ''} initLeadId={quick.leadId || ''} initTemplateId={quick.templateId || ''} manual={!!quick.manual} onClose={() => setQuick(null)} onDone={msg => { setQuick(null); if (msg) push(msg); load() }} onFull={prefill => { setQuick(null); setWizard(prefill && prefill.property ? { prefill } : { projectId: project || '' }) }} push={push} onPresetSaved={s => setSettings(s)}/>}
+      {wizard && <DocWizard t={t} leads={leads} properties={properties} projects={projects} templates={templates} settings={settings} init={wizard} onClose={() => setWizard(null)} onDone={(msg) => { setWizard(null); if (msg) push(msg); load() }} push={push} onQuick={tid => { const leadId = wizard.leadId || ''; setWizard(null); setQuick({ manual: true, templateId: tid === 'brokerage' ? '' : tid, leadId }) }}/>}
       {tplEditor && <Modal open onClose={() => setTplEditor(null)} title={null} full xl dir="rtl" label={t.areas.templates} closeOnBackdrop={false}>
         <div style={{ height: 'calc(100vh - 80px)', maxHeight: 920, display: 'flex', flexDirection: 'column' }}>
           {tplEditor.upload ? <TemplateUpload push={push} onCancel={() => setTplEditor(null)} onReady={r => setTplEditor({ ...r, ready: true })}/> : <TemplateEditor initial={tplEditor.template ? { template: tplEditor.template } : tplEditor} onClose={() => setTplEditor(null)} onSaved={() => { loadTemplates(); setArea('templates') }}/>}
@@ -542,7 +562,23 @@ function FunnelCard({ docs, onMonth }) {
   )
 }
 
-function DocWizard({ t, leads, properties, projects = [], templates = [], settings, init, onClose, onDone, push }) {
+/** The bar on top of every full-screen modal of the module: ✕ to leave, what this screen is, where we are. */
+function ModalBar({ title, sub, onClose, right = null, pct = null }) {
+  return (<>
+    <div className="dw-mhead">
+      <IconButton icon={<X size={18}/>} label="סגירה" onClick={onClose} size={36}/>
+      <div className="dw-mhead-t"><b>{title}</b>{sub && <small>{sub}</small>}</div>
+      {right && <div className="dw-mhead-r">{right}</div>}
+    </div>
+    {pct != null && <div className="dw-prog" aria-hidden="true"><i style={{ width: `${pct}%` }}/></div>}
+  </>)
+}
+/** On a phone the preview replaces the form: this bar brings the form back (and ✕ leaves). */
+function PreviewBar({ onBack, onClose, label = 'חזרה לטופס' }) {
+  return <div className="dw-prev-bar"><Button size="sm" variant="ghost" icon={<ChevronRight size={14}/>} onClick={onBack}>{label}</Button><b>תצוגה מקדימה</b><IconButton icon={<X size={18}/>} label="סגירה" onClick={onClose} size={34}/></div>
+}
+
+function DocWizard({ t, leads, properties, projects = [], templates = [], settings, init, onClose, onDone, push, onQuick = null }) {
   const [step, setStep] = useState(init.templateId || init.doc || init.prefill ? 1 : 0)
   const [form, setForm] = useState(() => {
     const f = emptyForm(settings)
@@ -632,6 +668,7 @@ function DocWizard({ t, leads, properties, projects = [], templates = [], settin
   const tplStep = (
     <>
       <Field label={t.tplPick}/>
+      {onQuick && <button type="button" className="qd-mode" onClick={() => onQuick(form.templateId || 'brokerage')}><i><PenLine size={18}/></i><span><b>מילוי מהיר: רק מה שמשתנה</b><small>שם הלקוח, כתובת הנכס, מחיר ופרטי העסקה, דמי התיווך ותוקף החתימה — במסך אחד, עם תצוגה חיה. השאר נלקח מההגדרות.</small></span></button>}
       <div className="dt-tpls">
         {[{ id: 'brokerage', name: DOC_TYPES.brokerage.name, builtin: true, blocks: new Array(8), fields: [] }, ...templates].map(tp => <button type="button" key={tp.id} className={`dt-tpl${(form.templateId || 'brokerage') === tp.id ? ' on' : ''}`} style={(form.templateId || 'brokerage') === tp.id ? { borderColor: 'var(--au-brand)', boxShadow: '0 0 0 3px rgba(var(--brand-rgb),.14)' } : { cursor: 'pointer' }} onClick={() => setForm(f => ({ ...f, templateId: tp.id, title: tp.builtin ? '' : (tp.title || tp.name) }))}><div className="dt-tpl-top"><FileText size={15}/><b>{tp.name}</b>{tp.builtin && <span className="dt-st" style={{ background: 'rgba(var(--brand-rgb),.12)', color: 'var(--au-brand-text)' }}>{t.builtin}</span>}</div><small>{tp.builtin ? '8 סעיפים · לקוח · נכס · דמי תיווך' : `${t.tplBlocks(tp.blocks.length)} · ${t.tplFields(tp.fields.length)}`}</small></button>)}
       </div>
@@ -760,23 +797,25 @@ function DocWizard({ t, leads, properties, projects = [], templates = [], settin
     <Modal open onClose={onClose} title={null} full xl dir="rtl" label={t.newDoc} closeOnBackdrop={false}>
       <div className={`dw${showPrev ? ' show-prev' : ''}`} style={{ height: 'calc(100vh - 80px)', maxHeight: 900 }}>
         <div className="dw-form">
-          <div className="dw-steps" role="list">{flow.map((id, i) => <div key={id} role="listitem" className={`dw-step${i === step ? ' on' : i < step ? ' done' : ''}`}><i>{i < step ? '✓' : i + 1}</i>{STEP_LABEL[id]}</div>)}</div>
+          <ModalBar title={`${STEP_LABEL[cur]}${number ? ` · ${number}` : ''}`} sub={`${init.doc ? 'עריכת מסמך' : t.newDoc} · שלב ${step + 1} מתוך ${flow.length}`} onClose={onClose} pct={Math.round((step + 1) / flow.length * 100)}
+            right={step >= 1 && cur !== 'send' && cur !== 'preview' ? <Button size="sm" variant="ghost" loading={busy === 'save'} onClick={async () => { const d = await save(); if (d) onDone(`${t.saveDraft} ✓ ${d.number}`) }}>{t.saveDraft}</Button> : null}/>
+          <div className="dw-steps" role="list">{flow.map((id, i) => <div key={id} role="listitem" className={`dw-step${i === step ? ' on' : i < step ? ' done' : ''}`} title={STEP_LABEL[id]}><i>{i < step ? '✓' : i + 1}</i><span className="lbl">{STEP_LABEL[id]}</span></div>)}</div>
           <div className="dw-body">{cur === 'tpl' ? tplStep : cur === 'fields' ? fieldsStep : stepUi[{ client: 0, property: 1, fees: 2, preview: 3, send: 4 }[cur]]}{!!errs.length && <div className="dw-err" role="alert">{errs.map((e, i) => <div key={i}>{e}</div>)}</div>}</div>
           <div className="dw-foot">
             <div style={{ display: 'flex', gap: 8 }}>
-              <Button variant="plain" onClick={onClose}>✕ סגירה</Button>
-              {step > 0 && <Button variant="ghost" icon={<ChevronRight size={14}/>} onClick={() => { setErrs([]); setStep(s => s - 1) }}>{t.back}</Button>}
+              <Button variant="plain" className="dw-close-btn" onClick={onClose}>✕ סגירה</Button>
+              <Button variant="ghost" className="dw-back" icon={<ChevronRight size={14}/>} disabled={step === 0} onClick={() => { setErrs([]); setStep(s => Math.max(0, s - 1)) }}>{t.back}</Button>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button type="button" className="dw-chip dw-prev-btn" onClick={() => setShowPrev(s => !s)}>{showPrev ? 'הטופס' : t.preview}</button>
-              {step >= 1 && cur !== 'send' && cur !== 'preview' && <Button variant="ghost" loading={busy === 'save'} onClick={async () => { const d = await save(); if (d) onDone(`${t.saveDraft} ✓ ${d.number}`) }}>{t.saveDraft}</Button>}
-              {cur !== 'send' ? <Button variant="solid" icon={<ChevronLeft size={14}/>} loading={busy === 'save'} onClick={next}>{t.next}</Button>
-                : result?.results?.some(r => r.ok) ? <Button variant="solid" onClick={() => onDone('')}>סיום</Button>
-                : <Button variant="solid" icon={<Send size={14}/>} loading={busy === 'send'} disabled={!hasWa && !hasEmail} onClick={doSend}>{t.sendNow}</Button>}
+              <button type="button" className="dw-chip dw-prev-btn" onClick={() => setShowPrev(s => !s)} aria-label={showPrev ? 'הטופס' : t.preview}><Eye size={14}/> {showPrev ? 'הטופס' : t.preview}</button>
+              {step >= 1 && cur !== 'send' && cur !== 'preview' && <Button variant="ghost" className="dw-draft-btn" loading={busy === 'save'} onClick={async () => { const d = await save(); if (d) onDone(`${t.saveDraft} ✓ ${d.number}`) }}>{t.saveDraft}</Button>}
+              {cur !== 'send' ? <Button variant="solid" className="dw-next" icon={<ChevronLeft size={14}/>} loading={busy === 'save'} onClick={next}>{t.next}</Button>
+                : result?.results?.some(r => r.ok) ? <Button variant="solid" className="dw-next" onClick={() => onDone('')}>סיום</Button>
+                : <Button variant="solid" className="dw-next" icon={<Send size={14}/>} loading={busy === 'send'} disabled={!hasWa && !hasEmail} onClick={doSend}>{t.sendNow}</Button>}
             </div>
           </div>
         </div>
-        <div className="dw-prev" ref={prevRef}><div className="dw-prev-in" style={{ transform: `scale(${scale})`, width: 794 }}><DocSheet view={view}/></div></div>
+        <div className="dw-prev" ref={prevRef}><PreviewBar onBack={() => setShowPrev(false)} onClose={onClose}/><div className="dw-prev-in" style={{ transform: `scale(${scale})`, width: 794 }}><DocSheet view={view}/></div></div>
       </div>
     </Modal>
   )
@@ -829,13 +868,16 @@ function LogoFields({ t, logo, onChange, push }) {
 const qdCover = p => { const u = Array.isArray(p?.images) ? p.images.find(x => typeof x === 'string' && /^https?:/.test(x)) : ''; return u ? `https://wsrv.nl/?url=${encodeURIComponent(u)}&w=360&h=240&fit=cover&q=70&output=webp` : '' }
 const qdPrice = p => { const n = Number(String(p?.price || '').replace(/[^\d]/g, '')); return n ? `₪${n.toLocaleString('he-IL')}` : '' }
 const QD_PCT = [1, 1.5, 2, 2.5, 3]
-function QuickDoc({ t, leads, properties, projects = [], templates = [], settings, initPropertyId = '', initLeadId = '', onClose, onDone, onFull, push, onPresetSaved }) {
+const MANUAL = { id: '', manual: true, title: 'מסמך חדש' }
+function QuickDoc({ t, leads, properties, projects = [], templates = [], settings, initPropertyId = '', initLeadId = '', initTemplateId = '', manual: initManual = false, onClose, onDone, onFull, push, onPresetSaved }) {
   const [propId, setPropId] = useState(initPropertyId ? String(initPropertyId) : '')
+  const [manual, setManual] = useState(!!initManual)   // no property from the system: the address, price and deal details are typed
   const [q, setQ] = useState('')
   const [onlyLive, setOnlyLive] = useState(true)
   const [form, setForm] = useState(() => emptyForm(settings))
   const [editProp, setEditProp] = useState(false)
   const [more, setMore] = useState(false)
+  useEffect(() => { if (initTemplateId) setForm(f => ({ ...f, templateId: initTemplateId })) }, [initTemplateId])
   const [remember, setRemember] = useState(true)
   const [send, setSend] = useState({ via: 'whatsapp', msg: null })
   const [busy, setBusy] = useState('')
@@ -844,12 +886,12 @@ function QuickDoc({ t, leads, properties, projects = [], templates = [], setting
   const [showPrev, setShowPrev] = useState(false)
   const [scale, setScale] = useState(1)
   const prevRef = useRef(null)
-  const prop = properties.find(p => String(p.id) === propId) || null
+  const prop = manual ? MANUAL : (properties.find(p => String(p.id) === propId) || null)
   const preset = propId ? settings?.presets?.[propId] : null
   // a property picked → its fixed details + its preset (or a sensible start) — the client and anything typed stay
   const applied = useRef('')
   useEffect(() => {
-    if (!prop) return
+    if (!prop || prop.manual) return
     const sig = `${propId}|${settings ? 1 : 0}`
     if (applied.current === sig) return
     applied.current = sig
@@ -896,7 +938,7 @@ function QuickDoc({ t, leads, properties, projects = [], templates = [], setting
     setErrs([...errors, ...miss]); return !errors.length && !miss.length
   }
   const savePreset = async () => {
-    if (!remember || !propId) return
+    if (!remember || !propId || manual) return
     const pr = { templateId: form.templateId || 'brokerage', fees: { mode: form.fees.mode, pct: form.fees.pct, months: form.fees.months, fixed: form.fees.fixed }, terms: form.terms, expiryDays: form.expiryDays, projectId: form.projectId, projectName: form.projectName, role: form.client.role }
     try { const r = await api.post('docs-settings', { presets: { [propId]: pr } }); if (r.settings) onPresetSaved?.(r.settings) } catch { /* the document itself is what matters */ }
   }
@@ -918,9 +960,10 @@ function QuickDoc({ t, leads, properties, projects = [], templates = [], setting
   if (!prop) return (
     <Modal open onClose={onClose} title={null} full xl dir="rtl" label="מסמך מהיר מנכס" closeOnBackdrop={false}>
       <div className="qd" style={{ height: 'calc(100vh - 80px)', maxHeight: 900 }}>
-        <div className="qd-head">
-          <div><h3><Building2 size={18}/> מסמך מהיר מנכס</h3><p>בוחרים נכס מהמערכת — הכתובת, התיאור והמחיר נכנסים לבד. נשאר למלא רק את מה שמשתנה.</p></div>
-          <Button variant="plain" onClick={onClose}>✕ סגירה</Button>
+        <ModalBar title="מסמך מהיר" sub="מסמך לחתימה בדקה: מנכס מהמערכת, או רק הפרטים שמשתנים" onClose={onClose}/>
+        <div className="qd-modes" style={{ paddingTop: 12 }}>
+          <button type="button" className="qd-mode on" aria-pressed="true"><i><Building2 size={18}/></i><span><b>מנכס מהמערכת</b><small>הכתובת, התיאור והמחיר נכנסים לבד. בוחרים נכס למטה.</small></span></button>
+          <button type="button" className="qd-mode" onClick={() => { setManual(true); setEditProp(true); setMore(false) }}><i><PenLine size={18}/></i><span><b>מילוי מהיר: רק מה שמשתנה</b><small>שם הלקוח, כתובת הנכס, מחיר ופרטי העסקה, דמי התיווך ותוקף החתימה.</small></span></button>
         </div>
         <div className="qd-tools">
           <div className="qd-search"><Search size={15}/><input value={q} onChange={e => setQ(e.target.value)} placeholder="חיפוש לפי שם, עיר, רחוב, סוג או גוש…" aria-label="חיפוש נכס" autoFocus/></div>
@@ -945,11 +988,12 @@ function QuickDoc({ t, leads, properties, projects = [], templates = [], setting
     <Modal open onClose={onClose} title={null} full xl dir="rtl" label="מסמך מהיר מנכס" closeOnBackdrop={false}>
       <div className={`dw${showPrev ? ' show-prev' : ''}`} style={{ height: 'calc(100vh - 80px)', maxHeight: 900 }}>
         <div className="dw-form">
-          <div className="qd-prop">
+          <ModalBar title={manual ? 'מילוי מהיר' : 'מסמך מהיר מנכס'} sub={manual ? 'רק מה שמשתנה · השאר מההגדרות ומהתבנית' : `${prop.title || form.property.address}${form.property.price ? ` · ${fmtMoney(form.property.price)}` : ''}`} onClose={onClose}
+            right={<button type="button" className="dw-chip" onClick={() => { setManual(false); setPropId(''); setResult(null); setErrs([]) }}>{manual ? 'מנכס מהמערכת' : 'החלפת נכס'}</button>}/>
+          {!manual && <div className="qd-prop">
             <div className="qd-thumb">{qdCover(prop) ? <img src={qdCover(prop)} alt=""/> : <Building2 size={20}/>}</div>
             <div style={{ minWidth: 0, flex: 1 }}><b>{prop.title || form.property.address}</b><small>{propLine({ property: form.property })}{form.property.price ? ` · ${fmtMoney(form.property.price)}` : ''}</small>{preset && <span className="qd-saved"><Check size={12}/> ההגדרות השמורות של הנכס נטענו</span>}</div>
-            <button type="button" className="dw-chip" onClick={() => { setPropId(''); setResult(null); setErrs([]) }}>החלפת נכס</button>
-          </div>
+          </div>}
           <div className="dw-body">
             {done ? <div className="qd-done">
               <div className="big"><Check size={30}/></div>
@@ -961,8 +1005,17 @@ function QuickDoc({ t, leads, properties, projects = [], templates = [], setting
                 <Button variant="ghost" onClick={() => onDone('')}>סיום</Button>
               </div>
             </div> : <>
-            {templates.length > 0 && <Field label="איזה מסמך"><div className="dw-chips">{[{ id: 'brokerage', name: DOC_TYPES.brokerage.name }, ...templates].map(tp => <button type="button" key={tp.id} className={`dw-chip${(form.templateId || 'brokerage') === tp.id ? ' on' : ''}`} onClick={() => set('templateId', tp.id)}>{tp.name}</button>)}</div></Field>}
-            <div className="qd-sec"><h4><span>1</span>מי חותם</h4>
+            {manual && <div className="qd-sec"><h4><span>1</span>הנכס והעסקה</h4>
+              <div className="dw-grid">
+                <Field label="כתובת הנכס *"><input className="dt-input" value={form.property.address} aria-label="כתובת הנכס" placeholder="רחוב ומספר" onChange={e => set('property.address', e.target.value)}/></Field>
+                <Field label="עיר"><input className="dt-input" value={form.property.city} aria-label="עיר" onChange={e => set('property.city', e.target.value)}/></Field>
+                <Field label="סוג העסקה"><select className="dt-input" value={form.property.dealType} aria-label="סוג העסקה" onChange={e => { set('property.dealType', e.target.value); if (e.target.value === 'rent' && form.fees.mode === 'percent') set('fees.mode', 'months') }}>{Object.entries(DEAL_TYPES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>
+                <Field label={form.property.dealType === 'rent' ? 'שכר דירה חודשי (₪)' : 'מחיר העסקה לפני מע"מ (₪)'}><input className="dt-input" dir="ltr" inputMode="numeric" value={form.property.price} aria-label="מחיר העסקה" onChange={e => set('property.price', e.target.value.replace(/[^\d]/g, ''))}/></Field>
+                <div className="full"><Field label="פרטי העסקה / תיאור הנכס"><input className="dt-input" value={form.property.desc} aria-label="תיאור הנכס" placeholder="דירת 4 חדרים, קומה 3, חניה ומחסן…" onChange={e => set('property.desc', e.target.value)}/></Field></div>
+              </div>
+            </div>}
+            {(templates.length > 0 || manual) && <Field label="איזה מסמך"><div className="dw-chips">{[{ id: 'brokerage', name: DOC_TYPES.brokerage.name }, ...templates].map(tp => <button type="button" key={tp.id} className={`dw-chip${(form.templateId || 'brokerage') === tp.id ? ' on' : ''}`} onClick={() => set('templateId', tp.id)}>{tp.name}</button>)}</div></Field>}
+            <div className="qd-sec"><h4><span>{manual ? 2 : 1}</span>מי חותם</h4>
               <div className="dw-lead">
                 <LeadFinder leads={leads} value={form.leadId} onPick={pickLead} placeholder="ליד מהמערכת — חיפוש לפי שם או טלפון…" openOnFocus={false}/>
               </div>
@@ -975,22 +1028,23 @@ function QuickDoc({ t, leads, properties, projects = [], templates = [], setting
                 <Field label="הלקוח בעסקה כ"><select className="dt-input" value={form.client.role} aria-label="תפקיד הלקוח בעסקה" onChange={e => set('client.role', e.target.value)}>{Object.entries(CLIENT_ROLES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>
               </div>
             </div>
-            {usesFees && <div className="qd-sec"><h4><span>2</span>דמי התיווך</h4>
+            {usesFees && <div className="qd-sec"><h4><span>{manual ? 3 : 2}</span>דמי התיווך ותוקף</h4>
               <div className="dw-chips">{Object.entries(FEE_MODES).map(([k, v]) => <button type="button" key={k} className={`dw-chip${form.fees.mode === k ? ' on' : ''}`} onClick={() => set('fees.mode', k)}>{v}</button>)}</div>
               <div className="dw-grid">
                 {form.fees.mode === 'percent' && <Field label="אחוז"><div className="dw-chips">{QD_PCT.map(p => <button type="button" key={p} className={`dw-chip${Number(form.fees.pct) === p ? ' on' : ''}`} onClick={() => set('fees.pct', p)}>{fmtPct(p)}</button>)}<input className="dt-input" style={{ width: 80, height: 32 }} dir="ltr" inputMode="decimal" value={form.fees.pct} aria-label="אחוז אחר" onChange={e => set('fees.pct', e.target.value.replace(/[^\d.]/g, ''))}/></div></Field>}
                 {form.fees.mode === 'months' && <Field label="חודשי שכירות"><input className="dt-input" dir="ltr" inputMode="decimal" value={form.fees.months} aria-label="חודשי שכירות" onChange={e => set('fees.months', e.target.value.replace(/[^\d.]/g, ''))}/></Field>}
                 {form.fees.mode === 'fixed' && <Field label='סכום קבוע (₪, לפני מע"מ)'><input className="dt-input" dir="ltr" inputMode="numeric" value={form.fees.fixed} aria-label="סכום קבוע" onChange={e => set('fees.fixed', e.target.value.replace(/[^\d.]/g, ''))}/></Field>}
-                <Field label={form.fees.mode === 'months' ? 'שכר דירה חודשי (₪)' : 'מחיר העסקה לפני מע"מ (₪)'}><input className="dt-input" dir="ltr" inputMode="numeric" value={form.property.price} aria-label="מחיר העסקה" onChange={e => set('property.price', e.target.value.replace(/[^\d]/g, ''))}/></Field>
+                {!manual && <Field label={form.fees.mode === 'months' ? 'שכר דירה חודשי (₪)' : 'מחיר העסקה לפני מע"מ (₪)'}><input className="dt-input" dir="ltr" inputMode="numeric" value={form.property.price} aria-label="מחיר העסקה" onChange={e => set('property.price', e.target.value.replace(/[^\d]/g, ''))}/></Field>}
               </div>
               <div className="qd-sum">{fees.basis} · דמי תיווך <b>{fmtMoney(fees.commission)}</b> + מע"מ {fmtMoney(fees.vat)} = <b>{fmtMoney(fees.total)}</b></div>
+              <Field label="תוקף הקישור לחתימה (ימים)"><div className="dw-chips">{[7, 14, 30].map(d => <button type="button" key={d} className={`dw-chip${Number(form.expiryDays) === d ? ' on' : ''}`} onClick={() => set('expiryDays', d)}>{d} ימים</button>)}<input className="dt-input" style={{ width: 80, height: 32 }} dir="ltr" inputMode="numeric" value={form.expiryDays} aria-label="תוקף הקישור" onChange={e => set('expiryDays', e.target.value.replace(/\D/g, ''))}/></div></Field>
             </div>}
-            {tpl.fields.length > 0 && <div className="qd-sec"><h4><span>{usesFees ? 3 : 2}</span>פרטי המסמך</h4>
+            {tpl.fields.length > 0 && <div className="qd-sec"><h4><span>{(manual ? 2 : 1) + (usesFees ? 2 : 1)}</span>פרטי המסמך</h4>
               <div className="dw-fields">{tpl.fields.map(f => <div key={f.key} className={f.type === 'checkbox' ? 'full' : ''}><Field label={f.type === 'checkbox' ? '' : `${f.label}${f.required ? ' *' : ''}`}>{fieldInput(f, form.fields?.[f.key] ?? f.default ?? '', v => setForm(x => ({ ...x, fields: { ...(x.fields || {}), [f.key]: v } })))}</Field></div>)}</div>
             </div>}
-            <button type="button" className="qd-more" onClick={() => setMore(m => !m)} aria-expanded={more}>{more ? '▾' : '◂'} פרטי הנכס, פרויקט, תנאים ותוקף</button>
+            <button type="button" className="qd-more" onClick={() => setMore(m => !m)} aria-expanded={more}>{more ? '▾' : '◂'} {manual ? 'הערות, פרויקט ותנאים נוספים' : 'פרטי הנכס, פרויקט ותנאים נוספים'}</button>
             {more && <div className="qd-sec">
-              {!editProp ? <div className="qd-fixed"><span>{propLine({ property: form.property })}</span><span>{form.property.desc}</span>{form.property.notes && <span>{form.property.notes}</span>}<button type="button" className="dt-link" onClick={() => setEditProp(true)}>עריכה</button></div>
+              {manual ? <Field label="הערות (גוש / חלקה, קישור לנכס…)"><input className="dt-input" value={form.property.notes} aria-label="הערות" onChange={e => set('property.notes', e.target.value)}/></Field> : !editProp ? <div className="qd-fixed"><span>{propLine({ property: form.property })}</span><span>{form.property.desc}</span>{form.property.notes && <span>{form.property.notes}</span>}<button type="button" className="dt-link" onClick={() => setEditProp(true)}>עריכה</button></div>
                 : <div className="dw-grid">
                   <Field label="כתובת הנכס"><input className="dt-input" value={form.property.address} aria-label="כתובת הנכס" onChange={e => set('property.address', e.target.value)}/></Field>
                   <Field label="עיר"><input className="dt-input" value={form.property.city} aria-label="עיר" onChange={e => set('property.city', e.target.value)}/></Field>
@@ -1000,7 +1054,6 @@ function QuickDoc({ t, leads, properties, projects = [], templates = [], setting
                 </div>}
               <Field label="פרויקט"><ProjectSelect value={form.projectId} projects={projects} onChange={(id, p) => setForm(f => ({ ...f, projectId: id || '', projectName: p?.name || '' }))}/></Field>
               <Field label="תנאים נוספים"><textarea className="dt-input" value={form.terms} aria-label="תנאים נוספים" onChange={e => set('terms', e.target.value)}/></Field>
-              <Field label="תוקף הקישור (ימים)"><input className="dt-input" style={{ width: 100 }} dir="ltr" inputMode="numeric" value={form.expiryDays} aria-label="תוקף הקישור" onChange={e => set('expiryDays', e.target.value.replace(/\D/g, ''))}/></Field>
             </div>}
             <div className="qd-sec"><h4><span><Send size={12}/></span>שליחה</h4>
               <div className="dw-chips">
@@ -1009,21 +1062,21 @@ function QuickDoc({ t, leads, properties, projects = [], templates = [], setting
                 <button type="button" className={`dw-chip${send.via === 'both' ? ' on' : ''}`} disabled={!hasWa || !hasEmail} onClick={() => setSend(s => ({ ...s, via: 'both', picked: true }))}>גם וגם</button>
               </div>
               <SignMessageField doc={{ data: payload(), expires_at: Date.now() + (Number(form.expiryDays) || 14) * 864e5 }} lead={leads.find(l => String(l.id) === String(form.leadId)) || null} value={send.msg} onChange={msg => setSend(s => ({ ...s, msg }))} compact/>
-              <label className="dt-tog"><input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)}/> לזכור לנכס הזה את התבנית, העמלה והתנאים — בפעם הבאה ממלאים רק את הלקוח</label>
+              {!manual && <label className="dt-tog"><input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)}/> לזכור לנכס הזה את התבנית, העמלה והתנאים — בפעם הבאה ממלאים רק את הלקוח</label>}
             </div>
             </>}
             {!!errs.length && <div className="dw-err" role="alert">{errs.map((e, i) => <div key={i}>{e}</div>)}</div>}
           </div>
           {!done && <div className="dw-foot qd-foot">
-            <div className="qd-foot-sec"><Button variant="plain" onClick={onClose} aria-label="סגירה">✕</Button><Button variant="ghost" onClick={() => onFull(form)}>לאשף המלא</Button></div>
+            <div className="qd-foot-sec"><Button variant="ghost" size="sm" onClick={() => onFull(form)}>לאשף המלא</Button></div>
             <div className="qd-foot-main">
-              <button type="button" className="dw-chip dw-prev-btn" onClick={() => setShowPrev(s => !s)}>{showPrev ? 'הטופס' : 'תצוגה מקדימה'}</button>
+              <button type="button" className="dw-chip dw-prev-btn" onClick={() => setShowPrev(s => !s)} aria-label={showPrev ? 'הטופס' : 'תצוגה מקדימה'}><Eye size={14}/> {showPrev ? 'הטופס' : 'תצוגה מקדימה'}</button>
               <Button variant="ghost" loading={busy === 'save'} onClick={() => go(false)}>טיוטה</Button>
               <Button variant="solid" icon={<Send size={14}/>} loading={busy === 'send'} disabled={!hasWa && !hasEmail} onClick={() => go(true)}>שליחה לחתימה</Button>
             </div>
           </div>}
         </div>
-        <div className="dw-prev" ref={prevRef}><div className="dw-prev-in" style={{ transform: `scale(${scale})`, width: 794 }}><DocSheet view={view}/></div></div>
+        <div className="dw-prev" ref={prevRef}><PreviewBar onBack={() => setShowPrev(false)} onClose={onClose}/><div className="dw-prev-in" style={{ transform: `scale(${scale})`, width: 794 }}><DocSheet view={view}/></div></div>
       </div>
     </Modal>
   )
