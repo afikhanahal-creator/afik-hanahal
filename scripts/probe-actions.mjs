@@ -102,6 +102,24 @@ if (ACTIONS.includes('connect') || ACTIONS.includes('connect-fix')) {
   const d = await r.json().catch(async () => ({ raw: (await r.text().catch(() => '')).slice(0, 400) }))
   console.log(`connect (HTTP ${r.status}):\n${JSON.stringify(d, null, 1).slice(0, 9000)}`)
 }
+// docs: the documents module on the live site — the list read (counts only), the settings (wiring, no secrets), and a
+// rendered PDF of a throw-away draft (docs-preview; nothing is stored) so the Hebrew font and the layout are proven live.
+if (ACTIONS.includes('docs')) {
+  const call = async (label, path, init = {}) => {
+    const t = Date.now()
+    const r = await fetch(`${SITE}${path}`, { headers: H, ...init, signal: AbortSignal.timeout(55000) }).catch(e => ({ ok: false, status: 0, headers: new Map(), text: async () => e.message }))
+    const type = r.headers?.get?.('content-type') || ''
+    if (/pdf/.test(type)) { const b = Buffer.from(await r.arrayBuffer()); show(`docs ${label} (HTTP ${r.status}, ${Date.now() - t} ms)`, { pdf: b.length, header: b.slice(0, 5).toString() }); return null }
+    const txt = await r.text().catch(() => '')
+    let d = null; try { d = JSON.parse(txt) } catch {}
+    show(`docs ${label} (HTTP ${r.status}, ${Date.now() - t} ms)`, d ? { docs: Array.isArray(d.docs) ? d.docs.length : undefined, status: d.status, settings: d.settings ? { vatRate: d.settings.vatRate, expiryDays: d.settings.expiryDays, agent: !!d.settings.agent?.name, notify: (d.settings.notify || []).length, clausesCustom: d.settings.clausesCustom, clauses: d.settings.clauses?.length } : undefined, error: d.error, errors: d.errors } : { raw: txt.slice(0, 200) })
+    return d
+  }
+  await call('list', '/api/meta/docs-list')
+  await call('settings', '/api/meta/docs-settings')
+  await call('preview PDF', '/api/meta/docs-preview', { method: 'POST', body: JSON.stringify({ client: { name: 'בדיקה בדיקתי', phone: '0500000000' }, property: { address: 'רחוב הבדיקה 1', city: 'רעננה', dealType: 'sale' }, fees: { mode: 'percent', pct: 2, price: 1000000 }, agent: { name: 'בדיקה' } }) })
+}
+
 if (ACTIONS.includes('wa') || ACTIONS.includes('wa-send') || ACTIONS.includes('wa-fix')) {
   const call = async (label, path, init = {}) => {
     const t = Date.now()

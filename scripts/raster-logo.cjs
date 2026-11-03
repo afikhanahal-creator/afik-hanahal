@@ -1,0 +1,13 @@
+const { chromium } = require('playwright'); const fs = require('fs')
+;(async () => {
+  const svg = fs.readFileSync(require('path').join(__dirname, '..') + '/public/logo-black.svg', 'utf8')
+  const b = await chromium.launch(); const p = await b.newPage({ viewport: { width: 1200, height: 400 }, deviceScaleFactor: 1 })
+  await p.setContent('<html><body style="margin:0;background:#fff"><div id="w" style="display:inline-block">' + svg + '</div></body></html>')
+  await p.evaluate(() => { const s = document.querySelector('svg'); s.setAttribute('width', '900'); s.removeAttribute('height'); s.style.height = 'auto'; s.style.display = 'block' })
+  const el = await p.$('#w'); const box = await el.boundingBox(); console.log('box', box)
+  const png = await el.screenshot({ type: 'png', omitBackground: true })
+  fs.mkdirSync(require('path').join(__dirname, '..') + '/lib/doc-assets', { recursive: true })
+  fs.writeFileSync(require('path').join(__dirname, '..') + '/lib/doc-assets/logo-black.js', '// The office logo (public/logo-black.svg rasterized to a ' + Math.round(box.width) + '×' + Math.round(box.height) + ' PNG, transparent) for the PDF / Word\n// engines, which cannot embed SVG. Rebuilt with scripts/raster-logo.cjs (Playwright).\nexport default "' + png.toString('base64') + '"\nexport const LOGO_W = ' + Math.round(box.width) + '\nexport const LOGO_H = ' + Math.round(box.height) + '\n')
+  fs.writeFileSync('/tmp/claude-0/-home-user-afik-hanahal/2f893701-a62a-52a5-94f0-f2b9ba3a9667/scratchpad/shots/logo-raster.png', png)
+  await b.close(); console.log('png bytes', png.length)
+})()

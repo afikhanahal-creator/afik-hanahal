@@ -685,6 +685,39 @@ names from the participants, a missing name / picture filled later); `social-wa-
 `META_SYSTEM_USER_TOKEN`, App Review for the messaging permissions, the Instagram object subscribed to `messages` in the app's
 Webhooks, and on the phone Instagram → messages → "Allow access to messages".
 
+## Documents & digital signatures (admin "מסמכים וחתימות", `/admin-panel/documents`; the client's page `/sign/<token>`)
+
+(2026-11-03) The office's brokerage-order form ("טופס הזמנת שירותי תיווך", אפיק הנחל יזום, שיווק, תיווך נדל"ן בע"מ, ח.פ. 517082038)
+from a template to a signed PDF in the lead's card — our own DocuSign-like flow, no account for the client.
+
+| Piece | Where |
+|---|---|
+| Rules + texts (pure, tested): company, the 8 clauses with `{placeholders}`, fee arithmetic (percent / fixed / months of rent, VAT), `AH-<year>-NNNN` numbers, Israeli ID checksum, input cleaning, statuses, `publicView`, the lead's compact entry, every WhatsApp / email text, stats | `lib/documents.js` (+ `.test.mjs`) |
+| Hashes (node only): the event chain `sha256(prev \| event)`, file SHA-256, the token hash | `lib/documents-hash.js` |
+| The PDF: pdf-lib + Rubik (embedded from `lib/fonts/rubik-*.js`, base64) + the Unicode bidi algorithm (`bidi-js`) per line; the logo PNG `lib/doc-assets/logo-black.js` (rebuild: `node scripts/raster-logo.cjs`); a certificate page on a signed document | `lib/doc-pdf.js` (+ `lib/doc-pdf.test.mjs`, which extracts the text with poppler when present) |
+| The Word file (`docx`, bidirectional paragraphs, Rubik, tables, the signature image) | `lib/doc-docx.js` |
+| Server: Supabase tables + the private bucket `documents`, settings, sending (WhatsApp through Green, email through the office Gmail with the PDF attached), OTP, signing, copies + office notices, the lead link | `lib/documents-server.js` |
+| API `/api/meta/docs-*` (admin) · `/api/meta/sign-*` (public, token in `t`) | `api/meta.js` → `handleDocs` |
+| DB: `documents`, `document_events` (hash chain), bucket `documents` (applied 2026-11-03) | `server/documents-migration.sql` |
+| Admin tab: tiles, list (search / status / period), the wizard (lead → property → terms & fees → preview → send) with the live A4 preview, the drawer (files, send log, audit chain, resend / fresh link / cancel), settings (VAT, default agent, notify numbers + email, logo, the clause editor) | `src/DocumentsTab.jsx` |
+| The A4 sheet in HTML (the wizard's preview and the client's page) | `src/DocPreview.jsx` |
+| The client's signing page: the document, zoom, OTP by WhatsApp / email, name + ID, consent, a drawn (or typed) signature, the done screen with the signed copy | `src/SignPage.jsx` (route in `src/main.jsx`, noindex) |
+| The lead card's tab "מסמכים וחתימות" (`crm_data.documents[]`, "+ מסמך חדש" → `afik:new-doc` → the wizard on that lead) | `src/LeadDocsTab.jsx` |
+
+**Flow:** `docs-create` cleans the input (`cleanDocInput`), links the CRM lead (the given id, else the newest lead with that phone /
+email — never a new lead), numbers the document and writes `created` on the lead. `docs-send {id, via}` makes the private token
+(kept only as a hash), freezes the clauses on the row, renders the PDF the client signs (stored, its SHA-256 on the row), and
+sends the link by WhatsApp and/or email (PDF attached); the row logs every send. `sign-open?t=` marks `opened`; `sign-otp` sends a
+6-digit code (10 min, 5 tries) to the client's WhatsApp or email; `sign-submit` verifies it, stores the signature PNG, writes the
+`signed` event, renders the signed PDF with the certificate page (signer, time, IP, user agent, hashes, the whole event chain),
+then `afterSigned()` — once (`notified_at`) — emails the client the signed copy, texts them, texts the office line + the settings'
+numbers and emails the office (PDF attached), and updates the lead (`crm_data.documents`, a ✅ note). A sent document can't be
+edited; cancel kills the link; a signed one is never cancelled. Expired links are swept on every list read. `docs-preview` renders
+a draft's PDF without storing anything. **Provider:** the built-in electronic signature (OTP + drawn signature + hash chain); an
+external provider (DocuSign / Adobe Sign) would plug in at `sendDoc` / `submitSignature` — nothing pretends to be one. The clause
+wording is the office's responsibility (paste the master file's text in "תבניות"; `app_settings.doc_templates`); settings are
+`app_settings.doc_settings`. Probe action `docs`. QA: the scratchpad's `qa-docs.cjs` pattern (mocked APIs).
+
 ## Booking page (`/book`) — our own Calendly
 
 `https://www.afikhanahal.co.il/book` (also `/booking`, `/meet`; `?lang=en`, `?type=<id>`, `?ref=` / `utm_campaign` is kept

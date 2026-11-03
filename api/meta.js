@@ -32,6 +32,7 @@ import { forwardRequest, fileGroupRequest, cleanMsgId, cleanReaction, isHandled,
 import { cleanProjects } from '../lib/projects.js'
 import { parseSocialHook, threadId, parseThreadId, previewText, leadBodyFromThread, cleanSocialPages, inboxPageIds, accountLabels, conversationEvents, threadRowFrom, importJobs } from '../lib/social-hook.js'
 import { manualLeadRow } from '../lib/manual-lead.js'
+import * as Docs from '../lib/documents-server.js'
 
 const SUPERMETRICS_API_KEY    = process.env.SUPERMETRICS_API_KEY    || ''
 // System User token (afik-api) — permanent, survives password changes. Used to
@@ -2310,6 +2311,60 @@ function oauthPage(ok, text) {
 <h1 style="font-size:22px;margin:12px 0">${ok ? 'היומן חובר' : 'החיבור לא הצליח'}</h1><p style="line-height:1.7;color:#B9B5AA">${esc(text)}</p>
 <a href="/admin-panel" style="display:inline-block;margin-top:16px;background:#8490D8;color:#09090F;font-weight:700;padding:12px 28px;border-radius:999px;text-decoration:none">חזרה לפאנל</a></div></body></html>`
 }
+// ── Documents & digital signatures (admin "מסמכים וחתימות", src/DocumentsTab.jsx; the client's page src/SignPage.jsx) ──────
+//  admin:  GET docs-list[?status=&q=&lead=] → { docs, stats, status } · GET docs-get?id= → { doc, events, chain, urls }
+//          POST docs-create {client, property, fees, agent, logo, terms, expiryDays, title, leadId, propertyId} · POST docs-update {id, …}
+//          POST docs-send {id, via: [whatsapp|email], personal, renew} · POST docs-link {id} (a fresh link to paste anywhere)
+//          POST docs-cancel {id} · GET docs-file?id=&kind=original|signed|docx (the bytes) · GET/POST docs-settings · POST docs-clauses {clauses|reset}
+//          POST docs-preview {…document input} → the PDF of what the wizard shows now (never stored)
+//  public: GET sign-open?t= → { view } | { view, blocked } · POST sign-otp {t, via} · POST sign-submit {t, code, name, idNumber, agree, signature}
+//          GET sign-file?t=&kind=original|signed (the PDF the client sees / the signed copy)
+//  Everything is lib/documents-server.js; rules and texts lib/documents.js.
+async function handleDocs(req, res, action) {
+  const pub = action.startsWith('sign-')
+  if (!pub && !checkAuth(req)) return res.status(401).json({ error: 'Unauthorized' })
+  if (!Docs.ready()) return res.status(503).json({ error: 'Supabase לא מוגדר (SUPABASE_URL / SUPABASE_SERVICE_KEY)' })
+  const b = req.body || {}
+  const sendFile = f => { if (!f) return res.status(404).json({ error: 'הקובץ לא נמצא' }); res.setHeader('Content-Type', f.type); res.setHeader('Content-Disposition', `${req.query?.dl ? 'attachment' : 'inline'}; filename*=UTF-8''${encodeURIComponent(f.name)}`); res.setHeader('Cache-Control', 'private, no-store'); res.setHeader('X-Robots-Tag', 'noindex'); return res.status(200).end(Buffer.from(f.bytes)) }
+  try {
+    if (pub) {
+      const t = String(req.query?.t || b.t || '')
+      if (action === 'sign-open') { const r = await Docs.openByToken(t, req); return res.status(r.code || 200).json(r) }
+      if (action === 'sign-otp') { const r = await Docs.sendOtp(t, b.via, req); return res.status(r.code || 200).json(r) }
+      if (action === 'sign-submit') { const r = await Docs.submitSignature(t, b, req); return res.status(r.code || 200).json(r) }
+      if (action === 'sign-file') return sendFile(await Docs.signedFileByToken(t, req.query?.kind === 'signed' ? 'signed' : 'original'))
+      return res.status(404).json({ error: `Unknown path: ${action}` })
+    }
+    if (action === 'docs-list') {
+      await Docs.sweepExpired().catch(() => 0)
+      const docs = await Docs.listDocs({ status: req.query?.status, q: req.query?.q, lead: req.query?.lead, limit: req.query?.limit })
+      return res.status(200).json({ docs, status: Docs.status() })
+    }
+    if (action === 'docs-get') {
+      const doc = await Docs.getDoc(req.query?.id)
+      if (!doc) return res.status(404).json({ error: 'המסמך לא נמצא' })
+      const events = await Docs.listEvents(doc.id)
+      return res.status(200).json({ doc, events, chain: Docs.verifyChain(events), urls: { original: await Docs.fileUrl(doc.original_path), signed: await Docs.fileUrl(doc.signed_path), signature: await Docs.fileUrl(doc.signature_path) } })
+    }
+    if (action === 'docs-create') { const r = await Docs.createDoc(b, { req }); return res.status(r.errors ? 400 : 201).json(r) }
+    if (action === 'docs-update') { const r = await Docs.updateDoc(b.id, b, { req }); return res.status(r.errors || r.error ? 400 : 200).json(r) }
+    if (action === 'docs-send') { const r = await Docs.sendDoc(b.id, { via: b.via, personal: b.personal, renew: !!b.renew, req }); return res.status(r.error ? 400 : 200).json(r) }
+    if (action === 'docs-link') { const r = await Docs.newLink(b.id, { req }); return res.status(r.error ? 400 : 200).json(r) }
+    if (action === 'docs-cancel') { const r = await Docs.cancelDoc(b.id, { req }); return res.status(r.error ? 400 : 200).json(r) }
+    if (action === 'docs-file') return sendFile(await Docs.docFile(req.query?.id, req.query?.kind || 'original'))
+    if (action === 'docs-preview') {
+      const { cleanDocInput } = await import('../lib/documents.js')
+      const settings = await Docs.getSettings()
+      const { data, errors } = cleanDocInput({ ...b, fees: { vatRate: settings.vatRate, ...(b.fees || {}) }, agent: b.agent?.name ? b.agent : settings.agent, logo: b.logo || settings.logo })
+      if (errors.length) return res.status(400).json({ errors })
+      return sendFile({ bytes: await Docs.renderCurrent({ number: b.number || 'טיוטה', status: 'draft', data, created_at: new Date().toISOString() }), type: 'application/pdf', name: 'preview.pdf' })
+    }
+    if (action === 'docs-settings') return res.status(200).json({ settings: req.method === 'POST' ? await Docs.saveSettings(b) : await Docs.getSettings(), status: Docs.status() })
+    if (action === 'docs-clauses') { await Docs.saveClauses(b.clauses, { reset: !!b.reset }); return res.status(200).json({ settings: await Docs.getSettings() }) }
+    return res.status(404).json({ error: `Unknown path: ${action}` })
+  } catch (e) { console.error('[docs]', action, e.message); return res.status(500).json({ error: e.message }) }
+}
+
 // ── Image library (admin "תמונות האתר", src/MediaLibraryTab.jsx) ─────────────────────────────────────────────────────
 //  GET  media-status → { canReplace, repo, branch }
 //  POST media-replace { path: '/img/ceo.webp', content: <base64>, type } → commits public<path> on the content branch
@@ -2470,6 +2525,7 @@ export default async function handler(req, res) {
   if (path.startsWith('chat-'))  return handleChat(req, res, path)
   if (path.startsWith('auto-'))  return handleAutomations(req, res, path)
   if (path.startsWith('booking-')) return handleBooking(req, res, path)
+  if (path.startsWith('docs-') || path.startsWith('sign-')) return handleDocs(req, res, path)
   if (path.startsWith('media-')) return handleMedia(req, res, path)
   if (path === 'supermetrics')   return handleSupermetrics(req, res)
   if (path === 'ga4')            return handleGA4(req, res)

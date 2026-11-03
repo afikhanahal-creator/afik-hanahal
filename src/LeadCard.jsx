@@ -3,6 +3,8 @@
 // Every change saves on its own (onUpdate → PATCH /api/contacts → crm_data).
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
+import { FaFileSignature } from 'react-icons/fa'
+import { LeadDocsTab } from './LeadDocsTab.jsx'
 import { FaTimes, FaPhone, FaWhatsapp, FaEnvelope, FaMagic, FaUser, FaStickyNote, FaTasks, FaChartPie, FaCheck, FaTrash, FaCopy, FaPlus, FaClock, FaBullseye, FaExclamationTriangle, FaLightbulb, FaQuestionCircle, FaComments, FaShieldAlt, FaSyncAlt, FaMapMarkerAlt, FaBuilding, FaCalendarAlt, FaTag, FaFlag, FaArrowUp, FaArrowDown, FaInfoCircle, FaUserCheck, FaExternalLinkAlt, FaSearch, FaHandshake, FaEdit, FaExpand, FaCompress } from 'react-icons/fa'
 import { T } from './automationsUI.jsx'
 import { sourceLabel, sourceColor, originLines, leadCampaign, leadCampaignTag, leadCampaignFull, leadProject, toggleProjectInName, lastContact, lastContactText } from './lib/leadFields.js'
@@ -25,7 +27,7 @@ const TR = {
   he: {
     addProject: p => `+ הוספת הפרויקט: ${p}`, removeProject: 'הסרת שם הפרויקט', projectTip: 'השם מתעדכן גם במרכז הלידים ובצ׳אטים', convShow: 'הצג שיחה', convHide: 'הסתר שיחה', convTip: 'כל ההתכתבות בוואטסאפ עם הליד, לצד הפרטים',
     lastContact: 'קשר אחרון', convResize: 'גרירה לשינוי רוחב השיחה (לחיצה כפולה מחזירה)', sideResize: 'גרירה לשינוי גובה פרטי המקור', chatMax: 'השיחה על כל הכרטיס', chatRestore: 'חזרה לפרטים', cardFull: 'מסך מלא', cardRestore: 'הקטנת הכרטיס', chatW: { narrow: 'צר', half: 'חצי', wide: 'רחב' }, chatWTip: 'רוחב השיחה',
-    tabs: { details: 'פרטים ועריכה', notes: 'הערות ופעילות', chat: 'שיחת וואטסאפ', tasks: 'משימות', analysis: 'ניתוח חכם' },
+    tabs: { details: 'פרטים ועריכה', notes: 'הערות ופעילות', chat: 'שיחת וואטסאפ', tasks: 'משימות', docs: 'מסמכים וחתימות', analysis: 'ניתוח חכם' },
     call: 'התקשר', wa: 'וואטסאפ', email: 'מייל', analyze: 'נתח ליד', reanalyze: 'נתח מחדש', analyzing: 'מנתח…', close: 'סגירה', saved: 'נשמר', saving: 'שומר…', saveFailed: 'השמירה נכשלה — בדקו חיבור ונסו שוב',
     sec: { contact: 'פרטי קשר', need: 'מה הלקוח מחפש', prop: 'הנכס שהתעניין בו', msg: 'ההודעה של הלקוח', manage: 'ניהול הליד', source: 'מקור הליד' },
     f: { name: 'שם מלא', phone: 'טלפון', email: 'אימייל', contactTime: 'זמן נוח ליצירת קשר', dealType: 'סוג עסקה', propertyType: 'סוג נכס', area: 'אזור / יישוב', rooms: 'חדרים', budget: 'תקציב (₪)', timeline: 'לוח זמנים', financing: 'מימון', propTitle: 'נכס', propLocation: 'מיקום הנכס', msg: 'הודעה', priority: 'עדיפות', owner: 'אחראי', followUp: 'מעקב הבא', tags: 'תגיות', tagPh: 'הוסף תגית ו-Enter' },
@@ -61,7 +63,7 @@ const TR = {
   en: {
     addProject: p => `+ Add the project: ${p}`, removeProject: 'Remove the project name', projectTip: 'The name updates in the Lead Center and the chats too', convShow: 'Show chat', convHide: 'Hide chat', convTip: 'The whole WhatsApp conversation with the lead, next to the details',
     lastContact: 'Last contact', convResize: 'Drag to resize the conversation (double-click resets)', sideResize: 'Drag to resize the source details', chatMax: 'Chat on the whole card', chatRestore: 'Back to the details', cardFull: 'Full screen', cardRestore: 'Shrink the card', chatW: { narrow: 'Narrow', half: 'Half', wide: 'Wide' }, chatWTip: 'Chat width',
-    tabs: { details: 'Details', notes: 'Notes & activity', chat: 'WhatsApp chat', tasks: 'Tasks', analysis: 'Smart analysis' },
+    tabs: { details: 'Details', notes: 'Notes & activity', chat: 'WhatsApp chat', tasks: 'Tasks', docs: 'Documents & signatures', analysis: 'Smart analysis' },
     call: 'Call', wa: 'WhatsApp', email: 'Email', analyze: 'Analyze lead', reanalyze: 'Re-analyze', analyzing: 'Analyzing…', close: 'Close', saved: 'Saved', saving: 'Saving…', saveFailed: 'Not saved — check the connection and try again',
     sec: { contact: 'Contact details', need: 'What they are looking for', prop: 'Property of interest', msg: 'Their message', manage: 'Lead management', source: 'Lead source' },
     f: { name: 'Full name', phone: 'Phone', email: 'Email', contactTime: 'Best time to reach', dealType: 'Deal type', propertyType: 'Property type', area: 'Area / town', rooms: 'Rooms', budget: 'Budget (₪)', timeline: 'Timeline', financing: 'Financing', propTitle: 'Property', propLocation: 'Property location', msg: 'Message', priority: 'Priority', owner: 'Owner', followUp: 'Next follow-up', tags: 'Tags', tagPh: 'Add a tag and press Enter' },
@@ -395,7 +397,7 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
 
   // "קשר אחרון": the newest touch — the open conversation's last message, calls, meetings, WhatsApp notes, automatic sends
   const lastTouch = useMemo(() => lastContactText(lastContact(lead, chatLast), lang, Date.now(), lead.ts || lead.created_at), [lead, chatLast, lang])
-  const tabs = [['details', FaUser, t.tabs.details], ['notes', FaStickyNote, t.tabs.notes, notes.length || null], ['chat', FaWhatsapp, t.tabs.chat, lead.chatSummary?.lastWord === 'lead' ? '!' : null], ['tasks', FaTasks, t.tabs.tasks, openTasks || null], ['analysis', FaChartPie, t.tabs.analysis]]
+  const tabs = [['details', FaUser, t.tabs.details], ['notes', FaStickyNote, t.tabs.notes, notes.length || null], ['chat', FaWhatsapp, t.tabs.chat, lead.chatSummary?.lastWord === 'lead' ? '!' : null], ['tasks', FaTasks, t.tabs.tasks, openTasks || null], ['docs', FaFileSignature, t.tabs.docs, (lead.documents || []).length || null], ['analysis', FaChartPie, t.tabs.analysis]]
   const tabBar = (
     <div role="tablist" className="lc-tabs">
       {tabs.map(([id, Ic, label, badge]) => (
@@ -917,7 +919,7 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
         {tabBar}
         <div ref={bodyRef} className={`lc-body${showConv ? ' conv' : ''}${showConv && chatMax ? ' chatmax' : ''}`} style={convW && showConv ? { '--lc-conv': `${convW}px` } : undefined}>
           <div className="lc-main" style={{ overflowY: 'auto', padding: 16, background: T.bg }}>
-            {tab === 'details' ? details : tab === 'notes' ? <>{notesTab}{!showConv && lead.phone && <div className="lc-conv-tab">{conversation}</div>}</> : tab === 'chat' ? <><LeadChatTab lead={lead} lang={lang} stages={stages} save={save} onUpdateStatus={onUpdateStatus} onOpenChat={onOpenChat} onClose={onClose} hideConversation={!!lead.phone}/>{!showConv && lead.phone && <div className="lc-conv-tab">{conversation}</div>}</> : tab === 'tasks' ? tasksTab : analysis}
+            {tab === 'details' ? details : tab === 'notes' ? <>{notesTab}{!showConv && lead.phone && <div className="lc-conv-tab">{conversation}</div>}</> : tab === 'chat' ? <><LeadChatTab lead={lead} lang={lang} stages={stages} save={save} onUpdateStatus={onUpdateStatus} onOpenChat={onOpenChat} onClose={onClose} hideConversation={!!lead.phone}/>{!showConv && lead.phone && <div className="lc-conv-tab">{conversation}</div>}</> : tab === 'tasks' ? tasksTab : tab === 'docs' ? <LeadDocsTab lead={lead} lang={lang}/> : analysis}
           </div>
           {!showConv && sideEl(false)}
           {showConv && <section className="lc-rail" aria-label={t.tabs.chat}>
