@@ -21,6 +21,7 @@ import { researchLead } from '../lib/lead-research.js'
 import { mirrorMetaLead, backfillMetaLeads, findMirror } from '../lib/meta-crm.js'
 import * as Booking from '../lib/booking-server.js'
 import * as GCal from '../lib/google-calendar.js'
+import * as Drive from '../lib/google-drive.js'
 import { buildLeadEmailHtml, cleanAnswers } from '../lib/lead-email.js'
 import { metaFormAnswers, shortCampaign } from '../src/lib/leadFields.js'
 import { hebrewFullName } from '../lib/hebrew-names.js'
@@ -1536,6 +1537,7 @@ async function handleAutomations(req, res, action) {
       hebrewizeRecentNames(SUPABASE_URL && SUPABASE_KEY ? sb() : null).catch(() => null),   // any recent lead still named in Latin → Hebrew
       Auto.syncBookNames().catch(() => null),            // a name changed in the phone's WhatsApp contacts → the lead's name
       Auto.catchUpMessages().catch(() => null).then(() => Auto.scanCallbacks().catch(() => null)),   // missed webhook rows → wa_messages; then times the leads asked for → tasks
+      Docs.ready() ? Docs.sweepExpired().catch(() => 0).then(() => Docs.remindUnsigned().catch(() => null)).then(() => Docs.driveTick().catch(() => null)) : null,   // documents: expired links, reminders to signers, the Drive queue
     ])
     return res.status(200).json({ ok: r.ok !== false, at: r.at, sent: r.sent?.length || 0, errors: r.errors?.length || 0, queued: r.suggestions?.length || 0, jobs: r.jobs, notes: r.notes, meta })
   }
@@ -1570,6 +1572,7 @@ async function handleAutomations(req, res, action) {
     }
     if (action === 'auto-run') {
       // The panel calls this every 5 minutes while open: also pick up any Meta lead the webhook missed
+      if (Docs.ready()) Docs.sweepExpired().catch(() => 0).then(() => Docs.remindUnsigned().catch(() => null)).then(() => Docs.driveTick({ max: 2 }).catch(() => null)).catch(() => null)   // documents: reminders + Drive, best-effort
       const [r, meta] = await Promise.all([Auto.run({ source: 'panel' }), syncRecentMetaLeads({ hours: 6 }).catch(e => ({ error: e.message })), Auto.syncBookNames().catch(() => null), Auto.catchUpMessages().catch(() => null).then(() => Auto.scanCallbacks().catch(() => null)), Booking.retryConfirmations({ client: SUPABASE_URL && SUPABASE_KEY ? sb() : null }).catch(() => null), hebrewizeRecentNames(SUPABASE_URL && SUPABASE_KEY ? sb() : null).catch(() => null)])
       return res.status(200).json({ ...r, meta })
     }
@@ -2304,11 +2307,11 @@ async function handleLeadResearch(req, res) {
 //  admin:  GET booking-admin · POST booking-settings {config} · POST booking-connect → {url} · POST booking-disconnect
 //          POST booking-cancel {id} · POST booking-resend {id} · POST booking-test-email
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]))
-function oauthPage(ok, text) {
-  return `<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>חיבור היומן</title></head>
+function oauthPage(ok, text, what = 'היומן') {
+  return `<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>חיבור ${what}</title></head>
 <body style="margin:0;min-height:100vh;display:grid;place-items:center;background:#09090F;color:#E8E4D8;font-family:Heebo,Arial,sans-serif">
 <div style="max-width:420px;padding:32px;text-align:center"><div style="font-size:44px">${ok ? '✅' : '⚠️'}</div>
-<h1 style="font-size:22px;margin:12px 0">${ok ? 'היומן חובר' : 'החיבור לא הצליח'}</h1><p style="line-height:1.7;color:#B9B5AA">${esc(text)}</p>
+<h1 style="font-size:22px;margin:12px 0">${ok ? `${what} חובר` : 'החיבור לא הצליח'}</h1><p style="line-height:1.7;color:#B9B5AA">${esc(text)}</p>
 <a href="/admin-panel" style="display:inline-block;margin-top:16px;background:#8490D8;color:#09090F;font-weight:700;padding:12px 28px;border-radius:999px;text-decoration:none">חזרה לפאנל</a></div></body></html>`
 }
 // ── Documents & digital signatures (admin "מסמכים וחתימות", src/DocumentsTab.jsx; the client's page src/SignPage.jsx) ──────
@@ -2332,7 +2335,7 @@ async function handleDocs(req, res, action) {
       if (action === 'sign-open') { const r = await Docs.openByToken(t, req); return res.status(r.code || 200).json(r) }
       if (action === 'sign-otp') { const r = await Docs.sendOtp(t, b.via, req); return res.status(r.code || 200).json(r) }
       if (action === 'sign-submit') { const r = await Docs.submitSignature(t, b, req); return res.status(r.code || 200).json(r) }
-      if (action === 'sign-file') return sendFile(await Docs.signedFileByToken(t, req.query?.kind === 'signed' ? 'signed' : 'original'))
+      if (action === 'sign-file') return sendFile(await Docs.signedFileByToken(t, ['signed', 'signature'].includes(req.query?.kind) ? req.query.kind : 'original'))
       return res.status(404).json({ error: `Unknown path: ${action}` })
     }
     if (action === 'docs-list') {
@@ -2359,7 +2362,7 @@ async function handleDocs(req, res, action) {
       const doc = await Docs.getDoc(req.query?.id)
       if (!doc) return res.status(404).json({ error: 'המסמך לא נמצא' })
       const events = await Docs.listEvents(doc.id)
-      return res.status(200).json({ doc, events, chain: Docs.verifyChain(events), urls: { original: await Docs.fileUrl(doc.original_path), signed: await Docs.fileUrl(doc.signed_path), signature: await Docs.fileUrl(doc.signature_path) } })
+      return res.status(200).json({ doc, events, chain: Docs.verifyChain(events), drive: { connected: await Drive.connected().catch(() => false) }, urls: { original: await Docs.fileUrl(doc.original_path), signed: await Docs.fileUrl(doc.signed_path), signature: await Docs.fileUrl(doc.signature_path) } })
     }
     if (action === 'docs-create') { const r = await Docs.createDoc(b, { req }); return res.status(r.errors ? 400 : 201).json(r) }
     if (action === 'docs-update') { const r = await Docs.updateDoc(b.id, b, { req }); return res.status(r.errors || r.error ? 400 : 200).json(r) }
@@ -2376,6 +2379,19 @@ async function handleDocs(req, res, action) {
       return sendFile({ bytes: await Docs.renderCurrent({ number: b.number || 'טיוטה', status: 'draft', data, created_at: new Date().toISOString(), template_id: b.templateId && b.templateId !== 'brokerage' ? b.templateId : null, project_name: data.projectName }), type: 'application/pdf', name: 'preview.pdf' })
     }
     if (action === 'docs-settings') return res.status(200).json({ settings: req.method === 'POST' ? await Docs.saveSettings(b) : await Docs.getSettings(), status: Docs.status() })
+    // reminders: POST docs-remind { id, now: true } sends one now · { id, off: true | false } = "no reminders for this document"
+    if (action === 'docs-remind') {
+      if (b.now) { const r = await Docs.remindUnsigned({ only: String(b.id || ''), force: true, max: 1 }); return res.status(200).json({ ...r, ok: r.sent > 0, doc: await Docs.getDoc(b.id) }) }
+      const r = await Docs.setNoRemind(b.id, !!b.off); return res.status(r.error ? 400 : 200).json(r)
+    }
+    // Google Drive: GET docs-drive-status · POST docs-drive-connect → { url } · POST docs-drive-disconnect · POST docs-drive-sync { id? }
+    if (action === 'docs-drive-status') return res.status(200).json(await Docs.driveStatus())
+    if (action === 'docs-drive-connect') { if (!GCal.oauthReady()) return res.status(400).json({ error: 'GOOGLE_OAUTH_CLIENT_ID / GOOGLE_OAUTH_CLIENT_SECRET חסרים ב-Vercel' }); return res.status(200).json({ url: Drive.authUrl() }) }
+    if (action === 'docs-drive-disconnect') { await Drive.disconnect(); return res.status(200).json({ ok: true }) }
+    if (action === 'docs-drive-sync') {
+      if (b.id) { const d = await Docs.getDoc(b.id); if (!d) return res.status(404).json({ error: 'המסמך לא נמצא' }); const kinds = [d.original_path ? 'original' : '', d.signed_path ? 'signed' : ''].filter(Boolean); for (const k of kinds) await Docs.driveQueue(d, k); const r = await Docs.driveSyncDoc(d); return res.status(200).json({ ...r, doc: await Docs.getDoc(b.id) }) }
+      return res.status(200).json(await Docs.driveTick({ max: 6 }))
+    }
     if (action === 'docs-clauses') { await Docs.saveClauses(b.clauses, { reset: !!b.reset }); return res.status(200).json({ settings: await Docs.getSettings() }) }
     return res.status(404).json({ error: `Unknown path: ${action}` })
   } catch (e) { console.error('[docs]', action, e.message); return res.status(500).json({ error: e.message }) }
@@ -2453,6 +2469,11 @@ async function handleBooking(req, res, action) {
       res.setHeader('Content-Type', 'text/html; charset=utf-8')
       res.setHeader('Cache-Control', 'no-store')
       const q = req.query || {}
+      if (Drive.isDriveState(q.state)) {   // the documents module's Google Drive connection shares this callback URL
+        if (q.error) return res.status(200).end(oauthPage(false, q.error === 'access_denied' ? 'לא אישרתם גישה ל-Google Drive. אפשר לנסות שוב מהגדרות המסמכים.' : `Google: ${q.error}`, 'Google Drive'))
+        if (!Drive.stateValid(q.state)) return res.status(400).end(oauthPage(false, 'הקישור פג. לחצו שוב "חיבור Google Drive" בהגדרות המסמכים.', 'Google Drive'))
+        try { const { email } = await Drive.connect(String(q.code || '')); return res.status(200).end(oauthPage(true, `Google Drive של ${email || ''} מחובר. כל מסמך שנשלח או נחתם נשמר מעכשיו גם בתיקייה Afik HaNahal/Documents.`, 'Google Drive')) } catch (e) { return res.status(200).end(oauthPage(false, e.message, 'Google Drive')) }
+      }
       if (q.error) return res.status(200).end(oauthPage(false, q.error === 'access_denied' ? 'לא אישרתם גישה ליומן. אפשר לנסות שוב מהפאנל.' : `Google: ${q.error}`))
       if (!GCal.stateValid(q.state)) return res.status(400).end(oauthPage(false, 'הקישור פג. לחצו שוב "חבר יומן" בפאנל.'))
       try {

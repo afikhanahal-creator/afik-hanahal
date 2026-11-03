@@ -37,6 +37,7 @@ html,body{margin:0;background:#EFEBE3;color:#17172B;font-family:Rubik,Heebo,Aria
 .sg-done{text-align:center;display:flex;flex-direction:column;gap:12px;align-items:center;padding:10px 0}
 .sg-done .big{width:72px;height:72px;border-radius:50%;background:#E8F7EE;color:#128C4A;display:flex;align-items:center;justify-content:center;font-size:36px}
 .sg-foot{text-align:center;color:#8A8798;font-size:12px;padding:16px}
+.sg-signers{display:flex;flex-direction:column;gap:4px;font-size:13px;background:#F5F1E9;border-radius:10px;padding:10px 12px;margin-bottom:12px}.sg-signers span{color:#5E5B6E}.sg-signers span.cur{color:#3F4EB0;font-weight:700}.sg-signers span.ok{color:#1E8E4E}
 .sg-blocked{max-width:560px;margin:40px auto;background:#fff;border-radius:16px;padding:28px;text-align:center;border:1px solid #E1DBD0}
 .sg-mob-cta{display:none}
 @media (max-width:900px){.sg-wrap{grid-template-columns:1fr;padding:0;gap:0}.sg-doc{padding:0}.sg-side{position:static;border-radius:20px 20px 0 0;margin-top:-8px;box-shadow:0 -8px 30px rgba(0,0,0,.08)}.sg-doc-in{transform:none!important;width:100%!important}.sg-zoom{display:none}.sg-mob-cta{display:flex;position:fixed;bottom:0;inset-inline:0;z-index:6;padding:10px 14px;background:rgba(255,255,255,.96);border-top:1px solid #E1DBD0}.sg-foot{padding-bottom:80px}}
@@ -83,7 +84,7 @@ export default function SignPage() {
     if (!token) { setSt({ blocked: 'הקישור לא תקין' }); return }
     api('sign-open', `?t=${encodeURIComponent(token)}`).then(r => {
       if (r.error) setSt({ blocked: r.error })
-      else { setSt({ view: r.view, blocked: r.blocked, signed: r.signed, expired: r.expired }); setForm(f => ({ ...f, name: r.view?.client?.name || '' })); setVia(r.view?.channels?.whatsapp ? 'whatsapp' : 'email') }
+      else { setSt({ view: r.view, blocked: r.blocked, signed: r.signed, expired: r.expired }); setForm(f => ({ ...f, name: r.view?.signer?.name || r.view?.client?.name || '' })); setVia(r.view?.channels?.whatsapp ? 'whatsapp' : 'email') }
     }).catch(() => setSt({ blocked: 'לא הצלחנו לטעון את המסמך. נסו שוב בעוד רגע.' }))
   }, [token])
   useEffect(() => {
@@ -112,7 +113,15 @@ export default function SignPage() {
   }
   const v = st.view
   const signedUrl = `/api/meta/sign-file?t=${encodeURIComponent(token)}&kind=signed&dl=1`
-  const side = done || st.signed ? (
+  const sgI = v?.signer
+  const side = done?.partial ? (
+    <div className="sg-done" aria-live="polite">
+      <div className="sg-done"><div className="big">✓</div></div>
+      <h2 style={{ margin: 0 }}>החתימה שלכם נקלטה</h2>
+      <p>תודה! המסמך עובר עכשיו לחתימת {done.next?.name || 'החותם הבא'}{done.next?.sent ? ' — הקישור נשלח אליהם.' : '.'} אחרי שכל החותמים יחתמו, כולם יקבלו עותק חתום.</p>
+      <p style={{ fontSize: 12.5 }}>מספר מסמך <span dir="ltr">{v?.number}</span></p>
+    </div>
+  ) : done || st.signed ? (
     <div className="sg-done" aria-live="polite">
       <div className="sg-done"><div className="big">✓</div></div>
       <h2 style={{ margin: 0 }}>המסמך נחתם בהצלחה</h2>
@@ -125,6 +134,7 @@ export default function SignPage() {
   ) : (
     <>
       <h2>חתימה על המסמך</h2>
+      {sgI?.total > 1 && <div className="sg-signers" aria-label="סדר החותמים"><b>חותם {sgI.index + 1} מתוך {sgI.total}: {sgI.name}</b>{sgI.list.map((x, i) => <span key={i} className={x.status === 'signed' ? 'ok' : i === sgI.index ? 'cur' : ''}>{x.status === 'signed' ? '✓ ' : ''}{x.name}</span>)}</div>}
       <p>קראו את המסמך, קבלו קוד אימות חד-פעמי, ציירו את החתימה ואשרו. זה לוקח דקה.</p>
       <div className="sg-f"><label>1. קוד אימות</label>
         {v?.channels?.whatsapp && v?.channels?.email && <div className="sg-chips"><button type="button" className={`sg-chip${via === 'whatsapp' ? ' on' : ''}`} onClick={() => setVia('whatsapp')}>לוואטסאפ {v.client.phoneMasked}</button><button type="button" className={`sg-chip${via === 'email' ? ' on' : ''}`} onClick={() => setVia('email')}>לאימייל {v.client.emailMasked}</button></div>}

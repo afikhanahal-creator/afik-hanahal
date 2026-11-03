@@ -80,6 +80,7 @@ export default function DocSheet({ view, signatureUrl = '', logoSrc = '/logo-bla
         <div className="dsh-box"><b>הלקוח</b>{signed && signatureUrl ? <img src={signatureUrl} alt="חתימת הלקוח"/> : <div className="ln"/>}<small>{signed ? <>{view.signature.name}<br/>נחתם דיגיטלית {whenHe(view.signature.at)}</> : <>{c.name}<br/>שם, חתימה ותאריך</>}</small></div>
         <div className="dsh-box"><b>המתווך</b><div className="ln"/><small>{a.name ? `${a.name}${a.license ? ` · רישיון ${a.license}` : ''}` : COMPANY.name}<br/>{COMPANY.name}</small></div>
       </div>
+      {(view.signer?.list || []).length > 1 && <div className="dsh-sig">{view.signer.list.slice(1).map((sg, i) => <div key={i} className="dsh-box"><b>{{ spouse: 'בן/בת זוג', partner: 'שותף/ה', guarantor: 'ערב/ה' }[sg.role] || 'חותם נוסף'}</b><div className="ln"/><small>{sg.name}<br/>{sg.status === 'signed' ? `נחתם דיגיטלית ${whenHe(sg.signed_at)}` : 'שם, חתימה ותאריך'}</small></div>)}</div>}
       <footer className="dsh-foot"><span>{view.title} · <span dir="ltr">{view.number || ''}</span></span><span>{COMPANY.short} · {COMPANY.site.replace(/^https?:\/\//, '')}</span></footer>
     </article>
   )

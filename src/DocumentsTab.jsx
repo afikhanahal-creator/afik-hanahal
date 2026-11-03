@@ -7,12 +7,12 @@
 // Everything here uses the admin tokens (T.* / var(--au-*)) and works in light / dark, RTL and on a phone.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { FileSignature, Plus, Search, Send, RefreshCw, Download, Link2, XCircle, Settings, Eye, Copy, Check, AlertTriangle, ChevronLeft, ChevronRight, FileText, Trash2, Upload, Clock, CheckCircle2, PenLine, Mail, MessageCircle, FolderKanban } from 'lucide-react'
+import { FileSignature, Plus, Search, Send, RefreshCw, Download, Link2, XCircle, Settings, Eye, Copy, Check, AlertTriangle, ChevronLeft, ChevronRight, FileText, Trash2, Upload, Clock, CheckCircle2, PenLine, Mail, MessageCircle, FolderKanban, Cloud, Bell, Users, ExternalLink } from 'lucide-react'
 import { T, Button, StatTile, FilterChip, Badge, EmptyState, Field, inputStyle, Modal, Drawer, useToasts, SectionHead } from './automationsUI.jsx'
 import { autoApi } from './AutomationsApi.jsx'
 import DocSheet, { DOC_CSS } from './DocPreview.jsx'
 import { onSync } from './lib/syncBus.js'
-import { computeFees, renderClauses, cleanDocInput, DEFAULT_CLAUSES, DOC_TYPES, CLIENT_ROLES, DEAL_TYPES, FEE_MODES, STATUS_HE, EVENT_HE, DEFAULT_VAT, docStats, effectiveStatus, fmtMoney, fmtPct, whenHe, todayHe, placeholderValues, PLACEHOLDERS } from '../lib/documents.js'
+import { computeFees, renderClauses, cleanDocInput, DEFAULT_CLAUSES, DOC_TYPES, CLIENT_ROLES, DEAL_TYPES, FEE_MODES, STATUS_HE, EVENT_HE, DEFAULT_VAT, docStats, effectiveStatus, fmtMoney, fmtPct, whenHe, todayHe, placeholderValues, PLACEHOLDERS, SIGNER_ROLES, MAX_SIGNERS, signerProgressText, signerInfo, DEFAULT_REMINDERS, DEFAULT_NOTIFY_ON } from '../lib/documents.js'
 import { leadProperty } from '../lib/automations-shared.js'
 import { useProjects } from './lib/projectsStore.js'
 import { projectOfLead } from '../lib/projects.js'
@@ -30,7 +30,7 @@ const TR = {
     tiles: { total: 'מסמכים שנוצרו', waiting: 'ממתינים לחתימה', signed: 'נחתמו', problem: 'פג תוקף / נכשל' },
     filters: { all: 'הכל', waiting: 'ממתינים לחתימה', signed: 'נחתמו', draft: 'טיוטות', problem: 'בעיות', cancelled: 'בוטלו' }, templates: 'תבניות',
     search: 'חיפוש לפי שם, טלפון, אימייל, מספר מסמך או נכס…', range: { all: 'כל הזמן', week: '7 ימים', month: '30 יום', quarter: '90 יום' },
-    cols: { number: 'מספר', type: 'סוג', client: 'לקוח', project: 'פרויקט', property: 'נכס', agent: 'סוכן', fees: 'דמי תיווך', created: 'נוצר', sent: 'נשלח', via: 'ערוץ', opened: 'נפתח', status: 'סטטוס', signed: 'נחתם', actions: '' },
+    cols: { drive: 'Drive', number: 'מספר', type: 'סוג', client: 'לקוח', project: 'פרויקט', property: 'נכס', agent: 'סוכן', fees: 'דמי תיווך', created: 'נוצר', sent: 'נשלח', via: 'ערוץ', opened: 'נפתח', status: 'סטטוס', signed: 'נחתם', actions: '' },
     empty: 'עדיין אין מסמכים. "יצירת מסמך חדש" פותח את הטופס עם תצוגה חיה.', emptyFilter: 'אין מסמכים שמתאימים לסינון.',
     open: 'פתיחה', download: 'הורדת PDF', resend: 'שליחה חוזרת', cancel: 'ביטול המסמך', signedCopy: 'העותק החתום', word: 'Word', link: 'קישור חדש', copy: 'העתקה', copied: 'הועתק ✓',
     steps: ['תבנית', 'לקוח ופרויקט', 'נכס', 'תנאי התיווך', 'פרטי המסמך', 'תצוגה מקדימה', 'שליחה'], next: 'הבא', back: 'חזרה', saveDraft: 'שמירת טיוטה', sendNow: 'שליחה לחתימה', saving: 'שומר…', sending: 'שולח…',
@@ -44,6 +44,9 @@ const TR = {
     sentOk: 'נשלח לחתימה ✓', sentPart: 'נשלח חלקית', sentFail: 'השליחה נכשלה', linkReady: 'קישור חדש מוכן — העתיקו ושלחו בכל דרך', cancelled: 'המסמך בוטל', cancelAsk: 'לבטל את המסמך? הקישור ללקוח יפסיק לעבוד.',
     drawer: { files: 'קבצים', events: 'תיעוד (שרשרת אירועים)', chainOk: 'שרשרת התיעוד שלמה', chainBad: 'שרשרת התיעוד לא תקינה!', sendLog: 'שליחות', signature: 'פרטי החתימה', none: '—', lead: 'כרטיס הליד', noLead: 'לא מקושר לליד', hash: 'SHA-256' },
     st: STATUS_HE,
+    signers: { title: 'חותמים נוספים', hint: 'בן/בת זוג, שותף או ערב שחותמים אחרי הלקוח, לפי הסדר: כל אחד מקבל את הקישור רק אחרי שהקודם חתם.', add: 'חותם נוסף', name: 'שם מלא', role: 'תפקיד', remove: 'הסרה', progress: 'חתמו', waiting: 'ממתין', sent: 'הקישור נשלח', opened: 'פתח', signed: 'חתם', current: 'תורו עכשיו' },
+    drive: { title: 'Google Drive', col: 'Drive', synced: 'נשמר ב-Drive', pending: 'ממתין לסנכרון', error: 'שגיאת סנכרון', failed: 'הסנכרון נכשל', off: 'לא מחובר', sync: 'סנכרון עכשיו', open: 'פתיחה ב-Drive', connect: 'חיבור Google Drive', disconnect: 'ניתוק', connected: 'מחובר', notConnected: 'לא מחובר', enabled: 'שמירה אוטומטית של כל מסמך שנשלח ונחתם', folder: 'התיקייה', tree: 'Afik HaNahal / Documents / Projects / <פרויקט> / Sent Documents · Signed Documents (ו-General לפי מסמך בלי פרויקט, Templates לתבניות)', naming: 'שם הקובץ: [פרויקט]_[לקוח]_[סוג]_[תאריך]_[Sent | Signed].pdf', setup: 'מחברים פעם אחת: צריך שב-Google Cloud של היומן יהיה מופעל "Google Drive API" (אותו פרויקט ואותו OAuth client כמו היומן). לוחצים "חיבור Google Drive", מתחברים כ-afik.hanahal@gmail.com ומאשרים גישה לקבצים שהמערכת יוצרת בלבד.', counts: { synced: 'נשמרו', pending: 'ממתינים', error: 'בשגיאה', failed: 'נכשלו' }, queue: 'התור רץ כל 15 דקות (auto-tick) ואחרי כל שליחה או חתימה; "סנכרון עכשיו" מריץ אותו מיד.' },
+    remind: { title: 'תזכורות והתראות', enabled: 'לשלוח תזכורת למי שעוד לא חתם', days: 'ימים אחרי שליחת הקישור (מופרדים בפסיק)', hours: 'שעות שליחה (ישראל)', from: 'מ-', to: 'עד', hint: 'תזכורת אחת ביום לכל היותר, לחותם שתורו עכשיו, באותו קישור שכבר אצלו. לא למסמך שנחתם, בוטל או פג.', notifyOn: 'התראת וואטסאפ למשרד כש…', on: { opened: 'הלקוח פתח את המסמך', partial: 'חותם חתם וממתינים לבא', signed: 'המסמך נחתם (כולל אימייל ועותק)', expired: 'הקישור פג בלי חתימה', failed: 'שליחה נכשלה', reminder: 'נשלחה תזכורת' }, sentList: 'תזכורות שנשלחו', none: 'עוד לא נשלחו תזכורות', now: 'שליחת תזכורת עכשיו', off: 'בלי תזכורות למסמך הזה', offOn: 'התזכורות למסמך הזה כבויות', nowOk: 'התזכורת נשלחה ✓', nowFail: 'התזכורת לא נשלחה' },
     settingsT: { title: 'הגדרות המסמכים', vat: 'שיעור מע"מ (%)', expiry: 'תוקף קישור ברירת מחדל (ימים)', agent: 'סוכן ברירת מחדל', notify: 'מספרי וואטסאפ להתראה על חתימה (בנוסף לקו המשרד)', notifyPh: '05X-XXX-XXXX, מופרד בפסיקים', notifyEmail: 'אימייל להתראה על חתימה', logo: 'לוגו ברירת מחדל', clauses: 'סעיפי ההתקשרות (התבנית)', clausesHint: 'כאן מדביקים את הנוסח המדויק של טופס המאסטר. משתנים בסוגריים מסולסלים מתמלאים מהמסמך:', reset: 'חזרה לנוסח הבסיס', save: 'שמירה', saved: 'נשמר ✓', wiring: 'חיבורים', db: 'מסד נתונים', wa: 'וואטסאפ (Green API)', email: 'אימייל (Gmail)', provider: 'ספק חתימה', ok: 'מחובר', missing: 'חסר' },
     legal: 'הנוסח המשפטי הוא באחריות המשרד. לפני שימוש מסחרי מומלץ אישור עורך דין, כולל לגבי תוקף החתימה האלקטרונית ואופן הזיהוי.',
   },
@@ -113,6 +116,17 @@ export const DOCS_CSS = `
 .dd-rows{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:13px}
 .dd-rows span{color:var(--au-text3)}.dd-rows b{font-weight:500;word-break:break-all}
 .dd-ev{display:flex;gap:10px;padding:7px 0;border-bottom:1px solid var(--au-divider);font-size:12.5px;align-items:flex-start}
+.dw-signers{margin-top:14px;padding-top:10px;border-top:1px solid var(--au-divider)}
+.dw-signer{padding:10px;border:1px solid var(--au-line);border-radius:12px;margin-bottom:8px;background:rgba(var(--ov),.03)}
+.dt-sg{display:inline-block;margin-inline-start:6px;font-size:11px;font-weight:700;color:var(--au-brand-text);background:rgba(var(--brand-rgb),.12);border-radius:999px;padding:1px 7px;vertical-align:middle}
+.dd-signers{display:flex;flex-direction:column;gap:6px}
+.dd-signer{display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:8px 10px;border:1px solid var(--au-line);border-radius:10px;font-size:13px}
+.dd-signer span{color:var(--au-text3);font-size:12px}.dd-signer em{grid-column:1/-1;font-style:normal;font-size:12px;color:var(--au-text3)}
+.dd-signer.cur{border-color:rgba(var(--brand-rgb),.5);background:rgba(var(--brand-rgb),.06)}.dd-signer.ok em{color:var(--au-green-text)}
+.dt-tog{display:flex;gap:8px;align-items:center;font-size:13px;cursor:pointer}.dt-tog input{width:16px;height:16px;min-height:0;accent-color:var(--au-brand)}
+.dt-drive{display:flex;flex-direction:column;gap:12px}.dt-drive .st{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.dt-drive .tree{font-size:12.5px;color:var(--au-text3);line-height:1.7;background:rgba(var(--ov),.04);border-radius:10px;padding:10px 12px}
+.dt-counts{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.dt-counts div{border:1px solid var(--au-line);border-radius:10px;padding:8px 10px;text-align:center}.dt-counts b{display:block;font-size:18px}.dt-counts span{font-size:11.5px;color:var(--au-text3)}
 .dd-ev time{color:var(--au-text3);white-space:nowrap;direction:ltr;font-variant-numeric:tabular-nums}
 .dd-ev small{display:block;color:var(--au-text3);font-size:11px;direction:ltr;text-align:right;word-break:break-all}
 .dd-files{display:flex;gap:8px;flex-wrap:wrap}
@@ -150,7 +164,7 @@ const leadMatch = (l, q) => { const s = q.trim().toLowerCase(); if (!s) return t
 const splitName = n => { const w = String(n || '').trim().split(/\s+/); return { firstName: w[0] || '', lastName: w.slice(1).join(' ') } }
 const STEP_LABEL = { tpl: 'תבנית', client: 'לקוח ופרויקט', property: 'נכס', fees: 'תנאי התיווך', fields: 'פרטי המסמך', preview: 'תצוגה מקדימה', send: 'שליחה' }
 const FEE_KEYS = ['PRICE', 'COMMISSION', 'COMMISSION_PCT', 'COMMISSION_BASIS', 'VAT', 'VAT_RATE', 'TOTAL', 'TERMS']
-const emptyForm = settings => ({ templateId: 'brokerage', projectId: '', projectName: '', fields: {}, leadId: '', propertyId: '', client: { firstName: '', lastName: '', name: '', idNumber: '', phone: '', email: '', address: '', role: 'buyer' }, property: { address: '', city: '', desc: '', type: '', dealType: 'sale', price: '', notes: '', link: '' }, fees: { mode: 'percent', pct: 2, fixed: '', months: 1, vatRate: settings?.vatRate ?? DEFAULT_VAT }, agent: { ...(settings?.agent || { name: '', license: '', phone: '', email: '' }) }, logo: { ...(settings?.logo || { show: true, url: '', size: 'm', align: 'right' }) }, terms: '', expiryDays: settings?.expiryDays || 14, title: '' })
+const emptyForm = settings => ({ templateId: 'brokerage', projectId: '', projectName: '', fields: {}, leadId: '', propertyId: '', client: { firstName: '', lastName: '', name: '', idNumber: '', phone: '', email: '', address: '', role: 'buyer' }, property: { address: '', city: '', desc: '', type: '', dealType: 'sale', price: '', notes: '', link: '' }, fees: { mode: 'percent', pct: 2, fixed: '', months: 1, vatRate: settings?.vatRate ?? DEFAULT_VAT }, agent: { ...(settings?.agent || { name: '', license: '', phone: '', email: '' }) }, logo: { ...(settings?.logo || { show: true, url: '', size: 'm', align: 'right' }) }, terms: '', expiryDays: settings?.expiryDays || 14, title: '', signers: [] })
 
 /** the view the preview draws, from the wizard's form and its template (same rules as the server) */
 function formView(form, tpl, number = '') {
@@ -158,7 +172,7 @@ function formView(form, tpl, number = '') {
   const fees = computeFees({ ...form.fees, price: form.property.price })
   const d = { ...data, fees, client: { ...data.client, name: data.client.name || [form.client.firstName, form.client.lastName].filter(Boolean).join(' ') } }
   const values = templateValues(d, { number, project: form.projectName ? { name: form.projectName } : null })
-  return { number, status: 'draft', title: d.title || tpl.title || DOC_TYPES.brokerage.name, created_at: new Date().toISOString(), client: d.client, property: d.property, fees, agent: d.agent, logo: d.logo?.url || d.logo?.show === false ? d.logo : { ...tpl.logo, ...(d.logo || {}) }, terms: d.terms, project: form.projectName, kind: tpl.kind, blocks: renderBlocks(tpl, values), sections: tpl.sections, values }
+  return { number, status: 'draft', signer: signerInfo({ data: d, status: 'draft' }), title: d.title || tpl.title || DOC_TYPES.brokerage.name, created_at: new Date().toISOString(), client: d.client, property: d.property, fees, agent: d.agent, logo: d.logo?.url || d.logo?.show === false ? d.logo : { ...tpl.logo, ...(d.logo || {}) }, terms: d.terms, project: form.projectName, kind: tpl.kind, blocks: renderBlocks(tpl, values), sections: tpl.sections, values }
 }
 const fieldInput = (f, v, on) => f.type === 'checkbox' ? <label className="te-tog"><input type="checkbox" checked={v === true || v === 'true'} onChange={e => on(e.target.checked)}/>{f.label}</label>
   : f.type === 'select' ? <select className="dt-input" value={v || ''} onChange={e => on(e.target.value)} aria-label={f.label}><option value="">—</option>{(f.options || []).map(o => <option key={o} value={o}>{o}</option>)}</select>
@@ -273,7 +287,7 @@ export default function DocumentsTab({ lang = 'he', leads = [], properties = [],
       {area === 'docs' && (!loading && !list.length ? <EmptyState icon={FileSignature} title={docs.length ? t.emptyFilter : t.empty} action={!docs.length ? <Button variant="solid" icon={<Plus size={14}/>} onClick={() => setWizard({})}>{t.newDoc}</Button> : null}/> : (
         <>
           <table className="dt-table" aria-label={t.title}>
-            <thead><tr><th>{t.cols.number}</th><th>{t.cols.type}</th><th>{t.cols.client}</th><th>{t.cols.project}</th><th>{t.cols.property}</th><th>{t.cols.agent}</th><th>{t.cols.fees}</th><th>{t.cols.created}</th><th>{t.cols.sent}</th><th>{t.cols.via}</th><th>{t.cols.opened}</th><th>{t.cols.status}</th><th>{t.cols.signed}</th><th/></tr></thead>
+            <thead><tr><th>{t.cols.number}</th><th>{t.cols.type}</th><th>{t.cols.client}</th><th>{t.cols.project}</th><th>{t.cols.property}</th><th>{t.cols.agent}</th><th>{t.cols.fees}</th><th>{t.cols.created}</th><th>{t.cols.sent}</th><th>{t.cols.via}</th><th>{t.cols.opened}</th><th>{t.cols.status}</th><th>{t.cols.drive}</th><th>{t.cols.signed}</th><th/></tr></thead>
             <tbody>{list.map(d => { const st = effectiveStatus(d), f = computeFees(d.data?.fees || {}), Ic = STATUS_ICON[st] || Clock; const via = [...new Set((d.send_log || []).filter(x => x.ok).map(x => x.via))]; return (
               <tr key={d.id} onClick={() => openDoc(d)} className="dt-row">
                 <td><span className="dt-num">{d.number}</span></td>
@@ -287,7 +301,8 @@ export default function DocumentsTab({ lang = 'he', leads = [], properties = [],
                 <td><span className="dt-num">{d.sent_at ? todayHe(d.sent_at) : '—'}</span></td>
                 <td style={{ fontSize: 12 }}>{via.map(v => v === 'whatsapp' ? 'וואטסאפ' : 'אימייל').join(' + ') || '—'}</td>
                 <td style={{ fontSize: 12 }}>{d.opened_at || st === 'opened' || st === 'signed' ? <span style={{ color: 'var(--au-green-text)' }}>נפתח</span> : d.sent_at ? <span style={{ color: 'var(--au-text3)' }}>לא נפתח</span> : '—'}</td>
-                <td><span className="dt-st" style={{ background: `${TONE[st]}1F`, color: st === 'draft' || st === 'cancelled' ? 'var(--au-text2)' : TONE[st] }}><Ic size={12}/>{t.st[st]}</span></td>
+                <td><span className="dt-st" style={{ background: `${TONE[st]}1F`, color: st === 'draft' || st === 'cancelled' ? 'var(--au-text2)' : TONE[st] }}><Ic size={12}/>{t.st[st]}</span>{signerProgressText(d) && <span className="dt-sg" title={t.signers.progress}>{signerProgressText(d)}</span>}</td>
+                <td onClick={e => e.stopPropagation()}><DriveMark t={t} doc={d}/></td>
                 <td><span className="dt-num">{d.signed_at ? whenHe(d.signed_at) : '—'}</span></td>
                 <td onClick={e => e.stopPropagation()}><div className="dt-acts">
                   <a className="dt-ib" href={fileUrl(d.id, st === 'signed' ? 'signed' : 'original')} target="_blank" rel="noreferrer" title={st === 'signed' ? t.signedCopy : t.download} aria-label={t.download}><Download size={14}/></a>
@@ -447,6 +462,18 @@ function DocWizard({ t, leads, properties, projects = [], templates = [], settin
         <Field label={t.client.role}><select className="dt-input" value={form.client.role} aria-label={t.client.role} onChange={e => set('client.role', e.target.value)}>{Object.entries(CLIENT_ROLES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>
         <div className="full"><Field label={t.client.address}><input className="dt-input" value={form.client.address} aria-label={t.client.address} onChange={e => set('client.address', e.target.value)}/></Field></div>
       </div>
+      <div className="dw-signers">
+        <SectionHead title={<><Users size={14}/> {t.signers.title}</>} right={(form.signers || []).length < MAX_SIGNERS - 1 && <Button size="sm" variant="ghost" icon={<Plus size={12}/>} onClick={() => set('signers', [...(form.signers || []), { name: '', idNumber: '', phone: '', email: '', role: 'spouse' }])}>{t.signers.add}</Button>}/>
+        <p style={{ margin: '0 0 8px', fontSize: 12.5, color: 'var(--au-text3)', lineHeight: 1.6 }}>{t.signers.hint}</p>
+        {(form.signers || []).map((sg, i) => <div key={i} className="dw-grid dw-signer">
+          <Field label={`${t.signers.name} (${i + 2})`}><input className="dt-input" value={sg.name} aria-label={`${t.signers.name} ${i + 2}`} onChange={e => set('signers', form.signers.map((x, k) => k === i ? { ...x, name: e.target.value } : x))}/></Field>
+          <Field label={t.signers.role}><select className="dt-input" value={sg.role} aria-label={`${t.signers.role} ${i + 2}`} onChange={e => set('signers', form.signers.map((x, k) => k === i ? { ...x, role: e.target.value } : x))}>{Object.entries(SIGNER_ROLES).filter(([k]) => k !== 'client').map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>
+          <Field label={t.client.phone}><input className="dt-input" dir="ltr" inputMode="tel" value={sg.phone} aria-label={`${t.client.phone} ${i + 2}`} onChange={e => set('signers', form.signers.map((x, k) => k === i ? { ...x, phone: e.target.value } : x))}/></Field>
+          <Field label={t.client.email}><input className="dt-input" dir="ltr" inputMode="email" value={sg.email} aria-label={`${t.client.email} ${i + 2}`} onChange={e => set('signers', form.signers.map((x, k) => k === i ? { ...x, email: e.target.value } : x))}/></Field>
+          <Field label={t.client.id}><input className="dt-input" dir="ltr" inputMode="numeric" value={sg.idNumber} aria-label={`${t.client.id} ${i + 2}`} onChange={e => set('signers', form.signers.map((x, k) => k === i ? { ...x, idNumber: e.target.value.replace(/\D/g, '').slice(0, 9) } : x))}/></Field>
+          <div style={{ display: 'flex', alignItems: 'flex-end' }}><Button size="sm" variant="ghost" icon={<Trash2 size={12}/>} onClick={() => set('signers', form.signers.filter((_, k) => k !== i))}>{t.signers.remove}</Button></div>
+        </div>)}
+      </div>
     </>,
     <>
       <div className="dw-lead">
@@ -594,6 +621,15 @@ function LogoFields({ t, logo, onChange, push }) {
 }
 
 // ── the drawer ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+/** the Drive column: a cloud in the state's color, a link when the file is there */
+function DriveMark({ t, doc }) {
+  const dr = doc.data?.drive
+  if (!dr?.status) return <span style={{ color: 'var(--au-text3)' }}>—</span>
+  const f = dr.files?.signed || dr.files?.original
+  const color = dr.status === 'synced' ? 'var(--au-green-text)' : dr.status === 'pending' ? 'var(--au-text3)' : 'var(--au-red-text)'
+  const label = t.drive[dr.status] || dr.status
+  return f?.link ? <a className="dt-ib" href={f.link} target="_blank" rel="noreferrer" title={`${label} · ${f.name}`} aria-label={label} style={{ color }}><Cloud size={14}/></a> : <span className="dt-ib" title={dr.error || label} aria-label={label} style={{ color, cursor: 'default' }}><Cloud size={14}/></span>
+}
 function DocDrawer({ t, doc, onClose, onChanged, push, onOpenLead, leads, onEdit }) {
   const [full, setFull] = useState(null)
   const [busy, setBusy] = useState('')
@@ -644,6 +680,23 @@ function DocDrawer({ t, doc, onClose, onChanged, push, onOpenLead, leads, onEdit
           {st === 'draft' && <Button size="sm" variant="ghost" icon={<PenLine size={12}/>} onClick={() => onEdit(doc)}>עריכה</Button>}
           {['draft', 'sent', 'opened', 'expired', 'failed'].includes(st) && <Button size="sm" variant="danger" icon={<Trash2 size={12}/>} loading={busy === 'docs-cancel'} onClick={() => { if (window.confirm(t.cancelAsk)) act('docs-cancel', {}, t.cancelled) }}>{t.cancel}</Button>}
         </div>{link && <CopyRow label="קישור" value={link} t={t}/>}</div>
+        {signerInfo(doc).total > 1 && <div className="dd-sec"><SectionHead title={<><Users size={14}/> חותמים · {signerProgressText(doc)} {t.signers.progress}</>}/>
+          <div className="dd-signers">{signerInfo(doc).list.map((sg, i) => <div key={i} className={`dd-signer${i === signerInfo(doc).index && st !== 'signed' ? ' cur' : ''}${sg.status === 'signed' ? ' ok' : ''}`}>
+            <b>{i + 1}. {sg.name}</b><span>{SIGNER_ROLES[sg.role] || SIGNER_ROLES.other}</span>
+            <em>{sg.status === 'signed' ? `${t.signers.signed} · ${whenHe(sg.signed_at)}` : i === signerInfo(doc).index && ['sent', 'opened'].includes(st) ? `${t.signers.current} · ${sg.status === 'opened' ? t.signers.opened : t.signers.sent}` : t.signers.waiting}</em>
+          </div>)}</div>
+        </div>}
+        {['sent', 'opened'].includes(st) && <div className="dd-sec"><SectionHead title={<><Bell size={14}/> תזכורות</>} right={<Button size="sm" variant="ghost" loading={busy === 'docs-remind'} onClick={() => act('docs-remind', { now: true }, t.remind.nowOk)}>{t.remind.now}</Button>}/>
+          {(d.signing?.reminders || []).length ? d.signing.reminders.slice().reverse().map((r, i) => <div key={i} className="dd-ev"><time>{whenHe(r.at)}</time><span>תזכורת {r.step === 'manual' ? 'ידנית' : r.step} · {(r.via || []).map(v => v === 'whatsapp' ? t.send.wa : t.send.email).join(' + ') || '—'}{r.ok === false ? ' · נכשלה' : ''}</span></div>) : <span style={{ fontSize: 12.5, color: 'var(--au-text3)' }}>{t.remind.none}</span>}
+          <label className="dt-tog" style={{ marginTop: 6 }}><input type="checkbox" checked={!!d.signing?.noRemind} onChange={e => act('docs-remind', { off: e.target.checked })}/> {d.signing?.noRemind ? t.remind.offOn : t.remind.off}</label>
+        </div>}
+        {(d.drive || (full?.drive?.connected)) && <div className="dd-sec"><SectionHead title={<><Cloud size={14}/> {t.drive.title}</>} right={<Button size="sm" variant="ghost" loading={busy === 'docs-drive-sync'} onClick={() => act('docs-drive-sync', {}, null)}>{t.drive.sync}</Button>}/>
+          <div className="dd-files">
+            {Object.entries(d.drive?.files || {}).map(([k, f]) => <a key={k} className="dw-chip on" href={f.link || '#'} target="_blank" rel="noreferrer" title={f.folder}><Cloud size={12}/> {k === 'signed' ? t.signedCopy : 'PDF'} · {f.name}</a>)}
+            {!Object.keys(d.drive?.files || {}).length && <span style={{ fontSize: 12.5, color: 'var(--au-text3)' }}>{d.drive?.status ? t.drive[d.drive.status] || d.drive.status : 'עוד לא נשמר'}</span>}
+            {d.drive?.error && <span style={{ fontSize: 12.5, color: 'var(--au-red-text)', width: '100%' }}>{d.drive.error}</span>}
+          </div>
+        </div>}
         {doc.signature && <div className="dd-sec"><SectionHead title={t.drawer.signature}/><div className="dd-rows">
           <span>שם</span><b>{doc.signature.name}{doc.signature.idNumber ? ` · ת.ז. ${doc.signature.idNumber}` : ''}</b>
           <span>מועד</span><b>{whenHe(doc.signature.at)}</b>
@@ -665,14 +718,15 @@ function DocDrawer({ t, doc, onClose, onChanged, push, onOpenLead, leads, onEdit
 function DocSettings({ t, tab: initTab, settings, wiring, onClose, onSaved }) {
   const s = t.settingsT
   const [tab, setTab] = useState(initTab)
-  const [f, setF] = useState(() => ({ vatRate: settings?.vatRate ?? DEFAULT_VAT, expiryDays: settings?.expiryDays ?? 14, agent: { ...(settings?.agent || {}) }, notify: (settings?.notify || []).map(localPhone).join(', '), notifyEmail: settings?.notifyEmail || '', logo: { ...(settings?.logo || { show: true, url: '', size: 'm', align: 'right' }) } }))
+  const [f, setF] = useState(() => ({ vatRate: settings?.vatRate ?? DEFAULT_VAT, expiryDays: settings?.expiryDays ?? 14, agent: { ...(settings?.agent || {}) }, notify: (settings?.notify || []).map(localPhone).join(', '), notifyEmail: settings?.notifyEmail || '', logo: { ...(settings?.logo || { show: true, url: '', size: 'm', align: 'right' }) },
+    reminders: { ...DEFAULT_REMINDERS, ...(settings?.reminders || {}), days: (settings?.reminders?.days || DEFAULT_REMINDERS.days).join(', ') }, notifyOn: { ...DEFAULT_NOTIFY_ON, ...(settings?.notifyOn || {}) }, drive: { enabled: settings?.drive?.enabled !== false } }))
   const [clauses, setClauses] = useState(() => (settings?.clauses?.length ? settings.clauses : DEFAULT_CLAUSES).map(c => ({ ...c })))
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const save = async () => {
     setBusy(true); setErr('')
     try {
-      const body = tab === 'clauses' ? { clauses } : { vatRate: f.vatRate, expiryDays: f.expiryDays, agent: f.agent, notify: f.notify.split(/[,\s]+/).filter(Boolean), notifyEmail: f.notifyEmail, logo: f.logo }
+      const body = tab === 'clauses' ? { clauses } : tab === 'reminders' ? { reminders: f.reminders, notifyOn: f.notifyOn } : tab === 'drive' ? { drive: f.drive } : { vatRate: f.vatRate, expiryDays: f.expiryDays, agent: f.agent, notify: f.notify.split(/[,\s]+/).filter(Boolean), notifyEmail: f.notifyEmail, logo: f.logo }
       const r = await api.post('docs-settings', body)
       onSaved(r.settings); onClose()
     } catch (e) { setErr(e.message) } finally { setBusy(false) }
@@ -682,7 +736,7 @@ function DocSettings({ t, tab: initTab, settings, wiring, onClose, onSaved }) {
   return (
     <Modal open onClose={onClose} title={s.title} dir="rtl" width={760} footer={<div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', width: '100%' }}><span style={{ color: 'var(--au-red-text)', fontSize: 12.5 }}>{err}</span><div style={{ display: 'flex', gap: 8 }}>{tab === 'clauses' && <Button variant="ghost" onClick={reset} loading={busy}>{s.reset}</Button>}<Button variant="plain" onClick={onClose}>סגירה</Button><Button variant="solid" loading={busy} onClick={save}>{s.save}</Button></div></div>}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <div className="dw-chips"><button type="button" className={`dw-chip${tab === 'general' ? ' on' : ''}`} onClick={() => setTab('general')}>כללי</button><button type="button" className={`dw-chip${tab === 'clauses' ? ' on' : ''}`} onClick={() => setTab('clauses')}>{s.clauses}</button></div>
+        <div className="dw-chips"><button type="button" className={`dw-chip${tab === 'general' ? ' on' : ''}`} onClick={() => setTab('general')}>כללי</button><button type="button" className={`dw-chip${tab === 'clauses' ? ' on' : ''}`} onClick={() => setTab('clauses')}>{s.clauses}</button><button type="button" className={`dw-chip${tab === 'reminders' ? ' on' : ''}`} onClick={() => setTab('reminders')}><Bell size={12}/> {t.remind.title}</button><button type="button" className={`dw-chip${tab === 'drive' ? ' on' : ''}`} onClick={() => setTab('drive')}><Cloud size={12}/> {t.drive.title}</button></div>
         {tab === 'general' ? <>
           <div className="dt-wire">{[['db', s.db, W.db], ['wa', s.wa, W.whatsapp], ['email', s.email, W.email]].map(([k, l, ok]) => <Badge key={k} color={ok ? T.green : T.red}>{l}: {ok ? s.ok : s.missing}</Badge>)}<Badge color={T.brand}>{s.provider}: {W.providerLabel || 'builtin'}</Badge></div>
           <div className="dw-grid">
@@ -699,7 +753,16 @@ function DocSettings({ t, tab: initTab, settings, wiring, onClose, onSaved }) {
           <Field label={s.notify} hint={s.notifyPh}><input className="dt-input" dir="ltr" value={f.notify} onChange={e => setF(x => ({ ...x, notify: e.target.value }))}/></Field>
           <Field label={s.notifyEmail}><input className="dt-input" dir="ltr" value={f.notifyEmail} aria-label={s.notifyEmail} onChange={e => setF(x => ({ ...x, notifyEmail: e.target.value }))}/></Field>
           <LogoFields t={t} logo={f.logo} onChange={l => setF(x => ({ ...x, logo: l }))}/>
-        </> : <>
+        </> : tab === 'reminders' ? <>
+          <label className="dt-tog"><input type="checkbox" checked={f.reminders.enabled !== false} onChange={e => setF(x => ({ ...x, reminders: { ...x.reminders, enabled: e.target.checked } }))}/> {t.remind.enabled}</label>
+          <div className="dw-grid">
+            <Field label={t.remind.days}><input className="dt-input" dir="ltr" value={f.reminders.days} aria-label={t.remind.days} onChange={e => setF(x => ({ ...x, reminders: { ...x.reminders, days: e.target.value.replace(/[^\d,\s]/g, '') } }))}/></Field>
+            <Field label={t.remind.hours}><div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><span style={{ fontSize: 12.5 }}>{t.remind.from}</span><input className="dt-input" dir="ltr" inputMode="numeric" style={{ width: 70 }} value={f.reminders.from} aria-label={t.remind.from} onChange={e => setF(x => ({ ...x, reminders: { ...x.reminders, from: e.target.value.replace(/\D/g, '') } }))}/><span style={{ fontSize: 12.5 }}>{t.remind.to}</span><input className="dt-input" dir="ltr" inputMode="numeric" style={{ width: 70 }} value={f.reminders.to} aria-label={t.remind.to} onChange={e => setF(x => ({ ...x, reminders: { ...x.reminders, to: e.target.value.replace(/\D/g, '') } }))}/></div></Field>
+          </div>
+          <p style={{ margin: 0, fontSize: 12.5, color: 'var(--au-text3)', lineHeight: 1.6 }}>{t.remind.hint}</p>
+          <SectionHead title={t.remind.notifyOn}/>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 8 }}>{Object.entries(t.remind.on).map(([k, l]) => <label key={k} className="dt-tog"><input type="checkbox" checked={f.notifyOn[k] !== false} onChange={e => setF(x => ({ ...x, notifyOn: { ...x.notifyOn, [k]: e.target.checked } }))}/> {l}</label>)}</div>
+        </> : tab === 'drive' ? <DriveSettings t={t} f={f} setF={setF} setErr={setErr}/> : <>
           <p style={{ margin: 0, fontSize: 13, color: 'var(--au-text3)', lineHeight: 1.6 }}>{s.clausesHint}</p>
           <div className="dt-ph">{PLACEHOLDERS.map(p => <code key={p}>{`{${p}}`}</code>)}</div>
           {clauses.map((c, i) => <div key={i} className="dt-clause">
@@ -711,6 +774,33 @@ function DocSettings({ t, tab: initTab, settings, wiring, onClose, onSaved }) {
         </>}
       </div>
     </Modal>
+  )
+}
+/** the Google Drive card: connection (OAuth, the calendar's Google client), the switch, the folder tree, the queue's counts */
+function DriveSettings({ t, f, setF, setErr }) {
+  const [st, setSt] = useState(null)
+  const [busy, setBusy] = useState('')
+  const load = useCallback(() => api.get('docs-drive-status').then(setSt).catch(e => setErr(e.message)), [setErr])
+  useEffect(() => { load() }, [load])
+  useEffect(() => { const on = () => { if (document.visibilityState === 'visible') load() }; document.addEventListener('visibilitychange', on); return () => document.removeEventListener('visibilitychange', on) }, [load])
+  const run = async (what, body) => { setBusy(what); setErr(''); try { const r = await api.post(what, body || {}); if (r.error) throw new Error(r.error); if (r.url) window.open(r.url, '_blank', 'noopener'); await load(); return r } catch (e) { setErr(e.message) } finally { setBusy('') } }
+  const d = t.drive
+  return (
+    <div className="dt-drive">
+      <div className="st">
+        <Badge color={st?.connected ? T.green : T.red}>{st?.connected ? `${d.connected}${st.email ? ` · ${st.email}` : ''}` : d.notConnected}</Badge>
+        {st?.error && <Badge color={T.red}>{st.error}</Badge>}
+        {st && !st.oauthReady && <Badge color={T.amber}>GOOGLE_OAUTH_CLIENT_ID / SECRET חסרים ב-Vercel</Badge>}
+        {st?.connected ? <Button size="sm" variant="ghost" loading={busy === 'docs-drive-disconnect'} onClick={() => { if (window.confirm('לנתק את Google Drive? הקבצים שכבר נשמרו נשארים בדרייב.')) run('docs-drive-disconnect') }}>{d.disconnect}</Button>
+          : <Button size="sm" variant="brand" icon={<Cloud size={13}/>} loading={busy === 'docs-drive-connect'} disabled={st && !st.oauthReady} onClick={() => run('docs-drive-connect')}>{d.connect}</Button>}
+        {st?.connected && <Button size="sm" variant="soft-green" icon={<RefreshCw size={12}/>} loading={busy === 'docs-drive-sync'} onClick={() => run('docs-drive-sync')}>{d.sync}</Button>}
+        {st?.root && <a className="dw-chip" href={st.root} target="_blank" rel="noreferrer"><ExternalLink size={12}/> {d.folder}</a>}
+      </div>
+      <label className="dt-tog"><input type="checkbox" checked={f.drive.enabled !== false} onChange={e => setF(x => ({ ...x, drive: { enabled: e.target.checked } }))}/> {d.enabled}</label>
+      {st?.connected && <div className="dt-counts">{Object.entries(d.counts).map(([k, l]) => <div key={k}><b style={{ color: k === 'synced' ? 'var(--au-green-text)' : k === 'pending' ? undefined : st.counts?.[k] ? 'var(--au-red-text)' : undefined }}>{st.counts?.[k] ?? 0}</b><span>{l}</span></div>)}</div>}
+      <div className="tree"><div>{d.tree}</div><div>{d.naming}</div><div>{d.queue}</div></div>
+      {!st?.connected && <p style={{ margin: 0, fontSize: 12.5, color: 'var(--au-text3)', lineHeight: 1.7 }}>{d.setup}</p>}
+    </div>
   )
 }
 export { fileUrl as docFileUrl, TONE as DOC_TONE }

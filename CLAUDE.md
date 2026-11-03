@@ -726,7 +726,39 @@ server runs without the v2 migration (every read / write falls back to the v1 co
 month — a row scopes the list), כל המסמכים (filters: status, period, project, agent, type; columns incl. project, agent,
 channel, opened), תבניות, הגדרות; `?project=<id>` / the projects manager's "מסמכים וחתימות" button (`afik:project-docs`) open
 the tab scoped to a project with its own KPI strip (sent / waiting / signed / completion %). Probe action `docs` checks
-`docs-templates` too. Not yet: Google Drive sync, several signers in order, reminders (planned next).
+`docs-templates` and `docs-drive-status` too.
+**Several signers, reminders, Google Drive (v3, 2026-11-04):** the wizard's client step has "חותמים נוספים" (a spouse / partner /
+guarantor — `data.signers`, ≤ 3 after the client, `SIGNER_ROLES`); the signing runs **in order**: `data.signing = { current, list:
+[{ i, name, phone, email, role, status: waiting | sent | opened | signed, sent_at, signature, signature_path }], reminders, tok,
+noRemind }` is made at the first send (`startSigning`), the document's own token / OTP columns always belong to the signer whose
+turn it is (`currentSigner`), `publicView` points the OTP at them (`signer: { index, total, name, list }` — the signing page shows
+"חותם 2 מתוך 2" and the order), a signature advances the state (`advanceSigning`) and sends a fresh link to the next signer
+(`nextSignerWaText` / `nextSignerEmail`, events `partial_signed` + `signer_sent`, the office's "חתמו 1 מתוך 2" WhatsApp, the page says
+"החתימה שלכם נקלטה … עובר לחתימת X"); the last signature renders the signed PDF with a box per signer (`signatures` in `renderPdf`,
+the certificate page lists every signer) and sends the copy to every signer. The table shows "1/2", the drawer the order. **The
+current link is kept encrypted on the document** (`signing.tok`, AES-256-GCM in `lib/documents-hash.js` `encryptToken` /
+`decryptToken`, key from `DOC_TOKEN_SECRET` else the service key; the lookup stays by hash), so "שליחה חוזרת" and every reminder
+carry the SAME link the client already has (a renewal / expiry makes a new one). **Reminders** (`settings.reminders { enabled,
+days: [2, 5], from: 9, to: 20 }`, settings tab "תזכורות והתראות"): `remindUnsigned()` in `auto-tick` / `auto-run` — `reminderDue()`
+(tested): the clock starts when THIS signer got the link, one step once, one a day at most, Israel hours, never for a signed /
+cancelled / expired / muted document — `reminderWaText` / `reminderEmail`, event `reminder_sent`, `signing.reminders[]`, the send
+log; the drawer has "שליחת תזכורת עכשיו" and "בלי תזכורות למסמך הזה" (`POST docs-remind { id, now } | { id, off }`). **Office
+notifications per event** (`settings.notifyOn`: opened · partial · signed · expired · failed · reminder — `notifyOffice()` →
+`officeEventText()`, the office line + the settings' numbers). `sweepExpired` now notes the lead and tells the office. **Google
+Drive** (`lib/google-drive.js`, tested; a sync target only — the database and the private bucket stay the source of truth): the
+calendar's Google OAuth client with the `drive.file` scope (the app sees only files it made), the same callback URL
+(`booking-oauth-callback` routes a state carrying `.drive.` to `Drive.connect`), the refresh token in `app_settings.google_drive`
+(+ the folder-id cache). Every sent PDF and signed PDF is queued (`data.drive = { status: pending | synced | error | failed, want,
+files: { original | signed: { id, name, link, folder } }, tries, error }`, `driveQueue()` tries at once with a 9 s cap) and
+`driveTick()` (auto-tick / auto-run / "סנכרון עכשיו" = `POST docs-drive-sync { id? }`) uploads what is owed: the tree
+`Afik HaNahal / Documents / Projects / <project> / Sent Documents · Signed Documents` (`General/` without a project, `Templates/`
+for uploaded template sources), the name `[Project]_[Client]_[Type]_[Date]_[Sent | Signed].pdf` (`driveFileName` /
+`driveFolderPath`, tested), a row per upload in `drive_files` (`server/documents-v3-migration.sql` — self-contained, includes v2;
+the server works without it), events `drive_synced` / `drive_failed`, the office told on the first and the fifth failure. Settings
+tab "Google Drive": connect (`POST docs-drive-connect` → Google's consent page; needs "Google Drive API" enabled in the calendar's
+Google Cloud project), disconnect, the switch, the counts (`GET docs-drive-status`), the root folder link; the table has a Drive
+column (a cloud: green = in Drive with its link, grey = pending, red = error), the drawer the files and "סנכרון עכשיו". Not yet:
+initials per page, an external provider's webhook (nothing pretends to be one), Drive → database (one-way by design).
 **Flow:** `docs-create` cleans the input (`cleanDocInput`), links the CRM lead (the given id, else the newest lead with that phone /
 email — never a new lead), numbers the document and writes `created` on the lead. `docs-send {id, via}` makes the private token
 (kept only as a hash), freezes the clauses on the row, renders the PDF the client signs (stored, its SHA-256 on the row), and
