@@ -4,15 +4,16 @@
 // and the "ליד חדש" dialog that saves a lead to the server with its project. Rules: lib/projects.js; the list: src/lib/projectsStore.js.
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { FolderKanban, Plus, Settings2, X, Check, Search, Archive, ArchiveRestore, Trash2, Pencil, UserPlus } from 'lucide-react'
-import { projectOfLead, projectHow, projectCounts, projectSuggestions, newProject, assignPatch, PROJECT_COLORS, NONE } from '../lib/projects.js'
-import { saveProjects } from './lib/projectsStore.js'
+import { FolderKanban, Plus, Settings2, X, Check, Search, Archive, ArchiveRestore, Trash2, Pencil, UserPlus, ChevronDown } from 'lucide-react'
+import { projectOfLead, projectHow, projectCounts, projectSuggestions, newProject, assignPatch, autoProjects, PROJECT_COLORS, NONE } from '../lib/projects.js'
+import { saveProjects, projectsLoaded, getAutoDone } from './lib/projectsStore.js'
 import { MANUAL_SOURCES } from '../lib/manual-lead.js'
 
 const TXT = {
   he: {
+    allLeads: 'כל הלידים', ddTitle: 'בחירת פרויקט', ddSearch: 'חיפוש פרויקט…', ddEmpty: 'לא נמצא פרויקט', openN: n => `${n} פתוחים`, autoMade: n => `נוספו ${n} פרויקטים מהקמפיינים`,
     all: 'כל הפרויקטים', one: 'פרויקט', none: 'בלי פרויקט', add: 'פרויקט חדש', manage: 'ניהול פרויקטים', projects: 'פרויקטים',
-    open: n => `${n} פתוחים`, leads: n => (n === 1 ? 'ליד אחד' : `${n} לידים`), pick: 'שיוך לפרויקט', search: 'חיפוש פרויקט…',
+    open: n => `${n} פתוחים`, leads: n => (n === 1 ? 'ליד אחד' : `${n} לידים`), pick: 'שיוך לפרויקט', search: 'חיפוש או שם של פרויקט / נכס חדש…', selPh: 'בחירת פרויקט או נכס — או יצירת חדש', emptyHint: 'עוד אין פרויקטים. הקלידו שם (למשל "זרובבל 15") ולחצו Enter כדי ליצור.', newHint: 'הקלידו שם חדש כדי ליצור פרויקט',
     noProject: 'בלי פרויקט', create: n => `יצירת פרויקט "${n}"`, auto: 'שויך לפי הקמפיין', manual: 'שויך ידנית',
     title: 'פרויקטים', sub: 'כל נכס או פרויקט שמנהלים במקביל. ליד שייך לפרויקט אחד; לידים מקמפיין שמופיע בשמות הנוספים נכנסים אליו לבד.',
     name: 'שם הפרויקט', namePh: 'למשל: זרובבל 15', town: 'עיר', townPh: 'למשל: רמת השרון', color: 'צבע',
@@ -28,8 +29,9 @@ const TXT = {
     sources: { phone: 'שיחת טלפון', referral: 'הפניה', 'walk-in': 'הגיע למשרד', website: 'אתר', meta: 'פייסבוק / אינסטגרם', yad2: 'יד2', other: 'אחר' },
   },
   en: {
+    allLeads: 'All leads', ddTitle: 'Pick a project', ddSearch: 'Find a project…', ddEmpty: 'No project found', openN: n => `${n} open`, autoMade: n => `${n} projects added from the campaigns`,
     all: 'All projects', one: 'Project', none: 'No project', add: 'New project', manage: 'Manage projects', projects: 'Projects',
-    open: n => `${n} open`, leads: n => (n === 1 ? '1 lead' : `${n} leads`), pick: 'Assign to a project', search: 'Find a project…',
+    open: n => `${n} open`, leads: n => (n === 1 ? '1 lead' : `${n} leads`), pick: 'Assign to a project', search: 'Find, or type a new project / property…', selPh: 'Pick a project or property — or create one', emptyHint: 'No projects yet. Type a name (e.g. "15 Zerubavel") and press Enter to create it.', newHint: 'Type a new name to create a project',
     noProject: 'No project', create: n => `Create project "${n}"`, auto: 'Matched by its campaign', manual: 'Assigned by hand',
     title: 'Projects', sub: 'Every property or project you run in parallel. A lead belongs to one project; leads from a campaign listed in its other names join it by themselves.',
     name: 'Project name', namePh: 'e.g. 15 Zerubavel', town: 'Town', townPh: 'e.g. Ramat HaSharon', color: 'Color',
@@ -111,6 +113,7 @@ export function ProjectPicker({ rect, projects, current, lang = 'he', onPick, on
           </button>
         ))}
         {s && !exact && <button type="button" className="lp-opt lp-opt--new" disabled={busy} onClick={create}><Plus size={14}/>{busy ? t.saving : t.create(q.trim())}</button>}
+        {!s && <div className="lp-pop-hint">{list.length ? t.newHint : t.emptyHint}</div>}
         {current && <button type="button" className="lp-opt lp-opt--none" onClick={() => onPick(null)}><X size={13}/>{t.noProject}</button>}
       </div>
       {err && <div className="lp-err">{err}</div>}
@@ -120,28 +123,78 @@ export function ProjectPicker({ rect, projects, current, lang = 'he', onPick, on
   )
 }
 
-/** The bar above the board: all · each project (color, name, open leads) · without a project · + new · manage */
+/** A form field: the chosen project (or a placeholder) → the picker — search the existing ones, or type a new name and
+ *  create it (saved for everyone at once). value = project id ('' = none); onChange(id, project) */
+export function ProjectSelect({ projects, value, lang = 'he', onChange }) {
+  const t = tOf(lang)
+  const [open, setOpen] = useState(null)
+  const [picked, setPicked] = useState(null)        // a project made a moment ago, before the list arrives with it
+  const p = (projects || []).find(x => x.id === value) || (picked?.id === value ? picked : null)
+  return (
+    <>
+      <button type="button" className={`lp-sel${p ? '' : ' is-empty'}`} style={p ? pv(p.color) : undefined} aria-haspopup="dialog"
+        onClick={e => setOpen(e.currentTarget.getBoundingClientRect())}>
+        {p ? <span className="lp-dot"/> : <FolderKanban size={15}/>}
+        <bdi>{p ? p.name : t.selPh}</bdi>
+        {p && <span role="button" tabIndex={0} className="lp-sel-x" aria-label={t.noProject} title={t.noProject}
+          onClick={e => { e.stopPropagation(); onChange('', null) }} onKeyDown={e => { if (e.key === 'Enter') { e.stopPropagation(); onChange('', null) } }}><X size={14}/></span>}
+        {!p && <Plus size={15}/>}
+      </button>
+      {open && <ProjectPicker rect={open} projects={projects} current={p} lang={lang} onClose={() => setOpen(null)}
+        onPick={x => { setOpen(null); setPicked(x); onChange(x?.id || '', x) }}/>}
+      <style>{LP_CSS}</style>
+    </>
+  )
+}
+
+/** The bar above the board: a "projects ▾" dropdown with every project (name, town, leads, open, its stage bar, search),
+ *  the busiest projects as quick tabs, without a project, + new, manage. Campaigns with leads that no project covers become
+ *  projects by themselves, once (autoProjects; the server remembers them, so a deleted one never comes back). */
 export function ProjectsBar({ leads, projects, value, onChange, onManage, onNewProject, lang = 'he' }) {
   const t = tOf(lang)
   const counts = useMemo(() => projectCounts(leads, projects), [leads, projects])
-  const active = (projects || []).filter(p => p.status !== 'archived')
+  const active = useMemo(() => (projects || []).filter(p => p.status !== 'archived')
+    .sort((a, b) => (counts[b.id]?.total || 0) - (counts[a.id]?.total || 0) || a.name.localeCompare(b.name, 'he')), [projects, counts])
   const sel = value && value !== NONE ? (projects || []).find(p => p.id === value) : null
   const cur = sel ? counts[sel.id] : null
+  const [dd, setDd] = useState(null)
+  const [note, setNote] = useState('')
+  // the campaigns become projects by themselves (once per campaign, for everyone)
+  const tried = useRef(false)
+  useEffect(() => {
+    if (tried.current || !projectsLoaded() || (leads || []).length < 5) return
+    tried.current = true
+    const made = autoProjects(leads, projects, getAutoDone())
+    if (!made.length) return
+    saveProjects([...(projects || []), ...made], [], { auto: made.map(p => p.name) })
+      .then(() => { setNote(t.autoMade(made.length)); setTimeout(() => setNote(''), 6000) }).catch(() => { tried.current = false })
+  }, [leads, projects]) // eslint-disable-line react-hooks/exhaustive-deps
+  const quick = active.slice(0, 5)
+  const label = sel ? sel.name : value === NONE ? t.none : t.all
   return (
     <div className="lp-bar" dir={lang === 'en' ? 'ltr' : 'rtl'}>
       <div className="lp-bar-row" role="tablist" aria-label={t.projects}>
-        <span className="lp-bar-lbl"><FolderKanban size={14}/>{t.projects}</span>
-        <button type="button" role="tab" aria-selected={!value} className="lp-tab" onClick={() => onChange('')}>{t.all}<em>{(leads || []).length}</em></button>
-        {active.map(p => (
+        <button type="button" className={`lp-dd-btn${sel ? ' is-sel' : ''}`} style={sel ? pv(sel.color) : undefined} aria-haspopup="listbox" aria-expanded={!!dd}
+          onClick={e => setDd(dd ? null : e.currentTarget.getBoundingClientRect())}>
+          {sel ? <span className="lp-dot"/> : <FolderKanban size={15}/>}
+          <span className="lp-dd-lbl"><small>{t.projects}</small><bdi>{label}</bdi></span>
+          <em>{sel ? counts[sel.id]?.total || 0 : value === NONE ? counts[NONE]?.total || 0 : (leads || []).length}</em>
+          <ChevronDown size={15}/>
+        </button>
+        <span className="lp-bar-sep" aria-hidden="true"/>
+        {quick.map(p => (
           <button key={p.id} type="button" role="tab" aria-selected={value === p.id} className="lp-tab" style={pv(p.color)} onClick={() => onChange(value === p.id ? '' : p.id)}
             title={`${p.name}${p.town ? ` · ${p.town}` : ''} · ${t.leads(counts[p.id]?.total || 0)} · ${t.open(counts[p.id]?.open || 0)}`}>
             <span className="lp-dot"/><bdi>{p.name}</bdi><em>{counts[p.id]?.total || 0}</em>
           </button>
         ))}
-        {counts[NONE]?.total > 0 && <button type="button" role="tab" aria-selected={value === NONE} className="lp-tab lp-tab--none" onClick={() => onChange(value === NONE ? '' : NONE)}>{t.none}<em>{counts[NONE].total}</em></button>}
+        {active.length > quick.length && <button type="button" className="lp-bar-btn" onClick={e => setDd(e.currentTarget.getBoundingClientRect())}>+{active.length - quick.length}</button>}
         <button type="button" className="lp-bar-btn" onClick={onNewProject}><Plus size={13}/>{t.add}</button>
         <button type="button" className="lp-bar-btn" onClick={onManage}><Settings2 size={13}/>{t.manage}</button>
+        {note && <span className="lp-bar-note"><Check size={13}/>{note}</span>}
       </div>
+      {dd && <ProjectsDropdown rect={dd} t={t} lang={lang} active={active} counts={counts} total={(leads || []).length} value={value}
+        onPick={id => { setDd(null); onChange(id) }} onClose={() => setDd(null)} onNew={() => { setDd(null); onNewProject() }} onManage={() => { setDd(null); onManage() }}/>}
       {sel && cur && (
         <div className="lp-sum" style={pv(sel.color)}>
           <b><span className="lp-dot"/>{sel.name}</b>{sel.town && <span className="lp-town">{sel.town}</span>}
@@ -162,6 +215,75 @@ function StageBar({ byStage, total, t }) {
         <span key={s} className="lp-seg" style={{ flexGrow: byStage[s], background: STAGE_COLOR[s] }} title={`${t.stages[s]}: ${byStage[s]}`}><i>{t.stages[s]} {byStage[s]}</i></span>
       ))}
     </span>
+  )
+}
+
+
+const STAGE_COLORS = { new: '#3B82F6', contacted: '#0891B2', discovery: '#9333EA', meeting: '#D97706', negotiating: '#DB2777', won: '#16A34A', lost: '#94A3B8', nurture: '#65A30D', irrelevant: '#CBD5E1' }
+/** Every project in one list (right to left, the busiest first): search, all leads, each project with its town, leads, open
+ *  and stage bar, without a project; ↑ ↓ Enter Esc */
+function ProjectsDropdown({ rect, t, lang, active, counts, total, value, onPick, onClose, onNew, onManage }) {
+  const [q, setQ] = useState('')
+  const [hi, setHi] = useState(0)
+  const ref = useRef(null), inRef = useRef(null)
+  const closeRef = useRef(onClose); closeRef.current = onClose
+  useEffect(() => {
+    inRef.current?.focus()
+    const down = e => { if (ref.current && !ref.current.contains(e.target)) closeRef.current?.() }
+    setTimeout(() => document.addEventListener('pointerdown', down, true), 0)
+    return () => document.removeEventListener('pointerdown', down, true)
+  }, [])
+  const s = q.trim().toLowerCase()
+  const rows = [
+    ...(!s ? [{ id: '', name: t.allLeads, n: total, all: true }] : []),
+    ...active.filter(p => !s || p.name.toLowerCase().includes(s) || (p.town || '').toLowerCase().includes(s) || (p.aliases || []).some(a => a.toLowerCase().includes(s)))
+      .map(p => ({ id: p.id, p, name: p.name, n: counts[p.id]?.total || 0 })),
+    ...(!s && counts[NONE]?.total ? [{ id: NONE, name: t.none, n: counts[NONE].total, none: true }] : []),
+  ]
+  const key = e => {
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); onClose() }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); setHi(h => Math.min(rows.length - 1, h + 1)) }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setHi(h => Math.max(0, h - 1)) }
+    else if (e.key === 'Enter' && rows[hi]) { e.preventDefault(); onPick(rows[hi].id) }
+  }
+  useEffect(() => { ref.current?.querySelector(`[data-i="${hi}"]`)?.scrollIntoView({ block: 'nearest' }) }, [hi])
+  const W = Math.min(420, window.innerWidth - 16)
+  const left = Math.max(8, Math.min(window.innerWidth - W - 8, lang === 'en' ? rect.left : rect.right - W))
+  const maxH = Math.max(260, window.innerHeight - rect.bottom - 24)
+  return createPortal(
+    <div ref={ref} className="lp-dd" dir={lang === 'en' ? 'ltr' : 'rtl'} role="dialog" aria-label={t.ddTitle} onKeyDown={key}
+      style={{ left, width: W, top: rect.bottom + 6, maxHeight: Math.min(560, maxH) }}>
+      <div className="lp-pop-search"><Search size={14}/><input ref={inRef} value={q} onChange={e => { setQ(e.target.value); setHi(0) }} placeholder={t.ddSearch} aria-label={t.ddSearch}/></div>
+      <div className="lp-dd-list" role="listbox">
+        {rows.map((r, i) => {
+          const c = r.p ? counts[r.p.id] : null
+          return (
+            <button key={r.id || 'all'} type="button" role="option" data-i={i} aria-selected={value === r.id} className={`lp-dd-row${hi === i ? ' is-hi' : ''}${r.all || r.none ? ' is-meta' : ''}`}
+              style={r.p ? pv(r.p.color) : undefined} onMouseEnter={() => setHi(i)} onClick={() => onPick(r.id)}>
+              {r.p ? <span className="lp-dot"/> : r.all ? <FolderKanban size={15}/> : <X size={14}/>}
+              <span className="lp-dd-main">
+                <span className="lp-dd-name"><bdi>{r.name}</bdi>{r.p?.town && <small>{r.p.town}</small>}</span>
+                {c && c.total > 0 && (
+                  <span className="lp-dd-bar" aria-hidden="true">
+                    {Object.entries(c.byStage).sort((a, b) => Object.keys(STAGE_COLORS).indexOf(a[0]) - Object.keys(STAGE_COLORS).indexOf(b[0]))
+                      .map(([st, n]) => <i key={st} style={{ flexGrow: n, background: STAGE_COLORS[st] || '#94A3B8' }}/>)}
+                  </span>
+                )}
+              </span>
+              <span className="lp-dd-n"><b>{r.n}</b>{c ? <small>{t.openN(c.open)}</small> : null}</span>
+              {value === r.id && <Check size={15} className="lp-dd-check"/>}
+            </button>
+          )
+        })}
+        {!rows.length && <div className="lp-pop-hint">{t.ddEmpty}</div>}
+      </div>
+      <div className="lp-dd-foot">
+        <button type="button" className="lp-bar-btn" onClick={onNew}><Plus size={13}/>{t.add}</button>
+        <button type="button" className="lp-bar-btn" onClick={onManage}><Settings2 size={13}/>{t.manage}</button>
+      </div>
+      <style>{LP_CSS}</style>
+    </div>,
+    document.body,
   )
 }
 
@@ -262,7 +384,8 @@ export function NewLeadDialog({ projects, defaultProjectId = '', defaultStage = 
   const closeRef = useRef(onClose); closeRef.current = onClose
   useEffect(() => { const k = e => { if (e.key === 'Escape' && !e.defaultPrevented) closeRef.current?.() }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k) }, [])
   const active = (projects || []).filter(p => p.status !== 'archived')
-  const proj = active.find(p => p.id === f.projectId)
+  const [pickedProj, setPickedProj] = useState(null)
+  const proj = active.find(p => p.id === f.projectId) || (pickedProj?.id === f.projectId ? pickedProj : null)
   const ok = /\d{9,}/.test(f.phone.replace(/\D/g, '')) || /\S+@\S+\.\S+/.test(f.email)
   const save = async () => {
     if (!ok) { setErr(t.nlNeed); return }
@@ -284,10 +407,12 @@ export function NewLeadDialog({ projects, defaultProjectId = '', defaultStage = 
           <label>{t.nlEmail}<input value={f.email} onChange={set('email')} dir="ltr" inputMode="email"/></label>
           <div className="lp-wide lp-field">
             <span>{t.nlProject}</span>
-            <div className="lp-pchoices">
-              <button type="button" aria-pressed={!f.projectId} className="lp-pchoice" onClick={() => setF(x => ({ ...x, projectId: '' }))}>{t.noProject}</button>
-              {active.map(p => <button key={p.id} type="button" aria-pressed={f.projectId === p.id} className="lp-pchoice" style={pv(p.color)} onClick={() => setF(x => ({ ...x, projectId: p.id }))}><span className="lp-dot"/><bdi>{p.name}</bdi></button>)}
-            </div>
+            <ProjectSelect projects={projects} value={f.projectId} lang={lang} onChange={(id, x) => { setF(v => ({ ...v, projectId: id })); setPickedProj(x) }}/>
+            {active.length > 0 && (
+              <div className="lp-pchoices">
+                {active.slice(0, 6).map(p => <button key={p.id} type="button" aria-pressed={f.projectId === p.id} className="lp-pchoice" style={pv(p.color)} onClick={() => { setF(x => ({ ...x, projectId: x.projectId === p.id ? '' : p.id })); setPickedProj(p) }}><span className="lp-dot"/><bdi>{p.name}</bdi></button>)}
+              </div>
+            )}
           </div>
           <label>{t.nlStage}<select value={f.leadStatus} onChange={set('leadStatus')}>{STAGE_ORDER.map(s => <option key={s} value={s}>{t.stages[s]}</option>)}</select></label>
           <label>{t.nlSource}<select value={f.source} onChange={set('source')}>{MANUAL_SOURCES.map(s => <option key={s} value={s}>{t.sources[s]}</option>)}</select></label>
@@ -315,7 +440,7 @@ const LP_CSS = `
 .lp-chip.is-empty{border:1px dashed rgba(var(--ink,20,30,80),.25);background:transparent;color:var(--au-text3,#8a90a6);font-weight:500}
 .lp-chip.is-empty:hover{color:var(--au-brand-text,#3F4EB0);border-color:var(--au-brand,#3F4EB0)}
 .lp-chip--md{font-size:12.5px;padding:3px 11px}
-.lp-pop{position:fixed;z-index:4500;background:var(--au-pop,#fff);color:var(--au-text,#111);border:1px solid var(--au-line,#e5e7eb);border-radius:12px;box-shadow:0 14px 40px rgba(0,0,0,.18);font-family:Rubik,sans-serif;overflow:hidden}
+.lp-pop{position:fixed;z-index:5200;background:var(--au-pop,#fff);color:var(--au-text,#111);border:1px solid var(--au-line,#e5e7eb);border-radius:12px;box-shadow:0 14px 40px rgba(0,0,0,.18);font-family:Rubik,sans-serif;overflow:hidden}
 .lp-pop-search{display:flex;align-items:center;gap:7px;padding:9px 11px;border-bottom:1px solid var(--au-line,#e5e7eb);color:var(--au-text3,#888)}
 .lp-pop-search input{flex:1;min-width:0;border:none;outline:none;background:none;font:13px Rubik,sans-serif;color:var(--au-text,#111);min-height:0}
 .lp-pop-list{max-height:260px;overflow:auto;padding:4px}
@@ -324,6 +449,12 @@ const LP_CSS = `
 .lp-opt small{color:var(--au-text3,#888);font-size:11.5px}
 .lp-opt svg:last-child{margin-inline-start:auto}
 .lp-opt--new{color:var(--au-brand-text,#3F4EB0);font-weight:600}
+.lp-pop-hint{padding:8px 10px;font-size:12px;color:var(--au-text3,#888);line-height:1.5}
+.lp-sel{display:flex;align-items:center;gap:8px;width:100%;height:40px;padding:0 12px;border:1px solid var(--au-line,#e5e7eb);border-radius:10px;background:var(--au-input,var(--au-pop,#fff));color:var(--au-text,#111);font:500 14px Rubik,sans-serif;cursor:pointer;text-align:start;min-height:0}
+.lp-sel:hover{border-color:var(--au-brand,#3F4EB0)}
+.lp-sel.is-empty{color:var(--au-text3,#888)}
+.lp-sel bdi{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lp-sel-x{display:inline-flex;border:none;background:none;color:var(--au-text3,#888);padding:3px;border-radius:6px;cursor:pointer;min-height:0}
 .lp-opt--none{color:var(--au-text2,#666)}
 .lp-err{margin:8px 12px;font-size:12.5px;color:#DC2626}
 .lp-bar{padding:8px 0 10px}
@@ -334,6 +465,35 @@ const LP_CSS = `
 .lp-tab:hover{color:var(--au-text,#111)}
 .lp-tab[aria-selected=true]{background:var(--pcb,rgba(var(--brand-rgb,63,78,176),.12));border-color:var(--pc,var(--au-brand,#3F4EB0));color:var(--au-text,#111);font-weight:700}
 .lp-tab--none{border-style:dashed}
+.lp-dd-btn{display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 12px;border:1px solid var(--au-line,#e5e7eb);border-radius:11px;background:var(--au-pop,#fff);color:var(--au-text,#111);font:600 13.5px Rubik,sans-serif;cursor:pointer;white-space:nowrap;min-height:0;flex-shrink:0;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+.lp-dd-btn:hover,.lp-dd-btn[aria-expanded=true]{border-color:var(--au-brand,#3F4EB0)}
+.lp-dd-btn.is-sel{border-color:var(--pc);background:var(--pcb)}
+.lp-dd-lbl{display:flex;flex-direction:column;align-items:flex-start;line-height:1.15;max-width:220px}
+.lp-dd-lbl small{font-size:10.5px;font-weight:500;color:var(--au-text3,#888)}
+.lp-dd-lbl bdi{overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.lp-dd-btn em{font-style:normal;font-size:11.5px;font-weight:700;border-radius:999px;padding:1px 7px;background:rgba(var(--ov,20,30,80),.08);color:var(--au-text2,#555)}
+.lp-bar-sep{width:1px;height:22px;background:var(--au-line,#e5e7eb);flex-shrink:0;margin:0 2px}
+.lp-bar-note{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:#15803D;white-space:nowrap}
+.lp-dd{position:fixed;z-index:5200;display:flex;flex-direction:column;background:var(--au-pop,#fff);color:var(--au-text,#111);border:1px solid var(--au-line,#e5e7eb);border-radius:14px;box-shadow:0 18px 50px rgba(0,0,0,.2);font-family:Rubik,sans-serif;overflow:hidden}
+.lp-dd .lp-pop-search{padding:11px 13px}
+.lp-dd .lp-pop-search input{font-size:14px}
+.lp-dd-list{flex:1;min-height:0;overflow:auto;padding:5px}
+.lp-dd-row{width:100%;display:flex;align-items:center;gap:10px;border:none;background:none;border-radius:10px;padding:9px 10px;cursor:pointer;text-align:start;color:var(--au-text,#111);font-family:inherit;min-height:0}
+.lp-dd-row.is-hi{background:rgba(var(--ov,20,30,80),.06)}
+.lp-dd-row[aria-selected=true]{background:var(--pcb,rgba(var(--brand-rgb,63,78,176),.1))}
+.lp-dd-row.is-meta{color:var(--au-text2,#555)}
+.lp-dd-row .lp-dot{width:10px;height:10px}
+.lp-dd-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px}
+.lp-dd-name{display:flex;align-items:baseline;gap:7px;font-size:14px;font-weight:600;min-width:0}
+.lp-dd-name bdi{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lp-dd-name small{font-size:11.5px;font-weight:400;color:var(--au-text3,#888);white-space:nowrap}
+.lp-dd-bar{display:flex;gap:2px;height:5px;border-radius:3px;overflow:hidden;max-width:220px}
+.lp-dd-bar i{display:block;min-width:3px;border-radius:2px}
+.lp-dd-n{display:flex;flex-direction:column;align-items:flex-end;line-height:1.2;flex-shrink:0}
+.lp-dd-n b{font-size:14px}
+.lp-dd-n small{font-size:10.5px;color:var(--au-text3,#888)}
+.lp-dd-check{color:var(--au-brand-text,#3F4EB0);flex-shrink:0}
+.lp-dd-foot{display:flex;justify-content:space-between;gap:6px;padding:6px 8px;border-top:1px solid var(--au-line,#e5e7eb)}
 .lp-bar-btn{display:inline-flex;align-items:center;gap:5px;height:30px;padding:0 10px;border:none;background:none;color:var(--au-brand-text,#3F4EB0);font:600 12.5px Rubik,sans-serif;cursor:pointer;white-space:nowrap;min-height:0;flex-shrink:0;border-radius:8px}
 .lp-bar-btn:hover{background:rgba(var(--brand-rgb,63,78,176),.08)}
 .lp-sum{display:flex;align-items:center;flex-wrap:wrap;gap:6px 12px;margin-top:8px;padding:8px 12px;border-radius:10px;border:1px solid var(--pcl);background:var(--pcs);font-size:12.5px}
@@ -374,6 +534,7 @@ const LP_CSS = `
 .lp-color[aria-checked=true]{box-shadow:0 0 0 2px var(--au-pop,#fff),0 0 0 4px currentColor}
 .lp-form-foot{grid-column:1/-1;display:flex;gap:8px;margin-top:4px}
 .lp-pchoices{display:flex;flex-wrap:wrap;gap:6px}
+.lp-sel + .lp-pchoices{margin-top:7px}
 .lp-pchoice{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 11px;border:1px solid var(--au-line,#e5e7eb);border-radius:999px;background:none;color:var(--au-text2,#555);font:500 12.5px Rubik,sans-serif;cursor:pointer;min-height:0}
 .lp-pchoice[aria-pressed=true]{border-color:var(--pc,var(--au-brand,#3F4EB0));background:var(--pcb,rgba(var(--brand-rgb,63,78,176),.12));color:var(--au-text,#111);font-weight:700}
 .lp-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
