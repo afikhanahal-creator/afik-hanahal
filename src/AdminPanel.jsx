@@ -27,6 +27,12 @@ const SiteLocalTab = lazy(() => import('./SiteLocalTab.jsx'))
 const AdminHome = lazy(() => import('./AdminHome.jsx'))
 const LeadCardLazy = lazy(() => import('./LeadsBoard.jsx').then(m => ({ default: m.LeadCardWithStages })))
 const PropertyShare = lazy(() => import('./PropertyShare.jsx'))
+// the screens the office opens most are fetched while the admin is idle (not on a saver connection), so a tab opens at once
+function warmTabs() {
+  try { if (navigator.connection?.saveData) return } catch {}
+  const go = () => { for (const f of [() => import('./SocialInboxTab.jsx'), () => import('./GreenAPIChat.jsx'), () => import('./LeadsBoard.jsx'), () => import('./MetaLeadsTab.jsx'), () => import('./DocumentsTab.jsx'), () => import('./AutomationsTab.jsx')]) f().catch(() => {}) }
+  if ('requestIdleCallback' in window) window.requestIdleCallback(go, { timeout: 6000 }); else setTimeout(go, 2500)
+}
 import PropertyGallery, { PropertiesHeader, QuickFormDrawer, FormSection } from './PropertyGallery.jsx'
 import { autoApi, StageSendPrompt } from './AutomationsApi.jsx'
 import { useAdminTheme, ADMIN_THEME_CSS } from './adminTheme.js'
@@ -1356,6 +1362,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     return t === 'overview' && !standalone ? 'meta' : t      // the modal has no overview page
   })
   const [adminNavOpen, setAdminNavOpen] = useState(false)
+  useEffect(() => { const x = setTimeout(warmTabs, 2000); return () => clearTimeout(x) }, [])
   // In the modal, the Lead Center gets the whole height: the title and the row of tabs fold into one slim bar with a
   // screen dropdown ("כל המסכים" opens the full row again; the choice is kept)
   const [tabsOpen, setTabsOpen] = useState(() => { try { return localStorage.getItem('afik_admin_tabs_open') === '1' } catch { return false } })

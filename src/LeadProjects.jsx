@@ -499,13 +499,14 @@ export function NewLeadDialog({ projects, defaultProjectId = '', defaultStage = 
 }
 
 export const LP_CSS = `
-.lp-dot{width:8px;height:8px;border-radius:50%;background:var(--pc,#3B82F6);flex-shrink:0;display:inline-block}
-.lp-chip{display:inline-flex;align-items:center;gap:5px;max-width:100%;border:1px solid var(--pcl,rgba(59,130,246,.4));background:var(--pcb,rgba(59,130,246,.12));color:var(--au-text,#1f2937);border-radius:999px;padding:1px 9px 1px 8px;font:600 11.5px Rubik,sans-serif;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-height:0;line-height:1.6}
+.lp-dot{width:8px;height:8px;border-radius:50%;background:var(--pc,#3B82F6);box-shadow:0 0 0 2px var(--pcb,rgba(59,130,246,.18));flex-shrink:0;display:inline-block}
+.lp-chip{display:inline-flex;align-items:center;gap:6px;max-width:100%;height:24px;min-height:0;min-width:0;border:1px solid var(--au-line,rgba(20,30,80,.14));background:var(--au-pop,#fff);color:var(--au-text,#1f2937);border-radius:999px;padding:0 9px 0 8px;font:600 11.5px Rubik,sans-serif;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-height:0;line-height:1.6}
 .lp-chip bdi{overflow:hidden;text-overflow:ellipsis}
-.lp-chip:hover{border-color:var(--pc,#3B82F6)}
+.lp-chip:hover{border-color:var(--pc,#3B82F6);box-shadow:0 0 0 3px var(--pcs,rgba(59,130,246,.08))}
+.lp-chip:not(.is-empty)::after{content:'';width:5px;height:5px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:translateY(-1.5px) rotate(45deg);opacity:.5;flex:none;margin-inline-start:1px}
 .lp-chip.is-empty{border:1px dashed rgba(var(--ink,20,30,80),.25);background:transparent;color:var(--au-text3,#8a90a6);font-weight:500}
 .lp-chip.is-empty:hover{color:var(--au-brand-text,#3F4EB0);border-color:var(--au-brand,#3F4EB0)}
-.lp-chip--md{font-size:12.5px;padding:3px 11px}
+.lp-chip--md{height:32px;font-size:13px;padding:0 12px 0 10px;gap:7px;box-shadow:0 1px 2px rgba(20,30,80,.05)}.lp-chip--md .lp-dot{width:9px;height:9px}
 .lp-pop{position:fixed;z-index:5200;background:var(--au-pop,#fff);color:var(--au-text,#111);border:1px solid var(--au-line,#e5e7eb);border-radius:12px;box-shadow:0 14px 40px rgba(0,0,0,.18);font-family:Rubik,sans-serif;overflow:hidden}
 .lp-pop-search{display:flex;align-items:center;gap:7px;padding:9px 11px;border-bottom:1px solid var(--au-line,#e5e7eb);color:var(--au-text3,#888)}
 .lp-pop-search input{flex:1;min-width:0;border:none;outline:none;background:none;font:13px Rubik,sans-serif;color:var(--au-text,#111);min-height:0}
