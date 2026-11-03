@@ -195,8 +195,8 @@ export function ProjectsBar({ leads, projects, value, onChange, onManage, onNewP
           </button>
         ))}
         {active.length > quick.length && <button type="button" className="lp-bar-btn" onClick={e => setDd(e.currentTarget.getBoundingClientRect())}>+{active.length - quick.length}</button>}
-        <button type="button" className="lp-bar-btn" onClick={onNewProject}><Plus size={13}/>{t.add}</button>
-        <button type="button" className="lp-bar-btn" onClick={onManage}><Settings2 size={13}/>{t.manage}</button>
+        <button type="button" className="lp-bar-btn lp-bar-new" onClick={onNewProject}><Plus size={13}/>{t.add}</button>
+        <button type="button" className="lp-bar-btn lp-bar-manage" onClick={onManage}><Settings2 size={13}/>{t.manage}</button>
         {note && <span className="lp-bar-note"><Check size={13}/>{note}</span>}
       </div>
       {dd && <ProjectsDropdown rect={dd} t={t} lang={lang} active={active} counts={counts} total={(leads || []).length} value={value}
@@ -644,5 +644,5 @@ export const LP_CSS = `
 .lp-sugg button{display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 10px;border:1px dashed var(--au-line,#ccc);border-radius:999px;background:none;color:var(--au-text,#111);font:500 12px Rubik,sans-serif;cursor:pointer;min-height:0}
 .lp-sugg button:hover{border-color:var(--au-brand,#3F4EB0);color:var(--au-brand-text,#3F4EB0)}
 .lp-sugg em{font-style:normal;font-size:11px;color:var(--au-text3,#888)}
-@media (max-width:640px){.lp-form{grid-template-columns:1fr}.lp-modal{padding:14px}.lp-stagebar{min-width:100%}}
+@media (max-width:640px){.lp-bar-new,.lp-bar-manage{display:none}.lp-form{grid-template-columns:1fr}.lp-modal{padding:14px}.lp-stagebar{min-width:100%}}
 `

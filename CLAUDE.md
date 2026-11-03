@@ -878,6 +878,11 @@ a hairline under each row, LTR values (phones through `fmtPhone`, emails, docume
 their order holds, the button is a centred table button, the footer is two lines (the sender, then ח.פ. · phone · email), and
 `color-scheme: light` is declared (Gmail's dark mode inverted the card). The fee reads "₪70,800 כולל מע"מ (2% ממחיר העסקה)".
 Render check: the scratchpad's `render-mail.mjs` (the office's signed mail, the client's copy, the signing link, at 390 / 720 px).
+**Deleting a document for good (2026-11-04):** the drawer's "מחיקה לצמיתות" (every status, a signed one too — the office asked
+for it) asks for the document number to be typed, then `POST docs-delete {id}` → `deleteDoc()`: the files in the bucket (the
+sent PDF, the signed PDF, every signature image, the broker's), `document_events`, `drive_files`, the row, and the entry in the
+lead's `crm_data.documents` with a 🗑 note; Drive copies stay in Drive. "ביטול" stays for unsigned ones (kills the link, keeps the
+row). On a phone the tab's tiles are 2 × 2 and the areas row scrolls.
 **Flow:** `docs-create` cleans the input (`cleanDocInput`), links the CRM lead (the given id, else the newest lead with that phone /
 email — never a new lead), numbers the document and writes `created` on the lead. `docs-send {id, via}` makes the private token
 (kept only as a hash), freezes the clauses on the row, renders the PDF the client signs (stored, its SHA-256 on the row), and
@@ -1180,6 +1185,13 @@ pipeline card and after the name in the table, "✓✓ נשלחה" next to the s
 welcome from the database: a trigger on `meta_leads.wa_sent` (`server/meta-welcome-crm-migration.sql`, applied 2026-10-26, which
 also back-filled 37 copies from `automation_log`) writes `crm_data.auto.sent.welcome` — the copy used to keep the state it had
 when it was made, so 13 welcomed leads showed nothing.
+**The leads board on a phone (2026-11-04, `MobileLeadCard` / `MobileStatsBar` in `src/LeadsBoard.jsx`):** a slim header
+("לידים · N", search, sync — no gradient icon), the project bar without "+ פרויקט חדש" / "ניהול" (`.lp-bar-new` / `.lp-bar-manage`
+hidden ≤ 640 px; both live in the "פרויקטים ▾" dropdown), four compact stat tiles in one row, and calm cards: name + campaign,
+the chips row (stage, welcome, waiting, project), **one quiet line** — phone (formatted, LTR), property, score, date — instead of a
+labelled grid, the last note or the message in a tinted block (2 lines), and **one row of four small actions** (התקשר · WhatsApp ·
+סיכום · פרטים, icon over label, 46 px) instead of four big 2 × 2 buttons; no coloured side border. QA: the scratchpad's
+`qa-leads-phone.cjs` (iPhone, fake leads, a card screenshot).
 **Pipeline design (2026-11-03, a calm Apple-like system — `LB_CSS` in `src/LeadsBoard.jsx`, classes `.kb-col*` / `.lb-c-*`):** the
 board is a quiet neutral (`--au-bg`), columns are faint tinted panels with no colored borders (the stage's color is a 9 px dot next to
 the title, the count a soft grey pill, the fold arrow shows on hover), cards are white with a 1 px hairline, 14 px radius and a soft

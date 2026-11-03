@@ -492,6 +492,7 @@ function ClickableScoreCell({ value, lang, T, onSave }) {
 
 // ─── mobile lead card ─────────────────────────────────────────────────────────
 
+const fmtPhoneLocal = p => { const d = String(p || '').replace(/\D/g, ''); const l = d.startsWith('972') ? '0' + d.slice(3) : d; return l.length === 10 ? `${l.slice(0, 3)}-${l.slice(3, 6)}-${l.slice(6)}` : p }
 function MobileLeadCard({ lead, lang, T, onUpdate, onDelete, onOpenDetail, onStatusClick, onOpenChat }) {
   const openNote = useContext(NoteCtx)
   const proj = useContext(ProjCtx)
@@ -515,12 +516,11 @@ function MobileLeadCard({ lead, lang, T, onUpdate, onDelete, onOpenDetail, onSta
       background: T.bgCard,
       border: `1px solid ${T.border}`,
       borderRadius: 14,
-      padding: '14px 16px',
-      marginBottom: 10,
+      padding: '12px 14px',
+      marginBottom: 8,
       boxShadow: T.shadowCard,
       position: 'relative',
       transition: 'box-shadow .2s',
-      borderRight: `4px solid ${color}`,
     }}>
       {/* Top row: avatar + name + menu */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
@@ -580,88 +580,37 @@ function MobileLeadCard({ lead, lang, T, onUpdate, onDelete, onOpenDetail, onSta
         </div>
       </div>
 
-      {/* Info grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 12px' }}>
-        {lead.phone && (
-          <div>
-            <div style={{ fontSize: 10, fontWeight: 700, color: T.textSub, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 3 }}>
-              {lang === 'en' ? 'Phone' : 'טלפון'}
-            </div>
-            <a href={`tel:${lead.phone}`} style={{ fontSize: 14, color: T.accent, textDecoration: 'none', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5, direction: 'ltr' }}
-              onClick={e => e.stopPropagation()}>
-              <Phone size={13} style={{ flexShrink: 0, color: T.accent }} />
-              {lead.phone}
-            </a>
-          </div>
-        )}
-        {lead.propTitle && (
-          <div>
-            <div style={{ fontSize: 10, fontWeight: 700, color: T.textSub, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 3 }}>
-              {lang === 'en' ? 'Property' : 'נכס'}
-            </div>
-            <div style={{ fontSize: 13, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {lead.propTitle}
-            </div>
-          </div>
-        )}
-        {lead.enrichment?.intent && (
-          <div>
-            <div style={{ fontSize: 10, fontWeight: 700, color: T.textSub, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 3 }}>
-              {lang === 'en' ? 'Score' : 'ציון'}
-            </div>
-            <ScoreBadge value={lead.enrichment.intent} lang={lang} />
-          </div>
-        )}
-        {lead.ts && (
-          <div>
-            <div style={{ fontSize: 10, fontWeight: 700, color: T.textSub, textTransform: 'uppercase', letterSpacing: '.06em', marginBottom: 3 }}>
-              {lang === 'en' ? 'Date' : 'תאריך'}
-            </div>
-            <div style={{ fontSize: 13, color: T.textSub }}>{fmtDate(lead.ts)}</div>
-          </div>
-        )}
+      {/* one quiet line: phone · property · score · date */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px 12px', fontSize: 12.5, color: T.textSub, lineHeight: 1.5 }}>
+        {lead.phone && <a href={`tel:${lead.phone}`} onClick={e => e.stopPropagation()} style={{ color: T.text, fontWeight: 600, textDecoration: 'none', direction: 'ltr', unicodeBidi: 'embed' }}>{fmtPhoneLocal(lead.phone)}</a>}
+        {lead.propTitle && <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 170 }}><bdi>{lead.propTitle}</bdi></span>}
+        {lead.enrichment?.intent && <ScoreBadge value={lead.enrichment.intent} lang={lang} />}
+        {lead.ts && <span style={{ marginInlineStart: 'auto' }}>{fmtDate(lead.ts)}</span>}
       </div>
 
-      {/* Message preview */}
-      {lead.msg && (
-        <div style={{ marginTop: 10, padding: '8px 10px', background: T.bg, borderRadius: 8, border: `1px solid ${T.borderLight}` }}>
-          <div style={{ fontSize: 12, color: T.textSub, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.5 }}>
-            {prettyLeadText(lead.msg, lang)}
-          </div>
+      {(last || lead.msg) && (
+        <div onClick={last ? () => openNote?.(lead) : undefined} style={{ marginTop: 8, padding: '7px 10px', background: T.bg, borderRadius: 10, fontSize: 12.5, color: last ? T.text : T.textSub, lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+          {last ? <>📝 {last.text}</> : prettyLeadText(lead.msg, lang)}
         </div>
       )}
 
-      {last && (
-        <div onClick={() => openNote?.(lead)} style={{ marginTop: 8, padding: '8px 10px', background: T.bg, borderRadius: 8, border: `1px solid ${T.borderLight}`, fontSize: 12.5, color: T.text, lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>
-          📝 {last.text}
-        </div>
-      )}
-
-      {/* Action buttons */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8, marginTop: 12 }}>   {/* 2 × 2 on a phone: four buttons in one row overflowed */}
-        {lead.phone && (
-          <a href={`tel:${lead.phone}`} onClick={e => e.stopPropagation()}
-            style={{ minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 0', background: T.accent + '14', border: `1px solid ${T.accent}30`, borderRadius: 10, color: T.accent, fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>
-            <Phone size={14} /> {lang === 'en' ? 'Call' : 'התקשר'}
-          </a>
-        )}
-        {lead.phone && onOpenChat && (
-          <button onClick={e => { e.stopPropagation(); onOpenChat(lead) }}
-            style={{ minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 0', background: '#25D36614', border: '1px solid #25D36630', borderRadius: 10, color: '#25D366', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-            <MessageSquare size={14} /> WhatsApp
-          </button>
-        )}
-        {openNote && (
-          <button onClick={e => { e.stopPropagation(); openNote(lead) }}
-            style={{ minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 0', background: '#A25DDC14', border: '1px solid #A25DDC33', borderRadius: 10, color: '#A25DDC', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-            <Pencil size={14} /> {lang === 'en' ? 'Note' : 'סיכום'}
-          </button>
-        )}
-        <button onClick={() => onOpenDetail(lead)}
-          style={{ minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 0', background: 'none', border: `1px solid ${T.border}`, borderRadius: 10, color: T.textSub, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-          <ExternalLink size={14} /> {lang === 'en' ? 'Details' : 'פרטים'}
-        </button>
-      </div>
+      {/* one row of actions: call · WhatsApp · summary · details */}
+      {(() => {
+        const acts = [
+          lead.phone && { key: 'call', href: `tel:${lead.phone}`, icon: <Phone size={16}/>, label: lang === 'en' ? 'Call' : 'התקשר', color: T.accent },
+          lead.phone && onOpenChat && { key: 'wa', onClick: () => onOpenChat(lead), icon: <MessageSquare size={16}/>, label: 'WhatsApp', color: '#25D366' },
+          openNote && { key: 'note', onClick: () => openNote(lead), icon: <Pencil size={16}/>, label: lang === 'en' ? 'Note' : 'סיכום', color: '#A25DDC' },
+          { key: 'open', onClick: () => onOpenDetail(lead), icon: <ExternalLink size={16}/>, label: lang === 'en' ? 'Details' : 'פרטים', color: T.textSub },
+        ].filter(Boolean)
+        const st = { minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, padding: '6px 0', minHeight: 46, background: T.bg, border: `1px solid ${T.borderLight}`, borderRadius: 10, fontSize: 11.5, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer', textDecoration: 'none', color: T.text }
+        return (
+          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${acts.length}, minmax(0, 1fr))`, gap: 6, marginTop: 10 }}>
+            {acts.map(a => a.href
+              ? <a key={a.key} href={a.href} onClick={e => e.stopPropagation()} style={st}><span style={{ color: a.color, display: 'flex' }}>{a.icon}</span>{a.label}</a>
+              : <button key={a.key} type="button" onClick={e => { e.stopPropagation(); a.onClick() }} style={st}><span style={{ color: a.color, display: 'flex' }}>{a.icon}</span>{a.label}</button>)}
+          </div>
+        )
+      })()}
     </div>
   )
 }
@@ -2059,16 +2008,16 @@ function MobileStatsBar({ leads, T, lang }) {
   const won  = leads.filter(l => l.leadStatus === 'won').length
   const newL = leads.filter(l => l.leadStatus === 'new').length
   return (
-    <div style={{ display: 'flex', gap: 8, padding: '0 16px 12px', overflowX: 'auto' }}>
+    <div style={{ display: 'flex', gap: 6, padding: '0 12px 10px' }}>
       {[
         { label: lang === 'en' ? 'Total' : 'סה"כ', value: leads.length, color: T.accent, bg: T.accent + '14' },
         { label: lang === 'en' ? 'New' : 'חדשים', value: newL, color: '#0073EA', bg: '#0073EA14' },
         { label: lang === 'en' ? 'Hot' : 'חמים', value: hot, color: '#E2445C', bg: '#E2445C14' },
         { label: lang === 'en' ? 'Won' : 'סגורים', value: won, color: '#00C875', bg: '#00C87514' },
       ].map(s => (
-        <div key={s.label} style={{ flexShrink: 0, background: s.bg, border: `1px solid ${s.color}22`, borderRadius: 12, padding: '10px 16px', textAlign: 'center', minWidth: 72 }}>
-          <div style={{ fontSize: 22, fontWeight: 800, color: s.color }}>{s.value}</div>
-          <div style={{ fontSize: 11, color: T.textSub, fontWeight: 600, marginTop: 2 }}>{s.label}</div>
+        <div key={s.label} style={{ flex: '1 0 0', minWidth: 0, background: T.bgCard, border: `1px solid ${T.border}`, borderRadius: 10, padding: '6px 8px', textAlign: 'center' }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: s.color, lineHeight: 1.2 }}>{s.value}</div>
+          <div style={{ fontSize: 11, color: T.textSub, fontWeight: 500, marginTop: 1, whiteSpace: 'nowrap' }}>{s.label}</div>
         </div>
       ))}
     </div>
@@ -2337,15 +2286,12 @@ function LeadsBoardMain({
         {/* ── Mobile Header ── */}
         <div style={{ padding: '14px 16px 10px', background: T.bgHeader, borderBottom: `1px solid ${T.border}` }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-            <div style={{ width: 34, height: 34, borderRadius: 10, background: 'linear-gradient(135deg,#7456C2,#0073EA)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 4px 12px #0073EA44' }}>
+            {false && <div style={{ width: 34, height: 34, borderRadius: 10, background: 'linear-gradient(135deg,#7456C2,#0073EA)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 4px 12px #0073EA44' }}>
               <User size={16} style={{ color: '#fff' }} />
-            </div>
+            </div>}
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 17, fontWeight: 800, color: T.text, lineHeight: 1 }}>
-                {lang === 'en' ? 'Leads CRM' : 'ניהול לידים'}
-              </div>
-              <div style={{ fontSize: 12, color: T.textSub, marginTop: 2 }}>
-                {leads.length} {lang === 'en' ? 'leads total' : 'לידים סה"כ'}
+              <div style={{ fontSize: 16, fontWeight: 700, color: T.text, lineHeight: 1.2, display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                {lang === 'en' ? 'Leads' : 'לידים'}<span style={{ fontSize: 12.5, fontWeight: 500, color: T.textSub }}>{leads.length}</span>
               </div>
             </div>
             <button onClick={() => setMobileSearch(v => !v)}
