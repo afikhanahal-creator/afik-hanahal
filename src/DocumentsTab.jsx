@@ -7,7 +7,7 @@
 // Everything here uses the admin tokens (T.* / var(--au-*)) and works in light / dark, RTL and on a phone.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { FileSignature, Plus, Search, Send, RefreshCw, Download, Link2, XCircle, Settings, Eye, Copy, Check, AlertTriangle, ChevronLeft, ChevronRight, FileText, Trash2, Upload, Clock, CheckCircle2, PenLine, Mail, MessageCircle } from 'lucide-react'
+import { FileSignature, Plus, Search, Send, RefreshCw, Download, Link2, XCircle, Settings, Eye, Copy, Check, AlertTriangle, ChevronLeft, ChevronRight, FileText, Trash2, Upload, Clock, CheckCircle2, PenLine, Mail, MessageCircle, FolderKanban } from 'lucide-react'
 import { T, Button, StatTile, FilterChip, Badge, EmptyState, Field, inputStyle, Modal, Drawer, useToasts, SectionHead } from './automationsUI.jsx'
 import { autoApi } from './AutomationsApi.jsx'
 import DocSheet, { DOC_CSS } from './DocPreview.jsx'
@@ -16,18 +16,24 @@ import { computeFees, renderClauses, cleanDocInput, DEFAULT_CLAUSES, DOC_TYPES, 
 import { leadProperty } from '../lib/automations-shared.js'
 import { useProjects } from './lib/projectsStore.js'
 import { projectOfLead } from '../lib/projects.js'
+import { ProjectSelect } from './LeadProjects.jsx'
+import TemplateEditor, { TemplateUpload, TE_CSS } from './TemplateEditor.jsx'
+import { templateValues, renderBlocks, missingFields, brokerageTemplate, templateKeys, STANDARD_FIELDS } from '../lib/doc-templates.js'
 
 const AUTH = { Authorization: 'Bearer AFIKhanahal2026' }
 const TR = {
   he: {
-    title: 'מסמכים וחתימות', sub: 'טופס הזמנת שירותי תיווך — מתבנית, דרך שליחה ללקוח, עד עותק חתום בכרטיס הליד', newDoc: 'יצירת מסמך חדש', settings: 'הגדרות', refresh: 'רענון',
+    title: 'ניהול מסמכים', sub: 'כל מסמך של המשרד — מתבנית, דרך שליחה ללקוח, עד עותק חתום בכרטיס הליד ובפרויקט', newDoc: 'יצירת מסמך חדש', settings: 'הגדרות', refresh: 'רענון',
+    areas: { overview: 'סקירה', docs: 'כל המסמכים', templates: 'תבניות', settings: 'הגדרות' }, uploadTpl: 'העלאת מסמך חדש', blankTpl: 'תבנית ריקה', builtin: 'מובנית', tplEdit: 'עריכה', tplUse: 'מסמך חדש מהתבנית', tplDel: 'מחיקה', tplDelAsk: 'למחוק את התבנית? מסמכים שכבר נוצרו ממנה נשארים.', tplFields: n => `${n} שדות משלה`, tplBlocks: n => `${n} פסקאות`, tplNone: 'עדיין אין תבניות משלכם. "העלאת מסמך חדש" הופך כל Word / PDF / סריקה לתבנית עם שדות.',
+    by: { project: 'לפי פרויקט', agent: 'לפי סוכן', type: 'לפי סוג מסמך', month: 'לפי חודש' }, noProject: 'ללא פרויקט', projectAll: 'כל הפרויקטים', projectDocs: 'מסמכי הפרויקט', pct: 'השלמת חתימות', openProject: 'לפרויקט', clearProject: 'כל המסמכים',
+    stepTpl: 'תבנית', stepFields: 'פרטי המסמך', tplPick: 'איזה מסמך?', fieldsHint: 'השדות של התבנית הזו — ממלאים פעם אחת לכל מסמך. שדות מסומנים ב-* הם חובה.', missingStd: 'שדות מהמערכת שעדיין ריקים במסמך הזה:', project: 'פרויקט', agent: 'סוכן',
     tiles: { total: 'מסמכים שנוצרו', waiting: 'ממתינים לחתימה', signed: 'נחתמו', problem: 'פג תוקף / נכשל' },
     filters: { all: 'הכל', waiting: 'ממתינים לחתימה', signed: 'נחתמו', draft: 'טיוטות', problem: 'בעיות', cancelled: 'בוטלו' }, templates: 'תבניות',
     search: 'חיפוש לפי שם, טלפון, אימייל, מספר מסמך או נכס…', range: { all: 'כל הזמן', week: '7 ימים', month: '30 יום', quarter: '90 יום' },
-    cols: { number: 'מספר', client: 'לקוח', property: 'נכס', fees: 'דמי תיווך', created: 'נוצר', sent: 'נשלח', status: 'סטטוס', signed: 'נחתם', actions: '' },
+    cols: { number: 'מספר', type: 'סוג', client: 'לקוח', project: 'פרויקט', property: 'נכס', agent: 'סוכן', fees: 'דמי תיווך', created: 'נוצר', sent: 'נשלח', via: 'ערוץ', opened: 'נפתח', status: 'סטטוס', signed: 'נחתם', actions: '' },
     empty: 'עדיין אין מסמכים. "יצירת מסמך חדש" פותח את הטופס עם תצוגה חיה.', emptyFilter: 'אין מסמכים שמתאימים לסינון.',
     open: 'פתיחה', download: 'הורדת PDF', resend: 'שליחה חוזרת', cancel: 'ביטול המסמך', signedCopy: 'העותק החתום', word: 'Word', link: 'קישור חדש', copy: 'העתקה', copied: 'הועתק ✓',
-    steps: ['לקוח', 'נכס', 'תנאי התיווך', 'תצוגה מקדימה', 'שליחה'], next: 'הבא', back: 'חזרה', saveDraft: 'שמירת טיוטה', sendNow: 'שליחה לחתימה', saving: 'שומר…', sending: 'שולח…',
+    steps: ['תבנית', 'לקוח ופרויקט', 'נכס', 'תנאי התיווך', 'פרטי המסמך', 'תצוגה מקדימה', 'שליחה'], next: 'הבא', back: 'חזרה', saveDraft: 'שמירת טיוטה', sendNow: 'שליחה לחתימה', saving: 'שומר…', sending: 'שולח…',
     pickLead: 'בחירת ליד מהמערכת', leadPh: 'חיפוש לפי שם או טלפון…', noLead: 'ללא ליד (לקוח חדש)', leadNote: 'המסמך יישמר בכרטיס הליד. לקוח שעדיין לא במערכת — מספיק טלפון או אימייל.',
     client: { first: 'שם פרטי', last: 'שם משפחה', name: 'שם מלא', id: 'ת.ז.', phone: 'טלפון', email: 'אימייל', address: 'כתובת מגורים', role: 'הלקוח בעסקה' },
     pickProp: 'בחירת נכס מהמערכת', propPh: 'חיפוש נכס…', noProp: 'נכס שלא במערכת', property: { address: 'כתובת הנכס', city: 'עיר', desc: 'תיאור הנכס', type: 'סוג הנכס', dealType: 'סוג העסקה', price: 'מחיר העסקה לפני מע"מ (₪)', notes: 'הערות', link: 'קישור לנכס' },
@@ -117,25 +123,61 @@ export const DOCS_CSS = `
 .dt-input{width:100%;height:40px;padding:0 12px;border-radius:9px;border:1px solid var(--au-line);background:var(--au-input);color:var(--au-text);font:inherit;font-size:13.5px;min-height:0}
 textarea.dt-input{height:auto;min-height:70px;padding:9px 12px;resize:vertical;line-height:1.5}
 select.dt-input{appearance:auto}
+.dt-areas{display:flex;gap:4px;border-bottom:1px solid var(--au-line);padding-bottom:0}
+.dt-area{border:none;background:transparent;color:var(--au-text3);font:inherit;font-size:13.5px;font-weight:600;padding:8px 14px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;min-height:0;display:inline-flex;gap:6px;align-items:center}
+.dt-area.on{color:var(--au-text);border-bottom-color:var(--au-brand)}
+.dt-area-n{min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:rgba(var(--ov),.08);font-size:11px;display:inline-flex;align-items:center;justify-content:center}
+.dt-proj{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:var(--au-card);border:1px solid var(--au-line);border-radius:14px;padding:10px 14px;font-size:13.5px}
+.dt-proj .lp-dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+.dt-proj-kpi{color:var(--au-text2);font-size:13px}.dt-proj-kpi b{font-weight:600}
+.dt-tpls{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px}
+.dt-tpl{background:var(--au-card);border:1px solid var(--au-line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:8px;text-align:start;font:inherit;color:inherit}
+.dt-tpl-top{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.dt-tpl-top b{font-weight:600;font-size:14px}
+.dt-tpl small{color:var(--au-text3);font-size:12px}
+.dt-tpl-new{border-style:dashed;align-items:center;justify-content:center;cursor:pointer;min-height:120px;color:var(--au-text2)}.dt-tpl-new:hover{border-color:var(--au-brand)}
+.dt-break{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px}
+.dt-brk{background:var(--au-card);border:1px solid var(--au-line);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:6px}.dt-brk>b{font-size:13px;font-weight:600;margin-bottom:2px}
+.dt-brk-row{display:grid;grid-template-columns:1fr auto;gap:2px 10px;border:none;background:transparent;color:var(--au-text);font:inherit;font-size:12.5px;text-align:start;cursor:pointer;padding:4px 0;min-height:0;border-radius:6px}
+.dt-brk-row:hover{background:rgba(var(--ov),.04)}.dt-brk-n{font-variant-numeric:tabular-nums;direction:ltr;color:var(--au-text3)}.dt-brk-n i{font-style:normal}
+.dt-brk-bar{grid-column:1/-1;height:4px;border-radius:2px;background:rgba(var(--ov),.08);overflow:hidden}.dt-brk-bar span{display:block;height:100%;background:var(--au-brand)}
+.dt-link{border:none;background:transparent;color:var(--au-brand-text);font:inherit;font-size:13px;cursor:pointer;padding:0;min-height:0;text-decoration:underline dotted}
+.dw-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px}.dw-fields .full{grid-column:1/-1}
 @media (max-width:1020px){.dw{grid-template-columns:1fr}.dw-prev{display:none}.dw.show-prev .dw-form{display:none}.dw.show-prev .dw-prev{display:flex;padding:0;background:#fff}.dw-prev-in{transform:none!important;width:100%}}
 @media (max-width:760px){.dt-table{display:none}.dt-cards{display:flex;flex-direction:column;gap:8px}.dt-card{background:var(--au-card);border:1px solid var(--au-line);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:6px;cursor:pointer}.dt-card .r{display:flex;justify-content:space-between;align-items:center;gap:8px}.dw-grid{grid-template-columns:1fr}}
 `
 
 const leadMatch = (l, q) => { const s = q.trim().toLowerCase(); if (!s) return true; const d = s.replace(/\D/g, ''); return String(l.name || '').toLowerCase().includes(s) || (d.length >= 3 && String(l.phone || '').replace(/\D/g, '').includes(d)) || String(l.email || '').toLowerCase().includes(s) }
 const splitName = n => { const w = String(n || '').trim().split(/\s+/); return { firstName: w[0] || '', lastName: w.slice(1).join(' ') } }
-const emptyForm = settings => ({ leadId: '', propertyId: '', client: { firstName: '', lastName: '', name: '', idNumber: '', phone: '', email: '', address: '', role: 'buyer' }, property: { address: '', city: '', desc: '', type: '', dealType: 'sale', price: '', notes: '', link: '' }, fees: { mode: 'percent', pct: 2, fixed: '', months: 1, vatRate: settings?.vatRate ?? DEFAULT_VAT }, agent: { ...(settings?.agent || { name: '', license: '', phone: '', email: '' }) }, logo: { ...(settings?.logo || { show: true, url: '', size: 'm', align: 'right' }) }, terms: '', expiryDays: settings?.expiryDays || 14, title: '' })
+const STEP_LABEL = { tpl: 'תבנית', client: 'לקוח ופרויקט', property: 'נכס', fees: 'תנאי התיווך', fields: 'פרטי המסמך', preview: 'תצוגה מקדימה', send: 'שליחה' }
+const FEE_KEYS = ['PRICE', 'COMMISSION', 'COMMISSION_PCT', 'COMMISSION_BASIS', 'VAT', 'VAT_RATE', 'TOTAL', 'TERMS']
+const emptyForm = settings => ({ templateId: 'brokerage', projectId: '', projectName: '', fields: {}, leadId: '', propertyId: '', client: { firstName: '', lastName: '', name: '', idNumber: '', phone: '', email: '', address: '', role: 'buyer' }, property: { address: '', city: '', desc: '', type: '', dealType: 'sale', price: '', notes: '', link: '' }, fees: { mode: 'percent', pct: 2, fixed: '', months: 1, vatRate: settings?.vatRate ?? DEFAULT_VAT }, agent: { ...(settings?.agent || { name: '', license: '', phone: '', email: '' }) }, logo: { ...(settings?.logo || { show: true, url: '', size: 'm', align: 'right' }) }, terms: '', expiryDays: settings?.expiryDays || 14, title: '' })
 
-/** the view the preview draws, from the wizard's form (same rules as the server) */
-function formView(form, clauses, number = '') {
-  const { data } = cleanDocInput({ ...form, fees: { ...form.fees, price: form.fees?.price || form.property?.price } })
+/** the view the preview draws, from the wizard's form and its template (same rules as the server) */
+function formView(form, tpl, number = '') {
+  const { data } = cleanDocInput({ ...form, fees: { ...form.fees, price: form.fees?.price || form.property?.price } }, { requireProperty: false, requireFees: false, requireAgent: false })
   const fees = computeFees({ ...form.fees, price: form.property.price })
   const d = { ...data, fees, client: { ...data.client, name: data.client.name || [form.client.firstName, form.client.lastName].filter(Boolean).join(' ') } }
-  return { number, status: 'draft', title: d.title || DOC_TYPES.brokerage.name, created_at: new Date().toISOString(), client: d.client, property: d.property, fees, agent: d.agent, logo: d.logo, terms: d.terms, clauses: renderClauses(d, clauses) }
+  const values = templateValues(d, { number, project: form.projectName ? { name: form.projectName } : null })
+  return { number, status: 'draft', title: d.title || tpl.title || DOC_TYPES.brokerage.name, created_at: new Date().toISOString(), client: d.client, property: d.property, fees, agent: d.agent, logo: d.logo?.url || d.logo?.show === false ? d.logo : { ...tpl.logo, ...(d.logo || {}) }, terms: d.terms, project: form.projectName, kind: tpl.kind, blocks: renderBlocks(tpl, values), sections: tpl.sections, values }
 }
+const fieldInput = (f, v, on) => f.type === 'checkbox' ? <label className="te-tog"><input type="checkbox" checked={v === true || v === 'true'} onChange={e => on(e.target.checked)}/>{f.label}</label>
+  : f.type === 'select' ? <select className="dt-input" value={v || ''} onChange={e => on(e.target.value)} aria-label={f.label}><option value="">—</option>{(f.options || []).map(o => <option key={o} value={o}>{o}</option>)}</select>
+  : f.type === 'date' ? <input className="dt-input" type="date" dir="ltr" value={v || ''} onChange={e => on(e.target.value)} aria-label={f.label}/>
+  : <input className="dt-input" dir={['number', 'money', 'percent'].includes(f.type) ? 'ltr' : undefined} inputMode={['number', 'money', 'percent'].includes(f.type) ? 'decimal' : undefined} value={v || ''} placeholder={f.hint || ''} onChange={e => on(e.target.value)} aria-label={f.label}/>
 
-export default function DocumentsTab({ lang = 'he', leads = [], properties = [], onOpenLead, initialLeadId = '', standalone = true }) {
+export default function DocumentsTab({ lang = 'he', leads = [], properties = [], onOpenLead, initialLeadId = '', initialProject = '', standalone = true }) {
   const t = TR.he
   const [push, toasts] = useToasts()
+  const projects = useProjects()
+  const [area, setArea] = useState(initialProject ? 'docs' : 'overview')
+  const [project, setProject] = useState(initialProject || '')
+  const [agentF, setAgentF] = useState('')
+  const [typeF, setTypeF] = useState('')
+  const [templates, setTemplates] = useState([])
+  const [tplMissing, setTplMissing] = useState(false)
+  const [tplEditor, setTplEditor] = useState(null)      // { template } | { upload: true } | { text, source, … }
+  const loadTemplates = useCallback(() => api.get('docs-templates').then(d => { setTemplates(d.templates || []); setTplMissing(!!d.missingMigration) }).catch(() => {}), [])
+  useEffect(() => { loadTemplates() }, [loadTemplates])
   const [docs, setDocs] = useState([])
   const [wiring, setWiring] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -153,11 +195,22 @@ export default function DocumentsTab({ lang = 'he', leads = [], properties = [],
   useEffect(() => { load(); api.get('docs-settings').then(d => setSettings(d.settings)).catch(() => {}) }, [load])
   useEffect(() => onSync(m => { if (m?.t === 'documents') load() }), [load])
   useEffect(() => { if (initialLeadId) setWizard({ leadId: String(initialLeadId) }) }, [initialLeadId])
-  const stats = useMemo(() => docStats(docs), [docs])
+  const scoped = useMemo(() => docs.filter(d => (!project || d.project_id === project) && (!agentF || (d.agent_name || d.data?.agent?.name || '') === agentF) && (!typeF || (d.data?.title || DOC_TYPES.brokerage.name) === typeF)), [docs, project, agentF, typeF])
+  const stats = useMemo(() => docStats(scoped), [scoped])
+  const breakdown = useMemo(() => {
+    const by = { project: {}, agent: {}, type: {}, month: {} }
+    for (const d of scoped) {
+      const st = effectiveStatus(d)
+      const add = (k, name) => { const r = by[k][name] = by[k][name] || { name, total: 0, signed: 0, waiting: 0 }; r.total++; if (st === 'signed') r.signed++; if (st === 'sent' || st === 'opened') r.waiting++ }
+      add('project', d.project_name || t.noProject); add('agent', d.agent_name || d.data?.agent?.name || '—'); add('type', d.data?.title || DOC_TYPES.brokerage.name); add('month', new Date(d.created_at).toLocaleDateString('he-IL', { month: 'long', year: 'numeric' }))
+    }
+    return Object.fromEntries(Object.entries(by).map(([k, v]) => [k, Object.values(v).sort((a, b) => b.total - a.total).slice(0, 12)]))
+  }, [scoped, t.noProject])
+  const projectRow = project ? projects.find(p => p.id === project) : null
   const list = useMemo(() => {
     const now = Date.now(), days = { week: 7, month: 30, quarter: 90 }[range]
     const s = q.trim().toLowerCase(), dg = s.replace(/\D/g, '')
-    return docs.filter(d => {
+    return scoped.filter(d => {
       const st = effectiveStatus(d, now)
       if (filter === 'waiting' && !['sent', 'opened'].includes(st)) return false
       if (filter === 'signed' && st !== 'signed') return false
@@ -165,46 +218,75 @@ export default function DocumentsTab({ lang = 'he', leads = [], properties = [],
       if (filter === 'problem' && !['expired', 'failed'].includes(st)) return false
       if (filter === 'cancelled' && st !== 'cancelled') return false
       if (days && Date.parse(d.created_at) < now - days * 864e5) return false
-      if (s && !(String(d.client_name || '').toLowerCase().includes(s) || String(d.number || '').toLowerCase().includes(s) || String(d.client_email || '').toLowerCase().includes(s) || propLine(d.data).toLowerCase().includes(s) || (dg.length >= 3 && String(d.client_phone || '').replace(/\D/g, '').includes(dg)))) return false
+      if (s && !(String(d.client_name || '').toLowerCase().includes(s) || String(d.number || '').toLowerCase().includes(s) || String(d.client_email || '').toLowerCase().includes(s) || String(d.project_name || '').toLowerCase().includes(s) || propLine(d.data).toLowerCase().includes(s) || (dg.length >= 3 && String(d.client_phone || '').replace(/\D/g, '').includes(dg)))) return false
       return true
     })
-  }, [docs, filter, range, q])
+  }, [scoped, filter, range, q])
   const openDoc = d => setOpen(d.id)
   const cur = docs.find(d => d.id === open) || null
   return (
     <div className="dt">
-      <style>{DOCS_CSS}{DOC_CSS}</style>
+      <style>{DOCS_CSS}{DOC_CSS}{TE_CSS}</style>
       <div className="dt-head">
         <div><h2><FileSignature size={20}/>{t.title}</h2><p>{t.sub}</p></div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <Button variant="ghost" icon={<RefreshCw size={14}/>} onClick={load} title={t.refresh}>{t.refresh}</Button>
-          <Button variant="ghost" icon={<Settings size={14}/>} onClick={() => setSettingsOpen(true)}>{t.settings}</Button>
-          <Button variant="brand" icon={<FileText size={14}/>} onClick={() => setSettingsOpen('clauses')}>{t.templates}</Button>
-          <Button variant="solid" icon={<Plus size={15}/>} onClick={() => setWizard({})} className="dt-new">{t.newDoc}</Button>
+          <Button variant="ghost" icon={<RefreshCw size={14}/>} onClick={() => { load(); loadTemplates() }} title={t.refresh}>{t.refresh}</Button>
+          <Button variant="ghost" icon={<Upload size={14}/>} onClick={() => { setArea('templates'); setTplEditor({ upload: true }) }} className="dt-upload">{t.uploadTpl}</Button>
+          <Button variant="solid" icon={<Plus size={15}/>} onClick={() => setWizard({ projectId: project || '' })} className="dt-new">{t.newDoc}</Button>
         </div>
       </div>
+      <div className="dt-areas" role="tablist">{Object.entries(t.areas).map(([k, v]) => <button key={k} type="button" role="tab" aria-selected={area === k} className={`dt-area${area === k ? ' on' : ''}`} onClick={() => { if (k === 'settings') setSettingsOpen(true); else setArea(k) }}>{v}{k === 'templates' && templates.length ? <span className="dt-area-n">{templates.length + 1}</span> : null}{k === 'docs' ? <span className="dt-area-n">{scoped.length}</span> : null}</button>)}</div>
+      {projectRow && <div className="dt-proj">
+        <span className="lp-dot" style={{ background: projectRow.color }}/><b>{t.projectDocs}: {projectRow.name}</b>{projectRow.town && <span style={{ color: 'var(--au-text3)' }}>· {projectRow.town}</span>}
+        <span className="dt-proj-kpi"><b>{stats.total}</b> מסמכים · <b>{stats.waiting}</b> ממתינים · <b style={{ color: 'var(--au-green-text)' }}>{stats.signed}</b> נחתמו · <b>{stats.total ? Math.round(stats.signed / stats.total * 100) : 0}%</b> {t.pct}</span>
+        <span style={{ flex: 1 }}/>
+        <Button size="sm" variant="ghost" onClick={() => { setProject(''); setArea('overview') }}>{t.clearProject}</Button>
+      </div>}
+      {tplMissing && <div className="dw-err"><AlertTriangle size={13}/> הטבלאות של גרסה 2 עוד לא נוצרו ב-Supabase — יש להריץ את server/documents-v2-migration.sql ב-SQL editor. עד אז עובדת רק התבנית המובנית.</div>}
+      {area === 'templates' && (
+        <div className="dt-tpls">
+          <div className="dt-tpl dt-tpl-builtin"><div className="dt-tpl-top"><FileText size={16}/><b>{DOC_TYPES.brokerage.name}</b><span className="dt-st" style={{ background: 'rgba(var(--brand-rgb),.12)', color: 'var(--au-brand-text)' }}>{t.builtin}</span></div><small>8 סעיפים · פרטי לקוח · נכס · דמי תיווך · חתימות</small><div className="dd-files"><Button size="sm" variant="ghost" onClick={() => setSettingsOpen('clauses')}>{t.tplEdit}</Button><Button size="sm" variant="soft-green" onClick={() => setWizard({ templateId: 'brokerage', projectId: project || '' })}>{t.tplUse}</Button></div></div>
+          {templates.map(tp => <div key={tp.id} className="dt-tpl"><div className="dt-tpl-top"><FileText size={16}/><b>{tp.name}</b>{tp.source?.method && <span className="dt-st" style={{ background: 'rgba(var(--ov),.07)', color: 'var(--au-text2)' }}>{tp.source.method === 'vision' ? 'סריקה' : tp.source.method === 'docx' ? 'Word' : tp.source.method === 'pdf' ? 'PDF' : 'טקסט'}</span>}</div><small>{t.tplBlocks(tp.blocks.length)} · {t.tplFields(tp.fields.length)}{tp.source?.name ? ` · ${tp.source.name}` : ''}</small><div className="dd-files"><Button size="sm" variant="ghost" onClick={() => setTplEditor({ template: tp })}>{t.tplEdit}</Button><Button size="sm" variant="soft-green" onClick={() => setWizard({ templateId: tp.id, projectId: project || '' })}>{t.tplUse}</Button><Button size="sm" variant="danger" icon={<Trash2 size={12}/>} onClick={async () => { if (!window.confirm(t.tplDelAsk)) return; try { await api.post('docs-template-delete', { id: tp.id }); loadTemplates() } catch (e) { push(e.message) } }}>{t.tplDel}</Button></div></div>)}
+          <button type="button" className="dt-tpl dt-tpl-new" onClick={() => setTplEditor({ upload: true })}><Upload size={22}/><b>{t.uploadTpl}</b><small>Word · PDF · סריקה → תבנית עם שדות</small></button>
+          {!templates.length && <p style={{ gridColumn: '1/-1', margin: 0, fontSize: 13, color: 'var(--au-text3)' }}>{t.tplNone}</p>}
+        </div>
+      )}
+      {area === 'overview' && (
+        <div className="dt-break">
+          {Object.entries(t.by).map(([k, label]) => <div key={k} className="dt-brk"><b>{label}</b>{breakdown[k].length ? breakdown[k].map(r => <button type="button" key={r.name} className="dt-brk-row" onClick={() => { if (k === 'project') { const p = projects.find(x => x.name === r.name); setProject(p ? p.id : ''); } if (k === 'agent') setAgentF(r.name === '—' ? '' : r.name); if (k === 'type') setTypeF(r.name); setArea('docs') }}><span>{r.name}</span><span className="dt-brk-n"><i style={{ color: 'var(--au-green-text)' }}>{r.signed}</i> / <i style={{ color: 'var(--au-amber-text)' }}>{r.waiting}</i> / {r.total}</span><span className="dt-brk-bar"><span style={{ width: `${r.total ? r.signed / r.total * 100 : 0}%` }}/></span></button>) : <small style={{ color: 'var(--au-text3)' }}>—</small>}</div>)}
+          <small style={{ gridColumn: '1/-1', color: 'var(--au-text3)' }}>נחתמו / ממתינים / סה"כ · לחיצה על שורה מסננת את הרשימה</small>
+        </div>
+      )}
       {wiring && (!wiring.whatsapp || !wiring.email) && <div className="dw-err" style={{ display: 'flex', gap: 8, alignItems: 'center' }}><AlertTriangle size={14}/>{!wiring.whatsapp ? 'וואטסאפ (Green API) לא מוגדר — שליחה וקוד אימות יעבדו רק באימייל. ' : ''}{!wiring.email ? 'אימייל (GMAIL_USER / GMAIL_APP_PASSWORD) לא מוגדר — שליחה וקוד אימות יעבדו רק בוואטסאפ.' : ''}</div>}
-      <div className="dt-tiles">
-        {[['total', 'all'], ['waiting', 'waiting'], ['signed', 'signed'], ['problem', 'problem']].map(([k, f]) => <button key={k} type="button" className={`dt-tile${filter === f ? ' on' : ''}`} onClick={() => setFilter(f)}><b style={{ color: k === 'problem' && stats[k] ? T.redText : k === 'signed' && stats[k] ? T.green : undefined }}>{stats[k]}</b><span>{t.tiles[k]}</span></button>)}
-      </div>
-      <div className="dt-bar">
+      {area !== 'templates' && <div className="dt-tiles">
+        {[['total', 'all'], ['waiting', 'waiting'], ['signed', 'signed'], ['problem', 'problem']].map(([k, f]) => <button key={k} type="button" className={`dt-tile${filter === f && area === 'docs' ? ' on' : ''}`} onClick={() => { setFilter(f); setArea('docs') }}><b style={{ color: k === 'problem' && stats[k] ? T.redText : k === 'signed' && stats[k] ? T.green : undefined }}>{stats[k]}</b><span>{t.tiles[k]}</span></button>)}
+      </div>}
+      {area === 'docs' && <div className="dt-bar">
         <label className="dt-search"><Search size={15}/><input value={q} onChange={e => setQ(e.target.value)} placeholder={t.search} aria-label={t.search}/></label>
         {Object.entries(t.filters).map(([k, v]) => <FilterChip key={k} selected={filter === k} onClick={() => setFilter(k)}>{v}</FilterChip>)}
         <select className="dt-input" style={{ width: 'auto', height: 32, fontSize: 12.5 }} value={range} onChange={e => setRange(e.target.value)} aria-label="טווח זמן">{Object.entries(t.range).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
-      </div>
+        <select className="dt-input" style={{ width: 'auto', height: 32, fontSize: 12.5 }} value={project} onChange={e => setProject(e.target.value)} aria-label={t.project}><option value="">{t.projectAll}</option>{projects.filter(p => p.status !== 'archived').map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
+        {breakdown.agent.length > 1 && <select className="dt-input" style={{ width: 'auto', height: 32, fontSize: 12.5 }} value={agentF} onChange={e => setAgentF(e.target.value)} aria-label={t.agent}><option value="">{t.agent}: הכל</option>{breakdown.agent.map(a => <option key={a.name} value={a.name === '—' ? '' : a.name}>{a.name}</option>)}</select>}
+        {breakdown.type.length > 1 && <select className="dt-input" style={{ width: 'auto', height: 32, fontSize: 12.5 }} value={typeF} onChange={e => setTypeF(e.target.value)} aria-label={t.cols.type}><option value="">{t.cols.type}: הכל</option>{breakdown.type.map(a => <option key={a.name} value={a.name}>{a.name}</option>)}</select>}
+      </div>}
       {err && <div className="dw-err">{err}</div>}
-      {!loading && !list.length ? <EmptyState icon={FileSignature} title={docs.length ? t.emptyFilter : t.empty} action={!docs.length ? <Button variant="solid" icon={<Plus size={14}/>} onClick={() => setWizard({})}>{t.newDoc}</Button> : null}/> : (
+      {area === 'docs' && (!loading && !list.length ? <EmptyState icon={FileSignature} title={docs.length ? t.emptyFilter : t.empty} action={!docs.length ? <Button variant="solid" icon={<Plus size={14}/>} onClick={() => setWizard({})}>{t.newDoc}</Button> : null}/> : (
         <>
           <table className="dt-table" aria-label={t.title}>
-            <thead><tr><th>{t.cols.number}</th><th>{t.cols.client}</th><th>{t.cols.property}</th><th>{t.cols.fees}</th><th>{t.cols.created}</th><th>{t.cols.sent}</th><th>{t.cols.status}</th><th>{t.cols.signed}</th><th/></tr></thead>
-            <tbody>{list.map(d => { const st = effectiveStatus(d), f = computeFees(d.data?.fees || {}), Ic = STATUS_ICON[st] || Clock; return (
+            <thead><tr><th>{t.cols.number}</th><th>{t.cols.type}</th><th>{t.cols.client}</th><th>{t.cols.project}</th><th>{t.cols.property}</th><th>{t.cols.agent}</th><th>{t.cols.fees}</th><th>{t.cols.created}</th><th>{t.cols.sent}</th><th>{t.cols.via}</th><th>{t.cols.opened}</th><th>{t.cols.status}</th><th>{t.cols.signed}</th><th/></tr></thead>
+            <tbody>{list.map(d => { const st = effectiveStatus(d), f = computeFees(d.data?.fees || {}), Ic = STATUS_ICON[st] || Clock; const via = [...new Set((d.send_log || []).filter(x => x.ok).map(x => x.via))]; return (
               <tr key={d.id} onClick={() => openDoc(d)} className="dt-row">
                 <td><span className="dt-num">{d.number}</span></td>
+                <td style={{ fontSize: 12.5 }}>{d.data?.title || DOC_TYPES.brokerage.name}</td>
                 <td><b style={{ fontWeight: 600 }}>{d.client_name || '—'}</b><div style={{ fontSize: 12, color: 'var(--au-text3)', direction: 'ltr', textAlign: 'right' }}>{localPhone(d.client_phone) || d.client_email || ''}</div></td>
+                <td>{d.project_name ? <button type="button" className="dt-link" onClick={e => { e.stopPropagation(); setProject(d.project_id || ''); setArea('docs') }}>{d.project_name}</button> : '—'}</td>
                 <td>{propLine(d.data) || '—'}</td>
-                <td><span className="dt-num">{f.mode === 'percent' ? fmtPct(f.pct) : f.basis}</span> · <span className="dt-num">{fmtMoney(f.total)}</span></td>
+                <td style={{ fontSize: 12.5 }}>{d.agent_name || d.data?.agent?.name || '—'}</td>
+                <td>{d.type === 'custom' && !f.price ? '—' : <><span className="dt-num">{f.mode === 'percent' ? fmtPct(f.pct) : f.basis}</span> · <span className="dt-num">{fmtMoney(f.total)}</span></>}</td>
                 <td><span className="dt-num">{todayHe(d.created_at)}</span></td>
                 <td><span className="dt-num">{d.sent_at ? todayHe(d.sent_at) : '—'}</span></td>
+                <td style={{ fontSize: 12 }}>{via.map(v => v === 'whatsapp' ? 'וואטסאפ' : 'אימייל').join(' + ') || '—'}</td>
+                <td style={{ fontSize: 12 }}>{d.opened_at || st === 'opened' || st === 'signed' ? <span style={{ color: 'var(--au-green-text)' }}>נפתח</span> : d.sent_at ? <span style={{ color: 'var(--au-text3)' }}>לא נפתח</span> : '—'}</td>
                 <td><span className="dt-st" style={{ background: `${TONE[st]}1F`, color: st === 'draft' || st === 'cancelled' ? 'var(--au-text2)' : TONE[st] }}><Ic size={12}/>{t.st[st]}</span></td>
                 <td><span className="dt-num">{d.signed_at ? whenHe(d.signed_at) : '—'}</span></td>
                 <td onClick={e => e.stopPropagation()}><div className="dt-acts">
@@ -218,12 +300,17 @@ export default function DocumentsTab({ lang = 'he', leads = [], properties = [],
             <div key={d.id} className="dt-card" onClick={() => openDoc(d)} role="button" tabIndex={0}>
               <div className="r"><b style={{ fontWeight: 600 }}>{d.client_name || '—'}</b><span className="dt-st" style={{ background: `${TONE[st]}1F`, color: TONE[st] }}>{t.st[st]}</span></div>
               <div className="r" style={{ fontSize: 12.5, color: 'var(--au-text3)' }}><span>{propLine(d.data) || d.number}</span><span className="dt-num">{fmtMoney(f.total)}</span></div>
-              <div className="r" style={{ fontSize: 12, color: 'var(--au-text3)' }}><span className="dt-num">{d.number}</span><span className="dt-num">{todayHe(d.created_at)}</span></div>
+              <div className="r" style={{ fontSize: 12, color: 'var(--au-text3)' }}><span className="dt-num">{d.number}{d.project_name ? ` · ${d.project_name}` : ''}</span><span className="dt-num">{todayHe(d.created_at)}</span></div>
             </div>) })}</div>
         </>
-      )}
+      ))}
       <p style={{ fontSize: 12, color: 'var(--au-text3)', margin: 0 }}>{t.legal}</p>
-      {wizard && <DocWizard t={t} leads={leads} properties={properties} settings={settings} init={wizard} onClose={() => setWizard(null)} onDone={(msg) => { setWizard(null); if (msg) push(msg); load() }} push={push}/>}
+      {wizard && <DocWizard t={t} leads={leads} properties={properties} projects={projects} templates={templates} settings={settings} init={wizard} onClose={() => setWizard(null)} onDone={(msg) => { setWizard(null); if (msg) push(msg); load() }} push={push}/>}
+      {tplEditor && <Modal open onClose={() => setTplEditor(null)} title={null} full xl dir="rtl" label={t.areas.templates} closeOnBackdrop={false}>
+        <div style={{ height: 'calc(100vh - 80px)', maxHeight: 920, display: 'flex', flexDirection: 'column' }}>
+          {tplEditor.upload ? <TemplateUpload push={push} onCancel={() => setTplEditor(null)} onReady={r => setTplEditor({ ...r, ready: true })}/> : <TemplateEditor initial={tplEditor.template ? { template: tplEditor.template } : tplEditor} onClose={() => setTplEditor(null)} onSaved={() => { loadTemplates(); setArea('templates') }}/>}
+        </div>
+      </Modal>}
       <DocDrawer t={t} doc={cur} onClose={() => setOpen(null)} onChanged={load} push={push} onOpenLead={onOpenLead} leads={leads} onEdit={d => { setOpen(null); setWizard({ doc: d }) }}/>
       {settingsOpen && <DocSettings t={t} tab={settingsOpen === 'clauses' ? 'clauses' : 'general'} settings={settings} wiring={wiring} onClose={() => setSettingsOpen(false)} onSaved={s => { setSettings(s); push(t.settingsT.saved) }}/>}
       {toasts}
@@ -232,13 +319,12 @@ export default function DocumentsTab({ lang = 'he', leads = [], properties = [],
 }
 
 // ── the wizard ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
-function DocWizard({ t, leads, properties, settings, init, onClose, onDone, push }) {
-  const projects = useProjects()
-  const [step, setStep] = useState(0)
+function DocWizard({ t, leads, properties, projects = [], templates = [], settings, init, onClose, onDone, push }) {
+  const [step, setStep] = useState(init.templateId || init.doc ? 1 : 0)
   const [form, setForm] = useState(() => {
     const f = emptyForm(settings)
-    if (init.doc) { const d = init.doc.data || {}; return { ...f, ...d, client: { ...f.client, ...d.client, ...splitName(d.client?.name) }, property: { ...f.property, ...d.property, price: d.fees?.price || '' }, fees: { ...f.fees, ...d.fees }, agent: { ...f.agent, ...d.agent }, logo: { ...f.logo, ...d.logo }, leadId: init.doc.lead_id || '', propertyId: init.doc.property_id || '' } }
-    return f
+    if (init.doc) { const d = init.doc.data || {}; return { ...f, ...d, client: { ...f.client, ...d.client, ...splitName(d.client?.name) }, property: { ...f.property, ...d.property, price: d.fees?.price || '' }, fees: { ...f.fees, ...d.fees }, agent: { ...f.agent, ...d.agent }, logo: { ...f.logo, ...d.logo }, leadId: init.doc.lead_id || '', propertyId: init.doc.property_id || '', templateId: init.doc.template_id || 'brokerage', projectId: init.doc.project_id || '', projectName: init.doc.project_name || d.projectName || '', fields: d.fields || {} } }
+    return { ...f, templateId: init.templateId || 'brokerage', projectId: init.projectId || '', projectName: init.projectId ? (projects.find(p => p.id === init.projectId)?.name || '') : '' }
   })
   const [docId, setDocId] = useState(init.doc?.id || '')
   const [number, setNumber] = useState(init.doc?.number || '')
@@ -255,11 +341,12 @@ function DocWizard({ t, leads, properties, settings, init, onClose, onDone, push
   const [scale, setScale] = useState(1)
   const set = (path, v) => setForm(f => { const n = { ...f }; const [a, b] = path.split('.'); if (b) n[a] = { ...n[a], [b]: v }; else n[a] = v; return n })
   useEffect(() => { if (settings && !init.doc) setForm(f => ({ ...f, fees: { ...f.fees, vatRate: settings.vatRate }, agent: f.agent.name ? f.agent : { ...settings.agent }, logo: f.logo.url || !settings.logo ? f.logo : { ...settings.logo }, expiryDays: settings.expiryDays })) }, [settings]) // eslint-disable-line react-hooks/exhaustive-deps
-  const pickLead = useCallback(l => {
+  const pickLead = useCallback(l => { // eslint-disable-line react-hooks/exhaustive-deps
     if (!l) { setForm(f => ({ ...f, leadId: '' })); setLeadQ(''); setLeadOpen(false); return }
     const nm = splitName(l.name)
     const cd = l.crm_data || {}
-    setForm(f => ({ ...f, leadId: String(l.id), client: { ...f.client, ...nm, name: l.name || '', phone: l.phone || f.client.phone, email: l.email || f.client.email, role: cd.dealType === 'rent' ? 'renter' : f.client.role }, property: { ...f.property, address: f.property.address || leadProperty(l) || '', dealType: cd.dealType === 'rent' ? 'rent' : f.property.dealType } }))
+    const pj = projectOfLead(l, projects)
+    setForm(f => ({ ...f, leadId: String(l.id), client: { ...f.client, ...nm, name: l.name || '', phone: l.phone || f.client.phone, email: l.email || f.client.email, role: cd.dealType === 'rent' ? 'renter' : f.client.role }, property: { ...f.property, address: f.property.address || leadProperty(l) || '', dealType: cd.dealType === 'rent' ? 'rent' : f.property.dealType }, ...(pj && !f.projectId ? { projectId: pj.id, projectName: pj.name } : {}) }))
     setLeadQ(l.name || ''); setLeadOpen(false)
   }, [])
   useEffect(() => { if (init.leadId && !init.doc) { const l = leads.find(x => String(x.id) === String(init.leadId)); if (l) pickLead(l) } }, [init.leadId, init.doc, leads, pickLead])
@@ -271,15 +358,23 @@ function DocWizard({ t, leads, properties, settings, init, onClose, onDone, push
   }
   const fees = computeFees({ ...form.fees, price: form.property.price })
   const clauses = settings?.clauses?.length ? settings.clauses : null
-  const view = useMemo(() => formView(form, clauses, number), [form, clauses, number])
+  const tpl = useMemo(() => (form.templateId && form.templateId !== 'brokerage' && templates.find(x => x.id === form.templateId)) || brokerageTemplate(clauses || undefined), [form.templateId, templates, clauses])
+  const keys = useMemo(() => templateKeys(tpl), [tpl])
+  const usesFees = tpl.sections.fees || keys.some(k => FEE_KEYS.includes(k))
+  const usesProperty = tpl.sections.property || keys.some(k => k.startsWith('PROPERTY_') || k === 'DEAL_TYPE')
+  const flow = useMemo(() => ['tpl', 'client', ...(usesProperty ? ['property'] : []), ...(usesFees ? ['fees'] : []), ...(tpl.fields.length ? ['fields'] : []), 'preview', 'send'], [usesProperty, usesFees, tpl.fields.length])
+  const cur = flow[Math.min(step, flow.length - 1)]
+  const view = useMemo(() => formView(form, tpl, number), [form, tpl, number])
+  const lastData = flow.indexOf('preview') - 1
   const lead = leads.find(l => String(l.id) === String(form.leadId))
   useEffect(() => {
     const el = prevRef.current; if (!el) return
     const ro = new ResizeObserver(() => setScale(Math.min(1, (el.clientWidth - 40) / 794)))
     ro.observe(el); return () => ro.disconnect()
   }, [])
-  const validate = () => { const { errors } = cleanDocInput({ ...form, fees: { ...form.fees, price: form.property.price } }); setErrs(errors); return !errors.length }
-  const payload = () => ({ ...form, fees: { ...form.fees, price: form.property.price }, client: { ...form.client, name: form.client.name || [form.client.firstName, form.client.lastName].filter(Boolean).join(' ') } })
+  const reqOpts = { requireProperty: usesProperty, requireFees: usesFees, requireAgent: tpl.kind === 'brokerage' }
+  const validate = () => { const { errors } = cleanDocInput({ ...form, fees: { ...form.fees, price: form.property.price } }, reqOpts); const miss = missingFields(tpl, view.values).filter(f => f.required).map(f => `השדה "${f.label}" חסר`); setErrs([...errors, ...miss]); return !errors.length && !miss.length }
+  const payload = () => ({ ...form, templateId: form.templateId || 'brokerage', fees: { ...form.fees, price: form.property.price }, client: { ...form.client, name: form.client.name || [form.client.firstName, form.client.lastName].filter(Boolean).join(' ') } })
   const save = async () => {
     if (!validate()) return null
     setBusy('save')
@@ -291,13 +386,13 @@ function DocWizard({ t, leads, properties, settings, init, onClose, onDone, push
     } catch (e) { setErrs([e.message]); return null } finally { setBusy('') }
   }
   const next = async () => {
-    if (step === 0 && !(form.client.name || form.client.firstName)) { setErrs(['שם הלקוח חסר']); return }
-    if (step === 0 && !form.client.phone && !form.client.email) { setErrs(['צריך טלפון או אימייל של הלקוח']); return }
-    if (step === 1 && !form.property.address) { setErrs(['כתובת הנכס חסרה']); return }
-    if (step === 2 && !validate()) return
+    if (cur === 'client' && !(form.client.name || form.client.firstName)) { setErrs(['שם הלקוח חסר']); return }
+    if (cur === 'client' && !form.client.phone && !form.client.email) { setErrs(['צריך טלפון או אימייל של הלקוח']); return }
+    if (cur === 'property' && usesProperty && !form.property.address) { setErrs(['כתובת הנכס חסרה']); return }
+    if (step === lastData && !validate()) return
     setErrs([])
-    if (step === 2) { const d = await save(); if (!d) return }
-    setStep(s => Math.min(4, s + 1))
+    if (step === lastData) { const d = await save(); if (!d) return }
+    setStep(s => Math.min(flow.length - 1, s + 1))
   }
   const doSend = async () => {
     const d = docId ? { id: docId } : await save()
@@ -313,8 +408,24 @@ function DocWizard({ t, leads, properties, settings, init, onClose, onDone, push
     } catch (e) { setErrs([e.message]) } finally { setBusy('') }
   }
   const hasWa = !!form.client.phone, hasEmail = !!form.client.email
+  const tplStep = (
+    <>
+      <Field label={t.tplPick}/>
+      <div className="dt-tpls">
+        {[{ id: 'brokerage', name: DOC_TYPES.brokerage.name, builtin: true, blocks: new Array(8), fields: [] }, ...templates].map(tp => <button type="button" key={tp.id} className={`dt-tpl${(form.templateId || 'brokerage') === tp.id ? ' on' : ''}`} style={(form.templateId || 'brokerage') === tp.id ? { borderColor: 'var(--au-brand)', boxShadow: '0 0 0 3px rgba(var(--brand-rgb),.14)' } : { cursor: 'pointer' }} onClick={() => setForm(f => ({ ...f, templateId: tp.id, title: tp.builtin ? '' : (tp.title || tp.name) }))}><div className="dt-tpl-top"><FileText size={15}/><b>{tp.name}</b>{tp.builtin && <span className="dt-st" style={{ background: 'rgba(var(--brand-rgb),.12)', color: 'var(--au-brand-text)' }}>{t.builtin}</span>}</div><small>{tp.builtin ? '8 סעיפים · לקוח · נכס · דמי תיווך' : `${t.tplBlocks(tp.blocks.length)} · ${t.tplFields(tp.fields.length)}`}</small></button>)}
+      </div>
+    </>
+  )
+  const fieldsStep = (
+    <>
+      <p style={{ margin: 0, fontSize: 13, color: 'var(--au-text3)', lineHeight: 1.6 }}>{t.fieldsHint}</p>
+      <div className="dw-fields">{tpl.fields.map(f => <div key={f.key} className={f.type === 'checkbox' ? 'full' : ''}><Field label={f.type === 'checkbox' ? '' : `${f.label}${f.required ? ' *' : ''}`}>{fieldInput(f, form.fields?.[f.key] ?? f.default ?? '', v => setForm(x => ({ ...x, fields: { ...(x.fields || {}), [f.key]: v } })))}</Field></div>)}</div>
+      {(() => { const empty = keys.filter(k => STANDARD_FIELDS[k] && !String(view.values[k] || '').trim() && k !== 'TERMS'); return empty.length ? <div className="dw-err" style={{ background: 'rgba(245,166,35,.12)', color: 'var(--au-amber-text)' }}>{t.missingStd} {empty.map(k => STANDARD_FIELDS[k].label).join(' · ')}</div> : null })()}
+    </>
+  )
   const stepUi = [
     <>
+      <Field label={t.project}><ProjectSelect projects={projects} value={form.projectId} lang="he" onChange={(id, p) => setForm(f => ({ ...f, projectId: id || '', projectName: p?.name || '' }))}/></Field>
       <div className="dw-lead">
         <Field label={t.pickLead} hint={t.leadNote}>
           <div style={{ position: 'relative' }}>
@@ -422,8 +533,8 @@ function DocWizard({ t, leads, properties, settings, init, onClose, onDone, push
     <Modal open onClose={onClose} title={null} full xl dir="rtl" label={t.newDoc} closeOnBackdrop={false}>
       <div className={`dw${showPrev ? ' show-prev' : ''}`} style={{ height: 'calc(100vh - 80px)', maxHeight: 900 }}>
         <div className="dw-form">
-          <div className="dw-steps" role="list">{t.steps.map((s, i) => <div key={s} role="listitem" className={`dw-step${i === step ? ' on' : i < step ? ' done' : ''}`}><i>{i < step ? '✓' : i + 1}</i>{s}</div>)}</div>
-          <div className="dw-body">{stepUi[step]}{!!errs.length && <div className="dw-err" role="alert">{errs.map((e, i) => <div key={i}>{e}</div>)}</div>}</div>
+          <div className="dw-steps" role="list">{flow.map((id, i) => <div key={id} role="listitem" className={`dw-step${i === step ? ' on' : i < step ? ' done' : ''}`}><i>{i < step ? '✓' : i + 1}</i>{STEP_LABEL[id]}</div>)}</div>
+          <div className="dw-body">{cur === 'tpl' ? tplStep : cur === 'fields' ? fieldsStep : stepUi[{ client: 0, property: 1, fees: 2, preview: 3, send: 4 }[cur]]}{!!errs.length && <div className="dw-err" role="alert">{errs.map((e, i) => <div key={i}>{e}</div>)}</div>}</div>
           <div className="dw-foot">
             <div style={{ display: 'flex', gap: 8 }}>
               <Button variant="plain" onClick={onClose}>✕ סגירה</Button>
@@ -431,8 +542,8 @@ function DocWizard({ t, leads, properties, settings, init, onClose, onDone, push
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               <button type="button" className="dw-chip dw-prev-btn" onClick={() => setShowPrev(s => !s)}>{showPrev ? 'הטופס' : t.preview}</button>
-              {step >= 2 && step < 4 && <Button variant="ghost" loading={busy === 'save'} onClick={async () => { const d = await save(); if (d) onDone(`${t.saveDraft} ✓ ${d.number}`) }}>{t.saveDraft}</Button>}
-              {step < 4 ? <Button variant="solid" icon={<ChevronLeft size={14}/>} loading={busy === 'save'} onClick={next}>{t.next}</Button>
+              {step >= 1 && cur !== 'send' && cur !== 'preview' && <Button variant="ghost" loading={busy === 'save'} onClick={async () => { const d = await save(); if (d) onDone(`${t.saveDraft} ✓ ${d.number}`) }}>{t.saveDraft}</Button>}
+              {cur !== 'send' ? <Button variant="solid" icon={<ChevronLeft size={14}/>} loading={busy === 'save'} onClick={next}>{t.next}</Button>
                 : result?.results?.some(r => r.ok) ? <Button variant="solid" onClick={() => onDone('')}>סיום</Button>
                 : <Button variant="solid" icon={<Send size={14}/>} loading={busy === 'send'} disabled={!hasWa && !hasEmail} onClick={doSend}>{t.sendNow}</Button>}
             </div>
@@ -506,6 +617,8 @@ function DocDrawer({ t, doc, onClose, onChanged, push, onOpenLead, leads, onEdit
           {lead ? <Button size="sm" variant="brand" onClick={() => onOpenLead?.(lead.id)}>{t.drawer.lead}: {lead.name}</Button> : <span style={{ fontSize: 12.5, color: 'var(--au-text3)' }}>{t.drawer.noLead}</span>}
         </div>
         <div className="dd-rows">
+          <span>סוג</span><b>{d.title || DOC_TYPES.brokerage.name}{doc.template_id ? '' : ' (מובנית)'}</b>
+          {doc.project_name && <><span>פרויקט</span><b>{doc.project_name}</b></>}
           <span>לקוח</span><b>{d.client?.name}{d.client?.idNumber ? ` · ת.ז. ${d.client.idNumber}` : ''}</b>
           <span>טלפון / אימייל</span><b dir="ltr" style={{ textAlign: 'right' }}>{[localPhone(d.client?.phone), d.client?.email].filter(Boolean).join(' · ')}</b>
           <span>נכס</span><b>{propLine(d)}{d.property?.desc ? ` · ${d.property.desc}` : ''}</b>

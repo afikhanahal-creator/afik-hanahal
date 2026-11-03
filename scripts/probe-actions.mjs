@@ -117,6 +117,7 @@ if (ACTIONS.includes('docs')) {
   }
   await call('list', '/api/meta/docs-list')
   await call('settings', '/api/meta/docs-settings')
+  { const d = await call('templates', '/api/meta/docs-templates'); if (d?.missingMigration) show('docs templates', { warning: 'server/documents-v2-migration.sql has not been applied' }) }
   await call('preview PDF', '/api/meta/docs-preview', { method: 'POST', body: JSON.stringify({ client: { name: 'בדיקה בדיקתי', phone: '0500000000' }, property: { address: 'רחוב הבדיקה 1', city: 'רעננה', dealType: 'sale' }, fees: { mode: 'percent', pct: 2, price: 1000000 }, agent: { name: 'בדיקה' } }) })
 }
 

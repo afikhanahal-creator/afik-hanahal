@@ -704,6 +704,29 @@ from a template to a signed PDF in the lead's card — our own DocuSign-like flo
 | The client's signing page: the document, zoom, OTP by WhatsApp / email, name + ID, consent, a drawn (or typed) signature, the done screen with the signed copy | `src/SignPage.jsx` (route in `src/main.jsx`, noindex) |
 | The lead card's tab "מסמכים וחתימות" (`crm_data.documents[]`, "+ מסמך חדש" → `afik:new-doc` → the wizard on that lead) | `src/LeadDocsTab.jsx` |
 
+**Templates from any document (v2, 2026-11-04):** "תבניות" → "העלאת מסמך חדש": a Word file (mammoth), a PDF with a text layer
+(pdf-parse) or a scan / image (Claude's vision through `claudeJson` with content blocks — the office is told to proofread; without
+`ANTHROPIC_API_KEY` the text can be pasted) → `POST docs-extract` (the bytes; the file kept under `templates/` in the bucket) →
+`lib/doc-extract.js` (tested with our own Word / PDF output) → `textToBlocks()` (headings, numbered clauses, paragraphs) +
+`detectFields()` (blanks, ת.ז., phones, emails, dates, percents, prices → suggested standard fields) in `lib/doc-templates.js`
+(tested) → `src/TemplateEditor.jsx`: three panes — the fields (the standard ones, `STANDARD_FIELDS`, grouped: client / property /
+project / fees / agent / company / document, filled by the CRM; the template's own fields, "+ הוספת שדה": label, key, type —
+text / number / date / money / percent / checkbox / select —, required, default, hint), the document (blocks as editable
+paragraphs; select text → a field; the suggestions applied in one click; block kind heading / paragraph / clause; add, delete,
+reorder) and the settings (name, title, the fixed sections: parties / property / fees / signatures, the chosen field). Saved in
+`doc_templates` (`server/documents-v2-migration.sql`); the built-in brokerage order is `brokerageTemplate(clauses)`. A
+template's `{KEY}` placeholders (and the legacy `{camelCase}` ones) are filled by `templateValues()` / `renderBlocks()`; every
+renderer (PDF, Word, the HTML sheet, the signing page) draws `blocks` + the template's `sections`, so a custom document can
+drop the property / fee tables. The wizard: a template step, the client + **project** step (`ProjectSelect`; prefilled from the
+lead's project), property / fees only when the template needs them, a "פרטי המסמך" step for the template's own fields (required
+ones block the send; the empty standard keys are listed), the live preview, send. `documents` carries `template_id`, the frozen
+`template` (at the first send), `project_id` / `project_name`, `agent_name`; `data.fields` holds the own field values. The
+server runs without the v2 migration (every read / write falls back to the v1 columns once it sees the missing column —
+`v2Ready()`, `status().v2`; the tab shows a hint). The tab has areas: סקירה (tiles + breakdowns by project / agent / type /
+month — a row scopes the list), כל המסמכים (filters: status, period, project, agent, type; columns incl. project, agent,
+channel, opened), תבניות, הגדרות; `?project=<id>` / the projects manager's "מסמכים וחתימות" button (`afik:project-docs`) open
+the tab scoped to a project with its own KPI strip (sent / waiting / signed / completion %). Probe action `docs` checks
+`docs-templates` too. Not yet: Google Drive sync, several signers in order, reminders (planned next).
 **Flow:** `docs-create` cleans the input (`cleanDocInput`), links the CRM lead (the given id, else the newest lead with that phone /
 email — never a new lead), numbers the document and writes `created` on the lead. `docs-send {id, via}` makes the private token
 (kept only as a hash), freezes the clauses on the row, renders the PDF the client signs (stored, its SHA-256 on the row), and
