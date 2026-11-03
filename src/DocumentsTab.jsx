@@ -186,7 +186,7 @@ select.dt-input{appearance:auto}
 .dt-link{border:none;background:transparent;color:var(--au-brand-text);font:inherit;font-size:13px;cursor:pointer;padding:0;min-height:0;text-decoration:underline dotted}
 .dw-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px}.dw-fields .full{grid-column:1/-1}
 @media (max-width:1020px){.dw{grid-template-columns:1fr}.dw-prev{display:none}.dw.show-prev .dw-form{display:none}.dw.show-prev .dw-prev{display:flex;padding:0;background:#fff}.dw-prev-in{transform:none!important;width:100%}}
-@media (max-width:760px){.dt-table{display:none}.dt-cards{display:flex;flex-direction:column;gap:8px}.dt-card{background:var(--au-card);border:1px solid var(--au-line);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:6px;cursor:pointer}.dt-card .r{display:flex;justify-content:space-between;align-items:center;gap:8px}.dw-grid{grid-template-columns:1fr}}
+@media (max-width:760px){.dt-tiles{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.dt-areas{overflow-x:auto;scrollbar-width:none}.dt-areas::-webkit-scrollbar{display:none}.dt-area{white-space:nowrap;padding:8px 10px}.dt-table{display:none}.dt-cards{display:flex;flex-direction:column;gap:8px}.dt-card{background:var(--au-card);border:1px solid var(--au-line);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:6px;cursor:pointer}.dt-card .r{display:flex;justify-content:space-between;align-items:center;gap:8px}.dw-grid{grid-template-columns:1fr}}
 `
 
 const leadMatch = (l, q) => { const s = q.trim().toLowerCase(); if (!s) return true; const d = s.replace(/\D/g, ''); return String(l.name || '').toLowerCase().includes(s) || (d.length >= 3 && String(l.phone || '').replace(/\D/g, '').includes(d)) || String(l.email || '').toLowerCase().includes(s) }
@@ -928,6 +928,12 @@ function DocDrawer({ t, doc, onClose, onChanged, push, onOpenLead, leads, onEdit
           {canResend && <Button size="sm" variant="ghost" icon={<Link2 size={12}/>} loading={busy === 'docs-link'} onClick={() => act('docs-link', {}, t.linkReady)}>{t.link}</Button>}
           {st === 'draft' && <Button size="sm" variant="ghost" icon={<PenLine size={12}/>} onClick={() => onEdit(doc)}>עריכה</Button>}
           {['draft', 'sent', 'opened', 'expired', 'failed'].includes(st) && <Button size="sm" variant="danger" icon={<Trash2 size={12}/>} loading={busy === 'docs-cancel'} onClick={() => { if (window.confirm(t.cancelAsk)) act('docs-cancel', {}, t.cancelled) }}>{t.cancel}</Button>}
+          <Button size="sm" variant="ghost" icon={<Trash2 size={12}/>} loading={busy === 'docs-delete'} title="מחיקה לצמיתות — גם מסמך חתום" onClick={async () => {
+            const ans = window.prompt(`מחיקה לצמיתות של ${doc.number}${st === 'signed' ? ' — מסמך חתום: העותק החתום ותיעוד החתימה יימחקו' : ''}.\nכדי לאשר, הקלידו את מספר המסמך:`)
+            if (!ans || ans.trim().toUpperCase() !== String(doc.number).toUpperCase()) return
+            setBusy('docs-delete')
+            try { const r = await api.post('docs-delete', { id: doc.id }); if (r.error) throw new Error(r.error); push(`המסמך ${doc.number} נמחק לצמיתות`); onChanged(); onClose() } catch (e) { push(e.message) } finally { setBusy('') }
+          }}>מחיקה לצמיתות</Button>
         </div>{link && <CopyRow label="קישור" value={link} t={t}/>}</div>
         {signerInfo(doc).total > 1 && <div className="dd-sec"><SectionHead title={<><Users size={14}/> חותמים · {signerProgressText(doc)} {t.signers.progress}</>}/>
           <div className="dd-signers">{signerInfo(doc).list.map((sg, i) => <div key={i} className={`dd-signer${i === signerInfo(doc).index && st !== 'signed' ? ' cur' : ''}${sg.status === 'signed' ? ' ok' : ''}`}>

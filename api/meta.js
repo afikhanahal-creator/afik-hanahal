@@ -2370,6 +2370,7 @@ async function handleDocs(req, res, action) {
     if (action === 'docs-send') { const r = await Docs.sendDoc(b.id, { via: b.via, personal: b.personal, renew: !!b.renew, req }); return res.status(r.error ? 400 : 200).json(r) }
     if (action === 'docs-link') { const r = await Docs.newLink(b.id, { req }); return res.status(r.error ? 400 : 200).json(r) }
     if (action === 'docs-cancel') { const r = await Docs.cancelDoc(b.id, { req }); return res.status(r.error ? 400 : 200).json(r) }
+    if (action === 'docs-delete') { const r = await Docs.deleteDoc(b.id, { req }); return res.status(r.error ? 400 : 200).json(r) }
     if (action === 'docs-file') return sendFile(await Docs.docFile(req.query?.id, req.query?.kind || 'original'))
     if (action === 'docs-preview') {
       const { cleanDocInput } = await import('../lib/documents.js')
