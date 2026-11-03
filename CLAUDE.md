@@ -1028,9 +1028,7 @@ hairline action buttons `.lc-act.quiet` with the channel's color only on the ico
 `.lc-ib` icon buttons), tabs 14 px with a count pill, sections as hairline cards (16 px radius), 40 px inputs. **Sizing:** the
 chat column's edge is a visible grip (`.lc-grip`, `Splitter` x — drag it, double-click resets), the chat's bar (`.lc-rail-bar`) has
 width presets צר · חצי · רחב (`setConvWidth` → `--lc-conv`, kept in `afik_lead_card_conv_w2`) and ⤢ **"השיחה על כל הכרטיס"**
-(`chatMax` → `.lc-body.chatmax`, one grid column; Esc or the button bring the details back), the line under "מקור הליד" drags
-(`Splitter` y → `--lc-side`, `afik_lead_card_side_h`), and the header's ⤢ puts the whole card on the screen (`cardFull`,
-`afik_lead_card_full`).
+(`chatMax` → `.lc-body.chatmax`, one grid column; Esc or the button bring the details back), **"מקור הליד" never shrinks the chat**: it is a one-line summary by default (`afik_lead_card_info_v2`, '1' = open) and opens as a panel floating over the top of the conversation (`.lc-side.is-open`, ✕ / the ⓘ in the chat's bar closes it), so the chat keeps the whole column; the header's ⤢ puts the whole card on the screen (`cardFull`, `afik_lead_card_full`). **Phones** (≤ 640 px): the stages scroll in one row, the actions are a two-column grid with ✕ pinned to the corner, the conversation tab fills the screen (`calc(100dvh - 260px)`), one grid column with `minmax(0,1fr)` so nothing overflows.
 **The lead card is wide and always shows the chat** (2026-11-03): up to 1800 × 1080 px; on a screen ≥ 1040 px its side column
 holds the lead's source / details on top (a fold line, `localStorage.afik_lead_card_info`) and the whole WhatsApp conversation
 under it with the message box (`LeadConversation`), next to every tab — details, notes & activity, tasks… (`afik_lead_card_conv_v2`,

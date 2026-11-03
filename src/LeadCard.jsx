@@ -141,22 +141,25 @@ const CSS = `
   .lc-seg button:hover{background:var(--au-card,#fff);color:var(--au-text);box-shadow:0 1px 2px rgba(0,0,0,.08)}
   .lc-grip::after{opacity:.55!important}
   .lc-grip:hover::after,.lc-grip.on::after{opacity:1!important}
-  .lc-grip-y{position:relative;z-index:7}
-  .lc-rail .lc-side{max-height:var(--lc-side,36%)}
   .lc .lc-tab{font-size:14px;font-weight:600;height:46px;padding:0 16px}
   .lc .lc-in{height:40px;font-size:14px;border-color:rgba(var(--ov),.12)}
   .lc .lc-in:focus{box-shadow:0 0 0 3px rgba(var(--brand-rgb),.14)}
   /* the side column on a wide screen: the lead's source / details on top (folds), the whole WhatsApp conversation under it */
   .lc-rail{position:relative;min-height:0;min-width:0;display:flex;flex-direction:column;border-inline-start:1px solid var(--au-line);background:rgba(var(--ov),.015)}
-  .lc-rail .lc-side{border-inline-start:none!important;flex:none;max-height:36%;border-bottom:1px solid var(--au-line)}
-  .lc-rail .lc-side.is-folded{max-height:none;overflow:hidden!important;padding-block:10px!important}
+  .lc-rail-stack{position:relative;flex:1;min-height:0;display:flex;flex-direction:column}
+  .lc-rail .lc-side{border-inline-start:none!important;flex:none;border-bottom:1px solid var(--au-line)}
+  .lc-rail .lc-side.is-folded{overflow:hidden!important;padding-block:9px!important;background:var(--au-s2,transparent)}
+  /* open: a panel floating over the top of the chat — the conversation keeps its whole height underneath */
+  .lc-rail .lc-side.is-open{position:absolute;top:0;inset-inline:0;z-index:9;max-height:min(66%,560px);background:var(--au-card)!important;box-shadow:0 20px 48px rgba(0,0,0,.18);border-radius:0 0 16px 16px;border:1px solid var(--au-line);border-top:none}
+  .lc-rail .lc-side.is-open .lc-side-fold{position:sticky;top:-16px;margin:-16px -16px 0;padding:12px 16px;background:var(--au-card);z-index:1}
+  .lc-src-btn.on{background:rgba(var(--brand-rgb),.1);color:var(--au-brand-text);border-color:rgba(var(--brand-rgb),.35)}
   .lc-rail-conv{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
   .lc-side-fold{display:flex;align-items:center;gap:8px;width:100%;border:none;background:none;padding:0;cursor:pointer;font:inherit;font-size:12.5px;font-weight:800;color:var(--au-text3);text-align:start}
   .lc-side-fold .sum{flex:1;min-width:0;font-weight:500;color:var(--au-text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .lcd-proj{margin-top:6px;border:1px dashed rgba(var(--brand-rgb),.45);background:rgba(var(--brand-rgb),.06);color:var(--au-brand-text);border-radius:999px;padding:3px 11px;font:inherit;font-size:12px;font-weight:700;cursor:pointer}
   .lcd-proj:hover{background:rgba(var(--brand-rgb),.12)}
   .lc-conv{position:relative;min-height:0;min-width:0;display:flex;flex-direction:column;overflow:hidden;border-inline-start:1px solid var(--au-line)}
-  .lc-conv-tab{height:min(680px,74vh);border-radius:14px;overflow:hidden;border:1px solid var(--au-line);margin-top:14px}
+  .lc-conv-tab{height:max(460px,72vh);border-radius:14px;overflow:hidden;border:1px solid var(--au-line);margin-top:14px}
   .lc-grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
   .lc-grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
   .lc-in{width:100%;height:42px;padding:0 12px;border-radius:10px;border:1px solid var(--au-s3-line);background:var(--au-input);color:var(--au-text);font-family:inherit;font-size:14.5px;outline:none;transition:border-color .15s,box-shadow .15s}
@@ -184,8 +187,8 @@ const CSS = `
   .lc-act:hover{filter:brightness(1.1)}
   @keyframes lc-in{from{opacity:0;transform:translateY(10px) scale(.985)}to{opacity:1;transform:none}}
   @keyframes lc-spin{to{transform:rotate(360deg)}}
-  @media (max-width:980px){.lc-body{grid-template-columns:1fr;overflow-y:auto}.lc-side{border-inline-start:none!important;border-top:1px solid var(--au-line)}.lc-main{overflow:visible!important}}
-  @media (max-width:640px){.lc-grid2,.lc-grid3{grid-template-columns:1fr}.lc-hide-m{display:none!important}}
+  @media (max-width:980px){.lc-body{grid-template-columns:minmax(0,1fr);overflow-y:auto}.lc-side{border-inline-start:none!important;border-top:1px solid var(--au-line)}.lc-main{overflow:visible!important;min-width:0}.lc-conv-tab{min-width:0;max-width:100%}}
+  @media (max-width:640px){.lc-grid2,.lc-grid3{grid-template-columns:1fr}.lc-hide-m{display:none!important}.lc-head{padding:12px 52px 10px 14px;gap:10px;position:relative}.lc-head>div:last-child{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;width:100%}.lc-head>div:last-child>.lc-act{width:100%;justify-content:center}.lc-head>div:last-child>.lc-ib:last-child{position:absolute;top:12px;inset-inline-end:12px}.lc-name{font-size:18px}.lc-stages{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;gap:3px;margin-inline:-14px;padding-inline:14px}.lc-stages::-webkit-scrollbar{display:none}.lc-stage{height:26px;padding:0 9px;font-size:11.5px;flex:none}.lc-act{height:32px;padding:0 10px;font-size:12px}.lc-tabs{padding:0 6px}.lc .lc-tab{padding:0 11px;font-size:13px;height:42px}.lc-main{padding:12px!important}.lc-conv-tab{height:calc(100dvh - 260px);min-height:380px;margin-top:10px}}
   @media (max-width:640px){.lcd{padding:0!important}.lc-dialog{border-radius:0!important;height:100%!important;border:none!important}}
   @media (prefers-reduced-motion:reduce){.lc-dialog{animation:none!important}}
 `
@@ -284,7 +287,6 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
   const [cardFull, setCardFull] = useState(() => { try { return localStorage.getItem('afik_lead_card_full') === '1' } catch { return false } })
   const toggleCardFull = () => setCardFull(v => { try { localStorage.setItem('afik_lead_card_full', v ? '0' : '1') } catch {} return !v })
   const [chatMax, setChatMax] = useState(false)
-  useEffect(() => { try { const v = Number(localStorage.getItem('afik_lead_card_side_h')); if (v >= 90) bodyRef.current?.style.setProperty('--lc-side', `${v}px`) } catch {} }, [])
   useEffect(() => { if (!chatMax) return; const k = e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setChatMax(false) } }; window.addEventListener('keydown', k, true); return () => window.removeEventListener('keydown', k, true) }, [chatMax])          // the conversation over the whole card (Esc / the button bring the details back)
   const setConvWidth = v => { bodyRef.current?.style.setProperty('--lc-conv', `${v}px`); try { localStorage.setItem(CONV_W_KEY, String(v)) } catch {} }
   useEffect(() => { setChatLast(null) }, [lead.id])
@@ -322,8 +324,8 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
 
   // → Promise<boolean>: false when the server did not take it (updateLead answers null on a network error)
   const projects = useProjects()
-  const [infoFolded, setInfoFolded] = useState(() => { try { return localStorage.getItem('afik_lead_card_info') === '0' } catch { return false } })
-  const foldInfo = () => setInfoFolded(v => { try { localStorage.setItem('afik_lead_card_info', v ? '1' : '0') } catch {} return !v })
+  const [infoFolded, setInfoFolded] = useState(() => { try { return localStorage.getItem('afik_lead_card_info_v2') !== '1' } catch { return true } })
+  const foldInfo = () => setInfoFolded(v => { try { localStorage.setItem('afik_lead_card_info_v2', v ? '1' : '0') } catch {} return !v })
   const save = patch => {
     setSaveState('saving')
     return Promise.resolve(onUpdate(lead.id, patch)).then(r => r !== null && r?.ok !== false, () => false).then(ok => {
@@ -854,8 +856,8 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
   // rail = the wide card's side column, over the conversation: a fold line ("מקור הליד · Meta · זרובבל 15") keeps the chat big
   const sideSum = [sourceLabel(src, lang), lead.campaignName || lead.formName, fmtWhen(lead.ts, lang)].filter(Boolean).join(' · ')
   const sideEl = rail => (
-    <aside className={`lc-side${rail && infoFolded ? ' is-folded' : ''}`} style={{ borderInlineStart: `1px solid ${T.line}`, padding: 16, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 14, background: 'rgba(var(--ov),.015)' }}>
-      {rail && <button type="button" className="lc-side-fold" onClick={foldInfo} aria-expanded={!infoFolded}>{t.sec.source}{infoFolded && <span className="sum">{sideSum}</span>}<span aria-hidden="true">{infoFolded ? '▾' : '▴'}</span></button>}
+    <aside className={`lc-side${rail ? (infoFolded ? ' is-folded' : ' is-open') : ''}`} style={{ borderInlineStart: `1px solid ${T.line}`, padding: 16, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 14, background: 'rgba(var(--ov),.015)' }}>
+      {rail && <button type="button" className="lc-side-fold" onClick={foldInfo} aria-expanded={!infoFolded}>{t.sec.source}{infoFolded && <span className="sum">{sideSum}</span>}<span aria-hidden="true">{infoFolded ? '▾' : '✕'}</span></button>}
       {(!rail || !infoFolded) && <>
       {isV2 && (
         <button type="button" onClick={() => setTab('analysis')} style={{ display: 'flex', gap: 12, alignItems: 'center', padding: 12, borderRadius: 12, border: `1px solid ${T.s1Line}`, background: T.card, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'start', color: T.text }}>
@@ -929,6 +931,7 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
               reset={() => { bodyRef.current?.style.removeProperty('--lc-conv'); try { localStorage.removeItem(CONV_W_KEY) } catch {} }}/>
             <div className="lc-rail-bar">
               <span className="lc-rail-t"><FaWhatsapp size={12} style={{ color: '#25D366' }}/>{t.tabs.chat}</span>
+              {!chatMax && <button type="button" className={`lc-ib sm lc-src-btn${!infoFolded ? ' on' : ''}`} onClick={foldInfo} aria-pressed={!infoFolded} title={t.sec.source} aria-label={t.sec.source}><FaInfoCircle size={12}/></button>}
               <span className="lc-seg" role="group" aria-label={t.chatWTip} title={t.chatWTip}>
                 {[['narrow', 460], ['half', Math.round(((bodyRef.current?.getBoundingClientRect().width || 1400) - 16) / 2)], ['wide', 900]].map(([k, w]) => (
                   <button key={k} type="button" onClick={() => { setChatMax(false); setConvWidth(w) }}>{t.chatW[k]}</button>
@@ -936,14 +939,10 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
               </span>
               <button type="button" className="lc-ib sm" onClick={() => setChatMax(v => !v)} aria-pressed={chatMax} title={chatMax ? t.chatRestore : t.chatMax} aria-label={chatMax ? t.chatRestore : t.chatMax}>{chatMax ? <FaCompress size={11}/> : <FaExpand size={11}/>}</button>
             </div>
-            {!chatMax && sideEl(true)}
-            {!chatMax && !infoFolded && <Splitter axis="y" className="lc-grip-y" min={90} label={t.sideResize} gap
-              max={() => Math.round((bodyRef.current?.getBoundingClientRect().height || 800) * .6)}
-              get={() => bodyRef.current?.querySelector('.lc-rail .lc-side')?.getBoundingClientRect().height || 220}
-              apply={v => bodyRef.current?.style.setProperty('--lc-side', `${v}px`)}
-              commit={v => { try { localStorage.setItem('afik_lead_card_side_h', String(v)) } catch {} }}
-              reset={() => { bodyRef.current?.style.removeProperty('--lc-side'); try { localStorage.removeItem('afik_lead_card_side_h') } catch {} }}/>}
-            <div className="lc-rail-conv">{conversation}</div>
+            <div className="lc-rail-stack">
+              {!chatMax && sideEl(true)}
+              <div className="lc-rail-conv">{conversation}</div>
+            </div>
           </section>}
         </div>
       </div>

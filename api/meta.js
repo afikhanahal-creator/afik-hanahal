@@ -371,7 +371,8 @@ async function handleSocial(req, res, action) {
         if (tt.platform === 'messenger') socialPageToken('messenger', tt.accountId).then(tok => fetch(`https://graph.facebook.com/v20.0/me/messages?access_token=${tok}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ recipient: { id: tt.userId }, sender_action: 'mark_seen' }), signal: AbortSignal.timeout(8000) })).catch(() => {})
       }
       // the unread count the screen draws its "new messages" line with (it is cleared here, so it is sent along)
-      return res.status(200).json({ thread: thread ? { ...thread, unread: 0 } : null, unread: thread?.unread || 0, messages: (msgs || []).reverse() })
+      const lastIn = (msgs || []).find(m => m.direction === 'in')?.ts || null
+      return res.status(200).json({ thread: thread ? { ...thread, unread: 0 } : null, unread: thread?.unread || 0, lastIn, messages: (msgs || []).reverse() })
     }
     if (action === 'social-send') {
       const id = String(req.body?.id || ''), text = String(req.body?.text || '').trim().slice(0, 2000)
@@ -389,8 +390,16 @@ async function handleSocial(req, res, action) {
       if (!s.ok && /24|outside of allowed window|2018278|10\b/.test(JSON.stringify(s.d?.error || {}))) s = await send({ messaging_type: 'MESSAGE_TAG', tag: 'HUMAN_AGENT' })
       if (!s.ok) {
         const err = s.d?.error || {}
-        const window = /window|2018278|HUMAN_AGENT|human_agent/i.test(JSON.stringify(err))
-        return res.status(502).json({ error: window ? 'עברו יותר מ-24 שעות מההודעה האחרונה של הלקוח, ו-Meta לא מאפשרת לשלוח עכשיו. אפשר לענות מאפליקציית Meta Business Suite.' : (err.message ? `Meta: ${String(err.message).slice(0, 200)}` : 'השליחה נכשלה'), code: err.code || null })
+        const txt = JSON.stringify(err)
+        const window = /window|2018278|HUMAN_AGENT|human_agent/i.test(txt)
+        const approval = /Human Agent.*reviewed|reviewed and approved|\(#10\)/i.test(txt)
+        // the person's last message is older than 24 h: Meta lets a page answer only with the HUMAN_AGENT tag, and that tag
+        // works only once the app's "Human Agent" feature passed App Review — until then the answer goes from Meta's own inbox
+        const msg = approval
+          ? 'עברו יותר מ-24 שעות מההודעה האחרונה של הלקוח. Meta מאפשרת לענות מהמערכת רק אחרי אישור "Human Agent" ב-App Review (עוד לא אושר) — בינתיים עונים מ-Meta Business Suite.'
+          : window ? 'עברו יותר מ-24 שעות מההודעה האחרונה של הלקוח, ו-Meta לא מאפשרת לשלוח עכשיו. אפשר לענות מ-Meta Business Suite.'
+          : (err.message ? `Meta: ${String(err.message).slice(0, 200)}` : 'השליחה נכשלה')
+        return res.status(502).json({ error: msg, code: err.code || null, window: window || approval, approval })
       }
       const ts = new Date().toISOString()
       await storeSocialEvents([{ platform: t.platform, accountId: t.accountId, userId: t.userId, direction: 'out', mid: String(s.d.message_id), text, attachments: [], ts }], { quiet: true }).catch(() => {})
