@@ -855,6 +855,21 @@ way to update a document and read it back (v1 columns while v2 is missing, downg
 of a null row): the public signing path reads with `select('*')`, so it never learnt the v2 columns were missing, the final
 `update().select(SAFE)` failed on the live table and the page said "Cannot read properties of null (reading 'data')". The v2 / v3
 migration (`server/documents-v3-migration.sql`) is still the proper fix and is not applied yet.
+**No blanks in the clauses, the ID / address at signing, a calmer page, a DocuSign-like pad (2026-11-04):** `fillText` keeps a
+`[[ … ]]` part only when every placeholder in it is known (`optionalParts()` brackets ", ת.ז. {clientId}" / ", מרחוב
+{clientAddress}" in a clause the office wrote without them), so clause 1 reads "אני/אנו הח"מ, רונן כהן, טלפון 050-…" instead of
+"ת.ז. ________" — the regulations (תקנות המתווכים במקרקעין (פרטי הזמנה בכתב), תשנ"ז-1997) do require the client's name, address
+and ID number, so **the signing page asks for whatever the document lacks** (ID with the checksum, "כתובת מגורים"; both required
+for the client signer, optional for a spouse / partner) and `submitSignature` writes them into `data.client`, so the signed
+copy's clause 1 and "פרטי הלקוח" carry them (`signature.address` too). PDF: margins 52 / 56, rows 1.48 lh + 6, paragraphs 1.56
+lh, clause gap 8, a justified line only when the extra space per gap is ≤ half the font size (a stretched short line read as
+holes), signature boxes 96 pt kept with their heading; the Word clauses get `line: 330`, the on-screen sheet 6 px rows and
+1.66 line-height. The standard order is 2 pages, 3 signed. **The pad** (`usePen` + `SignaturePad` in `src/SignPage.jsx`): a
+3:2 frame (4:3 on phones, ≤ 340 px), a pen whose width follows the hand's speed (1.5–3.4 px, quadratic curves through
+midpoints, coalesced pointer events), "ניקוי" inside the frame; on a touch screen (`hover: none`) a tap opens **the pad on the
+whole screen** (`.sg-full`: "ביטול" / "אישור החתימה", turn the phone sideways) and the signature then sits in the frame as an
+image (`.sg-pad-img`); on a desktop the frame is the pad; a typed signature stays. QA: the scratchpad's `drawSignature()` in
+`qa-docs.cjs` / `qa-docs-v3.cjs` / `qa-sign-mobile.cjs` draws through either pad.
 **Flow:** `docs-create` cleans the input (`cleanDocInput`), links the CRM lead (the given id, else the newest lead with that phone /
 email — never a new lead), numbers the document and writes `created` on the lead. `docs-send {id, via}` makes the private token
 (kept only as a hash), freezes the clauses on the row, renders the PDF the client signs (stored, its SHA-256 on the row), and

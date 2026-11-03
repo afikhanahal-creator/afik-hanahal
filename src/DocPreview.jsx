@@ -15,12 +15,12 @@ export const DOC_CSS = `
 .dsh-co{font-weight:700;font-size:10.5pt}.dsh-co small{display:block;font-weight:400;color:var(--dsh-mute);font-size:8.5pt;margin-top:2px}
 .dsh h1{font-size:19pt;font-weight:700;text-align:center;margin:0 0 4px;letter-spacing:-.01em}
 .dsh-meta{text-align:center;color:var(--dsh-mute);font-size:9.5pt;margin-bottom:20px}
-.dsh h2{font-size:12.5pt;font-weight:700;margin:16px 0 8px;padding-inline-start:10px;border-inline-start:3px solid var(--dsh-brand);line-height:1.25}
+.dsh h2{font-size:12.5pt;font-weight:700;margin:20px 0 9px;padding-inline-start:10px;border-inline-start:3px solid var(--dsh-brand);line-height:1.25}
 .dsh-rows{width:100%;border-collapse:collapse;margin-bottom:6px}
-.dsh-rows td{padding:4px 0;border-bottom:1px solid var(--dsh-line);vertical-align:top;font-size:10pt}
+.dsh-rows td{padding:6px 0;border-bottom:1px solid var(--dsh-line);vertical-align:top;font-size:10pt}
 .dsh-rows td:first-child{color:var(--dsh-mute);font-weight:600;width:134px;min-width:134px;font-size:9.5pt;padding-inline-end:16px;line-height:1.35}
-.dsh-p{margin:0 0 10px;white-space:pre-wrap;text-align:justify;line-height:1.6}.dsh-h{border:none;padding:0;font-size:12.5pt}
-.dsh-cl{margin:0 0 10px}.dsh-cl b{display:block;font-size:11pt;margin-bottom:2px}.dsh-cl p{margin:0;padding-inline-start:14px;white-space:pre-wrap;text-align:justify;line-height:1.6}
+.dsh-p{margin:0 0 12px;white-space:pre-wrap;text-align:justify;line-height:1.66}.dsh-h{border:none;padding:0;font-size:12.5pt}
+.dsh-cl{margin:0 0 14px}.dsh-cl b{display:block;font-size:11pt;margin-bottom:3px}.dsh-cl p{margin:0;padding-inline-start:14px;white-space:pre-wrap;text-align:justify;text-justify:inter-word;line-height:1.66}
 .dsh-fees{border-collapse:collapse;width:400px;max-width:100%;margin:4px 0 10px;border-top:1.5px solid var(--dsh-ink)}
 .dsh-fees td{padding:5px 8px;border-bottom:1px solid var(--dsh-line);font-size:10pt}
 .dsh-fees td:last-child{text-align:left;direction:ltr;font-variant-numeric:tabular-nums}
