@@ -363,8 +363,14 @@ async function handleSocial(req, res, action) {
         client.from('social_threads').select('*').eq('id', id).maybeSingle(),
         client.from('social_messages').select('id,direction,body,attachments,ts').eq('thread_id', id).order('ts', { ascending: false }).limit(500),
       ])
-      if (thread?.unread) await client.from('social_threads').update({ unread: 0 }).eq('id', id)
-      return res.status(200).json({ thread: thread ? { ...thread, unread: 0 } : null, messages: (msgs || []).reverse() })
+      if (thread?.unread) {
+        await client.from('social_threads').update({ unread: 0 }).eq('id', id)
+        // Messenger shows the person "seen" like a human agent would (Instagram has no such action)
+        const tt = parseThreadId(id)
+        if (tt.platform === 'messenger') socialPageToken('messenger', tt.accountId).then(tok => fetch(`https://graph.facebook.com/v20.0/me/messages?access_token=${tok}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ recipient: { id: tt.userId }, sender_action: 'mark_seen' }), signal: AbortSignal.timeout(8000) })).catch(() => {})
+      }
+      // the unread count the screen draws its "new messages" line with (it is cleared here, so it is sent along)
+      return res.status(200).json({ thread: thread ? { ...thread, unread: 0 } : null, unread: thread?.unread || 0, messages: (msgs || []).reverse() })
     }
     if (action === 'social-send') {
       const id = String(req.body?.id || ''), text = String(req.body?.text || '').trim().slice(0, 2000)
@@ -389,6 +395,25 @@ async function handleSocial(req, res, action) {
       await storeSocialEvents([{ platform: t.platform, accountId: t.accountId, userId: t.userId, direction: 'out', mid: String(s.d.message_id), text, attachments: [], ts }], { quiet: true }).catch(() => {})
       await client.from('social_threads').update({ unread: 0 }).eq('id', id)
       return res.status(200).json({ ok: true, id: s.d.message_id, ts })
+    }
+    // POST social-react { id, mid, on } → Instagram's ❤️ on a person's message (Meta's API knows only "love"; Messenger has none)
+    if (action === 'social-react') {
+      const t = parseThreadId(String(req.body?.id || '')), mid = String(req.body?.mid || '').slice(0, 200)
+      if (!t || !mid) return res.status(400).json({ error: 'id and mid required' })
+      if (t.platform !== 'instagram') return res.status(400).json({ error: 'במסנג׳ר Meta לא מאפשרת לשלוח תגובת אימוג׳י דרך המערכת' })
+      const tok = await socialPageToken('instagram', t.accountId)
+      const r = await fetch(`https://graph.facebook.com/v20.0/me/messages?access_token=${tok}`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ recipient: { id: t.userId }, sender_action: req.body?.on === false ? 'unreact' : 'react', payload: { message_id: mid, ...(req.body?.on === false ? {} : { reaction: 'love' }) } }), signal: AbortSignal.timeout(12000) })
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) return res.status(502).json({ error: d.error?.message ? `Meta: ${String(d.error.message).slice(0, 200)}` : 'התגובה לא נשלחה' })
+      return res.status(200).json({ ok: true })
+    }
+    // POST social-unread { id } → back to "unread" (the row is bold again, like WhatsApp's "mark as unread")
+    if (action === 'social-unread') {
+      const id = String(req.body?.id || '')
+      if (!parseThreadId(id)) return res.status(400).json({ error: 'bad id' })
+      await client.from('social_threads').update({ unread: 1 }).eq('id', id)
+      return res.status(200).json({ ok: true })
     }
     if (action === 'social-to-lead') {
       const b = req.body || {}

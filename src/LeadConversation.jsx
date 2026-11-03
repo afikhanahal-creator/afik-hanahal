@@ -151,7 +151,7 @@ const I = {
   search: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>,
 }
 
-export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = true, localMsgs = [], needsWelcome = false, autoConfig = null, onAutoConfigSaved, onSend, onSendWelcome, onOpenChats, officePhone = '', compact = false, onActivity, maximized = false, onToggleMaximize, onOpenCard }) {
+export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = true, localMsgs = [], needsWelcome = false, autoConfig = null, onAutoConfigSaved, onSend, onSendWelcome, onOpenChats, officePhone = '', compact = false, onActivity, maximized = false, onToggleMaximize, onOpenCard, unreadCount = 0, hideHeader = false }) {
   const t = TR[lang] || TR.he
   const WA = isDark ? DARK : LIGHT
   const formCard = useMemo(() => leadFormCard(lead, lang), [lead, lang])
@@ -416,7 +416,11 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
   const items = []
   let lastDay = ''
   const view = foldReactions(msgs)   // reactions drawn on the message they react to, like WhatsApp
+  // "הודעות חדשות" line before the last `unreadCount` incoming messages (the inbox passes how many are waiting for us)
+  let unreadFrom = -1
+  if (unreadCount > 0) { let left = unreadCount; for (let k = view.length - 1; k >= 0 && left > 0; k--) if (view[k].direction !== 'out' && !view[k].orphan) { unreadFrom = k; left-- } }
   view.forEach((m, i) => {
+    if (i === unreadFrom) items.push(<div key="unread" className="lcv-day lcv-new"><span>{lang === 'en' ? `${unreadCount} new message${unreadCount === 1 ? '' : 's'}` : (unreadCount === 1 ? 'הודעה חדשה' : `${unreadCount} הודעות חדשות`)}</span></div>)
     const day = new Date(m.created_at).toDateString()
     if (day !== lastDay) {
       lastDay = day
@@ -498,6 +502,8 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
         .lcv-ib[aria-pressed=true],.lcv-ib[aria-expanded=true]{background:${isDark ? 'rgba(255,255,255,.1)' : 'rgba(11,20,26,.08)'};color:${teal}}
         .lcv-ib:disabled{opacity:.4;cursor:default}
         .lcv-day{display:flex;justify-content:center;margin:12px 0 6px;position:sticky;top:6px;z-index:2}
+        .lcv-day.lcv-new span{background:#D9FDD3;color:#111B21;font-weight:600}
+        html[data-admin-theme=dark] .lcv-day.lcv-new span{background:#005C4B;color:#E9EDEF}
         .lcv-day span{font-size:12.5px;color:${isDark ? '#8696A0' : '#54656F'};background:${isDark ? '#182229' : '#FFFFFF'};border-radius:7.5px;padding:5px 12px 6px;box-shadow:0 1px .5px rgba(11,20,26,.13);text-transform:none}
         .lcv-row{display:flex;padding:0 6%;direction:ltr}
         .lcv-row.out{justify-content:flex-end}
@@ -575,8 +581,8 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
         .lcv-qfoot{display:flex;align-items:center;gap:8px;padding:8px 14px;border-top:1px solid ${isDark ? 'rgba(134,150,160,.15)' : '#E9EDEF'};font-size:12px;color:${WA.subText}}
       `}</style>
 
-      {/* header: avatar, name, the office line; round icon buttons */}
-      <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 12, height: compact ? 54 : 59, padding: '0 10px 0 16px', background: panel, borderInlineStart: 'none', boxShadow: `0 1px 0 ${isDark ? 'rgba(134,150,160,.15)' : '#E9EDEF'}`, zIndex: 3 }}>
+      {/* header: avatar, name, the office line; round icon buttons (the inbox draws its own: hideHeader) */}
+      {!hideHeader && <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 12, height: compact ? 54 : 59, padding: '0 10px 0 16px', background: panel, borderInlineStart: 'none', boxShadow: `0 1px 0 ${isDark ? 'rgba(134,150,160,.15)' : '#E9EDEF'}`, zIndex: 3 }}>
         <WaFace phone={lead?.phone} name={name} size={40} lang={lang}>
           <div aria-hidden="true" style={{ width: 40, height: 40, borderRadius: '50%', flexShrink: 0, background: isDark ? '#6A7175' : '#DFE5E7', color: isDark ? '#E9EDEF' : '#54656F', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 600 }}>{initials(lead?.name)}</div>
         </WaFace>
@@ -590,7 +596,7 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
         <button type="button" className="lcv-ib" onClick={() => load()} aria-label={t.refresh} title={t.refresh}>{I.refresh}</button>
         {onToggleMaximize && <button type="button" className="lcv-ib" onClick={onToggleMaximize} aria-pressed={maximized} aria-label={maximized ? t.restore : t.maximize} title={maximized ? t.restore : t.maximize}>{maximized ? I.shrink : I.expand}</button>}
         {onOpenChats && phone && !compact && <button type="button" className="lcv-ib" onClick={onOpenChats} aria-label={t.openChats} title={t.openChats}>{I.open}</button>}
-      </div>
+      </div>}
 
       {quota && (
         <div role="alert" style={{ flexShrink: 0, display: 'flex', gap: 12, alignItems: 'center', padding: '10px 16px', background: isDark ? '#2B2717' : '#FFF8E1', color: isDark ? '#F5D27A' : '#7A5300', fontSize: 13, lineHeight: 1.45 }}>

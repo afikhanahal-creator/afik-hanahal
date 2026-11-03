@@ -22,7 +22,7 @@ const TR = {
     clear: 'Clear the message', remove: 'Remove', tplPic: 'Picture from the template', caption: 'The text goes under it', image: 'Picture', doc: 'Document',
   },
 }
-const EMOJI = ['😊', '🙂', '👍', '🙏', '✅', '📞', '📅', '📍', '🏠', '🔑', '💰', '📄', '👏', '💪', '❤️', '🤝', '⭐', '🎉']
+export const EMOJI = ['😊', '🙂', '👍', '🙏', '✅', '📞', '📅', '📍', '🏠', '🔑', '💰', '📄', '👏', '💪', '❤️', '🤝', '⭐', '🎉']
 
 const CSS = `
 .ccm{flex-shrink:0;padding:8px 12px 12px;background:var(--ccm-soft);border-top:1px solid var(--ccm-line)}

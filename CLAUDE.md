@@ -620,30 +620,41 @@ Sending hours are `[start, end)` per weekday in 0.5-hour steps (Israel time); we
 `waImportStep` + the pure, tested `lib/social-hook.js`; tables `social_threads` / `social_messages` (`server/social-migration.sql`: RLS
 on, service key only, `social_threads` announced on the change bus) and `public.afik_wa_threads(lim)` (`server/social-inbox-migration.sql`,
 applied: one row per phone of `wa_messages` — the newest message, count, how many of theirs came after our last). **One list for
-every channel**: the office's WhatsApp line (`GET social-wa`: named from the CRM lead / phone book in proper Hebrew, linked to the
-lead by the last 9 digits — `leadIdsByPhone()`, 2-min cache) and Messenger / Instagram of **every page in the inbox** — the leads'
-pages (`META_PAGE_IDS`, always) + any page switched on in "חשבונות מחוברים" (`app_settings.social_pages` `[{ id, name, on, ig }]`,
-`cleanSocialPages` / `inboxPageIds` / `accountLabels`; `POST social-page {id, name, on}` also subscribes the page to `messages`).
-A page appears there once the System User (`afik-api`) is given it in business.facebook.com (Pages → Add / Request access, then
-System users → Assign assets → Full control) — Daniel's page, Korkos… The webhook (`/api/meta/webhook`, `object: 'page'` messaging
-and `object: 'instagram'`) keeps only inbox pages; leads (`leadgen`) still only from `META_PAGE_IDS`. Names show in proper Hebrew
-(`name_he` = `hebrewFullName`, the stored name stays as Meta gave it). The list: search, filters (הכל · מחכים לנו · עוד לא ליד ·
-וואטסאפ · מסנג׳ר · אינסטגרם), a chip per page, each row with the channel's icon on the face and "where" (the page / קו המשרד).
-The conversation: the face opens big (`FaceViewer`, exported from `src/WaFace.jsx`, with a profile link), the name links to the
-person's profile (`profileLink()`: wa.me · instagram.com/@handle · the chat in Meta Business Suite — Meta never gives a Messenger
-profile address), A− / % / A+ and Ctrl / ⌘ + wheel zoom the chat (`--si-z`, `localStorage.afik_inbox_zoom`), the list's edge drags
-(`Splitter`, `afik_inbox_list_w`), **templates like the WhatsApp chat** (`ChatTemplateMenu` in the header, `ChatQuickChips` over an
-empty box, the full `ChatTemplatePicker` window — rendered for the CRM lead or a stand-in; Messenger / Instagram get the text only),
-a reply box (WhatsApp → `chat-send`, the WhatsApp icon opens the full chats screen; Meta → `social-send`, past 24 h the
-`HUMAN_AGENT` tag) and **"הוסף כליד"** (name, phone / email, stage, **project / property — pick, search or create** (`ProjectSelect`),
-a note → `social-to-lead` / `social-wa-lead` (`manualLeadRow` with `channel: 'whatsapp'` → source `whatsapp`; a phone already a
-lead opens that lead), the last 8 messages as the first note). **Import the whole history, in steps** (one call ~40 s, the browser
-carries the cursor, progress + stop): `social-sync {cursor}` — every inbox page × Messenger / Instagram, 25 conversations per Graph
-page × their last 100 messages (`conversationEvents` + `threadRowFrom`, 3 queries per conversation, names from the participants, a
-missing name / picture filled later); `social-wa-import {cursor}` — Green `getChats` → `getChatHistory` 100 per chat → `afik_wa_backfill`
-(quiet). **Setup on Meta's side (once):** a System User token with `pages_messaging`, `instagram_basic`, `instagram_manage_messages`,
-`pages_manage_metadata` (+ the leads scopes) in `META_SYSTEM_USER_TOKEN`, App Review for the messaging permissions, the Instagram
-object subscribed to `messages` in the app's Webhooks, and on the phone Instagram → messages → "Allow access to messages".
+every channel, newest first, "הכל" open by default**: the office's WhatsApp line (`GET social-wa`: named from the CRM lead / phone
+book in proper Hebrew, linked to the lead by the last 9 digits — `leadIdsByPhone()`, 2-min cache) and Messenger / Instagram of
+**every page in the inbox** — the leads' pages (`META_PAGE_IDS`, always) + any page switched on in "חשבונות מחוברים"
+(`app_settings.social_pages` `[{ id, name, on, ig }]`, `cleanSocialPages` / `inboxPageIds` / `accountLabels`; `POST social-page
+{id, name, on}` also subscribes the page to `messages`). The webhook (`/api/meta/webhook`, `object: 'page'` messaging and `object:
+'instagram'`) keeps only inbox pages; leads (`leadgen`) still only from `META_PAGE_IDS`. Names show in proper Hebrew (`name_he` =
+`hebrewFullName`, the stored name stays as Meta gave it). **Unread is obvious:** a row whose last word is the person's (a Meta
+thread's `unread`, a WhatsApp chat's `waiting`) is bold with a green count and an accent bar, "לא נקראו" is a filter (with its count
+in green), and the conversation draws a "N הודעות חדשות" line before them (`unreadCount` in `LeadConversation`; `social-thread`
+returns the count it just cleared and sends Messenger `mark_seen`); "סימון כלא נקרא" (`social-unread`) makes the row bold again.
+The list: search, filters (הכל · לא נקראו · עוד לא ליד · וואטסאפ · מסנג׳ר · אינסטגרם), a chip per page, each row with the channel's
+icon on the face and "where" (the page / קו המשרד). **A WhatsApp chat is the real WhatsApp conversation** — `LeadConversation`
+(`hideHeader`; the CRM lead or a stand-in for a number that isn't one): reply with a quote, reactions, forward, select several,
+save as a template, emoji, templates, files, ticks, live updates. **A Messenger / Instagram chat**: the same ▾ menu on every bubble
+(`ChatMsgMenu`: copy, save as a template → `TemplateQuickEdit`, forward → `InboxForward` = the text to up to 10 conversations of any
+channel, a typed number too; Instagram also ❤️ — `social-react`, Meta's API knows only "love" and nothing on Messenger), an emoji
+grid (`EMOJI` from `ChatComposer`), templates (`ChatTemplateMenu` in the header, `ChatQuickChips` over an empty box, the full
+`ChatTemplatePicker` window — rendered for the CRM lead or a stand-in; the text only), a reply box (`social-send`, past 24 h the
+`HUMAN_AGENT` tag). Both: the face opens big (`FaceViewer`, exported from `src/WaFace.jsx`, with a profile link), the name links
+to the person's profile (`profileLink()`: wa.me · instagram.com/@handle · the chat in Meta Business Suite — Meta never gives a
+Messenger profile address), A− / % / A+ and Ctrl / ⌘ + wheel zoom the chat (`--si-z`, `localStorage.afik_inbox_zoom`), the list's
+edge drags (`Splitter`, `afik_inbox_list_w`), and **"הוסף כליד"** (name, phone / email, stage, **project / property — pick, search
+or create** (`ProjectSelect`), a note → `social-to-lead` / `social-wa-lead` (`manualLeadRow` with `channel: 'whatsapp'` → source
+`whatsapp`; a phone already a lead opens that lead), the last 8 messages as the first note). **"חשבונות מחוברים" = the one-stop
+shop:** summary pills, the pages in the inbox (picture, Messenger status with "חיבור להודעות", the linked Instagram, how many
+conversations, "הסרה מהתיבה"), **"עמודים שאפשר להוסיף"** — every page the System User reaches that isn't in yet, "+ הוספה לתיבה"
+(`/me/accounts` in `social-status` → `available`), a 3-step guide with links for a page not listed (Pages → Add / Request access;
+System users → afik-api → Assign assets → Full control; רענון), the WhatsApp line, and **the whole history imported in steps** (one
+call ~40 s, the browser carries the cursor, progress + stop): `social-sync {cursor}` — every inbox page × Messenger / Instagram,
+25 conversations per Graph page × their last 100 messages (`conversationEvents` + `threadRowFrom`, 3 queries per conversation,
+names from the participants, a missing name / picture filled later); `social-wa-import {cursor}` — Green `getChats` →
+`getChatHistory` 100 per chat → `afik_wa_backfill` (quiet). **Setup on Meta's side (once):** a System User token with
+`pages_messaging`, `instagram_basic`, `instagram_manage_messages`, `pages_manage_metadata` (+ the leads scopes) in
+`META_SYSTEM_USER_TOKEN`, App Review for the messaging permissions, the Instagram object subscribed to `messages` in the app's
+Webhooks, and on the phone Instagram → messages → "Allow access to messages".
 
 ## Booking page (`/book`) — our own Calendly
 
