@@ -126,7 +126,7 @@ const NT = {
   he: { edit: 'שינוי שם (מתעדכן גם באנשי הקשר של הוואטסאפ בטלפון)', save: 'שמירה', cancel: 'ביטול', add: p => `+ הוספת הפרויקט: ${p}`, remove: 'הסרת שם הפרויקט', saving: 'שומר…', saved: 'נשמר גם בוואטסאפ ✓', savedLead: 'נשמר ✓', err: 'השמירה נכשלה' },
   en: { edit: "Rename (the office phone's WhatsApp contacts follow)", save: 'Save', cancel: 'Cancel', add: p => `+ Add the project: ${p}`, remove: 'Remove the project', saving: 'Saving…', saved: 'Saved in WhatsApp too ✓', savedLead: 'Saved ✓', err: 'Saving failed' },
 }
-export function ChatNameEdit({ name = '', project = '', lead = null, phone, lang = 'he', WA, onUpdateLead, onSaved, children }) {
+export function ChatNameEdit({ name = '', project = '', lead = null, phone, lang = 'he', WA, onUpdateLead, onRename, onSaved, savedText = '', children }) {
   const t = NT[lang === 'en' ? 'en' : 'he']
   const [edit, setEdit] = useState(false)
   const [val, setVal] = useState(name)
@@ -144,7 +144,8 @@ export function ChatNameEdit({ name = '', project = '', lead = null, phone, lang
     if (!next || next === name) { setEdit(false); return }
     setSt('saving')
     try {
-      if (lead?.id && onUpdateLead) { await onUpdateLead(lead.id, { name: next }); setSt({ ok: true, msg: t.saved }) }
+      if (onRename) { await onRename(next); setSt({ ok: true, msg: savedText || t.saved }) }
+      else if (lead?.id && onUpdateLead) { await onUpdateLead(lead.id, { name: next }); setSt({ ok: true, msg: t.saved }) }
       else {
         const r = await fetch('/api/meta/chat-contact-name', { method: 'POST', headers: H, body: JSON.stringify({ phone, name: next }), signal: AbortSignal.timeout(20000) })
         const d = await r.json().catch(() => ({}))

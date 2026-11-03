@@ -12,10 +12,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { FaFacebookMessenger, FaInstagram, FaWhatsapp } from 'react-icons/fa'
-import { Search, Send, UserPlus, X, Check, RefreshCw, Link2, Plug, ExternalLink, AlertTriangle, MessageCircle, ZoomIn, ZoomOut, LayoutTemplate, Smile, Forward, MailOpen, MoreVertical, Plus, Minus, Inbox } from 'lucide-react'
+import { Search, Send, UserPlus, X, Check, RefreshCw, Link2, Plug, ExternalLink, AlertTriangle, MessageCircle, ZoomIn, ZoomOut, LayoutTemplate, Smile, Forward, MailOpen, MoreVertical, Plus, Minus, Inbox, Trash2, EyeOff, Eye, Clock } from 'lucide-react'
 import { onSync, debounce } from './lib/syncBus.js'
 import { useProjects } from './lib/projectsStore.js'
-import { ProjectSelect } from './LeadProjects.jsx'
+import { ProjectSelect, ProjectChip } from './LeadProjects.jsx'
+import { ChatNameEdit, StageMenu, AiNoteButton } from './ChatLeadTools.jsx'
+import { NotesButton, FollowUpButton } from './FollowUpTask.jsx'
+import { leadProject } from './lib/leadFields.js'
 import WaFace, { FaceViewer } from './WaFace.jsx'
 import Splitter, { SPLITTER_CSS } from './Splitter.jsx'
 import ChatTemplatePicker, { ChatQuickChips, ChatTemplateMenu } from './ChatTemplatePicker.jsx'
@@ -37,7 +40,8 @@ const api = (path, opts = {}) => fetch(`/api/meta/${path}`, { headers: AUTH, sig
 const TXT = {
   he: {
     title: 'תיבת הודעות', sub: 'וואטסאפ, מסנג׳ר ואינסטגרם של כל העמודים, לפי הסדר. כל שיחה אפשר להפוך לליד ולשייך לפרויקט.',
-    search: 'חיפוש שם, @, טלפון…', f: { all: 'הכל', unread: 'לא נקראו', nolead: 'עוד לא ליד', whatsapp: 'וואטסאפ', messenger: 'מסנג׳ר', instagram: 'אינסטגרם' },
+    search: 'חיפוש שם, @, טלפון…', f: { all: 'הכל', unread: 'לא נקראו', noreply: 'לא ענו לנו', nolead: 'עוד לא ליד', whatsapp: 'וואטסאפ', messenger: 'מסנג׳ר', instagram: 'אינסטגרם', hidden: 'מוסתרות' },
+    noReply: ago => `לא ענו · ${ago}`, noReplyTip: 'ההודעה האחרונה שלנו, ועוד לא ענו עליה', deleteChat: 'מחיקת השיחה', hideChat: 'הסתרת השיחה מהתיבה', unhideChat: 'החזרה לתיבה', deleteAsk: n => `למחוק את השיחה עם ${n}? ההודעות יימחקו מהתיבה (הליד, אם יש, נשאר).`, hideAsk: n => `להסתיר את השיחה עם ${n}? ההיסטוריה בוואטסאפ נשארת, והיא תופיע תחת "מוסתרות".`, deleted: 'השיחה נמחקה', hiddenDone: 'השיחה הוסתרה', restored: 'השיחה חזרה לתיבה', isHidden: 'מוסתרת', leadCardBtn: 'כרטיס הליד', rename: 'לחיצה על השם לעריכה',
     allPages: 'כל העמודים', waLine: 'קו המשרד', newN: n => (n === 1 ? 'חדשה' : `${n} חדשות`),
     empty: 'אין שיחות כאן', emptySub: 'הודעות חדשות יגיעו לכאן מעצמן. אפשר גם לייבא את כל ההיסטוריה מ"חשבונות מחוברים".',
     pick: 'בחרו שיחה מהרשימה', pickSub: 'כל ההודעות מכל הערוצים, במקום אחד', isLead: 'ליד', addLead: 'הוסף כליד', openLead: 'כרטיס הליד', reply: 'כתבו תשובה…', send: 'שליחה',
@@ -75,7 +79,8 @@ const TXT = {
   },
   en: {
     title: 'Inbox', sub: 'WhatsApp, Messenger and Instagram of every page, in order. Any conversation becomes a lead, linked to a project.',
-    search: 'Search name, @, phone…', f: { all: 'All', unread: 'Unread', nolead: 'Not a lead yet', whatsapp: 'WhatsApp', messenger: 'Messenger', instagram: 'Instagram' },
+    search: 'Search name, @, phone…', f: { all: 'All', unread: 'Unread', noreply: 'No reply to us', nolead: 'Not a lead yet', whatsapp: 'WhatsApp', messenger: 'Messenger', instagram: 'Instagram', hidden: 'Hidden' },
+    noReply: ago => `No reply · ${ago}`, noReplyTip: 'Our last message, not answered yet', deleteChat: 'Delete conversation', hideChat: 'Hide from the inbox', unhideChat: 'Back to the inbox', deleteAsk: n => `Delete the conversation with ${n}? Its messages leave the inbox (the lead, if any, stays).`, hideAsk: n => `Hide the conversation with ${n}? The WhatsApp history stays, and it shows under "Hidden".`, deleted: 'Conversation deleted', hiddenDone: 'Conversation hidden', restored: 'Back in the inbox', isHidden: 'Hidden', leadCardBtn: 'Lead card', rename: 'Click the name to edit it',
     allPages: 'All pages', waLine: 'Office line', newN: n => (n === 1 ? 'new' : `${n} new`),
     empty: 'No conversations here', emptySub: 'New messages arrive here by themselves. You can also import the whole history from "Connected accounts".',
     pick: 'Pick a conversation', pickSub: 'Every message from every channel, in one place', isLead: 'Lead', addLead: 'Add as a lead', openLead: 'Lead card', reply: 'Write a reply…', send: 'Send',
@@ -117,6 +122,11 @@ const fmtTime = (ts, lang) => {
   const today = new Date().toDateString() === d.toDateString()
   return today ? d.toLocaleTimeString(lang === 'en' ? 'en-GB' : 'he-IL', { hour: '2-digit', minute: '2-digit' }) : d.toLocaleDateString(lang === 'en' ? 'en-GB' : 'he-IL', { day: 'numeric', month: 'numeric' })
 }
+const agoText = (ts, lang) => {
+  const m = Math.max(0, Math.round((Date.now() - Date.parse(ts)) / 60000))
+  if (lang === 'en') return m < 60 ? `${m} min` : m < 1440 ? `${Math.round(m / 60)} h` : `${Math.round(m / 1440)} d`
+  return m < 60 ? `${m} דק׳` : m < 1440 ? `${Math.round(m / 60)} שע׳` : `${Math.round(m / 1440)} ימים`
+}
 const fmtDay = (ts, lang) => { const d = new Date(ts); return Number.isFinite(d.getTime()) ? d.toLocaleDateString(lang === 'en' ? 'en-GB' : 'he-IL', { weekday: 'short', day: 'numeric', month: 'short' }) : '' }
 const PlatIcon = ({ p, size = 14 }) => (p === 'instagram' ? <FaInstagram size={size} color="#E1306C"/> : p === 'whatsapp' ? <FaWhatsapp size={size} color="#25D366"/> : <FaFacebookMessenger size={size} color="#0084FF"/>)
 const localPhone = p => { const d = String(p || '').replace(/\D/g, ''); return d.startsWith('972') ? `0${d.slice(3)}` : d }
@@ -129,7 +139,7 @@ const profileLink = (th, accounts) => th.platform === 'whatsapp' ? `https://wa.m
   : `https://business.facebook.com/latest/inbox/messenger?asset_id=${accounts?.[th.account_id]?.pageId || th.account_id}&selected_item_id=${th.user_id}`
 
 // one shape for the list: a WhatsApp chat or a Messenger / Instagram thread
-const fromWa = (c, t) => ({ key: `wa:${c.phone}`, kind: 'wa', platform: 'whatsapp', phone: c.phone, name: c.name, waName: c.waName, lead_id: c.lead_id, last_text: (c.last_text || '').trim() ? (t.media[c.last_text] || c.last_text) : (t.media[c.last_type] || ''), last_dir: c.last_dir, last_at: c.last_at, unread: c.last_dir === 'in' ? c.waiting : 0, account_id: 'wa' })
+const fromWa = (c, t) => ({ key: `wa:${c.phone}`, kind: 'wa', platform: 'whatsapp', phone: c.phone, name: c.name, waName: c.waName, lead_id: c.lead_id, last_text: (c.last_text || '').trim() ? (t.media[c.last_text] || c.last_text) : (t.media[c.last_type] || ''), last_dir: c.last_dir, last_at: c.last_at, unread: c.last_dir === 'in' ? c.waiting : 0, account_id: 'wa', hidden: !!c.hidden })
 const fromSocial = th => ({ ...th, key: th.id, kind: 'social' })
 
 // the person's picture with the channel's icon on its corner; a click on a picture opens it big (with "the profile")
@@ -371,7 +381,7 @@ function InboxForward({ t, lang, items, msgs, onClose, onDone }) {
     </div>, document.body)
 }
 
-export default function SocialInboxTab({ lang = 'he', onOpenLead, onOpenChat }) {
+export default function SocialInboxTab({ lang = 'he', onOpenLead, onOpenChat, onUpdateLead, onUpdateStatus, stageLabels = {} }) {
   const t = TXT[lang === 'en' ? 'en' : 'he']
   const [threads, setThreads] = useState(null)
   const [accounts, setAccounts] = useState({})
@@ -402,6 +412,7 @@ export default function SocialInboxTab({ lang = 'he', onOpenLead, onOpenChat }) 
   const listRef = useRef(null), msgsRef = useRef(null), inputRef = useRef(null)
   const autoConfig = useSharedAutoConfig()
   const leads = useSharedLeads()
+  const projects = useProjects()
   const { isDark } = useAdminTheme()
   const WA = isDark ? DARK : LIGHT
   const endRef = useRef(null)
@@ -456,7 +467,8 @@ export default function SocialInboxTab({ lang = 'he', onOpenLead, onOpenChat }) 
   const accCounts = useMemo(() => { const m = {}; for (const x of all) if (x.kind === 'social') m[x.account_id] = (m[x.account_id] || 0) + 1; return m }, [all])
   const pageOfItem = x => (x.kind === 'wa' ? 'wa' : accounts[x.account_id]?.pageId || x.account_id)
   const inPage = x => page === 'all' || pageOfItem(x) === page
-  const match = (x, f) => (f === 'nolead' ? !x.lead_id : f === 'unread' ? x.unread > 0 : f === 'whatsapp' || f === 'messenger' || f === 'instagram' ? x.platform === f : true)
+  const noReply = x => x.last_dir === 'out' && x.last_at && Date.now() - Date.parse(x.last_at) > 3600e3
+  const match = (x, f) => (f === 'hidden' ? !!x.hidden : x.hidden ? false : f === 'nolead' ? !x.lead_id : f === 'unread' ? x.unread > 0 : f === 'noreply' ? noReply(x) : f === 'whatsapp' || f === 'messenger' || f === 'instagram' ? x.platform === f : true)
   const list = useMemo(() => {
     const s = q.trim().toLowerCase(), d = q.replace(/\D/g, '')
     return all.filter(x => inPage(x) && match(x, filter) && (!s
@@ -510,6 +522,32 @@ export default function SocialInboxTab({ lang = 'he', onOpenLead, onOpenChat }) 
     const he = /[֐-׿]/.test(txt), body = messageToTemplate(txt, tplLead || {})
     setEditTpl({ tpl: { cat: 'personal', he: '', en: '', he_title: '', en_title: '', project: leadProperty(tplLead || {}) || '' }, initial: he ? { he: body, en: '' } : { he: '', en: body }, lang: he ? 'he' : 'en' })
   }
+  const renameThread = async name => {
+    if (!th) return
+    if (th.kind === 'wa') {
+      if (crmLead && onUpdateLead) await onUpdateLead(crmLead.id, { name })
+      else { const d = await api('chat-contact-name', { method: 'POST', body: JSON.stringify({ phone: th.phone, name }) }); if (!d) throw new Error('failed') }
+      setWaChats(cs => (cs || []).map(c => (c.phone === th.phone ? { ...c, name } : c)))
+      return
+    }
+    const d = await api('social-rename', { method: 'POST', body: JSON.stringify({ id: th.id, name }) })
+    setThreads(ts => (ts || []).map(x => (x.id === th.id ? { ...x, name: d.name, name_he: d.name_he } : x)))
+    setConv(c => (c.thread ? { ...c, thread: { ...c.thread, name: d.name } } : c))
+    if (crmLead && onUpdateLead) onUpdateLead(crmLead.id, { name }).catch?.(() => {})
+  }
+  const removeChat = async () => {
+    setMoreOpen(false)
+    if (!th) return
+    const who = nameOf(th)
+    if (th.kind === 'wa') {
+      const on = !th.hidden
+      if (on && !window.confirm(t.hideAsk(who))) return
+      try { await api('social-wa-hide', { method: 'POST', body: JSON.stringify({ phone: th.phone, on }) }); setWaChats(cs => (cs || []).map(c => (c.phone === th.phone ? { ...c, hidden: on } : c))); flash(on ? t.hiddenDone : t.restored); if (on) setSel('') } catch (e) { setErr(e.message) }
+      return
+    }
+    if (!window.confirm(t.deleteAsk(who))) return
+    try { await api('social-delete', { method: 'POST', body: JSON.stringify({ id: th.id }) }); setThreads(ts => (ts || []).filter(x => x.id !== th.id)); setSel(''); flash(t.deleted) } catch (e) { setErr(e.message) }
+  }
   const markUnread = async () => {
     setMoreOpen(false)
     if (!sel || sel.startsWith('wa:')) return
@@ -556,7 +594,7 @@ export default function SocialInboxTab({ lang = 'he', onOpenLead, onOpenChat }) 
           <p className="si-muted">{t.sub}</p>
           <div className="si-search"><Search size={14}/><input value={q} onChange={e => setQ(e.target.value)} placeholder={t.search} aria-label={t.search}/></div>
           <div className="si-filters" role="tablist">
-            {Object.keys(t.f).map(k => <button key={k} type="button" role="tab" aria-selected={filter === k} className={k === 'unread' && counts.unread ? 'has-new' : ''} onClick={() => setFilter(k)}>{k !== 'all' && k !== 'unread' && k !== 'nolead' ? <PlatIcon p={k} size={12}/> : null}{t.f[k]}{counts[k] > 0 && <em>{counts[k]}</em>}</button>)}
+            {Object.keys(t.f).filter(k => k !== 'hidden' || counts.hidden > 0).map(k => <button key={k} type="button" role="tab" aria-selected={filter === k} className={k === 'unread' && counts.unread ? 'has-new' : ''} onClick={() => setFilter(k)}>{['whatsapp', 'messenger', 'instagram'].includes(k) ? <PlatIcon p={k} size={12}/> : k === 'hidden' ? <EyeOff size={12}/> : null}{t.f[k]}{counts[k] > 0 && <em>{counts[k]}</em>}</button>)}
           </div>
           {pageChips.length > 0 && (
             <div className="si-pages" aria-label={t.allPages}>
@@ -576,6 +614,7 @@ export default function SocialInboxTab({ lang = 'he', onOpenLead, onOpenChat }) 
               <span className="si-row-main">
                 <span className="si-row-top"><b><bdi>{nameOf(x)}</bdi></b><small>{fmtTime(x.last_at, lang)}</small></span>
                 <span className="si-row-bot"><span className="si-last" dir="auto">{x.last_dir === 'out' ? '✓ ' : ''}{x.last_text || ''}</span>
+                  {x.hidden ? <span className="si-badge is-off">{t.isHidden}</span> : noReply(x) ? <span className="si-badge is-wait" title={t.noReplyTip}>{t.noReply(agoText(x.last_at, lang))}</span> : null}
                   {x.lead_id ? <span className="si-badge is-lead">{t.isLead}</span> : x.kind === 'social' && x.phone ? <span className="si-badge">{t.foundPhone}</span> : null}
                   {x.unread > 0 && <span className="si-unread" title={t.newN(x.unread)}>{x.unread}</span>}</span>
                 {where(x) && <span className="si-where"><PlatIcon p={x.platform} size={10}/>{where(x)}</span>}
@@ -595,7 +634,13 @@ export default function SocialInboxTab({ lang = 'he', onOpenLead, onOpenChat }) 
           <header className="si-conv-head">
             <button type="button" className="si-back" onClick={() => setSel('')} aria-label={t.close}>›</button>
             <Face th={th} size={46} zoom t={t} lang={lang} link={profileLink(th, accounts)}/>
-            <div className="si-who"><a className="si-who-name" href={profileLink(th, accounts)} target="_blank" rel="noreferrer" title={t.profileOf[th.platform]}><bdi>{nameOf(th)}</bdi><ExternalLink size={12}/></a>
+            <div className="si-who">
+              <span className="si-who-name">
+                <ChatNameEdit name={nameOf(th).replace(/^@/, '')} lead={crmLead} phone={th.kind === 'wa' ? th.phone : ''} lang={lang} WA={WA} project={(crmLead && leadProject(crmLead)) || ''} onUpdateLead={onUpdateLead} onRename={renameThread} savedText={th.kind === 'wa' ? '' : (lang === 'en' ? 'Saved ✓' : 'נשמר ✓')}>
+                  <bdi>{nameOf(th)}</bdi>
+                </ChatNameEdit>
+                <a className="si-who-link" href={profileLink(th, accounts)} target="_blank" rel="noreferrer" title={t.profileOf[th.platform]} aria-label={t.profileOf[th.platform]}><ExternalLink size={12}/></a>
+              </span>
               <small>{th.kind === 'wa' ? `WhatsApp · ${localPhone(th.phone)}` : `${th.platform === 'instagram' ? 'Instagram' : 'Messenger'}${where(th) ? ` · ${where(th)}` : ''}${th.username && th.name ? ` · @${th.username}` : ''}${th.phone ? ` · ${th.phone}` : ''}`}</small></div>
             <div className="si-zoom" role="group" aria-label={t.zoomReset}>
               <button type="button" onClick={() => setZ(zoom - 0.1)} disabled={zoom <= 0.8} title={t.zoomOut} aria-label={t.zoomOut}><ZoomOut size={15}/></button>
@@ -604,19 +649,39 @@ export default function SocialInboxTab({ lang = 'he', onOpenLead, onOpenChat }) 
             </div>
             {th.kind !== 'wa' && <ChatTemplateMenu WA={WA} lang={lang} lead={tplLead} msgs={tplMsgs} autoConfig={autoConfig}
               onSend={txt => send(txt)} onInsert={putInBox} onOpenPanel={() => setTplOpen(true)}/>}
-            {th.lead_id
-              ? <button type="button" className="si-secondary" onClick={() => openLead(th.lead_id)}><Link2 size={14}/>{t.openLead}</button>
-              : <button type="button" className="si-primary" onClick={() => setLeadForm(v => !v)}><UserPlus size={14}/>{t.addLead}</button>}
+            {!th.lead_id && !crmLead && <button type="button" className="si-primary" onClick={() => setLeadForm(v => !v)}><UserPlus size={14}/>{t.addLead}</button>}
+            {th.lead_id && !crmLead && <button type="button" className="si-secondary" onClick={() => openLead(th.lead_id)}><Link2 size={14}/>{t.openLead}</button>}
             {th.kind === 'wa'
               ? <button type="button" className="si-icon" onClick={() => onOpenChat?.({ phone: th.phone, name: nameOf(th), leadId: th.lead_id })} title={t.openChats} aria-label={t.openChats}><FaWhatsapp size={15}/></button>
-              : <span className="si-more-wrap">
-                  <button type="button" className="si-icon" aria-haspopup="menu" aria-expanded={moreOpen} onClick={() => setMoreOpen(v => !v)} title={t.more} aria-label={t.more}><MoreVertical size={16}/></button>
-                  {moreOpen && <div className="si-menu" role="menu">
-                    <button type="button" role="menuitem" onClick={markUnread}><MailOpen size={14}/>{t.markUnread}</button>
-                    <a role="menuitem" href="https://business.facebook.com/latest/inbox/all" target="_blank" rel="noreferrer" onClick={() => setMoreOpen(false)}><ExternalLink size={14}/>{t.openMeta}</a>
-                  </div>}
-                </span>}
+              : null}
+            <span className="si-more-wrap">
+              <button type="button" className="si-icon" aria-haspopup="menu" aria-expanded={moreOpen} onClick={() => setMoreOpen(v => !v)} title={t.more} aria-label={t.more}><MoreVertical size={16}/></button>
+              {moreOpen && <div className="si-menu" role="menu">
+                {th.kind !== 'wa' && <button type="button" role="menuitem" onClick={markUnread}><MailOpen size={14}/>{t.markUnread}</button>}
+                {th.kind !== 'wa' && <a role="menuitem" href="https://business.facebook.com/latest/inbox/all" target="_blank" rel="noreferrer" onClick={() => setMoreOpen(false)}><ExternalLink size={14}/>{t.openMeta}</a>}
+                {th.kind === 'wa'
+                  ? <button type="button" role="menuitem" onClick={removeChat}>{th.hidden ? <Eye size={14}/> : <EyeOff size={14}/>}{th.hidden ? t.unhideChat : t.hideChat}</button>
+                  : <button type="button" role="menuitem" className="is-danger" onClick={removeChat}><Trash2 size={14}/>{t.deleteChat}</button>}
+              </div>}
+            </span>
           </header>
+          {/* the lead's tools, like the chats tab: stage · project · follow-up · notes · AI summary · the card */}
+          <div className="si-tools">
+            {crmLead && onUpdateLead ? <>
+              {onUpdateStatus && <StageMenu lead={crmLead} lang={lang} stageLabels={stageLabels} WA={WA} onChange={st => onUpdateStatus(crmLead, st)}/>}
+              <ProjectChip lead={crmLead} projects={projects} lang={lang} size="md" onAssign={patch => onUpdateLead(crmLead.id, patch)}/>
+              <FollowUpButton lead={crmLead} lang={lang} size="sm" onSave={p => onUpdateLead(crmLead.id, p)}/>
+              <NotesButton lead={crmLead} lang={lang} size="sm" onSave={p => onUpdateLead(crmLead.id, p)}/>
+              <AiNoteButton lead={crmLead} lang={lang} stageLabels={stageLabels} WA={WA} onUpdateLead={onUpdateLead} onStage={st => onUpdateStatus?.(crmLead, st)}/>
+              <span className="si-tools-sp"/>
+              <button type="button" className="si-secondary si-sm" onClick={() => openLead(crmLead.id)}><Link2 size={13}/>{t.leadCardBtn}</button>
+            </> : <>
+              {noReply(th) && <span className="si-noreply" title={t.noReplyTip}><Clock size={12}/>{t.noReply(agoText(th.last_at, lang))}</span>}
+              <span className="si-tools-sp"/>
+              <small className="si-muted">{t.rename}</small>
+            </>}
+            {crmLead && noReply(th) && <span className="si-noreply" title={t.noReplyTip}><Clock size={12}/>{t.noReply(agoText(th.last_at, lang))}</span>}
+          </div>
           {leadForm && !th.lead_id && <LeadForm th={th} t={t} lang={lang} onCancel={() => setLeadForm(false)} onDone={(lead, existing) => {
             setLeadForm(false); flash(existing ? t.existing : t.added)
             if (th.kind === 'wa') setWaChats(cs => (cs || []).map(c => (c.phone === th.phone ? { ...c, lead_id: String(lead.id), name: c.name || lead.name } : c)))
@@ -728,6 +793,15 @@ const SI_CSS = `
 .si-who{flex:1;min-width:0;display:flex;flex-direction:column}
 .si-who small{font-size:12px;color:var(--au-text2)}
 .si-who-name{display:inline-flex;align-items:center;gap:6px;font-size:16px;font-weight:700;color:var(--au-text);text-decoration:none;min-width:0}
+.si-who-name .wa-name-btn:hover{text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px}
+.si-who-link{display:inline-flex;color:var(--au-text3);opacity:.6}
+.si-who-link:hover{opacity:1;color:var(--au-brand-text)}
+.si-tools{display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:7px 14px;border-bottom:1px solid var(--au-line);background:var(--au-pop);flex:none}
+.si-tools-sp{flex:1}
+.si-noreply{display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 9px;border-radius:999px;font-size:11.5px;font-weight:600;color:#B45309;background:rgba(217,119,6,.12)}
+.si-badge.is-wait{background:rgba(217,119,6,.12);color:#B45309;font-weight:600}
+.si-badge.is-off{background:rgba(var(--ov),.08);color:var(--au-text3)}
+.si-menu button.is-danger{color:#DC2626}
 .si-who-name bdi{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .si-who-name svg{flex:none;opacity:.45}
 .si-who-name:hover{color:var(--au-brand-text)}
