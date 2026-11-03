@@ -123,8 +123,12 @@ export function AiNoteButton({ lead, lang = 'he', stageLabels = {}, onUpdateLead
 // phone's contacts only (POST /api/meta/chat-contact-name). A name changed in the phone's WhatsApp comes back by itself
 // (auto-tick / auto-run → syncBookNames).
 const NT = {
-  he: { edit: 'שינוי שם (מתעדכן גם באנשי הקשר של הוואטסאפ בטלפון)', save: 'שמירה', cancel: 'ביטול', add: p => `+ הוספת הפרויקט: ${p}`, remove: 'הסרת שם הפרויקט', saving: 'שומר…', saved: 'נשמר גם בוואטסאפ ✓', savedLead: 'נשמר ✓', err: 'השמירה נכשלה' },
-  en: { edit: "Rename (the office phone's WhatsApp contacts follow)", save: 'Save', cancel: 'Cancel', add: p => `+ Add the project: ${p}`, remove: 'Remove the project', saving: 'Saving…', saved: 'Saved in WhatsApp too ✓', savedLead: 'Saved ✓', err: 'Saving failed' },
+  he: { edit: 'שינוי שם (מתעדכן גם באנשי הקשר של הוואטסאפ בטלפון)', save: 'שמירה', cancel: 'ביטול', add: p => `+ הוספת הפרויקט: ${p}`, remove: 'הסרת שם הפרויקט', saving: 'שומר…', saved: 'נשמר גם בוואטסאפ ✓', savedLead: 'נשמר ✓', err: 'השמירה נכשלה',
+    onPhone: n => `בוואטסאפ של המשרד: ${n} ✓`, notOnPhone: 'נשמר במערכת, אבל וואטסאפ בטלפון עוד לא שמר את השם', checking: 'בודק מה הטלפון שמר…',
+    how: 'איך מתקנים?', syncHint: 'בטלפון של המשרד: וואטסאפ → הגדרות → פרטיות → אנשי קשר → להדליק סנכרון אנשי קשר. אחרי זה כל שינוי שם מכאן יופיע גם שם.' },
+  en: { edit: "Rename (the office phone's WhatsApp contacts follow)", save: 'Save', cancel: 'Cancel', add: p => `+ Add the project: ${p}`, remove: 'Remove the project', saving: 'Saving…', saved: 'Saved in WhatsApp too ✓', savedLead: 'Saved ✓', err: 'Saving failed',
+    onPhone: n => `On the office WhatsApp: ${n} ✓`, notOnPhone: "Saved here, but the phone's WhatsApp hasn't taken the name yet", checking: 'Checking what the phone saved…',
+    how: 'How to fix', syncHint: "On the office phone: WhatsApp → Settings → Privacy → Contacts → turn contact sync on. Every rename from here then shows there too." },
 }
 export function ChatNameEdit({ name = '', project = '', lead = null, phone, lang = 'he', WA, onUpdateLead, onRename, onSaved, savedText = '', children }) {
   const t = NT[lang === 'en' ? 'en' : 'he']
@@ -136,23 +140,40 @@ export function ChatNameEdit({ name = '', project = '', lead = null, phone, lang
   useOutside(edit, [anchor, pop], () => setEdit(false))
   useEffect(() => { setEdit(false); setSt(null) }, [phone])
   useEffect(() => { if (edit) setTimeout(() => { inp.current?.focus(); inp.current?.select() }, 20) }, [edit])
-  useEffect(() => { if (st && st !== 'saving' && st.ok) { const x = setTimeout(() => setSt(null), 2600); return () => clearTimeout(x) } }, [st])
+  useEffect(() => { if (st && st !== 'saving' && st.ok && !st.warn && st.msg !== t.checking) { const x = setTimeout(() => setSt(null), 4000); return () => clearTimeout(x) } }, [st]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { setHint('') }, [phone])
   const p = String(project || '').trim()
   const tg = toggleProjectInName(val, p)
+  const [hint, setHint] = useState('')
+  // after a save by any path, read what the office phone's WhatsApp holds now (GET chat-contact-name) and say so
+  const verify = async next => {
+    if (!phone) return
+    setSt({ ok: true, msg: t.checking })
+    try {
+      const r = await fetch(`/api/meta/chat-contact-name?phone=${encodeURIComponent(phone)}`, { headers: H, signal: AbortSignal.timeout(20000) })
+      const d = r.ok ? await r.json().catch(() => ({})) : {}
+      if (d.saved && d.saved === next) { setSt({ ok: true, msg: t.onPhone(d.saved) }); setHint('') }
+      else if (d.saved) { setSt({ ok: true, msg: t.onPhone(d.saved) }); setHint(t.syncHint) }
+      else { setSt({ ok: true, warn: true, msg: t.notOnPhone }); setHint(t.syncHint) }
+    } catch { setSt({ ok: true, msg: savedText || t.saved }) }
+  }
   const save = async () => {
     const next = val.replace(/\s+/g, ' ').trim()
     if (!next || next === name) { setEdit(false); return }
-    setSt('saving')
+    setSt('saving'); setHint('')
     try {
+      let d = null
       if (onRename) { await onRename(next); setSt({ ok: true, msg: savedText || t.saved }) }
       else if (lead?.id && onUpdateLead) { await onUpdateLead(lead.id, { name: next }); setSt({ ok: true, msg: t.saved }) }
       else {
         const r = await fetch('/api/meta/chat-contact-name', { method: 'POST', headers: H, body: JSON.stringify({ phone, name: next }), signal: AbortSignal.timeout(20000) })
-        const d = await r.json().catch(() => ({}))
+        d = await r.json().catch(() => ({}))
         if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`)
         setSt({ ok: true, msg: t.saved })
       }
       onSaved?.(next); setEdit(false)
+      if (d && 'saved' in d) { if (d.saved === next || d.synced) { setSt({ ok: true, msg: t.onPhone(d.saved || next) }); setHint('') } else { setSt({ ok: true, warn: true, msg: t.notOnPhone }); setHint(t.syncHint) } }
+      else verify(next)
     } catch (e) { setSt({ ok: false, msg: `${t.err}: ${e.message}` }) }
   }
   return (<>
@@ -161,7 +182,10 @@ export function ChatNameEdit({ name = '', project = '', lead = null, phone, lang
         style={{ border: 'none', background: 'transparent', padding: 0, margin: 0, font: 'inherit', color: 'inherit', cursor: 'text', minHeight: 0, minWidth: 0, textAlign: 'start', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>
         {children || name}
       </button>
-      {!edit && st && st !== 'saving' && <span role="status" style={{ fontSize: 11.5, fontWeight: 600, color: st.ok ? '#128C4A' : '#E5484D', whiteSpace: 'nowrap' }}>{st.msg}</span>}
+      {!edit && st && st !== 'saving' && (hint
+        ? <button type="button" role="status" className="wa-name-warn" title={hint} onClick={() => { setVal(name); setEdit(true) }}
+            style={{ border: 'none', background: 'transparent', padding: 0, margin: 0, font: 'inherit', fontSize: 11.5, fontWeight: 600, color: '#B45309', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0, minHeight: 0, cursor: 'pointer', textDecoration: 'underline dotted' }}>⚠ {st.msg} · {t.how}</button>
+        : <span role="status" style={{ fontSize: 11.5, fontWeight: 600, color: st.ok ? '#128C4A' : '#E5484D', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{st.msg}</span>)}
     </div>
     {edit && pos && createPortal(
       <div ref={pop} role="dialog" aria-label={t.edit} dir={lang === 'en' ? 'ltr' : 'rtl'} style={{ ...panel(WA), top: pos.top, left: pos.left, width: 360, padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -171,6 +195,7 @@ export function ChatNameEdit({ name = '', project = '', lead = null, phone, lang
           style={{ width: '100%', boxSizing: 'border-box', height: 38, borderRadius: 9, border: `1px solid ${WA.green}`, background: WA.inputFieldBg || WA.panelBg, color: WA.bodyText, padding: '0 11px', font: 'inherit', fontSize: 15, fontWeight: 600, outline: 'none' }}/>
         {p && <button type="button" onClick={() => setVal(tg.next)} style={{ alignSelf: 'flex-start', border: 'none', background: 'transparent', color: WA.green, font: 'inherit', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', padding: 0, minHeight: 0 }}>{tg.has ? t.remove : t.add(p)}</button>}
         {st && st !== 'saving' && !st.ok && <span role="alert" style={{ fontSize: 12, color: '#E5484D' }}>{st.msg}</span>}
+        {hint && <div role="note" className="wa-name-hint" style={{ fontSize: 12, color: '#B45309', lineHeight: 1.45, background: 'rgba(180,83,9,.08)', borderRadius: 8, padding: '7px 9px' }}>⚠ {t.notOnPhone}. {hint}</div>}
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
           <button type="button" onClick={() => setEdit(false)} style={pill(WA)}>{t.cancel}</button>
           <button type="button" onClick={save} disabled={st === 'saving'} style={pill(WA, { background: WA.green, color: '#fff', borderColor: WA.green })}>{st === 'saving' ? t.saving : t.save}</button>

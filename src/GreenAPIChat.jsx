@@ -23,6 +23,9 @@ import { foldReactions } from './lib/waMerge.js'
 import { NotesButton, FollowUpButton } from './FollowUpTask.jsx'
 import { StageMenu, AiNoteButton, ChatNameEdit } from './ChatLeadTools.jsx'
 import { leadProject } from './lib/leadFields.js'
+import { useProjects } from './lib/projectsStore.js'
+import { ProjectChip, ProjectPicker, LP_CSS } from './LeadProjects.jsx'
+import { Plus } from 'lucide-react'
 import { leadFormCard } from './lib/leadHistory.js'
 import { onWaLive, waLiveUp, mergeLive } from './lib/waLive.js'
 import { setViewing, desktopPermission } from './lib/waNotify.js'
@@ -159,6 +162,38 @@ function Avatar({ c, size = 40, lang }) {
 
 
 // ─── Component ────────────────────────────────────────────────────────────────
+/** "שיוך לפרויקט" on a chat that isn't a lead yet: the project picker (search, or type a new name → created), then the chat is
+ *  saved as a CRM lead in that project with its last messages as the first note (POST social-wa-lead); the admin's lead list
+ *  follows through the change bus, so the header turns into the lead's tools by itself. */
+function ChatProjectJoin({ phone, name, projects, lang, WA }) {
+  const [open, setOpen] = useState(null)
+  const [st, setSt] = useState(null)       // null | 'busy' | { ok, msg }
+  useEffect(() => { setSt(null); setOpen(null) }, [phone])
+  const he = lang !== 'en'
+  const pick = async p => {
+    setOpen(null)
+    if (!p) return
+    setSt('busy')
+    try {
+      const r = await fetch('/api/meta/social-wa-lead', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer AFIKhanahal2026' },
+        body: JSON.stringify({ phone, name, projectId: p.id, projectName: p.name, leadStatus: 'new' }), signal: AbortSignal.timeout(25000) })
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`)
+      setSt({ ok: true, msg: d.existing ? (he ? 'כבר ליד במערכת' : 'Already a lead') : (he ? `נשמר כליד בפרויקט ${p.name} ✓` : `Saved as a lead in ${p.name} ✓`) })
+    } catch (e) { setSt({ ok: false, msg: (he ? 'לא נשמר: ' : 'Not saved: ') + e.message }) }
+  }
+  return (
+    <span style={{ display:'inline-flex', alignItems:'center', gap:6, flexShrink:0, minWidth:0 }}>
+      <button type="button" className="lp-chip lp-chip--sm is-empty wa-proj-join" disabled={st === 'busy'} title={he ? 'שיוך לפרויקט — השיחה תישמר כליד חדש בפרויקט' : 'Assign to a project — the chat is saved as a new lead in it'}
+        onClick={e => setOpen(e.currentTarget.getBoundingClientRect())}>
+        <Plus size={11}/>{st === 'busy' ? (he ? 'שומר…' : 'Saving…') : (he ? 'שיוך לפרויקט' : 'Project')}
+      </button>
+      {st && st !== 'busy' && <span role="status" style={{ fontSize: 11.5, fontWeight: 600, color: st.ok ? WA.green : '#E5484D', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth: 220 }}>{st.msg}</span>}
+      {open && <ProjectPicker rect={open} projects={projects} current={null} lang={lang} onClose={() => setOpen(null)} onPick={pick}/>}
+    </span>
+  )
+}
+
 export default function GreenAPIChat({ leads = [], lang = 'he', initialContact = null, onOpenLead, onUpdateLead, onUpdateStatus, stageLabels = {}, onDeleteLead, onNewMessage, onSentMessage, onReadChange, autoConfig = null, onAutoConfigSaved }) {
 
   // ── Theme ─────────────────────────────────────────────────────────────────
@@ -798,6 +833,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
   const formCard = useMemo(() => leadFormCard(chatLead, lang), [chatLead, lang])
   // the CRM row itself: notes and follow-ups written here are the lead card's (src/FollowUpTask.jsx)
   const crmRow = useMemo(() => (contact ? leads.find(l => intlPhone(l.phone) === chatPhone) || null : null), [leads, contact, chatPhone])
+  const projects = useProjects()
   const cfgEff = cfgLocal || autoConfig
   // ── Reply / forward / react / select, like WhatsApp (src/ChatMsgMenu.jsx, src/ChatForward.jsx, lib/wa-actions.js) ──
   const msgRef = m => ({ id: m.id, isOut: m.direction === 'out', text: String(m.message || '').trim() || (m.file?.name ? `📎 ${m.file.name}` : (lang === 'en' ? 'Attachment' : 'קובץ מצורף')) })
@@ -1122,6 +1158,11 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                   <button type="button" className="wa-wb-btn" onClick={() => markDone([contactView || contact])} title="להוריד מ״ממתינים לתשובה״ (יחזור אם יכתבו שוב)"
                     style={{ height:32, flexShrink:0, color: WA.green, borderColor: `${WA.green}66` }}>✓ טופל · {fmtWait(w.mins)}</button>
                 ) : null })()}
+                {/* the project: a lead → the chip (pick, search or create — crm_data.projectId / projectName, so {property} and the
+                    name's "+ הוספת הפרויקט" follow); a chat that isn't a lead → saved as a new lead in that project (social-wa-lead) */}
+                <style>{LP_CSS}</style>
+                {!contactView?.office && !contactView?.self && (crmRow ? (onUpdateLead && <ProjectChip lead={crmRow} projects={projects} lang={lang} onAssign={patch => onUpdateLead(crmRow.id, patch)}/>)
+                  : <ChatProjectJoin phone={contact.phone} name={hasName(contactView) ? nameOf(contactView, lang) : ''} projects={projects} lang={lang} WA={WA}/>)}
                 {crmRow && onUpdateLead && <span style={{ display:'inline-flex', gap:6, flexShrink:0, alignItems:'center' }}>
                   {onUpdateStatus && <StageMenu lead={crmRow} lang={lang} stageLabels={stageLabels} WA={WA} onChange={st => onUpdateStatus(crmRow, st)}/>}
                   <AiNoteButton lead={crmRow} lang={lang} stageLabels={stageLabels} WA={WA} onUpdateLead={onUpdateLead} onStage={st => onUpdateStatus?.(crmRow, st)}/>

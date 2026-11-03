@@ -259,7 +259,7 @@ export default function AdminHome({ properties = [], leads = [], setTab, autoCfg
             const src = srcLabel(l, t)
             return (
               <button type="button" key={l.id || i} className="ah-row" onClick={() => setTab('leads')} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '10px 8px', border: 'none', borderBottom: i < recent.length - 1 ? `1px solid ${T.divider}` : 'none', background: 'transparent', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'start', color: T.text, borderRadius: 8 }}>
-                <WaFace phone={l.phone} name={l.name} size={36} lang={lang} zoom={false}>
+                <WaFace phone={l.phone} lead={l} name={l.name} size={36} lang={lang} zoom={false}>
                 <span style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(var(--brand-rgb),.16)', color: T.brandText, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 800, flexShrink: 0 }}>{[...(l.name || '?').trim()][0] || '?'}</span>
                 </WaFace>
                 <span style={{ flex: 1, minWidth: 0 }}>

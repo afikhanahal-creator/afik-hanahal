@@ -246,6 +246,17 @@ with it (`renderTemplate`). The existing leads were converted on 2026-10-24 (164
 copy it got earlier — "היום" in the automations (queue rows and the schedule; a message not edited by hand is re-rendered with the
 new name), the automations log, the meetings tab (`BookingAdminTab` gets `leads`, a call shows its lead's name via `leadId`), the
 chats (lead name over the WhatsApp name) and the Lead Center (the server renames `meta_leads` too).
+**The project from the chats header** (2026-11-03): a chat whose number is a CRM lead has the `ProjectChip` (pick, search or
+create → `onUpdateLead(id, { projectId, projectName })`); a chat that isn't a lead has "שיוך לפרויקט" (`ChatProjectJoin` in
+`src/GreenAPIChat.jsx`) — the same picker, then `POST /api/meta/social-wa-lead { phone, name, projectId, projectName }` saves the
+chat as a new lead in that project (its last messages as the first note), and the header turns into the lead's tools once the
+change bus brings the lead. `LP_CSS` is exported from `src/LeadProjects.jsx` for screens without the projects bar.
+**A rename is verified against the phone** (2026-11-03): WhatsApp keeps its own contact list, and the office phone's address book
+follows it only while contact sync is on in the WhatsApp app (Settings → Privacy → Contacts). `saveWaContact()` now reads the
+number back (`readWaContact()` in `lib/automations.js`: `getContactInfo` `contactName`, else `getContacts`) and returns
+`{ ok, saved, synced }`; `GET /api/meta/chat-contact-name?phone=` only reads. `ChatNameEdit` says what the phone holds after every
+save ("בוואטסאפ של המשרד: … ✓"), and when WhatsApp didn't take the name shows an amber "⚠ … · איך מתקנים?" (the header keeps its
+62 px) that reopens the editor with the sync steps (`wa-name-hint`).
 **Stage + AI note from the chat** (2026-11-01, `src/ChatLeadTools.jsx`): the chats tab's header (for a chat whose number is a CRM
 lead) has the pipeline stage as a pill menu (`StageMenu` → the admin's `updateLeadStatus`, the same as dragging on the board; the
 stage list and its colors are `src/lib/pipelineStages.js` `PIPELINE`, shared with the Lead Center, names through `stageLabels`) and
@@ -433,6 +444,18 @@ link expires. The server caches them in `wa_avatars` (`server/wa-avatars-migrati
 WhatsApp's `oe` link parameter, checked_at; RLS on) — a picture until an hour before its link expires (≤ 3 days), "no picture" for
 a day (`lib/wa-avatar.js` `avatarExpiry` / `avatarFresh` / `avatarPhone`, tested). The images load straight from WhatsApp's CDN
 (`referrerPolicy="no-referrer"`), never through a function. The probe's `wa` action reports counts only.
+**Pictures from every channel** (2026-11-03): a face with no WhatsApp picture shows the person's Messenger / Instagram one —
+`chat-avatars` takes `{ phones, social: [thread ids], refresh: [keys] }` and answers `{ avatars, from: { key: whatsapp | messenger |
+instagram }, links: { key: profile url } }`: WhatsApp first (as before), then `socialAvatars()` (`api/meta.js`) looks in
+`social_threads` for the thread with that phone or with that CRM lead (`lead_id`, through `leadIdsByPhone()`), and for the thread
+ids asked for directly (a lead made from a Messenger / Instagram chat, `crm_data.social.threadId` — `leadSocialKey()`); an expired
+Meta link (`socialAvatarFresh()`, `avatarExpiry` reads `oe` hex and Messenger's `ext`) or a key the browser reports broken is
+re-read from the Graph (`socialProfile`, ≤ 6 per call) and saved back on the thread. `WaFace` takes `lead={lead}` (every board /
+card / follow-up / alert / home face passes it) or `social=<thread id>` + `seed` (the inbox's Meta faces go through it too), asks
+both keys, prefers the number's picture (`pickFace()`, `lib/wa-avatar.js`, tested), sets `data-face-src`, and the viewer says
+where the picture is from ("מסנג׳ר · 050-…"), with "לפרופיל" (Instagram) / "פתיחה בוואטסאפ". Browser cache key `afik_wa_avatars_v2`
+(`{ u, s, l, x }`). A Meta lead-ads lead has no Facebook profile to read — its picture comes only from a chat (WhatsApp / Messenger /
+Instagram) with the same number.
 **A click on a face that has a picture opens it big** (`FaceViewer` in `src/WaFace.jsx`, a portal): the original file WhatsApp keeps
 (usually 640×640, its size shown), as big as the screen allows but never more than twice its own size, with the name, the phone,
 "פתיחת המקור" (a new tab) and ✕ / Esc / a click outside; the face is a `role="button"` (Enter / Space) and its click never reaches the

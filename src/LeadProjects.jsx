@@ -497,7 +497,7 @@ export function NewLeadDialog({ projects, defaultProjectId = '', defaultStage = 
   )
 }
 
-const LP_CSS = `
+export const LP_CSS = `
 .lp-dot{width:8px;height:8px;border-radius:50%;background:var(--pc,#3B82F6);flex-shrink:0;display:inline-block}
 .lp-chip{display:inline-flex;align-items:center;gap:5px;max-width:100%;border:1px solid var(--pcl,rgba(59,130,246,.4));background:var(--pcb,rgba(59,130,246,.12));color:var(--au-text,#1f2937);border-radius:999px;padding:1px 9px 1px 8px;font:600 11.5px Rubik,sans-serif;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-height:0;line-height:1.6}
 .lp-chip bdi{overflow:hidden;text-overflow:ellipsis}

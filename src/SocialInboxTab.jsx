@@ -19,7 +19,7 @@ import { ProjectSelect, ProjectChip } from './LeadProjects.jsx'
 import { ChatNameEdit, StageMenu, AiNoteButton } from './ChatLeadTools.jsx'
 import { NotesButton, FollowUpButton } from './FollowUpTask.jsx'
 import { leadProject } from './lib/leadFields.js'
-import WaFace, { FaceViewer } from './WaFace.jsx'
+import WaFace from './WaFace.jsx'
 import Splitter, { SPLITTER_CSS } from './Splitter.jsx'
 import ChatTemplatePicker, { ChatQuickChips, ChatTemplateMenu } from './ChatTemplatePicker.jsx'
 import ChatMsgMenu from './ChatMsgMenu.jsx'
@@ -148,23 +148,18 @@ const fromSocial = th => ({ ...th, key: th.id, kind: 'social' })
 
 // the person's picture with the channel's icon on its corner; a click on a picture opens it big (with "the profile")
 function Face({ th, size = 40, zoom = false, t, link, lang }) {
-  const [bad, setBad] = useState(false)
-  const [open, setOpen] = useState(false)
-  const ref = useRef(null)
   const ic = <i><PlatIcon p={th?.platform} size={size > 36 ? 13 : 11}/></i>
   if (th?.platform === 'whatsapp') {
     return <span className="si-face" style={{ width: size, height: size }}><WaFace phone={th.phone} name={nameOf(th)} size={size} zoom={zoom} lang={lang}><b className="si-ini">{initial(th)}</b></WaFace>{ic}</span>
   }
-  const pic = th?.avatar && !bad
-  const can = zoom && pic
   return (
-    <span ref={ref} className={`si-face${can ? ' can-zoom' : ''}`} style={{ width: size, height: size }} role={can ? 'button' : undefined} tabIndex={can ? 0 : undefined}
-      title={can ? t?.profile : undefined} onClick={can ? e => { e.stopPropagation(); setOpen(true) } : undefined}
-      onKeyDown={can ? e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(true) } } : undefined}>
-      {pic ? <img src={th.avatar} alt="" referrerPolicy="no-referrer" onError={() => setBad(true)}/> : <b className="si-ini">{initial(th)}</b>}
+    <span className="si-face" style={{ width: size, height: size }}>
+      <WaFace social={th?.id} seed={th?.avatar || ''} seedSrc={th?.platform} name={nameOf(th)} size={size} zoom={zoom} lang={lang}
+        viewerSub={th?.username ? `@${th.username}` : (th?.platform === 'instagram' ? 'Instagram' : 'Messenger')}
+        viewerLink={link ? { href: link, label: t?.profileOf?.[th?.platform] } : null}>
+        <b className="si-ini">{initial(th)}</b>
+      </WaFace>
       {ic}
-      {open && <FaceViewer url={th.avatar} name={nameOf(th)} phone="" sub={th.username ? `@${th.username}` : (th.platform === 'instagram' ? 'Instagram' : 'Messenger')} en={lang === 'en'} back={ref}
-        link={link ? { href: link, label: t.profileOf[th.platform] } : null} onClose={() => setOpen(false)}/>}
     </span>
   )
 }
@@ -794,8 +789,6 @@ const SI_CSS = `
 .si-face{position:relative;flex:none;border-radius:50%;background:rgba(var(--brand-rgb),.14);display:inline-flex;align-items:center;justify-content:center;color:var(--au-brand-text)}
 .si-face img{width:100%;height:100%;border-radius:50%;object-fit:cover}
 .si-face .si-ini{font-size:15px;color:var(--au-brand-text);display:flex;align-items:center;justify-content:center;width:100%;height:100%}
-.si-face.can-zoom{cursor:zoom-in}
-.si-face.can-zoom:hover img{filter:brightness(.92)}
 .si-face i{position:absolute;bottom:-2px;inset-inline-end:-2px;width:19px;height:19px;border-radius:50%;background:var(--au-pop);display:inline-flex;align-items:center;justify-content:center;box-shadow:0 0 0 1px var(--au-line);z-index:1}
 .si-empty{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;padding:36px 18px;color:var(--au-text2);font-size:13px}
 .si-empty b{color:var(--au-text);font-size:14px}
