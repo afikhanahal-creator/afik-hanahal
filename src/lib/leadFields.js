@@ -18,6 +18,9 @@ export const SOURCE_LABELS = {
   manual_meta:     { he: 'פייסבוק / אינסטגרם', en: 'Facebook / Instagram', color: '#1877F2' },
   manual_yad2:     { he: 'יד2',          en: 'Yad2',           color: '#F97316' },
   manual_other:    { he: 'הוזן ידנית',   en: 'Added manually', color: '#9AA0B5' },
+  // a conversation in the social inbox turned into a lead (src/SocialInboxTab.jsx)
+  messenger:       { he: 'מסנג׳ר',       en: 'Messenger',      color: '#0084FF' },
+  instagram:       { he: 'אינסטגרם',     en: 'Instagram',      color: '#E1306C' },
 }
 export function sourceLabel(source, lang = 'he') {
   const s = SOURCE_LABELS[source]

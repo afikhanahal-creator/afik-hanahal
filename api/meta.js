@@ -30,6 +30,8 @@ import { parseGreenHook, rowToGreen, mergeHistory, historyToRow } from '../lib/g
 import { avatarExpiry, avatarFresh, avatarPhone } from '../lib/wa-avatar.js'
 import { forwardRequest, fileGroupRequest, cleanMsgId, cleanReaction, isHandled, withHandled, withoutHandled } from '../lib/wa-actions.js'
 import { cleanProjects } from '../lib/projects.js'
+import { parseSocialHook, threadId, parseThreadId, contactFromText, previewText, leadBodyFromThread } from '../lib/social-hook.js'
+import { manualLeadRow } from '../lib/manual-lead.js'
 
 const SUPERMETRICS_API_KEY    = process.env.SUPERMETRICS_API_KEY    || ''
 // System User token (afik-api) — permanent, survives password changes. Used to
@@ -118,6 +120,220 @@ async function handleGreenHook(req, res) {
     }
   } catch (e) { console.error('[green-hook]', e.message) }
   return res.status(200).json({ ok: true })
+}
+
+// ── Social inbox: Messenger + Instagram DMs of the office's pages (lib/social-hook.js, server/social-migration.sql) ──────
+// The Meta webhook brings every message (handleSocialEvents); the admin's "סושיאל" tab lists the conversations, answers them
+// (Send API with the page token — Instagram through the page linked to it) and turns a person into a lead in one click.
+const SOCIAL_SCOPES = ['pages_messaging', 'instagram_basic', 'instagram_manage_messages', 'pages_manage_metadata']
+const _igMap = { at: 0, v: {}, accounts: [] }
+async function igPageMap() {                 // { <ig business account id>: <page id> } for the office's pages, 10-min cache
+  if (Date.now() - _igMap.at < 10 * 60e3) return _igMap.v
+  const v = {}, accounts = []
+  for (const pid of resolvePageIds({})) {
+    try {
+      const tok = await getPageToken(pid)
+      const d = await graphGet(`/${pid}?fields=name,instagram_business_account{id,username,name,profile_picture_url}`, tok)
+      const ig = d.instagram_business_account
+      if (ig?.id) { v[ig.id] = pid; accounts.push({ id: ig.id, username: ig.username || '', name: ig.name || '', pageId: pid, pageName: d.name || '' }) }
+    } catch {}
+  }
+  Object.assign(_igMap, { at: Date.now(), v, accounts })
+  return v
+}
+async function socialPageToken(platform, accountId) {
+  if (platform === 'messenger') return getPageToken(accountId)
+  const map = await igPageMap()
+  return getPageToken(map[accountId] || resolvePageIds({})[0])
+}
+async function socialProfile(platform, userId, token) {
+  try {
+    if (platform === 'messenger') { const d = await graphGet(`/${userId}?fields=first_name,last_name,profile_pic`, token); return { name: [d.first_name, d.last_name].filter(Boolean).join(' '), avatar: d.profile_pic || '' } }
+    const d = await graphGet(`/${userId}?fields=name,username,profile_pic`, token); return { name: d.name || '', username: d.username || '', avatar: d.profile_pic || '' }
+  } catch { return {} }
+}
+const cleanGraphErr = e => String(e?.message || e || '').replace(/access_token=[^&\s"]+/g, '').slice(0, 300)
+
+/** Store a batch of webhook / imported messages: the thread (name, picture, last line, unread, a phone / email they wrote) and
+ *  the message itself; a repeat delivery is skipped. A brand-new conversation alerts the office (WhatsApp). → { stored, newThreads } */
+async function storeSocialEvents(events, { quiet = false } = {}) {
+  if (!events.length || !SUPABASE_URL || !SUPABASE_KEY) return { stored: 0, newThreads: 0 }
+  const client = sb()
+  const own = resolvePageIds({})
+  let stored = 0, newThreads = 0
+  for (const e of events) {
+    if (e.platform === 'messenger' && own.length && !own.includes(e.accountId)) continue
+    const id = threadId(e.platform, e.accountId, e.userId)
+    const { data: seen } = await client.from('social_messages').select('id').eq('id', e.mid).maybeSingle()
+    if (seen) continue
+    const { data: cur, error: readErr } = await client.from('social_threads').select('id,name,username,phone,email,unread,last_at').eq('id', id).maybeSingle()
+    if (readErr) throw new Error(readErr.message)
+    let prof = {}
+    if (!cur?.name && !cur?.username) prof = await socialProfile(e.platform, e.userId, await socialPageToken(e.platform, e.accountId))
+    const found = e.direction === 'in' ? contactFromText(e.text) : { phone: '', email: '' }
+    const newer = !cur?.last_at || Date.parse(e.ts) >= Date.parse(cur.last_at)
+    const row = {
+      id, platform: e.platform, account_id: e.accountId, user_id: e.userId, updated_at: new Date().toISOString(),
+      ...(prof.name ? { name: prof.name } : {}), ...(prof.username ? { username: prof.username } : {}), ...(prof.avatar ? { avatar: prof.avatar } : {}),
+      ...(newer ? { last_text: previewText(e), last_dir: e.direction, last_at: e.ts } : {}),
+      unread: quiet ? (cur?.unread || 0) : e.direction === 'in' ? (cur?.unread || 0) + 1 : 0,
+      ...(found.phone && !cur?.phone ? { phone: found.phone } : {}), ...(found.email && !cur?.email ? { email: found.email } : {}),
+    }
+    const { error: te } = await client.from('social_threads').upsert(row, { onConflict: 'id' })
+    if (te) throw new Error(te.message)
+    const { error: me } = await client.from('social_messages').upsert({ id: e.mid, thread_id: id, direction: e.direction, body: e.text || null, attachments: e.attachments?.length ? e.attachments : null, ts: e.ts }, { onConflict: 'id', ignoreDuplicates: true })
+    if (me) throw new Error(me.message)
+    stored++
+    if (!cur) {
+      newThreads++
+      if (!quiet && e.direction === 'in') {
+        const who = row.name || (row.username ? `@${row.username}` : 'מישהו')
+        Auto.notifyTeam(`*הודעה חדשה ב${e.platform === 'instagram' ? 'אינסטגרם' : 'מסנג׳ר'} מ${who}*\n${previewText(e).slice(0, 300)}${found.phone ? `\nטלפון: ${found.phone}` : ''}\nלשיחה ולהוספה כליד: https://www.afikhanahal.co.il/admin-panel/social`).catch(() => {})
+      }
+    }
+  }
+  return { stored, newThreads }
+}
+
+// Import the latest conversations (the webhook brings only what arrives from now on): every own page's Messenger and its
+// Instagram account, newest 40 threads × 25 messages, stored quietly (no alerts, unread kept)
+async function syncSocialConversations({ deadline = Date.now() + 45000 } = {}) {
+  const map = await igPageMap()
+  const igOf = Object.fromEntries(Object.entries(map).map(([ig, pid]) => [pid, ig]))
+  const out = { pages: [] }
+  for (const pid of resolvePageIds({})) {
+    const tok = await getPageToken(pid)
+    for (const platform of ['messenger', 'instagram']) {
+      if (Date.now() > deadline) break
+      const account = platform === 'messenger' ? pid : igOf[pid]
+      if (!account) continue
+      const r = { page: pid, platform, threads: 0, messages: 0 }
+      try {
+        const d = await graphGet(`/${pid}/conversations?platform=${platform}&fields=id,updated_time,participants,messages.limit(25){id,message,from,to,created_time,attachments}&limit=40`, tok)
+        const events = []
+        for (const c of d.data || []) {
+          const person = (c.participants?.data || []).find(p => String(p.id) !== String(account) && String(p.id) !== String(pid))
+          if (!person?.id) continue
+          r.threads++
+          for (const m of (c.messages?.data || []).reverse()) {
+            const fromUs = String(m.from?.id) === String(account) || String(m.from?.id) === String(pid)
+            events.push({ platform, accountId: String(account), userId: String(person.id), direction: fromUs ? 'out' : 'in', mid: String(m.id), text: String(m.message || ''),
+              attachments: (m.attachments?.data || []).map(a => ({ type: String(a.mime_type || a.type || 'file').split('/')[0], url: String(a.image_data?.url || a.video_data?.url || a.file_url || '') })).slice(0, 10), ts: new Date(m.created_time || Date.now()).toISOString() })
+          }
+        }
+        const s = await storeSocialEvents(events, { quiet: true })
+        r.messages = s.stored
+      } catch (e) { r.error = cleanGraphErr(e) }
+      out.pages.push(r)
+    }
+  }
+  return out
+}
+
+async function handleSocial(req, res, action) {
+  if (!checkAuth(req)) return res.status(401).json({ error: 'Unauthorized' })
+  res.setHeader('Cache-Control', 'no-store')
+  const client = SUPABASE_URL && SUPABASE_KEY ? sb() : null
+  const missingTables = e => /social_(threads|messages)|relation .* does not exist|schema cache/i.test(String(e?.message || e || ''))
+  try {
+    if (action === 'social-threads') {
+      const { data, error } = await client.from('social_threads').select('*').order('last_at', { ascending: false, nullsFirst: false }).limit(300)
+      if (error) return res.status(missingTables(error) ? 200 : 502).json(missingTables(error) ? { threads: [], tablesMissing: true } : { error: error.message })
+      return res.status(200).json({ threads: data || [] })
+    }
+    if (action === 'social-thread') {
+      const id = String(req.query.id || '')
+      if (!parseThreadId(id)) return res.status(400).json({ error: 'bad id' })
+      const [{ data: thread }, { data: msgs }] = await Promise.all([
+        client.from('social_threads').select('*').eq('id', id).maybeSingle(),
+        client.from('social_messages').select('id,direction,body,attachments,ts').eq('thread_id', id).order('ts', { ascending: true }).limit(400),
+      ])
+      if (thread?.unread) await client.from('social_threads').update({ unread: 0 }).eq('id', id)
+      return res.status(200).json({ thread: thread ? { ...thread, unread: 0 } : null, messages: msgs || [] })
+    }
+    if (action === 'social-send') {
+      const id = String(req.body?.id || ''), text = String(req.body?.text || '').trim().slice(0, 2000)
+      const t = parseThreadId(id)
+      if (!t || !text) return res.status(400).json({ error: 'id and text required' })
+      const tok = await socialPageToken(t.platform, t.accountId)
+      const send = async extra => {
+        const r = await fetch(`https://graph.facebook.com/v20.0/me/messages?access_token=${tok}`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ recipient: { id: t.userId }, message: { text }, ...extra }), signal: AbortSignal.timeout(15000) })
+        const d = await r.json().catch(() => ({}))
+        return { ok: r.ok && !!d.message_id, d }
+      }
+      let s = await send({ messaging_type: 'RESPONSE' })
+      // more than 24 h since their last message: Meta allows a person's reply for 7 days with the HUMAN_AGENT tag
+      if (!s.ok && /24|outside of allowed window|2018278|10\b/.test(JSON.stringify(s.d?.error || {}))) s = await send({ messaging_type: 'MESSAGE_TAG', tag: 'HUMAN_AGENT' })
+      if (!s.ok) {
+        const err = s.d?.error || {}
+        const window = /window|2018278|HUMAN_AGENT|human_agent/i.test(JSON.stringify(err))
+        return res.status(502).json({ error: window ? 'עברו יותר מ-24 שעות מההודעה האחרונה של הלקוח, ו-Meta לא מאפשרת לשלוח עכשיו. אפשר לענות מאפליקציית Meta Business Suite.' : (err.message ? `Meta: ${String(err.message).slice(0, 200)}` : 'השליחה נכשלה'), code: err.code || null })
+      }
+      const ts = new Date().toISOString()
+      await storeSocialEvents([{ platform: t.platform, accountId: t.accountId, userId: t.userId, direction: 'out', mid: String(s.d.message_id), text, attachments: [], ts }], { quiet: true }).catch(() => {})
+      await client.from('social_threads').update({ unread: 0 }).eq('id', id)
+      return res.status(200).json({ ok: true, id: s.d.message_id, ts })
+    }
+    if (action === 'social-to-lead') {
+      const b = req.body || {}
+      const { data: thread } = await client.from('social_threads').select('*').eq('id', String(b.id || '')).maybeSingle()
+      if (!thread) return res.status(404).json({ error: 'השיחה לא נמצאה' })
+      const body = leadBodyFromThread(thread, b)
+      const r = manualLeadRow(body, await properHebrewName(body.name || ''))
+      if (r.error) return res.status(400).json({ error: r.error })
+      // the conversation's last messages go into the lead's first note, so the card shows what was said
+      const { data: msgs } = await client.from('social_messages').select('direction,body,ts').eq('thread_id', thread.id).order('ts', { ascending: false }).limit(8)
+      const said = (msgs || []).reverse().filter(m => m.body).map(m => `${m.direction === 'in' ? '←' : '→'} ${m.body}`).join('\n').slice(0, 1200)
+      if (said) {
+        const crm = r.row.crm_data
+        crm.notes = [{ id: `n${Date.now().toString(36)}s`, text: `💬 מה נכתב ב${thread.platform === 'instagram' ? 'אינסטגרם' : 'מסנג׳ר'}:\n${said}`, ts: Date.now(), kind: 'note' }, ...(crm.notes || [])]
+      }
+      const ins = await client.from('contacts').insert(r.row).select('*').single()
+      if (ins.error) return res.status(502).json({ error: ins.error.message })
+      await client.from('social_threads').update({ lead_id: String(ins.data.id), ...(r.row.phone && !thread.phone ? { phone: r.row.phone } : {}) }).eq('id', thread.id)
+      return res.status(201).json({ ok: true, lead: ins.data })
+    }
+    if (action === 'social-sync') return res.status(200).json(await syncSocialConversations())
+    if (action === 'social-status') {
+      // what is connected and what is missing: the token's messaging scopes, each own page's webhook fields (messages), its
+      // Instagram account; ?fix=1 subscribes the pages to messages (leadgen kept)
+      const out = { pages: [], instagram: [], scopes: [], missing: [] }
+      try {
+        const dbg = await graphGet(`/debug_token?input_token=${encodeURIComponent(META_PAGE_ACCESS_TOKEN)}`, META_PAGE_ACCESS_TOKEN)
+        out.scopes = dbg.data?.scopes || []
+        out.missing = SOCIAL_SCOPES.filter(s => !out.scopes.includes(s))
+      } catch (e) { out.tokenError = cleanGraphErr(e) }
+      _igMap.at = 0
+      await igPageMap()
+      out.instagram = _igMap.accounts
+      for (const pid of resolvePageIds({})) {
+        const pc = { id: pid }
+        try {
+          const tok = await getPageToken(pid)
+          pc.name = (await graphGet(`/${pid}?fields=name`, tok)).name
+          const subs = await graphGet(`/${pid}/subscribed_apps`, tok)
+          const fields = [...new Set((subs.data || []).flatMap(a => a.subscribed_fields || []))]
+          pc.fields = fields
+          pc.messages = fields.includes('messages')
+          if (req.query.fix && !pc.messages) {
+            const want = [...new Set([...fields, 'leadgen', 'messages', 'message_echoes', 'messaging_postbacks'])].join(',')
+            const r = await fetch(`https://graph.facebook.com/v20.0/${pid}/subscribed_apps?subscribed_fields=${want}&access_token=${tok}`, { method: 'POST', signal: AbortSignal.timeout(15000) })
+            pc.fix = r.ok ? 'subscribed' : cleanGraphErr(await r.text())
+            if (r.ok) pc.messages = true
+          }
+        } catch (e) { pc.error = cleanGraphErr(e) }
+        out.pages.push(pc)
+      }
+      if (client) { const { error } = await client.from('social_threads').select('id').limit(1); out.tablesMissing = !!(error && missingTables(error)) }
+      out.ok = !out.missing.length && out.pages.length > 0 && out.pages.every(p => p.messages) && !out.tablesMissing
+      return res.status(200).json(out)
+    }
+    return res.status(404).json({ error: 'unknown action' })
+  } catch (e) {
+    if (missingTables(e)) return res.status(200).json({ tablesMissing: true, threads: [] })
+    return res.status(500).json({ error: cleanGraphErr(e) })
+  }
 }
 
 // ── Projects (deals) the leads belong to (lib/projects.js) — the list lives in app_settings 'lead_projects' ──────────────
@@ -393,7 +609,10 @@ async function handleWebhook(req, res) {
       // Every delivery is recorded (app_settings 'meta_webhook_log', last 20): the Lead Center and /connect show when
       // Meta last reached us — a webhook that stopped arriving is visible instead of silent
       await logWebhookEvent({ object: body?.object || null, changes: (body?.entry || []).flatMap(e => (e.changes || []).map(c => ({ field: c.field, page: c.value?.page_id || e.id || null, leadgen: c.value?.leadgen_id || null }))) }).catch(() => {})
-      if (body?.object !== 'page') return res.status(200).json({ status: 'ignored', reason: 'not a page event' })
+      // Messenger / Instagram messages of the office's pages → the social inbox (a failure never blocks a lead below)
+      const socialEvents = parseSocialHook(body)
+      if (socialEvents.length) await storeSocialEvents(socialEvents).catch(e => console.error('[social] store:', cleanGraphErr(e)))
+      if (body?.object !== 'page') return res.status(200).json({ status: socialEvents.length ? 'social' : 'ignored', reason: 'not a page event' })
 
       const client = sb()
       for (const entry of body.entry || []) {
@@ -1939,6 +2158,7 @@ export default async function handler(req, res) {
   if (path === 'webhook')      return handleWebhook(req, res)
   if (path === 'green-hook')   return handleGreenHook(req, res)
   if (path === 'projects')     return handleProjects(req, res)
+  if (path.startsWith('social-')) return handleSocial(req, res, path)
   if (path === 'leads')        return handleLeads(req, res)
   if (path === 'messages')     return handleMessages(req, res)
   if (path === 'sync')         return handleSync(req, res)
