@@ -19,6 +19,7 @@ export const DOC_CSS = `
 .dsh-rows{width:100%;border-collapse:collapse;margin-bottom:6px}
 .dsh-rows td{padding:5px 0;border-bottom:1px solid var(--dsh-line);vertical-align:top;font-size:10pt}
 .dsh-rows td:first-child{color:var(--dsh-mute);font-weight:600;width:118px;font-size:9.5pt}
+.dsh-p{margin:0 0 10px;white-space:pre-wrap}.dsh-h{border:none;padding:0;font-size:12.5pt}
 .dsh-cl{margin:0 0 10px}.dsh-cl b{display:block;font-size:11pt;margin-bottom:2px}.dsh-cl p{margin:0;padding-inline-start:14px;white-space:pre-wrap}
 .dsh-fees{border-collapse:collapse;width:400px;max-width:100%;margin:4px 0 10px}
 .dsh-fees td{padding:5px 8px;border-bottom:1px solid var(--dsh-line);font-size:10pt}
@@ -41,6 +42,9 @@ export default function DocSheet({ view, signatureUrl = '', logoSrc = '/logo-bla
   if (!view) return null
   const c = view.client || {}, p = view.property || {}, f = view.fees || {}, a = view.agent || {}, lg = view.logo || {}
   const signed = view.status === 'signed' && view.signature
+  const sec = view.sections || { parties: true, property: true, fees: true, signatures: true }
+  const blocks = view.blocks || (view.clauses || []).map(c => ({ t: 'clause', n: c.n, title: c.title, text: c.text }))
+  const brokerage = !view.sections || view.kind === 'brokerage' || (sec.fees && !!view.clauses)
   const logo = lg.show !== false ? (lg.url || logoSrc) : ''
   const align = lg.align === 'center' ? 'c' : lg.align === 'left' ? 'l' : ''
   return (
@@ -52,17 +56,17 @@ export default function DocSheet({ view, signatureUrl = '', logoSrc = '/logo-bla
       </header>
       <h1>{view.title}</h1>
       <div className="dsh-meta">מסמך מס׳ <span dir="ltr">{view.number || 'טיוטה'}</span> · תאריך {todayHe(view.created_at || new Date())}{signed ? <> · נחתם {whenHe(view.signed_at || view.signature.at)}</> : null}</div>
-      <h2>פרטי הלקוח</h2>
+      {sec.parties && <><h2>פרטי הלקוח</h2>
       <table className="dsh-rows"><tbody>
-        <Row k="שם מלא" v={c.name}/><Row k="ת.ז." v={c.idNumber} ltr/><Row k="טלפון" v={c.phone || c.phoneMasked} ltr/><Row k="אימייל" v={c.email || c.emailMasked} ltr/><Row k="כתובת" v={c.address}/><Row k="בעסקה כ" v={CLIENT_ROLES[c.role]}/>
-      </tbody></table>
-      <h2>פרטי הנכס</h2>
+        <Row k="שם מלא" v={c.name}/><Row k="ת.ז." v={c.idNumber} ltr/><Row k="טלפון" v={c.phone || c.phoneMasked} ltr/><Row k="אימייל" v={c.email || c.emailMasked} ltr/><Row k="כתובת" v={c.address}/><Row k="בעסקה כ" v={CLIENT_ROLES[c.role]}/><Row k="פרויקט" v={view.project}/>
+      </tbody></table></>}
+      {sec.property && <><h2>פרטי הנכס</h2>
       <table className="dsh-rows"><tbody>
-        <Row k="כתובת" v={[p.address, p.city].filter(Boolean).join(', ')}/><Row k="תיאור" v={p.desc}/><Row k="סוג הנכס" v={p.type}/><Row k="סוג העסקה" v={DEAL_TYPES[p.dealType]}/><Row k='מחיר העסקה (לפני מע"מ)' v={fmtMoney(f.price || 0)} ltr/><Row k="הערות" v={p.notes}/><Row k="קישור לנכס" v={p.link} ltr/>
-      </tbody></table>
-      <h2>תנאי ההתקשרות</h2>
-      {(view.clauses || []).map(cl => <div className="dsh-cl" key={cl.n}><b>{cl.n}. {cl.title}</b><p>{cl.text}</p></div>)}
-      <h2>דמי התיווך</h2>
+        <Row k="כתובת" v={[p.address, p.city].filter(Boolean).join(', ')}/><Row k="תיאור" v={p.desc}/><Row k="סוג הנכס" v={p.type}/><Row k="סוג העסקה" v={DEAL_TYPES[p.dealType]}/><Row k='מחיר העסקה (לפני מע"מ)' v={f.price ? fmtMoney(f.price) : ''} ltr/><Row k="הערות" v={p.notes}/><Row k="קישור לנכס" v={p.link} ltr/>
+      </tbody></table></>}
+      {brokerage && blocks.length > 0 && <h2>תנאי ההתקשרות</h2>}
+      {blocks.map((b, i) => b.t === 'h' ? <h2 key={i} className="dsh-h">{b.text}</h2> : b.t === 'clause' ? <div className="dsh-cl" key={i}><b>{b.n}. {b.title}</b><p>{b.text}</p></div> : <p className="dsh-p" key={i}>{b.text}</p>)}
+      {sec.fees && <><h2>דמי התיווך</h2>
       <table className="dsh-fees"><tbody>
         <tr><td>בסיס החישוב</td><td dir="rtl" style={{ textAlign: 'left' }}>{f.basis}</td></tr>
         <tr><td>מחיר העסקה לפני מע"מ</td><td>{fmtMoney(f.price || 0)}</td></tr>
@@ -70,7 +74,7 @@ export default function DocSheet({ view, signatureUrl = '', logoSrc = '/logo-bla
         <tr><td>מע"מ {fmtPct(f.vatRate ?? 18)}</td><td>{fmtMoney(f.vat || 0)}</td></tr>
         <tr className="t"><td>סה"כ לתשלום כולל מע"מ</td><td>{fmtMoney(f.total || 0)}</td></tr>
       </tbody></table>
-      {view.terms && <><h2>תנאים נוספים</h2><p style={{ margin: '0 0 8px', whiteSpace: 'pre-wrap' }}>{view.terms}</p></>}
+      {view.terms && <><h2>תנאים נוספים</h2><p style={{ margin: '0 0 8px', whiteSpace: 'pre-wrap' }}>{view.terms}</p></>}</>}
       <h2>חתימות</h2>
       <div className="dsh-sig">
         <div className="dsh-box"><b>הלקוח</b>{signed && signatureUrl ? <img src={signatureUrl} alt="חתימת הלקוח"/> : <div className="ln"/>}<small>{signed ? <>{view.signature.name}<br/>נחתם דיגיטלית {whenHe(view.signature.at)}</> : <>{c.name}<br/>שם, חתימה ותאריך</>}</small></div>

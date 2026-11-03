@@ -2337,9 +2337,24 @@ async function handleDocs(req, res, action) {
     }
     if (action === 'docs-list') {
       await Docs.sweepExpired().catch(() => 0)
-      const docs = await Docs.listDocs({ status: req.query?.status, q: req.query?.q, lead: req.query?.lead, limit: req.query?.limit })
+      const docs = await Docs.listDocs({ status: req.query?.status, q: req.query?.q, lead: req.query?.lead, project: req.query?.project, limit: req.query?.limit })
       return res.status(200).json({ docs, status: Docs.status() })
     }
+    // templates: GET docs-templates → { templates, builtin } · GET docs-template?id= · POST docs-template {…} (id = update) · POST docs-template-delete {id}
+    // POST docs-extract (the file's bytes; ?name=&type=) → { text, method, pages, warnings, source } (the file is kept under templates/)
+    if (action === 'docs-templates') { const r = await Docs.listTemplates({ all: !!req.query?.all }); return res.status(200).json({ ...r, builtin: await Docs.getTemplate('brokerage') }) }
+    if (action === 'docs-template') {
+      if (req.method === 'POST') { const r = await Docs.saveTemplate(b, { by: 'admin' }); return res.status(r.error ? 400 : 200).json(r) }
+      const t = await Docs.getTemplate(req.query?.id)
+      return t ? res.status(200).json({ template: t }) : res.status(404).json({ error: 'התבנית לא נמצאה' })
+    }
+    if (action === 'docs-template-delete') { const r = await Docs.deleteTemplate(b.id); return res.status(r.error ? 400 : 200).json(r) }
+    if (action === 'docs-extract') {
+      const bytes = req.rawBuffer || Buffer.alloc(0)
+      const r = await Docs.extractUpload(bytes, { name: String(req.query?.name || ''), type: String(req.query?.type || req.headers['content-type'] || '') })
+      return res.status(r.error ? 400 : 200).json(r)
+    }
+    if (action === 'docs-missing') { const d = await Docs.getDoc(req.query?.id); return d ? res.status(200).json({ missing: await Docs.docMissing(d) }) : res.status(404).json({ error: 'המסמך לא נמצא' }) }
     if (action === 'docs-get') {
       const doc = await Docs.getDoc(req.query?.id)
       if (!doc) return res.status(404).json({ error: 'המסמך לא נמצא' })
@@ -2355,9 +2370,10 @@ async function handleDocs(req, res, action) {
     if (action === 'docs-preview') {
       const { cleanDocInput } = await import('../lib/documents.js')
       const settings = await Docs.getSettings()
-      const { data, errors } = cleanDocInput({ ...b, fees: { vatRate: settings.vatRate, ...(b.fees || {}) }, agent: b.agent?.name ? b.agent : settings.agent, logo: b.logo || settings.logo })
+      const ptp = b.templateId && b.templateId !== 'brokerage' ? await Docs.getTemplate(b.templateId).catch(() => null) : null
+      const { data, errors } = cleanDocInput({ ...b, fees: { vatRate: settings.vatRate, ...(b.fees || {}) }, agent: b.agent?.name ? b.agent : settings.agent, logo: b.logo || settings.logo }, ptp ? { requireProperty: !!ptp.sections.property, requireFees: !!ptp.sections.fees, requireAgent: false } : {})
       if (errors.length) return res.status(400).json({ errors })
-      return sendFile({ bytes: await Docs.renderCurrent({ number: b.number || 'טיוטה', status: 'draft', data, created_at: new Date().toISOString() }), type: 'application/pdf', name: 'preview.pdf' })
+      return sendFile({ bytes: await Docs.renderCurrent({ number: b.number || 'טיוטה', status: 'draft', data, created_at: new Date().toISOString(), template_id: b.templateId && b.templateId !== 'brokerage' ? b.templateId : null, project_name: data.projectName }), type: 'application/pdf', name: 'preview.pdf' })
     }
     if (action === 'docs-settings') return res.status(200).json({ settings: req.method === 'POST' ? await Docs.saveSettings(b) : await Docs.getSettings(), status: Docs.status() })
     if (action === 'docs-clauses') { await Docs.saveClauses(b.clauses, { reset: !!b.reset }); return res.status(200).json({ settings: await Docs.getSettings() }) }
@@ -2508,7 +2524,7 @@ export default async function handler(req, res) {
     req.on('error', reject)
   })
   req.rawBuffer = Buffer.concat(chunks)
-  const isAudio = /^(audio\/|application\/octet-stream)/i.test(String(req.headers?.['content-type'] || ''))
+  const isAudio = /^(audio\/|application\/octet-stream|application\/pdf|image\/|application\/vnd\.openxmlformats|application\/msword)/i.test(String(req.headers?.['content-type'] || ''))
   const rawBody = isAudio ? '' : req.rawBuffer.toString('utf8')
   try { req.body = rawBody ? JSON.parse(rawBody) : {} } catch { req.body = {} }
   req.rawBody = rawBody

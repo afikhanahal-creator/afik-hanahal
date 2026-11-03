@@ -1552,6 +1552,12 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     window.addEventListener('afik:new-doc', h)
     return () => window.removeEventListener('afik:new-doc', h)
   }, [])
+  const [docsProject, setDocsProject] = useState(() => { try { return /\/admin-panel\/documents/.test(window.location.pathname) ? String(new URL(window.location.href).searchParams.get('project') || '') : '' } catch { return '' } })
+  useEffect(() => {
+    const h = e => { const id = e.detail?.projectId; if (id) { setDocsProject(String(id) + '#' + Date.now()); setTab('docs') } }
+    window.addEventListener('afik:project-docs', h)
+    return () => window.removeEventListener('afik:project-docs', h)
+  }, [])
   const [reminderCardId, setReminderCardId] = useState(null)   // the lead card opened from a reminder (any screen)
   const cardFallback = useRef(null)
   const [autoRun, setAutoRun]         = useState(null)    // last run: suggestions, sent, moves…
@@ -2899,7 +2905,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     { id:'leads',    Icon:FaHandshake,   label:'לידים',       badge: leads.length },
     { id:'sellers',  Icon:FaClipboardList, label:'נכסים שנקלטו', badge: intakeStats?.new || undefined },
     { id:'bookings', Icon:FaCalendarAlt, label:'תיאום פגישות' },
-    { id:'docs',     Icon:FaFileSignature, label:'מסמכים וחתימות' },
+    { id:'docs',     Icon:FaFileSignature, label:'ניהול מסמכים' },
     { id:'content',  Icon:FaFileAlt,     label:'תוכן האתר' },
     { id:'media',    Icon:FaImage,       label:'תמונות האתר' },
     { id:'studio',   Icon:FaVideo,       label:'סטודיו וידאו' },
@@ -2919,7 +2925,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     { id:'data',  he:'נתונים וביצועים', en:'INSIGHTS',    ids:['analytics','supermetrics'] },
     { id:'admin', he:'ניהול',           en:'ADMIN',       ids:['team','counters','settings'] },
   ]
-  const TAB_LABELS = { docs:'מסמכים וחתימות', overview:'סקירה כללית', live:'נכסים באוויר', props:'ניהול נכסים', leads:'לידים', sellers:'נכסים שנקלטו', bookings:'תיאום פגישות', media:'תמונות האתר', studio:'סטודיו וידאו', content:'תוכן האתר', chats:'שיחות WhatsApp', social:'תיבת הודעות (וואטסאפ, מסנג׳ר, אינסטגרם)', automations:'אוטומציות וואטסאפ', meta:'מרכז מטא', analytics:'אנליטיקס', supermetrics:'ביצועים', team:'צוות', counters:'מונים', settings:'הגדרות' }
+  const TAB_LABELS = { docs:'ניהול מסמכים', overview:'סקירה כללית', live:'נכסים באוויר', props:'ניהול נכסים', leads:'לידים', sellers:'נכסים שנקלטו', bookings:'תיאום פגישות', media:'תמונות האתר', studio:'סטודיו וידאו', content:'תוכן האתר', chats:'שיחות WhatsApp', social:'תיבת הודעות (וואטסאפ, מסנג׳ר, אינסטגרם)', automations:'אוטומציות וואטסאפ', meta:'מרכז מטא', analytics:'אנליטיקס', supermetrics:'ביצועים', team:'צוות', counters:'מונים', settings:'הגדרות' }
 
   return (
     <div className="admin-shell admin-scroll" style={standalone
@@ -3174,7 +3180,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
             {tabBtn('leads', 'לידים', leads.length)}
             {tabBtn('sellers', 'נכסים שנקלטו', intakeStats?.new || undefined)}
             {tabBtn('bookings', 'תיאום פגישות')}
-            {tabBtn('docs', 'מסמכים וחתימות')}
+            {tabBtn('docs', 'ניהול מסמכים')}
             {tabBtn('content', 'תוכן האתר')}
             {tabBtn('media', 'תמונות האתר')}
             {tabBtn('studio', 'סטודיו וידאו')}
@@ -3526,7 +3532,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
         )}
         {tab==='docs' && (
           <Suspense fallback={<AdminTabLoader label="טוען מסמכים וחתימות…"/>}>
-            <DocumentsTab lang={lang} leads={leads} properties={orderedProps} standalone={standalone} initialLeadId={docsLeadId.split('#')[0]} key={docsLeadId}
+            <DocumentsTab lang={lang} leads={leads} properties={orderedProps} standalone={standalone} initialLeadId={docsLeadId.split('#')[0]} initialProject={docsProject.split('#')[0]} key={docsLeadId + '|' + docsProject}
               onOpenLead={id => { setTab('leads'); try { const u = new URL(window.location.href); u.searchParams.set('lead', String(id)); window.history.replaceState(window.history.state, '', u) } catch {} }}/>
           </Suspense>
         )}

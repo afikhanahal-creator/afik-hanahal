@@ -31,7 +31,7 @@ export function LeadDocsTab({ lead, lang = 'he' }) {
       {!list.length ? <div className="ld-empty">{en ? 'No documents for this lead yet. "New document" opens the brokerage order form with this lead\'s details filled in.' : 'עדיין אין מסמכים לליד הזה. "מסמך חדש" פותח את טופס הזמנת שירותי התיווך עם הפרטים של הליד.'}</div>
         : list.map(d => { const st = effectiveStatus(d), Ic = ICON[st] || Clock; return (
           <div key={d.id} className="ld-row">
-            <div><b style={{ fontWeight: 600 }}>{d.title}</b> <span dir="ltr" style={{ color: 'var(--au-text3)', fontSize: 12 }}>{d.number}</span><small>{d.property || ''}{d.pct != null ? ` · ${fmtPct(d.pct)}` : d.basis ? ` · ${d.basis}` : ''}{d.total ? ` · ${fmtMoney(d.total)} כולל מע"מ` : ''}</small></div>
+            <div><b style={{ fontWeight: 600 }}>{d.title}</b> <span dir="ltr" style={{ color: 'var(--au-text3)', fontSize: 12 }}>{d.number}</span><small>{[d.project, d.property].filter(Boolean).join(' · ')}{d.pct != null ? ` · ${fmtPct(d.pct)}` : d.basis ? ` · ${d.basis}` : ''}{d.total ? ` · ${fmtMoney(d.total)} כולל מע"מ` : ''}</small></div>
             <span className="st" style={{ background: `${TONE[st]}1F`, color: TONE[st] }}><Ic size={12}/>{STATUS_HE[st] || st}</span>
             <small style={{ gridColumn: '1/-1' }}>{en ? 'Created' : 'נוצר'} {todayHe(d.created_at)}{d.sent_at ? ` · ${en ? 'sent' : 'נשלח'} ${todayHe(d.sent_at)}` : ''}{d.signed_at ? ` · ${en ? 'signed' : 'נחתם'} ${whenHe(d.signed_at)}` : ''}</small>
             <div className="ld-files">

@@ -417,6 +417,7 @@ export function ProjectsManager({ leads, projects, lang = 'he', startNew = false
                 {p.aliases.length > 0 && <div className="lp-aliases">{p.aliases.map(a => <span key={a}>{a}</span>)}</div>}
                 <div className="lp-card-act">
                   {onShow && <button type="button" className="lp-secondary" onClick={() => onShow(p.id)}>{t.showLeads}</button>}
+                  <button type="button" className="lp-secondary lp-docs" onClick={() => { onClose?.(); window.dispatchEvent(new CustomEvent('afik:project-docs', { detail: { projectId: p.id } })) }} title="כל המסמכים של הפרויקט — טפסים שנשלחו, נחתמו, ממתינים">{lang === 'en' ? 'Documents' : 'מסמכים וחתימות'}</button>
                   <button type="button" className="lp-icon" title={t.mergeBtn} aria-label={`${t.mergeBtn}: ${p.name}`} disabled={projects.length < 2} onClick={() => { if (!pick.includes(p.id)) togglePick(p.id) }}><GitMerge size={14}/></button>
                   <button type="button" className="lp-icon" title={t.edit} aria-label={`${t.edit}: ${p.name}`} onClick={() => setEdit({ id: p.id, name: p.name, town: p.town, color: p.color, aliases: p.aliases.join(', ') })}><Pencil size={14}/></button>
                   <button type="button" className="lp-icon" title={p.status === 'archived' ? t.unarchive : t.archive} aria-label={p.status === 'archived' ? t.unarchive : t.archive} disabled={busy} onClick={() => toggleArchive(p)}>{p.status === 'archived' ? <ArchiveRestore size={14}/> : <Archive size={14}/>}</button>
@@ -635,6 +636,7 @@ export const LP_CSS = `
 .lp-merge-what{margin:0;font-size:12.5px;color:var(--au-text2,#555);line-height:1.6}
 .lp-card-act{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-top:auto}
 .lp-card-act .lp-secondary{flex:1 1 100%;justify-content:center}
+.lp-card-act .lp-docs{flex:1 1 100%}
 .lp-empty{grid-column:1/-1;padding:24px;text-align:center;color:var(--au-text3,#888);font-size:13px}
 .lp-sugg{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:14px;padding-top:12px;border-top:1px solid var(--au-line,#e5e7eb);font-size:12.5px}
 .lp-sugg b{margin-inline-end:4px;color:var(--au-text2,#555)}
