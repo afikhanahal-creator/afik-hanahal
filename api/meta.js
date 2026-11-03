@@ -367,11 +367,11 @@ async function handleSocial(req, res, action) {
     }
     // GET social-wa → the office line's chats from wa_messages (afik_wa_threads), named (lead, phone book) and linked to the lead
     if (action === 'social-wa') {
-      const { data, error } = await client.rpc('afik_wa_threads', { lim: 600 })
+      const [{ data, error }, hiddenRow] = await Promise.all([client.rpc('afik_wa_threads', { lim: 600 }), Auto.getSetting('wa_hidden_chats').catch(() => ({ value: null }))])
       if (error) return res.status(missingTables(error) ? 200 : 502).json(missingTables(error) ? { chats: [], fnMissing: true } : { error: error.message })
       const office = String(process.env.BUSINESS_NOTIFY_CHATID || '972559811814').replace(/@.*/, '').replace(/\D/g, '')
       const rows = (data || []).filter(r => r.phone !== office)
-      const hidden = (await Auto.getSetting('wa_hidden_chats').catch(() => ({ value: null }))).value || []
+      const hidden = hiddenRow?.value || []
       const [names, leads] = await Promise.all([
         chatNames(rows.map(r => ({ phone: r.phone, chatId: `${r.phone}@c.us`, name: '' }))).catch(() => ({ map: new Map() })),
         leadIdsByPhone().catch(() => new Map()),
@@ -1784,11 +1784,11 @@ async function handleChat(req, res, action) {
     if (action === 'chat-waiting') {
       if (!SUPABASE_URL || !SUPABASE_KEY) return res.status(200).json({ waiting: [] })
       const days = Math.min(60, Math.max(1, Number(req.query?.days) || 14))
-      const { data, error } = await sb().rpc('afik_wa_waiting', { days })
+      const [{ data, error }, doneRow] = await Promise.all([sb().rpc('afik_wa_waiting', { days }), Auto.getSetting('wa_waiting_done').catch(() => ({ value: null }))])
       if (error) return res.status(502).json({ error: error.message })
       const office = String(process.env.BUSINESS_NOTIFY_CHATID || '972559811814').replace(/@.*/, '').replace(/\D/g, '')
       // chats marked "handled" leave the list until the lead writes again (lib/wa-actions.js)
-      const done = (await Auto.getSetting('wa_waiting_done')).value || {}
+      const done = doneRow?.value || {}
       return res.status(200).json({ done, waiting: (data || []).filter(r => r.phone !== office && !isHandled(done, r.phone, r.ts)).map(r => ({ phone: r.phone, ts: r.ts, type: r.type, text: r.body || '' })) })
     }
     // POST /api/meta/chat-waiting-done { items: [{ phone, ts }] } → off "ממתינים לתשובה" (ts = the lead's last message);
@@ -1806,7 +1806,8 @@ async function handleChat(req, res, action) {
     if (action === 'chat-updates') {
       if (!SUPABASE_URL || !SUPABASE_KEY) return res.status(200).json({ messages: [], cursor: null })
       const since = Date.parse(String(req.query?.since || '')) ? new Date(String(req.query.since)).toISOString() : new Date(Date.now() - 10 * 60e3).toISOString()
-      const { data, error } = await sb().from('wa_messages').select('id,phone,direction,type,body,file_url,file_name,mime,quoted,status,sender_name,ts,updated_at').gt('updated_at', since).order('updated_at', { ascending: true }).limit(300)
+      const lim = Math.min(600, Math.max(1, Number(req.query?.limit) || 300))
+      const { data, error } = await sb().from('wa_messages').select('id,phone,direction,type,body,file_url,file_name,mime,quoted,status,sender_name,ts,updated_at').gt('updated_at', since).order('updated_at', { ascending: true }).limit(lim)
       if (error) return res.status(502).json({ error: error.message })
       const rows = data || []
       return res.status(200).json({ messages: rows.map(r => ({ ...slimGreenMsg(rowToGreen(r)), phone: r.phone, senderName: r.sender_name || undefined })), cursor: rows.length ? rows[rows.length - 1].updated_at : since })

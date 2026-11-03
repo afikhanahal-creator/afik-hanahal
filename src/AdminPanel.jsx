@@ -1942,7 +1942,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
       setChats(prev => {
         const next = { ...prev }
         for (const conv of convs) {
-          const p = (conv.phone || '').replace(/D/g, '')
+          const p = (conv.phone || '').replace(/\D/g, '')
           if (!p) continue
           const normalised = p.startsWith('972') ? p : p.startsWith('0') ? '972' + p.slice(1) : p
           if (!next[normalised] || next[normalised].length === 0) {
@@ -2178,31 +2178,11 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     return () => { if (chatPollRef.current) clearInterval(chatPollRef.current) }
   }, [selectedLead?.id, fetchChats])
 
-  // Poll chats for selected contact in the dedicated chat tab (every 3s)
-  useEffect(() => {
-    if (tab !== 'chats' || !chatContact?.phone) return
-    fetchChats(chatContact.phone)
-    // 3s is plenty responsive for a chat view; the old 500ms fired ~2 req/sec
-    // continuously. Also pause entirely while the tab is hidden.
-    const interval = setInterval(() => { if (!document.hidden) fetchChats(chatContact.phone) }, 30000)   // Realtime is the live channel
-    return () => clearInterval(interval)
-  }, [chatContact?.id, tab, fetchChats]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Poll all conversations list (sidebar last messages) every 8s when in chats tab
-  useEffect(() => {
-    if (tab !== 'chats') return
-    fetchAllChats()
-    const id = setInterval(() => { if (!document.hidden) fetchAllChats() }, 30000)
-    return () => clearInterval(id)
-  }, [tab, fetchAllChats]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Fetch Green API status when chats tab opens
-  useEffect(() => {
-    if (tab !== 'chats') return
-    fetchChatStatus()
-    const id = setInterval(() => { if (!document.hidden) fetchChatStatus() }, 60000)
-    return () => clearInterval(id)
-  }, [tab, fetchChatStatus])
+
+  // (the Render polls of the old chat screen — conversations / status / one chat every 30 s — are gone, 2026-11-03: that screen is
+  // `false && …`, and each visit to the chats tab woke the sleeping Render server for nothing. GreenAPIChat talks to Green through Vercel.)
 
     // Auto-scroll chat to bottom when new messages arrive
   useEffect(() => {
