@@ -104,6 +104,24 @@ if (ACTIONS.includes('connect') || ACTIONS.includes('connect-fix')) {
 }
 // docs: the documents module on the live site — the list read (counts only), the settings (wiring, no secrets), and a
 // rendered PDF of a throw-away draft (docs-preview; nothing is stored) so the Hebrew font and the layout are proven live.
+// docs-test: a real brokerage order for the office's own test lead (יוגב קידר, lead 125), sent to his WhatsApp — so the whole
+// flow (link, signing page, signed PDF, the mails) can be tried again after a change. The log prints the document number
+// and whether the send went out, never the link (the repo and this log are public; the link is the client's).
+if (ACTIONS.includes('docs-test')) {
+  const body = { leadId: '125', client: { name: 'יוגב קידר', phone: '0543049491', role: 'buyer' }, projectName: 'זרובבל 15',
+    property: { address: 'זרובבל 15', city: 'רעננה', desc: 'דירת 4 חדרים (בדיקת מערכת)', type: 'דירה', dealType: 'sale', price: 3000000 },
+    fees: { mode: 'percent', pct: 2, vatRate: 18, price: 3000000, terms: 'דמי התיווך ישולמו ב-2 תשלומים שווים.' }, agent: { name: 'ישראל בן-יהודה', phone: '0559811814' } }
+  const t = Date.now()
+  const r = await fetch(`${SITE}/api/meta/docs-create`, { method: 'POST', headers: H, body: JSON.stringify(body), signal: AbortSignal.timeout(30000) })
+  const d = await r.json().catch(() => ({}))
+  show(`docs-test create (HTTP ${r.status}, ${Date.now() - t} ms)`, { number: d.doc?.number, status: d.doc?.status, lead: d.lead?.id, errors: d.errors, error: d.error })
+  if (d.doc?.id) {
+    const t2 = Date.now()
+    const s2 = await fetch(`${SITE}/api/meta/docs-send`, { method: 'POST', headers: H, body: JSON.stringify({ id: d.doc.id, via: ['whatsapp'] }), signal: AbortSignal.timeout(60000) })
+    const sd = await s2.json().catch(() => ({}))
+    show(`docs-test send (HTTP ${s2.status}, ${Date.now() - t2} ms)`, { status: sd.doc?.status, results: (sd.results || []).map(x => ({ via: x.via, ok: x.ok, error: x.error })), error: sd.error })
+  }
+}
 if (ACTIONS.includes('docs')) {
   const call = async (label, path, init = {}) => {
     const t = Date.now()
