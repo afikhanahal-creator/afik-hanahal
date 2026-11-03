@@ -942,6 +942,27 @@ stage history, the other message and `mergedFrom` are kept, then the other lead 
 fails). Pipeline cards no longer shift while dragging (`NO_SHIFT` — the order in a column isn't saved). Meta form option codes read
 as words (`prettyAnswerValue` / `prettyLeadText`: "3r" → "3 חדרים", "b34" → "3–4 מיליון").
 
+**Projects (deals)** (2026-11-03, `lib/projects.js` + `lib/manual-lead.js`, tested; UI `src/LeadProjects.jsx`, list
+`src/lib/projectsStore.js`): the properties / projects run in parallel — `{ id: 'p_…', name, color, town, status: active | archived,
+aliases }` in `app_settings.lead_projects` (`GET / POST /api/meta/projects`, the server merges by id; deleting needs `removed`). A
+lead's project = the one it was put in by hand (`crm_data.projectId` + `projectName`; `__none` = taken out) else the project whose
+name / alias matches its campaign short name or listing (`projectOfLead()`; an archived project takes no new ones). `projectName`
+is also what `leadProject()` / `leadProperty()` return, so `{property}` in the messages and "+ הוספת הפרויקט" follow it. The leads
+board has a **project bar** (all · every project with its count · בלי פרויקט · + פרויקט חדש · ניהול פרויקטים; the choice filters the
+pipeline, the table, "תמונת מצב" and the follow-ups, `localStorage.afik_lead_project_filter`, plus a summary strip with the stage
+bar); **a colored project chip** on every pipeline card, phone card, the table's "פרויקט" column and the lead card's details — a
+click opens a picker (search, "בלי פרויקט", type a new name → create); the bulk bar's "שיוך לפרויקט"; **"ניהול פרויקטים"** (cards
+with leads / open / the stage bar, edit name / town / color / campaign names, archive, delete — the leads stay —, and "קמפיינים בלי
+פרויקט" → create from one). **"ליד חדש" is saved on the server now** (it used to add a row in this browser only): a dialog — name,
+phone / email (one is needed), project (the bar's project by default), stage (the column's), where from (phone call / referral /
+walk-in / website / Facebook-Instagram / Yad2 / other + details), a first note, "לשלוח הודעת פתיחה" (off) → `POST
+/api/contacts?manual=1` (admin) → `manualLeadRow()` (source `manual_<from>`, `crm_data.origin.channel = 'manual'`), no new-lead
+email / office WhatsApp, the welcome only when ticked.
+**The lead card is wide and always shows the chat** (2026-11-03): up to 1800 × 1080 px; on a screen ≥ 1040 px its side column
+holds the lead's source / details on top (a fold line, `localStorage.afik_lead_card_info`) and the whole WhatsApp conversation
+under it with the message box (`LeadConversation`), next to every tab — details, notes & activity, tasks… (`afik_lead_card_conv_v2`,
+on by default; the column drags, `afik_lead_card_conv_w2`); narrower screens get the conversation under the notes and in the chat
+tab. Bigger tabs (48 px, 15 px) and fields (42 px, 14.5 px).
 **Lead card → "שיחת וואטסאפ"** (`src/LeadChatTab.jsx`): the whole WhatsApp conversation with the lead, read-only (`chat-history`,
 200 messages, normalized by the pure `lib/chat-format.js` `normalizeChat()` — voice notes / media shown as markers), and an
 **AI summary** = `POST /api/meta/chat-summary { lead }` (`lib/chat-summary.js`, tested; Claude `claude-opus-5-5`, structured

@@ -8,6 +8,8 @@ import { T } from './automationsUI.jsx'
 import { sourceLabel, sourceColor, originLines, leadCampaign, leadCampaignTag, leadCampaignFull, leadProject, toggleProjectInName, lastContact, lastContactText } from './lib/leadFields.js'
 import LeadChatTab from './LeadChatTab.jsx'
 import LeadConversation from './LeadConversation.jsx'
+import { ProjectChip } from './LeadProjects.jsx'
+import { useProjects } from './lib/projectsStore.js'
 import Splitter, { SPLITTER_CSS } from './Splitter.jsx'
 import { useSharedAutoConfig, getSharedAutoConfig, setSharedAutoConfig } from './lib/autoConfigStore.js'
 import { useAdminTheme } from './adminTheme.js'
@@ -95,24 +97,31 @@ const TR = {
 }
 const GRADE_COLOR = { hot: '#EF4444', warm: '#F59E0B', cool: '#60A5FA', cold: '#94A3B8' }
 // the conversation column's width (dragged), kept in this browser
-const CONV_W_KEY = 'afik_lead_card_conv_w', CONV_W = [360, 1100]
+const CONV_W_KEY = 'afik_lead_card_conv_w2', CONV_W = [400, 1200]
 
 const CSS = `
   .lc *{box-sizing:border-box}
   .lc button{min-height:0;min-width:0}
   .lc-body{display:grid;grid-template-columns:minmax(0,1fr) 320px;flex:1;min-height:0}
-  .lc-body.conv{grid-template-columns:minmax(0,1fr) 290px var(--lc-conv,minmax(400px,40%))}
+  .lc-body.conv{grid-template-columns:minmax(0,1fr) var(--lc-conv,minmax(460px,44%))}
+  /* the side column on a wide screen: the lead's source / details on top (folds), the whole WhatsApp conversation under it */
+  .lc-rail{position:relative;min-height:0;min-width:0;display:flex;flex-direction:column;border-inline-start:1px solid var(--au-line);background:rgba(var(--ov),.015)}
+  .lc-rail .lc-side{border-inline-start:none!important;flex:none;max-height:36%;border-bottom:1px solid var(--au-line)}
+  .lc-rail .lc-side.is-folded{max-height:none;overflow:hidden!important;padding-block:10px!important}
+  .lc-rail-conv{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+  .lc-side-fold{display:flex;align-items:center;gap:8px;width:100%;border:none;background:none;padding:0;cursor:pointer;font:inherit;font-size:12.5px;font-weight:800;color:var(--au-text3);text-align:start}
+  .lc-side-fold .sum{flex:1;min-width:0;font-weight:500;color:var(--au-text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .lcd-proj{margin-top:6px;border:1px dashed rgba(var(--brand-rgb),.45);background:rgba(var(--brand-rgb),.06);color:var(--au-brand-text);border-radius:999px;padding:3px 11px;font:inherit;font-size:12px;font-weight:700;cursor:pointer}
   .lcd-proj:hover{background:rgba(var(--brand-rgb),.12)}
   .lc-conv{position:relative;min-height:0;min-width:0;display:flex;flex-direction:column;overflow:hidden;border-inline-start:1px solid var(--au-line)}
-  .lc-conv-tab{height:min(640px,72vh);border-radius:14px;overflow:hidden;border:1px solid var(--au-line);margin-top:14px}
+  .lc-conv-tab{height:min(680px,74vh);border-radius:14px;overflow:hidden;border:1px solid var(--au-line);margin-top:14px}
   .lc-grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
   .lc-grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
-  .lc-in{width:100%;height:38px;padding:0 11px;border-radius:9px;border:1px solid var(--au-s3-line);background:var(--au-input);color:var(--au-text);font-family:inherit;font-size:13.5px;outline:none;transition:border-color .15s,box-shadow .15s}
+  .lc-in{width:100%;height:42px;padding:0 12px;border-radius:10px;border:1px solid var(--au-s3-line);background:var(--au-input);color:var(--au-text);font-family:inherit;font-size:14.5px;outline:none;transition:border-color .15s,box-shadow .15s}
   .lc-in:focus{border-color:var(--au-brand);box-shadow:0 0 0 3px rgba(var(--brand-rgb),.2)}
   textarea.lc-in{height:auto;padding:9px 11px;line-height:1.55;resize:vertical}
   select.lc-in{appearance:auto}
-  .lc-tab{height:40px;padding:0 14px;border:none;background:none;cursor:pointer;font-family:inherit;font-size:13.5px;font-weight:700;display:inline-flex;align-items:center;gap:7px;border-bottom:2px solid transparent;white-space:nowrap}
+  .lc-tab{height:48px;padding:0 18px;border:none;background:none;cursor:pointer;font-family:inherit;font-size:15px;font-weight:700;display:inline-flex;align-items:center;gap:7px;border-bottom:2px solid transparent;white-space:nowrap}
   .lc-last{margin-inline-start:auto;align-self:center;flex:none;display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 11px;border-radius:999px;font-size:12.5px;white-space:nowrap;border:1px solid transparent}
   .lc-last .k{color:var(--au-text2)}
   .lc-tab{flex:none}
@@ -208,8 +217,8 @@ function ScoreRing({ score, grade, size = 96 }) {
 }
 
 // ── main ───────────────────────────────────────────────────────────────────────
-const WIDE_Q = '(min-width: 1100px)'
-const CONV_KEY = 'afik_lead_card_conv'
+const WIDE_Q = '(min-width: 1040px)'
+const CONV_KEY = 'afik_lead_card_conv_v2'
 // the automations config (the template library for the composer): the admin's shared copy (src/lib/autoConfigStore.js), so an
 // edit in "אוטומציות" or from any chat shows here at once; read here only when the card opens before the admin has it
 let cfgP = null
@@ -264,6 +273,9 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
   }, [])
 
   // → Promise<boolean>: false when the server did not take it (updateLead answers null on a network error)
+  const projects = useProjects()
+  const [infoFolded, setInfoFolded] = useState(() => { try { return localStorage.getItem('afik_lead_card_info') === '0' } catch { return false } })
+  const foldInfo = () => setInfoFolded(v => { try { localStorage.setItem('afik_lead_card_info', v ? '1' : '0') } catch {} return !v })
   const save = patch => {
     setSaveState('saving')
     return Promise.resolve(onUpdate(lead.id, patch)).then(r => r !== null && r?.ok !== false, () => false).then(ok => {
@@ -360,6 +372,7 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
         <div className="lc-grid2">
           <Field label={t.f.name}><EditInput value={lead.name} onSave={set('name')}/>{projectBtn}{lead.originalName && lead.originalName !== lead.name && <div style={{ fontSize: 12, color: 'var(--au-text3)', marginTop: 4 }}>{lang === 'en' ? 'Name on the form' : 'השם בטופס'}: <b style={{ color: 'var(--au-text2)' }}><bdi>{lead.originalName}</bdi></b></div>}</Field>
           <Field label={t.f.phone}><EditInput value={lead.phone} onSave={set('phone')} dir="ltr"/></Field>
+          <Field label={lang === 'en' ? 'Project' : 'פרויקט'}><div style={{ display: 'flex', alignItems: 'center', minHeight: 42 }}><ProjectChip lead={lead} projects={projects} lang={lang} size="md" onAssign={patch => save(patch)}/></div></Field>
           <Field label={t.f.email}><EditInput value={lead.email} onSave={set('email')} type="email" dir="ltr"/></Field>
           <Field label={t.f.contactTime}><EditInput value={lead.contactTime} onSave={set('contactTime')} placeholder={lang === 'en' ? 'e.g. mornings, after 17:00' : 'למשל: בבקרים, אחרי 17:00'}/></Field>
         </div>
@@ -790,8 +803,12 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
   )
 
   // ── Side column: at-a-glance ──────────────────────────────────────────────
-  const side = (
-    <aside className="lc-side" style={{ borderInlineStart: `1px solid ${T.line}`, padding: 16, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 14, background: 'rgba(var(--ov),.015)' }}>
+  // rail = the wide card's side column, over the conversation: a fold line ("מקור הליד · Meta · זרובבל 15") keeps the chat big
+  const sideSum = [sourceLabel(src, lang), lead.campaignName || lead.formName, fmtWhen(lead.ts, lang)].filter(Boolean).join(' · ')
+  const sideEl = rail => (
+    <aside className={`lc-side${rail && infoFolded ? ' is-folded' : ''}`} style={{ borderInlineStart: `1px solid ${T.line}`, padding: 16, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 14, background: 'rgba(var(--ov),.015)' }}>
+      {rail && <button type="button" className="lc-side-fold" onClick={foldInfo} aria-expanded={!infoFolded}>{t.sec.source}{infoFolded && <span className="sum">{sideSum}</span>}<span aria-hidden="true">{infoFolded ? '▾' : '▴'}</span></button>}
+      {(!rail || !infoFolded) && <>
       {isV2 && (
         <button type="button" onClick={() => setTab('analysis')} style={{ display: 'flex', gap: 12, alignItems: 'center', padding: 12, borderRadius: 12, border: `1px solid ${T.s1Line}`, background: T.card, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'start', color: T.text }}>
           <ScoreRing score={en.score100} grade={en.grade} size={58}/>
@@ -802,7 +819,7 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
         </button>
       )}
       <div>
-        <div style={{ fontSize: 12, fontWeight: 800, color: T.text3, marginBottom: 8 }}>{t.sec.source}</div>
+        {!rail && <div style={{ fontSize: 12, fontWeight: 800, color: T.text3, marginBottom: 8 }}>{t.sec.source}</div>}
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
           <Chip color={sourceColor(src)}>{sourceLabel(src, lang)}</Chip>
         </div>
@@ -828,6 +845,7 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
         {!!openTasks && <button type="button" onClick={() => setTab('tasks')} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', padding: 0, color: T.brandText, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12.5, fontWeight: 700 }}><FaTasks size={10}/>{openTasks} {t.tabs.tasks}</button>}
         {tags.length > 0 && <span style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}><FaTag size={10}/>{tags.map(g => <Chip key={g}>{g}</Chip>)}</span>}
       </div>
+      </>}
     </aside>
   )
 
@@ -843,25 +861,26 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
       style={{ position: 'fixed', inset: 0, zIndex: 2400, background: 'var(--au-overlay)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'min(3vh,24px) 12px' }}>
       <style>{CSS + SPLITTER_CSS}</style>
       <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="lc-title" className="lc-dialog"
-        style={{ width: showConv ? 'min(1640px,100%)' : 'min(1180px,100%)', height: showConv ? 'min(960px,100%)' : 'min(880px,100%)', background: T.s2, border: `1px solid ${T.s2Line}`, borderRadius: 18, boxShadow: T.shadow2, color: T.text, display: 'flex', flexDirection: 'column', overflow: 'hidden', outline: 'none', animation: 'lc-in .22s cubic-bezier(.2,.8,.2,1) both' }}>
+        style={{ width: showConv ? 'min(1800px,100%)' : 'min(1280px,100%)', height: showConv ? 'min(1080px,100%)' : 'min(940px,100%)', background: T.s2, border: `1px solid ${T.s2Line}`, borderRadius: 18, boxShadow: T.shadow2, color: T.text, display: 'flex', flexDirection: 'column', overflow: 'hidden', outline: 'none', animation: 'lc-in .22s cubic-bezier(.2,.8,.2,1) both' }}>
         <div style={{ height: 4, background: `linear-gradient(90deg, ${stage.color}, ${stage.color}88)`, flexShrink: 0 }}/>
         {header}
         {tabBar}
         <div ref={bodyRef} className={`lc-body${showConv ? ' conv' : ''}`} style={convW && showConv ? { '--lc-conv': `${convW}px` } : undefined}>
           <div className="lc-main" style={{ overflowY: 'auto', padding: 16, background: T.bg }}>
-            {tab === 'details' ? details : tab === 'notes' ? notesTab : tab === 'chat' ? <><LeadChatTab lead={lead} lang={lang} stages={stages} save={save} onUpdateStatus={onUpdateStatus} onOpenChat={onOpenChat} onClose={onClose} hideConversation={!!lead.phone}/>{!showConv && lead.phone && <div className="lc-conv-tab">{conversation}</div>}</> : tab === 'tasks' ? tasksTab : analysis}
+            {tab === 'details' ? details : tab === 'notes' ? <>{notesTab}{!showConv && lead.phone && <div className="lc-conv-tab">{conversation}</div>}</> : tab === 'chat' ? <><LeadChatTab lead={lead} lang={lang} stages={stages} save={save} onUpdateStatus={onUpdateStatus} onOpenChat={onOpenChat} onClose={onClose} hideConversation={!!lead.phone}/>{!showConv && lead.phone && <div className="lc-conv-tab">{conversation}</div>}</> : tab === 'tasks' ? tasksTab : analysis}
           </div>
-          {side}
-          {showConv && <section className="lc-conv" aria-label={t.tabs.chat}>
+          {!showConv && sideEl(false)}
+          {showConv && <section className="lc-rail" aria-label={t.tabs.chat}>
             {/* drag the conversation's edge: a wider or narrower chat (kept per browser; double-click resets) */}
             <Splitter axis="x" grows={dir === 'rtl' ? 1 : -1} min={CONV_W[0]} label={t.convResize}
               style={{ position: 'absolute', top: 0, bottom: 0, insetInlineStart: 0, width: 8, margin: 0, zIndex: 8 }}
-              max={() => Math.min(CONV_W[1], (bodyRef.current?.getBoundingClientRect().width || 1400) - 290 - 420)}
-              get={() => bodyRef.current?.querySelector('.lc-conv')?.getBoundingClientRect().width || 560}
+              max={() => Math.min(CONV_W[1], (bodyRef.current?.getBoundingClientRect().width || 1400) - 520)}
+              get={() => bodyRef.current?.querySelector('.lc-rail')?.getBoundingClientRect().width || 640}
               apply={v => bodyRef.current?.style.setProperty('--lc-conv', `${v}px`)}
               commit={v => { try { localStorage.setItem(CONV_W_KEY, String(v)) } catch {} }}
               reset={() => { bodyRef.current?.style.removeProperty('--lc-conv'); try { localStorage.removeItem(CONV_W_KEY) } catch {} }}/>
-            {conversation}
+            {sideEl(true)}
+            <div className="lc-rail-conv">{conversation}</div>
           </section>}
         </div>
       </div>
