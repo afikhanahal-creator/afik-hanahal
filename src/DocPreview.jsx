@@ -18,7 +18,7 @@ export const DOC_CSS = `
 .dsh h2{font-size:12.5pt;font-weight:700;margin:16px 0 8px;padding-inline-start:10px;border-inline-start:3px solid var(--dsh-brand);line-height:1.25}
 .dsh-rows{width:100%;border-collapse:collapse;margin-bottom:6px}
 .dsh-rows td{padding:4px 0;border-bottom:1px solid var(--dsh-line);vertical-align:top;font-size:10pt}
-.dsh-rows td:first-child{color:var(--dsh-mute);font-weight:600;width:134px;font-size:9.5pt;white-space:nowrap}
+.dsh-rows td:first-child{color:var(--dsh-mute);font-weight:600;width:134px;min-width:134px;font-size:9.5pt;padding-inline-end:16px;line-height:1.35}
 .dsh-p{margin:0 0 10px;white-space:pre-wrap;text-align:justify;line-height:1.6}.dsh-h{border:none;padding:0;font-size:12.5pt}
 .dsh-cl{margin:0 0 10px}.dsh-cl b{display:block;font-size:11pt;margin-bottom:2px}.dsh-cl p{margin:0;padding-inline-start:14px;white-space:pre-wrap;text-align:justify;line-height:1.6}
 .dsh-fees{border-collapse:collapse;width:400px;max-width:100%;margin:4px 0 10px;border-top:1.5px solid var(--dsh-ink)}

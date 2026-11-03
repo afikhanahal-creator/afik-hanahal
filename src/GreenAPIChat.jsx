@@ -2,7 +2,7 @@
  * GreenAPIChat — WhatsApp-Web / Green API Console replica
  * Dark/Light theme · RTL Hebrew · Isolated scroll · Sticky input
  */
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react'
 import { supabase } from './lib/supabaseClient'
 import { WAText } from './waFormat.jsx'
 import ChatTemplatePicker, { ChatTemplateMenu, ChatQuickChips } from './ChatTemplatePicker.jsx'
@@ -49,6 +49,15 @@ const GREEN_CONSOLE = 'https://console.green-api.com'
 
 // ─── History cache (localStorage) ─────────────────────────────────────────────
 const HIST_KEY = 'wa_hist_v1'
+// the chat list (chat-list) and its ETag survive a tab switch: the list paints at once on the next visit and is only re-validated
+const LIST_KEY = 'afik_wa_chatlist_v1'
+let listEtag = ''
+const readListCache = () => { try { const v = JSON.parse(sessionStorage.getItem(LIST_KEY) || 'null'); if (Array.isArray(v?.list)) { listEtag = v.etag || ''; return v.list } } catch {} return [] }
+const writeListCache = (list, etag) => { try { sessionStorage.setItem(LIST_KEY, JSON.stringify({ list: list.slice(0, 400), etag })) } catch {} }
+// the legacy history on Render, per contact, for the session (asked once, on the side — never waited for)
+const legacyHist = new Map()
+let seededAt = 0
+const byTime = (a, b) => new Date(a.created_at) - new Date(b.created_at)
 const HIST_CHATS = 30, HIST_MSGS = 80
 function persistHistory(all) {
   try {
@@ -194,6 +203,79 @@ function ChatProjectJoin({ phone, name, projects, lang, WA }) {
   )
 }
 
+// One row of the chat list. A memo component: typing in the message box, the 30-second clock or a live message in another
+// chat used to re-render all ~300 rows (each with a WaFace and its observer); now a row re-renders only when its own facts change.
+const rowEq = (a, b) => a.lead === b.lead && a.lastMsg === b.lastMsg && a.isActive === b.isActive && a.isRowLoading === b.isRowLoading && a.unread === b.unread
+  && a.wait.waiting === b.wait.waiting && a.wait.level === b.wait.level && a.wait.mins === b.wait.mins && a.wait.handled === b.wait.handled
+  && a.selMode === b.selMode && a.selChecked === b.selChecked && a.WA === b.WA && a.isDark === b.isDark && a.lang === b.lang && a.canDelete === b.canDelete
+const ChatRow = memo(function ChatRow({ lead, lastMsg, isActive, isRowLoading, unread, wait, selMode, selChecked, WA, isDark, lang, canDelete, onPick, onDone, onDelete }) {
+              const rowBg    = isActive ? WA.selectedRow : unread ? (isDark ? 'rgba(37,211,102,.07)' : 'rgba(37,211,102,.06)') : WA.panelBg
+              return (
+                <div
+                  className="wa-row"
+                  onClick={() => onPick(lead)}
+                  style={{ padding:'12px 14px', display:'flex', gap:12, cursor:'pointer', background: rowBg, borderBottom:`1px solid ${WA.border}`, transition:'background .1s', alignItems:'center', direction:'rtl', position:'relative' }}
+                  onMouseEnter={e => {
+                    if (!isActive) e.currentTarget.style.background = WA.hoverRow
+                    const btn = e.currentTarget.querySelector('.wa-del-btn')
+                    if (btn) btn.style.opacity = '1'
+                  }}
+                  onMouseLeave={e => {
+                    if (!isActive) e.currentTarget.style.background = rowBg
+                    const btn = e.currentTarget.querySelector('.wa-del-btn')
+                    if (btn) btn.style.opacity = '0'
+                  }}>
+                  {isActive && <div style={{ position:'absolute', right:0, top:0, bottom:0, width:3, background: WA.green, borderRadius:'0 2px 2px 0' }}/>}
+                  {selMode && <input type="checkbox" readOnly checked={selChecked} aria-label={`בחירה: ${nameOf(lead, lang)}`} tabIndex={-1}
+                    style={{ appearance:'auto', width:18, height:18, minHeight:0, flexShrink:0, margin:0, accentColor: WA.green, pointerEvents:'none' }}/>}
+                  <Avatar c={lead} size={49} lang={lang}/>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:3, gap:8 }}>
+                      <span style={{ fontWeight: unread?700:600, fontSize:15, color: WA.bodyText, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', flex:1 }}>
+                        {nameOf(lead, lang)}
+                        {lead.waOnly && !lead.office && !lead.self && <span style={{ marginInlineStart:6, fontSize:10.5, fontWeight:600, color: WA.subText, border:`1px solid ${WA.border}`, borderRadius:6, padding:'0 5px', verticalAlign:'middle' }}>{lang === 'en' ? 'not a lead' : 'לא ליד'}</span>}
+                      </span>
+                      {lastMsg && (
+                        <span style={{ fontSize:11, color: unread ? WA.green : WA.subText, fontWeight: unread?700:400, flexShrink:0, whiteSpace:'nowrap' }}>
+                          {fmtRowTime(lastMsg.created_at)}
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ display:'flex', alignItems:'center', gap:4 }}>
+                      {isRowLoading && <div className="wa-row-spinner"/>}
+                      {!isRowLoading && lastMsg?.direction==='out' && <TickMark status={lastMsg.status || 'sent'} WA={WA}/>}
+                      <span style={{ fontSize:13, color: unread ? WA.bodyText : WA.subText, fontWeight: unread?600:400, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', flex:1 }}>
+                        {isRowLoading ? <span style={{ opacity:.5 }}>טוען...</span> : lastMsg ? lastMsg.message : (lead.lastText || (hasName(lead) ? fmtLocal(lead.phone) : ''))}
+                      </span>
+                      {wait.waiting && (
+                        <span title="הליד כתב אחרון ומחכה לתשובה" style={{ flexShrink:0, fontSize:11, fontWeight:700, lineHeight:1, padding:'3px 7px', borderRadius:999, whiteSpace:'nowrap',
+                          color: wait.level === 'late' ? '#fff' : wait.level === 'warn' ? (isDark ? '#FBBF24' : '#92400E') : (isDark ? '#25D366' : '#0B6B3A'),
+                          background: wait.level === 'late' ? '#DC2626' : wait.level === 'warn' ? (isDark ? 'rgba(251,191,36,.16)' : '#FEF3C7') : (isDark ? 'rgba(37,211,102,.14)' : '#DCFCE7') }}>
+                          {fmtWait(wait.mins)}
+                        </span>
+                      )}
+                      {wait.waiting && !selMode && (
+                        <button type="button" className="wa-done-btn" title="טופל — להוריד מ״ממתינים לתשובה״ (יחזור אם יכתבו שוב)" aria-label={`טופל: ${nameOf(lead, lang)}`}
+                          onClick={e => { e.stopPropagation(); onDone(lead) }}>✓</button>
+                      )}
+                      {unread > 0 && (
+                        <span style={{ background: '#1DA851', color:'#fff', fontSize:11, fontWeight:700, minWidth:18, height:18, borderRadius:9, padding:'0 5px', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, lineHeight:1 }}>
+                          {unread > 99 ? '99+' : unread}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  {/* Delete button — hover-reveal */}
+                  {canDelete && (
+                    <button className="wa-del-btn"
+                      onClick={e => onDelete(e, lead)}
+                      style={{ opacity:0, transition:'opacity .15s', width:28, height:28, borderRadius:'50%', border:'none', background: WA.delBtn, color:'#E05252', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontSize:15, flexShrink:0 }}
+                      title="מחק איש קשר">✕</button>
+                  )}
+                </div>
+              )
+}, rowEq)
+
 export default function GreenAPIChat({ leads = [], lang = 'he', initialContact = null, onOpenLead, onUpdateLead, onUpdateStatus, stageLabels = {}, onDeleteLead, onNewMessage, onSentMessage, onReadChange, autoConfig = null, onAutoConfigSaved }) {
 
   // ── Theme ─────────────────────────────────────────────────────────────────
@@ -234,7 +316,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
   const [tplImg,        setTplImg]       = useState(null)   // a template's picture riding with the text in the box { url, title }
   const [statusMissing, setStatusMissing] = useState([])
   const [quota,         setQuota]        = useState(null)   // Green API plan blocked (466): connected, but sends are refused
-  const [greenChats,    setGreenChats]   = useState([])   // recent WhatsApp chats from Green API (not only leads)
+  const [greenChats,    setGreenChats]   = useState(() => readListCache())   // recent WhatsApp chats from Green API (not only leads)
   const [lightbox,      setLightbox]     = useState(null)
   const [quickOpen,     setQuickOpen]    = useState(false)
   // Templates edited from the chat: the saved config (until the parent's copy catches up), the template being edited,
@@ -368,7 +450,6 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
   // The legacy history on the Render backend (its own `chats` table) is read ONCE per contact per session:
   // new rows there arrive through the Supabase Realtime channel below, and Render's bandwidth is metered —
   // the 8-second poll used to download up to 300 rows from it every time. The poll only asks Green API (Vercel).
-  const backendHistoryRef = useRef({})   // phone → rows
   const fetchMsgs = useCallback(async (phone, opts = {}) => {
     const p = intlPhone(phone)
     if (!p) return
@@ -387,20 +468,21 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
     }
 
     try {
-      const backendP = backendHistoryRef.current[p]
-        ? Promise.resolve(backendHistoryRef.current[p])
-        : API_BASE
-          ? fetch(`${API_BASE}/api/chats/${p}`, {
-              headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
-              signal:  AbortSignal.timeout(10000),
-            }).then(r => r.ok ? r.json() : []).then(rows => { if (Array.isArray(rows)) backendHistoryRef.current[p] = rows; return rows }).catch(() => [])
-          : Promise.resolve([])
-      const [backendResult, greenResult] = await Promise.allSettled([backendP, fetchGreenHistory(phone)])
+      // The legacy history on Render (asleep most of the day — the open chat used to wait up to 10 s for it) is asked once per
+      // contact per session, on the side: Green's answer paints at once, Render's rows join it when (if) they arrive.
+      if (API_BASE && !legacyHist.has(p)) {
+        legacyHist.set(p, [])
+        fetch(`${API_BASE}/api/chats/${p}`, { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` }, signal: AbortSignal.timeout(12000) })
+          .then(r => (r.ok ? r.json() : [])).then(rows => {
+            if (!Array.isArray(rows) || !rows.length) return
+            legacyHist.set(p, rows)
+            setChats(prev => { const keep = new Map((prev[p] || []).map(m => [m.id, m])); rows.forEach(m => { if (m.id && !keep.has(m.id)) keep.set(m.id, m) }); return { ...prev, [p]: [...keep.values()].sort(byTime) } })
+          }).catch(() => {})
+      }
+      let fromGreen = [], greenErr = null
+      try { const g = await fetchGreenHistory(phone); fromGreen = Array.isArray(g) ? g : [] } catch (e) { greenErr = e?.message || 'failed' }
       full = true
-
-      const fromBackend = backendResult.status === 'fulfilled' && Array.isArray(backendResult.value) ? backendResult.value : []
-      const fromGreen   = greenResult.status   === 'fulfilled' && Array.isArray(greenResult.value)   ? greenResult.value   : []
-      const greenErr    = greenResult.status   === 'rejected'  ? greenResult.reason?.message : null
+      const fromBackend = legacyHist.get(p) || []
 
       const byId = new Map()
       fromBackend.forEach(m => m.id && byId.set(m.id, m))
@@ -497,20 +579,19 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
 
   // ── Effects ──────────────────────────────────────────────────────────────
   useEffect(() => { fetchStatus() }, [fetchStatus])
-  const chatListEtagRef = useRef('')
   const fetchGreenChats = useCallback(async () => {
     try {
-      const prev = chatListEtagRef.current
+      const prev = listEtag
       const r = await fetch(`${CHAT_API}/chat-list?days=30`, { headers: { ...AUTH_HEADER, ...(prev ? { 'If-None-Match': prev } : {}) }, signal: AbortSignal.timeout(25000) })
       if (r.status === 304 || !r.ok) return   // 304: nothing new since the last poll
       const d = await r.json()
-      chatListEtagRef.current = r.headers.get('etag') || ''
-      if (Array.isArray(d)) setGreenChats(d)
+      listEtag = r.headers.get('etag') || ''
+      if (Array.isArray(d)) { setGreenChats(d); writeListCache(d, listEtag) }
     } catch {}
   }, [])
+  useEffect(() => { fetchGreenChats() }, [fetchGreenChats])   // together with chat-status, not after it (it used to wait for the status)
   useEffect(() => {
     if (status !== 'authorized') return
-    fetchGreenChats()
     let n = 0
     const iv = setInterval(() => { if (!document.hidden && (!waLiveUp() || ++n % 4 === 0)) fetchGreenChats() }, 30000)   // live: names / order refresh every 2 min
     return () => clearInterval(iv)
@@ -519,7 +600,6 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
     if (!contact?.phone || status !== 'authorized') return
     fetch(`${CHAT_API}/chat-read`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...AUTH_HEADER }, body: JSON.stringify({ phone: intlPhone(contact.phone) }) }).catch(() => {})
   }, [contact?.phone, status])
-  useEffect(() => { leads.filter(l => l.phone).slice(0, 20).forEach(l => fetchMsgs(l.phone)) }, [leads.length, fetchMsgs]) // eslint-disable-line
 
   useEffect(() => {
     if (initialContact) {
@@ -610,7 +690,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
   // Live WhatsApp (src/lib/waLive.js): every message / status Green API delivers to /api/meta/green-hook reaches every chat
   // here in about a second — no poll. A sent message replaces its optimistic bubble; an incoming one lifts its
   // chat to the top (the alert itself — card, sound, OS notification — is the admin's, src/AdminPanel.jsx notifyIncoming) of the list (a chat that wasn't in the list yet is added).
-  useEffect(() => onWaLive(items => {
+  const applyLive = useCallback(items => {
     const byPhone = new Map()
     for (const it of items) { const p = intlPhone(it.phone); if (p) byPhone.set(p, [...(byPhone.get(p) || []), it]) }
     setChats(prev => {
@@ -642,7 +722,17 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
       }
       return next
     })
-  }), []) // eslint-disable-line
+  }, []) // eslint-disable-line
+  useEffect(() => onWaLive(applyLive), [applyLive])
+  // The previews and unread marks of every recent chat come from one read of our own table (the last 3 weeks) — it used to
+  // open 20 full Green histories + 20 Render calls on every visit to the tab (2026-11-03).
+  useEffect(() => {
+    if (Date.now() - seededAt < 10 * 60e3) return
+    seededAt = Date.now()
+    const since = new Date(Date.now() - 21 * 864e5).toISOString()
+    fetch(`${CHAT_API}/chat-updates?since=${encodeURIComponent(since)}&limit=500`, { headers: AUTH_HEADER, signal: AbortSignal.timeout(15000) })
+      .then(r => (r.ok ? r.json() : null)).then(d => { if (d?.messages?.length) applyLive(d.messages) }).catch(() => { seededAt = 0 })
+  }, [applyLive])
 
   // The chat on screen gets no alert card for its own messages (src/lib/waNotify.js isViewing)
   useEffect(() => { setViewing('chats', contact?.phone || ''); return () => setViewing('chats', '') }, [contact?.phone])
@@ -824,6 +914,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
   }, [contact, contactList])
   const chatPhone  = contact ? intlPhone(contact.phone) : null
   const msgs       = chatPhone ? (chats[chatPhone]||[]) : []
+  const foldedMsgs = useMemo(() => foldReactions(msgs), [msgs])
   // the open chat's lead row (names, campaign, what they told us) — the templates are rendered for it
   const chatLead   = useMemo(() => {
     if (!contact) return null
@@ -909,6 +1000,11 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
     }
     return { unread, waiting }
   }, [contactList, contact?.id, unreadFor, waitOf])
+  // stable row callbacks (the rows are memo'd — a new function per render would re-render them all)
+  const rowFns = useRef({}); rowFns.current = { selectContact, markDone, handleDeleteClick, waitSel, setWaitSel }
+  const pickRow = useCallback(lead => { const f = rowFns.current; if (f.waitSel) f.setWaitSel(cur => { const n = new Set(cur); if (n.has(lead.id)) n.delete(lead.id); else n.add(lead.id); return n }); else f.selectContact(lead) }, [])
+  const doneRow = useCallback(lead => rowFns.current.markDone([lead]), [])
+  const deleteRow = useCallback((e, lead) => rowFns.current.handleDeleteClick(e, lead), [])
   const shownList = useMemo(() => {
     if (listFilter === 'unread') return contactList.filter(l => l.id === contact?.id || unreadFor(intlPhone(l.phone)) > 0)
     if (listFilter === 'waiting') return contactList.map(l => [l, waitOf(l)]).filter(([, w]) => w.waiting).sort((a, b) => b[1].mins - a[1].mins).map(([l]) => l)
@@ -1267,7 +1363,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                 ) : (() => {
                   const items = []
                   let lastDate = null
-                  const view = foldReactions(msgs)   // reactions drawn on the message they react to, like WhatsApp
+                  const view = foldedMsgs   // reactions drawn on the message they react to, like WhatsApp
                   view.forEach((msg, i) => {
                     const isOut      = msg.direction === 'out'
                     const msgDateStr = new Date(msg.created_at).toDateString()
@@ -1586,78 +1682,9 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                   : 'אין תוצאות לחיפוש'}
               </div>
             ) : shownList.map(lead => {
-              const p        = intlPhone(lead.phone)
-              const leadMsgs = chats[p] || []
-              const lastMsg  = leadMsgs[leadMsgs.length-1]
-              const isActive = contact?.id === lead.id
-              const isRowLoading = loadingPhones.has(p) && !lastMsg
-              const unread   = isActive ? 0 : unreadFor(p)
-              const wait     = waitOf(lead)
-              const rowBg    = isActive ? WA.selectedRow : unread ? (isDark ? 'rgba(37,211,102,.07)' : 'rgba(37,211,102,.06)') : WA.panelBg
-              return (
-                <div key={lead.id}
-                  className="wa-row"
-                  onClick={() => { if (waitSel) setWaitSel(cur => { const n = new Set(cur); if (n.has(lead.id)) n.delete(lead.id); else n.add(lead.id); return n }); else selectContact(lead) }}
-                  style={{ padding:'12px 14px', display:'flex', gap:12, cursor:'pointer', background: rowBg, borderBottom:`1px solid ${WA.border}`, transition:'background .1s', alignItems:'center', direction:'rtl', position:'relative' }}
-                  onMouseEnter={e => {
-                    if (!isActive) e.currentTarget.style.background = WA.hoverRow
-                    const btn = e.currentTarget.querySelector('.wa-del-btn')
-                    if (btn) btn.style.opacity = '1'
-                  }}
-                  onMouseLeave={e => {
-                    if (!isActive) e.currentTarget.style.background = rowBg
-                    const btn = e.currentTarget.querySelector('.wa-del-btn')
-                    if (btn) btn.style.opacity = '0'
-                  }}>
-                  {isActive && <div style={{ position:'absolute', right:0, top:0, bottom:0, width:3, background: WA.green, borderRadius:'0 2px 2px 0' }}/>}
-                  {waitSel && <input type="checkbox" readOnly checked={waitSel.has(lead.id)} aria-label={`בחירה: ${nameOf(lead, lang)}`} tabIndex={-1}
-                    style={{ appearance:'auto', width:18, height:18, minHeight:0, flexShrink:0, margin:0, accentColor: WA.green, pointerEvents:'none' }}/>}
-                  <Avatar c={lead} size={49} lang={lang}/>
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:3, gap:8 }}>
-                      <span style={{ fontWeight: unread?700:600, fontSize:15, color: WA.bodyText, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', flex:1 }}>
-                        {nameOf(lead, lang)}
-                        {lead.waOnly && !lead.office && !lead.self && <span style={{ marginInlineStart:6, fontSize:10.5, fontWeight:600, color: WA.subText, border:`1px solid ${WA.border}`, borderRadius:6, padding:'0 5px', verticalAlign:'middle' }}>{lang === 'en' ? 'not a lead' : 'לא ליד'}</span>}
-                      </span>
-                      {lastMsg && (
-                        <span style={{ fontSize:11, color: unread ? WA.green : WA.subText, fontWeight: unread?700:400, flexShrink:0, whiteSpace:'nowrap' }}>
-                          {fmtRowTime(lastMsg.created_at)}
-                        </span>
-                      )}
-                    </div>
-                    <div style={{ display:'flex', alignItems:'center', gap:4 }}>
-                      {isRowLoading && <div className="wa-row-spinner"/>}
-                      {!isRowLoading && lastMsg?.direction==='out' && <TickMark status={lastMsg.status || 'sent'} WA={WA}/>}
-                      <span style={{ fontSize:13, color: unread ? WA.bodyText : WA.subText, fontWeight: unread?600:400, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', flex:1 }}>
-                        {isRowLoading ? <span style={{ opacity:.5 }}>טוען...</span> : lastMsg ? lastMsg.message : (lead.lastText || (hasName(lead) ? fmtLocal(lead.phone) : ''))}
-                      </span>
-                      {wait.waiting && (
-                        <span title="הליד כתב אחרון ומחכה לתשובה" style={{ flexShrink:0, fontSize:11, fontWeight:700, lineHeight:1, padding:'3px 7px', borderRadius:999, whiteSpace:'nowrap',
-                          color: wait.level === 'late' ? '#fff' : wait.level === 'warn' ? (isDark ? '#FBBF24' : '#92400E') : (isDark ? '#25D366' : '#0B6B3A'),
-                          background: wait.level === 'late' ? '#DC2626' : wait.level === 'warn' ? (isDark ? 'rgba(251,191,36,.16)' : '#FEF3C7') : (isDark ? 'rgba(37,211,102,.14)' : '#DCFCE7') }}>
-                          {fmtWait(wait.mins)}
-                        </span>
-                      )}
-                      {wait.waiting && !waitSel && (
-                        <button type="button" className="wa-done-btn" title="טופל — להוריד מ״ממתינים לתשובה״ (יחזור אם יכתבו שוב)" aria-label={`טופל: ${nameOf(lead, lang)}`}
-                          onClick={e => { e.stopPropagation(); markDone([lead]) }}>✓</button>
-                      )}
-                      {unread > 0 && (
-                        <span style={{ background: '#1DA851', color:'#fff', fontSize:11, fontWeight:700, minWidth:18, height:18, borderRadius:9, padding:'0 5px', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, lineHeight:1 }}>
-                          {unread > 99 ? '99+' : unread}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  {/* Delete button — hover-reveal */}
-                  {onDeleteLead && !lead.waOnly && (
-                    <button className="wa-del-btn"
-                      onClick={e => handleDeleteClick(e, lead)}
-                      style={{ opacity:0, transition:'opacity .15s', width:28, height:28, borderRadius:'50%', border:'none', background: WA.delBtn, color:'#E05252', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontSize:15, flexShrink:0 }}
-                      title="מחק איש קשר">✕</button>
-                  )}
-                </div>
-              )
+              const p = intlPhone(lead.phone), leadMsgs = chats[p] || [], lastMsg = leadMsgs[leadMsgs.length-1], isActive = contact?.id === lead.id
+              return <ChatRow key={lead.id} lead={lead} lastMsg={lastMsg} isActive={isActive} isRowLoading={loadingPhones.has(p) && !lastMsg} unread={isActive ? 0 : unreadFor(p)} wait={waitOf(lead)}
+                selMode={!!waitSel} selChecked={!!waitSel?.has(lead.id)} WA={WA} isDark={isDark} lang={lang} canDelete={!!onDeleteLead && !lead.waOnly} onPick={pickRow} onDone={doneRow} onDelete={deleteRow}/>
             })}
             {handledUndo && (
               <div role="status" style={{ position:'sticky', bottom:10, margin:'10px 10px 0', display:'flex', alignItems:'center', gap:10, padding:'10px 14px', borderRadius:12, background: isDark ? '#E9EDEF' : '#1F2C34', color: isDark ? '#111B21' : '#fff', fontSize:13, fontWeight:600, boxShadow:'0 8px 24px rgba(0,0,0,.25)', direction:'rtl', zIndex:2 }}>

@@ -13,12 +13,13 @@ html,body{margin:0;background:#EFEBE3;color:#17172B;font-family:Rubik,Heebo,Aria
 .sg{min-height:100vh;direction:rtl;display:flex;flex-direction:column}
 .sg-top{position:sticky;top:0;z-index:5;background:rgba(255,255,255,.94);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid #E1DBD0;padding:10px 16px;padding-top:max(10px,env(safe-area-inset-top));display:flex;align-items:center;justify-content:space-between;gap:10px}
 .sg-brand{display:flex;gap:10px;align-items:center;min-width:0}.sg-brand img{height:34px;flex-shrink:0}
-.sg-brand b{font-size:14px;font-weight:600;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sg-brand small{display:block;color:#5E5B6E;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sg-brand .m{display:none}.sg-brand b{font-size:14px;font-weight:600;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sg-brand small{display:block;color:#5E5B6E;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sg-tools{display:flex;gap:6px;align-items:center;flex-shrink:0}
-.sg-dl{height:36px;border-radius:10px;border:1px solid #D9D3C7;background:#fff;color:#17172B;font:inherit;font-size:13px;font-weight:600;padding:0 11px;display:inline-flex;align-items:center;gap:6px;text-decoration:none;white-space:nowrap}
+.sg-dl{height:34px;border-radius:9px;border:1px solid transparent;background:transparent;color:#5E5B6E;font:inherit;font-size:13px;font-weight:500;padding:0 9px;display:inline-flex;align-items:center;gap:6px;text-decoration:none;white-space:nowrap}
 .sg-dl:hover{border-color:#3F4EB0;color:#3F4EB0}.sg-dl svg{width:15px;height:15px}
 .sg-zoom{display:flex;gap:4px;margin-inline-start:6px}.sg-zoom button{width:36px;height:36px;border-radius:10px;border:1px solid #D9D3C7;background:#fff;font:inherit;font-size:16px;cursor:pointer;color:#17172B}
 .sg-intro{display:none}
+.sg-intro-dl{display:flex;gap:4px 14px;flex-wrap:wrap;align-items:center;font-size:13px;color:#5E5B6E;margin-top:4px}.sg-intro-dl a{color:#3F4EB0;font-weight:600;text-decoration:none;display:inline-flex;align-items:center;gap:4px}.sg-intro-dl svg{width:14px;height:14px}
 .sg-wrap{flex:1;display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:20px;padding:20px;max-width:1240px;width:100%;margin:0 auto;align-items:start}
 .sg-doc{overflow:auto;padding:4px 0 20px}
 .sg-doc-in{transform-origin:top center;margin:0 auto}
@@ -60,8 +61,9 @@ html,body{margin:0;background:#EFEBE3;color:#17172B;font-family:Rubik,Heebo,Aria
 .sg-mob-cta{display:none}
 .sg-sec{font-size:12px;color:#8A8798;display:flex;gap:6px;align-items:center;justify-content:center}
 @media (max-width:900px){
-  .sg-top{padding:8px 12px;padding-top:max(8px,env(safe-area-inset-top))}.sg-brand img{height:28px}.sg-brand b{font-size:13.5px}.sg-brand small{font-size:11.5px}
-  .sg-dl{height:38px;padding:0 10px}.sg-dl span{display:none}.sg-dl::after{content:attr(data-short);font-size:12.5px}
+  .sg-top{padding:9px 14px;padding-top:max(9px,env(safe-area-inset-top));justify-content:flex-start}.sg-brand img{height:30px}.sg-brand b{font-size:14px}.sg-brand small{font-size:11.5px}
+  .sg-brand .d{display:none}.sg-brand .m{display:block}
+  .sg-tools{display:none}
   .sg-zoom{display:none}
   .sg-intro{display:flex;flex-direction:column;gap:4px;margin:14px 14px 0;padding:0 2px 12px;border-bottom:1px solid #DDD6C9}
   .sg-intro small{font-size:11.5px;letter-spacing:.04em;color:#8A8798;font-weight:600}
@@ -211,7 +213,7 @@ export default function SignPage() {
     <div className="sg">
       <style>{CSS}{DOC_CSS}</style>
       <header className="sg-top">
-        <div className="sg-brand"><img src="/logo-black.svg" alt="אפיק הנחל"/><div style={{ minWidth: 0 }}><b>{v?.title || 'מסמך לחתימה'}</b><small>אפיק הנחל{v?.number ? <> · <span dir="ltr">{v.number}</span></> : null}</small></div></div>
+        <div className="sg-brand"><img src="/logo-black.svg" alt="אפיק הנחל"/><div style={{ minWidth: 0 }}><div className="d"><b>{v?.title || 'מסמך לחתימה'}</b><small>אפיק הנחל{v?.number ? <> · <span dir="ltr">{v.number}</span></> : null}</small></div><div className="m"><b>אפיק הנחל</b><small>יזום, שיווק ותיווך נדל"ן</small></div></div></div>
         {v && <div className="sg-tools">
           <a className="sg-dl" href={file(pdfKind)} download data-short="PDF" aria-label={`הורדת PDF${isSigned ? ' חתום' : ''}`}><DlIcon/><span>PDF{isSigned ? ' חתום' : ''}</span></a>
           <a className="sg-dl" href={file('docx')} download data-short="Word" aria-label="הורדת Word"><DlIcon/><span>Word</span></a>
@@ -223,6 +225,7 @@ export default function SignPage() {
           <small>מסמך לחתימה{v.number ? <> · <span dir="ltr">{v.number}</span></> : null}</small>
           <h1>{v.title}</h1>
           <p>{[first ? `עבור ${String(form.name || v.client?.name || '').trim()}` : '', v.property?.address ? [v.property.address, v.property.city].filter(Boolean).join(', ') : '', v.expires_at ? `בתוקף עד ${new Date(v.expires_at).toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' })}` : ''].filter(Boolean).join(' · ')}</p>
+          <div className="sg-intro-dl"><span>הורדת עותק:</span><a href={file(pdfKind)} download><DlIcon/>PDF</a><a href={file('docx')} download><DlIcon/>Word</a></div>
         </div>}
         <div className="sg-wrap">
           <div className="sg-doc" ref={docRef}><div className="sg-doc-in" style={{ transform: `scale(${scale * zoom})`, width: 794 }}><DocSheet view={v} signatureUrl={isSigned ? file('signature', false) : ''} agentSignatureUrl={isSigned && v.agentSigned ? file('agent', false) : ''} onSignHere={!isSigned && !st.blocked && !done ? () => document.getElementById('sign-pad')?.scrollIntoView({ behavior: 'smooth', block: 'center' }) : null}/></div></div>

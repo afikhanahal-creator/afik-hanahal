@@ -371,6 +371,20 @@ shapes, and `foldReactions()` (`src/lib/waMerge.js`, tested) puts each side's ne
 one takes it back): a small round chip under the bubble's corner in the chats tab (`GreenAPIChat`) and in the Lead Center / lead card
 (`LeadConversation`, `.lcv-reacts`), the tooltip naming who reacted; a reaction to a message that isn't loaded shows as a quiet line
 ("תגובה 👍 · 03:21"). Alerts read "תגובה: 🙏" (`alertText()`).
+**Speed of the chats tab and the inbox (2026-11-03):** the chats tab used to open 20 full Green histories + 20 calls to the
+sleeping Render server on every visit (`fetchMsgs` per lead), wait for `chat-status` before asking `chat-list`, and the open chat
+waited up to 10 s for Render's legacy history before painting Green's. Now: the previews and unread marks of every recent chat
+come from **one** `GET chat-updates?since=<21 days>&limit=500` (our own table, ~0.2 s; once per 10 min per session, `seededAt`,
+through the same `applyLive()` the live feed uses); `chat-list` is asked at once and its list + ETag live in
+`sessionStorage.afik_wa_chatlist_v1`, so the list paints on the next visit and is only re-validated; Render's legacy history is
+asked once per contact per session **on the side** (`legacyHist`, merged when it arrives — never waited for); the AdminPanel's
+old Render polls for the chats tab (`/api/chats/conversations` / `status` / one chat every 30 s — fed a screen that is
+`false && …`) are gone; `foldReactions` is memoized; **the chat list rows are a memo component** (`ChatRow`, `rowEq`; stable
+`pickRow` / `doneRow` / `deleteRow` through a ref) — typing in the box no longer re-renders ~300 rows with their faces. The
+inbox keeps `social-threads` + `social-wa` in `sessionStorage.afik_inbox_v1` (paints at once, then refreshes), re-reads the
+WhatsApp list at most every 5 s and not for a `wa_messages` **UPDATE** (a delivered / read tick changes no row — the bus carries
+`op`), and its rows are `InboxRow` (memo). Server: `chat-waiting` and `social-wa` read their `app_settings` row in parallel with
+the RPC; `chat-updates` takes `limit` (≤ 600). QA: `npm run qa:chats`, the scratchpad's `qa-inbox.cjs` (cold + cached, memo rows).
 **Message alerts** (2026-10-25): only messages that come in raise an alert — a message we send (by hand, a template, an automation, a stage message) never pops a card, a sound or a notification (the old "נשלח ל-…" / "נשלחה הודעה אוטומטית" toasts are gone; a failed send still shows). One place decides how the office hears about an incoming message, `notifyIncoming` in
 `AdminPanel.jsx` (fed by the live feed and by the chats tab's fallback polls, deduped by message id; nothing for a message
 older than 15 min or for a chat that is on screen in a focused window — `setViewing()` / `isViewing()` in `src/lib/waNotify.js`,
@@ -817,6 +831,14 @@ broker is that person by name, or names none), copies the image next to the docu
 licence, "נחתם <time>", the company) plus a "חתימת המתווך" block on the certificate page; the signed Word file has it too
 (`agentPng`), and the signing page's done state shows it (`publicView` → `agentSigned`, `sign-file?kind=agent`). A document
 signed before the image was set stays without it. The PDF's signature boxes keep each image's proportions and three short lines.
+**Signing page as a document, the null-row crash (2026-11-03):** phones get a letterhead header (logo, "אפיק הנחל", "יזום, שיווק ותיווך
+נדל"ן" — the Word / PDF buttons left it, they sit as quiet links in the intro under the title: "הורדת עותק: PDF · Word"); desktop
+download buttons are quiet text buttons. The sheet's label column wraps (no `nowrap`) with a 16 px gap before the value, so
+"מחיר העסקה (לפני מע"מ)" never touches the amount on a phone. **`patchRow(id, patch)`** (`lib/documents-server.js`) is the one
+way to update a document and read it back (v1 columns while v2 is missing, downgrade + retry on a missing column, throws instead
+of a null row): the public signing path reads with `select('*')`, so it never learnt the v2 columns were missing, the final
+`update().select(SAFE)` failed on the live table and the page said "Cannot read properties of null (reading 'data')". The v2 / v3
+migration (`server/documents-v3-migration.sql`) is still the proper fix and is not applied yet.
 **Flow:** `docs-create` cleans the input (`cleanDocInput`), links the CRM lead (the given id, else the newest lead with that phone /
 email — never a new lead), numbers the document and writes `created` on the lead. `docs-send {id, via}` makes the private token
 (kept only as a hash), freezes the clauses on the row, renders the PDF the client signs (stored, its SHA-256 on the row), and

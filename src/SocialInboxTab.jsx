@@ -9,7 +9,7 @@
 // their status, the pages the Meta token reaches but aren't in yet ("+ הוספה לתיבה"), a 3-step guide (with links) for a page
 // that isn't listed yet, the WhatsApp line, and the whole history imported in steps. Server: api/meta.js handleSocial;
 // rules: lib/social-hook.js; WhatsApp threads: server/social-inbox-migration.sql.
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { FaFacebookMessenger, FaInstagram, FaWhatsapp } from 'react-icons/fa'
 import { Search, Send, UserPlus, X, Check, RefreshCw, Link2, Plug, ExternalLink, AlertTriangle, MessageCircle, ZoomIn, ZoomOut, LayoutTemplate, Smile, Forward, MailOpen, MoreVertical, Plus, Minus, Inbox, Trash2, EyeOff, Eye, Clock } from 'lucide-react'
@@ -380,11 +380,31 @@ function InboxForward({ t, lang, items, msgs, onClose, onDone }) {
     </div>, document.body)
 }
 
+// the lists are kept for the session, so the inbox paints at once on the next visit and only refreshes
+const INBOX_KEY = 'afik_inbox_v1'
+const readInbox = () => { try { return JSON.parse(sessionStorage.getItem(INBOX_KEY) || 'null') || {} } catch { return {} } }
+const writeInbox = patch => { try { sessionStorage.setItem(INBOX_KEY, JSON.stringify({ ...readInbox(), ...patch })) } catch {} }
+// one row of the list, memo'd: typing a reply or a live message used to re-render every row (up to 400, each with a face)
+const InboxRow = memo(function InboxRow({ x, on, name, time, hiddenText, noReplyText, noReplyTip, leadText, foundText, whereText, unreadTitle, onPick }) {
+  return (
+    <button type="button" role="listitem" className={`si-row${on ? ' is-on' : ''}${x.unread ? ' is-unread' : ''}`} onClick={() => onPick(x.key)}>
+      <Face th={x}/>
+      <span className="si-row-main">
+        <span className="si-row-top"><b><bdi>{name}</bdi></b><small>{time}</small></span>
+        <span className="si-row-bot"><span className="si-last" dir="auto">{x.last_dir === 'out' ? '✓ ' : ''}{x.last_text || ''}</span>
+          {hiddenText ? <span className="si-badge is-off">{hiddenText}</span> : noReplyText ? <span className="si-badge is-wait" title={noReplyTip}>{noReplyText}</span> : null}
+          {leadText ? <span className="si-badge is-lead">{leadText}</span> : foundText ? <span className="si-badge">{foundText}</span> : null}
+          {x.unread > 0 && <span className="si-unread" title={unreadTitle}>{x.unread}</span>}</span>
+        {whereText && <span className="si-where"><PlatIcon p={x.platform} size={10}/>{whereText}</span>}
+      </span>
+    </button>
+  )
+})
 export default function SocialInboxTab({ lang = 'he', onOpenLead, onOpenChat, onUpdateLead, onUpdateStatus, stageLabels = {} }) {
   const t = TXT[lang === 'en' ? 'en' : 'he']
-  const [threads, setThreads] = useState(null)
-  const [accounts, setAccounts] = useState({})
-  const [waChats, setWaChats] = useState(null)
+  const [threads, setThreads] = useState(() => readInbox().threads ?? null)
+  const [accounts, setAccounts] = useState(() => readInbox().accounts || {})
+  const [waChats, setWaChats] = useState(() => readInbox().wa ?? null)
   const [missing, setMissing] = useState(false)
   const [sel, setSel] = useState('')
   const [conv, setConv] = useState({ key: '', thread: null, messages: [], unread: 0 })
@@ -418,8 +438,8 @@ export default function SocialInboxTab({ lang = 'he', onOpenLead, onOpenChat, on
   const selRef = useRef(sel); selRef.current = sel
   const flash = m => { setToast(m); setTimeout(() => setToast(''), 3000) }
 
-  const loadThreads = useCallback(() => api('social-threads').then(d => { setThreads(d.threads || []); setAccounts(d.accounts || {}); setMissing(!!d.tablesMissing) }).catch(e => { setThreads([]); setErr(e.message) }), [])
-  const loadWa = useCallback(() => api('social-wa').then(d => setWaChats(d.chats || [])).catch(() => setWaChats([])), [])
+  const loadThreads = useCallback(() => api('social-threads').then(d => { setThreads(d.threads || []); setAccounts(d.accounts || {}); setMissing(!!d.tablesMissing); writeInbox({ threads: d.threads || [], accounts: d.accounts || {} }) }).catch(e => { setThreads([]); setErr(e.message) }), [])
+  const loadWa = useCallback(() => api('social-wa').then(d => { setWaChats(d.chats || []); writeInbox({ wa: d.chats || [] }) }).catch(() => setWaChats([])), [])
   const loadAll = useCallback(() => { loadThreads(); loadWa() }, [loadThreads, loadWa])
   const loadConv = useCallback(async (key, first = false) => {
     if (key.startsWith('wa:')) return
@@ -437,8 +457,11 @@ export default function SocialInboxTab({ lang = 'he', onOpenLead, onOpenChat, on
   // the database announces every change (a message in, our reply, a lead made): re-read what changed
   useEffect(() => {
     const reS = debounce(() => { loadThreads(); if (selRef.current && !selRef.current.startsWith('wa:')) loadConv(selRef.current) }, 700)
-    const reW = debounce(() => loadWa(), 900)
-    return onSync(m => { if (m.t === 'social_threads') reS(); else if (m.t === 'wa_messages') reW(); else if (m.t === '*') { reS(); reW() } })
+    // the WhatsApp list is re-read at most every 5 s, and not for a status tick (a delivered / read mark changes no row)
+    let lastWa = 0, tm = null
+    const reW = () => { clearTimeout(tm); tm = setTimeout(() => { lastWa = Date.now(); loadWa() }, Math.max(900, 5000 - (Date.now() - lastWa))) }
+    const off = onSync(m => { if (m.t === 'social_threads') reS(); else if (m.t === 'wa_messages') { if (String(m.op || '').toUpperCase() !== 'UPDATE') reW() } else if (m.t === '*') { reS(); reW() } })
+    return () => { off(); clearTimeout(tm) }
   }, [loadThreads, loadWa, loadConv])
   useEffect(() => { endRef.current?.scrollIntoView({ block: 'end' }) }, [conv.messages.length, sel])
   // Ctrl / ⌘ + wheel over the conversation = bigger / smaller text (like a browser, only for the chat)
@@ -607,19 +630,9 @@ export default function SocialInboxTab({ lang = 'he', onOpenLead, onOpenChat, on
         <div className="si-rows" role="list">
           {threads === null && waChats === null ? <div className="si-muted si-m">…</div> : !list.length ? (
             <div className="si-empty"><b>{t.empty}</b><span>{t.emptySub}</span><button type="button" className="si-secondary" onClick={() => setAccOpen(true)}><Plug size={14}/>{t.accounts}</button></div>
-          ) : list.slice(0, 400).map(x => (
-            <button key={x.key} type="button" role="listitem" className={`si-row${sel === x.key ? ' is-on' : ''}${x.unread ? ' is-unread' : ''}`} onClick={() => setSel(x.key)}>
-              <Face th={x}/>
-              <span className="si-row-main">
-                <span className="si-row-top"><b><bdi>{nameOf(x)}</bdi></b><small>{fmtTime(x.last_at, lang)}</small></span>
-                <span className="si-row-bot"><span className="si-last" dir="auto">{x.last_dir === 'out' ? '✓ ' : ''}{x.last_text || ''}</span>
-                  {x.hidden ? <span className="si-badge is-off">{t.isHidden}</span> : noReply(x) ? <span className="si-badge is-wait" title={t.noReplyTip}>{t.noReply(agoText(x.last_at, lang))}</span> : null}
-                  {x.lead_id ? <span className="si-badge is-lead">{t.isLead}</span> : x.kind === 'social' && x.phone ? <span className="si-badge">{t.foundPhone}</span> : null}
-                  {x.unread > 0 && <span className="si-unread" title={t.newN(x.unread)}>{x.unread}</span>}</span>
-                {where(x) && <span className="si-where"><PlatIcon p={x.platform} size={10}/>{where(x)}</span>}
-              </span>
-            </button>
-          ))}
+          ) : list.slice(0, 400).map(x => <InboxRow key={x.key} x={x} on={sel === x.key} name={nameOf(x)} time={fmtTime(x.last_at, lang)} hiddenText={x.hidden ? t.isHidden : ''}
+            noReplyText={!x.hidden && noReply(x) ? t.noReply(agoText(x.last_at, lang)) : ''} noReplyTip={t.noReplyTip} leadText={x.lead_id ? t.isLead : ''} foundText={!x.lead_id && x.kind === 'social' && x.phone ? t.foundPhone : ''}
+            whereText={where(x)} unreadTitle={x.unread > 0 ? t.newN(x.unread) : ''} onPick={setSel}/>)}
         </div>
       </aside>
       <Splitter axis="x" className="si-spl" min={LIST_W[0]} grows={lang === 'en' ? 1 : -1} label={t.resize}
