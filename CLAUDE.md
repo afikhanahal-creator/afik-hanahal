@@ -385,6 +385,22 @@ inbox keeps `social-threads` + `social-wa` in `sessionStorage.afik_inbox_v1` (pa
 WhatsApp list at most every 5 s and not for a `wa_messages` **UPDATE** (a delivered / read tick changes no row — the bus carries
 `op`), and its rows are `InboxRow` (memo). Server: `chat-waiting` and `social-wa` read their `app_settings` row in parallel with
 the RPC; `chat-updates` takes `limit` (≤ 600). QA: `npm run qa:chats`, the scratchpad's `qa-inbox.cjs` (cold + cached, memo rows).
+**The inbox on a phone + the project chip (2026-11-03):** the conversation header's back button is a `ChevronRight` icon at the
+start of the row (the right edge in Hebrew — the old "›" glyph is bidi-mirrored and pointed the wrong way; `html[dir=ltr]` flips
+it), the tools row (`.si-tools`: stage, project, follow-up, notes, AI, lead card) is **one horizontal scrolling strip** under 820 px
+(no wrap, no spacer, scrollbar hidden), the header never wraps, and `LeadConversation`'s composer buttons (templates · attach ·
+booking link) are round icon-only buttons under 520 px (their labels are `<span>`s). **The inbox now loads `LP_CSS`** — it never
+did, so the project chip rendered as a bare browser button (the grey block). The chip itself (`.lp-chip`, every screen) is a
+hairline pill in the board's design: `--au-pop` background, `--au-line` border, the project's colour as a ringed dot, a small
+chevron, `min-height:0` against the site's 44 px button rule; `--md` (the inbox / lead header) is 32 px, `--sm` (cards, table) 24 px.
+The inbox's session cache is used only when written in the last 10 minutes (an old list that then re-sorted read as "an older
+screen for a second"). `warmTabs()` in `AdminPanel.jsx` imports the heavy screens (inbox, chats, leads board, Lead Center,
+documents, automations) while the browser is idle (2 s after mount, not on a data-saver connection), so a tab opens without
+waiting for its chunk. **"שלישי שבוע הבא" is a callback** (`lib/callback-time.js`, tested): a bare weekday counts next to "שבוע
+הבא / הקרוב" or with a call word ("נדבר שלישי"; never a bare "שני" = two, never "שני חדרים"), and "שבוע הבא" moves a weekday to next
+week (Sunday first); "נדבר שבוע הבא" alone → next Sunday 10:00. `CALLBACK_VER` in `lib/automations.js`: a parser change makes the
+next `scanCallbacks` re-read the last 3 days once, seen or not (`app_settings.callback_ver`; `onIncomingMessage` takes `maxAgeMs`),
+so a reply the old parser missed still becomes a task — Pazit's "בחופשה נדבר שאחזור🙏🏼 שלישי שבוע הבא" (3.11, 20:09) was the case.
 **Message alerts** (2026-10-25): only messages that come in raise an alert — a message we send (by hand, a template, an automation, a stage message) never pops a card, a sound or a notification (the old "נשלח ל-…" / "נשלחה הודעה אוטומטית" toasts are gone; a failed send still shows). One place decides how the office hears about an incoming message, `notifyIncoming` in
 `AdminPanel.jsx` (fed by the live feed and by the chats tab's fallback polls, deduped by message id; nothing for a message
 older than 15 min or for a chat that is on screen in a focused window — `setViewing()` / `isViewing()` in `src/lib/waNotify.js`,

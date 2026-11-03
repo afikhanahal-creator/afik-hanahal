@@ -546,7 +546,7 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
         .wa-bub-emo{transition:transform .12s}.wa-bub-emo:hover{transform:scale(1.22)}
         .lcv-send:hover:not(:disabled){background:#019574}
         .lcv-send:focus-visible,.lcv-tplbtn:focus-visible{outline:2px solid ${WA.green};outline-offset:2px}
-        @media (max-width:520px){.lcv-hint{display:none}.lcv-send{margin-inline-start:auto}}
+        @media (max-width:520px){.lcv-hint{display:none}.lcv-send{margin-inline-start:auto;padding:0 16px}.lcv-tplbtn{width:38px;height:38px;padding:0;justify-content:center;gap:0}.lcv-tplbtn span{display:none}.lcv-tplbtn svg{width:17px;height:17px}}
         .lcv-tpl{display:flex;align-items:center;gap:8px;padding:6px 8px 6px 12px;border-bottom:1px solid ${isDark ? 'rgba(255,255,255,.07)' : 'rgba(11,20,26,.07)'};background:${isDark ? 'rgba(255,255,255,.03)' : '#F7F8FA'};font-size:12.5px;color:${WA.subText};min-width:0}
         .lcv-tpl b{color:${WA.bodyText};font-weight:600}
         [dir=rtl] .lcv-tpl{padding:6px 12px 6px 8px}
@@ -744,9 +744,9 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
               style={{ maxHeight: dock ? 'none' : 160, flex: dock ? 1 : undefined }}/>
             <div className="lcv-bar">
               <button ref={qBtnRef} type="button" className="lcv-tplbtn" aria-expanded={quick} aria-haspopup="dialog" title={t.quickTip}
-                onClick={() => (quick ? closeQuick() : openQuick())}><Icon name="file" size={15}/>{t.templatesBtn}</button>
-              <button type="button" className="lcv-tplbtn" title={t.attachTip} aria-label={t.attachTip} onClick={() => fileRef.current?.click()}><Icon name="paperclip" size={15}/>{t.attach}</button>
-              <button type="button" className="lcv-tplbtn" title={t.bookTip} onClick={addBooking}><Icon name="calendar" size={15}/>{t.book}</button>
+                onClick={() => (quick ? closeQuick() : openQuick())}><Icon name="file" size={15}/><span>{t.templatesBtn}</span></button>
+              <button type="button" className="lcv-tplbtn" title={t.attachTip} aria-label={t.attachTip} onClick={() => fileRef.current?.click()}><Icon name="paperclip" size={15}/><span>{t.attach}</span></button>
+              <button type="button" className="lcv-tplbtn" title={t.bookTip} aria-label={t.book} onClick={addBooking}><Icon name="calendar" size={15}/><span>{t.book}</span></button>
               <span className="lcv-hint">{t.enterHint}</span>
               <button type="button" className="lcv-send" onClick={submit} disabled={!canSend} aria-label={first ? t.sendWelcome : t.send}>
                 {busy ? t.sending : <>{att.items.length && !first ? (lang === 'en' ? (att.items.length === 1 ? 'Send file' : `Send ${att.items.length} files`) : (att.items.length === 1 ? 'שלח קובץ' : `שלח ${att.items.length} קבצים`)) : first ? t.sendWelcome : t.send}<Icon name="send" size={16} flip={lang !== 'en'}/></>}

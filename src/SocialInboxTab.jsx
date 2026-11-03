@@ -12,10 +12,10 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { FaFacebookMessenger, FaInstagram, FaWhatsapp } from 'react-icons/fa'
-import { Search, Send, UserPlus, X, Check, RefreshCw, Link2, Plug, ExternalLink, AlertTriangle, MessageCircle, ZoomIn, ZoomOut, LayoutTemplate, Smile, Forward, MailOpen, MoreVertical, Plus, Minus, Inbox, Trash2, EyeOff, Eye, Clock } from 'lucide-react'
+import { Search, Send, UserPlus, X, Check, RefreshCw, Link2, Plug, ExternalLink, AlertTriangle, MessageCircle, ZoomIn, ZoomOut, LayoutTemplate, Smile, Forward, MailOpen, MoreVertical, Plus, Minus, Inbox, Trash2, EyeOff, Eye, Clock, ChevronRight } from 'lucide-react'
 import { onSync, debounce } from './lib/syncBus.js'
 import { useProjects } from './lib/projectsStore.js'
-import { ProjectSelect, ProjectChip } from './LeadProjects.jsx'
+import { ProjectSelect, ProjectChip, LP_CSS } from './LeadProjects.jsx'
 import { ChatNameEdit, StageMenu, AiNoteButton } from './ChatLeadTools.jsx'
 import { NotesButton, FollowUpButton } from './FollowUpTask.jsx'
 import { leadProject } from './lib/leadFields.js'
@@ -382,8 +382,8 @@ function InboxForward({ t, lang, items, msgs, onClose, onDone }) {
 
 // the lists are kept for the session, so the inbox paints at once on the next visit and only refreshes
 const INBOX_KEY = 'afik_inbox_v1'
-const readInbox = () => { try { return JSON.parse(sessionStorage.getItem(INBOX_KEY) || 'null') || {} } catch { return {} } }
-const writeInbox = patch => { try { sessionStorage.setItem(INBOX_KEY, JSON.stringify({ ...readInbox(), ...patch })) } catch {} }
+const readInbox = () => { try { const v = JSON.parse(sessionStorage.getItem(INBOX_KEY) || 'null') || {}; return Date.now() - (v.at || 0) < 10 * 60e3 ? v : {} } catch { return {} } }   // fresh only: an old list, then a reorder, read as a glitch
+const writeInbox = patch => { try { sessionStorage.setItem(INBOX_KEY, JSON.stringify({ ...readInbox(), ...patch, at: Date.now() })) } catch {} }
 // one row of the list, memo'd: typing a reply or a live message used to re-render every row (up to 400, each with a face)
 const InboxRow = memo(function InboxRow({ x, on, name, time, hiddenText, noReplyText, noReplyTip, leadText, foundText, whereText, unreadTitle, onPick }) {
   return (
@@ -644,7 +644,7 @@ export default function SocialInboxTab({ lang = 'he', onOpenLead, onOpenChat, on
       <section className="si-conv" style={{ '--si-z': zoom }}>
         {!th ? <div className="si-pick"><MessageCircle size={30}/><b>{t.pick}</b><span>{t.pickSub}</span></div> : <>
           <header className="si-conv-head">
-            <button type="button" className="si-back" onClick={() => setSel('')} aria-label={t.close}>›</button>
+            <button type="button" className="si-back" onClick={() => setSel('')} aria-label={t.close}><ChevronRight size={24}/></button>
             <Face th={th} size={46} zoom t={t} lang={lang} link={profileLink(th, accounts)}/>
             <div className="si-who">
               <span className="si-who-name">
@@ -752,7 +752,7 @@ export default function SocialInboxTab({ lang = 'he', onOpenLead, onOpenChat, on
           autoConfig={autoConfig} onClose={() => setEditTpl(null)} onSaved={next => { setSharedAutoConfig(next); flash(t.tplSaved) }}/>
       )}
       {toast && <div className="si-toast" role="status"><Check size={14}/>{toast}</div>}
-      <style>{SI_CSS + SPLITTER_CSS}</style>
+      <style>{SI_CSS + SPLITTER_CSS + LP_CSS}</style>
     </div>
   )
 }
@@ -809,7 +809,9 @@ const SI_CSS = `
 .si-pick{margin:auto;display:flex;flex-direction:column;align-items:center;gap:6px;color:var(--au-text3);font-size:13px}
 .si-pick b{font-size:15px;color:var(--au-text2)}
 .si-conv-head{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--au-line);background:var(--au-pop);flex:none}
-.si-back{display:none;border:none;background:none;font-size:24px;color:var(--au-text2);cursor:pointer;padding:0 6px;min-height:0}
+.si-back{display:none;width:38px;height:38px;border-radius:50%;border:none;background:transparent;color:var(--au-text);cursor:pointer;padding:0;min-height:0;flex:none;align-items:center;justify-content:center;margin-inline-start:-6px}
+.si-back:active{background:rgba(var(--ov),.08)}
+html[dir=ltr] .si-back svg{transform:scaleX(-1)}
 .si-who{flex:1;min-width:0;display:flex;flex-direction:column}
 .si-who small{font-size:12px;color:var(--au-text2)}
 .si-who-name{display:inline-flex;align-items:center;gap:6px;font-size:16px;font-weight:700;color:var(--au-text);text-decoration:none;min-width:0}
@@ -927,5 +929,7 @@ html[data-admin-theme=dark] .si-bub.is-out{background:#1E3A5F;color:#E6EEF9}
 .si-fwd-list{max-height:52vh;overflow:auto;margin-top:8px;padding:2px}
 .si-fwd-list .si-row.is-on{background:rgba(var(--brand-rgb),.12)}
 .si-toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);display:inline-flex;align-items:center;gap:7px;background:#15803D;color:#fff;border-radius:999px;padding:9px 16px;font-size:13px;font-weight:600;z-index:3100}
-@media (max-width:820px){.si-list{width:100%!important;border:none}.si-list.has-sel{display:none}.si-conv{display:none}.si-list.has-sel+.si-spl+.si-conv{display:flex}.si-spl{display:none}.si-back{display:inline-flex}.si-lf-grid{grid-template-columns:1fr}.si-zoom{display:none}.si-tplbtn span{display:none}.si-conv-head{flex-wrap:wrap}}
+@media (max-width:820px){.si-list{width:100%!important;border:none}.si-list.has-sel{display:none}.si-conv{display:none}.si-list.has-sel+.si-spl+.si-conv{display:flex}.si-spl{display:none}.si-back{display:inline-flex}.si-lf-grid{grid-template-columns:1fr}.si-zoom{display:none}.si-tplbtn span{display:none}
+  .si-conv-head{flex-wrap:nowrap;padding:8px 10px;gap:8px}.si-who small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.si-conv-head .si-face{width:40px!important;height:40px!important}.si-who-name{font-size:15px}.si-who-link{display:none}
+  .si-tools{flex-wrap:nowrap;overflow-x:auto;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;scrollbar-width:none;gap:8px;padding:8px 12px}.si-tools::-webkit-scrollbar{display:none}.si-tools>*{flex:none}.si-tools-sp{display:none}.si-tools .si-sm{height:32px}}
 `
