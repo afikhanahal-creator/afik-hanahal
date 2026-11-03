@@ -1279,6 +1279,8 @@ export const LB_CSS = `
   .lb-seg button{display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 14px;border:none;border-radius:8px;background:transparent;color:var(--au-text2,#5E6378);font:inherit;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;transition:background .12s,color .12s;min-height:0}
   .lb-seg button:hover{color:var(--au-text,#1F2433)}
   .lb-seg button[aria-selected=true]{background:var(--au-card,#fff);color:var(--au-text,#1F2433);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.08),0 1px 6px rgba(0,0,0,.05)}
+  .kb-hidden-note{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:10px 20px 0;padding:8px 12px;border-radius:10px;background:rgba(217,119,6,.1);border:1px solid rgba(217,119,6,.35);color:var(--au-text,#111);font-size:12.5px;font-weight:500}
+  .kb-hidden-note button{height:28px;padding:0 11px;border:none;border-radius:7px;background:#B45309;color:#fff;font:600 12px Rubik,sans-serif;cursor:pointer;min-height:0}
   .lb-tb{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:8px;border:1px solid var(--au-line,#E2E5EF);background:var(--au-card,#fff);color:var(--au-text2,#5E6378);font:inherit;font-size:12.5px;font-weight:500;cursor:pointer;white-space:nowrap;transition:background .12s,color .12s,border-color .12s;min-height:0}
   .lb-tb:hover:not(:disabled){color:var(--au-text,#1F2433);border-color:rgba(var(--brand-rgb,63,73,166),.45)}
   .lb-tb:disabled{opacity:.55;cursor:default}
@@ -1745,6 +1747,19 @@ function KanbanBoard({ leads, T, isDark, lang, updateLead, updateLeadStatus, onA
       onDragCancel={() => { setActiveId(null); clearDwell() }}
       onDragEnd={handleDragEnd}>
 
+      {/* leads inside collapsed columns are easy to miss ("where are the 37?"): say so, with a click that opens them */}
+      {(() => {
+        const hidden = GROUPS.filter(g => isCollapsed(g) && (grouped[g.id] || []).length)
+        const n = hidden.reduce((a, g) => a + grouped[g.id].length, 0)
+        if (!n) return null
+        const names = hidden.map(g => `${lang === 'en' ? g.en : g.label} (${grouped[g.id].length})`).join(' · ')
+        return (
+          <div className="kb-hidden-note" role="status" dir={lang === 'en' ? 'ltr' : 'rtl'}>
+            <span>{lang === 'en' ? `${n} leads are in collapsed columns: ${names}` : `${n} לידים נמצאים בעמודות מקופלות: ${names}`}</span>
+            <button type="button" onClick={() => hidden.forEach(g => toggleCollapsed(g))}>{lang === 'en' ? 'Show them' : 'הצגת העמודות'}</button>
+          </div>
+        )
+      })()}
       {/* RTL horizontal scroll — first column (ליד חדש) is on the RIGHT */}
       <div className="kanban-board-scroll" style={{
         display: 'flex',
