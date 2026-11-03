@@ -10,6 +10,7 @@ import { setSharedAutoConfig, onSharedAutoConfig } from './lib/autoConfigStore.j
 import { setSharedLeads } from './lib/leadsStore.js'
 import { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react'
 import { LAYERS_DEF as GM_LAYERS, BG_OPTIONS as GM_BG_OPTIONS, LAYER_CATS_DEF as GM_LAYER_CATS } from './govmapLayers.js'
+import { FaFileSignature } from 'react-icons/fa'
 import { FaSun, FaMoon, FaPlus, FaEnvelope, FaFacebookF, FaInstagram, FaBed, FaRulerCombined, FaBuilding, FaTools, FaMapMarkerAlt, FaPhone, FaLeaf, FaCalendarAlt, FaTimes, FaWhatsapp, FaFileAlt, FaHome, FaSearch, FaBalanceScale, FaHandshake, FaLock, FaKey, FaGlobe, FaBolt, FaChartLine, FaEye, FaPlay, FaFire, FaShareAlt, FaHeart, FaCamera, FaUser, FaUsers, FaDesktop, FaMobileAlt, FaTabletAlt, FaRobot, FaExclamationTriangle, FaChartBar, FaThumbsUp, FaImage, FaPencilAlt, FaCrown, FaMousePointer, FaDollarSign, FaVideo, FaLink, FaCheckCircle, FaTrash, FaClipboardList } from 'react-icons/fa'
 // Seller intake submissions (from the public /sell form) — lazy, admin-only
 const SellerSubmissionsTab = lazy(() => import('./SellerSubmissionsTab.jsx'))
@@ -18,6 +19,7 @@ const MediaLibraryTab = lazy(() => import('./MediaLibraryTab.jsx'))
 import SmartVoiceInput, { VoiceHost } from './SmartVoiceInput.jsx'
 const VideoStudioTab = lazy(() => import('./VideoStudioTab.jsx'))
 const SocialInboxTab = lazy(() => import('./SocialInboxTab.jsx'))
+const DocumentsTab = lazy(() => import('./DocumentsTab.jsx'))
 const ContentEditorTab = lazy(() => import('./ContentEditorTab.jsx'))
 const AutomationsTab = lazy(() => import('./AutomationsTab.jsx'))
 const GA4Tab = lazy(() => import('./GA4Tab.jsx'))
@@ -41,7 +43,7 @@ import { notifyPropertiesChanged, mirrorProperty, mirrorProperties, mirrorDelete
 import { fetchAdminProperties, LeadsBoard, GreenAPIChat, MetaLeadsTab, SupermetricsTab, PropertyWizard, API_BASE, CONTACTS_API, ADMIN_TOKEN, condFetchJson, DARK_C, useTheme, TEAM, G, Logo, LEADS_STORE, LEADS_DELETED, LEADS_TRASH, ANALYTICS_KEY, META_LEAD_PAGES_KEY, WA_DEFAULT_TEMPLATE, _cloudSettings, CATEGORIES, EMPTY_PROP, CONDITION_OPTIONS, ENTRY_OPTIONS, ADMIN_DRAFT_KEY, toMapsEmbed, imgFallback, thumbImg, sortByOrder, TEAM_KEY, setCloudSettings } from './App.jsx'
 
 // Tab ↔ URL deep-link mapping (module-level so both AdminPanel and main app can use it)
-const ADMIN_TAB_TO_PATH = { overview:'overview', props:'properties', leads:'leads', sellers:'properties-intake', bookings:'bookings', media:'media', studio:'studio', content:'content', chats:'chats', social:'social', automations:'automations', meta:'lead-center', analytics:'analytics', supermetrics:'performance', team:'team', settings:'settings', counters:'counters', live:'live' }
+const ADMIN_TAB_TO_PATH = { overview:'overview', props:'properties', leads:'leads', sellers:'properties-intake', bookings:'bookings', docs:'documents', media:'media', studio:'studio', content:'content', chats:'chats', social:'social', automations:'automations', meta:'lead-center', analytics:'analytics', supermetrics:'performance', team:'team', settings:'settings', counters:'counters', live:'live' }
 const ADMIN_PATH_TO_TAB = Object.fromEntries(Object.entries(ADMIN_TAB_TO_PATH).map(([k,v])=>[v,k]))
 
 // ─── LOGO UPLOAD (single image, compressed) ──────────────────────────────────
@@ -1543,6 +1545,13 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     return () => window.removeEventListener('afik:bulk-send', h)
   }, [])
   const [cardLeadId, setCardLeadId]   = useState(null)    // the lead card opened over the Lead Center
+  // "מסמכים וחתימות": the lead card's "+ מסמך חדש" (and /admin-panel/documents?lead=<id>) open the wizard on that lead
+  const [docsLeadId, setDocsLeadId] = useState(() => { try { return new URL(window.location.href).searchParams.get('lead') && /\/admin-panel\/documents/.test(window.location.pathname) ? String(new URL(window.location.href).searchParams.get('lead')) : '' } catch { return '' } })
+  useEffect(() => {
+    const h = e => { const id = e.detail?.leadId; if (id) { setDocsLeadId(String(id) + '#' + Date.now()); setTab('docs') } }
+    window.addEventListener('afik:new-doc', h)
+    return () => window.removeEventListener('afik:new-doc', h)
+  }, [])
   const [reminderCardId, setReminderCardId] = useState(null)   // the lead card opened from a reminder (any screen)
   const cardFallback = useRef(null)
   const [autoRun, setAutoRun]         = useState(null)    // last run: suggestions, sent, moves…
@@ -2890,6 +2899,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     { id:'leads',    Icon:FaHandshake,   label:'לידים',       badge: leads.length },
     { id:'sellers',  Icon:FaClipboardList, label:'נכסים שנקלטו', badge: intakeStats?.new || undefined },
     { id:'bookings', Icon:FaCalendarAlt, label:'תיאום פגישות' },
+    { id:'docs',     Icon:FaFileSignature, label:'מסמכים וחתימות' },
     { id:'content',  Icon:FaFileAlt,     label:'תוכן האתר' },
     { id:'media',    Icon:FaImage,       label:'תמונות האתר' },
     { id:'studio',   Icon:FaVideo,       label:'סטודיו וידאו' },
@@ -2905,11 +2915,11 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const slimBar = !standalone && tab === 'meta' && !tabsOpen
   const DASH_GROUPS = [
     { id:'main',  he:'ראשי',            en:'MAIN',        ids:['overview','live','props','sellers','content','media','studio'] },
-    { id:'sales', he:'מכירות ולקוחות',  en:'SALES',       ids:['leads','meta','bookings','chats','social','automations'] },
+    { id:'sales', he:'מכירות ולקוחות',  en:'SALES',       ids:['leads','meta','bookings','docs','chats','social','automations'] },
     { id:'data',  he:'נתונים וביצועים', en:'INSIGHTS',    ids:['analytics','supermetrics'] },
     { id:'admin', he:'ניהול',           en:'ADMIN',       ids:['team','counters','settings'] },
   ]
-  const TAB_LABELS = { overview:'סקירה כללית', live:'נכסים באוויר', props:'ניהול נכסים', leads:'לידים', sellers:'נכסים שנקלטו', bookings:'תיאום פגישות', media:'תמונות האתר', studio:'סטודיו וידאו', content:'תוכן האתר', chats:'שיחות WhatsApp', social:'תיבת הודעות (וואטסאפ, מסנג׳ר, אינסטגרם)', automations:'אוטומציות וואטסאפ', meta:'מרכז מטא', analytics:'אנליטיקס', supermetrics:'ביצועים', team:'צוות', counters:'מונים', settings:'הגדרות' }
+  const TAB_LABELS = { docs:'מסמכים וחתימות', overview:'סקירה כללית', live:'נכסים באוויר', props:'ניהול נכסים', leads:'לידים', sellers:'נכסים שנקלטו', bookings:'תיאום פגישות', media:'תמונות האתר', studio:'סטודיו וידאו', content:'תוכן האתר', chats:'שיחות WhatsApp', social:'תיבת הודעות (וואטסאפ, מסנג׳ר, אינסטגרם)', automations:'אוטומציות וואטסאפ', meta:'מרכז מטא', analytics:'אנליטיקס', supermetrics:'ביצועים', team:'צוות', counters:'מונים', settings:'הגדרות' }
 
   return (
     <div className="admin-shell admin-scroll" style={standalone
@@ -3164,6 +3174,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
             {tabBtn('leads', 'לידים', leads.length)}
             {tabBtn('sellers', 'נכסים שנקלטו', intakeStats?.new || undefined)}
             {tabBtn('bookings', 'תיאום פגישות')}
+            {tabBtn('docs', 'מסמכים וחתימות')}
             {tabBtn('content', 'תוכן האתר')}
             {tabBtn('media', 'תמונות האתר')}
             {tabBtn('studio', 'סטודיו וידאו')}
@@ -3511,6 +3522,12 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
         {tab==='bookings' && (
           <Suspense fallback={<AdminTabLoader label="טוען תיאום פגישות…"/>}>
             <BookingAdminTab lang={lang} leads={leads}/>
+          </Suspense>
+        )}
+        {tab==='docs' && (
+          <Suspense fallback={<AdminTabLoader label="טוען מסמכים וחתימות…"/>}>
+            <DocumentsTab lang={lang} leads={leads} properties={orderedProps} standalone={standalone} initialLeadId={docsLeadId.split('#')[0]} key={docsLeadId}
+              onOpenLead={id => { setTab('leads'); try { const u = new URL(window.location.href); u.searchParams.set('lead', String(id)); window.history.replaceState(window.history.state, '', u) } catch {} }}/>
           </Suspense>
         )}
         {tab==='content' && (

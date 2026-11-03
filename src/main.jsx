@@ -69,7 +69,10 @@ const SellerForm = lazy(() => import('./SellerForm.jsx'))
 const isBooking = ['/book', '/booking', '/meet'].includes(cleanPath)
 const BookingPage = lazy(() => import('./BookingPage.jsx'))
 const PropertySummary = lazy(() => import('./PropertySummary.jsx'))
-if (isSellerForm || summaryToken || isBooking) {
+// The client's signing page (admin "מסמכים וחתימות") — /sign/<token>, its own chunk, noindex
+const signToken = (cleanPath.match(/^\/sign\/([A-Za-z0-9_-]{20,64})$/) || [])[1] || null
+const SignPage = lazy(() => import('./SignPage.jsx'))
+if (isSellerForm || summaryToken || isBooking || signToken) {
   // Private pages: override the site-wide "index, follow" meta and drop the home-page canonical
   let m = document.querySelector('meta[name="robots"]')
   if (!m) { m = document.createElement('meta'); m.name = 'robots'; document.head.appendChild(m) }
@@ -80,7 +83,9 @@ if (isSellerForm || summaryToken || isBooking) {
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <ErrorBoundary>
-      {summaryToken
+      {signToken
+        ? <Suspense fallback={<div style={{ minHeight: '100vh', background: '#EFEBE3' }}/>}><SignPage /></Suspense>
+        : summaryToken
         ? <Suspense fallback={<div style={{ minHeight: '100vh', background: '#EFEFF1' }}/>}><PropertySummary token={summaryToken} /></Suspense>
         : isBooking
         ? <Suspense fallback={<div style={{ minHeight: '100vh', background: '#09090F' }}/>}><BookingPage /></Suspense>
