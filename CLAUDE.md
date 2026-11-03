@@ -983,7 +983,11 @@ board has a **project bar** — a **"פרויקטים ▾" dropdown** with every
 project's town, leads, open and stage bar, "בלי פרויקט", + new, manage — `ProjectsDropdown`), then the 5 busiest as tabs (+N opens
 the list); **campaigns become projects by themselves**: a campaign / listing with ≥ 3 leads that no project covers is created once
 (`autoProjects()`, tested; the names are kept in `app_settings.lead_projects_auto`, so a deleted one never returns; a Meta copy's
-`prop_title` reads as the short campaign name — "זרובבל 15 - v2 (כוונה גבוהה)" → "זרובבל 15"); the choice filters the
+`prop_title` reads as the short campaign name — "זרובבל 15 - v2 (כוונה גבוהה)" → "זרובבל 15"); **merging duplicates** ("ניהול
+פרויקטים": "נראה כמו אותו פרויקט — כדאי למזג?" groups by the name without numbers / signs — `duplicateGroups()` —, or tick cards → "מיזוג"):
+pick the name that stays or type one; `mergeProjects()` (tested) keeps one project with every merged name / alias as its aliases (new
+leads from those campaigns join it by themselves) and `POST /api/meta/projects { …, removed, merge: { from, into } }` moves the leads
+put by hand in a merged-away project (`crm_data.projectId` / `projectName`); the choice filters the
 pipeline, the table, "תמונת מצב" and the follow-ups, `localStorage.afik_lead_project_filter`, plus a summary strip with the stage
 bar); **a colored project chip** on every pipeline card, phone card, the table's "פרויקט" column and the lead card's details — a
 click opens a picker (search, "בלי פרויקט", type a new name → create); the bulk bar's "שיוך לפרויקט"; **"ניהול פרויקטים"** (cards
