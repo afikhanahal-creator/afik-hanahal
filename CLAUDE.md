@@ -870,6 +870,14 @@ midpoints, coalesced pointer events), "ניקוי" inside the frame; on a touch 
 whole screen** (`.sg-full`: "ביטול" / "אישור החתימה", turn the phone sideways) and the signature then sits in the frame as an
 image (`.sg-pad-img`); on a desktop the frame is the pad; a typed signature stays. QA: the scratchpad's `drawSignature()` in
 `qa-docs.cjs` / `qa-docs-v3.cjs` / `qa-sign-mobile.cjs` draws through either pad.
+**The documents' emails read right-to-left (2026-11-04, `shell` / `rows` / `btn` / `ltr` in `lib/documents.js`):** every cell and
+paragraph carries `dir="rtl"` + `text-align:right` of its own (Gmail and Outlook drop `<body>` styles and reset the direction per
+block — labels came out on the left, "המסמך החתום מצורף להודעה." began with its full stop), the title is a centred letterhead
+(company, title, a short brand rule — centred on every width), the rows are a full-width table with the label on the right and
+a hairline under each row, LTR values (phones through `fmtPhone`, emails, document numbers, money) sit in an `ltr()` span so
+their order holds, the button is a centred table button, the footer is two lines (the sender, then ח.פ. · phone · email), and
+`color-scheme: light` is declared (Gmail's dark mode inverted the card). The fee reads "₪70,800 כולל מע"מ (2% ממחיר העסקה)".
+Render check: the scratchpad's `render-mail.mjs` (the office's signed mail, the client's copy, the signing link, at 390 / 720 px).
 **Flow:** `docs-create` cleans the input (`cleanDocInput`), links the CRM lead (the given id, else the newest lead with that phone /
 email — never a new lead), numbers the document and writes `created` on the lead. `docs-send {id, via}` makes the private token
 (kept only as a hash), freezes the clauses on the row, renders the PDF the client signs (stored, its SHA-256 on the row), and
