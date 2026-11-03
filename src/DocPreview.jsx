@@ -26,10 +26,10 @@ export const DOC_CSS = `
 .dsh-fees td:last-child{text-align:left;direction:ltr;font-variant-numeric:tabular-nums}
 .dsh-fees tr.t td{background:var(--dsh-soft);font-weight:700;font-size:10.5pt}
 .dsh-sig{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:14px}
-.dsh-box{border:1px solid var(--dsh-line);border-radius:4px;min-height:96px;padding:10px 12px;position:relative;display:flex;flex-direction:column;justify-content:space-between}
+.dsh-box{border:1px solid var(--dsh-line);border-radius:4px;min-height:118px;padding:10px 12px;position:relative;display:flex;flex-direction:column;justify-content:space-between}
 .dsh-box b{color:var(--dsh-mute);font-size:9.5pt}
 .dsh-box .ln{border-bottom:1px solid var(--dsh-line);height:34px;margin:8px 10px 6px}
-.dsh-box img{height:44px;object-fit:contain;align-self:center;margin:4px 0}
+.dsh-box img{max-height:68px;max-width:88%;height:auto;object-fit:contain;align-self:center;margin:4px 0}
 .dsh-box small{color:var(--dsh-mute);font-size:8.5pt;display:block;line-height:1.4}
 .dsh-foot span{white-space:nowrap}.dsh-foot{flex-wrap:wrap;gap:2px 12px;position:absolute;left:17mm;right:17mm;bottom:9mm;border-top:1px solid var(--dsh-line);padding-top:6px;display:flex;justify-content:space-between;color:var(--dsh-mute);font-size:8pt}
 .dsh-draft{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:140px;font-weight:700;color:rgba(23,23,43,.05);transform:rotate(-30deg);pointer-events:none;user-select:none;letter-spacing:.05em}

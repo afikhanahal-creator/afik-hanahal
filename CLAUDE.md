@@ -883,6 +883,14 @@ for it) asks for the document number to be typed, then `POST docs-delete {id}` �
 sent PDF, the signed PDF, every signature image, the broker's), `document_events`, `drive_files`, the row, and the entry in the
 lead's `crm_data.documents` with a 🗑 note; Drive copies stay in Drive. "ביטול" stays for unsigned ones (kills the link, keeps the
 row). On a phone the tab's tiles are 2 × 2 and the areas row scrolls.
+**Signatures big and sound (2026-11-04):** the pad hands up **the ink only** (`usePen.data()` crops the canvas to the strokes'
+bounding box + a margin, never narrower than 2:1 or 320 px — a signature in a corner of a big canvas used to scale down to a
+scribble); the PDF's signature boxes are 118 pt with ~58 pt of image height (text 7.8 pt, three short lines; paragraphs 1.5 lh,
+rows 1.44 lh + 5, clause gap 7, fee rows 18 pt keep the order on two pages); the Word file sizes each image by its own
+proportions up to 230 × 92 pt (`sigSize` from `pngInfo`); the on-screen box is 118 px with the image up to 68 px.
+**`lib/png-check.js`** (tested): `pngInfo(buf)` walks the chunks (signature, IHDR first, every CRC-32, IEND last) → `{ ok, width,
+height, why }`; the broker signature is saved only when sound and ≥ 120 × 40 (a garbled copy — the one a hand-typed SQL insert
+left in `app_settings` on 2026-11-03 — is ignored on read and refused on save), and a drawn signature goes through it too.
 **Flow:** `docs-create` cleans the input (`cleanDocInput`), links the CRM lead (the given id, else the newest lead with that phone /
 email — never a new lead), numbers the document and writes `created` on the lead. `docs-send {id, via}` makes the private token
 (kept only as a hash), freezes the clauses on the row, renders the PDF the client signs (stored, its SHA-256 on the row), and
