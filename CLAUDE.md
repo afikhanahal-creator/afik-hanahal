@@ -915,6 +915,20 @@ landed in the month; periods 3 / 6 / 12 months / since the start (`sessionStorag
 for the deltas; a KPI strip (sent · signed · rate · median time · waiting now), thin bars per month (sent = a brand tint,
 signed = the brand, direct labels, a legend), and the table — a month row opens the list scoped to that month of sending
 (`monthF`). The change bus (`afik_sync_documents`) refreshes the tab on every status change, so a signature shows up by itself.
+**Every document modal can be left, and "מילוי מהיר" (2026-11-04):** `ModalBar` (✕ · the screen's title · a sub-line · a right
+slot) sits on top of the wizard (the step's name, "שלב n מתוך N", "שמירת טיוטה" on the right, a progress line on phones), the
+quick document (both screens) and nothing else needs the footer's "✕ סגירה" (hidden on phones). On a phone (≤ 760 px) the
+wizard is one column with no sideways overflow (`.dw{grid-template-columns:minmax(0,1fr)}`, `.dw-grid` one column, the step
+strip hidden for the bar + progress), the footer is one row (חזרה · the eye = preview · הבא / שליחה full width), and **the
+preview has a bar of its own** (`PreviewBar`: "חזרה לטופס" + ✕ — `.dw.show-prev` used to hide the form with its footer, leaving no
+way back). The desktop step strip hides the labels of the other steps when the column is narrow (a container query). **"מילוי
+מהיר: רק מה שמשתנה"** = `QuickDoc` in `manual` mode (the header's "מסמך מהיר" opens on two ways in: a property from the system, or
+this; the wizard's template step has the same card → `onQuick(templateId)`): one screen — the deal (address, town, deal type,
+price, a description line), the template chips, the client (the lead finder, name, phone, email, ID, role), the fee (mode,
+percent chips, the sum) **with the link's validity** (7 / 14 / 30 days or typed — it moved out of the folded section in both
+modes), the template's own fields, the wording and the send; "לאשף המלא" keeps everything typed. The quick document's header
+button reads "מסמך מהיר". QA: the scratchpad's `qa-docs-phone.cjs` (iPhone 13: the bar, the preview bar, no overflow, a manual
+document sent).
 **Flow:** `docs-create` cleans the input (`cleanDocInput`), links the CRM lead (the given id, else the newest lead with that phone /
 email — never a new lead), numbers the document and writes `created` on the lead. `docs-send {id, via}` makes the private token
 (kept only as a hash), freezes the clauses on the row, renders the PDF the client signs (stored, its SHA-256 on the row), and
