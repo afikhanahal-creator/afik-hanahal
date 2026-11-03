@@ -2894,7 +2894,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     { id:'media',    Icon:FaImage,       label:'תמונות האתר' },
     { id:'studio',   Icon:FaVideo,       label:'סטודיו וידאו' },
     { id:'chats',    Icon:FaWhatsapp,    label:'צ\'אטים',     badge: chatsUnread, waiting: waiting.count },
-    { id:'social',   Icon:FaInstagram,   label:'סושיאל' },
+    { id:'social',   Icon:FaInstagram,   label:'תיבת הודעות' },
     { id:'automations', Icon:FaRobot,    label:'אוטומציות',   badge: autoRun?.suggestions?.length || undefined },
     { id:'analytics',    Icon:FaChartLine,   label:'אנליטיקס' },
     { id:'supermetrics', Icon:FaChartBar,   label:'ביצועים' },
@@ -2909,7 +2909,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     { id:'data',  he:'נתונים וביצועים', en:'INSIGHTS',    ids:['analytics','supermetrics'] },
     { id:'admin', he:'ניהול',           en:'ADMIN',       ids:['team','counters','settings'] },
   ]
-  const TAB_LABELS = { overview:'סקירה כללית', live:'נכסים באוויר', props:'ניהול נכסים', leads:'לידים', sellers:'נכסים שנקלטו', bookings:'תיאום פגישות', media:'תמונות האתר', studio:'סטודיו וידאו', content:'תוכן האתר', chats:'שיחות WhatsApp', social:'סושיאל (מסנג׳ר ואינסטגרם)', automations:'אוטומציות וואטסאפ', meta:'מרכז מטא', analytics:'אנליטיקס', supermetrics:'ביצועים', team:'צוות', counters:'מונים', settings:'הגדרות' }
+  const TAB_LABELS = { overview:'סקירה כללית', live:'נכסים באוויר', props:'ניהול נכסים', leads:'לידים', sellers:'נכסים שנקלטו', bookings:'תיאום פגישות', media:'תמונות האתר', studio:'סטודיו וידאו', content:'תוכן האתר', chats:'שיחות WhatsApp', social:'תיבת הודעות (וואטסאפ, מסנג׳ר, אינסטגרם)', automations:'אוטומציות וואטסאפ', meta:'מרכז מטא', analytics:'אנליטיקס', supermetrics:'ביצועים', team:'צוות', counters:'מונים', settings:'הגדרות' }
 
   return (
     <div className="admin-shell admin-scroll" style={standalone
@@ -3168,7 +3168,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
             {tabBtn('media', 'תמונות האתר')}
             {tabBtn('studio', 'סטודיו וידאו')}
             {tabBtn('chats', 'צ\'אטים')}
-            {tabBtn('social', 'סושיאל')}
+            {tabBtn('social', 'תיבת הודעות')}
             {tabBtn('automations', 'אוטומציות', autoRun?.suggestions?.length || undefined)}
             {tabBtn('analytics', 'אנליטיקס')}
             {tabBtn('supermetrics', 'ביצועים')}
@@ -3498,8 +3498,8 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
         )}
         {tab==='social' && (
           <div style={{ height: standalone ? '100%' : 'calc(100vh - 160px)', minHeight: 480 }}>
-            <Suspense fallback={<AdminTabLoader label="טוען את הסושיאל…"/>}>
-              <SocialInboxTab lang={lang} onOpenLead={id => { const l = leads.find(x => String(x.id) === String(id)); if (l) { setTab('leads'); try { const u = new URL(window.location.href); u.searchParams.set('lead', String(id)); window.history.replaceState(window.history.state, '', u) } catch {} } }}/>
+            <Suspense fallback={<AdminTabLoader label="טוען את תיבת ההודעות…"/>}>
+              <SocialInboxTab lang={lang} onOpenChat={c => { setInitialChatLead({ id: c.leadId || `wa:${c.phone}`, name: c.name, phone: c.phone }); setTab('chats') }} onOpenLead={id => { const l = leads.find(x => String(x.id) === String(id)); if (l) { setTab('leads'); try { const u = new URL(window.location.href); u.searchParams.set('lead', String(id)); window.history.replaceState(window.history.state, '', u) } catch {} } }}/>
             </Suspense>
           </div>
         )}

@@ -614,26 +614,36 @@ filter is used). `auto-tick?key=` (key = `AUTOMATION_KEY`, or the admin token)
 lets an external pinger such as cron-job.org run the engine every 5 minutes, so timing is exact even with the panel closed.
 Sending hours are `[start, end)` per weekday in 0.5-hour steps (Israel time); welcome, replies and stage messages ignore them.
 
-## Social inbox — Messenger + Instagram → leads (admin "סושיאל", `/admin-panel/social`)
+## Inbox — WhatsApp + Messenger + Instagram of every page → leads (admin "תיבת הודעות", `/admin-panel/social`)
 
-(2026-11-03) `src/SocialInboxTab.jsx` + `api/meta.js` `handleSocial` / `storeSocialEvents` / `syncSocialConversations` + the pure,
-tested `lib/social-hook.js`; tables `social_threads` / `social_messages` (`server/social-migration.sql`: RLS on, service key only,
-`social_threads` announced on the change bus). The same Meta webhook as the leads (`/api/meta/webhook`) now also takes `object: 'page'`
-`messaging` (Messenger) and `object: 'instagram'` (Instagram DMs; an echo = a message the page sent): `parseSocialHook()` → a thread per
-person (`<platform>:<account>:<user>`, name / @username / picture from the Graph, the last line, unread, a phone / email they wrote —
-`contactFromText()`) + the message; a repeat delivery is skipped; a brand-new conversation sends the office a WhatsApp. The tab: the list
-(search, all · not a lead yet · unread · Messenger · Instagram; "ליד" / "כתבו טלפון" badges), the conversation, a reply box (`social-send`
-→ the Send API with the page token — Instagram through the page linked to it; past 24 h it retries with the `HUMAN_AGENT` tag, else says
-so in words), **"הוסף כליד"** (name, the phone / email found, project, stage, note → `social-to-lead` → `manualLeadRow()` with source
-`messenger` / `instagram`, `crm_data.social`, the last 8 messages as the first note; the thread keeps `lead_id` → "כרטיס הליד"), and
-**"חשבונות מחוברים"** (`social-status`: the token's messaging scopes — `pages_messaging`, `instagram_basic`, `instagram_manage_messages`,
-`pages_manage_metadata` —, each own page's webhook fields with "חיבור להודעות" (`?fix=1` adds `messages`, `message_echoes`,
-`messaging_postbacks`, `leadgen` kept), the Instagram business accounts linked to the pages, the WhatsApp line's state, how to add
-another number; "ייבוא שיחות אחרונות" = `social-sync`: the newest 40 conversations × 25 messages per page and platform, quietly).
-**Setup on Meta's side (once):** a System User token with those scopes (replace `META_SYSTEM_USER_TOKEN`), the Meta app approved for
-the messaging permissions (App Review — without it only people with a role on the app reach the webhook), and in the app's Webhooks the
-Instagram object subscribed to `messages` with the leads' callback URL. Several WhatsApp numbers in one chats screen (Daniel's line)
-is the next step: each number = its own Green API instance.
+(2026-11-03) `src/SocialInboxTab.jsx` + `api/meta.js` `handleSocial` / `storeThreadBatch` / `storeSocialEvents` / `syncSocialStep` /
+`waImportStep` + the pure, tested `lib/social-hook.js`; tables `social_threads` / `social_messages` (`server/social-migration.sql`: RLS
+on, service key only, `social_threads` announced on the change bus) and `public.afik_wa_threads(lim)` (`server/social-inbox-migration.sql`,
+applied: one row per phone of `wa_messages` — the newest message, count, how many of theirs came after our last). **One list for
+every channel**: the office's WhatsApp line (`GET social-wa`: named from the CRM lead / phone book in proper Hebrew, linked to the
+lead by the last 9 digits — `leadIdsByPhone()`, 2-min cache) and Messenger / Instagram of **every page in the inbox** — the leads'
+pages (`META_PAGE_IDS`, always) + any page switched on in "חשבונות מחוברים" (`app_settings.social_pages` `[{ id, name, on, ig }]`,
+`cleanSocialPages` / `inboxPageIds` / `accountLabels`; `POST social-page {id, name, on}` also subscribes the page to `messages`).
+A page appears there once the System User (`afik-api`) is given it in business.facebook.com (Pages → Add / Request access, then
+System users → Assign assets → Full control) — Daniel's page, Korkos… The webhook (`/api/meta/webhook`, `object: 'page'` messaging
+and `object: 'instagram'`) keeps only inbox pages; leads (`leadgen`) still only from `META_PAGE_IDS`. Names show in proper Hebrew
+(`name_he` = `hebrewFullName`, the stored name stays as Meta gave it). The list: search, filters (הכל · מחכים לנו · עוד לא ליד ·
+וואטסאפ · מסנג׳ר · אינסטגרם), a chip per page, each row with the channel's icon on the face and "where" (the page / קו המשרד).
+The conversation: the face opens big (`FaceViewer`, exported from `src/WaFace.jsx`, with a profile link), the name links to the
+person's profile (`profileLink()`: wa.me · instagram.com/@handle · the chat in Meta Business Suite — Meta never gives a Messenger
+profile address), A− / % / A+ and Ctrl / ⌘ + wheel zoom the chat (`--si-z`, `localStorage.afik_inbox_zoom`), the list's edge drags
+(`Splitter`, `afik_inbox_list_w`), **templates like the WhatsApp chat** (`ChatTemplateMenu` in the header, `ChatQuickChips` over an
+empty box, the full `ChatTemplatePicker` window — rendered for the CRM lead or a stand-in; Messenger / Instagram get the text only),
+a reply box (WhatsApp → `chat-send`, the WhatsApp icon opens the full chats screen; Meta → `social-send`, past 24 h the
+`HUMAN_AGENT` tag) and **"הוסף כליד"** (name, phone / email, stage, **project / property — pick, search or create** (`ProjectSelect`),
+a note → `social-to-lead` / `social-wa-lead` (`manualLeadRow` with `channel: 'whatsapp'` → source `whatsapp`; a phone already a
+lead opens that lead), the last 8 messages as the first note). **Import the whole history, in steps** (one call ~40 s, the browser
+carries the cursor, progress + stop): `social-sync {cursor}` — every inbox page × Messenger / Instagram, 25 conversations per Graph
+page × their last 100 messages (`conversationEvents` + `threadRowFrom`, 3 queries per conversation, names from the participants, a
+missing name / picture filled later); `social-wa-import {cursor}` — Green `getChats` → `getChatHistory` 100 per chat → `afik_wa_backfill`
+(quiet). **Setup on Meta's side (once):** a System User token with `pages_messaging`, `instagram_basic`, `instagram_manage_messages`,
+`pages_manage_metadata` (+ the leads scopes) in `META_SYSTEM_USER_TOKEN`, App Review for the messaging permissions, the Instagram
+object subscribed to `messages` in the app's Webhooks, and on the phone Instagram → messages → "Allow access to messages".
 
 ## Booking page (`/book`) — our own Calendly
 
@@ -969,13 +979,17 @@ aliases }` in `app_settings.lead_projects` (`GET / POST /api/meta/projects`, the
 lead's project = the one it was put in by hand (`crm_data.projectId` + `projectName`; `__none` = taken out) else the project whose
 name / alias matches its campaign short name or listing (`projectOfLead()`; an archived project takes no new ones). `projectName`
 is also what `leadProject()` / `leadProperty()` return, so `{property}` in the messages and "+ הוספת הפרויקט" follow it. The leads
-board has a **project bar** (all · every project with its count · בלי פרויקט · + פרויקט חדש · ניהול פרויקטים; the choice filters the
+board has a **project bar** — a **"פרויקטים ▾" dropdown** with every project in one list (search, ↑ ↓ Enter, "כל הלידים", each
+project's town, leads, open and stage bar, "בלי פרויקט", + new, manage — `ProjectsDropdown`), then the 5 busiest as tabs (+N opens
+the list); **campaigns become projects by themselves**: a campaign / listing with ≥ 3 leads that no project covers is created once
+(`autoProjects()`, tested; the names are kept in `app_settings.lead_projects_auto`, so a deleted one never returns; a Meta copy's
+`prop_title` reads as the short campaign name — "זרובבל 15 - v2 (כוונה גבוהה)" → "זרובבל 15"); the choice filters the
 pipeline, the table, "תמונת מצב" and the follow-ups, `localStorage.afik_lead_project_filter`, plus a summary strip with the stage
 bar); **a colored project chip** on every pipeline card, phone card, the table's "פרויקט" column and the lead card's details — a
 click opens a picker (search, "בלי פרויקט", type a new name → create); the bulk bar's "שיוך לפרויקט"; **"ניהול פרויקטים"** (cards
 with leads / open / the stage bar, edit name / town / color / campaign names, archive, delete — the leads stay —, and "קמפיינים בלי
 פרויקט" → create from one). **"ליד חדש" is saved on the server now** (it used to add a row in this browser only): a dialog — name,
-phone / email (one is needed), project (the bar's project by default), stage (the column's), where from (phone call / referral /
+phone / email (one is needed), project (the bar's project by default; `ProjectSelect`: search, or type a new name → created), stage (the column's), where from (phone call / referral /
 walk-in / website / Facebook-Instagram / Yad2 / other + details), a first note, "לשלוח הודעת פתיחה" (off) → `POST
 /api/contacts?manual=1` (admin) → `manualLeadRow()` (source `manual_<from>`, `crm_data.origin.channel = 'manual'`), no new-lead
 email / office WhatsApp, the welcome only when ticked.

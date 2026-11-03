@@ -30,7 +30,7 @@ import { parseGreenHook, rowToGreen, mergeHistory, historyToRow } from '../lib/g
 import { avatarExpiry, avatarFresh, avatarPhone } from '../lib/wa-avatar.js'
 import { forwardRequest, fileGroupRequest, cleanMsgId, cleanReaction, isHandled, withHandled, withoutHandled } from '../lib/wa-actions.js'
 import { cleanProjects } from '../lib/projects.js'
-import { parseSocialHook, threadId, parseThreadId, contactFromText, previewText, leadBodyFromThread } from '../lib/social-hook.js'
+import { parseSocialHook, threadId, parseThreadId, previewText, leadBodyFromThread, cleanSocialPages, inboxPageIds, accountLabels, conversationEvents, threadRowFrom, importJobs } from '../lib/social-hook.js'
 import { manualLeadRow } from '../lib/manual-lead.js'
 
 const SUPERMETRICS_API_KEY    = process.env.SUPERMETRICS_API_KEY    || ''
@@ -126,25 +126,37 @@ async function handleGreenHook(req, res) {
 // The Meta webhook brings every message (handleSocialEvents); the admin's "סושיאל" tab lists the conversations, answers them
 // (Send API with the page token — Instagram through the page linked to it) and turns a person into a lead in one click.
 const SOCIAL_SCOPES = ['pages_messaging', 'instagram_basic', 'instagram_manage_messages', 'pages_manage_metadata']
+// Pages in the inbox: the leads' pages (META_PAGE_IDS) + every page switched on in "חשבונות מחוברים" (app_settings
+// 'social_pages', [{ id, name, on, ig }]) — Daniel's page, Korkos… any page the System User was given. 60-s cache.
+const _sp = { at: 0, list: [] }
+async function storedSocialPages(fresh = false) {
+  if (!fresh && Date.now() - _sp.at < 60e3) return _sp.list
+  _sp.list = cleanSocialPages((await Auto.getSetting('social_pages').catch(() => ({ value: null }))).value || [])
+  _sp.at = Date.now()
+  return _sp.list
+}
+async function saveSocialPages(list) { _sp.list = cleanSocialPages(list); _sp.at = Date.now(); await Auto.putSetting('social_pages', _sp.list) }
+async function socialPageIds() { return inboxPageIds(resolvePageIds({}), await storedSocialPages()) }
+
 const _igMap = { at: 0, v: {}, accounts: [] }
-async function igPageMap() {                 // { <ig business account id>: <page id> } for the office's pages, 10-min cache
+async function igPageMap() {                 // { <ig business account id>: <page id> } for the inbox pages, 10-min cache
   if (Date.now() - _igMap.at < 10 * 60e3) return _igMap.v
   const v = {}, accounts = []
-  for (const pid of resolvePageIds({})) {
+  await Promise.all((await socialPageIds()).map(async pid => {
     try {
       const tok = await getPageToken(pid)
       const d = await graphGet(`/${pid}?fields=name,instagram_business_account{id,username,name,profile_picture_url}`, tok)
       const ig = d.instagram_business_account
       if (ig?.id) { v[ig.id] = pid; accounts.push({ id: ig.id, username: ig.username || '', name: ig.name || '', pageId: pid, pageName: d.name || '' }) }
     } catch {}
-  }
+  }))
   Object.assign(_igMap, { at: Date.now(), v, accounts })
   return v
 }
 async function socialPageToken(platform, accountId) {
   if (platform === 'messenger') return getPageToken(accountId)
   const map = await igPageMap()
-  return getPageToken(map[accountId] || resolvePageIds({})[0])
+  return getPageToken(map[accountId] || (await socialPageIds())[0])
 }
 async function socialProfile(platform, userId, token) {
   try {
@@ -154,102 +166,205 @@ async function socialProfile(platform, userId, token) {
 }
 const cleanGraphErr = e => String(e?.message || e || '').replace(/access_token=[^&\s"]+/g, '').slice(0, 300)
 
-/** Store a batch of webhook / imported messages: the thread (name, picture, last line, unread, a phone / email they wrote) and
- *  the message itself; a repeat delivery is skipped. A brand-new conversation alerts the office (WhatsApp). → { stored, newThreads } */
+/** One conversation's new messages → the thread row + the messages, in 3 queries (the import stores hundreds at a time).
+ *  → { stored, isNew, row } */
+async function storeThreadBatch(client, { platform, accountId, userId, events, person = {}, quiet }) {
+  const id = threadId(platform, accountId, userId)
+  const [{ data: have, error: he }, { data: cur, error: ce }] = await Promise.all([
+    client.from('social_messages').select('id').eq('thread_id', id).limit(5000),
+    client.from('social_threads').select('id,name,username,avatar,phone,email,unread,last_at').eq('id', id).maybeSingle(),
+  ])
+  if (he || ce) throw new Error((he || ce).message)
+  const seen = new Set((have || []).map(r => r.id))
+  const fresh = []
+  for (const e of events) if (!seen.has(e.mid)) { seen.add(e.mid); fresh.push(e) }
+  if (!fresh.length) {
+    // nothing new, but an older import may have left the person without a name / picture: fill them in
+    if (cur && ((!cur.name && person.name) || (!cur.username && person.username) || !cur.avatar)) {
+      const p = cur.avatar ? {} : await socialProfile(platform, userId, await socialPageToken(platform, accountId))
+      const fix = { ...(!cur.name && (person.name || p.name) ? { name: person.name || p.name } : {}), ...(!cur.username && (person.username || p.username) ? { username: person.username || p.username } : {}), ...(p.avatar ? { avatar: p.avatar } : {}) }
+      if (Object.keys(fix).length) await client.from('social_threads').update(fix).eq('id', id)
+    }
+    return { stored: 0, isNew: false, row: cur }
+  }
+  let prof = { name: person.name || '', username: person.username || '' }
+  if (!cur?.avatar || (!cur?.name && !cur?.username && !prof.name && !prof.username)) {
+    const p = await socialProfile(platform, userId, await socialPageToken(platform, accountId))
+    prof = { name: prof.name || p.name || '', username: prof.username || p.username || '', avatar: p.avatar || '' }
+  }
+  const row = threadRowFrom({ cur, events: fresh, platform, accountId, userId, prof, quiet })
+  const { error: te } = await client.from('social_threads').upsert(row, { onConflict: 'id' })
+  if (te) throw new Error(te.message)
+  const { error: me } = await client.from('social_messages').upsert(fresh.map(e => ({ id: e.mid, thread_id: id, direction: e.direction, body: e.text || null, attachments: e.attachments?.length ? e.attachments : null, ts: e.ts })), { onConflict: 'id', ignoreDuplicates: true })
+  if (me) throw new Error(me.message)
+  return { stored: fresh.length, isNew: !cur, row: { ...cur, ...row } }
+}
+
+/** Webhook deliveries (and our own sends): only the inbox pages; a brand-new conversation alerts the office (WhatsApp). */
 async function storeSocialEvents(events, { quiet = false } = {}) {
   if (!events.length || !SUPABASE_URL || !SUPABASE_KEY) return { stored: 0, newThreads: 0 }
   const client = sb()
-  const own = resolvePageIds({})
-  let stored = 0, newThreads = 0
+  const pages = await socialPageIds()
+  const ig = await igPageMap()
+  const groups = new Map()
   for (const e of events) {
-    if (e.platform === 'messenger' && own.length && !own.includes(e.accountId)) continue
-    const id = threadId(e.platform, e.accountId, e.userId)
-    const { data: seen } = await client.from('social_messages').select('id').eq('id', e.mid).maybeSingle()
-    if (seen) continue
-    const { data: cur, error: readErr } = await client.from('social_threads').select('id,name,username,phone,email,unread,last_at').eq('id', id).maybeSingle()
-    if (readErr) throw new Error(readErr.message)
-    let prof = {}
-    if (!cur?.name && !cur?.username) prof = await socialProfile(e.platform, e.userId, await socialPageToken(e.platform, e.accountId))
-    const found = e.direction === 'in' ? contactFromText(e.text) : { phone: '', email: '' }
-    const newer = !cur?.last_at || Date.parse(e.ts) >= Date.parse(cur.last_at)
-    const row = {
-      id, platform: e.platform, account_id: e.accountId, user_id: e.userId, updated_at: new Date().toISOString(),
-      ...(prof.name ? { name: prof.name } : {}), ...(prof.username ? { username: prof.username } : {}), ...(prof.avatar ? { avatar: prof.avatar } : {}),
-      ...(newer ? { last_text: previewText(e), last_dir: e.direction, last_at: e.ts } : {}),
-      unread: quiet ? (cur?.unread || 0) : e.direction === 'in' ? (cur?.unread || 0) + 1 : 0,
-      ...(found.phone && !cur?.phone ? { phone: found.phone } : {}), ...(found.email && !cur?.email ? { email: found.email } : {}),
-    }
-    const { error: te } = await client.from('social_threads').upsert(row, { onConflict: 'id' })
-    if (te) throw new Error(te.message)
-    const { error: me } = await client.from('social_messages').upsert({ id: e.mid, thread_id: id, direction: e.direction, body: e.text || null, attachments: e.attachments?.length ? e.attachments : null, ts: e.ts }, { onConflict: 'id', ignoreDuplicates: true })
-    if (me) throw new Error(me.message)
-    stored++
-    if (!cur) {
+    if (e.platform === 'messenger' && pages.length && !pages.includes(e.accountId)) continue
+    if (e.platform === 'instagram' && Object.keys(ig).length && !ig[e.accountId]) continue
+    const k = threadId(e.platform, e.accountId, e.userId)
+    if (!groups.has(k)) groups.set(k, [])
+    groups.get(k).push(e)
+  }
+  let stored = 0, newThreads = 0
+  for (const evs of groups.values()) {
+    const e0 = evs[0]
+    const r = await storeThreadBatch(client, { platform: e0.platform, accountId: e0.accountId, userId: e0.userId, events: evs, quiet })
+    stored += r.stored
+    if (r.isNew) {
       newThreads++
-      if (!quiet && e.direction === 'in') {
-        const who = row.name || (row.username ? `@${row.username}` : 'מישהו')
-        Auto.notifyTeam(`*הודעה חדשה ב${e.platform === 'instagram' ? 'אינסטגרם' : 'מסנג׳ר'} מ${who}*\n${previewText(e).slice(0, 300)}${found.phone ? `\nטלפון: ${found.phone}` : ''}\nלשיחה ולהוספה כליד: https://www.afikhanahal.co.il/admin-panel/social`).catch(() => {})
+      const first = evs.find(e => e.direction === 'in')
+      if (!quiet && first) {
+        const who = r.row?.name || (r.row?.username ? `@${r.row.username}` : 'מישהו')
+        const page = accountLabels(await storedSocialPages())[e0.accountId]?.name
+        Auto.notifyTeam(`*הודעה חדשה ב${e0.platform === 'instagram' ? 'אינסטגרם' : 'מסנג׳ר'}${page ? ` (${page})` : ''} מ${who}*\n${previewText(first).slice(0, 300)}${r.row?.phone ? `\nטלפון: ${r.row.phone}` : ''}\nלשיחה ולהוספה כליד: https://www.afikhanahal.co.il/admin-panel/social`).catch(() => {})
       }
     }
   }
   return { stored, newThreads }
 }
 
-// Import the latest conversations (the webhook brings only what arrives from now on): every own page's Messenger and its
-// Instagram account, newest 40 threads × 25 messages, stored quietly (no alerts, unread kept)
-async function syncSocialConversations({ deadline = Date.now() + 45000 } = {}) {
+// The pages the inbox imports from, with their Instagram account (names kept in social_pages for the list's labels)
+async function inboxPages() {
+  const stored = await storedSocialPages()
+  const ids = await socialPageIds()
   const map = await igPageMap()
-  const igOf = Object.fromEntries(Object.entries(map).map(([ig, pid]) => [pid, ig]))
-  const out = { pages: [] }
-  for (const pid of resolvePageIds({})) {
-    const tok = await getPageToken(pid)
-    for (const platform of ['messenger', 'instagram']) {
-      if (Date.now() > deadline) break
-      const account = platform === 'messenger' ? pid : igOf[pid]
-      if (!account) continue
-      const r = { page: pid, platform, threads: 0, messages: 0 }
+  const igOf = Object.fromEntries(Object.entries(map).map(([igId, pid]) => [pid, igId]))
+  return ids.map(id => { const s = stored.find(p => p.id === id) || { id, name: '' }; return { ...s, ig: igOf[id] ? { id: igOf[id], username: s.ig?.username || '' } : null } })
+}
+
+/** Import every conversation, in steps (a call has ~60 s): cursor = { j: job index, after: Graph's paging cursor }.
+ *  Each step: pages of 25 conversations × their last 100 messages, stored quietly (no alerts, unread kept) until ~40 s,
+ *  then → { done, cursor, threads, messages, job: { pageName, platform }, jobs, errors }. The browser calls again with the cursor. */
+async function syncSocialStep(cursor = {}) {
+  const deadline = Date.now() + 40000
+  const client = sb()
+  const jobs = importJobs(await inboxPages())
+  let j = Math.max(0, Number(cursor.j) || 0), after = String(cursor.after || '')
+  const out = { threads: 0, messages: 0, errors: [], jobs: jobs.length }
+  const names = Object.fromEntries((await storedSocialPages()).map(p => [p.id, p.name]))
+  while (j < jobs.length && Date.now() < deadline) {
+    const job = jobs[j]
+    out.job = { pageName: names[job.pageId] || job.pageId, platform: job.platform, index: j }
+    try {
+      const tok = await getPageToken(job.pageId)
+      const d = await graphGet(`/${job.pageId}/conversations?platform=${job.platform}&fields=id,updated_time,participants,messages.limit(100){id,message,from,created_time,attachments}&limit=25${after ? `&after=${encodeURIComponent(after)}` : ''}`, tok)
+      const convs = (d.data || []).map(c => conversationEvents(c, job)).filter(c => c && c.events.length)
+      for (let i = 0; i < convs.length; i += 5) {
+        const res = await Promise.all(convs.slice(i, i + 5).map(c => storeThreadBatch(client, { platform: job.platform, accountId: job.accountId, userId: c.person.id, events: c.events, person: c.person, quiet: true }).catch(e => ({ error: e.message }))))
+        for (const r of res) { if (r.error) out.errors.push(r.error); else { out.threads++; out.messages += r.stored } }
+      }
+      after = d.paging?.next && d.paging?.cursors?.after ? d.paging.cursors.after : ''
+      if (!after) j++
+    } catch (e) { out.errors.push(`${out.job.pageName} · ${job.platform}: ${cleanGraphErr(e)}`); j++; after = '' }
+  }
+  return { ...out, done: j >= jobs.length, cursor: { j, after } }
+}
+
+// ── The office's WhatsApp line in the same inbox ─────────────────────────────────────────────────────────────────────
+const _leadPhones = { at: 0, map: new Map() }
+async function leadIdsByPhone() {               // last 9 digits → { id, name } of the newest CRM lead with that phone, 2-min cache
+  if (Date.now() - _leadPhones.at < 120e3) return _leadPhones.map
+  const { data } = await sb().from('contacts').select('id,name,phone').not('phone', 'is', null).order('created_at', { ascending: false }).limit(4000)
+  const map = new Map()
+  for (const r of data || []) { const k = tail9(r.phone); if (k.length === 9 && !map.has(k)) map.set(k, { id: String(r.id), name: r.name || '' }) }
+  Object.assign(_leadPhones, { at: Date.now(), map })
+  return map
+}
+/** Import the WhatsApp history of every chat on the line (Green getChats → getChatHistory 100 each → wa_messages, quietly),
+ *  in steps: cursor = { i } over the chats sorted by id. → { done, cursor, total, chats, messages } */
+async function waImportStep(cursor = {}) {
+  const deadline = Date.now() + 42000
+  const r = await greenFetch(greenUrl('getChats'), { signal: AbortSignal.timeout(20000) })
+  if (!r.ok) throw new Error(r.status === 466 ? 'Green API: חבילת החינם לא מאפשרת לקרוא את כל השיחות (466)' : `Green API getChats: HTTP ${r.status}`)
+  const office = String(process.env.BUSINESS_NOTIFY_CHATID || '972559811814').replace(/@.*/, '').replace(/\D/g, '')
+  const chats = (await r.json().catch(() => [])).map(c => String(c?.id || '')).filter(id => /^\d{8,15}@c\.us$/.test(id) && !id.startsWith(office)).sort()
+  let i = Math.max(0, Number(cursor.i) || 0)
+  const out = { total: chats.length, chats: 0, messages: 0, errors: 0 }
+  const worker = async () => {
+    while (i < chats.length && Date.now() < deadline) {
+      const chatId = chats[i++]
       try {
-        const d = await graphGet(`/${pid}/conversations?platform=${platform}&fields=id,updated_time,participants,messages.limit(25){id,message,from,to,created_time,attachments}&limit=40`, tok)
-        const events = []
-        for (const c of d.data || []) {
-          const person = (c.participants?.data || []).find(p => String(p.id) !== String(account) && String(p.id) !== String(pid))
-          if (!person?.id) continue
-          r.threads++
-          for (const m of (c.messages?.data || []).reverse()) {
-            const fromUs = String(m.from?.id) === String(account) || String(m.from?.id) === String(pid)
-            events.push({ platform, accountId: String(account), userId: String(person.id), direction: fromUs ? 'out' : 'in', mid: String(m.id), text: String(m.message || ''),
-              attachments: (m.attachments?.data || []).map(a => ({ type: String(a.mime_type || a.type || 'file').split('/')[0], url: String(a.image_data?.url || a.video_data?.url || a.file_url || '') })).slice(0, 10), ts: new Date(m.created_time || Date.now()).toISOString() })
-          }
-        }
-        const s = await storeSocialEvents(events, { quiet: true })
-        r.messages = s.stored
-      } catch (e) { r.error = cleanGraphErr(e) }
-      out.pages.push(r)
+        const h = await greenFetch(greenUrl('getChatHistory'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chatId, count: 100 }), signal: AbortSignal.timeout(15000) })
+        if (!h.ok) { out.errors++; continue }
+        const data = await h.json().catch(() => [])
+        const rows = (Array.isArray(data) ? data : []).map(m => historyToRow(m, chatId.split('@')[0])).filter(Boolean)
+        if (rows.length) { const { data: n } = await sb().rpc('afik_wa_backfill', { rows }); out.messages += Number(n) || 0 }
+        out.chats++
+      } catch { out.errors++ }
     }
   }
-  return out
+  await Promise.all([worker(), worker(), worker()])
+  return { ...out, done: i >= chats.length, cursor: { i } }
 }
 
 async function handleSocial(req, res, action) {
   if (!checkAuth(req)) return res.status(401).json({ error: 'Unauthorized' })
   res.setHeader('Cache-Control', 'no-store')
   const client = SUPABASE_URL && SUPABASE_KEY ? sb() : null
-  const missingTables = e => /social_(threads|messages)|relation .* does not exist|schema cache/i.test(String(e?.message || e || ''))
+  const missingTables = e => /social_(threads|messages)|relation .* does not exist|schema cache|afik_wa_threads/i.test(String(e?.message || e || ''))
   try {
     if (action === 'social-threads') {
-      const { data, error } = await client.from('social_threads').select('*').order('last_at', { ascending: false, nullsFirst: false }).limit(300)
+      const [{ data, error }, stored] = await Promise.all([
+        client.from('social_threads').select('*').order('last_at', { ascending: false, nullsFirst: false }).limit(1000),
+        storedSocialPages(),
+      ])
       if (error) return res.status(missingTables(error) ? 200 : 502).json(missingTables(error) ? { threads: [], tablesMissing: true } : { error: error.message })
-      return res.status(200).json({ threads: data || [] })
+      // the name in proper Hebrew next to the one Meta gave ("Dana Levi" → "דנה לוי"; an @handle stays)
+      return res.status(200).json({ threads: (data || []).map(r => ({ ...r, name_he: r.name ? hebrewFullName(r.name) : '' })), accounts: accountLabels(stored) })
+    }
+    // GET social-wa → the office line's chats from wa_messages (afik_wa_threads), named (lead, phone book) and linked to the lead
+    if (action === 'social-wa') {
+      const { data, error } = await client.rpc('afik_wa_threads', { lim: 600 })
+      if (error) return res.status(missingTables(error) ? 200 : 502).json(missingTables(error) ? { chats: [], fnMissing: true } : { error: error.message })
+      const office = String(process.env.BUSINESS_NOTIFY_CHATID || '972559811814').replace(/@.*/, '').replace(/\D/g, '')
+      const rows = (data || []).filter(r => r.phone !== office)
+      const [names, leads] = await Promise.all([
+        chatNames(rows.map(r => ({ phone: r.phone, chatId: `${r.phone}@c.us`, name: '' }))).catch(() => ({ map: new Map() })),
+        leadIdsByPhone().catch(() => new Map()),
+      ])
+      return res.status(200).json({ chats: rows.map(r => {
+        const k = tail9(r.phone), n = names.map.get(k), l = leads.get(k)
+        const nm = l?.name || n?.name || ''
+        return { phone: r.phone, name: nm ? hebrewFullName(nm) : '', waName: n?.waName || '', lead_id: l?.id || null, last_text: r.body || (r.type && r.type !== 'textMessage' ? r.type : ''), last_type: r.type, last_dir: r.direction, last_at: r.ts, msgs: Number(r.msgs) || 0, waiting: Number(r.waiting) || 0 }
+      }) })
+    }
+    // POST social-wa-lead { phone, name, email, projectId, projectName, leadStatus, note } → a CRM lead from a WhatsApp chat, with
+    // the chat's last messages as its first note; a phone that is already a lead answers that lead (existing: true)
+    if (action === 'social-wa-lead') {
+      const b = req.body || {}
+      const p = normalizePhone(b.phone)
+      if (!p) return res.status(400).json({ error: 'מספר הטלפון לא תקין' })
+      _leadPhones.at = 0
+      const had = (await leadIdsByPhone()).get(tail9(p))
+      if (had) return res.status(200).json({ ok: true, existing: true, lead: { id: had.id, name: had.name } })
+      const r = manualLeadRow({ ...b, phone: p, channel: 'whatsapp', social: null }, await properHebrewName(b.name || ''))
+      if (r.error) return res.status(400).json({ error: r.error })
+      const { data: msgs } = await client.from('wa_messages').select('direction,body,type,ts').eq('phone', p).order('ts', { ascending: false }).limit(8)
+      const said = (msgs || []).reverse().filter(m => m.body && m.type !== 'reactionMessage').map(m => `${m.direction === 'in' ? '←' : '→'} ${m.body}`).join('\n').slice(0, 1200)
+      if (said) { const crm = r.row.crm_data; crm.notes = [{ id: `n${Date.now().toString(36)}w`, text: `💬 מה נכתב בוואטסאפ:\n${said}`, ts: Date.now(), kind: 'wa' }, ...(crm.notes || [])] }
+      const ins = await client.from('contacts').insert(r.row).select('*').single()
+      if (ins.error) return res.status(502).json({ error: ins.error.message })
+      _leadPhones.at = 0
+      return res.status(201).json({ ok: true, lead: ins.data })
     }
     if (action === 'social-thread') {
       const id = String(req.query.id || '')
       if (!parseThreadId(id)) return res.status(400).json({ error: 'bad id' })
       const [{ data: thread }, { data: msgs }] = await Promise.all([
         client.from('social_threads').select('*').eq('id', id).maybeSingle(),
-        client.from('social_messages').select('id,direction,body,attachments,ts').eq('thread_id', id).order('ts', { ascending: true }).limit(400),
+        client.from('social_messages').select('id,direction,body,attachments,ts').eq('thread_id', id).order('ts', { ascending: false }).limit(500),
       ])
       if (thread?.unread) await client.from('social_threads').update({ unread: 0 }).eq('id', id)
-      return res.status(200).json({ thread: thread ? { ...thread, unread: 0 } : null, messages: msgs || [] })
+      return res.status(200).json({ thread: thread ? { ...thread, unread: 0 } : null, messages: (msgs || []).reverse() })
     }
     if (action === 'social-send') {
       const id = String(req.body?.id || ''), text = String(req.body?.text || '').trim().slice(0, 2000)
@@ -292,23 +407,59 @@ async function handleSocial(req, res, action) {
       const ins = await client.from('contacts').insert(r.row).select('*').single()
       if (ins.error) return res.status(502).json({ error: ins.error.message })
       await client.from('social_threads').update({ lead_id: String(ins.data.id), ...(r.row.phone && !thread.phone ? { phone: r.row.phone } : {}) }).eq('id', thread.id)
+      _leadPhones.at = 0
       return res.status(201).json({ ok: true, lead: ins.data })
     }
-    if (action === 'social-sync') return res.status(200).json(await syncSocialConversations())
+    // POST social-sync { cursor } → one step of importing every conversation of every inbox page (see syncSocialStep)
+    if (action === 'social-sync') return res.status(200).json(await syncSocialStep((req.body || {}).cursor || {}))
+    // POST wa-import (social-wa-import) { cursor } → one step of importing the WhatsApp line's history
+    if (action === 'social-wa-import') return res.status(200).json(await waImportStep((req.body || {}).cursor || {}))
+    // POST social-page { id, name, on } → a page in / out of the inbox; in = subscribed to messages (its other fields kept)
+    if (action === 'social-page') {
+      const b = req.body || {}
+      const id = String(b.id || '')
+      if (!/^\d{3,25}$/.test(id)) return res.status(400).json({ error: 'bad page id' })
+      const list = await storedSocialPages(true)
+      const cur = list.find(p => p.id === id)
+      const next = cur ? list.map(p => (p.id === id ? { ...p, on: !!b.on, name: b.name || p.name } : p)) : [...list, { id, name: String(b.name || ''), on: !!b.on }]
+      let fix = null
+      if (b.on) {
+        try {
+          const tok = await getPageToken(id)
+          const subs = await graphGet(`/${id}/subscribed_apps`, tok)
+          const fields = [...new Set((subs.data || []).flatMap(a => a.subscribed_fields || []))]
+          if (!fields.includes('messages')) {
+            const want = [...new Set([...fields, 'messages', 'message_echoes', 'messaging_postbacks'])].join(',')
+            const r = await fetch(`https://graph.facebook.com/v20.0/${id}/subscribed_apps?subscribed_fields=${want}&access_token=${tok}`, { method: 'POST', signal: AbortSignal.timeout(15000) })
+            fix = r.ok ? 'subscribed' : cleanGraphErr(await r.text())
+          }
+        } catch (e) { fix = cleanGraphErr(e) }
+      }
+      await saveSocialPages(next)
+      _igMap.at = 0
+      return res.status(200).json({ ok: true, pages: next, fix })
+    }
     if (action === 'social-status') {
-      // what is connected and what is missing: the token's messaging scopes, each own page's webhook fields (messages), its
-      // Instagram account; ?fix=1 subscribes the pages to messages (leadgen kept)
-      const out = { pages: [], instagram: [], scopes: [], missing: [] }
+      // what is connected and what is missing: the token's messaging scopes, every page the token reaches (in the inbox or
+      // not), each inbox page's webhook fields (messages), its Instagram account; ?fix=1 subscribes the inbox pages to messages
+      const out = { pages: [], instagram: [], scopes: [], missing: [], available: [] }
       try {
         const dbg = await graphGet(`/debug_token?input_token=${encodeURIComponent(META_PAGE_ACCESS_TOKEN)}`, META_PAGE_ACCESS_TOKEN)
         out.scopes = dbg.data?.scopes || []
         out.missing = SOCIAL_SCOPES.filter(s => !out.scopes.includes(s))
       } catch (e) { out.tokenError = cleanGraphErr(e) }
+      // every page the System User was given (business.facebook.com → System users → Assign assets)
+      try {
+        const d = await graphGet('/me/accounts?fields=id,name,picture{url},instagram_business_account{id,username}&limit=100', META_PAGE_ACCESS_TOKEN)
+        out.available = (d.data || []).map(p => ({ id: String(p.id), name: p.name || '', picture: p.picture?.data?.url || '', ig: p.instagram_business_account ? { id: String(p.instagram_business_account.id), username: p.instagram_business_account.username || '' } : null }))
+      } catch (e) { out.availableError = cleanGraphErr(e) }
+      const leadsPages = resolvePageIds({})
       _igMap.at = 0
       await igPageMap()
       out.instagram = _igMap.accounts
-      for (const pid of resolvePageIds({})) {
-        const pc = { id: pid }
+      const inbox = await socialPageIds()
+      for (const pid of inbox) {
+        const pc = { id: pid, leads: leadsPages.includes(pid) }
         try {
           const tok = await getPageToken(pid)
           pc.name = (await graphGet(`/${pid}?fields=name`, tok)).name
@@ -317,7 +468,7 @@ async function handleSocial(req, res, action) {
           pc.fields = fields
           pc.messages = fields.includes('messages')
           if (req.query.fix && !pc.messages) {
-            const want = [...new Set([...fields, 'leadgen', 'messages', 'message_echoes', 'messaging_postbacks'])].join(',')
+            const want = [...new Set([...fields, ...(pc.leads ? ['leadgen'] : []), 'messages', 'message_echoes', 'messaging_postbacks'])].join(',')
             const r = await fetch(`https://graph.facebook.com/v20.0/${pid}/subscribed_apps?subscribed_fields=${want}&access_token=${tok}`, { method: 'POST', signal: AbortSignal.timeout(15000) })
             pc.fix = r.ok ? 'subscribed' : cleanGraphErr(await r.text())
             if (r.ok) pc.messages = true
@@ -325,6 +476,16 @@ async function handleSocial(req, res, action) {
         } catch (e) { pc.error = cleanGraphErr(e) }
         out.pages.push(pc)
       }
+      // keep the names (and Instagram accounts) for the list's labels; the leads pages are saved as "on"
+      const stored = await storedSocialPages(true)
+      const known = new Map(stored.map(p => [p.id, p]))
+      for (const pc of out.pages) {
+        const ig = out.instagram.find(a => a.pageId === pc.id)
+        known.set(pc.id, { ...(known.get(pc.id) || { on: true }), id: pc.id, name: pc.name || known.get(pc.id)?.name || '', ig: ig ? { id: ig.id, username: ig.username } : null })
+      }
+      for (const a of out.available) if (known.has(a.id)) known.set(a.id, { ...known.get(a.id), name: a.name || known.get(a.id).name })
+      await saveSocialPages([...known.values()]).catch(() => {})
+      out.available = out.available.map(a => ({ ...a, inbox: inbox.includes(a.id), leads: leadsPages.includes(a.id) }))
       if (client) { const { error } = await client.from('social_threads').select('id').limit(1); out.tablesMissing = !!(error && missingTables(error)) }
       out.ok = !out.missing.length && out.pages.length > 0 && out.pages.every(p => p.messages) && !out.tablesMissing
       return res.status(200).json(out)
@@ -343,7 +504,9 @@ async function handleProjects(req, res) {
   if (!checkAuth(req)) return res.status(401).json({ error: 'Unauthorized' })
   res.setHeader('Cache-Control', 'no-store')
   const cur = cleanProjects((await Auto.getSetting('lead_projects').catch(() => ({ value: null }))).value || [])
-  if (req.method === 'GET') return res.status(200).json({ projects: cur })
+  // campaign names already made into projects automatically (lib/projects.js autoProjects) — a project deleted later never returns
+  const autoDone = (await Auto.getSetting('lead_projects_auto').catch(() => ({ value: null }))).value || []
+  if (req.method === 'GET') return res.status(200).json({ projects: cur, autoDone })
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
   const b = req.body || {}
   const removed = new Set((Array.isArray(b.removed) ? b.removed : []).map(String))
@@ -352,7 +515,12 @@ async function handleProjects(req, res) {
   for (const p of incoming) if (!removed.has(p.id)) byId.set(p.id, p)
   const next = cleanProjects([...incoming.filter(p => byId.has(p.id)), ...[...byId.values()].filter(p => !incoming.some(x => x.id === p.id))])
   try { await Auto.putSetting('lead_projects', next) } catch (e) { return res.status(502).json({ error: e.message }) }
-  return res.status(200).json({ ok: true, projects: next })
+  let auto = autoDone
+  if (Array.isArray(b.autoDone) && b.autoDone.length) {
+    auto = [...new Set([...autoDone, ...b.autoDone.map(x => String(x || '').trim().slice(0, 80)).filter(Boolean)])].slice(-300)
+    await Auto.putSetting('lead_projects_auto', auto).catch(() => {})
+  }
+  return res.status(200).json({ ok: true, projects: next, autoDone: auto })
 }
 
 // ── Green API instance settings: the journals that keep the lead's replies ──────────────────────────────────────────

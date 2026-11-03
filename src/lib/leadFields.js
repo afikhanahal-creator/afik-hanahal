@@ -138,7 +138,9 @@ export function leadProject(lead) {
   const m = metaName(lead)
   if (m) return shortCampaign(m)
   const crm = lead.crm_data && typeof lead.crm_data === 'object' ? lead.crm_data : {}
-  return String(lead.propTitle || lead.prop_title || crm.propTitle || '').trim().slice(0, 40)
+  const pt = String(lead.propTitle || lead.prop_title || crm.propTitle || '').trim()
+  // a Meta lead's copy keeps its campaign in prop_title ("זרובבל 15 - v2 (כוונה גבוהה)") — the short name, like metaName's
+  return (sourceOf(lead) === 'meta' ? shortCampaign(pt) : pt).slice(0, 40)
 }
 /** The name with / without " · <project>" → { has, next } */
 export function toggleProjectInName(name, project) {

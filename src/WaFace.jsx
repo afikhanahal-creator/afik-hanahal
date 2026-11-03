@@ -51,7 +51,7 @@ const local = p => {
   return l.length === 10 ? `${l.slice(0, 3)}-${l.slice(3, 6)}-${l.slice(6)}` : l
 }
 
-function FaceViewer({ url, name, phone, en, onClose, back }) {
+export function FaceViewer({ url, name, phone, en, onClose, back, sub = "", link = null }) {
   const closeRef = useRef(null)
   const [nat, setNat] = useState(null)
   const [vw, setVw] = useState(() => ({ w: window.innerWidth, h: window.innerHeight }))
@@ -75,8 +75,9 @@ function FaceViewer({ url, name, phone, en, onClose, back }) {
       <div onClick={e => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: 12, width: side, maxWidth: '100%', color: '#E9EDEF' }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           {name && <div style={{ fontSize: 17, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}><bdi>{name}</bdi></div>}
-          <div dir="ltr" style={{ fontSize: 13.5, color: '#AEBAC1', textAlign: en ? 'left' : 'right' }}>{local(phone)}{nat ? ` · ${nat.w}×${nat.h}` : ''}</div>
+          <div dir="ltr" style={{ fontSize: 13.5, color: '#AEBAC1', textAlign: en ? 'left' : 'right' }}>{sub || local(phone)}{nat ? ` · ${nat.w}×${nat.h}` : ''}</div>
         </div>
+        {link && <a href={link.href} target="_blank" rel="noopener noreferrer" style={btn} onClick={e => e.stopPropagation()}>{link.label}</a>}
         <a href={url} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer" style={btn}>{en ? 'Open original' : 'פתיחת המקור'}</a>
         <button ref={closeRef} type="button" onClick={onClose} aria-label={en ? 'Close' : 'סגירה'} style={{ ...btn, padding: '9px 12px' }}>✕</button>
       </div>
