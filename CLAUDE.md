@@ -258,6 +258,23 @@ stage list and its colors are `src/lib/pipelineStages.js` `PIPELINE`, shared wit
 task, the project (`על:`), what they look for (`מחפשים:` — `leadNeeds()` from the lead card's fields / form answers), the phone,
 wa.me and the card link `/admin-panel/leads?lead=<id>`. `public.afik_due_reminders()` counts every task with `remind` (it used to
 count follow-ups only) and reads an old Israel-local due in Israel time (`server/sync-bus-migration.sql`).
+**A lead's reply that names a time becomes a task by itself** (2026-11-03, `lib/callback-time.js` + `lib/automations.js`
+`onIncomingMessage()` / `scanCallbacks()`, tested in `lib/callback-time.test.mjs` / `lib/callback-task.test.mjs`): every incoming
+WhatsApp message (the Green webhook, `handleGreenHook`; safety net: `auto-tick` / `auto-run` over the last 3 hours, ids kept in
+`app_settings.callback_seen`) is read for a time — "מחר ב4" → tomorrow 16:00, "מחר בבוקר 9:00", "בשעות הצהריים" → 13:00, "אחרי
+שלוש", "ב8 בערב", "בעוד שעה", "ביום חמישי בערב", "עכשיו" (Israel time, Saturday → Sunday, a passed hour → the evening or tomorrow;
+`parseCallbackTime()` / `detectCallback()`). A clear one (an hour, a day + a time / part of the day, a time + a call word) counts
+alone; a weaker one only as an answer to our question about timing (our last message asked "מתי נוח…?" — `askedForTime()`, ≤ 72 h)
+or with a call word; refusals ("לא מעוניין", "לא זמין מחר"), "3-4 מיליון", "2 חדרים" and "בוקר טוב" never count. A short unusual
+answer to our question ("אחרי שאסיים בעבודה") goes to Claude (`claude-opus-5-5`, effort low, 8 s; only a sure, future answer in
+07–22 — `aiDue()`). The lead is found by phone (`findLeadByPhone`, the CRM copy); then a follow-up task `{ kind: 'followup', remind:
+true, auto: 'wa', fromMsg, quote }` ("לחזור לזוהר — ביקשו בוואטסאפ: "…"") — one automatic task per lead, a newer time moves it —,
+the lead's `followUp`, a 🔗 note, and a WhatsApp notice right away to the office line + the rule's extra numbers ("משימה חדשה: לחזור
+ל… מחר 16:00", the quote, project, phone, wa.me, the card link — `callbackNotice()`). At the time: the on-screen card (`TaskAlerts`)
+and the WhatsApp reminder (`remindTasks`, which also sends an `auto: 'wa'` task's reminder to the extra numbers). Not for a lead
+marked "לא רלוונטי" / "won". The rule is `rules.callback { mode, notifyNow, notify: [numbers], ai }` — the automations "חוקים" card
+"כשליד כותב מתי לחזור אליו" (on / off, notice now, Claude, extra numbers, a live tester); the extra numbers live only in the
+database config, never in code. The follow-ups screen marks these tasks "נוצר מהוואטסאפ" (the quote in the tooltip).
 **On-screen reminders** (2026-10-25, `src/TaskAlerts.jsx`, mounted once in `AdminPanel.jsx`): the same tasks (`remind`, not done,
 due, ≤ 12 h late — `screenReminders()` in `lib/follow-up.js`, tested; the WhatsApp having gone out doesn't matter) pop up in the open
 admin on any screen: a card at the top centre (amber, red once more than 2 min late — `lateText()`: "באיחור 26 דק׳") with the lead's

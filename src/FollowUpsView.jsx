@@ -31,7 +31,7 @@ const TXT = {
     ranges: { open: 'פתוחות', late: 'באיחור', today: 'היום', week: 'השבוע', done: 'בוצעו', all: 'הכל' },
     kinds: { all: 'הכל', followup: 'פולו אפים', task: 'משימות' },
     cols: { done: 'בוצע', when: 'מתי', name: 'למי לחזור', task: 'מה לעשות', actions: '' },
-    fu: 'פולו אפ', task: 'משימה', notDone: 'לא בוצע', markDone: 'סימון כבוצע', markOpen: 'סימון כלא בוצע',
+    fu: 'פולו אפ', task: 'משימה', fromWa: 'נוצר מהוואטסאפ', fromWaTip: q => `הליד כתב: "${q}"`, notDone: 'לא בוצע', markDone: 'סימון כבוצע', markOpen: 'סימון כלא בוצע',
     notePh: 'מה היה? Enter לשמירה', addNote: 'הערה', saved: 'נשמר בהערות הליד', move: 'הזזה', del: 'מחיקה',
     delAsk: 'למחוק את המשימה?', open: 'פתיחת כרטיס הליד', wa: 'וואטסאפ', call: 'התקשרות',
     empty: 'אין משימות כאן', emptySub: 'פולו אפ שנקבע בכרטיס הליד, בסיכום שיחה, במרכז הלידים או כאן יופיע ברשימה.',
@@ -49,7 +49,7 @@ const TXT = {
     ranges: { open: 'Open', late: 'Late', today: 'Today', week: 'This week', done: 'Done', all: 'All' },
     kinds: { all: 'All', followup: 'Follow-ups', task: 'Tasks' },
     cols: { done: 'Done', when: 'When', name: 'Who', task: 'What to do', actions: '' },
-    fu: 'Follow-up', task: 'Task', notDone: 'Not done', markDone: 'Mark as done', markOpen: 'Mark as not done',
+    fu: 'Follow-up', task: 'Task', fromWa: 'From WhatsApp', fromWaTip: q => `The lead wrote: "${q}"`, notDone: 'Not done', markDone: 'Mark as done', markOpen: 'Mark as not done',
     notePh: 'What happened? Enter to save', addNote: 'Note', saved: 'Saved to the lead\'s notes', move: 'Move', del: 'Delete',
     delAsk: 'Delete this task?', open: 'Open the lead card', wa: 'WhatsApp', call: 'Call',
     empty: 'No tasks here', emptySub: 'A follow-up set in the lead card, a call summary, the Lead Center or here shows in this list.',
@@ -158,6 +158,7 @@ function Row({ it, now, t, en, lang, stages, onUpdate, onOpen, onOpenChat, hero 
       <div role="cell" className="fv-c fv-c-task">
         <div className="fv-taskline">
           <span className={`fv-kind${task.kind === 'followup' ? ' is-fu' : ''}`}>{task.kind === 'followup' ? t.fu : t.task}</span>
+          {task.auto === 'wa' && <span className="fv-kind is-fu" title={task.quote ? t.fromWaTip(task.quote) : undefined}>{t.fromWa}</span>}
           <span className="fv-text" dir="auto">{text}</span>
         </div>
         {needs && <div className="fv-needs" dir="auto"><b>{t.wants}</b> {needs}</div>}

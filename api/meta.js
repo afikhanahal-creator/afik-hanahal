@@ -104,6 +104,10 @@ async function handleGreenHook(req, res) {
       const { error } = await client.from('wa_messages').upsert({ ...ev.row, updated_at: new Date().toISOString() }, { onConflict: 'id', ignoreDuplicates: true })   // a repeat delivery never rolls a status back
       if (error) console.error('[green-hook] store', error.message)
       // (the chatbot will answer here: ev.row.direction === 'in' → a reply suggestion / an automatic answer)
+      // a lead's reply that names a time ("מחר ב4") → a follow-up task with reminders (lib/automations.js onIncomingMessage)
+      if (!error && ev.row.direction === 'in') {
+        await Promise.race([Auto.onIncomingMessage(ev.row).catch(e => console.error('[green-hook] callback', e.message)), new Promise(ok => setTimeout(ok, 25000))])
+      }
     } else {
       const RANK = { failed: -1, sent: 1, delivered: 2, read: 3, played: 4 }
       const { data: cur } = await client.from('wa_messages').select('status').eq('id', ev.id).maybeSingle()
@@ -1000,7 +1004,7 @@ async function handleAutomations(req, res, action) {
       Booking.retryConfirmations({ client: SUPABASE_URL && SUPABASE_KEY ? sb() : null }).catch(() => null),  // calendar sync + confirmations Green API refused
       hebrewizeRecentNames(SUPABASE_URL && SUPABASE_KEY ? sb() : null).catch(() => null),   // any recent lead still named in Latin → Hebrew
       Auto.syncBookNames().catch(() => null),            // a name changed in the phone's WhatsApp contacts → the lead's name
-      Auto.catchUpMessages().catch(() => null),          // phone messages a missed webhook left out → wa_messages
+      Auto.catchUpMessages().catch(() => null).then(() => Auto.scanCallbacks().catch(() => null)),   // missed webhook rows → wa_messages; then times the leads asked for → tasks
     ])
     return res.status(200).json({ ok: r.ok !== false, at: r.at, sent: r.sent?.length || 0, errors: r.errors?.length || 0, queued: r.suggestions?.length || 0, jobs: r.jobs, notes: r.notes, meta })
   }
@@ -1035,7 +1039,7 @@ async function handleAutomations(req, res, action) {
     }
     if (action === 'auto-run') {
       // The panel calls this every 5 minutes while open: also pick up any Meta lead the webhook missed
-      const [r, meta] = await Promise.all([Auto.run({ source: 'panel' }), syncRecentMetaLeads({ hours: 6 }).catch(e => ({ error: e.message })), Auto.syncBookNames().catch(() => null), Auto.catchUpMessages().catch(() => null), Booking.retryConfirmations({ client: SUPABASE_URL && SUPABASE_KEY ? sb() : null }).catch(() => null), hebrewizeRecentNames(SUPABASE_URL && SUPABASE_KEY ? sb() : null).catch(() => null)])
+      const [r, meta] = await Promise.all([Auto.run({ source: 'panel' }), syncRecentMetaLeads({ hours: 6 }).catch(e => ({ error: e.message })), Auto.syncBookNames().catch(() => null), Auto.catchUpMessages().catch(() => null).then(() => Auto.scanCallbacks().catch(() => null)), Booking.retryConfirmations({ client: SUPABASE_URL && SUPABASE_KEY ? sb() : null }).catch(() => null), hebrewizeRecentNames(SUPABASE_URL && SUPABASE_KEY ? sb() : null).catch(() => null)])
       return res.status(200).json({ ...r, meta })
     }
     if (action === 'auto-send')   return res.status(200).json({ results: await Auto.sendItems(Array.isArray(b.items) ? b.items : [], { by: 'manual' }) })

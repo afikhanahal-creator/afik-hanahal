@@ -13,6 +13,7 @@ import { T, AUTO_CSS, Button, IconButton, Card, Badge, FilterChip, Toggle, ModeS
 import { WAText } from './waFormat.jsx'
 import { leadCampaign } from './lib/leadFields.js'
 import { leadNeeds, bestPersonalTemplateId } from '../lib/lead-needs.js'
+import { detectCallback, whenText as cbWhen } from '../lib/callback-time.js'
 import HoursTab from './WeekSchedule.jsx'
 import SequenceBuilder from './SequenceBuilder.jsx'
 import TemplatesTab from './TemplateStudio.jsx'
@@ -65,6 +66,7 @@ const TR = {
     wS1a: 'כשנכנס', wS1b: 'ליד חדש', wS1c: '← שלח', wS2: 'אם התעניין בנכס מסוים ← שלח במקום', wS3: 'ליד של הפרויקט', wS3b: '← שלח', addProj: '+ הודעת פתיחה משלו לפרויקט…', removeProj: 'הסרת ההודעה של הפרויקט', projTip: 'לליד של הפרויקט הזה תצא ההודעה הזו (עם התמונה שלה, אם יש). לידים של פרויקטים אחרים לא יקבלו אותה.', welcomeHelp: 'הודעת הפתיחה יוצאת מיד, גם מחוץ לשעות השליחה.',
     nrA: 'כשליד בשלבים', nrB: 'לא עונה', nrC: n => `← שלח עד ${n} תזכורות`, stagesPick: 'שלבים',
     rS: ['כשליד', 'עונה', '← התזכורות נעצרות והמערכת מזהה מה הוא רוצה'], notifyTeam: 'שלח התראה לצוות בוואטסאפ',
+    cbS: ['כשליד', 'כותב מתי לחזור אליו', '← נוצרת לו משימה עם תזכורת'], rCallback: 'משימה מתשובה', cbHelp: 'למשל "מחר ב4" או "בשעות הצהריים" כתשובה ל"מתי נוח לדבר?". המשימה נכנסת לפולו אפים של הליד, ובזמן הזה התזכורת קופצת במסך ונשלחת בוואטסאפ.', cbNow: 'הודעה בוואטסאפ מיד כשנוצרת משימה', cbAi: 'Claude מפענח גם תשובות לא שגרתיות ("אחרי שאסיים בעבודה")', cbNotify: 'מספרים נוספים שמקבלים את ההודעות והתזכורות (מלבד קו המשרד)', cbNotifyPh: 'למשל 054-1234567, 052-7654321', cbTry: 'בדיקה: מה הליד כתב?', cbTryPh: 'מחר ב4', cbNone: 'לא תיווצר משימה', cbWill: w => `תיווצר משימה: ${w}`,
     negTitle: 'ענה ״לא תודה״', negNote: 'מעכשיו לא יקבל יותר הודעות אוטומטיות.', posTitle: 'רוצה להתקדם', sendLbl: 'שלח', moveTo: 'העבר לשלב', noMove: 'אל תזיז',
     triggerWords: 'מילים שמזהות', addWord: 'הקלידו מילה ולחצו Enter', showMore: n => `הצג עוד ${n}`, removeWord: w => `הסר ${w}`,
     tester: 'בדקו תשובה לדוגמה', testerPh: 'למשל: כן, אשמח לשמוע פרטים', detNeg: 'מזוהה כ״לא תודה״', detPos: 'מזוהה כ״רוצה להתקדם״', detReply: 'תשובה רגילה – רק עוצרת תזכורות', matchedBy: w => `זוהה לפי: ״${w}״`,
@@ -132,6 +134,7 @@ const TR = {
     wS1a: 'When a', wS1b: 'new lead', wS1c: 'comes in → send', wS2: 'If they asked about a specific property → send instead', wS3: 'A lead of the project', wS3b: '→ send', addProj: '+ A welcome of its own for a project…', removeProj: 'Remove the project\'s message', projTip: 'Leads of this project get this message (with its picture, if it has one). Leads of other projects never do.', welcomeHelp: 'The welcome message goes out right away, even outside sending hours.',
     nrA: 'When a lead in', nrB: "doesn't reply", nrC: n => `→ send up to ${n} reminders`, stagesPick: 'Stages',
     rS: ['When a lead', 'replies', '→ reminders stop and the system reads their intent'], notifyTeam: 'Send the team a WhatsApp alert',
+    cbS: ['When a lead', 'says when to call them back', '→ a task with a reminder is created'], rCallback: 'Task from a reply', cbHelp: 'For example "tomorrow at 4" or "around noon" in reply to "When is a good time to talk?". The task goes into the lead\'s follow-ups, and at that time the reminder pops up on screen and goes out on WhatsApp.', cbNow: 'A WhatsApp notice as soon as a task is created', cbAi: 'Claude also reads unusual replies ("after I finish work")', cbNotify: 'More numbers that get the notices and reminders (besides the office line)', cbNotifyPh: 'e.g. 054-1234567, 052-7654321', cbTry: 'Try it: what did the lead write?', cbTryPh: 'מחר ב4', cbNone: 'No task would be created', cbWill: w => `A task would be created: ${w}`,
     negTitle: 'Replied “no thanks”', negNote: "They won't get any more automated messages.", posTitle: 'Wants to move forward', sendLbl: 'Send', moveTo: 'Move to stage', noMove: "Don't move",
     triggerWords: 'Trigger words', addWord: 'Type a word and press Enter', showMore: n => `Show ${n} more`, removeWord: w => `Remove ${w}`,
     tester: 'Test a sample reply', testerPh: "e.g. Yes, I'd love more details", detNeg: 'Detected as “no thanks”', detPos: 'Detected as “wants to move forward”', detReply: 'Regular reply – just stops reminders', matchedBy: w => `Matched: “${w}”`,
@@ -854,6 +857,15 @@ function Rules({ t, isEn, dir, cfg, setCfg, tpls, tplName, stageName, logRows, q
         <ReplyTester t={t} cfg={cfg}/>
       </RuleCard>
 
+      <RuleCard {...cardProps} id="callback" icon="calendar" accent={T.green} mode={R.callback?.mode === 'off' ? 'off' : 'auto'} help={t.cbHelp}
+        toggle={<Toggle checked={R.callback?.mode !== 'off'} onChange={v => setCfg(c => { c.rules.callback = { ...(c.rules.callback || {}), mode: v ? 'auto' : 'off' } })} label={t.rCallback}/>}
+        sentence={<><span>{t.cbS[0]}</span><b>{t.cbS[1]}</b><span>{t.cbS[2]}</span></>}>
+        <Toggle checked={R.callback?.notifyNow !== false} onChange={v => setCfg(c => { c.rules.callback = { ...(c.rules.callback || {}), notifyNow: v } })}>{t.cbNow}</Toggle>
+        <Toggle checked={R.callback?.ai !== false} onChange={v => setCfg(c => { c.rules.callback = { ...(c.rules.callback || {}), ai: v } })}>{t.cbAi}</Toggle>
+        <Field label={t.cbNotify}><NumbersInput value={R.callback?.notify || []} placeholder={t.cbNotifyPh} onChange={list => setCfg(c => { c.rules.callback = { ...(c.rules.callback || {}), notify: list } })}/></Field>
+        <CallbackTester t={t}/>
+      </RuleCard>
+
       <RuleCard {...cardProps} id="stage" icon="progress" accent="#A25DDC" mode={Object.values(R.stage || {}).some(r => r?.mode && r.mode !== 'off') ? 'auto' : 'off'} kind="stage" help={t.stageHelp} broken={tplBroken(Object.values(R.stage || {}).map(r => r?.templateId))}
         sentence={<><span>{t.stS[0]}</span><b>{t.stS[1]}</b><span>{t.stS[2]}</span></>}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -881,6 +893,27 @@ function Rules({ t, isEn, dir, cfg, setCfg, tpls, tplName, stageName, logRows, q
           {[1, 7].map(d => <Button key={d} size="sm" onClick={() => setCfg(c => { c.rules.reengage.days = Math.min(365, (c.rules.reengage.days || 45) + d) })}>+{d}</Button>)}
         </div>
       </Popover>
+    </div>
+  )
+}
+
+// The extra numbers, typed freely ("054-304-9491, 052…") — kept as typed, saved when the box loses focus
+function NumbersInput({ value, onChange, placeholder }) {
+  const [v, setV] = useState((value || []).join(', '))
+  useEffect(() => { setV((value || []).join(', ')) }, [(value || []).join(',')])
+  return <input value={v} dir="ltr" inputMode="tel" placeholder={placeholder} onChange={e => setV(e.target.value)}
+    onBlur={() => onChange(v.split(/[,;\n]+/).map(x => x.trim()).filter(Boolean).slice(0, 5))}
+    style={{ ...inputStyle, width: '100%', maxWidth: 420, textAlign: 'start' }}/>
+}
+// What the rule would do with a reply, live (the same rules as the server, lib/callback-time.js)
+function CallbackTester({ t }) {
+  const [q, setQ] = useState('')
+  const hit = q.trim() ? detectCallback({ text: q, prevOut: { text: 'מתי זה זמן נוח לדבר?' } }) : null
+  return (
+    <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', fontSize: 13, color: T.text2 }}>
+      <span>{t.cbTry}</span>
+      <input value={q} onChange={e => setQ(e.target.value)} placeholder={t.cbTryPh} dir="auto" style={{ ...inputStyle, width: 220 }}/>
+      {q.trim() && <b style={{ color: hit ? T.green : T.text3 }}>{hit ? t.cbWill(cbWhen(hit.due)) : t.cbNone}</b>}
     </div>
   )
 }
