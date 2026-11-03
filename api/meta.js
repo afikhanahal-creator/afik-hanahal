@@ -2335,7 +2335,7 @@ async function handleDocs(req, res, action) {
       if (action === 'sign-open') { const r = await Docs.openByToken(t, req); return res.status(r.code || 200).json(r) }
       if (action === 'sign-otp') { const r = await Docs.sendOtp(t, b.via, req); return res.status(r.code || 200).json(r) }
       if (action === 'sign-submit') { const r = await Docs.submitSignature(t, b, req); return res.status(r.code || 200).json(r) }
-      if (action === 'sign-file') return sendFile(await Docs.signedFileByToken(t, ['signed', 'signature'].includes(req.query?.kind) ? req.query.kind : 'original'))
+      if (action === 'sign-file') return sendFile(await Docs.signedFileByToken(t, ['signed', 'signature', 'docx'].includes(req.query?.kind) ? req.query.kind : 'original'))
       return res.status(404).json({ error: `Unknown path: ${action}` })
     }
     if (action === 'docs-list') {

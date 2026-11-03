@@ -70,7 +70,7 @@ const isBooking = ['/book', '/booking', '/meet'].includes(cleanPath)
 const BookingPage = lazy(() => import('./BookingPage.jsx'))
 const PropertySummary = lazy(() => import('./PropertySummary.jsx'))
 // The client's signing page (admin "מסמכים וחתימות") — /sign/<token>, its own chunk, noindex
-const signToken = (cleanPath.match(/^\/sign\/([A-Za-z0-9_-]{20,64})$/) || [])[1] || null
+const signToken = (cleanPath.match(/^\/(?:s|sign)\/([A-Za-z0-9_-]{8,64})\/?$/) || [])[1] || null
 const SignPage = lazy(() => import('./SignPage.jsx'))
 if (isSellerForm || summaryToken || isBooking || signToken) {
   // Private pages: override the site-wide "index, follow" meta and drop the home-page canonical
