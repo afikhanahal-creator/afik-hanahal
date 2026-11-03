@@ -944,6 +944,14 @@ pipeline card and after the name in the table, "✓✓ נשלחה" next to the s
 welcome from the database: a trigger on `meta_leads.wa_sent` (`server/meta-welcome-crm-migration.sql`, applied 2026-10-26, which
 also back-filled 37 copies from `automation_log`) writes `crm_data.auto.sent.welcome` — the copy used to keep the state it had
 when it was made, so 13 welcomed leads showed nothing.
+**Pipeline design (2026-11-03, a calm Apple-like system — `LB_CSS` in `src/LeadsBoard.jsx`, classes `.kb-col*` / `.lb-c-*`):** the
+board is a quiet neutral (`--au-bg`), columns are faint tinted panels with no colored borders (the stage's color is a 9 px dot next to
+the title, the count a soft grey pill, the fold arrow shows on hover), cards are white with a 1 px hairline, 14 px radius and a soft
+shadow that lifts on hover, chips are quiet grey (the project chip keeps its color), the source is a dot + word, the note sits in a
+tinted block, the footer actions and the checkbox appear on hover (always on touch), the collapsed column is a slim grey strip, the
+hidden-leads note is a neutral card, "ליד חדש" is `.lb-primary` and the search a tinted pill that lights up on focus; the project bar's
+tabs are borderless, the "פרויקטים ▾" button and the summary strip are hairline cards. Never hardcode a color on the board — use the
+admin tokens (`--au-*`, `rgba(var(--ov), a)`, `rgba(var(--brand-rgb), a)`); stage colors only as dots / bars.
 **Leads board look:** the view switch is a segmented control (תמונת מצב · פייפליין · טבלה, line icons); the toolbar is
 "ליד חדש", search, then quiet `.lb-tb` buttons (sync, trash, CSV; columns / add column in the table only — the old dead
 "סינון" / "מיון" buttons are gone). Pipeline cards are calm (initials avatar, name + phone, campaign / source / intent tags,

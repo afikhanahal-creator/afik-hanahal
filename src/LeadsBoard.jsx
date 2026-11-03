@@ -1275,21 +1275,82 @@ export const LB_CSS = `
   .lb-check:hover span{border-color:var(--ck)}
   .lb-check input:checked+span,.lb-check input:indeterminate+span{background:var(--ck);border-color:var(--ck)}
   .lb-check input:focus-visible+span{outline:2px solid var(--ck);outline-offset:2px}
-  .lb-seg{display:inline-flex;gap:2px;padding:3px;border-radius:10px;background:rgba(var(--ov,28,36,90),.06)}
+  .lb-seg{display:inline-flex;gap:2px;padding:3px;border-radius:11px;background:rgba(var(--ov,28,36,90),.06)}
   .lb-seg button{display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 14px;border:none;border-radius:8px;background:transparent;color:var(--au-text2,#5E6378);font:inherit;font-size:13px;font-weight:500;cursor:pointer;white-space:nowrap;transition:background .12s,color .12s;min-height:0}
   .lb-seg button:hover{color:var(--au-text,#1F2433)}
   .lb-seg button[aria-selected=true]{background:var(--au-card,#fff);color:var(--au-text,#1F2433);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.08),0 1px 6px rgba(0,0,0,.05)}
-  .kb-hidden-note{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:10px 20px 0;padding:8px 12px;border-radius:10px;background:rgba(217,119,6,.1);border:1px solid rgba(217,119,6,.35);color:var(--au-text,#111);font-size:12.5px;font-weight:500}
-  .kb-hidden-note button{height:28px;padding:0 11px;border:none;border-radius:7px;background:#B45309;color:#fff;font:600 12px Rubik,sans-serif;cursor:pointer;min-height:0}
-  .lb-tb{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:8px;border:1px solid var(--au-line,#E2E5EF);background:var(--au-card,#fff);color:var(--au-text2,#5E6378);font:inherit;font-size:12.5px;font-weight:500;cursor:pointer;white-space:nowrap;transition:background .12s,color .12s,border-color .12s;min-height:0}
-  .lb-tb:hover:not(:disabled){color:var(--au-text,#1F2433);border-color:rgba(var(--brand-rgb,63,73,166),.45)}
+  .kb-hidden-note{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:12px 20px 0;padding:8px 12px;border-radius:12px;background:var(--au-card,#fff);border:1px solid rgba(var(--ov,28,36,90),.1);color:var(--au-text2,#5E6378);font-size:12.5px;font-weight:500}
+  .kb-hidden-note button{height:28px;padding:0 12px;border:1px solid rgba(var(--ov,28,36,90),.14);border-radius:8px;background:transparent;color:var(--au-brand-text,#3F4EB0);font:600 12px Rubik,sans-serif;cursor:pointer;min-height:0}
+  .kb-hidden-note button:hover{background:rgba(var(--brand-rgb,63,73,166),.08)}
+  .lb-primary{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 15px;background:var(--au-brand,#3F4EB0);border:none;border-radius:10px;color:#fff;font:inherit;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;min-height:0;box-shadow:0 1px 2px rgba(20,30,80,.12);transition:filter .12s,transform .08s}
+  .lb-primary:hover{filter:brightness(1.06)}
+  .lb-primary:active{transform:scale(.985)}
+  .lb-search{display:flex;align-items:center;gap:8px;height:34px;background:rgba(var(--ov,28,36,90),.05);border:1px solid transparent;border-radius:10px;padding:0 12px;min-width:260px;cursor:text;transition:background .12s,border-color .12s,box-shadow .12s}
+  .lb-search:focus-within{background:var(--au-card,#fff);border-color:rgba(var(--brand-rgb,63,73,166),.5);box-shadow:0 0 0 3px rgba(var(--brand-rgb,63,73,166),.12)}
+  .lb-tb{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:9px;border:1px solid rgba(var(--ov,28,36,90),.1);background:transparent;color:var(--au-text2,#5E6378);font:inherit;font-size:12.5px;font-weight:500;cursor:pointer;white-space:nowrap;transition:background .12s,color .12s,border-color .12s;min-height:0}
+  .lb-tb:hover:not(:disabled){color:var(--au-text,#1F2433);background:rgba(var(--ov,28,36,90),.05);border-color:rgba(var(--ov,28,36,90),.18)}
   .lb-tb:disabled{opacity:.55;cursor:default}
   .lb-tb .n{min-width:18px;height:18px;padding:0 5px;border-radius:9px;font-size:10.5px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;background:rgba(var(--ink,40,50,90),.1);color:var(--au-text,#1F2433)}
   .lb-tb.danger .n{background:#E2445C;color:#fff}
-  .lb-card{transition:box-shadow .15s,border-color .15s,background .15s}
-  .lb-card:hover{border-color:rgba(var(--brand-rgb,63,73,166),.35)!important;box-shadow:0 4px 14px rgba(20,30,80,.08)!important}
-  .lb-card .lb-check{opacity:.55;transition:opacity .12s}
+  /* ── pipeline: a calm, Apple-like system — hairlines, soft radii, one accent, color only as a dot ── */
+  .kanban-board-scroll{background:var(--au-bg,#F5F5F7)!important;padding:14px 20px 24px!important;gap:14px!important}
+  html[data-admin-theme=dark] .kanban-board-scroll{background:#0B0C10!important}
+  .kb-col{width:300px;flex-shrink:0;display:flex;flex-direction:column;max-height:100%;border-radius:16px;background:rgba(var(--ov,28,36,90),.035);border:1px solid transparent;transition:background .2s,border-color .2s}
+  html[data-admin-theme=dark] .kb-col{background:rgba(255,255,255,.035)}
+  .kb-col.over{background:rgba(var(--brand-rgb,63,73,166),.06);border-color:rgba(var(--brand-rgb,63,73,166),.35)}
+  .kb-col-head{display:flex;align-items:center;gap:8px;padding:12px 14px 8px;flex-shrink:0}
+  .kb-col-dot{width:9px;height:9px;border-radius:50%;background:var(--kc);flex-shrink:0;box-shadow:0 0 0 3px rgba(var(--ov,28,36,90),.06)}
+  .kb-col-n{min-width:22px;height:20px;padding:0 7px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--au-text2,#5E6378);background:rgba(var(--ov,28,36,90),.07);font-variant-numeric:tabular-nums}
+  .kb-col-fold{border:none;background:none;color:var(--au-text3,#8A90A6);cursor:pointer;padding:3px;display:flex;border-radius:6px;min-height:0;opacity:0;transition:opacity .12s}
+  .kb-col:hover .kb-col-fold,.kb-col-fold:focus-visible{opacity:1}
+  .kb-col-fold:hover{background:rgba(var(--ov,28,36,90),.07);color:var(--au-text,#1F2433)}
+  .kb-col-body{flex:1;padding:2px 8px 4px;min-height:80px;overflow-y:auto}
+  .kb-col-empty{padding:26px 12px;text-align:center;color:var(--au-text3,#8A90A6);font-size:12.5px;border:1.5px dashed rgba(var(--ov,28,36,90),.14);border-radius:12px;margin:4px 0;line-height:1.6}
+  .kb-col-add{margin:4px 8px 8px;height:34px;border:none;border-radius:10px;background:transparent;color:var(--au-text2,#5E6378);font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;min-height:0;transition:background .12s,color .12s}
+  .kb-col-add:hover{background:rgba(var(--ov,28,36,90),.06);color:var(--au-text,#1F2433)}
+  .kb-col-mini{width:48px;flex-shrink:0;align-self:stretch;max-height:100%;min-height:220px;cursor:pointer;border-radius:14px;display:flex;flex-direction:column;align-items:center;gap:10px;padding:12px 0;background:rgba(var(--ov,28,36,90),.035);border:1px solid transparent;color:var(--au-text3,#8A90A6);transition:background .2s,border-color .2s}
+  html[data-admin-theme=dark] .kb-col-mini{background:rgba(255,255,255,.035)}
+  .kb-col-mini:hover{background:rgba(var(--ov,28,36,90),.07)}
+  .kb-col-mini.over{background:rgba(var(--brand-rgb,63,73,166),.08);border-color:rgba(var(--brand-rgb,63,73,166),.35)}
+  .kb-col-mini-n{min-width:24px;height:22px;padding:0 7px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--au-text2,#5E6378);background:rgba(var(--ov,28,36,90),.08);font-variant-numeric:tabular-nums}
+  .kb-col-mini.has .kb-col-mini-n{background:var(--kc);color:#fff}
+  .kb-col-mini-l{writing-mode:vertical-rl;font-size:12.5px;font-weight:600;color:var(--au-text2,#5E6378);white-space:nowrap;letter-spacing:.01em}
+  .lb-card{position:relative;background:var(--au-card,#fff);border:1px solid rgba(var(--ov,28,36,90),.08);border-radius:14px;padding:12px 12px 6px;margin-bottom:8px;cursor:pointer;box-shadow:0 1px 2px rgba(20,30,80,.04);user-select:none;touch-action:none;will-change:transform;transition:box-shadow .15s,border-color .15s,background .15s}
+  html[data-admin-theme=dark] .lb-card{background:#15171E;border-color:rgba(255,255,255,.07);box-shadow:0 1px 2px rgba(0,0,0,.35)}
+  .lb-card:hover{border-color:rgba(var(--ov,28,36,90),.16);box-shadow:0 6px 18px rgba(20,30,80,.08)}
+  html[data-admin-theme=dark] .lb-card:hover{border-color:rgba(255,255,255,.14);box-shadow:0 8px 22px rgba(0,0,0,.45)}
+  .lb-card.sel{border-color:var(--au-brand,#3F4EB0);background:rgba(var(--brand-rgb,63,73,166),.05)}
+  .lb-card.merge{outline:2px dashed var(--au-brand,#3F4EB0);outline-offset:3px;background:rgba(var(--brand-rgb,63,73,166),.07)}
+  .lb-card.dragging{opacity:.15;cursor:grabbing;box-shadow:none}
+  .lb-c-merge{display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:9px;padding:6px 8px;border-radius:8px;background:var(--au-brand,#3F4EB0);color:#fff;font-size:12px;font-weight:700}
+  .lb-c-head{display:flex;align-items:flex-start;gap:10px}
+  .lb-c-ini{width:36px;height:36px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12.5px;font-weight:700;letter-spacing:.02em}
+  .lb-c-who{flex:1;min-width:0;padding-top:1px}
+  .lb-c-name{font-size:14.5px;font-weight:600;color:var(--au-text,#1F2433);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.3;letter-spacing:-.01em}
+  .lb-c-phone{font-size:12px;color:var(--au-text3,#8A90A6);margin-top:2px;font-variant-numeric:tabular-nums}
+  .lb-c-score{flex-shrink:0;height:22px;padding:0 7px;border-radius:7px;font-size:12px;font-weight:700;display:inline-flex;align-items:center;font-variant-numeric:tabular-nums;margin-top:2px}
+  .lb-c-tags{display:flex;flex-wrap:wrap;align-items:center;gap:5px;margin-top:9px;min-height:0}
+  .lb-c-tags:empty{display:none}
+  .lb-c-chip{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11.5px;font-weight:500;color:var(--au-text2,#5E6378);background:rgba(var(--ov,28,36,90),.06);border-radius:7px;padding:3px 8px;line-height:1.3}
+  .lb-c-src{font-size:11.5px;font-weight:500;color:var(--au-text2,#5E6378);display:inline-flex;align-items:center;gap:5px;padding:3px 2px}
+  .lb-c-src i{width:6px;height:6px;border-radius:50%;display:inline-block}
+  .lb-c-text{font-size:12.5px;color:var(--au-text2,#5E6378);margin-top:8px;line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word}
+  .lb-c-text.one{display:block;white-space:nowrap;text-overflow:ellipsis}
+  .lb-c-note{margin-top:9px;padding:8px 10px;border-radius:10px;background:rgba(var(--ov,28,36,90),.045);cursor:text}
+  html[data-admin-theme=dark] .lb-c-note{background:rgba(255,255,255,.05)}
+  .lb-c-note-t{font-size:12.5px;color:var(--au-text,#1F2433);line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word}
+  .lb-c-fu{margin-top:5px;font-size:11.5px;font-weight:600;color:var(--au-text2,#5E6378);display:flex;align-items:center;gap:5px}
+  .lb-c-note-t+.lb-c-fu{margin-top:5px}
+  .lb-c-fu.late{color:#E5484D}
+  .lb-c-foot{display:flex;align-items:center;gap:4px;margin-top:8px;padding-top:6px;border-top:1px solid rgba(var(--ov,28,36,90),.06);min-height:34px}
+  html[data-admin-theme=dark] .lb-c-foot{border-top-color:rgba(255,255,255,.07)}
+  .lb-c-date{font-size:11.5px;color:var(--au-text3,#8A90A6);font-variant-numeric:tabular-nums;flex:1;display:inline-flex;align-items:center;gap:6px}
+  .lb-card .lb-acts{opacity:.4;transition:opacity .12s}
+  .lb-card:hover .lb-acts,.lb-card .lb-acts:focus-within{opacity:1}
+  @media (hover:none){.lb-card .lb-acts{opacity:1}}
+  .lb-card .lb-check{opacity:0;transition:opacity .12s}
   .lb-card:hover .lb-check,.lb-card.sel .lb-check,.lb-card .lb-check:focus-within{opacity:1}
+  @media (hover:none){.lb-card .lb-check{opacity:.6}}
   .lb-acts{display:flex;align-items:center;gap:2px}
   .lb-wl{display:inline-flex;align-items:center;gap:4px;flex-shrink:0;height:24px;padding:0 9px 0 7px;border-radius:999px;font-size:11.5px;font-weight:700;line-height:1;white-space:nowrap;cursor:default}
   .lb-wl.ok{color:#12804A;background:rgba(37,211,102,.14);box-shadow:inset 0 0 0 1px rgba(37,211,102,.38)}
@@ -1452,7 +1513,6 @@ function KanbanCard({ lead, T, isDark, lang, onOpen, onDelete, onOpenChat, onEnr
     id: lead.id,
     data: { type: 'card', groupId: lead.leadStatus || 'new' },
   })
-  const color = getGroupColor(lead.leadStatus || 'new')
   const score = getScoreOpt(lead.enrichment?.intent)
   const openNote = useContext(NoteCtx)
   const sel = useContext(SelCtx)
@@ -1469,10 +1529,11 @@ function KanbanCard({ lead, T, isDark, lang, onOpen, onDelete, onOpenChat, onEnr
   const phone = (() => { const d = String(lead.phone || '').replace(/\D/g, ''); const l = d.startsWith('972') ? '0' + d.slice(3) : d; return l.length === 10 ? `${l.slice(0, 3)}-${l.slice(3, 6)}-${l.slice(6)}` : lead.phone })()
   // A plain click opens the lead card; a drag (≥ 8px, the sensor's activation distance) only moves it
   const downAt = useRef(null)
-  const line = isDark ? 'rgba(255,255,255,.08)' : 'rgba(20,30,80,.09)'
+  const grade = lead.enrichment?.version === 2 ? lead.enrichment.grade : null
+  const gradeColor = { hot: '#E5484D', warm: '#D97706', cool: '#3B82F6', cold: '#8A90A6' }[grade] || '#8A90A6'
 
   return (
-    <div ref={setNodeRef} className={`lb-card${selected ? ' sel' : ''}`}
+    <div ref={setNodeRef} className={`lb-card${selected ? ' sel' : ''}${mergeHint ? ' merge' : ''}${isDragging ? ' dragging' : ''}`}
       onPointerDownCapture={e => { downAt.current = { x: e.clientX, y: e.clientY } }}
       onClick={e => {
         const d = downAt.current
@@ -1480,79 +1541,51 @@ function KanbanCard({ lead, T, isDark, lang, onOpen, onDelete, onOpenChat, onEnr
         if (d && Math.hypot(e.clientX - d.x, e.clientY - d.y) > 6) return
         onOpen(lead)
       }}
-      style={{
-        transform: CSS.Transform.toString(transform),
-        transition: transition || undefined,
-        opacity: isDragging ? 0.15 : 1,
-        background: selected ? (isDark ? '#16233C' : '#F2F7FF') : (isDark ? '#1A2233' : '#FFFFFF'),
-        border: `1px solid ${selected ? '#0073EA' : line}`,
-        borderRadius: 12,
-        padding: '12px 12px 8px',
-        marginBottom: 8,
-        cursor: isDragging ? 'grabbing' : 'pointer',
-        boxShadow: isDragging ? 'none' : isDark ? '0 1px 2px rgba(0,0,0,.35)' : '0 1px 2px rgba(20,30,80,.06)',
-        direction: en ? 'ltr' : 'rtl',
-        position: 'relative',
-        ...(mergeHint ? { outline: '2px dashed #0073EA', outlineOffset: 3, background: isDark ? '#16233C' : '#EAF2FE' } : {}),
-        userSelect: 'none',
-        touchAction: 'none',
-        willChange: 'transform',
-      }}
+      style={{ transform: CSS.Transform.toString(transform), transition: transition || undefined, direction: en ? 'ltr' : 'rtl' }}
       {...attributes} {...listeners}>
 
-      {mergeHint && (
-        <div role="status" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginBottom: 9, padding: '6px 8px', borderRadius: 8, background: '#0073EA', color: '#fff', fontSize: 12, fontWeight: 700 }}>
-          <Link2 size={12}/> {en ? 'Release to merge' : 'שחרר כדי למזג'}
-        </div>
-      )}
+      {mergeHint && <div role="status" className="lb-c-merge"><Link2 size={12}/> {en ? 'Release to merge' : 'שחרר כדי למזג'}</div>}
 
       {/* name row: avatar · name + phone · score · select */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-        <WaFace phone={lead.phone} name={lead.name} size={34} lang={lang}>
-        <div aria-hidden="true" style={{ width: 34, height: 34, borderRadius: '50%', flexShrink: 0, background: av + (isDark ? '33' : '1F'), color: av, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12.5, fontWeight: 700, letterSpacing: '.02em' }}>{initials}</div>
+      <div className="lb-c-head">
+        <WaFace phone={lead.phone} name={lead.name} size={36} lang={lang}>
+          <div aria-hidden="true" className="lb-c-ini" style={{ background: av + (isDark ? '2E' : '1A'), color: av }}>{initials}</div>
         </WaFace>
-        <div style={{ flex: 1, minWidth: 0, paddingTop: 1 }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', lineHeight: 1.3 }} title={lead.name || ''}>{lead.name || '—'}</div>
-          {lead.phone && <div style={{ fontSize: 12, color: T.textSub, direction: 'ltr', textAlign: en ? 'left' : 'right', marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>{phone}</div>}
+        <div className="lb-c-who">
+          <div className="lb-c-name" title={lead.name || ''}><bdi>{lead.name || '—'}</bdi></div>
+          {lead.phone && <div className="lb-c-phone" dir="ltr" style={{ textAlign: en ? 'left' : 'right' }}>{phone}</div>}
         </div>
-        {lead.enrichment?.version === 2 && (() => {
-          const g = lead.enrichment.grade, c = { hot: '#E5484D', warm: '#E5930A', cool: '#3B82F6', cold: '#8A90A6' }[g] || '#8A90A6'
-          return <span title={en ? 'Lead score' : 'ציון ליד'} style={{ flexShrink: 0, height: 22, padding: '0 7px', borderRadius: 6, background: `${c}18`, color: c, fontSize: 12, fontWeight: 700, display: 'inline-flex', alignItems: 'center', fontVariantNumeric: 'tabular-nums', marginTop: 2 }}>{lead.enrichment.score100}</span>
-        })()}
+        {grade && <span className="lb-c-score" title={en ? 'Lead score' : 'ציון ליד'} style={{ color: gradeColor, background: `${gradeColor}14` }}>{lead.enrichment.score100}</span>}
         {sel && <CheckBox checked={selected} onChange={(on, shift) => sel.toggle(lead.id, on, shift)} label={(en ? 'Select ' : 'בחירת ') + (lead.name || '')} size={18} className="lb-card-check"/>}
       </div>
 
-      {/* tags: waiting for our reply · campaign · source · intent */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 5, marginTop: 9 }}>
+      {/* tags: waiting for our reply · project · campaign · source · intent */}
+      <div className="lb-c-tags">
         <WaitingChip phone={lead.phone} lang={lang} onOpen={onOpenChat ? () => onOpenChat(lead) : undefined}/>
         {proj && <ProjectChip lead={lead} projects={proj.projects} lang={lang} onAssign={patch => proj.assign(lead, patch)}/>}
-        {campaign && (!pr || pr.name !== campaign) && <span title={leadCampaignFull(lead, lang)} style={{ maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 11.5, fontWeight: 500, color: T.text, background: isDark ? 'rgba(255,255,255,.06)' : '#F1F3F9', borderRadius: 6, padding: '2px 8px' }}><bdi>{campaign}</bdi></span>}
-        {campaign !== sourceLabel(src, lang) && <span title={sourceLabel(src, lang)} style={{ fontSize: 11.5, fontWeight: 500, color: sourceColor(src), display: 'inline-flex', alignItems: 'center', gap: 5 }}><span style={{ width: 6, height: 6, borderRadius: '50%', background: sourceColor(src) }}/>{sourceLabel(src, lang)}</span>}
-        {score && <span style={{ fontSize: 11.5, fontWeight: 600, color: score.color, background: score.bg, borderRadius: 6, padding: '2px 8px' }}>{en ? score.en : score.l}</span>}
+        {campaign && (!pr || pr.name !== campaign) && <span className="lb-c-chip" title={leadCampaignFull(lead, lang)}><bdi>{campaign}</bdi></span>}
+        {campaign !== sourceLabel(src, lang) && <span className="lb-c-src" title={sourceLabel(src, lang)}><i style={{ background: sourceColor(src) }}/>{sourceLabel(src, lang)}</span>}
+        {score && <span className="lb-c-chip" style={{ color: score.color }}>{en ? score.en : score.l}</span>}
       </div>
 
       {/* property (when it isn't the campaign) or the message */}
       {lead.propTitle && lead.propTitle !== campaign && lead.propTitle !== leadCampaignFull(lead, lang) ? (
-        <div style={{ fontSize: 12.5, color: T.textSub, marginTop: 8, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lead.propTitle}</div>
+        <div className="lb-c-text one">{lead.propTitle}</div>
       ) : lead.msg ? (
-        <div style={{ fontSize: 12.5, color: T.textSub, marginTop: 8, lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>{prettyLeadText(lead.msg, lang)}</div>
+        <div className="lb-c-text">{prettyLeadText(lead.msg, lang)}</div>
       ) : null}
 
       {/* last note + next follow-up */}
       {(last || fu) && (
-        <div onPointerDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); openNote?.(lead) }} title={last?.text || ''}
-          style={{ marginTop: 9, padding: '7px 9px', borderRadius: 8, background: isDark ? 'rgba(255,255,255,.04)' : '#F7F8FC', borderInlineStart: `2px solid ${isDark ? 'rgba(255,255,255,.14)' : '#D9DDEA'}`, cursor: 'text' }}>
-          {last && <div style={{ fontSize: 12.5, color: T.text, lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>{last.text}</div>}
-          {fu && <div style={{ marginTop: last ? 5 : 0, fontSize: 11.5, fontWeight: 600, color: fu < Date.now() ? '#E2445C' : T.textSub, display: 'flex', alignItems: 'center', gap: 5 }}><Clock size={12}/>{en ? 'Follow up' : 'לחזור'} · {fmtNoteTs(fu, lang)}</div>}
+        <div className="lb-c-note" onPointerDown={e => e.stopPropagation()} onClick={e => { e.stopPropagation(); openNote?.(lead) }} title={last?.text || ''}>
+          {last && <div className="lb-c-note-t">{last.text}</div>}
+          {fu && <div className={`lb-c-fu${fu < Date.now() ? ' late' : ''}`}><Clock size={12}/>{en ? 'Follow up' : 'לחזור'} · {fmtNoteTs(fu, lang)}</div>}
         </div>
       )}
 
-      {/* footer: date · quiet icon actions */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 10, paddingTop: 6, borderTop: `1px solid ${line}` }} onPointerDown={e => e.stopPropagation()}>
-        <span style={{ fontSize: 11.5, color: T.textDim, fontVariantNumeric: 'tabular-nums', flex: 1, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ width: 7, height: 7, borderRadius: '50%', background: color, flexShrink: 0 }} aria-hidden="true"/>{fmtDate(lead.ts)}
-          <WelcomeMark lead={lead} lang={lang} compact/>
-        </span>
+      {/* footer: date · welcome mark · quiet icon actions (on hover) */}
+      <div className="lb-c-foot" onPointerDown={e => e.stopPropagation()}>
+        <span className="lb-c-date">{fmtDate(lead.ts)}<WelcomeMark lead={lead} lang={lang} compact/></span>
         <div className="lb-acts">
           {lead.phone && <a className="lb-act call" href={`tel:${lead.phone}`} onClick={e => e.stopPropagation()} title={en ? 'Call' : 'התקשרות'} aria-label={en ? 'Call' : 'התקשרות'}><Phone size={15}/></a>}
           {lead.phone && onOpenChat && <button type="button" className="lb-act wa" onClick={e => { e.stopPropagation(); onOpenChat(lead) }} title="WhatsApp" aria-label="WhatsApp"><MessageSquare size={15}/></button>}
@@ -1578,55 +1611,29 @@ function KanbanColumn({ group, leads, T, isDark, lang, onOpen, onDelete, onOpenC
   if (collapsed) return (
     <div ref={setNodeRef} role="button" tabIndex={0} onClick={onToggle} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle() } }}
       title={lang === 'en' ? `Show “${label}”` : `הצג "${label}"`} aria-expanded="false"
-      style={{ width: 54, flexShrink: 0, alignSelf: 'stretch', maxHeight: '100%', minHeight: 220, cursor: 'pointer', borderRadius: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, padding: '12px 0',
-        background: isOver ? `${color}22` : (isDark ? '#131B2A' : '#ECEEF8'), border: `1.5px ${isOver ? 'solid' : 'dashed'} ${isOver ? color : `${color}66`}`, transition: 'background .2s, border-color .2s' }}>
-      <ChevronLeft size={15} style={{ color, transform: lang === 'en' ? 'none' : 'rotate(180deg)' }}/>
-      <span style={{ background: leads.length ? color : (isDark ? '#2A3347' : '#DDE3F5'), color: leads.length ? '#fff' : T.textDim, borderRadius: 20, padding: '2px 8px', fontSize: 11, fontWeight: 900, minWidth: 22, textAlign: 'center' }}>{leads.length}</span>
-      <span style={{ writingMode: 'vertical-rl', fontSize: 13, fontWeight: 800, color, letterSpacing: '.02em', whiteSpace: 'nowrap' }}>{label}</span>
+      className={`kb-col-mini${isOver ? ' over' : ''}${leads.length ? ' has' : ''}`} style={{ '--kc': color }}>
+      <ChevronLeft size={14} style={{ transform: lang === 'en' ? 'none' : 'rotate(180deg)' }}/>
+      <span className="kb-col-mini-n">{leads.length}</span>
+      <span className="kb-col-mini-l">{label}</span>
     </div>
   )
 
   return (
-    <div style={{
-      width: 288,
-      flexShrink: 0,
-      display: 'flex',
-      flexDirection: 'column',
-      background: isOver ? `${color}10` : (isDark ? '#111722' : '#F3F4F8'),
-      border: `1px solid ${isOver ? color : (isDark ? 'rgba(255,255,255,.06)' : 'rgba(20,30,80,.06)')}`,
-      borderRadius: 14,
-      overflow: 'hidden',
-      transition: 'background .2s, border-color .2s',
-      maxHeight: '100%',
-    }}>
-
-      {/* Column header */}
-      <div style={{
-        padding: '12px 12px 8px 14px',
-        flexShrink: 0,
-        direction: lang === 'en' ? 'ltr' : 'rtl',
-        borderTop: `3px solid ${color}`,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <StageTitle group={group} lang={lang} color={T.text} onRename={onRenameStage}/>
-          <span style={{
-            background: isDark ? 'rgba(255,255,255,.08)' : 'rgba(20,30,80,.07)',
-            color: T.textSub,
-            borderRadius: 6, padding: '1px 8px', fontSize: 12, fontWeight: 600,
-            minWidth: 22, textAlign: 'center', fontVariantNumeric: 'tabular-nums',
-          }}>{leads.length}</span>
-          <span style={{ flex: 1 }}/>
-          {onToggle && (
-            <button type="button" onClick={onToggle} title={lang === 'en' ? 'Collapse' : 'כווץ עמודה'} aria-label={lang === 'en' ? `Collapse ${label}` : `כווץ את ${label}`} aria-expanded="true"
-              style={{ background: 'none', border: 'none', color: T.textSub, cursor: 'pointer', padding: 3, display: 'flex', borderRadius: 6 }}>
-              <ChevronRight size={15} style={{ transform: lang === 'en' ? 'rotate(180deg)' : 'none' }}/>
-            </button>
-          )}
-        </div>
+    <div className={`kb-col${isOver ? ' over' : ''}`} style={{ '--kc': color }}>
+      <div className="kb-col-head" style={{ direction: lang === 'en' ? 'ltr' : 'rtl' }}>
+        <span className="kb-col-dot" aria-hidden="true"/>
+        <StageTitle group={group} lang={lang} color={T.text} onRename={onRenameStage} size={13.5}/>
+        <span className="kb-col-n">{leads.length}</span>
+        <span style={{ flex: 1 }}/>
+        {onToggle && (
+          <button type="button" className="kb-col-fold" onClick={onToggle} title={lang === 'en' ? 'Collapse' : 'כווץ עמודה'} aria-label={lang === 'en' ? `Collapse ${label}` : `כווץ את ${label}`} aria-expanded="true">
+            <ChevronRight size={15} style={{ transform: lang === 'en' ? 'rotate(180deg)' : 'none' }}/>
+          </button>
+        )}
       </div>
 
       {/* Scrollable cards area */}
-      <div ref={setNodeRef} className="kanban-col-scroll" style={{ flex: 1, padding: '4px 8px 6px', minHeight: 80, direction: 'rtl' }}>
+      <div ref={setNodeRef} className="kanban-col-scroll kb-col-body" style={{ direction: 'rtl' }}>
         {/* No shuffling while dragging: the order inside a column isn't saved, and a still target lets a card be held on another to merge */}
         <SortableContext items={leads.map(l => l.id)} strategy={NO_SHIFT}>
           {leads.map(lead => (
@@ -1634,33 +1641,10 @@ function KanbanColumn({ group, leads, T, isDark, lang, onOpen, onDelete, onOpenC
               onOpen={onOpen} onDelete={onDelete} onOpenChat={onOpenChat} onEnrich={onEnrich} mergeHint={mergeTargetId === lead.id} />
           ))}
         </SortableContext>
-
-        {leads.length === 0 && (
-          <div style={{
-            padding: '28px 12px', textAlign: 'center', color: T.textDim, fontSize: 12,
-            border: `2px dashed ${isDark ? '#2A3347' : '#D5DAF0'}`,
-            borderRadius: 10, margin: '4px 0', lineHeight: 1.6,
-          }}>
-            {lang === 'en' ? 'Drop leads here' : 'גרור לידים לכאן'}
-          </div>
-        )}
+        {leads.length === 0 && <div className="kb-col-empty">{lang === 'en' ? 'Drop leads here' : 'גרור לידים לכאן'}</div>}
       </div>
 
-      {/* Add lead footer */}
-      <div style={{ padding: '8px 10px', borderTop: `1px solid ${isDark ? '#222E42' : '#DDE3F5'}`, flexShrink: 0, direction: 'rtl' }}>
-        <button onClick={() => onAddRow(group.id, '')}
-          style={{
-            width: '100%', padding: '7px 0',
-            background: 'none', border: `1px dashed ${color}55`, borderRadius: 8,
-            cursor: 'pointer', color, fontSize: 12, fontWeight: 700,
-            fontFamily: 'inherit', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
-            transition: 'background .15s',
-          }}
-          onMouseEnter={e => { e.currentTarget.style.background = `${color}14` }}
-          onMouseLeave={e => { e.currentTarget.style.background = 'none' }}>
-          <Plus size={12} /> {lang === 'en' ? 'Add lead' : 'הוסף ליד'}
-        </button>
-      </div>
+      <button type="button" className="kb-col-add" onClick={() => onAddRow(group.id, '')}><Plus size={13}/>{lang === 'en' ? 'Add lead' : 'הוסף ליד'}</button>
     </div>
   )
 }
@@ -1755,7 +1739,7 @@ function KanbanBoard({ leads, T, isDark, lang, updateLead, updateLeadStatus, onA
         const names = hidden.map(g => `${lang === 'en' ? g.en : g.label} (${grouped[g.id].length})`).join(' · ')
         return (
           <div className="kb-hidden-note" role="status" dir={lang === 'en' ? 'ltr' : 'rtl'}>
-            <span>{lang === 'en' ? `${n} leads are in collapsed columns: ${names}` : `${n} לידים נמצאים בעמודות מקופלות: ${names}`}</span>
+            <span>{lang === 'en' ? (n === 1 ? `1 lead is in a collapsed column: ${names}` : `${n} leads are in collapsed columns: ${names}`) : (n === 1 ? `ליד אחד נמצא בעמודה מקופלת: ${names}` : `${n} לידים נמצאים בעמודות מקופלות: ${names}`)}</span>
             <button type="button" onClick={() => hidden.forEach(g => toggleCollapsed(g))}>{lang === 'en' ? 'Show them' : 'הצגת העמודות'}</button>
           </div>
         )
@@ -2513,10 +2497,10 @@ function LeadsBoardMain({
       {/* ── Board title bar ── */}
       <div style={{ padding: '10px 20px 0', background: isDark ? '#0D1117' : T.bgHeader, borderBottom: `1px solid ${T.border}`, flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-          <span style={{ fontSize: 20, fontWeight: 600, color: T.text, letterSpacing: '-.01em' }}>
+          <span style={{ fontSize: 22, fontWeight: 600, color: T.text, letterSpacing: '-.02em' }}>
             {lang === 'en' ? 'Leads' : 'ניהול לידים'}
           </span>
-          <span style={{ fontSize: 13, color: T.textSub, fontVariantNumeric: 'tabular-nums' }}>
+          <span style={{ fontSize: 13, color: T.textDim, fontVariantNumeric: 'tabular-nums', paddingTop: 3 }}>
             {leads.length} {lang === 'en' ? 'leads' : 'לידים'}
           </span>
           <div style={{ flex: 1 }} />
@@ -2557,12 +2541,11 @@ function LeadsBoardMain({
 
       {/* ── Toolbar: new lead · search · (table) columns ┊ sync · trash · CSV · (table) add column · enrich ── */}
       <div style={{ display: activeTab === 'followups' ? 'none' : 'flex', alignItems: 'center', gap: 8, padding: '10px 20px', background: isDark ? '#0D1117' : T.bgHeader, borderBottom: `1px solid ${T.border}`, flexShrink: 0, overflowX: 'auto' }}>
-        <button type="button" onClick={() => handleAddRow(GROUPS[0].id, '')}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 34, padding: '0 16px', background: T.accent, border: 'none', borderRadius: 9, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', minHeight: 0 }}>
+        <button type="button" className="lb-primary" onClick={() => handleAddRow(GROUPS[0].id, '')}>
           <Plus size={15} strokeWidth={2.4} /> {lang === 'en' ? 'New lead' : 'ליד חדש'}
         </button>
 
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, height: 34, background: T.bgInput, border: `1px solid ${T.border}`, borderRadius: 9, padding: '0 12px', minWidth: 240, cursor: 'text' }}>
+        <label className="lb-search">
           <Search size={15} style={{ color: T.textSub, flexShrink: 0 }} />
           <input value={search} onChange={e => setSearch(e.target.value)} aria-label={lang === 'en' ? 'Search leads' : 'חיפוש לידים'}
             placeholder={lang === 'en' ? 'Search name, phone, campaign…' : 'חיפוש שם, טלפון, קמפיין…'}
