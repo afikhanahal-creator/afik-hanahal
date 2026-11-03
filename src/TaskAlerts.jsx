@@ -122,7 +122,7 @@ export default function TaskAlerts({ leads, lang = 'he', onDone, onOpenChat, onO
               <button type="button" className="task-alert-x" aria-label={t.close} onClick={() => close(c)}>✕</button>
             </div>
             <div className="task-alert-main">
-              <WaFace phone={lead.phone} name={name} size={46} lang={lang} style={{ background: 'rgba(var(--brand-rgb),.14)' }}>
+              <WaFace phone={lead.phone} lead={lead} name={name} size={46} lang={lang} style={{ background: 'rgba(var(--brand-rgb),.14)' }}>
                 <span className="task-alert-ini">{name.charAt(0)}</span>
               </WaFace>
               <div className="task-alert-who">

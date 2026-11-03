@@ -360,7 +360,7 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
 
   const header = (
     <div className="lc-head">
-      <WaFace phone={lead.phone} name={lead.name} size={50} lang={lang}>
+      <WaFace phone={lead.phone} lead={lead} name={lead.name} size={50} lang={lang}>
       <span className="lc-avatar" style={{ background: `${avatarBg(lead.name)}1C`, color: avatarBg(lead.name) }}>{initials(lead.name)}</span>
       </WaFace>
       <div style={{ flex: '1 1 220px', minWidth: 0 }}>

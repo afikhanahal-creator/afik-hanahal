@@ -27,7 +27,7 @@ import { hebrewFullName } from '../lib/hebrew-names.js'
 import { properHebrewName } from '../lib/name-proof.js'
 import { hebrewizeRecentNames } from '../lib/hebrew-lead-names.js'
 import { parseGreenHook, rowToGreen, mergeHistory, historyToRow } from '../lib/green-hook.js'
-import { avatarExpiry, avatarFresh, avatarPhone } from '../lib/wa-avatar.js'
+import { avatarExpiry, avatarFresh, avatarPhone, socialAvatarFresh, socialKey, avatarKey, profileLinkOf } from '../lib/wa-avatar.js'
 import { forwardRequest, fileGroupRequest, cleanMsgId, cleanReaction, isHandled, withHandled, withoutHandled } from '../lib/wa-actions.js'
 import { cleanProjects } from '../lib/projects.js'
 import { parseSocialHook, threadId, parseThreadId, previewText, leadBodyFromThread, cleanSocialPages, inboxPageIds, accountLabels, conversationEvents, threadRowFrom, importJobs } from '../lib/social-hook.js'
@@ -165,6 +165,48 @@ async function socialProfile(platform, userId, token) {
   } catch { return {} }
 }
 const cleanGraphErr = e => String(e?.message || e || '').replace(/access_token=[^&\s"]+/g, '').slice(0, 300)
+
+/** Faces from Messenger / Instagram (social_threads.avatar): for numbers WhatsApp has no picture for — the thread of the same
+ *  phone, or of the CRM lead with that phone (lead_id) — and for the thread ids asked for. An expired Meta link (and every key in
+ *  `refresh`) is re-read from the Graph with the page token (a few per call) and saved back. → Map key → { url, src, link } */
+async function socialAvatars({ phones = [], threads = [], refresh = new Set() }) {
+  const out = new Map()
+  if (!SUPABASE_URL || !SUPABASE_KEY || (!phones.length && !threads.length)) return out
+  const client = sb()
+  const sel = 'id,platform,account_id,user_id,username,avatar,phone,lead_id,last_at'
+  const rows = []
+  if (threads.length) { const { data } = await client.from('social_threads').select(sel).in('id', threads); for (const r of data || []) rows.push({ ...r, keys: [r.id] }) }
+  if (phones.length) {
+    const leads = await leadIdsByPhone()
+    const byLead = new Map()                     // lead id → the number asked for
+    const tails = phones.map(p => p.slice(-9))
+    phones.forEach((p, i) => { const l = leads.get(tails[i]); if (l) byLead.set(l.id, p) })
+    const ors = [...tails.map(t => `phone.like.%${t}`), ...(byLead.size ? [`lead_id.in.(${[...byLead.keys()].join(',')})`] : [])]
+    const { data } = await client.from('social_threads').select(sel).or(ors.join(',')).order('last_at', { ascending: false }).limit(120)
+    const taken = new Set()
+    for (const r of data || []) {
+      const d = String(r.phone || '').replace(/\D/g, '')
+      const p = phones.find(x => d && x.slice(-9) === d.slice(-9)) || byLead.get(String(r.lead_id || ''))
+      if (p && !taken.has(p)) { taken.add(p); rows.push({ ...r, keys: [p] }) }
+    }
+  }
+  let budget = 6
+  for (const r of rows) {
+    const stale = !socialAvatarFresh(r.avatar) || r.keys.some(k => refresh.has(k)) || refresh.has(r.id)
+    if (stale && budget > 0) {
+      budget--
+      const p = await socialProfile(r.platform, r.user_id, await socialPageToken(r.platform, r.account_id))
+      if (p.avatar) {
+        r.avatar = p.avatar
+        if (p.username) r.username = p.username
+        await client.from('social_threads').update({ avatar: p.avatar, ...(p.username && !r.username ? { username: p.username } : {}) }).eq('id', r.id).then(() => {}, () => {})
+      } else if (!socialAvatarFresh(r.avatar)) r.avatar = ''
+    }
+    const url = socialAvatarFresh(r.avatar) ? r.avatar : ''
+    for (const k of r.keys) if (!out.has(k)) out.set(k, { url, src: r.platform, link: url ? profileLinkOf(r.platform, r) : '' })
+  }
+  return out
+}
 
 /** One conversation's new messages → the thread row + the messages, in 3 queries (the import stores hundreds at a time).
  *  → { stored, isNew, row } */
@@ -1678,19 +1720,24 @@ async function handleChat(req, res, action) {
     }
 
     // POST /api/meta/chat-read { phone } → readChat (blue ticks on the customer's side)
-    // POST /api/meta/chat-avatars { phones: [...] } → { avatars: { 972…: url | '' } } — the WhatsApp profile picture of every chat
-    // on screen (Green getAvatar), cached in wa_avatars until WhatsApp's link expires; a number Green didn't answer for in time
-    // is left out (the browser asks again later). Up to 40 numbers, 3 at a time.
+    // POST /api/meta/chat-avatars { phones: [...], social: [thread ids], refresh: [keys] } → { avatars: { key: url | '' }, from:
+    // { key: whatsapp | messenger | instagram }, links: { key: profile url } } — the profile picture of every face on screen: the
+    // WhatsApp one (Green getAvatar, cached in wa_avatars until WhatsApp's link expires), else the Messenger / Instagram one of
+    // the same person (socialAvatars: the thread with that phone or that CRM lead; a thread id asked for directly). A number
+    // Green didn't answer for in time is left out (the browser asks again later). Up to 40 numbers, 3 at a time.
     if (action === 'chat-avatars') {
-      const list = [...new Set(((req.body || {}).phones || []).map(avatarPhone).filter(Boolean))].slice(0, 40)
-      if (!list.length) return res.status(200).json({ avatars: {} })
+      const b = req.body || {}
+      const list = [...new Set((b.phones || []).map(avatarPhone).filter(Boolean))].slice(0, 40)
+      const social = [...new Set((b.social || []).map(socialKey).filter(Boolean))].slice(0, 40)
+      const refresh = new Set((b.refresh || []).map(avatarKey).filter(Boolean))
+      if (!list.length && !social.length) return res.status(200).json({ avatars: {}, from: {}, links: {} })
       const now = Date.now()
       const have = new Map()
       if (SUPABASE_URL && SUPABASE_KEY) {
         const { data } = await sb().from('wa_avatars').select('phone,url,available,expires_at,checked_at').in('phone', list)
         for (const r of data || []) have.set(r.phone, r)
       }
-      const need = list.filter(p => !avatarFresh(have.get(p), now))
+      const need = list.filter(p => refresh.has(p) || !avatarFresh(have.get(p), now))
       const fresh = [], deadline = now + 18000
       let i = 0
       const worker = async () => {
@@ -1709,9 +1756,16 @@ async function handleChat(req, res, action) {
       }
       await Promise.all([worker(), worker(), worker()])
       if (fresh.length && SUPABASE_URL && SUPABASE_KEY) await sb().from('wa_avatars').upsert(fresh, { onConflict: 'phone' }).then(() => {}, () => {})
-      const avatars = {}
-      for (const p of list) { const r = have.get(p); if (r && (avatarFresh(r) || fresh.includes(r))) avatars[p] = r.url || '' }
-      return res.status(200).json({ avatars })
+      const avatars = {}, from = {}, links = {}
+      for (const p of list) { const r = have.get(p); if (r && (avatarFresh(r) || fresh.includes(r))) { avatars[p] = r.url || ''; if (r.url) from[p] = 'whatsapp' } }
+      // no WhatsApp picture → the person's Messenger / Instagram one; the threads asked for by id
+      const noPic = list.filter(p => p in avatars && !avatars[p])
+      try {
+        const faces = await socialAvatars({ phones: noPic, threads: social, refresh })
+        for (const [k, v] of faces) { avatars[k] = v.url; if (v.url) { from[k] = v.src; if (v.link) links[k] = v.link } }
+      } catch (e) { console.error('[chat-avatars] social', cleanGraphErr(e)) }
+      for (const k of social) if (!(k in avatars)) avatars[k] = ''
+      return res.status(200).json({ avatars, from, links })
     }
 
     if (action === 'chat-read') {
@@ -1823,8 +1877,10 @@ async function handleChat(req, res, action) {
     }
 
     // POST /api/meta/chat-contact-name { phone, name } → the name in the office phone's WhatsApp contacts (a chat that isn't a
-    // lead; a lead's rename goes through PATCH /api/contacts, which does the same)
+    // lead; a lead's rename goes through PATCH /api/contacts, which does the same) — the answer says what WhatsApp holds now
+    // ({ saved, synced }); GET ?phone= only reads it, so the UI can verify a rename made by any path.
     if (action === 'chat-contact-name') {
+      if (req.method === 'GET') return res.status(200).json(await Auto.readWaContact(normalizePhone(req.query?.phone)))
       const { phone, name } = req.body || {}
       const r = await Auto.saveWaContact(normalizePhone(phone), String(name || ''))
       if (r.ok) nameCache.at = 0

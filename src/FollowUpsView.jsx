@@ -109,7 +109,7 @@ function QueueCard({ it, now, t, en, lang, stages, onUpdate, onOpen, onOpenChat 
         <span className="fv-qwhen">{t.planned}<b dir="ltr">{w.time}</b> · {w.date.split(' · ')[0]}</span>
       </div>
       <div className="fv-qwho">
-        <WaFace phone={lead.phone} name={name} size={40} lang={lang} style={{ background: (stage?.color || '#6366F1') + '22' }}>
+        <WaFace phone={lead.phone} lead={lead} name={name} size={40} lang={lang} style={{ background: (stage?.color || '#6366F1') + '22' }}>
           <span className="fv-ini" style={{ color: stage?.color || 'var(--au-brand-text)' }}>{name.charAt(0)}</span>
         </WaFace>
         <div className="fv-namebox">
@@ -195,7 +195,7 @@ function Row({ it, now, t, en, lang, stages, onUpdate, onOpen, onOpenChat, hero 
         <em className={`fv-st is-${st.tone}`}>{st.text}</em>
       </div>
       <div role="cell" className="fv-c fv-c-name">
-        <WaFace phone={lead.phone} name={name} size={hero ? 48 : 40} lang={lang} style={{ background: (stage?.color || '#6366F1') + '22' }}>
+        <WaFace phone={lead.phone} lead={lead} name={name} size={hero ? 48 : 40} lang={lang} style={{ background: (stage?.color || '#6366F1') + '22' }}>
           <span className="fv-ini" style={{ color: stage?.color || 'var(--au-brand-text)' }}>{name.charAt(0)}</span>
         </WaFace>
         <div className="fv-namebox">
@@ -261,7 +261,7 @@ function NewTaskDialog({ leads, t, en, lang, onClose, onUpdate }) {
         <label className="fv-lbl">{t.lead}</label>
         {lead ? (
           <div className="fv-picked">
-            <WaFace phone={lead.phone} name={lead.name} size={30} lang={lang}><span className="fv-ini">{String(lead.name || '?').charAt(0)}</span></WaFace>
+            <WaFace phone={lead.phone} lead={lead} name={lead.name} size={30} lang={lang}><span className="fv-ini">{String(lead.name || '?').charAt(0)}</span></WaFace>
             <b><bdi>{lead.name || local(lead.phone)}</bdi></b><span dir="ltr">{local(lead.phone)}</span>
             <button type="button" className="fv-ghost" onClick={() => { setLead(null); setTimeout(() => qRef.current?.focus(), 0) }}>{t.change}</button>
           </div>
@@ -272,7 +272,7 @@ function NewTaskDialog({ leads, t, en, lang, onClose, onUpdate }) {
               <ul className="fv-found">
                 {found.length ? found.map(l => (
                   <li key={l.id}><button type="button" onClick={() => setLead(l)}>
-                    <WaFace phone={l.phone} name={l.name} size={26} lang={lang} zoom={false}><span className="fv-ini">{String(l.name || '?').charAt(0)}</span></WaFace>
+                    <WaFace phone={l.phone} lead={l} name={l.name} size={26} lang={lang} zoom={false}><span className="fv-ini">{String(l.name || '?').charAt(0)}</span></WaFace>
                     <b><bdi>{l.name || local(l.phone)}</bdi></b><span dir="ltr">{local(l.phone)}</span>
                   </button></li>
                 )) : <li className="fv-none">{t.noLead}</li>}
