@@ -515,12 +515,29 @@ async function handleProjects(req, res) {
   for (const p of incoming) if (!removed.has(p.id)) byId.set(p.id, p)
   const next = cleanProjects([...incoming.filter(p => byId.has(p.id)), ...[...byId.values()].filter(p => !incoming.some(x => x.id === p.id))])
   try { await Auto.putSetting('lead_projects', next) } catch (e) { return res.status(502).json({ error: e.message }) }
+  // a merge: the leads put by hand in a merged-away project move to the one that stays (the board follows on the change bus)
+  let moved = 0
+  const mg = b.merge && typeof b.merge === 'object' ? b.merge : null
+  if (mg && /^p_[a-z0-9]{3,20}$/.test(String(mg.into || '')) && Array.isArray(mg.from) && SUPABASE_URL && SUPABASE_KEY) {
+    const into = next.find(p => p.id === mg.into)
+    const from = mg.from.map(String).filter(id => /^p_[a-z0-9]{3,20}$/.test(id) && id !== mg.into).slice(0, 20)
+    if (into && from.length) {
+      const { data: rows } = await sb().from('contacts').select('id,crm_data').in('crm_data->>projectId', from).limit(2000)
+      for (const r of rows || []) {
+        const { error } = await sb().from('contacts').update({ crm_data: { ...(r.crm_data || {}), projectId: into.id, projectName: into.name } }).eq('id', r.id)
+        if (!error) moved++
+      }
+      // the kept project's leads carry its (maybe new) name too
+      const { data: own } = await sb().from('contacts').select('id,crm_data').eq('crm_data->>projectId', into.id).neq('crm_data->>projectName', into.name).limit(2000)
+      for (const r of own || []) await sb().from('contacts').update({ crm_data: { ...(r.crm_data || {}), projectName: into.name } }).eq('id', r.id)
+    }
+  }
   let auto = autoDone
   if (Array.isArray(b.autoDone) && b.autoDone.length) {
     auto = [...new Set([...autoDone, ...b.autoDone.map(x => String(x || '').trim().slice(0, 80)).filter(Boolean)])].slice(-300)
     await Auto.putSetting('lead_projects_auto', auto).catch(() => {})
   }
-  return res.status(200).json({ ok: true, projects: next, autoDone: auto })
+  return res.status(200).json({ ok: true, projects: next, autoDone: auto, moved })
 }
 
 // ── Green API instance settings: the journals that keep the lead's replies ──────────────────────────────────────────

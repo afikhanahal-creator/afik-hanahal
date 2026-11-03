@@ -4,8 +4,8 @@
 // and the "ליד חדש" dialog that saves a lead to the server with its project. Rules: lib/projects.js; the list: src/lib/projectsStore.js.
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { FolderKanban, Plus, Settings2, X, Check, Search, Archive, ArchiveRestore, Trash2, Pencil, UserPlus, ChevronDown } from 'lucide-react'
-import { projectOfLead, projectHow, projectCounts, projectSuggestions, newProject, assignPatch, autoProjects, PROJECT_COLORS, NONE } from '../lib/projects.js'
+import { FolderKanban, Plus, Settings2, X, Check, Search, Archive, ArchiveRestore, Trash2, Pencil, UserPlus, ChevronDown, GitMerge } from 'lucide-react'
+import { projectOfLead, projectHow, projectCounts, projectSuggestions, newProject, assignPatch, autoProjects, mergeProjects, duplicateGroups, PROJECT_COLORS, NONE } from '../lib/projects.js'
 import { saveProjects, projectsLoaded, getAutoDone } from './lib/projectsStore.js'
 import { MANUAL_SOURCES } from '../lib/manual-lead.js'
 
@@ -20,6 +20,9 @@ const TXT = {
     aliases: 'שמות קמפיין / נכס שנכנסים לפרויקט לבד', aliasesPh: 'למשל: זרובבל 15 - v2, פנטהאוז זרובבל', save: 'שמירה', cancel: 'ביטול',
     edit: 'עריכה', archive: 'העברה לארכיון', unarchive: 'החזרה מהארכיון', del: 'מחיקה', archived: 'בארכיון',
     delAsk: n => `למחוק את הפרויקט "${n}"? הלידים נשארים, רק בלי השיוך.`, suggest: 'קמפיינים בלי פרויקט', fromCamp: 'יצירת פרויקט',
+    mergeBtn: 'מיזוג', mergeSel: n => `מיזוג ${n} פרויקטים`, selectToMerge: 'בחירה למיזוג', dupTitle: 'נראה כמו אותו פרויקט — כדאי למזג?',
+    mergeTitle: 'מיזוג פרויקטים', mergeKeep: 'איזה שם נשאר?', mergeOwn: 'שם אחר:', mergeWhat: (n, name) => `${n} לידים יהיו תחת "${name}". שמות הקמפיינים של כל הפרויקטים נשמרים, כך שלידים חדשים מהם ייכנסו אליו לבד.`,
+    mergeGo: 'מיזוג', mergeDone: (n, name, m) => `מוזגו ${n} פרויקטים לתוך "${name}"${m ? ` · ${m} לידים הועברו` : ''}`, cancelSel: 'ביטול הבחירה',
     showLeads: 'הצגת הלידים', empty: 'עוד אין פרויקטים. צרו את הראשון, או בחרו קמפיין מהרשימה.', saving: 'שומר…',
     stages: { new: 'חדש', contacted: 'נוצר קשר', discovery: 'מתעניין', meeting: 'פגישה', negotiating: 'מו״מ', won: 'נסגר', lost: 'ללא מענה', nurture: 'בהמשך', irrelevant: 'לא רלוונטי' },
     // new lead
@@ -38,6 +41,9 @@ const TXT = {
     aliases: 'Campaign / listing names that join this project by themselves', aliasesPh: 'e.g. Zerubavel 15 - v2, Zerubavel penthouse', save: 'Save', cancel: 'Cancel',
     edit: 'Edit', archive: 'Archive', unarchive: 'Restore from archive', del: 'Delete', archived: 'Archived',
     delAsk: n => `Delete the project "${n}"? Its leads stay, without the project.`, suggest: 'Campaigns without a project', fromCamp: 'Create project',
+    mergeBtn: 'Merge', mergeSel: n => `Merge ${n} projects`, selectToMerge: 'Select to merge', dupTitle: 'These look like the same project — merge?',
+    mergeTitle: 'Merge projects', mergeKeep: 'Which name stays?', mergeOwn: 'Another name:', mergeWhat: (n, name) => `${n} leads will be under "${name}". Every project's campaign names are kept, so new leads from them join it by themselves.`,
+    mergeGo: 'Merge', mergeDone: (n, name, m) => `${n} projects merged into "${name}"${m ? ` · ${m} leads moved` : ''}`, cancelSel: 'Clear selection',
     showLeads: 'Show its leads', empty: 'No projects yet. Create the first one, or pick a campaign from the list.', saving: 'Saving…',
     stages: { new: 'New', contacted: 'Contacted', discovery: 'Interested', meeting: 'Meeting', negotiating: 'Negotiating', won: 'Won', lost: 'No answer', nurture: 'Later', irrelevant: 'Not relevant' },
     nlTitle: 'New lead', nlName: 'Name', nlPhone: 'Phone', nlEmail: 'Email', nlProject: 'Project', nlStage: 'Stage', nlSource: 'Where from',
@@ -312,6 +318,24 @@ export function ProjectsManager({ leads, projects, lang = 'he', startNew = false
   const fromCamp = name => run(async () => { await saveProjects([...projects, newProject({ name, aliases: [name] }, projects)]) })
   const toggleArchive = p => run(() => saveProjects(projects.map(x => (x.id === p.id ? { ...x, status: x.status === 'archived' ? 'active' : 'archived' } : x))))
   const del = p => { if (window.confirm(t.delAsk(p.name))) run(() => saveProjects(projects.filter(x => x.id !== p.id), [p.id])) }
+  // merging: tick projects (or take a suggested group) → pick the name that stays (or type one) → one project
+  const [pick, setPick] = useState([])
+  const [mg, setMg] = useState(null)            // { ids, into, name }
+  const [done, setDone] = useState('')
+  const dups = useMemo(() => duplicateGroups(projects), [projects])
+  const togglePick = id => setPick(x => (x.includes(id) ? x.filter(y => y !== id) : [...x, id]))
+  const openMerge = ids => {
+    const best = [...ids].sort((a, b) => (counts[b]?.total || 0) - (counts[a]?.total || 0))[0]
+    setMg({ ids, into: best, name: '' }); setErr(''); setEdit(null)
+  }
+  const doMerge = () => run(async () => {
+    const r = mergeProjects(projects, mg.ids, mg.into, { name: mg.name })
+    const n = r.removed.length + 1
+    await saveProjects(r.list, r.removed, { merge: { from: r.removed, into: r.into.id } })
+    setDone(t.mergeDone(n, r.into.name, 0)); setTimeout(() => setDone(''), 6000)
+    setMg(null); setPick([])
+  })
+  const mgTotal = mg ? mg.ids.reduce((a, id) => a + (counts[id]?.total || 0), 0) : 0
 
   return createPortal(
     <div className="lp-modal-bg" onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
@@ -337,14 +361,54 @@ export function ProjectsManager({ leads, projects, lang = 'he', startNew = false
             </div>
           </div>
         )}
+        {mg && (
+          <div className="lp-merge" role="group" aria-label={t.mergeTitle}>
+            <b className="lp-merge-h"><GitMerge size={15}/>{t.mergeTitle}</b>
+            <span className="lp-merge-q">{t.mergeKeep}</span>
+            <div className="lp-merge-opts" role="radiogroup">
+              {mg.ids.map(id => projects.find(p => p.id === id)).filter(Boolean).map(p => (
+                <label key={p.id} className={`lp-merge-opt${mg.into === p.id && !mg.name ? ' is-on' : ''}`} style={pv(p.color)}>
+                  <input type="radio" name="lp-into" checked={mg.into === p.id && !mg.name} onChange={() => setMg(x => ({ ...x, into: p.id, name: '' }))}/>
+                  <span className="lp-dot"/><bdi>{p.name}</bdi><em>{counts[p.id]?.total || 0}</em>
+                </label>
+              ))}
+            </div>
+            <label className="lp-merge-own">{t.mergeOwn}<input value={mg.name} onChange={e => setMg(x => ({ ...x, name: e.target.value }))} placeholder={projects.find(p => p.id === mg.into)?.name}/></label>
+            <p className="lp-merge-what">{t.mergeWhat(mgTotal, mg.name.trim() || projects.find(p => p.id === mg.into)?.name || '')}</p>
+            <div className="lp-form-foot">
+              <button type="button" className="lp-primary" disabled={busy} onClick={doMerge}><GitMerge size={14}/>{busy ? t.saving : t.mergeGo}</button>
+              <button type="button" className="lp-secondary" onClick={() => setMg(null)}>{t.cancel}</button>
+            </div>
+          </div>
+        )}
         {err && <div className="lp-err">{err}</div>}
+        {done && <div className="lp-done"><Check size={14}/>{done}</div>}
+        {!mg && dups.length > 0 && (
+          <div className="lp-dups">
+            <b><GitMerge size={14}/>{t.dupTitle}</b>
+            {dups.map(g => (
+              <div key={g.map(p => p.id).join()} className="lp-dup">
+                {g.map(p => <span key={p.id} className="lp-dup-p" style={pv(p.color)}><span className="lp-dot"/><bdi>{p.name}</bdi><em>{counts[p.id]?.total || 0}</em></span>)}
+                <button type="button" className="lp-primary lp-sm" onClick={() => openMerge(g.map(p => p.id))}><GitMerge size={13}/>{t.mergeBtn}</button>
+              </div>
+            ))}
+          </div>
+        )}
+        {pick.length > 0 && !mg && (
+          <div className="lp-pickbar">
+            <span>{t.mergeSel(pick.length)}</span>
+            <button type="button" className="lp-primary lp-sm" disabled={pick.length < 2} onClick={() => openMerge(pick)}><GitMerge size={13}/>{t.mergeBtn}</button>
+            <button type="button" className="lp-secondary lp-sm" onClick={() => setPick([])}>{t.cancelSel}</button>
+          </div>
+        )}
         <div className="lp-cards">
           {!projects.length && !edit && <div className="lp-empty">{t.empty}</div>}
           {projects.map(p => {
             const c = counts[p.id] || { total: 0, open: 0, byStage: {} }
             return (
-              <div key={p.id} className={`lp-card${p.status === 'archived' ? ' is-archived' : ''}`} style={pv(p.color)}>
+              <div key={p.id} className={`lp-card${p.status === 'archived' ? ' is-archived' : ''}${pick.includes(p.id) ? ' is-picked' : ''}`} style={pv(p.color)}>
                 <div className="lp-card-top">
+                  <label className="lp-pick" title={t.selectToMerge}><input type="checkbox" checked={pick.includes(p.id)} onChange={() => togglePick(p.id)} aria-label={`${t.selectToMerge}: ${p.name}`}/></label>
                   <span className="lp-dot"/><b><bdi>{p.name}</bdi></b>{p.town && <span className="lp-town">{p.town}</span>}
                   {p.status === 'archived' && <span className="lp-badge">{t.archived}</span>}
                   <span className="lp-card-n">{t.leads(c.total)} · {t.open(c.open)}</span>
@@ -353,6 +417,7 @@ export function ProjectsManager({ leads, projects, lang = 'he', startNew = false
                 {p.aliases.length > 0 && <div className="lp-aliases">{p.aliases.map(a => <span key={a}>{a}</span>)}</div>}
                 <div className="lp-card-act">
                   {onShow && <button type="button" className="lp-secondary" onClick={() => onShow(p.id)}>{t.showLeads}</button>}
+                  <button type="button" className="lp-icon" title={t.mergeBtn} aria-label={`${t.mergeBtn}: ${p.name}`} disabled={projects.length < 2} onClick={() => { if (!pick.includes(p.id)) togglePick(p.id) }}><GitMerge size={14}/></button>
                   <button type="button" className="lp-icon" title={t.edit} aria-label={`${t.edit}: ${p.name}`} onClick={() => setEdit({ id: p.id, name: p.name, town: p.town, color: p.color, aliases: p.aliases.join(', ') })}><Pencil size={14}/></button>
                   <button type="button" className="lp-icon" title={p.status === 'archived' ? t.unarchive : t.archive} aria-label={p.status === 'archived' ? t.unarchive : t.archive} disabled={busy} onClick={() => toggleArchive(p)}>{p.status === 'archived' ? <ArchiveRestore size={14}/> : <Archive size={14}/>}</button>
                   <button type="button" className="lp-icon lp-del" title={t.del} aria-label={`${t.del}: ${p.name}`} disabled={busy} onClick={() => del(p)}><Trash2 size={14}/></button>
@@ -546,8 +611,30 @@ const LP_CSS = `
 .lp-badge{font-size:10.5px;font-weight:700;border-radius:5px;padding:1px 6px;background:rgba(var(--ov,20,30,80),.08);color:var(--au-text2,#555)}
 .lp-aliases{display:flex;flex-wrap:wrap;gap:4px}
 .lp-aliases span{font-size:11px;border-radius:5px;padding:1px 6px;background:rgba(var(--ov,20,30,80),.06);color:var(--au-text2,#555)}
-.lp-card-act{display:flex;align-items:center;gap:6px;margin-top:auto}
-.lp-card-act .lp-secondary{flex:1}
+.lp-card.is-picked{box-shadow:0 0 0 2px var(--au-brand,#3F4EB0)}
+.lp-pick{display:inline-flex;align-items:center;cursor:pointer}
+.lp-pick input{width:17px;height:17px;accent-color:var(--au-brand,#3F4EB0);cursor:pointer;margin:0;appearance:auto}
+.lp-sm{height:30px!important;padding:0 11px!important;font-size:12.5px!important}
+.lp-done{display:flex;align-items:center;gap:7px;margin:8px 0;padding:9px 12px;border-radius:10px;background:rgba(22,163,74,.1);color:#15803D;font-size:13px;font-weight:600}
+.lp-dups{display:flex;flex-direction:column;gap:7px;margin:10px 0 4px;padding:11px 12px;border-radius:12px;border:1px solid rgba(217,119,6,.35);background:rgba(217,119,6,.07)}
+.lp-dups>b{display:inline-flex;align-items:center;gap:7px;font-size:13px}
+.lp-dup{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.lp-dup-p{display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 10px;border-radius:999px;border:1px solid var(--pcl);background:var(--pcb);font-size:12.5px;font-weight:600}
+.lp-dup-p em,.lp-merge-opt em{font-style:normal;font-size:11px;color:var(--au-text3,#888);font-weight:700}
+.lp-pickbar{position:sticky;top:0;z-index:2;display:flex;align-items:center;gap:8px;margin:8px 0;padding:8px 12px;border-radius:10px;background:rgba(var(--brand-rgb,63,78,176),.1);font-size:13px;font-weight:600}
+.lp-pickbar span{flex:1}
+.lp-merge{display:flex;flex-direction:column;gap:8px;margin:10px 0;padding:14px;border-radius:12px;border:1px solid rgba(var(--brand-rgb,63,78,176),.4);background:rgba(var(--brand-rgb,63,78,176),.05)}
+.lp-merge-h{display:inline-flex;align-items:center;gap:7px;font-size:14.5px}
+.lp-merge-q{font-size:12.5px;font-weight:600;color:var(--au-text2,#555)}
+.lp-merge-opts{display:flex;flex-wrap:wrap;gap:7px}
+.lp-merge-opt{display:inline-flex;align-items:center;gap:7px;height:36px;padding:0 12px;border-radius:10px;border:1px solid var(--au-line,#e5e7eb);background:var(--au-pop,#fff);cursor:pointer;font-size:13.5px;font-weight:600}
+.lp-merge-opt input{margin:0;accent-color:var(--pc);appearance:auto}
+.lp-merge-opt.is-on{border-color:var(--pc);background:var(--pcb)}
+.lp-merge-own{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;color:var(--au-text2,#555)}
+.lp-merge-own input{flex:1;max-width:320px;height:36px;border:1px solid var(--au-line,#e5e7eb);border-radius:9px;padding:0 10px;font:14px Rubik,sans-serif;background:var(--au-input,var(--au-pop,#fff));color:var(--au-text,#111)}
+.lp-merge-what{margin:0;font-size:12.5px;color:var(--au-text2,#555);line-height:1.6}
+.lp-card-act{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-top:auto}
+.lp-card-act .lp-secondary{flex:1 1 100%;justify-content:center}
 .lp-empty{grid-column:1/-1;padding:24px;text-align:center;color:var(--au-text3,#888);font-size:13px}
 .lp-sugg{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:14px;padding-top:12px;border-top:1px solid var(--au-line,#e5e7eb);font-size:12.5px}
 .lp-sugg b{margin-inline-end:4px;color:var(--au-text2,#555)}

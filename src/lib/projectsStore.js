@@ -24,10 +24,10 @@ export const projectsLoaded = () => loaded
 export const getAutoDone = () => autoDone
 
 /** Save the whole list (removed = ids to delete) → the saved list; throws a readable error */
-export async function saveProjects(next, removed = [], { auto = [] } = {}) {
+export async function saveProjects(next, removed = [], { auto = [], merge = null } = {}) {
   const before = list
   list = cleanProjects(next); emit()                // at once on screen
-  const r = await fetch('/api/meta/projects', { method: 'POST', headers: AUTH, body: JSON.stringify({ projects: list, removed, ...(auto.length ? { autoDone: auto } : {}) }), signal: AbortSignal.timeout(15000) }).catch(() => null)
+  const r = await fetch('/api/meta/projects', { method: 'POST', headers: AUTH, body: JSON.stringify({ projects: list, removed, ...(auto.length ? { autoDone: auto } : {}), ...(merge ? { merge } : {}) }), signal: AbortSignal.timeout(15000) }).catch(() => null)
   const d = r ? await r.json().catch(() => ({})) : {}
   if (!r?.ok || !d.projects) { list = before; emit(); throw new Error(d.error || 'השמירה נכשלה, נסו שוב') }
   list = cleanProjects(d.projects); if (Array.isArray(d.autoDone)) autoDone = d.autoDone; loaded = true; emit()
