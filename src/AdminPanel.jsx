@@ -1546,9 +1546,11 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   }, [])
   const [cardLeadId, setCardLeadId]   = useState(null)    // the lead card opened over the Lead Center
   // "מסמכים וחתימות": the lead card's "+ מסמך חדש" (and /admin-panel/documents?lead=<id>) open the wizard on that lead
+  // "מסמך לחתימה" on a property (the gallery's ⋯ menu, /admin-panel/documents?property=<id>) opens the quick document on it
+  const [docsPropId, setDocsPropId] = useState(() => { try { return /\/admin-panel\/documents/.test(window.location.pathname) ? String(new URL(window.location.href).searchParams.get('property') || '') : '' } catch { return '' } })
   const [docsLeadId, setDocsLeadId] = useState(() => { try { return new URL(window.location.href).searchParams.get('lead') && /\/admin-panel\/documents/.test(window.location.pathname) ? String(new URL(window.location.href).searchParams.get('lead')) : '' } catch { return '' } })
   useEffect(() => {
-    const h = e => { const id = e.detail?.leadId; if (id) { setDocsLeadId(String(id) + '#' + Date.now()); setTab('docs') } }
+    const h = e => { const id = e.detail?.leadId, pid = e.detail?.propertyId; if (pid) { setDocsPropId(String(pid) + '#' + Date.now()); setTab('docs') } else if (id) { setDocsLeadId(String(id) + '#' + Date.now()); setTab('docs') } }
     window.addEventListener('afik:new-doc', h)
     return () => window.removeEventListener('afik:new-doc', h)
   }, [])
@@ -3532,7 +3534,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
         )}
         {tab==='docs' && (
           <Suspense fallback={<AdminTabLoader label="טוען מסמכים וחתימות…"/>}>
-            <DocumentsTab lang={lang} leads={leads} properties={orderedProps} standalone={standalone} initialLeadId={docsLeadId.split('#')[0]} initialProject={docsProject.split('#')[0]} key={docsLeadId + '|' + docsProject}
+            <DocumentsTab lang={lang} leads={leads} properties={orderedProps} standalone={standalone} initialLeadId={docsLeadId.split('#')[0]} initialProject={docsProject.split('#')[0]} initialPropertyId={docsPropId.split('#')[0]} key={docsLeadId + '|' + docsProject + '|' + docsPropId}
               onOpenLead={id => { setTab('leads'); try { const u = new URL(window.location.href); u.searchParams.set('lead', String(id)); window.history.replaceState(window.history.state, '', u) } catch {} }}/>
           </Suspense>
         )}

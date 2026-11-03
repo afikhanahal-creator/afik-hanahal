@@ -7,12 +7,12 @@
 // Everything here uses the admin tokens (T.* / var(--au-*)) and works in light / dark, RTL and on a phone.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { FileSignature, Plus, Search, Send, RefreshCw, Download, Link2, XCircle, Settings, Eye, Copy, Check, AlertTriangle, ChevronLeft, ChevronRight, FileText, Trash2, Upload, Clock, CheckCircle2, PenLine, Mail, MessageCircle, FolderKanban, Cloud, Bell, Users, ExternalLink } from 'lucide-react'
+import { FileSignature, Plus, Search, Send, RefreshCw, Download, Link2, XCircle, Settings, Eye, Copy, Check, AlertTriangle, ChevronLeft, ChevronRight, FileText, Trash2, Upload, Clock, CheckCircle2, PenLine, Mail, MessageCircle, FolderKanban, Cloud, Bell, Users, ExternalLink, Building2, Zap } from 'lucide-react'
 import { T, Button, StatTile, FilterChip, Badge, EmptyState, Field, inputStyle, Modal, Drawer, useToasts, SectionHead } from './automationsUI.jsx'
 import { autoApi } from './AutomationsApi.jsx'
 import DocSheet, { DOC_CSS } from './DocPreview.jsx'
 import { onSync } from './lib/syncBus.js'
-import { computeFees, renderClauses, cleanDocInput, DEFAULT_CLAUSES, DOC_TYPES, CLIENT_ROLES, DEAL_TYPES, FEE_MODES, STATUS_HE, EVENT_HE, DEFAULT_VAT, docStats, effectiveStatus, fmtMoney, fmtPct, whenHe, todayHe, placeholderValues, PLACEHOLDERS, SIGNER_ROLES, MAX_SIGNERS, signerProgressText, signerInfo, DEFAULT_REMINDERS, DEFAULT_NOTIFY_ON } from '../lib/documents.js'
+import { computeFees, renderClauses, cleanDocInput, DEFAULT_CLAUSES, DOC_TYPES, CLIENT_ROLES, DEAL_TYPES, FEE_MODES, STATUS_HE, EVENT_HE, DEFAULT_VAT, docStats, effectiveStatus, fmtMoney, fmtPct, whenHe, todayHe, placeholderValues, PLACEHOLDERS, SIGNER_ROLES, MAX_SIGNERS, signerProgressText, signerInfo, DEFAULT_REMINDERS, DEFAULT_NOTIFY_ON, propertyToDoc } from '../lib/documents.js'
 import { leadProperty } from '../lib/automations-shared.js'
 import { useProjects } from './lib/projectsStore.js'
 import { projectOfLead } from '../lib/projects.js'
@@ -88,7 +88,8 @@ export const DOCS_CSS = `
 .dt-ib:hover{border-color:var(--au-line);color:var(--au-text);background:rgba(var(--ov),.05)}
 .dt-cards{display:none}
 .dw{display:grid;grid-template-columns:minmax(360px,460px) minmax(0,1fr);gap:0;height:100%;min-height:0}
-.dw-form{display:flex;flex-direction:column;min-height:0;border-inline-end:1px solid var(--au-line)}
+.dw-form{display:flex;flex-direction:column;min-height:0;min-width:0;border-inline-end:1px solid var(--au-line)}
+.dw>*{min-width:0}.dw-body>*{min-width:0}.qd-sec .dw-chips input{min-width:0}
 .dw-steps{display:flex;gap:4px;padding:12px 16px 10px;border-bottom:1px solid var(--au-line);overflow-x:auto}
 .dw-step{flex:1;display:flex;align-items:center;gap:6px;font-size:12px;color:var(--au-text3);white-space:nowrap;min-width:0}
 .dw-step i{width:20px;height:20px;border-radius:50%;border:1px solid var(--au-line);display:inline-flex;align-items:center;justify-content:center;font-style:normal;font-size:11px;font-weight:600;flex-shrink:0}
@@ -99,6 +100,33 @@ export const DOCS_CSS = `
 .dw-prev{background:#8E8B84;overflow:auto;padding:20px;display:flex;justify-content:center;align-items:flex-start}
 .dw-prev-in{transform-origin:top center}
 .dw-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.qd{display:flex;flex-direction:column;min-height:0}
+.qd-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:16px 18px 10px}
+.qd-head h3{margin:0;font-size:18px;font-weight:600;display:flex;gap:8px;align-items:center}.qd-head p{margin:4px 0 0;color:var(--au-text3);font-size:13.5px}
+.qd-tools{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:0 18px 12px;border-bottom:1px solid var(--au-line)}
+.qd-search{flex:1;min-width:220px;display:flex;align-items:center;gap:8px;height:42px;border-radius:12px;background:rgba(var(--ov),.05);border:1px solid var(--au-line);padding:0 12px;color:var(--au-text3)}
+.qd-search input{flex:1;border:none;background:transparent;font:inherit;font-size:14.5px;color:var(--au-text);outline:none;min-height:0}
+.qd-grid{flex:1;overflow:auto;padding:16px 18px;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;align-content:start}
+.qd-card{display:flex;flex-direction:column;gap:4px;text-align:start;border:1px solid var(--au-line);border-radius:14px;background:var(--au-card);padding:0 0 12px;cursor:pointer;font:inherit;color:var(--au-text);overflow:hidden;transition:box-shadow .15s,border-color .15s;min-height:0}
+.qd-card:hover,.qd-card:focus-visible{border-color:rgba(var(--brand-rgb),.5);box-shadow:var(--au-shadow)}
+.qd-card b,.qd-card small,.qd-meta{padding:0 12px}.qd-card b{font-size:14.5px;font-weight:600;margin-top:8px}.qd-card small{color:var(--au-text3);font-size:12.5px}
+.qd-img{position:relative;aspect-ratio:3/2;background:rgba(var(--ov),.06);display:flex;align-items:center;justify-content:center;color:var(--au-text3)}.qd-img img{width:100%;height:100%;object-fit:cover;display:block}
+.qd-tag{position:absolute;top:8px;inset-inline-start:8px;background:rgba(18,140,74,.92);color:#fff;font-size:11.5px;font-weight:600;border-radius:999px;padding:2px 8px}
+.qd-meta{display:flex;justify-content:space-between;gap:8px;font-size:12.5px;color:var(--au-text2)}.qd-meta em{font-style:normal;font-weight:700;color:var(--au-text)}
+.qd-empty{grid-column:1/-1;color:var(--au-text3);font-size:14px;padding:30px;text-align:center}
+.qd-prop{display:flex;gap:10px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--au-line);background:rgba(var(--brand-rgb),.05)}
+.qd-prop b{display:block;font-size:14.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.qd-prop small{display:block;color:var(--au-text3);font-size:12.5px}
+.qd-thumb{width:54px;height:42px;border-radius:9px;overflow:hidden;background:rgba(var(--ov),.08);flex-shrink:0;display:flex;align-items:center;justify-content:center;color:var(--au-text3)}.qd-thumb img{width:100%;height:100%;object-fit:cover}
+.qd-saved{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;color:var(--au-green-text);margin-top:2px}
+.qd-sec{display:flex;flex-direction:column;gap:10px;padding:12px;border:1px solid var(--au-line);border-radius:14px;background:var(--au-card)}
+.qd-sec h4{margin:0;font-size:14px;font-weight:600;display:flex;align-items:center;gap:8px}.qd-sec h4 span{width:22px;height:22px;border-radius:50%;background:rgba(var(--brand-rgb),.12);color:var(--au-brand-text);display:inline-flex;align-items:center;justify-content:center;font-size:12px}
+.qd-sum{font-size:13px;color:var(--au-text2);background:rgba(var(--ov),.04);border-radius:10px;padding:8px 10px}
+.qd-more{align-self:flex-start;border:none;background:none;color:var(--au-brand-text);font:inherit;font-size:13px;font-weight:600;cursor:pointer;padding:2px 0;min-height:0}
+.qd-fixed{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:13px;color:var(--au-text2);align-items:center}
+.qd-foot-sec,.qd-foot-main{display:flex;gap:8px;align-items:center}
+.qd-done{display:flex;flex-direction:column;gap:12px;align-items:center;text-align:center;padding:20px 8px}.qd-done h3{margin:0;font-size:18px}.qd-done p{margin:0;color:var(--au-text2);font-size:14px;line-height:1.6}
+.qd-done .big{width:64px;height:64px;border-radius:50%;background:rgba(37,211,102,.16);color:var(--au-green-text);display:flex;align-items:center;justify-content:center}
+@media (max-width:640px){.qd-foot{flex-direction:column-reverse;align-items:stretch;gap:8px}.qd-foot-main{display:grid!important;grid-template-columns:auto auto 1fr;gap:8px}.qd-foot-main>*:last-child{width:100%}.qd-foot-sec{justify-content:space-between}.qd-grid{grid-template-columns:1fr 1fr;gap:8px;padding:12px}.qd-head,.qd-tools{padding-inline:12px}.dw-grid{grid-template-columns:1fr}}
 .dw-grid .full{grid-column:1/-1}
 .dw-lead{display:flex;flex-direction:column;gap:6px;position:relative}
 .dw-lead-list{position:absolute;top:100%;inset-inline:0;z-index:5;background:var(--au-pop);border:1px solid var(--au-line);border-radius:10px;box-shadow:var(--au-shadow);max-height:260px;overflow:auto;margin-top:4px}
@@ -179,7 +207,7 @@ const fieldInput = (f, v, on) => f.type === 'checkbox' ? <label className="te-to
   : f.type === 'date' ? <input className="dt-input" type="date" dir="ltr" value={v || ''} onChange={e => on(e.target.value)} aria-label={f.label}/>
   : <input className="dt-input" dir={['number', 'money', 'percent'].includes(f.type) ? 'ltr' : undefined} inputMode={['number', 'money', 'percent'].includes(f.type) ? 'decimal' : undefined} value={v || ''} placeholder={f.hint || ''} onChange={e => on(e.target.value)} aria-label={f.label}/>
 
-export default function DocumentsTab({ lang = 'he', leads = [], properties = [], onOpenLead, initialLeadId = '', initialProject = '', standalone = true }) {
+export default function DocumentsTab({ lang = 'he', leads = [], properties = [], onOpenLead, initialLeadId = '', initialProject = '', initialPropertyId = '', standalone = true }) {
   const t = TR.he
   const [push, toasts] = useToasts()
   const projects = useProjects()
@@ -199,7 +227,8 @@ export default function DocumentsTab({ lang = 'he', leads = [], properties = [],
   const [filter, setFilter] = useState('all')
   const [range, setRange] = useState('all')
   const [q, setQ] = useState('')
-  const [wizard, setWizard] = useState(null)       // { doc? (editing a draft), leadId? }
+  const [wizard, setWizard] = useState(null)       // { doc? (editing a draft), leadId?, prefill? }
+  const [quick, setQuick] = useState(() => initialPropertyId ? { propertyId: String(initialPropertyId) } : null)   // "מסמך מהיר מנכס"
   const [open, setOpen] = useState(null)           // the document id in the drawer
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settings, setSettings] = useState(null)
@@ -246,6 +275,7 @@ export default function DocumentsTab({ lang = 'he', leads = [], properties = [],
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <Button variant="ghost" icon={<RefreshCw size={14}/>} onClick={() => { load(); loadTemplates() }} title={t.refresh}>{t.refresh}</Button>
           <Button variant="ghost" icon={<Upload size={14}/>} onClick={() => { setArea('templates'); setTplEditor({ upload: true }) }} className="dt-upload">{t.uploadTpl}</Button>
+          <Button variant="soft-green" icon={<Building2 size={15}/>} onClick={() => setQuick({})} className="dt-quick">מסמך מהיר מנכס</Button>
           <Button variant="solid" icon={<Plus size={15}/>} onClick={() => setWizard({ projectId: project || '' })} className="dt-new">{t.newDoc}</Button>
         </div>
       </div>
@@ -320,6 +350,7 @@ export default function DocumentsTab({ lang = 'he', leads = [], properties = [],
         </>
       ))}
       <p style={{ fontSize: 12, color: 'var(--au-text3)', margin: 0 }}>{t.legal}</p>
+      {quick && <QuickDoc t={t} leads={leads} properties={properties} projects={projects} templates={templates} settings={settings} initPropertyId={quick.propertyId || ''} initLeadId={quick.leadId || ''} onClose={() => setQuick(null)} onDone={msg => { setQuick(null); if (msg) push(msg); load() }} onFull={prefill => { setQuick(null); setWizard(prefill && prefill.property ? { prefill } : { projectId: project || '' }) }} push={push} onPresetSaved={s => setSettings(s)}/>}
       {wizard && <DocWizard t={t} leads={leads} properties={properties} projects={projects} templates={templates} settings={settings} init={wizard} onClose={() => setWizard(null)} onDone={(msg) => { setWizard(null); if (msg) push(msg); load() }} push={push}/>}
       {tplEditor && <Modal open onClose={() => setTplEditor(null)} title={null} full xl dir="rtl" label={t.areas.templates} closeOnBackdrop={false}>
         <div style={{ height: 'calc(100vh - 80px)', maxHeight: 920, display: 'flex', flexDirection: 'column' }}>
@@ -335,10 +366,11 @@ export default function DocumentsTab({ lang = 'he', leads = [], properties = [],
 
 // ── the wizard ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
 function DocWizard({ t, leads, properties, projects = [], templates = [], settings, init, onClose, onDone, push }) {
-  const [step, setStep] = useState(init.templateId || init.doc ? 1 : 0)
+  const [step, setStep] = useState(init.templateId || init.doc || init.prefill ? 1 : 0)
   const [form, setForm] = useState(() => {
     const f = emptyForm(settings)
     if (init.doc) { const d = init.doc.data || {}; return { ...f, ...d, client: { ...f.client, ...d.client, ...splitName(d.client?.name) }, property: { ...f.property, ...d.property, price: d.fees?.price || '' }, fees: { ...f.fees, ...d.fees }, agent: { ...f.agent, ...d.agent }, logo: { ...f.logo, ...d.logo }, leadId: init.doc.lead_id || '', propertyId: init.doc.property_id || '', templateId: init.doc.template_id || 'brokerage', projectId: init.doc.project_id || '', projectName: init.doc.project_name || d.projectName || '', fields: d.fields || {} } }
+    if (init.prefill) return { ...f, ...init.prefill, client: { ...f.client, ...init.prefill.client }, property: { ...f.property, ...init.prefill.property }, fees: { ...f.fees, ...init.prefill.fees } }
     return { ...f, templateId: init.templateId || 'brokerage', projectId: init.projectId || '', projectName: init.projectId ? (projects.find(p => p.id === init.projectId)?.name || '') : '' }
   })
   const [docId, setDocId] = useState(init.doc?.id || '')
@@ -542,9 +574,9 @@ function DocWizard({ t, leads, properties, projects = [], templates = [], settin
       <p style={{ margin: 0, fontSize: 13, color: 'var(--au-text3)', lineHeight: 1.6 }}>{t.send.note}</p>
       {!hasWa && !hasEmail && <div className="dw-err">{t.send.missing}</div>}
       <Field label={t.send.via}><div className="dw-chips">
-        {hasWa && <button type="button" className={`dw-chip${send.via === 'whatsapp' ? ' on' : ''}`} onClick={() => setSend(s => ({ ...s, via: 'whatsapp' }))}><MessageCircle size={12}/> {t.send.wa} · {localPhone(form.client.phone)}</button>}
-        {hasEmail && <button type="button" className={`dw-chip${send.via === 'email' ? ' on' : ''}`} onClick={() => setSend(s => ({ ...s, via: 'email' }))}><Mail size={12}/> {t.send.email} · {form.client.email}</button>}
-        {hasWa && hasEmail && <button type="button" className={`dw-chip${send.via === 'both' ? ' on' : ''}`} onClick={() => setSend(s => ({ ...s, via: 'both' }))}>{t.send.both}</button>}
+        {hasWa && <button type="button" className={`dw-chip${send.via === 'whatsapp' ? ' on' : ''}`} onClick={() => setSend(s => ({ ...s, via: 'whatsapp', picked: true }))}><MessageCircle size={12}/> {t.send.wa} · {localPhone(form.client.phone)}</button>}
+        {hasEmail && <button type="button" className={`dw-chip${send.via === 'email' ? ' on' : ''}`} onClick={() => setSend(s => ({ ...s, via: 'email', picked: true }))}><Mail size={12}/> {t.send.email} · {form.client.email}</button>}
+        {hasWa && hasEmail && <button type="button" className={`dw-chip${send.via === 'both' ? ' on' : ''}`} onClick={() => setSend(s => ({ ...s, via: 'both', picked: true }))}>{t.send.both}</button>}
       </div></Field>
       <Field label={t.send.personal}><textarea className="dt-input" placeholder={t.send.personalPh} value={send.personal} aria-label={t.send.personal} onChange={e => setSend(s => ({ ...s, personal: e.target.value }))}/></Field>
       <div style={{ fontSize: 12.5, color: 'var(--au-text3)' }}>{t.send.expiry}: {form.expiryDays} {t.send.days}</div>
@@ -555,7 +587,7 @@ function DocWizard({ t, leads, properties, projects = [], templates = [], settin
     </>,
   ]
   // the channel follows what the client has: both when both, else the one there is
-  useEffect(() => { setSend(s => { const ok = v => (v === 'whatsapp' && hasWa) || (v === 'email' && hasEmail) || (v === 'both' && hasWa && hasEmail); return ok(s.via) ? s : { ...s, via: hasWa && hasEmail ? 'both' : hasWa ? 'whatsapp' : 'email' } }) }, [hasWa, hasEmail])
+  useEffect(() => { setSend(s => { const ok = v => (v === 'whatsapp' && hasWa) || (v === 'email' && hasEmail) || (v === 'both' && hasWa && hasEmail); const best = hasWa && hasEmail ? 'both' : hasWa ? 'whatsapp' : 'email'; return s.picked && ok(s.via) ? s : { ...s, via: best } }) }, [hasWa, hasEmail])   // follows the client's details until a channel is picked by hand
   return (
     <Modal open onClose={onClose} title={null} full xl dir="rtl" label={t.newDoc} closeOnBackdrop={false}>
       <div className={`dw${showPrev ? ' show-prev' : ''}`} style={{ height: 'calc(100vh - 80px)', maxHeight: 900 }}>
@@ -621,6 +653,222 @@ function LogoFields({ t, logo, onChange, push }) {
 }
 
 // ── the drawer ──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+// ── "מסמך מהיר מנכס": pick a property from the system, the document fills itself; only what changes is asked ──────────────
+// The property's details (address, town, description, type, deal, price, link, gush / helka) come from the record
+// (propertyToDoc); the template, the fee, the terms and the validity come from the property's preset (settings.presets, saved
+// with "לזכור לנכס הזה") — so the form left is the client, the fee if it changed, and the template's own fields. Live preview,
+// then create + send in one click.
+const qdCover = p => { const u = Array.isArray(p?.images) ? p.images.find(x => typeof x === 'string' && /^https?:/.test(x)) : ''; return u ? `https://wsrv.nl/?url=${encodeURIComponent(u)}&w=360&h=240&fit=cover&q=70&output=webp` : '' }
+const qdPrice = p => { const n = Number(String(p?.price || '').replace(/[^\d]/g, '')); return n ? `₪${n.toLocaleString('he-IL')}` : '' }
+const QD_PCT = [1, 1.5, 2, 2.5, 3]
+function QuickDoc({ t, leads, properties, projects = [], templates = [], settings, initPropertyId = '', initLeadId = '', onClose, onDone, onFull, push, onPresetSaved }) {
+  const [propId, setPropId] = useState(initPropertyId ? String(initPropertyId) : '')
+  const [q, setQ] = useState('')
+  const [onlyLive, setOnlyLive] = useState(true)
+  const [form, setForm] = useState(() => emptyForm(settings))
+  const [leadQ, setLeadQ] = useState('')
+  const [leadOpen, setLeadOpen] = useState(false)
+  const [editProp, setEditProp] = useState(false)
+  const [more, setMore] = useState(false)
+  const [remember, setRemember] = useState(true)
+  const [send, setSend] = useState({ via: 'whatsapp', personal: '' })
+  const [busy, setBusy] = useState('')
+  const [errs, setErrs] = useState([])
+  const [result, setResult] = useState(null)
+  const [showPrev, setShowPrev] = useState(false)
+  const [scale, setScale] = useState(1)
+  const prevRef = useRef(null)
+  const prop = properties.find(p => String(p.id) === propId) || null
+  const preset = propId ? settings?.presets?.[propId] : null
+  // a property picked → its fixed details + its preset (or a sensible start) — the client and anything typed stay
+  const applied = useRef('')
+  useEffect(() => {
+    if (!prop) return
+    const sig = `${propId}|${settings ? 1 : 0}`
+    if (applied.current === sig) return
+    applied.current = sig
+    const pd = propertyToDoc(prop)
+    const pr = settings?.presets?.[String(prop.id)] || null
+    setForm(f => {
+      const base = emptyForm(settings)
+      const proj = pr?.projectId ? projects.find(x => x.id === pr.projectId) : null
+      return { ...base, client: f.client, leadId: f.leadId, signers: f.signers, propertyId: pd.propertyId, property: { ...base.property, ...pd.property },
+        templateId: pr?.templateId || 'brokerage', fees: { ...base.fees, ...pd.fees, ...(pr?.fees || {}), vatRate: settings?.vatRate ?? DEFAULT_VAT },
+        terms: pr?.terms || '', expiryDays: pr?.expiryDays || base.expiryDays,
+        projectId: proj?.id || f.projectId || '', projectName: proj?.name || pr?.projectName || f.projectName || '',
+        ...(pr?.role ? { client: { ...f.client, role: pr.role } } : pd.property.dealType === 'rent' ? { client: { ...f.client, role: 'renter' } } : {}) }
+    })
+    setEditProp(false)
+  }, [propId, !!prop, !!settings]) // eslint-disable-line react-hooks/exhaustive-deps
+  const pickLead = useCallback(l => {
+    if (!l) { setForm(f => ({ ...f, leadId: '' })); setLeadQ(''); setLeadOpen(false); return }
+    const nm = splitName(l.name)
+    setForm(f => ({ ...f, leadId: String(l.id), client: { ...f.client, ...nm, name: l.name || '', phone: l.phone || '', email: l.email || '' } }))
+    setLeadQ(l.name || ''); setLeadOpen(false)
+  }, [])
+  useEffect(() => { if (initLeadId) { const l = leads.find(x => String(x.id) === String(initLeadId)); if (l) pickLead(l) } }, [initLeadId]) // eslint-disable-line react-hooks/exhaustive-deps
+  const tpl = useMemo(() => (form.templateId && form.templateId !== 'brokerage' && templates.find(x => x.id === form.templateId)) || brokerageTemplate(settings?.clauses?.length ? settings.clauses : undefined), [form.templateId, templates, settings])
+  const keys = useMemo(() => templateKeys(tpl), [tpl])
+  const usesFees = tpl.sections.fees || keys.some(k => FEE_KEYS.includes(k))
+  const view = useMemo(() => formView(form, tpl, ''), [form, tpl])
+  const fees = computeFees({ ...form.fees, price: form.property.price })
+  const set = (path, v) => setForm(f => { const n = { ...f }; const [a, b] = path.split('.'); if (b) n[a] = { ...n[a], [b]: v }; else n[a] = v; return n })
+  const hasWa = !!form.client.phone, hasEmail = !!form.client.email
+  useEffect(() => { setSend(s => { const ok = v => (v === 'whatsapp' && hasWa) || (v === 'email' && hasEmail) || (v === 'both' && hasWa && hasEmail); const best = hasWa && hasEmail ? 'both' : hasWa ? 'whatsapp' : 'email'; return s.picked && ok(s.via) ? s : { ...s, via: best } }) }, [hasWa, hasEmail])   // follows the client's details until a channel is picked by hand
+  useEffect(() => {
+    const el = prevRef.current; if (!el) return
+    const ro = new ResizeObserver(() => setScale(Math.min(1, (el.clientWidth - 40) / 794)))
+    ro.observe(el); return () => ro.disconnect()
+  }, [propId])
+  const list = useMemo(() => {
+    const s = q.trim().toLowerCase()
+    return properties.filter(p => (!onlyLive || p.published !== false) && (!s || `${p.title || ''} ${p.location || ''} ${p.street || ''} ${p.neighborhood || ''} ${p.type || ''} ${p.gush || ''}`.toLowerCase().includes(s)))
+  }, [properties, q, onlyLive])
+  const payload = () => ({ ...form, templateId: form.templateId || 'brokerage', fees: { ...form.fees, price: form.property.price }, client: { ...form.client, name: form.client.name || [form.client.firstName, form.client.lastName].filter(Boolean).join(' ') } })
+  const validate = () => {
+    const { errors } = cleanDocInput({ ...form, fees: { ...form.fees, price: form.property.price } }, { requireProperty: true, requireFees: usesFees, requireAgent: tpl.kind === 'brokerage' })
+    const miss = missingFields(tpl, view.values).filter(f => f.required).map(f => `השדה "${f.label}" חסר`)
+    setErrs([...errors, ...miss]); return !errors.length && !miss.length
+  }
+  const savePreset = async () => {
+    if (!remember || !propId) return
+    const pr = { templateId: form.templateId || 'brokerage', fees: { mode: form.fees.mode, pct: form.fees.pct, months: form.fees.months, fixed: form.fees.fixed }, terms: form.terms, expiryDays: form.expiryDays, projectId: form.projectId, projectName: form.projectName, role: form.client.role }
+    try { const r = await api.post('docs-settings', { presets: { [propId]: pr } }); if (r.settings) onPresetSaved?.(r.settings) } catch { /* the document itself is what matters */ }
+  }
+  const go = async (andSend) => {
+    if (!validate()) return
+    setBusy(andSend ? 'send' : 'save')
+    try {
+      const c = await api.post('docs-create', payload())
+      if (c.errors) { setErrs(c.errors); return }
+      await savePreset()
+      if (!andSend) { onDone(`${t.saveDraft} ✓ ${c.doc.number}`); return }
+      const via = send.via === 'both' ? ['whatsapp', 'email'] : [send.via]
+      const r = await api.post('docs-send', { id: c.doc.id, via, personal: send.personal })
+      if (r.error) { setErrs([r.error]); setResult({ doc: c.doc, results: [] }); return }
+      setResult({ ...r, doc: r.doc || c.doc })
+    } catch (e) { setErrs([e.message]) } finally { setBusy('') }
+  }
+  // ── step 1: the properties ──
+  if (!prop) return (
+    <Modal open onClose={onClose} title={null} full xl dir="rtl" label="מסמך מהיר מנכס" closeOnBackdrop={false}>
+      <div className="qd" style={{ height: 'calc(100vh - 80px)', maxHeight: 900 }}>
+        <div className="qd-head">
+          <div><h3><Building2 size={18}/> מסמך מהיר מנכס</h3><p>בוחרים נכס מהמערכת — הכתובת, התיאור והמחיר נכנסים לבד. נשאר למלא רק את מה שמשתנה.</p></div>
+          <Button variant="plain" onClick={onClose}>✕ סגירה</Button>
+        </div>
+        <div className="qd-tools">
+          <div className="qd-search"><Search size={15}/><input value={q} onChange={e => setQ(e.target.value)} placeholder="חיפוש לפי שם, עיר, רחוב, סוג או גוש…" aria-label="חיפוש נכס" autoFocus/></div>
+          <div className="dw-chips"><button type="button" className={`dw-chip${onlyLive ? ' on' : ''}`} onClick={() => setOnlyLive(true)}>באוויר</button><button type="button" className={`dw-chip${!onlyLive ? ' on' : ''}`} onClick={() => setOnlyLive(false)}>כל הנכסים ({properties.length})</button></div>
+        </div>
+        <div className="qd-grid" role="list">
+          {list.map(p => { const pr = settings?.presets?.[String(p.id)]; const img = qdCover(p); return (
+            <button type="button" role="listitem" key={p.id} className="qd-card" onClick={() => setPropId(String(p.id))}>
+              <div className="qd-img">{img ? <img src={img} alt="" loading="lazy"/> : <Building2 size={26}/>}{pr && <span className="qd-tag">שמור · {pr.fees?.mode === 'percent' && pr.fees?.pct ? fmtPct(pr.fees.pct) : pr.fees?.mode === 'months' ? `${pr.fees.months || 1} חודשי שכ״ד` : 'קבוע'}</span>}</div>
+              <b>{p.title || 'נכס ללא שם'}</b>
+              <small>{[p.location, p.street].filter(Boolean).join(' · ') || '—'}</small>
+              <span className="qd-meta">{[p.category === 'rentals' ? 'להשכרה' : 'למכירה', p.rooms && `${p.rooms} חד׳`, p.size && `${p.size} מ״ר`].filter(Boolean).join(' · ')}{qdPrice(p) ? <em>{qdPrice(p)}</em> : null}</span>
+            </button>) })}
+          {!list.length && <div className="qd-empty">{properties.length ? 'אין נכס שמתאים לחיפוש.' : 'הנכסים עוד נטענים, או שאין נכסים במערכת.'} <button type="button" className="dt-link" onClick={onFull}>יצירת מסמך בלי נכס מהמערכת</button></div>}
+        </div>
+      </div>
+    </Modal>
+  )
+  // ── step 2: only what changes ──
+  const done = result?.results?.some(r => r.ok)
+  return (
+    <Modal open onClose={onClose} title={null} full xl dir="rtl" label="מסמך מהיר מנכס" closeOnBackdrop={false}>
+      <div className={`dw${showPrev ? ' show-prev' : ''}`} style={{ height: 'calc(100vh - 80px)', maxHeight: 900 }}>
+        <div className="dw-form">
+          <div className="qd-prop">
+            <div className="qd-thumb">{qdCover(prop) ? <img src={qdCover(prop)} alt=""/> : <Building2 size={20}/>}</div>
+            <div style={{ minWidth: 0, flex: 1 }}><b>{prop.title || form.property.address}</b><small>{propLine({ property: form.property })}{form.property.price ? ` · ${fmtMoney(form.property.price)}` : ''}</small>{preset && <span className="qd-saved"><Check size={12}/> ההגדרות השמורות של הנכס נטענו</span>}</div>
+            <button type="button" className="dw-chip" onClick={() => { setPropId(''); setResult(null); setErrs([]) }}>החלפת נכס</button>
+          </div>
+          <div className="dw-body">
+            {done ? <div className="qd-done">
+              <div className="big"><Check size={30}/></div>
+              <h3>נשלח לחתימה ✓ {result.doc?.number}</h3>
+              <p>{result.results.filter(r => r.ok).map(r => r.via === 'whatsapp' ? 'בוואטסאפ' : 'באימייל').join(' ו')} ל{form.client.name || [form.client.firstName, form.client.lastName].filter(Boolean).join(' ')}. כשיחתמו תגיע הודעה למשרד, והעותק החתום יישמר בכרטיס הליד.</p>
+              {result.link && <CopyRow label="קישור החתימה" value={result.link} t={t}/>}
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+                <Button variant="solid" onClick={() => { setResult(null); setForm(f => ({ ...f, leadId: '', client: { ...emptyForm(settings).client, role: f.client.role }, fields: {} })); setLeadQ('') }}>מסמך נוסף לאותו נכס</Button>
+                <Button variant="ghost" onClick={() => onDone('')}>סיום</Button>
+              </div>
+            </div> : <>
+            {templates.length > 0 && <Field label="איזה מסמך"><div className="dw-chips">{[{ id: 'brokerage', name: DOC_TYPES.brokerage.name }, ...templates].map(tp => <button type="button" key={tp.id} className={`dw-chip${(form.templateId || 'brokerage') === tp.id ? ' on' : ''}`} onClick={() => set('templateId', tp.id)}>{tp.name}</button>)}</div></Field>}
+            <div className="qd-sec"><h4><span>1</span>מי חותם</h4>
+              <div className="dw-lead">
+                <div style={{ position: 'relative' }}>
+                  <input className="dt-input" value={leadQ} placeholder="ליד מהמערכת — חיפוש לפי שם או טלפון…" onChange={e => { setLeadQ(e.target.value); setLeadOpen(true) }} onFocus={() => setLeadOpen(true)} onBlur={() => setTimeout(() => setLeadOpen(false), 180)} aria-label="בחירת ליד"/>
+                  {leadOpen && leadQ.trim() && <div className="dw-lead-list" role="listbox">
+                    {leads.filter(l => leadMatch(l, leadQ)).slice(0, 30).map(l => <button type="button" key={l.id} onMouseDown={e => e.preventDefault()} onClick={() => pickLead(l)}><span style={{ flex: 1 }}>{l.name || '—'}{leadProperty(l) ? <span style={{ color: 'var(--au-text3)', fontSize: 12 }}> · {leadProperty(l)}</span> : null}</span><small>{localPhone(l.phone)}</small></button>)}
+                  </div>}
+                </div>
+              </div>
+              <div className="dw-grid">
+                <Field label="שם פרטי"><input className="dt-input" value={form.client.firstName} aria-label="שם פרטי" onChange={e => setForm(f => ({ ...f, client: { ...f.client, firstName: e.target.value, name: [e.target.value, f.client.lastName].filter(Boolean).join(' ') } }))}/></Field>
+                <Field label="שם משפחה"><input className="dt-input" value={form.client.lastName} aria-label="שם משפחה" onChange={e => setForm(f => ({ ...f, client: { ...f.client, lastName: e.target.value, name: [f.client.firstName, e.target.value].filter(Boolean).join(' ') } }))}/></Field>
+                <Field label="טלפון"><input className="dt-input" dir="ltr" inputMode="tel" value={form.client.phone} aria-label="טלפון" onChange={e => set('client.phone', e.target.value)}/></Field>
+                <Field label="אימייל (לא חובה)"><input className="dt-input" dir="ltr" inputMode="email" value={form.client.email} aria-label="אימייל" onChange={e => set('client.email', e.target.value)}/></Field>
+                <Field label="ת.ז. (לא חובה)"><input className="dt-input" dir="ltr" inputMode="numeric" value={form.client.idNumber} aria-label="תעודת זהות" onChange={e => set('client.idNumber', e.target.value.replace(/\D/g, '').slice(0, 9))}/></Field>
+                <Field label="הלקוח בעסקה כ"><select className="dt-input" value={form.client.role} aria-label="תפקיד הלקוח בעסקה" onChange={e => set('client.role', e.target.value)}>{Object.entries(CLIENT_ROLES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>
+              </div>
+            </div>
+            {usesFees && <div className="qd-sec"><h4><span>2</span>דמי התיווך</h4>
+              <div className="dw-chips">{Object.entries(FEE_MODES).map(([k, v]) => <button type="button" key={k} className={`dw-chip${form.fees.mode === k ? ' on' : ''}`} onClick={() => set('fees.mode', k)}>{v}</button>)}</div>
+              <div className="dw-grid">
+                {form.fees.mode === 'percent' && <Field label="אחוז"><div className="dw-chips">{QD_PCT.map(p => <button type="button" key={p} className={`dw-chip${Number(form.fees.pct) === p ? ' on' : ''}`} onClick={() => set('fees.pct', p)}>{fmtPct(p)}</button>)}<input className="dt-input" style={{ width: 80, height: 32 }} dir="ltr" inputMode="decimal" value={form.fees.pct} aria-label="אחוז אחר" onChange={e => set('fees.pct', e.target.value.replace(/[^\d.]/g, ''))}/></div></Field>}
+                {form.fees.mode === 'months' && <Field label="חודשי שכירות"><input className="dt-input" dir="ltr" inputMode="decimal" value={form.fees.months} aria-label="חודשי שכירות" onChange={e => set('fees.months', e.target.value.replace(/[^\d.]/g, ''))}/></Field>}
+                {form.fees.mode === 'fixed' && <Field label='סכום קבוע (₪, לפני מע"מ)'><input className="dt-input" dir="ltr" inputMode="numeric" value={form.fees.fixed} aria-label="סכום קבוע" onChange={e => set('fees.fixed', e.target.value.replace(/[^\d.]/g, ''))}/></Field>}
+                <Field label={form.fees.mode === 'months' ? 'שכר דירה חודשי (₪)' : 'מחיר העסקה לפני מע"מ (₪)'}><input className="dt-input" dir="ltr" inputMode="numeric" value={form.property.price} aria-label="מחיר העסקה" onChange={e => set('property.price', e.target.value.replace(/[^\d]/g, ''))}/></Field>
+              </div>
+              <div className="qd-sum">{fees.basis} · דמי תיווך <b>{fmtMoney(fees.commission)}</b> + מע"מ {fmtMoney(fees.vat)} = <b>{fmtMoney(fees.total)}</b></div>
+            </div>}
+            {tpl.fields.length > 0 && <div className="qd-sec"><h4><span>{usesFees ? 3 : 2}</span>פרטי המסמך</h4>
+              <div className="dw-fields">{tpl.fields.map(f => <div key={f.key} className={f.type === 'checkbox' ? 'full' : ''}><Field label={f.type === 'checkbox' ? '' : `${f.label}${f.required ? ' *' : ''}`}>{fieldInput(f, form.fields?.[f.key] ?? f.default ?? '', v => setForm(x => ({ ...x, fields: { ...(x.fields || {}), [f.key]: v } })))}</Field></div>)}</div>
+            </div>}
+            <button type="button" className="qd-more" onClick={() => setMore(m => !m)} aria-expanded={more}>{more ? '▾' : '◂'} פרטי הנכס, פרויקט, תנאים ותוקף</button>
+            {more && <div className="qd-sec">
+              {!editProp ? <div className="qd-fixed"><span>{propLine({ property: form.property })}</span><span>{form.property.desc}</span>{form.property.notes && <span>{form.property.notes}</span>}<button type="button" className="dt-link" onClick={() => setEditProp(true)}>עריכה</button></div>
+                : <div className="dw-grid">
+                  <Field label="כתובת הנכס"><input className="dt-input" value={form.property.address} aria-label="כתובת הנכס" onChange={e => set('property.address', e.target.value)}/></Field>
+                  <Field label="עיר"><input className="dt-input" value={form.property.city} aria-label="עיר" onChange={e => set('property.city', e.target.value)}/></Field>
+                  <div className="full"><Field label="תיאור הנכס"><input className="dt-input" value={form.property.desc} aria-label="תיאור הנכס" onChange={e => set('property.desc', e.target.value)}/></Field></div>
+                  <Field label="סוג העסקה"><select className="dt-input" value={form.property.dealType} aria-label="סוג העסקה" onChange={e => set('property.dealType', e.target.value)}>{Object.entries(DEAL_TYPES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>
+                  <Field label="הערות"><input className="dt-input" value={form.property.notes} aria-label="הערות" onChange={e => set('property.notes', e.target.value)}/></Field>
+                </div>}
+              <Field label="פרויקט"><ProjectSelect value={form.projectId} projects={projects} onChange={(id, p) => setForm(f => ({ ...f, projectId: id || '', projectName: p?.name || '' }))}/></Field>
+              <Field label="תנאים נוספים"><textarea className="dt-input" value={form.terms} aria-label="תנאים נוספים" onChange={e => set('terms', e.target.value)}/></Field>
+              <Field label="תוקף הקישור (ימים)"><input className="dt-input" style={{ width: 100 }} dir="ltr" inputMode="numeric" value={form.expiryDays} aria-label="תוקף הקישור" onChange={e => set('expiryDays', e.target.value.replace(/\D/g, ''))}/></Field>
+            </div>}
+            <div className="qd-sec"><h4><span><Send size={12}/></span>שליחה</h4>
+              <div className="dw-chips">
+                <button type="button" className={`dw-chip${send.via === 'whatsapp' ? ' on' : ''}`} disabled={!hasWa} onClick={() => setSend(s => ({ ...s, via: 'whatsapp', picked: true }))}><MessageCircle size={12}/> וואטסאפ</button>
+                <button type="button" className={`dw-chip${send.via === 'email' ? ' on' : ''}`} disabled={!hasEmail} onClick={() => setSend(s => ({ ...s, via: 'email', picked: true }))}><Mail size={12}/> אימייל</button>
+                <button type="button" className={`dw-chip${send.via === 'both' ? ' on' : ''}`} disabled={!hasWa || !hasEmail} onClick={() => setSend(s => ({ ...s, via: 'both', picked: true }))}>גם וגם</button>
+              </div>
+              <input className="dt-input" value={send.personal} placeholder="משפט אישי ללקוח (לא חובה)" aria-label="משפט אישי" onChange={e => setSend(s => ({ ...s, personal: e.target.value }))}/>
+              <label className="dt-tog"><input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)}/> לזכור לנכס הזה את התבנית, העמלה והתנאים — בפעם הבאה ממלאים רק את הלקוח</label>
+            </div>
+            </>}
+            {!!errs.length && <div className="dw-err" role="alert">{errs.map((e, i) => <div key={i}>{e}</div>)}</div>}
+          </div>
+          {!done && <div className="dw-foot qd-foot">
+            <div className="qd-foot-sec"><Button variant="plain" onClick={onClose} aria-label="סגירה">✕</Button><Button variant="ghost" onClick={() => onFull(form)}>לאשף המלא</Button></div>
+            <div className="qd-foot-main">
+              <button type="button" className="dw-chip dw-prev-btn" onClick={() => setShowPrev(s => !s)}>{showPrev ? 'הטופס' : 'תצוגה מקדימה'}</button>
+              <Button variant="ghost" loading={busy === 'save'} onClick={() => go(false)}>טיוטה</Button>
+              <Button variant="solid" icon={<Send size={14}/>} loading={busy === 'send'} disabled={!hasWa && !hasEmail} onClick={() => go(true)}>שליחה לחתימה</Button>
+            </div>
+          </div>}
+        </div>
+        <div className="dw-prev" ref={prevRef}><div className="dw-prev-in" style={{ transform: `scale(${scale})`, width: 794 }}><DocSheet view={view}/></div></div>
+      </div>
+    </Modal>
+  )
+}
+
 /** the Drive column: a cloud in the state's color, a link when the file is there */
 function DriveMark({ t, doc }) {
   const dr = doc.data?.drive

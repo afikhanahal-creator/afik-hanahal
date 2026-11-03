@@ -776,6 +776,20 @@ header at every stage and on the done screen: `sign-file?kind=original | signed 
 with the client's signature once signed). The Word file: the logo on the right, the "המתווך" block, a footer with the document and
 "עמוד X מתוך Y", headings kept with the next paragraph, the signature row never split. QA: the scratchpad's `qa-sign-mobile.cjs`
 (iPhone 13 + a 360 px Android).
+**"מסמך מהיר מנכס" — a document from an existing property (2026-11-04, `QuickDoc` in `src/DocumentsTab.jsx`):** the tab's header
+button, the property gallery's ⋯ "✍️ מסמך לחתימה על הנכס" (`afik:new-doc { propertyId }` → the admin's `docsPropId`) or
+`/admin-panel/documents?property=<id>`. Step 1: the properties as cards (cover, title, place, deal · rooms · size, price; search by
+name / town / street / type / gush; "באוויר" or every property; a "שמור" tag on one that has a preset). Step 2: everything fixed is
+filled from the record — `propertyToDoc()` (`lib/documents.js`, tested): address (street + number, else the title), town,
+description (type, rooms, m², floor, dunams), deal type, price, the property's `/p/<id>` link, gush / helka in the notes; a rental
+starts on one month of rent — and only what changes is asked: the client (a lead from the CRM or typed), the fee (percent chips 1 –
+3 % or any, months, fixed; the price editable; the fee / VAT / total line), the template's own fields; "פרטי הנכס, פרויקט, תנאים
+ותוקף" folds the rest. "לזכור לנכס הזה" (on) saves the template, the fee, the terms, the validity, the project and the client's role
+as the property's preset (`settings.presets[propertyId]`, `cleanPreset()` / `mergePresets()` — ≤ 300, the newest kept; `POST
+docs-settings { presets: { id: preset | null } }`), so the next document on that property asks for the client only. Live preview,
+"שליחה לחתימה" = create + send in one click (the channel follows the client's phone / email until picked by hand — also in the
+wizard), "טיוטה", "לאשף המלא" (the wizard opens with everything filled, `init.prefill`), and after sending "מסמך נוסף לאותו נכס".
+Phones: one column, the footer stacked. QA: the scratchpad's `qa-quickdoc.cjs`.
 **Flow:** `docs-create` cleans the input (`cleanDocInput`), links the CRM lead (the given id, else the newest lead with that phone /
 email — never a new lead), numbers the document and writes `created` on the lead. `docs-send {id, via}` makes the private token
 (kept only as a hash), freezes the clauses on the row, renders the PDF the client signs (stored, its SHA-256 on the row), and

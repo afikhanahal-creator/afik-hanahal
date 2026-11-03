@@ -268,6 +268,7 @@ export default function PropertyGallery({ list, publishedList, categories, statu
                     <div className="pg-menu" role="menu" style={{ bottom: 'calc(100% + 6px)', top: 'auto', insetInlineEnd: 'auto', insetInlineStart: 0, minWidth: 230 }}>
                       <button role="menuitem" onClick={() => { setMenuId(null); onEdit(p) }}>✏️ עריכה באשף</button>
                       {onQuickEdit && <button role="menuitem" onClick={() => { setMenuId(null); onQuickEdit(p) }}>⚡ עריכה מהירה (כל השדות)</button>}
+                      <button role="menuitem" onClick={() => { setMenuId(null); window.dispatchEvent(new CustomEvent('afik:new-doc', { detail: { propertyId: p.id } })) }}>✍️ מסמך לחתימה על הנכס</button>
                       <button role="menuitem" onClick={() => { setMenuId(null); dup(p.id) }}>📄 שכפול</button>
                       {live && pos > 1 && <button role="menuitem" onClick={() => { setMenuId(null); onTop(p.id) }}>⤒ לראש הרשימה באתר</button>}
                       {statuses.filter(s => s.id !== status).map(s => <button key={s.id} role="menuitem" onClick={() => { setMenuId(null); setStatus(p.id, s.id) }}>סימון: {s.label}</button>)}
