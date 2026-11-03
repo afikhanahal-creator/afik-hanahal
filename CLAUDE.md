@@ -921,7 +921,7 @@ inside the "שיחת וואטסאפ" tab under the AI summary (`LeadChatTab hide
 **Stages** (`GROUPS` in `src/LeadsBoard.jsx`, `STAGES` in `lib/automations-shared.js` / `src/AdminHome.jsx`): new · contacted ·
 discovery · **meeting** ("נקבעה פגישה", between discovery and negotiating; its stage message defaults to `meeting_confirm`, off) · negotiating · won · lost · **nurture** ("לחזור בעוד כמה חודשים": moving a lead there sets a follow-up 3 months
 out unless a future one exists — `updateLeadStatus`; its automation rule defaults to off) · **irrelevant** ("לא רלוונטי": its board column starts collapsed — a narrow drop strip,
-every column can be collapsed and the choice is kept in `localStorage.afik_kanban_collapsed`; bulk sends leave these leads out
+every column can be collapsed and the choice is kept in `localStorage.afik_kanban_collapsed`; leads inside a collapsed column are announced above the board — "N לידים נמצאים בעמודות מקופלות: לא רלוונטי (37)" + "הצגת העמודות" (`.kb-hidden-note`, `KanbanBoard`) — so a project filter never looks like it lost leads; bulk sends leave these leads out
 unless the stage is picked). **Call summary** (`CallNoteDialog`, "סיכום" on every board / mobile card, opened through `NoteCtx`):
 outcome chips (talked / no answer / call back / not relevant), free text, next follow-up (tomorrow / 2 days / a week / any date) →
 a note `{ id, text, ts, kind: 'call', outcome }` in `crm_data.notes` (the list the lead card shows) plus `followUp`, `lastCallAt`,
