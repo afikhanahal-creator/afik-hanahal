@@ -39,12 +39,23 @@ html,body{margin:0;background:#EFEBE3;color:#17172B;font-family:Rubik,Heebo,Aria
 .sg-otp input{letter-spacing:10px;text-align:center;font-size:24px;font-weight:700;direction:ltr;height:58px}
 .sg-link{background:none;border:none;color:#3F4EB0;font:inherit;font-size:13.5px;font-weight:600;cursor:pointer;padding:6px 0;text-decoration:underline;text-underline-offset:3px;align-self:flex-start}
 .sg-link:disabled{color:#8A8798;text-decoration:none;cursor:default}
-.sg-pad{position:relative;border:1.5px solid #CFC8BA;border-radius:14px;background:#FFFFFF;height:190px;touch-action:none;overflow:hidden;box-shadow:inset 0 1px 2px rgba(0,0,0,.04)}
-.sg-pad.has{border-color:#3F4EB0}
+.sg-pad{position:relative;border:2px dashed #3F4EB0;border-radius:16px;background:#FFFFFF;height:200px;touch-action:none;overflow:hidden;box-shadow:0 0 0 4px rgba(63,78,176,.10)}
+.sg-pad::after{content:"";position:absolute;inset:-2px;border-radius:16px;border:2px solid #3F4EB0;opacity:0;animation:sg-ping 2.4s ease-out infinite;pointer-events:none}
+@keyframes sg-ping{0%{opacity:.55;transform:scale(1)}80%,100%{opacity:0;transform:scale(1.025)}}
+.sg-pad.has{border-style:solid;border-color:#128C4A;box-shadow:0 0 0 4px rgba(18,140,74,.10)}.sg-pad.has::after{display:none}
+@media (prefers-reduced-motion:reduce){.sg-pad::after{display:none}}
 .sg-pad canvas{width:100%;height:100%;display:block;cursor:crosshair;background:#FFFFFF}
-.sg-pad .hint{position:absolute;inset:0 0 40px;display:flex;align-items:center;justify-content:center;color:#9A96A8;font-size:15px;pointer-events:none;text-align:center;padding:0 16px}
-.sg-pad .line{position:absolute;left:18px;right:18px;bottom:40px;border-bottom:1.5px solid #D9D3C7;pointer-events:none}
-.sg-pad .x{position:absolute;right:18px;bottom:44px;color:#B9B5AA;font-size:18px;font-weight:700;pointer-events:none}
+.sg-pad .hint{position:absolute;inset:0 0 44px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;pointer-events:none;text-align:center;padding:0 16px}
+.sg-pad .hint b{color:#3F4EB0;font-size:19px;font-weight:700;display:flex;align-items:center;gap:8px}.sg-pad .hint span{color:#5E5B6E;font-size:13.5px}
+.sg-pad .who{position:absolute;left:18px;right:18px;bottom:14px;display:flex;justify-content:space-between;font-size:12px;color:#8A8798;pointer-events:none}
+.sg-pad-ok{display:inline-flex;align-items:center;gap:6px;color:#128C4A;font-size:13.5px;font-weight:600}
+.sg-step.sign{background:#F4F5FC;border:1px solid #DDE0F3;border-radius:16px;padding:14px;margin-inline:-6px}
+.sg-step.sign .sg-step-h{font-size:17px}
+.sg-need{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:13px;color:#5E5B6E}
+.sg-need span{display:inline-flex;align-items:center;gap:5px;border-radius:999px;padding:4px 10px;background:#F5F1E9}
+.sg-need span.ok{background:#E8F7EE;color:#0E7A3B}
+.sg-pad .line{position:absolute;left:18px;right:18px;bottom:44px;border-bottom:1.5px solid #C7CCEB;pointer-events:none}
+.sg-pad .x{position:absolute;right:18px;bottom:48px;color:#3F4EB0;font-size:18px;font-weight:700;pointer-events:none;opacity:.7}
 .sg-pad-acts{display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap}
 .sg-chk{display:flex;gap:12px;align-items:flex-start;font-size:14px;line-height:1.55;cursor:pointer;padding:12px;border:1.5px solid #E1DBD0;border-radius:12px;background:#FBFAF7}
 .sg-chk.on{border-color:#3F4EB0;background:#F4F5FC}
@@ -82,6 +93,7 @@ const api = (a, q = '', opts = {}) => fetch(`/api/meta/${a}${q}`, { signal: Abor
 const DlIcon = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
 const LockIcon = () => <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
 
+const PenIcon = () => <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
 function SignaturePad({ onChange, name }) {
   const ref = useRef(null), drawing = useRef(false), last = useRef(null), has = useRef(false)
   const [empty, setEmpty] = useState(true)
@@ -104,8 +116,8 @@ function SignaturePad({ onChange, name }) {
   const typed = () => { if (!name) return; clear(); const { c, k } = ctx(); const r = c.getBoundingClientRect(); k.save(); k.font = `italic 600 ${Math.min(44, Math.max(26, r.width / Math.max(6, name.length) * 1.4))}px "Rubik", "Heebo", cursive`; k.fillStyle = '#1A2A6C'; k.textAlign = 'center'; k.textBaseline = 'middle'; k.direction = 'rtl'; k.fillText(name, r.width / 2, r.height / 2 - 12); k.restore(); has.current = true; setEmpty(false); onChange(c.toDataURL('image/png')) }
   return (
     <div className="sg-f">
-      <div className={`sg-pad${empty ? '' : ' has'}`}><canvas ref={ref} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onPointerLeave={up} role="img" aria-label="תיבת חתימה — ציירו את החתימה באצבע או בעכבר"/>{empty && <div className="hint">ציירו כאן את החתימה באצבע או בעכבר</div>}<span className="x" aria-hidden="true">✕</span><div className="line"/></div>
-      <div className="sg-pad-acts"><button type="button" className="sg-btn ghost sm" onClick={typed} disabled={!name}>חתימה מהשם שהקלדתם</button><button type="button" className="sg-btn ghost sm" onClick={clear} disabled={empty}>ניקוי</button></div>
+      <div className={`sg-pad${empty ? '' : ' has'}`}><canvas ref={ref} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onPointerLeave={up} role="img" aria-label="תיבת חתימה — חתמו כאן באצבע או בעכבר"/>{empty && <div className="hint"><b><PenIcon/> חתמו כאן</b><span>ציירו את החתימה באצבע (או בעכבר) בתוך המסגרת</span></div>}<span className="x" aria-hidden="true">✕</span><div className="line"/><div className="who"><span>{name ? `חתימת ${name}` : 'החתימה שלכם'}</span><span>{new Date().toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' })}</span></div></div>
+      <div className="sg-pad-acts">{empty ? <button type="button" className="sg-btn ghost sm" onClick={typed} disabled={!name}>במקום לצייר: חתימה מהשם</button> : <span className="sg-pad-ok">✓ החתימה נקלטה</span>}<button type="button" className="sg-btn ghost sm" onClick={clear} disabled={empty}>ניקוי וחתימה מחדש</button></div>
     </div>
   )
 }
@@ -216,12 +228,18 @@ export default function SignPage() {
         <div className="sg-f"><label htmlFor="sg-name">שם מלא</label><input id="sg-name" className="sg-in" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} autoComplete="name" enterKeyHint="next"/></div>
         <div className="sg-f"><label htmlFor="sg-id">תעודת זהות{v?.client?.idNumber ? '' : ' (לא חובה)'}</label><input id="sg-id" className="sg-in" dir="ltr" inputMode="numeric" pattern="[0-9]*" maxLength={9} value={form.idNumber} onChange={e => setForm(f => ({ ...f, idNumber: e.target.value.replace(/\D/g, '').slice(0, 9) }))} style={{ textAlign: 'right' }}/></div>
       </section>
-      <section className="sg-step" aria-labelledby="st3">
-        <div className="sg-step-h" id="st3"><span className={`sg-num${form.signature ? ' ok' : ''}`}>{form.signature ? '✓' : 3}</span>החתימה</div>
+      <section className="sg-step sign" aria-labelledby="st3" id="sign-pad">
+        <div className="sg-step-h" id="st3"><span className={`sg-num${form.signature ? ' ok' : ''}`}>{form.signature ? '✓' : 3}</span>חתמו על המסמך</div>
+        <p style={{ margin: '-2px 0 2px', fontSize: 13.5 }}>החתימה תופיע במסמך במקום המסומן "הלקוח", יחד עם השם, התאריך ואמצעי האימות.</p>
         <SignaturePad name={form.name} onChange={s => setForm(f => ({ ...f, signature: s }))}/>
       </section>
       <label className={`sg-chk${form.agree ? ' on' : ''}`}><input type="checkbox" checked={form.agree} onChange={e => setForm(f => ({ ...f, agree: e.target.checked }))}/><span>קראתי את המסמך, הבנתי את תוכנו ואני מסכים/ה לחתום עליו בחתימה אלקטרונית. מועד החתימה, אמצעי האימות וכתובת ה-IP יתועדו כחלק מהמסמך.</span></label>
       {err && <div className="sg-err" role="alert">{err}</div>}
+      {!(otp && form.code.length === 6 && form.signature && form.agree) && <div className="sg-need" aria-live="polite"><b style={{ fontWeight: 600 }}>לפני החתימה:</b>
+        <span className={otp && form.code.length === 6 ? 'ok' : ''}>{otp && form.code.length === 6 ? '✓' : '○'} קוד אימות</span>
+        <span className={form.signature ? 'ok' : ''}>{form.signature ? '✓' : '○'} חתימה</span>
+        <span className={form.agree ? 'ok' : ''}>{form.agree ? '✓' : '○'} אישור</span>
+      </div>}
       <button type="button" className="sg-btn" disabled={busy === 'sign'} onClick={submit}>{busy === 'sign' ? 'חותם…' : 'אני מאשר/ת וחותם/ת על המסמך'}</button>
       <div className="sg-sec"><LockIcon/> הקישור אישי ומאובטח · החתימה מתועדת ונשמרת במסמך</div>
     </>
@@ -245,7 +263,7 @@ export default function SignPage() {
           <button type="button" className="sg-btn" onClick={() => sideRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>מעבר ישיר לחתימה</button>
         </div>}
         <div className="sg-wrap">
-          <div className="sg-doc" ref={docRef}><div className="sg-doc-in" style={{ transform: `scale(${scale * zoom})`, width: 794 }}><DocSheet view={v} signatureUrl={isSigned ? file('signature', false) : ''}/></div></div>
+          <div className="sg-doc" ref={docRef}><div className="sg-doc-in" style={{ transform: `scale(${scale * zoom})`, width: 794 }}><DocSheet view={v} signatureUrl={isSigned ? file('signature', false) : ''} onSignHere={!isSigned && !st.blocked && !done ? () => document.getElementById('sign-pad')?.scrollIntoView({ behavior: 'smooth', block: 'center' }) : null}/></div></div>
           <aside className="sg-side" ref={sideRef} id="sign">{side}</aside>
         </div>
       </>)}

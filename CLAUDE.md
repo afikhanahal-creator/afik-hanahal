@@ -790,6 +790,14 @@ docs-settings { presets: { id: preset | null } }`), so the next document on that
 "שליחה לחתימה" = create + send in one click (the channel follows the client's phone / email until picked by hand — also in the
 wizard), "טיוטה", "לאשף המלא" (the wizard opens with everything filled, `init.prefill`), and after sending "מסמך נוסף לאותו נכס".
 Phones: one column, the footer stacked. QA: the scratchpad's `qa-quickdoc.cjs`.
+**Clause 6 and the signing step (2026-11-04):** the fee clause reads one amount per line — "דמי תיווך של {feeBasis}, בסך {commission}
+לפני מע"מ." / "לסכום זה יתווסף מע"מ כדין בשיעור {vatRate}, בסך {vat}." / "סך הכל לתשלום: {total} כולל מע"מ." / "מחיר העסקה לצורך
+החישוב: {price} לפני מע"מ." (the percentage once; no amount squeezed in brackets; the Word file breaks the lines too — `lines()` in
+`lib/doc-docx.js`). The signing page's step 3 is a tinted "חתמו על המסמך" card: a white pad in a dashed brand frame with a soft
+pulse (none with reduced motion), "✍ חתמו כאן · ציירו את החתימה באצבע (או בעכבר) בתוך המסגרת", the line with ✕, "חתימת <name>" and
+the date under it, green + "✓ החתימה נקלטה" once drawn, "ניקוי וחתימה מחדש"; the document's own client box is a dashed "✍️ חתמו
+כאן" button that scrolls to the pad (`onSignHere` on `DocSheet`), and a "לפני החתימה: קוד אימות · חתימה · אישור" checklist sits over
+the button until all three are done.
 **Flow:** `docs-create` cleans the input (`cleanDocInput`), links the CRM lead (the given id, else the newest lead with that phone /
 email — never a new lead), numbers the document and writes `created` on the lead. `docs-send {id, via}` makes the private token
 (kept only as a hash), freezes the clauses on the row, renders the PDF the client signs (stored, its SHA-256 on the row), and
