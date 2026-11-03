@@ -133,7 +133,26 @@ function usePen(ref) {
   const clear = () => { const o = ctx(); if (!o) return; o.k.save(); o.k.setTransform(1, 0, 0, 1, 0, 0); o.k.clearRect(0, 0, o.c.width, o.c.height); o.k.restore(); st.current.has = false }
   const typed = name => { const o = ctx(); if (!o || !name) return; clear(); const r = o.c.getBoundingClientRect(); o.k.save(); o.k.font = `italic 600 ${Math.min(48, Math.max(26, r.width / Math.max(6, name.length) * 1.4))}px "Rubik", "Heebo", cursive`; o.k.textAlign = 'center'; o.k.textBaseline = 'middle'; o.k.direction = 'rtl'; o.k.fillText(name, r.width / 2, r.height / 2 - 14); o.k.restore(); st.current.has = true }
   const has = () => st.current.has
-  const data = () => (ref.current && st.current.has ? ref.current.toDataURL('image/png') : '')
+  // the ink's bounding box + a margin, at the canvas's full resolution (the signature in the PDF is scaled to its box, so an
+  // empty canvas around it used to make it small)
+  const data = () => {
+    const o = ctx(); if (!o || !st.current.has) return ''
+    const { c, k } = o, W = c.width, H = c.height
+    let x0 = W, y0 = H, x1 = -1, y1 = -1
+    try {
+      const d = k.getImageData(0, 0, W, H).data
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (d[(y * W + x) * 4 + 3] > 20) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y }
+    } catch { return c.toDataURL('image/png') }
+    if (x1 < 0) return ''
+    const pad = Math.round(Math.max(8, W * 0.02))
+    x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad); x1 = Math.min(W - 1, x1 + pad); y1 = Math.min(H - 1, y1 + pad)
+    let cw = x1 - x0 + 1, ch = y1 - y0 + 1
+    // never narrower than 2:1 — a short scribble still reads as a signature, not a dot — and at least 320 px wide
+    const minW = Math.max(320, ch * 2); if (cw < minW) { const add = Math.ceil((minW - cw) / 2); x0 = Math.max(0, x0 - add); x1 = Math.min(W - 1, x1 + add); cw = x1 - x0 + 1 }
+    const out = document.createElement('canvas'); out.width = cw; out.height = ch
+    out.getContext('2d').drawImage(c, x0, y0, cw, ch, 0, 0, cw, ch)
+    return out.toDataURL('image/png')
+  }
   return { setup, down, move, up, clear, typed, has, data }
 }
 
