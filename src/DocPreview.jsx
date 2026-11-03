@@ -41,7 +41,7 @@ export const DOC_CSS = `
 `
 const Row = ({ k, v, ltr }) => (v == null || v === '' ? null : <tr><td>{k}</td><td dir={ltr ? 'ltr' : undefined} style={ltr ? { textAlign: 'right' } : undefined}>{v}</td></tr>)
 
-export default function DocSheet({ view, signatureUrl = '', logoSrc = '/logo-black.svg', className = '', onSignHere = null }) {
+export default function DocSheet({ view, signatureUrl = '', logoSrc = '/logo-black.svg', className = '', onSignHere = null, agentSignatureUrl = '' }) {
   if (!view) return null
   const c = view.client || {}, p = view.property || {}, f = view.fees || {}, a = view.agent || {}, lg = view.logo || {}
   const signed = view.status === 'signed' && view.signature
@@ -83,7 +83,7 @@ export default function DocSheet({ view, signatureUrl = '', logoSrc = '/logo-bla
       <h2>חתימות</h2>
       <div className="dsh-sig">
         <div className={`dsh-box${onSignHere && !signed ? ' ask' : ''}`}><b>הלקוח</b>{signed && signatureUrl ? <img src={signatureUrl} alt="חתימת הלקוח"/> : onSignHere ? <><div className="ln"/><button type="button" className="dsh-ask" onClick={onSignHere}>לחתימה</button></> : <div className="ln"/>}<small>{signed ? <>{view.signature.name}<br/>נחתם דיגיטלית {whenHe(view.signature.at)}</> : <>{c.name}<br/>שם, חתימה ותאריך</>}</small></div>
-        <div className="dsh-box"><b>המתווך</b><div className="ln"/><small>{a.name ? `${a.name}${a.license ? ` · רישיון ${a.license}` : ''}` : COMPANY.name}<br/>{COMPANY.name} · {COMPANY.idLabel} {COMPANY.id}</small></div>
+        <div className="dsh-box"><b>המתווך</b>{signed && view.agentSigned && agentSignatureUrl ? <img src={agentSignatureUrl} alt="חתימת המתווך"/> : <div className="ln"/>}<small>{(view.agentSigned?.name || a.name) ? `${view.agentSigned?.name || a.name}${a.license ? ` · רישיון ${a.license}` : ''}` : COMPANY.name}<br/>{signed && view.agentSigned ? <>נחתם {new Date(view.agentSigned.at).toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' })} · {COMPANY.name}</> : <>{COMPANY.name} · {COMPANY.idLabel} {COMPANY.id}</>}</small></div>
       </div>
       {(view.signer?.list || []).length > 1 && <div className="dsh-sig">{view.signer.list.slice(1).map((sg, i) => <div key={i} className="dsh-box"><b>{{ spouse: 'בן/בת זוג', partner: 'שותף/ה', guarantor: 'ערב/ה' }[sg.role] || 'חותם נוסף'}</b><div className="ln"/><small>{sg.name}<br/>{sg.status === 'signed' ? `נחתם דיגיטלית ${whenHe(sg.signed_at)}` : 'שם, חתימה ותאריך'}</small></div>)}</div>}
       <footer className="dsh-foot"><span>{view.title} · <span dir="ltr">{view.number || ''}</span></span><span>{COMPANY.short} · {COMPANY.site.replace(/^https?:\/\//, '')}</span></footer>

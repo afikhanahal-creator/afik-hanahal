@@ -225,7 +225,7 @@ export default function SignPage() {
           <p>{[first ? `עבור ${String(form.name || v.client?.name || '').trim()}` : '', v.property?.address ? [v.property.address, v.property.city].filter(Boolean).join(', ') : '', v.expires_at ? `בתוקף עד ${new Date(v.expires_at).toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' })}` : ''].filter(Boolean).join(' · ')}</p>
         </div>}
         <div className="sg-wrap">
-          <div className="sg-doc" ref={docRef}><div className="sg-doc-in" style={{ transform: `scale(${scale * zoom})`, width: 794 }}><DocSheet view={v} signatureUrl={isSigned ? file('signature', false) : ''} onSignHere={!isSigned && !st.blocked && !done ? () => document.getElementById('sign-pad')?.scrollIntoView({ behavior: 'smooth', block: 'center' }) : null}/></div></div>
+          <div className="sg-doc" ref={docRef}><div className="sg-doc-in" style={{ transform: `scale(${scale * zoom})`, width: 794 }}><DocSheet view={v} signatureUrl={isSigned ? file('signature', false) : ''} agentSignatureUrl={isSigned && v.agentSigned ? file('agent', false) : ''} onSignHere={!isSigned && !st.blocked && !done ? () => document.getElementById('sign-pad')?.scrollIntoView({ behavior: 'smooth', block: 'center' }) : null}/></div></div>
           <aside className="sg-side" ref={sideRef} id="sign">{side}</aside>
         </div>
       </>)}

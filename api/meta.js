@@ -2335,7 +2335,7 @@ async function handleDocs(req, res, action) {
       if (action === 'sign-open') { const r = await Docs.openByToken(t, req); return res.status(r.code || 200).json(r) }
       if (action === 'sign-otp') { const r = await Docs.sendOtp(t, b.via, req); return res.status(r.code || 200).json(r) }
       if (action === 'sign-submit') { const r = await Docs.submitSignature(t, b, req); return res.status(r.code || 200).json(r) }
-      if (action === 'sign-file') return sendFile(await Docs.signedFileByToken(t, ['signed', 'signature', 'docx'].includes(req.query?.kind) ? req.query.kind : 'original'))
+      if (action === 'sign-file') return sendFile(await Docs.signedFileByToken(t, ['signed', 'signature', 'docx', 'agent'].includes(req.query?.kind) ? req.query.kind : 'original'))
       return res.status(404).json({ error: `Unknown path: ${action}` })
     }
     if (action === 'docs-list') {
@@ -2378,6 +2378,7 @@ async function handleDocs(req, res, action) {
       if (errors.length) return res.status(400).json({ errors })
       return sendFile({ bytes: await Docs.renderCurrent({ number: b.number || 'טיוטה', status: 'draft', data, created_at: new Date().toISOString(), template_id: b.templateId && b.templateId !== 'brokerage' ? b.templateId : null, project_name: data.projectName }), type: 'application/pdf', name: 'preview.pdf' })
     }
+    if (action === 'docs-agent-signature') { if (req.method !== 'POST') return res.status(200).json(await Docs.agentSignatureInfo()); const r = await Docs.saveAgentSignature(b); return res.status(r.code || 200).json(r) }
     if (action === 'docs-settings') return res.status(200).json({ settings: req.method === 'POST' ? await Docs.saveSettings(b) : await Docs.getSettings(), status: Docs.status() })
     // reminders: POST docs-remind { id, now: true } sends one now · { id, off: true | false } = "no reminders for this document"
     if (action === 'docs-remind') {

@@ -161,6 +161,7 @@ export const DOCS_CSS = `
 .dt-clause{display:flex;flex-direction:column;gap:6px;border:1px solid var(--au-line);border-radius:12px;padding:10px 12px}
 .dt-clause textarea{min-height:90px}
 .dt-ph{display:flex;flex-wrap:wrap;gap:4px}.dt-ph code{font-size:11px;background:rgba(var(--ov),.07);border-radius:6px;padding:2px 6px;direction:ltr}
+.dt-agsig{display:grid;grid-template-columns:200px minmax(0,1fr);gap:14px;align-items:center;border:1px solid rgba(var(--ov),.12);border-radius:14px;padding:12px}.dt-agsig-img{height:90px;border-radius:10px;background:#fff;border:1px solid rgba(var(--ov),.1);display:flex;align-items:center;justify-content:center;padding:8px}.dt-agsig-img img{max-width:100%;max-height:100%;object-fit:contain}.dt-agsig-img span{color:#8A8798;font-size:12px}.dt-agsig-txt{display:flex;flex-direction:column;gap:6px;min-width:0}.dt-agsig-txt p{margin:0;font-size:12.5px;line-height:1.55;color:var(--au-text3)}@media (max-width:640px){.dt-agsig{grid-template-columns:1fr}}
 .dt-wire{display:flex;gap:8px;flex-wrap:wrap}
 .dt-input{width:100%;height:40px;padding:0 12px;border-radius:9px;border:1px solid var(--au-line);background:var(--au-input);color:var(--au-text);font:inherit;font-size:13.5px;min-height:0}
 textarea.dt-input{height:auto;min-height:70px;padding:9px 12px;resize:vertical;line-height:1.5}
@@ -963,6 +964,60 @@ function DocDrawer({ t, doc, onClose, onChanged, push, onOpenLead, leads, onEdit
 }
 
 // ── settings ────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+/** A scanned / photographed signature → a transparent PNG: the ink keeps its darkness as alpha, the paper goes, cropped, ≤ 600 px. */
+async function cleanSignatureImage(file) {
+  const url = URL.createObjectURL(file)
+  try {
+    const img = await new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => no(new Error('לא הצלחנו לקרוא את התמונה')); i.src = url })
+    const sc = Math.min(1, 1800 / Math.max(img.width, img.height)), W = Math.round(img.width * sc), H = Math.round(img.height * sc)
+    const c = document.createElement('canvas'); c.width = W; c.height = H; const k = c.getContext('2d'); k.drawImage(img, 0, 0, W, H)
+    const px = k.getImageData(0, 0, W, H), d = px.data, lum = new Float32Array(W * H)
+    for (let i = 0; i < W * H; i++) lum[i] = 0.299 * d[i * 4] + 0.587 * d[i * 4 + 1] + 0.114 * d[i * 4 + 2]
+    const paper = Array.from(lum).sort((a, b) => a - b)[Math.floor(W * H * 0.6)], lo = paper - 28, inkL = Math.min(90, lo - 40)
+    let x0 = W, y0 = H, x1 = 0, y1 = 0
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const i = y * W + x; let a = lum[i] >= lo ? 0 : Math.min(1, (lo - lum[i]) / (lo - inkL)); if (a < 0.08) a = 0
+      d[i * 4] = 0x1A; d[i * 4 + 1] = 0x1F; d[i * 4 + 2] = 0x3A; d[i * 4 + 3] = Math.min(255, Math.round(a * 255 * 1.25))
+      if (a > 0.35) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y }
+    }
+    if (x1 <= x0 || y1 <= y0) throw new Error('לא נמצאה חתימה בתמונה')
+    k.putImageData(px, 0, 0)
+    const pad = 10; x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad); x1 = Math.min(W - 1, x1 + pad); y1 = Math.min(H - 1, y1 + pad)
+    const cw = x1 - x0 + 1, ch = y1 - y0 + 1, s2 = Math.min(1, 600 / cw)
+    const o = document.createElement('canvas'); o.width = Math.round(cw * s2); o.height = Math.round(ch * s2)
+    const ok2 = o.getContext('2d'); ok2.imageSmoothingQuality = 'high'; ok2.drawImage(c, x0, y0, cw, ch, 0, 0, o.width, o.height)
+    return o.toDataURL('image/png')
+  } finally { URL.revokeObjectURL(url) }
+}
+/** settings → "חתימת המתווך": the broker's own signature, stamped on a document once the client has signed it */
+function AgentSignatureField({ agentName }) {
+  const [sig, setSig] = useState(undefined)
+  const [busy, setBusy] = useState(false), [err, setErr] = useState('')
+  const inp = useRef(null)
+  useEffect(() => { api.get('docs-agent-signature').then(r => setSig(r.signature || null)).catch(() => setSig(null)) }, [])
+  const pick = async file => {
+    if (!file) return
+    if (!/^image\//.test(file.type)) { setErr('צריך קובץ תמונה (צילום או סריקה של החתימה)'); return }
+    setBusy(true); setErr('')
+    try { const png = await cleanSignatureImage(file); const r = await api.post('docs-agent-signature', { name: agentName || sig?.name || '', png }); if (r.error) throw new Error(r.error); setSig(r.signature) } catch (e) { setErr(e.message) } finally { setBusy(false); if (inp.current) inp.current.value = '' }
+  }
+  const remove = async () => { if (!window.confirm('להסיר את חתימת המתווך? מסמכים חדשים ייחתמו בלעדיה.')) return; setBusy(true); try { await api.post('docs-agent-signature', { remove: true }); setSig(null) } catch (e) { setErr(e.message) } finally { setBusy(false) } }
+  return (
+    <div className="dt-agsig">
+      <div className="dt-agsig-img">{sig === undefined ? <span>טוען…</span> : sig ? <img src={sig.png} alt={`חתימת ${sig.name}`}/> : <span>עוד לא הועלתה חתימה</span>}</div>
+      <div className="dt-agsig-txt">
+        <b>חתימת המתווך{sig?.name ? ` · ${sig.name}` : ''}</b>
+        <p>מוטבעת אוטומטית במקום "המתווך" ברגע שהלקוח חותם — בעותק החתום (PDF ו-Word) שנשלח ללקוח ולמשרד, ובאישור החתימה. רק במסמכים שהמתווך שלהם הוא {sig?.name || agentName || 'בעל החתימה'}.</p>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <Button variant="ghost" disabled={busy} onClick={() => inp.current?.click()}>{busy ? 'מעבד…' : sig ? 'החלפת החתימה' : 'העלאת חתימה'}</Button>
+          {sig && <Button variant="ghost" disabled={busy} onClick={remove}>הסרה</Button>}
+        </div>
+        {err && <span style={{ color: 'var(--au-red-text)', fontSize: 12.5 }}>{err}</span>}
+        <input ref={inp} type="file" accept="image/*" hidden onChange={e => pick(e.target.files?.[0])}/>
+      </div>
+    </div>
+  )
+}
 function DocSettings({ t, tab: initTab, settings, wiring, onClose, onSaved }) {
   const s = t.settingsT
   const [tab, setTab] = useState(initTab)
@@ -998,6 +1053,7 @@ function DocSettings({ t, tab: initTab, settings, wiring, onClose, onSaved }) {
             <Field label={t.fees.agentPhone}><input className="dt-input" dir="ltr" value={f.agent.phone || ''} aria-label={t.fees.agentPhone} onChange={e => setF(x => ({ ...x, agent: { ...x.agent, phone: e.target.value } }))}/></Field>
             <Field label={t.fees.agentEmail}><input className="dt-input" dir="ltr" value={f.agent.email || ''} aria-label={t.fees.agentEmail} onChange={e => setF(x => ({ ...x, agent: { ...x.agent, email: e.target.value } }))}/></Field>
           </div>
+          <AgentSignatureField agentName={f.agent.name}/>
           <Field label={s.notify} hint={s.notifyPh}><input className="dt-input" dir="ltr" value={f.notify} onChange={e => setF(x => ({ ...x, notify: e.target.value }))}/></Field>
           <Field label={s.notifyEmail}><input className="dt-input" dir="ltr" value={f.notifyEmail} aria-label={s.notifyEmail} onChange={e => setF(x => ({ ...x, notifyEmail: e.target.value }))}/></Field>
           <LogoFields t={t} logo={f.logo} onChange={l => setF(x => ({ ...x, logo: l }))}/>
