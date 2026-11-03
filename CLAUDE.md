@@ -891,6 +891,30 @@ proportions up to 230 × 92 pt (`sigSize` from `pngInfo`); the on-screen box is 
 **`lib/png-check.js`** (tested): `pngInfo(buf)` walks the chunks (signature, IHDR first, every CRC-32, IEND last) → `{ ok, width,
 height, why }`; the broker signature is saved only when sound and ≥ 120 × 40 (a garbled copy — the one a hand-typed SQL insert
 left in `app_settings` on 2026-11-03 — is ignored on read and refused on save), and a drawn signature goes through it too.
+**Wordings before the signature, the lead finder and the monthly funnel (2026-11-04):** `SIGN_MESSAGES` (`lib/documents.js`,
+tested) = 11 half-friendly, half-formal wordings the office picks from a dropdown when sending the link — after a call (the
+default), after a meeting / viewing, before a viewing, buyers who liked the property, sellers, rentals, investors, formal and
+short, warm and short, "as you asked", and a resend; every one greets the first name only (`firstName`), speaks for the office
+in the plural, names the property and the document's title, never the document's number or an emoji; `signMessageLines()` adds
+the frame (greeting · body · "הקישור האישי" · `{link}` · validity · the sign-off), `clientWaText` / `clientEmail` render it
+(the email = the same paragraphs + the button), `signMessagePreview()` is the editable text (`{link}` stays a token),
+`suggestSignMessage(doc, { lead, resend })` picks the fitting one (a seller → "בעלי נכס", a rental → "שכירות", a lead at
+"נקבעה פגישה" → after a meeting, "רוצה להתקדם" → buyers who liked it, a resend → "שליחה חוזרת"). The client's signed-copy
+texts lost the number too. UI: `SignMessageField` in `src/DocumentsTab.jsx` — the dropdown (the suggestion marked "מומלץ",
+the last choice kept in `localStorage.afik_docs_msg_v1`), the hint, the rendered text to edit, "שחזור הנוסח" — in the wizard's
+send step, the quick document and the drawer's "שליחה חוזרת" (compact: a link opens the text); `docs-send` takes `messageId`
+and `text` (the edited text, `{link}` replaced, appended if removed) next to the old `personal`; the send log keeps `message` +
+`title`, the drawer shows it, and the lead's note reads "📄 … נשלח לחתימה בוואטסאפ · נוסח: אחרי שיחת טלפון" (`docNoteText(type,
+doc, { message, via })`; a repeat send → "נשלח שוב"). **One lead finder** (`LeadFinder`: name / phone search, the project, the
+stage and the phone on every row, ↑ ↓ Enter Esc, `.dw-lead-list`) in the wizard, the quick document, the list's bar ("לפי ליד…"
+→ the list scoped to that lead's documents by `lead_id` or phone, a chip with "מסמך חדש לליד" / "כרטיס הליד") and the overview's
+"המסמכים של ליד" card. **"נשלחו ונחתמו"** (`FunnelCard`, `docFunnel(list, { months, now })` in `lib/documents.js`, tested): a
+month's cohort = the documents first sent in it (Israel time, `docMonthKey`), `signed` = how many of them are signed, `rate`,
+`waiting`, `lost` (expired / cancelled / failed), `medianHours` from the send to the signature, `signedIn` = signatures that
+landed in the month; periods 3 / 6 / 12 months / since the start (`sessionStorage.afik_docs_fun`) with the previous equal period
+for the deltas; a KPI strip (sent · signed · rate · median time · waiting now), thin bars per month (sent = a brand tint,
+signed = the brand, direct labels, a legend), and the table — a month row opens the list scoped to that month of sending
+(`monthF`). The change bus (`afik_sync_documents`) refreshes the tab on every status change, so a signature shows up by itself.
 **Flow:** `docs-create` cleans the input (`cleanDocInput`), links the CRM lead (the given id, else the newest lead with that phone /
 email — never a new lead), numbers the document and writes `created` on the lead. `docs-send {id, via}` makes the private token
 (kept only as a hash), freezes the clauses on the row, renders the PDF the client signs (stored, its SHA-256 on the row), and
