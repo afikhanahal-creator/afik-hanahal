@@ -1016,6 +1016,15 @@ phone / email (one is needed), project (the bar's project by default; `ProjectSe
 walk-in / website / Facebook-Instagram / Yad2 / other + details), a first note, "לשלוח הודעת פתיחה" (off) → `POST
 /api/contacts?manual=1` (admin) → `manualLeadRow()` (source `manual_<from>`, `crm_data.origin.channel = 'manual'`), no new-lead
 email / office WhatsApp, the welcome only when ticked.
+**The lead card, resizable and in the same calm design** (2026-11-03): the header is `.lc-head` (a soft avatar, the name 20 px
+semibold, the campaign quietly after it, the stages as `.lc-stage` chips — a dot per stage, the current one filled —, quiet
+hairline action buttons `.lc-act.quiet` with the channel's color only on the icon, one filled `.lc-act.primary` for the analysis,
+`.lc-ib` icon buttons), tabs 14 px with a count pill, sections as hairline cards (16 px radius), 40 px inputs. **Sizing:** the
+chat column's edge is a visible grip (`.lc-grip`, `Splitter` x — drag it, double-click resets), the chat's bar (`.lc-rail-bar`) has
+width presets צר · חצי · רחב (`setConvWidth` → `--lc-conv`, kept in `afik_lead_card_conv_w2`) and ⤢ **"השיחה על כל הכרטיס"**
+(`chatMax` → `.lc-body.chatmax`, one grid column; Esc or the button bring the details back), the line under "מקור הליד" drags
+(`Splitter` y → `--lc-side`, `afik_lead_card_side_h`), and the header's ⤢ puts the whole card on the screen (`cardFull`,
+`afik_lead_card_full`).
 **The lead card is wide and always shows the chat** (2026-11-03): up to 1800 × 1080 px; on a screen ≥ 1040 px its side column
 holds the lead's source / details on top (a fold line, `localStorage.afik_lead_card_info`) and the whole WhatsApp conversation
 under it with the message box (`LeadConversation`), next to every tab — details, notes & activity, tasks… (`afik_lead_card_conv_v2`,

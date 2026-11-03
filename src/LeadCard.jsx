@@ -3,7 +3,7 @@
 // Every change saves on its own (onUpdate → PATCH /api/contacts → crm_data).
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { FaTimes, FaPhone, FaWhatsapp, FaEnvelope, FaMagic, FaUser, FaStickyNote, FaTasks, FaChartPie, FaCheck, FaTrash, FaCopy, FaPlus, FaClock, FaBullseye, FaExclamationTriangle, FaLightbulb, FaQuestionCircle, FaComments, FaShieldAlt, FaSyncAlt, FaMapMarkerAlt, FaBuilding, FaCalendarAlt, FaTag, FaFlag, FaArrowUp, FaArrowDown, FaInfoCircle, FaUserCheck, FaExternalLinkAlt, FaSearch, FaHandshake, FaEdit } from 'react-icons/fa'
+import { FaTimes, FaPhone, FaWhatsapp, FaEnvelope, FaMagic, FaUser, FaStickyNote, FaTasks, FaChartPie, FaCheck, FaTrash, FaCopy, FaPlus, FaClock, FaBullseye, FaExclamationTriangle, FaLightbulb, FaQuestionCircle, FaComments, FaShieldAlt, FaSyncAlt, FaMapMarkerAlt, FaBuilding, FaCalendarAlt, FaTag, FaFlag, FaArrowUp, FaArrowDown, FaInfoCircle, FaUserCheck, FaExternalLinkAlt, FaSearch, FaHandshake, FaEdit, FaExpand, FaCompress } from 'react-icons/fa'
 import { T } from './automationsUI.jsx'
 import { sourceLabel, sourceColor, originLines, leadCampaign, leadCampaignTag, leadCampaignFull, leadProject, toggleProjectInName, lastContact, lastContactText } from './lib/leadFields.js'
 import LeadChatTab from './LeadChatTab.jsx'
@@ -24,7 +24,7 @@ import SmartVoiceInput from './SmartVoiceInput.jsx'
 const TR = {
   he: {
     addProject: p => `+ הוספת הפרויקט: ${p}`, removeProject: 'הסרת שם הפרויקט', projectTip: 'השם מתעדכן גם במרכז הלידים ובצ׳אטים', convShow: 'הצג שיחה', convHide: 'הסתר שיחה', convTip: 'כל ההתכתבות בוואטסאפ עם הליד, לצד הפרטים',
-    lastContact: 'קשר אחרון', convResize: 'גרירה לשינוי רוחב השיחה (לחיצה כפולה מחזירה)',
+    lastContact: 'קשר אחרון', convResize: 'גרירה לשינוי רוחב השיחה (לחיצה כפולה מחזירה)', sideResize: 'גרירה לשינוי גובה פרטי המקור', chatMax: 'השיחה על כל הכרטיס', chatRestore: 'חזרה לפרטים', cardFull: 'מסך מלא', cardRestore: 'הקטנת הכרטיס', chatW: { narrow: 'צר', half: 'חצי', wide: 'רחב' }, chatWTip: 'רוחב השיחה',
     tabs: { details: 'פרטים ועריכה', notes: 'הערות ופעילות', chat: 'שיחת וואטסאפ', tasks: 'משימות', analysis: 'ניתוח חכם' },
     call: 'התקשר', wa: 'וואטסאפ', email: 'מייל', analyze: 'נתח ליד', reanalyze: 'נתח מחדש', analyzing: 'מנתח…', close: 'סגירה', saved: 'נשמר', saving: 'שומר…', saveFailed: 'השמירה נכשלה — בדקו חיבור ונסו שוב',
     sec: { contact: 'פרטי קשר', need: 'מה הלקוח מחפש', prop: 'הנכס שהתעניין בו', msg: 'ההודעה של הלקוח', manage: 'ניהול הליד', source: 'מקור הליד' },
@@ -60,7 +60,7 @@ const TR = {
   },
   en: {
     addProject: p => `+ Add the project: ${p}`, removeProject: 'Remove the project name', projectTip: 'The name updates in the Lead Center and the chats too', convShow: 'Show chat', convHide: 'Hide chat', convTip: 'The whole WhatsApp conversation with the lead, next to the details',
-    lastContact: 'Last contact', convResize: 'Drag to resize the conversation (double-click resets)',
+    lastContact: 'Last contact', convResize: 'Drag to resize the conversation (double-click resets)', sideResize: 'Drag to resize the source details', chatMax: 'Chat on the whole card', chatRestore: 'Back to the details', cardFull: 'Full screen', cardRestore: 'Shrink the card', chatW: { narrow: 'Narrow', half: 'Half', wide: 'Wide' }, chatWTip: 'Chat width',
     tabs: { details: 'Details', notes: 'Notes & activity', chat: 'WhatsApp chat', tasks: 'Tasks', analysis: 'Smart analysis' },
     call: 'Call', wa: 'WhatsApp', email: 'Email', analyze: 'Analyze lead', reanalyze: 'Re-analyze', analyzing: 'Analyzing…', close: 'Close', saved: 'Saved', saving: 'Saving…', saveFailed: 'Not saved — check the connection and try again',
     sec: { contact: 'Contact details', need: 'What they are looking for', prop: 'Property of interest', msg: 'Their message', manage: 'Lead management', source: 'Lead source' },
@@ -103,7 +103,49 @@ const CSS = `
   .lc *{box-sizing:border-box}
   .lc button{min-height:0;min-width:0}
   .lc-body{display:grid;grid-template-columns:minmax(0,1fr) 320px;flex:1;min-height:0}
-  .lc-body.conv{grid-template-columns:minmax(0,1fr) var(--lc-conv,minmax(460px,44%))}
+  .lc-body.conv{grid-template-columns:minmax(0,1fr) var(--lc-conv,minmax(460px,44%));transition:grid-template-columns .18s ease}
+  .lc-body.chatmax{grid-template-columns:minmax(0,1fr)}
+  .lc-body.chatmax .lc-main{display:none}
+  .lc-body.chatmax .lc-rail{border-inline-start:none}
+  /* ── a calm, Apple-like frame: hairlines, one accent, quiet buttons ── */
+  .lc-head{padding:14px 20px 12px;border-bottom:1px solid var(--au-line);display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .lc-avatar{width:50px;height:50px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:19px;font-weight:700;flex-shrink:0}
+  .lc-name{margin:0;font-size:20px;font-weight:600;letter-spacing:-.02em;color:var(--au-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;display:inline-flex;align-items:baseline;gap:8px}
+  .lc-camp{font-size:13.5px;font-weight:500;color:var(--au-text3)}
+  .lc-grade{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;border-radius:8px;font-size:12px;font-weight:700;font-variant-numeric:tabular-nums}
+  .lc-stages{display:flex;gap:4px;margin-top:8px;flex-wrap:wrap}
+  .lc-stage{height:26px;padding:0 10px;border-radius:8px;border:1px solid transparent;background:transparent;color:var(--au-text2);font-size:11.5px;font-weight:500;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:6px;transition:background .12s,color .12s}
+  .lc-stage i{width:7px;height:7px;border-radius:50%;background:var(--sc);opacity:.75}
+  .lc-stage:hover{background:rgba(var(--ov),.06);color:var(--au-text)}
+  .lc-stage[aria-checked=true]{background:var(--sc);color:#fff;font-weight:600;cursor:default}
+  .lc-stage[aria-checked=true] i{background:#fff;opacity:.9}
+  .lc-ib{width:34px;height:34px;border-radius:9px;border:1px solid rgba(var(--ov),.1);background:transparent;color:var(--au-text2);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;transition:background .12s,color .12s}
+  .lc-ib:hover{background:rgba(var(--ov),.06);color:var(--au-text)}
+  .lc-ib[aria-pressed=true]{background:rgba(var(--brand-rgb),.1);color:var(--au-brand-text);border-color:rgba(var(--brand-rgb),.35)}
+  .lc-ib.sm{width:28px;height:28px;border-radius:8px}
+  .lc-act.quiet{background:transparent;color:var(--au-text);border:1px solid rgba(var(--ov),.1);font-weight:600}
+  .lc-act.quiet:hover{background:rgba(var(--ov),.05);filter:none}
+  .lc-act.quiet.on{background:rgba(37,211,102,.1);border-color:rgba(37,211,102,.3)}
+  .lc-act.primary{background:var(--au-brand);color:#fff;border:none;box-shadow:0 1px 2px rgba(20,30,80,.12)}
+  .lc-tabs{display:flex;gap:2px;padding:0 14px;border-bottom:1px solid var(--au-line);overflow-x:auto;flex-shrink:0;scrollbar-width:none}
+  .lc-tabs::-webkit-scrollbar{display:none}
+  .lc-tab{color:var(--au-text3);border-bottom-color:transparent;transition:color .12s}
+  .lc-tab:hover{color:var(--au-text)}
+  .lc-tab[aria-selected=true]{color:var(--au-text);border-bottom-color:var(--au-brand)}
+  .lc-tab-n{min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:rgba(var(--ov),.08);color:var(--au-text2);font-size:10.5px;font-weight:600;display:inline-flex;align-items:center;justify-content:center}
+  .lc-tab[aria-selected=true] .lc-tab-n{background:rgba(var(--brand-rgb),.12);color:var(--au-brand-text)}
+  .lc-rail-bar{display:flex;align-items:center;gap:8px;height:40px;padding:0 10px 0 12px;border-bottom:1px solid var(--au-line);flex:none;background:var(--au-s2,transparent)}
+  .lc-rail-t{flex:1;display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;color:var(--au-text2)}
+  .lc-seg{display:inline-flex;gap:1px;padding:2px;border-radius:8px;background:rgba(var(--ov),.06)}
+  .lc-seg button{height:24px;padding:0 9px;border:none;border-radius:6px;background:transparent;color:var(--au-text2);font:inherit;font-size:11.5px;font-weight:600;cursor:pointer}
+  .lc-seg button:hover{background:var(--au-card,#fff);color:var(--au-text);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+  .lc-grip::after{opacity:.55!important}
+  .lc-grip:hover::after,.lc-grip.on::after{opacity:1!important}
+  .lc-grip-y{position:relative;z-index:7}
+  .lc-rail .lc-side{max-height:var(--lc-side,36%)}
+  .lc .lc-tab{font-size:14px;font-weight:600;height:46px;padding:0 16px}
+  .lc .lc-in{height:40px;font-size:14px;border-color:rgba(var(--ov),.12)}
+  .lc .lc-in:focus{box-shadow:0 0 0 3px rgba(var(--brand-rgb),.14)}
   /* the side column on a wide screen: the lead's source / details on top (folds), the whole WhatsApp conversation under it */
   .lc-rail{position:relative;min-height:0;min-width:0;display:flex;flex-direction:column;border-inline-start:1px solid var(--au-line);background:rgba(var(--ov),.015)}
   .lc-rail .lc-side{border-inline-start:none!important;flex:none;max-height:36%;border-bottom:1px solid var(--au-line)}
@@ -138,7 +180,7 @@ const CSS = `
   .lc-hist-act{opacity:.55;transition:opacity .15s}.lc-hist:hover .lc-hist-act,.lc-hist-act:focus-within{opacity:1}
   .lc-hist-act button:hover{background:rgba(var(--ov),.08)!important;color:var(--au-text)!important}
   @media (hover:none){.lc-hist-act{opacity:1}}
-  .lc-act{height:34px;padding:0 12px;border-radius:9px;display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:700;cursor:pointer;font-family:inherit;text-decoration:none;white-space:nowrap;transition:filter .15s}
+  .lc-act{height:34px;padding:0 12px;border-radius:9px;display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;text-decoration:none;white-space:nowrap;transition:filter .15s,background .12s}
   .lc-act:hover{filter:brightness(1.1)}
   @keyframes lc-in{from{opacity:0;transform:translateY(10px) scale(.985)}to{opacity:1;transform:none}}
   @keyframes lc-spin{to{transform:rotate(360deg)}}
@@ -158,10 +200,10 @@ const shekel = n => (Number(n) ? `₪${Number(n).toLocaleString('he-IL')}` : '')
 // ── small pieces ───────────────────────────────────────────────────────────────
 function Section({ title, icon: Ic, children, right }) {
   return (
-    <section style={{ background: T.card, boxShadow: T.cardShadow, border: `1px solid ${T.s1Line}`, borderRadius: 14, padding: 16 }}>
-      <header style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-        {Ic && <Ic size={12} style={{ color: T.brandText }}/>}
-        <h3 style={{ margin: 0, fontSize: 13.5, fontWeight: 800, color: T.text, flex: 1 }}>{title}</h3>
+    <section style={{ background: T.card, border: '1px solid rgba(var(--ov),.08)', borderRadius: 16, padding: 18, boxShadow: '0 1px 2px rgba(20,30,80,.03)' }}>
+      <header style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+        {Ic && <Ic size={12} style={{ color: T.brandText, opacity: .9 }}/>}
+        <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, letterSpacing: '-.01em', color: T.text, flex: 1 }}>{title}</h3>
         {right}
       </header>
       {children}
@@ -169,7 +211,7 @@ function Section({ title, icon: Ic, children, right }) {
   )
 }
 function Field({ label, children }) {
-  return <label style={{ display: 'flex', flexDirection: 'column', gap: 5, minWidth: 0 }}><span style={{ fontSize: 11.5, fontWeight: 700, color: T.text3 }}>{label}</span>{children}</label>
+  return <label style={{ display: 'flex', flexDirection: 'column', gap: 5, minWidth: 0 }}><span style={{ fontSize: 12, fontWeight: 500, color: T.text3 }}>{label}</span>{children}</label>
 }
 // Text / number / date input that saves on blur (and Enter for single-line)
 function EditInput({ value, onSave, type = 'text', multiline, rows = 3, placeholder, dir }) {
@@ -239,6 +281,12 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
   const bodyRef = useRef(null)
   const [convW] = useState(() => { try { const v = Number(localStorage.getItem(CONV_W_KEY)); return v >= CONV_W[0] && v <= CONV_W[1] ? v : 0 } catch { return 0 } })
   const [chatLast, setChatLast] = useState(null)       // the open conversation's newest message { at, dir }
+  const [cardFull, setCardFull] = useState(() => { try { return localStorage.getItem('afik_lead_card_full') === '1' } catch { return false } })
+  const toggleCardFull = () => setCardFull(v => { try { localStorage.setItem('afik_lead_card_full', v ? '0' : '1') } catch {} return !v })
+  const [chatMax, setChatMax] = useState(false)
+  useEffect(() => { try { const v = Number(localStorage.getItem('afik_lead_card_side_h')); if (v >= 90) bodyRef.current?.style.setProperty('--lc-side', `${v}px`) } catch {} }, [])
+  useEffect(() => { if (!chatMax) return; const k = e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setChatMax(false) } }; window.addEventListener('keydown', k, true); return () => window.removeEventListener('keydown', k, true) }, [chatMax])          // the conversation over the whole card (Esc / the button bring the details back)
+  const setConvWidth = v => { bodyRef.current?.style.setProperty('--lc-conv', `${v}px`); try { localStorage.setItem(CONV_W_KEY, String(v)) } catch {} }
   useEffect(() => { setChatLast(null) }, [lead.id])
   const { isDark } = useAdminTheme()
   // the whole WhatsApp conversation sits next to the details on a wide screen (hidden by choice, remembered)
@@ -309,36 +357,36 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
   const copyMsg = async text => { try { await navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1500) } catch {} }
 
   const header = (
-    <div style={{ padding: '16px 20px', borderBottom: `1px solid ${T.line}`, display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-      <WaFace phone={lead.phone} name={lead.name} size={48} lang={lang}>
-      <span style={{ width: 48, height: 48, borderRadius: '50%', background: avatarBg(lead.name), color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 19, fontWeight: 800, flexShrink: 0, boxShadow: `0 4px 14px ${avatarBg(lead.name)}55` }}>{initials(lead.name)}</span>
+    <div className="lc-head">
+      <WaFace phone={lead.phone} name={lead.name} size={50} lang={lang}>
+      <span className="lc-avatar" style={{ background: `${avatarBg(lead.name)}1C`, color: avatarBg(lead.name) }}>{initials(lead.name)}</span>
       </WaFace>
       <div style={{ flex: '1 1 220px', minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          <h2 id="lc-title" style={{ margin: 0, fontSize: 19, fontWeight: 800, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+          <h2 id="lc-title" className="lc-name">
             {lead.name || t.none}
-            {campaign && <span title={`${t.campaign}: ${campaignFull}`} style={{ fontSize: 14, fontWeight: 600, color: T.text3, marginInlineStart: 8 }}>(<bdi>{campaign}</bdi>)</span>}
+            {campaign && <span className="lc-camp" title={`${t.campaign}: ${campaignFull}`}><bdi>{campaign}</bdi></span>}
           </h2>
-          {isV2 && <span title={t.why} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 24, padding: '0 10px', borderRadius: 20, background: `${GRADE_COLOR[en.grade]}1f`, color: GRADE_COLOR[en.grade], fontSize: 12, fontWeight: 800 }}>{en.score100} · {t.gradeName[en.grade]}</span>}
+          {isV2 && <span className="lc-grade" title={t.why} style={{ background: `${GRADE_COLOR[en.grade]}16`, color: GRADE_COLOR[en.grade] }}>{en.score100} · {t.gradeName[en.grade]}</span>}
           {saveState && <span role="status" style={{ fontSize: 11.5, color: saveState === 'saved' ? T.green : saveState === 'error' ? '#EF4444' : T.text3, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 5 }}>{saveState === 'saved' && <FaCheck size={9}/>}{saveState === 'saved' ? t.saved : saveState === 'error' ? t.saveFailed : t.saving}</span>}
         </div>
-        <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }} role="radiogroup" aria-label={t.f.dealType}>
+        <div className="lc-stages" role="radiogroup" aria-label={t.f.dealType}>
           {stages.map(s => {
             const on = s.id === stage.id
-            return <button key={s.id} type="button" role="radio" aria-checked={on} onClick={() => !on && (onUpdateStatus ? onUpdateStatus(lead, s.id) : save({ leadStatus: s.id }))}
-              style={{ height: 26, padding: '0 10px', borderRadius: 20, border: `1px solid ${on ? s.color : T.s1Line}`, background: on ? s.color : 'transparent', color: on ? '#fff' : T.text2, fontSize: 11.5, fontWeight: 700, cursor: on ? 'default' : 'pointer', fontFamily: 'inherit' }}>{lang === 'en' ? s.en : s.label}</button>
+            return <button key={s.id} type="button" role="radio" aria-checked={on} className="lc-stage" style={{ '--sc': s.color }} onClick={() => !on && (onUpdateStatus ? onUpdateStatus(lead, s.id) : save({ leadStatus: s.id }))}><i/>{lang === 'en' ? s.en : s.label}</button>
           })}
         </div>
       </div>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-        {lead.phone && <a className="lc-act" href={`tel:${lead.phone}`} style={{ background: 'rgba(0,115,234,.12)', color: '#3B8FF0', border: '1px solid rgba(0,115,234,.3)' }}><FaPhone size={11}/>{t.call}</a>}
-        {lead.phone && onOpenChat && <button type="button" className="lc-act" onClick={() => { onOpenChat(lead); onClose() }} style={{ background: 'rgba(37,211,102,.12)', color: '#1FAF55', border: '1px solid rgba(37,211,102,.35)' }}><FaWhatsapp size={13}/>{t.wa}</button>}
+        {lead.phone && <a className="lc-act quiet" href={`tel:${lead.phone}`}><FaPhone size={11} style={{ color: '#0A84FF' }}/>{t.call}</a>}
+        {lead.phone && onOpenChat && <button type="button" className="lc-act quiet" onClick={() => { onOpenChat(lead); onClose() }}><FaWhatsapp size={13} style={{ color: '#25D366' }}/>{t.wa}</button>}
         <FollowUpButton lead={lead} lang={lang} onSave={save}/>
-        {lead.email && <a className="lc-act lc-hide-m" href={`mailto:${lead.email}`} style={{ background: 'rgba(226,68,92,.1)', color: '#E2445C', border: '1px solid rgba(226,68,92,.3)' }}><FaEnvelope size={11}/>{t.email}</a>}
-        {onEnrich && <button type="button" className="lc-act" disabled={enriching} onClick={() => { onEnrich(lead); setTab('analysis') }} style={{ background: 'linear-gradient(135deg,var(--au-brand),var(--au-brand-deep))', color: '#fff', border: 'none', opacity: enriching ? .7 : 1 }}>
+        {lead.email && <a className="lc-act quiet lc-hide-m" href={`mailto:${lead.email}`}><FaEnvelope size={11} style={{ color: '#E2445C' }}/>{t.email}</a>}
+        {onEnrich && <button type="button" className="lc-act primary" disabled={enriching} onClick={() => { onEnrich(lead); setTab('analysis') }} style={{ opacity: enriching ? .7 : 1 }}>
           {enriching ? <FaSyncAlt size={11} style={{ animation: 'lc-spin 1s linear infinite' }}/> : <FaMagic size={11}/>}{enriching ? t.analyzing : isV2 ? t.reanalyze : t.analyze}</button>}
-        {wide && lead.phone && <button type="button" className="lc-act" aria-pressed={convOn} title={t.convTip} onClick={toggleConv} style={{ background: convOn ? 'rgba(37,211,102,.12)' : 'transparent', color: convOn ? '#1FAF55' : T.text2, border: `1px solid ${convOn ? 'rgba(37,211,102,.35)' : T.s1Line}` }}><FaComments size={12}/>{convOn ? t.convHide : t.convShow}</button>}
-        <button type="button" onClick={onClose} aria-label={t.close} style={{ width: 34, height: 34, borderRadius: 9, border: `1px solid ${T.s1Line}`, background: 'transparent', color: T.text2, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}><FaTimes size={13}/></button>
+        {wide && lead.phone && <button type="button" className={`lc-act quiet${convOn ? ' on' : ''}`} aria-pressed={convOn} title={t.convTip} onClick={toggleConv}><FaComments size={12}/>{convOn ? t.convHide : t.convShow}</button>}
+        {wide && <button type="button" className="lc-ib" onClick={toggleCardFull} aria-pressed={cardFull} title={cardFull ? t.cardRestore : t.cardFull} aria-label={cardFull ? t.cardRestore : t.cardFull}>{cardFull ? <FaCompress size={12}/> : <FaExpand size={12}/>}</button>}
+        <button type="button" className="lc-ib" onClick={onClose} aria-label={t.close}><FaTimes size={13}/></button>
       </div>
     </div>
   )
@@ -347,10 +395,10 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
   const lastTouch = useMemo(() => lastContactText(lastContact(lead, chatLast), lang, Date.now(), lead.ts || lead.created_at), [lead, chatLast, lang])
   const tabs = [['details', FaUser, t.tabs.details], ['notes', FaStickyNote, t.tabs.notes, notes.length || null], ['chat', FaWhatsapp, t.tabs.chat, lead.chatSummary?.lastWord === 'lead' ? '!' : null], ['tasks', FaTasks, t.tabs.tasks, openTasks || null], ['analysis', FaChartPie, t.tabs.analysis]]
   const tabBar = (
-    <div role="tablist" style={{ display: 'flex', gap: 2, padding: '0 14px', borderBottom: `1px solid ${T.line}`, overflowX: 'auto', flexShrink: 0 }}>
+    <div role="tablist" className="lc-tabs">
       {tabs.map(([id, Ic, label, badge]) => (
-        <button key={id} type="button" role="tab" aria-selected={tab === id} className="lc-tab" onClick={() => setTab(id)} style={{ color: tab === id ? T.text : T.text3, borderBottomColor: tab === id ? 'var(--au-brand)' : 'transparent' }}>
-          <Ic size={11}/>{label}{badge ? <span style={{ minWidth: 18, height: 18, padding: '0 5px', borderRadius: 9, background: T.brandSoft, color: T.brandText, fontSize: 10.5, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{badge}</span> : null}
+        <button key={id} type="button" role="tab" aria-selected={tab === id} className="lc-tab" onClick={() => setTab(id)}>
+          <Ic size={11}/>{label}{badge ? <span className="lc-tab-n">{badge}</span> : null}
         </button>
       ))}
       {lastTouch && (
@@ -858,28 +906,43 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
 
   return createPortal(
     <div className="lc lcd" dir={dir} onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}
-      style={{ position: 'fixed', inset: 0, zIndex: 2400, background: 'var(--au-overlay)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'min(3vh,24px) 12px' }}>
+      style={{ position: 'fixed', inset: 0, zIndex: 2400, background: 'var(--au-overlay)', backdropFilter: 'blur(3px)', WebkitBackdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: cardFull ? 8 : 'min(3vh,24px) 12px' }}>
       <style>{CSS + SPLITTER_CSS}</style>
       <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="lc-title" className="lc-dialog"
-        style={{ width: showConv ? 'min(1800px,100%)' : 'min(1280px,100%)', height: showConv ? 'min(1080px,100%)' : 'min(940px,100%)', background: T.s2, border: `1px solid ${T.s2Line}`, borderRadius: 18, boxShadow: T.shadow2, color: T.text, display: 'flex', flexDirection: 'column', overflow: 'hidden', outline: 'none', animation: 'lc-in .22s cubic-bezier(.2,.8,.2,1) both' }}>
-        <div style={{ height: 4, background: `linear-gradient(90deg, ${stage.color}, ${stage.color}88)`, flexShrink: 0 }}/>
+        style={{ width: cardFull ? '100%' : showConv ? 'min(1800px,100%)' : 'min(1280px,100%)', height: cardFull ? '100%' : showConv ? 'min(1080px,100%)' : 'min(940px,100%)', background: T.s2, border: `1px solid ${T.s2Line}`, borderRadius: cardFull ? 14 : 20, boxShadow: T.shadow2, color: T.text, display: 'flex', flexDirection: 'column', overflow: 'hidden', outline: 'none', animation: 'lc-in .22s cubic-bezier(.2,.8,.2,1) both', transition: 'width .18s ease, height .18s ease, border-radius .18s ease' }}>
+        <div style={{ height: 3, background: stage.color, flexShrink: 0, opacity: .9 }}/>
         {header}
         {tabBar}
-        <div ref={bodyRef} className={`lc-body${showConv ? ' conv' : ''}`} style={convW && showConv ? { '--lc-conv': `${convW}px` } : undefined}>
+        <div ref={bodyRef} className={`lc-body${showConv ? ' conv' : ''}${showConv && chatMax ? ' chatmax' : ''}`} style={convW && showConv ? { '--lc-conv': `${convW}px` } : undefined}>
           <div className="lc-main" style={{ overflowY: 'auto', padding: 16, background: T.bg }}>
             {tab === 'details' ? details : tab === 'notes' ? <>{notesTab}{!showConv && lead.phone && <div className="lc-conv-tab">{conversation}</div>}</> : tab === 'chat' ? <><LeadChatTab lead={lead} lang={lang} stages={stages} save={save} onUpdateStatus={onUpdateStatus} onOpenChat={onOpenChat} onClose={onClose} hideConversation={!!lead.phone}/>{!showConv && lead.phone && <div className="lc-conv-tab">{conversation}</div>}</> : tab === 'tasks' ? tasksTab : analysis}
           </div>
           {!showConv && sideEl(false)}
           {showConv && <section className="lc-rail" aria-label={t.tabs.chat}>
             {/* drag the conversation's edge: a wider or narrower chat (kept per browser; double-click resets) */}
-            <Splitter axis="x" grows={dir === 'rtl' ? 1 : -1} min={CONV_W[0]} label={t.convResize}
-              style={{ position: 'absolute', top: 0, bottom: 0, insetInlineStart: 0, width: 8, margin: 0, zIndex: 8 }}
+            <Splitter axis="x" grows={dir === 'rtl' ? 1 : -1} min={CONV_W[0]} label={t.convResize} className="lc-grip"
+              style={{ position: 'absolute', top: 0, bottom: 0, insetInlineStart: -7, width: 14, margin: 0, zIndex: 8 }}
               max={() => Math.min(CONV_W[1], (bodyRef.current?.getBoundingClientRect().width || 1400) - 520)}
               get={() => bodyRef.current?.querySelector('.lc-rail')?.getBoundingClientRect().width || 640}
               apply={v => bodyRef.current?.style.setProperty('--lc-conv', `${v}px`)}
               commit={v => { try { localStorage.setItem(CONV_W_KEY, String(v)) } catch {} }}
               reset={() => { bodyRef.current?.style.removeProperty('--lc-conv'); try { localStorage.removeItem(CONV_W_KEY) } catch {} }}/>
-            {sideEl(true)}
+            <div className="lc-rail-bar">
+              <span className="lc-rail-t"><FaWhatsapp size={12} style={{ color: '#25D366' }}/>{t.tabs.chat}</span>
+              <span className="lc-seg" role="group" aria-label={t.chatWTip} title={t.chatWTip}>
+                {[['narrow', 460], ['half', Math.round(((bodyRef.current?.getBoundingClientRect().width || 1400) - 16) / 2)], ['wide', 900]].map(([k, w]) => (
+                  <button key={k} type="button" onClick={() => { setChatMax(false); setConvWidth(w) }}>{t.chatW[k]}</button>
+                ))}
+              </span>
+              <button type="button" className="lc-ib sm" onClick={() => setChatMax(v => !v)} aria-pressed={chatMax} title={chatMax ? t.chatRestore : t.chatMax} aria-label={chatMax ? t.chatRestore : t.chatMax}>{chatMax ? <FaCompress size={11}/> : <FaExpand size={11}/>}</button>
+            </div>
+            {!chatMax && sideEl(true)}
+            {!chatMax && !infoFolded && <Splitter axis="y" className="lc-grip-y" min={90} label={t.sideResize} gap
+              max={() => Math.round((bodyRef.current?.getBoundingClientRect().height || 800) * .6)}
+              get={() => bodyRef.current?.querySelector('.lc-rail .lc-side')?.getBoundingClientRect().height || 220}
+              apply={v => bodyRef.current?.style.setProperty('--lc-side', `${v}px`)}
+              commit={v => { try { localStorage.setItem('afik_lead_card_side_h', String(v)) } catch {} }}
+              reset={() => { bodyRef.current?.style.removeProperty('--lc-side'); try { localStorage.removeItem('afik_lead_card_side_h') } catch {} }}/>}
             <div className="lc-rail-conv">{conversation}</div>
           </section>}
         </div>
