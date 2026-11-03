@@ -759,6 +759,11 @@ tab "Google Drive": connect (`POST docs-drive-connect` → Google's consent page
 Google Cloud project), disconnect, the switch, the counts (`GET docs-drive-status`), the root folder link; the table has a Drive
 column (a cloud: green = in Drive with its link, grey = pending, red = error), the drawer the files and "סנכרון עכשיו". Not yet:
 initials per page, an external provider's webhook (nothing pretends to be one), Drive → database (one-way by design).
+**The document's look (2026-11-04, PDF · Word · the on-screen sheet, all the same):** clause text justified (`Page.text({ justify })`
+spreads the visual line's words; never the last line of a paragraph), phones as 050-123-4567 (`fmtPhone`, also inside the clauses),
+a "המתווך" block (name, licence, phone) after the client, the fee table with a top rule, a slim header on later pages (small logo ·
+company · document number), a green "נחתם דיגיטלית · date" stamp in the header of a signed document, a faint diagonal "טיוטה" on a
+draft, headings and clause titles kept with their first lines, the signature block kept with its heading (`need()` before each).
 **Flow:** `docs-create` cleans the input (`cleanDocInput`), links the CRM lead (the given id, else the newest lead with that phone /
 email — never a new lead), numbers the document and writes `created` on the lead. `docs-send {id, via}` makes the private token
 (kept only as a hash), freezes the clauses on the row, renders the PDF the client signs (stored, its SHA-256 on the row), and
