@@ -5,70 +5,113 @@
 // a cancelled or an already-signed document reads so in words. Mobile first, the site's light look.
 import { useEffect, useRef, useState } from 'react'
 import DocSheet, { DOC_CSS } from './DocPreview.jsx'
-import { OTP_MINUTES } from '../lib/documents.js'
+import { OTP_MINUTES, signTokenFromPath } from '../lib/documents.js'
 
 const CSS = `
 *{box-sizing:border-box}
-html,body{margin:0;background:#EFEBE3;color:#17172B;font-family:Rubik,Heebo,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+html,body{margin:0;background:#EFEBE3;color:#17172B;font-family:Rubik,Heebo,Arial,sans-serif;-webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%}
 .sg{min-height:100vh;direction:rtl;display:flex;flex-direction:column}
-.sg-top{position:sticky;top:0;z-index:5;background:rgba(239,235,227,.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid #E1DBD0;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;gap:10px}
-.sg-top img{height:34px}.sg-top b{font-size:14px;font-weight:600}.sg-top small{display:block;color:#5E5B6E;font-size:12px}
-.sg-zoom{display:flex;gap:4px}.sg-zoom button{width:34px;height:34px;border-radius:8px;border:1px solid #D9D3C7;background:#fff;font:inherit;font-size:16px;cursor:pointer;color:#17172B}
+.sg-top{position:sticky;top:0;z-index:5;background:rgba(255,255,255,.94);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid #E1DBD0;padding:10px 16px;padding-top:max(10px,env(safe-area-inset-top));display:flex;align-items:center;justify-content:space-between;gap:10px}
+.sg-brand{display:flex;gap:10px;align-items:center;min-width:0}.sg-brand img{height:34px;flex-shrink:0}
+.sg-brand b{font-size:14px;font-weight:600;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.sg-brand small{display:block;color:#5E5B6E;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sg-tools{display:flex;gap:6px;align-items:center;flex-shrink:0}
+.sg-dl{height:36px;border-radius:10px;border:1px solid #D9D3C7;background:#fff;color:#17172B;font:inherit;font-size:13px;font-weight:600;padding:0 11px;display:inline-flex;align-items:center;gap:6px;text-decoration:none;white-space:nowrap}
+.sg-dl:hover{border-color:#3F4EB0;color:#3F4EB0}.sg-dl svg{width:15px;height:15px}
+.sg-zoom{display:flex;gap:4px;margin-inline-start:6px}.sg-zoom button{width:36px;height:36px;border-radius:10px;border:1px solid #D9D3C7;background:#fff;font:inherit;font-size:16px;cursor:pointer;color:#17172B}
+.sg-intro{display:none}
 .sg-wrap{flex:1;display:grid;grid-template-columns:minmax(0,1fr) 400px;gap:20px;padding:20px;max-width:1240px;width:100%;margin:0 auto;align-items:start}
 .sg-doc{overflow:auto;padding:4px 0 20px}
 .sg-doc-in{transform-origin:top center;margin:0 auto}
-.sg-side{position:sticky;top:70px;background:#fff;border:1px solid #E1DBD0;border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:12px;box-shadow:0 6px 30px rgba(0,0,0,.06)}
-.sg-side h2{margin:0;font-size:18px;font-weight:600}.sg-side p{margin:0;color:#5E5B6E;font-size:13.5px;line-height:1.6}
-.sg-f{display:flex;flex-direction:column;gap:5px}.sg-f label{font-size:12.5px;font-weight:600;color:#3C3A4A}
-.sg-in{height:44px;border-radius:10px;border:1px solid #D9D3C7;background:#FBFAF7;padding:0 12px;font:inherit;font-size:15px;color:#17172B;width:100%}
-.sg-in:focus{outline:2px solid #3F4EB0;outline-offset:1px}
-.sg-btn{height:48px;border-radius:12px;border:none;background:#3F4EB0;color:#fff;font:inherit;font-size:15px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%}
-.sg-btn:disabled{opacity:.5;cursor:not-allowed}.sg-btn.ghost{background:#fff;color:#3F4EB0;border:1px solid #C7CCEB}.sg-btn.sm{height:38px;font-size:13.5px;width:auto;padding:0 14px}
-.sg-chips{display:flex;gap:6px;flex-wrap:wrap}.sg-chip{border:1px solid #D9D3C7;background:#fff;border-radius:999px;padding:7px 12px;font:inherit;font-size:13px;cursor:pointer}.sg-chip.on{background:#3F4EB0;border-color:#3F4EB0;color:#fff}
-.sg-otp{display:flex;gap:8px;align-items:center}.sg-otp input{letter-spacing:8px;text-align:center;font-size:22px;font-weight:700;direction:ltr}
-.sg-pad{position:relative;border:1.5px dashed #B9B5AA;border-radius:12px;background:#FBFAF7;height:170px;touch-action:none;overflow:hidden}
-.sg-pad canvas{width:100%;height:100%;display:block;cursor:crosshair}
-.sg-pad .hint{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#B9B5AA;font-size:14px;pointer-events:none}
-.sg-pad .line{position:absolute;left:14px;right:14px;bottom:36px;border-bottom:1px solid #D9D3C7;pointer-events:none}
-.sg-pad-acts{display:flex;justify-content:space-between;gap:8px;align-items:center}
-.sg-chk{display:flex;gap:10px;align-items:flex-start;font-size:13.5px;line-height:1.5;cursor:pointer}.sg-chk input{width:20px;height:20px;margin:1px 0 0;accent-color:#3F4EB0;flex-shrink:0}
-.sg-err{background:#FDECEC;color:#B42318;border-radius:10px;padding:9px 12px;font-size:13.5px;line-height:1.5}
-.sg-ok{background:#E8F7EE;color:#0E7A3B;border-radius:10px;padding:9px 12px;font-size:13.5px}
-.sg-done{text-align:center;display:flex;flex-direction:column;gap:12px;align-items:center;padding:10px 0}
-.sg-done .big{width:72px;height:72px;border-radius:50%;background:#E8F7EE;color:#128C4A;display:flex;align-items:center;justify-content:center;font-size:36px}
-.sg-foot{text-align:center;color:#8A8798;font-size:12px;padding:16px}
-.sg-signers{display:flex;flex-direction:column;gap:4px;font-size:13px;background:#F5F1E9;border-radius:10px;padding:10px 12px;margin-bottom:12px}.sg-signers span{color:#5E5B6E}.sg-signers span.cur{color:#3F4EB0;font-weight:700}.sg-signers span.ok{color:#1E8E4E}
+.sg-side{position:sticky;top:76px;background:#fff;border:1px solid #E1DBD0;border-radius:18px;padding:20px;display:flex;flex-direction:column;gap:16px;box-shadow:0 6px 30px rgba(0,0,0,.06);scroll-margin-top:70px}
+.sg-side h2{margin:0;font-size:19px;font-weight:600}.sg-side p{margin:0;color:#5E5B6E;font-size:14px;line-height:1.6}
+.sg-step{display:flex;flex-direction:column;gap:8px}
+.sg-step-h{display:flex;align-items:center;gap:10px;font-size:15px;font-weight:600;color:#17172B}
+.sg-num{width:26px;height:26px;border-radius:50%;background:#EEF0FA;color:#3F4EB0;font-size:13px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
+.sg-num.ok{background:#E8F7EE;color:#128C4A}
+.sg-f{display:flex;flex-direction:column;gap:6px}.sg-f label{font-size:13px;font-weight:600;color:#3C3A4A}
+.sg-in{height:52px;border-radius:12px;border:1.5px solid #D9D3C7;background:#fff;padding:0 14px;font:inherit;font-size:16px;color:#17172B;width:100%;-webkit-appearance:none;appearance:none}
+.sg-in:focus{outline:none;border-color:#3F4EB0;box-shadow:0 0 0 3px rgba(63,78,176,.18)}
+.sg-btn{min-height:52px;border-radius:14px;border:none;background:#3F4EB0;color:#fff;font:inherit;font-size:16px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:0 16px;text-decoration:none;-webkit-tap-highlight-color:transparent}
+.sg-btn:disabled{opacity:.5;cursor:not-allowed}.sg-btn.ghost{background:#fff;color:#3F4EB0;border:1.5px solid #C7CCEB}.sg-btn.sm{min-height:44px;font-size:14px;width:auto;padding:0 16px;border-radius:12px}
+.sg-btn:focus-visible,.sg-dl:focus-visible,.sg-chip:focus-visible{outline:3px solid rgba(63,78,176,.45);outline-offset:2px}
+.sg-chips{display:grid;grid-template-columns:1fr 1fr;gap:8px}.sg-chip{border:1.5px solid #D9D3C7;background:#fff;border-radius:12px;min-height:48px;padding:6px 10px;font:inherit;font-size:14px;cursor:pointer;color:#17172B;line-height:1.3}
+.sg-chip small{display:block;color:#5E5B6E;font-size:12px;direction:ltr}.sg-chip.on{border-color:#3F4EB0;background:#EEF0FA;color:#3F4EB0;font-weight:600}
+.sg-otp input{letter-spacing:10px;text-align:center;font-size:24px;font-weight:700;direction:ltr;height:58px}
+.sg-link{background:none;border:none;color:#3F4EB0;font:inherit;font-size:13.5px;font-weight:600;cursor:pointer;padding:6px 0;text-decoration:underline;text-underline-offset:3px;align-self:flex-start}
+.sg-link:disabled{color:#8A8798;text-decoration:none;cursor:default}
+.sg-pad{position:relative;border:1.5px solid #CFC8BA;border-radius:14px;background:#FFFFFF;height:190px;touch-action:none;overflow:hidden;box-shadow:inset 0 1px 2px rgba(0,0,0,.04)}
+.sg-pad.has{border-color:#3F4EB0}
+.sg-pad canvas{width:100%;height:100%;display:block;cursor:crosshair;background:#FFFFFF}
+.sg-pad .hint{position:absolute;inset:0 0 40px;display:flex;align-items:center;justify-content:center;color:#9A96A8;font-size:15px;pointer-events:none;text-align:center;padding:0 16px}
+.sg-pad .line{position:absolute;left:18px;right:18px;bottom:40px;border-bottom:1.5px solid #D9D3C7;pointer-events:none}
+.sg-pad .x{position:absolute;right:18px;bottom:44px;color:#B9B5AA;font-size:18px;font-weight:700;pointer-events:none}
+.sg-pad-acts{display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap}
+.sg-chk{display:flex;gap:12px;align-items:flex-start;font-size:14px;line-height:1.55;cursor:pointer;padding:12px;border:1.5px solid #E1DBD0;border-radius:12px;background:#FBFAF7}
+.sg-chk.on{border-color:#3F4EB0;background:#F4F5FC}
+.sg-chk input{width:24px;height:24px;margin:0;accent-color:#3F4EB0;flex-shrink:0}
+.sg-err{background:#FDECEC;color:#B42318;border-radius:12px;padding:11px 14px;font-size:14px;line-height:1.5}
+.sg-ok{background:#E8F7EE;color:#0E7A3B;border-radius:12px;padding:11px 14px;font-size:14px;line-height:1.5}
+.sg-done{text-align:center;display:flex;flex-direction:column;gap:14px;align-items:center;padding:6px 0}
+.sg-done .big{width:76px;height:76px;border-radius:50%;background:#E8F7EE;color:#128C4A;display:flex;align-items:center;justify-content:center;font-size:38px}
+.sg-done-dl{display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%}
+.sg-foot{text-align:center;color:#8A8798;font-size:12px;padding:16px;line-height:1.6}
+.sg-signers{display:flex;flex-direction:column;gap:4px;font-size:13.5px;background:#F5F1E9;border-radius:12px;padding:10px 12px}.sg-signers span{color:#5E5B6E}.sg-signers span.cur{color:#3F4EB0;font-weight:700}.sg-signers span.ok{color:#1E8E4E}
 .sg-blocked{max-width:560px;margin:40px auto;background:#fff;border-radius:16px;padding:28px;text-align:center;border:1px solid #E1DBD0}
 .sg-mob-cta{display:none}
-@media (max-width:900px){.sg-wrap{grid-template-columns:1fr;padding:0;gap:0}.sg-doc{padding:0}.sg-side{position:static;border-radius:20px 20px 0 0;margin-top:-8px;box-shadow:0 -8px 30px rgba(0,0,0,.08)}.sg-doc-in{transform:none!important;width:100%!important}.sg-zoom{display:none}.sg-mob-cta{display:flex;position:fixed;bottom:0;inset-inline:0;z-index:6;padding:10px 14px;background:rgba(255,255,255,.96);border-top:1px solid #E1DBD0}.sg-foot{padding-bottom:80px}}
+.sg-sec{font-size:12px;color:#8A8798;display:flex;gap:6px;align-items:center;justify-content:center}
+@media (max-width:900px){
+  .sg-top{padding:8px 12px;padding-top:max(8px,env(safe-area-inset-top))}.sg-brand img{height:28px}.sg-brand b{font-size:13.5px}.sg-brand small{font-size:11.5px}
+  .sg-dl{height:38px;padding:0 10px}.sg-dl span{display:none}.sg-dl::after{content:attr(data-short);font-size:12.5px}
+  .sg-zoom{display:none}
+  .sg-intro{display:flex;flex-direction:column;gap:10px;margin:12px 12px 0;background:#fff;border:1px solid #E1DBD0;border-radius:18px;padding:16px}
+  .sg-intro h1{margin:0;font-size:19px;font-weight:600;line-height:1.35}.sg-intro p{margin:0;color:#5E5B6E;font-size:14px;line-height:1.6}
+  .sg-steps{display:flex;gap:6px;flex-wrap:wrap}.sg-steps span{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#3C3A4A;background:#F5F1E9;border-radius:999px;padding:6px 10px}
+  .sg-wrap{grid-template-columns:1fr;padding:12px 0 0;gap:12px}
+  .sg-doc{padding:0 12px}.sg-doc-in{transform:none!important;width:100%!important}
+  .sg-doc .dsh{border-radius:16px;border:1px solid #E1DBD0}
+  .sg-side{position:static;border-radius:22px 22px 0 0;padding:20px 16px;padding-bottom:calc(24px + env(safe-area-inset-bottom));box-shadow:0 -8px 30px rgba(0,0,0,.08);border-inline:none;border-bottom:none}
+  .sg-pad{height:210px}
+  .sg-mob-cta{display:flex;position:fixed;bottom:0;inset-inline:0;z-index:6;padding:10px 14px;padding-bottom:calc(10px + env(safe-area-inset-bottom));background:rgba(255,255,255,.97);border-top:1px solid #E1DBD0;transition:transform .2s ease}
+  .sg-mob-cta.hide{transform:translateY(110%)}
+  .sg-foot{padding-bottom:calc(90px + env(safe-area-inset-bottom))}
+}
+@media (max-width:380px){.sg-chips,.sg-done-dl{grid-template-columns:1fr}}
 `
 const api = (a, q = '', opts = {}) => fetch(`/api/meta/${a}${q}`, { signal: AbortSignal.timeout(30000), ...opts, headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) } }).then(async r => { const d = await r.json().catch(() => ({})); return { status: r.status, ...d } })
+
+const DlIcon = () => <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+const LockIcon = () => <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
 
 function SignaturePad({ onChange, name }) {
   const ref = useRef(null), drawing = useRef(false), last = useRef(null), has = useRef(false)
   const [empty, setEmpty] = useState(true)
   const ctx = () => { const c = ref.current; const k = c.getContext('2d'); return { c, k } }
-  useEffect(() => {
+  const setup = () => {
     const { c, k } = ctx(); const r = c.getBoundingClientRect(); const dpr = window.devicePixelRatio || 1
-    c.width = Math.round(r.width * dpr); c.height = Math.round(r.height * dpr); k.scale(dpr, dpr); k.lineWidth = 2.4; k.lineCap = 'round'; k.lineJoin = 'round'; k.strokeStyle = '#1A2A6C'
+    c.width = Math.round(r.width * dpr); c.height = Math.round(r.height * dpr); k.setTransform(dpr, 0, 0, dpr, 0, 0); k.lineWidth = 2.6; k.lineCap = 'round'; k.lineJoin = 'round'; k.strokeStyle = '#1A2A6C'
+  }
+  useEffect(() => {
+    setup()
+    // a phone turned sideways resizes the box: set it up again while it is still empty (a drawn signature is kept)
+    const ro = new ResizeObserver(() => { if (!has.current) setup() })
+    ro.observe(ref.current); return () => ro.disconnect()
   }, [])
   const pos = e => { const r = ref.current.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top } }
   const down = e => { e.preventDefault(); ref.current.setPointerCapture?.(e.pointerId); drawing.current = true; last.current = pos(e); const { k } = ctx(); k.beginPath(); k.moveTo(last.current.x, last.current.y); k.lineTo(last.current.x + .1, last.current.y + .1); k.stroke() }
   const move = e => { if (!drawing.current) return; e.preventDefault(); const p = pos(e); const { k } = ctx(); k.beginPath(); k.moveTo(last.current.x, last.current.y); k.lineTo(p.x, p.y); k.stroke(); last.current = p; if (!has.current) { has.current = true; setEmpty(false) } }
   const up = () => { if (!drawing.current) return; drawing.current = false; if (has.current) onChange(ref.current.toDataURL('image/png')) }
   const clear = () => { const { c, k } = ctx(); k.save(); k.setTransform(1, 0, 0, 1, 0, 0); k.clearRect(0, 0, c.width, c.height); k.restore(); has.current = false; setEmpty(true); onChange('') }
-  const typed = () => { if (!name) return; clear(); const { c, k } = ctx(); const r = c.getBoundingClientRect(); k.save(); k.font = `italic 600 ${Math.min(44, Math.max(26, r.width / Math.max(6, name.length) * 1.4))}px "Rubik", "Heebo", cursive`; k.fillStyle = '#1A2A6C'; k.textAlign = 'center'; k.textBaseline = 'middle'; k.direction = 'rtl'; k.fillText(name, r.width / 2, r.height / 2 - 8); k.restore(); has.current = true; setEmpty(false); onChange(c.toDataURL('image/png')) }
+  const typed = () => { if (!name) return; clear(); const { c, k } = ctx(); const r = c.getBoundingClientRect(); k.save(); k.font = `italic 600 ${Math.min(44, Math.max(26, r.width / Math.max(6, name.length) * 1.4))}px "Rubik", "Heebo", cursive`; k.fillStyle = '#1A2A6C'; k.textAlign = 'center'; k.textBaseline = 'middle'; k.direction = 'rtl'; k.fillText(name, r.width / 2, r.height / 2 - 12); k.restore(); has.current = true; setEmpty(false); onChange(c.toDataURL('image/png')) }
   return (
     <div className="sg-f">
-      <label>החתימה שלכם</label>
-      <div className="sg-pad"><canvas ref={ref} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onPointerLeave={up} aria-label="תיבת חתימה — ציירו את החתימה באצבע או בעכבר"/>{empty && <div className="hint">ציירו כאן את החתימה באצבע או בעכבר</div>}<div className="line"/></div>
-      <div className="sg-pad-acts"><button type="button" className="sg-btn ghost sm" onClick={typed} disabled={!name}>חתימה מהשם שהקלדתם</button><button type="button" className="sg-btn ghost sm" onClick={clear}>ניקוי</button></div>
+      <div className={`sg-pad${empty ? '' : ' has'}`}><canvas ref={ref} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onPointerLeave={up} role="img" aria-label="תיבת חתימה — ציירו את החתימה באצבע או בעכבר"/>{empty && <div className="hint">ציירו כאן את החתימה באצבע או בעכבר</div>}<span className="x" aria-hidden="true">✕</span><div className="line"/></div>
+      <div className="sg-pad-acts"><button type="button" className="sg-btn ghost sm" onClick={typed} disabled={!name}>חתימה מהשם שהקלדתם</button><button type="button" className="sg-btn ghost sm" onClick={clear} disabled={empty}>ניקוי</button></div>
     </div>
   )
 }
 
 export default function SignPage() {
-  const token = (window.location.pathname.match(/^\/sign\/([A-Za-z0-9_-]{20,64})/) || [])[1] || ''
+  const token = signTokenFromPath(window.location.pathname)
   const [st, setSt] = useState({ loading: true })
   const [zoom, setZoom] = useState(1)
   const [form, setForm] = useState({ name: '', idNumber: '', code: '', agree: false, signature: '' })
@@ -77,7 +120,9 @@ export default function SignPage() {
   const [busy, setBusy] = useState('')
   const [err, setErr] = useState('')
   const [done, setDone] = useState(null)
-  const docRef = useRef(null), sideRef = useRef(null)
+  const [sideSeen, setSideSeen] = useState(false)
+  const [now, setNow] = useState(Date.now())
+  const docRef = useRef(null), sideRef = useRef(null), codeRef = useRef(null)
   const [scale, setScale] = useState(1)
   useEffect(() => { document.title = 'חתימה על מסמך · אפיק הנחל' }, [])
   useEffect(() => {
@@ -92,9 +137,17 @@ export default function SignPage() {
     const ro = new ResizeObserver(() => setScale(Math.min(1, (el.clientWidth - 8) / 794)))
     ro.observe(el); return () => ro.disconnect()
   }, [st.view])
+  // the bottom "to the signature" bar hides once the signature panel is on screen
+  useEffect(() => {
+    const el = sideRef.current; if (!el || !('IntersectionObserver' in window)) return
+    const io = new IntersectionObserver(([e]) => setSideSeen(e.isIntersecting), { rootMargin: '0px 0px -30% 0px' })
+    io.observe(el); return () => io.disconnect()
+  }, [st.view])
+  // "send the code again" waits a minute
+  useEffect(() => { if (!otp) return; const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t) }, [otp])
   const sendOtp = async () => {
     setBusy('otp'); setErr('')
-    try { const r = await api('sign-otp', '', { method: 'POST', body: JSON.stringify({ t: token, via }) }); if (r.error) setErr(r.error); else setOtp({ ...r, at: Date.now() }) } catch { setErr('הקוד לא נשלח. נסו שוב.') } finally { setBusy('') }
+    try { const r = await api('sign-otp', '', { method: 'POST', body: JSON.stringify({ t: token, via }) }); if (r.error) setErr(r.error); else { setOtp({ ...r, at: Date.now() }); setTimeout(() => codeRef.current?.focus(), 50) } } catch { setErr('הקוד לא נשלח. נסו שוב.') } finally { setBusy('') }
   }
   const submit = async () => {
     setErr('')
@@ -108,63 +161,96 @@ export default function SignPage() {
       const r = await api('sign-submit', '', { method: 'POST', body: JSON.stringify({ t: token, code: form.code, name: form.name, idNumber: form.idNumber, agree: form.agree, signature: form.signature }), signal: AbortSignal.timeout(60000) })
       if (r.error) { setErr(r.error); return }
       setDone(r); setSt(s => ({ ...s, view: r.view }))
-      window.scrollTo({ top: 0, behavior: 'smooth' })
+      setTimeout(() => sideRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60)
     } catch { setErr('החתימה לא נשלחה. בדקו את החיבור ונסו שוב.') } finally { setBusy('') }
   }
   const v = st.view
-  const signedUrl = `/api/meta/sign-file?t=${encodeURIComponent(token)}&kind=signed&dl=1`
+  const isSigned = !!(done && !done.partial) || !!st.signed || v?.status === 'signed'
+  const file = (kind, dl = true) => `/api/meta/sign-file?t=${encodeURIComponent(token)}&kind=${kind}${dl ? '&dl=1' : ''}`
+  const pdfKind = isSigned ? 'signed' : 'original'
   const sgI = v?.signer
+  const first = String(form.name || v?.client?.name || '').trim().split(/\s+/)[0] || ''
+  const wait = otp ? Math.max(0, 60 - Math.floor((now - otp.at) / 1000)) : 0
+  const downloads = (
+    <div className="sg-done-dl">
+      <a className="sg-btn" href={file(pdfKind)} download>הורדת PDF{isSigned ? ' חתום' : ''}</a>
+      <a className="sg-btn ghost" href={file('docx')} download>הורדת Word</a>
+    </div>
+  )
   const side = done?.partial ? (
     <div className="sg-done" aria-live="polite">
-      <div className="sg-done"><div className="big">✓</div></div>
-      <h2 style={{ margin: 0 }}>החתימה שלכם נקלטה</h2>
-      <p>תודה! המסמך עובר עכשיו לחתימת {done.next?.name || 'החותם הבא'}{done.next?.sent ? ' — הקישור נשלח אליהם.' : '.'} אחרי שכל החותמים יחתמו, כולם יקבלו עותק חתום.</p>
+      <div className="big">✓</div>
+      <h2>החתימה שלכם נקלטה</h2>
+      <p>תודה! המסמך עובר עכשיו לחתימת {done.next?.name || 'החותם הבא'}{done.next?.sent ? ', הקישור נשלח אליהם.' : '.'} אחרי שכל החותמים יחתמו, כולם יקבלו עותק חתום.</p>
       <p style={{ fontSize: 12.5 }}>מספר מסמך <span dir="ltr">{v?.number}</span></p>
     </div>
-  ) : done || st.signed ? (
+  ) : isSigned ? (
     <div className="sg-done" aria-live="polite">
-      <div className="sg-done"><div className="big">✓</div></div>
-      <h2 style={{ margin: 0 }}>המסמך נחתם בהצלחה</h2>
-      <p>{v?.client?.emailMasked ? `עותק חתום נשלח אליכם לכתובת ${v.client.emailMasked}.` : 'העותק החתום שמור אצלנו ונשלח לכם בוואטסאפ לפי בקשה.'}{' '}אפשר גם להוריד אותו כאן.</p>
-      <a className="sg-btn" href={signedUrl}>הורדת העותק החתום (PDF)</a>
-      <p style={{ fontSize: 12.5 }}>מספר מסמך <span dir="ltr">{v?.number}</span>{v?.signature?.at ? ` · נחתם ${new Date(v.signature.at).toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem' })}` : ''}</p>
+      <div className="big">✓</div>
+      <h2>המסמך נחתם בהצלחה</h2>
+      <p>{v?.client?.emailMasked ? `עותק חתום נשלח אליכם לכתובת ${v.client.emailMasked}.` : 'עותק חתום נשלח אליכם בוואטסאפ.'} אפשר גם לשמור אותו כאן:</p>
+      {downloads}
+      <p style={{ fontSize: 12.5 }}>מספר מסמך <span dir="ltr">{v?.number}</span>{v?.signature?.at ? <> · נחתם <span dir="ltr">{new Date(v.signature.at).toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span></> : ''}</p>
     </div>
   ) : st.blocked ? (
-    <div className="sg-done"><h2 style={{ margin: 0 }}>{st.expired ? 'תוקף הקישור פג' : 'אי אפשר לחתום על המסמך'}</h2><p>{st.blocked}</p><a className="sg-btn ghost" href="https://wa.me/972559811814">לפנות למשרד בוואטסאפ</a></div>
+    <div className="sg-done"><h2>{st.expired ? 'תוקף הקישור פג' : 'אי אפשר לחתום על המסמך'}</h2><p>{st.blocked}</p><a className="sg-btn ghost" href="https://wa.me/972559811814">לפנות למשרד בוואטסאפ</a></div>
   ) : (
     <>
-      <h2>חתימה על המסמך</h2>
+      <div><h2>חתימה על המסמך</h2><p style={{ marginTop: 4 }}>שלושה צעדים קצרים, פחות מדקה.</p></div>
       {sgI?.total > 1 && <div className="sg-signers" aria-label="סדר החותמים"><b>חותם {sgI.index + 1} מתוך {sgI.total}: {sgI.name}</b>{sgI.list.map((x, i) => <span key={i} className={x.status === 'signed' ? 'ok' : i === sgI.index ? 'cur' : ''}>{x.status === 'signed' ? '✓ ' : ''}{x.name}</span>)}</div>}
-      <p>קראו את המסמך, קבלו קוד אימות חד-פעמי, ציירו את החתימה ואשרו. זה לוקח דקה.</p>
-      <div className="sg-f"><label>1. קוד אימות</label>
-        {v?.channels?.whatsapp && v?.channels?.email && <div className="sg-chips"><button type="button" className={`sg-chip${via === 'whatsapp' ? ' on' : ''}`} onClick={() => setVia('whatsapp')}>לוואטסאפ {v.client.phoneMasked}</button><button type="button" className={`sg-chip${via === 'email' ? ' on' : ''}`} onClick={() => setVia('email')}>לאימייל {v.client.emailMasked}</button></div>}
-        {!otp ? <button type="button" className="sg-btn ghost" disabled={busy === 'otp'} onClick={sendOtp}>{busy === 'otp' ? 'שולח…' : `שליחת קוד ${via === 'email' ? `לאימייל ${v?.client?.emailMasked || ''}` : `לוואטסאפ ${v?.client?.phoneMasked || ''}`}`}</button>
-          : <><div className="sg-ok">הקוד נשלח {otp.via === 'email' ? 'לאימייל' : 'לוואטסאפ'} {otp.to}. תקף ל-{otp.minutes || OTP_MINUTES} דקות.</div>
-            <div className="sg-otp"><input className="sg-in" inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="••••••" value={form.code} onChange={e => setForm(f => ({ ...f, code: e.target.value.replace(/\D/g, '').slice(0, 6) }))} aria-label="קוד האימות"/><button type="button" className="sg-btn ghost sm" disabled={busy === 'otp'} onClick={sendOtp}>שוב</button></div></>}
-      </div>
-      <div className="sg-f"><label>2. שם מלא</label><input className="sg-in" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} autoComplete="name"/></div>
-      <div className="sg-f"><label>תעודת זהות{v?.client?.idNumber ? '' : ' (לא חובה)'}</label><input className="sg-in" dir="ltr" inputMode="numeric" maxLength={9} value={form.idNumber} onChange={e => setForm(f => ({ ...f, idNumber: e.target.value.replace(/\D/g, '').slice(0, 9) }))}/></div>
-      <SignaturePad name={form.name} onChange={s => setForm(f => ({ ...f, signature: s }))}/>
-      <label className="sg-chk"><input type="checkbox" checked={form.agree} onChange={e => setForm(f => ({ ...f, agree: e.target.checked }))}/><span>קראתי את המסמך, הבנתי את תוכנו ואני מסכים/ה לחתום עליו בחתימה אלקטרונית. מועד החתימה, אמצעי האימות וכתובת ה-IP יתועדו כחלק מהמסמך.</span></label>
+      <section className="sg-step" aria-labelledby="st1">
+        <div className="sg-step-h" id="st1"><span className={`sg-num${otp ? ' ok' : ''}`}>{otp ? '✓' : 1}</span>אימות בקוד חד-פעמי</div>
+        {v?.channels?.whatsapp && v?.channels?.email && !otp && <div className="sg-chips" role="radiogroup" aria-label="לאן לשלוח את הקוד">
+          <button type="button" role="radio" aria-checked={via === 'whatsapp'} className={`sg-chip${via === 'whatsapp' ? ' on' : ''}`} onClick={() => setVia('whatsapp')}>בוואטסאפ<small>{v.client.phoneMasked}</small></button>
+          <button type="button" role="radio" aria-checked={via === 'email'} className={`sg-chip${via === 'email' ? ' on' : ''}`} onClick={() => setVia('email')}>באימייל<small>{v.client.emailMasked}</small></button>
+        </div>}
+        {!otp ? <button type="button" className="sg-btn ghost" disabled={busy === 'otp'} onClick={sendOtp}>{busy === 'otp' ? 'שולח…' : <>שליחת קוד {via === 'email' ? 'לאימייל' : 'לוואטסאפ'} <span dir="ltr">{via === 'email' ? v?.client?.emailMasked : v?.client?.phoneMasked}</span></>}</button>
+          : <>
+            <div className="sg-ok" role="status">הקוד נשלח {otp.via === 'email' ? 'לאימייל' : 'לוואטסאפ'} <span dir="ltr">{otp.to}</span>. תקף ל-{otp.minutes || OTP_MINUTES} דקות.</div>
+            <div className="sg-f sg-otp"><label htmlFor="sg-code">הקוד שקיבלתם</label><input id="sg-code" ref={codeRef} className="sg-in" inputMode="numeric" pattern="[0-9]*" autoComplete="one-time-code" maxLength={6} placeholder="••••••" value={form.code} onChange={e => setForm(f => ({ ...f, code: e.target.value.replace(/\D/g, '').slice(0, 6) }))}/></div>
+            <button type="button" className="sg-link" disabled={wait > 0 || busy === 'otp'} onClick={sendOtp}>{wait > 0 ? `אפשר לבקש קוד חדש בעוד ${wait} שנ׳` : 'לא הגיע? שליחת קוד חדש'}</button>
+          </>}
+      </section>
+      <section className="sg-step" aria-labelledby="st2">
+        <div className="sg-step-h" id="st2"><span className={`sg-num${form.name.trim().length > 1 ? ' ok' : ''}`}>{form.name.trim().length > 1 ? '✓' : 2}</span>הפרטים שלכם</div>
+        <div className="sg-f"><label htmlFor="sg-name">שם מלא</label><input id="sg-name" className="sg-in" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} autoComplete="name" enterKeyHint="next"/></div>
+        <div className="sg-f"><label htmlFor="sg-id">תעודת זהות{v?.client?.idNumber ? '' : ' (לא חובה)'}</label><input id="sg-id" className="sg-in" dir="ltr" inputMode="numeric" pattern="[0-9]*" maxLength={9} value={form.idNumber} onChange={e => setForm(f => ({ ...f, idNumber: e.target.value.replace(/\D/g, '').slice(0, 9) }))} style={{ textAlign: 'right' }}/></div>
+      </section>
+      <section className="sg-step" aria-labelledby="st3">
+        <div className="sg-step-h" id="st3"><span className={`sg-num${form.signature ? ' ok' : ''}`}>{form.signature ? '✓' : 3}</span>החתימה</div>
+        <SignaturePad name={form.name} onChange={s => setForm(f => ({ ...f, signature: s }))}/>
+      </section>
+      <label className={`sg-chk${form.agree ? ' on' : ''}`}><input type="checkbox" checked={form.agree} onChange={e => setForm(f => ({ ...f, agree: e.target.checked }))}/><span>קראתי את המסמך, הבנתי את תוכנו ואני מסכים/ה לחתום עליו בחתימה אלקטרונית. מועד החתימה, אמצעי האימות וכתובת ה-IP יתועדו כחלק מהמסמך.</span></label>
       {err && <div className="sg-err" role="alert">{err}</div>}
       <button type="button" className="sg-btn" disabled={busy === 'sign'} onClick={submit}>{busy === 'sign' ? 'חותם…' : 'אני מאשר/ת וחותם/ת על המסמך'}</button>
+      <div className="sg-sec"><LockIcon/> הקישור אישי ומאובטח · החתימה מתועדת ונשמרת במסמך</div>
     </>
   )
   return (
     <div className="sg">
       <style>{CSS}{DOC_CSS}</style>
       <header className="sg-top">
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}><img src="/logo-black.svg" alt="אפיק הנחל"/><div><b>{v?.title || 'מסמך לחתימה'}</b><small>אפיק הנחל יזום, שיווק, תיווך נדל"ן בע"מ{v?.number ? <> · <span dir="ltr">{v.number}</span></> : null}</small></div></div>
-        <div className="sg-zoom" aria-label="זום"><button type="button" onClick={() => setZoom(z => Math.max(.6, +(z - .1).toFixed(2)))} aria-label="הקטנה">−</button><button type="button" onClick={() => setZoom(1)} aria-label="גודל רגיל" style={{ fontSize: 12 }}>{Math.round(zoom * 100)}%</button><button type="button" onClick={() => setZoom(z => Math.min(1.6, +(z + .1).toFixed(2)))} aria-label="הגדלה">+</button></div>
+        <div className="sg-brand"><img src="/logo-black.svg" alt="אפיק הנחל"/><div style={{ minWidth: 0 }}><b>{v?.title || 'מסמך לחתימה'}</b><small>אפיק הנחל{v?.number ? <> · <span dir="ltr">{v.number}</span></> : null}</small></div></div>
+        {v && <div className="sg-tools">
+          <a className="sg-dl" href={file(pdfKind)} download data-short="PDF" aria-label={`הורדת PDF${isSigned ? ' חתום' : ''}`}><DlIcon/><span>PDF{isSigned ? ' חתום' : ''}</span></a>
+          <a className="sg-dl" href={file('docx')} download data-short="Word" aria-label="הורדת Word"><DlIcon/><span>Word</span></a>
+          <div className="sg-zoom" aria-label="זום"><button type="button" onClick={() => setZoom(z => Math.max(.6, +(z - .1).toFixed(2)))} aria-label="הקטנה">−</button><button type="button" onClick={() => setZoom(1)} aria-label="גודל רגיל" style={{ fontSize: 12 }}>{Math.round(zoom * 100)}%</button><button type="button" onClick={() => setZoom(z => Math.min(1.6, +(z + .1).toFixed(2)))} aria-label="הגדלה">+</button></div>
+        </div>}
       </header>
-      {st.loading ? <div className="sg-blocked">טוען את המסמך…</div> : !v ? <div className="sg-blocked"><h2>{st.blocked}</h2><a className="sg-btn ghost" href="https://wa.me/972559811814" style={{ marginTop: 12 }}>לפנות למשרד בוואטסאפ</a></div> : (
+      {st.loading ? <div className="sg-blocked">טוען את המסמך…</div> : !v ? <div className="sg-blocked"><h2>{st.blocked}</h2><a className="sg-btn ghost" href="https://wa.me/972559811814" style={{ marginTop: 12 }}>לפנות למשרד בוואטסאפ</a></div> : (<>
+        {!isSigned && !st.blocked && !done && <div className="sg-intro">
+          <h1>{first ? `שלום ${first}, ` : ''}המסמך מחכה לחתימה שלכם</h1>
+          <p>{v.title}{v.property?.address ? ` · ${[v.property.address, v.property.city].filter(Boolean).join(', ')}` : ''}{v.expires_at ? ` · בתוקף עד ${new Date(v.expires_at).toLocaleDateString('he-IL', { timeZone: 'Asia/Jerusalem' })}` : ''}</p>
+          <div className="sg-steps"><span>1. קוראים</span><span>2. קוד אימות</span><span>3. חותמים</span></div>
+          <button type="button" className="sg-btn" onClick={() => sideRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>מעבר ישיר לחתימה</button>
+        </div>}
         <div className="sg-wrap">
-          <div className="sg-doc" ref={docRef}><div className="sg-doc-in" style={{ transform: `scale(${scale * zoom})`, width: 794 }}><DocSheet view={v} signatureUrl={done || st.signed ? `/api/meta/sign-file?t=${encodeURIComponent(token)}&kind=signature` : ''}/></div></div>
+          <div className="sg-doc" ref={docRef}><div className="sg-doc-in" style={{ transform: `scale(${scale * zoom})`, width: 794 }}><DocSheet view={v} signatureUrl={isSigned ? file('signature', false) : ''}/></div></div>
           <aside className="sg-side" ref={sideRef} id="sign">{side}</aside>
         </div>
-      )}
-      {v && !done && !st.signed && !st.blocked && <div className="sg-mob-cta"><button type="button" className="sg-btn" onClick={() => sideRef.current?.scrollIntoView({ behavior: 'smooth' })}>לחתימה ↓</button></div>}
-      <footer className="sg-foot">אפיק הנחל יזום, שיווק, תיווך נדל"ן בע"מ · ח.פ. 517082038 · 055-981-1814 · הקישור אישי ומיועד לנמען בלבד</footer>
+      </>)}
+      {v && !done && !isSigned && !st.blocked && <div className={`sg-mob-cta${sideSeen ? ' hide' : ''}`}><button type="button" className="sg-btn" onClick={() => sideRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>לחתימה על המסמך ↓</button></div>}
+      <footer className="sg-foot">אפיק הנחל יזום, שיווק, תיווך נדל"ן בע"מ · ח.פ. 517082038 · <a href="tel:0559811814" style={{ color: 'inherit', whiteSpace: 'nowrap' }} dir="ltr">055-981-1814</a><br/>הקישור אישי ומיועד לנמען בלבד</footer>
     </div>
   )
 }

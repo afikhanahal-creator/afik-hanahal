@@ -764,6 +764,18 @@ spreads the visual line's words; never the last line of a paragraph), phones as 
 a "המתווך" block (name, licence, phone) after the client, the fee table with a top rule, a slim header on later pages (small logo ·
 company · document number), a green "נחתם דיגיטלית · date" stamp in the header of a signed document, a faint diagonal "טיוטה" on a
 draft, headings and clause titles kept with their first lines, the signature block kept with its heading (`need()` before each).
+**Short signing links + the signing page on a phone (2026-11-04):** the link is `https://www.afikhanahal.co.il/s/<code>` — 10
+lowercase English letters / digits without look-alikes (`newSignCode()` in `lib/documents-hash.js`, `SIGN_ALPHABET`, ~50 bits;
+signing also needs the one-time code), read case-insensitively; the older `/sign/<token>` links still open (`signTokenFromPath()`
+in `lib/documents.js`, tested; the route in `src/main.jsx` takes both). The page (`src/SignPage.jsx`) is mobile-first: an intro
+card on phones ("שלום <name>, המסמך מחכה לחתימה שלכם", the 3 steps, "מעבר ישיר לחתימה"), the document, then the panel as
+numbered steps (code → details → signature) with ✓ as each is done; inputs 16 px (iOS doesn't zoom), buttons ≥ 44 px, the code box
+gets the focus with `autocomplete="one-time-code"`, "send again" after a minute, a white signature pad with a baseline and ✕, the
+bottom "לחתימה" bar hides once the panel is on screen (IntersectionObserver), safe-area insets. **PDF and Word downloads** in the
+header at every stage and on the done screen: `sign-file?kind=original | signed | docx` (`signedFileByToken` renders the Word file,
+with the client's signature once signed). The Word file: the logo on the right, the "המתווך" block, a footer with the document and
+"עמוד X מתוך Y", headings kept with the next paragraph, the signature row never split. QA: the scratchpad's `qa-sign-mobile.cjs`
+(iPhone 13 + a 360 px Android).
 **Flow:** `docs-create` cleans the input (`cleanDocInput`), links the CRM lead (the given id, else the newest lead with that phone /
 email — never a new lead), numbers the document and writes `created` on the lead. `docs-send {id, via}` makes the private token
 (kept only as a hash), freezes the clauses on the row, renders the PDF the client signs (stored, its SHA-256 on the row), and

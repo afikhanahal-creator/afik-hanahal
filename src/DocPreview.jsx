@@ -31,7 +31,7 @@ export const DOC_CSS = `
 .dsh-box .ln{border-bottom:1px solid var(--dsh-line);height:34px;margin:8px 10px 6px}
 .dsh-box img{height:44px;object-fit:contain;align-self:center;margin:4px 0}
 .dsh-box small{color:var(--dsh-mute);font-size:8.5pt;display:block;line-height:1.4}
-.dsh-foot{position:absolute;left:17mm;right:17mm;bottom:9mm;border-top:1px solid var(--dsh-line);padding-top:6px;display:flex;justify-content:space-between;color:var(--dsh-mute);font-size:8pt}
+.dsh-foot span{white-space:nowrap}.dsh-foot{flex-wrap:wrap;gap:2px 12px;position:absolute;left:17mm;right:17mm;bottom:9mm;border-top:1px solid var(--dsh-line);padding-top:6px;display:flex;justify-content:space-between;color:var(--dsh-mute);font-size:8pt}
 .dsh-draft{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:140px;font-weight:700;color:rgba(23,23,43,.05);transform:rotate(-30deg);pointer-events:none;user-select:none;letter-spacing:.05em}
 .dsh-stamp{position:absolute;top:14mm;left:17mm;border:2px solid #128C4A;color:#128C4A;border-radius:6px;padding:3px 10px;font-weight:700;font-size:10pt;transform:rotate(-6deg);background:rgba(255,255,255,.9)}
 @media (max-width:640px){.dsh{padding:16px 14px 50px;min-height:0;font-size:14px;width:100%;box-shadow:none;border-radius:0}.dsh-sig{grid-template-columns:1fr}.dsh-rows td:first-child{width:96px}.dsh h1{font-size:21px}.dsh-foot{position:static;margin-top:16px}.dsh-head{flex-wrap:wrap}.dsh-logo.m{height:48px}.dsh-logo.l{height:64px}}
