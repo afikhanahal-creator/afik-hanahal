@@ -41,6 +41,7 @@ const TXT = {
   he: {
     title: 'תיבת הודעות', sub: 'וואטסאפ, מסנג׳ר ואינסטגרם של כל העמודים, לפי הסדר. כל שיחה אפשר להפוך לליד ולשייך לפרויקט.',
     search: 'חיפוש שם, @, טלפון…', f: { all: 'הכל', unread: 'לא נקראו', noreply: 'לא ענו לנו', nolead: 'עוד לא ליד', whatsapp: 'וואטסאפ', messenger: 'מסנג׳ר', instagram: 'אינסטגרם', hidden: 'מוסתרות' },
+    windowClosed: 'חלון המענה של Meta נסגר (עברו 24 שעות מההודעה האחרונה שלהם)', windowHow: 'עונים מ-Meta Business Suite, או מאשרים "Human Agent" ב-App Review ואז המערכת שולחת גם אחרי 24 שעות.', openInMeta: 'מענה ב-Meta Business Suite', sendFailed: 'ההודעה לא נשלחה',
     noReply: ago => `לא ענו · ${ago}`, noReplyTip: 'ההודעה האחרונה שלנו, ועוד לא ענו עליה', deleteChat: 'מחיקת השיחה', hideChat: 'הסתרת השיחה מהתיבה', unhideChat: 'החזרה לתיבה', deleteAsk: n => `למחוק את השיחה עם ${n}? ההודעות יימחקו מהתיבה (הליד, אם יש, נשאר).`, hideAsk: n => `להסתיר את השיחה עם ${n}? ההיסטוריה בוואטסאפ נשארת, והיא תופיע תחת "מוסתרות".`, deleted: 'השיחה נמחקה', hiddenDone: 'השיחה הוסתרה', restored: 'השיחה חזרה לתיבה', isHidden: 'מוסתרת', leadCardBtn: 'כרטיס הליד', rename: 'לחיצה על השם לעריכה',
     allPages: 'כל העמודים', waLine: 'קו המשרד', newN: n => (n === 1 ? 'חדשה' : `${n} חדשות`),
     empty: 'אין שיחות כאן', emptySub: 'הודעות חדשות יגיעו לכאן מעצמן. אפשר גם לייבא את כל ההיסטוריה מ"חשבונות מחוברים".',
@@ -67,6 +68,7 @@ const TXT = {
       { t: 'מוסיפים את העמוד לעסק "אפיק הנחל"', d: 'Business settings ← Accounts ← Pages ← Add. עמוד שאתם מנהלים: "Add a Page". עמוד של עסק אחר: "Request access", ומאשרים מהעסק השני.', href: 'https://business.facebook.com/settings/pages', btn: 'פתיחת Pages' },
       { t: 'נותנים למשתמש המערכת afik-api גישה מלאה', d: 'Users ← System users ← afik-api ← Assign assets ← Pages ← העמוד ← Full control. אם לעמוד יש אינסטגרם, גם ב-Instagram accounts.', href: 'https://business.facebook.com/settings/system-users', btn: 'פתיחת System users' },
       { t: 'חוזרים לכאן ולוחצים "רענון"', d: 'העמוד יופיע ב"עמודים שאפשר להוסיף" ← "הוספה לתיבה" ← ייבוא ההיסטוריה.', btn: 'רענון' },
+      { t: 'פעם אחת: אישור "Human Agent" ב-App Review', d: 'בלעדיו המערכת יכולה לענות רק בתוך 24 שעות מההודעה האחרונה של הלקוח (אחר כך עונים מ-Meta Business Suite). באפליקציה של Meta ← App Review ← Permissions and Features ← Human Agent ← Request.', href: 'https://developers.facebook.com/apps/', btn: 'פתיחת האפליקציה' },
     ],
     missingScopes: 'להרשאות של המפתח של Meta חסר:', scopesHow: 'ב-business.facebook.com ← משתמשי מערכת ← יצירת מפתח חדש עם ההרשאות האלה, ואז להחליף את META_SYSTEM_USER_TOKEN ב-Vercel.',
     igHook: 'אינסטגרם: באפליקציה של Meta ← Webhooks ← Instagram ← להירשם לשדה messages עם אותה כתובת של הלידים.',
@@ -80,6 +82,7 @@ const TXT = {
   en: {
     title: 'Inbox', sub: 'WhatsApp, Messenger and Instagram of every page, in order. Any conversation becomes a lead, linked to a project.',
     search: 'Search name, @, phone…', f: { all: 'All', unread: 'Unread', noreply: 'No reply to us', nolead: 'Not a lead yet', whatsapp: 'WhatsApp', messenger: 'Messenger', instagram: 'Instagram', hidden: 'Hidden' },
+    windowClosed: 'Meta’s reply window is closed (24 h since their last message)', windowHow: 'Answer from Meta Business Suite, or get "Human Agent" approved in App Review and the system sends after 24 h too.', openInMeta: 'Reply in Meta Business Suite', sendFailed: 'The message was not sent',
     noReply: ago => `No reply · ${ago}`, noReplyTip: 'Our last message, not answered yet', deleteChat: 'Delete conversation', hideChat: 'Hide from the inbox', unhideChat: 'Back to the inbox', deleteAsk: n => `Delete the conversation with ${n}? Its messages leave the inbox (the lead, if any, stays).`, hideAsk: n => `Hide the conversation with ${n}? The WhatsApp history stays, and it shows under "Hidden".`, deleted: 'Conversation deleted', hiddenDone: 'Conversation hidden', restored: 'Back in the inbox', isHidden: 'Hidden', leadCardBtn: 'Lead card', rename: 'Click the name to edit it',
     allPages: 'All pages', waLine: 'Office line', newN: n => (n === 1 ? 'new' : `${n} new`),
     empty: 'No conversations here', emptySub: 'New messages arrive here by themselves. You can also import the whole history from "Connected accounts".',
@@ -106,6 +109,7 @@ const TXT = {
       { t: 'Add the page to the "Afik Hanahal" business', d: 'Business settings → Accounts → Pages → Add. A page you manage: "Add a Page". Another business’s page: "Request access", approved there.', href: 'https://business.facebook.com/settings/pages', btn: 'Open Pages' },
       { t: 'Give the system user afik-api full control', d: 'Users → System users → afik-api → Assign assets → Pages → the page → Full control. If it has Instagram, also under Instagram accounts.', href: 'https://business.facebook.com/settings/system-users', btn: 'Open System users' },
       { t: 'Come back and press "Refresh"', d: 'The page shows under "Pages you can add" → "Add to the inbox" → import the history.', btn: 'Refresh' },
+      { t: 'Once: get "Human Agent" approved in App Review', d: 'Without it the system can reply only within 24 h of the person’s last message (after that, from Meta Business Suite). Meta app → App Review → Permissions and Features → Human Agent → Request.', href: 'https://developers.facebook.com/apps/', btn: 'Open the app' },
     ],
     missingScopes: 'The Meta token is missing:', scopesHow: 'business.facebook.com → System users → generate a new token with these permissions, then replace META_SYSTEM_USER_TOKEN in Vercel.',
     igHook: 'Instagram: Meta app → Webhooks → Instagram → subscribe to the messages field with the same URL as the leads.',
@@ -425,7 +429,7 @@ export default function SocialInboxTab({ lang = 'he', onOpenLead, onOpenChat, on
   const loadConv = useCallback(async (key, first = false) => {
     if (key.startsWith('wa:')) return
     const d = await api(`social-thread?id=${encodeURIComponent(key)}`).catch(() => null)
-    if (d && selRef.current === key) setConv(c => ({ key, thread: d.thread, messages: d.messages || [], unread: first ? (d.unread || 0) : c.unread }))
+    if (d && selRef.current === key) setConv(c => ({ key, thread: d.thread, messages: d.messages || [], unread: first ? (d.unread || 0) : c.unread, lastIn: d.lastIn || null }))
   }, [])
   useEffect(() => { loadAll() }, [loadAll])
   useEffect(() => {
@@ -698,7 +702,17 @@ export default function SocialInboxTab({ lang = 'he', onOpenLead, onOpenChat, on
             </div>
           ) : (<>
             <div ref={msgsRef} className="si-msgs">{metaItems}<div ref={endRef}/></div>
-            {err && <div className="si-err si-m">{err}</div>}
+            {(() => {
+              const closed = conv.lastIn && Date.now() - Date.parse(conv.lastIn) > 24 * 3600e3
+              if (!closed && !err) return null
+              return (
+                <div className={`si-notice${err ? ' is-err' : ''}`} role={err ? 'alert' : 'status'}>
+                  <div className="si-notice-t">{err ? <><AlertTriangle size={14}/><b>{t.sendFailed}</b></> : <><Clock size={14}/><b>{t.windowClosed}</b></>}</div>
+                  <div className="si-notice-d">{err || t.windowHow}</div>
+                  <a className="si-secondary si-sm" href={profileLink(th, accounts)} target="_blank" rel="noreferrer"><ExternalLink size={12}/>{t.openInMeta}</a>
+                </div>
+              )
+            })()}
             {tplOpen && (
               <div className="si-tplwin">
                 <ChatTemplatePicker WA={WA} lang={lang} lead={tplLead} msgs={tplMsgs} autoConfig={autoConfig}
@@ -802,6 +816,11 @@ const SI_CSS = `
 .si-badge.is-wait{background:rgba(217,119,6,.12);color:#B45309;font-weight:600}
 .si-badge.is-off{background:rgba(var(--ov),.08);color:var(--au-text3)}
 .si-menu button.is-danger{color:#DC2626}
+.si-notice{flex:none;margin:0 14px 8px;padding:10px 12px;border-radius:12px;border:1px solid rgba(217,119,6,.35);background:rgba(217,119,6,.08);display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;font-size:12.5px;color:var(--au-text)}
+.si-notice.is-err{border-color:rgba(220,38,38,.35);background:rgba(220,38,38,.07)}
+.si-notice-t{display:inline-flex;align-items:center;gap:6px;color:#B45309}
+.si-notice.is-err .si-notice-t{color:#DC2626}
+.si-notice-d{flex:1 1 320px;min-width:0;color:var(--au-text2);line-height:1.5}
 .si-who-name bdi{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .si-who-name svg{flex:none;opacity:.45}
 .si-who-name:hover{color:var(--au-brand-text)}
@@ -826,7 +845,7 @@ const SI_CSS = `
 .si-wa>*{flex:1;min-height:0}
 .si-wa .lcv-b{font-size:calc(14.2px * var(--si-z,1));line-height:calc(19px * var(--si-z,1))}
 .si-msgs{flex:1;min-height:0;overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column;gap:6px}
-.si-day{display:flex;justify-content:center;margin:10px 0 4px;position:sticky;top:0;z-index:2}
+.si-day{display:flex;justify-content:center;margin:10px 0 4px;position:sticky;top:0;z-index:2;pointer-events:none}
 .si-day span{font-size:12px;color:var(--au-text2);background:var(--au-pop);border:1px solid var(--au-line);border-radius:8px;padding:4px 11px}
 .si-day.si-new span{background:#D9FDD3;color:#0B1B33;border-color:transparent;font-weight:700}
 html[data-admin-theme=dark] .si-day.si-new span{background:#005C4B;color:#E9EDEF}
