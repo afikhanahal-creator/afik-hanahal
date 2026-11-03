@@ -327,6 +327,7 @@ async function handleSocial(req, res, action) {
       if (error) return res.status(missingTables(error) ? 200 : 502).json(missingTables(error) ? { chats: [], fnMissing: true } : { error: error.message })
       const office = String(process.env.BUSINESS_NOTIFY_CHATID || '972559811814').replace(/@.*/, '').replace(/\D/g, '')
       const rows = (data || []).filter(r => r.phone !== office)
+      const hidden = (await Auto.getSetting('wa_hidden_chats').catch(() => ({ value: null }))).value || []
       const [names, leads] = await Promise.all([
         chatNames(rows.map(r => ({ phone: r.phone, chatId: `${r.phone}@c.us`, name: '' }))).catch(() => ({ map: new Map() })),
         leadIdsByPhone().catch(() => new Map()),
@@ -334,8 +335,8 @@ async function handleSocial(req, res, action) {
       return res.status(200).json({ chats: rows.map(r => {
         const k = tail9(r.phone), n = names.map.get(k), l = leads.get(k)
         const nm = l?.name || n?.name || ''
-        return { phone: r.phone, name: nm ? hebrewFullName(nm) : '', waName: n?.waName || '', lead_id: l?.id || null, last_text: r.body || (r.type && r.type !== 'textMessage' ? r.type : ''), last_type: r.type, last_dir: r.direction, last_at: r.ts, msgs: Number(r.msgs) || 0, waiting: Number(r.waiting) || 0 }
-      }) })
+        return { phone: r.phone, name: nm ? hebrewFullName(nm) : '', waName: n?.waName || '', lead_id: l?.id || null, last_text: r.body || (r.type && r.type !== 'textMessage' ? r.type : ''), last_type: r.type, last_dir: r.direction, last_at: r.ts, msgs: Number(r.msgs) || 0, waiting: Number(r.waiting) || 0, hidden: hidden.includes(r.phone) }
+      }), hidden })
     }
     // POST social-wa-lead { phone, name, email, projectId, projectName, leadStatus, note } → a CRM lead from a WhatsApp chat, with
     // the chat's last messages as its first note; a phone that is already a lead answers that lead (existing: true)
@@ -406,6 +407,35 @@ async function handleSocial(req, res, action) {
         body: JSON.stringify({ recipient: { id: t.userId }, sender_action: req.body?.on === false ? 'unreact' : 'react', payload: { message_id: mid, ...(req.body?.on === false ? {} : { reaction: 'love' }) } }), signal: AbortSignal.timeout(12000) })
       const d = await r.json().catch(() => ({}))
       if (!r.ok) return res.status(502).json({ error: d.error?.message ? `Meta: ${String(d.error.message).slice(0, 200)}` : 'התגובה לא נשלחה' })
+      return res.status(200).json({ ok: true })
+    }
+    // POST social-wa-hide { phone, on } → a WhatsApp chat out of the inbox (the history stays; "מוסתרות" shows it, on:false brings it back)
+    if (action === 'social-wa-hide') {
+      const p = normalizePhone(req.body?.phone)
+      if (!p) return res.status(400).json({ error: 'phone required' })
+      const cur = (await Auto.getSetting('wa_hidden_chats').catch(() => ({ value: null }))).value || []
+      const next = req.body?.on === false ? cur.filter(x => x !== p) : [...new Set([...cur, p])].slice(-500)
+      await Auto.putSetting('wa_hidden_chats', next)
+      return res.status(200).json({ ok: true, hidden: next })
+    }
+    // POST social-rename { id, name } → the person's name on a Messenger / Instagram thread (and on its CRM lead, when it has one)
+    if (action === 'social-rename') {
+      const id = String(req.body?.id || ''), name = String(req.body?.name || '').replace(/\s+/g, ' ').trim().slice(0, 80)
+      if (!parseThreadId(id) || !name) return res.status(400).json({ error: 'id and name required' })
+      const { data: th, error } = await client.from('social_threads').update({ name }).eq('id', id).select('lead_id').maybeSingle()
+      if (error) return res.status(502).json({ error: error.message })
+      if (th?.lead_id) {
+        const { data: l } = await client.from('contacts').select('id,crm_data').eq('id', th.lead_id).maybeSingle()
+        if (l) await client.from('contacts').update({ name, crm_data: { ...(l.crm_data || {}), name } }).eq('id', l.id)
+      }
+      return res.status(200).json({ ok: true, name, name_he: hebrewFullName(name) })
+    }
+    // POST social-delete { id } → the conversation out of the inbox for good (its messages with it; the lead, if any, stays)
+    if (action === 'social-delete') {
+      const id = String(req.body?.id || '')
+      if (!parseThreadId(id)) return res.status(400).json({ error: 'bad id' })
+      const { error } = await client.from('social_threads').delete().eq('id', id)
+      if (error) return res.status(502).json({ error: error.message })
       return res.status(200).json({ ok: true })
     }
     // POST social-unread { id } → back to "unread" (the row is bold again, like WhatsApp's "mark as unread")

@@ -640,7 +640,13 @@ grid (`EMOJI` from `ChatComposer`), templates (`ChatTemplateMenu` in the header,
 `ChatTemplatePicker` window — rendered for the CRM lead or a stand-in; the text only), a reply box (`social-send`, past 24 h the
 `HUMAN_AGENT` tag). Both: the face opens big (`FaceViewer`, exported from `src/WaFace.jsx`, with a profile link), the name links
 to the person's profile (`profileLink()`: wa.me · instagram.com/@handle · the chat in Meta Business Suite — Meta never gives a
-Messenger profile address), A− / % / A+ and Ctrl / ⌘ + wheel zoom the chat (`--si-z`, `localStorage.afik_inbox_zoom`), the list's
+Messenger profile address); **a click on the name edits it** (`ChatNameEdit` with `onRename`: a WhatsApp chat → the CRM lead's
+`updateLead` or `chat-contact-name`; a Meta thread → `social-rename`, which also renames its lead) with "+ הוספת הפרויקט"; **the
+lead's tools row** (`.si-tools`, for a chat whose person is a CRM lead): the stage pill menu (`StageMenu`), the **project chip with its
+dropdown** (`ProjectChip` — pick, search or create), follow-up, notes, AI summary, "כרטיס הליד"; **"לא ענו לנו"**: a chat whose last
+message is ours for over an hour carries "לא ענו · 2 ימים" (row chip + the tools row) and has its own filter; **delete**: the ⋯ menu
+deletes a Meta conversation (`social-delete`, its messages with it; the lead stays) or **hides** a WhatsApp chat from the inbox
+(`social-wa-hide` → `app_settings.wa_hidden_chats`; the "מוסתרות" filter shows them, "החזרה לתיבה" brings one back), A− / % / A+ and Ctrl / ⌘ + wheel zoom the chat (`--si-z`, `localStorage.afik_inbox_zoom`), the list's
 edge drags (`Splitter`, `afik_inbox_list_w`), and **"הוסף כליד"** (name, phone / email, stage, **project / property — pick, search
 or create** (`ProjectSelect`), a note → `social-to-lead` / `social-wa-lead` (`manualLeadRow` with `channel: 'whatsapp'` → source
 `whatsapp`; a phone already a lead opens that lead), the last 8 messages as the first note). **"חשבונות מחוברים" = the one-stop

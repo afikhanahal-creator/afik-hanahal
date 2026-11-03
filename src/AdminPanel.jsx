@@ -3499,7 +3499,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
         {tab==='social' && (
           <div style={{ height: standalone ? '100%' : 'calc(100vh - 160px)', minHeight: 480 }}>
             <Suspense fallback={<AdminTabLoader label="טוען את תיבת ההודעות…"/>}>
-              <SocialInboxTab lang={lang} onOpenChat={c => { setInitialChatLead({ id: c.leadId || `wa:${c.phone}`, name: c.name, phone: c.phone }); setTab('chats') }} onOpenLead={id => { const l = leads.find(x => String(x.id) === String(id)); if (l) { setTab('leads'); try { const u = new URL(window.location.href); u.searchParams.set('lead', String(id)); window.history.replaceState(window.history.state, '', u) } catch {} } }}/>
+              <SocialInboxTab lang={lang} onUpdateLead={updateLead} onUpdateStatus={updateLeadStatus} stageLabels={stageLabels} onOpenChat={c => { setInitialChatLead({ id: c.leadId || `wa:${c.phone}`, name: c.name, phone: c.phone }); setTab('chats') }} onOpenLead={id => { const l = leads.find(x => String(x.id) === String(id)); if (l) { setTab('leads'); try { const u = new URL(window.location.href); u.searchParams.set('lead', String(id)); window.history.replaceState(window.history.state, '', u) } catch {} } }}/>
             </Suspense>
           </div>
         )}
