@@ -614,6 +614,27 @@ filter is used). `auto-tick?key=` (key = `AUTOMATION_KEY`, or the admin token)
 lets an external pinger such as cron-job.org run the engine every 5 minutes, so timing is exact even with the panel closed.
 Sending hours are `[start, end)` per weekday in 0.5-hour steps (Israel time); welcome, replies and stage messages ignore them.
 
+## Social inbox — Messenger + Instagram → leads (admin "סושיאל", `/admin-panel/social`)
+
+(2026-11-03) `src/SocialInboxTab.jsx` + `api/meta.js` `handleSocial` / `storeSocialEvents` / `syncSocialConversations` + the pure,
+tested `lib/social-hook.js`; tables `social_threads` / `social_messages` (`server/social-migration.sql`: RLS on, service key only,
+`social_threads` announced on the change bus). The same Meta webhook as the leads (`/api/meta/webhook`) now also takes `object: 'page'`
+`messaging` (Messenger) and `object: 'instagram'` (Instagram DMs; an echo = a message the page sent): `parseSocialHook()` → a thread per
+person (`<platform>:<account>:<user>`, name / @username / picture from the Graph, the last line, unread, a phone / email they wrote —
+`contactFromText()`) + the message; a repeat delivery is skipped; a brand-new conversation sends the office a WhatsApp. The tab: the list
+(search, all · not a lead yet · unread · Messenger · Instagram; "ליד" / "כתבו טלפון" badges), the conversation, a reply box (`social-send`
+→ the Send API with the page token — Instagram through the page linked to it; past 24 h it retries with the `HUMAN_AGENT` tag, else says
+so in words), **"הוסף כליד"** (name, the phone / email found, project, stage, note → `social-to-lead` → `manualLeadRow()` with source
+`messenger` / `instagram`, `crm_data.social`, the last 8 messages as the first note; the thread keeps `lead_id` → "כרטיס הליד"), and
+**"חשבונות מחוברים"** (`social-status`: the token's messaging scopes — `pages_messaging`, `instagram_basic`, `instagram_manage_messages`,
+`pages_manage_metadata` —, each own page's webhook fields with "חיבור להודעות" (`?fix=1` adds `messages`, `message_echoes`,
+`messaging_postbacks`, `leadgen` kept), the Instagram business accounts linked to the pages, the WhatsApp line's state, how to add
+another number; "ייבוא שיחות אחרונות" = `social-sync`: the newest 40 conversations × 25 messages per page and platform, quietly).
+**Setup on Meta's side (once):** a System User token with those scopes (replace `META_SYSTEM_USER_TOKEN`), the Meta app approved for
+the messaging permissions (App Review — without it only people with a role on the app reach the webhook), and in the app's Webhooks the
+Instagram object subscribed to `messages` with the leads' callback URL. Several WhatsApp numbers in one chats screen (Daniel's line)
+is the next step: each number = its own Green API instance.
+
 ## Booking page (`/book`) — our own Calendly
 
 `https://www.afikhanahal.co.il/book` (also `/booking`, `/meet`; `?lang=en`, `?type=<id>`, `?ref=` / `utm_campaign` is kept
