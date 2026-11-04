@@ -286,6 +286,20 @@ and the WhatsApp reminder (`remindTasks`, which also sends an `auto: 'wa'` task'
 marked "לא רלוונטי" / "won". The rule is `rules.callback { mode, notifyNow, notify: [numbers], ai }` — the automations "חוקים" card
 "כשליד כותב מתי לחזור אליו" (on / off, notice now, Claude, extra numbers, a live tester); the extra numbers live only in the
 database config, never in code. The follow-ups screen marks these tasks "נוצר מהוואטסאפ" (the quote in the tooltip).
+**A time alone is not a task — Claude reads the conversation first** (2026-11-04): a lead proposing "שלישי ב18:30?" / "או אפילו
+ראשון ב18:30" made two "היום 18:30" reminders (a bare weekday before a time wasn't a day, and any explicit hour counted). Now a
+message that may name a time (`parseCallbackTime`, or a short answer to our own "מתי נוח…?") goes to `aiTimeAnalysis()`
+(`lib/automations.js`: the last 16 messages of the chat, both sides, with Israel times → Claude, `claude-opus-5-5`, effort low,
+9 s) → `{ kind: callback | meeting | proposal | question | other, agreed, date, time, title, summary, confidence }` →
+`callbackDecision()` (`lib/callback-time.js`, tested): a task only for a callback the lead asked for, or a meeting / call BOTH sides
+agreed on (reminded an hour before it, `at` = the meeting); a proposal, a question or a time about something else → nothing
+(`skipped: 'analysis: proposal'`); low confidence → nothing. The task's text is Claude's `title`, the task keeps `kindOf`,
+`summary`, `at`; the note and the office's notice say "מה הבנו מהשיחה: …" (a meeting reads "נקבעה פגישה: … · תזכורת שעה לפני").
+Without Claude (no key / the rule's `ai` off / an error): `strictCallback()` — only a call / get-back word ("תתקשרו מחר ב4") or a
+time given as the answer to our question, never a time the lead offers (`PROPOSAL`: a question mark, "או …", "מתאים לכם"). A bare
+weekday right before a time is that day now ("שלישי ב18:30" → next Tuesday). The notice goes with `sendText(…, { linkPreview:
+false })` (the wa.me link used to make a big "Share on WhatsApp" card). Tests: `lib/callback-ai.test.mjs` (the Claude path,
+mocked), `lib/callback-time.test.mjs`, `lib/callback-task.test.mjs`.
 **On-screen reminders** (2026-10-25, `src/TaskAlerts.jsx`, mounted once in `AdminPanel.jsx`): the same tasks (`remind`, not done,
 due, ≤ 12 h late — `screenReminders()` in `lib/follow-up.js`, tested; the WhatsApp having gone out doesn't matter) pop up in the open
 admin on any screen: a card at the top centre (amber, red once more than 2 min late — `lateText()`: "באיחור 26 דק׳") with the lead's
@@ -317,6 +331,15 @@ the lead card's notes list), "הזזה" (the date / time picker with the quick p
 reminder goes out again at the new time: `remindedAt` cleared) and delete. Past rows are grey, done ones struck through. "משימה
 חדשה": pick a lead (name / phone search), follow-up or task, what, when, reminder (on). A container query turns rows into cards
 under 1060 px.
+**One ordered list (2026-11-04, `src/FollowUpsView.jsx` — replaces the KPI tiles + "להתקשר עכשיו" cards + bucket groups below):**
+three sections in this order — **"פתוחות · הבאות בתור"** (open, due now or later, soonest first, always on top, a sticky day
+divider before every new day: היום / מחר / יום שלישי · 10.11 / בהמשך), **"עבר הזמן ולא בוצע"** (open and past, most recent first,
+red) and **"חזרנו אליהם"** (done, newest first: the time we marked it, "חזרנו · היום" and "נקבע ל…" — so it is clear who we got
+back to and when). Above them: a one-row summary (פתוחות · מהן היום · לא בוצעו בזמן · חזרנו אליהם היום · חזרנו השבוע; a click
+filters; three tiles on narrow screens), a "הבא בתור" bar (the next open task, its time and a call button) and the toolbar (הכל ·
+פתוחות · לא בוצעו בזמן · חזרנו אליהם with counts, follow-ups / tasks, search; `sessionStorage.afik_fv_view`). A task within 10
+minutes of its time still counts as open. "הזזה" on a done task reopens it. QA: the scratchpad's `qa-followups.cjs` (desktop +
+iPhone). The older paragraph below describes the screen before this.
 **Who to call, what was missed** (2026-11-03, the same screen): the status tiles read "לא בוצעו בזמן" (red, filled when > 0) · עוד
 היום · מחר · השבוע · בהמשך · בוצעו היום; under them **"להתקשר עכשיו"** — cards for what passed in the last 48 h and wasn't done (the
 one waiting longest first) and what is due within two hours, one per lead (`callQueue()` in `lib/follow-up.js`, tested), each with
