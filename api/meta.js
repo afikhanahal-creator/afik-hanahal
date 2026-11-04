@@ -7,6 +7,7 @@
 //  sync     → GET historical sync from Meta
 
 import { compressJson } from '../lib/http.js'
+import { waitUntil } from '@vercel/functions'
 import { createClient } from '@supabase/supabase-js'
 import crypto from 'crypto'
 import * as Auto from '../lib/automations.js'
@@ -103,24 +104,24 @@ async function handleGreenHook(req, res) {
   if (!(await greenHookKeyValid(key))) return res.status(401).json({ error: 'Unauthorized' })
   const ev = parseGreenHook(req.body)
   if (!SUPABASE_URL || !SUPABASE_KEY || (ev.kind !== 'message' && ev.kind !== 'status')) return res.status(200).json({ ok: true, kind: ev.kind })
-  const client = sb()
+  // One round trip each (server/wa-fast-path-migration.sql): a message is stored / merged over the row the sender already
+  // wrote (afik_wa_put 'hook' — Green's description wins, the status only moves forward, a repeat delivery is a no-op); a
+  // status moves forward in one statement (afik_wa_status). The insert announces itself on the change bus at once.
+  let stored = false
   try {
-    if (ev.kind === 'message') {
-      const { error } = await client.from('wa_messages').upsert({ ...ev.row, updated_at: new Date().toISOString() }, { onConflict: 'id', ignoreDuplicates: true })   // a repeat delivery never rolls a status back
-      if (error) console.error('[green-hook] store', error.message)
-      // (the chatbot will answer here: ev.row.direction === 'in' → a reply suggestion / an automatic answer)
-      // a lead's reply that names a time ("מחר ב4") → a follow-up task with reminders (lib/automations.js onIncomingMessage)
-      if (!error && ev.row.direction === 'in') {
-        await Promise.race([Auto.onIncomingMessage(ev.row).catch(e => console.error('[green-hook] callback', e.message)), new Promise(ok => setTimeout(ok, 25000))])
-      }
-    } else {
-      const RANK = { failed: -1, sent: 1, delivered: 2, read: 3, played: 4 }
-      const { data: cur } = await client.from('wa_messages').select('status').eq('id', ev.id).maybeSingle()
-      if (cur && (RANK[ev.status] ?? 0) > (RANK[cur.status] ?? 0) || (cur && ev.status === 'failed')) {
-        await client.from('wa_messages').update({ status: ev.status, updated_at: new Date().toISOString() }).eq('id', ev.id)
-      }
-    }
+    const { error } = ev.kind === 'message'
+      ? await sb().rpc('afik_wa_put', { r: ev.row, src: 'hook' })
+      : await sb().rpc('afik_wa_status', { mid: ev.id, st: ev.status })
+    if (error) console.error('[green-hook] store', error.message)
+    else stored = true
   } catch (e) { console.error('[green-hook]', e.message) }
+  // Green delivers its webhooks one after another and waits for each answer: the reply goes out as soon as the message is
+  // stored, and the slower work (a lead's reply that names a time → Claude reads the chat → a follow-up task) carries on in
+  // the background (waitUntil). It used to run before the answer — up to 25 s — and the next message waited behind it (a
+  // lead's second message once arrived 124 s late). scanCallbacks (auto-tick) still re-reads the last 3 hours.
+  if (stored && ev.kind === 'message' && ev.row.direction === 'in') {
+    waitUntil(Auto.onIncomingMessage(ev.row).catch(e => console.error('[green-hook] callback', e.message)))
+  }
   return res.status(200).json({ ok: true })
 }
 
@@ -736,8 +737,10 @@ function cors(res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization')
 }
 
+// one client per instance (it used to be made again for every call: ~1–3 ms of CPU and a fresh auth helper each time)
+let sbClient = null
 function sb() {
-  return createClient(SUPABASE_URL, SUPABASE_KEY)
+  return sbClient || (sbClient = createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: false, autoRefreshToken: false } }))
 }
 
 function checkAuth(req) {

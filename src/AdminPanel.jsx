@@ -1999,31 +1999,8 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   // Clear Meta new-leads badge whenever the Lead Center tab is active
   useEffect(() => { if (tab === 'meta') setMetaNewLeads(0) }, [tab])
 
-  // Global Realtime: track incoming messages across ALL tabs (not just when the
-  // chats tab is open) so the sidebar badge stays live even while you're elsewhere.
-  useEffect(() => {
-    let sb = null, channel = null, cancelled = false
-    // Dynamic import keeps @supabase/supabase-js out of the initial bundle —
-    // it only loads once the admin panel (this component) is actually mounted.
-    import('./lib/supabaseClient').then(({ supabase }) => {
-      if (cancelled || !supabase) return
-      sb = supabase
-      channel = supabase
-        .channel('chats_rt_app')
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chats' }, (payload) => {
-          const msg = payload.new
-          if (!msg?.id || !msg.phone) return
-          const p = intlPhoneFmt(msg.phone)
-          setChats(prev => {
-            const existing = prev[p] || []
-            if (existing.some(m => String(m.id) === String(msg.id))) return prev
-            return { ...prev, [p]: [...existing, msg].sort((a, b) => new Date(a.created_at) - new Date(b.created_at)) }
-          })
-        })
-        .subscribe()
-    }).catch(() => {})
-    return () => { cancelled = true; if (sb && channel) sb.removeChannel(channel) }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  // (a Realtime listener on the legacy `chats` table used to sit here: that table isn't in the Realtime publication, so it
+  //  never fired — it only kept a channel open and the database polling its WAL. Messages arrive through src/lib/waLive.js.)
 
   // ── Incoming WhatsApp messages: one alert system for the whole admin (src/lib/waNotify.js, src/lib/waInbox.js) ──
   // Live (src/lib/waLive.js) a lead's reply reaches the admin in about a second wherever it is open: the sidebar badge counts

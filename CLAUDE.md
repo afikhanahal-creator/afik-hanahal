@@ -378,6 +378,28 @@ accepts it and ✓✓ / blue arrive live; Green's history is re-read after a sen
 `outgoingAPIMessageWebhook`) and points `webhookUrl` at us when either drifted (at most once an hour); `GET /api/meta/chat-settings`
 reports it (`POST {fix:true}` fixes), `chat-status` returns `settings`; probe action `wa-fix`. The chatbot's hook point is
 `handleGreenHook` (an incoming row = a question to answer until a person takes over).
+**Chat performance pass (2026-11-04, measured live with the probe's `chat-perf` action — before / after in the PR):**
+**Functions run in Dublin** (`"regions": ["dub1"]` in `vercel.json`) next to the database (Supabase is AWS eu-west-1, Ireland): they
+ran in Washington (`iad1`), and a PostgREST call that takes 0.4 ms in Postgres cost ~330 ms in the function. **Every API answer
+carries `Server-Timing`** (`lib/http.js`: `app` = the handler, `db` / `green` / `ai` / `meta` / `render` / `google` / `ext` = time
+on each outside service with call counts, from a fetch timer scoped to the request with AsyncLocalStorage; `cold` = a cold start).
+**A sent message is stored the moment Green accepts it** (`sendText` → `sentRow()` → `afik_wa_put(row, 'send')`, tested in
+`lib/wa-sent-row.test.mjs`) — other screens used to wait ~2 s for Green's own webhook about it. **The webhook answers Green right
+after storing** (`handleGreenHook`: one RPC — `afik_wa_put(row, 'hook')` merges Green's description over the sender's row, the
+status only moves forward, a repeat delivery is a no-op; a status is `afik_wa_status(id, status)`, one statement instead of a read +
+a write; `server/wa-fast-path-migration.sql`, applied) and runs the reply's time analysis in the background (`waitUntil` from
+`@vercel/functions`) — Green delivers webhooks one at a time and waits for each answer, and a lead's second message once arrived
+124 s late behind Claude's analysis of the first. `sb()` in `api/meta.js` is one client per instance. **The live feed fetches at
+once** (`src/lib/waLive.js` — no 200 ms debounce; a burst still costs at most two reads). **Five dead Realtime listeners are gone**
+(`postgres_changes` on `chats` / `meta_leads` / `meta_messages` in `AdminPanel`, `GreenAPIChat` (one per open chat + a global one) and
+`MetaLeadsTab`): those tables aren't in the Realtime publication, so they never fired — they only opened channels and made the
+database poll its WAL (~110 k polls in `pg_stat_statements`). With the bus up, an open chat re-reads Green's history every ~3 min
+(was 1) as a safety net. **Rendering:** both conversation views (`GreenAPIChat`, `LeadConversation`) build their bubbles in a
+`useMemo` keyed on the conversation (the box's state lives in the same component, and every letter typed rebuilt every bubble — ~190 ms
+a key at CPU ×4 with 200 messages, now ~65 ms and no long task), handlers read through a ref (`acts`), and only the newest 60
+messages are drawn first (`PAGE_MSGS`) — earlier ones come in pages as the reader scrolls up or presses "הודעות קודמות (N)", the
+scroll position kept (`keepScroll` + `useLayoutEffect`; Safari has no scroll anchoring). Render profile: the scratchpad's
+`perf/render-prof.cjs` (300 chats, 300 leads, a 200-message chat, CPU ×4).
 **Messages written on the office phone are always in the history** (2026-11-01, `server/wa-catchup-migration.sql`, applied):
 Green's webhook brings them as `outgoingMessageReceived` (`by_api = false`, ~2 s; 338 in the week before), and `auto-tick` /
 `auto-run` also run `catchUpMessages()` (`lib/automations.js`): Green's `lastIncomingMessages` + `lastOutgoingMessages` of the last

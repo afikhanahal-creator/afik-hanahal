@@ -3,7 +3,7 @@
 // just what is new (GET /api/meta/chat-updates?since=<cursor>) and hands it to every open chat: the chats tab, the Lead
 // Center, the lead card, the admin's toasts. A lead's reply shows in about a second, with no polling; the chats keep a slow
 // check only while the bus is down (waLiveUp()).
-import { onSync, busUp, debounce } from './syncBus.js'
+import { onSync, busUp } from './syncBus.js'
 
 const AUTH = { Authorization: 'Bearer AFIKhanahal2026' }
 const subs = new Set()
@@ -38,8 +38,9 @@ async function pull() {
 function start() {
   if (started) return
   started = true
-  const go = debounce(pull, 200)
-  // a new message / status, or the bus coming back after a drop (whatever arrived meanwhile)
-  onSync(m => { if (m.t === 'wa_messages' || m.t === '*') go() })
+  // a new message / status, or the bus coming back after a drop (whatever arrived meanwhile): fetched at once — it used to
+  // wait 200 ms first. A burst still costs at most two reads: pull() folds every event that lands while one is in flight
+  // into a single follow-up read.
+  onSync(m => { if (m.t === 'wa_messages' || m.t === '*') pull() })
 }
 
