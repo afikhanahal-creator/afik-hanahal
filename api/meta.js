@@ -6,7 +6,7 @@
 //  messages → GET thread / POST send message
 //  sync     → GET historical sync from Meta
 
-import { compressJson } from '../lib/http.js'
+import { compressJson, markWait } from '../lib/http.js'
 import { waitUntil } from '@vercel/functions'
 import { createClient } from '@supabase/supabase-js'
 import crypto from 'crypto'
@@ -71,6 +71,7 @@ const greenUrl = (method) => `${GREEN_BASE_URL}/waInstance${GREEN_INSTANCE}/${me
 async function greenFetch(url, init = {}, attempt = 0) {
   const r = await globalThis.fetch(url, init)
   if (r.status !== 429 || attempt >= 2 || init.body instanceof FormData) return r
+  markWait(900 * (attempt + 1))
   await new Promise(ok => setTimeout(ok, 900 * (attempt + 1)))
   return greenFetch(url, { ...init, signal: AbortSignal.timeout(10000) }, attempt + 1)
 }

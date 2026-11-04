@@ -237,7 +237,7 @@ if (ACTIONS.includes('chat-perf')) {
     const body = await r.text().catch(() => '')
     const ms = Math.round(performance.now() - t)
     const id = r.headers.get('x-vercel-id') || ''
-    return { ms, http: r.status, bytes: body.length, region: id.split('::').slice(0, -1).join('>'), timing: st(r.headers.get('server-timing')), body }
+    return { ms, http: r.status, bytes: body.length, region: id.split('::').slice(0, -1).join('>'), timing: st(r.headers.get('server-timing')), raw: String(r.headers.get('server-timing') || '').replace(/;desc="(\d+)"/g, '×$1').replace(/;dur=/g, ' '), body }
   }
   const pct = (a, q) => { const s = [...a].sort((x, y) => x - y); return s.length ? s[Math.min(s.length - 1, Math.floor(q * s.length))] : null }
   const bench = async (label, path, init) => {
@@ -246,10 +246,11 @@ if (ACTIONS.includes('chat-perf')) {
     const ms = runs.map(r => r.ms), app = runs.map(r => r.timing.app).filter(x => x != null)
     const keys = [...new Set(runs.flatMap(r => Object.keys(r.timing)))].filter(k => k !== 'app' && k !== 'cold')
     const parts = Object.fromEntries(keys.map(k => [k, pct(runs.map(r => r.timing[k]).filter(x => x != null), 0.5)]))
-    show(`perf ${label}`, { http: [...new Set(runs.map(r => r.http))], wall_p50: pct(ms, 0.5), wall_max: Math.max(...ms), fn_p50: pct(app, 0.5), fn_max: app.length ? Math.max(...app) : null, parts, cold: runs.filter(r => r.timing.cold).length, region: [...new Set(runs.map(r => r.region))], kb: Math.round(pct(runs.map(r => r.bytes), 0.5) / 102.4) / 10 })
+    show(`perf ${label}`, { http: [...new Set(runs.map(r => r.http))], wall_p50: pct(ms, 0.5), wall_max: Math.max(...ms), fn_p50: pct(app, 0.5), fn_max: app.length ? Math.max(...app) : null, parts, cold: runs.filter(r => r.timing.cold).length, region: [...new Set(runs.map(r => r.region))], kb: Math.round(pct(runs.map(r => r.bytes), 0.5) / 102.4) / 10, raw: runs.map(r => r.raw).slice(0, 3) })
     return runs
   }
   const since = () => new Date(Date.now() - 60e3).toISOString()
+  const ONLY = String(process.env.PERF_ONLY || '')
   await bench('chat-updates', `/api/meta/chat-updates?since=${encodeURIComponent(since())}`)
   await bench('chat-history stored (a chat opens)', '/api/meta/chat-history', { method: 'POST', body: JSON.stringify({ phone: OFFICE, count: 100, stored: true }) })
   await bench('chat-history full (Green getChatHistory)', '/api/meta/chat-history', { method: 'POST', body: JSON.stringify({ phone: OFFICE, count: 100 }) })
