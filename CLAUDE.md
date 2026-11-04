@@ -968,6 +968,18 @@ the box) while either is missing and the box isn't ticked, and always on an ID t
 empty strip under it) on a light backdrop, and every `______` blank marked in amber (`DocSheet highlight`, the admin's preview
 only — never the client's page); the wizard and the quick document fill the modal's height; the footer's eye button shows only
 under 1021 px, where the preview is a screen of its own.
+**Viewing and downloading the files in the admin (2026-11-04):** `docs-file` needs the admin login, and every admin link to it
+was a plain `<a href>` — the browser opened it without the Authorization header and showed `{"error":"Unauthorized"}`. Every
+admin screen now goes through `src/DocFileViewer.jsx`: `fetchDocFile(id, kind)` (fetch with the header → a blob URL, cached for
+the session), `downloadDocFile()` (the server's file name) and `openDocFile()` (a new tab opened inside the click, then pointed at
+the bytes). **`DocFileViewer`** is the preview after signing: the browser's PDF viewer in a large window, "החתום / כפי שנשלח",
+PDF · Word · a new tab; a browser without a built-in PDF viewer (`navigator.pdfViewerEnabled === false` — Android Chrome) gets
+open / download buttons. It opens from the list (a file icon on every row and phone card), the drawer ("צפייה במסמך החתום" + PDF
+as sent / signed PDF / Word downloads) and the lead card's documents tab. Never link `docs-file` with a plain href again. **One
+Word file for both sides:** `docxOf()` (`lib/documents-server.js`) serves the office's and the client's `docx`; `renderDocx`
+takes `signatures` (every signer's image in its own box, the client box with the client's — it used to take the last signer's —
+and a certificate block per signer). The probe's `docs` action downloads the newest signed / sent documents' files live
+(whole PDF / whole zip, sizes only) and checks that a request without the login gets 401. QA: the scratchpad's `qa-docfiles.cjs`.
 **Flow:** `docs-create` cleans the input (`cleanDocInput`), links the CRM lead (the given id, else the newest lead with that phone /
 email — never a new lead), numbers the document and writes `created` on the lead. `docs-send {id, via}` makes the private token
 (kept only as a hash), freezes the clauses on the row, renders the PDF the client signs (stored, its SHA-256 on the row), and

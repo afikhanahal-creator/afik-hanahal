@@ -20,6 +20,7 @@ import { ProjectSelect } from './LeadProjects.jsx'
 import TemplateEditor, { TemplateUpload, TE_CSS } from './TemplateEditor.jsx'
 import { templateValues, renderBlocks, missingFields, brokerageTemplate, templateKeys, STANDARD_FIELDS } from '../lib/doc-templates.js'
 
+import { DocFileViewer, openDocFile, downloadDocFile } from './DocFileViewer.jsx'
 const AUTH = { Authorization: 'Bearer AFIKhanahal2026' }
 const TR = {
   he: {
@@ -57,7 +58,6 @@ const api = {
   get: (a, q = {}) => fetch(`/api/meta/${a}${Object.keys(q).length ? '?' + new URLSearchParams(Object.fromEntries(Object.entries(q).filter(([, v]) => v != null && v !== ''))) : ''}`, { headers: AUTH, signal: AbortSignal.timeout(30000) }).then(async r => { const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.error || (d.errors || []).join(' · ') || `HTTP ${r.status}`); return d }),
   post: (a, body) => autoApi.post(a, body),
 }
-const fileUrl = (id, kind, dl = false) => `/api/meta/docs-file?id=${encodeURIComponent(id)}&kind=${kind}${dl ? '&dl=1' : ''}`
 const TONE = { draft: T.grey, sent: T.amber, opened: T.blue, signed: T.green, expired: T.red, cancelled: T.grey, failed: T.red }
 const STATUS_ICON = { draft: PenLine, sent: Clock, opened: Eye, signed: CheckCircle2, expired: AlertTriangle, cancelled: XCircle, failed: AlertTriangle }
 const localPhone = p => { const d = String(p || '').replace(/\D/g, ''); const l = d.startsWith('972') ? '0' + d.slice(3) : d; return l.length === 10 ? `${l.slice(0, 3)}-${l.slice(3, 6)}-${l.slice(6)}` : l }
@@ -313,6 +313,7 @@ export default function DocumentsTab({ lang = 'he', leads = [], properties = [],
   const [wizard, setWizard] = useState(null)       // { doc? (editing a draft), leadId?, prefill? }
   const [quick, setQuick] = useState(() => initialPropertyId ? { propertyId: String(initialPropertyId) } : null)   // "מסמך מהיר מנכס"
   const [open, setOpen] = useState(null)           // the document id in the drawer
+  const [viewFile, setViewFile] = useState(null)   // { id, number, title, signed } → DocFileViewer
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settings, setSettings] = useState(null)
   const load = useCallback(async () => {
@@ -439,7 +440,7 @@ export default function DocumentsTab({ lang = 'he', leads = [], properties = [],
                 <td onClick={e => e.stopPropagation()}><DriveMark t={t} doc={d}/></td>
                 <td><span className="dt-num">{d.signed_at ? whenHe(d.signed_at) : '—'}</span></td>
                 <td onClick={e => e.stopPropagation()}><div className="dt-acts">
-                  <a className="dt-ib" href={fileUrl(d.id, st === 'signed' ? 'signed' : 'original')} target="_blank" rel="noreferrer" title={st === 'signed' ? t.signedCopy : t.download} aria-label={t.download}><Download size={14}/></a>
+                  <button type="button" className="dt-ib" title={st === 'signed' ? 'צפייה במסמך החתום והורדה' : 'צפייה במסמך והורדה'} aria-label={`צפייה ב-${d.number}`} onClick={() => setViewFile({ id: d.id, number: d.number, title: d.data?.title, signed: st === 'signed' })}><FileText size={14}/></button>
                   {['sent', 'opened', 'expired', 'failed', 'draft'].includes(st) && <button type="button" className="dt-ib" title={t.resend} aria-label={t.resend} onClick={() => setOpen(d.id)}><Send size={14}/></button>}
                   <button type="button" className="dt-ib" title={t.open} aria-label={t.open} onClick={() => openDoc(d)}><Eye size={14}/></button>
                   <button type="button" className="dt-ib dt-ib-del" title="מחיקה" aria-label={`מחיקה ${d.number}`} onClick={() => deleteDoc(d)}><Trash2 size={14}/></button>
@@ -450,12 +451,13 @@ export default function DocumentsTab({ lang = 'he', leads = [], properties = [],
             <div key={d.id} className="dt-card" onClick={() => openDoc(d)} role="button" tabIndex={0}>
               <div className="r"><b style={{ fontWeight: 600 }}>{d.client_name || '—'}</b><span className="dt-st" style={{ background: `${TONE[st]}1F`, color: TONE[st] }}>{t.st[st]}</span></div>
               <div className="r" style={{ fontSize: 12.5, color: 'var(--au-text3)' }}><span>{propLine(d.data) || d.number}</span><span className="dt-num">{fmtMoney(f.total)}</span></div>
-              <div className="r" style={{ fontSize: 12, color: 'var(--au-text3)' }}><span className="dt-num">{d.number}{d.project_name ? ` · ${d.project_name}` : ''}</span><span className="dt-del-row"><span className="dt-num">{todayHe(d.created_at)}</span><button type="button" className="dt-ib dt-ib-del" aria-label={`מחיקה ${d.number}`} onClick={e => { e.stopPropagation(); deleteDoc(d) }}><Trash2 size={13}/></button></span></div>
+              <div className="r" style={{ fontSize: 12, color: 'var(--au-text3)' }}><span className="dt-num">{d.number}{d.project_name ? ` · ${d.project_name}` : ''}</span><span className="dt-del-row"><span className="dt-num">{todayHe(d.created_at)}</span><button type="button" className="dt-ib" aria-label={`צפייה ב-${d.number}`} title="צפייה במסמך והורדה" onClick={e => { e.stopPropagation(); setViewFile({ id: d.id, number: d.number, title: d.data?.title, signed: st === 'signed' }) }}><FileText size={13}/></button><button type="button" className="dt-ib dt-ib-del" aria-label={`מחיקה ${d.number}`} onClick={e => { e.stopPropagation(); deleteDoc(d) }}><Trash2 size={13}/></button></span></div>
             </div>) })}</div>
         </>
       ))}
       <p style={{ fontSize: 12, color: 'var(--au-text3)', margin: 0 }}>{t.legal}</p>
       {quick && <QuickDoc t={t} leads={leads} properties={properties} projects={projects} templates={templates} settings={settings} initPropertyId={quick.propertyId || ''} initLeadId={quick.leadId || ''} initTemplateId={quick.templateId || ''} manual={!!quick.manual} onClose={() => setQuick(null)} onDone={msg => { setQuick(null); if (msg) push(msg); load() }} onFull={prefill => { setQuick(null); setWizard(prefill && prefill.property ? { prefill } : { projectId: project || '' }) }} push={push} onPresetSaved={s => setSettings(s)}/>}
+      {viewFile && <DocFileViewer doc={viewFile} onClose={() => setViewFile(null)}/>}
       {wizard && <DocWizard t={t} leads={leads} properties={properties} projects={projects} templates={templates} settings={settings} init={wizard} onClose={() => setWizard(null)} onDone={(msg) => { setWizard(null); if (msg) push(msg); load() }} push={push} onQuick={tid => { const leadId = wizard.leadId || ''; setWizard(null); setQuick({ manual: true, templateId: tid === 'brokerage' ? '' : tid, leadId }) }}/>}
       {tplEditor && <Modal open onClose={() => setTplEditor(null)} title={null} full xl dir="rtl" label={t.areas.templates} closeOnBackdrop={false}>
         <div style={{ height: 'calc(100vh - 80px)', maxHeight: 920, display: 'flex', flexDirection: 'column' }}>
@@ -796,7 +798,7 @@ function PreviewBar({ onBack, onClose, label = 'חזרה לטופס' }) {
  *  +, the PDF once a draft is saved), the sheet sized to its real scaled height (a scaled sheet used to leave an empty scroll
  *  area under it), blanks marked in amber; on a phone the bar with "חזרה לטופס" + ✕ instead. */
 const ZOOMS = [0.5, 0.6, 0.75, 0.9, 1, 1.15, 1.3]
-function SheetPreview({ view, onBack, onClose, pdfHref = '' }) {
+function SheetPreview({ view, onBack, onClose, pdfId = '', push = null }) {
   const box = useRef(null), sheet = useRef(null)
   const [fit, setFit] = useState(0.8)
   const [zoom, setZoom] = useState(0)           // 0 = fit to the pane
@@ -828,7 +830,7 @@ function SheetPreview({ view, onBack, onClose, pdfHref = '' }) {
           <button type="button" className="v" onClick={() => setZoom(0)} title="התאמה לרוחב">{zoom ? `${Math.round(scale * 100)}%` : 'התאמה'}</button>
           <button type="button" onClick={() => step(1)} aria-label="הגדלה" disabled={scale >= ZOOMS[ZOOMS.length - 1] - 0.01}>+</button>
         </div>
-        {pdfHref && <a className="dw-chip" href={pdfHref} target="_blank" rel="noreferrer"><FileText size={12}/> PDF</a>}
+        {pdfId && <button type="button" className="dw-chip" onClick={() => openDocFile(pdfId, 'original').catch(e => push?.(e.message))}><FileText size={12}/> PDF</button>}
       </div>
       <div className="dw-prev-stage">
         <div className="dw-prev-size" style={{ width: Math.round(794 * scale), height: Math.round(h * scale) }}>
@@ -1018,8 +1020,8 @@ function DocWizard({ t, leads, properties, projects = [], templates = [], settin
     <>
       <p style={{ margin: 0, fontSize: 13, color: 'var(--au-text3)' }}>{t.previewHint}</p>
       <div className="dw-chips">
-        {docId && <a className="dw-chip" href={fileUrl(docId, 'original')} target="_blank" rel="noreferrer">{t.openPdf}</a>}
-        {docId && <a className="dw-chip" href={fileUrl(docId, 'docx', true)}>{t.downloadWord}</a>}
+        {docId && <button type="button" className="dw-chip" onClick={() => openDocFile(docId, 'original').catch(e => push(e.message))}>{t.openPdf}</button>}
+        {docId && <button type="button" className="dw-chip" onClick={() => downloadDocFile(docId, 'docx').catch(e => push(e.message))}>{t.downloadWord}</button>}
         <button type="button" className="dw-chip" onClick={() => setShowPrev(s => !s)}>{showPrev ? 'חזרה לטופס' : t.preview}</button>
       </div>
       {number && <div className="dw-ok"><Check size={13}/> {t.saveDraft}: {number}</div>}
@@ -1064,7 +1066,7 @@ function DocWizard({ t, leads, properties, projects = [], templates = [], settin
             </div>
           </div>
         </div>
-        <SheetPreview view={view} onBack={() => setShowPrev(false)} onClose={onClose} pdfHref={docId ? fileUrl(docId, 'original') : ''}/>
+        <SheetPreview view={view} onBack={() => setShowPrev(false)} onClose={onClose} pdfId={docId || ''} push={push}/>
       </div>
     </Modal>
   )
@@ -1341,6 +1343,8 @@ function DocDrawer({ t, doc, onClose, onChanged, push, onOpenLead, leads, onEdit
   const [link, setLink] = useState('')
   const [via, setVia] = useState(null)
   const [msg, setMsg] = useState(null)
+  const [viewKind, setViewKind] = useState('')
+  const [dlBusy, setDlBusy] = useState('')
   useEffect(() => { setFull(null); setLink(''); setVia(null); setMsg(null); if (doc?.id) api.get('docs-get', { id: doc.id }).then(setFull).catch(e => push(e.message)) }, [doc?.id]) // eslint-disable-line react-hooks/exhaustive-deps
   if (!doc) return null
   const st = effectiveStatus(doc), d = doc.data || {}, f = computeFees(d.fees || {})
@@ -1370,11 +1374,12 @@ function DocDrawer({ t, doc, onClose, onChanged, push, onOpenLead, leads, onEdit
           {doc.expires_at && st !== 'signed' && <><span>תוקף הקישור</span><b>{todayHe(doc.expires_at)}</b></>}
         </div>
         <div className="dd-sec"><SectionHead title={t.drawer.files}/><div className="dd-files">
-          <a className="dw-chip" href={fileUrl(doc.id, 'original')} target="_blank" rel="noreferrer"><FileText size={12}/> PDF</a>
-          {doc.signed_path && <a className="dw-chip on" href={fileUrl(doc.id, 'signed')} target="_blank" rel="noreferrer"><CheckCircle2 size={12}/> {t.signedCopy}</a>}
-          <a className="dw-chip" href={fileUrl(doc.id, 'docx', true)}><Download size={12}/> {t.word}</a>
+          <Button size="sm" variant="brand" icon={<Eye size={13}/>} onClick={() => setViewKind(doc.signed_path ? 'signed' : 'original')}>{doc.signed_path ? 'צפייה במסמך החתום' : 'צפייה במסמך'}</Button>
+          {[['original', <><FileText size={12}/> {doc.signed_path ? 'PDF כפי שנשלח' : 'PDF'}</>], ...(doc.signed_path ? [['signed', <><CheckCircle2 size={12}/> {t.signedCopy} (PDF)</>]] : []), ['docx', <><Download size={12}/> {t.word}</>]].map(([k, label]) =>
+            <button key={k} type="button" className={`dw-chip${k === 'signed' ? ' on' : ''}`} disabled={!!dlBusy} onClick={async () => { setDlBusy(k); try { await downloadDocFile(doc.id, k) } catch (e) { push(e.message) } finally { setDlBusy('') } }}>{dlBusy === k ? 'מוריד…' : label}</button>)}
           {full?.urls?.signature && <a className="dw-chip" href={full.urls.signature} target="_blank" rel="noreferrer">החתימה</a>}
         </div></div>
+        {viewKind && <DocFileViewer doc={{ id: doc.id, number: doc.number, title: d.title, signed: !!doc.signed_path }} kind={viewKind} onClose={() => setViewKind('')}/>}
         <div className="dd-sec"><SectionHead title="פעולות"/><div className="dd-files">
           {canResend && <Button size="sm" variant="soft-green" icon={<Send size={12}/>} loading={busy === 'docs-send'} onClick={() => setVia(via ? null : 'pick')}>{t.resend}</Button>}
           {via && <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%' }}>
@@ -1576,4 +1581,4 @@ function DriveSettings({ t, f, setF, setErr }) {
     </div>
   )
 }
-export { fileUrl as docFileUrl, TONE as DOC_TONE }
+export { TONE as DOC_TONE }
