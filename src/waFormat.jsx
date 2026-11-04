@@ -1,16 +1,21 @@
 // WhatsApp text formatting → React nodes (no innerHTML), the subset WhatsApp itself renders:
-//   *bold*  _italic_  ~strike~  ```mono```  + links.  One level of nesting.
+//   *bold*  _italic_  ~strike~  ```mono```  + links (real <a>, new tab — http(s):// and www.).  One level of nesting.
 // A marker must touch a non-space character inside, and the opening marker must follow the start of the
 // line, a space or punctuation (so "2*3*4" and "snake_case_name" stay plain, like on WhatsApp).
 // Personal values can be highlighted in previews: renderTemplate output wrapped with HL_OPEN/HL_CLOSE.
 import { Fragment } from 'react'
+import { splitLink } from './lib/waLinks.js'
+export { splitLink }
 
 export const HL_OPEN = '\uE000', HL_CLOSE = '\uE001'
 const PRE = '(^|[\\s.,!?;:()\\[\\]"\'\\u05BE\\u2013\\u2014-])'
 const M = c => `\\${c}(?=[^\\s\\${c}])(?:[^\\${c}\\n]*?[^\\s\\${c}])?\\${c}`
-const TOKEN = new RegExp(`${PRE}(\`\`\`[\\s\\S]+?\`\`\`|${M('*')}|${M('_')}|${M('~')})|(https?:\\/\\/[^\\s${HL_CLOSE}]+)|(${HL_OPEN}[^${HL_CLOSE}]*${HL_CLOSE})`, 'g')
+const TOKEN = new RegExp(`${PRE}(\`\`\`[\\s\\S]+?\`\`\`|${M('*')}|${M('_')}|${M('~')})|((?:https?:\\/\\/|www\\.)[^\\s${HL_OPEN}${HL_CLOSE}<>]+)|(${HL_OPEN}[^${HL_CLOSE}]*${HL_CLOSE})`, 'g')
 
-function inline(text, key, depth = 0, highlight) {
+// the link opens in a new tab and never reaches the bubble under it (select mode, the message menu, a clickable card)
+const stop = e => e.stopPropagation()
+
+function inline(text, key, depth = 0, highlight, linkColor) {
   const out = []
   let last = 0, m, i = 0
   const re = new RegExp(TOKEN.source, 'g')
@@ -21,12 +26,20 @@ function inline(text, key, depth = 0, highlight) {
     const k = `${key}-${i++}`
     if (hl) {
       const inner = hl.slice(1, -1)
-      out.push(highlight ? <span key={k} style={{ borderBottom: '1px dotted #53BDEB', paddingBottom: 1 }}>{inline(inner, k, depth, highlight)}</span> : <Fragment key={k}>{inline(inner, k, depth, highlight)}</Fragment>)
+      out.push(highlight ? <span key={k} style={{ borderBottom: '1px dotted #53BDEB', paddingBottom: 1 }}>{inline(inner, k, depth, highlight, linkColor)}</span> : <Fragment key={k}>{inline(inner, k, depth, highlight, linkColor)}</Fragment>)
+    } else if (url && /\w$/.test(text.slice(0, m.index)) && /^www\./i.test(url)) {
+      out.push(url)                                       // "abcwww.x" is a word, not a link
     } else if (url) {
-      out.push(<span key={k} style={{ color: '#53BDEB', textDecoration: 'underline', wordBreak: 'break-all' }}>{url}</span>)
+      const { url: u, rest, href } = splitLink(url)
+      if (u.replace(/^(https?:\/\/|www\.)/i, '').length < 2) out.push(url)
+      else {
+        out.push(<a key={k} href={href} target="_blank" rel="noopener noreferrer" dir="ltr" onClick={stop} onMouseDown={stop} onPointerDown={stop}
+          style={{ color: linkColor || 'var(--wa-link, #53BDEB)', textDecoration: 'underline', wordBreak: 'break-all', cursor: 'pointer', unicodeBidi: 'isolate', minHeight: 0 }}>{u}</a>)
+        if (rest) out.push(rest)
+      }
     } else if (fmt) {
       const inner = fmt.startsWith('```') ? fmt.slice(3, -3) : fmt.slice(1, -1)
-      const kids = depth < 1 && !fmt.startsWith('```') ? inline(inner, k, depth + 1, highlight) : inner
+      const kids = depth < 1 && !fmt.startsWith('```') ? inline(inner, k, depth + 1, highlight, linkColor) : inner
       if (fmt.startsWith('```')) out.push(<code key={k} style={{ fontFamily: 'ui-monospace,Menlo,Consolas,monospace', fontSize: '.92em' }}>{kids}</code>)
       else if (fmt[0] === '*') out.push(<b key={k}>{kids}</b>)
       else if (fmt[0] === '_') out.push(<i key={k}>{kids}</i>)
@@ -38,10 +51,10 @@ function inline(text, key, depth = 0, highlight) {
   return out
 }
 
-export function WAText({ text, highlight }) {
+export function WAText({ text, highlight, linkColor }) {
   const src = highlight ? String(text || '') : String(text || '').replace(new RegExp(`[${HL_OPEN}${HL_CLOSE}]`, 'g'), '')
   const lines = src.split('\n')
-  return lines.map((ln, i) => <Fragment key={i}>{inline(ln, `l${i}`, 0, highlight)}{i < lines.length - 1 && '\n'}</Fragment>)
+  return lines.map((ln, i) => <Fragment key={i}>{inline(ln, `l${i}`, 0, highlight, linkColor)}{i < lines.length - 1 && '\n'}</Fragment>)
 }
 export const stripHL = s => String(s || '').replace(new RegExp(`[${HL_OPEN}${HL_CLOSE}]`, 'g'), '')
 

@@ -9,6 +9,7 @@
 // their status, the pages the Meta token reaches but aren't in yet ("+ הוספה לתיבה"), a 3-step guide (with links) for a page
 // that isn't listed yet, the WhatsApp line, and the whole history imported in steps. Server: api/meta.js handleSocial;
 // rules: lib/social-hook.js; WhatsApp threads: server/social-inbox-migration.sql.
+import { WAText } from './waFormat.jsx'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { FaFacebookMessenger, FaInstagram, FaWhatsapp } from 'react-icons/fa'
@@ -599,7 +600,7 @@ export default function SocialInboxTab({ lang = 'he', onOpenLead, onOpenChat, on
             onSaveTemplate={m.body ? saveAsTemplate : undefined} onForward={m.body ? () => setFwd([m.body]) : undefined}
             {...(th?.platform === 'instagram' && !isOut ? { onReact: emo => reactIg(m, emo), myReaction: reacts[m.id] ? '❤️' : '' } : {})}/>}
           {(m.attachments || []).map((a, i2) => a.type === 'image' && a.url ? <img key={i2} src={a.url} alt="" referrerPolicy="no-referrer" loading="lazy"/> : a.url ? <a key={i2} href={a.url} target="_blank" rel="noreferrer">📎 {a.name || a.type}</a> : null)}
-          {m.body && <span dir="auto">{m.body}</span>}
+          {m.body && <span dir="auto"><WAText text={m.body}/></span>}
           <small>{fmtTime(m.ts, lang)}</small>
           {reacts[m.id] && <i className="si-react" aria-label="❤️">❤️</i>}
         </div>,

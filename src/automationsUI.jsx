@@ -457,7 +457,7 @@ export function PhonePreview({ text, image = '', lang = 'he', online = 'מחוב
           style={{ position: 'relative', background: T.wa.out, color: T.wa.text, borderRadius: '10px 10px 2px 10px', padding: image ? '3px 3px 18px' : '7px 10px 18px', maxWidth: image ? '78%' : '88%', marginInlineStart: 'auto', fontSize: 14.2, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word', boxShadow: '0 1px 1px rgba(0,0,0,.2)' }}>
           {/* a template's picture: WhatsApp shows it on top of the bubble, the text is its caption */}
           {image && <img src={`https://wsrv.nl/?url=${encodeURIComponent(image)}&w=520&output=webp&q=75`} alt="" style={{ display: 'block', width: '100%', maxHeight: 300, objectFit: 'cover', borderRadius: 8, marginBottom: text ? 4 : 0 }}/>}
-          {text ? <span style={image ? { display: 'block', padding: '2px 7px 0' } : undefined}><WAText text={text} highlight={highlight}/></span> : !image && <span style={{ opacity: .45 }}>…</span>}
+          {text ? <span style={image ? { display: 'block', padding: '2px 7px 0' } : undefined}><WAText text={text} highlight={highlight} linkColor={T.wa.link}/></span> : !image && <span style={{ opacity: .45 }}>…</span>}
           <span style={{ position: 'absolute', bottom: 4, insetInlineEnd: 8, fontSize: 11, color: T.wa.meta, direction: 'ltr' }}>{time} <span style={{ color: T.wa.link }}>✓✓</span></span>
         </div>
       </div>
