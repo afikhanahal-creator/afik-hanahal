@@ -122,6 +122,42 @@ if (ACTIONS.includes('docs-test')) {
     show(`docs-test send (HTTP ${s2.status}, ${Date.now() - t2} ms)`, { status: sd.doc?.status, results: (sd.results || []).map(x => ({ via: x.via, ok: x.ok, error: x.error })), error: sd.error })
   }
 }
+// social: the Facebook pages / Instagram accounts the office's System User reaches and which are in the inbox (names only — pages
+// are public), the token's missing messaging scopes. admin-nav: open the inbox in a real browser on the live site and say which
+// screen it lands on (the address and the screen's title, page errors) — no screenshot, no message text (the repo is public).
+if (ACTIONS.includes('social')) {
+  const r = await fetch(`${SITE}/api/meta/social-status`, { headers: H, signal: AbortSignal.timeout(60000) }).catch(e => ({ ok: false, status: 0, json: async () => ({ error: e.message }) }))
+  const d = await r.json().catch(() => ({}))
+  show(`social status (HTTP ${r.status})`, {
+    missingScopes: d.missing, tokenError: d.tokenError, availableError: d.availableError, ok: d.ok, tablesMissing: d.tablesMissing,
+    inbox: (d.pages || []).map(x => ({ name: x.name, messages: x.messages, leads: x.leads, error: x.error })),
+    reachable: (d.available || []).map(x => ({ name: x.name, inbox: x.inbox, instagram: x.ig?.username || null })),
+    instagram: (d.instagram || []).map(x => x.username),
+  })
+}
+if (ACTIONS.includes('admin-nav')) {
+  let chromium = null
+  try { ({ chromium } = await import('playwright')) } catch { try { ({ chromium } = await import('playwright-core')) } catch {} }
+  if (!chromium) show('admin-nav', { skipped: 'no browser' })
+  else {
+    const browser = await chromium.launch(process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHROMIUM } : {})
+    for (const [label, size] of [['desktop', { width: 1440, height: 900 }], ['phone', { width: 390, height: 844 }]]) {
+      const ctx = await browser.newContext({ viewport: size, locale: 'he-IL', isMobile: label === 'phone', hasTouch: label === 'phone' })
+      await ctx.addInitScript(() => { try { sessionStorage.setItem('afik_admin_session', '1'); localStorage.setItem('afik_no_track', '1') } catch {} })
+      await ctx.route(/\.(mp4|mov|webm)(\?|$)/i, r => r.abort())
+      const page = await ctx.newPage(); const errs = []
+      page.on('pageerror', e => errs.push(String(e.message || e).slice(0, 160)))
+      const state = () => page.evaluate(() => ({ path: location.pathname, inbox: !!document.querySelector('.si'), chats: !!document.querySelector('.wa-chat, .wa-has-contact, [class*="wa-list"]'), title: (document.querySelector('.admin-nav-item[aria-current="page"]')?.innerText || '').trim().slice(0, 40) }))
+      await page.goto(`${SITE}/admin-panel/social`, { waitUntil: 'domcontentloaded', timeout: 45000 }).catch(e => errs.push('goto: ' + e.message))
+      const seen = []
+      for (const at of [2, 5, 9, 14]) { await page.waitForTimeout(at === 2 ? 2000 : (at === 5 ? 3000 : at === 9 ? 4000 : 5000)); seen.push({ at: `${at}s`, ...(await state().catch(e => ({ error: e.message }))) }) }
+      show(`admin-nav ${label}: direct /admin-panel/social`, { seen, errors: errs.slice(0, 6) })
+      await ctx.close()
+    }
+    await browser.close()
+  }
+}
+
 if (ACTIONS.includes('docs')) {
   const call = async (label, path, init = {}) => {
     const t = Date.now()
