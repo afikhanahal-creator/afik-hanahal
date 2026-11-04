@@ -2,11 +2,12 @@
 // every step — created, sent, opened, signed, cancelled), with its status, the property, the fee, the dates and the files
 // (the PDF sent, the signed copy), and "+ מסמך חדש" → the documents tab's wizard on this lead (the afik:new-doc event).
 import { FileSignature, Plus, Download, CheckCircle2, Clock, Eye, AlertTriangle, XCircle, PenLine } from 'lucide-react'
+import { useState } from 'react'
+import { DocFileViewer, downloadDocFile } from './DocFileViewer.jsx'
 import { STATUS_HE, effectiveStatus, fmtMoney, fmtPct, todayHe, whenHe } from '../lib/documents.js'
 
 const TONE = { draft: '#9A9AA8', sent: '#F5A623', opened: '#60A5FA', signed: '#25D366', expired: '#E05252', cancelled: '#9A9AA8', failed: '#E05252' }
 const ICON = { draft: PenLine, sent: Clock, opened: Eye, signed: CheckCircle2, expired: AlertTriangle, cancelled: XCircle, failed: AlertTriangle }
-const fileUrl = (id, kind) => `/api/meta/docs-file?id=${encodeURIComponent(id)}&kind=${kind}`
 const CSS = `
 .ld{display:flex;flex-direction:column;gap:10px}
 .ld-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
@@ -16,13 +17,16 @@ const CSS = `
 .ld-row .st{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:2px 9px;font-size:12px;font-weight:600;white-space:nowrap}
 .ld-row small{color:var(--au-text3);display:block;font-size:12px}
 .ld-files{grid-column:1/-1;display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
-.ld-files a{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--au-line);border-radius:999px;padding:4px 10px;font-size:12px;color:var(--au-text2);text-decoration:none;min-height:0}
-.ld-files a.on{border-color:rgba(37,211,102,.5);color:var(--au-green-text)}
+.ld-files a,.ld-files button{font:inherit;background:transparent;cursor:pointer;display:inline-flex;align-items:center;gap:5px;border:1px solid var(--au-line);border-radius:999px;padding:4px 10px;font-size:12px;color:var(--au-text2);text-decoration:none;min-height:0}
+.ld-files .on{border-color:rgba(37,211,102,.5);color:var(--au-green-text)}
+.ld-files .pri{border-color:rgba(var(--brand-rgb),.4);color:var(--au-brand-text);background:var(--au-brand-soft);font-weight:600}
 .ld-empty{color:var(--au-text3);font-size:13px;line-height:1.6;padding:8px 0}
 `
 export function LeadDocsTab({ lead, lang = 'he' }) {
   const list = Array.isArray(lead?.documents) ? lead.documents : (Array.isArray(lead?.crm_data?.documents) ? lead.crm_data.documents : [])
   const en = lang === 'en'
+  const [view, setView] = useState(null), [err, setErr] = useState('')
+  const dl = (id, kind) => { setErr(''); downloadDocFile(id, kind).catch(e => setErr(e.message)) }
   const open = () => window.dispatchEvent(new CustomEvent('afik:new-doc', { detail: { leadId: lead.id } }))
   return (
     <div className="ld">
@@ -35,10 +39,14 @@ export function LeadDocsTab({ lead, lang = 'he' }) {
             <span className="st" style={{ background: `${TONE[st]}1F`, color: TONE[st] }}><Ic size={12}/>{STATUS_HE[st] || st}</span>
             <small style={{ gridColumn: '1/-1' }}>{en ? 'Created' : 'נוצר'} {todayHe(d.created_at)}{d.sent_at ? ` · ${en ? 'sent' : 'נשלח'} ${todayHe(d.sent_at)}` : ''}{d.signed_at ? ` · ${en ? 'signed' : 'נחתם'} ${whenHe(d.signed_at)}` : ''}</small>
             <div className="ld-files">
-              <a href={fileUrl(d.id, 'original')} target="_blank" rel="noreferrer"><Download size={11}/> PDF</a>
-              {d.signed && <a className="on" href={fileUrl(d.id, 'signed')} target="_blank" rel="noreferrer"><CheckCircle2 size={11}/> {en ? 'Signed copy' : 'העותק החתום'}</a>}
+              <button type="button" className="pri" onClick={() => setView({ id: d.id, number: d.number, title: d.title, signed: !!d.signed })}><Eye size={11}/> {d.signed ? (en ? 'View signed document' : 'צפייה במסמך החתום') : (en ? 'View' : 'צפייה')}</button>
+              <button type="button" onClick={() => dl(d.id, 'original')}><Download size={11}/> PDF</button>
+              {d.signed && <button type="button" className="on" onClick={() => dl(d.id, 'signed')}><CheckCircle2 size={11}/> {en ? 'Signed PDF' : 'PDF חתום'}</button>}
+              <button type="button" onClick={() => dl(d.id, 'docx')}><Download size={11}/> Word</button>
             </div>
           </div>) })}
+      {err && <div className="ld-empty" style={{ color: 'var(--au-red-text, #C0392B)' }}>{err}</div>}
+      {view && <DocFileViewer doc={view} onClose={() => setView(null)}/>}
     </div>
   )
 }

@@ -244,6 +244,9 @@ function useFocusTrap(open, ref, onEsc, initialSel) {
     const onKey = e => {
       // only the dialog that holds focus reacts (nested dialogs, popovers)
       if (el && document.activeElement && document.activeElement !== document.body && !el.contains(document.activeElement)) return
+      // an open combobox / dropdown inside the dialog (aria-expanded="true" on the focused field) gets the first Esc and closes
+      // itself; the dialog closes on the next one (this listener runs in the capture phase, before the field sees the key)
+      if (e.key === 'Escape' && document.activeElement?.getAttribute?.('aria-expanded') === 'true') return
       if (e.key === 'Escape') { e.stopPropagation(); e.preventDefault(); escRef.current?.() }
       if (e.key !== 'Tab' || !el) return
       const f = [...el.querySelectorAll('button:not([disabled]),[href],input:not([disabled]),select,textarea,[tabindex]:not([tabindex="-1"])')].filter(x => x.offsetParent !== null)

@@ -133,7 +133,21 @@ if (ACTIONS.includes('docs')) {
     show(`docs ${label} (HTTP ${r.status}, ${Date.now() - t} ms)`, d ? { docs: Array.isArray(d.docs) ? d.docs.length : undefined, status: d.status, settings: d.settings ? { vatRate: d.settings.vatRate, expiryDays: d.settings.expiryDays, agent: !!d.settings.agent?.name, notify: (d.settings.notify || []).length, clausesCustom: d.settings.clausesCustom, clauses: d.settings.clauses?.length } : undefined, error: d.error, errors: d.errors } : { raw: txt.slice(0, 200) })
     return d
   }
-  await call('list', '/api/meta/docs-list')
+  const list = await call('list', '/api/meta/docs-list')
+  // the files the office downloads (docs-file, admin login) — the newest signed documents and one sent one, every kind:
+  // a whole PDF (%PDF … %%EOF) and a whole Word file (a zip with its end record); counts and sizes only
+  {
+    const docs = Array.isArray(list?.docs) ? list.docs : []
+    const pick = [...docs.filter(x => x.status === 'signed').slice(0, 3), ...docs.filter(x => ['sent', 'opened'].includes(x.status)).slice(0, 1)]
+    for (const doc of pick) for (const kind of doc.status === 'signed' ? ['original', 'signed', 'docx'] : ['original', 'docx']) {
+      const t = Date.now()
+      const r = await fetch(`${SITE}/api/meta/docs-file?id=${encodeURIComponent(doc.id)}&kind=${kind}`, { headers: H, signal: AbortSignal.timeout(55000) }).catch(e => ({ ok: false, status: 0, error: e.message }))
+      const b = r.arrayBuffer ? Buffer.from(await r.arrayBuffer()) : Buffer.alloc(0)
+      const whole = kind === 'docx' ? b.slice(0, 2).toString() === 'PK' && b.includes(Buffer.from([0x50, 0x4b, 0x05, 0x06])) : b.slice(0, 5).toString() === '%PDF-' && b.slice(-1024).includes(Buffer.from('%%EOF'))
+      show(`docs file ${doc.number} ${kind} (HTTP ${r.status}, ${Date.now() - t} ms)`, { bytes: b.length, whole, type: r.headers?.get?.('content-type') || '', error: r.ok ? undefined : (r.error || b.toString().slice(0, 160)) })
+    }
+    if (pick[0]) { const r = await fetch(`${SITE}/api/meta/docs-file?id=${encodeURIComponent(pick[0].id)}&kind=original`, { signal: AbortSignal.timeout(30000) }).catch(() => ({ status: 0 })); show('docs file without the admin login', { status: r.status, expected: 401 }) }
+  }
   await call('settings', '/api/meta/docs-settings')
   { const d = await call('templates', '/api/meta/docs-templates'); if (d?.missingMigration) show('docs templates', { warning: 'server/documents-v2-migration.sql has not been applied' }) }
   { const d = await call('drive status', '/api/meta/docs-drive-status'); if (d) show('docs drive', { connected: !!d.connected, oauthReady: !!d.oauthReady, enabled: d.enabled, counts: d.counts, error: d.error }) }

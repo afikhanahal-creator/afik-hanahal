@@ -41,8 +41,10 @@ export const DOC_CSS = `
 `
 const Row = ({ k, v, ltr }) => (v == null || v === '' ? null : <tr><td>{k}</td><td dir={ltr ? 'ltr' : undefined} style={ltr ? { textAlign: 'right' } : undefined}>{v}</td></tr>)
 
-export default function DocSheet({ view, signatureUrl = '', logoSrc = '/logo-black.svg', className = '', onSignHere = null, agentSignatureUrl = '' }) {
+export default function DocSheet({ view, signatureUrl = '', logoSrc = '/logo-black.svg', className = '', onSignHere = null, agentSignatureUrl = '', highlight = false }) {
   if (!view) return null
+  // the admin preview marks every blank still to fill (the client's signing page never does)
+  const hl = t => highlight && /_{6,}/.test(String(t || '')) ? String(t).split(/(_{6,})/).map((x, i) => i % 2 ? <mark key={i} className="dsh-miss">{x}</mark> : x) : t
   const c = view.client || {}, p = view.property || {}, f = view.fees || {}, a = view.agent || {}, lg = view.logo || {}
   const signed = view.status === 'signed' && view.signature
   const sec = view.sections || { parties: true, property: true, fees: true, signatures: true }
@@ -70,7 +72,7 @@ export default function DocSheet({ view, signatureUrl = '', logoSrc = '/logo-bla
         <Row k="כתובת" v={[p.address, p.city].filter(Boolean).join(', ')}/><Row k="תיאור" v={p.desc}/><Row k="סוג הנכס" v={p.type}/><Row k="סוג העסקה" v={DEAL_TYPES[p.dealType]}/><Row k='מחיר העסקה (לפני מע"מ)' v={f.price ? fmtMoney(f.price) : ''} ltr/><Row k="הערות" v={p.notes}/><Row k="קישור לנכס" v={p.link} ltr/>
       </tbody></table></>}
       {brokerage && blocks.length > 0 && <h2>תנאי ההתקשרות</h2>}
-      {blocks.map((b, i) => b.t === 'h' ? <h2 key={i} className="dsh-h">{b.text}</h2> : b.t === 'clause' ? <div className="dsh-cl" key={i}><b>{b.n}. {b.title}</b><p>{b.text}</p></div> : <p className="dsh-p" key={i}>{b.text}</p>)}
+      {blocks.map((b, i) => b.t === 'h' ? <h2 key={i} className="dsh-h">{b.text}</h2> : b.t === 'clause' ? <div className="dsh-cl" key={i}><b>{b.n}. {b.title}</b><p>{hl(b.text)}</p></div> : <p className="dsh-p" key={i}>{hl(b.text)}</p>)}
       {sec.fees && <><h2>דמי התיווך</h2>
       <table className="dsh-fees"><tbody>
         <tr><td>בסיס החישוב</td><td dir="rtl" style={{ textAlign: 'left' }}>{f.basis}</td></tr>
