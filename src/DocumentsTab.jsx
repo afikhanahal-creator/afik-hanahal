@@ -573,10 +573,6 @@ function WordingEditor({ wording, settings, onClose, onSaved, push }) {
   )
 }
 
-/** The client's details the regulations require — the ID number and the home address — in a box of their own, so they are
- *  not missed before sending: a ✓ / "חסר" per field, the ID's checksum checked as it is typed, and "הלקוח ישלים בזמן החתימה"
- *  for a document the office sends without them (the signing page then asks the client). The send is blocked until one of
- *  the two is true (`clientLegalIssues`). */
 /** "המתווך במסמך": chips of the office's agents (shown once there is more than one); a pick puts that agent on the document */
 function AgentPicker({ agents = [], value, onPick }) {
   if (agents.length < 2) return null
@@ -590,28 +586,30 @@ function AgentPicker({ agents = [], value, onPick }) {
     </div>
   )
 }
-function ClientLegalBox({ client, fillAtSign, onField, onFillAtSign, showErrors = false }) {
-  const st = clientLegalIssues(client, { fillAtSign })
+function ClientLegalBox({ client, onField, showErrors = false }) {
+  // Optional when sending: the client (buyer / renter / seller — the document's first signer) gives the ID and the home address
+  // with the signature; the signing page asks for whatever is missing. Only an ID that was typed and fails the checksum stops a send.
+  const st = clientLegalIssues(client)
   const idState = st.idValid === true ? 'ok' : st.idValid === false ? 'bad' : 'missing'
   const addrOk = !st.missing.includes('address')
   const done = idState === 'ok' && addrOk
-  const tone = done ? 'ok' : fillAtSign && idState !== 'bad' ? 'later' : 'todo'
+  const tone = done ? 'ok' : idState === 'bad' ? 'todo' : 'later'
   return (
     <div className={`dw-legal ${tone}${showErrors && !st.ok ? ' err' : ''}`}>
       <div className="dw-legal-head">
-        <b>פרטים שחובה למלא לפי חוק המתווכים</b>
-        <span className={`dw-legal-pill ${tone}`}>{done ? '✓ הכל מולא' : fillAtSign && idState !== 'bad' ? 'הלקוח ישלים בחתימה' : `חסרים ${st.missing.length + (idState === 'bad' ? 1 : 0) || ''}`.trim()}</span>
+        <b>ת.ז. וכתובת של הלקוח <small style={{ fontWeight: 500, opacity: .75 }}>(לא חובה עכשיו)</small></b>
+        <span className={`dw-legal-pill ${tone}`}>{done ? '✓ מולא' : idState === 'bad' ? 'ת.ז. לא תקינה' : 'הלקוח ימלא בזמן החתימה'}</span>
       </div>
       <div className="dw-grid">
-        <Field label={<>מספר ת.ז. של הלקוח <span className={`dw-legal-mark ${idState}`}>{idState === 'ok' ? '✓ תקין' : idState === 'bad' ? '✗ לא תקין' : 'חסר'}</span></>}>
-          <input className={`dt-input${idState === 'bad' ? ' bad' : ''}`} dir="ltr" inputMode="numeric" autoComplete="off" value={client.idNumber || ''} placeholder="9 ספרות" aria-label="ת.ז." aria-invalid={idState === 'bad'} onChange={e => onField('idNumber', e.target.value.replace(/\D/g, '').slice(0, 9))}/>
+        <Field label={<>מספר ת.ז. של הלקוח {idState !== 'missing' && <span className={`dw-legal-mark ${idState}`}>{idState === 'ok' ? '✓ תקין' : '✗ לא תקין'}</span>}</>}>
+          <input className={`dt-input${idState === 'bad' ? ' bad' : ''}`} dir="ltr" inputMode="numeric" autoComplete="off" value={client.idNumber || ''} placeholder="אפשר להשאיר ריק" aria-label="ת.ז." aria-invalid={idState === 'bad'} onChange={e => onField('idNumber', e.target.value.replace(/\D/g, '').slice(0, 9))}/>
         </Field>
-        <Field label={<>כתובת מגורים של הלקוח <span className={`dw-legal-mark ${addrOk ? 'ok' : 'missing'}`}>{addrOk ? '✓' : 'חסר'}</span></>}>
-          <input className="dt-input" value={client.address || ''} placeholder="רחוב, מספר, עיר" aria-label="כתובת מגורים" onChange={e => onField('address', e.target.value)}/>
+        <Field label={<>כתובת מגורים של הלקוח {addrOk && <span className="dw-legal-mark ok">✓</span>}</>}>
+          <input className="dt-input" value={client.address || ''} placeholder="אפשר להשאיר ריק" aria-label="כתובת מגורים" onChange={e => onField('address', e.target.value)}/>
         </Field>
       </div>
-      {idState === 'bad' && <div className="dw-legal-note bad">מספר הזהות לא עובר את בדיקת ספרת הביקורת. בדקו את הספרות, כולל ספרת הביקורת בסוף.</div>}
-      {!done && <label className="dt-tog dw-legal-tog"><input type="checkbox" checked={!!fillAtSign} onChange={e => onFillAtSign(e.target.checked)}/> אין לי אותם כרגע — הלקוח ישלים בזמן החתימה <small>(דף החתימה יבקש ת.ז. וכתובת לפני שאפשר לחתום)</small></label>}
+      {idState === 'bad' && <div className="dw-legal-note bad">מספר הזהות לא עובר את בדיקת ספרת הביקורת. תקנו את הספרות, או מחקו ותנו ללקוח למלא בזמן החתימה.</div>}
+      {!done && idState !== 'bad' && <div className="dw-legal-note">מה שלא מולא כאן, הלקוח ממלא בדף החתימה יחד עם החתימה: ת.ז. וכתובת מגורים (חובה לפי תקנות המתווכים).</div>}
       {showErrors && !st.ok && <div className="dw-legal-note bad" role="alert">{st.errors.join(' ')}</div>}
     </div>
   )
@@ -921,7 +919,7 @@ function DocWizard({ t, leads, properties, projects = [], templates = [], settin
   const next = async () => {
     if (cur === 'client' && !(form.client.name || form.client.firstName)) { setErrs(['שם הלקוח חסר']); return }
     if (cur === 'client' && !form.client.phone && !form.client.email) { setErrs(['צריך טלפון או אימייל של הלקוח']); return }
-    if (cur === 'client') { const lg = clientLegalIssues(form.client, { fillAtSign: form.fillAtSign }); if (!lg.ok) { setLegalShow(true); setErrs(lg.errors); return } }
+    if (cur === 'client') { const lg = clientLegalIssues(form.client); if (!lg.ok) { setLegalShow(true); setErrs(lg.errors); return } }
     if (cur === 'property' && usesProperty && !form.property.address) { setErrs(['כתובת הנכס חסרה']); return }
     if (step === lastData && !validate()) return
     setErrs([])
@@ -929,7 +927,7 @@ function DocWizard({ t, leads, properties, projects = [], templates = [], settin
     setStep(s => Math.min(flow.length - 1, s + 1))
   }
   const doSend = async () => {
-    { const lg = clientLegalIssues(form.client, { fillAtSign: form.fillAtSign }); if (!lg.ok) { setLegalShow(true); setErrs(lg.errors); setStep(flow.indexOf('client')); return } }
+    { const lg = clientLegalIssues(form.client); if (!lg.ok) { setLegalShow(true); setErrs(lg.errors); setStep(flow.indexOf('client')); return } }
     const d = docId ? { id: docId } : await save()
     if (!d) return
     const via = send.via === 'both' ? ['whatsapp', 'email'] : [send.via]
@@ -976,7 +974,7 @@ function DocWizard({ t, leads, properties, projects = [], templates = [], settin
         <Field label={t.client.email}><input className="dt-input" dir="ltr" inputMode="email" value={form.client.email} aria-label={t.client.email} onChange={e => set('client.email', e.target.value)}/></Field>
         <Field label={t.client.role}><select className="dt-input" value={form.client.role} aria-label={t.client.role} onChange={e => set('client.role', e.target.value)}>{Object.entries(CLIENT_ROLES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>
       </div>
-      <ClientLegalBox client={form.client} fillAtSign={form.fillAtSign} showErrors={legalShow} onField={(k, v) => set(`client.${k}`, v)} onFillAtSign={v => setForm(f => ({ ...f, fillAtSign: v }))}/>
+      <ClientLegalBox client={form.client} showErrors={legalShow} onField={(k, v) => set(`client.${k}`, v)}/>
       <div className="dw-signers">
         <SectionHead title={<><Users size={14}/> {t.signers.title}</>} right={(form.signers || []).length < MAX_SIGNERS - 1 && <Button size="sm" variant="ghost" icon={<Plus size={12}/>} onClick={() => set('signers', [...(form.signers || []), { name: '', idNumber: '', phone: '', email: '', role: 'spouse' }])}>{t.signers.add}</Button>}/>
         <p style={{ margin: '0 0 8px', fontSize: 12.5, color: 'var(--au-text3)', lineHeight: 1.6 }}>{t.signers.hint}</p>
@@ -1210,7 +1208,7 @@ function QuickDoc({ t, leads, properties, projects = [], templates = [], setting
     try { const r = await api.post('docs-settings', { presets: { [propId]: pr } }); if (r.settings) onPresetSaved?.(r.settings) } catch { /* the document itself is what matters */ }
   }
   const go = async (andSend) => {
-    if (andSend) { const lg = clientLegalIssues(form.client, { fillAtSign: form.fillAtSign }); if (!lg.ok) { setLegalShow(true); setErrs(lg.errors); document.querySelector('.qd .dw-legal, .dw .dw-legal')?.scrollIntoView?.({ block: 'center', behavior: 'smooth' }); return } }
+    if (andSend) { const lg = clientLegalIssues(form.client); if (!lg.ok) { setLegalShow(true); setErrs(lg.errors); document.querySelector('.qd .dw-legal, .dw .dw-legal')?.scrollIntoView?.({ block: 'center', behavior: 'smooth' }); return } }
     if (!validate()) return
     setBusy(andSend ? 'send' : 'save')
     try {
@@ -1269,7 +1267,7 @@ function QuickDoc({ t, leads, properties, projects = [], templates = [], setting
               <p>{result.results.filter(r => r.ok).map(r => r.via === 'whatsapp' ? 'בוואטסאפ' : 'באימייל').join(' ו')} ל{form.client.name || [form.client.firstName, form.client.lastName].filter(Boolean).join(' ')}. כשיחתמו תגיע הודעה למשרד, והעותק החתום יישמר בכרטיס הליד.</p>
               {result.link && <CopyRow label="קישור החתימה" value={result.link} t={t}/>}
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
-                <Button variant="solid" onClick={() => { setResult(null); setLegalShow(false); setForm(f => ({ ...f, leadId: '', fillAtSign: false, client: { ...emptyForm(settings).client, role: f.client.role }, fields: {} })) }}>מסמך נוסף לאותו נכס</Button>
+                <Button variant="solid" onClick={() => { setResult(null); setLegalShow(false); setForm(f => ({ ...f, leadId: '', client: { ...emptyForm(settings).client, role: f.client.role }, fields: {} })) }}>מסמך נוסף לאותו נכס</Button>
                 <Button variant="ghost" onClick={() => onDone('')}>סיום</Button>
               </div>
             </div> : <>
@@ -1294,7 +1292,7 @@ function QuickDoc({ t, leads, properties, projects = [], templates = [], setting
                 <Field label="אימייל (לא חובה)"><input className="dt-input" dir="ltr" inputMode="email" value={form.client.email} aria-label="אימייל" onChange={e => set('client.email', e.target.value)}/></Field>
                 <Field label="הלקוח בעסקה כ"><select className="dt-input" value={form.client.role} aria-label="תפקיד הלקוח בעסקה" onChange={e => set('client.role', e.target.value)}>{Object.entries(CLIENT_ROLES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>
               </div>
-              <ClientLegalBox client={form.client} fillAtSign={form.fillAtSign} showErrors={legalShow} onField={(k, v) => set(`client.${k}`, v)} onFillAtSign={v => setForm(f => ({ ...f, fillAtSign: v }))}/>
+              <ClientLegalBox client={form.client} showErrors={legalShow} onField={(k, v) => set(`client.${k}`, v)}/>
               <AgentPicker agents={settings?.agents || []} value={form.agent} onPick={a => setForm(f => ({ ...f, agent: docAgent(a) }))}/>
             </div>
             {usesFees && <div className="qd-sec"><h4><span>{manual ? 3 : 2}</span>דמי התיווך ותוקף</h4>
