@@ -919,6 +919,26 @@ landed in the month; periods 3 / 6 / 12 months / since the start (`sessionStorag
 for the deltas; a KPI strip (sent · signed · rate · median time · waiting now), thin bars per month (sent = a brand tint,
 signed = the brand, direct labels, a legend), and the table — a month row opens the list scoped to that month of sending
 (`monthF`). The change bus (`afik_sync_documents`) refreshes the tab on every status change, so a signature shows up by itself.
+**The wordings are a library the office edits (2026-11-04):** `SIGN_MESSAGES` entries are `{ id, group: buy | rent | sell |
+general, title, hint, body }` — `body` is the message's own one or two lines with `{first}` · `{prop}` ("הנכס ב<כתובת>") ·
+`{address}` · `{title}` · `{expires}` (`WORDING_VARS`; `renderWording()` fills them, the frame stays `signMessageLines`'); 20
+built-ins now: general (after a call / meeting, as you asked, formal, warm, resend, a new link after the old one expired), buyers
+(before a viewing — the regulation's "signed before a property is shown, fees only on a property we showed" —, the short one,
+liked the property, before an offer, investors before a tour, investors' representation, a developer's project), renters and
+landlords (before a viewing, before the lease, the general rental, landlords) and sellers (the regular, exclusivity).
+`suggestSignMessage` → a seller / landlord / renter's own, a lead at "נקבעה פגישה" → after a meeting, "רוצה להתקדם" → before an
+offer, a new or contacted buyer → before a viewing. **The office's edits** live in `settings.signMessages` (`app_settings.doc_settings`,
+`{ [id]: { title, hint, body, group } | null }` — an entry on a built-in id overrides it, a `w_…` id is the office's own, `null`
+restores / removes; `cleanSignMessages()`, tested; `POST docs-settings { signMessages }`), `signMessageList(settings)` is the
+library as the office sees it (`edited` / `custom` flags) and every renderer takes `settings` (`clientWaText` / `clientEmail` /
+`signMessagePreview` / `signMessage(id, settings)`; `sendDoc` passes its settings into `deliverLink`). UI: the templates area's
+**"נוסחי ההודעה לשליחה לחתימה"** (`WordingsLibrary`): a card per wording grouped by audience, rendered for a sample client
+(רונן כהן, זרובבל 15), "נערך" / "משלכם" badges, "+ נוסח חדש"; a card opens `WordingEditor` (a modal: name, group chips, the
+"when" line, the body with placeholder chips that insert at the cursor, a WhatsApp preview of the whole message, tips, a
+singular-wording warning; save, "שחזור לנוסח המקורי" for an edited built-in, "מחיקה" for an own one). The send-step dropdown
+is grouped (`<optgroup>` per audience) and reads the same library. **Deleting from the list:** a trash icon on every table row and
+phone card (`deleteDoc` in the tab, shared with the drawer): an unsigned document asks for a confirm (the client's link dies), a
+signed one asks for its number to be typed; `docs-delete` as before.
 **Every document modal can be left, and "מילוי מהיר" (2026-11-04):** `ModalBar` (✕ · the screen's title · a sub-line · a right
 slot) sits on top of the wizard (the step's name, "שלב n מתוך N", "שמירת טיוטה" on the right, a progress line on phones), the
 quick document (both screens) and nothing else needs the footer's "✕ סגירה" (hidden on phones). On a phone (≤ 760 px) the
