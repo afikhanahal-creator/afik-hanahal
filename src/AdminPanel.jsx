@@ -1374,6 +1374,18 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     const target = '/admin-panel' + (seg ? '/' + seg : '')
     if (window.location.pathname !== target) history.pushState({}, '', target)
   }, [tab])
+  // Back / forward (and a phone's back gesture) move between screens: the address changed, so the screen follows it —
+  // it used to stay on the screen it was (the address read "תיבת הודעות" over the chats, say)
+  useEffect(() => {
+    const onPop = () => {
+      const path = window.location.pathname
+      if (!path.startsWith('/admin-panel')) return
+      const t = ADMIN_PATH_TO_TAB[path.replace(/^\/admin-panel\/?/, '').split('/')[0]] || 'meta'
+      setTab(t === 'live' ? 'props' : (t === 'overview' && !standalone ? 'meta' : t))
+    }
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [standalone])
   const [listTab, setListTab] = useState('published')
   const propListRef = useRef(null)
   const [listCat, setListCat] = useState('all')
@@ -3505,7 +3517,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
         {tab==='social' && (
           <div style={{ height: standalone ? '100%' : 'calc(100vh - 160px)', minHeight: 480 }}>
             <Suspense fallback={<AdminTabLoader label="טוען את תיבת ההודעות…"/>}>
-              <SocialInboxTab lang={lang} onUpdateLead={updateLead} onUpdateStatus={updateLeadStatus} stageLabels={stageLabels} onOpenChat={c => { setInitialChatLead({ id: c.leadId || `wa:${c.phone}`, name: c.name, phone: c.phone }); setTab('chats') }} onOpenLead={id => { const l = leads.find(x => String(x.id) === String(id)); if (l) { setTab('leads'); try { const u = new URL(window.location.href); u.searchParams.set('lead', String(id)); window.history.replaceState(window.history.state, '', u) } catch {} } }}/>
+              <SocialInboxTab lang={lang} onUpdateLead={updateLead} onUpdateStatus={updateLeadStatus} stageLabels={stageLabels} onOpenChat={c => { setInitialChatLead({ id: c.leadId || `wa:${c.phone}`, name: c.name, phone: c.phone }); setTab('chats') }} onOpenLead={id => { if (leads.some(x => String(x.id) === String(id))) setReminderCardId(String(id)); else window.open(`/admin-panel/leads?lead=${encodeURIComponent(id)}`, '_blank') }}/>
             </Suspense>
           </div>
         )}
@@ -3522,7 +3534,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
         {tab==='docs' && (
           <Suspense fallback={<AdminTabLoader label="טוען מסמכים וחתימות…"/>}>
             <DocumentsTab lang={lang} leads={leads} properties={orderedProps} standalone={standalone} initialLeadId={docsLeadId.split('#')[0]} initialProject={docsProject.split('#')[0]} initialPropertyId={docsPropId.split('#')[0]} key={docsLeadId + '|' + docsProject + '|' + docsPropId}
-              onOpenLead={id => { setTab('leads'); try { const u = new URL(window.location.href); u.searchParams.set('lead', String(id)); window.history.replaceState(window.history.state, '', u) } catch {} }}/>
+              onOpenLead={id => { if (leads.some(x => String(x.id) === String(id))) setReminderCardId(String(id)); else window.open(`/admin-panel/leads?lead=${encodeURIComponent(id)}`, '_blank') }}/>
           </Suspense>
         )}
         {tab==='content' && (

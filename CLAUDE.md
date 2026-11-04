@@ -737,6 +737,16 @@ names from the participants, a missing name / picture filled later); `social-wa-
 `pages_messaging`, `instagram_basic`, `instagram_manage_messages`, `pages_manage_metadata` (+ the leads scopes) in
 `META_SYSTEM_USER_TOKEN`, App Review for the messaging permissions, the Instagram object subscribed to `messages` in the app's
 Webhooks, and on the phone Instagram → messages → "Allow access to messages".
+**Back / forward move between admin screens** (2026-11-04): `AdminPanel` listens to `popstate` and sets the screen from the
+address (`ADMIN_PATH_TO_TAB`) — Back used to change the address only, so "/admin-panel/social" showed the chats (or whatever was
+open). The inbox's and the documents tab's "כרטיס הליד" / "פתיחת הליד" open the lead card over the current screen
+(`reminderCardId`) instead of jumping to the leads board (the URL sync dropped the `?lead=` they added). **Pages in the inbox
+(2026-11-04):** "אפיק הנחל" (+ Instagram afik.hanahal) and "Danielle Wander" (a Facebook page; no Instagram linked) are in. A
+personal Facebook profile can't be connected (Meta's API reads only pages); an Instagram account must be professional and linked
+to a page. "Kurkoos Group" isn't reachable by the System User yet: Business settings → Pages → add it to the business (or request
+access), then System users → afik-api → Assign assets → that page, full control → the inbox's "חשבונות מחוברים" → "+ הוספה לתיבה".
+Probe actions `social` (the pages / Instagram the System User reaches, which are in the inbox, missing scopes — names only) and
+`admin-nav` (which screen `/admin-panel/social` lands on, desktop + phone, no screenshots).
 
 ## Documents & digital signatures (admin "מסמכים וחתימות", `/admin-panel/documents`; the client's page `/sign/<token>`)
 
