@@ -1030,10 +1030,12 @@ list stayed open over the form); `useFocusTrap` (`src/automationsUI.jsx`) leaves
 on the focused element), so Esc closes the list and never the whole modal. A template frozen on a document rendered `[[ … ]]`
 raw: `fillBlockText()` (`lib/doc-templates.js`, tested) now keeps an optional part only when all its placeholders are known and
 brackets ", ת.ז. {…}" / ", מרחוב {…}" like `fillText` (no sent PDF was affected — none had a frozen template). **The client's
-ID and address** are a box of their own, `ClientLegalBox` ("פרטים שחובה למלא לפי חוק המתווכים", the count of what is missing,
-"חסר" per field, a checkbox "אין לי אותם כרגע — הלקוח ישלים בזמן החתימה"): `clientLegalIssues(client, { fillAtSign })`
-(`lib/documents.js`, tested) blocks "הבא" on the client step and the send in the wizard and the quick document (it scrolls to
-the box) while either is missing and the box isn't ticked, and always on an ID that fails the checksum. **The preview** is
+ID and address are never required to send** (2026-11-04 — the office asked): `ClientLegalBox` ("ת.ז. וכתובת של הלקוח (לא חובה
+עכשיו)", "הלקוח ימלא בזמן החתימה", no checkbox) takes them when the office has them; otherwise the client — the buyer / renter /
+seller, the document's first signer — gives them with the signature (the signing page asks for whatever is missing, and
+`submitSignature` refuses the client signer without them). `clientLegalIssues(client)` (`lib/documents.js`, tested) defaults to
+`fillAtSign: true`: only a typed ID that fails the checksum stops a send (`fillAtSign: false` is the old strict check).
+**The preview** is
 `SheetPreview`: a toolbar (live, the count of blanks still in the document — a click scrolls to the first —, or "✓ אין שדות
 ריקים"; zoom − / fit / + 50–130 %; the PDF once there is one), the scaled sheet with its real height (a ResizeObserver — no
 empty strip under it) on a light backdrop, and every `______` blank marked in amber (`DocSheet highlight`, the admin's preview
