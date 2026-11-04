@@ -47,6 +47,7 @@ export const ADMIN_LIGHT_C = { bg: '#F4F5F9', purple: '#3F49A6', green: '#15803D
 export const ADMIN_THEME_CSS = `
 :root, html[data-admin-theme="dark"] {
   color-scheme: dark;
+  --wa-link: #53BDEB;
   --ink: 232,228,216; --ov: 255,255,255; --shade: 0,0,0; --brand-rgb: 111,122,199; --au-brand: #5A64B6; --au-brand-deep: #464F9E;
   --au-bg: #09090F; --au-page: #07070F; --au-sidebar: linear-gradient(180deg,#0D0E1A 0%,#08080F 100%); --au-topbar: rgba(9,9,17,.86);
   --au-card: rgba(255,255,255,.03); --au-card-grad: linear-gradient(180deg,rgba(255,255,255,.035),rgba(255,255,255,.015)); --au-card-shadow: none;
@@ -65,6 +66,7 @@ export const ADMIN_THEME_CSS = `
 }
 html[data-admin-theme="light"] {
   color-scheme: light;
+  --wa-link: #027EB5;
   --ink: 23,26,44; --ov: 28,36,90; --shade: 20,24,60; --brand-rgb: 63,73,166; --au-brand: #3F49A6; --au-brand-deep: #333B8C;
   --au-bg: #F4F5F9; --au-page: #F4F5F9; --au-sidebar: #FFFFFF; --au-topbar: rgba(255,255,255,.88);
   --au-card: #FFFFFF; --au-card-grad: #FFFFFF; --au-card-shadow: 0 1px 2px rgba(20,24,60,.05), 0 2px 8px rgba(20,24,60,.04);

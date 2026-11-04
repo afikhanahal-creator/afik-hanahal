@@ -2,6 +2,7 @@
 // summary of it (POST /api/meta/chat-summary → lib/chat-summary.js): what was discussed, what the lead wants, what was
 // agreed, open questions, the next step, the suggested stage (one click to move the lead there), a follow-up date and
 // "save as a note". The summary is kept on the lead (crm_data.chatSummary) and says when new messages arrived since.
+import { WAText } from './waFormat.jsx'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { FaWhatsapp, FaMagic, FaSyncAlt, FaExternalLinkAlt, FaBullseye, FaQuestionCircle, FaHandshake, FaComments, FaClock, FaStickyNote, FaCheck, FaArrowLeft, FaArrowRight, FaMicrophone, FaUser } from 'react-icons/fa'
 import { T } from './automationsUI.jsx'
@@ -185,7 +186,7 @@ export default function LeadChatTab({ lead, lang = 'he', stages = [], save, onUp
             <div key={i} style={{ alignSelf: out ? 'flex-end' : 'flex-start', direction: lang === 'en' ? 'ltr' : 'rtl', textAlign: 'start', maxWidth: '78%', background: out ? 'rgba(37,211,102,.14)' : T.card, border: `1px solid ${out ? 'rgba(37,211,102,.25)' : T.s1Line}`, borderRadius: 12, padding: '7px 11px', fontSize: 13, lineHeight: 1.55, color: T.text, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
               <div style={{ fontSize: 10.5, fontWeight: 800, color: out ? '#1FAF55' : T.text3, marginBottom: 2, display: 'flex', alignItems: 'center', gap: 4 }}>{!out && <FaUser size={8}/>}{out ? t.office : (lead.name || t.lead)}</div>
               {m.media && <div style={{ fontStyle: 'italic', color: T.text2, display: 'flex', alignItems: 'center', gap: 5 }}>{/קולית|voice/i.test(m.media) && <FaMicrophone size={10}/>}[{m.media}]</div>}
-              {m.text && <div dir="auto">{m.text}</div>}
+              {m.text && <div dir="auto" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}><WAText text={m.text}/></div>}
               <div style={{ fontSize: 10.5, color: T.text3, textAlign: 'end', marginTop: 2 }}>{time(m.ts)}</div>
             </div>,
           ]

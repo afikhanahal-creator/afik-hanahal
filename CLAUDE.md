@@ -472,6 +472,12 @@ the waiting filter "בחירה" → checkboxes, "בחירת הכל", "✓ טופ
 `POST /api/meta/chat-waiting-done { items: [{ phone, ts }] | undo: [phones] }` → `app_settings.wa_waiting_done` (last 9 digits →
 the lead's last message time; 60 days); `chat-waiting` leaves those out and returns `done`. The chat waits again as soon as the lead
 writes something newer.
+**Links in every chat are clickable** (2026-11-04): `WAText` (`src/waFormat.jsx`) draws every `http(s)://` and `www.` link as a
+real `<a target="_blank" rel="noopener noreferrer">` (it used to be a blue `<span>` that did nothing), the click never reaches the
+bubble (select mode / the ▾ menu), sentence punctuation after it stays outside (`splitLink()` in `src/lib/waLinks.js`, tested), the
+colour is `--wa-link` (`#53BDEB` dark, `#027EB5` light — `ADMIN_THEME_CSS`; the dark phone preview passes `linkColor`). Every chat
+renders through it: the chats tab, the Lead Center / lead card / inbox WhatsApp (`LeadConversation`), the inbox's Messenger /
+Instagram bubbles and the lead card's read-only "שיחת וואטסאפ" (`LeadChatTab`). QA: the scratchpad's `sp/links-qa.cjs`.
 **WhatsApp's own ticks** (`TickMark` in `src/waShared.jsx`): the SVG shapes WhatsApp Web draws — one check = sent, two = delivered,
 two in `#53BDEB` = read (or played) — in the chats tab, its list and the Lead Center / lead card; a clock while sending, "!" failed.
 **The chat list** has filters "הכל · לא נקראו · ממתינים לתשובה" (counts;
