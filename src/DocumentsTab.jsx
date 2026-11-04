@@ -1190,19 +1190,27 @@ function DocDrawer({ t, doc, onClose, onChanged, push, onOpenLead, leads, onEdit
 async function cleanSignatureImage(file) {
   const url = URL.createObjectURL(file)
   try {
-    const img = await new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => no(new Error('לא הצלחנו לקרוא את התמונה')); i.src = url })
+    const img = await new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => no(new Error('לא הצלחנו לקרוא את התמונה. צילום מאייפון (HEIC)? שמרו אותו כ-JPG או שלחו לעצמכם בוואטסאפ והעלו משם')); i.src = url })
     const sc = Math.min(1, 1800 / Math.max(img.width, img.height)), W = Math.round(img.width * sc), H = Math.round(img.height * sc)
     const c = document.createElement('canvas'); c.width = W; c.height = H; const k = c.getContext('2d'); k.drawImage(img, 0, 0, W, H)
     const px = k.getImageData(0, 0, W, H), d = px.data, lum = new Float32Array(W * H)
-    for (let i = 0; i < W * H; i++) lum[i] = 0.299 * d[i * 4] + 0.587 * d[i * 4 + 1] + 0.114 * d[i * 4 + 2]
-    const paper = Array.from(lum).sort((a, b) => a - b)[Math.floor(W * H * 0.6)], lo = paper - 28, inkL = Math.min(90, lo - 40)
+    // a PNG that is already cut out (a transparent background — the file the office got back from us, say): the alpha is the
+    // ink and the paper rule below would see no paper at all
+    let clear = 0
+    for (let i = 0; i < W * H; i++) { lum[i] = 0.299 * d[i * 4] + 0.587 * d[i * 4 + 1] + 0.114 * d[i * 4 + 2]; if (d[i * 4 + 3] < 16) clear++ }
+    const transparent = clear > W * H * 0.3
+    const paper = transparent ? 255 : Array.from(lum).sort((a, b) => a - b)[Math.floor(W * H * 0.6)], lo = paper - 28, inkL = Math.min(90, lo - 40)
     let x0 = W, y0 = H, x1 = 0, y1 = 0
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-      const i = y * W + x; let a = lum[i] >= lo ? 0 : Math.min(1, (lo - lum[i]) / (lo - inkL)); if (a < 0.08) a = 0
+      const i = y * W + x
+      let a
+      if (transparent) a = d[i * 4 + 3] / 255 * (lum[i] >= lo ? 0.25 : 1)   // the file's own alpha; a light pixel that is opaque counts a little
+      else a = lum[i] >= lo ? 0 : Math.min(1, (lo - lum[i]) / (lo - inkL))
+      if (a < 0.08) a = 0
       d[i * 4] = 0x1A; d[i * 4 + 1] = 0x1F; d[i * 4 + 2] = 0x3A; d[i * 4 + 3] = Math.min(255, Math.round(a * 255 * 1.25))
       if (a > 0.35) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y }
     }
-    if (x1 <= x0 || y1 <= y0) throw new Error('לא נמצאה חתימה בתמונה')
+    if (x1 <= x0 || y1 <= y0) throw new Error('לא נמצאה חתימה בתמונה — צלמו או סרקו את החתימה על נייר לבן, או העלו PNG עם רקע שקוף')
     k.putImageData(px, 0, 0)
     const pad = 10; x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad); x1 = Math.min(W - 1, x1 + pad); y1 = Math.min(H - 1, y1 + pad)
     const cw = x1 - x0 + 1, ch = y1 - y0 + 1, s2 = Math.min(1, 600 / cw)
@@ -1219,7 +1227,7 @@ function AgentSignatureField({ agentName }) {
   useEffect(() => { api.get('docs-agent-signature').then(r => setSig(r.signature || null)).catch(() => setSig(null)) }, [])
   const pick = async file => {
     if (!file) return
-    if (!/^image\//.test(file.type)) { setErr('צריך קובץ תמונה (צילום או סריקה של החתימה)'); return }
+    if (!/^image\//.test(file.type)) { setErr('צריך קובץ תמונה — JPG או PNG (צילום או סריקה של החתימה)'); return }
     setBusy(true); setErr('')
     try { const png = await cleanSignatureImage(file); const r = await api.post('docs-agent-signature', { name: agentName || sig?.name || '', png }); if (r.error) throw new Error(r.error); setSig(r.signature) } catch (e) { setErr(e.message) } finally { setBusy(false); if (inp.current) inp.current.value = '' }
   }

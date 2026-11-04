@@ -891,6 +891,10 @@ proportions up to 230 × 92 pt (`sigSize` from `pngInfo`); the on-screen box is 
 **`lib/png-check.js`** (tested): `pngInfo(buf)` walks the chunks (signature, IHDR first, every CRC-32, IEND last) → `{ ok, width,
 height, why }`; the broker signature is saved only when sound and ≥ 120 × 40 (a garbled copy — the one a hand-typed SQL insert
 left in `app_settings` on 2026-11-03 — is ignored on read and refused on save), and a drawn signature goes through it too.
+**A cut-out PNG is a valid broker signature (2026-11-04):** `cleanSignatureImage()` used to look for light paper and answered
+"לא נמצאה חתימה בתמונה" to a PNG with a transparent background (the very file the office got back from us), so nothing was ever
+saved; now an image that is ≥ 30 % transparent takes its own alpha as the ink. A file the browser can't decode (an iPhone HEIC)
+says so and asks for a JPG. QA: the scratchpad's `sp/qa-sig.cjs` (a cut-out PNG and a 1.4 MB scan both reach the API whole).
 **Wordings before the signature, the lead finder and the monthly funnel (2026-11-04):** `SIGN_MESSAGES` (`lib/documents.js`,
 tested) = 11 half-friendly, half-formal wordings the office picks from a dropdown when sending the link — after a call (the
 default), after a meeting / viewing, before a viewing, buyers who liked the property, sellers, rentals, investors, formal and
