@@ -10,6 +10,8 @@
 //   crm-sync — POST /api/meta/crm-sync: copies every Meta lead that isn't in the CRM (contacts) yet, quietly (counts only)
 //   wa — the WhatsApp chat page's own calls (chat-status / chat-list / chat-history): HTTP, timing, Green's error text;
 //        `wa-send` also sends one test text through chat-send to the office's own notification number
+//   chat-perf — every leg of the WhatsApp chat timed live (API calls N times, then PERF_ROUNDS test texts to the office
+//        number: Green accepting, the webhook storing, a real browser getting it through the change bus, the status back)
 //   ga4 — the analytics dashboard's connection: test, a 30-day dashboard (totals / row counts only) and realtime
 //   booking — the booking page's calendar connection (OAuth keys set in Vercel? calendar connected? which account's domain)
 //             and the last bookings' confirmation status (counts only)
@@ -220,6 +222,110 @@ if (ACTIONS.includes('wa') || ACTIONS.includes('wa-send') || ACTIONS.includes('w
     await call('chat-send (to the office number)', '/api/meta/chat-send', { method: 'POST', body: JSON.stringify({ phone: office?.phone || '972559811814', message: 'בדיקת מערכת: שליחה מעמוד הווצאפ ✓' }) })
   }
 }
+// chat-perf: every leg of the WhatsApp chat, timed on the live site (numbers only — never a phone, a name or a text):
+// the API calls the chat screens make (N runs each: wall time, the function's own time from Server-Timing, the region from
+// x-vercel-id, cold starts), then ROUNDS test texts to the office's own notification number — Green accepting it, the webhook
+// storing it (chat-updates shows the id), a real browser on /admin-panel/chats getting it through the change bus, and the
+// delivery status coming back.
+if (ACTIONS.includes('chat-perf')) {
+  const N = Number(process.env.PERF_RUNS || 6), ROUNDS = Number(process.env.PERF_ROUNDS || 2)
+  const OFFICE = '972559811814'
+  const st = h => Object.fromEntries(String(h || '').split(',').map(x => x.trim()).filter(Boolean).map(x => { const [k, ...rest] = x.split(';'); const d = (rest.find(r => r.trim().startsWith('dur=')) || '').split('=')[1]; return [k.trim(), d != null ? Math.round(Number(d)) : 1] }))
+  const time = async (path, init = {}) => {
+    const t = performance.now()
+    const r = await fetch(`${SITE}${path}`, { headers: H, ...init, signal: AbortSignal.timeout(40000) }).catch(e => ({ ok: false, status: 0, headers: new Headers(), text: async () => e.message }))
+    const body = await r.text().catch(() => '')
+    const ms = Math.round(performance.now() - t)
+    const id = r.headers.get('x-vercel-id') || ''
+    return { ms, http: r.status, bytes: body.length, region: id.split('::').slice(0, -1).join('>'), timing: st(r.headers.get('server-timing')), body }
+  }
+  const pct = (a, q) => { const s = [...a].sort((x, y) => x - y); return s.length ? s[Math.min(s.length - 1, Math.floor(q * s.length))] : null }
+  const bench = async (label, path, init) => {
+    const runs = []
+    for (let i = 0; i < N; i++) runs.push(await time(path, typeof init === 'function' ? init() : init))
+    const ms = runs.map(r => r.ms), app = runs.map(r => r.timing.app).filter(x => x != null)
+    const keys = [...new Set(runs.flatMap(r => Object.keys(r.timing)))].filter(k => k !== 'app' && k !== 'cold')
+    const parts = Object.fromEntries(keys.map(k => [k, pct(runs.map(r => r.timing[k]).filter(x => x != null), 0.5)]))
+    show(`perf ${label}`, { http: [...new Set(runs.map(r => r.http))], wall_p50: pct(ms, 0.5), wall_max: Math.max(...ms), fn_p50: pct(app, 0.5), fn_max: app.length ? Math.max(...app) : null, parts, cold: runs.filter(r => r.timing.cold).length, region: [...new Set(runs.map(r => r.region))], kb: Math.round(pct(runs.map(r => r.bytes), 0.5) / 102.4) / 10 })
+    return runs
+  }
+  const since = () => new Date(Date.now() - 60e3).toISOString()
+  await bench('chat-updates', `/api/meta/chat-updates?since=${encodeURIComponent(since())}`)
+  await bench('chat-history stored (a chat opens)', '/api/meta/chat-history', { method: 'POST', body: JSON.stringify({ phone: OFFICE, count: 100, stored: true }) })
+  await bench('chat-history full (Green getChatHistory)', '/api/meta/chat-history', { method: 'POST', body: JSON.stringify({ phone: OFFICE, count: 100 }) })
+  await bench('chat-waiting', '/api/meta/chat-waiting')
+  await bench('chat-list', '/api/meta/chat-list?days=30')
+  await bench('chat-status', '/api/meta/chat-status')
+  await bench('social-wa (inbox list)', '/api/meta/social-wa')
+  await bench('social-threads (inbox list)', '/api/meta/social-threads')
+  await bench('contacts (leads board)', '/api/contacts?limit=1')
+
+  // end to end: a real browser on the chats screen + test texts to the office number
+  let chromium = null
+  try { ({ chromium } = await import('playwright')) } catch { try { ({ chromium } = await import('playwright-core')) } catch {} }
+  let browser = null, page = null
+  if (chromium) {
+    browser = await chromium.launch(process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHROMIUM } : {})
+    const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: 'he-IL' })
+    await ctx.addInitScript(() => {
+      try { sessionStorage.setItem('afik_admin_session', '1'); localStorage.setItem('afik_no_track', '1') } catch {}
+      window.__cu = []
+      const f0 = window.fetch
+      window.fetch = async (...a) => {
+        const u = String(a[0]?.url || a[0] || '')
+        if (!/chat-updates/.test(u)) return f0(...a)
+        const start = Date.now()
+        const r = await f0(...a)
+        r.clone().json().then(d => window.__cu.push({ start, end: Date.now(), ids: (d?.messages || []).map(m => [m.idMessage, m.statusMessage]) })).catch(() => {})
+        return r
+      }
+    })
+    await ctx.route(/\.(mp4|mov|webm)(\?|$)/i, r => r.abort())
+    page = await ctx.newPage()
+    const t = Date.now()
+    await page.goto(`${SITE}/admin-panel/chats`, { waitUntil: 'domcontentloaded', timeout: 45000 }).catch(() => {})
+    await page.waitForTimeout(9000)
+    show('perf browser', { loaded_ms: Date.now() - t })
+  }
+  const rounds = []
+  for (let k = 0; k < ROUNDS; k++) {
+    const t0 = Date.now()
+    const s = await time('/api/meta/chat-send', { method: 'POST', body: JSON.stringify({ phone: OFFICE, message: `בדיקת מהירות של מערכת הצ׳אט (אפשר להתעלם) · ${k + 1}` }) })
+    let sid = null; try { sid = JSON.parse(s.body).idMessage } catch {}
+    const out = { send_http: s.http, accept_ms: s.ms, accept_fn: s.timing.app, accept_green: s.timing.green, cold: !!s.timing.cold }
+    if (sid) {
+      const cur = new Date(t0 - 10e3).toISOString()
+      let stored = null, status = null
+      while (Date.now() - t0 < 45000 && (!stored || !status)) {
+        const u = await time(`/api/meta/chat-updates?since=${encodeURIComponent(cur)}`)
+        let d = null; try { d = JSON.parse(u.body) } catch {}
+        const m = (d?.messages || []).find(x => x.idMessage === sid)
+        if (m && !stored) stored = Date.now() - t0
+        if (m && ['sent', 'delivered', 'read'].includes(m.statusMessage) && !status) status = Date.now() - t0
+        await new Promise(ok => setTimeout(ok, 250))
+      }
+      out.stored_after_send_ms = stored
+      out.status_after_send_ms = status
+      if (page) {
+        const deadline = Date.now() + 15000
+        let hit = null
+        while (Date.now() < deadline && !hit) {
+          hit = await page.evaluate(id => (window.__cu || []).find(c => c.ids.some(([i]) => i === id)) || null, sid)
+          if (!hit) await page.waitForTimeout(150)
+        }
+        out.browser_fetch_started_ms = hit ? hit.start - t0 : null
+        out.browser_has_it_ms = hit ? hit.end - t0 : null
+        out.browser_fetch_ms = hit ? hit.end - hit.start : null
+      }
+    }
+    rounds.push(out)
+    show(`perf send round ${k + 1}`, out)
+    await new Promise(ok => setTimeout(ok, 4000))
+  }
+  if (page) show('perf browser chat-updates calls', { calls: await page.evaluate(() => window.__cu.length) })
+  if (browser) await browser.close()
+}
+
 if (ACTIONS.includes('ga4')) {
   const post = async (body, path = 'ga4-dash') => {
     const t = Date.now()
