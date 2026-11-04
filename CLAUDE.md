@@ -953,6 +953,21 @@ percent chips, the sum) **with the link's validity** (7 / 14 / 30 days or typed 
 modes), the template's own fields, the wording and the send; "לאשף המלא" keeps everything typed. The quick document's header
 button reads "מסמך מהיר". QA: the scratchpad's `qa-docs-phone.cjs` (iPhone 13: the bar, the preview bar, no overflow, a manual
 document sent).
+**The property picker, the ID / address before sending, a real preview (2026-11-04):** the wizard's property field is
+`PropertyFinder` (search by name / town / street, ↑ ↓ Enter, closes on a pick, on Esc, on a click outside or on blur — the old
+list stayed open over the form); `useFocusTrap` (`src/automationsUI.jsx`) leaves Esc to an open combobox (`aria-expanded="true"`
+on the focused element), so Esc closes the list and never the whole modal. A template frozen on a document rendered `[[ … ]]`
+raw: `fillBlockText()` (`lib/doc-templates.js`, tested) now keeps an optional part only when all its placeholders are known and
+brackets ", ת.ז. {…}" / ", מרחוב {…}" like `fillText` (no sent PDF was affected — none had a frozen template). **The client's
+ID and address** are a box of their own, `ClientLegalBox` ("פרטים שחובה למלא לפי חוק המתווכים", the count of what is missing,
+"חסר" per field, a checkbox "אין לי אותם כרגע — הלקוח ישלים בזמן החתימה"): `clientLegalIssues(client, { fillAtSign })`
+(`lib/documents.js`, tested) blocks "הבא" on the client step and the send in the wizard and the quick document (it scrolls to
+the box) while either is missing and the box isn't ticked, and always on an ID that fails the checksum. **The preview** is
+`SheetPreview`: a toolbar (live, the count of blanks still in the document — a click scrolls to the first —, or "✓ אין שדות
+ריקים"; zoom − / fit / + 50–130 %; the PDF once there is one), the scaled sheet with its real height (a ResizeObserver — no
+empty strip under it) on a light backdrop, and every `______` blank marked in amber (`DocSheet highlight`, the admin's preview
+only — never the client's page); the wizard and the quick document fill the modal's height; the footer's eye button shows only
+under 1021 px, where the preview is a screen of its own.
 **Flow:** `docs-create` cleans the input (`cleanDocInput`), links the CRM lead (the given id, else the newest lead with that phone /
 email — never a new lead), numbers the document and writes `created` on the lead. `docs-send {id, via}` makes the private token
 (kept only as a hash), freezes the clauses on the row, renders the PDF the client signs (stored, its SHA-256 on the row), and

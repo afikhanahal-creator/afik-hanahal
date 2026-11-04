@@ -12,7 +12,7 @@ import { T, Button, IconButton, StatTile, FilterChip, Badge, EmptyState, Field, 
 import { autoApi } from './AutomationsApi.jsx'
 import DocSheet, { DOC_CSS } from './DocPreview.jsx'
 import { onSync } from './lib/syncBus.js'
-import { SIGN_MESSAGES, SIGN_MESSAGE_IDS, signMessage, signMessageList, signMessageCtx, renderWording, WORDING_GROUPS, WORDING_VARS, signMessagePreview, suggestSignMessage, docFunnel, fmtHours, docMonthKey, verifyLabel, computeFees, renderClauses, cleanDocInput, DEFAULT_CLAUSES, DOC_TYPES, CLIENT_ROLES, DEAL_TYPES, FEE_MODES, STATUS_HE, EVENT_HE, DEFAULT_VAT, docStats, effectiveStatus, fmtMoney, fmtPct, whenHe, todayHe, placeholderValues, PLACEHOLDERS, SIGNER_ROLES, MAX_SIGNERS, signerProgressText, signerInfo, DEFAULT_REMINDERS, DEFAULT_NOTIFY_ON, propertyToDoc } from '../lib/documents.js'
+import { clientLegalIssues, SIGN_MESSAGES, SIGN_MESSAGE_IDS, signMessage, signMessageList, signMessageCtx, renderWording, WORDING_GROUPS, WORDING_VARS, signMessagePreview, suggestSignMessage, docFunnel, fmtHours, docMonthKey, verifyLabel, computeFees, renderClauses, cleanDocInput, DEFAULT_CLAUSES, DOC_TYPES, CLIENT_ROLES, DEAL_TYPES, FEE_MODES, STATUS_HE, EVENT_HE, DEFAULT_VAT, docStats, effectiveStatus, fmtMoney, fmtPct, whenHe, todayHe, placeholderValues, PLACEHOLDERS, SIGNER_ROLES, MAX_SIGNERS, signerProgressText, signerInfo, DEFAULT_REMINDERS, DEFAULT_NOTIFY_ON, propertyToDoc } from '../lib/documents.js'
 import { leadProperty } from '../lib/automations-shared.js'
 import { useProjects } from './lib/projectsStore.js'
 import { projectOfLead } from '../lib/projects.js'
@@ -98,8 +98,6 @@ export const DOCS_CSS = `
 .dw-step.done i{background:rgba(37,211,102,.16);border-color:rgba(37,211,102,.5);color:var(--au-green-text)}
 .dw-body{flex:1;overflow:auto;padding:16px;display:flex;flex-direction:column;gap:14px}
 .dw-foot{display:flex;gap:8px;justify-content:space-between;align-items:center;padding:12px 16px;border-top:1px solid var(--au-line);background:var(--au-card)}
-.dw-prev{background:#8E8B84;overflow:auto;padding:20px;display:flex;justify-content:center;align-items:flex-start}
-.dw-prev-in{transform-origin:top center}
 .dw-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .qd{display:flex;flex-direction:column;min-height:0}
 .qd-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:16px 18px 10px}
@@ -238,7 +236,34 @@ select.dt-input{appearance:auto}
 html[data-admin-theme=dark] .dt-wed-bub{background:#005c4b;color:#e9edef}
 @media (max-width:760px){.dt-wed{grid-template-columns:1fr}}
 .dt-del-row{display:flex;gap:10px;align-items:center}.dt-ib-del:hover{color:var(--au-red-text)}
-@media (max-width:1020px){.dw{grid-template-columns:1fr}.dw-prev{display:none}.dw.show-prev .dw-form{display:none}.dw.show-prev .dw-prev{display:flex;padding:0;background:#fff}.dw-prev-in{transform:none!important;width:100%}}
+.dw-legal{border:1.5px solid rgba(245,166,35,.55);background:rgba(245,166,35,.07);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:10px}
+.dw-legal.ok{border-color:rgba(37,211,102,.45);background:rgba(37,211,102,.06)}.dw-legal.later{border-color:rgba(var(--brand-rgb),.35);background:rgba(var(--brand-rgb),.05)}
+.dw-legal.err{border-color:var(--au-red-text);background:rgba(224,82,82,.07)}
+.dw-legal-head{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}.dw-legal-head b{font-size:13.5px;font-weight:600}
+.dw-legal-pill{font-size:12px;font-weight:600;border-radius:999px;padding:2px 10px;background:rgba(245,166,35,.16);color:var(--au-amber-text)}
+.dw-legal-pill.ok{background:rgba(37,211,102,.16);color:var(--au-green-text)}.dw-legal-pill.later{background:rgba(var(--brand-rgb),.12);color:var(--au-brand-text)}
+.dw-legal-mark{font-size:11.5px;font-weight:600;margin-inline-start:6px;color:var(--au-amber-text)}.dw-legal-mark.ok{color:var(--au-green-text)}.dw-legal-mark.bad{color:var(--au-red-text)}
+.dw-legal .dt-input.bad{border-color:var(--au-red-text)}
+.dw-legal-note{font-size:12.5px;line-height:1.5}.dw-legal-note.bad{color:var(--au-red-text)}
+.dw-legal-tog{font-size:13px;line-height:1.5}.dw-legal-tog small{color:var(--au-text3);font-size:12px}
+.dw-prev{background:rgba(var(--ov),.045);overflow:hidden;padding:0;display:flex;flex-direction:column;min-height:0}
+.dw-prev-tools{display:flex;gap:10px;align-items:center;padding:9px 14px;border-bottom:1px solid var(--au-line);background:var(--au-card);flex-wrap:wrap;flex-shrink:0}
+.dw-prev-title{display:flex;gap:6px;align-items:center;font-size:13px;font-weight:600;color:var(--au-text2)}
+.dw-prev-miss{border:1px solid rgba(245,166,35,.5);background:rgba(245,166,35,.12);color:var(--au-amber-text);border-radius:999px;padding:3px 11px;font:inherit;font-size:12px;font-weight:600;cursor:pointer;min-height:0}
+.dw-prev-ok{display:inline-flex;gap:4px;align-items:center;font-size:12px;font-weight:600;color:var(--au-green-text)}
+.dw-zoom{display:inline-flex;border:1px solid var(--au-line);border-radius:999px;overflow:hidden;background:var(--au-pop)}
+.dw-zoom button{border:none;background:transparent;color:var(--au-text2);font:inherit;font-size:14px;width:30px;height:28px;cursor:pointer;min-height:0;padding:0}
+.dw-zoom button.v{width:auto;padding:0 10px;font-size:12px;font-weight:600;border-inline:1px solid var(--au-line);min-width:62px}
+.dw-zoom button:hover:not(:disabled){background:rgba(var(--ov),.06)}.dw-zoom button:disabled{opacity:.35;cursor:default}
+.dw-prev-stage{flex:1;overflow:auto;padding:22px 24px 40px;display:flex;justify-content:center;align-items:flex-start;min-height:0}
+.dw-prev-size{position:relative;flex-shrink:0}
+.dw-prev-size .dw-prev-in{position:absolute;top:0;inset-inline-start:0;transform-origin:top right;box-shadow:0 1px 2px rgba(0,0,0,.08),0 10px 30px rgba(0,0,0,.10);border-radius:3px}
+html[dir=ltr] .dw-prev-size .dw-prev-in{transform-origin:top left}
+.dsh-miss{background:rgba(245,166,35,.28);color:#8a5a00;border-radius:3px;padding:0 3px;box-shadow:inset 0 -1px 0 rgba(245,166,35,.9)}
+@media (max-width:1020px){.dw-prev-tools .dw-zoom,.dw-prev-tools .dw-prev-title,.dw-prev-tools .dw-chip{display:none}.dw-prev-tools{padding:6px 12px}
+.dw.show-prev .dw-prev-stage{padding:0;display:block}.dw-prev-size{width:auto!important;height:auto!important}.dw-prev-size .dw-prev-in{position:static;transform:none!important;width:100%!important;box-shadow:none}}
+@media (min-width:1021px){.dw-foot .dw-prev-btn{display:none}}
+@media (max-width:1020px){.dw{grid-template-columns:1fr}.dw-prev{display:none}.dw.show-prev .dw-form{display:none}.dw.show-prev .dw-prev{display:flex;padding:0;background:#fff}}
 @media (max-width:760px){.dt-tiles{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.dt-areas{overflow-x:auto;scrollbar-width:none}.dt-areas::-webkit-scrollbar{display:none}.dt-area{white-space:nowrap;padding:8px 10px}.dt-table{display:none}.dt-cards{display:flex;flex-direction:column;gap:8px}.dt-card{background:var(--au-card);border:1px solid var(--au-line);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:6px;cursor:pointer}.dt-card .r{display:flex;justify-content:space-between;align-items:center;gap:8px}.dw-grid{grid-template-columns:1fr}}
 `
 
@@ -539,6 +564,80 @@ function WordingEditor({ wording, settings, onClose, onSaved, push }) {
   )
 }
 
+/** The client's details the regulations require — the ID number and the home address — in a box of their own, so they are
+ *  not missed before sending: a ✓ / "חסר" per field, the ID's checksum checked as it is typed, and "הלקוח ישלים בזמן החתימה"
+ *  for a document the office sends without them (the signing page then asks the client). The send is blocked until one of
+ *  the two is true (`clientLegalIssues`). */
+function ClientLegalBox({ client, fillAtSign, onField, onFillAtSign, showErrors = false }) {
+  const st = clientLegalIssues(client, { fillAtSign })
+  const idState = st.idValid === true ? 'ok' : st.idValid === false ? 'bad' : 'missing'
+  const addrOk = !st.missing.includes('address')
+  const done = idState === 'ok' && addrOk
+  const tone = done ? 'ok' : fillAtSign && idState !== 'bad' ? 'later' : 'todo'
+  return (
+    <div className={`dw-legal ${tone}${showErrors && !st.ok ? ' err' : ''}`}>
+      <div className="dw-legal-head">
+        <b>פרטים שחובה למלא לפי חוק המתווכים</b>
+        <span className={`dw-legal-pill ${tone}`}>{done ? '✓ הכל מולא' : fillAtSign && idState !== 'bad' ? 'הלקוח ישלים בחתימה' : `חסרים ${st.missing.length + (idState === 'bad' ? 1 : 0) || ''}`.trim()}</span>
+      </div>
+      <div className="dw-grid">
+        <Field label={<>מספר ת.ז. של הלקוח <span className={`dw-legal-mark ${idState}`}>{idState === 'ok' ? '✓ תקין' : idState === 'bad' ? '✗ לא תקין' : 'חסר'}</span></>}>
+          <input className={`dt-input${idState === 'bad' ? ' bad' : ''}`} dir="ltr" inputMode="numeric" autoComplete="off" value={client.idNumber || ''} placeholder="9 ספרות" aria-label="ת.ז." aria-invalid={idState === 'bad'} onChange={e => onField('idNumber', e.target.value.replace(/\D/g, '').slice(0, 9))}/>
+        </Field>
+        <Field label={<>כתובת מגורים של הלקוח <span className={`dw-legal-mark ${addrOk ? 'ok' : 'missing'}`}>{addrOk ? '✓' : 'חסר'}</span></>}>
+          <input className="dt-input" value={client.address || ''} placeholder="רחוב, מספר, עיר" aria-label="כתובת מגורים" onChange={e => onField('address', e.target.value)}/>
+        </Field>
+      </div>
+      {idState === 'bad' && <div className="dw-legal-note bad">מספר הזהות לא עובר את בדיקת ספרת הביקורת. בדקו את הספרות, כולל ספרת הביקורת בסוף.</div>}
+      {!done && <label className="dt-tog dw-legal-tog"><input type="checkbox" checked={!!fillAtSign} onChange={e => onFillAtSign(e.target.checked)}/> אין לי אותם כרגע — הלקוח ישלים בזמן החתימה <small>(דף החתימה יבקש ת.ז. וכתובת לפני שאפשר לחתום)</small></label>}
+      {showErrors && !st.ok && <div className="dw-legal-note bad" role="alert">{st.errors.join(' ')}</div>}
+    </div>
+  )
+}
+
+/** The property picker in the wizard: closes on a pick, on Esc and when the focus leaves (it used to stay open over the form),
+ *  ↑ ↓ Enter, a ✕ to clear, the town and the price on every row; "נכס שלא במערכת" first. */
+const propText = p => `${p.title || ''} ${p.address || ''} ${p.city || ''} ${p.location || ''} ${p.street || ''} ${p.neighborhood || ''} ${p.type || ''} ${p.gush || ''}`.toLowerCase()
+function PropertyFinder({ properties, value = '', label = '', onPick, placeholder = 'חיפוש נכס…', noneLabel = 'נכס שלא במערכת', max = 40 }) {
+  const [q, setQ] = useState(label)
+  const [open, setOpen] = useState(false)
+  const [hi, setHi] = useState(0)
+  useEffect(() => { setQ(label) }, [label, value])
+  const rows = useMemo(() => {
+    const s = q.trim().toLowerCase()
+    // a picked property's own name in the box shows the whole list again, not only that one row
+    const typed = s && !(value && s === String(label || '').trim().toLowerCase())
+    return (typed ? properties.filter(p => propText(p).includes(s)) : properties).slice(0, max)
+  }, [properties, q, value, label, max])
+  const items = [null, ...rows]
+  const choose = p => { onPick(p); setOpen(false); setQ(p ? (p.title || p.address || '') : '') }
+  const key = e => {
+    if (!open) { if (e.key === 'ArrowDown' || e.key === 'Enter') { setOpen(true); setHi(0); e.preventDefault() } return }
+    if (e.key === 'ArrowDown') { setHi(h => Math.min(items.length - 1, h + 1)); e.preventDefault() }
+    else if (e.key === 'ArrowUp') { setHi(h => Math.max(0, h - 1)); e.preventDefault() }
+    else if (e.key === 'Enter') { choose(items[hi]); e.preventDefault() }
+    else if (e.key === 'Escape' || e.key === 'Tab') { setOpen(false); if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation() } }
+  }
+  useEffect(() => { if (!open) return; const el = document.querySelector('.dw-prop-list .hi'); el?.scrollIntoView?.({ block: 'nearest' }) }, [hi, open])
+  return (
+    <div className="dw-finder" style={{ position: 'relative' }}>
+      <input className="dt-input" value={q} placeholder={placeholder} aria-label={placeholder} role="combobox" aria-expanded={open} aria-autocomplete="list"
+        onChange={e => { setQ(e.target.value); setOpen(true); setHi(e.target.value.trim() ? 1 : 0) }} onFocus={e => { setOpen(true); e.target.select() }} onClick={() => setOpen(true)}
+        onKeyDown={key} onBlur={() => setTimeout(() => setOpen(false), 150)}/>
+      {value && <button type="button" className="dw-finder-x" aria-label="ניקוי הנכס" onMouseDown={e => e.preventDefault()} onClick={() => choose(null)}><XCircle size={14}/></button>}
+      {open && <div className="dw-lead-list dw-prop-list" role="listbox">
+        {items.map((p, i) => p === null
+          ? <button type="button" key="none" role="option" aria-selected={i === hi} className={i === hi ? 'hi' : ''} onMouseDown={e => e.preventDefault()} onMouseEnter={() => setHi(i)} onClick={() => choose(null)}><XCircle size={14}/><span style={{ flex: 1 }}>{noneLabel}</span><small>מילוי ידני</small></button>
+          : <button type="button" key={p.id} role="option" aria-selected={i === hi} className={`${i === hi ? 'hi' : ''}${String(p.id) === String(value) ? ' on' : ''}`} onMouseDown={e => e.preventDefault()} onMouseEnter={() => setHi(i)} onClick={() => choose(p)}>
+            <span style={{ flex: 1, minWidth: 0 }}><span className="dw-finder-name">{p.title || p.address || 'נכס ללא שם'}</span>{p.published === false ? <span className="dw-finder-st">מוסתר</span> : null}</span>
+            <small>{[p.city || p.location, qdPrice(p)].filter(Boolean).join(' · ')}</small>
+          </button>)}
+        {!rows.length && <div className="dw-finder-none">לא נמצא נכס כזה — אפשר לבחור "{noneLabel}" ולמלא ידנית</div>}
+      </div>}
+    </div>
+  )
+}
+
 /** The wording sent with the signing link: a dropdown of the library (the suggested one marked), the rendered text to edit,
  *  "שחזור הנוסח" once edited. value = { messageId, text, edited }; what goes to the API is `signPayload(value)`. */
 const MSG_KEY = 'afik_docs_msg_v1'
@@ -693,6 +792,52 @@ function ModalBar({ title, sub, onClose, right = null, pct = null }) {
 function PreviewBar({ onBack, onClose, label = 'חזרה לטופס' }) {
   return <div className="dw-prev-bar"><Button size="sm" variant="ghost" icon={<ChevronRight size={14}/>} onClick={onBack}>{label}</Button><b>תצוגה מקדימה</b><IconButton icon={<X size={18}/>} label="סגירה" onClick={onClose} size={34}/></div>
 }
+/** The live A4 preview next to the form: a toolbar (what is still empty in the document — a click goes to it —, zoom − / fit /
+ *  +, the PDF once a draft is saved), the sheet sized to its real scaled height (a scaled sheet used to leave an empty scroll
+ *  area under it), blanks marked in amber; on a phone the bar with "חזרה לטופס" + ✕ instead. */
+const ZOOMS = [0.5, 0.6, 0.75, 0.9, 1, 1.15, 1.3]
+function SheetPreview({ view, onBack, onClose, pdfHref = '' }) {
+  const box = useRef(null), sheet = useRef(null)
+  const [fit, setFit] = useState(0.8)
+  const [zoom, setZoom] = useState(0)           // 0 = fit to the pane
+  const [h, setH] = useState(1123)
+  useEffect(() => {
+    const el = box.current; if (!el) return
+    const ro = new ResizeObserver(() => setFit(Math.max(0.4, Math.min(1.1, (el.clientWidth - 56) / 794))))
+    ro.observe(el); return () => ro.disconnect()
+  }, [])
+  useEffect(() => {
+    const el = sheet.current; if (!el) return
+    const ro = new ResizeObserver(() => setH(el.offsetHeight || 1123))
+    ro.observe(el); return () => ro.disconnect()
+  }, [])
+  const scale = zoom || fit
+  const missing = useMemo(() => (JSON.stringify(view?.blocks || []).match(/_{6,}/g) || []).length, [view])
+  const step = dir => { const cur = scale; const next = dir > 0 ? ZOOMS.find(z => z > cur + 0.01) : [...ZOOMS].reverse().find(z => z < cur - 0.01); if (next) setZoom(next) }
+  const goMissing = () => box.current?.querySelector('.dsh-miss')?.scrollIntoView?.({ block: 'center', behavior: 'smooth' })
+  return (
+    <div className="dw-prev" ref={box}>
+      <PreviewBar onBack={onBack} onClose={onClose}/>
+      <div className="dw-prev-tools">
+        <span className="dw-prev-title"><Eye size={14}/> תצוגה מקדימה חיה</span>
+        {missing ? <button type="button" className="dw-prev-miss" onClick={goMissing} title="מעבר לשדה הריק הראשון במסמך">{missing === 1 ? 'שדה אחד ריק במסמך' : `${missing} שדות ריקים במסמך`}</button>
+          : <span className="dw-prev-ok"><Check size={12}/> אין שדות ריקים</span>}
+        <span style={{ flex: 1 }}/>
+        <div className="dw-zoom" role="group" aria-label="זום">
+          <button type="button" onClick={() => step(-1)} aria-label="הקטנה" disabled={scale <= ZOOMS[0] + 0.01}>−</button>
+          <button type="button" className="v" onClick={() => setZoom(0)} title="התאמה לרוחב">{zoom ? `${Math.round(scale * 100)}%` : 'התאמה'}</button>
+          <button type="button" onClick={() => step(1)} aria-label="הגדלה" disabled={scale >= ZOOMS[ZOOMS.length - 1] - 0.01}>+</button>
+        </div>
+        {pdfHref && <a className="dw-chip" href={pdfHref} target="_blank" rel="noreferrer"><FileText size={12}/> PDF</a>}
+      </div>
+      <div className="dw-prev-stage">
+        <div className="dw-prev-size" style={{ width: Math.round(794 * scale), height: Math.round(h * scale) }}>
+          <div className="dw-prev-in" ref={sheet} style={{ transform: `scale(${scale})`, width: 794 }}><DocSheet view={view} highlight/></div>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 function DocWizard({ t, leads, properties, projects = [], templates = [], settings, init, onClose, onDone, push, onQuick = null }) {
   const [step, setStep] = useState(init.templateId || init.doc || init.prefill ? 1 : 0)
@@ -704,15 +849,12 @@ function DocWizard({ t, leads, properties, projects = [], templates = [], settin
   })
   const [docId, setDocId] = useState(init.doc?.id || '')
   const [number, setNumber] = useState(init.doc?.number || '')
-  const [propQ, setPropQ] = useState('')
-  const [propOpen, setPropOpen] = useState(false)
   const [busy, setBusy] = useState('')
   const [errs, setErrs] = useState([])
   const [showPrev, setShowPrev] = useState(false)
+  const [legalShow, setLegalShow] = useState(false)
   const [send, setSend] = useState({ via: 'both', msg: null })
   const [result, setResult] = useState(null)
-  const prevRef = useRef(null)
-  const [scale, setScale] = useState(1)
   const set = (path, v) => setForm(f => { const n = { ...f }; const [a, b] = path.split('.'); if (b) n[a] = { ...n[a], [b]: v }; else n[a] = v; return n })
   useEffect(() => { if (settings && !init.doc) setForm(f => ({ ...f, fees: { ...f.fees, vatRate: settings.vatRate }, agent: f.agent.name ? f.agent : { ...settings.agent }, logo: f.logo.url || !settings.logo ? f.logo : { ...settings.logo }, expiryDays: settings.expiryDays })) }, [settings]) // eslint-disable-line react-hooks/exhaustive-deps
   const pickLead = useCallback(l => { // eslint-disable-line react-hooks/exhaustive-deps
@@ -723,11 +865,12 @@ function DocWizard({ t, leads, properties, projects = [], templates = [], settin
     setForm(f => ({ ...f, leadId: String(l.id), client: { ...f.client, ...nm, name: l.name || '', phone: l.phone || f.client.phone, email: l.email || f.client.email, role: cd.dealType === 'rent' ? 'renter' : f.client.role }, property: { ...f.property, address: f.property.address || leadProperty(l) || '', dealType: cd.dealType === 'rent' ? 'rent' : f.property.dealType }, ...(pj && !f.projectId ? { projectId: pj.id, projectName: pj.name } : {}) }))
   }, [])
   useEffect(() => { if (init.leadId && !init.doc) { const l = leads.find(x => String(x.id) === String(init.leadId)); if (l) pickLead(l) } }, [init.leadId, init.doc, leads, pickLead])
+  const propPicked = form.propertyId ? properties.find(p => String(p.id) === String(form.propertyId)) : null
+  const propLabel = propPicked ? (propPicked.title || propPicked.address || '') : ''
   const pickProp = p => {
-    if (!p) { setForm(f => ({ ...f, propertyId: '' })); setPropQ(''); setPropOpen(false); return }
+    if (!p) { setForm(f => ({ ...f, propertyId: '' })); return }
     const price = Number(String(p.price || '').replace(/\D/g, '')) || ''
     setForm(f => ({ ...f, propertyId: String(p.id), property: { ...f.property, address: [p.street, p.houseNumber].filter(Boolean).join(' ') || p.address || p.title || '', city: p.city || p.location || f.property.city, desc: [p.type, p.rooms ? `${p.rooms} חדרים` : '', p.size ? `${p.size} מ"ר` : ''].filter(Boolean).join(', ') || f.property.desc, type: p.type || f.property.type, price: price || f.property.price, link: p.id ? `https://www.afikhanahal.co.il/p/${p.id}` : f.property.link, dealType: p.category === 'rentals' ? 'rent' : f.property.dealType } }))
-    setPropQ(p.title || p.address || ''); setPropOpen(false)
   }
   const fees = computeFees({ ...form.fees, price: form.property.price })
   const clauses = settings?.clauses?.length ? settings.clauses : null
@@ -740,11 +883,6 @@ function DocWizard({ t, leads, properties, projects = [], templates = [], settin
   const view = useMemo(() => formView(form, tpl, number), [form, tpl, number])
   const lastData = flow.indexOf('preview') - 1
   const lead = leads.find(l => String(l.id) === String(form.leadId))
-  useEffect(() => {
-    const el = prevRef.current; if (!el) return
-    const ro = new ResizeObserver(() => setScale(Math.min(1, (el.clientWidth - 40) / 794)))
-    ro.observe(el); return () => ro.disconnect()
-  }, [])
   const reqOpts = { requireProperty: usesProperty, requireFees: usesFees, requireAgent: tpl.kind === 'brokerage' }
   const validate = () => { const { errors } = cleanDocInput({ ...form, fees: { ...form.fees, price: form.property.price } }, reqOpts); const miss = missingFields(tpl, view.values).filter(f => f.required).map(f => `השדה "${f.label}" חסר`); setErrs([...errors, ...miss]); return !errors.length && !miss.length }
   const payload = () => ({ ...form, templateId: form.templateId || 'brokerage', fees: { ...form.fees, price: form.property.price }, client: { ...form.client, name: form.client.name || [form.client.firstName, form.client.lastName].filter(Boolean).join(' ') } })
@@ -761,6 +899,7 @@ function DocWizard({ t, leads, properties, projects = [], templates = [], settin
   const next = async () => {
     if (cur === 'client' && !(form.client.name || form.client.firstName)) { setErrs(['שם הלקוח חסר']); return }
     if (cur === 'client' && !form.client.phone && !form.client.email) { setErrs(['צריך טלפון או אימייל של הלקוח']); return }
+    if (cur === 'client') { const lg = clientLegalIssues(form.client, { fillAtSign: form.fillAtSign }); if (!lg.ok) { setLegalShow(true); setErrs(lg.errors); return } }
     if (cur === 'property' && usesProperty && !form.property.address) { setErrs(['כתובת הנכס חסרה']); return }
     if (step === lastData && !validate()) return
     setErrs([])
@@ -768,6 +907,7 @@ function DocWizard({ t, leads, properties, projects = [], templates = [], settin
     setStep(s => Math.min(flow.length - 1, s + 1))
   }
   const doSend = async () => {
+    { const lg = clientLegalIssues(form.client, { fillAtSign: form.fillAtSign }); if (!lg.ok) { setLegalShow(true); setErrs(lg.errors); setStep(flow.indexOf('client')); return } }
     const d = docId ? { id: docId } : await save()
     if (!d) return
     const via = send.via === 'both' ? ['whatsapp', 'email'] : [send.via]
@@ -809,12 +949,11 @@ function DocWizard({ t, leads, properties, projects = [], templates = [], settin
       <div className="dw-grid">
         <Field label={t.client.first}><input className="dt-input" value={form.client.firstName} aria-label={t.client.first} onChange={e => setForm(f => ({ ...f, client: { ...f.client, firstName: e.target.value, name: [e.target.value, f.client.lastName].filter(Boolean).join(' ') } }))}/></Field>
         <Field label={t.client.last}><input className="dt-input" value={form.client.lastName} aria-label={t.client.last} onChange={e => setForm(f => ({ ...f, client: { ...f.client, lastName: e.target.value, name: [f.client.firstName, e.target.value].filter(Boolean).join(' ') } }))}/></Field>
-        <Field label={t.client.id}><input className="dt-input" dir="ltr" inputMode="numeric" value={form.client.idNumber} aria-label={t.client.id} onChange={e => set('client.idNumber', e.target.value.replace(/\D/g, '').slice(0, 9))}/></Field>
         <Field label={t.client.phone}><input className="dt-input" dir="ltr" inputMode="tel" value={form.client.phone} aria-label={t.client.phone} onChange={e => set('client.phone', e.target.value)}/></Field>
         <Field label={t.client.email}><input className="dt-input" dir="ltr" inputMode="email" value={form.client.email} aria-label={t.client.email} onChange={e => set('client.email', e.target.value)}/></Field>
         <Field label={t.client.role}><select className="dt-input" value={form.client.role} aria-label={t.client.role} onChange={e => set('client.role', e.target.value)}>{Object.entries(CLIENT_ROLES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>
-        <div className="full"><Field label={t.client.address}><input className="dt-input" value={form.client.address} aria-label={t.client.address} onChange={e => set('client.address', e.target.value)}/></Field></div>
       </div>
+      <ClientLegalBox client={form.client} fillAtSign={form.fillAtSign} showErrors={legalShow} onField={(k, v) => set(`client.${k}`, v)} onFillAtSign={v => setForm(f => ({ ...f, fillAtSign: v }))}/>
       <div className="dw-signers">
         <SectionHead title={<><Users size={14}/> {t.signers.title}</>} right={(form.signers || []).length < MAX_SIGNERS - 1 && <Button size="sm" variant="ghost" icon={<Plus size={12}/>} onClick={() => set('signers', [...(form.signers || []), { name: '', idNumber: '', phone: '', email: '', role: 'spouse' }])}>{t.signers.add}</Button>}/>
         <p style={{ margin: '0 0 8px', fontSize: 12.5, color: 'var(--au-text3)', lineHeight: 1.6 }}>{t.signers.hint}</p>
@@ -831,13 +970,7 @@ function DocWizard({ t, leads, properties, projects = [], templates = [], settin
     <>
       <div className="dw-lead">
         <Field label={t.pickProp}>
-          <div style={{ position: 'relative' }}>
-            <input className="dt-input" value={propQ} placeholder={t.propPh} onChange={e => { setPropQ(e.target.value); setPropOpen(true) }} onFocus={() => setPropOpen(true)} aria-label={t.pickProp}/>
-            {propOpen && <div className="dw-lead-list" role="listbox">
-              <button type="button" onClick={() => pickProp(null)}><XCircle size={14}/>{t.noProp}</button>
-              {properties.filter(p => !propQ.trim() || `${p.title || ''} ${p.address || ''} ${p.city || ''} ${p.street || ''}`.toLowerCase().includes(propQ.trim().toLowerCase())).slice(0, 40).map(p => <button type="button" key={p.id} onClick={() => pickProp(p)}><span style={{ flex: 1 }}>{p.title || p.address}</span><small>{p.city || p.location || ''}</small></button>)}
-            </div>}
-          </div>
+          <PropertyFinder properties={properties} value={form.propertyId} label={propLabel} onPick={pickProp} placeholder={t.propPh} noneLabel={t.noProp}/>
         </Field>
       </div>
       <div className="dw-grid">
@@ -911,7 +1044,7 @@ function DocWizard({ t, leads, properties, projects = [], templates = [], settin
   useEffect(() => { setSend(s => { const ok = v => (v === 'whatsapp' && hasWa) || (v === 'email' && hasEmail) || (v === 'both' && hasWa && hasEmail); const best = hasWa && hasEmail ? 'both' : hasWa ? 'whatsapp' : 'email'; return s.picked && ok(s.via) ? s : { ...s, via: best } }) }, [hasWa, hasEmail])   // follows the client's details until a channel is picked by hand
   return (
     <Modal open onClose={onClose} title={null} full xl dir="rtl" label={t.newDoc} closeOnBackdrop={false}>
-      <div className={`dw${showPrev ? ' show-prev' : ''}`} style={{ height: 'calc(100vh - 80px)', maxHeight: 900 }}>
+      <div className={`dw${showPrev ? ' show-prev' : ''}`} style={{ height: '100%' }}>
         <div className="dw-form">
           <ModalBar title={`${STEP_LABEL[cur]}${number ? ` · ${number}` : ''}`} sub={`${init.doc ? 'עריכת מסמך' : t.newDoc} · שלב ${step + 1} מתוך ${flow.length}`} onClose={onClose} pct={Math.round((step + 1) / flow.length * 100)}
             right={step >= 1 && cur !== 'send' && cur !== 'preview' ? <Button size="sm" variant="ghost" loading={busy === 'save'} onClick={async () => { const d = await save(); if (d) onDone(`${t.saveDraft} ✓ ${d.number}`) }}>{t.saveDraft}</Button> : null}/>
@@ -931,7 +1064,7 @@ function DocWizard({ t, leads, properties, projects = [], templates = [], settin
             </div>
           </div>
         </div>
-        <div className="dw-prev" ref={prevRef}><PreviewBar onBack={() => setShowPrev(false)} onClose={onClose}/><div className="dw-prev-in" style={{ transform: `scale(${scale})`, width: 794 }}><DocSheet view={view}/></div></div>
+        <SheetPreview view={view} onBack={() => setShowPrev(false)} onClose={onClose} pdfHref={docId ? fileUrl(docId, 'original') : ''}/>
       </div>
     </Modal>
   )
@@ -996,12 +1129,11 @@ function QuickDoc({ t, leads, properties, projects = [], templates = [], setting
   useEffect(() => { if (initTemplateId) setForm(f => ({ ...f, templateId: initTemplateId })) }, [initTemplateId])
   const [remember, setRemember] = useState(true)
   const [send, setSend] = useState({ via: 'whatsapp', msg: null })
+  const [legalShow, setLegalShow] = useState(false)
   const [busy, setBusy] = useState('')
   const [errs, setErrs] = useState([])
   const [result, setResult] = useState(null)
   const [showPrev, setShowPrev] = useState(false)
-  const [scale, setScale] = useState(1)
-  const prevRef = useRef(null)
   const prop = manual ? MANUAL : (properties.find(p => String(p.id) === propId) || null)
   const preset = propId ? settings?.presets?.[propId] : null
   // a property picked → its fixed details + its preset (or a sensible start) — the client and anything typed stay
@@ -1038,11 +1170,6 @@ function QuickDoc({ t, leads, properties, projects = [], templates = [], setting
   const set = (path, v) => setForm(f => { const n = { ...f }; const [a, b] = path.split('.'); if (b) n[a] = { ...n[a], [b]: v }; else n[a] = v; return n })
   const hasWa = !!form.client.phone, hasEmail = !!form.client.email
   useEffect(() => { setSend(s => { const ok = v => (v === 'whatsapp' && hasWa) || (v === 'email' && hasEmail) || (v === 'both' && hasWa && hasEmail); const best = hasWa && hasEmail ? 'both' : hasWa ? 'whatsapp' : 'email'; return s.picked && ok(s.via) ? s : { ...s, via: best } }) }, [hasWa, hasEmail])   // follows the client's details until a channel is picked by hand
-  useEffect(() => {
-    const el = prevRef.current; if (!el) return
-    const ro = new ResizeObserver(() => setScale(Math.min(1, (el.clientWidth - 40) / 794)))
-    ro.observe(el); return () => ro.disconnect()
-  }, [propId])
   const list = useMemo(() => {
     const s = q.trim().toLowerCase()
     return properties.filter(p => (!onlyLive || p.published !== false) && (!s || `${p.title || ''} ${p.location || ''} ${p.street || ''} ${p.neighborhood || ''} ${p.type || ''} ${p.gush || ''}`.toLowerCase().includes(s)))
@@ -1059,6 +1186,7 @@ function QuickDoc({ t, leads, properties, projects = [], templates = [], setting
     try { const r = await api.post('docs-settings', { presets: { [propId]: pr } }); if (r.settings) onPresetSaved?.(r.settings) } catch { /* the document itself is what matters */ }
   }
   const go = async (andSend) => {
+    if (andSend) { const lg = clientLegalIssues(form.client, { fillAtSign: form.fillAtSign }); if (!lg.ok) { setLegalShow(true); setErrs(lg.errors); document.querySelector('.qd .dw-legal, .dw .dw-legal')?.scrollIntoView?.({ block: 'center', behavior: 'smooth' }); return } }
     if (!validate()) return
     setBusy(andSend ? 'send' : 'save')
     try {
@@ -1075,7 +1203,7 @@ function QuickDoc({ t, leads, properties, projects = [], templates = [], setting
   // ── step 1: the properties ──
   if (!prop) return (
     <Modal open onClose={onClose} title={null} full xl dir="rtl" label="מסמך מהיר מנכס" closeOnBackdrop={false}>
-      <div className="qd" style={{ height: 'calc(100vh - 80px)', maxHeight: 900 }}>
+      <div className="qd" style={{ height: '100%' }}>
         <ModalBar title="מסמך מהיר" sub="מסמך לחתימה בדקה: מנכס מהמערכת, או רק הפרטים שמשתנים" onClose={onClose}/>
         <div className="qd-modes" style={{ paddingTop: 12 }}>
           <button type="button" className="qd-mode on" aria-pressed="true"><i><Building2 size={18}/></i><span><b>מנכס מהמערכת</b><small>הכתובת, התיאור והמחיר נכנסים לבד. בוחרים נכס למטה.</small></span></button>
@@ -1102,7 +1230,7 @@ function QuickDoc({ t, leads, properties, projects = [], templates = [], setting
   const done = result?.results?.some(r => r.ok)
   return (
     <Modal open onClose={onClose} title={null} full xl dir="rtl" label="מסמך מהיר מנכס" closeOnBackdrop={false}>
-      <div className={`dw${showPrev ? ' show-prev' : ''}`} style={{ height: 'calc(100vh - 80px)', maxHeight: 900 }}>
+      <div className={`dw${showPrev ? ' show-prev' : ''}`} style={{ height: '100%' }}>
         <div className="dw-form">
           <ModalBar title={manual ? 'מילוי מהיר' : 'מסמך מהיר מנכס'} sub={manual ? 'רק מה שמשתנה · השאר מההגדרות ומהתבנית' : `${prop.title || form.property.address}${form.property.price ? ` · ${fmtMoney(form.property.price)}` : ''}`} onClose={onClose}
             right={<button type="button" className="dw-chip" onClick={() => { setManual(false); setPropId(''); setResult(null); setErrs([]) }}>{manual ? 'מנכס מהמערכת' : 'החלפת נכס'}</button>}/>
@@ -1117,7 +1245,7 @@ function QuickDoc({ t, leads, properties, projects = [], templates = [], setting
               <p>{result.results.filter(r => r.ok).map(r => r.via === 'whatsapp' ? 'בוואטסאפ' : 'באימייל').join(' ו')} ל{form.client.name || [form.client.firstName, form.client.lastName].filter(Boolean).join(' ')}. כשיחתמו תגיע הודעה למשרד, והעותק החתום יישמר בכרטיס הליד.</p>
               {result.link && <CopyRow label="קישור החתימה" value={result.link} t={t}/>}
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
-                <Button variant="solid" onClick={() => { setResult(null); setForm(f => ({ ...f, leadId: '', client: { ...emptyForm(settings).client, role: f.client.role }, fields: {} })) }}>מסמך נוסף לאותו נכס</Button>
+                <Button variant="solid" onClick={() => { setResult(null); setLegalShow(false); setForm(f => ({ ...f, leadId: '', fillAtSign: false, client: { ...emptyForm(settings).client, role: f.client.role }, fields: {} })) }}>מסמך נוסף לאותו נכס</Button>
                 <Button variant="ghost" onClick={() => onDone('')}>סיום</Button>
               </div>
             </div> : <>
@@ -1140,9 +1268,9 @@ function QuickDoc({ t, leads, properties, projects = [], templates = [], setting
                 <Field label="שם משפחה"><input className="dt-input" value={form.client.lastName} aria-label="שם משפחה" onChange={e => setForm(f => ({ ...f, client: { ...f.client, lastName: e.target.value, name: [f.client.firstName, e.target.value].filter(Boolean).join(' ') } }))}/></Field>
                 <Field label="טלפון"><input className="dt-input" dir="ltr" inputMode="tel" value={form.client.phone} aria-label="טלפון" onChange={e => set('client.phone', e.target.value)}/></Field>
                 <Field label="אימייל (לא חובה)"><input className="dt-input" dir="ltr" inputMode="email" value={form.client.email} aria-label="אימייל" onChange={e => set('client.email', e.target.value)}/></Field>
-                <Field label="ת.ז. (לא חובה)"><input className="dt-input" dir="ltr" inputMode="numeric" value={form.client.idNumber} aria-label="תעודת זהות" onChange={e => set('client.idNumber', e.target.value.replace(/\D/g, '').slice(0, 9))}/></Field>
                 <Field label="הלקוח בעסקה כ"><select className="dt-input" value={form.client.role} aria-label="תפקיד הלקוח בעסקה" onChange={e => set('client.role', e.target.value)}>{Object.entries(CLIENT_ROLES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>
               </div>
+              <ClientLegalBox client={form.client} fillAtSign={form.fillAtSign} showErrors={legalShow} onField={(k, v) => set(`client.${k}`, v)} onFillAtSign={v => setForm(f => ({ ...f, fillAtSign: v }))}/>
             </div>
             {usesFees && <div className="qd-sec"><h4><span>{manual ? 3 : 2}</span>דמי התיווך ותוקף</h4>
               <div className="dw-chips">{Object.entries(FEE_MODES).map(([k, v]) => <button type="button" key={k} className={`dw-chip${form.fees.mode === k ? ' on' : ''}`} onClick={() => set('fees.mode', k)}>{v}</button>)}</div>
@@ -1192,7 +1320,7 @@ function QuickDoc({ t, leads, properties, projects = [], templates = [], setting
             </div>
           </div>}
         </div>
-        <div className="dw-prev" ref={prevRef}><PreviewBar onBack={() => setShowPrev(false)} onClose={onClose}/><div className="dw-prev-in" style={{ transform: `scale(${scale})`, width: 794 }}><DocSheet view={view}/></div></div>
+        <SheetPreview view={view} onBack={() => setShowPrev(false)} onClose={onClose}/>
       </div>
     </Modal>
   )
