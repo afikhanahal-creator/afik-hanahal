@@ -2,8 +2,7 @@
  * GreenAPIChat — WhatsApp-Web / Green API Console replica
  * Dark/Light theme · RTL Hebrew · Isolated scroll · Sticky input
  */
-import { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react'
-import { supabase } from './lib/supabaseClient'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, memo } from 'react'
 import { WAText } from './waFormat.jsx'
 import ChatTemplatePicker, { ChatTemplateMenu, ChatQuickChips } from './ChatTemplatePicker.jsx'
 import ChatComposer from './ChatComposer.jsx'
@@ -276,6 +275,8 @@ const ChatRow = memo(function ChatRow({ lead, lastMsg, isActive, isRowLoading, u
               )
 }, rowEq)
 
+const PAGE_MSGS = 60
+
 export default function GreenAPIChat({ leads = [], lang = 'he', initialContact = null, onOpenLead, onUpdateLead, onUpdateStatus, stageLabels = {}, onDeleteLead, onNewMessage, onSentMessage, onReadChange, autoConfig = null, onAutoConfigSaved }) {
 
   // ── Theme ─────────────────────────────────────────────────────────────────
@@ -358,6 +359,10 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
   const pollTick          = useRef(0)   // while the live bus is up the open chat is re-read once a minute only (8 s × 8)
   const inputRef          = useRef(null)
   const isNearBottom      = useRef(true)
+  // The newest PAGE_MSGS messages are drawn first (a 200-message chat cost ~0.7 s of main thread to open on a slow phone);
+  // earlier ones come in pages as the reader scrolls up (or presses "הודעות קודמות"), the scroll position kept.
+  const [shownN, setShownN] = useState(PAGE_MSGS)
+  const keepScroll        = useRef(null)
   const prevMsgCount      = useRef(0)
   const fileRef           = useRef(null)
   const notifiedMsgIdsRef = useRef(new Set())
@@ -613,43 +618,17 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
     if (!contact?.phone) return
     prevMsgCount.current = 0
     isNearBottom.current = true
+    setShownN(PAGE_MSGS)
     fetchMsgs(contact.phone, { showLoader: true })
 
     const p = intlPhone(contact.phone)
 
-    if (supabase) {
-      // Realtime: listen for new rows in chats table for this phone number
-      const channel = supabase
-        .channel(`chats_rt_${p}`)
-        .on('postgres_changes', {
-          event: 'INSERT', schema: 'public', table: 'chats',
-          filter: `phone=eq.${p}`,
-        }, (payload) => {
-          const msg = payload.new
-          if (!msg?.id) return
-          setChats(prev => {
-            const existing = prev[p] || []
-            if (existing.some(m => String(m.id) === String(msg.id))) return prev
-            // Notify incoming messages
-            if (msg.direction === 'in' && !notifiedMsgIdsRef.current.has(String(msg.id))) {
-              const threshold = pageLoadTimeRef.current
-              if (new Date(msg.created_at).getTime() > threshold) {
-                notifiedMsgIdsRef.current.add(String(msg.id))
-                onNewMessageRef.current?.({ contactName: nameForPhone(p), message: msg.message, phone: p, id: String(msg.id), ts: Date.parse(msg.created_at) })
-              }
-            }
-            notifiedMsgIdsRef.current.add(String(msg.id))
-            return { ...prev, [p]: [...existing, msg].sort((a, b) => new Date(a.created_at) - new Date(b.created_at)) }
-          })
-        })
-        .subscribe()
-      // Green API messages never reach that table, so the open chat is polled as well
-      pollRef.current = setInterval(() => { if (!document.hidden && (!waLiveUp() || ++pollTick.current % 8 === 0)) fetchMsgs(contact.phone) }, 8000)
-      return () => { supabase.removeChannel(channel); clearInterval(pollRef.current) }
-    } else {
-      pollRef.current = setInterval(() => { if (!document.hidden && (!waLiveUp() || ++pollTick.current % 8 === 0)) fetchMsgs(contact.phone) }, 8000)
-      return () => clearInterval(pollRef.current)
-    }
+    // New messages arrive live through the change bus (src/lib/waLive.js → applyLive). The open chat re-reads Green's history
+    // every 8 s only while the bus is down, otherwise every ~3 min as a safety net (a webhook Green dropped is also caught by
+    // catchUpMessages in auto-tick). The Realtime listener on the legacy `chats` table that sat here never fired (the table
+    // isn't in the Realtime publication) — it only opened a channel per chat and made the database poll its WAL.
+    pollRef.current = setInterval(() => { if (!document.hidden && (!waLiveUp() || ++pollTick.current % 24 === 0)) fetchMsgs(contact.phone) }, 8000)
+    return () => clearInterval(pollRef.current)
   }, [contact?.id, fetchMsgs])
 
   // Coming back to the tab/window: refresh the open chat right away instead of waiting for the next poll
@@ -660,32 +639,6 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
     return () => { document.removeEventListener('visibilitychange', onVis); window.removeEventListener('focus', onVis) }
   }, [contact?.phone, fetchMsgs])
 
-  // Global Realtime: keep ALL conversations fresh (not just the open one) so the
-  // unread badges update in real time. Dedup + notifiedMsgIdsRef make it safe to
-  // run alongside the per-contact subscription above.
-  useEffect(() => {
-    if (!supabase) return
-    const channel = supabase
-      .channel('chats_rt_global')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chats' }, (payload) => {
-        const msg = payload.new
-        if (!msg?.id || !msg.phone) return
-        const p = intlPhone(msg.phone)
-        setChats(prev => {
-          const existing = prev[p] || []
-          if (existing.some(m => String(m.id) === String(msg.id))) return prev
-          return { ...prev, [p]: [...existing, msg].sort((a, b) => new Date(a.created_at) - new Date(b.created_at)) }
-        })
-        if (msg.direction === 'in' && !notifiedMsgIdsRef.current.has(String(msg.id))) {
-          if (new Date(msg.created_at).getTime() > pageLoadTimeRef.current) {
-            notifiedMsgIdsRef.current.add(String(msg.id))
-            onNewMessageRef.current?.({ contactName: nameForPhone(p), message: msg.message, phone: p, id: String(msg.id), ts: Date.parse(msg.created_at) })
-          }
-        }
-      })
-      .subscribe()
-    return () => { supabase.removeChannel(channel) }
-  }, [])
 
   // Live WhatsApp (src/lib/waLive.js): every message / status Green API delivers to /api/meta/green-hook reaches every chat
   // here in about a second — no poll. A sent message replaces its optimistic bubble; an incoming one lifts its
@@ -1018,6 +971,176 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
   const statusLabel = blockedQuota ? 'מחובר · השליחה חסומה (מכסה)' : status==='authorized' ? 'מחובר' : status==='notAuthorized' ? 'לא מחובר (סרקו QR ב-Green API)' : status==='error' ? 'שגיאה' : status==='notConfigured' ? 'לא מוגדר ב-Vercel' : status==='yellowCard' ? 'מוגבל זמנית' : status==='blocked' ? 'חסום' : 'טוען...'
 
   // ── Render ────────────────────────────────────────────────────────────────
+  // The conversation's bubbles are built only when the conversation itself changes — typing in the box (its state lives here)
+  // used to rebuild all of them on every letter: ~190 ms a key at a slow phone's speed with 200 messages. Handlers that are
+  // re-made every render are read through a ref, so the list never holds a stale one.
+  const acts = useRef({})
+  const showEarlier = () => {
+    const el = scrollRef.current
+    if (el) keepScroll.current = { h: el.scrollHeight, top: el.scrollTop }
+    setShownN(n => n + PAGE_MSGS * 2)
+  }
+  acts.current = { toggleSel, reactTo, msgRef, chatLead, showEarlier }
+  // earlier messages were added above: the reader stays on the message they were looking at (Safari has no scroll anchoring)
+  useLayoutEffect(() => {
+    const k = keepScroll.current, el = scrollRef.current
+    if (!k || !el) return
+    keepScroll.current = null
+    el.scrollTop = el.scrollHeight - k.h + k.top
+  }, [shownN])
+  const contactLabel = hasName(contactView) ? nameOf(contactView, lang) : 'איש קשר'
+  const bubbles = useMemo(() => {
+                  const items = []
+                  let lastDate = null
+                  const hidden = Math.max(0, foldedMsgs.length - shownN)
+                  const view = hidden ? foldedMsgs.slice(hidden) : foldedMsgs   // reactions drawn on the message they react to, like WhatsApp
+                  if (hidden) items.push(
+                    <div key="earlier" style={{ display:'flex', justifyContent:'center', margin:'8px 0 4px', flexShrink:0 }}>
+                      <button type="button" onClick={() => acts.current.showEarlier()}
+                        style={{ fontSize:12.5, fontWeight:600, color: WA.subText, background: isDark ? 'rgba(255,255,255,.06)' : 'rgba(255,255,255,.85)', border:'none', borderRadius:14, padding:'5px 14px', cursor:'pointer', boxShadow:'0 1px 0.5px rgba(0,0,0,.12)', fontFamily:'inherit', minHeight:0 }}>
+                        {lang === 'en' ? `Earlier messages (${hidden})` : `הודעות קודמות (${hidden})`}
+                      </button>
+                    </div>
+                  )
+                  view.forEach((msg, i) => {
+                    const isOut      = msg.direction === 'out'
+                    const msgDateStr = new Date(msg.created_at).toDateString()
+                    if (msgDateStr !== lastDate) {
+                      lastDate = msgDateStr
+                      items.push(
+                        <div key={`date-${i}`} style={{ display:'flex', justifyContent:'center', margin:'14px 0 10px', flexShrink:0 }}>
+                          <span style={{ fontSize:12.5, fontWeight:500, color: WA.dateSepText, background: WA.dateSepBg, borderRadius:8, padding:'5px 18px', boxShadow:'0 1px 0.5px rgba(0,0,0,.18)', userSelect:'none' }}>
+                            {fmtDate(msg.created_at)}
+                          </span>
+                        </div>
+                      )
+                    }
+                    const isLastInGroup = i === view.length-1
+                      || view[i+1]?.direction !== msg.direction
+                      || Math.abs(new Date(view[i+1]?.created_at) - new Date(msg.created_at)) > 60000
+                    const isOptimistic  = msg.id?.startsWith?.('opt-')
+                    const bubbleRadius  = isOut
+                      ? (isLastInGroup ? '7.5px 7.5px 0 7.5px' : '7.5px')
+                      : (isLastInGroup ? '7.5px 7.5px 7.5px 0' : '7.5px')
+                    const bubbleColor   = isOut ? WA.bubbleOut : WA.bubbleIn
+                    if (msg.orphan) {
+                      items.push(
+                        <div key={msg.id||i} style={{ display:'flex', justifyContent:isOut?'flex-end':'flex-start', margin:'2px 8px 6px', flexShrink:0, direction:'ltr' }}>
+                          <span title={fmtTime(msg.created_at)} style={{ direction:'rtl', fontSize:12.5, color: WA.subText, background: isDark ? 'rgba(255,255,255,.06)' : 'rgba(255,255,255,.85)', borderRadius:12, padding:'3px 10px', boxShadow:'0 1px 0.5px rgba(0,0,0,.12)' }}>
+                            {isOut ? 'הגבתם' : 'תגובה'} <span style={{ fontSize:16, verticalAlign:'-2px' }}>{msg.message}</span> · {fmtTime(msg.created_at)}
+                          </span>
+                        </div>
+                      )
+                      return
+                    }
+                    const hasReacts = msg.reactions?.length > 0
+
+                    const selectable = selMode && !isOptimistic
+                    const selOn = selectable && selIds.some(x => x.id === msg.id)
+                    items.push(
+                      <div key={msg.id||i}
+                        {...(selectable ? { role: 'checkbox', 'aria-checked': selOn, tabIndex: 0, onClick: () => acts.current.toggleSel(msg), onKeyDown: e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); acts.current.toggleSel(msg) } } } : {})}
+                        style={{ display:'flex', justifyContent:isOut?'flex-end':'flex-start', marginBottom:(isLastInGroup?6:2) + (hasReacts ? 16 : 0), flexShrink:0, direction:'ltr', paddingRight:isOut?8:0, paddingLeft:isOut?0:8,
+                          ...(selectable ? { cursor:'pointer', position:'relative', paddingLeft: 44, background: selOn ? 'rgba(0,168,132,.14)' : 'transparent', borderRadius: 6 } : {}) }}>
+                        {selectable && <span aria-hidden="true" style={{ position:'absolute', left:12, top:'50%', transform:'translateY(-50%)', width:20, height:20, borderRadius:5, border:`2px solid ${selOn ? WA.green : WA.subText}`, background: selOn ? WA.green : 'transparent', color:'#fff', fontSize:13, fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center' }}>{selOn ? '✓' : ''}</span>}
+                        <div className="wa-bubble" style={{
+                          direction:'rtl',
+                          maxWidth:'65%', minWidth:90,
+                          padding:'6px 9px 22px 9px',
+                          borderRadius: bubbleRadius,
+                          background: bubbleColor,
+                          color: WA.bodyText,
+                          fontSize:14.2, lineHeight:1.55,
+                          wordBreak:'break-word',
+                          boxShadow:'0 1px 0.5px rgba(0,0,0,.18)',
+                          position:'relative',
+                          opacity: isOptimistic ? 0.75 : 1,
+                          transition:'opacity .3s',
+                        }}>
+                          {!isOptimistic && !selMode && <ChatMsgMenu text={msg.message} isOut={isOut} WA={WA} lang={lang} bg={bubbleColor}
+                            myReaction={msg.reactions?.find(r => r.dir === 'out')?.emoji || ''}
+                            onReact={emo => acts.current.reactTo(msg, emo)}
+                            onReply={() => { setReplyTo(acts.current.msgRef(msg)); setTimeout(() => inputRef.current?.focus(), 30) }}
+                            onForward={() => setFwd([acts.current.msgRef(msg)])}
+                            onSelect={() => { setSelMode(true); setSelIds([acts.current.msgRef(msg)]) }}
+                            onSaveTemplate={text => {
+                            const he = /[\u0590-\u05FF]/.test(text)
+                            const lead = acts.current.chatLead || {}
+                            const body = messageToTemplate(text, lead)
+                            setEditTpl({ tpl: { cat: 'personal', he: '', en: '', he_title: '', en_title: '', project: leadProperty(lead) || '' }, initial: he ? { he: body, en: '' } : { he: '', en: body }, lang: he ? 'he' : 'en', create: true })
+                          }}/>}
+                          {/* our messages on the right (tail bottom-right), the contact's on the left (tail bottom-left) */}
+                          {isLastInGroup && isOut && (
+                            <svg style={{ position:'absolute', bottom:0, right:-8, width:9, height:13 }} viewBox="0 0 9 13" aria-hidden="true">
+                              <path d="M0 0 Q0 10 9 13 L0 13 Z" fill={bubbleColor}/>
+                            </svg>
+                          )}
+                          {isLastInGroup && !isOut && (
+                            <svg style={{ position:'absolute', bottom:0, left:-8, width:9, height:13 }} viewBox="0 0 9 13" aria-hidden="true">
+                              <path d="M9 0 Q9 10 0 13 L9 13 Z" fill={bubbleColor}/>
+                            </svg>
+                          )}
+                          {msg.quoted && (
+                            <div style={{ borderInlineStart:`4px solid ${msg.quoted.out ? WA.green : '#53BDEB'}`, background: isDark ? 'rgba(0,0,0,.22)' : 'rgba(0,0,0,.05)', borderRadius:6, padding:'5px 8px', marginBottom:5, fontSize:12.5, color: WA.subText, direction:'rtl', maxHeight:54, overflow:'hidden' }}>
+                              <div style={{ fontWeight:700, color: msg.quoted.out ? WA.green : '#53BDEB', fontSize:12 }}>{msg.quoted.out ? 'אתם' : contactLabel}</div>
+                              {msg.quoted.text}
+                            </div>
+                          )}
+                          {msg.media && (msg.kind === 'imageMessage' || msg.kind === 'stickerMessage') && (
+                            <button onClick={() => msg.media.url && setLightbox(msg.media.url)} style={{ display:'block', padding:0, border:'none', background:'none', cursor: msg.media.url ? 'zoom-in' : 'default', margin:'-2px -5px 4px', borderRadius:6, overflow:'hidden', minWidth:0, minHeight:0 }}>
+                              <img src={msg.media.url || msg.media.thumb} alt="" loading="lazy" onError={e => { if (msg.media.thumb && e.currentTarget.src !== msg.media.thumb) e.currentTarget.src = msg.media.thumb }} style={{ display:'block', maxWidth:300, width:'100%', maxHeight:320, objectFit:'cover' }}/>
+                            </button>
+                          )}
+                          {msg.media?.url && msg.kind === 'videoMessage' && (
+                            <video src={msg.media.url} poster={msg.media.thumb || undefined} controls preload="none" style={{ display:'block', maxWidth:300, width:'100%', borderRadius:6, margin:'-2px -5px 4px' }}/>
+                          )}
+                          {msg.media?.url && msg.kind === 'audioMessage' && (
+                            <audio src={msg.media.url} controls preload="none" style={{ display:'block', width:250, maxWidth:'100%', height:36, margin:'2px 0 4px' }}/>
+                          )}
+                          {msg.media?.url && msg.kind === 'documentMessage' && (
+                            <a href={msg.media.url} target="_blank" rel="noreferrer" style={{ display:'flex', alignItems:'center', gap:9, padding:'8px 10px', marginBottom:4, background: isDark ? 'rgba(0,0,0,.22)' : 'rgba(0,0,0,.05)', borderRadius:6, color: WA.bodyText, textDecoration:'none' }}>
+                              <span style={{ fontSize:26 }}>📄</span>
+                              <span style={{ fontSize:13, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:200 }}>{msg.media.name || 'מסמך'}</span>
+                              <span style={{ marginInlineStart:'auto', fontSize:12, color: WA.green, fontWeight:700 }}>הורדה</span>
+                            </a>
+                          )}
+                          {msg.location?.latitude && (
+                            <a href={`https://maps.google.com/?q=${msg.location.latitude},${msg.location.longitude}`} target="_blank" rel="noreferrer" style={{ display:'block', padding:'8px 10px', marginBottom:4, background: isDark ? 'rgba(0,0,0,.22)' : 'rgba(0,0,0,.05)', borderRadius:6, color: WA.bodyText, textDecoration:'none', fontSize:13 }}>
+                              📍 {msg.location.nameLocation || msg.location.address || 'מיקום'} <span style={{ color: WA.green, fontWeight:700 }}>· פתיחה במפה</span>
+                            </a>
+                          )}
+                          {msg.contactCard && (
+                            <div style={{ padding:'8px 10px', marginBottom:4, background: isDark ? 'rgba(0,0,0,.22)' : 'rgba(0,0,0,.05)', borderRadius:6, fontSize:13 }}>👤 {msg.contactCard.displayName || 'איש קשר'}</div>
+                          )}
+                          {msg.file && (
+                            <div style={{ display:'flex', alignItems:'center', gap:9, padding:'7px 9px', marginBottom: (msg.message && msg.message !== msg.file.name) ? 5 : 0, background: isDark ? 'rgba(0,0,0,.20)' : 'rgba(0,0,0,.05)', borderRadius:7, direction:'rtl' }}>
+                            {msg.file.preview
+                                ? <img src={msg.file.preview} alt="" style={{ width:40, height:40, borderRadius:5, objectFit:'cover', flexShrink:0 }}/>
+                                : <span style={{ fontSize:24, flexShrink:0 }}>{msg.file.type?.startsWith('image/') ? '🖼️' : '📎'}</span>}
+                              <span style={{ fontSize:12.5, color: WA.bodyText, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:180 }}>{msg.file.name}</span>
+                            </div>
+                          )}
+                          {(!msg.file || (msg.message && msg.message !== msg.file.name)) && msg.message && (
+                            <div style={{ direction:'rtl', unicodeBidi:'plaintext', textAlign:'right', wordBreak:'break-word', whiteSpace:'pre-wrap' }}><WAText text={msg.message}/></div>
+                          )}
+                          <div style={{ position:'absolute', bottom:5, left:8, display:'flex', alignItems:'center', gap:3, direction:'ltr', userSelect:'none' }}>
+                            <span style={{ fontSize:11, color: WA.subText }}>{fmtTime(msg.created_at)}</span>
+                            {isOut && <TickMark status={isOptimistic ? (msg.status === 'sent' ? 'sent' : 'sending') : (msg.status || 'sent')} WA={WA}/>}
+                          </div>
+                          {hasReacts && (
+                            <div aria-label={`תגובות: ${msg.reactions.map(r => r.emoji).join(' ')}`} title={msg.reactions.map(r => `${r.dir === 'out' ? 'אתם' : contactLabel}: ${r.emoji}`).join('\n')}
+                              style={{ position:'absolute', bottom:-17, [isOut ? 'right' : 'left']:10, display:'flex', alignItems:'center', gap:1, padding:'1px 6px', height:24, borderRadius:12, background: isDark ? '#202C33' : '#FFFFFF', border:`1px solid ${isDark ? '#0B141A' : '#E9EDEF'}`, boxShadow:'0 1px 3px rgba(11,20,26,.18)', fontSize:15, lineHeight:1, direction:'ltr', userSelect:'none' }}>
+                              {msg.reactions.map(r => <span key={r.dir}>{r.emoji}</span>)}
+                              {msg.reactions.length > 1 && <span style={{ fontSize:11.5, color: WA.subText, marginInlineStart:3 }}>{msg.reactions.length}</span>}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })
+                  return items
+  }, [foldedMsgs, isDark, selMode, selIds, lang, contactLabel, shownN]) // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <div className={`wa-root${contact ? ' wa-has-contact' : ''}`} style={{
       display:'flex', flexDirection:'column',
@@ -1301,6 +1424,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                   if (!scrollRef.current) return
                   const { scrollTop, scrollHeight, clientHeight } = scrollRef.current
                   isNearBottom.current = scrollHeight - scrollTop - clientHeight < 80
+                  if (scrollTop < 120 && !keepScroll.current && foldedMsgs.length > shownN) acts.current.showEarlier()
                 }}
                 style={{
                   flex:'1 1 auto',
@@ -1360,147 +1484,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                       </>
                     )}
                   </div>
-                ) : (() => {
-                  const items = []
-                  let lastDate = null
-                  const view = foldedMsgs   // reactions drawn on the message they react to, like WhatsApp
-                  view.forEach((msg, i) => {
-                    const isOut      = msg.direction === 'out'
-                    const msgDateStr = new Date(msg.created_at).toDateString()
-                    if (msgDateStr !== lastDate) {
-                      lastDate = msgDateStr
-                      items.push(
-                        <div key={`date-${i}`} style={{ display:'flex', justifyContent:'center', margin:'14px 0 10px', flexShrink:0 }}>
-                          <span style={{ fontSize:12.5, fontWeight:500, color: WA.dateSepText, background: WA.dateSepBg, borderRadius:8, padding:'5px 18px', boxShadow:'0 1px 0.5px rgba(0,0,0,.18)', userSelect:'none' }}>
-                            {fmtDate(msg.created_at)}
-                          </span>
-                        </div>
-                      )
-                    }
-                    const isLastInGroup = i === view.length-1
-                      || view[i+1]?.direction !== msg.direction
-                      || Math.abs(new Date(view[i+1]?.created_at) - new Date(msg.created_at)) > 60000
-                    const isOptimistic  = msg.id?.startsWith?.('opt-')
-                    const bubbleRadius  = isOut
-                      ? (isLastInGroup ? '7.5px 7.5px 0 7.5px' : '7.5px')
-                      : (isLastInGroup ? '7.5px 7.5px 7.5px 0' : '7.5px')
-                    const bubbleColor   = isOut ? WA.bubbleOut : WA.bubbleIn
-                    if (msg.orphan) {
-                      items.push(
-                        <div key={msg.id||i} style={{ display:'flex', justifyContent:isOut?'flex-end':'flex-start', margin:'2px 8px 6px', flexShrink:0, direction:'ltr' }}>
-                          <span title={fmtTime(msg.created_at)} style={{ direction:'rtl', fontSize:12.5, color: WA.subText, background: isDark ? 'rgba(255,255,255,.06)' : 'rgba(255,255,255,.85)', borderRadius:12, padding:'3px 10px', boxShadow:'0 1px 0.5px rgba(0,0,0,.12)' }}>
-                            {isOut ? 'הגבתם' : 'תגובה'} <span style={{ fontSize:16, verticalAlign:'-2px' }}>{msg.message}</span> · {fmtTime(msg.created_at)}
-                          </span>
-                        </div>
-                      )
-                      return
-                    }
-                    const hasReacts = msg.reactions?.length > 0
-
-                    const selectable = selMode && !isOptimistic
-                    const selOn = selectable && selIds.some(x => x.id === msg.id)
-                    items.push(
-                      <div key={msg.id||i}
-                        {...(selectable ? { role: 'checkbox', 'aria-checked': selOn, tabIndex: 0, onClick: () => toggleSel(msg), onKeyDown: e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); toggleSel(msg) } } } : {})}
-                        style={{ display:'flex', justifyContent:isOut?'flex-end':'flex-start', marginBottom:(isLastInGroup?6:2) + (hasReacts ? 16 : 0), flexShrink:0, direction:'ltr', paddingRight:isOut?8:0, paddingLeft:isOut?0:8,
-                          ...(selectable ? { cursor:'pointer', position:'relative', paddingLeft: 44, background: selOn ? 'rgba(0,168,132,.14)' : 'transparent', borderRadius: 6 } : {}) }}>
-                        {selectable && <span aria-hidden="true" style={{ position:'absolute', left:12, top:'50%', transform:'translateY(-50%)', width:20, height:20, borderRadius:5, border:`2px solid ${selOn ? WA.green : WA.subText}`, background: selOn ? WA.green : 'transparent', color:'#fff', fontSize:13, fontWeight:800, display:'flex', alignItems:'center', justifyContent:'center' }}>{selOn ? '✓' : ''}</span>}
-                        <div className="wa-bubble" style={{
-                          direction:'rtl',
-                          maxWidth:'65%', minWidth:90,
-                          padding:'6px 9px 22px 9px',
-                          borderRadius: bubbleRadius,
-                          background: bubbleColor,
-                          color: WA.bodyText,
-                          fontSize:14.2, lineHeight:1.55,
-                          wordBreak:'break-word',
-                          boxShadow:'0 1px 0.5px rgba(0,0,0,.18)',
-                          position:'relative',
-                          opacity: isOptimistic ? 0.75 : 1,
-                          transition:'opacity .3s',
-                        }}>
-                          {!isOptimistic && !selMode && <ChatMsgMenu text={msg.message} isOut={isOut} WA={WA} lang={lang} bg={bubbleColor}
-                            myReaction={msg.reactions?.find(r => r.dir === 'out')?.emoji || ''}
-                            onReact={emo => reactTo(msg, emo)}
-                            onReply={() => { setReplyTo(msgRef(msg)); setTimeout(() => inputRef.current?.focus(), 30) }}
-                            onForward={() => setFwd([msgRef(msg)])}
-                            onSelect={() => { setSelMode(true); setSelIds([msgRef(msg)]) }}
-                            onSaveTemplate={text => {
-                            const he = /[\u0590-\u05FF]/.test(text)
-                            const body = messageToTemplate(text, chatLead || {})
-                            setEditTpl({ tpl: { cat: 'personal', he: '', en: '', he_title: '', en_title: '', project: leadProperty(chatLead || {}) || '' }, initial: he ? { he: body, en: '' } : { he: '', en: body }, lang: he ? 'he' : 'en', create: true })
-                          }}/>}
-                          {/* our messages on the right (tail bottom-right), the contact's on the left (tail bottom-left) */}
-                          {isLastInGroup && isOut && (
-                            <svg style={{ position:'absolute', bottom:0, right:-8, width:9, height:13 }} viewBox="0 0 9 13" aria-hidden="true">
-                              <path d="M0 0 Q0 10 9 13 L0 13 Z" fill={bubbleColor}/>
-                            </svg>
-                          )}
-                          {isLastInGroup && !isOut && (
-                            <svg style={{ position:'absolute', bottom:0, left:-8, width:9, height:13 }} viewBox="0 0 9 13" aria-hidden="true">
-                              <path d="M9 0 Q9 10 0 13 L9 13 Z" fill={bubbleColor}/>
-                            </svg>
-                          )}
-                          {msg.quoted && (
-                            <div style={{ borderInlineStart:`4px solid ${msg.quoted.out ? WA.green : '#53BDEB'}`, background: isDark ? 'rgba(0,0,0,.22)' : 'rgba(0,0,0,.05)', borderRadius:6, padding:'5px 8px', marginBottom:5, fontSize:12.5, color: WA.subText, direction:'rtl', maxHeight:54, overflow:'hidden' }}>
-                              <div style={{ fontWeight:700, color: msg.quoted.out ? WA.green : '#53BDEB', fontSize:12 }}>{msg.quoted.out ? 'אתם' : (hasName(contactView) ? nameOf(contactView, lang) : 'איש קשר')}</div>
-                              {msg.quoted.text}
-                            </div>
-                          )}
-                          {msg.media && (msg.kind === 'imageMessage' || msg.kind === 'stickerMessage') && (
-                            <button onClick={() => msg.media.url && setLightbox(msg.media.url)} style={{ display:'block', padding:0, border:'none', background:'none', cursor: msg.media.url ? 'zoom-in' : 'default', margin:'-2px -5px 4px', borderRadius:6, overflow:'hidden', minWidth:0, minHeight:0 }}>
-                              <img src={msg.media.url || msg.media.thumb} alt="" loading="lazy" onError={e => { if (msg.media.thumb && e.currentTarget.src !== msg.media.thumb) e.currentTarget.src = msg.media.thumb }} style={{ display:'block', maxWidth:300, width:'100%', maxHeight:320, objectFit:'cover' }}/>
-                            </button>
-                          )}
-                          {msg.media?.url && msg.kind === 'videoMessage' && (
-                            <video src={msg.media.url} poster={msg.media.thumb || undefined} controls preload="none" style={{ display:'block', maxWidth:300, width:'100%', borderRadius:6, margin:'-2px -5px 4px' }}/>
-                          )}
-                          {msg.media?.url && msg.kind === 'audioMessage' && (
-                            <audio src={msg.media.url} controls preload="none" style={{ display:'block', width:250, maxWidth:'100%', height:36, margin:'2px 0 4px' }}/>
-                          )}
-                          {msg.media?.url && msg.kind === 'documentMessage' && (
-                            <a href={msg.media.url} target="_blank" rel="noreferrer" style={{ display:'flex', alignItems:'center', gap:9, padding:'8px 10px', marginBottom:4, background: isDark ? 'rgba(0,0,0,.22)' : 'rgba(0,0,0,.05)', borderRadius:6, color: WA.bodyText, textDecoration:'none' }}>
-                              <span style={{ fontSize:26 }}>📄</span>
-                              <span style={{ fontSize:13, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:200 }}>{msg.media.name || 'מסמך'}</span>
-                              <span style={{ marginInlineStart:'auto', fontSize:12, color: WA.green, fontWeight:700 }}>הורדה</span>
-                            </a>
-                          )}
-                          {msg.location?.latitude && (
-                            <a href={`https://maps.google.com/?q=${msg.location.latitude},${msg.location.longitude}`} target="_blank" rel="noreferrer" style={{ display:'block', padding:'8px 10px', marginBottom:4, background: isDark ? 'rgba(0,0,0,.22)' : 'rgba(0,0,0,.05)', borderRadius:6, color: WA.bodyText, textDecoration:'none', fontSize:13 }}>
-                              📍 {msg.location.nameLocation || msg.location.address || 'מיקום'} <span style={{ color: WA.green, fontWeight:700 }}>· פתיחה במפה</span>
-                            </a>
-                          )}
-                          {msg.contactCard && (
-                            <div style={{ padding:'8px 10px', marginBottom:4, background: isDark ? 'rgba(0,0,0,.22)' : 'rgba(0,0,0,.05)', borderRadius:6, fontSize:13 }}>👤 {msg.contactCard.displayName || 'איש קשר'}</div>
-                          )}
-                          {msg.file && (
-                            <div style={{ display:'flex', alignItems:'center', gap:9, padding:'7px 9px', marginBottom: (msg.message && msg.message !== msg.file.name) ? 5 : 0, background: isDark ? 'rgba(0,0,0,.20)' : 'rgba(0,0,0,.05)', borderRadius:7, direction:'rtl' }}>
-                            {msg.file.preview
-                                ? <img src={msg.file.preview} alt="" style={{ width:40, height:40, borderRadius:5, objectFit:'cover', flexShrink:0 }}/>
-                                : <span style={{ fontSize:24, flexShrink:0 }}>{msg.file.type?.startsWith('image/') ? '🖼️' : '📎'}</span>}
-                              <span style={{ fontSize:12.5, color: WA.bodyText, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:180 }}>{msg.file.name}</span>
-                            </div>
-                          )}
-                          {(!msg.file || (msg.message && msg.message !== msg.file.name)) && msg.message && (
-                            <div style={{ direction:'rtl', unicodeBidi:'plaintext', textAlign:'right', wordBreak:'break-word', whiteSpace:'pre-wrap' }}><WAText text={msg.message}/></div>
-                          )}
-                          <div style={{ position:'absolute', bottom:5, left:8, display:'flex', alignItems:'center', gap:3, direction:'ltr', userSelect:'none' }}>
-                            <span style={{ fontSize:11, color: WA.subText }}>{fmtTime(msg.created_at)}</span>
-                            {isOut && <TickMark status={isOptimistic ? (msg.status === 'sent' ? 'sent' : 'sending') : (msg.status || 'sent')} WA={WA}/>}
-                          </div>
-                          {hasReacts && (
-                            <div aria-label={`תגובות: ${msg.reactions.map(r => r.emoji).join(' ')}`} title={msg.reactions.map(r => `${r.dir === 'out' ? 'אתם' : (hasName(contactView) ? nameOf(contactView, lang) : 'איש קשר')}: ${r.emoji}`).join('\n')}
-                              style={{ position:'absolute', bottom:-17, [isOut ? 'right' : 'left']:10, display:'flex', alignItems:'center', gap:1, padding:'1px 6px', height:24, borderRadius:12, background: isDark ? '#202C33' : '#FFFFFF', border:`1px solid ${isDark ? '#0B141A' : '#E9EDEF'}`, boxShadow:'0 1px 3px rgba(11,20,26,.18)', fontSize:15, lineHeight:1, direction:'ltr', userSelect:'none' }}>
-                              {msg.reactions.map(r => <span key={r.dir}>{r.emoji}</span>)}
-                              {msg.reactions.length > 1 && <span style={{ fontSize:11.5, color: WA.subText, marginInlineStart:3 }}>{msg.reactions.length}</span>}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )
-                  })
-                  return items
-                })()}
+                ) : bubbles}
               </div>
 
               {saveFiles && att.items.length > 0 && (

@@ -524,34 +524,15 @@ export default function MetaLeadsTab({ C, lang, isDark, onOpenCard, onSaveToCRM,
       leadsIntervalRef.current = setInterval(() => { if (!document.hidden) loadLeads(true) }, 30000)
       return () => clearInterval(leadsIntervalRef.current)
     }
-    const channel = supabase
-      .channel('meta_leads_rt')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'meta_leads' }, (payload) => {
-        const { eventType, new: next, old } = payload
-        if (eventType === 'INSERT') {
-          if (deletedIdsRef.current.has(next.id)) return
-          setLeads(prev => {
-            if (prev.some(l => l.id === next.id)) return prev
-            if (!knownLeadIdsRef.current?.has(next.id)) { knownLeadIdsRef.current?.add(next.id); onNewLeadRef.current?.({ name: next.name, campaign: next.campaign_name || next.form_name }) }
-            return [next, ...prev]
-          })
-        } else if (eventType === 'UPDATE') {
-          if (deletedIdsRef.current.has(next.id)) return
-          setLeads(prev => prev.map(l => (l.id === next.id ? { ...l, ...next } : l)))
-        } else if (eventType === 'DELETE') {
-          setLeads(prev => prev.filter(l => l.id !== old.id))
-          setSelectedId(id => (id === old.id ? null : id))
-        }
-      })
-      .subscribe()
-    // postgres_changes needs the table in the Realtime publication (it isn't); the database's own announcements
+    // (a postgres_changes listener used to sit here: it needs the table in the Realtime publication, and it isn't — it never
+    // fired, it only kept a channel open and the database polling its WAL.) The database's own announcements
     // (src/lib/syncBus.js: table + id only) say a Meta lead changed, and the list is re-read conditionally (ETag)
     let missed = false
     const soon = debounce(() => { if (document.hidden) missed = true; else loadLeads(true) }, 900)
     const off = onSync(m => { if (m.t === 'meta_leads' || m.t === '*') soon() })
     const back = () => { if (missed && !document.hidden) { missed = false; loadLeads(true) } }
     document.addEventListener('visibilitychange', back)
-    return () => { off(); document.removeEventListener('visibilitychange', back); supabase.removeChannel(channel) }
+    return () => { off(); document.removeEventListener('visibilitychange', back) }
   }, [loadLeads, loadDeletedLeads])
 
   // ── The open lead's log: Realtime, or a poll when Realtime isn't configured ──
@@ -564,20 +545,9 @@ export default function MetaLeadsTab({ C, lang, isDark, onOpenCard, onSaveToCRM,
       messagesIntervalRef.current = setInterval(() => { if (!document.hidden) loadMessages(selectedId, true) }, 15000)
       return () => clearInterval(messagesIntervalRef.current)
     }
-    const channel = supabase
-      .channel(`meta_messages_${selectedId}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'meta_messages', filter: `lead_id=eq.${selectedId}` }, (payload) => {
-        const msg = payload.new
-        setMessages(prev => (prev.some(m => m.id === msg.id) ? prev : [...prev, msg]))
-        const known = knownMsgIdsRef.current.get(selectedId)
-        if (msg.direction === 'in' && known && !known.has(msg.id)) {
-          known.add(msg.id)
-          const lead = leadsRef.current.find(l => l.id === selectedId)
-          onNewMetaMsgRef.current?.({ leadName: lead?.name || '—', message: msg.message })
-        }
-      })
-      .subscribe()
-    return () => { clearInterval(messagesIntervalRef.current); supabase.removeChannel(channel) }
+    // (meta_messages isn't in the Realtime publication either: its old listener never fired. The conversation itself comes
+    //  live from WhatsApp through src/lib/waLive.js.)
+    return () => clearInterval(messagesIntervalRef.current)
   }, [selectedId, loadMessages])
 
   // ── Connection status (Meta token + page subscription + last webhook + WhatsApp + welcome rule) ──

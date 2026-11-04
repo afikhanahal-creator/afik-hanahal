@@ -151,6 +151,8 @@ const I = {
   search: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>,
 }
 
+const PAGE_MSGS = 60
+
 export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = true, localMsgs = [], needsWelcome = false, autoConfig = null, onAutoConfigSaved, onSend, onSendWelcome, onOpenChats, officePhone = '', compact = false, onActivity, maximized = false, onToggleMaximize, onOpenCard, unreadCount = 0, hideHeader = false }) {
   const t = TR[lang] || TR.he
   const WA = isDark ? DARK : LIGHT
@@ -189,6 +191,8 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
   const [qActive, setQActive] = useState(0)
   const cfg = cfgLocal || autoConfig
   useEffect(() => { setCfgLocal(null) }, [autoConfig])
+  const [shownN, setShownN] = useState(PAGE_MSGS), keepScroll = useRef(null)
+  useEffect(() => { setShownN(PAGE_MSGS) }, [phone])   // another chat opens on its newest messages
   const rootRef = useRef(null), scrollRef = useRef(null), inputRef = useRef(null), dockRef = useRef(null), qListRef = useRef(null), qBtnRef = useRef(null)
   useLayoutEffect(() => {
     if (!quick) return undefined
@@ -226,7 +230,7 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
     // live: Green delivers every message to us and the bus announces it (src/lib/waLive.js) — a reply shows in about a
     // second; the history is re-read every 8 s only while the bus is down, otherwise once a minute as a safety net
     const iv = setInterval(() => { if (!document.hidden && !waLiveUp()) load(true) }, 8000)
-    const slow = setInterval(() => { if (!document.hidden && waLiveUp()) load(true) }, 60000)
+    const slow = setInterval(() => { if (!document.hidden && waLiveUp()) load(true) }, 180000)   // a safety net only: messages arrive live
     const off = onWaLive(items => {
       const mine = items.filter(m => m.phone === phone)
       if (!mine.length) return
@@ -276,7 +280,12 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
 
   // keep the newest message in view (unless the reader scrolled up)
   useLayoutEffect(() => { const el = scrollRef.current; if (el && nearBottom.current) el.scrollTop = el.scrollHeight }, [msgs.length, histState, dock])
-  const onScroll = () => { const el = scrollRef.current; if (el) nearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80 }
+  const onScroll = () => {
+    const el = scrollRef.current
+    if (!el) return
+    nearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80
+    if (el.scrollTop < 120 && !keepScroll.current && msgs.length > shownN) acts.current.showEarlier()
+  }
 
   // ── sending ──
   const send = async (text) => {
@@ -413,72 +422,94 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
   }, [quick])
 
   // ── messages (WhatsApp Web: a tail on the first bubble of a run, the time tucked into the last line) ──
-  const items = []
-  let lastDay = ''
-  const view = foldReactions(msgs)   // reactions drawn on the message they react to, like WhatsApp
-  // "הודעות חדשות" line before the last `unreadCount` incoming messages (the inbox passes how many are waiting for us)
-  let unreadFrom = -1
-  if (unreadCount > 0) { let left = unreadCount; for (let k = view.length - 1; k >= 0 && left > 0; k--) if (view[k].direction !== 'out' && !view[k].orphan) { unreadFrom = k; left-- } }
-  view.forEach((m, i) => {
-    if (i === unreadFrom) items.push(<div key="unread" className="lcv-day lcv-new"><span>{lang === 'en' ? `${unreadCount} new message${unreadCount === 1 ? '' : 's'}` : (unreadCount === 1 ? 'הודעה חדשה' : `${unreadCount} הודעות חדשות`)}</span></div>)
-    const day = new Date(m.created_at).toDateString()
-    if (day !== lastDay) {
-      lastDay = day
-      items.push(<div key={`d-${day}`} className="lcv-day"><span>{fmtDay(m.created_at, lang)}</span></div>)
-    }
-    const out = m.direction === 'out'
-    const prev = view[i - 1], next = view[i + 1]
-    const firstOfRun = !prev || prev.direction !== m.direction || new Date(prev.created_at).toDateString() !== day || Math.abs(new Date(m.created_at) - new Date(prev.created_at)) > 60000
-    const lastOfRun = !next || next.direction !== m.direction || Math.abs(new Date(next.created_at) - new Date(m.created_at)) > 60000
-    const sending = String(m.id).startsWith('opt-') && m.status === 'sending'
-    if (m.orphan) {
-      items.push(<div key={m.id || i} className={`lcv-row ${out ? 'out' : 'in'}`} style={{ marginTop: 4 }}><span className="lcv-react-line">{out ? (lang === 'en' ? 'You reacted' : 'הגבתם') : (lang === 'en' ? 'Reaction' : 'תגובה')} <b>{m.message}</b> · {fmtTime(m.created_at)}</span></div>)
-      return
-    }
-    const reacts = m.reactions || []
-    const selectable = selMode && !String(m.id).startsWith('opt-') && !String(m.id).startsWith('log-')
-    const selOn = selectable && selIds.some(x => x.id === m.id)
-    items.push(
-      <div key={m.id || i} className={`lcv-row ${out ? 'out' : 'in'}${selectable ? ' sel' : ''}${selOn ? ' on' : ''}`} style={{ marginTop: firstOfRun ? 8 : 2, marginBottom: (lastOfRun ? 2 : 0) + (reacts.length ? 16 : 0) }}
-        {...(selectable ? { role: 'checkbox', 'aria-checked': selOn, tabIndex: 0, onClick: () => toggleSel(m), onKeyDown: e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); toggleSel(m) } } } : {})}>
-        {selectable && <span className="lcv-selbox" aria-hidden="true">{selOn ? '✓' : ''}</span>}
-        <div className={`lcv-b wa-bubble ${out ? 'out' : 'in'}${firstOfRun ? ' tail' : ''}`} style={{ opacity: sending ? .7 : 1, position: 'relative' }}>
-          {!String(m.id).startsWith('opt-') && !selMode && <ChatMsgMenu text={m.message} isOut={out} WA={WA} lang={lang} bg={out ? WA.bubbleOut : WA.bubbleIn}
-            {...(String(m.id).startsWith('log-') ? {} : {
-              myReaction: reacts.find(r => r.dir === 'out')?.emoji || '',
-              onReact: emo => reactTo(m, emo),
-              onReply: () => { setReplyTo(msgRef(m)); setTimeout(() => inputRef.current?.focus(), 30) },
-              onForward: () => setFwd([msgRef(m)]),
-              onSelect: () => { setSelMode(true); setSelIds([msgRef(m)]) },
-            })}
-            onSaveTemplate={text => {
-            const he = /[\u0590-\u05FF]/.test(text), body = messageToTemplate(text, tplLead || {})
-            setEditTpl({ tpl: { cat: 'personal', he: '', en: '', he_title: '', en_title: '', project: leadProperty(tplLead || {}) || '' }, initial: he ? { he: body, en: '' } : { he: '', en: body }, lang: he ? 'he' : 'en', create: true })
-          }}/>}
-          {m.quoted && <div className="lcv-quote" style={{ borderInlineStartColor: m.quoted.out ? WA.green : '#53BDEB' }}>{m.quoted.text}</div>}
-          {m.media && (m.kind === 'imageMessage' || m.kind === 'stickerMessage') && (m.media.url || m.media.thumb) && (
-            <a href={m.media.url || undefined} target="_blank" rel="noreferrer" style={{ display: 'block', margin: '-3px -4px 4px' }}>
-              <img src={m.media.url || m.media.thumb} alt="" loading="lazy" style={{ display: 'block', maxWidth: 280, width: '100%', borderRadius: 6 }}/>
-            </a>
-          )}
-          {m.media?.url && m.kind === 'audioMessage' && <audio src={m.media.url} controls preload="none" style={{ display: 'block', width: 240, maxWidth: '100%', height: 34, margin: '2px 0 4px' }}/>}
-          {m.media?.url && (m.kind === 'documentMessage' || m.kind === 'videoMessage') && <a href={m.media.url} target="_blank" rel="noreferrer" className="lcv-file">{m.kind === 'videoMessage' ? '🎥' : '📄'} {m.media.name || (lang === 'en' ? 'Open' : 'פתיחה')}</a>}
-          {m.location?.latitude && <a href={`https://maps.google.com/?q=${m.location.latitude},${m.location.longitude}`} target="_blank" rel="noreferrer" className="lcv-file">📍 {m.location.nameLocation || m.location.address || (lang === 'en' ? 'Location' : 'מיקום')}</a>}
-          <div className="lcv-txt">{m.message ? <WAText text={m.message}/> : null}<span className={`lcv-sp${out ? ' o' : ''}`} aria-hidden="true"/></div>
-          <span className="lcv-meta">
-            <span>{fmtTime(m.created_at)}</span>
-            {out && <TickMark status={sending ? 'sending' : (m.status || 'sent')} WA={WA} size={14}/>}
-          </span>
-          {reacts.length > 0 && (
-            <span className={`lcv-reacts ${out ? 'o' : 'i'}`} aria-label={`${lang === 'en' ? 'Reactions' : 'תגובות'}: ${reacts.map(r => r.emoji).join(' ')}`}
-              title={reacts.map(r => `${r.dir === 'out' ? (lang === 'en' ? 'You' : 'אתם') : (lead?.name || (lang === 'en' ? 'Contact' : 'איש קשר'))}: ${r.emoji}`).join('\n')}>
-              {reacts.map(r => <span key={r.dir}>{r.emoji}</span>)}{reacts.length > 1 && <em>{reacts.length}</em>}
+  // Built only when the conversation changes (typing in the box — its state lives here — used to rebuild every bubble on every
+  // letter), the newest PAGE_MSGS first and earlier ones in pages as the reader scrolls up. Handlers come through a ref.
+  const acts = useRef({})
+  const showEarlier = () => {
+    const el = scrollRef.current
+    if (el) keepScroll.current = { h: el.scrollHeight, top: el.scrollTop }
+    setShownN(n => n + PAGE_MSGS * 2)
+  }
+  acts.current = { toggleSel, reactTo, msgRef, tplLead, showEarlier }
+  useLayoutEffect(() => {
+    const k = keepScroll.current, el = scrollRef.current
+    if (!k || !el) return
+    keepScroll.current = null
+    el.scrollTop = el.scrollHeight - k.h + k.top
+  }, [shownN])
+  const leadName = lead?.name || ''
+  const items = useMemo(() => {
+    const items = []
+    let lastDay = ''
+    const all = foldReactions(msgs)   // reactions drawn on the message they react to, like WhatsApp
+    const hidden = Math.max(0, all.length - shownN)
+    const view = hidden ? all.slice(hidden) : all
+    if (hidden) items.push(<div key="earlier" className="lcv-day" style={{ position: 'static' }}><button type="button" onClick={() => acts.current.showEarlier()} style={{ border: 'none', background: 'none', color: 'inherit', font: 'inherit', fontWeight: 600, cursor: 'pointer', padding: 0, minHeight: 0 }}>{lang === 'en' ? `Earlier messages (${hidden})` : `הודעות קודמות (${hidden})`}</button></div>)
+    // "הודעות חדשות" line before the last `unreadCount` incoming messages (the inbox passes how many are waiting for us)
+    let unreadFrom = -1
+    if (unreadCount > 0) { let left = unreadCount; for (let k = view.length - 1; k >= 0 && left > 0; k--) if (view[k].direction !== 'out' && !view[k].orphan) { unreadFrom = k; left-- } }
+    view.forEach((m, i) => {
+      if (i === unreadFrom) items.push(<div key="unread" className="lcv-day lcv-new"><span>{lang === 'en' ? `${unreadCount} new message${unreadCount === 1 ? '' : 's'}` : (unreadCount === 1 ? 'הודעה חדשה' : `${unreadCount} הודעות חדשות`)}</span></div>)
+      const day = new Date(m.created_at).toDateString()
+      if (day !== lastDay) {
+        lastDay = day
+        items.push(<div key={`d-${day}`} className="lcv-day"><span>{fmtDay(m.created_at, lang)}</span></div>)
+      }
+      const out = m.direction === 'out'
+      const prev = view[i - 1], next = view[i + 1]
+      const firstOfRun = !prev || prev.direction !== m.direction || new Date(prev.created_at).toDateString() !== day || Math.abs(new Date(m.created_at) - new Date(prev.created_at)) > 60000
+      const lastOfRun = !next || next.direction !== m.direction || Math.abs(new Date(next.created_at) - new Date(m.created_at)) > 60000
+      const sending = String(m.id).startsWith('opt-') && m.status === 'sending'
+      if (m.orphan) {
+        items.push(<div key={m.id || i} className={`lcv-row ${out ? 'out' : 'in'}`} style={{ marginTop: 4 }}><span className="lcv-react-line">{out ? (lang === 'en' ? 'You reacted' : 'הגבתם') : (lang === 'en' ? 'Reaction' : 'תגובה')} <b>{m.message}</b> · {fmtTime(m.created_at)}</span></div>)
+        return
+      }
+      const reacts = m.reactions || []
+      const selectable = selMode && !String(m.id).startsWith('opt-') && !String(m.id).startsWith('log-')
+      const selOn = selectable && selIds.some(x => x.id === m.id)
+      items.push(
+        <div key={m.id || i} className={`lcv-row ${out ? 'out' : 'in'}${selectable ? ' sel' : ''}${selOn ? ' on' : ''}`} style={{ marginTop: firstOfRun ? 8 : 2, marginBottom: (lastOfRun ? 2 : 0) + (reacts.length ? 16 : 0) }}
+          {...(selectable ? { role: 'checkbox', 'aria-checked': selOn, tabIndex: 0, onClick: () => acts.current.toggleSel(m), onKeyDown: e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); acts.current.toggleSel(m) } } } : {})}>
+          {selectable && <span className="lcv-selbox" aria-hidden="true">{selOn ? '✓' : ''}</span>}
+          <div className={`lcv-b wa-bubble ${out ? 'out' : 'in'}${firstOfRun ? ' tail' : ''}`} style={{ opacity: sending ? .7 : 1, position: 'relative' }}>
+            {!String(m.id).startsWith('opt-') && !selMode && <ChatMsgMenu text={m.message} isOut={out} WA={WA} lang={lang} bg={out ? WA.bubbleOut : WA.bubbleIn}
+              {...(String(m.id).startsWith('log-') ? {} : {
+                myReaction: reacts.find(r => r.dir === 'out')?.emoji || '',
+                onReact: emo => acts.current.reactTo(m, emo),
+                onReply: () => { setReplyTo(acts.current.msgRef(m)); setTimeout(() => inputRef.current?.focus(), 30) },
+                onForward: () => setFwd([acts.current.msgRef(m)]),
+                onSelect: () => { setSelMode(true); setSelIds([acts.current.msgRef(m)]) },
+              })}
+              onSaveTemplate={text => {
+              const he = /[\u0590-\u05FF]/.test(text), body = messageToTemplate(text, acts.current.tplLead || {})
+              setEditTpl({ tpl: { cat: 'personal', he: '', en: '', he_title: '', en_title: '', project: leadProperty(acts.current.tplLead || {}) || '' }, initial: he ? { he: body, en: '' } : { he: '', en: body }, lang: he ? 'he' : 'en', create: true })
+            }}/>}
+            {m.quoted && <div className="lcv-quote" style={{ borderInlineStartColor: m.quoted.out ? WA.green : '#53BDEB' }}>{m.quoted.text}</div>}
+            {m.media && (m.kind === 'imageMessage' || m.kind === 'stickerMessage') && (m.media.url || m.media.thumb) && (
+              <a href={m.media.url || undefined} target="_blank" rel="noreferrer" style={{ display: 'block', margin: '-3px -4px 4px' }}>
+                <img src={m.media.url || m.media.thumb} alt="" loading="lazy" style={{ display: 'block', maxWidth: 280, width: '100%', borderRadius: 6 }}/>
+              </a>
+            )}
+            {m.media?.url && m.kind === 'audioMessage' && <audio src={m.media.url} controls preload="none" style={{ display: 'block', width: 240, maxWidth: '100%', height: 34, margin: '2px 0 4px' }}/>}
+            {m.media?.url && (m.kind === 'documentMessage' || m.kind === 'videoMessage') && <a href={m.media.url} target="_blank" rel="noreferrer" className="lcv-file">{m.kind === 'videoMessage' ? '🎥' : '📄'} {m.media.name || (lang === 'en' ? 'Open' : 'פתיחה')}</a>}
+            {m.location?.latitude && <a href={`https://maps.google.com/?q=${m.location.latitude},${m.location.longitude}`} target="_blank" rel="noreferrer" className="lcv-file">📍 {m.location.nameLocation || m.location.address || (lang === 'en' ? 'Location' : 'מיקום')}</a>}
+            <div className="lcv-txt">{m.message ? <WAText text={m.message}/> : null}<span className={`lcv-sp${out ? ' o' : ''}`} aria-hidden="true"/></div>
+            <span className="lcv-meta">
+              <span>{fmtTime(m.created_at)}</span>
+              {out && <TickMark status={sending ? 'sending' : (m.status || 'sent')} WA={WA} size={14}/>}
             </span>
-          )}
+            {reacts.length > 0 && (
+              <span className={`lcv-reacts ${out ? 'o' : 'i'}`} aria-label={`${lang === 'en' ? 'Reactions' : 'תגובות'}: ${reacts.map(r => r.emoji).join(' ')}`}
+                title={reacts.map(r => `${r.dir === 'out' ? (lang === 'en' ? 'You' : 'אתם') : (leadName || (lang === 'en' ? 'Contact' : 'איש קשר'))}: ${r.emoji}`).join('\n')}>
+                {reacts.map(r => <span key={r.dir}>{r.emoji}</span>)}{reacts.length > 1 && <em>{reacts.length}</em>}
+              </span>
+            )}
+          </div>
         </div>
-      </div>
-    )
-  })
+      )
+    })
+    return items
+  }, [msgs, unreadCount, lang, selMode, selIds, isDark, leadName, shownN]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const dockMax = () => Math.max(140, (rootRef.current?.getBoundingClientRect().height || 600) - 180)
   const curTpl = tplId ? getTemplate(mergeConfig(cfg || {}), tplId) : null
