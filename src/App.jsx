@@ -984,7 +984,7 @@ const makeGlobal = (C, isDark) => `
       direction: rtl; position: sticky; top: 0; z-index: 20;
     }
     .admin-desktop-topbar { display: none !important; }
-    .admin-shell .admin-notice { margin: 10px 12px 0 !important; padding: 8px 12px !important; }
+    .admin-shell .admin-notice { margin: 8px 10px 0 !important; padding: 6px 10px !important; }
     .admin-shell .admin-notice .admin-notice-detail { display: none !important; }
     .admin-main-pane { height: 100dvh !important; }
     .admin-content { padding: 16px 14px 28px !important; }
@@ -1007,20 +1007,49 @@ const makeGlobal = (C, isDark) => `
   .admin-bottom-nav {
     display: none;
     position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
-    background: var(--au-topbar, rgba(7,7,15,.97)); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); border-top: 1px solid rgba(132,144,216,.15);
-    backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
-    height: 58px; padding-bottom: env(safe-area-inset-bottom, 0px);
+    background: var(--au-topbar, rgba(7,7,15,.97)); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+    border-top: 1px solid rgba(var(--ov, 255,255,255), .08);
+    height: calc(58px + env(safe-area-inset-bottom, 0px)); padding: 0 4px env(safe-area-inset-bottom, 0px);
   }
+  .abn-item { flex: 1 1 0; min-width: 0; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+    border: none; background: transparent; color: rgba(var(--ink, 240,235,224), .5); cursor: pointer; font-family: inherit; padding: 6px 2px 5px; -webkit-tap-highlight-color: transparent; }
+  .abn-ico { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 52px; height: 28px; border-radius: 14px; transition: background .18s, color .18s; }
+  .abn-lbl { font-size: 10.5px; font-weight: 500; line-height: 1.15; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; letter-spacing: 0; }
+  .abn-item[aria-current="page"] { color: var(--au-brand-text, #8490D8); }
+  .abn-item[aria-current="page"] .abn-ico { background: rgba(var(--brand-rgb, 132,144,216), .16); }
+  .abn-item[aria-current="page"] .abn-lbl { font-weight: 700; }
+  .abn-item:focus-visible { outline: none; } .abn-item:focus-visible .abn-ico { box-shadow: 0 0 0 2px var(--au-brand, #8490D8); }
+  .abn-badge { position: absolute; top: -3px; inset-inline-end: 6px; min-width: 17px; height: 17px; padding: 0 4px; box-sizing: border-box; border-radius: 9px;
+    background: var(--au-brand, #3F4EB0); color: #fff; font-size: 10px; font-weight: 700; line-height: 17px; text-align: center; box-shadow: 0 0 0 2px var(--au-topbar, #fff); }
+  .abn-badge.is-wa { background: #00A884; }
   @media (max-width: 640px) {
     .admin-bottom-nav { display: flex; }
     /* floating buttons sit above the bottom bar (58px + the phone's home-indicator area) */
     .admin-shell .lb-fab { bottom: calc(70px + env(safe-area-inset-bottom, 0px)) !important; }
-    .admin-content { padding-bottom: 72px !important; }
+    .admin-content { padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px)) !important; }
+    /* a full-screen screen (chats, inbox, Lead Center…) ends exactly on the bar: the composer sits right above it */
+    .admin-content.admin-content-full { padding-bottom: calc(58px + env(safe-area-inset-bottom, 0px)) !important; }
     .admin-tabs-bar { display: none !important; }
     /* Phone: the admin modal becomes a full-screen app – every tab gets the whole width */
     .admin-shell { padding: 0 !important; }
     .admin-panel-modal { padding: 12px 10px 0 !important; border-radius: 0 !important; border: none !important; height: 100dvh !important; max-width: 100vw !important; }
     .admin-content { padding-left: 6px !important; padding-right: 6px !important; }
+    .admin-content.admin-content-full { padding-left: 0 !important; padding-right: 0 !important; padding-top: 0 !important; }
+  }
+  /* Phones, keyboard open (useKeyboardViewport in AdminPanel): the shell is as tall as what is left above the keyboard,
+     the bottom bar and the notices step aside, the composer sits right on the keyboard */
+  @media (max-width: 900px) {
+    html.kb-open .admin-main-pane { height: var(--app-h, 100dvh) !important; }
+    html.kb-open .admin-shell { bottom: auto !important; height: var(--app-h, 100dvh) !important; }
+    html.kb-open .admin-bottom-nav, html.kb-open .admin-shell .admin-notice, html.kb-open .admin-shell .lb-fab { display: none !important; }
+    html.kb-open .admin-content, html.kb-open .admin-content.admin-content-full { padding-bottom: 0 !important; }
+    html.kb-open .admin-mobile-topbar { display: none !important; }
+    /* notices: one line on a phone, and none at all over an open conversation */
+    .admin-shell .admin-notice { flex-wrap: nowrap !important; border-radius: 10px !important; font-size: 12px !important; gap: 8px !important; }
+    .admin-shell .admin-notice > span:not(:first-child), .admin-shell .admin-notice > div { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .admin-shell .admin-notice > div * { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .admin-shell .admin-notice > span:first-child { width: 22px !important; height: 22px !important; }
+    .admin-main-pane:has(.wa-has-contact, .si-has-conv, .lc-has-lead) .admin-notice { display: none !important; }
   }
 
   /* ── Scrollbar on right for admin panel (ltr outer = scrollbar right, content restored via > *) ── */

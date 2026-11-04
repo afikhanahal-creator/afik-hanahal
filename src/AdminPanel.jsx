@@ -3,6 +3,7 @@
 // App.jsx loads it on demand: const AdminPanel = lazyWithRetry(() => import('./AdminPanel.jsx'))
 // Shared constants / helpers still live in App.jsx and are imported back from there — that is a
 // dynamic→static cycle, which is safe: by the time this chunk evaluates, App.jsx already has.
+import { MOBILE_MSG_CSS } from './mobileMessagingCSS.js'
 import { useWaiting } from './lib/waWaiting.js'
 import { externalizeInlinePhotos } from './inlinePhotos.js'
 import { onSync, busUp, debounce } from './lib/syncBus.js'
@@ -51,6 +52,36 @@ import { fetchAdminProperties, LeadsBoard, GreenAPIChat, MetaLeadsTab, Supermetr
 // Tab ↔ URL deep-link mapping (module-level so both AdminPanel and main app can use it)
 const ADMIN_TAB_TO_PATH = { overview:'overview', props:'properties', leads:'leads', sellers:'properties-intake', bookings:'bookings', docs:'documents', media:'media', studio:'studio', content:'content', chats:'chats', social:'social', automations:'automations', meta:'lead-center', analytics:'analytics', supermetrics:'performance', team:'team', settings:'settings', counters:'counters', live:'live' }
 const ADMIN_PATH_TO_TAB = Object.fromEntries(Object.entries(ADMIN_TAB_TO_PATH).map(([k,v])=>[v,k]))
+// Screens that own the whole content area (their own scrolling, a pinned composer) — no page padding / page scroll around them
+const FULL_TABS = new Set(['chats', 'leads', 'meta', 'content', 'social'])
+// short labels for the phone's bottom bar (the drawer and the top bar keep the full names)
+const NAV_SHORT = { overview: 'ראשי', leads: 'לידים', chats: 'צ׳אטים', meta: 'מרכז לידים', props: 'נכסים' }
+const NAV_SHORT_EN = { overview: 'Home', leads: 'Leads', chats: 'Chats', meta: 'Lead Center', props: 'Properties' }
+// Phones: the soft keyboard. The shell follows the visual viewport (iOS keeps the layout viewport and slides the page
+// under the keyboard, so a 100dvh shell put the composer behind it), and while typing the bottom bar steps aside.
+function useKeyboardViewport(on) {
+  useEffect(() => {
+    const vv = typeof window !== 'undefined' ? window.visualViewport : null
+    if (!on || !vv) return
+    const root = document.documentElement
+    let full = vv.height, w = vv.width, raf = 0
+    const editable = el => !!el && (el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT' && !/^(checkbox|radio|button|submit|range|file|color)$/i.test(el.type)) || el.isContentEditable)
+    const apply = () => {
+      raf = 0
+      if (Math.abs(vv.width - w) > 40) { w = vv.width; full = vv.height }   // rotated: a new baseline
+      if (!editable(document.activeElement)) full = Math.max(full, vv.height)
+      const kb = editable(document.activeElement) && full - vv.height > 140
+      root.classList.toggle('kb-open', kb)
+      if (kb) { root.style.setProperty('--app-h', `${Math.round(vv.height)}px`); if (window.scrollY) window.scrollTo(0, 0) }
+      else root.style.removeProperty('--app-h')
+    }
+    const later = () => { if (!raf) raf = requestAnimationFrame(apply) }
+    vv.addEventListener('resize', later); vv.addEventListener('scroll', later)
+    const out = () => setTimeout(later, 60)
+    document.addEventListener('focusin', later); document.addEventListener('focusout', out)
+    return () => { vv.removeEventListener('resize', later); vv.removeEventListener('scroll', later); document.removeEventListener('focusin', later); document.removeEventListener('focusout', out); root.classList.remove('kb-open'); root.style.removeProperty('--app-h'); if (raf) cancelAnimationFrame(raf) }
+  }, [on])
+}
 
 // ─── LOGO UPLOAD (single image, compressed) ──────────────────────────────────
 function LogoUpload({ logo, onChange }) {
@@ -1345,6 +1376,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   // Admin appearance (dark / light / system) comes from the admin theme context — see src/adminTheme.js
   const { lang, logoNavSize, setLogoNavSize, C, isDark } = useTheme()
   const adminTheme = useAdminTheme()
+  useKeyboardViewport(true)
   const [cmdOpen, setCmdOpen] = useState(false)
   useCommandHotkey(setCmdOpen)
   const initForm = () => {
@@ -2909,7 +2941,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     <div className="admin-shell admin-scroll" style={standalone
       ? { position:'fixed', inset:0, zIndex:1000, display:'flex', background:'var(--au-page)', color:'var(--au-text)', direction:'rtl', fontFamily:'Rubik, sans-serif' }
       : { position:'fixed', inset:0, background:'var(--au-page)', zIndex:1000, display:'flex', alignItems:'stretch', justifyContent:'center', padding:0, overflow:'hidden', overscrollBehavior:'contain' }}>
-      <style>{ADMIN_THEME_CSS}</style>
+      <style>{ADMIN_THEME_CSS + MOBILE_MSG_CSS}</style>
       <CommandPalette open={cmdOpen} onClose={() => setCmdOpen(false)} lang={lang}
         tabs={DASH_TABS.filter(x => standalone || x.id !== 'overview')} leads={leads} properties={properties}
         actions={[
@@ -3174,7 +3206,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
         )}
 
         {/* ── Scrollable content ─────────────────────────────────────── */}
-        <div className={`admin-content${(tab==='chats'||tab==='leads'||tab==='meta'||tab==='content') ? ' admin-content-full' : ''}`} style={(tab==='chats'||tab==='leads'||tab==='meta'||tab==='content') ? { flex:1, minHeight:0, overflow:'hidden', position:'relative', display:'flex', flexDirection:'column' } : { flex:1, minHeight:0, overflowY:'auto', WebkitOverflowScrolling:'touch', overscrollBehavior:'contain', scrollBehavior:'smooth', padding:'22px 26px 32px', direction:'rtl' }}>
+        <div className={`admin-content${FULL_TABS.has(tab) ? ' admin-content-full' : ''}`} style={FULL_TABS.has(tab) ? { flex:1, minHeight:0, overflow:'hidden', position:'relative', display:'flex', flexDirection:'column', ...(tab === 'social' ? { padding: standalone ? '22px 26px 32px' : '0 0 14px' } : null) } : { flex:1, minHeight:0, overflowY:'auto', WebkitOverflowScrolling:'touch', overscrollBehavior:'contain', scrollBehavior:'smooth', padding:'22px 26px 32px', direction:'rtl' }}>
 
         {/* Overview tab — standalone only */}
         {tab==='overview' && standalone && (
@@ -3492,7 +3524,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
           </Suspense>
         )}
         {tab==='social' && (
-          <div style={{ height: standalone ? '100%' : 'calc(100vh - 160px)', minHeight: 480 }}>
+          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
             <Suspense fallback={<AdminTabLoader label="טוען את תיבת ההודעות…"/>}>
               <SocialInboxTab lang={lang} onUpdateLead={updateLead} onUpdateStatus={updateLeadStatus} stageLabels={stageLabels} onOpenChat={c => { setInitialChatLead({ id: c.leadId || `wa:${c.phone}`, name: c.name, phone: c.phone }); setTab('chats') }} onOpenLead={id => { if (leads.some(x => String(x.id) === String(id))) setReminderCardId(String(id)); else window.open(`/admin-panel/leads?lead=${encodeURIComponent(id)}`, '_blank') }}/>
             </Suspense>
@@ -4642,12 +4674,9 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
         <nav className="admin-bottom-nav">
           {/* the five screens used most on a phone ("באוויר" is a filter of the property list, not a screen) */}
           {['overview', 'leads', 'chats', 'meta', 'props'].map(id => DASH_TABS.find(t => t.id === id)).filter(Boolean).map(item => (
-            <button key={item.id} onClick={() => setTab(item.id)} aria-current={tab===item.id ? 'page' : undefined}
-              style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:3, border:'none', background:'transparent', color: tab===item.id ? C.purple : 'rgba(var(--ink),.32)', cursor:'pointer', fontFamily:'inherit', padding:'8px 4px', position:'relative', transition:'color .15s', minWidth:0 }}>
-              <item.Icon size={18}/>
-              <span style={{ fontSize:9, fontWeight: tab===item.id ? 700 : 400, letterSpacing:'.02em', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:'100%' }}>{item.label}</span>
-              {!!item.badge && <span style={{ position:'absolute', top:6, right:'50%', transform:'translateX(140%)', background: item.id==='chats' ? '#075E54' : C.purple, color:'#fff', borderRadius:8, padding:'1px 5px', fontSize:8, fontWeight:800, lineHeight:1.6 }}>{item.badge}</span>}
-              {tab===item.id && <div style={{ position:'absolute', top:0, left:'15%', right:'15%', height:2, background:C.purple, borderRadius:2 }}/>}
+            <button key={item.id} type="button" className="abn-item" onClick={() => setTab(item.id)} aria-current={tab===item.id ? 'page' : undefined} aria-label={item.badge ? `${item.label} · ${item.badge}` : item.label}>
+              <span className="abn-ico"><item.Icon size={19}/>{!!item.badge && <span className={`abn-badge${item.id === 'chats' ? ' is-wa' : ''}`}>{item.badge}</span>}</span>
+              <span className="abn-lbl">{(lang === 'en' ? NAV_SHORT_EN : NAV_SHORT)[item.id] || item.label}</span>
             </button>
           ))}
         </nav>

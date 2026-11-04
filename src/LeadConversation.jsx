@@ -493,7 +493,7 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
             {m.media?.url && m.kind === 'audioMessage' && <audio src={m.media.url} controls preload="none" style={{ display: 'block', width: 240, maxWidth: '100%', height: 34, margin: '2px 0 4px' }}/>}
             {m.media?.url && (m.kind === 'documentMessage' || m.kind === 'videoMessage') && <a href={m.media.url} target="_blank" rel="noreferrer" className="lcv-file">{m.kind === 'videoMessage' ? '🎥' : '📄'} {m.media.name || (lang === 'en' ? 'Open' : 'פתיחה')}</a>}
             {m.location?.latitude && <a href={`https://maps.google.com/?q=${m.location.latitude},${m.location.longitude}`} target="_blank" rel="noreferrer" className="lcv-file">📍 {m.location.nameLocation || m.location.address || (lang === 'en' ? 'Location' : 'מיקום')}</a>}
-            <div className="lcv-txt">{m.message ? <WAText text={m.message}/> : null}<span className={`lcv-sp${out ? ' o' : ''}`} aria-hidden="true"/></div>
+            <div className={`lcv-txt${/\p{L}/u.test(m.message || '') ? '' : ' nb'}`}>{m.message ? <WAText text={m.message}/> : null}<span className={`lcv-sp${out ? ' o' : ''}`} aria-hidden="true"/></div>
             <span className="lcv-meta">
               <span>{fmtTime(m.created_at)}</span>
               {out && <TickMark status={sending ? 'sending' : (m.status || 'sent')} WA={WA} size={14}/>}
@@ -552,6 +552,7 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
         .lcv-b.tail.out::before{right:-8px;border-top-color:${isDark ? '#005C4B' : '#D9FDD3'};border-right:8px solid transparent}
         .lcv-b.tail.in::before{left:-8px;border-top-color:${isDark ? '#202C33' : '#FFFFFF'};border-left:8px solid transparent}
         .lcv-txt{unicode-bidi:plaintext;text-align:right;white-space:pre-wrap}
+        .lcv-txt.nb{unicode-bidi:normal}   /* no letters (an emoji, a number): keep the bubble's direction, so the time's spacer sits next to the time */
         .wa-bubble .wa-bub-btn{opacity:0;transition:opacity .12s}.wa-bubble:hover .wa-bub-btn,.wa-bub-btn[aria-expanded="true"],.wa-bub-btn:focus-visible{opacity:1}@media (hover:none){.wa-bubble .wa-bub-btn{opacity:.55}}.wa-bub-item:hover{background:rgba(127,127,127,.12)!important}
         .lcv-sp{display:inline-block;width:46px;height:1px;vertical-align:middle}
         .lcv-sp.o{width:66px}
@@ -720,7 +721,7 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
           <div className="lcv-card" role="toolbar" aria-label={lang === 'en' ? 'Selected messages' : 'הודעות שנבחרו'} style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10, padding: '10px 12px' }}>
             <button type="button" className="lcv-ib" onClick={() => { setSelMode(false); setSelIds([]) }} aria-label={lang === 'en' ? 'Cancel' : 'ביטול'}>{I.close}</button>
             <b style={{ flex: 1, fontSize: 13.5 }}>{lang === 'en' ? `${selIds.length} selected` : `${selIds.length} נבחרו`}<span style={{ fontWeight: 400, fontSize: 12, color: WA.subText, marginInlineStart: 8 }}>{lang === 'en' ? `up to ${FORWARD_MAX_MSGS}` : `עד ${FORWARD_MAX_MSGS}`}</span></b>
-            <button type="button" className="lcv-send" disabled={!selIds.length} onClick={() => { const order = new Map(msgs.map((x, k) => [x.id, k])); setFwd([...selIds].sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0))) }}>{lang === 'en' ? 'Forward' : 'העברה'}</button>
+            <button type="button" className="lcv-send is-label" disabled={!selIds.length} onClick={() => { const order = new Map(msgs.map((x, k) => [x.id, k])); setFwd([...selIds].sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0))) }}>{lang === 'en' ? 'Forward' : 'העברה'}</button>
           </div>
         ) : phone ? (
           <div className="lcv-card" style={{ flex: dock ? 1 : undefined, minHeight: 0 }}>
@@ -779,7 +780,7 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
               <button type="button" className="lcv-tplbtn" title={t.attachTip} aria-label={t.attachTip} onClick={() => fileRef.current?.click()}><Icon name="paperclip" size={15}/><span>{t.attach}</span></button>
               <button type="button" className="lcv-tplbtn" title={t.bookTip} aria-label={t.book} onClick={addBooking}><Icon name="calendar" size={15}/><span>{t.book}</span></button>
               <span className="lcv-hint">{t.enterHint}</span>
-              <button type="button" className="lcv-send" onClick={submit} disabled={!canSend} aria-label={first ? t.sendWelcome : t.send}>
+              <button type="button" className={`lcv-send${first ? ' is-first' : ''}`} onClick={submit} disabled={!canSend} aria-label={first ? t.sendWelcome : t.send}>
                 {busy ? t.sending : <>{att.items.length && !first ? (lang === 'en' ? (att.items.length === 1 ? 'Send file' : `Send ${att.items.length} files`) : (att.items.length === 1 ? 'שלח קובץ' : `שלח ${att.items.length} קבצים`)) : first ? t.sendWelcome : t.send}<Icon name="send" size={16} flip={lang !== 'en'}/></>}
               </button>
             </div>

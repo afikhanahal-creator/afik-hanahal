@@ -32,15 +32,35 @@ export default function ChatMsgMenu({ text, isOut, WA, lang = 'he', bg, onSaveTe
   const [open, setOpen] = useState(false)
   const [copied, setCopied] = useState(false)
   const [pos, setPos] = useState(null)
-  const btn = useRef(null), pop = useRef(null)
+  const btn = useRef(null), pop = useRef(null), at = useRef(null)
   useLayoutEffect(() => {
     if (!open || !btn.current) return
-    const r = btn.current.getBoundingClientRect(), w = onReact ? 236 : 190
+    const w = onReact ? 236 : 190
     const h = 16 + (onReact ? 46 : 0) + 38 * [onReply, onForward, onSelect, text, text && onSaveTemplate].filter(Boolean).length
+    // a long press opens the menu next to the finger (never under it, so lifting the finger picks nothing); the ▾ from its corner
+    const p = at.current, r = p ? { left: p.x - w / 2, top: p.y - 14, bottom: p.y + 14 } : btn.current.getBoundingClientRect()
+    const vh = window.visualViewport?.height || window.innerHeight
     const left = Math.max(8, Math.min(window.innerWidth - w - 8, r.left))   // opens from the bubble's left corner, like the button
-    const top = r.bottom + h + 8 > window.innerHeight ? Math.max(8, r.top - h - 4) : r.bottom + 4
+    const top = r.bottom + h + 8 > vh ? Math.max(8, r.top - h - 4) : r.bottom + 4
     setPos({ top, left, w })
   }, [open, isOut])
+  // Touch screens: press and hold a bubble opens its menu, like the WhatsApp app (the ▾ corner button is hidden there, so it
+  // never covers the first line of the text). A move, a scroll or a short tap does nothing.
+  useEffect(() => {
+    const host = btn.current?.closest('.wa-bubble, .si-bub, .lcv-b') || btn.current?.parentElement
+    if (!host || !window.matchMedia?.('(hover: none)').matches) return
+    let tm = 0, sx = 0, sy = 0
+    const start = e => {
+      if (e.pointerType === 'mouse' || e.target.closest?.('a, button, input, textarea, video, audio')) return
+      sx = e.clientX; sy = e.clientY; clearTimeout(tm)
+      tm = setTimeout(() => { at.current = { x: sx, y: sy }; try { navigator.vibrate?.(10) } catch {} ; setOpen(true) }, 430)
+    }
+    const move = e => { if (Math.abs(e.clientX - sx) > 9 || Math.abs(e.clientY - sy) > 9) clearTimeout(tm) }
+    const stop = () => clearTimeout(tm)
+    const ctx = e => { if (!e.target.closest?.('a')) e.preventDefault() }   // Android's own long-press menu
+    host.addEventListener('pointerdown', start); host.addEventListener('pointermove', move); host.addEventListener('pointerup', stop); host.addEventListener('pointercancel', stop); host.addEventListener('contextmenu', ctx)
+    return () => { clearTimeout(tm); host.removeEventListener('pointerdown', start); host.removeEventListener('pointermove', move); host.removeEventListener('pointerup', stop); host.removeEventListener('pointercancel', stop); host.removeEventListener('contextmenu', ctx) }
+  }, [])
   useEffect(() => {
     if (!open) return
     const down = e => { if (!btn.current?.contains(e.target) && !pop.current?.contains(e.target)) setOpen(false) }
@@ -54,7 +74,7 @@ export default function ChatMsgMenu({ text, isOut, WA, lang = 'he', bg, onSaveTe
   const item = { width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', border: 'none', background: 'transparent', color: WA.bodyText, fontFamily: 'inherit', fontSize: 14, cursor: 'pointer', textAlign: 'start', minHeight: 0 }
   return (<>
     <button ref={btn} type="button" className="wa-bub-btn" aria-label={t.menu} aria-haspopup="menu" aria-expanded={open}
-      onClick={e => { e.stopPropagation(); setOpen(o => !o) }}
+      onClick={e => { e.stopPropagation(); at.current = null; setOpen(o => !o) }}
       style={{ position: 'absolute', top: 1, left: 1, width: 34, height: 22, border: 'none', borderRadius: 6, cursor: 'pointer', minHeight: 0, minWidth: 0, padding: '0 8px 0 0',
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: WA.subText, background: bg ? `linear-gradient(to right, ${bg} 62%, transparent)` : 'inherit', zIndex: 1 }}>
       <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 10l5 5 5-5z"/></svg>
