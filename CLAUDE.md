@@ -406,6 +406,10 @@ and cost a 900 ms back-off (`wait` in Server-Timing, 1.8 s in `chat-list`). Iden
 its answer for a few seconds (`GREEN_READ_TTL`: state 15 s, last messages 10 s, a chat's history 3 s, contacts / settings longer);
 sends, settings and forwards are never shared, an error is never kept. Server-Timing also shows `wait` (429 back-offs) and
 `<service>Body` (reading a response body).
+**Unknown chat names are looked up in the background** (`chatNames()` in `api/meta.js`, used by `chat-list` and the inbox's
+`social-wa`): up to 4 `getContactInfo` calls one after another, 1.1 s apart, through `waitUntil` — the list answers at once and a name
+found shows on the next read. They used to go out 6 at once inside the request (most answered 429, a 900 ms back-off each, ~550 ms
+added to every inbox refresh) and a 429 was kept as "no name", so that chat was never asked again.
 **Messages written on the office phone are always in the history** (2026-11-01, `server/wa-catchup-migration.sql`, applied):
 Green's webhook brings them as `outgoingMessageReceived` (`by_api = false`, ~2 s; 338 in the week before), and `auto-tick` /
 `auto-run` also run `catchUpMessages()` (`lib/automations.js`): Green's `lastIncomingMessages` + `lastOutgoingMessages` of the last
