@@ -135,6 +135,7 @@ const agoText = (ts, lang) => {
 const fmtDay = (ts, lang) => { const d = new Date(ts); return Number.isFinite(d.getTime()) ? d.toLocaleDateString(lang === 'en' ? 'en-GB' : 'he-IL', { weekday: 'short', day: 'numeric', month: 'short' }) : '' }
 const PlatIcon = ({ p, size = 14 }) => (p === 'instagram' ? <FaInstagram size={size} color="#E1306C"/> : p === 'whatsapp' ? <FaWhatsapp size={size} color="#25D366"/> : <FaFacebookMessenger size={size} color="#0084FF"/>)
 const localPhone = p => { const d = String(p || '').replace(/\D/g, ''); return d.startsWith('972') ? `0${d.slice(3)}` : d }
+const dashPhone = p => localPhone(p).replace(/^(0\d{2})(\d{3})(\d{4})$/, '$1-$2-$3')   // 052-801-7218, as everywhere else
 const nameOf = th => th?.name_he || th?.name || (th?.username ? `@${th.username}` : th?.platform === 'whatsapp' ? localPhone(th.phone) : '—')
 const initial = th => nameOf(th).replace(/^[@0]+/, '').charAt(0) || '?'
 // where the person's own profile is: WhatsApp → wa.me, Instagram → the @handle, Messenger → the chat in Meta Business Suite
@@ -610,7 +611,7 @@ export default function SocialInboxTab({ lang = 'he', onOpenLead, onOpenChat, on
   }, [conv.messages, conv.unread, reacts, lang, WA, isDark, th?.platform]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className="si" dir={lang === 'en' ? 'ltr' : 'rtl'}>
+    <div className={`si${sel ? ' si-has-conv' : ''}`} dir={lang === 'en' ? 'ltr' : 'rtl'}>
       <aside ref={listRef} className={`si-list${sel ? ' has-sel' : ''}`} style={{ width: listW }}>
         <div className="si-top">
           <div className="si-title"><h2>{t.title}</h2><button type="button" className="si-accbtn" onClick={() => setAccOpen(true)}><Plug size={14}/>{t.accounts}</button></div>
@@ -654,7 +655,7 @@ export default function SocialInboxTab({ lang = 'he', onOpenLead, onOpenChat, on
                 </ChatNameEdit>
                 <a className="si-who-link" href={profileLink(th, accounts)} target="_blank" rel="noreferrer" title={t.profileOf[th.platform]} aria-label={t.profileOf[th.platform]}><ExternalLink size={12}/></a>
               </span>
-              <small>{th.kind === 'wa' ? `WhatsApp · ${localPhone(th.phone)}` : `${th.platform === 'instagram' ? 'Instagram' : 'Messenger'}${where(th) ? ` · ${where(th)}` : ''}${th.username && th.name ? ` · @${th.username}` : ''}${th.phone ? ` · ${th.phone}` : ''}`}</small></div>
+              <small>{th.kind === 'wa' ? <>WhatsApp · <bdi dir="ltr">{dashPhone(th.phone)}</bdi></> : `${th.platform === 'instagram' ? 'Instagram' : 'Messenger'}${where(th) ? ` · ${where(th)}` : ''}${th.username && th.name ? ` · @${th.username}` : ''}${th.phone ? ` · ${th.phone}` : ''}`}</small></div>
             <div className="si-zoom" role="group" aria-label={t.zoomReset}>
               <button type="button" onClick={() => setZ(zoom - 0.1)} disabled={zoom <= 0.8} title={t.zoomOut} aria-label={t.zoomOut}><ZoomOut size={15}/></button>
               <button type="button" className="si-zoom-v" onClick={() => setZ(1)} title={t.zoomReset}>{Math.round(zoom * 100)}%</button>
@@ -741,7 +742,7 @@ export default function SocialInboxTab({ lang = 'he', onOpenLead, onOpenChat, on
               <button type="button" className="si-tplbtn si-iconb" onClick={() => setEmojiOpen(v => !v)} aria-pressed={emojiOpen} title={t.emoji} aria-label={t.emoji}><Smile size={17}/></button>
               <textarea ref={inputRef} value={text} onChange={e => setText(e.target.value)} placeholder={t.reply} rows={1} dir="auto"
                 onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}/>
-              <button type="button" className="si-send" disabled={!text.trim() || sending} onClick={() => send()}><Send size={15}/>{sending ? t.sending : t.send}</button>
+              <button type="button" className="si-send" aria-label={t.send} disabled={!text.trim() || sending} onClick={() => send()}><Send size={15} style={lang === 'en' ? undefined : { transform: 'scaleX(-1)' }}/>{sending ? t.sending : t.send}</button>
             </div>
           </>)}
         </>}
@@ -806,7 +807,7 @@ const SI_CSS = `
 .si-face i{position:absolute;bottom:-2px;inset-inline-end:-2px;width:19px;height:19px;border-radius:50%;background:var(--au-pop);display:inline-flex;align-items:center;justify-content:center;box-shadow:0 0 0 1px var(--au-line);z-index:1}
 .si-empty{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;padding:36px 18px;color:var(--au-text2);font-size:13px}
 .si-empty b{color:var(--au-text);font-size:14px}
-.si-conv{flex:1;min-width:0;display:flex;flex-direction:column;min-height:0;background:rgba(var(--ov),.02)}
+.si-conv{flex:1;min-width:0;display:flex;flex-direction:column;min-height:0;padding:0;background:rgba(var(--ov),.02)}
 .si-pick{margin:auto;display:flex;flex-direction:column;align-items:center;gap:6px;color:var(--au-text3);font-size:13px}
 .si-pick b{font-size:15px;color:var(--au-text2)}
 .si-conv-head{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--au-line);background:var(--au-pop);flex:none}

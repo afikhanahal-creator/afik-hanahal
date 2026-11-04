@@ -775,6 +775,31 @@ names from the participants, a missing name / picture filled later); `social-wa-
 `pages_messaging`, `instagram_basic`, `instagram_manage_messages`, `pages_manage_metadata` (+ the leads scopes) in
 `META_SYSTEM_USER_TOKEN`, App Review for the messaging permissions, the Instagram object subscribed to `messages` in the app's
 Webhooks, and on the phone Instagram → messages → "Allow access to messages".
+**The three messaging screens on a phone** (2026-11-04 — the inbox, the chats, the Lead Center; one design in
+`src/mobileMessagingCSS.js` `MOBILE_MSG_CSS`, injected by `AdminPanel` after `ADMIN_THEME_CSS`, every rule scoped with `:root`; desktop
+unchanged): **the shell** — the inbox is a full-screen tab now (`FULL_TABS` in `AdminPanel.jsx`; it used to sit in the padded, scrolling
+content area, so the page scrolled behind the chat), a full-screen tab ends exactly on the bottom bar (`58px + safe area`, no double
+padding), the notices are one line on a phone and hidden over an open conversation (`.admin-main-pane:has(.wa-has-contact, .si-has-conv,
+.lc-has-lead)`), the public site's `section { padding: 16px !important }` no longer insets the inbox; **the keyboard** —
+`useKeyboardViewport()` follows `visualViewport`: while an input has the focus and the keyboard takes > 140 px, `html.kb-open` +
+`--app-h` size the shell to what is left, the bottom bar / top bar / notices step aside and the composer sits on the keyboard (iOS kept
+the layout viewport and slid the composer under it); **the bottom bar** — short labels (ראשי · לידים · צ׳אטים · מרכז לידים · נכסים), 19 px
+icons, 10.5 px labels, the active screen as a tinted pill, badges on the icon (`.abn-*` in `App.jsx`); **headers** — the chats header is
+two rows on a phone (back chevron · face · the full name + phone; then `.wa-head-tools`, one sideways-scrolling strip: templates, ✓ טופל,
+project, stage, AI, notes, follow-up, the lead — `display: contents` on desktop), the Lead Center has its own phone bar (`.lc-mbar`:
+back · face · name + phone · campaign · when, call and lead-card round buttons; then chat / details, stage, status, follow-up in one
+strip; renaming opens a full-width row — input, "+ הוספת הפרויקט", ביטול / שמירה 42 px — and `LeadConversation` gets `hideHeader`, so
+the name isn't drawn twice); a tap on a list row's name opens the lead on a phone (it used to start renaming); the inbox header formats
+the phone 052-801-7218; **conversations** — bubbles up to 84 % wide, 15 px text, 12 px radius; on a touch screen **press and hold a bubble
+opens its menu** (`ChatMsgMenu`: 430 ms, a move or scroll cancels, the menu opens next to the finger, never under it) and the ▾ corner
+button is hidden (it covered the first line); a message with no letters (an emoji) keeps the bubble's direction (`.lcv-txt.nb`), so its
+time no longer overlaps it; **composers** — the text on top (16 px, so iOS doesn't zoom on focus; 44 px, grows to 132 px), a bar of 38 px
+round icon buttons under it (emoji, attach, booking link, templates) and a round 42 px send (the first welcome keeps its words);
+`.si-composer` the same; inputs in these screens are 16 px. Scale: icon buttons 40 px (38 in a composer bar), chips 32 px, names 16 px,
+body 15 px, secondary 12.5 px. **QA:** the scratchpad's `mob/audit.cjs` (`node audit.cjs [social|chats|meta|all] [width]`; `DESK=1` =
+1366 px, `DARK=1`, `RENAME=1`) opens each screen with a long name, a long link and a 140-message chat at 375 / 390 / 402 / 430 px, then
+with the keyboard (the viewport 336 px shorter, the composer focused) and reports sideways overflow, buttons off-screen or cropped,
+targets under 24 × 28 px, clipped labels and anything covering the composer — all three screens clean at every width.
 **Back / forward move between admin screens** (2026-11-04): `AdminPanel` listens to `popstate` and sets the screen from the
 address (`ADMIN_PATH_TO_TAB`) — Back used to change the address only, so "/admin-panel/social" showed the chats (or whatever was
 open). The inbox's and the documents tab's "כרטיס הליד" / "פתיחת הליד" open the lead card over the current screen

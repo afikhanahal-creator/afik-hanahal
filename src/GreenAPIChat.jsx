@@ -1350,7 +1350,9 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
               <div className="wa-chathead" style={{ flexShrink:0, height:62, background: WA.inputBg, borderBottom:`1px solid ${WA.border}`, display:'flex', alignItems:'center', padding:'0 16px', gap:12, direction:'rtl', transition:'background .25s' }}>
                 {/* Phone only: back to the chat list (the arrow points right in RTL, as in WhatsApp) */}
                 <button className="wa-back" onClick={()=>setContact(null)} aria-label="חזרה לרשימת השיחות" title="חזרה"
-                  style={{ display:'none', width:36, height:36, borderRadius:'50%', background:'transparent', border:'none', color: WA.bodyText, cursor:'pointer', alignItems:'center', justifyContent:'center', fontSize:22, flexShrink:0, minWidth:0, minHeight:0, padding:0 }}>→</button>
+                  style={{ display:'none', width:40, height:40, borderRadius:'50%', background:'transparent', border:'none', color: WA.bodyText, cursor:'pointer', alignItems:'center', justifyContent:'center', flexShrink:0, minWidth:0, minHeight:0, padding:0, marginInlineStart:-6 }}>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={lang === 'en' ? { transform:'scaleX(-1)' } : undefined}><path d="m9 18 6-6-6-6"/></svg>
+                </button>
                 <Avatar c={contactView} size={40} lang={lang}/>
                 <div className="wa-cname" style={{ flex:1, minWidth:96, overflow:'hidden' }}>
                   <div style={{ fontWeight:600, fontSize:15, color: WA.bodyText, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
@@ -1369,6 +1371,8 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                     {contactView?.waName && contactView.waName !== nameOf(contactView, lang) && <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>· ~{contactView.waName}</span>}
                   </div>
                 </div>
+                {/* desktop: these sit in the header's one row (display:contents); a phone: a second row that scrolls sideways */}
+                <div className="wa-head-tools">
                 <ChatTemplateMenu WA={WA} lang={lang} lead={chatLead} msgs={msgs} autoConfig={cfgEff}
                   onSend={(text, o) => sendMsg(text, o)}
                   onInsert={putInBox} onEdit={openEdit}
@@ -1396,6 +1400,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                     צפה בליד ↗
                   </button>
                 )}
+                </div>
                 {[
                   // a chat that isn't in the list (or the only one) has nowhere to go — the arrows used to look live and do nothing;
                   // in Hebrew "previous" points right

@@ -853,7 +853,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onOpenCard, onSaveToCRM,
   ]
 
   return (
-    <div ref={rootRef} className="lc" style={{ display: 'flex', height: '100%', overflow: 'hidden', direction: dir, fontFamily: 'Rubik, sans-serif', background: 'var(--au-bg)', flexDirection: 'column', '--lc-list': `${layout.list}px`, '--lc-aside': `${layout.aside}px` }}>
+    <div ref={rootRef} className={`lc${narrow && selectedLead ? ' lc-has-lead' : ''}`} style={{ display: 'flex', height: '100%', overflow: 'hidden', direction: dir, fontFamily: 'Rubik, sans-serif', background: 'var(--au-bg)', flexDirection: 'column', '--lc-list': `${layout.list}px`, '--lc-aside': `${layout.aside}px` }}>
       <style>{`
         .lc button{font-family:inherit}
         .lc :focus-visible{outline:2px solid var(--au-brand);outline-offset:2px}
@@ -918,6 +918,27 @@ export default function MetaLeadsTab({ C, lang, isDark, onOpenCard, onSaveToCRM,
         .lc-kpi b{font-size:17px;font-weight:800;line-height:1;font-feature-settings:'tnum'}
         .lc-kpi span{font-size:12px;color:${MUTED};font-weight:600;white-space:nowrap}
         .lc-kpi em{font-style:normal;font-size:11px;color:${FAINT};font-weight:700}
+        .lc-ib{display:inline-flex;align-items:center;justify-content:center;flex:none;width:40px;height:40px;min-height:0;min-width:0;padding:0;border-radius:50%;border:none;background:transparent;color:${CREAM};cursor:pointer;text-decoration:none;-webkit-tap-highlight-color:transparent}
+        .lc-ib:active{background:rgba(var(--ov),.08)}
+        .lc-ib.is-pri{color:var(--au-brand-text);background:rgba(var(--brand-rgb),.12)}
+        .lc-ib:disabled{opacity:.5}
+        .lc-mbar{flex-shrink:0;background:var(--au-card-solid);border-bottom:1px solid ${BORDER}}
+        .lc-mbar-who{display:flex;align-items:center;gap:8px;padding:6px 8px 4px 8px;min-height:52px}
+        .lc-mbar-who>.lc-ib:first-child{margin-inline-start:-4px}
+        .lc-mbar-name{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+        .lc-mbar-name .lc-name-btn{font-size:16px;font-weight:700;color:${CREAM};line-height:1.3;display:block}
+        .lc-mbar-name small{font-size:12.5px;color:${MUTED};overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .lc-mbar-edit{display:flex;flex-direction:column;gap:8px;padding:4px 12px 10px}
+        .lc-mbar-edit .lc-name-in{flex:none;width:100%;min-height:44px;font-size:16px;box-sizing:border-box}
+        .lc-mbar-edit-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+        .lc-mbar-edit .lc-btn{min-height:42px;font-size:14px}
+        .lc-mbar-proj{justify-content:flex-start;white-space:normal;text-align:start}
+        .lc-mbar-hint{font-size:12px;color:${FAINT}}
+        .lc-mbar-tools{display:flex;align-items:center;gap:8px;overflow-x:auto;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding:4px 12px 8px}
+        .lc-mbar-tools::-webkit-scrollbar{display:none}
+        .lc-mbar-tools>*{flex:none}
+        .lc-mbar-tools .lc-btn,.lc-mbar-tools select,.lc-mbar-tools .lc-seg button{min-height:34px}
+        .lc-mbar-tools select.lc-input{font-size:14px}
       ` + SPLITTER_CSS}</style>
 
       {/* ── Header: title, connection, KPIs, actions in one row — drag its bottom edge up to fold it away ── */}
@@ -1014,8 +1035,9 @@ export default function MetaLeadsTab({ C, lang, isDark, onOpenCard, onSaveToCRM,
                 )}
               </div>
               {testCount > 0 && <button className="lc-btn" onClick={() => setHideTest(v => !v)} style={{ fontSize: 11.5, padding: '0 10px' }}>{hideTest ? `${t.showTest} (${testCount})` : t.hideTestL}</button>}
+              {narrow && <span style={{ flex: 'none', fontSize: 12, color: FAINT, fontWeight: 600, whiteSpace: 'nowrap' }}>{filteredLeads.length} {t.leadsCount}</span>}
             </div>
-            <div style={{ fontSize: 11.5, color: FAINT, fontWeight: 600 }}>{filteredLeads.length} {t.leadsCount}</div>
+            {!narrow && <div style={{ fontSize: 11.5, color: FAINT, fontWeight: 600 }}>{filteredLeads.length} {t.leadsCount}</div>}
           </div>
 
           {showRestore && deletedLeads.length > 0 && (
@@ -1033,7 +1055,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onOpenCard, onSaveToCRM,
             </div>
           )}
 
-          <div className="lc-scroll" style={{ flex: 1, minHeight: 0, paddingBottom: narrow ? 90 : 12 }}>
+          <div className="lc-scroll" style={{ flex: 1, minHeight: 0, paddingBottom: narrow ? 16 : 12 }}>
             {loadingLeads && !leads.length && <div style={{ padding: 24, textAlign: 'center', color: MUTED, fontSize: 13 }}>{t.loading}</div>}
             {leadsError && <div role="alert" style={{ padding: 14, color: '#DC2626', fontSize: 12.5, display: 'flex', gap: 8, alignItems: 'center' }}>{t.error}: {leadsError}<button className="lc-btn" onClick={() => loadLeads()} style={{ minHeight: 28 }}>↻</button></div>}
             {!loadingLeads && !leadsError && filteredLeads.length === 0 && (
@@ -1057,7 +1079,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onOpenCard, onSaveToCRM,
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                      <span className="lc-name" title={t.renameTip} onClick={e => { e.stopPropagation(); selectLead(lead.id); startNameEdit(lead) }} style={{ flex: 1, minWidth: 0, fontSize: 13.5, fontWeight: 700, color: CREAM, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{isTestLead(lead) ? t.testLead : (lead.name || '—')}</span>
+                      <span className="lc-name" title={narrow ? undefined : t.renameTip} onClick={e => { if (narrow) return; e.stopPropagation(); selectLead(lead.id); startNameEdit(lead) }} style={{ flex: 1, minWidth: 0, fontSize: 13.5, fontWeight: 700, color: CREAM, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{isTestLead(lead) ? t.testLead : (lead.name || '—')}</span>
                       <span style={{ fontSize: 11, color: FAINT, flexShrink: 0, fontFeatureSettings: '"tnum"' }}>{fmtWhen(lead.created_at, lang)}</span>
                     </div>
                     <div style={{ fontSize: 12, color: MUTED, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={getCampaignLabel(lead) || ''}>
@@ -1187,6 +1209,43 @@ export default function MetaLeadsTab({ C, lang, isDark, onOpenCard, onSaveToCRM,
                     <button role="tab" aria-selected={pane === 'info'} onClick={() => setPane('info')} style={pane === 'info' ? { background: 'rgba(var(--brand-rgb),.14)', color: BRAND } : undefined}>{t.tabInfo}</button>
                   </div>
                 )
+                // Phone: one compact bar — who on the first row (back · face · name + details · call · card), the stage, the
+                // status and chat / details on one sideways-scrolling row; renaming opens a full-width row of its own
+                if (narrow) {
+                  const editing = nameEdit?.id === selectedLead.id
+                  const proj = shortLabel(selectedLead), suffix = proj ? ` · ${proj}` : ''
+                  const has = editing && !!suffix && nameEdit.value.trim().endsWith(suffix.trim())
+                  const toggle = () => setNameEdit(e => ({ ...e, value: has ? e.value.trim().slice(0, -suffix.length).trim() : `${e.value.trim()}${suffix}` }))
+                  return (
+                    <div ref={barRef} className="lc-mbar">
+                      <div className="lc-mbar-who">
+                        <button type="button" className="lc-ib" onClick={() => setSelectedId(null)} aria-label={t.back} title={t.back}>
+                          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={dir === 'rtl' ? undefined : { transform: 'scaleX(-1)' }}><path d="m9 18 6-6-6-6"/></svg>
+                        </button>
+                        <Avatar lead={selectedLead} size={38}/>
+                        <div className="lc-mbar-name">
+                          <button type="button" className="lc-name-btn" title={t.renameTip} onClick={() => startNameEdit(selectedLead)}>{isTestLead(selectedLead) ? t.testLead : (selectedLead.name || '—')}</button>
+                          <small title={getCampaignLabel(selectedLead) || ''}>{selectedLead.phone ? <bdi dir="ltr">{fmtPhone(selectedLead.phone)}</bdi> : null}{selectedLead.phone ? ' · ' : ''}{shortLabel(selectedLead) || '—'} · {fmtWhen(selectedLead.created_at, lang)}</small>
+                        </div>
+                        {selectedLead.phone && <a className="lc-ib" href={telHref} aria-label={t.call} title={t.call}><Icon name="phone" size={19}/></a>}
+                        {onOpenCard && <button type="button" className="lc-ib is-pri" onClick={openCard} disabled={cardBusy === 'busy'} aria-label={t.openCard} title={cardBusy === 'err' ? t.cardFail : t.openCard}><Icon name="personal" size={19} sw={2}/></button>}
+                      </div>
+                      {editing && (
+                        <form className="lc-mbar-edit" onSubmit={e => { e.preventDefault(); saveName(selectedLead) }}>
+                          <input autoFocus className="lc-name-in" aria-label={t.renameLbl} maxLength={80} value={nameEdit.value}
+                            onChange={e => setNameEdit(x => ({ ...x, value: e.target.value, err: false }))} onKeyDown={e => { if (e.key === 'Escape') { e.preventDefault(); setNameEdit(null) } }}/>
+                          {proj && <button type="button" className="lc-btn lc-mbar-proj" onClick={toggle}>{has ? t.removeProject : t.addProject(proj)}</button>}
+                          <div className="lc-mbar-edit-row">
+                            <button type="button" className="lc-btn" onClick={() => setNameEdit(null)}>{t.nameCancel}</button>
+                            <button type="submit" className="lc-btn primary" disabled={nameEdit.busy || !nameEdit.value.trim()}>{nameEdit.busy ? '…' : t.nameSave}</button>
+                          </div>
+                          <span className="lc-mbar-hint" role={nameEdit.err ? 'alert' : undefined} style={nameEdit.err ? { color: '#DC2626' } : undefined}>{nameEdit.err ? t.nameFail : t.nameHint}</span>
+                        </form>
+                      )}
+                      {!focusChat && <div className="lc-mbar-tools">{tabs}{stageCtl}{statusCtl}{onCrmPatch && <FollowUpButton lead={crmLead || { name: selectedLead.name, tasks: [] }} lang={lang} onSave={crmPatch}/>}</div>}
+                    </div>
+                  )
+                }
                 const barH = !narrow && !focusChat && layout.bar != null ? layout.bar : undefined
                 return (
                   <>
@@ -1252,11 +1311,11 @@ export default function MetaLeadsTab({ C, lang, isDark, onOpenCard, onSaveToCRM,
               {/* Conversation + details */}
               <div ref={detailBoxRef} style={{ flex: 1, minHeight: 0, display: 'flex', padding: onePane ? 0 : 14, overflow: 'hidden' }}>
                 {(!onePane || pane === 'chat' || focusChat) && (
-                  <div className={onePane ? '' : 'lc-card'} style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', paddingBottom: narrow ? 'calc(64px + env(safe-area-inset-bottom))' : 0 }}>
+                  <div className={onePane ? '' : 'lc-card'} style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                     <LeadConversation key={selectedLead.id} lead={selectedLead} tplLead={tplLead} lang={lang} isDark={isDark}
                       localMsgs={messages} needsWelcome={!selectedLead.wa_sent} autoConfig={autoConfig} onAutoConfigSaved={onAutoConfigSaved}
                       onSend={handleSend} onSendWelcome={handleWelcome} officePhone={waPhone}
-                      onOpenChats={onOpenChat ? () => onOpenChat(selectedLead) : undefined} compact={narrow}
+                      onOpenChats={onOpenChat ? () => onOpenChat(selectedLead) : undefined} compact={narrow} hideHeader={narrow}
                       onActivity={onActivity} maximized={focusChat} onToggleMaximize={() => setFocusChat(v => !v)}
                       onOpenCard={onOpenCard ? openCard : undefined}/>
                   </div>
