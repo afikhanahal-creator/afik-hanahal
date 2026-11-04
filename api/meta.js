@@ -7,6 +7,7 @@
 //  sync     → GET historical sync from Meta
 
 import { compressJson, markWait } from '../lib/http.js'
+import { GREEN_READ_TTL, greenReadKey } from '../lib/green-read.js'
 import { waitUntil } from '@vercel/functions'
 import { createClient } from '@supabase/supabase-js'
 import crypto from 'crypto'
@@ -67,13 +68,33 @@ const GREEN_BASE_URL = (() => {
 })()
 // Build a Green API method URL. The apiToken stays server-side — never sent to the browser.
 const greenUrl = (method) => `${GREEN_BASE_URL}/waInstance${GREEN_INSTANCE}/${method}/${GREEN_TOKEN}`
+// Green API allows about one call a second per method on the line (measured: a second getChatHistory / getStateInstance /
+// lastIncomingMessages within a second answers 429, then we wait 900 ms). Several screens and several people share one
+// line, so identical reads are shared: a read already on its way is joined, and its answer is reused for a few seconds
+// (GREEN_READ_TTL — reads only, never a send / a setting; an error is never kept). The chats still merge our own table
+// (wa_messages, live) over Green's answer, so a reused history is never missing a message the webhook brought.
+const greenReads = new Map()   // method + query + body → { at, p }
+function greenFetch(url, init = {}) {
+  const rk = greenReadKey(url, init)
+  if (!rk) return greenFetchRaw(url, init)
+  const hit = greenReads.get(rk.key)
+  if (hit && (hit.pending || Date.now() - hit.at < GREEN_READ_TTL[rk.method])) return hit.p.then(greenResponse)
+  const entry = { at: Date.now(), pending: true }
+  entry.p = greenFetchRaw(url, init).then(async r => ({ status: r.status, headers: { 'content-type': r.headers.get('content-type') || 'application/json' }, body: await r.text() }))
+  entry.p.then(c => { entry.pending = false; entry.at = Date.now(); if (c.status !== 200) greenReads.delete(rk.key) }, () => greenReads.delete(rk.key))
+  greenReads.set(rk.key, entry)
+  if (greenReads.size > 200) greenReads.delete(greenReads.keys().next().value)
+  return entry.p.then(greenResponse)
+}
+// every caller gets its own Response over the shared text (a status that may carry no body gets none)
+const greenResponse = c => new Response([101, 204, 205, 304].includes(c.status) ? null : c.body, { status: c.status, headers: c.headers })
 // fetch() for Green API: its per-method rate limit answers 429 when the panel asks several things at once — wait, retry
-async function greenFetch(url, init = {}, attempt = 0) {
+async function greenFetchRaw(url, init = {}, attempt = 0) {
   const r = await globalThis.fetch(url, init)
   if (r.status !== 429 || attempt >= 2 || init.body instanceof FormData) return r
   markWait(900 * (attempt + 1))
   await new Promise(ok => setTimeout(ok, 900 * (attempt + 1)))
-  return greenFetch(url, { ...init, signal: AbortSignal.timeout(10000) }, attempt + 1)
+  return greenFetchRaw(url, { ...init, signal: AbortSignal.timeout(10000) }, attempt + 1)
 }
 
 
@@ -1615,8 +1636,8 @@ async function chatNames(list) {
   if (now - nameCache.at > NAME_TTL) {
     const book = new Map(), leads = new Map()
     const [rc, rs, dbC, dbM] = await Promise.all([
-      fetch(greenUrl('getContacts'), { signal: AbortSignal.timeout(12000) }).then(r => (r.ok ? r.json() : [])).catch(() => []),
-      fetch(greenUrl('getWaSettings'), { signal: AbortSignal.timeout(8000) }).then(r => (r.ok ? r.json() : {})).catch(() => ({})),
+      greenFetch(greenUrl('getContacts'), { signal: AbortSignal.timeout(12000) }).then(r => (r.ok ? r.json() : [])).catch(() => []),
+      greenFetch(greenUrl('getWaSettings'), { signal: AbortSignal.timeout(8000) }).then(r => (r.ok ? r.json() : {})).catch(() => ({})),
       SUPABASE_URL && SUPABASE_KEY ? sb().from('contacts').select('name,phone').order('created_at', { ascending: false }).limit(3000).then(r => r.data || []).catch(() => []) : [],
       SUPABASE_URL && SUPABASE_KEY ? sb().from('meta_leads').select('name,phone').order('created_at', { ascending: false }).limit(3000).then(r => r.data || []).catch(() => []) : [],
     ])
@@ -1644,7 +1665,7 @@ async function chatNames(list) {
   await Promise.all(missing.map(async c => {
     const k = tail9(c.phone)
     try {
-      const r = await fetch(greenUrl('getContactInfo'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chatId: c.chatId }), signal: AbortSignal.timeout(6000) })
+      const r = await greenFetch(greenUrl('getContactInfo'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chatId: c.chatId }), signal: AbortSignal.timeout(6000) })
       const d = r.ok ? await r.json() : {}
       const n = String(d.contactName || d.name || '').trim()
       nameCache.info.set(k, n)                           // cache misses too, so we never re-ask

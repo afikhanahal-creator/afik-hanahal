@@ -400,6 +400,12 @@ a key at CPU ×4 with 200 messages, now ~65 ms and no long task), handlers read 
 messages are drawn first (`PAGE_MSGS`) — earlier ones come in pages as the reader scrolls up or presses "הודעות קודמות (N)", the
 scroll position kept (`keepScroll` + `useLayoutEffect`; Safari has no scroll anchoring). Render profile: the scratchpad's
 `perf/render-prof.cjs` (300 chats, 300 leads, a 200-message chat, CPU ×4).
+**Green reads are shared** (`greenFetch` in `api/meta.js`, rules in `lib/green-read.js`, tested): Green allows about one call a
+second per method on the line — a second `getChatHistory` / `getStateInstance` / `lastIncomingMessages` within a second answered 429
+and cost a 900 ms back-off (`wait` in Server-Timing, 1.8 s in `chat-list`). Identical reads join the one already on its way and reuse
+its answer for a few seconds (`GREEN_READ_TTL`: state 15 s, last messages 10 s, a chat's history 3 s, contacts / settings longer);
+sends, settings and forwards are never shared, an error is never kept. Server-Timing also shows `wait` (429 back-offs) and
+`<service>Body` (reading a response body).
 **Messages written on the office phone are always in the history** (2026-11-01, `server/wa-catchup-migration.sql`, applied):
 Green's webhook brings them as `outgoingMessageReceived` (`by_api = false`, ~2 s; 338 in the week before), and `auto-tick` /
 `auto-run` also run `catchUpMessages()` (`lib/automations.js`): Green's `lastIncomingMessages` + `lastOutgoingMessages` of the last
