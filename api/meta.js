@@ -1628,7 +1628,7 @@ async function handleAutomations(req, res, action) {
 // ── Chat name resolution ─────────────────────────────────────────────────────
 // Warm serverless instances keep this cache between polls (the panel polls every 30s).
 const NAME_TTL = 10 * 60 * 1000
-const nameCache = { at: 0, book: new Map(), leads: new Map(), self: '', info: new Map() }
+const nameCache = { at: 0, book: new Map(), leads: new Map(), self: '', info: new Map(), asking: false }
 const tail9 = p => String(p || '').replace(/\D/g, '').slice(-9)
 
 async function chatNames(list) {
@@ -1660,18 +1660,28 @@ async function chatNames(list) {
     const leadName = nameCache.leads.get(k) || ''
     if (waName || leadName) map.set(k, { name: leadName || waName, leadName, waName })
   }
-  // Last resort: getContactInfo for the newest still-unnamed chats (rate-limited, so a few per poll)
-  const missing = list.filter(c => !map.has(tail9(c.phone)) && !nameCache.info.has(tail9(c.phone))).slice(0, 6)
-  await Promise.all(missing.map(async c => {
-    const k = tail9(c.phone)
-    try {
-      const r = await greenFetch(greenUrl('getContactInfo'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chatId: c.chatId }), signal: AbortSignal.timeout(6000) })
-      const d = r.ok ? await r.json() : {}
-      const n = String(d.contactName || d.name || '').trim()
-      nameCache.info.set(k, n)                           // cache misses too, so we never re-ask
-      if (n) map.set(k, { name: n, waName: n })
-    } catch { nameCache.info.set(k, '') }
-  }))
+  // Last resort: getContactInfo for the newest still-unnamed chats. Green answers about one a second, so they are asked one
+  // after another in the background (waitUntil) and the list never waits for them — a name found shows on the next read.
+  // (They used to go out 6 at once inside the request: most answered 429, cost a 900 ms back-off each, and a 429 was then
+  // kept as "no name", so that chat was never asked again.)
+  const missing = list.filter(c => !map.has(tail9(c.phone)) && !nameCache.info.has(tail9(c.phone))).slice(0, 4)
+  if (missing.length && !nameCache.asking) {
+    nameCache.asking = true
+    waitUntil((async () => {
+      try {
+        for (const [i, c] of missing.entries()) {
+          if (i) await new Promise(ok => setTimeout(ok, 1100))
+          const k = tail9(c.phone)
+          try {
+            const r = await greenFetch(greenUrl('getContactInfo'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chatId: c.chatId }), signal: AbortSignal.timeout(6000) })
+            if (!r.ok) continue                              // a refusal (429) is not "no name": asked again later
+            const d = await r.json().catch(() => ({}))
+            nameCache.info.set(k, String(d.contactName || d.name || '').trim())   // a real miss is kept, never re-asked
+          } catch { /* asked again on a later read */ }
+        }
+      } finally { nameCache.asking = false }
+    })())
+  }
   return { map, self: nameCache.self }
 }
 
