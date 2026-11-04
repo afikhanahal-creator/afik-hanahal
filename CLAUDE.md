@@ -980,6 +980,19 @@ Word file for both sides:** `docxOf()` (`lib/documents-server.js`) serves the of
 takes `signatures` (every signer's image in its own box, the client box with the client's — it used to take the last signer's —
 and a certificate block per signer). The probe's `docs` action downloads the newest signed / sent documents' files live
 (whole PDF / whole zip, sizes only) and checks that a request without the login gets 401. QA: the scratchpad's `qa-docfiles.cjs`.
+**Several brokers / agents, a signature each (2026-11-04):** settings → כללי → "מתווכים וסוכנים" (`AgentsEditor` in
+`src/DocumentsTab.jsx`): a card per agent (name, role, licence, phone, email), one default ("קביעה כברירת מחדל"), "+ מתווך / סוכן
+נוסף" (≤ 20), delete, and **each card's own signature** (`AgentSignatureField { agentId }` — uploading a new agent's signature saves
+the list first). Stored as `settings.agents` in `app_settings.doc_settings` (`cleanAgents()` / `agentsFromSettings()` /
+`defaultAgent()` in `lib/documents.js`, tested — the old single `agent` reads as the one default, id `a_main`; `agent` is still
+written = the default, for older readers) and the images as `app_settings.doc_agent_signatures` `{ [agentId]: { name, png,
+updatedAt } }` (`getAgentSignatures()` in `lib/documents-server.js`; the old single `doc_agent_signature` belongs to the agent with
+its name, else the default — `signatureOwner()` — and moves into the map on the next save; a removed agent's signature is pruned;
+a renamed agent keeps his). `docs-agent-signature` GET → `{ signatures, signature }`, POST `{ agentId, png }` / `{ agentId, remove }`.
+**On a document:** the wizard's client step and the quick document show "המתווך במסמך" (`AgentPicker`, chips — only with ≥ 2
+agents; the default is preselected) → `data.agent` keeps the agent's `id` (`docAgent()`); a property's preset remembers `agentId`.
+When the last signer signs, the stamp is **that agent's** signature (`signatureForDoc()`: by id, else by name, the default only
+for a document that names no agent — never another agent's). QA: the scratchpad's `qa-agents.cjs`.
 **Flow:** `docs-create` cleans the input (`cleanDocInput`), links the CRM lead (the given id, else the newest lead with that phone /
 email — never a new lead), numbers the document and writes `created` on the lead. `docs-send {id, via}` makes the private token
 (kept only as a hash), freezes the clauses on the row, renders the PDF the client signs (stored, its SHA-256 on the row), and

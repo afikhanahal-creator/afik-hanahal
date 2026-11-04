@@ -7,12 +7,12 @@
 // Everything here uses the admin tokens (T.* / var(--au-*)) and works in light / dark, RTL and on a phone.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { X, FileSignature, Plus, Search, Send, RefreshCw, Download, Link2, XCircle, Settings, Eye, Copy, Check, AlertTriangle, ChevronLeft, ChevronRight, FileText, Trash2, Upload, Clock, CheckCircle2, PenLine, Mail, MessageCircle, FolderKanban, Cloud, Bell, Users, ExternalLink, Building2, Zap } from 'lucide-react'
+import { X, FileSignature, Plus, Search, Send, RefreshCw, Download, Link2, XCircle, Settings, Eye, Copy, Check, AlertTriangle, ChevronLeft, ChevronRight, FileText, Trash2, Upload, Clock, CheckCircle2, PenLine, Mail, MessageCircle, FolderKanban, Cloud, Bell, Users, ExternalLink, Building2, Zap, UserRound, Star } from 'lucide-react'
 import { T, Button, IconButton, StatTile, FilterChip, Badge, EmptyState, Field, inputStyle, Modal, Drawer, useToasts, SectionHead } from './automationsUI.jsx'
 import { autoApi } from './AutomationsApi.jsx'
 import DocSheet, { DOC_CSS } from './DocPreview.jsx'
 import { onSync } from './lib/syncBus.js'
-import { clientLegalIssues, SIGN_MESSAGES, SIGN_MESSAGE_IDS, signMessage, signMessageList, signMessageCtx, renderWording, WORDING_GROUPS, WORDING_VARS, signMessagePreview, suggestSignMessage, docFunnel, fmtHours, docMonthKey, verifyLabel, computeFees, renderClauses, cleanDocInput, DEFAULT_CLAUSES, DOC_TYPES, CLIENT_ROLES, DEAL_TYPES, FEE_MODES, STATUS_HE, EVENT_HE, DEFAULT_VAT, docStats, effectiveStatus, fmtMoney, fmtPct, whenHe, todayHe, placeholderValues, PLACEHOLDERS, SIGNER_ROLES, MAX_SIGNERS, signerProgressText, signerInfo, DEFAULT_REMINDERS, DEFAULT_NOTIFY_ON, propertyToDoc } from '../lib/documents.js'
+import { agentOfDoc, docAgent, defaultAgent, agentsFromSettings, clientLegalIssues, SIGN_MESSAGES, SIGN_MESSAGE_IDS, signMessage, signMessageList, signMessageCtx, renderWording, WORDING_GROUPS, WORDING_VARS, signMessagePreview, suggestSignMessage, docFunnel, fmtHours, docMonthKey, verifyLabel, computeFees, renderClauses, cleanDocInput, DEFAULT_CLAUSES, DOC_TYPES, CLIENT_ROLES, DEAL_TYPES, FEE_MODES, STATUS_HE, EVENT_HE, DEFAULT_VAT, docStats, effectiveStatus, fmtMoney, fmtPct, whenHe, todayHe, placeholderValues, PLACEHOLDERS, SIGNER_ROLES, MAX_SIGNERS, signerProgressText, signerInfo, DEFAULT_REMINDERS, DEFAULT_NOTIFY_ON, propertyToDoc } from '../lib/documents.js'
 import { leadProperty } from '../lib/automations-shared.js'
 import { useProjects } from './lib/projectsStore.js'
 import { projectOfLead } from '../lib/projects.js'
@@ -161,6 +161,13 @@ export const DOCS_CSS = `
 .dt-clause textarea{min-height:90px}
 .dt-ph{display:flex;flex-wrap:wrap;gap:4px}.dt-ph code{font-size:11px;background:rgba(var(--ov),.07);border-radius:6px;padding:2px 6px;direction:ltr}
 .dt-agsig{display:grid;grid-template-columns:200px minmax(0,1fr);gap:14px;align-items:center;border:1px solid rgba(var(--ov),.12);border-radius:14px;padding:12px}.dt-agsig-img{height:90px;border-radius:10px;background:#fff;border:1px solid rgba(var(--ov),.1);display:flex;align-items:center;justify-content:center;padding:8px}.dt-agsig-img img{max-width:100%;max-height:100%;object-fit:contain}.dt-agsig-img span{color:#8A8798;font-size:12px}.dt-agsig-txt{display:flex;flex-direction:column;gap:6px;min-width:0}.dt-agsig-txt p{margin:0;font-size:12.5px;line-height:1.55;color:var(--au-text3)}@media (max-width:640px){.dt-agsig{grid-template-columns:1fr}}
+.dt-agents{display:flex;flex-direction:column;gap:12px}.dt-agents-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}.dt-agents-head b{display:block;font-size:15px;font-weight:600}.dt-agents-head small{display:block;font-size:12.5px;color:var(--au-text3);margin-top:2px;line-height:1.5}
+.dt-agent{border:1px solid var(--au-line);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:12px;background:var(--au-card)}.dt-agent.def{border-color:rgba(var(--brand-rgb),.45);box-shadow:0 0 0 3px rgba(var(--brand-rgb),.08)}
+.dt-agent-top{display:flex;align-items:center;gap:10px;min-width:0}.dt-agent-top b{font-size:14.5px;font-weight:600;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dt-agent-av{width:32px;height:32px;border-radius:50%;background:rgba(var(--brand-rgb),.12);color:var(--au-brand-text);display:inline-flex;align-items:center;justify-content:center;font-weight:700;flex:none}
+.dt-agent-def{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;color:var(--au-brand-text);background:rgba(var(--brand-rgb),.1);border-radius:999px;padding:3px 9px;white-space:nowrap}
+.dt-agent-mk{border:1px solid var(--au-line);background:transparent;color:var(--au-text2);font:inherit;font-size:12px;border-radius:999px;padding:3px 10px;cursor:pointer;min-height:0;white-space:nowrap}.dt-agent-mk:hover{background:rgba(var(--ov),.06)}
+.dw-agents{display:flex;flex-direction:column;gap:6px}.dw-agents-l{font-size:13px;font-weight:600;color:var(--au-text2)}.dw-agents small{color:var(--au-text3);font-weight:400}.dw-agents-h{font-size:12px;color:var(--au-text3)}
 .dt-wire{display:flex;gap:8px;flex-wrap:wrap}
 .dt-input{width:100%;height:40px;padding:0 12px;border-radius:9px;border:1px solid var(--au-line);background:var(--au-input);color:var(--au-text);font:inherit;font-size:13.5px;min-height:0}
 textarea.dt-input{height:auto;min-height:70px;padding:9px 12px;resize:vertical;line-height:1.5}
@@ -570,6 +577,19 @@ function WordingEditor({ wording, settings, onClose, onSaved, push }) {
  *  not missed before sending: a ✓ / "חסר" per field, the ID's checksum checked as it is typed, and "הלקוח ישלים בזמן החתימה"
  *  for a document the office sends without them (the signing page then asks the client). The send is blocked until one of
  *  the two is true (`clientLegalIssues`). */
+/** "המתווך במסמך": chips of the office's agents (shown once there is more than one); a pick puts that agent on the document */
+function AgentPicker({ agents = [], value, onPick }) {
+  if (agents.length < 2) return null
+  const cur = agentOfDoc(agents, { agent: value })
+  return (
+    <div className="dw-agents" role="radiogroup" aria-label="המתווך במסמך">
+      <span className="dw-agents-l">המתווך במסמך</span>
+      <div className="dw-chips">{agents.map(a => <button key={a.id} type="button" role="radio" aria-checked={cur?.id === a.id} className={`dw-chip${cur?.id === a.id ? ' on' : ''}`} onClick={() => onPick(a)}>
+        <UserRound size={12}/> {a.name}{a.title ? <small> · {a.title}</small> : null}{a.isDefault ? <small> · ברירת מחדל</small> : null}</button>)}</div>
+      {!cur && value?.name ? <small className="dw-agents-h">במסמך: {value.name} (לא מהרשימה)</small> : null}
+    </div>
+  )
+}
 function ClientLegalBox({ client, fillAtSign, onField, onFillAtSign, showErrors = false }) {
   const st = clientLegalIssues(client, { fillAtSign })
   const idState = st.idValid === true ? 'ok' : st.idValid === false ? 'bad' : 'missing'
@@ -942,6 +962,7 @@ function DocWizard({ t, leads, properties, projects = [], templates = [], settin
   const stepUi = [
     <>
       <Field label={t.project}><ProjectSelect projects={projects} value={form.projectId} lang="he" onChange={(id, p) => setForm(f => ({ ...f, projectId: id || '', projectName: p?.name || '' }))}/></Field>
+      <AgentPicker agents={settings?.agents || []} value={form.agent} onPick={a => setForm(f => ({ ...f, agent: docAgent(a) }))}/>
       <div className="dw-lead">
         <Field label={t.pickLead} hint={t.leadNote}>
           <LeadFinder leads={leads} value={form.leadId} onPick={pickLead} placeholder={t.leadPh} allowNone noneLabel={t.noLead}/>
@@ -1153,6 +1174,7 @@ function QuickDoc({ t, leads, properties, projects = [], templates = [], setting
       return { ...base, client: f.client, leadId: f.leadId, signers: f.signers, propertyId: pd.propertyId, property: { ...base.property, ...pd.property },
         templateId: pr?.templateId || 'brokerage', fees: { ...base.fees, ...pd.fees, ...(pr?.fees || {}), vatRate: settings?.vatRate ?? DEFAULT_VAT },
         terms: pr?.terms || '', expiryDays: pr?.expiryDays || base.expiryDays,
+        agent: (() => { const a = pr?.agentId && (settings?.agents || []).find(x => x.id === pr.agentId); return a ? docAgent(a) : f.agent?.name ? f.agent : base.agent })(),
         projectId: proj?.id || f.projectId || '', projectName: proj?.name || pr?.projectName || f.projectName || '',
         ...(pr?.role ? { client: { ...f.client, role: pr.role } } : pd.property.dealType === 'rent' ? { client: { ...f.client, role: 'renter' } } : {}) }
     })
@@ -1184,7 +1206,7 @@ function QuickDoc({ t, leads, properties, projects = [], templates = [], setting
   }
   const savePreset = async () => {
     if (!remember || !propId || manual) return
-    const pr = { templateId: form.templateId || 'brokerage', fees: { mode: form.fees.mode, pct: form.fees.pct, months: form.fees.months, fixed: form.fees.fixed }, terms: form.terms, expiryDays: form.expiryDays, projectId: form.projectId, projectName: form.projectName, role: form.client.role }
+    const pr = { templateId: form.templateId || 'brokerage', fees: { mode: form.fees.mode, pct: form.fees.pct, months: form.fees.months, fixed: form.fees.fixed }, terms: form.terms, expiryDays: form.expiryDays, projectId: form.projectId, projectName: form.projectName, role: form.client.role, agentId: form.agent?.id || '' }
     try { const r = await api.post('docs-settings', { presets: { [propId]: pr } }); if (r.settings) onPresetSaved?.(r.settings) } catch { /* the document itself is what matters */ }
   }
   const go = async (andSend) => {
@@ -1273,6 +1295,7 @@ function QuickDoc({ t, leads, properties, projects = [], templates = [], setting
                 <Field label="הלקוח בעסקה כ"><select className="dt-input" value={form.client.role} aria-label="תפקיד הלקוח בעסקה" onChange={e => set('client.role', e.target.value)}>{Object.entries(CLIENT_ROLES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>
               </div>
               <ClientLegalBox client={form.client} fillAtSign={form.fillAtSign} showErrors={legalShow} onField={(k, v) => set(`client.${k}`, v)} onFillAtSign={v => setForm(f => ({ ...f, fillAtSign: v }))}/>
+              <AgentPicker agents={settings?.agents || []} value={form.agent} onPick={a => setForm(f => ({ ...f, agent: docAgent(a) }))}/>
             </div>
             {usesFees && <div className="qd-sec"><h4><span>{manual ? 3 : 2}</span>דמי התיווך ותוקף</h4>
               <div className="dw-chips">{Object.entries(FEE_MODES).map(([k, v]) => <button type="button" key={k} className={`dw-chip${form.fees.mode === k ? ' on' : ''}`} onClick={() => set('fees.mode', k)}>{v}</button>)}</div>
@@ -1463,47 +1486,101 @@ async function cleanSignatureImage(file) {
     return o.toDataURL('image/png')
   } finally { URL.revokeObjectURL(url) }
 }
-/** settings → "חתימת המתווך": the broker's own signature, stamped on a document once the client has signed it */
-function AgentSignatureField({ agentName }) {
-  const [sig, setSig] = useState(undefined)
+/** one agent's signature (settings → "מתווכים וסוכנים"): stamped in the "המתווך" box of that agent's documents once the client signs */
+function AgentSignatureField({ agentId, agentName, sig, onSig, ensureSaved }) {
   const [busy, setBusy] = useState(false), [err, setErr] = useState('')
   const inp = useRef(null)
-  useEffect(() => { api.get('docs-agent-signature').then(r => setSig(r.signature || null)).catch(() => setSig(null)) }, [])
   const pick = async file => {
     if (!file) return
     if (!/^image\//.test(file.type)) { setErr('צריך קובץ תמונה — JPG או PNG (צילום או סריקה של החתימה)'); return }
+    if (!String(agentName || '').trim()) { setErr('כתבו קודם את שם המתווך'); return }
     setBusy(true); setErr('')
-    try { const png = await cleanSignatureImage(file); const r = await api.post('docs-agent-signature', { name: agentName || sig?.name || '', png }); if (r.error) throw new Error(r.error); setSig(r.signature) } catch (e) { setErr(e.message) } finally { setBusy(false); if (inp.current) inp.current.value = '' }
+    try {
+      if (!(await ensureSaved())) throw new Error('שמירת רשימת המתווכים נכשלה')
+      const png = await cleanSignatureImage(file)
+      const r = await api.post('docs-agent-signature', { agentId, png }); if (r.error) throw new Error(r.error)
+      onSig(agentId, r.signature)
+    } catch (e) { setErr(e.message) } finally { setBusy(false); if (inp.current) inp.current.value = '' }
   }
-  const remove = async () => { if (!window.confirm('להסיר את חתימת המתווך? מסמכים חדשים ייחתמו בלעדיה.')) return; setBusy(true); try { await api.post('docs-agent-signature', { remove: true }); setSig(null) } catch (e) { setErr(e.message) } finally { setBusy(false) } }
+  const remove = async () => { if (!window.confirm(`להסיר את החתימה של ${agentName || 'המתווך'}? מסמכים חדשים שלו ייחתמו בלעדיה.`)) return; setBusy(true); try { await api.post('docs-agent-signature', { agentId, remove: true }); onSig(agentId, null) } catch (e) { setErr(e.message) } finally { setBusy(false) } }
   return (
     <div className="dt-agsig">
-      <div className="dt-agsig-img">{sig === undefined ? <span>טוען…</span> : sig ? <img src={sig.png} alt={`חתימת ${sig.name}`}/> : <span>עוד לא הועלתה חתימה</span>}</div>
+      <div className="dt-agsig-img">{sig === undefined ? <span>טוען…</span> : sig ? <img src={sig.png} alt={`חתימת ${agentName}`}/> : <span>עוד לא הועלתה חתימה</span>}</div>
       <div className="dt-agsig-txt">
-        <b>חתימת המתווך{sig?.name ? ` · ${sig.name}` : ''}</b>
-        <p>מוטבעת אוטומטית במקום "המתווך" ברגע שהלקוח חותם — בעותק החתום (PDF ו-Word) שנשלח ללקוח ולמשרד, ובאישור החתימה. רק במסמכים שהמתווך שלהם הוא {sig?.name || agentName || 'בעל החתימה'}.</p>
+        <b>החתימה{agentName ? ` של ${agentName}` : ''}</b>
+        <p>מוטבעת אוטומטית בתיבת "המתווך" ברגע שהלקוח חותם — בעותק החתום (PDF ו-Word) ובאישור החתימה. רק במסמכים שהמתווך שלהם הוא {agentName || 'המתווך הזה'}.</p>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <Button variant="ghost" disabled={busy} onClick={() => inp.current?.click()}>{busy ? 'מעבד…' : sig ? 'החלפת החתימה' : 'העלאת חתימה'}</Button>
           {sig && <Button variant="ghost" disabled={busy} onClick={remove}>הסרה</Button>}
         </div>
         {err && <span style={{ color: 'var(--au-red-text)', fontSize: 12.5 }}>{err}</span>}
-        <input ref={inp} type="file" accept="image/*" hidden onChange={e => pick(e.target.files?.[0])}/>
+        <input ref={inp} type="file" accept="image/*" hidden aria-label={`העלאת חתימה של ${agentName || 'המתווך'}`} onChange={e => pick(e.target.files?.[0])}/>
       </div>
+    </div>
+  )
+}
+const newAgentId = () => 'a_' + Math.random().toString(36).slice(2, 10).padEnd(4, '0')
+const blankAgent = (isDefault = false) => ({ id: newAgentId(), name: '', title: '', license: '', phone: '', email: '', isDefault })
+/** settings → "מתווכים וסוכנים": every broker / agent the office's documents can be made in, one default, a signature each */
+function AgentsEditor({ t, agents, onChange, sigs, onSig, ensureSaved }) {
+  const upd = (id, patch) => onChange(agents.map(a => (a.id === id ? { ...a, ...patch } : a)))
+  const setDefault = id => onChange(agents.map(a => ({ ...a, isDefault: a.id === id })))
+  const remove = a => {
+    if (agents.length < 2) return
+    if (!window.confirm(`להסיר את ${a.name || 'המתווך'} מהרשימה? מסמכים שכבר נוצרו בשמו לא משתנים${sigs?.[a.id] ? ', והחתימה שלו תימחק בשמירה' : ''}.`)) return
+    const rest = agents.filter(x => x.id !== a.id)
+    onChange(a.isDefault ? rest.map((x, i) => ({ ...x, isDefault: i === 0 })) : rest)
+  }
+  return (
+    <div className="dt-agents">
+      <div className="dt-agents-head"><div><b>מתווכים וסוכנים</b><small>כל מסמך נעשה בשם אחד מהם — בוחרים באשף או במסמך המהיר. ברירת המחדל נכנסת לבד.</small></div>
+        <Button variant="ghost" icon={<Plus size={13}/>} disabled={agents.length >= 20} onClick={() => onChange([...agents, blankAgent(!agents.length)])}>מתווך / סוכן נוסף</Button></div>
+      {agents.map((a, i) => (
+        <div key={a.id} className={`dt-agent${a.isDefault ? ' def' : ''}`}>
+          <div className="dt-agent-top">
+            <span className="dt-agent-av" aria-hidden>{(a.name || '?').trim().slice(0, 1)}</span>
+            <b>{a.name || `מתווך ${i + 1}`}</b>
+            {a.isDefault ? <span className="dt-agent-def"><Star size={11}/> ברירת מחדל</span> : <button type="button" className="dt-agent-mk" onClick={() => setDefault(a.id)}>קביעה כברירת מחדל</button>}
+            {agents.length > 1 && <button type="button" className="dt-ib dt-ib-del" aria-label={`הסרת ${a.name || 'המתווך'}`} title="הסרה" onClick={() => remove(a)}><Trash2 size={14}/></button>}
+          </div>
+          <div className="dw-grid">
+            <Field label={t.fees.agentName}><input className="dt-input" value={a.name} aria-label={`${t.fees.agentName} ${i + 1}`} onChange={e => upd(a.id, { name: e.target.value })}/></Field>
+            <Field label="תפקיד (לא חובה)"><input className="dt-input" value={a.title || ''} placeholder="מתווך מוסמך, סוכן שטח…" aria-label={`תפקיד ${i + 1}`} onChange={e => upd(a.id, { title: e.target.value })}/></Field>
+            <Field label={t.fees.license}><input className="dt-input" dir="ltr" value={a.license || ''} aria-label={`${t.fees.license} ${i + 1}`} onChange={e => upd(a.id, { license: e.target.value })}/></Field>
+            <Field label={t.fees.agentPhone}><input className="dt-input" dir="ltr" value={a.phone || ''} aria-label={`${t.fees.agentPhone} ${i + 1}`} onChange={e => upd(a.id, { phone: e.target.value })}/></Field>
+            <div className="full"><Field label={t.fees.agentEmail}><input className="dt-input" dir="ltr" value={a.email || ''} aria-label={`${t.fees.agentEmail} ${i + 1}`} onChange={e => upd(a.id, { email: e.target.value })}/></Field></div>
+          </div>
+          <AgentSignatureField agentId={a.id} agentName={a.name} sig={sigs === null ? undefined : (sigs[a.id] || null)} onSig={onSig} ensureSaved={ensureSaved}/>
+        </div>
+      ))}
     </div>
   )
 }
 function DocSettings({ t, tab: initTab, settings, wiring, onClose, onSaved }) {
   const s = t.settingsT
   const [tab, setTab] = useState(initTab)
-  const [f, setF] = useState(() => ({ vatRate: settings?.vatRate ?? DEFAULT_VAT, expiryDays: settings?.expiryDays ?? 14, agent: { ...(settings?.agent || {}) }, notify: (settings?.notify || []).map(localPhone).join(', '), notifyEmail: settings?.notifyEmail || '', logo: { ...(settings?.logo || { show: true, url: '', size: 'm', align: 'right' }) },
+  const [f, setF] = useState(() => ({ vatRate: settings?.vatRate ?? DEFAULT_VAT, expiryDays: settings?.expiryDays ?? 14, agents: (() => { const l = settings?.agents?.length ? settings.agents : agentsFromSettings(settings || {}); return l.length ? l.map(a => ({ ...a })) : [blankAgent(true)] })(), notify: (settings?.notify || []).map(localPhone).join(', '), notifyEmail: settings?.notifyEmail || '', logo: { ...(settings?.logo || { show: true, url: '', size: 'm', align: 'right' }) },
     reminders: { ...DEFAULT_REMINDERS, ...(settings?.reminders || {}), days: (settings?.reminders?.days || DEFAULT_REMINDERS.days).join(', ') }, notifyOn: { ...DEFAULT_NOTIFY_ON, ...(settings?.notifyOn || {}) }, drive: { enabled: settings?.drive?.enabled !== false } }))
+  const [sigs, setSigs] = useState(null)   // { [agentId]: { name, png, updatedAt } } — null while loading
+  useEffect(() => { api.get('docs-agent-signature').then(r => setSigs(r.signatures || (r.signature ? { [defaultAgent(f.agents)?.id]: r.signature } : {}))).catch(() => setSigs({})) }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  const onSig = (id, sg) => setSigs(m => { const n = { ...(m || {}) }; if (sg) n[id] = sg; else delete n[id]; return n })
+  const agentsBody = () => f.agents.filter(a => a.name.trim())
+  /** a signature is kept per saved agent — save the list first when it changed (a new agent, a new name) */
+  const ensureSaved = async () => {
+    const saved = settings?.agents || []
+    const same = saved.length === agentsBody().length && agentsBody().every(a => saved.some(x => x.id === a.id && x.name === a.name.trim() && !!x.isDefault === !!a.isDefault))
+    if (same) return true
+    const r = await api.post('docs-settings', { agents: agentsBody() })
+    if (r.settings) onSaved(r.settings)
+    return !!r.settings
+  }
   const [clauses, setClauses] = useState(() => (settings?.clauses?.length ? settings.clauses : DEFAULT_CLAUSES).map(c => ({ ...c })))
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const save = async () => {
     setBusy(true); setErr('')
     try {
-      const body = tab === 'clauses' ? { clauses } : tab === 'reminders' ? { reminders: f.reminders, notifyOn: f.notifyOn } : tab === 'drive' ? { drive: f.drive } : { vatRate: f.vatRate, expiryDays: f.expiryDays, agent: f.agent, notify: f.notify.split(/[,\s]+/).filter(Boolean), notifyEmail: f.notifyEmail, logo: f.logo }
+      const body = tab === 'clauses' ? { clauses } : tab === 'reminders' ? { reminders: f.reminders, notifyOn: f.notifyOn } : tab === 'drive' ? { drive: f.drive } : { vatRate: f.vatRate, expiryDays: f.expiryDays, agents: agentsBody(), notify: f.notify.split(/[,\s]+/).filter(Boolean), notifyEmail: f.notifyEmail, logo: f.logo }
       const r = await api.post('docs-settings', body)
       onSaved(r.settings); onClose()
     } catch (e) { setErr(e.message) } finally { setBusy(false) }
@@ -1520,14 +1597,7 @@ function DocSettings({ t, tab: initTab, settings, wiring, onClose, onSaved }) {
             <Field label={s.vat}><input className="dt-input" dir="ltr" inputMode="decimal" value={f.vatRate} aria-label={s.vat} onChange={e => setF(x => ({ ...x, vatRate: e.target.value.replace(/[^\d.]/g, '') }))}/></Field>
             <Field label={s.expiry}><input className="dt-input" dir="ltr" inputMode="numeric" value={f.expiryDays} aria-label={s.expiry} onChange={e => setF(x => ({ ...x, expiryDays: e.target.value.replace(/\D/g, '') }))}/></Field>
           </div>
-          <SectionHead title={s.agent}/>
-          <div className="dw-grid">
-            <Field label={t.fees.agentName}><input className="dt-input" value={f.agent.name || ''} aria-label={t.fees.agentName} onChange={e => setF(x => ({ ...x, agent: { ...x.agent, name: e.target.value } }))}/></Field>
-            <Field label={t.fees.license}><input className="dt-input" dir="ltr" value={f.agent.license || ''} aria-label={t.fees.license} onChange={e => setF(x => ({ ...x, agent: { ...x.agent, license: e.target.value } }))}/></Field>
-            <Field label={t.fees.agentPhone}><input className="dt-input" dir="ltr" value={f.agent.phone || ''} aria-label={t.fees.agentPhone} onChange={e => setF(x => ({ ...x, agent: { ...x.agent, phone: e.target.value } }))}/></Field>
-            <Field label={t.fees.agentEmail}><input className="dt-input" dir="ltr" value={f.agent.email || ''} aria-label={t.fees.agentEmail} onChange={e => setF(x => ({ ...x, agent: { ...x.agent, email: e.target.value } }))}/></Field>
-          </div>
-          <AgentSignatureField agentName={f.agent.name}/>
+          <AgentsEditor t={t} agents={f.agents} onChange={list => setF(x => ({ ...x, agents: list }))} sigs={sigs} onSig={onSig} ensureSaved={ensureSaved}/>
           <Field label={s.notify} hint={s.notifyPh}><input className="dt-input" dir="ltr" value={f.notify} onChange={e => setF(x => ({ ...x, notify: e.target.value }))}/></Field>
           <Field label={s.notifyEmail}><input className="dt-input" dir="ltr" value={f.notifyEmail} aria-label={s.notifyEmail} onChange={e => setF(x => ({ ...x, notifyEmail: e.target.value }))}/></Field>
           <LogoFields t={t} logo={f.logo} onChange={l => setF(x => ({ ...x, logo: l }))}/>
