@@ -1658,6 +1658,19 @@ probe" phone visit, because the property window loaded every video for its thumb
 - **Automated browsers never download media**: `scripts/probe-site.mjs` aborts video requests.
 - Keep server reads narrow: never `select=*` on `contacts` / `meta_leads` in a poll; the full lead list (~310 KB) is read only
   by the automation run.
+- **Back on the Free plan (2026-11-05, org afikhanahal-creator; the grace period ended that day).** Measured that day: database
+  28 MB / 500 MB, Storage ~290 MB / 1 GB, egress ~20 MB a day (≈ 0.65 GB a month, ~13 % of 5 GB) — the REST answers travel gzipped
+  (~27 % of their raw size; the biggest is the automation run's full contact list, ~490 KB raw, every 15 min). Guards since:
+  **every public file has a one-year cache header** (`recacheStorage()` in `lib/shrink-photos.js`, tested: 119 old files — 84 wizard
+  photos on `no-cache`, the videos and PDFs on one hour — re-uploaded in place, same path; daily in the cron ≤ 60 MB, on demand
+  `POST /api/properties?recache=1`, probe action `recache`), so Supabase's CDN and the image CDN keep them; **a file that goes out on
+  WhatsApp more than once is downloaded from us once** (`greenHosted()` in `lib/automations.js` + the pure `lib/green-host.js`,
+  tested: ≥ 2 MB from its first send, ≥ 200 KB from its second, Green's `uploadFile` copy is kept 15 days and renewed after 13,
+  the map in `app_settings.green_hosted`; any failure sends the direct URL) — a template picture in a bulk send was one Storage
+  download per recipient, a property video would have been GBs; **a daily watch** (`supabaseWatch()` in `api/cron/warm.js`,
+  `public.afik_usage()` in `server/usage-watch-migration.sql` (applied), rules `lib/supabase-watch.js`, tested): one WhatsApp a day
+  to the office while the database or Storage passes 70 % of the free plan. Egress itself is only on the dashboard
+  (supabase.com → the org → Usage). Never upload without `cache-control: max-age=31536000` to a public bucket.
 - Measure with the Supabase edge logs (MCP `query_logs`, `source = 'edge_logs'`, sum `response.headers.content_length` by
   `request.path` / `request.cf.asOrganization`) and Usage in the Supabase dashboard.
 

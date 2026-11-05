@@ -37,6 +37,15 @@ if (ACTIONS.includes('slim')) {
   const h = await fetch(`${SITE}/api/properties?health=1`).then(r => r.json()).catch(e => ({ error: e.message }))
   show('health after slim', { list: h.list, snapshot: h.snapshot, serving: h.serving })
 }
+// recache: every public Storage file without a one-year cache header written back with one (lib/shrink-photos.js) — counts only
+if (ACTIONS.includes('recache')) {
+  for (let i = 1; i <= 14; i++) {
+    const r = await fetch(`${SITE}/api/properties?recache=1&mb=150`, { method: 'POST', headers: H, signal: AbortSignal.timeout(40000) })
+    const d = await r.json().catch(() => ({}))
+    show(`recache run ${i} (HTTP ${r.status})`, { checked: d.checked, needed: d.needed, neededMB: Math.round((d.neededBytes || 0) / 1048576), fixed: d.fixed, fixedMB: Math.round((d.fixedBytes || 0) / 1048576), remaining: d.remaining, errors: (d.errors || []).length, firstError: (d.errors || [])[0]?.replace(/^[^:]*: /, ''), error: d.error })
+    if (!r.ok || !d.remaining || (!d.fixed && i > 1)) break
+  }
+}
 if (ACTIONS.includes('booking')) {
   const r = await fetch(`${SITE}/api/meta/booking-admin`, { headers: H, signal: AbortSignal.timeout(30000) })
   const d = await r.json().catch(() => ({}))
