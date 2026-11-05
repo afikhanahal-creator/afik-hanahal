@@ -1087,6 +1087,13 @@ Word file for both sides:** `docxOf()` (`lib/documents-server.js`) serves the of
 takes `signatures` (every signer's image in its own box, the client box with the client's — it used to take the last signer's —
 and a certificate block per signer). The probe's `docs` action downloads the newest signed / sent documents' files live
 (whole PDF / whole zip, sizes only) and checks that a request without the login gets 401. QA: the scratchpad's `qa-docfiles.cjs`.
+**Rows sit on their own line (2026-11-05):** every label / value row of the PDF (`rows()` in `lib/doc-pdf.js`) is a band between
+two hairlines with its text centred in it (it used to hang 2 pt under the line above and float 10 pt over its own); the fee table's
+rule / hairlines / shading are centred on its text too. The Word file's table cells have equal 100-twip top / bottom margins,
+`VerticalAlign.CENTER` and single spacing; a clause's own line breaks are separate justified paragraphs (`paras()` in
+`lib/doc-docx.js` — a justified line ending in a manual break was stretched across the page: clause 6's amounts). The role row
+reads "תפקיד בעסקה" (was "בעסקה כ") in the PDF, Word and the on-screen sheet. Check: the scratchpad's `docr/render.mjs` (PDF +
+Word → PNG through LibreOffice).
 **Several brokers / agents, a signature each (2026-11-04):** settings → כללי → "מתווכים וסוכנים" (`AgentsEditor` in
 `src/DocumentsTab.jsx`): a card per agent (name, role, licence, phone, email), one default ("קביעה כברירת מחדל"), "+ מתווך / סוכן
 נוסף" (≤ 20), delete, and **each card's own signature** (`AgentSignatureField { agentId }` — uploading a new agent's signature saves
