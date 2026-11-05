@@ -1390,10 +1390,15 @@ export default function MetaLeadsTab({ C, lang, isDark, onOpenCard, onSaveToCRM,
 
                     {/* Follow-up with a WhatsApp reminder (lib/follow-up.js) — on the lead's CRM copy, like the board */}
                     {onCrmPatch && (
-                      <div className="lc-card" style={{ padding: 14, display: 'grid', gap: 10 }}>
-                        <div>
-                          <h3 style={{ margin: 0, fontSize: 13.5, fontWeight: 800, color: CREAM }}>{t.fuCard}</h3>
-                          <div style={{ fontSize: 12, color: MUTED, marginTop: 2 }}>{t.fuCardSub}</div>
+                      <div className="lc-card" style={{ padding: 16, display: 'grid', gap: 14 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <span aria-hidden="true" style={{ width: 36, height: 36, borderRadius: 10, flex: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(var(--brand-rgb),.12)', color: 'var(--au-brand-text)' }}>
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+                          </span>
+                          <div style={{ minWidth: 0 }}>
+                            <h3 style={{ margin: 0, fontSize: 14.5, fontWeight: 700, color: CREAM }}>{t.fuCard}</h3>
+                            <div style={{ fontSize: 12, color: MUTED, marginTop: 2, lineHeight: 1.4 }}>{t.fuCardSub}</div>
+                          </div>
                         </div>
                         <FollowUpComposer lead={crmLead || { name: selectedLead.name, tasks: [] }} lang={lang} onSave={crmPatch}/>
                         <FollowUpList lead={crmLead || { tasks: [] }} lang={lang} onSave={crmPatch}/>
