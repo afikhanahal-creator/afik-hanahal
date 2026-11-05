@@ -64,7 +64,7 @@ export default function DocSheet({ view, signatureUrl = '', logoSrc = '/logo-bla
       <div className="dsh-meta">מסמך מס׳ <span dir="ltr">{view.number || 'טיוטה'}</span> · תאריך {todayHe(view.created_at || new Date())}{signed ? <> · נחתם {whenHe(view.signed_at || view.signature.at)}</> : null}</div>
       {sec.parties && <><h2>פרטי הלקוח</h2>
       <table className="dsh-rows"><tbody>
-        <Row k="שם מלא" v={c.name}/><Row k="ת.ז." v={c.idNumber} ltr/><Row k="טלפון" v={c.phone ? fmtPhone(c.phone) : c.phoneMasked} ltr/><Row k="אימייל" v={c.email || c.emailMasked} ltr/><Row k="כתובת" v={c.address}/><Row k="בעסקה כ" v={CLIENT_ROLES[c.role]}/><Row k="פרויקט" v={view.project}/>
+        <Row k="שם מלא" v={c.name}/><Row k="ת.ז." v={c.idNumber} ltr/><Row k="טלפון" v={c.phone ? fmtPhone(c.phone) : c.phoneMasked} ltr/><Row k="אימייל" v={c.email || c.emailMasked} ltr/><Row k="כתובת" v={c.address}/><Row k="תפקיד בעסקה" v={CLIENT_ROLES[c.role]}/><Row k="פרויקט" v={view.project}/>
       </tbody></table>
       {brokerage && (a.name || a.license) ? <><h2>המתווך</h2><table className="dsh-rows"><tbody><Row k="שם" v={a.name}/><Row k="מס׳ רישיון" v={a.license} ltr/><Row k="טלפון" v={fmtPhone(a.phone)} ltr/></tbody></table></> : null}</>}
       {sec.property && <><h2>פרטי הנכס</h2>
