@@ -5,7 +5,7 @@
 import { useRef, useState } from 'react'
 import DateTimePicker from './DateTimePicker.jsx'
 import { Popover } from './automationsUI.jsx'
-import { addFollowUp, followUpPresets, defaultFollowUpText, describeDue, dueIso, updateTasks, openFollowUps } from '../lib/follow-up.js'
+import { addFollowUp, followUpPresets, defaultFollowUpText, describeDue, dueIso, updateTasks, openFollowUps, dueFromNow, dueParts } from '../lib/follow-up.js'
 import { leadNotes, addNote } from './lib/leadNotes.js'
 import TaskPresetInput, { rememberTaskText } from './TaskPresetInput.jsx'
 import SmartVoiceInput from './SmartVoiceInput.jsx'
@@ -13,33 +13,79 @@ import SmartVoiceInput from './SmartVoiceInput.jsx'
 const L = (lang, he, en) => (lang === 'en' ? en : he)
 
 export const FU_CSS = `
-.fu{display:flex;flex-direction:column;gap:10px}
+.fu{display:flex;flex-direction:column;gap:14px}
 .fu-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .fu-in{width:100%;box-sizing:border-box;min-width:0;height:38px;padding:0 12px;border-radius:10px;border:1px solid var(--au-s3-line);background:var(--au-s3);color:var(--au-text);font:inherit;font-size:13.5px;outline:none}
 .fu-in:focus{border-color:var(--au-brand);box-shadow:0 0 0 3px rgba(var(--brand-rgb),.18)}
+.fu-field{display:flex;flex-direction:column;gap:7px;min-width:0}
+.fu-lbl{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--au-text2);letter-spacing:.01em}
+.fu-lbl svg{color:var(--au-text3)}
+.fu-chips{display:flex;flex-wrap:wrap;gap:6px}
+.fu-chip{min-height:0;height:32px;padding:0 12px;border-radius:999px;border:1px solid var(--au-s3-line);background:var(--au-s3);color:var(--au-text);font:inherit;font-size:12.5px;font-weight:500;cursor:pointer;white-space:nowrap;transition:background .12s,border-color .12s,color .12s;-webkit-tap-highlight-color:transparent}
+.fu-chip:hover{border-color:rgba(var(--brand-rgb),.45)}
+.fu-chip[aria-pressed="true"]{background:var(--au-brand);border-color:var(--au-brand);color:#fff;font-weight:600}
+.fu-chip:focus-visible{outline:2px solid var(--au-brand);outline-offset:2px}
+.fu-when-box{display:flex;flex-direction:column;gap:8px;padding:10px;border-radius:12px;background:rgba(var(--ov),.03);border:1px solid var(--au-s3-line)}
+.fu-sum{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;font-size:12.5px;color:var(--au-text2);line-height:1.4;padding:0 2px}
+.fu-sum b{color:var(--au-text);font-weight:600}
+.fu-sum .rel{margin-inline-start:auto;flex:none;font-size:11.5px;font-weight:600;color:var(--au-brand-text);background:rgba(var(--brand-rgb),.1);border-radius:999px;padding:2px 8px;white-space:nowrap}
+.fu-rem{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;border:1px solid var(--au-s3-line);background:var(--au-s3);cursor:pointer;user-select:none;transition:border-color .12s,background .12s}
+.fu-rem.on{border-color:rgba(37,211,102,.45);background:rgba(37,211,102,.06)}
+.fu-rem-ico{width:32px;height:32px;border-radius:9px;flex:none;display:inline-flex;align-items:center;justify-content:center;background:rgba(var(--ov),.07);color:var(--au-text3)}
+.fu-rem.on .fu-rem-ico{background:rgba(37,211,102,.16);color:var(--au-green-text)}
+.fu-rem-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.fu-rem-t b{font-size:13px;font-weight:600;color:var(--au-text)}
+.fu-rem-t small{font-size:11.5px;color:var(--au-text3);line-height:1.35}
 .fu-bell{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;color:var(--au-text2);cursor:pointer;user-select:none}
-.fu-sw{position:relative;width:34px;height:20px;border-radius:999px;background:rgba(var(--ov),.18);transition:background .15s;flex-shrink:0}
-.fu-sw::after{content:"";position:absolute;top:2px;inset-inline-start:2px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:inset-inline-start .15s}
-.fu-bell input{position:absolute;opacity:0;width:1px;height:1px}
-.fu-bell input:checked+.fu-sw{background:#25D366}
-.fu-bell input:checked+.fu-sw::after{inset-inline-start:16px}
-.fu-bell input:focus-visible+.fu-sw{outline:2px solid var(--au-brand);outline-offset:2px}
-.fu-save{height:38px;padding:0 16px;border-radius:10px;border:none;background:var(--au-brand);color:#fff;font:inherit;font-size:13.5px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:7px}
-.fu-save:disabled{opacity:.45;cursor:default}
-.fu-list{display:flex;flex-direction:column;gap:6px}
-.fu-item{display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:12px;background:rgba(var(--ov),.035);border:1px solid var(--au-s3-line)}
-.fu-item.over{border-color:rgba(224,82,82,.45);background:rgba(224,82,82,.06)}
-.fu-chk{width:20px;height:20px;border-radius:6px;border:2px solid var(--au-s3-line);background:transparent;cursor:pointer;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:11px;padding:0}
-.fu-chk[aria-checked="true"]{background:#22C55E;border-color:#22C55E}
-.fu-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
-.fu-t b{font-size:13.5px;font-weight:600;color:var(--au-text);overflow-wrap:anywhere}
-.fu-meta{font-size:11.5px;color:var(--au-text3);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
-.fu-when{font-weight:700;color:var(--au-brand-text)}
-.fu-item.over .fu-when{color:var(--au-red-text)}
+.fu-sw{position:relative;width:38px;height:22px;border-radius:999px;background:rgba(var(--ov),.18);transition:background .15s;flex-shrink:0}
+.fu-sw::after{content:"";position:absolute;top:2px;inset-inline-start:2px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.3);transition:inset-inline-start .15s}
+.fu-rem input,.fu-bell input{position:absolute;opacity:0;width:1px;height:1px}
+.fu-rem input:checked+.fu-sw,.fu-bell input:checked+.fu-sw{background:#25D366}
+.fu-rem input:checked+.fu-sw::after,.fu-bell input:checked+.fu-sw::after{inset-inline-start:18px}
+.fu-rem input:focus-visible+.fu-sw,.fu-bell input:focus-visible+.fu-sw{outline:2px solid var(--au-brand);outline-offset:2px}
+.fu-save{min-height:0;height:44px;width:100%;padding:0 16px;border-radius:12px;border:none;background:var(--au-brand);color:#fff;font:inherit;font-size:14px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 1px 2px rgba(0,0,0,.08),0 4px 12px rgba(var(--brand-rgb),.25);transition:filter .12s,transform .06s}
+.fu-save:hover:not(:disabled){filter:brightness(1.07)}
+.fu-save:active:not(:disabled){transform:translateY(1px)}
+.fu-save:disabled{opacity:.45;cursor:default;box-shadow:none}
+.fu-save .at{font-weight:500;opacity:.85}
+.fu-list{display:flex;flex-direction:column;gap:8px}
+.fu-list-h{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:var(--au-text2)}
+.fu-list-h .n{min-width:20px;height:20px;padding:0 6px;border-radius:10px;background:rgba(var(--brand-rgb),.12);color:var(--au-brand-text);font-size:11px;font-weight:700;display:inline-flex;align-items:center;justify-content:center}
+.fu-list-h::after{content:"";flex:1;height:1px;background:var(--au-s3-line)}
+.fu-item{position:relative;display:flex;align-items:center;gap:11px;padding:10px 10px 10px 12px;border-radius:14px;background:var(--au-s3);border:1px solid var(--au-s3-line);transition:border-color .12s,box-shadow .12s}
+[dir=rtl] .fu-item{padding:10px 12px 10px 10px}
+.fu-item:hover{border-color:rgba(var(--brand-rgb),.35);box-shadow:0 2px 10px rgba(0,0,0,.05)}
+.fu-item.over{border-color:rgba(224,82,82,.4);background:rgba(224,82,82,.05)}
+.fu-item.done{opacity:.7}
+.fu-date{flex:none;width:44px;border-radius:10px;overflow:hidden;text-align:center;background:var(--au-card-solid,var(--au-pop));border:1px solid var(--au-s3-line);line-height:1}
+.fu-date i{display:block;font-style:normal;font-size:10px;font-weight:700;padding:3px 0;background:rgba(var(--brand-rgb),.14);color:var(--au-brand-text)}
+.fu-date b{display:block;font-size:17px;font-weight:700;color:var(--au-text);padding:4px 0 1px;font-feature-settings:'tnum'}
+.fu-date small{display:block;font-size:9.5px;color:var(--au-text3);padding-bottom:4px}
+.fu-item.over .fu-date i{background:rgba(224,82,82,.16);color:var(--au-red-text)}
+.fu-item.done .fu-date i{background:rgba(34,197,94,.16);color:var(--au-green-text)}
+.fu-t{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+.fu-t b{font-size:13.5px;font-weight:600;color:var(--au-text);overflow-wrap:anywhere;line-height:1.35}
+.fu-meta{font-size:11.5px;color:var(--au-text3);display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.fu-when{font-weight:700;color:var(--au-text2);font-feature-settings:'tnum'}
+.fu-rel{font-weight:600;color:var(--au-brand-text)}
+.fu-item.over .fu-rel{color:var(--au-red-text)}
+.fu-item.done .fu-rel{color:var(--au-green-text)}
+.fu-dot{width:3px;height:3px;border-radius:50%;background:currentColor;opacity:.5}
 .fu-tag{display:inline-flex;align-items:center;gap:4px;padding:1px 7px;border-radius:999px;font-size:11px;font-weight:600;background:rgba(37,211,102,.12);color:var(--au-green-text)}
+.fu-tag svg{width:11px;height:11px}
 .fu-tag.off{background:rgba(var(--ov),.07);color:var(--au-text3)}
-.fu-del{background:none;border:none;color:var(--au-text3);cursor:pointer;padding:4px 6px;border-radius:7px;font-size:13px}
-.fu-del:hover{background:rgba(var(--ov),.08);color:var(--au-text)}
+.fu-acts{display:flex;flex-direction:column;align-items:center;gap:2px;flex:none;align-self:stretch;justify-content:center}
+.fu-ib{min-height:0;min-width:0;width:34px;height:34px;padding:0;border-radius:50%;border:none;background:transparent;color:var(--au-text3);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;transition:background .12s,color .12s}
+.fu-ib:hover{background:rgba(var(--ov),.08);color:var(--au-text)}
+.fu-ib:focus-visible{outline:2px solid var(--au-brand);outline-offset:1px}
+.fu-ib.ok{border:1.5px solid var(--au-s3-line);color:var(--au-text3)}
+.fu-ib.ok:hover{border-color:#22C55E;color:#16A34A;background:rgba(34,197,94,.1)}
+.fu-ib.ok[aria-checked="true"]{background:#22C55E;border-color:#22C55E;color:#fff}
+.fu-ib.del{opacity:0;width:30px;height:28px}
+.fu-item:hover .fu-ib.del,.fu-ib.del:focus-visible{opacity:1}
+.fu-ib.del:hover{color:var(--au-red-text);background:rgba(224,82,82,.1)}
+@media (hover:none){.fu-ib.del{opacity:.75}}
+.fu-err{font-size:12px;color:var(--au-red-text)}
 .fu-open{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:999px;border:1px solid rgba(var(--brand-rgb),.45);background:rgba(var(--brand-rgb),.08);color:var(--au-brand-text);font:inherit;font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap}
 .fu-open:hover{background:rgba(var(--brand-rgb),.16)}
 .fu-open .n{min-width:18px;height:18px;border-radius:9px;background:var(--au-brand);color:#fff;font-size:10.5px;display:inline-flex;align-items:center;justify-content:center;padding:0 5px}
@@ -52,6 +98,13 @@ export const ensureFuCss = () => useCss()
 const useCss = () => { if (!cssIn && typeof document !== 'undefined') { cssIn = true; const el = document.createElement('style'); el.id = 'fu-css'; el.textContent = FU_CSS; document.head.appendChild(el) } }
 
 const BellIcon = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+
+const ClockIcon = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+const TaskIcon = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/></svg>
+const CheckIcon = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+const TrashIcon = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg>
+// the quick "when" picks shown as chips (the calendar under them has every one, plus any date and time)
+const CHIP_IDS = ['1h', 'today17', 'tom9', 'tom14', '2d', '1w']
 
 /** Write a follow-up: what, when (quick picks + calendar + time), WhatsApp reminder on / off → onSave(patch, task) */
 export function FollowUpComposer({ lead, lang = 'he', onSave, onDone, autoFocus = false, saveLabel }) {
@@ -81,21 +134,40 @@ export function FollowUpComposer({ lead, lang = 'he', onSave, onDone, autoFocus 
     } catch { setErr(L(lang, 'השמירה נכשלה, נסו שוב', 'Could not save, try again')) }
     setBusy(false)
   }
+  const parts = dueParts(due, lang)
+  const chips = presets.filter(p => CHIP_IDS.includes(p.id))
+  const sameMinute = (x, y) => Math.abs(Date.parse(x) - Date.parse(y)) < 60e3
   return (
     <div className="fu" dir={lang === 'en' ? 'ltr' : 'rtl'}>
-      <TaskPresetInput value={text} onChange={setText} autoFocus={autoFocus} lang={lang} kind="followup" placeholder={defaultFollowUpText(lead, lang)}
-        ariaLabel={L(lang, 'מה לעשות', 'What to do')} onEnter={save} onPick={(p, d) => { if (!dueSet && d) setDueRaw(d) }} inputStyle={{ height: 40 }}/>
-      <div className="fu-row">
-        <DateTimePicker value={due} onChange={setDue} format="iso" lang={lang} presets={presets} min={new Date().toISOString().slice(0, 10)}
-          placeholder={L(lang, 'מתי לחזור אליהם?', 'When to get back?')} label={L(lang, 'מתי', 'When')} clearable={false} style={{ flex: '1 1 210px' }}/>
-        <label className="fu-bell" title={L(lang, 'הודעת וואטסאפ למספר המשרד כשמגיע הזמן', 'A WhatsApp to the office number when it is due')}>
-          <input type="checkbox" checked={remind} onChange={e => setRemind(e.target.checked)}/>
-          <span className="fu-sw" aria-hidden="true"/>
-          <BellIcon/>{L(lang, 'תזכורת בוואטסאפ', 'WhatsApp reminder')}
-        </label>
-        <button type="button" className="fu-save" disabled={!due || busy} onClick={save}>{busy ? L(lang, 'שומר…', 'Saving…') : (saveLabel || L(lang, 'קביעת פולו אפ', 'Set follow-up'))}</button>
+      <div className="fu-field">
+        <span className="fu-lbl"><TaskIcon/>{L(lang, 'מה לעשות', 'What to do')}</span>
+        <TaskPresetInput value={text} onChange={setText} autoFocus={autoFocus} lang={lang} kind="followup" placeholder={defaultFollowUpText(lead, lang)}
+          ariaLabel={L(lang, 'מה לעשות', 'What to do')} onEnter={save} onPick={(p, d) => { if (!dueSet && d) setDueRaw(d) }} inputStyle={{ height: 42 }}/>
       </div>
-      {err && <div role="alert" style={{ fontSize: 12, color: 'var(--au-red-text)' }}>{err}</div>}
+      <div className="fu-field">
+        <span className="fu-lbl"><ClockIcon/>{L(lang, 'מתי לחזור אליהם', 'When to get back')}</span>
+        <div className="fu-when-box">
+          <div className="fu-chips" role="group" aria-label={L(lang, 'בחירה מהירה', 'Quick picks')}>
+            {chips.map(p => <button key={p.id} type="button" className="fu-chip" aria-pressed={!!due && sameMinute(due, p.at)} onClick={() => setDue(p.at)}>{p.label}</button>)}
+          </div>
+          <DateTimePicker value={due} onChange={setDue} format="iso" lang={lang} presets={presets} min={new Date().toISOString().slice(0, 10)}
+            placeholder={L(lang, 'תאריך ושעה אחרים', 'Another date and time')} label={L(lang, 'מתי', 'When')} clearable={false} style={{ width: '100%' }}/>
+          {parts && <div className="fu-sum" aria-live="polite"><span><b>{parts.full}</b>, <span style={{ whiteSpace: 'nowrap', fontFeatureSettings: '"tnum"' }}>{parts.time}</span></span><span className="rel">{dueFromNow(due, Date.now(), lang)}</span></div>}
+        </div>
+      </div>
+      <label className={`fu-rem${remind ? ' on' : ''}`}>
+        <span className="fu-rem-ico"><BellIcon/></span>
+        <span className="fu-rem-t">
+          <b>{L(lang, 'תזכורת בוואטסאפ', 'WhatsApp reminder')}</b>
+          <small>{remind ? L(lang, 'הודעה למספר המשרד כשמגיע הזמן', 'A message to the office number when it is due') : L(lang, 'בלי הודעה, רק ברשימת הפולו אפים', 'No message, only in the follow-ups list')}</small>
+        </span>
+        <input type="checkbox" checked={remind} onChange={e => setRemind(e.target.checked)}/>
+        <span className="fu-sw" aria-hidden="true"/>
+      </label>
+      <button type="button" className="fu-save" disabled={!due || busy} onClick={save}>
+        {busy ? L(lang, 'שומר…', 'Saving…') : <>{saveLabel || L(lang, 'קביעת פולו אפ', 'Set follow-up')}{due && <span className="at">· {describeDue(due, { lang })}</span>}</>}
+      </button>
+      {err && <div role="alert" className="fu-err">{err}</div>}
     </div>
   )
 }
@@ -110,23 +182,29 @@ export function FollowUpList({ lead, lang = 'he', onSave, showDone = false }) {
   const now = Date.now()
   const set = next => onSave(updateTasks(lead, next))
   return (
-    <div className="fu-list">
+    <div className="fu-list" dir={lang === 'en' ? 'ltr' : 'rtl'}>
+      <div className="fu-list-h">{L(lang, 'פולו אפים פתוחים', 'Open follow-ups')}<span className="n">{list.filter(t => !t.done).length}</span></div>
       {list.map(t => {
-        const at = Date.parse(dueIso(t.due)), over = !t.done && at < now
+        const at = Date.parse(dueIso(t.due)), over = !t.done && at < now - 10 * 60e3, p = dueParts(t.due, lang)
         return (
-          <div key={t.id} className={`fu-item${over ? ' over' : ''}`}>
-            <button type="button" className="fu-chk" role="checkbox" aria-checked={!!t.done} aria-label={L(lang, 'בוצע', 'Done')}
-              onClick={() => set(tasks.map(x => (x.id === t.id ? { ...x, done: !x.done, doneAt: !x.done ? Date.now() : null } : x)))}>{t.done ? '✓' : ''}</button>
+          <div key={t.id} className={`fu-item${over ? ' over' : ''}${t.done ? ' done' : ''}`}>
+            {p && <span className="fu-date" aria-hidden="true"><i>{p.wd}</i><b>{p.day}</b><small>{p.mon}</small></span>}
             <span className="fu-t">
               <b style={t.done ? { textDecoration: 'line-through', color: 'var(--au-text3)' } : undefined}>{t.text}</b>
               <span className="fu-meta">
-                <span className="fu-when">{over ? L(lang, 'באיחור · ', 'Overdue · ') : ''}{describeDue(t.due, { lang })}</span>
+                <span className="fu-when">{describeDue(t.due, { lang })}</span>
+                <span className="fu-dot" aria-hidden="true"/>
+                <span className="fu-rel">{t.done ? L(lang, 'בוצע', 'Done') : dueFromNow(t.due, now, lang)}</span>
                 {t.remind
                   ? <span className="fu-tag"><BellIcon/>{t.remindedAt ? L(lang, 'התזכורת נשלחה', 'Reminder sent') : L(lang, 'תזכורת בוואטסאפ', 'WhatsApp reminder')}</span>
                   : <span className="fu-tag off">{L(lang, 'בלי תזכורת', 'No reminder')}</span>}
               </span>
             </span>
-            <button type="button" className="fu-del" aria-label={L(lang, 'מחיקה', 'Delete')} title={L(lang, 'מחיקה', 'Delete')} onClick={() => set(tasks.filter(x => x.id !== t.id))}>✕</button>
+            <span className="fu-acts">
+              <button type="button" className="fu-ib ok" role="checkbox" aria-checked={!!t.done} aria-label={t.done ? L(lang, 'לסמן כלא בוצע', 'Mark as not done') : L(lang, 'סימון כבוצע', 'Mark as done')} title={t.done ? L(lang, 'לסמן כלא בוצע', 'Mark as not done') : L(lang, 'סימון כבוצע', 'Mark as done')}
+                onClick={() => set(tasks.map(x => (x.id === t.id ? { ...x, done: !x.done, doneAt: !x.done ? Date.now() : null } : x)))}><CheckIcon/></button>
+              <button type="button" className="fu-ib del" aria-label={L(lang, 'מחיקה', 'Delete')} title={L(lang, 'מחיקה', 'Delete')} onClick={() => set(tasks.filter(x => x.id !== t.id))}><TrashIcon/></button>
+            </span>
           </div>
         )
       })}
