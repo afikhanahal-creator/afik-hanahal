@@ -16,7 +16,8 @@ import { resolveGoogleNewsUrl, isGoogleNewsUrl } from '../../lib/news/gnews.js'
 import { run as runAutomations, sendText } from '../../lib/automations.js'
 import { createFeed } from '../../lib/property-feed.js'
 import { slimInlinePhotos, slimList } from '../../lib/slim-photos.js'
-import { shrinkStoragePhotos } from '../../lib/shrink-photos.js'
+import { shrinkStoragePhotos, recacheStorage } from '../../lib/shrink-photos.js'
+import { usageProblems, usageSummary } from '../../lib/supabase-watch.js'
 import { propertiesChanged } from '../../lib/site-rebuild.js'
 
 const RENDER      = process.env.RENDER_URL   || 'https://afik-hanahal-server.onrender.com'
@@ -204,6 +205,28 @@ async function bandwidthWatch() {
   return { ...out, alert: r.ok ? 'sent' : `failed: ${r.error}` }
 }
 
+// Supabase free plan: the database size and the files in Storage (server/usage-watch-migration.sql afik_usage()), and every
+// public file put on a one-year cache header (lib/shrink-photos.js recacheStorage — at most 60 MB of egress a day for it).
+// One WhatsApp a day to the office while a quota passes 70% (lib/supabase-watch.js).
+async function supabaseWatch() {
+  if (!SUPA_URL || !SUPA_KEY) return { skipped: 'no store' }
+  const base = SUPA_URL.replace(/\/$/, '')
+  const recache = await recacheStorage({ supaUrl: base, supaKey: SUPA_KEY, maxBytes: 60e6, budgetMs: 8000 }).catch(e => ({ error: e.message }))
+  const r = await fetch(`${base}/rest/v1/rpc/afik_usage`, { method: 'POST', headers: supaHeaders({ 'Content-Type': 'application/json' }), body: '{}', signal: AbortSignal.timeout(8000) }).catch(() => null)
+  const usage = r && r.ok ? await r.json().catch(() => null) : null
+  const problems = usageProblems(usage)
+  const out = { summary: usageSummary(usage), recache: { fixed: recache.fixed, fixedMB: Math.round((recache.fixedBytes || 0) / 1048576), remaining: recache.remaining, error: recache.error, errors: (recache.errors || []).slice(0, 3) }, problems }
+  if (!usage) out.usage = r ? `rpc HTTP ${r.status}` : 'rpc failed'
+  if (!problems.length) return out
+  const today = new Date().toISOString().slice(0, 10)
+  const last = await supaKV('supabase_alert').catch(() => null)
+  if (last && last.day === today) return { ...out, alert: 'already sent today' }
+  const msg = ['⚠️ *Supabase — התוכנית החינמית*', '', ...problems.map(p => `• ${p}`), '', 'בדיקה: https://supabase.com/dashboard/org/_/usage'].join('\n')
+  const s2 = await sendText(NOTIFY_PHONE, msg)
+  await supaKV('supabase_alert', { day: today, problems, ok: s2.ok })
+  return { ...out, alert: s2.ok ? 'sent' : `failed: ${s2.error}` }
+}
+
 async function metaWatch(req) {
   const host = String(req.headers['x-forwarded-host'] || req.headers.host || 'www.afikhanahal.co.il').split(',')[0].trim()
   const r = await fetch(`https://${host}/api/meta/connect?quick=1`, { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` }, signal: AbortSignal.timeout(20000) })
@@ -272,6 +295,7 @@ export default async function handler(req, res) {
   // Supabase egress (free plan ~5 GB/month, used up in October 2026): oversized photo originals re-encoded in place
   try { out.shrinkPhotos = await shrinkStoragePhotos({ supaUrl: SUPA_URL.replace(/\/$/, ''), supaKey: SUPA_KEY, budgetMs: 15000, maxPhotos: 6 }) } catch (e) { out.shrinkPhotos = { error: e.message } }
   try { out.bandwidth = await bandwidthWatch() } catch (e) { out.bandwidth = { error: e.message } }
+  try { out.supabase = await supabaseWatch() } catch (e) { out.supabase = { error: e.message } }
   // Meta Lead Ads connection: a dead token (password change, expiry) stopped every Facebook lead from June to October
   // without anyone noticing — one WhatsApp to the office a day while it is broken
   try { out.metaWatch = await metaWatch(req) } catch (e) { out.metaWatch = { error: e.message } }
