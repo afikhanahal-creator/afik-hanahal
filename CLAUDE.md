@@ -824,6 +824,13 @@ body 15 px, secondary 12.5 px. **QA:** the scratchpad's `mob/audit.cjs` (`node a
 1366 px, `DARK=1`, `RENAME=1`) opens each screen with a long name, a long link and a 140-message chat at 375 / 390 / 402 / 430 px, then
 with the keyboard (the viewport 336 px shorter, the composer focused) and reports sideways overflow, buttons off-screen or cropped,
 targets under 24 × 28 px, clipped labels and anything covering the composer — all three screens clean at every width.
+**The keyboard on an iPhone (2026-11-06):** iOS Safari doesn't shrink the layout viewport for the keyboard — it shrinks and **pans**
+the visual one (`visualViewport.offsetTop` > 0), so the shell pinned to `top: 0` slid up behind the address bar (the chat header
+vanished) and a black strip opened between the composer and the keyboard. `useKeyboardViewport()` now also sets `--vv-top` =
+`offsetTop` and `html.kb-open .admin-shell { top: var(--vv-top) }`, so the shell is exactly the visible area; while typing on a
+phone the tools strips (`.wa-head-tools`, `.si-tools`, `.lc-mbar-tools`) step aside and only the name row stays (like WhatsApp).
+QA: the scratchpad's `mob/audit.cjs` with `IOSKB=1` fakes iOS's visual viewport (336 px keyboard, panned 230 px) and checks that the
+shell starts at the visible top, the header is on screen and the composer ends on the keyboard (`*-ioskb.png` = what the person sees).
 **Back / forward move between admin screens** (2026-11-04): `AdminPanel` listens to `popstate` and sets the screen from the
 address (`ADMIN_PATH_TO_TAB`) — Back used to change the address only, so "/admin-panel/social" showed the chats (or whatever was
 open). The inbox's and the documents tab's "כרטיס הליד" / "פתיחת הליד" open the lead card over the current screen

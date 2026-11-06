@@ -72,14 +72,17 @@ function useKeyboardViewport(on) {
       if (!editable(document.activeElement)) full = Math.max(full, vv.height)
       const kb = editable(document.activeElement) && full - vv.height > 140
       root.classList.toggle('kb-open', kb)
-      if (kb) { root.style.setProperty('--app-h', `${Math.round(vv.height)}px`); if (window.scrollY) window.scrollTo(0, 0) }
-      else root.style.removeProperty('--app-h')
+      // iOS Safari doesn't shrink the layout viewport for the keyboard: it pans the visual one (vv.offsetTop), so a shell pinned
+      // to top:0 slid up behind the address bar (the header vanished) and left a black strip between the composer and the
+      // keyboard. The shell follows the visible area: top = offsetTop, height = what is left above the keyboard.
+      if (kb) { root.style.setProperty('--app-h', `${Math.round(vv.height)}px`); root.style.setProperty('--vv-top', `${Math.max(0, Math.round(vv.offsetTop))}px`); if (window.scrollY) window.scrollTo(0, 0) }
+      else { root.style.removeProperty('--app-h'); root.style.removeProperty('--vv-top') }
     }
     const later = () => { if (!raf) raf = requestAnimationFrame(apply) }
     vv.addEventListener('resize', later); vv.addEventListener('scroll', later)
     const out = () => setTimeout(later, 60)
     document.addEventListener('focusin', later); document.addEventListener('focusout', out)
-    return () => { vv.removeEventListener('resize', later); vv.removeEventListener('scroll', later); document.removeEventListener('focusin', later); document.removeEventListener('focusout', out); root.classList.remove('kb-open'); root.style.removeProperty('--app-h'); if (raf) cancelAnimationFrame(raf) }
+    return () => { vv.removeEventListener('resize', later); vv.removeEventListener('scroll', later); document.removeEventListener('focusin', later); document.removeEventListener('focusout', out); root.classList.remove('kb-open'); root.style.removeProperty('--app-h'); root.style.removeProperty('--vv-top'); if (raf) cancelAnimationFrame(raf) }
   }, [on])
 }
 
