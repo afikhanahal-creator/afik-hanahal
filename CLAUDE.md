@@ -248,7 +248,10 @@ arrives — the Meta webhook and sync (`meta_leads.name`), website forms (`api/c
 lead or junk stays as typed; a surname typed first is put after the first name — `nameOrder()`: "Bechar Eddie" → "אדי בכר"; a
 Hebrew name too, when it is clear — `heNameOrder()`: the first word reads as a surname (a known one or -וביץ / -סקי / -שטיין /
 -ברג / -מן / -גר …) and the last is a known first name: "ליבוביץ סופי" → "סופי ליבוביץ" (the typed order stays in
-`originalName`; the 3 existing ones were fixed on 2026-10-26); "אידית מאיר" stays — many surnames are first names too). Every
+`originalName`; the 3 existing ones were fixed on 2026-10-26); "אידית מאיר" stays — many surnames are first names too). **More first-name spellings (2026-11-06 — "Tamy" came out "טמי"):** the list knows the y / double-letter forms (Tamy · Tammy → תמי,
+Ofri → עופרי, Omry → עומרי, Iddo → עידו, Tehila → תהילה, Tova → טובה, Mihal → מיכל, Netta → נטע, Karen → קרן, Suzanne → סוזן …). A new
+wrong first name = add it to `MORE_FIRST` in `lib/hebrew-names.js` and to the test "common spellings the list used to miss". Never put a
+real lead's surname or full name in the repository (it is public); a surname the list doesn't know is left to Claude's proofread. Every
 template greets with `givenName()` (`lib/hebrew-names.js`, tested), so "{name}" is the first name either way. **A name
 no list knows is proofread by Claude before it is saved** (2026-10-25, `lib/name-proof.js` `properHebrewName()`, tested: the Meta
 webhook, a new lead in the sync, website forms; `claude-opus-5-5`, effort low, structured output, 8 s cap; only a confident,
