@@ -1678,6 +1678,16 @@ probe" phone visit, because the property window loaded every video for its thumb
   `public.afik_usage()` in `server/usage-watch-migration.sql` (applied), rules `lib/supabase-watch.js`, tested): one WhatsApp a day
   to the office while the database or Storage passes 70 % of the free plan. Egress itself is only on the dashboard
   (supabase.com → the org → Usage). Never upload without `cache-control: max-age=31536000` to a public bucket.
+- **Restricted again on 2026-11-06 — by STORAGE, and by the other project.** The quota is per **organization**: this project
+  (305 MB) and the Kurkoos one (`kurkoos-cms`, 930 MB — 486 MB of Meta ad captures) shared the org, passed 1.1 GB together and
+  every request of both sites answered 402 (the leads, the Lead Center, the automations: `auto-tick` `ok:false` from that night).
+  The daily watch saw only this project's 305 MB and stayed quiet. Now: the two projects live in separate organizations (the
+  owner moves `kurkoos-cms`: Project Settings → General → Transfer project); `supabaseWatch()` reads both projects (Kurkoos with
+  its publishable key through `public.storage_usage()`, sizes only — kurkoos-group `server/storage-usage.sql`), labels each
+  problem with the project, and a **402 is an alert of its own** (`statusProblem()`); `wizard-upload-url` refuses an upload that
+  would push this project past 90% of 1 GB (`uploadAllowed()`, the usage read at most every 10 min, a failed read never blocks)
+  and a video is at most 100 MB (was 200 — a long video belongs on YouTube, with a link). Kurkoos keeps its captures small
+  (1600px cards, `prune.cjs` for ads that stopped running, `up.cjs` stops at 75%). All in `lib/supabase-watch.js` (tested).
 - Measure with the Supabase edge logs (MCP `query_logs`, `source = 'edge_logs'`, sum `response.headers.content_length` by
   `request.path` / `request.cf.asOrganization`) and Usage in the Supabase dashboard.
 
