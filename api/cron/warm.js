@@ -17,7 +17,7 @@ import { run as runAutomations, sendText } from '../../lib/automations.js'
 import { createFeed } from '../../lib/property-feed.js'
 import { slimInlinePhotos, slimList } from '../../lib/slim-photos.js'
 import { shrinkStoragePhotos, recacheStorage } from '../../lib/shrink-photos.js'
-import { usageProblems, usageSummary } from '../../lib/supabase-watch.js'
+import { usageProblems, usageSummary, statusProblem } from '../../lib/supabase-watch.js'
 import { propertiesChanged } from '../../lib/site-rebuild.js'
 
 const RENDER      = process.env.RENDER_URL   || 'https://afik-hanahal-server.onrender.com'
@@ -208,22 +208,37 @@ async function bandwidthWatch() {
 // Supabase free plan: the database size and the files in Storage (server/usage-watch-migration.sql afik_usage()), and every
 // public file put on a one-year cache header (lib/shrink-photos.js recacheStorage — at most 60 MB of egress a day for it).
 // One WhatsApp a day to the office while a quota passes 70% (lib/supabase-watch.js).
+// Every Supabase project the office runs, each in its own organization (the quota is per organization — see
+// lib/supabase-watch.js). The Kurkoos project is read with its publishable key (public by design, it is in that site's own
+// pages) through `public.storage_usage()`, which returns sizes only (kurkoos-group: scripts/storage/storage-usage.sql).
+const KURKOOS_URL = process.env.KURKOOS_SUPABASE_URL || 'https://filnzlnvujnlazwcxbuq.supabase.co'
+const KURKOOS_KEY = process.env.KURKOOS_SUPABASE_KEY || 'sb_publishable_dp1IAlmBTz_UvV8UVID1JA_KtKLX5pR'
+
+async function readUsage(base, headers, fn) {
+  const r = await fetch(`${base}/rest/v1/rpc/${fn}`, { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: '{}', signal: AbortSignal.timeout(8000) }).catch(() => null)
+  return { status: r ? r.status : 0, usage: r && r.ok ? await r.json().catch(() => null) : null }
+}
+
 async function supabaseWatch() {
   if (!SUPA_URL || !SUPA_KEY) return { skipped: 'no store' }
   const base = SUPA_URL.replace(/\/$/, '')
-  const recache = await recacheStorage({ supaUrl: base, supaKey: SUPA_KEY, maxBytes: 60e6, budgetMs: 8000 }).catch(e => ({ error: e.message }))
-  const r = await fetch(`${base}/rest/v1/rpc/afik_usage`, { method: 'POST', headers: supaHeaders({ 'Content-Type': 'application/json' }), body: '{}', signal: AbortSignal.timeout(8000) }).catch(() => null)
-  const usage = r && r.ok ? await r.json().catch(() => null) : null
-  const problems = usageProblems(usage)
-  const out = { summary: usageSummary(usage), recache: { fixed: recache.fixed, fixedMB: Math.round((recache.fixedBytes || 0) / 1048576), remaining: recache.remaining, error: recache.error, errors: (recache.errors || []).slice(0, 3) }, problems }
-  if (!usage) out.usage = r ? `rpc HTTP ${r.status}` : 'rpc failed'
+  const own = await readUsage(base, supaHeaders(), 'afik_usage')
+  // recaching needs the Storage API, which a restricted project refuses anyway
+  const recache = own.status === 402 ? { error: 'restricted' } : await recacheStorage({ supaUrl: base, supaKey: SUPA_KEY, maxBytes: 60e6, budgetMs: 8000 }).catch(e => ({ error: e.message }))
+  const kur = await readUsage(KURKOOS_URL.replace(/\/$/, ''), { apikey: KURKOOS_KEY, Authorization: `Bearer ${KURKOOS_KEY}` }, 'storage_usage')
+  const problems = [
+    statusProblem(own.status, 'אפיק הנחל'), ...usageProblems(own.usage, { label: 'אפיק הנחל' }),
+    statusProblem(kur.status, 'קורקוס'), ...usageProblems(kur.usage, { label: 'קורקוס' }),
+  ].filter(Boolean)
+  const out = { summary: usageSummary(own.usage), kurkoos: usageSummary(kur.usage) || `rpc HTTP ${kur.status}`, recache: { fixed: recache.fixed, fixedMB: Math.round((recache.fixedBytes || 0) / 1048576), remaining: recache.remaining, error: recache.error, errors: (recache.errors || []).slice(0, 3) }, problems }
+  if (!own.usage) out.usage = own.status ? `rpc HTTP ${own.status}` : 'rpc failed'
   if (!problems.length) return out
   const today = new Date().toISOString().slice(0, 10)
   const last = await supaKV('supabase_alert').catch(() => null)
   if (last && last.day === today) return { ...out, alert: 'already sent today' }
   const msg = ['⚠️ *Supabase — התוכנית החינמית*', '', ...problems.map(p => `• ${p}`), '', 'בדיקה: https://supabase.com/dashboard/org/_/usage'].join('\n')
   const s2 = await sendText(NOTIFY_PHONE, msg)
-  await supaKV('supabase_alert', { day: today, problems, ok: s2.ok })
+  await supaKV('supabase_alert', { day: today, problems, ok: s2.ok }).catch(() => {})
   return { ...out, alert: s2.ok ? 'sent' : `failed: ${s2.error}` }
 }
 

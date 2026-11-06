@@ -35,6 +35,7 @@ import { randomBytes } from 'crypto'
 import { backupEnabled, backupPut, backupList, backupGet, backupDelete } from '../lib/backup.js'
 import { archiveEnabled, archiveSubmission, archiveRepoUrl } from '../lib/archive.js'
 import { videoPack } from '../lib/videoPack.js'
+import { uploadAllowed } from '../lib/supabase-watch.js'
 import { propertiesChanged } from '../lib/site-rebuild.js'
 import { createStore, numericId } from '../lib/property-store.js'
 import { buildSummary, headline, PROPERTY_TYPE_LABEL, DOC_TAG_LABEL, publicAnswers, buildStory, storyText, directionsText, STEPS, INTAKE_STATUSES, purposeOf, roomsOf, visibleSteps, stepQuestion } from '../src/sellerFormSchema.js'
@@ -66,6 +67,15 @@ const CORS = {
 }
 const isAdmin = req => (req.headers.authorization || '').replace(/^Bearer\s+/i, '') === ADMIN_TOKEN
 const sb = () => createClient(SUPA_URL, SUPA_KEY, { auth: { persistSession: false } })
+// The free plan's 1 GB of Storage (the org was restricted on 2026-11-06): an upload that would push the project past 90% is
+// refused with a plain reason. The usage is read at most every 10 minutes per instance; a failed read never blocks.
+let USAGE = { at: 0, v: null }
+async function storageUsage(client) {
+  if (Date.now() - USAGE.at < 600000) return USAGE.v
+  const { data } = await client.rpc('afik_usage').catch(() => ({ data: null }))
+  USAGE = { at: Date.now(), v: data || null }
+  return USAGE.v
+}
 const SID_RE = /^[\w-]{8,64}$/
 let statsCache = null
 const TOKEN_RE = /^[A-Za-z0-9]{16,64}$/
@@ -748,7 +758,7 @@ export default async function handler(req, res) {
     // Files land in the public bucket, so `/media/<bucket>/<path>` and the CDN proxy work unchanged.
     if (req.method === 'POST' && action === 'wizard-upload-url') {
       // doc = any other file attached in a WhatsApp chat (Word, Excel, a zip, audio…); never a page or a script
-      const WIZ_KINDS = { image: [t => t.startsWith('image/'), 25], video: [t => t.startsWith('video/'), 200], pdf: [t => t === 'application/pdf', 25],
+      const WIZ_KINDS = { image: [t => t.startsWith('image/'), 25], video: [t => t.startsWith('video/'), 100], pdf: [t => t === 'application/pdf', 25],
         doc: [t => !/^(text\/html|application\/(xhtml|javascript|x-msdownload|x-msdos|x-sh)|image\/svg)/i.test(t), 50] }
       const b = req.body || {}
       const kind = String(b.kind || ''), type = String(b.type || 'application/octet-stream'), size = Number(b.size || 0)
@@ -756,6 +766,8 @@ export default async function handler(req, res) {
       if (!WIZ_KINDS[kind][0](type)) return res.status(400).json({ ok: false, error: 'file type not allowed for this kind' })
       if (!size || size > WIZ_KINDS[kind][1] * 1024 * 1024) return res.status(400).json({ ok: false, error: `file too large (max ${WIZ_KINDS[kind][1]}MB)` })
       const client = sb()
+      const room = uploadAllowed(await storageUsage(client), size)
+      if (!room.ok) return res.status(507).json({ ok: false, error: room.error })
       // folder 'templates' = a WhatsApp template's picture (src/lib/templateImage.js), 'chat' = a file sent in a chat
       // (src/lib/chatFiles.js); everything else is the property wizard's
       const path = `${b.folder === 'templates' ? 'templates' : b.folder === 'chat' ? 'chat' : 'wizard'}/${new Date().toISOString().slice(0, 7)}/${Date.now()}-${rand(3)}-${safeName(b.name)}`
