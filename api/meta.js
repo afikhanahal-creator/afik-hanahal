@@ -1558,6 +1558,10 @@ async function handleAutomations(req, res, action) {
   if (action === 'auto-tick') {
     const key = req.query?.key || (req.headers['authorization'] || '').replace(/^Bearer\s+/i, '')
     if (!Auto.tickKeyValid(key)) return res.status(401).json({ error: 'Unauthorized' })
+    // ?catchup=<minutes> (≤ 1440): after an outage, first bring every message of that window into wa_messages (written on the
+    // office phone too), so the run below sees who was already contacted by hand (manualContact) — the default covers 3 hours
+    const catchupMin = Math.min(1440, Math.max(0, parseInt(req.query?.catchup, 10) || 0))
+    const caught = catchupMin > 180 ? await Auto.catchUpMessages({ minutes: catchupMin }).catch(e => ({ error: e.message })) : null
     const [r, meta] = await Promise.all([
       Auto.run({ source: 'external' }).catch(e => ({ ok: false, error: e.message, sent: [], errors: [], suggestions: [], jobs: {} })),
       syncRecentMetaLeads({ hours: 6 }).catch(e => ({ error: e.message })),   // safety net for the Meta webhook
@@ -1567,7 +1571,7 @@ async function handleAutomations(req, res, action) {
       Auto.catchUpMessages().catch(() => null).then(() => Auto.scanCallbacks().catch(() => null)),   // missed webhook rows → wa_messages; then times the leads asked for → tasks
       Docs.ready() ? Docs.sweepExpired().catch(() => 0).then(() => Docs.remindUnsigned().catch(() => null)).then(() => Docs.driveTick().catch(() => null)) : null,   // documents: expired links, reminders to signers, the Drive queue
     ])
-    return res.status(200).json({ ok: r.ok !== false, at: r.at, sent: r.sent?.length || 0, errors: r.errors?.length || 0, queued: r.suggestions?.length || 0, jobs: r.jobs, notes: r.notes, meta })
+    return res.status(200).json({ ok: r.ok !== false, at: r.at, sent: r.sent?.length || 0, errors: r.errors?.length || 0, queued: r.suggestions?.length || 0, jobs: r.jobs, notes: r.notes, meta, ...(caught ? { catchup: { minutes: catchupMin, checked: caught.checked, added: caught.added, error: caught.error } } : {}) })
   }
   // Follow-up reminders are not polled: the database's own scheduler (pg_cron, every minute, inside Postgres — no transfer)
   // counts the due ones (public.afik_due_reminders()) and calls this only when there is one, with the key it keeps in
