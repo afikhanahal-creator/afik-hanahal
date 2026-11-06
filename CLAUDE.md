@@ -153,6 +153,18 @@ optOut / intent / stageAt). Automations only touch leads, replies and stage chan
 who replied "no thanks" gets nothing more. Leads from the English site (`crm_data.origin.lang = 'en'`) get the English text.
 Keep every template bilingual (`he` + `en`, `he_title` + `en_title`).
 
+**Automatic only to a lead nobody wrote to** (2026-11-06, the office's rule): once a person sent the lead a message — on the
+office phone, from the chats tab / Lead Center / inbox, a bulk send — the automations send that lead nothing more (welcome, no-reply
+steps, stage messages, re-engagement, reply answers); the approval queue may still offer them (a person decides). One rule,
+`manualContact({ auto, lastOut, lastPhoneOut })` (`lib/automations-shared.js`, tested in `lib/manual-contact.test.mjs`): a message
+written on the phone (`wa_messages.by_api = false`), `auto.manualAt` (stamped by `markManual()` after every panel send —
+`chat-send`, `chat-send-files`, `messages`, `lead-welcome`), a successful `auto.log` entry by anyone but `auto` / `cron` / `external`,
+or our newest chat message with no automatic send within 3 min of it. Applied in the run loop (`autoSend` and the auto-mode schedule
+skip such a lead; `stats.manual` counts them), `onLeadCreated` and the Meta welcome (`welcomeExternalLead` without `force`: a
+number we already wrote to in the last 35 days gets no automatic welcome — `chatOutFor()`), and `onStageChanged`. **The
+automatic welcome asks when to talk:** `welcome` / `welcome_prop` end with "מתי נוח לכם שנדבר, היום או מחר?" ("When would be a good
+time to talk, today or tomorrow?"), so the reply that names a time becomes a follow-up task by itself (`askedForTime()` → the
+callback rule). A template the office edited in the database (a project's own welcome) keeps its own wording.
 **Meta Lead Ads leads** (`meta_leads`, admin "Lead Center") get the same welcome: the webhook (`/api/meta/webhook`, page
 event `leadgen`) and every sync call `welcomeMetaLead` → `Auto.welcomeExternalLead` (tested in `lib/automations-welcome.test.mjs`):
 the welcome template and on/off switch, sent from the office WhatsApp through Green API, logged in `automation_log` as
