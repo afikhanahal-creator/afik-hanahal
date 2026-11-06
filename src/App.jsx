@@ -1040,7 +1040,8 @@ const makeGlobal = (C, isDark) => `
      the bottom bar and the notices step aside, the composer sits right on the keyboard */
   @media (max-width: 900px) {
     html.kb-open .admin-main-pane { height: var(--app-h, 100dvh) !important; }
-    html.kb-open .admin-shell { bottom: auto !important; height: var(--app-h, 100dvh) !important; }
+    html.kb-open .admin-shell { top: var(--vv-top, 0px) !important; bottom: auto !important; height: var(--app-h, 100dvh) !important; }
+    html.kb-open, html.kb-open body { overscroll-behavior: none; }
     html.kb-open .admin-bottom-nav, html.kb-open .admin-shell .admin-notice, html.kb-open .admin-shell .lb-fab { display: none !important; }
     html.kb-open .admin-content, html.kb-open .admin-content.admin-content-full { padding-bottom: 0 !important; }
     html.kb-open .admin-mobile-topbar { display: none !important; }

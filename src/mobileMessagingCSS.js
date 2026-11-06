@@ -34,6 +34,13 @@ export const MOBILE_MSG_CSS = `
   :root .wa-root .wa-bubble { max-width: 84% !important; min-width: 72px !important; font-size: 15px !important; line-height: 1.45 !important; border-radius: 12px !important; }
 }
 @media (min-width: 761px) { :root .wa-head-tools { display: contents; } }
+/* ── iPhone / Android, keyboard open (html.kb-open, useKeyboardViewport): only the name row stays above the conversation — the
+   tools strips (project, stage, AI, follow-up…) step aside while typing, like WhatsApp, so a 375 px phone keeps room for the
+   messages (about 330 px are left above the keyboard) ── */
+@media (max-width: 760px) {
+  :root.kb-open .wa-root .wa-head-tools, :root.kb-open .si-tools, :root.kb-open .lc-mbar-tools { display: none !important; }
+  :root.kb-open .wa-root .wa-chathead { padding-bottom: 6px !important; }
+}
 
 @media (max-width: 640px) {
   /* ── Chats tab composer (ChatComposer) ── */
