@@ -210,7 +210,7 @@ async function bandwidthWatch() {
 // One WhatsApp a day to the office while a quota passes 70% (lib/supabase-watch.js).
 // Every Supabase project the office runs, each in its own organization (the quota is per organization — see
 // lib/supabase-watch.js). The Kurkoos project is read with its publishable key (public by design, it is in that site's own
-// pages) through `public.storage_usage()`, which returns sizes only (kurkoos-group: server/storage-usage.sql).
+// pages) through `public.storage_usage()`, which returns sizes only (kurkoos-group: scripts/storage/storage-usage.sql).
 const KURKOOS_URL = process.env.KURKOOS_SUPABASE_URL || 'https://filnzlnvujnlazwcxbuq.supabase.co'
 const KURKOOS_KEY = process.env.KURKOOS_SUPABASE_KEY || 'sb_publishable_dp1IAlmBTz_UvV8UVID1JA_KtKLX5pR'
 

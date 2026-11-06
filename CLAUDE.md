@@ -1683,7 +1683,7 @@ probe" phone visit, because the property window loaded every video for its thumb
   every request of both sites answered 402 (the leads, the Lead Center, the automations: `auto-tick` `ok:false` from that night).
   The daily watch saw only this project's 305 MB and stayed quiet. Now: the two projects live in separate organizations (the
   owner moves `kurkoos-cms`: Project Settings → General → Transfer project); `supabaseWatch()` reads both projects (Kurkoos with
-  its publishable key through `public.storage_usage()`, sizes only — kurkoos-group `server/storage-usage.sql`), labels each
+  its publishable key through `public.storage_usage()`, sizes only — kurkoos-group `scripts/storage/storage-usage.sql`), labels each
   problem with the project, and a **402 is an alert of its own** (`statusProblem()`); `wizard-upload-url` refuses an upload that
   would push this project past 90% of 1 GB (`uploadAllowed()`, the usage read at most every 10 min, a failed read never blocks)
   and a video is at most 100 MB (was 200 — a long video belongs on YouTube, with a link). Kurkoos keeps its captures small
