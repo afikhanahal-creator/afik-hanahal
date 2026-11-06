@@ -1174,6 +1174,8 @@ async function handleMessages(req, res) {
     // From the office WhatsApp (Green API) — the same number as the welcome message, so the lead sees one conversation
     const sent = await Auto.sendText(lead.phone, String(message || '').slice(0, 4000), { image, file, fileName, quotedMessageId })
     if (!sent.ok) return res.status(502).json({ error: sent.error || 'send failed', quota: !!sent.quota })
+    // a person wrote to this lead: the automations send it nothing more (manualContact in lib/automations-shared.js)
+    waitUntil(Auto.markManual(lead.phone).catch(() => {}))
     const { data: newMsg, error: insertErr } = await client.from('meta_messages')
       .insert({ lead_id: lead.id, direction: 'out', message: [file ? `📎 ${String(fileName || 'קובץ').slice(0, 120)}` : '', message].filter(Boolean).join('\n') || '📷', wa_message_id: sent.idMessage || null })
       .select('*').single()
@@ -1478,6 +1480,7 @@ async function handleLeadWelcome(req, res) {
   // The button means "send it now", whatever the automatic rule's mode
   const r = await Auto.welcomeExternalLead({ id: lead.id, name: lead.name || '', phone: lead.phone, source: 'meta', campaignName: lead.campaign_name || lead.form_name || '' }, { source: 'meta', force: true, text: text || '', templateId: typeof templateId === 'string' ? templateId : '', ...(typeof image === 'string' ? { image } : {}) })
   if (r.ok) {
+    waitUntil(Auto.markManual(lead.phone).catch(() => {}))
     await client.from('meta_messages').insert({ lead_id: lead.id, direction: 'out', message: r.text, wa_message_id: r.idMessage || null }).then(() => {}, () => {})
     await client.from('meta_leads').update({ wa_sent: true }).eq('id', lead.id).then(() => {}, () => {})
   }
@@ -1895,6 +1898,7 @@ async function handleChat(req, res, action) {
       // quotedMessageId = a reply to that message (WhatsApp shows the quote above the text)
       const r = await Auto.sendText(p, message || '', { image, file, fileName, quotedMessageId })
       if (!r.ok) return res.status(502).json({ error: r.error, quota: !!r.quota })
+      waitUntil(Auto.markManual(p).catch(() => {}))
       return res.status(200).json({ ok: true, idMessage: r.idMessage || null })
     }
 
@@ -1913,6 +1917,7 @@ async function handleChat(req, res, action) {
         if (!r.ok) return res.status(502).json({ ok: false, sent, total: g.items.length, error: r.error, quota: !!r.quota })
         sent++
       }
+      waitUntil(Auto.markManual(g.phone).catch(() => {}))
       return res.status(200).json({ ok: true, sent, total: g.items.length })
     }
 
