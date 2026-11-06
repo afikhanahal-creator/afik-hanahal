@@ -8,6 +8,10 @@ on:
   schedule:
     - cron: '*/15 * * * *'
   workflow_dispatch:
+    inputs:
+      catchup:
+        description: 'After an outage: bring the messages of the last N minutes (≤ 1440) into the history first'
+        default: ''
 concurrency:
   group: lead-tick
   cancel-in-progress: false
@@ -24,10 +28,11 @@ jobs:
         run: |
           KEY="${AUTOMATION_KEY:-$(grep -oE "const ADMIN_TOKEN\s*=\s*'[^']+'" src/App.jsx | head -1 | sed -E "s/.*'([^']+)'.*/\1/")}"
           echo "::add-mask::${KEY}"
-          CODE=$(curl -sS --max-time 120 -o out.json -w '%{http_code}' "https://www.afikhanahal.co.il/api/meta/auto-tick?key=${KEY}" || echo 000)
+          CODE=$(curl -sS --max-time 120 -o out.json -w '%{http_code}' "https://www.afikhanahal.co.il/api/meta/auto-tick?key=${KEY}&catchup=${CATCHUP}" || echo 000)
           # The repository is public: print counts only, never lead details
           echo "HTTP ${CODE}"
-          jq -c '{ok, sent, errors, queued, metaNew: .meta.new, metaSynced: .meta.synced, metaError: (.meta.error // null)}' out.json 2>/dev/null || true
+          jq -c '{ok, sent, errors, queued, metaNew: .meta.new, metaSynced: .meta.synced, metaError: (.meta.error // null), catchup}' out.json 2>/dev/null || true
           [ "$CODE" = "200" ]
         env:
           AUTOMATION_KEY: ${{ secrets.AUTOMATION_KEY }}
+          CATCHUP: ${{ github.event.inputs.catchup || '' }}

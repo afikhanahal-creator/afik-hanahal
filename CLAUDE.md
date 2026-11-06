@@ -1700,6 +1700,13 @@ probe" phone visit, because the property window loaded every video for its thumb
   would push this project past 90% of 1 GB (`uploadAllowed()`, the usage read at most every 10 min, a failed read never blocks)
   and a video is at most 100 MB (was 200 — a long video belongs on YouTube, with a link). Kurkoos keeps its captures small
   (1600px cards, `prune.cjs` for ads that stopped running, `up.cjs` stops at 75%). All in `lib/supabase-watch.js` (tested).
+- **Back on 2026-11-06 ~17:15 Israel time** (the org upgraded to Pro, so the projects can be separated: a project can't be moved to a
+  free org while its own org is restricted). Nothing was stored from Nov 5 22:44 until then. After an outage: the probe's
+  `meta-sync,crm-sync` (3 new Meta leads; crm-sync also copied 68 old Meta leads that had no CRM copy, June–October, marked past the
+  follow-ups so nothing is sent to them), and **the "Lead tick" workflow with `catchup=<minutes>`** (`auto-tick?catchup=`, ≤ 1440):
+  `catchUpMessages()` over that window first, so every message of the outage — the office phone's included — is in `wa_messages`
+  before the run decides who was contacted by hand. Website forms saved to Vercel Blob meanwhile move into Supabase the next time
+  the admin loads the leads.
 - Measure with the Supabase edge logs (MCP `query_logs`, `source = 'edge_logs'`, sum `response.headers.content_length` by
   `request.path` / `request.cf.asOrganization`) and Usage in the Supabase dashboard.
 
