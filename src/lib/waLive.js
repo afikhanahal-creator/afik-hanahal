@@ -9,6 +9,7 @@ const AUTH = { Authorization: 'Bearer AFIKhanahal2026' }
 const subs = new Set()
 let cursor = new Date(Date.now() - 2 * 60e3).toISOString()
 let started = false, inflight = false, again = false
+const PAGE = 300
 
 /** fn(messages) — each = Green's history shape ({ idMessage, type: 'incoming' | 'outgoing', typeMessage, textMessage | caption,
  *  timestamp, statusMessage … }) + phone (972…) — → unsubscribe */
@@ -24,10 +25,15 @@ async function pull() {
   if (inflight) { again = true; return }
   inflight = true
   try {
-    const r = await fetch(`/api/meta/chat-updates?since=${encodeURIComponent(cursor)}`, { headers: AUTH, cache: 'no-store', signal: AbortSignal.timeout(15000) })
-    const d = r.ok ? await r.json().catch(() => null) : null
-    if (d?.cursor) cursor = d.cursor
-    if (d?.messages?.length) for (const f of [...subs]) { try { f(d.messages) } catch { /* one screen never stops the others */ } }
+    // a page at a time until the end: a screen back from a night asleep may have more than one page waiting
+    for (let page = 0; page < 6; page++) {
+      const r = await fetch(`/api/meta/chat-updates?since=${encodeURIComponent(cursor)}&limit=${PAGE}`, { headers: AUTH, cache: 'no-store', signal: AbortSignal.timeout(15000) })
+      const d = r.ok ? await r.json().catch(() => null) : null
+      if (d?.cursor) cursor = d.cursor
+      const n = d?.messages?.length || 0
+      if (n) for (const f of [...subs]) { try { f(d.messages) } catch { /* one screen never stops the others */ } }
+      if (n < PAGE) break
+    }
   } catch { /* the next announcement tries again */ }
   finally {
     inflight = false

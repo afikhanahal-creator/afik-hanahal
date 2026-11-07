@@ -28,7 +28,8 @@ import { Plus } from 'lucide-react'
 import { leadFormCard } from './lib/leadHistory.js'
 import { onWaLive, waLiveUp, mergeLive } from './lib/waLive.js'
 import { setViewing, desktopPermission } from './lib/waNotify.js'
-import { lastOfChat, waitingState, fmtWait } from './lib/waInbox.js'
+import { lastOfChat, waitingState, fmtWait, chatRows, rowLast, rowTime } from './lib/waInbox.js'
+import { onSync } from './lib/syncBus.js'
 import { useWaiting, markHandled, unmarkHandled, handledAt } from './lib/waWaiting.js'
 import WaNotifySettings from './WaNotifySettings.jsx'
 import WaFace from './WaFace.jsx'
@@ -595,6 +596,9 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
     } catch {}
   }, [])
   useEffect(() => { fetchGreenChats() }, [fetchGreenChats])   // together with chat-status, not after it (it used to wait for the status)
+  // back from sleep (a phone's background tab) or a dropped connection: the list is read again at once — the live feed
+  // brings the messages themselves (src/lib/syncBus.js 'resume')
+  useEffect(() => onSync(m => { if (m.t === '*') fetchGreenChats() }), [fetchGreenChats])
   useEffect(() => {
     if (status !== 'authorized') return
     let n = 0
@@ -833,25 +837,11 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
   const sl = search.toLowerCase()
   // every chat, newest first (the list below filters it; the forward window picks from all of it)
   const allContacts = useMemo(() => {
-    // Match by the last 9 digits so 054…, +972-54… and 97254… are the same person
-    const byTail = new Map(greenChats.filter(c => c.phone).map(c => [tail9(c.phone), c]))
-    const leadTails = new Set()
-    const enriched = leads.map(l => {
-      const k = tail9(l.phone); if (!k) return l
-      leadTails.add(k)
-      const g = byTail.get(k)
-      if (!g) return l
-      return { ...l, name: (l.name || '').trim() || g.name || '', waName: g.waName, office: g.office, self: g.self, lastTs: g.timestamp * 1000, lastText: g.text }
-    })
-    const extra = greenChats.filter(c => c.phone && !leadTails.has(tail9(c.phone))).map(c => ({ id: `wa:${c.phone}`, name: c.name || '', waName: c.waName, office: c.office, self: c.self, phone: c.phone, waOnly: true, lastTs: c.timestamp * 1000, lastText: c.text }))
-    return [...enriched, ...extra]
+    // one row per number (the last 9 digits: 054…, +972-54… and 97254… are the same person) — lib: src/lib/waInbox.js chatRows
+    const last = p => { const m = chats[p]; return m?.[m.length - 1] }
+    return chatRows(leads, greenChats)
     .filter(l => l.phone && l.id !== deletingId)
-    .sort((a, b) => {
-      const pa = intlPhone(a.phone), pb = intlPhone(b.phone)
-      const la = chats[pa]?.[chats[pa].length-1]?.created_at || a.lastTs || 0
-      const lb = chats[pb]?.[chats[pb].length-1]?.created_at || b.lastTs || 0
-      return new Date(lb) - new Date(la)
-    })
+    .sort((a, b) => rowTime(last(intlPhone(b.phone)), b) - rowTime(last(intlPhone(a.phone)), a))
   }, [leads, greenChats, chats, deletingId, lang]) // eslint-disable-line
   const contactList = useMemo(() => {
     if (!search) return allContacts
@@ -1671,7 +1661,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                   : 'אין תוצאות לחיפוש'}
               </div>
             ) : shownList.map(lead => {
-              const p = intlPhone(lead.phone), leadMsgs = chats[p] || [], lastMsg = leadMsgs[leadMsgs.length-1], isActive = contact?.id === lead.id
+              const p = intlPhone(lead.phone), leadMsgs = chats[p] || [], lastMsg = rowLast(leadMsgs[leadMsgs.length-1], lead), isActive = contact?.id === lead.id || (!!contact?.phone && tail9(contact.phone) === tail9(lead.phone))
               return <ChatRow key={lead.id} lead={lead} lastMsg={lastMsg} isActive={isActive} isRowLoading={loadingPhones.has(p) && !lastMsg} unread={isActive ? 0 : unreadFor(p)} wait={waitOf(lead)}
                 selMode={!!waitSel} selChecked={!!waitSel?.has(lead.id)} WA={WA} isDark={isDark} lang={lang} canDelete={!!onDeleteLead && !lead.waOnly} onPick={pickRow} onDone={doneRow} onDelete={deleteRow}/>
             })}
