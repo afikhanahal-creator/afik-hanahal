@@ -434,6 +434,16 @@ sends, settings and forwards are never shared, an error is never kept. Server-Ti
 `social-wa`): up to 4 `getContactInfo` calls one after another, 1.1 s apart, through `waitUntil` — the list answers at once and a name
 found shows on the next read. They used to go out 6 at once inside the request (most answered 429, a 900 ms back-off each, ~550 ms
 added to every inbox refresh) and a 429 was kept as "no name", so that chat was never asked again.
+**A screen back from sleep catches up** (2026-11-07 — the chats on a phone showed Friday night's list on Saturday morning):
+a phone freezes a background tab whole and the Realtime socket can come back "joined" with the night's announcements lost.
+`src/lib/syncBus.js` now emits `{ t: '*', reconnect: true, resume: true }` when the page is visible again after ≥ 15 s hidden,
+restored from the back-forward cache (`pageshow` persisted) or back `online` — every screen that listens to `'*'` refetches
+(leads board, Lead Center, inbox, intake), `src/lib/waLive.js` pulls `chat-updates` from its cursor a page (300) at a time until
+the end (≤ 6 pages) and the chats tab re-reads `chat-list` at once. **The chat list is one row per number** (`chatRows()` in
+`src/lib/waInbox.js`, tested: several CRM leads with one phone — duplicates, test leads — were one row each, all the same chat;
+the newest lead names it, the active row is matched by phone too) and **a row never shows an older message than the server's
+list** (`rowLast()` / `rowTime()`: the chat-list's latest message of that chat, `glast`, wins over this screen's copy when it is
+newer — a stale `chats[]` used to keep yesterday's preview and order even after `chat-list` refreshed).
 **Messages written on the office phone are always in the history** (2026-11-01, `server/wa-catchup-migration.sql`, applied):
 Green's webhook brings them as `outgoingMessageReceived` (`by_api = false`, ~2 s; 338 in the week before), and `auto-tick` /
 `auto-run` also run `catchUpMessages()` (`lib/automations.js`): Green's `lastIncomingMessages` + `lastOutgoingMessages` of the last

@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { lastOfChat, waitingState, fmtWait, alertText, mergeAlert, applyWaiting } from './waInbox.js'
+import { lastOfChat, waitingState, fmtWait, alertText, mergeAlert, applyWaiting, chatRows, rowLast, rowTime } from './waInbox.js'
 
 test('lastOfChat takes the newer of the loaded messages and the list row', () => {
   const msgs = [{ direction: 'out', created_at: '2026-10-25T10:00:00Z', message: 'היי' }]
@@ -56,4 +56,39 @@ test('applyWaiting: incoming marks the chat, our reply clears it, older messages
   assert.equal(m2.has('521234567'), false)
   const m3 = applyWaiting(m2, [{ ...inMsg, timestamp: 1200 }, { type: 'outgoing', typeMessage: 'textMessage', timestamp: 1150, phone: '972521234567' }])
   assert.equal(m3.get('521234567').ts, 1200000)       // sorted by time: our 1150 reply came before their 1200 message
+})
+
+test('chatRows: one row per number — several leads with the same phone are one chat (the newest lead names it)', () => {
+  const leads = [
+    { id: 'a', name: 'יוגי טסט', phone: '0501234567', created_at: '2026-10-01T10:00:00Z' },
+    { id: 'b', name: 'יוגי', phone: '+972-50-123-4567', created_at: '2026-11-01T10:00:00Z' },
+    { id: 'c', name: 'רונן', phone: '0529999999', created_at: '2026-10-05T10:00:00Z' },
+    { id: 'd', name: 'בלי טלפון', phone: '' },
+  ]
+  const green = [
+    { phone: '972501234567', timestamp: Date.parse('2026-11-07T00:23:00Z') / 1000, type: 'outgoing', text: 'חדש' },
+    { phone: '972541111111', name: 'nash', timestamp: Date.parse('2026-11-06T15:25:00Z') / 1000, type: 'incoming', text: 'אוקיי' },
+  ]
+  const rows = chatRows(leads, green)
+  assert.equal(rows.length, 3)
+  const yogi = rows.find(r => r.phone.endsWith('4567'))
+  assert.equal(yogi.id, 'b')
+  assert.equal(yogi.glast.message, 'חדש')
+  assert.equal(yogi.glast.direction, 'out')
+  assert.equal(rows.find(r => r.id === 'c').glast, undefined)
+  const extra = rows.find(r => r.waOnly)
+  assert.equal(extra.id, 'wa:972541111111')
+  assert.equal(extra.glast.direction, 'in')
+})
+
+test('rowLast / rowTime: the server\'s newer message wins over a stale local copy (a screen asleep all night)', () => {
+  const local = { id: 'x', message: 'תזכורת', created_at: '2026-11-06T15:24:00Z', direction: 'out' }
+  const row = chatRows([{ id: 'b', name: 'יוגי', phone: '0501234567' }], [{ phone: '972501234567', timestamp: Date.parse('2026-11-07T00:23:00Z') / 1000, type: 'outgoing', text: 'חדש' }])[0]
+  assert.equal(rowLast(local, row).message, 'חדש')
+  assert.equal(rowLast({ ...local, created_at: '2026-11-07T00:23:00.500Z' }, row).message, 'תזכורת')   // the same message: ours keeps its ticks
+  assert.equal(rowLast({ ...local, created_at: '2026-11-07T01:00:00Z' }, row).message, 'תזכורת')
+  assert.equal(rowLast(local, { id: 'q' }).message, 'תזכורת')
+  assert.equal(rowLast(null, row).message, 'חדש')
+  assert.equal(rowTime(local, row), Date.parse('2026-11-07T00:23:00Z'))
+  assert.equal(rowTime({ created_at: '2026-11-08T00:00:00Z' }, row), Date.parse('2026-11-08T00:00:00Z'))
 })

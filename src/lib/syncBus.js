@@ -29,6 +29,16 @@ function start() {
       // back after a drop (sleep, network): whatever changed meanwhile is fetched once
       if (up && !was) emit({ t: '*', reconnect: true })
     })
+  // A phone puts a background tab to sleep (iOS freezes it whole): the socket may come back still "joined" while every
+  // announcement of the night was lost, so the chats showed yesterday's list (2026-11-07). Coming back after 15 s or more —
+  // visible again, restored from the back-forward cache or back online — every screen fetches what changed meanwhile, once.
+  if (typeof document !== 'undefined') {
+    let hiddenAt = document.hidden ? Date.now() : 0
+    const resume = () => { if (hiddenAt && Date.now() - hiddenAt >= 15e3) emit({ t: '*', reconnect: true, resume: true }); hiddenAt = 0 }
+    document.addEventListener('visibilitychange', () => { if (document.hidden) hiddenAt = Date.now(); else resume() })
+    window.addEventListener('pageshow', e => { if (e.persisted) { hiddenAt = hiddenAt || 1; resume() } })
+    window.addEventListener('online', () => { hiddenAt = hiddenAt || 1; resume() })
+  }
 }
 
 /** Calls fn at most once per `ms`, after the burst settles (a bulk update sends one event per row) */

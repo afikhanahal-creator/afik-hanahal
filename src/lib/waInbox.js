@@ -78,3 +78,43 @@ export function applyWaiting(map, msgs = []) {
   }
   return next
 }
+
+const tail = p => String(p || '').replace(/\D/g, '').slice(-9)
+const ms = v => (typeof v === 'number' ? v : Date.parse(v || '') || 0)
+
+/** The chat list's rows: one per phone number (the last 9 digits). Several CRM leads with the same number — duplicates,
+ *  test leads — used to be one row each, all showing the same chat (2026-11-07); the newest lead names the row. Each row
+ *  carries the server's latest message of that chat (`glast`, from chat-list) so a stale local copy never hides it.
+ *  leads: CRM rows; greenChats: chat-list rows { phone, name, waName, office, self, timestamp (s), type, text } */
+export function chatRows(leads = [], greenChats = []) {
+  const byTail = new Map()
+  for (const c of greenChats) { const k = tail(c?.phone); if (k && !byTail.has(k)) byTail.set(k, c) }
+  const glast = g => (g?.timestamp ? { id: `g:${g.phone}:${g.timestamp}`, message: g.text || '', created_at: new Date(g.timestamp * 1000).toISOString(), direction: g.type === 'outgoing' ? 'out' : 'in', status: g.type === 'outgoing' ? 'sent' : undefined } : null)
+  const one = new Map()
+  for (const l of leads) {
+    const k = tail(l?.phone)
+    if (!k) continue
+    const prev = one.get(k)
+    if (!prev || ms(l.created_at) > ms(prev.created_at)) one.set(k, l)
+  }
+  const rows = []
+  for (const [k, l] of one) {
+    const g = byTail.get(k)
+    rows.push(g ? { ...l, name: (l.name || '').trim() || g.name || '', waName: g.waName, office: g.office, self: g.self, lastTs: g.timestamp * 1000, lastText: g.text, glast: glast(g) } : l)
+  }
+  for (const [k, c] of byTail) {
+    if (one.has(k)) continue
+    rows.push({ id: `wa:${c.phone}`, name: c.name || '', waName: c.waName, office: c.office, self: c.self, phone: c.phone, waOnly: true, lastTs: c.timestamp * 1000, lastText: c.text, glast: glast(c) })
+  }
+  return rows
+}
+
+/** The row's last message: the one this screen holds, unless the server's list knows a newer one (a screen asleep all night) */
+export function rowLast(local, row) {
+  const g = row?.glast
+  if (!g) return local || null
+  if (!local) return g
+  return ms(g.created_at) > ms(local.created_at) + 1000 ? g : local
+}
+/** When the chat last moved (for the list's order): the newer of this screen's copy and the server's list */
+export const rowTime = (local, row) => Math.max(ms(local?.created_at), row?.lastTs || 0)
