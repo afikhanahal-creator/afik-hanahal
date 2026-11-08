@@ -1568,7 +1568,7 @@ async function handleAutomations(req, res, action) {
       Booking.retryConfirmations({ client: SUPABASE_URL && SUPABASE_KEY ? sb() : null }).catch(() => null),  // calendar sync + confirmations Green API refused
       hebrewizeRecentNames(SUPABASE_URL && SUPABASE_KEY ? sb() : null).catch(() => null),   // any recent lead still named in Latin → Hebrew
       Auto.syncBookNames().catch(() => null),            // a name changed in the phone's WhatsApp contacts → the lead's name
-      Auto.catchUpMessages().catch(() => null).then(() => Auto.scanCallbacks().catch(() => null)),   // missed webhook rows → wa_messages; then times the leads asked for → tasks
+      Auto.catchUpMessages().catch(() => null).then(() => Promise.all([Auto.scanCallbacks().catch(() => null), Auto.assignProjectsFromChats({ auto: true }).catch(() => null)])),   // missed webhook rows → wa_messages; then times the leads asked for → tasks, and the project each new conversation is about
       Docs.ready() ? Docs.sweepExpired().catch(() => 0).then(() => Docs.remindUnsigned().catch(() => null)).then(() => Docs.driveTick().catch(() => null)) : null,   // documents: expired links, reminders to signers, the Drive queue
     ])
     return res.status(200).json({ ok: r.ok !== false, at: r.at, sent: r.sent?.length || 0, errors: r.errors?.length || 0, queued: r.suggestions?.length || 0, jobs: r.jobs, notes: r.notes, meta, ...(caught ? { catchup: { minutes: catchupMin, checked: caught.checked, added: caught.added, error: caught.error } } : {}) })
@@ -1593,6 +1593,12 @@ async function handleAutomations(req, res, action) {
   res.setHeader('Cache-Control', 'no-store')
   const b = req.body || {}
   try {
+    // POST /api/meta/auto-project-chat { dry, full, max } → which CRM leads' conversations point at a project (lib/project-chat.js);
+    // dry = only count, full = the last 90 days again. The probe's `project-chat` action prints counts only.
+    if (action === 'auto-project-chat') {
+      const r = await Auto.assignProjectsFromChats({ dry: !!b.dry, full: !!b.full, max: Math.min(400, Math.max(1, Number(b.max) || 40)), budgetMs: 40000 })
+      return res.status(200).json(r)
+    }
     if (action === 'auto-config' && req.method === 'GET') {
       const { cfg, storage, updatedAt, saved } = await Auto.loadConfig({ fresh: true })
       return res.status(200).json({ config: cfg, storage, updatedAt, saved, greenConfigured: Auto.greenConfigured() })
@@ -1605,7 +1611,7 @@ async function handleAutomations(req, res, action) {
     if (action === 'auto-run') {
       // The panel calls this every 5 minutes while open: also pick up any Meta lead the webhook missed
       if (Docs.ready()) Docs.sweepExpired().catch(() => 0).then(() => Docs.remindUnsigned().catch(() => null)).then(() => Docs.driveTick({ max: 2 }).catch(() => null)).catch(() => null)   // documents: reminders + Drive, best-effort
-      const [r, meta] = await Promise.all([Auto.run({ source: 'panel' }), syncRecentMetaLeads({ hours: 6 }).catch(e => ({ error: e.message })), Auto.syncBookNames().catch(() => null), Auto.catchUpMessages().catch(() => null).then(() => Auto.scanCallbacks().catch(() => null)), Booking.retryConfirmations({ client: SUPABASE_URL && SUPABASE_KEY ? sb() : null }).catch(() => null), hebrewizeRecentNames(SUPABASE_URL && SUPABASE_KEY ? sb() : null).catch(() => null)])
+      const [r, meta] = await Promise.all([Auto.run({ source: 'panel' }), syncRecentMetaLeads({ hours: 6 }).catch(e => ({ error: e.message })), Auto.syncBookNames().catch(() => null), Auto.catchUpMessages().catch(() => null).then(() => Promise.all([Auto.scanCallbacks().catch(() => null), Auto.assignProjectsFromChats({ auto: true }).catch(() => null)])), Booking.retryConfirmations({ client: SUPABASE_URL && SUPABASE_KEY ? sb() : null }).catch(() => null), hebrewizeRecentNames(SUPABASE_URL && SUPABASE_KEY ? sb() : null).catch(() => null)])
       return res.status(200).json({ ...r, meta })
     }
     if (action === 'auto-send')   return res.status(200).json({ results: await Auto.sendItems(Array.isArray(b.items) ? b.items : [], { by: 'manual' }) })

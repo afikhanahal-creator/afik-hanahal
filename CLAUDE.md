@@ -266,6 +266,23 @@ create → `onUpdateLead(id, { projectId, projectName })`); a chat that isn't a 
 `src/GreenAPIChat.jsx`) — the same picker, then `POST /api/meta/social-wa-lead { phone, name, projectId, projectName }` saves the
 chat as a new lead in that project (its last messages as the first note), and the header turns into the lead's tools once the
 change bus brings the lead. `LP_CSS` is exported from `src/LeadProjects.jsx` for screens without the projects bar.
+**The project a conversation is about** (2026-11-08, `lib/project-chat.js`, tested; the office: "a lead we talked to goes into the
+right project"): a project is recognised in a WhatsApp message by its street (the words before its number — "זרובבל 15" →
+"זרובבל", quotes / prefixes ב·ל·ה… forgiven, "רמח"ל" = "רמחל") with its number after it, or by the street alone when no other
+project shares it and no other number follows ("הנרייטה סאלד" alone is three projects; "זרובבל 7" is another building; a campaign
+name like "פיקוח בניה" is never a place). Each message counts a project once — the lead's words 3, a message typed on the office
+phone 2, an automatic one 1 — and a project wins only at ≥ 2 points and twice the runner-up (`projectFromChat()`).
+`chatProjectDecision()`: a lead put in a project by hand (or taken out, `__none`) is never touched — `manualProject()`: its
+`projectId` isn't the one `crm_data.projectChat` set; a lead with no project gets the conversation's; a campaign lead moves only
+when its campaign's project has less than half the winner's points ("זרובבל פחות מתאים, יש משהו בבן גוריון 17?"). The patch
+(`chatProjectPatch()`): `projectId` / `projectName`, `projectChat { id, at, quote, from }` and a 🔗 note ("שויך לפרויקט … לפי
+השיחה בוואטסאפ" / "עבר לפרויקט … (במקום …)"). Server: `assignProjectsFromChats()` (`lib/automations.js`) in `auto-tick` /
+`auto-run` after the catch-up — only the numbers with a message since the last look (`app_settings.project_chat_scan { at,
+pending }`), ≤ 40 chats a run in ~15 s, the rest next time; it starts only after the first full look (90 days) was run by hand:
+`POST /api/meta/auto-project-chat { dry, full, max }` (admin), probe actions `project-chat` (dry) / `project-chat-run` — counts and
+project names only. The chats tab: a chat that isn't a lead gets **"לשייך ל<project>?"** next to "שיוך לפרויקט" when its
+conversation names one project clearly (`chatProjectHint` in `GreenAPIChat.jsx`; ours count least there — the browser can't tell
+a typed message from an automatic one) → saved as a lead in that project (`social-wa-lead`).
 **A rename is verified against the phone** (2026-11-03): WhatsApp keeps its own contact list, and the office phone's address book
 follows it only while contact sync is on in the WhatsApp app (Settings → Privacy → Contacts). `saveWaContact()` now reads the
 number back (`readWaContact()` in `lib/automations.js`: `getContactInfo` `contactName`, else `getContacts`) and returns

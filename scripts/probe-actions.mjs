@@ -7,6 +7,7 @@
 //   connect — GET /api/meta/connect: Meta token / pages / leadgen webhook subscription / lead forms / ad account
 //             (ACCOUNT) and campaigns, Green API state, the welcome rule; `connect-fix` also subscribes pages to leadgen
 //   meta-sync — GET /api/meta/sync: saves every Meta lead the webhook missed (UNSUB_PAGES for connect: page ids to unsubscribe)
+//   project-chat / project-chat-run — the project each CRM lead's WhatsApp conversation is about (dry / write; counts only)
 //   crm-sync — POST /api/meta/crm-sync: copies every Meta lead that isn't in the CRM (contacts) yet, quietly (counts only)
 //   wa — the WhatsApp chat page's own calls (chat-status / chat-list / chat-history): HTTP, timing, Green's error text;
 //        `wa-send` also sends one test text through chat-send to the office's own notification number
@@ -365,6 +366,16 @@ if (ACTIONS.includes('meta-sync')) {
 if (ACTIONS.includes('crm-sync')) {
   const r = await fetch(`${SITE}/api/meta/crm-sync`, { method: 'POST', headers: H, signal: AbortSignal.timeout(60000) })
   show(`crm sync (HTTP ${r.status})`, await r.json().catch(() => ({})))
+}
+// project-chat = which CRM leads' WhatsApp conversations point at a project (dry: nothing is written); project-chat-run = do it
+// (the first full look; the lead ticks continue from there). Counts and project names only — never a lead.
+if (ACTIONS.includes('project-chat') || ACTIONS.includes('project-chat-run')) {
+  const dry = !ACTIONS.includes('project-chat-run')
+  const r = await fetch(`${SITE}/api/meta/auto-project-chat`, { method: 'POST', headers: H, body: JSON.stringify({ dry, full: true, max: 400 }), signal: AbortSignal.timeout(60000) })
+  const d = await r.json().catch(() => ({}))
+  const moves = {}
+  for (const c of d.changes || []) { const k = `${c.from || '(בלי פרויקט)'} → ${c.project}${c.error ? ' (error)' : ''}`; moves[k] = (moves[k] || 0) + 1 }
+  show(`project from chats${dry ? ' (dry)' : ''} (HTTP ${r.status})`, { phones: d.phones, looked: d.looked, assigned: d.assigned, moved: d.moved, pending: d.pending, error: d.error, moves })
 }
 if (ACTIONS.includes('restore')) {
   const from = String(process.env.RESTORE_FROM || '').replace(/\/$/, '')
