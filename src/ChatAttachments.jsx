@@ -8,9 +8,9 @@ import { acceptFiles, fileKind, formatSize, mediaFirst, MAX_FILES } from './lib/
 import { imageThumb } from './lib/templateImage.js'
 
 const TR = {
-  he: { remove: 'הסרה', drop: 'שחררו כאן כדי לצרף', dropSub: 'תמונות, סרטונים, PDF, Word, Excel ועוד', uploading: 'מעלה…', ready: 'הועלה', fromTpl: 'מהתבנית', sending: 'שולח…', sent: 'נשלח', error: 'נכשל', files: n => `${n} קבצים`,
+  he: { remove: 'הסרה', drop: 'שחררו כאן כדי לצרף', dropSub: 'תמונות, סרטונים, PDF, Word, Excel ועוד', uploading: 'מעלה…', ready: 'הועלה', fromTpl: 'מהתבנית', fromGallery: 'מגלריית הנכסים', sending: 'שולח…', sent: 'נשלח', error: 'נכשל', files: n => `${n} קבצים`,
     group: (n, m) => `${n} קבצים · יישלחו יחד${m > 1 ? ` · ${m} תמונות וסרטונים כאלבום אחד` : ''}`, max: n => `עד ${n}`, saveTpl: 'שמירה לתבנית', saveTplTip: 'לשמור את הקבצים האלה בתבנית, כדי לשלוח אותם שוב בלחיצה' },
-  en: { remove: 'Remove', drop: 'Drop here to attach', dropSub: 'Photos, videos, PDF, Word, Excel and more', uploading: 'Uploading…', ready: 'Uploaded', fromTpl: 'from the template', sending: 'Sending…', sent: 'Sent', error: 'Failed', files: n => `${n} files`,
+  en: { remove: 'Remove', drop: 'Drop here to attach', dropSub: 'Photos, videos, PDF, Word, Excel and more', uploading: 'Uploading…', ready: 'Uploaded', fromTpl: 'from the template', fromGallery: 'from the property gallery', sending: 'Sending…', sent: 'Sent', error: 'Failed', files: n => `${n} files`,
     group: (n, m) => `${n} files · sent together${m > 1 ? ` · the ${m} photos and videos as one album` : ''}`, max: n => `up to ${n}`, saveTpl: 'Save to a template', saveTplTip: 'Keep these files in a template, to send them again in one click' },
 }
 let uid = 0
@@ -31,10 +31,10 @@ export function useAttachments(lang = 'he') {
   }, [lang])
   // files already in storage (a template's files: { url, name, type, size }) — no upload, a CDN thumbnail for photos and
   // never a video byte before it is sent (Supabase egress)
-  const addRemote = useCallback(list => {
+  const addRemote = useCallback((list, { from = 'tpl' } = {}) => {
     const have = new Set(itemsRef.current.map(x => x.file?.url).filter(Boolean))
     const add = (list || []).filter(f => f?.url && !have.has(f.url)).slice(0, Math.max(0, MAX_FILES - itemsRef.current.length))
-    if (add.length) setItems(prev => mediaFirst([...prev, ...add.map(f => ({ id: `f${++uid}`, file: { url: f.url, name: f.name || 'file', type: f.type || '', size: f.size || 0 }, remote: true, status: '', preview: fileKind(f) === 'image' ? imageThumb(f.url, 120) : '' }))], x => x.file))
+    if (add.length) setItems(prev => mediaFirst([...prev, ...add.map(f => ({ id: `f${++uid}`, file: { url: f.url, name: f.name || 'file', type: f.type || '', size: f.size || 0 }, remote: true, from, status: '', preview: fileKind(f) === 'image' ? imageThumb(f.url, 120) : '' }))], x => x.file))
     return add.length
   }, [])
   const remove = useCallback(id => setItems(prev => { revoke(prev.find(i => i.id === id)); return prev.filter(i => i.id !== id) }), [])
@@ -110,7 +110,7 @@ export function AttachTray({ items, onRemove, lang = 'he', WA = {}, isDark = fal
                     : <span style={{ flex: 'none', width: 42, height: 42, borderRadius: 7, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1, background: kind === 'pdf' ? 'rgba(229,72,77,.12)' : 'rgba(0,168,132,.12)', color: kind === 'pdf' ? '#E5484D' : (WA.green || '#00A884') }}><Icon name={KIND_ICON[kind]} size={17}/><span style={{ fontSize: 8.5, fontWeight: 700 }}>{ext(x.file.name)}</span></span>}
                 <span style={{ minWidth: 0, flex: 1 }}>
                   <span style={{ display: 'block', fontSize: 12, fontWeight: 600, color: WA.bodyText, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} dir="auto">{x.file.name}</span>
-                  <span style={{ display: 'block', fontSize: 11, color: st === 'error' ? '#E5484D' : WA.subText }}>{st ? t[st] : x.remote && !x.file.size ? t.fromTpl : `${formatSize(x.file.size, lang)}${x.remote ? ` · ${t.fromTpl}` : ''}`}</span>
+                  <span style={{ display: 'block', fontSize: 11, color: st === 'error' ? '#E5484D' : WA.subText }}>{st ? t[st] : x.remote && !x.file.size ? (x.from === 'gallery' ? t.fromGallery : t.fromTpl) : `${formatSize(x.file.size, lang)}${x.remote ? ` · ${x.from === 'gallery' ? t.fromGallery : t.fromTpl}` : ''}`}</span>
                 </span>
                 {!st && <button type="button" onClick={() => onRemove(x.id)} aria-label={`${t.remove}: ${x.file.name}`} title={t.remove}
                   style={{ position: 'absolute', top: -7, insetInlineEnd: -7, width: 22, height: 22, minHeight: 0, borderRadius: '50%', border: `1px solid ${line}`, background: isDark ? '#2A3942' : '#fff', color: WA.subText, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}><Icon name="x" size={12} sw={2.2}/></button>}
