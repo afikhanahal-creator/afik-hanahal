@@ -186,7 +186,8 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
   const allLeads = useSharedLeads()
   const [dock, setDock] = useState(readDock)              // the composer's dragged height (null = fits its text)
   const [quick, setQuick] = useState(false)               // the quick-replies window (⚡ or "/" at the start of the box)
-  const [qMax, setQMax] = useState(null)                  // its height: never taller than the conversation above the box (it was cut at the top)
+  const [qMax, setQMax] = useState(null)                  // its height: the whole conversation above the box (it was capped at 440 px — 3 templates)
+  const [qWide, setQWide] = useState(false)               // wide enough for the list + the whole message next to it
   const [qq, setQq] = useState('')
   const [qActive, setQActive] = useState(0)
   const cfg = cfgLocal || autoConfig
@@ -196,7 +197,8 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
   const rootRef = useRef(null), scrollRef = useRef(null), inputRef = useRef(null), dockRef = useRef(null), qListRef = useRef(null), qBtnRef = useRef(null)
   useLayoutEffect(() => {
     if (!quick) return undefined
-    const fit = () => { const h = scrollRef.current?.clientHeight; setQMax(h ? Math.max(180, Math.min(440, h - 6)) : null) }
+    // the whole pane above the message box — over the chat's header and the form card too (they come back on close)
+    const fit = () => { const r = rootRef.current?.clientHeight || 0, d = dockRef.current?.offsetHeight || 0; setQMax(r ? Math.max(240, r - d - 12) : null); setQWide((rootRef.current?.clientWidth || 0) >= 720) }
     fit()
     window.addEventListener('resize', fit)
     return () => window.removeEventListener('resize', fit)
@@ -588,29 +590,42 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
         .lcv-seg button[aria-pressed=true]{background:${isDark ? '#2A3942' : '#FFFFFF'};color:${WA.bodyText};box-shadow:0 1px 2px rgba(11,20,26,.15)}
         .lcv-img{display:flex;align-items:center;gap:10px;margin:8px 8px 0;padding:6px 8px;border-radius:11px;font-size:12.5px;line-height:1.35;background:${isDark ? 'rgba(255,255,255,.05)' : 'rgba(11,20,26,.04)'};color:${WA.bodyText}}
         .lcv-img>img{border-radius:7px;object-fit:cover;flex:none}
-        .lcv-quick{position:absolute;z-index:30;inset-inline:10px;bottom:calc(100% + 6px);max-width:640px;max-height:min(440px,70vh);display:flex;flex-direction:column;background:${isDark ? '#233138' : '#FFFFFF'};border-radius:10px;box-shadow:0 2px 5px rgba(11,20,26,.26),0 2px 10px rgba(11,20,26,.16);overflow:hidden;animation:lcvIn .14s ease-out}
+        .lcv-quick{position:absolute;z-index:30;inset-inline:10px;bottom:calc(100% + 6px);max-height:70vh;display:flex;flex-direction:column;background:${isDark ? '#233138' : '#FFFFFF'};border-radius:10px;box-shadow:0 2px 5px rgba(11,20,26,.26),0 2px 10px rgba(11,20,26,.16);overflow:hidden;animation:lcvIn .14s ease-out}
         @keyframes lcvIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
         @media (prefers-reduced-motion:reduce){.lcv-quick{animation:none}}
         .lcv-qhead{display:flex;align-items:center;gap:8px;padding:10px 12px 8px;border-bottom:1px solid ${isDark ? 'rgba(134,150,160,.15)' : '#E9EDEF'}}
         .lcv-qsearch{flex:1;display:flex;align-items:center;gap:8px;background:${isDark ? '#202C33' : '#F0F2F5'};border-radius:8px;padding:0 12px;height:36px;color:${icon}}
         .lcv-qsearch input{flex:1;border:none;background:transparent;color:${WA.bodyText};font-size:14px;outline:none;min-width:0}
-        .lcv-qcats{display:flex;flex-wrap:wrap;gap:6px;padding:8px 12px;border-bottom:1px solid ${isDark ? 'rgba(134,150,160,.15)' : '#E9EDEF'};scrollbar-width:thin;flex:none}
-        .lcv-qcat{flex:none;display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 11px;border-radius:999px;border:1px solid ${isDark ? 'rgba(134,150,160,.3)' : '#D1D7DB'};background:transparent;color:${WA.bodyText};font:inherit;font-size:13px;font-weight:500;cursor:pointer;min-height:0;min-width:0;white-space:nowrap;transition:background .12s,border-color .12s}
+        .lcv-qcats{display:flex;flex-wrap:wrap;gap:5px;padding:7px 12px;border-bottom:1px solid ${isDark ? 'rgba(134,150,160,.15)' : '#E9EDEF'};scrollbar-width:thin;flex:none}
+        .lcv-qcat{flex:none;display:inline-flex;align-items:center;gap:6px;height:27px;padding:0 10px;border-radius:999px;border:1px solid ${isDark ? 'rgba(134,150,160,.3)' : '#D1D7DB'};background:transparent;color:${WA.bodyText};font:inherit;font-size:12.5px;font-weight:500;cursor:pointer;min-height:0;min-width:0;white-space:nowrap;transition:background .12s,border-color .12s}
         .lcv-qcat:hover{border-color:${teal}}
         .lcv-qcat:focus-visible{outline:2px solid ${teal};outline-offset:2px}
         .lcv-qcat i{width:7px;height:7px;border-radius:50%;flex:none}
         .lcv-qcat .n{font-size:11.5px;opacity:.7}
         .lcv-qcat .st{font-size:10.5px;font-weight:600;padding:0 6px;border-radius:999px;line-height:16px;background:rgba(255,255,255,.25)}
         .lcv-qcat[aria-pressed=false] .st{background:${teal}1F;color:${teal}}
-        .lcv-qlist{overflow-y:auto;flex:1;min-height:0;padding-bottom:6px}
+        .lcv-qbody{flex:1;min-height:0;display:flex}
+        .lcv-qlist{overflow-y:auto;flex:1;min-width:0;min-height:0;padding-bottom:6px}
+        .lcv-qprev{flex:1.15;min-width:0;display:flex;flex-direction:column;border-inline-start:1px solid ${isDark ? 'rgba(134,150,160,.15)' : '#E9EDEF'};background:${isDark ? '#0B141A' : '#EFEAE2'}}
+        .lcv-qprev-h{display:flex;align-items:center;gap:8px;padding:10px 14px;font-size:13px;font-weight:600;color:${WA.bodyText};background:${isDark ? '#202C33' : '#F7F8FA'}}
+        .lcv-qprev-h span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .lcv-qprev-b{flex:1;min-height:0;overflow-y:auto;padding:14px 16px}
+        .lcv-qbubble{max-width:100%;background:${isDark ? '#005C4B' : '#D9FDD3'};color:${WA.bodyText};border-radius:8px 0 8px 8px;padding:8px 10px 9px;font-size:14.2px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere;box-shadow:0 1px .5px rgba(11,20,26,.13)}
+        .lcv-qbubble img{display:block;width:100%;max-height:200px;object-fit:cover;border-radius:6px;margin-bottom:6px}
+        .lcv-qprev-f{display:flex;gap:8px;padding:10px 14px;border-top:1px solid ${isDark ? 'rgba(134,150,160,.15)' : '#E9EDEF'};background:${isDark ? '#202C33' : '#F7F8FA'}}
+        .lcv-qput{flex:1;height:38px;border:none;border-radius:999px;background:${teal};color:#fff;font:inherit;font-size:14px;font-weight:600;cursor:pointer;min-height:0}
+        .lcv-qput:focus-visible{outline:2px solid ${teal};outline-offset:2px}
         .lcv-qsec{position:sticky;top:0;z-index:1;background:${isDark ? '#233138' : '#FFFFFF'};padding:12px 16px 6px;font-size:13px;font-weight:500;color:${teal}}
-        .lcv-qi{display:flex;align-items:center;gap:10px;padding:9px 16px;cursor:pointer}
+        .lcv-qi{display:flex;align-items:center;gap:10px;padding:8px 14px;cursor:pointer}
         .lcv-qi[aria-selected=true]{background:${isDark ? '#2A3942' : '#F5F6F6'}}
         .lcv-qi .t{display:flex;align-items:center;gap:6px;font-size:14.5px;color:${WA.bodyText};min-width:0}
         .lcv-qi .t span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-        .lcv-qi .p{font-size:13px;color:${WA.subText};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px}
+        .lcv-qi .p{font-size:13px;line-height:1.45;color:${WA.subText};overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;white-space:normal;margin-top:2px}
+        .lcv-quick:not(.wide) .lcv-qi[aria-selected=true] .p{-webkit-line-clamp:6}
+        .lcv-quick.wide .lcv-qi .p{-webkit-line-clamp:1}
+        .lcv-quick.wide .lcv-qi>.lcv-ib{display:none}
         .lcv-badge{flex:none;font-size:11px;font-weight:600;border-radius:999px;padding:1px 8px;line-height:16px}
-        .lcv-qfoot{display:flex;align-items:center;gap:8px;padding:8px 14px;border-top:1px solid ${isDark ? 'rgba(134,150,160,.15)' : '#E9EDEF'};font-size:12px;color:${WA.subText}}
+        .lcv-qfoot{display:flex;align-items:center;gap:8px;padding:5px 14px;border-top:1px solid ${isDark ? 'rgba(134,150,160,.15)' : '#E9EDEF'};font-size:12px;color:${WA.subText}}
       `}</style>
 
       {/* header: avatar, name, the office line; round icon buttons (the inbox draws its own: hideHeader) */}
@@ -661,9 +676,9 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
           commit={v => { setDock(v); try { localStorage.setItem(DOCK_KEY, String(v)) } catch {} }}
           reset={() => { if (dockRef.current) dockRef.current.style.height = ''; setDock(null); try { localStorage.removeItem(DOCK_KEY) } catch {} }}/>
       )}
-      <div ref={dockRef} style={{ position: 'relative', flexShrink: 0, height: dock || undefined, display: 'flex', flexDirection: 'column', background: panel, padding: '8px 10px 10px' }}>
+      <div ref={dockRef} style={{ position: 'relative', flexShrink: 0, height: dock || undefined, maxHeight: dock ? '34%' : undefined, display: 'flex', flexDirection: 'column', background: panel, padding: '8px 10px 10px' }}>
         {quick && phone && (
-          <div className="lcv-quick" role="dialog" aria-label={t.quick} onKeyDown={qKey} style={qMax ? { maxHeight: qMax } : undefined}>
+          <div className={`lcv-quick${qWide ? ' wide' : ''}`} role="dialog" aria-label={t.quick} onKeyDown={qKey} style={qMax ? { maxHeight: qMax, height: qMax } : undefined}>
             <div className="lcv-qhead">
               <label className="lcv-qsearch">{I.search}<input autoFocus value={qq} onChange={e => setQq(e.target.value)} placeholder={t.search} aria-label={t.search} aria-controls="lcv-qlist" aria-activedescendant={qFlat[qActive] ? `lcv-q-${qFlat[qActive].id}` : undefined}/></label>
               <div className="lcv-seg" role="group" aria-label="language">
@@ -685,6 +700,7 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
                 )
               })}
             </div>
+            <div className="lcv-qbody">
             <div className="lcv-qlist" id="lcv-qlist" role="listbox" ref={qListRef} aria-label={t.quick}>
               {!qFlat.length && <div style={{ padding: 22, textAlign: 'center', color: WA.subText, fontSize: 13.5 }}>{t.none}</div>}
               {qSections.map(g => (
@@ -712,7 +728,19 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
                 </div>
               ))}
             </div>
-            <div className="lcv-qfoot"><span>{t.count(qFlat.length)}</span><span style={{ marginInlineStart: 'auto' }}>{t.quickHint}</span></div>
+            {/* wide: the whole message of the template under the pointer / arrows, as it will look in WhatsApp */}
+            {qWide && qFlat[qActive] && (() => { const x = qFlat[qActive]; return (
+              <div className="lcv-qprev" aria-live="polite">
+                <div className="lcv-qprev-h"><span>{x.title}</span>
+                  <button type="button" className="lcv-ib" style={{ width: 32, height: 32 }} aria-label={`${t.editTpl}: ${x.title}`} title={t.editTpl}
+                    onClick={() => { const tpl = getTemplate(mergeConfig(cfg || {}), x.id); if (tpl) { setQuick(false); setEditTpl({ tpl, initial: null, lang: tplLang, fromChat: false }) } }}>{I.pencil}</button>
+                </div>
+                <div className="lcv-qprev-b"><div className="lcv-qbubble">{x.image && <img src={imageThumb(x.image, 600)} alt=""/>}<WAText text={x.text}/></div></div>
+                <div className="lcv-qprev-f"><button type="button" className="lcv-qput" onMouseDown={e => e.preventDefault()} onClick={() => pickQuick(x)}>{lang === 'en' ? 'Put in the box' : 'הכנסה לתיבה'}</button></div>
+              </div>
+            ) })()}
+            </div>
+            <div className="lcv-qfoot"><span>{t.count(qFlat.length)}</span>{qWide && <span style={{ marginInlineStart: 'auto' }}>{t.quickHint}</span>}</div>
           </div>
         )}
 
