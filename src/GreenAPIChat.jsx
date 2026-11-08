@@ -30,6 +30,7 @@ import { onWaLive, waLiveUp, mergeLive } from './lib/waLive.js'
 import { setViewing, desktopPermission } from './lib/waNotify.js'
 import { lastOfChat, waitingState, fmtWait, chatRows, rowLast, rowTime } from './lib/waInbox.js'
 import { onSync } from './lib/syncBus.js'
+import { projectFromChat } from '../lib/project-chat.js'
 import { useWaiting, markHandled, unmarkHandled, handledAt } from './lib/waWaiting.js'
 import WaNotifySettings from './WaNotifySettings.jsx'
 import WaFace from './WaFace.jsx'
@@ -174,7 +175,7 @@ function Avatar({ c, size = 40, lang }) {
 /** "שיוך לפרויקט" on a chat that isn't a lead yet: the project picker (search, or type a new name → created), then the chat is
  *  saved as a CRM lead in that project with its last messages as the first note (POST social-wa-lead); the admin's lead list
  *  follows through the change bus, so the header turns into the lead's tools by itself. */
-function ChatProjectJoin({ phone, name, projects, lang, WA }) {
+function ChatProjectJoin({ phone, name, projects, lang, WA, suggest = null }) {
   const [open, setOpen] = useState(null)
   const [st, setSt] = useState(null)       // null | 'busy' | { ok, msg }
   useEffect(() => { setSt(null); setOpen(null) }, [phone])
@@ -197,6 +198,13 @@ function ChatProjectJoin({ phone, name, projects, lang, WA }) {
         onClick={e => setOpen(e.currentTarget.getBoundingClientRect())}>
         <Plus size={11}/>{st === 'busy' ? (he ? 'שומר…' : 'Saving…') : (he ? 'שיוך לפרויקט' : 'Project')}
       </button>
+      {/* the conversation names one project clearly (lib/project-chat.js): one click saves the chat as a lead in it */}
+      {suggest && !st && (
+        <button type="button" className="lp-chip lp-chip--sm wa-proj-suggest" style={{ fontWeight: 600 }} title={(he ? 'לפי השיחה: ' : 'From the conversation: ') + (suggest.quote || '')}
+          onClick={() => pick(suggest.project)}>
+          <span className="lp-dot" style={{ background: suggest.project.color }}/>{he ? `לשייך ל${suggest.project.name}?` : `Add to ${suggest.project.name}?`}
+        </button>
+      )}
       {st && st !== 'busy' && <span role="status" style={{ fontSize: 11.5, fontWeight: 600, color: st.ok ? WA.green : '#E5484D', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth: 220 }}>{st.msg}</span>}
       {open && <ProjectPicker rect={open} projects={projects} current={null} lang={lang} onClose={() => setOpen(null)} onPick={pick}/>}
     </span>
@@ -868,6 +876,13 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
   // the CRM row itself: notes and follow-ups written here are the lead card's (src/FollowUpTask.jsx)
   const crmRow = useMemo(() => (contact ? leads.find(l => intlPhone(l.phone) === chatPhone) || null : null), [leads, contact, chatPhone])
   const projects = useProjects()
+  // a chat that isn't a lead: the project its conversation is clearly about (the lead's own words weigh most — this screen can't tell our typed messages from automatic ones, so ours count least)
+  const chatProjectHint = useMemo(() => {
+    if (crmRow || !msgs.length || !projects?.length) return null
+    const hit = projectFromChat(msgs.map(m => ({ direction: m.direction === 'in' ? 'in' : 'out', by_api: true, body: m.message || '' })), projects)
+    const project = hit && projects.find(p => p.id === hit.id)
+    return project ? { project, quote: hit.quote } : null
+  }, [crmRow, msgs, projects])
   const cfgEff = cfgLocal || autoConfig
   // ── Reply / forward / react / select, like WhatsApp (src/ChatMsgMenu.jsx, src/ChatForward.jsx, lib/wa-actions.js) ──
   const msgRef = m => ({ id: m.id, isOut: m.direction === 'out', text: String(m.message || '').trim() || (m.file?.name ? `📎 ${m.file.name}` : (lang === 'en' ? 'Attachment' : 'קובץ מצורף')) })
@@ -1375,7 +1390,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                     name's "+ הוספת הפרויקט" follow); a chat that isn't a lead → saved as a new lead in that project (social-wa-lead) */}
                 <style>{LP_CSS}</style>
                 {!contactView?.office && !contactView?.self && (crmRow ? (onUpdateLead && <ProjectChip lead={crmRow} projects={projects} lang={lang} onAssign={patch => onUpdateLead(crmRow.id, patch)}/>)
-                  : <ChatProjectJoin phone={contact.phone} name={hasName(contactView) ? nameOf(contactView, lang) : ''} projects={projects} lang={lang} WA={WA}/>)}
+                  : <ChatProjectJoin phone={contact.phone} name={hasName(contactView) ? nameOf(contactView, lang) : ''} projects={projects} lang={lang} WA={WA} suggest={chatProjectHint}/>)}
                 {crmRow && onUpdateLead && <span style={{ display:'inline-flex', gap:6, flexShrink:0, alignItems:'center' }}>
                   {onUpdateStatus && <StageMenu lead={crmRow} lang={lang} stageLabels={stageLabels} WA={WA} onChange={st => onUpdateStatus(crmRow, st)}/>}
                   <AiNoteButton lead={crmRow} lang={lang} stageLabels={stageLabels} WA={WA} onUpdateLead={onUpdateLead} onStage={st => onUpdateStatus?.(crmRow, st)}/>
