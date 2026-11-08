@@ -12,12 +12,12 @@ import { imageThumb } from './lib/templateImage.js'
 
 const TR = {
   he: {
-    ph: n => (n ? `הודעה ל${n}…` : 'כתבו הודעה…'), send: 'שלח', sendImg: 'שלח עם תמונה', sendFiles: n => (n === 1 ? 'שלח קובץ' : `שלח ${n} קבצים`), sending: 'שולח…', emoji: 'אימוג׳י', book: 'קישור לקביעת שיחה', bookTip: 'הוספת קישור לעמוד קביעת השיחה עם אפיק הנחל', attach: 'צירוף קבצים: תמונות, סרטונים, PDF, Word, Excel (אפשר גם לגרור או להדביק)', templates: 'תבניות',
+    ph: n => (n ? `הודעה ל${n}…` : 'כתבו הודעה…'), send: 'שלח', sendImg: 'שלח עם תמונה', sendFiles: n => (n === 1 ? 'שלח קובץ' : `שלח ${n} קבצים`), sending: 'שולח…', emoji: 'אימוג׳י', book: 'קישור לקביעת שיחה', bookTip: 'הוספת קישור לעמוד קביעת השיחה עם אפיק הנחל', gallery: 'גלריה', galleryTip: 'גלריית הנכסים: לבחור תמונות של נכסים מהאתר ולשלוח אותן', attach: 'צירוף קבצים: תמונות, סרטונים, PDF, Word, Excel (אפשר גם לגרור או להדביק)', templates: 'תבניות',
     hint: 'Enter שליחה · Shift+Enter שורה חדשה', from: 'מתבנית', edited: 'נערך', saveTpl: 'שמירה בתבנית', saveTip: 'שמירת הנוסח הזה במקום התבנית, כדי שהלידים הבאים יקבלו אותו',
     clear: 'ניקוי ההודעה', remove: 'הסרה', tplPic: 'תמונה מהתבנית', caption: 'הטקסט יופיע מתחתיה', image: 'תמונה', doc: 'מסמך',
   },
   en: {
-    ph: n => (n ? `Message ${n}…` : 'Write a message…'), send: 'Send', sendImg: 'Send with picture', sendFiles: n => (n === 1 ? 'Send file' : `Send ${n} files`), sending: 'Sending…', emoji: 'Emoji', book: 'Booking link', bookTip: 'Add the link to book a call with Afik Hanahal', attach: 'Attach files: photos, videos, PDF, Word, Excel (or drag / paste them)', templates: 'Templates',
+    ph: n => (n ? `Message ${n}…` : 'Write a message…'), send: 'Send', sendImg: 'Send with picture', sendFiles: n => (n === 1 ? 'Send file' : `Send ${n} files`), sending: 'Sending…', emoji: 'Emoji', book: 'Booking link', bookTip: 'Add the link to book a call with Afik Hanahal', gallery: 'Gallery', galleryTip: 'Property gallery: pick photos of the properties on the site and send them', attach: 'Attach files: photos, videos, PDF, Word, Excel (or drag / paste them)', templates: 'Templates',
     hint: 'Enter to send · Shift+Enter new line', from: 'From template', edited: 'edited', saveTpl: 'Save to template', saveTip: 'Save this wording in place of the template, so the next leads get it',
     clear: 'Clear the message', remove: 'Remove', tplPic: 'Picture from the template', caption: 'The text goes under it', image: 'Picture', doc: 'Document',
   },
@@ -63,7 +63,7 @@ export default function ChatComposer({
   WA, lang = 'he', leadName = '', input, setInput, inputRef, onSend, sending, canSend,
   attachments, onAddFiles, isDark = false, tplImg, onRemoveTplImg,
   inserted, changed, onSaveTemplate, onClear, savedNote,
-  emojiOpen, onToggleEmoji, onPickFile, templatesOpen, onToggleTemplates, msgLang, bookingBase, onSaveFilesToTemplate,
+  emojiOpen, onToggleEmoji, onPickFile, onOpenGallery, templatesOpen, onToggleTemplates, msgLang, bookingBase, onSaveFilesToTemplate,
 }) {
   const t = TR[lang] || TR.he
   const rtl = lang !== 'en'
@@ -116,6 +116,7 @@ export default function ChatComposer({
         <div className="ccm-bar">
           <button type="button" className="ccm-ib" aria-pressed={!!emojiOpen} onClick={onToggleEmoji} aria-label={t.emoji} title={t.emoji}><Icon name="smile" size={20}/></button>
           <button type="button" className="ccm-ib" onClick={onPickFile} aria-label={t.attach} title={t.attach}><Icon name="paperclip" size={19}/></button>
+          {onOpenGallery && <button type="button" className="ccm-ib" onClick={onOpenGallery} aria-label={t.gallery} title={t.galleryTip}><Icon name="image" size={19}/></button>}
           <button type="button" className="ccm-ib" onClick={addBooking} aria-label={t.book} title={t.bookTip}><Icon name="calendar" size={19}/></button>
           <button type="button" className="ccm-tpl" aria-pressed={!!templatesOpen} onClick={onToggleTemplates}><Icon name="file" size={15}/>{t.templates}</button>
           <span className="ccm-hint">{t.hint}</span>

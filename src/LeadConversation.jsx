@@ -27,6 +27,8 @@ import { onWaLive, waLiveUp, mergeLive } from './lib/waLive.js'
 import { foldReactions } from './lib/waMerge.js'
 import { setViewing } from './lib/waNotify.js'
 import WaFace from './WaFace.jsx'
+import PhotoGalleryPicker from './PhotoGalleryPicker.jsx'
+import { MAX_FILES } from './lib/chatFiles.js'
 
 const ADMIN_TOKEN = 'AFIKhanahal2026'
 const AUTH = { Authorization: `Bearer ${ADMIN_TOKEN}` }
@@ -81,7 +83,7 @@ export function prefetchHistory(rawPhone) {
 
 const TR = {
   he: {
-    title: 'שיחת וואטסאפ', from: n => `מהוואטסאפ של המשרד${n ? ` · ${n}` : ''}`, refresh: 'רענון השיחה', card: 'כרטיס ליד — עדכון פרטים', attach: 'צירוף', attachTip: 'צירוף קבצים: תמונות, סרטונים, PDF, Word, Excel (אפשר גם לגרור לכאן או להדביק)', book: 'קישור לשיחה', bookTip: 'הוספת קישור לעמוד קביעת השיחה עם אפיק הנחל', openChats: 'בצ׳אטים',
+    title: 'שיחת וואטסאפ', from: n => `מהוואטסאפ של המשרד${n ? ` · ${n}` : ''}`, refresh: 'רענון השיחה', card: 'כרטיס ליד — עדכון פרטים', gallery: 'גלריה', galleryTip: 'גלריית הנכסים: לבחור תמונות של נכסים מהאתר ולשלוח אותן', attach: 'צירוף', attachTip: 'צירוף קבצים: תמונות, סרטונים, PDF, Word, Excel (אפשר גם לגרור לכאן או להדביק)', book: 'קישור לשיחה', bookTip: 'הוספת קישור לעמוד קביעת השיחה עם אפיק הנחל', openChats: 'בצ׳אטים',
     loading: 'טוען את השיחה…', empty: 'עוד אין הודעות בשיחה הזו', emptyFirst: 'הודעת הפתיחה מוכנה למטה. אפשר לבחור נוסח אחר מהרשימה ולערוך לפני השליחה',
     histErr: 'לא הצלחנו לקרוא את ההיסטוריה מוואטסאפ, מוצגות ההודעות שנשלחו מכאן', retry: 'נסו שוב',
     quota: 'השליחה חסומה: המכסה החודשית של Green API נגמרה. אפשר לקרוא שיחות, אבל הודעות לא יוצאות עד שמשדרגים את התוכנית.', upgrade: 'לשדרוג',
@@ -95,7 +97,7 @@ const TR = {
     quickHint: '↑ ↓ לבחירה · Enter להכנסה · Esc לסגירה', count: n => `${n} תבניות`, lineOf: n => `קו המשרד ${n}`,
   },
   en: {
-    title: 'WhatsApp conversation', from: n => `From the office WhatsApp${n ? ` · ${n}` : ''}`, refresh: 'Refresh the conversation', card: 'Lead card — update details', attach: 'Attach', attachTip: 'Attach files: photos, videos, PDF, Word, Excel (you can also drag them here or paste)', book: 'Booking link', bookTip: 'Add the link to book a call with Afik Hanahal', openChats: 'In chats',
+    title: 'WhatsApp conversation', from: n => `From the office WhatsApp${n ? ` · ${n}` : ''}`, refresh: 'Refresh the conversation', card: 'Lead card — update details', gallery: 'Gallery', galleryTip: 'Property gallery: pick photos of the properties on the site and send them', attach: 'Attach', attachTip: 'Attach files: photos, videos, PDF, Word, Excel (you can also drag them here or paste)', book: 'Booking link', bookTip: 'Add the link to book a call with Afik Hanahal', openChats: 'In chats',
     loading: 'Loading the conversation…', empty: 'No messages in this conversation yet', emptyFirst: 'The welcome message is ready below. Pick another wording from the list and edit it before sending',
     histErr: 'Couldn\'t read the WhatsApp history, showing the messages sent from here', retry: 'Try again',
     quota: 'Sending is blocked: the Green API monthly quota is used up. Conversations can be read, but nothing goes out until the plan is upgraded.', upgrade: 'Upgrade',
@@ -178,6 +180,7 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
   const [error, setError] = useState('')
   const [cfgLocal, setCfgLocal] = useState(null)
   const [editTpl, setEditTpl] = useState(null)
+  const [gallery, setGallery] = useState(false)          // the property photo gallery (src/PhotoGalleryPicker.jsx)
   const [saveFiles, setSaveFiles] = useState(false)   // "שמירה לתבנית" from the files tray (SaveFilesToTemplate)
   const [replyTo, setReplyTo] = useState(null)           // the message this one answers { id, text, isOut } (WhatsApp's quote)
   const [selMode, setSelMode] = useState(false)          // picking messages to forward
@@ -806,6 +809,7 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
               <button ref={qBtnRef} type="button" className="lcv-tplbtn" aria-expanded={quick} aria-haspopup="dialog" title={t.quickTip}
                 onClick={() => (quick ? closeQuick() : openQuick())}><Icon name="file" size={15}/><span>{t.templatesBtn}</span></button>
               <button type="button" className="lcv-tplbtn" title={t.attachTip} aria-label={t.attachTip} onClick={() => fileRef.current?.click()}><Icon name="paperclip" size={15}/><span>{t.attach}</span></button>
+              <button type="button" className="lcv-tplbtn" title={t.galleryTip} aria-label={t.galleryTip} onClick={() => setGallery(true)}><Icon name="image" size={15}/><span>{t.gallery}</span></button>
               <button type="button" className="lcv-tplbtn" title={t.bookTip} aria-label={t.book} onClick={addBooking}><Icon name="calendar" size={15}/><span>{t.book}</span></button>
               <span className="lcv-hint">{t.enterHint}</span>
               <button type="button" className={`lcv-send${first ? ' is-first' : ''}`} onClick={submit} disabled={!canSend} aria-label={first ? t.sendWelcome : t.send}>
@@ -819,6 +823,9 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
       {fwd && <ChatForward WA={WA} lang={lang} messages={fwd} fromPhone={phone} authHeader={{ Authorization: 'Bearer AFIKhanahal2026' }}
         contacts={allLeads.filter(l => l.phone).sort((a, b) => new Date(b.updated_at || b.createdAt || b.created_at || 0) - new Date(a.updated_at || a.createdAt || a.created_at || 0)).map(l => ({ phone: l.phone, name: l.name || '' }))}
         onClose={() => setFwd(null)} onDone={() => { setSelMode(false); setSelIds([]) }}/>}
+      {gallery && <PhotoGalleryPicker open lang={lang} onClose={() => setGallery(false)} room={MAX_FILES - att.items.length}
+        project={leadProperty(tplLead || lead || {}) || ''} leadName={name || ''}
+        onAdd={(files, links) => { att.addRemote(files, { from: 'gallery' }); if (links) setInput(cur => (cur.trim() ? `${cur.trimEnd()}\n\n` : '') + links); setTimeout(() => inputRef.current?.focus(), 30) }}/>}
       {saveFiles && att.items.length > 0 && (
         <SaveFilesToTemplate WA={WA} lang={lang} items={att.items} text={input} autoConfig={cfg} project={leadProperty(tplLead || lead || {}) || ''}
           onClose={() => setSaveFiles(false)} onSaved={next => { setCfgLocal(next); onAutoConfigSaved?.(next) }}

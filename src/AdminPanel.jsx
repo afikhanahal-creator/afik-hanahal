@@ -9,6 +9,7 @@ import { externalizeInlinePhotos } from './inlinePhotos.js'
 import { onSync, busUp, debounce } from './lib/syncBus.js'
 import { setSharedAutoConfig, onSharedAutoConfig } from './lib/autoConfigStore.js'
 import { setSharedLeads } from './lib/leadsStore.js'
+import { setSharedProperties } from './lib/propertiesStore.js'
 import { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react'
 import { LAYERS_DEF as GM_LAYERS, BG_OPTIONS as GM_BG_OPTIONS, LAYER_CATS_DEF as GM_LAYER_CATS } from './govmapLayers.js'
 import { FaFileSignature } from 'react-icons/fa'
@@ -1627,6 +1628,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   // follow; an edit made on another device arrives when this window is back in focus (at most every 30 s)
   useEffect(() => { if (autoCfg?.config) setSharedAutoConfig(autoCfg.config) }, [autoCfg])
   useEffect(() => { setSharedLeads(leads) }, [leads])
+  useEffect(() => { setSharedProperties(properties) }, [properties])   // the chat's photo gallery (src/PhotoGalleryPicker.jsx)
   useEffect(() => onSharedAutoConfig(c => setAutoCfg(a => (a?.config === c ? a : { ...(a || {}), config: c, storage: 'ok' }))), [])
   useEffect(() => {
     const back = () => { if (!document.hidden && Date.now() - cfgReadAt.current > 30000) loadAutoCfg() }

@@ -679,6 +679,21 @@ M תמונות וסרטונים כאלבום אחד". **"שמירה לתבנית
 uploaded to `property-media/templates/…` and added to a template the office picks (the lead's project's templates first, search;
 `addFilesToTemplate()` in `lib/template-edit.js`, tested: after its own, no link twice, ≤ 30) or open a new template in the quick
 editor with them and the box's text — so a property's regular set of photos / price list goes out again in one click.
+**"גלריה" — the property gallery in every chat** (2026-11-08, `src/PhotoGalleryPicker.jsx` + the pure, tested `src/lib/photoGallery.js`):
+a button next to "צירוף" in both message boxes (`ChatComposer` → `onOpenGallery` in the chats tab; `LeadConversation` — the Lead
+Center, the lead card, the inbox's WhatsApp) opens every property that has photos (`galleryProperties()`: https photos only, no
+repeats; **the lead's own project first**, marked "הנכס של הליד" — `propertyMatches()` reuses `projectKeys` / `projectsInText` from
+`lib/project-chat.js`; then the ones on the site, sold / rented last; search by title / town / street / neighbourhood / gush), a
+"נבחרו לאחרונה" row (`localStorage.afik_gallery_recent_v1`, 24, `pushRecent()`), a grid of the property's photos (CDN thumbnails —
+`imageThumb`), a click selects (numbered in the order picked, across properties, at most the tray's room = `MAX_FILES` − what is
+attached), 🔍 opens the photo big (wsrv 1600 px, ← / →, space selects, Esc closes only it), "בחירת כל ה-N" / "ניקוי", "פתיחת הנכס
+באתר", the picks as a strip in the footer (✕ each) and "להוסיף להודעה קישור לנכס" (`picksLinks()`: one "<title>: …/p/<id>" line per
+property) → "הוספה להודעה" = the tray's remote files (`addRemote(files, { from: 'gallery' })`, named `<title>-<n>.jpg` by
+`photoFileName()`, labelled "מגלריית הנכסים"; nothing is uploaded again — Green fetches each photo by its URL, `greenHosted()` keeps
+repeats off Supabase) sent together as one album. The list is the admin's `properties` (`src/lib/propertiesStore.js`
+`setSharedProperties` / `useSharedProperties`; a screen without it reads `/api/properties` once). A phone: the list, then the
+property's photos with "כל הנכסים" back, 3 columns, the footer full width. QA: the scratchpad's `gal/qa-gal.cjs` (chats tab,
+desktop + iPhone) and `tq/qa-gcard.cjs` (the lead card).
 **A picture per template** (optional): a template's `image` (an https URL; `templateImage()` / `isImageUrl()` in
 `lib/automations-shared.js`) is sent as a WhatsApp image with the text as its caption — `sendText(phone, text, { image })`
 (`lib/automations.js`) switches to Green's `sendFileByUrl` (`urlFile`, `fileName` from the URL, `caption`). Every path carries

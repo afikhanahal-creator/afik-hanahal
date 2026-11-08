@@ -7,7 +7,7 @@ import { WAText } from './waFormat.jsx'
 import ChatTemplatePicker, { ChatTemplateMenu, ChatQuickChips } from './ChatTemplatePicker.jsx'
 import ChatComposer from './ChatComposer.jsx'
 import { useAttachments, useFileDrop, DropOverlay } from './ChatAttachments.jsx'
-import { CHAT_ACCEPT, sendFiles, sendGroupRequest, mediaFirst, templateAttachments, fileKind } from './lib/chatFiles.js'
+import { CHAT_ACCEPT, sendFiles, sendGroupRequest, mediaFirst, templateAttachments, fileKind, MAX_FILES } from './lib/chatFiles.js'
 import { imageThumb } from './lib/templateImage.js'
 import TemplateQuickEdit from './TemplateQuickEdit.jsx'
 import SaveFilesToTemplate from './SaveFilesToTemplate.jsx'
@@ -31,6 +31,7 @@ import { setViewing, desktopPermission } from './lib/waNotify.js'
 import { lastOfChat, waitingState, fmtWait, chatRows, rowLast, rowTime } from './lib/waInbox.js'
 import { onSync } from './lib/syncBus.js'
 import { projectFromChat } from '../lib/project-chat.js'
+import PhotoGalleryPicker from './PhotoGalleryPicker.jsx'
 import { useWaiting, markHandled, unmarkHandled, handledAt } from './lib/waWaiting.js'
 import WaNotifySettings from './WaNotifySettings.jsx'
 import WaFace from './WaFace.jsx'
@@ -329,6 +330,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
   const [greenChats,    setGreenChats]   = useState(() => readListCache())   // recent WhatsApp chats from Green API (not only leads)
   const [lightbox,      setLightbox]     = useState(null)
   const [quickOpen,     setQuickOpen]    = useState(false)
+  const [gallery,       setGallery]      = useState(false)   // the property photo gallery (src/PhotoGalleryPicker.jsx)
   // Templates edited from the chat: the saved config (until the parent's copy catches up), the template being edited,
   // and the template last put in the message box (to offer "save in place of the template" once its text changed)
   const [cfgLocal,      setCfgLocal]     = useState(null)
@@ -1564,8 +1566,12 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
                 onClear={() => { setInput(''); setInserted(null); setTplImg(null); inputRef.current?.focus() }}
                 savedNote={tplSaved}
                 msgLang={chatLead ? leadLangOf(chatLead) : undefined} bookingBase={cfgEff?.vars?.bookingLink}
-                emojiOpen={emoji} onToggleEmoji={() => setEmoji(v => !v)} onPickFile={() => fileRef.current?.click()}
+                emojiOpen={emoji} onToggleEmoji={() => setEmoji(v => !v)} onPickFile={() => fileRef.current?.click()} onOpenGallery={() => { setGallery(true); setEmoji(false) }}
                 templatesOpen={quickOpen} onToggleTemplates={() => { setQuickOpen(v => !v); setEmoji(false) }}/>
+              {gallery && <PhotoGalleryPicker open lang={lang} onClose={() => setGallery(false)} room={MAX_FILES - att.items.length}
+                project={(crmRow && leadProject(crmRow)) || leadProperty(chatLead || {}) || ''}
+                leadName={hasName(contactView) && !contactView?.office && !contactView?.self ? nameOf(contactView, lang) : ''}
+                onAdd={(files, links) => { att.addRemote(files, { from: 'gallery' }); setTplImg(null); if (links) setInput(cur => (cur.trim() ? `${cur.trimEnd()}\n\n` : '') + links); setTimeout(() => inputRef.current?.focus(), 30) }}/>}
               </>}
               {fwd && <ChatForward WA={WA} lang={lang} messages={fwd} fromPhone={contact?.phone} authHeader={AUTH_HEADER}
                 contacts={allContacts.filter(c => !c.office && !c.self).map(c => ({ phone: c.phone, name: hasName(c) ? nameOf(c, lang) : '' }))}
