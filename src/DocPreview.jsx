@@ -22,6 +22,9 @@ export const DOC_CSS = `
 .dsh-p{margin:0 0 12px;white-space:pre-wrap;text-align:justify;line-height:1.66}.dsh-h{border:none;padding:0;font-size:12.5pt}
 .dsh-cl{margin:0 0 14px}.dsh-cl b{display:block;font-size:11pt;margin-bottom:3px}.dsh-cl p{margin:0;padding-inline-start:14px;white-space:pre-wrap;text-align:justify;text-justify:inter-word;line-height:1.66}
 .dsh-fees{border-collapse:collapse;width:400px;max-width:100%;margin:4px 0 10px;border-top:1.5px solid var(--dsh-ink)}
+.dsh-note{margin:12px 0 14px;padding:10px 14px;background:#F6F3EE;border:1px solid #3F4EB0;border-inline-start:4px solid #3F4EB0;border-radius:6px;break-inside:avoid}
+.dsh-note b{display:block;color:#3F4EB0;font-size:10.5pt;margin-bottom:4px}
+.dsh-note p{margin:0;white-space:pre-wrap;font-size:10pt;line-height:1.6}
 .dsh-fees td{padding:5px 8px;border-bottom:1px solid var(--dsh-line);font-size:10pt}
 .dsh-fees td:last-child{text-align:left;direction:ltr;font-variant-numeric:tabular-nums}
 .dsh-fees tr.t td{background:var(--dsh-soft);font-weight:700;font-size:10.5pt}
@@ -76,12 +79,13 @@ export default function DocSheet({ view, signatureUrl = '', logoSrc = '/logo-bla
       {sec.fees && <><h2>דמי התיווך</h2>
       <table className="dsh-fees"><tbody>
         <tr><td>בסיס החישוב</td><td dir="rtl" style={{ textAlign: 'left' }}>{f.basis}</td></tr>
-        <tr><td>מחיר העסקה לפני מע"מ</td><td>{fmtMoney(f.price || 0)}</td></tr>
+        {f.price > 0 && <tr><td>מחיר העסקה לפני מע"מ</td><td>{fmtMoney(f.price)}</td></tr>}
         <tr><td>דמי תיווך לפני מע"מ</td><td>{fmtMoney(f.commission || 0)}</td></tr>
         <tr><td>מע"מ {fmtPct(f.vatRate ?? 18)}</td><td>{fmtMoney(f.vat || 0)}</td></tr>
         <tr className="t"><td>סה"כ לתשלום כולל מע"מ</td><td>{fmtMoney(f.total || 0)}</td></tr>
       </tbody></table>
       {view.terms && <><h2>תנאים נוספים</h2><p style={{ margin: '0 0 8px', whiteSpace: 'pre-wrap' }}>{view.terms}</p></>}</>}
+      {view.note && <div className="dsh-note"><b>הערה לתנאי העסקה</b><p>{view.note}</p></div>}
       <h2>חתימות</h2>
       <div className="dsh-sig">
         <div className={`dsh-box${onSignHere && !signed ? ' ask' : ''}`}><b>הלקוח</b>{signed && signatureUrl ? <img src={signatureUrl} alt="חתימת הלקוח"/> : onSignHere ? <><div className="ln"/><button type="button" className="dsh-ask" onClick={onSignHere}>לחתימה</button></> : <div className="ln"/>}<small>{signed ? <>{view.signature.name}<br/>נחתם דיגיטלית {whenHe(view.signature.at)}</> : <>{c.name}<br/>שם, חתימה ותאריך</>}</small></div>
