@@ -1208,7 +1208,9 @@ the next send, `data.revision` + 1, `revisedAt`, Drive's `original` cleared so t
 (`{ revision, from, hash }` — the PDF the client saw stays in the chain) and a ✏️ note on the lead. The wizard opens on it ("תיקון
 מסמך שנשלח · גרסה מתוקנת"); the send step suggests the wording **"גרסה מתוקנת של המסמך"** (`revised` in `SIGN_MESSAGES`,
 `suggestSignMessage` when `data.revision > 0`), `sendDoc` renders the corrected PDF over the old path and the lead's note reads
-"גרסה מתוקנת של … נשלחה לחתימה". The drawer shows "גרסה: מתוקנת". QA: the scratchpad's `qa-revise.cjs`.
+"גרסה מתוקנת של … נשלחה לחתימה". The drawer shows "גרסה: מתוקנת". QA: the scratchpad's `qa-revise.cjs` **From the list too, phones first:** every table row has a ✏️ and every phone card a row of two buttons —
+"עריכה ותיקון" (`editDoc()`: a draft opens the wizard, a sent unsigned one is confirmed → `docs-reopen` → the wizard) and "שליחה חוזרת"
+(the drawer) — only where `editable()` (draft / failed / `canRevise`). QA: `qa-revise-phone.cjs` (iPhone 13).
 **Flow:** `docs-create` cleans the input (`cleanDocInput`), links the CRM lead (the given id, else the newest lead with that phone /
 email — never a new lead), numbers the document and writes `created` on the lead. `docs-send {id, via}` makes the private token
 (kept only as a hash), freezes the clauses on the row, renders the PDF the client signs (stored, its SHA-256 on the row), and
