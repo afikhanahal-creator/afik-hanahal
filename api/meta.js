@@ -2369,6 +2369,7 @@ function oauthPage(ok, text, what = 'היומן') {
 //  admin:  GET docs-list[?status=&q=&lead=] → { docs, stats, status } · GET docs-get?id= → { doc, events, chain, urls }
 //          POST docs-create {client, property, fees, agent, logo, terms, expiryDays, title, leadId, propertyId} · POST docs-update {id, …}
 //          POST docs-send {id, via: [whatsapp|email], personal | messageId (SIGN_MESSAGES) | text (the edited wording, {link} = the link), renew} · POST docs-link {id} (a fresh link to paste anywhere)
+//          POST docs-reopen {id} (a sent, unsigned document → a draft again: the old link dies, edit, send the corrected one)
 //          POST docs-cancel {id} · GET docs-file?id=&kind=original|signed|docx (the bytes) · GET/POST docs-settings · POST docs-clauses {clauses|reset}
 //          POST docs-preview {…document input} → the PDF of what the wizard shows now (never stored)
 //  public: GET sign-open?t= → { view } | { view, blocked } · POST sign-otp {t, via} · POST sign-submit {t, code, name, idNumber, agree, signature}
@@ -2419,6 +2420,7 @@ async function handleDocs(req, res, action) {
     if (action === 'docs-update') { const r = await Docs.updateDoc(b.id, b, { req }); return res.status(r.errors || r.error ? 400 : 200).json(r) }
     if (action === 'docs-send') { const r = await Docs.sendDoc(b.id, { via: b.via, personal: b.personal, messageId: String(b.messageId || ''), text: String(b.text || '').slice(0, 2000), renew: !!b.renew, req }); return res.status(r.error ? 400 : 200).json(r) }
     if (action === 'docs-link') { const r = await Docs.newLink(b.id, { req }); return res.status(r.error ? 400 : 200).json(r) }
+    if (action === 'docs-reopen') { const r = await Docs.reopenDoc(b.id, { req }); return res.status(r.error ? 400 : 200).json(r) }
     if (action === 'docs-cancel') { const r = await Docs.cancelDoc(b.id, { req }); return res.status(r.error ? 400 : 200).json(r) }
     if (action === 'docs-delete') { const r = await Docs.deleteDoc(b.id, { req }); return res.status(r.error ? 400 : 200).json(r) }
     if (action === 'docs-file') return sendFile(await Docs.docFile(req.query?.id, req.query?.kind || 'original'))

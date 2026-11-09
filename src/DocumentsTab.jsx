@@ -12,7 +12,7 @@ import { T, Button, IconButton, StatTile, FilterChip, Badge, EmptyState, Field, 
 import { autoApi } from './AutomationsApi.jsx'
 import DocSheet, { DOC_CSS } from './DocPreview.jsx'
 import { onSync } from './lib/syncBus.js'
-import { agentOfDoc, docAgent, defaultAgent, agentsFromSettings, clientLegalIssues, SIGN_MESSAGES, SIGN_MESSAGE_IDS, signMessage, signMessageList, signMessageCtx, renderWording, WORDING_GROUPS, WORDING_VARS, signMessagePreview, suggestSignMessage, docFunnel, fmtHours, docMonthKey, verifyLabel, computeFees, renderClauses, cleanDocInput, DEFAULT_CLAUSES, DOC_TYPES, CLIENT_ROLES, DEAL_TYPES, FEE_MODES, STATUS_HE, EVENT_HE, DEFAULT_VAT, docStats, effectiveStatus, fmtMoney, fmtPct, whenHe, todayHe, placeholderValues, PLACEHOLDERS, SIGNER_ROLES, MAX_SIGNERS, signerProgressText, signerInfo, DEFAULT_REMINDERS, DEFAULT_NOTIFY_ON, propertyToDoc, cleanNote, feeShare } from '../lib/documents.js'
+import { canRevise, agentOfDoc, docAgent, defaultAgent, agentsFromSettings, clientLegalIssues, SIGN_MESSAGES, SIGN_MESSAGE_IDS, signMessage, signMessageList, signMessageCtx, renderWording, WORDING_GROUPS, WORDING_VARS, signMessagePreview, suggestSignMessage, docFunnel, fmtHours, docMonthKey, verifyLabel, computeFees, renderClauses, cleanDocInput, DEFAULT_CLAUSES, DOC_TYPES, CLIENT_ROLES, DEAL_TYPES, FEE_MODES, STATUS_HE, EVENT_HE, DEFAULT_VAT, docStats, effectiveStatus, fmtMoney, fmtPct, whenHe, todayHe, placeholderValues, PLACEHOLDERS, SIGNER_ROLES, MAX_SIGNERS, signerProgressText, signerInfo, DEFAULT_REMINDERS, DEFAULT_NOTIFY_ON, propertyToDoc, cleanNote, feeShare } from '../lib/documents.js'
 import { leadProperty } from '../lib/automations-shared.js'
 import { useProjects } from './lib/projectsStore.js'
 import { projectOfLead } from '../lib/projects.js'
@@ -42,7 +42,7 @@ const TR = {
     logo: { title: 'לוגו ומיתוג', show: 'הצגת הלוגו', size: 'גודל', align: 'מיקום', sizes: { s: 'קטן', m: 'בינוני', l: 'גדול' }, aligns: { right: 'ימין', center: 'מרכז', left: 'שמאל' }, upload: 'החלפת לוגו (PNG / JPG)', reset: 'הלוגו של אפיק הנחל', uploading: 'מעלה…' },
     preview: 'תצוגה מקדימה', previewHint: 'כל שינוי בטופס מתעדכן כאן מיד. ה-PDF שיישלח נראה בדיוק כך.', openPdf: 'פתיחת ה-PDF', downloadWord: 'הורדה כ-Word',
     send: { title: 'שליחה לחתימה', via: 'איך לשלוח', wa: 'וואטסאפ', email: 'אימייל', both: 'גם וגם', to: 'אל', personal: 'משפט אישי (לא חובה)', personalPh: 'כמו שדיברנו, הטופס לדירה בזרובבל…', expiry: 'הקישור בתוקף', days: 'ימים', note: 'הלקוח מקבל קישור אישי, קורא את המסמך וחותם בטלפון או במחשב. אחרי החתימה שני הצדדים מקבלים עותק חתום, המשרד מקבל הודעה, והכל נרשם בכרטיס הליד.', missing: 'ללקוח אין טלפון ואין אימייל — חזרו לשלב הלקוח.' },
-    sentOk: 'נשלח לחתימה ✓', sentPart: 'נשלח חלקית', sentFail: 'השליחה נכשלה', linkReady: 'קישור חדש מוכן — העתיקו ושלחו בכל דרך', cancelled: 'המסמך בוטל', cancelAsk: 'לבטל את המסמך? הקישור ללקוח יפסיק לעבוד.',
+    sentOk: 'נשלח לחתימה ✓', sentPart: 'נשלח חלקית', sentFail: 'השליחה נכשלה', linkReady: 'קישור חדש מוכן — העתיקו ושלחו בכל דרך', cancelled: 'המסמך בוטל', cancelAsk: 'לבטל את המסמך? הקישור ללקוח יפסיק לעבוד.', revise: 'עריכה ותיקון', reviseAsk: 'לפתוח את המסמך לתיקון?\nהקישור שהלקוח קיבל יפסיק לעבוד (מי שיפתח אותו יראה שנשלחה גרסה מתוקנת). אחרי העריכה שולחים לו את הגרסה המתוקנת בקישור חדש.',
     drawer: { files: 'קבצים', events: 'תיעוד (שרשרת אירועים)', chainOk: 'שרשרת התיעוד שלמה', chainBad: 'שרשרת התיעוד לא תקינה!', sendLog: 'שליחות', signature: 'פרטי החתימה', none: '—', lead: 'כרטיס הליד', noLead: 'לא מקושר לליד', hash: 'SHA-256' },
     st: STATUS_HE,
     signers: { title: 'חותמים נוספים', hint: 'בן/בת זוג, שותף או ערב שחותמים אחרי הלקוח, לפי הסדר: כל אחד מקבל את הקישור רק אחרי שהקודם חתם.', add: 'חותם נוסף', name: 'שם מלא', role: 'תפקיד', remove: 'הסרה', progress: 'חתמו', waiting: 'ממתין', sent: 'הקישור נשלח', opened: 'פתח', signed: 'חתם', current: 'תורו עכשיו' },
@@ -880,6 +880,7 @@ function DocWizard({ t, leads, properties, projects = [], templates = [], settin
   })
   const [docId, setDocId] = useState(init.doc?.id || '')
   const [number, setNumber] = useState(init.doc?.number || '')
+  const revision = Number(init.doc?.data?.revision) || 0   // > 0: a sent document reopened for a correction (docs-reopen)
   const [busy, setBusy] = useState('')
   const [errs, setErrs] = useState([])
   const [showPrev, setShowPrev] = useState(false)
@@ -1065,7 +1066,7 @@ function DocWizard({ t, leads, properties, projects = [], templates = [], settin
         {hasEmail && <button type="button" className={`dw-chip${send.via === 'email' ? ' on' : ''}`} onClick={() => setSend(s => ({ ...s, via: 'email', picked: true }))}><Mail size={12}/> {t.send.email} · {form.client.email}</button>}
         {hasWa && hasEmail && <button type="button" className={`dw-chip${send.via === 'both' ? ' on' : ''}`} onClick={() => setSend(s => ({ ...s, via: 'both', picked: true }))}>{t.send.both}</button>}
       </div></Field>
-      <SignMessageField doc={{ data: payload(), expires_at: Date.now() + (Number(form.expiryDays) || 14) * 864e5 }} lead={lead} value={send.msg} onChange={msg => setSend(s => ({ ...s, msg }))} resend={!!init.doc && !!init.doc.sent_at} settings={settings}/>
+      <SignMessageField doc={{ data: { ...payload(), revision: revision || 0 }, expires_at: Date.now() + (Number(form.expiryDays) || 14) * 864e5 }} lead={lead} value={send.msg} onChange={msg => setSend(s => ({ ...s, msg }))} resend={!!init.doc && !!init.doc.sent_at && !revision} settings={settings}/>
       <div style={{ fontSize: 12.5, color: 'var(--au-text3)' }}>{t.send.expiry}: {form.expiryDays} {t.send.days}</div>
       {result && <div className="dd-sec">
         {result.results.map(r => <div key={r.via} className={r.ok ? 'dw-ok' : 'dw-err'}>{r.ok ? <Check size={13}/> : <AlertTriangle size={13}/>} {r.via === 'whatsapp' ? t.send.wa : t.send.email}: {r.ok ? 'נשלח' : r.error}</div>)}
@@ -1079,7 +1080,7 @@ function DocWizard({ t, leads, properties, projects = [], templates = [], settin
     <Modal open onClose={onClose} title={null} full xl dir="rtl" label={t.newDoc} closeOnBackdrop={false}>
       <div className={`dw${showPrev ? ' show-prev' : ''}`} style={{ height: '100%' }}>
         <div className="dw-form">
-          <ModalBar title={`${STEP_LABEL[cur]}${number ? ` · ${number}` : ''}`} sub={`${init.doc ? 'עריכת מסמך' : t.newDoc} · שלב ${step + 1} מתוך ${flow.length}`} onClose={onClose} pct={Math.round((step + 1) / flow.length * 100)}
+          <ModalBar title={`${STEP_LABEL[cur]}${number ? ` · ${number}` : ''}`} sub={`${revision ? 'תיקון מסמך שנשלח · גרסה מתוקנת' : init.doc ? 'עריכת מסמך' : t.newDoc} · שלב ${step + 1} מתוך ${flow.length}`} onClose={onClose} pct={Math.round((step + 1) / flow.length * 100)}
             right={step >= 1 && cur !== 'send' && cur !== 'preview' ? <Button size="sm" variant="ghost" loading={busy === 'save'} onClick={async () => { const d = await save(); if (d) onDone(`${t.saveDraft} ✓ ${d.number}`) }}>{t.saveDraft}</Button> : null}/>
           <div className="dw-steps" role="list">{flow.map((id, i) => <div key={id} role="listitem" className={`dw-step${i === step ? ' on' : i < step ? ' done' : ''}`} title={STEP_LABEL[id]}><i>{i < step ? '✓' : i + 1}</i><span className="lbl">{STEP_LABEL[id]}</span></div>)}</div>
           <div className="dw-body">{cur === 'tpl' ? tplStep : cur === 'fields' ? fieldsStep : stepUi[{ client: 0, property: 1, fees: 2, preview: 3, send: 4 }[cur]]}{!!errs.length && <div className="dw-err" role="alert">{errs.map((e, i) => <div key={i}>{e}</div>)}</div>}</div>
@@ -1444,6 +1445,7 @@ function DocDrawer({ t, doc, onClose, onChanged, push, onOpenLead, leads, onEdit
           <span>טלפון / אימייל</span><b dir="ltr" style={{ textAlign: 'right' }}>{[localPhone(d.client?.phone), d.client?.email].filter(Boolean).join(' · ')}</b>
           <span>נכס</span><b>{propLine(d)}{d.property?.desc ? ` · ${d.property.desc}` : ''}</b>
           <span>דמי תיווך</span><b>{f.basis} · {fmtMoney(f.commission)} + מע"מ = {fmtMoney(f.total)}</b>
+          {d.revision > 0 && <><span>גרסה</span><b>מתוקנת{d.revision > 1 ? ` (${d.revision})` : ''}{d.revisedAt ? ` · ${whenHe(d.revisedAt)}` : ''}</b></>}
           <span>נוצר</span><b>{whenHe(doc.created_at)}</b>
           {doc.sent_at && <><span>נשלח</span><b>{whenHe(doc.sent_at)}</b></>}
           {doc.expires_at && st !== 'signed' && <><span>תוקף הקישור</span><b>{todayHe(doc.expires_at)}</b></>}
@@ -1467,6 +1469,7 @@ function DocDrawer({ t, doc, onClose, onChanged, push, onOpenLead, leads, onEdit
           </div>}
           {canResend && <Button size="sm" variant="ghost" icon={<Link2 size={12}/>} loading={busy === 'docs-link'} onClick={() => act('docs-link', {}, t.linkReady)}>{t.link}</Button>}
           {st === 'draft' && <Button size="sm" variant="ghost" icon={<PenLine size={12}/>} onClick={() => onEdit(doc)}>עריכה</Button>}
+          {canRevise(doc) && <Button size="sm" variant="brand" icon={<PenLine size={12}/>} loading={busy === 'docs-reopen'} title="פותח את המסמך לעריכה; הקישור שנשלח ללקוח מפסיק לעבוד, ואחרי התיקון שולחים לו גרסה מתוקנת" onClick={async () => { if (!window.confirm(t.reviseAsk)) return; const r = await act('docs-reopen', {}, ''); if (r?.doc) onEdit(r.doc) }}>{t.revise}</Button>}
           {['draft', 'sent', 'opened', 'expired', 'failed'].includes(st) && <Button size="sm" variant="danger" icon={<Trash2 size={12}/>} loading={busy === 'docs-cancel'} onClick={() => { if (window.confirm(t.cancelAsk)) act('docs-cancel', {}, t.cancelled) }}>{t.cancel}</Button>}
           <Button size="sm" variant="ghost" icon={<Trash2 size={12}/>} loading={busy === 'docs-delete'} title="מחיקה לצמיתות — גם מסמך חתום" onClick={async () => { setBusy('docs-delete'); try { if (await onDelete(doc)) onClose() } finally { setBusy('') } }}>מחיקה לצמיתות</Button>
         </div>{link && <CopyRow label="קישור" value={link} t={t}/>}</div>
