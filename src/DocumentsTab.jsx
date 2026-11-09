@@ -12,7 +12,7 @@ import { T, Button, IconButton, StatTile, FilterChip, Badge, EmptyState, Field, 
 import { autoApi } from './AutomationsApi.jsx'
 import DocSheet, { DOC_CSS } from './DocPreview.jsx'
 import { onSync } from './lib/syncBus.js'
-import { agentOfDoc, docAgent, defaultAgent, agentsFromSettings, clientLegalIssues, SIGN_MESSAGES, SIGN_MESSAGE_IDS, signMessage, signMessageList, signMessageCtx, renderWording, WORDING_GROUPS, WORDING_VARS, signMessagePreview, suggestSignMessage, docFunnel, fmtHours, docMonthKey, verifyLabel, computeFees, renderClauses, cleanDocInput, DEFAULT_CLAUSES, DOC_TYPES, CLIENT_ROLES, DEAL_TYPES, FEE_MODES, STATUS_HE, EVENT_HE, DEFAULT_VAT, docStats, effectiveStatus, fmtMoney, fmtPct, whenHe, todayHe, placeholderValues, PLACEHOLDERS, SIGNER_ROLES, MAX_SIGNERS, signerProgressText, signerInfo, DEFAULT_REMINDERS, DEFAULT_NOTIFY_ON, propertyToDoc } from '../lib/documents.js'
+import { agentOfDoc, docAgent, defaultAgent, agentsFromSettings, clientLegalIssues, SIGN_MESSAGES, SIGN_MESSAGE_IDS, signMessage, signMessageList, signMessageCtx, renderWording, WORDING_GROUPS, WORDING_VARS, signMessagePreview, suggestSignMessage, docFunnel, fmtHours, docMonthKey, verifyLabel, computeFees, renderClauses, cleanDocInput, DEFAULT_CLAUSES, DOC_TYPES, CLIENT_ROLES, DEAL_TYPES, FEE_MODES, STATUS_HE, EVENT_HE, DEFAULT_VAT, docStats, effectiveStatus, fmtMoney, fmtPct, whenHe, todayHe, placeholderValues, PLACEHOLDERS, SIGNER_ROLES, MAX_SIGNERS, signerProgressText, signerInfo, DEFAULT_REMINDERS, DEFAULT_NOTIFY_ON, propertyToDoc, cleanNote, feeShare } from '../lib/documents.js'
 import { leadProperty } from '../lib/automations-shared.js'
 import { useProjects } from './lib/projectsStore.js'
 import { projectOfLead } from '../lib/projects.js'
@@ -119,6 +119,17 @@ export const DOCS_CSS = `
 .qd-saved{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;color:var(--au-green-text);margin-top:2px}
 .qd-sec{display:flex;flex-direction:column;gap:10px;padding:12px;border:1px solid var(--au-line);border-radius:14px;background:var(--au-card)}
 .qd-sec h4{margin:0;font-size:14px;font-weight:600;display:flex;align-items:center;gap:8px}.qd-sec h4 span{width:22px;height:22px;border-radius:50%;background:rgba(var(--brand-rgb),.12);color:var(--au-brand-text);display:inline-flex;align-items:center;justify-content:center;font-size:12px}
+.qd-shekel{grid-column:1/-1;display:flex;flex-direction:column;gap:4px}
+.qd-shekel label{display:flex;flex-direction:column;gap:5px;font-size:12.5px;font-weight:600;color:var(--au-text2)}
+.qd-shekel-in{display:flex;align-items:center;gap:6px;max-width:260px}
+.qd-shekel-in b{font-size:15px;color:var(--au-text2)}
+.qd-shekel small{font-size:12px;color:var(--au-text3)}
+.qd-note{margin-top:10px;border:1px solid rgba(var(--brand-rgb),.45);border-inline-start:4px solid var(--au-brand);border-radius:12px;padding:10px 12px;background:rgba(var(--brand-rgb),.05)}
+.qd-note-h{display:flex;flex-direction:column;gap:2px;margin-bottom:8px}
+.qd-note-h b{font-size:13.5px;color:var(--au-brand-text)}
+.qd-note-h small{font-size:12px;color:var(--au-text3);line-height:1.45}
+.qd-note textarea{width:100%;min-height:72px;resize:vertical;line-height:1.55}
+.qd-note-n{display:block;text-align:end;font-size:11px;color:var(--au-text3);margin-top:3px}
 .qd-sum{font-size:13px;color:var(--au-text2);background:rgba(var(--ov),.04);border-radius:10px;padding:8px 10px}
 .qd-more{align-self:flex-start;border:none;background:none;color:var(--au-brand-text);font:inherit;font-size:13px;font-weight:600;cursor:pointer;padding:2px 0;min-height:0}
 .qd-fixed{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:13px;color:var(--au-text2);align-items:center}
@@ -278,7 +289,7 @@ const leadMatch = (l, q) => { const s = q.trim().toLowerCase(); if (!s) return t
 const splitName = n => { const w = String(n || '').trim().split(/\s+/); return { firstName: w[0] || '', lastName: w.slice(1).join(' ') } }
 const STEP_LABEL = { tpl: 'תבנית', client: 'לקוח ופרויקט', property: 'נכס', fees: 'תנאי התיווך', fields: 'פרטי המסמך', preview: 'תצוגה מקדימה', send: 'שליחה' }
 const FEE_KEYS = ['PRICE', 'COMMISSION', 'COMMISSION_PCT', 'COMMISSION_BASIS', 'VAT', 'VAT_RATE', 'TOTAL', 'TERMS']
-const emptyForm = settings => ({ templateId: 'brokerage', projectId: '', projectName: '', fields: {}, leadId: '', propertyId: '', client: { firstName: '', lastName: '', name: '', idNumber: '', phone: '', email: '', address: '', role: 'buyer' }, property: { address: '', city: '', desc: '', type: '', dealType: 'sale', price: '', notes: '', link: '' }, fees: { mode: 'percent', pct: 2, fixed: '', months: 1, vatRate: settings?.vatRate ?? DEFAULT_VAT }, agent: { ...(settings?.agent || { name: '', license: '', phone: '', email: '' }) }, logo: { ...(settings?.logo || { show: true, url: '', size: 'm', align: 'right' }) }, terms: '', expiryDays: settings?.expiryDays || 14, title: '', signers: [] })
+const emptyForm = settings => ({ templateId: 'brokerage', projectId: '', projectName: '', fields: {}, leadId: '', propertyId: '', client: { firstName: '', lastName: '', name: '', idNumber: '', phone: '', email: '', address: '', role: 'buyer' }, property: { address: '', city: '', desc: '', type: '', dealType: 'sale', price: '', notes: '', link: '' }, fees: { mode: 'percent', pct: 2, fixed: '', months: 1, vatRate: settings?.vatRate ?? DEFAULT_VAT }, agent: { ...(settings?.agent || { name: '', license: '', phone: '', email: '' }) }, logo: { ...(settings?.logo || { show: true, url: '', size: 'm', align: 'right' }) }, terms: '', note: '', expiryDays: settings?.expiryDays || 14, title: '', signers: [] })
 
 /** the view the preview draws, from the wizard's form and its template (same rules as the server) */
 function formView(form, tpl, number = '') {
@@ -286,7 +297,7 @@ function formView(form, tpl, number = '') {
   const fees = computeFees({ ...form.fees, price: form.property.price })
   const d = { ...data, fees, client: { ...data.client, name: data.client.name || [form.client.firstName, form.client.lastName].filter(Boolean).join(' ') } }
   const values = templateValues(d, { number, project: form.projectName ? { name: form.projectName } : null })
-  return { number, status: 'draft', signer: signerInfo({ data: d, status: 'draft' }), title: d.title || tpl.title || DOC_TYPES.brokerage.name, created_at: new Date().toISOString(), client: d.client, property: d.property, fees, agent: d.agent, logo: d.logo?.url || d.logo?.show === false ? d.logo : { ...tpl.logo, ...(d.logo || {}) }, terms: d.terms, project: form.projectName, kind: tpl.kind, blocks: renderBlocks(tpl, values), sections: tpl.sections, values }
+  return { number, status: 'draft', signer: signerInfo({ data: d, status: 'draft' }), title: d.title || tpl.title || DOC_TYPES.brokerage.name, created_at: new Date().toISOString(), client: d.client, property: d.property, fees, agent: d.agent, logo: d.logo?.url || d.logo?.show === false ? d.logo : { ...tpl.logo, ...(d.logo || {}) }, terms: d.terms, note: cleanNote(d.note), project: form.projectName, kind: tpl.kind, blocks: renderBlocks(tpl, values), sections: tpl.sections, values }
 }
 const fieldInput = (f, v, on) => f.type === 'checkbox' ? <label className="te-tog"><input type="checkbox" checked={v === true || v === 'true'} onChange={e => on(e.target.checked)}/>{f.label}</label>
   : f.type === 'select' ? <select className="dt-input" value={v || ''} onChange={e => on(e.target.value)} aria-label={f.label}><option value="">—</option>{(f.options || []).map(o => <option key={o} value={o}>{o}</option>)}</select>
@@ -1014,18 +1025,19 @@ function DocWizard({ t, leads, properties, projects = [], templates = [], settin
           <input className="dt-input" dir="ltr" inputMode="decimal" style={{ width: 90 }} value={form.fees.pct} onChange={e => set('fees.pct', e.target.value.replace(/[^\d.]/g, ''))} aria-label={t.fees.custom}/>
         </div>
       </Field>}
-      {form.fees.mode === 'fixed' && <Field label={t.fees.fixed}><input className="dt-input" dir="ltr" inputMode="numeric" value={form.fees.fixed} aria-label={t.fees.fixed} onChange={e => set('fees.fixed', e.target.value.replace(/[^\d.]/g, ''))}/></Field>}
+      {form.fees.mode !== 'months' && <FeeShekels fees={fees} form={form} set={set}/>}
       {form.fees.mode === 'months' && <Field label={t.fees.months}><input className="dt-input" dir="ltr" inputMode="decimal" style={{ width: 120 }} value={form.fees.months} aria-label={t.fees.months} onChange={e => set('fees.months', e.target.value.replace(/[^\d.]/g, ''))}/></Field>}
       <div className="dw-grid">
         <Field label={t.property.price}><input className="dt-input" dir="ltr" inputMode="numeric" value={form.property.price} aria-label={t.property.price} onChange={e => set('property.price', e.target.value.replace(/[^\d.]/g, ''))}/></Field>
         <Field label={t.fees.vat}><input className="dt-input" dir="ltr" inputMode="decimal" value={form.fees.vatRate} aria-label={t.fees.vat} onChange={e => set('fees.vatRate', e.target.value.replace(/[^\d.]/g, ''))}/></Field>
       </div>
       <div className="dw-sum" aria-label={t.fees.summary}>
-        <span>{fees.basis}</span><b>{fmtMoney(fees.price)}</b>
+        {fees.price > 0 ? <><span>{fees.basis}</span><b>{fmtMoney(fees.price)}</b></> : <><span>{fees.basis}</span><b>—</b></>}
         <span>דמי תיווך לפני מע"מ</span><b>{fmtMoney(fees.commission)}</b>
         <span>מע"מ {fmtPct(fees.vatRate)}</span><b>{fmtMoney(fees.vat)}</b>
         <div className="t"><span>סה"כ כולל מע"מ</span><b>{fmtMoney(fees.total)}</b></div>
       </div>
+      <DealNoteField value={form.note} onChange={v => set('note', v)}/>
       <Field label={t.fees.terms}><textarea className="dt-input" value={form.terms} aria-label={t.fees.terms} onChange={e => set('terms', e.target.value)}/></Field>
       <SectionHead title={t.fees.agent}/>
       <div className="dw-grid">
@@ -1139,6 +1151,33 @@ const qdCover = p => { const u = Array.isArray(p?.images) ? p.images.find(x => t
 const qdPrice = p => { const n = Number(String(p?.price || '').replace(/[^\d]/g, '')); return n ? `₪${n.toLocaleString('he-IL')}` : '' }
 const QD_PCT = [1, 1.5, 2, 2.5, 3]
 const MANUAL = { id: '', manual: true, title: 'מסמך חדש' }
+// The fee in shekels, next to the percent chips: typing a sum switches the fee to "סכום בשקלים" (it needs no deal price); in that
+// mode the share of the price shows under it when the price is known ("≈ 1.75% ממחיר העסקה")
+function FeeShekels({ fees, form, set }) {
+  const share = feeShare(fees)
+  return (
+    <div className="qd-shekel">
+      <label><span>{form.fees.mode === 'fixed' ? 'דמי התיווך בשקלים (לפני מע"מ)' : 'או סכום בשקלים'}</span>
+        <span className="qd-shekel-in"><b>₪</b><input className="dt-input" dir="ltr" inputMode="numeric" placeholder={form.fees.mode === 'fixed' ? '' : 'למשל 35000'} value={form.fees.mode === 'fixed' ? form.fees.fixed : ''} aria-label="דמי תיווך בשקלים"
+          onChange={e => { const v = e.target.value.replace(/[^\d.]/g, ''); set('fees.fixed', v); if (form.fees.mode !== 'fixed' && v) set('fees.mode', 'fixed') }}/></span>
+      </label>
+      {form.fees.mode === 'fixed' && <small>{share ? `≈ ${share}` : 'לא צריך מחיר עסקה כשהעמלה בשקלים — אפשר להוסיף אותו אם ידוע'}</small>}
+    </div>
+  )
+}
+// "הערה לתנאי העסקה": a box of the office's own words, printed right after the fee table on every copy (PDF, Word, the signing page)
+function DealNoteField({ value, onChange }) {
+  const n = String(value || '').length
+  return (
+    <div className="qd-note">
+      <div className="qd-note-h"><b>הערה לתנאי העסקה</b><small>תופיע במסמך במסגרת בולטת, מיד אחרי דמי התיווך — שהלקוח יראה אותה לפני החתימה</small></div>
+      <textarea className="dt-input" rows={3} maxLength={800} value={value || ''} aria-label="הערה לתנאי העסקה" placeholder='למשל: דמי התיווך ישולמו במעמד חתימת החוזה. העמלה כוללת ליווי עד קבלת המפתח.'
+        onChange={e => onChange(e.target.value)}/>
+      {n > 0 && <small className="qd-note-n">{n}/800</small>}
+    </div>
+  )
+}
+
 function QuickDoc({ t, leads, properties, projects = [], templates = [], settings, initPropertyId = '', initLeadId = '', initTemplateId = '', manual: initManual = false, onClose, onDone, onFull, push, onPresetSaved }) {
   const [propId, setPropId] = useState(initPropertyId ? String(initPropertyId) : '')
   const [manual, setManual] = useState(!!initManual)   // no property from the system: the address, price and deal details are typed
@@ -1157,11 +1196,21 @@ function QuickDoc({ t, leads, properties, projects = [], templates = [], setting
   const [showPrev, setShowPrev] = useState(false)
   const prop = manual ? MANUAL : (properties.find(p => String(p.id) === propId) || null)
   const preset = propId ? settings?.presets?.[propId] : null
+  // "טופס חדש": a clean form — the client, the fee, the note and everything typed go; a property's own details and its saved preset
+  // come back (applied again by the effect below)
+  const newForm = () => {
+    const typed = form.client.firstName || form.client.lastName || form.client.phone || form.note || form.terms || (manual && form.property.address)
+    if (typed && !window.confirm('לנקות את הטופס ולהתחיל מסמך חדש? מה שהוקלד יימחק.')) return
+    setForm(emptyForm(settings)); setResult(null); setErrs([]); setLegalShow(false); setSend({ via: 'whatsapp', msg: null }); setShowPrev(false)
+    applied.current = ''
+    if (manual) setEditProp(true); else setResetN(n => n + 1)
+  }
+  const [resetN, setResetN] = useState(0)
   // a property picked → its fixed details + its preset (or a sensible start) — the client and anything typed stay
   const applied = useRef('')
   useEffect(() => {
     if (!prop || prop.manual) return
-    const sig = `${propId}|${settings ? 1 : 0}`
+    const sig = `${propId}|${settings ? 1 : 0}|${resetN}`
     if (applied.current === sig) return
     applied.current = sig
     const pd = propertyToDoc(prop)
@@ -1171,13 +1220,13 @@ function QuickDoc({ t, leads, properties, projects = [], templates = [], setting
       const proj = pr?.projectId ? projects.find(x => x.id === pr.projectId) : null
       return { ...base, client: f.client, leadId: f.leadId, signers: f.signers, propertyId: pd.propertyId, property: { ...base.property, ...pd.property },
         templateId: pr?.templateId || 'brokerage', fees: { ...base.fees, ...pd.fees, ...(pr?.fees || {}), vatRate: settings?.vatRate ?? DEFAULT_VAT },
-        terms: pr?.terms || '', expiryDays: pr?.expiryDays || base.expiryDays,
+        terms: pr?.terms || '', note: pr?.note || '', expiryDays: pr?.expiryDays || base.expiryDays,
         agent: (() => { const a = pr?.agentId && (settings?.agents || []).find(x => x.id === pr.agentId); return a ? docAgent(a) : f.agent?.name ? f.agent : base.agent })(),
         projectId: proj?.id || f.projectId || '', projectName: proj?.name || pr?.projectName || f.projectName || '',
         ...(pr?.role ? { client: { ...f.client, role: pr.role } } : pd.property.dealType === 'rent' ? { client: { ...f.client, role: 'renter' } } : {}) }
     })
     setEditProp(false)
-  }, [propId, !!prop, !!settings]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [propId, !!prop, !!settings, resetN]) // eslint-disable-line react-hooks/exhaustive-deps
   const pickLead = useCallback(l => {
     if (!l) { setForm(f => ({ ...f, leadId: '' })); return }
     const nm = splitName(l.name)
@@ -1204,7 +1253,7 @@ function QuickDoc({ t, leads, properties, projects = [], templates = [], setting
   }
   const savePreset = async () => {
     if (!remember || !propId || manual) return
-    const pr = { templateId: form.templateId || 'brokerage', fees: { mode: form.fees.mode, pct: form.fees.pct, months: form.fees.months, fixed: form.fees.fixed }, terms: form.terms, expiryDays: form.expiryDays, projectId: form.projectId, projectName: form.projectName, role: form.client.role, agentId: form.agent?.id || '' }
+    const pr = { templateId: form.templateId || 'brokerage', fees: { mode: form.fees.mode, pct: form.fees.pct, months: form.fees.months, fixed: form.fees.fixed }, terms: form.terms, note: form.note, expiryDays: form.expiryDays, projectId: form.projectId, projectName: form.projectName, role: form.client.role, agentId: form.agent?.id || '' }
     try { const r = await api.post('docs-settings', { presets: { [propId]: pr } }); if (r.settings) onPresetSaved?.(r.settings) } catch { /* the document itself is what matters */ }
   }
   const go = async (andSend) => {
@@ -1255,7 +1304,10 @@ function QuickDoc({ t, leads, properties, projects = [], templates = [], setting
       <div className={`dw${showPrev ? ' show-prev' : ''}`} style={{ height: '100%' }}>
         <div className="dw-form">
           <ModalBar title={manual ? 'מילוי מהיר' : 'מסמך מהיר מנכס'} sub={manual ? 'רק מה שמשתנה · השאר מההגדרות ומהתבנית' : `${prop.title || form.property.address}${form.property.price ? ` · ${fmtMoney(form.property.price)}` : ''}`} onClose={onClose}
-            right={<button type="button" className="dw-chip" onClick={() => { setManual(false); setPropId(''); setResult(null); setErrs([]) }}>{manual ? 'מנכס מהמערכת' : 'החלפת נכס'}</button>}/>
+            right={<span style={{ display: 'inline-flex', gap: 6 }}>
+              <button type="button" className="dw-chip" title="לנקות את הטופס ולהתחיל מסמך חדש" onClick={newForm}><PenLine size={12}/> טופס חדש</button>
+              <button type="button" className="dw-chip" onClick={() => { setManual(false); setPropId(''); setResult(null); setErrs([]) }}>{manual ? 'מנכס מהמערכת' : 'החלפת נכס'}</button>
+            </span>}/>
           {!manual && <div className="qd-prop">
             <div className="qd-thumb">{qdCover(prop) ? <img src={qdCover(prop)} alt=""/> : <Building2 size={20}/>}</div>
             <div style={{ minWidth: 0, flex: 1 }}><b>{prop.title || form.property.address}</b><small>{propLine({ property: form.property })}{form.property.price ? ` · ${fmtMoney(form.property.price)}` : ''}</small>{preset && <span className="qd-saved"><Check size={12}/> ההגדרות השמורות של הנכס נטענו</span>}</div>
@@ -1276,7 +1328,7 @@ function QuickDoc({ t, leads, properties, projects = [], templates = [], setting
                 <Field label="כתובת הנכס *"><input className="dt-input" value={form.property.address} aria-label="כתובת הנכס" placeholder="רחוב ומספר" onChange={e => set('property.address', e.target.value)}/></Field>
                 <Field label="עיר"><input className="dt-input" value={form.property.city} aria-label="עיר" onChange={e => set('property.city', e.target.value)}/></Field>
                 <Field label="סוג העסקה"><select className="dt-input" value={form.property.dealType} aria-label="סוג העסקה" onChange={e => { set('property.dealType', e.target.value); if (e.target.value === 'rent' && form.fees.mode === 'percent') set('fees.mode', 'months') }}>{Object.entries(DEAL_TYPES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></Field>
-                <Field label={form.property.dealType === 'rent' ? 'שכר דירה חודשי (₪)' : 'מחיר העסקה לפני מע"מ (₪)'}><input className="dt-input" dir="ltr" inputMode="numeric" value={form.property.price} aria-label="מחיר העסקה" onChange={e => set('property.price', e.target.value.replace(/[^\d]/g, ''))}/></Field>
+                <Field label={form.property.dealType === 'rent' ? 'שכר דירה חודשי (₪)' : form.fees.mode === 'fixed' ? 'מחיר העסקה לפני מע"מ (₪, לא חובה)' : 'מחיר העסקה לפני מע"מ (₪)'}><input className="dt-input" dir="ltr" inputMode="numeric" value={form.property.price} aria-label="מחיר העסקה" onChange={e => set('property.price', e.target.value.replace(/[^\d]/g, ''))}/></Field>
                 <div className="full"><Field label="פרטי העסקה / תיאור הנכס"><input className="dt-input" value={form.property.desc} aria-label="תיאור הנכס" placeholder="דירת 4 חדרים, קומה 3, חניה ומחסן…" onChange={e => set('property.desc', e.target.value)}/></Field></div>
               </div>
             </div>}
@@ -1300,12 +1352,14 @@ function QuickDoc({ t, leads, properties, projects = [], templates = [], setting
               <div className="dw-grid">
                 {form.fees.mode === 'percent' && <Field label="אחוז"><div className="dw-chips">{QD_PCT.map(p => <button type="button" key={p} className={`dw-chip${Number(form.fees.pct) === p ? ' on' : ''}`} onClick={() => set('fees.pct', p)}>{fmtPct(p)}</button>)}<input className="dt-input" style={{ width: 80, height: 32 }} dir="ltr" inputMode="decimal" value={form.fees.pct} aria-label="אחוז אחר" onChange={e => set('fees.pct', e.target.value.replace(/[^\d.]/g, ''))}/></div></Field>}
                 {form.fees.mode === 'months' && <Field label="חודשי שכירות"><input className="dt-input" dir="ltr" inputMode="decimal" value={form.fees.months} aria-label="חודשי שכירות" onChange={e => set('fees.months', e.target.value.replace(/[^\d.]/g, ''))}/></Field>}
-                {form.fees.mode === 'fixed' && <Field label='סכום קבוע (₪, לפני מע"מ)'><input className="dt-input" dir="ltr" inputMode="numeric" value={form.fees.fixed} aria-label="סכום קבוע" onChange={e => set('fees.fixed', e.target.value.replace(/[^\d.]/g, ''))}/></Field>}
-                {!manual && <Field label={form.fees.mode === 'months' ? 'שכר דירה חודשי (₪)' : 'מחיר העסקה לפני מע"מ (₪)'}><input className="dt-input" dir="ltr" inputMode="numeric" value={form.property.price} aria-label="מחיר העסקה" onChange={e => set('property.price', e.target.value.replace(/[^\d]/g, ''))}/></Field>}
+                {form.fees.mode !== 'months' && <FeeShekels fees={fees} form={form} set={set}/>}
+                {!manual && <Field label={form.fees.mode === 'months' ? 'שכר דירה חודשי (₪)' : form.fees.mode === 'fixed' ? 'מחיר העסקה לפני מע"מ (₪, לא חובה)' : 'מחיר העסקה לפני מע"מ (₪)'}><input className="dt-input" dir="ltr" inputMode="numeric" value={form.property.price} aria-label="מחיר העסקה" onChange={e => set('property.price', e.target.value.replace(/[^\d]/g, ''))}/></Field>}
               </div>
-              <div className="qd-sum">{fees.basis} · דמי תיווך <b>{fmtMoney(fees.commission)}</b> + מע"מ {fmtMoney(fees.vat)} = <b>{fmtMoney(fees.total)}</b></div>
+              <div className="qd-sum">{fees.mode === 'fixed' ? 'סכום בשקלים' : fees.basis} · דמי תיווך <b>{fmtMoney(fees.commission)}</b> + מע"מ {fmtMoney(fees.vat)} = <b>{fmtMoney(fees.total)}</b></div>
+              <DealNoteField value={form.note} onChange={v => set('note', v)}/>
               <Field label="תוקף הקישור לחתימה (ימים)"><div className="dw-chips">{[7, 14, 30].map(d => <button type="button" key={d} className={`dw-chip${Number(form.expiryDays) === d ? ' on' : ''}`} onClick={() => set('expiryDays', d)}>{d} ימים</button>)}<input className="dt-input" style={{ width: 80, height: 32 }} dir="ltr" inputMode="numeric" value={form.expiryDays} aria-label="תוקף הקישור" onChange={e => set('expiryDays', e.target.value.replace(/\D/g, ''))}/></div></Field>
             </div>}
+            {!usesFees && <div className="qd-sec"><DealNoteField value={form.note} onChange={v => set('note', v)}/></div>}
             {tpl.fields.length > 0 && <div className="qd-sec"><h4><span>{(manual ? 2 : 1) + (usesFees ? 2 : 1)}</span>פרטי המסמך</h4>
               <div className="dw-fields">{tpl.fields.map(f => <div key={f.key} className={f.type === 'checkbox' ? 'full' : ''}><Field label={f.type === 'checkbox' ? '' : `${f.label}${f.required ? ' *' : ''}`}>{fieldInput(f, form.fields?.[f.key] ?? f.default ?? '', v => setForm(x => ({ ...x, fields: { ...(x.fields || {}), [f.key]: v } })))}</Field></div>)}</div>
             </div>}

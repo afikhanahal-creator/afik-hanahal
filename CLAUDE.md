@@ -1177,6 +1177,17 @@ a renamed agent keeps his). `docs-agent-signature` GET → `{ signatures, signat
 agents; the default is preselected) → `data.agent` keeps the agent's `id` (`docAgent()`); a property's preset remembers `agentId`.
 When the last signer signs, the stamp is **that agent's** signature (`signatureForDoc()`: by id, else by name, the default only
 for a document that names no agent — never another agent's). QA: the scratchpad's `qa-agents.cjs`.
+**A broker as the client, a fee in shekels, a note on the deal, "טופס חדש" (2026-11-09):** `CLIENT_ROLES` has `broker` ("מתווך" —
+a colleague's brokerage order); the fee's "סכום בשקלים" (`FEE_MODES.fixed`) is typed straight into "או סכום בשקלים" under the percent
+chips (`FeeShekels` in `src/DocumentsTab.jsx` — typing there switches to the fixed mode, the line under it shows the ≈ share of the
+price or "לא צריך מחיר עסקה") and **needs no deal price**: `cleanDocInput` asks for a price only for percent / months, clause 6's
+price sentence is `[[ … ]]` (dropped without one) and `feeRows()` / the sheet leave the price row out (`feeShare()` = "1.75% ממחיר
+העסקה"). **"הערה לתנאי העסקה"** (`DealNoteField`, the quick document and the wizard's fee step; `cleanNote()`: ≤ 12 lines, ≤ 800
+chars, bidi marks out) is `data.note`, drawn after the terms as a framed box with a brand bar in the PDF, the Word file (a shaded
+one-cell table) and the on-screen sheet / signing page (`.dsh-note`, `publicView.note`); a property's preset keeps it. The quick
+document's bar has **"טופס חדש"** (confirm when something was typed → an empty form, the preview / result cleared; `resetN`
+re-applies the property's preset). QA: the scratchpad's `qa-docs-fee.cjs` (iPhone: role, shekels, note in the preview, a send
+without a price, the reset).
 **Flow:** `docs-create` cleans the input (`cleanDocInput`), links the CRM lead (the given id, else the newest lead with that phone /
 email — never a new lead), numbers the document and writes `created` on the lead. `docs-send {id, via}` makes the private token
 (kept only as a hash), freezes the clauses on the row, renders the PDF the client signs (stored, its SHA-256 on the row), and
