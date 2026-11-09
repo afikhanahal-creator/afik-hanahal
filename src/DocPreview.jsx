@@ -76,13 +76,13 @@ export default function DocSheet({ view, signatureUrl = '', logoSrc = '/logo-bla
       </tbody></table></>}
       {brokerage && blocks.length > 0 && <h2>תנאי ההתקשרות</h2>}
       {blocks.map((b, i) => b.t === 'h' ? <h2 key={i} className="dsh-h">{b.text}</h2> : b.t === 'clause' ? <div className="dsh-cl" key={i}><b>{b.n}. {b.title}</b><p>{hl(b.text)}</p></div> : <p className="dsh-p" key={i}>{hl(b.text)}</p>)}
-      {sec.fees && <><h2>דמי התיווך</h2>
+      {sec.fees && <><h2>{c.role === 'broker' ? 'התשלום למתווך מהעסקה' : 'דמי התיווך'}</h2>
       <table className="dsh-fees"><tbody>
         <tr><td>בסיס החישוב</td><td dir="rtl" style={{ textAlign: 'left' }}>{f.basis}</td></tr>
         {f.price > 0 && <tr><td>מחיר העסקה לפני מע"מ</td><td>{fmtMoney(f.price)}</td></tr>}
-        <tr><td>דמי תיווך לפני מע"מ</td><td>{fmtMoney(f.commission || 0)}</td></tr>
+        <tr><td>{c.role === 'broker' ? 'התשלום ללקוח (מתווך) לפני מע"מ' : 'דמי תיווך לפני מע"מ'}</td><td>{fmtMoney(f.commission || 0)}</td></tr>
         <tr><td>מע"מ {fmtPct(f.vatRate ?? 18)}</td><td>{fmtMoney(f.vat || 0)}</td></tr>
-        <tr className="t"><td>סה"כ לתשלום כולל מע"מ</td><td>{fmtMoney(f.total || 0)}</td></tr>
+        <tr className="t"><td>{c.role === 'broker' ? 'סה"כ לתשלום ללקוח כולל מע"מ' : 'סה"כ לתשלום כולל מע"מ'}</td><td>{fmtMoney(f.total || 0)}</td></tr>
       </tbody></table>
       {view.terms && <><h2>תנאים נוספים</h2><p style={{ margin: '0 0 8px', whiteSpace: 'pre-wrap' }}>{view.terms}</p></>}</>}
       {view.note && <div className="dsh-note"><b>הערה לתנאי העסקה</b><p>{view.note}</p></div>}

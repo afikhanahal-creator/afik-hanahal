@@ -12,7 +12,7 @@ import { T, Button, IconButton, StatTile, FilterChip, Badge, EmptyState, Field, 
 import { autoApi } from './AutomationsApi.jsx'
 import DocSheet, { DOC_CSS } from './DocPreview.jsx'
 import { onSync } from './lib/syncBus.js'
-import { canRevise, agentOfDoc, docAgent, defaultAgent, agentsFromSettings, clientLegalIssues, SIGN_MESSAGES, SIGN_MESSAGE_IDS, signMessage, signMessageList, signMessageCtx, renderWording, WORDING_GROUPS, WORDING_VARS, signMessagePreview, suggestSignMessage, docFunnel, fmtHours, docMonthKey, verifyLabel, computeFees, renderClauses, cleanDocInput, DEFAULT_CLAUSES, DOC_TYPES, CLIENT_ROLES, DEAL_TYPES, FEE_MODES, STATUS_HE, EVENT_HE, DEFAULT_VAT, docStats, effectiveStatus, fmtMoney, fmtPct, whenHe, todayHe, placeholderValues, PLACEHOLDERS, SIGNER_ROLES, MAX_SIGNERS, signerProgressText, signerInfo, DEFAULT_REMINDERS, DEFAULT_NOTIFY_ON, propertyToDoc, cleanNote, feeShare } from '../lib/documents.js'
+import { canRevise, clauseSet, agentOfDoc, docAgent, defaultAgent, agentsFromSettings, clientLegalIssues, SIGN_MESSAGES, SIGN_MESSAGE_IDS, signMessage, signMessageList, signMessageCtx, renderWording, WORDING_GROUPS, WORDING_VARS, signMessagePreview, suggestSignMessage, docFunnel, fmtHours, docMonthKey, verifyLabel, computeFees, renderClauses, cleanDocInput, DEFAULT_CLAUSES, DOC_TYPES, CLIENT_ROLES, DEAL_TYPES, FEE_MODES, STATUS_HE, EVENT_HE, DEFAULT_VAT, docStats, effectiveStatus, fmtMoney, fmtPct, whenHe, todayHe, placeholderValues, PLACEHOLDERS, SIGNER_ROLES, MAX_SIGNERS, signerProgressText, signerInfo, DEFAULT_REMINDERS, DEFAULT_NOTIFY_ON, propertyToDoc, cleanNote, feeShare } from '../lib/documents.js'
 import { leadProperty } from '../lib/automations-shared.js'
 import { useProjects } from './lib/projectsStore.js'
 import { projectOfLead } from '../lib/projects.js'
@@ -906,7 +906,7 @@ function DocWizard({ t, leads, properties, projects = [], templates = [], settin
   }
   const fees = computeFees({ ...form.fees, price: form.property.price })
   const clauses = settings?.clauses?.length ? settings.clauses : null
-  const tpl = useMemo(() => (form.templateId && form.templateId !== 'brokerage' && templates.find(x => x.id === form.templateId)) || brokerageTemplate(clauses || undefined), [form.templateId, templates, clauses])
+  const tpl = useMemo(() => (form.templateId && form.templateId !== 'brokerage' && templates.find(x => x.id === form.templateId)) || brokerageTemplate(clauseSet({ client: { role: form.client.role } }, clauses || undefined)), [form.templateId, templates, clauses, form.client.role])   // a broker: clause 6 turns around (clauseSet)
   const keys = useMemo(() => templateKeys(tpl), [tpl])
   const usesFees = tpl.sections.fees || keys.some(k => FEE_KEYS.includes(k))
   const usesProperty = tpl.sections.property || keys.some(k => k.startsWith('PROPERTY_') || k === 'DEAL_TYPE')
@@ -1234,7 +1234,7 @@ function QuickDoc({ t, leads, properties, projects = [], templates = [], setting
     setForm(f => ({ ...f, leadId: String(l.id), client: { ...f.client, ...nm, name: l.name || '', phone: l.phone || '', email: l.email || '' } }))
   }, [])
   useEffect(() => { if (initLeadId) { const l = leads.find(x => String(x.id) === String(initLeadId)); if (l) pickLead(l) } }, [initLeadId]) // eslint-disable-line react-hooks/exhaustive-deps
-  const tpl = useMemo(() => (form.templateId && form.templateId !== 'brokerage' && templates.find(x => x.id === form.templateId)) || brokerageTemplate(settings?.clauses?.length ? settings.clauses : undefined), [form.templateId, templates, settings])
+  const tpl = useMemo(() => (form.templateId && form.templateId !== 'brokerage' && templates.find(x => x.id === form.templateId)) || brokerageTemplate(clauseSet({ client: { role: form.client.role } }, settings?.clauses?.length ? settings.clauses : undefined)), [form.templateId, templates, settings, form.client.role])
   const keys = useMemo(() => templateKeys(tpl), [tpl])
   const usesFees = tpl.sections.fees || keys.some(k => FEE_KEYS.includes(k))
   const view = useMemo(() => formView(form, tpl, ''), [form, tpl])

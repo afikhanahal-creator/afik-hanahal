@@ -1188,6 +1188,15 @@ one-cell table) and the on-screen sheet / signing page (`.dsh-note`, `publicView
 document's bar has **"טופס חדש"** (confirm when something was typed → an empty form, the preview / result cleared; `resetN`
 re-applies the property's preset). QA: the scratchpad's `qa-docs-fee.cjs` (iPhone: role, shekels, note in the preview, a send
 without a price, the reset).
+**A broker as the client turns clause 6 around (2026-11-09 — the office: "a broker doesn't pay us, he gets paid from the deal; the
+change belongs in clause 6"):** `clauseSet(data, clauses)` (`lib/documents.js`, tested) swaps clause 6 — by its number, else by the
+title "דמי התיווך", so the office's edited clauses turn too — for `BROKER_FEE_CLAUSE` ("התשלום למתווך מהעסקה": the client acts as a
+broker and pays no fee; he is entitled to {feeBasis} / {commission} + VAT out of the deal, paid by the office against his tax
+invoice) whenever `client.role === 'broker'`; every other clause stays. It runs inside `renderClauses()` (PDF, Word, the signing page)
+and in the wizard / quick document's `brokerageTemplate(clauseSet(…))` memo keyed on the role, so the preview changes the moment
+the role is picked, back and forth, and a reopened document whose role was changed renders the right clause at the next send. The
+fee table follows (`feeRows(f, data)`: "התשלום ללקוח (מתווך) לפני מע"מ", "סה"כ לתשלום ללקוח", the heading "התשלום למתווך
+מהעסקה"); the send step suggests the wording `broker`. Clauses 5 and 7 are unchanged on purpose (the office named clause 6).
 **Editing a sent document and sending the corrected one (2026-11-09):** the drawer's **"עריכה ותיקון"** on a sent / opened /
 expired / failed document nobody signed yet (`canRevise()` in `lib/documents.js`, tested — once any signer signed, cancel and make a
 new one) asks first, then `POST docs-reopen {id}` → `reopenDoc()` (`lib/documents-server.js`): the same row and number back to a
