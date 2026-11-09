@@ -1188,6 +1188,16 @@ one-cell table) and the on-screen sheet / signing page (`.dsh-note`, `publicView
 document's bar has **"טופס חדש"** (confirm when something was typed → an empty form, the preview / result cleared; `resetN`
 re-applies the property's preset). QA: the scratchpad's `qa-docs-fee.cjs` (iPhone: role, shekels, note in the preview, a send
 without a price, the reset).
+**Editing a sent document and sending the corrected one (2026-11-09):** the drawer's **"עריכה ותיקון"** on a sent / opened /
+expired / failed document nobody signed yet (`canRevise()` in `lib/documents.js`, tested — once any signer signed, cancel and make a
+new one) asks first, then `POST docs-reopen {id}` → `reopenDoc()` (`lib/documents-server.js`): the same row and number back to a
+**draft** — the token and OTP cleared at once (the old link dies; its hash goes to `data.retired`, so opening it reads "המסמך עודכן
+ונשלחה אליכם גרסה מתוקנת…" — `retiredToken()`, 410), the signing state dropped (`reopenData()`: a fresh link and reminder clock at
+the next send, `data.revision` + 1, `revisedAt`, Drive's `original` cleared so the corrected PDF goes up), the event `reopened`
+(`{ revision, from, hash }` — the PDF the client saw stays in the chain) and a ✏️ note on the lead. The wizard opens on it ("תיקון
+מסמך שנשלח · גרסה מתוקנת"); the send step suggests the wording **"גרסה מתוקנת של המסמך"** (`revised` in `SIGN_MESSAGES`,
+`suggestSignMessage` when `data.revision > 0`), `sendDoc` renders the corrected PDF over the old path and the lead's note reads
+"גרסה מתוקנת של … נשלחה לחתימה". The drawer shows "גרסה: מתוקנת". QA: the scratchpad's `qa-revise.cjs`.
 **Flow:** `docs-create` cleans the input (`cleanDocInput`), links the CRM lead (the given id, else the newest lead with that phone /
 email — never a new lead), numbers the document and writes `created` on the lead. `docs-send {id, via}` makes the private token
 (kept only as a hash), freezes the clauses on the row, renders the PDF the client signs (stored, its SHA-256 on the row), and
