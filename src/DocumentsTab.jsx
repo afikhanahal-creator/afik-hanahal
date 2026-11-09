@@ -253,7 +253,7 @@ select.dt-input{appearance:auto}
 .dt-wed-bub{white-space:pre-wrap;font-size:14px;line-height:1.55;border-radius:14px;padding:12px 14px;background:#D9FDD3;color:#111b21;min-height:120px}
 html[data-admin-theme=dark] .dt-wed-bub{background:#005c4b;color:#e9edef}
 @media (max-width:760px){.dt-wed{grid-template-columns:1fr}}
-.dt-del-row{display:flex;gap:10px;align-items:center}.dt-ib-del:hover{color:var(--au-red-text)}
+.dt-del-row{display:flex;gap:10px;align-items:center}.dt-card-acts{display:flex;gap:8px;margin-top:4px;padding-top:8px;border-top:1px solid var(--au-line)}.dt-card-btn{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:40px;border-radius:10px;border:1px solid var(--au-line);background:var(--au-pop);color:var(--au-text);font:inherit;font-size:13.5px;font-weight:600;cursor:pointer}.dt-card-btn:first-child{border-color:rgba(var(--brand-rgb),.35);background:rgba(var(--brand-rgb),.08);color:var(--au-brand-text)}.dt-card-btn:disabled{opacity:.6}.dt-ib-del:hover{color:var(--au-red-text)}
 .dw-legal{border:1.5px solid rgba(245,166,35,.55);background:rgba(245,166,35,.07);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:10px}
 .dw-legal.ok{border-color:rgba(37,211,102,.45);background:rgba(37,211,102,.06)}.dw-legal.later{border-color:rgba(var(--brand-rgb),.35);background:rgba(var(--brand-rgb),.05)}
 .dw-legal.err{border-color:var(--au-red-text);background:rgba(224,82,82,.07)}
@@ -377,6 +377,16 @@ export default function DocumentsTab({ lang = 'he', leads = [], properties = [],
     else if (!window.confirm(`למחוק לצמיתות את ${d.number} (${d.client_name || 'ללא שם'})?${['sent', 'opened'].includes(st) ? '\nהקישור שנשלח ללקוח יפסיק לעבוד.' : ''}`)) return false
     try { const r = await api.post('docs-delete', { id: d.id }); if (r.error) throw new Error(r.error); push(`המסמך ${d.number} נמחק`); if (open === d.id) setOpen(null); load(); return true } catch (e) { push(e.message); return false }
   }
+  // edit from the list (a phone has no drawer button in view): a draft opens the wizard; a sent, unsigned one is reopened first
+  const editable = d => ['draft', 'failed'].includes(d.status) || canRevise(d)
+  const [editBusy, setEditBusy] = useState('')
+  const editDoc = async d => {
+    if (['draft', 'failed'].includes(d.status)) { setOpen(null); setWizard({ doc: d }); return }
+    if (!canRevise(d)) { push(d.status === 'signed' ? 'מסמך חתום לא עורכים — אפשר ליצור מסמך חדש' : 'אי אפשר לערוך את המסמך הזה'); return }
+    if (!window.confirm(t.reviseAsk)) return
+    setEditBusy(d.id)
+    try { const r = await api.post('docs-reopen', { id: d.id }); if (r.error) throw new Error(r.error); setOpen(null); load(); setWizard({ doc: r.doc }) } catch (e) { push(e.message) } finally { setEditBusy('') }
+  }
   const cur = docs.find(d => d.id === open) || null
   return (
     <div className="dt">
@@ -459,6 +469,7 @@ export default function DocumentsTab({ lang = 'he', leads = [], properties = [],
                 <td><span className="dt-num">{d.signed_at ? whenHe(d.signed_at) : '—'}</span></td>
                 <td onClick={e => e.stopPropagation()}><div className="dt-acts">
                   <button type="button" className="dt-ib" title={st === 'signed' ? 'צפייה במסמך החתום והורדה' : 'צפייה במסמך והורדה'} aria-label={`צפייה ב-${d.number}`} onClick={() => setViewFile({ id: d.id, number: d.number, title: d.data?.title, signed: st === 'signed' })}><FileText size={14}/></button>
+                  {editable(d) && <button type="button" className="dt-ib" title={d.status === 'draft' ? 'עריכה' : t.revise} aria-label={`עריכה ${d.number}`} disabled={editBusy === d.id} onClick={() => editDoc(d)}><PenLine size={14}/></button>}
                   {['sent', 'opened', 'expired', 'failed', 'draft'].includes(st) && <button type="button" className="dt-ib" title={t.resend} aria-label={t.resend} onClick={() => setOpen(d.id)}><Send size={14}/></button>}
                   <button type="button" className="dt-ib" title={t.open} aria-label={t.open} onClick={() => openDoc(d)}><Eye size={14}/></button>
                   <button type="button" className="dt-ib dt-ib-del" title="מחיקה" aria-label={`מחיקה ${d.number}`} onClick={() => deleteDoc(d)}><Trash2 size={14}/></button>
@@ -470,6 +481,10 @@ export default function DocumentsTab({ lang = 'he', leads = [], properties = [],
               <div className="r"><b style={{ fontWeight: 600 }}>{d.client_name || '—'}</b><span className="dt-st" style={{ background: `${TONE[st]}1F`, color: TONE[st] }}>{t.st[st]}</span></div>
               <div className="r" style={{ fontSize: 12.5, color: 'var(--au-text3)' }}><span>{propLine(d.data) || d.number}</span><span className="dt-num">{fmtMoney(f.total)}</span></div>
               <div className="r" style={{ fontSize: 12, color: 'var(--au-text3)' }}><span className="dt-num">{d.number}{d.project_name ? ` · ${d.project_name}` : ''}</span><span className="dt-del-row"><span className="dt-num">{todayHe(d.created_at)}</span><button type="button" className="dt-ib" aria-label={`צפייה ב-${d.number}`} title="צפייה במסמך והורדה" onClick={e => { e.stopPropagation(); setViewFile({ id: d.id, number: d.number, title: d.data?.title, signed: st === 'signed' }) }}><FileText size={13}/></button><button type="button" className="dt-ib dt-ib-del" aria-label={`מחיקה ${d.number}`} onClick={e => { e.stopPropagation(); deleteDoc(d) }}><Trash2 size={13}/></button></span></div>
+              {editable(d) && <div className="dt-card-acts" onClick={e => e.stopPropagation()}>
+                <button type="button" className="dt-card-btn" disabled={editBusy === d.id} onClick={() => editDoc(d)}><PenLine size={14}/>{editBusy === d.id ? 'פותח…' : d.status === 'draft' || d.status === 'failed' ? 'עריכה' : t.revise}</button>
+                <button type="button" className="dt-card-btn" onClick={() => openDoc(d)}><Send size={14}/>{d.status === 'draft' ? 'שליחה' : t.resend}</button>
+              </div>}
             </div>) })}</div>
         </>
       ))}
