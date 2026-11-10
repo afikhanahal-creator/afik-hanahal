@@ -12,7 +12,7 @@ import { T, Button, IconButton, StatTile, FilterChip, Badge, EmptyState, Field, 
 import { autoApi } from './AutomationsApi.jsx'
 import DocSheet, { DOC_CSS } from './DocPreview.jsx'
 import { onSync } from './lib/syncBus.js'
-import { canRevise, clauseSet, agentOfDoc, docAgent, defaultAgent, agentsFromSettings, clientLegalIssues, SIGN_MESSAGES, SIGN_MESSAGE_IDS, signMessage, signMessageList, signMessageCtx, renderWording, WORDING_GROUPS, WORDING_VARS, signMessagePreview, suggestSignMessage, docFunnel, fmtHours, docMonthKey, verifyLabel, computeFees, renderClauses, cleanDocInput, DEFAULT_CLAUSES, DOC_TYPES, CLIENT_ROLES, DEAL_TYPES, FEE_MODES, STATUS_HE, EVENT_HE, DEFAULT_VAT, docStats, effectiveStatus, fmtMoney, fmtPct, whenHe, todayHe, placeholderValues, PLACEHOLDERS, SIGNER_ROLES, MAX_SIGNERS, signerProgressText, signerInfo, DEFAULT_REMINDERS, DEFAULT_NOTIFY_ON, propertyToDoc, cleanNote, feeShare } from '../lib/documents.js'
+import { canRevise, clauseSet, agentOfDoc, docAgent, defaultAgent, agentsFromSettings, clientLegalIssues, SIGN_MESSAGES, SIGN_MESSAGE_IDS, signMessage, signMessageList, signMessageCtx, renderWording, WORDING_GROUPS, WORDING_VARS, signMessagePreview, suggestSignMessage, docFunnel, fmtHours, docMonthKey, verifyLabel, computeFees, renderClauses, cleanDocInput, DEFAULT_CLAUSES, DOC_TYPES, CLIENT_ROLES, DEAL_TYPES, FEE_MODES, STATUS_HE, EVENT_HE, DEFAULT_VAT, docStats, effectiveStatus, fmtMoney, fmtPct, whenHe, todayHe, placeholderValues, PLACEHOLDERS, SIGNER_ROLES, MAX_SIGNERS, signerProgressText, signerInfo, DEFAULT_REMINDERS, DEFAULT_NOTIFY_ON, propertyToDoc, cleanNote, feeShare, REMIND_MESSAGES, REMIND_GROUPS, remindMessageList, reminderPreview, suggestReminder, shortWhenHe } from '../lib/documents.js'
 import { leadProperty } from '../lib/automations-shared.js'
 import { useProjects } from './lib/projectsStore.js'
 import { projectOfLead } from '../lib/projects.js'
@@ -253,7 +253,7 @@ select.dt-input{appearance:auto}
 .dt-wed-bub{white-space:pre-wrap;font-size:14px;line-height:1.55;border-radius:14px;padding:12px 14px;background:#D9FDD3;color:#111b21;min-height:120px}
 html[data-admin-theme=dark] .dt-wed-bub{background:#005c4b;color:#e9edef}
 @media (max-width:760px){.dt-wed{grid-template-columns:1fr}}
-.dt-del-row{display:flex;gap:10px;align-items:center}.dt-card-acts{display:flex;gap:8px;margin-top:4px;padding-top:8px;border-top:1px solid var(--au-line)}.dt-card-btn{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:40px;border-radius:10px;border:1px solid var(--au-line);background:var(--au-pop);color:var(--au-text);font:inherit;font-size:13.5px;font-weight:600;cursor:pointer}.dt-card-btn:first-child{border-color:rgba(var(--brand-rgb),.35);background:rgba(var(--brand-rgb),.08);color:var(--au-brand-text)}.dt-card-btn:disabled{opacity:.6}.dt-ib-del:hover{color:var(--au-red-text)}
+.dt-del-row{display:flex;gap:10px;align-items:center}.dt-opened{display:inline-flex;align-items:center;gap:4px;color:var(--au-green-text);white-space:nowrap;font-variant-numeric:tabular-nums}.dt-card-open{font-size:12px;color:var(--au-text3)}.dd-rem{display:flex;flex-direction:column;gap:8px;padding:12px;border:1px solid var(--au-line);border-radius:12px;background:rgba(var(--ov),.025)}.dd-rem-l{font-size:12.5px;color:var(--au-text3)}.dd-rem-grp{display:flex;flex-direction:column;gap:4px}.dd-rem-grp>span{font-size:11.5px;font-weight:600;color:var(--au-text3)}.dd-rem-foot{display:flex;gap:8px;justify-content:space-between;align-items:center;flex-wrap:wrap;font-size:11.5px;color:var(--au-text3)}.dd-rem-send{display:flex;gap:6px;flex-wrap:wrap}@media(max-width:640px){.dd-rem-send>*{flex:1 1 140px;min-height:42px}}.dt-card-acts{display:flex;gap:8px;margin-top:4px;padding-top:8px;border-top:1px solid var(--au-line)}.dt-card-btn{flex:1;display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:40px;border-radius:10px;border:1px solid var(--au-line);background:var(--au-pop);color:var(--au-text);font:inherit;font-size:13.5px;font-weight:600;cursor:pointer}.dt-card-btn:first-child{border-color:rgba(var(--brand-rgb),.35);background:rgba(var(--brand-rgb),.08);color:var(--au-brand-text)}.dt-card-btn:disabled{opacity:.6}.dt-ib-del:hover{color:var(--au-red-text)}
 .dw-legal{border:1.5px solid rgba(245,166,35,.55);background:rgba(245,166,35,.07);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:10px}
 .dw-legal.ok{border-color:rgba(37,211,102,.45);background:rgba(37,211,102,.06)}.dw-legal.later{border-color:rgba(var(--brand-rgb),.35);background:rgba(var(--brand-rgb),.05)}
 .dw-legal.err{border-color:var(--au-red-text);background:rgba(224,82,82,.07)}
@@ -417,6 +417,7 @@ export default function DocumentsTab({ lang = 'he', leads = [], properties = [],
         </div>
       )}
       {area === 'templates' && <WordingsLibrary settings={settings} push={push} onSaved={s => setSettings(s)}/>}
+      {area === 'templates' && <WordingsLibrary kind="remind" settings={settings} push={push} onSaved={s => setSettings(s)}/>}
       {area === 'overview' && <FunnelCard docs={scoped} onMonth={m => { setMonthF(m.key); setFilter('all'); setRange('all'); setArea('docs') }}/>}
       {area === 'overview' && (
         <div className="dt-break">
@@ -463,7 +464,7 @@ export default function DocumentsTab({ lang = 'he', leads = [], properties = [],
                 <td><span className="dt-num">{todayHe(d.created_at)}</span></td>
                 <td><span className="dt-num">{d.sent_at ? todayHe(d.sent_at) : '—'}</span></td>
                 <td style={{ fontSize: 12 }}>{via.map(v => v === 'whatsapp' ? 'וואטסאפ' : 'אימייל').join(' + ') || '—'}</td>
-                <td style={{ fontSize: 12 }}>{d.opened_at || st === 'opened' || st === 'signed' ? <span style={{ color: 'var(--au-green-text)' }}>נפתח</span> : d.sent_at ? <span style={{ color: 'var(--au-text3)' }}>לא נפתח</span> : '—'}</td>
+                <td style={{ fontSize: 12 }}>{d.opened_at ? <span className="dt-opened" title={`נפתח לראשונה ${whenHe(d.opened_at)}`}><Eye size={12}/> {shortWhenHe(d.opened_at)}</span> : st === 'opened' || st === 'signed' ? <span style={{ color: 'var(--au-green-text)' }}>נפתח</span> : d.sent_at ? <span style={{ color: 'var(--au-text3)' }}>לא נפתח</span> : '—'}</td>
                 <td><span className="dt-st" style={{ background: `${TONE[st]}1F`, color: st === 'draft' || st === 'cancelled' ? 'var(--au-text2)' : TONE[st] }}><Ic size={12}/>{t.st[st]}</span>{signerProgressText(d) && <span className="dt-sg" title={t.signers.progress}>{signerProgressText(d)}</span>}</td>
                 <td onClick={e => e.stopPropagation()}><DriveMark t={t} doc={d}/></td>
                 <td><span className="dt-num">{d.signed_at ? whenHe(d.signed_at) : '—'}</span></td>
@@ -481,6 +482,7 @@ export default function DocumentsTab({ lang = 'he', leads = [], properties = [],
               <div className="r"><b style={{ fontWeight: 600 }}>{d.client_name || '—'}</b><span className="dt-st" style={{ background: `${TONE[st]}1F`, color: TONE[st] }}>{t.st[st]}</span></div>
               <div className="r" style={{ fontSize: 12.5, color: 'var(--au-text3)' }}><span>{propLine(d.data) || d.number}</span><span className="dt-num">{fmtMoney(f.total)}</span></div>
               <div className="r" style={{ fontSize: 12, color: 'var(--au-text3)' }}><span className="dt-num">{d.number}{d.project_name ? ` · ${d.project_name}` : ''}</span><span className="dt-del-row"><span className="dt-num">{todayHe(d.created_at)}</span><button type="button" className="dt-ib" aria-label={`צפייה ב-${d.number}`} title="צפייה במסמך והורדה" onClick={e => { e.stopPropagation(); setViewFile({ id: d.id, number: d.number, title: d.data?.title, signed: st === 'signed' }) }}><FileText size={13}/></button><button type="button" className="dt-ib dt-ib-del" aria-label={`מחיקה ${d.number}`} onClick={e => { e.stopPropagation(); deleteDoc(d) }}><Trash2 size={13}/></button></span></div>
+              {d.sent_at && <div className="r dt-card-open">{d.opened_at ? <span className="dt-opened"><Eye size={12}/> נפתח {shortWhenHe(d.opened_at)}</span> : st === 'signed' || st === 'opened' ? <span className="dt-opened"><Eye size={12}/> נפתח</span> : <span>עוד לא נפתח</span>}<span>נשלח {shortWhenHe(d.sent_at)}</span></div>}
               {editable(d) && <div className="dt-card-acts" onClick={e => e.stopPropagation()}>
                 <button type="button" className="dt-card-btn" disabled={editBusy === d.id} onClick={() => editDoc(d)}><PenLine size={14}/>{editBusy === d.id ? 'פותח…' : d.status === 'draft' || d.status === 'failed' ? 'עריכה' : t.revise}</button>
                 <button type="button" className="dt-card-btn" onClick={() => openDoc(d)}><Send size={14}/>{d.status === 'draft' ? 'שליחה' : t.resend}</button>
@@ -508,19 +510,29 @@ export default function DocumentsTab({ lang = 'he', leads = [], properties = [],
 /** The wordings library in the templates area: a card per wording, grouped (buyers · renters · sellers · general), rendered
  *  for a sample document; a click opens the editor; "+ נוסח חדש" makes the office's own. Edits live in settings.signMessages. */
 const SAMPLE_DOC = { data: { client: { name: 'רונן כהן', role: 'buyer' }, property: { address: 'זרובבל 15', city: 'רעננה', dealType: 'sale' } }, expires_at: Date.now() + 14 * 864e5 }
-function WordingsLibrary({ settings, onSaved, push }) {
+/** the two wording libraries: the message sent with the signing link, and the follow-up reminders to whoever hasn't signed */
+const WORD_KINDS = {
+  sign: { list: signMessageList, groups: WORDING_GROUPS, key: 'signMessages', builtins: SIGN_MESSAGES, prefix: 'w_', defGroup: 'buy', title: 'נוסחי ההודעה לשליחה לחתימה',
+    sub: 'ההודעה שהלקוח מקבל עם הקישור, בוואטסאפ ובאימייל. כל נוסח ניתן לעריכה, ואפשר להוסיף משלכם. הפתיחה ("היי <שם>,"), שורת הקישור, התוקף והחתימה נוספים לבד.',
+    preview: (doc, id, s) => signMessagePreview(doc, { messageId: id }, s), frame: 'הפתיחה, הקישור והחתימה נוספים לבד', newPh: 'למשל: קונים, לפני סיור' },
+  remind: { list: remindMessageList, groups: REMIND_GROUPS, key: 'remindMessages', builtins: REMIND_MESSAGES, prefix: 'wr_', defGroup: 'first', title: 'תזכורות למי שעוד לא חתם',
+    sub: 'הודעות פולואפ קצרות ונחמדות לחותם שעוד לא חתם. נשלחות לבד לפי ההגדרות (תזכורות והתראות), או ידנית מכרטיס המסמך עם "שליחת תזכורת". הפתיחה ("היי <שם>,") והקישור נוספים לבד.',
+    preview: (doc, id, s) => reminderPreview(doc, { messageId: id }, s), frame: 'הפתיחה והקישור נוספים לבד', newPh: 'למשל: אחרי שיחה, תזכורת קלילה' },
+}
+function WordingsLibrary({ settings, onSaved, push, kind = 'sign' }) {
+  const K = WORD_KINDS[kind]
   const [edit, setEdit] = useState(null)   // { wording } | { create: true }
-  const list = useMemo(() => signMessageList(settings), [settings])
-  const groups = Object.keys(WORDING_GROUPS)
+  const list = useMemo(() => K.list(settings), [settings, K])
+  const groups = Object.keys(K.groups)
   return (
-    <div className="dt-words">
+    <div className="dt-words" data-kind={kind}>
       <div className="dt-words-head">
-        <div><b>נוסחי ההודעה לשליחה לחתימה</b><small>ההודעה שהלקוח מקבל עם הקישור, בוואטסאפ ובאימייל. כל נוסח ניתן לעריכה, ואפשר להוסיף משלכם. הפתיחה ("היי &lt;שם&gt;,"), שורת הקישור, התוקף והחתימה נוספים לבד.</small></div>
+        <div><b>{kind === 'remind' && <Bell size={14} style={{ verticalAlign: '-2px', marginInlineEnd: 6 }}/>}{K.title}</b><small>{K.sub}</small></div>
         <Button variant="solid" size="sm" icon={<Plus size={13}/>} onClick={() => setEdit({ create: true })}>נוסח חדש</Button>
       </div>
       {groups.map(g => { const rows = list.filter(m => m.group === g); return rows.length ? (
         <div key={g} className="dt-words-grp">
-          <h4>{WORDING_GROUPS[g]} <span>{rows.length}</span></h4>
+          <h4>{K.groups[g]} <span>{rows.length}</span></h4>
           <div className="dt-tpls">
             {rows.map(m => <button type="button" key={m.id} className="dt-tpl dt-word" onClick={() => setEdit({ wording: m })}>
               <div className="dt-tpl-top"><b>{m.title}</b>{m.custom ? <span className="dt-st" style={{ background: 'rgba(var(--brand-rgb),.12)', color: 'var(--au-brand-text)' }}>משלכם</span> : m.edited ? <span className="dt-st" style={{ background: 'rgba(245,166,35,.14)', color: 'var(--au-amber-text)' }}>נערך</span> : null}</div>
@@ -530,20 +542,21 @@ function WordingsLibrary({ settings, onSaved, push }) {
             </button>)}
           </div>
         </div>) : null })}
-      {edit && <WordingEditor wording={edit.wording || null} settings={settings} onClose={() => setEdit(null)} push={push} onSaved={s => { onSaved(s); setEdit(null) }}/>}
+      {edit && <WordingEditor kind={kind} wording={edit.wording || null} settings={settings} onClose={() => setEdit(null)} push={push} onSaved={s => { onSaved(s); setEdit(null) }}/>}
     </div>
   )
 }
 /** Edit one wording: title, group, hint, the body with placeholder chips, a live preview of the whole message for a sample
  *  client; save (an override of a built-in, or the office's own), restore the original, delete an own wording. */
-function WordingEditor({ wording, settings, onClose, onSaved, push }) {
-  const builtin = wording ? SIGN_MESSAGES.find(m => m.id === wording.id) : null
-  const [f, setF] = useState(() => wording ? { title: wording.title, hint: wording.hint || '', body: wording.body, group: wording.group || 'general' } : { title: '', hint: '', body: '', group: 'buy' })
+function WordingEditor({ wording, settings, onClose, onSaved, push, kind = 'sign' }) {
+  const K = WORD_KINDS[kind]
+  const builtin = wording ? K.builtins.find(m => m.id === wording.id) : null
+  const [f, setF] = useState(() => wording ? { title: wording.title, hint: wording.hint || '', body: wording.body, group: wording.group || Object.keys(K.groups)[0] } : { title: '', hint: '', body: '', group: K.defGroup })
   const [busy, setBusy] = useState('')
   const ta = useRef(null)
-  const id = wording?.id || `w_${Date.now().toString(36)}`
-  const draftSettings = useMemo(() => ({ ...(settings || {}), signMessages: { ...((settings || {}).signMessages || {}), [id]: { ...f } } }), [settings, f, id])
-  const preview = useMemo(() => (f.body.trim() ? signMessagePreview(SAMPLE_DOC, { messageId: id }, draftSettings) : ''), [draftSettings, id, f.body])
+  const [id] = useState(() => wording?.id || `${K.prefix}${Date.now().toString(36)}`)
+  const draftSettings = useMemo(() => ({ ...(settings || {}), [K.key]: { ...((settings || {})[K.key] || {}), [id]: { ...f } } }), [settings, f, id, K])
+  const preview = useMemo(() => (f.body.trim() ? K.preview(SAMPLE_DOC, id, draftSettings) : ''), [draftSettings, id, f.body, K])
   const insert = tok => {
     const el = ta.current; const v = f.body
     if (!el) { setF(x => ({ ...x, body: v + tok })); return }
@@ -553,7 +566,7 @@ function WordingEditor({ wording, settings, onClose, onSaved, push }) {
   }
   const save = async (patch, msg) => {
     setBusy('save')
-    try { const r = await api.post('docs-settings', { signMessages: patch }); if (r.error) throw new Error(r.error); push(msg); onSaved(r.settings) } catch (e) { push(e.message) } finally { setBusy('') }
+    try { const r = await api.post('docs-settings', { [K.key]: patch }); if (r.error) throw new Error(r.error); push(msg); onSaved(r.settings) } catch (e) { push(e.message) } finally { setBusy('') }
   }
   const issues = []
   if (!f.title.trim()) issues.push('חסר שם לנוסח')
@@ -575,11 +588,11 @@ function WordingEditor({ wording, settings, onClose, onSaved, push }) {
       <div className="dt-wed">
         <div className="dt-wed-form">
           <div className="dw-grid">
-            <Field label="שם הנוסח"><input className="dt-input" value={f.title} placeholder="למשל: קונים, לפני סיור" aria-label="שם הנוסח" onChange={e => setF(x => ({ ...x, title: e.target.value }))}/></Field>
-            <Field label="קבוצה"><div className="dw-chips">{Object.entries(WORDING_GROUPS).map(([k, v]) => <button type="button" key={k} className={`dw-chip${f.group === k ? ' on' : ''}`} onClick={() => setF(x => ({ ...x, group: k }))}>{v}</button>)}</div></Field>
+            <Field label="שם הנוסח"><input className="dt-input" value={f.title} placeholder={K.newPh} aria-label="שם הנוסח" onChange={e => setF(x => ({ ...x, title: e.target.value }))}/></Field>
+            <Field label="קבוצה"><div className="dw-chips">{Object.entries(K.groups).map(([k, v]) => <button type="button" key={k} className={`dw-chip${f.group === k ? ' on' : ''}`} onClick={() => setF(x => ({ ...x, group: k }))}>{v}</button>)}</div></Field>
             <div className="full"><Field label="מתי משתמשים (שורה קצרה, למשרד)"><input className="dt-input" value={f.hint} placeholder="למשל: הנוהל לפי חוק המתווכים לפני שמציגים נכס" aria-label="מתי משתמשים" onChange={e => setF(x => ({ ...x, hint: e.target.value }))}/></Field></div>
           </div>
-          <Field label="גוף ההודעה (שורה או שתיים; הפתיחה, הקישור והחתימה נוספים לבד)">
+          <Field label={`גוף ההודעה (שורה או שתיים; ${K.frame})`}>
             <div className="dw-chips" style={{ marginBottom: 6 }}>{Object.entries(WORDING_VARS).map(([k, v]) => <button type="button" key={k} className="dw-chip" title={v} onClick={() => insert(`{${k}}`)}>{`{${k}}`} · {v}</button>)}</div>
             <textarea ref={ta} className="dt-input dw-msg-text" rows={6} value={f.body} aria-label="גוף ההודעה" onChange={e => setF(x => ({ ...x, body: e.target.value }))}/>
           </Field>
@@ -680,6 +693,40 @@ function PropertyFinder({ properties, value = '', label = '', onPick, placeholde
           </button>)}
         {!rows.length && <div className="dw-finder-none">לא נמצא נכס כזה — אפשר לבחור "{noneLabel}" ולמלא ידנית</div>}
       </div>}
+    </div>
+  )
+}
+
+/** "שליחת תזכורת" in the drawer: the reminder wordings as chips by when they fit (the suggested one marked), the rendered text
+ *  to edit, then WhatsApp / email / both — to the signer whose turn it is, with the same personal link they already have. */
+function ReminderComposer({ doc, settings, busy, onSend }) {
+  const lib = useMemo(() => remindMessageList(settings), [settings])
+  const info = signerInfo(doc)
+  const d = doc.data || {}
+  const who = info.list?.[info.index] || { name: d.client?.name, phone: d.client?.phone, email: d.client?.email }
+  const phone = who.phone || (info.index === 0 ? d.client?.phone : ''), email = who.email || (info.index === 0 ? d.client?.email : '')
+  const step = ((d.signing?.reminders || []).filter(r => (r.signer ?? 0) === (info.index || 0)).length) + 1
+  const suggested = useMemo(() => suggestReminder(doc, { step, signer: who }, settings), [doc, step, settings]) // eslint-disable-line react-hooks/exhaustive-deps
+  const [id, setId] = useState(suggested)
+  const [edited, setEdited] = useState(null)
+  const rendered = useMemo(() => reminderPreview(doc, { messageId: id, signer: who, step }, settings), [doc, id, step, settings]) // eslint-disable-line react-hooks/exhaustive-deps
+  const text = edited ?? rendered
+  const send = via => onSend({ messageId: id, text: edited != null && edited !== rendered ? edited : '', via })
+  return (
+    <div className="dd-rem">
+      <small className="dd-rem-l">{info.total > 1 ? `ל${who.name || 'החותם'} (תורו לחתום) · ` : ''}בחרו נוסח קצר, ואפשר לערוך לפני השליחה</small>
+      {Object.entries(REMIND_GROUPS).map(([g, gl]) => { const rows = lib.filter(m => m.group === g); return rows.length ? (
+        <div key={g} className="dd-rem-grp"><span>{gl}</span>
+          <div className="dw-chips">{rows.map(m => <button type="button" key={m.id} className={`dw-chip${m.id === id ? ' on' : ''}`} aria-pressed={m.id === id} title={m.hint} onClick={() => { setId(m.id); setEdited(null) }}>{m.title}{m.id === suggested ? ' · מומלץ' : ''}</button>)}</div>
+        </div>) : null })}
+      <textarea className="dt-input dw-msg-text" rows={Math.min(8, text.split('\n').length + 1)} value={text} aria-label="נוסח התזכורת" onChange={e => setEdited(e.target.value)}/>
+      <div className="dd-rem-foot"><span>{'{link}'} = הקישור האישי, אותו קישור שכבר אצלם</span>{edited != null && edited !== rendered && <button type="button" className="dt-link" onClick={() => setEdited(null)}>שחזור הנוסח</button>}</div>
+      <div className="dd-rem-send">
+        {phone && <Button size="sm" variant="soft-green" icon={<MessageCircle size={12}/>} loading={busy} onClick={() => send(['whatsapp'])}>שליחה בוואטסאפ</Button>}
+        {email && <Button size="sm" variant="ghost" icon={<Mail size={12}/>} loading={busy} onClick={() => send(['email'])}>באימייל</Button>}
+        {phone && email && <Button size="sm" variant="ghost" loading={busy} onClick={() => send(['whatsapp', 'email'])}>בשניהם</Button>}
+        {!phone && !email && <span style={{ fontSize: 12.5, color: 'var(--au-red-text)' }}>אין לחותם טלפון או אימייל</span>}
+      </div>
     </div>
   )
 }
@@ -1436,7 +1483,8 @@ function DocDrawer({ t, doc, onClose, onChanged, push, onOpenLead, leads, onEdit
   const [msg, setMsg] = useState(null)
   const [viewKind, setViewKind] = useState('')
   const [dlBusy, setDlBusy] = useState('')
-  useEffect(() => { setFull(null); setLink(''); setVia(null); setMsg(null); if (doc?.id) api.get('docs-get', { id: doc.id }).then(setFull).catch(e => push(e.message)) }, [doc?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  const [remOpen, setRemOpen] = useState(false)
+  useEffect(() => { setFull(null); setLink(''); setVia(null); setMsg(null); setRemOpen(false); if (doc?.id) api.get('docs-get', { id: doc.id }).then(setFull).catch(e => push(e.message)) }, [doc?.id]) // eslint-disable-line react-hooks/exhaustive-deps
   if (!doc) return null
   const st = effectiveStatus(doc), d = doc.data || {}, f = computeFees(d.fees || {})
   const lead = doc.lead_id ? leads.find(l => String(l.id) === String(doc.lead_id)) : null
@@ -1463,6 +1511,7 @@ function DocDrawer({ t, doc, onClose, onChanged, push, onOpenLead, leads, onEdit
           {d.revision > 0 && <><span>גרסה</span><b>מתוקנת{d.revision > 1 ? ` (${d.revision})` : ''}{d.revisedAt ? ` · ${whenHe(d.revisedAt)}` : ''}</b></>}
           <span>נוצר</span><b>{whenHe(doc.created_at)}</b>
           {doc.sent_at && <><span>נשלח</span><b>{whenHe(doc.sent_at)}</b></>}
+          {doc.sent_at && <><span>נפתח</span><b style={doc.opened_at ? { color: 'var(--au-green-text)' } : { color: 'var(--au-text3)', fontWeight: 500 }}>{doc.opened_at ? whenHe(doc.opened_at) : st === 'signed' ? 'נפתח' : 'עוד לא נפתח'}</b></>}
           {doc.expires_at && st !== 'signed' && <><span>תוקף הקישור</span><b>{todayHe(doc.expires_at)}</b></>}
         </div>
         <div className="dd-sec"><SectionHead title={t.drawer.files}/><div className="dd-files">
@@ -1491,11 +1540,12 @@ function DocDrawer({ t, doc, onClose, onChanged, push, onOpenLead, leads, onEdit
         {signerInfo(doc).total > 1 && <div className="dd-sec"><SectionHead title={<><Users size={14}/> חותמים · {signerProgressText(doc)} {t.signers.progress}</>}/>
           <div className="dd-signers">{signerInfo(doc).list.map((sg, i) => <div key={i} className={`dd-signer${i === signerInfo(doc).index && st !== 'signed' ? ' cur' : ''}${sg.status === 'signed' ? ' ok' : ''}`}>
             <b>{i + 1}. {sg.name}</b><span>{SIGNER_ROLES[sg.role] || SIGNER_ROLES.other}</span>
-            <em>{sg.status === 'signed' ? `${t.signers.signed} · ${whenHe(sg.signed_at)}` : i === signerInfo(doc).index && ['sent', 'opened'].includes(st) ? `${t.signers.current} · ${sg.status === 'opened' ? t.signers.opened : t.signers.sent}` : t.signers.waiting}</em>
+            <em>{sg.status === 'signed' ? `${t.signers.signed} · ${whenHe(sg.signed_at)}` : i === signerInfo(doc).index && ['sent', 'opened'].includes(st) ? `${t.signers.current} · ${sg.status === 'opened' ? `${t.signers.opened}${sg.opened_at ? ` ${shortWhenHe(sg.opened_at)}` : ''}` : t.signers.sent}` : t.signers.waiting}</em>
           </div>)}</div>
         </div>}
-        {['sent', 'opened'].includes(st) && <div className="dd-sec"><SectionHead title={<><Bell size={14}/> תזכורות</>} right={<Button size="sm" variant="ghost" loading={busy === 'docs-remind'} onClick={() => act('docs-remind', { now: true }, t.remind.nowOk)}>{t.remind.now}</Button>}/>
-          {(d.signing?.reminders || []).length ? d.signing.reminders.slice().reverse().map((r, i) => <div key={i} className="dd-ev"><time>{whenHe(r.at)}</time><span>תזכורת {r.step === 'manual' ? 'ידנית' : r.step} · {(r.via || []).map(v => v === 'whatsapp' ? t.send.wa : t.send.email).join(' + ') || '—'}{r.ok === false ? ' · נכשלה' : ''}</span></div>) : <span style={{ fontSize: 12.5, color: 'var(--au-text3)' }}>{t.remind.none}</span>}
+        {['sent', 'opened'].includes(st) && <div className="dd-sec"><SectionHead title={<><Bell size={14}/> תזכורות</>} right={<Button size="sm" variant={remOpen ? 'ghost' : 'soft-green'} icon={remOpen ? <X size={12}/> : <Send size={12}/>} onClick={() => setRemOpen(o => !o)}>{remOpen ? 'סגירה' : t.remind.now}</Button>}/>
+          {remOpen && <ReminderComposer doc={doc} settings={settings} busy={busy === 'docs-remind'} onSend={async p => { const r = await act('docs-remind', { now: true, ...p }, ''); if (r?.ok) { push(t.remind.nowOk); setRemOpen(false) } else if (r) push('התזכורת לא נשלחה. בדקו את חיבור הוואטסאפ / האימייל ונסו שוב.') }}/>}
+          {(d.signing?.reminders || []).length ? d.signing.reminders.slice().reverse().map((r, i) => <div key={i} className="dd-ev"><time>{whenHe(r.at)}</time><span>תזכורת {r.step === 'manual' ? 'ידנית' : r.step}{r.wording ? ` · ${r.wording}` : ''} · {(r.via || []).map(v => v === 'whatsapp' ? t.send.wa : t.send.email).join(' + ') || '—'}{r.ok === false ? ' · נכשלה' : ''}</span></div>) : <span style={{ fontSize: 12.5, color: 'var(--au-text3)' }}>{t.remind.none}</span>}
           <label className="dt-tog" style={{ marginTop: 6 }}><input type="checkbox" checked={!!d.signing?.noRemind} onChange={e => act('docs-remind', { off: e.target.checked })}/> {d.signing?.noRemind ? t.remind.offOn : t.remind.off}</label>
         </div>}
         {(d.drive || (full?.drive?.connected)) && <div className="dd-sec"><SectionHead title={<><Cloud size={14}/> {t.drive.title}</>} right={<Button size="sm" variant="ghost" loading={busy === 'docs-drive-sync'} onClick={() => act('docs-drive-sync', {}, null)}>{t.drive.sync}</Button>}/>
@@ -1678,6 +1728,10 @@ function DocSettings({ t, tab: initTab, settings, wiring, onClose, onSaved }) {
             <Field label={t.remind.hours}><div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><span style={{ fontSize: 12.5 }}>{t.remind.from}</span><input className="dt-input" dir="ltr" inputMode="numeric" style={{ width: 70 }} value={f.reminders.from} aria-label={t.remind.from} onChange={e => setF(x => ({ ...x, reminders: { ...x.reminders, from: e.target.value.replace(/\D/g, '') } }))}/><span style={{ fontSize: 12.5 }}>{t.remind.to}</span><input className="dt-input" dir="ltr" inputMode="numeric" style={{ width: 70 }} value={f.reminders.to} aria-label={t.remind.to} onChange={e => setF(x => ({ ...x, reminders: { ...x.reminders, to: e.target.value.replace(/\D/g, '') } }))}/></div></Field>
           </div>
           <p style={{ margin: 0, fontSize: 12.5, color: 'var(--au-text3)', lineHeight: 1.6 }}>{t.remind.hint}</p>
+          <SectionHead title="הנוסח של כל תזכורת"/>
+          <div className="dw-grid">{Object.entries(REMIND_GROUPS).map(([g, gl]) => <Field key={g} label={gl}><select className="dt-input" value={f.reminders.wording?.[g] || ''} aria-label={`הנוסח: ${gl}`} onChange={e => setF(x => ({ ...x, reminders: { ...x.reminders, wording: { ...(x.reminders.wording || {}), [g]: e.target.value } } }))}>
+            <option value="">אוטומטי (מומלץ)</option>{remindMessageList(settings).filter(m => m.group === g).map(m => <option key={m.id} value={m.id}>{m.title}</option>)}</select></Field>)}</div>
+          <p style={{ margin: 0, fontSize: 12.5, color: 'var(--au-text3)', lineHeight: 1.6 }}>תזכורת ראשונה = ביום הראשון שברשימה · כעבור כמה ימים = מהתזכורת השנייה · לפני שהקישור פג = כשנשארו יומיים לתוקף. את הנוסחים עצמם עורכים ב"תבניות" → "תזכורות למי שעוד לא חתם".</p>
           <SectionHead title={t.remind.notifyOn}/>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 8 }}>{Object.entries(t.remind.on).map(([k, l]) => <label key={k} className="dt-tog"><input type="checkbox" checked={f.notifyOn[k] !== false} onChange={e => setF(x => ({ ...x, notifyOn: { ...x.notifyOn, [k]: e.target.checked } }))}/> {l}</label>)}</div>
         </> : tab === 'drive' ? <DriveSettings t={t} f={f} setF={setF} setErr={setErr}/> : <>

@@ -2434,9 +2434,9 @@ async function handleDocs(req, res, action) {
     }
     if (action === 'docs-agent-signature') { if (req.method !== 'POST') return res.status(200).json(await Docs.agentSignatureInfo()); const r = await Docs.saveAgentSignature(b); return res.status(r.code || 200).json(r) }
     if (action === 'docs-settings') return res.status(200).json({ settings: req.method === 'POST' ? await Docs.saveSettings(b) : await Docs.getSettings(), status: Docs.status() })
-    // reminders: POST docs-remind { id, now: true } sends one now · { id, off: true | false } = "no reminders for this document"
+    // reminders: POST docs-remind { id, now: true, messageId?, text?, via? } sends one now (the wording picked / edited in the drawer) · { id, off: true | false } = "no reminders for this document"
     if (action === 'docs-remind') {
-      if (b.now) { const r = await Docs.remindUnsigned({ only: String(b.id || ''), force: true, max: 1 }); return res.status(200).json({ ...r, ok: r.sent > 0, doc: await Docs.getDoc(b.id) }) }
+      if (b.now) { const r = await Docs.remindUnsigned({ only: String(b.id || ''), force: true, max: 1, messageId: String(b.messageId || ''), text: String(b.text || '').slice(0, 1500), via: Array.isArray(b.via) ? b.via.filter(v => v === 'whatsapp' || v === 'email') : [] }); return res.status(200).json({ ...r, ok: r.sent > 0, doc: await Docs.getDoc(b.id) }) }
       const r = await Docs.setNoRemind(b.id, !!b.off); return res.status(r.error ? 400 : 200).json(r)
     }
     // Google Drive: GET docs-drive-status · POST docs-drive-connect → { url } · POST docs-drive-disconnect · POST docs-drive-sync { id? }

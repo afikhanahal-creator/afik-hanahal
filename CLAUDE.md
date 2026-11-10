@@ -1224,6 +1224,21 @@ the next send, `data.revision` + 1, `revisedAt`, Drive's `original` cleared so t
 "גרסה מתוקנת של … נשלחה לחתימה". The drawer shows "גרסה: מתוקנת". QA: the scratchpad's `qa-revise.cjs` **From the list too, phones first:** every table row has a ✏️ and every phone card a row of two buttons —
 "עריכה ותיקון" (`editDoc()`: a draft opens the wizard, a sent unsigned one is confirmed → `docs-reopen` → the wizard) and "שליחה חוזרת"
 (the drawer) — only where `editable()` (draft / failed / `canRevise`). QA: `qa-revise-phone.cjs` (iPhone 13).
+**Follow-up reminders + the open time (2026-11-10):** the list's "נפתח" column shows when the document was first opened
+(`shortWhenHe()` in `lib/documents.js`, tested: "היום 14:32" / "אתמול 09:05" / "08.11 · 14:32", the full time in the tooltip), the
+phone card has "נפתח … · נשלח …" (or "עוד לא נפתח"), the drawer a "נפתח" row and each signer's open time. **Ready follow-up
+wordings for whoever hasn't signed** — `REMIND_MESSAGES` (10, short and friendly, plural, first name only, no number / emoji, ≤ 5
+lines) in `REMIND_GROUPS`: תזכורת ראשונה (תזכורת עדינה · נפתח ועוד לא נחתם · בודקים שהכל ברור · לפני הסיור · הכי קצר) · כעבור
+כמה ימים (יודעים שהימים עמוסים · כדי שנוכל להתקדם · להציע שיחה קצרה) · לפני שהקישור פג (הקישור עומד לפוג · אחרונה, בלי לחץ).
+Frame = "היי <first>," + the body + the link (`reminderLines` / `reminderWaText` / `reminderEmail` / `reminderPreview`; the greeting
+names the signer whose turn it is). `reminderGroup()`: the link expires within 2 days → last, the 2nd reminder on → again;
+`suggestReminder()` = the office's pick per group (`settings.reminders.wording`, kept by `cleanReminders`, the settings' "הנוסח של
+כל תזכורת") else ours (an opened document → "נפתח ועוד לא נחתם"). The automatic reminders (`remindUnsigned`) use it; the drawer's
+"שליחת תזכורת עכשיו" opens `ReminderComposer` (chips by group, "מומלץ", the text to edit, WhatsApp / email / both) → `docs-remind
+{ id, now, messageId, text, via }`; the reminder log keeps the wording's name. The office edits / adds wordings in "תבניות" →
+"תזכורות למי שעוד לא חתם" (`WordingsLibrary kind="remind"`, `settings.remindMessages`, `cleanRemindMessages`, own ids `wr_…`).
+`renderWording` now drops the ה of "הנכס" after an attached ב / ל / כ ("בנכס ב…", never "בהנכס" — the sign wordings had it too).
+QA: the scratchpad's `qa-remind.cjs` (`PHONE=1` = iPhone 13).
 **Flow:** `docs-create` cleans the input (`cleanDocInput`), links the CRM lead (the given id, else the newest lead with that phone /
 email — never a new lead), numbers the document and writes `created` on the lead. `docs-send {id, via}` makes the private token
 (kept only as a hash), freezes the clauses on the row, renders the PDF the client signs (stored, its SHA-256 on the row), and
