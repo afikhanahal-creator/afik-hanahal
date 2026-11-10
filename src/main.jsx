@@ -2,11 +2,15 @@ import { StrictMode, Component, lazy, Suspense } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App.jsx'
 import AccessibilityPage from './AccessibilityPage.jsx'
+import { reloadOnce } from './lib/appVersion.js'
 
 // Older browsers (Safari < 16, iOS 15): every admin fetch uses AbortSignal.timeout — give it to them
 if (typeof AbortSignal !== 'undefined' && !AbortSignal.timeout) {
   AbortSignal.timeout = ms => { const c = new AbortController(); setTimeout(() => c.abort(new DOMException('The operation timed out.', 'TimeoutError')), ms); return c.signal }
 }
+
+// A preloaded file of an older deploy is gone (a tab left open across a deploy): load the new build instead of failing
+window.addEventListener('vite:preloadError', e => { if (reloadOnce('preload')) e.preventDefault() })
 
 // LogRocket (session recording) is heavy — ~18KB gzip plus significant main-thread
 // instrumentation at init. Load and start it lazily, off the critical path, so it

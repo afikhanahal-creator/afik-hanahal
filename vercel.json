@@ -1,5 +1,7 @@
 {
-  "regions": ["dub1"],
+  "regions": [
+    "dub1"
+  ],
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "framework": "vite",
@@ -83,7 +85,7 @@
       "destination": "/api/$1"
     },
     {
-      "source": "/((?!api/).*)",
+      "source": "/((?!api/|assets/).*)",
       "destination": "/index.html"
     }
   ],
@@ -155,6 +157,15 @@
         {
           "key": "Access-Control-Allow-Headers",
           "value": "Content-Type,Authorization"
+        }
+      ]
+    },
+    {
+      "source": "/(admin-panel|dashboard)(/.*)?",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, must-revalidate"
         }
       ]
     },

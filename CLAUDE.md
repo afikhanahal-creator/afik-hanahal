@@ -892,6 +892,18 @@ and a bottom sheet (`.dtp-sheet`, `.au-sheet`) sits on the keyboard (`bottom: va
 `touch-action: manipulation` (it was `none`, so a swipe that started on a card couldn't scroll the column). QA: the scratchpad's
 `qa-kb-dialogs.cjs` (iPhone 390 px, iOS's panned visual viewport faked: the window, the field and the save button inside the visible
 area — new lead, call summary, lead card).
+**A tab never stays on an old deploy (2026-11-10 — "the screen that shows and jumps on entering"):** a tab left open across a deploy
+(or restored from memory) kept running the old build; its screens' files were gone, and the SPA rewrite answered them with
+`index.html` under `/assets/…` — which `vercel.json` caches for a year (`immutable`), so a missing file stayed broken in that
+browser; the old screen showed, a screen failed, the page reloaded and jumped. Now: the rewrite skips `/assets/` (a missing file is a
+plain 404), `/admin-panel(/…)` and `/dashboard(/…)` are `no-cache, must-revalidate`, and `src/lib/appVersion.js` (tested) names the
+build by its main script (`/assets/index-<hash>.js`): `watchBuild()` (mounted in `AdminPanel`) asks the live HTML (`no-store`) 4 s
+after opening, every 10 min, on coming back after ≥ 15 s away, from the back-forward cache and back online; a newer build reloads at
+once unless someone is typing or a window is open — then a quiet "יש גרסה חדשה של המערכת" bar with "לרענן עכשיו", and the reload
+happens at the next quiet moment (focus leaves the field). `reloadOnce()` = at most one reload a minute (the old `_chunk_reload` flag
+allowed one per session, so the second stale screen of the day stayed broken), used by `lazyWithRetry` (`App.jsx`) and the
+`vite:preloadError` listener (`main.jsx`). QA: the scratchpad's `qa-build.cjs` (`NEWBUILD=1` = a newer deploy → one reload, no loop;
+`MISS=<chunk>` = a missing screen file → at most one reload).
 **Back / forward move between admin screens** (2026-11-04): `AdminPanel` listens to `popstate` and sets the screen from the
 address (`ADMIN_PATH_TO_TAB`) — Back used to change the address only, so "/admin-panel/social" showed the chats (or whatever was
 open). The inbox's and the documents tab's "כרטיס הליד" / "פתיחת הליד" open the lead card over the current screen
