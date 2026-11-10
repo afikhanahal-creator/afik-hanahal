@@ -600,6 +600,7 @@ export const LP_CSS = `
 .lp-color{width:24px;height:24px;border-radius:50%;border:2px solid transparent;color:#fff;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0;min-height:0}
 .lp-color[aria-checked=true]{box-shadow:0 0 0 2px var(--au-pop,#fff),0 0 0 4px currentColor}
 .lp-form-foot{grid-column:1/-1;display:flex;gap:8px;margin-top:4px}
+.lp-modal>.lp-form-foot{position:sticky;bottom:-18px;z-index:3;margin:10px -18px -18px;padding:12px 18px 14px;background:var(--au-pop,#fff);border-top:1px solid var(--au-line,#e5e7eb)}.lp-modal>.lp-form-foot>button{min-height:44px;flex:1}
 .lp-pchoices{display:flex;flex-wrap:wrap;gap:6px}
 .lp-sel + .lp-pchoices{margin-top:7px}
 .lp-pchoice{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 11px;border:1px solid var(--au-line,#e5e7eb);border-radius:999px;background:none;color:var(--au-text2,#555);font:500 12.5px Rubik,sans-serif;cursor:pointer;min-height:0}
@@ -644,5 +645,5 @@ export const LP_CSS = `
 .lp-sugg button{display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 10px;border:1px dashed var(--au-line,#ccc);border-radius:999px;background:none;color:var(--au-text,#111);font:500 12px Rubik,sans-serif;cursor:pointer;min-height:0}
 .lp-sugg button:hover{border-color:var(--au-brand,#3F4EB0);color:var(--au-brand-text,#3F4EB0)}
 .lp-sugg em{font-style:normal;font-size:11px;color:var(--au-text3,#888)}
-@media (max-width:640px){.lp-bar-new,.lp-bar-manage{display:none}.lp-form{grid-template-columns:1fr}.lp-modal{padding:14px}.lp-stagebar{min-width:100%}}
+@media (max-width:640px){.lp-bar-new,.lp-bar-manage{display:none}.lp-form{grid-template-columns:1fr}.lp-modal{padding:14px}.lp-modal>.lp-form-foot{bottom:-14px;margin:10px -14px -14px;padding:10px 14px calc(10px + env(safe-area-inset-bottom,0px))}.lp-modal-bg{padding:10px 8px}.lp-modal{max-height:calc(100dvh - 20px)}.lp-stagebar{min-width:100%}}
 `

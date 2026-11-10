@@ -65,7 +65,7 @@ function useKeyboardViewport(on) {
     const vv = typeof window !== 'undefined' ? window.visualViewport : null
     if (!on || !vv) return
     const root = document.documentElement
-    let full = vv.height, w = vv.width, raf = 0
+    let full = vv.height, w = vv.width, raf = 0, lastField = null
     const editable = el => !!el && (el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT' && !/^(checkbox|radio|button|submit|range|file|color)$/i.test(el.type)) || el.isContentEditable)
     const apply = () => {
       raf = 0
@@ -76,14 +76,20 @@ function useKeyboardViewport(on) {
       // iOS Safari doesn't shrink the layout viewport for the keyboard: it pans the visual one (vv.offsetTop), so a shell pinned
       // to top:0 slid up behind the address bar (the header vanished) and left a black strip between the composer and the
       // keyboard. The shell follows the visible area: top = offsetTop, height = what is left above the keyboard.
-      if (kb) { root.style.setProperty('--app-h', `${Math.round(vv.height)}px`); root.style.setProperty('--vv-top', `${Math.max(0, Math.round(vv.offsetTop))}px`); if (window.scrollY) window.scrollTo(0, 0) }
-      else { root.style.removeProperty('--app-h'); root.style.removeProperty('--vv-top') }
+      if (kb) {
+        root.style.setProperty('--app-h', `${Math.round(vv.height)}px`); root.style.setProperty('--vv-top', `${Math.max(0, Math.round(vv.offsetTop))}px`)
+        root.style.setProperty('--kb-bottom', `${Math.max(0, Math.round(window.innerHeight - vv.offsetTop - vv.height))}px`)
+        if (window.scrollY) window.scrollTo(0, 0)
+        // a window (lead card, new lead, call summary, task…) now fits above the keyboard: bring the field being typed into its view
+        const el = document.activeElement
+        if (el !== lastField && el?.closest?.('[role="dialog"]')) { lastField = el; setTimeout(() => { try { if (document.activeElement === el) el.scrollIntoView({ block: 'center', behavior: 'smooth' }) } catch {} }, 120) }
+      } else { lastField = null; root.style.removeProperty('--app-h'); root.style.removeProperty('--vv-top'); root.style.removeProperty('--kb-bottom') }
     }
     const later = () => { if (!raf) raf = requestAnimationFrame(apply) }
     vv.addEventListener('resize', later); vv.addEventListener('scroll', later)
     const out = () => setTimeout(later, 60)
     document.addEventListener('focusin', later); document.addEventListener('focusout', out)
-    return () => { vv.removeEventListener('resize', later); vv.removeEventListener('scroll', later); document.removeEventListener('focusin', later); document.removeEventListener('focusout', out); root.classList.remove('kb-open'); root.style.removeProperty('--app-h'); root.style.removeProperty('--vv-top'); if (raf) cancelAnimationFrame(raf) }
+    return () => { vv.removeEventListener('resize', later); vv.removeEventListener('scroll', later); document.removeEventListener('focusin', later); document.removeEventListener('focusout', out); root.classList.remove('kb-open'); root.style.removeProperty('--app-h'); root.style.removeProperty('--vv-top'); root.style.removeProperty('--kb-bottom'); if (raf) cancelAnimationFrame(raf) }
   }, [on])
 }
 

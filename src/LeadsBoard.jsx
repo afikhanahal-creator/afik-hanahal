@@ -13,7 +13,7 @@ import LeadCard from './LeadCard.jsx'
 import ExportDialog from './ExportDialog.jsx'
 import {
   DndContext, closestCenter, closestCorners, useSensor, useSensors,
-  PointerSensor, DragOverlay, useDroppable,
+  MouseSensor, TouchSensor, DragOverlay, useDroppable,
 } from '@dnd-kit/core'
 import {
   SortableContext, verticalListSortingStrategy, useSortable, arrayMove,
@@ -1264,7 +1264,7 @@ export const LB_CSS = `
   .kb-col-mini-n{min-width:24px;height:22px;padding:0 7px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--au-text2,#5E6378);background:rgba(var(--ov,28,36,90),.08);font-variant-numeric:tabular-nums}
   .kb-col-mini.has .kb-col-mini-n{background:var(--kc);color:#fff}
   .kb-col-mini-l{writing-mode:vertical-rl;font-size:12.5px;font-weight:600;color:var(--au-text2,#5E6378);white-space:nowrap;letter-spacing:.01em}
-  .lb-card{position:relative;background:var(--au-card,#fff);border:1px solid rgba(var(--ov,28,36,90),.08);border-radius:14px;padding:12px 12px 6px;margin-bottom:8px;cursor:pointer;box-shadow:0 1px 2px rgba(20,30,80,.04);user-select:none;touch-action:none;will-change:transform;transition:box-shadow .15s,border-color .15s,background .15s}
+  .lb-card{position:relative;background:var(--au-card,#fff);border:1px solid rgba(var(--ov,28,36,90),.08);border-radius:14px;padding:12px 12px 6px;margin-bottom:8px;cursor:pointer;box-shadow:0 1px 2px rgba(20,30,80,.04);user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;touch-action:manipulation;will-change:transform;transition:box-shadow .15s,border-color .15s,background .15s}
   html[data-admin-theme=dark] .lb-card{background:#15171E;border-color:rgba(255,255,255,.07);box-shadow:0 1px 2px rgba(0,0,0,.35)}
   .lb-card:hover{border-color:rgba(var(--ov,28,36,90),.16);box-shadow:0 6px 18px rgba(20,30,80,.08)}
   html[data-admin-theme=dark] .lb-card:hover{border-color:rgba(255,255,255,.14);box-shadow:0 8px 22px rgba(0,0,0,.45)}
@@ -1434,7 +1434,7 @@ function CallNoteDialog({ lead, T, isDark, lang, onClose, updateLead, updateLead
         {outcome === 'not_relevant' && <div style={{ fontSize: 12, color: T.textSub, marginTop: 6 }}>{en ? 'The lead moves to “Not relevant”.' : 'הליד יעבור לעמודה "לא רלוונטי".'}</div>}
         {outcome === 'answered' && (lead.leadStatus || 'new') === 'new' && <div style={{ fontSize: 12, color: T.textSub, marginTop: 6 }}>{en ? 'The lead moves to “Contacted”.' : 'הליד יעבור לשלב הבא (נוצר קשר).'}</div>}
 
-        <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+        <div style={{ display: 'flex', gap: 8, margin: '16px -18px -18px', padding: '12px 18px 14px', position: 'sticky', bottom: -18, zIndex: 3, background: isDark ? '#161E2E' : '#FFFFFF', borderTop: `1px solid ${isDark ? '#2A3347' : '#E4E7F4'}` }}>
           <button type="button" onClick={save} disabled={!canSave || saving}
             style={{ flex: 1, padding: '11px 0', borderRadius: 10, border: 'none', background: canSave ? 'linear-gradient(135deg, #0073EA, #0060CC)' : (isDark ? '#252E42' : '#E4E7F4'), color: canSave ? '#fff' : T.textSub, fontSize: 14, fontWeight: 800, cursor: canSave ? 'pointer' : 'default', fontFamily: 'inherit' }}>
             {saving ? (en ? 'Saving…' : 'שומר…') : (en ? 'Save summary' : 'שמור סיכום')}
@@ -1625,7 +1625,7 @@ function KanbanBoard({ leads, T, isDark, lang, updateLead, updateLeadStatus, onA
   }
   useEffect(() => () => clearTimeout(dwell.current.timer), [])
   const [isCollapsed, toggleCollapsed] = useCollapsedStages()
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
+  const sensors = useSensors(useSensor(MouseSensor, { activationConstraint: { distance: 8 } }), useSensor(TouchSensor, { activationConstraint: { delay: 220, tolerance: 8 } }))   // phones: hold a card to drag it, a swipe still scrolls
 
   const grouped = useMemo(() => {
     const m = {}
@@ -1675,7 +1675,7 @@ function KanbanBoard({ leads, T, isDark, lang, updateLead, updateLeadStatus, onA
     <DndContext
       sensors={sensors}
       collisionDetection={closestCorners}
-      onDragStart={({ active }) => setActiveId(active.id)}
+      onDragStart={({ active, activatorEvent }) => { setActiveId(active.id); if (activatorEvent?.type?.startsWith('touch')) try { navigator.vibrate?.(12) } catch {} }}
       onDragOver={handleDragOver}
       onDragCancel={() => { setActiveId(null); clearDwell() }}
       onDragEnd={handleDragEnd}>
@@ -2085,7 +2085,7 @@ function LeadsBoardMain({
   const [activeDragId, setActiveDragId] = useState(null)
   const [mobileSearch, setMobileSearch] = useState(false)
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
+  const sensors = useSensors(useSensor(MouseSensor, { activationConstraint: { distance: 6 } }), useSensor(TouchSensor, { activationConstraint: { delay: 220, tolerance: 8 } }))
 
   // Column resize
   const resizingRef  = useRef(null)
