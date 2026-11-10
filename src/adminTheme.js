@@ -100,6 +100,12 @@ html[data-admin-theme] .admin-shell { transition: background-color .25s ease, co
 .admin-cmdk-btn:hover { border-color: rgba(var(--brand-rgb),.45) !important; color: var(--au-text2) !important; }
 @media (max-width: 1250px) { .admin-cmdk-btn { min-width: 0 !important; } .admin-cmdk-btn span, .admin-cmdk-btn kbd { display: none; } }
 @media (prefers-reduced-motion: reduce) { html[data-admin-theme] .admin-shell { transition: none; } }
+/* iPhone / iPad zoom the page in when a field with text under 16px gets the focus — every tap on a field zoomed, shifted
+   the visible area and made the window jump. On touch screens every admin field is 16px (no zoom, ever). */
+@media (pointer: coarse) {
+  html[data-admin-theme] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
+  html[data-admin-theme] textarea, html[data-admin-theme] select, html[data-admin-theme] [contenteditable="true"] { font-size: 16px !important; }
+}
 /* CRM 2.0 — shared page pieces: a section card, the settings layout with a sticky index */
 .crm-sec { background: var(--au-card-solid, var(--au-s2)); border: 1px solid var(--au-s2-line); border-radius: 16px; padding: 22px; scroll-margin-top: 12px; box-shadow: var(--au-card-shadow); }
 .crm-anchor { scroll-margin-top: 12px; }
