@@ -66,31 +66,60 @@ function useKeyboardViewport(on) {
     const vv = typeof window !== 'undefined' ? window.visualViewport : null
     if (!on || !vv) return
     const root = document.documentElement
-    let full = vv.height, w = vv.width, raf = 0, lastField = null
-    const editable = el => !!el && (el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT' && !/^(checkbox|radio|button|submit|range|file|color)$/i.test(el.type)) || el.isContentEditable)
+    // the baseline is taken by the LAYOUT width (window.innerWidth): a pinch zoom shrinks vv.width and used to read as a rotation,
+    // so the keyboard was "forgotten" and the layout flipped back and forth while typing
+    let full = vv.height, w = window.innerWidth, raf = 0, settle = 0, lastField = null, open = false
+    const vars = { '--app-h': '', '--vv-top': '', '--kb-bottom': '' }
+    const setVar = (k, px) => { const v = `${px}px`; if (vars[k] === v) return; const old = parseFloat(vars[k]); if (Number.isFinite(old) && Math.abs(old - px) < 3) return; vars[k] = v; root.style.setProperty(k, v) }
+    const clearVars = () => { for (const k of Object.keys(vars)) { vars[k] = ''; root.style.removeProperty(k) } }
+    const editable = el => !!el && (el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || (el.tagName === 'INPUT' && !/^(checkbox|radio|button|submit|range|file|color)$/i.test(el.type)) || el.isContentEditable)
     const apply = () => {
       raf = 0
-      if (Math.abs(vv.width - w) > 40) { w = vv.width; full = vv.height }   // rotated: a new baseline
+      if (vv.scale > 1.02) return   // the person zoomed in: leave everything as it is
+      if (Math.abs(window.innerWidth - w) > 40) { w = window.innerWidth; full = vv.height }   // rotated: a new baseline
       if (!editable(document.activeElement)) full = Math.max(full, vv.height)
       const kb = editable(document.activeElement) && full - vv.height > 140
-      root.classList.toggle('kb-open', kb)
+      if (kb !== open) root.classList.toggle('kb-open', kb)
       // iOS Safari doesn't shrink the layout viewport for the keyboard: it pans the visual one (vv.offsetTop), so a shell pinned
       // to top:0 slid up behind the address bar (the header vanished) and left a black strip between the composer and the
       // keyboard. The shell follows the visible area: top = offsetTop, height = what is left above the keyboard.
       if (kb) {
-        root.style.setProperty('--app-h', `${Math.round(vv.height)}px`); root.style.setProperty('--vv-top', `${Math.max(0, Math.round(vv.offsetTop))}px`)
-        root.style.setProperty('--kb-bottom', `${Math.max(0, Math.round(window.innerHeight - vv.offsetTop - vv.height))}px`)
-        if (window.scrollY) window.scrollTo(0, 0)
-        // a window (lead card, new lead, call summary, task…) now fits above the keyboard: bring the field being typed into its view
+        setVar('--app-h', Math.round(vv.height)); setVar('--vv-top', Math.max(0, Math.round(vv.offsetTop)))
+        setVar('--kb-bottom', Math.max(0, Math.round(window.innerHeight - vv.offsetTop - vv.height)))
+        // once, when the keyboard opens — doing it on every pan fought iOS's own scroll and made the window flicker
+        if (!open && window.scrollY && !document.activeElement?.closest?.('[role="dialog"]')) window.scrollTo(0, 0)
+        // a window (lead card, new lead, call summary, task…) now fits above the keyboard: bring the field into its view — only
+        // when it is really hidden (a field just tapped is on screen already), at once, never a smooth scroll that iOS fights
         const el = document.activeElement
-        if (el !== lastField && el?.closest?.('[role="dialog"]')) { lastField = el; setTimeout(() => { try { if (document.activeElement === el) el.scrollIntoView({ block: 'center', behavior: 'smooth' }) } catch {} }, 120) }
-      } else { lastField = null; root.style.removeProperty('--app-h'); root.style.removeProperty('--vv-top'); root.style.removeProperty('--kb-bottom') }
+        if (el !== lastField && el?.closest?.('[role="dialog"]')) {
+          lastField = el
+          setTimeout(() => { try { if (document.activeElement === el) keepInView(el) } catch {} }, 160)
+        }
+      } else { lastField = null; clearVars() }
+      open = kb
+    }
+    // one instant, minimal scroll of the window's own scroller, and only when the field is hidden or too close to the keyboard —
+    // the room under it is for the button that usually follows a field (the lead card's "שמור"); a sticky footer bar is the limit
+    const keepInView = el => {
+      let sc = el.parentElement
+      while (sc && !(sc.scrollHeight > sc.clientHeight + 2 && /auto|scroll/.test(getComputedStyle(sc).overflowY))) sc = sc.parentElement
+      const dlg = el.closest('[role="dialog"]')
+      const foot = dlg?.querySelector('.dw-foot, .lp-form-foot, .fv-modal-foot, [data-sticky-foot]')
+      const r = el.getBoundingClientRect()
+      const top = Math.max(vv.offsetTop, sc ? sc.getBoundingClientRect().top : 0) + 8
+      let bottom = Math.min(vv.offsetTop + vv.height, sc ? sc.getBoundingClientRect().bottom : 1e9)
+      if (foot) bottom = Math.min(bottom, foot.getBoundingClientRect().top)
+      const room = foot ? 8 : 56
+      const delta = r.top < top ? r.top - top : r.bottom + room > bottom ? Math.min(r.bottom + room - bottom, r.top - top) : 0
+      if (Math.abs(delta) > 2) { if (sc) sc.scrollTop += delta; else el.scrollIntoView({ block: 'nearest', behavior: 'auto' }) }
     }
     const later = () => { if (!raf) raf = requestAnimationFrame(apply) }
-    vv.addEventListener('resize', later); vv.addEventListener('scroll', later)
-    const out = () => setTimeout(later, 60)
+    // while the keyboard animates / iOS pans to a field, the viewport reports a stream of in-between values: wait until it is still
+    const calm = () => { clearTimeout(settle); settle = setTimeout(later, open ? 90 : 0) }
+    vv.addEventListener('resize', calm); vv.addEventListener('scroll', calm)
+    const out = () => setTimeout(later, 120)
     document.addEventListener('focusin', later); document.addEventListener('focusout', out)
-    return () => { vv.removeEventListener('resize', later); vv.removeEventListener('scroll', later); document.removeEventListener('focusin', later); document.removeEventListener('focusout', out); root.classList.remove('kb-open'); root.style.removeProperty('--app-h'); root.style.removeProperty('--vv-top'); root.style.removeProperty('--kb-bottom'); if (raf) cancelAnimationFrame(raf) }
+    return () => { vv.removeEventListener('resize', calm); vv.removeEventListener('scroll', calm); document.removeEventListener('focusin', later); document.removeEventListener('focusout', out); clearTimeout(settle); root.classList.remove('kb-open'); clearVars(); if (raf) cancelAnimationFrame(raf) }
   }, [on])
 }
 

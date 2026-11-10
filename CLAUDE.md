@@ -904,6 +904,18 @@ happens at the next quiet moment (focus leaves the field). `reloadOnce()` = at m
 allowed one per session, so the second stale screen of the day stayed broken), used by `lazyWithRetry` (`App.jsx`) and the
 `vite:preloadError` listener (`main.jsx`). QA: the scratchpad's `qa-build.cjs` (`NEWBUILD=1` = a newer deploy → one reload, no loop;
 `MISS=<chunk>` = a missing screen file → at most one reload).
+**No flicker while moving between fields on a phone (2026-11-10 — the office: "on mobile everything flickers every time I enter a
+field" in the documents wizard):** three causes, all in `useKeyboardViewport()` / the admin CSS: (1) every field focused in a window
+was scrolled to the middle with a smooth `scrollIntoView` — a jump on every tap; now `keepInView()` scrolls the window's own scroller
+once, instantly and minimally, and only when the field is hidden or within 56 px of the keyboard (room for the button under it; a
+sticky footer `.dw-foot` / `.lp-form-foot` / `.fv-modal-foot` / `[data-sticky-foot]` is the limit instead); (2) a pinch zoom shrank
+`vv.width` and read as a rotation, so the keyboard was forgotten and the layout flipped — the baseline now follows
+`window.innerWidth` and nothing changes while `vv.scale > 1.02`; (3) `window.scrollTo(0, 0)` ran on every pan and fought iOS — now once
+when the keyboard opens (never inside a window). The viewport's in-between values while the keyboard animates / iOS pans are waited
+out (90 ms), the CSS variables change only by ≥ 3 px, and every admin field is 16 px on a touch screen (`ADMIN_THEME_CSS`,
+`pointer: coarse` — iOS zooms in on anything smaller). QA: the scratchpad's `qa-kb-flicker.cjs` (iPhone, the wizard: one layout
+switch, no scroll on a visible field, the window stays put, a zoom changes nothing — the old code fails two of them) and
+`qa-kb-dialogs.cjs`.
 **Back / forward move between admin screens** (2026-11-04): `AdminPanel` listens to `popstate` and sets the screen from the
 address (`ADMIN_PATH_TO_TAB`) — Back used to change the address only, so "/admin-panel/social" showed the chats (or whatever was
 open). The inbox's and the documents tab's "כרטיס הליד" / "פתיחת הליד" open the lead card over the current screen
