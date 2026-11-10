@@ -2,6 +2,7 @@ import { useState, useEffect, useLayoutEffect, useRef, useCallback, createContex
 import { useAdminTheme, ADMIN_DARK_C, ADMIN_LIGHT_C } from './adminTheme.js'
 import { isRealEstateArticle } from '../lib/news/classify.js'
 import { MenuToggleIcon } from './MenuToggleIcon.jsx'
+import { reloadOnce } from './lib/appVersion.js'
 import AccessibilityWidget from './AccessibilityWidget.jsx'
 import CookieConsent from './CookieConsent.jsx'
 // PropertyWizard (2k+ lines, admin-only) is lazy-loaded below. Its propertyToWizardData
@@ -9,14 +10,12 @@ import CookieConsent from './CookieConsent.jsx'
 // (and its GovMapWidget dependency) into the public bundle.
 // NOTE: @supabase/supabase-js is heavy and only used by the admin realtime channel
 // below — it is imported dynamically there (not here) so the public bundle stays lean.
-// Retry lazy import once on chunk-load failure (stale CDN cache after deploy)
+// A screen's file that is missing = this tab runs an older deploy: reload into the new one (at most once a minute — the old
+// once-per-session flag left the second stale screen of the day broken)
 function lazyWithRetry(fn) {
-  return lazy(() => fn().catch(() => {
-    if (!sessionStorage.getItem('_chunk_reload')) {
-      sessionStorage.setItem('_chunk_reload', '1')
-      window.location.reload()
-    }
-    return fn()
+  return lazy(() => fn().catch(err => {
+    if (reloadOnce('chunk')) return new Promise(() => {})
+    throw err
   }))
 }
 const LeadsBoard   = lazyWithRetry(() => import('./LeadsBoard.jsx'))

@@ -41,6 +41,7 @@ import { useAdminTheme, ADMIN_THEME_CSS } from './adminTheme.js'
 import { mergeBrief } from '../lib/lead-intel.js'
 import CommandPalette, { useCommandHotkey } from './CommandPalette.jsx'
 import { onWaLive } from './lib/waLive.js'
+import { watchBuild, reloadOnce } from './lib/appVersion.js'
 import { notifyPrefs, isViewing, playMessageSound, desktopNotify, bumpTab } from './lib/waNotify.js'
 import { alertText, mergeAlert } from './lib/waInbox.js'
 import { leadCampaign } from './lib/leadFields.js'
@@ -1437,6 +1438,9 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const [propSyncError,  setPropSyncError]  = useState('')
   const [propSyncedAt,   setPropSyncedAt]   = useState(null)
   const [supabaseWarning, setSupabaseWarning] = useState('')
+  // a newer deploy while this tab was open: switch to it at a quiet moment (a stale tab used to show the old screen, then jump)
+  const [newBuild, setNewBuild] = useState(false)
+  useEffect(() => watchBuild({ onStale: () => setNewBuild(true) }), [])
 
   const [tokenSaved, setTokenSaved]         = useState(false)
   const [settingsAllSaved, setSettingsAllSaved] = useState(false)
@@ -3146,6 +3150,13 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
               onMouseEnter={e=>{ e.currentTarget.style.background='rgba(224,82,82,.2)'; e.currentTarget.style.borderColor='#E05252'; e.currentTarget.style.color='#E05252' }}
               onMouseLeave={e=>{ e.currentTarget.style.background='rgba(var(--ov),.07)'; e.currentTarget.style.borderColor='rgba(var(--brand-rgb),.25)'; e.currentTarget.style.color=`${C.cream}80` }}>×</button>
             </div>
+          </div>
+        )}
+
+        {newBuild && (
+          <div role="status" className="admin-notice" style={{ background:'rgba(var(--brand-rgb),.07)', border:'1px solid rgba(var(--brand-rgb),.25)', borderRadius:12, padding:'8px 14px', margin: standalone ? '14px 28px 0' : '0 0 14px', display:'flex', alignItems:'center', gap:10, direction:'rtl', flexShrink:0 }}>
+            <span style={{ fontSize:12.5, color:'var(--au-brand-text)', fontWeight:600, lineHeight:1.5, flex:1, minWidth:0 }}>יש גרסה חדשה של המערכת. היא תיטען לבד כשתסיימו את מה שאתם עושים.</span>
+            <button type="button" onClick={() => { if (!reloadOnce('build-click', 0)) location.reload() }} style={{ background:'var(--au-brand)', color:'#fff', border:'none', borderRadius:8, padding:'6px 12px', fontSize:12.5, fontWeight:600, cursor:'pointer', minHeight:0 }}>לרענן עכשיו</button>
           </div>
         )}
 
