@@ -574,7 +574,7 @@ const FV_CSS = `
 .fv-remind{display:flex;align-items:center;gap:9px;margin-top:14px;border:none;background:none;padding:0;font:13px Rubik,sans-serif;color:var(--au-text);cursor:pointer;min-height:0}
 .fv-remind .fv-check{border-radius:7px}
 .fv-remind[aria-checked=true] .fv-check{background:#16A34A;border-color:#16A34A}
-.fv-modal-foot{display:flex;gap:8px;margin-top:18px}
+.fv-modal-foot{display:flex;gap:8px;margin:18px -18px -18px;padding:12px 18px 14px;position:sticky;bottom:-18px;z-index:3;background:var(--au-pop);border-top:1px solid var(--au-line)}.fv-modal-foot>button{min-height:44px}
 @container (max-width:900px){.fv-stats{grid-template-columns:repeat(3,minmax(0,1fr))}.fv-stat--today,.fv-stat--week{display:none}}
 @container (max-width:1060px){
   .fv-row{grid-template-columns:44px minmax(0,1fr);grid-template-areas:"done name" "done when" "done task" "done act";align-items:start;padding:6px 4px}

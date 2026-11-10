@@ -1045,6 +1045,12 @@ const makeGlobal = (C, isDark) => `
     html.kb-open .admin-bottom-nav, html.kb-open .admin-shell .admin-notice, html.kb-open .admin-shell .lb-fab { display: none !important; }
     html.kb-open .admin-content, html.kb-open .admin-content.admin-content-full { padding-bottom: 0 !important; }
     html.kb-open .admin-mobile-topbar { display: none !important; }
+    /* every window (lead card, new lead, call summary, follow-up, templates, documents…) fits the space above the keyboard:
+       iOS keeps fixed overlays on the layout viewport, so a centred dialog's buttons and the field being typed sat behind the
+       keyboard. The dialog moves to the visible area (its own footer stays in view), a bottom sheet sits on the keyboard. */
+    html.kb-open [role="dialog"][aria-modal="true"] { position: fixed !important; top: calc(var(--vv-top, 0px) + 6px) !important; bottom: auto !important; left: 6px !important; right: 6px !important; width: auto !important; max-width: none !important; margin: 0 !important; max-height: calc(var(--app-h, 100dvh) - 12px) !important; transform: none !important; }
+    html.kb-open .lc-dialog[role="dialog"][aria-modal="true"] { left: 0 !important; right: 0 !important; top: var(--vv-top, 0px) !important; max-height: var(--app-h, 100dvh) !important; }
+    html.kb-open .dtp-sheet, html.kb-open .au-sheet { bottom: var(--kb-bottom, 0px) !important; max-height: calc(var(--app-h, 100dvh) - 12px) !important; }
     /* notices: one line on a phone, and none at all over an open conversation */
     .admin-shell .admin-notice { flex-wrap: nowrap !important; border-radius: 10px !important; font-size: 12px !important; gap: 8px !important; }
     .admin-shell .admin-notice > span:not(:first-child), .admin-shell .admin-notice > div { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

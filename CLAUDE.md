@@ -879,6 +879,19 @@ vanished) and a black strip opened between the composer and the keyboard. `useKe
 phone the tools strips (`.wa-head-tools`, `.si-tools`, `.lc-mbar-tools`) step aside and only the name row stays (like WhatsApp).
 QA: the scratchpad's `mob/audit.cjs` with `IOSKB=1` fakes iOS's visual viewport (336 px keyboard, panned 230 px) and checks that the
 shell starts at the visible top, the header is on screen and the composer ends on the keyboard (`*-ioskb.png` = what the person sees).
+**Every window above the keyboard, cards dragged with a long press (2026-11-10 — the office: "on a phone, with the keyboard up, the
+buttons of a window can't be reached"):** `useKeyboardViewport()` also sets `--kb-bottom` (the layout viewport under the keyboard) and,
+when the field being typed is inside a `[role="dialog"]`, scrolls it to the middle of the window once (`lastField`). While
+`html.kb-open` (phones, `App.jsx`) **every `[role="dialog"][aria-modal="true"]`** — the new-lead window, the call summary, the lead card
+(`.lc-dialog`: the whole visible area), follow-up / task windows, the templates and documents windows, `Modal` / `Drawer` of
+`automationsUI` — is pinned to the visible area (`top: var(--vv-top)`, `max-height: var(--app-h)`), so its own footer stays on screen,
+and a bottom sheet (`.dtp-sheet`, `.au-sheet`) sits on the keyboard (`bottom: var(--kb-bottom)`). Windows that scroll as one block got a
+**sticky footer** (the new lead / projects `.lp-modal > .lp-form-foot`, the follow-ups' `.fv-modal-foot`, the call summary's buttons;
+44 px buttons, the safe-area inset). **Dragging on a phone:** the leads board's pipeline uses `MouseSensor` (a small move) +
+`TouchSensor` (`delay: 220, tolerance: 8` — hold a card to drag it, a short vibration where supported) and `.lb-card` is
+`touch-action: manipulation` (it was `none`, so a swipe that started on a card couldn't scroll the column). QA: the scratchpad's
+`qa-kb-dialogs.cjs` (iPhone 390 px, iOS's panned visual viewport faked: the window, the field and the save button inside the visible
+area — new lead, call summary, lead card).
 **Back / forward move between admin screens** (2026-11-04): `AdminPanel` listens to `popstate` and sets the screen from the
 address (`ADMIN_PATH_TO_TAB`) — Back used to change the address only, so "/admin-panel/social" showed the chats (or whatever was
 open). The inbox's and the documents tab's "כרטיס הליד" / "פתיחת הליד" open the lead card over the current screen
