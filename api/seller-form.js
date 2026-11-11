@@ -72,7 +72,10 @@ const sb = () => createClient(SUPA_URL, SUPA_KEY, { auth: { persistSession: fals
 let USAGE = { at: 0, v: null }
 async function storageUsage(client) {
   if (Date.now() - USAGE.at < 600000) return USAGE.v
-  const { data } = await client.rpc('afik_usage').catch(() => ({ data: null }))
+  // a Supabase query is "thenable" but has no .catch — calling it threw "client.rpc(...).catch is not a function" and every
+  // upload failed (2026-11-06 → 11-11). try / catch, and a failed read is remembered too, so it never blocks or repeats.
+  let data = null
+  try { ({ data } = await client.rpc('afik_usage')) } catch { data = null }
   USAGE = { at: Date.now(), v: data || null }
   return USAGE.v
 }
