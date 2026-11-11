@@ -24,6 +24,8 @@ import FollowUpsView, { FollowUpsButton } from './FollowUpsView.jsx'
 import { ProjectsBar, ProjectsManager, ProjectChip, ProjectPicker, NewLeadDialog } from './LeadProjects.jsx'
 import { useProjects } from './lib/projectsStore.js'
 import { filterByProject, projectOfLead } from '../lib/projects.js'
+import { searchIndex, searchLeads } from './lib/leadSearch.js'
+import { SearchPopover, SearchNote, SearchEmpty, LS_CSS, SEARCH_ROWS } from './LeadSearchPanel.jsx'
 import {
   Plus, Search, Filter, SortAsc, Eye, EyeOff, ChevronDown, ChevronRight,
   MoreHorizontal, User, Calendar, Phone, Mail, FileText, Link2, Zap,
@@ -868,10 +870,11 @@ function SortableRow({ lead, cols, onUpdate, onDelete, onSelect, isSelected, lan
 
 // ─── desktop board group ──────────────────────────────────────────────────────
 
-function BoardGroup({ group, leads, cols, onUpdate, onUpdateStatus, onDelete, onSelect, selectedIds, onSelectMany, lang, T, onOpenDetail, onAddRow, onStatusClick, onOpenChat, onEnrich, onRenameStage }) {
+function BoardGroup({ group, leads, cols, onUpdate, onUpdateStatus, onDelete, onSelect, selectedIds, onSelectMany, lang, T, onOpenDetail, onAddRow, onStatusClick, onOpenChat, onEnrich, onRenameStage, forceOpen = false }) {
   const selCount = selectedIds ? leads.filter(l => selectedIds.has(l.id)).length : 0
   const allSel = leads.length > 0 && selCount === leads.length
-  const [collapsed, setCollapsed] = useState(!!group.collapsedByDefault)
+  const [folded, setCollapsed] = useState(!!group.collapsedByDefault)
+  const collapsed = folded && !forceOpen                  // a search opens every stage that holds a match
   const [adding, setAdding] = useState(false)
   const [newName, setNewName] = useState('')
   const inputRef = useRef(null)
@@ -1558,7 +1561,7 @@ function KanbanColumn({ group, leads, T, isDark, lang, onOpen, onDelete, onOpenC
 
   // Collapsed: a narrow strip (still a drop target — drag a card onto it to move the lead there)
   if (collapsed) return (
-    <div ref={setNodeRef} role="button" tabIndex={0} onClick={onToggle} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle() } }}
+    <div ref={setNodeRef} role="button" tabIndex={0} onClick={onToggle} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle?.() } }}
       title={lang === 'en' ? `Show “${label}”` : `הצג "${label}"`} aria-expanded="false"
       className={`kb-col-mini${isOver ? ' over' : ''}${leads.length ? ' has' : ''}`} style={{ '--kc': color }}>
       <ChevronLeft size={14} style={{ transform: lang === 'en' ? 'none' : 'rotate(180deg)' }}/>
@@ -1611,7 +1614,7 @@ function useCollapsedStages() {
 const NO_SHIFT = () => null
 const MERGE_DWELL_MS = 650
 
-function KanbanBoard({ leads, T, isDark, lang, updateLead, updateLeadStatus, onAddRow, onOpen, onDelete, onOpenChat, onEnrich, showToast, onRenameStage, onMergeRequest }) {
+function KanbanBoard({ leads, T, isDark, lang, updateLead, updateLeadStatus, onAddRow, onOpen, onDelete, onOpenChat, onEnrich, showToast, onRenameStage, onMergeRequest, searching = false }) {
   const [activeId, setActiveId] = useState(null)
   // Holding a dragged card on another card for a moment arms a merge; moving away disarms it
   const [mergeTargetId, setMergeTargetId] = useState(null)
@@ -1682,7 +1685,7 @@ function KanbanBoard({ leads, T, isDark, lang, updateLead, updateLeadStatus, onA
 
       {/* leads inside collapsed columns are easy to miss ("where are the 37?"): say so, with a click that opens them */}
       {(() => {
-        const hidden = GROUPS.filter(g => isCollapsed(g) && (grouped[g.id] || []).length)
+        const hidden = searching ? [] : GROUPS.filter(g => isCollapsed(g) && (grouped[g.id] || []).length)
         const n = hidden.reduce((a, g) => a + grouped[g.id].length, 0)
         if (!n) return null
         const names = hidden.map(g => `${lang === 'en' ? g.en : g.label} (${grouped[g.id].length})`).join(' · ')
@@ -1715,8 +1718,9 @@ function KanbanBoard({ leads, T, isDark, lang, updateLead, updateLeadStatus, onA
             onEnrich={onEnrich}
             onAddRow={onAddRow}
             onRenameStage={onRenameStage}
-            collapsed={isCollapsed(group)}
-            onToggle={() => toggleCollapsed(group)}
+            /* a search: the stages that hold a match are open, the others fold to a strip — the lead is on screen, nothing to hunt for */
+            collapsed={searching ? !(grouped[group.id] || []).length : isCollapsed(group)}
+            onToggle={searching ? undefined : () => toggleCollapsed(group)}
             mergeTargetId={mergeTargetId}
           />
         ))}
@@ -2149,18 +2153,41 @@ function LeadsBoardMain({
   const [newLead, setNewLead] = useState(null)           // { stage } — the "ליד חדש" dialog
   const [bulkProj, setBulkProj] = useState(null)         // the bulk bar's project picker (anchor rect)
   const projCtx = useMemo(() => ({ projects, assign: (lead, patch) => updateLead(lead.id, patch) }), [projects, updateLead])
+  // Search (src/lib/leadSearch.js): looks at EVERY lead — other projects, folded stages, not only the waiting ones — by name
+  // (also as typed in the form, without spaces, in any word order), phone in any format, email, project / campaign; when
+  // nothing matches exactly, similar spellings. The results show under the search box and the board keeps only them.
+  const leadIndex = useMemo(() => searchIndex(leads, l => leadCampaignFull(l, lang)), [leads, lang])
+  const found = useMemo(() => (search.trim() ? searchLeads(leadIndex, search) : null), [leadIndex, search])
+  const searching = !!found
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [searchIdx, setSearchIdx] = useState(0)
+  const searchBoxRef = useRef(null)
+  const typeSearch = v => { setSearch(v); setSearchIdx(0); setSearchOpen(true) }
+  const clearSearch = () => { setSearch(''); setSearchOpen(false); setSearchIdx(0) }
+  const openFound = lead => { if (!lead) return; setSearchOpen(false); setDetailLead(lead) }
+  const newFromSearch = () => {
+    const q = search.trim()
+    const phone = /^[\d\s+()\-.]{7,}$/.test(q)
+    setSearchOpen(false)
+    setNewLead({ stage: 'new', name: phone ? '' : q, phone: phone ? q : '' })
+  }
+  const searchKey = e => {
+    const n = Math.min(found?.all.length || 0, SEARCH_ROWS)
+    if (e.key === 'ArrowDown' && n) { e.preventDefault(); setSearchOpen(true); setSearchIdx(i => (searchOpen ? (i + 1) % n : 0)) }
+    else if (e.key === 'ArrowUp' && n) { e.preventDefault(); setSearchOpen(true); setSearchIdx(i => (i - 1 + n) % n) }
+    else if (e.key === 'Enter' && n) { e.preventDefault(); openFound(found.all[Math.min(searchIdx, n - 1)]) }
+    else if (e.key === 'Escape' && (searchOpen || search)) { e.preventDefault(); e.stopPropagation(); if (searchOpen && search) setSearchOpen(false); else clearSearch() }
+  }
+  const searchOutside = useMemo(() => {
+    if (!found || !projectFilter) return 0
+    const inside = new Set(projLeads.map(l => l.id))
+    return found.all.filter(l => !inside.has(l.id)).length
+  }, [found, projectFilter, projLeads])
+  const searchProjectName = projectFilter === '__none' ? (lang === 'en' ? 'No project' : 'בלי פרויקט') : (projects.find(p => p.id === projectFilter)?.name || '')
   const filtered = useMemo(() => {
-    const base = onlyWaiting ? projLeads.filter(l => waitingOf(waiting, l.phone)) : projLeads
-    if (!search) return base
-    const q = search.toLowerCase()
-    return base.filter(l =>
-      (l.name || '').toLowerCase().includes(q) ||
-      (l.phone || '').includes(q) ||
-      (l.email || '').toLowerCase().includes(q) ||
-      (l.propTitle || '').toLowerCase().includes(q) ||
-      leadCampaignFull(l, lang).toLowerCase().includes(q)
-    )
-  }, [projLeads, search, lang, onlyWaiting, waiting])
+    if (found) return found.all
+    return onlyWaiting ? projLeads.filter(l => waitingOf(waiting, l.phone)) : projLeads
+  }, [projLeads, found, onlyWaiting, waiting])
 
   const grouped = useMemo(() => {
     const map = {}
@@ -2265,7 +2292,7 @@ function LeadsBoardMain({
     <>
       {projModal && <ProjectsManager leads={leads} projects={projects} lang={lang} startNew={projModal === 'new'} onClose={() => setProjModal(null)}
         onShow={id => { setProjectFilter(id); setProjModal(null); if (activeTab === 'followups') setActiveTab('pipeline') }}/>}
-      {newLead && <NewLeadDialog projects={projects} defaultProjectId={projectFilter} defaultStage={newLead.stage} lang={lang} onClose={() => setNewLead(null)} onCreated={onLeadCreated}/>}
+      {newLead && <NewLeadDialog projects={projects} defaultProjectId={projectFilter} defaultStage={newLead.stage} defaultName={newLead.name || ''} defaultPhone={newLead.phone || ''} lang={lang} onClose={() => setNewLead(null)} onCreated={onLeadCreated}/>}
       {bulkProj && <ProjectPicker rect={bulkProj} projects={projects} lang={lang} onClose={() => setBulkProj(null)} onPick={p => {
         const n = selectedIds.size
         for (const id of selectedIds) { const l = leads.find(x => x.id === id); if (l) updateLead(l.id, p ? { projectId: p.id, projectName: p.name } : { projectId: '__none', projectName: '' }) }
@@ -2294,7 +2321,7 @@ function LeadsBoardMain({
                 {lang === 'en' ? 'Leads' : 'לידים'}<span style={{ fontSize: 12.5, fontWeight: 500, color: T.textSub }}>{leads.length}</span>
               </div>
             </div>
-            <button onClick={() => setMobileSearch(v => !v)}
+            <button onClick={() => { if (mobileSearch) clearSearch(); setMobileSearch(v => !v) }} aria-label={lang === 'en' ? 'Search leads' : 'חיפוש לידים'} aria-pressed={mobileSearch}
               style={{ background: mobileSearch ? T.accent : T.bgRowHover, border: 'none', cursor: 'pointer', color: mobileSearch ? '#fff' : T.textSub, padding: '9px', borderRadius: 10, display: 'flex', alignItems: 'center' }}>
               <Search size={18} />
             </button>
@@ -2303,21 +2330,23 @@ function LeadsBoardMain({
               <RefreshCw size={18} style={{ animation: leadsSyncing ? 'spin 1s linear infinite' : 'none' }} />
             </button>
           </div>
-          {projBar}
+          {/* hidden, not unmounted, while a search is on: the bar carries the project chips' stylesheet */}
+          <div style={{ display: searching ? 'none' : 'contents' }}>{projBar}</div>
 
           {/* Mobile search */}
           {mobileSearch && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: T.bgInput, border: `1.5px solid ${T.accent}`, borderRadius: 12, padding: '10px 14px', marginBottom: 2, boxShadow: `0 0 0 3px ${T.accent}18` }}>
               <Search size={14} style={{ color: T.accent, flexShrink: 0 }} />
-              <input autoFocus value={search} onChange={e => setSearch(e.target.value)}
-                placeholder={lang === 'en' ? 'Search leads...' : 'חפש לידים...'}
-                style={{ background: 'none', border: 'none', outline: 'none', fontSize: 14, color: T.text, fontFamily: 'inherit', flex: 1, direction: 'rtl' }} />
-              {search && <button onClick={() => setSearch('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.textSub, padding: 0, display: 'flex', alignItems: 'center' }}><X size={14} /></button>}
+              <input autoFocus className="ls-in" value={search} onChange={e => setSearch(e.target.value)} type="search" enterKeyHint="search" aria-label={lang === 'en' ? 'Search leads' : 'חיפוש לידים'}
+                onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }}
+                placeholder={lang === 'en' ? 'Name, phone or project…' : 'שם, טלפון או פרויקט…'}
+                style={{ background: 'none', border: 'none', outline: 'none', fontSize: 16, color: T.text, fontFamily: 'inherit', flex: 1, minWidth: 0, direction: lang === 'en' ? 'ltr' : 'rtl' }} />
+              {search && <button onClick={clearSearch} aria-label={lang === 'en' ? 'Clear search' : 'ניקוי חיפוש'} style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.textSub, padding: 0, display: 'flex', alignItems: 'center' }}><X size={14} /></button>}
             </div>
           )}
 
-          {/* Mobile tab strip */}
-          <div style={{ display: 'flex', gap: 4, overflowX: 'auto', paddingBottom: 2 }}>
+          {/* Mobile tab strip (a search shows the leads themselves, so the views and stages step aside) */}
+          <div style={{ display: searching ? 'none' : 'flex', gap: 4, overflowX: 'auto', paddingBottom: 2 }}>
             <button onClick={() => setActiveTab(activeTab === 'dashboard' ? 'all' : 'dashboard')} aria-pressed={activeTab === 'dashboard'}
               style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 20, border: `1px solid ${activeTab === 'dashboard' ? T.accent : T.border}`, background: activeTab === 'dashboard' ? T.accent + '1A' : 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 700, color: activeTab === 'dashboard' ? T.accent : T.textSub, whiteSpace: 'nowrap' }}>
               📊 {lang === 'en' ? 'Overview' : 'תמונת מצב'}
@@ -2341,24 +2370,24 @@ function LeadsBoardMain({
         </div>
 
         {/* ── Stats bar ── */}
-        <div style={{ background: T.bgHeader, borderBottom: `1px solid ${T.border}`, paddingTop: 10, display: activeTab === 'followups' ? 'none' : undefined }}>
+        <div style={{ background: T.bgHeader, borderBottom: `1px solid ${T.border}`, paddingTop: 10, display: activeTab === 'followups' || searching ? 'none' : undefined }}>
           <MobileStatsBar leads={leads} T={T} lang={lang} />
         </div>
 
-        {activeTab === 'dashboard' && (
+        {activeTab === 'dashboard' && !searching && (
           <div style={{ flex: 1, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
             <LeadsDashboard leads={projLeads} search={search} onClearSearch={() => setSearch('')} stages={GROUPS} T={T} isDark={isDark} lang={lang} onOpen={setDetailLead} onOpenChat={onOpenChat} />
           </div>
         )}
 
-        {activeTab === 'followups' && (
+        {activeTab === 'followups' && !searching && (
           <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
             <FollowUpsView leads={projLeads} lang={lang} stages={GROUPS} onUpdate={updateLead} onOpen={setDetailLead} onOpenChat={onOpenChat}/>
           </div>
         )}
 
         {/* ── Lead cards ── */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '14px 12px', WebkitOverflowScrolling: 'touch', display: activeTab === 'dashboard' || activeTab === 'followups' ? 'none' : undefined }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '14px 12px', WebkitOverflowScrolling: 'touch', display: (activeTab === 'dashboard' || activeTab === 'followups') && !searching ? 'none' : undefined }}>
           {leads.length === 0 && (
             <div style={{ textAlign: 'center', padding: '60px 24px', color: T.textSub }}>
               <div style={{ fontSize: 52, marginBottom: 16 }}>📋</div>
@@ -2376,8 +2405,22 @@ function LeadsBoardMain({
             </div>
           )}
 
+          {/* A search: the leads themselves, best match first — whatever stage or project they are in */}
+          {leads.length > 0 && searching && (found.all.length === 0
+            ? <SearchEmpty query={search} lang={lang} onClear={clearSearch} onNew={newFromSearch}/>
+            : (<div data-ls-mobile="">
+                <SearchNote found={found} query={search} lang={lang} projectName={searchProjectName} outside={searchOutside} onClear={clearSearch}/>
+                <div style={{ height: 10 }}/>
+                {found.all.map(lead => (
+                  <MobileLeadCard key={lead.id} lead={lead} lang={lang} T={T}
+                    onUpdate={updateLead} onDelete={handleDelete}
+                    onOpenDetail={setDetailLead} onStatusClick={(e, lead) => setStatusTarget(lead)} onOpenChat={onOpenChat} />
+                ))}
+              </div>)
+          )}
+
           {/* Show filtered groups or all groups */}
-          {leads.length > 0 && (
+          {leads.length > 0 && !searching && (
             activeTab !== 'all' && GROUPS.find(g => g.id === activeTab)
               ? (
                 // Single group filtered
@@ -2428,7 +2471,7 @@ function LeadsBoardMain({
         {statusTarget && <StatusPopup lead={statusTarget} onClose={() => setStatusTarget(null)} onUpdate={updateLeadStatus} lang={lang} T={T} />}
         {detailLead && <LeadCard key={detailLead.id} lead={leads.find(l => l.id === detailLead.id) || detailLead} onClose={() => setDetailLead(null)} onUpdate={updateLead} onUpdateStatus={updateLeadStatus} onEnrich={enrichLead} onOpenChat={onOpenChat} lang={lang} stages={GROUPS} />}
         {toast && <Toast message={toast} onDismiss={() => setToast(null)} />}
-        <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}` + LB_CSS}</style>
+        <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}` + LB_CSS + LS_CSS}</style>
       </div>
       {projModals}
     </ProjCtx.Provider>)
@@ -2491,12 +2534,14 @@ function LeadsBoardMain({
           <Plus size={15} strokeWidth={2.4} /> {lang === 'en' ? 'New lead' : 'ליד חדש'}
         </button>
 
-        <label className="lb-search">
+        <label className="lb-search" ref={searchBoxRef}>
           <Search size={15} style={{ color: T.textSub, flexShrink: 0 }} />
-          <input value={search} onChange={e => setSearch(e.target.value)} aria-label={lang === 'en' ? 'Search leads' : 'חיפוש לידים'}
+          <input className="ls-in" value={search} onChange={e => typeSearch(e.target.value)} onFocus={() => { if (search.trim()) setSearchOpen(true) }} onKeyDown={searchKey}
+            aria-label={lang === 'en' ? 'Search leads' : 'חיפוש לידים'} role="combobox" aria-expanded={searching && searchOpen} aria-controls="ls-listbox" aria-autocomplete="list"
+            aria-activedescendant={searching && searchOpen && found.all.length ? `ls-opt-${searchIdx}` : undefined} autoComplete="off"
             placeholder={lang === 'en' ? 'Search name, phone, campaign…' : 'חיפוש שם, טלפון, קמפיין…'}
             style={{ background: 'none', border: 'none', outline: 'none', fontSize: 13, color: T.text, fontFamily: 'inherit', flex: 1, minWidth: 0, minHeight: 0 }} />
-          {search && <button type="button" onClick={() => setSearch('')} aria-label={lang === 'en' ? 'Clear search' : 'ניקוי חיפוש'} style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.textSub, padding: 0, display: 'flex', alignItems: 'center', minHeight: 0 }}><X size={14} /></button>}
+          {search && <button type="button" onClick={clearSearch} aria-label={lang === 'en' ? 'Clear search' : 'ניקוי חיפוש'} style={{ background: 'none', border: 'none', cursor: 'pointer', color: T.textSub, padding: 0, display: 'flex', alignItems: 'center', minHeight: 0 }}><X size={14} /></button>}
         </label>
 
         {activeTab === 'table' && (
@@ -2542,8 +2587,10 @@ function LeadsBoardMain({
       {(activeTab === 'pipeline' || activeTab === 'table') && (
         <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
           <div style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+            {searching && <SearchNote found={found} query={search} lang={lang} projectName={searchProjectName} outside={searchOutside} folded={activeTab === 'pipeline'} onClear={clearSearch}/>}
+            {searching && !found.all.length && <SearchEmpty query={search} lang={lang} onClear={clearSearch} onNew={newFromSearch}/>}
             {/* ── Pipeline (Kanban) view ── */}
-            {activeTab === 'pipeline' && (
+            {activeTab === 'pipeline' && !(searching && !found.all.length) && (
               <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
                 <SelCtx.Provider value={selCtx}>
                 <KanbanBoard
@@ -2559,13 +2606,14 @@ function LeadsBoardMain({
                   showToast={showToast}
                   onRenameStage={onRenameStage}
                   onMergeRequest={openMerge}
+                  searching={searching}
                 />
                 </SelCtx.Provider>
               </div>
             )}
 
             {/* ── Table view ── */}
-            {activeTab === 'table' && (
+            {activeTab === 'table' && !(searching && !found.all.length) && (
               <div className="leads-table-scroll" style={{ flex: 1, minHeight: 0, position: 'relative' }}>
                 <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
                   <div style={{ minWidth: tableMinWidth, width: '100%' }}>
@@ -2618,8 +2666,9 @@ function LeadsBoardMain({
 
                     {GROUPS.map(group => {
                       const groupLeads = grouped[group.id] || []
+                      if (searching && !groupLeads.length) return null          // a search shows only the stages that hold a match
                       return (
-                        <BoardGroup key={group.id} group={group} leads={groupLeads} cols={allColsResized}
+                        <BoardGroup key={group.id} group={group} leads={groupLeads} cols={allColsResized} forceOpen={searching}
                           T={T} lang={lang}
                           onUpdate={updateLead} onUpdateStatus={updateLeadStatus}
                           onDelete={handleDelete} onSelect={handleSelect} selectedIds={selectedIds} onSelectMany={handleSelectMany}
@@ -2636,6 +2685,10 @@ function LeadsBoardMain({
           </div>
         </div>
       )}
+
+      <SearchPopover anchorRef={searchBoxRef} open={searching && searchOpen && !detailLead} found={found} query={search} lang={lang} stages={GROUPS} projects={projects}
+        active={searchIdx} setActive={setSearchIdx} onOpen={openFound} onOpenChat={onOpenChat ? l => { setSearchOpen(false); onOpenChat(l) } : undefined}
+        onClose={() => setSearchOpen(false)} onNew={newFromSearch}/>
 
       {/* ── Modals ── */}
       {modal === 'integrate'  && <IntegrationsModal onClose={() => setModal(null)} T={T} lang={lang} />}
@@ -2799,7 +2852,7 @@ function LeadsBoardMain({
         </>
       )}
 
-      <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}` + LB_CSS}</style>
+      <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}` + LB_CSS + LS_CSS}</style>
     </div>
     {projModals}
   </ProjCtx.Provider>)

@@ -441,9 +441,9 @@ export function ProjectsManager({ leads, projects, lang = 'he', startNew = false
 }
 
 /** "ליד חדש": name, phone, email, project, stage, where from, a first note, the welcome — saved on the server */
-export function NewLeadDialog({ projects, defaultProjectId = '', defaultStage = 'new', lang = 'he', onClose, onCreated }) {
+export function NewLeadDialog({ projects, defaultProjectId = '', defaultStage = 'new', defaultName = '', defaultPhone = '', lang = 'he', onClose, onCreated }) {
   const t = tOf(lang)
-  const [f, setF] = useState({ name: '', phone: '', email: '', projectId: defaultProjectId && defaultProjectId !== NONE ? defaultProjectId : '', leadStatus: STAGE_ORDER.includes(defaultStage) ? defaultStage : 'new', source: 'phone', sourceDetail: '', note: '', welcome: false })
+  const [f, setF] = useState({ name: defaultName, phone: defaultPhone, email: '', projectId: defaultProjectId && defaultProjectId !== NONE ? defaultProjectId : '', leadStatus: STAGE_ORDER.includes(defaultStage) ? defaultStage : 'new', source: 'phone', sourceDetail: '', note: '', welcome: false })
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const set = k => e => setF(x => ({ ...x, [k]: e?.target ? (e.target.type === 'checkbox' ? e.target.checked : e.target.value) : e }))
