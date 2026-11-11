@@ -33,6 +33,7 @@ import { parseGreenHook, rowToGreen, mergeHistory, historyToRow } from '../lib/g
 import { avatarExpiry, avatarFresh, avatarPhone, socialAvatarFresh, socialKey, avatarKey, profileLinkOf } from '../lib/wa-avatar.js'
 import { forwardRequest, fileGroupRequest, cleanMsgId, cleanReaction, isHandled, withHandled, withoutHandled } from '../lib/wa-actions.js'
 import { cleanProjects } from '../lib/projects.js'
+import { cleanFolders, applyFolderOps, galleryStoragePaths } from '../lib/gallery-folders.js'
 import { parseSocialHook, threadId, parseThreadId, previewText, leadBodyFromThread, cleanSocialPages, inboxPageIds, accountLabels, conversationEvents, threadRowFrom, importJobs } from '../lib/social-hook.js'
 import { manualLeadRow } from '../lib/manual-lead.js'
 import * as Docs from '../lib/documents-server.js'
@@ -631,6 +632,31 @@ async function handleSocial(req, res, action) {
 // ── Projects (deals) the leads belong to (lib/projects.js) — the list lives in app_settings 'lead_projects' ──────────────
 // GET → { projects } · POST { projects } → the cleaned list saved (the board sends the whole list; a project is never lost by a
 // stale tab: the server merges by id, a missing id stays unless `removed` names it)
+// The gallery's own folders (lib/gallery-folders.js): GET → { folders } · POST { ops: [...] } → the ops applied to the stored list.
+// A photo no folder holds any more is deleted from Storage — only a gallery upload (property-media/gallery/…), and only when no
+// template and no sent WhatsApp message still points at it.
+async function handleGalleryFolders(req, res) {
+  if (!checkAuth(req)) return res.status(401).json({ error: 'Unauthorized' })
+  res.setHeader('Cache-Control', 'no-store')
+  const cur = cleanFolders((await Auto.getSetting('gallery_folders').catch(() => ({ value: null }))).value || [])
+  if (req.method === 'GET') return res.status(200).json({ folders: cur })
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
+  const { folders, removed, errors } = applyFolderOps(cur, (req.body || {}).ops)
+  try { await Auto.putSetting('gallery_folders', folders) } catch (e) { return res.status(502).json({ error: e.message }) }
+  let deleted = 0
+  const ours = removed.filter(u => galleryStoragePaths([u]).length)
+  if (ours.length && SUPABASE_URL && SUPABASE_KEY) {
+    try {
+      const cfg = JSON.stringify(await Auto.loadConfig().catch(() => ({})) || {})
+      const { data: used } = await sb().from('wa_messages').select('file_url').in('file_url', ours.slice(0, 200)).limit(400)
+      const keep = new Set((used || []).map(r => r.file_url))
+      const paths = galleryStoragePaths(ours.filter(u => !keep.has(u) && !cfg.includes(u)))
+      if (paths.length) { const { data } = await sb().storage.from('property-media').remove(paths); deleted = (data || []).length }
+    } catch (e) { console.warn('[gallery] storage cleanup failed:', e.message) }
+  }
+  return res.status(200).json({ folders, errors, deleted })
+}
+
 async function handleProjects(req, res) {
   if (!checkAuth(req)) return res.status(401).json({ error: 'Unauthorized' })
   res.setHeader('Cache-Control', 'no-store')
@@ -2610,6 +2636,7 @@ export default async function handler(req, res) {
   if (path === 'webhook')      return handleWebhook(req, res)
   if (path === 'green-hook')   return handleGreenHook(req, res)
   if (path === 'projects')     return handleProjects(req, res)
+  if (path === 'gallery-folders') return handleGalleryFolders(req, res)
   if (path.startsWith('social-')) return handleSocial(req, res, path)
   if (path === 'leads')        return handleLeads(req, res)
   if (path === 'messages')     return handleMessages(req, res)

@@ -29,22 +29,28 @@ export async function compress(file, max = TEMPLATE_IMAGE_MAX) {
   } finally { URL.revokeObjectURL(url) }
 }
 
-/** file (from a picker, a drop or a paste) → { url, size } */
-export async function uploadTemplateImage(file) {
-  if (!file || !/^image\//.test(file.type || '')) throw new Error('אפשר לצרף רק תמונה')
+/** One picture → compressed (≤ max px JPEG) → the public bucket's `<folder>/…` through the wizard's signed URL → { url, size }.
+ *  A file the browser can't open as a picture (an iPhone HEIC in Chrome) says so instead of being stored as it is. */
+export async function uploadImage(file, { folder = 'templates', max = TEMPLATE_IMAGE_MAX, name = 'image' } = {}) {
+  const looksImage = /^image\//.test(file?.type || '') || /\.(jpe?g|png|webp|gif|heic|heif)$/i.test(file?.name || '')
+  if (!file || !looksImage) throw new Error('אפשר לצרף רק תמונה')
   if (file.size > 25 * 1024 * 1024) throw new Error('התמונה גדולה מדי (עד 25MB)')
-  const blob = await compress(file)
-  const type = blob.type || 'image/jpeg'
-  const ext = type === 'image/gif' ? 'gif' : 'jpg'
+  const blob = await compress(file, max)
+  const type = /^image\/(jpeg|png|webp|gif)$/.test(blob.type || '') ? blob.type : 'image/jpeg'
+  const ext = type === 'image/gif' ? 'gif' : type === 'image/png' ? 'png' : type === 'image/webp' ? 'webp' : 'jpg'
   const meta = await fetch('/api/seller-form?action=wizard-upload-url', {
     method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
-    body: JSON.stringify({ name: `template.${ext}`, type, size: blob.size, kind: 'image', folder: 'templates' }),
+    body: JSON.stringify({ name: `${name}.${ext}`, type, size: blob.size, kind: 'image', folder }),
   }).then(r => r.json().catch(() => ({}))).catch(() => ({}))
   if (!meta?.signedUrl || !meta?.url) throw new Error(meta?.error ? `ההעלאה נכשלה: ${meta.error}` : 'ההעלאה נכשלה – נסו שוב')
   const put = await fetch(meta.signedUrl, { method: 'PUT', headers: { 'Content-Type': type, 'x-upsert': 'true', 'cache-control': 'max-age=31536000' }, body: blob }).catch(() => null)
   if (!put?.ok) throw new Error('ההעלאה נכשלה – נסו שוב')
   return { url: meta.url, size: blob.size }
 }
+/** file (from a picker, a drop or a paste) → { url, size } */
+export const uploadTemplateImage = file => uploadImage(file, { folder: 'templates', max: TEMPLATE_IMAGE_MAX, name: 'template' })
+/** a photo for one of the gallery's own folders (lib/gallery-folders.js): ≤ 1600 px, property-media/gallery/… */
+export const uploadGalleryPhoto = file => uploadImage(file, { folder: 'gallery', max: 1600, name: 'photo' })
 
 /** A small preview of a template picture through the image CDN (never the original from Supabase) */
 export const imageThumb = (url, w = 160) => (url ? `https://wsrv.nl/?url=${encodeURIComponent(url)}&w=${w}&h=${w}&fit=cover&output=webp&q=70` : '')
