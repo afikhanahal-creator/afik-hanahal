@@ -30,6 +30,7 @@ import { hebrewFullName } from '../lib/hebrew-names.js'
 import { properHebrewName } from '../lib/name-proof.js'
 import { hebrewizeRecentNames } from '../lib/hebrew-lead-names.js'
 import { parseGreenHook, rowToGreen, mergeHistory, historyToRow } from '../lib/green-hook.js'
+import { forwardGreenHook } from '../lib/green-forward.js'
 import { avatarExpiry, avatarFresh, avatarPhone, socialAvatarFresh, socialKey, avatarKey, profileLinkOf } from '../lib/wa-avatar.js'
 import { forwardRequest, fileGroupRequest, cleanMsgId, cleanReaction, isHandled, withHandled, withoutHandled } from '../lib/wa-actions.js'
 import { cleanProjects } from '../lib/projects.js'
@@ -125,6 +126,10 @@ async function handleGreenHook(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
   const key = String((req.headers['authorization'] || '').replace(/^Bearer\s+/i, '') || req.query?.k || '')
   if (!(await greenHookKeyValid(key))) return res.status(401).json({ error: 'Unauthorized' })
+  // The line has one webhook address and Kurkoos Finance listens to it too (receipts from registered phones): every
+  // delivery, of every type, is passed on unchanged in the background (lib/green-forward.js — KURKOOS_FINANCE_HOOK_URL +
+  // KURKOOS_FINANCE_HOOK_TOKEN, nothing without both; 8 s limit, never rejects, never delays the answer to Green).
+  waitUntil(forwardGreenHook(req.rawBody))
   const ev = parseGreenHook(req.body)
   if (!SUPABASE_URL || !SUPABASE_KEY || (ev.kind !== 'message' && ev.kind !== 'status')) return res.status(200).json({ ok: true, kind: ev.kind })
   // One round trip each (server/wa-fast-path-migration.sql): a message is stored / merged over the row the sender already
