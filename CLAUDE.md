@@ -423,7 +423,14 @@ now runs `greenSettingsCheck()` on every tick** (it ran only when the chats scre
 pointed back, the office gets one WhatsApp about it, and the tick's answer carries `hook: ok | fixed | elsewhere | unknown`. After a
 fix the report is built from what was set (Green's `getSettings` answer is shared for 30 s and read stale right after). **Never
 connect another system to the office line's webhook**; a system that needs the line's incoming messages gets them forwarded from
-`handleGreenHook`, or uses a WhatsApp number of its own. **Nothing automatic may ever answer a client on the office line except the
+`handleGreenHook`, or uses a WhatsApp number of its own. **Kurkoos Finance gets every delivery forwarded** (2026-11-11; the two
+systems had taken the webhook from each other and receipts stopped arriving there): once the key check passes, `handleGreenHook`
+posts Green's body, unchanged and of every type, in the background (`waitUntil(forwardGreenHook(req.rawBody))`,
+`lib/green-forward.js`, tested) to `KURKOOS_FINANCE_HOOK_URL` (`https://www.kurkoos-group.co.il/api/finance-whatsapp`, https only)
+with `Authorization: Bearer <KURKOOS_FINANCE_HOOK_TOKEN>` (= kurkoos-group's `FINANCE_WHATSAPP_WEBHOOK_TOKEN`; never in the address
+or a log). Both Vercel variables must be set or nothing is sent; 8 s limit, a failure only logs `[green-hook] forward` and never
+touches storing or the answer to Green. The webhook stays pointed here and the four journal flags stay on (finance needs
+`incomingWebhook` and `outgoingMessageWebhook`). **Nothing automatic may ever answer a client on the office line except the
 automations of this system** (welcome, no-reply, stage messages, document / booking messages).
 **As fast as WhatsApp** (2026-10-26):
 a chat not opened in this session paints from our own table first (`chat-history {stored:true}` — `wa_messages` only, ~0.1 s)
