@@ -726,7 +726,7 @@ async function fixGreenSettings() {
   const r = await greenFetch(greenUrl('setSettings'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: AbortSignal.timeout(15000) })
   if (!r.ok) return { ok: false, error: `setSettings ${r.status}: ${(await r.text().catch(() => '')).replace(/\s+/g, ' ').slice(0, 160)}` }
   settingsCache.at = 0
-  return { ok: true }
+  return { ok: true, hooked: !!hookKey }
 }
 // chat-status asks at most every 10 minutes and turns the incoming journal back on by itself when it finds it off (a plan
 // change reset it once — the chats then showed only our side)
@@ -736,8 +736,9 @@ async function greenSettingsCheck() {
   let v = await greenSettingsReport()
   if ((v.incomingOff || !v.webhookOurs) && Date.now() - settingsCache.fixedAt > 60 * 60e3) {
     settingsCache.fixedAt = Date.now()
+    const elsewhere = v.hasWebhookUrl && !v.webhookOurs          // another system had pointed the line's webhook at itself
     const fx = await fixGreenSettings().catch(e => ({ ok: false, error: e.message }))
-    v = fx.ok ? { ...(await greenSettingsReport().catch(() => v)), autoFixed: true } : { ...v, fixError: fx.error || 'setSettings failed' }
+    v = fx.ok ? { ...v, ...Object.fromEntries(JOURNAL_FLAGS.map(k => [k, true])), incomingOff: false, ...(fx.hooked ? { hasWebhookUrl: true, webhookOurs: true } : {}), autoFixed: true, wasElsewhere: !!(elsewhere && fx.hooked) } : { ...v, fixError: fx.error || 'setSettings failed' }
   }
   settingsCache.at = Date.now(); settingsCache.value = v
   return v
@@ -1588,6 +1589,11 @@ async function handleAutomations(req, res, action) {
     // office phone too), so the run below sees who was already contacted by hand (manualContact) — the default covers 3 hours
     const catchupMin = Math.min(1440, Math.max(0, parseInt(req.query?.catchup, 10) || 0))
     const caught = catchupMin > 180 ? await Auto.catchUpMessages({ minutes: catchupMin }).catch(e => ({ error: e.message })) : null
+    // The line's incoming messages must reach THIS system (2026-11-11: another system pointed the instance's webhook at itself
+    // and for 1.5 hours nothing arrived here live). Checked on every tick, not only while the chats screen is open; a webhook
+    // found elsewhere is pointed back and the office is told once.
+    const hook = await greenSettingsCheck().catch(() => null)
+    if (hook?.autoFixed && hook.wasElsewhere) { hook.wasElsewhere = false; await Auto.notifyTeam('קו הוואטסאפ של המשרד: ההודעות הנכנסות הופנו למערכת אחרת, והוחזרו עכשיו למערכת הלידים. אם מישהו חיבר מערכת נוספת לקו, כדאי לבדוק איתו.').catch(() => null) }
     const [r, meta] = await Promise.all([
       Auto.run({ source: 'external' }).catch(e => ({ ok: false, error: e.message, sent: [], errors: [], suggestions: [], jobs: {} })),
       syncRecentMetaLeads({ hours: 6 }).catch(e => ({ error: e.message })),   // safety net for the Meta webhook
@@ -1597,7 +1603,7 @@ async function handleAutomations(req, res, action) {
       Auto.catchUpMessages().catch(() => null).then(() => Promise.all([Auto.scanCallbacks().catch(() => null), Auto.assignProjectsFromChats({ auto: true }).catch(() => null)])),   // missed webhook rows → wa_messages; then times the leads asked for → tasks, and the project each new conversation is about
       Docs.ready() ? Docs.sweepExpired().catch(() => 0).then(() => Docs.remindUnsigned().catch(() => null)).then(() => Docs.driveTick().catch(() => null)) : null,   // documents: expired links, reminders to signers, the Drive queue
     ])
-    return res.status(200).json({ ok: r.ok !== false, at: r.at, sent: r.sent?.length || 0, errors: r.errors?.length || 0, queued: r.suggestions?.length || 0, jobs: r.jobs, notes: r.notes, meta, ...(caught ? { catchup: { minutes: catchupMin, checked: caught.checked, added: caught.added, error: caught.error } } : {}) })
+    return res.status(200).json({ ok: r.ok !== false, at: r.at, sent: r.sent?.length || 0, errors: r.errors?.length || 0, queued: r.suggestions?.length || 0, jobs: r.jobs, notes: r.notes, meta, hook: !hook ? 'unknown' : hook.autoFixed ? 'fixed' : hook.webhookOurs && !hook.incomingOff ? 'ok' : 'elsewhere', ...(caught ? { catchup: { minutes: catchupMin, checked: caught.checked, added: caught.added, error: caught.error } } : {}) })
   }
   // Follow-up reminders are not polled: the database's own scheduler (pg_cron, every minute, inside Postgres — no transfer)
   // counts the due ones (public.afik_due_reminders()) and calls this only when there is one, with the key it keeps in

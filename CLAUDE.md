@@ -413,7 +413,19 @@ is new (`GET /api/meta/chat-updates?since=<cursor>`) and hands it to every open 
 lands in its chat, a sent one replaces its optimistic bubble, the chat jumps to the top, a new chat is added), the Lead Center /
 lead card (`LeadConversation`) and the admin (sidebar badge + a toast naming the lead outside the chats tab). The 8-second
 history polls run only while the bus is down (once a minute otherwise); `chat-history` merges the stored rows over Green's
-history (`mergeHistory()`), so a message is never lost even if Green's journal is. **As fast as WhatsApp** (2026-10-26):
+history (`mergeHistory()`), so a message is never lost even if Green's journal is. **The line's webhook is guarded (2026-11-11):** Green has ONE `webhookUrl` per instance. The Kurkoos finance module
+(kurkoos-group `server/finance/whatsapp.js`, "סורקים ניידים") pointed the office line's webhook at itself at 10:47 and answered a
+client who wrote to the office with "המספר הזה לא רשום כסורק במערכת הנהלת החשבונות…" (twice, one number); nothing arrived here live
+for 1.5 hours (the 15-minute catch-up kept the history whole). Fixed the same day: its auto replies were switched off
+(`fin_settings.whatsapp_auto_replies = false` in the Kurkoos database), its code never answers a number that isn't a registered
+scanner nor an ordinary text from a registered one (kurkoos-group #390), the webhook was pointed back (`wa-fix`), and **`auto-tick`
+now runs `greenSettingsCheck()` on every tick** (it ran only when the chats screen asked `chat-status`): a webhook found elsewhere is
+pointed back, the office gets one WhatsApp about it, and the tick's answer carries `hook: ok | fixed | elsewhere | unknown`. After a
+fix the report is built from what was set (Green's `getSettings` answer is shared for 30 s and read stale right after). **Never
+connect another system to the office line's webhook**; a system that needs the line's incoming messages gets them forwarded from
+`handleGreenHook`, or uses a WhatsApp number of its own. **Nothing automatic may ever answer a client on the office line except the
+automations of this system** (welcome, no-reply, stage messages, document / booking messages).
+**As fast as WhatsApp** (2026-10-26):
 a chat not opened in this session paints from our own table first (`chat-history {stored:true}` — `wa_messages` only, ~0.1 s)
 while Green's full history (~4 s) is read behind it, and every Green read saves what the table missed (`historyToRow()` in
 `lib/green-hook.js`, tested → `afik_wa_backfill(rows)`, `server/wa-backfill-migration.sql`: quiet — the change bus isn't told,
@@ -1592,6 +1604,25 @@ the chips row (stage, welcome, waiting, project), **one quiet line** — phone (
 labelled grid, the last note or the message in a tinted block (2 lines), and **one row of four small actions** (התקשר · WhatsApp ·
 סיכום · פרטים, icon over label, 46 px) instead of four big 2 × 2 buttons; no coloured side border. QA: the scratchpad's
 `qa-leads-phone.cjs` (iPhone, fake leads, a card screenshot).
+**Search finds the lead itself (2026-11-11 — the office: "when I search a lead's name I want the lead to show up, not to go looking
+for it among the columns"; `src/lib/leadSearch.js`, tested, + `src/LeadSearchPanel.jsx`):** the board's search used to be a plain
+`includes` inside the chosen project only — a name typed without its space, a phone with dashes, a lead of another project or one in
+a folded stage all read as "0 everywhere". Now a search looks at **every lead** (the project filter and "ממתינים" are ignored while
+it is on; the note says how many matches are outside the chosen project): every word typed must be found, in any order, in the name
+(as shown or as typed in the form, `originalName` — "ronen" finds "רונן"), the phone (digits in any format, +972 too), the email or
+the project / campaign / listing; "אלרועי" finds "אל רועי" and the other way round (`flat`), quotes / hyphens / final letters don't
+matter (`normText`). Ranked: exact name > starts with > a word > inside > without spaces; when nothing matches exactly, **similar
+names** (`kind: 'close'`: the same sound — `soundKey()`: א = ע, ט = ת, כ = ק, no vowel letters — or one typo, `oneTypo()`), never
+mixed with exact ones. `searchIndex(leads, extraOf)` is built once per list (`useMemo`), `searchLeads(index, q)` → `{ exact, close,
+all }`. **Desktop:** a list opens under the search box (`SearchPopover`, a portal — the toolbar scrolls sideways): face, name, phone,
+project, stage pill, a WhatsApp button; ↑ ↓ move, Enter opens the lead card (`setDetailLead`), Esc closes the list and a second Esc
+clears the search, a click outside closes it. The board keeps only the matches: in the pipeline **the stages that hold a match are
+open and the others fold to strips** (`KanbanBoard searching` — the stored fold choice isn't touched), in the table empty stages are
+hidden and a folded one opens (`BoardGroup forceOpen`); a note over the board (`SearchNote`) says what was found, and nothing found
+is a centred message (`SearchEmpty`) with "הוספה כליד חדש" (the new-lead dialog opens with the typed name or phone —
+`NewLeadDialog defaultName / defaultPhone`). **Phone:** the leads themselves as one flat list right under the search box (best match
+first; the project bar, the views strip and the stat tiles step aside; the bar is hidden, not unmounted — it carries the project
+chip's stylesheet), the field is 16 px. QA: the scratchpad's `ls/qa-search.cjs` (`PHONE=1` = iPhone 13).
 **Pipeline design (2026-11-03, a calm Apple-like system — `LB_CSS` in `src/LeadsBoard.jsx`, classes `.kb-col*` / `.lb-c-*`):** the
 board is a quiet neutral (`--au-bg`), columns are faint tinted panels with no colored borders (the stage's color is a 9 px dot next to
 the title, the count a soft grey pill, the fold arrow shows on hover), cards are white with a 1 px hairline, 14 px radius and a soft
