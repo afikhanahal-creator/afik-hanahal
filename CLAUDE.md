@@ -694,6 +694,26 @@ repeats off Supabase) sent together as one album. The list is the admin's `prope
 `setSharedProperties` / `useSharedProperties`; a screen without it reads `/api/properties` once). A phone: the list, then the
 property's photos with "כל הנכסים" back, 3 columns, the footer full width. QA: the scratchpad's `gal/qa-gal.cjs` (chats tab,
 desktop + iPhone) and `tq/qa-gcard.cjs` (the lead card).
+**The gallery's own folders + the upload fix (2026-11-11):** every upload had failed since 2026-11-06 with "client.rpc(...).catch is not a
+function" — `storageUsage()` in `api/seller-form.js` called `.catch` on a Supabase query, which is a thenable without one (a test in
+`lib/supabase-watch.test.mjs` now fails on `.catch(` straight on a query; use `try / catch` or `.then(ok, fail)`). **Folders**
+(`lib/gallery-folders.js`, tested; `app_settings.gallery_folders`): the office makes its own folders in the gallery ("+ תיקייה חדשה" —
+a property that isn't on the site yet) and adds photos to them **or to an existing property** (a folder with `propertyId`, id
+`g_p<property id>`: the extras follow the property's site photos; the site's property is never changed). `GET / POST
+/api/meta/gallery-folders { ops }` — `applyFolderOps()`: create · rename · delete · add · remove · cover, each safe to repeat;
+≤ 300 folders × 300 photos, https only. Photos are compressed in the browser (≤ 1600 px JPEG, `uploadGalleryPhoto()` =
+`uploadImage(file, { folder: 'gallery' })` in `src/lib/templateImage.js`) into `property-media/gallery/<month>/…` (`wizard-upload-url`
+takes `folder: 'gallery'`); a photo no folder holds any more is deleted from Storage only when it is a gallery upload and no
+template / sent message (`wa_messages.file_url`) points at it (`galleryStoragePaths()`). Browser: `src/lib/galleryStore.js`
+(`useGalleryFolders`, `galleryOps` — optimistic, sent one batch at a time in order) and `galleryEntries()` / `imageFilesOnly()` in
+`src/lib/photoGallery.js` (tested). **The window, redesigned** (`src/PhotoGalleryPicker.jsx`): the list has "התיקיות שלי" and
+"נכסים" with counts; a folder / property takes photos from "העלאת תמונות", the upload tile, a drop on the photos area or on its row
+in the list (an overlay says where it lands), or a paste; an uploaded photo is **selected at once**; progress tiles, a reason for a
+refused file ("לגלריה אפשר להעלות רק תמונות"); a folder's name is edited in place (✎), a folder / an uploaded photo is deleted with a
+confirm (a property's site photos can't be); 4:3 tiles with a numbered check, zoom and delete on hover (always on touch); the
+property-link option shows only when a property's photo is picked; phones: the list, then the folder with a one-row action bar.
+Drag / paste events are stopped at the window (React events pass through a portal — a dropped file used to land in the chat's tray
+behind it too). QA: the scratchpad's `gal/qa-gal2.cjs` (`PHONE=1` = iPhone 13).
 **A picture per template** (optional): a template's `image` (an https URL; `templateImage()` / `isImageUrl()` in
 `lib/automations-shared.js`) is sent as a WhatsApp image with the text as its caption — `sendText(phone, text, { image })`
 (`lib/automations.js`) switches to Green's `sendFileByUrl` (`urlFile`, `fileName` from the URL, `caption`). Every path carries

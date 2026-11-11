@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { propertyMatches, galleryProperties, photoFileName, picksToFiles, picksLinks, togglePick, pushRecent } from './photoGallery.js'
+import { propertyMatches, galleryProperties, galleryEntries, imageFilesOnly, photoFileName, picksToFiles, picksLinks, togglePick, pushRecent } from './photoGallery.js'
 
 const U = n => `https://x.supabase.co/storage/v1/object/public/property-images/${n}.jpg`
 const LIST = [
@@ -39,4 +39,45 @@ test('photoFileName / picksToFiles / picksLinks / togglePick / pushRecent', () =
   assert.equal(togglePick(picks, { url: U('z') }, 30).length, 4)
   const r = pushRecent([{ url: U('b') }, { url: U('q') }, { url: 'data:x' }], [{ url: U('b') }, { url: U('a') }], 3)
   assert.deepEqual(r.map(x => x.url), [U('b'), U('a'), U('q')])
+})
+
+test('galleryEntries: the office\'s folders next to the properties; a property\'s extras follow its site photos', () => {
+  const G = n => `https://x.supabase.co/storage/v1/object/public/property-media/gallery/2026-11/${n}.jpg`
+  const folders = [
+    { id: 'g_old', name: 'פרויקט ישן', photos: [{ url: G('o1') }], updatedAt: '2026-11-01T10:00:00Z' },
+    { id: 'g_new', name: 'בן גוריון 17', photos: [], updatedAt: '2026-11-10T10:00:00Z' },
+    { id: 'g_p2', name: '', propertyId: '2', photos: [{ url: G('x1') }, { url: U('c') }, { url: 'http://insecure/x.jpg' }] },
+    { id: 'g_p4', name: '', propertyId: '4', photos: [{ url: G('y1') }] },
+    { id: 'g_p99', name: 'נכס שנמחק', propertyId: '99', photos: [{ url: G('z1') }] },
+  ]
+  const g = galleryEntries(LIST, folders, { project: 'זרובבל 15' })
+  // folders: newest first, an empty one shows, a gone property's extras show as a folder
+  assert.deepEqual(g.folders.map(f => f.id), ['g_new', 'g_old', 'g_p99'])
+  assert.deepEqual(g.folders[0].images, [])
+  assert.deepEqual(g.folders[1].own, [G('o1')])
+  // property 2: its site photo, then the extra (no repeat of a site photo, no http); the extra is "own"
+  const p2 = g.properties.find(p => p.id === '2')
+  assert.deepEqual(p2.images, [U('c'), G('x1')])
+  assert.deepEqual(p2.own, [G('x1')])
+  assert.equal(p2.folderId, 'g_p2')
+  // property 4 has no site photos but has extras → it shows; property 1 has no extras → its upload folder id is made from its id
+  assert.deepEqual(g.properties.find(p => p.id === '4').images, [G('y1')])
+  assert.equal(g.properties.find(p => p.id === '1').folderId, 'g_p1')
+  assert.deepEqual(g.properties.find(p => p.id === '1').own, [])
+  // the lead's project matches a folder by its name too; the search covers folders
+  assert.equal(galleryEntries([], [{ id: 'g_z', name: 'זרובבל 15 הדמיות', photos: [] }], { project: 'זרובבל 15' }).folders[0].match, true)
+  assert.deepEqual(galleryEntries(LIST, folders, { query: 'גוריון' }).folders.map(f => f.id), ['g_new'])
+  assert.equal(galleryEntries(LIST, folders, { query: 'גוריון' }).properties.length, 0)
+  // the old helper still answers the same
+  assert.deepEqual(galleryProperties(LIST, { project: 'זרובבל 15' }).map(p => p.id), ['2', '1', '5', '3'])
+})
+
+test('imageFilesOnly: photos only (a phone\'s HEIC by its name), a size cap, a reason for the rest', () => {
+  const f = (name, type, size = 1000) => ({ name, type, size })
+  const r = imageFilesOnly([f('a.jpg', 'image/jpeg'), f('b.HEIC', ''), f('c.pdf', 'application/pdf'), f('d.svg', 'image/svg+xml'), f('e.png', 'image/png', 30 * 1024 * 1024), f('v.mp4', 'video/mp4')])
+  assert.deepEqual(r.ok.map(x => x.name), ['a.jpg', 'b.HEIC'])
+  assert.deepEqual(r.bad.map(x => x.name), ['c.pdf', 'd.svg', 'e.png', 'v.mp4'])
+  assert.ok(r.bad[0].why.includes('רק תמונות') && r.bad[2].why.includes('25'))
+  assert.ok(imageFilesOnly([f('c.pdf', 'application/pdf')], { lang: 'en' }).bad[0].why.includes('Only photos'))
+  assert.deepEqual(imageFilesOnly(null), { ok: [], bad: [] })
 })

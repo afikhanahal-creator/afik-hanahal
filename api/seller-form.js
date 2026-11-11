@@ -773,7 +773,8 @@ export default async function handler(req, res) {
       if (!room.ok) return res.status(507).json({ ok: false, error: room.error })
       // folder 'templates' = a WhatsApp template's picture (src/lib/templateImage.js), 'chat' = a file sent in a chat
       // (src/lib/chatFiles.js); everything else is the property wizard's
-      const path = `${b.folder === 'templates' ? 'templates' : b.folder === 'chat' ? 'chat' : 'wizard'}/${new Date().toISOString().slice(0, 7)}/${Date.now()}-${rand(3)}-${safeName(b.name)}`
+      // 'gallery' = a photo the office put in one of the gallery's own folders (lib/gallery-folders.js)
+      const path = `${['templates', 'chat', 'gallery'].includes(b.folder) ? b.folder : 'wizard'}/${new Date().toISOString().slice(0, 7)}/${Date.now()}-${rand(3)}-${safeName(b.name)}`
       let { data, error } = await client.storage.from(PUBLIC_BUCKET).createSignedUploadUrl(path)
       if (error && /not found|does not exist/i.test(error.message || '')) { await ensureBucket(client, PUBLIC_BUCKET, true); ({ data, error } = await client.storage.from(PUBLIC_BUCKET).createSignedUploadUrl(path)) }
       if (error) return res.status(502).json({ ok: false, error: `storage: ${error.message}` })
