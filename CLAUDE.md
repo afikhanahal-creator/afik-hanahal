@@ -1968,6 +1968,17 @@ widget zooms with `govmap.zoomToXY` (ITM, level 13), verifies the landing throug
 not found + "פתח ב-GovMap" + retry) instead of failing silently. The legacy `es.govmap.gov.il/TldSearch` service
 alone is no longer relied on.
 
+## Public site: the top bar and the side menu
+
+**The side menu on a phone was a 62px strip (fixed 2026-11-12):** the mobile rules for the top bar were written on the bare `nav`
+element (`nav { height: 62px !important; padding: 0 14px !important }`, the safe-area padding, the icon sizes), and the side menu
+(`.nav-panel`) is a `<nav>` too since the accessibility pass — so under 768px it opened as a strip with only the logo and ✕ while the
+page behind it was blurred. The top bar is now `<nav className="site-nav">` and every such rule is written on `.site-nav`. **Never
+style a bare element (`nav`, `section`, `header`…) in the site's global CSS** — the admin, the seller form and the menu share the
+page (the same bare rule had been squeezing the admin's bottom bar to 62px without its home-indicator padding; it is 58px + the safe
+area now, as its own CSS says). QA: the scratchpad's `menu/qa-menu.cjs` (iPhone 13, a 360px Android, a 768px tablet, desktop: the
+menu is as tall as the screen, the links show, a link and ✕ close it).
+
 ## Public site performance rules (keep scrolling smooth on slow phones)
 
 Measured on a mobile profile (CPU ×4): the homepage used to burn ~40% CPU at rest and scroll at ~12 fps. What fixed it,
