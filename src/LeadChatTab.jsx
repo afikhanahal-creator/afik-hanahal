@@ -14,7 +14,7 @@ const H = { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_T
 const TR = {
   he: {
     aiTitle: 'סיכום AI של השיחה', aiSub: 'קורא את כל ההתכתבות ומסכם: על מה דיברנו, מה הליד מחפש, מה סוכם, מה פתוח, ובאיזה שלב הוא צריך להיות.',
-    summarize: 'סכם את השיחה', resummarize: 'סכם מחדש', summarizing: 'קורא את השיחה ומסכם…', updated: (w, n) => `עודכן ${w} · ${n} הודעות`,
+    summarize: 'סכם את השיחה', resummarize: 'סכם מחדש', showSum: 'הצגת הסיכום', hideSum: 'הסתרה', summarizing: 'קורא את השיחה ומסכם…', updated: (w, n) => `עודכן ${w} · ${n} הודעות`,
     newSince: n => `${n} הודעות חדשות מאז הסיכום`, wants: 'מה הליד מחפש', topics: 'על מה דיברנו', agreed: 'מה סוכם', open: 'שאלות ונושאים פתוחים', next: 'הצעד הבא',
     temp: { hot: 'חם', warm: 'פושר', cold: 'קר' }, waiting: 'הליד מחכה לתשובה', stage: 'שלב מומלץ', move: s => `העבר ל"${s}"`, moved: 'הליד כבר בשלב הזה',
     followUp: 'מעקב מומלץ', fuIn: n => (n === 0 ? 'היום' : n === 1 ? 'מחר' : `בעוד ${n} ימים`), setFu: 'קבע מעקב', fuSet: 'המעקב נקבע', noFu: 'אין צורך במעקב כרגע',
@@ -26,7 +26,7 @@ const TR = {
   },
   en: {
     aiTitle: 'AI conversation summary', aiSub: 'Reads the whole chat and sums up what we talked about, what the lead wants, what was agreed, what is open, and which stage they belong in.',
-    summarize: 'Summarize the chat', resummarize: 'Summarize again', summarizing: 'Reading the chat and summarizing…', updated: (w, n) => `Updated ${w} · ${n} messages`,
+    summarize: 'Summarize the chat', resummarize: 'Summarize again', showSum: 'Show summary', hideSum: 'Hide', summarizing: 'Reading the chat and summarizing…', updated: (w, n) => `Updated ${w} · ${n} messages`,
     newSince: n => `${n} new messages since the summary`, wants: 'What the lead wants', topics: 'What we talked about', agreed: 'What was agreed', open: 'Open questions and issues', next: 'Next step',
     temp: { hot: 'Hot', warm: 'Warm', cold: 'Cold' }, waiting: 'The lead is waiting for an answer', stage: 'Suggested stage', move: s => `Move to “${s}”`, moved: 'The lead is already in this stage',
     followUp: 'Suggested follow-up', fuIn: n => (n === 0 ? 'today' : n === 1 ? 'tomorrow' : `in ${n} days`), setFu: 'Set follow-up', fuSet: 'Follow-up set', noFu: 'No follow-up needed right now',
@@ -56,7 +56,7 @@ const Lines = ({ items, color }) => (
   </ul>
 )
 
-export default function LeadChatTab({ lead, lang = 'he', stages = [], save, onUpdateStatus, onOpenChat, onClose, hideConversation = false }) {
+export default function LeadChatTab({ lead, lang = 'he', stages = [], save, onUpdateStatus, onOpenChat, onClose, compact = false, hideConversation = false }) {
   const t = TR[lang] || TR.he
   const [chat, setChat] = useState({ phase: lead.phone ? 'loading' : 'nophone', msgs: [] })
   const [busy, setBusy] = useState(false)
@@ -64,6 +64,11 @@ export default function LeadChatTab({ lead, lang = 'he', stages = [], save, onUp
   const [done, setDone] = useState({})
   const scrollRef = useRef(null)
   const sum = lead.chatSummary || null
+  // compact (the live conversation sits under this card and must keep the height): the summary is one slim bar that opens on
+  // demand — the choice is kept, and a fresh summary opens by itself
+  const [open, setOpenRaw] = useState(() => { try { return localStorage.getItem('afik_lead_chat_sum_open') === '1' } catch { return false } })
+  const setOpen = v => { setOpenRaw(v); try { localStorage.setItem('afik_lead_chat_sum_open', v ? '1' : '0') } catch { /* private mode */ } }
+  const folded = compact && (!open || !sum)
   const fmt = ts => { try { return new Date(ts).toLocaleString(lang === 'en' ? 'en-GB' : 'he-IL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) } catch { return '' } }
   const time = ts => { try { return new Date(ts).toLocaleTimeString(lang === 'en' ? 'en-GB' : 'he-IL', { hour: '2-digit', minute: '2-digit' }) } catch { return '' } }
   const dayLabel = ts => { const d = dayKey(ts); if (d === dayKey(Date.now())) return t.today; if (d === dayKey(Date.now() - 864e5)) return t.yesterday; return new Date(ts).toLocaleDateString(lang === 'en' ? 'en-GB' : 'he-IL', { weekday: 'long', day: 'numeric', month: 'long' }) }
@@ -91,6 +96,7 @@ export default function LeadChatTab({ lead, lang = 'he', stages = [], save, onUp
       if (!d.ok) { setErr(t.errs[d.code] || `${t.errs.other}: ${d.error || `HTTP ${r.status}`}`); return }
       await save({ chatSummary: d.summary })
       setDone({})
+      if (compact) setOpen(true)
       load()
     } catch (e) { setErr(`${t.errs.other}: ${e.name === 'TimeoutError' ? 'timeout' : e.message}`) }
     finally { setBusy(false) }
@@ -99,23 +105,27 @@ export default function LeadChatTab({ lead, lang = 'he', stages = [], save, onUp
   const cur = lead.leadStatus || 'new'
   const newSince = sum && chat.phase !== 'loading' ? Math.max(0, chat.msgs.length - (sum.msgCount || 0)) : 0
   const fuDate = sum && sum.followUpDays >= 0 ? (() => { const d = new Date(); d.setDate(d.getDate() + sum.followUpDays); d.setHours(10, 0, 0, 0); return d })() : null
-  const btn = (primary, extra = {}) => ({ height: 32, padding: '0 12px', borderRadius: 8, border: primary ? 'none' : `1px solid ${T.s1Line}`, background: primary ? 'var(--au-brand)' : 'transparent', color: primary ? '#fff' : T.text2, fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', ...extra })
+  const btn = (primary, extra = {}) => ({ height: 32, padding: '0 12px', borderRadius: 8, border: primary ? 'none' : `1px solid ${T.s1Line}`, background: primary ? 'var(--au-brand)' : 'transparent', color: primary ? '#fff' : T.text2, fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', ...extra })
   const card = { background: T.card, boxShadow: T.cardShadow, border: `1px solid ${T.s1Line}`, borderRadius: 14, padding: 16 }
 
   const summaryCard = (
-    <section style={card} aria-busy={busy}>
-      <header style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: sum || busy || err ? 12 : 6 }}>
-        <FaMagic size={12} style={{ color: T.brandText }}/>
-        <h3 style={{ margin: 0, fontSize: 13.5, fontWeight: 800, color: T.text }}>{t.aiTitle}</h3>
-        {sum && <span style={{ height: 22, padding: '0 9px', borderRadius: 20, background: `${TEMP_COLOR[sum.temperature]}1f`, color: TEMP_COLOR[sum.temperature], fontSize: 11.5, fontWeight: 800, display: 'inline-flex', alignItems: 'center' }}>{t.temp[sum.temperature]}</span>}
-        {sum?.lastWord === 'lead' && <span style={{ height: 22, padding: '0 9px', borderRadius: 20, background: 'rgba(239,68,68,.12)', color: '#EF4444', fontSize: 11.5, fontWeight: 800, display: 'inline-flex', alignItems: 'center' }}>{t.waiting}</span>}
-        <span style={{ flex: 1 }}/>
-        {sum && <span style={{ fontSize: 11.5, color: T.text3 }}>{t.updated(fmt(sum.at), sum.msgCount)}</span>}
-        {lead.phone && <button type="button" style={btn(!sum)} disabled={busy} onClick={summarize}>{busy ? <FaSyncAlt size={10} style={{ animation: 'lc-spin 1s linear infinite' }}/> : <FaMagic size={10}/>}{busy ? t.summarizing : sum ? t.resummarize : t.summarize}</button>}
+    <section className={compact ? 'lct-sum' : undefined} style={compact ? { ...card, padding: folded ? '8px 12px' : '10px 14px 14px', display: 'flex', flexDirection: 'column', minHeight: 0, overflowY: folded ? 'hidden' : 'auto' } : card} aria-busy={busy}>
+      <header style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: compact ? 'nowrap' : 'wrap', flexShrink: 0, minWidth: 0, marginBottom: folded ? 0 : sum || busy || err ? 12 : 6 }}>
+        <FaMagic size={12} style={{ color: T.brandText, flexShrink: 0 }}/>
+        <h3 style={{ margin: 0, fontSize: 13.5, fontWeight: 800, color: T.text, whiteSpace: 'nowrap', flexShrink: 0 }}>{t.aiTitle}</h3>
+        {sum && <span className={folded ? 'lc-hide-m' : undefined} style={{ flexShrink: 0, height: 22, padding: '0 9px', borderRadius: 20, background: `${TEMP_COLOR[sum.temperature]}1f`, color: TEMP_COLOR[sum.temperature], fontSize: 11.5, fontWeight: 800, display: 'inline-flex', alignItems: 'center' }}>{t.temp[sum.temperature]}</span>}
+        {sum?.lastWord === 'lead' && <span className={folded ? 'lc-hide-m' : undefined} style={{ flexShrink: 0, whiteSpace: 'nowrap', height: 22, padding: '0 9px', borderRadius: 20, background: 'rgba(239,68,68,.12)', color: '#EF4444', fontSize: 11.5, fontWeight: 800, display: 'inline-flex', alignItems: 'center' }}>{t.waiting}</span>}
+        {/* folded: what the card holds, in one quiet line */}
+        {folded
+          ? <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: err ? '#EF4444' : T.text2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={err || (sum ? sum.summary : t.aiSub)}>{err || (sum ? (newSince > 0 ? `${t.newSince(newSince)} · ` : '') + sum.summary : t.aiSub)}</span>
+          : <span style={{ flex: 1 }}/>}
+        {sum && !folded && <span className="lc-hide-m" style={{ fontSize: 11.5, color: T.text3, whiteSpace: 'nowrap' }}>{t.updated(fmt(sum.at), sum.msgCount)}</span>}
+        {lead.phone && (!sum || !folded || busy) && <button type="button" style={btn(!sum)} disabled={busy} onClick={summarize}>{busy ? <FaSyncAlt size={10} style={{ animation: 'lc-spin 1s linear infinite' }}/> : <FaMagic size={10}/>}{busy ? t.summarizing : sum ? t.resummarize : t.summarize}</button>}
+        {compact && sum && <button type="button" style={btn(false, { flexShrink: 0 })} onClick={() => setOpen(!open)} aria-expanded={open} data-sum-toggle="">{open ? t.hideSum : t.showSum}</button>}
       </header>
-      {!sum && !busy && !err && <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: T.text2 }}>{t.aiSub}</p>}
-      {err && <p role="alert" style={{ margin: 0, fontSize: 12.5, color: '#EF4444' }}>{err}</p>}
-      {sum && (
+      {!sum && !busy && !err && !folded && <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6, color: T.text2 }}>{t.aiSub}</p>}
+      {err && !folded && <p role="alert" style={{ margin: 0, fontSize: 12.5, color: '#EF4444' }}>{err}</p>}
+      {sum && !folded && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14, opacity: busy ? .55 : 1 }}>
           {newSince > 0 && <div style={{ fontSize: 12, fontWeight: 700, color: T.brandText, background: T.brandSoft, borderRadius: 8, padding: '6px 10px', alignSelf: 'flex-start' }}>{t.newSince(newSince)}</div>}
           <p style={{ margin: 0, fontSize: 14, lineHeight: 1.7, color: T.text }}>{sum.summary}</p>
@@ -196,5 +206,5 @@ export default function LeadChatTab({ lead, lang = 'he', stages = [], save, onUp
   )
 
   // the card shows the live conversation itself (src/LeadConversation.jsx); this tab then keeps only the summary
-  return <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>{summaryCard}{!hideConversation && conversation}</div>
+  return <div className={compact ? `lct-root${folded ? '' : ' open'}` : undefined} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>{summaryCard}{!hideConversation && conversation}</div>
 }

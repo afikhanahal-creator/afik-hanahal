@@ -162,6 +162,15 @@ const CSS = `
   .lcd-proj:hover{background:rgba(var(--brand-rgb),.12)}
   .lc-conv{position:relative;min-height:0;min-width:0;display:flex;flex-direction:column;overflow:hidden;border-inline-start:1px solid var(--au-line)}
   .lc-conv-tab{height:max(460px,72vh);border-radius:14px;overflow:hidden;border:1px solid var(--au-line);margin-top:14px}
+  .lc-main.chatfill>.lct-root>.lct-sum{box-shadow:none}
+  .lc-main.chatfill>.lc-conv-tab{margin-top:10px}
+  @media (max-width:640px){.lc-main.chatfill>.lc-conv-tab{height:calc(100dvh - 322px)!important;min-height:340px!important}}
+  @media (min-width:981px){
+    .lc-main.chatfill{display:flex;flex-direction:column;padding:12px!important}
+    .lc-main.chatfill>.lct-root{flex:0 1 auto;min-height:0;max-height:46%}
+    .lc-main.chatfill>.lct-root.open{min-height:130px}
+    .lc-main.chatfill>.lc-conv-tab{flex:1 1 0;height:auto;min-height:300px}
+  }
   .lc-grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
   .lc-grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
   .lc-in{width:100%;height:42px;padding:0 12px;border-radius:10px;border:1px solid var(--au-s3-line);background:var(--au-input);color:var(--au-text);font-family:inherit;font-size:14.5px;outline:none;transition:border-color .15s,box-shadow .15s}
@@ -918,8 +927,10 @@ export default function LeadCard({ lead, onClose, onUpdate, onUpdateStatus, onEn
         {header}
         {tabBar}
         <div ref={bodyRef} className={`lc-body${showConv ? ' conv' : ''}${showConv && chatMax ? ' chatmax' : ''}`} style={convW && showConv ? { '--lc-conv': `${convW}px` } : undefined}>
-          <div className="lc-main" style={{ overflowY: 'auto', padding: 16, background: T.bg }}>
-            {tab === 'details' ? details : tab === 'notes' ? <>{notesTab}{!showConv && lead.phone && <div className="lc-conv-tab">{conversation}</div>}</> : tab === 'chat' ? <><LeadChatTab lead={lead} lang={lang} stages={stages} save={save} onUpdateStatus={onUpdateStatus} onOpenChat={onOpenChat} onClose={onClose} hideConversation={!!lead.phone}/>{!showConv && lead.phone && <div className="lc-conv-tab">{conversation}</div>}</> : tab === 'tasks' ? tasksTab : tab === 'docs' ? <LeadDocsTab lead={lead} lang={lang}/> : analysis}
+          {/* the chat tab with the conversation inside it: the pane is filled exactly — a slim summary bar, then the conversation
+              with its message box and buttons always on screen (it used to be a 72vh box under the summary: scroll to reach them) */}
+          <div className={`lc-main${tab === 'chat' && !showConv && lead.phone ? ' chatfill' : ''}`} style={{ overflowY: 'auto', padding: 16, background: T.bg }}>
+            {tab === 'details' ? details : tab === 'notes' ? <>{notesTab}{!showConv && lead.phone && <div className="lc-conv-tab">{conversation}</div>}</> : tab === 'chat' ? <><LeadChatTab lead={lead} lang={lang} stages={stages} save={save} onUpdateStatus={onUpdateStatus} onOpenChat={onOpenChat} onClose={onClose} hideConversation={!!lead.phone} compact={!showConv && !!lead.phone}/>{!showConv && lead.phone && <div className="lc-conv-tab">{conversation}</div>}</> : tab === 'tasks' ? tasksTab : tab === 'docs' ? <LeadDocsTab lead={lead} lang={lang}/> : analysis}
           </div>
           {!showConv && sideEl(false)}
           {showConv && <section className="lc-rail" aria-label={t.tabs.chat}>
