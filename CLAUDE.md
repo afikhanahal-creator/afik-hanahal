@@ -1707,6 +1707,16 @@ holds the lead's source / details on top (a fold line, `localStorage.afik_lead_c
 under it with the message box (`LeadConversation`), next to every tab — details, notes & activity, tasks… (`afik_lead_card_conv_v2`,
 on by default; the column drags, `afik_lead_card_conv_w2`); narrower screens get the conversation under the notes and in the chat
 tab. Bigger tabs (48 px, 15 px) and fields (42 px, 14.5 px).
+**The chat tab shows everything without scrolling (2026-11-12 — the office: "so we see the row with the templates and everything
+needed instead of scrolling every time"):** with the side chat hidden, the tab was the AI summary card and under it a 72vh
+conversation box inside a scrolling pane, so the message box's buttons (תבניות · צירוף · גלריה · קישור לשיחה · שלח) were below the
+fold. Now the pane is filled exactly (`.lc-main.chatfill` in `src/LeadCard.jsx`, ≥ 981 px: a flex column, no scroll): the AI
+summary is **one slim bar** (`LeadChatTab compact`: title, the chips, the summary's first line, "סכם את השיחה" / "הצגת הסיכום" —
+opened it takes at most 46 % of the pane and scrolls inside; the choice is kept in `localStorage.afik_lead_chat_sum_open`, a fresh
+summary opens by itself) and the conversation takes the rest (`flex: 1`, ≥ 300 px), so the whole composer is always on screen.
+Phones (≤ 640 px): the conversation is `100dvh − 322px`, so its message box ends on the screen; the bar keeps only the title, a
+line and the button. QA: the scratchpad's `cf/qa-chatfill.cjs` (`WIDE=1` hides the side chat, `W` / `H`, `SUM=1` = a lead with a
+summary).
 **Lead card → "שיחת וואטסאפ"** (`src/LeadChatTab.jsx`): the whole WhatsApp conversation with the lead, read-only (`chat-history`,
 200 messages, normalized by the pure `lib/chat-format.js` `normalizeChat()` — voice notes / media shown as markers), and an
 **AI summary** = `POST /api/meta/chat-summary { lead }` (`lib/chat-summary.js`, tested; Claude `claude-opus-5-5`, structured
