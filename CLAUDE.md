@@ -423,14 +423,7 @@ now runs `greenSettingsCheck()` on every tick** (it ran only when the chats scre
 pointed back, the office gets one WhatsApp about it, and the tick's answer carries `hook: ok | fixed | elsewhere | unknown`. After a
 fix the report is built from what was set (Green's `getSettings` answer is shared for 30 s and read stale right after). **Never
 connect another system to the office line's webhook**; a system that needs the line's incoming messages gets them forwarded from
-`handleGreenHook`, or uses a WhatsApp number of its own. **Kurkoos Finance gets every delivery forwarded** (2026-11-11; the two
-systems had taken the webhook from each other and receipts stopped arriving there): once the key check passes, `handleGreenHook`
-posts Green's body, unchanged and of every type, in the background (`waitUntil(forwardGreenHook(req.rawBody))`,
-`lib/green-forward.js`, tested) to `KURKOOS_FINANCE_HOOK_URL` (`https://www.kurkoos-group.co.il/api/finance-whatsapp`, https only)
-with `Authorization: Bearer <KURKOOS_FINANCE_HOOK_TOKEN>` (= kurkoos-group's `FINANCE_WHATSAPP_WEBHOOK_TOKEN`; never in the address
-or a log). Both Vercel variables must be set or nothing is sent; 8 s limit, a failure only logs `[green-hook] forward` and never
-touches storing or the answer to Green. The webhook stays pointed here and the four journal flags stay on (finance needs
-`incomingWebhook` and `outgoingMessageWebhook`). **Nothing automatic may ever answer a client on the office line except the
+`handleGreenHook`, or uses a WhatsApp number of its own. **Nothing automatic may ever answer a client on the office line except the
 automations of this system** (welcome, no-reply, stage messages, document / booking messages).
 **As fast as WhatsApp** (2026-10-26):
 a chat not opened in this session paints from our own table first (`chat-history {stored:true}` — `wa_messages` only, ~0.1 s)
@@ -1974,6 +1967,17 @@ widget zooms with `govmap.zoomToXY` (ITM, level 13), verifies the landing throug
 (switching to Web Mercator / level 10 if the SDK didn't move), and always shows a status chip (locating / shown /
 not found + "פתח ב-GovMap" + retry) instead of failing silently. The legacy `es.govmap.gov.il/TldSearch` service
 alone is no longer relied on.
+
+## Public site: the top bar and the side menu
+
+**The side menu on a phone was a 62px strip (fixed 2026-11-12):** the mobile rules for the top bar were written on the bare `nav`
+element (`nav { height: 62px !important; padding: 0 14px !important }`, the safe-area padding, the icon sizes), and the side menu
+(`.nav-panel`) is a `<nav>` too since the accessibility pass — so under 768px it opened as a strip with only the logo and ✕ while the
+page behind it was blurred. The top bar is now `<nav className="site-nav">` and every such rule is written on `.site-nav`. **Never
+style a bare element (`nav`, `section`, `header`…) in the site's global CSS** — the admin, the seller form and the menu share the
+page (the same bare rule had been squeezing the admin's bottom bar to 62px without its home-indicator padding; it is 58px + the safe
+area now, as its own CSS says). QA: the scratchpad's `menu/qa-menu.cjs` (iPhone 13, a 360px Android, a 768px tablet, desktop: the
+menu is as tall as the screen, the links show, a link and ✕ close it).
 
 ## Public site performance rules (keep scrolling smooth on slow phones)
 

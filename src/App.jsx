@@ -513,9 +513,9 @@ const makeGlobal = (C, isDark) => `
   .mobile-logo-nav{display:none}
   @media(max-width:600px){.desktop-logo-nav{display:none!important;}.mobile-logo-nav{display:flex;align-items:center;margin-inline-end:auto;margin-inline-start:2px}
     /* room for the logo: slightly smaller icons, tighter gaps (Facebook / Instagram stay, as the mobile design wants) */
-    nav > div { gap:4px !important; }
-    nav .nav-icon-btn { width:40px !important; height:40px !important; min-width:40px !important; min-height:40px !important; }
-    nav div .social-btn.facebook, nav div .social-btn.instagram { width:32px !important; height:32px !important; min-width:32px !important; min-height:32px !important; }
+    .site-nav > div { gap:4px !important; }
+    .site-nav .nav-icon-btn { width:40px !important; height:40px !important; min-width:40px !important; min-height:40px !important; }
+    .site-nav div .social-btn.facebook, .site-nav div .social-btn.instagram { width:32px !important; height:32px !important; min-width:32px !important; min-height:32px !important; }
     .mobile-logo-nav img { height:36px !important; }}
   @media(max-width:380px){ nav div .social-btn.facebook, nav div .social-btn.instagram { display:none !important; } }
 
@@ -839,11 +839,12 @@ const makeGlobal = (C, isDark) => `
   input, select, textarea { font-size: 16px !important; -webkit-appearance: none; border-radius: 8px; }
   button, a, [role="button"] { min-height: 44px; min-width: 44px; }
   @media(max-width:768px) {
-    nav { padding: 0 14px !important; height: 62px !important; }
+    /* the top bar only (.site-nav): a bare "nav" here also caught the side menu, which is a <nav> too, and cut it to a 62px strip */
+    .site-nav { padding: 0 14px !important; height: 62px !important; }
     .hamburger-btn { width: 48px !important; height: 62px !important; }
-    nav .social-btn.email { display: none !important; }
-    nav .social-btn.facebook, nav .social-btn.instagram { display: inline-flex !important; width: 36px !important; height: 36px !important; min-width: 36px !important; min-height: 36px !important; font-size: 14px !important; }
-    nav > div > div[style*="width:1"] { display: none !important; }
+    .site-nav .social-btn.email { display: none !important; }
+    .site-nav .social-btn.facebook, .site-nav .social-btn.instagram { display: inline-flex !important; width: 36px !important; height: 36px !important; min-width: 36px !important; min-height: 36px !important; font-size: 14px !important; }
+    .site-nav > div > div[style*="width:1"] { display: none !important; }
     .nav-lang-text { display: none !important; }
     .nav-lang-btn { padding: 5px 8px !important; font-size: 10px !important; gap: 4px !important; }
     #home { padding: 72px 18px 52px !important; min-height: 100svh !important; }
@@ -945,7 +946,7 @@ const makeGlobal = (C, isDark) => `
     .glass-card:hover, .primary-btn:hover, .outline-btn:hover, .svc-card:hover, .social-btn:hover, .wa-float:hover { transform: none !important; }
   }
   @supports(padding: max(0px)) {
-    nav { padding-right: max(14px, env(safe-area-inset-right)) !important; padding-left: max(14px, env(safe-area-inset-left)) !important; }
+    .site-nav { padding-right: max(14px, env(safe-area-inset-right)) !important; padding-left: max(14px, env(safe-area-inset-left)) !important; }
     footer { padding-bottom: max(24px, env(safe-area-inset-bottom)) !important; }
     .wa-float { right: max(14px, env(safe-area-inset-right)) !important; bottom: max(18px, env(safe-area-inset-bottom)) !important; }
   }
@@ -5900,7 +5901,7 @@ export default function App() {
       <AmbientBackdrop/>
 
       {/* ── NAV ─────────────────────────────────────── */}
-      <nav style={{
+      <nav className="site-nav" style={{
         position:'fixed', top:0, right:0, left:0, height:82, zIndex:100,
         background: isDark
           ? 'linear-gradient(90deg, rgba(6,5,14,.98) 0%, rgba(10,8,22,.97) 50%, rgba(6,5,14,.98) 100%)'
