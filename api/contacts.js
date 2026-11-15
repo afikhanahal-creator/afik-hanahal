@@ -25,6 +25,7 @@ import { hebrewFullName } from '../lib/hebrew-names.js'
 import { restoreRow } from '../lib/lead-restore.js'
 import { properHebrewName } from '../lib/name-proof.js'
 import { manualLeadRow } from '../lib/manual-lead.js'
+import { statusForStage } from '../lib/lead-status-sync.js'
 
 // ── Lead backup (Vercel Blob) ────────────────────────────────────────────────
 // If Supabase refuses the INSERT (quota / paused project / outage) the lead used to exist only in the
@@ -639,6 +640,17 @@ export default async function handler(req, res) {
         const phone = r1?.ok ? String((await r1.json().catch(() => []))?.[0]?.phone || '') : ''
         if (phone) wa = await Promise.race([saveWaContact(phone, newName), new Promise(r => setTimeout(() => r({ ok: false, error: 'timeout' }), 12000))]).catch(e => ({ ok: false, error: e.message }))
       }
+      // …and a Meta lead's status chip in the Lead Center follows its stage (lib/lead-status-sync.js), from every screen
+      let metaStatus = null
+      if (ok && typeof patch.leadStatus === 'string' && patch.leadStatus !== existing.leadStatus && existing.metaLeadId) {
+        const st = statusForStage(patch.leadStatus)
+        if (st) {
+          const r = await supaFetch(`/meta_leads?id=eq.${encodeURIComponent(existing.metaLeadId)}&status=neq.${st}`, {
+            method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ status: st }), signal: AbortSignal.timeout(8000),
+          }).catch(() => null)
+          metaStatus = r?.ok ? st : { error: r ? `meta_leads ${r.status}` : 'meta_leads unreachable' }
+        }
+      }
       // Stage moved on the board → stage automations (send now, or offer it in the approval queue)
       let automation = null
       if (ok && typeof patch.leadStatus === 'string' && patch.leadStatus !== existing.leadStatus) {
@@ -647,7 +659,7 @@ export default async function handler(req, res) {
           new Promise(r => setTimeout(() => r({ pending: true }), 18000)),
         ]).catch(e => ({ ok: false, error: e.message }))
       }
-      return res.status(ok ? 200 : 404).json({ ok, automation, ...(metaRenamed ? { meta: metaRenamed } : {}), ...(wa ? { wa } : {}) })
+      return res.status(ok ? 200 : 404).json({ ok, automation, ...(metaRenamed ? { meta: metaRenamed } : {}), ...(metaStatus ? { metaStatus } : {}), ...(wa ? { wa } : {}) })
     }
 
     // ── DELETE: remove contact permanently ───────────────────────────────────
