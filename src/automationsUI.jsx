@@ -68,9 +68,22 @@ export const AUTO_CSS = `
   .au-sched-row{display:grid;grid-template-columns:88px minmax(0,1.2fr) minmax(0,1fr) 150px 112px;align-items:center;gap:10px;min-height:52px;padding:6px 14px}
   .au-log-row{display:grid;grid-template-columns:28px 96px 170px 110px minmax(0,1fr) 110px 88px;align-items:center;gap:10px;min-height:48px;padding:6px 14px}
   .au-day-row{display:grid;grid-template-columns:72px 52px minmax(0,1fr) 132px 36px;align-items:center;gap:10px;min-height:44px;padding:0 8px;border-radius:8px}
-  .au-wiz{display:grid;grid-template-columns:minmax(0,1fr) minmax(360px,440px);gap:20px;min-height:0;height:100%}
+  .au-wiz{display:grid;grid-template-columns:minmax(0,1fr) minmax(380px,500px);gap:20px;min-height:0;height:100%}
+  .au-bk{border:1px solid var(--au-line);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:10px;background:rgba(var(--ov),.02)}
+  .au-bk-h{display:flex;align-items:center;gap:8px;font-size:13.5px;min-height:30px;flex-wrap:wrap}.au-bk-h>svg{color:var(--au-text3);flex:none}
+  .au-bk-row{display:flex;align-items:center;gap:10px;padding:6px 8px;border:1px solid var(--au-line);border-radius:10px;cursor:pointer}
+  .au-var{border:1px solid var(--au-line);background:var(--au-pop);color:var(--au-text);border-radius:999px;padding:3px 10px;font-size:12px;font-family:inherit;cursor:pointer;min-height:0;min-width:0;line-height:1.6}
+  .au-var:hover{border-color:var(--au-brand);color:var(--au-brand-text)}
+  .au-lib-row{display:flex;align-items:center;gap:10px;min-height:48px;padding:4px 10px;border-bottom:1px solid var(--au-line);cursor:pointer}
   .au-wiz>*{min-height:0;overflow:auto}
-  .au-wiz-prev{display:flex;flex-direction:column;gap:10px}
+  .au-wiz-side{display:flex;flex-direction:column;gap:14px}
+  .au-wiz-prev,.au-wiz-edit{display:flex;flex-direction:column;gap:10px}.au-wiz-prev>*,.au-wiz-edit>*{flex-shrink:0}
+  @media (min-width:1280px){
+    .au-wiz{grid-template-columns:minmax(300px,.8fr) minmax(0,1.9fr)}
+    .au-wiz>.au-wiz-side{display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,400px);gap:20px;overflow:hidden}
+    .au-wiz-side>.au-wiz-prev,.au-wiz-side>.au-wiz-edit{min-height:0;overflow:auto}
+    .au-wiz-side>.au-wiz-prev{order:2}
+  }
   .au-wiz2{display:grid;grid-template-columns:300px minmax(0,1fr);gap:16px;min-height:0}
   @media (max-width:1000px){
     .au-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.au-kpis>:first-child{grid-column:1/-1}
@@ -445,7 +458,78 @@ export function useToasts() {
 }
 
 // ── C16 Phone preview (WhatsApp dark) ──────────────────────────────────────────
-export function PhonePreview({ text, image = '', lang = 'he', online = 'מחובר/ת', title = 'אפיק הנחל', time = '14:32', fill, highlight }) {
+const stepKind = s => { const t = String(s.type || ''), n = String(s.fileName || s.file || '').toLowerCase().split(/[?#]/)[0]
+  if (t.startsWith('image/') || /\.(jpe?g|png|webp|gif|heic)$/.test(n)) return 'image'
+  if (t.startsWith('video/') || /\.(mp4|mov|webm|m4v)$/.test(n)) return 'video'
+  return /\.pdf$/.test(n) || t === 'application/pdf' ? 'pdf' : 'doc' }
+const waThumb = (u, w = 520) => `https://wsrv.nl/?url=${encodeURIComponent(u)}&w=${w}&output=webp&q=75`
+const fmtKB = n => { const b = Number(n) || 0; return !b ? '' : b < 1048576 ? `${Math.max(1, Math.round(b / 1024))} KB` : `${(b / 1048576).toFixed(1)} MB` }
+// One outgoing bubble of a send with files (`steps` = jobSendSteps() in lib/automations-shared.js): a photo, a video tile or a
+// document card, its caption under it. Four photos or more in a row are drawn as WhatsApp's album (2 × 2, "+N").
+function StepBubbles({ steps, lang, time, highlight }) {
+  const groups = []
+  for (const s of steps) {
+    const k = s.file ? stepKind(s) : 'text', last = groups[groups.length - 1]
+    if (k === 'image' && last?.kind === 'photos' && !s.text) last.items.push(s)
+    else groups.push(k === 'image' ? { kind: 'photos', items: [s] } : { kind: k, items: [s] })
+  }
+  const flat = groups.flatMap(g => (g.kind === 'photos' && g.items.length < 4 ? g.items.map(s => ({ kind: 'photos', items: [s] })) : [g]))
+  const bubble = (key, media, body, caption) => (
+    <div key={key} dir={lang === 'en' ? 'ltr' : 'rtl'} lang={lang}
+      style={{ position: 'relative', background: T.wa.out, color: T.wa.text, borderRadius: '10px 10px 2px 10px', padding: media ? '3px 3px 18px' : '7px 10px 18px', width: media ? '74%' : undefined, maxWidth: media ? '74%' : '88%', marginInlineStart: 'auto', fontSize: 14.2, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word', boxShadow: '0 1px 1px rgba(0,0,0,.2)' }}>
+      {body}
+      {caption && <span style={{ display: 'block', padding: media ? '4px 7px 0' : 0 }}><WAText text={caption} highlight={highlight} linkColor={T.wa.link}/></span>}
+      <span style={{ position: 'absolute', bottom: 4, insetInlineEnd: 8, fontSize: 11, color: T.wa.meta, direction: 'ltr' }}>{time} <span style={{ color: T.wa.link }}>✓✓</span></span>
+    </div>
+  )
+  return flat.map((g, gi) => {
+    const s = g.items[0]
+    if (g.kind === 'text') return bubble(gi, !!s.image, s.image ? <img src={waThumb(s.image)} alt="" style={{ display: 'block', width: '100%', maxHeight: 260, objectFit: 'cover', borderRadius: 8 }}/> : null, s.text || (s.image ? '' : '…'))
+    if (g.kind === 'photos' && g.items.length >= 4) {
+      const more = g.items.length - 4
+      return bubble(gi, true, (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 3 }}>
+          {g.items.slice(0, 4).map((p, i) => (
+            <span key={i} style={{ position: 'relative', display: 'block', aspectRatio: '1', borderRadius: 6, overflow: 'hidden', background: '#2A3942' }}>
+              <img src={waThumb(p.file, 240)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}/>
+              {i === 3 && more > 0 && <span style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,.5)', color: '#fff', fontSize: 22, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+{more}</span>}
+            </span>
+          ))}
+        </div>
+      ), s.text)
+    }
+    if (g.kind === 'photos') return bubble(gi, true, <img src={waThumb(s.file)} alt="" style={{ display: 'block', width: '100%', maxHeight: 240, objectFit: 'cover', borderRadius: 8 }}/>, s.text)
+    if (g.kind === 'video') return bubble(gi, true, (
+      <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 150, borderRadius: 8, background: '#0B141A', position: 'relative' }}>
+        <span style={{ width: 46, height: 46, borderRadius: '50%', background: 'rgba(0,0,0,.55)', color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>▶</span>
+        <span dir="auto" style={{ position: 'absolute', bottom: 6, insetInlineStart: 8, insetInlineEnd: 8, fontSize: 11.5, color: '#E9EDEF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{String(s.fileName || '').replace(/\.[a-z0-9]{1,6}$/i, '') || s.fileName}</span>
+      </span>
+    ), s.text)
+    const ext = (String(s.fileName || '').match(/\.([a-z0-9]{2,5})$/i)?.[1] || 'file').toUpperCase()
+    return bubble(gi, true, (
+      <span style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 10px', borderRadius: 8, background: 'rgba(0,0,0,.18)' }}>
+        <span style={{ width: 34, height: 40, borderRadius: 5, flex: 'none', background: g.kind === 'pdf' ? '#E5484D' : ext === 'PPTX' || ext === 'PPT' ? '#D9622B' : '#3B82F6', color: '#fff', fontSize: 9.5, fontWeight: 800, display: 'inline-flex', alignItems: 'flex-end', justifyContent: 'center', paddingBottom: 5 }}>{ext.slice(0, 4)}</span>
+        <span style={{ minWidth: 0, flex: 1 }}>
+          <span dir="auto" style={{ display: 'block', fontSize: 13.5, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{String(s.fileName || '').replace(/\.[a-z0-9]{1,6}$/i, '') || s.fileName}</span>
+          <span style={{ display: 'block', fontSize: 11.5, color: T.wa.meta, direction: 'ltr', textAlign: 'start' }}>{[fmtKB(s.size), ext].filter(Boolean).join(' · ')}</span>
+        </span>
+      </span>
+    ), s.text)
+  })
+}
+
+export function PhonePreview({ text, image = '', steps = null, lang = 'he', online = 'מחובר/ת', title = 'אפיק הנחל', time = '14:32', fill, highlight }) {
+  if (steps) return (
+    <div style={{ width: fill ? '100%' : 340, maxWidth: '100%', margin: '0 auto', borderRadius: 28, border: '6px solid #1A1D29', overflow: 'hidden', background: T.wa.chat, boxShadow: '0 12px 36px rgba(0,0,0,.45)' }}>
+      <div dir={lang === 'en' ? 'ltr' : 'rtl'} style={{ height: 52, background: T.wa.header, display: 'flex', alignItems: 'center', gap: 10, padding: '0 12px' }}>
+        <span style={{ width: 32, height: 32, borderRadius: '50%', background: '#2A3942', color: T.wa.text, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}><FaHome size={14}/></span>
+        <div><div style={{ color: T.wa.text, fontSize: 14, fontWeight: 700 }}>{title}</div><div style={{ color: T.wa.meta, fontSize: 11 }}>{online}</div></div>
+      </div>
+      <div style={{ padding: 14, minHeight: fill ? 360 : 300, display: 'flex', flexDirection: 'column', gap: 6, backgroundImage: 'radial-gradient(rgba(255,255,255,.035) 1px, transparent 1px)', backgroundSize: '16px 16px' }}>
+        {steps.length ? <StepBubbles steps={steps} lang={lang} time={time} highlight={highlight}/> : <span style={{ opacity: .45, color: T.wa.text }}>…</span>}
+      </div>
+    </div>
+  )
   return (
     <div style={{ width: fill ? '100%' : 340, maxWidth: '100%', margin: '0 auto', borderRadius: 28, border: '6px solid #1A1D29', overflow: 'hidden', background: T.wa.chat, boxShadow: '0 12px 36px rgba(0,0,0,.45)' }}>
       <div dir={lang === 'en' ? 'ltr' : 'rtl'} style={{ height: 52, background: T.wa.header, display: 'flex', alignItems: 'center', gap: 10, padding: '0 12px' }}>
