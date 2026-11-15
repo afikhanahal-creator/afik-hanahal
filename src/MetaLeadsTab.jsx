@@ -21,6 +21,7 @@ import { onSync, debounce } from './lib/syncBus.js'
 import { FollowUpButton, FollowUpComposer, FollowUpList } from './FollowUpTask.jsx'
 import SmartVoiceInput from './SmartVoiceInput.jsx'
 import { updateTasks } from '../lib/follow-up.js'
+import { statusForStage, stageForStatus, needsStagePick } from '../lib/lead-status-sync.js'
 import WaFace from './WaFace.jsx'
 
 const ADMIN_TOKEN = 'AFIKhanahal2026'
@@ -635,10 +636,18 @@ export default function MetaLeadsTab({ C, lang, isDark, onOpenCard, onSaveToCRM,
   }
 
   // ── Status, notes, CRM, archive ──────────────────────────────────────────────
+  // A status chip moves the pipeline stage with it (lib/lead-status-sync.js): "נוצר קשר" → contacted, "נקבעה שיחה" → a meeting,
+  // "חדש" → new — never backwards ("מתעניין" stays on "נוצר קשר"); "סגור" opens the stage menu, since it can be a deal or not
+  // relevant. The other way (a stage moved on any screen → this chip) is done by PATCH /api/contacts.
   const handleStatusChange = (status) => {
     if (!selectedLead) return
     patchLead(selectedLead.id, { status })
     PATCH({ id: selectedLead.id, status }).catch(() => {})
+    if (!onCrmStage) return
+    const cur = crmLead ? (crmLead.leadStatus || 'new') : 'new'
+    const to = stageForStatus(status, cur)
+    if (to) moveStage(to)
+    else if (needsStagePick(status, cur)) setStageMenu(true)
   }
   // the convenient call time stays on the Meta lead; notes go to the CRM copy (one list everywhere — src/lib/leadNotes.js)
   const handleSaveNotes = async () => {
@@ -800,7 +809,12 @@ export default function MetaLeadsTab({ C, lang, isDark, onOpenCard, onSaveToCRM,
     setStageMenu(false)
     if (!onCrmStage || !selectedLead || (crmLead && (crmLead.leadStatus || 'new') === stage)) return
     setStageBusy({ stage })
-    try { await onCrmStage(selectedLead, crmLead, stage); setStageBusy(null) } catch { setStageBusy({ err: true }) }
+    try {
+      await onCrmStage(selectedLead, crmLead, stage); setStageBusy(null)
+      // the status chip follows at once (the server writes the same into meta_leads)
+      const st = statusForStage(stage)
+      if (st && selectedLead.status !== st) patchLead(selectedLead.id, { status: st })
+    } catch { setStageBusy({ err: true }) }
   }
   const firstOutAt = chatFirstOut || messages.find(m => m.direction === 'out')?.created_at || null
   // What the conversation shows: our messages are there (sent from the chats tab, say) → the lead was contacted

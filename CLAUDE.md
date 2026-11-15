@@ -232,7 +232,14 @@ phone's WhatsApp contacts follow, both ways** (2026-11-01, `lib/wa-book.js`, tes
 `crm_data.name`, `meta_leads`); the first look only records, our own writes update the baseline so they never bounce. **Pipeline stage from the chat:** the lead header's "שלב בפייפליין" menu (`PIPELINE` in `MetaLeadsTab.jsx`,
 the office's renamed stage names through `stageLabels`; the menu is a portal with a fixed position (`.lc-stage-menu--float`) — the lead bar is `overflow:hidden` and used to clip it, and the quick-replies window is capped to the conversation's height, `qMax`) moves the lead's CRM copy through `onCrmStage` → the admin's
 `updateLeadStatus` (stage log, nurture follow-up, stage automations — the same as dragging on the board); a lead not in the CRM
-yet is copied there first (`lead-to-crm`). A detail pane too narrow for both (and every phone) shows one pane at a time ("שיחה" / "פרטים והערות"); phones get a compact
+yet is copied there first (`lead-to-crm`). **The status chips and the pipeline stage are one thing** (2026-11-15 — "נוצר קשר" used to sit next to "לא רלוונטי"; the office:
+"if I set the status to נוצר קשר, change the stage by itself, the same for interested / a meeting"): `lib/lead-status-sync.js`
+(tested). A chip moves the stage (`stageForStatus()`): חדש → new, נוצר קשר → contacted, נקבעה שיחה → meeting — never backwards
+(a lead at מתעניין / במו"מ that already fits the chip stays); "סגור" moves nothing and opens the stage menu (a deal or not
+relevant — `needsStagePick()`). A stage moved anywhere — the Lead Center's menu, the board, the lead card, the chats — sets the
+chip (`statusForStage()`: contacted · discovery · lost · nurture → נוצר קשר, meeting · negotiating → נקבעה שיחה, won · irrelevant →
+סגור) through `PATCH /api/contacts` on the copy's `meta_leads` row (`metaStatus` in the answer). QA: the scratchpad's
+`mob/qa-status.cjs` (1440 + 390). A detail pane too narrow for both (and every phone) shows one pane at a time ("שיחה" / "פרטים והערות"); phones get a compact
 bar (status as a dropdown, CRM in the details). Pure helpers: `src/lib/leadConversation.js` (tested). **The quick-replies window fills the pane** (2026-11-08 — the office kept scrolling to read the templates): `.lcv-quick` is as tall as the
 whole conversation pane above the message box (`qMax` = the pane − the composer, over the chat's header and the form card; it was
 capped at 440 px — three templates), every row shows two lines of its message (the selected one up to six), and when the pane is
