@@ -833,6 +833,26 @@ the engine sends every recipient its own version (`ruleKey tpl:<version>`). Ever
 `abResults()`: sent · replied after their message — `lastInboundTs` > the send · positive · opted out / negative · reply rate as
 a bar), per version for an A/B; "מוביל" only once every version has ≥ `AB_MIN_SAMPLE` (15) sends, and a note when the gap is
 under 5 points. Tested in `lib/bulk-pace.test.mjs` / `lib/bulk-jobs.test.mjs`.
+**Files in a bulk send + a real message editor** (2026-11-15, the office: "add files to a bulk send — photos from the gallery, a
+presentation — and better editing, files for every lead we pick"): the wizard's first step is three columns on a wide screen
+(≥ 1280 px: templates · the text + files · the phone preview, which stays in view while typing; narrower = the preview above the
+editor). **"נוסח ההודעה"**: "עריכת הנוסח לשליחה הזו" opens the text (עברית / English) with chips that put `{name}` · `{property}` ·
+`{greeting}` · `{when}` · `{needs}` · `{bookingLink}` · `{agent}` · `{phone}` at the cursor, a character count and "חזרה לנוסח
+התבנית" (the template itself never changes — `customText` on the job, as before); ‹ › walks the preview through the chosen leads.
+**"קבצים ותמונות לכל נמען"** (`job.files`, ≤ 30, https only — `jobFiles()`): a template's own files come in by themselves when it is
+picked (until the list is touched), "מגלריית הנכסים" (`PhotoGalleryPicker`; its "property link" option adds the links to the text),
+"מקבצי התבניות" (`TemplateFilesPicker` in `src/CampaignsTab.jsx`: every file already on a template — a project's deck, price list,
+plans — grouped by template, search, no upload again) and `TemplateFilesField` (pick / drop / paste, reorder, remove; names now
+read "מצגת זרובבל 15 · PPTX" — `FileName`, an extension in a Hebrew line used to come out as "pptx.15 …"); the template's picture
+has its own switch (`job.image = ''` = without it). What each lead gets is `jobSendSteps(text, { image, files })`
+(`lib/automations-shared.js`, tested): the picture carries the text, else the text rides on the first file as its caption (a text
+over 1024 characters goes alone first), then every file in order — the preview draws exactly that list (`PhonePreview steps`:
+document cards with the type, video tiles, 4 photos or more as WhatsApp's album) with "ייצאו N הודעות לכל ליד"; the "send now"
+confirm and the job card say how many files. **The engine** (`processJobs`): one recipient per tick as before, but it gets all its
+messages in that tick; `r.step` counts the ones already out, so a tick that runs out of time or a 466 in the middle goes on from there
+next time — never the text twice — and a recipient left midway is continued at once (no gap). The first message decides sent /
+failed; a file that fails is listed on the recipient ("לא נשלחו: …") and the rest still go. Every file goes through `greenHosted()`,
+so a deck sent to 100 leads leaves Supabase about twice. QA: the scratchpad's `bulk/qa-bulk.cjs` (`PHONE=1` = iPhone 13).
 **From the leads board:** select leads (cards or table) → "שליחה מרובה בוואטסאפ" in the bulk bar (`afik:bulk-send` window event →
 `AdminPanel` `bulkIds` → the automations tab's bulk sends, a new wizard with them already picked — only them are listed until a
 filter is used). `auto-tick?key=` (key = `AUTOMATION_KEY`, or the admin token)

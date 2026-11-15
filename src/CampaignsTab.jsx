@@ -4,10 +4,14 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { FaBullhorn, FaPlus, FaCalendarAlt, FaUsers, FaPaperPlane, FaMoon, FaCheck, FaTimes, FaSearch, FaEllipsisV, FaCopy, FaBan, FaPen, FaRedo, FaEye, FaChevronDown, FaChevronUp, FaInfoCircle, FaExclamationTriangle, FaArrowLeft, FaArrowRight } from 'react-icons/fa'
 import { T, Button, IconButton, Card, Badge, FilterChip, EmptyState, Skeleton, Modal, MenuButton, MenuItem, ProgressBar, PhonePreview, ModeSwitch, Field, inputStyle, useConfirm } from './automationsUI.jsx'
-import { STAGES, renderTemplate, leadLang, intlPhone, isSendWindow, nextSendWindow, CATEGORIES, templateImage, abSplit, abResults, AB_MAX, AB_MIN_SAMPLE, PACE_GAPS, PACE_CAPS, DEFAULT_PACE, jobPace, paceEstimate, sentTodayCount } from '../lib/automations-shared.js'
+import { STAGES, renderTemplate, leadLang, intlPhone, isSendWindow, nextSendWindow, CATEGORIES, templateImage, templateFiles, jobSendSteps, jobFiles, JOB_FILES_MAX, VARIABLES, abSplit, abResults, AB_MAX, AB_MIN_SAMPLE, PACE_GAPS, PACE_CAPS, DEFAULT_PACE, jobPace, paceEstimate, sentTodayCount } from '../lib/automations-shared.js'
 import { autoApi } from './AutomationsApi.jsx'
 import DateTimePicker from './DateTimePicker.jsx'
-import { CatTile } from './uiIcons.jsx'
+import { CatTile, Icon } from './uiIcons.jsx'
+import TemplateFilesField, { FileName } from './TemplateFilesField.jsx'
+import PhotoGalleryPicker from './PhotoGalleryPicker.jsx'
+import { fileKind } from './lib/chatFiles.js'
+import { imageThumb } from './lib/templateImage.js'
 
 const TR = {
   he: {
@@ -38,6 +42,13 @@ const TR = {
     allCats: 'הכל', abT: 'תוצאות A/B', resT: 'תוצאות', colSent: 'נשלחו', colReplied: 'ענו', colPos: 'חיוביות', colOut: 'ביקשו להפסיק', colRate: 'שיעור תשובה',
     leading: 'מוביל', tooEarly: n => `מוקדם לקבוע מנצח: צריך לפחות ${n} הודעות לכל נוסח`, winnerNote: 'ההבדל קטן, כדאי לחכות לעוד תשובות',
     paceLine: (g, c) => `הודעה כל ~${g} · עד ${c} ביום`, nextMsg: w => `ההודעה הבאה ${w}`, capWait: 'הגיע למכסה היומית, ממשיך מחר', skippedReplied: n => `${n} דולגו כי ענו לנו`,
+    msgT: 'נוסח ההודעה', msgEdit: 'עריכת הנוסח לשליחה הזו', msgEdited: 'נערך לשליחה הזו', msgReset: 'חזרה לנוסח התבנית', msgVars: 'הוספת פרטים אישיים:', msgChars: n => `${n} תווים`,
+    msgHint: 'התבנית עצמה לא משתנה. כל ליד מקבל את הנוסח עם השם והפרויקט שלו.', previewOf: (i, n) => `${i} מתוך ${n}`, prevLead: 'הליד הקודם', nextLead: 'הליד הבא',
+    filesT: 'קבצים ותמונות לכל נמען', filesHint: 'כל ליד שבחרתם יקבל אותם אחרי ההודעה, לפי הסדר. אפשר מצגת, חוברת, מחירון, תוכניות, תמונות או סרטון.',
+    fromGallery: 'מגלריית הנכסים', fromTpls: 'מקבצי התבניות', tplImage: 'התמונה של התבנית', tplImageOn: 'נשלחת עם ההודעה', tplImageOff: 'לא תישלח',
+    tplFilesIn: n => `צורפו ${n} הקבצים של התבנית`, filesN: n => n === 1 ? 'קובץ אחד' : `${n} קבצים`, libT: 'קבצים מהתבניות', libEmpty: 'עוד אין תבניות עם קבצים. אפשר להעלות כאן קבצים חדשים, או להוסיף קבצים לתבנית בלשונית התבניות.',
+    libAdd: n => n ? `הוספה (${n})` : 'הוספה', libSearch: 'חיפוש לפי שם קובץ או תבנית', perLead: n => `ייצאו ${n} הודעות לכל ליד`, confirmFiles: n => `כל ליד יקבל גם ${n === 1 ? 'קובץ אחד' : `${n} קבצים`}.`,
+    vShort: { name: 'שם', property: 'פרויקט', greeting: 'ברכה', when: 'מתי פנו', needs: 'מה מחפשים', bookingLink: 'קישור לשיחה', agent: 'נציג', phone: 'טלפון המשרד' },
   },
   en: {
     segScheduled: 'Scheduled', segSending: 'Sending', segDone: 'Finished', newSend: 'New bulk send', wizTitle: 'New bulk send', wizEdit: 'Edit scheduled send',
@@ -67,6 +78,13 @@ const TR = {
     allCats: 'All', abT: 'A/B results', resT: 'Results', colSent: 'Sent', colReplied: 'Replied', colPos: 'Positive', colOut: 'Opted out', colRate: 'Reply rate',
     leading: 'Leading', tooEarly: n => `Too early to call a winner: at least ${n} messages per version are needed`, winnerNote: 'The gap is small, wait for more replies',
     paceLine: (g, c) => `One every ~${g} · up to ${c} a day`, nextMsg: w => `Next message ${w}`, capWait: "Daily cap reached, continues tomorrow", skippedReplied: n => `${n} skipped because they replied`,
+    msgT: 'Message text', msgEdit: 'Edit the text for this send', msgEdited: 'Edited for this send', msgReset: 'Back to the template text', msgVars: 'Add personal details:', msgChars: n => `${n} characters`,
+    msgHint: "The template itself doesn't change. Every lead gets the text with their own name and project.", previewOf: (i, n) => `${i} of ${n}`, prevLead: 'Previous lead', nextLead: 'Next lead',
+    filesT: 'Files and photos for every recipient', filesHint: 'Every lead you pick gets them after the message, in this order: a presentation, brochure, price list, plans, photos or a video.',
+    fromGallery: 'From the property gallery', fromTpls: "From templates' files", tplImage: "The template's picture", tplImageOn: 'Sent with the message', tplImageOff: "Won't be sent",
+    tplFilesIn: n => `The template's ${n} files were added`, filesN: n => n === 1 ? '1 file' : `${n} files`, libT: "Templates' files", libEmpty: 'No template has files yet. Upload new files here, or add files to a template in the Templates tab.',
+    libAdd: n => n ? `Add (${n})` : 'Add', libSearch: 'Search by file or template name', perLead: n => `${n} messages per lead`, confirmFiles: n => `Every lead also gets ${n === 1 ? '1 file' : `${n} files`}.`,
+    vShort: { name: 'Name', property: 'Project', greeting: 'Greeting', when: 'When they asked', needs: 'What they look for', bookingLink: 'Booking link', agent: 'Agent', phone: 'Office phone' },
   },
 }
 const pad2 = n => String(n).padStart(2, '0')
@@ -163,6 +181,7 @@ export default function CampaignsTab({ lang = 'he', cfg, tpls, leads, states = {
                 {st.repliedSkips > 0 && <span style={{ color: T.greenText || T.green }}>{t.skippedReplied(st.repliedSkips)}</span>}
                 <span>HE {st.total - enCount} · EN {enCount}</span>
                 {j.customText && <span style={{ color: T.amberText }}>✎</span>}
+                {jobFiles(j).length > 0 && <span style={{ display: 'inline-flex', gap: 5, alignItems: 'center' }}><Icon name="paperclip" size={12}/>{t.filesN(jobFiles(j).length)}</span>}
               </div>
               {(st.done > 0 || j.status === 'sending') && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
@@ -285,6 +304,21 @@ function Wizard({ t, lang, cfg, tpls, leads, states, stageName, init, pingActive
   const [skipReplied, setSkipReplied] = useState(base ? base.skipReplied !== false : true)
   const [noReply, setNoReply] = useState(false)
   const [busy, setBusy] = useState(false)
+  // files for every recipient (job.files) — the template's own come in by themselves until the office changes the list
+  const [files, setFilesRaw] = useState(() => jobFiles(base || {}))
+  const [filesTouched, setFilesTouched] = useState(!!base)
+  const [filesNote, setFilesNote] = useState('')
+  const setFiles = list => { setFilesTouched(true); setFilesNote(''); setFilesRaw(templateFiles({ files: list }).slice(0, JOB_FILES_MAX)) }
+  const [noImage, setNoImage] = useState(base?.image === '')
+  const [gallery, setGallery] = useState(false)
+  const [lib, setLib] = useState(false)
+  const [pIdx, setPIdx] = useState(0)
+  const areaRef = useRef(null)
+  const pickTemplate = x => {
+    if (filesTouched) return
+    const own = templateFiles(x)
+    setFilesRaw(own); setFilesNote(own.length ? t.tplFilesIn(own.length) : '')
+  }
   const tpl = tpls.find(x => x.id === tplId)
   const effTpl = tpl && custom && ct ? { ...tpl, he: ct.he || tpl.he, en: ct.en || ct.he || tpl.en } : tpl
 
@@ -325,9 +359,10 @@ function Wizard({ t, lang, cfg, tpls, leads, states, stageName, init, pingActive
       templateIds: variants.length > 1 ? variants : undefined,
       at: when === 'now' ? new Date().toISOString() : at.toISOString(), respectQuiet: inHours, gapSec, dailyCap, skipReplied,
       customText: variants.length === 1 && custom && ct && (ct.he || ct.en) ? ct : null,
+      files, image: variants.length === 1 && noImage ? '' : undefined,
       recipients: abSplit(chosen.map(r => ({ leadId: r.id, phone: r.phone, name: r.l.name })), variants),
     }
-    if (when === 'now' && !await confirm({ title: t.confirmNow(chosen.length), body: t.pacing, confirmLabel: t.confirmBtn, cancelLabel: t.cancel })) return
+    if (when === 'now' && !await confirm({ title: t.confirmNow(chosen.length), body: files.length ? `${t.confirmFiles(files.length)} ${t.pacing}` : t.pacing, confirmLabel: t.confirmBtn, cancelLabel: t.cancel })) return
     setBusy(true)
     try {
       await autoApi.post('auto-job', { job })
@@ -391,7 +426,7 @@ function Wizard({ t, lang, cfg, tpls, leads, states, stageName, init, pingActive
                     const vi = variants.indexOf(x.id), on = vi >= 0, c = CATEGORIES.find(k => k.id === x.cat) || CATEGORIES[5]
                     const full = abMode && !on && variants.length >= AB_MAX
                     return (
-                      <button key={x.id} type="button" role="option" aria-selected={on} disabled={full} onClick={() => { if (abMode) toggleVariant(x.id); else setTplId(x.id); setCt(null); setCustom(false) }} onMouseEnter={() => { if (on) setPv(vi) }} className={on ? undefined : 'au-hov'}
+                      <button key={x.id} type="button" role="option" aria-selected={on} disabled={full} onClick={() => { if (abMode) toggleVariant(x.id); else { setTplId(x.id); pickTemplate(x) } setCt(null); setCustom(false) }} onMouseEnter={() => { if (on) setPv(vi) }} className={on ? undefined : 'au-hov'}
                         style={{ minHeight: 48, display: 'flex', alignItems: 'center', gap: 10, padding: '0 12px', borderRadius: 9, border: 'none', borderInlineStart: `3px solid ${on ? T.brand : 'transparent'}`, background: on ? T.brandSoft : 'transparent', color: T.text, fontFamily: 'inherit', textAlign: 'start', cursor: full ? 'not-allowed' : 'pointer', opacity: full ? .45 : 1 }}>
                         {abMode ? <span aria-hidden="true" style={{ width: 26, height: 26, borderRadius: 7, flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12.5, fontWeight: 800, background: on ? T.brand : 'transparent', color: on ? '#fff' : T.text3, border: on ? 'none' : `1.5px solid ${T.line2}` }}>{on ? 'ABCD'[vi] : ''}</span>
                           : <CatTile cat={c.id} color={c.color} size={26} radius={7}/>}
@@ -405,12 +440,24 @@ function Wizard({ t, lang, cfg, tpls, leads, states, stageName, init, pingActive
                   })}
                 </div>
               </div>
-              <div className="au-wiz-prev">
+              <div className="au-wiz-side">
                 {tpl ? (() => {
                   const vt = tpls.find(x => x.id === variants[Math.min(pv, variants.length - 1)]) || tpl
                   const showTpl = variants.length === 1 ? effTpl : vt
-                  const pl = custom && variants.length === 1 ? ctTab : firstLead ? leadLang(firstLead) : 'he'
+                  const many = chosen.length > 1, idx = Math.min(pIdx, Math.max(0, chosen.length - 1))
+                  const sample = chosen[idx]?.l || { name: isEn ? 'Dana' : 'דנה' }
+                  const pl = custom && variants.length === 1 ? ctTab : chosen[idx] ? leadLang(sample) : 'he'
+                  const img = variants.length === 1 && noImage ? '' : templateImage(showTpl)
+                  const steps = jobSendSteps(renderTemplate(showTpl, asLead(sample), cfg, custom && variants.length === 1 ? ctTab : undefined), { image: img, files })
+                  const tImg = variants.length === 1 ? templateImage(tpl) : ''
+                  const insertVar = key => {
+                    const el = areaRef.current, cur = ct?.[ctTab] || ''
+                    const a = el ? el.selectionStart : cur.length, b = el ? el.selectionEnd : cur.length
+                    setCt(c => ({ ...c, [ctTab]: `${cur.slice(0, a)}{${key}}${cur.slice(b)}` }))
+                    setTimeout(() => { if (el) { el.focus(); el.setSelectionRange(a + key.length + 2, a + key.length + 2) } }, 0)
+                  }
                   return <>
+                    <div className="au-wiz-prev">
                     {variants.length > 1 && (
                       <div role="tablist" aria-label={t.abT} style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                         {variants.map((id, i) => { const x = tpls.find(y => y.id === id); return (
@@ -418,19 +465,60 @@ function Wizard({ t, lang, cfg, tpls, leads, states, stageName, init, pingActive
                         ) })}
                       </div>
                     )}
-                    <div style={{ fontSize: 12, color: T.text3 }}>{t.previewFor(firstLead?.name || (isEn ? 'Dana' : 'דנה'))}{variants.length > 1 ? ` · ${'ABCD'[pv]}` : ''}</div>
-                    <PhonePreview text={renderTemplate(showTpl, asLead(firstLead || { name: isEn ? 'Dana' : 'דנה' }), cfg, custom && variants.length === 1 ? ctTab : undefined)} image={templateImage(showTpl)} lang={pl} fill/>
-                    {variants.length > 1 ? <div style={{ fontSize: 12.5, color: T.text3 }}>{t.abOneEdit}</div> : <>
-                      <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, cursor: 'pointer' }}>
-                        <input type="checkbox" checked={custom} onChange={e => { setCustom(e.target.checked); if (e.target.checked && !ct) setCt({ he: tpl.he || '', en: tpl.en || '' }) }} style={{ appearance: 'auto', width: 18, height: 18, minHeight: 0 }}/>{t.editOnce}
-                      </label>
-                      {custom && ct && (
-                        <div className="au-in" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: T.text3 }}>
+                      <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.previewFor(sample.name || '—')}{variants.length > 1 ? ` · ${'ABCD'[pv]}` : ''}{many ? ` · ${t.previewOf(idx + 1, chosen.length)}` : ''}</span>
+                      {many && <>
+                        <IconButton icon={<Icon name={isEn ? 'chevronLeft' : 'chevronRight'} size={15}/>} label={t.prevLead} size={28} disabled={idx === 0} onClick={() => setPIdx(idx - 1)}/>
+                        <IconButton icon={<Icon name={isEn ? 'chevronRight' : 'chevronLeft'} size={15}/>} label={t.nextLead} size={28} disabled={idx >= chosen.length - 1} onClick={() => setPIdx(idx + 1)}/>
+                      </>}
+                    </div>
+                    <PhonePreview steps={steps} lang={pl} fill/>
+                    {steps.length > 1 && <div style={{ fontSize: 12, color: T.text3, textAlign: 'center' }}>{t.perLead(steps.length)}</div>}
+                    </div>
+                    <div className="au-wiz-edit">
+
+                    <section className="au-bk" aria-label={t.msgT}>
+                      <div className="au-bk-h">
+                        <Icon name="pencil" size={15}/><b>{t.msgT}</b>
+                        {custom && variants.length === 1 && <Badge color={T.amber} textColor={T.amberText}>{t.msgEdited}</Badge>}
+                        <span style={{ flex: 1 }}/>
+                        {variants.length === 1 && (custom
+                          ? <Button size="sm" icon={<Icon name="undo" size={13}/>} onClick={() => { setCustom(false); setCt(null) }}>{t.msgReset}</Button>
+                          : <Button size="sm" variant="brand" icon={<Icon name="pencil" size={13}/>} onClick={() => { setCustom(true); if (!ct) setCt({ he: tpl.he || '', en: tpl.en || '' }); setTimeout(() => areaRef.current?.focus(), 30) }}>{t.msgEdit}</Button>)}
+                      </div>
+                      {variants.length > 1 ? <div style={{ fontSize: 12.5, color: T.text3 }}>{t.abOneEdit}</div> : custom && ct ? (
+                        <div className="au-in" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                           <div role="tablist" style={{ display: 'flex', gap: 4 }}>{['he', 'en'].map(l => <FilterChip key={l} selected={ctTab === l} onClick={() => setCtTab(l)}>{l === 'he' ? t.heTab : t.enTab}</FilterChip>)}</div>
-                          <textarea value={ct[ctTab] || ''} onChange={e => setCt(c => ({ ...c, [ctTab]: e.target.value }))} dir={ctTab === 'he' ? 'rtl' : 'ltr'} lang={ctTab} rows={6} style={{ ...inputStyle, height: 'auto', padding: '10px 12px', lineHeight: 1.6, resize: 'vertical' }}/>
+                          <textarea ref={areaRef} value={ct[ctTab] || ''} onChange={e => setCt(c => ({ ...c, [ctTab]: e.target.value }))} dir={ctTab === 'he' ? 'rtl' : 'ltr'} lang={ctTab} rows={6} aria-label={t.msgT}
+                            style={{ ...inputStyle, height: 'auto', minHeight: 132, padding: '10px 12px', lineHeight: 1.6, resize: 'vertical', fontSize: 14 }}/>
+                          <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', alignItems: 'center' }}>
+                            <span style={{ fontSize: 12, color: T.text3, marginInlineEnd: 2 }}>{t.msgVars}</span>
+                            {Object.keys(t.vShort).map(k => { const v = VARIABLES.find(x => x.key === k); return v && <button key={k} type="button" className="au-var" title={isEn ? v.en : v.he} onClick={() => insertVar(k)}>{t.vShort[k]}</button> })}
+                            <span style={{ flex: 1 }}/><span style={{ fontSize: 11.5, color: T.text3, fontVariantNumeric: 'tabular-nums' }}>{t.msgChars((ct[ctTab] || '').length)}</span>
+                          </div>
+                          <div style={{ fontSize: 12, color: T.text3 }}>{t.msgHint}</div>
                         </div>
+                      ) : <div style={{ fontSize: 12.5, color: T.text3 }}>{t.msgHint}</div>}
+                    </section>
+
+                    <section className="au-bk" aria-label={t.filesT}>
+                      <div className="au-bk-h"><Icon name="paperclip" size={15}/><b>{t.filesT}</b>{files.length > 0 && <Badge color={T.brand}>{t.filesN(files.length)}</Badge>}</div>
+                      <div style={{ fontSize: 12, color: T.text3, lineHeight: 1.55 }}>{t.filesHint}</div>
+                      {tImg && (
+                        <label className="au-bk-row">
+                          <img src={imageThumb(tImg, 80)} alt="" width={36} height={36} style={{ borderRadius: 7, objectFit: 'cover', flex: 'none' }}/>
+                          <span style={{ flex: 1, minWidth: 0 }}><b style={{ display: 'block', fontSize: 13 }}>{t.tplImage}</b><span style={{ fontSize: 12, color: T.text3 }}>{noImage ? t.tplImageOff : t.tplImageOn}</span></span>
+                          <input type="checkbox" checked={!noImage} onChange={e => setNoImage(!e.target.checked)} aria-label={t.tplImage} style={{ appearance: 'auto', width: 18, height: 18, minHeight: 0 }}/>
+                        </label>
                       )}
-                    </>}
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        <Button size="sm" icon={<Icon name="image" size={14}/>} disabled={files.length >= JOB_FILES_MAX} onClick={() => setGallery(true)}>{t.fromGallery}</Button>
+                        <Button size="sm" icon={<Icon name="folder" size={14}/>} disabled={files.length >= JOB_FILES_MAX} onClick={() => setLib(true)}>{t.fromTpls}</Button>
+                      </div>
+                      {filesNote && <div style={{ fontSize: 12, color: T.greenText || T.green }}>{filesNote}</div>}
+                      <TemplateFilesField value={files} onChange={setFiles} lang={lang}/>
+                    </section>
+                    </div>
                   </>
                 })() : <EmptyState compact icon={FaBullhorn} title={t.chooseTpl}/>}
               </div>
@@ -527,11 +615,58 @@ function Wizard({ t, lang, cfg, tpls, leads, states, stageName, init, pingActive
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px calc(10px + env(safe-area-inset-bottom))', minHeight: 64, borderTop: `1px solid ${T.line}`, background: 'rgba(0,0,0,.18)', flexWrap: 'wrap' }}>
-          {tpl && <span className="au-hide-m" style={{ fontSize: 12, fontWeight: 700, color: T.text2, padding: '4px 10px', borderRadius: 20, background: T.s3 }}>{t.summary(chosen.length, isEn ? tpl.en_title || tpl.he_title : tpl.he_title)}</span>}
+          {tpl && <span className="au-hide-m" style={{ fontSize: 12, fontWeight: 700, color: T.text2, padding: '4px 10px', borderRadius: 20, background: T.s3 }}>{t.summary(chosen.length, isEn ? tpl.en_title || tpl.he_title : tpl.he_title)}{files.length ? ` · ${t.filesN(files.length)}` : ''}</span>}
           <div style={{ flex: 1 }}/>
           {step > 1 && !(editing && step === 3 && false) && <Button onClick={() => setStep(s => s - 1)}>{t.back}</Button>}
           {primary}
         </div>
+      </div>
+      {gallery && <PhotoGalleryPicker open lang={lang} room={JOB_FILES_MAX - files.length} onClose={() => setGallery(false)}
+        onAdd={(fs, links) => {
+          setFiles([...files, ...fs])
+          if (links && variants.length === 1 && tpl) { setCustom(true); setCt(c => { const cur = c || { he: tpl.he || '', en: tpl.en || '' }; return { ...cur, [ctTab]: `${(cur[ctTab] || '').trimEnd()}\n\n${links}` } }) }
+          setGallery(false)
+        }}/>}
+      {lib && <TemplateFilesPicker t={t} isEn={isEn} tpls={tpls} have={files} room={JOB_FILES_MAX - files.length} onClose={() => setLib(false)} onAdd={fs => { setFiles([...files, ...fs]); setLib(false) }}/>}
+    </Modal>
+  )
+}
+
+// Files the office already uploaded to templates (a project's presentation, price list, plans…), grouped by template — a
+// click adds them to the send without uploading them again
+function TemplateFilesPicker({ t, isEn, tpls, have, room, onClose, onAdd }) {
+  const [q, setQ] = useState('')
+  const [picked, setPicked] = useState([])
+  const haveSet = new Set(have.map(f => f.url))
+  const groups = tpls.map(x => ({ id: x.id, title: (isEn ? x.en_title || x.he_title : x.he_title) || x.id, project: x.project || '', files: templateFiles(x) }))
+    .filter(g => g.files.length)
+    .map(g => ({ ...g, files: g.files.filter(f => !q || `${f.name} ${g.title} ${g.project}`.toLowerCase().includes(q.toLowerCase())) }))
+    .filter(g => g.files.length)
+  const toggle = f => setPicked(p => p.some(x => x.url === f.url) ? p.filter(x => x.url !== f.url) : p.length >= room ? p : [...p, f])
+  return (
+    <Modal open onClose={onClose} title={t.libT} width={600} dir={isEn ? 'ltr' : 'rtl'}
+      footer={<><Button onClick={onClose}>{t.cancel}</Button><Button variant="solid" disabled={!picked.length} onClick={() => onAdd(picked)}>{t.libAdd(picked.length)}</Button></>}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ position: 'relative' }}>
+          <FaSearch size={12} style={{ position: 'absolute', top: 12, insetInlineStart: 12, color: T.text3 }}/>
+          <input value={q} onChange={e => setQ(e.target.value)} placeholder={t.libSearch} aria-label={t.libSearch} style={{ ...inputStyle, height: 36, paddingInlineStart: 32 }} data-autofocus/>
+        </div>
+        {!groups.length ? <div style={{ fontSize: 13, color: T.text3, padding: '18px 4px', lineHeight: 1.6 }}>{t.libEmpty}</div> : groups.map(g => (
+          <div key={g.id} style={{ border: `1px solid ${T.line}`, borderRadius: 12, overflow: 'hidden' }}>
+            <div style={{ padding: '8px 12px', fontSize: 12.5, fontWeight: 700, color: T.text2, background: T.s1 }}>{g.title}{g.project ? <span style={{ fontWeight: 500, color: T.text3 }}> · {g.project}</span> : null}</div>
+            {g.files.map(f => {
+              const on = picked.some(x => x.url === f.url), dup = haveSet.has(f.url), kind = fileKind(f)
+              return (
+                <label key={f.url} className="au-lib-row" style={{ opacity: dup ? .5 : 1, cursor: dup ? 'default' : 'pointer' }}>
+                  <input type="checkbox" checked={on || dup} disabled={dup} onChange={() => toggle(f)} style={{ appearance: 'auto', width: 18, height: 18, minHeight: 0, flex: 'none' }}/>
+                  {kind === 'image' ? <img src={imageThumb(f.url, 80)} alt="" width={34} height={34} style={{ borderRadius: 7, objectFit: 'cover', flex: 'none' }}/>
+                    : <span aria-hidden="true" style={{ width: 34, height: 34, borderRadius: 7, flex: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: T.s3, color: T.text2 }}><Icon name={kind === 'video' ? 'video' : 'file'} size={16}/></span>}
+                  <span dir="auto" style={{ flex: 1, minWidth: 0, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}><FileName name={f.name}/></span>
+                </label>
+              )
+            })}
+          </div>
+        ))}
       </div>
     </Modal>
   )

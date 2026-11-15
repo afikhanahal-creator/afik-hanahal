@@ -16,6 +16,14 @@ const TR = {
     hint: 'Sent after the text, in this order', uploading: n => `Uploading ${n}…`, remove: 'Remove', up: 'Move up', max: `Up to ${TEMPLATE_FILES_MAX} files` },
 }
 
+/** A file's name without its extension, the type as a quiet tag after it — "מצגת זרובבל 15.pptx" read "pptx.15 מצגת זרובבל"
+ *  in a Hebrew line (mixed directions): now "מצגת זרובבל 15 · PPTX" */
+export function FileName({ name = '' }) {
+  const m = String(name).match(/^(.*?)\.([a-z0-9]{1,6})$/i)
+  if (!m || !m[1]) return <bdi>{name}</bdi>
+  return <><bdi>{m[1]}</bdi><span style={{ fontWeight: 400, opacity: .65 }}> · {m[2].toUpperCase()}</span></>
+}
+
 export default function TemplateFilesField({ value = [], onChange, lang = 'he', pal = {}, compact = false }) {
   const t = TR[lang] || TR.he
   const P = { text: 'var(--au-text)', sub: 'var(--au-text3)', line: 'rgba(var(--ink),.14)', bg: 'rgba(var(--ov),.03)', accent: 'var(--au-brand)', danger: '#DC2626', ...pal }
@@ -56,8 +64,8 @@ export default function TemplateFilesField({ value = [], onChange, lang = 'he', 
               {kind === 'image'
                 ? <img src={imageThumb(f.url, 80)} alt="" width={36} height={36} style={{ borderRadius: 7, objectFit: 'cover', flex: 'none', display: 'block' }}/>
                 : <span aria-hidden="true" style={{ width: 36, height: 36, borderRadius: 7, flex: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: kind === 'pdf' ? 'rgba(229,72,77,.12)' : 'rgba(0,168,132,.12)', color: kind === 'pdf' ? '#E5484D' : '#00A884' }}><Icon name={kind === 'video' ? 'video' : 'file'} size={17}/></span>}
-              <a href={f.url} target="_blank" rel="noreferrer" dir="auto" style={{ flex: 1, minWidth: 0, color: P.text, fontSize: 12.5, fontWeight: 600, textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {f.name}{f.size ? <span style={{ fontWeight: 400, color: P.sub }}> · {formatSize(f.size, lang)}</span> : null}
+              <a href={f.url} target="_blank" rel="noreferrer" dir="auto" style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'block', color: P.text, fontSize: 12.5, fontWeight: 600, textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <FileName name={f.name}/>{f.size ? <span style={{ fontWeight: 400, color: P.sub }}> · {formatSize(f.size, lang)}</span> : null}
               </a>
               {i > 0 && <button type="button" style={btn} title={t.up} aria-label={`${t.up}: ${f.name}`} onClick={() => move(i)}>▲</button>}
               <button type="button" style={{ ...btn, color: P.danger }} title={t.remove} aria-label={`${t.remove}: ${f.name}`} onClick={() => onChange?.(files.filter(x => x.url !== f.url))}><Icon name="x" size={14}/></button>
