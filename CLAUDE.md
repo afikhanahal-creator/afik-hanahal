@@ -1988,6 +1988,15 @@ Rules that keep it near zero:
   Account Settings → Tokens, scope = that team; optional variables `VERCEL_TEAM_ID` / `VERCEL_PROJECT`) and does nothing without it;
   and `ignoreCommand` in `vercel.json` (`scripts/vercel-ignore.sh` — Vercel caps the command at 256 characters; a longer one failed the deploy) skips a deploy for commits that only touch docs / `*.md`, `server/*.sql`, `studio-pack/`,
   tests and the probe / cleanup scripts. Batch small changes into one PR when you can — every merge is a kept deployment.
+  **75 % again on 2026-11-16 — the cleanup had never run:** `VERCEL_TOKEN` was never added, and the job answered "nothing to
+  do" and passed every day, so not one deployment was deleted. Now the job **fails** while the secret is missing (GitHub tells the
+  owner), runs twice a day (`17 3,15 * * *`), cleans **every project the token sees** — this site, `kurkoos-group` and any later
+  one share the team's 10 GB (`pickProjects()`; `VERCEL_PROJECT` = a comma list narrows it) — and keeps only the 3 newest ready
+  production deployments of each project plus anything younger than a day (`CLEANUP_DEFAULTS`, tested; ~12 deploys a day across
+  both sites made 7 days ≈ 84 kept deployments). The token: vercel.com → Account Settings → Tokens → scope
+  `afik-hanahal-s-projects`, then this repository → Settings → Secrets and variables → Actions → `VERCEL_TOKEN` (never in chat or
+  code). A second net that needs no token: each project → Settings → Deployment Retention (shortest for preview / errored /
+  canceled and production).
 - Measure with the "Site speed probe" action, `actions: traffic`: wire size, gzip and the 304 of every API answer, and
   the photo sizes through the CDN. Usage itself: vercel.com → the team → Usage → Fast Origin Transfer.
 

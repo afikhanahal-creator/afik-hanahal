@@ -1,11 +1,12 @@
-# Every day: delete old Vercel deployments so Deployment Storage (Hobby: 10 GB — 75 % on 2026-11-02) never fills up.
-# Keeps the 5 newest production deployments and everything from the last 7 days; previews and failed builds go after a day
-# (lib/vercel-cleanup.js, tested). Needs the VERCEL_TOKEN secret; without it the job does nothing.
+# Twice a day: delete old Vercel deployments of every project of the team (the Afik Hanahal site and Kurkoos share 10 GB of
+# Deployment Storage on the free plan — 75 % on 2026-11-02 and again on 2026-11-16). Keeps the 3 newest production
+# deployments of each project and everything from the last day; previews and failed builds go after a day
+# (lib/vercel-cleanup.js, tested). Needs the VERCEL_TOKEN secret; without it the run FAILS (it used to pass doing nothing).
 # Manual run: Actions → Vercel cleanup → Run workflow (dry_run = only count).
 name: Vercel cleanup
 on:
   schedule:
-    - cron: '17 3 * * *'
+    - cron: '17 3,15 * * *'
   workflow_dispatch:
     inputs:
       dry_run:
