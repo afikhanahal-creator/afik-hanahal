@@ -126,9 +126,9 @@ async function handleGreenHook(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
   const key = String((req.headers['authorization'] || '').replace(/^Bearer\s+/i, '') || req.query?.k || '')
   if (!(await greenHookKeyValid(key))) return res.status(401).json({ error: 'Unauthorized' })
-  // The line has one webhook address and Kurkoos Finance listens to it too (receipts from registered phones): every
-  // delivery, of every type, is passed on unchanged in the background (lib/green-forward.js — KURKOOS_FINANCE_HOOK_URL +
-  // KURKOOS_FINANCE_HOOK_TOKEN, nothing without both; 8 s limit, never rejects, never delays the answer to Green).
+  // The line has one webhook address and Kurkoos Finance needs its receipts: every photo or document delivery (received
+  // or sent from the office phone) is passed on unchanged in the background (lib/green-forward.js — KURKOOS_FINANCE_HOOK_URL
+  // + KURKOOS_FINANCE_HOOK_TOKEN, nothing without both; 8 s limit, never rejects, never delays the answer to Green).
   waitUntil(forwardGreenHook(req.rawBody))
   const ev = parseGreenHook(req.body)
   if (!SUPABASE_URL || !SUPABASE_KEY || (ev.kind !== 'message' && ev.kind !== 'status')) return res.status(200).json({ ok: true, kind: ev.kind })
