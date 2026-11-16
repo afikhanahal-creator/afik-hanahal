@@ -1640,6 +1640,17 @@ the chips row (stage, welcome, waiting, project), **one quiet line** — phone (
 labelled grid, the last note or the message in a tinted block (2 lines), and **one row of four small actions** (התקשר · WhatsApp ·
 סיכום · פרטים, icon over label, 46 px) instead of four big 2 × 2 buttons; no coloured side border. QA: the scratchpad's
 `qa-leads-phone.cjs` (iPhone, fake leads, a card screenshot).
+**"קשר אחרון בוואטסאפ" — a column of the leads table (2026-11-16, the office: "a column that shows when we were last in touch on
+WhatsApp"):** right after the phone (`BUILT_IN_COLS` id `waLast`, type `walast`; hide / show like any built-in column). Each row:
+an arrow (↙ they wrote / ↗ we wrote), the time ("היום 13:44" · "אתמול 09:05" · "12.11 · 15:44" · "30.12.25", Israel time; a date
+is a `<bdi dir="ltr">`, it read backwards in the RTL cell), "לפני 4 ימים · אנחנו כתבנו", the colour by age (green < 3 days ≤ amber
+< 7 ≤ red, like the lead card's "קשר אחרון"), "עוד לא דיברנו" when there is no message in 90 days; a click opens the chat, the
+tooltip has the full date. Any message counts — from the office phone, the panel or an automation (`wa_messages`). Source:
+`GET /api/meta/chat-last` → `public.afik_wa_last(90)` (the newest message each way per phone; ~200 phones, ~15 KB), read once per
+session by `src/lib/waLast.js` (`useWaLast` / `waLastOf`) and kept fresh by the live feed (`applyWaLast()`, no polling; re-read when
+the window comes back after 10 minutes); the words are `waLastInfo()` / `agoText()` in `src/lib/waLastFormat.js` (tested). The
+"לפני …" texts follow one shared minute clock (`useMinute` in `LeadsBoard.jsx`), not an interval per row. QA: the scratchpad's
+`wal/qa-wal.cjs` (light / dark, the click).
 **Search finds the lead itself (2026-11-11 — the office: "when I search a lead's name I want the lead to show up, not to go looking
 for it among the columns"; `src/lib/leadSearch.js`, tested, + `src/LeadSearchPanel.jsx`):** the board's search used to be a plain
 `includes` inside the chosen project only — a name typed without its space, a phone with dashes, a lead of another project or one in

@@ -1876,6 +1876,15 @@ async function handleChat(req, res, action) {
       const done = doneRow?.value || {}
       return res.status(200).json({ done, waiting: (data || []).filter(r => r.phone !== office && !isHandled(done, r.phone, r.ts)).map(r => ({ phone: r.phone, ts: r.ts, type: r.type, text: r.body || '' })) })
     }
+    // GET /api/meta/chat-last → the newest WhatsApp message each way per phone, last 90 days (public.afik_wa_last,
+    // server/wa-catchup-migration.sql): [{ phone, in, out }] — the leads table's "קשר אחרון בוואטסאפ" (src/lib/waLast.js keeps it
+    // fresh from the live feed, so this is read once per session and when the window comes back after a while)
+    if (action === 'chat-last') {
+      if (!SUPABASE_URL || !SUPABASE_KEY) return res.status(200).json({ last: [] })
+      const { data, error } = await sb().rpc('afik_wa_last', { days: 90 })
+      if (error) return res.status(502).json({ error: error.message })
+      return res.status(200).json({ last: (data || []).map(r => ({ phone: r.phone, in: r.last_in || null, out: r.last_out || null })) })
+    }
     // POST /api/meta/chat-waiting-done { items: [{ phone, ts }] } → off "ממתינים לתשובה" (ts = the lead's last message);
     // { undo: [phones] } → back on. → { ok, done }
     if (action === 'chat-waiting-done') {

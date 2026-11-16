@@ -1,6 +1,8 @@
 import WaitingChip from './WaitingChip.jsx'
 import { useWaiting, waitingOf } from './lib/waWaiting.js'
-import { useState, useRef, useCallback, useEffect, useMemo, createContext, useContext } from 'react'
+import { useState, useRef, useCallback, useEffect, useMemo, createContext, useContext, useSyncExternalStore } from 'react'
+import { useWaLast, waLastOf } from './lib/waLast.js'
+import { waLastInfo } from './lib/waLastFormat.js'
 import DateTimePicker from './DateTimePicker.jsx'
 import { ensureFuCss } from './FollowUpTask.jsx'
 import SmartVoiceInput from './SmartVoiceInput.jsx'
@@ -32,6 +34,7 @@ import {
   Settings, X, Check, GripVertical, Trash2, Copy, Download, Upload, Bell, Pencil,
   Star, RefreshCw, Columns, Paintbrush, Layers, ArrowUpDown, ExternalLink,
   MessageSquare, Hash, Tag, ChevronLeft, ChevronUp, BarChart3, Columns3, Table2, Minus, Clock, StickyNote, CheckCheck, AlertCircle,
+  ArrowDownLeft, ArrowUpRight,
 } from 'lucide-react'
 
 // ─── constants ────────────────────────────────────────────────────────────────
@@ -101,6 +104,7 @@ const SCORE_OPTS = [
 const BUILT_IN_COLS = [
   { id: 'name',       label: 'שם ליד',       en: 'Lead Name',    type: 'text',   width: 220, pinned: true },
   { id: 'phone',      label: 'טלפון',        en: 'Phone',        type: 'phone',  width: 148 },
+  { id: 'waLast',     label: 'קשר אחרון בוואטסאפ', en: 'Last WhatsApp', type: 'walast', width: 178 },
   { id: 'email',      label: 'אימייל',       en: 'Email',        type: 'email',  width: 200 },
   { id: 'leadStatus', label: 'סטטוס',        en: 'Status',       type: 'status', width: 140 },
   { id: 'project',    label: 'פרויקט',       en: 'Project',      type: 'project', width: 160 },
@@ -697,6 +701,35 @@ const SEL_BG = T => (T.bg === '#111827' ? '#16233C' : '#EAF2FE')
 
 // ─── desktop sortable row ─────────────────────────────────────────────────────
 
+// "קשר אחרון בוואטסאפ" (2026-11-16): when the last WhatsApp message with this lead was, either way — from the office phone,
+// the panel or an automation — how long ago, and who wrote it. src/lib/waLast.js keeps it live (the live feed, no polling);
+// the words are src/lib/waLastFormat.js (tested). Green < 3 days ≤ amber < 7 ≤ red, like the lead card's "קשר אחרון".
+// One shared minute clock for every row's "לפני …" (not an interval per row)
+let nowSnap = Date.now()
+const nowSubs = new Set()
+let nowTimer = null
+const subscribeNow = f => {
+  nowSubs.add(f)
+  if (!nowTimer) nowTimer = setInterval(() => { nowSnap = Date.now(); for (const g of [...nowSubs]) g() }, 60e3)
+  return () => { nowSubs.delete(f); if (!nowSubs.size && nowTimer) { clearInterval(nowTimer); nowTimer = null } }
+}
+const useMinute = () => useSyncExternalStore(subscribeNow, () => nowSnap, () => nowSnap)
+function WaLastCell({ phone, lang, onOpen }) {
+  const s = useWaLast()
+  const now = useMinute()
+  const en = lang === 'en'
+  const info = waLastInfo(waLastOf(s, phone), now, lang)
+  if (!info) return <span className="lb-wal lb-wal--none" title={en ? 'No WhatsApp message in the last 90 days' : 'אין הודעה בוואטסאפ ב-90 הימים האחרונים'}>{!phone ? '—' : s.loaded ? (en ? 'No chat yet' : 'עוד לא דיברנו') : '…'}</span>
+  const Tag = onOpen ? 'button' : 'span'
+  return (
+    <Tag type={onOpen ? 'button' : undefined} className={`lb-wal lb-wal--${info.tone}`} onClick={onOpen}
+      title={`${info.full} · ${info.who}${onOpen ? (en ? ' · open the chat' : ' · פתיחת השיחה') : ''}`}>
+      <span className={`lb-wal-dir lb-wal-dir--${info.dir}`} aria-hidden="true">{info.dir === 'in' ? <ArrowDownLeft size={13}/> : <ArrowUpRight size={13}/>}</span>
+      <span className="lb-wal-txt"><b>{/^\d/.test(info.when) ? <bdi dir="ltr">{info.when}</bdi> : info.when}</b><small>{info.ago} · {info.who}</small></span>
+    </Tag>
+  )
+}
+
 function SortableRow({ lead, cols, onUpdate, onDelete, onSelect, isSelected, lang, T, onOpenDetail, onStatusClick, onOpenChat, onEnrich }) {
   const [renaming, setRenaming] = useState(false)
   const proj = useContext(ProjCtx)
@@ -765,6 +798,8 @@ function SortableRow({ lead, cols, onUpdate, onDelete, onSelect, isSelected, lan
         return <div key={col.id} style={cellStyle}><EditableEmailCell value={val} T={T} onSave={v => handleUpdate(col, v)} /></div>
       case 'date':
         return <div key={col.id} style={cellStyle}><span style={{ fontSize: 12, color: T.textSub }}>{val || '—'}</span></div>
+      case 'walast':
+        return <div key={col.id} style={cellStyle}><WaLastCell phone={lead.phone} lang={lang} onOpen={onOpenChat && lead.phone ? () => onOpenChat(lead) : undefined}/></div>
       case 'project':
         return <div key={col.id} style={cellStyle}>{proj ? <ProjectChip lead={lead} projects={proj.projects} lang={lang} onAssign={patch => proj.assign(lead, patch)}/> : null}</div>
       case 'source':
@@ -1212,6 +1247,19 @@ export function CheckBox({ checked, indeterminate = false, onChange, label, size
   )
 }
 export const LB_CSS = `
+.lb-wal{display:flex;align-items:center;gap:7px;min-width:0;max-width:100%;border:none;background:none;padding:0;margin:0;font:inherit;color:inherit;text-align:start;min-height:0;cursor:default}
+button.lb-wal{cursor:pointer;border-radius:8px}
+button.lb-wal:hover .lb-wal-txt b{text-decoration:underline}
+button.lb-wal:focus-visible{outline:2px solid var(--au-brand);outline-offset:2px}
+.lb-wal-dir{flex:none;width:22px;height:22px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:rgba(var(--ov),.07)}
+.lb-wal--fresh .lb-wal-dir{color:var(--au-green-text);background:rgba(37,211,102,.14)}
+.lb-wal--mid .lb-wal-dir{color:var(--au-amber-text);background:rgba(245,158,11,.14)}
+.lb-wal--old .lb-wal-dir{color:var(--au-red-text);background:rgba(229,72,77,.12)}
+.lb-wal-txt{display:flex;flex-direction:column;min-width:0;line-height:1.25}
+.lb-wal-txt b{font-size:12.5px;font-weight:600;color:var(--au-text);white-space:nowrap;font-variant-numeric:tabular-nums}
+.lb-wal-txt small{font-size:11px;color:rgba(var(--ink),.55);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lb-wal--none{font-size:12px;color:rgba(var(--ink),.45)}
+
   .lb-selcol{width:60px;flex-shrink:0;align-self:stretch;display:flex;align-items:center;justify-content:center;position:sticky;inset-inline-start:0;z-index:3;transition:background .1s}
   .lb-selcol-group{background:transparent;z-index:1}
   .lb-grip{position:absolute;inset-inline-end:3px;top:50%;transform:translateY(-50%);cursor:grab;display:flex;align-items:center}
