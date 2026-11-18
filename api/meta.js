@@ -34,6 +34,7 @@ import { forwardGreenHook } from '../lib/green-forward.js'
 import { avatarExpiry, avatarFresh, avatarPhone, socialAvatarFresh, socialKey, avatarKey, profileLinkOf } from '../lib/wa-avatar.js'
 import { forwardRequest, fileGroupRequest, cleanMsgId, cleanReaction, isHandled, withHandled, withoutHandled } from '../lib/wa-actions.js'
 import { cleanProjects } from '../lib/projects.js'
+import { cleanCampaignCfg, applyCampaignOps } from '../lib/campaign-groups.js'
 import { cleanFolders, applyFolderOps, galleryStoragePaths } from '../lib/gallery-folders.js'
 import { parseSocialHook, threadId, parseThreadId, previewText, leadBodyFromThread, cleanSocialPages, inboxPageIds, accountLabels, conversationEvents, threadRowFrom, importJobs } from '../lib/social-hook.js'
 import { manualLeadRow } from '../lib/manual-lead.js'
@@ -700,6 +701,21 @@ async function handleProjects(req, res) {
     await Auto.putSetting('lead_projects_auto', auto).catch(() => {})
   }
   return res.status(200).json({ ok: true, projects: next, autoDone: auto, moved })
+}
+
+// The Lead Center's campaign names (lib/campaign-groups.js): merge / rename / archive Meta campaigns, the office's way.
+// GET → { cfg }; POST { ops } → applied to the stored config (each op is safe to repeat), → { ok, cfg }.
+async function handleCampaignNames(req, res) {
+  if (!checkAuth(req)) return res.status(401).json({ error: 'Unauthorized' })
+  res.setHeader('Cache-Control', 'no-store')
+  const cur = cleanCampaignCfg((await Auto.getSetting('lead_campaign_names').catch(() => ({ value: null }))).value)
+  if (req.method === 'GET') return res.status(200).json({ cfg: cur })
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
+  const ops = Array.isArray(req.body?.ops) ? req.body.ops : []
+  if (!ops.length) return res.status(400).json({ error: 'no ops' })
+  const next = applyCampaignOps(cur, ops)
+  try { await Auto.putSetting('lead_campaign_names', next) } catch (e) { return res.status(502).json({ error: e.message }) }
+  return res.status(200).json({ ok: true, cfg: next })
 }
 
 // ── Green API instance settings: the journals that keep the lead's replies ──────────────────────────────────────────
@@ -2656,6 +2672,7 @@ export default async function handler(req, res) {
   if (path === 'webhook')      return handleWebhook(req, res)
   if (path === 'green-hook')   return handleGreenHook(req, res)
   if (path === 'projects')     return handleProjects(req, res)
+  if (path === 'campaign-names') return handleCampaignNames(req, res)
   if (path === 'gallery-folders') return handleGalleryFolders(req, res)
   if (path.startsWith('social-')) return handleSocial(req, res, path)
   if (path === 'leads')        return handleLeads(req, res)

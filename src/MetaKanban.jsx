@@ -11,6 +11,11 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import WaFace from './WaFace.jsx'
+import { useCampaignCfg, campaignCfgNow } from './lib/campaignNamesStore.js'
+import { campaignLabel } from '../lib/campaign-groups.js'
+import { shortCampaign } from './lib/leadFields.js'
+// the campaign as the Lead Center names it ("ניהול קמפיינים" — merged / renamed), else Meta's short name
+const campOf = l => campaignLabel(l?.campaign_name || l?.form_name, campaignCfgNow(), shortCampaign)
 
 const ADMIN_TOKEN = 'AFIKhanahal2026'
 const STAGES_LS   = 'meta_kanban_stages_v3'
@@ -145,9 +150,9 @@ function SortableCard({ lead, stages, onClick, onDelete, onMoveStage, bulkMode, 
             {lead.name || '—'}
           </div>
           <div style={{ display: 'flex', gap: 4, marginTop: 5, flexWrap: 'wrap' }}>
-            {(lead.campaign_name || lead.form_name) && (
+            {campOf(lead) && (
               <span style={{ fontSize: 10, color: T.sub, background: T.surf, borderRadius: 4, padding: '2px 5px', maxWidth: 110, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {lead.campaign_name || lead.form_name}
+                {campOf(lead)}
               </span>
             )}
             <span style={{ fontSize: 10, color: T.accent, background: 'rgba(24,119,242,.15)', borderRadius: 4, padding: '2px 5px', fontWeight: 600, whiteSpace: 'nowrap' }}>
@@ -509,7 +514,7 @@ function TableView({ leads, stages, onMoveStage, onDelete, onOpenLead }) {
                 </td>
                 <td style={{ padding: '9px 12px', color: T.sub }}>{fmtPhone(lead.phone) || '—'}</td>
                 <td style={{ padding: '9px 12px', color: T.sub, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {lead.campaign_name || lead.form_name || '—'}
+                  {campOf(lead) || '—'}
                 </td>
                 <td style={{ padding: '9px 12px', color: T.dim, fontSize: 12, whiteSpace: 'nowrap' }}>
                   {lead.created_at ? timeAgo(lead.created_at) : '—'}
@@ -609,6 +614,7 @@ function LeadDrawer({ lead, stages, onClose, onMoveStage, onDelete }) {
 
 // ── MetaKanban (main export) ───────────────────────────────────────────────────
 export default function MetaKanban({ leads: propLeads = [], onUpdateLead, onDeleteLead, initialView = 'pipeline' }) {
+  const campCfg = useCampaignCfg()   // re-render when the office merges / renames a campaign (campOf reads the same store)
   // Stages
   const [stages, setStages] = useState(() => {
     try { return JSON.parse(localStorage.getItem(STAGES_LS)) || DEFAULT_STAGES } catch { return DEFAULT_STAGES }
@@ -803,20 +809,20 @@ export default function MetaKanban({ leads: propLeads = [], onUpdateLead, onDele
     return { total, converted, rate: total > 0 ? Math.round(converted / total * 100) : 0, intake }
   }, [allLeads, leadsByStage])
 
-  const campaigns = useMemo(() => [...new Set(allLeads.map(l => l.campaign_name || l.form_name).filter(Boolean))], [allLeads])
+  const campaigns = useMemo(() => [...new Set(allLeads.map(l => campOf(l)).filter(Boolean))], [allLeads, campCfg]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const filteredByStage = useMemo(() => {
     const q = search.toLowerCase()
     const r = {}
     for (const [sid, leads] of Object.entries(leadsByStage)) {
       r[sid] = leads.filter(l => {
-        const ms = !q || [l.name, l.phone, l.campaign_name, l.form_name].filter(Boolean).some(s => s.toLowerCase().includes(q))
-        const mc = !campaignFilter || (l.campaign_name || l.form_name) === campaignFilter
+        const ms = !q || [l.name, l.phone, l.campaign_name, l.form_name, campOf(l)].filter(Boolean).some(s => s.toLowerCase().includes(q))
+        const mc = !campaignFilter || campOf(l) === campaignFilter
         return ms && mc
       })
     }
     return r
-  }, [leadsByStage, search, campaignFilter])
+  }, [leadsByStage, search, campaignFilter, campCfg]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const activeLead = activeId?.startsWith('card-') ? allLeads.find(l => `card-${l.id}` === activeId) : null
 
@@ -953,7 +959,7 @@ export default function MetaKanban({ leads: propLeads = [], onUpdateLead, onDele
                     </WaFace>
                     <div style={{ minWidth: 0 }}>
                       <div style={{ fontSize: 13, fontWeight: 600, color: T.text, direction: 'rtl', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{activeLead.name}</div>
-                      <div style={{ fontSize: 11, color: T.sub, marginTop: 3 }}>{activeLead.campaign_name || activeLead.form_name || 'Lead'}</div>
+                      <div style={{ fontSize: 11, color: T.sub, marginTop: 3 }}>{campOf(activeLead) || 'Lead'}</div>
                     </div>
                   </div>
                 </div>
@@ -964,8 +970,8 @@ export default function MetaKanban({ leads: propLeads = [], onUpdateLead, onDele
           <TableView
             leads={allLeads.filter(l => {
               const q = search.toLowerCase()
-              const ms = !q || [l.name, l.phone, l.campaign_name, l.form_name].filter(Boolean).some(s => s.toLowerCase().includes(q))
-              const mc = !campaignFilter || (l.campaign_name || l.form_name) === campaignFilter
+              const ms = !q || [l.name, l.phone, l.campaign_name, l.form_name, campOf(l)].filter(Boolean).some(s => s.toLowerCase().includes(q))
+              const mc = !campaignFilter || campOf(l) === campaignFilter
               return ms && mc
             })}
             stages={stages}
