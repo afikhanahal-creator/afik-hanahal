@@ -7,4 +7,4 @@ Disallow: /admin-panel
 Disallow: /dashboard
 Disallow: /api/
 
-Sitemap: https://afikhanahal.co.il/sitemap.xml
+Sitemap: https://www.afikhanahal.co.il/sitemap.xml

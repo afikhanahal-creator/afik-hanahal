@@ -9,6 +9,7 @@ import { writeFileSync, mkdirSync } from 'fs'
 import { createFeed } from '../lib/property-feed.js'
 import { renderLanding, landingImageUrls, lqipUrl, propertyMeta } from '../lib/share-page.js'
 import { renderHome } from '../lib/home-page.js'
+import { SECTION_ROUTES, applyRouteHead } from '../lib/site-routes.js'
 import { slimList } from '../lib/slim-photos.js'
 import { readFileSync } from 'fs'
 
@@ -96,6 +97,20 @@ try {
   }
 } catch (e) { console.warn(`[build-properties] landing pages skipped: ${e.message}`) }
 console.log(`[build-properties] ${pages} instant landing pages in dist/p/`)
+// The section addresses that show properties (lib/site-routes.js): /en/ and /properties/ · /en/properties/ get the grid too
+// (scripts/build-content.mjs wrote them without data). Rendered from the plain template, like the landing pages.
+try {
+  const base = readFileSync('dist/index.html', 'utf8')   // still the plain template here (the home layer is written next)
+  let n = 0
+  for (const r of SECTION_ROUTES) for (const lang of ['he', 'en']) {
+    const p = r.path[lang]
+    if (p === '/' || !(r.id === 'home' || r.id === 'properties')) continue
+    mkdirSync(`dist${p}`, { recursive: true })
+    writeFileSync(`dist${p}index.html`, renderHome(applyRouteHead(base, r, lang, ORIGIN), published, { route: { id: r.id, lang, path: p, title: r.title[lang], desc: r.desc[lang] } }))
+    n++
+  }
+  console.log(`[build-properties] ${n} section pages re-rendered with the property grid`)
+} catch (e) { console.warn(`[build-properties] section pages with properties skipped: ${e.message}`) }
 // The homepage's static first screen (hero + property grid), written into index.html itself — after the landing
 // pages, which must be rendered from the plain template (they carry their own layer)
 try {
@@ -103,5 +118,13 @@ try {
   if (!template.includes('id="afik-pre-home"')) writeFileSync('dist/index.html', renderHome(template, published))
   console.log('[build-properties] static first screen written into dist/index.html')
 } catch (e) { console.warn(`[build-properties] static first screen skipped: ${e.message}`) }
+// Every instant property page (/p/<id>) goes into the sitemap (scripts/build-content.mjs wrote the rest)
+try {
+  const sm = readFileSync('dist/sitemap.xml', 'utf8')
+  const day = v => { const t = Date.parse(v || ''); return Number.isFinite(t) ? new Date(t).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10) }
+  const urls = published.filter(p => /^[\w-]{1,80}$/.test(String(p.id))).map(p => `  <url><loc>${ORIGIN}/p/${encodeURIComponent(String(p.id))}</loc><lastmod>${day(p.updatedAt || p.createdAt)}</lastmod><priority>0.8</priority></url>`)
+  if (urls.length && !sm.includes(`${ORIGIN}/p/`)) writeFileSync('dist/sitemap.xml', sm.replace('</urlset>', urls.join('\n') + '\n</urlset>'))
+  console.log(`[build-properties] sitemap: ${urls.length} property pages added`)
+} catch (e) { console.warn(`[build-properties] sitemap property pages skipped: ${e.message}`) }
 if (inlineImages) console.warn(`[build-properties] ${inlineImages} photos are stored inline (base64) — re-uploading them makes the list much lighter`)
 process.exit(0)   // don't wait on Render requests that are still open

@@ -72,7 +72,7 @@ export default async function handler(req, res) {
     const entry = {
       event_name:       ev.event_name,
       event_time:       Math.floor(Date.now() / 1000),
-      event_source_url: ev.url || 'https://afikhanahal.co.il/',
+      event_source_url: ev.url || 'https://www.afikhanahal.co.il/',
       action_source:    'website',
       user_data,
     }

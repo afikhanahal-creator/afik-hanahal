@@ -46,6 +46,7 @@ import { FaChevronLeft, FaChevronRight, FaEnvelope, FaFacebookF, FaInstagram, Fa
 import { photoUrl } from '../lib/img-url.js'
 import HOME from '../content/home.json'
 import { homeLegacy } from '../lib/home-content.js'
+import { routeForPath, sectionPath, switchLangPath, routeMeta } from '../lib/site-routes.js'
 import { notifyPropertiesChanged, pushSnapshot, mirrorProperty } from './siteRebuild.js'
 import { externalizeInlinePhotos } from './inlinePhotos.js'
 
@@ -1106,6 +1107,33 @@ const fmtT = (str, vars) => String(str || '').replace(/\{(\w+)\}/g, (_, k) => (v
 // Static, crawlable content hubs (built by scripts/build-content.mjs) — real links, not scroll anchors
 const HUB_LINKS = [['services','hubServices'], ['areas','hubAreas'], ['guides','hubGuides'], ['glossary','hubGlossary'], ['tools','hubTools'], ['faq','hubFaq'], ['company','hubCompany']]
 const hubHref = (lang, hub) => (lang === 'en' ? '/en/' : '/') + hub + '/'
+
+// The tab's title, description and canonical follow the section on its address (lib/site-routes.js routeMeta)
+function applyRouteMeta(id, lang) {
+  try {
+    const m = routeMeta(id, lang)
+    document.title = m.title
+    document.querySelector('meta[name="description"]')?.setAttribute('content', m.desc)
+    document.querySelector('link[rel="canonical"]')?.setAttribute('href', m.canonical)
+  } catch { /* never block navigation */ }
+}
+// Scroll to a section that may not be drawn yet (lazy sections, photos above it still loading): wait for it, then correct twice
+// as the page above settles — unless the reader has started scrolling by themselves
+function scrollToSection(id, { smooth = false } = {}) {
+  let moved = false, tries = 0
+  const stop = () => { moved = true }
+  const opts = { passive: true, once: true }
+  window.addEventListener('wheel', stop, opts); window.addEventListener('touchstart', stop, opts); window.addEventListener('keydown', stop, opts)
+  const go = (behavior) => {
+    if (moved) return
+    const el = document.getElementById(id)
+    if (!el) { if (tries++ < 50) setTimeout(() => go(behavior), 100); return }
+    el.scrollIntoView({ behavior, block: 'start' })
+  }
+  go(smooth ? 'smooth' : 'auto')
+  setTimeout(() => go('auto'), 900)
+  setTimeout(() => { go('auto'); window.removeEventListener('wheel', stop); window.removeEventListener('touchstart', stop); window.removeEventListener('keydown', stop) }, 2200)
+}
 
 const NAV_LINKS = [
   { id:'home',       label:'ראשי' },
@@ -5269,7 +5297,7 @@ export default function App() {
   const activeNavRef = useRef('home')   // the section on screen — kept out of state so scrolling never re-renders the page
   const [mobileOpen,   setMobileOpen]   = useState(false)
   // Language: ?lang=en (links from the English content pages) → remembered choice → Hebrew
-  const [lang,         setLang]         = useState(() => { try { const q = new URLSearchParams(window.location.search).get('lang'); if (q === 'en' || q === 'he') return q; return localStorage.getItem('afik_lang') === 'en' ? 'en' : 'he' } catch { return 'he' } })
+  const [lang,         setLang]         = useState(() => { try { const rt = routeForPath(window.location.pathname); if (rt && !(rt.id === 'home' && rt.lang === 'he')) return rt.lang; const q = new URLSearchParams(window.location.search).get('lang'); if (q === 'en' || q === 'he') return q; return localStorage.getItem('afik_lang') === 'en' ? 'en' : 'he' } catch { return 'he' } })
   useEffect(() => { if (CMS_PREVIEW) return; try { localStorage.setItem('afik_lang', lang) } catch {} }, [lang])
   const [stats,        setStats]        = useState(DEFAULT_STATS)
   const [sharon,       setSharon]       = useState(DEFAULT_SHARON)
@@ -5629,22 +5657,38 @@ export default function App() {
     return () => obs.disconnect()
   }, [])
 
-  // ── Hash-based URL routing — scroll to section on load / back-forward ──
+  // ── Section addresses (lib/site-routes.js): /process/, /en/contact/ … — opened directly or by Back / Forward, the page
+  // scrolls to that section; an old #hash link (#faq) is moved to its address. The section's title and description go into the
+  // tab (a click sets them before pushState, so Analytics' page_view carries the right title).
   useEffect(() => {
+    if (CMS_PREVIEW) return
     const NAV_IDS = NAV_LINKS.map(n => n.id)
-    const scrollHash = () => {
-      const hash = window.location.hash.slice(1)
-      if (hash && NAV_IDS.includes(hash)) {
-        setTimeout(() => {
-          const el = document.getElementById(hash)
-          if (el) el.scrollIntoView({ behavior:'smooth', block:'start' })
-        }, 350)
-      }
+    const hash = window.location.hash.slice(1)
+    if (hash && NAV_IDS.includes(hash)) {
+      try { window.history.replaceState(null, '', sectionPath(hash, lang) + window.location.search) } catch {}
     }
-    scrollHash()
-    window.addEventListener('popstate', scrollHash)
-    return () => window.removeEventListener('popstate', scrollHash)
-  }, [])
+    const go = (smooth) => {
+      const rt = routeForPath(window.location.pathname)
+      if (!rt) return
+      applyRouteMeta(rt.id, rt.lang)
+      if (rt.id === 'home') { if (smooth) window.scrollTo({ top: 0, behavior: 'smooth' }); return }
+      scrollToSection(rt.id, { smooth })
+    }
+    go(false)
+    const onPop = () => go(true)
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [])  // eslint-disable-line react-hooks/exhaustive-deps
+  // the language follows the address: switching it moves /process/ ↔ /en/process/ (other pages keep their address)
+  useEffect(() => {
+    if (CMS_PREVIEW) return
+    const rt = routeForPath(window.location.pathname)
+    if (!rt || rt.lang === lang) return
+    const q = new URLSearchParams(window.location.search); q.delete('lang')
+    const qs = q.toString()
+    try { window.history.replaceState(null, '', switchLangPath(window.location.pathname, lang) + (qs ? '?' + qs : '') + window.location.hash) } catch {}
+    applyRouteMeta(rt.id, lang)
+  }, [lang])
 
   const priceNum = p => Number(String(p?.price || '').replace(/[^\d]/g, '')) || 0
   const filteredBase = sortByOrder(properties).filter(p =>
@@ -5668,9 +5712,15 @@ export default function App() {
     const el = document.getElementById(id)
     if (el) {
       el.scrollIntoView({ behavior:'smooth', block:'start' })
-      window.history.pushState(null, '', `#${id}`)
+      const path = sectionPath(id, lang)
+      if (!CMS_PREVIEW && window.location.pathname !== path) { applyRouteMeta(id, lang); window.history.pushState(null, '', path) }
     }
     setMobileOpen(false)
+  }
+  // a menu link is a real <a href="/process/"> (crawlable, opens in a new tab with Ctrl / ⌘ / middle click); a plain click scrolls
+  const navClick = id => e => {
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+    e.preventDefault(); scrollTo(id)
   }
   const openContact = (p=null) => { setContactProp(p); setShowContact(true) }
   // Shareable links: /?p=<id> opens that property once the portfolio has loaded
@@ -5927,13 +5977,13 @@ export default function App() {
         </button>
 
         {/* ── Logo next to the menu button (phones: the centre is taken by the tools) ── */}
-        <a href="#home" className="mobile-logo-nav" aria-label={lang === 'en' ? 'Afik Hanahal, back to top' : 'אפיק הנחל, לראש העמוד'}>
+        <a href={sectionPath('home', lang)} onClick={navClick('home')} className="mobile-logo-nav" aria-label={lang === 'en' ? 'Afik Hanahal, back to top' : 'אפיק הנחל, לראש העמוד'}>
           <Logo size={44}/>
         </a>
 
         {/* ── CENTER: Logo (desktop only) ── */}
         <div style={{ position:'absolute', left:'50%', top:'50%', transform:'translate(-50%,-50%)', pointerEvents:'none' }} className="desktop-logo-nav">
-          <a href="#home" aria-label={lang === 'en' ? 'Afik Hanahal, back to top' : 'אפיק הנחל, לראש העמוד'} style={{ pointerEvents:'auto', display:'block', lineHeight:0 }}>
+          <a href={sectionPath('home', lang)} onClick={navClick('home')} aria-label={lang === 'en' ? 'Afik Hanahal, back to top' : 'אפיק הנחל, לראש העמוד'} style={{ pointerEvents:'auto', display:'block', lineHeight:0 }}>
             <Logo size={logoNavSize}/>
           </a>
         </div>
@@ -6008,13 +6058,15 @@ export default function App() {
 
               <div className="nav-panel-links">
                 {NAV_LINKS.map(({ id }) => (
-                  <button key={id}
+                  <a key={id}
+                    href={sectionPath(id, lang)}
                     data-nav={id}
                     className={`nav-panel-item${activeNavRef.current===id?' active':''}`}
-                    onClick={() => scrollTo(id)}>
+                    style={{ textDecoration:'none' }}
+                    onClick={navClick(id)}>
                     {TR[lang]?.nav?.[id] || id}
                     <span className="nav-item-bar"/>
-                  </button>
+                  </a>
                 ))}
                 <div role="separator" style={{ height:1, background:'rgba(132,144,216,.18)', margin:'8px 12px' }}/>
                 {HUB_LINKS.map(([hub, key]) => (
@@ -6539,11 +6591,11 @@ export default function App() {
               <h3 style={{ fontSize:17, fontWeight:700, color:'rgba(232,228,216,.85)', marginBottom:16, letterSpacing:'.02em' }}>{TR[lang]?.quickNav}</h3>
               <div className="footer-nav-links" style={{ display:'flex', flexDirection:'column', gap:13 }}>
                 {NAV_LINKS.map(({ id }) => (
-                  <button key={id} onClick={() => scrollTo(id)} style={{ background:'none', border:'none', color:'rgba(232,228,216,.6)', fontSize:15, cursor:'pointer', textAlign: lang==='en' ? 'left' : 'right', fontFamily:'inherit', padding:0, transition:'color .2s' }}
+                  <a key={id} href={sectionPath(id, lang)} onClick={navClick(id)} style={{ color:'rgba(232,228,216,.6)', fontSize:15, textDecoration:'none', textAlign: lang==='en' ? 'left' : 'right', transition:'color .2s' }}
                     onMouseEnter={e => e.currentTarget.style.color=C.purple}
                     onMouseLeave={e => e.currentTarget.style.color='rgba(232,228,216,.6)'}>
                     {TR[lang]?.nav?.[id] || id}
-                  </button>
+                  </a>
                 ))}
               </div>
             </div>

@@ -130,6 +130,36 @@ block. `related.*` slugs are validated: the build **fails on a broken internal l
 are generated from the same data — do not hand-edit them. Purchase-tax brackets live in both `content/tools.mjs`
 and `src/RealEstateCalc.jsx`; update both every January.
 
+## Section addresses (paths) & the sitemap (`lib/site-routes.js`)
+
+(2026-11-18 — the office: "a path for every section you click, so the site is easy to organise and promote, a proper sitemap, more
+organic and paid exposure".) The homepage stays one page, and **every section has an address of its own**, Hebrew at the root and
+English under `/en/`: `/` · `/en/`, `/properties/`, `/process/`, `/our-services/`, `/reviews/`, `/news/`, `/questions/`, `/ceo/`,
+`/our-story/`, `/about/`, `/contact/` (`SECTION_ROUTES`: id = the section's element id, paths, SEO title ≤ 70 + description per
+language, sitemap priority — tested in `lib/site-routes.test.mjs`, which also fails on a path that takes a hub's address).
+**In the app** (`src/App.jsx`): the menu, the footer and the logos are real `<a href="/process/">` links (crawlable; Ctrl / ⌘ /
+middle click opens a tab) and a plain click scrolls + `pushState`s the address (`navClick` → `scrollTo`), with the tab's title,
+description and canonical set first (`applyRouteMeta`, so Analytics' page_view per click carries the section's title); opened
+directly or by Back / Forward the page scrolls to the section (`scrollToSection`: waits for a lazy section, corrects twice as the page
+above settles, stops when the reader scrolls); the address decides the language (`/en/…` = English; `/` keeps `?lang` / the stored
+choice, and an English visitor on `/` moves to `/en/`), switching the language moves `/process/` ↔ `/en/process/`
+(`switchLangPath`); an old `#faq` link becomes `/questions/`. **At deploy:** `scripts/build-content.mjs` writes
+`dist/<path>/index.html` for every section and language — the SPA with that section's own head (`applyRouteHead`: title,
+description, canonical, he / en / x-default hreflang, Open Graph, `WebPage` + `BreadcrumbList` JSON-LD, `window.__afikRoute`) and its
+own first screen painted from the HTML (`renderHome(…, { route })` in `lib/home-page.js`: the badge, heading and text from
+`content/home.json`, "קביעת שיחת היכרות" `/book?ref=section_<id>` and call; one language only); `scripts/build-properties.mjs`
+re-renders `/en/`, `/properties/` and `/en/properties/` with the property grid and adds every `/p/<id>` to the sitemap. The instant
+property pages now hand over to `/properties/?p=<id>` (`/en/properties/` for `lang=en`). **Canonical rules:** `/our-services/` and
+`/questions/` duplicate the static hubs, so their canonical (and hreflang) is `/services/` / `/faq/` and they stay out of the sitemap;
+every other section is its own canonical and is listed (`sitemapEntries()`), with its English pair; `/?lang=en` is gone from the
+sitemap (`/en/` replaces it). The static pages' "home" link is `/` · `/en/` and their "properties" link `/properties/`.
+**The primary host is `https://www.afikhanahal.co.il`** (the bare domain answers 307 → www): `SITE.origin`, `ORIGIN` in
+`lib/site-routes.js`, `index.html` (canonical, Open Graph, hreflang, every JSON-LD `@id`), `robots.txt`'s Sitemap line and the share
+pages' `#org` all use www — they pointed at the bare domain, so every one of the sitemap's 129 addresses was a redirect. In Vercel →
+the project → Domains, the bare domain's redirect should be **308 (permanent)**, not 307. Probe action **`seo`** (live: the apex / www
+redirect, robots.txt, the sitemap's size and hosts, every section address's status / title / canonical). QA: the scratchpad's
+`routes/qa-routes.cjs` (`PHONE=1` = iPhone 13; build with `routes/fake-props.cjs` + `PROPS_SNAPSHOT=1 SITE_ORIGIN=http://127.0.0.1:4799`).
+
 ## WhatsApp automations (admin tab "אוטומציות")
 
 Ready-made WhatsApp messages for every lead, sent through Green API (`WA_GREENAPI_INSTANCE` / `WA_GREENAPI_TOKEN` in Vercel):
