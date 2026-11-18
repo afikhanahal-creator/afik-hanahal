@@ -447,3 +447,23 @@ if (ACTIONS.includes('spotify') || ACTIONS.includes('seo')) {
     show('spotify embed page', { status: e.status, notAvailable: /Page not available|not available/i.test(html), bytes: html.length })
   } catch (e) { show('spotify', { error: e.message }) }
 }
+// spotify (browser) — the homepage's playlist section in a real Chromium: what the embed shows (its own text) and the requests it fails
+if (ACTIONS.includes('spotify')) {
+  try {
+    const { chromium } = await import('playwright')
+    const b = await chromium.launch()
+    const page = await b.newPage({ viewport: { width: 1280, height: 900 } })
+    const failed = []
+    page.on('requestfailed', r => { if (/spotify|scdn/.test(r.url())) failed.push(r.url().slice(0, 90) + ' ' + (r.failure()?.errorText || '')) })
+    page.on('response', r => { if (/spotify|scdn/.test(r.url()) && r.status() >= 400) failed.push(r.status() + ' ' + r.url().slice(0, 90)) })
+    await page.goto(SITE + '/?notrack=1', { waitUntil: 'domcontentloaded', timeout: 45000 })
+    await page.waitForTimeout(4000)
+    await page.evaluate(() => document.getElementById('playlist')?.scrollIntoView())
+    await page.waitForTimeout(9000)
+    const frame = page.frames().find(f => /open\.spotify\.com\/embed/.test(f.url()))
+    const text = frame ? (await frame.evaluate(() => document.body.innerText).catch(e => 'ERR ' + e.message)).slice(0, 300) : 'no spotify frame'
+    show('spotify in the browser', { frame: frame?.url().slice(0, 100), text, failed: failed.slice(0, 12) })
+    try { const { mkdirSync } = await import('node:fs'); mkdirSync('probe-out', { recursive: true }); await page.locator('#playlist').screenshot({ path: 'probe-out/spotify.png' }) } catch {}
+    await b.close()
+  } catch (e) { show('spotify in the browser', { error: e.message }) }
+}
