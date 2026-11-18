@@ -430,3 +430,20 @@ if (ACTIONS.includes('seo')) {
     } catch (e) { show(`route ${p}`, { error: e.message }) }
   }
 }
+
+// spotify — is the homepage playlist (content/home.json → playlist.url) playable? Spotify's oEmbed answers 200 with the title for a
+// public playlist and 404 for a private / deleted one ("Page not available" in the embed).
+if (ACTIONS.includes('spotify') || ACTIONS.includes('seo')) {
+  const home = JSON.parse(readFileSync('content/home.json', 'utf8'))
+  const url = String(home.playlist?.url || '')
+  const id = (url.match(/playlist\/([A-Za-z0-9]+)/) || [])[1] || ''
+  const page = `https://open.spotify.com/playlist/${id}`
+  try {
+    const r = await fetch(`https://open.spotify.com/oembed?url=${encodeURIComponent(page)}`, { signal: AbortSignal.timeout(15000) })
+    const d = await r.json().catch(() => null)
+    show('spotify oembed', { status: r.status, id, title: d?.title, provider: d?.provider_name })
+    const e = await fetch(url, { signal: AbortSignal.timeout(15000) })
+    const html = await e.text().catch(() => '')
+    show('spotify embed page', { status: e.status, notAvailable: /Page not available|not available/i.test(html), bytes: html.length })
+  } catch (e) { show('spotify', { error: e.message }) }
+}
