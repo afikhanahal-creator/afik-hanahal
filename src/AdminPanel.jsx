@@ -4465,7 +4465,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
                 <strong style={{ color:'#1877F2' }}>טיפ — URL קמפיין עם UTM:</strong><br/>
                 בקמפיין ב-Meta Ads Manager, הגדר Destination URL:
                 <code style={{ display:'block', marginTop:6, padding:'8px 10px', background:'rgba(0,0,0,.25)', borderRadius:6, fontFamily:'monospace', fontSize:11, color:'var(--au-brand-text)', wordBreak:'break-all', direction:'ltr' }}>
-                  https://afikhanahal.co.il/?utm_source=facebook&utm_medium=paid&utm_campaign=<span style={{ color:'#22C55E' }}>שם_קמפיין</span>
+                  https://www.afikhanahal.co.il/?utm_source=facebook&utm_medium=paid&utm_campaign=<span style={{ color:'#22C55E' }}>שם_קמפיין</span>
                 </code>
               </div>
 

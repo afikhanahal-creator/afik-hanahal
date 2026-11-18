@@ -18,6 +18,8 @@ import { GLOSSARY } from '../content/glossary.mjs'
 import { COMPANY } from '../content/company.mjs'
 import { TOOLS } from '../content/tools.mjs'
 import { validateHome } from '../lib/home-content.js'
+import { SECTION_ROUTES, sectionPath, sitemapEntries, applyRouteHead } from '../lib/site-routes.js'
+import { renderHome } from '../lib/home-page.js'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const DIST = path.join(ROOT, 'dist')
@@ -33,7 +35,7 @@ const monthName = (iso, lang) => new Date(iso + 'T00:00:00Z').toLocaleDateString
 const HUBS = { service: 'services', area: 'areas', guide: 'guides', glossary: 'glossary', tool: 'tools', company: 'company', faq: 'faq' }
 const pagePath = (type, slug, lang) => `${lang === 'en' ? '/en' : ''}/${HUBS[type]}/${slug ? slug + '/' : ''}`
 const abs = p => ORIGIN + p
-const homePath = lang => lang === 'en' ? '/?lang=en' : '/'
+const homePath = lang => sectionPath('home', lang)   // '/' · '/en/' (lib/site-routes.js)
 
 // ── Registry (for cross-links) ───────────────────────────────────────────────
 const ALL = [
@@ -268,7 +270,7 @@ ${body}
 <div><h3>${esc(SITE.brand[lang])}</h3><div>${esc(lang === 'en' ? SITE.legalNameEn : SITE.legalName)}</div><div>${esc(u.footer.company)} ${SITE.regNumber}</div><div style="margin-top:8px">${esc(u.footer.address)}: ${esc(lang === 'en' ? SITE.address.streetEn + ', ' + SITE.address.city.en : SITE.address.street + ', ' + SITE.address.extra + ', ' + SITE.address.city.he)}</div><div>${esc(u.footer.hours)}: ${esc(SITE.hours[lang])}</div><div style="margin-top:8px"><a href="tel:${SITE.phoneIntl}">${SITE.phone}</a><a href="mailto:${SITE.email}">${SITE.email}</a></div></div>
 <div><h3>${esc(u.nav.services)}</h3>${SERVICES.map(p => `<a href="${pagePath('service', p.slug, lang)}">${esc(p[lang].cardTitle || p[lang].h1)}</a>`).join('')}</div>
 <div><h3>${esc(u.nav.areas)}</h3>${AREAS.map(p => `<a href="${pagePath('area', p.slug, lang)}">${esc(p[lang].cardTitle || p[lang].h1)}</a>`).join('')}</div>
-<div><h3>${esc(u.nav.guides)}</h3><a href="${pagePath('guide', '', lang)}">${esc(u.allGuides)}</a><a href="${pagePath('glossary', '', lang)}">${esc(u.nav.glossary)}</a><a href="${pagePath('faq', '', lang)}">${esc(u.nav.faq)}</a><a href="${pagePath('tool', '', lang)}">${esc(u.nav.tools)}</a><a href="${pagePath('company', '', lang)}">${esc(u.nav.company)}</a><a href="${homePath(lang)}#properties">${esc(u.nav.properties)}</a><a href="/accessibility">${esc(u.footer.accessibility)}</a></div>
+<div><h3>${esc(u.nav.guides)}</h3><a href="${pagePath('guide', '', lang)}">${esc(u.allGuides)}</a><a href="${pagePath('glossary', '', lang)}">${esc(u.nav.glossary)}</a><a href="${pagePath('faq', '', lang)}">${esc(u.nav.faq)}</a><a href="${pagePath('tool', '', lang)}">${esc(u.nav.tools)}</a><a href="${pagePath('company', '', lang)}">${esc(u.nav.company)}</a><a href="${sectionPath('properties', lang)}">${esc(u.nav.properties)}</a><a href="/accessibility">${esc(u.footer.accessibility)}</a></div>
 </div><p class="disc">${esc(u.disclaimer)}</p><p class="disc">© ${new Date().getFullYear()} ${esc(SITE.brand[lang])} · ${esc(u.footer.rights)}</p></div></footer>
 <script>${JS(lang, page)}</script>
 </body></html>`
@@ -377,7 +379,22 @@ buildHub('tool', TOOLS, { cta: 'buy' })
 }
 
 // Sitemap (content pages + SPA routes) with hreflang alternates
-const spa = [{ he: ORIGIN + '/', en: ORIGIN + '/?lang=en', lastmod: TODAY, priority: '1.0' }, { he: ORIGIN + '/accessibility', lastmod: TODAY, priority: '0.2' }]
+// Every homepage section has an address of its own (lib/site-routes.js): a real file per address and language, with its own head
+// (title, description, canonical, hreflang, breadcrumb) and first screen; the sections that duplicate a hub (/our-services/ →
+// /services/, /questions/ → /faq/) point their canonical at it and stay out of the sitemap. The Hebrew home ("/") is index.html
+// itself; scripts/build-properties.mjs re-renders "/en/" and the two /properties/ pages with the property grid when it has data.
+const TEMPLATE = fs.readFileSync(path.join(DIST, 'index.html'), 'utf8')
+let sectionPages = 0
+for (const r of SECTION_ROUTES) for (const lang of LANGS) {
+  const p = r.path[lang]
+  // the Hebrew home keeps its own hand-written head (index.html — the landing pages /p/<id> are rendered from it too); it only
+  // gains its English pair /en/ in hreflang
+  if (p === '/') { fs.writeFileSync(path.join(DIST, 'index.html'), TEMPLATE.replace(/(<link rel="alternate" hreflang="he"[^>]*>)/i, `$1\n    <link rel="alternate" hreflang="en" href="${ORIGIN}/en/" />`)); continue }
+  const html = renderHome(applyRouteHead(TEMPLATE, r, lang, ORIGIN), [], { route: { id: r.id, lang, path: p, title: r.title[lang], desc: r.desc[lang] } })
+  const f = path.join(DIST, p, 'index.html'); fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, html); sectionPages++
+}
+console.log(`[content] ${sectionPages} section pages (${SECTION_ROUTES.length} sections × ${LANGS.length} languages, the Hebrew home is index.html)`)
+const spa = [...sitemapEntries(TODAY, ORIGIN), { he: ORIGIN + '/accessibility', lastmod: TODAY, priority: '0.2' }]
 const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
 ${[...spa, ...sitemap].map(e => LANGS.filter(l => e[l]).map(l => `  <url><loc>${e[l]}</loc><lastmod>${e.lastmod}</lastmod><priority>${e.priority}</priority>${e.en ? `<xhtml:link rel="alternate" hreflang="he" href="${e.he}"/><xhtml:link rel="alternate" hreflang="en" href="${e.en}"/><xhtml:link rel="alternate" hreflang="x-default" href="${e.he}"/>` : ''}</url>`).join('\n')).join('\n')}

@@ -9,7 +9,7 @@ const HOME = JSON.parse(readFileSync(new URL('./home.json', import.meta.url), 'u
 const OFFICE = HOME.office
 
 export const SITE = {
-  origin: 'https://afikhanahal.co.il',
+  origin: 'https://www.afikhanahal.co.il',
   brand: { he: 'אפיק הנחל', en: 'Afik Hanahal' },
   legalName: 'אפיק הנחל יזום שיווק תיווך נדלן בע"מ',
   legalNameEn: 'Afik Hanahal Development Marketing & Brokerage Ltd.',
