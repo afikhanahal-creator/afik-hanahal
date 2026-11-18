@@ -404,3 +404,29 @@ if (ACTIONS.includes('ai')) {
   const d = await r.json().catch(() => ({}))
   show(`lead analysis (HTTP ${r.status})`, { aiError: d.aiError, aiCode: d.aiCode, model: d.model, score: d.score100, hasBrief: !!d.brief, summary: d.brief?.summary, identityCheck: d.brief?.identityCheck, openingLine: d.brief?.openingLine, warmUpPlan: d.brief?.warmUpPlan, questions: d.brief?.questionsToAsk, message: d.brief?.suggestedMessage })
 }
+
+// seo — the indexing basics, live: which host is primary (apex ↔ www redirect), robots.txt, the sitemap's size and hosts, and every
+// section address (lib/site-routes.js) — HTTP status, <title>, canonical, hreflang. Reads only.
+if (ACTIONS.includes('seo')) {
+  const head = async (u) => { try { const r = await fetch(u, { redirect: 'manual', signal: AbortSignal.timeout(15000) }); return { status: r.status, location: r.headers.get('location') || '' } } catch (e) { return { error: e.message } } }
+  show('apex /', await head('https://afikhanahal.co.il/'))
+  show('www /', await head('https://www.afikhanahal.co.il/'))
+  show('apex /sitemap.xml', await head('https://afikhanahal.co.il/sitemap.xml'))
+  const robots = await fetch(`${SITE}/robots.txt`).then(r => r.text()).catch(e => 'ERR ' + e.message)
+  console.log('robots.txt:\n' + robots.slice(0, 600))
+  const sm = await fetch(`${SITE}/sitemap.xml`).then(r => r.text()).catch(() => '')
+  const locs = [...sm.matchAll(/<loc>([^<]+)<\/loc>/g)].map(m => m[1])
+  const hosts = {}; for (const l of locs) { try { const h = new URL(l).host; hosts[h] = (hosts[h] || 0) + 1 } catch {} }
+  show('sitemap', { urls: locs.length, hosts, sample: locs.slice(0, 40) })
+  let routes = []
+  try { routes = (await import('../lib/site-routes.js')).SECTION_ROUTES || [] } catch { /* before the routes exist */ }
+  for (const r of routes) for (const lang of ['he', 'en']) {
+    const p = r.path[lang]; if (!p) continue
+    try {
+      const res = await fetch(SITE + p, { redirect: 'manual', signal: AbortSignal.timeout(15000) })
+      const html = res.status === 200 ? await res.text() : ''
+      const pick = re => (html.match(re) || [])[1] || ''
+      show(`route ${p}`, { status: res.status, location: res.headers.get('location') || undefined, title: pick(/<title>([^<]*)<\/title>/i), canonical: pick(/<link rel="canonical" href="([^"]+)"/i), route: pick(/__afikRoute=({[^<]+?})/) })
+    } catch (e) { show(`route ${p}`, { error: e.message }) }
+  }
+}
