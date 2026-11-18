@@ -249,6 +249,18 @@ more than 34 % of the pane. QA: the scratchpad's `tq/qa-tq.cjs` (`WIDE=1` = the 
 **Booking link button:** both message boxes (`ChatComposer` in the chats, `LeadConversation` in the Lead Center / lead card)
 have "קישור לשיחה" (calendar icon): puts "אפשר לבחור כאן שעה נוחה לשיחה קצרה: https://www.afikhanahal.co.il/book?ref=wa" at the
 cursor — in the language of what is in the box (`&lang=en` in English), never twice (`src/lib/bookingLink.js`, tested). **History per contact:** the aside's "היסטוריה ופרטים שהשאירו" card (`src/lib/leadHistory.js` `leadHistory()` / `crmLeadFor()`, tested): every Meta inquiry from the same phone with its form answers, the CRM copy's website / booking inquiry, booked calls, stage changes, notes and automatic sends, newest first (8, then "הצג הכל"). **Form card on top of the conversation:** both chat views (the Lead Center's `LeadConversation` and the chats tab) open with "הפרטים שהשאירו במודעה / באתר" — the campaign's short name, form, time, **the name as the lead typed it** ("השם שהשאירו בטופס": `raw_fields` full / first + last name, else `crm_data.originalName` — set on every CRM copy by `contactFromMetaLead()` and back-filled for all existing copies on 2026-10-19; both rename paths also save it before the first rename; also shown as "שם בטופס" in the Lead Center's details and as "השם בטופס" under the name in the lead card) and every answer the lead left (`leadFormCard()` in `src/lib/leadHistory.js`, tested; `LeadFormCard` in `src/waShared.jsx`), like Meta's own inbox.
+**Campaigns, the office's way** (2026-11-18 — "let me pick campaigns and merge them, or change them in the Lead Center"): the Lead
+Center's "ניהול קמפיינים" window (`src/CampaignManager.jsx` — the ✎ next to the campaign filter, the filter's last row, and "מיזוג ושינוי
+שם" on the "לידים לפי קמפיין" card): every campaign as one row by its display name (counts, 30 days, newest lead, the Meta campaigns
+inside it, folded), checkboxes → **"מיזוג"** (pick one of the names or type one), ✎ rename (Enter / Esc; "יאוחד עם…" when the name
+is taken), ↶ back to Meta's name, ✕ takes one Meta campaign out of a merge, archive (folds the campaign to the end of the filter and the
+window — its leads stay everywhere), the funnel filters the list to it; every change at once with "בטל" for 8 s
+(`invertCampaignOps()`). Rules in `lib/campaign-groups.js` (tested): `{ names: { raw campaign / form → name }, archived: [name] }`
+in `app_settings.lead_campaign_names`, `GET / POST /api/meta/campaign-names { ops }` (`map` raws → name, '' = back; `archive`), each op
+safe to repeat; the browser store is `src/lib/campaignNamesStore.js` (optimistic, sessionStorage, re-read on focus after a minute).
+`campaignLabel()` is what the Lead Center (list rows, filter, lead header, "+ הוספת הפרויקט", the by-campaign card) and its Pipeline
+(`MetaKanban`, `campOf`) show; Meta's own names, the leads board's campaign tag and `{property}` in messages don't change (a lead's
+project — "פרויקטים" — decides those). QA: the scratchpad's `camp/qa-camp.cjs` (`PHONE=1` = iPhone 13).
 **Every Meta lead is also in the CRM** (`lib/meta-crm.js`, tested): the webhook and every sync copy a new lead into `contacts`
 (source `meta`, `crm_data.metaLeadId`, form answers in `message` / `crm_data.formAnswers`, phone as 05X…), so it shows in "לידים" and
 in the bulk-send audience. The welcome stays with the Meta pipeline (`crm_data.auto` marks it sent / skipped, the CRM never sends a

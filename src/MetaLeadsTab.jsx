@@ -23,6 +23,9 @@ import SmartVoiceInput from './SmartVoiceInput.jsx'
 import { updateTasks } from '../lib/follow-up.js'
 import { statusForStage, stageForStatus, needsStagePick } from '../lib/lead-status-sync.js'
 import WaFace from './WaFace.jsx'
+import CampaignManager from './CampaignManager.jsx'
+import { useCampaignCfg } from './lib/campaignNamesStore.js'
+import { campaignLabel, campaignGroups } from '../lib/campaign-groups.js'
 
 const ADMIN_TOKEN = 'AFIKhanahal2026'
 // Which Facebook pages are synced is decided on the server (META_PAGE_IDS in Vercel) — see api/meta.js resolvePageIds
@@ -219,6 +222,7 @@ function fmtPhone(phone) {
 }
 
 // Meta's "Lead Ads Testing" tool fills every field with "<test lead: dummy data for …>"
+const NO_TEST = () => false
 const isTestLead = l => /<test lead|dummy data for/i.test(`${l?.name || ''} ${l?.email || ''}`)
 
 // Group label for the lead list: today / yesterday / this week / month name
@@ -368,6 +372,8 @@ export default function MetaLeadsTab({ C, lang, isDark, onOpenCard, onSaveToCRM,
   const [deletedLeads, setDeletedLeads] = useState([])
   const [showRestore, setShowRestore]   = useState(false)
   const [campaignDropOpen, setCampaignDropOpen] = useState(false)
+  const [campMgrOpen, setCampMgrOpen]   = useState(false)      // "ניהול קמפיינים" (src/CampaignManager.jsx)
+  const campCfg = useCampaignCfg()
   const [sortOrder, setSortOrder]       = useState('desc')     // 'desc' = newest first
   const [metaView, setMetaView]         = useState('chat')     // 'chat' (the Lead Center) | 'pipeline'
   const [pane, setPane]                 = useState('chat')     // one-pane layout: 'chat' | 'info'
@@ -717,8 +723,9 @@ export default function MetaLeadsTab({ C, lang, isDark, onOpenCard, onSaveToCRM,
 
   // ── Derived ──────────────────────────────────────────────────────────────────
   const getCampaignLabel = (l) => l.campaign_name || l.form_name || null
-  const shortLabel = l => { const c = getCampaignLabel(l); return c ? (shortCampaign(c) || c) : null }
-  const campaigns = useMemo(() => [...new Set(leads.map(getCampaignLabel).filter(Boolean))], [leads])
+  // the name the office gave the campaign (merged / renamed in "ניהול קמפיינים"), else Meta's short name
+  const shortLabel = l => campaignLabel(getCampaignLabel(l), campCfg, shortCampaign)
+  const campGroups = useMemo(() => campaignGroups(leads, campCfg, { short: shortCampaign, isTest: hideTest ? isTestLead : NO_TEST }), [leads, campCfg, hideTest])
 
   const filteredLeads = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -726,15 +733,15 @@ export default function MetaLeadsTab({ C, lang, isDark, onOpenCard, onSaveToCRM,
     return leads
       .filter(l => {
         if (statusFilter !== 'all' && (l.status || 'new') !== statusFilter) return false
-        if (campaignFilter && getCampaignLabel(l) !== campaignFilter) return false
+        if (campaignFilter && shortLabel(l) !== campaignFilter) return false
         if (hideTest && isTestLead(l)) return false
         if (!q) return true
-        if ([l.name, l.email, l.campaign_name, l.form_name].filter(Boolean).some(s => s.toLowerCase().includes(q))) return true
+        if ([l.name, l.email, l.campaign_name, l.form_name, shortLabel(l)].filter(Boolean).some(s => s.toLowerCase().includes(q))) return true
         // a phone typed any way (050-…, 972…) matches by its digits
         return qd.length >= 3 && String(l.phone || '').replace(/\D/g, '').replace(/^972/, '0').includes(qd.replace(/^972/, '0'))
       })
       .sort((a, b) => (sortOrder === 'desc' ? new Date(b.created_at) - new Date(a.created_at) : new Date(a.created_at) - new Date(b.created_at)))
-  }, [leads, statusFilter, campaignFilter, hideTest, search, sortOrder])
+  }, [leads, statusFilter, campaignFilter, hideTest, search, sortOrder, campCfg]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const BORDER  = 'rgba(var(--brand-rgb),.14)'
   const MUTED   = 'rgba(var(--ink),.6)'
@@ -998,6 +1005,9 @@ export default function MetaLeadsTab({ C, lang, isDark, onOpenCard, onSaveToCRM,
           reset={() => { if (headRef.current) headRef.current.style.height = ''; saveLayout({ head: null }) }}/>
       )}
 
+      <CampaignManager open={campMgrOpen} onClose={() => setCampMgrOpen(false)} leads={leads} isTest={hideTest ? isTestLead : NO_TEST} lang={lang}
+        onFilter={label => { setCampaignFilter(label); if (!inChat) setMetaView('chat') }}/>
+
       {/* ── Pipeline view ── */}
       {!inChat && (
         <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
@@ -1032,22 +1042,30 @@ export default function MetaLeadsTab({ C, lang, isDark, onOpenCard, onSaveToCRM,
             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
               <div ref={campaignDropRef} style={{ position: 'relative', flex: 1, minWidth: 0 }}>
                 <button className="lc-btn" aria-haspopup="listbox" aria-expanded={campaignDropOpen} onClick={() => setCampaignDropOpen(v => !v)} style={{ width: '100%', justifyContent: 'space-between', color: campaignFilter ? BRAND : CREAM }}>
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{campaignFilter ? (shortCampaign(campaignFilter) || campaignFilter) : (lang === 'en' ? 'All campaigns' : 'כל הקמפיינים')}</span>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{campaignFilter || (lang === 'en' ? 'All campaigns' : 'כל הקמפיינים')}</span>
                   <span aria-hidden style={{ fontSize: 9, opacity: .7 }}>{campaignDropOpen ? '▲' : '▼'}</span>
                 </button>
                 {campaignDropOpen && (
                   <div role="listbox" className="lc-card lc-scroll" style={{ position: 'absolute', top: 'calc(100% + 4px)', insetInline: 0, zIndex: 200, boxShadow: '0 12px 32px rgba(0,0,0,.35)', maxHeight: 300 }}>
-                    {[[null, lang === 'en' ? 'All campaigns' : 'כל הקמפיינים', leads.length], ...campaigns.map(c => [c, c, leads.filter(l => getCampaignLabel(l) === c).length])].map(([val, label, n], i) => (
-                      <button key={label} role="option" aria-selected={campaignFilter === val} title={label} onClick={() => { setCampaignFilter(val); setCampaignDropOpen(false) }}
-                        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 9, padding: '10px 12px', border: 'none', borderBottom: `1px solid rgba(var(--ov),.05)`, background: campaignFilter === val ? 'rgba(var(--brand-rgb),.12)' : 'transparent', color: campaignFilter === val ? BRAND : CREAM, fontSize: 12.5, fontWeight: campaignFilter === val ? 700 : 500, cursor: 'pointer', textAlign: 'start', direction: dir }}>
-                        {val && <span style={{ width: 8, height: 8, borderRadius: '50%', background: CAMPAIGN_COLORS[(i - 1) % CAMPAIGN_COLORS.length], flexShrink: 0 }}/>}
-                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{val ? (shortCampaign(label) || label) : label}</span>
-                        <span style={{ fontSize: 11, color: FAINT, fontWeight: 700 }}>{n}</span>
-                      </button>
+                    {[[null, lang === 'en' ? 'All campaigns' : 'כל הקמפיינים', null, false], ...campGroups.map(g => [g.label, g.label, g.count, g.archived])].map(([val, label, n, arch], i, all) => (
+                      <div key={label}>
+                        {arch && !all[i - 1]?.[3] && <div style={{ padding: '8px 12px 4px', fontSize: 11, fontWeight: 700, color: FAINT }}>{lang === 'en' ? 'Archived' : 'בארכיון'}</div>}
+                        <button role="option" aria-selected={campaignFilter === val} title={label} onClick={() => { setCampaignFilter(val); setCampaignDropOpen(false) }}
+                          style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 9, padding: '10px 12px', border: 'none', borderBottom: `1px solid rgba(var(--ov),.05)`, background: campaignFilter === val ? 'rgba(var(--brand-rgb),.12)' : 'transparent', color: campaignFilter === val ? BRAND : arch ? MUTED : CREAM, fontSize: 12.5, fontWeight: campaignFilter === val ? 700 : 500, cursor: 'pointer', textAlign: 'start', direction: dir, minHeight: 0 }}>
+                          {val && <span style={{ width: 8, height: 8, borderRadius: '50%', background: CAMPAIGN_COLORS[(i - 1) % CAMPAIGN_COLORS.length], flexShrink: 0, opacity: arch ? .5 : 1 }}/>}
+                          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}><bdi>{label}</bdi></span>
+                          <span style={{ fontSize: 11, color: FAINT, fontWeight: 700 }}>{n ?? (hideTest ? realLeads.length : leads.length)}</span>
+                        </button>
+                      </div>
                     ))}
+                    <button onClick={() => { setCampaignDropOpen(false); setCampMgrOpen(true) }}
+                      style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '11px 12px', border: 'none', background: 'rgba(var(--brand-rgb),.06)', color: BRAND, fontSize: 12.5, fontWeight: 700, cursor: 'pointer', textAlign: 'start', direction: dir, minHeight: 0 }}>
+                      <Icon name="pencil" size={13}/>{lang === 'en' ? 'Manage campaigns: merge, rename…' : 'ניהול קמפיינים: מיזוג, שינוי שם…'}
+                    </button>
                   </div>
                 )}
               </div>
+              <button className="lc-btn" onClick={() => setCampMgrOpen(true)} title={lang === 'en' ? 'Manage campaigns' : 'ניהול קמפיינים'} aria-label={lang === 'en' ? 'Manage campaigns' : 'ניהול קמפיינים'} style={{ padding: 0, width: 36, flex: 'none', justifyContent: 'center' }}><Icon name="pencil" size={14}/></button>
               {testCount > 0 && <button className="lc-btn" onClick={() => setHideTest(v => !v)} style={{ fontSize: 11.5, padding: '0 10px' }}>{hideTest ? `${t.showTest} (${testCount})` : t.hideTestL}</button>}
               {narrow && <span style={{ flex: 'none', fontSize: 12, color: FAINT, fontWeight: 600, whiteSpace: 'nowrap' }}>{filteredLeads.length} {t.leadsCount}</span>}
             </div>
@@ -1142,7 +1160,10 @@ export default function MetaLeadsTab({ C, lang, isDark, onOpenCard, onSaveToCRM,
                 ))}
               </div>
               <div className="lc-card" style={{ padding: 16 }}>
-                <h3 style={{ margin: '0 0 12px', fontSize: 14, fontWeight: 800, color: CREAM }}>{t.byCampaign}</h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '0 0 12px' }}>
+                  <h3 style={{ margin: 0, flex: 1, fontSize: 14, fontWeight: 800, color: CREAM }}>{t.byCampaign}</h3>
+                  <button className="lc-btn" onClick={() => setCampMgrOpen(true)} style={{ fontSize: 12, padding: '0 10px', height: 30, minHeight: 0 }}><Icon name="pencil" size={13}/>{lang === 'en' ? 'Merge / rename' : 'מיזוג ושינוי שם'}</button>
+                </div>
                 {recentByCampaign.length === 0 && <div style={{ fontSize: 13, color: MUTED }}>{t.noRecent}</div>}
                 {recentByCampaign.slice(0, 8).map(([name, n], i) => (
                   <div key={name} style={{ padding: '5px 0' }}>
