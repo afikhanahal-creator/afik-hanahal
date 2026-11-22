@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useId, createContext, useContext } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useId, createContext, useContext } from 'react'
 import {
   FaTimes, FaHome, FaBalanceScale, FaHandshake, FaMoneyBill,
   FaExternalLinkAlt, FaChevronDown, FaMinus, FaPlus, FaCheck, FaExclamationTriangle, FaInfoCircle,
@@ -215,6 +215,13 @@ const digits = raw => String(raw).replace(/[^\d]/g, '').replace(/^0+(?=\d)/, '')
 const withCommas = d => d.replace(/\B(?=(\d{3})+(?!\d))/g, ',')
 // Quick-amount labels: ₪1.5M / ₪15K in English, natural Hebrew (1.5 מיליון / 15 אלף) in Hebrew
 const short = (n, en) => n >= 1_000_000 ? (en ? `₪${n / 1_000_000}M` : `${n / 1_000_000} מיליון`) : (en ? `₪${n / 1_000}K` : `${n / 1_000} אלף`)
+// The typed amount in words, next to the field's label ("2.45 מיליון ₪" / "₪2.45M"): a missing or extra zero is seen at once
+const human = (n, en) => {
+  if (!n || n < 10_000) return ''
+  const cut = (v, dec) => String(+v.toFixed(dec))
+  if (n >= 1_000_000) return en ? `₪${cut(n / 1e6, 3)}M` : `${cut(n / 1e6, 3)} מיליון ₪`
+  return en ? `₪${cut(n / 1e3, 1)}K` : `${cut(n / 1e3, 1)} אלף ₪`
+}
 
 
 // ── Building blocks (module level so inputs keep focus between renders) ──
@@ -232,34 +239,70 @@ function Label({ htmlFor, id, children, extra }) {
 )
 }
 
-function MoneyField({ id, value, onChange, placeholder, describedBy, onFocus, onBlur }) {
-  const { P, t, en, uid } = useContext(CalcCtx)
+// A ₪ amount. One frame (the wrapper) — the site's global focus outline on the <input> itself is switched off in the CSS below,
+// it used to draw a second frame inside the first. The number is formatted with commas on every key, so the caret is put
+// back after the same digit (it used to jump to the end), and a Backspace on a comma deletes the digit next to it (it used to
+// do nothing). The input has no width of its own (width: 0 + flex): its 20-character default made the whole form wider than a
+// phone's screen once the ✕ appeared.
+function MoneyField({ id, value, onChange, placeholder, describedBy, onFocus, onBlur, clearable = true }) {
+  const { P, en } = useContext(CalcCtx)
+  const ref = useRef(null), caret = useRef(null), fwd = useRef(false)
+  const shown = value ? withCommas(value) : ''
+  const place = () => {
+    const el = ref.current, n = caret.current
+    caret.current = null
+    if (n == null || !el || document.activeElement !== el) return
+    const text = el.value
+    let pos = 0, seen = 0
+    while (pos < text.length && seen < n) { if (/\d/.test(text[pos])) seen++; pos++ }
+    try { el.setSelectionRange(pos, pos) } catch { /* not a text field in some browser */ }
+  }
+  useLayoutEffect(place)
+  const change = e => {
+    const el = e.target, raw = el.value, at = el.selectionStart ?? raw.length
+    let d = raw.replace(/\D/g, ''), before = raw.slice(0, at).replace(/\D/g, '').length
+    if (d === value && raw.length < shown.length) {            // only a comma was deleted → the digit next to it goes
+      if (fwd.current) d = d.slice(0, before) + d.slice(before + 1)
+      else if (before > 0) { d = d.slice(0, before - 1) + d.slice(before); before-- }
+    }
+    const lead = (d.match(/^0+(?=\d)/) || [''])[0].length
+    const clean = digits(d)
+    caret.current = Math.max(0, Math.min(before - lead, clean.length))
+    if (clean === value) Promise.resolve().then(place)            // nothing changes (a letter was typed): React puts the text back, we the caret
+    onChange(clean)
+  }
   return (
-  <div className="rcx-field" style={{ display: 'flex', alignItems: 'center', gap: 8, height: 56, padding: '0 16px', background: P.input, border: `1.5px solid ${P.lineStrong}`, borderRadius: 14, direction: 'ltr', transition: 'border-color .15s, box-shadow .15s' }}>
-    <span aria-hidden="true" style={{ color: P.text3, fontSize: 18, fontWeight: 600 }}>₪</span>
-    <input id={id} type="text" inputMode="numeric" autoComplete="off" enterKeyHint="done"
-      value={value ? withCommas(value) : ''} onChange={e => onChange(digits(e.target.value))}
-      placeholder={placeholder} aria-describedby={describedBy} onFocus={onFocus} onBlur={onBlur}
-      style={{ flex: 1, minWidth: 0, height: '100%', background: 'transparent', border: 'none', outline: 'none', color: P.text, fontSize: 20, fontWeight: 700, fontFamily: 'inherit', letterSpacing: '.01em' }}/>
-    {value && (
-      <button type="button" className="rcx-btn" onClick={() => onChange('')} aria-label={en ? 'Clear' : 'ניקוי'}
-        style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: 'transparent', color: P.text3, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <FaTimes size={13}/>
+  <div className="rcx-field" style={{ display: 'flex', alignItems: 'center', height: 58, paddingInlineStart: 6, paddingInlineEnd: 4, background: P.input, border: `1.5px solid ${P.lineStrong}`, borderRadius: 14, transition: 'border-color .15s, box-shadow .15s' }}>
+    <span aria-hidden="true" style={{ flexShrink: 0, width: 40, height: 40, borderRadius: 10, background: P.raised, color: P.text2, fontSize: 18, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>₪</span>
+    <input ref={ref} id={id} type="text" inputMode="numeric" autoComplete="off" enterKeyHint="done" dir="ltr"
+      value={shown} onChange={change} placeholder={placeholder} aria-describedby={describedBy} onFocus={onFocus} onBlur={onBlur}
+      onKeyDown={e => { fwd.current = e.key === 'Delete'; if (e.key === 'Enter') e.currentTarget.blur() }}
+      style={{ flex: '1 1 0', width: 0, minWidth: 0, height: '100%', margin: 0, padding: '0 12px', background: 'transparent', border: 'none', color: P.text, fontWeight: 700, fontFamily: 'inherit', fontVariantNumeric: 'tabular-nums', letterSpacing: '.01em', textAlign: en ? 'left' : 'right' }}/>
+    {value && clearable && (
+      <button type="button" className="rcx-btn rcx-clear" onMouseDown={e => e.preventDefault()} onClick={() => { onChange(''); ref.current?.focus() }} aria-label={en ? 'Clear' : 'ניקוי'}
+        style={{ flexShrink: 0, width: 44, height: 44, padding: 0, border: 'none', background: 'transparent', color: P.text3, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <span aria-hidden="true" style={{ width: 26, height: 26, borderRadius: '50%', background: P.raised, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><FaTimes size={11}/></span>
       </button>
     )}
   </div>
 )
 }
 
+function Words({ n }) {
+  const { P, en } = useContext(CalcCtx)
+  const w = human(n, en)
+  return w ? <bdi style={{ fontSize: 13, fontWeight: 600, color: P.text3, whiteSpace: 'nowrap' }}>{w}</bdi> : null
+}
+
 function Chips({ values, current, onPick, label }) {
   const { P, t, en, uid } = useContext(CalcCtx)
   return (
-  <div role="group" aria-label={label} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+  <div role="group" aria-label={label} className="rcx-chips">
     {values.map(v => {
       const on = Number(current) === v
       return (
         <button key={v} type="button" className="rcx-btn rcx-chip" onClick={() => onPick(String(v))} aria-pressed={on}
-          style={{ minHeight: 40, padding: '0 14px', borderRadius: 999, border: `1.5px solid ${on ? P.brand : P.line}`, background: on ? P.brandSoft : 'transparent', color: on ? P.brand : P.text2, fontSize: 14, fontWeight: 700 }}>
+          style={{ minHeight: 40, minWidth: 0, borderRadius: 999, border: `1.5px solid ${on ? P.brand : P.line}`, background: on ? P.brandSoft : 'transparent', color: on ? P.brand : P.text2, fontWeight: 700 }}>
           {short(v, en)}
         </button>
       )
@@ -275,11 +318,11 @@ function Options({ name, label, value, onChange, options }) {
   return (
   <fieldset style={{ border: 'none', padding: 0, margin: '0 0 22px' }}>
     <legend style={{ fontSize: 14.5, fontWeight: 700, color: P.text, marginBottom: 8, padding: 0 }}>{label}</legend>
-    <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fit, minmax(${options.length > 2 ? 150 : 170}px, 1fr))`, gap: 10 }}>
+    <div className="rcx-opts" style={{ '--n': options.length }}>
       {options.map(o => {
         const on = value === o.v
         return (
-          <label key={o.v} className="rcx-opt" style={{ position: 'relative', display: 'flex', alignItems: 'flex-start', gap: 10, padding: '14px 14px', minHeight: 64, borderRadius: 14, cursor: 'pointer', border: `1.5px solid ${on ? P.brand : P.line}`, background: on ? P.brandSoft : P.panel }}>
+          <label key={o.v} className="rcx-opt" style={{ position: 'relative', display: 'flex', gap: 10, borderRadius: 14, cursor: 'pointer', border: `1.5px solid ${on ? P.brand : P.line}`, background: on ? P.brandSoft : P.panel }}>
             <input type="radio" name={`${uid}-${name}`} value={o.v} checked={on} onChange={() => onChange(o.v)}
               style={{ position: 'absolute', opacity: 0, inset: 0, margin: 0, cursor: 'pointer' }}/>
             <span aria-hidden="true" style={{ flexShrink: 0, marginTop: 2, width: 20, height: 20, borderRadius: '50%', border: `2px solid ${on ? P.brand : P.lineStrong}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -341,13 +384,13 @@ function Slider({ id, label, value, setValue, min, max, step, unit, color, marks
   )
 }
 
-function Stat({ label, value, sub, color, soft, line, big, icon }) {
+function Stat({ label, value, sub, color, soft, line, big, compact, icon }) {
   const { P, t, en, uid } = useContext(CalcCtx)
   return (
-  <div style={{ background: soft, border: `1.5px solid ${line}`, borderRadius: 16, padding: '16px 18px' }}>
-    <div style={{ fontSize: 14, fontWeight: 600, color: P.text2, marginBottom: 6 }}>{label}</div>
-    <div className={big ? 'rcx-big' : undefined} style={{ fontSize: big ? 40 : 30, fontWeight: 800, color, lineHeight: 1.1, direction: 'ltr', textAlign: en ? 'left' : 'right', fontVariantNumeric: 'tabular-nums' }}>{value}</div>
-    {sub && <div style={{ fontSize: 14, color: P.text2, marginTop: 8, display: 'flex', alignItems: 'center', gap: 6, lineHeight: 1.45 }}>{icon}{sub}</div>}
+  <div className={compact ? 'rcx-stat rcx-stat-sm' : 'rcx-stat'} style={{ minWidth: 0, background: soft, border: `1.5px solid ${line}`, borderRadius: 16 }}>
+    <div style={{ fontSize: compact ? 13.5 : 14, fontWeight: 600, color: P.text2, marginBottom: 6 }}>{label}</div>
+    <div className={big ? 'rcx-big' : compact ? 'rcx-mid' : undefined} style={{ fontSize: big ? 42 : 30, fontWeight: 800, color, lineHeight: 1.1, direction: 'ltr', textAlign: en ? 'left' : 'right', fontVariantNumeric: 'tabular-nums' }}>{value}</div>
+    {sub && <div style={{ fontSize: compact ? 13 : 14, color: P.text2, marginTop: 8, display: 'flex', alignItems: 'flex-start', gap: 6, lineHeight: 1.45 }}>{icon}<span style={{ minWidth: 0 }}>{sub}</span></div>}
   </div>
 )
 }
@@ -402,6 +445,7 @@ export default function RealEstateCalc({ onClose, lang = 'he', isDark = true }) 
   const bodyRef    = useRef(null)
   const resultsRef = useRef(null)
   const tabRefs    = useRef({})
+  const cashSeed   = useRef(null)   // the computed equity put in the field on focus: left untouched, the field keeps following the %
 
   // Body scroll lock, Escape to close, focus into the dialog and back to the opener on close.
   // Runs once: onClose is read through a ref (the parent passes a new function on every render).
@@ -412,6 +456,7 @@ export default function RealEstateCalc({ onClose, lang = 'he', isDark = true }) 
     const prevOverflow = document.body.style.overflow
     const opener = document.activeElement
     document.body.style.overflow = 'hidden'
+    document.documentElement.classList.add('rcx-open')
     const onKey = e => {
       if (e.key === 'Escape') { e.stopPropagation(); onClose() }
       if (e.key === 'Tab' && dialogRef.current) {           // keep keyboard focus inside the dialog
@@ -426,12 +471,14 @@ export default function RealEstateCalc({ onClose, lang = 'he', isDark = true }) 
     requestAnimationFrame(() => tabRefs.current.tax?.focus())
     return () => {
       document.body.style.overflow = prevOverflow
+      document.documentElement.classList.remove('rcx-open', 'rcx-open-ltr')
       document.removeEventListener('keydown', onKey)
       try { opener?.focus?.() } catch {}
     }
   }, [])
 
   useEffect(() => { bodyRef.current?.scrollTo?.({ top: 0 }) }, [tab])
+  useEffect(() => { document.documentElement.classList.toggle('rcx-open-ltr', en) }, [en])
 
   // ── Calculations ──
   const priceNum  = Number(price || 0)
@@ -492,24 +539,46 @@ export default function RealEstateCalc({ onClose, lang = 'he', isDark = true }) 
     .rcx :focus-visible { outline: 3px solid ${P.brand}; outline-offset: 2px; border-radius: 10px; }
     .rcx-btn { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
     .rcx-tab:hover { color: ${P.text} !important; background: ${P.brandSoft} !important; }
-    .rcx-opt { transition: border-color .15s, background .15s; }
-    .rcx-opt:hover { border-color: ${P.brandLine} !important; }
     .rcx-chip { transition: background .15s, border-color .15s, color .15s; }
     .rcx-chip:hover { border-color: ${P.brandLine} !important; color: ${P.text} !important; }
     .rcx-step:hover:not(:disabled) { background: ${P.brandSoft} !important; }
     .rcx-step:disabled { opacity: .4; cursor: default; }
-    .rcx-field:focus-within { border-color: ${P.brand} !important; box-shadow: 0 0 0 3px ${P.brandSoft}; }
-    .rcx-field input::placeholder { color: ${P.text3}; opacity: .75; }
     .rcx-close:hover { background: ${P.raised} !important; color: ${P.text} !important; }
     .rcx-link:hover { background: ${P.brandSoft} !important; }
     .rcx-acc:hover { background: ${P.raised} !important; }
+
+    /* The ₪ field: ONE frame. The site's global rule (:where(input…):focus-visible { outline … !important }) drew a second
+       one on the <input> inside the wrapper, and "input { font-size: 16px !important; border-radius: 8px }" shrank the number. */
+    .rcx .rcx-field input, .rcx .rcx-field input:focus, .rcx .rcx-field input:focus-visible { outline: none !important; box-shadow: none !important; border-radius: 0 !important; font-size: 22px !important; -webkit-appearance: none; appearance: none; }
+    .rcx-field:focus-within { border-color: ${P.brand} !important; box-shadow: 0 0 0 4px ${P.brandSoft}; }
+    .rcx-field input::placeholder { color: ${P.text3}; opacity: .6; font-weight: 600; }
+    .rcx-clear:hover > span { color: ${P.text}; }
+    .rcx .rcx-clear:focus-visible { outline: none !important; }
+    .rcx .rcx-clear:focus-visible > span { box-shadow: 0 0 0 3px ${P.brand}; }
+
+    /* Quick amounts: always one row of equal chips (they wrapped to a lone second row on a phone) */
+    .rcx-chips { display: flex; gap: 8px; margin-top: 10px; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+    .rcx-chips::-webkit-scrollbar { display: none; }
+    .rcx-chips > .rcx-chip { flex: 1 0 auto; padding: 0 12px; font-size: 14px; white-space: nowrap; }
+
+    /* Choice cards: equal columns on a wide screen, full-width rows on a phone (2 + 1 uneven cards before) */
+    .rcx-opts { display: grid; grid-template-columns: repeat(var(--n, 2), minmax(0, 1fr)); gap: 10px; }
+    .rcx-opt { align-items: flex-start; padding: 14px; min-height: 64px; transition: border-color .15s, background .15s; }
+    .rcx-opt:hover { border-color: ${P.brandLine} !important; }
+    .rcx-opt:has(input:focus-visible) { outline: 3px solid ${P.brand}; outline-offset: 2px; }
+    .rcx .rcx-opt input:focus-visible { outline: none !important; }
+
+    .rcx-stat { padding: 16px 18px; }
+    .rcx-stat-sm { padding: 14px 16px; }
+    .rcx-mid { font-size: 26px !important; }
+    .rcx-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 
     .rcx-range { -webkit-appearance: none; appearance: none; width: 100%; height: 28px; background: transparent; cursor: pointer; margin: 0; display: block; touch-action: pan-y; }
     .rcx-range::-webkit-slider-runnable-track { height: 8px; border-radius: 8px; background: var(--fill); }
     .rcx-range::-moz-range-track { height: 8px; border-radius: 8px; background: var(--fill); }
     .rcx-range::-webkit-slider-thumb { -webkit-appearance: none; width: 26px; height: 26px; margin-top: -9px; border-radius: 50%; background: #fff; border: 3px solid var(--c); box-shadow: 0 2px 8px rgba(0,0,0,.3); }
     .rcx-range::-moz-range-thumb { width: 20px; height: 20px; border-radius: 50%; background: #fff; border: 3px solid var(--c); box-shadow: 0 2px 8px rgba(0,0,0,.3); }
-    .rcx-range:focus-visible { outline: none; }
+    .rcx .rcx-range:focus-visible { outline: none !important; }
     .rcx-range:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 5px ${P.brandSoft}, 0 0 0 7px var(--c); }
     .rcx-range:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 5px ${P.brandSoft}, 0 0 0 7px var(--c); }
 
@@ -518,23 +587,48 @@ export default function RealEstateCalc({ onClose, lang = 'he', isDark = true }) 
     .rcx-dialog { animation: rcxIn .28s cubic-bezier(.16,1,.3,1) both; }
     .rcx-pane { animation: rcxFade .2s ease both; }
 
-    .rcx-grid { display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr); gap: 28px; align-items: start; }
+    .rcx-grid { display: grid; grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr); gap: 32px; align-items: start; }
+    .rcx-grid > * { min-width: 0; }
     .rcx-results { position: sticky; top: 0; }
-    .rcx-two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-    .rcx-summary { display: none; }
+    .rcx-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+    .rcx-summary, .rcx-yr-m { display: none; }
+    .rcx-tab { flex-direction: row; gap: 9px; min-height: 52px; }
+    /* A wide screen: one height for every tab and state — the centred window used to grow and jump when a result appeared */
+    @media (min-width: 761px) { .rcx-dialog { height: min(90vh, 740px); } }
     @media (max-width: 760px) {
       .rcx-overlay { padding: 0 !important; align-items: stretch !important; }
       .rcx-dialog { max-width: none !important; max-height: none !important; height: 100% !important; border-radius: 0 !important; border: none !important; }
-      .rcx-grid { grid-template-columns: 1fr; gap: 20px; }
+      .rcx-grid { grid-template-columns: minmax(0, 1fr); gap: 22px; }
       .rcx-results { position: static; }
-      .rcx-two { grid-template-columns: 1fr; }
-      .rcx-head { padding: 14px 16px 12px !important; }
+      .rcx-two { grid-template-columns: minmax(0, 1fr); gap: 0; }
+      .rcx-head { padding: calc(12px + env(safe-area-inset-top)) 16px 10px !important; }
+      .rcx-head h2 { font-size: 20px !important; }
+      .rcx-head > div:first-child { padding-inline-end: 50px; }   /* the accessibility button docks here */
+      .rcx-yr-d { display: none; }
+      .rcx-yr-m { display: inline-block; }
       .rcx-tabs { padding: 0 8px !important; }
-      .rcx-tab { min-width: 0 !important; padding: 10px 4px !important; }
+      .rcx-tab { flex-direction: column; gap: 4px; min-width: 0 !important; min-height: 54px; padding: 8px 4px !important; }
       .rcx-tab span { font-size: 12.5px !important; white-space: normal !important; line-height: 1.2; text-align: center; }
-      .rcx-body { padding: 16px 16px 84px !important; }   /* room above the site's accessibility button */
+      .rcx-body { padding: 16px 16px 28px !important; }
       .rcx-summary { display: flex; }
-      .rcx-big { font-size: 34px !important; }
+      .rcx-big { font-size: 36px !important; }
+      .rcx-mid { font-size: clamp(17px, 5.2vw, 24px) !important; }
+      .rcx-stat-sm { padding: 12px 14px; }
+      .rcx-pair { gap: 10px; }
+      .rcx .rcx-field input, .rcx .rcx-field input:focus, .rcx .rcx-field input:focus-visible { font-size: 20px !important; }
+      .rcx-chips { gap: 6px; }
+      .rcx-chips > .rcx-chip { padding: 0 8px; font-size: 13.5px; }
+    }
+    @media (max-width: 380px) { .rcx-chips { gap: 5px; } .rcx-chips > .rcx-chip { padding: 0 4px; font-size: 13px; } }
+    @media (max-width: 560px) {
+      .rcx-opts { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+      .rcx-opt { align-items: center; padding: 11px 14px; min-height: 58px; }
+    }
+    /* Phones: while the calculator is open the site's accessibility button sits in the header, next to the close button —
+       floating over the form it covered the fields' text. */
+    @media (max-width: 760px) {
+      html.rcx-open #a11y-btn { top: calc(14px + env(safe-area-inset-top)); bottom: auto; right: auto; left: 68px; width: 40px; height: 40px; box-shadow: none; }
+      html.rcx-open.rcx-open-ltr #a11y-btn { left: auto; right: 68px; }
     }
     @media (prefers-reduced-motion: reduce) { .rcx-dialog, .rcx-pane { animation: none; } }
   `
@@ -544,7 +638,7 @@ export default function RealEstateCalc({ onClose, lang = 'he', isDark = true }) 
   // ── Tabs content ──
   const priceField = (
     <div style={{ marginBottom: 22 }}>
-      <Label htmlFor={`${uid}-price`}>{t.price}</Label>
+      <Label htmlFor={`${uid}-price`} extra={<Words n={priceNum}/>}>{t.price}</Label>
       <MoneyField id={`${uid}-price`} value={price} onChange={setPrice} placeholder={en ? '2,000,000' : '2,000,000'} describedBy={`${uid}-price-hint`}/>
       <div id={`${uid}-price-hint`} style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>{t.priceHint}</div>
       <Chips values={[1_000_000, 1_500_000, 2_000_000, 3_000_000, 5_000_000]} current={price} onPick={setPrice} label={t.priceHint}/>
@@ -609,11 +703,11 @@ export default function RealEstateCalc({ onClose, lang = 'he', isDark = true }) 
         ]}/>
         {priceField}
         <div style={{ marginBottom: 22 }}>
-          <Label htmlFor={`${uid}-cash`}>{t.equityCash}</Label>
+          <Label htmlFor={`${uid}-cash`} extra={<Words n={cashMode ? cashNum : priceNum > 0 ? Math.round(equity) : 0}/>}>{t.equityCash}</Label>
           <MoneyField id={`${uid}-cash`} value={cashEditing || cashMode ? equityCash : (priceNum > 0 ? String(Math.round(equity)) : '')}
-            onChange={setEquityCash} placeholder="500,000" describedBy={`${uid}-cash-hint`}
-            onFocus={() => { setCashEditing(true); if (!cashMode && priceNum > 0) setEquityCash(String(Math.round(equity))) }}
-            onBlur={() => setCashEditing(false)}/>
+            onChange={setEquityCash} placeholder="500,000" describedBy={`${uid}-cash-hint`} clearable={cashMode || cashEditing}
+            onFocus={() => { setCashEditing(true); cashSeed.current = null; if (!cashMode && priceNum > 0) { cashSeed.current = String(Math.round(equity)); setEquityCash(cashSeed.current) } }}
+            onBlur={() => { setCashEditing(false); if (cashSeed.current != null && equityCash === cashSeed.current) setEquityCash(''); cashSeed.current = null }}/>
           <div id={`${uid}-cash-hint`} style={{ fontSize: 13, color: P.text3, marginTop: 6, lineHeight: 1.5 }}>
             {cashMode && priceNum === 0 ? t.eqCanBuy(money(cashNum), money(maxByEquity), Math.round(maxLtv * 100)) : t.equityCashHint}
           </div>
@@ -648,7 +742,7 @@ export default function RealEstateCalc({ onClose, lang = 'he', isDark = true }) 
             marks={[15, 20, 25, 30]}/>
         </div>
         <div style={{ marginBottom: 6 }}>
-          <Label htmlFor={`${uid}-inc`} extra={<span style={{ fontSize: 13, color: P.text3 }}>{t.optional}</span>}>{t.income}</Label>
+          <Label htmlFor={`${uid}-inc`} extra={<span style={{ fontSize: 13, color: P.text3, whiteSpace: 'nowrap' }}>{t.optional}</span>}>{t.income}</Label>
           <MoneyField id={`${uid}-inc`} value={income} onChange={setIncome} placeholder="20,000"/>
           <Chips values={[15_000, 20_000, 25_000, 30_000]} current={income} onPick={setIncome} label={t.income}/>
         </div>
@@ -659,7 +753,7 @@ export default function RealEstateCalc({ onClose, lang = 'he', isDark = true }) 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <Stat big label={t.monthly} value={money(aMonthly)}
               color={ratioHigh ? P.amber : P.brand} soft={ratioHigh ? P.amberSoft : P.brandSoft} line={ratioHigh ? P.amberLine : P.brandLine}
-              icon={incomeNum > 0 ? (ratioHigh ? <FaExclamationTriangle size={13} style={{ color: P.amber, flexShrink: 0 }} aria-hidden="true"/> : <FaCheck size={12} style={{ color: P.green, flexShrink: 0 }} aria-hidden="true"/>) : null}
+              icon={incomeNum > 0 ? (ratioHigh ? <FaExclamationTriangle size={13} style={{ color: P.amber, flexShrink: 0, marginTop: 3 }} aria-hidden="true"/> : <FaCheck size={12} style={{ color: P.green, flexShrink: 0, marginTop: 4 }} aria-hidden="true"/>) : null}
               sub={incomeNum > 0 ? `${(ratio * 100).toFixed(1)}% ${t.ofIncome} — ${ratioHigh ? t.ratioHigh : t.ratioOk}` : `${years} ${t.yearsUnit} · ${Number(rate).toFixed(1)}%`}/>
             {incomeNum > 0 && (
               <div aria-hidden="true" style={{ position: 'relative', height: 10, borderRadius: 6, background: P.track, overflow: 'hidden', marginTop: -4 }}>
@@ -667,10 +761,10 @@ export default function RealEstateCalc({ onClose, lang = 'he', isDark = true }) 
                 <div style={{ position: 'absolute', insetBlock: -2, insetInlineStart: '70%', width: 2, background: P.text2 }} title="35%"/>
               </div>
             )}
-            <div className="rcx-two" style={{ gap: 12 }}>
-              <Stat label={t.loan} value={money(aLoan)} color={P.text} soft={P.panel} line={P.line}
+            <div className="rcx-pair">
+              <Stat compact label={t.loan} value={money(aLoan)} color={P.text} soft={P.panel} line={P.line}
                 sub={`${Math.round(ltvRatio * 100)}% ${t.ofPrice}`}/>
-              <Stat label={t.equityNeeded} value={money(aEquity)} color={P.green} soft={P.greenSoft} line={P.greenLine}
+              <Stat compact label={t.equityNeeded} value={money(aEquity)} color={P.green} soft={P.greenSoft} line={P.greenLine}
                 sub={t.extraCosts}/>
             </div>
             <div style={{ background: P.panel, border: `1.5px solid ${P.line}`, borderRadius: 16, padding: '6px 16px' }}>
@@ -713,7 +807,7 @@ export default function RealEstateCalc({ onClose, lang = 'he', isDark = true }) 
   const tabuPane = (
     <div>
       <Intro>{t.tabuIntro}</Intro>
-      <div className="rcx-two" style={{ marginBottom: 16 }}>
+      <div className="rcx-two" style={{ marginBottom: 16, rowGap: 14 }}>
         {[[t.tabuTitle, t.tabuItems, 'brand'], [t.ramiTitle, t.ramiItems, 'green']].map(([title, items, k]) => {
           const [c, soft, line] = tone(k)
           return (
@@ -788,15 +882,18 @@ export default function RealEstateCalc({ onClose, lang = 'he', isDark = true }) 
       style={{ position: 'fixed', inset: 0, zIndex: 10600, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, background: P.overlay, backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}>
       <style>{css}</style>
       <div ref={dialogRef} className="rcx-dialog" role="dialog" aria-modal="true" aria-labelledby={`${uid}-title`}
-        style={{ width: '100%', maxWidth: 1000, maxHeight: 'min(92vh, 900px)', display: 'flex', flexDirection: 'column', background: P.bg, color: P.text, borderRadius: 22, border: `1px solid ${P.line}`, boxShadow: P.shadow, overflow: 'hidden' }}>
+        style={{ width: '100%', maxWidth: 1040, maxHeight: 'min(92vh, 920px)', display: 'flex', flexDirection: 'column', background: P.bg, color: P.text, borderRadius: 22, border: `1px solid ${P.line}`, boxShadow: P.shadow, overflow: 'hidden' }}>
 
         {/* Header */}
         <header className="rcx-head" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '18px 24px 14px', background: P.panel }}>
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: P.brand, marginBottom: 4 }}>{t.kicker}</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: P.brand, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              {t.kicker}
+              <span className="rcx-yr-m" style={{ fontSize: 11.5, fontWeight: 700, color: P.green, background: P.greenSoft, border: `1px solid ${P.greenLine}`, borderRadius: 7, padding: '1px 7px' }}>2026</span>
+            </div>
             <h2 id={`${uid}-title`} style={{ margin: 0, fontSize: 22, fontWeight: 800, color: P.text, lineHeight: 1.2, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
               {t.title}
-              <span style={{ fontSize: 12.5, fontWeight: 700, color: P.green, background: P.greenSoft, border: `1px solid ${P.greenLine}`, borderRadius: 8, padding: '2px 8px' }}>2026</span>
+              <span className="rcx-yr-d" style={{ fontSize: 12.5, fontWeight: 700, color: P.green, background: P.greenSoft, border: `1px solid ${P.greenLine}`, borderRadius: 8, padding: '2px 8px' }}>2026</span>
             </h2>
           </div>
           <button type="button" className="rcx-btn rcx-close" onClick={onClose} aria-label={t.close}
@@ -815,7 +912,7 @@ export default function RealEstateCalc({ onClose, lang = 'he', isDark = true }) 
               <button key={id} type="button" role="tab" id={`${uid}-tab-${id}`} aria-selected={on} aria-controls={`${uid}-pane`} tabIndex={on ? 0 : -1}
                 ref={el => { tabRefs.current[id] = el }} onClick={() => setTab(id)}
                 className="rcx-btn rcx-tab"
-                style={{ flex: 1, minWidth: 110, minHeight: 56, padding: '10px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 5, border: 'none', borderBottom: `3px solid ${on ? P.brand : 'transparent'}`, borderRadius: '10px 10px 0 0', background: on ? P.brandSoft : 'transparent', color: on ? P.brand : P.text2, fontWeight: on ? 800 : 600 }}>
+                style={{ flex: 1, minWidth: 110, padding: '10px 8px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', borderBottom: `3px solid ${on ? P.brand : 'transparent'}`, borderRadius: '10px 10px 0 0', background: on ? P.brandSoft : 'transparent', color: on ? P.brand : P.text2, fontWeight: on ? 800 : 600 }}>
                 <Icon size={17} aria-hidden="true"/>
                 <span style={{ fontSize: 14, whiteSpace: 'nowrap' }}>{t.tabs[id]}</span>
               </button>

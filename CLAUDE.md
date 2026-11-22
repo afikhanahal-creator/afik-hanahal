@@ -2085,6 +2085,34 @@ page (the same bare rule had been squeezing the admin's bottom bar to 62px witho
 area now, as its own CSS says). QA: the scratchpad's `menu/qa-menu.cjs` (iPhone 13, a 360px Android, a 768px tablet, desktop: the
 menu is as tall as the screen, the links show, a link and ✕ close it).
 
+## Real-estate calculator (`src/RealEstateCalc.jsx`) — the ₪ field and the layout
+
+(2026-11-22 — the office: "improve the calculator on mobile and desktop; there is an unclear bug with the property-price field".)
+**Three bugs in the ₪ field** (`MoneyField`): (1) **a second frame inside the field** — the site's global
+`:where(a, button, input…):focus-visible { outline … !important }` (`App.jsx`) drew its outline on the `<input>` inside the
+wrapper that already has the focus ring, and `input { font-size: 16px !important; border-radius: 8px }` shrank the number; the
+calculator's CSS now switches both off for `.rcx .rcx-field input` (the ring is the wrapper's `:focus-within`, 22 px / 20 px on a
+phone — never under 16 px, iOS zooms). (2) **the whole form slid under the screen's edge once a price was typed** — a text
+`<input>` has a width of its own (20 characters), so when the ✕ appeared the field's min-content passed the phone's width and the
+`1fr` grid column grew by 15 px (RTL: off the left edge); the input is `width: 0; flex: 1 1 0` and every grid track is
+`minmax(0, 1fr)`. (3) **the caret jumped to the end** on every key (the value is re-formatted with commas) and **Backspace right
+after a comma did nothing** — `change()` counts the digits before the caret, `place()` puts it back after the same digit
+(`useLayoutEffect`; a microtask when nothing changed), and a deleted comma takes the digit next to it (Delete = the one after).
+The field itself: the page's direction — ₪ tile at the start, the number next to it (`dir="ltr"`, right-aligned in Hebrew), ✕ at
+the end (keeps the focus; `clearable={false}` while the equity shown is the computed one), Enter closes the keyboard, and the
+amount in words next to the label (`Words` / `human()`: "2.45 מיליון ₪" · "₪2.45M" — a missing zero is seen at once). **The equity
+field** only visited (focused and left unchanged) goes back to following the percent (`cashSeed`); it used to lock the amount.
+**Layout:** quick amounts are always one row of equal chips (`.rcx-chips`; they wrapped to a lone second row); choice cards are
+equal columns on a wide screen and full-width rows ≤ 560 px (`.rcx-opts`, `--n`; 2 + 1 uneven cards before); loan + equity sit side
+by side on every screen (`.rcx-pair`, `Stat compact`); on a wide screen the window keeps one height (`min(90vh, 740px)` — it grew
+and jumped under the mouse when a result appeared) and the tabs are one row (icon beside the label); on a phone the year badge
+moves to the kicker line. **The accessibility button** (`#a11y-btn`) docks in the calculator's header next to ✕ while it is open on
+a phone (`html.rcx-open`, `.rcx-open-ltr` for English) — floating, it covered the fields' text. **Never rely on an inline
+`outline: none` / `font-size` on an `<input>` of the public site** — the global rules are `!important`; override them in a scoped
+class. QA: the scratchpad's `calc/qa-calc.cjs` (iPhone 13, a 360 px Android, English, 1440 and 1024 desktop: one frame, caret,
+delete on a comma, no element wider than the screen on every tab, one row of chips, equal cards, the equity rules, the
+accessibility button, one window height) and `calc/shots.cjs` (`PHONE=1`, `LIGHT=1`, `EN=1`).
+
 ## Public site performance rules (keep scrolling smooth on slow phones)
 
 Measured on a mobile profile (CPU ×4): the homepage used to burn ~40% CPU at rest and scroll at ~12 fps. What fixed it,
