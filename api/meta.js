@@ -34,7 +34,8 @@ import { forwardGreenHook } from '../lib/green-forward.js'
 import { avatarExpiry, avatarFresh, avatarPhone, socialAvatarFresh, socialKey, avatarKey, profileLinkOf } from '../lib/wa-avatar.js'
 import { forwardRequest, fileGroupRequest, cleanMsgId, cleanReaction, isHandled, withHandled, withoutHandled } from '../lib/wa-actions.js'
 import { cleanProjects } from '../lib/projects.js'
-import { cleanCampaignCfg, applyCampaignOps } from '../lib/campaign-groups.js'
+import { cleanCampaignCfg, applyCampaignOps, campaignLabel } from '../lib/campaign-groups.js'
+import { cleanEmailRoutes, routeRecipients, maskEmail } from '../lib/lead-email-routes.js'
 import { cleanFolders, applyFolderOps, galleryStoragePaths } from '../lib/gallery-folders.js'
 import { parseSocialHook, threadId, parseThreadId, previewText, leadBodyFromThread, cleanSocialPages, inboxPageIds, accountLabels, conversationEvents, threadRowFrom, importJobs } from '../lib/social-hook.js'
 import { manualLeadRow } from '../lib/manual-lead.js'
@@ -765,10 +766,27 @@ async function greenSettingsCheck() {
   return v
 }
 
-async function sendMetaLeadEmail({ name, phone, email, campaign, message, ts, fields }) {
+// Extra recipients per campaign (lib/lead-email-routes.js, app_settings.lead_email_routes), with the office's own name for the
+// campaign (lead_campaign_names) — read at most once a minute per instance
+let emailRoutesCache = { at: 0, routes: [], names: null }
+async function leadEmailExtras({ campaign, form }, exclude) {
+  if (Date.now() - emailRoutesCache.at > 60e3) {
+    const [r, n] = await Promise.all([
+      Auto.getSetting('lead_email_routes').catch(() => ({ value: null })),
+      Auto.getSetting('lead_campaign_names').catch(() => ({ value: null })),
+    ])
+    emailRoutesCache = { at: Date.now(), routes: cleanEmailRoutes(r?.value), names: cleanCampaignCfg(n?.value) }
+  }
+  const label = campaignLabel(campaign || form || '', emailRoutesCache.names, shortCampaign) || ''
+  return routeRecipients(emailRoutesCache.routes, { campaign, form, label }, exclude)
+}
+
+async function sendMetaLeadEmail({ name, phone, email, campaign, form, message, ts, fields, test = false, only = null }) {
   const user = process.env.GMAIL_USER
   const pass = process.env.GMAIL_APP_PASSWORD
-  const to   = process.env.ADMIN_NOTIFY_EMAIL || user
+  const office = process.env.ADMIN_NOTIFY_EMAIL || user
+  const extra = only || await leadEmailExtras({ campaign, form }, [office, user]).catch(() => [])
+  const to   = only ? only.join(', ') : office
   if (!user || !pass) {
     console.warn('[meta-lead-email] skipped — GMAIL_USER / GMAIL_APP_PASSWORD missing on Vercel')
     return
@@ -788,15 +806,41 @@ async function sendMetaLeadEmail({ name, phone, email, campaign, message, ts, fi
     const info = await transporter.sendMail({
       from:    `"אפיק הנחל CRM" <${user}>`,
       to,
-      subject: `🔔 ליד Meta חדש: ${name || phone || 'אנונימי'} — אפיק הנחל`,
+      // the campaign's extra recipients get the same email as Bcc (they never see each other or the office's address)
+      ...(!only && extra.length ? { bcc: extra.join(', ') } : {}),
+      subject: `${test ? '[בדיקה] ' : ''}🔔 ליד Meta חדש: ${name || phone || 'אנונימי'} — אפיק הנחל`,
       // what they asked about (the campaign's short name) and every answer they left in the form
       html:    buildLeadEmailHtml({ name, phone, email, campaign, message, ts: timestamp, badge: 'ליד חדש ממטא',
         interest: shortCampaign(campaign || '') || '', answers: metaFormAnswers(fields || [], 'he').filter(x => !message || x.a !== message) }),
     })
-    console.log(`[meta-lead-email] ✓ sent to ${to}, messageId: ${info.messageId}`)
+    console.log(`[meta-lead-email] ✓ sent (${only ? only.length + ' test' : 'office' + (extra.length ? ` + ${extra.length} by campaign` : '')}), messageId: ${info.messageId}`)
+    return { ok: true, extra: only ? only.length : extra.length }
   } catch (e) {
-    console.error(`[meta-lead-email] failed sending to ${to}: ${e.message}`)
+    console.error(`[meta-lead-email] failed: ${e.message}`)
+    return { ok: false, error: e.message }
   }
+}
+
+// GET → { routes } (the addresses masked for nothing: admin only) · POST { routes } → saved · POST { test: routeId } → a sample lead email
+// to that route's addresses only, marked "[בדיקה]"
+async function handleLeadEmailRoutes(req, res) {
+  if (!checkAuth(req)) return res.status(401).json({ error: 'Unauthorized' })
+  res.setHeader('Cache-Control', 'no-store')
+  const cur = cleanEmailRoutes((await Auto.getSetting('lead_email_routes').catch(() => ({ value: null }))).value)
+  if (req.method === 'GET') return res.status(200).json({ routes: cur, mail: !!(process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD) })
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
+  const b = req.body || {}
+  if (b.test) {
+    const r = cur.find(x => x.id === String(b.test))
+    if (!r) return res.status(404).json({ error: 'route not found' })
+    const out = await sendMetaLeadEmail({ name: 'ליד לדוגמה (בדיקה)', phone: '050-000-0000', campaign: r.match, test: true, only: r.to,
+      message: 'זו הודעת בדיקה: כך ייראה כל ליד חדש מהקמפיין הזה.' })
+    return res.status(out?.ok ? 200 : 502).json({ ok: !!out?.ok, sent: r.to.map(maskEmail), error: out?.error })
+  }
+  const next = cleanEmailRoutes(b.routes)
+  try { await Auto.putSetting('lead_email_routes', next) } catch (e) { return res.status(502).json({ error: e.message }) }
+  emailRoutesCache.at = 0
+  return res.status(200).json({ ok: true, routes: next })
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -1086,7 +1130,7 @@ async function handleWebhook(req, res) {
             // soon as the response was flushed, so the admin never got pinged.
             await Promise.allSettled([
               sendGreenNotify(BUSINESS_NOTIFY_CHATID, notifyLines),
-              sendMetaLeadEmail({ name, phone, email, campaign: campaignName || formName, message: msgText, ts: now, fields: leadData.field_data }),
+              sendMetaLeadEmail({ name, phone, email, campaign: campaignName || formName, form: formName, message: msgText, ts: now, fields: leadData.field_data }),
             ]).then(rs => rs.forEach((r, i) => {
               const lbl = i === 0 ? 'admin-wa' : 'admin-email'
               if (r.status === 'rejected') console.error(`[${lbl}] crashed:`, r.reason?.message || r.reason)
@@ -1330,7 +1374,7 @@ async function syncOnePage(pageId, client, errors, { sinceSec = 0, stats = {} } 
             const rs = await Promise.allSettled([
               welcomeMetaLead(client, { id: saved?.id, name: parsed.name || '', phone, campaign: campaignName || form.name }),
               sendGreenNotify(BUSINESS_NOTIFY_CHATID, adminMsg),
-              sendMetaLeadEmail({ name: properName || parsed.name, phone, email: parsed.email, campaign: campaignName || form.name, ts: now, fields: lead.field_data }),
+              sendMetaLeadEmail({ name: properName || parsed.name, phone, email: parsed.email, campaign: campaignName || form.name, form: form.name, ts: now, fields: lead.field_data }),
             ])
             rs.forEach((r, i) => {
               const lbl = ['lead-wa', 'admin-wa', 'admin-email'][i]
@@ -2673,6 +2717,7 @@ export default async function handler(req, res) {
   if (path === 'green-hook')   return handleGreenHook(req, res)
   if (path === 'projects')     return handleProjects(req, res)
   if (path === 'campaign-names') return handleCampaignNames(req, res)
+  if (path === 'lead-email-routes') return handleLeadEmailRoutes(req, res)
   if (path === 'gallery-folders') return handleGalleryFolders(req, res)
   if (path.startsWith('social-')) return handleSocial(req, res, path)
   if (path === 'leads')        return handleLeads(req, res)

@@ -291,6 +291,14 @@ safe to repeat; the browser store is `src/lib/campaignNamesStore.js` (optimistic
 `campaignLabel()` is what the Lead Center (list rows, filter, lead header, "+ הוספת הפרויקט", the by-campaign card) and its Pipeline
 (`MetaKanban`, `campOf`) show; Meta's own names, the leads board's campaign tag and `{property}` in messages don't change (a lead's
 project — "פרויקטים" — decides those). QA: the scratchpad's `camp/qa-camp.cjs` (`PHONE=1` = iPhone 13).
+**A campaign's leads emailed to more people** (2026-11-22 — the office: "every lead from the Henrietta Szold campaign goes to this
+email too"): `lib/lead-email-routes.js` (tested) — routes `{ id, match, to: [emails], on }` in `app_settings.lead_email_routes` (the
+addresses live only there, never in the repository); a new Meta lead whose campaign / form name, or the office's name for the campaign
+(`lead_campaign_names`), contains `match` (quotes, dashes, # and case ignored — `normCampaign()`) gets the office's new-lead email
+(`sendMetaLeadEmail` in `api/meta.js`, the webhook and the ≤ 24 h sync) with the route's addresses as **Bcc** (`leadEmailExtras()`, read
+once a minute; the office's own address is never repeated). `GET / POST /api/meta/lead-email-routes { routes }` (admin), `POST { test:
+<route id> }` sends one "[בדיקה]" sample to that route's addresses only. Set 2026-11-22: "הנרייטה סאלד" → one address (any campaign whose
+name contains it, the new ones too).
 **Every Meta lead is also in the CRM** (`lib/meta-crm.js`, tested): the webhook and every sync copy a new lead into `contacts`
 (source `meta`, `crm_data.metaLeadId`, form answers in `message` / `crm_data.formAnswers`, phone as 05X…), so it shows in "לידים" and
 in the bulk-send audience. The welcome stays with the Meta pipeline (`crm_data.auto` marks it sent / skipped, the CRM never sends a
