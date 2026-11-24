@@ -1,3 +1,4 @@
+import { adminToken } from './adminAuth.js'
 // Admin "תיבת הודעות" (/admin-panel/social): every conversation in one list, newest first — the office's WhatsApp line, and
 // Messenger + Instagram of every page in the inbox (the leads' pages, Daniel's, Korkos… — switched on in "חשבונות מחוברים").
 // "הכל" opens by default. Unread rows are bold with a green count and an accent bar; the conversation draws a "הודעות חדשות"
@@ -34,7 +35,7 @@ import { useSharedLeads } from './lib/leadsStore.js'
 import { messageToTemplate } from '../lib/template-edit.js'
 import { leadProperty } from '../lib/automations-shared.js'
 
-const AUTH = { 'Content-Type': 'application/json', Authorization: 'Bearer AFIKhanahal2026' }
+const AUTH = { 'Content-Type': 'application/json', get Authorization() { return `Bearer ${adminToken()}` } }
 const api = (path, opts = {}) => fetch(`/api/meta/${path}`, { headers: AUTH, signal: AbortSignal.timeout(opts.timeout || 30000), ...opts })
   .then(async r => { const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`); return d })
 

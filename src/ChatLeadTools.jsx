@@ -1,3 +1,4 @@
+import { adminToken } from './adminAuth.js'
 // The chats tab's header tools for the open chat's CRM lead: the pipeline stage (the same change as dragging on the board —
 // AdminPanel's updateLeadStatus: stage log, nurture follow-up, stage automations) and "סיכום AI": Claude reads the chat
 // (POST /api/meta/chat-summary → lib/chat-summary.js), the summary is saved on the lead by itself as a note (crm_data.notes,
@@ -9,7 +10,7 @@ import { addNote } from './lib/leadNotes.js'
 import { addFollowUp } from '../lib/follow-up.js'
 import { toggleProjectInName } from './lib/leadFields.js'
 
-const H = { 'Content-Type': 'application/json', Authorization: 'Bearer AFIKhanahal2026' }
+const H = { 'Content-Type': 'application/json', get Authorization() { return `Bearer ${adminToken()}` } }
 const TXT = {
   he: { stage: 'שלב', ai: 'סיכום AI', aiTip: 'Claude קורא את השיחה, שומר סיכום כהערה על הליד ומציע שלב ופולו אפ', busy: 'מסכם…', saved: 'הסיכום נשמר כהערה',
     move: s => `להעביר ל"${s}"`, fu: d => d === 0 ? 'פולו אפ היום' : d === 1 ? 'פולו אפ מחר' : `פולו אפ בעוד ${d} ימים`, why: 'למה', close: 'סגירה', done: 'בוצע',

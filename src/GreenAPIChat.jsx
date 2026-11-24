@@ -1,3 +1,4 @@
+import { adminToken } from './adminAuth.js'
 /**
  * GreenAPIChat — WhatsApp-Web / Green API Console replica
  * Dark/Light theme · RTL Hebrew · Isolated scroll · Sticky input
@@ -39,13 +40,12 @@ import Splitter, { SPLITTER_CSS } from './Splitter.jsx'
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 const API_BASE      = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
-const ADMIN_TOKEN   = 'AFIKhanahal2026'
 const ACCOUNT_EMAIL = 'afik.hanahal@gmail.com'
 
 // All Green API traffic is proxied through the server (/api/meta/chat-*), which
 // holds the apiToken in WA_GREENAPI_TOKEN. The token is never shipped to the browser.
 const CHAT_API     = '/api/meta'
-const AUTH_HEADER  = { Authorization: `Bearer ${ADMIN_TOKEN}` }
+const AUTH_HEADER  = { Authorization: `Bearer ${adminToken()}` }
 const QUOTA_MSG    = 'המכסה החודשית של Green API נגמרה: הקו מחובר, אבל התוכנית החינמית מאפשרת לכתוב רק למספרים בודדים בחודש.\nכדי לשלוח לכולם: console.green-api.com ← ה-Instance ← שינוי תוכנית (Business).'
 const GREEN_CONSOLE = 'https://console.green-api.com'
 
@@ -186,7 +186,7 @@ function ChatProjectJoin({ phone, name, projects, lang, WA, suggest = null }) {
     if (!p) return
     setSt('busy')
     try {
-      const r = await fetch('/api/meta/social-wa-lead', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer AFIKhanahal2026' },
+      const r = await fetch('/api/meta/social-wa-lead', { method: 'POST', headers: { 'Content-Type': 'application/json', get Authorization() { return `Bearer ${adminToken()}` } },
         body: JSON.stringify({ phone, name, projectId: p.id, projectName: p.name, leadStatus: 'new' }), signal: AbortSignal.timeout(25000) })
       const d = await r.json().catch(() => ({}))
       if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`)
@@ -488,7 +488,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
       // contact per session, on the side: Green's answer paints at once, Render's rows join it when (if) they arrive.
       if (API_BASE && !legacyHist.has(p)) {
         legacyHist.set(p, [])
-        fetch(`${API_BASE}/api/chats/${p}`, { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` }, signal: AbortSignal.timeout(12000) })
+        fetch(`${API_BASE}/api/chats/${p}`, { headers: { Authorization: `Bearer ${adminToken()}` }, signal: AbortSignal.timeout(12000) })
           .then(r => (r.ok ? r.json() : [])).then(rows => {
             if (!Array.isArray(rows) || !rows.length) return
             legacyHist.set(p, rows)
@@ -810,7 +810,7 @@ export default function GreenAPIChat({ leads = [], lang = 'he', initialContact =
         if (!ok && !res.quota && API_BASE && !image && !quoted) {
           const r = await fetch(`${API_BASE}/api/chats/send`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken()}` },
             body: JSON.stringify({ phone: p, message: msg }),
             signal: AbortSignal.timeout(15000),
           }).catch(() => null)

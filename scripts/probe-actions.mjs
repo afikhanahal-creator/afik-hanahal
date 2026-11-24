@@ -23,7 +23,7 @@ import { readFileSync } from 'node:fs'
 
 const SITE = (process.env.SITE || 'https://www.afikhanahal.co.il').replace(/\/$/, '')
 const ACTIONS = String(process.env.ACTIONS || '').split(',').map(s => s.trim()).filter(Boolean)
-const TOKEN = process.env.ADMIN_TOKEN || (readFileSync('src/App.jsx', 'utf8').match(/const ADMIN_TOKEN\s*=\s*'([^']+)'/) || [])[1]
+const TOKEN = process.env.ADMIN_TOKEN || ''   // from Vercel; the admin password is no longer in the site's code
 const H = { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' }
 const show = (label, v) => console.log(`${label}: ${JSON.stringify(v, null, 1).slice(0, 1800)}`)
 

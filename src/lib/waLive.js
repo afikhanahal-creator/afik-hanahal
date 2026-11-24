@@ -1,3 +1,4 @@
+import { adminToken } from '../adminAuth.js'
 // WhatsApp, live: Green API delivers every message and status to /api/meta/green-hook (server/wa-messages-migration.sql); the
 // insert is announced on the change bus (src/lib/syncBus.js — the table and the message id only), and this module fetches
 // just what is new (GET /api/meta/chat-updates?since=<cursor>) and hands it to every open chat: the chats tab, the Lead
@@ -5,7 +6,7 @@
 // check only while the bus is down (waLiveUp()).
 import { onSync, busUp } from './syncBus.js'
 
-const AUTH = { Authorization: 'Bearer AFIKhanahal2026' }
+const AUTH = { get Authorization() { return `Bearer ${adminToken()}` } }
 const subs = new Set()
 let cursor = new Date(Date.now() - 2 * 60e3).toISOString()
 let started = false, inflight = false, again = false

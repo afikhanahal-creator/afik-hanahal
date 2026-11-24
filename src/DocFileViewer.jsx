@@ -1,3 +1,4 @@
+import { adminToken } from './adminAuth.js'
 // The office's document files (the PDF that was sent, the signed PDF with its certificate page, the Word file) are behind the
 // admin login (`docs-file`), so a plain <a href> opened them without the Authorization header and the browser showed
 // {"error":"Unauthorized"}. Every admin screen fetches them here with the header, then shows / downloads the bytes from memory.
@@ -7,7 +8,7 @@ import { useEffect, useState } from 'react'
 import { Modal } from './automationsUI.jsx'
 import { Download, ExternalLink, FileText, CheckCircle2, X, Loader2 } from 'lucide-react'
 
-const AUTH = { Authorization: 'Bearer AFIKhanahal2026' }
+const AUTH = { get Authorization() { return `Bearer ${adminToken()}` } }
 const CACHE = new Map()   // `${id}:${kind}` → { url, name } for this session, so a preview opened again doesn't download again
 
 export async function fetchDocFile(id, kind = 'original') {

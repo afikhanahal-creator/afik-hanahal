@@ -1,3 +1,4 @@
+import { adminToken } from '../adminAuth.js'
 // Files attached in a WhatsApp chat (the chats tab, the Lead Center, the lead card) — like WhatsApp itself: photos, videos,
 // PDFs, Word / Excel, several at once, picked, dropped or pasted. The browser uploads each one straight to Supabase Storage
 // (the wizard's signed URL, folder 'chat' → property-media/chat/<month>/…; no file ever goes through a Vercel function) and
@@ -6,7 +7,6 @@
 import { compress } from './templateImage.js'
 import { templateFiles, templateImage } from '../../lib/automations-shared.js'
 
-const ADMIN_TOKEN = 'AFIKhanahal2026'
 export const CHAT_FILE_MAX_MB = 50
 export const CHAT_ACCEPT = 'image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rar,.dwg,.kmz,.heic'
 export const MAX_FILES = 30   // WhatsApp's own limit for one send
@@ -54,7 +54,7 @@ export async function uploadChatFile(file, folder = 'chat') {
   }
   const type = body.type || file.type || 'application/octet-stream'
   const meta = await fetch('/api/seller-form?action=wizard-upload-url', {
-    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken()}` },
     body: JSON.stringify({ name, type, size: body.size, kind, folder }),
   }).then(r => r.json().catch(() => ({}))).catch(() => ({}))
   if (!meta?.signedUrl || !meta?.url) throw new Error(meta?.error ? `ההעלאה נכשלה: ${meta.error}` : 'ההעלאה נכשלה, נסו שוב')
@@ -122,7 +122,7 @@ export async function sendGroupRequest(phone, items, caption, { quotedMessageId,
   let sent = 0
   for (let round = 0; round < 6 && sent < items.length; round++) {
     const first = sent === 0
-    const r = await fetchImpl('/api/meta/chat-send-files', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+    const r = await fetchImpl('/api/meta/chat-send-files', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken()}` },
       body: JSON.stringify({ phone, caption: first ? caption || '' : '', items: items.slice(sent), ...(first && quotedMessageId ? { quotedMessageId } : {}) }),
       signal: AbortSignal.timeout(65000) }).catch(e => ({ ok: false, json: async () => ({ error: e.name === 'TimeoutError' ? 'השרת לא ענה בזמן' : e.message }) }))
     const d = await r.json().catch(() => ({}))

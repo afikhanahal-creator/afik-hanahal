@@ -1,3 +1,4 @@
+import { adminToken } from '../adminAuth.js'
 // TranscriptionService — everything the admin's mic does that isn't drawing (src/SmartVoiceInput.jsx draws):
 // • the recorder (MediaRecorder): pause / resume / cancel, a live level for the waveform, and a long recording cut into
 //   2-minute pieces (each a complete audio file, so each can be transcribed while you are still talking, and each stays under
@@ -11,7 +12,7 @@
 // in, so a failed transcription can be tried again.
 import { dictationMode, collectResults, joinText, liveText, pickMime, micErrorCode, joinSegments, modesFor } from './dictation.js'
 
-const AUTH = { Authorization: 'Bearer AFIKhanahal2026' }
+const AUTH = { get Authorization() { return `Bearer ${adminToken()}` } }
 export const SEGMENT_SEC = 120
 export const MAX_SEC = 900
 

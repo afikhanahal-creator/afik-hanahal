@@ -1,3 +1,4 @@
+import { adminToken } from './adminAuth.js'
 // Admin → "תמונות האתר": every image the site shows — the design images (public/img and the logos, listed at build time in
 // /site-images.json with where each one is used) and every property photo — with: download the original, resize / convert
 // / compress in the browser (canvas), and replace. A design image is replaced by committing the new file under the same
@@ -7,8 +8,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { fitSize, mimeFor } from '../lib/site-images.js'
 import { cdnImg } from '../lib/img-url.js'
 
-const ADMIN_TOKEN = 'AFIKhanahal2026'
-const AUTH = { Authorization: `Bearer ${ADMIN_TOKEN}` }
+const AUTH = { Authorization: `Bearer ${adminToken()}` }
 const kb = n => `\u2066${n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`}\u2069`
 const PRESETS = [600, 1200, 1600, 2400]
 const FORMATS = [['image/webp', 'WebP'], ['image/jpeg', 'JPEG'], ['image/png', 'PNG']]

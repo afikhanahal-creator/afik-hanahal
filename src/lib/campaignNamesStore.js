@@ -1,10 +1,11 @@
+import { adminToken } from '../adminAuth.js'
 // The Lead Center's campaign names (lib/campaign-groups.js) for every open screen: read once (and again when the window comes
 // back after a minute — another device may have merged something), painted at once from this session's copy, changed
 // optimistically through POST /api/meta/campaign-names { ops } and put back on a failure.
 import { useSyncExternalStore } from 'react'
 import { cleanCampaignCfg, applyCampaignOps } from '../../lib/campaign-groups.js'
 
-const AUTH = { Authorization: 'Bearer AFIKhanahal2026' }
+const AUTH = { get Authorization() { return `Bearer ${adminToken()}` } }
 const KEY = 'afik_lc_campaigns_v1'
 let cfg = (() => { try { return cleanCampaignCfg(JSON.parse(sessionStorage.getItem(KEY) || 'null')) } catch { return cleanCampaignCfg(null) } })()
 const subs = new Set()

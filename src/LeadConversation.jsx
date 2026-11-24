@@ -1,3 +1,4 @@
+import { adminToken } from './adminAuth.js'
 // The Lead Center's conversation with one lead, in the chats tab's WhatsApp look (src/waShared.jsx): the real WhatsApp
 // history of the lead's number (POST /api/meta/chat-history, conditional, re-read every 8 s while visible) merged with the
 // Lead Center's own log (meta_messages), and a composer with the template library as one dropdown (rendered for this
@@ -30,8 +31,7 @@ import WaFace from './WaFace.jsx'
 import PhotoGalleryPicker from './PhotoGalleryPicker.jsx'
 import { MAX_FILES } from './lib/chatFiles.js'
 
-const ADMIN_TOKEN = 'AFIKhanahal2026'
-const AUTH = { Authorization: `Bearer ${ADMIN_TOKEN}` }
+const AUTH = { Authorization: `Bearer ${adminToken()}` }
 const intl = raw => { const d = String(raw || '').replace(/\D/g, ''); return !d ? '' : d.startsWith('972') ? d : d.startsWith('0') ? '972' + d.slice(1) : d }
 const DOCK_KEY = 'afik_lcv_dock_v1'
 
@@ -360,7 +360,7 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
     if (!phone || !m?.id) return
     const id = `opt-r-${Date.now()}`
     setPending(p => [...p, { id, kind: 'reactionMessage', direction: 'out', message: emoji, reactedTo: m.id, created_at: new Date().toISOString(), status: 'sent' }])
-    const r = await fetch('/api/meta/chat-react', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer AFIKhanahal2026' }, body: JSON.stringify({ phone, id: m.id, reaction: emoji }), signal: AbortSignal.timeout(20000) }).catch(() => null)
+    const r = await fetch('/api/meta/chat-react', { method: 'POST', headers: { 'Content-Type': 'application/json', get Authorization() { return `Bearer ${adminToken()}` } }, body: JSON.stringify({ phone, id: m.id, reaction: emoji }), signal: AbortSignal.timeout(20000) }).catch(() => null)
     if (!r?.ok) {
       const d = await r?.json().catch(() => ({})) || {}
       setPending(p => p.filter(x => x.id !== id))
@@ -820,7 +820,7 @@ export default function LeadConversation({ lead, tplLead, lang = 'he', isDark = 
         ) : <div style={{ fontSize: 13, color: WA.subText, textAlign: 'center', padding: 8 }}>{t.noPhone}</div>}
       </div>
 
-      {fwd && <ChatForward WA={WA} lang={lang} messages={fwd} fromPhone={phone} authHeader={{ Authorization: 'Bearer AFIKhanahal2026' }}
+      {fwd && <ChatForward WA={WA} lang={lang} messages={fwd} fromPhone={phone} authHeader={{ get Authorization() { return `Bearer ${adminToken()}` } }}
         contacts={allLeads.filter(l => l.phone).sort((a, b) => new Date(b.updated_at || b.createdAt || b.created_at || 0) - new Date(a.updated_at || a.createdAt || a.created_at || 0)).map(l => ({ phone: l.phone, name: l.name || '' }))}
         onClose={() => setFwd(null)} onDone={() => { setSelMode(false); setSelIds([]) }}/>}
       {gallery && <PhotoGalleryPicker open lang={lang} onClose={() => setGallery(false)} room={MAX_FILES - att.items.length}
