@@ -1,3 +1,4 @@
+import { adminToken } from '../adminAuth.js'
 // "ממתינים לתשובה": every chat whose last word is the lead's. Read once from GET /api/meta/chat-waiting
 // (public.afik_wa_waiting(), server/wa-waiting-migration.sql), then kept fresh by the live feed (src/lib/waLive.js): a message that
 // comes in marks the chat, one we send clears it — the board, the Lead Center and the sidebar show it within a second, no polling.
@@ -8,7 +9,7 @@ import { tail9 } from './waMerge.js'
 import { applyWaiting } from './waInbox.js'
 import { isHandled, withHandled, withoutHandled } from '../../lib/wa-actions.js'
 
-const AUTH = { Authorization: 'Bearer AFIKhanahal2026' }
+const AUTH = { get Authorization() { return `Bearer ${adminToken()}` } }
 let map = new Map()          // tail9(phone) → { phone, ts (ms), text, type }
 let done = {}                // chats marked handled: tail9 → the lead's last message time (ms) — lib/wa-actions.js
 let snap = { map, count: 0, done }

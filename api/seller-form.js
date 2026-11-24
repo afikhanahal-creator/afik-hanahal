@@ -32,6 +32,7 @@
 import { compressJson } from '../lib/http.js'
 import { createClient } from '@supabase/supabase-js'
 import { randomBytes } from 'crypto'
+import { isAdminReq, renderToken } from '../lib/admin-auth.js'
 import { backupEnabled, backupPut, backupList, backupGet, backupDelete } from '../lib/backup.js'
 import { archiveEnabled, archiveSubmission, archiveRepoUrl } from '../lib/archive.js'
 import { videoPack } from '../lib/videoPack.js'
@@ -43,7 +44,6 @@ import { buildSummary, headline, PROPERTY_TYPE_LABEL, DOC_TAG_LABEL, publicAnswe
 const SUPA_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
 const SUPA_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY
 const RENDER = (process.env.RENDER_URL || 'https://afik-hanahal-server.onrender.com').replace(/\/$/, '')
-const ADMIN_TOKEN = process.env.ADMIN_TOKEN || 'AFIKhanahal2026'   // same token the admin panel and the Render backend use
 const BUCKET = 'seller-uploads'          // private: intake media + documents
 const PUBLIC_BUCKET = 'property-media'   // public: photos copied at publish time
 const TABLE = 'seller_submissions'
@@ -65,7 +65,7 @@ const CORS = {
   'Access-Control-Allow-Methods': 'GET,POST,PUT,PATCH,DELETE,OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type,Authorization',
 }
-const isAdmin = req => (req.headers.authorization || '').replace(/^Bearer\s+/i, '') === ADMIN_TOKEN
+const isAdmin = req => isAdminReq(req)   // lib/admin-auth.js
 const sb = () => createClient(SUPA_URL, SUPA_KEY, { auth: { persistSession: false } })
 // The free plan's 1 GB of Storage (the org was restricted on 2026-11-06): an upload that would push the project past 90% is
 // refused with a plain reason. The usage is read at most every 10 minutes per instance; a failed read never blocks.
@@ -320,7 +320,7 @@ async function renderPut(property) {
   let render = 'skipped'
   try {
     const r = await fetch(`${RENDER}/api/properties/${encodeURIComponent(property.id)}`, {
-      method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+      method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${renderToken()}` },
       body: JSON.stringify(property), signal: AbortSignal.timeout(8000),
     })
     render = r.ok ? 'ok' : `HTTP ${r.status}`
@@ -332,7 +332,7 @@ async function renderPut(property) {
 async function renderGet(id) {
   const stored = await propertyStore().one(id).catch(() => null)
   if (stored) return stored
-  const r = await fetch(`${RENDER}/api/properties`, { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` }, signal: AbortSignal.timeout(8000) }).catch(() => null)
+  const r = await fetch(`${RENDER}/api/properties`, { headers: { Authorization: `Bearer ${renderToken()}` }, signal: AbortSignal.timeout(8000) }).catch(() => null)
   if (!r || !r.ok) return null
   const list = await r.json().catch(() => [])
   return (Array.isArray(list) ? list : []).find(p => String(p.id) === String(id)) || null

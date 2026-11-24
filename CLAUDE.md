@@ -59,6 +59,17 @@ const t = TR[lang] || TR.he
 - Language toggle button in the navbar switches between `he` ↔ `en`
 - RTL (`dir="rtl"`) when Hebrew, LTR when English — already handled by the `useEffect` on `lang`
 
+## Admin access (2026-11-24)
+
+The admin password is checked on the server only (`lib/admin-auth.js`, tested in `lib/admin-auth.test.mjs`); no file in
+`src/` holds it. The login screen calls `POST /api/meta/admin-login {password}` and keeps the signed 30-day session it gets
+back (`src/adminAuth.js`: `adminToken()`, `localStorage` `afik_admin_token`); every admin request sends it as its Bearer.
+Every API accepts a session, `ADMIN_TOKEN` from Vercel (server to server) or the cron's `internalToken()`. Vercel settings:
+`ADMIN_PASSWORD` (what people type; while it is unset the old password still works — "setup mode" — and once it is set the
+old one is refused everywhere), optional `ADMIN_SESSION_SECRET` (signing key; default the Supabase service key),
+`AUTOMATION_KEY` (also a GitHub secret, for `.github/workflows/lead-tick.yml`), `RENDER_ADMIN_TOKEN` (what the Render
+backend expects). Never write a password or a token in the code: the repository is public and `src/` reaches every browser.
+
 ## Property intake system (`/newproperty`)
 
 Sellers and landlords fill a Typeform-style questionnaire at `https://www.afikhanahal.co.il/newproperty`

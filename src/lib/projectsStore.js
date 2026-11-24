@@ -1,3 +1,4 @@
+import { adminToken } from '../adminAuth.js'
 // The projects list for every screen (the leads board, the lead card, the new-lead dialog): read once from
 // GET /api/meta/projects, kept in memory + localStorage (drawn at once on the next visit), saved with POST (the server merges
 // by id). useProjects() re-renders on every change. Rules: lib/projects.js.
@@ -5,7 +6,7 @@ import { useEffect, useState } from 'react'
 import { cleanProjects } from '../../lib/projects.js'
 
 const KEY = 'afik_lead_projects_v1'
-const AUTH = { 'Content-Type': 'application/json', Authorization: 'Bearer AFIKhanahal2026' }
+const AUTH = { 'Content-Type': 'application/json', get Authorization() { return `Bearer ${adminToken()}` } }
 let list = (() => { try { return cleanProjects(JSON.parse(localStorage.getItem(KEY) || '[]')) } catch { return [] } })()
 let autoDone = []
 let loaded = false, loading = null

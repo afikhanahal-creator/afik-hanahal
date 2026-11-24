@@ -1,3 +1,4 @@
+import { adminToken } from './adminAuth.js'
 // MetaLeadsTab.jsx — Meta Lead Ads Lead Center (admin "מרכז לידים")
 // The list of leads (grouped by day, filters), and for the open lead: the WhatsApp conversation in the chats tab's look
 // (src/LeadConversation.jsx — the real WhatsApp history, the template library, the welcome picker) next to the lead's
@@ -27,7 +28,6 @@ import CampaignManager from './CampaignManager.jsx'
 import { useCampaignCfg } from './lib/campaignNamesStore.js'
 import { campaignLabel, campaignGroups } from '../lib/campaign-groups.js'
 
-const ADMIN_TOKEN = 'AFIKhanahal2026'
 // Which Facebook pages are synced is decided on the server (META_PAGE_IDS in Vercel) — see api/meta.js resolvePageIds
 
 // ── Translations ─────────────────────────────────────────────────────────────
@@ -279,7 +279,7 @@ const LEADS_URL = '/api/meta/leads', LEADS_SS = 'afik_lc_leads_v1'
 try { const v = JSON.parse(sessionStorage.getItem(LEADS_SS) || 'null'); if (v?.etag && Array.isArray(v.data?.leads)) _etags.set(LEADS_URL, v) } catch {}
 async function condGet(url) {
   const prev = _etags.get(url)
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${ADMIN_TOKEN}`, ...(prev ? { 'If-None-Match': prev.etag } : {}) } })
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${adminToken()}`, ...(prev ? { 'If-None-Match': prev.etag } : {}) } })
   if (res.status === 304 && prev) return prev.data
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
@@ -304,7 +304,7 @@ async function fetchMessages(leadId) {
 async function syncLeads(pageId) {
   const url = pageId ? `/api/meta/sync?page_id=${encodeURIComponent(pageId)}` : `/api/meta/sync`
   const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
+    headers: { Authorization: `Bearer ${adminToken()}` },
   })
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   return res.json()
@@ -343,7 +343,7 @@ function loadLayout() {
 const HISTORY_ICON = { inquiry: '📝', booking: '📅', stage: '➜', note: '🗒', auto: '💬' }
 
 
-const PATCH = (body) => fetch('/api/meta/leads', { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` }, body: JSON.stringify(body) })
+const PATCH = (body) => fetch('/api/meta/leads', { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken()}` }, body: JSON.stringify(body) })
 
 // ── Main component ────────────────────────────────────────────────────────────
 export default function MetaLeadsTab({ C, lang, isDark, onOpenCard, onSaveToCRM, onLeadRenamed, onCrmStage, onCrmPatch, stageLabels = null, onOpenChat, onNewLead, onNewMetaMessage, onSentMetaMessage, crmLeads = [], autoConfig = null, onAutoConfigSaved }) {
@@ -505,7 +505,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onOpenCard, onSaveToCRM,
 
   const loadDeletedLeads = useCallback(async () => {
     try {
-      const res = await fetch('/api/meta/leads?deleted=1', { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` } })
+      const res = await fetch('/api/meta/leads?deleted=1', { headers: { Authorization: `Bearer ${adminToken()}` } })
       if (!res.ok) return
       const data = await res.json()
       setDeletedLeads(data.leads || [])
@@ -562,7 +562,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onOpenCard, onSaveToCRM,
   // cron), so the tab only reads the status — every 10 minutes and after a manual sync.
   const [conn, setConn] = useState(null)
   const loadConn = useCallback(() => {
-    fetch('/api/meta/connect?quick=1&green=1', { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` } })
+    fetch('/api/meta/connect?quick=1&green=1', { headers: { Authorization: `Bearer ${adminToken()}` } })
       .then(r => r.json()).then(setConn).catch(() => setConn({ error: true }))
   }, [])
   useEffect(() => {
@@ -594,7 +594,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onOpenCard, onSaveToCRM,
     const lead = leadsRef.current.find(l => l.id === selectedId)
     if (!lead) return { ok: false }
     try {
-      const res = await fetch('/api/meta/messages', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` }, body: JSON.stringify({ lead_id: lead.id, message: text, ...(opts.image ? { image: opts.image } : {}), ...(opts.quotedMessageId ? { quotedMessageId: opts.quotedMessageId } : {}), ...(opts.file ? { file: opts.file, fileName: opts.fileName || '' } : {}) }) })
+      const res = await fetch('/api/meta/messages', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken()}` }, body: JSON.stringify({ lead_id: lead.id, message: text, ...(opts.image ? { image: opts.image } : {}), ...(opts.quotedMessageId ? { quotedMessageId: opts.quotedMessageId } : {}), ...(opts.file ? { file: opts.file, fileName: opts.fileName || '' } : {}) }) })
       const d = await res.json().catch(() => ({}))
       if (!res.ok) return { ok: false, error: d.error || `HTTP ${res.status}`, quota: !!d.quota }
       if (!lead.wa_sent) patchLead(lead.id, { wa_sent: true })
@@ -612,7 +612,7 @@ export default function MetaLeadsTab({ C, lang, isDark, onOpenCard, onSaveToCRM,
     const lead = leadsRef.current.find(l => l.id === selectedId)
     if (!lead?.phone) return { ok: false }
     try {
-      const r = await fetch('/api/meta/lead-welcome', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` }, body: JSON.stringify({ id: lead.id, text, templateId, image: opts.image || '' }) })
+      const r = await fetch('/api/meta/lead-welcome', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken()}` }, body: JSON.stringify({ id: lead.id, text, templateId, image: opts.image || '' }) })
       const d = await r.json().catch(() => ({}))
       if (!r.ok || !d.ok) return { ok: false, error: d.error || d.skipped || `HTTP ${r.status}`, quota: !!d.quota }
       patchLead(lead.id, { wa_sent: true })

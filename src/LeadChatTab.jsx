@@ -1,3 +1,4 @@
+import { adminToken } from './adminAuth.js'
 // Lead card → "שיחת וואטסאפ": the whole WhatsApp conversation with the lead (Green API history, read-only) and an AI
 // summary of it (POST /api/meta/chat-summary → lib/chat-summary.js): what was discussed, what the lead wants, what was
 // agreed, open questions, the next step, the suggested stage (one click to move the lead there), a follow-up date and
@@ -8,8 +9,7 @@ import { FaWhatsapp, FaMagic, FaSyncAlt, FaExternalLinkAlt, FaBullseye, FaQuesti
 import { T } from './automationsUI.jsx'
 import { normalizeChat } from '../lib/chat-format.js'
 
-const ADMIN_TOKEN = 'AFIKhanahal2026'
-const H = { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` }
+const H = { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken()}` }
 
 const TR = {
   he: {

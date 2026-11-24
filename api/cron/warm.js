@@ -19,9 +19,9 @@ import { slimInlinePhotos, slimList } from '../../lib/slim-photos.js'
 import { shrinkStoragePhotos, recacheStorage } from '../../lib/shrink-photos.js'
 import { usageProblems, usageSummary, statusProblem } from '../../lib/supabase-watch.js'
 import { propertiesChanged } from '../../lib/site-rebuild.js'
+import { internalToken, renderToken } from '../../lib/admin-auth.js'
 
 const RENDER      = process.env.RENDER_URL   || 'https://afik-hanahal-server.onrender.com'
-const ADMIN_TOKEN = process.env.ADMIN_TOKEN  || 'AFIKhanahal2026'
 const SUPA_URL    = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
 const SUPA_KEY    = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY
 
@@ -244,7 +244,7 @@ async function supabaseWatch() {
 
 async function metaWatch(req) {
   const host = String(req.headers['x-forwarded-host'] || req.headers.host || 'www.afikhanahal.co.il').split(',')[0].trim()
-  const r = await fetch(`https://${host}/api/meta/connect?quick=1`, { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` }, signal: AbortSignal.timeout(20000) })
+  const r = await fetch(`https://${host}/api/meta/connect?quick=1`, { headers: { Authorization: `Bearer ${internalToken()}` }, signal: AbortSignal.timeout(20000) })
   const d = await r.json().catch(() => null)
   if (!d || !d.meta) return { skipped: `connect HTTP ${r.status}` }
   const problems = []
@@ -266,7 +266,7 @@ export default async function handler(req, res) {
   if (!authorized(req)) return res.status(401).json({ error: 'unauthorized' })
 
   // keep the legacy Render server warm (non-blocking)
-  fetch(`${RENDER}/api/news/rebuild`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+  fetch(`${RENDER}/api/news/rebuild`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${renderToken()}` },
     signal: AbortSignal.timeout(10000) }).catch(() => {})
 
   if (!SUPA_URL || !SUPA_KEY) return res.status(500).json({ error: 'SUPABASE_URL / SUPABASE_SERVICE_KEY not set' })
@@ -283,10 +283,10 @@ export default async function handler(req, res) {
   // Meta Lead Ads: a full sync once a day — any lead the webhook missed is saved and welcomed (idempotent)
   try {
     const host = req.headers['x-forwarded-host'] || req.headers.host || 'www.afikhanahal.co.il'
-    const r = await fetch(`https://${String(host).split(',')[0].trim()}/api/meta/sync?key=${encodeURIComponent(ADMIN_TOKEN)}`, { signal: AbortSignal.timeout(25000) })
+    const r = await fetch(`https://${String(host).split(',')[0].trim()}/api/meta/sync?key=${encodeURIComponent(internalToken())}`, { signal: AbortSignal.timeout(25000) })
     out.metaSync = await r.json().catch(() => ({ http: r.status }))
     // …and every Meta lead is in the CRM (copies only the missing ones, quietly — lib/meta-crm.js)
-    const c = await fetch(`https://${String(host).split(',')[0].trim()}/api/meta/crm-sync`, { method: 'POST', headers: { Authorization: `Bearer ${ADMIN_TOKEN}` }, signal: AbortSignal.timeout(25000) })
+    const c = await fetch(`https://${String(host).split(',')[0].trim()}/api/meta/crm-sync`, { method: 'POST', headers: { Authorization: `Bearer ${internalToken()}` }, signal: AbortSignal.timeout(25000) })
     out.metaCrm = await c.json().catch(() => ({ http: c.status }))
   } catch (e) { out.metaSync = { ...(out.metaSync || {}), error: e.message } }
   try { out.ingest = await ingest(log) } catch (e) { out.ingest = { error: e.message }; log.push(`[ingest] ERROR ${e.message}`) }

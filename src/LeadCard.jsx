@@ -1,3 +1,4 @@
+import { adminToken } from './adminAuth.js'
 // Lead card — opens in the middle of the screen from the leads board / table.
 // Edit everything about a lead (details, needs, management), keep notes and tasks, and read the smart analysis.
 // Every change saves on its own (onUpdate → PATCH /api/contacts → crm_data).
@@ -282,7 +283,7 @@ const loadCfg = () => (cfgP ||= autoApi.get('auto-config').then(d => { if (d?.co
 // a message from the card's conversation goes out like the chats tab's (Green API through /api/meta/chat-send)
 const sendWa = async (phone, text, opts = {}) => {
   try {
-    const r = await fetch('/api/meta/chat-send', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer AFIKhanahal2026' }, body: JSON.stringify({ phone, message: text, ...(opts.image ? { image: opts.image } : {}), ...(opts.quotedMessageId ? { quotedMessageId: opts.quotedMessageId } : {}), ...(opts.file ? { file: opts.file, fileName: opts.fileName || '' } : {}) }) })
+    const r = await fetch('/api/meta/chat-send', { method: 'POST', headers: { 'Content-Type': 'application/json', get Authorization() { return `Bearer ${adminToken()}` } }, body: JSON.stringify({ phone, message: text, ...(opts.image ? { image: opts.image } : {}), ...(opts.quotedMessageId ? { quotedMessageId: opts.quotedMessageId } : {}), ...(opts.file ? { file: opts.file, fileName: opts.fileName || '' } : {}) }) })
     const d = await r.json().catch(() => ({}))
     return r.ok && d.ok ? { ok: true } : { ok: false, error: d.error || `HTTP ${r.status}`, quota: !!d.quota }
   } catch (e) { return { ok: false, error: e.message } }

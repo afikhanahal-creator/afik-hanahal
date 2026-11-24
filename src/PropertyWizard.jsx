@@ -1,3 +1,4 @@
+import { adminToken } from './adminAuth.js'
 import { useState, useRef, useCallback, useEffect, lazy, Suspense } from 'react'
 import GovMapWidget from './GovMapWidget.jsx'
 import {
@@ -1139,7 +1140,6 @@ function Step4({ d, upd }) {
 }
 
 const WIZ_API_BASE    = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
-const WIZ_ADMIN_TOKEN = 'AFIKhanahal2026'
 
 async function callClaudeRewrite(d, _retry = 0) {
   const typeMap = { apartment:'דירה', land:'מגרש', penthouse:'פנטהאוז', villa:'וילה', office:'משרד', commercial:'נכס מסחרי', cottage:'קוטג׳', rooftop:'גג', storage:'מחסן', parking:'חנייה' }
@@ -1178,7 +1178,7 @@ async function callClaudeRewrite(d, _retry = 0) {
     method: 'POST',
     headers: {
       'Content-Type':      'application/json',
-      'Authorization':     `Bearer ${WIZ_ADMIN_TOKEN}`,
+      'Authorization':     `Bearer ${adminToken()}`,
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({
@@ -1306,7 +1306,7 @@ const parseJson = xhr => { try { return JSON.parse(xhr.responseText) } catch { r
 // Legacy route (Render). kind: 'image' | 'video' | 'pdf'
 async function uploadViaRender(file, kind, onProgress) {
   const fd = new FormData(); fd.append('file', file)
-  const xhr = await xhrSend({ method: 'POST', url: `${UPLOAD_BASE}/api/upload/${kind}`, body: fd, headers: { Authorization: `Bearer ${WIZ_ADMIN_TOKEN}` }, onProgress })
+  const xhr = await xhrSend({ method: 'POST', url: `${UPLOAD_BASE}/api/upload/${kind}`, body: fd, headers: { Authorization: `Bearer ${adminToken()}` }, onProgress })
   const data = parseJson(xhr)
   if (!data) throw new Error('תגובת שרת לא תקינה')
   if (xhr.status === 200 && data.url) return data
@@ -1322,7 +1322,7 @@ async function uploadDirect(file, kind, onProgress) {
   try {
     let r, meta
     try {
-      r = await fetch(WIZ_UPLOAD_API, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${WIZ_ADMIN_TOKEN}` }, body: JSON.stringify({ name: file.name, type: file.type, size: file.size, kind }) })
+      r = await fetch(WIZ_UPLOAD_API, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken()}` }, body: JSON.stringify({ name: file.name, type: file.type, size: file.size, kind }) })
     } catch (e) { throw new Error(`ה-API לא נגיש (${e.message})`) }
     meta = await r.json().catch(() => null)
     if (r.status === 400 && meta?.error) throw Object.assign(new Error(meta.error), { fatal: true })   // our own validation (type/size) — no point retrying elsewhere
@@ -1883,7 +1883,7 @@ function Step6({ d, upd, onUploadingChange }) {
         <div style={{ fontSize: 13, color: MUTED, fontFamily: FONT, marginBottom: 14 }}>
           העלה קבצי מידע, תוכניות, נספחים — הלקוח יצטרך להשאיר פרטים לפני ההורדה.
         </div>
-        <PdfUploader pdfs={d.pdfs} onUpdate={pdfs => upd('pdfs', pdfs)} adminToken={WIZ_ADMIN_TOKEN} />
+        <PdfUploader pdfs={d.pdfs} onUpdate={pdfs => upd('pdfs', pdfs)} adminToken={adminToken()} />
       </div>
     </div>
   )

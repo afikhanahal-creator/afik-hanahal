@@ -1,3 +1,4 @@
+import { adminToken } from './adminAuth.js'
 // ─── ADMIN: property intake ("נכסים שנקלטו") ─────────────────────────────────
 // Every property that came in through /newproperty. Completely separate from
 // the leads board: this reads and writes only seller_submissions via
@@ -12,9 +13,8 @@ import { FaWhatsapp, FaPhone, FaEnvelope, FaTrash, FaSearch, FaCopy, FaDownload,
 import SmartVoiceInput from './SmartVoiceInput.jsx'
 import { buildSummary, headline, PROPERTY_TYPE_LABEL, DOC_TAG_LABEL, fmtNum, INTAKE_STATUSES, marketingTexts, AI_CHANNELS, AI_TONES, AI_SYSTEM, aiBrief, yad2Fields } from './sellerFormSchema.js'
 
-const ADMIN_TOKEN = 'AFIKhanahal2026'
 const API = '/api/seller-form'
-const H = { Authorization: `Bearer ${ADMIN_TOKEN}` }
+const H = { Authorization: `Bearer ${adminToken()}` }
 export const SELLER_STATUSES = INTAKE_STATUSES
 const BACKUP_STATUS = { v: 'backup', l: 'גיבוי · לא בסופאבייס', color: '#F5A623' }
 const statusOf = v => v === 'backup' ? BACKUP_STATUS : (INTAKE_STATUSES.find(s => s.v === v) || INTAKE_STATUSES[1])

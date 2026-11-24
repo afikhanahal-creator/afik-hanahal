@@ -1,3 +1,4 @@
+import { adminToken } from './adminAuth.js'
 // Admin "מסמכים וחתימות" (/admin-panel/documents): the office's brokerage-order documents from a template to a signed PDF.
 // A dashboard row (created · waiting · signed · problems), the list (search, status / date filters, sort, a row opens the
 // document), "+ יצירת מסמך חדש" = a wizard with the form on one side and the live A4 preview (src/DocPreview.jsx) on the
@@ -21,7 +22,7 @@ import TemplateEditor, { TemplateUpload, TE_CSS } from './TemplateEditor.jsx'
 import { templateValues, renderBlocks, missingFields, brokerageTemplate, templateKeys, STANDARD_FIELDS } from '../lib/doc-templates.js'
 
 import { DocFileViewer, openDocFile, downloadDocFile } from './DocFileViewer.jsx'
-const AUTH = { Authorization: 'Bearer AFIKhanahal2026' }
+const AUTH = { get Authorization() { return `Bearer ${adminToken()}` } }
 const TR = {
   he: {
     title: 'ניהול מסמכים', sub: 'כל מסמך של המשרד — מתבנית, דרך שליחה ללקוח, עד עותק חתום בכרטיס הליד ובפרויקט', newDoc: 'יצירת מסמך חדש', settings: 'הגדרות', refresh: 'רענון',

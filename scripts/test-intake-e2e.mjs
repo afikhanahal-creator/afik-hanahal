@@ -1,7 +1,7 @@
 // Run: npm run test:intake — needs no network, no Supabase: the whole pipeline runs against an in-memory PostgREST/Storage/Render.
 // End-to-end test of the REAL api/seller-form.js handler against an in-memory Supabase (PostgREST + Storage) and Render.
 // Proves: every answer, every file and the story land in ONE seller_submissions row; admin sees it; prepare/publish work.
-process.env.SUPABASE_URL = 'http://supa.test'; process.env.SUPABASE_SERVICE_KEY = 'service-key'; process.env.RENDER_URL = 'http://render.test'; process.env.ADMIN_TOKEN = 'AFIKhanahal2026'
+process.env.SUPABASE_URL = 'http://supa.test'; process.env.SUPABASE_SERVICE_KEY = 'service-key'; process.env.RENDER_URL = 'http://render.test'; process.env.ADMIN_TOKEN = 'test-admin-token-0123456789'
 const SUPA = 'http://supa.test', RENDER = 'http://render.test'
 const table = []; let nextId = 1; const storage = new Map(); const renderStore = new Map(); const log = []
 const parseFilters = qs => { const f = []; for (const [k, v] of qs) { if (['select', 'order', 'limit', 'offset'].includes(k)) continue; const m = /^(eq|neq|is|not\.is|ilike|gte|lte)\.(.*)$/.exec(v); if (m) f.push({ k, op: m[1], v: m[2] }) }; return f }
@@ -53,7 +53,7 @@ globalThis.fetch = async (input, init = {}) => {
 const { default: handler } = await import('../api/seller-form.js')
 const call = async (method, query = {}, body = null, admin = false) => {
   const res = { statusCode: 200, headers: {}, body: null, status(c) { this.statusCode = c; return this }, json(b) { this.body = b; return this }, setHeader(k, v) { this.headers[k] = v }, end() { return this } }
-  await handler({ method, query, body, headers: { 'x-forwarded-for': '1.2.3.4', ...(admin ? { authorization: 'Bearer AFIKhanahal2026' } : {}) }, socket: {} }, res)
+  await handler({ method, query, body, headers: { 'x-forwarded-for': '1.2.3.4', ...(admin ? { authorization: 'Bearer test-admin-token-0123456789' } : {}) }, socket: {} }, res)
   return res
 }
 const sid = 'e2e-' + Math.random().toString(36).slice(2, 10) + '-' + Date.now()

@@ -1,10 +1,10 @@
+import { adminToken } from './adminAuth.js'
 // Small, eagerly-loaded part of the automations feature: the API helper and the "send the stage
 // message?" prompt the leads board shows. The full tab (AutomationsTab.jsx) stays lazy-loaded.
 import { useState, useEffect } from 'react'
 
-const ADMIN_TOKEN = 'AFIKhanahal2026'
 const API = '/api/meta'
-const HJ = { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` }
+const HJ = { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken()}` }
 const handle = async r => { const d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`); return d }
 export const autoApi = {
   get: a => fetch(`${API}/${a}`, { headers: HJ, signal: AbortSignal.timeout(30000) }).then(handle),
