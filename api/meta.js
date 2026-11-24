@@ -49,8 +49,7 @@ const SUPERMETRICS_API_KEY    = process.env.SUPERMETRICS_API_KEY    || ''
 // vars here: the previous value was invalidated by a password change and still lives
 // in Vercel's env, which would override (poison) this good token. Rotate via the
 // fresh META_SYSTEM_USER_TOKEN env var instead.
-const META_PAGE_ACCESS_TOKEN  = process.env.META_SYSTEM_USER_TOKEN ||
-  'EAAnqYHiWM8cBRvFbXjxZAVjg39koOtAVOJuZC0p1YUFVWpPZACkVAt065X4wJ7FdoBOsvMGN7ldvj6LdiyOFfOcKeXirqcmFPY4sSGJMwK22lagJh2oKC6tERZADuRNNnu7S0Y9B212hWWxfyzy5N4VBprMRNlswT3KF9E8MtVyq2qzSkzZAVhlmBwrmN5jyVqBU2cm344AmvzscH9KXZBIgxI2ZASF4ZBTijw2E'
+const META_PAGE_ACCESS_TOKEN  = process.env.META_SYSTEM_USER_TOKEN || ''   // never a token in the code (the repository is public)
 const META_APP_SECRET         = process.env.META_APP_SECRET         || ''
 const META_LEADS_VERIFY_TOKEN = process.env.META_LEADS_VERIFY_TOKEN || 'AFIKhanahal2026leads'
 const ADMIN_TOKEN             = process.env.ADMIN_TOKEN             || 'AFIKhanahal2026'
