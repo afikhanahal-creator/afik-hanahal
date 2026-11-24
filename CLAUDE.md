@@ -195,6 +195,11 @@ number we already wrote to in the last 35 days gets no automatic welcome — `ch
 automatic welcome asks when to talk:** `welcome` / `welcome_prop` end with "מתי נוח לכם שנדבר, היום או מחר?" ("When would be a good
 time to talk, today or tomorrow?"), so the reply that names a time becomes a follow-up task by itself (`askedForTime()` → the
 callback rule). A template the office edited in the database (a project's own welcome) keeps its own wording.
+**Kurkoos Group site leads** get it too (2026-11-24): the Kurkoos site (kurkoos-group `server/_lead-welcome.js`) calls
+`POST /api/meta/kurkoos-lead {id, name, phone, topic}` for each new form lead it saved; `handleKurkoosLead` checks the shared
+token (`KURKOOS_FINANCE_HOOK_TOKEN`, the one the finance WhatsApp forward already uses) and calls `welcomeExternalLead(…, {
+source: 'kurkoos', text })` with the wording of `lib/kurkoos-welcome.js` ("…באתר של קבוצת קורקוס לגבי <נושא>. מתי נוח לכם
+שנדבר, היום או מחר?"), so the same switch, the same "nobody wrote to them" rule and `automation_log` as `kurkoos:<id>` apply.
 **Meta Lead Ads leads** (`meta_leads`, admin "Lead Center") get the same welcome: the webhook (`/api/meta/webhook`, page
 event `leadgen`) and every sync call `welcomeMetaLead` → `Auto.welcomeExternalLead` (tested in `lib/automations-welcome.test.mjs`):
 the welcome template and on/off switch, sent from the office WhatsApp through Green API, logged in `automation_log` as

@@ -12,6 +12,7 @@ import { waitUntil } from '@vercel/functions'
 import { createClient } from '@supabase/supabase-js'
 import crypto from 'crypto'
 import * as Auto from '../lib/automations.js'
+import { kurkoosWelcomeText } from '../lib/kurkoos-welcome.js'
 import { getTemplate } from '../lib/automations-shared.js'
 import * as GA4 from '../lib/ga4.js'
 import { analyzeLead, buildDossier } from '../lib/lead-analyze.js'
@@ -2692,6 +2693,29 @@ function slimGreenMsg(m) {
   return out
 }
 
+// ── Kurkoos Group site leads → the welcome from the office WhatsApp ─────────────────────────────────────────────
+// The Kurkoos site (kurkoos-group: server/notify-lead.js) calls POST /api/meta/kurkoos-lead {id, name, phone, topic} for
+// every new lead from its forms. Same rules as a Meta lead: the welcome switch, no automatic send to a number someone
+// already wrote to (welcomeExternalLead without force), logged in automation_log as "kurkoos:<id>". The text is built
+// here, not by the caller, and says the lead came from Kurkoos Group. It ends with the time question, so a reply that
+// names a time becomes a callback task (askedForTime). Auth: the token the two sites already share for the finance
+// WhatsApp forward (KURKOOS_FINANCE_HOOK_TOKEN here = FINANCE_WHATSAPP_WEBHOOK_TOKEN there), never in the address.
+async function handleKurkoosLead(req, res) {
+  res.setHeader('Cache-Control', 'no-store')
+  if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
+  const want = String(process.env.KURKOOS_FINANCE_HOOK_TOKEN || '').trim()
+  const got = String(req.headers['authorization'] || '').replace(/^Bearer\s+/i, '').trim()
+  if (!want || got.length !== want.length || !crypto.timingSafeEqual(Buffer.from(got), Buffer.from(want))) return res.status(401).json({ error: 'Unauthorized' })
+  const b = req.body || {}
+  const phone = normalizePhone(String(b.phone || ''))
+  if (!/^972\d{8,9}$/.test(phone)) return res.status(400).json({ ok: false, error: 'bad phone' })
+  const id = String(b.id || '').replace(/[^\w-]/g, '').slice(0, 64) || null
+  const name = String(b.name || '').slice(0, 120)
+  const text = kurkoosWelcomeText({ name, topic: b.topic })
+  const r = await Auto.welcomeExternalLead({ id, name, phone }, { source: 'kurkoos', text, templateId: 'kurkoos_welcome' })
+  return res.status(200).json({ ok: !!r.ok, skipped: r.skipped || null, error: r.ok ? null : (r.error || null) })
+}
+
 export default async function handler(req, res) {
   compressJson(req, res)   // gzip + ETag on every JSON answer — Vercel meters what a function sends (Fast Origin Transfer)
   if (req.method === 'OPTIONS') { cors(res); return res.status(204).end() }
@@ -2738,6 +2762,7 @@ export default async function handler(req, res) {
   if (path === 'diagnostics')    return handleDiagnostics(req, res)
   if (path === 'connect')        return handleConnect(req, res)
   if (path === 'lead-welcome')   return handleLeadWelcome(req, res)
+  if (path === 'kurkoos-lead')   return handleKurkoosLead(req, res)
   if (path === 'lead-to-crm' || path === 'crm-sync') return handleMetaCRM(req, res, path)
 
   return res.status(404).json({ error: `Unknown path: ${path}` })
