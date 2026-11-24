@@ -2730,7 +2730,7 @@ async function handleAdminLogin(req, res) {
   if (now - t.at > 10 * 60e3) { t.n = 0; t.at = now }
   if (t.n >= 8) return res.status(429).json({ ok: false, error: 'too many tries' })
   await new Promise(r => setTimeout(r, 300))
-  if (!passwordOk((req.body || {}).password)) { t.n++; _loginTries.set(ip, t); return res.status(401).json({ ok: false }) }
+  if (!(await passwordOk((req.body || {}).password))) { t.n++; _loginTries.set(ip, t); return res.status(401).json({ ok: false }) }
   _loginTries.delete(ip)
   const token = makeSession('admin')
   if (!token) return res.status(500).json({ ok: false, error: 'server secret missing' })
