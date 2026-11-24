@@ -7,17 +7,16 @@ import { createHash } from 'crypto'
 // Two Meta pixels/datasets — every event is forwarded to BOTH so each stays active:
 //  1. הפיקסל של אפיק הנחל  (1311196023271539) — new dataset + its CAPI token
 //  2. legacy pixel        (1341264237748951) — kept active alongside the new one
-// Env vars override the PRIMARY (new) target's pixel/token.
+// The tokens live only in Vercel (META_CAPI_TOKEN, META_CAPI_TOKEN_LEGACY): the repository is public. A target without
+// a token is skipped.
 const CAPI_TARGETS = [
   {
     pixel: process.env.META_PIXEL_ID   || '1311196023271539',
-    token: process.env.META_CAPI_TOKEN ||
-      'EAAVd8MwSYuYBRuAUTYO2q8klvHkWZCnKCDiDUCbHFrys8UTqhUq8k1LQvaSJL8SSYhnAqoPFaPDe3T5o3lNFSzwyRsOnnSBVwGlxgdKD17hVa4LZBOWWB6MgtsMR7mKBfDH7SH3SrFUWRaNbm4qL0kW6GoyamFpLIWaxmudaNgvw5OHZAVFOXLCmzzprQZDZD',
+    token: process.env.META_CAPI_TOKEN || '',
   },
   {
     pixel: '1341264237748951',
-    token: process.env.META_CAPI_TOKEN_LEGACY ||
-      'EAAOBFZAXNIScBRSg6zKgQmxOqYMWUNSu1YmLZC6hcd44hbs0FpZCr3qKlbHtx7UJEbCPXDhWBZCOLq9xITdQXJwGiBz2gnzZC4iA0F6uGHFLIPWUTo2iHLK11xSHBPsZCHuf3UpzcQfXrmjlo3JZBtkmcfGDKetE2J4CECQelzw3WJCTOUjZBhOgFSXlzPWEqAZDZD',
+    token: process.env.META_CAPI_TOKEN_LEGACY || '',
   },
 ]
 
@@ -89,7 +88,7 @@ export default async function handler(req, res) {
   })
 
   try {
-    const results = await Promise.all(CAPI_TARGETS.map(async t => {
+    const results = await Promise.all(CAPI_TARGETS.filter(t => t.token).map(async t => {
       const resp = await fetch(
         `https://graph.facebook.com/v25.0/${t.pixel}/events?access_token=${t.token}`,
         {
