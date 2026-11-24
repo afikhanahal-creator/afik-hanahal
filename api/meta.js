@@ -2130,6 +2130,10 @@ async function handleDiagnostics(req, res) {
     },
     meta_leads: {
       META_PAGE_ACCESS_TOKEN: check(process.env.META_PAGE_ACCESS_TOKEN || process.env.WA_META_TOKEN),
+      META_SYSTEM_USER_TOKEN: check(process.env.META_SYSTEM_USER_TOKEN),
+      META_CAPI_TOKEN:        check(process.env.META_CAPI_TOKEN),
+      META_CAPI_TOKEN_LEGACY: check(process.env.META_CAPI_TOKEN_LEGACY),
+      WA_META_TOKEN:          check(process.env.WA_META_TOKEN),
       META_PAGE_IDS:          check(process.env.META_PAGE_IDS || process.env.META_PAGE_ID),
       META_APP_SECRET:        check(process.env.META_APP_SECRET) + ' (optional)',
     },

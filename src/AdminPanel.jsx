@@ -443,7 +443,9 @@ const PLATFORM_CFG = {
 // ─── META GRAPH API LIVE PANEL ────────────────────────────────────────────────
 const META_TOKEN_KEY = 'afik_meta_graph_token'
 const META_APP_ID    = '2790974851265479'
-const META_TOKEN_DEFAULT = 'EAAnqYHiWM8cBRZAZCAfaykV1lMF9GXejZCKL9vcoG7g72Y5qdnvqFKc202h6hkkXJZCVnivpqdVsbZCRdWS1QUp20SH1VuWdDrbiqnrAZAVztagzyeOqKxZCqxTqc0AK2gD8KxSI7WaNRB5Kzwv0MXGuzAgU3Oy4G2852n6b33R7EJ2CIiDonufDelgEqtPX3o3jd65YjqXAZBJD9ZBnEdrY3cy8HWDShbMPgZBjDr4DglKOlZAG77KZCUdo4LW2YeXIDNbKKrPGlcnvdjdkZC6pSqI0r'
+// No token in the code: this file reaches every visitor's browser. The office pastes its own token (kept in this
+// browser only, localStorage) — 2026-11-24, after the old ones were found public in the repository.
+const META_TOKEN_DEFAULT = ''
 
 function MetaGraphLive({ tab }) {
   const { C, isDark } = useTheme()
@@ -4749,7 +4751,8 @@ function MetaWABotCard({ C, isDark }) {
   const [testing, setTesting] = useState(false)
   const [testRes, setTestRes] = useState(null)
   const PHONE_NUMBER_ID = '1160230953835065'
-  const WA_TOKEN = 'EAAnqYHiWM8cBRY4NZCJoUxhn41ETA9XiODRsPtkbkZAeyNULZBgJJBWcgdpaL0nrJVKw0y8PGD9XOiMXyacGlYTWS0HC41GguWbdMIUQn3NZBScF7guZCD9bwZAZAa4v0nI2ht4nrmF4CY0ayni8TKSVWSkoM2ywMRC9GSTp2nHSOxSm6RZB7tnDjRvdEN75LP5EWSsUe9oaxMpuojrdctDV8bkXuuI27N9nwh3E9kviZBZBZAYVcw054i9hd7wXmQTGvL7MkfZApzQjHluRBWaY2wOR'
+  // the token is not in the code any more (it reached every visitor's browser); the test uses the one pasted above, if any
+  const WA_TOKEN = (typeof localStorage !== 'undefined' && localStorage.getItem('afik_meta_graph_token')) || ''
   const WEBHOOK_URL = 'https://afikhanahal.co.il/api/whatsapp'
 
   function save() {
