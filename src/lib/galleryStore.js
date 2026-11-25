@@ -1,3 +1,4 @@
+import { adminToken } from '../adminAuth.js'
 // The gallery's own folders for every screen that opens the gallery (lib/gallery-folders.js): read once from
 // GET /api/meta/gallery-folders, changed with operations — galleryOps([{ op, id, … }]) — that are applied here at once
 // (optimistic) and sent to the server one batch at a time, in order (operations made while a batch is on its way go in the
@@ -5,7 +6,7 @@
 import { useEffect, useState } from 'react'
 import { cleanFolders, applyFolderOps } from '../../lib/gallery-folders.js'
 
-const AUTH = { 'Content-Type': 'application/json', Authorization: 'Bearer AFIKhanahal2026' }
+const AUTH = { 'Content-Type': 'application/json', get Authorization() { return `Bearer ${adminToken()}` } }
 let list = []
 let loaded = false, loading = null
 let queue = [], flushing = null

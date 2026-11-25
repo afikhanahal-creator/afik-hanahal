@@ -1,3 +1,4 @@
+import { adminToken } from './adminAuth.js'
 // ─── ADMIN DASHBOARD ─────────────────────────────────────────────────────────
 // Split out of App.jsx so public visitors never download or parse it (~4,500 lines).
 // App.jsx loads it on demand: const AdminPanel = lazyWithRetry(() => import('./AdminPanel.jsx'))
@@ -49,7 +50,7 @@ import WaFace from './WaFace.jsx'
 import TaskAlerts from './TaskAlerts.jsx'
 import { closeForStage, updateTasks } from '../lib/follow-up.js'
 import { notifyPropertiesChanged, mirrorProperty, mirrorProperties, mirrorDelete } from './siteRebuild.js'
-import { fetchAdminProperties, LeadsBoard, GreenAPIChat, MetaLeadsTab, SupermetricsTab, PropertyWizard, API_BASE, CONTACTS_API, ADMIN_TOKEN, condFetchJson, DARK_C, useTheme, TEAM, G, Logo, LEADS_STORE, LEADS_DELETED, LEADS_TRASH, ANALYTICS_KEY, META_LEAD_PAGES_KEY, WA_DEFAULT_TEMPLATE, _cloudSettings, CATEGORIES, EMPTY_PROP, CONDITION_OPTIONS, ENTRY_OPTIONS, ADMIN_DRAFT_KEY, toMapsEmbed, imgFallback, thumbImg, sortByOrder, TEAM_KEY, setCloudSettings } from './App.jsx'
+import { fetchAdminProperties, LeadsBoard, GreenAPIChat, MetaLeadsTab, SupermetricsTab, PropertyWizard, API_BASE, CONTACTS_API, condFetchJson, DARK_C, useTheme, TEAM, G, Logo, LEADS_STORE, LEADS_DELETED, LEADS_TRASH, ANALYTICS_KEY, META_LEAD_PAGES_KEY, WA_DEFAULT_TEMPLATE, _cloudSettings, CATEGORIES, EMPTY_PROP, CONDITION_OPTIONS, ENTRY_OPTIONS, ADMIN_DRAFT_KEY, toMapsEmbed, imgFallback, thumbImg, sortByOrder, TEAM_KEY, setCloudSettings } from './App.jsx'
 
 // Tab ↔ URL deep-link mapping (module-level so both AdminPanel and main app can use it)
 const ADMIN_TAB_TO_PATH = { overview:'overview', props:'properties', leads:'leads', sellers:'properties-intake', bookings:'bookings', docs:'documents', media:'media', studio:'studio', content:'content', chats:'chats', social:'social', automations:'automations', meta:'lead-center', analytics:'analytics', supermetrics:'performance', team:'team', settings:'settings', counters:'counters', live:'live' }
@@ -224,7 +225,7 @@ function ImageUpload({ images, onChange }) {
         fd.append('file', new File([blob], 'photo.jpg', { type: 'image/jpeg' }))
         const r = await fetch(`${API_BASE}/api/upload/image`, {
           method: 'POST',
-          headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
+          headers: { Authorization: `Bearer ${adminToken()}` },
           body: fd,
         })
         if (r.ok) {
@@ -237,7 +238,7 @@ function ImageUpload({ images, onChange }) {
     // property wizard uses). Never inline base64 — one inlined photo bloats every property-list response.
     try {
       const blob = await (await fetch(dataUrl)).blob()
-      const meta = await fetch('/api/seller-form?action=wizard-upload-url', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+      const meta = await fetch('/api/seller-form?action=wizard-upload-url', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken()}` },
         body: JSON.stringify({ name: 'photo.jpg', type: 'image/jpeg', size: blob.size, kind: 'image' }) }).then(r => (r.ok ? r.json() : null)).catch(() => null)
       if (meta?.signedUrl && meta?.url) {
         const put = await fetch(meta.signedUrl, { method: 'PUT', headers: { 'Content-Type': 'image/jpeg', 'x-upsert': 'true', 'cache-control': 'max-age=31536000' }, body: blob })
@@ -443,7 +444,9 @@ const PLATFORM_CFG = {
 // ─── META GRAPH API LIVE PANEL ────────────────────────────────────────────────
 const META_TOKEN_KEY = 'afik_meta_graph_token'
 const META_APP_ID    = '2790974851265479'
-const META_TOKEN_DEFAULT = 'EAAnqYHiWM8cBRZAZCAfaykV1lMF9GXejZCKL9vcoG7g72Y5qdnvqFKc202h6hkkXJZCVnivpqdVsbZCRdWS1QUp20SH1VuWdDrbiqnrAZAVztagzyeOqKxZCqxTqc0AK2gD8KxSI7WaNRB5Kzwv0MXGuzAgU3Oy4G2852n6b33R7EJ2CIiDonufDelgEqtPX3o3jd65YjqXAZBJD9ZBnEdrY3cy8HWDShbMPgZBjDr4DglKOlZAG77KZCUdo4LW2YeXIDNbKKrPGlcnvdjdkZC6pSqI0r'
+// No token in the code: this file reaches every visitor's browser. The office pastes its own token (kept in this
+// browser only, localStorage) — 2026-11-24, after the old ones were found public in the repository.
+const META_TOKEN_DEFAULT = ''
 
 function MetaGraphLive({ tab }) {
   const { C, isDark } = useTheme()
@@ -977,7 +980,7 @@ function AnalyticsDashboard({ leads }) {
         : analyticsTab === 'marketing'
         ? <MetaMarketingLive/>
         : analyticsTab === 'ga4'
-        ? <Suspense fallback={null}><GA4Tab token={ADMIN_TOKEN} lang={lang} leads={leads}/></Suspense>
+        ? <Suspense fallback={null}><GA4Tab token={adminToken()} lang={lang} leads={leads}/></Suspense>
         : analyticsTab === 'site'
         ? <Suspense fallback={null}><SiteLocalTab storageKey={ANALYTICS_KEY} lang={lang} leads={leads}/></Suspense>
         : <PlatformSection tab={analyticsTab} C={C} isDark={isDark}/>}
@@ -1505,7 +1508,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     const base = API_BASE || ''
     fetch(`${base}/api/settings`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken()}` },
       body: JSON.stringify({ gmLayers, gmBg }),
     }).then(() => { setCloudSettings({ ..._cloudSettings, gmLayers, gmBg }) }).catch(() => {})
     setGmSaved(true); setTimeout(() => setGmSaved(false), 2000)
@@ -1513,7 +1516,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   // Load cloud settings on mount and sync local state
   useEffect(() => {
     const base = API_BASE || ''
-    fetch(`${base}/api/settings`, { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` } })
+    fetch(`${base}/api/settings`, { headers: { Authorization: `Bearer ${adminToken()}` } })
       .then(r => r.ok ? r.json() : Promise.reject())
       .then(cfg => {
         setCloudSettings(cfg)
@@ -1534,7 +1537,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   useEffect(() => {
     const base = API_BASE || ''
     fetch(`${base}/api/properties/status`, {
-      headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
+      headers: { Authorization: `Bearer ${adminToken()}` },
       signal: AbortSignal.timeout(12000),
     })
       .then(r => r.ok ? r.json() : Promise.reject())
@@ -1578,7 +1581,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
       const base = API_BASE || ''
       const r = await fetch(`${base}/api/stats`, {
         method:  'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken()}` },
         body:    JSON.stringify({ stats, sharon }),
       })
       if (!r.ok) {
@@ -1752,7 +1755,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
       const next = { ...prev, [id]: { ...(prev[id] || {}), [key]: name } }
       if (!name) delete next[id][key]
       try { localStorage.setItem('afik_stage_labels', JSON.stringify(next)) } catch {}
-      fetch(`${API_BASE || ''}/api/settings`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` }, body: JSON.stringify({ stageLabels: next }) })
+      fetch(`${API_BASE || ''}/api/settings`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken()}` }, body: JSON.stringify({ stageLabels: next }) })
         .then(r => { if (r.ok) setCloudSettings({ ..._cloudSettings, stageLabels: next }) }).catch(() => {})
       return next
     })
@@ -1846,7 +1849,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     let stop = false
     const poll = async () => {
       try {
-        const r = await fetch('/api/seller-form?action=stats', { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` }, signal: AbortSignal.timeout(10000) })
+        const r = await fetch('/api/seller-form?action=stats', { headers: { Authorization: `Bearer ${adminToken()}` }, signal: AbortSignal.timeout(10000) })
         const d = await r.json().catch(() => null)
         if (stop || !r.ok || !d?.ok) return
         setIntakeStats(d)
@@ -1916,7 +1919,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     // `changed` = the newest updated_at seen: later polls also bring the leads edited elsewhere (a note, a rename, a
     // follow-up task written on another screen, device or by the server), not only the new ones
     try { changed = since ? (localStorage.getItem('afik_leads_changed') || '') : '' } catch {}
-    condFetchJson(`${CONTACTS_API}/api/contacts${since ? `?since=${encodeURIComponent(since)}${changed ? `&changed=${encodeURIComponent(changed)}` : ''}` : ''}`, { Authorization: `Bearer ${ADMIN_TOKEN}` })
+    condFetchJson(`${CONTACTS_API}/api/contacts${since ? `?since=${encodeURIComponent(since)}${changed ? `&changed=${encodeURIComponent(changed)}` : ''}` : ''}`, { Authorization: `Bearer ${adminToken()}` })
       .then(res => {
         if (!res.ok) { setLeadsSyncError(`${res.status === 503 ? 'השרת לא הצליח לקרוא לידים מ-Supabase' : `סנכרון הלידים נכשל (${res.status || 'שגיאת רשת'})`}. הרשימה עלולה להיות חסרה.${res.error ? ` פרטי השגיאה: ${String(res.error).slice(0, 220)}` : ''}`); return Promise.reject() }
         setLeadsSyncError(''); leadsFullSynced.current = true
@@ -2014,7 +2017,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     const p = intlPhoneFmt(phone)
     if (!p) return
     try {
-      const res = await condFetchJson(`${API_BASE}/api/chats/${p}`, { Authorization: `Bearer ${ADMIN_TOKEN}` })
+      const res = await condFetchJson(`${API_BASE}/api/chats/${p}`, { Authorization: `Bearer ${adminToken()}` })
       if (res.ok && res.changed) setChats(prev => ({ ...prev, [p]: res.data }))
     } catch {}
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -2022,7 +2025,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const fetchChatStatus = useCallback(async () => {
     if (!API_BASE) return
     try {
-      const r = await fetch(`${API_BASE}/api/chats/status`, { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` }, signal: AbortSignal.timeout(8000) })
+      const r = await fetch(`${API_BASE}/api/chats/status`, { headers: { Authorization: `Bearer ${adminToken()}` }, signal: AbortSignal.timeout(8000) })
       if (r.ok) { const d = await r.json(); setChatStatus(d.state || null) }
     } catch {}
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -2030,7 +2033,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const fetchAllChats = useCallback(async () => {
     if (!API_BASE) return
     try {
-      const res = await condFetchJson(`${API_BASE}/api/chats/conversations`, { Authorization: `Bearer ${ADMIN_TOKEN}` }, { signal: AbortSignal.timeout(10000) })
+      const res = await condFetchJson(`${API_BASE}/api/chats/conversations`, { Authorization: `Bearer ${adminToken()}` }, { signal: AbortSignal.timeout(10000) })
       if (!res.ok || !res.changed) return
       const convs = res.data
       if (!Array.isArray(convs)) return
@@ -2164,7 +2167,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     try {
       const r = await fetch(`${API_BASE}/api/chats/send`, {
         method:  'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken()}` },
         body:    JSON.stringify({ phone: p, message: msg }),
         signal: AbortSignal.timeout(15000),
       })
@@ -2217,7 +2220,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     if (p && API_BASE) {
       fetch(`${API_BASE}/api/chats/status`, {
         method:  'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken()}` },
         body:    JSON.stringify({ phone: p, status }),
       }).catch(() => {})
     }
@@ -2282,7 +2285,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
         method: 'POST',
         headers: {
           'Content-Type':      'application/json',
-          'Authorization':     `Bearer ${ADMIN_TOKEN}`,
+          'Authorization':     `Bearer ${adminToken()}`,
           'anthropic-version': '2023-06-01',
         },
         body: JSON.stringify({
@@ -2307,7 +2310,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     const base = API_BASE || ''
     fetch(`${base}/api/settings`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken()}` },
       body: JSON.stringify({ waSettings: waSt }),
     }).then(() => { setCloudSettings({ ..._cloudSettings, waSettings: waSt }) }).catch(() => {})
     setWaSaved(true); setTimeout(() => setWaSaved(false), 2500)
@@ -2318,7 +2321,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     try {
       const r = await fetch(`/api/contacts?action=test-wa`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken()}` },
         body: JSON.stringify({ phone: '0559811814' }),
         signal: AbortSignal.timeout(20000),
       })
@@ -2337,7 +2340,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     try {
       const r = await fetch(`/api/contacts?action=test-email`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
+        headers: { Authorization: `Bearer ${adminToken()}` },
         signal: AbortSignal.timeout(20000),
       })
       const j = await r.json()
@@ -2377,16 +2380,16 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   const saveProp = async (rawProp) => {
     setPropSyncing(true)
     setPropSyncError('')
-    const prop = await externalizeInlinePhotos(rawProp, ADMIN_TOKEN)   // never store a photo inline (src/inlinePhotos.js)
+    const prop = await externalizeInlinePhotos(rawProp, adminToken())   // never store a photo inline (src/inlinePhotos.js)
     const base = API_BASE || ''
-    const mirrored = mirrorProperty(prop, ADMIN_TOKEN)
+    const mirrored = mirrorProperty(prop, adminToken())
     let lastErr = null, renderOk = false, memoryOnly = false
     for (let attempt = 0; attempt < 4 && !renderOk; attempt++) {
       if (attempt > 0) await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt - 1)))
       try {
         const r = await fetch(`${base}/api/properties/${prop.id}`, {
           method:  'PUT',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken()}` },
           body:    JSON.stringify(prop),
           signal:  AbortSignal.timeout(15000),
         })
@@ -2407,7 +2410,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
       else if (memoryOnly && !(m && m.ok)) setPropSyncError('⚠ נשמר ב-RAM בלבד — Supabase לא זמין! הנתונים יאבדו אם השרת יתחיל מחדש')
       else setPropSyncError('')
       if (!renderOk) setTimeout(() => setPropSyncError(''), 12000)
-      notifyPropertiesChanged(ADMIN_TOKEN)   // snapshot + instant landing pages follow
+      notifyPropertiesChanged(adminToken())   // snapshot + instant landing pages follow
       setPropSyncing(false)
       return
     }
@@ -2427,7 +2430,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     try { sessionStorage.setItem('afik_inline_resave', '1') } catch {}
     ;(async () => {
       for (const p of dirty) {
-        const clean = await externalizeInlinePhotos(p, ADMIN_TOKEN)
+        const clean = await externalizeInlinePhotos(p, adminToken())
         if (clean === p) continue
         setProperties(prev => prev.map(x => (String(x.id) === String(p.id) ? { ...x, images: clean.images, logo: clean.logo } : x)))
         await savePropSilent(clean)
@@ -2438,22 +2441,22 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   // Silent background save for reorder and auto-save (no spinner, 3 retries)
   const savePropSilent = async (rawProp) => {
     const base = API_BASE || ''
-    const prop = await externalizeInlinePhotos(rawProp, ADMIN_TOKEN)
-    const mirrored = mirrorProperty(prop, ADMIN_TOKEN)   // the durable copy (properties table) — the site reads this one
+    const prop = await externalizeInlinePhotos(rawProp, adminToken())
+    const mirrored = mirrorProperty(prop, adminToken())   // the durable copy (properties table) — the site reads this one
     for (let attempt = 0; attempt < 3; attempt++) {
       if (attempt > 0) await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt - 1)))
       try {
         const r = await fetch(`${base}/api/properties/${prop.id}`, {
           method:  'PUT',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken()}` },
           body:    JSON.stringify(prop),
           signal:  AbortSignal.timeout(15000),
         })
-        if (r.ok) { setPropSyncedAt(new Date()); notifyPropertiesChanged(ADMIN_TOKEN); return }
+        if (r.ok) { setPropSyncedAt(new Date()); notifyPropertiesChanged(adminToken()); return }
       } catch {}
     }
     const m = await mirrored
-    if (m && m.ok) { setPropSyncedAt(new Date()); notifyPropertiesChanged(ADMIN_TOKEN) }
+    if (m && m.ok) { setPropSyncedAt(new Date()); notifyPropertiesChanged(adminToken()) }
   }
 
   // Image library: one photo of a property replaced by a new upload (same place in the gallery), then saved
@@ -2468,16 +2471,16 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   // ── Individual property delete — DELETE /api/properties/:id ───────────────
   const deleteProp = async (id) => {
     const base = API_BASE || ''
-    const mirrored = mirrorDelete(id, ADMIN_TOKEN)   // the properties table (what the site shows) — Render or not
+    const mirrored = mirrorDelete(id, adminToken())   // the properties table (what the site shows) — Render or not
     try {
       await fetch(`${base}/api/properties/${id}`, {
         method:  'DELETE',
-        headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
+        headers: { Authorization: `Bearer ${adminToken()}` },
         signal:  AbortSignal.timeout(10000),
       })
     } catch {}
     await mirrored
-    notifyPropertiesChanged(ADMIN_TOKEN)
+    notifyPropertiesChanged(adminToken())
   }
 
   // ── Bulk sync — used for reorder and manual "sync all" button ─────────────
@@ -2485,12 +2488,12 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     setPropSyncing(true)
     setPropSyncError('')
     const base = API_BASE || ''
-    const clean = await Promise.all(nextProps.map(p => externalizeInlinePhotos(p, ADMIN_TOKEN)))
-    const mirrored = mirrorProperties(clean, ADMIN_TOKEN)   // the properties table (what the site shows) — Render or not
+    const clean = await Promise.all(nextProps.map(p => externalizeInlinePhotos(p, adminToken())))
+    const mirrored = mirrorProperties(clean, adminToken())   // the properties table (what the site shows) — Render or not
     try {
       const r = await fetch(`${base}/api/properties/bulk`, {
         method:  'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken()}` },
         body:    JSON.stringify(clean),
         signal:  AbortSignal.timeout(20000),
       })
@@ -2501,11 +2504,11 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
         setPropSyncError('⚠ נשמר ב-RAM בלבד — Supabase לא זמין! הנתונים יאבדו אם השרת יתחיל מחדש')
       } else {
         setPropSyncedAt(new Date())
-        notifyPropertiesChanged(ADMIN_TOKEN)
+        notifyPropertiesChanged(adminToken())
       }
     } catch (e) {
       const m = await mirrored
-      if (m && m.ok) { setPropSyncedAt(new Date()); notifyPropertiesChanged(ADMIN_TOKEN); setPropSyncError('נשמר באתר (Supabase). שרת Render לא זמין כרגע — יתעדכן מהמסד כשיחזור') }
+      if (m && m.ok) { setPropSyncedAt(new Date()); notifyPropertiesChanged(adminToken()); setPropSyncError('נשמר באתר (Supabase). שרת Render לא זמין כרגע — יתעדכן מהמסד כשיחזור') }
       else setPropSyncError('שגיאת סנכרון: ' + (e.message || 'בעיית תקשורת'))
       setTimeout(() => setPropSyncError(''), 8000)
     } finally {
@@ -2518,7 +2521,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     const base = API_BASE || ''
     try {
       const r = await fetch(`${base}/api/properties/export`, {
-        headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
+        headers: { Authorization: `Bearer ${adminToken()}` },
         signal: AbortSignal.timeout(15000),
       })
       if (!r.ok) throw new Error(r.status)
@@ -2681,7 +2684,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
   // A Meta lead's CRM copy (the server makes one for every Meta lead; this makes sure it exists now)
   const ensureCrmCopy = async (metaLead, crmLead) => {
     if (crmLead) return crmLead
-    const r = await fetch('/api/meta/lead-to-crm', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` }, body: JSON.stringify({ id: metaLead.id }) })
+    const r = await fetch('/api/meta/lead-to-crm', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken()}` }, body: JSON.stringify({ id: metaLead.id }) })
     const d = await r.json().catch(() => ({}))
     if (!r.ok || !d.id) throw new Error(d.error || d.skipped || `HTTP ${r.status}`)
     const target = { id: String(d.id), name: metaLead.name, phone: metaLead.phone, leadStatus: 'new', stageLog: [], metaLeadId: String(metaLead.id), crm_data: { metaLeadId: String(metaLead.id) } }
@@ -2704,7 +2707,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     })
     return fetch(`${CONTACTS_API}/api/contacts?id=${encodeURIComponent(id)}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken()}` },
       body: JSON.stringify(patch),
     }).then(r => r.json()).catch(() => null)
   }
@@ -2725,7 +2728,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
       let research = null
       try {
         const rr = await fetch('/api/meta/lead-research', {
-          method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+          method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken()}` },
           body: JSON.stringify({ lead: clean }), signal: AbortSignal.timeout(65000),
         })
         research = await rr.json().catch(() => null)
@@ -2734,7 +2737,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
       // Step 2 — the briefing, with the research in the dossier
       setStage('brief')
       const r = await fetch('/api/meta/lead-analyze', {
-        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken()}` },
         body: JSON.stringify({ lead: clean, research }), signal: AbortSignal.timeout(70000),
       })
       let a = await r.json().catch(() => ({}))
@@ -2743,7 +2746,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
         const ask = async (model, structured) => {
           const res = await fetch(`${API_BASE}/api/ai/messages`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}`, 'anthropic-version': '2023-06-01' },
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken()}`, 'anthropic-version': '2023-06-01' },
             body: JSON.stringify({
               model, max_tokens: 8000, system: a.proxy.system,
               messages: [{ role: 'user', content: structured ? a.proxy.user : `${a.proxy.user}\n\nReturn ONLY one JSON object (no markdown) with exactly these keys: ${Object.keys(a.proxy.schema.properties).join(', ')}.` }],
@@ -2799,7 +2802,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     }
     deleteReqs.current[String(id)] = fetch(`${CONTACTS_API}/api/contacts?id=${encodeURIComponent(id)}`, {
       method: 'DELETE',
-      headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
+      headers: { Authorization: `Bearer ${adminToken()}` },
     }).catch(() => {})
     // "בטל": every lead deleted while the bar is up joins the same batch (a bulk delete = one undo)
     if (lead) {
@@ -2827,7 +2830,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     setSelectedLead(null)
     try { localStorage.setItem(LEADS_STORE, '[]') } catch {}
     if (API_BASE) fetch(`${API_BASE}/api/contacts`, {
-      method: 'DELETE', headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
+      method: 'DELETE', headers: { Authorization: `Bearer ${adminToken()}` },
     }).then(r => {
       if (r.ok) {
         pendingDeletes.current.clear()
@@ -2864,7 +2867,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
     try {
       const r = await fetch(`${CONTACTS_API}/api/contacts?restore=1`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken()}` },
         body: JSON.stringify({ leads: clean }),
       })
       const d = await r.json().catch(() => ({}))
@@ -3263,7 +3266,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
         {tab==='overview' && standalone && (
           <Suspense fallback={null}>
             <AdminHome properties={properties} leads={leads} setTab={setTab} autoCfg={autoCfg} chatsUnread={chatsUnread} intakeNew={intakeStats?.new || 0}
-              token={ADMIN_TOKEN} lang={lang} thumbImg={thumbImg} imgFallback={imgFallback}
+              token={adminToken()} lang={lang} thumbImg={thumbImg} imgFallback={imgFallback}
               onNewProperty={() => { try { localStorage.removeItem('afik_wizard_draft') } catch {}; setWizardOpen(true) }}/>
           </Suspense>
         )}
@@ -3565,7 +3568,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
         {tab==='sellers' && (
           <div style={{ height:'100%', minHeight:'calc(100vh - 180px)' }}>
             <Suspense fallback={<AdminTabLoader label="טוען נכסים שנקלטו…"/>}>
-              <SellerSubmissionsTab C={C} onOpenWizard={openWizardFromIntake} onChanged={() => { fetch('/api/seller-form?action=stats', { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` } }).then(r => r.json()).then(d => d?.ok && setIntakeStats(d)).catch(() => {}) }}/>
+              <SellerSubmissionsTab C={C} onOpenWizard={openWizardFromIntake} onChanged={() => { fetch('/api/seller-form?action=stats', { headers: { Authorization: `Bearer ${adminToken()}` } }).then(r => r.json()).then(d => d?.ok && setIntakeStats(d)).catch(() => {}) }}/>
             </Suspense>
           </div>
         )}
@@ -3808,7 +3811,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
                 // Every Meta lead is copied into the CRM by the server (lib/meta-crm.js); the button makes sure
                 // this one is there now and opens the leads tab, which pulls it in with the next sync
                 if (metaLead?.id) {
-                  fetch('/api/meta/lead-to-crm', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` }, body: JSON.stringify({ id: metaLead.id }) })
+                  fetch('/api/meta/lead-to-crm', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken()}` }, body: JSON.stringify({ id: metaLead.id }) })
                     .then(r => r.json().catch(() => ({})).then(d => {
                       if (!r.ok || !d.id) addToast(lang === 'en' ? 'Could not add to the CRM' : 'ההוספה ל-CRM נכשלה', d.error || d.skipped || `HTTP ${r.status}`, 'meta', '⚠️')
                     }))
@@ -4375,7 +4378,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
                     const base = API_BASE || ''
                     fetch(`${base}/api/settings`, {
                       method: 'POST',
-                      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+                      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken()}` },
                       body: JSON.stringify({ crmWebhook }),
                     }).then(() => { setCloudSettings({ ..._cloudSettings, crmWebhook }) }).catch(() => {})
                     setWebhookSaved(true); setTimeout(()=>setWebhookSaved(false), 2500)
@@ -4399,7 +4402,7 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
                     const base = API_BASE || ''
                     fetch(`${base}/api/settings`, {
                       method: 'POST',
-                      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+                      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken()}` },
                       body: JSON.stringify({ crmWebhook: '' }),
                     }).then(() => { setCloudSettings({ ..._cloudSettings, crmWebhook: '' }) }).catch(() => {})
                   }} style={{ background:'none', border:'none', color:`${C.cream}55`, cursor:'pointer', fontSize:11, textDecoration:'underline', fontFamily:'inherit' }}>נקה</button>
@@ -4589,8 +4592,8 @@ function AdminPanel({ properties, setProperties, stats, setStats, sharon, setSha
                   saveProp(prop)
                   if (wizardSeed?.intakeId) {
                     // keep the intake record in sync with what the wizard just did
-                    fetch(`/api/seller-form?action=linked&id=${encodeURIComponent(wizardSeed.intakeId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` }, body: JSON.stringify({ propertyId: prop.id, published: !isDraft }) })
-                      .then(() => fetch('/api/seller-form?action=stats', { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` } }).then(r => r.json()).then(d => d?.ok && setIntakeStats(d)))
+                    fetch(`/api/seller-form?action=linked&id=${encodeURIComponent(wizardSeed.intakeId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken()}` }, body: JSON.stringify({ propertyId: prop.id, published: !isDraft }) })
+                      .then(() => fetch('/api/seller-form?action=stats', { headers: { Authorization: `Bearer ${adminToken()}` } }).then(r => r.json()).then(d => d?.ok && setIntakeStats(d)))
                       .catch(() => {})
                   }
                   setWizardOpen(false); setWizardSeed(null)
@@ -4749,7 +4752,8 @@ function MetaWABotCard({ C, isDark }) {
   const [testing, setTesting] = useState(false)
   const [testRes, setTestRes] = useState(null)
   const PHONE_NUMBER_ID = '1160230953835065'
-  const WA_TOKEN = 'EAAnqYHiWM8cBRY4NZCJoUxhn41ETA9XiODRsPtkbkZAeyNULZBgJJBWcgdpaL0nrJVKw0y8PGD9XOiMXyacGlYTWS0HC41GguWbdMIUQn3NZBScF7guZCD9bwZAZAa4v0nI2ht4nrmF4CY0ayni8TKSVWSkoM2ywMRC9GSTp2nHSOxSm6RZB7tnDjRvdEN75LP5EWSsUe9oaxMpuojrdctDV8bkXuuI27N9nwh3E9kviZBZBZAYVcw054i9hd7wXmQTGvL7MkfZApzQjHluRBWaY2wOR'
+  // the token is not in the code any more (it reached every visitor's browser); the test uses the one pasted above, if any
+  const WA_TOKEN = (typeof localStorage !== 'undefined' && localStorage.getItem('afik_meta_graph_token')) || ''
   const WEBHOOK_URL = 'https://afikhanahal.co.il/api/whatsapp'
 
   function save() {
@@ -4815,7 +4819,7 @@ function MetaWABotCard({ C, isDark }) {
           <span style={{ color:`${C.cream}55`, fontWeight:600 }}>Webhook URL</span>
           <span style={{ fontFamily:'monospace', color:C.purple, fontSize:11 }}>{WEBHOOK_URL}</span>
           <span style={{ color:`${C.cream}55`, fontWeight:600 }}>Verify Token</span>
-          <span style={{ fontFamily:'monospace', color:'#F7C948' }}>AFIKhanahal2026</span>
+          <span style={{ fontFamily:'monospace', color:'#F7C948' }}>(הערך של WA_VERIFY_TOKEN ב-Vercel)</span>
         </div>
       </div>
 
@@ -4846,7 +4850,7 @@ function MetaWABotCard({ C, isDark }) {
         <strong style={{ color:C.green }}>הגדרת ה-Webhook במרכז Meta:</strong><br/>
         1. כנס ל-<strong style={{ color:'#1877F2' }}>Meta for Developers → WhatsApp → Configuration</strong><br/>
         2. הגדר Webhook URL: <span style={{ fontFamily:'monospace', color:C.purple }}>{WEBHOOK_URL}</span><br/>
-        3. הגדר Verify Token: <span style={{ fontFamily:'monospace', color:'#F7C948' }}>AFIKhanahal2026</span><br/>
+        3. הגדר Verify Token: <span style={{ fontFamily:'monospace', color:'#F7C948' }}>(הערך של WA_VERIFY_TOKEN ב-Vercel)</span><br/>
         4. הפעל Subscribe על: <strong>messages</strong><br/>
         5. פרוס לאויר דרך Vercel — הבוט יתחיל לענות אוטומטית ✓<br/>
         <span style={{ color:`${C.cream}44`, fontSize:11 }}>* Google Tag Manager (GTM-MZZ8QR8V) כבר מוטמע ופועל</span>
@@ -4886,7 +4890,7 @@ function MetaLeadSourcesCard({ C }) {
     const base = API_BASE || ''
     fetch(`${base}/api/settings`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken()}` },
       body: JSON.stringify({ metaLeadSources: clean }),
     }).then(() => { setCloudSettings({ ..._cloudSettings, metaLeadSources: clean }) }).catch(() => {})
     setSaved(true)

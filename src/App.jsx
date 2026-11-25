@@ -1,3 +1,4 @@
+import { adminToken, adminLogin } from './adminAuth.js'
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, createContext, useContext, useMemo, lazy, Suspense, Component, memo } from 'react'
 import { useAdminTheme, ADMIN_DARK_C, ADMIN_LIGHT_C } from './adminTheme.js'
 import { isRealEstateArticle } from '../lib/news/classify.js'
@@ -78,7 +79,6 @@ function leadOrigin() {
     return { page: (u.pathname + u.hash).slice(0, 160), referrer: ref, utm, device: /Mobi|Android/i.test(navigator.userAgent) ? 'mobile' : 'desktop' }
   } catch { return {} }
 }
-const ADMIN_TOKEN  = 'AFIKhanahal2026'
 
 // Conditional GET for everything the admin panel polls. Remembers the ETag of the last body per URL
 // and sends If-None-Match, so an unchanged list costs an empty 304 instead of the whole payload
@@ -100,7 +100,7 @@ async function condFetchJson(url, headers = {}, opts = {}) {
 // lib/property-store.js). Render sleeps / gets suspended; a publish or a save made meanwhile lives in that table, so
 // the panel must never be left with only its old local copy. → the list (array) or throws.
 async function fetchAdminProperties({ timeoutMs = 8000, skipRender = false } = {}) {
-  const headers = { Authorization: `Bearer ${ADMIN_TOKEN}` }
+  const headers = { Authorization: `Bearer ${adminToken()}` }
   if (API_BASE && !skipRender) {
     try {
       const r = await fetch(`${API_BASE}/api/properties`, { headers, signal: AbortSignal.timeout(timeoutMs) })
@@ -2641,8 +2641,15 @@ function PasswordPrompt({ onSuccess, onClose }) {
   const { C } = useTheme()
   const [pw, setPw] = useState('')
   const [err, setErr] = useState(false)
-  const CORRECT = 'AFIKhanahal2026'
-  const attempt = () => { if (pw === CORRECT) { setErr(false); onSuccess() } else setErr(true) }
+  const [busy, setBusy] = useState(false)
+  // the password is checked on the server (POST /api/meta/admin-login), never here: the site's code holds no password
+  const attempt = async () => {
+    if (busy || !pw) return
+    setBusy(true)
+    const r = await adminLogin(pw)
+    setBusy(false)
+    if (r.ok) { setErr(false); onSuccess() } else setErr(r.error === 'too_many' ? 'many' : true)
+  }
   return (
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.9)', backdropFilter:'blur(12px)', WebkitBackdropFilter:'blur(12px)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center' }}>
       <div style={{ background:C.card, border:`1px solid ${C.purple}33`, borderRadius:20, padding:40, maxWidth:360, width:'90%', direction:'rtl', boxShadow:`0 32px 80px rgba(0,0,0,.7), inset 0 1px 0 rgba(255,255,255,.1)` }}>
@@ -2650,7 +2657,7 @@ function PasswordPrompt({ onSuccess, onClose }) {
         <input type="password" value={pw} onChange={e => { setPw(e.target.value); setErr(false) }} onKeyDown={e => { if (e.key==='Enter') attempt() }}
           placeholder="הכנס סיסמה" autoFocus
           style={{ width:'100%', padding:'12px 16px', background:'rgba(255,255,255,.05)', border:`1px solid ${err ? '#E05252' : C.purple+'33'}`, borderRadius:10, color:C.cream, fontSize:14, fontFamily:'inherit', outline:'none', marginBottom:err?6:16, direction:'rtl' }}/>
-        {err && <div style={{ color:'#E05252', fontSize:12, marginBottom:12, textAlign:'center' }}>סיסמה שגויה</div>}
+        {err && <div style={{ color:'#E05252', fontSize:12, marginBottom:12, textAlign:'center' }}>{err === 'many' ? 'יותר מדי ניסיונות. נסו שוב בעוד כמה דקות' : 'סיסמה שגויה'}</div>}
         <div style={{ display:'flex', gap:12 }}>
           <button onClick={attempt} className="primary-btn" style={{ flex:1, borderRadius:10, fontSize:14, padding:12 }}>כניסה</button>
           <button onClick={onClose} style={{ padding:'12px 20px', background:'rgba(255,255,255,.06)', border:`1px solid ${C.purple}33`, borderRadius:10, color:C.cream, cursor:'pointer', fontFamily:'inherit' }}>ביטול</button>
@@ -5286,7 +5293,7 @@ export default function App() {
   const [wizardEditData, setWizardEditData] = useState(null)
   const [wizardEditId,   setWizardEditId]   = useState(null)
   const [wizardIntakeId, setWizardIntakeId] = useState(null)   // set when the wizard was opened from a submitted property (repopulate)
-  const [adminAuth,    setAdminAuth]    = useState(() => sessionStorage.getItem('afik_admin_session') === '1')
+  const [adminAuth,    setAdminAuth]    = useState(() => (sessionStorage.getItem('afik_admin_session') === '1' && !!adminToken()))
   const [showPw,       setShowPw]       = useState(false)
   const [contactProp,  setContactProp]  = useState(null)
   const [showContact,  setShowContact]  = useState(false)
@@ -5399,7 +5406,7 @@ export default function App() {
   useEffect(() => {
     if (DASHBOARD_MODE) return
     if (window.location.pathname.startsWith('/admin-panel')) {
-      const alreadyAuth = sessionStorage.getItem('afik_admin_session') === '1'
+      const alreadyAuth = (sessionStorage.getItem('afik_admin_session') === '1' && !!adminToken())
       if (alreadyAuth) setShowAdmin(true)
       else setShowPw(true)
     }
@@ -5443,7 +5450,7 @@ export default function App() {
     //    so the public site must never call it directly.
     {
       const base = API_BASE || ''
-      const adminSession = (() => { try { return sessionStorage.getItem('afik_admin_session') === '1' } catch { return false } })()
+      const adminSession = (() => { try { return (sessionStorage.getItem('afik_admin_session') === '1' && !!adminToken()) } catch { return false } })()
       fetch(adminSession && base ? `${base}/api/stats` : '/api/stats')
         .then(r => r.ok ? r.json() : Promise.reject())
         .then(data => {
@@ -5454,7 +5461,7 @@ export default function App() {
         .catch(() => {})
       // Admin cloud settings (WA, CRM webhook, map defaults): admin sessions only. Visitors don't need
       // them — the CRM webhook for a new lead is sent by /api/contacts on the server.
-      if (adminSession && base) fetch(`${base}/api/settings`, { headers: { Authorization: `Bearer ${ADMIN_TOKEN}` } })
+      if (adminSession && base) fetch(`${base}/api/settings`, { headers: { Authorization: `Bearer ${adminToken()}` } })
         .then(r => r.ok ? r.json() : Promise.reject())
         .then(cfg => { _cloudSettings = cfg })
         .catch(() => {})
@@ -5469,7 +5476,7 @@ export default function App() {
         if (d.properties?.length) { setProperties(d.properties); propsLoaded.current = true; hadCache = true }
       } catch {}
 
-      const isAdminSession = sessionStorage.getItem('afik_admin_session') === '1'
+      const isAdminSession = (sessionStorage.getItem('afik_admin_session') === '1' && !!adminToken())
       // First visit (e.g. someone opening a shared link): paint the grid from the list published with the
       // last deploy — a static file on the CDN, requested by index.html before the bundle even loaded —
       // instead of skeleton cards while the live API (and a possibly sleeping Render) answers.
@@ -5487,7 +5494,7 @@ export default function App() {
           })
         })
       }
-      const headers = isAdminSession ? { Authorization: `Bearer ${ADMIN_TOKEN}` } : {}
+      const headers = isAdminSession ? { Authorization: `Bearer ${adminToken()}` } : {}
       // Public read goes through Vercel's CDN-cached /api/properties (instant, no
       // Render cold-start). Admins read straight from Render: always fresh, and the
       // uncached full list never passes through Vercel's metered function transfer.
@@ -5495,7 +5502,7 @@ export default function App() {
         .then(data => {
           if (Array.isArray(data) && data.length > 0) {
             apiArrived = true
-            if (isAdminSession) pushSnapshot(data, ADMIN_TOKEN)   // keeps the public snapshot current (see src/siteRebuild.js)
+            if (isAdminSession) pushSnapshot(data, adminToken())   // keeps the public snapshot current (see src/siteRebuild.js)
             setProperties(prev => {
               if (!prev.length || !hadCache) return data  // no local cache (maybe the static list): trust server
               if (data.length < prev.length) return prev  // server lost data (restart): keep local
@@ -5514,7 +5521,7 @@ export default function App() {
         .catch(() => {
           propsLoaded.current = true
           // Render down: the admin's own copy keeps the public site alive; a visitor with nothing to show is told so
-          if (isAdminSession) { try { const d = JSON.parse(localStorage.getItem('afik_data') || '{}'); if (d.properties?.length) pushSnapshot(d.properties, ADMIN_TOKEN) } catch {} }
+          if (isAdminSession) { try { const d = JSON.parse(localStorage.getItem('afik_data') || '{}'); if (d.properties?.length) pushSnapshot(d.properties, adminToken()) } catch {} }
           else if (!hadCache) early.then(list => { if (!Array.isArray(list) || !list.length) setListUnavailable(true) })
         })
     }
@@ -5539,7 +5546,7 @@ export default function App() {
     const timer = setTimeout(() => {
       fetch(`${base}/api/stats`, {
         method:  'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken()}` },
         body:    JSON.stringify({ stats, sharon }),
       }).catch(() => {})
     }, 2000)
@@ -5576,7 +5583,7 @@ export default function App() {
   useEffect(() => {
     const refresh = () => {
       if (typeof document !== 'undefined' && document.hidden) return
-      const headers = adminAuth ? { Authorization: `Bearer ${ADMIN_TOKEN}` } : {}
+      const headers = adminAuth ? { Authorization: `Bearer ${adminToken()}` } : {}
       condFetchJson(adminAuth && API_BASE ? `${API_BASE}/api/properties` : `/api/properties`, headers)
         // Render down → the admin list through Vercel (the properties table)
         .then(res => (res.ok && res.changed ? res.data : res.ok || !adminAuth ? Promise.reject() : fetchAdminProperties({ skipRender: true })))
@@ -5827,7 +5834,7 @@ export default function App() {
           onPublish={(prop, isDraft) => {
             if (wizardIntakeId) {
               // opened from "נכסים שנקלטו": record the link + status on the intake record
-              fetch(`/api/seller-form?action=linked&id=${encodeURIComponent(wizardIntakeId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` }, body: JSON.stringify({ propertyId: wizardEditId || prop.id, published: !isDraft }) }).catch(() => {})
+              fetch(`/api/seller-form?action=linked&id=${encodeURIComponent(wizardIntakeId)}`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken()}` }, body: JSON.stringify({ propertyId: wizardEditId || prop.id, published: !isDraft }) }).catch(() => {})
               setWizardIntakeId(null)
             }
             let nextProps
@@ -5859,18 +5866,18 @@ export default function App() {
             // Save only the affected property — safe, atomic, never touches others
             const base = API_BASE || ''
             if (base && savedProp) {
-              const cleanP = externalizeInlinePhotos(savedProp, ADMIN_TOKEN)
+              const cleanP = externalizeInlinePhotos(savedProp, adminToken())
               // The durable copy (the properties table, through Vercel) — the site reads this one, Render up or not
-              cleanP.then(cleanProp => mirrorProperty(cleanProp, ADMIN_TOKEN)).then(m => { if (m && m.ok) notifyPropertiesChanged(ADMIN_TOKEN) })
+              cleanP.then(cleanProp => mirrorProperty(cleanProp, adminToken())).then(m => { if (m && m.ok) notifyPropertiesChanged(adminToken()) })
               cleanP.then(cleanProp => fetch(`${base}/api/properties/${savedProp.id}`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken()}` },
                 body: JSON.stringify(cleanProp),
                 signal: AbortSignal.timeout(30000),
               }).then(r => r.ok ? r.json() : Promise.reject(r.status))
                 .then(body => {
                   console.log('[wizard] saved prop', savedProp.id, '→', body.storage)
-                  notifyPropertiesChanged(ADMIN_TOKEN)   // snapshot + instant landing pages follow
+                  notifyPropertiesChanged(adminToken())   // snapshot + instant landing pages follow
                   // Re-fetch after confirmed save so UI reflects what the server actually stored
                   return fetchAdminProperties()
                     .then(data => {
@@ -6741,4 +6748,4 @@ export default function App() {
 }
 
 // Shared with the lazily-loaded admin dashboard (src/AdminPanel.jsx)
-export { fetchAdminProperties, TEAM_KEY, LeadsBoard, GreenAPIChat, MetaLeadsTab, SupermetricsTab, PropertyWizard, API_BASE, CONTACTS_API, ADMIN_TOKEN, condFetchJson, DARK_C, useTheme, TEAM, G, Logo, LEADS_STORE, LEADS_DELETED, LEADS_TRASH, ANALYTICS_KEY, META_LEAD_PAGES_KEY, WA_DEFAULT_TEMPLATE, _cloudSettings, CATEGORIES, EMPTY_PROP, CONDITION_OPTIONS, ENTRY_OPTIONS, ADMIN_DRAFT_KEY, toMapsEmbed, imgFallback, thumbImg, sortByOrder }
+export { fetchAdminProperties, TEAM_KEY, LeadsBoard, GreenAPIChat, MetaLeadsTab, SupermetricsTab, PropertyWizard, API_BASE, CONTACTS_API, condFetchJson, DARK_C, useTheme, TEAM, G, Logo, LEADS_STORE, LEADS_DELETED, LEADS_TRASH, ANALYTICS_KEY, META_LEAD_PAGES_KEY, WA_DEFAULT_TEMPLATE, _cloudSettings, CATEGORIES, EMPTY_PROP, CONDITION_OPTIONS, ENTRY_OPTIONS, ADMIN_DRAFT_KEY, toMapsEmbed, imgFallback, thumbImg, sortByOrder }

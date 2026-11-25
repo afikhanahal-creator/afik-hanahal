@@ -26,6 +26,7 @@ import { restoreRow } from '../lib/lead-restore.js'
 import { properHebrewName } from '../lib/name-proof.js'
 import { manualLeadRow } from '../lib/manual-lead.js'
 import { statusForStage } from '../lib/lead-status-sync.js'
+import { isAdminReq } from '../lib/admin-auth.js'
 
 // ── Lead backup (Vercel Blob) ────────────────────────────────────────────────
 // If Supabase refuses the INSERT (quota / paused project / outage) the lead used to exist only in the
@@ -73,7 +74,6 @@ async function restoreBackupLeads(backups) {
 }
 const SUPA_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
 const SUPA_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY
-const ADMIN_TOKEN = 'AFIKhanahal2026'
 
 // ── Green API (token stays server-side) ──────────────────────────────────────
 const GREEN_INSTANCE          = process.env.WA_GREENAPI_INSTANCE || ''
@@ -360,7 +360,7 @@ export default async function handler(req, res) {
   // ── Sub-action: test-email (merged from /api/contacts/test-email) ────────────
   if (req.query.action === 'test-email') {
     if (req.method !== 'POST') return res.status(405).end()
-    if (req.headers.authorization !== `Bearer ${ADMIN_TOKEN}`) {
+    if (!isAdminReq(req)) {
       return res.status(401).json({ error: 'unauthorized' })
     }
     const user = process.env.GMAIL_USER
@@ -392,7 +392,7 @@ export default async function handler(req, res) {
   // ── Sub-action: test-wa (admin button — server-side Green API send) ──────────
   if (req.query.action === 'test-wa') {
     if (req.method !== 'POST') return res.status(405).end()
-    if (req.headers.authorization !== `Bearer ${ADMIN_TOKEN}`) {
+    if (!isAdminReq(req)) {
       return res.status(401).json({ error: 'unauthorized' })
     }
     const phone = req.body?.phone || '0559811814'
@@ -411,7 +411,7 @@ export default async function handler(req, res) {
   try {
     // ── GET: list all contacts ───────────────────────────────────────────────
     if (req.method === 'GET') {
-      if (req.headers.authorization !== `Bearer ${ADMIN_TOKEN}`) return res.status(401).json({ error: 'unauthorized' })
+      if (!isAdminReq(req)) return res.status(401).json({ error: 'unauthorized' })
       res.setHeader('Cache-Control', 'no-store')
       const sinceRaw = String(req.query?.since || '')
       const since = /^\d{4}-\d{2}-\d{2}T[\d:.]+(Z|[+-]\d{2}:\d{2})?$/.test(sinceRaw) ? sinceRaw : ''
@@ -440,7 +440,7 @@ export default async function handler(req, res) {
     // lib/lead-restore.js). An upsert on id, so a lead that is still there is just refreshed. Not a new lead: no email, no
     // WhatsApp, no automations.
     if (req.method === 'POST' && req.query.restore) {
-      if (req.headers.authorization !== `Bearer ${ADMIN_TOKEN}`) return res.status(401).json({ error: 'unauthorized' })
+      if (!isAdminReq(req)) return res.status(401).json({ error: 'unauthorized' })
       const list = Array.isArray(req.body?.leads) ? req.body.leads.slice(0, 500) : []
       let rows = list.map(restoreRow).filter(Boolean)
       if (!rows.length) return res.status(400).json({ error: 'nothing_to_restore', skipped: list.length })
@@ -479,7 +479,7 @@ export default async function handler(req, res) {
     // Saved like any lead, with its stage, project, first note and source; no new-lead email / WhatsApp to the office (we
     // typed it), and the WhatsApp welcome only when the office ticked it (welcome: true)
     if (req.method === 'POST' && req.query.manual) {
-      if (req.headers.authorization !== `Bearer ${ADMIN_TOKEN}`) return res.status(401).json({ error: 'unauthorized' })
+      if (!isAdminReq(req)) return res.status(401).json({ error: 'unauthorized' })
       const b = req.body || {}
       const r = manualLeadRow(b, await properHebrewName(b.name || ''))
       if (r.error) return res.status(400).json({ error: r.error })
@@ -517,7 +517,7 @@ export default async function handler(req, res) {
       // "ליד חדש: אנונימי" with nothing in it. The admin panel (token) may still add such a lead by hand.
       const digits = String(row.phone || '').replace(/\D/g, '')
       const reachable = digits.length >= 9 || /\S+@\S+\.\S+/.test(String(row.email || ''))
-      if (!reachable && req.headers.authorization !== `Bearer ${ADMIN_TOKEN}`) {
+      if (!reachable && !isAdminReq(req)) {
         console.warn(`[new-lead] rejected: no phone / email (source=${row.source}, page=${row.crm_data?.origin?.page || '—'})`)
         return res.status(400).json({ error: 'missing_contact', message: 'phone or email is required' })
       }

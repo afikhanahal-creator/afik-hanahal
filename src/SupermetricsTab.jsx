@@ -1,3 +1,4 @@
+import { adminToken } from './adminAuth.js'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   FaFacebookF, FaInstagram, FaChartBar, FaChartLine,
@@ -5,7 +6,6 @@ import {
   FaBullseye, FaSync, FaExclamationTriangle, FaGoogle,
 } from 'react-icons/fa'
 
-const ADMIN_TOKEN = import.meta.env.VITE_ADMIN_TOKEN || 'AFIKhanahal2026'
 
 const TR = {
   he: {
@@ -329,7 +329,7 @@ export default function SupermetricsTab({ C = DARK_C, lang = 'he' }) {
     setError(null)
     try {
       const res = await fetch(`/api/meta/supermetrics?source=${src}&range=${rng}`, {
-        headers: { Authorization: `Bearer ${ADMIN_TOKEN}` },
+        headers: { Authorization: `Bearer ${adminToken()}` },
         signal: ctrl.signal,
       })
       const body = await res.json().catch(() => ({}))

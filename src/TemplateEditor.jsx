@@ -1,3 +1,4 @@
+import { adminToken } from './adminAuth.js'
 // The template editor (admin "מסמכים וחתימות" → "תבניות"): an uploaded Word / PDF / scan (POST docs-extract) or a blank page
 // becomes a template — three panes: the fields on the right (the standard ones the CRM fills by itself, grouped; the template's
 // own fields; "+ הוספת שדה"), the document in the middle (its blocks as editable paragraphs: select text → "הפיכה לשדה", the
@@ -11,7 +12,7 @@ import { Button, Field, Modal, useToasts } from './automationsUI.jsx'
 import DocSheet from './DocPreview.jsx'
 import { STANDARD_FIELDS, FIELD_GROUPS, FIELD_TYPES, cleanTemplate, templateKeys, textToBlocks, detectFields, applyField, keyFromLabel, sampleValues, renderBlocks } from '../lib/doc-templates.js'
 
-const AUTH = { Authorization: 'Bearer AFIKhanahal2026' }
+const AUTH = { get Authorization() { return `Bearer ${adminToken()}` } }
 export const TE_CSS = `
 .te{display:grid;grid-template-columns:260px minmax(0,1fr) 300px;gap:0;height:100%;min-height:0;direction:rtl;color:var(--au-text);font-family:Rubik,sans-serif}
 .te-pane{min-height:0;overflow:auto;display:flex;flex-direction:column;gap:10px;padding:14px}

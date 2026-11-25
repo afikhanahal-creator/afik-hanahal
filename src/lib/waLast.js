@@ -1,3 +1,4 @@
+import { adminToken } from '../adminAuth.js'
 // "קשר אחרון בוואטסאפ" for every phone: read once from GET /api/meta/chat-last (the newest message each way, last 90 days —
 // public.afik_wa_last), then kept fresh by the live feed (src/lib/waLive.js): every message in or out moves its phone's time at
 // once, with no polling. A re-read when the window comes back after 10 minutes catches anything the feed missed.
@@ -5,7 +6,7 @@ import { useSyncExternalStore } from 'react'
 import { onWaLive } from './waLive.js'
 import { applyWaLast } from './waLastFormat.js'
 
-const AUTH = { Authorization: 'Bearer AFIKhanahal2026' }
+const AUTH = { get Authorization() { return `Bearer ${adminToken()}` } }
 const tail9 = p => String(p || '').replace(/\D/g, '').slice(-9)
 let map = new Map()          // tail9(phone) → { in, out } (ms, 0 = none)
 let snap = { map, loaded: false }

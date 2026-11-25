@@ -1,3 +1,4 @@
+import { adminToken } from './adminAuth.js'
 // MetaKanban.jsx — Pipeline / Table view for Meta Lead Center
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { metaFormAnswers } from './lib/leadFields.js'
@@ -17,7 +18,6 @@ import { shortCampaign } from './lib/leadFields.js'
 // the campaign as the Lead Center names it ("ניהול קמפיינים" — merged / renamed), else Meta's short name
 const campOf = l => campaignLabel(l?.campaign_name || l?.form_name, campaignCfgNow(), shortCampaign)
 
-const ADMIN_TOKEN = 'AFIKhanahal2026'
 const STAGES_LS   = 'meta_kanban_stages_v3'
 
 // ── Theme tokens (CSS variables from src/adminTheme.js: dark + light) ─────────────────────────────────────────────────────────
@@ -741,7 +741,7 @@ export default function MetaKanban({ leads: propLeads = [], onUpdateLead, onDele
       if (lead) {
         fetch('/api/meta/leads', {
           method: 'PATCH',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken()}` },
           body: JSON.stringify({ id: lead.id, status: lead.status }),
         }).catch(() => {})
         onUpdateLead?.(lead.id, { status: lead.status })
@@ -763,7 +763,7 @@ export default function MetaKanban({ leads: propLeads = [], onUpdateLead, onDele
     setSelectedLead(prev => prev && String(prev.id) === String(leadId) ? { ...prev, status: newSid } : prev)
     fetch('/api/meta/leads', {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken()}` },
       body: JSON.stringify({ id: leadId, status: newSid }),
     }).catch(() => {})
     onUpdateLead?.(leadId, { status: newSid })

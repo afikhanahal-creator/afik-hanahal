@@ -1066,7 +1066,7 @@ function SystemDrawer({ open, onClose, t, isEn, dir, health, loadHealth, cfg, se
   const w0 = nw.windows.find(w => !w.current)
   const hoursText = !cfg.quiet?.enabled ? t.winUnlimited : nw.open ? t.winOpenSub(fmtHour(nw.closesAt)) : w0 ? t.winClosedSub(w0.offset === 0 ? t.today : w0.offset === 1 ? t.tomorrow : t.days[w0.day], fmtHour(w0.start)) : t.winNone
   const ago = m => m < 1 ? t.justNow : m < 60 ? t.agoMin(m) : m < 1440 ? t.agoH(Math.round(m / 60)) : t.agoD(Math.round(m / 1440))
-  const pingUrl = `${window.location.origin}/api/meta/auto-tick?key=${health?.tickKeyConfigured ? 'YOUR_AUTOMATION_KEY' : 'AFIKhanahal2026'}`
+  const pingUrl = `${window.location.origin}/api/meta/auto-tick?key=${'YOUR_AUTOMATION_KEY'}`
   const waDetail = !health ? t.pillChecking : greenOk ? t.waOk(g.phone ? `+${g.phone}` : g.instance || '') : g.state === 'notConfigured' ? t.waNotConf((g.missing || []).join(', ')) : g.state === 'notAuthorized' ? t.waNotAuth : t.waErr(g.error || g.state || '—')
   return (
     <Drawer open onClose={onClose} title={t.sysTitle} dir={dir}

@@ -1,4 +1,5 @@
 import { createHash } from 'crypto'
+import { adminKeyOk } from '../lib/admin-auth.js'
 // Vercel serverless — proxies property GET to Render backend
 import { sendJson } from '../lib/http.js'
 import { isPreviewBot, renderSharePage, renderLanding, targetUrl } from '../lib/share-page.js'
@@ -108,12 +109,11 @@ async function serveParcel(req, res) {
 // ── POST /api/properties?changed=1 (admin) → a property was saved / removed: refresh the snapshot now and
 // rebuild the instant landing pages (lib/site-rebuild.js: only when the published list changed, ≤ once / 2 h; ?force=1
 // = the probe's manual rebuild). The admin panel calls it 15 s after the last save.
-const ADMIN_TOKEN = process.env.ADMIN_TOKEN || 'AFIKhanahal2026'
 async function serveChanged(req, res) {
   res.setHeader('Cache-Control', 'no-store')
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
   const key = (req.headers.authorization || '').replace(/^Bearer\s+/i, '') || String(req.query.key || '')   // ?key= for sendBeacon on tab close
-  if (key !== ADMIN_TOKEN) return res.status(401).json({ error: 'unauthorized' })
+  if (!adminKeyOk(key)) return res.status(401).json({ error: 'unauthorized' })
   // A save may have carried a photo inline (an old client, the Render server's own fallback): move it out first,
   // then refresh the snapshot / rebuild as usual (the rebuild is throttled, so this never doubles it)
   const slim = await slimInlinePhotos({ supaUrl: SUPA_URL, supaKey: SUPA_KEY, budgetMs: 8000, onDone: list => feed.pushSnapshot(list) }).catch(e => ({ error: e.message }))
@@ -144,7 +144,7 @@ async function serveSnapshotPush(req, res) {
   res.setHeader('Cache-Control', 'no-store')
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
   const key = (req.headers.authorization || '').replace(/^Bearer\s+/i, '') || String(req.query.key || '')
-  if (key !== ADMIN_TOKEN) return res.status(401).json({ error: 'unauthorized' })
+  if (!adminKeyOk(key)) return res.status(401).json({ error: 'unauthorized' })
   let body = req.body
   if (typeof body === 'string') { try { body = JSON.parse(body) } catch { body = null } }
   const list = body && Array.isArray(body.list) ? body.list : Array.isArray(body) ? body : null
@@ -160,7 +160,7 @@ async function serveSlim(req, res) {
   res.setHeader('Cache-Control', 'no-store')
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
   const key = (req.headers.authorization || '').replace(/^Bearer\s+/i, '') || String(req.query.key || '')
-  if (key !== ADMIN_TOKEN) return res.status(401).json({ error: 'unauthorized' })
+  if (!adminKeyOk(key)) return res.status(401).json({ error: 'unauthorized' })
   const report = await slimInlinePhotos({ supaUrl: SUPA_URL, supaKey: SUPA_KEY, budgetMs: Number(req.query.budget) || 12000, maxPhotos: Number(req.query.max) || 12, onDone: slimDone })
   // The list the site actually serves (the stored snapshot — Render's list, or the admin's copy): cleaned too
   report.snapshotClean = await feed.cleanSnapshot().catch(e => ({ changed: false, reason: e.message }))
@@ -173,7 +173,7 @@ async function serveShrink(req, res) {
   res.setHeader('Cache-Control', 'no-store')
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
   const key = (req.headers.authorization || '').replace(/^Bearer\s+/i, '') || String(req.query.key || '')
-  if (key !== ADMIN_TOKEN) return res.status(401).json({ error: 'unauthorized' })
+  if (!adminKeyOk(key)) return res.status(401).json({ error: 'unauthorized' })
   const report = await shrinkStoragePhotos({ supaUrl: SUPA_URL, supaKey: SUPA_KEY, budgetMs: Number(req.query.budget) || 20000, maxPhotos: Number(req.query.max) || 8 })
   return res.status(200).json(report)
 }
@@ -183,7 +183,7 @@ async function serveRecache(req, res) {
   res.setHeader('Cache-Control', 'no-store')
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
   const key = (req.headers.authorization || '').replace(/^Bearer\s+/i, '') || String(req.query.key || '')
-  if (key !== ADMIN_TOKEN) return res.status(401).json({ error: 'unauthorized' })
+  if (!adminKeyOk(key)) return res.status(401).json({ error: 'unauthorized' })
   const report = await recacheStorage({ supaUrl: SUPA_URL, supaKey: SUPA_KEY, budgetMs: Math.min(Number(req.query.budget) || 22000, 24000), maxBytes: Math.min(Number(req.query.mb) || 120, 300) * 1e6 })
   return res.status(200).json(report)
 }
@@ -195,7 +195,7 @@ async function serveUpsert(req, res) {
   res.setHeader('Cache-Control', 'no-store')
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
   const key = (req.headers.authorization || '').replace(/^Bearer\s+/i, '') || String(req.query.key || '')
-  if (key !== ADMIN_TOKEN) return res.status(401).json({ error: 'unauthorized' })
+  if (!adminKeyOk(key)) return res.status(401).json({ error: 'unauthorized' })
   let body = req.body
   if (typeof body === 'string') { try { body = JSON.parse(body) } catch { body = null } }
   const list = body && Array.isArray(body.list) ? body.list : body && typeof body === 'object' && body.id != null ? [body] : null
@@ -211,7 +211,7 @@ async function serveRemove(req, res) {
   res.setHeader('Cache-Control', 'no-store')
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
   const key = (req.headers.authorization || '').replace(/^Bearer\s+/i, '') || String(req.query.key || '')
-  if (key !== ADMIN_TOKEN) return res.status(401).json({ error: 'unauthorized' })
+  if (!adminKeyOk(key)) return res.status(401).json({ error: 'unauthorized' })
   try {
     const r = await feed.store.remove(req.query.remove)
     feed.invalidate()

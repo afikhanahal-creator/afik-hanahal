@@ -12,6 +12,8 @@ import { waitUntil } from '@vercel/functions'
 import { createClient } from '@supabase/supabase-js'
 import crypto from 'crypto'
 import * as Auto from '../lib/automations.js'
+import { kurkoosWelcomeText } from '../lib/kurkoos-welcome.js'
+import { isAdminReq, adminKeyOk, passwordOk, makeSession, setupMode } from '../lib/admin-auth.js'
 import { getTemplate } from '../lib/automations-shared.js'
 import * as GA4 from '../lib/ga4.js'
 import { analyzeLead, buildDossier } from '../lib/lead-analyze.js'
@@ -51,8 +53,7 @@ const SUPERMETRICS_API_KEY    = process.env.SUPERMETRICS_API_KEY    || ''
 const META_PAGE_ACCESS_TOKEN  = process.env.META_SYSTEM_USER_TOKEN ||
   'EAAnqYHiWM8cBRvFbXjxZAVjg39koOtAVOJuZC0p1YUFVWpPZACkVAt065X4wJ7FdoBOsvMGN7ldvj6LdiyOFfOcKeXirqcmFPY4sSGJMwK22lagJh2oKC6tERZADuRNNnu7S0Y9B212hWWxfyzy5N4VBprMRNlswT3KF9E8MtVyq2qzSkzZAVhlmBwrmN5jyVqBU2cm344AmvzscH9KXZBIgxI2ZASF4ZBTijw2E'
 const META_APP_SECRET         = process.env.META_APP_SECRET         || ''
-const META_LEADS_VERIFY_TOKEN = process.env.META_LEADS_VERIFY_TOKEN || 'AFIKhanahal2026leads'
-const ADMIN_TOKEN             = process.env.ADMIN_TOKEN             || 'AFIKhanahal2026'
+const META_LEADS_VERIFY_TOKEN = process.env.META_LEADS_VERIFY_TOKEN || ''
 const WA_META_TOKEN           = process.env.WA_META_TOKEN           || ''
 const PHONE_NUMBER_ID         = process.env.WA_PHONE_NUMBER_ID      || '1160230953835065'
 const SUPABASE_URL            = process.env.SUPABASE_URL            || process.env.VITE_SUPABASE_URL        || ''
@@ -857,10 +858,8 @@ function sb() {
   return sbClient || (sbClient = createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { persistSession: false, autoRefreshToken: false } }))
 }
 
-function checkAuth(req) {
-  const auth = req.headers['authorization'] || ''
-  return auth.replace(/^Bearer\s+/i, '') === ADMIN_TOKEN
-}
+// admin access: a session from /api/meta/admin-login, ADMIN_TOKEN from Vercel, or the site's own internal token (lib/admin-auth.js)
+function checkAuth(req) { return isAdminReq(req) }
 
 function normalizePhone(raw) {
   if (!raw) return raw
@@ -1601,7 +1600,7 @@ async function handleSync(req, res) {
   // Accept either a Bearer token (admin UI) OR a ?key= query param, so an external
   // cron service (e.g. cron-job.org) can trigger near-real-time lead sync with a
   // single plain URL — no custom headers needed.
-  if (!checkAuth(req) && req.query.key !== ADMIN_TOKEN) return res.status(401).json({ error: 'Unauthorized' })
+  if (!checkAuth(req) && !adminKeyOk(req.query.key)) return res.status(401).json({ error: 'Unauthorized' })
   if (!META_PAGE_ACCESS_TOKEN) return res.status(500).json({ error: 'META_PAGE_ACCESS_TOKEN not configured' })
   if (!SUPABASE_URL)        return res.status(500).json({ error: 'Supabase not configured' })
 
@@ -2129,6 +2128,10 @@ async function handleDiagnostics(req, res) {
     },
     meta_leads: {
       META_PAGE_ACCESS_TOKEN: check(process.env.META_PAGE_ACCESS_TOKEN || process.env.WA_META_TOKEN),
+      META_SYSTEM_USER_TOKEN: check(process.env.META_SYSTEM_USER_TOKEN),
+      META_CAPI_TOKEN:        check(process.env.META_CAPI_TOKEN),
+      META_CAPI_TOKEN_LEGACY: check(process.env.META_CAPI_TOKEN_LEGACY),
+      WA_META_TOKEN:          check(process.env.WA_META_TOKEN),
       META_PAGE_IDS:          check(process.env.META_PAGE_IDS || process.env.META_PAGE_ID),
       META_APP_SECRET:        check(process.env.META_APP_SECRET) + ' (optional)',
     },
@@ -2692,6 +2695,48 @@ function slimGreenMsg(m) {
   return out
 }
 
+// ── Kurkoos Group site leads → the welcome from the office WhatsApp ─────────────────────────────────────────────
+// The Kurkoos site (kurkoos-group: server/notify-lead.js) calls POST /api/meta/kurkoos-lead {id, name, phone, topic} for
+// every new lead from its forms. Same rules as a Meta lead: the welcome switch, no automatic send to a number someone
+// already wrote to (welcomeExternalLead without force), logged in automation_log as "kurkoos:<id>". The text is built
+// here, not by the caller, and says the lead came from Kurkoos Group. It ends with the time question, so a reply that
+// names a time becomes a callback task (askedForTime). Auth: the token the two sites already share for the finance
+// WhatsApp forward (KURKOOS_FINANCE_HOOK_TOKEN here = FINANCE_WHATSAPP_WEBHOOK_TOKEN there), never in the address.
+async function handleKurkoosLead(req, res) {
+  res.setHeader('Cache-Control', 'no-store')
+  if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
+  const want = String(process.env.KURKOOS_FINANCE_HOOK_TOKEN || '').trim()
+  const got = String(req.headers['authorization'] || '').replace(/^Bearer\s+/i, '').trim()
+  if (!want || got.length !== want.length || !crypto.timingSafeEqual(Buffer.from(got), Buffer.from(want))) return res.status(401).json({ error: 'Unauthorized' })
+  const b = req.body || {}
+  const phone = normalizePhone(String(b.phone || ''))
+  if (!/^972\d{8,9}$/.test(phone)) return res.status(400).json({ ok: false, error: 'bad phone' })
+  const id = String(b.id || '').replace(/[^\w-]/g, '').slice(0, 64) || null
+  const name = String(b.name || '').slice(0, 120)
+  const text = kurkoosWelcomeText({ name, topic: b.topic })
+  const r = await Auto.welcomeExternalLead({ id, name, phone }, { source: 'kurkoos', text, templateId: 'kurkoos_welcome' })
+  return res.status(200).json({ ok: !!r.ok, skipped: r.skipped || null, error: r.ok ? null : (r.error || null) })
+}
+
+// ── Admin login: the password is checked here, never in the browser (lib/admin-auth.js) ─────────────────────────
+// POST {password} → { ok, token } — the token is a signed 30-day session the panel sends as its Bearer.
+// At most 8 wrong tries per IP per 10 minutes (per warm instance; enough against guessing by hand).
+const _loginTries = new Map()
+async function handleAdminLogin(req, res) {
+  res.setHeader('Cache-Control', 'no-store')
+  if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
+  const ip = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || 'x'
+  const now = Date.now(), t = _loginTries.get(ip) || { n: 0, at: now }
+  if (now - t.at > 10 * 60e3) { t.n = 0; t.at = now }
+  if (t.n >= 8) return res.status(429).json({ ok: false, error: 'too many tries' })
+  await new Promise(r => setTimeout(r, 300))
+  if (!(await passwordOk((req.body || {}).password))) { t.n++; _loginTries.set(ip, t); return res.status(401).json({ ok: false }) }
+  _loginTries.delete(ip)
+  const token = makeSession('admin')
+  if (!token) return res.status(500).json({ ok: false, error: 'server secret missing' })
+  return res.status(200).json({ ok: true, token, setup: setupMode() })
+}
+
 export default async function handler(req, res) {
   compressJson(req, res)   // gzip + ETag on every JSON answer — Vercel meters what a function sends (Fast Origin Transfer)
   if (req.method === 'OPTIONS') { cors(res); return res.status(204).end() }
@@ -2738,6 +2783,8 @@ export default async function handler(req, res) {
   if (path === 'diagnostics')    return handleDiagnostics(req, res)
   if (path === 'connect')        return handleConnect(req, res)
   if (path === 'lead-welcome')   return handleLeadWelcome(req, res)
+  if (path === 'kurkoos-lead')   return handleKurkoosLead(req, res)
+  if (path === 'admin-login')    return handleAdminLogin(req, res)
   if (path === 'lead-to-crm' || path === 'crm-sync') return handleMetaCRM(req, res, path)
 
   return res.status(404).json({ error: `Unknown path: ${path}` })

@@ -1,3 +1,4 @@
+import { adminToken } from './adminAuth.js'
 // Projects (deals) on the leads board: the bar of projects above the board (a filter, counts, "+ פרויקט חדש", "ניהול"), the
 // projects manager (create / edit / colors / campaign names that join by themselves / archive / delete, a stage breakdown per
 // project, "create from a campaign"), the project chip on every lead with its picker (move a lead between projects in one click),
@@ -456,7 +457,7 @@ export function NewLeadDialog({ projects, defaultProjectId = '', defaultStage = 
   const save = async () => {
     if (!ok) { setErr(t.nlNeed); return }
     setBusy(true); setErr('')
-    const r = await fetch('/api/contacts?manual=1', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer AFIKhanahal2026' },
+    const r = await fetch('/api/contacts?manual=1', { method: 'POST', headers: { 'Content-Type': 'application/json', get Authorization() { return `Bearer ${adminToken()}` } },
       body: JSON.stringify({ ...f, projectName: proj?.name || '' }), signal: AbortSignal.timeout(25000) }).catch(e => ({ ok: false, json: async () => ({ error: e.message }) }))
     const d = await r.json().catch(() => ({}))
     if (!r.ok || !d.id) { setBusy(false); setErr(d.error || t.nlErr); return }

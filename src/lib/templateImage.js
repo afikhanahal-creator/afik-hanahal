@@ -1,8 +1,8 @@
+import { adminToken } from '../adminAuth.js'
 // A WhatsApp template's picture: compressed in the browser (≤ 1280 px JPEG — WhatsApp shows ~800 px anyway, and every send
 // makes Green API download it once from Supabase Storage) and uploaded through the wizard's signed URL into the public
 // bucket's `templates/` folder (api/seller-form.js `wizard-upload-url`, folder 'templates'), cached for a year.
 // → the picture's public https URL, saved as the template's `image`.
-const ADMIN_TOKEN = 'AFIKhanahal2026'
 export const TEMPLATE_IMAGE_MAX = 1280
 export const TEMPLATE_IMAGE_TYPES = 'image/jpeg,image/png,image/webp,image/gif,image/heic,image/heif'
 
@@ -39,7 +39,7 @@ export async function uploadImage(file, { folder = 'templates', max = TEMPLATE_I
   const type = /^image\/(jpeg|png|webp|gif)$/.test(blob.type || '') ? blob.type : 'image/jpeg'
   const ext = type === 'image/gif' ? 'gif' : type === 'image/png' ? 'png' : type === 'image/webp' ? 'webp' : 'jpg'
   const meta = await fetch('/api/seller-form?action=wizard-upload-url', {
-    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${ADMIN_TOKEN}` },
+    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${adminToken()}` },
     body: JSON.stringify({ name: `${name}.${ext}`, type, size: blob.size, kind: 'image', folder }),
   }).then(r => r.json().catch(() => ({}))).catch(() => ({}))
   if (!meta?.signedUrl || !meta?.url) throw new Error(meta?.error ? `ההעלאה נכשלה: ${meta.error}` : 'ההעלאה נכשלה – נסו שוב')

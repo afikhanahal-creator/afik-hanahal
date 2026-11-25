@@ -1,3 +1,4 @@
+import { adminToken } from '../adminAuth.js'
 // Profile pictures in the browser: every face on screen asks for its key once — a WhatsApp number, or a Messenger / Instagram
 // thread id ('<platform>:<account>:<user>') — the asks are gathered for 120 ms and sent together (POST /api/meta/chat-avatars,
 // up to 40 per call). The server answers the WhatsApp picture, else the person's Messenger / Instagram one (with where it came
@@ -6,7 +7,7 @@
 import { avatarKey, socialKey, avatarExpiry } from '../../lib/wa-avatar.js'
 
 const KEY = 'afik_wa_avatars_v2'
-const AUTH = { Authorization: 'Bearer AFIKhanahal2026' }
+const AUTH = { get Authorization() { return `Bearer ${adminToken()}` } }
 const mem = new Map()      // key → { u: url | '', s: source, l: profile link, x: valid until (ms) }
 const subs = new Map()     // key → Set<fn>
 const queue = new Set()

@@ -26,7 +26,8 @@ jobs:
           sparse-checkout-cone-mode: false
       - name: Tick
         run: |
-          KEY="${AUTOMATION_KEY:-$(grep -oE "const ADMIN_TOKEN\s*=\s*'[^']+'" src/App.jsx | head -1 | sed -E "s/.*'([^']+)'.*/\1/")}"
+          KEY="${AUTOMATION_KEY}"
+          if [ -z "$KEY" ]; then echo "::warning::AUTOMATION_KEY is not set in the repository secrets. The tick works without it only until ADMIN_PASSWORD is set in Vercel."; fi
           echo "::add-mask::${KEY}"
           CODE=$(curl -sS --max-time 120 -o out.json -w '%{http_code}' "https://www.afikhanahal.co.il/api/meta/auto-tick?key=${KEY}&catchup=${CATCHUP}" || echo 000)
           # The repository is public: print counts only, never lead details
