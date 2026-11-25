@@ -1397,6 +1397,12 @@ names the signer whose turn it is). `reminderGroup()`: the link expires within 2
 "תזכורות למי שעוד לא חתם" (`WordingsLibrary kind="remind"`, `settings.remindMessages`, `cleanRemindMessages`, own ids `wr_…`).
 `renderWording` now drops the ה of "הנכס" after an attached ב / ל / כ ("בנכס ב…", never "בהנכס" — the sign wordings had it too).
 QA: the scratchpad's `qa-remind.cjs` (`PHONE=1` = iPhone 13).
+**No automatic follow-ups to whoever hasn't signed (2026-11-25 — the office: "remove them, we send by hand"):** the automatic
+reminders are **off** — `DEFAULT_REMINDERS.enabled = false` and `cleanReminders()` is on only for an explicit `enabled: true`
+(`app_settings.doc_settings.reminders.enabled` was set to `false` the same day), so `remindUnsigned()` in `auto-tick` / `auto-run`
+answers `skipped: 'off'` and nothing goes to a client by itself. The office's own send stays: the drawer's "שליחת תזכורת עכשיו"
+(`docs-remind { now }` = `force`), with the wordings library. The settings switch ("תזכורות והתראות") turns the automatic ones back
+on; never default it to on again.
 **Flow:** `docs-create` cleans the input (`cleanDocInput`), links the CRM lead (the given id, else the newest lead with that phone /
 email — never a new lead), numbers the document and writes `created` on the lead. `docs-send {id, via}` makes the private token
 (kept only as a hash), freezes the clauses on the row, renders the PDF the client signs (stored, its SHA-256 on the row), and
